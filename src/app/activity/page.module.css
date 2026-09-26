@@ -354,3 +354,11 @@
 .loose.error {
   color: #ef9a9a;
 }
+
+/* the messages can be copied, e.g. to paste them into a bug report */
+.problemList,
+.timeline,
+.loose {
+  user-select: text;
+  -webkit-user-select: text;
+}
