@@ -361,3 +361,32 @@
   stroke: var(--c-track);
   stroke-dasharray: 6 4;
 }
+
+.marker {
+  pointer-events: none;
+}
+
+.marker circle {
+  fill: #ff3b3b;
+  stroke: #fff;
+  stroke-width: 2;
+}
+
+.marker .markerPulse {
+  fill: rgba(255, 59, 59, 0.35);
+  stroke: none;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: marker-pulse 1.6s ease-out infinite;
+}
+
+@keyframes marker-pulse {
+  0% {
+    transform: scale(0.4);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.4);
+    opacity: 0;
+  }
+}

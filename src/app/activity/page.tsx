@@ -90,6 +90,21 @@ function ProblemItem({run, next, event, state, file, line}: {run: Run; next?: Ru
         <button className={styles.rawToggle} onClick={() => setRaw(!raw)}>
           {raw ? 'hide entry' : 'show entry'}
         </button>
+        {event.x !== undefined && event.y !== undefined && (
+          <>
+            {' · '}
+            <Link
+              className={styles.rawToggle}
+              href={
+                `/map?at=${event.x.toFixed(2)},${event.y.toFixed(2)}` +
+                (run.jobId ? `&job=${run.jobId}` : '') +
+                `&msg=${encodeURIComponent(`${clock(event.t, true)} ${text}`)}`
+              }
+            >
+              show on map
+            </Link>
+          </>
+        )}
       </p>
       {raw && <RawEntry event={event} file={file} line={line} />}
     </li>

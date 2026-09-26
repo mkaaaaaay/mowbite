@@ -302,3 +302,26 @@
   opacity: 0.4;
   cursor: default;
 }
+
+.spot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--error) 50%, transparent);
+  background: color-mix(in srgb, var(--error) 14%, transparent);
+  color: #ffb3b3;
+  font-size: 13px;
+}
+
+.spot button {
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}

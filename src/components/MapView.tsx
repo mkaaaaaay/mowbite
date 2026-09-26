@@ -44,6 +44,10 @@ interface MapViewProps {
   datum?: Datum;
   // numbers drawn in areas, e.g. mowing order
   orderLabels?: Record<string, number>;
+  // spots to point out, e.g. where an error happened (red, pulsing)
+  markers?: Point[];
+  // start zoomed in around this point instead of showing the whole map
+  focus?: Point;
   // what the mower draws itself, e.g. the lines of an area recording
   overlay?: {points: Point[]; color: string; closed: boolean}[];
 }
@@ -116,6 +120,8 @@ export default function MapView({
   stripes,
   preview,
   overlay,
+  markers,
+  focus,
   onClickEmpty,
   datum,
   orderLabels,
@@ -209,8 +215,17 @@ export default function MapView({
   const toScreen = (x: number, y: number): [number, number] => [(x - minX) * scale + padX, HEIGHT - ((y - minY) * scale + padY)];
   const toLocal = (sx: number, sy: number): [number, number] => [(sx - padX) / scale + minX, (HEIGHT - sy - padY) / scale + minY];
 
+  // about 12 m around the focus point, until the user zooms or pans themselves
+  const home: View | null = focus
+    ? (() => {
+        const [fx, fy] = toScreen(focus.x, focus.y);
+        const size = Math.min(WIDTH, 12 * scale);
+        return {x: fx - size / 2, y: fy - size / 2, size};
+      })()
+    : null;
+
   // what's shown: the user's zoom, or in follow mode a window around the mower
-  let shown = view;
+  let shown = view ?? home;
   if (follow && displayMower) {
     const [sx, sy] = toScreen(displayMower.x, displayMower.y);
     const size = followSpanMeters * followZoom * scale;
@@ -354,7 +369,7 @@ export default function MapView({
       return;
     }
     setView((prev) => {
-      const v = prev ?? {x: 0, y: 0, size: WIDTH};
+      const v = prev ?? home ?? {x: 0, y: 0, size: WIDTH};
       const size = Math.min(WIDTH * 4, Math.max(WIDTH / MAX_ZOOM, v.size * factor));
       const f = size / v.size;
       return {x: px - (px - v.x) * f, y: py - (py - v.y) * f, size};
@@ -362,7 +377,7 @@ export default function MapView({
   };
 
   const zoomCenter = (factor: number) => {
-    const v = view ?? {x: 0, y: 0, size: WIDTH};
+    const v = view ?? home ?? {x: 0, y: 0, size: WIDTH};
     zoomAt(factor, v.x + v.size / 2, v.y + v.size / 2);
   };
 
@@ -444,7 +459,7 @@ export default function MapView({
     }
     gesture.current.moved = true;
     if (follow) return; // the view is pinned to the mower
-    const v = view ?? {x: 0, y: 0, size: WIDTH};
+    const v = view ?? home ?? {x: 0, y: 0, size: WIDTH};
     const unitsPerPx = v.size / svg.getBoundingClientRect().width;
     setView({...v, x: v.x - dx * unitsPerPx, y: v.y - dy * unitsPerPx});
   };
@@ -684,6 +699,16 @@ export default function MapView({
             })}
           </>
         )}
+
+        {markers?.map((m, i) => {
+          const [mx, my] = toScreen(m.x, m.y);
+          return (
+            <g key={'mk' + i} className={styles.marker}>
+              <circle cx={mx} cy={my} r={14 * k} className={styles.markerPulse} />
+              <circle cx={mx} cy={my} r={5 * k} />
+            </g>
+          );
+        })}
 
         {overlay?.map((line, i) => {
           if (line.points.length < 2) return null;

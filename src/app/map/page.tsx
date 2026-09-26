@@ -59,7 +59,12 @@ function MapEditor() {
   const jobList = useJobList();
   // null = live trail, otherwise a recorded job shown instead
   // ?job=<id> (from the activity page) opens that job's track until another one is picked
-  const urlJob = useSearchParams().get('job');
+  const search = useSearchParams();
+  const urlJob = search.get('job');
+  // ?at=x,y&msg=... from a problem on the activity page: marked on the map with its message
+  const at = search.get('at')?.split(',').map(Number);
+  const [spotClosed, setSpotClosed] = useState(false);
+  const spot = !spotClosed && at?.length === 2 && at.every(Number.isFinite) ? {x: at[0], y: at[1], msg: search.get('msg') ?? ''} : null;
   const [picked, setPicked] = useState<string | null | undefined>(undefined);
   const jobId = picked === undefined ? urlJob : picked;
   const [loaded, setLoaded] = useState<{id: string; segments: TrackSegment[]} | null>(null);
@@ -401,6 +406,14 @@ function MapEditor() {
 
         <div className={styles.editor}>
           <div className={styles.mapCol}>
+            {spot && (
+              <div className={styles.spot}>
+                <span>{spot.msg || 'Marked spot'}</span>
+                <button onClick={() => setSpotClosed(true)} aria-label="close">
+                  ×
+                </button>
+              </div>
+            )}
             {shownMap && (
               <MapView
                 zoomable
@@ -431,6 +444,8 @@ function MapEditor() {
                 onInsertPending={(i, x, y) => setPendingPoints((prev) => prev.toSpliced(i, 0, {x, y}))}
                 stripes={stripes}
                 preview={splitPreview ?? (merged ? [merged.outline] : undefined)}
+                markers={spot ? [spot] : undefined}
+                focus={spot ?? undefined}
               />
             )}
 
