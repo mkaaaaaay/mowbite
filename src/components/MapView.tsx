@@ -2,10 +2,11 @@
 
 import type {MowerMap, Point} from '@/hooks/useMowerMap';
 import {useEasedPose} from '@/hooks/useEasedPose';
+import Link from 'next/link';
 import {containsPoint, polygonArea} from '@/lib/geometry';
 import {settingsStore} from '@/lib/settings';
 import {dockIcon, mowerIcon} from './mapIcons';
-import {availableSources, IMAGERY, imageryTiles, type Datum, type ImagerySource} from '@/lib/imagery';
+import {availableSources, imageryInfo, imageryTiles, type Datum, type ImagerySource} from '@/lib/imagery';
 import {useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import styles from './MapView.module.css';
 
@@ -441,7 +442,7 @@ export default function MapView({
   if (map.areas.length === 0 && !displayMower && !pendingPoints?.length) return null;
 
 
-  const sources = datum ? availableSources(datum) : [];
+  const sources = datum ? availableSources(datum, settings.imagery) : [];
   const source = imagery && sources.length ? (sources.includes(imagery) ? imagery : sources[0]) : null;
   const setSource = (next: ImagerySource | null) => {
     setImagery(next);
@@ -455,7 +456,8 @@ export default function MapView({
     const v = shown ?? {x: 0, y: 0, size: WIDTH};
     const [left, bottom] = toLocal(v.x, v.y + v.size);
     const [right, top] = toLocal(v.x + v.size, v.y);
-    tiles = imageryTiles(source, datum, {left, right, bottom, top, metersPerPixel: 1 / ((pxPerMeter * svgPx) / WIDTH)});
+    const metersPerPixel = 1 / ((pxPerMeter * svgPx) / WIDTH);
+    tiles = imageryTiles(source, datum, {left, right, bottom, top, metersPerPixel}, settings.imagery);
   }
 
   // meter grid, step picked so lines stay at least ~25px apart
@@ -746,6 +748,9 @@ export default function MapView({
             ◩
           </button>
         )}
+        <Link href="/settings" className={styles.linkButton} aria-label="settings" title="Map colors, icons and aerial imagery">
+          ⚙
+        </Link>
         {(view || (follow && followZoom !== 1)) && (
           <button
             onClick={() => {
@@ -766,12 +771,12 @@ export default function MapView({
             <select value={source} onChange={(e) => setSource(e.target.value as ImagerySource)}>
               {sources.map((s) => (
                 <option key={s} value={s}>
-                  {IMAGERY[s].label}
+                  {imageryInfo(s, settings.imagery).label}
                 </option>
               ))}
             </select>
           )}
-          <span>© {IMAGERY[source].attribution}</span>
+          <span>© {imageryInfo(source, settings.imagery).attribution}</span>
         </div>
       )}
       {selectedArea && activeIndex !== null && onDeleteVertex && selectedArea.outline.length > 3 && (

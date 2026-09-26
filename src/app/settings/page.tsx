@@ -1,6 +1,7 @@
 'use client';
 
 import {DOCK_ICONS, MOWER_ICONS} from '@/components/mapIcons';
+import {isTileUrl} from '@/lib/imagery';
 import {COLORS, saveSettings, settingsStore, sharedSettings, type ColorKey} from '@/lib/settings';
 import {useSyncExternalStore} from 'react';
 import styles from './page.module.css';
@@ -49,6 +50,12 @@ export default function SettingsPage() {
     saveSettings({...cur, colors: next});
   };
 
+  const setImagery = (field: 'url' | 'attribution', value: string) => {
+    const cur = settingsStore.snapshot();
+    saveSettings({...cur, imagery: {...cur.imagery, [field]: value.trim() || undefined}});
+  };
+  const imageryUrl = settings.imagery?.url;
+
   const setIcon = (which: 'mower' | 'dock', key: string) => {
     const cur = settingsStore.snapshot();
     saveSettings({...cur, icons: {...cur.icons, [which]: key}});
@@ -70,6 +77,37 @@ export default function SettingsPage() {
         <section className={styles.card}>
           <h2>Docking station icon</h2>
           <IconChoice icons={DOCK_ICONS} value={icons.dock ?? DOCK_ICONS[0].key} onChange={(k) => setIcon('dock', k)} />
+        </section>
+
+        <section className={styles.card}>
+          <h2>Aerial imagery</h2>
+          <p className={styles.dim}>
+            In Lower Saxony the official LGLN orthophotos are built in. Anywhere else you can add a tile source you
+            are allowed to use, e.g. the open orthophotos of your state, as an XYZ url with {'{z}'}, {'{x}'} and {'{y}'}.
+            You are responsible for that source&apos;s terms of use.
+          </p>
+          {/* saved when leaving the field, not on every key */}
+          <label className={styles.field}>
+            Tile url
+            <input
+              key={'url' + (imageryUrl ?? '')}
+              defaultValue={imageryUrl ?? ''}
+              placeholder="https://example.org/tiles/{z}/{x}/{y}.jpg"
+              onBlur={(e) => setImagery('url', e.target.value)}
+            />
+          </label>
+          {imageryUrl && !isTileUrl(imageryUrl) && (
+            <span className={styles.error}>The url needs to start with http(s) and contain {'{z}'}, {'{x}'} and {'{y}'}.</span>
+          )}
+          <label className={styles.field}>
+            Attribution
+            <input
+              key={'attr' + (settings.imagery?.attribution ?? '')}
+              defaultValue={settings.imagery?.attribution ?? ''}
+              placeholder="shown on the map, as the source requires"
+              onBlur={(e) => setImagery('attribution', e.target.value)}
+            />
+          </label>
         </section>
 
         <section className={styles.card}>

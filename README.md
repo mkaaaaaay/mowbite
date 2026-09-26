@@ -16,8 +16,8 @@ Mowmate is a community project and not affiliated with the OpenMower project.
   mowing direction. The preview follows the same rules as the mower, including `mow_angle_offset`.
 - **Mowing order** of the areas.
 - **Tracks**: the trail of the current mow and of past mows, read from the mower's own history.
-- **Aerial imagery** under the map, optional: Esri World Imagery everywhere, and the official
-  20 cm orthophotos of LGLN when the mower is in Lower Saxony, Germany.
+- **Aerial imagery** under the map, optional: the official 20 cm orthophotos of LGLN when the
+  mower is in Lower Saxony, Germany, or any XYZ tile source you add in the settings.
 - **Sensors** with a one hour history.
 - **Colors and icons** of the map, shared between all your devices.
 
@@ -121,5 +121,5 @@ To open the dev server from a phone, allow its host: `DEV_ORIGINS=<pc-name>,<pc-
 
 GPL-3.0, see [LICENSE](LICENSE).
 
-Aerial imagery: Esri, Vantor, Earthstar Geographics, GIS User Community; LGLN, CC BY 4.0. The app shows the attribution
-while imagery is on.
+Built-in aerial imagery: LGLN, CC BY 4.0. The app shows the attribution while imagery is on. For
+a tile source you add yourself, you're responsible for its terms.

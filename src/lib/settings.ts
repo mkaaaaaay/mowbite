@@ -20,6 +20,8 @@ export type ColorKey = (typeof COLORS)[number]['key'];
 export interface Settings {
   colors?: Partial<Record<ColorKey, string>>;
   icons?: {mower?: string; dock?: string};
+  // own aerial imagery source, xyz tile url
+  imagery?: {url?: string; attribution?: string};
 }
 
 const STORAGE_KEY = 'appSettings';

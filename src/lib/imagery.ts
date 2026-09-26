@@ -1,11 +1,23 @@
 import {toUtm, utmZone} from './utm';
 
-export type ImagerySource = 'esri' | 'lgln';
+// lgln is built in because its license is clear (cc by 4.0). anything else the user adds as an xyz
+// tile url in the settings and is responsible for its terms
+export type ImagerySource = 'lgln' | 'custom';
 
-export const IMAGERY: Record<ImagerySource, {label: string; attribution: string}> = {
-  esri: {label: 'Esri World Imagery', attribution: 'Esri, Vantor, Earthstar Geographics, GIS User Community'},
-  lgln: {label: 'Niedersachsen DOP20', attribution: `LGLN (${new Date().getFullYear()}) CC BY 4.0`},
-};
+export interface CustomImagery {
+  url?: string;
+  attribution?: string;
+}
+
+// needs the three placeholders, http(s) only
+export function isTileUrl(url: string | undefined): url is string {
+  return !!url && /^https?:\/\//.test(url) && ['{z}', '{x}', '{y}'].every((p) => url.includes(p));
+}
+
+export function imageryInfo(source: ImagerySource, custom?: CustomImagery): {label: string; attribution: string} {
+  if (source === 'lgln') return {label: 'Niedersachsen DOP20', attribution: `LGLN (${new Date().getFullYear()}) CC BY 4.0`};
+  return {label: 'Own source', attribution: custom?.attribution?.trim() || new URL(custom?.url ?? 'http://x').host};
+}
 
 export interface Datum {
   lat: number;
@@ -13,9 +25,12 @@ export interface Datum {
 }
 
 // lgln only covers lower saxony and serves utm zone 32 directly
-export function availableSources(datum: Datum): ImagerySource[] {
+export function availableSources(datum: Datum, custom?: CustomImagery): ImagerySource[] {
+  const out: ImagerySource[] = [];
   const inNds = datum.lat > 51.2 && datum.lat < 54.2 && datum.lon > 6.6 && datum.lon < 11.7;
-  return inNds && utmZone(datum.lat, datum.lon) === 32 ? ['lgln', 'esri'] : ['esri'];
+  if (inNds && utmZone(datum.lat, datum.lon) === 32) out.push('lgln');
+  if (isTileUrl(custom?.url)) out.push('custom');
+  return out;
 }
 
 // one image on the map, local meters are turned into svg units by the caller
@@ -74,8 +89,8 @@ function lglnTiles(datum: Datum, v: View): ImageryTile[] {
 const tileLon = (x: number, z: number) => (x / 2 ** z) * 360 - 180;
 const tileLat = (y: number, z: number) => (Math.atan(Math.sinh(Math.PI * (1 - (2 * y) / 2 ** z))) * 180) / Math.PI;
 
-// web mercator tiles, each one placed by its corners in utm so the slight rotation is right
-function esriTiles(datum: Datum, v: View): ImageryTile[] {
+// web mercator xyz tiles, each one placed by its corners in utm so the slight rotation is right
+function xyzTiles(template: string, datum: Datum, v: View): ImageryTile[] {
   const zone = utmZone(datum.lat, datum.lon);
   const d = toUtm(datum.lat, datum.lon, zone);
   const cosLat = Math.cos((datum.lat * Math.PI) / 180);
@@ -103,7 +118,7 @@ function esriTiles(datum: Datum, v: View): ImageryTile[] {
   for (let x = x0; x <= x1; x++) {
     for (let y = y0; y <= y1; y++) {
       tiles.push({
-        href: `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`,
+        href: template.replace('{z}', String(z)).replace('{x}', String(x)).replace('{y}', String(y)),
         corners: [
           local(tileLat(y, z), tileLon(x, z)),
           local(tileLat(y, z), tileLon(x + 1, z)),
@@ -115,6 +130,7 @@ function esriTiles(datum: Datum, v: View): ImageryTile[] {
   return tiles;
 }
 
-export function imageryTiles(source: ImagerySource, datum: Datum, v: View): ImageryTile[] {
-  return source === 'lgln' ? lglnTiles(datum, v) : esriTiles(datum, v);
+export function imageryTiles(source: ImagerySource, datum: Datum, v: View, custom?: CustomImagery): ImageryTile[] {
+  if (source === 'lgln') return lglnTiles(datum, v);
+  return isTileUrl(custom?.url) ? xyzTiles(custom.url, datum, v) : [];
 }
