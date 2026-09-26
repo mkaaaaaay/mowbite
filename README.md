@@ -12,14 +12,19 @@ Mowmate is a community project and not affiliated with the OpenMower project.
   controls, today's runs, and a map that follows the mower while it drives (or always, if you like).
 - **Map editor**: zoom and pan, move, add and delete outline points (with a loupe on touch screens),
   reduce the points of recorded outlines, split and merge areas, rename areas and change their type,
-  undo. Changes are only sent to the mower when you save.
+  undo. Changes are only sent to the mower when you save. A layer menu hides obstacles, navigation
+  areas, numbers and tracks.
+- **Record areas by driving**: a thumb stick drives the mower around a new area, its obstacles and
+  the docking station, with a live preview of what's being recorded. The mower stops as soon as
+  the stick is let go, the app is left or the connection drops.
 - **Mowing settings per area**: outline passes, overlap, offset and mow angle, with a preview of the
   mowing direction. The preview follows the same rules as the mower, including `mow_angle_offset`.
 - **Mowing order** of the areas.
 - **Tracks**: the trail of the current mow and of past mows, read from the mower's own history.
+  Driving without blades is drawn dashed.
 - **Activity**: every day's runs from the mower's event history, with the result, the areas, the
   mowing time and a timeline. Problems come with an explanation, the circumstances and the raw
-  entry from the history file.
+  entry from the history file, and can be shown on the map where they happened.
 - **Aerial imagery** under the map, optional: the official open orthophotos of Germany (every state
   except Saarland), Austria, Switzerland, the Netherlands, Belgium, Luxembourg, France, Spain,
   Czechia and the USA, anywhere else an XYZ tile source you add in the settings.
@@ -27,7 +32,7 @@ Mowmate is a community project and not affiliated with the OpenMower project.
   it doesn't matter whether a browser was open.
 - **Colors, icons and icon sizes** of the map, shared between all your devices.
 
-Works with OpenMower v1 and v2 hardware.
+Works with OpenMower v1 and v2 hardware. On phones the pages sit in a tab bar at the bottom.
 
 ## Install on the mower
 
