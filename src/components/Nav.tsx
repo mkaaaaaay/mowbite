@@ -12,8 +12,9 @@ import {tr, useLang} from '@/lib/i18n';
 const ICONS = {
   dashboard: (
     <>
-      <path d="M4 16a8 8 0 1 1 16 0" />
-      <path d="m12 16 4-4" />
+      <path d="M6.3 18.7a8 8 0 1 1 11.4 0" />
+      <path d="m12 13 3.5-3.5" />
+      <circle cx="12" cy="13" r="1.2" />
     </>
   ),
   map: (
