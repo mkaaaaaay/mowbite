@@ -103,6 +103,10 @@ Two optional settings go under `environment` in `compose.yaml`:
 
 Settings made in the app (colors, icons) are stored in the `settings` volume.
 
+If you run the [OpenMower start page](https://github.com/xtech/web-openmower-entrypoint), Mowmate
+shows up there by itself (labels in `compose.yaml`). Change `openmower.ui.port` too if you change
+the port.
+
 ## Development
 
 ```bash
