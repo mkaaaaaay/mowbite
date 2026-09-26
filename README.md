@@ -1,10 +1,10 @@
-# Mowmate
+# MowBite
 
 A web app for [OpenMower](https://github.com/ClemensElflein/OpenMower) robot mowers. It runs on the
 mower itself as a small container (about 5 MB) and talks to OpenMower over MQTT, no cloud involved.
 Works on phones and desktops.
 
-Mowmate is a community project and not affiliated with the OpenMower project.
+MowBite is a community project and not affiliated with the OpenMower project.
 
 ## What it does
 
@@ -40,8 +40,8 @@ You need a running OpenMower with the MQTT websocket on port 9001, which is the 
 mower:
 
 ```bash
-mkdir mowmate && cd mowmate
-curl -O https://raw.githubusercontent.com/mkaaaaaay/mowmate/main/compose.yaml
+mkdir mowbite && cd mowbite
+curl -O https://raw.githubusercontent.com/mkaaaaaay/mowbite/main/compose.yaml
 docker compose pull
 docker compose up -d
 ```
@@ -53,8 +53,8 @@ mower) and amd64.
 ### Build it yourself
 
 ```bash
-git clone https://github.com/mkaaaaaay/mowmate.git
-cd mowmate
+git clone https://github.com/mkaaaaaay/mowbite.git
+cd mowbite
 docker compose up -d --build
 ```
 
@@ -62,14 +62,14 @@ Building on the mower needs about 1 GB of free space for a while. If yours is sh
 on a PC and copy the image over:
 
 ```bash
-docker buildx build --platform linux/arm64 -t ghcr.io/mkaaaaaay/mowmate:latest --load .
-docker save ghcr.io/mkaaaaaay/mowmate:latest | ssh openmower@<your-mower> docker load
+docker buildx build --platform linux/arm64 -t ghcr.io/mkaaaaaay/mowbite:latest --load .
+docker save ghcr.io/mkaaaaaay/mowbite:latest | ssh openmower@<your-mower> docker load
 ```
 
 ### Update
 
 ```bash
-cd mowmate
+cd mowbite
 docker compose pull
 docker compose up -d
 ```
@@ -82,12 +82,12 @@ keep the old version for a while.
 ### Remove
 
 ```bash
-cd mowmate
+cd mowbite
 docker compose down -v
 ```
 
 `-v` also deletes the saved settings, leave it out to keep them. Nothing else on the mower is
-touched, Mowmate doesn't change any OpenMower files.
+touched, MowBite doesn't change any OpenMower files.
 
 ### Troubleshooting
 
@@ -118,7 +118,7 @@ Optional settings go under `environment` in `compose.yaml`:
 Settings made in the app (colors, icons) and the recorded sensor values are stored in the
 `settings` volume.
 
-If you run the [OpenMower start page](https://github.com/xtech/web-openmower-entrypoint), Mowmate
+If you run the [OpenMower start page](https://github.com/xtech/web-openmower-entrypoint), MowBite
 shows up there by itself (labels in `compose.yaml`). Change `openmower.ui.port` too if you change
 the port.
 

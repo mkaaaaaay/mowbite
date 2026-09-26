@@ -146,7 +146,7 @@ export default function Home() {
         <h1 className={styles.brand}>
           <LogoMark size={40} />
           <span>
-            <strong>mow</strong>mate
+            <strong>mow</strong>bite
           </span>
         </h1>
 

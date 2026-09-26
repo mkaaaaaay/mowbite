@@ -23,7 +23,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "Mowmate",
+  title: "MowBite",
   description: "A web app for OpenMower robot mowers",
 };
 

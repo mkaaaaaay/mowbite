@@ -48,10 +48,10 @@ export default function Nav() {
   }, []);
   return (
     <nav className={styles.nav}>
-      <Link href="/" className={styles.logo} aria-label="Mowmate">
+      <Link href="/" className={styles.logo} aria-label="MowBite">
         <LogoMark />
         <span className={styles.wordmark}>
-          <strong>mow</strong>mate
+          <strong>mow</strong>bite
         </span>
       </Link>
       {LINKS.map((link) => (
