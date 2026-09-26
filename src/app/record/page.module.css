@@ -1,0 +1,139 @@
+.page {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  max-width: var(--content-max-width);
+  padding: 24px 16px 60px;
+}
+
+.main h1 {
+  font-size: 26px;
+}
+
+.dim {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  backdrop-filter: var(--card-blur, none);
+  -webkit-backdrop-filter: var(--card-blur, none);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.card a {
+  color: var(--accent);
+}
+
+.layout {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.map {
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--card-border);
+}
+
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+@media (min-width: 900px) {
+  .layout {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+
+  .map {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .side {
+    width: 380px;
+  }
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.card button,
+.speeds button {
+  padding: 11px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--card-border);
+  background: rgba(128, 128, 128, 0.1);
+  color: var(--foreground);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.card button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.card .main {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+.card .danger {
+  border-color: color-mix(in srgb, var(--error) 50%, transparent);
+  color: var(--error);
+  background: transparent;
+}
+
+.drive {
+  align-items: center;
+}
+
+.warn {
+  color: var(--error);
+}
+
+.speeds {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.speeds button {
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.speeds .on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+}

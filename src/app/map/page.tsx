@@ -18,6 +18,7 @@ import {polygonArea} from '@/lib/geometry';
 import {mergeOutlines} from '@/lib/mergeAreas';
 import {generateId, splitByPath} from '@/lib/splitPolygon';
 import {isDocked} from '@/lib/status';
+import Link from 'next/link';
 import {useSearchParams} from 'next/navigation';
 import {Suspense, useEffect, useState} from 'react';
 import styles from './page.module.css';
@@ -440,9 +441,21 @@ function MapEditor() {
             {map && (
               <div className={styles.inlineRow}>
                 {mode === 'idle' && (
-                  <button className={styles.pillButton} onClick={startDraw}>
-                    New area
-                  </button>
+                  <>
+                    <button className={styles.pillButton} onClick={startDraw}>
+                      Draw area
+                    </button>
+                    {/* recording adds the area on the mower, unsaved edits here would overwrite it */}
+                    {history.length ? (
+                      <span className={[styles.pillButton, styles.disabledLink].join(' ')} title="Save or undo your changes first">
+                        Record by driving
+                      </span>
+                    ) : (
+                      <Link href="/record" className={styles.pillButton}>
+                        Record by driving
+                      </Link>
+                    )}
+                  </>
                 )}
                 <button className={styles.pillButton} onClick={undo} disabled={!history.length}>
                   Undo

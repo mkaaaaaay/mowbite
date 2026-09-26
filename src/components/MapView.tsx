@@ -44,6 +44,8 @@ interface MapViewProps {
   datum?: Datum;
   // numbers drawn in areas, e.g. mowing order
   orderLabels?: Record<string, number>;
+  // what the mower draws itself, e.g. the lines of an area recording
+  overlay?: {points: Point[]; color: string; closed: boolean}[];
 }
 
 interface Bounds {
@@ -69,6 +71,11 @@ const AREA_CLASS: Record<string, string> = {
   nav: styles.navArea,
   obstacle: styles.obstacleArea,
   draft: styles.draftArea,
+};
+const OVERLAY_CLASS: Record<string, string> = {
+  green: styles.overlayOutline,
+  red: styles.overlayObstacle,
+  blue: styles.overlayLive,
 };
 const LOUPE_PX = 120;
 const LOUPE_ZOOM = 2.5;
@@ -100,6 +107,7 @@ export default function MapView({
   zoomable = false,
   stripes,
   preview,
+  overlay,
   onClickEmpty,
   datum,
   orderLabels,
@@ -634,6 +642,17 @@ export default function MapView({
             })}
           </>
         )}
+
+        {overlay?.map((line, i) => {
+          if (line.points.length < 2) return null;
+          const pts = line.points.map((p) => toScreen(p.x, p.y).join(',')).join(' ');
+          const cls = OVERLAY_CLASS[line.color] ?? styles.overlayLive;
+          return line.closed ? (
+            <polygon key={'ov' + i} points={pts} className={cls} />
+          ) : (
+            <polyline key={'ov' + i} points={pts} className={cls} />
+          );
+        })}
 
         {preview?.map((piece, i) => (
           <polygon

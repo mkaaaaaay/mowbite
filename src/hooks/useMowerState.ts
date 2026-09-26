@@ -7,6 +7,7 @@ export interface MowerState {
   battery_percentage: number;
   gps_percentage: number;
   current_state: string;
+  current_sub_state?: string;
   emergency: number;
   is_charging: number;
   rain_detected: number;
