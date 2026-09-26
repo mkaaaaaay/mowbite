@@ -648,8 +648,9 @@ export default function MapView({
         {displayMower &&
           (() => {
             const [sx, sy] = toScreen(displayMower.x, displayMower.y);
-            // real size, but never smaller than a few pixels when zoomed out
-            const size = Math.max(MOWER_SIZE * scale, 7 * k) * (settings.icons?.mowerSize ?? 1);
+            // same size on screen like the dock, or its real size (never smaller than a few pixels)
+            const base = settings.icons?.mowerRealSize ? Math.max(MOWER_SIZE * scale, 7 * k) : 8 * k;
+            const size = base * (settings.icons?.mowerSize ?? 1);
             // svg y points down, so the map's ccw heading becomes a cw rotation
             const deg = (-displayMower.heading * 180) / Math.PI;
             return (

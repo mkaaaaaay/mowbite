@@ -21,7 +21,7 @@ export type ColorKey = (typeof COLORS)[number]['key'];
 export interface Settings {
   colors?: Partial<Record<ColorKey, string>>;
   // sizes are factors, 1 = default
-  icons?: {mower?: string; dock?: string; mowerSize?: number; dockSize?: number};
+  icons?: {mower?: string; dock?: string; mowerSize?: number; dockSize?: number; mowerRealSize?: boolean};
   // map on the dashboard: only while driving (default) or always
   dashboard?: {map?: 'auto' | 'always'};
   // own aerial imagery source, xyz tile url

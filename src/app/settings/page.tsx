@@ -88,7 +88,7 @@ export default function SettingsPage() {
   };
   const imageryUrl = settings.imagery?.url;
 
-  const setIcon = (field: 'mower' | 'dock' | 'mowerSize' | 'dockSize', value: string | number) => {
+  const setIcon = (field: 'mower' | 'dock' | 'mowerSize' | 'dockSize' | 'mowerRealSize', value: string | number | boolean) => {
     const cur = settingsStore.snapshot();
     saveSettings({...cur, icons: {...cur.icons, [field]: value}});
   };
@@ -125,6 +125,15 @@ export default function SettingsPage() {
         <section className={styles.card}>
           <h2>Mower icon</h2>
           <IconChoice icons={MOWER_ICONS} value={icons.mower ?? MOWER_ICONS[0].key} onChange={(k) => setIcon('mower', k)} rotate />
+          <div className={styles.segment}>
+            <span>On the map</span>
+            <button className={!icons.mowerRealSize ? styles.segmentOn : undefined} onClick={() => setIcon('mowerRealSize', false)}>
+              Same size at every zoom
+            </button>
+            <button className={icons.mowerRealSize ? styles.segmentOn : undefined} onClick={() => setIcon('mowerRealSize', true)}>
+              Real size
+            </button>
+          </div>
           <SizeSlider value={icons.mowerSize ?? 1} onChange={(v) => setIcon('mowerSize', v)} />
           <IconPreview icons={icons} />
         </section>
