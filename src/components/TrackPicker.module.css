@@ -1,0 +1,66 @@
+.picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  backdrop-filter: var(--card-blur, none);
+  -webkit-backdrop-filter: var(--card-blur, none);
+  min-width: 0;
+}
+
+.title {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.days,
+.times {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 2px;
+}
+
+.days::-webkit-scrollbar,
+.times::-webkit-scrollbar {
+  display: none;
+}
+
+.times {
+  flex-wrap: wrap;
+}
+
+.days button,
+.times button {
+  flex: none;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--card-border);
+  background: transparent;
+  color: var(--foreground);
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.days .on,
+.times .on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.days .half {
+  border-color: var(--accent);
+}
+
+.info {
+  font-size: 12px;
+  color: var(--text-secondary);
+}

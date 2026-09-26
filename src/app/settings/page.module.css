@@ -1,0 +1,141 @@
+.page {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  font-family: var(--font-geist-sans);
+  min-height: 100vh;
+}
+
+.main {
+  width: 100%;
+  max-width: 720px;
+  padding: 20px 16px 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.main h1 {
+  margin: 0;
+  font-size: 28px;
+}
+
+.dim {
+  color: var(--text-secondary);
+  font-size: 13px;
+  margin: 0;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  backdrop-filter: var(--card-blur, none);
+  -webkit-backdrop-filter: var(--card-blur, none);
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.cardHead h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.colors {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px 16px;
+  margin-top: 4px;
+}
+
+.colorRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+}
+
+.colorRow input[type='color'] {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.pillButton {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.pillButton:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.linkButton {
+  margin-left: auto;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.card h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.icons {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 8px;
+}
+
+.icon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 6px 8px;
+  border-radius: 12px;
+  border: 1px solid var(--card-border);
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.iconOn {
+  border-color: var(--accent);
+  color: var(--foreground);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+}
+
+.preview {
+  width: 44px;
+  height: 44px;
+}
+
+.preview * {
+  vector-effect: non-scaling-stroke;
+}

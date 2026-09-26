@@ -1,0 +1,19 @@
+services:
+  mowmate:
+    build: .
+    image: mowmate
+    container_name: mowmate
+    restart: unless-stopped
+    ports:
+      - "8082:8080"
+    volumes:
+      # settings shared by all devices (map colors etc.)
+      - settings:/data
+    # both optional. without a url the app connects to ws://<host it was opened from>:9001,
+    # which is right when it runs on the mower
+    # environment:
+    #   MOWER_MQTT_WS_URL: ws://openmower:9001
+    #   MOWER_MQTT_PREFIX: ""
+
+volumes:
+  settings:

@@ -1,0 +1,326 @@
+.page {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  font-family: var(--font-geist-sans);
+  min-height: 100vh;
+}
+
+.main {
+  display: flex;
+  flex: 1;
+  width: 100%;
+  max-width: var(--content-max-width);
+  flex-direction: column;
+  padding: 24px 16px 60px;
+  gap: 4px;
+}
+
+.dim {
+  color: var(--text-secondary);
+}
+
+.sectionTitle {
+  margin: 24px 0 10px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.header {
+  margin-bottom: 20px;
+}
+
+.header h1 {
+  font-size: 26px;
+  font-weight: 700;
+}
+
+.subtitle {
+  color: var(--text-secondary);
+  font-size: 13px;
+  margin-top: 2px;
+}
+
+.headerStats {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.headerStat {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 6px;
+  border-radius: 12px;
+  min-width: 0;
+}
+
+.headerStat strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.headerStat-success {
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+}
+
+.headerStat-warning {
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
+}
+
+.headerStat-error {
+  background: color-mix(in srgb, var(--error) 12%, transparent);
+}
+
+.headerStat-accent {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.headerStat strong {
+  font-size: 15px;
+}
+
+.headerStat span {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.layout {
+  display: flex;
+  flex-direction: column;
+}
+
+.miniMapCard {
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--card-border);
+  margin-bottom: 20px;
+}
+
+.mowerCard {
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 18px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  backdrop-filter: var(--card-blur, none);
+  -webkit-backdrop-filter: var(--card-blur, none);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+@media (min-width: 900px) {
+  .layout {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 20px;
+  }
+
+  .miniMapCard {
+    flex: 1;
+    max-width: 420px;
+    margin-bottom: 0;
+  }
+
+  .mowerCard {
+    flex: 1;
+    min-width: 0;
+  }
+}
+
+.mowerHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.mowerHeader h2 {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.chip {
+  display: inline-block;
+  padding: 4px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.chip-success {
+  background: var(--success);
+  color: #0b2413;
+}
+
+.chip-warning {
+  background: var(--warning);
+  color: #241a03;
+}
+
+.chip-error {
+  background: var(--error);
+  color: #fff;
+}
+
+.chip-accent {
+  background: var(--accent);
+  color: #fff;
+}
+
+.avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.avatar-success {
+  background: var(--success);
+}
+
+.avatar-warning {
+  background: var(--warning);
+}
+
+.avatar-error {
+  background: var(--error);
+}
+
+.avatar-accent {
+  background: var(--accent);
+}
+
+.batterySection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.batteryHeaderRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.batteryLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.batteryTrack {
+  height: 10px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--foreground) 12%, transparent);
+  overflow: hidden;
+}
+
+.batteryFill {
+  height: 100%;
+  border-radius: 5px;
+  transition: width 0.3s ease;
+}
+
+.fill-success {
+  background: var(--success);
+}
+
+.fill-warning {
+  background: var(--warning);
+}
+
+.fill-error {
+  background: var(--error);
+}
+
+.text-success {
+  color: var(--success);
+}
+
+.text-warning {
+  color: var(--warning);
+}
+
+.text-error {
+  color: var(--error);
+}
+
+.controlsSection h3 {
+  margin-bottom: 10px;
+}
+
+.controlsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(95px, 1fr));
+  gap: 10px;
+}
+
+.actionTile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 18px 4px;
+  border-radius: 14px;
+  border: 1px solid transparent;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tile-accent {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+  color: var(--accent);
+}
+
+.tile-warning {
+  background: color-mix(in srgb, var(--warning) 16%, transparent);
+  border-color: color-mix(in srgb, var(--warning) 30%, transparent);
+  color: var(--warning);
+}
+
+.tile-error {
+  background: color-mix(in srgb, var(--error) 16%, transparent);
+  border-color: color-mix(in srgb, var(--error) 30%, transparent);
+  color: var(--error);
+}
+
+.actionTile:disabled {
+  background: color-mix(in srgb, var(--foreground) 4%, transparent);
+  border-color: var(--card-border);
+  color: var(--text-secondary);
+  cursor: default;
+}
+
+.blinking {
+  animation: dashboard-blink 1s ease-in-out infinite;
+}
+
+@keyframes dashboard-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
