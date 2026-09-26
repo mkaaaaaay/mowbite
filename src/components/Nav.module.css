@@ -81,9 +81,11 @@
 }
 
 @media (min-width: 900px) {
+  /* fixed, not sticky: body has overflow-x hidden, which breaks sticky */
   .nav {
-    position: sticky;
+    position: fixed;
     top: 0;
+    left: 0;
     right: auto;
     bottom: auto;
     flex-direction: column;
