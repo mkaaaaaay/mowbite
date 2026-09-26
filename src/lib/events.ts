@@ -30,9 +30,10 @@ const STATES: Record<string, string> = {
 };
 
 const REASONS: Record<string, string> = {
-  path_failed: 'no path found',
+  path_failed: "couldn't follow the path",
   approach_failed: 'approach failed',
-  dock_failed: "couldn't connect to the dock",
+  dock_failed: "no contact with the charger",
+  no_gps: 'no GPS fix',
 };
 
 const reason = (r?: string) => (r ? REASONS[r] ?? r.replace(/_/g, ' ').toLowerCase() : '');
@@ -51,7 +52,8 @@ export function describe(e: MowerEvent, state?: string): {text: string; severity
     case 'AREA':
       return {text: `Mowing "${e.area_name || 'unnamed'}"`, severity: 'info'};
     case 'AREA_SKIPPED':
-      return {text: 'Area skipped', severity: 'warning'};
+      // only happens when someone presses skip
+      return {text: 'Area skipped', severity: 'info'};
     case 'UNDOCKED':
       return {text: 'Left the dock', severity: 'info'};
     case 'UNDOCKING_FAILED':
@@ -78,6 +80,27 @@ export function describe(e: MowerEvent, state?: string): {text: string; severity
       return {text: 'Shut down', severity: 'info'};
     default:
       return {text: e.type.replace(/_/g, ' ').toLowerCase(), severity: 'info'};
+  }
+}
+
+// what the mower's code does when it logs these, the event itself carries nothing more
+export function explain(e: MowerEvent, state?: string): string | undefined {
+  switch (e.type) {
+    case 'UNDOCKING_FAILED':
+      if (e.reason === 'no_gps')
+        return 'It got out of the dock but had no RTK fix in time and stopped. Check the NTRIP corrections and whether the GPS antenna has a clear sky view there.';
+      return "It couldn't drive the short path backwards out of the dock and gave up. Usual causes: the mower's idea of its heading is off while it stands in the dock, it's blocked (wheels, grass, bumper), or it's still in emergency mode.";
+    case 'DOCKING_RETRY':
+    case 'DOCKING_FAILED':
+      return e.reason === 'dock_failed'
+        ? "It was in front of the dock but didn't get charging contact, so it backed out to try again. Check the contacts and whether the dock position on the map is still right."
+        : "It couldn't reach the point in front of the dock. Usually the GPS fix was bad or the way there is blocked or outside the navigation area.";
+    case 'NAVIGATION_ERROR':
+      return "It couldn't follow the mowing path and the recovery didn't help, so it paused. Often something is in the way, or the path runs too close to an obstacle or the edge.";
+    case 'GPS':
+      return !e.available && state === 'MOWING' ? 'Mowing waits until the fix is back.' : undefined;
+    case 'EMERGENCY':
+      return e.emergency ? 'Stop button, lift, tilt or a bumper. It has to be released and reset before it drives again.' : undefined;
   }
 }
 

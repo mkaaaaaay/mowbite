@@ -1,7 +1,7 @@
 'use client';
 
 import {clock, dayKey, dayLabel, duration} from '@/lib/dates';
-import {describe, groupRuns, OUTCOMES, withState, type Entry, type MowerEvent, type Run} from '@/lib/events';
+import {describe, explain, groupRuns, OUTCOMES, withState, type Entry, type MowerEvent, type Run} from '@/lib/events';
 import {useDragScroll} from '@/hooks/useDragScroll';
 import {callRpc} from '@/lib/rpc';
 import Link from 'next/link';
@@ -27,7 +27,48 @@ function Timeline({events}: {events: MowerEvent[]}) {
   );
 }
 
-function RunCard({run}: {run: Run}) {
+// the events carry a position, so we can at least tell whether it moved and whether gps was there
+function problemFacts(run: Run, e: MowerEvent, next?: Run): string[] {
+  const facts: string[] = [];
+  const first = run.events[0];
+  if (e.x !== undefined && first.x !== undefined && e.y !== undefined && first.y !== undefined) {
+    const d = Math.hypot(e.x - first.x, e.y - first.y);
+    facts.push(d < 0.1 ? `Hadn't moved (${Math.round(d * 100)} cm)` : `${d.toFixed(1)} m from where the run started`);
+  }
+  const gps = run.events.filter((g) => g.type === 'GPS' && g.t <= e.t).pop();
+  facts.push(gps ? (gps.available ? 'GPS fix' : 'no GPS fix') : 'GPS still off');
+  if (e.type === 'UNDOCKING_FAILED' && next && next.start - e.t < 600) {
+    const worked = next.outcome !== 'undock_failed';
+    const gap = next.start - e.t;
+    facts.push(`Tried again ${gap < 60 ? `${Math.round(gap)} s` : duration(gap)} later, ${worked ? 'that worked' : 'failed again'}`);
+  }
+  return facts;
+}
+
+function Problems({run, next}: {run: Run; next?: Run}) {
+  const list = withState(run.events).filter(({event, state}) => describe(event, state).severity !== 'info');
+  if (!list.length) return null;
+  return (
+    <ul className={styles.problemList}>
+      {list.map(({event, state}) => {
+        const {text, severity} = describe(event, state);
+        const hint = explain(event, state);
+        return (
+          <li key={event.id} className={styles[severity]}>
+            <div>
+              <span className={styles.time}>{clock(event.t, true)}</span>
+              <strong>{text}</strong>
+            </div>
+            {hint && <p>{hint}</p>}
+            <p className={styles.facts}>{problemFacts(run, event, next).join(' · ')}</p>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function RunCard({run, next}: {run: Run; next?: Run}) {
   const [open, setOpen] = useState(false);
   const outcome = OUTCOMES[run.outcome];
   return (
@@ -49,12 +90,9 @@ function RunCard({run}: {run: Run}) {
           </span>
         ))}
         {run.bladeSeconds > 0 && <span className={styles.dim}>mowed {duration(run.bladeSeconds)}</span>}
-        {run.problems > 0 && (
-          <span className={styles.problems}>
-            {run.problems} {run.problems === 1 ? 'problem' : 'problems'}
-          </span>
-        )}
       </div>
+
+      <Problems run={run} next={next} />
 
       <div className={styles.runActions}>
         <button onClick={() => setOpen(!open)}>{open ? 'Hide details' : 'Details'}</button>
@@ -166,7 +204,7 @@ export default function ActivityPage() {
         <div className={styles.list}>
           {visible.map((e) =>
             e.kind === 'run' ? (
-              <RunCard key={e.run.events[0].id} run={e.run} />
+              <RunCard key={e.run.events[0].id} run={e.run} next={runs[runs.indexOf(e.run) - 1]} />
             ) : (
               <div key={e.event.id} className={[styles.loose, styles[describe(e.event).severity]].join(' ')}>
                 <span className={styles.time}>{clock(e.event.t)}</span>

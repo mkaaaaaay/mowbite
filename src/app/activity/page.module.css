@@ -195,8 +195,48 @@
   color: #a5d6a7;
 }
 
-.problems {
-  color: #ffb74d;
+.problemList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.problemList li {
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  background: rgba(255, 183, 77, 0.08);
+  color: #ffcc80;
+}
+
+.problemList li.error {
+  background: rgba(239, 83, 80, 0.1);
+  color: #ef9a9a;
+}
+
+.problemList div {
+  display: flex;
+  gap: 10px;
+}
+
+.problemList p {
+  margin: 4px 0 0 74px;
+  color: var(--foreground);
+  line-height: 1.4;
+}
+
+.problemList .facts {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+@media (max-width: 600px) {
+  .problemList p {
+    margin-left: 0;
+  }
 }
 
 .runActions {
