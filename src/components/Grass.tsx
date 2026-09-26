@@ -1,6 +1,7 @@
 'use client';
 
 import {settingsStore} from '@/lib/settings';
+import {usePathname} from 'next/navigation';
 import {useEffect, useRef, useState, useSyncExternalStore} from 'react';
 import LogoMark from './Logo';
 import styles from './Grass.module.css';
@@ -18,6 +19,8 @@ export default function Grass() {
   const lastTap = useRef(0);
   const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
   const shown = settings.grass !== false;
+  // on phones only on the dashboard, elsewhere it would sit on top of the content above the tab bar
+  const dashboard = usePathname().replace(/(.)\/$/, '$1') === '/';
 
   useEffect(() => {
     const timers: ReturnType<typeof setTimeout>[] = [];
@@ -56,7 +59,7 @@ export default function Grass() {
   return (
     <div
       ref={strip}
-      className={[styles.grass, phase !== 'idle' ? styles[phase] : ''].join(' ')}
+      className={[styles.grass, phase !== 'idle' ? styles[phase] : '', dashboard ? '' : styles.desktopOnly].join(' ')}
       style={{'--dur': `${dur}ms`} as React.CSSProperties}
       aria-hidden="true"
     >

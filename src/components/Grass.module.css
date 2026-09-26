@@ -15,6 +15,12 @@
   }
 }
 
+@media (max-width: 899px) {
+  .desktopOnly {
+    display: none;
+  }
+}
+
 .tall,
 .short {
   position: absolute;
