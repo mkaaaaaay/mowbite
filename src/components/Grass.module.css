@@ -39,11 +39,11 @@
 .mower {
   position: absolute;
   /* the drawing has some room below the body, this puts it into the grass */
-  bottom: -6px;
+  bottom: -12px;
   left: 0;
-  width: 56px;
-  height: 56px;
-  transform: translateX(-70px);
+  width: 64px;
+  height: 64px;
+  transform: translateX(-80px);
 }
 
 .mowing .mower {
@@ -64,20 +64,20 @@
 
 @keyframes grass-drive {
   from {
-    transform: translateX(-70px);
+    transform: translateX(-80px);
   }
   to {
     transform: translateX(calc(100vw + 10px));
   }
 }
 
-/* the uncut part starts at the mower's mouth, 28 px into its 56 px */
+/* the uncut part starts at the mower's mouth, 34 px into its 64 px */
 @keyframes grass-cut {
   from {
-    clip-path: inset(0 0 0 -42px);
+    clip-path: inset(0 0 0 -46px);
   }
   to {
-    clip-path: inset(0 0 0 calc(100vw + 38px));
+    clip-path: inset(0 0 0 calc(100vw + 44px));
   }
 }
 
