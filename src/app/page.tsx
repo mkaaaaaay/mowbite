@@ -1,5 +1,6 @@
 'use client';
 
+import LogoMark from '@/components/Logo';
 import MapView from '@/components/MapView';
 import {HomeIcon, PlayIcon, SkipIcon, StopIcon, WarningIcon} from '@/components/icons';
 import {useComputedSpeed} from '@/hooks/useComputedSpeed';
@@ -140,7 +141,12 @@ export default function Home() {
   return (
     <div className={styles.page}>
       <main className={[styles.main, showMap ? styles.withMap : ''].join(' ')}>
-        <h1>Dashboard</h1>
+        <h1 className={styles.brand}>
+          <LogoMark size={40} />
+          <span>
+            <strong>mow</strong>mate
+          </span>
+        </h1>
 
         {!state && <p className={styles.dim}>{connected ? 'waiting for the mower…' : 'connecting…'}</p>}
 
