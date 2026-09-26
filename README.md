@@ -27,7 +27,7 @@ MowBite is a community project and not affiliated with the OpenMower project.
   entry from the history file, and can be shown on the map where they happened.
 - **Aerial imagery** under the map, optional: the official open orthophotos of Germany (every state
   except Saarland), Austria, Switzerland, the Netherlands, Belgium, Luxembourg, France, Spain,
-  Czechia and the USA, anywhere else an XYZ tile source you add in the settings.
+  Czechia, Finland and the USA, anywhere else an XYZ or WMS source you add in the settings.
 - **Sensors** with lowest and highest values of the last 24 hours. The container records them, so
   it doesn't matter whether a browser was open.
 - **Colors, icons and icon sizes** of the map, shared between all your devices.
@@ -138,5 +138,6 @@ GPL-3.0, see [LICENSE](LICENSE).
 
 Built-in aerial imagery comes from the official surveying and mapping agencies under their open
 data licenses (CC BY 4.0, CC0, dl-de/by-2-0, dl-de/zero-2-0, Etalab 2.0, the Flemish free reuse
-license, swisstopo's free use terms, US public domain). The app shows the required attribution
+license, swisstopo's free use terms, US public domain). Finland's comes from the National Land Survey
+through the servers of Kapsi, a Finnish non-profit (CC BY 4.0. The app shows the required attribution
 while imagery is on. For a tile source you add yourself, you're responsible for its terms.

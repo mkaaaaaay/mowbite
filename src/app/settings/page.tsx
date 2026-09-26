@@ -170,8 +170,8 @@ export default function SettingsPage() {
           <h2>{tr('Aerial imagery')}</h2>
           <p className={styles.dim}>
             {tr(
-              'Official open orthophotos are built in where a country offers them for free: Germany (all states except Saarland), Austria, Switzerland, the Netherlands, Belgium, Luxembourg, France, Spain, Czechia and the USA. Anywhere else you can add a tile source you are allowed to use, as an XYZ url with {z}, {x} and {y}. It shows up as an extra choice on the map, and you are responsible for its terms of use.',
-              {z: '{z}', x: '{x}', y: '{y}'},
+              'Official open orthophotos are built in where a country offers them for free: Germany (all states except Saarland), Austria, Switzerland, the Netherlands, Belgium, Luxembourg, France, Spain, Czechia, Finland and the USA. Anywhere else you can add a tile source you are allowed to use: an XYZ url with {z}, {x} and {y}, or a WMS url in EPSG:3857 with {bbox}. It shows up as an extra choice on the map, and you are responsible for its terms of use.',
+              {z: '{z}', x: '{x}', y: '{y}', bbox: '{bbox}'},
             )}
           </p>
           {/* saved when leaving the field, not on every key */}
@@ -185,7 +185,7 @@ export default function SettingsPage() {
             />
           </label>
           {imageryUrl && !isTileUrl(imageryUrl) && (
-            <span className={styles.error}>{tr('The url needs to start with http(s) and contain {z}, {x} and {y}.', {z: '{z}', x: '{x}', y: '{y}'})}</span>
+            <span className={styles.error}>{tr('The url needs to start with http(s) and contain {z}, {x} and {y}, or {bbox} for a WMS.', {z: '{z}', x: '{x}', y: '{y}', bbox: '{bbox}'})}</span>
           )}
           <label className={styles.field}>
             {tr('Attribution')}

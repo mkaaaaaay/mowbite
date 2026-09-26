@@ -198,6 +198,16 @@ export const COUNTRY_IMAGERY: Record<string, TileSource> = {
     boxes: [[48.55, 51.06, 12.09, 18.86]],
     attribution: 'ČÚZK, CC BY 4.0',
   },
+  // the national land survey's own service needs a personal key, kapsi (a finnish non-profit) serves
+  // the same open data without one
+  fi: {
+    label: 'Suomi Ortokuva',
+    template:
+      'https://tiles.kartat.kapsi.fi/ortokuva?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=ortokuva&STYLES=' +
+      '&CRS=EPSG:3857&BBOX={bbox}&WIDTH=256&HEIGHT=256&FORMAT=image/jpeg',
+    boxes: [[59.45, 70.1, 19.0, 31.6]],
+    attribution: 'Maanmittauslaitos Ortokuva 09/2024, CC BY 4.0, kartat.kapsi.fi',
+  },
   us: {
     label: 'USA NAIP',
     template:
@@ -219,9 +229,9 @@ export interface CustomImagery {
   attribution?: string;
 }
 
-// needs the three placeholders, http(s) only
+// xyz tiles with the three placeholders, or a wms in EPSG:3857 with {bbox}. http(s) only
 export function isTileUrl(url: string | undefined): url is string {
-  return !!url && /^https?:\/\//.test(url) && ['{z}', '{x}', '{y}'].every((p) => url.includes(p));
+  return !!url && /^https?:\/\//.test(url) && (url.includes('{bbox}') || ['{z}', '{x}', '{y}'].every((p) => url.includes(p)));
 }
 
 export function imageryInfo(source: ImagerySource, custom?: CustomImagery): {label: string; attribution: string} {
