@@ -7,6 +7,7 @@ import Sparkline from '@/components/Sparkline';
 import {useMowerSensors, type SensorInfo} from '@/hooks/useMowerSensors';
 import {useMowerState} from '@/hooks/useMowerState';
 import {useSensorHistory, type Sample} from '@/hooks/useSensorHistory';
+import {sharedSettings} from '@/lib/settings';
 import {batteryColor, isDocked, stateColor, statusText} from '@/lib/status';
 import styles from './page.module.css';
 
@@ -89,7 +90,9 @@ export default function SensorsPage() {
 
   const gps = num(GPS_ID);
   const noFix = gps !== undefined && gps >= NO_FIX;
-  const gpsHistory: Sample[] | undefined = history[GPS_ID]?.filter((s) => s.v < NO_FIX).map((s) => ({...s, v: s.v * 100}));
+  const gpsHistory: Sample[] | undefined = history[GPS_ID]
+    ?.filter((s) => s.v < NO_FIX)
+    .map((s) => ({t: s.t, v: s.v * 100, lo: s.lo === undefined ? undefined : s.lo * 100, hi: s.hi === undefined ? undefined : s.hi * 100}));
 
   const rpmInfo = info('om_mow_motor_rpm');
   const rpm = num('om_mow_motor_rpm');
@@ -224,7 +227,9 @@ export default function SensorsPage() {
               </>
             )}
 
-            <p className={styles.footnote}>History covers the last hour while the app is open.</p>
+            <p className={styles.footnote}>
+              {sharedSettings() ? 'History covers the last 24 hours.' : 'History covers the last hour while the app is open.'}
+            </p>
           </>
         )}
       </main>
