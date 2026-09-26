@@ -40,6 +40,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <div className={styles.shell}>
           <Nav />
           <div className={styles.content}>{children}</div>
+          <div className={styles.grass} aria-hidden="true" />
         </div>
       </body>
     </html>

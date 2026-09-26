@@ -244,7 +244,7 @@ const de: Record<string, string> = {
   "Shut down": "Heruntergefahren",
   "since {time}": "seit {time}",
   "Size": "Größe",
-  "Skip area": "Fläche überspringen",
+  "Skip area": "Überspringen",
   "Speed": "Tempo",
   "Speed m/s": "Tempo m/s",
   "Split zone": "Fläche teilen",
