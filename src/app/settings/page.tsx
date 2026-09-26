@@ -1,5 +1,6 @@
 'use client';
 
+import {TitleMark} from '@/components/Logo';
 import {DOCK_ICONS, dockIcon, MOWER_ICONS, mowerIcon} from '@/components/mapIcons';
 import {isTileUrl} from '@/lib/imagery';
 import {COLORS, saveSettings, settingsStore, sharedSettings, type ColorKey, type Settings} from '@/lib/settings';
@@ -98,7 +99,10 @@ export default function SettingsPage() {
         <button className={styles.back} onClick={back}>
           ← Back
         </button>
-        <h1>Settings</h1>
+        <h1>
+          <TitleMark />
+          Settings
+        </h1>
         <p className={styles.dim}>
           {sharedSettings() ? 'Saved on the mower, the same on all your devices.' : 'Saved on this device only.'}
         </p>

@@ -1,5 +1,6 @@
 'use client';
 
+import {TitleMark} from '@/components/Logo';
 import {clock, dayKey, dayLabel, duration, parseDay} from '@/lib/dates';
 import {describe, eventSource, explain, groupRuns, rawLine, OUTCOMES, withState, type Entry, type MowerEvent, type Run} from '@/lib/events';
 import {useDragScroll} from '@/hooks/useDragScroll';
@@ -206,7 +207,10 @@ export default function ActivityPage() {
   return (
     <div className={styles.page}>
       <main className={styles.main}>
-        <h1>Activity</h1>
+        <h1>
+          <TitleMark />
+          Activity
+        </h1>
 
         {failed && !days && <p className={styles.dim}>This mower doesn&apos;t keep an event history.</p>}
 

@@ -1,5 +1,6 @@
 'use client';
 
+import {TitleMark} from '@/components/Logo';
 import {computeGaugeScale, fallbackGaugeScale, RadialGauge, TempGauge} from '@/components/gauges';
 import {BatteryIcon} from '@/components/icons';
 import InfoTip from '@/components/InfoTip';
@@ -102,7 +103,10 @@ export default function SensorsPage() {
     <div className={styles.page}>
       <main className={styles.main}>
         <div className={styles.header}>
-          <h1>Sensors</h1>
+          <h1>
+          <TitleMark />
+          Sensors
+        </h1>
           {state && (
             <span className={[styles.chip, styles[`chip-${state.emergency ? 'error' : docked ? 'success' : stateColor(currentState)}`]].join(' ')}>
               {statusText(state, docked, values['om_charge_state'])}

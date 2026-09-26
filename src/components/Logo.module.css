@@ -1,0 +1,12 @@
+/* in front of page headings on phones, where the nav bar has no room for it */
+.titleMark {
+  display: none;
+}
+
+@media (max-width: 899px) {
+  .titleMark {
+    display: inline-block;
+    margin-right: 8px;
+    vertical-align: -5px;
+  }
+}

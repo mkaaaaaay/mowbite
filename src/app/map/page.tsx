@@ -1,5 +1,6 @@
 'use client';
 
+import {TitleMark} from '@/components/Logo';
 import InfoTip from '@/components/InfoTip';
 import MapView from '@/components/MapView';
 import TrackPicker from '@/components/TrackPicker';
@@ -392,7 +393,10 @@ function MapEditor() {
   return (
     <div className={styles.page}>
       <main className={styles.main}>
-        <h1>Map</h1>
+        <h1>
+          <TitleMark />
+          Map
+        </h1>
 
         <div className={styles.editor}>
           <div className={styles.mapCol}>

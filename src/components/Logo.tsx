@@ -1,9 +1,14 @@
+import {useId} from 'react';
+import styles from './Logo.module.css';
+
 // a lawn eater chomping its way through the grass
-export default function LogoMark({size = 28}: {size?: number}) {
+export default function LogoMark({size = 28, className}: {size?: number; className?: string}) {
+  // own id per copy, a gradient inside a hidden svg (the nav's on phones) would paint nothing
+  const grad = useId();
   return (
-    <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true">
+    <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true" className={className}>
       <defs>
-        <linearGradient id="logo-body" x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id={grad} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" stopColor="#8fe07c" />
           <stop offset="1" stopColor="#35a64f" />
         </linearGradient>
@@ -12,10 +17,14 @@ export default function LogoMark({size = 28}: {size?: number}) {
         <path d="M45 45 Q46 38 44 33 M48.5 45 Q48.5 36 51 30 M52 45 Q52 39 55 35" />
         <path d="M56 45 Q57 41 55.5 38 M59 45 Q59.5 40 61.5 37" opacity="0.7" />
       </g>
-      <path d="M24 32 L39.6 23 A18 18 0 1 0 39.6 41 Z" fill="url(#logo-body)" />
+      <path d="M24 32 L39.6 23 A18 18 0 1 0 39.6 41 Z" fill={`url(#${grad})`} />
       <circle cx="26" cy="21.5" r="2.4" fill="#10261a" />
       <path d="M8 50 H40" stroke="#35a64f" strokeWidth="2.6" strokeLinecap="round" opacity="0.5" />
     </svg>
   );
 }
 
+
+export function TitleMark() {
+  return <LogoMark size={28} className={styles.titleMark} />;
+}
