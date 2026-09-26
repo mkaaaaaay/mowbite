@@ -53,7 +53,7 @@ export default function Grass() {
       <div className={styles.tall} />
       {phase === 'mowing' && (
         <div className={styles.mower}>
-          <LogoMark size={40} chomp />
+          <LogoMark size={40} chomp bare />
         </div>
       )}
     </div>
