@@ -30,6 +30,7 @@
   gap: 6px;
   overflow-x: auto;
   scrollbar-width: none;
+  user-select: none;
   padding-bottom: 2px;
 }
 

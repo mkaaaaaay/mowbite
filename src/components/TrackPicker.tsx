@@ -1,6 +1,7 @@
 'use client';
 
 import type {JobInfo, TrackSegment} from '@/hooks/useMowHistory';
+import {useDragScroll} from '@/hooks/useDragScroll';
 import {dayKey, dayLabel} from '@/lib/dates';
 import {useState} from 'react';
 import styles from './TrackPicker.module.css';
@@ -33,6 +34,7 @@ export default function TrackPicker({
   }
 
   const selectedDay = days.find((d) => d.jobs.some((j) => j.job_id === selected))?.key ?? null;
+  const daysRef = useDragScroll<HTMLDivElement>();
   const [openDay, setOpenDay] = useState<string | null>(selectedDay);
   const day = days.find((d) => d.key === (openDay ?? selectedDay));
 
@@ -42,7 +44,7 @@ export default function TrackPicker({
   return (
     <div className={styles.picker}>
       <span className={styles.title}>Track</span>
-      <div className={styles.days}>
+      <div className={styles.days} ref={daysRef}>
         <button
           className={selected === null ? styles.on : undefined}
           onClick={() => {

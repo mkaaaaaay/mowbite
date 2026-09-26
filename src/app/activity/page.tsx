@@ -2,6 +2,7 @@
 
 import {clock, dayKey, dayLabel, duration} from '@/lib/dates';
 import {describe, groupRuns, OUTCOMES, withState, type Entry, type MowerEvent, type Run} from '@/lib/events';
+import {useDragScroll} from '@/hooks/useDragScroll';
 import {callRpc} from '@/lib/rpc';
 import Link from 'next/link';
 import {useEffect, useState} from 'react';
@@ -71,6 +72,7 @@ export default function ActivityPage() {
   const [events, setEvents] = useState<MowerEvent[] | null>(null);
   const [onlyProblems, setOnlyProblems] = useState(false);
   const [failed, setFailed] = useState(false);
+  const daysRef = useDragScroll<HTMLDivElement>();
 
   useEffect(() => {
     callRpc<string[]>('events.history.list').then(
@@ -121,7 +123,7 @@ export default function ActivityPage() {
         {failed && !days && <p className={styles.dim}>This mower doesn&apos;t keep an event history.</p>}
 
         {days && (
-          <div className={styles.days}>
+          <div className={styles.days} ref={daysRef}>
             {days.slice(0, 60).map((d) => (
               <button
                 key={d}
