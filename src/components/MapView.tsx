@@ -29,7 +29,7 @@ interface MapViewProps {
   follow?: boolean;
   followSpanMeters?: number;
   // oldest first
-  track?: Point[];
+  track?: (Point & {b?: boolean})[];
   // a recorded job instead of the live trail, mowed parts solid, driving without blades dashed
   pastTrack?: {points: Point[]; blades: boolean}[];
   // wheel / pinch zoom, drag to pan
@@ -199,9 +199,21 @@ export default function MapView({
     }
     return out;
   }, [map, minX, minY, scale, padX, padY]);
-  const trackPoints = useMemo(
-    () => track?.map((p) => `${(p.x - minX) * scale + padX},${HEIGHT - ((p.y - minY) * scale + padY)}`).join(' '),
-    [track, minX, minY, scale, padX, padY],
+  // the live trail cut where the blades go on or off, driving without them is drawn dashed
+  const trackRuns = useMemo(() => {
+    const runs: {points: string; blades: boolean}[] = [];
+    if (!track || track.length < 2) return runs;
+    const at = (p: Point) => `${(p.x - minX) * scale + padX},${HEIGHT - ((p.y - minY) * scale + padY)}`;
+    let start = 0;
+    for (let i = 1; i <= track.length; i++) {
+      if (i < track.length && (track[i].b ?? true) === (track[start].b ?? true)) continue;
+      // include the next point so the runs connect
+      const pts = track.slice(start, Math.min(i + 1, track.length));
+      if (pts.length >= 2) runs.push({points: pts.map(at).join(' '), blades: track[start].b ?? true});
+      start = i;
+    }
+    return runs;
+  }, [track, minX, minY, scale, padX, padY],
   );
 
   const selectedArea = map.areas.find((a) => a.id === selectedAreaId);
@@ -591,9 +603,9 @@ export default function MapView({
           );
         })}
 
-        {track && track.length >= 2 && (
-          <polyline points={trackPoints} className={styles.track} />
-        )}
+        {trackRuns.map((run, i) => (
+          <polyline key={'run' + i} points={run.points} className={run.blades ? styles.track : styles.transit} />
+        ))}
         {pastTrack?.map((seg, i) =>
           seg.points.length >= 2 ? (
             <polyline

@@ -275,9 +275,9 @@
 .transit {
   fill: none;
   stroke: var(--c-track);
-  stroke-opacity: 0.45;
-  stroke-width: 1;
-  stroke-dasharray: 3 3;
+  stroke-opacity: 0.6;
+  stroke-width: 1.5;
+  stroke-dasharray: 4 4;
 }
 
 .linkButton {
