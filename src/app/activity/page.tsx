@@ -1,7 +1,7 @@
 'use client';
 
 import {clock, dayKey, dayLabel, duration} from '@/lib/dates';
-import {describe, explain, groupRuns, OUTCOMES, withState, type Entry, type MowerEvent, type Run} from '@/lib/events';
+import {describe, eventSource, explain, groupRuns, rawLine, OUTCOMES, withState, type Entry, type MowerEvent, type Run} from '@/lib/events';
 import {useDragScroll} from '@/hooks/useDragScroll';
 import {callRpc} from '@/lib/rpc';
 import Link from 'next/link';
@@ -45,30 +45,79 @@ function problemFacts(run: Run, e: MowerEvent, next?: Run): string[] {
   return facts;
 }
 
-function Problems({run, next}: {run: Run; next?: Run}) {
+// the mower keeps one file per day, relative to its ros folder
+const HISTORY_DIR = '/home/openmower/ros/event_history/';
+
+function RawEntry({event, file, line}: {event: MowerEvent; file: string; line: number}) {
+  const src = eventSource(event);
+  return (
+    <div className={styles.raw}>
+      <div className={styles.dim}>
+        {file}
+        {line > 0 && `, line ${line}`}
+      </div>
+      <code>{rawLine(event)}</code>
+      {src && (
+        <div className={styles.dim}>
+          Written by{' '}
+          <a href={src.url} target="_blank" rel="noreferrer">
+            open_mower_ros/{src.file.split('/').pop()}
+          </a>
+          {src.log && (
+            <>
+              , ROS log: <code>{src.log}</code>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ProblemItem({run, next, event, state, file, line}: {run: Run; next?: Run; event: MowerEvent; state?: string; file: string; line: number}) {
+  const [raw, setRaw] = useState(false);
+  const {text, severity} = describe(event, state);
+  const hint = explain(event, state);
+  return (
+    <li className={styles[severity]}>
+      <div>
+        <span className={styles.time}>{clock(event.t, true)}</span>
+        <strong>{text}</strong>
+      </div>
+      {hint && <p>{hint}</p>}
+      <p className={styles.facts}>
+        {problemFacts(run, event, next).join(' · ')}
+        {' · '}
+        <button className={styles.rawToggle} onClick={() => setRaw(!raw)}>
+          {raw ? 'hide entry' : 'show entry'}
+        </button>
+      </p>
+      {raw && <RawEntry event={event} file={file} line={line} />}
+    </li>
+  );
+}
+
+function Problems({run, next, file, lines}: {run: Run; next?: Run; file: string; lines: Map<string, number>}) {
   const list = withState(run.events).filter(({event, state}) => describe(event, state).severity !== 'info');
   if (!list.length) return null;
   return (
     <ul className={styles.problemList}>
-      {list.map(({event, state}) => {
-        const {text, severity} = describe(event, state);
-        const hint = explain(event, state);
-        return (
-          <li key={event.id} className={styles[severity]}>
-            <div>
-              <span className={styles.time}>{clock(event.t, true)}</span>
-              <strong>{text}</strong>
-            </div>
-            {hint && <p>{hint}</p>}
-            <p className={styles.facts}>{problemFacts(run, event, next).join(' · ')}</p>
-          </li>
-        );
-      })}
+      {list.map(({event, state}) => (
+        <ProblemItem
+          key={event.id}
+          run={run}
+          next={next}
+          event={event}
+          state={state}
+          file={file}
+          line={lines.get(event.id) ?? 0}
+        />
+      ))}
     </ul>
   );
 }
 
-function RunCard({run, next}: {run: Run; next?: Run}) {
+function RunCard({run, next, file, lines}: {run: Run; next?: Run; file: string; lines: Map<string, number>}) {
   const [open, setOpen] = useState(false);
   const outcome = OUTCOMES[run.outcome];
   return (
@@ -92,7 +141,7 @@ function RunCard({run, next}: {run: Run; next?: Run}) {
         {run.bladeSeconds > 0 && <span className={styles.dim}>mowed {duration(run.bladeSeconds)}</span>}
       </div>
 
-      <Problems run={run} next={next} />
+      <Problems run={run} next={next} file={file} lines={lines} />
 
       <div className={styles.runActions}>
         <button onClick={() => setOpen(!open)}>{open ? 'Hide details' : 'Details'}</button>
@@ -146,6 +195,9 @@ export default function ActivityPage() {
   const entries: Entry[] = (events ? groupRuns(events, isToday).reverse() : []).filter(
     (e) => e.kind === 'run' || ['BOOTED', 'SHUTDOWN'].includes(e.event.type) || describe(e.event).severity !== 'info',
   );
+  // the rpc returns the file's lines in order
+  const lines = new Map((events ?? []).map((e, i) => [e.id, i + 1]));
+  const file = `${HISTORY_DIR}${shown}.jsonl`;
   const runs = entries.flatMap((e) => (e.kind === 'run' ? [e.run] : []));
   const mowed = runs.reduce((s, r) => s + r.bladeSeconds, 0);
   const problems = runs.reduce((s, r) => s + r.problems, 0);
@@ -204,7 +256,7 @@ export default function ActivityPage() {
         <div className={styles.list}>
           {visible.map((e) =>
             e.kind === 'run' ? (
-              <RunCard key={e.run.events[0].id} run={e.run} next={runs[runs.indexOf(e.run) - 1]} />
+              <RunCard key={e.run.events[0].id} run={e.run} next={runs[runs.indexOf(e.run) - 1]} file={file} lines={lines} />
             ) : (
               <div key={e.event.id} className={[styles.loose, styles[describe(e.event).severity]].join(' ')}>
                 <span className={styles.time}>{clock(e.event.t)}</span>

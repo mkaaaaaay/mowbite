@@ -228,13 +228,45 @@
   line-height: 1.4;
 }
 
+.rawToggle {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.raw {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 6px 0 0 74px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.35);
+  font-size: 12px;
+  color: var(--foreground);
+}
+
+.raw code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  word-break: break-all;
+  user-select: all;
+}
+
+.raw a {
+  color: var(--accent);
+}
+
 .problemList .facts {
   color: var(--text-secondary);
   font-size: 12px;
 }
 
 @media (max-width: 600px) {
-  .problemList p {
+  .problemList p,
+  .raw {
     margin-left: 0;
   }
 }

@@ -104,6 +104,31 @@ export function explain(e: MowerEvent, state?: string): string | undefined {
   }
 }
 
+// where open_mower_ros writes the event and the line it logs at the same moment
+const BEHAVIORS = 'https://github.com/ClemensElflein/open_mower_ros/blob/main/src/mower_logic/src/mower_logic/';
+export function eventSource(e: MowerEvent): {file: string; url: string; log?: string} | undefined {
+  const src = (file: string, log?: string) => ({file, url: BEHAVIORS + file, log});
+  switch (e.type) {
+    case 'UNDOCKING_FAILED':
+      return src('behaviors/UndockingBehavior.cpp', e.reason === 'no_gps' ? 'Could not get GPS.' : 'Error during undock');
+    case 'DOCKING_RETRY':
+      return src('behaviors/DockingBehavior.cpp', e.reason === 'dock_failed' ? 'Error during docking.' : 'Error during docking approach.');
+    case 'DOCKING_FAILED':
+      return src('behaviors/DockingBehavior.cpp', 'Giving up on docking');
+    case 'NAVIGATION_ERROR':
+      return src('behaviors/MowingBehavior.cpp', 'MowingBehavior: (MOW) PAUSED due to MBF Error at …');
+    case 'EMERGENCY':
+    case 'GPS':
+      return src('mower_logic.cpp');
+  }
+}
+
+// the line as it is in the file: id, t, type, the event's own fields, then position and ids
+export function rawLine(e: MowerEvent): string {
+  const {id, t, type, x, y, job_id, session_id, ...rest} = e;
+  return JSON.stringify({id, t, type, ...rest, x, y, job_id, session_id});
+}
+
 export type Outcome = 'done' | 'paused' | 'undock_failed' | 'dock_failed' | 'emergency' | 'returned' | 'running';
 
 export interface Run {
