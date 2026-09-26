@@ -7,7 +7,7 @@ import {containsPoint, polygonArea} from '@/lib/geometry';
 import {settingsStore} from '@/lib/settings';
 import {dockIcon, mowerIcon} from './mapIcons';
 import {availableSources, imageryInfo, imageryTiles, type Datum, type ImagerySource} from '@/lib/imagery';
-import {useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
+import {useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import styles from './MapView.module.css';
 
 interface MapViewProps {
@@ -104,7 +104,14 @@ export default function MapView({
   datum,
   orderLabels,
 }: MapViewProps) {
-  const svgRef = useRef<SVGSVGElement>(null);
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  // the svg isn't there on the first render while the map is still loading, so effects that need it
+  // depend on this instead of running once on mount
+  const [svgEl, setSvgEl] = useState<SVGSVGElement | null>(null);
+  const attachSvg = useCallback((el: SVGSVGElement | null) => {
+    svgRef.current = el;
+    setSvgEl(el);
+  }, []);
   // bounds frozen while dragging so the map doesn't rescale under the cursor
   const [dragging, setDragging] = useState<{areaId: string; index: number; bounds: Bounds} | null>(null);
   const drag = useRef({startX: 0, startY: 0, moved: false, inserted: false, touch: false});
@@ -314,15 +321,14 @@ export default function MapView({
   };
 
   useEffect(() => {
-    const svg = svgRef.current;
-    if (!svg) return;
-    const ro = new ResizeObserver(() => setSvgPx(svg.getBoundingClientRect().width));
-    ro.observe(svg);
+    if (!svgEl) return;
+    const ro = new ResizeObserver(() => setSvgPx(svgEl.getBoundingClientRect().width));
+    ro.observe(svgEl);
     return () => ro.disconnect();
-  }, []);
+  }, [svgEl]);
 
   useEffect(() => {
-    const svg = svgRef.current;
+    const svg = svgEl;
     if (!zoomable || !svg) return;
 
     // react's onWheel is passive, can't preventDefault the page scroll there
@@ -334,7 +340,7 @@ export default function MapView({
     svg.addEventListener('wheel', onWheel, {passive: false});
     return () => svg.removeEventListener('wheel', onWheel);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- zoomAt only uses setters and follow
-  }, [zoomable, follow]);
+  }, [zoomable, follow, svgEl]);
 
   const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
     const pendingHit = pointers.current.size === 0 ? pickPending(e.clientX, e.clientY, e.pointerType !== 'mouse') : null;
@@ -659,7 +665,7 @@ export default function MapView({
 
   const svg = (
     <svg
-      ref={svgRef}
+      ref={attachSvg}
       className={[styles.svg, zoomable ? styles.zoomable : ''].filter(Boolean).join(' ')}
       viewBox={shown ? `${shown.x} ${shown.y} ${shown.size} ${shown.size}` : `0 0 ${WIDTH} ${HEIGHT}`}
       onPointerDown={onPointerDown}

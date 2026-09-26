@@ -82,9 +82,9 @@ export default function SettingsPage() {
         <section className={styles.card}>
           <h2>Aerial imagery</h2>
           <p className={styles.dim}>
-            In Lower Saxony the official LGLN orthophotos are built in. Anywhere else you can add a tile source you
-            are allowed to use, e.g. the open orthophotos of your state, as an XYZ url with {'{z}'}, {'{x}'} and {'{y}'}.
-            You are responsible for that source&apos;s terms of use.
+            In Germany the official orthophotos of your state are built in (open data, all states except Saarland).
+            Anywhere else you can add a tile source you are allowed to use, as an XYZ url with {'{z}'}, {'{x}'} and{' '}
+            {'{y}'}. You are responsible for that source&apos;s terms of use.
           </p>
           {/* saved when leaving the field, not on every key */}
           <label className={styles.field}>
