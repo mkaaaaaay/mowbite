@@ -148,7 +148,7 @@ export default function RecordPage() {
   return (
     <div className={styles.page}>
       <main className={styles.main}>
-        <h1>
+        <h1 className={recordingMode ? styles.hideOnPhone : undefined}>
           <TitleMark />
           Record
         </h1>
@@ -178,37 +178,35 @@ export default function RecordPage() {
               {map && (
                 <MapView map={map} mower={position} follow followSpanMeters={16} zoomable overlay={overlay} datum={datumFromParams(params)} />
               )}
-            </section>
-
-            <div className={styles.side}>
-              <section className={styles.card}>
-                <p>{text}</p>
-                <div className={styles.buttons}>{buttons}</div>
-              </section>
-
-              <section className={[styles.card, styles.drive].join(' ')}>
+              {/* on the map, so map, stick and buttons fit on one phone screen */}
+              <div className={styles.stick}>
                 {state?.emergency ? (
                   <p className={styles.warn}>Emergency stop is active, reset it on the dashboard before driving.</p>
                 ) : (
-                  <Joystick onMove={(x, y) => canDrive && onStick(x, y)} />
+                  <Joystick size={140} onMove={(x, y) => canDrive && onStick(x, y)} />
                 )}
-                <div className={styles.speeds}>
-                  <span className={styles.dim}>Speed</span>
-                  {SPEEDS.map((v, i) => (
-                    <button
-                      key={v}
-                      className={i === speed ? styles.on : undefined}
-                      onClick={() => {
-                        setSpeed(i);
-                        speedRef.current = v;
-                      }}
-                    >
-                      {v} m/s
-                    </button>
-                  ))}
-                </div>
-              </section>
-            </div>
+              </div>
+            </section>
+
+            <section className={styles.card}>
+              <p>{text}</p>
+              <div className={styles.buttons}>{buttons}</div>
+              <div className={styles.speeds}>
+                <span className={styles.dim}>Speed m/s</span>
+                {SPEEDS.map((v, i) => (
+                  <button
+                    key={v}
+                    className={i === speed ? styles.on : undefined}
+                    onClick={() => {
+                      setSpeed(i);
+                      speedRef.current = v;
+                    }}
+                  >
+                    {v}
+                  </button>
+                ))}
+              </div>
+            </section>
           </div>
         )}
       </main>

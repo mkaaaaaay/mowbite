@@ -49,15 +49,56 @@
 }
 
 .map {
+  position: relative;
   border-radius: 16px;
   overflow: hidden;
   border: 1px solid var(--card-border);
 }
 
-.side {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
+.stick {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  max-width: calc(100% - 24px);
+}
+
+/* see-through enough to still see the map under it */
+.stick > div {
+  background: rgba(10, 10, 10, 0.35);
+  backdrop-filter: blur(2px);
+}
+
+.stick .warn {
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(10, 10, 10, 0.75);
+  font-size: 13px;
+}
+
+@media (max-width: 899px) {
+  .hideOnPhone {
+    display: none;
+  }
+
+  .main {
+    padding-top: 12px;
+    gap: 10px;
+  }
+
+  .layout {
+    gap: 10px;
+  }
+
+  .card {
+    padding: 12px;
+    gap: 10px;
+    font-size: 13px;
+  }
+
+  .card button {
+    padding: 9px 12px;
+    font-size: 13px;
+  }
 }
 
 @media (min-width: 900px) {
@@ -71,7 +112,7 @@
     min-width: 0;
   }
 
-  .side {
+  .layout > .card {
     width: 380px;
   }
 }
@@ -111,10 +152,6 @@
   background: transparent;
 }
 
-.drive {
-  align-items: center;
-}
-
 .warn {
   color: var(--error);
 }
@@ -123,7 +160,6 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: center;
   gap: 6px;
 }
 
