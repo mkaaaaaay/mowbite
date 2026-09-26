@@ -8,7 +8,8 @@ Mowmate is a community project and not affiliated with the OpenMower project.
 
 ## What it does
 
-- **Dashboard**: state, battery, GPS, controls, and a map that follows the mower while it drives.
+- **Dashboard**: what the mower is doing in plain words, battery, the important sensor values,
+  controls, today's runs, and a map that follows the mower while it drives (or always, if you like).
 - **Map editor**: zoom and pan, move, add and delete outline points (with a loupe on touch screens),
   reduce the points of recorded outlines, split and merge areas, rename areas and change their type,
   undo. Changes are only sent to the mower when you save.
@@ -16,11 +17,15 @@ Mowmate is a community project and not affiliated with the OpenMower project.
   mowing direction. The preview follows the same rules as the mower, including `mow_angle_offset`.
 - **Mowing order** of the areas.
 - **Tracks**: the trail of the current mow and of past mows, read from the mower's own history.
+- **Activity**: every day's runs from the mower's event history, with the result, the areas, the
+  mowing time and a timeline. Problems come with an explanation, the circumstances and the raw
+  entry from the history file.
 - **Aerial imagery** under the map, optional: in Germany the official orthophotos of the state the
   mower is in (open data, every state except Saarland), anywhere else an XYZ tile source you add in
   the settings.
-- **Sensors** with a one hour history.
-- **Colors and icons** of the map, shared between all your devices.
+- **Sensors** with lowest and highest values of the last 24 hours. The container records them, so
+  it doesn't matter whether a browser was open.
+- **Colors, icons and icon sizes** of the map, shared between all your devices.
 
 Works with OpenMower v1 and v2 hardware.
 
@@ -96,13 +101,17 @@ touched, Mowmate doesn't change any OpenMower files.
 The port you open in the browser is the first number under `ports` in `compose.yaml` (`8082`).
 Change only that one, the `8080` behind it is the port inside the container.
 
-Two optional settings go under `environment` in `compose.yaml`:
+Optional settings go under `environment` in `compose.yaml`:
 
 - `MOWER_MQTT_WS_URL`: where the browser finds OpenMower's MQTT websocket. Without it the app uses
   `ws://<host the app is opened from>:9001`, which is right when it runs on the mower.
 - `MOWER_MQTT_PREFIX`: topic prefix, only if your OpenMower uses one.
+- `MOWER_MQTT_HOST`, `MOWER_MQTT_PORT` (default 1883), `MOWER_MQTT_USER`, `MOWER_MQTT_PASSWORD`:
+  the broker the sensor recorder listens to. On the mower it finds it by itself, set these only if
+  the broker runs somewhere else or needs a login.
 
-Settings made in the app (colors, icons) are stored in the `settings` volume.
+Settings made in the app (colors, icons) and the recorded sensor values are stored in the
+`settings` volume.
 
 If you run the [OpenMower start page](https://github.com/xtech/web-openmower-entrypoint), Mowmate
 shows up there by itself (labels in `compose.yaml`). Change `openmower.ui.port` too if you change
