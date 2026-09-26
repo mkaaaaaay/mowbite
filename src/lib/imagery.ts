@@ -3,7 +3,7 @@ import {toUtm, utmZone} from './utm';
 export type ImagerySource = 'esri' | 'lgln';
 
 export const IMAGERY: Record<ImagerySource, {label: string; attribution: string}> = {
-  esri: {label: 'Esri World Imagery', attribution: 'Esri, Maxar, Earthstar Geographics'},
+  esri: {label: 'Esri World Imagery', attribution: 'Esri, Vantor, Earthstar Geographics, GIS User Community'},
   lgln: {label: 'Niedersachsen DOP20', attribution: `LGLN (${new Date().getFullYear()}) CC BY 4.0`},
 };
 

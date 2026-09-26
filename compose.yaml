@@ -1,7 +1,8 @@
 services:
   mowmate:
+    # prebuilt for amd64 and arm64. `docker compose up -d --build` builds it yourself instead
+    image: ghcr.io/mkaaaaaay/mowmate:latest
     build: .
-    image: mowmate
     container_name: mowmate
     restart: unless-stopped
     ports:

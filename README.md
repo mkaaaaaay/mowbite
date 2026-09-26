@@ -25,34 +25,45 @@ Works with OpenMower v1 and v2 hardware.
 
 ## Install on the mower
 
-You need a running OpenMower with the MQTT websocket on port 9001, which is the default.
+You need a running OpenMower with the MQTT websocket on port 9001, which is the default. On the
+mower:
 
 ```bash
-git clone https://github.com/mkaaaaay/mowmate.git
-cd mowmate
-docker compose up -d --build
+mkdir mowmate && cd mowmate
+curl -O https://raw.githubusercontent.com/mkaaaaaay/mowmate/main/compose.yaml
+docker compose pull
+docker compose up -d
 ```
 
 Then open `http://<your-mower>:8082`. Port 8082 is used because OpenMower already uses 3000 and
-8080; change it in `compose.yaml` if you like.
+8080; change it in `compose.yaml` if you like. The image is about 5 MB and exists for arm64 (the
+mower) and amd64.
+
+### Build it yourself
+
+```bash
+git clone https://github.com/mkaaaaaay/mowmate.git
+cd mowmate
+docker compose up -d --build
+```
 
 Building on the mower needs about 1 GB of free space for a while. If yours is short on space, build
 on a PC and copy the image over:
 
 ```bash
-docker buildx build --platform linux/arm64 -t mowmate --load .
-docker save mowmate | ssh openmower@<your-mower> docker load
+docker buildx build --platform linux/arm64 -t ghcr.io/mkaaaaaay/mowmate:latest --load .
+docker save ghcr.io/mkaaaaaay/mowmate:latest | ssh openmower@<your-mower> docker load
 ```
-
-and on the mower run `docker compose up -d` without `--build`.
 
 ### Update
 
 ```bash
 cd mowmate
-git pull
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 ```
+
+(or `git pull` and `docker compose up -d --build` if you build it yourself)
 
 Your settings stay, they live in the `settings` volume. Reload the page afterwards, phones like to
 keep the old version for a while.
@@ -105,5 +116,5 @@ To open the dev server from a phone, allow its host: `DEV_ORIGINS=<pc-name>,<pc-
 
 GPL-3.0, see [LICENSE](LICENSE).
 
-Aerial imagery: Esri, Maxar, Earthstar Geographics; LGLN, CC BY 4.0. The app shows the attribution
+Aerial imagery: Esri, Vantor, Earthstar Geographics, GIS User Community; LGLN, CC BY 4.0. The app shows the attribution
 while imagery is on.
