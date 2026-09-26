@@ -9,14 +9,12 @@ export default function LogoMark({size = 28}: {size?: number}) {
         </linearGradient>
       </defs>
       <g fill="none" stroke="#5cc36a" strokeWidth="2.6" strokeLinecap="round">
-        <path d="M44.5 56 Q46 46 43 38 M48.5 56 Q48.5 44 51 35 M52.5 56 Q52.5 47 56 41" />
-        <path d="M56.5 56 Q57.5 50 55.5 46 M59.5 56 Q60 50 62 46" opacity="0.7" />
+        <path d="M45 45 Q46 38 44 33 M48.5 45 Q48.5 36 51 30 M52 45 Q52 39 55 35" />
+        <path d="M56 45 Q57 41 55.5 38 M59 45 Q59.5 40 61.5 37" opacity="0.7" />
       </g>
       <path d="M24 32 L39.6 23 A18 18 0 1 0 39.6 41 Z" fill="url(#logo-body)" />
       <circle cx="26" cy="21.5" r="2.4" fill="#10261a" />
-      <circle cx="20" cy="49.5" r="5.5" fill="var(--background)" stroke="currentColor" strokeWidth="2.6" />
-      <circle cx="20" cy="49.5" r="1.6" fill="currentColor" />
-      <path d="M4 57.5 H60" stroke="#35a64f" strokeWidth="2.6" strokeLinecap="round" opacity="0.5" />
+      <path d="M8 50 H40" stroke="#35a64f" strokeWidth="2.6" strokeLinecap="round" opacity="0.5" />
     </svg>
   );
 }
