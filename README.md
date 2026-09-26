@@ -20,9 +20,9 @@ Mowmate is a community project and not affiliated with the OpenMower project.
 - **Activity**: every day's runs from the mower's event history, with the result, the areas, the
   mowing time and a timeline. Problems come with an explanation, the circumstances and the raw
   entry from the history file.
-- **Aerial imagery** under the map, optional: in Germany the official orthophotos of the state the
-  mower is in (open data, every state except Saarland), anywhere else an XYZ tile source you add in
-  the settings.
+- **Aerial imagery** under the map, optional: the official open orthophotos of Germany (every state
+  except Saarland), Austria, Switzerland, the Netherlands, Belgium, Luxembourg, France, Spain,
+  Czechia and the USA, anywhere else an XYZ tile source you add in the settings.
 - **Sensors** with lowest and highest values of the last 24 hours. The container records them, so
   it doesn't matter whether a browser was open.
 - **Colors, icons and icon sizes** of the map, shared between all your devices.
@@ -131,6 +131,7 @@ To open the dev server from a phone, allow its host: `DEV_ORIGINS=<pc-name>,<pc-
 
 GPL-3.0, see [LICENSE](LICENSE).
 
-Built-in aerial imagery comes from the surveying offices of the German states under their open
-data licenses (CC BY 4.0, dl-de/by-2-0 or dl-de/zero-2-0). The app shows the required attribution
+Built-in aerial imagery comes from the official surveying and mapping agencies under their open
+data licenses (CC BY 4.0, CC0, dl-de/by-2-0, dl-de/zero-2-0, Etalab 2.0, the Flemish free reuse
+license, swisstopo's free use terms, US public domain). The app shows the required attribution
 while imagery is on. For a tile source you add yourself, you're responsible for its terms.

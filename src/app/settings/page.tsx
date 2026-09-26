@@ -139,8 +139,9 @@ export default function SettingsPage() {
         <section className={styles.card}>
           <h2>Aerial imagery</h2>
           <p className={styles.dim}>
-            Official open orthophotos are built in where a country offers them for free, so far for Germany (all
-            states except Saarland). Anywhere else you can add a tile source you are allowed to use, as an XYZ url with{' '}
+            Official open orthophotos are built in where a country offers them for free: Germany (all states except
+            Saarland), Austria, Switzerland, the Netherlands, Belgium, Luxembourg, France, Spain, Czechia and the
+            USA. Anywhere else you can add a tile source you are allowed to use, as an XYZ url with{' '}
             {'{z}'}, {'{x}'} and {'{y}'}. It shows up as an extra choice on the map, and you are responsible for
             its terms of use.
           </p>

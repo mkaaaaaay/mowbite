@@ -1,8 +1,9 @@
 import {toUtm, utmZone} from './utm';
 
-// Official orthophotos of the German states, all open data (checked 2026-09). Saarland isn't here, it
-// needs a contract for use in other apps. Anything else the user adds as an xyz tile url in the
-// settings and is responsible for its terms.
+// Official orthophotos, all free to use in apps without a key (licenses checked 2026-09). The German
+// states as wms, other countries as web mercator tiles. Saarland isn't here, it needs a contract for
+// use in other apps. Anything else the user adds as an xyz tile url in the settings and is
+// responsible for its terms.
 const YEAR = new Date().getFullYear();
 
 interface WmsSource {
@@ -122,7 +123,95 @@ export const STATE_IMAGERY: Record<string, WmsSource> = {
   },
 };
 
-// a state key from STATE_IMAGERY, or the user's own xyz source
+interface TileSource {
+  label: string;
+  // {z}/{x}/{y}, or {bbox} for a wms that takes EPSG:3857
+  template: string;
+  // rough lat/lon boxes, [south, north, west, east]
+  boxes: [number, number, number, number][];
+  attribution: string;
+}
+
+export const COUNTRY_IMAGERY: Record<string, TileSource> = {
+  at: {
+    label: 'Österreich basemap.at',
+    template: 'https://maps.wien.gv.at/basemap/bmaporthofoto30cm/normal/google3857/{z}/{y}/{x}.jpeg',
+    boxes: [[46.37, 49.02, 9.53, 17.16]],
+    attribution: 'Datenquelle: basemap.at, CC BY 4.0',
+  },
+  ch: {
+    label: 'Schweiz SWISSIMAGE',
+    template: 'https://wmts.geo.admin.ch/1.0.0/ch.swisstopo.swissimage/default/current/3857/{z}/{x}/{y}.jpeg',
+    boxes: [[45.82, 47.81, 5.96, 10.49]],
+    attribution: 'swisstopo',
+  },
+  nl: {
+    label: 'Nederland Luchtfoto',
+    template: 'https://service.pdok.nl/hwh/luchtfotorgb/wmts/v1_0/Actueel_orthoHR/EPSG:3857/{z}/{x}/{y}.jpeg',
+    boxes: [[50.75, 53.56, 3.36, 7.23]],
+    attribution: 'Beeldmateriaal.nl, CC BY 4.0',
+  },
+  vl: {
+    label: 'Vlaanderen Orthofoto',
+    template:
+      'https://geo.api.vlaanderen.be/OMWRGBMRVL/wms?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=Ortho&STYLES=' +
+      '&CRS=EPSG:3857&BBOX={bbox}&WIDTH=256&HEIGHT=256&FORMAT=image/jpeg',
+    boxes: [[50.68, 51.51, 2.54, 5.92]],
+    attribution: 'Bron: Luchtopnamen Digitaal Vlaanderen',
+  },
+  wa: {
+    label: 'Wallonie Orthophotos',
+    template:
+      'https://geoservices.wallonie.be/arcgis/services/IMAGERIE/ORTHO_LAST/MapServer/WMSServer?SERVICE=WMS&VERSION=1.3.0' +
+      '&REQUEST=GetMap&LAYERS=0&STYLES=&CRS=EPSG:3857&BBOX={bbox}&WIDTH=256&HEIGHT=256&FORMAT=image/jpeg',
+    boxes: [[49.49, 50.82, 2.84, 6.41]],
+    attribution: 'SPW, CC BY 4.0',
+  },
+  lu: {
+    label: 'Luxembourg Ortho',
+    template: 'https://wmts1.geoportail.lu/opendata/wmts/ortho_latest/GLOBAL_WEBMERCATOR_4_V3/{z}/{x}/{y}.jpeg',
+    boxes: [[49.44, 50.18, 5.73, 6.53]],
+    attribution: 'ACT Luxembourg, CC0',
+  },
+  fr: {
+    label: 'France IGN',
+    template:
+      'https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&STYLE=normal' +
+      '&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&FORMAT=image/jpeg',
+    boxes: [[41.33, 51.09, -5.14, 9.56]],
+    attribution: 'IGN, Etalab 2.0',
+  },
+  es: {
+    label: 'España PNOA',
+    template:
+      'https://www.ign.es/wmts/pnoa-ma?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=OI.OrthoimageCoverage&STYLE=default' +
+      '&TILEMATRIXSET=GoogleMapsCompatible&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&FORMAT=image/jpeg',
+    boxes: [
+      [35.9, 43.8, -9.3, 4.33],
+      [27.6, 29.5, -18.2, -13.4],
+    ],
+    attribution: 'PNOA © IGN España, CC BY 4.0 scne.es',
+  },
+  cz: {
+    label: 'Česko Ortofoto',
+    template: 'https://ags.cuzk.cz/arcgis1/rest/services/ORTOFOTO_WM/MapServer/tile/{z}/{y}/{x}',
+    boxes: [[48.55, 51.06, 12.09, 18.86]],
+    attribution: 'ČÚZK, CC BY 4.0',
+  },
+  us: {
+    label: 'USA NAIP',
+    template:
+      'https://imagery.nationalmap.gov/arcgis/rest/services/USGSNAIPImagery/ImageServer/exportImage' +
+      '?bbox={bbox}&bboxSR=3857&imageSR=3857&size=256,256&format=jpg&f=image',
+    boxes: [[24.5, 49.4, -124.8, -66.9]],
+    attribution: 'USGS / USDA NAIP, public domain',
+  },
+};
+
+const inBox = (d: {lat: number; lon: number}, [s, n, w, e]: [number, number, number, number]) =>
+  d.lat >= s && d.lat <= n && d.lon >= w && d.lon <= e;
+
+// a key from STATE_IMAGERY or COUNTRY_IMAGERY, or the user's own xyz source
 export type ImagerySource = string;
 
 export interface CustomImagery {
@@ -136,8 +225,8 @@ export function isTileUrl(url: string | undefined): url is string {
 }
 
 export function imageryInfo(source: ImagerySource, custom?: CustomImagery): {label: string; attribution: string} {
-  const state = STATE_IMAGERY[source];
-  if (state) return {label: state.label, attribution: state.attribution};
+  const known = STATE_IMAGERY[source] ?? COUNTRY_IMAGERY[source];
+  if (known) return {label: known.label, attribution: known.attribution};
   let host = '';
   try {
     host = new URL(custom?.url ?? '').host;
@@ -150,17 +239,22 @@ export interface Datum {
   lon: number;
 }
 
-// the states whose box contains the mower (neighbours overlap a bit), then the own source.
-// the wms tiles are requested in the map's utm zone, the services only offer 32 and 33
+// the states and countries whose box contains the mower (neighbours overlap a bit), then the own
+// source. the german wms tiles are requested in the map's utm zone, the services only offer 32 and 33
 export function availableSources(datum: Datum, custom?: CustomImagery): ImagerySource[] {
   const out: ImagerySource[] = [];
   const zone = utmZone(datum.lat, datum.lon);
   if (zone === 32 || zone === 33) {
-    for (const [key, st] of Object.entries(STATE_IMAGERY)) {
-      const [s, n, w, e] = st.box;
-      if (datum.lat >= s && datum.lat <= n && datum.lon >= w && datum.lon <= e) out.push(key);
-    }
+    for (const [key, st] of Object.entries(STATE_IMAGERY)) if (inBox(datum, st.box)) out.push(key);
   }
+  // smallest box first, near a border the region the mower is in usually has the smaller one
+  const area = ([s, n, w, e]: [number, number, number, number]) => (n - s) * (e - w);
+  out.push(
+    ...Object.entries(COUNTRY_IMAGERY)
+      .flatMap(([key, c]) => c.boxes.filter((b) => inBox(datum, b)).map((b) => [key, area(b)] as const))
+      .sort((a, b) => a[1] - b[1])
+      .map(([key]) => key),
+  );
   if (isTileUrl(custom?.url)) out.push('custom');
   return out;
 }
@@ -220,6 +314,9 @@ function wmsTiles(src: WmsSource, datum: Datum, v: View): ImageryTile[] {
 const tileLon = (x: number, z: number) => (x / 2 ** z) * 360 - 180;
 const tileLat = (y: number, z: number) => (Math.atan(Math.sinh(Math.PI * (1 - (2 * y) / 2 ** z))) * 180) / Math.PI;
 
+const mercX = (lon: number) => (lon * Math.PI * 6378137) / 180;
+const mercY = (lat: number) => 6378137 * Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360));
+
 // web mercator xyz tiles, each one placed by its corners in utm so the slight rotation is right
 function xyzTiles(template: string, datum: Datum, v: View): ImageryTile[] {
   const zone = utmZone(datum.lat, datum.lon);
@@ -249,7 +346,15 @@ function xyzTiles(template: string, datum: Datum, v: View): ImageryTile[] {
   for (let x = x0; x <= x1; x++) {
     for (let y = y0; y <= y1; y++) {
       tiles.push({
-        href: template.replace('{z}', String(z)).replace('{x}', String(x)).replace('{y}', String(y)),
+        href: template
+          .replace('{z}', String(z))
+          .replace('{x}', String(x))
+          .replace('{y}', String(y))
+          .replace('{bbox}', () =>
+            [mercX(tileLon(x, z)), mercY(tileLat(y + 1, z)), mercX(tileLon(x + 1, z)), mercY(tileLat(y, z))]
+              .map((v) => v.toFixed(2))
+              .join(','),
+          ),
         corners: [
           local(tileLat(y, z), tileLon(x, z)),
           local(tileLat(y, z), tileLon(x + 1, z)),
@@ -264,5 +369,7 @@ function xyzTiles(template: string, datum: Datum, v: View): ImageryTile[] {
 export function imageryTiles(source: ImagerySource, datum: Datum, v: View, custom?: CustomImagery): ImageryTile[] {
   const state = STATE_IMAGERY[source];
   if (state) return wmsTiles(state, datum, v);
+  const country = COUNTRY_IMAGERY[source];
+  if (country) return xyzTiles(country.template, datum, v);
   return source === 'custom' && isTileUrl(custom?.url) ? xyzTiles(custom.url, datum, v) : [];
 }
