@@ -16,7 +16,7 @@ services:
       openmower.ui.name: "Mowmate"
       openmower.ui.port: "8082"
       openmower.ui.icon: "Grass"
-      openmower.ui.description: "Map editor, tracks and sensors"
+      openmower.ui.description: "Map editor, area recording, tracks, activity and sensors"
     # all optional. without a url the app connects to ws://<host it was opened from>:9001,
     # which is right when it runs on the mower. the sensor recorder finds the broker on the
     # mower by itself, the MOWER_MQTT_HOST lines are only for a broker somewhere else
