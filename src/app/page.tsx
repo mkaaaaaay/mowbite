@@ -6,6 +6,7 @@ import {HomeIcon, PlayIcon, SkipIcon, StopIcon, WarningIcon} from '@/components/
 import {useComputedSpeed} from '@/hooks/useComputedSpeed';
 import {useMowerActions} from '@/hooks/useMowerActions';
 import {useMowerMap} from '@/hooks/useMowerMap';
+import {datumFromParams, useMowerParams} from '@/hooks/useMowerParams';
 import {useMowerSensors} from '@/hooks/useMowerSensors';
 import {useMowerPosition} from '@/hooks/useMowerPosition';
 import {useMowerState, type MowerState} from '@/hooks/useMowerState';
@@ -99,6 +100,7 @@ export default function Home() {
   const speed = useComputedSpeed(position);
   const track = useMowerTrack();
   const map = useMowerMap();
+  const params = useMowerParams();
   const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
   const recent = useRecentRuns(state?.current_state);
 
@@ -196,7 +198,7 @@ export default function Home() {
 
         {showMap && map && (
           <section className={styles.map}>
-            <MapView map={map} mower={position} track={track} follow={driving} zoomable />
+            <MapView map={map} mower={position} track={track} follow={driving} zoomable datum={datumFromParams(params)} />
           </section>
         )}
 
