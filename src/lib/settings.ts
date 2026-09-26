@@ -19,7 +19,8 @@ export type ColorKey = (typeof COLORS)[number]['key'];
 
 export interface Settings {
   colors?: Partial<Record<ColorKey, string>>;
-  icons?: {mower?: string; dock?: string};
+  // sizes are factors, 1 = default
+  icons?: {mower?: string; dock?: string; mowerSize?: number; dockSize?: number};
   // own aerial imagery source, xyz tile url
   imagery?: {url?: string; attribution?: string};
 }
@@ -88,9 +89,13 @@ export async function syncSettings() {
   }
 }
 
+// sliders and color pickers fire on every move, only the last state goes to the mower
+let saveTimer: ReturnType<typeof setTimeout> | undefined;
 export function saveSettings(next: Settings) {
   setLocal(next);
-  if (shared) void fetch(SETTINGS_URL, {method: 'POST', body: JSON.stringify(next)}).catch(() => {});
+  if (!shared) return;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => void fetch(SETTINGS_URL, {method: 'POST', body: JSON.stringify(next)}).catch(() => {}), 400);
 }
 
 // inline in <head>: sets the color variables before anything is drawn, so saved colors don't flash

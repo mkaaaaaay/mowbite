@@ -36,6 +36,21 @@ function IconChoice({
   );
 }
 
+function SizeSlider({value, onChange}: {value: number; onChange: (v: number) => void}) {
+  return (
+    <label className={styles.size}>
+      Size
+      <input type="range" min={0.5} max={3} step={0.1} value={value} onChange={(e) => onChange(+e.target.value)} />
+      <span>{Math.round(value * 100)}%</span>
+      {value !== 1 && (
+        <button className={styles.linkButton} onClick={() => onChange(1)}>
+          default
+        </button>
+      )}
+    </label>
+  );
+}
+
 export default function SettingsPage() {
   const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
   const colors = settings.colors ?? {};
@@ -56,9 +71,9 @@ export default function SettingsPage() {
   };
   const imageryUrl = settings.imagery?.url;
 
-  const setIcon = (which: 'mower' | 'dock', key: string) => {
+  const setIcon = (field: 'mower' | 'dock' | 'mowerSize' | 'dockSize', value: string | number) => {
     const cur = settingsStore.snapshot();
-    saveSettings({...cur, icons: {...cur.icons, [which]: key}});
+    saveSettings({...cur, icons: {...cur.icons, [field]: value}});
   };
 
   return (
@@ -72,11 +87,13 @@ export default function SettingsPage() {
         <section className={styles.card}>
           <h2>Mower icon</h2>
           <IconChoice icons={MOWER_ICONS} value={icons.mower ?? MOWER_ICONS[0].key} onChange={(k) => setIcon('mower', k)} rotate />
+          <SizeSlider value={icons.mowerSize ?? 1} onChange={(v) => setIcon('mowerSize', v)} />
         </section>
 
         <section className={styles.card}>
           <h2>Docking station icon</h2>
           <IconChoice icons={DOCK_ICONS} value={icons.dock ?? DOCK_ICONS[0].key} onChange={(k) => setIcon('dock', k)} />
+          <SizeSlider value={icons.dockSize ?? 1} onChange={(v) => setIcon('dockSize', v)} />
         </section>
 
         <section className={styles.card}>

@@ -140,6 +140,25 @@
   vector-effect: non-scaling-stroke;
 }
 
+.size {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.size input {
+  flex: 1;
+  max-width: 260px;
+  accent-color: var(--accent);
+}
+
+.size span {
+  min-width: 40px;
+  font-variant-numeric: tabular-nums;
+}
+
 .field {
   display: flex;
   flex-direction: column;

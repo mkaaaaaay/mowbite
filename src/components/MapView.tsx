@@ -577,7 +577,7 @@ export default function MapView({
         {map.docking_stations.map((station) => {
           const [sx, sy] = toScreen(station.position.x, station.position.y);
           return (
-            <g key={station.id} className={styles.dock} transform={`translate(${sx} ${sy}) scale(${8 * k})`}>
+            <g key={station.id} className={styles.dock} transform={`translate(${sx} ${sy}) scale(${8 * k * (settings.icons?.dockSize ?? 1)})`}>
               {dockIcon(settings.icons?.dock).draw()}
             </g>
           );
@@ -600,7 +600,7 @@ export default function MapView({
           (() => {
             const [sx, sy] = toScreen(displayMower.x, displayMower.y);
             // real size, but never smaller than a few pixels when zoomed out
-            const size = Math.max(MOWER_SIZE * scale, 7 * k);
+            const size = Math.max(MOWER_SIZE * scale, 7 * k) * (settings.icons?.mowerSize ?? 1);
             // svg y points down, so the map's ccw heading becomes a cw rotation
             const deg = (-displayMower.heading * 180) / Math.PI;
             return (
