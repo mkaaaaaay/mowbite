@@ -84,28 +84,28 @@ function ProblemItem({run, next, event, state, file, line}: {run: Run; next?: Ru
         <strong>{text}</strong>
       </div>
       {hint && <p>{hint}</p>}
-      <p className={styles.facts}>
-        {problemFacts(run, event, next).join(' · ')}
-        {' · '}
-        <button className={styles.rawToggle} onClick={() => setRaw(!raw)}>
-          {raw ? 'hide entry' : 'show entry'}
-        </button>
+      <p className={styles.facts}>{problemFacts(run, event, next).join(' · ')}</p>
+      <div className={styles.problemActions}>
         {event.x !== undefined && event.y !== undefined && (
-          <>
-            {' · '}
-            <Link
-              className={styles.rawToggle}
-              href={
-                `/map?at=${event.x.toFixed(2)},${event.y.toFixed(2)}` +
-                (run.jobId ? `&job=${run.jobId}` : '') +
-                `&msg=${encodeURIComponent(`${clock(event.t, true)} ${text}`)}`
-              }
-            >
-              show on map
-            </Link>
-          </>
+          <Link
+            className={styles.onMap}
+            href={
+              `/map?at=${event.x.toFixed(2)},${event.y.toFixed(2)}` +
+              (run.jobId ? `&job=${run.jobId}` : '') +
+              `&msg=${encodeURIComponent(`${clock(event.t, true)} ${text}`)}`
+            }
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21Z" />
+              <circle cx="12" cy="9.5" r="2.5" />
+            </svg>
+            Show on map
+          </Link>
         )}
-      </p>
+        <button className={styles.rawToggle} onClick={() => setRaw(!raw)}>
+          {raw ? 'Hide entry' : 'Show entry'}
+        </button>
+      </div>
       {raw && <RawEntry event={event} file={file} line={line} />}
     </li>
   );

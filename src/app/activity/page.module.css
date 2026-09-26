@@ -228,6 +228,36 @@
   line-height: 1.4;
 }
 
+.problemActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  margin: 8px 0 0 74px;
+}
+
+.onMap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--error) 55%, transparent);
+  background: color-mix(in srgb, var(--error) 16%, transparent);
+  color: #ffc4c4;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.onMap svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+
 .rawToggle {
   padding: 0;
   border: none;
@@ -266,6 +296,7 @@
 
 @media (max-width: 600px) {
   .problemList p,
+  .problemActions,
   .raw {
     margin-left: 0;
   }

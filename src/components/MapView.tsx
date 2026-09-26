@@ -700,16 +700,6 @@ export default function MapView({
           </>
         )}
 
-        {markers?.map((m, i) => {
-          const [mx, my] = toScreen(m.x, m.y);
-          return (
-            <g key={'mk' + i} className={styles.marker}>
-              <circle cx={mx} cy={my} r={14 * k} className={styles.markerPulse} />
-              <circle cx={mx} cy={my} r={5 * k} />
-            </g>
-          );
-        })}
-
         {overlay?.map((line, i) => {
           if (line.points.length < 2) return null;
           const pts = line.points.map((p) => toScreen(p.x, p.y).join(',')).join(' ');
@@ -781,6 +771,16 @@ export default function MapView({
       }}
     >
       {renderContent(k)}
+      {/* last, so a spot at the dock isn't hidden under the mower */}
+      {markers?.map((m, i) => {
+        const [mx, my] = toScreen(m.x, m.y);
+        return (
+          <g key={'mk' + i} className={styles.marker}>
+            <circle cx={mx} cy={my} r={20 * k} className={styles.markerPulse} />
+            <circle cx={mx} cy={my} r={6 * k} />
+          </g>
+        );
+      })}
     </svg>
   );
 
