@@ -77,6 +77,14 @@ const OVERLAY_CLASS: Record<string, string> = {
   red: styles.overlayObstacle,
   blue: styles.overlayLive,
 };
+const LAYERS = [
+  {key: 'obstacle', label: 'Obstacles'},
+  {key: 'nav', label: 'Navigation areas'},
+  {key: 'order', label: 'Mowing order numbers'},
+  {key: 'stripes', label: 'Mowing direction'},
+  {key: 'track', label: 'Track'},
+] as const;
+type Layer = (typeof LAYERS)[number]['key'];
 const LOUPE_PX = 120;
 const LOUPE_ZOOM = 2.5;
 
@@ -148,6 +156,24 @@ export default function MapView({
       return true;
     }
   });
+  // layers switched off in the layer menu, remembered per device like the grid
+  const [hidden, setHidden] = useState<Set<Layer>>(() => {
+    try {
+      return new Set(JSON.parse(localStorage.getItem('mapHidden') ?? '[]'));
+    } catch {
+      return new Set();
+    }
+  });
+  const [layersOpen, setLayersOpen] = useState(false);
+  const toggleLayer = (l: Layer) => {
+    const next = new Set(hidden);
+    if (next.has(l)) next.delete(l);
+    else next.add(l);
+    setHidden(next);
+    try {
+      localStorage.setItem('mapHidden', JSON.stringify([...next]));
+    } catch {}
+  };
   const pointers = useRef(new Map<number, {x: number; y: number}>());
   const gesture = useRef<{moved: boolean; pinchDist: number | null}>({moved: false, pinchDist: null});
   const smoothedMower = useEasedPose(mower ?? {x: 0, y: 0, heading: 0});
@@ -527,7 +553,7 @@ export default function MapView({
           })}
         </g>
       )}
-        {areasBySize.map((area) => (
+        {areasBySize.filter((area) => !hidden.has(area.properties.type as Layer)).map((area) => (
           <polygon
             key={area.id}
             points={outlinePoints.get(area.id)}
@@ -544,7 +570,7 @@ export default function MapView({
           />
         ))}
 
-        {stripes && stripes.length > 0 && (
+        {stripes && stripes.length > 0 && !hidden.has('stripes') && (
           <path
             className={styles.stripes}
             d={stripes
@@ -565,6 +591,7 @@ export default function MapView({
         )}
 
         {orderLabels &&
+          !hidden.has('order') &&
           map.areas.map((area) => {
             const n = orderLabels[area.id];
             if (!n || !area.outline.length) return null;
@@ -603,10 +630,12 @@ export default function MapView({
           );
         })}
 
-        {trackRuns.map((run, i) => (
-          <polyline key={'run' + i} points={run.points} className={run.blades ? styles.track : styles.transit} />
-        ))}
-        {pastTrack?.map((seg, i) =>
+        {!hidden.has('track') &&
+          trackRuns.map((run, i) => (
+            <polyline key={'run' + i} points={run.points} className={run.blades ? styles.track : styles.transit} />
+          ))}
+        {!hidden.has('track') &&
+          pastTrack?.map((seg, i) =>
           seg.points.length >= 2 ? (
             <polyline
               key={'past' + i}
@@ -785,6 +814,18 @@ export default function MapView({
             ◩
           </button>
         )}
+        <button
+          className={hidden.size ? styles.partly : ''}
+          onClick={() => setLayersOpen(!layersOpen)}
+          aria-label="layers"
+          title="Show or hide obstacles, numbers, track and more"
+        >
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round">
+            <path d="M12 3 3 8l9 5 9-5-9-5Z" />
+            <path d="m3 12 9 5 9-5" />
+            <path d="m3 16 9 5 9-5" />
+          </svg>
+        </button>
         <Link href="/settings" className={styles.linkButton} aria-label="settings" title="Map colors, icons and aerial imagery">
           ⚙
         </Link>
@@ -801,6 +842,16 @@ export default function MapView({
           </button>
         )}
       </div>
+      {layersOpen && (
+        <div className={styles.layers}>
+          {LAYERS.map((l) => (
+            <label key={l.key}>
+              <input type="checkbox" checked={!hidden.has(l.key)} onChange={() => toggleLayer(l.key)} />
+              {l.label}
+            </label>
+          ))}
+        </div>
+      )}
       {grid && <span className={styles.gridLabel}>grid {grid.step} m</span>}
       {source && (
         <div className={styles.imageryBar}>
