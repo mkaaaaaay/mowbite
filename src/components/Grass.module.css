@@ -70,13 +70,13 @@
   }
 }
 
-/* the uncut part starts right in front of the mower's mouth */
+/* the uncut part starts at the mower's mouth, 20 px into its 40 px */
 @keyframes grass-cut {
   from {
-    clip-path: inset(0 0 0 -10px);
+    clip-path: inset(0 0 0 -30px);
   }
   to {
-    clip-path: inset(0 0 0 calc(100vw + 40px));
+    clip-path: inset(0 0 0 calc(100vw + 30px));
   }
 }
 

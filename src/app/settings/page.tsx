@@ -129,7 +129,7 @@ export default function SettingsPage() {
         </section>
 
         <section className={styles.card}>
-          <h2>{tr('Dashboard')}</h2>
+          <h2>{tr('Display')}</h2>
           <label className={styles.check}>
             <input
               type="checkbox"
@@ -141,6 +141,31 @@ export default function SettingsPage() {
             />
             {tr('Always show the map, not only while the mower is driving')}
           </label>
+          <label className={styles.check}>
+            <input
+              type="checkbox"
+              checked={settings.grass !== false}
+              onChange={(e) => saveSettings({...settingsStore.snapshot(), grass: e.target.checked})}
+            />
+            {tr('Grass along the bottom of the screen')}
+          </label>
+        </section>
+
+        <section className={styles.card}>
+          <h2>{tr('Weather')}</h2>
+          <label className={styles.check}>
+            <input
+              type="checkbox"
+              checked={!!settings.weather}
+              onChange={(e) => saveSettings({...settingsStore.snapshot(), weather: e.target.checked})}
+            />
+            {tr('Show the weather for the garden')}
+          </label>
+          <p className={styles.dim}>
+            {tr(
+              "Shows the current weather and whether rain is coming on the dashboard. The data comes from Open-Meteo, for that the garden's position is sent there, rounded to about a kilometer.",
+            )}
+          </p>
         </section>
 
         <section className={styles.card}>

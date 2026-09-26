@@ -24,6 +24,10 @@ export interface Settings {
   icons?: {mower?: string; dock?: string; mowerSize?: number; dockSize?: number; mowerRealSize?: boolean};
   // map on the dashboard: only while driving (default) or always
   dashboard?: {map?: 'auto' | 'always'};
+  // weather on the dashboard from open-meteo, off unless switched on (it sends the rough position there)
+  weather?: boolean;
+  // the strip of grass along the bottom, on unless switched off
+  grass?: boolean;
   // own aerial imagery source, xyz tile url
   imagery?: {url?: string; attribution?: string};
 }
