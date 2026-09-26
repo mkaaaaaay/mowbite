@@ -1,6 +1,6 @@
 'use client';
 
-import {clock, dayKey, dayLabel, duration} from '@/lib/dates';
+import {clock, dayKey, dayLabel, duration, parseDay} from '@/lib/dates';
 import {describe, eventSource, explain, groupRuns, rawLine, OUTCOMES, withState, type Entry, type MowerEvent, type Run} from '@/lib/events';
 import {useDragScroll} from '@/hooks/useDragScroll';
 import {callRpc} from '@/lib/rpc';
@@ -8,8 +8,6 @@ import Link from 'next/link';
 import {useEffect, useState} from 'react';
 import styles from './page.module.css';
 
-// "20260926" -> Date
-const parseDay = (d: string) => new Date(+d.slice(0, 4), +d.slice(4, 6) - 1, +d.slice(6, 8));
 
 function Timeline({events}: {events: MowerEvent[]}) {
   return (

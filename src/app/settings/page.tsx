@@ -85,6 +85,21 @@ export default function SettingsPage() {
         </p>
 
         <section className={styles.card}>
+          <h2>Dashboard</h2>
+          <label className={styles.check}>
+            <input
+              type="checkbox"
+              checked={settings.dashboard?.map === 'always'}
+              onChange={(e) => {
+                const cur = settingsStore.snapshot();
+                saveSettings({...cur, dashboard: {...cur.dashboard, map: e.target.checked ? 'always' : 'auto'}});
+              }}
+            />
+            Always show the map, not only while the mower is driving
+          </label>
+        </section>
+
+        <section className={styles.card}>
           <h2>Mower icon</h2>
           <IconChoice icons={MOWER_ICONS} value={icons.mower ?? MOWER_ICONS[0].key} onChange={(k) => setIcon('mower', k)} rotate />
           <SizeSlider value={icons.mowerSize ?? 1} onChange={(v) => setIcon('mowerSize', v)} />

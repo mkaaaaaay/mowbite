@@ -2,6 +2,7 @@
 
 import {startSensorHistory} from '@/hooks/useSensorHistory';
 import {syncSettings} from '@/lib/settings';
+import LogoMark from './Logo';
 import Link from 'next/link';
 import {usePathname} from 'next/navigation';
 import {useEffect} from 'react';
@@ -23,6 +24,12 @@ export default function Nav() {
   }, []);
   return (
     <nav className={styles.nav}>
+      <Link href="/" className={styles.logo} aria-label="Mowmate">
+        <LogoMark />
+        <span className={styles.wordmark}>
+          <strong>mow</strong>mate
+        </span>
+      </Link>
       {LINKS.map((link) => (
         <Link key={link.href} href={link.href} className={pathname === link.href ? styles.active : undefined}>
           {link.label}

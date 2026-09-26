@@ -19,3 +19,6 @@ export function duration(seconds: number) {
   if (m < 1) return '<1 min';
   return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60} min`;
 }
+
+// "20260926" (event history file name) -> Date
+export const parseDay = (d: string) => new Date(+d.slice(0, 4), +d.slice(4, 6) - 1, +d.slice(6, 8));

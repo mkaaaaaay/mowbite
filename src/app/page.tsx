@@ -1,174 +1,227 @@
 'use client';
 
 import MapView from '@/components/MapView';
-import {BatteryIcon, HomeIcon, MapPinIcon, PlayIcon, SkipIcon, StopIcon, WarningIcon} from '@/components/icons';
+import {HomeIcon, PlayIcon, SkipIcon, StopIcon, WarningIcon} from '@/components/icons';
 import {useComputedSpeed} from '@/hooks/useComputedSpeed';
 import {useMowerActions} from '@/hooks/useMowerActions';
 import {useMowerMap} from '@/hooks/useMowerMap';
 import {useMowerSensors} from '@/hooks/useMowerSensors';
 import {useMowerPosition} from '@/hooks/useMowerPosition';
-import {useMowerState} from '@/hooks/useMowerState';
+import {useMowerState, type MowerState} from '@/hooks/useMowerState';
 import {useMowerTrack} from '@/hooks/useMowerTrack';
-import {batteryColor, stateColor} from '@/lib/status';
+import {useRecentRuns} from '@/hooks/useRecentRuns';
+import {clock, dayKey, dayLabel, duration} from '@/lib/dates';
+import {OUTCOMES, type MowerEvent, type Run} from '@/lib/events';
+import {settingsStore} from '@/lib/settings';
+import {batteryColor, isDocked} from '@/lib/status';
+import Link from 'next/link';
+import {useSyncExternalStore} from 'react';
 import styles from './page.module.css';
 
-// only show the mini map while the mower is driving
-const MOVING_STATES = new Set(['MOWING', 'DOCKING', 'UNDOCKING']);
+const DRIVING = new Set(['MOWING', 'DOCKING', 'UNDOCKING']);
 
-const ACTION_START = 'mower_logic:idle/start_mowing';
-const ACTION_STOP = 'mower_logic:mowing/pause';
-const ACTION_HOME = 'mower_logic:mowing/abort_mowing';
-const ACTION_SKIP_AREA = 'mower_logic:mowing/skip_area';
 const ACTION_RESET_EMERGENCY = 'mower_logic/reset_emergency';
-
 const ACTIONS = [
-  {id: ACTION_START, Icon: PlayIcon, label: 'Start', color: 'accent'},
-  {id: ACTION_STOP, Icon: StopIcon, label: 'Stop', color: 'warning'},
-  {id: ACTION_HOME, Icon: HomeIcon, label: 'Go home', color: 'accent'},
-  {id: ACTION_SKIP_AREA, Icon: SkipIcon, label: 'Skip zone', color: 'accent'},
-] as const;
+  {id: 'mower_logic:idle/start_mowing', Icon: PlayIcon, label: 'Start', main: true},
+  {id: 'mower_logic:mowing/pause', Icon: StopIcon, label: 'Pause'},
+  {id: 'mower_logic:mowing/abort_mowing', Icon: HomeIcon, label: 'Go home'},
+  {id: 'mower_logic:mowing/skip_area', Icon: SkipIcon, label: 'Skip area'},
+];
 
-// 999 = no fix (xbot_positioning), same as on the sensors page
-const NO_GPS_FIX_VALUE = 999;
-const GPS_DISABLED_BY_DESIGN_STATES = new Set(['IDLE', 'DOCKING']);
+// 999 = no fix (xbot_positioning)
+const NO_FIX = 999;
+
+function headline(state: MowerState, docked: boolean, chargeState: string | undefined, area: string | undefined) {
+  if (state.emergency) return {title: 'Emergency stop', tone: 'error'};
+  if (docked) return chargeState === 'Done' ? {title: 'Charged, in the dock', tone: 'good'} : {title: 'Charging in the dock', tone: 'good'};
+  switch (state.current_state) {
+    case 'MOWING':
+      return {title: area ? `Mowing ${area}` : 'Mowing', tone: 'live'};
+    case 'DOCKING':
+      return {title: 'Heading home', tone: 'live'};
+    case 'UNDOCKING':
+      return {title: 'Leaving the dock', tone: 'live'};
+    case 'PAUSED':
+      return {title: 'Paused', tone: 'warn'};
+    case 'AREA_RECORDING':
+      return {title: 'Recording an area', tone: 'live'};
+    case 'IDLE':
+      return {title: 'Waiting on the lawn', tone: 'warn'};
+    default:
+      return {title: state.current_state.toLowerCase().replace(/_/g, ' '), tone: 'neutral'};
+  }
+}
+
+function BatteryRing({percent, charging}: {percent: number; charging: boolean}) {
+  const r = 34;
+  const c = 2 * Math.PI * r;
+  return (
+    <div className={[styles.ring, styles[`ring-${batteryColor(percent)}`]].join(' ')}>
+      <svg viewBox="0 0 80 80">
+        <circle cx="40" cy="40" r={r} className={styles.ringBg} />
+        <circle cx="40" cy="40" r={r} className={styles.ringFill} strokeDasharray={`${(c * percent) / 100} ${c}`} />
+      </svg>
+      <div>
+        <strong>{percent}%</strong>
+        {charging && <span>charging</span>}
+      </div>
+    </div>
+  );
+}
+
+function LastRun({run}: {run: Run}) {
+  const outcome = OUTCOMES[run.outcome];
+  const day = new Date(run.start * 1000);
+  const today = dayKey(day) === dayKey(new Date());
+  return (
+    <div className={[styles.lastRun, styles[`run-${outcome.tone}`]].join(' ')}>
+      <div>
+        <strong>
+          {!today && `${dayLabel(day)}, `}
+          {clock(run.start)} – {clock(run.end)}
+        </strong>
+        <span className={styles.dim}>
+          {run.areas.join(', ') || 'no area'}
+          {run.bladeSeconds > 0 && ` · mowed ${duration(run.bladeSeconds)}`}
+        </span>
+      </div>
+      <span className={styles.badge}>{outcome.label}</span>
+    </div>
+  );
+}
 
 export default function Home() {
   const {state, connected} = useMowerState();
   const {hasAction, publishAction} = useMowerActions();
-  const {values: sensorValues} = useMowerSensors();
+  const {values} = useMowerSensors();
   const position = useMowerPosition() ?? state?.pose;
   const speed = useComputedSpeed(position);
   const track = useMowerTrack();
   const map = useMowerMap();
-  const showMiniMap = !!map && MOVING_STATES.has(state?.current_state ?? '');
-  const docked = !!state?.is_charging;
-  const chargeCurrent = sensorValues['om_charge_current'];
-  const chargeState = sensorValues['om_charge_state'];
+  const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
+  const recent = useRecentRuns(state?.current_state);
 
+  const current = state?.current_state ?? '';
+  const driving = DRIVING.has(current);
+  const showMap = !!map && (driving || settings.dashboard?.map === 'always');
+  const docked = isDocked(state, values['om_v_charge']);
   const battery = state ? Math.round(state.battery_percentage * 100) : 0;
-  const status = stateColor(state?.current_state);
-  const emergency = !!state?.emergency;
-  const pose = state?.pose;
-  const noGpsFix = pose !== undefined && pose.pos_accuracy >= NO_GPS_FIX_VALUE;
-  const gpsOffByDesign = noGpsFix && GPS_DISABLED_BY_DESIGN_STATES.has(state?.current_state ?? '');
-  const inDockingStation = gpsOffByDesign && !!state?.is_charging;
-  const gpsAccuracyLabel = !pose
-    ? '–'
-    : noGpsFix
-      ? gpsOffByDesign
-        ? inDockingStation
-          ? 'Docked'
-          : 'GPS off'
-        : 'No fix'
-      : `${(pose.pos_accuracy * 100).toFixed(1)} cm`;
+  const chargeState = values['om_charge_state'];
+  const charging = docked && chargeState !== 'Done';
+
+  // what the event history knows: since when this state holds and which area is being mowed
+  const events = recent?.today ?? [];
+  const lastOf = (f: (e: MowerEvent) => boolean) => events.filter(f).pop();
+  const since = lastOf((e) => e.type === 'STATE' && e.state === current)?.t;
+  const area = current === 'MOWING' ? lastOf((e) => e.type === 'AREA')?.area_name : undefined;
+  const head = state ? headline(state, docked, chargeState, area) : null;
+
+  const acc = state?.pose.pos_accuracy;
+  const num = (id: string) => (values[id] !== undefined ? Number(values[id]) : undefined);
+  const motorTemp = Math.max(...['om_left_esc_temp', 'om_right_esc_temp', 'om_mow_esc_temp'].map((id) => num(id) ?? -Infinity));
+  const facts: {label: string; value: string; warn?: boolean}[] = [];
+  if (state) {
+    facts.push({
+      label: 'GPS',
+      value: acc === undefined || acc >= NO_FIX ? (driving ? 'no fix' : 'off') : `${(acc * 100).toFixed(1)} cm`,
+      warn: driving && (acc === undefined || acc >= NO_FIX || acc > 0.1),
+    });
+    if (driving) facts.push({label: 'Speed', value: `${speed.toFixed(2)} m/s`});
+    if (charging && num('om_charge_current') !== undefined) facts.push({label: 'Charging', value: `${num('om_charge_current')!.toFixed(1)} A`});
+    if (num('om_v_battery') !== undefined) facts.push({label: 'Battery', value: `${num('om_v_battery')!.toFixed(1)} V`});
+    if (motorTemp > -Infinity) facts.push({label: 'Motors', value: `${Math.round(motorTemp)} °C`, warn: motorTemp > 70});
+    if (state.rain_detected) facts.push({label: 'Rain', value: 'detected', warn: true});
+  }
+
+  const runs = recent?.runs ?? [];
+  const mowed = runs.reduce((s, r) => s + r.bladeSeconds, 0);
+  const problems = runs.reduce((s, r) => s + r.problems, 0);
 
   return (
     <div className={styles.page}>
-      <main className={styles.main}>
-        <header className={styles.header}>
-          <h1>Dashboard</h1>
-          <p className={styles.subtitle}>Monitor and control your robotic lawnmower with precision</p>
-          <div className={styles.headerStats}>
-            <div className={[styles.headerStat, styles[`headerStat-${batteryColor(battery)}`]].join(' ')}>
-              <strong>{connected ? battery + '%' : '–'}</strong>
-              <span className={styles.dim}>Battery</span>
+      <main className={[styles.main, showMap ? styles.withMap : ''].join(' ')}>
+        <h1>Dashboard</h1>
+
+        {!state && <p className={styles.dim}>{connected ? 'waiting for the mower…' : 'connecting…'}</p>}
+
+        {state && head && (
+          <section className={[styles.status, styles[`tone-${head.tone}`]].join(' ')}>
+            <div className={styles.statusTop}>
+              <BatteryRing percent={battery} charging={charging} />
+              <div className={styles.headline}>
+                <h2>{head.title}</h2>
+                <span className={styles.dim}>
+                  {state.emergency
+                    ? 'Release the mower, then reset the emergency to drive again.'
+                    : since
+                      ? `since ${clock(since)}`
+                      : connected
+                        ? ''
+                        : 'connection lost'}
+                </span>
+              </div>
             </div>
-            {docked ? (
+
+            <div className={styles.facts}>
+              {facts.map((f) => (
+                <div key={f.label} className={f.warn ? styles.warn : undefined}>
+                  <span>{f.label}</span>
+                  <strong>{f.value}</strong>
+                </div>
+              ))}
+            </div>
+
+            <div className={styles.controls}>
+              {ACTIONS.map((a) => (
+                <button key={a.id} className={a.main ? styles.main : undefined} disabled={!hasAction(a.id)} onClick={() => publishAction(a.id)}>
+                  <a.Icon size={20} />
+                  {a.label}
+                </button>
+              ))}
+              {!!state.emergency && (
+                <button className={styles.reset} onClick={() => publishAction(ACTION_RESET_EMERGENCY)}>
+                  <WarningIcon size={20} />
+                  Reset emergency
+                </button>
+              )}
+            </div>
+          </section>
+        )}
+
+        {showMap && map && (
+          <section className={styles.map}>
+            <MapView map={map} mower={position} track={track} follow={driving} zoomable />
+          </section>
+        )}
+
+        {recent && (
+          <section className={styles.today}>
+            <div className={styles.todayHead}>
+              <h2>Today</h2>
+              <Link href="/activity">Activity</Link>
+            </div>
+            <div className={styles.todayNumbers}>
+              <div>
+                <strong>{mowed ? duration(mowed) : '0 min'}</strong>
+                <span>mowed</span>
+              </div>
+              <div>
+                <strong>{runs.length}</strong>
+                <span>{runs.length === 1 ? 'run' : 'runs'}</span>
+              </div>
+              <div className={problems ? styles.bad : undefined}>
+                <strong>{problems}</strong>
+                <span>{problems === 1 ? 'problem' : 'problems'}</span>
+              </div>
+            </div>
+            {recent.last && (
               <>
-                <div className={[styles.headerStat, styles['headerStat-accent']].join(' ')}>
-                  <strong>{chargeCurrent !== undefined ? `${Number(chargeCurrent).toFixed(1)} A` : '–'}</strong>
-                  <span className={styles.dim}>Charging</span>
-                </div>
-                <div className={[styles.headerStat, styles['headerStat-accent']].join(' ')}>
-                  <strong>{chargeState ?? '–'}</strong>
-                  <span className={styles.dim}>Charge State</span>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className={[styles.headerStat, styles['headerStat-success']].join(' ')}>
-                  <strong>{connected ? speed.toFixed(2) + ' m/s' : '–'}</strong>
-                  <span className={styles.dim}>Speed</span>
-                </div>
-                <div className={[styles.headerStat, styles['headerStat-accent']].join(' ')}>
-                  <strong>{connected && state ? Math.round(state.gps_percentage * 100) + '%' : '–'}</strong>
-                  <span className={styles.dim}>GPS</span>
-                </div>
-                <div className={[styles.headerStat, styles['headerStat-accent']].join(' ')}>
-                  <strong>{connected ? gpsAccuracyLabel : '–'}</strong>
-                  <span className={styles.dim}>GPS Accuracy</span>
-                </div>
+                <span className={styles.label}>Last run</span>
+                <LastRun run={recent.last} />
               </>
             )}
-          </div>
-        </header>
-
-        <div className={styles.layout}>
-          {showMiniMap && map && (
-            <div className={styles.miniMapCard}>
-              <MapView map={map} mower={position} track={track} follow zoomable />
-            </div>
-          )}
-
-          {state && (
-            <div className={styles.mowerCard}>
-              <div className={styles.mowerHeader}>
-                <div>
-                  <h2>Mower</h2>
-                  <span className={[styles.chip, styles[`chip-${status}`]].join(' ')}>{state.current_state}</span>
-                </div>
-                <div className={[styles.avatar, styles[`avatar-${status}`]].join(' ')}>
-                  <MapPinIcon size={22} />
-                </div>
-              </div>
-
-              <div className={styles.batterySection}>
-                <div className={styles.batteryHeaderRow}>
-                  <span className={styles.batteryLabel}>
-                    <span className={styles[`text-${batteryColor(battery)}`]}>
-                      <BatteryIcon size={18} />
-                    </span>
-                    Battery Status
-                  </span>
-                  <strong className={styles[`text-${batteryColor(battery)}`]}>{battery}%</strong>
-                </div>
-                <div className={styles.batteryTrack}>
-                  <div
-                    className={[styles.batteryFill, styles[`fill-${batteryColor(battery)}`]].join(' ')}
-                    style={{width: `${battery}%`}}
-                  />
-                </div>
-              </div>
-
-              <div className={styles.controlsSection}>
-                <h3 className={styles.sectionTitle}>Controls</h3>
-                <div className={styles.controlsGrid}>
-                  {ACTIONS.map((a) => (
-                    <button
-                      key={a.id}
-                      className={[styles.actionTile, styles[`tile-${a.color}`]].join(' ')}
-                      disabled={!hasAction(a.id)}
-                      onClick={() => publishAction(a.id)}
-                    >
-                      <a.Icon size={26} />
-                      <span>{a.label}</span>
-                    </button>
-                  ))}
-                  <button
-                    className={[styles.actionTile, styles['tile-error'], emergency ? styles.blinking : ''].join(' ')}
-                    disabled={!emergency}
-                    onClick={() => publishAction(ACTION_RESET_EMERGENCY)}
-                  >
-                    <WarningIcon size={26} />
-                    <span>Emergency</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {!state && <p className={styles.dim}>{connected ? 'waiting for status...' : 'connecting...'}</p>}
+          </section>
+        )}
       </main>
     </div>
   );

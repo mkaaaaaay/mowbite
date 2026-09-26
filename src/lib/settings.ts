@@ -21,6 +21,8 @@ export interface Settings {
   colors?: Partial<Record<ColorKey, string>>;
   // sizes are factors, 1 = default
   icons?: {mower?: string; dock?: string; mowerSize?: number; dockSize?: number};
+  // map on the dashboard: only while driving (default) or always
+  dashboard?: {map?: 'auto' | 'always'};
   // own aerial imagery source, xyz tile url
   imagery?: {url?: string; attribution?: string};
 }

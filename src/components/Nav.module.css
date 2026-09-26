@@ -22,6 +22,22 @@
   border-bottom: 2px solid transparent;
 }
 
+.nav .logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: -4px 0;
+  padding: 0;
+  border: none;
+  color: var(--foreground);
+}
+
+.wordmark {
+  display: none;
+  font-size: 18px;
+  letter-spacing: 0.2px;
+}
+
 .active {
   color: var(--foreground) !important;
   border-bottom-color: var(--accent) !important;
@@ -65,6 +81,15 @@
     padding: 10px 14px;
     border-radius: 10px;
     border-bottom: none;
+  }
+
+  .nav .logo {
+    margin: 0 0 16px;
+    padding: 0 6px;
+  }
+
+  .wordmark {
+    display: inline;
   }
 
   .active {
