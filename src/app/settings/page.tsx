@@ -1,8 +1,9 @@
 'use client';
 
-import {DOCK_ICONS, MOWER_ICONS} from '@/components/mapIcons';
+import {DOCK_ICONS, dockIcon, MOWER_ICONS, mowerIcon} from '@/components/mapIcons';
 import {isTileUrl} from '@/lib/imagery';
-import {COLORS, saveSettings, settingsStore, sharedSettings, type ColorKey} from '@/lib/settings';
+import {COLORS, saveSettings, settingsStore, sharedSettings, type ColorKey, type Settings} from '@/lib/settings';
+import {useRouter} from 'next/navigation';
 import {useSyncExternalStore} from 'react';
 import styles from './page.module.css';
 
@@ -51,7 +52,22 @@ function SizeSlider({value, onChange}: {value: number; onChange: (v: number) => 
   );
 }
 
+// both icons on a bit of lawn at about the size they have on a map filling a phone screen
+function IconPreview({icons}: {icons: NonNullable<Settings['icons']>}) {
+  return (
+    <svg viewBox="0 0 220 76" className={styles.lawn}>
+      <rect x="0" y="0" width="220" height="76" fill="var(--c-mow)" opacity="0.18" />
+      <path d="M48 40 C 90 70, 120 10, 160 36" className={styles.lawnTrack} />
+      <g transform={`translate(48 40) scale(${10 * (icons.dockSize ?? 1)})`}>{dockIcon(icons.dock).draw()}</g>
+      <g transform={`translate(160 36) rotate(-20) scale(${10 * (icons.mowerSize ?? 1)})`}>{mowerIcon(icons.mower).draw()}</g>
+    </svg>
+  );
+}
+
 export default function SettingsPage() {
+  const router = useRouter();
+  // back to wherever the gear was clicked, or the dashboard when the page was opened directly
+  const back = () => (window.history.length > 1 ? router.back() : router.push('/'));
   const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
   const colors = settings.colors ?? {};
   const icons = settings.icons ?? {};
@@ -79,6 +95,9 @@ export default function SettingsPage() {
   return (
     <div className={styles.page}>
       <main className={styles.main}>
+        <button className={styles.back} onClick={back}>
+          ← Back
+        </button>
         <h1>Settings</h1>
         <p className={styles.dim}>
           {sharedSettings() ? 'Saved on the mower, the same on all your devices.' : 'Saved on this device only.'}
@@ -103,12 +122,14 @@ export default function SettingsPage() {
           <h2>Mower icon</h2>
           <IconChoice icons={MOWER_ICONS} value={icons.mower ?? MOWER_ICONS[0].key} onChange={(k) => setIcon('mower', k)} rotate />
           <SizeSlider value={icons.mowerSize ?? 1} onChange={(v) => setIcon('mowerSize', v)} />
+          <IconPreview icons={icons} />
         </section>
 
         <section className={styles.card}>
           <h2>Docking station icon</h2>
           <IconChoice icons={DOCK_ICONS} value={icons.dock ?? DOCK_ICONS[0].key} onChange={(k) => setIcon('dock', k)} />
           <SizeSlider value={icons.dockSize ?? 1} onChange={(v) => setIcon('dockSize', v)} />
+          <IconPreview icons={icons} />
         </section>
 
         <section className={styles.card}>

@@ -194,3 +194,37 @@
   color: var(--error, #ff5252);
   font-size: 12px;
 }
+
+.back {
+  align-self: flex-start;
+  padding: 6px 12px 6px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--card-border);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.back:hover {
+  color: var(--foreground);
+}
+
+.lawn {
+  width: 100%;
+  max-width: 330px;
+  border-radius: 10px;
+  border: 1px solid var(--card-border);
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.lawn * {
+  vector-effect: non-scaling-stroke;
+}
+
+.lawnTrack {
+  fill: none;
+  stroke: var(--c-track);
+  stroke-width: 2;
+  opacity: 0.8;
+}
