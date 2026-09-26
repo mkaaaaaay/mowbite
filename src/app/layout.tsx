@@ -1,6 +1,7 @@
 import Grass from "@/components/Grass";
 import Nav from "@/components/Nav";
 import { COLOR_BOOT_SCRIPT } from "@/lib/settings";
+import { THEME_BOOT_SCRIPT } from "@/lib/themeBoot";
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
@@ -35,7 +36,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <head>
         {/* eslint-disable-next-line @next/next/no-sync-scripts -- has to run before the app connects */}
         <script src="/config.js" />
-        <script dangerouslySetInnerHTML={{ __html: COLOR_BOOT_SCRIPT }} />
+        <script dangerouslySetInnerHTML={{ __html: COLOR_BOOT_SCRIPT + THEME_BOOT_SCRIPT }} />
       </head>
       <body>
         <div className={styles.shell}>

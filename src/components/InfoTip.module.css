@@ -21,7 +21,7 @@
   padding: 8px 10px;
   border-radius: 8px;
   border: 1px solid var(--card-border);
-  background: #1c1c1f;
+  background: var(--bubble);
   color: var(--foreground);
   font-size: 12px;
   font-weight: 400;

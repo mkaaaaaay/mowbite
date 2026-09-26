@@ -8,6 +8,7 @@ import {useRouter} from 'next/navigation';
 import {useSyncExternalStore} from 'react';
 import styles from './page.module.css';
 import {setLangChoice, tr, useLang, useLangChoice} from '@/lib/i18n';
+import {setThemeChoice, useThemeChoice} from '@/lib/theme';
 
 function IconChoice({
   icons,
@@ -69,6 +70,7 @@ function IconPreview({icons}: {icons: NonNullable<Settings['icons']>}) {
 export default function SettingsPage() {
   useLang();
   const choice = useLangChoice();
+  const theme = useThemeChoice();
   const router = useRouter();
   // back to wherever the gear was clicked, or the dashboard when the page was opened directly
   const back = () => (window.history.length > 1 ? router.back() : router.push('/'));
@@ -126,6 +128,24 @@ export default function SettingsPage() {
             ))}
           </div>
           <p className={styles.dim}>{tr("Only for this device. Automatic follows the browser's language.")}</p>
+        </section>
+
+        <section className={styles.card}>
+          <h2>{tr('Design')}</h2>
+          <div className={styles.segment}>
+            {(
+              [
+                ['auto', tr('Automatic')],
+                ['light', tr('Light')],
+                ['dark', tr('Dark')],
+              ] as const
+            ).map(([k, label]) => (
+              <button key={k} className={theme === k ? styles.segmentOn : undefined} onClick={() => setThemeChoice(k)}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <p className={styles.dim}>{tr("Only for this device. Automatic follows the phone's or computer's setting.")}</p>
         </section>
 
         <section className={styles.card}>

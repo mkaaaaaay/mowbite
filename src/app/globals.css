@@ -8,6 +8,13 @@
   --warning: #c9982b;
   --error: #e5484d;
   --success: #3aa856;
+  --soft-good: #2e7d32;
+  --soft-warn: #9a6700;
+  --soft-bad: #c62828;
+  --soft-muted: #546e7a;
+  --bubble: #ffffff;
+  --well: rgba(0, 0, 0, 0.04);
+  --nav-bg: rgba(255, 255, 255, 0.92);
   --content-max-width: 500px;
 }
 
@@ -17,8 +24,9 @@
   }
 }
 
+/* dark: by the device's setting, or picked in the app (data-theme on <html>, see lib/theme) */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme='light']) {
     --background: #101114;
     --foreground: #f1f1f1;
     --card: rgba(255, 255, 255, 0.05);
@@ -29,7 +37,36 @@
     --warning: #d4ac4a;
     --error: #ff6669;
     --success: #4cbf72;
+    --soft-good: #a5d6a7;
+    --soft-warn: #ffcc80;
+    --soft-bad: #ef9a9a;
+    --soft-muted: #b0bec5;
+    --bubble: #1c1c1f;
+    --well: rgba(0, 0, 0, 0.25);
+    --nav-bg: rgba(22, 23, 27, 0.88);
+    color-scheme: dark;
   }
+}
+
+:root[data-theme='dark'] {
+    --background: #101114;
+  --foreground: #f1f1f1;
+  --card: rgba(255, 255, 255, 0.05);
+  --card-border: rgba(255, 255, 255, 0.09);
+  --card-blur: blur(18px) saturate(150%);
+  --text-secondary: #9a9ba0;
+  --accent: #5b9df0;
+  --warning: #d4ac4a;
+  --error: #ff6669;
+  --success: #4cbf72;
+  --soft-good: #a5d6a7;
+  --soft-warn: #ffcc80;
+  --soft-bad: #ef9a9a;
+  --soft-muted: #b0bec5;
+  --bubble: #1c1c1f;
+  --well: rgba(0, 0, 0, 0.25);
+  --nav-bg: rgba(22, 23, 27, 0.88);
+  color-scheme: dark;
 }
 
 html {
@@ -57,7 +94,7 @@ body {
 }
 
 @media (prefers-color-scheme: dark) {
-  body {
+  :root:not([data-theme='light']) body {
     background-image:
       radial-gradient(circle at 15% 10%, rgba(91, 157, 240, 0.1), transparent 45%),
       radial-gradient(circle at 85% 0%, rgba(168, 85, 247, 0.08), transparent 50%),
@@ -66,6 +103,16 @@ body {
     background-attachment: fixed;
     background-color: var(--background);
   }
+}
+
+:root[data-theme='dark'] body {
+  background-image:
+    radial-gradient(circle at 15% 10%, rgba(91, 157, 240, 0.1), transparent 45%),
+    radial-gradient(circle at 85% 0%, rgba(168, 85, 247, 0.08), transparent 50%),
+    radial-gradient(circle at 50% 100%, rgba(76, 191, 114, 0.06), transparent 55%),
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.012) 0 2px, transparent 2px 4px);
+  background-attachment: fixed;
+  background-color: var(--background);
 }
 
 * {
@@ -85,11 +132,6 @@ textarea {
   -webkit-user-select: text;
 }
 
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
-  }
-}
 
 /* map colors, overridden from the settings page */
 :root {

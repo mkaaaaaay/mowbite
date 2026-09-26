@@ -34,8 +34,23 @@ MowBite is a community project and not affiliated with the OpenMower project.
 - **Weather** for the garden on the dashboard, optional: temperature, sky and whether rain is
   coming in the next hours, from [Open-Meteo](https://open-meteo.com).
 - **English and German**, following the browser or picked per device in the settings.
+- **Light and dark design**, following the device or picked in the settings.
 
 Works with OpenMower v1 and v2 hardware. On phones the pages sit in a tab bar at the bottom.
+
+## Planned
+
+Roughly in this order, nothing promised:
+
+- **Mowing schedules**: pick days and times, the container starts the mower on its own, skipping
+  when rain is forecast if you like.
+- **More than one mower** in one app, switch between them.
+- **Mow angle that changes per area after every mow**, so the stripes don't always run the same
+  way.
+- **Blades on while recording an area**, behind an extra confirmation.
+- **More languages**, send a translation if you like.
+
+Ideas and wishes are welcome as [issues](https://github.com/mkaaaaaay/mowbite/issues).
 
 ## Install on the mower
 

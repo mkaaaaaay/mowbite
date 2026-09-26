@@ -233,7 +233,7 @@
 }
 
 .pieceA {
-  color: #ffb74d;
+  color: var(--soft-warn);
 }
 
 .pieceB {
@@ -313,7 +313,7 @@
   border-radius: 10px;
   border: 1px solid color-mix(in srgb, var(--error) 50%, transparent);
   background: color-mix(in srgb, var(--error) 14%, transparent);
-  color: #ffb3b3;
+  color: var(--soft-bad);
   font-size: 13px;
 }
 

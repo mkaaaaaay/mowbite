@@ -150,7 +150,7 @@
 
 .tone-good .badge {
   background: rgba(76, 175, 80, 0.18);
-  color: #81c784;
+  color: var(--soft-good);
 }
 
 .tone-neutral {
@@ -159,7 +159,7 @@
 
 .tone-neutral .badge {
   background: rgba(144, 164, 174, 0.16);
-  color: #b0bec5;
+  color: var(--soft-muted);
 }
 
 .tone-bad {
@@ -168,7 +168,7 @@
 
 .tone-bad .badge {
   background: rgba(239, 83, 80, 0.18);
-  color: #ef9a9a;
+  color: var(--soft-bad);
 }
 
 .tone-live {
@@ -192,7 +192,7 @@
   padding: 2px 8px;
   border-radius: 6px;
   background: rgba(76, 175, 80, 0.14);
-  color: #a5d6a7;
+  color: var(--soft-good);
 }
 
 .problemList {
@@ -209,12 +209,12 @@
   border-radius: 8px;
   font-size: 13px;
   background: rgba(255, 183, 77, 0.08);
-  color: #ffcc80;
+  color: var(--soft-warn);
 }
 
 .problemList li.error {
   background: rgba(239, 83, 80, 0.1);
-  color: #ef9a9a;
+  color: var(--soft-bad);
 }
 
 .problemList div {
@@ -244,7 +244,7 @@
   border-radius: 999px;
   border: 1px solid color-mix(in srgb, var(--error) 55%, transparent);
   background: color-mix(in srgb, var(--error) 16%, transparent);
-  color: #ffc4c4;
+  color: var(--soft-bad);
   font-size: 13px;
   font-weight: 600;
   text-decoration: none;
@@ -356,11 +356,11 @@
 }
 
 .timeline li.warning {
-  color: #ffcc80;
+  color: var(--soft-warn);
 }
 
 .timeline li.error {
-  color: #ef9a9a;
+  color: var(--soft-bad);
 }
 
 .time {
@@ -379,11 +379,11 @@
 }
 
 .loose.warning {
-  color: #ffcc80;
+  color: var(--soft-warn);
 }
 
 .loose.error {
-  color: #ef9a9a;
+  color: var(--soft-bad);
 }
 
 /* the messages can be copied, e.g. to paste them into a bug report */
