@@ -122,7 +122,18 @@ export default function SensorsPage() {
         ) : (
           <>
             <div className={styles.grid}>
-              <Card title={tr('Battery')}>
+              <Card
+                title={
+                  <>
+                    {tr('Battery')}
+                    <InfoTip>
+                      {tr(
+                        "The percentage is worked out from the battery voltage, between the empty and full voltage set on the mower. While charging, the charger pushes the voltage up, so it drops a bit as soon as the mower leaves the dock. Under load, especially with the blade running or uphill, it sags and comes back when the mower stops. Short jumps are normal, only the trend over a whole mow says something about the battery.",
+                      )}
+                    </InfoTip>
+                  </>
+                }
+              >
                 <div className={styles.batteryRow}>
                   <span className={styles[`text-${batteryTone}`]}>
                     <BatteryIcon size={26} />
