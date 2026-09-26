@@ -8,15 +8,39 @@ import {usePathname} from 'next/navigation';
 import {useEffect} from 'react';
 import styles from './Nav.module.css';
 
+const ICONS = {
+  dashboard: (
+    <>
+      <path d="M4 16a8 8 0 1 1 16 0" />
+      <path d="m12 16 4-4" />
+    </>
+  ),
+  map: (
+    <>
+      <path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2Z" />
+      <path d="M9 4v14M15 6v14" />
+    </>
+  ),
+  sensors: <path d="M3 12h4l3-7 4 14 3-7h4" />,
+  activity: <path d="M9 6h12M9 12h12M9 18h12M4 6h.01M4 12h.01M4 18h.01" />,
+  settings: (
+    <>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1" />
+    </>
+  ),
+};
+
 const LINKS = [
-  {href: '/', label: 'Dashboard'},
-  {href: '/map', label: 'Map'},
-  {href: '/sensors', label: 'Sensors'},
-  {href: '/activity', label: 'Activity'},
+  {href: '/', label: 'Dashboard', icon: ICONS.dashboard},
+  {href: '/map', label: 'Map', icon: ICONS.map},
+  {href: '/sensors', label: 'Sensors', icon: ICONS.sensors},
+  {href: '/activity', label: 'Activity', icon: ICONS.activity},
 ];
 
 export default function Nav() {
-  const pathname = usePathname();
+  // the static export uses trailing slashes, /map/ has to match /map
+  const pathname = usePathname().replace(/(.)\/$/, '$1');
   // nav is always mounted, so sensor history records no matter which page is open
   useEffect(() => {
     startSensorHistory();
@@ -32,16 +56,17 @@ export default function Nav() {
       </Link>
       {LINKS.map((link) => (
         <Link key={link.href} href={link.href} className={pathname === link.href ? styles.active : undefined}>
-          {link.label}
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            {link.icon}
+          </svg>
+          <span>{link.label}</span>
         </Link>
       ))}
-      <Link
-        href="/settings"
-        className={[styles.settings, pathname === '/settings' ? styles.active : ''].join(' ')}
-        aria-label="Settings"
-        title="Settings"
-      >
-        ⚙<span className={styles.settingsLabel}> Settings</span>
+      <Link href="/settings" className={[styles.settings, pathname === '/settings' ? styles.active : ''].join(' ')}>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          {ICONS.settings}
+        </svg>
+        <span>Settings</span>
       </Link>
     </nav>
   );

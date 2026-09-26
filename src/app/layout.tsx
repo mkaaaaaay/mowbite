@@ -1,6 +1,6 @@
 import Nav from "@/components/Nav";
 import { COLOR_BOOT_SCRIPT } from "@/lib/settings";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import styles from "./layout.module.css";
@@ -14,6 +14,13 @@ const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
 });
+
+// cover: the tab bar reaches under the phone's home indicator, env(safe-area-inset-bottom) keeps it clear
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
 
 export const metadata: Metadata = {
   title: "Mowmate",

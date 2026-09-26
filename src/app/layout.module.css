@@ -8,10 +8,16 @@
 .content {
   flex: 1;
   min-width: 0;
+  /* room for the tab bar at the bottom */
+  padding-bottom: calc(64px + env(safe-area-inset-bottom));
 }
 
 @media (min-width: 900px) {
   .shell {
     flex-direction: row;
+  }
+
+  .content {
+    padding-bottom: 0;
   }
 }
