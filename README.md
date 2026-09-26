@@ -31,6 +31,9 @@ MowBite is a community project and not affiliated with the OpenMower project.
 - **Sensors** with lowest and highest values of the last 24 hours. The container records them, so
   it doesn't matter whether a browser was open.
 - **Colors, icons and icon sizes** of the map, shared between all your devices.
+- **Weather** for the garden on the dashboard, optional: temperature, sky and whether rain is
+  coming in the next hours, from [Open-Meteo](https://open-meteo.com).
+- **English and German**, following the browser or picked per device in the settings.
 
 Works with OpenMower v1 and v2 hardware. On phones the pages sit in a tab bar at the bottom.
 
