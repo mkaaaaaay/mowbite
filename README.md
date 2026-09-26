@@ -92,13 +92,14 @@ touched, Mowmate doesn't change any OpenMower files.
 
 ## Configuration
 
-Everything is optional. Set these in `compose.yaml`:
+The port you open in the browser is the first number under `ports` in `compose.yaml` (`8082`).
+Change only that one, the `8080` behind it is the port inside the container.
 
-| Variable | Default | |
-|---|---|---|
-| `MOWER_MQTT_WS_URL` | `ws://<host the app is opened from>:9001` | set it when the app doesn't run on the mower |
-| `MOWER_MQTT_PREFIX` | empty | topic prefix, if your OpenMower uses one |
-| `PORT` | `8080` | port inside the container |
+Two optional settings go under `environment` in `compose.yaml`:
+
+- `MOWER_MQTT_WS_URL`: where the browser finds OpenMower's MQTT websocket. Without it the app uses
+  `ws://<host the app is opened from>:9001`, which is right when it runs on the mower.
+- `MOWER_MQTT_PREFIX`: topic prefix, only if your OpenMower uses one.
 
 Settings made in the app (colors, icons) are stored in the `settings` volume.
 
