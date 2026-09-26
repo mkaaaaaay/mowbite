@@ -1,5 +1,6 @@
 import type {Sample} from '@/hooks/useSensorHistory';
 import styles from './Sparkline.module.css';
+import {fmt, tr} from '@/lib/i18n';
 
 // small line of the history, lowest and highest value next to it
 // minSpan keeps sensor noise from looking like big swings on an otherwise flat line
@@ -14,7 +15,7 @@ export default function Sparkline({
   unit?: string;
   minSpan?: number;
 }) {
-  if (!samples || samples.length < 2) return <div className={styles.empty}>collecting history…</div>;
+  if (!samples || samples.length < 2) return <div className={styles.empty}>{tr('collecting history…')}</div>;
 
   const w = 200;
   const h = 32;
@@ -38,7 +39,7 @@ export default function Sparkline({
       <div className={styles.legend}>
         <span>{range}</span>
         <span>
-          {lo.toFixed(digits)}–{hi.toFixed(digits)} {unit}
+          {fmt(lo, digits)}–{fmt(hi, digits)} {unit}
         </span>
       </div>
     </div>

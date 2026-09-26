@@ -8,6 +8,7 @@ import {callRpc} from '@/lib/rpc';
 import Link from 'next/link';
 import {useEffect, useState} from 'react';
 import styles from './page.module.css';
+import {fmt, tr, useLang} from '@/lib/i18n';
 
 
 function Timeline({events}: {events: MowerEvent[]}) {
@@ -32,14 +33,15 @@ function problemFacts(run: Run, e: MowerEvent, next?: Run): string[] {
   const first = run.events[0];
   if (e.x !== undefined && first.x !== undefined && e.y !== undefined && first.y !== undefined) {
     const d = Math.hypot(e.x - first.x, e.y - first.y);
-    facts.push(d < 0.1 ? `Hadn't moved (${Math.round(d * 100)} cm)` : `${d.toFixed(1)} m from where the run started`);
+    facts.push(d < 0.1 ? tr("Hadn't moved ({cm} cm)", {cm: Math.round(d * 100)}) : tr('{m} m from where the run started', {m: fmt(d, 1)}));
   }
   const gps = run.events.filter((g) => g.type === 'GPS' && g.t <= e.t).pop();
-  facts.push(gps ? (gps.available ? 'GPS fix' : 'no GPS fix') : 'GPS still off');
+  facts.push(gps ? (gps.available ? tr('GPS fix') : tr('no GPS fix')) : tr('GPS still off'));
   if (e.type === 'UNDOCKING_FAILED' && next && next.start - e.t < 600) {
     const worked = next.outcome !== 'undock_failed';
     const gap = next.start - e.t;
-    facts.push(`Tried again ${gap < 60 ? `${Math.round(gap)} s` : duration(gap)} later, ${worked ? 'that worked' : 'failed again'}`);
+    const after = gap < 60 ? `${Math.round(gap)} s` : duration(gap);
+    facts.push(worked ? tr('Tried again {time} later, that worked', {time: after}) : tr('Tried again {time} later, failed again', {time: after}));
   }
   return facts;
 }
@@ -53,18 +55,18 @@ function RawEntry({event, file, line}: {event: MowerEvent; file: string; line: n
     <div className={styles.raw}>
       <div className={styles.dim}>
         {file}
-        {line > 0 && `, line ${line}`}
+        {line > 0 && tr(', line {n}', {n: line})}
       </div>
       <code>{rawLine(event)}</code>
       {src && (
         <div className={styles.dim}>
-          Written by{' '}
+          {tr('Written by')}{' '}
           <a href={src.url} target="_blank" rel="noreferrer">
             open_mower_ros/{src.file.split('/').pop()}
           </a>
           {src.log && (
             <>
-              , ROS log: <code>{src.log}</code>
+              , {tr('ROS log')}: <code>{src.log}</code>
             </>
           )}
         </div>
@@ -99,11 +101,11 @@ function ProblemItem({run, next, event, state, file, line}: {run: Run; next?: Ru
               <path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21Z" />
               <circle cx="12" cy="9.5" r="2.5" />
             </svg>
-            Show on map
+            {tr('Show on map')}
           </Link>
         )}
         <button className={styles.rawToggle} onClick={() => setRaw(!raw)}>
-          {raw ? 'Hide entry' : 'Show entry'}
+          {raw ? tr('Hide entry') : tr('Show entry')}
         </button>
       </div>
       {raw && <RawEntry event={event} file={file} line={line} />}
@@ -143,7 +145,7 @@ function RunCard({run, next, file, lines}: {run: Run; next?: Run; file: string; 
           </strong>
           <span className={styles.dim}>{duration(run.end - run.start)}</span>
         </div>
-        <span className={styles.badge}>{outcome.label}</span>
+        <span className={styles.badge}>{tr(outcome.label)}</span>
       </header>
 
       <div className={styles.runFacts}>
@@ -152,14 +154,14 @@ function RunCard({run, next, file, lines}: {run: Run; next?: Run; file: string; 
             {a}
           </span>
         ))}
-        {run.bladeSeconds > 0 && <span className={styles.dim}>mowed {duration(run.bladeSeconds)}</span>}
+        {run.bladeSeconds > 0 && <span className={styles.dim}>{tr('mowed {time}', {time: duration(run.bladeSeconds)})}</span>}
       </div>
 
       <Problems run={run} next={next} file={file} lines={lines} />
 
       <div className={styles.runActions}>
-        <button onClick={() => setOpen(!open)}>{open ? 'Hide details' : 'Details'}</button>
-        {run.jobId && <Link href={`/map?job=${run.jobId}`}>Show track</Link>}
+        <button onClick={() => setOpen(!open)}>{open ? tr('Hide details') : tr('Details')}</button>
+        {run.jobId && <Link href={`/map?job=${run.jobId}`}>{tr('Show track')}</Link>}
       </div>
 
       {open && <Timeline events={run.events} />}
@@ -168,6 +170,7 @@ function RunCard({run, next, file, lines}: {run: Run; next?: Run; file: string; 
 }
 
 export default function ActivityPage() {
+  useLang();
   const [days, setDays] = useState<string[] | null>(null);
   const [day, setDay] = useState<string | null>(null);
   const [events, setEvents] = useState<MowerEvent[] | null>(null);
@@ -224,10 +227,10 @@ export default function ActivityPage() {
       <main className={styles.main}>
         <h1>
           <TitleMark />
-          Activity
+          {tr('Activity')}
         </h1>
 
-        {failed && !days && <p className={styles.dim}>This mower doesn&apos;t keep an event history.</p>}
+        {failed && !days && <p className={styles.dim}>{tr("This mower doesn't keep an event history.")}</p>}
 
         {days && (
           <div className={styles.days} ref={daysRef}>
@@ -250,25 +253,25 @@ export default function ActivityPage() {
           <div className={styles.summary}>
             <div>
               <strong>{duration(mowed)}</strong>
-              <span>mowed</span>
+              <span>{tr('mowed')}</span>
             </div>
             <div>
               <strong>{runs.length}</strong>
-              <span>{runs.length === 1 ? 'run' : 'runs'}</span>
+              <span>{runs.length === 1 ? tr('run') : tr('runs')}</span>
             </div>
             <div className={problems ? styles.bad : undefined}>
               <strong>{problems}</strong>
-              <span>{problems === 1 ? 'problem' : 'problems'}</span>
+              <span>{problems === 1 ? tr('problem') : tr('problems')}</span>
             </div>
             <label className={styles.filter}>
               <input type="checkbox" checked={onlyProblems} onChange={() => setOnlyProblems(!onlyProblems)} />
-              only problems
+              {tr('only problems')}
             </label>
           </div>
         )}
 
-        {shown && !events && <p className={styles.dim}>loading…</p>}
-        {events && visible.length === 0 && <p className={styles.dim}>Nothing here.</p>}
+        {shown && !events && <p className={styles.dim}>{tr('loading…')}</p>}
+        {events && visible.length === 0 && <p className={styles.dim}>{tr('Nothing here.')}</p>}
 
         <div className={styles.list}>
           {visible.map((e) =>

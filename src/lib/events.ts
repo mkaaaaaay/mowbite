@@ -1,3 +1,5 @@
+import {tr} from './i18n';
+
 // events from the mower's event history (events.history rpc), grouped into runs for the activity page
 
 export interface MowerEvent {
@@ -36,50 +38,57 @@ const REASONS: Record<string, string> = {
   no_gps: 'no GPS fix',
 };
 
-const reason = (r?: string) => (r ? REASONS[r] ?? r.replace(/_/g, ' ').toLowerCase() : '');
+const reason = (r?: string) => (r ? (REASONS[r] ? tr(REASONS[r]) : r.replace(/_/g, ' ').toLowerCase()) : '');
 
 // state is what the mower was doing when the event happened, gps is switched off on purpose outside
 // of mowing, so losing it only counts as a problem while mowing
 export function describe(e: MowerEvent, state?: string): {text: string; severity: Severity} {
+  const info = (text: string) => ({text, severity: 'info' as Severity});
   switch (e.type) {
     case 'STATE':
-      return {text: STATES[e.state ?? ''] ?? e.state ?? 'State changed', severity: 'info'};
+      return info(STATES[e.state ?? ''] ? tr(STATES[e.state ?? '']) : (e.state ?? tr('State changed')));
     case 'GPS':
-      if (e.available) return {text: 'GPS fix', severity: 'info'};
-      return state === 'MOWING' ? {text: 'GPS lost', severity: 'warning'} : {text: 'GPS off', severity: 'info'};
+      if (e.available) return info(tr('GPS fix'));
+      return state === 'MOWING' ? {text: tr('GPS lost'), severity: 'warning'} : info(tr('GPS off'));
     case 'BLADES':
-      return {text: e.enabled ? 'Blades on' : 'Blades off', severity: 'info'};
+      return info(e.enabled ? tr('Blades on') : tr('Blades off'));
     case 'AREA':
-      return {text: `Mowing "${e.area_name || 'unnamed'}"`, severity: 'info'};
+      return info(tr('Mowing "{area}"', {area: e.area_name || tr('unnamed')}));
     case 'AREA_SKIPPED':
       // only happens when someone presses skip
-      return {text: 'Area skipped', severity: 'info'};
+      return info(tr('Area skipped'));
     case 'UNDOCKED':
-      return {text: 'Left the dock', severity: 'info'};
+      return info(tr('Left the dock'));
     case 'UNDOCKING_FAILED':
-      return {text: `Leaving the dock failed${e.reason ? ` (${reason(e.reason)})` : ''}`, severity: 'error'};
+      return {
+        text: e.reason ? tr('Leaving the dock failed ({reason})', {reason: reason(e.reason)}) : tr('Leaving the dock failed'),
+        severity: 'error',
+      };
     case 'DOCKING':
-      return {text: `Heading home${e.reason ? `: ${reason(e.reason)}` : ''}`, severity: 'info'};
+      return info(e.reason ? tr('Heading home: {reason}', {reason: reason(e.reason)}) : tr('Heading home'));
     case 'DOCKING_RETRY':
-      return {text: `Docking retry ${e.attempts ?? ''} (${reason(e.reason)})`.replace('  ', ' '), severity: 'warning'};
+      return {text: tr('Docking retry {n} ({reason})', {n: e.attempts ?? '', reason: reason(e.reason)}).replace('  ', ' '), severity: 'warning'};
     case 'DOCKING_FAILED':
-      return {text: `Docking failed after ${e.attempts ?? '?'} tries (${reason(e.reason)})`, severity: 'error'};
+      return {text: tr('Docking failed after {n} tries ({reason})', {n: e.attempts ?? '?', reason: reason(e.reason)}), severity: 'error'};
     case 'DOCKED':
-      return {text: 'Docked', severity: 'info'};
+      return info(tr('Docked'));
     case 'JOB_COMPLETE':
-      return {text: 'All areas done', severity: 'info'};
+      return info(tr('All areas done'));
     case 'EMERGENCY':
       return e.emergency
-        ? {text: `Emergency stop${e.reason && e.reason !== '0' ? ` (code ${e.reason})` : ''}`, severity: 'error'}
-        : {text: 'Emergency cleared', severity: 'info'};
+        ? {
+            text: e.reason && e.reason !== '0' ? tr('Emergency stop (code {code})', {code: e.reason}) : tr('Emergency stop'),
+            severity: 'error',
+          }
+        : info(tr('Emergency cleared'));
     case 'NAVIGATION_ERROR':
-      return {text: 'Navigation error', severity: 'error'};
+      return {text: tr('Navigation error'), severity: 'error'};
     case 'BOOTED':
-      return {text: 'Mower started', severity: 'info'};
+      return info(tr('Mower started'));
     case 'SHUTDOWN':
-      return {text: 'Shut down', severity: 'info'};
+      return info(tr('Shut down'));
     default:
-      return {text: e.type.replace(/_/g, ' ').toLowerCase(), severity: 'info'};
+      return info(e.type.replace(/_/g, ' ').toLowerCase());
   }
 }
 
@@ -88,19 +97,29 @@ export function explain(e: MowerEvent, state?: string): string | undefined {
   switch (e.type) {
     case 'UNDOCKING_FAILED':
       if (e.reason === 'no_gps')
-        return 'It got out of the dock but had no RTK fix in time and stopped. Check the NTRIP corrections and whether the GPS antenna has a clear sky view there.';
-      return "It couldn't drive the short path backwards out of the dock and gave up. Usual causes: the mower's idea of its heading is off while it stands in the dock, it's blocked (wheels, grass, bumper), or it's still in emergency mode.";
+        return tr(
+          'It got out of the dock but had no RTK fix in time and stopped. Check the NTRIP corrections and whether the GPS antenna has a clear sky view there.',
+        );
+      return tr(
+        "It couldn't drive the short path backwards out of the dock and gave up. Usual causes: the mower's idea of its heading is off while it stands in the dock, it's blocked (wheels, grass, bumper), or it's still in emergency mode.",
+      );
     case 'DOCKING_RETRY':
     case 'DOCKING_FAILED':
       return e.reason === 'dock_failed'
-        ? "It was in front of the dock but didn't get charging contact, so it backed out to try again. Check the contacts and whether the dock position on the map is still right."
-        : "It couldn't reach the point in front of the dock. Usually the GPS fix was bad or the way there is blocked or outside the navigation area.";
+        ? tr(
+            "It was in front of the dock but didn't get charging contact, so it backed out to try again. Check the contacts and whether the dock position on the map is still right.",
+          )
+        : tr(
+            "It couldn't reach the point in front of the dock. Usually the GPS fix was bad or the way there is blocked or outside the navigation area.",
+          );
     case 'NAVIGATION_ERROR':
-      return "It couldn't follow the mowing path and the recovery didn't help, so it paused. Often something is in the way, or the path runs too close to an obstacle or the edge.";
+      return tr(
+        "It couldn't follow the mowing path and the recovery didn't help, so it paused. Often something is in the way, or the path runs too close to an obstacle or the edge.",
+      );
     case 'GPS':
-      return !e.available && state === 'MOWING' ? 'Mowing waits until the fix is back.' : undefined;
+      return !e.available && state === 'MOWING' ? tr('Mowing waits until the fix is back.') : undefined;
     case 'EMERGENCY':
-      return e.emergency ? 'Stop button, lift, tilt or a bumper. It has to be released and reset before it drives again.' : undefined;
+      return e.emergency ? tr('Stop button, lift, tilt or a bumper. It has to be released and reset before it drives again.') : undefined;
   }
 }
 

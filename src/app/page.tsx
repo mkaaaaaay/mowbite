@@ -19,6 +19,7 @@ import {batteryColor, isDocked} from '@/lib/status';
 import Link from 'next/link';
 import {useSyncExternalStore} from 'react';
 import styles from './page.module.css';
+import {fmt, tr, useLang} from '@/lib/i18n';
 
 const DRIVING = new Set(['MOWING', 'DOCKING', 'UNDOCKING']);
 
@@ -34,21 +35,21 @@ const ACTIONS = [
 const NO_FIX = 999;
 
 function headline(state: MowerState, docked: boolean, chargeState: string | undefined, area: string | undefined) {
-  if (state.emergency) return {title: 'Emergency stop', tone: 'error'};
-  if (docked) return chargeState === 'Done' ? {title: 'Charged, in the dock', tone: 'good'} : {title: 'Charging in the dock', tone: 'good'};
+  if (state.emergency) return {title: tr('Emergency stop'), tone: 'error'};
+  if (docked) return chargeState === 'Done' ? {title: tr('Charged, in the dock'), tone: 'good'} : {title: tr('Charging in the dock'), tone: 'good'};
   switch (state.current_state) {
     case 'MOWING':
-      return {title: area ? `Mowing ${area}` : 'Mowing', tone: 'live'};
+      return {title: area ? tr('Mowing {area}', {area}) : tr('Mowing'), tone: 'live'};
     case 'DOCKING':
-      return {title: 'Heading home', tone: 'live'};
+      return {title: tr('Heading home'), tone: 'live'};
     case 'UNDOCKING':
-      return {title: 'Leaving the dock', tone: 'live'};
+      return {title: tr('Leaving the dock'), tone: 'live'};
     case 'PAUSED':
-      return {title: 'Paused', tone: 'warn'};
+      return {title: tr('Paused'), tone: 'warn'};
     case 'AREA_RECORDING':
-      return {title: 'Recording an area', tone: 'live'};
+      return {title: tr('Recording an area'), tone: 'live'};
     case 'IDLE':
-      return {title: 'Waiting on the lawn', tone: 'warn'};
+      return {title: tr('Waiting on the lawn'), tone: 'warn'};
     default:
       return {title: state.current_state.toLowerCase().replace(/_/g, ' '), tone: 'neutral'};
   }
@@ -65,7 +66,7 @@ function BatteryRing({percent, charging}: {percent: number; charging: boolean}) 
       </svg>
       <div>
         <strong>{percent}%</strong>
-        {charging && <span>charging</span>}
+        {charging && <span>{tr('charging')}</span>}
       </div>
     </div>
   );
@@ -83,16 +84,17 @@ function LastRun({run}: {run: Run}) {
           {clock(run.start)} – {clock(run.end)}
         </strong>
         <span className={styles.dim}>
-          {run.areas.join(', ') || 'no area'}
-          {run.bladeSeconds > 0 && ` · mowed ${duration(run.bladeSeconds)}`}
+          {run.areas.join(', ') || tr('no area')}
+          {run.bladeSeconds > 0 && ` · ${tr('mowed {time}', {time: duration(run.bladeSeconds)})}`}
         </span>
       </div>
-      <span className={styles.badge}>{outcome.label}</span>
+      <span className={styles.badge}>{tr(outcome.label)}</span>
     </div>
   );
 }
 
 export default function Home() {
+  useLang();
   const {state, connected} = useMowerState();
   const {hasAction, publishAction} = useMowerActions();
   const {values} = useMowerSensors();
@@ -126,14 +128,14 @@ export default function Home() {
   if (state) {
     facts.push({
       label: 'GPS',
-      value: acc === undefined || acc >= NO_FIX ? (driving ? 'no fix' : 'off') : `${(acc * 100).toFixed(1)} cm`,
+      value: acc === undefined || acc >= NO_FIX ? (driving ? tr('no fix') : tr('off')) : `${fmt(acc * 100, 1)} cm`,
       warn: driving && (acc === undefined || acc >= NO_FIX || acc > 0.1),
     });
-    if (driving) facts.push({label: 'Speed', value: `${speed.toFixed(2)} m/s`});
-    if (charging && num('om_charge_current') !== undefined) facts.push({label: 'Charging', value: `${num('om_charge_current')!.toFixed(1)} A`});
-    if (num('om_v_battery') !== undefined) facts.push({label: 'Battery', value: `${num('om_v_battery')!.toFixed(1)} V`});
-    if (motorTemp > -Infinity) facts.push({label: 'Motors', value: `${Math.round(motorTemp)} °C`, warn: motorTemp > 70});
-    if (state.rain_detected) facts.push({label: 'Rain', value: 'detected', warn: true});
+    if (driving) facts.push({label: tr('Speed'), value: `${fmt(speed, 2)} m/s`});
+    if (charging && num('om_charge_current') !== undefined) facts.push({label: tr('Charging'), value: `${fmt(num('om_charge_current')!, 1)} A`});
+    if (num('om_v_battery') !== undefined) facts.push({label: tr('Battery'), value: `${fmt(num('om_v_battery')!, 1)} V`});
+    if (motorTemp > -Infinity) facts.push({label: tr('Motors'), value: `${Math.round(motorTemp)} °C`, warn: motorTemp > 70});
+    if (state.rain_detected) facts.push({label: tr('Rain'), value: tr('detected'), warn: true});
   }
 
   const runs = recent?.runs ?? [];
@@ -150,7 +152,7 @@ export default function Home() {
           </span>
         </h1>
 
-        {!state && <p className={styles.dim}>{connected ? 'waiting for the mower…' : 'connecting…'}</p>}
+        {!state && <p className={styles.dim}>{connected ? tr('waiting for the mower…') : tr('connecting…')}</p>}
 
         {state && head && (
           <section className={[styles.status, styles[`tone-${head.tone}`]].join(' ')}>
@@ -160,12 +162,12 @@ export default function Home() {
                 <h2>{head.title}</h2>
                 <span className={styles.dim}>
                   {state.emergency
-                    ? 'Release the mower, then reset the emergency to drive again.'
+                    ? tr('Release the mower, then reset the emergency to drive again.')
                     : since
-                      ? `since ${clock(since)}`
+                      ? tr('since {time}', {time: clock(since)})
                       : connected
                         ? ''
-                        : 'connection lost'}
+                        : tr('connection lost')}
                 </span>
               </div>
             </div>
@@ -183,13 +185,13 @@ export default function Home() {
               {ACTIONS.map((a) => (
                 <button key={a.id} className={a.main ? styles.main : undefined} disabled={!hasAction(a.id)} onClick={() => publishAction(a.id)}>
                   <a.Icon size={20} />
-                  {a.label}
+                  {tr(a.label)}
                 </button>
               ))}
               {!!state.emergency && (
                 <button className={styles.reset} onClick={() => publishAction(ACTION_RESET_EMERGENCY)}>
                   <WarningIcon size={20} />
-                  Reset emergency
+                  {tr('Reset emergency')}
                 </button>
               )}
             </div>
@@ -205,26 +207,26 @@ export default function Home() {
         {recent && (
           <section className={styles.today}>
             <div className={styles.todayHead}>
-              <h2>Today</h2>
-              <Link href="/activity">Activity</Link>
+              <h2>{tr('Today')}</h2>
+              <Link href="/activity">{tr('Activity')}</Link>
             </div>
             <div className={styles.todayNumbers}>
               <div>
                 <strong>{mowed ? duration(mowed) : '0 min'}</strong>
-                <span>mowed</span>
+                <span>{tr('mowed')}</span>
               </div>
               <div>
                 <strong>{runs.length}</strong>
-                <span>{runs.length === 1 ? 'run' : 'runs'}</span>
+                <span>{runs.length === 1 ? tr('run') : tr('runs')}</span>
               </div>
               <div className={problems ? styles.bad : undefined}>
                 <strong>{problems}</strong>
-                <span>{problems === 1 ? 'problem' : 'problems'}</span>
+                <span>{problems === 1 ? tr('problem') : tr('problems')}</span>
               </div>
             </div>
             {recent.last && (
               <>
-                <span className={styles.label}>Last run</span>
+                <span className={styles.label}>{tr('Last run')}</span>
                 <LastRun run={recent.last} />
               </>
             )}

@@ -13,6 +13,7 @@ import {sendDrive} from '@/lib/teleop';
 import Link from 'next/link';
 import {useEffect, useRef, useState} from 'react';
 import styles from './page.module.css';
+import {tr, useLang} from '@/lib/i18n';
 
 const START = 'mower_logic:idle/start_area_recording';
 const A = (id: string) => `mower_logic:area_recording/${id}`;
@@ -24,6 +25,7 @@ const TURN_PER_SPEED = 3;
 type Phase = 'off' | 'empty' | 'recording' | 'outlined' | 'dock';
 
 export default function RecordPage() {
+  useLang();
   const {state, connected} = useMowerState();
   const {hasAction, publishAction} = useMowerActions();
   const map = useMowerMap();
@@ -106,7 +108,7 @@ export default function RecordPage() {
           after?.();
         }}
       >
-        {label}
+        {tr(label)}
       </button>
     );
 
@@ -114,8 +116,8 @@ export default function RecordPage() {
   let buttons: React.ReactNode[] = [];
   if (phase === 'empty') {
     text = saved
-      ? `${saved} saved. Record the next one, or leave recording mode and fine tune it in the editor.`
-      : 'Drive to the edge of the new area, then start recording and drive once around it. For the docking station, stop about a meter in front of it, facing it.';
+      ? tr('{what} saved. Record the next one, or leave recording mode and fine tune it in the editor.', {what: tr(saved)})
+      : tr('Drive to the edge of the new area, then start recording and drive once around it. For the docking station, stop about a meter in front of it, facing it.');
     buttons = [
       button('start_recording', 'Record outline', 'main', () => setSaved(null)),
       button('record_dock', 'Record docking station'),
@@ -123,8 +125,8 @@ export default function RecordPage() {
     ];
   } else if (phase === 'recording') {
     text = hasOutline
-      ? 'Drive around the obstacle, then stop. It closes by itself.'
-      : 'Drive along the edge until you are back at the start, then stop. The outline closes by itself.';
+      ? tr('Drive around the obstacle, then stop. It closes by itself.')
+      : tr('Drive along the edge until you are back at the start, then stop. The outline closes by itself.');
     buttons = [
       button('stop_recording', 'Stop', 'main'),
       button('collect_point', 'Set point here'),
@@ -133,7 +135,7 @@ export default function RecordPage() {
       button('finish_discard', 'Discard area', 'danger'),
     ];
   } else if (phase === 'outlined') {
-    text = 'Outline done. Record obstacles inside it (beds, trees, the pond), or save the area.';
+    text = tr('Outline done. Record obstacles inside it (beds, trees, the pond), or save the area.');
     buttons = [
       button('finish_mowing_area', 'Save as mowing area', 'main', () => setSaved('Mowing area')),
       button('start_recording', 'Record obstacle'),
@@ -141,7 +143,7 @@ export default function RecordPage() {
       button('finish_discard', 'Discard area', 'danger'),
     ];
   } else if (phase === 'dock') {
-    text = 'Now drive straight into the docking station until it sits on the contacts, then save. The way from the first point to here becomes the docking direction.';
+    text = tr('Now drive straight into the docking station until it sits on the contacts, then save. The way from the first point to here becomes the docking direction.');
     buttons = [button('record_dock', 'Save docking position', 'main', () => setSaved('Docking station'))];
   }
 
@@ -150,25 +152,26 @@ export default function RecordPage() {
       <main className={styles.main}>
         <h1 className={recordingMode ? styles.hideOnPhone : undefined}>
           <TitleMark />
-          Record
+          {tr('Record')}
         </h1>
 
-        {!state && <p className={styles.dim}>{connected ? 'waiting for the mower…' : 'connecting…'}</p>}
+        {!state && <p className={styles.dim}>{connected ? tr('waiting for the mower…') : tr('connecting…')}</p>}
 
         {state && phase === 'off' && (
           <section className={styles.card}>
             <p>
-              Record a new area by driving the mower around it with the joystick on this page. Obstacles inside the area and
-              the docking station can be recorded the same way. Afterwards you can fine tune everything in the{' '}
-              <Link href="/map">map editor</Link>.
+              {tr(
+                'Record a new area by driving the mower around it with the joystick on this page. Obstacles inside the area and the docking station can be recorded the same way. Afterwards you can fine tune everything in the',
+              )}{' '}
+              <Link href="/map">{tr('map editor')}</Link>.
             </p>
             <p className={styles.dim}>
-              Keep the mower in sight. It stops as soon as you let go of the stick, switch apps or lose the connection.
+              {tr('Keep the mower in sight. It stops as soon as you let go of the stick, switch apps or lose the connection.')}
             </p>
             <button className={styles.main} disabled={!hasAction(START)} onClick={() => publishAction(START)}>
-              Start recording mode
+              {tr('Start recording mode')}
             </button>
-            {!hasAction(START) && <p className={styles.dim}>Only possible while the mower is idle.</p>}
+            {!hasAction(START) && <p className={styles.dim}>{tr('Only possible while the mower is idle.')}</p>}
           </section>
         )}
 
@@ -181,7 +184,7 @@ export default function RecordPage() {
               {/* on the map, so map, stick and buttons fit on one phone screen */}
               <div className={styles.stick}>
                 {state?.emergency ? (
-                  <p className={styles.warn}>Emergency stop is active, reset it on the dashboard before driving.</p>
+                  <p className={styles.warn}>{tr('Emergency stop is active, reset it on the dashboard before driving.')}</p>
                 ) : (
                   <Joystick size={140} onMove={(x, y) => canDrive && onStick(x, y)} />
                 )}
@@ -192,7 +195,7 @@ export default function RecordPage() {
               <p>{text}</p>
               <div className={styles.buttons}>{buttons}</div>
               <div className={styles.speeds}>
-                <span className={styles.dim}>Speed m/s</span>
+                <span className={styles.dim}>{tr('Speed m/s')}</span>
                 {SPEEDS.map((v, i) => (
                   <button
                     key={v}

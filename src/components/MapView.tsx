@@ -9,6 +9,7 @@ import {dockIcon, mowerIcon} from './mapIcons';
 import {availableSources, imageryInfo, imageryTiles, type Datum, type ImagerySource} from '@/lib/imagery';
 import {useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import styles from './MapView.module.css';
+import {tr, useLang} from '@/lib/i18n';
 
 interface MapViewProps {
   map: MowerMap;
@@ -126,6 +127,7 @@ export default function MapView({
   datum,
   orderLabels,
 }: MapViewProps) {
+  useLang();
   const svgRef = useRef<SVGSVGElement | null>(null);
   // the svg isn't there on the first render while the map is still loading, so effects that need it
   // depend on this instead of running once on mount
@@ -812,10 +814,10 @@ export default function MapView({
       {svg}
       {loupe}
       <div className={styles.zoomButtons}>
-        <button onClick={() => zoomCenter(1 / 1.5)} aria-label="zoom in" title="Zoom in (or mouse wheel / pinch)">
+        <button onClick={() => zoomCenter(1 / 1.5)} aria-label="zoom in" title={tr('Zoom in (or mouse wheel / pinch)')}>
           +
         </button>
-        <button onClick={() => zoomCenter(1.5)} aria-label="zoom out" title="Zoom out">
+        <button onClick={() => zoomCenter(1.5)} aria-label="zoom out" title={tr('Zoom out')}>
           −
         </button>
         <button
@@ -826,7 +828,7 @@ export default function MapView({
               localStorage.setItem('mapGrid', showGrid ? 'off' : 'on');
             } catch {}
           }}
-          aria-label="toggle grid" title="Show or hide the meter grid"
+          aria-label="toggle grid" title={tr('Show or hide the meter grid')}
         >
           #
         </button>
@@ -835,7 +837,7 @@ export default function MapView({
             className={source ? '' : styles.off}
             onClick={() => setSource(source ? null : sources[0])}
             aria-label="toggle aerial imagery"
-            title="Aerial imagery (loads images of this area from the selected provider)"
+            title={tr('Aerial imagery (loads images of this area from the selected provider)')}
           >
             ◩
           </button>
@@ -844,7 +846,7 @@ export default function MapView({
           className={hidden.size ? styles.partly : ''}
           onClick={() => setLayersOpen(!layersOpen)}
           aria-label="layers"
-          title="Show or hide obstacles, numbers, track and more"
+          title={tr('Show or hide obstacles, numbers, track and more')}
         >
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round">
             <path d="M12 3 3 8l9 5 9-5-9-5Z" />
@@ -852,7 +854,7 @@ export default function MapView({
             <path d="m3 16 9 5 9-5" />
           </svg>
         </button>
-        <Link href="/settings" className={styles.linkButton} aria-label="settings" title="Map colors, icons and aerial imagery">
+        <Link href="/settings" className={styles.linkButton} aria-label="settings" title={tr('Map colors, icons and aerial imagery')}>
           ⚙
         </Link>
         {(view || (follow && followZoom !== 1)) && (
@@ -862,7 +864,7 @@ export default function MapView({
               setFollowZoom(1);
             }}
             aria-label="reset zoom"
-            title={follow ? 'Back to the default zoom' : 'Fit the whole map'}
+            title={follow ? tr('Back to the default zoom') : tr('Fit the whole map')}
           >
             ⤢
           </button>
@@ -873,19 +875,19 @@ export default function MapView({
           {LAYERS.map((l) => (
             <label key={l.key}>
               <input type="checkbox" checked={!hidden.has(l.key)} onChange={() => toggleLayer(l.key)} />
-              {l.label}
+              {tr(l.label)}
             </label>
           ))}
         </div>
       )}
-      {grid && <span className={styles.gridLabel}>grid {grid.step} m</span>}
+      {grid && <span className={styles.gridLabel}>{tr('grid {n} m', {n: grid.step})}</span>}
       {source && (
         <div className={styles.imageryBar}>
           {sources.length > 1 && (
             <select value={source} onChange={(e) => setSource(e.target.value as ImagerySource)}>
               {sources.map((s) => (
                 <option key={s} value={s}>
-                  {imageryInfo(s, settings.imagery).label}
+                  {tr(imageryInfo(s, settings.imagery).label)}
                 </option>
               ))}
             </select>
@@ -901,7 +903,7 @@ export default function MapView({
             setActive(null);
           }}
         >
-          Delete point
+          {tr('Delete point')}
         </button>
       )}
     </div>

@@ -11,6 +11,7 @@ import {useSensorHistory, type Sample} from '@/hooks/useSensorHistory';
 import {sharedSettings} from '@/lib/settings';
 import {batteryColor, isDocked, stateColor, statusText} from '@/lib/status';
 import styles from './page.module.css';
+import {fmt, tr, useLang} from '@/lib/i18n';
 
 // sensors that get their own card instead of the generic one
 const BATTERY_IDS = new Set(['om_v_battery', 'om_v_charge', 'om_charge_current', 'om_charge_state']);
@@ -57,6 +58,7 @@ function Card({title, children}: {title: React.ReactNode; children: React.ReactN
 }
 
 export default function SensorsPage() {
+  useLang();
   const {infos, values} = useMowerSensors();
   const {state} = useMowerState();
   const history = useSensorHistory();
@@ -105,63 +107,63 @@ export default function SensorsPage() {
         <div className={styles.header}>
           <h1>
           <TitleMark />
-          Sensors
+          {tr('Sensors')}
         </h1>
           {state && (
             <span className={[styles.chip, styles[`chip-${state.emergency ? 'error' : docked ? 'success' : stateColor(currentState)}`]].join(' ')}>
               {statusText(state, docked, values['om_charge_state'])}
             </span>
           )}
-          {criticalCount > 0 && <span className={styles.error}>{criticalCount} out of range</span>}
+          {criticalCount > 0 && <span className={styles.error}>{tr('{n} out of range', {n: criticalCount})}</span>}
         </div>
 
         {infos.length === 0 ? (
-          <p className={styles.dim}>Waiting for sensor data...</p>
+          <p className={styles.dim}>{tr('Waiting for sensor data…')}</p>
         ) : (
           <>
             <div className={styles.grid}>
-              <Card title="Battery">
+              <Card title={tr('Battery')}>
                 <div className={styles.batteryRow}>
                   <span className={styles[`text-${batteryTone}`]}>
                     <BatteryIcon size={26} />
                   </span>
                   <strong className={[styles.big, styles[`text-${batteryTone}`]].join(' ')}>{battery ?? '–'}%</strong>
-                  {values['om_charge_state'] && <span className={styles.pill}>{values['om_charge_state']}</span>}
+                  {values['om_charge_state'] && <span className={styles.pill}>{tr(values['om_charge_state'])}</span>}
                 </div>
                 <div className={styles.details}>
                   {num('om_v_battery') !== undefined && (
                     <div>
-                      <span className={styles.dim}>Battery</span>
-                      {num('om_v_battery')!.toFixed(2)} V
+                      <span className={styles.dim}>{tr('Battery')}</span>
+                      {fmt(num('om_v_battery')!, 2)} V
                     </div>
                   )}
                   {num('om_v_charge') !== undefined && docked && (
                     <div>
-                      <span className={styles.dim}>Charger</span>
-                      {num('om_v_charge')!.toFixed(1)} V
+                      <span className={styles.dim}>{tr('Charger')}</span>
+                      {fmt(num('om_v_charge')!, 1)} V
                     </div>
                   )}
                   {num('om_charge_current') !== undefined && (
                     <div>
-                      <span className={styles.dim}>Charge current</span>
-                      {num('om_charge_current')!.toFixed(2)} A
+                      <span className={styles.dim}>{tr('Charge current')}</span>
+                      {fmt(num('om_charge_current')!, 2)} A
                     </div>
                   )}
                 </div>
                 <Sparkline samples={history['om_v_battery']} digits={2} unit="V" minSpan={0.5} />
               </Card>
 
-              <Card title="Mow motor">
+              <Card title={tr('Mow motor')}>
                 {mowing && rpm !== undefined ? (
                   <>
                     <strong className={[styles.big, isCritical(rpmInfo, values['om_mow_motor_rpm'], currentState) ? styles.error : ''].join(' ')}>
                       {rpm.toFixed(0)} rpm
                     </strong>
                     {rpmInfo && <RadialGauge value={rpm} scale={computeGaugeScale(rpmInfo) ?? fallbackGaugeScale(rpm)} />}
-                    {motorCurrent !== undefined && <span className={styles.dim}>{motorCurrent.toFixed(2)} A</span>}
+                    {motorCurrent !== undefined && <span className={styles.dim}>{fmt(motorCurrent, 2)} A</span>}
                   </>
                 ) : (
-                  <strong className={styles.big}>Off</strong>
+                  <strong className={styles.big}>{tr('Off')}</strong>
                 )}
                 <Sparkline samples={history['om_mow_motor_current']} digits={2} unit="A" minSpan={1} />
               </Card>
@@ -169,10 +171,11 @@ export default function SensorsPage() {
               <Card
                 title={
                   <>
-                    GPS accuracy
+                    {tr('GPS accuracy')}
                     <InfoTip>
-                      How far off the position might be, as estimated by the receiver. With RTK fix it&apos;s usually a
-                      few cm. The mower switches GPS off while it&apos;s idle or docking.
+                      {tr(
+                        "How far off the position might be, as estimated by the receiver. With RTK fix it's usually a few cm. The mower switches GPS off while it's idle or docking.",
+                      )}
                     </InfoTip>
                   </>
                 }
@@ -182,25 +185,25 @@ export default function SensorsPage() {
                     ? '–'
                     : noFix
                       ? currentState === 'IDLE' || currentState === 'DOCKING'
-                        ? 'GPS off'
-                        : 'No fix'
-                      : `${(gps * 100).toFixed(1)} cm`}
+                        ? tr('GPS off')
+                        : tr('No fix')
+                      : `${fmt(gps * 100, 1)} cm`}
                 </strong>
-                {noFix && docked && <span className={styles.dim}>in the dock</span>}
+                {noFix && docked && <span className={styles.dim}>{tr('in the dock')}</span>}
                 <Sparkline samples={gpsHistory} digits={1} unit="cm" minSpan={5} />
               </Card>
             </div>
 
             {temps.length > 0 && (
               <>
-                <h2 className={styles.categoryTitle}>Temperatures</h2>
+                <h2 className={styles.categoryTitle}>{tr('Temperatures')}</h2>
                 <div className={styles.grid}>
                   {temps.map((t) => {
                     const v = num(t.sensor_id);
                     return (
-                      <Card key={t.sensor_id} title={t.sensor_name}>
+                      <Card key={t.sensor_id} title={tr(t.sensor_name)}>
                         <strong className={[styles.big, isCritical(t, values[t.sensor_id], currentState) ? styles.error : ''].join(' ')}>
-                          {v !== undefined ? `${v.toFixed(1)} °C` : '–'}
+                          {v !== undefined ? `${fmt(v, 1)} °C` : '–'}
                         </strong>
                         {v !== undefined && <TempGauge value={v} info={t} />}
                         <Sparkline samples={history[t.sensor_id]} digits={1} unit="°C" minSpan={5} />
@@ -213,15 +216,15 @@ export default function SensorsPage() {
 
             {others.length > 0 && (
               <>
-                <h2 className={styles.categoryTitle}>Other</h2>
+                <h2 className={styles.categoryTitle}>{tr('Other')}</h2>
                 <div className={styles.grid}>
                   {others.map((o) => {
                     const v = num(o.sensor_id);
                     const numeric = o.value_type === 'DOUBLE' && v !== undefined && !Number.isNaN(v);
                     return (
-                      <Card key={o.sensor_id} title={o.sensor_name}>
+                      <Card key={o.sensor_id} title={tr(o.sensor_name)}>
                         <strong className={[styles.big, isCritical(o, values[o.sensor_id], currentState) ? styles.error : ''].join(' ')}>
-                          {numeric ? `${v.toFixed(digitsOf(o))} ${unitOf(o)}` : (values[o.sensor_id] ?? '–')}
+                          {numeric ? `${fmt(v, digitsOf(o))} ${unitOf(o)}` : (values[o.sensor_id] ?? '–')}
                         </strong>
                         {numeric && <Sparkline samples={history[o.sensor_id]} digits={digitsOf(o)} unit={unitOf(o)} />}
                       </Card>
@@ -232,7 +235,7 @@ export default function SensorsPage() {
             )}
 
             <p className={styles.footnote}>
-              {sharedSettings() ? 'History covers the last 24 hours.' : 'History covers the last hour while the app is open.'}
+              {sharedSettings() ? tr('History covers the last 24 hours.') : tr('History covers the last hour while the app is open.')}
             </p>
           </>
         )}

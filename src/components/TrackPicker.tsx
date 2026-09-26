@@ -5,6 +5,7 @@ import {useDragScroll} from '@/hooks/useDragScroll';
 import {dayKey, dayLabel} from '@/lib/dates';
 import {useState} from 'react';
 import styles from './TrackPicker.module.css';
+import {locale, tr, useLang} from '@/lib/i18n';
 
 function length(points: [number, number][]) {
   let m = 0;
@@ -34,6 +35,7 @@ export default function TrackPicker({
   }
 
   const selectedDay = days.find((d) => d.jobs.some((j) => j.job_id === selected))?.key ?? null;
+  useLang();
   const daysRef = useDragScroll<HTMLDivElement>();
   const [openDay, setOpenDay] = useState<string | null>(selectedDay);
   const day = days.find((d) => d.key === (openDay ?? selectedDay));
@@ -43,7 +45,7 @@ export default function TrackPicker({
 
   return (
     <div className={styles.picker}>
-      <span className={styles.title}>Track</span>
+      <span className={styles.title}>{tr('Track')}</span>
       <div className={styles.days} ref={daysRef}>
         <button
           className={selected === null ? styles.on : undefined}
@@ -52,7 +54,7 @@ export default function TrackPicker({
             onSelect(null);
           }}
         >
-          Live
+          {tr('Live')}
         </button>
         {days.map((d) => (
           <button
@@ -72,7 +74,7 @@ export default function TrackPicker({
         <div className={styles.times}>
           {day.jobs.map((j) => (
             <button key={j.job_id} className={j.job_id === selected ? styles.on : undefined} onClick={() => onSelect(j.job_id)}>
-              {new Date(j.timestamp * 1000).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
+              {new Date(j.timestamp * 1000).toLocaleTimeString(locale(), {hour: '2-digit', minute: '2-digit'})}
             </button>
           ))}
         </div>
@@ -81,8 +83,8 @@ export default function TrackPicker({
       {selected && (
         <span className={styles.info}>
           {segments === null || segments === undefined
-            ? 'loading…'
-            : `${Math.round(mowed ?? 0)} m mowed, ${Math.round(driven ?? 0)} m driven without blades`}
+            ? tr('loading…')
+            : tr('{mowed} m mowed, {driven} m driven without blades', {mowed: Math.round(mowed ?? 0), driven: Math.round(driven ?? 0)})}
         </span>
       )}
     </div>

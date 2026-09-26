@@ -7,6 +7,7 @@ import {COLORS, saveSettings, settingsStore, sharedSettings, type ColorKey, type
 import {useRouter} from 'next/navigation';
 import {useSyncExternalStore} from 'react';
 import styles from './page.module.css';
+import {setLangChoice, tr, useLang, useLangChoice} from '@/lib/i18n';
 
 function IconChoice({
   icons,
@@ -26,12 +27,12 @@ function IconChoice({
           key={icon.key}
           className={[styles.icon, icon.key === value ? styles.iconOn : ''].join(' ')}
           onClick={() => onChange(icon.key)}
-          title={icon.label}
+          title={tr(icon.label)}
         >
           <svg viewBox="-1.5 -1.5 3 3" className={styles.preview}>
             <g transform={rotate ? 'rotate(-30)' : undefined}>{icon.draw()}</g>
           </svg>
-          <span>{icon.label}</span>
+          <span>{tr(icon.label)}</span>
         </button>
       ))}
     </div>
@@ -41,12 +42,12 @@ function IconChoice({
 function SizeSlider({value, onChange}: {value: number; onChange: (v: number) => void}) {
   return (
     <label className={styles.size}>
-      Size
+      {tr('Size')}
       <input type="range" min={0.5} max={3} step={0.1} value={value} onChange={(e) => onChange(+e.target.value)} />
       <span>{Math.round(value * 100)}%</span>
       {value !== 1 && (
         <button className={styles.linkButton} onClick={() => onChange(1)}>
-          default
+          {tr('default')}
         </button>
       )}
     </label>
@@ -66,6 +67,8 @@ function IconPreview({icons}: {icons: NonNullable<Settings['icons']>}) {
 }
 
 export default function SettingsPage() {
+  useLang();
+  const choice = useLangChoice();
   const router = useRouter();
   // back to wherever the gear was clicked, or the dashboard when the page was opened directly
   const back = () => (window.history.length > 1 ? router.back() : router.push('/'));
@@ -97,18 +100,36 @@ export default function SettingsPage() {
     <div className={styles.page}>
       <main className={styles.main}>
         <button className={styles.back} onClick={back}>
-          ← Back
+          ← {tr('Back')}
         </button>
         <h1>
           <TitleMark />
-          Settings
+          {tr('Settings')}
         </h1>
         <p className={styles.dim}>
-          {sharedSettings() ? 'Saved on the mower, the same on all your devices.' : 'Saved on this device only.'}
+          {sharedSettings() ? tr('Saved on the mower, the same on all your devices.') : tr('Saved on this device only.')}
         </p>
 
         <section className={styles.card}>
-          <h2>Dashboard</h2>
+          <h2>{tr('Language')}</h2>
+          <div className={styles.segment}>
+            {(
+              [
+                ['auto', tr('Automatic')],
+                ['en', 'English'],
+                ['de', 'Deutsch'],
+              ] as const
+            ).map(([k, label]) => (
+              <button key={k} className={choice === k ? styles.segmentOn : undefined} onClick={() => setLangChoice(k)}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <p className={styles.dim}>{tr("Only for this device. Automatic follows the browser's language.")}</p>
+        </section>
+
+        <section className={styles.card}>
+          <h2>{tr('Dashboard')}</h2>
           <label className={styles.check}>
             <input
               type="checkbox"
@@ -118,20 +139,20 @@ export default function SettingsPage() {
                 saveSettings({...cur, dashboard: {...cur.dashboard, map: e.target.checked ? 'always' : 'auto'}});
               }}
             />
-            Always show the map, not only while the mower is driving
+            {tr('Always show the map, not only while the mower is driving')}
           </label>
         </section>
 
         <section className={styles.card}>
-          <h2>Mower icon</h2>
+          <h2>{tr('Mower icon')}</h2>
           <IconChoice icons={MOWER_ICONS} value={icons.mower ?? MOWER_ICONS[0].key} onChange={(k) => setIcon('mower', k)} rotate />
           <div className={styles.segment}>
-            <span>On the map</span>
+            <span>{tr('On the map')}</span>
             <button className={!icons.mowerRealSize ? styles.segmentOn : undefined} onClick={() => setIcon('mowerRealSize', false)}>
-              Same size at every zoom
+              {tr('Same size at every zoom')}
             </button>
             <button className={icons.mowerRealSize ? styles.segmentOn : undefined} onClick={() => setIcon('mowerRealSize', true)}>
-              Real size
+              {tr('Real size')}
             </button>
           </div>
           <SizeSlider value={icons.mowerSize ?? 1} onChange={(v) => setIcon('mowerSize', v)} />
@@ -139,24 +160,23 @@ export default function SettingsPage() {
         </section>
 
         <section className={styles.card}>
-          <h2>Docking station icon</h2>
+          <h2>{tr('Docking station icon')}</h2>
           <IconChoice icons={DOCK_ICONS} value={icons.dock ?? DOCK_ICONS[0].key} onChange={(k) => setIcon('dock', k)} />
           <SizeSlider value={icons.dockSize ?? 1} onChange={(v) => setIcon('dockSize', v)} />
           <IconPreview icons={icons} />
         </section>
 
         <section className={styles.card}>
-          <h2>Aerial imagery</h2>
+          <h2>{tr('Aerial imagery')}</h2>
           <p className={styles.dim}>
-            Official open orthophotos are built in where a country offers them for free: Germany (all states except
-            Saarland), Austria, Switzerland, the Netherlands, Belgium, Luxembourg, France, Spain, Czechia and the
-            USA. Anywhere else you can add a tile source you are allowed to use, as an XYZ url with{' '}
-            {'{z}'}, {'{x}'} and {'{y}'}. It shows up as an extra choice on the map, and you are responsible for
-            its terms of use.
+            {tr(
+              'Official open orthophotos are built in where a country offers them for free: Germany (all states except Saarland), Austria, Switzerland, the Netherlands, Belgium, Luxembourg, France, Spain, Czechia and the USA. Anywhere else you can add a tile source you are allowed to use, as an XYZ url with {z}, {x} and {y}. It shows up as an extra choice on the map, and you are responsible for its terms of use.',
+              {z: '{z}', x: '{x}', y: '{y}'},
+            )}
           </p>
           {/* saved when leaving the field, not on every key */}
           <label className={styles.field}>
-            Tile url
+            {tr('Tile url')}
             <input
               key={'url' + (imageryUrl ?? '')}
               defaultValue={imageryUrl ?? ''}
@@ -165,14 +185,14 @@ export default function SettingsPage() {
             />
           </label>
           {imageryUrl && !isTileUrl(imageryUrl) && (
-            <span className={styles.error}>The url needs to start with http(s) and contain {'{z}'}, {'{x}'} and {'{y}'}.</span>
+            <span className={styles.error}>{tr('The url needs to start with http(s) and contain {z}, {x} and {y}.', {z: '{z}', x: '{x}', y: '{y}'})}</span>
           )}
           <label className={styles.field}>
-            Attribution
+            {tr('Attribution')}
             <input
               key={'attr' + (settings.imagery?.attribution ?? '')}
               defaultValue={settings.imagery?.attribution ?? ''}
-              placeholder="shown on the map, as the source requires"
+              placeholder={tr('shown on the map, as the source requires')}
               onBlur={(e) => setImagery('attribution', e.target.value)}
             />
           </label>
@@ -180,27 +200,27 @@ export default function SettingsPage() {
 
         <section className={styles.card}>
           <div className={styles.cardHead}>
-            <h2>Map colors</h2>
+            <h2>{tr('Map colors')}</h2>
             <button
               className={styles.pillButton}
               onClick={() => saveSettings({...settingsStore.snapshot(), colors: {}})}
               disabled={!Object.keys(colors).length}
             >
-              Reset all
+              {tr('Reset all')}
             </button>
           </div>
-          <p className={styles.dim}>Used on every map in the app.</p>
+          <p className={styles.dim}>{tr('Used on every map in the app.')}</p>
 
           <div className={styles.colors}>
             {COLORS.map((c) => {
               const value = colors[c.key] ?? c.value;
               return (
                 <div key={c.key} className={styles.colorRow}>
-                  <input type="color" value={value} onChange={(e) => setColor(c.key, e.target.value)} aria-label={c.label} />
-                  <span>{c.label}</span>
+                  <input type="color" value={value} onChange={(e) => setColor(c.key, e.target.value)} aria-label={tr(c.label)} />
+                  <span>{tr(c.label)}</span>
                   {colors[c.key] && (
                     <button className={styles.linkButton} onClick={() => setColor(c.key, undefined)}>
-                      default
+                      {tr('default')}
                     </button>
                   )}
                 </div>

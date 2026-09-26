@@ -22,6 +22,7 @@ import Link from 'next/link';
 import {useSearchParams} from 'next/navigation';
 import {Suspense, useEffect, useState} from 'react';
 import styles from './page.module.css';
+import {fmt, tr, useLang} from '@/lib/i18n';
 
 const AREA_TYPES = [
   {value: 'mow', label: 'Mowing area', hint: 'driven on and mowed'},
@@ -47,6 +48,7 @@ export default function MapPage() {
 }
 
 function MapEditor() {
+  useLang();
   const {state} = useMowerState();
   const position = useMowerPosition() ?? state?.pose;
   const {values: sensorValues} = useMowerSensors();
@@ -390,7 +392,7 @@ function MapEditor() {
     try {
       await saveMap(map);
     } catch (e) {
-      setSaveError(e instanceof Error ? e.message : 'failed');
+      setSaveError(e instanceof Error ? e.message : tr('failed'));
     } finally {
       setSaving(false);
     }
@@ -401,14 +403,14 @@ function MapEditor() {
       <main className={styles.main}>
         <h1>
           <TitleMark />
-          Map
+          {tr('Map')}
         </h1>
 
         <div className={styles.editor}>
           <div className={styles.mapCol}>
             {spot && (
               <div className={styles.spot}>
-                <span>{spot.msg || 'Marked spot'}</span>
+                <span>{spot.msg || tr('Marked spot')}</span>
                 <button onClick={() => setSpotClosed(true)} aria-label="close">
                   ×
                 </button>
@@ -449,7 +451,7 @@ function MapEditor() {
               />
             )}
 
-            {!map && <p className={styles.dim}>waiting for map...</p>}
+            {!map && <p className={styles.dim}>{tr('waiting for map…')}</p>}
           </div>
 
           <div className={styles.panel}>
@@ -458,25 +460,25 @@ function MapEditor() {
                 {mode === 'idle' && (
                   <>
                     <button className={styles.pillButton} onClick={startDraw}>
-                      Draw area
+                      {tr('Draw area')}
                     </button>
                     {/* recording adds the area on the mower, unsaved edits here would overwrite it */}
                     {history.length ? (
-                      <span className={[styles.pillButton, styles.disabledLink].join(' ')} title="Save or undo your changes first">
-                        Record by driving
+                      <span className={[styles.pillButton, styles.disabledLink].join(' ')} title={tr('Save or undo your changes first')}>
+                        {tr('Record by driving')}
                       </span>
                     ) : (
                       <Link href="/record" className={styles.pillButton}>
-                        Record by driving
+                        {tr('Record by driving')}
                       </Link>
                     )}
                   </>
                 )}
                 <button className={styles.pillButton} onClick={undo} disabled={!history.length}>
-                  Undo
+                  {tr('Undo')}
                 </button>
                 <button className={styles.pillButton} onClick={() => void handleSave()} disabled={saving}>
-                  {saving ? 'saving...' : saveWarning && !docked ? 'Save anyway' : 'Save map'}
+                  {saving ? tr('saving…') : saveWarning && !docked ? tr('Save anyway') : tr('Save map')}
                 </button>
                 {saveError && <span className={styles.error}>{saveError}</span>}
               </div>
@@ -485,16 +487,15 @@ function MapEditor() {
             {saveWarning && !docked && (
               <div className={styles.warning}>
                 <p>
-                  The mower isn&apos;t idle in the dock. Changing the map during a job can make it lose track of the
-                  area it&apos;s mowing and stop the job. Better save once it&apos;s back in the dock.
+                  {tr("The mower isn't idle in the dock. Changing the map during a job can make it lose track of the area it's mowing and stop the job. Better save once it's back in the dock.")}
                 </p>
-                <a onClick={() => setSaveWarning(false)}>don&apos;t save for now</a>
+                <a onClick={() => setSaveWarning(false)}>{tr("don't save for now")}</a>
               </div>
             )}
 
             {map && !selectedArea && mode === 'idle' && (
               <>
-                <p className={styles.dim}>Click an area to edit it.</p>
+                <p className={styles.dim}>{tr('Click an area to edit it.')}</p>
                 {jobList && jobList.length > 0 && (
                   <TrackPicker
                     jobs={jobList}
@@ -506,20 +507,20 @@ function MapEditor() {
                 {mowAreas.length > 1 && (
                   <div className={styles.orderBox}>
                     <span className={styles.orderTitle}>
-                      Mowing order
+                      {tr('Mowing order')}
                       <InfoTip>
-                        The mower mows the areas in this order. Can only be changed while it&apos;s idle in the dock.
+                        {tr("The mower mows the areas in this order. Can only be changed while it's idle in the dock.")}
                       </InfoTip>
                     </span>
                     {!docked && (
-                      <span className={styles.dim}>Can only be changed while the mower is idle in the dock.</span>
+                      <span className={styles.dim}>{tr('Can only be changed while the mower is idle in the dock.')}</span>
                     )}
                     {mowAreas.map((a, i) => (
                       <div key={a.id} className={styles.orderRow}>
                         <span className={styles.orderNum}>{i + 1}</span>
                         <a onClick={() => selectArea(a.id)}>
-                          {a.properties.name || 'unnamed'}
-                          {a.properties.active === false && <span className={styles.dim}> (inactive)</span>}
+                          {a.properties.name || tr('unnamed')}
+                          {a.properties.active === false && <span className={styles.dim}> ({tr('inactive')})</span>}
                         </a>
                         <button
                           className={styles.pillButton}
@@ -547,30 +548,29 @@ function MapEditor() {
             {mode === 'split' && (
               <div className={styles.splitBox}>
                 <p className={styles.dim}>
-                  Click points to draw a cut line across the area, it can bend. Start and end outside of it. Drag
-                  points to move them, drag the middle of a segment to add one.
+                  {tr("Click points to draw a cut line across the area, it can bend. Start and end outside of it. Drag points to move them, drag the middle of a segment to add one.")}
                 </p>
                 {splitPreview ? (
                   <p>
-                    <span className={styles.pieceA}>{polygonArea(splitPreview[0]).toFixed(1)} m²</span> and{' '}
-                    <span className={styles.pieceB}>{polygonArea(splitPreview[1]).toFixed(1)} m²</span>
+                    <span className={styles.pieceA}>{fmt(polygonArea(splitPreview[0]), 1)} m²</span> {tr('and')}{' '}
+                    <span className={styles.pieceB}>{fmt(polygonArea(splitPreview[1]), 1)} m²</span>
                   </p>
                 ) : (
-                  pendingPoints.length >= 2 && <p className={styles.dim}>The line doesn&apos;t cut through the area yet.</p>
+                  pendingPoints.length >= 2 && <p className={styles.dim}>{tr("The line doesn't cut through the area yet.")}</p>
                 )}
                 <div className={styles.inlineRow}>
                   <button className={styles.pillButton} onClick={applySplit} disabled={!splitPreview}>
-                    Apply split
+                    {tr('Apply split')}
                   </button>
                   <button
                     className={styles.pillButton}
                     onClick={() => setPendingPoints(pendingPoints.slice(0, -1))}
                     disabled={!pendingPoints.length}
                   >
-                    Remove last point
+                    {tr('Remove last point')}
                   </button>
                   <button className={styles.pillButton} onClick={cancelPicking}>
-                    Cancel
+                    {tr('Cancel')}
                   </button>
                 </div>
               </div>
@@ -579,27 +579,26 @@ function MapEditor() {
             {mode === 'merge' && selectedArea && (
               <div className={styles.splitBox}>
                 <p className={styles.dim}>
-                  Click the area to merge into {selectedArea.properties.name || 'this one'}. The result keeps its name,
-                  type and settings.
+                  {tr("Click the area to merge into {name}. The result keeps its name, type and settings.", {name: selectedArea.properties.name || tr('this one')})}
                 </p>
                 {mergeWith && merged && (
                   <p>
-                    {selectedArea.properties.name || 'unnamed'} + {mergeWith.properties.name || 'unnamed'} ={' '}
-                    <span className={styles.pieceA}>{polygonArea(merged.outline).toFixed(1)} m²</span>
-                    {merged.holesFilled > 0 && ', the gap enclosed between them gets filled in'}
+                    {selectedArea.properties.name || tr('unnamed')} + {mergeWith.properties.name || tr('unnamed')} ={' '}
+                    <span className={styles.pieceA}>{fmt(polygonArea(merged.outline), 1)} m²</span>
+                    {merged.holesFilled > 0 && tr(', the gap enclosed between them gets filled in')}
                     {mergeWith.properties.type !== selectedArea.properties.type &&
-                      `, careful: ${mergeWith.properties.name || 'it'} is a different type`}
+                      tr(', careful: {name} is a different type', {name: mergeWith.properties.name || tr('it')})}
                   </p>
                 )}
                 {mergeWith && !merged && (
-                  <p className={styles.error}>These two don&apos;t touch, there&apos;d be two separate pieces.</p>
+                  <p className={styles.error}>{tr("These two don't touch, there'd be two separate pieces.")}</p>
                 )}
                 <div className={styles.inlineRow}>
                   <button className={styles.pillButton} onClick={applyMerge} disabled={!merged}>
-                    Apply merge
+                    {tr('Apply merge')}
                   </button>
                   <button className={styles.pillButton} onClick={cancelPicking}>
-                    Cancel
+                    {tr('Cancel')}
                   </button>
                 </div>
               </div>
@@ -607,12 +606,12 @@ function MapEditor() {
 
             {mode === 'draw' && (
               <div className={styles.inlineRow}>
-                <span className={styles.dim}>Click points to draw the outline ({pendingPoints.length} so far), drag them to move</span>
+                <span className={styles.dim}>{tr('Click points to draw the outline ({n} so far), drag them to move', {n: pendingPoints.length})}</span>
                 <button className={styles.pillButton} onClick={finishDraw} disabled={pendingPoints.length < 3}>
-                  Finish
+                  {tr('Finish')}
                 </button>
                 <button className={styles.pillButton} onClick={cancelPicking}>
-                  Cancel
+                  {tr('Cancel')}
                 </button>
               </div>
             )}
@@ -622,7 +621,7 @@ function MapEditor() {
                 <input
                   className={styles.nameInput}
                   value={selectedArea.properties.name ?? ''}
-                  placeholder="unnamed"
+                  placeholder={tr('unnamed')}
                   // one undo step per rename, not per keystroke
                   onFocus={remember}
                   onChange={(e) => updateProperties({name: e.target.value}, false)}
@@ -634,26 +633,24 @@ function MapEditor() {
                 >
                   {AREA_TYPES.map((t) => (
                     <option key={t.value} value={t.value}>
-                      {t.label}
+                      {tr(t.label)}
                     </option>
                   ))}
                 </select>
-                <span className={styles.dim}>{selectedArea.outline.length} points</span>
+                <span className={styles.dim}>{tr('{n} points', {n: selectedArea.outline.length})}</span>
                 <label className={styles.toggle}>
                   <input type="checkbox" checked={selectedArea.properties.active !== false} onChange={toggleActive} />
-                  active
+                  {tr('active')}
                   <InfoTip>
-                    Inactive areas are ignored by the mower. Careful with mowing areas: an inactive one is also no
-                    longer drivable, so the mower gets stuck if it stands on it.
+                    {tr("Inactive areas are ignored by the mower. Careful with mowing areas: an inactive one is also no longer drivable, so the mower gets stuck if it stands on it.")}
                   </InfoTip>
                 </label>
                 <span className={styles.withTip}>
                   <button className={styles.pillButton} onClick={startSplit}>
-                    Split zone
+                    {tr('Split zone')}
                   </button>
                   <InfoTip>
-                    Cuts the area in two along a line through two points you click. Both halves keep the type and
-                    settings.
+                    {tr("Cuts the area in two along a line through two points you click. Both halves keep the type and settings.")}
                   </InfoTip>
                 </span>
                 <span className={styles.withTip}>
@@ -664,11 +661,10 @@ function MapEditor() {
                       setMode('merge');
                     }}
                   >
-                    Merge
+                    {tr('Merge')}
                   </button>
                   <InfoTip>
-                    Joins this area with another one you click, e.g. two halves of a lawn. They need to overlap or
-                    touch.
+                    {tr("Joins this area with another one you click, e.g. two halves of a lawn. They need to overlap or touch.")}
                   </InfoTip>
                 </span>
                 <button
@@ -676,17 +672,15 @@ function MapEditor() {
                   onClick={deleteArea}
                   onBlur={() => setConfirmDelete(null)}
                 >
-                  {confirmDelete === selectedArea.id ? 'Really delete?' : 'Delete area'}
+                  {confirmDelete === selectedArea.id ? tr('Really delete?') : tr('Delete area')}
                 </button>
                 {simplifyCm === null && (
                   <span className={styles.withTip}>
                     <button className={styles.pillButton} onClick={() => setSimplifyCm(5)}>
-                      Reduce points
+                      {tr('Reduce points')}
                     </button>
                     <InfoTip>
-                      Recorded outlines have a point every few cm. This drops the ones that hardly change the shape,
-                      you pick how far the new outline may be off. You can go back up with the slider until you
-                      reload the page.
+                      {tr("Recorded outlines have a point every few cm. This drops the ones that hardly change the shape, you pick how far the new outline may be off. You can go back up with the slider until you reload the page.")}
                     </InfoTip>
                   </span>
                 )}
@@ -695,7 +689,7 @@ function MapEditor() {
 
             {selectedArea && mode === 'idle' && (
               <p className={styles.dim}>
-                {AREA_TYPES.find((t) => t.value === (selectedArea.properties.type ?? 'draft'))?.hint}
+                {tr(AREA_TYPES.find((t) => t.value === (selectedArea.properties.type ?? 'draft'))?.hint ?? '')}
               </p>
             )}
 
@@ -703,10 +697,9 @@ function MapEditor() {
               <div className={styles.mowSettings}>
                 <label>
                   <span>
-                    Outline passes
+                    {tr('Outline passes')}
                     <InfoTip>
-                      How many rounds the mower drives along the edge before it mows the inside in stripes. Empty
-                      means the mower&apos;s global setting.
+                      {tr("How many rounds the mower drives along the edge before it mows the inside in stripes. Empty means the mower's global setting.")}
                     </InfoTip>
                   </span>
                   <input
@@ -721,10 +714,9 @@ function MapEditor() {
                 </label>
                 <label>
                   <span>
-                    Overlapping passes
+                    {tr('Overlapping passes')}
                     <InfoTip>
-                      How many of the edge rounds the stripes reach into, so no uncut strip is left between the edge
-                      and the stripes.
+                      {tr("How many of the edge rounds the stripes reach into, so no uncut strip is left between the edge and the stripes.")}
                     </InfoTip>
                   </span>
                   <input
@@ -739,10 +731,9 @@ function MapEditor() {
                 </label>
                 <label>
                   <span>
-                    Outline offset (m)
+                    {tr('Outline offset (m)')}
                     <InfoTip>
-                      Moves the mowing boundary in (positive, more distance to beds and walls) or out (negative). -1
-                      to 1 m.
+                      {tr("Moves the mowing boundary in (positive, more distance to beds and walls) or out (negative). -1 to 1 m.")}
                     </InfoTip>
                   </span>
                   <input
@@ -756,11 +747,9 @@ function MapEditor() {
                 </label>
                 <label>
                   <span>
-                    Mow angle (°)
+                    {tr('Mow angle (°)')}
                     <InfoTip>
-                      Direction of the stripes, 0° is east, counter-clockwise. Empty means auto: the direction from
-                      the first outline point to the first one more than 2 m away. The mower adds its mow_angle_offset
-                      on top.
+                      {tr("Direction of the stripes, 0° is east, counter-clockwise. Empty means auto: the direction from the first outline point to the first one more than 2 m away. The mower adds its mow_angle_offset on top.")}
                     </InfoTip>
                   </span>
                   <input
@@ -769,7 +758,7 @@ function MapEditor() {
                     min={-180}
                     max={180}
                     value={selectedArea.properties.angle !== undefined ? Math.round(selectedArea.properties.angle / DEG) : ''}
-                    placeholder={`auto ${Math.round(autoAngle / DEG)}`}
+                    placeholder={tr('auto {n}', {n: Math.round(autoAngle / DEG)})}
                     onFocus={remember}
                     onChange={(e) =>
                       updateProperties(
@@ -794,30 +783,30 @@ function MapEditor() {
                     disabled={selectedArea.properties.angle === undefined}
                     onClick={() => updateProperties({angle: undefined})}
                   >
-                    Auto
+                    {tr('Auto')}
                   </button>
                 </div>
                 <label className={styles.toggle}>
                   <input type="checkbox" checked={showStripes} onChange={() => setShowStripes(!showStripes)} />
-                  show mowing direction
-                  {toolWidth ? ` (${Math.round(toolWidth * 100)} cm apart)` : ''}
+                  {tr('show mowing direction')}
+                  {toolWidth ? ` (${tr('{n} cm apart', {n: Math.round(toolWidth * 100)})})` : ''}
                   <InfoTip>
-                    Stripes one mower width apart, direction and spacing like the real plan. The rounds along the
-                    edge aren&apos;t drawn, so the stripes go all the way to the outline here.
+                    {tr("Stripes one mower width apart, direction and spacing like the real plan. The rounds along the edge aren't drawn, so the stripes go all the way to the outline here.")}
                   </InfoTip>
                 </label>
                 {mismatch && (
                   <div className={styles.warning}>
                     <p>
-                      The last mow here ({mismatch.date}) ran at about {Math.round(mismatch.measured)}°, but with the
-                      saved settings it should be {Math.round(mismatch.planned)}° ({mismatch.diff > 0 ? '+' : ''}
-                      {Math.round(mismatch.diff)}°).
+                      {tr("The last mow here ({date}) ran at about {measured}°, but with the saved settings it should be {planned}° ({diff}°).", {
+                        date: mismatch.date,
+                        measured: Math.round(mismatch.measured),
+                        planned: Math.round(mismatch.planned),
+                        diff: (mismatch.diff > 0 ? '+' : '') + Math.round(mismatch.diff),
+                      })}
                     </p>
                     <p>
-                      If you changed the angle since then, ignore this. Otherwise the mower most likely still has an
-                      angle increment summed up in <code>checkpoint.bag</code> from a time when mow_angle_increment was
-                      set. It adds that on top and never shows it anywhere. To get rid of it, while the mower is docked
-                      and idle: delete <code>~/ros/checkpoint.bag</code> on the mower and run{' '}
+                      {tr("If you changed the angle since then, ignore this. Otherwise the mower most likely still has an angle increment summed up in checkpoint.bag from a time when mow_angle_increment was set. It adds that on top and never shows it anywhere. To get rid of it, while the mower is docked and idle: delete")}{' '}
+                      <code>~/ros/checkpoint.bag</code> {tr("on the mower and run")}{' '}
                       <code>openmower restart</code>.
                     </p>
                     <label className={styles.toggle}>
@@ -826,18 +815,18 @@ function MapEditor() {
                         checked={previewCorrection !== 0}
                         onChange={() => setPreviewCorrection(previewCorrection ? 0 : Math.round(mismatch.diff))}
                       />
-                      turn the preview by {Math.round(mismatch.diff)}° to match
+                      {tr('turn the preview by {n}° to match', {n: Math.round(mismatch.diff)})}
                     </label>
                   </div>
                 )}
                 {(angleOffset !== 0 || offsetIsAbsolute || angleIncrement !== 0) && (
                   <p className={styles.dim}>
                     {offsetIsAbsolute
-                      ? `mow_angle_offset_is_absolute is set on the mower, it always mows at ${angleOffset}° and ignores this angle.`
+                      ? tr('mow_angle_offset_is_absolute is set on the mower, it always mows at {n}° and ignores this angle.', {n: angleOffset})
                       : angleOffset !== 0
-                        ? `The mower adds its mow_angle_offset of ${angleOffset}°, the preview includes it.`
+                        ? tr('The mower adds its mow_angle_offset of {n}°, the preview includes it.', {n: angleOffset})
                         : ''}
-                    {angleIncrement !== 0 && ` It also turns by ${angleIncrement}° after every full mow, the preview shows the first one.`}
+                    {angleIncrement !== 0 && ' ' + tr('It also turns by {n}° after every full mow, the preview shows the first one.', {n: angleIncrement})}
                   </p>
                 )}
               </div>
@@ -853,14 +842,14 @@ function MapEditor() {
                   onChange={(e) => setSimplifyCm(Number(e.target.value))}
                 />
                 <span className={styles.dim}>
-                  {simplifyCm === 0 ? 'all points' : `max. ${simplifyCm} cm off`} · {baseOutline?.length} →{' '}
-                  {simplified.length} points
+                  {simplifyCm === 0 ? tr('all points') : tr('max. {n} cm off', {n: simplifyCm})} · {baseOutline?.length} →{' '}
+                  {tr('{n} points', {n: simplified.length})}
                 </span>
                 <button className={styles.pillButton} onClick={applySimplify}>
-                  Apply
+                  {tr('Apply')}
                 </button>
                 <button className={styles.pillButton} onClick={() => setSimplifyCm(null)}>
-                  Cancel
+                  {tr('Cancel')}
                 </button>
               </div>
             )}

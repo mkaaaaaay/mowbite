@@ -7,6 +7,7 @@ import Link from 'next/link';
 import {usePathname} from 'next/navigation';
 import {useEffect} from 'react';
 import styles from './Nav.module.css';
+import {tr, useLang} from '@/lib/i18n';
 
 const ICONS = {
   dashboard: (
@@ -41,6 +42,7 @@ const LINKS = [
 export default function Nav() {
   // the static export uses trailing slashes, /map/ has to match /map
   const pathname = usePathname().replace(/(.)\/$/, '$1');
+  useLang();
   // nav is always mounted, so sensor history records no matter which page is open
   useEffect(() => {
     startSensorHistory();
@@ -59,14 +61,14 @@ export default function Nav() {
           <svg viewBox="0 0 24 24" aria-hidden="true">
             {link.icon}
           </svg>
-          <span>{link.label}</span>
+          <span>{tr(link.label)}</span>
         </Link>
       ))}
       <Link href="/settings" className={[styles.settings, pathname === '/settings' ? styles.active : ''].join(' ')}>
         <svg viewBox="0 0 24 24" aria-hidden="true">
           {ICONS.settings}
         </svg>
-        <span>Settings</span>
+        <span>{tr('Settings')}</span>
       </Link>
     </nav>
   );

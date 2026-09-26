@@ -1,3 +1,5 @@
+import {tr} from './i18n';
+
 export type StatusColor = 'success' | 'warning' | 'error' | 'accent';
 
 export function stateColor(state: string | undefined): StatusColor {
@@ -33,8 +35,8 @@ export function statusText(
   chargeState?: string,
 ): string {
   if (!state) return '';
-  if (state.emergency) return 'Emergency';
-  if (docked) return chargeState === 'Done' ? 'Docked · charged' : 'Docked · charging';
+  if (state.emergency) return tr('Emergency');
+  if (docked) return chargeState === 'Done' ? tr('Docked · charged') : tr('Docked · charging');
   const names: Record<string, string> = {
     IDLE: 'Idle',
     MOWING: 'Mowing',
@@ -43,5 +45,7 @@ export function statusText(
     AREA_RECORDING: 'Recording an area',
     PAUSED: 'Paused',
   };
-  return names[state.current_state] ?? state.current_state.toLowerCase().replace(/_/g, ' ');
+  const name = names[state.current_state];
+  if (name) return tr(name);
+  return state.current_state.toLowerCase().replace(/_/g, ' ');
 }
