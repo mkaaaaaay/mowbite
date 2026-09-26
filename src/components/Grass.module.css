@@ -3,7 +3,7 @@
   left: 0;
   right: 0;
   bottom: calc(60px + env(safe-area-inset-bottom));
-  height: 46px;
+  height: 62px;
   z-index: -1;
   pointer-events: none;
   overflow: hidden;
@@ -38,11 +38,12 @@
 /* the easter egg: a lawn eater mows from left to right, the grass grows back afterwards */
 .mower {
   position: absolute;
-  bottom: 2px;
+  /* the drawing has some room below the body, this puts it into the grass */
+  bottom: -6px;
   left: 0;
-  width: 40px;
-  height: 40px;
-  transform: translateX(-50px);
+  width: 56px;
+  height: 56px;
+  transform: translateX(-70px);
 }
 
 .mowing .mower {
@@ -63,20 +64,20 @@
 
 @keyframes grass-drive {
   from {
-    transform: translateX(-50px);
+    transform: translateX(-70px);
   }
   to {
     transform: translateX(calc(100vw + 10px));
   }
 }
 
-/* the uncut part starts at the mower's mouth, 20 px into its 40 px */
+/* the uncut part starts at the mower's mouth, 28 px into its 56 px */
 @keyframes grass-cut {
   from {
-    clip-path: inset(0 0 0 -30px);
+    clip-path: inset(0 0 0 -42px);
   }
   to {
-    clip-path: inset(0 0 0 calc(100vw + 30px));
+    clip-path: inset(0 0 0 calc(100vw + 38px));
   }
 }
 
