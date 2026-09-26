@@ -11,6 +11,7 @@ const LINKS = [
   {href: '/', label: 'Dashboard'},
   {href: '/map', label: 'Map'},
   {href: '/sensors', label: 'Sensors'},
+  {href: '/activity', label: 'Activity'},
 ];
 
 export default function Nav() {

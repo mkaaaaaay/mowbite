@@ -1,4 +1,7 @@
 .svg {
+  /* dragging the map shouldn't select the order numbers and labels */
+  user-select: none;
+  -webkit-user-select: none;
   width: 100%;
   height: auto;
   aspect-ratio: 1;
@@ -105,6 +108,8 @@
 
 .wrap {
   position: relative;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .zoomable {

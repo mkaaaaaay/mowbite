@@ -1,21 +1,9 @@
 'use client';
 
 import type {JobInfo, TrackSegment} from '@/hooks/useMowHistory';
+import {dayKey, dayLabel} from '@/lib/dates';
 import {useState} from 'react';
 import styles from './TrackPicker.module.css';
-
-const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-
-function dayLabel(d: Date) {
-  const today = new Date();
-  const yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
-  // today/yesterday in the browser's language, like the weekday names
-  const rel = new Intl.RelativeTimeFormat(undefined, {numeric: 'auto'});
-  const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
-  if (dayKey(d) === dayKey(today)) return cap(rel.format(0, 'day'));
-  if (dayKey(d) === dayKey(yesterday)) return cap(rel.format(-1, 'day'));
-  return d.toLocaleDateString(undefined, {weekday: 'short', day: 'numeric', month: 'numeric'});
-}
 
 function length(points: [number, number][]) {
   let m = 0;

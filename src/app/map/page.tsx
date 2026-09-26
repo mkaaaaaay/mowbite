@@ -17,7 +17,8 @@ import {polygonArea} from '@/lib/geometry';
 import {mergeOutlines} from '@/lib/mergeAreas';
 import {generateId, splitByPath} from '@/lib/splitPolygon';
 import {isDocked} from '@/lib/status';
-import {useEffect, useState} from 'react';
+import {useSearchParams} from 'next/navigation';
+import {Suspense, useEffect, useState} from 'react';
 import styles from './page.module.css';
 
 const AREA_TYPES = [
@@ -34,7 +35,16 @@ function normDeg(d: number) {
   return ((((d + 180) % 360) + 360) % 360) - 180;
 }
 
+// useSearchParams needs a suspense boundary in a static export
 export default function MapPage() {
+  return (
+    <Suspense>
+      <MapEditor />
+    </Suspense>
+  );
+}
+
+function MapEditor() {
   const {state} = useMowerState();
   const position = useMowerPosition() ?? state?.pose;
   const {values: sensorValues} = useMowerSensors();
@@ -46,15 +56,18 @@ export default function MapPage() {
   const pastJobs = useMowHistory();
   const jobList = useJobList();
   // null = live trail, otherwise a recorded job shown instead
-  const [viewJob, setViewJob] = useState<{id: string; segments: TrackSegment[] | null} | null>(null);
-  const showJob = (id: string) => {
-    if (!id) {
-      setViewJob(null);
-      return;
-    }
-    setViewJob({id, segments: null});
-    void loadJobTrack(id).then((segments) => setViewJob((v) => (v?.id === id ? {id, segments} : v)));
-  };
+  // ?job=<id> (from the activity page) opens that job's track until another one is picked
+  const urlJob = useSearchParams().get('job');
+  const [picked, setPicked] = useState<string | null | undefined>(undefined);
+  const jobId = picked === undefined ? urlJob : picked;
+  const [loaded, setLoaded] = useState<{id: string; segments: TrackSegment[]} | null>(null);
+  const viewJob = jobId ? {id: jobId, segments: loaded?.id === jobId ? loaded.segments : null} : null;
+  const showJob = (id: string) => setPicked(id || null);
+  const loadingJob = viewJob && !viewJob.segments ? viewJob.id : null;
+  useEffect(() => {
+    if (!loadingJob) return;
+    void loadJobTrack(loadingJob).then((segments) => setLoaded({id: loadingJob, segments}));
+  }, [loadingJob]);
   // extra rotation for the preview when the mower drives differently than calculated
   const [previewCorrection, setPreviewCorrection] = useState(0);
 
