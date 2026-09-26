@@ -274,7 +274,7 @@
 
 .transit {
   fill: none;
-  stroke: var(--c-track);
+  stroke: var(--c-transit);
   stroke-opacity: 0.6;
   stroke-width: 1.5;
   stroke-dasharray: 4 4;

@@ -6,6 +6,7 @@ export const COLORS = [
   {key: 'mower', label: 'Mower', value: '#ff1fa3'},
   {key: 'dock', label: 'Docking station', value: '#2196f3'},
   {key: 'track', label: 'Track', value: '#ff1fa3'},
+  {key: 'transit', label: 'Driving without blades', value: '#ff1fa3'},
   {key: 'mow', label: 'Mowing area', value: '#4caf50'},
   {key: 'nav', label: 'Navigation area', value: '#29b6f6'},
   {key: 'obstacle', label: 'Obstacle', value: '#ef5350'},
