@@ -1,3 +1,4 @@
+import Grass from "@/components/Grass";
 import Nav from "@/components/Nav";
 import { COLOR_BOOT_SCRIPT } from "@/lib/settings";
 import type { Metadata, Viewport } from "next";
@@ -40,7 +41,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <div className={styles.shell}>
           <Nav />
           <div className={styles.content}>{children}</div>
-          <div className={styles.grass} aria-hidden="true" />
+          <Grass />
         </div>
       </body>
     </html>

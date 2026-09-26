@@ -8,13 +8,13 @@ const SHUT = 'M24 32 L42 31.9 A18 18 0 1 0 42 32.1 Z';
 const CHOMP_MS = 3000;
 
 // a lawn eater chomping its way through the grass. tap it and it does
-export default function LogoMark({size = 28, className}: {size?: number; className?: string}) {
+export default function LogoMark({size = 28, className, chomp}: {size?: number; className?: string; chomp?: boolean}) {
   // own id per copy, a gradient inside a hidden svg (the nav's on phones) would paint nothing
   const grad = useId();
   const [chomping, setChomping] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  const chomp = () => {
+  const startChomp = () => {
     if (chomping || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     setChomping(true);
     clearTimeout(timer.current);
@@ -28,7 +28,7 @@ export default function LogoMark({size = 28, className}: {size?: number; classNa
       viewBox="0 0 64 64"
       aria-hidden="true"
       className={[className, chomping ? styles.chomping : ''].filter(Boolean).join(' ')}
-      onClick={chomp}
+      onClick={startChomp}
     >
       <defs>
         <linearGradient id={grad} x1="0" y1="0" x2="0" y2="1">
@@ -42,7 +42,7 @@ export default function LogoMark({size = 28, className}: {size?: number; classNa
       </g>
       <g className={styles.body}>
         <path d={OPEN} fill={`url(#${grad})`}>
-          {chomping && <animate attributeName="d" values={`${OPEN};${SHUT};${OPEN}`} dur="0.28s" repeatCount="indefinite" />}
+          {(chomping || chomp) && <animate attributeName="d" values={`${OPEN};${SHUT};${OPEN}`} dur="0.28s" repeatCount="indefinite" />}
         </path>
         <circle cx="26" cy="21.5" r="2.4" fill="#10261a" />
       </g>
