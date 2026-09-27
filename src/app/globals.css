@@ -1,20 +1,21 @@
 :root {
-  --background: #f2f2f2;
-  --foreground: #171717;
-  --card: #ffffff;
-  --card-border: #e5e5e5;
-  --text-secondary: #6b6b6b;
-  --accent: #3f8ae0;
-  --warning: #c9982b;
-  --error: #e5484d;
-  --success: #3aa856;
-  --soft-good: #2e7d32;
-  --soft-warn: #9a6700;
-  --soft-bad: #c62828;
-  --soft-muted: #546e7a;
-  --bubble: #ffffff;
-  --well: rgba(0, 0, 0, 0.04);
-  --nav-bg: rgba(255, 255, 255, 0.92);
+  /* light: muted greys with a hint of green instead of white, easier on the eyes outside */
+  --background: #d8dcd5;
+  --foreground: #1e2320;
+  --card: #e7eae4;
+  --card-border: #c4cac1;
+  --text-secondary: #56605a;
+  --accent: #2f6fbd;
+  --warning: #a8780f;
+  --error: #c93a3e;
+  --success: #2e8a47;
+  --soft-good: #2a6d34;
+  --soft-warn: #7d5600;
+  --soft-bad: #a52a2a;
+  --soft-muted: #4c5f68;
+  --bubble: #edf0ea;
+  --well: rgba(0, 0, 0, 0.05);
+  --nav-bg: rgba(223, 227, 220, 0.94);
   --content-max-width: 500px;
 }
 
@@ -93,6 +94,11 @@ body {
   flex-direction: column;
   color: var(--foreground);
   background: var(--background);
+  /* light: a faint wash of colour so it isn't one flat sheet, dark has its own below */
+  background-image:
+    radial-gradient(circle at 15% 10%, rgba(47, 111, 189, 0.06), transparent 45%),
+    radial-gradient(circle at 50% 100%, rgba(46, 138, 71, 0.07), transparent 55%);
+  background-attachment: fixed;
   font-family: Arial, Helvetica, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;

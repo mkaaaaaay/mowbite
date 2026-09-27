@@ -274,7 +274,7 @@
   margin: 6px 0 0 74px;
   padding: 8px 10px;
   border-radius: 6px;
-  background: rgba(0, 0, 0, 0.35);
+  background: var(--well);
   font-size: 12px;
   color: var(--foreground);
 }

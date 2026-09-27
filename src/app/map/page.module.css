@@ -177,7 +177,7 @@
 }
 
 .typeSelect option {
-  background: #1a1a1a;
+  background: var(--bubble);
 }
 
 .mowSettings {
@@ -246,7 +246,7 @@
   font-size: 12px;
   padding: 1px 4px;
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--well);
 }
 
 .panel {
