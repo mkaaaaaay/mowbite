@@ -5,6 +5,8 @@
 export interface Plan {
   days: number[];
   time: string; // HH:MM, local
+  // area ids to mow, empty: all active ones (the others get skipped by the scheduler)
+  areas: string[];
 }
 
 export interface Schedule {
@@ -22,12 +24,12 @@ const URL = '/cgi-bin/schedule';
 export function parseSchedule(text: string): Schedule {
   const s: Schedule = {...EMPTY_SCHEDULE, plans: []};
   for (const line of text.split('\n')) {
-    const [key, a, b] = line.trim().split(' ');
+    const [key, a, b, c] = line.trim().split(' ');
     if (key === 'enabled') s.enabled = a === '1';
     if (key === 'minbattery') s.minBattery = Number(a) || 0;
     if (key === 'skiprain') s.skipRain = a === '1';
     if (key === 'skipforecast') s.skipForecast = a === '1';
-    if (key === 'plan' && a && b) s.plans.push({days: a.split(',').map(Number), time: b});
+    if (key === 'plan' && a && b) s.plans.push({days: a.split(',').map(Number), time: b, areas: c ? c.split(',') : []});
   }
   return s;
 }
@@ -41,7 +43,9 @@ export function serializeSchedule(s: Schedule, pos?: {lat: number; lon: number})
     `skipforecast ${s.skipForecast ? 1 : 0}`,
     ...(pos ? [`pos ${pos.lat.toFixed(2)} ${pos.lon.toFixed(2)}`] : []),
     `tz ${posixTz()}`,
-    ...s.plans.filter((p) => p.days.length).map((p) => `plan ${[...p.days].sort().join(',')} ${p.time}`),
+    ...s.plans
+      .filter((p) => p.days.length)
+      .map((p) => `plan ${[...p.days].sort().join(',')} ${p.time}${p.areas.length ? ` ${p.areas.join(',')}` : ''}`),
     '',
   ].join('\n');
 }

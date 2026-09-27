@@ -1,5 +1,6 @@
 #!/bin/sh
 # starts mowing at the times from the schedule page (/data/schedule.txt, written by schedule.cgi).
+# a plan can name the areas to mow, the others get skipped when the mower gets to them.
 # it only starts an idle mower without emergency, optionally not when its rain sensor is wet or rain
 # is forecast, and waits up to two hours for the battery. what happened goes to /data/schedule.log for the page
 . /broker.sh
@@ -16,6 +17,28 @@ conf() { sed -n "s/^$1 //p" "$F" | head -n1; }
 
 # rain right now or in the next two hours at the garden (open-meteo, position rounded to ~1 km).
 # no answer counts as no rain
+# during a run this script started: skip every area that isn't in the list, until the mower is back
+skip_others() {
+  # shellcheck disable=SC2086
+  timeout 21600 mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}events/json" | while read -r e; do
+    type=$(field "$e" type)
+    case "$type" in
+      DOCKED | JOB_COMPLETE | SHUTDOWN) break ;;
+      AREA)
+        a=$(field "$e" area_id)
+        case ",$1," in
+          *",$a,"*) ;;
+          *)
+            # shellcheck disable=SC2086
+            mosquitto_pub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}action" -m 'mower_logic:mowing/skip_area'
+            log skipped_area "$a"
+            ;;
+        esac
+        ;;
+    esac
+  done
+}
+
 rain_forecast() {
   set -- $(conf pos)
   [ -n "$2" ] || return 1
@@ -29,16 +52,18 @@ rain_forecast() {
 last=""
 until=0
 waited=""
+areas=all
 while :; do
   if [ -f "$F" ] && [ "$(conf enabled)" = 1 ]; then
     tz=$(conf tz)
     now=$(TZ="$tz" date '+%u %H:%M %F')
     set -- $now
-    due=$(awk -v d="$1" -v t="$2" '$1 == "plan" && $3 == t { n = split($2, a, ","); for (i = 1; i <= n; i++) if (a[i] == d) { print "yes"; exit } }' "$F")
+    due=$(awk -v d="$1" -v t="$2" '$1 == "plan" && $3 == t { n = split($2, a, ","); for (i = 1; i <= n; i++) if (a[i] == d) { print ($4 == "" ? "all" : $4); exit } }' "$F")
     if [ -n "$due" ] && [ "$3 $2" != "$last" ]; then
       last="$3 $2"
       until=$(($(date +%s) + WAIT))
       waited=""
+      areas=$due
     fi
   else
     until=0
@@ -70,6 +95,7 @@ while :; do
       # shellcheck disable=SC2086
       if mosquitto_pub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}action" -m 'mower_logic:idle/start_mowing'; then
         log started "$bat"
+        [ "$areas" = all ] || skip_others "$areas" &
       else
         log skip_offline
       fi

@@ -15,6 +15,7 @@ import {
 } from '@/lib/schedule';
 import {useEffect, useState} from 'react';
 import styles from './page.module.css';
+import {useMowerMap} from '@/hooks/useMowerMap';
 
 const LOG_TEXT: Record<string, string> = {
   started: 'Started',
@@ -25,6 +26,7 @@ const LOG_TEXT: Record<string, string> = {
   skip_busy: 'Not started, the mower was busy ({detail})',
   skip_emergency: 'Not started, emergency stop was active',
   skip_offline: "Not started, the mower wasn't reachable",
+  skipped_area: "Skipped an area that wasn't picked",
 };
 
 // monday first, labels from the browser so they come out in the app's language
@@ -33,6 +35,9 @@ const weekday = (d: number) => new Date(2024, 0, d).toLocaleDateString(locale(),
 export default function SchedulePage() {
   useLang();
   const params = useMowerParams();
+  const map = useMowerMap();
+  // the areas a plan can pick from: mowing areas the mower actually mows
+  const mowAreas = (map?.areas ?? []).filter((a) => a.properties.type === 'mow' && a.properties.active !== false);
   const datum = datumFromParams(params);
   // undefined: loading, null: not served by the container
   const [schedule, setSchedule] = useState<Schedule | null | undefined>(undefined);
@@ -115,9 +120,36 @@ export default function SchedulePage() {
                   <button className={styles.remove} onClick={() => update({...s, plans: s.plans.filter((_, j) => j !== i)})} aria-label="remove">
                     ×
                   </button>
+                  {mowAreas.length > 1 && (
+                    <div className={styles.areas}>
+                      <button
+                        className={p.areas.length === 0 ? styles.on : undefined}
+                        onClick={() => update({...s, plans: s.plans.map((q, j) => (j === i ? {...q, areas: []} : q))})}
+                      >
+                        {tr('All active areas')}
+                      </button>
+                      {mowAreas.map((a) => {
+                        const on = p.areas.includes(a.id);
+                        return (
+                          <button
+                            key={a.id}
+                            className={on ? styles.on : undefined}
+                            onClick={() => {
+                              let areas = on ? p.areas.filter((x) => x !== a.id) : [...p.areas.filter((x) => mowAreas.some((m) => m.id === x)), a.id];
+                              // everything picked is the same as all active
+                              if (areas.length === mowAreas.length) areas = [];
+                              update({...s, plans: s.plans.map((q, j) => (j === i ? {...q, areas} : q))});
+                            }}
+                          >
+                            {a.properties.name || tr('unnamed')}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               ))}
-              <button className={styles.add} onClick={() => update({...s, plans: [...s.plans, {days: [1, 3, 5], time: '10:00'}]})}>
+              <button className={styles.add} onClick={() => update({...s, plans: [...s.plans, {days: [1, 3, 5], time: '10:00', areas: []}]})}>
                 + {tr('Add start time')}
               </button>
             </section>
@@ -155,6 +187,13 @@ export default function SchedulePage() {
                 {tr('The forecast comes from Open-Meteo, the mower asks for it with the position rounded to about a kilometer.')}
               </p>
               <p className={styles.dim}>{tr('The mower is only started when it stands idle and no emergency stop is active.')}</p>
+              {mowAreas.length > 1 && (
+                <p className={styles.dim}>
+                  {tr(
+                    'With only some areas picked, the mower still starts as usual and skips the others when it gets to them, in the normal mowing order.',
+                  )}
+                </p>
+              )}
             </section>
 
             <section className={styles.card}>
