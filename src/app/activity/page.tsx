@@ -5,6 +5,7 @@ import {clock, dayKey, dayLabel, duration, parseDay} from '@/lib/dates';
 import {describe, eventSource, explain, groupRuns, rawLine, OUTCOMES, withState, type Entry, type MowerEvent, type Run} from '@/lib/events';
 import {useDragScroll} from '@/hooks/useDragScroll';
 import {historyDays, historyOf} from '@/lib/history';
+import {RosLogAround} from '@/components/RosLog';
 import Link from 'next/link';
 import {useEffect, useState} from 'react';
 import styles from './page.module.css';
@@ -107,6 +108,7 @@ function ProblemItem({run, next, event, state, file, line}: {run: Run; next?: Ru
         <button className={styles.rawToggle} onClick={() => setRaw(!raw)}>
           {raw ? tr('Hide entry') : tr('Show entry')}
         </button>
+        <RosLogAround t={event.t} />
       </div>
       {raw && <RawEntry event={event} file={file} line={line} />}
     </li>

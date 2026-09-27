@@ -1,5 +1,6 @@
 'use client';
 
+import {copyText} from '@/lib/clipboard';
 import {tr} from '@/lib/i18n';
 import {isApp} from '@/lib/native';
 import {APP_VERSION, checkNow, compareVersions, dismissUpdate, isNewer, setUpdateCheck, useUpdates} from '@/lib/updates';
@@ -23,17 +24,6 @@ function useOutdated() {
     appOld: !!latest && app && isNewer(latest, APP_VERSION),
     mowerOld: !!latest && !!mower && isNewer(latest, mower),
   };
-}
-
-// copies in plain http too, where navigator.clipboard isn't there
-function copy(text: string) {
-  if (navigator.clipboard) return void navigator.clipboard.writeText(text).catch(() => {});
-  const t = document.createElement('textarea');
-  t.value = text;
-  document.body.appendChild(t);
-  t.select();
-  document.execCommand('copy');
-  t.remove();
 }
 
 export function UpdateSettings({cardClass, checkClass}: {cardClass: string; checkClass: string}) {
@@ -101,7 +91,7 @@ export function UpdateSettings({cardClass, checkClass}: {cardClass: string; chec
             <button
               className={styles.button}
               onClick={() => {
-                copy(UPDATE_COMMAND);
+                copyText(UPDATE_COMMAND);
                 setCopied(true);
                 setTimeout(() => setCopied(false), 1500);
               }}

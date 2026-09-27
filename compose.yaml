@@ -10,6 +10,9 @@ services:
     volumes:
       # settings shared by all devices (map colors etc.)
       - settings:/data
+      # optional: the ros log next to problems on the activity page. needs a small helper on the
+      # mower first, the settings page (ROS log) says how. then remove the # in front of the line
+      # - /home/openmower/ros/mowbite-roslog:/ros-log:ro
     # shows up on the openmower start page (xtech/web-openmower-entrypoint)
     labels:
       openmower.ui: "true"

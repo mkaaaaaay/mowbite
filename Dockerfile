@@ -31,6 +31,7 @@ COPY --chmod=755 docker/sensors.cgi /www/cgi-bin/sensors
 COPY --chmod=755 docker/backups.cgi /www/cgi-bin/backups
 COPY --chmod=755 docker/recorder.sh docker/scheduler.sh /
 COPY --chmod=755 docker/schedule.cgi /www/cgi-bin/schedule
+COPY --chmod=755 docker/roslog.cgi /www/cgi-bin/roslog
 COPY docker/broker.sh /broker.sh
 COPY docker/recorder.awk /recorder.awk
 COPY docker/httpd.conf /etc/httpd.conf
