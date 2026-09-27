@@ -82,10 +82,10 @@
     animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1);
   }
   32% {
-    clip-path: inset(0 calc(100% - var(--mid)) 0 calc(var(--mid) - 37px));
+    clip-path: inset(0 calc(100% - var(--mid)) 0 calc(var(--mid) - 30px));
   }
   38% {
-    clip-path: inset(0 calc(100% - var(--mid)) 0 calc(var(--mid) - 21px));
+    clip-path: inset(0 calc(100% - var(--mid)) 0 calc(var(--mid) - 18px));
   }
   42%,
   100% {
@@ -117,8 +117,16 @@
   bottom: 0;
 }
 
+/* inline svgs sit on the text baseline, with a gap below */
+.eater svg,
+.mower svg {
+  display: block;
+}
+
+/* the drawing has room below the body, this puts it into the grass. its mouth is 37px from the left */
 .eater {
-  left: -60px;
+  bottom: -9px;
+  left: -70px;
   animation: eater var(--dur) linear forwards;
 }
 
@@ -131,20 +139,20 @@
 @keyframes eater {
   0%,
   12% {
-    left: -60px;
+    left: -70px;
     animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1);
   }
   32% {
-    left: calc(var(--mid) - 60px);
+    left: calc(var(--mid) - 51px);
   }
   38% {
-    left: calc(var(--mid) - 44px);
+    left: calc(var(--mid) - 39px);
   }
   42% {
-    left: calc(var(--mid) - 52px);
+    left: calc(var(--mid) - 43px);
   }
   80% {
-    left: calc(var(--mid) - 52px);
+    left: calc(var(--mid) - 43px);
     animation-timing-function: cubic-bezier(0.5, 0, 0.8, 0.4);
   }
   100% {

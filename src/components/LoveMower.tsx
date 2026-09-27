@@ -65,7 +65,7 @@ export default function LoveMower() {
             <div className={[grass.tall, styles.rightHalf].join(' ')} />
           </div>
           <div className={styles.eater}>
-            <LogoMark size={46} bare chomp />
+            <LogoMark size={56} bare chomp />
           </div>
           <div className={styles.mower}>
             <MowerArt />
