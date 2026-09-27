@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {nextStart, parseSchedule, posixTz, serializeSchedule, type Schedule} from './schedule';
+import {isNightTime, nextStart, parseSchedule, posixTz, serializeSchedule, type Schedule} from './schedule';
 
 // the dates below are local times, so the same zone everywhere (github runs in UTC)
 process.env.TZ = 'Europe/Berlin';
@@ -51,12 +51,24 @@ describe('nextStart', () => {
   });
 
   it('takes the earliest of several plans', () => {
-    const s = schedule([plan([3], '10:00'), plan([2], '18:00')]);
-    expect(nextStart(s, monday8)).toEqual(new Date(2026, 8, 29, 18, 0));
+    const s = schedule([plan([3], '10:00'), plan([2], '17:00')]);
+    expect(nextStart(s, monday8)).toEqual(new Date(2026, 8, 29, 17, 0));
+  });
+
+  it('never plans a start at night', () => {
+    expect(nextStart(schedule([plan([1, 2, 3, 4, 5, 6, 7], '19:00')]), monday8)).toBeNull();
+    expect(nextStart(schedule([plan([1], '05:30'), plan([2], '06:00')]), monday8)).toEqual(new Date(2026, 8, 29, 6, 0));
   });
 
   it('is nothing while switched off', () => {
     expect(nextStart(schedule([plan([1], '09:00')], false), monday8)).toBeNull();
+  });
+});
+
+describe('isNightTime', () => {
+  it('blocks 18:00 up to 05:59', () => {
+    expect(['18:00', '23:59', '00:00', '05:59'].map(isNightTime)).toEqual([true, true, true, true]);
+    expect(['06:00', '12:00', '17:59'].map(isNightTime)).toEqual([false, false, false]);
   });
 });
 
