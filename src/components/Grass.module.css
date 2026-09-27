@@ -6,7 +6,9 @@
   height: 62px;
   z-index: -1;
   pointer-events: none;
-  overflow: hidden;
+  /* sideways the mower drives off screen, upwards it may hop out of the strip */
+  overflow-x: clip;
+  overflow-y: visible;
 }
 
 @media (min-width: 900px) {
@@ -100,4 +102,189 @@
 
 .growing .tall {
   transform-origin: bottom;
+}
+
+/* the flower: pops up, looks around, panics when the eater comes, sighs with relief after the hop.
+   the times are set from the component, counted from the double tap */
+.bloom {
+  position: absolute;
+  bottom: 0;
+  width: 28px;
+  height: 46px;
+  transform-origin: bottom;
+  animation:
+    flower-pop 0.6s cubic-bezier(0.3, 1.6, 0.5, 1) both,
+    flower-exit 0.5s ease-in var(--t-exit) forwards;
+}
+
+.bloom svg {
+  display: block;
+}
+
+.head,
+.eyes,
+.lids rect {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.head {
+  animation: flower-shake 0.11s linear var(--t-panic) 10;
+}
+
+.eyes {
+  animation:
+    flower-widen 0.18s ease-out var(--t-panic) forwards,
+    flower-unwiden 0.3s ease-in var(--t-relief) forwards;
+}
+
+.pupils {
+  animation:
+    flower-look 0.9s ease-in-out 0.7s,
+    flower-stare 0.15s ease-out var(--t-panic) forwards,
+    flower-unstare 0.3s ease-in var(--t-relief) forwards;
+}
+
+.lids rect {
+  transform: scaleY(0);
+  animation:
+    flower-blink 0.2s ease-in-out 1.35s,
+    flower-sigh 1.1s ease-in-out var(--t-relief);
+}
+
+.gasp {
+  opacity: 0;
+  animation:
+    flower-show 0.1s var(--t-panic) forwards,
+    flower-hide 0.1s var(--t-relief) forwards;
+}
+
+.smile {
+  animation:
+    flower-hide 0.1s var(--t-panic) forwards,
+    flower-show 0.1s var(--t-relief) forwards;
+}
+
+/* the eater jumps over the flower instead of eating it */
+.mowing .hop {
+  animation: grass-hop 1s ease-in-out var(--t-hop);
+}
+
+/* up, stays up while it's over the flower, down again */
+@keyframes grass-hop {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  35% {
+    transform: translateY(-52px) rotate(-10deg);
+  }
+  65% {
+    transform: translateY(-52px) rotate(6deg);
+  }
+}
+
+@keyframes flower-pop {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes flower-exit {
+  to {
+    transform: scaleY(0);
+    opacity: 0;
+  }
+}
+
+@keyframes flower-look {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  30% {
+    transform: translateX(-1px);
+  }
+  70% {
+    transform: translateX(1px);
+  }
+}
+
+@keyframes flower-stare {
+  to {
+    transform: translate(-1.2px, 0.3px);
+  }
+}
+
+@keyframes flower-unstare {
+  from {
+    transform: translate(-1.2px, 0.3px);
+  }
+  to {
+    transform: translate(0, 0);
+  }
+}
+
+@keyframes flower-widen {
+  to {
+    transform: scale(1.3);
+  }
+}
+
+@keyframes flower-unwiden {
+  from {
+    transform: scale(1.3);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+@keyframes flower-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-1px) rotate(-3deg);
+  }
+  75% {
+    transform: translateX(1px) rotate(3deg);
+  }
+}
+
+@keyframes flower-blink {
+  0%,
+  100% {
+    transform: scaleY(0);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes flower-sigh {
+  0%,
+  100% {
+    transform: scaleY(0);
+  }
+  20%,
+  80% {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes flower-show {
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes flower-hide {
+  to {
+    opacity: 0;
+  }
 }
