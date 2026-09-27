@@ -1,5 +1,5 @@
 import {getMqttClient, unprefix, withPrefix} from './mqttClient';
-import {TOPIC} from './openmower';
+import {RPC, TOPIC} from './openmower';
 
 // json-rpc 2.0 over mqtt: rpc/request -> rpc/response, matched by id
 
@@ -42,8 +42,29 @@ function ensureListening() {
   });
 }
 
+// The mower tells which methods it has (rpc.methods), asked once per page load. Calls it doesn't have
+// fail right away instead of after the timeout. Older mowers can't tell, then nothing is checked.
+// meta.* is answered by another service (openmower-cli), so it's never on that list.
+let methods: Promise<Set<string> | null> | null = null;
+
+export function rpcMethods(): Promise<Set<string> | null> {
+  methods ??= send<string[]>(RPC.methods, [], 5000).then(
+    (list) => (Array.isArray(list) ? new Set(list) : null),
+    () => null,
+  );
+  return methods;
+}
+
+export const unavailable = (known: Set<string> | null, method: string) =>
+  !!known && method !== RPC.methods && !method.startsWith('meta.') && !known.has(method);
+
 // params by position (array) or by name (object), json-rpc allows both
-export function callRpc<T = unknown>(method: string, params: unknown[] | object = [], timeoutMs = 10000): Promise<T> {
+export async function callRpc<T = unknown>(method: string, params: unknown[] | object = [], timeoutMs = 10000): Promise<T> {
+  if (unavailable(await rpcMethods(), method)) throw new RpcError(method, -32601, 'Method not found');
+  return send<T>(method, params, timeoutMs);
+}
+
+function send<T>(method: string, params: unknown[] | object, timeoutMs: number): Promise<T> {
   ensureListening();
   const id = String(nextId++);
 

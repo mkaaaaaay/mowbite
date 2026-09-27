@@ -18,6 +18,8 @@ export const TOPIC = {
 } as const;
 
 export const RPC = {
+  // what this mower answers, newer OpenMower versions only
+  methods: 'rpc.methods',
   replaceMap: 'map.replace',
   eventDays: 'events.history.list',
   events: 'events.history',
