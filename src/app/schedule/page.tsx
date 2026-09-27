@@ -35,6 +35,9 @@ const LOG_TEXT: Record<string, string> = {
 // monday first, labels from the browser so they come out in the app's language
 const weekday = (d: number) => new Date(2024, 0, d).toLocaleDateString(locale(), {weekday: 'short'});
 
+// from here on animals are out in the garden, a start time this late gets a warning
+const EVENING = '18:00';
+
 export default function SchedulePage() {
   useLang();
   const params = useMowerParams();
@@ -157,6 +160,11 @@ export default function SchedulePage() {
                         );
                       })}
                     </div>
+                  )}
+                  {p.time >= EVENING && (
+                    <p className={styles.animals}>
+                      🦔 {tr("From 6 pm on hedgehogs and other animals are out. They don't run from the mower, they curl up. Better mow during the day.")}
+                    </p>
                   )}
                 </div>
               ))}

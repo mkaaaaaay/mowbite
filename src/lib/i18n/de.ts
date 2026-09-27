@@ -98,6 +98,7 @@ const de: Record<string, string> = {
   "Download current map": "Aktuelle Karte herunterladen",
   "Draft": "Entwurf",
   "Draw": "Zeichnen",
+  "From 6 pm on hedgehogs and other animals are out. They don't run from the mower, they curl up. Better mow during the day.": "Ab 18 Uhr sind Igel und andere Tiere unterwegs. Sie laufen vor dem Mäher nicht weg, sondern rollen sich zusammen. Besser tagsüber mähen.",
   "Updates": "Updates",
   "App": "App",
   "Look for updates once a day (asks GitHub, which sees your IP address)": "Einmal am Tag nach Updates suchen (fragt bei GitHub nach, GitHub sieht dabei deine IP-Adresse)",
