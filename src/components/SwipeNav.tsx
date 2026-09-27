@@ -139,18 +139,17 @@ export default function SwipeNav() {
       d.el.style.transition = 'translate 0.15s ease-in, opacity 0.15s ease-in';
       d.el.style.translate = `${-dir * window.innerWidth * 0.5}px 0`;
       d.el.style.opacity = '0';
+      // load the new page right away, it slides in as soon as it's there
       const el = d.el;
+      entering = dir;
+      router.push(next);
+      // in case the page never changes, don't leave it hidden
       setTimeout(() => {
-        entering = dir;
-        router.push(next);
-        // in case the page never changes, don't leave it hidden
-        setTimeout(() => {
-          if (entering) {
-            entering = 0;
-            settle(el);
-          }
-        }, 1500);
-      }, 140);
+        if (entering) {
+          entering = 0;
+          settle(el);
+        }
+      }, 1500);
     };
     const cancel = () => {
       if (drag?.axis === 'x' && drag.el) settle(drag.el);

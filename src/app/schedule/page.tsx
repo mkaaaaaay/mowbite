@@ -5,6 +5,8 @@ import {datumFromParams, useMowerParams} from '@/hooks/useMowerParams';
 import {clock, dayLabel} from '@/lib/dates';
 import {locale, tr, useLang} from '@/lib/i18n';
 import {
+  cachedSchedule,
+  cachedScheduleLog,
   EMPTY_SCHEDULE,
   loadSchedule,
   loadScheduleLog,
@@ -40,8 +42,8 @@ export default function SchedulePage() {
   const mowAreas = (map?.areas ?? []).filter((a) => a.properties.type === 'mow' && a.properties.active !== false);
   const datum = datumFromParams(params);
   // undefined: loading, null: not served by the container
-  const [schedule, setSchedule] = useState<Schedule | null | undefined>(undefined);
-  const [log, setLog] = useState<LogEntry[]>([]);
+  const [schedule, setSchedule] = useState<Schedule | null | undefined>(cachedSchedule);
+  const [log, setLog] = useState<LogEntry[]>(() => cachedScheduleLog() ?? []);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {

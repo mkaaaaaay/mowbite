@@ -169,11 +169,15 @@ function RunCard({run, next, file, lines}: {run: Run; next?: Run; file: string; 
   );
 }
 
+// what was loaded before, shown right away when the page is opened again
+let cachedDays: string[] | null = null;
+const cachedEvents = new Map<string, MowerEvent[]>();
+
 export default function ActivityPage() {
   useLang();
-  const [days, setDays] = useState<string[] | null>(null);
+  const [days, setDays] = useState<string[] | null>(cachedDays);
   const [day, setDay] = useState<string | null>(null);
-  const [events, setEvents] = useState<MowerEvent[] | null>(null);
+  const [events, setEvents] = useState<MowerEvent[] | null>(() => cachedEvents.get(cachedDays?.[0] ?? '') ?? null);
   const [onlyProblems, setOnlyProblems] = useState(false);
   const [failed, setFailed] = useState(false);
   const daysRef = useDragScroll<HTMLDivElement>();
@@ -181,6 +185,7 @@ export default function ActivityPage() {
   useEffect(() => {
     callRpc<string[]>('events.history.list').then(
       (list) => {
+        cachedDays = list;
         setDays(list);
         setDay((d) => d ?? list[0] ?? null);
       },
@@ -196,7 +201,10 @@ export default function ActivityPage() {
     let alive = true;
     const load = () =>
       callRpc<MowerEvent[]>('events.history', {date: shown}, 20000).then(
-        (e) => alive && setEvents(e),
+        (e) => {
+          cachedEvents.set(shown, e);
+          if (alive) setEvents(e);
+        },
         () => alive && setFailed(true),
       );
     void load();

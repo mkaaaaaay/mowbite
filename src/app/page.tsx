@@ -22,7 +22,7 @@ import Link from 'next/link';
 import {useEffect, useState, useSyncExternalStore} from 'react';
 import styles from './page.module.css';
 import {fmt, tr, useLang} from '@/lib/i18n';
-import {loadSchedule, nextStart, type Schedule} from '@/lib/schedule';
+import {cachedSchedule, loadSchedule, nextStart, type Schedule} from '@/lib/schedule';
 import MowerSwitch from '@/components/MowerSwitch';
 
 const DRIVING = new Set(['MOWING', 'DOCKING', 'UNDOCKING']);
@@ -110,7 +110,7 @@ export default function Home() {
   const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
   const recent = useRecentRuns(state?.current_state);
   const weather = useWeather(datumFromParams(params), !!settings.weather);
-  const [schedule, setSchedule] = useState<Schedule | null>(null);
+  const [schedule, setSchedule] = useState<Schedule | null>(() => cachedSchedule() ?? null);
   useEffect(() => {
     void loadSchedule().then(setSchedule);
   }, []);

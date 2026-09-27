@@ -53,18 +53,25 @@ export function serializeSchedule(s: Schedule, pos?: {lat: number; lon: number})
   ].join('\n');
 }
 
+// the last answer, so a page opened again shows it right away while it asks the mower
+let lastSchedule: Schedule | null | undefined;
+let lastLog: LogEntry[] | undefined;
+export const cachedSchedule = () => lastSchedule;
+export const cachedScheduleLog = () => lastLog;
+
 // null: not served by the container, no scheduler then
 export async function loadSchedule(): Promise<Schedule | null> {
   try {
     const res = await fetch(endpoint(), {cache: 'no-store'});
-    if (!res.ok || !res.headers.get('content-type')?.includes('text/plain')) return null;
-    return parseSchedule(await res.text());
+    if (!res.ok || !res.headers.get('content-type')?.includes('text/plain')) return (lastSchedule = null);
+    return (lastSchedule = parseSchedule(await res.text()));
   } catch {
-    return null;
+    return lastSchedule ?? null;
   }
 }
 
 export async function saveSchedule(s: Schedule, pos?: {lat: number; lon: number}): Promise<void> {
+  lastSchedule = s;
   const res = await fetch(endpoint(), {method: 'POST', body: serializeSchedule(s, pos)});
   if (!res.ok) throw new Error(`schedule ${res.status}`);
 }
@@ -78,17 +85,17 @@ export interface LogEntry {
 export async function loadScheduleLog(): Promise<LogEntry[]> {
   try {
     const res = await fetch(`${endpoint()}?log`, {cache: 'no-store'});
-    if (!res.ok) return [];
-    return (await res.text())
+    if (!res.ok) return lastLog ?? [];
+    return (lastLog = (await res.text())
       .split('\n')
       .filter(Boolean)
       .map((l) => {
         const [t, what, detail] = l.split(' ');
         return {t: Number(t), what, detail};
       })
-      .reverse();
+      .reverse());
   } catch {
-    return [];
+    return lastLog ?? [];
   }
 }
 
