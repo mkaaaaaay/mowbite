@@ -11,6 +11,7 @@ import {setLangChoice, tr, useLang, useLangChoice} from '@/lib/i18n';
 import {setThemeChoice, useThemeChoice} from '@/lib/theme';
 import {appMowers, saveAppMowers} from '@/lib/mowers';
 import {isApp} from '@/lib/native';
+import {setSwipeEnabled, useSwipeEnabled} from '@/components/SwipeNav';
 
 function IconChoice({
   icons,
@@ -192,6 +193,7 @@ export default function SettingsPage() {
   useLang();
   const choice = useLangChoice();
   const theme = useThemeChoice();
+  const swipe = useSwipeEnabled();
   const router = useRouter();
   // back to wherever the gear was clicked, or the dashboard when the page was opened directly
   const back = () => (window.history.length > 1 ? router.back() : router.push('/'));
@@ -291,6 +293,10 @@ export default function SettingsPage() {
               onChange={(e) => saveSettings({...settingsStore.snapshot(), grass: e.target.checked})}
             />
             {tr('Grass along the bottom of the screen')}
+          </label>
+          <label className={styles.check}>
+            <input type="checkbox" checked={swipe} onChange={(e) => setSwipeEnabled(e.target.checked)} />
+            {tr('Swipe left and right between the pages (on this device)')}
           </label>
         </section>
 

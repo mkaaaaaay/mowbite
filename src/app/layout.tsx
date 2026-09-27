@@ -1,6 +1,7 @@
 import AppSetup from "@/components/AppSetup";
 import Grass from "@/components/Grass";
 import Nav from "@/components/Nav";
+import SwipeNav from "@/components/SwipeNav";
 import { COLOR_BOOT_SCRIPT } from "@/lib/settings";
 import { THEME_BOOT_SCRIPT } from "@/lib/themeBoot";
 import type { Metadata, Viewport } from "next";
@@ -48,6 +49,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <div className={styles.content}>{children}</div>
           <Grass />
           <AppSetup />
+          <SwipeNav />
         </div>
       </body>
     </html>

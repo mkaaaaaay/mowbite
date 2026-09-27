@@ -333,6 +333,7 @@ const de: Record<string, string> = {
   "Stop": "Stopp",
   "Stop button, lift, tilt or a bumper. It has to be released and reset before it drives again.": "Stopp-Taste, Anheben, Kippen oder ein Bumper. Er muss freigemacht und zurückgesetzt werden, bevor er weiterfährt.",
   "Stripes one mower width apart, direction and spacing like the real plan. The rounds along the edge aren't drawn, so the stripes go all the way to the outline here.": "Bahnen im Abstand einer Mäherbreite, Richtung und Abstand wie im echten Plan. Die Randrunden sind nicht eingezeichnet, deshalb reichen die Bahnen hier bis an den Rand.",
+  "Swipe left and right between the pages (on this device)": "Zwischen den Seiten nach links und rechts wischen (auf diesem Gerät)",
   "Switched off, the mower only mows when you start it.": "Ausgeschaltet, der Mäher mäht nur, wenn du ihn startest.",
   "Temperatures": "Temperaturen",
   "That file doesn't look like a map.": "Diese Datei sieht nicht nach einer Karte aus.",
