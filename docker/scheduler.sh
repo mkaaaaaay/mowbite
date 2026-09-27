@@ -28,16 +28,20 @@ skip_others() {
       AREA)
         a=$(field "$e" area_id)
         # the map as the mower has it now (retained), only its areas are skipped. a job resumed from
-        # before a map change can name an area that isn't in it any more, that one is left alone
+        # before a map change can name an area that isn't in it any more, that one is left alone.
+        # inactive ones too, the mower passes them by itself, and a skip sent while it does would
+        # hit the next area instead
         # shellcheck disable=SC2086
-        known=$(mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_MAP" -C 1 -W 5 2>/dev/null | grep -c "\"$a\"")
+        props=$(mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_MAP" -C 1 -W 5 2>/dev/null |
+          tr -d ' \n' | grep -o "\"id\":\"$a\",\"properties\":{[^}]*}" | head -n1)
         case ",$1," in
           *",$a,"*) ;;
           *)
-            if [ "${known:-0}" = 0 ]; then
+            if [ -z "$props" ]; then
               log unknown_area "$a"
               continue
             fi
+            case "$props" in *'"active":false'*) continue ;; esac
             # shellcheck disable=SC2086
             mosquitto_pub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTION" -m "$ACTION_SKIP_AREA"
             log skipped_area "$a"
