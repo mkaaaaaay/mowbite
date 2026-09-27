@@ -1,6 +1,7 @@
 'use client';
 
 import LogoMark from '@/components/Logo';
+import LoveMower from '@/components/LoveMower';
 import MapView from '@/components/MapView';
 import {HomeIcon, PlayIcon, SkipIcon, StopIcon, WarningIcon} from '@/components/icons';
 import {useComputedSpeed} from '@/hooks/useComputedSpeed';
@@ -160,6 +161,7 @@ export default function Home() {
           <span>
             <strong>mow</strong>bite
           </span>
+          <LoveMower />
         </h1>
         <MowerSwitch className={styles.mowerSwitch} />
 

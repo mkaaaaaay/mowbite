@@ -1,0 +1,259 @@
+/* the rest of the title row, the invisible button sits at its right end */
+.gap {
+  flex: 1;
+}
+
+.spot {
+  width: 56px;
+  align-self: stretch;
+  min-height: 48px;
+  margin: -8px -16px -8px 0;
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: default;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* both drive along this line, the heart sits above where they meet */
+.lane {
+  position: fixed;
+  left: 0;
+  right: 0;
+  height: 0;
+  z-index: 25;
+  pointer-events: none;
+}
+
+/* timeline, shared by everything below:
+   0-12% the lawn grows, 12-32% both drive in and mow, 32-38% the kiss, 38-42% a step back,
+   until 80% they look at each other, then they drive off and the stubble fades */
+
+.field {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -2px;
+  height: 40px;
+  overflow: hidden;
+  transform-origin: bottom;
+  animation: field var(--dur) linear forwards;
+}
+
+/* the stubble left behind */
+.field > :first-child {
+  opacity: 1;
+}
+
+@keyframes field {
+  0% {
+    transform: scaleY(0);
+    opacity: 0;
+    animation-timing-function: ease-out;
+  }
+  12% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    transform: scaleY(1);
+    opacity: 0;
+  }
+}
+
+/* the tall grass on each side, cut away right behind the mower coming from that side */
+.leftHalf {
+  clip-path: inset(0 calc(100% - var(--mid)) 0 0);
+  animation: cut-left var(--dur) linear forwards;
+}
+
+.rightHalf {
+  clip-path: inset(0 0 0 var(--mid));
+  animation: cut-right var(--dur) linear forwards;
+}
+
+@keyframes cut-left {
+  0%,
+  12% {
+    clip-path: inset(0 calc(100% - var(--mid)) 0 0);
+    animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1);
+  }
+  32% {
+    clip-path: inset(0 calc(100% - var(--mid)) 0 calc(var(--mid) - 37px));
+  }
+  38% {
+    clip-path: inset(0 calc(100% - var(--mid)) 0 calc(var(--mid) - 21px));
+  }
+  42%,
+  100% {
+    clip-path: inset(0 calc(100% - var(--mid)) 0 var(--mid));
+  }
+}
+
+@keyframes cut-right {
+  0%,
+  12% {
+    clip-path: inset(0 0 0 var(--mid));
+    animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1);
+  }
+  32% {
+    clip-path: inset(0 calc(100% - var(--mid) - 46px) 0 var(--mid));
+  }
+  38% {
+    clip-path: inset(0 calc(100% - var(--mid) - 30px) 0 var(--mid));
+  }
+  42%,
+  100% {
+    clip-path: inset(0 calc(100% - var(--mid)) 0 var(--mid));
+  }
+}
+
+.eater,
+.mower {
+  position: absolute;
+  bottom: 0;
+}
+
+.eater {
+  left: -60px;
+  animation: eater var(--dur) linear forwards;
+}
+
+.mower {
+  left: 100%;
+  color: var(--foreground);
+  animation: mower var(--dur) linear forwards;
+}
+
+@keyframes eater {
+  0%,
+  12% {
+    left: -60px;
+    animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1);
+  }
+  32% {
+    left: calc(var(--mid) - 60px);
+  }
+  38% {
+    left: calc(var(--mid) - 44px);
+  }
+  42% {
+    left: calc(var(--mid) - 52px);
+  }
+  80% {
+    left: calc(var(--mid) - 52px);
+    animation-timing-function: cubic-bezier(0.5, 0, 0.8, 0.4);
+  }
+  100% {
+    left: -70px;
+  }
+}
+
+@keyframes mower {
+  0%,
+  12% {
+    left: 100%;
+    animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1);
+  }
+  32% {
+    left: calc(var(--mid) + 14px);
+  }
+  38% {
+    left: calc(var(--mid) - 2px);
+  }
+  42% {
+    left: calc(var(--mid) + 6px);
+  }
+  80% {
+    left: calc(var(--mid) + 6px);
+    animation-timing-function: cubic-bezier(0.5, 0, 0.8, 0.4);
+  }
+  100% {
+    left: calc(100% + 10px);
+  }
+}
+
+.heart,
+.small {
+  position: absolute;
+  left: var(--mid);
+  bottom: 36px;
+  color: #ff5c8a;
+  line-height: 1;
+  opacity: 0;
+}
+
+.heart {
+  font-size: 28px;
+  translate: -50% 0;
+  animation: pop var(--dur) ease-out forwards;
+}
+
+@keyframes pop {
+  0%,
+  37% {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+  41% {
+    opacity: 1;
+    transform: scale(1.35);
+  }
+  46% {
+    transform: scale(1);
+  }
+  53% {
+    transform: scale(1.12);
+  }
+  60% {
+    transform: scale(1);
+  }
+  74% {
+    opacity: 1;
+    transform: translateY(-6px) scale(1);
+  }
+  82%,
+  100% {
+    opacity: 0;
+    transform: translateY(-16px) scale(0.9);
+  }
+}
+
+.small {
+  font-size: 13px;
+  animation: float var(--dur) ease-out forwards;
+}
+
+.s1 {
+  --x: -34px;
+  animation-delay: 150ms;
+}
+
+.s2 {
+  --x: 30px;
+  animation-delay: 450ms;
+}
+
+.s3 {
+  --x: -8px;
+  animation-delay: 750ms;
+}
+
+@keyframes float {
+  0%,
+  40% {
+    opacity: 0;
+    transform: translate(-50%, 10px) scale(0.4);
+  }
+  46% {
+    opacity: 1;
+  }
+  66%,
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--x)), -40px) scale(1);
+  }
+}
