@@ -10,6 +10,7 @@ import {
   isNightTime,
   scheduleLocked,
   EMPTY_SCHEDULE,
+  FORECAST_HOURS,
   loadSchedule,
   loadScheduleLog,
   nextStart,
@@ -210,7 +211,19 @@ export default function SchedulePage() {
                   disabled={!datum}
                   onChange={(e) => update({...s, skipForecast: e.target.checked})}
                 />
-                {tr('Not when it rains or rain is forecast for the next two hours')}
+                {tr('Not when it rains or rain is forecast for the next')}
+                <select
+                  className={styles.hours}
+                  value={s.forecastHours}
+                  disabled={!datum}
+                  onChange={(e) => update({...s, forecastHours: Number(e.target.value)})}
+                >
+                  {FORECAST_HOURS.map((h) => (
+                    <option key={h} value={h}>
+                      {h === 1 ? tr('hour') : tr('{n} hours', {n: h})}
+                    </option>
+                  ))}
+                </select>
               </label>
               <p className={styles.dim}>
                 {tr('The forecast comes from Open-Meteo, the mower asks for it with the position rounded to about a kilometer.')}

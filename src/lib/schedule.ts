@@ -17,10 +17,13 @@ export interface Schedule {
   minBattery: number;
   skipRain: boolean;
   skipForecast: boolean;
+  // how far ahead the forecast is checked, in hours
+  forecastHours: number;
   plans: Plan[];
 }
 
-export const EMPTY_SCHEDULE: Schedule = {enabled: false, minBattery: 80, skipRain: true, skipForecast: false, plans: []};
+export const FORECAST_HOURS = [1, 2, 3];
+export const EMPTY_SCHEDULE: Schedule = {enabled: false, minBattery: 80, skipRain: true, skipForecast: false, forecastHours: 1, plans: []};
 
 const PATH = '/cgi-bin/schedule';
 const endpoint = () => apiBase() + PATH;
@@ -33,6 +36,7 @@ export function parseSchedule(text: string): Schedule {
     if (key === 'minbattery') s.minBattery = Number(a) || 0;
     if (key === 'skiprain') s.skipRain = a === '1';
     if (key === 'skipforecast') s.skipForecast = a === '1';
+    if (key === 'forecasthours' && FORECAST_HOURS.includes(Number(a))) s.forecastHours = Number(a);
     if (key === 'plan' && a && b) s.plans.push({days: a.split(',').map(Number), time: b, areas: c ? c.split(',') : []});
   }
   return s;
@@ -45,6 +49,7 @@ export function serializeSchedule(s: Schedule, pos?: {lat: number; lon: number})
     `minbattery ${Math.round(s.minBattery)}`,
     `skiprain ${s.skipRain ? 1 : 0}`,
     `skipforecast ${s.skipForecast ? 1 : 0}`,
+    `forecasthours ${s.forecastHours}`,
     ...(pos ? [`pos ${pos.lat.toFixed(2)} ${pos.lon.toFixed(2)}`] : []),
     `tz ${posixTz()}`,
     ...s.plans

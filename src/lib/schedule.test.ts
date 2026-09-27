@@ -10,6 +10,7 @@ const schedule = (plans: Schedule['plans'], enabled = true): Schedule => ({
   minBattery: 50,
   skipRain: true,
   skipForecast: false,
+  forecastHours: 2,
   plans,
 });
 
@@ -22,6 +23,7 @@ describe('parse / serialize', () => {
   it('writes the lines the scheduler script expects', () => {
     const text = serializeSchedule(schedule([plan([5, 1], '09:00', ['x'])]), {lat: 52.2512, lon: 10.5634});
     expect(text).toContain('enabled 1\n');
+    expect(text).toContain('forecasthours 2\n');
     expect(text).toContain('pos 52.25 10.56\n');
     expect(text).toContain('plan 1,5 09:00 x\n');
     expect(text).toMatch(/^tz \S+$/m);
@@ -34,6 +36,7 @@ describe('parse / serialize', () => {
   it('falls back to defaults for missing lines', () => {
     const s = parseSchedule('plan 2 07:15');
     expect(s.enabled).toBe(false);
+    expect(s.forecastHours).toBe(1);
     expect(s.plans).toEqual([plan([2], '07:15')]);
   });
 });

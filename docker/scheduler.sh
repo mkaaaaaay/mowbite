@@ -22,7 +22,7 @@ night() {
   [ "$t" \> "$NIGHT_FROM" ] || [ "$t" = "$NIGHT_FROM" ] || [ "$t" \< "$NIGHT_TO" ]
 }
 
-# rain right now or in the next two hours at the garden (open-meteo, position rounded to ~1 km).
+# rain right now or in the next hour(s) at the garden (open-meteo, position rounded to ~1 km).
 # no answer counts as no rain
 # during a run this script started: skip every area that isn't in the list, until the mower is back
 skip_others() {
@@ -49,11 +49,15 @@ skip_others() {
 rain_forecast() {
   set -- $(conf pos)
   [ -n "$2" ] || return 1
-  w=$(wget -q -T 15 -O- "https://api.open-meteo.com/v1/forecast?latitude=$1&longitude=$2&current=precipitation&hourly=precipitation&forecast_hours=3" 2>/dev/null)
+  hours=$(conf forecasthours)
+  case "$hours" in 1 | 2 | 3) ;; *) hours=1 ;; esac
+  # quarter hours from now on, 4 per hour
+  w=$(wget -q -T 15 -O- "https://api.open-meteo.com/v1/forecast?latitude=$1&longitude=$2&current=precipitation&minutely_15=precipitation&forecast_minutely_15=$((hours * 4))" 2>/dev/null)
   [ -n "$w" ] || return 1
   cur=$(printf '%s' "$w" | grep -o '"current":{[^}]*}' | grep -o '"precipitation":[0-9.]*' | cut -d: -f2)
-  soon=$(printf '%s' "$w" | grep -o '"hourly":{.*' | grep -o '"precipitation":\[[^]]*\]' | sed 's/.*\[//; s/\].*//' | cut -d, -f1-2)
-  echo "${cur:-0},$soon" | tr ',' '\n' | awk '$1 >= 0.2 { r = 1 } END { exit !r }'
+  soon=$(printf '%s' "$w" | grep -o '"minutely_15":{.*' | grep -o '"precipitation":\[[^]]*\]' | sed 's/.*\[//; s/\].*//')
+  # raining now, or at least 0.2 mm in one of the coming hours
+  echo "${cur:-0} ${soon}" | awk -v per=4 '{ if ($1 >= 0.05) r = 1; n = split($2, q, ","); for (i = 1; i <= n; i++) { h[int((i - 1) / per)] += q[i] } for (k in h) if (h[k] >= 0.2) r = 1 } END { exit !r }'
 }
 
 last=""

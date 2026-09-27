@@ -168,6 +168,20 @@
   cursor: pointer;
 }
 
+.hours {
+  margin-left: -2px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--card-border);
+  background: transparent;
+  color: var(--foreground);
+  font-size: inherit;
+}
+
+.hours option {
+  background: #1a1a1a;
+}
+
 .slider {
   display: flex;
   flex-direction: column;
