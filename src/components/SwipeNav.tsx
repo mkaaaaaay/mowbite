@@ -75,8 +75,8 @@ export default function SwipeNav() {
   const [peek, setPeek] = useState<{path: string; side: number} | null>(null);
   const box = useRef<HTMLDivElement>(null);
 
-  // the new page is rendered: put it in place under the peek, then fade the peek out once the
-  // real page has its data, so it doesn't flash empty for a moment
+  // the new page is rendered: put it in place under the peek. it still fetches its data, so the
+  // peek stays on top until the page stops changing, then fades out. no empty flash in between
   useLayoutEffect(() => {
     const el = page();
     if (!entering || !el) return;
@@ -84,16 +84,36 @@ export default function SwipeNav() {
     el.style.transition = 'none';
     el.style.translate = '';
     el.style.opacity = '';
-    const fade = setTimeout(() => {
+    let quiet: ReturnType<typeof setTimeout> | undefined;
+    let gone: ReturnType<typeof setTimeout> | undefined;
+    const reveal = () => {
+      watch.disconnect();
+      clearTimeout(quiet);
+      clearTimeout(latest);
       const b = box.current;
-      if (!b) return;
-      b.style.transition = 'opacity 0.18s ease-out';
-      b.style.opacity = '0';
-    }, 250);
-    const gone = setTimeout(() => setPeek(null), 450);
+      if (b) {
+        b.style.transition = 'opacity 0.2s ease-out';
+        b.style.opacity = '0';
+      }
+      gone = setTimeout(() => setPeek(null), 220);
+    };
+    const settled = () => {
+      clearTimeout(quiet);
+      quiet = setTimeout(reveal, 200);
+    };
+    // attributes change all the time on the map (the mower moving), only new content counts
+    const watch = new MutationObserver(settled);
+    watch.observe(el, {childList: true, subtree: true, characterData: true});
+    settled();
+    // don't wait forever on a page that keeps changing
+    const latest = setTimeout(reveal, 1500);
     return () => {
-      clearTimeout(fade);
+      watch.disconnect();
+      clearTimeout(quiet);
+      clearTimeout(latest);
       clearTimeout(gone);
+      // left again before it was done: don't leave the peek behind
+      setTimeout(() => setPeek(null), 0);
     };
   }, [path]);
 
