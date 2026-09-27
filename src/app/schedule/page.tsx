@@ -49,6 +49,8 @@ export default function SchedulePage() {
   const [schedule, setSchedule] = useState<Schedule | null | undefined>(cachedSchedule);
   const [log, setLog] = useState<LogEntry[]>(() => cachedScheduleLog() ?? []);
   const [error, setError] = useState<string | null>(null);
+  // an evening time that still needs a yes before it's saved
+  const [evening, setEvening] = useState<{plan: number; time: string} | null>(null);
 
   useEffect(() => {
     void loadSchedule().then(setSchedule);
@@ -126,10 +128,15 @@ export default function SchedulePage() {
                   </div>
                   <input
                     type="time"
-                    value={p.time}
-                    onChange={(e) =>
-                      e.target.value && update({...s, plans: s.plans.map((q, j) => (j === i ? {...q, time: e.target.value} : q))})
-                    }
+                    value={evening?.plan === i ? evening.time : p.time}
+                    onChange={(e) => {
+                      const time = e.target.value;
+                      if (!time) return;
+                      // moving a start into the evening has to be confirmed first
+                      if (time >= EVENING && p.time < EVENING) return setEvening({plan: i, time});
+                      setEvening(null);
+                      update({...s, plans: s.plans.map((q, j) => (j === i ? {...q, time} : q))});
+                    }}
                   />
                   <button className={styles.remove} onClick={() => update({...s, plans: s.plans.filter((_, j) => j !== i)})} aria-label="remove">
                     ×
@@ -161,10 +168,25 @@ export default function SchedulePage() {
                       })}
                     </div>
                   )}
-                  {p.time >= EVENING && (
-                    <p className={styles.animals}>
-                      🦔 {tr("From 6 pm on hedgehogs and other animals are out. They don't run from the mower, they curl up. Better mow during the day.")}
-                    </p>
+                  {(p.time >= EVENING || evening?.plan === i) && (
+                    <div className={styles.animals}>
+                      <p>
+                        🦔 {tr("From 6 pm on hedgehogs and other animals are out. They don't run from the mower, they curl up. Better mow during the day.")}
+                      </p>
+                      {evening?.plan === i && (
+                        <div className={styles.animalButtons}>
+                          <button
+                            onClick={() => {
+                              update({...s, plans: s.plans.map((q, j) => (j === i ? {...q, time: evening.time} : q))});
+                              setEvening(null);
+                            }}
+                          >
+                            {tr('Mow at {time} anyway', {time: evening.time})}
+                          </button>
+                          <button onClick={() => setEvening(null)}>{tr('Cancel')}</button>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
               ))}
