@@ -35,6 +35,7 @@
   border-radius: 14px;
   border: 1px solid var(--card-border);
   background: var(--card);
+  box-shadow: var(--card-shadow, none);
   backdrop-filter: var(--card-blur, none);
   -webkit-backdrop-filter: var(--card-blur, none);
 }

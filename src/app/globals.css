@@ -1,10 +1,12 @@
 :root {
-  /* light: muted greys with a hint of green instead of white, easier on the eyes outside */
-  --background: #d8dcd5;
-  --foreground: #1e2320;
-  --card: #e7eae4;
-  --card-border: #c4cac1;
-  --text-secondary: #56605a;
+  /* light: frosted cards on a soft green-blue wash, muted so it doesn't glare outside */
+  --background: #cdd6cf;
+  --foreground: #1c2420;
+  --card: rgba(255, 255, 255, 0.42);
+  --card-border: rgba(255, 255, 255, 0.6);
+  --card-blur: blur(16px) saturate(140%);
+  --card-shadow: 0 1px 2px rgba(20, 40, 30, 0.06), 0 6px 20px rgba(20, 40, 30, 0.07);
+  --text-secondary: #4f5b54;
   --accent: #2f6fbd;
   --warning: #a8780f;
   --error: #c93a3e;
@@ -13,9 +15,9 @@
   --soft-warn: #7d5600;
   --soft-bad: #a52a2a;
   --soft-muted: #4c5f68;
-  --bubble: #edf0ea;
-  --well: rgba(0, 0, 0, 0.05);
-  --nav-bg: rgba(223, 227, 220, 0.94);
+  --bubble: #e7ece7;
+  --well: rgba(20, 40, 30, 0.06);
+  --nav-bg: rgba(226, 233, 227, 0.78);
   --content-max-width: 500px;
 }
 
@@ -33,6 +35,7 @@
     --card: rgba(255, 255, 255, 0.05);
     --card-border: rgba(255, 255, 255, 0.09);
     --card-blur: blur(18px) saturate(150%);
+    --card-shadow: none;
     --text-secondary: #9a9ba0;
     --accent: #5b9df0;
     --warning: #d4ac4a;
@@ -55,6 +58,7 @@
   --card: rgba(255, 255, 255, 0.05);
   --card-border: rgba(255, 255, 255, 0.09);
   --card-blur: blur(18px) saturate(150%);
+  --card-shadow: none;
   --text-secondary: #9a9ba0;
   --accent: #5b9df0;
   --warning: #d4ac4a;
@@ -94,10 +98,11 @@ body {
   flex-direction: column;
   color: var(--foreground);
   background: var(--background);
-  /* light: a faint wash of colour so it isn't one flat sheet, dark has its own below */
+  /* light: soft patches of colour behind the frosted cards, dark has its own below */
   background-image:
-    radial-gradient(circle at 15% 10%, rgba(47, 111, 189, 0.06), transparent 45%),
-    radial-gradient(circle at 50% 100%, rgba(46, 138, 71, 0.07), transparent 55%);
+    radial-gradient(circle at 12% 6%, rgba(120, 168, 222, 0.38), transparent 45%),
+    radial-gradient(circle at 90% 18%, rgba(150, 200, 160, 0.4), transparent 50%),
+    radial-gradient(circle at 50% 100%, rgba(90, 160, 110, 0.32), transparent 55%);
   background-attachment: fixed;
   font-family: Arial, Helvetica, sans-serif;
   -webkit-font-smoothing: antialiased;

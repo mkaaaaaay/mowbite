@@ -136,6 +136,7 @@
   font-size: 18px;
   line-height: 1;
   cursor: pointer;
+  box-shadow: var(--card-shadow, none);
   backdrop-filter: var(--card-blur, none);
   -webkit-backdrop-filter: var(--card-blur, none);
 }
@@ -163,6 +164,7 @@
   color: var(--error, #ff5252);
   font-size: 13px;
   cursor: pointer;
+  box-shadow: var(--card-shadow, none);
   backdrop-filter: var(--card-blur, none);
   -webkit-backdrop-filter: var(--card-blur, none);
 }
@@ -333,6 +335,7 @@
   color: var(--foreground);
   font-size: 18px;
   text-decoration: none;
+  box-shadow: var(--card-shadow, none);
   backdrop-filter: var(--card-blur, none);
   -webkit-backdrop-filter: var(--card-blur, none);
 }
