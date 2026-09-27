@@ -25,6 +25,7 @@ COPY --chmod=755 docker/recorder.sh docker/scheduler.sh /
 COPY --chmod=755 docker/schedule.cgi /www/cgi-bin/schedule
 COPY docker/broker.sh /broker.sh
 COPY docker/recorder.awk /recorder.awk
+COPY docker/httpd.conf /etc/httpd.conf
 COPY docker/entrypoint.sh /entrypoint.sh
 # empty, writable settings dir. no RUN in this stage, so building for arm on a pc needs no emulation
 COPY --from=build --chown=1000:1000 /empty /data
