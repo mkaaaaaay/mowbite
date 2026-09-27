@@ -11,7 +11,8 @@ import {useMowerTrack} from '@/hooks/useMowerTrack';
 import {datumFromParams, numParam, useMowerParams} from '@/hooks/useMowerParams';
 import {loadJobTrack, useJobList, useMowHistory, type TrackSegment} from '@/hooks/useMowHistory';
 import {measuredStripeAngle, stripeAngleDiff} from '@/lib/mowDirection';
-import {autoMowAngle, mowStripes} from '@/lib/mowStripes';
+import {autoMowAngle} from '@/lib/mowStripes';
+import {mowPlan, type MowPlan} from '@/lib/mowPlan';
 import {simplifyPolygon} from '@/lib/simplifyPolygon';
 import {mergeOutlines} from '@/lib/mergeAreas';
 import {generateId, splitByPath} from '@/lib/splitPolygon';
@@ -141,12 +142,23 @@ function MapEditor() {
     }
   }
 
-  let stripes: [Point, Point][] | undefined;
+  // where the mower will drive, worked out like its planner does (lib/mowPlan)
+  let plan: MowPlan | undefined;
   if (shownMap && shownArea && isMowArea && showStripes && toolWidth) {
     const holes = shownMap.areas
       .filter((a) => a.properties.type === 'obstacle' && a.properties.active !== false && a.outline.length > 2)
       .map((a) => a.outline);
-    stripes = mowStripes(shownArea.outline, holes, effectiveAngle, toolWidth);
+    const p = shownArea.properties;
+    const global = (key: string) => numParam(params, PARAM.mowerLogic(key));
+    plan = mowPlan({
+      outline: shownArea.outline,
+      holes,
+      outlineOffset: p.outline_offset ?? global('outline_offset') ?? 0,
+      outlineCount: p.outline_count ?? global('outline_count') ?? 0,
+      overlapCount: p.outline_overlap_count ?? global('outline_overlap_count') ?? 0,
+      toolWidth,
+      angle: effectiveAngle,
+    });
   }
 
   const globalValue = (key: string) => {
@@ -490,7 +502,8 @@ function MapEditor() {
                 onCanvasClick={handleCanvasClick}
                 onMovePending={(i, x, y) => setPendingPoints((prev) => prev.map((p, j) => (j === i ? {x, y} : p)))}
                 onInsertPending={(i, x, y) => setPendingPoints((prev) => prev.toSpliced(i, 0, {x, y}))}
-                stripes={stripes}
+                stripes={plan?.stripes}
+                loops={plan?.loops}
                 preview={splitPreview ?? (merged ? [merged.outline] : undefined)}
                 markers={spot ? [spot] : undefined}
                 focus={spot ?? undefined}

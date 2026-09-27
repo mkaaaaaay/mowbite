@@ -38,6 +38,8 @@ interface MapViewProps {
   zoomable?: boolean;
   // mowing direction preview
   stripes?: [Point, Point][];
+  // the outline passes of the mowing plan, drawn with the stripes
+  loops?: Point[][];
   // shapes an edit would give (split pieces, merge result), drawn in two alternating colors
   preview?: Point[][];
   // click on the map where there's no area
@@ -112,6 +114,7 @@ export default function MapView({
   pastTrack,
   zoomable = false,
   stripes,
+  loops,
   preview,
   overlay,
   markers,
@@ -563,6 +566,14 @@ export default function MapView({
           />
         ))}
 
+        {loops && loops.length > 0 && !hidden.has('stripes') && (
+          <path
+            className={styles.stripes}
+            d={loops
+              .map((o) => o.map((p, i) => `${i ? 'L' : 'M'}${toScreen(p.x, p.y).join(' ')}`).join('') + 'Z')
+              .join('')}
+          />
+        )}
         {stripes && stripes.length > 0 && !hidden.has('stripes') && (
           <path
             className={styles.stripes}

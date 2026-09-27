@@ -124,10 +124,10 @@ export default function MowSettings({
       </div>
       <label className={styles.toggle}>
         <input type="checkbox" checked={showStripes} onChange={onToggleStripes} />
-        {tr('show mowing direction')}
+        {tr('show mowing plan')}
         {toolWidth ? ` (${tr('{n} cm apart', {n: Math.round(toolWidth * 100)})})` : ''}
         <InfoTip>
-          {tr("Stripes one mower width apart, direction and spacing like the real plan. The rounds along the edge aren't drawn, so the stripes go all the way to the outline here.")}
+          {tr("Where the mower will drive, worked out the way its planner does it: the rounds along the edge and around obstacles, then the stripes inside, one mower width apart. Close to the real plan, but not to the centimeter.")}
         </InfoTip>
       </label>
       {mismatch && (
