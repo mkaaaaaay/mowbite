@@ -199,7 +199,13 @@ export default function Home() {
 
             <div className={styles.controls}>
               {ACTIONS.map((a) => (
-                <button key={a.id} className={a.main ? styles.main : undefined} disabled={!hasAction(a.id)} onClick={() => publishAction(a.id)}>
+                <button
+                  key={a.id}
+                  className={a.main ? styles.main : undefined}
+                  // the mower still offers start while the emergency stop is active, it has to be reset first
+                  disabled={!hasAction(a.id) || !!state.emergency}
+                  onClick={() => publishAction(a.id)}
+                >
                   <a.Icon size={20} />
                   {tr(a.label)}
                 </button>
