@@ -19,9 +19,10 @@ import {OUTCOMES, type MowerEvent, type Run} from '@/lib/events';
 import {settingsStore} from '@/lib/settings';
 import {batteryColor, isDocked} from '@/lib/status';
 import Link from 'next/link';
-import {useSyncExternalStore} from 'react';
+import {useEffect, useState, useSyncExternalStore} from 'react';
 import styles from './page.module.css';
 import {fmt, tr, useLang} from '@/lib/i18n';
+import {loadSchedule, nextStart, type Schedule} from '@/lib/schedule';
 
 const DRIVING = new Set(['MOWING', 'DOCKING', 'UNDOCKING']);
 
@@ -108,6 +109,11 @@ export default function Home() {
   const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
   const recent = useRecentRuns(state?.current_state);
   const weather = useWeather(datumFromParams(params), !!settings.weather);
+  const [schedule, setSchedule] = useState<Schedule | null>(null);
+  useEffect(() => {
+    void loadSchedule().then(setSchedule);
+  }, []);
+  const planned = schedule ? nextStart(schedule) : null;
 
   const current = state?.current_state ?? '';
   const driving = DRIVING.has(current);
@@ -253,6 +259,11 @@ export default function Home() {
                 <span>{problems === 1 ? tr('problem') : tr('problems')}</span>
               </div>
             </div>
+            {planned && (
+              <Link href="/schedule" className={styles.nextRun}>
+                {tr('Next start: {when}', {when: `${dayLabel(planned)}, ${clock(planned.getTime() / 1000)}`})}
+              </Link>
+            )}
             {recent.last && (
               <>
                 <span className={styles.label}>{tr('Last run')}</span>

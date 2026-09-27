@@ -1,0 +1,166 @@
+.page {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  max-width: 720px;
+  padding: 24px 16px 60px;
+}
+
+.main h1 {
+  font-size: 26px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  backdrop-filter: var(--card-blur, none);
+  -webkit-backdrop-filter: var(--card-blur, none);
+  font-size: 14px;
+}
+
+.card h2 {
+  font-size: 16px;
+}
+
+.dim {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.error {
+  color: var(--error);
+}
+
+.switch,
+.check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.switch input,
+.check input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+
+.switch strong {
+  font-size: 16px;
+}
+
+.plan {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--card-border);
+}
+
+.days {
+  display: flex;
+  gap: 4px;
+}
+
+.days button {
+  min-width: 38px;
+  padding: 7px 6px;
+  border-radius: 8px;
+  border: 1px solid var(--card-border);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.days .on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+.plan input[type='time'] {
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--card-border);
+  background: transparent;
+  color: var(--foreground);
+  font-size: 15px;
+}
+
+.remove {
+  margin-left: auto;
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.add {
+  align-self: flex-start;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--card-border);
+  background: rgba(128, 128, 128, 0.08);
+  color: var(--foreground);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.slider {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.slider input {
+  max-width: 320px;
+  accent-color: var(--accent);
+}
+
+.log {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.log li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border-left: 3px solid var(--card-border);
+  background: rgba(128, 128, 128, 0.06);
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.log .good {
+  border-left-color: var(--success);
+}
+
+.log .bad {
+  border-left-color: var(--warning);
+}

@@ -398,3 +398,8 @@
   color: var(--text-secondary);
   opacity: 0.7;
 }
+
+.nextRun {
+  font-size: 13px;
+  color: var(--accent);
+}

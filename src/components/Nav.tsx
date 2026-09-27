@@ -25,6 +25,12 @@ const ICONS = {
   ),
   sensors: <path d="M3 12h4l3-7 4 14 3-7h4" />,
   activity: <path d="M9 6h12M9 12h12M9 18h12M4 6h.01M4 12h.01M4 18h.01" />,
+  schedule: (
+    <>
+      <rect x="3.5" y="5" width="17" height="15" rx="2.5" />
+      <path d="M3.5 10h17M8 3v4M16 3v4M12 13v3l2 1.5" />
+    </>
+  ),
   settings: (
     <>
       <circle cx="12" cy="12" r="3" />
@@ -37,6 +43,7 @@ const LINKS = [
   {href: '/', label: 'Dashboard', icon: ICONS.dashboard},
   {href: '/map', label: 'Map', icon: ICONS.map},
   {href: '/sensors', label: 'Sensors', icon: ICONS.sensors},
+  {href: '/schedule', label: 'Schedule', icon: ICONS.schedule},
   {href: '/activity', label: 'Activity', icon: ICONS.activity},
 ];
 

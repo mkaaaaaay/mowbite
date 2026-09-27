@@ -1,0 +1,181 @@
+'use client';
+
+import {TitleMark} from '@/components/Logo';
+import {datumFromParams, useMowerParams} from '@/hooks/useMowerParams';
+import {clock, dayLabel} from '@/lib/dates';
+import {locale, tr, useLang} from '@/lib/i18n';
+import {
+  EMPTY_SCHEDULE,
+  loadSchedule,
+  loadScheduleLog,
+  nextStart,
+  saveSchedule,
+  type LogEntry,
+  type Schedule,
+} from '@/lib/schedule';
+import {useEffect, useState} from 'react';
+import styles from './page.module.css';
+
+const LOG_TEXT: Record<string, string> = {
+  started: 'Started',
+  waiting_battery: 'Waiting for the battery ({detail} %)',
+  skip_battery: 'Not started, battery only at {detail} % after two hours',
+  skip_rain: "Not started, the mower's rain sensor was wet",
+  skip_forecast: 'Not started, rain was forecast',
+  skip_busy: 'Not started, the mower was busy ({detail})',
+  skip_emergency: 'Not started, emergency stop was active',
+  skip_offline: "Not started, the mower wasn't reachable",
+};
+
+// monday first, labels from the browser so they come out in the app's language
+const weekday = (d: number) => new Date(2024, 0, d).toLocaleDateString(locale(), {weekday: 'short'});
+
+export default function SchedulePage() {
+  useLang();
+  const params = useMowerParams();
+  const datum = datumFromParams(params);
+  // undefined: loading, null: not served by the container
+  const [schedule, setSchedule] = useState<Schedule | null | undefined>(undefined);
+  const [log, setLog] = useState<LogEntry[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void loadSchedule().then(setSchedule);
+    void loadScheduleLog().then(setLog);
+    const timer = setInterval(() => void loadScheduleLog().then(setLog), 60000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // every change is saved right away
+  const update = (next: Schedule) => {
+    setSchedule(next);
+    setError(null);
+    saveSchedule(next, next.skipForecast && datum ? datum : undefined).catch((e) =>
+      setError(e instanceof Error ? e.message : tr('failed')),
+    );
+  };
+
+  const s = schedule ?? EMPTY_SCHEDULE;
+  const next = nextStart(s);
+
+  return (
+    <div className={styles.page}>
+      <main className={styles.main}>
+        <h1>
+          <TitleMark />
+          {tr('Schedule')}
+        </h1>
+
+        {schedule === null && (
+          <p className={styles.dim}>{tr('The schedule needs MowBite running as its container on the mower.')}</p>
+        )}
+
+        {schedule && (
+          <>
+            <section className={styles.card}>
+              <label className={styles.switch}>
+                <input type="checkbox" checked={s.enabled} onChange={(e) => update({...s, enabled: e.target.checked})} />
+                <strong>{tr('Mow by schedule')}</strong>
+              </label>
+              <p className={styles.dim}>
+                {next
+                  ? tr('Next start: {when}', {when: `${dayLabel(next)}, ${clock(next.getTime() / 1000)}`})
+                  : s.enabled
+                    ? tr('No start planned yet.')
+                    : tr('Switched off, the mower only mows when you start it.')}
+              </p>
+            </section>
+
+            <section className={styles.card}>
+              <h2>{tr('Start times')}</h2>
+              {s.plans.length === 0 && <p className={styles.dim}>{tr('No start times yet.')}</p>}
+              {s.plans.map((p, i) => (
+                <div key={i} className={styles.plan}>
+                  <div className={styles.days}>
+                    {[1, 2, 3, 4, 5, 6, 7].map((d) => (
+                      <button
+                        key={d}
+                        className={p.days.includes(d) ? styles.on : undefined}
+                        onClick={() => {
+                          const days = p.days.includes(d) ? p.days.filter((x) => x !== d) : [...p.days, d];
+                          update({...s, plans: s.plans.map((q, j) => (j === i ? {...q, days} : q))});
+                        }}
+                      >
+                        {weekday(d)}
+                      </button>
+                    ))}
+                  </div>
+                  <input
+                    type="time"
+                    value={p.time}
+                    onChange={(e) =>
+                      e.target.value && update({...s, plans: s.plans.map((q, j) => (j === i ? {...q, time: e.target.value} : q))})
+                    }
+                  />
+                  <button className={styles.remove} onClick={() => update({...s, plans: s.plans.filter((_, j) => j !== i)})} aria-label="remove">
+                    ×
+                  </button>
+                </div>
+              ))}
+              <button className={styles.add} onClick={() => update({...s, plans: [...s.plans, {days: [1, 3, 5], time: '10:00'}]})}>
+                + {tr('Add start time')}
+              </button>
+            </section>
+
+            <section className={styles.card}>
+              <h2>{tr('Conditions')}</h2>
+              <label className={styles.slider}>
+                <span>{s.minBattery > 0 ? tr('Battery at least {n} %', {n: s.minBattery}) : tr("Don't wait for the battery")}</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={5}
+                  value={s.minBattery}
+                  onChange={(e) => update({...s, minBattery: Number(e.target.value)})}
+                />
+              </label>
+              <p className={styles.dim}>
+                {tr("If it isn't charged that far at the start time, it waits for up to two hours and then leaves it for that day.")}
+              </p>
+              <label className={styles.check}>
+                <input type="checkbox" checked={s.skipRain} onChange={(e) => update({...s, skipRain: e.target.checked})} />
+                {tr("Not when the mower's rain sensor is wet")}
+              </label>
+              <label className={styles.check}>
+                <input
+                  type="checkbox"
+                  checked={s.skipForecast}
+                  disabled={!datum}
+                  onChange={(e) => update({...s, skipForecast: e.target.checked})}
+                />
+                {tr('Not when it rains or rain is forecast for the next two hours')}
+              </label>
+              <p className={styles.dim}>
+                {tr('The forecast comes from Open-Meteo, the mower asks for it with the position rounded to about a kilometer.')}
+              </p>
+              <p className={styles.dim}>{tr('The mower is only started when it stands idle and no emergency stop is active.')}</p>
+            </section>
+
+            <section className={styles.card}>
+              <h2>{tr('What happened')}</h2>
+              {log.length === 0 && <p className={styles.dim}>{tr('Nothing yet.')}</p>}
+              <ul className={styles.log}>
+                {log.slice(0, 20).map((l, i) => (
+                  <li key={i} className={l.what === 'started' ? styles.good : l.what.startsWith('skip') ? styles.bad : undefined}>
+                    <span className={styles.dim}>
+                      {dayLabel(new Date(l.t * 1000))}, {clock(l.t)}
+                    </span>
+                    {tr(LOG_TEXT[l.what] ?? l.what, {detail: l.detail ?? ''})}
+                  </li>
+                ))}
+              </ul>
+            </section>
+
+            {error && <p className={styles.error}>{error}</p>}
+          </>
+        )}
+      </main>
+    </div>
+  );
+}
