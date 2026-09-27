@@ -11,6 +11,15 @@ const config: CapacitorConfig = {
     cleartext: true,
   },
   backgroundColor: '#101114',
+  plugins: {
+    // edge to edge like android 15 wants it, the page pads itself with env(safe-area-inset-*).
+    // light icons in the status bar on the dark app
+    SystemBars: {
+      insetsHandling: 'native',
+      initialViewportFitValueHint: 'cover',
+      style: 'DARK',
+    },
+  },
 };
 
 export default config;

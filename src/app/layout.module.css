@@ -8,7 +8,8 @@
 .content {
   flex: 1;
   min-width: 0;
-  /* room for the tab bar at the bottom */
+  /* room for the tab bar at the bottom, and for the phone's status bar in the android app */
+  padding-top: env(safe-area-inset-top);
   padding-bottom: calc(64px + env(safe-area-inset-bottom));
 }
 
