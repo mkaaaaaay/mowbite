@@ -11,7 +11,7 @@ import {setLangChoice, tr, useLang, useLangChoice} from '@/lib/i18n';
 import {setThemeChoice, useThemeChoice} from '@/lib/theme';
 import {appMowers, saveAppMowers} from '@/lib/mowers';
 import {isApp} from '@/lib/native';
-import {setSwipeEnabled, useSwipeEnabled} from '@/components/SwipeNav';
+import {setSwipeEnabled, useSwipeEnabled} from '@/lib/swipe';
 
 function IconChoice({
   icons,

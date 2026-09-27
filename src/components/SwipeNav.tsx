@@ -1,43 +1,13 @@
 'use client';
 
 import {usePathname, useRouter} from 'next/navigation';
-import {lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
+import {lazy, Suspense, useEffect, useLayoutEffect, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
 import layout from '@/app/layout.module.css';
+import {swipeEnabled} from '@/lib/swipe';
 
 // the pages in the order of the tab bar
 const ORDER = ['/', '/map', '/sensors', '/schedule', '/activity', '/settings'];
-const KEY = 'swipePages';
-
-export const swipeEnabled = () => {
-  try {
-    return localStorage.getItem(KEY) === '1';
-  } catch {
-    return false;
-  }
-};
-
-const listeners = new Set<() => void>();
-
-export const setSwipeEnabled = (on: boolean) => {
-  try {
-    if (on) localStorage.setItem(KEY, '1');
-    else localStorage.removeItem(KEY);
-  } catch {}
-  listeners.forEach((l) => l());
-};
-
-export function useSwipeEnabled(): boolean {
-  return useSyncExternalStore(
-    (l) => {
-      listeners.add(l);
-      return () => listeners.delete(l);
-    },
-    swipeEnabled,
-    () => false,
-  );
-}
-
 // things that want horizontal swipes themselves: the map, the stick, sliders, fields, chip rows
 function claimsSwipe(el: Element | null): boolean {
   for (let e = el; e && e !== document.body; e = e.parentElement) {

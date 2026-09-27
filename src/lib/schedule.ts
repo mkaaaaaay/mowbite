@@ -1,3 +1,4 @@
+import {forget, fresh} from './fresh';
 import {apiBase} from './mowers';
 
 // the mowing schedule, kept by the container (docker/schedule.cgi) as simple lines the scheduler
@@ -63,18 +64,21 @@ export const cachedSchedule = () => lastSchedule;
 export const cachedScheduleLog = () => lastLog;
 
 // null: not served by the container, no scheduler then
-export async function loadSchedule(): Promise<Schedule | null> {
-  try {
-    const res = await fetch(endpoint(), {cache: 'no-store'});
-    if (!res.ok || !res.headers.get('content-type')?.includes('text/plain')) return (lastSchedule = null);
-    return (lastSchedule = parseSchedule(await res.text()));
-  } catch {
-    return lastSchedule ?? null;
-  }
+export function loadSchedule(): Promise<Schedule | null> {
+  return fresh('schedule', async () => {
+    try {
+      const res = await fetch(endpoint(), {cache: 'no-store'});
+      if (!res.ok || !res.headers.get('content-type')?.includes('text/plain')) return (lastSchedule = null);
+      return (lastSchedule = parseSchedule(await res.text()));
+    } catch {
+      return lastSchedule ?? null;
+    }
+  });
 }
 
 export async function saveSchedule(s: Schedule, pos?: {lat: number; lon: number}): Promise<void> {
   lastSchedule = s;
+  forget('schedule');
   const res = await fetch(endpoint(), {method: 'POST', body: serializeSchedule(s, pos)});
   if (!res.ok) throw new Error(`schedule ${res.status}`);
 }
@@ -85,7 +89,11 @@ export interface LogEntry {
   detail?: string;
 }
 
-export async function loadScheduleLog(): Promise<LogEntry[]> {
+export function loadScheduleLog(): Promise<LogEntry[]> {
+  return fresh('schedule-log', loadLog);
+}
+
+async function loadLog(): Promise<LogEntry[]> {
   try {
     const res = await fetch(`${endpoint()}?log`, {cache: 'no-store'});
     if (!res.ok) return lastLog ?? [];

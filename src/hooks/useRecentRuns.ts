@@ -1,7 +1,8 @@
 import {dayKey, parseDay} from '@/lib/dates';
 import {groupRuns, type MowerEvent, type Run} from '@/lib/events';
-import {callRpc} from '@/lib/rpc';
-import {useEffect, useState} from 'react';
+import {forget} from '@/lib/fresh';
+import {historyDays, historyOf} from '@/lib/history';
+import {useEffect, useRef, useState} from 'react';
 
 export interface RecentRuns {
   today: MowerEvent[];
@@ -16,18 +17,24 @@ let cached: RecentRuns | null = null;
 
 export function useRecentRuns(bump?: string): RecentRuns | null {
   const [data, setData] = useState<RecentRuns | null>(cached);
+  const lastBump = useRef(bump);
 
   useEffect(() => {
     let alive = true;
+    // the state changed, so there's something new in the history: don't reuse a recent answer
+    if (bump !== lastBump.current) {
+      lastBump.current = bump;
+      forget('events:');
+    }
     const load = async () => {
-      const days = await callRpc<string[]>('events.history.list');
+      const days = await historyDays();
       const todayKey = days.find((d) => dayKey(parseDay(d)) === dayKey(new Date()));
-      const today = todayKey ? await callRpc<MowerEvent[]>('events.history', {date: todayKey}, 20000) : [];
+      const today = todayKey ? await historyOf(todayKey) : [];
       const runs = groupRuns(today, true).flatMap((e) => (e.kind === 'run' ? [e.run] : []));
       let last = runs[runs.length - 1] ?? null;
       for (const d of days) {
         if (last || d === todayKey) continue;
-        const old = groupRuns(await callRpc<MowerEvent[]>('events.history', {date: d}, 20000), false);
+        const old = groupRuns(await historyOf(d), false);
         const run = old.flatMap((e) => (e.kind === 'run' ? [e.run] : [])).pop();
         if (run) last = run;
         break;

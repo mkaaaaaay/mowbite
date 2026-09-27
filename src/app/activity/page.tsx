@@ -4,7 +4,7 @@ import {TitleMark} from '@/components/Logo';
 import {clock, dayKey, dayLabel, duration, parseDay} from '@/lib/dates';
 import {describe, eventSource, explain, groupRuns, rawLine, OUTCOMES, withState, type Entry, type MowerEvent, type Run} from '@/lib/events';
 import {useDragScroll} from '@/hooks/useDragScroll';
-import {callRpc} from '@/lib/rpc';
+import {historyDays, historyOf} from '@/lib/history';
 import Link from 'next/link';
 import {useEffect, useState} from 'react';
 import styles from './page.module.css';
@@ -183,7 +183,7 @@ export default function ActivityPage() {
   const daysRef = useDragScroll<HTMLDivElement>();
 
   useEffect(() => {
-    callRpc<string[]>('events.history.list').then(
+    historyDays().then(
       (list) => {
         cachedDays = list;
         setDays(list);
@@ -200,7 +200,7 @@ export default function ActivityPage() {
     if (!shown) return;
     let alive = true;
     const load = () =>
-      callRpc<MowerEvent[]>('events.history', {date: shown}, 20000).then(
+      historyOf(shown).then(
         (e) => {
           cachedEvents.set(shown, e);
           if (alive) setEvents(e);
