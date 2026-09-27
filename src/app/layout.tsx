@@ -22,9 +22,12 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  themeColor: "#101114",
 };
 
 export const metadata: Metadata = {
+  // name under the icon when the app is put on the home screen (iOS reads this, android the manifest)
+  appleWebApp: { title: "MowBite", capable: true, statusBarStyle: "black" },
   title: "MowBite",
   description: "A web app for OpenMower robot mowers",
 };
