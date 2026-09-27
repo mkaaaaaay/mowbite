@@ -98,6 +98,8 @@ const de: Record<string, string> = {
   "Download current map": "Aktuelle Karte herunterladen",
   "Draft": "Entwurf",
   "Draw": "Zeichnen",
+  "Work in progress:": "In Arbeit:",
+  "The schedule isn't finished yet. You can already have a look, setting it up comes with a later version.": "Der Zeitplan ist noch nicht fertig. Du kannst ihn dir schon ansehen, einstellen lässt er sich erst in einer späteren Version.",
   "Drive around": "Abfahren",
   "New area": "Neue Fläche",
   "Changes": "Änderungen",

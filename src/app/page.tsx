@@ -23,7 +23,7 @@ import Link from 'next/link';
 import {useEffect, useState, useSyncExternalStore} from 'react';
 import styles from './page.module.css';
 import {fmt, tr, useLang} from '@/lib/i18n';
-import {cachedSchedule, loadSchedule, nextStart, type Schedule} from '@/lib/schedule';
+import {cachedSchedule, loadSchedule, nextStart, scheduleLocked, type Schedule} from '@/lib/schedule';
 import MowerSwitch from '@/components/MowerSwitch';
 
 const DRIVING = new Set(['MOWING', 'DOCKING', 'UNDOCKING']);
@@ -115,7 +115,7 @@ export default function Home() {
   useEffect(() => {
     void loadSchedule().then(setSchedule);
   }, []);
-  const planned = schedule ? nextStart(schedule) : null;
+  const planned = schedule && !scheduleLocked ? nextStart(schedule) : null;
 
   const current = state?.current_state ?? '';
   const driving = DRIVING.has(current);
