@@ -25,6 +25,9 @@ export const RPC = {
   events: 'events.history',
   jobs: 'position.history.list',
   jobTrack: 'position.history',
+  // the mowing plan for an area straight from the mower's planner. OpenMower doesn't offer it yet,
+  // the name is a guess until it does
+  areaPlan: 'mowing.plan',
 } as const;
 
 export const ACTION = {

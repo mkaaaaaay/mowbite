@@ -32,6 +32,7 @@ import {DrawPanel, MergePanel, RestorePanel, SimplifyPanel, SplitPanel} from './
 import {PARAM} from '@/lib/openmower';
 import {rpcErrorText} from '@/lib/rpcText';
 import {closedRings} from '@/lib/rings';
+import {mowerPlan} from '@/lib/areaPlan';
 
 // useSearchParams needs a suspense boundary in a static export
 export default function MapPage() {
@@ -142,9 +143,25 @@ function MapEditor() {
     }
   }
 
-  // where the mower will drive, worked out like its planner does (lib/mowPlan)
-  let plan: MowPlan | undefined;
-  if (shownMap && shownArea && isMowArea && showStripes && toolWidth) {
+  // the real plan from the mower when it offers one, only for the saved map (no local edits)
+  const [fromMower, setFromMower] = useState<{areaId: string; plan: MowPlan | null} | null>(null);
+  const askMower = showStripes && isMowArea && !!selectedAreaId && history.length === 0;
+  useEffect(() => {
+    if (!askMower || !selectedAreaId) return;
+    let alive = true;
+    void mowerPlan(selectedAreaId).then(
+      (plan) => alive && setFromMower({areaId: selectedAreaId, plan}),
+      () => alive && setFromMower({areaId: selectedAreaId, plan: null}),
+    );
+    return () => {
+      alive = false;
+    };
+  }, [askMower, selectedAreaId, liveMap]);
+  const realPlan = askMower && fromMower?.areaId === selectedAreaId ? fromMower.plan : null;
+
+  // otherwise where the mower will drive, worked out like its planner does (lib/mowPlan)
+  let plan: MowPlan | undefined = realPlan ?? undefined;
+  if (!plan && shownMap && shownArea && isMowArea && showStripes && toolWidth) {
     const holes = shownMap.areas
       .filter((a) => a.properties.type === 'obstacle' && a.properties.active !== false && a.outline.length > 2)
       .map((a) => a.outline);
@@ -636,6 +653,7 @@ function MapEditor() {
                   toolWidth={toolWidth}
                   mismatch={mismatch}
                   previewCorrection={previewCorrection}
+                  planFromMower={!!realPlan}
                   onPreviewCorrection={setPreviewCorrection}
                   angle={{offset: angleOffset, offsetIsAbsolute, increment: angleIncrement}}
                 />

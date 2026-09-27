@@ -34,6 +34,7 @@ export default function MowSettings({
   previewCorrection,
   onPreviewCorrection,
   angle,
+  planFromMower,
 }: {
   area: Area;
   autoAngle: number;
@@ -48,6 +49,8 @@ export default function MowSettings({
   previewCorrection: number;
   onPreviewCorrection: (deg: number) => void;
   angle: AngleParams;
+  // the plan shown comes from the mower itself, not worked out here
+  planFromMower: boolean;
 }) {
   const p = area.properties;
   const setOverride = (key: Override, raw: string) => {
@@ -126,8 +129,12 @@ export default function MowSettings({
         <input type="checkbox" checked={showStripes} onChange={onToggleStripes} />
         {tr('show mowing plan')}
         {toolWidth ? ` (${tr('{n} cm apart', {n: Math.round(toolWidth * 100)})})` : ''}
+        {' · '}
+        {planFromMower ? tr('from the mower') : tr('estimate')}
         <InfoTip>
-          {tr("Where the mower will drive, worked out the way its planner does it: the rounds along the edge and around obstacles, then the stripes inside, one mower width apart. Close to the real plan, but not to the centimeter.")}
+          {planFromMower
+            ? tr('The plan as the mower itself works it out for the saved map.')
+            : tr("Where the mower will drive, worked out the way its planner does it: the rounds along the edge and around obstacles, then the stripes inside, one mower width apart. An estimate, it can differ from the real plan, especially on unusual shapes.")}
         </InfoTip>
       </label>
       {mismatch && (
