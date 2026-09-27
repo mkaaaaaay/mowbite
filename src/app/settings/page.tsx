@@ -12,6 +12,7 @@ import {setThemeChoice, useThemeChoice} from '@/lib/theme';
 import {appMowers, saveAppMowers} from '@/lib/mowers';
 import {isApp} from '@/lib/native';
 import {setSwipeEnabled, useSwipeEnabled} from '@/lib/swipe';
+import {UpdateSettings} from '@/components/Updates';
 
 function IconChoice({
   icons,
@@ -402,6 +403,8 @@ export default function SettingsPage() {
             })}
           </div>
         </section>
+
+        <UpdateSettings cardClass={styles.card} checkClass={styles.check} />
 
         <p className={styles.version}>MowBite {process.env.APP_VERSION}</p>
       </main>

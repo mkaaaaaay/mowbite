@@ -19,6 +19,8 @@
 
 # production
 /build
+# written by scripts/version.mjs
+/public/version.json
 
 # misc
 .DS_Store

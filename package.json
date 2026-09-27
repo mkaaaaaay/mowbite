@@ -5,6 +5,7 @@
   "license": "GPL-3.0-only",
   "scripts": {
     "dev": "next dev",
+    "prebuild": "node scripts/version.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

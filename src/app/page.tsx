@@ -25,6 +25,7 @@ import styles from './page.module.css';
 import {fmt, tr, useLang} from '@/lib/i18n';
 import {cachedSchedule, loadSchedule, nextStart, scheduleLocked, type Schedule} from '@/lib/schedule';
 import MowerSwitch from '@/components/MowerSwitch';
+import {UpdateBanner} from '@/components/Updates';
 
 const DRIVING = new Set(['MOWING', 'DOCKING', 'UNDOCKING']);
 
@@ -164,6 +165,7 @@ export default function Home() {
           <LoveMower />
         </h1>
         <MowerSwitch className={styles.mowerSwitch} />
+        <UpdateBanner />
 
         {!state && <p className={styles.dim}>{connected ? tr('waiting for the mower…') : tr('connecting…')}</p>}
 
