@@ -288,3 +288,19 @@
     opacity: 0;
   }
 }
+
+/* the uncut stretch under the jump: shows the grass behind the cut, only between where the eater
+   took off and where it landed */
+.mowing .keep {
+  clip-path: inset(0 calc(100% - var(--gap-from)) 0 var(--gap-from));
+  animation: grass-keep var(--keep-dur) linear var(--keep-at) both;
+}
+
+@keyframes grass-keep {
+  from {
+    clip-path: inset(0 calc(100% - var(--gap-from)) 0 var(--gap-from));
+  }
+  to {
+    clip-path: inset(0 calc(100% - var(--gap-to)) 0 var(--gap-from));
+  }
+}

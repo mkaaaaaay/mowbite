@@ -10,6 +10,8 @@ const SPEED = 260; // px/s
 const REGROW_MS = 2500;
 // the flower comes up and looks around before the mower starts
 const PRE_MS = 1800;
+// the hop over the flower starts this long before the mower gets there
+const HOP_LEAD = 360;
 
 // a flower that sees the lawn eater coming, panics, and gets hopped over
 function Flower() {
@@ -54,7 +56,8 @@ export default function Grass() {
   const [phase, setPhase] = useState<'idle' | 'flower' | 'mowing' | 'growing'>('idle');
   const [dur, setDur] = useState(0);
   // where the flower stands and when the mower gets there (ms after it starts)
-  const [flower, setFlower] = useState<{x: number; hit: number} | null>(null);
+  // gap: the stretch the eater flies over, its grass stays
+  const [flower, setFlower] = useState<{x: number; hit: number; gap: [number, number]; keep: [number, number]} | null>(null);
   const strip = useRef<HTMLDivElement>(null);
   const busy = useRef(false);
   const lastTap = useRef(0);
@@ -79,11 +82,16 @@ export default function Grass() {
       busy.current = true;
       const w = window.innerWidth;
       const ms = Math.max(3000, (w / SPEED) * 1000);
-      const x = Math.round(w * (0.55 + Math.random() * 0.2));
-      // the mower drives from -80 to w + 10 px, its mouth is 34 px in, the flower starts 10 px left of x
-      const hit = ((x - 10 - 34 + 80) / (w + 90)) * ms;
+      const x = Math.round(w * (0.45 + Math.random() * 0.1));
+      // the mower drives from -80 to w + 10 px, its mouth (where the cut is) is 34 px in, the flower
+      // starts 10 px left of x
+      const mouthAt = (t: number) => -46 + ((w + 90) * t) / ms;
+      const hit = ((x - 10 + 46) / (w + 90)) * ms;
+      // off the ground from about 0.2 to 0.8 s into the hop, which starts at HOP_LEAD before the flower
+      const up = hit - HOP_LEAD + 200;
+      const down = hit - HOP_LEAD + 800;
       setDur(ms);
-      setFlower({x, hit});
+      setFlower({x, hit, gap: [mouthAt(up), mouthAt(down)], keep: [up, down - up]});
       setPhase('flower');
       timers.push(setTimeout(() => setPhase('mowing'), PRE_MS));
       timers.push(setTimeout(() => setPhase('growing'), PRE_MS + ms + 1200));
@@ -111,7 +119,11 @@ export default function Grass() {
       style={
         {
           '--dur': `${dur}ms`,
-          '--t-hop': `${Math.round((flower?.hit ?? 0) - 360)}ms`,
+          '--t-hop': `${Math.round((flower?.hit ?? 0) - HOP_LEAD)}ms`,
+          '--gap-from': `${Math.round(flower?.gap[0] ?? 0)}px`,
+          '--gap-to': `${Math.round(flower?.gap[1] ?? 0)}px`,
+          '--keep-at': `${Math.round(flower?.keep[0] ?? 0)}ms`,
+          '--keep-dur': `${Math.round(flower?.keep[1] ?? 0)}ms`,
           '--t-panic': `${Math.round(Math.max(PRE_MS - 200, PRE_MS + (flower?.hit ?? 0) - 1000))}ms`,
           '--t-relief': `${Math.round(PRE_MS + (flower?.hit ?? 0) + 450)}ms`,
           '--t-exit': `${Math.round(PRE_MS + dur + 1200 + 900)}ms`,
@@ -121,6 +133,8 @@ export default function Grass() {
     >
       <div className={styles.short} />
       <div className={styles.tall} />
+      {/* the grass under the jump, it stays when the rest is cut */}
+      {flower && phase === 'mowing' && <div className={[styles.tall, styles.keep].join(' ')} />}
       {flower && (
         <div className={styles.bloom} style={{left: flower.x - 14}}>
           <Flower />
