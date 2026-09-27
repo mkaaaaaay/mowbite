@@ -18,6 +18,16 @@ export const COLORS = [
 
 export type ColorKey = (typeof COLORS)[number]['key'];
 
+// another mower running MowBite, the app can switch to it
+export interface OtherMower {
+  id: string;
+  name: string;
+  host: string; // name or ip in the local network
+  appPort?: number; // MowBite, 8082
+  wsPort?: number; // OpenMower's mqtt websocket, 9001
+  prefix?: string;
+}
+
 export interface Settings {
   colors?: Partial<Record<ColorKey, string>>;
   // sizes are factors, 1 = default
@@ -28,6 +38,9 @@ export interface Settings {
   weather?: boolean;
   // the strip of grass along the bottom, on unless switched off
   grass?: boolean;
+  // name of the mower this app runs on, and the other ones to switch to
+  thisName?: string;
+  mowers?: OtherMower[];
   // own aerial imagery source, xyz tile url
   imagery?: {url?: string; attribution?: string};
 }

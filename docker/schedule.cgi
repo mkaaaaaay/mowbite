@@ -1,5 +1,7 @@
 #!/bin/sh
 # the mowing schedule (read by scheduler.sh) and its log. only lines of the known shapes are kept
+# the app on another mower may ask too (several mowers in one app)
+printf 'Access-Control-Allow-Origin: *\r\n'
 F=/data/schedule.txt
 if [ "$REQUEST_METHOD" = "POST" ]; then
   len=${CONTENT_LENGTH:-0}

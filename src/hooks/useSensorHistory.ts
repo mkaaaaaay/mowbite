@@ -2,6 +2,7 @@
 
 import {getMqttClient, unprefix, withPrefix} from '@/lib/mqttClient';
 import {useSyncExternalStore} from 'react';
+import {apiBase} from '@/lib/mowers';
 
 export interface Sample {
   t: number; // ms
@@ -34,7 +35,7 @@ function merge() {
 
 async function loadDay() {
   try {
-    const res = await fetch('/cgi-bin/sensors', {cache: 'no-store'});
+    const res = await fetch(`${apiBase()}/cgi-bin/sensors`, {cache: 'no-store'});
     if (!res.ok || !res.headers.get('content-type')?.includes('text/plain')) return;
     const next: Record<string, Sample[]> = {};
     for (const line of (await res.text()).split('\n')) {

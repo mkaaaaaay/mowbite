@@ -1,3 +1,5 @@
+import {apiBase} from './mowers';
+
 // the mowing schedule, kept by the container (docker/schedule.cgi) as simple lines the scheduler
 // script reads: enabled, minbattery, skiprain, tz and one "plan <days> <HH:MM>" per start time.
 // days are 1 = monday .. 7 = sunday like date +%u
@@ -19,7 +21,8 @@ export interface Schedule {
 
 export const EMPTY_SCHEDULE: Schedule = {enabled: false, minBattery: 80, skipRain: true, skipForecast: false, plans: []};
 
-const URL = '/cgi-bin/schedule';
+const PATH = '/cgi-bin/schedule';
+const endpoint = () => apiBase() + PATH;
 
 export function parseSchedule(text: string): Schedule {
   const s: Schedule = {...EMPTY_SCHEDULE, plans: []};
@@ -53,7 +56,7 @@ export function serializeSchedule(s: Schedule, pos?: {lat: number; lon: number})
 // null: not served by the container, no scheduler then
 export async function loadSchedule(): Promise<Schedule | null> {
   try {
-    const res = await fetch(URL, {cache: 'no-store'});
+    const res = await fetch(endpoint(), {cache: 'no-store'});
     if (!res.ok || !res.headers.get('content-type')?.includes('text/plain')) return null;
     return parseSchedule(await res.text());
   } catch {
@@ -62,7 +65,7 @@ export async function loadSchedule(): Promise<Schedule | null> {
 }
 
 export async function saveSchedule(s: Schedule, pos?: {lat: number; lon: number}): Promise<void> {
-  const res = await fetch(URL, {method: 'POST', body: serializeSchedule(s, pos)});
+  const res = await fetch(endpoint(), {method: 'POST', body: serializeSchedule(s, pos)});
   if (!res.ok) throw new Error(`schedule ${res.status}`);
 }
 
@@ -74,7 +77,7 @@ export interface LogEntry {
 
 export async function loadScheduleLog(): Promise<LogEntry[]> {
   try {
-    const res = await fetch(`${URL}?log`, {cache: 'no-store'});
+    const res = await fetch(`${endpoint()}?log`, {cache: 'no-store'});
     if (!res.ok) return [];
     return (await res.text())
       .split('\n')

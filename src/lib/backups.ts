@@ -1,4 +1,5 @@
 import type {MowerMap} from '@/hooks/useMowerMap';
+import {apiBase} from './mowers';
 
 // map backups kept by the container (docker/backups.cgi), so only there when served by it
 export interface BackupInfo {
@@ -10,11 +11,12 @@ export interface BackupInfo {
   size: number;
 }
 
-const URL = '/cgi-bin/backups';
+const PATH = '/cgi-bin/backups';
+const endpoint = () => apiBase() + PATH;
 
 export async function listBackups(): Promise<BackupInfo[] | null> {
   try {
-    const res = await fetch(URL, {cache: 'no-store'});
+    const res = await fetch(endpoint(), {cache: 'no-store'});
     if (!res.ok || !res.headers.get('content-type')?.includes('json')) return null;
     return await res.json();
   } catch {
@@ -23,19 +25,19 @@ export async function listBackups(): Promise<BackupInfo[] | null> {
 }
 
 export async function loadBackup(id: string): Promise<MowerMap> {
-  const res = await fetch(`${URL}?id=${encodeURIComponent(id)}`, {cache: 'no-store'});
+  const res = await fetch(`${endpoint()}?id=${encodeURIComponent(id)}`, {cache: 'no-store'});
   if (!res.ok) throw new Error(`backup ${res.status}`);
   return res.json();
 }
 
 export async function saveBackup(map: MowerMap, name: string, auto: boolean): Promise<void> {
   const q = new URLSearchParams({name, areas: String(map.areas.length), auto: auto ? '1' : '0'});
-  const res = await fetch(`${URL}?${q}`, {method: 'POST', body: JSON.stringify(map)});
+  const res = await fetch(`${endpoint()}?${q}`, {method: 'POST', body: JSON.stringify(map)});
   if (!res.ok) throw new Error(`backup ${res.status}`);
 }
 
 export async function deleteBackup(id: string): Promise<void> {
-  await fetch(`${URL}?action=delete&id=${encodeURIComponent(id)}`, {method: 'POST'});
+  await fetch(`${endpoint()}?action=delete&id=${encodeURIComponent(id)}`, {method: 'POST'});
 }
 
 // a file picked by the user: at least has to look like a map

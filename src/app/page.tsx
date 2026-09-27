@@ -23,6 +23,7 @@ import {useEffect, useState, useSyncExternalStore} from 'react';
 import styles from './page.module.css';
 import {fmt, tr, useLang} from '@/lib/i18n';
 import {loadSchedule, nextStart, type Schedule} from '@/lib/schedule';
+import MowerSwitch from '@/components/MowerSwitch';
 
 const DRIVING = new Set(['MOWING', 'DOCKING', 'UNDOCKING']);
 
@@ -160,6 +161,7 @@ export default function Home() {
             <strong>mow</strong>bite
           </span>
         </h1>
+        <MowerSwitch className={styles.mowerSwitch} />
 
         {!state && <p className={styles.dim}>{connected ? tr('waiting for the mower…') : tr('connecting…')}</p>}
 

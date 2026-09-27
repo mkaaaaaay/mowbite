@@ -1,6 +1,8 @@
 #!/bin/sh
 # map backups in the /data volume, gzipped. one <id>.json.gz per backup and <id>.meta with
 # name, number of areas and whether it was made automatically before a save
+# the app on another mower may ask too (several mowers in one app)
+printf 'Access-Control-Allow-Origin: *\r\n'
 D=/data/backups
 KEEP_AUTO=30
 mkdir -p "$D"

@@ -66,7 +66,8 @@
   filter: drop-shadow(0 0 4px color-mix(in srgb, var(--accent) 70%, transparent));
 }
 
-.nav .logo {
+.nav .logo,
+.mowerSwitch {
   display: none;
 }
 
@@ -119,6 +120,11 @@
 
   .settings {
     margin-top: auto;
+  }
+
+  .mowerSwitch {
+    display: block;
+    margin: -6px 6px 14px;
   }
 
   .nav .logo {

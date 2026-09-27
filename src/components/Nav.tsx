@@ -8,6 +8,7 @@ import {usePathname} from 'next/navigation';
 import {useEffect} from 'react';
 import styles from './Nav.module.css';
 import {tr, useLang} from '@/lib/i18n';
+import MowerSwitch from './MowerSwitch';
 
 const ICONS = {
   dashboard: (
@@ -64,6 +65,7 @@ export default function Nav() {
           <strong>mow</strong>bite
         </span>
       </Link>
+      <MowerSwitch className={styles.mowerSwitch} />
       {LINKS.map((link) => (
         <Link key={link.href} href={link.href} className={pathname === link.href ? styles.active : undefined}>
           <svg viewBox="0 0 24 24" aria-hidden="true">

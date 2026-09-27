@@ -3,9 +3,9 @@
 import {TitleMark} from '@/components/Logo';
 import {DOCK_ICONS, dockIcon, MOWER_ICONS, mowerIcon} from '@/components/mapIcons';
 import {isTileUrl} from '@/lib/imagery';
-import {COLORS, saveSettings, settingsStore, sharedSettings, type ColorKey, type Settings} from '@/lib/settings';
+import {COLORS, saveSettings, settingsStore, sharedSettings, type ColorKey, type OtherMower, type Settings} from '@/lib/settings';
 import {useRouter} from 'next/navigation';
-import {useSyncExternalStore} from 'react';
+import {useState, useSyncExternalStore} from 'react';
 import styles from './page.module.css';
 import {setLangChoice, tr, useLang, useLangChoice} from '@/lib/i18n';
 import {setThemeChoice, useThemeChoice} from '@/lib/theme';
@@ -64,6 +64,76 @@ function IconPreview({icons}: {icons: NonNullable<Settings['icons']>}) {
       <g transform={`translate(48 40) scale(${10 * (icons.dockSize ?? 1)})`}>{dockIcon(icons.dock).draw()}</g>
       <g transform={`translate(160 36) rotate(-20) scale(${10 * (icons.mowerSize ?? 1)})`}>{mowerIcon(icons.mower).draw()}</g>
     </svg>
+  );
+}
+
+function MowersSection({settings}: {settings: Settings}) {
+  const [name, setName] = useState('');
+  const [host, setHost] = useState('');
+  const [appPort, setAppPort] = useState('8082');
+  const [wsPort, setWsPort] = useState('9001');
+  const others = settings.mowers ?? [];
+  const add = () => {
+    const h = host.trim().replace(/^https?:\/\//, '').replace(/[/:].*$/, '');
+    if (!h) return;
+    const cur = settingsStore.snapshot();
+    const mower: OtherMower = {
+      id: Math.random().toString(36).slice(2, 10),
+      name: name.trim(),
+      host: h,
+      appPort: Number(appPort) || 8082,
+      wsPort: Number(wsPort) || 9001,
+    };
+    saveSettings({...cur, mowers: [...(cur.mowers ?? []), mower]});
+    setName('');
+    setHost('');
+  };
+  return (
+    <section className={styles.card}>
+      <h2>{tr('Mowers')}</h2>
+      <label className={styles.field}>
+        {tr('Name of this mower')}
+        <input
+          key={'this' + (settings.thisName ?? '')}
+          defaultValue={settings.thisName ?? ''}
+          placeholder={tr('This mower')}
+          onBlur={(e) => saveSettings({...settingsStore.snapshot(), thisName: e.target.value.trim() || undefined})}
+        />
+      </label>
+      {others.map((m) => (
+        <div key={m.id} className={styles.mowerRow}>
+          <span>
+            <strong>{m.name || m.host}</strong>{' '}
+            <span className={styles.dim}>
+              {m.host}:{m.appPort ?? 8082}
+            </span>
+          </span>
+          <button
+            className={styles.linkButton}
+            onClick={() => {
+              const cur = settingsStore.snapshot();
+              saveSettings({...cur, mowers: (cur.mowers ?? []).filter((x) => x.id !== m.id)});
+            }}
+          >
+            {tr('Remove')}
+          </button>
+        </div>
+      ))}
+      <div className={styles.mowerAdd}>
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder={tr('Name, e.g. Front garden')} />
+        <input value={host} onChange={(e) => setHost(e.target.value)} placeholder={tr('Address, e.g. 192.168.2.170')} />
+        <input value={appPort} onChange={(e) => setAppPort(e.target.value)} inputMode="numeric" title={tr('MowBite port')} />
+        <input value={wsPort} onChange={(e) => setWsPort(e.target.value)} inputMode="numeric" title={tr('MQTT websocket port')} />
+        <button className={styles.pillButton} onClick={add} disabled={!host.trim()}>
+          {tr('Add')}
+        </button>
+      </div>
+      <p className={styles.dim}>
+        {tr(
+          'The other mower needs MowBite as well. Switch between them at the top of the dashboard, or in the sidebar on a computer. Colors, icons and the language stay the same for all.',
+        )}
+      </p>
+    </section>
   );
 }
 
@@ -147,6 +217,8 @@ export default function SettingsPage() {
           </div>
           <p className={styles.dim}>{tr("Only for this device. Automatic follows the phone's or computer's setting.")}</p>
         </section>
+
+        <MowersSection settings={settings} />
 
         <section className={styles.card}>
           <h2>{tr('Display')}</h2>

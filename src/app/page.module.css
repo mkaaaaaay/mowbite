@@ -403,3 +403,14 @@
   font-size: 13px;
   color: var(--accent);
 }
+
+/* on phones, the sidebar has its own */
+.mowerSwitch {
+  justify-self: start;
+}
+
+@media (min-width: 900px) {
+  .mowerSwitch {
+    display: none;
+  }
+}
