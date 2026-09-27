@@ -2,11 +2,12 @@
 
 import type {MowerMap, Point} from '@/hooks/useMowerMap';
 import {useEasedPose} from '@/hooks/useEasedPose';
-import Link from 'next/link';
 import {containsPoint, polygonArea} from '@/lib/geometry';
 import {settingsStore} from '@/lib/settings';
 import {dockIcon, mowerIcon} from './mapIcons';
-import {availableSources, imageryInfo, imageryTiles, type Datum, type ImagerySource} from '@/lib/imagery';
+import {availableSources, imageryTiles, type Datum, type ImagerySource} from '@/lib/imagery';
+import {handleRadius, meterGrid} from '@/lib/mapGrid';
+import MapControls, {type Layer} from './MapControls';
 import {useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import styles from './MapView.module.css';
 import {tr, useLang} from '@/lib/i18n';
@@ -82,15 +83,6 @@ const OVERLAY_CLASS: Record<string, string> = {
   red: styles.overlayObstacle,
   blue: styles.overlayLive,
 };
-const LAYERS = [
-  {key: 'obstacle', label: 'Obstacles'},
-  {key: 'nav', label: 'Navigation areas'},
-  {key: 'order', label: 'Mowing order numbers'},
-  {key: 'stripes', label: 'Mowing direction'},
-  {key: 'track', label: 'Track'},
-  {key: 'transit', label: 'Driving without blades'},
-] as const;
-type Layer = (typeof LAYERS)[number]['key'];
 const LOUPE_PX = 120;
 const LOUPE_ZOOM = 2.5;
 
@@ -530,32 +522,15 @@ export default function MapView({
     tiles = imageryTiles(source, datum, {left, right, bottom, top, metersPerPixel}, settings.imagery);
   }
 
-  // meter grid, step picked so lines stay at least ~25px apart
-  let grid: {step: number; xs: number[]; ys: number[]} | null = null;
+  let grid: ReturnType<typeof meterGrid> | null = null;
   if (zoomable && showGrid) {
     const v = shown ?? {x: 0, y: 0, size: WIDTH};
     const [left, bottom] = toLocal(v.x, v.y + v.size);
     const [right, top] = toLocal(v.x + v.size, v.y);
-    const step = [0.5, 1, 2, 5, 10, 20].find((s) => s * pxPerMeter >= 25) ?? 50;
-    const range = (from: number, to: number) => {
-      const out: number[] = [];
-      for (let t = Math.ceil(from / step) * step; t <= to; t += step) out.push(t);
-      return out;
-    };
-    grid = {step, xs: range(left, right), ys: range(bottom, top)};
+    grid = meterGrid({left, right, bottom, top}, pxPerMeter);
   }
 
-  // recorded outlines have tons of points, shrink handles when they're close together
-  let vertexR = 2.5;
-  if (selectedArea && selectedArea.outline.length > 1) {
-    const o = selectedArea.outline;
-    let perimeter = 0;
-    for (let i = 0; i < o.length; i++) {
-      const prev = o[(i + o.length - 1) % o.length];
-      perimeter += Math.hypot(o[i].x - prev.x, o[i].y - prev.y);
-    }
-    vertexR = Math.min(2.5, Math.max(1.5, ((perimeter / o.length) * pxPerMeter) / 3));
-  }
+  const vertexR = selectedArea ? handleRadius(selectedArea.outline, pxPerMeter) : 2.5;
 
   // k = svg units per screen unit, the loupe passes its own so handles don't get magnified
   const renderContent = (k: number) => (
@@ -816,88 +791,36 @@ export default function MapView({
     <div className={styles.wrap}>
       {svg}
       {loupe}
-      <div className={styles.zoomButtons}>
-        <button onClick={() => zoomCenter(1 / 1.5)} aria-label="zoom in" title={tr('Zoom in (or mouse wheel / pinch)')}>
-          +
-        </button>
-        <button onClick={() => zoomCenter(1.5)} aria-label="zoom out" title={tr('Zoom out')}>
-          −
-        </button>
-        <button
-          className={showGrid ? '' : styles.off}
-          onClick={() => {
-            setShowGrid(!showGrid);
-            try {
-              localStorage.setItem('mapGrid', showGrid ? 'off' : 'on');
-            } catch {}
-          }}
-          aria-label="toggle grid" title={tr('Show or hide the meter grid')}
-        >
-          #
-        </button>
-        {sources.length > 0 && (
-          <button
-            className={source ? '' : styles.off}
-            onClick={() => setSource(source ? null : sources[0])}
-            aria-label="toggle aerial imagery"
-            title={tr('Aerial imagery (loads images of this area from the selected provider)')}
-          >
-            ◩
-          </button>
-        )}
-        <button
-          className={hidden.size ? styles.partly : ''}
-          onClick={() => setLayersOpen(!layersOpen)}
-          aria-label="layers"
-          title={tr('Show or hide obstacles, numbers, track and more')}
-        >
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round">
-            <path d="M12 3 3 8l9 5 9-5-9-5Z" />
-            <path d="m3 12 9 5 9-5" />
-            <path d="m3 16 9 5 9-5" />
-          </svg>
-        </button>
-        <Link href="/settings" className={styles.linkButton} aria-label="settings" title={tr('Map colors, icons and aerial imagery')}>
-          ⚙
-        </Link>
-        {(view || (follow && followZoom !== 1)) && (
-          <button
-            onClick={() => {
-              setView(null);
-              setFollowZoom(1);
-            }}
-            aria-label="reset zoom"
-            title={follow ? tr('Back to the default zoom') : tr('Fit the whole map')}
-          >
-            ⤢
-          </button>
-        )}
-      </div>
-      {layersOpen && (
-        <div className={styles.layers}>
-          {LAYERS.map((l) => (
-            <label key={l.key}>
-              <input type="checkbox" checked={!hidden.has(l.key)} onChange={() => toggleLayer(l.key)} />
-              {tr(l.label)}
-            </label>
-          ))}
-        </div>
-      )}
+      <MapControls
+        onZoom={zoomCenter}
+        showGrid={showGrid}
+        onToggleGrid={() => {
+          setShowGrid(!showGrid);
+          try {
+            localStorage.setItem('mapGrid', showGrid ? 'off' : 'on');
+          } catch {}
+        }}
+        sources={sources}
+        source={source}
+        imagerySettings={settings.imagery}
+        onSource={setSource}
+        hidden={hidden}
+        onToggleLayer={toggleLayer}
+        layersOpen={layersOpen}
+        onLayersOpen={setLayersOpen}
+        reset={
+          view || (follow && followZoom !== 1)
+            ? {
+                follow: !!follow,
+                onReset: () => {
+                  setView(null);
+                  setFollowZoom(1);
+                },
+              }
+            : null
+        }
+      />
       {grid && <span className={styles.gridLabel}>{tr('grid {n} m', {n: grid.step})}</span>}
-      {source && (
-        <div className={styles.imageryBar}>
-          {sources.length > 1 && (
-            <select value={source} onChange={(e) => setSource(e.target.value as ImagerySource)}>
-              {sources.map((s) => (
-                <option key={s} value={s}>
-                  {tr(imageryInfo(s, settings.imagery).label)}
-                </option>
-              ))}
-            </select>
-          )}
-          <span>© {imageryInfo(source, settings.imagery).attribution}</span>
-        </div>
-      )}
       {selectedArea && activeIndex !== null && onDeleteVertex && selectedArea.outline.length > 3 && (
         <button
           className={styles.deletePoint}
