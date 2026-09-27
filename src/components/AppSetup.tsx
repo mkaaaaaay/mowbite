@@ -30,8 +30,8 @@ export default function AppSetup() {
     setBusy(true);
     setFailed(false);
     try {
-      const res = await fetch(`http://${clean()}:8082/cgi-bin/settings`, {signal: AbortSignal.timeout(6000)});
-      if (!res.ok) throw new Error();
+      // only whether something answers there, older MowBite versions don't allow reading from the app
+      await fetch(`http://${clean()}:8082/manifest.json`, {mode: 'no-cors', signal: AbortSignal.timeout(6000)});
       save();
     } catch {
       setFailed(true);
