@@ -30,6 +30,7 @@ import OrderBox from './OrderBox';
 import {DrawPanel, MergePanel, RestorePanel, SimplifyPanel, SplitPanel} from './Panels';
 import {PARAM} from '@/lib/openmower';
 import {rpcErrorText} from '@/lib/rpcText';
+import {closedRings} from '@/lib/rings';
 
 // useSearchParams needs a suspense boundary in a static export
 export default function MapPage() {
@@ -406,7 +407,7 @@ function MapEditor() {
     const t = new Date((b ? b.t : Date.now() / 1000) * 1000);
     const pad = (n: number) => String(n).padStart(2, '0');
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([JSON.stringify(m, null, 2)], {type: 'application/json'}));
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(closedRings(m), null, 2)], {type: 'application/json'}));
     a.download = `mowbite-map-${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}-${pad(t.getHours())}${pad(t.getMinutes())}.json`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);

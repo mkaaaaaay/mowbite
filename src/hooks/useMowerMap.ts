@@ -4,6 +4,7 @@ import {getMqttClient, unprefix, withPrefix} from '@/lib/mqttClient';
 import {callRpc} from '@/lib/rpc';
 import {useEffect, useState} from 'react';
 import {RPC, TOPIC} from '@/lib/openmower';
+import {closedRings, openRings} from '@/lib/rings';
 
 export interface Point {
   x: number;
@@ -49,7 +50,7 @@ export function useMowerMap(): MowerMap | null {
     const onMessage = (topic: string, payload: Buffer) => {
       if (unprefix(topic) !== TOPIC.map) return;
       try {
-        cachedMap = JSON.parse(payload.toString());
+        cachedMap = openRings(JSON.parse(payload.toString()));
         setMap(cachedMap);
       } catch {
         // ignore malformed payloads
@@ -69,7 +70,7 @@ export function useMowerMap(): MowerMap | null {
   return map;
 }
 
-// map.replace takes the same shape as map/json
+// map.replace takes the same shape as map/json, outlines closed like the mower records them
 export function saveMap(map: MowerMap): Promise<unknown> {
-  return callRpc(RPC.replaceMap, [map]);
+  return callRpc(RPC.replaceMap, [closedRings(map)]);
 }

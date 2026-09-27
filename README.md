@@ -118,7 +118,7 @@ cd mowbite
 docker compose down -v
 ```
 
-`-v` also deletes the saved settings, leave it out to keep them. Nothing else on the mower is
+`-v` also deletes the saved settings and the map backups, leave it out to keep them. Nothing else on the mower is
 touched, MowBite doesn't change any OpenMower files.
 
 ### Troubleshooting

@@ -1,6 +1,7 @@
 import type {MowerMap} from '@/hooks/useMowerMap';
 import {forget, fresh} from './fresh';
 import {apiBase} from './mowers';
+import {closedRings, openRings} from './rings';
 
 // map backups kept by the container (docker/backups.cgi), so only there when served by it
 export interface BackupInfo {
@@ -30,12 +31,12 @@ export function listBackups(): Promise<BackupInfo[] | null> {
 export async function loadBackup(id: string): Promise<MowerMap> {
   const res = await fetch(`${endpoint()}?id=${encodeURIComponent(id)}`, {cache: 'no-store'});
   if (!res.ok) throw new Error(`backup ${res.status}`);
-  return res.json();
+  return openRings(await res.json());
 }
 
 export async function saveBackup(map: MowerMap, name: string, auto: boolean): Promise<void> {
   const q = new URLSearchParams({name, areas: String(map.areas.length), auto: auto ? '1' : '0'});
-  const res = await fetch(`${endpoint()}?${q}`, {method: 'POST', body: JSON.stringify(map)});
+  const res = await fetch(`${endpoint()}?${q}`, {method: 'POST', body: JSON.stringify(closedRings(map))});
   forget('backups');
   if (!res.ok) throw new Error(`backup ${res.status}`);
 }
@@ -50,5 +51,5 @@ export function parseMapFile(text: string): MowerMap {
   const m = JSON.parse(text);
   if (!m || !Array.isArray(m.areas) || !m.areas.every((a: {outline?: unknown}) => Array.isArray(a.outline)))
     throw new Error('not a map');
-  return m;
+  return openRings(m);
 }
