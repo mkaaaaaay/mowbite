@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // the android project holds a copy of the built app
+    "android/**",
   ]),
 ]);
 

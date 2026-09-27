@@ -287,11 +287,6 @@
   }
 }
 
-.withTip {
-  display: inline-flex;
-  align-items: center;
-}
-
 .splitBox {
   display: flex;
   flex-direction: column;
