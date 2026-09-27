@@ -79,6 +79,11 @@ body {
   overflow-x: hidden;
 }
 
+/* no blue box flashing around whatever was tapped (on the map it's the whole bounding box of an area) */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
 body {
   min-height: 100%;
   /* an app, not a document: no selecting labels by accident. the activity messages allow it again */
