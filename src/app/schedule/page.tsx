@@ -8,7 +8,6 @@ import {
   cachedSchedule,
   cachedScheduleLog,
   isNightTime,
-  scheduleLocked,
   EMPTY_SCHEDULE,
   FORECAST_HOURS,
   loadSchedule,
@@ -61,7 +60,6 @@ export default function SchedulePage() {
 
   // every change is saved right away
   const update = (next: Schedule) => {
-    if (scheduleLocked) return;
     setSchedule(next);
     setError(null);
     saveSchedule(next, next.skipForecast && datum ? datum : undefined).catch((e) =>
@@ -80,19 +78,12 @@ export default function SchedulePage() {
           {tr('Schedule')}
         </h1>
 
-        {scheduleLocked && (
-          <p className={styles.locked}>
-            <strong>{tr('Work in progress:')}</strong>{' '}
-            {tr("The schedule isn't finished yet. You can already have a look, setting it up comes with a later version.")}
-          </p>
-        )}
-
         {schedule === null && (
           <p className={styles.dim}>{tr('The schedule needs MowBite running as its container on the mower.')}</p>
         )}
 
         {schedule && (
-          <fieldset className={styles.fieldset} disabled={scheduleLocked}>
+          <>
             <section className={styles.card}>
               <label className={styles.switch}>
                 <input type="checkbox" checked={s.enabled} onChange={(e) => update({...s, enabled: e.target.checked})} />
@@ -254,7 +245,7 @@ export default function SchedulePage() {
             </section>
 
             {error && <p className={styles.error}>{error}</p>}
-          </fieldset>
+          </>
         )}
       </main>
     </div>

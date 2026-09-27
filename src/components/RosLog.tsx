@@ -1,5 +1,6 @@
 'use client';
 
+import {devBuild} from '@/lib/build';
 import {copyText} from '@/lib/clipboard';
 import {clock} from '@/lib/dates';
 import {tr} from '@/lib/i18n';
@@ -50,9 +51,10 @@ function Command({text}: {text: string}) {
 }
 
 // settings: whether the helper is there, and how to set it up
+// only in dev builds for now, OpenMower may get a log RPC that would replace the helper
 export function RosLogSettings({cardClass}: {cardClass: string}) {
   const status = useRosLogStatus();
-  if (status === undefined) return null;
+  if (!devBuild || status === undefined) return null;
   const minutes = status?.minutes ?? null;
 
   return (
@@ -101,7 +103,7 @@ export function RosLogAround({t}: {t: number}) {
   const [open, setOpen] = useState(false);
   const [lines, setLines] = useState<RosLogLine[] | null | 'failed'>(null);
 
-  if (status === undefined || status === null) return null;
+  if (!devBuild || status === undefined || status === null) return null;
   if (!status.available)
     return (
       <Link className={styles.link} href="/settings#roslog">

@@ -32,11 +32,17 @@ MowBite is a community project and not affiliated with the OpenMower project.
   Czechia, Finland and the USA, anywhere else an XYZ or WMS source you add in the settings.
 - **Sensors** with lowest and highest values of the last 24 hours. The container records them, so
   it doesn't matter whether a browser was open.
+- **Mowing schedule**: days, start times and which areas, the container starts the mower by itself.
+  Optionally not when the rain sensor is wet or rain is forecast for the next one to three hours
+  ([Open-Meteo](https://open-meteo.com)), and it waits for the battery. No starts between 6 pm and
+  6 am, hedgehogs and other animals are out then.
 - **Colors, icons and icon sizes** of the map, shared between all your devices.
 - **More than one mower**: add your other mowers in the settings and switch between them at the
   top of the page.
 - **Weather** for the garden on the dashboard, optional: temperature, sky and whether rain is
   coming in the next hours, from [Open-Meteo](https://open-meteo.com).
+- **Update check**, off by default: once a day it asks GitHub for a new release. The Android app
+  then downloads the new version, for the mower it shows the command to update.
 - **English and German**, following the browser or picked per device in the settings.
 - **Light and dark design**, following the device or picked in the settings.
 
@@ -47,9 +53,6 @@ if you switch it on in the settings you can swipe between them.
 
 Roughly in this order, nothing promised:
 
-- **Mowing schedules**: pick days, times and areas, the container starts the mower on its own,
-  skipping when rain is forecast if you like. Already in the app to look at, but locked until it's
-  finished. The dev image (`ghcr.io/mkaaaaaay/mowbite:dev`) has it working, for testing.
 - **Mow angle that changes per area after every mow**, so the stripes don't always run the same
   way.
 - **Blades on while recording an area**, behind an extra confirmation.
@@ -156,9 +159,8 @@ Optional settings go under `environment` in `compose.yaml`:
 - `MOWER_MQTT_HOST`, `MOWER_MQTT_PORT` (default 1883), `MOWER_MQTT_USER`, `MOWER_MQTT_PASSWORD`:
   the broker the sensor recorder listens to. On the mower it finds it by itself, set these only if
   the broker runs somewhere else or needs a login.
-- `MOWBITE_SCHEDULER`: `on` or `off`, whether the container starts the mower by schedule. On in the
-  dev image, off in the release while the schedule is locked. Set it `off` on a second copy of the
-  app (e.g. on a PC), so only one of them starts the mower.
+- `MOWBITE_SCHEDULER`: set it to `off` on a second copy of the app (e.g. on a PC), so only the one
+  on the mower starts it by schedule.
 
 Settings made in the app (colors, icons) and the recorded sensor values are stored in the
 `settings` volume.
@@ -176,7 +178,6 @@ npm run dev
 ```
 
 To open the dev server from a phone, allow its host: `DEV_ORIGINS=<pc-name>,<pc-ip> npm run dev -- -H 0.0.0.0`.
-Add `NEXT_PUBLIC_SCHEDULE_EDIT=1` to `.env.local` to unlock the schedule.
 
 The Android app is the same build packed with [Capacitor](https://capacitorjs.com). With the Android
 SDK and a JDK 21 installed:

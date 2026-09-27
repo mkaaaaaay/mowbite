@@ -59,9 +59,6 @@ export function serializeSchedule(s: Schedule, pos?: {lat: number; lon: number})
   ].join('\n');
 }
 
-// still being worked on: builds without NEXT_PUBLIC_SCHEDULE_EDIT=1 (the release) only show it
-export const scheduleLocked = process.env.NEXT_PUBLIC_SCHEDULE_EDIT !== '1';
-
 // the last answer, so a page opened again shows it right away while it asks the mower
 let lastSchedule: Schedule | null | undefined;
 let lastLog: LogEntry[] | undefined;

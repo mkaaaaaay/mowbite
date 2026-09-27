@@ -1,9 +1,6 @@
 # the app is plain static files, so it's built natively and only copied into the target arch image
 FROM --platform=$BUILDPLATFORM node:22-alpine AS build
 WORKDIR /app
-# 1 in the dev image: the schedule can be set up there, the release only shows it for now
-ARG SCHEDULE_EDIT
-ENV NEXT_PUBLIC_SCHEDULE_EDIT=$SCHEDULE_EDIT
 # e.g. dev.42 in the dev image, shown after the version in the settings
 ARG VERSION_SUFFIX
 ENV VERSION_SUFFIX=$VERSION_SUFFIX
@@ -20,8 +17,6 @@ RUN arch=$([ "$TARGETARCH" = arm64 ] && echo aarch64 || echo x86_64) && \
       --keys-dir "/usr/share/apk/keys/$arch" --repositories-file /etc/apk/repositories mosquitto-clients
 
 FROM busybox:1.37-musl
-ARG SCHEDULE_EDIT
-ENV MOWBITE_SCHEDULER=${SCHEDULE_EDIT:+on}
 COPY --from=mqtt /mq/lib /lib
 COPY --from=mqtt /mq/usr/lib /usr/lib
 COPY --from=mqtt /mq/usr/bin/mosquitto_sub /mq/usr/bin/mosquitto_pub /usr/bin/

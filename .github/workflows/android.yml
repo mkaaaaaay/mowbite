@@ -49,8 +49,6 @@ jobs:
         uses: android-actions/setup-android@v4
 
       - if: steps.key.outputs.skip != '1'
-        env:
-          NEXT_PUBLIC_SCHEDULE_EDIT: ${{ github.ref_name == 'dev' && '1' || '' }}
         run: |
           sdkmanager "platforms;android-36" "build-tools;36.1.0" > /dev/null
           npm ci

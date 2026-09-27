@@ -19,27 +19,7 @@
   font-size: 26px;
 }
 
-.locked {
-  padding: 12px 14px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 183, 77, 0.5);
-  background: rgba(255, 183, 77, 0.08);
-  font-size: 14px;
-  line-height: 1.45;
-}
-
-/* holds the cards, greyed out while the schedule is locked */
-.fieldset {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  border: none;
-  margin: 0;
-  padding: 0;
-  min-width: 0;
-}
-
-.fieldset:disabled .card {
+.card {
   opacity: 0.6;
 }
 

@@ -47,7 +47,6 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            SCHEDULE_EDIT=${{ github.ref == 'refs/heads/dev' && '1' || '' }}
             VERSION_SUFFIX=${{ github.ref == 'refs/heads/dev' && format('dev.{0}', github.run_number) || '' }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
