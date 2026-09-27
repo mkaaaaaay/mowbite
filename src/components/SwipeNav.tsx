@@ -71,21 +71,30 @@ let entering = false;
 export default function SwipeNav() {
   const router = useRouter();
   const path = usePathname().replace(/(.)\/$/, '$1');
-  // the page shown beside the current one: which, on which side, and from which page
-  const [peek, setPeek] = useState<{from: string; path: string; side: number} | null>(null);
+  // the page shown beside the current one, and on which side
+  const [peek, setPeek] = useState<{path: string; side: number} | null>(null);
   const box = useRef<HTMLDivElement>(null);
 
-  // the new page is rendered: put it in place before the peek disappears, so nothing flashes
+  // the new page is rendered: put it in place under the peek, then fade the peek out once the
+  // real page has its data, so it doesn't flash empty for a moment
   useLayoutEffect(() => {
     const el = page();
-    if (entering && el) {
-      el.style.transition = 'none';
-      el.style.translate = '';
-      el.style.opacity = '';
-    }
+    if (!entering || !el) return;
     entering = false;
-    const t = setTimeout(() => setPeek(null), 0);
-    return () => clearTimeout(t);
+    el.style.transition = 'none';
+    el.style.translate = '';
+    el.style.opacity = '';
+    const fade = setTimeout(() => {
+      const b = box.current;
+      if (!b) return;
+      b.style.transition = 'opacity 0.18s ease-out';
+      b.style.opacity = '0';
+    }, 250);
+    const gone = setTimeout(() => setPeek(null), 450);
+    return () => {
+      clearTimeout(fade);
+      clearTimeout(gone);
+    };
   }, [path]);
 
   useEffect(() => {
@@ -146,7 +155,7 @@ export default function SwipeNav() {
       const side = dx < 0 ? 1 : -1;
       if (drag.side !== side) {
         drag.side = side;
-        setPeek(next ? {from: path, path: next, side} : null);
+        setPeek(next ? {path: next, side} : null);
       }
       // at the first/last page it only gives a little
       const shown = next ? dx : dx * 0.25;
@@ -212,7 +221,7 @@ export default function SwipeNav() {
     };
   }, [path, router]);
 
-  if (!peek || peek.from !== path) return null;
+  if (!peek) return null;
   const Peek = PAGES[peek.path];
   return createPortal(
     <div
