@@ -37,7 +37,7 @@ interface MapViewProps {
   // wheel / pinch zoom, drag to pan
   zoomable?: boolean;
   // mowing direction preview
-  stripes?: [Point, Point][];
+  stripes?: Point[][];
   // the outline passes of the mowing plan, drawn with the stripes
   loops?: Point[][];
   // shapes an edit would give (split pieces, merge result), drawn in two alternating colors
@@ -577,13 +577,7 @@ export default function MapView({
         {stripes && stripes.length > 0 && !hidden.has('stripes') && (
           <path
             className={styles.stripes}
-            d={stripes
-              .map(([a, b]) => {
-                const [ax, ay] = toScreen(a.x, a.y);
-                const [bx, by] = toScreen(b.x, b.y);
-                return `M${ax} ${ay}L${bx} ${by}`;
-              })
-              .join('')}
+            d={stripes.map((o) => o.map((p, i) => `${i ? 'L' : 'M'}${toScreen(p.x, p.y).join(' ')}`).join('')).join('')}
           />
         )}
 

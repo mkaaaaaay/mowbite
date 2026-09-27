@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import {polygonArea} from './geometry';
-import {mowPlan} from './mowPlan';
+import {fillStripes, linkStripes, mowPlan} from './mowPlan';
 
 const square = (x: number, y: number, size: number) => [
   {x, y},
@@ -51,5 +51,22 @@ describe('mowPlan', () => {
   it('stops when the area is too small for more passes', () => {
     const plan = mowPlan({...base, outline: square(0, 0, 3), outlineCount: 5});
     expect(plan.loops.length).toBeLessThan(5);
+  });
+});
+
+describe('linkStripes', () => {
+  it('joins the stripes of a plain area into one zigzag', () => {
+    const stripes = fillStripes([square(0, 0, 5)], 0, 0.5);
+    const chains = linkStripes(stripes, 0, 0.5);
+    expect(chains).toHaveLength(1);
+    expect(chains[0]).toHaveLength(stripes.length * 2);
+    // it turns at the ends: every other stripe runs the other way
+    expect(chains[0][1].x).toBeCloseTo(5);
+    expect(chains[0][2].x).toBeCloseTo(5);
+  });
+
+  it('starts a new piece where an obstacle splits the stripes', () => {
+    const stripes = fillStripes([square(0, 0, 10), square(4, 2, 2)], 0, 0.5);
+    expect(linkStripes(stripes, 0, 0.5).length).toBeGreaterThan(1);
   });
 });

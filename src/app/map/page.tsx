@@ -12,13 +12,13 @@ import {datumFromParams, numParam, useMowerParams} from '@/hooks/useMowerParams'
 import {loadJobTrack, useJobList, useMowHistory, type TrackSegment} from '@/hooks/useMowHistory';
 import {measuredStripeAngle, stripeAngleDiff} from '@/lib/mowDirection';
 import {autoMowAngle} from '@/lib/mowStripes';
-import {mowPlan, type MowPlan} from '@/lib/mowPlan';
+import {linkStripes, mowPlan, type MowPlan} from '@/lib/mowPlan';
 import {simplifyPolygon} from '@/lib/simplifyPolygon';
 import {mergeOutlines} from '@/lib/mergeAreas';
 import {generateId, splitByPath} from '@/lib/splitPolygon';
 import {isDocked} from '@/lib/status';
 import {useSearchParams} from 'next/navigation';
-import {Suspense, useEffect, useState} from 'react';
+import {Suspense, useEffect, useMemo, useState} from 'react';
 import styles from './page.module.css';
 import {tr, useLang} from '@/lib/i18n';
 import MapBackups, {backupLabel} from '@/components/MapBackups';
@@ -98,16 +98,23 @@ function MapEditor() {
 
   const selectedArea = map?.areas.find((a) => a.id === selectedAreaId) ?? null;
   const baseOutline = selectedArea ? (originals[selectedArea.id] ?? selectedArea.outline) : null;
-  const simplified =
-    baseOutline && simplifyCm !== null
-      ? simplifyCm === 0
-        ? baseOutline
-        : simplifyPolygon(baseOutline, simplifyCm / 100)
-      : null;
-  const shownMap =
-    map && selectedArea && simplified
-      ? {...map, areas: map.areas.map((a) => (a.id === selectedArea.id ? {...a, outline: simplified} : a))}
-      : map;
+  const simplified = useMemo(
+    () =>
+      baseOutline && simplifyCm !== null
+        ? simplifyCm === 0
+          ? baseOutline
+          : simplifyPolygon(baseOutline, simplifyCm / 100)
+        : null,
+    [baseOutline, simplifyCm],
+  );
+  // kept the same object between renders, the plan below is only worked out again when it changes
+  const shownMap = useMemo(
+    () =>
+      map && selectedArea && simplified
+        ? {...map, areas: map.areas.map((a) => (a.id === selectedArea.id ? {...a, outline: simplified} : a))}
+        : map,
+    [map, selectedArea, simplified],
+  );
 
   const toolWidth = numParam(params, PARAM.toolWidth);
   const angleOffset = numParam(params, PARAM.mowAngleOffset) ?? 0;
@@ -160,14 +167,16 @@ function MapEditor() {
   const realPlan = askMower && fromMower?.areaId === selectedAreaId ? fromMower.plan : null;
 
   // otherwise where the mower will drive, worked out like its planner does (lib/mowPlan)
-  let plan: MowPlan | undefined = realPlan ?? undefined;
-  if (!plan && shownMap && shownArea && isMowArea && showStripes && toolWidth) {
+  const wantPlan = !!(shownMap && shownArea && isMowArea && showStripes && toolWidth);
+  const plan = useMemo((): MowPlan | undefined => {
+    if (realPlan) return realPlan;
+    if (!wantPlan || !shownMap || !shownArea || !toolWidth) return undefined;
     const holes = shownMap.areas
       .filter((a) => a.properties.type === 'obstacle' && a.properties.active !== false && a.outline.length > 2)
       .map((a) => a.outline);
     const p = shownArea.properties;
     const global = (key: string) => numParam(params, PARAM.mowerLogic(key));
-    plan = mowPlan({
+    return mowPlan({
       outline: shownArea.outline,
       holes,
       outlineOffset: p.outline_offset ?? global('outline_offset') ?? 0,
@@ -176,7 +185,14 @@ function MapEditor() {
       toolWidth,
       angle: effectiveAngle,
     });
-  }
+  }, [realPlan, wantPlan, shownMap, shownArea, toolWidth, params, effectiveAngle]);
+
+  // the mower's own plan comes already joined up, the estimate gets its zigzags here
+  const stripes = useMemo(
+    () =>
+      plan && (realPlan ? plan.stripes : toolWidth ? linkStripes(plan.stripes, effectiveAngle, toolWidth) : undefined),
+    [plan, realPlan, toolWidth, effectiveAngle],
+  );
 
   const globalValue = (key: string) => {
     const v = numParam(params, PARAM.mowerLogic(key));
@@ -519,7 +535,7 @@ function MapEditor() {
                 onCanvasClick={handleCanvasClick}
                 onMovePending={(i, x, y) => setPendingPoints((prev) => prev.map((p, j) => (j === i ? {x, y} : p)))}
                 onInsertPending={(i, x, y) => setPendingPoints((prev) => prev.toSpliced(i, 0, {x, y}))}
-                stripes={plan?.stripes}
+                stripes={stripes}
                 loops={plan?.loops}
                 preview={splitPreview ?? (merged ? [merged.outline] : undefined)}
                 markers={spot ? [spot] : undefined}

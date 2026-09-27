@@ -253,6 +253,7 @@
   stroke: var(--c-stripes);
   stroke-opacity: 0.55;
   stroke-width: 1;
+  stroke-linejoin: round;
   pointer-events: none;
 }
 

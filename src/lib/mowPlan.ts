@@ -5,8 +5,8 @@ import type {Point} from '@/hooks/useMowerMap';
 // the first outline pass is the area shrunk by outline_offset, every further one by one tool width.
 // The stripes fill the pass number (outline_count - 1 - overlap), so they reach under that many
 // passes. Obstacles grow the same way and get their own passes. Like the planner (Slic3r) the
-// shapes are offset with Clipper, mitered corners. How it links the stripes up isn't copied, only
-// where they are.
+// shapes are offset with Clipper, mitered corners. Neighbouring stripes are joined into zigzags,
+// turning at the ends like the mower does. In which order it drives the pieces isn't worked out.
 
 export interface MowPlanInput {
   outline: Point[];
@@ -92,4 +92,45 @@ export function mowPlan(req: MowPlanInput): MowPlan {
     if (i <= innerLoop) inner = next;
   }
   return {loops, stripes: fillStripes(inner.map(fromPath), req.angle, req.toolWidth)};
+}
+
+// neighbouring stripes into zigzags, a new piece where an obstacle or a bend of the outline splits them
+export function linkStripes(stripes: [Point, Point][], angle: number, spacing: number): Point[][] {
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  const toLocal = (p: Point) => ({x: p.x * cos + p.y * sin, y: -p.x * sin + p.y * cos});
+  type Seg = {x0: number; x1: number; row: number; a: Point; b: Point; used: boolean};
+  const segs: Seg[] = stripes.map(([p, q]) => {
+    const lp = toLocal(p);
+    const lq = toLocal(q);
+    const [a, b, x0, x1] = lp.x <= lq.x ? [p, q, lp.x, lq.x] : [q, p, lq.x, lp.x];
+    return {x0, x1, row: Math.round(lp.y / spacing), a, b, used: false};
+  });
+  const rows = new Map<number, Seg[]>();
+  for (const s of segs) rows.set(s.row, [...(rows.get(s.row) ?? []), s]);
+  const order = [...rows.keys()].sort((m, n) => m - n);
+
+  const chains: Point[][] = [];
+  for (const r of order) {
+    for (const start of rows.get(r)!.sort((m, n) => m.x0 - n.x0)) {
+      if (start.used) continue;
+      start.used = true;
+      let cur = start;
+      let rightwards = true;
+      const chain = [cur.a, cur.b];
+      for (let guard = 0; guard < segs.length; guard++) {
+        const endX = rightwards ? cur.x1 : cur.x0;
+        const next = (rows.get(cur.row + 1) ?? [])
+          .filter((s) => !s.used && s.x0 < cur.x1 && s.x1 > cur.x0)
+          .sort((m, n) => Math.abs((rightwards ? m.x1 : m.x0) - endX) - Math.abs((rightwards ? n.x1 : n.x0) - endX))[0];
+        if (!next || Math.abs((rightwards ? next.x1 : next.x0) - endX) > spacing * 3) break;
+        next.used = true;
+        chain.push(...(rightwards ? [next.b, next.a] : [next.a, next.b]));
+        cur = next;
+        rightwards = !rightwards;
+      }
+      chains.push(chain);
+    }
+  }
+  return chains;
 }
