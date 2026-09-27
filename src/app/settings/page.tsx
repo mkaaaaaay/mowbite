@@ -9,6 +9,8 @@ import {useState, useSyncExternalStore} from 'react';
 import styles from './page.module.css';
 import {setLangChoice, tr, useLang, useLangChoice} from '@/lib/i18n';
 import {setThemeChoice, useThemeChoice} from '@/lib/theme';
+import {appMowers, saveAppMowers} from '@/lib/mowers';
+import {isApp} from '@/lib/native';
 
 function IconChoice({
   icons,
@@ -67,17 +69,28 @@ function IconPreview({icons}: {icons: NonNullable<Settings['icons']>}) {
   );
 }
 
+const noop = () => () => {};
+
 function MowersSection({settings}: {settings: Settings}) {
   const [name, setName] = useState('');
   const [host, setHost] = useState('');
   const [appPort, setAppPort] = useState('8082');
   const [wsPort, setWsPort] = useState('9001');
   const [error, setError] = useState<string | null>(null);
-  const others = settings.mowers ?? [];
+  // the android app keeps its list on the phone, a mower keeps it in its shared settings
+  const app = useSyncExternalStore(noop, isApp, () => false);
+  const [phoneList, setPhoneList] = useState<OtherMower[]>(() => appMowers());
+  const others = app ? phoneList : (settings.mowers ?? []);
+  const store = (list: OtherMower[]) => {
+    if (app) {
+      saveAppMowers(list);
+      setPhoneList(list);
+    } else saveSettings({...settingsStore.snapshot(), mowers: list});
+  };
   const add = () => {
     const h = host.trim().replace(/^https?:\/\//, '').replace(/[/:].*$/, '').toLowerCase();
     if (!h) return;
-    if (h === window.location.hostname.toLowerCase() || h === 'localhost' || h === '127.0.0.1') {
+    if (!app && (h === window.location.hostname.toLowerCase() || h === 'localhost' || h === '127.0.0.1')) {
       setError(tr("That's this mower, it's already there. Enter the address of another one."));
       return;
     }
@@ -85,7 +98,6 @@ function MowersSection({settings}: {settings: Settings}) {
       setError(tr('This mower is already in the list.'));
       return;
     }
-    const cur = settingsStore.snapshot();
     const mower: OtherMower = {
       id: Math.random().toString(36).slice(2, 10),
       name: name.trim(),
@@ -93,7 +105,7 @@ function MowersSection({settings}: {settings: Settings}) {
       appPort: Number(appPort) || 8082,
       wsPort: Number(wsPort) || 9001,
     };
-    saveSettings({...cur, mowers: [...(cur.mowers ?? []), mower]});
+    store([...others, mower]);
     setName('');
     setHost('');
     setError(null);
@@ -107,15 +119,17 @@ function MowersSection({settings}: {settings: Settings}) {
         )}
       </p>
 
-      <label className={styles.field}>
-        {tr('This mower (the one this app runs on)')}
-        <input
-          key={'this' + (settings.thisName ?? '')}
-          defaultValue={settings.thisName ?? ''}
-          placeholder={tr('Name, e.g. Back garden')}
-          onBlur={(e) => saveSettings({...settingsStore.snapshot(), thisName: e.target.value.trim() || undefined})}
-        />
-      </label>
+      {!app && (
+        <label className={styles.field}>
+          {tr('This mower (the one this app runs on)')}
+          <input
+            key={'this' + (settings.thisName ?? '')}
+            defaultValue={settings.thisName ?? ''}
+            placeholder={tr('Name, e.g. Back garden')}
+            onBlur={(e) => saveSettings({...settingsStore.snapshot(), thisName: e.target.value.trim() || undefined})}
+          />
+        </label>
+      )}
 
       {others.length > 0 && <span className={styles.subTitle}>{tr('Other mowers')}</span>}
       {others.map((m) => (
@@ -128,10 +142,7 @@ function MowersSection({settings}: {settings: Settings}) {
           </span>
           <button
             className={styles.linkButton}
-            onClick={() => {
-              const cur = settingsStore.snapshot();
-              saveSettings({...cur, mowers: (cur.mowers ?? []).filter((x) => x.id !== m.id)});
-            }}
+            onClick={() => store(others.filter((x) => x.id !== m.id))}
           >
             {tr('Remove')}
           </button>

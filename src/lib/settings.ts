@@ -2,6 +2,9 @@
 // (docker/settings.cgi), otherwise per device. localStorage is also the cache so they're there
 // before the request comes back.
 
+import {apiBase} from './mowers';
+import {isApp} from './native';
+
 export const COLORS = [
   {key: 'mower', label: 'Mower', value: '#ff1fa3'},
   {key: 'dock', label: 'Docking station', value: '#2196f3'},
@@ -46,7 +49,8 @@ export interface Settings {
 }
 
 const STORAGE_KEY = 'appSettings';
-const SETTINGS_URL = '/cgi-bin/settings';
+// the settings of the mower the app is looking at (in the android app that's always another one)
+const settingsUrl = () => (isApp() ? apiBase() : '') + '/cgi-bin/settings';
 
 const NONE: Settings = {};
 let current: Settings | null = null;
@@ -99,7 +103,7 @@ export async function syncSettings() {
   if (synced) return;
   synced = true;
   try {
-    const res = await fetch(SETTINGS_URL, {cache: 'no-store'});
+    const res = await fetch(settingsUrl(), {cache: 'no-store'});
     if (!res.ok || !res.headers.get('content-type')?.includes('json')) return;
     const data = await res.json();
     shared = true;
@@ -115,7 +119,7 @@ export function saveSettings(next: Settings) {
   setLocal(next);
   if (!shared) return;
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => void fetch(SETTINGS_URL, {method: 'POST', body: JSON.stringify(next)}).catch(() => {}), 400);
+  saveTimer = setTimeout(() => void fetch(settingsUrl(), {method: 'POST', body: JSON.stringify(next)}).catch(() => {}), 400);
 }
 
 // inline in <head>: sets the color variables before anything is drawn, so saved colors don't flash

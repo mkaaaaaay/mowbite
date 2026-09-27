@@ -1,5 +1,7 @@
 #!/bin/sh
 # app settings shared by every device, kept in the /data volume
+# the phone app reads and writes them too
+printf 'Access-Control-Allow-Origin: *\r\n'
 F=/data/settings.json
 
 if [ "$REQUEST_METHOD" = "POST" ]; then

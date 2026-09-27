@@ -1,3 +1,4 @@
+import AppSetup from "@/components/AppSetup";
 import Grass from "@/components/Grass";
 import Nav from "@/components/Nav";
 import { COLOR_BOOT_SCRIPT } from "@/lib/settings";
@@ -46,6 +47,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <Nav />
           <div className={styles.content}>{children}</div>
           <Grass />
+          <AppSetup />
         </div>
       </body>
     </html>
