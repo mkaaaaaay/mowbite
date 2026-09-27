@@ -405,8 +405,6 @@ export default function SettingsPage() {
         </section>
 
         <UpdateSettings cardClass={styles.card} checkClass={styles.check} />
-
-        <p className={styles.version}>MowBite {process.env.APP_VERSION}</p>
       </main>
     </div>
   );

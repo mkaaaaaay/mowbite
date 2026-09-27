@@ -105,6 +105,7 @@ const de: Record<string, string> = {
   "Check now": "Jetzt prüfen",
   "Couldn't reach GitHub.": "GitHub ist nicht erreichbar.",
   "Up to date, the newest release is {v}.": "Aktuell, die neueste Version ist {v}.",
+  "You're on a pre-release, the newest published one is {v}.": "Du nutzt eine Vorabversion, die neueste veröffentlichte ist {v}.",
   "Version {v} of the app is out.": "Version {v} der App ist erschienen.",
   "What's new": "Was ist neu",
   "Download and install": "Herunterladen und installieren",

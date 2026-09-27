@@ -2,7 +2,7 @@
 
 import {tr} from '@/lib/i18n';
 import {isApp} from '@/lib/native';
-import {APP_VERSION, checkNow, dismissUpdate, isNewer, setUpdateCheck, useUpdates} from '@/lib/updates';
+import {APP_VERSION, checkNow, compareVersions, dismissUpdate, isNewer, setUpdateCheck, useUpdates} from '@/lib/updates';
 import Link from 'next/link';
 import {useState} from 'react';
 import styles from './Updates.module.css';
@@ -60,7 +60,9 @@ export function UpdateSettings({cardClass, checkClass}: {cardClass: string; chec
             : u.latest
               ? appOld || mowerOld
                 ? ''
-                : tr('Up to date, the newest release is {v}.', {v: u.latest.version})
+                : compareVersions(APP_VERSION, u.latest.version) > 0
+                  ? tr("You're on a pre-release, the newest published one is {v}.", {v: u.latest.version})
+                  : tr('Up to date, the newest release is {v}.', {v: u.latest.version})
               : ''}
         </span>
       </div>
