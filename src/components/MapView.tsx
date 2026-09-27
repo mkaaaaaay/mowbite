@@ -88,6 +88,7 @@ const LAYERS = [
   {key: 'order', label: 'Mowing order numbers'},
   {key: 'stripes', label: 'Mowing direction'},
   {key: 'track', label: 'Track'},
+  {key: 'transit', label: 'Driving without blades'},
 ] as const;
 type Layer = (typeof LAYERS)[number]['key'];
 const LOUPE_PX = 120;
@@ -648,12 +649,14 @@ export default function MapView({
         })}
 
         {!hidden.has('track') &&
-          trackRuns.map((run, i) => (
-            <polyline key={'run' + i} points={run.points} className={run.blades ? styles.track : styles.transit} />
-          ))}
+          trackRuns
+            .filter((run) => run.blades || !hidden.has('transit'))
+            .map((run, i) => (
+              <polyline key={'run' + i} points={run.points} className={run.blades ? styles.track : styles.transit} />
+            ))}
         {!hidden.has('track') &&
           pastTrack?.map((seg, i) =>
-          seg.points.length >= 2 ? (
+          seg.points.length >= 2 && (seg.blades || !hidden.has('transit')) ? (
             <polyline
               key={'past' + i}
               points={seg.points.map((p) => toScreen(p.x, p.y).join(',')).join(' ')}
