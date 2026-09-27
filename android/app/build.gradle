@@ -7,8 +7,8 @@ android {
         applicationId "io.github.mkaaaaaay.mowbite"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        // set by the github action, locally it's 1
-        versionCode ((System.getenv('MOWBITE_VERSION_CODE') ?: '1') as int)
+        // minutes since january 2026, so every newer build is higher, from github or built here
+        versionCode ((int) (System.currentTimeMillis() / 60000 - 29462400))
         versionName System.getenv('MOWBITE_VERSION_NAME') ?: '1.0'
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {

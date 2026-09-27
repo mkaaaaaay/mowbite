@@ -60,7 +60,6 @@ jobs:
           MOWBITE_KEYSTORE: ${{ runner.temp }}/release.jks
           MOWBITE_KEYSTORE_PASSWORD: ${{ secrets.MOWBITE_KEYSTORE_PASSWORD }}
           MOWBITE_KEY_ALIAS: ${{ secrets.MOWBITE_KEY_ALIAS }}
-          MOWBITE_VERSION_CODE: ${{ github.run_number }}
           MOWBITE_VERSION_NAME: ${{ github.ref_name }}-${{ github.run_number }}
         run: ./gradlew assembleRelease --no-daemon -q
 
