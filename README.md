@@ -34,8 +34,8 @@ MowBite is a community project and not affiliated with the OpenMower project.
   it doesn't matter whether a browser was open.
 - **Mowing schedule**: days, start times and which areas, the container starts the mower by itself.
   Optionally not when the rain sensor is wet or rain is forecast for the next one to three hours
-  ([Open-Meteo](https://open-meteo.com)), and it waits for the battery. No starts between 6 pm and
-  6 am, hedgehogs and other animals are out then.
+  ([Open-Meteo](https://open-meteo.com)), and it waits for the battery. A start time between 6 pm
+  and 6 am has to be confirmed, hedgehogs and other animals are out then.
 - **Colors, icons and icon sizes** of the map, shared between all your devices.
 - **More than one mower**: add your other mowers in the settings and switch between them at the
   top of the page.

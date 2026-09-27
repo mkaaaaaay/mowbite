@@ -31,7 +31,6 @@ const LOG_TEXT: Record<string, string> = {
   skip_emergency: 'Not started, emergency stop was active',
   skip_offline: "Not started, the mower wasn't reachable",
   skipped_area: "Skipped an area that wasn't picked",
-  skip_night: 'Not started, no mowing between 6 pm and 6 am',
 };
 
 // monday first, labels from the browser so they come out in the app's language
@@ -48,8 +47,8 @@ export default function SchedulePage() {
   const [schedule, setSchedule] = useState<Schedule | null | undefined>(cachedSchedule);
   const [log, setLog] = useState<LogEntry[]>(() => cachedScheduleLog() ?? []);
   const [error, setError] = useState<string | null>(null);
-  // a night time someone tried to set, it isn't taken
-  const [refused, setRefused] = useState<number | null>(null);
+  // a night time that still needs a yes before it's saved
+  const [night, setNight] = useState<{plan: number; time: string} | null>(null);
 
   useEffect(() => {
     void loadSchedule().then(setSchedule);
@@ -119,14 +118,13 @@ export default function SchedulePage() {
                   </div>
                   <input
                     type="time"
-                    min="06:00"
-                    max="17:59"
-                    value={p.time}
+                    value={night?.plan === i ? night.time : p.time}
                     onChange={(e) => {
                       const time = e.target.value;
                       if (!time) return;
-                      if (isNightTime(time)) return setRefused(i);
-                      setRefused(null);
+                      // moving a start into the night has to be confirmed first
+                      if (isNightTime(time) && !isNightTime(p.time)) return setNight({plan: i, time});
+                      setNight(null);
                       update({...s, plans: s.plans.map((q, j) => (j === i ? {...q, time} : q))});
                     }}
                   />
@@ -160,12 +158,24 @@ export default function SchedulePage() {
                       })}
                     </div>
                   )}
-                  {(refused === i || isNightTime(p.time)) && (
+                  {(night?.plan === i || isNightTime(p.time)) && (
                     <div className={styles.animals}>
                       <p>
-                        🦔 {tr("Between 6 pm and 6 am hedgehogs and other animals are out in the garden. They don't run from the mower, they curl up and can get badly hurt. That's why the schedule doesn't start in that time. Thanks for understanding!")}
+                        🦔 {tr("Between 6 pm and 6 am hedgehogs and other animals are out in the garden. They don't run from the mower, they curl up and can get badly hurt. Better mow during the day.")}
                       </p>
-                      {isNightTime(p.time) && <p>{tr('This start time is skipped, please move it into the day.')}</p>}
+                      {night?.plan === i && (
+                        <div className={styles.animalButtons}>
+                          <button
+                            onClick={() => {
+                              update({...s, plans: s.plans.map((q, j) => (j === i ? {...q, time: night.time} : q))});
+                              setNight(null);
+                            }}
+                          >
+                            {tr('Mow at {time} anyway', {time: night.time})}
+                          </button>
+                          <button onClick={() => setNight(null)}>{tr('Cancel')}</button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

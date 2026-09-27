@@ -2,15 +2,12 @@
 # starts mowing at the times from the schedule page (/data/schedule.txt, written by schedule.cgi).
 # a plan can name the areas to mow, the others get skipped when the mower gets to them.
 # it only starts an idle mower without emergency, optionally not when its rain sensor is wet or rain
-# is forecast, and waits up to two hours for the battery. what happened goes to /data/schedule.log for the page.
-# never between 18:00 and 06:00: hedgehogs and other animals are out then (same hours as the app, lib/schedule.ts)
+# is forecast, and waits up to two hours for the battery. what happened goes to /data/schedule.log for the page
 . /broker.sh
 . /openmower.sh
 F=/data/schedule.txt
 LOG=/data/schedule.log
 WAIT=7200
-NIGHT_FROM=18:00
-NIGHT_TO=06:00
 
 log() {
   echo "$(date +%s) $*" >> "$LOG"
@@ -18,10 +15,6 @@ log() {
 }
 field() { printf '%s' "$1" | grep -o "\"$2\":[^,}]*" | head -n1 | cut -d: -f2 | tr -d '" '; }
 conf() { sed -n "s/^$1 //p" "$F" | head -n1; }
-night() {
-  t=$(TZ="$(conf tz)" date +%H:%M)
-  [ "$t" \> "$NIGHT_FROM" ] || [ "$t" = "$NIGHT_FROM" ] || [ "$t" \< "$NIGHT_TO" ]
-}
 
 # rain right now or in the next hour(s) at the garden (open-meteo, position rounded to ~1 km).
 # no answer counts as no rain
@@ -70,7 +63,7 @@ while :; do
     tz=$(conf tz)
     now=$(TZ="$tz" date '+%u %H:%M %F')
     set -- $now
-    due=$(awk -v d="$1" -v t="$2" -v from="$NIGHT_FROM" -v to="$NIGHT_TO" '$1 == "plan" && $3 == t && t >= to && t < from { n = split($2, a, ","); for (i = 1; i <= n; i++) if (a[i] == d) { print ($4 == "" ? "all" : $4); exit } }' "$F")
+    due=$(awk -v d="$1" -v t="$2" '$1 == "plan" && $3 == t { n = split($2, a, ","); for (i = 1; i <= n; i++) if (a[i] == d) { print ($4 == "" ? "all" : $4); exit } }' "$F")
     if [ -n "$due" ] && [ "$3 $2" != "$last" ]; then
       last="$3 $2"
       until=$(($(date +%s) + WAIT))
@@ -89,9 +82,6 @@ while :; do
     minbat=$(conf minbattery)
     if [ -z "$s" ]; then
       [ "$(date +%s)" -gt "$until" ] && { log skip_offline; until=0; }
-    elif night; then
-      # also a start that waited for the battery until the evening
-      log skip_night; until=0
     elif [ "$(field "$s" emergency)" != 0 ]; then
       log skip_emergency; until=0
     elif [ "$(conf skiprain)" = 1 ] && [ "$(field "$s" rain_detected)" != 0 ]; then

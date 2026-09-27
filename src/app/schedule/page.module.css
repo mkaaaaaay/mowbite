@@ -118,6 +118,22 @@
   margin: 0;
 }
 
+.animalButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.animalButtons button {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 13px;
+  cursor: pointer;
+}
+
 .plan input[type='time'] {
   padding: 6px 8px;
   border-radius: 8px;

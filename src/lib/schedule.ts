@@ -112,8 +112,8 @@ async function loadLog(): Promise<LogEntry[]> {
   }
 }
 
-// No starts at night, hedgehogs and other animals are out then and curl up instead of running away.
-// The scheduler script on the mower keeps to the same hours (docker/scheduler.sh).
+// At night hedgehogs and other animals are out and curl up instead of running away, a start time in
+// these hours has to be confirmed on the schedule page
 export const NIGHT_FROM = '18:00';
 export const NIGHT_TO = '06:00';
 export const isNightTime = (time: string) => time >= NIGHT_FROM || time < NIGHT_TO;
@@ -126,7 +126,7 @@ export function nextStart(s: Schedule, from = new Date()): Date | null {
     const day = new Date(from.getFullYear(), from.getMonth(), from.getDate() + add);
     const dow = ((day.getDay() + 6) % 7) + 1;
     for (const p of s.plans) {
-      if (!p.days.includes(dow) || isNightTime(p.time)) continue;
+      if (!p.days.includes(dow)) continue;
       const [h, m] = p.time.split(':').map(Number);
       const at = new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, m);
       if (at > from && (!best || at < best)) best = at;

@@ -58,9 +58,8 @@ describe('nextStart', () => {
     expect(nextStart(s, monday8)).toEqual(new Date(2026, 8, 29, 17, 0));
   });
 
-  it('never plans a start at night', () => {
-    expect(nextStart(schedule([plan([1, 2, 3, 4, 5, 6, 7], '19:00')]), monday8)).toBeNull();
-    expect(nextStart(schedule([plan([1], '05:30'), plan([2], '06:00')]), monday8)).toEqual(new Date(2026, 8, 29, 6, 0));
+  it('plans confirmed night times too', () => {
+    expect(nextStart(schedule([plan([1], '19:00')]), monday8)).toEqual(new Date(2026, 8, 28, 19, 0));
   });
 
   it('is nothing while switched off', () => {
