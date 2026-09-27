@@ -20,6 +20,7 @@ COPY --from=mqtt /mq/usr/bin/mosquitto_sub /usr/bin/mosquitto_sub
 COPY --from=build --chown=1000:1000 /app/out /www
 COPY --chmod=755 docker/settings.cgi /www/cgi-bin/settings
 COPY --chmod=755 docker/sensors.cgi /www/cgi-bin/sensors
+COPY --chmod=755 docker/backups.cgi /www/cgi-bin/backups
 COPY --chmod=755 docker/recorder.sh /recorder.sh
 COPY docker/recorder.awk /recorder.awk
 COPY docker/entrypoint.sh /entrypoint.sh
