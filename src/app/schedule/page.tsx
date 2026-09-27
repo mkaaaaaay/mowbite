@@ -31,6 +31,7 @@ const LOG_TEXT: Record<string, string> = {
   skip_emergency: 'Not started, emergency stop was active',
   skip_offline: "Not started, the mower wasn't reachable",
   skipped_area: "Skipped an area that wasn't picked",
+  unknown_area: "An area the map doesn't have (an older job?), left it alone",
 };
 
 // monday first, labels from the browser so they come out in the app's language

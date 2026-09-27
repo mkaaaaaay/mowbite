@@ -4,5 +4,6 @@ TOPIC_ROBOT_STATE=robot_state/json
 TOPIC_EVENTS=events/json
 TOPIC_SENSOR_DATA='sensors/+/data'
 TOPIC_ACTION=action
+TOPIC_MAP=map/json
 ACTION_START_MOWING=mower_logic:idle/start_mowing
 ACTION_SKIP_AREA=mower_logic:mowing/skip_area

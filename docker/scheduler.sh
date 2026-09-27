@@ -27,9 +27,17 @@ skip_others() {
       DOCKED | JOB_COMPLETE | SHUTDOWN) break ;;
       AREA)
         a=$(field "$e" area_id)
+        # the map as the mower has it now (retained), only its areas are skipped. a job resumed from
+        # before a map change can name an area that isn't in it any more, that one is left alone
+        # shellcheck disable=SC2086
+        known=$(mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_MAP" -C 1 -W 5 2>/dev/null | grep -c "\"$a\"")
         case ",$1," in
           *",$a,"*) ;;
           *)
+            if [ "${known:-0}" = 0 ]; then
+              log unknown_area "$a"
+              continue
+            fi
             # shellcheck disable=SC2086
             mosquitto_pub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTION" -m "$ACTION_SKIP_AREA"
             log skipped_area "$a"
