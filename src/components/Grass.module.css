@@ -41,7 +41,7 @@
   opacity: 0;
 }
 
-/* the easter egg: a lawn eater mows from left to right, the grass grows back afterwards */
+/* a lawn eater mows from left to right, the grass grows back afterwards */
 .mower {
   position: absolute;
   /* the drawing has some room below the body, this puts it into the grass */
