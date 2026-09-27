@@ -16,7 +16,7 @@ const HOP_LEAD = 360;
 // a hedgehog that sees the lawn eater coming, trembles and curls up, and gets hopped over. side view, facing left
 function Hedgehog() {
   return (
-    <svg width="40" height="27" viewBox="0 0 50 34">
+    <svg width="52" height="35" viewBox="0 0 50 34">
       <g className={styles.head}>
         <g className={styles.body}>
         <ellipse cx="27" cy="30" rx="15" ry="4" fill="#c49a6c" />
@@ -85,9 +85,9 @@ export default function Grass() {
       const ms = Math.max(3000, (w / SPEED) * 1000);
       const x = Math.round(w * (0.45 + Math.random() * 0.1));
       // the mower drives from -80 to w + 10 px, its mouth (where the cut is) is 34 px in, the hedgehog
-      // starts 20 px left of x
+      // starts 26 px left of x
       const mouthAt = (t: number) => -46 + ((w + 90) * t) / ms;
-      const hit = ((x - 20 + 46) / (w + 90)) * ms;
+      const hit = ((x - 26 + 46) / (w + 90)) * ms;
       // off the ground from about 0.2 to 0.8 s into the hop, which starts at HOP_LEAD before the hedgehog
       const up = hit - HOP_LEAD + 200;
       const down = hit - HOP_LEAD + 800;
@@ -139,7 +139,7 @@ export default function Grass() {
       {/* the grass under the jump, it stays when the rest is cut */}
       {critter && phase === 'mowing' && <div className={[styles.tall, styles.keep].join(' ')} />}
       {critter && (
-        <div className={styles.critter} style={{left: critter.x - 20}}>
+        <div className={styles.critter} style={{left: critter.x - 26}}>
           <Hedgehog />
         </div>
       )}

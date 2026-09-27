@@ -109,8 +109,8 @@
 .critter {
   position: absolute;
   bottom: 0;
-  width: 40px;
-  height: 27px;
+  width: 52px;
+  height: 35px;
   transform-origin: bottom;
   animation:
     critter-pop 0.6s cubic-bezier(0.3, 1.6, 0.5, 1) both,
