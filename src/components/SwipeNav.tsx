@@ -47,31 +47,80 @@ function claimsSwipe(el: Element | null): boolean {
 }
 
 const calm = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const page = () => document.querySelector<HTMLElement>('[data-page]');
 
-// set when a swipe navigates, so the next page slides in from the right side
-let entering = 0;
+// a copy of how each page looked last, shown next to the current one while swiping.
+// the real page takes over as soon as it's rendered
+const shots = new Map<string, HTMLElement>();
+
+function snapshot(path: string) {
+  const el = page();
+  if (!el) return;
+  const copy = el.cloneNode(true) as HTMLElement;
+  copy.removeAttribute('data-page');
+  copy.style.translate = '';
+  copy.style.opacity = '';
+  copy.style.transition = '';
+  // a copied radio with the same name would steal the checked state from the real one
+  copy.querySelectorAll('[name]').forEach((n) => n.removeAttribute('name'));
+  shots.set(path, copy);
+}
+
+function showPreview(path: string): HTMLElement | null {
+  const shot = shots.get(path);
+  if (!shot) return null;
+  const box = document.createElement('div');
+  box.setAttribute('aria-hidden', 'true');
+  box.inert = true;
+  Object.assign(box.style, {
+    position: 'fixed',
+    inset: '0',
+    // clear of the sidebar on wide screens
+    left: `${page()?.offsetLeft ?? 0}px`,
+    overflow: 'hidden',
+    pointerEvents: 'none',
+    background: 'var(--background)',
+    zIndex: '1',
+  });
+  box.appendChild(shot.cloneNode(true));
+  document.body.appendChild(box);
+  return box;
+}
+
+// set when a swipe navigates: which side the next page comes from, and its preview if there was one
+let entering: {dir: number; preview: HTMLElement | null} | null = null;
+
+const EASE = 'cubic-bezier(0.2, 0.8, 0.2, 1)';
 
 // optional (settings, per device): swipe left/right between the pages on a phone.
-// the page follows the finger, the next one slides in after it
+// the page follows the finger with the next one right beside it, like turning pages
 export default function SwipeNav() {
   const router = useRouter();
   const path = usePathname().replace(/(.)\/$/, '$1');
 
-  // the new page is rendered, bring it in
+  // the new page is rendered: drop the preview, or slide it in when there was none
   useEffect(() => {
-    const el = document.querySelector<HTMLElement>('[data-page]');
-    if (!entering || !el) return;
-    const from = entering;
-    entering = 0;
-    el.style.transition = 'none';
-    el.style.translate = `${from * window.innerWidth * 0.3}px 0`;
-    el.style.opacity = '0';
-    void el.offsetWidth;
-    el.style.transition = 'translate 0.28s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.22s ease-out';
-    el.style.translate = '';
-    el.style.opacity = '';
-    const done = setTimeout(() => (el.style.transition = ''), 300);
-    return () => clearTimeout(done);
+    const el = page();
+    const e = entering;
+    entering = null;
+    if (e && el) {
+      el.style.transition = 'none';
+      el.style.translate = '';
+      el.style.opacity = '';
+      if (e.preview) {
+        e.preview.remove();
+      } else {
+        el.style.translate = `${e.dir * window.innerWidth * 0.3}px 0`;
+        el.style.opacity = '0';
+        void el.offsetWidth;
+        el.style.transition = `translate 0.28s ${EASE}, opacity 0.22s ease-out`;
+        el.style.translate = '';
+        el.style.opacity = '';
+      }
+    }
+    // keep a fresh picture of this page for swiping back to it, once its data is in
+    const t = setTimeout(() => snapshot(path), 1500);
+    return () => clearTimeout(t);
   }, [path]);
 
   useEffect(() => {
@@ -82,22 +131,46 @@ export default function SwipeNav() {
       const n = i === -1 ? -1 : i + (dx < 0 ? 1 : -1);
       return n >= 0 && n < ORDER.length ? ORDER[n] : null;
     };
-    let drag: {x: number; y: number; t: number; axis: 'x' | 'y' | null; el: HTMLElement | null} | null = null;
+    let drag: {
+      x: number;
+      y: number;
+      t: number;
+      axis: 'x' | 'y' | null;
+      el: HTMLElement | null;
+      preview: HTMLElement | null;
+      side: number;
+    } | null = null;
     let dx = 0;
+    const w = () => window.innerWidth;
 
-    const settle = (el: HTMLElement) => {
-      el.style.transition = 'translate 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.15), opacity 0.2s';
-      el.style.translate = '';
-      el.style.opacity = '';
+    const dropPreview = (d: NonNullable<typeof drag>) => {
+      d.preview?.remove();
+      d.preview = null;
+      d.side = 0;
+    };
+    // back to where it was
+    const settle = (d: NonNullable<typeof drag>) => {
+      const {el, preview, side} = d;
+      const t = `translate 0.3s ${EASE}, opacity 0.2s`;
+      if (el) {
+        el.style.transition = t;
+        el.style.translate = '';
+        el.style.opacity = '';
+      }
+      if (preview) {
+        preview.style.transition = t;
+        preview.style.translate = `${side * w()}px 0`;
+        setTimeout(() => preview.remove(), 320);
+      }
     };
 
     const down = (e: TouchEvent) => {
       const t = e.touches[0];
       drag = null;
       // the screen edges are android's back gesture
-      if (!swipeEnabled() || e.touches.length > 1 || t.clientX < 24 || t.clientX > window.innerWidth - 24) return;
+      if (!swipeEnabled() || e.touches.length > 1 || t.clientX < 24 || t.clientX > w() - 24) return;
       if (claimsSwipe(e.target as Element)) return;
-      drag = {x: t.clientX, y: t.clientY, t: e.timeStamp, axis: null, el: document.querySelector('[data-page]')};
+      drag = {x: t.clientX, y: t.clientY, t: e.timeStamp, axis: null, el: page(), preview: null, side: 0};
       dx = 0;
     };
     const move = (e: TouchEvent) => {
@@ -108,17 +181,34 @@ export default function SwipeNav() {
       if (!drag.axis) {
         if (Math.max(Math.abs(dx), Math.abs(dy)) < 10) return;
         drag.axis = Math.abs(dx) > Math.abs(dy) * 1.5 ? 'x' : 'y';
-        const next = neighbour(dx);
-        if (drag.axis === 'x' && next) router.prefetch(next);
+        if (drag.axis === 'x') {
+          snapshot(path);
+          ORDER.forEach((p, n) => Math.abs(n - i) === 1 && router.prefetch(p));
+        }
       }
       if (drag.axis !== 'x') return;
       e.preventDefault();
       if (!drag.el || calm()) return;
+      const next = neighbour(dx);
+      // the next page sits right of the current one, the previous left of it
+      const side = dx < 0 ? 1 : -1;
+      if (drag.side !== side) {
+        dropPreview(drag);
+        if (next) {
+          drag.preview = showPreview(next);
+          drag.side = side;
+        }
+      }
       // at the first/last page it only gives a little
-      const shown = neighbour(dx) ? dx : dx * 0.25;
+      const shown = next ? dx : dx * 0.25;
       drag.el.style.transition = 'none';
       drag.el.style.translate = `${shown}px 0`;
-      drag.el.style.opacity = neighbour(dx) ? String(1 - Math.min(Math.abs(dx) / window.innerWidth, 1) * 0.4) : '';
+      // no picture of the next page yet: fade instead
+      drag.el.style.opacity = next && !drag.preview ? String(1 - Math.min(Math.abs(dx) / w(), 1) * 0.4) : '';
+      if (drag.preview) {
+        drag.preview.style.transition = 'none';
+        drag.preview.style.translate = `${shown + side * w()}px 0`;
+      }
     };
     const up = (e: TouchEvent) => {
       const d = drag;
@@ -126,34 +216,46 @@ export default function SwipeNav() {
       if (!d || d.axis !== 'x') return;
       const next = neighbour(dx);
       const quick = e.timeStamp - d.t < 400;
-      const go = next && (Math.abs(dx) > window.innerWidth * 0.3 || (quick && Math.abs(dx) > 60));
+      const go = next && (Math.abs(dx) > w() * 0.3 || (quick && Math.abs(dx) > 60));
       if (!go) {
-        if (d.el) settle(d.el);
+        settle(d);
         return;
       }
       const dir = dx < 0 ? 1 : -1;
       if (!d.el || calm()) {
+        dropPreview(d);
         router.push(next);
         return;
       }
-      d.el.style.transition = 'translate 0.15s ease-in, opacity 0.15s ease-in';
-      d.el.style.translate = `${-dir * window.innerWidth * 0.5}px 0`;
-      d.el.style.opacity = '0';
-      const el = d.el;
+      // the rest of the way, a bit quicker the faster the flick
+      const left = 1 - Math.min(Math.abs(dx) / w(), 1);
+      const ms = Math.round(120 + 180 * left);
+      d.el.style.transition = `translate ${ms}ms ${EASE}, opacity ${ms}ms`;
+      d.el.style.translate = `${-dir * w()}px 0`;
+      if (d.preview) {
+        d.preview.style.transition = `translate ${ms}ms ${EASE}`;
+        d.preview.style.translate = '0px 0';
+      } else {
+        d.el.style.opacity = '0';
+      }
+      const {preview, el} = d;
       setTimeout(() => {
-        entering = dir;
+        entering = {dir, preview};
         router.push(next);
         // in case the page never changes, don't leave it hidden
         setTimeout(() => {
-          if (entering) {
-            entering = 0;
-            settle(el);
+          if (entering?.preview === preview) {
+            entering = null;
+            preview?.remove();
+            el.style.transition = '';
+            el.style.translate = '';
+            el.style.opacity = '';
           }
-        }, 1500);
-      }, 140);
+        }, 2000);
+      }, ms);
     };
     const cancel = () => {
-      if (drag?.axis === 'x' && drag.el) settle(drag.el);
+      if (drag?.axis === 'x') settle(drag);
       drag = null;
     };
     window.addEventListener('touchstart', down, {passive: true});
