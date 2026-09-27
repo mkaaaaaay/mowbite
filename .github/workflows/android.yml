@@ -1,0 +1,84 @@
+name: android
+
+# builds the android app and puts the apk on a release: "app-dev" (pre-release) from dev, "app"
+# from main. signed with the key from the repo secrets, so a new version installs over the old one
+
+on:
+  push:
+    branches: [main, dev]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.ref_name == 'main' && 'app' || 'app-dev' }}
+      APK: ${{ github.ref_name == 'main' && 'MowBite.apk' || 'MowBite-dev.apk' }}
+    steps:
+      - id: key
+        env:
+          KEYSTORE: ${{ secrets.MOWBITE_KEYSTORE }}
+        run: |
+          if [ -z "$KEYSTORE" ]; then
+            echo "::warning::no signing key in the repo secrets (MOWBITE_KEYSTORE), apk not built"
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/release.jks"
+          fi
+
+      - if: steps.key.outputs.skip != '1'
+        uses: actions/checkout@v7
+
+      - if: steps.key.outputs.skip != '1'
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - if: steps.key.outputs.skip != '1'
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - if: steps.key.outputs.skip != '1'
+        uses: android-actions/setup-android@v4
+
+      - if: steps.key.outputs.skip != '1'
+        run: |
+          sdkmanager "platforms;android-36" "build-tools;36.1.0" > /dev/null
+          npm ci
+          npm run build
+          npx cap sync android
+
+      - if: steps.key.outputs.skip != '1'
+        working-directory: android
+        env:
+          MOWBITE_KEYSTORE: ${{ runner.temp }}/release.jks
+          MOWBITE_KEYSTORE_PASSWORD: ${{ secrets.MOWBITE_KEYSTORE_PASSWORD }}
+          MOWBITE_KEY_ALIAS: ${{ secrets.MOWBITE_KEY_ALIAS }}
+          MOWBITE_VERSION_CODE: ${{ github.run_number }}
+          MOWBITE_VERSION_NAME: ${{ github.ref_name }}-${{ github.run_number }}
+        run: ./gradlew assembleRelease --no-daemon -q
+
+      - if: steps.key.outputs.skip != '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp android/app/build/outputs/apk/release/app-release.apk "$APK"
+          if [ "$TAG" = app ]; then
+            title="MowBite app"
+            notes="The MowBite web app as an android app. It connects to the MowBite container on your mower, so that has to be installed there too. Install the apk on your phone and allow installing from this source once."
+            pre=""
+          else
+            title="MowBite app (dev)"
+            notes="Test version from the dev branch, might be broken. Rebuilt with every change on dev."
+            pre="--prerelease"
+          fi
+          gh release view "$TAG" > /dev/null 2>&1 || gh release create "$TAG" $pre --title "$title" --notes "$notes" --target "$GITHUB_SHA"
+          gh release upload "$TAG" "$APK" --clobber
+          # the tag follows the newest build
+          git tag -f "$TAG" && git push -f origin "refs/tags/$TAG"

@@ -7,8 +7,9 @@ android {
         applicationId "io.github.mkaaaaaay.mowbite"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        // set by the github action, locally it's 1
+        versionCode ((System.getenv('MOWBITE_VERSION_CODE') ?: '1') as int)
+        versionName System.getenv('MOWBITE_VERSION_NAME') ?: '1.0'
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,8 +17,21 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // the release key comes from the environment (repo secrets in the github action), never from the repo
+    def keystore = System.getenv('MOWBITE_KEYSTORE')
+    signingConfigs {
+        release {
+            if (keystore) {
+                storeFile file(keystore)
+                storePassword System.getenv('MOWBITE_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('MOWBITE_KEY_ALIAS')
+                keyPassword System.getenv('MOWBITE_KEYSTORE_PASSWORD')
+            }
+        }
+    }
     buildTypes {
         release {
+            if (keystore) signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
