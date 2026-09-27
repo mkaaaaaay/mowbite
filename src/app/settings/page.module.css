@@ -269,23 +269,33 @@
 }
 
 .mowerAdd {
-  display: grid;
-  grid-template-columns: 1fr 1fr 70px 70px auto;
-  gap: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+  padding-top: 12px;
+  border-top: 1px solid var(--card-border);
 }
 
-.mowerAdd input {
-  min-width: 0;
-  padding: 7px 9px;
-  border-radius: 8px;
-  border: 1px solid var(--card-border);
-  background: transparent;
-  color: var(--foreground);
+.mowerAdd .pillButton {
+  align-self: flex-start;
+}
+
+.subTitle {
   font-size: 13px;
+  font-weight: 600;
 }
 
-@media (max-width: 600px) {
-  .mowerAdd {
-    grid-template-columns: 1fr 1fr;
-  }
+.ports {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.ports summary {
+  cursor: pointer;
+}
+
+.ports .field {
+  margin-top: 8px;
+  max-width: 200px;
 }

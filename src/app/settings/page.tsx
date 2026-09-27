@@ -72,10 +72,19 @@ function MowersSection({settings}: {settings: Settings}) {
   const [host, setHost] = useState('');
   const [appPort, setAppPort] = useState('8082');
   const [wsPort, setWsPort] = useState('9001');
+  const [error, setError] = useState<string | null>(null);
   const others = settings.mowers ?? [];
   const add = () => {
-    const h = host.trim().replace(/^https?:\/\//, '').replace(/[/:].*$/, '');
+    const h = host.trim().replace(/^https?:\/\//, '').replace(/[/:].*$/, '').toLowerCase();
     if (!h) return;
+    if (h === window.location.hostname.toLowerCase() || h === 'localhost' || h === '127.0.0.1') {
+      setError(tr("That's this mower, it's already there. Enter the address of another one."));
+      return;
+    }
+    if (others.some((m) => m.host.toLowerCase() === h)) {
+      setError(tr('This mower is already in the list.'));
+      return;
+    }
     const cur = settingsStore.snapshot();
     const mower: OtherMower = {
       id: Math.random().toString(36).slice(2, 10),
@@ -87,19 +96,28 @@ function MowersSection({settings}: {settings: Settings}) {
     saveSettings({...cur, mowers: [...(cur.mowers ?? []), mower]});
     setName('');
     setHost('');
+    setError(null);
   };
   return (
     <section className={styles.card}>
       <h2>{tr('Mowers')}</h2>
+      <p className={styles.dim}>
+        {tr(
+          "Got more than one robot mower with MowBite? Add the others here, as many as you like, and switch between them at the top of the dashboard (on a computer in the sidebar). Colors, icons and the language stay the same for all.",
+        )}
+      </p>
+
       <label className={styles.field}>
-        {tr('Name of this mower')}
+        {tr('This mower (the one this app runs on)')}
         <input
           key={'this' + (settings.thisName ?? '')}
           defaultValue={settings.thisName ?? ''}
-          placeholder={tr('This mower')}
+          placeholder={tr('Name, e.g. Back garden')}
           onBlur={(e) => saveSettings({...settingsStore.snapshot(), thisName: e.target.value.trim() || undefined})}
         />
       </label>
+
+      {others.length > 0 && <span className={styles.subTitle}>{tr('Other mowers')}</span>}
       {others.map((m) => (
         <div key={m.id} className={styles.mowerRow}>
           <span>
@@ -119,20 +137,42 @@ function MowersSection({settings}: {settings: Settings}) {
           </button>
         </div>
       ))}
+
       <div className={styles.mowerAdd}>
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder={tr('Name, e.g. Front garden')} />
-        <input value={host} onChange={(e) => setHost(e.target.value)} placeholder={tr('Address, e.g. 192.168.2.170')} />
-        <input value={appPort} onChange={(e) => setAppPort(e.target.value)} inputMode="numeric" title={tr('MowBite port')} />
-        <input value={wsPort} onChange={(e) => setWsPort(e.target.value)} inputMode="numeric" title={tr('MQTT websocket port')} />
+        <span className={styles.subTitle}>{tr('Add another mower')}</span>
+        <label className={styles.field}>
+          {tr('Name')}
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder={tr('e.g. Front garden')} />
+        </label>
+        <label className={styles.field}>
+          {tr("Address of the other mower (IP or name in your network)")}
+          <input
+            value={host}
+            onChange={(e) => {
+              setHost(e.target.value);
+              setError(null);
+            }}
+            placeholder="192.168.2.170"
+            autoCapitalize="off"
+            autoCorrect="off"
+          />
+        </label>
+        <details className={styles.ports}>
+          <summary>{tr('Ports (only if you changed them)')}</summary>
+          <label className={styles.field}>
+            {tr('MowBite port')}
+            <input value={appPort} onChange={(e) => setAppPort(e.target.value)} inputMode="numeric" />
+          </label>
+          <label className={styles.field}>
+            {tr('MQTT websocket port')}
+            <input value={wsPort} onChange={(e) => setWsPort(e.target.value)} inputMode="numeric" />
+          </label>
+        </details>
+        {error && <span className={styles.error}>{error}</span>}
         <button className={styles.pillButton} onClick={add} disabled={!host.trim()}>
-          {tr('Add')}
+          {tr('Add mower')}
         </button>
       </div>
-      <p className={styles.dim}>
-        {tr(
-          'The other mower needs MowBite as well. Switch between them at the top of the dashboard, or in the sidebar on a computer. Colors, icons and the language stay the same for all.',
-        )}
-      </p>
     </section>
   );
 }
