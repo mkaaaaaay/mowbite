@@ -125,3 +125,43 @@ export function CheckIcon({size = 20}: IconProps) {
     </svg>
   );
 }
+
+export function ScissorsIcon({size = 20}: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...line}>
+      <circle cx="6" cy="6" r="3" />
+      <circle cx="6" cy="18" r="3" />
+      <path d="M8.1 8.1 20 20M8.1 15.9 20 4" />
+    </svg>
+  );
+}
+
+// two overlapping shapes becoming one
+export function MergeIcon({size = 20}: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...line}>
+      <rect x="3" y="3" width="11" height="11" rx="2" />
+      <rect x="10" y="10" width="11" height="11" rx="2" />
+    </svg>
+  );
+}
+
+// a wiggly line smoothed out
+export function SimplifyIcon({size = 20}: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...line}>
+      <path d="M3 17 7 13l3 3 4-6 3 3 4-5" />
+      <circle cx="3" cy="17" r="0.6" />
+      <circle cx="21" cy="8" r="0.6" />
+    </svg>
+  );
+}
+
+export function TrashIcon({size = 20}: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...line}>
+      <path d="M4 7h16M10 11v6M14 11v6" />
+      <path d="M6 7l1 13h10l1-13M9 7V4h6v3" />
+    </svg>
+  );
+}

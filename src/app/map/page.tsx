@@ -1,6 +1,15 @@
 'use client';
 
-import {CheckIcon, PencilIcon, RouteIcon, UndoIcon} from '@/components/icons';
+import {
+  CheckIcon,
+  MergeIcon,
+  PencilIcon,
+  RouteIcon,
+  ScissorsIcon,
+  SimplifyIcon,
+  TrashIcon,
+  UndoIcon,
+} from '@/components/icons';
 import {TitleMark} from '@/components/Logo';
 import InfoTip from '@/components/InfoTip';
 import MapView from '@/components/MapView';
@@ -735,6 +744,7 @@ function MapEditor() {
 
               {selectedArea && mode === 'idle' && (
                 <div className={styles.areaEditor}>
+                  <div className={styles.areaHead}>
                   <input
                     className={styles.nameInput}
                     value={selectedArea.properties.name ?? ''}
@@ -754,64 +764,70 @@ function MapEditor() {
                       </option>
                     ))}
                   </select>
-                  <span className={styles.dim}>{tr('{n} points', {n: selectedArea.outline.length})}</span>
-                  <label className={styles.toggle}>
-                    <input type="checkbox" checked={selectedArea.properties.active !== false} onChange={toggleActive} />
-                    {tr('active')}
-                    <InfoTip>
-                      {tr("Inactive areas are ignored by the mower. Careful with mowing areas: an inactive one is also no longer drivable, so the mower gets stuck if it stands on it.")}
-                    </InfoTip>
-                  </label>
-                  <span className={styles.withTip}>
-                    <button className={styles.pillButton} onClick={startSplit}>
-                      {tr('Split zone')}
-                    </button>
-                    <InfoTip>
-                      {tr("Cuts the area in two along a line through two points you click. Both halves keep the type and settings.")}
-                    </InfoTip>
-                  </span>
-                  <span className={styles.withTip}>
-                    <button
-                      className={styles.pillButton}
-                      onClick={() => {
-                        setSimplifyCm(null);
-                        setMode('merge');
-                      }}
-                    >
-                      {tr('Merge')}
-                    </button>
-                    <InfoTip>
-                      {tr("Joins this area with another one you click, e.g. two halves of a lawn. They need to overlap or touch.")}
-                    </InfoTip>
-                  </span>
-                  <button
-                    className={[styles.pillButton, styles.danger].join(' ')}
-                    onClick={deleteArea}
-                    onBlur={() => setConfirmDelete(null)}
-                  >
-                    {confirmDelete === selectedArea.id ? tr('Really delete?') : tr('Delete area')}
-                  </button>
+                  </div>
+                  <div className={styles.areaMeta}>
+                    <label className={styles.toggle}>
+                      <input type="checkbox" checked={selectedArea.properties.active !== false} onChange={toggleActive} />
+                      {tr('active')}
+                      <InfoTip>
+                        {tr("Inactive areas are ignored by the mower. Careful with mowing areas: an inactive one is also no longer drivable, so the mower gets stuck if it stands on it.")}
+                      </InfoTip>
+                    </label>
+                    <span className={styles.dim}>
+                      {tr(AREA_TYPES.find((t) => t.value === (selectedArea.properties.type ?? 'draft'))?.hint ?? '')}
+                      {' · '}
+                      {tr('{n} points', {n: selectedArea.outline.length})}
+                    </span>
+                  </div>
                   {simplifyCm === null && (
-                    <span className={styles.withTip}>
-                      <button className={styles.pillButton} onClick={() => setSimplifyCm(5)}>
+                    <div className={styles.toolbar}>
+                      <span className={styles.toolLabel}>
+                        {tr('Edit')}
+                        <InfoTip>
+                          <b>{tr('Split zone')}:</b>{' '}
+                          {tr("Cuts the area in two along a line through two points you click. Both halves keep the type and settings.")}
+                          <br />
+                          <b>{tr('Merge')}:</b>{' '}
+                          {tr("Joins this area with another one you click, e.g. two halves of a lawn. They need to overlap or touch.")}
+                          <br />
+                          <b>{tr('Reduce points')}:</b>{' '}
+                          {tr("Recorded outlines have a point every few cm. This drops the ones that hardly change the shape, you pick how far the new outline may be off. You can go back up with the slider until you reload the page.")}
+                        </InfoTip>
+                      </span>
+                      <button className={[styles.pillButton, styles.tool].join(' ')} onClick={startSplit}>
+                        <ScissorsIcon size={16} />
+                        {tr('Split zone')}
+                      </button>
+                      <button
+                        className={[styles.pillButton, styles.tool].join(' ')}
+                        onClick={() => {
+                          setSimplifyCm(null);
+                          setMode('merge');
+                        }}
+                      >
+                        <MergeIcon size={16} />
+                        {tr('Merge')}
+                      </button>
+                      <button className={[styles.pillButton, styles.tool].join(' ')} onClick={() => setSimplifyCm(5)}>
+                        <SimplifyIcon size={16} />
                         {tr('Reduce points')}
                       </button>
-                      <InfoTip>
-                        {tr("Recorded outlines have a point every few cm. This drops the ones that hardly change the shape, you pick how far the new outline may be off. You can go back up with the slider until you reload the page.")}
-                      </InfoTip>
-                    </span>
+                      <button
+                        className={[styles.pillButton, styles.tool, styles.danger].join(' ')}
+                        onClick={deleteArea}
+                        onBlur={() => setConfirmDelete(null)}
+                      >
+                        <TrashIcon size={16} />
+                        {confirmDelete === selectedArea.id ? tr('Really delete?') : tr('Delete area')}
+                      </button>
+                    </div>
                   )}
                 </div>
               )}
 
-              {selectedArea && mode === 'idle' && (
-                <p className={styles.dim}>
-                  {tr(AREA_TYPES.find((t) => t.value === (selectedArea.properties.type ?? 'draft'))?.hint ?? '')}
-                </p>
-              )}
-
               {selectedArea && mode === 'idle' && simplifyCm === null && selectedArea.properties.type === 'mow' && (
                 <div className={styles.mowSettings}>
+                  <span className={styles.cardTitle}>{tr('Mowing settings')}</span>
                   <label>
                     <span>
                       {tr('Outline passes')}

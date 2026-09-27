@@ -5,6 +5,20 @@
   width: 100%;
 }
 
+/* the phone's status bar in the android app: content scrolls under it, so give it a backdrop like the tab bar */
+.shell::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  height: env(safe-area-inset-top);
+  background: var(--nav-bg);
+  backdrop-filter: var(--card-blur, blur(18px));
+  -webkit-backdrop-filter: var(--card-blur, blur(18px));
+}
+
 .content {
   flex: 1;
   min-width: 0;
