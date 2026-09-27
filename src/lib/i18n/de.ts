@@ -185,6 +185,7 @@ const de: Record<string, string> = {
   "Motors": "Motoren",
   "Moves the mowing boundary in (positive, more distance to beds and walls) or out (negative). -1 to 1 m.": "Verschiebt die Mähgrenze nach innen (positiv, mehr Abstand zu Beeten und Wänden) oder nach außen (negativ). -1 bis 1 m.",
   "Mow angle (°)": "Mähwinkel (°)",
+  "Mow angle": "Mähwinkel",
   "Mow by schedule": "Nach Zeitplan mähen",
   "Mow ESC Temp": "Temperatur ESC Mähmotor",
   "Mow motor": "Mähmotor",

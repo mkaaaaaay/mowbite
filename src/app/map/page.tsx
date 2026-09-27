@@ -522,6 +522,24 @@ function MapEditor() {
               />
             )}
 
+            {/* on phones the settings are far below the map, so the angle can be turned right here while watching the stripes */}
+            {!preview && selectedArea && mode === 'idle' && simplifyCm === null && selectedArea.properties.type === 'mow' && (
+              <div className={styles.angleOnMap}>
+                <span>{tr('Mow angle')}</span>
+                <input
+                  type="range"
+                  min={-180}
+                  max={180}
+                  step={1}
+                  value={Math.round((selectedArea.properties.angle ?? autoAngle) / DEG)}
+                  onPointerDown={remember}
+                  onChange={(e) => updateProperties({angle: Number(e.target.value) * DEG}, false)}
+                  aria-label={tr('Mow angle (°)')}
+                />
+                <strong>{Math.round((selectedArea.properties.angle ?? autoAngle) / DEG)}°</strong>
+              </div>
+            )}
+
             {!map && <p className={styles.dim}>{tr('waiting for map…')}</p>}
           </div>
 
