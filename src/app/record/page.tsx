@@ -14,9 +14,10 @@ import Link from 'next/link';
 import {useEffect, useRef, useState} from 'react';
 import styles from './page.module.css';
 import {tr, useLang} from '@/lib/i18n';
+import {ACTION} from '@/lib/openmower';
 
-const START = 'mower_logic:idle/start_area_recording';
-const A = (id: string) => `mower_logic:area_recording/${id}`;
+const START = ACTION.startRecording;
+const A = ACTION.recording;
 
 // m/s at full stick, the turn rate follows along
 const SPEEDS = [0.15, 0.25, 0.35, 0.5];

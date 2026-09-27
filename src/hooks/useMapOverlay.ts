@@ -3,6 +3,7 @@
 import {getMqttClient, unprefix, withPrefix} from '@/lib/mqttClient';
 import {useEffect, useState} from 'react';
 import type {Point} from './useMowerMap';
+import {TOPIC} from '@/lib/openmower';
 
 // lines the mower draws on top of the map, while recording: the outline green, obstacles red and the
 // one being recorded right now blue
@@ -19,9 +20,9 @@ export function useMapOverlay(): OverlayLine[] {
 
   useEffect(() => {
     const c = getMqttClient();
-    const onConnect = () => c.subscribe(withPrefix('map_overlay/json'));
+    const onConnect = () => c.subscribe(withPrefix(TOPIC.mapOverlay));
     const onMessage = (topic: string, payload: Buffer) => {
-      if (unprefix(topic) !== 'map_overlay/json') return;
+      if (unprefix(topic) !== TOPIC.mapOverlay) return;
       try {
         const m: {polygons?: {polygon?: {points?: Point[]}; color?: string; closed?: boolean}[]} = JSON.parse(payload.toString());
         cached = (m.polygons ?? []).map((p) => ({points: p.polygon?.points ?? [], color: p.color ?? 'blue', closed: !!p.closed}));

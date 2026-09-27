@@ -3,6 +3,7 @@
 import {getMqttClient, unprefix, withPrefix} from '@/lib/mqttClient';
 import {callRpc} from '@/lib/rpc';
 import {useEffect, useState} from 'react';
+import {RPC, TOPIC} from '@/lib/openmower';
 
 export interface Point {
   x: number;
@@ -44,9 +45,9 @@ export function useMowerMap(): MowerMap | null {
   useEffect(() => {
     const c = getMqttClient();
 
-    const onConnect = () => c.subscribe(withPrefix('map/json'));
+    const onConnect = () => c.subscribe(withPrefix(TOPIC.map));
     const onMessage = (topic: string, payload: Buffer) => {
-      if (unprefix(topic) !== 'map/json') return;
+      if (unprefix(topic) !== TOPIC.map) return;
       try {
         cachedMap = JSON.parse(payload.toString());
         setMap(cachedMap);
@@ -70,5 +71,5 @@ export function useMowerMap(): MowerMap | null {
 
 // map.replace takes the same shape as map/json
 export function saveMap(map: MowerMap): Promise<unknown> {
-  return callRpc('map.replace', [map]);
+  return callRpc(RPC.replaceMap, [map]);
 }

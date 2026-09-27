@@ -3,6 +3,7 @@
 import {getMqttClient, unprefix, withPrefix} from '@/lib/mqttClient';
 import {useSyncExternalStore} from 'react';
 import {apiBase} from '@/lib/mowers';
+import {TOPIC} from '@/lib/openmower';
 
 export interface Sample {
   t: number; // ms
@@ -59,7 +60,7 @@ export function startSensorHistory() {
   void loadDay();
   setInterval(loadDay, 5 * 60 * 1000);
   const c = getMqttClient();
-  const sub = () => c.subscribe(withPrefix('sensors/+/data'));
+  const sub = () => c.subscribe(withPrefix(TOPIC.sensorData));
   c.on('connect', sub);
   if (c.connected) sub();
   c.on('message', (topic, payload) => {

@@ -98,6 +98,8 @@ const de: Record<string, string> = {
   "Download current map": "Aktuelle Karte herunterladen",
   "Draft": "Entwurf",
   "Draw": "Zeichnen",
+  "Your OpenMower version doesn't offer this ({method}).": "Deine OpenMower-Version bietet das nicht an ({method}).",
+  "The mower didn't answer.": "Der Mäher hat nicht geantwortet.",
   "Between 6 pm and 6 am hedgehogs and other animals are out in the garden. They don't run from the mower, they curl up and can get badly hurt. That's why the schedule doesn't start in that time. Thanks for understanding!": "Zwischen 18 und 6 Uhr sind Igel und andere Tiere im Garten unterwegs. Sie laufen vor dem Mäher nicht weg, sondern rollen sich zusammen und können sich schwer verletzen. Deshalb startet der Zeitplan in dieser Zeit nicht. Danke für dein Verständnis!",
   "This start time is skipped, please move it into the day.": "Diese Startzeit wird deshalb übersprungen, bitte leg sie in den Tag.",
   "Not started, no mowing between 6 pm and 6 am": "Nicht gestartet, zwischen 18 und 6 Uhr wird nicht gemäht",

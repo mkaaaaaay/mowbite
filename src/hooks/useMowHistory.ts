@@ -2,6 +2,7 @@
 
 import {callRpc} from '@/lib/rpc';
 import {useEffect, useState} from 'react';
+import {RPC} from '@/lib/openmower';
 
 export interface TrackSegment {
   attributes: {blades?: boolean; job_id?: string};
@@ -22,7 +23,7 @@ let listCache: Promise<JobInfo[]> | null = null;
 const trackCache = new Map<string, Promise<TrackSegment[]>>();
 
 export function loadJobList(): Promise<JobInfo[]> {
-  listCache ??= callRpc<JobInfo[]>('position.history.list').then(
+  listCache ??= callRpc<JobInfo[]>(RPC.jobs).then(
     // the mower lists a job again when it's resumed, keep the newest entry
     (list) => list.filter((j, i) => list.findIndex((k) => k.job_id === j.job_id) === i),
     () => {
@@ -36,7 +37,7 @@ export function loadJobList(): Promise<JobInfo[]> {
 export function loadJobTrack(jobId: string): Promise<TrackSegment[]> {
   let p = trackCache.get(jobId);
   if (!p) {
-    p = callRpc<{segments?: TrackSegment[]}>('position.history', {job_id: jobId}, 20000).then(
+    p = callRpc<{segments?: TrackSegment[]}>(RPC.jobTrack, {job_id: jobId}, 20000).then(
       (h) => h.segments ?? [],
       () => {
         trackCache.delete(jobId);

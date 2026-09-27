@@ -5,6 +5,7 @@
 # is forecast, and waits up to two hours for the battery. what happened goes to /data/schedule.log for the page.
 # never between 18:00 and 06:00: hedgehogs and other animals are out then (same hours as the app, lib/schedule.ts)
 . /broker.sh
+. /openmower.sh
 F=/data/schedule.txt
 LOG=/data/schedule.log
 WAIT=7200
@@ -27,7 +28,7 @@ night() {
 # during a run this script started: skip every area that isn't in the list, until the mower is back
 skip_others() {
   # shellcheck disable=SC2086
-  timeout 21600 mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}events/json" | while read -r e; do
+  timeout 21600 mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_EVENTS" | while read -r e; do
     type=$(field "$e" type)
     case "$type" in
       DOCKED | JOB_COMPLETE | SHUTDOWN) break ;;
@@ -37,7 +38,7 @@ skip_others() {
           *",$a,"*) ;;
           *)
             # shellcheck disable=SC2086
-            mosquitto_pub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}action" -m 'mower_logic:mowing/skip_area'
+            mosquitto_pub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTION" -m "$ACTION_SKIP_AREA"
             log skipped_area "$a"
             ;;
         esac
@@ -83,7 +84,7 @@ while :; do
   if [ "$until" -gt 0 ]; then
     host=$(find_broker)
     # shellcheck disable=SC2086
-    s=$([ -n "$host" ] && mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}robot_state/json" -C 1 -W 10 2>/dev/null)
+    s=$([ -n "$host" ] && mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -C 1 -W 10 2>/dev/null)
     bat=$(field "$s" battery_percentage | awk '{printf "%d", $1 * 100}')
     minbat=$(conf minbattery)
     if [ -z "$s" ]; then
@@ -107,7 +108,7 @@ while :; do
       fi
     else
       # shellcheck disable=SC2086
-      if mosquitto_pub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}action" -m 'mower_logic:idle/start_mowing'; then
+      if mosquitto_pub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTION" -m "$ACTION_START_MOWING"; then
         log started "$bat"
         [ "$areas" = all ] || skip_others "$areas" &
       else

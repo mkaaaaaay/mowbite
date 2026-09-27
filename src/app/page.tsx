@@ -26,15 +26,16 @@ import {fmt, tr, useLang} from '@/lib/i18n';
 import {cachedSchedule, loadSchedule, nextStart, type Schedule} from '@/lib/schedule';
 import MowerSwitch from '@/components/MowerSwitch';
 import {UpdateBanner} from '@/components/Updates';
+import {ACTION} from '@/lib/openmower';
 
 const DRIVING = new Set(['MOWING', 'DOCKING', 'UNDOCKING']);
 
-const ACTION_RESET_EMERGENCY = 'mower_logic/reset_emergency';
+const ACTION_RESET_EMERGENCY = ACTION.resetEmergency;
 const ACTIONS = [
-  {id: 'mower_logic:idle/start_mowing', Icon: PlayIcon, label: 'Start', main: true},
-  {id: 'mower_logic:mowing/pause', Icon: StopIcon, label: 'Pause'},
-  {id: 'mower_logic:mowing/abort_mowing', Icon: HomeIcon, label: 'Go home'},
-  {id: 'mower_logic:mowing/skip_area', Icon: SkipIcon, label: 'Skip area'},
+  {id: ACTION.startMowing, Icon: PlayIcon, label: 'Start', main: true},
+  {id: ACTION.pause, Icon: StopIcon, label: 'Pause'},
+  {id: ACTION.goHome, Icon: HomeIcon, label: 'Go home'},
+  {id: ACTION.skipArea, Icon: SkipIcon, label: 'Skip area'},
 ];
 
 // 999 = no fix (xbot_positioning)

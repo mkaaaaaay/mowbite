@@ -2,6 +2,7 @@
 
 import {getMqttClient, unprefix, withPrefix} from '@/lib/mqttClient';
 import {useEffect, useState} from 'react';
+import {TOPIC} from '@/lib/openmower';
 
 export interface SensorInfo {
   sensor_id: string;
@@ -30,12 +31,12 @@ export function useMowerSensors(): {infos: SensorInfo[]; values: Record<string, 
     const c = getMqttClient();
 
     const onConnect = () => {
-      c.subscribe(withPrefix('sensor_infos/json'));
-      c.subscribe(withPrefix('sensors/+/data'));
+      c.subscribe(withPrefix(TOPIC.sensorInfos));
+      c.subscribe(withPrefix(TOPIC.sensorData));
     };
     const onMessage = (fullTopic: string, payload: Buffer) => {
       const topic = unprefix(fullTopic);
-      if (topic === 'sensor_infos/json') {
+      if (topic === TOPIC.sensorInfos) {
         try {
           cachedInfos = JSON.parse(payload.toString());
           setInfos(cachedInfos);

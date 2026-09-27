@@ -1,4 +1,5 @@
 import {tr} from './i18n';
+import {LOGIC_SOURCE} from './openmower';
 
 // events from the mower's event history (events.history rpc), grouped into runs for the activity page
 
@@ -124,9 +125,8 @@ export function explain(e: MowerEvent, state?: string): string | undefined {
 }
 
 // where open_mower_ros writes the event and the line it logs at the same moment
-const BEHAVIORS = 'https://github.com/ClemensElflein/open_mower_ros/blob/main/src/mower_logic/src/mower_logic/';
 export function eventSource(e: MowerEvent): {file: string; url: string; log?: string} | undefined {
-  const src = (file: string, log?: string) => ({file, url: BEHAVIORS + file, log});
+  const src = (file: string, log?: string) => ({file, url: LOGIC_SOURCE + file, log});
   switch (e.type) {
     case 'UNDOCKING_FAILED':
       return src('behaviors/UndockingBehavior.cpp', e.reason === 'no_gps' ? 'Could not get GPS.' : 'Error during undock');

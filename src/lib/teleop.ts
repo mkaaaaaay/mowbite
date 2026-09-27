@@ -1,5 +1,6 @@
 import {Buffer} from 'buffer';
 import {getMqttClient, withPrefix} from './mqttClient';
+import {TOPIC} from './openmower';
 
 // OpenMower takes remote driving on "teleop" as bson {vx, vz} (m/s forward, rad/s counterclockwise).
 // It stops by itself when nothing arrived for half a second, so this has to be sent over and over.
@@ -22,5 +23,5 @@ function twist(vx: number, vz: number): Buffer {
 }
 
 export function sendDrive(vx: number, vz: number) {
-  getMqttClient().publish(withPrefix('teleop'), twist(vx, vz), {qos: 0});
+  getMqttClient().publish(withPrefix(TOPIC.teleop), twist(vx, vz), {qos: 0});
 }

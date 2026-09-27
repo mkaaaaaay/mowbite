@@ -2,6 +2,7 @@
 
 import {getMqttClient, unprefix, withPrefix} from '@/lib/mqttClient';
 import {useEffect, useState} from 'react';
+import {TOPIC} from '@/lib/openmower';
 
 export interface MowerState {
   battery_percentage: number;
@@ -31,11 +32,11 @@ export function useMowerState(): {state: MowerState | null; connected: boolean} 
 
     const onConnect = () => {
       setConnected(true);
-      c.subscribe(withPrefix('robot_state/json'));
+      c.subscribe(withPrefix(TOPIC.robotState));
     };
     const onClose = () => setConnected(false);
     const onMessage = (topic: string, payload: Buffer) => {
-      if (unprefix(topic) !== 'robot_state/json') return;
+      if (unprefix(topic) !== TOPIC.robotState) return;
       try {
         cachedState = JSON.parse(payload.toString());
         setState(cachedState);

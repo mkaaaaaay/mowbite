@@ -2,6 +2,7 @@ import InfoTip from '@/components/InfoTip';
 import {tr} from '@/lib/i18n';
 import {DEG, normDeg, type Area, type UpdateArea} from './editing';
 import styles from './page.module.css';
+import {PATHS} from '@/lib/openmower';
 
 export interface AngleMismatch {
   measured: number;
@@ -141,7 +142,7 @@ export default function MowSettings({
           </p>
           <p>
             {tr("If you changed the angle since then, ignore this. Otherwise the mower most likely still has an angle increment summed up in checkpoint.bag from a time when mow_angle_increment was set. It adds that on top and never shows it anywhere. To get rid of it, while the mower is docked and idle: delete")}{' '}
-            <code>~/ros/checkpoint.bag</code> {tr("on the mower and run")} <code>openmower restart</code>.
+            <code>{PATHS.checkpoint}</code> {tr("on the mower and run")} <code>{PATHS.restart}</code>.
           </p>
           <label className={styles.toggle}>
             <input

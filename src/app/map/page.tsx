@@ -28,6 +28,8 @@ import EditorToolbar from './EditorToolbar';
 import MowSettings, {AngleOnMap, type AngleMismatch} from './MowSettings';
 import OrderBox from './OrderBox';
 import {DrawPanel, MergePanel, RestorePanel, SimplifyPanel, SplitPanel} from './Panels';
+import {PARAM} from '@/lib/openmower';
+import {rpcErrorText} from '@/lib/rpcText';
 
 // useSearchParams needs a suspense boundary in a static export
 export default function MapPage() {
@@ -104,10 +106,10 @@ function MapEditor() {
       ? {...map, areas: map.areas.map((a) => (a.id === selectedArea.id ? {...a, outline: simplified} : a))}
       : map;
 
-  const toolWidth = numParam(params, '/mower_logic/tool_width');
-  const angleOffset = numParam(params, '/mower_logic/mow_angle_offset') ?? 0;
-  const offsetIsAbsolute = params['/mower_logic/mow_angle_offset_is_absolute'] === true;
-  const angleIncrement = numParam(params, '/mower_logic/mow_angle_increment') ?? 0;
+  const toolWidth = numParam(params, PARAM.toolWidth);
+  const angleOffset = numParam(params, PARAM.mowAngleOffset) ?? 0;
+  const offsetIsAbsolute = params[PARAM.mowAngleOffsetIsAbsolute] === true;
+  const angleIncrement = numParam(params, PARAM.mowAngleIncrement) ?? 0;
   const shownArea = shownMap?.areas.find((a) => a.id === selectedAreaId) ?? null;
   const isMowArea = shownArea?.properties.type === 'mow';
   const autoAngle = shownArea ? autoMowAngle(shownArea.outline) : 0;
@@ -122,7 +124,7 @@ function MapEditor() {
   const savedArea = liveMap?.areas.find((a) => a.id === selectedAreaId);
   let mismatch: AngleMismatch | null = null;
   if (savedArea?.properties.type === 'mow' && pastJobs) {
-    const passes = savedArea.properties.outline_count ?? numParam(params, '/mower_logic/outline_count') ?? 0;
+    const passes = savedArea.properties.outline_count ?? numParam(params, PARAM.outlineCount) ?? 0;
     const margin = passes * (toolWidth ?? 0.2) + 0.2;
     // newest mowing stretch first, a job that got interrupted can resume with different settings
     const stretches = pastJobs.flatMap((job) => [...job.segments].reverse().map((seg) => ({job, seg})));
@@ -147,7 +149,7 @@ function MapEditor() {
   }
 
   const globalValue = (key: string) => {
-    const v = numParam(params, '/mower_logic/' + key);
+    const v = numParam(params, PARAM.mowerLogic(key));
     return v === undefined ? 'global' : `global ${v}`;
   };
 
@@ -391,7 +393,7 @@ function MapEditor() {
       closePreview();
       void refreshBackups();
     } catch (e) {
-      setRestoreError(e instanceof Error ? e.message : tr('failed'));
+      setRestoreError(rpcErrorText(e));
     } finally {
       setRestoring(false);
       setConfirmRestore(false);
@@ -426,7 +428,7 @@ function MapEditor() {
       await saveMap(map);
       void refreshBackups();
     } catch (e) {
-      setSaveError(e instanceof Error ? e.message : tr('failed'));
+      setSaveError(rpcErrorText(e));
     } finally {
       setSaving(false);
     }

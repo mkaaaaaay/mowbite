@@ -2,6 +2,7 @@
 
 import {getMqttClient, unprefix, withPrefix} from '@/lib/mqttClient';
 import {useCallback, useEffect, useState} from 'react';
+import {TOPIC} from '@/lib/openmower';
 
 interface ActionInfo {
   action_id: string;
@@ -22,9 +23,9 @@ export function useMowerActions(): {
   useEffect(() => {
     const c = getMqttClient();
 
-    const onConnect = () => c.subscribe(withPrefix('actions/json'));
+    const onConnect = () => c.subscribe(withPrefix(TOPIC.actions));
     const onMessage = (topic: string, payload: Buffer) => {
-      if (unprefix(topic) !== 'actions/json') return;
+      if (unprefix(topic) !== TOPIC.actions) return;
       try {
         const list: ActionInfo[] = JSON.parse(payload.toString());
         const next: Record<string, boolean> = {};
@@ -50,7 +51,7 @@ export function useMowerActions(): {
 
   // plain text, not json
   const publishAction = useCallback((id: string) => {
-    getMqttClient().publish(withPrefix('action'), id);
+    getMqttClient().publish(withPrefix(TOPIC.action), id);
   }, []);
 
   return {hasAction, publishAction};

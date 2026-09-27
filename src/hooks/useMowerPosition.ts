@@ -2,6 +2,7 @@
 
 import {getMqttClient, unprefix, withPrefix} from '@/lib/mqttClient';
 import {useSyncExternalStore} from 'react';
+import {TOPIC} from '@/lib/openmower';
 
 export interface Position {
   x: number;
@@ -18,11 +19,11 @@ function start() {
   if (started) return;
   started = true;
   const c = getMqttClient();
-  const sub = () => c.subscribe(withPrefix('position/json'));
+  const sub = () => c.subscribe(withPrefix(TOPIC.position));
   c.on('connect', sub);
   if (c.connected) sub();
   c.on('message', (topic, payload) => {
-    if (unprefix(topic) !== 'position/json') return;
+    if (unprefix(topic) !== TOPIC.position) return;
     try {
       const p = JSON.parse(payload.toString());
       if (typeof p.x !== 'number' || typeof p.y !== 'number') return;

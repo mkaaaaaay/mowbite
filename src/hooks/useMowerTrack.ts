@@ -3,6 +3,7 @@
 import {getMqttClient, unprefix, withPrefix} from '@/lib/mqttClient';
 import {callRpc} from '@/lib/rpc';
 import {useSyncExternalStore} from 'react';
+import {RPC, TOPIC} from '@/lib/openmower';
 
 interface Point {
   x: number;
@@ -37,7 +38,7 @@ async function seed(id: string) {
       segments?: {points: [number, number][]; attributes?: {blades?: boolean}}[];
       buffer?: [number, number][];
     }>(
-      'position.history',
+      RPC.jobTrack,
       {job_id: id},
       20000,
     );
@@ -62,19 +63,19 @@ function start() {
   const c = getMqttClient();
   // position/json is much more frequent, robot_state is the fallback for setups without it
   let fast = false;
-  const sub = () => c.subscribe([withPrefix('robot_state/json'), withPrefix('position/json')]);
+  const sub = () => c.subscribe([withPrefix(TOPIC.robotState), withPrefix(TOPIC.position)]);
   c.on('connect', sub);
   if (c.connected) sub();
   c.on('message', (topic, payload) => {
     const name = unprefix(topic);
-    if (name === 'position/json') fast = true;
-    else if (name !== 'robot_state/json' || fast) return;
+    if (name === TOPIC.position) fast = true;
+    else if (name !== TOPIC.robotState || fast) return;
     let pose: Point | undefined;
     try {
       const msg = JSON.parse(payload.toString());
-      pose = name === 'position/json' ? msg : msg.pose;
-      const id = name === 'position/json' ? msg.attributes?.job_id : undefined;
-      if (name === 'position/json') blades = msg.attributes?.blades;
+      pose = name === TOPIC.position ? msg : msg.pose;
+      const id = name === TOPIC.position ? msg.attributes?.job_id : undefined;
+      if (name === TOPIC.position) blades = msg.attributes?.blades;
       if (id && id !== jobId) {
         // new job, new trail
         const first = jobId === null;

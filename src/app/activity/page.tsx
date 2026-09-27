@@ -10,6 +10,7 @@ import Link from 'next/link';
 import {useEffect, useState} from 'react';
 import styles from './page.module.css';
 import {fmt, tr, useLang} from '@/lib/i18n';
+import {PATHS} from '@/lib/openmower';
 
 
 function Timeline({events}: {events: MowerEvent[]}) {
@@ -48,7 +49,6 @@ function problemFacts(run: Run, e: MowerEvent, next?: Run): string[] {
 }
 
 // the mower keeps one file per day, relative to its ros folder
-const HISTORY_DIR = '/home/openmower/ros/event_history/';
 
 function RawEntry({event, file, line}: {event: MowerEvent; file: string; line: number}) {
   const src = eventSource(event);
@@ -224,7 +224,7 @@ export default function ActivityPage() {
   );
   // the rpc returns the file's lines in order
   const lines = new Map((events ?? []).map((e, i) => [e.id, i + 1]));
-  const file = `${HISTORY_DIR}${shown}.jsonl`;
+  const file = `${PATHS.eventHistory}${shown}.jsonl`;
   const runs = entries.flatMap((e) => (e.kind === 'run' ? [e.run] : []));
   const mowed = runs.reduce((s, r) => s + r.bladeSeconds, 0);
   const problems = runs.reduce((s, r) => s + r.problems, 0);
