@@ -87,3 +87,41 @@ export function GpsIcon({size = 20}: IconProps) {
     </svg>
   );
 }
+
+const line = {fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round'} as const;
+
+export function PencilIcon({size = 20}: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...line}>
+      <path d="M4 20h4L19 9l-4-4L4 16z" />
+      <path d="m13.5 6.5 4 4" />
+    </svg>
+  );
+}
+
+// a winding path with a start point, for recording by driving
+export function RouteIcon({size = 20}: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...line}>
+      <circle cx="6" cy="18" r="2" />
+      <path d="M8 18h8a3 3 0 0 0 0-6H8a3 3 0 0 1 0-6h10" />
+    </svg>
+  );
+}
+
+export function UndoIcon({size = 20}: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...line}>
+      <path d="M9 14 4 9l5-5" />
+      <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
+    </svg>
+  );
+}
+
+export function CheckIcon({size = 20}: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...line}>
+      <path d="m5 12.5 4.5 4.5L19 7.5" />
+    </svg>
+  );
+}

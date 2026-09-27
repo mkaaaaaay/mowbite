@@ -69,6 +69,38 @@
   color: #fff;
 }
 
+/* the editor's buttons: two even columns, a small heading over each pair */
+.toolbar {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.toolLabel {
+  grid-column: 1 / -1;
+  margin: 4px 0 -2px 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.toolLabel:first-child {
+  margin-top: 0;
+}
+
+.tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  text-decoration: none;
+}
+
+.toolWide {
+  grid-column: 1 / -1;
+}
+
 .pillButton:disabled {
   color: var(--text-secondary);
   cursor: default;
@@ -222,7 +254,8 @@
   }
 
   .panel .areaEditor,
-  .panel .inlineRow:first-child {
+  .panel .inlineRow:first-child,
+  .panel .toolbar:first-child {
     margin-top: 0;
   }
 }

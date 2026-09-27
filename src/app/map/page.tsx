@@ -1,5 +1,6 @@
 'use client';
 
+import {CheckIcon, PencilIcon, RouteIcon, UndoIcon} from '@/components/icons';
 import {TitleMark} from '@/components/Logo';
 import InfoTip from '@/components/InfoTip';
 import MapView from '@/components/MapView';
@@ -541,35 +542,45 @@ function MapEditor() {
             ) : (
               <>
               {map && (
-                <div className={styles.inlineRow}>
+                <div className={styles.toolbar}>
                   {mode === 'idle' && (
                     <>
-                      <button className={styles.pillButton} onClick={startDraw}>
-                        {tr('Draw area')}
+                      <span className={styles.toolLabel}>{tr('New area')}</span>
+                      <button className={[styles.pillButton, styles.tool].join(' ')} onClick={startDraw}>
+                        <PencilIcon size={16} />
+                        {tr('Draw')}
                       </button>
                       {/* recording adds the area on the mower, unsaved edits here would overwrite it */}
                       {history.length ? (
-                        <span className={[styles.pillButton, styles.disabledLink].join(' ')} title={tr('Save or undo your changes first')}>
-                          {tr('Record by driving')}
+                        <span
+                          className={[styles.pillButton, styles.tool, styles.disabledLink].join(' ')}
+                          title={tr('Save or undo your changes first')}
+                        >
+                          <RouteIcon size={16} />
+                          {tr('Drive around')}
                         </span>
                       ) : (
-                        <Link href="/record" className={styles.pillButton}>
-                          {tr('Record by driving')}
+                        <Link href="/record" className={[styles.pillButton, styles.tool].join(' ')}>
+                          <RouteIcon size={16} />
+                          {tr('Drive around')}
                         </Link>
                       )}
+                      <span className={styles.toolLabel}>{tr('Changes')}</span>
                     </>
                   )}
-                  <button className={styles.pillButton} onClick={undo} disabled={!history.length}>
+                  <button className={[styles.pillButton, styles.tool].join(' ')} onClick={undo} disabled={!history.length}>
+                    <UndoIcon size={16} />
                     {tr('Undo')}
                   </button>
                   <button
-                    className={[styles.pillButton, styles.saveButton, history.length ? styles.unsaved : ''].join(' ')}
+                    className={[styles.pillButton, styles.tool, styles.saveButton, history.length ? styles.unsaved : ''].join(' ')}
                     onClick={() => void handleSave()}
                     disabled={saving}
                   >
+                    <CheckIcon size={16} />
                     {saving ? tr('saving…') : saveWarning && !docked ? tr('Save anyway') : tr('Save map')}
                   </button>
-                  {saveError && <span className={styles.error}>{saveError}</span>}
+                  {saveError && <span className={[styles.error, styles.toolWide].join(' ')}>{saveError}</span>}
                 </div>
               )}
 
