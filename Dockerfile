@@ -4,6 +4,9 @@ WORKDIR /app
 # 1 in the dev image: the schedule can be set up there, the release only shows it for now
 ARG SCHEDULE_EDIT
 ENV NEXT_PUBLIC_SCHEDULE_EDIT=$SCHEDULE_EDIT
+# e.g. dev.42 in the dev image, shown after the version in the settings
+ARG VERSION_SUFFIX
+ENV VERSION_SUFFIX=$VERSION_SUFFIX
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .

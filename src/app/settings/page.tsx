@@ -402,6 +402,8 @@ export default function SettingsPage() {
             })}
           </div>
         </section>
+
+        <p className={styles.version}>MowBite {process.env.APP_VERSION}</p>
       </main>
     </div>
   );

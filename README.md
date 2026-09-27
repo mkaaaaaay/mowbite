@@ -89,6 +89,12 @@ docker buildx build --platform linux/arm64 -t ghcr.io/mkaaaaaay/mowbite:latest -
 docker save ghcr.io/mkaaaaaay/mowbite:latest | ssh openmower@<your-mower> docker load
 ```
 
+### Versions
+
+`latest` is the newest release, `dev` follows the dev branch and might be broken. Every release also
+gets its own tags, e.g. `1.0.0` and `1.0`, if you'd rather stay on one version: change the image in
+`compose.yaml` to `ghcr.io/mkaaaaaay/mowbite:1.0`. The settings page shows which version you have.
+
 ### Update
 
 ```bash
@@ -128,7 +134,8 @@ touched, MowBite doesn't change any OpenMower files.
 
 The same app as an APK, handy on a phone without typing an address into the browser:
 
-- [MowBite.apk](https://github.com/mkaaaaaay/mowbite/releases/download/app/MowBite.apk), the release
+- [MowBite.apk](https://github.com/mkaaaaaay/mowbite/releases/latest/download/MowBite.apk), the latest
+  [release](https://github.com/mkaaaaaay/mowbite/releases)
 - [MowBite-dev.apk](https://github.com/mkaaaaaay/mowbite/releases/download/app-dev/MowBite-dev.apk),
   built from the dev branch, might be broken
 

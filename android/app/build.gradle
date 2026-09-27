@@ -9,7 +9,10 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         // minutes since january 2026, so every newer build is higher, from github or built here
         versionCode ((int) (System.currentTimeMillis() / 60000 - 29462400))
-        versionName System.getenv('MOWBITE_VERSION_NAME') ?: '1.0'
+        // the app's version from package.json, dev builds add e.g. "dev.42"
+        def pkg = new groovy.json.JsonSlurper().parse(file('../../package.json'))
+        def suffix = System.getenv('VERSION_SUFFIX')
+        versionName suffix ? "${pkg.version}-${suffix}" : pkg.version
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

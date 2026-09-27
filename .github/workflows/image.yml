@@ -36,6 +36,7 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
             type=raw,value=dev,enable=${{ github.ref == 'refs/heads/dev' }}
             type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
             type=sha,format=short
 
       - uses: docker/build-push-action@v7
@@ -45,6 +46,8 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          build-args: SCHEDULE_EDIT=${{ github.ref == 'refs/heads/dev' && '1' || '' }}
+          build-args: |
+            SCHEDULE_EDIT=${{ github.ref == 'refs/heads/dev' && '1' || '' }}
+            VERSION_SUFFIX=${{ github.ref == 'refs/heads/dev' && format('dev.{0}', github.run_number) || '' }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

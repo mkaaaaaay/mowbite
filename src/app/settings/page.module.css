@@ -299,3 +299,11 @@
   margin-top: 8px;
   max-width: 200px;
 }
+
+.version {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-secondary);
+  user-select: text;
+  -webkit-user-select: text;
+}

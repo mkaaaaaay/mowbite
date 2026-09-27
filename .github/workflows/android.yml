@@ -1,11 +1,13 @@
 name: android
 
-# builds the android app and puts the apk on a release: "app-dev" (pre-release) from dev, "app"
-# from main. signed with the key from the repo secrets, so a new version installs over the old one
+# builds the android app and puts the apk on a release: a version tag (v1.2.3) gets its own release
+# with MowBite.apk, dev keeps rebuilding the "app-dev" pre-release. signed with the key from the repo
+# secrets, so a new version installs over the old one
 
 on:
   push:
-    branches: [main, dev]
+    branches: [dev]
+    tags: ['v*']
   workflow_dispatch:
 
 permissions:
@@ -15,8 +17,7 @@ jobs:
   apk:
     runs-on: ubuntu-latest
     env:
-      TAG: ${{ github.ref_name == 'main' && 'app' || 'app-dev' }}
-      APK: ${{ github.ref_name == 'main' && 'MowBite.apk' || 'MowBite-dev.apk' }}
+      VERSION_SUFFIX: ${{ github.ref_name == 'dev' && format('dev.{0}', github.run_number) || '' }}
     steps:
       - id: key
         env:
@@ -62,24 +63,30 @@ jobs:
           MOWBITE_KEYSTORE: ${{ runner.temp }}/release.jks
           MOWBITE_KEYSTORE_PASSWORD: ${{ secrets.MOWBITE_KEYSTORE_PASSWORD }}
           MOWBITE_KEY_ALIAS: ${{ secrets.MOWBITE_KEY_ALIAS }}
-          MOWBITE_VERSION_NAME: ${{ github.ref_name }}-${{ github.run_number }}
         run: ./gradlew assembleRelease --no-daemon -q
 
       - if: steps.key.outputs.skip != '1'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp android/app/build/outputs/apk/release/app-release.apk "$APK"
-          if [ "$TAG" = app ]; then
-            title="MowBite app"
-            notes="The MowBite web app as an android app. It connects to the MowBite container on your mower, so that has to be installed there too. Install the apk on your phone and allow installing from this source once."
-            pre=""
+          apk=android/app/build/outputs/apk/release/app-release.apk
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            version=${GITHUB_REF_NAME#v}
+            if [ "$version" != "$(node -p 'require("./package.json").version')" ]; then
+              echo "::error::tag $GITHUB_REF_NAME doesn't match the version in package.json"
+              exit 1
+            fi
+            cp "$apk" MowBite.apk
+            # the release notes are the message of the annotated tag, the checkout only has the commit
+            git fetch -q --force origin "refs/tags/$GITHUB_REF_NAME:refs/tags/$GITHUB_REF_NAME"
+            gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1 ||
+              gh release create "$GITHUB_REF_NAME" --verify-tag --latest --title "MowBite $version" --notes-from-tag
+            gh release upload "$GITHUB_REF_NAME" MowBite.apk --clobber
           else
-            title="MowBite app (dev)"
-            notes="Test version from the dev branch, might be broken. Rebuilt with every change on dev."
-            pre="--prerelease"
+            cp "$apk" MowBite-dev.apk
+            gh release view app-dev > /dev/null 2>&1 || gh release create app-dev --prerelease --title "MowBite app (dev)" \
+              --notes "Test version from the dev branch, might be broken. Rebuilt with every change on dev." --target "$GITHUB_SHA"
+            gh release upload app-dev MowBite-dev.apk --clobber
+            # the tag follows the newest build
+            git tag -f app-dev && git push -f origin refs/tags/app-dev
           fi
-          gh release view "$TAG" > /dev/null 2>&1 || gh release create "$TAG" $pre --title "$title" --notes "$notes" --target "$GITHUB_SHA"
-          gh release upload "$TAG" "$APK" --clobber
-          # the tag follows the newest build
-          git tag -f "$TAG" && git push -f origin "refs/tags/$TAG"
