@@ -1,9 +1,8 @@
-import {beforeAll, describe, expect, it} from 'vitest';
+import {describe, expect, it} from 'vitest';
 import {nextStart, parseSchedule, posixTz, serializeSchedule, type Schedule} from './schedule';
 
-beforeAll(() => {
-  process.env.TZ = 'Europe/Berlin';
-});
+// the dates below are local times, so the same zone everywhere (github runs in UTC)
+process.env.TZ = 'Europe/Berlin';
 
 const plan = (days: number[], time: string, areas: string[] = []) => ({days, time, areas});
 const schedule = (plans: Schedule['plans'], enabled = true): Schedule => ({
