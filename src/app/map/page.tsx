@@ -562,7 +562,11 @@ function MapEditor() {
                   <button className={styles.pillButton} onClick={undo} disabled={!history.length}>
                     {tr('Undo')}
                   </button>
-                  <button className={styles.pillButton} onClick={() => void handleSave()} disabled={saving}>
+                  <button
+                    className={[styles.pillButton, styles.saveButton, history.length ? styles.unsaved : ''].join(' ')}
+                    onClick={() => void handleSave()}
+                    disabled={saving}
+                  >
                     {saving ? tr('saving…') : saveWarning && !docked ? tr('Save anyway') : tr('Save map')}
                   </button>
                   {saveError && <span className={styles.error}>{saveError}</span>}

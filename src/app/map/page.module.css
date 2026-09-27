@@ -57,6 +57,18 @@
   -webkit-backdrop-filter: var(--card-blur, none);
 }
 
+/* easy to miss otherwise. green outline, filled once there's something to save */
+.saveButton {
+  border-color: var(--success);
+  color: var(--success);
+  font-weight: 600;
+}
+
+.saveButton.unsaved {
+  background: var(--success);
+  color: #fff;
+}
+
 .pillButton:disabled {
   color: var(--text-secondary);
   cursor: default;
