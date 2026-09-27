@@ -1,9 +1,7 @@
 'use client';
 
 import {usePathname, useRouter} from 'next/navigation';
-import {lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore} from 'react';
-import {createPortal} from 'react-dom';
-import layout from '@/app/layout.module.css';
+import {useEffect, useSyncExternalStore} from 'react';
 
 // the pages in the order of the tab bar
 const ORDER = ['/', '/map', '/sensors', '/schedule', '/activity', '/settings'];
@@ -48,73 +46,32 @@ function claimsSwipe(el: Element | null): boolean {
   return false;
 }
 
-// the neighbour page is rendered for real while swiping, so it's there even on the first swipe
-const LOAD: Record<string, () => Promise<{default: React.ComponentType}>> = {
-  '/': () => import('@/app/page'),
-  '/map': () => import('@/app/map/page'),
-  '/sensors': () => import('@/app/sensors/page'),
-  '/schedule': () => import('@/app/schedule/page'),
-  '/activity': () => import('@/app/activity/page'),
-  '/settings': () => import('@/app/settings/page'),
-};
-const PAGES = Object.fromEntries(Object.entries(LOAD).map(([p, load]) => [p, lazy(load)]));
-
 const calm = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-const page = () => document.querySelector<HTMLElement>('[data-page]');
-const EASE = 'cubic-bezier(0.2, 0.8, 0.2, 1)';
 
-// set when a swipe navigates, until the new page is rendered
-let entering = false;
+// set when a swipe navigates, so the next page slides in from the right side
+let entering = 0;
 
 // optional (settings, per device): swipe left/right between the pages on a phone.
-// the page follows the finger with the next one right beside it, like turning pages
+// the page follows the finger, the next one slides in after it
 export default function SwipeNav() {
   const router = useRouter();
   const path = usePathname().replace(/(.)\/$/, '$1');
-  // the page shown beside the current one, and on which side
-  const [peek, setPeek] = useState<{path: string; side: number} | null>(null);
-  const box = useRef<HTMLDivElement>(null);
 
-  // the new page is rendered: put it in place under the peek. it still fetches its data, so the
-  // peek stays on top until the page stops changing, then fades out. no empty flash in between
-  useLayoutEffect(() => {
-    const el = page();
+  // the new page is rendered, bring it in
+  useEffect(() => {
+    const el = document.querySelector<HTMLElement>('[data-page]');
     if (!entering || !el) return;
-    entering = false;
+    const from = entering;
+    entering = 0;
     el.style.transition = 'none';
+    el.style.translate = `${from * window.innerWidth * 0.3}px 0`;
+    el.style.opacity = '0';
+    void el.offsetWidth;
+    el.style.transition = 'translate 0.28s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.22s ease-out';
     el.style.translate = '';
     el.style.opacity = '';
-    let quiet: ReturnType<typeof setTimeout> | undefined;
-    let gone: ReturnType<typeof setTimeout> | undefined;
-    const reveal = () => {
-      watch.disconnect();
-      clearTimeout(quiet);
-      clearTimeout(latest);
-      const b = box.current;
-      if (b) {
-        b.style.transition = 'opacity 0.2s ease-out';
-        b.style.opacity = '0';
-      }
-      gone = setTimeout(() => setPeek(null), 220);
-    };
-    const settled = () => {
-      clearTimeout(quiet);
-      quiet = setTimeout(reveal, 200);
-    };
-    // attributes change all the time on the map (the mower moving), only new content counts
-    const watch = new MutationObserver(settled);
-    watch.observe(el, {childList: true, subtree: true, characterData: true});
-    settled();
-    // don't wait forever on a page that keeps changing
-    const latest = setTimeout(reveal, 1500);
-    return () => {
-      watch.disconnect();
-      clearTimeout(quiet);
-      clearTimeout(latest);
-      clearTimeout(gone);
-      // left again before it was done: don't leave the peek behind
-      setTimeout(() => setPeek(null), 0);
-    };
+    const done = setTimeout(() => (el.style.transition = ''), 300);
+    return () => clearTimeout(done);
   }, [path]);
 
   useEffect(() => {
@@ -125,37 +82,23 @@ export default function SwipeNav() {
       const n = i === -1 ? -1 : i + (dx < 0 ? 1 : -1);
       return n >= 0 && n < ORDER.length ? ORDER[n] : null;
     };
-    let drag: {x: number; y: number; t: number; axis: 'x' | 'y' | null; el: HTMLElement | null; side: number} | null =
-      null;
+    let drag: {x: number; y: number; t: number; axis: 'x' | 'y' | null; el: HTMLElement | null} | null = null;
     let dx = 0;
-    const w = () => window.innerWidth;
 
-    // back to where it was
-    const settle = (el: HTMLElement | null, side: number) => {
-      const t = `translate 0.3s ${EASE}, opacity 0.2s`;
-      if (el) {
-        el.style.transition = t;
-        el.style.translate = '';
-        el.style.opacity = '';
-      }
-      const b = box.current;
-      if (b && side) {
-        b.style.transition = t;
-        b.style.translate = `${side * w()}px 0`;
-      }
-      setTimeout(() => setPeek(null), 320);
+    const settle = (el: HTMLElement) => {
+      el.style.transition = 'translate 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.15), opacity 0.2s';
+      el.style.translate = '';
+      el.style.opacity = '';
     };
 
     const down = (e: TouchEvent) => {
       const t = e.touches[0];
       drag = null;
       // the screen edges are android's back gesture
-      if (!swipeEnabled() || e.touches.length > 1 || t.clientX < 24 || t.clientX > w() - 24) return;
+      if (!swipeEnabled() || e.touches.length > 1 || t.clientX < 24 || t.clientX > window.innerWidth - 24) return;
       if (claimsSwipe(e.target as Element)) return;
-      drag = {x: t.clientX, y: t.clientY, t: e.timeStamp, axis: null, el: page(), side: 0};
+      drag = {x: t.clientX, y: t.clientY, t: e.timeStamp, axis: null, el: document.querySelector('[data-page]')};
       dx = 0;
-      // have the neighbours' code ready before the finger moves
-      ORDER.forEach((p, n) => Math.abs(n - i) === 1 && void LOAD[p]());
     };
     const move = (e: TouchEvent) => {
       if (!drag) return;
@@ -165,27 +108,17 @@ export default function SwipeNav() {
       if (!drag.axis) {
         if (Math.max(Math.abs(dx), Math.abs(dy)) < 10) return;
         drag.axis = Math.abs(dx) > Math.abs(dy) * 1.5 ? 'x' : 'y';
-        if (drag.axis === 'x') ORDER.forEach((p, n) => Math.abs(n - i) === 1 && router.prefetch(p));
+        const next = neighbour(dx);
+        if (drag.axis === 'x' && next) router.prefetch(next);
       }
       if (drag.axis !== 'x') return;
       e.preventDefault();
       if (!drag.el || calm()) return;
-      const next = neighbour(dx);
-      // the next page sits right of the current one, the previous left of it
-      const side = dx < 0 ? 1 : -1;
-      if (drag.side !== side) {
-        drag.side = side;
-        setPeek(next ? {path: next, side} : null);
-      }
       // at the first/last page it only gives a little
-      const shown = next ? dx : dx * 0.25;
+      const shown = neighbour(dx) ? dx : dx * 0.25;
       drag.el.style.transition = 'none';
       drag.el.style.translate = `${shown}px 0`;
-      const b = box.current;
-      if (b && next) {
-        b.style.transition = 'none';
-        b.style.translate = `${shown + side * w()}px 0`;
-      }
+      drag.el.style.opacity = neighbour(dx) ? String(1 - Math.min(Math.abs(dx) / window.innerWidth, 1) * 0.4) : '';
     };
     const up = (e: TouchEvent) => {
       const d = drag;
@@ -193,9 +126,9 @@ export default function SwipeNav() {
       if (!d || d.axis !== 'x') return;
       const next = neighbour(dx);
       const quick = e.timeStamp - d.t < 400;
-      const go = next && (Math.abs(dx) > w() * 0.3 || (quick && Math.abs(dx) > 60));
+      const go = next && (Math.abs(dx) > window.innerWidth * 0.3 || (quick && Math.abs(dx) > 60));
       if (!go) {
-        settle(d.el, d.side);
+        if (d.el) settle(d.el);
         return;
       }
       const dir = dx < 0 ? 1 : -1;
@@ -203,29 +136,24 @@ export default function SwipeNav() {
         router.push(next);
         return;
       }
-      // the rest of the way, quicker the further it already is
-      const ms = Math.round(120 + 180 * (1 - Math.min(Math.abs(dx) / w(), 1)));
+      d.el.style.transition = 'translate 0.15s ease-in, opacity 0.15s ease-in';
+      d.el.style.translate = `${-dir * window.innerWidth * 0.5}px 0`;
+      d.el.style.opacity = '0';
       const el = d.el;
-      el.style.transition = `translate ${ms}ms ${EASE}`;
-      el.style.translate = `${-dir * w()}px 0`;
-      const b = box.current;
-      if (b) {
-        b.style.transition = `translate ${ms}ms ${EASE}`;
-        b.style.translate = '0px 0';
-      }
       setTimeout(() => {
-        entering = true;
+        entering = dir;
         router.push(next);
-        // in case the page never changes, don't leave it off screen
+        // in case the page never changes, don't leave it hidden
         setTimeout(() => {
-          if (!entering) return;
-          entering = false;
-          settle(el, 0);
-        }, 2000);
-      }, ms);
+          if (entering) {
+            entering = 0;
+            settle(el);
+          }
+        }, 1500);
+      }, 140);
     };
     const cancel = () => {
-      if (drag?.axis === 'x') settle(drag.el, drag.side);
+      if (drag?.axis === 'x' && drag.el) settle(drag.el);
       drag = null;
     };
     window.addEventListener('touchstart', down, {passive: true});
@@ -241,29 +169,5 @@ export default function SwipeNav() {
     };
   }, [path, router]);
 
-  if (!peek) return null;
-  const Peek = PAGES[peek.path];
-  return createPortal(
-    <div
-      ref={box}
-      aria-hidden
-      inert
-      style={{
-        position: 'fixed',
-        inset: 0,
-        overflow: 'hidden',
-        pointerEvents: 'none',
-        background: 'var(--background)',
-        zIndex: 1,
-        translate: `${peek.side * 100}vw 0`,
-      }}
-    >
-      <div className={layout.content}>
-        <Suspense fallback={null}>
-          <Peek />
-        </Suspense>
-      </div>
-    </div>,
-    document.body,
-  );
+  return null;
 }
