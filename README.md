@@ -20,7 +20,9 @@ MowBite is a community project and not affiliated with the OpenMower project.
   the docking station, with a live preview of what's being recorded. The mower stops as soon as
   the stick is let go, the app is left or the connection drops.
 - **Mowing settings per area**: outline passes, overlap, offset and mow angle, with a preview of the
-  mowing direction. The preview follows the same rules as the mower, including `mow_angle_offset`.
+  mowing plan: the outline passes around the area and its obstacles and the stripes inside, worked
+  out like OpenMower's planner does it (including `mow_angle_offset`). It's an approximation, the
+  order the mower drives the pieces in isn't shown.
 - **Mowing order** of the areas.
 - **Tracks**: the trail of the current mow and of past mows, read from the mower's own history.
   Driving without blades is drawn dashed.
