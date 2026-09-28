@@ -48,6 +48,11 @@
   stroke-dasharray: 4 3;
 }
 
+/* drivable but not mowed: faint like inactive, but the edge stays solid */
+.skipMowing {
+  fill-opacity: 0.08;
+}
+
 .selected {
   fill: none;
   stroke: var(--c-selected);

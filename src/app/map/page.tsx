@@ -511,6 +511,20 @@ function MapEditor() {
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
 
+  // an openmower that doesn't know skip_mowing drops it when saving, noticed once its map comes back
+  const [skipSaved, setSkipSaved] = useState<{ids: string[]; before: MowerMap | null} | null>(null);
+  const skipUnsupported = useMemo(
+    () =>
+      !!skipSaved &&
+      !!liveMap &&
+      liveMap !== skipSaved.before &&
+      skipSaved.ids.some((id) => {
+        const a = liveMap.areas.find((x) => x.id === id);
+        return a && !a.properties.skip_mowing;
+      }),
+    [skipSaved, liveMap],
+  );
+
   const handleSave = async () => {
     if (!map) return;
     // saving while the mower is out can make it lose track of the area it's on, ask first
@@ -525,6 +539,7 @@ function MapEditor() {
       // the version on the mower goes into the backups first, so every save can be undone
       if (backups && liveMap) await saveBackup(liveMap, 'before saving', true).catch(() => {});
       await saveMap(map);
+      setSkipSaved({ids: map.areas.filter((a) => a.properties.skip_mowing).map((a) => a.id), before: liveMap});
       void refreshBackups();
     } catch (e) {
       setSaveError(rpcErrorText(e));
@@ -707,6 +722,7 @@ function MapEditor() {
                   onSimplify={() => setSimplifyCm(5)}
                   onDelete={deleteArea}
                   onDeleteBlur={() => setConfirmDelete(null)}
+                  skipUnsupported={skipUnsupported}
                 />
               )}
 

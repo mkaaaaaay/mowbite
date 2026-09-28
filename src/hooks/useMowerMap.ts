@@ -17,6 +17,8 @@ export interface MapArea {
     name?: string;
     type?: string;
     active?: boolean;
+    // drivable but left out when mowing, needs an openmower that knows it (older ones drop it when saving)
+    skip_mowing?: boolean;
     // per area overrides, missing = the mower's global setting
     outline_count?: number;
     outline_overlap_count?: number;

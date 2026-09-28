@@ -16,6 +16,7 @@ export default function AreaCard({
   onSimplify,
   onDelete,
   onDeleteBlur,
+  skipUnsupported,
 }: {
   area: Area;
   showTools: boolean;
@@ -27,6 +28,8 @@ export default function AreaCard({
   onSimplify: () => void;
   onDelete: () => void;
   onDeleteBlur: () => void;
+  // the last save had "don't mow" in it, but the map from the mower came back without
+  skipUnsupported: boolean;
 }) {
   const type = area.properties.type ?? 'draft';
   const tool = [styles.pillButton, styles.tool].join(' ');
@@ -61,6 +64,24 @@ export default function AreaCard({
             {tr("Inactive areas are ignored by the mower. Careful with mowing areas: an inactive one is also no longer drivable, so the mower gets stuck if it stands on it.")}
           </InfoTip>
         </label>
+        {type === 'mow' && area.properties.active !== false && (
+          <label className={styles.toggle}>
+            <input
+              type="checkbox"
+              checked={!!area.properties.skip_mowing}
+              onChange={() => update({skip_mowing: area.properties.skip_mowing ? undefined : true})}
+            />
+            {tr("don't mow")}
+            <InfoTip>
+              {tr("Left out when mowing, but the mower can still drive across it, unlike an inactive area. Needs an OpenMower version that knows it.")}
+            </InfoTip>
+          </label>
+        )}
+        {skipUnsupported && (
+          <p className={styles.warning}>
+            {tr("Your OpenMower version doesn't know \"don't mow\" yet, it got dropped when saving. The area will be mowed.")}
+          </p>
+        )}
         <span className={styles.dim}>
           {tr(AREA_TYPES.find((t) => t.value === type)?.hint ?? '')}
           {' · '}
