@@ -120,6 +120,7 @@ export default function Home() {
     void loadSchedule().then(setSchedule);
   }, []);
   const planned = schedule ? nextStart(schedule) : null;
+  const [confirmReset, setConfirmReset] = useState(false);
 
   const current = state?.current_state ?? '';
   const driving = DRIVING.has(current);
@@ -216,6 +217,27 @@ export default function Home() {
                   {tr(a.label)}
                 </button>
               ))}
+              {hasAction(ACTION.resetJob) &&
+                !state.emergency &&
+                (confirmReset ? (
+                  <div className={styles.resetJob}>
+                    <span>{tr('Drop the interrupted job? The next start mows from the beginning.')}</span>
+                    <button
+                      className={styles.reset}
+                      onClick={() => {
+                        publishAction(ACTION.resetJob);
+                        setConfirmReset(false);
+                      }}
+                    >
+                      {tr('Drop it')}
+                    </button>
+                    <button onClick={() => setConfirmReset(false)}>{tr('Cancel')}</button>
+                  </div>
+                ) : (
+                  <button className={styles.resetJobButton} onClick={() => setConfirmReset(true)}>
+                    {tr('Drop the interrupted job')}
+                  </button>
+                ))}
               {!!state.emergency && (
                 <button className={styles.reset} onClick={() => publishAction(ACTION_RESET_EMERGENCY)}>
                   <WarningIcon size={20} />

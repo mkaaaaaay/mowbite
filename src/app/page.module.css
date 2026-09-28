@@ -237,6 +237,31 @@
   color: var(--error);
 }
 
+.controls .resetJobButton {
+  grid-column: 1 / -1;
+  padding: 8px;
+  border-style: dashed;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.controls .resetJob {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.controls .resetJob span {
+  flex: 1 1 100%;
+}
+
+.controls .resetJob button {
+  flex: 1;
+}
+
 @media (max-width: 600px) {
   .controls button:not(.reset) {
     flex-direction: column;

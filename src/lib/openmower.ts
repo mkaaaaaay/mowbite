@@ -37,6 +37,8 @@ export const ACTION = {
   skipArea: 'mower_logic:mowing/skip_area',
   resetEmergency: 'mower_logic/reset_emergency',
   startRecording: 'mower_logic:idle/start_area_recording',
+  // drops an interrupted job, only offered while idle with one (needs an openmower that has it)
+  resetJob: 'mower_logic:idle/reset_job',
   // the steps while recording an area, e.g. finish_mowing_area
   recording: (step: string) => `mower_logic:area_recording/${step}`,
 } as const;
