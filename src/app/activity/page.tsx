@@ -10,7 +10,8 @@ import Link from 'next/link';
 import {useEffect, useState} from 'react';
 import styles from './page.module.css';
 import {fmt, tr, useLang} from '@/lib/i18n';
-import {PATHS} from '@/lib/openmower';
+import {PARAM, PATHS} from '@/lib/openmower';
+import {numParam, useMowerParams} from '@/hooks/useMowerParams';
 
 
 function Timeline({events}: {events: MowerEvent[]}) {
@@ -80,7 +81,8 @@ function RawEntry({event, file, line}: {event: MowerEvent; file: string; line: n
 function ProblemItem({run, next, event, state, where}: {run: Run; next?: Run; event: MowerEvent; state?: string; where: Where}) {
   const [raw, setRaw] = useState(false);
   const {text, severity} = describe(event, state);
-  const hint = explain(event, state);
+  const params = useMowerParams();
+  const hint = explain(event, state, numParam(params, PARAM.mowerLogic('gps_timeout')));
   return (
     <li className={styles[severity]}>
       <div>
