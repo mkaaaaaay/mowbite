@@ -23,8 +23,8 @@ export function readPaths(answer: {paths?: PlannerPath[]} | PlannerPath[]): Plan
   const paths = Array.isArray(answer) ? answer : (answer.paths ?? []);
   return paths.map((p) => {
     const pts = points(p);
-    // without pose_index every point is a pose
-    const index = p.pose_index?.length === pts.length ? p.pose_index : pts.map((_, i) => i);
+    // the points come simplified, only pose_index says which pose of the full path each one is
+    const index = p.pose_index?.length === pts.length ? p.pose_index : p.path?.poses ? pts.map((_, i) => i) : undefined;
     return {outline: !!(p.is_outline || p.outline), points: pts, index};
   });
 }

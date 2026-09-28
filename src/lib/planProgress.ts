@@ -7,7 +7,7 @@ import type {Point} from '@/hooks/useMowerMap';
 export interface PlanPath {
   outline: boolean;
   points: Point[];
-  index: number[]; // pose index per point, rising
+  index?: number[]; // pose index per point, rising. without it there's no telling how far the mower got
 }
 
 export interface PlanProgress {
@@ -20,7 +20,8 @@ export interface PlanProgress {
 
 export const length = (pts: Point[]) => pts.reduce((s, p, i) => (i ? s + Math.hypot(p.x - pts[i - 1].x, p.y - pts[i - 1].y) : 0), 0);
 
-export function splitPlan(paths: PlanPath[], path: number, pose: number): PlanProgress {
+export function splitPlan(paths: PlanPath[], path: number, pose: number): PlanProgress | null {
+  if (paths.some((p) => !p.index)) return null;
   const done: Point[][] = [];
   const todo: Point[][] = [];
   paths.forEach((p, i) => {
@@ -28,13 +29,14 @@ export function splitPlan(paths: PlanPath[], path: number, pose: number): PlanPr
     else if (i > path) todo.push(p.points);
     else {
       // the point between the two poses it's between
+      const index = p.index!;
       let k = 0;
-      while (k + 1 < p.index.length && p.index[k + 1] <= pose) k++;
+      while (k + 1 < index.length && index[k + 1] <= pose) k++;
       const a = p.points[k];
       const b = p.points[k + 1];
       let at = a;
-      if (b && p.index[k + 1] > p.index[k]) {
-        const t = Math.min(1, Math.max(0, (pose - p.index[k]) / (p.index[k + 1] - p.index[k])));
+      if (b && index[k + 1] > index[k]) {
+        const t = Math.min(1, Math.max(0, (pose - index[k]) / (index[k + 1] - index[k])));
         at = {x: a.x + t * (b.x - a.x), y: a.y + t * (b.y - a.y)};
       }
       done.push([...p.points.slice(0, k + 1), at]);

@@ -14,6 +14,8 @@ const line = (y: number, n: number): PlanPath => ({
 describe('splitPlan', () => {
   it('splits the current path at the pose the mower is at', () => {
     const r = splitPlan([line(0, 10), line(1, 10), line(2, 10)], 1, 4);
+    expect(r).not.toBeNull();
+    if (!r) return;
     expect(r.done).toHaveLength(2);
     expect(r.todo).toHaveLength(2);
     expect(r.done[1].at(-1)).toEqual({x: 4, y: 1});
@@ -22,8 +24,12 @@ describe('splitPlan', () => {
   });
 
   it('is all to do before the first pose and all done after the last', () => {
-    expect(splitPlan([line(0, 10)], 0, 0).fraction).toBe(0);
-    expect(splitPlan([line(0, 10)], 0, 10).fraction).toBe(1);
-    expect(splitPlan([line(0, 10)], 1, 0).fraction).toBe(1);
+    expect(splitPlan([line(0, 10)], 0, 0)?.fraction).toBe(0);
+    expect(splitPlan([line(0, 10)], 0, 10)?.fraction).toBe(1);
+    expect(splitPlan([line(0, 10)], 1, 0)?.fraction).toBe(1);
+  });
+
+  it("can't tell without the pose index of the points", () => {
+    expect(splitPlan([{...line(0, 10), index: undefined}], 0, 5)).toBeNull();
   });
 });
