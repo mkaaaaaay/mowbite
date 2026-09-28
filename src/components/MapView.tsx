@@ -635,7 +635,7 @@ export default function MapView({
         {progress && !hidden.has('stripes') && (
           <>
             <path
-              className={styles.planTodo}
+              className={[styles.planTodo, layerOn(hidden, 'planSolid') ? styles.solid : ''].join(' ')}
               d={progress.todo.map((o) => o.map((p, i) => `${i ? 'L' : 'M'}${toScreen(p.x, p.y).join(' ')}`).join('')).join('')}
             />
             {layerOn(hidden, 'planDone') && (

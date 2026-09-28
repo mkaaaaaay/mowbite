@@ -314,6 +314,7 @@ const de: Record<string, string> = {
   "Remove last point": "Letzten Punkt entfernen",
   "Reset all": "Alle zurücksetzen",
   "Reset emergency": "Notaus zurücksetzen",
+  "Rest of the plan as a solid line": "Rest des Plans durchgezogen",
   "Restore": "Wiederherstellen",
   "Restoring replaces the map on the mower with this one. The current map is backed up first, so this can be undone.": "Wiederherstellen ersetzt die Karte auf dem Mäher durch diese. Die aktuelle Karte wird vorher gesichert, das lässt sich also rückgängig machen.",
   "restoring…": "stelle wieder her…",

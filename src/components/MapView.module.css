@@ -327,6 +327,10 @@
   pointer-events: none;
 }
 
+.planTodo.solid {
+  stroke-dasharray: none;
+}
+
 .planDone {
   fill: none;
   stroke: var(--c-mow);

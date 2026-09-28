@@ -11,11 +11,12 @@ export const LAYERS = [
   {key: 'track', label: 'Track'},
   {key: 'transit', label: 'Driving without blades'},
   {key: 'planDone', label: 'Mowed part of the plan'},
+  {key: 'planSolid', label: 'Rest of the plan as a solid line'},
 ] as const;
 export type Layer = (typeof LAYERS)[number]['key'];
 
 // off until switched on, the others the other way round
-const OFF_BY_DEFAULT: ReadonlySet<Layer> = new Set<Layer>(['planDone']);
+const OFF_BY_DEFAULT: ReadonlySet<Layer> = new Set<Layer>(['planDone', 'planSolid']);
 
 // the menu keeps the layers switched away from their default
 export const layerOn = (flipped: Set<Layer>, l: Layer) => flipped.has(l) === OFF_BY_DEFAULT.has(l);
