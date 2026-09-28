@@ -22,7 +22,7 @@ import {Suspense, useEffect, useMemo, useState} from 'react';
 import styles from './page.module.css';
 import {tr, useLang} from '@/lib/i18n';
 import MapBackups, {backupLabel} from '@/components/MapBackups';
-import {deleteBackup, listBackups, loadBackup, saveBackup, type BackupInfo} from '@/lib/backups';
+import {angleChangedSince, deleteBackup, listBackups, loadBackup, saveBackup, type BackupInfo} from '@/lib/backups';
 import AreaCard from './AreaCard';
 import {DEG, type UpdateArea} from './editing';
 import EditorToolbar from './EditorToolbar';
@@ -127,7 +127,6 @@ function MapEditor() {
   // the angle the planner actually gets, see MowingBehavior.cpp
   const plannedAngle = (area: {properties: {angle?: number}; outline: Point[]}) =>
     offsetIsAbsolute ? angleOffset * DEG : (area.properties.angle ?? autoMowAngle(area.outline)) + angleOffset * DEG;
-  const effectiveAngle = shownArea ? plannedAngle(shownArea) + previewCorrection * DEG : 0;
 
   // check against the last real mow here, a leftover angle increment in checkpoint.bag isn't
   // published anywhere and rotates everything. saved area, not the edited one
@@ -144,11 +143,34 @@ function MapEditor() {
       const planned = (((plannedAngle(savedArea) / DEG) % 180) + 180) % 180;
       const diff = stripeAngleDiff(planned, m.angleDeg);
       if (Math.abs(diff) > 8) {
-        mismatch = {measured: m.angleDeg, planned, diff, date: new Date(job.timestamp * 1000).toLocaleDateString()};
+        mismatch = {
+          measured: m.angleDeg,
+          planned,
+          diff,
+          date: new Date(job.timestamp * 1000).toLocaleDateString(),
+          since: job.timestamp,
+        };
       }
       break;
     }
   }
+  // not a leftover in checkpoint.bag if the angle got changed on purpose since that mow: a backup from after it
+  // (made before a save) has a different one
+  const mismatchKey = mismatch && savedArea ? `${savedArea.id} ${mismatch.since} ${savedArea.properties.angle}` : '';
+  const [changedOnPurpose, setChangedOnPurpose] = useState<string | null>(null);
+  useEffect(() => {
+    if (!mismatchKey) return;
+    const [id, since, angle] = mismatchKey.split(' ');
+    let alive = true;
+    void angleChangedSince(id, Number(since), angle === 'undefined' ? undefined : Number(angle)).then(
+      (changed) => alive && changed && setChangedOnPurpose(mismatchKey),
+    );
+    return () => {
+      alive = false;
+    };
+  }, [mismatchKey]);
+  if (mismatchKey && changedOnPurpose === mismatchKey) mismatch = null;
+  const effectiveAngle = shownArea ? plannedAngle(shownArea) + (mismatch ? previewCorrection : 0) * DEG : 0;
 
   // the real plan from the mower when it offers one, only for the saved map (no local edits)
   const [fromMower, setFromMower] = useState<{areaId: string; plan: MowPlan | null} | null>(null);

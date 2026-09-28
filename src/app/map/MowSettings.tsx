@@ -9,6 +9,7 @@ export interface AngleMismatch {
   planned: number;
   diff: number;
   date: string;
+  since: number; // unix seconds, when that mow started
 }
 
 // what the mower's own parameters do to the angle, shown so the preview makes sense
