@@ -7,7 +7,7 @@ import {settingsStore} from '@/lib/settings';
 import {dockIcon, mowerIcon} from './mapIcons';
 import {availableSources, imageryTiles, type Datum, type ImagerySource} from '@/lib/imagery';
 import {handleRadius, meterGrid} from '@/lib/mapGrid';
-import MapControls, {layerOn, type Layer} from './MapControls';
+import MapControls, {layerOn, type Layer, type PlanStyle} from './MapControls';
 import {useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import styles from './MapView.module.css';
 import {tr, useLang} from '@/lib/i18n';
@@ -173,6 +173,14 @@ export default function MapView({
     }
   });
   const [layersOpen, setLayersOpen] = useState(false);
+  const [planStyle, setPlanStyle] = useState<PlanStyle>(() => {
+    try {
+      const v = localStorage.getItem('planStyle');
+      return v === 'solid' || v === 'dots' ? v : 'dashed';
+    } catch {
+      return 'dashed';
+    }
+  });
   const toggleLayer = (l: Layer) => {
     const next = new Set(hidden);
     if (next.has(l)) next.delete(l);
@@ -635,7 +643,7 @@ export default function MapView({
         {progress && !hidden.has('stripes') && (
           <>
             <path
-              className={[styles.planTodo, layerOn(hidden, 'planSolid') ? styles.solid : ''].join(' ')}
+              className={[styles.planTodo, styles[planStyle]].join(' ')}
               d={progress.todo.map((o) => o.map((p, i) => `${i ? 'L' : 'M'}${toScreen(p.x, p.y).join(' ')}`).join('')).join('')}
             />
             {layerOn(hidden, 'planDone') && (
@@ -832,6 +840,19 @@ export default function MapView({
         onToggleLayer={toggleLayer}
         layersOpen={layersOpen}
         onLayersOpen={setLayersOpen}
+        planStyle={
+          progress
+            ? {
+                value: planStyle,
+                onChange: (st) => {
+                  setPlanStyle(st);
+                  try {
+                    localStorage.setItem('planStyle', st);
+                  } catch {}
+                },
+              }
+            : undefined
+        }
         reset={
           view || (follow && followZoom !== 1)
             ? {

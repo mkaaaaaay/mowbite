@@ -11,12 +11,19 @@ export const LAYERS = [
   {key: 'track', label: 'Track'},
   {key: 'transit', label: 'Driving without blades'},
   {key: 'planDone', label: 'Mowed part of the plan'},
-  {key: 'planSolid', label: 'Rest of the plan as a solid line'},
 ] as const;
 export type Layer = (typeof LAYERS)[number]['key'];
 
 // off until switched on, the others the other way round
-const OFF_BY_DEFAULT: ReadonlySet<Layer> = new Set<Layer>(['planDone', 'planSolid']);
+const OFF_BY_DEFAULT: ReadonlySet<Layer> = new Set<Layer>(['planDone']);
+
+// how the part of the plan still to mow is drawn: dots are pellets for the pac-man mower to eat
+export const PLAN_STYLES = [
+  {key: 'dashed', label: 'dashed'},
+  {key: 'solid', label: 'solid'},
+  {key: 'dots', label: 'pellets'},
+] as const;
+export type PlanStyle = (typeof PLAN_STYLES)[number]['key'];
 
 // the menu keeps the layers switched away from their default
 export const layerOn = (flipped: Set<Layer>, l: Layer) => flipped.has(l) === OFF_BY_DEFAULT.has(l);
@@ -34,6 +41,7 @@ export default function MapControls({
   onToggleLayer,
   layersOpen,
   onLayersOpen,
+  planStyle,
   reset,
 }: {
   // factor < 1 zooms in
@@ -48,6 +56,8 @@ export default function MapControls({
   onToggleLayer: (l: Layer) => void;
   layersOpen: boolean;
   onLayersOpen: (open: boolean) => void;
+  // only while there's a plan being mowed
+  planStyle?: {value: PlanStyle; onChange: (s: PlanStyle) => void};
   // shown when zoomed or panned, follow: the view follows the mower
   reset: {follow: boolean; onReset: () => void} | null;
 }) {
@@ -111,6 +121,18 @@ export default function MapControls({
               {tr(l.label)}
             </label>
           ))}
+          {planStyle && (
+            <label>
+              {tr('Rest of the plan')}
+              <select value={planStyle.value} onChange={(e) => planStyle.onChange(e.target.value as PlanStyle)}>
+                {PLAN_STYLES.map((st) => (
+                  <option key={st.key} value={st.key}>
+                    {tr(st.label)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
         </div>
       )}
       {source && (

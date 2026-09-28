@@ -226,6 +226,16 @@
   accent-color: var(--accent);
 }
 
+.layers select {
+  margin-left: auto;
+  padding: 2px 4px;
+  border-radius: 6px;
+  border: 1px solid var(--card-border);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
 .loupe {
   position: absolute;
   border-radius: 50%;
@@ -329,6 +339,15 @@
 
 .planTodo.solid {
   stroke-dasharray: none;
+}
+
+/* pac-man pellets: zero length dashes with round ends */
+.planTodo.dots {
+  stroke: #ffd54f;
+  stroke-opacity: 0.9;
+  stroke-width: 2.4;
+  stroke-dasharray: 0 7;
+  stroke-linecap: round;
 }
 
 .planDone {
