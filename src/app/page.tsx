@@ -199,8 +199,11 @@ export default function Home() {
 
             <div className={styles.controls}>
               {ACTIONS.map((a) =>
-                // paused: the pause button turns into continue
-                a.id === ACTION.pause && hasAction(ACTION.resume) ? {...a, id: ACTION.resume, Icon: PlayIcon, label: 'Continue'} : a,
+                // paused: the pause button turns into continue. only by the state, the mower also offers continue
+                // while mowing until it was paused once
+                a.id === ACTION.pause && state.current_state === 'PAUSED' && hasAction(ACTION.resume)
+                  ? {...a, id: ACTION.resume, Icon: PlayIcon, label: 'Continue'}
+                  : a,
               ).map((a) => (
                 <button
                   key={a.id}
