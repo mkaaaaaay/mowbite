@@ -101,6 +101,7 @@ const de: Record<string, string> = {
   "Draw": "Zeichnen",
   "An area the map doesn't have (an older job?), left it alone": "Eine Fläche, die es in der Karte nicht gibt (älterer Job?), nicht angetastet",
   "Between 6 pm and 6 am hedgehogs and other animals are out in the garden. They don't run from the mower, they curl up and can get badly hurt. Better mow during the day.": "Zwischen 18 und 6 Uhr sind Igel und andere Tiere im Garten unterwegs. Sie laufen vor dem Mäher nicht weg, sondern rollen sich zusammen und können sich schwer verletzen. Besser tagsüber mähen.",
+  "Today the sun sets at {set} and rises at {rise}, so it's dark at {time}. Hedgehogs and other animals are out in the garden then. They don't run from the mower, they curl up and can get badly hurt. Better mow during the day.": "Heute geht die Sonne um {set} unter und um {rise} auf, um {time} ist es also dunkel. Dann sind Igel und andere Tiere im Garten unterwegs. Sie laufen vor dem Mäher nicht weg, sondern rollen sich zusammen und können sich schwer verletzen. Besser tagsüber mähen.",
   "Mow at {time} anyway": "Trotzdem um {time} mähen",
   "Your OpenMower version doesn't offer this ({method}).": "Deine OpenMower-Version bietet das nicht an ({method}).",
   "The mower didn't answer.": "Der Mäher hat nicht geantwortet.",

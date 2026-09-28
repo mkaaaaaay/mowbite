@@ -69,8 +69,8 @@ describe('nextStart', () => {
 
 describe('isNightTime', () => {
   it('blocks 18:00 up to 05:59', () => {
-    expect(['18:00', '23:59', '00:00', '05:59'].map(isNightTime)).toEqual([true, true, true, true]);
-    expect(['06:00', '12:00', '17:59'].map(isNightTime)).toEqual([false, false, false]);
+    expect(['18:00', '23:59', '00:00', '05:59'].map((t) => isNightTime(t))).toEqual([true, true, true, true]);
+    expect(['06:00', '12:00', '17:59'].map((t) => isNightTime(t))).toEqual([false, false, false]);
   });
 });
 
@@ -86,5 +86,16 @@ describe('posixTz', () => {
     } finally {
       process.env.TZ = 'Europe/Berlin';
     }
+  });
+});
+
+describe('isNightTime with sun times', () => {
+  it('follows sunset and sunrise', () => {
+    const sun = {rise: '05:00', set: '21:40'};
+    expect(['21:40', '23:00', '04:59'].map((t) => isNightTime(t, sun))).toEqual([true, true, true]);
+    expect(['05:00', '18:30', '21:39'].map((t) => isNightTime(t, sun))).toEqual([false, false, false]);
+  });
+  it('falls back to the fixed hours without them', () => {
+    expect(isNightTime('18:30', null)).toBe(true);
   });
 });
