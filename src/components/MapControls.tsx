@@ -10,8 +10,15 @@ export const LAYERS = [
   {key: 'stripes', label: 'Mowing direction'},
   {key: 'track', label: 'Track'},
   {key: 'transit', label: 'Driving without blades'},
+  {key: 'planDone', label: 'Mowed part of the plan'},
 ] as const;
 export type Layer = (typeof LAYERS)[number]['key'];
+
+// off until switched on, the others the other way round
+const OFF_BY_DEFAULT: ReadonlySet<Layer> = new Set<Layer>(['planDone']);
+
+// the menu keeps the layers switched away from their default
+export const layerOn = (flipped: Set<Layer>, l: Layer) => flipped.has(l) === OFF_BY_DEFAULT.has(l);
 
 // the buttons along the right edge of the map, the layer menu and the imagery bar
 export default function MapControls({
@@ -99,7 +106,7 @@ export default function MapControls({
         <div className={styles.layers}>
           {LAYERS.map((l) => (
             <label key={l.key}>
-              <input type="checkbox" checked={!hidden.has(l.key)} onChange={() => onToggleLayer(l.key)} />
+              <input type="checkbox" checked={layerOn(hidden, l.key)} onChange={() => onToggleLayer(l.key)} />
               {tr(l.label)}
             </label>
           ))}

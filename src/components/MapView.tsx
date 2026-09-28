@@ -7,7 +7,7 @@ import {settingsStore} from '@/lib/settings';
 import {dockIcon, mowerIcon} from './mapIcons';
 import {availableSources, imageryTiles, type Datum, type ImagerySource} from '@/lib/imagery';
 import {handleRadius, meterGrid} from '@/lib/mapGrid';
-import MapControls, {type Layer} from './MapControls';
+import MapControls, {layerOn, type Layer} from './MapControls';
 import {useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import styles from './MapView.module.css';
 import {tr, useLang} from '@/lib/i18n';
@@ -40,6 +40,9 @@ interface MapViewProps {
   stripes?: Point[][];
   // the outline passes of the mowing plan, drawn with the stripes
   loops?: Point[][];
+  // how far the current run got in the mower's plan: what's left is drawn, the planned part it has done only if
+  // switched on in the layer menu (the track shows what it really drove)
+  progress?: {done: Point[][]; todo: Point[][]};
   // shapes an edit would give (split pieces, merge result), drawn in two alternating colors
   preview?: Point[][];
   // click on the map where there's no area
@@ -112,6 +115,7 @@ export default function MapView({
   followSpanMeters = 6,
   track,
   pastTrack,
+  progress,
   zoomable = false,
   stripes,
   loops,
@@ -627,6 +631,21 @@ export default function MapView({
             </g>
           );
         })}
+
+        {progress && !hidden.has('stripes') && (
+          <>
+            <path
+              className={styles.planTodo}
+              d={progress.todo.map((o) => o.map((p, i) => `${i ? 'L' : 'M'}${toScreen(p.x, p.y).join(' ')}`).join('')).join('')}
+            />
+            {layerOn(hidden, 'planDone') && (
+              <path
+                className={styles.planDone}
+                d={progress.done.map((o) => o.map((p, i) => `${i ? 'L' : 'M'}${toScreen(p.x, p.y).join(' ')}`).join('')).join('')}
+              />
+            )}
+          </>
+        )}
 
         {!hidden.has('track') &&
           trackRuns

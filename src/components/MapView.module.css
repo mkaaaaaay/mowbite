@@ -316,6 +316,26 @@
   text-anchor: middle;
 }
 
+/* the mower's plan for the area it's mowing: what's left, and what it has done */
+.planTodo {
+  fill: none;
+  stroke: var(--foreground);
+  stroke-opacity: 0.35;
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.planDone {
+  fill: none;
+  stroke: var(--c-mow);
+  stroke-opacity: 0.9;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
 .transit {
   fill: none;
   stroke: var(--c-transit);

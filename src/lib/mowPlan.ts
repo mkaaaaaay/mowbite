@@ -21,6 +21,7 @@ export interface MowPlanInput {
 export interface MowPlan {
   loops: Point[][]; // the outline passes, around the area and around obstacles
   stripes: [Point, Point][];
+  angle?: number; // rad, only the mower's own plan says it
 }
 
 // clipper works in integers, this is 0.01 mm

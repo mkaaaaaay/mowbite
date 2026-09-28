@@ -1,5 +1,7 @@
 import InfoTip from '@/components/InfoTip';
 import {tr} from '@/lib/i18n';
+import {duration} from '@/lib/dates';
+import {savedRate} from '@/lib/planProgress';
 import {DEG, normDeg, type Area, type UpdateArea} from './editing';
 import styles from './page.module.css';
 import {PATHS} from '@/lib/openmower';
@@ -35,6 +37,8 @@ export default function MowSettings({
   onPreviewCorrection,
   angle,
   planFromMower,
+  planAngle,
+  planLength,
 }: {
   area: Area;
   autoAngle: number;
@@ -51,7 +55,12 @@ export default function MowSettings({
   angle: AngleParams;
   // the plan shown comes from the mower itself, not worked out here
   planFromMower: boolean;
+  // rad, the angle the mower said it would mow at
+  planAngle?: number;
+  // m, the passes and stripes of the plan shown
+  planLength: number;
 }) {
+  const rate = savedRate();
   const p = area.properties;
   const setOverride = (key: Override, raw: string) => {
     const v = raw.trim() === '' ? undefined : Number(raw);
@@ -131,12 +140,22 @@ export default function MowSettings({
         {toolWidth ? ` (${tr('{n} cm apart', {n: Math.round(toolWidth * 100)})})` : ''}
         {' · '}
         {planFromMower ? tr('from the mower') : tr('estimate')}
+        {planFromMower && planAngle !== undefined && `, ${Math.round((((planAngle * 180) / Math.PI) % 180 + 180) % 180)}°`}
         <InfoTip>
           {planFromMower
-            ? tr('The plan as the mower itself works it out for the saved map.')
+            ? tr("The plan as the mower itself works it out, for the area as it is here, changes that aren't saved yet included. The angle is the one it will really mow at, with mow_angle_offset and an angle increment it may have summed up.")
             : tr("Where the mower will drive, worked out the way its planner does it: the rounds along the edge and around obstacles, then the stripes inside, one mower width apart. An estimate, it can differ from the real plan, especially on unusual shapes.")}
         </InfoTip>
       </label>
+      {showStripes && planLength > 0 && (
+        <p className={styles.dim}>
+          {tr('{m} m to mow', {m: Math.round(planLength)})}
+          {rate && ` · ${tr('about {time}', {time: duration(planLength / rate)})}`}
+          <InfoTip>
+            {tr("The length of the passes and stripes, without the drives in between. The time comes from how fast the mower got through its plan the last time you watched a run here on the dashboard, turns and stops included. It shows up once that happened.")}
+          </InfoTip>
+        </p>
+      )}
       {mismatch && (
         <div className={styles.warning}>
           <p>

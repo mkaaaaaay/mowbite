@@ -32,7 +32,8 @@ import {DrawPanel, MergePanel, RestorePanel, SimplifyPanel, SplitPanel} from './
 import {PARAM} from '@/lib/openmower';
 import {rpcErrorText} from '@/lib/rpcText';
 import {closedRings} from '@/lib/rings';
-import {mowerPlan} from '@/lib/areaPlan';
+import {mowerPlan, type PlanRequest} from '@/lib/areaPlan';
+import {length} from '@/lib/planProgress';
 
 // useSearchParams needs a suspense boundary in a static export
 export default function MapPage() {
@@ -150,21 +151,42 @@ function MapEditor() {
     }
   }
 
-  // the real plan from the mower when it offers one, only for the saved map (no local edits)
-  const [fromMower, setFromMower] = useState<{areaId: string; plan: MowPlan | null} | null>(null);
-  const askMower = showStripes && isMowArea && !!selectedAreaId && history.length === 0;
+  // the real plan from the mower when it offers one, for the area as it is in the editor right now (saved or not)
+  const planRequest = useMemo((): PlanRequest | null => {
+    if (!showStripes || !isMowArea || !shownArea || !shownMap) return null;
+    const p = shownArea.properties;
+    const req: PlanRequest = {
+      outline: shownArea.outline,
+      obstacles: shownMap.areas
+        .filter((a) => a.properties.type === 'obstacle' && a.properties.active !== false && a.outline.length > 2)
+        .map((a) => a.outline),
+    };
+    if (p.angle !== undefined) req.angle = p.angle;
+    if (p.outline_count !== undefined) req.outline_count = p.outline_count;
+    if (p.outline_overlap_count !== undefined) req.outline_overlap_count = p.outline_overlap_count;
+    if (p.outline_offset !== undefined) req.outline_offset = p.outline_offset;
+    return req;
+  }, [showStripes, isMowArea, shownArea, shownMap]);
+  const planKey = planRequest ? JSON.stringify(planRequest) : '';
+  const [fromMower, setFromMower] = useState<{areaId: string | null; plan: MowPlan | null} | null>(null);
   useEffect(() => {
-    if (!askMower || !selectedAreaId) return;
+    if (!planKey) return;
+    const areaId = selectedAreaId;
     let alive = true;
-    void mowerPlan(selectedAreaId).then(
-      (plan) => alive && setFromMower({areaId: selectedAreaId, plan}),
-      () => alive && setFromMower({areaId: selectedAreaId, plan: null}),
-    );
+    // while points are dragged only once it settles
+    const t = setTimeout(() => {
+      void mowerPlan(JSON.parse(planKey)).then(
+        (plan) => alive && setFromMower({areaId, plan}),
+        () => alive && setFromMower({areaId, plan: null}),
+      );
+    }, 300);
     return () => {
       alive = false;
+      clearTimeout(t);
     };
-  }, [askMower, selectedAreaId, liveMap]);
-  const realPlan = askMower && fromMower?.areaId === selectedAreaId ? fromMower.plan : null;
+  }, [planKey, selectedAreaId]);
+  // the last answer for this area stays up while a newer one is on its way, so it doesn't flicker back to the estimate
+  const realPlan = planKey && fromMower?.areaId === selectedAreaId ? fromMower.plan : null;
 
   // otherwise where the mower will drive, worked out like its planner does (lib/mowPlan)
   const wantPlan = !!(shownMap && shownArea && isMowArea && showStripes && toolWidth);
@@ -193,6 +215,13 @@ function MapEditor() {
       plan && (realPlan ? plan.stripes : toolWidth ? linkStripes(plan.stripes, effectiveAngle, toolWidth) : undefined),
     [plan, realPlan, toolWidth, effectiveAngle],
   );
+
+  // how long the plan is to drive, closed passes included, the drives between the pieces not
+  const planLength = useMemo(() => {
+    if (!plan || !stripes) return 0;
+    const closed = plan.loops.map((o) => (o.length > 1 ? [...o, o[0]] : o));
+    return [...closed, ...stripes].reduce((s, o) => s + length(o), 0);
+  }, [plan, stripes]);
 
   const globalValue = (key: string) => {
     const v = numParam(params, PARAM.mowerLogic(key));
@@ -670,6 +699,8 @@ function MapEditor() {
                   mismatch={mismatch}
                   previewCorrection={previewCorrection}
                   planFromMower={!!realPlan}
+                  planAngle={realPlan?.angle}
+                  planLength={planLength}
                   onPreviewCorrection={setPreviewCorrection}
                   angle={{offset: angleOffset, offsetIsAbsolute, increment: angleIncrement}}
                 />

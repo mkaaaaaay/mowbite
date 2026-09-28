@@ -2,11 +2,12 @@ name: image
 
 # builds the container for pc and mower (amd64 + arm64) and puts it on ghcr.io.
 # the app is compiled once natively, the arm image only gets files copied in, so no qemu needed.
-# main -> :latest for everyone, dev -> :dev for testing
+# main -> :latest for everyone, dev -> :dev for testing, experimental -> :experimental for things that need an
+# openmower change that isn't released yet
 
 on:
   push:
-    branches: [main, dev]
+    branches: [main, dev, experimental]
     tags: ['v*']
   workflow_dispatch:
 
@@ -35,6 +36,7 @@ jobs:
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=raw,value=dev,enable=${{ github.ref == 'refs/heads/dev' }}
+            type=raw,value=experimental,enable=${{ github.ref == 'refs/heads/experimental' }}
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=sha,format=short
@@ -47,6 +49,6 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            VERSION_SUFFIX=${{ github.ref == 'refs/heads/dev' && format('dev.{0}', github.run_number) || '' }}
+            VERSION_SUFFIX=${{ github.ref == 'refs/heads/dev' && format('dev.{0}', github.run_number) || github.ref == 'refs/heads/experimental' && format('exp.{0}', github.run_number) || '' }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

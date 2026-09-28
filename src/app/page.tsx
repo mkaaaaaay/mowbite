@@ -12,6 +12,7 @@ import {useMowerSensors} from '@/hooks/useMowerSensors';
 import {useMowerPosition} from '@/hooks/useMowerPosition';
 import {useMowerState, type MowerState} from '@/hooks/useMowerState';
 import {useMowerTrack} from '@/hooks/useMowerTrack';
+import {usePlanProgress} from '@/hooks/usePlanProgress';
 import {useRecentRuns} from '@/hooks/useRecentRuns';
 import {useWeather} from '@/hooks/useWeather';
 import WeatherIcon, {WEATHER_LABELS, weatherKind} from '@/components/WeatherIcon';
@@ -109,6 +110,7 @@ export default function Home() {
   const speed = useComputedSpeed(position);
   const track = useMowerTrack();
   const map = useMowerMap();
+  const progress = usePlanProgress(state ?? null, map);
   const params = useMowerParams();
   const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
   const recent = useRecentRuns(state?.current_state);
@@ -145,6 +147,10 @@ export default function Home() {
       warn: driving && (acc === undefined || acc >= NO_FIX || acc > 0.1),
     });
     if (driving) facts.push({label: tr('Speed'), value: `${fmt(speed, 2)} m/s`});
+    if (progress) {
+      const left = progress.secondsLeft !== null ? ` · ${tr('{time} left', {time: duration(progress.secondsLeft)})}` : '';
+      facts.push({label: tr('Progress'), value: `${Math.round(progress.fraction * 100)} %${left}`});
+    }
     if (charging && num('om_charge_current') !== undefined) facts.push({label: tr('Charging'), value: `${fmt(num('om_charge_current')!, 1)} A`});
     if (num('om_v_battery') !== undefined) facts.push({label: tr('Battery'), value: `${fmt(num('om_v_battery')!, 1)} V`});
     if (motorTemp > -Infinity) facts.push({label: tr('Motors'), value: `${Math.round(motorTemp)} °C`, warn: motorTemp > 70});
@@ -222,7 +228,15 @@ export default function Home() {
 
         {showMap && map && (
           <section className={styles.map}>
-            <MapView map={map} mower={position} track={track} follow={driving} zoomable datum={datumFromParams(params)} />
+            <MapView
+              map={map}
+              mower={position}
+              track={track}
+              progress={progress ?? undefined}
+              follow={driving}
+              zoomable
+              datum={datumFromParams(params)}
+            />
           </section>
         )}
 
