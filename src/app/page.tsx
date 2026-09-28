@@ -110,10 +110,10 @@ export default function Home() {
   const speed = useComputedSpeed(position);
   const track = useMowerTrack();
   const map = useMowerMap();
-  const progress = usePlanProgress(state ?? null, map);
+  const recent = useRecentRuns(state?.current_state);
+  const progress = usePlanProgress(state ?? null, map, recent?.today);
   const params = useMowerParams();
   const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
-  const recent = useRecentRuns(state?.current_state);
   const weather = useWeather(datumFromParams(params), !!settings.weather);
   const [schedule, setSchedule] = useState<Schedule | null>(() => cachedSchedule() ?? null);
   useEffect(() => {

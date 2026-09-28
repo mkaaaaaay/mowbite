@@ -1,8 +1,9 @@
 'use client';
 
 import {mowerPaths} from '@/lib/areaPlan';
-import {saveRate, savedRate, splitPlan, type PlanPath, type PlanProgress} from '@/lib/planProgress';
-import {useEffect, useMemo, useRef, useState} from 'react';
+import type {MowerEvent} from '@/lib/events';
+import {bladeSeconds, saveRate, savedRate, splitPlan, type PlanPath, type PlanProgress} from '@/lib/planProgress';
+import {useEffect, useMemo, useState} from 'react';
 import type {MowerMap} from './useMowerMap';
 import type {MowerState} from './useMowerState';
 
@@ -10,6 +11,7 @@ import type {MowerState} from './useMowerState';
 export function usePlanProgress(
   state: MowerState | null,
   map: MowerMap | null,
+  events: MowerEvent[] | undefined,
 ): (PlanProgress & {secondsLeft: number | null}) | null {
   // current_area counts the mowing areas in map order, inactive ones included
   const areaId =
@@ -37,37 +39,22 @@ export function usePlanProgress(
     [areaId, plan, path, pose],
   );
 
-  // time left from how fast the plan got done since this page started watching the area (a resumed run has done
-  // some before), checked every 10 s. a rate from long enough watching is kept for the editor
-  const latest = useRef<{areaId?: string; done?: number; todo?: number}>({});
+  // time left from how fast the plan got done while the blades ran in this area (event history), the same on every
+  // device. checked every 10 s. a rate from a good while of mowing is kept for the editor
+  const [now, setNow] = useState(() => Date.now() / 1000);
   useEffect(() => {
-    latest.current = {areaId, done: progress?.doneLength, todo: progress?.todoLength};
-  });
-  const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
-  useEffect(() => {
-    let start: {areaId: string; t: number; done: number} | null = null;
-    const tick = () => {
-      const {areaId, done, todo} = latest.current;
-      if (!areaId || done === undefined || todo === undefined) return setSecondsLeft(null);
-      const t = Date.now();
-      if (start?.areaId !== areaId) start = {areaId, t, done};
-      const dt = (t - start.t) / 1000;
-      const dd = done - start.done;
-      let rate: number | null = null;
-      if (dt > 120 && dd > 5) {
-        rate = dd / dt;
-        if (dt > 600 && dd > 20) saveRate(rate);
-      }
-      rate ??= savedRate();
-      setSecondsLeft(rate ? todo / rate : null);
-    };
-    const first = setTimeout(tick, 1000);
-    const every = setInterval(tick, 10000);
-    return () => {
-      clearTimeout(first);
-      clearInterval(every);
-    };
+    const every = setInterval(() => setNow(Date.now() / 1000), 10000);
+    return () => clearInterval(every);
   }, []);
+  const seconds = areaId && events ? bladeSeconds(events, areaId, now) : 0;
+  const rate = progress && seconds > 60 && progress.doneLength > 5 ? progress.doneLength / seconds : null;
+  useEffect(() => {
+    if (rate && seconds > 600) saveRate(rate);
+  }, [rate, seconds]);
 
-  return useMemo(() => (progress ? {...progress, secondsLeft} : null), [progress, secondsLeft]);
+  return useMemo(() => {
+    if (!progress) return null;
+    const r = rate ?? savedRate();
+    return {...progress, secondsLeft: r ? progress.todoLength / r : null};
+  }, [progress, rate]);
 }

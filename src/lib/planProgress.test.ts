@@ -1,5 +1,6 @@
 import {describe, expect, it} from 'vitest';
-import {splitPlan, type PlanPath} from './planProgress';
+import type {MowerEvent} from './events';
+import {bladeSeconds, splitPlan, type PlanPath} from './planProgress';
 
 const line = (y: number, n: number): PlanPath => ({
   outline: false,
@@ -31,5 +32,33 @@ describe('splitPlan', () => {
 
   it("can't tell without the pose index of the points", () => {
     expect(splitPlan([{...line(0, 10), index: undefined}], 0, 5)).toBeNull();
+  });
+});
+
+describe('bladeSeconds', () => {
+  const ev = (t: number, type: string, more: Partial<MowerEvent> = {}): MowerEvent => ({id: String(t), t, type, job_id: 'j', ...more});
+
+  it('adds up the blade time in the area over the whole job, breaks left out', () => {
+    const events = [
+      ev(0, 'AREA', {area_id: 'a'}),
+      ev(10, 'BLADES', {enabled: true}),
+      ev(110, 'BLADES', {enabled: false}),
+      // docked to charge, resumed later
+      ev(500, 'AREA', {area_id: 'a'}),
+      ev(510, 'BLADES', {enabled: true}),
+    ];
+    expect(bladeSeconds(events, 'a', 560)).toBe(150);
+  });
+
+  it('only counts the area asked for and the job it is in', () => {
+    const events = [
+      ev(0, 'AREA', {area_id: 'old', job_id: 'x'}),
+      ev(5, 'BLADES', {enabled: true, job_id: 'x'}),
+      ev(100, 'AREA', {area_id: 'a'}),
+      ev(110, 'BLADES', {enabled: true}),
+      ev(210, 'AREA', {area_id: 'b'}),
+    ];
+    expect(bladeSeconds(events, 'a', 300)).toBe(100);
+    expect(bladeSeconds(events, 'c', 300)).toBe(0);
   });
 });

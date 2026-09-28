@@ -1,4 +1,5 @@
 import type {Point} from '@/hooks/useMowerMap';
+import type {MowerEvent} from './events';
 
 // The mower's plan for an area (mowing.plan) split at where it is: the robot state has the path it's on and the
 // index of the pose in that path (current_path, current_path_index). The plan comes simplified, pose_index says which
@@ -49,8 +50,29 @@ export function splitPlan(paths: PlanPath[], path: number, pose: number): PlanPr
   return {done, todo, doneLength, todoLength, fraction: all > 0 ? doneLength / all : 0};
 }
 
-// how fast the plan gets done (m of plan per second, turns and stops included), learned while watching a run. kept
-// per device, the editor uses it for how long an area takes
+// how long the blades ran in the area during this job, from the event history, so every device comes to the same
+// time. a job resumed after a break has the earlier part in it too, like the done part of the plan has
+export function bladeSeconds(events: MowerEvent[], areaId: string, now: number): number {
+  const job = events.filter((e) => e.type === 'AREA' && e.area_id === areaId).pop()?.job_id;
+  if (!job) return 0;
+  let area: string | undefined;
+  let on: number | null = null;
+  let total = 0;
+  for (const e of events) {
+    if (e.job_id !== job) continue;
+    if (e.type === 'AREA' || (e.type === 'BLADES' && !e.enabled)) {
+      if (on !== null && area === areaId) total += e.t - on;
+      on = null;
+    }
+    if (e.type === 'AREA') area = e.area_id;
+    if (e.type === 'BLADES' && e.enabled) on = e.t;
+  }
+  if (on !== null && area === areaId) total += now - on;
+  return total;
+}
+
+// how fast the plan gets done (m of plan per second of blades running, turns included). the last one is kept per
+// device, the editor uses it for how long an area takes
 const RATE_KEY = 'mowRate';
 
 export function savedRate(): number | null {
