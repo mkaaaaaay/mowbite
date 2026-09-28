@@ -44,6 +44,7 @@ const de: Record<string, string> = {
   "Blades on": "Messer an",
   "Can only be changed while the mower is idle in the dock.": "Lässt sich nur ändern, wenn der Mäher bereit im Dock steht.",
   "Cancel": "Abbrechen",
+  "Continue": "Weiter",
   "Charge current": "Ladestrom",
   "Charge Current": "Ladestrom",
   "Charge State": "Ladezustand",

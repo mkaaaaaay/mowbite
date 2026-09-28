@@ -198,7 +198,10 @@ export default function Home() {
             </div>
 
             <div className={styles.controls}>
-              {ACTIONS.map((a) => (
+              {ACTIONS.map((a) =>
+                // paused: the pause button turns into continue
+                a.id === ACTION.pause && hasAction(ACTION.resume) ? {...a, id: ACTION.resume, Icon: PlayIcon, label: 'Continue'} : a,
+              ).map((a) => (
                 <button
                   key={a.id}
                   className={a.main ? styles.main : undefined}
