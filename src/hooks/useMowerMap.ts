@@ -24,6 +24,10 @@ export interface MapArea {
     outline_overlap_count?: number;
     outline_offset?: number;
     angle?: number; // rad
+    // rad, the final angle (offset and increment included) stays within, bouncing back at the ends. needs an
+    // openmower that knows it
+    angle_min?: number;
+    angle_max?: number;
   };
   outline: Point[];
 }

@@ -11,7 +11,7 @@ import {useMowerTrack} from '@/hooks/useMowerTrack';
 import {datumFromParams, numParam, useMowerParams} from '@/hooks/useMowerParams';
 import {loadJobTrack, useJobList, useMowHistory, type TrackSegment} from '@/hooks/useMowHistory';
 import {measuredStripeAngle, stripeAngleDiff} from '@/lib/mowDirection';
-import {autoMowAngle} from '@/lib/mowStripes';
+import {angleInRange, autoMowAngle} from '@/lib/mowStripes';
 import {linkStripes, mowPlan, type MowPlan} from '@/lib/mowPlan';
 import {simplifyPolygon} from '@/lib/simplifyPolygon';
 import {mergeOutlines} from '@/lib/mergeAreas';
@@ -24,7 +24,7 @@ import {tr, useLang} from '@/lib/i18n';
 import MapBackups, {backupLabel} from '@/components/MapBackups';
 import {angleChangedSince, deleteBackup, listBackups, loadBackup, saveBackup, type BackupInfo} from '@/lib/backups';
 import AreaCard from './AreaCard';
-import {DEG, type UpdateArea} from './editing';
+import {DEG, type UpdateArea, NEW_AREA_SETTINGS} from './editing';
 import EditorToolbar from './EditorToolbar';
 import MowSettings, {AngleOnMap, type AngleMismatch} from './MowSettings';
 import OrderBox from './OrderBox';
@@ -126,8 +126,12 @@ function MapEditor() {
   const autoAngle = shownArea ? autoMowAngle(shownArea.outline) : 0;
 
   // the angle the planner actually gets, see MowingBehavior.cpp
-  const plannedAngle = (area: {properties: {angle?: number}; outline: Point[]}) =>
-    offsetIsAbsolute ? angleOffset * DEG : (area.properties.angle ?? autoMowAngle(area.outline)) + angleOffset * DEG;
+  const plannedAngle = (area: {properties: {angle?: number; angle_min?: number; angle_max?: number}; outline: Point[]}) =>
+    angleInRange(
+      offsetIsAbsolute ? angleOffset * DEG : (area.properties.angle ?? autoMowAngle(area.outline)) + angleOffset * DEG,
+      area.properties.angle_min,
+      area.properties.angle_max,
+    );
 
   // check against the last real mow here, a leftover angle increment in checkpoint.bag isn't
   // published anywhere and rotates everything. saved area, not the edited one
@@ -187,6 +191,10 @@ function MapEditor() {
     if (p.outline_count !== undefined) req.outline_count = p.outline_count;
     if (p.outline_overlap_count !== undefined) req.outline_overlap_count = p.outline_overlap_count;
     if (p.outline_offset !== undefined) req.outline_offset = p.outline_offset;
+    if (p.angle_min !== undefined && p.angle_max !== undefined) {
+      req.angle_min = p.angle_min;
+      req.angle_max = p.angle_max;
+    }
     return req;
   }, [showStripes, isMowArea, shownArea, shownMap]);
   const planKey = planRequest ? JSON.stringify(planRequest) : '';
@@ -511,19 +519,23 @@ function MapEditor() {
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
 
-  // an openmower that doesn't know skip_mowing drops it when saving, noticed once its map comes back
-  const [skipSaved, setSkipSaved] = useState<{ids: string[]; before: MowerMap | null} | null>(null);
-  const skipUnsupported = useMemo(
-    () =>
-      !!skipSaved &&
-      !!liveMap &&
-      liveMap !== skipSaved.before &&
-      skipSaved.ids.some((id) => {
-        const a = liveMap.areas.find((x) => x.id === id);
-        return a && !a.properties.skip_mowing;
-      }),
-    [skipSaved, liveMap],
-  );
+  // an openmower that doesn't know the newer area settings drops them when saving, noticed once its map comes back
+  const [newSaved, setNewSaved] = useState<{areas: MowerMap['areas']; before: MowerMap | null} | null>(null);
+  const dropped = useMemo(() => {
+    if (!newSaved || !liveMap || liveMap === newSaved.before) return [];
+    const lost = new Set<string>();
+    for (const a of newSaved.areas) {
+      const now = liveMap.areas.find((x) => x.id === a.id);
+      if (!now) continue;
+      for (const k of NEW_AREA_SETTINGS) if (a.properties[k] !== undefined && now.properties[k] === undefined) lost.add(k);
+    }
+    return [...lost];
+  }, [newSaved, liveMap]);
+  const droppedNote = dropped.length
+    ? tr("Your OpenMower version doesn't know {what} yet, it got dropped when saving.", {
+        what: [...new Set(dropped.map((k) => `"${tr(k === 'skip_mowing' ? "don't mow" : 'angle range')}"`))].join(', '),
+      })
+    : null;
 
   const handleSave = async () => {
     if (!map) return;
@@ -539,7 +551,7 @@ function MapEditor() {
       // the version on the mower goes into the backups first, so every save can be undone
       if (backups && liveMap) await saveBackup(liveMap, 'before saving', true).catch(() => {});
       await saveMap(map);
-      setSkipSaved({ids: map.areas.filter((a) => a.properties.skip_mowing).map((a) => a.id), before: liveMap});
+      setNewSaved({areas: map.areas.filter((a) => NEW_AREA_SETTINGS.some((k) => a.properties[k] !== undefined)), before: liveMap});
       void refreshBackups();
     } catch (e) {
       setSaveError(rpcErrorText(e));
@@ -639,7 +651,7 @@ function MapEditor() {
                   unsaved={history.length > 0}
                   saving={saving}
                   saveLabel={saving ? tr('saving…') : saveWarning && !docked ? tr('Save anyway') : tr('Save map')}
-                  saveError={saveError}
+                  saveError={saveError ?? droppedNote}
                   onDraw={startDraw}
                   onUndo={undo}
                   onSave={() => void handleSave()}
@@ -722,7 +734,6 @@ function MapEditor() {
                   onSimplify={() => setSimplifyCm(5)}
                   onDelete={deleteArea}
                   onDeleteBlur={() => setConfirmDelete(null)}
-                  skipUnsupported={skipUnsupported}
                 />
               )}
 

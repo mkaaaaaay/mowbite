@@ -50,6 +50,8 @@ export type PlanRequest =
       outline_count?: number;
       outline_overlap_count?: number;
       outline_offset?: number;
+      angle_min?: number;
+      angle_max?: number;
     };
 
 // null when this mower can't tell, then the editor works it out itself (lib/mowPlan)

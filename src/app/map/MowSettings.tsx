@@ -135,6 +135,28 @@ export default function MowSettings({
           {tr('Auto')}
         </button>
       </div>
+      {(['angle_min', 'angle_max'] as const).map((key) => (
+        <label key={key}>
+          <span>
+            {tr(key === 'angle_min' ? 'Min. angle (°)' : 'Max. angle (°)')}
+            <InfoTip>
+              {tr("Keeps the angle the mower really mows at (mow_angle_offset and a summed up angle increment included) between these two, past an end it turns back. Handy for narrow areas that only work lengthwise. Both are needed, the same value twice keeps the angle fixed. Needs an OpenMower version that knows it.")}
+            </InfoTip>
+          </span>
+          <input
+            type="number"
+            step={1}
+            min={-180}
+            max={180}
+            value={p[key] !== undefined ? Math.round(p[key] / DEG) : ''}
+            placeholder={tr('none')}
+            onFocus={remember}
+            onChange={(e) =>
+              update({[key]: e.target.value.trim() === '' ? undefined : normDeg(Number(e.target.value)) * DEG}, false)
+            }
+          />
+        </label>
+      ))}
       <label className={styles.toggle}>
         <input type="checkbox" checked={showStripes} onChange={onToggleStripes} />
         {tr('show mowing plan')}

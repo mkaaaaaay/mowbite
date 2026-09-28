@@ -16,7 +16,6 @@ export default function AreaCard({
   onSimplify,
   onDelete,
   onDeleteBlur,
-  skipUnsupported,
 }: {
   area: Area;
   showTools: boolean;
@@ -28,8 +27,6 @@ export default function AreaCard({
   onSimplify: () => void;
   onDelete: () => void;
   onDeleteBlur: () => void;
-  // the last save had "don't mow" in it, but the map from the mower came back without
-  skipUnsupported: boolean;
 }) {
   const type = area.properties.type ?? 'draft';
   const tool = [styles.pillButton, styles.tool].join(' ');
@@ -76,11 +73,6 @@ export default function AreaCard({
               {tr("Left out when mowing, but the mower can still drive across it, unlike an inactive area. Needs an OpenMower version that knows it.")}
             </InfoTip>
           </label>
-        )}
-        {skipUnsupported && (
-          <p className={styles.warning}>
-            {tr("Your OpenMower version doesn't know \"don't mow\" yet, it got dropped when saving. The area will be mowed.")}
-          </p>
         )}
         <span className={styles.dim}>
           {tr(AREA_TYPES.find((t) => t.value === type)?.hint ?? '')}
