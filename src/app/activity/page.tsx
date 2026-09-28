@@ -4,7 +4,7 @@ import {TitleMark} from '@/components/Logo';
 import {clock, dayKey, dayLabel, duration, parseDay} from '@/lib/dates';
 import {describe, eventSource, explain, groupRuns, rawLine, OUTCOMES, withState, type Entry, type MowerEvent, type Run} from '@/lib/events';
 import {useDragScroll} from '@/hooks/useDragScroll';
-import {historyDays, historyOf} from '@/lib/history';
+import {eventsOfDay, historyDays, localDays, type DayEvents} from '@/lib/history';
 import {RosLogAround} from '@/components/RosLog';
 import Link from 'next/link';
 import {useEffect, useState} from 'react';
@@ -49,6 +49,7 @@ function problemFacts(run: Run, e: MowerEvent, next?: Run): string[] {
 }
 
 // the mower keeps one file per day, relative to its ros folder
+type Where = DayEvents['where'];
 
 function RawEntry({event, file, line}: {event: MowerEvent; file: string; line: number}) {
   const src = eventSource(event);
@@ -76,7 +77,7 @@ function RawEntry({event, file, line}: {event: MowerEvent; file: string; line: n
   );
 }
 
-function ProblemItem({run, next, event, state, file, line}: {run: Run; next?: Run; event: MowerEvent; state?: string; file: string; line: number}) {
+function ProblemItem({run, next, event, state, where}: {run: Run; next?: Run; event: MowerEvent; state?: string; where: Where}) {
   const [raw, setRaw] = useState(false);
   const {text, severity} = describe(event, state);
   const hint = explain(event, state);
@@ -110,12 +111,12 @@ function ProblemItem({run, next, event, state, file, line}: {run: Run; next?: Ru
         </button>
         <RosLogAround t={event.t} />
       </div>
-      {raw && <RawEntry event={event} file={file} line={line} />}
+      {raw && <RawEntry event={event} file={`${PATHS.eventHistory}${where.get(event.id)?.file ?? ''}`} line={where.get(event.id)?.line ?? 0} />}
     </li>
   );
 }
 
-function Problems({run, next, file, lines}: {run: Run; next?: Run; file: string; lines: Map<string, number>}) {
+function Problems({run, next, where}: {run: Run; next?: Run; where: Where}) {
   const list = withState(run.events).filter(({event, state}) => describe(event, state).severity !== 'info');
   if (!list.length) return null;
   return (
@@ -127,15 +128,14 @@ function Problems({run, next, file, lines}: {run: Run; next?: Run; file: string;
           next={next}
           event={event}
           state={state}
-          file={file}
-          line={lines.get(event.id) ?? 0}
+          where={where}
         />
       ))}
     </ul>
   );
 }
 
-function RunCard({run, next, file, lines}: {run: Run; next?: Run; file: string; lines: Map<string, number>}) {
+function RunCard({run, next, where}: {run: Run; next?: Run; where: Where}) {
   const [open, setOpen] = useState(false);
   const outcome = OUTCOMES[run.outcome];
   return (
@@ -159,7 +159,7 @@ function RunCard({run, next, file, lines}: {run: Run; next?: Run; file: string; 
         {run.bladeSeconds > 0 && <span className={styles.dim}>{tr('mowed {time}', {time: duration(run.bladeSeconds)})}</span>}
       </div>
 
-      <Problems run={run} next={next} file={file} lines={lines} />
+      <Problems run={run} next={next} where={where} />
 
       <div className={styles.runActions}>
         <button onClick={() => setOpen(!open)}>{open ? tr('Hide details') : tr('Details')}</button>
@@ -172,24 +172,28 @@ function RunCard({run, next, file, lines}: {run: Run; next?: Run; file: string; 
 }
 
 // what was loaded before, shown right away when the page is opened again
+let cachedFiles: string[] = [];
 let cachedDays: string[] | null = null;
-const cachedEvents = new Map<string, MowerEvent[]>();
+const cachedEvents = new Map<string, DayEvents>();
 
 export default function ActivityPage() {
   useLang();
   const [days, setDays] = useState<string[] | null>(cachedDays);
   const [day, setDay] = useState<string | null>(null);
-  const [events, setEvents] = useState<MowerEvent[] | null>(() => cachedEvents.get(cachedDays?.[0] ?? '') ?? null);
+  const [loaded, setLoaded] = useState<DayEvents | null>(() => cachedEvents.get(cachedDays?.[0] ?? '') ?? null);
+  const events = loaded?.events ?? null;
+  const setEvents = (d: DayEvents | null) => setLoaded(d);
   const [onlyProblems, setOnlyProblems] = useState(false);
   const [failed, setFailed] = useState(false);
   const daysRef = useDragScroll<HTMLDivElement>();
 
   useEffect(() => {
     historyDays().then(
-      (list) => {
-        cachedDays = list;
-        setDays(list);
-        setDay((d) => d ?? list[0] ?? null);
+      (files) => {
+        cachedFiles = files;
+        cachedDays = localDays(files);
+        setDays(cachedDays);
+        setDay((d) => d ?? cachedDays?.[0] ?? null);
       },
       () => setFailed(true),
     );
@@ -202,7 +206,7 @@ export default function ActivityPage() {
     if (!shown) return;
     let alive = true;
     const load = () =>
-      historyOf(shown).then(
+      eventsOfDay(cachedFiles, shown).then(
         (e) => {
           cachedEvents.set(shown, e);
           if (alive) setEvents(e);
@@ -222,9 +226,8 @@ export default function ActivityPage() {
   const entries: Entry[] = (events ? groupRuns(events, isToday).reverse() : []).filter(
     (e) => e.kind === 'run' || ['BOOTED', 'SHUTDOWN'].includes(e.event.type) || describe(e.event).severity !== 'info',
   );
-  // the rpc returns the file's lines in order
-  const lines = new Map((events ?? []).map((e, i) => [e.id, i + 1]));
-  const file = `${PATHS.eventHistory}${shown}.jsonl`;
+  // which file and line an entry came from, the day's early or late hours sit in the neighbouring file
+  const where = loaded?.where ?? new Map<string, {file: string; line: number}>();
   const runs = entries.flatMap((e) => (e.kind === 'run' ? [e.run] : []));
   const mowed = runs.reduce((s, r) => s + r.bladeSeconds, 0);
   const problems = runs.reduce((s, r) => s + r.problems, 0);
@@ -286,7 +289,7 @@ export default function ActivityPage() {
         <div className={styles.list}>
           {visible.map((e) =>
             e.kind === 'run' ? (
-              <RunCard key={e.run.events[0].id} run={e.run} next={runs[runs.indexOf(e.run) - 1]} file={file} lines={lines} />
+              <RunCard key={e.run.events[0].id} run={e.run} next={runs[runs.indexOf(e.run) - 1]} where={where} />
             ) : (
               <div key={e.event.id} className={[styles.loose, styles[describe(e.event).severity]].join(' ')}>
                 <span className={styles.time}>{clock(e.event.t)}</span>
