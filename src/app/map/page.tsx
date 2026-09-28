@@ -494,6 +494,9 @@ function MapEditor() {
       // the version on the mower goes into the backups first, so every save can be undone
       if (backups && liveMap) await saveBackup(liveMap, 'before saving', true).catch(() => {});
       await saveMap(map);
+      // back to the live map, it comes back from the mower with what was just saved
+      setEdited(null);
+      setHistory([]);
       void refreshBackups();
     } catch (e) {
       setSaveError(rpcErrorText(e));
