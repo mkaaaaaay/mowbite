@@ -33,6 +33,7 @@ export const RPC = {
 export const ACTION = {
   startMowing: 'mower_logic:idle/start_mowing',
   pause: 'mower_logic:mowing/pause',
+  resume: 'mower_logic:mowing/continue',
   goHome: 'mower_logic:mowing/abort_mowing',
   skipArea: 'mower_logic:mowing/skip_area',
   resetEmergency: 'mower_logic/reset_emergency',
