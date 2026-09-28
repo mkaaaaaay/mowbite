@@ -209,6 +209,8 @@ function MapEditor() {
   }, [planKey, selectedAreaId]);
   // the last answer for this area stays up while a newer one is on its way, so it doesn't flicker back to the estimate
   const realPlan = planKey && fromMower?.areaId === selectedAreaId ? fromMower.plan : null;
+  // the mower's own plan has the angle it really mows at, a leftover increment included, nothing to warn about then
+  if (realPlan) mismatch = null;
 
   // otherwise where the mower will drive, worked out like its planner does (lib/mowPlan)
   const wantPlan = !!(shownMap && shownArea && isMowArea && showStripes && toolWidth);
