@@ -273,6 +273,7 @@ const de: Record<string, string> = {
   "Only for this device. Automatic follows the browser's language.": "Nur für dieses Gerät. Automatisch richtet sich nach der Sprache des Browsers.",
   "Only for this device. Automatic follows the phone's or computer's setting.": "Nur für dieses Gerät. Automatisch richtet sich nach der Einstellung von Handy oder Computer.",
   "Only possible while the mower is idle in the dock.": "Geht nur, wenn der Mäher bereit im Dock steht.",
+  "The mower dropped out of recording mode right away. OpenMower does that after the mower was sent home while mowing, it then stays in \"manual pause\" until it's restarted. Run openmower restart on the mower and try again.": "Der Mäher hat den Aufnahmemodus sofort wieder verlassen. Das macht OpenMower, nachdem der Mäher beim Mähen nach Hause geschickt wurde, er bleibt dann bis zum Neustart in \"manueller Pause\". Führe openmower restart auf dem Mäher aus und versuch es noch mal.",
   "Only possible while the mower is idle.": "Geht nur, wenn der Mäher bereit steht.",
   "only problems": "nur Probleme",
   "Other": "Sonstiges",
