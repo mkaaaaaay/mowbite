@@ -19,6 +19,8 @@ interface MapViewProps {
   onSelectArea?: (id: string) => void;
   onMoveVertex?: (areaId: string, vertexIndex: number, x: number, y: number) => void;
   onDragStart?: () => void;
+  // true while a point of an area is being dragged
+  onDragging?: (on: boolean) => void;
   // a point drag that turned into a pinch: undo what the drag changed
   onDragCancel?: () => void;
   onInsertVertex?: (areaId: string, vertexIndex: number, x: number, y: number) => void;
@@ -111,6 +113,7 @@ export default function MapView({
   onSelectArea,
   onMoveVertex,
   onDragStart,
+  onDragging,
   onDragCancel,
   onInsertVertex,
   onDeleteVertex,
@@ -564,6 +567,7 @@ export default function MapView({
         // adding a point takes its own undo snapshot, drawn points aren't in the map history at all
         if (d.insert) addPoint(d.insert.x, d.insert.y);
         else if (dragging.areaId !== PENDING) onDragStart?.();
+        if (dragging.areaId !== PENDING) onDragging?.(true);
       }
       const local = clientToLocal(e.clientX, e.clientY);
       if (local && dragging.areaId === PENDING) onMovePending?.(dragging.index, local[0], local[1]);
@@ -588,12 +592,14 @@ export default function MapView({
       }
       setDragging(null);
       setFinger(null);
+      onDragging?.(false);
     };
     const onCancel = (e: PointerEvent) => {
       if (e.pointerId !== drag.current.pointerId) return;
       drag.current.pointerId = -1;
       setDragging(null);
       setFinger(null);
+      onDragging?.(false);
     };
 
     window.addEventListener('pointermove', onMove);
@@ -819,7 +825,7 @@ export default function MapView({
           <polygon
             key={'piece' + i}
             points={piece.map((p) => toScreen(p.x, p.y).join(',')).join(' ')}
-            className={i === 0 ? styles.pieceA : styles.pieceB}
+            className={[styles.pieceA, styles.pieceB, styles.pieceC][i] ?? styles.pieceB}
           />
         ))}
 

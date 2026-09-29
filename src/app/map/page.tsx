@@ -16,7 +16,7 @@ import {linkStripes, mowPlan, type MowPlan} from '@/lib/mowPlan';
 import {simplifyPolygon} from '@/lib/simplifyPolygon';
 import {polygonArea, shareInside} from '@/lib/geometry';
 import {mergeOutlines} from '@/lib/mergeAreas';
-import {generateId, splitByPath} from '@/lib/splitPolygon';
+import {cutOut, generateId, splitByPath} from '@/lib/splitPolygon';
 import {isDocked} from '@/lib/status';
 import {useSearchParams} from 'next/navigation';
 import {Suspense, useEffect, useMemo, useState} from 'react';
@@ -90,6 +90,8 @@ function MapEditor() {
   const [mode, setMode] = useState<'idle' | 'split' | 'draw' | 'merge'>('idle');
   const [mergeWithId, setMergeWithId] = useState<string | null>(null);
   const [pendingPoints, setPendingPoints] = useState<Point[]>([]);
+  // split: the points are a closed shape inside the area to cut out, not a line across it
+  const [cutShape, setCutShape] = useState(false);
   // tolerance in cm while the simplify preview is open
   const [simplifyCm, setSimplifyCm] = useState<number | null>(null);
   const [history, setHistory] = useState<MowerMap[]>([]);
@@ -116,6 +118,23 @@ function MapEditor() {
       )
       .sort((a, b) => polygonArea(a.outline) - polygonArea(b.outline))[0];
   }, [map, selectedArea]);
+  const cutFromEnclosing = useMemo(
+    () => (enclosing && selectedArea ? cutOut(enclosing.outline, selectedArea.outline) : null),
+    [enclosing, selectedArea],
+  );
+  const applyCutFromEnclosing = () => {
+    if (!map || !selectedArea || !enclosing || !cutFromEnclosing) return;
+    const [a, b] = cutFromEnclosing;
+    const name = enclosing.properties.name;
+    const halves = [a, b].map((outline, i) => ({
+      ...enclosing,
+      id: generateId(),
+      outline,
+      properties: {...enclosing.properties, name: name && i ? `${name} 2` : name},
+    }));
+    remember();
+    setMap({...map, areas: map.areas.flatMap((x) => (x.id === enclosing.id ? halves : [x]))});
+  };
   const baseOutline = selectedArea ? (originals[selectedArea.id] ?? selectedArea.outline) : null;
   const simplified = useMemo(
     () =>
@@ -219,11 +238,13 @@ function MapEditor() {
   }, [showStripes, planned, shownArea, shownMap]);
   const planKey = planRequest ? JSON.stringify(planRequest) : '';
   const [fromMower, setFromMower] = useState<{areaId: string | null; plan: MowPlan | null} | null>(null);
+  // not while a point is dragged, a new plan redrawn mid-drag makes it stutter
+  const [draggingPoint, setDraggingPoint] = useState(false);
   useEffect(() => {
-    if (!planKey) return;
+    if (!planKey || draggingPoint) return;
     const areaId = selectedAreaId;
     let alive = true;
-    // while points are dragged only once it settles
+    // while points are typed or clicked only once it settles
     const t = setTimeout(() => {
       void mowerPlan(JSON.parse(planKey)).then(
         (plan) => alive && setFromMower({areaId, plan}),
@@ -234,7 +255,7 @@ function MapEditor() {
       alive = false;
       clearTimeout(t);
     };
-  }, [planKey, selectedAreaId]);
+  }, [planKey, selectedAreaId, draggingPoint]);
   // the last answer for this area stays up while a newer one is on its way, so it doesn't flicker back to the estimate
   const realPlan = planKey && fromMower?.areaId === selectedAreaId ? fromMower.plan : null;
   // the mower's own plan has the angle it really mows at, a leftover increment included, nothing to warn about then
@@ -469,25 +490,30 @@ function MapEditor() {
     if (mode === 'split') setPendingPoints((prev) => [...prev, {x, y}]);
   };
 
-  const splitPreview = mode === 'split' && selectedArea ? splitByPath(selectedArea.outline, pendingPoints) : null;
+  const splitPreview: Point[][] | null =
+    mode === 'split' && selectedArea
+      ? cutShape
+        ? cutOut(selectedArea.outline, pendingPoints)
+        : splitByPath(selectedArea.outline, pendingPoints)
+      : null;
 
   const applySplit = () => {
     if (!map || !selectedArea || !splitPreview) return;
-    const [outlineA, outlineB] = splitPreview;
     const name = selectedArea.properties.name;
-    const areaA = {...selectedArea, id: generateId(), outline: outlineA};
-    const areaB = {
+    // the first piece keeps the name, the others get a number
+    const pieces = splitPreview.map((outline, i) => ({
       ...selectedArea,
       id: generateId(),
-      outline: outlineB,
-      properties: {...selectedArea.properties, name: name ? `${name} 2` : name},
-    };
+      outline,
+      properties: {...selectedArea.properties, name: name && i ? `${name} ${i + 1}` : name},
+    }));
     remember();
     setMap({
       ...map,
-      areas: map.areas.flatMap((a) => (a.id === selectedArea.id ? [areaA, areaB] : [a])),
+      areas: map.areas.flatMap((a) => (a.id === selectedArea.id ? pieces : [a])),
     });
-    setSelectedAreaId(areaA.id);
+    // a cut out shape is the new one, likely to be renamed next
+    setSelectedAreaId(pieces[pieces.length - 1 - (cutShape ? 0 : 1)].id);
     setMode('idle');
     setPendingPoints([]);
   };
@@ -624,6 +650,7 @@ function MapEditor() {
                 onSelectArea={selectArea}
                 onMoveVertex={simplifyCm === null && mode === 'idle' ? moveVertex : undefined}
                 onDragStart={remember}
+                onDragging={setDraggingPoint}
                 onDragCancel={undo}
                 onInsertVertex={simplifyCm === null ? insertVertex : undefined}
                 onDeleteVertex={simplifyCm === null ? deleteVertex : undefined}
@@ -731,6 +758,8 @@ function MapEditor() {
               {mode === 'split' && (
                 <SplitPanel
                   preview={splitPreview}
+                  cutShape={cutShape}
+                  onCutShape={setCutShape}
                   points={pendingPoints.length}
                   onApply={applySplit}
                   onRemoveLast={() => setPendingPoints(pendingPoints.slice(0, -1))}
@@ -748,6 +777,7 @@ function MapEditor() {
                 <AreaCard
                   area={selectedArea}
                   enclosing={enclosing}
+                  onCutOut={cutFromEnclosing && applyCutFromEnclosing}
                   showTools={simplifyCm === null}
                   confirmDelete={confirmDelete === selectedArea.id}
                   remember={remember}

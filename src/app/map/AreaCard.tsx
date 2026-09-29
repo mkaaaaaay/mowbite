@@ -8,6 +8,7 @@ import styles from './page.module.css';
 export default function AreaCard({
   area,
   enclosing,
+  onCutOut,
   showTools,
   confirmDelete,
   remember,
@@ -20,6 +21,8 @@ export default function AreaCard({
 }: {
   area: Area;
   enclosing?: Area;
+  // cuts this area out of the enclosing one, null when it doesn't lie fully inside
+  onCutOut: (() => void) | null;
   showTools: boolean;
   confirmDelete: boolean;
   remember: () => void;
@@ -39,11 +42,11 @@ export default function AreaCard({
   const nested =
     outer &&
     (outerMows && skipped
-      ? tr('Lies inside "{name}", so the mower mows and drives here anyway, whatever is set on this area. To leave it out, cut "{name}" around it with Split zone, or draw an obstacle instead.', outer)
+      ? tr('Lies inside "{name}", so the mower mows and drives here anyway, whatever is set on this area.', outer)
       : outerMows
         ? tr('Lies inside "{name}" and gets mowed with it as well.', outer)
         : inactive
-          ? tr('Lies inside "{name}", so the mower still drives here although this area is inactive. To keep it off, cut "{name}" around it with Split zone, or draw an obstacle instead.', outer)
+          ? tr('Lies inside "{name}", so the mower still drives here although this area is inactive.', outer)
           : null);
   return (
     <div className={styles.areaEditor}>
@@ -99,14 +102,29 @@ export default function AreaCard({
           {tr('{n} points', {n: area.outline.length})}
         </span>
       </div>
-      {nested && <div className={styles.warning}>{nested}</div>}
+      {nested && (
+        <div className={styles.warning}>
+          {nested}{' '}
+          {onCutOut
+            ? tr("To leave it out, cut it out of \"{name}\". An area can't have a hole, so \"{name}\" becomes two areas, split by a straight cut through this one. Or make this area an obstacle, then the mower doesn't drive on it at all.", outer)
+            : tr("It doesn't lie fully inside, to leave it out cut \"{name}\" by hand with Split zone.", outer)}
+          {onCutOut && (
+            <div className={styles.inlineRow}>
+              <button className={styles.pillButton} onClick={onCutOut}>
+                <ScissorsIcon size={16} />
+                {tr('Cut out of "{name}"', outer)}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
       {showTools && (
         <div className={styles.toolbar}>
           <span className={styles.toolLabel}>
             {tr('Edit')}
             <InfoTip>
               <b>{tr('Split zone')}:</b>{' '}
-              {tr("Cuts the area in two along a line you click, it can bend, e.g. around another area inside it. Both parts keep the type and settings.")}
+              {tr("Cuts the area in two along a line you click, it can bend. Or cuts a shape inside it out as an area of its own. All parts keep the type and settings.")}
               <br />
               <b>{tr('Merge')}:</b>{' '}
               {tr("Joins this area with another one you click, e.g. two halves of a lawn. They need to overlap or touch.")}
