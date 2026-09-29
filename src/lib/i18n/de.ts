@@ -163,6 +163,8 @@ const de: Record<string, string> = {
   "Fit the whole map": "Ganze Karte zeigen",
   "Flag": "Fahne",
   "Fog": "Nebel",
+  "Follow the mower again": "Wieder dem Mäher folgen",
+  "Following the mower, click to move the map freely": "Folgt dem Mäher, klicken um die Karte frei zu bewegen",
   "Ghost": "Geist",
   "Go home": "Nach Hause",
   "Got more than one robot mower with MowBite? Add the others here, as many as you like, and switch between them at the top of the dashboard (on a computer in the sidebar). Colors, icons and the language stay the same for all.": "Du hast mehr als einen Mähroboter mit MowBite? Trag die anderen hier ein, so viele du willst, und schalte oben auf der Übersicht zwischen ihnen um (am Computer in der Seitenleiste). Farben, Symbole und Sprache bleiben für alle gleich.",

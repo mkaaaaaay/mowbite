@@ -31,7 +31,7 @@ interface MapViewProps {
   onCanvasClick?: (x: number, y: number) => void;
   onMovePending?: (index: number, x: number, y: number) => void;
   onInsertPending?: (index: number, x: number, y: number) => void;
-  // fixed window around the mower instead of fitting the whole map
+  // fixed window around the mower instead of fitting the whole map, a button lets the map move freely
   follow?: boolean;
   followSpanMeters?: number;
   // oldest first
@@ -60,6 +60,8 @@ interface MapViewProps {
   markers?: Point[];
   // start zoomed in around this point instead of showing the whole map
   focus?: Point;
+  // zoom and position are kept under this key while the app runs, e.g. across a visit to the settings
+  viewKey?: string;
   // what the mower draws itself, e.g. the lines of an area recording
   overlay?: {points: Point[]; color: string; closed: boolean}[];
 }
@@ -79,6 +81,8 @@ interface View {
 }
 
 const MAX_ZOOM = 40;
+// center and width in meters, so a changed map doesn't move what was looked at
+const savedViews = new Map<string, {x: number; y: number; span: number}>();
 // dragging.areaId while a point of the line being drawn is dragged
 const PENDING = '__pending';
 
@@ -134,6 +138,7 @@ export default function MapView({
   overlay,
   markers,
   focus,
+  viewKey,
   onClickEmpty,
   datum,
   orderLabels,
@@ -168,8 +173,14 @@ export default function MapView({
   const [active, setActive] = useState<{areaId: string; index: number} | null>(null);
   const [view, setView] = useState<View | null>(null);
   const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
+  // the view from the last visit, until zoomed, panned or reset. a spot to show wins over it
+  const [restore, setRestore] = useState(() => (viewKey && !focus ? (savedViews.get(viewKey) ?? null) : null));
   // in follow mode zooming changes how many meters around the mower are shown
   const [followZoom, setFollowZoom] = useState(1);
+  // follow mode switched off by hand, back on with the next drive
+  const [free, setFree] = useState(false);
+  if (free && !follow) setFree(false);
+  const following = follow && !free;
   // off by default, it sends the map area to the imagery provider
   const [imagery, setImagery] = useState<ImagerySource | null>(() => {
     try {
@@ -257,9 +268,18 @@ export default function MapView({
       })()
     : null;
 
+  const restored: View | null = restore
+    ? (() => {
+        const [cx, cy] = toScreen(restore.x, restore.y);
+        const size = restore.span * scale;
+        return {x: cx - size / 2, y: cy - size / 2, size};
+      })()
+    : null;
+
   // what's shown: the user's zoom, or in follow mode a window around the mower
-  let shown = view ?? home;
-  if (follow && displayMower) {
+  const base = view ?? restored ?? home;
+  let shown = base;
+  if (following && displayMower) {
     const [sx, sy] = toScreen(displayMower.x, displayMower.y);
     const size = followSpanMeters * followZoom * scale;
     shown = {x: sx - size / 2, y: sy - size / 2, size};
@@ -411,12 +431,12 @@ export default function MapView({
 
   // zoom by factor (<1 = in) keeping the svg point (px, py) where it is on screen
   const zoomAt = (factor: number, px: number, py: number) => {
-    if (follow) {
+    if (following) {
       setFollowZoom((z) => Math.min(8, Math.max(0.25, z * factor)));
       return;
     }
     setView((prev) => {
-      const v = prev ?? home ?? {x: 0, y: 0, size: WIDTH};
+      const v = prev ?? base ?? {x: 0, y: 0, size: WIDTH};
       const size = Math.min(WIDTH * 4, Math.max(WIDTH / MAX_ZOOM, v.size * factor));
       const f = size / v.size;
       return {x: px - (px - v.x) * f, y: py - (py - v.y) * f, size};
@@ -424,7 +444,7 @@ export default function MapView({
   };
 
   const zoomCenter = (factor: number) => {
-    const v = view ?? home ?? {x: 0, y: 0, size: WIDTH};
+    const v = base ?? {x: 0, y: 0, size: WIDTH};
     zoomAt(factor, v.x + v.size / 2, v.y + v.size / 2);
   };
 
@@ -447,8 +467,15 @@ export default function MapView({
     };
     svg.addEventListener('wheel', onWheel, {passive: false});
     return () => svg.removeEventListener('wheel', onWheel);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- zoomAt only uses setters and follow
-  }, [zoomable, follow, svgEl]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- zoomAt only uses setters and following
+  }, [zoomable, following, svgEl]);
+
+  useEffect(() => {
+    if (!viewKey || !view) return;
+    const cx = view.x + view.size / 2;
+    const cy = view.y + view.size / 2;
+    savedViews.set(viewKey, {x: (cx - padX) / scale + minX, y: (HEIGHT - cy - padY) / scale + minY, span: view.size / scale});
+  }, [viewKey, view, scale, padX, padY, minX, minY]);
 
   const startDrag = (e: React.PointerEvent<SVGSVGElement>, areaId: string, hit: {mid: boolean; index: number; x: number; y: number}) => {
     const at = {x: hit.x, y: hit.y};
@@ -536,8 +563,8 @@ export default function MapView({
       return;
     }
     gesture.current.moved = true;
-    if (follow) return; // the view is pinned to the mower
-    const v = view ?? home ?? {x: 0, y: 0, size: WIDTH};
+    if (following) return; // the view is pinned to the mower
+    const v = base ?? {x: 0, y: 0, size: WIDTH};
     const unitsPerPx = v.size / svg.getBoundingClientRect().width;
     setView({...v, x: v.x - dx * unitsPerPx, y: v.y - dy * unitsPerPx});
   };
@@ -952,15 +979,29 @@ export default function MapView({
             : undefined
         }
         reset={
-          view || (follow && followZoom !== 1)
+          view || restore || (following && followZoom !== 1)
             ? {
-                follow: !!follow,
+                follow: following,
                 onReset: () => {
                   setView(null);
+                  setRestore(null);
                   setFollowZoom(1);
+                  if (viewKey) savedViews.delete(viewKey);
                 },
               }
             : null
+        }
+        follow={
+          follow
+            ? {
+                on: following,
+                onToggle: () => {
+                  // carries on from what's on screen instead of jumping to the whole map
+                  if (following && shown) setView(shown);
+                  setFree(following);
+                },
+              }
+            : undefined
         }
       />
       {grid && <span className={styles.gridLabel}>{tr('grid {n} m', {n: grid.step})}</span>}
