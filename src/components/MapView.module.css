@@ -79,9 +79,11 @@
 
 .vertex {
   fill: var(--c-vertex);
+  fill-opacity: 0.6;
   pointer-events: none;
   stroke: #fff;
-  stroke-width: 0.75;
+  stroke-opacity: 0.35;
+  stroke-width: 0.5;
   cursor: grab;
   touch-action: none;
 }
@@ -102,7 +104,9 @@
 .midpoint {
   pointer-events: none;
   fill: #444;
+  fill-opacity: 0.6;
   stroke: #fff;
+  stroke-opacity: 0.4;
   stroke-width: 0.75;
   cursor: pointer;
 }
