@@ -298,7 +298,7 @@ export default function SettingsPage() {
           <label className={styles.check}>
             <input
               type="checkbox"
-              checked={settings.leaves === true}
+              checked={settings.leaves !== false}
               onChange={(e) => saveSettings({...settingsStore.snapshot(), leaves: e.target.checked})}
             />
             {tr('Falling leaves in autumn')}

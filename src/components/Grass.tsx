@@ -179,7 +179,7 @@ export default function Grass() {
     };
   }, []);
 
-  const falling = autumn && settings.leaves === true;
+  const falling = autumn && settings.leaves !== false;
   if (!shown) return falling ? <FallingLeaves /> : null;
 
   return (
