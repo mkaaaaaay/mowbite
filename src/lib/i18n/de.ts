@@ -374,6 +374,8 @@ const de: Record<string, string> = {
   "Hide ROS log": "ROS-Log ausblenden",
   "Set up the ROS log": "ROS-Log einrichten",
   "ROS reported nothing around that time.": "ROS hat um diese Zeit nichts gemeldet.",
+  "Nothing around that time in the mower's memory. It keeps the last 1000 warnings and errors, until it restarts.": "Nichts um diese Zeit im Speicher des Mähers. Er behält die letzten 1000 Warnungen und Fehler, bis er neu startet.",
+  "Your OpenMower keeps the last warnings and errors itself, nothing to set up. They are gone after a restart of the mower.": "Dein OpenMower merkt sich die letzten Warnungen und Fehler selbst, hier ist nichts einzurichten. Nach einem Neustart des Mähers sind sie weg.",
   "Shows what ROS reported around a problem on the activity page, e.g. why the mower stopped. Only warnings and errors are kept, passwords and logins are blanked out before anything is written.": "Zeigt bei Problemen auf der Aktivität-Seite, was ROS zu der Zeit gemeldet hat, z. B. warum der Mäher angehalten hat. Übernommen werden nur Warnungen und Fehler, Passwörter und Zugangsdaten werden vorher unkenntlich gemacht.",
   "Only when MowBite runs as its container on the mower.": "Nur wenn MowBite als Container auf dem Mäher läuft.",
   "Set up, the helper on the mower last ran {n} min ago.": "Eingerichtet, der Helfer auf dem Mäher lief zuletzt vor {n} min.",

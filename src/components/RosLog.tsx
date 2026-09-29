@@ -18,14 +18,20 @@ const STEPS = {
   restart: 'docker compose up -d',
 };
 
-// minutes: since the helper last ran
-type Status = {available: boolean; minutes?: number} | null | undefined;
+// minutes: since the helper last ran, rpc: the mower keeps the log itself
+type Status = {available: boolean; minutes?: number; rpc?: boolean} | null | undefined;
 
 function useRosLogStatus(): Status {
   const [status, setStatus] = useState<Status>(undefined);
   useEffect(() => {
     void rosLogStatus().then((s) =>
-      setStatus(s && {available: s.available, minutes: s.alive ? Math.round((Date.now() / 1000 - s.alive) / 60) : undefined}),
+      setStatus(
+        s && {
+          available: s.available,
+          minutes: s.alive ? Math.round((Date.now() / 1000 - s.alive) / 60) : undefined,
+          rpc: s.rpc,
+        },
+      ),
     );
   }, []);
   return status;
@@ -51,10 +57,19 @@ function Command({text}: {text: string}) {
 }
 
 // settings: whether the helper is there, and how to set it up
-// only in dev builds for now, OpenMower may get a log RPC that would replace the helper
+// only in dev builds for now, a mower that answers logs.recent doesn't need the helper
 export function RosLogSettings({cardClass}: {cardClass: string}) {
   const status = useRosLogStatus();
   if (!devBuild || status === undefined) return null;
+  if (status?.rpc)
+    return (
+      <section className={cardClass} id="roslog">
+        <h2>{tr('ROS log')}</h2>
+        <p className={box.versions}>
+          {tr('Your OpenMower keeps the last warnings and errors itself, nothing to set up. They are gone after a restart of the mower.')}
+        </p>
+      </section>
+    );
   const minutes = status?.minutes ?? null;
 
   return (
@@ -103,7 +118,8 @@ export function RosLogAround({t}: {t: number}) {
   const [open, setOpen] = useState(false);
   const [lines, setLines] = useState<RosLogLine[] | null | 'failed'>(null);
 
-  if (!devBuild || status === undefined || status === null) return null;
+  // the helper is only offered in dev builds, the log from the mower itself everywhere
+  if (status === undefined || status === null || (!devBuild && !status.rpc)) return null;
   if (!status.available)
     return (
       <Link className={styles.link} href="/settings#roslog">
@@ -125,7 +141,13 @@ export function RosLogAround({t}: {t: number}) {
         <div className={styles.log}>
           {lines === null && <span>{tr('loading…')}</span>}
           {lines === 'failed' && <span>{tr('failed')}</span>}
-          {Array.isArray(lines) && lines.length === 0 && <span>{tr('ROS reported nothing around that time.')}</span>}
+          {Array.isArray(lines) && lines.length === 0 && (
+            <span>
+              {status.rpc
+                ? tr("Nothing around that time in the mower's memory. It keeps the last 1000 warnings and errors, until it restarts.")
+                : tr('ROS reported nothing around that time.')}
+            </span>
+          )}
           {Array.isArray(lines) &&
             lines.map((l, i) => (
               <span key={i} className={[styles[l.level], Math.abs(l.t - t) < 2 ? styles.at : ''].join(' ')}>
