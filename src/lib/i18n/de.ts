@@ -130,6 +130,7 @@ const de: Record<string, string> = {
   "Drive around the obstacle, then stop. It closes by itself.": "Fahre um das Hindernis herum und stoppe dann. Es schließt sich von selbst.",
   "Drive to the edge of the new area, then start recording and drive once around it. For the docking station, stop about a meter in front of it, facing it.": "Fahre an den Rand der neuen Fläche, starte die Aufnahme und fahre einmal herum. Für die Ladestation etwa einen Meter davor anhalten, mit der Front zur Station.",
   "driven on and mowed": "wird befahren und gemäht",
+  "inactive, the mower ignores it": "inaktiv, der Mäher beachtet sie nicht",
   "driven on but not mowed, e.g. a path between two lawns": "wird befahren, aber nicht gemäht, z. B. ein Weg zwischen zwei Rasenflächen",
   "Driving without blades": "Fahren ohne Messer",
   "Drizzle": "Nieselregen",

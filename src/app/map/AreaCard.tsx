@@ -75,7 +75,7 @@ export default function AreaCard({
           </label>
         )}
         <span className={styles.dim}>
-          {tr(AREA_TYPES.find((t) => t.value === type)?.hint ?? '')}
+          {area.properties.active === false ? tr('inactive, the mower ignores it') : tr(AREA_TYPES.find((t) => t.value === type)?.hint ?? '')}
           {' · '}
           {tr('{n} points', {n: area.outline.length})}
         </span>
