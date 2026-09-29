@@ -142,7 +142,6 @@ const de: Record<string, string> = {
   "Copy": "Kopieren",
   "copied": "kopiert",
   "MowBite {v} is out, see the settings": "MowBite {v} ist erschienen, mehr in den Einstellungen",
-  "Drive around": "Abfahren",
   "New area": "Neue Fläche",
   "Changes": "Änderungen",
   "Drive along the edge until you are back at the start, then stop. The outline closes by itself.": "Fahre am Rand entlang, bis du wieder am Start bist, und stoppe dann. Der Rand schließt sich von selbst.",

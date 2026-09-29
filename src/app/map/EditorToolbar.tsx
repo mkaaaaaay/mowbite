@@ -37,12 +37,12 @@ export default function EditorToolbar({
           {unsaved ? (
             <span className={[tool, styles.disabledLink].join(' ')} title={tr('Save or undo your changes first')}>
               <RouteIcon size={16} />
-              {tr('Drive around')}
+              {tr('Record')}
             </span>
           ) : (
             <Link href="/record" className={tool}>
               <RouteIcon size={16} />
-              {tr('Drive around')}
+              {tr('Record')}
             </Link>
           )}
           <span className={styles.toolLabel}>{tr('Changes')}</span>
