@@ -7,3 +7,4 @@ TOPIC_ACTION=action
 TOPIC_MAP=map/json
 ACTION_START_MOWING=mower_logic:idle/start_mowing
 ACTION_SKIP_AREA=mower_logic:mowing/skip_area
+ACTION_HOME=mower_logic:mowing/abort_mowing
