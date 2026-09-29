@@ -123,6 +123,8 @@ function MapEditor() {
   const angleIncrement = numParam(params, PARAM.mowAngleIncrement) ?? 0;
   const shownArea = shownMap?.areas.find((a) => a.id === selectedAreaId) ?? null;
   const isMowArea = shownArea?.properties.type === 'mow';
+  // a mowing area set to mowable: false gets no plan, it's only driven across
+  const planned = isMowArea && shownArea?.properties.mowable !== false;
   const autoAngle = shownArea ? autoMowAngle(shownArea.outline) : 0;
 
   // the angle the planner actually gets, see MowingBehavior.cpp
@@ -179,7 +181,7 @@ function MapEditor() {
 
   // the real plan from the mower when it offers one, for the area as it is in the editor right now (saved or not)
   const planRequest = useMemo((): PlanRequest | null => {
-    if (!showStripes || !isMowArea || !shownArea || !shownMap) return null;
+    if (!showStripes || !planned || !shownArea || !shownMap) return null;
     const p = shownArea.properties;
     const req: PlanRequest = {
       outline: shownArea.outline,
@@ -196,7 +198,7 @@ function MapEditor() {
       req.angle_max = p.angle_max;
     }
     return req;
-  }, [showStripes, isMowArea, shownArea, shownMap]);
+  }, [showStripes, planned, shownArea, shownMap]);
   const planKey = planRequest ? JSON.stringify(planRequest) : '';
   const [fromMower, setFromMower] = useState<{areaId: string | null; plan: MowPlan | null} | null>(null);
   useEffect(() => {
@@ -221,7 +223,7 @@ function MapEditor() {
   if (realPlan) mismatch = null;
 
   // otherwise where the mower will drive, worked out like its planner does (lib/mowPlan)
-  const wantPlan = !!(shownMap && shownArea && isMowArea && showStripes && toolWidth);
+  const wantPlan = !!(shownMap && shownArea && planned && showStripes && toolWidth);
   const plan = useMemo((): MowPlan | undefined => {
     if (realPlan) return realPlan;
     if (!wantPlan || !shownMap || !shownArea || !toolWidth) return undefined;
