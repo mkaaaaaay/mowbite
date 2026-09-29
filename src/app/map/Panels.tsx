@@ -33,15 +33,15 @@ export function SplitPanel({
         <InfoTip>
           {tr("Off: a line across the area cuts it in two.")}
           <br />
-          {tr("On: the corners you click make a shape inside the area. It becomes an area of its own with the same settings, and the area around it leaves it out when mowing. An area can't have a hole, so the rest is split into two areas by a straight cut through the shape, where that cut is shortest. The mower drives across the cut like across any border between two areas.")}
+          {tr("On: click the corners of a shape inside the area. It becomes its own area with the same settings and the rest leaves it out. Since areas can't have holes, the rest is split in two by the shortest straight cut through the shape. The mower drives across the cut normally.")}
           <br />
-          {tr("For an area you've already drawn, select it instead, the note there cuts it out in one go.")}
+          {tr('Already drawn the inner area? Select it, the note there cuts it out in one click.')}
         </InfoTip>
       </label>
       <p className={styles.dim}>
         {cutShape
-          ? tr("Click the corners of a shape inside the area, it becomes an area of its own. An area can't have a hole, so the rest is cut in two through the shape.")
-          : tr("Click points to draw a cut line across the area, it can bend. Start and end outside of it. Drag points to move them, drag the middle of a segment to add one.")}
+          ? tr("Click the corners of a shape inside the area. It becomes its own area, the rest is split in two through it (areas can't have holes).")
+          : tr('Click points for a cut line across the area, start and end outside. Drag points to move them.')}
       </p>
       {preview ? (
         <p>

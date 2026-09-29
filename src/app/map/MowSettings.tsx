@@ -113,7 +113,7 @@ export default function MowSettings({
         <span>
           {tr('Mow angle (°)')}
           <InfoTip>
-            {tr("Direction of the stripes, 0° is east, counter-clockwise. Empty means auto: the direction from the first outline point to the first one more than 2 m away. The mower adds its mow_angle_offset on top.")}
+            {tr('Stripe direction, 0° = east, counter-clockwise. Empty = automatic. The mower adds its mow_angle_offset.')}
           </InfoTip>
         </span>
         <input
@@ -140,7 +140,7 @@ export default function MowSettings({
           <span>
             {tr(key === 'angle_min' ? 'Min. angle (°)' : 'Max. angle (°)')}
             <InfoTip>
-              {tr("Keeps the angle the mower really mows at (mow_angle_offset and a summed up angle increment included) between these two, past an end it turns back. Handy for narrow areas that only work lengthwise. Both are needed, the same value twice keeps the angle fixed, and a min larger than the max goes the other way round, across 180°. Needs an OpenMower version that knows it.")}
+              {tr('Keeps the mow angle between these two, it turns back at the ends. Handy for narrow areas. Same value twice = fixed angle, min above max = range across 180°. Needs a newer OpenMower.')}
             </InfoTip>
           </span>
           <input
@@ -169,8 +169,8 @@ export default function MowSettings({
           {planFromMower && planAngle !== undefined && `, ${Math.round((((planAngle * 180) / Math.PI) % 180 + 180) % 180)}°`}
           <InfoTip>
             {planFromMower
-              ? tr("The plan as the mower itself works it out, for the area as it is here, changes that aren't saved yet included. The angle is the one it will really mow at, with mow_angle_offset and an angle increment it may have summed up.")
-              : tr("Where the mower will drive, worked out the way its planner does it: the rounds along the edge and around obstacles, then the stripes inside, one mower width apart. An estimate, it can differ from the real plan, especially on unusual shapes.")}
+              ? tr('The plan as the mower calculates it, unsaved changes included, at the angle it really mows.')
+              : tr('Estimate of where the mower drives: edge rounds first, then stripes one mower width apart. Can differ from the real plan on unusual shapes.')}
           </InfoTip>
         </label>
       )}
@@ -179,7 +179,7 @@ export default function MowSettings({
           {tr('{m} m to mow', {m: Math.round(planLength)})}
           {rate && ` · ${tr('about {time}', {time: duration(planLength / rate)})}`}
           <InfoTip>
-            {tr("The length of the passes and stripes, without the drives in between. The time comes from how fast the mower got through its plan the last time you watched a run here on the dashboard, turns and stops included. It shows up once that happened.")}
+            {tr('Length of all passes and stripes. The time is based on the last run you watched on the dashboard.')}
           </InfoTip>
         </p>
       )}

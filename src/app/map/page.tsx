@@ -714,7 +714,7 @@ function MapEditor() {
               {saveWarning && !docked && (
                 <div className={styles.warning}>
                   <p>
-                    {tr("The mower isn't idle in the dock. Changing the map during a job can make it lose track of the area it's mowing and stop the job. Better save once it's back in the dock.")}
+                    {tr("The mower isn't idle in the dock. Changing the map during a job can stop the job. Better save once it's back in the dock.")}
                   </p>
                   <a onClick={() => setSaveWarning(false)}>{tr("don't save for now")}</a>
                 </div>
