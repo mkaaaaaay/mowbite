@@ -132,6 +132,8 @@ const de: Record<string, string> = {
   "inactive: not driven on and not mowed": "inaktiv: wird weder befahren noch gemäht",
   "driven on but not mowed, e.g. a path between two lawns": "wird befahren, aber nicht gemäht, z. B. ein Weg zwischen zwei Rasenflächen",
   "Driving without blades": "Fahren ohne Messer",
+  "Clear live track": "Live-Spur leeren",
+  "Only hides it here, the mower keeps the recording.": "Blendet sie nur hier aus, der Mäher behält die Aufzeichnung.",
   "Drizzle": "Nieselregen",
   "e.g. Back garden": "z. B. Garten",
   "e.g. Front garden": "z. B. Vorgarten",

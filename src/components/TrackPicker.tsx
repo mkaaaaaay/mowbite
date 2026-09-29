@@ -19,11 +19,14 @@ export default function TrackPicker({
   selected,
   segments,
   onSelect,
+  onClearLive,
 }: {
   jobs: JobInfo[];
   selected: string | null;
   segments: TrackSegment[] | null | undefined;
   onSelect: (jobId: string | null) => void;
+  // shown with the live trail when there's something to clear
+  onClearLive?: () => void;
 }) {
   const days: {key: string; label: string; jobs: JobInfo[]}[] = [];
   for (const j of jobs) {
@@ -78,6 +81,12 @@ export default function TrackPicker({
             </button>
           ))}
         </div>
+      )}
+
+      {selected === null && onClearLive && (
+        <button className={styles.clear} onClick={onClearLive} title={tr('Only hides it here, the mower keeps the recording.')}>
+          {tr('Clear live track')}
+        </button>
       )}
 
       {selected && (

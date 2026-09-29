@@ -7,7 +7,7 @@ import {saveMap, useMowerMap, type MowerMap, type Point} from '@/hooks/useMowerM
 import {useMowerSensors} from '@/hooks/useMowerSensors';
 import {useMowerPosition} from '@/hooks/useMowerPosition';
 import {useMowerState} from '@/hooks/useMowerState';
-import {useMowerTrack} from '@/hooks/useMowerTrack';
+import {clearTrack, useMowerTrack} from '@/hooks/useMowerTrack';
 import {datumFromParams, numParam, useMowerParams} from '@/hooks/useMowerParams';
 import {loadJobTrack, useJobList, useMowHistory, type TrackSegment} from '@/hooks/useMowHistory';
 import {measuredStripeAngle, stripeAngleDiff} from '@/lib/mowDirection';
@@ -623,6 +623,7 @@ function MapEditor() {
                       selected={viewJob?.id ?? null}
                       segments={viewJob?.segments}
                       onSelect={(id) => showJob(id ?? '')}
+                      onClearLive={track.length > 1 ? () => void clearTrack() : undefined}
                     />
                   )}
                   {mowAreas.length > 1 && (
