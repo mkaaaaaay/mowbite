@@ -14,6 +14,7 @@ import {measuredStripeAngle, stripeAngleDiff} from '@/lib/mowDirection';
 import {angleInRange, autoMowAngle} from '@/lib/mowStripes';
 import {linkStripes, mowPlan, type MowPlan} from '@/lib/mowPlan';
 import {simplifyPolygon} from '@/lib/simplifyPolygon';
+import {polygonArea, shareInside} from '@/lib/geometry';
 import {mergeOutlines} from '@/lib/mergeAreas';
 import {generateId, splitByPath} from '@/lib/splitPolygon';
 import {isDocked} from '@/lib/status';
@@ -98,6 +99,23 @@ function MapEditor() {
   const [originals, setOriginals] = useState<Record<string, Point[]>>({});
 
   const selectedArea = map?.areas.find((a) => a.id === selectedAreaId) ?? null;
+  // an active mowing or navigation area the selected one mostly lies in, the mower drives and mows that as a
+  // whole, whatever is set on the smaller one. the innermost one when areas are nested deeper
+  const enclosing = useMemo(() => {
+    const t = selectedArea?.properties.type;
+    if (!map || !selectedArea || (t !== 'mow' && t !== 'nav')) return undefined;
+    const size = polygonArea(selectedArea.outline);
+    return map.areas
+      .filter(
+        (o) =>
+          o.id !== selectedArea.id &&
+          o.properties.active !== false &&
+          (o.properties.type === 'mow' || o.properties.type === 'nav') &&
+          polygonArea(o.outline) > size &&
+          shareInside(selectedArea.outline, o.outline) > 0.5,
+      )
+      .sort((a, b) => polygonArea(a.outline) - polygonArea(b.outline))[0];
+  }, [map, selectedArea]);
   const baseOutline = selectedArea ? (originals[selectedArea.id] ?? selectedArea.outline) : null;
   const simplified = useMemo(
     () =>
@@ -729,6 +747,7 @@ function MapEditor() {
               {selectedArea && mode === 'idle' && (
                 <AreaCard
                   area={selectedArea}
+                  enclosing={enclosing}
                   showTools={simplifyCm === null}
                   confirmDelete={confirmDelete === selectedArea.id}
                   remember={remember}

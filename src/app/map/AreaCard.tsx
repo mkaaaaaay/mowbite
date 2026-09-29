@@ -7,6 +7,7 @@ import styles from './page.module.css';
 // name, type and active switch of the selected area, and what can be done with it
 export default function AreaCard({
   area,
+  enclosing,
   showTools,
   confirmDelete,
   remember,
@@ -18,6 +19,7 @@ export default function AreaCard({
   onDeleteBlur,
 }: {
   area: Area;
+  enclosing?: Area;
   showTools: boolean;
   confirmDelete: boolean;
   remember: () => void;
@@ -30,6 +32,19 @@ export default function AreaCard({
 }) {
   const type = area.properties.type ?? 'draft';
   const tool = [styles.pillButton, styles.tool].join(' ');
+  const outer = enclosing && {name: enclosing.properties.name || tr('unnamed')};
+  const outerMows = enclosing?.properties.type === 'mow' && enclosing.properties.mowable !== false;
+  const inactive = area.properties.active === false;
+  const skipped = inactive || type === 'nav' || area.properties.mowable === false;
+  const nested =
+    outer &&
+    (outerMows && skipped
+      ? tr('Lies inside "{name}", so the mower mows and drives here anyway, whatever is set on this area. To leave it out, cut "{name}" around it with Split zone, or draw an obstacle instead.', outer)
+      : outerMows
+        ? tr('Lies inside "{name}" and gets mowed with it as well.', outer)
+        : inactive
+          ? tr('Lies inside "{name}", so the mower still drives here although this area is inactive. To keep it off, cut "{name}" around it with Split zone, or draw an obstacle instead.', outer)
+          : null);
   return (
     <div className={styles.areaEditor}>
       <div className={styles.areaHead}>
@@ -84,13 +99,14 @@ export default function AreaCard({
           {tr('{n} points', {n: area.outline.length})}
         </span>
       </div>
+      {nested && <div className={styles.warning}>{nested}</div>}
       {showTools && (
         <div className={styles.toolbar}>
           <span className={styles.toolLabel}>
             {tr('Edit')}
             <InfoTip>
               <b>{tr('Split zone')}:</b>{' '}
-              {tr("Cuts the area in two along a line through two points you click. Both halves keep the type and settings.")}
+              {tr("Cuts the area in two along a line you click, it can bend, e.g. around another area inside it. Both parts keep the type and settings.")}
               <br />
               <b>{tr('Merge')}:</b>{' '}
               {tr("Joins this area with another one you click, e.g. two halves of a lawn. They need to overlap or touch.")}
