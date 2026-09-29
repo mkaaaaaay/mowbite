@@ -68,7 +68,6 @@
   background: var(--card);
   box-shadow: var(--card-shadow, none);
   backdrop-filter: var(--card-blur, none);
-  -webkit-backdrop-filter: var(--card-blur, none);
 }
 
 /* a thin colored line on top says at a glance whether all is well */
@@ -217,6 +216,7 @@
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
+  box-shadow: var(--btn-3d);
 }
 
 .controls button:disabled {

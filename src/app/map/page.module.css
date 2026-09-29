@@ -53,9 +53,8 @@
   color: var(--foreground);
   font-size: 13px;
   cursor: pointer;
-  box-shadow: var(--card-shadow, none);
+  box-shadow: var(--btn-3d);
   backdrop-filter: var(--card-blur, none);
-  -webkit-backdrop-filter: var(--card-blur, none);
 }
 
 /* easy to miss otherwise. green outline, filled once there's something to save */
@@ -126,7 +125,6 @@
   border: 1px solid var(--card-border);
   box-shadow: var(--card-shadow, none);
   backdrop-filter: var(--card-blur, none);
-  -webkit-backdrop-filter: var(--card-blur, none);
 }
 
 .areaHead {
@@ -193,7 +191,6 @@
   border: 1px solid var(--card-border);
   box-shadow: var(--card-shadow, none);
   backdrop-filter: var(--card-blur, none);
-  -webkit-backdrop-filter: var(--card-blur, none);
 }
 
 .mowSettings label:not(.toggle) {
@@ -325,7 +322,6 @@
   border: 1px solid var(--card-border);
   box-shadow: var(--card-shadow, none);
   backdrop-filter: var(--card-blur, none);
-  -webkit-backdrop-filter: var(--card-blur, none);
 }
 
 .orderTitle {
@@ -446,7 +442,6 @@
     border: 1px solid var(--card-border);
     background: var(--nav-bg);
     backdrop-filter: var(--card-blur, blur(18px));
-    -webkit-backdrop-filter: var(--card-blur, blur(18px));
     font-size: 12px;
     color: var(--text-secondary);
   }

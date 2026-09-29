@@ -91,42 +91,10 @@ const PILE = Array.from({length: 18}, (_, i) => {
   };
 });
 
-// what the leaves stay out of: most cards are nearly see-through, a leaf behind one would look like it's in front
-const SOLID = 'section, article, nav, header, aside, button, input, select, textarea, h1, h2, [role="dialog"]';
-
-// a few leaves drifting down behind the page, optional. they're cut out wherever there's something
+// a few leaves drifting down behind the page, optional. the frosted cards blur them
 function FallingLeaves() {
-  const [mask, setMask] = useState('');
-  useEffect(() => {
-    let last = '';
-    const update = () => {
-      const w = window.innerWidth;
-      const h = window.innerHeight;
-      let d = `M0 0H${w}V${h}H0Z`;
-      document.querySelectorAll(SOLID).forEach((el) => {
-        // only the outermost, a hole inside a hole would show the leaves again
-        if (el.parentElement?.closest(SOLID)) return;
-        const r = el.getBoundingClientRect();
-        if (r.width && r.height && r.bottom > 0 && r.top < h) d += `M${r.left - 4} ${r.top - 4}h${r.width + 8}v${r.height + 8}h${-r.width - 8}Z`;
-      });
-      if (d === last) return;
-      last = d;
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}"><path fill-rule="evenodd" d="${d}"/></svg>`;
-      setMask(`url("data:image/svg+xml,${encodeURIComponent(svg)}")`);
-    };
-    update();
-    const every = setInterval(update, 400);
-    window.addEventListener('scroll', update, true);
-    window.addEventListener('resize', update);
-    return () => {
-      clearInterval(every);
-      window.removeEventListener('scroll', update, true);
-      window.removeEventListener('resize', update);
-    };
-  }, []);
-
   return (
-    <div className={styles.falling} style={{maskImage: mask, WebkitMaskImage: mask}} aria-hidden="true">
+    <div className={styles.falling} aria-hidden="true">
       {[12, 31, 48, 67, 84].map((left, i) => (
         <div
           key={left}

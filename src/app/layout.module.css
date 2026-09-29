@@ -16,7 +16,6 @@
   height: env(safe-area-inset-top);
   background: var(--nav-bg);
   backdrop-filter: var(--card-blur, blur(18px));
-  -webkit-backdrop-filter: var(--card-blur, blur(18px));
 }
 
 .content {

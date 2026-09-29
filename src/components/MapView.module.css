@@ -142,7 +142,6 @@
   cursor: pointer;
   box-shadow: var(--card-shadow, none);
   backdrop-filter: var(--card-blur, none);
-  -webkit-backdrop-filter: var(--card-blur, none);
 }
 
 .activeVertex {
@@ -170,7 +169,6 @@
   cursor: pointer;
   box-shadow: var(--card-shadow, none);
   backdrop-filter: var(--card-blur, none);
-  -webkit-backdrop-filter: var(--card-blur, none);
 }
 
 .grid line {
@@ -342,7 +340,6 @@
   text-decoration: none;
   box-shadow: var(--card-shadow, none);
   backdrop-filter: var(--card-blur, none);
-  -webkit-backdrop-filter: var(--card-blur, none);
 }
 
 .overlayOutline,
