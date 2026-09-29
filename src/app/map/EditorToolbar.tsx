@@ -55,7 +55,7 @@ export default function EditorToolbar({
       <button
         className={[tool, styles.saveButton, unsaved ? styles.unsaved : ''].join(' ')}
         onClick={onSave}
-        disabled={saving}
+        disabled={saving || !unsaved}
       >
         <CheckIcon size={16} />
         {saveLabel}

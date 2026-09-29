@@ -237,6 +237,8 @@ export function AngleSlider({
       step={1}
       value={Math.round((area.properties.angle ?? autoAngle) / DEG)}
       onPointerDown={remember}
+      // arrow keys and co. change it without a pointer, one undo step per press then
+      onKeyDown={(e) => /^(Arrow|Page|Home|End)/.test(e.key) && remember()}
       onChange={(e) => update({angle: Number(e.target.value) * DEG}, false)}
       aria-label={tr('Mow angle (°)')}
     />
