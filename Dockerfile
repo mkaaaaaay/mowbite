@@ -23,6 +23,7 @@ COPY --from=mqtt /mq/usr/bin/mosquitto_sub /mq/usr/bin/mosquitto_pub /usr/bin/
 COPY --from=build --chown=1000:1000 /app/out /www
 COPY --chmod=755 docker/settings.cgi /www/cgi-bin/settings
 COPY --chmod=755 docker/sensors.cgi /www/cgi-bin/sensors
+COPY --chmod=755 docker/system.cgi /www/cgi-bin/system
 COPY --chmod=755 docker/backups.cgi /www/cgi-bin/backups
 COPY --chmod=755 docker/recorder.sh docker/scheduler.sh /
 COPY --chmod=755 docker/schedule.cgi /www/cgi-bin/schedule

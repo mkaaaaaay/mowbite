@@ -11,6 +11,7 @@ import {useSensorHistory, type Sample} from '@/hooks/useSensorHistory';
 import {sharedSettings} from '@/lib/settings';
 import {batteryColor, isDocked, stateColor, statusText} from '@/lib/status';
 import styles from './page.module.css';
+import System from './System';
 import {fmt, tr, useLang} from '@/lib/i18n';
 
 // sensors that get their own card instead of the generic one
@@ -244,6 +245,8 @@ export default function SensorsPage() {
                 </div>
               </>
             )}
+
+            <System />
 
             <p className={styles.footnote}>
               {sharedSettings() ? tr('History covers the last 24 hours.') : tr('History covers the last hour while the app is open.')}
