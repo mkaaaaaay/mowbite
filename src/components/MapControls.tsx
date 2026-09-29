@@ -27,6 +27,7 @@ export default function MapControls({
   layersOpen,
   onLayersOpen,
   reset,
+  follow,
 }: {
   // factor < 1 zooms in
   onZoom: (factor: number) => void;
@@ -42,6 +43,8 @@ export default function MapControls({
   onLayersOpen: (open: boolean) => void;
   // shown when zoomed or panned, follow: the view follows the mower
   reset: {follow: boolean; onReset: () => void} | null;
+  // only while the view can follow the mower
+  follow?: {on: boolean; onToggle: () => void};
 }) {
   return (
     <>
@@ -85,6 +88,20 @@ export default function MapControls({
         <Link href="/settings" className={styles.linkButton} aria-label="settings" title={tr('Map colors, icons and aerial imagery')}>
           ⚙
         </Link>
+        {follow && (
+          <button
+            className={follow.on ? '' : styles.off}
+            onClick={follow.onToggle}
+            aria-label="follow mower"
+            title={follow.on ? tr('Following the mower, click to move the map freely') : tr('Follow the mower again')}
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+              <circle cx="12" cy="12" r="6" />
+              <circle cx="12" cy="12" r="1.5" fill="currentColor" />
+              <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
+            </svg>
+          </button>
+        )}
         {reset && (
           <button
             onClick={reset.onReset}

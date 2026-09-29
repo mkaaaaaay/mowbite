@@ -535,6 +535,7 @@ function MapEditor() {
             {!preview && shownMap && (
               <MapView
                 zoomable
+                viewKey="editor"
                 map={shownMap}
                 mower={position}
                 track={viewJob ? undefined : track}
