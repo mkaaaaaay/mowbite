@@ -29,6 +29,14 @@ describe('parse / serialize', () => {
     expect(text).toMatch(/^tz \S+$/m);
   });
 
+  it('keeps end time and dark, with and without areas', () => {
+    const s = schedule([{...plan([1], '09:00'), end: '19:00'}, {...plan([2], '21:00', ['a']), end: '23:30', dark: true}]);
+    const text = serializeSchedule(s);
+    expect(text).toContain('plan 1 09:00 end=19:00\n');
+    expect(text).toContain('plan 2 21:00 a end=23:30 dark=1\n');
+    expect(parseSchedule(text)).toEqual(s);
+  });
+
   it('drops start times without a day', () => {
     expect(serializeSchedule(schedule([plan([], '09:00')]))).not.toContain('plan');
   });
@@ -97,5 +105,18 @@ describe('isNightTime with sun times', () => {
   });
   it('falls back to the fixed hours without them', () => {
     expect(isNightTime('18:30', null)).toBe(true);
+  });
+});
+
+describe('nextStart and the dark', () => {
+  const monday8 = new Date(2026, 8, 28, 8, 0);
+  const sun = {rise: '07:00', set: '19:00'};
+  it('leaves out a start in the dark the scheduler would skip', () => {
+    const s = schedule([plan([1], '20:00'), plan([2], '10:00')]);
+    expect(nextStart(s, monday8, sun)).toEqual(new Date(2026, 8, 29, 10, 0));
+  });
+  it('keeps it when it may mow in the dark', () => {
+    const s = schedule([{...plan([1], '20:00'), dark: true}]);
+    expect(nextStart(s, monday8, sun)).toEqual(new Date(2026, 8, 28, 20, 0));
   });
 });

@@ -2,14 +2,18 @@ import {forget, fresh} from './fresh';
 import {apiBase} from './mowers';
 
 // the mowing schedule, kept by the container (docker/schedule.cgi) as simple lines the scheduler
-// script reads: enabled, minbattery, skiprain, tz and one "plan <days> <HH:MM>" per start time.
-// days are 1 = monday .. 7 = sunday like date +%u
+// script reads: enabled, minbattery, skiprain, tz and one "plan <days> <HH:MM> [areas] [end=HH:MM] [dark=1]"
+// per start time. days are 1 = monday .. 7 = sunday like date +%u
 
 export interface Plan {
   days: number[];
   time: string; // HH:MM, local
   // area ids to mow, empty: all active ones (the others get skipped by the scheduler)
   areas: string[];
+  // HH:MM, local: a run started by the plan is sent home then
+  end?: string;
+  // may start and mow in the dark, otherwise it doesn't start then and goes home at sunset
+  dark?: boolean;
 }
 
 export interface Schedule {
@@ -31,13 +35,21 @@ const endpoint = () => apiBase() + PATH;
 export function parseSchedule(text: string): Schedule {
   const s: Schedule = {...EMPTY_SCHEDULE, plans: []};
   for (const line of text.split('\n')) {
-    const [key, a, b, c] = line.trim().split(' ');
+    const [key, a, b, ...rest] = line.trim().split(' ');
     if (key === 'enabled') s.enabled = a === '1';
     if (key === 'minbattery') s.minBattery = Number(a) || 0;
     if (key === 'skiprain') s.skipRain = a === '1';
     if (key === 'skipforecast') s.skipForecast = a === '1';
     if (key === 'forecasthours' && FORECAST_HOURS.includes(Number(a))) s.forecastHours = Number(a);
-    if (key === 'plan' && a && b) s.plans.push({days: a.split(',').map(Number), time: b, areas: c ? c.split(',') : []});
+    if (key === 'plan' && a && b) {
+      const plan: Plan = {days: a.split(',').map(Number), time: b, areas: []};
+      for (const r of rest) {
+        if (r.startsWith('end=')) plan.end = r.slice(4);
+        else if (r === 'dark=1') plan.dark = true;
+        else if (r) plan.areas = r.split(',');
+      }
+      s.plans.push(plan);
+    }
   }
   return s;
 }
@@ -54,7 +66,10 @@ export function serializeSchedule(s: Schedule, pos?: {lat: number; lon: number})
     `tz ${posixTz()}`,
     ...s.plans
       .filter((p) => p.days.length)
-      .map((p) => `plan ${[...p.days].sort().join(',')} ${p.time}${p.areas.length ? ` ${p.areas.join(',')}` : ''}`),
+      .map(
+        (p) =>
+          `plan ${[...p.days].sort().join(',')} ${p.time}${p.areas.length ? ` ${p.areas.join(',')}` : ''}${p.end ? ` end=${p.end}` : ''}${p.dark ? ' dark=1' : ''}`,
+      ),
     '',
   ].join('\n');
 }
@@ -120,8 +135,9 @@ export const NIGHT_TO = '06:00';
 export const isNightTime = (time: string, sun?: {rise: string; set: string} | null) =>
   sun ? time >= sun.set || time < sun.rise : time >= NIGHT_FROM || time < NIGHT_TO;
 
-// the next start as a date, looking a week ahead from now
-export function nextStart(s: Schedule, from = new Date()): Date | null {
+// the next start as a date, looking a week ahead from now. with the sun times, starts in the dark that
+// the scheduler leaves out (not marked dark) don't count
+export function nextStart(s: Schedule, from = new Date(), sun?: {rise: string; set: string} | null): Date | null {
   if (!s.enabled) return null;
   let best: Date | null = null;
   for (let add = 0; add <= 7; add++) {
@@ -129,6 +145,7 @@ export function nextStart(s: Schedule, from = new Date()): Date | null {
     const dow = ((day.getDay() + 6) % 7) + 1;
     for (const p of s.plans) {
       if (!p.days.includes(dow)) continue;
+      if (sun !== undefined && !p.dark && isNightTime(p.time, sun)) continue;
       const [h, m] = p.time.split(':').map(Number);
       const at = new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, m);
       if (at > from && (!best || at < best)) best = at;

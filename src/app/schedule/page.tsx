@@ -31,6 +31,10 @@ const LOG_TEXT: Record<string, string> = {
   skip_busy: 'Not started, the mower was busy ({detail})',
   skip_emergency: 'Not started, emergency stop was active',
   skip_offline: "Not started, the mower wasn't reachable",
+  skip_dark: "Not started, it's dark (hedgehogs)",
+  stopped_end: 'Sent home, end time reached',
+  stopped_dark: 'Sent home at sunset (hedgehogs)',
+  stopped_again: 'Sent home again, it carried on by itself after charging',
   skipped_area: "Skipped an area that wasn't picked",
   unknown_area: "An area the map doesn't have (an older job?), left it alone",
 };
@@ -65,13 +69,14 @@ export default function SchedulePage() {
   const update = (next: Schedule) => {
     setSchedule(next);
     setError(null);
-    saveSchedule(next, next.skipForecast && datum ? datum : undefined).catch((e) =>
+    // the position also gives the scheduler the sun times
+    saveSchedule(next, datum ?? undefined).catch((e) =>
       setError(e instanceof Error ? e.message : tr('failed')),
     );
   };
 
   const s = schedule ?? EMPTY_SCHEDULE;
-  const next = nextStart(s);
+  const next = nextStart(s, undefined, sun);
 
   return (
     <div className={styles.page}>
@@ -132,6 +137,16 @@ export default function SchedulePage() {
                       update({...s, plans: s.plans.map((q, j) => (j === i ? {...q, time} : q))});
                     }}
                   />
+                  <label className={styles.until}>
+                    {tr('until')}
+                    <input
+                      type="time"
+                      value={p.end ?? ''}
+                      onChange={(e) =>
+                        update({...s, plans: s.plans.map((q, j) => (j === i ? {...q, end: e.target.value || undefined} : q))})
+                      }
+                    />
+                  </label>
                   <button className={styles.remove} onClick={() => update({...s, plans: s.plans.filter((_, j) => j !== i)})} aria-label="remove">
                     ×
                   </button>
@@ -162,7 +177,22 @@ export default function SchedulePage() {
                       })}
                     </div>
                   )}
-                  {(night?.plan === i || isNightTime(p.time, sun)) && (
+                  {!p.dark && night?.plan !== i && !isNightTime(p.time, sun) && (
+                    <p className={styles.dimLine}>
+                      {sun
+                        ? tr('Goes home at sunset at the latest, today at {set}.', {set: sun.set})
+                        : tr('Goes home at 6 pm at the latest.')}
+                    </p>
+                  )}
+                  {p.dark && (
+                    <p className={styles.dimLine}>
+                      🦔 {tr('Also starts and mows in the dark.')}{' '}
+                      <button className={styles.linkButton} onClick={() => update({...s, plans: s.plans.map((q, j) => (j === i ? {...q, dark: undefined} : q))})}>
+                        {tr('Only by day')}
+                      </button>
+                    </p>
+                  )}
+                  {(night?.plan === i || (isNightTime(p.time, sun) && !p.dark)) && (
                     <div className={styles.animals}>
                       <p>
                         🦔{' '}
@@ -174,11 +204,21 @@ export default function SchedulePage() {
                             })
                           : tr("Between 6 pm and 6 am hedgehogs and other animals are out in the garden. They don't run from the mower, they curl up and can get badly hurt. Better mow during the day.")}
                       </p>
+                      {night?.plan !== i && (
+                        <p>{tr("Unless you allow it, the mower doesn't start in the dark.")}</p>
+                      )}
+                      {night?.plan !== i && (
+                        <div className={styles.animalButtons}>
+                          <button onClick={() => update({...s, plans: s.plans.map((q, j) => (j === i ? {...q, dark: true} : q))})}>
+                            {tr('Mow at {time} anyway', {time: p.time})}
+                          </button>
+                        </div>
+                      )}
                       {night?.plan === i && (
                         <div className={styles.animalButtons}>
                           <button
                             onClick={() => {
-                              update({...s, plans: s.plans.map((q, j) => (j === i ? {...q, time: night.time} : q))});
+                              update({...s, plans: s.plans.map((q, j) => (j === i ? {...q, time: night.time, dark: true} : q))});
                               setNight(null);
                             }}
                           >
