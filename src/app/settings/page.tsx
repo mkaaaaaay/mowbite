@@ -13,7 +13,6 @@ import {appMowers, saveAppMowers} from '@/lib/mowers';
 import {isApp} from '@/lib/native';
 import {setSwipeEnabled, useSwipeEnabled} from '@/lib/swipe';
 import {UpdateSettings} from '@/components/Updates';
-import {RosLogSettings} from '@/components/RosLog';
 
 function IconChoice({
   icons,
@@ -412,8 +411,6 @@ export default function SettingsPage() {
             })}
           </div>
         </section>
-
-        <RosLogSettings cardClass={styles.card} />
 
         <UpdateSettings cardClass={styles.card} checkClass={styles.check} />
       </main>
