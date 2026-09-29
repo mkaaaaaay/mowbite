@@ -140,7 +140,7 @@ export default function MowSettings({
           <span>
             {tr(key === 'angle_min' ? 'Min. angle (°)' : 'Max. angle (°)')}
             <InfoTip>
-              {tr('Keeps the mow angle between these two, it turns back at the ends. Handy for narrow areas. Same value twice = fixed angle, min above max = range across 180°. Needs a newer OpenMower.')}
+              {tr('Keeps the stripes between these two directions, 0° and 180° give the same stripes. Past an end it turns back. Handy for narrow areas. Same value twice = fixed angle, min above max = range across 180°. Needs a newer OpenMower.')}
             </InfoTip>
           </span>
           <input

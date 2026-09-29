@@ -360,7 +360,7 @@ const de: Record<string, string> = {
   "none": "keiner",
   "Min. angle (°)": "Min. Winkel (°)",
   "Max. angle (°)": "Max. Winkel (°)",
-  "Keeps the mow angle between these two, it turns back at the ends. Handy for narrow areas. Same value twice = fixed angle, min above max = range across 180°. Needs a newer OpenMower.": "Hält den Mähwinkel zwischen diesen beiden Werten, an den Enden kehrt er um. Praktisch für schmale Flächen. Zweimal derselbe Wert = fester Winkel, Min. größer als Max. = Bereich über 180°. Braucht eine neuere OpenMower-Version.",
+  "Keeps the stripes between these two directions, 0° and 180° give the same stripes. Past an end it turns back. Handy for narrow areas. Same value twice = fixed angle, min above max = range across 180°. Needs a newer OpenMower.": "Hält die Streifen zwischen diesen beiden Richtungen, 0° und 180° ergeben dieselben Streifen. An den Enden kehrt der Winkel um. Praktisch für schmale Flächen. Zweimal derselbe Wert = fester Winkel, Min. größer als Max. = Bereich über 180°. Braucht eine neuere OpenMower-Version.",
   "dashed": "gestrichelt",
   "solid": "durchgezogen",
   "pellets": "Pac-Man-Punkte",

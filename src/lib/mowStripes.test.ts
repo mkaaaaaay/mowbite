@@ -44,6 +44,17 @@ describe('angleInRange', () => {
     expect(inDeg(angleInRange(-5 * deg, 0, 50 * deg))).toBe(5);
   });
 
+  it('keeps an angle whose stripes are in the range, 0° and 180° are the same stripes', () => {
+    expect(inDeg(angleInRange(200 * deg, 0, 50 * deg))).toBe(20);
+    expect(inDeg(angleInRange(-160 * deg, 0, 50 * deg))).toBe(20);
+    expect(inDeg(angleInRange(100 * deg, 0, 50 * deg))).toBe(0);
+  });
+
+  it('leaves the angle alone with half a turn or more', () => {
+    expect(angleInRange(2, 0, Math.PI)).toBe(2);
+    expect(angleInRange(2, -170 * deg, 170 * deg)).toBe(2);
+  });
+
   it('takes max < min as a range across ±180°', () => {
     expect(inDeg(angleInRange(-175 * deg, 170 * deg, -170 * deg))).toBe(185);
     expect(inDeg(angleInRange(160 * deg, 170 * deg, -170 * deg))).toBe(180);
@@ -52,13 +63,14 @@ describe('angleInRange', () => {
   it('gives the same as the mower for random angles', () => {
     // the mower's version (MowingBehavior.cpp), std::remainder written out
     const mower = (angle: number, lo: number, hi: number) => {
-      let width = hi - lo;
-      if (width < 0) width += 2 * Math.PI;
+      const d = hi - lo;
+      if (d >= Math.PI) return angle;
+      let width = d % Math.PI;
+      if (width < 0) width += Math.PI;
       if (width === 0) return lo;
-      if (width >= 2 * Math.PI) return angle;
       const mid = lo + width / 2;
       const x = angle - mid;
-      angle = mid + (x - 2 * Math.PI * Math.round(x / (2 * Math.PI)));
+      angle = mid + (x - Math.PI * Math.round(x / Math.PI));
       let t = (angle - lo) % (2 * width);
       if (t < 0) t += 2 * width;
       return lo + (t <= width ? t : 2 * width - t);
