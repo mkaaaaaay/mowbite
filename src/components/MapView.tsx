@@ -640,7 +640,7 @@ export default function MapView({
             className={[
               AREA_CLASS[area.properties.type ?? 'draft'] ?? styles.draftArea,
               area.properties.active === false ? styles.inactive : '',
-              area.properties.skip_mowing ? styles.skipMowing : '',
+              area.properties.mowable === false ? styles.skipMowing : '',
             ]
               .filter(Boolean)
               .join(' ')}

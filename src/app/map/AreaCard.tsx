@@ -65,8 +65,8 @@ export default function AreaCard({
           <label className={styles.toggle}>
             <input
               type="checkbox"
-              checked={!!area.properties.skip_mowing}
-              onChange={() => update({skip_mowing: area.properties.skip_mowing ? undefined : true})}
+              checked={area.properties.mowable === false}
+              onChange={() => update({mowable: area.properties.mowable === false ? undefined : false})}
             />
             {tr("don't mow")}
             <InfoTip>
@@ -77,7 +77,7 @@ export default function AreaCard({
         <span className={styles.dim}>
           {area.properties.active === false
             ? tr('inactive, the mower ignores it')
-            : type === 'mow' && area.properties.skip_mowing
+            : type === 'mow' && area.properties.mowable === false
               ? tr('driven on, but left out when mowing')
               : tr(AREA_TYPES.find((t) => t.value === type)?.hint ?? '')}
           {' · '}

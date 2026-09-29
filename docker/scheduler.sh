@@ -41,7 +41,7 @@ skip_others() {
               log unknown_area "$a"
               continue
             fi
-            case "$props" in *'"active":false'* | *'"skip_mowing":true'*) continue ;; esac
+            case "$props" in *'"active":false'* | *'"mowable":false'*) continue ;; esac
             # shellcheck disable=SC2086
             mosquitto_pub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTION" -m "$ACTION_SKIP_AREA"
             log skipped_area "$a"

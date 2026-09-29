@@ -44,7 +44,7 @@ export default function SchedulePage() {
   const map = useMowerMap();
   // the areas a plan can pick from: mowing areas the mower actually mows
   const mowAreas = (map?.areas ?? []).filter(
-    (a) => a.properties.type === 'mow' && a.properties.active !== false && !a.properties.skip_mowing,
+    (a) => a.properties.type === 'mow' && a.properties.active !== false && a.properties.mowable !== false,
   );
   const datum = datumFromParams(params);
   // today's sunrise and sunset, so the animal hint follows the real night

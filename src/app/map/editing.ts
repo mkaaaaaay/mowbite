@@ -6,7 +6,7 @@ export type AreaProperties = Area['properties'];
 export type UpdateArea = (patch: Partial<AreaProperties>, undoable?: boolean) => void;
 
 // area settings only newer openmower versions keep, older ones drop them when saving
-export const NEW_AREA_SETTINGS = ['skip_mowing', 'angle_min', 'angle_max'] as const;
+export const NEW_AREA_SETTINGS = ['mowable', 'angle_min', 'angle_max'] as const;
 
 export const AREA_TYPES = [
   {value: 'mow', label: 'Mowing area', hint: 'driven on and mowed'},

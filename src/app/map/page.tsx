@@ -533,7 +533,7 @@ function MapEditor() {
   }, [newSaved, liveMap]);
   const droppedNote = dropped.length
     ? tr("Your OpenMower version doesn't know {what} yet, it got dropped when saving.", {
-        what: [...new Set(dropped.map((k) => `"${tr(k === 'skip_mowing' ? "don't mow" : 'angle range')}"`))].join(', '),
+        what: [...new Set(dropped.map((k) => `"${tr(k === 'mowable' ? "don't mow" : 'angle range')}"`))].join(', '),
       })
     : null;
 
@@ -755,7 +755,7 @@ function MapEditor() {
                   previewCorrection={previewCorrection}
                   planFromMower={!!realPlan}
                   planAngle={realPlan?.angle}
-                  planLength={shownArea?.properties.skip_mowing ? 0 : planLength}
+                  planLength={shownArea?.properties.mowable === false ? 0 : planLength}
                   onPreviewCorrection={setPreviewCorrection}
                   angle={{offset: angleOffset, offsetIsAbsolute, increment: angleIncrement}}
                 />

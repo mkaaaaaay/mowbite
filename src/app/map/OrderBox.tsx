@@ -28,7 +28,7 @@ export default function OrderBox({
           <a onClick={() => onSelect(a.id)}>
             {a.properties.name || tr('unnamed')}
             {a.properties.active === false && <span className={styles.dim}> ({tr('inactive')})</span>}
-            {a.properties.active !== false && a.properties.skip_mowing && (
+            {a.properties.active !== false && a.properties.mowable === false && (
               <span className={styles.dim}> ({tr("don't mow")})</span>
             )}
           </a>
