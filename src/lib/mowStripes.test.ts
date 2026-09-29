@@ -35,4 +35,42 @@ describe('angleInRange', () => {
     expect(angleInRange(-0.2269, 0.2, 0.5)).toBeCloseTo(0.3731);
     expect(angleInRange(2, 1, 1)).toBe(1);
   });
+
+  const deg = Math.PI / 180;
+  const inDeg = (a: number) => Math.round(a / deg);
+
+  it("doesn't care how the angle is written", () => {
+    expect(inDeg(angleInRange(-350 * deg, 0, 50 * deg))).toBe(10);
+    expect(inDeg(angleInRange(-5 * deg, 0, 50 * deg))).toBe(5);
+  });
+
+  it('takes max < min as a range across ±180°', () => {
+    expect(inDeg(angleInRange(-175 * deg, 170 * deg, -170 * deg))).toBe(185);
+    expect(inDeg(angleInRange(160 * deg, 170 * deg, -170 * deg))).toBe(180);
+  });
+
+  it('gives the same as the mower for random angles', () => {
+    // the mower's version (MowingBehavior.cpp), std::remainder written out
+    const mower = (angle: number, lo: number, hi: number) => {
+      let width = hi - lo;
+      if (width < 0) width += 2 * Math.PI;
+      if (width === 0) return lo;
+      if (width >= 2 * Math.PI) return angle;
+      const mid = lo + width / 2;
+      const x = angle - mid;
+      angle = mid + (x - 2 * Math.PI * Math.round(x / (2 * Math.PI)));
+      let t = (angle - lo) % (2 * width);
+      if (t < 0) t += 2 * width;
+      return lo + (t <= width ? t : 2 * width - t);
+    };
+    let seed = 1;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) * 8 * Math.PI - 4 * Math.PI;
+    for (let i = 0; i < 20000; i++) {
+      const lo = rnd() / 4;
+      const hi = rnd() / 4;
+      const a = rnd();
+      const d = angleInRange(a, lo, hi) - mower(a, lo, hi);
+      expect(Math.abs(Math.sin(d / 2))).toBeLessThan(1e-9);
+    }
+  });
 });

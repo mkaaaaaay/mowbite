@@ -140,7 +140,7 @@ export default function MowSettings({
           <span>
             {tr(key === 'angle_min' ? 'Min. angle (°)' : 'Max. angle (°)')}
             <InfoTip>
-              {tr("Keeps the angle the mower really mows at (mow_angle_offset and a summed up angle increment included) between these two, past an end it turns back. Handy for narrow areas that only work lengthwise. Both are needed, the same value twice keeps the angle fixed. Needs an OpenMower version that knows it.")}
+              {tr("Keeps the angle the mower really mows at (mow_angle_offset and a summed up angle increment included) between these two, past an end it turns back. Handy for narrow areas that only work lengthwise. Both are needed, the same value twice keeps the angle fixed, and a min larger than the max goes the other way round, across 180°. Needs an OpenMower version that knows it.")}
             </InfoTip>
           </span>
           <input
