@@ -297,6 +297,14 @@ export default function SettingsPage() {
             {tr('Grass along the bottom of the screen')}
           </label>
           <label className={styles.check}>
+            <input
+              type="checkbox"
+              checked={settings.leaves === true}
+              onChange={(e) => saveSettings({...settingsStore.snapshot(), leaves: e.target.checked})}
+            />
+            {tr('Falling leaves in autumn')}
+          </label>
+          <label className={styles.check}>
             <input type="checkbox" checked={swipe} onChange={(e) => setSwipeEnabled(e.target.checked)} />
             {tr('Swipe left and right between the pages (on this device)')}
           </label>

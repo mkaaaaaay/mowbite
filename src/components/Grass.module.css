@@ -114,7 +114,14 @@
   transform-origin: bottom;
   animation:
     critter-pop 0.6s cubic-bezier(0.3, 1.6, 0.5, 1) both,
-    critter-exit 0.5s ease-in var(--t-exit) forwards;
+    critter-exit 1.2s ease-in var(--t-exit) forwards;
+}
+
+/* in autumn it comes out from under the heap once the leaves have flown */
+.fromPile {
+  animation:
+    critter-pop 0.6s cubic-bezier(0.3, 1.6, 0.5, 1) 0.35s both,
+    critter-exit 1.2s ease-in var(--t-exit) forwards;
 }
 
 .critter svg {
@@ -250,9 +257,13 @@
   }
 }
 
+/* it waddles off and disappears in the grass */
 @keyframes critter-exit {
+  from {
+    transform: none;
+  }
   to {
-    transform: scaleY(0);
+    transform: translate(22px, 28px);
     opacity: 0;
   }
 }
@@ -359,5 +370,112 @@
   }
   to {
     clip-path: inset(0 calc(100% - var(--gap-to)) 0 var(--gap-from));
+  }
+}
+
+/* autumn: leaves on the lawn, they get mowed and come back with the grass */
+.lawnLeaves {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.lawnLeaves > div {
+  position: absolute;
+  opacity: 0.85;
+}
+
+.mowing .lawnLeaves {
+  animation: grass-cut var(--dur) linear forwards;
+}
+
+.growing .lawnLeaves {
+  animation: leaves-back 2.5s ease-out;
+}
+
+@keyframes leaves-back {
+  from {
+    opacity: 0;
+  }
+}
+
+/* the heap in the middle, the hedgehog sleeps under it. a new one blows in after each run */
+.pile {
+  position: absolute;
+  bottom: 0;
+  left: calc(50% - 32px);
+  width: 64px;
+  height: 26px;
+  z-index: 1;
+  animation: leaves-back 1.2s ease-out;
+}
+
+.pile > div {
+  position: absolute;
+  transform: rotate(var(--rot));
+}
+
+.blown > div {
+  animation: leaf-blow 1s cubic-bezier(0.2, 0.7, 0.4, 1) forwards;
+}
+
+@keyframes leaf-blow {
+  to {
+    transform: translate(var(--dx), var(--dy)) rotate(calc(var(--rot) + var(--spin)));
+    opacity: 0;
+  }
+}
+
+/* optional: a few leaves drifting down behind the page */
+.falling {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  mask-size: 100% 100%;
+  -webkit-mask-size: 100% 100%;
+}
+
+.fall {
+  position: absolute;
+  top: -30px;
+  opacity: 0;
+  will-change: transform, opacity;
+  animation: leaf-fall linear infinite;
+}
+
+.sway {
+  will-change: transform;
+  animation: leaf-sway ease-in-out infinite alternate;
+}
+
+@keyframes leaf-fall {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  8%,
+  85% {
+    opacity: 0.55;
+  }
+  100% {
+    transform: translateY(calc(100vh + 40px));
+    opacity: 0;
+  }
+}
+
+@keyframes leaf-sway {
+  from {
+    transform: translateX(-24px) rotate(-35deg);
+  }
+  to {
+    transform: translateX(24px) rotate(35deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .falling {
+    display: none;
   }
 }

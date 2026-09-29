@@ -36,8 +36,10 @@ export default function LoveMower() {
     busy.current = true;
     const r = e.currentTarget.getBoundingClientRect();
     const g = gap.current?.getBoundingClientRect() ?? r;
-    // they meet in the middle of the empty space next to the title
-    setRun({top: r.bottom + 14, mid: (g.left + r.right) / 2, id: Date.now()});
+    // the lawn stands on the top edge of the first card below the title, they meet in the middle of the
+    // empty space next to the title
+    const card = e.currentTarget.closest('main')?.querySelector('section');
+    setRun({top: card ? card.getBoundingClientRect().top : r.bottom + 14, mid: (g.left + r.right) / 2, id: Date.now()});
     // the eater in the title is the one driving, so it's gone from there meanwhile
     const logo = e.currentTarget.parentElement?.querySelector<SVGElement>('svg');
     if (logo) {

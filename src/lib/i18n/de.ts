@@ -20,6 +20,7 @@ const de: Record<string, string> = {
   "Apply": "Übernehmen",
   "Apply merge": "Zusammenführen",
   "Apply split": "Teilen",
+  "Falling leaves in autumn": "Fallende Blätter im Herbst",
   "approach failed": "Anfahrt fehlgeschlagen",
   "Area skipped": "Fläche übersprungen",
   "Arrow": "Pfeil",
