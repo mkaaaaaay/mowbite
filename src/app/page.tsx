@@ -8,7 +8,6 @@ import {useComputedSpeed} from '@/hooks/useComputedSpeed';
 import {useMowerActions} from '@/hooks/useMowerActions';
 import {useMowerMap} from '@/hooks/useMowerMap';
 import {datumFromParams, useMowerParams} from '@/hooks/useMowerParams';
-import {sunTimes} from '@/lib/sun';
 import {useMowerSensors} from '@/hooks/useMowerSensors';
 import {useMowerPosition} from '@/hooks/useMowerPosition';
 import {useMowerState, type MowerState} from '@/hooks/useMowerState';
@@ -121,8 +120,7 @@ export default function Home() {
   useEffect(() => {
     void loadSchedule().then(setSchedule);
   }, []);
-  const datum = datumFromParams(params);
-  const planned = schedule ? nextStart(schedule, undefined, datum ? sunTimes(datum.lat, datum.lon) : null) : null;
+  const planned = schedule ? nextStart(schedule) : null;
   const [confirmReset, setConfirmReset] = useState(false);
 
   const current = state?.current_state ?? '';

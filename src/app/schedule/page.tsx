@@ -2,13 +2,11 @@
 
 import {TitleMark} from '@/components/Logo';
 import {datumFromParams, useMowerParams} from '@/hooks/useMowerParams';
-import {sunTimes} from '@/lib/sun';
 import {clock, dayLabel} from '@/lib/dates';
 import {locale, tr, useLang} from '@/lib/i18n';
 import {
   cachedSchedule,
   cachedScheduleLog,
-  isNightTime,
   EMPTY_SCHEDULE,
   FORECAST_HOURS,
   loadSchedule,
@@ -31,12 +29,13 @@ const LOG_TEXT: Record<string, string> = {
   skip_busy: 'Not started, the mower was busy ({detail})',
   skip_emergency: 'Not started, emergency stop was active',
   skip_offline: "Not started, the mower wasn't reachable",
-  skip_dark: "Not started, it's dark (hedgehogs)",
   stopped_end: 'Sent home, end time reached',
-  stopped_dark: 'Sent home at sunset (hedgehogs)',
   stopped_again: 'Sent home again, it carried on by itself after charging',
   skipped_area: "Skipped an area that wasn't picked",
   unknown_area: "An area the map doesn't have (an older job?), left it alone",
+  // from before the night lock was taken out, still in older logs
+  skip_dark: "Not started, it's dark (hedgehogs)",
+  stopped_dark: 'Sent home at sunset (hedgehogs)',
 };
 
 // monday first, labels from the browser so they come out in the app's language
@@ -51,14 +50,10 @@ export default function SchedulePage() {
     (a) => a.properties.type === 'mow' && a.properties.active !== false && a.properties.mowable !== false,
   );
   const datum = datumFromParams(params);
-  // today's sunrise and sunset, so the animal hint follows the real night
-  const sun = datum ? sunTimes(datum.lat, datum.lon) : null;
   // undefined: loading, null: not served by the container
   const [schedule, setSchedule] = useState<Schedule | null | undefined>(cachedSchedule);
   const [log, setLog] = useState<LogEntry[]>(() => cachedScheduleLog() ?? []);
   const [error, setError] = useState<string | null>(null);
-  // a night time that still needs a yes before it's saved
-  const [night, setNight] = useState<{plan: number; time: string} | null>(null);
 
   useEffect(() => {
     void loadSchedule().then(setSchedule);
@@ -71,14 +66,14 @@ export default function SchedulePage() {
   const update = (next: Schedule) => {
     setSchedule(next);
     setError(null);
-    // the position also gives the scheduler the sun times
+    // the position is for the rain forecast
     saveSchedule(next, datum ?? undefined).catch((e) =>
       setError(e instanceof Error ? e.message : tr('failed')),
     );
   };
 
   const s = schedule ?? EMPTY_SCHEDULE;
-  const next = nextStart(s, undefined, sun);
+  const next = nextStart(s);
 
   return (
     <div className={styles.page}>
@@ -129,13 +124,10 @@ export default function SchedulePage() {
                   </div>
                   <input
                     type="time"
-                    value={night?.plan === i ? night.time : p.time}
+                    value={p.time}
                     onChange={(e) => {
                       const time = e.target.value;
                       if (!time) return;
-                      // moving a start into the night has to be confirmed first
-                      if (isNightTime(time, sun) && !isNightTime(p.time, sun)) return setNight({plan: i, time});
-                      setNight(null);
                       update({...s, plans: s.plans.map((q, j) => (j === i ? {...q, time} : q))});
                     }}
                   />
@@ -176,58 +168,6 @@ export default function SchedulePage() {
                           </button>
                         );
                       })}
-                    </div>
-                  )}
-                  {!p.dark && night?.plan !== i && !isNightTime(p.time, sun) && (
-                    <p className={styles.dimLine}>
-                      {sun
-                        ? tr('Goes home at sunset at the latest, today at {set}.', {set: sun.set})
-                        : tr('Goes home at 6 pm at the latest.')}
-                    </p>
-                  )}
-                  {p.dark && (
-                    <p className={styles.dimLine}>
-                      🦔 {tr('Also starts and mows in the dark.')}{' '}
-                      <button className={styles.linkButton} onClick={() => update({...s, plans: s.plans.map((q, j) => (j === i ? {...q, dark: undefined} : q))})}>
-                        {tr('Only by day')}
-                      </button>
-                    </p>
-                  )}
-                  {(night?.plan === i || (isNightTime(p.time, sun) && !p.dark)) && (
-                    <div className={styles.animals}>
-                      <p>
-                        🦔{' '}
-                        {sun
-                          ? tr("Today the sun sets at {set} and rises at {rise}, so it's dark at {time}. Hedgehogs and other animals are out in the garden then. They don't run from the mower, they curl up and can get badly hurt. Better mow during the day.", {
-                              set: sun.set,
-                              rise: sun.rise,
-                              time: night?.plan === i ? night.time : p.time,
-                            })
-                          : tr("Between 6 pm and 6 am hedgehogs and other animals are out in the garden. They don't run from the mower, they curl up and can get badly hurt. Better mow during the day.")}
-                      </p>
-                      {night?.plan !== i && (
-                        <p>{tr("Unless you allow it, the mower doesn't start in the dark.")}</p>
-                      )}
-                      {night?.plan !== i && (
-                        <div className={styles.animalButtons}>
-                          <button onClick={() => update({...s, plans: s.plans.map((q, j) => (j === i ? {...q, dark: true} : q))})}>
-                            {tr('Mow at {time} anyway', {time: p.time})}
-                          </button>
-                        </div>
-                      )}
-                      {night?.plan === i && (
-                        <div className={styles.animalButtons}>
-                          <button
-                            onClick={() => {
-                              update({...s, plans: s.plans.map((q, j) => (j === i ? {...q, time: night.time, dark: true} : q))});
-                              setNight(null);
-                            }}
-                          >
-                            {tr('Mow at {time} anyway', {time: night.time})}
-                          </button>
-                          <button onClick={() => setNight(null)}>{tr('Cancel')}</button>
-                        </div>
-                      )}
                     </div>
                   )}
                 </div>
