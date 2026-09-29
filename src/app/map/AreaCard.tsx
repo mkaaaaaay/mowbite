@@ -76,9 +76,9 @@ export default function AreaCard({
         )}
         <span className={styles.dim}>
           {area.properties.active === false
-            ? tr('inactive, the mower ignores it')
+            ? tr('inactive: not driven on and not mowed')
             : type === 'mow' && area.properties.mowable === false
-              ? tr('driven on, but left out when mowing')
+              ? tr('driven on, but not mowed')
               : tr(AREA_TYPES.find((t) => t.value === type)?.hint ?? '')}
           {' · '}
           {tr('{n} points', {n: area.outline.length})}
