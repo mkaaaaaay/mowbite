@@ -1,5 +1,7 @@
 'use client';
 
+import Sparkline from '@/components/Sparkline';
+import type {Sample} from '@/hooks/useSensorHistory';
 import {fmt, tr} from '@/lib/i18n';
 import {loadSystem, type SystemInfo} from '@/lib/system';
 import {useEffect, useState} from 'react';
@@ -21,36 +23,39 @@ function Bar({used, warn}: {used: number; warn?: boolean}) {
   );
 }
 
-// the computer side of the mower: memory, storage, cpu. from the container, updated every 30 s
-export default function System() {
-  const [sys, setSys] = useState<SystemInfo | null>(null);
+// the computer side of the mower: memory, storage, cpu. from the container, updated every 30 s, the last 24 h
+// from the recorder like the sensors (sys_*)
+export default function System({history}: {history: Record<string, Sample[] | undefined>}) {
+  // undefined: loading, null: not served
+  const [sys, setSys] = useState<SystemInfo | null | undefined>(undefined);
   useEffect(() => {
     const get = () => void loadSystem().then(setSys);
     get();
     const every = setInterval(get, 30000);
     return () => clearInterval(every);
   }, []);
-  if (!sys || sys.memTotal === undefined) return null;
+  if (sys === null) return <p className={styles.dim}>{tr('Only when MowBite runs as its container on the mower.')}</p>;
+  if (!sys || sys.memTotal === undefined) return <p className={styles.dim}>{tr('loading…')}</p>;
 
   const memUsed = sys.memTotal - (sys.memAvailable ?? 0);
   // the data volume only when it's a disk of its own
   const disks = [
-    {label: tr('Storage'), total: sys.diskTotal, free: sys.diskFree},
-    ...(sys.dataTotal !== undefined && sys.dataTotal !== sys.diskTotal ? [{label: tr('Data volume'), total: sys.dataTotal, free: sys.dataFree}] : []),
+    {label: tr('Storage'), total: sys.diskTotal, free: sys.diskFree, history: history.sys_disk_free},
+    ...(sys.dataTotal !== undefined && sys.dataTotal !== sys.diskTotal
+      ? [{label: tr('Data volume'), total: sys.dataTotal, free: sys.dataFree, history: undefined}]
+      : []),
   ];
 
   return (
     <>
-      <h2 className={styles.categoryTitle}>
-        {tr('System')}
-        {sys.remote && <span className={styles.dim}> · {tr('of the computer MowBite runs on, not the mower')}</span>}
-      </h2>
+      {sys.remote && <p className={styles.dim}>{tr('Of the computer MowBite runs on, not the mower.')}</p>}
       <div className={styles.grid}>
         <div className={styles.card}>
           <span className={styles.cardLabel}>{tr('Memory')}</span>
           <strong className={styles.big}>{Math.round((memUsed / sys.memTotal) * 100)} %</strong>
           <Bar used={memUsed / sys.memTotal} warn={memUsed / sys.memTotal > 0.9} />
           <span className={styles.dim}>{tr('{used} of {total} in use', {used: gb(memUsed), total: gb(sys.memTotal)})}</span>
+          <Sparkline samples={history.sys_mem} digits={0} unit="%" minSpan={10} />
         </div>
         {disks.map(
           (d) =>
@@ -61,6 +66,7 @@ export default function System() {
                 <strong className={[styles.big, d.free < 1e9 ? styles.error : ''].join(' ')}>{tr('{free} free', {free: gb(d.free)})}</strong>
                 <Bar used={1 - d.free / d.total} warn={d.free < 1e9} />
                 <span className={styles.dim}>{tr('of {total}', {total: gb(d.total)})}</span>
+                {d.history && <Sparkline samples={d.history} digits={1} unit="GB" minSpan={1} />}
               </div>
             ),
         )}
@@ -68,6 +74,7 @@ export default function System() {
           <div className={styles.card}>
             <span className={styles.cardLabel}>{tr('CPU temperature')}</span>
             <strong className={[styles.big, sys.cpuTemp >= 80 ? styles.error : ''].join(' ')}>{fmt(sys.cpuTemp, 0)} °C</strong>
+            <Sparkline samples={history.sys_cpu_temp} digits={0} unit="°C" minSpan={5} />
           </div>
         )}
         {sys.load !== undefined && (
@@ -75,6 +82,7 @@ export default function System() {
             <span className={styles.cardLabel}>{tr('CPU load')}</span>
             <strong className={styles.big}>{fmt(sys.load, 2)}</strong>
             {sys.cpus !== undefined && <span className={styles.dim}>{tr('{n} cores, one per core is full load', {n: sys.cpus})}</span>}
+            <Sparkline samples={history.sys_load} digits={2} minSpan={1} />
           </div>
         )}
         {sys.uptime !== undefined && (

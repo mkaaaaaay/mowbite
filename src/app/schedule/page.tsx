@@ -167,9 +167,8 @@ export default function SchedulePage() {
                             key={a.id}
                             className={on ? styles.on : undefined}
                             onClick={() => {
-                              let areas = on ? p.areas.filter((x) => x !== a.id) : [...p.areas.filter((x) => mowAreas.some((m) => m.id === x)), a.id];
-                              // everything picked is the same as all active
-                              if (areas.length === mowAreas.length) areas = [];
+                              // stays as picked, also when that's every area. none picked is all active ones
+                              const areas = on ? p.areas.filter((x) => x !== a.id) : [...p.areas.filter((x) => mowAreas.some((m) => m.id === x)), a.id];
                               update({...s, plans: s.plans.map((q, j) => (j === i ? {...q, areas} : q))});
                             }}
                           >

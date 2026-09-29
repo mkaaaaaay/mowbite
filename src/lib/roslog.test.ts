@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {readRpcLog} from './roslog';
+import {readKeptLog, readRpcLog} from './roslog';
 
 describe('readRpcLog', () => {
   it('keeps the window around the moment, node in front of the text', () => {
@@ -22,5 +22,16 @@ describe('readRpcLog', () => {
 
   it('copes with an answer that is not a list', () => {
     expect(readRpcLog({error: 'x'}, 0, 1)).toEqual([]);
+  });
+});
+
+describe('readKeptLog', () => {
+  it('reads the lines logkeeper.sh writes, node like from the rpc', () => {
+    expect(
+      readKeptLog('1790709655.04 WARN /mower_comms_v2: Firmware version unknown\n1790709700 ERROR /move_base_flex: a: b\ngarbage\n'),
+    ).toEqual([
+      {level: 'WARN', t: 1790709655.04, text: 'mower_comms_v2: Firmware version unknown'},
+      {level: 'ERROR', t: 1790709700, text: 'move_base_flex: a: b'},
+    ]);
   });
 });

@@ -6,7 +6,7 @@ import {rosLogAround, rosLogAvailable, type RosLogLine} from '@/lib/roslog';
 import {useEffect, useState} from 'react';
 import styles from './RosLog.module.css';
 
-// next to a problem on the activity page, when the mower keeps the log (logs.recent)
+// next to a problem on the activity page, when the mower keeps the log (logs.recent) or the container kept it
 export function RosLogAround({t}: {t: number}) {
   const [available, setAvailable] = useState(false);
   const [open, setOpen] = useState(false);
@@ -33,7 +33,7 @@ export function RosLogAround({t}: {t: number}) {
           {lines === null && <span>{tr('loading…')}</span>}
           {lines === 'failed' && <span>{tr('failed')}</span>}
           {Array.isArray(lines) && lines.length === 0 && (
-            <span>{tr("Nothing around that time in the mower's memory. It keeps the last 1000 warnings and errors, until it restarts.")}</span>
+            <span>{tr('ROS reported nothing around that time, or it was before the log was kept (the last 14 days).')}</span>
           )}
           {Array.isArray(lines) &&
             lines.map((l, i) => (
