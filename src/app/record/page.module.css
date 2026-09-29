@@ -34,7 +34,6 @@
   background: var(--card);
   box-shadow: var(--card-shadow, none);
   backdrop-filter: var(--card-blur, none);
-  -webkit-backdrop-filter: var(--card-blur, none);
   font-size: 14px;
   line-height: 1.45;
 }

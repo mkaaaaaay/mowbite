@@ -37,7 +37,6 @@
   background: var(--card);
   box-shadow: var(--card-shadow, none);
   backdrop-filter: var(--card-blur, none);
-  -webkit-backdrop-filter: var(--card-blur, none);
 }
 
 .cardHead {
@@ -83,6 +82,7 @@
   color: var(--foreground);
   font-size: 13px;
   cursor: pointer;
+  box-shadow: var(--btn-3d);
 }
 
 .pillButton:disabled {
