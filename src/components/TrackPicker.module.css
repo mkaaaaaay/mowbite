@@ -66,3 +66,13 @@
   font-size: 12px;
   color: var(--text-secondary);
 }
+
+.clear {
+  align-self: flex-start;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-size: 12px;
+  cursor: pointer;
+}

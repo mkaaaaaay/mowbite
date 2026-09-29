@@ -55,25 +55,38 @@ function thin(points: Point[]): Point[] {
 // what the mower recorded of this job so far, so a reload doesn't start with an empty trail. again after the
 // connection was gone (phone asleep, app in the background), the live trail misses that part
 let loading = false;
+
+async function recordedTrack(id: string): Promise<Point[]> {
+  const h = await callRpc<{
+    segments?: {points: [number, number][]; attributes?: {blades?: boolean}}[];
+    buffer?: [number, number][];
+  }>(RPC.jobTrack, {job_id: id}, 20000);
+  // the buffer is the segment still being written, so it has the current blade state
+  return [
+    ...(h.segments ?? []).flatMap((s) => s.points.map(([x, y]) => ({x, y, b: s.attributes?.blades}))),
+    ...(h.buffer ?? []).map(([x, y]) => ({x, y, b: blades})),
+  ];
+}
+
+// cleared by hand: the job and how many of its recorded points were there then, only later ones are shown.
+// per device, the recording on the mower stays as it is
+const CLEARED_KEY = 'trackCleared';
+function clearedUpTo(id: string): number {
+  try {
+    const c = JSON.parse(localStorage.getItem(CLEARED_KEY) ?? 'null');
+    return c?.job === id && typeof c.points === 'number' ? c.points : 0;
+  } catch {
+    return 0;
+  }
+}
+
 async function seed(id: string) {
   if (loading) return;
   loading = true;
   whileLoading = [];
   try {
-    const h = await callRpc<{
-      segments?: {points: [number, number][]; attributes?: {blades?: boolean}}[];
-      buffer?: [number, number][];
-    }>(
-      RPC.jobTrack,
-      {job_id: id},
-      20000,
-    );
+    const recorded = (await recordedTrack(id)).slice(clearedUpTo(id));
     if (jobId !== id) return;
-    // the buffer is the segment still being written, so it has the current blade state
-    const recorded = [
-      ...(h.segments ?? []).flatMap((s) => s.points.map(([x, y]) => ({x, y, b: s.attributes?.blades}))),
-      ...(h.buffer ?? []).map(([x, y]) => ({x, y, b: blades})),
-    ];
     // the recorded track replaces what was here, only what came in live while it loaded goes on top
     track = thin([...recorded, ...whileLoading]).slice(-MAX_POINTS);
     listeners.forEach((l) => l());
@@ -138,6 +151,20 @@ function subscribe(listener: () => void) {
   start();
   listeners.add(listener);
   return () => listeners.delete(listener);
+}
+
+// empties the live trail, it starts again from the mower's position now
+export async function clearTrack() {
+  const id = jobId;
+  if (id) {
+    try {
+      const points = (await recordedTrack(id)).length;
+      localStorage.setItem(CLEARED_KEY, JSON.stringify({job: id, points}));
+    } catch {}
+  }
+  track = EMPTY;
+  whileLoading = [];
+  listeners.forEach((l) => l());
 }
 
 export function useMowerTrack(): Point[] {
