@@ -5,7 +5,7 @@ import {callRpc} from '@/lib/rpc';
 import {useSyncExternalStore} from 'react';
 import {RPC, TOPIC} from '@/lib/openmower';
 
-interface Point {
+export interface Point {
   x: number;
   y: number;
   // blades running at that point, false = just driving
@@ -17,9 +17,17 @@ interface Point {
 const MIN_DISTANCE = 0.03;
 const STRAIGHT = 0.01;
 const MAX_POINTS = 30000;
+// the trail is kept in pieces of this many points. finished pieces never change, so each new position only
+// touches the last one and the map only redraws that, however long the job is
+const CHUNK = 400;
+// at most this often the map gets told about new points, positions come in several times a second
+const NOTIFY_MS = 200;
 
-const EMPTY: Point[] = [];
-let track: Point[] = EMPTY;
+// the pieces in order, the last one is still growing. each piece starts with the last point of the one before,
+// so they join up when drawn
+export type TrackChunks = readonly Point[][];
+const EMPTY: TrackChunks = [];
+let track: TrackChunks = EMPTY;
 let started = false;
 let jobId: string | null = null;
 let blades: boolean | undefined;
@@ -46,10 +54,58 @@ function add(out: Point[], p: Point) {
   else out.push(p);
 }
 
-function thin(points: Point[]): Point[] {
+export function thin(points: Point[]): Point[] {
   const out: Point[] = [];
   for (const p of points) add(out, p);
   return out;
+}
+
+export function chunked(points: Point[]): TrackChunks {
+  if (!points.length) return EMPTY;
+  const out: Point[][] = [];
+  for (let i = 0; ; i += CHUNK - 1) {
+    out.push(points.slice(i, i + CHUNK));
+    if (i + CHUNK >= points.length) break;
+  }
+  return out;
+}
+
+export function trackPoints(chunks: TrackChunks) {
+  return chunks.reduce((n, c, i) => n + c.length - (i ? 1 : 0), 0);
+}
+
+// the trail with p added to the growing piece, null when it doesn't change anything
+export function appendPoint(chunks: TrackChunks, p: Point, maxPoints = MAX_POINTS): TrackChunks | null {
+  const tail = chunks[chunks.length - 1];
+  if (!tail) return [[p]];
+  const next = tail.slice();
+  const last = next[next.length - 1];
+  const before = next.length;
+  add(next, p);
+  if (next.length === before && next[next.length - 1] === last) return null;
+  const out = chunks.slice(0, -1);
+  if (next.length > CHUNK) out.push(next.slice(0, CHUNK), next.slice(CHUNK - 1));
+  else out.push(next);
+  // the oldest pieces go first once there are too many points
+  let total = trackPoints(out);
+  while (out.length > 1 && total > maxPoints) total -= out.shift()!.length - 1;
+  return out;
+}
+
+function append(p: Point): boolean {
+  const next = appendPoint(track, p);
+  if (!next) return false;
+  track = next;
+  return true;
+}
+
+let notifyTimer: ReturnType<typeof setTimeout> | null = null;
+function notifySoon() {
+  if (notifyTimer) return;
+  notifyTimer = setTimeout(() => {
+    notifyTimer = null;
+    listeners.forEach((l) => l());
+  }, NOTIFY_MS);
 }
 
 // what the mower recorded of this job so far, so a reload doesn't start with an empty trail. again after the
@@ -88,7 +144,7 @@ async function seed(id: string) {
     const recorded = (await recordedTrack(id)).slice(clearedUpTo(id));
     if (jobId !== id) return;
     // the recorded track replaces what was here, only what came in live while it loaded goes on top
-    track = thin([...recorded, ...whileLoading]).slice(-MAX_POINTS);
+    track = chunked(thin([...recorded, ...whileLoading]).slice(-MAX_POINTS));
     listeners.forEach((l) => l());
   } catch {
     // no history on this mower, just keep the live trail
@@ -137,13 +193,7 @@ function start() {
     }
     if (!pose) return;
     if (loading) whileLoading.push({x: pose.x, y: pose.y, b: blades});
-    const next = track.slice(-(MAX_POINTS - 1));
-    const before = next.length;
-    const last = next[next.length - 1];
-    add(next, {x: pose.x, y: pose.y, b: blades});
-    if (next.length === before && next[next.length - 1] === last) return;
-    track = next;
-    listeners.forEach((l) => l());
+    if (append({x: pose.x, y: pose.y, b: blades})) notifySoon();
   });
 }
 
@@ -167,7 +217,7 @@ export async function clearTrack() {
   listeners.forEach((l) => l());
 }
 
-export function useMowerTrack(): Point[] {
+export function useMowerTrack(): TrackChunks {
   return useSyncExternalStore(
     subscribe,
     () => track,

@@ -33,7 +33,8 @@ interface MapViewProps {
   follow?: boolean;
   followSpanMeters?: number;
   // oldest first
-  track?: (Point & {b?: boolean})[];
+  // the live trail in pieces (see useMowerTrack), finished pieces keep their identity
+  track?: readonly (Point & {b?: boolean})[][];
   // a recorded job instead of the live trail, mowed parts solid, driving without blades dashed
   pastTrack?: {points: Point[]; blades: boolean}[];
   // wheel / pinch zoom, drag to pan
@@ -78,6 +79,10 @@ interface View {
 const MAX_ZOOM = 40;
 // dragging.areaId while a point of the line being drawn is dragged
 const PENDING = '__pending';
+
+type Run = {points: string; blades: boolean};
+// drawn runs of each piece of the live trail per map geometry, pieces that are done are never worked out again
+const runCache = new WeakMap<object, Map<string, Run[]>>();
 
 const AREA_CLASS: Record<string, string> = {
   mow: styles.mowArea,
@@ -265,22 +270,36 @@ export default function MapView({
     }
     return out;
   }, [map, minX, minY, scale, padX, padY]);
-  // the live trail cut where the blades go on or off, driving without them is drawn dashed
+  // the live trail cut where the blades go on or off, driving without them is drawn dashed. worked out per
+  // piece and kept for pieces that didn't change, so a long trail costs the same as a short one while driving
   const trackRuns = useMemo(() => {
-    const runs: {points: string; blades: boolean}[] = [];
-    if (!track || track.length < 2) return runs;
+    const runs: Run[] = [];
+    if (!track) return runs;
+    const key = `${minX},${minY},${scale},${padX},${padY}`;
     const at = (p: Point) => `${(p.x - minX) * scale + padX},${HEIGHT - ((p.y - minY) * scale + padY)}`;
-    let start = 0;
-    for (let i = 1; i <= track.length; i++) {
-      if (i < track.length && (track[i].b ?? true) === (track[start].b ?? true)) continue;
-      // include the next point so the runs connect
-      const pts = track.slice(start, Math.min(i + 1, track.length));
-      if (pts.length >= 2) runs.push({points: pts.map(at).join(' '), blades: track[start].b ?? true});
-      start = i;
+    for (const piece of track) {
+      let byView = runCache.get(piece);
+      if (!byView) runCache.set(piece, (byView = new Map()));
+      let cached = byView.get(key);
+      if (!cached) {
+        const own: Run[] = [];
+        let start = 0;
+        for (let i = 1; i <= piece.length; i++) {
+          if (i < piece.length && (piece[i].b ?? true) === (piece[start].b ?? true)) continue;
+          // include the next point so the runs connect
+          const pts = piece.slice(start, Math.min(i + 1, piece.length));
+          if (pts.length >= 2) own.push({points: pts.map(at).join(' '), blades: piece[start].b ?? true});
+          start = i;
+        }
+        cached = own;
+        // one entry per map size it's drawn at, the dashboard and the map page differ
+        if (byView.size > 3) byView.clear();
+        byView.set(key, cached);
+      }
+      runs.push(...cached);
     }
     return runs;
-  }, [track, minX, minY, scale, padX, padY],
-  );
+  }, [track, minX, minY, scale, padX, padY]);
 
   const selectedArea = map.areas.find((a) => a.id === selectedAreaId);
   const activeIndex =
