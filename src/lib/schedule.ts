@@ -113,10 +113,12 @@ async function loadLog(): Promise<LogEntry[]> {
 }
 
 // At night hedgehogs and other animals are out and curl up instead of running away, a start time in
-// these hours has to be confirmed on the schedule page
+// the dark has to be confirmed on the schedule page. With the sun times of the day it's the real
+// night, without them 6 pm to 6 am.
 export const NIGHT_FROM = '18:00';
 export const NIGHT_TO = '06:00';
-export const isNightTime = (time: string) => time >= NIGHT_FROM || time < NIGHT_TO;
+export const isNightTime = (time: string, sun?: {rise: string; set: string} | null) =>
+  sun ? time >= sun.set || time < sun.rise : time >= NIGHT_FROM || time < NIGHT_TO;
 
 // the next start as a date, looking a week ahead from now
 export function nextStart(s: Schedule, from = new Date()): Date | null {

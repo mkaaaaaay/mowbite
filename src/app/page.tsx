@@ -29,7 +29,8 @@ import MowerSwitch from '@/components/MowerSwitch';
 import {UpdateBanner} from '@/components/Updates';
 import {ACTION} from '@/lib/openmower';
 
-const DRIVING = new Set(['MOWING', 'DOCKING', 'UNDOCKING']);
+// paused counts too, the mower is standing somewhere on the lawn then
+const DRIVING = new Set(['MOWING', 'PAUSED', 'DOCKING', 'UNDOCKING']);
 
 const ACTION_RESET_EMERGENCY = ACTION.resetEmergency;
 const ACTIONS = [

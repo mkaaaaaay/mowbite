@@ -552,6 +552,9 @@ function MapEditor() {
       if (backups && liveMap) await saveBackup(liveMap, 'before saving', true).catch(() => {});
       await saveMap(map);
       setNewSaved({areas: map.areas.filter((a) => NEW_AREA_SETTINGS.some((k) => a.properties[k] !== undefined)), before: liveMap});
+      // back to the live map, it comes back from the mower with what was just saved
+      setEdited(null);
+      setHistory([]);
       void refreshBackups();
     } catch (e) {
       setSaveError(rpcErrorText(e));

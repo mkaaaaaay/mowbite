@@ -2,6 +2,7 @@
 
 import {TitleMark} from '@/components/Logo';
 import {datumFromParams, useMowerParams} from '@/hooks/useMowerParams';
+import {sunTimes} from '@/lib/sun';
 import {clock, dayLabel} from '@/lib/dates';
 import {locale, tr, useLang} from '@/lib/i18n';
 import {
@@ -44,6 +45,8 @@ export default function SchedulePage() {
   // the areas a plan can pick from: mowing areas the mower actually mows
   const mowAreas = (map?.areas ?? []).filter((a) => a.properties.type === 'mow' && a.properties.active !== false);
   const datum = datumFromParams(params);
+  // today's sunrise and sunset, so the animal hint follows the real night
+  const sun = datum ? sunTimes(datum.lat, datum.lon) : null;
   // undefined: loading, null: not served by the container
   const [schedule, setSchedule] = useState<Schedule | null | undefined>(cachedSchedule);
   const [log, setLog] = useState<LogEntry[]>(() => cachedScheduleLog() ?? []);
@@ -124,7 +127,7 @@ export default function SchedulePage() {
                       const time = e.target.value;
                       if (!time) return;
                       // moving a start into the night has to be confirmed first
-                      if (isNightTime(time) && !isNightTime(p.time)) return setNight({plan: i, time});
+                      if (isNightTime(time, sun) && !isNightTime(p.time, sun)) return setNight({plan: i, time});
                       setNight(null);
                       update({...s, plans: s.plans.map((q, j) => (j === i ? {...q, time} : q))});
                     }}
@@ -159,10 +162,17 @@ export default function SchedulePage() {
                       })}
                     </div>
                   )}
-                  {(night?.plan === i || isNightTime(p.time)) && (
+                  {(night?.plan === i || isNightTime(p.time, sun)) && (
                     <div className={styles.animals}>
                       <p>
-                        🦔 {tr("Between 6 pm and 6 am hedgehogs and other animals are out in the garden. They don't run from the mower, they curl up and can get badly hurt. Better mow during the day.")}
+                        🦔{' '}
+                        {sun
+                          ? tr("Today the sun sets at {set} and rises at {rise}, so it's dark at {time}. Hedgehogs and other animals are out in the garden then. They don't run from the mower, they curl up and can get badly hurt. Better mow during the day.", {
+                              set: sun.set,
+                              rise: sun.rise,
+                              time: night?.plan === i ? night.time : p.time,
+                            })
+                          : tr("Between 6 pm and 6 am hedgehogs and other animals are out in the garden. They don't run from the mower, they curl up and can get badly hurt. Better mow during the day.")}
                       </p>
                       {night?.plan === i && (
                         <div className={styles.animalButtons}>
