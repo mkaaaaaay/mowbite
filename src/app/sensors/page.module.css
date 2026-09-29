@@ -163,3 +163,46 @@
   font-size: 11px;
   color: var(--text-secondary);
 }
+
+/* how full memory or a disk is */
+.bar {
+  width: 100%;
+  height: 6px;
+  margin: 4px 0;
+  border-radius: 3px;
+  background: rgba(128, 128, 128, 0.2);
+  overflow: hidden;
+}
+
+.barFill {
+  height: 100%;
+  border-radius: 3px;
+  background: var(--success);
+}
+
+.barWarn {
+  background: var(--error);
+}
+
+/* mower or the computer in it */
+.tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.tabs button {
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.tabs .tabOn {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+  color: var(--foreground);
+}

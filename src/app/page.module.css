@@ -225,8 +225,9 @@
 }
 
 .controls .main:not(:disabled) {
-  border-color: var(--accent);
-  background: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 70%, transparent);
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+  backdrop-filter: var(--card-blur, none);
   color: #fff;
 }
 
