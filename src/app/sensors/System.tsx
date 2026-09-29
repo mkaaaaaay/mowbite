@@ -1,5 +1,6 @@
 'use client';
 
+import {TempGauge} from '@/components/gauges';
 import Sparkline from '@/components/Sparkline';
 import type {Sample} from '@/hooks/useSensorHistory';
 import {fmt, tr} from '@/lib/i18n';
@@ -74,6 +75,8 @@ export default function System({history}: {history: Record<string, Sample[] | un
           <div className={styles.card}>
             <span className={styles.cardLabel}>{tr('CPU temperature')}</span>
             <strong className={[styles.big, sys.cpuTemp >= 80 ? styles.error : ''].join(' ')}>{fmt(sys.cpuTemp, 0)} °C</strong>
+            {/* a raspberry pi slows itself down from 80 °C on */}
+            <TempGauge value={sys.cpuTemp} limits={{warn: 70, crit: 80}} />
             <Sparkline samples={history.sys_cpu_temp} digits={0} unit="°C" minSpan={5} />
           </div>
         )}

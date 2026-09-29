@@ -113,9 +113,10 @@ export function RadialGauge({value, scale, size = 120}: {value: number; scale: G
 // Temperatures all share one fixed scale so they can be compared at a glance. Only the upper limits
 // matter (a cold motor is fine): yellow above the sensor's normal max, red from its critical value.
 // Sensors without limits just get a neutral bar.
-export function TempGauge({value, info}: {value: number; info: SensorInfo}) {
-  const warn = info.has_min_max && info.max_value > 0 ? info.max_value : undefined;
-  const crit = info.has_critical_high && info.upper_critical_value >= 0 ? info.upper_critical_value : undefined;
+// the limits from the sensor's info, or given directly (warn: yellow mark, crit: red one)
+export function TempGauge({value, info, limits}: {value: number; info?: SensorInfo; limits?: {warn?: number; crit?: number}}) {
+  const warn = info ? (info.has_min_max && info.max_value > 0 ? info.max_value : undefined) : limits?.warn;
+  const crit = info ? (info.has_critical_high && info.upper_critical_value >= 0 ? info.upper_critical_value : undefined) : limits?.crit;
   const max = Math.max(90, (crit ?? 0) + 10);
   const color = crit !== undefined && value >= crit ? RED : warn !== undefined && value >= warn ? YELLOW : GREEN;
   const x = (v: number) => (clamp(v, 0, max) / max) * 100;
