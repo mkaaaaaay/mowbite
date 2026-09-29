@@ -1,6 +1,7 @@
 import {MergeIcon, ScissorsIcon, SimplifyIcon, TrashIcon} from '@/components/icons';
 import InfoTip from '@/components/InfoTip';
-import {tr} from '@/lib/i18n';
+import {polygonArea} from '@/lib/geometry';
+import {fmt, tr} from '@/lib/i18n';
 import {AREA_TYPES, type Area, type UpdateArea} from './editing';
 import styles from './page.module.css';
 
@@ -64,7 +65,7 @@ export default function AreaCard({
         <span className={styles.dim}>
           {area.properties.active === false ? tr('inactive: not driven on and not mowed') : tr(AREA_TYPES.find((t) => t.value === type)?.hint ?? '')}
           {' · '}
-          {tr('{n} points', {n: area.outline.length})}
+          {fmt(polygonArea(area.outline), 1)} m²
         </span>
       </div>
       {showTools && (
