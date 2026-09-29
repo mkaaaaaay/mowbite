@@ -19,6 +19,8 @@ interface MapViewProps {
   onSelectArea?: (id: string) => void;
   onMoveVertex?: (areaId: string, vertexIndex: number, x: number, y: number) => void;
   onDragStart?: () => void;
+  // a point drag that turned into a pinch: undo what the drag changed
+  onDragCancel?: () => void;
   onInsertVertex?: (areaId: string, vertexIndex: number, x: number, y: number) => void;
   onDeleteVertex?: (areaId: string, vertexIndex: number) => void;
   // clicks report map coords instead of selecting (split line, new area)
@@ -104,6 +106,7 @@ export default function MapView({
   onSelectArea,
   onMoveVertex,
   onDragStart,
+  onDragCancel,
   onInsertVertex,
   onDeleteVertex,
   pickingPoints,
@@ -138,7 +141,19 @@ export default function MapView({
   }, []);
   // bounds frozen while dragging so the map doesn't rescale under the cursor
   const [dragging, setDragging] = useState<{areaId: string; index: number; bounds: Bounds} | null>(null);
-  const drag = useRef({startX: 0, startY: 0, moved: false, inserted: false, touch: false});
+  const drag = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    lastX: number;
+    lastY: number;
+    moved: boolean;
+    touch: boolean;
+    // an edge midpoint was grabbed, the new point only gets added once the finger moves (or on a tap)
+    insert: {x: number; y: number} | null;
+    // where the point was before, for putting a drawn point back
+    orig: {x: number; y: number} | null;
+  }>({pointerId: -1, startX: 0, startY: 0, lastX: 0, lastY: 0, moved: false, touch: false, insert: null, orig: null});
   // finger position while dragging on touch, drives the loupe
   const [finger, setFinger] = useState<{x: number; y: number; width: number} | null>(null);
   // tapped point, gets a delete button
@@ -413,28 +428,59 @@ export default function MapView({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- zoomAt only uses setters and follow
   }, [zoomable, follow, svgEl]);
 
+  const startDrag = (e: React.PointerEvent<SVGSVGElement>, areaId: string, hit: {mid: boolean; index: number; x: number; y: number}) => {
+    const at = {x: hit.x, y: hit.y};
+    drag.current = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      lastX: e.clientX,
+      lastY: e.clientY,
+      moved: false,
+      touch: e.pointerType !== 'mouse',
+      insert: hit.mid ? at : null,
+      orig: hit.mid ? null : at,
+    };
+    gesture.current.moved = true; // eat the click that follows
+    setDragging({areaId, index: hit.mid ? hit.index + 1 : hit.index, bounds: {minX, maxX, minY, maxY}});
+  };
+
+  // a second finger while a point is held means the first one was the start of a pinch
+  const cancelDrag = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (!dragging) return;
+    const d = drag.current;
+    if (d.moved) {
+      if (dragging.areaId !== PENDING) onDragCancel?.();
+      else if (d.orig) onMovePending?.(dragging.index, d.orig.x, d.orig.y);
+    }
+    setDragging(null);
+    setFinger(null);
+    setActive(null);
+    const first = d.pointerId;
+    d.pointerId = -1;
+    if (!zoomable) return;
+    pointers.current.clear();
+    pointers.current.set(first, {x: d.lastX, y: d.lastY});
+    pointers.current.set(e.pointerId, {x: e.clientX, y: e.clientY});
+    gesture.current = {moved: true, pinchDist: null};
+  };
+
   const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
-    const pendingHit = pointers.current.size === 0 ? pickPending(e.clientX, e.clientY, e.pointerType !== 'mouse') : null;
-    if (pendingHit) {
-      const index = pendingHit.mid ? pendingHit.index + 1 : pendingHit.index;
-      if (pendingHit.mid) onInsertPending?.(index, pendingHit.x, pendingHit.y);
-      // inserted: true skips the undo snapshot, drawing isn't part of the map history yet
-      drag.current = {startX: e.clientX, startY: e.clientY, moved: false, inserted: true, touch: e.pointerType !== 'mouse'};
-      gesture.current.moved = true;
-      setDragging({areaId: PENDING, index, bounds: {minX, maxX, minY, maxY}});
+    const touch = e.pointerType !== 'mouse';
+    if (dragging) {
+      if (touch && drag.current.touch && e.pointerId !== drag.current.pointerId) cancelDrag(e);
       return;
     }
 
-    const hit = selectedArea && pointers.current.size === 0 ? pickHandle(e.clientX, e.clientY, e.pointerType !== 'mouse') : null;
+    const pendingHit = pointers.current.size === 0 ? pickPending(e.clientX, e.clientY, touch) : null;
+    if (pendingHit) {
+      startDrag(e, PENDING, pendingHit);
+      return;
+    }
+
+    const hit = selectedArea && pointers.current.size === 0 ? pickHandle(e.clientX, e.clientY, touch) : null;
     if (hit && selectedArea) {
-      let index = hit.index;
-      if (hit.mid) {
-        index = hit.index + 1;
-        onInsertVertex?.(selectedArea.id, index, hit.x, hit.y);
-      }
-      drag.current = {startX: e.clientX, startY: e.clientY, moved: false, inserted: hit.mid, touch: e.pointerType !== 'mouse'};
-      gesture.current.moved = true; // eat the click that follows
-      setDragging({areaId: selectedArea.id, index, bounds: {minX, maxX, minY, maxY}});
+      startDrag(e, selectedArea.id, hit);
       return;
     }
 
@@ -482,12 +528,23 @@ export default function MapView({
   useEffect(() => {
     if (!dragging) return;
 
+    const addPoint = (x: number, y: number) => {
+      if (dragging.areaId === PENDING) onInsertPending?.(dragging.index, x, y);
+      else onInsertVertex?.(dragging.areaId, dragging.index, x, y);
+    };
+
     const onMove = (e: PointerEvent) => {
       const d = drag.current;
+      if (e.pointerId !== d.pointerId) return;
+      d.lastX = e.clientX;
+      d.lastY = e.clientY;
       if (!d.moved) {
-        if (Math.hypot(e.clientX - d.startX, e.clientY - d.startY) < 4) return;
+        // a finger needs a bit more way, so the second finger of a pinch comes in before anything changes
+        if (Math.hypot(e.clientX - d.startX, e.clientY - d.startY) < (d.touch ? 10 : 4)) return;
         d.moved = true;
-        if (!d.inserted) onDragStart?.();
+        // adding a point takes its own undo snapshot, drawn points aren't in the map history at all
+        if (d.insert) addPoint(d.insert.x, d.insert.y);
+        else if (dragging.areaId !== PENDING) onDragStart?.();
       }
       const local = clientToLocal(e.clientX, e.clientY);
       if (local && dragging.areaId === PENDING) onMovePending?.(dragging.index, local[0], local[1]);
@@ -495,9 +552,16 @@ export default function MapView({
       const rect = svgRef.current?.getBoundingClientRect();
       if (d.touch && rect) setFinger({x: e.clientX - rect.left, y: e.clientY - rect.top, width: rect.width});
     };
-    const onUp = () => {
+    const onUp = (e: PointerEvent) => {
       const d = drag.current;
-      if (!d.moved && !d.inserted) {
+      if (e.pointerId !== d.pointerId) return;
+      // handled, a repeated up for the same finger does nothing
+      d.pointerId = -1;
+      if (!d.moved && d.insert) {
+        // a tap on an edge midpoint adds the point there
+        addPoint(d.insert.x, d.insert.y);
+        setActive(null);
+      } else if (!d.moved && dragging.areaId !== PENDING) {
         const same = active?.areaId === dragging.areaId && active.index === dragging.index;
         setActive(same ? null : {areaId: dragging.areaId, index: dragging.index});
       } else {
@@ -506,12 +570,20 @@ export default function MapView({
       setDragging(null);
       setFinger(null);
     };
+    const onCancel = (e: PointerEvent) => {
+      if (e.pointerId !== drag.current.pointerId) return;
+      drag.current.pointerId = -1;
+      setDragging(null);
+      setFinger(null);
+    };
 
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onCancel);
     return () => {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onCancel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dragging, scale, minX, minY]);

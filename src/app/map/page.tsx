@@ -604,6 +604,7 @@ function MapEditor() {
                 onSelectArea={selectArea}
                 onMoveVertex={simplifyCm === null && mode === 'idle' ? moveVertex : undefined}
                 onDragStart={remember}
+                onDragCancel={undo}
                 onInsertVertex={simplifyCm === null ? insertVertex : undefined}
                 onDeleteVertex={simplifyCm === null ? deleteVertex : undefined}
                 pickingPoints={mode === 'split' || mode === 'draw'}
