@@ -42,6 +42,8 @@ export interface Settings {
   weather?: boolean;
   // the strip of grass along the bottom, on unless switched off
   grass?: boolean;
+  // leaves drifting down in autumn, off unless switched on
+  leaves?: boolean;
   // name of the mower this app runs on, and the other ones to switch to
   thisName?: string;
   mowers?: OtherMower[];

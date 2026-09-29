@@ -33,6 +33,7 @@ const de: Record<string, string> = {
   "Click the corners of a shape inside the area. It becomes its own area, the rest is split in two through it (areas can't have holes).": "Klicke die Ecken einer Form in der Fläche. Sie wird eine eigene Fläche, der Rest wird durch sie in zwei geteilt (Flächen können kein Loch haben).",
   "Cut out a shape": "Form ausschneiden",
   "The shape has to lie fully inside the area and mustn't cross itself.": "Die Form muss ganz in der Fläche liegen und darf sich nicht selbst kreuzen.",
+  "Falling leaves in autumn": "Fallende Blätter im Herbst",
   "approach failed": "Anfahrt fehlgeschlagen",
   "Area skipped": "Fläche übersprungen",
   "Arrow": "Pfeil",
