@@ -157,19 +157,23 @@ export default function MowSettings({
           />
         </label>
       ))}
-      <label className={styles.toggle}>
-        <input type="checkbox" checked={showStripes} onChange={onToggleStripes} />
-        {tr('show mowing plan')}
-        {toolWidth ? ` (${tr('{n} cm apart', {n: Math.round(toolWidth * 100)})})` : ''}
-        {' · '}
-        {planFromMower ? tr('from the mower') : tr('estimate')}
-        {planFromMower && planAngle !== undefined && `, ${Math.round((((planAngle * 180) / Math.PI) % 180 + 180) % 180)}°`}
-        <InfoTip>
-          {planFromMower
-            ? tr("The plan as the mower itself works it out, for the area as it is here, changes that aren't saved yet included. The angle is the one it will really mow at, with mow_angle_offset and an angle increment it may have summed up.")
-            : tr("Where the mower will drive, worked out the way its planner does it: the rounds along the edge and around obstacles, then the stripes inside, one mower width apart. An estimate, it can differ from the real plan, especially on unusual shapes.")}
-        </InfoTip>
-      </label>
+      {area.properties.mowable === false ? (
+        <p className={styles.dim}>{tr("No mowing plan, this area is set to don't mow.")}</p>
+      ) : (
+        <label className={styles.toggle}>
+          <input type="checkbox" checked={showStripes} onChange={onToggleStripes} />
+          {tr('show mowing plan')}
+          {toolWidth ? ` (${tr('{n} cm apart', {n: Math.round(toolWidth * 100)})})` : ''}
+          {' · '}
+          {planFromMower ? tr('from the mower') : tr('estimate')}
+          {planFromMower && planAngle !== undefined && `, ${Math.round((((planAngle * 180) / Math.PI) % 180 + 180) % 180)}°`}
+          <InfoTip>
+            {planFromMower
+              ? tr("The plan as the mower itself works it out, for the area as it is here, changes that aren't saved yet included. The angle is the one it will really mow at, with mow_angle_offset and an angle increment it may have summed up.")
+              : tr("Where the mower will drive, worked out the way its planner does it: the rounds along the edge and around obstacles, then the stripes inside, one mower width apart. An estimate, it can differ from the real plan, especially on unusual shapes.")}
+          </InfoTip>
+        </label>
+      )}
       {showStripes && planLength > 0 && (
         <p className={styles.dim}>
           {tr('{m} m to mow', {m: Math.round(planLength)})}

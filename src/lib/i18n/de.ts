@@ -269,6 +269,7 @@ const de: Record<string, string> = {
   "no fix": "kein Fix",
   "No fix": "Kein Fix",
   "no GPS fix": "kein GPS-Fix",
+  "No mowing plan, this area is set to don't mow.": "Kein Mähplan, diese Fläche steht auf „nicht mähen“.",
   "No start planned yet.": "Noch kein Start geplant.",
   "No start times yet.": "Noch keine Startzeiten.",
   "no-go zone, keep it inside a mowing area": "Sperrzone, sollte innerhalb einer Mähfläche liegen",
