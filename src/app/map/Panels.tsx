@@ -22,7 +22,7 @@ export function SplitPanel({
   return (
     <div className={styles.splitBox}>
       <p className={styles.dim}>
-        {tr("Click points to draw a cut line across the area, it can bend. Start and end outside of it. Drag points to move them, drag the middle of a segment to add one.")}
+        {tr('Click points for a cut line across the area, start and end outside. Drag points to move them.')}
       </p>
       {preview ? (
         <p>

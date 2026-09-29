@@ -59,7 +59,7 @@ export default function AreaCard({
           />
           {tr('active')}
           <InfoTip>
-            {tr("Inactive areas are ignored by the mower. Careful with mowing areas: an inactive one is also no longer drivable, so the mower gets stuck if it stands on it.")}
+            {tr('Ignored by the mower and not drivable. Careful: if the mower stands on an inactive area, it gets stuck.')}
           </InfoTip>
         </label>
         <span className={styles.dim}>
@@ -77,10 +77,10 @@ export default function AreaCard({
               {tr("Cuts the area in two along a line through two points you click. Both halves keep the type and settings.")}
               <br />
               <b>{tr('Merge')}:</b>{' '}
-              {tr("Joins this area with another one you click, e.g. two halves of a lawn. They need to overlap or touch.")}
+              {tr('Joins this area with another one you click. They need to overlap or touch.')}
               <br />
               <b>{tr('Reduce points')}:</b>{' '}
-              {tr("Recorded outlines have a point every few cm. This drops the ones that hardly change the shape, you pick how far the new outline may be off. You can go back up with the slider until you reload the page.")}
+              {tr('Recorded outlines have a point every few cm. This removes the ones that barely change the shape, the slider sets how far the outline may move.')}
             </InfoTip>
           </span>
           <button className={tool} onClick={onSplit}>

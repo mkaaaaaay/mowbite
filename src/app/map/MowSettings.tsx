@@ -104,7 +104,7 @@ export default function MowSettings({
         <span>
           {tr('Mow angle (°)')}
           <InfoTip>
-            {tr("Direction of the stripes, 0° is east, counter-clockwise. Empty means auto: the direction from the first outline point to the first one more than 2 m away. The mower adds its mow_angle_offset on top.")}
+            {tr('Stripe direction, 0° = east, counter-clockwise. Empty = automatic. The mower adds its mow_angle_offset.')}
           </InfoTip>
         </span>
         <input
@@ -135,7 +135,7 @@ export default function MowSettings({
         <InfoTip>
           {planFromMower
             ? tr('The plan as the mower itself works it out for the saved map.')
-            : tr("Where the mower will drive, worked out the way its planner does it: the rounds along the edge and around obstacles, then the stripes inside, one mower width apart. An estimate, it can differ from the real plan, especially on unusual shapes.")}
+            : tr('Estimate of where the mower drives: edge rounds first, then stripes one mower width apart. Can differ from the real plan on unusual shapes.')}
         </InfoTip>
       </label>
       {mismatch && (
