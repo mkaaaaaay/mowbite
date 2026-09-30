@@ -3,6 +3,7 @@ import Grass from "@/components/Grass";
 import Nav from "@/components/Nav";
 import SwipeNav from "@/components/SwipeNav";
 import EdgeBounce from "@/components/EdgeBounce";
+import FreshPage from "@/components/FreshPage";
 import { COLOR_BOOT_SCRIPT } from "@/lib/settings";
 import { THEME_BOOT_SCRIPT } from "@/lib/themeBoot";
 import type { Metadata, Viewport } from "next";
@@ -54,6 +55,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <AppSetup />
           <SwipeNav />
           <EdgeBounce />
+          <FreshPage />
         </div>
       </body>
     </html>
