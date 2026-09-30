@@ -94,8 +94,9 @@
 }
 
 .days .on {
-  border-color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 70%, transparent);
   background: color-mix(in srgb, var(--accent) 20%, transparent);
+  box-shadow: var(--btn-3d);
   color: var(--foreground);
   font-weight: 600;
 }
@@ -260,8 +261,9 @@
 }
 
 .areas .on {
-  border-color: var(--success);
+  border-color: color-mix(in srgb, var(--success) 70%, transparent);
   background: color-mix(in srgb, var(--success) 18%, transparent);
+  box-shadow: var(--btn-3d);
   color: var(--foreground);
   font-weight: 600;
 }

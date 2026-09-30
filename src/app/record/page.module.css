@@ -141,9 +141,11 @@
 }
 
 .card .main {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: #fff;
+  border-color: color-mix(in srgb, var(--accent) 70%, transparent);
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+  backdrop-filter: var(--card-blur, none);
+  box-shadow: var(--btn-3d);
+  color: var(--foreground);
 }
 
 .card .danger {
