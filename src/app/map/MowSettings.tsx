@@ -31,6 +31,7 @@ export default function MowSettings({
   globalValue,
   remember,
   update,
+  onAngleEdit,
   showStripes,
   onToggleStripes,
   toolWidth,
@@ -48,6 +49,7 @@ export default function MowSettings({
   globalValue: (key: Override) => string;
   remember: () => void;
   update: UpdateArea;
+  onAngleEdit?: () => void;
   showStripes: boolean;
   onToggleStripes: () => void;
   toolWidth: number | undefined;
@@ -132,7 +134,9 @@ export default function MowSettings({
         />
       </label>
       <div className={styles.angleRow}>
-        <AngleSlider area={area} autoAngle={autoAngle} remember={remember} update={update} />
+        <AngleStep area={area} autoAngle={autoAngle} remember={remember} update={update} onEdit={onAngleEdit} by={-1} />
+        <AngleSlider area={area} autoAngle={autoAngle} remember={remember} update={update} onEdit={onAngleEdit} />
+        <AngleStep area={area} autoAngle={autoAngle} remember={remember} update={update} onEdit={onAngleEdit} by={1} />
         <button className={styles.pillButton} disabled={p.angle === undefined} onClick={() => update({angle: undefined})}>
           {tr('Auto')}
         </button>
@@ -225,40 +229,72 @@ export default function MowSettings({
   );
 }
 
+// 0 and 180 degrees give the same stripes, so the slider only needs half a turn and is twice as fine
+const halfTurn = (deg: number) => ((((deg + 90) % 180) + 180) % 180) - 90;
+export const shownAngle = (area: Area, autoAngle: number) => Math.round(halfTurn((area.properties.angle ?? autoAngle) / DEG));
+
 export function AngleSlider({
   area,
   autoAngle,
   remember,
   update,
+  onEdit,
 }: {
   area: Area;
   autoAngle: number;
   remember: () => void;
   update: UpdateArea;
+  // while the angle is being changed, e.g. to show the stripes for a moment
+  onEdit?: () => void;
 }) {
   return (
     <input
       type="range"
-      min={-180}
-      max={180}
+      min={-90}
+      max={90}
       step={1}
-      value={Math.round((area.properties.angle ?? autoAngle) / DEG)}
-      onPointerDown={remember}
+      value={shownAngle(area, autoAngle)}
+      onPointerDown={() => {
+        remember();
+        onEdit?.();
+      }}
       // arrow keys and co. change it without a pointer, one undo step per press then
       onKeyDown={(e) => /^(Arrow|Page|Home|End)/.test(e.key) && remember()}
-      onChange={(e) => update({angle: Number(e.target.value) * DEG}, false)}
+      onChange={(e) => {
+        update({angle: Number(e.target.value) * DEG}, false);
+        onEdit?.();
+      }}
       aria-label={tr('Mow angle (°)')}
     />
   );
 }
 
+// one degree at a time, the slider is hard to hit exactly on a phone
+function AngleStep({area, autoAngle, remember, update, onEdit, by}: Parameters<typeof AngleSlider>[0] & {by: number}) {
+  return (
+    <button
+      className={styles.angleStep}
+      onClick={() => {
+        remember();
+        update({angle: halfTurn(shownAngle(area, autoAngle) + by) * DEG}, false);
+        onEdit?.();
+      }}
+      aria-label={by > 0 ? '+1°' : '-1°'}
+    >
+      {by > 0 ? '+' : '−'}
+    </button>
+  );
+}
+
 // on phones the settings are far below the map, so the angle can be turned right on it while watching the stripes
-export function AngleOnMap(props: {area: Area; autoAngle: number; remember: () => void; update: UpdateArea}) {
+export function AngleOnMap(props: {area: Area; autoAngle: number; remember: () => void; update: UpdateArea; onEdit?: () => void}) {
   return (
     <div className={styles.angleOnMap}>
       <span>{tr('Mow angle')}</span>
+      <AngleStep {...props} by={-1} />
       <AngleSlider {...props} />
-      <strong>{Math.round((props.area.properties.angle ?? props.autoAngle) / DEG)}°</strong>
+      <AngleStep {...props} by={1} />
+      <strong>{shownAngle(props.area, props.autoAngle)}°</strong>
     </div>
   );
 }

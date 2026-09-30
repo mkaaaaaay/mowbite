@@ -19,7 +19,7 @@ import {mergeOutlines} from '@/lib/mergeAreas';
 import {cutOut, generateId, splitByPath} from '@/lib/splitPolygon';
 import {isDocked} from '@/lib/status';
 import {useSearchParams} from 'next/navigation';
-import {Suspense, useEffect, useMemo, useState} from 'react';
+import {Suspense, useEffect, useMemo, useRef, useState} from 'react';
 import styles from './page.module.css';
 import {tr, useLang} from '@/lib/i18n';
 import MapBackups, {backupLabel} from '@/components/MapBackups';
@@ -161,7 +161,23 @@ function MapEditor() {
   const shownArea = shownMap?.areas.find((a) => a.id === selectedAreaId) ?? null;
   const isMowArea = shownArea?.properties.type === 'mow';
   // a mowing area set to mowable: false gets no plan, it's only driven across
-  const planned = isMowArea && shownArea?.properties.mowable !== false;
+  // while the angle is being changed and a moment after, the stripes show up even when switched off, and for an
+  // area that isn't mowed too
+  const [angleEditing, setAngleEditing] = useState(false);
+  const angleTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  // moving: right now, for the estimate that follows the slider without waiting for the mower
+  const [angleMoving, setAngleMoving] = useState(false);
+  const movingTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const touchAngle = () => {
+    setAngleEditing(true);
+    setAngleMoving(true);
+    clearTimeout(angleTimer.current);
+    clearTimeout(movingTimer.current);
+    angleTimer.current = setTimeout(() => setAngleEditing(false), 3000);
+    movingTimer.current = setTimeout(() => setAngleMoving(false), 700);
+  };
+  const planned = isMowArea && (shownArea?.properties.mowable !== false || angleEditing);
+  const stripesOn = showStripes || angleEditing;
   const autoAngle = shownArea ? autoMowAngle(shownArea.outline) : 0;
 
   // the angle the planner actually gets, see MowingBehavior.cpp
@@ -218,7 +234,7 @@ function MapEditor() {
 
   // the real plan from the mower when it offers one, for the area as it is in the editor right now (saved or not)
   const planRequest = useMemo((): PlanRequest | null => {
-    if (!showStripes || !planned || !shownArea || !shownMap) return null;
+    if (!stripesOn || !planned || !shownArea || !shownMap) return null;
     const p = shownArea.properties;
     const req: PlanRequest = {
       outline: shownArea.outline,
@@ -235,7 +251,7 @@ function MapEditor() {
       req.angle_max = p.angle_max;
     }
     return req;
-  }, [showStripes, planned, shownArea, shownMap]);
+  }, [stripesOn, planned, shownArea, shownMap]);
   const planKey = planRequest ? JSON.stringify(planRequest) : '';
   const [fromMower, setFromMower] = useState<{areaId: string | null; plan: MowPlan | null} | null>(null);
   // not while a point is dragged, a new plan redrawn mid-drag makes it stutter
@@ -257,12 +273,13 @@ function MapEditor() {
     };
   }, [planKey, selectedAreaId, draggingPoint]);
   // the last answer for this area stays up while a newer one is on its way, so it doesn't flicker back to the estimate
-  const realPlan = planKey && fromMower?.areaId === selectedAreaId ? fromMower.plan : null;
+  // while the angle is moving the estimate follows right away, the mower's plan comes back once it stops
+  const realPlan = planKey && !angleMoving && fromMower?.areaId === selectedAreaId ? fromMower.plan : null;
   // the mower's own plan has the angle it really mows at, a leftover increment included, nothing to warn about then
   if (realPlan) mismatch = null;
 
   // otherwise where the mower will drive, worked out like its planner does (lib/mowPlan)
-  const wantPlan = !!(shownMap && shownArea && planned && showStripes && toolWidth);
+  const wantPlan = !!(shownMap && shownArea && planned && stripesOn && toolWidth);
   const plan = useMemo((): MowPlan | undefined => {
     if (realPlan) return realPlan;
     if (!wantPlan || !shownMap || !shownArea || !toolWidth) return undefined;
@@ -676,7 +693,7 @@ function MapEditor() {
             )}
 
             {!preview && selectedArea && mode === 'idle' && simplifyCm === null && selectedArea.properties.type === 'mow' && (
-              <AngleOnMap area={selectedArea} autoAngle={autoAngle} remember={remember} update={updateProperties} />
+              <AngleOnMap area={selectedArea} autoAngle={autoAngle} remember={remember} update={updateProperties} onEdit={touchAngle} />
             )}
 
 
@@ -803,6 +820,7 @@ function MapEditor() {
                   update={updateProperties}
                   showStripes={showStripes}
                   onToggleStripes={() => setShowStripes(!showStripes)}
+                  onAngleEdit={touchAngle}
                   toolWidth={toolWidth}
                   mismatch={mismatch}
                   previewCorrection={previewCorrection}
