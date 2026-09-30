@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {nextStart, parseSchedule, posixTz, serializeSchedule, type Schedule} from './schedule';
+import {isNightTime, nextStart, parseSchedule, posixTz, serializeSchedule, type Schedule} from './schedule';
 
 // the dates below are local times, so the same zone everywhere (github runs in UTC)
 process.env.TZ = 'Europe/Berlin';
@@ -29,17 +29,12 @@ describe('parse / serialize', () => {
     expect(text).toMatch(/^tz \S+$/m);
   });
 
-  it('keeps the end time, with and without areas', () => {
-    const s = schedule([{...plan([1], '09:00'), end: '19:00'}, {...plan([2], '21:00', ['a']), end: '23:30'}]);
+  it('keeps end time and dark, with and without areas', () => {
+    const s = schedule([{...plan([1], '09:00'), end: '19:00'}, {...plan([2], '21:00', ['a']), end: '23:30', dark: true}]);
     const text = serializeSchedule(s);
     expect(text).toContain('plan 1 09:00 end=19:00\n');
-    expect(text).toContain('plan 2 21:00 a end=23:30\n');
+    expect(text).toContain('plan 2 21:00 a end=23:30 dark=1\n');
     expect(parseSchedule(text)).toEqual(s);
-  });
-
-  it('ignores dark=1 from older files instead of taking it for areas', () => {
-    expect(parseSchedule('plan 2 21:00 a end=23:30 dark=1').plans).toEqual([{...plan([2], '21:00', ['a']), end: '23:30'}]);
-    expect(parseSchedule('plan 2 21:00 dark=1').plans).toEqual([plan([2], '21:00')]);
   });
 
   it('drops start times without a day', () => {
@@ -71,12 +66,19 @@ describe('nextStart', () => {
     expect(nextStart(s, monday8)).toEqual(new Date(2026, 8, 29, 17, 0));
   });
 
-  it('plans evening and night times like any other', () => {
+  it('plans confirmed night times too', () => {
     expect(nextStart(schedule([plan([1], '19:00')]), monday8)).toEqual(new Date(2026, 8, 28, 19, 0));
   });
 
   it('is nothing while switched off', () => {
     expect(nextStart(schedule([plan([1], '09:00')], false), monday8)).toBeNull();
+  });
+});
+
+describe('isNightTime', () => {
+  it('blocks 18:00 up to 05:59', () => {
+    expect(['18:00', '23:59', '00:00', '05:59'].map((t) => isNightTime(t))).toEqual([true, true, true, true]);
+    expect(['06:00', '12:00', '17:59'].map((t) => isNightTime(t))).toEqual([false, false, false]);
   });
 });
 
@@ -95,3 +97,26 @@ describe('posixTz', () => {
   });
 });
 
+describe('isNightTime with sun times', () => {
+  it('follows sunset and sunrise', () => {
+    const sun = {rise: '05:00', set: '21:40'};
+    expect(['21:40', '23:00', '04:59'].map((t) => isNightTime(t, sun))).toEqual([true, true, true]);
+    expect(['05:00', '18:30', '21:39'].map((t) => isNightTime(t, sun))).toEqual([false, false, false]);
+  });
+  it('falls back to the fixed hours without them', () => {
+    expect(isNightTime('18:30', null)).toBe(true);
+  });
+});
+
+describe('nextStart and the dark', () => {
+  const monday8 = new Date(2026, 8, 28, 8, 0);
+  const sun = {rise: '07:00', set: '19:00'};
+  it('leaves out a start in the dark the scheduler would skip', () => {
+    const s = schedule([plan([1], '20:00'), plan([2], '10:00')]);
+    expect(nextStart(s, monday8, sun)).toEqual(new Date(2026, 8, 29, 10, 0));
+  });
+  it('keeps it when it may mow in the dark', () => {
+    const s = schedule([{...plan([1], '20:00'), dark: true}]);
+    expect(nextStart(s, monday8, sun)).toEqual(new Date(2026, 8, 28, 20, 0));
+  });
+});

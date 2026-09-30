@@ -2,7 +2,7 @@ import {forget, fresh} from './fresh';
 import {apiBase} from './mowers';
 
 // the mowing schedule, kept by the container (docker/schedule.cgi) as simple lines the scheduler
-// script reads: enabled, minbattery, skiprain, tz and one "plan <days> <HH:MM> [areas] [end=HH:MM]"
+// script reads: enabled, minbattery, skiprain, tz and one "plan <days> <HH:MM> [areas] [end=HH:MM] [dark=1]"
 // per start time. days are 1 = monday .. 7 = sunday like date +%u
 
 export interface Plan {
@@ -12,6 +12,8 @@ export interface Plan {
   areas: string[];
   // HH:MM, local: a run started by the plan is sent home then
   end?: string;
+  // may start and mow in the dark, otherwise it doesn't start then and goes home at sunset
+  dark?: boolean;
 }
 
 export interface Schedule {
@@ -43,8 +45,7 @@ export function parseSchedule(text: string): Schedule {
       const plan: Plan = {days: a.split(',').map(Number), time: b, areas: []};
       for (const r of rest) {
         if (r.startsWith('end=')) plan.end = r.slice(4);
-        // older files have it from the night lock, that's gone
-        else if (r === 'dark=1') continue;
+        else if (r === 'dark=1') plan.dark = true;
         else if (r) plan.areas = r.split(',');
       }
       s.plans.push(plan);
@@ -67,7 +68,7 @@ export function serializeSchedule(s: Schedule, pos?: {lat: number; lon: number})
       .filter((p) => p.days.length)
       .map(
         (p) =>
-          `plan ${[...p.days].sort().join(',')} ${p.time}${p.areas.length ? ` ${p.areas.join(',')}` : ''}${p.end ? ` end=${p.end}` : ''}`,
+          `plan ${[...p.days].sort().join(',')} ${p.time}${p.areas.length ? ` ${p.areas.join(',')}` : ''}${p.end ? ` end=${p.end}` : ''}${p.dark ? ' dark=1' : ''}`,
       ),
     '',
   ].join('\n');
@@ -126,8 +127,17 @@ async function loadLog(): Promise<LogEntry[]> {
   }
 }
 
-// the next start as a date, looking a week ahead from now
-export function nextStart(s: Schedule, from = new Date()): Date | null {
+// At night hedgehogs and other animals are out and curl up instead of running away, a start time in
+// the dark has to be confirmed on the schedule page. With the sun times of the day it's the real
+// night, without them 6 pm to 6 am.
+export const NIGHT_FROM = '18:00';
+export const NIGHT_TO = '06:00';
+export const isNightTime = (time: string, sun?: {rise: string; set: string} | null) =>
+  sun ? time >= sun.set || time < sun.rise : time >= NIGHT_FROM || time < NIGHT_TO;
+
+// the next start as a date, looking a week ahead from now. with the sun times, starts in the dark that
+// the scheduler leaves out (not marked dark) don't count
+export function nextStart(s: Schedule, from = new Date(), sun?: {rise: string; set: string} | null): Date | null {
   if (!s.enabled) return null;
   let best: Date | null = null;
   for (let add = 0; add <= 7; add++) {
@@ -135,6 +145,7 @@ export function nextStart(s: Schedule, from = new Date()): Date | null {
     const dow = ((day.getDay() + 6) % 7) + 1;
     for (const p of s.plans) {
       if (!p.days.includes(dow)) continue;
+      if (sun !== undefined && !p.dark && isNightTime(p.time, sun)) continue;
       const [h, m] = p.time.split(':').map(Number);
       const at = new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, m);
       if (at > from && (!best || at < best)) best = at;
