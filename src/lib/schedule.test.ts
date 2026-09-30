@@ -37,6 +37,15 @@ describe('parse / serialize', () => {
     expect(parseSchedule(text)).toEqual(s);
   });
 
+  it('keeps sunset, fresh and a pause', () => {
+    const s = {...schedule([{...plan([3], '10:00', ['a']), sunset: true, fresh: true}]), pause: {until: '2026-09-30', areas: ['a', 'b']}};
+    const text = serializeSchedule(s);
+    expect(text).toContain('plan 3 10:00 a sunset=1 fresh=1\n');
+    expect(text).toContain('pause 2026-09-30 a,b\n');
+    expect(parseSchedule(text)).toEqual(s);
+    expect(parseSchedule('pause 2026-09-30 all').pause).toEqual({until: '2026-09-30', areas: 'all'});
+  });
+
   it('drops start times without a day', () => {
     expect(serializeSchedule(schedule([plan([], '09:00')]))).not.toContain('plan');
   });
@@ -118,5 +127,17 @@ describe('nextStart and the dark', () => {
   it('keeps it when it may mow in the dark', () => {
     const s = schedule([{...plan([1], '20:00'), dark: true}]);
     expect(nextStart(s, monday8, sun)).toEqual(new Date(2026, 8, 28, 20, 0));
+  });
+});
+
+describe('nextStart and a pause', () => {
+  const monday8 = new Date(2026, 8, 28, 8, 0);
+  it('skips the paused days', () => {
+    const s = {...schedule([plan([1, 2, 3], '10:00')]), pause: {until: '2026-09-29', areas: 'all' as const}};
+    expect(nextStart(s, monday8)).toEqual(new Date(2026, 8, 30, 10, 0));
+  });
+  it('still starts when only some areas are paused', () => {
+    const s = {...schedule([plan([1], '10:00')]), pause: {until: '2026-09-29', areas: ['a']}};
+    expect(nextStart(s, monday8)).toEqual(new Date(2026, 8, 28, 10, 0));
   });
 });
