@@ -18,7 +18,7 @@ import {mergeOutlines} from '@/lib/mergeAreas';
 import {generateId, splitByPath} from '@/lib/splitPolygon';
 import {isDocked} from '@/lib/status';
 import {useSearchParams} from 'next/navigation';
-import {Suspense, useEffect, useMemo, useState} from 'react';
+import {Suspense, useEffect, useMemo, useRef, useState} from 'react';
 import styles from './page.module.css';
 import {tr, useLang} from '@/lib/i18n';
 import MapBackups, {backupLabel} from '@/components/MapBackups';
@@ -189,7 +189,15 @@ function MapEditor() {
   const realPlan = askMower && fromMower?.areaId === selectedAreaId ? fromMower.plan : null;
 
   // otherwise where the mower will drive, worked out like its planner does (lib/mowPlan)
-  const wantPlan = !!(shownMap && shownArea && isMowArea && showStripes && toolWidth);
+  // while the angle is being changed and a moment after, the stripes show up even when switched off
+  const [angleEditing, setAngleEditing] = useState(false);
+  const angleTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const touchAngle = () => {
+    setAngleEditing(true);
+    clearTimeout(angleTimer.current);
+    angleTimer.current = setTimeout(() => setAngleEditing(false), 3000);
+  };
+  const wantPlan = !!(shownMap && shownArea && isMowArea && (showStripes || angleEditing) && toolWidth);
   const plan = useMemo((): MowPlan | undefined => {
     if (realPlan) return realPlan;
     if (!wantPlan || !shownMap || !shownArea || !toolWidth) return undefined;
@@ -571,7 +579,7 @@ function MapEditor() {
             )}
 
             {!preview && selectedArea && mode === 'idle' && simplifyCm === null && selectedArea.properties.type === 'mow' && (
-              <AngleOnMap area={selectedArea} autoAngle={autoAngle} remember={remember} update={updateProperties} />
+              <AngleOnMap area={selectedArea} autoAngle={autoAngle} remember={remember} update={updateProperties} onEdit={touchAngle} />
             )}
 
 
@@ -694,6 +702,7 @@ function MapEditor() {
                   update={updateProperties}
                   showStripes={showStripes}
                   onToggleStripes={() => setShowStripes(!showStripes)}
+                  onAngleEdit={touchAngle}
                   toolWidth={toolWidth}
                   mismatch={mismatch}
                   previewCorrection={previewCorrection}

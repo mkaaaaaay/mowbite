@@ -428,6 +428,21 @@
   display: none;
 }
 
+/* one degree less or more, next to the angle slider */
+.angleStep {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: var(--btn-3d);
+}
+
 @media (max-width: 899px) {
   .angleOnMap {
     position: absolute;
