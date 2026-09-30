@@ -57,6 +57,7 @@ const de: Record<string, string> = {
   "Start from the beginning": "Von vorn beginnen",
   "Storage": "Speicherplatz",
   "System": "System",
+  "The schedule is switched off, a pause only matters once it's on.": "Der Zeitplan ist ausgeschaltet, eine Pause wirkt erst, wenn er an ist.",
   "The sun sets at {set} and rises at {rise} today, so this mows in the dusk or the dark.": "Die Sonne geht heute um {set} unter und um {rise} auf, damit wird in der Dämmerung oder im Dunkeln gemäht.",
   "To leave it out, cut it out of \"{name}\" (it gets split in two, areas can't have holes). Or make this an obstacle so the mower never drives here.": "Zum Aussparen aus „{name}“ ausschneiden („{name}“ wird dabei zweigeteilt, Flächen können kein Loch haben). Oder mach diese Fläche zum Hindernis, dann fährt der Mäher nie hierher.",
   "Click the corners of a shape inside the area. It becomes its own area, the rest is split in two through it (areas can't have holes).": "Klicke die Ecken einer Form in der Fläche. Sie wird eine eigene Fläche, der Rest wird durch sie in zwei geteilt (Flächen können kein Loch haben).",

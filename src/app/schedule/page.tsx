@@ -110,7 +110,7 @@ export default function SchedulePage() {
               </p>
             </section>
 
-            {s.enabled && s.plans.length > 0 && <PauseCard schedule={s} mowAreas={mowAreas} update={update} />}
+            {s.plans.length > 0 && <PauseCard schedule={s} mowAreas={mowAreas} update={update} />}
 
             <section className={styles.card}>
               <h2>{tr('Start times')}</h2>

@@ -24,6 +24,7 @@ export default function PauseCard({schedule, mowAreas, update}: {schedule: Sched
   return (
     <section className={styles.card}>
       <h2>{tr('Pause')}</h2>
+      {!schedule.enabled && <p className={styles.dim}>{tr("The schedule is switched off, a pause only matters once it's on.")}</p>}
       {pause ? (
         <div className={styles.row}>
           <strong>
