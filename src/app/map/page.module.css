@@ -65,8 +65,11 @@
 }
 
 .saveButton.unsaved {
-  background: var(--success);
-  color: #fff;
+  border-color: color-mix(in srgb, var(--success) 70%, transparent);
+  background: color-mix(in srgb, var(--success) 35%, transparent);
+  backdrop-filter: var(--card-blur, none);
+  box-shadow: var(--btn-3d);
+  color: var(--foreground);
 }
 
 /* the editor's buttons: two even columns, a small heading over each pair */
