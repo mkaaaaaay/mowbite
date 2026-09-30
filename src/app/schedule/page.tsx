@@ -39,6 +39,7 @@ const LOG_TEXT: Record<string, string> = {
   stopped_dark: 'Sent home at sunset (hedgehogs)',
   stopped_again: 'Sent home again, it carried on by itself after charging',
   skip_paused: 'Not started, paused for today',
+  skip_end: 'Not started, the end time came before the battery was charged',
   paused_area: 'Skipped an area paused for today',
   skipped_area: "Skipped an area that wasn't picked",
   unknown_area: "An area the map doesn't have (an older job?), left it alone",

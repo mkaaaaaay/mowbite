@@ -22,13 +22,14 @@ conf() { sed -n "s/^$1 //p" "$F" | head -n1; }
 # rain right now or in the next hour(s) at the garden (open-meteo, position rounded to ~1 km).
 # no answer counts as no rain
 # during a run this script started: skip every area the plan doesn't pick ($1: all or a list) and the ones
-# paused for today ($2), until the mower is back
+# paused for today ($2), until the job is done (also across breaks for charging)
 skip_others() {
   # shellcheck disable=SC2086
-  timeout 21600 mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_EVENTS" | while read -r e; do
+  timeout 86400 mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_EVENTS" | while read -r e; do
     type=$(field "$e" type)
     case "$type" in
-      DOCKED | JOB_COMPLETE | SHUTDOWN) break ;;
+      # not on DOCKED: a run that docks to charge carries on afterwards, and it's still this run
+      JOB_COMPLETE | JOB_RESET | SHUTDOWN) break ;;
       AREA)
         a=$(field "$e" area_id)
         # the map as the mower has it now (retained), only its areas are skipped. a job resumed from
@@ -97,13 +98,16 @@ is_dark() {
 }
 
 # the time a run started now has to be home by, as a unix time: the plan's end time (next one coming
-# up), and sunset if the plan wants that, or if its end time lies in the dark without mowing in the dark
-# being allowed. empty when neither
+# up, or $4 when it's known already), and sunset if the plan wants that, or if its end time lies in the dark
+# without mowing in the dark being allowed. empty when neither
 stop_time() {
   now=$(date +%s)
   midnight=$((now - $(minutes) * 60 - $(date +%S | sed 's/^0//')))
   stop=""
-  if [ "$1" != - ]; then
+  if [ -n "$4" ]; then
+    stop=$4
+    why=end
+  elif [ "$1" != - ]; then
     stop=$((midnight + $(echo "$1" | awk -F: '{ print $1 * 3600 + $2 * 60 }')))
     [ "$stop" -gt "$now" ] || stop=$((stop + 86400))
     why=end
@@ -182,6 +186,7 @@ rain_forecast() {
 
 last=""
 until=0
+endat=""
 waited=""
 areas=all
 end=-
@@ -210,6 +215,11 @@ while :; do
       waited=""
       set -- $due
       areas=$1 end=$2 dark=$3 sunset=$4 fresh=$5
+      # when this start ends: its end time today, or tomorrow when that's not after the start
+      endat=""
+      if [ "$end" != - ]; then
+        endat=$(stop_time "$end" - 1 | cut -d' ' -f1)
+      fi
       # pause <YYYY-MM-DD> all|<area ids>: off up to and including that day, or those areas skipped
       paused=$(awk -v day="$(TZ="$tz" date +%F)" '$1 == "pause" && day <= $2 { print $3; exit }' "$F")
     fi
@@ -223,7 +233,9 @@ while :; do
     s=$([ -n "$host" ] && mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -C 1 -W 10 2>/dev/null)
     bat=$(field "$s" battery_percentage | awk '{printf "%d", $1 * 100}')
     minbat=$(conf minbattery)
-    if [ "$paused" = all ]; then
+    if [ -n "$endat" ] && [ "$(date +%s)" -ge "$endat" ]; then
+      log skip_end; until=0
+    elif [ "$paused" = all ]; then
       log skip_paused; until=0
     elif [ -n "$paused" ] && host=$(find_broker) && [ -n "$host" ] && ! area_left "$areas" "$paused"; then
       log skip_paused; until=0
@@ -256,7 +268,8 @@ while :; do
       if mosquitto_pub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTION" -m "$ACTION_START_MOWING"; then
         log started "$bat"
         if [ "$areas" != all ] || [ -n "$paused" ]; then skip_others "$areas" "$paused" & fi
-        stop=$(stop_time "$end" "$sunset" "$dark")
+        # the end time of the start, not the next one from now (it may have waited for the battery)
+        stop=$(stop_time "$end" "$sunset" "$dark" "$endat")
         [ -n "$stop" ] && send_home_at $stop &
       else
         log skip_offline

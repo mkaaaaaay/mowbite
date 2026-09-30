@@ -317,6 +317,7 @@ const de: Record<string, string> = {
   "Not started, emergency stop was active": "Nicht gestartet, Notaus war aktiv",
   "Not started, rain was forecast": "Nicht gestartet, Regen war angesagt",
   "Not started, the mower was busy ({detail})": "Nicht gestartet, der Mäher war beschäftigt ({detail})",
+  "Not started, the end time came before the battery was charged": "Nicht gestartet, die Endzeit kam, bevor der Akku geladen war",
   "Not started, the mower wasn't reachable": "Nicht gestartet, der Mäher war nicht erreichbar",
   "Not started, the mower's rain sensor was wet": "Nicht gestartet, der Regensensor war nass",
   "Not when it rains or rain is forecast for the next": "Nicht, wenn es regnet oder Regen angesagt ist für die nächste(n)",
