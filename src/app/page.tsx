@@ -133,7 +133,9 @@ export default function Home() {
   // what the event history knows: since when this state holds and which area is being mowed
   const events = recent?.today ?? [];
   const lastOf = (f: (e: MowerEvent) => boolean) => events.filter(f).pop();
-  const since = lastOf((e) => e.type === 'STATE' && e.state === current)?.t;
+  // only when the newest state change is this state, older mowers don't record every one (a pause, say)
+  const lastState = lastOf((e) => e.type === 'STATE');
+  const since = lastState?.state === current ? lastState.t : undefined;
   const area = current === 'MOWING' ? lastOf((e) => e.type === 'AREA')?.area_name : undefined;
   const head = state ? headline(state, docked, chargeState, area) : null;
 
