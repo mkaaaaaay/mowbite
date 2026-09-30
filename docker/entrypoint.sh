@@ -8,6 +8,7 @@ printf 'window.__MOWER_CONFIG__ = {mqttUrl: "%s", mqttPrefix: "%s"};\n' \
 
 /recorder.sh &
 /logkeeper.sh &
+/battery.sh &
 # a second copy (e.g. a dev container next to the one on the mower) shouldn't start the mower too
 [ "$MOWBITE_SCHEDULER" = off ] || /scheduler.sh &
 
