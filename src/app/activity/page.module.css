@@ -50,9 +50,11 @@
 }
 
 .days .on {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
+  border-color: color-mix(in srgb, var(--accent) 70%, transparent);
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+  backdrop-filter: var(--card-blur, none);
+  box-shadow: var(--btn-3d);
+  color: var(--foreground);
 }
 
 .summary {
@@ -66,7 +68,6 @@
   background: var(--card);
   box-shadow: var(--card-shadow, none);
   backdrop-filter: var(--card-blur, none);
-  -webkit-backdrop-filter: var(--card-blur, none);
 }
 
 .summary div {
@@ -113,7 +114,6 @@
   background: var(--card);
   box-shadow: var(--card-shadow, none);
   backdrop-filter: var(--card-blur, none);
-  -webkit-backdrop-filter: var(--card-blur, none);
 }
 
 .run header {

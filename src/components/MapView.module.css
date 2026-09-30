@@ -48,6 +48,13 @@
   stroke-dasharray: 4 3;
 }
 
+/* drivable but not mowed: its own color, the edge stays solid */
+.skipMowing {
+  fill: var(--c-unmowed);
+  fill-opacity: 0.15;
+  stroke: var(--c-unmowed);
+}
+
 .selected {
   fill: none;
   stroke: var(--c-selected);
@@ -74,9 +81,11 @@
 
 .vertex {
   fill: var(--c-vertex);
+  fill-opacity: 0.6;
   pointer-events: none;
   stroke: #fff;
-  stroke-width: 0.75;
+  stroke-opacity: 0.35;
+  stroke-width: 0.5;
   cursor: grab;
   touch-action: none;
 }
@@ -97,7 +106,9 @@
 .midpoint {
   pointer-events: none;
   fill: #444;
+  fill-opacity: 0.6;
   stroke: #fff;
+  stroke-opacity: 0.4;
   stroke-width: 0.75;
   cursor: pointer;
 }
@@ -138,7 +149,6 @@
   cursor: pointer;
   box-shadow: var(--card-shadow, none);
   backdrop-filter: var(--card-blur, none);
-  -webkit-backdrop-filter: var(--card-blur, none);
 }
 
 .activeVertex {
@@ -166,7 +176,6 @@
   cursor: pointer;
   box-shadow: var(--card-shadow, none);
   backdrop-filter: var(--card-blur, none);
-  -webkit-backdrop-filter: var(--card-blur, none);
 }
 
 .grid line {
@@ -226,6 +235,16 @@
   accent-color: var(--accent);
 }
 
+.layers select {
+  margin-left: auto;
+  padding: 2px 4px;
+  border-radius: 6px;
+  border: 1px solid var(--card-border);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
 .loupe {
   position: absolute;
   border-radius: 50%;
@@ -258,7 +277,8 @@
 }
 
 .pieceA,
-.pieceB {
+.pieceB,
+.pieceC {
   fill-opacity: 0.35;
   stroke-width: 2;
   pointer-events: none;
@@ -272,6 +292,11 @@
 .pieceB {
   fill: #4dd0e1;
   stroke: #4dd0e1;
+}
+
+.pieceC {
+  fill: #ce93d8;
+  stroke: #ce93d8;
 }
 
 .imagery {
@@ -316,6 +341,39 @@
   text-anchor: middle;
 }
 
+/* the mower's plan for the area it's mowing: what's left, and what it has done */
+.planTodo {
+  fill: none;
+  stroke: var(--foreground);
+  stroke-opacity: 0.35;
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.planTodo.solid {
+  stroke-dasharray: none;
+}
+
+/* pac-man pellets: zero length dashes with round ends */
+.planTodo.dots {
+  stroke: #ffd54f;
+  stroke-opacity: 0.9;
+  stroke-width: 2.4;
+  stroke-dasharray: 0 7;
+  stroke-linecap: round;
+}
+
+.planDone {
+  fill: none;
+  stroke: var(--c-mow);
+  stroke-opacity: 0.9;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
 .transit {
   fill: none;
   stroke: var(--c-transit);
@@ -338,7 +396,6 @@
   text-decoration: none;
   box-shadow: var(--card-shadow, none);
   backdrop-filter: var(--card-blur, none);
-  -webkit-backdrop-filter: var(--card-blur, none);
 }
 
 .overlayOutline,

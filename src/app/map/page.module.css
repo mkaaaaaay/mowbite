@@ -53,9 +53,8 @@
   color: var(--foreground);
   font-size: 13px;
   cursor: pointer;
-  box-shadow: var(--card-shadow, none);
+  box-shadow: var(--btn-3d);
   backdrop-filter: var(--card-blur, none);
-  -webkit-backdrop-filter: var(--card-blur, none);
 }
 
 /* easy to miss otherwise. green outline, filled once there's something to save */
@@ -66,8 +65,11 @@
 }
 
 .saveButton.unsaved {
-  background: var(--success);
-  color: #fff;
+  border-color: color-mix(in srgb, var(--success) 70%, transparent);
+  background: color-mix(in srgb, var(--success) 35%, transparent);
+  backdrop-filter: var(--card-blur, none);
+  box-shadow: var(--btn-3d);
+  color: var(--foreground);
 }
 
 /* the editor's buttons: two even columns, a small heading over each pair */
@@ -126,7 +128,6 @@
   border: 1px solid var(--card-border);
   box-shadow: var(--card-shadow, none);
   backdrop-filter: var(--card-blur, none);
-  -webkit-backdrop-filter: var(--card-blur, none);
 }
 
 .areaHead {
@@ -193,7 +194,6 @@
   border: 1px solid var(--card-border);
   box-shadow: var(--card-shadow, none);
   backdrop-filter: var(--card-blur, none);
-  -webkit-backdrop-filter: var(--card-blur, none);
 }
 
 .mowSettings label:not(.toggle) {
@@ -298,7 +298,8 @@
 }
 
 .pieceA,
-.pieceB {
+.pieceB,
+.pieceC {
   font-weight: 600;
 }
 
@@ -308,6 +309,10 @@
 
 .pieceB {
   color: #4dd0e1;
+}
+
+.pieceC {
+  color: #ce93d8;
 }
 
 .danger {
@@ -325,7 +330,6 @@
   border: 1px solid var(--card-border);
   box-shadow: var(--card-shadow, none);
   backdrop-filter: var(--card-blur, none);
-  -webkit-backdrop-filter: var(--card-blur, none);
 }
 
 .orderTitle {
@@ -432,6 +436,21 @@
   display: none;
 }
 
+/* one degree less or more, next to the angle slider */
+.angleStep {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: var(--btn-3d);
+}
+
 @media (max-width: 899px) {
   .angleOnMap {
     position: absolute;
@@ -446,7 +465,6 @@
     border: 1px solid var(--card-border);
     background: var(--nav-bg);
     backdrop-filter: var(--card-blur, blur(18px));
-    -webkit-backdrop-filter: var(--card-blur, blur(18px));
     font-size: 12px;
     color: var(--text-secondary);
   }

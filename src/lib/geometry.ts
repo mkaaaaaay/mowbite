@@ -19,3 +19,9 @@ export function containsPoint(o: Point[], x: number, y: number): boolean {
   }
   return inside;
 }
+
+// how much of outline a lies inside outline b, by its points (0..1)
+export function shareInside(a: Point[], b: Point[]): number {
+  if (!a.length) return 0;
+  return a.filter((p) => containsPoint(b, p.x, p.y)).length / a.length;
+}

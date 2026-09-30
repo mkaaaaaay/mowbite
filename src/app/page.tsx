@@ -8,10 +8,12 @@ import {useComputedSpeed} from '@/hooks/useComputedSpeed';
 import {useMowerActions} from '@/hooks/useMowerActions';
 import {useMowerMap} from '@/hooks/useMowerMap';
 import {datumFromParams, useMowerParams} from '@/hooks/useMowerParams';
+import {sunTimes} from '@/lib/sun';
 import {useMowerSensors} from '@/hooks/useMowerSensors';
 import {useMowerPosition} from '@/hooks/useMowerPosition';
 import {useMowerState, type MowerState} from '@/hooks/useMowerState';
 import {useMowerTrack} from '@/hooks/useMowerTrack';
+import {usePlanProgress} from '@/hooks/usePlanProgress';
 import {useRecentRuns} from '@/hooks/useRecentRuns';
 import {useWeather} from '@/hooks/useWeather';
 import WeatherIcon, {WEATHER_LABELS, weatherKind} from '@/components/WeatherIcon';
@@ -28,7 +30,8 @@ import MowerSwitch from '@/components/MowerSwitch';
 import {UpdateBanner} from '@/components/Updates';
 import {ACTION} from '@/lib/openmower';
 
-const DRIVING = new Set(['MOWING', 'DOCKING', 'UNDOCKING']);
+// paused counts too, the mower is standing somewhere on the lawn then
+const DRIVING = new Set(['MOWING', 'PAUSED', 'DOCKING', 'UNDOCKING']);
 
 const ACTION_RESET_EMERGENCY = ACTION.resetEmergency;
 const ACTIONS = [
@@ -109,15 +112,18 @@ export default function Home() {
   const speed = useComputedSpeed(position);
   const track = useMowerTrack();
   const map = useMowerMap();
+  const recent = useRecentRuns(state?.current_state);
+  const progress = usePlanProgress(state ?? null, map, recent?.today);
   const params = useMowerParams();
   const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
-  const recent = useRecentRuns(state?.current_state);
   const weather = useWeather(datumFromParams(params), !!settings.weather);
   const [schedule, setSchedule] = useState<Schedule | null>(() => cachedSchedule() ?? null);
   useEffect(() => {
     void loadSchedule().then(setSchedule);
   }, []);
-  const planned = schedule ? nextStart(schedule) : null;
+  const datum = datumFromParams(params);
+  const planned = schedule ? nextStart(schedule, undefined, datum ? sunTimes(datum.lat, datum.lon) : null) : null;
+  const [confirmReset, setConfirmReset] = useState(false);
 
   const current = state?.current_state ?? '';
   const driving = DRIVING.has(current);
@@ -130,7 +136,9 @@ export default function Home() {
   // what the event history knows: since when this state holds and which area is being mowed
   const events = recent?.today ?? [];
   const lastOf = (f: (e: MowerEvent) => boolean) => events.filter(f).pop();
-  const since = lastOf((e) => e.type === 'STATE' && e.state === current)?.t;
+  // only when the newest state change is this state, older mowers don't record every one (a pause, say)
+  const lastState = lastOf((e) => e.type === 'STATE');
+  const since = lastState?.state === current ? lastState.t : undefined;
   const area = current === 'MOWING' ? lastOf((e) => e.type === 'AREA')?.area_name : undefined;
   const head = state ? headline(state, docked, chargeState, area) : null;
 
@@ -145,6 +153,10 @@ export default function Home() {
       warn: driving && (acc === undefined || acc >= NO_FIX || acc > 0.1),
     });
     if (driving) facts.push({label: tr('Speed'), value: `${fmt(speed, 2)} m/s`});
+    if (progress) {
+      const left = progress.secondsLeft !== null ? ` · ${tr('{time} left', {time: duration(progress.secondsLeft)})}` : '';
+      facts.push({label: tr('Progress'), value: `${Math.round(progress.fraction * 100)} %${left}`});
+    }
     if (charging && num('om_charge_current') !== undefined) facts.push({label: tr('Charging'), value: `${fmt(num('om_charge_current')!, 1)} A`});
     if (num('om_v_battery') !== undefined) facts.push({label: tr('Battery'), value: `${fmt(num('om_v_battery')!, 1)} V`});
     if (motorTemp > -Infinity) facts.push({label: tr('Motors'), value: `${Math.round(motorTemp)} °C`, warn: motorTemp > 70});
@@ -198,7 +210,13 @@ export default function Home() {
             </div>
 
             <div className={styles.controls}>
-              {ACTIONS.map((a) => (
+              {ACTIONS.map((a) =>
+                // paused: the pause button turns into continue. only by the state, the mower also offers continue
+                // while mowing until it was paused once
+                a.id === ACTION.pause && state.current_state === 'PAUSED' && hasAction(ACTION.resume)
+                  ? {...a, id: ACTION.resume, Icon: PlayIcon, label: 'Continue'}
+                  : a,
+              ).map((a) => (
                 <button
                   key={a.id}
                   className={a.main ? styles.main : undefined}
@@ -210,6 +228,27 @@ export default function Home() {
                   {tr(a.label)}
                 </button>
               ))}
+              {hasAction(ACTION.resetJob) &&
+                !state.emergency &&
+                (confirmReset ? (
+                  <div className={styles.resetJob}>
+                    <span>{tr('Drop the interrupted job? The next start mows from the beginning.')}</span>
+                    <button
+                      className={styles.reset}
+                      onClick={() => {
+                        publishAction(ACTION.resetJob);
+                        setConfirmReset(false);
+                      }}
+                    >
+                      {tr('Drop it')}
+                    </button>
+                    <button onClick={() => setConfirmReset(false)}>{tr('Cancel')}</button>
+                  </div>
+                ) : (
+                  <button className={styles.resetJobButton} onClick={() => setConfirmReset(true)}>
+                    {tr('Drop the interrupted job')}
+                  </button>
+                ))}
               {!!state.emergency && (
                 <button className={styles.reset} onClick={() => publishAction(ACTION_RESET_EMERGENCY)}>
                   <WarningIcon size={20} />
@@ -222,7 +261,15 @@ export default function Home() {
 
         {showMap && map && (
           <section className={styles.map}>
-            <MapView map={map} mower={position} track={track} follow={driving} zoomable datum={datumFromParams(params)} />
+            <MapView
+              map={map}
+              mower={position}
+              track={track}
+              progress={progress ?? undefined}
+              follow={driving}
+              zoomable
+              datum={datumFromParams(params)}
+            />
           </section>
         )}
 

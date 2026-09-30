@@ -11,6 +11,7 @@ export const COLORS = [
   {key: 'track', label: 'Track', value: '#ff1fa3'},
   {key: 'transit', label: 'Driving without blades', value: '#ff1fa3'},
   {key: 'mow', label: 'Mowing area', value: '#4caf50'},
+  {key: 'unmowed', label: 'Mowing area, not mowed', value: '#ffb300'},
   {key: 'nav', label: 'Navigation area', value: '#29b6f6'},
   {key: 'obstacle', label: 'Obstacle', value: '#ef5350'},
   {key: 'draft', label: 'Draft', value: '#888888'},
@@ -41,6 +42,8 @@ export interface Settings {
   weather?: boolean;
   // the strip of grass along the bottom, on unless switched off
   grass?: boolean;
+  // leaves drifting down in autumn, on unless switched off
+  leaves?: boolean;
   // name of the mower this app runs on, and the other ones to switch to
   thisName?: string;
   mowers?: OtherMower[];

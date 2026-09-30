@@ -13,7 +13,6 @@ import {appMowers, saveAppMowers} from '@/lib/mowers';
 import {isApp} from '@/lib/native';
 import {setSwipeEnabled, useSwipeEnabled} from '@/lib/swipe';
 import {UpdateSettings} from '@/components/Updates';
-import {RosLogSettings} from '@/components/RosLog';
 
 function IconChoice({
   icons,
@@ -297,6 +296,14 @@ export default function SettingsPage() {
             {tr('Grass along the bottom of the screen')}
           </label>
           <label className={styles.check}>
+            <input
+              type="checkbox"
+              checked={settings.leaves !== false}
+              onChange={(e) => saveSettings({...settingsStore.snapshot(), leaves: e.target.checked})}
+            />
+            {tr('Falling leaves in autumn')}
+          </label>
+          <label className={styles.check}>
             <input type="checkbox" checked={swipe} onChange={(e) => setSwipeEnabled(e.target.checked)} />
             {tr('Swipe left and right between the pages (on this device)')}
           </label>
@@ -404,8 +411,6 @@ export default function SettingsPage() {
             })}
           </div>
         </section>
-
-        <RosLogSettings cardClass={styles.card} />
 
         <UpdateSettings cardClass={styles.card} checkClass={styles.check} />
       </main>

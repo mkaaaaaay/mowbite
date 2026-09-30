@@ -8,9 +8,12 @@ import Sparkline from '@/components/Sparkline';
 import {useMowerSensors, type SensorInfo} from '@/hooks/useMowerSensors';
 import {useMowerState} from '@/hooks/useMowerState';
 import {useSensorHistory, type Sample} from '@/hooks/useSensorHistory';
+import {useState, useSyncExternalStore} from 'react';
 import {sharedSettings} from '@/lib/settings';
 import {batteryColor, isDocked, stateColor, statusText} from '@/lib/status';
 import styles from './page.module.css';
+import System from './System';
+import BatteryHistory from './BatteryHistory';
 import {fmt, tr, useLang} from '@/lib/i18n';
 
 // sensors that get their own card instead of the generic one
@@ -57,8 +60,31 @@ function Card({title, children}: {title: React.ReactNode; children: React.ReactN
   );
 }
 
+// the mower's sensors, or the computer in it (memory, storage, cpu). the last one picked is kept per device
+type Tab = 'mower' | 'system';
+
+const savedTab = (): Tab => {
+  try {
+    return localStorage.getItem('sensorsTab') === 'system' ? 'system' : 'mower';
+  } catch {
+    return 'mower';
+  }
+};
+// the saved tab only changes by picking one here
+const onTabChange = () => () => {};
+
 export default function SensorsPage() {
   useLang();
+  // read after the page came up, the prebuilt page always starts with the mower tab
+  const saved = useSyncExternalStore(onTabChange, savedTab, () => 'mower' as Tab);
+  const [picked, setPicked] = useState<Tab | null>(null);
+  const tab = picked ?? saved;
+  const pick = (t: Tab) => {
+    setPicked(t);
+    try {
+      localStorage.setItem('sensorsTab', t);
+    } catch {}
+  };
   const {infos, values} = useMowerSensors();
   const {state} = useMowerState();
   const history = useSensorHistory();
@@ -117,7 +143,18 @@ export default function SensorsPage() {
           {criticalCount > 0 && <span className={styles.error}>{tr('{n} out of range', {n: criticalCount})}</span>}
         </div>
 
-        {infos.length === 0 ? (
+        <div className={styles.tabs}>
+          <button className={tab === 'mower' ? styles.tabOn : undefined} onClick={() => pick('mower')}>
+            {tr('Mower')}
+          </button>
+          <button className={tab === 'system' ? styles.tabOn : undefined} onClick={() => pick('system')}>
+            {tr('System')}
+          </button>
+        </div>
+
+        {tab === 'system' ? (
+          <System history={history} />
+        ) : infos.length === 0 ? (
           <p className={styles.dim}>{tr('Waiting for sensor data…')}</p>
         ) : (
           <>
@@ -244,6 +281,8 @@ export default function SensorsPage() {
                 </div>
               </>
             )}
+
+            <BatteryHistory />
 
             <p className={styles.footnote}>
               {sharedSettings() ? tr('History covers the last 24 hours.') : tr('History covers the last hour while the app is open.')}

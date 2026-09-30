@@ -9,7 +9,6 @@
   border: 1px solid var(--card-border);
   box-shadow: var(--card-shadow, none);
   backdrop-filter: var(--card-blur, none);
-  -webkit-backdrop-filter: var(--card-blur, none);
   min-width: 0;
 }
 
@@ -53,9 +52,11 @@
 
 .days .on,
 .times .on {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
+  border-color: color-mix(in srgb, var(--accent) 70%, transparent);
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+  backdrop-filter: var(--card-blur, none);
+  box-shadow: var(--btn-3d);
+  color: var(--foreground);
 }
 
 .days .half {
@@ -65,4 +66,14 @@
 .info {
   font-size: 12px;
   color: var(--text-secondary);
+}
+
+.clear {
+  align-self: flex-start;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-size: 12px;
+  cursor: pointer;
 }

@@ -1,12 +1,16 @@
 import {MergeIcon, ScissorsIcon, SimplifyIcon, TrashIcon} from '@/components/icons';
 import InfoTip from '@/components/InfoTip';
-import {tr} from '@/lib/i18n';
+import {polygonArea} from '@/lib/geometry';
+import {fmt, tr} from '@/lib/i18n';
+import {useAreaProperties} from '@/lib/areaProps';
 import {AREA_TYPES, type Area, type UpdateArea} from './editing';
 import styles from './page.module.css';
 
 // name, type and active switch of the selected area, and what can be done with it
 export default function AreaCard({
   area,
+  enclosing,
+  onCutOut,
   showTools,
   confirmDelete,
   remember,
@@ -18,6 +22,9 @@ export default function AreaCard({
   onDeleteBlur,
 }: {
   area: Area;
+  enclosing?: Area;
+  // cuts this area out of the enclosing one, null when it doesn't lie fully inside
+  onCutOut: (() => void) | null;
   showTools: boolean;
   confirmDelete: boolean;
   remember: () => void;
@@ -29,7 +36,21 @@ export default function AreaCard({
   onDeleteBlur: () => void;
 }) {
   const type = area.properties.type ?? 'draft';
+  const supported = useAreaProperties();
   const tool = [styles.pillButton, styles.tool].join(' ');
+  const outer = enclosing && {name: enclosing.properties.name || tr('unnamed')};
+  const outerMows = enclosing?.properties.type === 'mow' && enclosing.properties.mowable !== false;
+  const inactive = area.properties.active === false;
+  const skipped = inactive || type === 'nav' || area.properties.mowable === false;
+  const nested =
+    outer &&
+    (outerMows && skipped
+      ? tr('Lies inside "{name}", so it gets mowed and driven on anyway.', outer)
+      : outerMows
+        ? tr('Lies inside "{name}" and gets mowed with it as well.', outer)
+        : inactive
+          ? tr('Lies inside "{name}", so the mower still drives here although this area is inactive.', outer)
+          : null);
   return (
     <div className={styles.areaEditor}>
       <div className={styles.areaHead}>
@@ -58,28 +79,61 @@ export default function AreaCard({
           />
           {tr('active')}
           <InfoTip>
-            {tr("Inactive areas are ignored by the mower. Careful with mowing areas: an inactive one is also no longer drivable, so the mower gets stuck if it stands on it.")}
+            {tr('Ignored by the mower and not drivable. Careful: if the mower stands on an inactive area, it gets stuck.')}
           </InfoTip>
         </label>
+        {type === 'mow' && area.properties.active !== false && supported.has('mowable') && (
+          <label className={styles.toggle}>
+            <input
+              type="checkbox"
+              checked={area.properties.mowable === false}
+              onChange={() => update({mowable: area.properties.mowable === false ? undefined : false})}
+            />
+            {tr("don't mow")}
+            <InfoTip>
+              {tr('Not mowed, but the mower may drive across it (unlike inactive).')}
+            </InfoTip>
+          </label>
+        )}
         <span className={styles.dim}>
-          {tr(AREA_TYPES.find((t) => t.value === type)?.hint ?? '')}
+          {area.properties.active === false
+            ? tr('inactive: not driven on and not mowed')
+            : type === 'mow' && area.properties.mowable === false
+              ? tr('driven on, but not mowed')
+              : tr(AREA_TYPES.find((t) => t.value === type)?.hint ?? '')}
           {' · '}
-          {tr('{n} points', {n: area.outline.length})}
+          {fmt(polygonArea(area.outline), 1)} m²
         </span>
       </div>
+      {nested && (
+        <div className={styles.warning}>
+          {nested}{' '}
+          {onCutOut
+            ? tr("To leave it out, cut it out of \"{name}\" (it gets split in two, areas can't have holes). Or make this an obstacle so the mower never drives here.", outer)
+            : tr("It doesn't lie fully inside, to leave it out cut \"{name}\" by hand with Split zone.", outer)}
+          {onCutOut && (
+            <div className={styles.inlineRow}>
+              <button className={styles.pillButton} onClick={onCutOut}>
+                <ScissorsIcon size={16} />
+                {tr('Cut out of "{name}"', outer)}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
       {showTools && (
         <div className={styles.toolbar}>
           <span className={styles.toolLabel}>
             {tr('Edit')}
             <InfoTip>
               <b>{tr('Split zone')}:</b>{' '}
-              {tr("Cuts the area in two along a line through two points you click. Both halves keep the type and settings.")}
+              {tr('Cuts the area in two along a line, or cuts a shape out of it. All parts keep type and settings.')}
               <br />
               <b>{tr('Merge')}:</b>{' '}
-              {tr("Joins this area with another one you click, e.g. two halves of a lawn. They need to overlap or touch.")}
+              {tr('Joins this area with another one you click. They need to overlap or touch.')}
               <br />
               <b>{tr('Reduce points')}:</b>{' '}
-              {tr("Recorded outlines have a point every few cm. This drops the ones that hardly change the shape, you pick how far the new outline may be off. You can go back up with the slider until you reload the page.")}
+              {tr('Recorded outlines have a point every few cm. This removes the ones that barely change the shape, the slider sets how far the outline may move.')}
             </InfoTip>
           </span>
           <button className={tool} onClick={onSplit}>

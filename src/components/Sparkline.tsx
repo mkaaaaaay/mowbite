@@ -29,7 +29,7 @@ export default function Sparkline({
     .map((s) => `${(((s.t - t0) / (t1 - t0 || 1)) * w).toFixed(1)},${(h - 2 - ((s.v - base) / span) * (h - 4)).toFixed(1)}`)
     .join(' ');
   const minutes = Math.max(1, Math.round((t1 - t0) / 60000));
-  const range = minutes < 90 ? `${minutes} min` : `${Math.round(minutes / 60)} h`;
+  const range = minutes < 90 ? `${minutes} min` : minutes < 2880 ? `${Math.round(minutes / 60)} h` : `${Math.round(minutes / 1440)} d`;
 
   return (
     <div className={styles.wrap}>

@@ -17,11 +17,18 @@ export interface MapArea {
     name?: string;
     type?: string;
     active?: boolean;
+    // drivable but left out when mowing, needs an openmower that knows it (older ones drop it when saving)
+    // false: drivable but not mowed, like a navigation area
+    mowable?: boolean;
     // per area overrides, missing = the mower's global setting
     outline_count?: number;
     outline_overlap_count?: number;
     outline_offset?: number;
     angle?: number; // rad
+    // rad, the final angle (offset and increment included) stays within, bouncing back at the ends. needs an
+    // openmower that knows it
+    angle_min?: number;
+    angle_max?: number;
   };
   outline: Point[];
 }

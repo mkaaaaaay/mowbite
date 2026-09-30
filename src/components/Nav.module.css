@@ -10,7 +10,6 @@
   padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
   background: var(--nav-bg);
   backdrop-filter: var(--card-blur, blur(18px));
-  -webkit-backdrop-filter: var(--card-blur, blur(18px));
   border-top: 1px solid var(--card-border);
 }
 

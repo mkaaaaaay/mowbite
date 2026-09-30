@@ -51,6 +51,67 @@ function Hedgehog() {
   );
 }
 
+// autumn in the northern half of the world, there are leaves on the lawn then
+const isAutumn = () => [8, 9, 10].includes(new Date().getMonth());
+// the season doesn't change while the page is open, near enough
+const noChange = () => () => {};
+const LEAF_COLORS = ['#d9822b', '#b8452a', '#e0a93b', '#8d5a2b', '#c9652a'];
+
+function Leaf({color, size = 10}: {color: string; size?: number}) {
+  return (
+    <svg width={size} height={size} viewBox="-6 -7 12 14">
+      <path d="M0 -6 C4 -4 5 2 0 6 C-5 2 -4 -4 0 -6 Z" fill={color} />
+      <path d="M0 -5 L0 7" stroke="#5a3a1c" strokeWidth="0.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// a few leaves lying about, the same every time
+const LAWN_LEAVES = Array.from({length: 11}, (_, i) => ({
+  left: (i * 37 + 7) % 100,
+  bottom: (i * 5) % 7,
+  rot: (i * 73) % 360,
+  color: LEAF_COLORS[i % LEAF_COLORS.length],
+  size: 9 + (i % 3) * 2,
+}));
+
+// the heap the hedgehog sleeps under, and where each leaf flies to when it's blown away
+const PILE = Array.from({length: 18}, (_, i) => {
+  const row = i < 7 ? 0 : i < 12 ? 1 : i < 16 ? 2 : 3;
+  const inRow = [7, 5, 4, 2][row];
+  const k = i - [0, 7, 12, 16][row];
+  const x = (k - (inRow - 1) / 2) * (row === 3 ? 9 : 8) + ((i * 7) % 5) - 2;
+  const side = x < 0 ? -1 : 1;
+  return {
+    x,
+    y: row * 5,
+    rot: (i * 47) % 360,
+    color: LEAF_COLORS[(i * 3) % LEAF_COLORS.length],
+    dx: side * (40 + ((i * 29) % 70)),
+    dy: -(50 + ((i * 17) % 60)),
+    spin: side * (180 + ((i * 53) % 360)),
+  };
+});
+
+// a few leaves drifting down behind the page, optional. the frosted cards blur them
+function FallingLeaves() {
+  return (
+    <div className={styles.falling} aria-hidden="true">
+      {[12, 31, 48, 67, 84].map((left, i) => (
+        <div
+          key={left}
+          className={styles.fall}
+          style={{left: `${left}%`, animationDuration: `${16 + i * 3}s`, animationDelay: `${i * 5 + 2}s`}}
+        >
+          <div className={styles.sway} style={{animationDuration: `${3 + (i % 3)}s`}}>
+            <Leaf color={LEAF_COLORS[i]} size={14} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // the grass along the bottom. it lies behind the page, so taps on it are caught on the window:
 // anything in the strip that isn't part of the ui counts. two quick taps start the mower
 export default function Grass() {
@@ -60,6 +121,11 @@ export default function Grass() {
   // gap: the stretch the eater flies over, its grass stays
   const [critter, setCritter] = useState<{x: number; hit: number; gap: [number, number]; keep: [number, number]} | null>(null);
   const strip = useRef<HTMLDivElement>(null);
+  const pile = useRef<HTMLDivElement>(null);
+  // counts the runs, a new heap blows in after each
+  const [round, setRound] = useState(0);
+  // the month of the viewer, not of the build
+  const autumn = useSyncExternalStore(noChange, isAutumn, () => false);
   const busy = useRef(false);
   const lastTap = useRef(0);
   const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
@@ -75,6 +141,9 @@ export default function Grass() {
       const target = e.target as Element;
       if (target.closest('button, a, input, select, textarea, label, section, article, nav, svg, [role]')) return;
       if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      // in autumn it's the middle of the heap of leaves
+      const p = pile.current?.getBoundingClientRect();
+      if (p && Math.abs(e.clientX - (p.left + p.width / 2)) > 22) return;
       if (e.timeStamp - lastTap.current > 400) {
         lastTap.current = e.timeStamp;
         return;
@@ -83,7 +152,8 @@ export default function Grass() {
       busy.current = true;
       const w = window.innerWidth;
       const ms = Math.max(3000, (w / SPEED) * 1000);
-      const x = Math.round(w * (0.45 + Math.random() * 0.1));
+      // under the heap in autumn, it's the middle of the screen
+      const x = p ? Math.round(p.left + p.width / 2) : Math.round(w * (0.45 + Math.random() * 0.1));
       // the mower drives from -80 to w + 10 px, its mouth (where the cut is) is 34 px in, the hedgehog
       // starts 26 px left of x
       const mouthAt = (t: number) => -46 + ((w + 90) * t) / ms;
@@ -100,6 +170,7 @@ export default function Grass() {
         setTimeout(() => {
           setPhase('idle');
           setCritter(null);
+          setRound((r) => r + 1);
           busy.current = false;
         }, PRE_MS + ms + 1200 + REGROW_MS),
       );
@@ -111,9 +182,12 @@ export default function Grass() {
     };
   }, []);
 
-  if (!shown) return null;
+  const falling = autumn && settings.leaves !== false;
+  if (!shown) return falling ? <FallingLeaves /> : null;
 
   return (
+    <>
+    {falling && <FallingLeaves />}
     <div
       ref={strip}
       className={[styles.grass, phase !== 'idle' ? styles[phase] : '', dashboard ? '' : styles.desktopOnly].join(' ')}
@@ -136,11 +210,41 @@ export default function Grass() {
     >
       <div className={styles.short} />
       <div className={styles.tall} />
+      {autumn && (
+        <div className={styles.lawnLeaves}>
+          {LAWN_LEAVES.map((l, i) => (
+            <div key={i} style={{left: `${l.left}%`, bottom: l.bottom, transform: `rotate(${l.rot}deg)`}}>
+              <Leaf color={l.color} size={l.size} />
+            </div>
+          ))}
+        </div>
+      )}
       {/* the grass under the jump, it stays when the rest is cut */}
       {critter && phase === 'mowing' && <div className={[styles.tall, styles.keep].join(' ')} />}
       {critter && (
-        <div className={styles.critter} style={{left: critter.x - 26}}>
+        <div className={[styles.critter, autumn ? styles.fromPile : ''].join(' ')} style={{left: critter.x - 26}}>
           <Hedgehog />
+        </div>
+      )}
+      {autumn && (
+        <div ref={pile} key={round} className={[styles.pile, phase !== 'idle' ? styles.blown : ''].join(' ')}>
+          {PILE.map((l, i) => (
+            <div
+              key={i}
+              style={
+                {
+                  left: 32 + l.x - 6,
+                  bottom: l.y,
+                  '--rot': `${l.rot}deg`,
+                  '--dx': `${l.dx}px`,
+                  '--dy': `${l.dy}px`,
+                  '--spin': `${l.spin}deg`,
+                } as React.CSSProperties
+              }
+            >
+              <Leaf color={l.color} size={12} />
+            </div>
+          ))}
         </div>
       )}
       {phase === 'mowing' && (
@@ -151,5 +255,6 @@ export default function Grass() {
         </div>
       )}
     </div>
+    </>
   );
 }

@@ -75,6 +75,8 @@ export function describe(e: MowerEvent, state?: string): {text: string; severity
       return info(tr('Docked'));
     case 'JOB_COMPLETE':
       return info(tr('All areas done'));
+    case 'JOB_RESET':
+      return info(tr('Interrupted job dropped, the next start begins from the start'));
     case 'EMERGENCY':
       return e.emergency
         ? {
@@ -94,7 +96,8 @@ export function describe(e: MowerEvent, state?: string): {text: string; severity
 }
 
 // what the mower's code does when it logs these, the event itself carries nothing more
-export function explain(e: MowerEvent, state?: string): string | undefined {
+// gpsTimeout: the mower's mower_logic/gps_timeout in seconds, if known
+export function explain(e: MowerEvent, state?: string, gpsTimeout?: number): string | undefined {
   switch (e.type) {
     case 'UNDOCKING_FAILED':
       if (e.reason === 'no_gps')
@@ -118,7 +121,15 @@ export function explain(e: MowerEvent, state?: string): string | undefined {
         "It couldn't follow the mowing path and the recovery didn't help, so it paused. Often something is in the way, or the path runs too close to an obstacle or the edge.",
       );
     case 'GPS':
-      return !e.available && state === 'MOWING' ? tr('Mowing waits until the fix is back.') : undefined;
+      if (e.available || state !== 'MOWING') return undefined;
+      return gpsTimeout !== undefined
+        ? tr(
+            'The RTK fix had been gone for {n} s, that long it keeps driving on wheel odometry (mower_logic/gps_timeout). Then it stops with the blade off and waits until the fix is back.',
+            {n: Math.round(gpsTimeout)},
+          )
+        : tr(
+            'The RTK fix had been gone for longer than the mower allows (mower_logic/gps_timeout), so it stopped with the blade off and waits until the fix is back.',
+          );
     case 'EMERGENCY':
       return e.emergency ? tr('Stop button, lift, tilt or a bumper. It has to be released and reset before it drives again.') : undefined;
   }

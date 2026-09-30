@@ -7,7 +7,7 @@ import {settingsStore} from '@/lib/settings';
 import {dockIcon, mowerIcon} from './mapIcons';
 import {availableSources, imageryTiles, type Datum, type ImagerySource} from '@/lib/imagery';
 import {handleRadius, meterGrid} from '@/lib/mapGrid';
-import MapControls, {type Layer} from './MapControls';
+import MapControls, {layerOn, type Layer, type PlanStyle} from './MapControls';
 import {useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import styles from './MapView.module.css';
 import {tr, useLang} from '@/lib/i18n';
@@ -19,6 +19,10 @@ interface MapViewProps {
   onSelectArea?: (id: string) => void;
   onMoveVertex?: (areaId: string, vertexIndex: number, x: number, y: number) => void;
   onDragStart?: () => void;
+  // true while a point of an area is being dragged
+  onDragging?: (on: boolean) => void;
+  // a point drag that turned into a pinch: undo what the drag changed
+  onDragCancel?: () => void;
   onInsertVertex?: (areaId: string, vertexIndex: number, x: number, y: number) => void;
   onDeleteVertex?: (areaId: string, vertexIndex: number) => void;
   // clicks report map coords instead of selecting (split line, new area)
@@ -27,11 +31,12 @@ interface MapViewProps {
   onCanvasClick?: (x: number, y: number) => void;
   onMovePending?: (index: number, x: number, y: number) => void;
   onInsertPending?: (index: number, x: number, y: number) => void;
-  // fixed window around the mower instead of fitting the whole map
+  // fixed window around the mower instead of fitting the whole map, a button lets the map move freely
   follow?: boolean;
   followSpanMeters?: number;
   // oldest first
-  track?: (Point & {b?: boolean})[];
+  // the live trail in pieces (see useMowerTrack), finished pieces keep their identity
+  track?: readonly (Point & {b?: boolean})[][];
   // a recorded job instead of the live trail, mowed parts solid, driving without blades dashed
   pastTrack?: {points: Point[]; blades: boolean}[];
   // wheel / pinch zoom, drag to pan
@@ -40,6 +45,9 @@ interface MapViewProps {
   stripes?: Point[][];
   // the outline passes of the mowing plan, drawn with the stripes
   loops?: Point[][];
+  // how far the current run got in the mower's plan: what's left is drawn, the planned part it has done only if
+  // switched on in the layer menu (the track shows what it really drove)
+  progress?: {done: Point[][]; todo: Point[][]};
   // shapes an edit would give (split pieces, merge result), drawn in two alternating colors
   preview?: Point[][];
   // click on the map where there's no area
@@ -52,6 +60,8 @@ interface MapViewProps {
   markers?: Point[];
   // start zoomed in around this point instead of showing the whole map
   focus?: Point;
+  // zoom and position are kept under this key while the app runs, e.g. across a visit to the settings
+  viewKey?: string;
   // what the mower draws itself, e.g. the lines of an area recording
   overlay?: {points: Point[]; color: string; closed: boolean}[];
 }
@@ -71,8 +81,14 @@ interface View {
 }
 
 const MAX_ZOOM = 40;
+// center and width in meters, so a changed map doesn't move what was looked at
+const savedViews = new Map<string, {x: number; y: number; span: number}>();
 // dragging.areaId while a point of the line being drawn is dragged
 const PENDING = '__pending';
+
+type Run = {points: string; blades: boolean};
+// drawn runs of each piece of the live trail per map geometry, pieces that are done are never worked out again
+const runCache = new WeakMap<object, Map<string, Run[]>>();
 
 const AREA_CLASS: Record<string, string> = {
   mow: styles.mowArea,
@@ -101,6 +117,8 @@ export default function MapView({
   onSelectArea,
   onMoveVertex,
   onDragStart,
+  onDragging,
+  onDragCancel,
   onInsertVertex,
   onDeleteVertex,
   pickingPoints,
@@ -112,6 +130,7 @@ export default function MapView({
   followSpanMeters = 6,
   track,
   pastTrack,
+  progress,
   zoomable = false,
   stripes,
   loops,
@@ -119,6 +138,7 @@ export default function MapView({
   overlay,
   markers,
   focus,
+  viewKey,
   onClickEmpty,
   datum,
   orderLabels,
@@ -134,15 +154,33 @@ export default function MapView({
   }, []);
   // bounds frozen while dragging so the map doesn't rescale under the cursor
   const [dragging, setDragging] = useState<{areaId: string; index: number; bounds: Bounds} | null>(null);
-  const drag = useRef({startX: 0, startY: 0, moved: false, inserted: false, touch: false});
+  const drag = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    lastX: number;
+    lastY: number;
+    moved: boolean;
+    touch: boolean;
+    // an edge midpoint was grabbed, the new point only gets added once the finger moves (or on a tap)
+    insert: {x: number; y: number} | null;
+    // where the point was before, for putting a drawn point back
+    orig: {x: number; y: number} | null;
+  }>({pointerId: -1, startX: 0, startY: 0, lastX: 0, lastY: 0, moved: false, touch: false, insert: null, orig: null});
   // finger position while dragging on touch, drives the loupe
   const [finger, setFinger] = useState<{x: number; y: number; width: number} | null>(null);
   // tapped point, gets a delete button
   const [active, setActive] = useState<{areaId: string; index: number} | null>(null);
   const [view, setView] = useState<View | null>(null);
   const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
+  // the view from the last visit, until zoomed, panned or reset. a spot to show wins over it
+  const [restore, setRestore] = useState(() => (viewKey && !focus ? (savedViews.get(viewKey) ?? null) : null));
   // in follow mode zooming changes how many meters around the mower are shown
   const [followZoom, setFollowZoom] = useState(1);
+  // follow mode switched off by hand, back on with the next drive
+  const [free, setFree] = useState(false);
+  if (free && !follow) setFree(false);
+  const following = follow && !free;
   // off by default, it sends the map area to the imagery provider
   const [imagery, setImagery] = useState<ImagerySource | null>(() => {
     try {
@@ -169,6 +207,14 @@ export default function MapView({
     }
   });
   const [layersOpen, setLayersOpen] = useState(false);
+  const [planStyle, setPlanStyle] = useState<PlanStyle>(() => {
+    try {
+      const v = localStorage.getItem('planStyle');
+      return v === 'solid' || v === 'dots' ? v : 'dashed';
+    } catch {
+      return 'dashed';
+    }
+  });
   const toggleLayer = (l: Layer) => {
     const next = new Set(hidden);
     if (next.has(l)) next.delete(l);
@@ -222,9 +268,18 @@ export default function MapView({
       })()
     : null;
 
+  const restored: View | null = restore
+    ? (() => {
+        const [cx, cy] = toScreen(restore.x, restore.y);
+        const size = restore.span * scale;
+        return {x: cx - size / 2, y: cy - size / 2, size};
+      })()
+    : null;
+
   // what's shown: the user's zoom, or in follow mode a window around the mower
-  let shown = view ?? home;
-  if (follow && displayMower) {
+  const base = view ?? restored ?? home;
+  let shown = base;
+  if (following && displayMower) {
     const [sx, sy] = toScreen(displayMower.x, displayMower.y);
     const size = followSpanMeters * followZoom * scale;
     shown = {x: sx - size / 2, y: sy - size / 2, size};
@@ -238,22 +293,36 @@ export default function MapView({
     }
     return out;
   }, [map, minX, minY, scale, padX, padY]);
-  // the live trail cut where the blades go on or off, driving without them is drawn dashed
+  // the live trail cut where the blades go on or off, driving without them is drawn dashed. worked out per
+  // piece and kept for pieces that didn't change, so a long trail costs the same as a short one while driving
   const trackRuns = useMemo(() => {
-    const runs: {points: string; blades: boolean}[] = [];
-    if (!track || track.length < 2) return runs;
+    const runs: Run[] = [];
+    if (!track) return runs;
+    const key = `${minX},${minY},${scale},${padX},${padY}`;
     const at = (p: Point) => `${(p.x - minX) * scale + padX},${HEIGHT - ((p.y - minY) * scale + padY)}`;
-    let start = 0;
-    for (let i = 1; i <= track.length; i++) {
-      if (i < track.length && (track[i].b ?? true) === (track[start].b ?? true)) continue;
-      // include the next point so the runs connect
-      const pts = track.slice(start, Math.min(i + 1, track.length));
-      if (pts.length >= 2) runs.push({points: pts.map(at).join(' '), blades: track[start].b ?? true});
-      start = i;
+    for (const piece of track) {
+      let byView = runCache.get(piece);
+      if (!byView) runCache.set(piece, (byView = new Map()));
+      let cached = byView.get(key);
+      if (!cached) {
+        const own: Run[] = [];
+        let start = 0;
+        for (let i = 1; i <= piece.length; i++) {
+          if (i < piece.length && (piece[i].b ?? true) === (piece[start].b ?? true)) continue;
+          // include the next point so the runs connect
+          const pts = piece.slice(start, Math.min(i + 1, piece.length));
+          if (pts.length >= 2) own.push({points: pts.map(at).join(' '), blades: piece[start].b ?? true});
+          start = i;
+        }
+        cached = own;
+        // one entry per map size it's drawn at, the dashboard and the map page differ
+        if (byView.size > 3) byView.clear();
+        byView.set(key, cached);
+      }
+      runs.push(...cached);
     }
     return runs;
-  }, [track, minX, minY, scale, padX, padY],
-  );
+  }, [track, minX, minY, scale, padX, padY]);
 
   const selectedArea = map.areas.find((a) => a.id === selectedAreaId);
   const activeIndex =
@@ -362,12 +431,12 @@ export default function MapView({
 
   // zoom by factor (<1 = in) keeping the svg point (px, py) where it is on screen
   const zoomAt = (factor: number, px: number, py: number) => {
-    if (follow) {
+    if (following) {
       setFollowZoom((z) => Math.min(8, Math.max(0.25, z * factor)));
       return;
     }
     setView((prev) => {
-      const v = prev ?? home ?? {x: 0, y: 0, size: WIDTH};
+      const v = prev ?? base ?? {x: 0, y: 0, size: WIDTH};
       const size = Math.min(WIDTH * 4, Math.max(WIDTH / MAX_ZOOM, v.size * factor));
       const f = size / v.size;
       return {x: px - (px - v.x) * f, y: py - (py - v.y) * f, size};
@@ -375,7 +444,7 @@ export default function MapView({
   };
 
   const zoomCenter = (factor: number) => {
-    const v = view ?? home ?? {x: 0, y: 0, size: WIDTH};
+    const v = base ?? {x: 0, y: 0, size: WIDTH};
     zoomAt(factor, v.x + v.size / 2, v.y + v.size / 2);
   };
 
@@ -398,31 +467,69 @@ export default function MapView({
     };
     svg.addEventListener('wheel', onWheel, {passive: false});
     return () => svg.removeEventListener('wheel', onWheel);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- zoomAt only uses setters and follow
-  }, [zoomable, follow, svgEl]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- zoomAt only uses setters and following
+  }, [zoomable, following, svgEl]);
+
+  useEffect(() => {
+    if (!viewKey || !view) return;
+    const cx = view.x + view.size / 2;
+    const cy = view.y + view.size / 2;
+    savedViews.set(viewKey, {x: (cx - padX) / scale + minX, y: (HEIGHT - cy - padY) / scale + minY, span: view.size / scale});
+  }, [viewKey, view, scale, padX, padY, minX, minY]);
+
+  const startDrag = (e: React.PointerEvent<SVGSVGElement>, areaId: string, hit: {mid: boolean; index: number; x: number; y: number}) => {
+    const at = {x: hit.x, y: hit.y};
+    drag.current = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      lastX: e.clientX,
+      lastY: e.clientY,
+      moved: false,
+      touch: e.pointerType !== 'mouse',
+      insert: hit.mid ? at : null,
+      orig: hit.mid ? null : at,
+    };
+    gesture.current.moved = true; // eat the click that follows
+    setDragging({areaId, index: hit.mid ? hit.index + 1 : hit.index, bounds: {minX, maxX, minY, maxY}});
+  };
+
+  // a second finger while a point is held means the first one was the start of a pinch
+  const cancelDrag = (e: React.PointerEvent<SVGSVGElement>) => {
+    if (!dragging) return;
+    const d = drag.current;
+    if (d.moved) {
+      if (dragging.areaId !== PENDING) onDragCancel?.();
+      else if (d.orig) onMovePending?.(dragging.index, d.orig.x, d.orig.y);
+    }
+    setDragging(null);
+    setFinger(null);
+    setActive(null);
+    const first = d.pointerId;
+    d.pointerId = -1;
+    if (!zoomable) return;
+    pointers.current.clear();
+    pointers.current.set(first, {x: d.lastX, y: d.lastY});
+    pointers.current.set(e.pointerId, {x: e.clientX, y: e.clientY});
+    gesture.current = {moved: true, pinchDist: null};
+  };
 
   const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
-    const pendingHit = pointers.current.size === 0 ? pickPending(e.clientX, e.clientY, e.pointerType !== 'mouse') : null;
-    if (pendingHit) {
-      const index = pendingHit.mid ? pendingHit.index + 1 : pendingHit.index;
-      if (pendingHit.mid) onInsertPending?.(index, pendingHit.x, pendingHit.y);
-      // inserted: true skips the undo snapshot, drawing isn't part of the map history yet
-      drag.current = {startX: e.clientX, startY: e.clientY, moved: false, inserted: true, touch: e.pointerType !== 'mouse'};
-      gesture.current.moved = true;
-      setDragging({areaId: PENDING, index, bounds: {minX, maxX, minY, maxY}});
+    const touch = e.pointerType !== 'mouse';
+    if (dragging) {
+      if (touch && drag.current.touch && e.pointerId !== drag.current.pointerId) cancelDrag(e);
       return;
     }
 
-    const hit = selectedArea && pointers.current.size === 0 ? pickHandle(e.clientX, e.clientY, e.pointerType !== 'mouse') : null;
+    const pendingHit = pointers.current.size === 0 ? pickPending(e.clientX, e.clientY, touch) : null;
+    if (pendingHit) {
+      startDrag(e, PENDING, pendingHit);
+      return;
+    }
+
+    const hit = selectedArea && pointers.current.size === 0 ? pickHandle(e.clientX, e.clientY, touch) : null;
     if (hit && selectedArea) {
-      let index = hit.index;
-      if (hit.mid) {
-        index = hit.index + 1;
-        onInsertVertex?.(selectedArea.id, index, hit.x, hit.y);
-      }
-      drag.current = {startX: e.clientX, startY: e.clientY, moved: false, inserted: hit.mid, touch: e.pointerType !== 'mouse'};
-      gesture.current.moved = true; // eat the click that follows
-      setDragging({areaId: selectedArea.id, index, bounds: {minX, maxX, minY, maxY}});
+      startDrag(e, selectedArea.id, hit);
       return;
     }
 
@@ -456,8 +563,8 @@ export default function MapView({
       return;
     }
     gesture.current.moved = true;
-    if (follow) return; // the view is pinned to the mower
-    const v = view ?? home ?? {x: 0, y: 0, size: WIDTH};
+    if (following) return; // the view is pinned to the mower
+    const v = base ?? {x: 0, y: 0, size: WIDTH};
     const unitsPerPx = v.size / svg.getBoundingClientRect().width;
     setView({...v, x: v.x - dx * unitsPerPx, y: v.y - dy * unitsPerPx});
   };
@@ -470,12 +577,24 @@ export default function MapView({
   useEffect(() => {
     if (!dragging) return;
 
+    const addPoint = (x: number, y: number) => {
+      if (dragging.areaId === PENDING) onInsertPending?.(dragging.index, x, y);
+      else onInsertVertex?.(dragging.areaId, dragging.index, x, y);
+    };
+
     const onMove = (e: PointerEvent) => {
       const d = drag.current;
+      if (e.pointerId !== d.pointerId) return;
+      d.lastX = e.clientX;
+      d.lastY = e.clientY;
       if (!d.moved) {
-        if (Math.hypot(e.clientX - d.startX, e.clientY - d.startY) < 4) return;
+        // a finger needs a bit more way, so the second finger of a pinch comes in before anything changes
+        if (Math.hypot(e.clientX - d.startX, e.clientY - d.startY) < (d.touch ? 10 : 4)) return;
         d.moved = true;
-        if (!d.inserted) onDragStart?.();
+        // adding a point takes its own undo snapshot, drawn points aren't in the map history at all
+        if (d.insert) addPoint(d.insert.x, d.insert.y);
+        else if (dragging.areaId !== PENDING) onDragStart?.();
+        if (dragging.areaId !== PENDING) onDragging?.(true);
       }
       const local = clientToLocal(e.clientX, e.clientY);
       if (local && dragging.areaId === PENDING) onMovePending?.(dragging.index, local[0], local[1]);
@@ -483,9 +602,16 @@ export default function MapView({
       const rect = svgRef.current?.getBoundingClientRect();
       if (d.touch && rect) setFinger({x: e.clientX - rect.left, y: e.clientY - rect.top, width: rect.width});
     };
-    const onUp = () => {
+    const onUp = (e: PointerEvent) => {
       const d = drag.current;
-      if (!d.moved && !d.inserted) {
+      if (e.pointerId !== d.pointerId) return;
+      // handled, a repeated up for the same finger does nothing
+      d.pointerId = -1;
+      if (!d.moved && d.insert) {
+        // a tap on an edge midpoint adds the point there
+        addPoint(d.insert.x, d.insert.y);
+        setActive(null);
+      } else if (!d.moved && dragging.areaId !== PENDING) {
         const same = active?.areaId === dragging.areaId && active.index === dragging.index;
         setActive(same ? null : {areaId: dragging.areaId, index: dragging.index});
       } else {
@@ -493,13 +619,23 @@ export default function MapView({
       }
       setDragging(null);
       setFinger(null);
+      onDragging?.(false);
+    };
+    const onCancel = (e: PointerEvent) => {
+      if (e.pointerId !== drag.current.pointerId) return;
+      drag.current.pointerId = -1;
+      setDragging(null);
+      setFinger(null);
+      onDragging?.(false);
     };
 
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onCancel);
     return () => {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onCancel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dragging, scale, minX, minY]);
@@ -556,6 +692,7 @@ export default function MapView({
             className={[
               AREA_CLASS[area.properties.type ?? 'draft'] ?? styles.draftArea,
               area.properties.active === false ? styles.inactive : '',
+              area.properties.mowable === false ? styles.skipMowing : '',
             ]
               .filter(Boolean)
               .join(' ')}
@@ -627,6 +764,21 @@ export default function MapView({
             </g>
           );
         })}
+
+        {progress && !hidden.has('stripes') && (
+          <>
+            <path
+              className={[styles.planTodo, styles[planStyle]].join(' ')}
+              d={progress.todo.map((o) => o.map((p, i) => `${i ? 'L' : 'M'}${toScreen(p.x, p.y).join(' ')}`).join('')).join('')}
+            />
+            {layerOn(hidden, 'planDone') && (
+              <path
+                className={styles.planDone}
+                d={progress.done.map((o) => o.map((p, i) => `${i ? 'L' : 'M'}${toScreen(p.x, p.y).join(' ')}`).join('')).join('')}
+              />
+            )}
+          </>
+        )}
 
         {!hidden.has('track') &&
           trackRuns
@@ -700,7 +852,7 @@ export default function MapView({
           <polygon
             key={'piece' + i}
             points={piece.map((p) => toScreen(p.x, p.y).join(',')).join(' ')}
-            className={i === 0 ? styles.pieceA : styles.pieceB}
+            className={[styles.pieceA, styles.pieceB, styles.pieceC][i] ?? styles.pieceB}
           />
         ))}
 
@@ -813,16 +965,43 @@ export default function MapView({
         onToggleLayer={toggleLayer}
         layersOpen={layersOpen}
         onLayersOpen={setLayersOpen}
-        reset={
-          view || (follow && followZoom !== 1)
+        planStyle={
+          progress
             ? {
-                follow: !!follow,
+                value: planStyle,
+                onChange: (st) => {
+                  setPlanStyle(st);
+                  try {
+                    localStorage.setItem('planStyle', st);
+                  } catch {}
+                },
+              }
+            : undefined
+        }
+        reset={
+          view || restore || (following && followZoom !== 1)
+            ? {
+                follow: following,
                 onReset: () => {
                   setView(null);
+                  setRestore(null);
                   setFollowZoom(1);
+                  if (viewKey) savedViews.delete(viewKey);
                 },
               }
             : null
+        }
+        follow={
+          follow
+            ? {
+                on: following,
+                onToggle: () => {
+                  // carries on from what's on screen instead of jumping to the whole map
+                  if (following && shown) setView(shown);
+                  setFree(following);
+                },
+              }
+            : undefined
         }
       />
       {grid && <span className={styles.gridLabel}>{tr('grid {n} m', {n: grid.step})}</span>}

@@ -68,7 +68,6 @@
   background: var(--card);
   box-shadow: var(--card-shadow, none);
   backdrop-filter: var(--card-blur, none);
-  -webkit-backdrop-filter: var(--card-blur, none);
 }
 
 /* a thin colored line on top says at a glance whether all is well */
@@ -217,6 +216,7 @@
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
+  box-shadow: var(--btn-3d);
 }
 
 .controls button:disabled {
@@ -225,9 +225,11 @@
 }
 
 .controls .main:not(:disabled) {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: #fff;
+  border-color: color-mix(in srgb, var(--accent) 70%, transparent);
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+  backdrop-filter: var(--card-blur, none);
+  box-shadow: var(--btn-3d);
+  color: var(--foreground);
 }
 
 .controls .reset {
@@ -235,6 +237,31 @@
   border-color: var(--error);
   background: color-mix(in srgb, var(--error) 18%, transparent);
   color: var(--error);
+}
+
+.controls .resetJobButton {
+  grid-column: 1 / -1;
+  padding: 8px;
+  border-style: dashed;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.controls .resetJob {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.controls .resetJob span {
+  flex: 1 1 100%;
+}
+
+.controls .resetJob button {
+  flex: 1;
 }
 
 @media (max-width: 600px) {

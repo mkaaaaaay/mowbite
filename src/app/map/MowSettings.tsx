@@ -1,5 +1,8 @@
 import InfoTip from '@/components/InfoTip';
+import {useAreaProperties} from '@/lib/areaProps';
 import {tr} from '@/lib/i18n';
+import {duration} from '@/lib/dates';
+import {savedRate} from '@/lib/planProgress';
 import {DEG, normDeg, type Area, type UpdateArea} from './editing';
 import styles from './page.module.css';
 import {PATHS} from '@/lib/openmower';
@@ -9,6 +12,7 @@ export interface AngleMismatch {
   planned: number;
   diff: number;
   date: string;
+  since: number; // unix seconds, when that mow started
 }
 
 // what the mower's own parameters do to the angle, shown so the preview makes sense
@@ -27,6 +31,7 @@ export default function MowSettings({
   globalValue,
   remember,
   update,
+  onAngleEdit,
   showStripes,
   onToggleStripes,
   toolWidth,
@@ -35,6 +40,8 @@ export default function MowSettings({
   onPreviewCorrection,
   angle,
   planFromMower,
+  planAngle,
+  planLength,
 }: {
   area: Area;
   autoAngle: number;
@@ -42,6 +49,7 @@ export default function MowSettings({
   globalValue: (key: Override) => string;
   remember: () => void;
   update: UpdateArea;
+  onAngleEdit?: () => void;
   showStripes: boolean;
   onToggleStripes: () => void;
   toolWidth: number | undefined;
@@ -51,7 +59,13 @@ export default function MowSettings({
   angle: AngleParams;
   // the plan shown comes from the mower itself, not worked out here
   planFromMower: boolean;
+  // rad, the angle the mower said it would mow at
+  planAngle?: number;
+  // m, the passes and stripes of the plan shown
+  planLength: number;
 }) {
+  const supported = useAreaProperties();
+  const rate = savedRate();
   const p = area.properties;
   const setOverride = (key: Override, raw: string) => {
     const v = raw.trim() === '' ? undefined : Number(raw);
@@ -103,7 +117,7 @@ export default function MowSettings({
         <span>
           {tr('Mow angle (°)')}
           <InfoTip>
-            {tr("Direction of the stripes, 0° is east, counter-clockwise. Empty means auto: the direction from the first outline point to the first one more than 2 m away. The mower adds its mow_angle_offset on top.")}
+            {tr('Stripe direction, 0° = east, counter-clockwise. Empty = automatic. The mower adds its mow_angle_offset.')}
           </InfoTip>
         </span>
         <input
@@ -120,23 +134,62 @@ export default function MowSettings({
         />
       </label>
       <div className={styles.angleRow}>
-        <AngleSlider area={area} autoAngle={autoAngle} remember={remember} update={update} />
+        <AngleStep area={area} autoAngle={autoAngle} remember={remember} update={update} onEdit={onAngleEdit} by={-1} />
+        <AngleSlider area={area} autoAngle={autoAngle} remember={remember} update={update} onEdit={onAngleEdit} />
+        <AngleStep area={area} autoAngle={autoAngle} remember={remember} update={update} onEdit={onAngleEdit} by={1} />
         <button className={styles.pillButton} disabled={p.angle === undefined} onClick={() => update({angle: undefined})}>
           {tr('Auto')}
         </button>
       </div>
-      <label className={styles.toggle}>
-        <input type="checkbox" checked={showStripes} onChange={onToggleStripes} />
-        {tr('show mowing plan')}
-        {toolWidth ? ` (${tr('{n} cm apart', {n: Math.round(toolWidth * 100)})})` : ''}
-        {' · '}
-        {planFromMower ? tr('from the mower') : tr('estimate')}
-        <InfoTip>
-          {planFromMower
-            ? tr('The plan as the mower itself works it out for the saved map.')
-            : tr("Where the mower will drive, worked out the way its planner does it: the rounds along the edge and around obstacles, then the stripes inside, one mower width apart. An estimate, it can differ from the real plan, especially on unusual shapes.")}
-        </InfoTip>
-      </label>
+      {supported.has('angle_min') &&
+        (['angle_min', 'angle_max'] as const).map((key) => (
+        <label key={key}>
+          <span>
+            {tr(key === 'angle_min' ? 'Min. angle (°)' : 'Max. angle (°)')}
+            <InfoTip>
+              {tr('Keeps the stripes between these two directions, 0° and 180° give the same stripes. Past an end it turns back. Handy for narrow areas. Same value twice = fixed angle, min above max = range across 180°.')}
+            </InfoTip>
+          </span>
+          <input
+            type="number"
+            step={1}
+            min={-180}
+            max={180}
+            value={p[key] !== undefined ? Math.round(p[key] / DEG) : ''}
+            placeholder={tr('none')}
+            onFocus={remember}
+            onChange={(e) =>
+              update({[key]: e.target.value.trim() === '' ? undefined : normDeg(Number(e.target.value)) * DEG}, false)
+            }
+          />
+        </label>
+      ))}
+      {area.properties.mowable === false ? (
+        <p className={styles.dim}>{tr("No mowing plan, this area is set to don't mow.")}</p>
+      ) : (
+        <label className={styles.toggle}>
+          <input type="checkbox" checked={showStripes} onChange={onToggleStripes} />
+          {tr('show mowing plan')}
+          {toolWidth ? ` (${tr('{n} cm apart', {n: Math.round(toolWidth * 100)})})` : ''}
+          {' · '}
+          {planFromMower ? tr('from the mower') : tr('estimate')}
+          {planFromMower && planAngle !== undefined && `, ${Math.round((((planAngle * 180) / Math.PI) % 180 + 180) % 180)}°`}
+          <InfoTip>
+            {planFromMower
+              ? tr('The plan as the mower calculates it, unsaved changes included, at the angle it really mows.')
+              : tr('Estimate of where the mower drives: edge rounds first, then stripes one mower width apart. Can differ from the real plan on unusual shapes.')}
+          </InfoTip>
+        </label>
+      )}
+      {showStripes && planLength > 0 && (
+        <p className={styles.dim}>
+          {tr('{m} m to mow', {m: Math.round(planLength)})}
+          {rate && ` · ${tr('about {time}', {time: duration(planLength / rate)})}`}
+          <InfoTip>
+            {tr('Length of all passes and stripes. The time is based on the last run you watched on the dashboard.')}
+          </InfoTip>
+        </p>
+      )}
       {mismatch && (
         <div className={styles.warning}>
           <p>
@@ -176,38 +229,73 @@ export default function MowSettings({
   );
 }
 
+// 0 and 180 degrees give the same stripes, so the slider only needs half a turn and is twice as fine.
+// 0 and 180 are both kept as they are, otherwise the slider jumps to the other end at the right edge
+const halfTurn = (deg: number) => (deg >= -0.5 && deg <= 180.5 ? deg : ((deg % 180) + 180) % 180);
+export const shownAngle = (area: Area, autoAngle: number) => Math.round(halfTurn((area.properties.angle ?? autoAngle) / DEG));
+
 export function AngleSlider({
   area,
   autoAngle,
   remember,
   update,
+  onEdit,
 }: {
   area: Area;
   autoAngle: number;
   remember: () => void;
   update: UpdateArea;
+  // while the angle is being changed, e.g. to show the stripes for a moment
+  onEdit?: () => void;
 }) {
   return (
     <input
       type="range"
-      min={-180}
+      min={0}
       max={180}
       step={1}
-      value={Math.round((area.properties.angle ?? autoAngle) / DEG)}
-      onPointerDown={remember}
-      onChange={(e) => update({angle: Number(e.target.value) * DEG}, false)}
+      value={shownAngle(area, autoAngle)}
+      onPointerDown={() => {
+        remember();
+        onEdit?.();
+      }}
+      // arrow keys and co. change it without a pointer, one undo step per press then
+      onKeyDown={(e) => /^(Arrow|Page|Home|End)/.test(e.key) && remember()}
+      onChange={(e) => {
+        update({angle: Number(e.target.value) * DEG}, false);
+        onEdit?.();
+      }}
       aria-label={tr('Mow angle (°)')}
     />
   );
 }
 
+// one degree at a time, the slider is hard to hit exactly on a phone
+function AngleStep({area, autoAngle, remember, update, onEdit, by}: Parameters<typeof AngleSlider>[0] & {by: number}) {
+  return (
+    <button
+      className={styles.angleStep}
+      onClick={() => {
+        remember();
+        update({angle: halfTurn(shownAngle(area, autoAngle) + by) * DEG}, false);
+        onEdit?.();
+      }}
+      aria-label={by > 0 ? '+1°' : '-1°'}
+    >
+      {by > 0 ? '+' : '−'}
+    </button>
+  );
+}
+
 // on phones the settings are far below the map, so the angle can be turned right on it while watching the stripes
-export function AngleOnMap(props: {area: Area; autoAngle: number; remember: () => void; update: UpdateArea}) {
+export function AngleOnMap(props: {area: Area; autoAngle: number; remember: () => void; update: UpdateArea; onEdit?: () => void}) {
   return (
     <div className={styles.angleOnMap}>
       <span>{tr('Mow angle')}</span>
+      <AngleStep {...props} by={-1} />
       <AngleSlider {...props} />
-      <strong>{Math.round((props.area.properties.angle ?? props.autoAngle) / DEG)}°</strong>
+      <AngleStep {...props} by={1} />
+      <strong>{shownAngle(props.area, props.autoAngle)}°</strong>
     </div>
   );
 }

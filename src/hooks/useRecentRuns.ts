@@ -1,7 +1,6 @@
-import {dayKey, parseDay} from '@/lib/dates';
 import {groupRuns, type MowerEvent, type Run} from '@/lib/events';
 import {forget} from '@/lib/fresh';
-import {historyDays, historyOf} from '@/lib/history';
+import {eventsOfDay, fileDay, historyDays, localDays} from '@/lib/history';
 import {useEffect, useRef, useState} from 'react';
 
 export interface RecentRuns {
@@ -27,14 +26,14 @@ export function useRecentRuns(bump?: string): RecentRuns | null {
       forget('events:');
     }
     const load = async () => {
-      const days = await historyDays();
-      const todayKey = days.find((d) => dayKey(parseDay(d)) === dayKey(new Date()));
-      const today = todayKey ? await historyOf(todayKey) : [];
+      const files = await historyDays();
+      const todayKey = fileDay(new Date());
+      const today = (await eventsOfDay(files, todayKey)).events;
       const runs = groupRuns(today, true).flatMap((e) => (e.kind === 'run' ? [e.run] : []));
       let last = runs[runs.length - 1] ?? null;
-      for (const d of days) {
+      for (const d of localDays(files)) {
         if (last || d === todayKey) continue;
-        const old = groupRuns(await historyOf(d), false);
+        const old = groupRuns((await eventsOfDay(files, d)).events, false);
         const run = old.flatMap((e) => (e.kind === 'run' ? [e.run] : [])).pop();
         if (run) last = run;
         break;

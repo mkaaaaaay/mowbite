@@ -1,4 +1,5 @@
 import type {Point} from '@/hooks/useMowerMap';
+import InfoTip from '@/components/InfoTip';
 import {polygonArea} from '@/lib/geometry';
 import {fmt, tr} from '@/lib/i18n';
 import type {Area} from './editing';
@@ -8,29 +9,57 @@ import styles from './page.module.css';
 
 export function SplitPanel({
   preview,
+  cutShape,
+  onCutShape,
   points,
   onApply,
   onRemoveLast,
   onCancel,
 }: {
-  preview: [Point[], Point[]] | null;
+  preview: Point[][] | null;
+  cutShape: boolean;
+  onCutShape: (on: boolean) => void;
   points: number;
   onApply: () => void;
   onRemoveLast: () => void;
   onCancel: () => void;
 }) {
+  const pieceClass = [styles.pieceA, styles.pieceB, styles.pieceC];
   return (
     <div className={styles.splitBox}>
+      <label className={styles.toggle}>
+        <input type="checkbox" checked={cutShape} onChange={(e) => onCutShape(e.target.checked)} />
+        {tr('Cut out a shape')}
+        <InfoTip>
+          {tr("Off: a line across the area cuts it in two.")}
+          <br />
+          {tr("On: click the corners of a shape inside the area. It becomes its own area with the same settings and the rest leaves it out. Since areas can't have holes, the rest is split in two by the shortest straight cut through the shape. The mower drives across the cut normally.")}
+          <br />
+          {tr('Already drawn the inner area? Select it, the note there cuts it out in one click.')}
+        </InfoTip>
+      </label>
       <p className={styles.dim}>
-        {tr("Click points to draw a cut line across the area, it can bend. Start and end outside of it. Drag points to move them, drag the middle of a segment to add one.")}
+        {cutShape
+          ? tr("Click the corners of a shape inside the area. It becomes its own area, the rest is split in two through it (areas can't have holes).")
+          : tr('Click points for a cut line across the area, start and end outside. Drag points to move them.')}
       </p>
       {preview ? (
         <p>
-          <span className={styles.pieceA}>{fmt(polygonArea(preview[0]), 1)} m²</span> {tr('and')}{' '}
-          <span className={styles.pieceB}>{fmt(polygonArea(preview[1]), 1)} m²</span>
+          {preview.map((piece, i) => (
+            <span key={i}>
+              {i > 0 && (i === preview.length - 1 ? ` ${tr('and')} ` : ', ')}
+              <span className={pieceClass[i]}>{fmt(polygonArea(piece), 1)} m²</span>
+            </span>
+          ))}
         </p>
       ) : (
-        points >= 2 && <p className={styles.dim}>{tr("The line doesn't cut through the area yet.")}</p>
+        points >= (cutShape ? 3 : 2) && (
+          <p className={styles.dim}>
+            {cutShape
+              ? tr("The shape has to lie fully inside the area and mustn't cross itself.")
+              : tr("The line doesn't cut through the area yet.")}
+          </p>
+        )
       )}
       <div className={styles.inlineRow}>
         <button className={styles.pillButton} onClick={onApply} disabled={!preview}>

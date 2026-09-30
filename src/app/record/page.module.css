@@ -34,7 +34,6 @@
   background: var(--card);
   box-shadow: var(--card-shadow, none);
   backdrop-filter: var(--card-blur, none);
-  -webkit-backdrop-filter: var(--card-blur, none);
   font-size: 14px;
   line-height: 1.45;
 }
@@ -142,9 +141,11 @@
 }
 
 .card .main {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: #fff;
+  border-color: color-mix(in srgb, var(--accent) 70%, transparent);
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+  backdrop-filter: var(--card-blur, none);
+  box-shadow: var(--btn-3d);
+  color: var(--foreground);
 }
 
 .card .danger {

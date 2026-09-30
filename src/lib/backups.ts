@@ -46,6 +46,19 @@ export async function deleteBackup(id: string): Promise<void> {
   forget('backups');
 }
 
+// whether a backup made after `since` has another angle for the area than `angle`. backups are made before every save,
+// so then the angle got changed on purpose after that time. only looks at the newest few
+export async function angleChangedSince(areaId: string, since: number, angle: number | undefined): Promise<boolean> {
+  const after = ((await listBackups()) ?? []).filter((b) => b.t > since).sort((a, b) => b.t - a.t);
+  for (const b of after.slice(0, 10)) {
+    try {
+      const area = (await loadBackup(b.id)).areas.find((a) => a.id === areaId);
+      if (area && area.properties.angle !== angle) return true;
+    } catch {}
+  }
+  return false;
+}
+
 // a file picked by the user: at least has to look like a map
 export function parseMapFile(text: string): MowerMap {
   const m = JSON.parse(text);

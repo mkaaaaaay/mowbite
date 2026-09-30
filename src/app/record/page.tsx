@@ -15,6 +15,8 @@ import {useEffect, useRef, useState} from 'react';
 import styles from './page.module.css';
 import {tr, useLang} from '@/lib/i18n';
 import {ACTION} from '@/lib/openmower';
+import {eventsOfDay, fileDay, historyDays} from '@/lib/history';
+import {forget} from '@/lib/fresh';
 
 const START = ACTION.startRecording;
 const A = ACTION.recording;
@@ -35,8 +37,29 @@ export default function RecordPage() {
   const overlay = useMapOverlay();
   const [speed, setSpeed] = useState(1);
   const [saved, setSaved] = useState<string | null>(null);
+  // the mower left recording mode within a moment of starting it (see the hint below)
+  const [bounced, setBounced] = useState(false);
+  const startedAt = useRef(0);
+  const wasRecording = useRef(false);
 
   const recordingMode = state?.current_state === 'AREA_RECORDING';
+  const recordingRef = useRef(recordingMode);
+  recordingRef.current = recordingMode;
+  useEffect(() => {
+    if (recordingMode) wasRecording.current = true;
+    else if (wasRecording.current) {
+      wasRecording.current = false;
+      if (Date.now() - startedAt.current < 8000) setBounced(true);
+    }
+  }, [recordingMode]);
+  // the state is published once a second, a bounce is usually over before that: the event history has it
+  const checkBounce = async () => {
+    if (recordingRef.current) return;
+    forget('events:');
+    const {events} = await eventsOfDay(await historyDays(), fileDay(new Date()));
+    const since = startedAt.current / 1000 - 5;
+    if (events.some((e) => e.type === 'DOCKING' && e.reason === 'Manual pause' && e.t >= since)) setBounced(true);
+  };
   // what the mower allows right now tells which step we're in
   const phase: Phase = !recordingMode
     ? 'off'
@@ -169,10 +192,27 @@ export default function RecordPage() {
             <p className={styles.dim}>
               {tr('Keep the mower in sight. It stops as soon as you let go of the stick, switch apps or lose the connection.')}
             </p>
-            <button className={styles.main} disabled={!hasAction(START)} onClick={() => publishAction(START)}>
+            <button
+              className={styles.main}
+              disabled={!hasAction(START)}
+              onClick={() => {
+                startedAt.current = Date.now();
+                setBounced(false);
+                setSaved(null);
+                publishAction(START);
+                setTimeout(() => void checkBounce().catch(() => {}), 4000);
+              }}
+            >
               {tr('Start recording mode')}
             </button>
             {!hasAction(START) && <p className={styles.dim}>{tr('Only possible while the mower is idle.')}</p>}
+            {bounced && (
+              <p className={styles.warn}>
+                {tr(
+                  "The mower dropped out of recording mode right away. OpenMower does that after the mower was sent home while mowing, it then stays in \"manual pause\" until it's restarted. Run openmower restart on the mower and try again.",
+                )}
+              </p>
+            )}
           </section>
         )}
 
