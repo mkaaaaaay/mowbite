@@ -77,8 +77,10 @@ jobs:
             cp "$apk" MowBite.apk
             # the release notes are the message of the annotated tag, the checkout only has the commit
             git fetch -q --force origin "refs/tags/$GITHUB_REF_NAME:refs/tags/$GITHUB_REF_NAME"
+            # a version like 1.3.0-beta.1 becomes a pre-release and doesn't replace the latest one
+            case "$version" in *-*) kind="--prerelease --latest=false" ;; *) kind="--latest" ;; esac
             gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1 ||
-              gh release create "$GITHUB_REF_NAME" --verify-tag --latest --title "MowBite $version" --notes-from-tag
+              gh release create "$GITHUB_REF_NAME" --verify-tag $kind --title "MowBite $version" --notes-from-tag
             gh release upload "$GITHUB_REF_NAME" MowBite.apk --clobber
           else
             cp "$apk" MowBite-dev.apk
