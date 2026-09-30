@@ -1,4 +1,5 @@
 import InfoTip from '@/components/InfoTip';
+import {useAreaProperties} from '@/lib/areaProps';
 import {tr} from '@/lib/i18n';
 import {duration} from '@/lib/dates';
 import {savedRate} from '@/lib/planProgress';
@@ -61,6 +62,7 @@ export default function MowSettings({
   // m, the passes and stripes of the plan shown
   planLength: number;
 }) {
+  const supported = useAreaProperties();
   const rate = savedRate();
   const p = area.properties;
   const setOverride = (key: Override, raw: string) => {
@@ -135,12 +137,13 @@ export default function MowSettings({
           {tr('Auto')}
         </button>
       </div>
-      {(['angle_min', 'angle_max'] as const).map((key) => (
+      {supported.has('angle_min') &&
+        (['angle_min', 'angle_max'] as const).map((key) => (
         <label key={key}>
           <span>
             {tr(key === 'angle_min' ? 'Min. angle (°)' : 'Max. angle (°)')}
             <InfoTip>
-              {tr('Keeps the stripes between these two directions, 0° and 180° give the same stripes. Past an end it turns back. Handy for narrow areas. Same value twice = fixed angle, min above max = range across 180°. Needs a newer OpenMower.')}
+              {tr('Keeps the stripes between these two directions, 0° and 180° give the same stripes. Past an end it turns back. Handy for narrow areas. Same value twice = fixed angle, min above max = range across 180°.')}
             </InfoTip>
           </span>
           <input

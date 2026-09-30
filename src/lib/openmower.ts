@@ -28,6 +28,8 @@ export const RPC = {
   // the mowing plan for an area straight from the mower's planner. OpenMower doesn't offer it yet,
   // the name is a guess until it does
   areaPlan: 'mowing.plan',
+  // the area settings this mower keeps in map.json
+  areaProperties: 'map.area_properties',
   // the last warnings and errors ROS logged, kept in memory by the mower. OpenMower doesn't offer it yet
   logs: 'logs.recent',
 } as const;

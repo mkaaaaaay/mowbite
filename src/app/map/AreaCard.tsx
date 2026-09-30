@@ -2,6 +2,7 @@ import {MergeIcon, ScissorsIcon, SimplifyIcon, TrashIcon} from '@/components/ico
 import InfoTip from '@/components/InfoTip';
 import {polygonArea} from '@/lib/geometry';
 import {fmt, tr} from '@/lib/i18n';
+import {useAreaProperties} from '@/lib/areaProps';
 import {AREA_TYPES, type Area, type UpdateArea} from './editing';
 import styles from './page.module.css';
 
@@ -35,6 +36,7 @@ export default function AreaCard({
   onDeleteBlur: () => void;
 }) {
   const type = area.properties.type ?? 'draft';
+  const supported = useAreaProperties();
   const tool = [styles.pillButton, styles.tool].join(' ');
   const outer = enclosing && {name: enclosing.properties.name || tr('unnamed')};
   const outerMows = enclosing?.properties.type === 'mow' && enclosing.properties.mowable !== false;
@@ -80,7 +82,7 @@ export default function AreaCard({
             {tr('Ignored by the mower and not drivable. Careful: if the mower stands on an inactive area, it gets stuck.')}
           </InfoTip>
         </label>
-        {type === 'mow' && area.properties.active !== false && (
+        {type === 'mow' && area.properties.active !== false && supported.has('mowable') && (
           <label className={styles.toggle}>
             <input
               type="checkbox"
@@ -89,7 +91,7 @@ export default function AreaCard({
             />
             {tr("don't mow")}
             <InfoTip>
-              {tr('Not mowed, but the mower may drive across it (unlike inactive). Needs a newer OpenMower.')}
+              {tr('Not mowed, but the mower may drive across it (unlike inactive).')}
             </InfoTip>
           </label>
         )}
