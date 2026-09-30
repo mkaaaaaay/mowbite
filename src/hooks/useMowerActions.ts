@@ -16,6 +16,8 @@ let cachedActions: Record<string, boolean> = {};
 
 export function useMowerActions(): {
   hasAction: (id: string) => boolean;
+  // the mower has it, enabled right now or not
+  knowsAction: (id: string) => boolean;
   publishAction: (id: string) => void;
 } {
   const [actions, setActions] = useState<Record<string, boolean>>(cachedActions);
@@ -48,11 +50,12 @@ export function useMowerActions(): {
   }, []);
 
   const hasAction = useCallback((id: string) => !!actions[id], [actions]);
+  const knowsAction = useCallback((id: string) => id in actions, [actions]);
 
   // plain text, not json
   const publishAction = useCallback((id: string) => {
     getMqttClient().publish(withPrefix(TOPIC.action), id);
   }, []);
 
-  return {hasAction, publishAction};
+  return {hasAction, knowsAction, publishAction};
 }

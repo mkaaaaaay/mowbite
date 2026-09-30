@@ -4,11 +4,14 @@ import {TitleMark} from '@/components/Logo';
 import {datumFromParams, useMowerParams} from '@/hooks/useMowerParams';
 import {sunTimes} from '@/lib/sun';
 import {clock, dayLabel} from '@/lib/dates';
-import {locale, tr, useLang} from '@/lib/i18n';
+import {tr, useLang} from '@/lib/i18n';
+import {useMowerActions} from '@/hooks/useMowerActions';
+import {ACTION} from '@/lib/openmower';
+import PlanRow from './PlanRow';
+import PauseCard from './PauseCard';
 import {
   cachedSchedule,
   cachedScheduleLog,
-  isNightTime,
   EMPTY_SCHEDULE,
   FORECAST_HOURS,
   loadSchedule,
@@ -35,19 +38,21 @@ const LOG_TEXT: Record<string, string> = {
   stopped_end: 'Sent home, end time reached',
   stopped_dark: 'Sent home at sunset (hedgehogs)',
   stopped_again: 'Sent home again, it carried on by itself after charging',
+  skip_paused: 'Not started, paused for today',
+  paused_area: 'Skipped an area paused for today',
   skipped_area: "Skipped an area that wasn't picked",
   unknown_area: "An area the map doesn't have (an older job?), left it alone",
 };
 
-// monday first, labels from the browser so they come out in the app's language
-const weekday = (d: number) => new Date(2024, 0, d).toLocaleDateString(locale(), {weekday: 'short'});
 
 export default function SchedulePage() {
   useLang();
   const params = useMowerParams();
   const map = useMowerMap();
   // the areas a plan can pick from: mowing areas the mower actually mows
-  const mowAreas = (map?.areas ?? []).filter((a) => a.properties.type === 'mow' && a.properties.active !== false);
+  const mowAreas = (map?.areas ?? []).filter(
+    (a) => a.properties.type === 'mow' && a.properties.active !== false && a.properties.mowable !== false,
+  );
   const datum = datumFromParams(params);
   // today's sunrise and sunset, so the animal hint follows the real night
   const sun = datum ? sunTimes(datum.lat, datum.lon) : null;
@@ -55,8 +60,7 @@ export default function SchedulePage() {
   const [schedule, setSchedule] = useState<Schedule | null | undefined>(cachedSchedule);
   const [log, setLog] = useState<LogEntry[]>(() => cachedScheduleLog() ?? []);
   const [error, setError] = useState<string | null>(null);
-  // a night time that still needs a yes before it's saved
-  const [night, setNight] = useState<{plan: number; time: string} | null>(null);
+  const {knowsAction} = useMowerActions();
 
   useEffect(() => {
     void loadSchedule().then(setSchedule);
@@ -106,130 +110,24 @@ export default function SchedulePage() {
               </p>
             </section>
 
+            {s.plans.length > 0 && <PauseCard schedule={s} mowAreas={mowAreas} update={update} />}
+
             <section className={styles.card}>
               <h2>{tr('Start times')}</h2>
+              <p className={styles.dim}>
+                {tr('Each start time has its own days, times and areas. For a plan per area, add a start time for each and pick only that area.')}
+              </p>
               {s.plans.length === 0 && <p className={styles.dim}>{tr('No start times yet.')}</p>}
               {s.plans.map((p, i) => (
-                <div key={i} className={styles.plan}>
-                  <div className={styles.days}>
-                    {[1, 2, 3, 4, 5, 6, 7].map((d) => (
-                      <button
-                        key={d}
-                        className={p.days.includes(d) ? styles.on : undefined}
-                        onClick={() => {
-                          const days = p.days.includes(d) ? p.days.filter((x) => x !== d) : [...p.days, d];
-                          update({...s, plans: s.plans.map((q, j) => (j === i ? {...q, days} : q))});
-                        }}
-                      >
-                        {weekday(d)}
-                      </button>
-                    ))}
-                  </div>
-                  <input
-                    type="time"
-                    value={night?.plan === i ? night.time : p.time}
-                    onChange={(e) => {
-                      const time = e.target.value;
-                      if (!time) return;
-                      // moving a start into the night has to be confirmed first
-                      if (isNightTime(time, sun) && !isNightTime(p.time, sun)) return setNight({plan: i, time});
-                      setNight(null);
-                      update({...s, plans: s.plans.map((q, j) => (j === i ? {...q, time} : q))});
-                    }}
-                  />
-                  <label className={styles.until}>
-                    {tr('until')}
-                    <input
-                      type="time"
-                      value={p.end ?? ''}
-                      onChange={(e) =>
-                        update({...s, plans: s.plans.map((q, j) => (j === i ? {...q, end: e.target.value || undefined} : q))})
-                      }
-                    />
-                  </label>
-                  <button className={styles.remove} onClick={() => update({...s, plans: s.plans.filter((_, j) => j !== i)})} aria-label="remove">
-                    ×
-                  </button>
-                  {mowAreas.length > 1 && (
-                    <div className={styles.areas}>
-                      <button
-                        className={p.areas.length === 0 ? styles.on : undefined}
-                        onClick={() => update({...s, plans: s.plans.map((q, j) => (j === i ? {...q, areas: []} : q))})}
-                      >
-                        {tr('All active areas')}
-                      </button>
-                      {mowAreas.map((a) => {
-                        const on = p.areas.includes(a.id);
-                        return (
-                          <button
-                            key={a.id}
-                            className={on ? styles.on : undefined}
-                            onClick={() => {
-                              let areas = on ? p.areas.filter((x) => x !== a.id) : [...p.areas.filter((x) => mowAreas.some((m) => m.id === x)), a.id];
-                              // everything picked is the same as all active
-                              if (areas.length === mowAreas.length) areas = [];
-                              update({...s, plans: s.plans.map((q, j) => (j === i ? {...q, areas} : q))});
-                            }}
-                          >
-                            {a.properties.name || tr('unnamed')}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                  {!p.dark && night?.plan !== i && !isNightTime(p.time, sun) && (
-                    <p className={styles.dimLine}>
-                      {sun
-                        ? tr('Goes home at sunset at the latest, today at {set}.', {set: sun.set})
-                        : tr('Goes home at 6 pm at the latest.')}
-                    </p>
-                  )}
-                  {p.dark && (
-                    <p className={styles.dimLine}>
-                      🦔 {tr('Also starts and mows in the dark.')}{' '}
-                      <button className={styles.linkButton} onClick={() => update({...s, plans: s.plans.map((q, j) => (j === i ? {...q, dark: undefined} : q))})}>
-                        {tr('Only by day')}
-                      </button>
-                    </p>
-                  )}
-                  {(night?.plan === i || (isNightTime(p.time, sun) && !p.dark)) && (
-                    <div className={styles.animals}>
-                      <p>
-                        🦔{' '}
-                        {sun
-                          ? tr("Today the sun sets at {set} and rises at {rise}, so it's dark at {time}. Hedgehogs and other animals are out in the garden then. They don't run from the mower, they curl up and can get badly hurt. Better mow during the day.", {
-                              set: sun.set,
-                              rise: sun.rise,
-                              time: night?.plan === i ? night.time : p.time,
-                            })
-                          : tr("Between 6 pm and 6 am hedgehogs and other animals are out in the garden. They don't run from the mower, they curl up and can get badly hurt. Better mow during the day.")}
-                      </p>
-                      {night?.plan !== i && (
-                        <p>{tr("Unless you allow it, the mower doesn't start in the dark.")}</p>
-                      )}
-                      {night?.plan !== i && (
-                        <div className={styles.animalButtons}>
-                          <button onClick={() => update({...s, plans: s.plans.map((q, j) => (j === i ? {...q, dark: true} : q))})}>
-                            {tr('Mow at {time} anyway', {time: p.time})}
-                          </button>
-                        </div>
-                      )}
-                      {night?.plan === i && (
-                        <div className={styles.animalButtons}>
-                          <button
-                            onClick={() => {
-                              update({...s, plans: s.plans.map((q, j) => (j === i ? {...q, time: night.time, dark: true} : q))});
-                              setNight(null);
-                            }}
-                          >
-                            {tr('Mow at {time} anyway', {time: night.time})}
-                          </button>
-                          <button onClick={() => setNight(null)}>{tr('Cancel')}</button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
+                <PlanRow
+                  key={i}
+                  plan={p}
+                  sun={sun}
+                  mowAreas={mowAreas}
+                  canReset={knowsAction(ACTION.resetJob)}
+                  onChange={(q) => update({...s, plans: s.plans.map((x, j) => (j === i ? q : x))})}
+                  onRemove={() => update({...s, plans: s.plans.filter((_, j) => j !== i)})}
+                />
               ))}
               <button className={styles.add} onClick={() => update({...s, plans: [...s.plans, {days: [1, 3, 5], time: '10:00', areas: []}]})}>
                 + {tr('Add start time')}

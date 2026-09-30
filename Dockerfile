@@ -24,13 +24,15 @@ COPY --from=build --chown=1000:1000 /app/out /www
 COPY --chmod=755 docker/settings.cgi /www/cgi-bin/settings
 COPY --chmod=755 docker/sensors.cgi /www/cgi-bin/sensors
 COPY --chmod=755 docker/system.cgi /www/cgi-bin/system
-COPY --chmod=755 docker/backups.cgi /www/cgi-bin/backups
-COPY --chmod=755 docker/recorder.sh docker/scheduler.sh docker/system.sh /
-COPY --chmod=755 docker/schedule.cgi /www/cgi-bin/schedule
+COPY --chmod=755 docker/battery.cgi /www/cgi-bin/battery
 COPY --chmod=755 docker/roslog.cgi /www/cgi-bin/roslog
+COPY --chmod=755 docker/backups.cgi /www/cgi-bin/backups
+COPY --chmod=755 docker/recorder.sh docker/scheduler.sh docker/logkeeper.sh docker/system.sh docker/battery.sh /
+COPY --chmod=755 docker/schedule.cgi /www/cgi-bin/schedule
 COPY docker/broker.sh /broker.sh
 COPY docker/openmower.sh /openmower.sh
 COPY docker/recorder.awk /recorder.awk
+COPY docker/battery.awk /battery.awk
 COPY docker/httpd.conf /etc/httpd.conf
 COPY docker/entrypoint.sh /entrypoint.sh
 # empty, writable settings dir. no RUN in this stage, so building for arm on a pc needs no emulation

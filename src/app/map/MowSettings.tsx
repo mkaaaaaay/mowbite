@@ -1,5 +1,8 @@
 import InfoTip from '@/components/InfoTip';
+import {useAreaProperties} from '@/lib/areaProps';
 import {tr} from '@/lib/i18n';
+import {duration} from '@/lib/dates';
+import {savedRate} from '@/lib/planProgress';
 import {DEG, normDeg, type Area, type UpdateArea} from './editing';
 import styles from './page.module.css';
 import {PATHS} from '@/lib/openmower';
@@ -37,6 +40,8 @@ export default function MowSettings({
   onPreviewCorrection,
   angle,
   planFromMower,
+  planAngle,
+  planLength,
 }: {
   area: Area;
   autoAngle: number;
@@ -54,7 +59,13 @@ export default function MowSettings({
   angle: AngleParams;
   // the plan shown comes from the mower itself, not worked out here
   planFromMower: boolean;
+  // rad, the angle the mower said it would mow at
+  planAngle?: number;
+  // m, the passes and stripes of the plan shown
+  planLength: number;
 }) {
+  const supported = useAreaProperties();
+  const rate = savedRate();
   const p = area.properties;
   const setOverride = (key: Override, raw: string) => {
     const v = raw.trim() === '' ? undefined : Number(raw);
@@ -130,18 +141,55 @@ export default function MowSettings({
           {tr('Auto')}
         </button>
       </div>
-      <label className={styles.toggle}>
-        <input type="checkbox" checked={showStripes} onChange={onToggleStripes} />
-        {tr('show mowing plan')}
-        {toolWidth ? ` (${tr('{n} cm apart', {n: Math.round(toolWidth * 100)})})` : ''}
-        {' · '}
-        {planFromMower ? tr('from the mower') : tr('estimate')}
-        <InfoTip>
-          {planFromMower
-            ? tr('The plan as the mower itself works it out for the saved map.')
-            : tr('Estimate of where the mower drives: edge rounds first, then stripes one mower width apart. Can differ from the real plan on unusual shapes.')}
-        </InfoTip>
-      </label>
+      {supported.has('angle_min') &&
+        (['angle_min', 'angle_max'] as const).map((key) => (
+        <label key={key}>
+          <span>
+            {tr(key === 'angle_min' ? 'Min. angle (°)' : 'Max. angle (°)')}
+            <InfoTip>
+              {tr('Keeps the stripes between these two directions, 0° and 180° give the same stripes. Past an end it turns back. Handy for narrow areas. Same value twice = fixed angle, min above max = range across 180°.')}
+            </InfoTip>
+          </span>
+          <input
+            type="number"
+            step={1}
+            min={-180}
+            max={180}
+            value={p[key] !== undefined ? Math.round(p[key] / DEG) : ''}
+            placeholder={tr('none')}
+            onFocus={remember}
+            onChange={(e) =>
+              update({[key]: e.target.value.trim() === '' ? undefined : normDeg(Number(e.target.value)) * DEG}, false)
+            }
+          />
+        </label>
+      ))}
+      {area.properties.mowable === false ? (
+        <p className={styles.dim}>{tr("No mowing plan, this area is set to don't mow.")}</p>
+      ) : (
+        <label className={styles.toggle}>
+          <input type="checkbox" checked={showStripes} onChange={onToggleStripes} />
+          {tr('show mowing plan')}
+          {toolWidth ? ` (${tr('{n} cm apart', {n: Math.round(toolWidth * 100)})})` : ''}
+          {' · '}
+          {planFromMower ? tr('from the mower') : tr('estimate')}
+          {planFromMower && planAngle !== undefined && `, ${Math.round((((planAngle * 180) / Math.PI) % 180 + 180) % 180)}°`}
+          <InfoTip>
+            {planFromMower
+              ? tr('The plan as the mower calculates it, unsaved changes included, at the angle it really mows.')
+              : tr('Estimate of where the mower drives: edge rounds first, then stripes one mower width apart. Can differ from the real plan on unusual shapes.')}
+          </InfoTip>
+        </label>
+      )}
+      {showStripes && planLength > 0 && (
+        <p className={styles.dim}>
+          {tr('{m} m to mow', {m: Math.round(planLength)})}
+          {rate && ` · ${tr('about {time}', {time: duration(planLength / rate)})}`}
+          <InfoTip>
+            {tr('Length of all passes and stripes. The time is based on the last run you watched on the dashboard.')}
+          </InfoTip>
+        </p>
+      )}
       {mismatch && (
         <div className={styles.warning}>
           <p>

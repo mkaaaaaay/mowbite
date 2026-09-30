@@ -9,6 +9,10 @@ export interface MowerState {
   gps_percentage: number;
   current_state: string;
   current_sub_state?: string;
+  // while mowing: the mowing area (in map order), the path of its plan and the pose on that path, -1 otherwise
+  current_area?: number;
+  current_path?: number;
+  current_path_index?: number;
   emergency: number;
   is_charging: number;
   rain_detected: number;

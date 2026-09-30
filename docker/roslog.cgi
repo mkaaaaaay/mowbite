@@ -1,34 +1,20 @@
 #!/bin/sh
-# ros warnings and errors around a moment, from the files the mowbite-roslog helper on the mower
-# writes (host/mowbite-roslog.sh, mounted read only to /ros-log). without ?t: whether it's set up
+# the ros warnings and errors logkeeper.sh kept, around a moment: ?t=<unix time>&before=<s>&after=<s>
+# 404 when nothing is kept (older container, or OpenMower without logs.recent)
 printf 'Access-Control-Allow-Origin: *\r\n'
-D=/ros-log
-
-param() { printf '%s' "$QUERY_STRING" | tr '&' '\n' | sed -n "s/^$1=//p" | head -n1 | tr -cd '0-9'; }
-# the helper already blanks these, this is the second net
-redact() {
-  sed -E 's#([a-zA-Z][a-zA-Z0-9+.-]*://)[^/@ ]+@#\1***@#g; s#((pass(word)?|passwd|pwd|user(name)?|login|token|secret|api[_-]?key|auth[a-z]*|credentials?)[^:=]{0,20}[:=][[:space:]]*)[^[:space:],;]+#\1***#gI'
-}
-
-if [ ! -e "$D/alive" ]; then
-  printf 'Status: 404 Not Found\r\nContent-Type: application/json\r\n\r\n{"available":false}\n'
+D=/data/roslog
+if [ ! -f "$D/.last" ]; then
+  printf 'Status: 404 Not Found\r\nContent-Type: text/plain\r\n\r\n'
   exit 0
 fi
-
-t=$(param t)
-if [ -z "$t" ]; then
-  printf 'Content-Type: application/json\r\n\r\n{"available":true,"alive":%s}\n' "$(stat -c %Y "$D/alive")"
-  exit 0
-fi
-
-before=$(param before)
-after=$(param after)
-from=$((t - ${before:-120}))
-to=$((t + ${after:-60}))
-printf 'Content-Type: text/plain; charset=utf-8\r\n\r\n'
-# only lines that look like what the helper writes, at most 200 around the moment
-cat "$D"/*.log 2>/dev/null |
-  grep -E '^\[(WARN|ERROR|FATAL)\] \[[0-9.]+\]: ' |
-  awk -v from="$from" -v to="$to" '{ s = $2; gsub(/[^0-9.]/, "", s); if (s + 0 >= from && s + 0 <= to) print }' |
-  tail -n 200 |
-  redact
+num() { printf '%s' "$QUERY_STRING" | tr '&' '\n' | sed -n "s/^$1=\([0-9]*\)$/\1/p" | head -n1; }
+t=$(num t)
+before=$(num before)
+after=$(num after)
+from=$((${t:-0} - ${before:-120}))
+to=$((${t:-0} + ${after:-60}))
+printf 'Content-Type: text/plain\r\nCache-Control: no-store\r\n\r\n'
+# the day files the range touches
+for f in $(awk -v a="$from" -v b="$to" 'BEGIN { print strftime("%Y%m%d", a); if (strftime("%Y%m%d", b) != strftime("%Y%m%d", a)) print strftime("%Y%m%d", b) }'); do
+  [ -f "$D/$f.log" ] && awk -v a="$from" -v b="$to" '$1 >= a && $1 <= b' "$D/$f.log"
+done

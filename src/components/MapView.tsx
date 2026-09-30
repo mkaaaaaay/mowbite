@@ -7,7 +7,7 @@ import {settingsStore} from '@/lib/settings';
 import {dockIcon, mowerIcon} from './mapIcons';
 import {availableSources, imageryTiles, type Datum, type ImagerySource} from '@/lib/imagery';
 import {handleRadius, meterGrid} from '@/lib/mapGrid';
-import MapControls, {type Layer} from './MapControls';
+import MapControls, {layerOn, type Layer, type PlanStyle} from './MapControls';
 import {useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import styles from './MapView.module.css';
 import {tr, useLang} from '@/lib/i18n';
@@ -19,6 +19,8 @@ interface MapViewProps {
   onSelectArea?: (id: string) => void;
   onMoveVertex?: (areaId: string, vertexIndex: number, x: number, y: number) => void;
   onDragStart?: () => void;
+  // true while a point of an area is being dragged
+  onDragging?: (on: boolean) => void;
   // a point drag that turned into a pinch: undo what the drag changed
   onDragCancel?: () => void;
   onInsertVertex?: (areaId: string, vertexIndex: number, x: number, y: number) => void;
@@ -43,6 +45,9 @@ interface MapViewProps {
   stripes?: Point[][];
   // the outline passes of the mowing plan, drawn with the stripes
   loops?: Point[][];
+  // how far the current run got in the mower's plan: what's left is drawn, the planned part it has done only if
+  // switched on in the layer menu (the track shows what it really drove)
+  progress?: {done: Point[][]; todo: Point[][]};
   // shapes an edit would give (split pieces, merge result), drawn in two alternating colors
   preview?: Point[][];
   // click on the map where there's no area
@@ -112,6 +117,7 @@ export default function MapView({
   onSelectArea,
   onMoveVertex,
   onDragStart,
+  onDragging,
   onDragCancel,
   onInsertVertex,
   onDeleteVertex,
@@ -124,6 +130,7 @@ export default function MapView({
   followSpanMeters = 6,
   track,
   pastTrack,
+  progress,
   zoomable = false,
   stripes,
   loops,
@@ -200,6 +207,14 @@ export default function MapView({
     }
   });
   const [layersOpen, setLayersOpen] = useState(false);
+  const [planStyle, setPlanStyle] = useState<PlanStyle>(() => {
+    try {
+      const v = localStorage.getItem('planStyle');
+      return v === 'solid' || v === 'dots' ? v : 'dashed';
+    } catch {
+      return 'dashed';
+    }
+  });
   const toggleLayer = (l: Layer) => {
     const next = new Set(hidden);
     if (next.has(l)) next.delete(l);
@@ -579,6 +594,7 @@ export default function MapView({
         // adding a point takes its own undo snapshot, drawn points aren't in the map history at all
         if (d.insert) addPoint(d.insert.x, d.insert.y);
         else if (dragging.areaId !== PENDING) onDragStart?.();
+        if (dragging.areaId !== PENDING) onDragging?.(true);
       }
       const local = clientToLocal(e.clientX, e.clientY);
       if (local && dragging.areaId === PENDING) onMovePending?.(dragging.index, local[0], local[1]);
@@ -603,12 +619,14 @@ export default function MapView({
       }
       setDragging(null);
       setFinger(null);
+      onDragging?.(false);
     };
     const onCancel = (e: PointerEvent) => {
       if (e.pointerId !== drag.current.pointerId) return;
       drag.current.pointerId = -1;
       setDragging(null);
       setFinger(null);
+      onDragging?.(false);
     };
 
     window.addEventListener('pointermove', onMove);
@@ -674,6 +692,7 @@ export default function MapView({
             className={[
               AREA_CLASS[area.properties.type ?? 'draft'] ?? styles.draftArea,
               area.properties.active === false ? styles.inactive : '',
+              area.properties.mowable === false ? styles.skipMowing : '',
             ]
               .filter(Boolean)
               .join(' ')}
@@ -745,6 +764,21 @@ export default function MapView({
             </g>
           );
         })}
+
+        {progress && !hidden.has('stripes') && (
+          <>
+            <path
+              className={[styles.planTodo, styles[planStyle]].join(' ')}
+              d={progress.todo.map((o) => o.map((p, i) => `${i ? 'L' : 'M'}${toScreen(p.x, p.y).join(' ')}`).join('')).join('')}
+            />
+            {layerOn(hidden, 'planDone') && (
+              <path
+                className={styles.planDone}
+                d={progress.done.map((o) => o.map((p, i) => `${i ? 'L' : 'M'}${toScreen(p.x, p.y).join(' ')}`).join('')).join('')}
+              />
+            )}
+          </>
+        )}
 
         {!hidden.has('track') &&
           trackRuns
@@ -818,7 +852,7 @@ export default function MapView({
           <polygon
             key={'piece' + i}
             points={piece.map((p) => toScreen(p.x, p.y).join(',')).join(' ')}
-            className={i === 0 ? styles.pieceA : styles.pieceB}
+            className={[styles.pieceA, styles.pieceB, styles.pieceC][i] ?? styles.pieceB}
           />
         ))}
 
@@ -931,6 +965,19 @@ export default function MapView({
         onToggleLayer={toggleLayer}
         layersOpen={layersOpen}
         onLayersOpen={setLayersOpen}
+        planStyle={
+          progress
+            ? {
+                value: planStyle,
+                onChange: (st) => {
+                  setPlanStyle(st);
+                  try {
+                    localStorage.setItem('planStyle', st);
+                  } catch {}
+                },
+              }
+            : undefined
+        }
         reset={
           view || restore || (following && followZoom !== 1)
             ? {

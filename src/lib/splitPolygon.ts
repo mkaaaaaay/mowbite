@@ -1,3 +1,4 @@
+import * as ClipperLib from 'clipper-lib';
 import type {Point} from '@/hooks/useMowerMap';
 import {containsPoint, polygonArea} from './geometry';
 
@@ -82,6 +83,78 @@ export function splitByPath(outline: Point[], path: Point[]): [Point[], Point[]]
     return [ringA, ringB];
   }
   return null;
+}
+
+// clipper works in integers, this is 0.01 mm
+const SCALE = 1e5;
+const toPath = (o: Point[]) => o.map((p) => ({X: Math.round(p.x * SCALE), Y: Math.round(p.y * SCALE)}));
+const fromPath = (p: ClipperLib.Path): Point[] => p.map((q) => ({x: q.X / SCALE, y: q.Y / SCALE}));
+
+function clip(type: ClipperLib.ClipType, subject: ClipperLib.Paths, cut: ClipperLib.Paths): ClipperLib.Paths {
+  const c = new ClipperLib.Clipper();
+  c.AddPaths(subject, ClipperLib.PolyType.ptSubject, true);
+  c.AddPaths(cut, ClipperLib.PolyType.ptClip, true);
+  const out: ClipperLib.Paths = [];
+  c.Execute(type, out, ClipperLib.PolyFillType.pftNonZero, ClipperLib.PolyFillType.pftNonZero);
+  return out;
+}
+
+const perimeter = (o: Point[]) => o.reduce((sum, p, i) => sum + Math.hypot(o[(i + 1) % o.length].x - p.x, o[(i + 1) % o.length].y - p.y), 0);
+
+// a point inside the shape: its centroid, or else the middle between two of its corners
+function pointInside(shape: Point[]): Point | null {
+  const c = {x: shape.reduce((s, p) => s + p.x, 0) / shape.length, y: shape.reduce((s, p) => s + p.y, 0) / shape.length};
+  if (containsPoint(shape, c.x, c.y)) return c;
+  for (let i = 0; i < shape.length; i++) {
+    for (let j = i + 2; j < shape.length; j++) {
+      const m = {x: (shape[i].x + shape[j].x) / 2, y: (shape[i].y + shape[j].y) / 2};
+      if (containsPoint(shape, m.x, m.y)) return m;
+    }
+  }
+  return null;
+}
+
+// Cuts a shape drawn inside the area out as an area of its own. An area can't have a hole, so the rest
+// is cut in two by a straight line through the shape, turned so that this cut is as short as possible.
+// Returns the two halves and the shape.
+export function cutOut(outline: Point[], shape: Point[]): [Point[], Point[], Point[]] | null {
+  if (outline.length < 3 || shape.length < 3) return null;
+  if (!shape.every((p) => containsPoint(outline, p.x, p.y))) return null;
+  for (let s = 0; s < shape.length; s++) {
+    for (let e = 0; e < outline.length; e++) {
+      if (segmentHit(shape[s], shape[(s + 1) % shape.length], outline[e], outline[(e + 1) % outline.length])) return null;
+    }
+  }
+  // a shape that crosses itself isn't one area
+  const clean = ClipperLib.Clipper.SimplifyPolygon(toPath(shape), ClipperLib.PolyFillType.pftNonZero);
+  if (clean.length !== 1 || polygonArea(shape) < 0.01) return null;
+  const inner = fromPath(clean[0]);
+  const at = pointInside(inner);
+  if (!at) return null;
+
+  const rest = clip(ClipperLib.ClipType.ctDifference, [toPath(outline)], [toPath(inner)]);
+  const far = 1000;
+  let best: {halves: [Point[], Point[]]; cut: number} | null = null;
+  for (let deg = 0; deg < 180; deg += 5) {
+    const a = (deg * Math.PI) / 180;
+    const d = {x: Math.cos(a) * far, y: Math.sin(a) * far};
+    const side = (k: number): Point[] => [
+      {x: at.x - d.x, y: at.y - d.y},
+      {x: at.x + d.x, y: at.y + d.y},
+      {x: at.x + d.x - k * d.y, y: at.y + d.y + k * d.x},
+      {x: at.x - d.x - k * d.y, y: at.y - d.y + k * d.x},
+    ];
+    const one = clip(ClipperLib.ClipType.ctIntersection, rest, [toPath(side(1))]);
+    const two = clip(ClipperLib.ClipType.ctIntersection, rest, [toPath(side(-1))]);
+    // each side one piece without a hole, otherwise try another direction
+    if (one.length !== 1 || two.length !== 1) continue;
+    const halves: [Point[], Point[]] = [fromPath(one[0]), fromPath(two[0])];
+    if (halves.some((h) => polygonArea(h) < 0.01)) continue;
+    // both halves have the cut on their edge, the shape and the outline are the same every time
+    const cut = perimeter(halves[0]) + perimeter(halves[1]);
+    if (!best || cut < best.cut - 1e-6) best = {halves, cut};
+  }
+  return best && [best.halves[0], best.halves[1], inner];
 }
 
 export function generateId(): string {

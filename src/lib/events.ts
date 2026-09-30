@@ -75,6 +75,8 @@ export function describe(e: MowerEvent, state?: string): {text: string; severity
       return info(tr('Docked'));
     case 'JOB_COMPLETE':
       return info(tr('All areas done'));
+    case 'JOB_RESET':
+      return info(tr('Interrupted job dropped, the next start begins from the start'));
     case 'EMERGENCY':
       return e.emergency
         ? {

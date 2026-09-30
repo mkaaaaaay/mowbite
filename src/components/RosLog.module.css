@@ -1,24 +1,3 @@
-.guide {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  margin: 0;
-  padding-left: 20px;
-  font-size: 14px;
-}
-
-.guide li {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.stale {
-  color: var(--warning);
-  font-size: 13px;
-  margin: 0;
-}
-
 /* the lines next to a problem on the activity page */
 .log {
   display: flex;

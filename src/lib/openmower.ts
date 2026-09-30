@@ -28,6 +28,10 @@ export const RPC = {
   // the mowing plan for an area straight from the mower's planner. OpenMower doesn't offer it yet,
   // the name is a guess until it does
   areaPlan: 'mowing.plan',
+  // the area settings this mower keeps in map.json
+  areaProperties: 'map.area_properties',
+  // the last warnings and errors ROS logged, kept in memory by the mower. OpenMower doesn't offer it yet
+  logs: 'logs.recent',
 } as const;
 
 export const ACTION = {
@@ -38,6 +42,8 @@ export const ACTION = {
   skipArea: 'mower_logic:mowing/skip_area',
   resetEmergency: 'mower_logic/reset_emergency',
   startRecording: 'mower_logic:idle/start_area_recording',
+  // drops an interrupted job, only offered while idle with one (needs an openmower that has it)
+  resetJob: 'mower_logic:idle/reset_job',
   // the steps while recording an area, e.g. finish_mowing_area
   recording: (step: string) => `mower_logic:area_recording/${step}`,
 } as const;

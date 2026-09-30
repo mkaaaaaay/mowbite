@@ -8,3 +8,9 @@ TOPIC_MAP=map/json
 ACTION_START_MOWING=mower_logic:idle/start_mowing
 ACTION_SKIP_AREA=mower_logic:mowing/skip_area
 ACTION_HOME=mower_logic:mowing/abort_mowing
+ACTION_RESET_JOB=mower_logic:idle/reset_job
+TOPIC_RPC_REQUEST=rpc/request
+TOPIC_RPC_RESPONSE=rpc/response
+TOPIC_RPC_ERROR=rpc/error
+# the last ros warnings and errors, kept in memory by the monitoring node
+RPC_LOGS=logs.recent
