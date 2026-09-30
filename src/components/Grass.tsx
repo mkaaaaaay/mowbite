@@ -53,6 +53,8 @@ function Hedgehog() {
 
 // autumn in the northern half of the world, there are leaves on the lawn then
 const isAutumn = () => [8, 9, 10].includes(new Date().getMonth());
+// the season doesn't change while the page is open, near enough
+const noChange = () => () => {};
 const LEAF_COLORS = ['#d9822b', '#b8452a', '#e0a93b', '#8d5a2b', '#c9652a'];
 
 function Leaf({color, size = 10}: {color: string; size?: number}) {
@@ -122,7 +124,8 @@ export default function Grass() {
   const pile = useRef<HTMLDivElement>(null);
   // counts the runs, a new heap blows in after each
   const [round, setRound] = useState(0);
-  const [autumn] = useState(isAutumn);
+  // the month of the viewer, not of the build
+  const autumn = useSyncExternalStore(noChange, isAutumn, () => false);
   const busy = useRef(false);
   const lastTap = useRef(0);
   const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);

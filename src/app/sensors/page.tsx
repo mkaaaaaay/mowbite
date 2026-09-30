@@ -8,7 +8,7 @@ import Sparkline from '@/components/Sparkline';
 import {useMowerSensors, type SensorInfo} from '@/hooks/useMowerSensors';
 import {useMowerState} from '@/hooks/useMowerState';
 import {useSensorHistory, type Sample} from '@/hooks/useSensorHistory';
-import {useState} from 'react';
+import {useState, useSyncExternalStore} from 'react';
 import {sharedSettings} from '@/lib/settings';
 import {batteryColor, isDocked, stateColor, statusText} from '@/lib/status';
 import styles from './page.module.css';
@@ -63,17 +63,24 @@ function Card({title, children}: {title: React.ReactNode; children: React.ReactN
 // the mower's sensors, or the computer in it (memory, storage, cpu). the last one picked is kept per device
 type Tab = 'mower' | 'system';
 
+const savedTab = (): Tab => {
+  try {
+    return localStorage.getItem('sensorsTab') === 'system' ? 'system' : 'mower';
+  } catch {
+    return 'mower';
+  }
+};
+// the saved tab only changes by picking one here
+const onTabChange = () => () => {};
+
 export default function SensorsPage() {
   useLang();
-  const [tab, setTab] = useState<Tab>(() => {
-    try {
-      return localStorage.getItem('sensorsTab') === 'system' ? 'system' : 'mower';
-    } catch {
-      return 'mower';
-    }
-  });
+  // read after the page came up, the prebuilt page always starts with the mower tab
+  const saved = useSyncExternalStore(onTabChange, savedTab, () => 'mower' as Tab);
+  const [picked, setPicked] = useState<Tab | null>(null);
+  const tab = picked ?? saved;
   const pick = (t: Tab) => {
-    setTab(t);
+    setPicked(t);
     try {
       localStorage.setItem('sensorsTab', t);
     } catch {}
