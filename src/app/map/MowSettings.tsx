@@ -181,8 +181,9 @@ export default function MowSettings({
   );
 }
 
-// 0 and 180 degrees give the same stripes, so the slider only needs half a turn and is twice as fine
-const halfTurn = (deg: number) => ((((deg + 90) % 180) + 180) % 180) - 90;
+// 0 and 180 degrees give the same stripes, so the slider only needs half a turn and is twice as fine.
+// -90 and 90 are both kept as they are, otherwise the slider jumps to the other end at the right edge
+const halfTurn = (deg: number) => (Math.abs(deg) <= 90.5 ? deg : ((((deg + 90) % 180) + 180) % 180) - 90);
 export const shownAngle = (area: Area, autoAngle: number) => Math.round(halfTurn((area.properties.angle ?? autoAngle) / DEG));
 
 export function AngleSlider({
