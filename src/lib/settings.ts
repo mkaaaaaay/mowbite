@@ -2,6 +2,7 @@
 // (docker/settings.cgi), otherwise per device. localStorage is also the cache so they're there
 // before the request comes back.
 
+import {mergeChanges} from './mergeChanges';
 import {apiBase} from './mowers';
 import {isApp} from './native';
 
@@ -101,6 +102,12 @@ export function sharedSettings() {
   return shared;
 }
 
+// the settings as the container has them, and its version of them (null from an older container). a save says
+// which version it started from, when another device saved in between the container answers 409 with its
+// settings and the change made here goes on top of those (docker/settings.cgi)
+let server: Settings = {};
+let version: string | null = null;
+
 let synced = false;
 export async function syncSettings() {
   if (synced) return;
@@ -110,19 +117,42 @@ export async function syncSettings() {
     if (!res.ok || !res.headers.get('content-type')?.includes('json')) return;
     const data = await res.json();
     shared = true;
-    setLocal(data && typeof data === 'object' ? data : {});
+    server = data && typeof data === 'object' ? data : {};
+    version = res.headers.get('X-Settings-Version') || null;
+    setLocal(server);
   } catch {
     // not served by the container, keep it local
   }
 }
 
-// sliders and color pickers fire on every move, only the last state goes to the mower
+async function push(next: Settings) {
+  for (let tries = 0; tries < 3; tries++) {
+    const res = await fetch(settingsUrl() + (version ? `?v=${encodeURIComponent(version)}` : ''), {
+      method: 'POST',
+      body: JSON.stringify(next),
+    });
+    const v = res.headers.get('X-Settings-Version') || null;
+    if (res.status !== 409) {
+      if (res.ok) [server, version] = [next, v];
+      return;
+    }
+    const theirs: Settings = await res.json();
+    next = mergeChanges(theirs, server, next);
+    [server, version] = [theirs, v];
+    setLocal(next);
+  }
+}
+
+// sliders and color pickers fire on every move, only the last state goes to the mower. one save after another
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
+let saving: Promise<void> = Promise.resolve();
 export function saveSettings(next: Settings) {
   setLocal(next);
   if (!shared) return;
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => void fetch(settingsUrl(), {method: 'POST', body: JSON.stringify(next)}).catch(() => {}), 400);
+  saveTimer = setTimeout(() => {
+    saving = saving.then(() => push(current ?? next)).catch(() => {});
+  }, 400);
 }
 
 // inline in <head>: sets the color variables before anything is drawn, so saved colors don't flash
