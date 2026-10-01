@@ -2,13 +2,14 @@
 # map backups in the /data volume, gzipped. one <id>.json.gz per backup and <id>.meta with
 # name, number of areas and whether it was made automatically before a save
 # the app on another mower may ask too (several mowers in one app)
-printf 'Access-Control-Allow-Origin: *\r\n'
+# after a Status line, busybox httpd only reads that when it comes first
+cors() { printf 'Access-Control-Allow-Origin: *\r\n'; }
 D=/data/backups
 KEEP_AUTO=30
 mkdir -p "$D"
 
 param() { printf '%s' "$QUERY_STRING" | tr '&' '\n' | sed -n "s/^$1=//p" | head -n1; }
-fail() { printf 'Status: %s\r\nContent-Type: text/plain\r\n\r\n%s\n' "$1" "$2"; exit 0; }
+fail() { printf 'Status: %s\r\n' "$1"; cors; printf 'Content-Type: text/plain\r\n\r\n%s\n' "$2"; exit 0; }
 json_str() { printf '%s' "$1" | tr -d '\000-\037' | sed 's/\\/\\\\/g; s/"/\\"/g'; }
 
 id=$(param id)
@@ -21,6 +22,7 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
   if [ "$action" = "delete" ]; then
     [ -n "$id" ] || fail 400 'no id'
     rm -f "$D/$id.json.gz" "$D/$id.meta"
+    cors
     printf 'Content-Type: application/json\r\n\r\n{"ok":true}\n'
     exit 0
   fi
@@ -38,17 +40,20 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
   done | tail -n +$((KEEP_AUTO + 1)) | while read -r m; do
     rm -f "$m" "${m%.meta}.json.gz"
   done
+  cors
   printf 'Content-Type: application/json\r\n\r\n{"id":"%s"}\n' "$new"
   exit 0
 fi
 
 if [ -n "$id" ]; then
   [ -f "$D/$id.json.gz" ] || fail 404 'not found'
+  cors
   printf 'Content-Type: application/json\r\nCache-Control: no-store\r\n\r\n'
   zcat "$D/$id.json.gz"
   exit 0
 fi
 
+cors
 printf 'Content-Type: application/json\r\nCache-Control: no-store\r\n\r\n['
 first=1
 for m in $(ls "$D"/*.meta 2>/dev/null | sort -r); do
