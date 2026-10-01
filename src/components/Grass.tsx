@@ -12,8 +12,8 @@ import styles from './Grass.module.css';
 
 const SPEED = 260; // px/s
 const REGROW_MS = 2500;
-// the hedgehog comes out and looks around before the mower starts
-const PRE_MS = 1800;
+// the hedgehog comes out, yawns and looks around before the mower starts
+const PRE_MS = 2200;
 // the hop over the hedgehog starts this long before the mower gets there
 const HOP_LEAD = 360;
 
@@ -53,6 +53,11 @@ function Hedgehog() {
         <g>
           <path d="M12.5 31.0 L16.3 29.2 L13.0 26.5 L17.2 25.6 L14.6 22.2 L18.8 22.4 L17.2 18.4 L21.2 19.6 L20.5 15.4 L24.1 17.5 L24.4 13.2 L27.5 16.2 L28.8 12.1 L31.0 15.8 L33.2 12.1 L34.5 16.2 L37.6 13.2 L37.9 17.5 L41.5 15.4 L40.8 19.6 L44.8 18.4 L43.2 22.4 L47.4 22.2 L44.8 25.6 L49.0 26.5 L45.7 29.2 L49.5 31.0 Z" fill="#5b3d22" />
           <path d="M17.0 31.0 L19.2 29.1 L17.7 26.5 L20.4 25.4 L19.7 22.5 L22.6 22.3 L22.8 19.3 L25.6 20.0 L26.7 17.2 L29.1 18.8 L31.0 16.5 L32.9 18.8 L35.3 17.2 L36.4 20.0 L39.2 19.3 L39.4 22.3 L42.3 22.5 L41.6 25.4 L44.3 26.5 L42.8 29.1 L45.0 31.0 Z" fill="#7a5433" />
+        </g>
+        {/* a leaf that gets stuck on the spines */}
+        <g className={styles.backLeaf}>
+          <path d="M30 12.5 C33 10.5 37 11.5 38 14.5 C35 16 31.5 15.5 30 12.5 Z" fill="#d9822b" />
+          <path d="M30.5 12.8 L37.5 14.3" stroke="#8d5a2b" strokeWidth="0.5" />
         </g>
         <ellipse className={styles.foot} cx="18" cy="32.6" rx="2.6" ry="1.4" fill="#4a3220" />
         <ellipse className={styles.foot} cx="33" cy="32.8" rx="2.6" ry="1.3" fill="#3a2718" />
@@ -578,6 +583,14 @@ export default function Grass() {
               <Leaf color={l.color} size={12} />
             </div>
           ))}
+          {/* someone sleeps under it */}
+          {phase === 'idle' && !walk && (
+            <span className={styles.zzz}>
+              <span>z</span>
+              <span>z</span>
+              <span>Z</span>
+            </span>
+          )}
         </div>
       )}
       {phase === 'mowing' && (
