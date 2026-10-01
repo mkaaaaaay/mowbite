@@ -132,7 +132,8 @@ export default function MapControls({
       </div>
       {layersOpen && (
         <div className={styles.layers}>
-          {LAYERS.map((l) => (
+          {/* the plan's layers only while there's a mowing run to show them for */}
+          {LAYERS.filter((l) => l.key !== 'planDone' || planStyle).map((l) => (
             <label key={l.key}>
               <input type="checkbox" checked={layerOn(hidden, l.key)} onChange={() => onToggleLayer(l.key)} />
               {tr(l.label)}

@@ -365,11 +365,13 @@
   stroke-linecap: round;
 }
 
+/* wide and pale, so it shows around the track the mower drove along it */
 .planDone {
   fill: none;
-  stroke: var(--c-mow);
-  stroke-opacity: 0.9;
-  stroke-width: 1.5;
+  stroke: var(--foreground);
+  stroke-opacity: 0.3;
+  stroke-width: 4;
+  stroke-linecap: round;
   stroke-linejoin: round;
   pointer-events: none;
 }
