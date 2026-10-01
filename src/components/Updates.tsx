@@ -5,7 +5,10 @@ import {tr} from '@/lib/i18n';
 import {isApp} from '@/lib/native';
 import {APP_VERSION, checkNow, compareVersions, dismissUpdate, isNewer, setUpdateCheck, useUpdates} from '@/lib/updates';
 import Link from 'next/link';
-import {useState} from 'react';
+import {useEffect, useState} from 'react';
+import {useMowerActions} from '@/hooks/useMowerActions';
+import {ACTION, RPC} from '@/lib/openmower';
+import {rpcMethods} from '@/lib/rpc';
 import styles from './Updates.module.css';
 
 const UPDATE_COMMAND = 'docker compose pull && docker compose up -d';
@@ -26,6 +29,26 @@ function useOutdated() {
   };
 }
 
+// what the app leaves out because the mower's OpenMower doesn't have it yet. only when the mower can tell
+// (rpc.methods) and its actions arrived, things only some forks have aren't mentioned
+function NewerOpenMower() {
+  const {knowsAction} = useMowerActions();
+  const [methods, setMethods] = useState<Set<string> | null>(null);
+  useEffect(() => {
+    void rpcMethods().then(setMethods);
+  }, []);
+  if (!methods || !knowsAction(ACTION.resetEmergency)) return null;
+  const missing = [
+    ...(methods.has(RPC.areaPlan)
+      ? []
+      : ['progress and time left while mowing', 'the mowing plan from the mower in the map editor', "areas set to don't mow"]),
+    ...(methods.has(RPC.logs) ? [] : ['the ROS log next to problems']),
+    ...(knowsAction(ACTION.resetJob) ? [] : ['dropping an interrupted job']),
+  ];
+  if (!missing.length) return null;
+  return <p className={styles.versions}>{tr('A newer OpenMower on the mower also brings: {list}.', {list: missing.map((m) => tr(m)).join(', ')})}</p>;
+}
+
 export function UpdateSettings({cardClass, checkClass}: {cardClass: string; checkClass: string}) {
   const {u, app, mower, appOld, mowerOld} = useOutdated();
   const [copied, setCopied] = useState(false);
@@ -36,6 +59,7 @@ export function UpdateSettings({cardClass, checkClass}: {cardClass: string; chec
       <span className={styles.versions}>
         {app ? `${tr('App')} ${APP_VERSION} · ${tr('Mower')} ${mower ?? '?'}` : `MowBite ${APP_VERSION}`}
       </span>
+      <NewerOpenMower />
       <label className={checkClass}>
         <input type="checkbox" checked={u.enabled} onChange={(e) => setUpdateCheck(e.target.checked)} />
         {tr('Look for updates once a day (asks GitHub, which sees your IP address)')}
