@@ -22,10 +22,14 @@ conf() { sed -n "s/^$1 //p" "$F" | head -n1; }
 # rain right now or in the next hour(s) at the garden (open-meteo, position rounded to ~1 km).
 # no answer counts as no rain
 # during a run this script started: skip every area the plan doesn't pick ($1: all or a list) and the ones
-# paused for today ($2), until the job is done (also across breaks for charging)
+# paused for today ($2), until the job is done (also across breaks for charging) or the next start. a run sent
+# home at its end time keeps its job open, without stopping at the next start this would go on skipping the
+# areas of the next plan or of a start by hand
 skip_others() {
   # shellcheck disable=SC2086
-  timeout 86400 mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_EVENTS" | while read -r e; do
+  timeout 86400 mosquitto_sub -h "$host" -p "$PORT" $AUTH -v -t "${MOWER_MQTT_PREFIX}$TOPIC_EVENTS" \
+    -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTION" | while read -r e; do
+    case "$e" in *" $ACTION_START_MOWING") break ;; esac
     type=$(field "$e" type)
     case "$type" in
       # not on DOCKED: a run that docks to charge carries on afterwards, and it's still this run
@@ -126,12 +130,14 @@ stop_time() {
 
 # a run this script started: send it home at the stop time. a job that's still open (it was charging)
 # carries on by itself once the battery is full, so for 12 hours it's sent home again whenever it starts
-# mowing, until someone starts it by hand or the job is done
+# mowing, until someone starts it by hand or the job is done. a start before the stop time ends it too, that's
+# another run then (the next plan, or by hand after this one was sent home) with its own end
 send_home_at() {
   topics="-t ${MOWER_MQTT_PREFIX}$TOPIC_EVENTS -t ${MOWER_MQTT_PREFIX}$TOPIC_ACTION"
   while [ "$(date +%s)" -lt "$1" ]; do
     # shellcheck disable=SC2086
-    e=$(mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_EVENTS" -C 1 -W 60 2>/dev/null) || sleep 5
+    e=$(mosquitto_sub -h "$host" -p "$PORT" $AUTH $topics -v -C 1 -W 60 2>/dev/null) || sleep 5
+    case "$e" in *" $ACTION_START_MOWING") return ;; esac
     case "$(field "$e" type)" in JOB_COMPLETE | SHUTDOWN) return ;; esac
   done
   logged=""
