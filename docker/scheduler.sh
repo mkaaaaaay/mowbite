@@ -16,7 +16,8 @@ log() {
   echo "$(date +%s) $*" >> "$LOG"
   tail -n 100 "$LOG" > "$LOG.tmp" && mv "$LOG.tmp" "$LOG"
 }
-field() { printf '%s' "$1" | grep -o "\"$2\":[^,}]*" | head -n1 | cut -d: -f2 | tr -d '" '; }
+# a plain value from compact or spaced out json, e.g. field "$state" current_state
+field() { printf '%s' "$1" | grep -o "\"$2\" *: *[^,}]*" | head -n1 | sed 's/^[^:]*: *//' | tr -d '" '; }
 conf() { sed -n "s/^$1 //p" "$F" | head -n1; }
 
 # rain right now or in the next hour(s) at the garden (open-meteo, position rounded to ~1 km).
@@ -135,8 +136,15 @@ stop_time() {
 send_home_at() {
   topics="-t ${MOWER_MQTT_PREFIX}$TOPIC_EVENTS -t ${MOWER_MQTT_PREFIX}$TOPIC_ACTION"
   while [ "$(date +%s)" -lt "$1" ]; do
+    # waits for a message until the stop time at most, so it goes home on time. a broker that isn't there
+    # fails right away, then it waits a bit instead of trying over and over
+    w=$(($1 - $(date +%s)))
+    [ "$w" -gt 60 ] && w=60
+    [ "$w" -lt 1 ] && w=1
+    t=$(date +%s)
     # shellcheck disable=SC2086
-    e=$(mosquitto_sub -h "$host" -p "$PORT" $AUTH $topics -v -C 1 -W 60 2>/dev/null) || sleep 5
+    e=$(mosquitto_sub -h "$host" -p "$PORT" $AUTH $topics -v -C 1 -W "$w" 2>/dev/null) ||
+      { [ $(($(date +%s) - t)) -lt 1 ] && sleep 5; }
     case "$e" in *" $ACTION_START_MOWING") return ;; esac
     case "$(field "$e" type)" in JOB_COMPLETE | SHUTDOWN) return ;; esac
   done
@@ -152,10 +160,8 @@ send_home_at() {
     fi
     # shellcheck disable=SC2086
     m=$(mosquitto_sub -h "$host" -p "$PORT" $AUTH $topics -v -C 1 -W 30 2>/dev/null) || sleep 5
-    case "$m" in
-      *" $ACTION_START_MOWING") return ;;
-      *'"type":"JOB_COMPLETE"'* | *'"type": "JOB_COMPLETE"'*) return ;;
-    esac
+    case "$m" in *" $ACTION_START_MOWING") return ;; esac
+    [ "$(field "$m" type)" = JOB_COMPLETE ] && return
   done
 }
 
