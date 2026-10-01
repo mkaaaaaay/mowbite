@@ -2,7 +2,7 @@
 
 import {onTopic} from '@/lib/mqttClient';
 import {useSyncExternalStore} from 'react';
-import {TOPIC} from '@/lib/openmower';
+import {PARAM_DEFAULTS, TOPIC} from '@/lib/openmower';
 
 export type MowerParams = Record<string, unknown>;
 
@@ -39,9 +39,12 @@ export function useMowerParams(): MowerParams {
   );
 }
 
+// a number param, or mower_logic's default when the mower's list came without it (see PARAM_DEFAULTS). nothing
+// before the list arrived, a default shown then could be wrong
 export function numParam(params: MowerParams, key: string): number | undefined {
   const v = params[key];
-  return typeof v === 'number' ? v : undefined;
+  if (typeof v === 'number') return v;
+  return params === EMPTY ? undefined : PARAM_DEFAULTS[key];
 }
 
 // gps datum, v2 keeps it under /ll/services/gps/, v1 under the gps driver, so match by the end of the key

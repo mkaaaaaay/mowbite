@@ -60,6 +60,21 @@ export const PARAM = {
   maxPositionAccuracy: '/mower_logic/max_position_accuracy',
 } as const;
 
+// mower_logic's own defaults (MowerLogic.cfg, the same in 1.4.0 and edge). params/json is sent when xbot_monitoring
+// connects to the broker, that can be before mower_logic put its defaults in, then only what the mower's yaml sets
+// is there. what's missing then is the default, that's what the mower runs with
+export const PARAM_DEFAULTS: Record<string, number> = {
+  [PARAM.toolWidth]: 0.14,
+  [PARAM.outlineCount]: 3,
+  '/mower_logic/outline_overlap_count': 0,
+  '/mower_logic/outline_offset': 0,
+  [PARAM.mowAngleOffset]: 0,
+  [PARAM.mowAngleIncrement]: 0,
+  [PARAM.dockingApproachDistance]: 1.5,
+  [PARAM.maxPositionAccuracy]: 0.2,
+  '/mower_logic/gps_timeout': 10,
+};
+
 // where things are on a mower set up with openmower-cli today, only shown to explain things
 export const PATHS = {
   eventHistory: '/home/openmower/ros/event_history/',
