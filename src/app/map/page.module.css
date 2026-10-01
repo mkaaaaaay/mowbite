@@ -276,6 +276,10 @@
   stroke-linecap: round;
 }
 
+.compass polygon {
+  fill: var(--c-stripes);
+}
+
 .compass text {
   fill: var(--text-secondary);
   font-size: 8.5px;

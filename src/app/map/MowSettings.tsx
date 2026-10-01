@@ -312,19 +312,20 @@ export function AngleSlider({
   );
 }
 
-// the stripe direction on a little compass, north up like the map: a line through the middle at the angle,
-// counter-clockwise from east
+// the angle on a little compass, north up like the map: the line is the stripe direction, the arrow points where
+// the angle points (0° east, 90° north). 90° and 270° give the same lanes, but the mower starts them on the other side
 function AngleCompass({rad}: {rad: number}) {
-  const r = 14;
-  const dx = Math.cos(rad) * r;
-  const dy = -Math.sin(rad) * r;
+  const r = 15;
+  const [ux, uy] = [Math.cos(rad), -Math.sin(rad)];
+  const at = (along: number, across = 0) => `${ux * along + uy * across},${uy * along - ux * across}`;
   return (
     <svg className={styles.compass} viewBox="-24 -24 48 48" role="img" aria-label={tr('Mow angle')}>
-      <circle r={r + 2} />
-      <line x1={-dx} y1={-dy} x2={dx} y2={dy} />
-      <text y={-17}>{tr('N')}</text>
+      <circle r={r + 1} />
+      <line x1={-ux * r} y1={-uy * r} x2={ux * (r - 6)} y2={uy * (r - 6)} />
+      <polygon points={`${at(r)} ${at(r - 7, 4)} ${at(r - 7, -4)}`} />
+      <text y={-20}>{tr('N')}</text>
       <text x={21} y={1}>{tr('E')}</text>
-      <text y={20}>{tr('S')}</text>
+      <text y={21}>{tr('S')}</text>
       <text x={-21} y={1}>{tr('W')}</text>
     </svg>
   );
