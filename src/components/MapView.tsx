@@ -113,6 +113,19 @@ const WIDTH = 400;
 const HEIGHT = 400;
 
 
+type Fit = {scale: number; padX: number; padY: number; minX: number; minY: number};
+type Meters = {x: number; y: number; span: number};
+
+// a view (center and width in meters) in svg units and back, for the map fitted as given
+function viewFromMeters(m: Meters, f: Fit): View {
+  const size = m.span * f.scale;
+  return {x: (m.x - f.minX) * f.scale + f.padX - size / 2, y: HEIGHT - ((m.y - f.minY) * f.scale + f.padY) - size / 2, size};
+}
+
+function viewToMeters(v: View, f: Fit): Meters {
+  return {x: (v.x + v.size / 2 - f.padX) / f.scale + f.minX, y: (HEIGHT - v.y - v.size / 2 - f.padY) / f.scale + f.minY, span: v.size / f.scale};
+}
+
 export default function MapView({
   map,
   mower,
@@ -175,7 +188,9 @@ export default function MapView({
   const [finger, setFinger] = useState<{x: number; y: number; width: number} | null>(null);
   // tapped point, gets a delete button
   const [active, setActive] = useState<{areaId: string; index: number} | null>(null);
-  const [view, setView] = useState<View | null>(null);
+  // the user's zoom and pan, center and width in meters: a map that changes size (a point dragged past the edge,
+  // a new area drawn outside) rescales the drawing, but what's looked at stays put
+  const [viewMeters, setViewMeters] = useState<Meters | null>(null);
   const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
   // the view from the last visit, until zoomed, panned or reset. a spot to show wins over it
   const [restore, setRestore] = useState(() => (viewKey && !focus ? (savedViews.get(viewKey) ?? null) : null));
@@ -259,6 +274,21 @@ export default function MapView({
   // center whatever doesn't fill the square
   const padX = PADDING + (WIDTH - 2 * PADDING - (maxX - minX) * scale) / 2;
   const padY = PADDING + (HEIGHT - 2 * PADDING - (maxY - minY) * scale) / 2;
+
+  // the view between meters and svg units. setView may run from the wheel handler set up earlier, so it takes
+  // the fit from a ref the last render left
+  const drawn: Fit = {scale, padX, padY, minX, minY};
+  const fitRef = useRef(drawn);
+  useEffect(() => {
+    fitRef.current = {scale, padX, padY, minX, minY};
+  }, [scale, padX, padY, minX, minY]);
+  const view = viewMeters ? viewFromMeters(viewMeters, drawn) : null;
+  const setView = (next: View | null | ((prev: View | null) => View)) =>
+    setViewMeters((prev) => {
+      const f = fitRef.current;
+      const v = typeof next === 'function' ? next(prev ? viewFromMeters(prev, f) : null) : next;
+      return v ? viewToMeters(v, f) : null;
+    });
 
   // map y points north, svg y points down
   const toScreen = (x: number, y: number): [number, number] => [(x - minX) * scale + padX, HEIGHT - ((y - minY) * scale + padY)];
@@ -476,11 +506,8 @@ export default function MapView({
   }, [zoomable, following, svgEl]);
 
   useEffect(() => {
-    if (!viewKey || !view) return;
-    const cx = view.x + view.size / 2;
-    const cy = view.y + view.size / 2;
-    savedViews.set(viewKey, {x: (cx - padX) / scale + minX, y: (HEIGHT - cy - padY) / scale + minY, span: view.size / scale});
-  }, [viewKey, view, scale, padX, padY, minX, minY]);
+    if (viewKey && viewMeters) savedViews.set(viewKey, viewMeters);
+  }, [viewKey, viewMeters]);
 
   const startDrag = (e: React.PointerEvent<SVGSVGElement>, areaId: string, hit: {mid: boolean; index: number; x: number; y: number}) => {
     const at = {x: hit.x, y: hit.y};
