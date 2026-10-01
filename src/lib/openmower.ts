@@ -56,6 +56,7 @@ export const PARAM = {
   mowAngleOffsetIsAbsolute: '/mower_logic/mow_angle_offset_is_absolute',
   mowAngleIncrement: '/mower_logic/mow_angle_increment',
   outlineCount: '/mower_logic/outline_count',
+  dockingApproachDistance: '/mower_logic/docking_approach_distance',
 } as const;
 
 // where things are on a mower set up with openmower-cli today, only shown to explain things

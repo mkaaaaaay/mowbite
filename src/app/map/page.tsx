@@ -190,7 +190,8 @@ function MapEditor() {
   );
 
   // self crossing outlines, a dock off the drivable areas and the like, also in the preview of reducing points
-  const problems = useMemo(() => (shownMap ? checkMap(shownMap) : []), [shownMap]);
+  const approachDistance = numParam(params, PARAM.dockingApproachDistance);
+  const problems = useMemo(() => (shownMap ? checkMap(shownMap, approachDistance) : []), [shownMap, approachDistance]);
   const warnings = problems.filter((p) => p.level === 'warn').length;
   const problemSpots = problems.flatMap((p) => ('at' in p ? [p.at] : []));
 

@@ -6,7 +6,8 @@ import {containsPoint, shareInside} from './geometry';
 export type Problem =
   | {kind: 'crossing'; level: 'warn'; areaId: string; at: Point}
   | {kind: 'points'; level: 'warn'; areaId: string}
-  | {kind: 'dock'; level: 'warn'; dockId: string; at: Point}
+  // at: the approach point in front of the dock
+  | {kind: 'dock'; level: 'warn'; dockId: string; at: Point; distance: number}
   | {kind: 'outside'; level: 'hint'; areaId: string};
 
 const EPS = 1e-9;
@@ -65,7 +66,8 @@ function crossingOf(o: Point[]): Point | null {
 
 const usable = (a: MapArea) => a.properties.active !== false && (a.properties.type === 'mow' || a.properties.type === 'nav');
 
-export function checkMap(map: MowerMap): Problem[] {
+// approachDistance: docking_approach_distance of the mower (m), 1.5 is its default
+export function checkMap(map: MowerMap, approachDistance = 1.5): Problem[] {
   const problems: Problem[] = [];
   // drafts are ignored by the mower
   const areas = map.areas.filter((a) => a.properties.type !== 'draft');
@@ -81,10 +83,15 @@ export function checkMap(map: MowerMap): Problem[] {
       problems.push({kind: 'outside', level: 'hint', areaId: a.id});
     }
   }
-  // the mower can't drive to a dock outside the areas it may drive on
+  // to dock the mower plans its way to a point this far in front of the dock and drives the rest straight in
+  // without the map (DockingBehavior.cpp). the dock itself may lie outside, usually it does, that point may not
   for (const d of map.docking_stations ?? []) {
-    if (!drivable.some((a) => containsPoint(a.outline, d.position.x, d.position.y))) {
-      problems.push({kind: 'dock', level: 'warn', dockId: d.id, at: d.position});
+    const at = {
+      x: d.position.x - Math.cos(d.heading) * approachDistance,
+      y: d.position.y - Math.sin(d.heading) * approachDistance,
+    };
+    if (!drivable.some((a) => containsPoint(a.outline, at.x, at.y))) {
+      problems.push({kind: 'dock', level: 'warn', dockId: d.id, at, distance: approachDistance});
     }
   }
   return problems;

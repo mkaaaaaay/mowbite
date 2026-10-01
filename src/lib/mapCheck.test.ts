@@ -30,7 +30,11 @@ describe('selfCrossing', () => {
 
 describe('checkMap', () => {
   const lawn = area('lawn', 'mow', square(0, 0, 10));
-  const map = (areas: MapArea[], dock = {x: 1, y: 1}): MowerMap => ({areas, docking_stations: [{id: 'd', position: dock, heading: 0}]});
+  // docked facing west, the approach point is 1.5 m east of it
+  const map = (areas: MapArea[], dock = {x: 1, y: 1}, heading = Math.PI): MowerMap => ({
+    areas,
+    docking_stations: [{id: 'd', position: dock, heading}],
+  });
 
   it('is fine with a lawn, a bed in it and the dock on it', () => {
     expect(checkMap(map([lawn, area('bed', 'obstacle', square(2, 2, 2))]))).toEqual([]);
@@ -47,9 +51,18 @@ describe('checkMap', () => {
     expect(checkMap(map([lawn, area('far', 'obstacle', square(20, 20, 2))]))).toEqual([{kind: 'outside', level: 'hint', areaId: 'far'}]);
   });
 
-  it('warns about a dock outside the active areas, an inactive one doesn\'t count', () => {
-    expect(checkMap(map([lawn], {x: 15, y: 1})).map((p) => p.kind)).toEqual(['dock']);
+  it('takes a dock just outside the lawn, it docks from the approach point in front of it', () => {
+    expect(checkMap(map([lawn], {x: -0.5, y: 1}))).toEqual([]);
+  });
+
+  it('warns when the approach point is off the active areas, an inactive one doesn\'t count', () => {
+    const facingEast = checkMap(map([lawn], {x: 1, y: 1}, 0));
+    expect(facingEast).toEqual([{kind: 'dock', level: 'warn', dockId: 'd', at: {x: -0.5, y: expect.closeTo(1)}, distance: 1.5}]);
     expect(checkMap(map([area('lawn', 'mow', square(0, 0, 10), false)])).map((p) => p.kind)).toEqual(['dock']);
+  });
+
+  it('uses the approach distance of the mower', () => {
+    expect(checkMap(map([lawn], {x: -0.5, y: 1}), 0.3).map((p) => p.kind)).toEqual(['dock']);
   });
 
   it('leaves drafts alone', () => {

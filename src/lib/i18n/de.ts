@@ -309,7 +309,7 @@ const de: Record<string, string> = {
   "The mower didn't react to the start, still idle a minute later": "Der Mäher hat auf den Start nicht reagiert, eine Minute später noch im Leerlauf",
   "the outline crosses itself (red on the map). The mower may plan odd lanes or drive outside there, pull the points apart.": "der Umriss kreuzt sich selbst (rot auf der Karte). Der Mäher plant dort eventuell seltsame Bahnen oder fährt hinaus, zieh die Punkte auseinander.",
   "has fewer than 3 points, that's no area.": "hat weniger als 3 Punkte, das ist keine Fläche.",
-  "The docking station lies outside every active mowing and navigation area, the mower can't drive there to dock.": "Die Ladestation liegt außerhalb aller aktiven Mäh- und Navigationsflächen, der Mäher kann zum Andocken nicht dorthin fahren.",
+  "The point {m} m in front of the docking station, where the mower heads for before docking, lies outside every active mowing and navigation area (red on the map). It can't get there, docking fails.": "Der Punkt {m} m vor der Ladestation, den der Mäher vor dem Andocken anfährt, liegt außerhalb aller aktiven Mäh- und Navigationsflächen (rot auf der Karte). Dorthin kommt er nicht, das Andocken scheitert.",
   "lies outside every active mowing and navigation area and has no effect there.": "liegt außerhalb aller aktiven Mäh- und Navigationsflächen und wirkt dort nicht.",
   "a whole number from {min} to {max}": "eine ganze Zahl von {min} bis {max}",
   "from {min} to {max} m": "von {min} bis {max} m",

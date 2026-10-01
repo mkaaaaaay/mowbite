@@ -1,5 +1,5 @@
 import type {MowerMap} from '@/hooks/useMowerMap';
-import {tr} from '@/lib/i18n';
+import {fmt, tr} from '@/lib/i18n';
 import type {Problem} from '@/lib/mapCheck';
 import styles from './page.module.css';
 
@@ -10,7 +10,10 @@ function text(p: Problem): string {
     case 'points':
       return tr("has fewer than 3 points, that's no area.");
     case 'dock':
-      return tr("The docking station lies outside every active mowing and navigation area, the mower can't drive there to dock.");
+      return tr(
+        "The point {m} m in front of the docking station, where the mower heads for before docking, lies outside every active mowing and navigation area (red on the map). It can't get there, docking fails.",
+        {m: fmt(p.distance, 1)},
+      );
     case 'outside':
       return tr('lies outside every active mowing and navigation area and has no effect there.');
   }
