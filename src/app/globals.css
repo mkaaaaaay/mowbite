@@ -30,7 +30,7 @@
   }
 }
 
-/* dark: by the device's setting, or picked in the app (data-theme on <html>, see lib/theme) */
+/* dark: by the device's setting, or picked in the app (data-theme on <html>, see lib/theme). frost builds on it */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
     --background: #101114;
@@ -57,8 +57,9 @@
   }
 }
 
-:root[data-theme='dark'] {
-    --background: #101114;
+:root[data-theme='dark'],
+:root[data-theme='frost'] {
+  --background: #101114;
   --foreground: #f1f1f1;
   --card: rgba(255, 255, 255, 0.05);
   --card-border: rgba(255, 255, 255, 0.09);
@@ -134,6 +135,29 @@ body {
     radial-gradient(circle at 85% 0%, rgba(168, 85, 247, 0.08), transparent 50%),
     radial-gradient(circle at 50% 100%, rgba(76, 191, 114, 0.06), transparent 55%),
     repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.012) 0 2px, transparent 2px 4px);
+  background-attachment: fixed;
+  background-color: var(--background);
+}
+
+/* frost: dark, a bit lighter, with milky glass cards over stronger patches of colour */
+:root[data-theme='frost'] {
+  --background: #1a1c22;
+  --card: rgba(235, 240, 255, 0.12);
+  --card-border: rgba(255, 255, 255, 0.2);
+  --card-blur: blur(18px) saturate(160%);
+  --card-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 6px 24px rgba(0, 0, 0, 0.28);
+  --text-secondary: #a9abb2;
+  --bubble: #2a2d34;
+  --well: rgba(0, 0, 0, 0.16);
+  --nav-bg: rgba(52, 55, 64, 0.6);
+}
+
+:root[data-theme='frost'] body {
+  background-image:
+    radial-gradient(circle at 15% 10%, rgba(91, 157, 240, 0.26), transparent 45%),
+    radial-gradient(circle at 85% 0%, rgba(168, 85, 247, 0.2), transparent 50%),
+    radial-gradient(circle at 70% 70%, rgba(91, 157, 240, 0.1), transparent 45%),
+    radial-gradient(circle at 50% 100%, rgba(76, 191, 114, 0.18), transparent 55%);
   background-attachment: fixed;
   background-color: var(--background);
 }

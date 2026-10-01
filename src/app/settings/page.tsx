@@ -262,6 +262,7 @@ export default function SettingsPage() {
                 ['auto', tr('Automatic')],
                 ['light', tr('Light')],
                 ['dark', tr('Dark')],
+                ['frost', tr('Frosted glass')],
               ] as const
             ).map(([k, label]) => (
               <button key={k} className={theme === k ? styles.segmentOn : undefined} onClick={() => setThemeChoice(k)}>
