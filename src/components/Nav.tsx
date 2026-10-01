@@ -9,6 +9,7 @@ import {useEffect} from 'react';
 import styles from './Nav.module.css';
 import {tr, useLang} from '@/lib/i18n';
 import MowerSwitch from './MowerSwitch';
+import {useUnsavedMap} from '@/lib/unsavedMap';
 
 const ICONS = {
   dashboard: (
@@ -52,6 +53,7 @@ export default function Nav() {
   // the static export uses trailing slashes, /map/ has to match /map
   const pathname = usePathname().replace(/(.)\/$/, '$1');
   useLang();
+  const unsavedMap = useUnsavedMap();
   // nav is always mounted, so sensor history records no matter which page is open
   useEffect(() => {
     startSensorHistory();
@@ -72,6 +74,7 @@ export default function Nav() {
             {link.icon}
           </svg>
           <span>{tr(link.label)}</span>
+          {link.href === '/map' && unsavedMap && <i className={styles.unsaved} title={tr('Unsaved changes')} />}
         </Link>
       ))}
       <Link href="/settings" className={[styles.settings, pathname === '/settings' ? styles.active : ''].join(' ')}>

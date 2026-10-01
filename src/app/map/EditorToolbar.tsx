@@ -6,6 +6,7 @@ import styles from './page.module.css';
 // new area (only while nothing else is going on), undo and save
 export default function EditorToolbar({
   idle,
+  canUndo,
   unsaved,
   saving,
   saveLabel,
@@ -15,6 +16,8 @@ export default function EditorToolbar({
   onSave,
 }: {
   idle: boolean;
+  canUndo: boolean;
+  // changed from the mower's map
   unsaved: boolean;
   saving: boolean;
   saveLabel: string;
@@ -48,7 +51,7 @@ export default function EditorToolbar({
           <span className={styles.toolLabel}>{tr('Changes')}</span>
         </>
       )}
-      <button className={tool} onClick={onUndo} disabled={!unsaved}>
+      <button className={tool} onClick={onUndo} disabled={!canUndo}>
         <UndoIcon size={16} />
         {tr('Undo')}
       </button>

@@ -65,6 +65,22 @@
   filter: drop-shadow(0 0 4px color-mix(in srgb, var(--accent) 70%, transparent));
 }
 
+/* unsaved changes in the map editor */
+.nav a {
+  position: relative;
+}
+
+.unsaved {
+  position: absolute;
+  top: 3px;
+  left: calc(50% + 9px);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--warning);
+  box-shadow: 0 0 6px var(--warning);
+}
+
 .nav .logo,
 .mowerSwitch {
   display: none;
@@ -115,6 +131,13 @@
 
   .nav a > span {
     padding-bottom: 3px;
+  }
+
+  .unsaved {
+    top: 50%;
+    left: auto;
+    right: 14px;
+    translate: 0 -50%;
   }
 
   .settings {

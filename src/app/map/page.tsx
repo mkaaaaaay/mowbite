@@ -38,6 +38,9 @@ import {length} from '@/lib/planProgress';
 import {mowAroundHoles} from '@/lib/mowAround';
 import {saveFile} from '@/lib/saveFile';
 import {useAreaProperties} from '@/lib/areaProps';
+import {useKeptState} from '@/hooks/useKeptState';
+import {sameMap} from '@/lib/sameMap';
+import {setUnsavedMap} from '@/lib/unsavedMap';
 
 // useSearchParams needs a suspense boundary in a static export
 export default function MapPage() {
@@ -81,11 +84,16 @@ function MapEditor() {
   // extra rotation for the preview when the mower drives differently than calculated
   const [previewCorrection, setPreviewCorrection] = useState(0);
 
-  // shows the live map until the first edit, after that our own copy so updates don't overwrite edits
-  const [edited, setEdited] = useState<MowerMap | null>(null);
+  // shows the live map until the first edit, after that our own copy so updates don't overwrite edits.
+  // kept while the app runs, a look at another tab doesn't lose them
+  const [edited, setEdited] = useKeptState<MowerMap | null>('map:edited', null);
+  // the mower's map the edits started from, to notice when it gets changed somewhere else meanwhile
+  const [base, setBase] = useKeptState<MowerMap | null>('map:base', null);
   const map = edited ?? liveMap;
-  const setMap = (next: MowerMap | null | ((m: MowerMap | null) => MowerMap | null)) =>
+  const setMap = (next: MowerMap | null | ((m: MowerMap | null) => MowerMap | null)) => {
+    if (!edited) setBase(liveMap);
     setEdited((prev) => (typeof next === 'function' ? next(prev ?? liveMap) : next));
+  };
   const [selectedAreaId, setSelectedAreaId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -97,11 +105,31 @@ function MapEditor() {
   const [cutShape, setCutShape] = useState(false);
   // tolerance in cm while the simplify preview is open
   const [simplifyCm, setSimplifyCm] = useState<number | null>(null);
-  const [history, setHistory] = useState<MowerMap[]>([]);
+  const [history, setHistory] = useKeptState<MowerMap[]>('map:history', []);
   // delete needs a second click, id of the area that's armed
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   // outlines before the first reduce, so the slider can go back up
-  const [originals, setOriginals] = useState<Record<string, Point[]>>({});
+  const [originals, setOriginals] = useKeptState<Record<string, Point[]>>('map:originals', {});
+
+  // really changed, not just a field that got focus (that already makes an undo step)
+  const dirty = useMemo(() => !!edited && (!base || !sameMap(edited, base)), [edited, base]);
+  // the map on the mower isn't the one the edits started from: another app, device or a recording changed it.
+  // saving would put the edited copy in its place and that change would be gone
+  const external = useMemo(() => !!base && !!liveMap && !sameMap(base, liveMap), [base, liveMap]);
+  // back to the mower's map. keep: the outlines from before reducing points stay (only after a save, they
+  // still match then)
+  const dropEdits = (keep?: 'originals') => {
+    setEdited(null);
+    setBase(null);
+    setHistory([]);
+    if (keep !== 'originals') setOriginals({});
+  };
+  useEffect(() => setUnsavedMap(dirty), [dirty]);
+  // nothing of ours in the copy: follow the mower's map again
+  useEffect(() => {
+    if (external && !dirty) dropEdits();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- dropEdits only uses setters
+  }, [external, dirty]);
 
   // the area settings this mower keeps, mow_around changes the plan
   const areaProps = useAreaProperties();
@@ -568,8 +596,7 @@ function MapEditor() {
     try {
       if (backups && liveMap) await saveBackup(liveMap, 'before restoring', true);
       await saveMap(preview.map);
-      setEdited(null);
-      setHistory([]);
+      dropEdits();
       setSelectedAreaId(null);
       closePreview();
       void refreshBackups();
@@ -624,8 +651,7 @@ function MapEditor() {
       await saveMap(map);
       setNewSaved({areas: map.areas.filter((a) => NEW_AREA_SETTINGS.some((k) => a.properties[k] !== undefined)), before: liveMap});
       // back to the live map, it comes back from the mower with what was just saved
-      setEdited(null);
-      setHistory([]);
+      dropEdits('originals');
       void refreshBackups();
     } catch (e) {
       setSaveError(rpcErrorText(e));
@@ -726,9 +752,10 @@ function MapEditor() {
               {map && (
                 <EditorToolbar
                   idle={mode === 'idle'}
-                  unsaved={history.length > 0}
+                  canUndo={history.length > 0}
+                  unsaved={dirty}
                   saving={saving}
-                  saveLabel={saving ? tr('saving…') : saveWarning && !docked ? tr('Save anyway') : tr('Save map')}
+                  saveLabel={saving ? tr('saving…') : (external && dirty) || (saveWarning && !docked) ? tr('Save anyway') : tr('Save map')}
                   saveError={saveError ?? droppedNote}
                   onDraw={startDraw}
                   onUndo={undo}
@@ -736,6 +763,24 @@ function MapEditor() {
                 />
               )}
 
+
+              {external && dirty && (
+                <div className={styles.warning}>
+                  <p>
+                    {tr(
+                      'The map on the mower was changed since you started editing here (another app or device, or a recording). Saving puts your version in its place, that change would be lost.',
+                    )}
+                  </p>
+                  <a
+                    onClick={() => {
+                      dropEdits();
+                      setSelectedAreaId(null);
+                    }}
+                  >
+                    {tr('drop my changes and load it')}
+                  </a>
+                </div>
+              )}
 
               {saveWarning && !docked && (
                 <div className={styles.warning}>
