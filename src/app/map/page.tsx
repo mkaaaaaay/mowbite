@@ -36,6 +36,7 @@ import {closedRings} from '@/lib/rings';
 import {mowerPlan, type PlanRequest} from '@/lib/areaPlan';
 import {length} from '@/lib/planProgress';
 import {mowAroundHoles} from '@/lib/mowAround';
+import {saveFile} from '@/lib/saveFile';
 import {useAreaProperties} from '@/lib/areaProps';
 
 // useSearchParams needs a suspense boundary in a static export
@@ -585,11 +586,8 @@ function MapEditor() {
     if (!m) return;
     const t = new Date((b ? b.t : Date.now() / 1000) * 1000);
     const pad = (n: number) => String(n).padStart(2, '0');
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([JSON.stringify(closedRings(m), null, 2)], {type: 'application/json'}));
-    a.download = `mowbite-map-${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}-${pad(t.getHours())}${pad(t.getMinutes())}.json`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    const name = `mowbite-map-${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}-${pad(t.getHours())}${pad(t.getMinutes())}.json`;
+    await saveFile(name, JSON.stringify(closedRings(m), null, 2));
   };
 
   // an openmower that doesn't know the newer area settings drops them when saving, noticed once its map comes back
