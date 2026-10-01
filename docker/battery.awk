@@ -24,7 +24,9 @@ BEGIN {
   id = $2
   sub(/.*sensors\//, "", id)
   sub(/\/data$/, "", id)
-  val = substr($0, index($0, $3))
+  # the rest after time and topic. index($0, $3) found a "0" in the time already, a 0 read as a big number
+  val = $0
+  sub(/^[^ ]+ [^ ]+ /, "", val)
 
   if (id == "om_v_battery") volts = val + 0
   else if (id == "om_mow_motor_rpm") {
@@ -34,12 +36,27 @@ BEGIN {
     rpm_t = t
     # the blade time of the run, once a minute is enough
     if (run_t && t - saved > 60) save()
-  } else if (id == "om_charge_current" && val + 0 > 0.1 && !charging && volts) {
-    if (run_t) printf "run %d %d %.1f %.2f %.2f\n", run_t, t, blade_s / 60, run_v, volts >> OUT
-    close(OUT)
-    run_t = 0
-    charging = 1; charge_t = t; charge_v = volts
-    save()
+  } else if (id == "om_charge_current" && val + 0 > 0.1) {
+    no_current_t = 0
+    if (!charging && volts) {
+      if (run_t) printf "run %d %d %.1f %.2f %.2f\n", run_t, t, blade_s / 60, run_v, volts >> OUT
+      close(OUT)
+      run_t = 0
+      charging = 1; charge_t = t; charge_v = volts
+      save()
+    }
+  } else if (id == "om_charge_current" && charging) {
+    # off the charger before it said Done, e.g. a minute in the dock and off mowing again: after two minutes without
+    # current the charge ends and the run starts from when the current stopped. it waited for a Done before and lost
+    # the run
+    if (!no_current_t) no_current_t = t
+    else if (t - no_current_t > 120) {
+      printf "charge %d %d %.1f %.2f %.2f\n", charge_t, no_current_t, (no_current_t - charge_t) / 60, charge_v, volts >> OUT
+      close(OUT)
+      charging = 0
+      run_t = no_current_t; run_v = volts; blade_s = 0
+      save()
+    }
   } else if (id == "om_charge_state" && val == "Done" && charging) {
     printf "charge %d %d %.1f %.2f %.2f\n", charge_t, t, (t - charge_t) / 60, charge_v, volts >> OUT
     close(OUT)
