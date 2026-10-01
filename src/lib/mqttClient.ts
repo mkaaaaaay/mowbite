@@ -40,7 +40,14 @@ let client: MqttClient | null = null;
 
 export function getMqttClient(): MqttClient {
   if (!client) {
-    client = mqtt.connect(mqttUrl(), {reconnectPeriod: 2000});
+    client = mqtt.connect(mqttUrl(), {
+      reconnectPeriod: 2000,
+      // a dead wifi link shows up after ~15 s instead of ~90 s with the default of 60
+      keepalive: 10,
+      // nothing sent while offline is kept for later: a start or go home tapped then would go out on the
+      // next reconnect, maybe minutes later. rpc waits for the connection itself (lib/rpc.ts)
+      queueQoSZero: false,
+    });
   }
   return client;
 }

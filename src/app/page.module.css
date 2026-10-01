@@ -91,6 +91,18 @@
   --tone: var(--error);
 }
 
+/* offline or no fresh state: everything in the card is old, the line under the headline says since when */
+.stale .statusTop > :first-child,
+.stale .headline h2,
+.stale .facts {
+  opacity: 0.45;
+}
+
+.offline {
+  color: var(--warning);
+  font-weight: 600;
+}
+
 .statusTop {
   display: flex;
   align-items: center;

@@ -1,7 +1,7 @@
 'use client';
 
 import {getMqttClient, unprefix, withPrefix} from '@/lib/mqttClient';
-import {useEffect, useState} from 'react';
+import {useSyncExternalStore} from 'react';
 import {TOPIC} from '@/lib/openmower';
 
 export interface MowerState {
@@ -24,42 +24,66 @@ export interface MowerState {
   };
 }
 
-// cached so remounting doesn't flash "waiting"
-let cachedState: MowerState | null = null;
-
-export function useMowerState(): {state: MowerState | null; connected: boolean} {
-  const [state, setState] = useState<MowerState | null>(cachedState);
-  const [connected, setConnected] = useState(false);
-
-  useEffect(() => {
-    const c = getMqttClient();
-
-    const onConnect = () => {
-      setConnected(true);
-      c.subscribe(withPrefix(TOPIC.robotState));
-    };
-    const onClose = () => setConnected(false);
-    const onMessage = (topic: string, payload: Buffer) => {
-      if (unprefix(topic) !== TOPIC.robotState) return;
-      try {
-        cachedState = JSON.parse(payload.toString());
-        setState(cachedState);
-      } catch {
-        // ignore malformed payloads
-      }
-    };
-
-    c.on('connect', onConnect);
-    c.on('close', onClose);
-    c.on('message', onMessage);
-    if (c.connected) onConnect();
-
-    return () => {
-      c.off('connect', onConnect);
-      c.off('close', onClose);
-      c.off('message', onMessage);
-    };
-  }, []);
-
-  return {state, connected};
+export interface MowerLink {
+  // the last state that came, kept while the connection is gone
+  state: MowerState | null;
+  connected: boolean;
+  // connected, but no state for a while: ros stopped, or the wifi is gone and the socket hasn't noticed yet
+  stale: boolean;
+  // ms, when the last state came
+  lastAt: number;
 }
+
+// mower_logic sends its state once a second, this long without one means none is coming
+const STALE_MS = 5000;
+
+const NONE: MowerLink = {state: null, connected: false, stale: false, lastAt: 0};
+// one store for every page, so remounting doesn't flash "waiting" or "connection lost"
+let link = NONE;
+let started = false;
+const listeners = new Set<() => void>();
+
+function update(patch: Partial<MowerLink>) {
+  if ((Object.keys(patch) as (keyof MowerLink)[]).every((k) => link[k] === patch[k])) return;
+  link = {...link, ...patch};
+  listeners.forEach((l) => l());
+}
+
+function start() {
+  if (started) return;
+  started = true;
+  const c = getMqttClient();
+  const onConnect = () => {
+    update({connected: true});
+    c.subscribe(withPrefix(TOPIC.robotState));
+  };
+  c.on('connect', onConnect);
+  c.on('close', () => update({connected: false}));
+  c.on('message', (topic, payload) => {
+    if (unprefix(topic) !== TOPIC.robotState) return;
+    try {
+      update({state: JSON.parse(payload.toString()), lastAt: Date.now(), stale: false});
+    } catch {
+      // ignore malformed payloads
+    }
+  });
+  if (c.connected) onConnect();
+  setInterval(() => update({stale: !!link.state && Date.now() - link.lastAt > STALE_MS}), 1000);
+}
+
+function subscribe(listener: () => void) {
+  start();
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+export function useMowerState(): MowerLink {
+  return useSyncExternalStore(
+    subscribe,
+    () => link,
+    () => NONE,
+  );
+}
+
+// connected and the state is current: only then is what's shown real and a command goes out right away
+export const isLive = (l: MowerLink) => l.connected && !l.stale;

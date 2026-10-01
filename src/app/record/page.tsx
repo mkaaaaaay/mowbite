@@ -8,7 +8,7 @@ import {useMowerActions} from '@/hooks/useMowerActions';
 import {useMowerMap} from '@/hooks/useMowerMap';
 import {datumFromParams, useMowerParams} from '@/hooks/useMowerParams';
 import {useMowerPosition} from '@/hooks/useMowerPosition';
-import {useMowerState} from '@/hooks/useMowerState';
+import {isLive, useMowerState} from '@/hooks/useMowerState';
 import {sendDrive} from '@/lib/teleop';
 import Link from 'next/link';
 import {useEffect, useRef, useState} from 'react';
@@ -29,7 +29,9 @@ type Phase = 'off' | 'empty' | 'recording' | 'outlined' | 'dock';
 
 export default function RecordPage() {
   useLang();
-  const {state, connected} = useMowerState();
+  const link = useMowerState();
+  const {state, connected} = link;
+  const live = isLive(link);
   const {hasAction, publishAction} = useMowerActions();
   const map = useMowerMap();
   const params = useMowerParams();
@@ -71,7 +73,8 @@ export default function RecordPage() {
           ? 'outlined'
           : 'empty';
   const hasOutline = overlay.some((l) => l.closed && l.color === 'green');
-  const canDrive = recordingMode && connected && !state?.emergency;
+  // no fresh state also stops it: the wifi can be gone a while before the connection counts as lost
+  const canDrive = recordingMode && live && !state?.emergency;
 
   // stick position lives in a ref, the timer keeps sending it until the stick is let go
   const stick = useRef({x: 0, y: 0});
@@ -127,6 +130,7 @@ export default function RecordPage() {
       <button
         key={id}
         className={kind ? styles[kind] : undefined}
+        disabled={!live}
         onClick={() => {
           act(id);
           after?.();
@@ -194,7 +198,7 @@ export default function RecordPage() {
             </p>
             <button
               className={styles.main}
-              disabled={!hasAction(START)}
+              disabled={!live || !hasAction(START)}
               onClick={() => {
                 startedAt.current = Date.now();
                 setBounced(false);
@@ -226,6 +230,8 @@ export default function RecordPage() {
               <div className={styles.stick}>
                 {state?.emergency ? (
                   <p className={styles.warn}>{tr('Emergency stop is active, reset it on the dashboard before driving.')}</p>
+                ) : !live ? (
+                  <p className={styles.warn}>{tr('No connection to the mower, it stops by itself. Driving works again once the connection is back.')}</p>
                 ) : (
                   <Joystick size={140} onMove={(x, y) => canDrive && onStick(x, y)} />
                 )}

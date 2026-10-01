@@ -11,7 +11,7 @@ import {datumFromParams, useMowerParams} from '@/hooks/useMowerParams';
 import {sunTimes} from '@/lib/sun';
 import {useMowerSensors} from '@/hooks/useMowerSensors';
 import {useMowerPosition} from '@/hooks/useMowerPosition';
-import {useMowerState, type MowerState} from '@/hooks/useMowerState';
+import {isLive, useMowerState, type MowerState} from '@/hooks/useMowerState';
 import {useMowerTrack} from '@/hooks/useMowerTrack';
 import {usePlanProgress} from '@/hooks/usePlanProgress';
 import {useRecentRuns} from '@/hooks/useRecentRuns';
@@ -105,7 +105,10 @@ function LastRun({run}: {run: Run}) {
 
 export default function Home() {
   useLang();
-  const {state, connected} = useMowerState();
+  const link = useMowerState();
+  const {state, connected} = link;
+  // offline or no fresh state: what's shown is old and commands wouldn't arrive, so the buttons are off
+  const live = isLive(link);
   const {hasAction, publishAction} = useMowerActions();
   const {values} = useMowerSensors();
   const position = useMowerPosition() ?? state?.pose;
@@ -183,20 +186,26 @@ export default function Home() {
         {!state && <p className={styles.dim}>{connected ? tr('waiting for the mower…') : tr('connecting…')}</p>}
 
         {state && head && (
-          <section className={[styles.status, styles[`tone-${head.tone}`]].join(' ')}>
+          <section className={[styles.status, live ? styles[`tone-${head.tone}`] : styles.stale].join(' ')}>
             <div className={styles.statusTop}>
               <BatteryRing percent={battery} charging={charging} />
               <div className={styles.headline}>
                 <h2>{head.title}</h2>
-                <span className={styles.dim}>
-                  {state.emergency
-                    ? tr('Release the mower, then reset the emergency to drive again.')
-                    : since
-                      ? tr('since {time}', {time: clock(since)})
-                      : connected
-                        ? ''
-                        : tr('connection lost')}
-                </span>
+                {live ? (
+                  <span className={styles.dim}>
+                    {state.emergency
+                      ? tr('Release the mower, then reset the emergency to drive again.')
+                      : since
+                        ? tr('since {time}', {time: clock(since)})
+                        : ''}
+                  </span>
+                ) : (
+                  <span className={styles.offline}>
+                    {tr(connected ? 'No data from the mower since {time}' : 'Connection lost, last data at {time}', {
+                      time: clock(link.lastAt / 1000, true),
+                    })}
+                  </span>
+                )}
               </div>
             </div>
 
@@ -221,14 +230,15 @@ export default function Home() {
                   key={a.id}
                   className={a.main ? styles.main : undefined}
                   // the mower still offers start while the emergency stop is active, it has to be reset first
-                  disabled={!hasAction(a.id) || !!state.emergency}
+                  disabled={!live || !hasAction(a.id) || !!state.emergency}
                   onClick={() => publishAction(a.id)}
                 >
                   <a.Icon size={20} />
                   {tr(a.label)}
                 </button>
               ))}
-              {hasAction(ACTION.resetJob) &&
+              {live &&
+                hasAction(ACTION.resetJob) &&
                 !state.emergency &&
                 (confirmReset ? (
                   <div className={styles.resetJob}>
@@ -250,7 +260,7 @@ export default function Home() {
                   </button>
                 ))}
               {!!state.emergency && (
-                <button className={styles.reset} onClick={() => publishAction(ACTION_RESET_EMERGENCY)}>
+                <button className={styles.reset} disabled={!live} onClick={() => publishAction(ACTION_RESET_EMERGENCY)}>
                   <WarningIcon size={20} />
                   {tr('Reset emergency')}
                 </button>

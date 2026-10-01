@@ -67,25 +67,37 @@ export async function callRpc<T = unknown>(method: string, params: unknown[] | o
 function send<T>(method: string, params: unknown[] | object, timeoutMs: number): Promise<T> {
   ensureListening();
   const id = String(nextId++);
+  const c = getMqttClient();
 
   return new Promise<T>((resolve, reject) => {
+    const publish = () => c.publish(withPrefix(TOPIC.rpcRequest), JSON.stringify({jsonrpc: '2.0', method, params, id}));
+    // offline the call waits for the connection and is dropped when it times out, so a map save the app
+    // reported as failed can't happen later after all. subscribed again first, the answer could beat the
+    // subscription right after a reconnect
+    const onConnect = () => c.subscribe(withPrefix(TOPIC.rpcResponse), () => pending.has(id) && publish());
+    const done = () => {
+      clearTimeout(timer);
+      c.off('connect', onConnect);
+    };
     const timer = setTimeout(() => {
       pending.delete(id);
+      c.off('connect', onConnect);
       reject(new RpcError(method, 'timeout', `${method} timed out`));
     }, timeoutMs);
 
     pending.set(id, {
       method,
       resolve: (v) => {
-        clearTimeout(timer);
+        done();
         resolve(v as T);
       },
       reject: (e) => {
-        clearTimeout(timer);
+        done();
         reject(e);
       },
     });
 
-    getMqttClient().publish(withPrefix(TOPIC.rpcRequest), JSON.stringify({jsonrpc: '2.0', method, params, id}));
+    if (c.connected) publish();
+    else c.once('connect', onConnect);
   });
 }
