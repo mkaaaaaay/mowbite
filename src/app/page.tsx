@@ -25,7 +25,17 @@ import Link from 'next/link';
 import {useEffect, useState, useSyncExternalStore} from 'react';
 import styles from './page.module.css';
 import {fmt, tr, useLang} from '@/lib/i18n';
-import {cachedSchedule, loadSchedule, nextStart, type Schedule} from '@/lib/schedule';
+import {
+  cachedSchedule,
+  cachedScheduleLog,
+  loadSchedule,
+  loadScheduleLog,
+  missedStart,
+  nextStart,
+  SCHEDULE_LOG_TEXT,
+  type LogEntry,
+  type Schedule,
+} from '@/lib/schedule';
 import MowerSwitch from '@/components/MowerSwitch';
 import {UpdateBanner} from '@/components/Updates';
 import {ACTION, PARAM} from '@/lib/openmower';
@@ -36,6 +46,8 @@ const DRIVING = new Set(['MOWING', 'PAUSED', 'DOCKING', 'UNDOCKING']);
 const ACTION_RESET_EMERGENCY = ACTION.resetEmergency;
 // skipping an area drops what's left of it, so it goes out only after a few seconds and a second tap takes it back
 const SKIP_DELAY = 4;
+// the left out start that was closed, by its time
+const MISSED_SEEN_KEY = 'scheduleMissedSeen';
 const ACTIONS = [
   {id: ACTION.startMowing, Icon: PlayIcon, label: 'Start', main: true},
   {id: ACTION.pause, Icon: StopIcon, label: 'Pause'},
@@ -121,9 +133,25 @@ export default function Home() {
   const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
   const weather = useWeather(datumFromParams(params), !!settings.weather);
   const [schedule, setSchedule] = useState<Schedule | null>(() => cachedSchedule() ?? null);
+  // the scheduler's log, for a start it left out (rain, battery, ...). again every minute while the page is open
+  const [scheduleLog, setScheduleLog] = useState<LogEntry[]>(() => cachedScheduleLog() ?? []);
   useEffect(() => {
     void loadSchedule().then(setSchedule);
+    const loadLog = () => void loadScheduleLog().then(setScheduleLog);
+    loadLog();
+    const timer = setInterval(loadLog, 60000);
+    return () => clearInterval(timer);
   }, []);
+  // the left out start closed on this device, by its time
+  const [missedSeen, setMissedSeen] = useState(() => {
+    try {
+      return Number(localStorage.getItem(MISSED_SEEN_KEY)) || 0;
+    } catch {
+      return 0;
+    }
+  });
+  const missedAny = schedule?.enabled ? missedStart(scheduleLog) : null;
+  const missed = missedAny && missedAny.t !== missedSeen ? missedAny : null;
   const datum = datumFromParams(params);
   const planned = schedule ? nextStart(schedule, undefined, datum ? sunTimes(datum.lat, datum.lon) : null) : null;
   const [confirmReset, setConfirmReset] = useState(false);
@@ -348,6 +376,31 @@ export default function Home() {
                 <span>{problems === 1 ? tr('problem') : tr('problems')}</span>
               </div>
             </div>
+            {missed && (
+              <div className={styles.missed}>
+                <WarningIcon size={16} />
+                <Link href="/schedule">
+                  <strong>
+                    {dayKey(new Date(missed.t * 1000)) === dayKey(new Date())
+                      ? tr('Scheduled start at {time}', {time: clock(missed.t)})
+                      : tr('Scheduled start yesterday at {time}', {time: clock(missed.t)})}
+                  </strong>
+                  <span>{tr(SCHEDULE_LOG_TEXT[missed.what] ?? missed.what, {detail: missed.detail ?? ''})}</span>
+                </Link>
+                <button
+                  title={tr('Close')}
+                  aria-label={tr('Close')}
+                  onClick={() => {
+                    setMissedSeen(missed.t);
+                    try {
+                      localStorage.setItem(MISSED_SEEN_KEY, String(missed.t));
+                    } catch {}
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            )}
             {planned && (
               <Link href="/schedule" className={styles.nextRun}>
                 {tr('Next start: {when}', {when: `${dayLabel(planned)}, ${clock(planned.getTime() / 1000)}`})}

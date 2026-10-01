@@ -124,6 +124,52 @@ export interface LogEntry {
   detail?: string;
 }
 
+// what the scheduler writes to its log, in words (translated where it's shown)
+export const SCHEDULE_LOG_TEXT: Record<string, string> = {
+  started: 'Started',
+  start_failed: "The mower didn't react to the start, still idle a minute later",
+  waiting_battery: 'Waiting for the battery ({detail} %)',
+  skip_battery: 'Not started, battery only at {detail} % after two hours',
+  skip_rain: "Not started, the mower's rain sensor was wet",
+  skip_forecast: 'Not started, rain was forecast',
+  skip_busy: 'Not started, the mower was busy ({detail})',
+  skip_emergency: 'Not started, emergency stop was active',
+  skip_offline: "Not started, the mower wasn't reachable",
+  skip_dark: "Not started, it's dark (hedgehogs)",
+  stopped_end: 'Sent home, end time reached',
+  stopped_dark: 'Sent home at sunset (hedgehogs)',
+  stopped_again: 'Sent home again, it carried on by itself after charging',
+  skip_paused: 'Not started, paused for today',
+  skip_end: 'Not started, the end time came before the battery was charged',
+  paused_area: 'Skipped an area paused for today',
+  skipped_area: "Skipped an area that wasn't picked",
+  unknown_area: "An area the map doesn't have (an older job?), left it alone",
+};
+
+// how a start the schedule tried ended: started, or why not
+const START_OUTCOMES = new Set([
+  'started',
+  'start_failed',
+  'skip_battery',
+  'skip_rain',
+  'skip_forecast',
+  'skip_busy',
+  'skip_emergency',
+  'skip_offline',
+  'skip_dark',
+  'skip_paused',
+  'skip_end',
+]);
+
+// The last start the schedule tried, when it didn't come off and it's less than 12 hours ago. A pause for the day
+// was asked for, and busy means it was out already, neither is worth a word.
+export function missedStart(log: LogEntry[], now = Date.now() / 1000): LogEntry | null {
+  let last: LogEntry | null = null;
+  for (const l of log) if (START_OUTCOMES.has(l.what) && (!last || l.t > last.t)) last = l;
+  if (!last || now - last.t > 12 * 3600) return null;
+  return ['started', 'skip_paused', 'skip_busy'].includes(last.what) ? null : last;
+}
+
 export function loadScheduleLog(): Promise<LogEntry[]> {
   return fresh('schedule-log', loadLog);
 }

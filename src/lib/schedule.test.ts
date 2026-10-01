@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {isNightTime, nextStart, parseSchedule, posixTz, serializeSchedule, type Schedule} from './schedule';
+import {isNightTime, missedStart, nextStart, parseSchedule, posixTz, serializeSchedule, type Schedule} from './schedule';
 
 // the dates below are local times, so the same zone everywhere (github runs in UTC)
 process.env.TZ = 'Europe/Berlin';
@@ -139,5 +139,32 @@ describe('nextStart and a pause', () => {
   it('still starts when only some areas are paused', () => {
     const s = {...schedule([plan([1], '10:00')]), pause: {until: '2026-09-29', areas: ['a']}};
     expect(nextStart(s, monday8)).toEqual(new Date(2026, 8, 28, 10, 0));
+  });
+});
+
+describe('missedStart', () => {
+  const now = 1_790_890_000;
+  it('the last try when it was left out', () => {
+    const log = [
+      {t: now - 600, what: 'skip_forecast'},
+      {t: now - 3600, what: 'started', detail: '100'},
+    ];
+    expect(missedStart(log, now)?.what).toBe('skip_forecast');
+  });
+  it('nothing when the last one started', () => {
+    const log = [
+      {t: now - 600, what: 'started'},
+      {t: now - 3600, what: 'skip_rain'},
+      {t: now - 300, what: 'skipped_area'},
+    ];
+    expect(missedStart(log, now)).toBeNull();
+  });
+  it('nothing after 12 hours, for a pause or when it was out already', () => {
+    expect(missedStart([{t: now - 13 * 3600, what: 'skip_battery'}], now)).toBeNull();
+    expect(missedStart([{t: now - 60, what: 'skip_paused'}], now)).toBeNull();
+    expect(missedStart([{t: now - 60, what: 'skip_busy', detail: 'MOWING'}], now)).toBeNull();
+  });
+  it('a start the mower ignored counts', () => {
+    expect(missedStart([{t: now - 60, what: 'start_failed'}], now)?.what).toBe('start_failed');
   });
 });

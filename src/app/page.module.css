@@ -449,6 +449,45 @@
   color: var(--accent);
 }
 
+/* a start the schedule left out, with why, until it's closed */
+.missed {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
+  color: var(--warning);
+  font-size: 13px;
+}
+
+.missed svg {
+  flex: none;
+  margin-top: 1px;
+}
+
+.missed a {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--foreground);
+}
+
+.missed a span {
+  color: var(--text-secondary);
+}
+
+.missed button {
+  margin-left: auto;
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: none;
+}
+
 /* on phones, the sidebar has its own */
 .mowerSwitch {
   justify-self: start;

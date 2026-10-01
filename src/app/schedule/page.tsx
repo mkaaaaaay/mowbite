@@ -20,32 +20,11 @@ import {
   saveSchedule,
   type LogEntry,
   type Schedule,
+  SCHEDULE_LOG_TEXT,
 } from '@/lib/schedule';
 import {useEffect, useState} from 'react';
 import styles from './page.module.css';
 import {useMowerMap} from '@/hooks/useMowerMap';
-
-const LOG_TEXT: Record<string, string> = {
-  started: 'Started',
-  start_failed: "The mower didn't react to the start, still idle a minute later",
-  waiting_battery: 'Waiting for the battery ({detail} %)',
-  skip_battery: 'Not started, battery only at {detail} % after two hours',
-  skip_rain: "Not started, the mower's rain sensor was wet",
-  skip_forecast: 'Not started, rain was forecast',
-  skip_busy: 'Not started, the mower was busy ({detail})',
-  skip_emergency: 'Not started, emergency stop was active',
-  skip_offline: "Not started, the mower wasn't reachable",
-  skip_dark: "Not started, it's dark (hedgehogs)",
-  stopped_end: 'Sent home, end time reached',
-  stopped_dark: 'Sent home at sunset (hedgehogs)',
-  stopped_again: 'Sent home again, it carried on by itself after charging',
-  skip_paused: 'Not started, paused for today',
-  skip_end: 'Not started, the end time came before the battery was charged',
-  paused_area: 'Skipped an area paused for today',
-  skipped_area: "Skipped an area that wasn't picked",
-  unknown_area: "An area the map doesn't have (an older job?), left it alone",
-};
-
 
 export default function SchedulePage() {
   useLang();
@@ -199,7 +178,7 @@ export default function SchedulePage() {
                     <span className={styles.dim}>
                       {dayLabel(new Date(l.t * 1000))}, {clock(l.t)}
                     </span>
-                    {tr(LOG_TEXT[l.what] ?? l.what, {detail: l.detail ?? ''})}
+                    {tr(SCHEDULE_LOG_TEXT[l.what] ?? l.what, {detail: l.detail ?? ''})}
                   </li>
                 ))}
               </ul>

@@ -460,6 +460,8 @@ const de: Record<string, string> = {
   "Saved on this device only.": "Nur auf diesem Gerät gespeichert.",
   "saving…": "speichere…",
   "Schedule": "Zeitplan",
+  "Scheduled start at {time}": "Geplanter Start um {time}",
+  "Scheduled start yesterday at {time}": "Geplanter Start gestern um {time}",
   "Selected area": "Ausgewählte Fläche",
   "Sensors": "Sensoren",
   "Set point here": "Punkt hier setzen",
