@@ -99,8 +99,9 @@ export const MOWER_ICONS: MowerIcon[] = [
     key: 'gardener',
     label: 'Gardener',
     side: true,
+    // the middle of the push mower sits on the mower's position, the man walks behind it
     draw: ({speed = 0, emergency = false} = {}) => (
-      <>
+      <g transform="scale(0.8) translate(-0.65 -0.46)">
         {/* a cordless push mower: grass box, rounded hood with the battery on top, big rear wheels */}
         <path d="M0.1,0.2 L0.34,0.24 L0.36,0.52 L0.14,0.52 Q0.08,0.36 0.1,0.2 Z" fill="#546e7a" />
         <path d="M0.14,0.3 L0.33,0.32 M0.13,0.4 L0.34,0.42" stroke="#78909c" strokeWidth={0.03} />
@@ -163,7 +164,7 @@ export const MOWER_ICONS: MowerIcon[] = [
             </g>
           </>
         )}
-      </>
+      </g>
     ),
   },
   {
