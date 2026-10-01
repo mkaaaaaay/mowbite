@@ -521,10 +521,12 @@ function MapEditor() {
   const applyMerge = () => {
     if (!map || !selectedArea || !mergeWith || !merged) return;
     const area = {...selectedArea, id: generateId(), outline: merged.outline};
+    // in the place of the first of the two, the order in map.json is the mowing order
+    const first = map.areas.find((a) => a.id === selectedArea.id || a.id === mergeWith.id)!;
     remember();
     setMap({
       ...map,
-      areas: [...map.areas.filter((a) => a.id !== selectedArea.id && a.id !== mergeWith.id), area],
+      areas: map.areas.flatMap((a) => (a === first ? [area] : a.id === selectedArea.id || a.id === mergeWith.id ? [] : [a])),
     });
     setSelectedAreaId(area.id);
     cancelPicking();
