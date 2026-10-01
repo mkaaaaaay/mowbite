@@ -42,6 +42,7 @@ import {useKeptState} from '@/hooks/useKeptState';
 import {sameMap} from '@/lib/sameMap';
 import {setUnsavedMap} from '@/lib/unsavedMap';
 import {checkMap} from '@/lib/mapCheck';
+import {mergeMaps} from '@/lib/mergeMap';
 import Problems from './Problems';
 
 // useSearchParams needs a suspense boundary in a static export
@@ -124,7 +125,23 @@ function MapEditor() {
     setEdited(null);
     setBase(null);
     setHistory([]);
+    setMergeNote(null);
     if (keep !== 'originals') setOriginals({});
+  };
+  // what got changed here put together with the change on the mower, see lib/mergeMap. areas both changed keep the
+  // version from here, the note names them
+  const [mergeNote, setMergeNote] = useState<string | null>(null);
+  const mergeExternal = () => {
+    if (!edited || !base || !liveMap) return;
+    const {map: merged, conflicts} = mergeMaps(base, edited, liveMap);
+    remember();
+    setEdited(merged);
+    setBase(liveMap);
+    const name = (id: string) =>
+      merged.docking_stations.some((d) => d.id === id)
+        ? tr('Docking station')
+        : merged.areas.find((a) => a.id === id)?.properties.name || tr('unnamed');
+    setMergeNote(conflicts.length ? tr('Changed on both sides: {names}. Your version is kept there.', {names: conflicts.map(name).join(', ')}) : null);
   };
   useEffect(() => setUnsavedMap(dirty), [dirty]);
   // nothing of ours in the copy: follow the mower's map again
@@ -792,6 +809,7 @@ function MapEditor() {
                     {/* the save backs up the mower's map first when backups work */}
                     {backups ? tr('That change is then only in the backups.') : tr('That change would be lost.')}
                   </p>
+                  <a onClick={mergeExternal}>{tr('put both together (what only one side changed is kept)')}</a>
                   <a
                     onClick={() => {
                       dropEdits();
@@ -802,6 +820,8 @@ function MapEditor() {
                   </a>
                 </div>
               )}
+
+              {mergeNote && dirty && <p className={styles.warning}>{mergeNote}</p>}
 
               {saveWarning && !docked && (
                 <div className={styles.warning}>

@@ -306,6 +306,8 @@ const de: Record<string, string> = {
   "no area": "keine Fläche",
   "No backups yet.": "Noch keine Sicherungen.",
   "no contact with the charger": "kein Kontakt zur Ladestation",
+  "put both together (what only one side changed is kept)": "beides zusammenführen (was nur eine Seite geändert hat, bleibt erhalten)",
+  "Changed on both sides: {names}. Your version is kept there.": "Auf beiden Seiten geändert: {names}. Dort gilt deine Version.",
   "Undo ({n} s)": "Rückgängig ({n} s)",
   "RTK fix": "RTK-Fix",
   "float": "Float",
