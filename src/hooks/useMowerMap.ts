@@ -20,6 +20,8 @@ export interface MapArea {
     // drivable but left out when mowing, needs an openmower that knows it (older ones drop it when saving)
     // false: drivable but not mowed, like a navigation area
     mowable?: boolean;
+    // with mowable false: the mowing areas it lies in plan around it instead of across, needs an openmower that knows it
+    mow_around?: boolean;
     // per area overrides, missing = the mower's global setting
     outline_count?: number;
     outline_overlap_count?: number;

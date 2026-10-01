@@ -42,8 +42,11 @@ export default function AreaCard({
   const outerMows = enclosing?.properties.type === 'mow' && enclosing.properties.mowable !== false;
   const inactive = area.properties.active === false;
   const skipped = inactive || type === 'nav' || area.properties.mowable === false;
+  // a mower that knows mow_around also keeps the blade off over a don't mow area, nothing to warn about then
+  const bladeOff = supported.has('mow_around') && type === 'mow' && !inactive && area.properties.mowable === false;
   const nested =
     outer &&
+    !bladeOff &&
     (outerMows && skipped
       ? tr('Lies inside "{name}", so it gets mowed and driven on anyway.', outer)
       : outerMows
@@ -92,6 +95,21 @@ export default function AreaCard({
             {tr("don't mow")}
             <InfoTip>
               {tr('Not mowed, but the mower may drive across it (unlike inactive).')}
+            </InfoTip>
+          </label>
+        )}
+        {type === 'mow' && area.properties.active !== false && area.properties.mowable === false && supported.has('mow_around') && (
+          <label className={styles.toggle}>
+            <input
+              type="checkbox"
+              checked={area.properties.mow_around === true}
+              onChange={() => update({mow_around: area.properties.mow_around ? undefined : true})}
+            />
+            {tr('mow around it')}
+            <InfoTip>
+              {tr(
+                'The mowing areas it lies in end their lanes at its edge and go around it once. Otherwise the lanes go across it with the blade off. It stays drivable either way.',
+              )}
             </InfoTip>
           </label>
         )}

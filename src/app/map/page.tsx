@@ -35,6 +35,8 @@ import {rpcErrorText} from '@/lib/rpcText';
 import {closedRings} from '@/lib/rings';
 import {mowerPlan, type PlanRequest} from '@/lib/areaPlan';
 import {length} from '@/lib/planProgress';
+import {mowAroundHoles} from '@/lib/mowAround';
+import {useAreaProperties} from '@/lib/areaProps';
 
 // useSearchParams needs a suspense boundary in a static export
 export default function MapPage() {
@@ -100,6 +102,8 @@ function MapEditor() {
   // outlines before the first reduce, so the slider can go back up
   const [originals, setOriginals] = useState<Record<string, Point[]>>({});
 
+  // the area settings this mower keeps, mow_around changes the plan
+  const areaProps = useAreaProperties();
   const selectedArea = map?.areas.find((a) => a.id === selectedAreaId) ?? null;
   // an active mowing or navigation area the selected one mostly lies in, the mower drives and mows that as a
   // whole, whatever is set on the smaller one. the innermost one when areas are nested deeper
@@ -238,9 +242,12 @@ function MapEditor() {
     const p = shownArea.properties;
     const req: PlanRequest = {
       outline: shownArea.outline,
-      obstacles: shownMap.areas
-        .filter((a) => a.properties.type === 'obstacle' && a.properties.active !== false && a.outline.length > 2)
-        .map((a) => a.outline),
+      obstacles: [
+        ...shownMap.areas
+          .filter((a) => a.properties.type === 'obstacle' && a.properties.active !== false && a.outline.length > 2)
+          .map((a) => a.outline),
+        ...(areaProps.has('mow_around') ? mowAroundHoles(shownArea, shownMap.areas) : []),
+      ],
     };
     if (p.angle !== undefined) req.angle = p.angle;
     if (p.outline_count !== undefined) req.outline_count = p.outline_count;
@@ -251,7 +258,7 @@ function MapEditor() {
       req.angle_max = p.angle_max;
     }
     return req;
-  }, [stripesOn, planned, shownArea, shownMap]);
+  }, [stripesOn, planned, shownArea, shownMap, areaProps]);
   const planKey = planRequest ? JSON.stringify(planRequest) : '';
   const [fromMower, setFromMower] = useState<{areaId: string | null; plan: MowPlan | null} | null>(null);
   // not while a point is dragged, a new plan redrawn mid-drag makes it stutter
@@ -283,9 +290,12 @@ function MapEditor() {
   const plan = useMemo((): MowPlan | undefined => {
     if (realPlan) return realPlan;
     if (!wantPlan || !shownMap || !shownArea || !toolWidth) return undefined;
-    const holes = shownMap.areas
-      .filter((a) => a.properties.type === 'obstacle' && a.properties.active !== false && a.outline.length > 2)
-      .map((a) => a.outline);
+    const holes = [
+      ...shownMap.areas
+        .filter((a) => a.properties.type === 'obstacle' && a.properties.active !== false && a.outline.length > 2)
+        .map((a) => a.outline),
+      ...(areaProps.has('mow_around') ? mowAroundHoles(shownArea, shownMap.areas) : []),
+    ];
     const p = shownArea.properties;
     const global = (key: string) => numParam(params, PARAM.mowerLogic(key));
     return mowPlan({
@@ -297,7 +307,7 @@ function MapEditor() {
       toolWidth,
       angle: effectiveAngle,
     });
-  }, [realPlan, wantPlan, shownMap, shownArea, toolWidth, params, effectiveAngle]);
+  }, [realPlan, wantPlan, shownMap, shownArea, toolWidth, params, effectiveAngle, areaProps]);
 
   // the mower's own plan comes already joined up, the estimate gets its zigzags here
   const stripes = useMemo(
