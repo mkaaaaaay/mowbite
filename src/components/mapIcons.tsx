@@ -11,10 +11,13 @@ const mouth = (deg: number) => {
   return `M0,0 L${x},${y} A1,1 0 1,1 ${x},${-y} Z`;
 };
 
-// a leg from the hip at 0,0 in black trousers and a brown shoe, swinging while the mower drives, one step cycle per
-// half metre
-const stepDur = (speed: number) => Math.min(2, Math.max(0.4, 0.5 / speed));
-const leg = (from: number, speed: number) => (
+// strokes in the icon's own units, the map and the settings draw lines non-scaling
+const SCALING = {vectorEffect: 'none'} as const;
+
+// a leg from the hip at 0,0, black trousers and a brown shoe unless told otherwise, swinging while the mower drives,
+// one step cycle per half metre
+export const stepDur = (speed: number) => Math.min(2, Math.max(0.4, 0.5 / speed));
+export const leg = (from: number, speed: number, trousers = '#141414', shoe = '#5d4037') => (
   <g transform={`rotate(${from / 4})`}>
     {speed > 0.08 && (
       <animateTransform
@@ -25,8 +28,8 @@ const leg = (from: number, speed: number) => (
         repeatCount="indefinite"
       />
     )}
-    <path d="M-0.065,0 L0.065,0 L0.07,0.64 L-0.07,0.64 Z" fill="#141414" />
-    <path d="M-0.075,0.62 L0.1,0.63 Q0.21,0.65 0.2,0.76 L-0.075,0.76 Z" fill="#5d4037" />
+    <path d="M-0.065,0 L0.065,0 L0.07,0.64 L-0.07,0.64 Z" fill={trousers} />
+    <path d="M-0.075,0.62 L0.1,0.63 Q0.21,0.65 0.2,0.76 L-0.075,0.76 Z" fill={shoe} />
   </g>
 );
 
@@ -48,11 +51,35 @@ const pushWheel = (cx: number, cy: number, r: number, speed: number) => (
         d={`M${cx - r * 0.8},${cy} L${cx + r * 0.8},${cy} M${cx},${cy - r * 0.8} L${cx},${cy + r * 0.8}`}
         stroke="#757575"
         strokeWidth={0.035}
-        style={{vectorEffect: 'none'}}
+        style={SCALING}
       />
     </g>
     <circle cx={cx} cy={cy} r={r * 0.42} fill="#9e9e9e" />
   </g>
+);
+
+// a cordless push mower: grass box, rounded hood with the battery on top, big rear wheels. the handle ends at about
+// -0.08,-0.2, the deck runs from 0.28 to 1.04, the wheels stand on 0.88
+export const pushMower = (speed: number, hood = 'var(--c-mower)') => (
+  <>
+    <path d="M0.1,0.2 L0.34,0.24 L0.36,0.52 L0.14,0.52 Q0.08,0.36 0.1,0.2 Z" fill="#546e7a" />
+    <path d="M0.14,0.3 L0.33,0.32 M0.13,0.4 L0.34,0.42" stroke="#78909c" strokeWidth={0.03} style={SCALING} />
+    <path d="M-0.12,-0.14 L-0.02,-0.18 Q0.16,0.1 0.42,0.4 L0.34,0.44 Q0.06,0.14 -0.12,-0.14 Z" fill="#37474f" />
+    <path d="M-0.16,-0.2 L0.0,-0.24 L0.02,-0.16 L-0.14,-0.12 Z" fill="#212121" />
+    <path
+      d="M0.3,0.62 L0.3,0.44 Q0.36,0.28 0.62,0.27 Q0.92,0.27 1.0,0.46 L1.02,0.62 Z"
+      fill={hood}
+      stroke="#fff"
+      strokeWidth={0.05}
+      style={SCALING}
+    />
+    <path d="M0.4,0.42 Q0.62,0.34 0.94,0.46" stroke="#fff" strokeOpacity={0.5} strokeWidth={0.04} fill="none" style={SCALING} />
+    <rect x={0.52} y={0.2} width={0.22} height={0.09} rx={0.03} fill="#212121" />
+    <circle cx={0.69} cy={0.245} r={0.018} fill="#76ff03" />
+    <rect x={0.28} y={0.58} width={0.76} height={0.08} rx={0.03} fill="#263238" />
+    {pushWheel(0.38, 0.72, 0.16, speed)}
+    {pushWheel(0.92, 0.75, 0.12, speed)}
+  </>
 );
 
 // cut grass flying from under the deck into the grass box while the blade runs
@@ -111,9 +138,6 @@ const CLIPPINGS = [
     <animate attributeName="opacity" values="0;1;0" dur="1s" begin={`${g.d}s`} repeatCount="indefinite" />
   </circle>
 ));
-
-// strokes in the icon's own units, the map and the settings draw lines non-scaling
-const SCALING = {vectorEffect: 'none'} as const;
 
 export const MOWER_ICONS: MowerIcon[] = [
   {
@@ -187,24 +211,7 @@ export const MOWER_ICONS: MowerIcon[] = [
       const walking = speed > 0.08;
       return (
         <g transform="scale(0.8) translate(-0.65 -0.46)">
-          {/* a cordless push mower: grass box, rounded hood with the battery on top, big rear wheels */}
-          <path d="M0.1,0.2 L0.34,0.24 L0.36,0.52 L0.14,0.52 Q0.08,0.36 0.1,0.2 Z" fill="#546e7a" />
-          <path d="M0.14,0.3 L0.33,0.32 M0.13,0.4 L0.34,0.42" stroke="#78909c" strokeWidth={0.03} style={SCALING} />
-          <path d="M-0.12,-0.14 L-0.02,-0.18 Q0.16,0.1 0.42,0.4 L0.34,0.44 Q0.06,0.14 -0.12,-0.14 Z" fill="#37474f" />
-          <path d="M-0.16,-0.2 L0.0,-0.24 L0.02,-0.16 L-0.14,-0.12 Z" fill="#212121" />
-          <path
-            d="M0.3,0.62 L0.3,0.44 Q0.36,0.28 0.62,0.27 Q0.92,0.27 1.0,0.46 L1.02,0.62 Z"
-            fill="var(--c-mower)"
-            stroke="#fff"
-            strokeWidth={0.05}
-            style={SCALING}
-          />
-          <path d="M0.4,0.42 Q0.62,0.34 0.94,0.46" stroke="#fff" strokeOpacity={0.5} strokeWidth={0.04} fill="none" style={SCALING} />
-          <rect x={0.52} y={0.2} width={0.22} height={0.09} rx={0.03} fill="#212121" />
-          <circle cx={0.69} cy={0.245} r={0.018} fill="#76ff03" />
-          <rect x={0.28} y={0.58} width={0.76} height={0.08} rx={0.03} fill="#263238" />
-          {pushWheel(0.38, 0.72, 0.16, emergency ? 0 : speed)}
-          {pushWheel(0.92, 0.75, 0.12, emergency ? 0 : speed)}
+          {pushMower(emergency ? 0 : speed)}
           {blades && walking && !emergency && BOX_CLIPPINGS}
           {emergency ? (
             // emergency stop: he lies next to it, holding his knee and rocking with the pain

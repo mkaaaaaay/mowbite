@@ -304,7 +304,7 @@ export default function SettingsPage() {
               checked={settings.leaves !== false}
               onChange={(e) => saveSettings({...settingsStore.snapshot(), leaves: e.target.checked})}
             />
-            {tr('Falling leaves in autumn')}
+            {tr('Falling leaves in autumn, snow in winter')}
           </label>
           <label className={styles.check}>
             <input type="checkbox" checked={swipe} onChange={(e) => setSwipeEnabled(e.target.checked)} />

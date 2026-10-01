@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {isAutumn, sunTimes} from './sun';
+import {seasonOf, sunTimes} from './sun';
 
 process.env.TZ = 'Europe/Berlin';
 
@@ -28,17 +28,22 @@ describe('sunTimes', () => {
   });
 });
 
-describe('isAutumn', () => {
-  it('september to november in the north', () => {
-    expect(isAutumn(52.4, new Date(2026, 9, 1))).toBe(true);
-    expect(isAutumn(52.4, new Date(2026, 3, 15))).toBe(false);
+describe('seasonOf', () => {
+  it('in the north', () => {
+    expect(seasonOf(52.4, new Date(2026, 9, 1))).toBe('autumn');
+    expect(seasonOf(52.4, new Date(2026, 11, 1))).toBe('winter');
+    expect(seasonOf(52.4, new Date(2027, 1, 28))).toBe('winter');
+    expect(seasonOf(52.4, new Date(2026, 2, 1))).toBe('spring');
+    expect(seasonOf(52.4, new Date(2026, 6, 15))).toBe('summer');
   });
-  it('march to may in the south', () => {
-    expect(isAutumn(-33.9, new Date(2026, 3, 15))).toBe(true);
-    expect(isAutumn(-33.9, new Date(2026, 9, 1))).toBe(false);
+  it('the other way round in the south', () => {
+    expect(seasonOf(-33.9, new Date(2026, 3, 15))).toBe('autumn');
+    expect(seasonOf(-33.9, new Date(2026, 6, 15))).toBe('winter');
+    expect(seasonOf(-33.9, new Date(2026, 9, 1))).toBe('spring');
+    expect(seasonOf(-33.9, new Date(2026, 0, 1))).toBe('summer');
   });
   it('the north without a position', () => {
-    expect(isAutumn(undefined, new Date(2026, 10, 30))).toBe(true);
-    expect(isAutumn(undefined, new Date(2026, 11, 1))).toBe(false);
+    expect(seasonOf(undefined, new Date(2026, 10, 30))).toBe('autumn');
+    expect(seasonOf(undefined, new Date(2026, 11, 1))).toBe('winter');
   });
 });

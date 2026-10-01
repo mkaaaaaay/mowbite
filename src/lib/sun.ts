@@ -55,8 +55,11 @@ export function sunTimes(lat: number, lon: number, date = new Date()): SunTimes 
   return {rise: clock(noon - 4 * hourAngle + offset), set: clock(noon + 4 * hourAngle + offset)};
 }
 
-// autumn as weather services count it: september to november, south of the equator march to may. without a position
-// the north
-export function isAutumn(lat?: number, date = new Date()): boolean {
-  return (lat !== undefined && lat < 0 ? [2, 3, 4] : [8, 9, 10]).includes(date.getMonth());
+export type Season = 'spring' | 'summer' | 'autumn' | 'winter';
+
+// the season as weather services count it, whole months: winter is december to february, south of the equator june
+// to august. without a position the north
+export function seasonOf(lat?: number, date = new Date()): Season {
+  const m = (date.getMonth() + (lat !== undefined && lat < 0 ? 6 : 0)) % 12;
+  return m < 2 || m === 11 ? 'winter' : m < 5 ? 'spring' : m < 8 ? 'summer' : 'autumn';
 }

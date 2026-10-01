@@ -533,6 +533,182 @@
   }
 }
 
+/* winter: snow on the lawn, the grass sticks out of it */
+.snow {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 20px;
+  background-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="160" height="20" viewBox="0 0 160 20"%3E%3Cpath fill="%23f2f6fa" fill-opacity="0.92" d="M0 20V9Q14 4 30 8T62 7T96 9T128 6T160 9V20Z"/%3E%3C/svg%3E');
+  background-repeat: repeat-x;
+  background-position: bottom left;
+}
+
+/* father christmas mows it off from left to right: the snow is left only ahead of his mower */
+.santaRun .snow {
+  animation: snow-cut var(--dur) linear forwards;
+}
+
+@keyframes snow-cut {
+  from {
+    clip-path: inset(-20px 0 0 -19px);
+  }
+  to {
+    clip-path: inset(-20px 0 0 calc(100vw + 61px));
+  }
+}
+
+/* and then it snows again */
+.snowing .snow {
+  animation: snow-back 2.5s ease-out;
+}
+
+@keyframes snow-back {
+  from {
+    opacity: 0;
+  }
+}
+
+.snowman {
+  position: absolute;
+  bottom: 3px;
+  left: calc(50% - 17px);
+  z-index: 1;
+}
+
+.snowman svg {
+  display: block;
+}
+
+.smEyes,
+.smArm {
+  transform-box: fill-box;
+  transition: transform 0.3s;
+}
+
+.smArm {
+  transform-origin: 0% 100%;
+}
+
+/* it looks left where he comes from, follows him past and waves */
+.peek .smEyes,
+.santaRun .smEyes {
+  transform: translateX(-1px);
+}
+
+.santaRun .smEyes {
+  animation: sm-follow 0.5s ease-in-out var(--t-hello) forwards;
+}
+
+.santaRun .smArm {
+  animation: sm-wave 0.25s ease-in-out var(--t-hello) 8 alternate;
+}
+
+@keyframes sm-follow {
+  to {
+    transform: translateX(1px);
+  }
+}
+
+@keyframes sm-wave {
+  to {
+    transform: rotate(-35deg);
+  }
+}
+
+.santa {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 64px;
+  height: 57px;
+  z-index: 2;
+  transform: translateX(-70px);
+  animation: santa-walk var(--dur) linear forwards;
+}
+
+.santa svg {
+  display: block;
+}
+
+@keyframes santa-walk {
+  from {
+    transform: translateX(-70px);
+  }
+  to {
+    transform: translateX(calc(100vw + 10px));
+  }
+}
+
+/* what he calls out passing the snowman */
+.hoho {
+  position: absolute;
+  bottom: 60px;
+  left: 0;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: #fff;
+  color: #c62828;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  opacity: 0;
+  animation: hoho 1.8s ease-out var(--t-hello);
+}
+
+@keyframes hoho {
+  10%,
+  80% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+/* snow drifting down behind the page */
+.snowFall {
+  position: absolute;
+  top: -10px;
+  opacity: 0;
+  will-change: transform, opacity;
+  animation: snow-fall linear infinite;
+}
+
+.snowSway {
+  will-change: transform;
+  animation: snow-sway ease-in-out infinite alternate;
+}
+
+.flake {
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 2px rgba(60, 80, 100, 0.35);
+}
+
+@keyframes snow-fall {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  6%,
+  90% {
+    opacity: 0.85;
+  }
+  100% {
+    transform: translateY(calc(100vh + 20px));
+    opacity: 0;
+  }
+}
+
+@keyframes snow-sway {
+  from {
+    transform: translateX(-10px);
+  }
+  to {
+    transform: translateX(10px);
+  }
+}
+
 /* optional: a few leaves drifting down behind the page */
 .falling {
   position: fixed;

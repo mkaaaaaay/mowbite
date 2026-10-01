@@ -3,10 +3,11 @@
 import {datumFromParams, useMowerParams} from '@/hooks/useMowerParams';
 import {isNightTime} from '@/lib/schedule';
 import {settingsStore} from '@/lib/settings';
-import {isAutumn, sunTimes} from '@/lib/sun';
+import {seasonOf, sunTimes} from '@/lib/sun';
 import {usePathname} from 'next/navigation';
 import {useEffect, useRef, useState, useSyncExternalStore} from 'react';
 import LogoMark from './Logo';
+import {leg, pushMower, stepDur} from './mapIcons';
 import styles from './Grass.module.css';
 
 const SPEED = 260; // px/s
@@ -27,6 +28,13 @@ const WALK_GAP_MS = 30 * 60000;
 const WALK_KEY = 'hedgehogWalk';
 // HH:MM, local
 const clock = (d: Date) => d.toTimeString().slice(0, 5);
+
+// winter: two quick taps on the snowman and father christmas mows the snow off the lawn, then it snows again
+const SANTA_SPEED = 150; // px/s
+// the snowman looks out for him first
+const SANTA_PRE_MS = 1200;
+// how fast his legs and the wheels go, in m/s like on the map
+const SANTA_STEP = 0.8;
 
 // a hedgehog that sees the lawn eater coming, trembles and curls up, and gets hopped over. side view, facing left
 function Hedgehog() {
@@ -63,6 +71,142 @@ function Hedgehog() {
         </g>
       </g>
     </svg>
+  );
+}
+
+// fairy lights along the handle and over the hood of the mower, each on its own beat
+const LIGHTS = [
+  [0.007, -0.124],
+  [0.12, 0.02],
+  [0.23, 0.165],
+  [0.345, 0.31],
+  [0.42, 0.31],
+  [0.52, 0.27],
+  [0.64, 0.255],
+  [0.76, 0.265],
+  [0.88, 0.31],
+  [0.97, 0.39],
+].map(([x, y], i) => ({x, y, color: ['#ff5252', '#ffd740', '#40c4ff', '#69f0ae', '#ff9100'][i % 5], begin: (i % 3) * 0.4}));
+
+// snow thrown up ahead of the mower
+const SNOW_SPRAY = [0, 0.15, 0.3, 0.45, 0.6].map((d, i) => (
+  <circle key={i} cx={1.04} cy={0.62} r={0.035 + (i % 2) * 0.015} fill="#fff" opacity={0}>
+    <animate attributeName="cx" values={`1.04;${1.2 + i * 0.04};${1.32 + i * 0.05}`} dur="0.75s" begin={`${d}s`} repeatCount="indefinite" />
+    <animate attributeName="cy" values="0.62;0.05;0.45" dur="0.75s" begin={`${d}s`} repeatCount="indefinite" />
+    <animate attributeName="opacity" values="0;1;0" dur="0.75s" begin={`${d}s`} repeatCount="indefinite" />
+  </circle>
+));
+
+// father christmas pushing the gardener's mower (from the map symbols) through the snow, facing right. the front of
+// the mower is 51 px into the drawing
+function Santa() {
+  return (
+    <svg width="64" height="57" viewBox="-0.8 -1.15 2.3 2.05" overflow="visible">
+      {pushMower(SANTA_STEP, '#2e7d32')}
+      <polyline points={LIGHTS.map((l) => `${l.x},${l.y}`).join(' ')} fill="none" stroke="#1b5e20" strokeWidth={0.02} />
+      {LIGHTS.map((l, i) => (
+        <g key={i}>
+          <animate attributeName="opacity" values="1;0.35;1" dur="1.2s" begin={`${l.begin}s`} repeatCount="indefinite" />
+          <circle cx={l.x} cy={l.y} r={0.07} fill={l.color} opacity={0.35} />
+          <circle cx={l.x} cy={l.y} r={0.032} fill={l.color} />
+        </g>
+      ))}
+      {SNOW_SPRAY}
+      <g transform="translate(-0.45 0.12)">
+        {leg(22, SANTA_STEP, '#c62828', '#1b1b1b')}
+        {leg(-22, SANTA_STEP, '#c62828', '#1b1b1b')}
+      </g>
+      <g>
+        <animateTransform
+          attributeName="transform"
+          type="translate"
+          values="0 0;0 -0.035;0 0"
+          dur={`${(stepDur(SANTA_STEP) / 2).toFixed(2)}s`}
+          repeatCount="indefinite"
+        />
+        {/* red coat with white fur at the hem, a black belt with a golden buckle */}
+        <path d="M-0.64,-0.5 Q-0.45,-0.62 -0.28,-0.5 Q-0.14,-0.18 -0.22,0.16 L-0.66,0.16 Z" fill="#c62828" />
+        <path d="M-0.68,0.1 L-0.2,0.1 Q-0.18,0.16 -0.2,0.22 L-0.68,0.22 Q-0.7,0.16 -0.68,0.1 Z" fill="#fafafa" />
+        <path d="M-0.66,-0.08 L-0.17,-0.08 L-0.17,0 L-0.66,0 Z" fill="#1b1b1b" />
+        <rect x={-0.34} y={-0.1} width={0.1} height={0.12} rx={0.015} fill="none" stroke="#ffca28" strokeWidth={0.025} />
+        {/* the arm on the handle, white fur at the cuff, a black glove */}
+        <path d="M-0.42,-0.46 L-0.34,-0.52 L-0.04,-0.18 L-0.1,-0.1 Z" fill="#c62828" />
+        <path d="M-0.13,-0.24 L-0.07,-0.3 L-0.01,-0.22 L-0.07,-0.15 Z" fill="#fafafa" />
+        <circle cx={-0.06} cy={-0.14} r={0.065} fill="#1b1b1b" />
+        {/* face, white beard, red nose, the cap with its bobble hanging back */}
+        <circle cx={-0.43} cy={-0.72} r={0.17} fill="#f1c27d" />
+        <circle cx={-0.34} cy={-0.77} r={0.02} fill="#3e2723" />
+        <path
+          d="M-0.6,-0.72 Q-0.62,-0.42 -0.42,-0.36 Q-0.22,-0.38 -0.24,-0.66 Q-0.34,-0.6 -0.44,-0.62 Q-0.54,-0.62 -0.6,-0.72 Z"
+          fill="#fafafa"
+        />
+        <circle cx={-0.27} cy={-0.71} r={0.035} fill="#ef5350" />
+        <path d="M-0.6,-0.83 C-0.6,-1.02 -0.44,-1.1 -0.32,-1.02 C-0.26,-0.96 -0.25,-0.9 -0.26,-0.83 Z" fill="#c62828" />
+        <path d="M-0.44,-1.06 Q-0.66,-1.08 -0.74,-0.88 L-0.67,-0.86 Q-0.6,-1 -0.42,-0.98 Z" fill="#c62828" />
+        <circle cx={-0.72} cy={-0.84} r={0.06} fill="#fafafa" />
+        <path d="M-0.63,-0.84 Q-0.43,-0.9 -0.23,-0.84 L-0.23,-0.76 Q-0.43,-0.82 -0.63,-0.76 Z" fill="#fafafa" />
+      </g>
+    </svg>
+  );
+}
+
+// stands in the snow in the middle, looks out for father christmas and waves at him
+function Snowman() {
+  return (
+    <svg width="34" height="46" viewBox="0 0 34 46">
+      <g fill="#f4f8fb" stroke="#cfd8dc" strokeWidth="0.6">
+        <circle cx="17" cy="35.5" r="10" />
+        <circle cx="17" cy="21" r="7.5" />
+        <circle cx="17" cy="9.5" r="5.5" />
+      </g>
+      <path d="M10.5 20.5 L3 15 M5 16.4 L3.6 13.6" stroke="#6d4c41" strokeWidth="1.2" strokeLinecap="round" fill="none" />
+      <path
+        className={styles.smArm}
+        d="M23.5 20.5 L31 15 M29 16.4 L31.5 14.6"
+        stroke="#6d4c41"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+        fill="none"
+      />
+      <path d="M11.4 14.2 Q17 16.4 22.6 14.2 L22.6 16.6 Q17 18.6 11.4 16.6 Z" fill="#c62828" />
+      <path d="M18.5 16 L21 22 L23 21.2 L20.8 15.6 Z" fill="#c62828" />
+      <circle cx="17" cy="20.5" r="0.75" fill="#263238" />
+      <circle cx="17" cy="24" r="0.75" fill="#263238" />
+      <rect x="12.6" y="0.6" width="8.8" height="4.6" rx="0.6" fill="#263238" />
+      <rect x="10.6" y="4.6" width="12.8" height="1.4" rx="0.7" fill="#263238" />
+      <g className={styles.smEyes}>
+        <circle cx="15.2" cy="8.8" r="0.8" fill="#263238" />
+        <circle cx="18.8" cy="8.8" r="0.8" fill="#263238" />
+      </g>
+      <path d="M17 10.6 L11.2 11.6 L17 12.2 Z" fill="#ef6c00" />
+    </svg>
+  );
+}
+
+// snow drifting down behind the page in winter, optional like the leaves. some are already on their way
+const FLAKES = Array.from({length: 26}, (_, i) => ({
+  left: (i * 37 + 5) % 100,
+  size: 3 + (i % 4),
+  dur: 11 + ((i * 7) % 9),
+  delay: (i * 1.7) % 14,
+  sway: 3 + (i % 3),
+}));
+
+function FallingSnow() {
+  return (
+    <div className={styles.falling} aria-hidden="true">
+      {FLAKES.map((f, i) => (
+        <div
+          key={i}
+          className={styles.snowFall}
+          style={{left: `${f.left}%`, animationDuration: `${f.dur}s`, animationDelay: `-${f.delay}s`}}
+        >
+          <div className={styles.snowSway} style={{animationDuration: `${f.sway}s`}}>
+            <div className={styles.flake} style={{width: f.size, height: f.size}} />
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -126,9 +270,10 @@ function FallingLeaves() {
 }
 
 // the grass along the bottom. it lies behind the page, so taps on it are caught on the window:
-// anything in the strip that isn't part of the ui counts. in autumn two quick taps on the heap of leaves start the mower
+// anything in the strip that isn't part of the ui counts. two quick taps on the heap of leaves in autumn start the
+// mower, on the snowman in winter father christmas
 export default function Grass() {
-  const [phase, setPhase] = useState<'idle' | 'peek' | 'mowing' | 'growing'>('idle');
+  const [phase, setPhase] = useState<'idle' | 'peek' | 'mowing' | 'growing' | 'santaRun' | 'snowing'>('idle');
   const [dur, setDur] = useState(0);
   // where the hedgehog sits and when the mower gets there (ms after it starts)
   // gap: the stretch the eater flies over, its grass stays
@@ -136,8 +281,11 @@ export default function Grass() {
   // the night walk: where it ends (x, like critter), how far right it starts and where it stops to sniff (px from x),
   // and the stretch it's on now
   const [walk, setWalk] = useState<{x: number; from: number; mid: number; step: 'in' | 'sniff' | 'on' | 'hide'} | null>(null);
+  // ms into father christmas's run when he gets to the snowman
+  const [hello, setHello] = useState(0);
   const strip = useRef<HTMLDivElement>(null);
   const pile = useRef<HTMLDivElement>(null);
+  const snowman = useRef<HTMLDivElement>(null);
   // counts the runs, a new heap blows in after each
   const [round, setRound] = useState(0);
   // the mower's position: the half of the world for the season, and the sun times. without it the north, and night
@@ -145,8 +293,10 @@ export default function Grass() {
   const datum = datumFromParams(useMowerParams());
   const lat = datum?.lat;
   const lon = datum?.lon;
-  // there are leaves on the lawn then. the month of the viewer, not of the build
-  const autumn = useSyncExternalStore(noChange, () => isAutumn(lat), () => false);
+  // leaves on the lawn in autumn, snow in winter. the month of the viewer, not of the build
+  const season = useSyncExternalStore(noChange, () => seasonOf(lat), () => null);
+  const autumn = season === 'autumn';
+  const winter = season === 'winter';
   const busy = useRef(false);
   const lastTap = useRef(0);
   const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
@@ -162,8 +312,8 @@ export default function Grass() {
       const target = e.target as Element;
       if (target.closest('button, a, input, select, textarea, label, section, article, nav, svg, [role]')) return;
       if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-      // the middle of the heap of leaves, only there in autumn
-      const p = pile.current?.getBoundingClientRect();
+      // the middle of the heap of leaves in autumn, of the snowman in winter
+      const p = (pile.current ?? snowman.current)?.getBoundingClientRect();
       if (!p || Math.abs(e.clientX - (p.left + p.width / 2)) > 22) return;
       if (e.timeStamp - lastTap.current > 400) {
         lastTap.current = e.timeStamp;
@@ -172,9 +322,25 @@ export default function Grass() {
       lastTap.current = 0;
       busy.current = true;
       const w = window.innerWidth;
+      const x = Math.round(p.left + p.width / 2);
+      if (snowman.current) {
+        // he walks from -70 to w + 10 px, the front of his mower (where the snow is cut) is 51 px in
+        const ms = Math.max(4000, ((w + 80) / SANTA_SPEED) * 1000);
+        setDur(ms);
+        setHello(((x + 19) / (w + 80)) * ms);
+        setPhase('peek');
+        timers.push(setTimeout(() => setPhase('santaRun'), SANTA_PRE_MS));
+        timers.push(setTimeout(() => setPhase('snowing'), SANTA_PRE_MS + ms + 300));
+        timers.push(
+          setTimeout(() => {
+            setPhase('idle');
+            busy.current = false;
+          }, SANTA_PRE_MS + ms + 300 + REGROW_MS),
+        );
+        return;
+      }
       const ms = Math.max(3000, (w / SPEED) * 1000);
       // the hedgehog sleeps under the heap
-      const x = Math.round(p.left + p.width / 2);
       // the mower drives from -80 to w + 10 px, its mouth (where the cut is) is 34 px in, the hedgehog
       // starts 26 px left of x
       const mouthAt = (t: number) => -46 + ((w + 90) * t) / ms;
@@ -251,12 +417,12 @@ export default function Grass() {
     };
   }, [shown, autumn, lat, lon]);
 
-  const falling = autumn && settings.leaves !== false;
-  if (!shown) return falling ? <FallingLeaves /> : null;
+  const falling = settings.leaves === false ? null : autumn ? <FallingLeaves /> : winter ? <FallingSnow /> : null;
+  if (!shown) return falling;
 
   return (
     <>
-    {falling && <FallingLeaves />}
+    {falling}
     <div
       ref={strip}
       className={[styles.grass, phase !== 'idle' ? styles[phase] : '', dashboard ? '' : styles.desktopOnly].join(' ')}
@@ -273,6 +439,7 @@ export default function Grass() {
           '--t-relief': `${Math.round(PRE_MS + (critter?.hit ?? 0) + 450)}ms`,
           '--t-sigh': `${Math.round(PRE_MS + (critter?.hit ?? 0) + 800)}ms`,
           '--t-exit': `${Math.round(PRE_MS + dur + 1200 + 900)}ms`,
+          '--t-hello': `${Math.round(Math.max(0, hello - 500))}ms`,
         } as React.CSSProperties
       }
       aria-hidden="true"
@@ -286,6 +453,20 @@ export default function Grass() {
               <Leaf color={l.color} size={l.size} />
             </div>
           ))}
+        </div>
+      )}
+      {winter && (
+        <>
+          <div className={styles.snow} />
+          <div ref={snowman} className={styles.snowman}>
+            <Snowman />
+          </div>
+        </>
+      )}
+      {phase === 'santaRun' && (
+        <div className={styles.santa}>
+          <div className={styles.hoho}>Ho ho ho!</div>
+          <Santa />
         </div>
       )}
       {/* the grass under the jump, it stays when the rest is cut */}
