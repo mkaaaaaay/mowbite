@@ -158,7 +158,7 @@ export default function MowSettings({
         <span>
           {tr('Mow angle (°)')}
           <InfoTip>
-            {tr('Stripe direction, 0° = east, counter-clockwise. Empty = automatic. The mower adds its mow_angle_offset.')}
+            {tr('Direction of the stripes, counter-clockwise: 0° runs east to west, 90° north to south, 0° and 180° give the same stripes. Empty = automatic: along the outline from its first point, for a recorded area the way you set off. The mower adds its mow_angle_offset.')}
           </InfoTip>
         </span>
         <input
@@ -188,7 +188,7 @@ export default function MowSettings({
           <span>
             {tr(key === 'angle_min' ? 'Min. angle (°)' : 'Max. angle (°)')}
             <InfoTip>
-              {tr('Keeps the stripes between these two directions, 0° and 180° give the same stripes. Past an end it turns back. Handy for narrow areas. Same value twice = fixed angle, min above max = range across 180°.')}
+              {tr('Keeps the stripes between these two directions, 0° and 180° give the same stripes. When the mower turns the angle further after every full mow (mow_angle_increment), it turns back at the ends. Handy for narrow areas. Same value twice = fixed angle, min above max = range across 180°.')}
             </InfoTip>
           </span>
           <input

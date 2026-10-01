@@ -105,7 +105,7 @@ export function explain(e: MowerEvent, state?: string, gpsTimeout?: number): str
           'It got out of the dock but had no RTK fix in time and stopped. Check the NTRIP corrections and whether the GPS antenna has a clear sky view there.',
         );
       return tr(
-        "It couldn't drive the short path backwards out of the dock and gave up. Usual causes: the mower's idea of its heading is off while it stands in the dock, it's blocked (wheels, grass, bumper), or it's still in emergency mode.",
+        "It couldn't drive the short way out of the dock (backwards, then turning) and gave up. Usual causes: the mower's idea of its heading is off while it stands in the dock, it's blocked (wheels, grass, bumper), or it's still in emergency mode.",
       );
     case 'DOCKING_RETRY':
     case 'DOCKING_FAILED':

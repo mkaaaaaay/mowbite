@@ -213,7 +213,7 @@ export default function RecordPage() {
             {bounced && (
               <p className={styles.warn}>
                 {tr(
-                  "The mower dropped out of recording mode right away. OpenMower does that after the mower was sent home while mowing, it then stays in \"manual pause\" until it's restarted. Run openmower restart on the mower and try again.",
+                  "The mower dropped out of recording mode right away. Older OpenMower versions do that after the mower was sent home while mowing, it then stays in \"manual pause\" until it's restarted. Run openmower restart on the mower and try again, or update OpenMower.",
                 )}
               </p>
             )}

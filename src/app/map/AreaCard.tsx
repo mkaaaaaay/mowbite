@@ -128,7 +128,7 @@ export default function AreaCard({
           {nested}{' '}
           {onCutOut
             ? tr("To leave it out, cut it out of \"{name}\" (it gets split in two, areas can't have holes). Or make this an obstacle so the mower never drives here.", outer)
-            : tr("It doesn't lie fully inside, to leave it out cut \"{name}\" by hand with Split zone.", outer)}
+            : tr("It doesn't lie fully inside, to leave it out cut \"{name}\" by hand with Split area.", outer)}
           {onCutOut && (
             <div className={styles.inlineRow}>
               <button className={styles.pillButton} onClick={onCutOut}>
@@ -144,7 +144,7 @@ export default function AreaCard({
           <span className={styles.toolLabel}>
             {tr('Edit')}
             <InfoTip>
-              <b>{tr('Split zone')}:</b>{' '}
+              <b>{tr('Split area')}:</b>{' '}
               {tr('Cuts the area in two along a line, or cuts a shape out of it. All parts keep type and settings.')}
               <br />
               <b>{tr('Merge')}:</b>{' '}
@@ -156,7 +156,7 @@ export default function AreaCard({
           </span>
           <button className={tool} onClick={onSplit}>
             <ScissorsIcon size={16} />
-            {tr('Split zone')}
+            {tr('Split area')}
           </button>
           <button className={tool} onClick={onMerge}>
             <MergeIcon size={16} />

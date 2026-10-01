@@ -165,6 +165,7 @@ export function SimplifyPanel({
 // a backup (or a map from a file) shown instead of the editor
 export function RestorePanel({
   areas,
+  backedUp,
   docked,
   restoring,
   confirm,
@@ -174,6 +175,8 @@ export function RestorePanel({
   onClose,
 }: {
   areas: number;
+  // the mower's map is backed up before restoring (only when MowBite runs as its container)
+  backedUp: boolean;
   docked: boolean;
   restoring: boolean;
   confirm: boolean;
@@ -186,7 +189,9 @@ export function RestorePanel({
     <div className={styles.splitBox}>
       <p>{tr('{n} areas', {n: areas})}</p>
       <p className={styles.dim}>
-        {tr('Restoring replaces the map on the mower with this one. The current map is backed up first, so this can be undone.')}
+        {backedUp
+          ? tr('Restoring replaces the map on the mower with this one. The current map is backed up first, so this can be undone.')
+          : tr("Restoring replaces the map on the mower with this one. Backups don't work here, download the current map first if you might want it back.")}
       </p>
       {!docked && <p className={styles.error}>{tr('Only possible while the mower is idle in the dock.')}</p>}
       <div className={styles.inlineRow}>

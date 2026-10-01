@@ -749,6 +749,7 @@ function MapEditor() {
             {preview ? (
               <RestorePanel
                 areas={preview.map.areas.length}
+                backedUp={!!backups}
                 docked={docked}
                 restoring={restoring}
                 confirm={confirmRestore}
