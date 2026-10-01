@@ -46,7 +46,14 @@ describe('calls while offline', () => {
   // a fresh rpc module per test, it asks rpc.methods only once per page load
   const load = async () => {
     vi.resetModules();
-    vi.doMock('./mqttClient', () => ({getMqttClient: () => client, withPrefix: (t: string) => t, unprefix: (t: string) => t}));
+    vi.doMock('./mqttClient', () => ({
+      getMqttClient: () => client,
+      withPrefix: (t: string) => t,
+      onTopic: (topic: string, h: (p: Buffer, t: string) => void) => {
+        client.on('message', (t: string, p: Buffer) => t === topic && h(p, t));
+        return () => {};
+      },
+    }));
     return import('./rpc');
   };
 

@@ -1,6 +1,6 @@
 'use client';
 
-import {getMqttClient, unprefix, withPrefix} from '@/lib/mqttClient';
+import {onTopic} from '@/lib/mqttClient';
 import {useSyncExternalStore} from 'react';
 import {apiBase} from '@/lib/mowers';
 import {TOPIC} from '@/lib/openmower';
@@ -59,12 +59,8 @@ export function startSensorHistory() {
   started = true;
   void loadDay();
   setInterval(loadDay, 5 * 60 * 1000);
-  const c = getMqttClient();
-  const sub = () => c.subscribe(withPrefix(TOPIC.sensorData));
-  c.on('connect', sub);
-  if (c.connected) sub();
-  c.on('message', (topic, payload) => {
-    const m = unprefix(topic)?.match(/^sensors\/(.+)\/data$/);
+  onTopic(TOPIC.sensorData, (payload, topic) => {
+    const m = topic.match(/^sensors\/(.+)\/data$/);
     if (!m) return;
     const v = Number(payload.toString());
     if (!Number.isFinite(v)) return;

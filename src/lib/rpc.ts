@@ -1,4 +1,4 @@
-import {getMqttClient, unprefix, withPrefix} from './mqttClient';
+import {getMqttClient, onTopic, withPrefix} from './mqttClient';
 import {RPC, TOPIC} from './openmower';
 
 // json-rpc 2.0 over mqtt: rpc/request -> rpc/response, matched by id
@@ -24,9 +24,7 @@ let listening = false;
 function ensureListening() {
   if (listening) return;
   listening = true;
-  getMqttClient().subscribe(withPrefix(TOPIC.rpcResponse));
-  getMqttClient().on('message', (topic, payload) => {
-    if (unprefix(topic) !== TOPIC.rpcResponse) return;
+  onTopic(TOPIC.rpcResponse, (payload) => {
     let msg: {id?: string; result?: unknown; error?: {code?: number; message: string}};
     try {
       msg = JSON.parse(payload.toString());

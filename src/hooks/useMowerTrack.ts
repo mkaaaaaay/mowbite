@@ -1,6 +1,6 @@
 'use client';
 
-import {getMqttClient, unprefix, withPrefix} from '@/lib/mqttClient';
+import {getMqttClient, onTopic} from '@/lib/mqttClient';
 import {callRpc} from '@/lib/rpc';
 import {useSyncExternalStore} from 'react';
 import {RPC, TOPIC} from '@/lib/openmower';
@@ -161,18 +161,13 @@ function start() {
   const c = getMqttClient();
   // position/json is much more frequent, robot_state is the fallback for setups without it
   let fast = false;
-  const sub = () => {
-    c.subscribe([withPrefix(TOPIC.robotState), withPrefix(TOPIC.position)]);
-    if (jobId) void seed(jobId);
-  };
-  c.on('connect', sub);
-  if (c.connected) sub();
+  // after a reconnect the trail of the time without connection comes from the recorded track
+  c.on('connect', () => jobId && void seed(jobId));
   // a phone keeps the connection a while in the background but gets no messages, so also when the page is back
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && jobId) void seed(jobId);
   });
-  c.on('message', (topic, payload) => {
-    const name = unprefix(topic);
+  const onPose = (payload: Buffer, name: string) => {
     if (name === TOPIC.position) fast = true;
     else if (name !== TOPIC.robotState || fast) return;
     let pose: Point | undefined;
@@ -194,7 +189,9 @@ function start() {
     if (!pose) return;
     if (loading) whileLoading.push({x: pose.x, y: pose.y, b: blades});
     if (append({x: pose.x, y: pose.y, b: blades})) notifySoon();
-  });
+  };
+  onTopic(TOPIC.robotState, onPose);
+  onTopic(TOPIC.position, onPose);
 }
 
 function subscribe(listener: () => void) {

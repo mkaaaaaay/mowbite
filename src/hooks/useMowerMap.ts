@@ -1,8 +1,8 @@
 'use client';
 
-import {getMqttClient, unprefix, withPrefix} from '@/lib/mqttClient';
+import {topicStore} from '@/lib/mqttClient';
 import {callRpc} from '@/lib/rpc';
-import {useEffect, useState} from 'react';
+import {useSyncExternalStore} from 'react';
 import {RPC, TOPIC} from '@/lib/openmower';
 import {closedRings, openRings} from '@/lib/rings';
 
@@ -46,37 +46,11 @@ export interface MowerMap {
   docking_stations: DockingStation[];
 }
 
-// module level cache, map/json is retained and won't come again on remount
-let cachedMap: MowerMap | null = null;
+// kept for the whole run, map/json is retained and comes only once
+const store = topicStore<MowerMap | null>(TOPIC.map, null, (payload) => openRings(JSON.parse(payload.toString())));
 
 export function useMowerMap(): MowerMap | null {
-  const [map, setMap] = useState<MowerMap | null>(cachedMap);
-
-  useEffect(() => {
-    const c = getMqttClient();
-
-    const onConnect = () => c.subscribe(withPrefix(TOPIC.map));
-    const onMessage = (topic: string, payload: Buffer) => {
-      if (unprefix(topic) !== TOPIC.map) return;
-      try {
-        cachedMap = openRings(JSON.parse(payload.toString()));
-        setMap(cachedMap);
-      } catch {
-        // ignore malformed payloads
-      }
-    };
-
-    c.on('connect', onConnect);
-    c.on('message', onMessage);
-    if (c.connected) onConnect();
-
-    return () => {
-      c.off('connect', onConnect);
-      c.off('message', onMessage);
-    };
-  }, []);
-
-  return map;
+  return useSyncExternalStore(store.subscribe, store.get, store.initial);
 }
 
 // map.replace takes the same shape as map/json, outlines closed like the mower records them

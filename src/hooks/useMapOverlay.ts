@@ -1,7 +1,7 @@
 'use client';
 
-import {getMqttClient, unprefix, withPrefix} from '@/lib/mqttClient';
-import {useEffect, useState} from 'react';
+import {topicStore} from '@/lib/mqttClient';
+import {useSyncExternalStore} from 'react';
 import type {Point} from './useMowerMap';
 import {TOPIC} from '@/lib/openmower';
 
@@ -13,32 +13,11 @@ export interface OverlayLine {
   closed: boolean;
 }
 
-let cached: OverlayLine[] = [];
+const store = topicStore<OverlayLine[]>(TOPIC.mapOverlay, [], (payload) => {
+  const m: {polygons?: {polygon?: {points?: Point[]}; color?: string; closed?: boolean}[]} = JSON.parse(payload.toString());
+  return (m.polygons ?? []).map((p) => ({points: p.polygon?.points ?? [], color: p.color ?? 'blue', closed: !!p.closed}));
+});
 
 export function useMapOverlay(): OverlayLine[] {
-  const [lines, setLines] = useState<OverlayLine[]>(cached);
-
-  useEffect(() => {
-    const c = getMqttClient();
-    const onConnect = () => c.subscribe(withPrefix(TOPIC.mapOverlay));
-    const onMessage = (topic: string, payload: Buffer) => {
-      if (unprefix(topic) !== TOPIC.mapOverlay) return;
-      try {
-        const m: {polygons?: {polygon?: {points?: Point[]}; color?: string; closed?: boolean}[]} = JSON.parse(payload.toString());
-        cached = (m.polygons ?? []).map((p) => ({points: p.polygon?.points ?? [], color: p.color ?? 'blue', closed: !!p.closed}));
-        setLines(cached);
-      } catch {
-        // ignore malformed payloads
-      }
-    };
-    c.on('connect', onConnect);
-    c.on('message', onMessage);
-    if (c.connected) onConnect();
-    return () => {
-      c.off('connect', onConnect);
-      c.off('message', onMessage);
-    };
-  }, []);
-
-  return lines;
+  return useSyncExternalStore(store.subscribe, store.get, store.initial);
 }

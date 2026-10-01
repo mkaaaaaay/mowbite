@@ -1,7 +1,7 @@
 'use client';
 
-import {getMqttClient, unprefix, withPrefix} from '@/lib/mqttClient';
-import {useEffect, useState} from 'react';
+import {topicStore} from '@/lib/mqttClient';
+import {useSyncExternalStore} from 'react';
 import {TOPIC} from '@/lib/openmower';
 
 export interface SensorInfo {
@@ -19,49 +19,15 @@ export interface SensorInfo {
   upper_critical_value: number;
 }
 
-// module level cache, sensor_infos/json is retained and won't come again on remount
-let cachedInfos: SensorInfo[] = [];
-let cachedValues: Record<string, string> = {};
+// kept for the whole run, sensor_infos/json is retained and comes only once
+const infoStore = topicStore<SensorInfo[]>(TOPIC.sensorInfos, [], (payload) => JSON.parse(payload.toString()));
+const valueStore = topicStore<Record<string, string>>(TOPIC.sensorData, {}, (payload, prev, topic) => {
+  const id = topic.match(/^sensors\/(.+)\/data$/)?.[1];
+  return id ? {...prev, [id]: payload.toString()} : prev;
+});
 
 export function useMowerSensors(): {infos: SensorInfo[]; values: Record<string, string>} {
-  const [infos, setInfos] = useState<SensorInfo[]>(cachedInfos);
-  const [values, setValues] = useState<Record<string, string>>(cachedValues);
-
-  useEffect(() => {
-    const c = getMqttClient();
-
-    const onConnect = () => {
-      c.subscribe(withPrefix(TOPIC.sensorInfos));
-      c.subscribe(withPrefix(TOPIC.sensorData));
-    };
-    const onMessage = (fullTopic: string, payload: Buffer) => {
-      const topic = unprefix(fullTopic);
-      if (topic === TOPIC.sensorInfos) {
-        try {
-          cachedInfos = JSON.parse(payload.toString());
-          setInfos(cachedInfos);
-        } catch {
-          // ignore malformed payloads
-        }
-        return;
-      }
-      const match = topic?.match(/^sensors\/(.+)\/data$/);
-      if (match) {
-        const sensorId = match[1];
-        cachedValues = {...cachedValues, [sensorId]: payload.toString()};
-        setValues(cachedValues);
-      }
-    };
-
-    c.on('connect', onConnect);
-    c.on('message', onMessage);
-    if (c.connected) onConnect();
-
-    return () => {
-      c.off('connect', onConnect);
-      c.off('message', onMessage);
-    };
-  }, []);
-
+  const infos = useSyncExternalStore(infoStore.subscribe, infoStore.get, infoStore.initial);
+  const values = useSyncExternalStore(valueStore.subscribe, valueStore.get, valueStore.initial);
   return {infos, values};
 }

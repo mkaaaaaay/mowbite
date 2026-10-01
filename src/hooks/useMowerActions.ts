@@ -1,7 +1,7 @@
 'use client';
 
-import {getMqttClient, unprefix, withPrefix} from '@/lib/mqttClient';
-import {useCallback, useEffect, useState} from 'react';
+import {getMqttClient, topicStore, withPrefix} from '@/lib/mqttClient';
+import {useCallback, useSyncExternalStore} from 'react';
 import {TOPIC} from '@/lib/openmower';
 
 interface ActionInfo {
@@ -11,8 +11,11 @@ interface ActionInfo {
   enabled: boolean | 0 | 1;
 }
 
-// module level cache, actions/json is retained and won't come again on remount
-let cachedActions: Record<string, boolean> = {};
+// kept for the whole run, actions/json is retained and comes only once
+const store = topicStore<Record<string, boolean>>(TOPIC.actions, {}, (payload) => {
+  const list: ActionInfo[] = JSON.parse(payload.toString());
+  return Object.fromEntries(list.map((a) => [a.action_id, !!a.enabled]));
+});
 
 export function useMowerActions(): {
   hasAction: (id: string) => boolean;
@@ -20,34 +23,7 @@ export function useMowerActions(): {
   knowsAction: (id: string) => boolean;
   publishAction: (id: string) => void;
 } {
-  const [actions, setActions] = useState<Record<string, boolean>>(cachedActions);
-
-  useEffect(() => {
-    const c = getMqttClient();
-
-    const onConnect = () => c.subscribe(withPrefix(TOPIC.actions));
-    const onMessage = (topic: string, payload: Buffer) => {
-      if (unprefix(topic) !== TOPIC.actions) return;
-      try {
-        const list: ActionInfo[] = JSON.parse(payload.toString());
-        const next: Record<string, boolean> = {};
-        for (const a of list) next[a.action_id] = !!a.enabled;
-        cachedActions = next;
-        setActions(next);
-      } catch {
-        // ignore malformed payloads
-      }
-    };
-
-    c.on('connect', onConnect);
-    c.on('message', onMessage);
-    if (c.connected) onConnect();
-
-    return () => {
-      c.off('connect', onConnect);
-      c.off('message', onMessage);
-    };
-  }, []);
+  const actions = useSyncExternalStore(store.subscribe, store.get, store.initial);
 
   const hasAction = useCallback((id: string) => !!actions[id], [actions]);
   const knowsAction = useCallback((id: string) => id in actions, [actions]);

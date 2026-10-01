@@ -1,6 +1,6 @@
 'use client';
 
-import {getMqttClient, unprefix, withPrefix} from '@/lib/mqttClient';
+import {onTopic} from '@/lib/mqttClient';
 import {useSyncExternalStore} from 'react';
 import {TOPIC} from '@/lib/openmower';
 
@@ -14,12 +14,7 @@ const listeners = new Set<() => void>();
 function start() {
   if (started) return;
   started = true;
-  const c = getMqttClient();
-  const sub = () => c.subscribe(withPrefix(TOPIC.params));
-  c.on('connect', sub);
-  if (c.connected) sub();
-  c.on('message', (topic, payload) => {
-    if (unprefix(topic) !== TOPIC.params) return;
+  onTopic(TOPIC.params, (payload) => {
     try {
       params = JSON.parse(payload.toString());
     } catch {

@@ -1,6 +1,6 @@
 'use client';
 
-import {getMqttClient, unprefix, withPrefix} from '@/lib/mqttClient';
+import {getMqttClient, onTopic} from '@/lib/mqttClient';
 import {useSyncExternalStore} from 'react';
 import {TOPIC} from '@/lib/openmower';
 
@@ -53,21 +53,16 @@ function start() {
   if (started) return;
   started = true;
   const c = getMqttClient();
-  const onConnect = () => {
-    update({connected: true});
-    c.subscribe(withPrefix(TOPIC.robotState));
-  };
-  c.on('connect', onConnect);
+  c.on('connect', () => update({connected: true}));
   c.on('close', () => update({connected: false}));
-  c.on('message', (topic, payload) => {
-    if (unprefix(topic) !== TOPIC.robotState) return;
+  if (c.connected) update({connected: true});
+  onTopic(TOPIC.robotState, (payload) => {
     try {
       update({state: JSON.parse(payload.toString()), lastAt: Date.now(), stale: false});
     } catch {
       // ignore malformed payloads
     }
   });
-  if (c.connected) onConnect();
   setInterval(() => update({stale: !!link.state && Date.now() - link.lastAt > STALE_MS}), 1000);
 }
 
