@@ -216,6 +216,32 @@
   font-size: 14px;
 }
 
+.mowSettings input.invalid {
+  border-color: var(--error);
+}
+
+.fieldError {
+  color: var(--error);
+  font-size: 11px;
+}
+
+/* what lib/mapCheck found, the area names select the area */
+.problems {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding-left: 16px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.problems a {
+  cursor: pointer;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
 .mowSettings .toggle,
 .mowSettings p,
 .angleRow {

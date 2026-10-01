@@ -41,6 +41,8 @@ import {useAreaProperties} from '@/lib/areaProps';
 import {useKeptState} from '@/hooks/useKeptState';
 import {sameMap} from '@/lib/sameMap';
 import {setUnsavedMap} from '@/lib/unsavedMap';
+import {checkMap} from '@/lib/mapCheck';
+import Problems from './Problems';
 
 // useSearchParams needs a suspense boundary in a static export
 export default function MapPage() {
@@ -186,6 +188,11 @@ function MapEditor() {
         : map,
     [map, selectedArea, simplified],
   );
+
+  // self crossing outlines, a dock off the drivable areas and the like, also in the preview of reducing points
+  const problems = useMemo(() => (shownMap ? checkMap(shownMap) : []), [shownMap]);
+  const warnings = problems.filter((p) => p.level === 'warn').length;
+  const problemSpots = problems.flatMap((p) => ('at' in p ? [p.at] : []));
 
   const toolWidth = numParam(params, PARAM.toolWidth);
   const angleOffset = numParam(params, PARAM.mowAngleOffset) ?? 0;
@@ -722,7 +729,7 @@ function MapEditor() {
                 stripes={stripes}
                 loops={plan?.loops}
                 preview={splitPreview ?? (merged ? [merged.outline] : undefined)}
-                markers={spot ? [spot] : undefined}
+                markers={spot || problemSpots.length ? [...(spot ? [spot] : []), ...problemSpots] : undefined}
                 focus={spot ?? undefined}
               />
             )}
@@ -755,7 +762,9 @@ function MapEditor() {
                   canUndo={history.length > 0}
                   unsaved={dirty}
                   saving={saving}
-                  saveLabel={saving ? tr('saving…') : (external && dirty) || (saveWarning && !docked) ? tr('Save anyway') : tr('Save map')}
+                  saveLabel={
+                    saving ? tr('saving…') : (external && dirty) || warnings || (saveWarning && !docked) ? tr('Save anyway') : tr('Save map')
+                  }
                   saveError={saveError ?? droppedNote}
                   onDraw={startDraw}
                   onUndo={undo}
@@ -763,6 +772,8 @@ function MapEditor() {
                 />
               )}
 
+
+              {mode === 'idle' && map && <Problems problems={problems} map={map} onSelect={selectArea} />}
 
               {external && dirty && (
                 <div className={styles.warning}>

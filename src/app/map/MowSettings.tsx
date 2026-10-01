@@ -1,9 +1,10 @@
 import InfoTip from '@/components/InfoTip';
 import {useAreaProperties} from '@/lib/areaProps';
 import {tr} from '@/lib/i18n';
+import {useState} from 'react';
 import {duration} from '@/lib/dates';
 import {savedRate} from '@/lib/planProgress';
-import {DEG, normDeg, type Area, type UpdateArea} from './editing';
+import {DEG, normDeg, overrideError, type Area, type Override, type UpdateArea} from './editing';
 import styles from './page.module.css';
 import {PATHS} from '@/lib/openmower';
 
@@ -22,7 +23,51 @@ export interface AngleParams {
   increment: number;
 }
 
-type Override = 'outline_count' | 'outline_overlap_count' | 'outline_offset';
+// a per area override, empty = the mower's global value. a value that isn't valid stays in the field with the
+// reason below it and isn't taken, leaving the field puts the last valid one back
+function OverrideField({
+  name,
+  value,
+  placeholder,
+  step,
+  min,
+  onFocus,
+  onChange,
+}: {
+  name: Override;
+  value: number | undefined;
+  placeholder: string;
+  step: number;
+  min?: number;
+  onFocus: () => void;
+  onChange: (v: number | undefined) => void;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const text = draft ?? (value === undefined ? '' : String(value));
+  const error = overrideError(name, text);
+  return (
+    <>
+      <input
+        type="number"
+        min={min}
+        step={step}
+        value={text}
+        placeholder={placeholder}
+        aria-invalid={!!error}
+        className={error ? styles.invalid : undefined}
+        onFocus={onFocus}
+        onBlur={() => setDraft(null)}
+        onChange={(e) => {
+          setDraft(e.target.value);
+          // half typed, e.g. just a minus: the browser reports it as empty
+          if (e.target.validity.badInput || overrideError(name, e.target.value)) return;
+          onChange(e.target.value.trim() === '' ? undefined : Number(e.target.value));
+        }}
+      />
+      {error && <span className={styles.fieldError}>{error}</span>}
+    </>
+  );
+}
 
 // the per-area overrides of the mowing settings, with the angle preview switch
 export default function MowSettings({
@@ -67,25 +112,21 @@ export default function MowSettings({
   const supported = useAreaProperties();
   const rate = savedRate();
   const p = area.properties;
-  const setOverride = (key: Override, raw: string) => {
-    const v = raw.trim() === '' ? undefined : Number(raw);
-    if (v !== undefined && !Number.isFinite(v)) return;
-    update({[key]: v}, false);
-  };
   const number = (key: Override, label: string, tip: string, step: number, min?: number) => (
     <label>
       <span>
         {tr(label)}
         <InfoTip>{tr(tip)}</InfoTip>
       </span>
-      <input
-        type="number"
-        min={min}
-        step={step}
-        value={p[key] ?? ''}
+      <OverrideField
+        key={area.id}
+        name={key}
+        value={p[key]}
         placeholder={globalValue(key)}
+        step={step}
+        min={min}
         onFocus={remember}
-        onChange={(e) => setOverride(key, e.target.value)}
+        onChange={(v) => update({[key]: v}, false)}
       />
     </label>
   );
