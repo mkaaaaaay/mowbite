@@ -91,6 +91,11 @@
   --tone: var(--error);
 }
 
+/* a state the app doesn't know */
+.tone-neutral {
+  --tone: var(--card-border);
+}
+
 /* offline or no fresh state: everything in the card is old, the line under the headline says since when */
 .stale .statusTop > :first-child,
 .stale .headline h2,

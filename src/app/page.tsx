@@ -7,7 +7,7 @@ import {HomeIcon, PlayIcon, SkipIcon, StopIcon, WarningIcon} from '@/components/
 import {useComputedSpeed} from '@/hooks/useComputedSpeed';
 import {useMowerActions} from '@/hooks/useMowerActions';
 import {useMowerMap} from '@/hooks/useMowerMap';
-import {datumFromParams, useMowerParams} from '@/hooks/useMowerParams';
+import {datumFromParams, numParam, useMowerParams} from '@/hooks/useMowerParams';
 import {sunTimes} from '@/lib/sun';
 import {useMowerSensors} from '@/hooks/useMowerSensors';
 import {useMowerPosition} from '@/hooks/useMowerPosition';
@@ -20,7 +20,7 @@ import WeatherIcon, {WEATHER_LABELS, weatherKind} from '@/components/WeatherIcon
 import {clock, dayKey, dayLabel, duration} from '@/lib/dates';
 import {OUTCOMES, type MowerEvent, type Run} from '@/lib/events';
 import {settingsStore} from '@/lib/settings';
-import {batteryColor, isDocked} from '@/lib/status';
+import {batteryColor, GPS_QUALITY_LABEL, gpsQuality, isDocked} from '@/lib/status';
 import Link from 'next/link';
 import {useEffect, useState, useSyncExternalStore} from 'react';
 import styles from './page.module.css';
@@ -28,12 +28,14 @@ import {fmt, tr, useLang} from '@/lib/i18n';
 import {cachedSchedule, loadSchedule, nextStart, type Schedule} from '@/lib/schedule';
 import MowerSwitch from '@/components/MowerSwitch';
 import {UpdateBanner} from '@/components/Updates';
-import {ACTION} from '@/lib/openmower';
+import {ACTION, PARAM} from '@/lib/openmower';
 
 // paused counts too, the mower is standing somewhere on the lawn then
 const DRIVING = new Set(['MOWING', 'PAUSED', 'DOCKING', 'UNDOCKING']);
 
 const ACTION_RESET_EMERGENCY = ACTION.resetEmergency;
+// skipping an area drops what's left of it, so it goes out only after a few seconds and a second tap takes it back
+const SKIP_DELAY = 4;
 const ACTIONS = [
   {id: ACTION.startMowing, Icon: PlayIcon, label: 'Start', main: true},
   {id: ACTION.pause, Icon: StopIcon, label: 'Pause'},
@@ -41,8 +43,6 @@ const ACTIONS = [
   {id: ACTION.skipArea, Icon: SkipIcon, label: 'Skip area'},
 ];
 
-// 999 = no fix (xbot_positioning)
-const NO_FIX = 999;
 
 function headline(state: MowerState, docked: boolean, chargeState: string | undefined, area: string | undefined) {
   if (state.emergency) return {title: tr('Emergency stop'), tone: 'error'};
@@ -127,9 +127,22 @@ export default function Home() {
   const datum = datumFromParams(params);
   const planned = schedule ? nextStart(schedule, undefined, datum ? sunTimes(datum.lat, datum.lon) : null) : null;
   const [confirmReset, setConfirmReset] = useState(false);
+  // seconds until a tapped skip goes out, null when none is waiting
+  const [skipLeft, setSkipLeft] = useState<number | null>(null);
+  useEffect(() => {
+    if (skipLeft === null) return;
+    const t = setTimeout(() => {
+      if (skipLeft > 1) return setSkipLeft(skipLeft - 1);
+      setSkipLeft(null);
+      publishAction(ACTION.skipArea);
+    }, 1000);
+    return () => clearTimeout(t);
+  }, [skipLeft, publishAction]);
 
   const current = state?.current_state ?? '';
   const driving = DRIVING.has(current);
+  // a waiting skip is dropped when there's nothing to skip anymore or the connection went
+  if (skipLeft !== null && (!live || current !== 'MOWING' || !hasAction(ACTION.skipArea))) setSkipLeft(null);
   const showMap = !!map && (driving || settings.dashboard?.map === 'always');
   const docked = isDocked(state, values['om_v_charge']);
   const battery = state ? Math.round(state.battery_percentage * 100) : 0;
@@ -146,14 +159,17 @@ export default function Home() {
   const head = state ? headline(state, docked, chargeState, area) : null;
 
   const acc = state?.pose.pos_accuracy;
+  const gpsQ = gpsQuality(acc, numParam(params, PARAM.maxPositionAccuracy));
   const num = (id: string) => (values[id] !== undefined ? Number(values[id]) : undefined);
   const motorTemp = Math.max(...['om_left_esc_temp', 'om_right_esc_temp', 'om_mow_esc_temp'].map((id) => num(id) ?? -Infinity));
   const facts: {label: string; value: string; warn?: boolean}[] = [];
   if (state) {
     facts.push({
       label: 'GPS',
-      value: acc === undefined || acc >= NO_FIX ? (driving ? tr('no fix') : tr('off')) : `${fmt(acc * 100, 1)} cm`,
-      warn: driving && (acc === undefined || acc >= NO_FIX || acc > 0.1),
+      value:
+        gpsQ === 'none' ? (driving ? tr('no fix') : tr('off')) : `${fmt(acc! * 100, 1)} cm · ${tr(GPS_QUALITY_LABEL[gpsQ])}`,
+      // only an rtk fix is good while driving
+      warn: driving && gpsQ !== 'fix',
     });
     if (driving) facts.push({label: tr('Speed'), value: `${fmt(speed, 2)} m/s`});
     if (progress) {
@@ -231,10 +247,12 @@ export default function Home() {
                   className={a.main ? styles.main : undefined}
                   // the mower still offers start while the emergency stop is active, it has to be reset first
                   disabled={!live || !hasAction(a.id) || !!state.emergency}
-                  onClick={() => publishAction(a.id)}
+                  onClick={() =>
+                    a.id === ACTION.skipArea ? setSkipLeft(skipLeft === null ? SKIP_DELAY : null) : publishAction(a.id)
+                  }
                 >
                   <a.Icon size={20} />
-                  {tr(a.label)}
+                  {a.id === ACTION.skipArea && skipLeft !== null ? tr('Undo ({n} s)', {n: skipLeft}) : tr(a.label)}
                 </button>
               ))}
               {live &&

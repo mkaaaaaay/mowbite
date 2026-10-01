@@ -49,3 +49,16 @@ export function statusText(
   if (name) return tr(name);
   return state.current_state.toLowerCase().replace(/_/g, ' ');
 }
+
+// how good the gps position is. The receiver doesn't report fix or float, so it's told by its estimated accuracy (m):
+// a few cm is an rtk fix, up to the mower's limit (mower_logic/max_position_accuracy, 0.2 m by default) still
+// usable, worse the mower ignores it. 999 and more is no fix at all (xbot_positioning)
+export type GpsQuality = 'none' | 'fix' | 'float' | 'poor';
+export function gpsQuality(accuracy: number | undefined, limit = 0.2): GpsQuality {
+  if (accuracy === undefined || accuracy >= 999) return 'none';
+  if (accuracy <= 0.05) return 'fix';
+  return accuracy <= limit ? 'float' : 'poor';
+}
+
+export const GPS_QUALITY_LABEL: Record<GpsQuality, string> = {none: 'no fix', fix: 'RTK fix', float: 'float', poor: 'too inaccurate'};
+

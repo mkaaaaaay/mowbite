@@ -10,7 +10,9 @@ import {useMowerState} from '@/hooks/useMowerState';
 import {useSensorHistory, type Sample} from '@/hooks/useSensorHistory';
 import {useState, useSyncExternalStore} from 'react';
 import {sharedSettings} from '@/lib/settings';
-import {batteryColor, isDocked, stateColor, statusText} from '@/lib/status';
+import {batteryColor, GPS_QUALITY_LABEL, gpsQuality, isDocked, stateColor, statusText} from '@/lib/status';
+import {numParam, useMowerParams} from '@/hooks/useMowerParams';
+import {PARAM} from '@/lib/openmower';
 import styles from './page.module.css';
 import System from './System';
 import BatteryHistory from './BatteryHistory';
@@ -87,6 +89,7 @@ export default function SensorsPage() {
   };
   const {infos, values} = useMowerSensors();
   const {state} = useMowerState();
+  const params = useMowerParams();
   const history = useSensorHistory();
   const info = (id: string) => infos.find((i) => i.sensor_id === id);
   const num = (id: string) => (values[id] !== undefined ? Number(values[id]) : undefined);
@@ -222,7 +225,7 @@ export default function SensorsPage() {
                     {tr('GPS accuracy')}
                     <InfoTip>
                       {tr(
-                        "How far off the position might be, as estimated by the receiver. With RTK fix it's usually a few cm. The mower switches GPS off while it's idle or docking.",
+                        "How far off the position might be, as estimated by the receiver. With RTK fix it's usually a few cm. The receiver doesn't say fix or float, so it's told by the accuracy: up to 5 cm RTK fix, up to the mower's limit (max_position_accuracy) float, still usable, worse the mower ignores the position. The mower switches GPS off while it's idle or docking.",
                       )}
                     </InfoTip>
                   </>
@@ -237,6 +240,9 @@ export default function SensorsPage() {
                         : tr('No fix')
                       : `${fmt(gps * 100, 1)} cm`}
                 </strong>
+                {!noFix && gps !== undefined && (
+                  <span className={styles.dim}>{tr(GPS_QUALITY_LABEL[gpsQuality(gps, numParam(params, PARAM.maxPositionAccuracy))])}</span>
+                )}
                 {noFix && docked && <span className={styles.dim}>{tr('in the dock')}</span>}
                 <Sparkline samples={gpsHistory} digits={1} unit="cm" minSpan={5} />
               </Card>
