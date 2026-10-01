@@ -746,12 +746,131 @@
   }
 }
 
+/* like a pendulum: out to the side tilted, a little higher at the ends */
 @keyframes leaf-sway {
-  from {
-    transform: translateX(-24px) rotate(-35deg);
+  0% {
+    transform: translate(-26px, -4px) rotate(-40deg);
   }
+  50% {
+    transform: translate(0, 4px) rotate(0deg);
+  }
+  100% {
+    transform: translate(26px, -4px) rotate(40deg);
+  }
+}
+
+/* and it turns over now and then, seen edge on */
+.tumble {
+  animation: leaf-tumble linear infinite;
+}
+
+@keyframes leaf-tumble {
   to {
-    transform: translateX(24px) rotate(35deg);
+    transform: rotate3d(1, 0.5, 0.2, 360deg);
+  }
+}
+
+/* a gust: blown aside and up, then they drift back down where they were */
+.gusting .gust {
+  animation: leaf-gust 3.5s ease-in-out;
+}
+
+@keyframes leaf-gust {
+  30% {
+    transform: translate(var(--push), -40px) rotate(200deg);
+    animation-timing-function: ease-out;
+  }
+  100% {
+    transform: translate(0, 0) rotate(360deg);
+  }
+}
+
+/* the grass bends with it and sways back, not while the mower is on it */
+.gusting:not(.mowing):not(.growing) .tall {
+  transform-origin: bottom;
+  animation: grass-bend 3.5s ease-in-out;
+}
+
+@keyframes grass-bend {
+  25% {
+    transform: skewX(-14deg);
+  }
+  50% {
+    transform: skewX(4deg);
+  }
+  70% {
+    transform: skewX(-4deg);
+  }
+  85% {
+    transform: skewX(1deg);
+  }
+}
+
+/* the leaves on the lawn lift a little, the top of the heap ruffles */
+.gusting .lawnLeaves > div {
+  animation: lawn-gust 3.5s ease-in-out;
+}
+
+@keyframes lawn-gust {
+  25% {
+    translate: 14px -7px;
+    rotate: 60deg;
+  }
+  55% {
+    translate: 5px -2px;
+    rotate: 20deg;
+  }
+  100% {
+    translate: 0 0;
+    rotate: 0deg;
+  }
+}
+
+.gusting .pile > div:nth-child(n + 12) {
+  animation: pile-gust 3.5s ease-in-out;
+}
+
+@keyframes pile-gust {
+  25% {
+    translate: 4px -3px;
+    rotate: 25deg;
+  }
+  100% {
+    translate: 0 0;
+    rotate: 0deg;
+  }
+}
+
+/* one leaf flies along the lawn with the wind */
+.whoosh {
+  position: absolute;
+  left: 0;
+  bottom: 30px;
+  animation: whoosh 2.6s ease-in 0.3s both;
+}
+
+.whooshSpin {
+  animation: whoosh-spin 0.5s linear infinite;
+}
+
+@keyframes whoosh {
+  0% {
+    transform: translate(-20px, 10px);
+  }
+  30% {
+    transform: translate(30vw, -24px);
+  }
+  60% {
+    transform: translate(60vw, 4px);
+  }
+  100% {
+    transform: translate(calc(100vw + 20px), -30px);
+  }
+}
+
+@keyframes whoosh-spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 

@@ -29,6 +29,12 @@ const WALK_KEY = 'hedgehogWalk';
 // HH:MM, local
 const clock = (d: Date) => d.toTimeString().slice(0, 5);
 
+// autumn now and then a gust of wind: the leaves in the air are blown aside, the grass bends, the ones on the lawn
+// lift a little and one flies along. rarely, every one to three and a half minutes
+const GUST_MS = 3500;
+const GUST_MIN_MS = 60000;
+const GUST_MAX_MS = 210000;
+
 // winter: two quick taps on the snowman and father christmas mows the snow off the lawn, then it snows again
 const SANTA_SPEED = 150; // px/s
 // the snowman looks out for him first
@@ -250,18 +256,29 @@ const PILE = Array.from({length: 18}, (_, i) => {
   };
 });
 
-// a few leaves drifting down behind the page, optional. the frosted cards blur them
-function FallingLeaves() {
+// a few leaves drifting down behind the page, optional. they sway and tumble, a gust blows them aside. some are
+// already on their way. the frosted cards blur them
+const FALLING = Array.from({length: 7}, (_, i) => ({
+  left: [7, 21, 34, 48, 62, 76, 89][i],
+  size: 12 + (i % 3) * 2,
+  dur: 15 + ((i * 5) % 11),
+  delay: -((i * 7) % 19),
+  sway: 2.6 + (i % 4) * 0.5,
+  tumble: 1.8 + (i % 3) * 0.9,
+  push: 140 + ((i * 37) % 120),
+}));
+
+function FallingLeaves({gusting}: {gusting: boolean}) {
   return (
-    <div className={styles.falling} aria-hidden="true">
-      {[12, 31, 48, 67, 84].map((left, i) => (
-        <div
-          key={left}
-          className={styles.fall}
-          style={{left: `${left}%`, animationDuration: `${16 + i * 3}s`, animationDelay: `${i * 5 + 2}s`}}
-        >
-          <div className={styles.sway} style={{animationDuration: `${3 + (i % 3)}s`}}>
-            <Leaf color={LEAF_COLORS[i]} size={14} />
+    <div className={[styles.falling, gusting ? styles.gusting : ''].join(' ')} aria-hidden="true">
+      {FALLING.map((l, i) => (
+        <div key={i} className={styles.fall} style={{left: `${l.left}%`, animationDuration: `${l.dur}s`, animationDelay: `${l.delay}s`}}>
+          <div className={styles.gust} style={{'--push': `${l.push}px`} as React.CSSProperties}>
+            <div className={styles.sway} style={{animationDuration: `${l.sway}s`}}>
+              <div className={styles.tumble} style={{animationDuration: `${l.tumble}s`}}>
+                <Leaf color={LEAF_COLORS[i % LEAF_COLORS.length]} size={l.size} />
+              </div>
+            </div>
           </div>
         </div>
       ))}
@@ -283,6 +300,7 @@ export default function Grass() {
   const [walk, setWalk] = useState<{x: number; from: number; mid: number; step: 'in' | 'sniff' | 'on' | 'hide'} | null>(null);
   // ms into father christmas's run when he gets to the snowman
   const [hello, setHello] = useState(0);
+  const [gusting, setGusting] = useState(false);
   const strip = useRef<HTMLDivElement>(null);
   const pile = useRef<HTMLDivElement>(null);
   const snowman = useRef<HTMLDivElement>(null);
@@ -417,7 +435,33 @@ export default function Grass() {
     };
   }, [shown, autumn, lat, lon]);
 
-  const falling = settings.leaves === false ? null : autumn ? <FallingLeaves /> : winter ? <FallingSnow /> : null;
+  useEffect(() => {
+    if (!autumn) return;
+    let wait: ReturnType<typeof setTimeout>;
+    let calm: ReturnType<typeof setTimeout>;
+    const next = () => {
+      wait = setTimeout(
+        () => {
+          // not while the mower runs over the lawn, the grass is busy then
+          if (!busy.current && !document.hidden && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            setGusting(true);
+            calm = setTimeout(() => setGusting(false), GUST_MS);
+          }
+          next();
+        },
+        GUST_MIN_MS + Math.random() * (GUST_MAX_MS - GUST_MIN_MS),
+      );
+    };
+    next();
+    return () => {
+      clearTimeout(wait);
+      clearTimeout(calm);
+      setGusting(false);
+    };
+  }, [autumn]);
+
+  const falling =
+    settings.leaves === false ? null : autumn ? <FallingLeaves gusting={gusting} /> : winter ? <FallingSnow /> : null;
   if (!shown) return falling;
 
   return (
@@ -425,7 +469,12 @@ export default function Grass() {
     {falling}
     <div
       ref={strip}
-      className={[styles.grass, phase !== 'idle' ? styles[phase] : '', dashboard ? '' : styles.desktopOnly].join(' ')}
+      className={[
+        styles.grass,
+        phase !== 'idle' ? styles[phase] : '',
+        gusting ? styles.gusting : '',
+        dashboard ? '' : styles.desktopOnly,
+      ].join(' ')}
       style={
         {
           '--dur': `${dur}ms`,
@@ -453,6 +502,13 @@ export default function Grass() {
               <Leaf color={l.color} size={l.size} />
             </div>
           ))}
+        </div>
+      )}
+      {gusting && (
+        <div className={styles.whoosh}>
+          <div className={styles.whooshSpin}>
+            <Leaf color={LEAF_COLORS[0]} size={13} />
+          </div>
         </div>
       )}
       {winter && (
