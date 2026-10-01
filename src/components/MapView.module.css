@@ -70,6 +70,10 @@
   pointer-events: none;
 }
 
+.turn {
+  transition: transform 0.35s ease-in-out;
+}
+
 .track {
   fill: none;
   stroke: var(--c-track);

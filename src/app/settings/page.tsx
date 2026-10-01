@@ -20,7 +20,7 @@ function IconChoice({
   onChange,
   rotate,
 }: {
-  icons: {key: string; label: string; draw: () => React.ReactNode}[];
+  icons: {key: string; label: string; upright?: boolean; draw: () => React.ReactNode}[];
   value: string;
   onChange: (key: string) => void;
   rotate?: boolean;
@@ -35,7 +35,7 @@ function IconChoice({
           title={tr(icon.label)}
         >
           <svg viewBox="-1.5 -1.5 3 3" className={styles.preview}>
-            <g transform={rotate ? 'rotate(-30)' : undefined}>{icon.draw()}</g>
+            <g transform={rotate && !icon.upright ? 'rotate(-30)' : undefined}>{icon.draw()}</g>
           </svg>
           <span>{tr(icon.label)}</span>
         </button>
@@ -66,7 +66,9 @@ function IconPreview({icons}: {icons: NonNullable<Settings['icons']>}) {
       <rect x="0" y="0" width="220" height="76" fill="var(--c-mow)" opacity="0.18" />
       <path d="M48 40 C 90 70, 120 10, 160 36" className={styles.lawnTrack} />
       <g transform={`translate(48 40) scale(${10 * (icons.dockSize ?? 1)})`}>{dockIcon(icons.dock).draw()}</g>
-      <g transform={`translate(160 36) rotate(-20) scale(${10 * (icons.mowerSize ?? 1)})`}>{mowerIcon(icons.mower).draw()}</g>
+      <g transform={`translate(160 36) rotate(${mowerIcon(icons.mower).upright ? 0 : -20}) scale(${10 * (icons.mowerSize ?? 1)})`}>
+        {mowerIcon(icons.mower).draw()}
+      </g>
     </svg>
   );
 }

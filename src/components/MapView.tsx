@@ -210,6 +210,12 @@ export default function MapView({
   const smoothedMower = useEasedPose(mower ?? {x: 0, y: 0, heading: 0});
   const displayMower = mower ? smoothedMower : undefined;
   const mowerSpeed = useComputedSpeed(mower);
+  // which way a side view faces. it only turns once the mower clearly heads the other way, so it doesn't flicker while
+  // the mower drives up or down the map
+  const [facing, setFacing] = useState(1);
+  const across = Math.cos(displayMower?.heading ?? 0);
+  if (across > 0.3 && facing !== 1) setFacing(1);
+  if (across < -0.3 && facing !== -1) setFacing(-1);
 
   // fitted to the map only, so the geometry doesn't change while the mower moves. follow mode
   // moves the view instead
@@ -794,11 +800,15 @@ export default function MapView({
             // svg y points down, so the map's ccw heading becomes a cw rotation
             const deg = (-displayMower.heading * 180) / Math.PI;
             const icon = mowerIcon(settings.icons?.mower);
-            // a side view heading left would stand on its head, mirrored it keeps its feet on the ground
-            const flip = icon.side && Math.cos(displayMower.heading) < 0 ? -1 : 1;
+            // a side view heading left would stand on its head, mirrored it keeps its feet on the ground. a figure
+            // isn't turned with the heading at all, it only looks left or right. css, so it turns around instead of
+            // flipping over at once
+            const turn = !icon.side ? undefined : icon.upright ? `scaleX(${facing})` : `scaleY(${facing})`;
             return (
-              <g className={styles.mower} transform={`translate(${sx} ${sy}) rotate(${deg}) scale(${size} ${flip * size})`}>
-                {icon.draw({speed: mowerSpeed, emergency, blades: track?.at(-1)?.at(-1)?.b === true})}
+              <g className={styles.mower} transform={`translate(${sx} ${sy}) rotate(${icon.upright ? 0 : deg}) scale(${size})`}>
+                <g className={styles.turn} style={turn ? {transform: turn} : undefined}>
+                  {icon.draw({speed: mowerSpeed, emergency, blades: track?.at(-1)?.at(-1)?.b === true})}
+                </g>
               </g>
             );
           })()}
