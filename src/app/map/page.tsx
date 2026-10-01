@@ -161,9 +161,10 @@ function MapEditor() {
     if (!map || !selectedArea || !enclosing || !cutFromEnclosing) return;
     const [a, b] = cutFromEnclosing;
     const name = enclosing.properties.name;
+    // the first half keeps the id, schedules and pauses pick areas by it
     const halves = [a, b].map((outline, i) => ({
       ...enclosing,
-      id: generateId(),
+      id: i ? generateId() : enclosing.id,
       outline,
       properties: {...enclosing.properties, name: name && i ? `${name} 2` : name},
     }));
@@ -380,9 +381,10 @@ function MapEditor() {
     setSimplifyCm(null);
   };
 
-  // call before every change so it can be undone
+  // call before every change so it can be undone. the same map twice in a row is one step (a field that got focus
+  // and then the first change after a save)
   const remember = () => {
-    if (map) setHistory((h) => [...h.slice(-49), map]);
+    if (map) setHistory((h) => (h[h.length - 1] === map ? h : [...h.slice(-49), map]));
   };
 
   const undo = () => {
@@ -420,7 +422,8 @@ function MapEditor() {
 
   const updateProperties: UpdateArea = (patch, undoable = true) => {
     if (!map || !selectedArea) return;
-    if (undoable) remember();
+    // typing on in a field that kept focus through a save: the first change still gets its undo step
+    if (undoable || !edited) remember();
     setMap({
       ...map,
       areas: map.areas.map((a) => (a.id === selectedArea.id ? {...a, properties: {...a.properties, ...patch}} : a)),
@@ -521,7 +524,8 @@ function MapEditor() {
 
   const applyMerge = () => {
     if (!map || !selectedArea || !mergeWith || !merged) return;
-    const area = {...selectedArea, id: generateId(), outline: merged.outline};
+    // keeps the id of the selected one like its name and settings, schedules and pauses pick areas by it
+    const area = {...selectedArea, outline: merged.outline};
     // in the place of the first of the two, the order in map.json is the mowing order
     const first = map.areas.find((a) => a.id === selectedArea.id || a.id === mergeWith.id)!;
     remember();
@@ -566,10 +570,10 @@ function MapEditor() {
   const applySplit = () => {
     if (!map || !selectedArea || !splitPreview) return;
     const name = selectedArea.properties.name;
-    // the first piece keeps the name, the others get a number
+    // the first piece keeps the name and the id (schedules and pauses pick areas by it), the others get a number
     const pieces = splitPreview.map((outline, i) => ({
       ...selectedArea,
-      id: generateId(),
+      id: i ? generateId() : selectedArea.id,
       outline,
       properties: {...selectedArea.properties, name: name && i ? `${name} ${i + 1}` : name},
     }));
