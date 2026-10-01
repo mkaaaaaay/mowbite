@@ -256,6 +256,32 @@
 
 .angleRow input {
   flex: 1;
+  min-width: 0;
+}
+
+.compass {
+  flex: none;
+  width: 52px;
+  height: 52px;
+}
+
+.compass circle {
+  fill: none;
+  stroke: var(--card-border);
+}
+
+.compass line {
+  stroke: var(--c-stripes);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
+.compass text {
+  fill: var(--text-secondary);
+  font-size: 8.5px;
+  font-weight: 600;
+  text-anchor: middle;
+  dominant-baseline: middle;
 }
 
 .warning {
@@ -498,6 +524,11 @@
   .angleOnMap input {
     flex: 1;
     min-width: 0;
+  }
+
+  .angleOnMap .compass {
+    width: 40px;
+    height: 40px;
   }
 
   .angleOnMap strong {

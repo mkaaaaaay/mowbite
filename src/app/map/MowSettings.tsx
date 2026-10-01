@@ -158,7 +158,7 @@ export default function MowSettings({
         <span>
           {tr('Mow angle (°)')}
           <InfoTip>
-            {tr('Direction of the stripes, counter-clockwise: 0° runs east to west, 90° north to south, 0° and 180° give the same stripes. Empty = automatic: along the outline from its first point, for a recorded area the way you set off. The mower adds its mow_angle_offset.')}
+            {tr("Direction of the stripes, counted counter-clockwise like on a map: 0° = east, 90° = north, 180° = west, 270° (or -90°) = south. 0° and 180° give the same lanes, the mower only starts them from the other side. Empty = automatic: the direction from the outline's first point to the first one more than 2 m away, for a recorded area the way you set off.")}
           </InfoTip>
         </span>
         <input
@@ -175,6 +175,7 @@ export default function MowSettings({
         />
       </label>
       <div className={styles.angleRow}>
+        <AngleCompass rad={p.angle ?? autoAngle} />
         <AngleStep area={area} autoAngle={autoAngle} remember={remember} update={update} onEdit={onAngleEdit} by={-1} />
         <AngleSlider area={area} autoAngle={autoAngle} remember={remember} update={update} onEdit={onAngleEdit} />
         <AngleStep area={area} autoAngle={autoAngle} remember={remember} update={update} onEdit={onAngleEdit} by={1} />
@@ -188,7 +189,7 @@ export default function MowSettings({
           <span>
             {tr(key === 'angle_min' ? 'Min. angle (°)' : 'Max. angle (°)')}
             <InfoTip>
-              {tr('Keeps the stripes between these two directions, 0° and 180° give the same stripes. When the mower turns the angle further after every full mow (mow_angle_increment), it turns back at the ends. Handy for narrow areas. Same value twice = fixed angle, min above max = range across 180°.')}
+              {tr('Keeps the stripes between these two directions, 0° and 180° give the same lanes (only started from the other side). When the mower turns the angle further after every full mow (mow_angle_increment), it turns back at the ends. Handy for narrow areas. Same value twice = fixed angle, min above max = range across 180°.')}
             </InfoTip>
           </span>
           <input
@@ -260,7 +261,7 @@ export default function MowSettings({
           {angle.offsetIsAbsolute
             ? tr('mow_angle_offset_is_absolute is set on the mower, it always mows at {n}° and ignores this angle.', {n: angle.offset})
             : angle.offset !== 0
-              ? tr('The mower adds its mow_angle_offset of {n}°, the preview includes it.', {n: angle.offset})
+              ? tr("On top comes mow_angle_offset from the mower's settings (mower_logic), {n}° here. It's added to every area, the preview includes it.", {n: angle.offset})
               : ''}
           {angle.increment !== 0 &&
             ' ' + tr('It also turns by {n}° after every full mow, the preview shows the first one.', {n: angle.increment})}
@@ -311,6 +312,24 @@ export function AngleSlider({
   );
 }
 
+// the stripe direction on a little compass, north up like the map: a line through the middle at the angle,
+// counter-clockwise from east
+function AngleCompass({rad}: {rad: number}) {
+  const r = 14;
+  const dx = Math.cos(rad) * r;
+  const dy = -Math.sin(rad) * r;
+  return (
+    <svg className={styles.compass} viewBox="-24 -24 48 48" role="img" aria-label={tr('Mow angle')}>
+      <circle r={r + 2} />
+      <line x1={-dx} y1={-dy} x2={dx} y2={dy} />
+      <text y={-17}>{tr('N')}</text>
+      <text x={21} y={1}>{tr('E')}</text>
+      <text y={20}>{tr('S')}</text>
+      <text x={-21} y={1}>{tr('W')}</text>
+    </svg>
+  );
+}
+
 // one degree at a time, the slider is hard to hit exactly on a phone
 function AngleStep({area, autoAngle, remember, update, onEdit, by}: Parameters<typeof AngleSlider>[0] & {by: number}) {
   return (
@@ -332,7 +351,7 @@ function AngleStep({area, autoAngle, remember, update, onEdit, by}: Parameters<t
 export function AngleOnMap(props: {area: Area; autoAngle: number; remember: () => void; update: UpdateArea; onEdit?: () => void}) {
   return (
     <div className={styles.angleOnMap}>
-      <span>{tr('Mow angle')}</span>
+      <AngleCompass rad={props.area.properties.angle ?? props.autoAngle} />
       <AngleStep {...props} by={-1} />
       <AngleSlider {...props} />
       <AngleStep {...props} by={1} />
