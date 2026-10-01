@@ -46,14 +46,28 @@ function ensureListening() {
 // fail right away instead of after the timeout. Older mowers can't tell, then nothing is checked.
 // meta.* is answered by another service (openmower-cli), so it's never on that list.
 let methods: Promise<Set<string> | null> | null = null;
+// no answer at all: the connection may just have taken longer (phone waking up), so it's asked again after this
+// instead of going without the newer features until a reload
+let askAgainAt = 0;
+const ASK_AGAIN_MS = 15000;
 
 export function rpcMethods(): Promise<Set<string> | null> {
+  if (askAgainAt && Date.now() >= askAgainAt) {
+    methods = null;
+    askAgainAt = 0;
+  }
   methods ??= send<string[]>(RPC.methods, [], 5000).then(
     (list) => (Array.isArray(list) ? new Set(list) : null),
-    () => null,
+    (e) => {
+      if (e instanceof RpcError && e.code === 'timeout') askAgainAt = Date.now() + ASK_AGAIN_MS;
+      return null;
+    },
   );
   return methods;
 }
+
+// rpcMethods() had no answer and will ask again
+export const methodsUnknown = () => askAgainAt > 0;
 
 export const unavailable = (known: Set<string> | null, method: string) =>
   !!known && method !== RPC.methods && !method.startsWith('meta.') && !known.has(method);

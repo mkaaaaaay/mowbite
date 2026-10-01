@@ -69,6 +69,33 @@ describe('calls while offline', () => {
     expect(await methods).toEqual(new Set(['map.replace']));
   });
 
+  it('asks for the method list again a while after it got no answer', async () => {
+    const {rpcMethods} = await load();
+    const first = rpcMethods();
+    await vi.advanceTimersByTimeAsync(6000);
+    expect(await first).toBeNull();
+    client.online();
+    // right after, the failed answer still counts
+    expect(await rpcMethods()).toBeNull();
+    expect(client.published).toEqual([]);
+    await vi.advanceTimersByTimeAsync(15000);
+    const again = rpcMethods();
+    expect(client.published.map((m) => m.method)).toEqual(['rpc.methods']);
+    client.emit('message', 'rpc/response', Buffer.from(JSON.stringify({id: client.published[0].id, result: ['mowing.plan']})));
+    expect(await again).toEqual(new Set(['mowing.plan']));
+  });
+
+  it('keeps a "method not found" from an older mower, that one is final', async () => {
+    const {rpcMethods} = await load();
+    client.online();
+    const first = rpcMethods();
+    client.emit('message', 'rpc/response', Buffer.from(JSON.stringify({id: client.published[0].id, error: {code: -32601, message: 'Method not found'}})));
+    expect(await first).toBeNull();
+    await vi.advanceTimersByTimeAsync(60000);
+    await rpcMethods();
+    expect(client.published).toHaveLength(1);
+  });
+
   it('never sends a call that timed out before the connection came back', async () => {
     const {rpcMethods} = await load();
     const methods = rpcMethods();
