@@ -12,6 +12,7 @@ import MapControls, {layerOn, type Layer, type PlanStyle} from './MapControls';
 import {useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import styles from './MapView.module.css';
 import {tr, useLang} from '@/lib/i18n';
+import {tick} from '@/lib/haptics';
 
 interface MapViewProps {
   map: MowerMap;
@@ -523,6 +524,7 @@ export default function MapView({
       orig: hit.mid ? null : at,
     };
     gesture.current.moved = true; // eat the click that follows
+    if (e.pointerType === 'touch') tick();
     setDragging({areaId, index: hit.mid ? hit.index + 1 : hit.index, bounds: {minX, maxX, minY, maxY}});
   };
 
