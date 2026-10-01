@@ -161,18 +161,7 @@ export default function MowSettings({
             {tr("Direction of the stripes, counted counter-clockwise like on a map: 0° = east, 90° = north, 180° = west, 270° (or -90°) = south. 0° and 180° give the same lanes, the mower only starts them from the other side. Empty = automatic: the direction from the outline's first point to the first one more than 2 m away, for a recorded area the way you set off.")}
           </InfoTip>
         </span>
-        <input
-          type="number"
-          step={1}
-          min={-180}
-          max={180}
-          value={p.angle !== undefined ? Math.round(p.angle / DEG) : ''}
-          placeholder={tr('auto {n}', {n: Math.round(autoAngle / DEG)})}
-          onFocus={remember}
-          onChange={(e) =>
-            update({angle: e.target.value.trim() === '' ? undefined : normDeg(Number(e.target.value)) * DEG}, false)
-          }
-        />
+        <AngleField key={area.id} angle={p.angle} autoAngle={autoAngle} onFocus={remember} update={update} />
       </label>
       <div className={styles.angleRow}>
         <AngleCompass rad={p.angle ?? autoAngle} />
@@ -271,10 +260,41 @@ export default function MowSettings({
   );
 }
 
-// 0 and 180 degrees give the same stripes, so the slider only needs half a turn and is twice as fine.
-// 0 and 180 are both kept as they are, otherwise the slider jumps to the other end at the right edge
-const halfTurn = (deg: number) => (deg >= -0.5 && deg <= 180.5 ? deg : ((deg % 180) + 180) % 180);
-export const shownAngle = (area: Area, autoAngle: number) => Math.round(halfTurn((area.properties.angle ?? autoAngle) / DEG));
+// the whole turn, 0 to 359: 90° and 270° give the same lanes, but the mower starts them on the other side
+const fullTurn = (deg: number) => ((Math.round(deg) % 360) + 360) % 360;
+export const shownAngle = (area: Area, autoAngle: number) => fullTurn((area.properties.angle ?? autoAngle) / DEG);
+
+// the angle as a number, 0 to 359 (-90 is taken as 270). what's typed stays as it is while typing, it's shown
+// turned into 0 to 359 once the field is left
+function AngleField({
+  angle,
+  autoAngle,
+  onFocus,
+  update,
+}: {
+  angle: number | undefined;
+  autoAngle: number;
+  onFocus: () => void;
+  update: UpdateArea;
+}) {
+  const [draft, setDraft] = useState<string | null>(null);
+  return (
+    <input
+      type="number"
+      step={1}
+      value={draft ?? (angle !== undefined ? fullTurn(angle / DEG) : '')}
+      placeholder={tr('auto {n}', {n: fullTurn(autoAngle / DEG)})}
+      onFocus={onFocus}
+      onBlur={() => setDraft(null)}
+      onChange={(e) => {
+        setDraft(e.target.value);
+        // half typed, e.g. just a minus: the browser reports it as empty
+        if (e.target.validity.badInput) return;
+        update({angle: e.target.value.trim() === '' ? undefined : fullTurn(Number(e.target.value)) * DEG}, false);
+      }}
+    />
+  );
+}
 
 export function AngleSlider({
   area,
@@ -294,7 +314,7 @@ export function AngleSlider({
     <input
       type="range"
       min={0}
-      max={180}
+      max={359}
       step={1}
       value={shownAngle(area, autoAngle)}
       onPointerDown={() => {
@@ -338,7 +358,7 @@ function AngleStep({area, autoAngle, remember, update, onEdit, by}: Parameters<t
       className={styles.angleStep}
       onClick={() => {
         remember();
-        update({angle: halfTurn(shownAngle(area, autoAngle) + by) * DEG}, false);
+        update({angle: fullTurn(shownAngle(area, autoAngle) + by) * DEG}, false);
         onEdit?.();
       }}
       aria-label={by > 0 ? '+1°' : '-1°'}
