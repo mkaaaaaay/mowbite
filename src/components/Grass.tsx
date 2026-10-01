@@ -1,6 +1,9 @@
 'use client';
 
+import {datumFromParams, useMowerParams} from '@/hooks/useMowerParams';
+import {isNightTime} from '@/lib/schedule';
 import {settingsStore} from '@/lib/settings';
+import {sunTimes} from '@/lib/sun';
 import {usePathname} from 'next/navigation';
 import {useEffect, useRef, useState, useSyncExternalStore} from 'react';
 import LogoMark from './Logo';
@@ -12,6 +15,18 @@ const REGROW_MS = 2500;
 const PRE_MS = 1800;
 // the hop over the hedgehog starts this long before the mower gets there
 const HOP_LEAD = 360;
+
+// at night now and then a hedgehog comes in from the right, stops to sniff, and crawls under the heap (into the grass
+// in the middle without one). looked at every half minute: about every 5 minutes in the first hour and a half after
+// sunset, every 10 later, and not again within half an hour on this device
+const WALK_CHECK_MS = 30000;
+const WALK_SPEED = 42; // px/s
+const SNIFF_MS = 1800;
+const HIDE_MS = 1000;
+const WALK_GAP_MS = 30 * 60000;
+const WALK_KEY = 'hedgehogWalk';
+// HH:MM, local
+const clock = (d: Date) => d.toTimeString().slice(0, 5);
 
 // a hedgehog that sees the lawn eater coming, trembles and curls up, and gets hopped over. side view, facing left
 function Hedgehog() {
@@ -25,10 +40,10 @@ function Hedgehog() {
           <path d="M12.5 31.0 L16.3 29.2 L13.0 26.5 L17.2 25.6 L14.6 22.2 L18.8 22.4 L17.2 18.4 L21.2 19.6 L20.5 15.4 L24.1 17.5 L24.4 13.2 L27.5 16.2 L28.8 12.1 L31.0 15.8 L33.2 12.1 L34.5 16.2 L37.6 13.2 L37.9 17.5 L41.5 15.4 L40.8 19.6 L44.8 18.4 L43.2 22.4 L47.4 22.2 L44.8 25.6 L49.0 26.5 L45.7 29.2 L49.5 31.0 Z" fill="#5b3d22" />
           <path d="M17.0 31.0 L19.2 29.1 L17.7 26.5 L20.4 25.4 L19.7 22.5 L22.6 22.3 L22.8 19.3 L25.6 20.0 L26.7 17.2 L29.1 18.8 L31.0 16.5 L32.9 18.8 L35.3 17.2 L36.4 20.0 L39.2 19.3 L39.4 22.3 L42.3 22.5 L41.6 25.4 L44.3 26.5 L42.8 29.1 L45.0 31.0 Z" fill="#7a5433" />
         </g>
-        <ellipse cx="18" cy="32.6" rx="2.6" ry="1.4" fill="#4a3220" />
-        <ellipse cx="33" cy="32.8" rx="2.6" ry="1.3" fill="#3a2718" />
+        <ellipse className={styles.foot} cx="18" cy="32.6" rx="2.6" ry="1.4" fill="#4a3220" />
+        <ellipse className={styles.foot} cx="33" cy="32.8" rx="2.6" ry="1.3" fill="#3a2718" />
         <circle cx="16.5" cy="19" r="1.9" fill="#c49a6c" />
-        <circle cx="3.2" cy="26" r="1.7" fill="#1b1b1b" />
+        <circle className={styles.nose} cx="3.2" cy="26" r="1.7" fill="#1b1b1b" />
         <g className={styles.eyes}>
           <circle cx="10.5" cy="23" r="2.4" fill="#fff" />
           <g className={styles.pupils}>
@@ -120,6 +135,9 @@ export default function Grass() {
   // where the hedgehog sits and when the mower gets there (ms after it starts)
   // gap: the stretch the eater flies over, its grass stays
   const [critter, setCritter] = useState<{x: number; hit: number; gap: [number, number]; keep: [number, number]} | null>(null);
+  // the night walk: where it ends (x, like critter), how far right it starts and where it stops to sniff (px from x),
+  // and the stretch it's on now
+  const [walk, setWalk] = useState<{x: number; from: number; mid: number; step: 'in' | 'sniff' | 'on' | 'hide'} | null>(null);
   const strip = useRef<HTMLDivElement>(null);
   const pile = useRef<HTMLDivElement>(null);
   // counts the runs, a new heap blows in after each
@@ -132,6 +150,10 @@ export default function Grass() {
   const shown = settings.grass !== false;
   // on phones only on the dashboard, elsewhere it would sit on top of the content above the tab bar
   const dashboard = usePathname().replace(/(.)\/$/, '$1') === '/';
+  // the mower's position for the sun times, without it night is 6 pm to 6 am like in the schedule
+  const datum = datumFromParams(useMowerParams());
+  const lat = datum?.lat;
+  const lon = datum?.lon;
 
   useEffect(() => {
     const timers: ReturnType<typeof setTimeout>[] = [];
@@ -182,6 +204,54 @@ export default function Grass() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!shown) return;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    let walking = false;
+    const check = () => {
+      if (busy.current || document.hidden || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      // not shown on phones away from the dashboard
+      if (!strip.current?.getClientRects().length) return;
+      const sun = lat !== undefined && lon !== undefined ? sunTimes(lat, lon) : null;
+      const now = new Date();
+      if (!isNightTime(clock(now), sun)) return;
+      const dusk = !isNightTime(clock(new Date(now.getTime() - 90 * 60000)), sun);
+      if (Math.random() > (dusk ? 0.1 : 0.05)) return;
+      try {
+        if (Date.now() - Number(localStorage.getItem(WALK_KEY) ?? 0) < WALK_GAP_MS) return;
+        localStorage.setItem(WALK_KEY, String(Date.now()));
+      } catch {}
+      busy.current = walking = true;
+      const w = window.innerWidth;
+      const p = pile.current?.getBoundingClientRect();
+      const x = p ? Math.round(p.left + p.width / 2) : Math.round(w / 2);
+      // in from just past the right edge, the hedgehog is drawn from 26 px left of x
+      const from = w + 10 - (x - 26);
+      const mid = Math.round(from * (0.35 + Math.random() * 0.3));
+      const inMs = ((from - mid) / WALK_SPEED) * 1000;
+      const onMs = (mid / WALK_SPEED) * 1000;
+      setWalk({x, from, mid, step: 'in'});
+      timers.push(setTimeout(() => setWalk((v) => v && {...v, step: 'sniff'}), inMs));
+      timers.push(setTimeout(() => setWalk((v) => v && {...v, step: 'on'}), inMs + SNIFF_MS));
+      timers.push(setTimeout(() => setWalk((v) => v && {...v, step: 'hide'}), inMs + SNIFF_MS + onMs));
+      timers.push(
+        setTimeout(() => {
+          setWalk(null);
+          busy.current = walking = false;
+        }, inMs + SNIFF_MS + onMs + HIDE_MS),
+      );
+    };
+    const timer = setInterval(check, WALK_CHECK_MS);
+    return () => {
+      clearInterval(timer);
+      timers.forEach(clearTimeout);
+      if (walking) {
+        setWalk(null);
+        busy.current = false;
+      }
+    };
+  }, [shown, lat, lon]);
+
   const falling = autumn && settings.leaves !== false;
   if (!shown) return falling ? <FallingLeaves /> : null;
 
@@ -226,8 +296,35 @@ export default function Grass() {
           <Hedgehog />
         </div>
       )}
+      {walk && (
+        <div
+          key={walk.step}
+          className={[
+            styles.walker,
+            walk.step === 'sniff' ? styles.sniffing : styles.stepping,
+            walk.step === 'in' || walk.step === 'on' ? styles.moving : '',
+            walk.step === 'hide' ? styles.hiding : '',
+          ].join(' ')}
+          style={
+            {
+              left: walk.x - 26,
+              '--from': `${walk.step === 'in' ? walk.from : walk.mid}px`,
+              '--to': `${walk.step === 'in' || walk.step === 'sniff' ? walk.mid : 0}px`,
+              '--walk-dur': `${Math.round(((walk.step === 'in' ? walk.from - walk.mid : walk.mid) / WALK_SPEED) * 1000)}ms`,
+            } as React.CSSProperties
+          }
+        >
+          <div className={styles.hog}>
+            <Hedgehog />
+          </div>
+        </div>
+      )}
       {autumn && (
-        <div ref={pile} key={round} className={[styles.pile, phase !== 'idle' ? styles.blown : ''].join(' ')}>
+        <div
+          ref={pile}
+          key={round}
+          className={[styles.pile, phase !== 'idle' ? styles.blown : '', walk?.step === 'hide' ? styles.rustle : ''].join(' ')}
+        >
           {PILE.map((l, i) => (
             <div
               key={i}

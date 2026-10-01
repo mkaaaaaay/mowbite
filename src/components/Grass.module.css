@@ -135,17 +135,17 @@
   transform-origin: center;
 }
 
-.head {
+.critter .head {
   animation: critter-shake 0.11s linear var(--t-panic) 14;
 }
 
-.eyes {
+.critter .eyes {
   animation:
     critter-widen 0.18s ease-out var(--t-panic) forwards,
     critter-unwiden 0.3s ease-in var(--t-sigh) forwards;
 }
 
-.pupils {
+.critter .pupils {
   animation:
     critter-look 0.9s ease-in-out 0.7s,
     critter-stare 0.15s ease-out var(--t-panic) forwards,
@@ -154,6 +154,9 @@
 
 .lids rect {
   transform: scaleY(0);
+}
+
+.critter .lids rect {
   animation:
     critter-blink 0.2s ease-in-out 1.35s,
     critter-sigh 1.1s ease-in-out var(--t-sigh);
@@ -161,12 +164,15 @@
 
 .gasp {
   opacity: 0;
+}
+
+.critter .gasp {
   animation:
     critter-show 0.1s var(--t-panic) forwards,
     critter-hide 0.1s var(--t-sigh) forwards;
 }
 
-.smile {
+.critter .smile {
   animation:
     critter-hide 0.1s var(--t-panic) forwards,
     critter-show 0.1s var(--t-sigh) forwards;
@@ -179,7 +185,7 @@
   transform-origin: 50% 100%;
 }
 
-.body {
+.critter .body {
   animation:
     critter-curl 0.25s ease-in var(--t-curl) forwards,
     critter-uncurl 0.3s ease-out var(--t-relief) forwards;
@@ -188,6 +194,9 @@
 .ball {
   opacity: 0;
   transform: scale(0.6);
+}
+
+.critter .ball {
   animation:
     critter-ball-in 0.25s ease-out var(--t-curl) forwards,
     critter-ball-out 0.25s ease-in var(--t-relief) forwards;
@@ -423,6 +432,111 @@
   to {
     transform: translate(var(--dx), var(--dy)) rotate(calc(var(--rot) + var(--spin)));
     opacity: 0;
+  }
+}
+
+/* the night walk: in from the right, a stop to sniff, then under the heap. one element per stretch, so each
+   starts its own animation */
+.walker {
+  position: absolute;
+  bottom: 0;
+  width: 52px;
+  height: 35px;
+  transform: translateX(var(--to));
+}
+
+.walker svg {
+  display: block;
+}
+
+.moving {
+  animation: walk-move var(--walk-dur) linear;
+}
+
+@keyframes walk-move {
+  from {
+    transform: translateX(var(--from));
+  }
+  to {
+    transform: translateX(var(--to));
+  }
+}
+
+.foot,
+.nose {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+/* little steps, the feet in turn, the body bobbing along */
+.stepping .foot {
+  animation: hog-step 0.32s ease-in-out infinite alternate;
+}
+
+.stepping .foot + .foot {
+  animation-delay: -0.32s;
+}
+
+.stepping .body {
+  animation: hog-bob 0.16s ease-in-out infinite alternate;
+}
+
+@keyframes hog-step {
+  from {
+    transform: translate(-1.5px, 0);
+  }
+  to {
+    transform: translate(1.5px, -0.8px);
+  }
+}
+
+@keyframes hog-bob {
+  to {
+    transform: translateY(-0.6px);
+  }
+}
+
+.sniffing .nose {
+  animation: hog-sniff 0.2s ease-in-out 0.2s 6 alternate;
+}
+
+.sniffing .pupils {
+  animation: critter-look 0.9s ease-in-out 0.5s;
+}
+
+.sniffing .lids rect {
+  animation: critter-blink 0.2s ease-in-out 1.4s;
+}
+
+@keyframes hog-sniff {
+  to {
+    transform: translate(-0.4px, -0.4px) scale(1.25);
+  }
+}
+
+/* it crawls in under the leaves (the heap is drawn over it), or into the grass */
+.hiding .hog {
+  animation: hog-hide 1s ease-in forwards;
+}
+
+@keyframes hog-hide {
+  to {
+    transform: translate(-8px, 10px) scale(0.85, 0.4);
+    opacity: 0;
+  }
+}
+
+.hog {
+  transform-origin: bottom;
+}
+
+.rustle > div {
+  animation: leaf-rustle 0.2s ease-in-out 5 alternate;
+}
+
+@keyframes leaf-rustle {
+  to {
+    transform: translateY(-1.5px) rotate(calc(var(--rot) + 12deg));
   }
 }
 
