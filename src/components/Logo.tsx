@@ -8,17 +8,20 @@ const SHUT = 'M24 32 L42 31.9 A18 18 0 1 0 42 32.1 Z';
 const CHOMP_MS = 3000;
 
 // a lawn eater chomping its way through the grass. tap it and it does
-// chomp: keep the mouth going. bare: just the eater, without its own grass (when it mows the real one)
+// chomp: keep the mouth going. bare: just the eater, without its own grass (when it mows the real one). children:
+// drawn on the eater, in its 64 box
 export default function LogoMark({
   size = 28,
   className,
   chomp,
   bare,
+  children,
 }: {
   size?: number;
   className?: string;
   chomp?: boolean;
   bare?: boolean;
+  children?: React.ReactNode;
 }) {
   // own id per copy, a gradient inside a hidden svg (the nav's on phones) would paint nothing
   const grad = useId();
@@ -58,6 +61,7 @@ export default function LogoMark({
           {(chomping || chomp) && <animate attributeName="d" values={`${OPEN};${SHUT};${OPEN}`} dur="0.28s" repeatCount="indefinite" />}
         </path>
         <circle cx="26" cy="21.5" r="2.4" fill="#10261a" />
+        {children}
       </g>
       {!bare && <path d="M8 50 H40" stroke="#35a64f" strokeWidth="2.6" strokeLinecap="round" opacity="0.5" />}
     </svg>

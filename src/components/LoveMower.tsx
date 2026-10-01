@@ -19,6 +19,35 @@ function MowerArt() {
   );
 }
 
+// the eater dressed up for the date: blonde hair with a bow, lashes, and lipstick that goes along with the chomping.
+// in the eater's 64 box, the mouth is the wedge from 24,32 to 39.6,23 and 39.6,41, shut at 42,32
+const LIPS = [
+  ['M31.6 27.6 L39.2 23.4', 'M32.5 31.95 L41.5 31.9'],
+  ['M31.6 36.4 L39.2 40.6', 'M32.5 32.05 L41.5 32.1'],
+];
+
+function DressedUp() {
+  return (
+    <>
+      <path
+        d="M5 34 C2 20 12 9.5 25 10 C34 10.5 40.5 16 40 22 C37 19 33 16.8 29 17.2 C26 16.2 22 16.4 19 17.6 C14 19.5 11 25 10.5 33 C10 38 11 42 13 45 C9 45 6 41 5 34 Z"
+        fill="#f7d774"
+        stroke="#d9a93a"
+        strokeWidth="0.8"
+      />
+      <path d="M13 15 C18 12.6 23 12 28 12.6 M8.5 24 C9 19 11.5 16 15 14.2 M7 33 C6.6 28 7.4 25 9 22" stroke="#e5b84a" strokeWidth="0.8" fill="none" strokeLinecap="round" />
+      <path d="M24.4 19.6 L23.6 18 M26 19.1 L26 17.4 M27.6 19.6 L28.5 18.1" stroke="#10261a" strokeWidth="0.7" strokeLinecap="round" />
+      <path d="M14 13 L9.5 10 L10 15.5 Z M14 13 L18.5 10.3 L18 15.6 Z" fill="#ff5c8a" />
+      <circle cx="14" cy="13" r="1.3" fill="#e0457a" />
+      {LIPS.map(([open, shut]) => (
+        <path key={open} d={open} stroke="#e53950" strokeWidth="2.8" strokeLinecap="round" fill="none">
+          <animate attributeName="d" values={`${open};${shut};${open}`} dur="0.28s" repeatCount="indefinite" />
+        </path>
+      ))}
+    </>
+  );
+}
+
 // a little flower, they come up in the stubble after the kiss
 function Flower({color}: {color: string}) {
   return (
@@ -138,7 +167,9 @@ export default function LoveMower() {
           <div className={styles.eater}>
             <Bits />
             <div className={styles.joy}>
-              <LogoMark size={56} bare chomp />
+              <LogoMark size={56} bare chomp>
+                <DressedUp />
+              </LogoMark>
             </div>
           </div>
           <div className={styles.mower}>
