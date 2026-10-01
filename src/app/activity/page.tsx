@@ -236,6 +236,14 @@ export default function ActivityPage() {
   const visible = entries.filter((e) =>
     !onlyProblems ? true : e.kind === 'run' ? e.run.problems > 0 : describe(e.event).severity !== 'info',
   );
+  // messages between runs that follow each other share one card
+  const blocks: ({kind: 'run'; run: Run} | {kind: 'loose'; events: MowerEvent[]})[] = [];
+  for (const e of visible) {
+    const last = blocks[blocks.length - 1];
+    if (e.kind === 'run') blocks.push(e);
+    else if (last?.kind === 'loose') last.events.push(e.event);
+    else blocks.push({kind: 'loose', events: [e.event]});
+  }
 
   return (
     <div className={styles.page}>
@@ -289,13 +297,17 @@ export default function ActivityPage() {
         {events && visible.length === 0 && <p className={styles.dim}>{tr('Nothing here.')}</p>}
 
         <div className={styles.list}>
-          {visible.map((e) =>
-            e.kind === 'run' ? (
-              <RunCard key={e.run.events[0].id} run={e.run} next={runs[runs.indexOf(e.run) - 1]} where={where} />
+          {blocks.map((b) =>
+            b.kind === 'run' ? (
+              <RunCard key={b.run.events[0].id} run={b.run} next={runs[runs.indexOf(b.run) - 1]} where={where} />
             ) : (
-              <div key={e.event.id} className={[styles.loose, styles[describe(e.event).severity]].join(' ')}>
-                <span className={styles.time}>{clock(e.event.t)}</span>
-                {describe(e.event).text}
+              <div key={b.events[0].id} className={styles.looseGroup}>
+                {b.events.map((ev) => (
+                  <div key={ev.id} className={[styles.loose, styles[describe(ev).severity]].join(' ')}>
+                    <span className={styles.time}>{clock(ev.t)}</span>
+                    {describe(ev).text}
+                  </div>
+                ))}
               </div>
             ),
           )}

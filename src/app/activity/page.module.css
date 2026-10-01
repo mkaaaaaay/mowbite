@@ -372,10 +372,22 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* messages between runs (started, shut down, a problem outside a run), a quieter card of their own */
+.looseGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 14px 10px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  box-shadow: var(--card-shadow, none);
+  backdrop-filter: var(--card-blur, none);
+}
+
 .loose {
   display: flex;
   gap: 10px;
-  padding: 2px 16px;
   font-size: 13px;
   color: var(--text-secondary);
 }
