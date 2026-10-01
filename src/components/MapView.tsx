@@ -6,9 +6,10 @@ import {useEasedPose} from '@/hooks/useEasedPose';
 import {containsPoint, polygonArea} from '@/lib/geometry';
 import {settingsStore} from '@/lib/settings';
 import {dockIcon, mowerIcon} from './mapIcons';
-import {availableSources, imageryTiles, type Datum, type ImagerySource} from '@/lib/imagery';
+import {availableSources, imageryTiles, type Datum} from '@/lib/imagery';
 import {handleRadius, meterGrid} from '@/lib/mapGrid';
-import MapControls, {layerOn, type Layer, type PlanStyle} from './MapControls';
+import MapControls, {layerOn, type Layer} from './MapControls';
+import {useMapPrefs} from './useMapPrefs';
 import {useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import styles from './MapView.module.css';
 import {tr, useLang} from '@/lib/i18n';
@@ -201,49 +202,9 @@ export default function MapView({
   const [free, setFree] = useState(false);
   if (free && !follow) setFree(false);
   const following = follow && !free;
-  // off by default, it sends the map area to the imagery provider
-  const [imagery, setImagery] = useState<ImagerySource | null>(() => {
-    try {
-      return (localStorage.getItem('mapImagery') as ImagerySource | null) || null;
-    } catch {
-      return null;
-    }
-  });
+  const {imagery, setImagery, showGrid, toggleGrid, hidden, toggleLayer, planStyle, setPlanStyle} = useMapPrefs();
   const [svgPx, setSvgPx] = useState(0);
-  // only mounted client side once the map arrived, so localStorage is fine here
-  const [showGrid, setShowGrid] = useState(() => {
-    try {
-      return localStorage.getItem('mapGrid') !== 'off';
-    } catch {
-      return true;
-    }
-  });
-  // layers switched off in the layer menu, remembered per device like the grid
-  const [hidden, setHidden] = useState<Set<Layer>>(() => {
-    try {
-      return new Set(JSON.parse(localStorage.getItem('mapHidden') ?? '[]'));
-    } catch {
-      return new Set();
-    }
-  });
   const [layersOpen, setLayersOpen] = useState(false);
-  const [planStyle, setPlanStyle] = useState<PlanStyle>(() => {
-    try {
-      const v = localStorage.getItem('planStyle');
-      return v === 'solid' || v === 'dots' ? v : 'dashed';
-    } catch {
-      return 'dashed';
-    }
-  });
-  const toggleLayer = (l: Layer) => {
-    const next = new Set(hidden);
-    if (next.has(l)) next.delete(l);
-    else next.add(l);
-    setHidden(next);
-    try {
-      localStorage.setItem('mapHidden', JSON.stringify([...next]));
-    } catch {}
-  };
   const pointers = useRef(new Map<number, {x: number; y: number}>());
   const gesture = useRef<{moved: boolean; pinchDist: number | null}>({moved: false, pinchDist: null});
   const smoothedMower = useEasedPose(mower ?? {x: 0, y: 0, heading: 0});
@@ -679,13 +640,6 @@ export default function MapView({
 
   const sources = datum ? availableSources(datum, settings.imagery) : [];
   const source = imagery && sources.length ? (sources.includes(imagery) ? imagery : sources[0]) : null;
-  const setSource = (next: ImagerySource | null) => {
-    setImagery(next);
-    try {
-      if (next) localStorage.setItem('mapImagery', next);
-      else localStorage.removeItem('mapImagery');
-    } catch {}
-  };
   let tiles: ReturnType<typeof imageryTiles> = [];
   if (zoomable && datum && source && svgPx > 0) {
     const v = shown ?? {x: 0, y: 0, size: WIDTH};
@@ -988,16 +942,11 @@ export default function MapView({
       <MapControls
         onZoom={zoomCenter}
         showGrid={showGrid}
-        onToggleGrid={() => {
-          setShowGrid(!showGrid);
-          try {
-            localStorage.setItem('mapGrid', showGrid ? 'off' : 'on');
-          } catch {}
-        }}
+        onToggleGrid={toggleGrid}
         sources={sources}
         source={source}
         imagerySettings={settings.imagery}
-        onSource={setSource}
+        onSource={setImagery}
         hidden={hidden}
         onToggleLayer={toggleLayer}
         layersOpen={layersOpen}
@@ -1006,12 +955,7 @@ export default function MapView({
           progress
             ? {
                 value: planStyle,
-                onChange: (st) => {
-                  setPlanStyle(st);
-                  try {
-                    localStorage.setItem('planStyle', st);
-                  } catch {}
-                },
+                onChange: setPlanStyle,
               }
             : undefined
         }

@@ -10,39 +10,31 @@ import {useMowerState} from '@/hooks/useMowerState';
 import {clearTrack, trackPoints, useMowerTrack} from '@/hooks/useMowerTrack';
 import {datumFromParams, numParam, useMowerParams} from '@/hooks/useMowerParams';
 import {loadJobTrack, useJobList, useMowHistory, type TrackSegment} from '@/hooks/useMowHistory';
-import {measuredStripeAngle, stripeAngleDiff} from '@/lib/mowDirection';
-import {angleInRange, autoMowAngle} from '@/lib/mowStripes';
-import {linkStripes, mowPlan, type MowPlan} from '@/lib/mowPlan';
 import {simplifyPolygon} from '@/lib/simplifyPolygon';
 import {polygonArea, shareInside} from '@/lib/geometry';
 import {mergeOutlines} from '@/lib/mergeAreas';
 import {cutOut, generateId, splitByPath} from '@/lib/splitPolygon';
 import {isDocked} from '@/lib/status';
 import {useSearchParams} from 'next/navigation';
-import {Suspense, useEffect, useMemo, useRef, useState} from 'react';
+import {Suspense, useEffect, useMemo, useState} from 'react';
 import styles from './page.module.css';
 import {tr, useLang} from '@/lib/i18n';
 import MapBackups, {backupLabel} from '@/components/MapBackups';
-import {angleChangedSince, deleteBackup, listBackups, loadBackup, saveBackup, type BackupInfo} from '@/lib/backups';
+import {deleteBackup, listBackups, loadBackup, saveBackup, type BackupInfo} from '@/lib/backups';
 import AreaCard from './AreaCard';
-import {DEG, type UpdateArea, NEW_AREA_SETTINGS} from './editing';
+import {type UpdateArea, NEW_AREA_SETTINGS} from './editing';
 import EditorToolbar from './EditorToolbar';
-import MowSettings, {AngleOnMap, type AngleMismatch} from './MowSettings';
+import MowSettings, {AngleOnMap} from './MowSettings';
 import OrderBox from './OrderBox';
 import {DrawPanel, MergePanel, RestorePanel, SimplifyPanel, SplitPanel} from './Panels';
 import {PARAM} from '@/lib/openmower';
 import {rpcErrorText} from '@/lib/rpcText';
 import {closedRings} from '@/lib/rings';
-import {mowerPlan, type PlanRequest} from '@/lib/areaPlan';
-import {length} from '@/lib/planProgress';
-import {mowAroundHoles} from '@/lib/mowAround';
 import {saveFile} from '@/lib/saveFile';
 import {useAreaProperties} from '@/lib/areaProps';
-import {useKeptState} from '@/hooks/useKeptState';
-import {sameMap} from '@/lib/sameMap';
-import {setUnsavedMap} from '@/lib/unsavedMap';
+import {useMowPlan} from './useMowPlan';
+import {useMapEdits} from './useMapEdits';
 import {checkMap} from '@/lib/mapCheck';
-import {mergeMaps} from '@/lib/mergeMap';
 import Problems from './Problems';
 
 // useSearchParams needs a suspense boundary in a static export
@@ -63,6 +55,8 @@ function MapEditor() {
   const track = useMowerTrack();
   const liveMap = useMowerMap();
   const params = useMowerParams();
+  const {map, edited, setMap, history, remember, undoStep, originals, setOriginals, dirty, external, dropEdits, mergeNote, mergeExternal} =
+    useMapEdits(liveMap);
   const [showStripes, setShowStripes] = useState(true);
   const pastJobs = useMowHistory();
   const jobList = useJobList();
@@ -87,16 +81,6 @@ function MapEditor() {
   // extra rotation for the preview when the mower drives differently than calculated
   const [previewCorrection, setPreviewCorrection] = useState(0);
 
-  // shows the live map until the first edit, after that our own copy so updates don't overwrite edits.
-  // kept while the app runs, a look at another tab doesn't lose them
-  const [edited, setEdited] = useKeptState<MowerMap | null>('map:edited', null);
-  // the mower's map the edits started from, to notice when it gets changed somewhere else meanwhile
-  const [base, setBase] = useKeptState<MowerMap | null>('map:base', null);
-  const map = edited ?? liveMap;
-  const setMap = (next: MowerMap | null | ((m: MowerMap | null) => MowerMap | null)) => {
-    if (!edited) setBase(liveMap);
-    setEdited((prev) => (typeof next === 'function' ? next(prev ?? liveMap) : next));
-  };
   const [selectedAreaId, setSelectedAreaId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -108,47 +92,9 @@ function MapEditor() {
   const [cutShape, setCutShape] = useState(false);
   // tolerance in cm while the simplify preview is open
   const [simplifyCm, setSimplifyCm] = useState<number | null>(null);
-  const [history, setHistory] = useKeptState<MowerMap[]>('map:history', []);
   // delete needs a second click, id of the area that's armed
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
-  // outlines before the first reduce, so the slider can go back up
-  const [originals, setOriginals] = useKeptState<Record<string, Point[]>>('map:originals', {});
 
-  // really changed, not just a field that got focus (that already makes an undo step)
-  const dirty = useMemo(() => !!edited && (!base || !sameMap(edited, base)), [edited, base]);
-  // the map on the mower isn't the one the edits started from: another app, device or a recording changed it.
-  // saving would put the edited copy in its place and that change would be gone
-  const external = useMemo(() => !!base && !!liveMap && !sameMap(base, liveMap), [base, liveMap]);
-  // back to the mower's map. keep: the outlines from before reducing points stay (only after a save, they
-  // still match then)
-  const dropEdits = (keep?: 'originals') => {
-    setEdited(null);
-    setBase(null);
-    setHistory([]);
-    setMergeNote(null);
-    if (keep !== 'originals') setOriginals({});
-  };
-  // what got changed here put together with the change on the mower, see lib/mergeMap. areas both changed keep the
-  // version from here, the note names them
-  const [mergeNote, setMergeNote] = useState<string | null>(null);
-  const mergeExternal = () => {
-    if (!edited || !base || !liveMap) return;
-    const {map: merged, conflicts} = mergeMaps(base, edited, liveMap);
-    remember();
-    setEdited(merged);
-    setBase(liveMap);
-    const name = (id: string) =>
-      merged.docking_stations.some((d) => d.id === id)
-        ? tr('Docking station')
-        : merged.areas.find((a) => a.id === id)?.properties.name || tr('unnamed');
-    setMergeNote(conflicts.length ? tr('Changed on both sides: {names}. Your version is kept there.', {names: conflicts.map(name).join(', ')}) : null);
-  };
-  useEffect(() => setUnsavedMap(dirty), [dirty]);
-  // nothing of ours in the copy: follow the mower's map again
-  useEffect(() => {
-    if (external && !dirty) dropEdits();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- dropEdits only uses setters
-  }, [external, dirty]);
 
   // the area settings this mower keeps, mow_around changes the plan
   const areaProps = useAreaProperties();
@@ -213,170 +159,10 @@ function MapEditor() {
   const warnings = problems.filter((p) => p.level === 'warn').length;
   const problemSpots = problems.flatMap((p) => ('at' in p ? [p.at] : []));
 
-  const toolWidth = numParam(params, PARAM.toolWidth);
-  const angleOffset = numParam(params, PARAM.mowAngleOffset) ?? 0;
-  const offsetIsAbsolute = params[PARAM.mowAngleOffsetIsAbsolute] === true;
-  const angleIncrement = numParam(params, PARAM.mowAngleIncrement) ?? 0;
-  const shownArea = shownMap?.areas.find((a) => a.id === selectedAreaId) ?? null;
-  const isMowArea = shownArea?.properties.type === 'mow';
-  // a mowing area set to mowable: false gets no plan, it's only driven across
-  // while the angle is being changed and a moment after, the stripes show up even when switched off, and for an
-  // area that isn't mowed too
-  const [angleEditing, setAngleEditing] = useState(false);
-  const angleTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  // moving: right now, for the estimate that follows the slider without waiting for the mower
-  const [angleMoving, setAngleMoving] = useState(false);
-  const movingTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const touchAngle = () => {
-    setAngleEditing(true);
-    setAngleMoving(true);
-    clearTimeout(angleTimer.current);
-    clearTimeout(movingTimer.current);
-    angleTimer.current = setTimeout(() => setAngleEditing(false), 3000);
-    movingTimer.current = setTimeout(() => setAngleMoving(false), 700);
-  };
-  const planned = isMowArea && (shownArea?.properties.mowable !== false || angleEditing);
-  const stripesOn = showStripes || angleEditing;
-  const autoAngle = shownArea ? autoMowAngle(shownArea.outline) : 0;
-
-  // the angle the planner actually gets, see MowingBehavior.cpp
-  const plannedAngle = (area: {properties: {angle?: number; angle_min?: number; angle_max?: number}; outline: Point[]}) =>
-    angleInRange(
-      offsetIsAbsolute ? angleOffset * DEG : (area.properties.angle ?? autoMowAngle(area.outline)) + angleOffset * DEG,
-      area.properties.angle_min,
-      area.properties.angle_max,
-    );
-
-  // check against the last real mow here, a leftover angle increment in checkpoint.bag isn't
-  // published anywhere and rotates everything. saved area, not the edited one
-  const savedArea = liveMap?.areas.find((a) => a.id === selectedAreaId);
-  let mismatch: AngleMismatch | null = null;
-  if (savedArea?.properties.type === 'mow' && pastJobs) {
-    const passes = savedArea.properties.outline_count ?? numParam(params, PARAM.outlineCount) ?? 0;
-    const margin = passes * (toolWidth ?? 0.2) + 0.2;
-    // newest mowing stretch first, a job that got interrupted can resume with different settings
-    const stretches = pastJobs.flatMap((job) => [...job.segments].reverse().map((seg) => ({job, seg})));
-    for (const {job, seg} of stretches) {
-      const m = measuredStripeAngle([seg], savedArea.outline, margin);
-      if (!m) continue;
-      const planned = (((plannedAngle(savedArea) / DEG) % 180) + 180) % 180;
-      const diff = stripeAngleDiff(planned, m.angleDeg);
-      if (Math.abs(diff) > 8) {
-        mismatch = {
-          measured: m.angleDeg,
-          planned,
-          diff,
-          date: new Date(job.timestamp * 1000).toLocaleDateString(),
-          since: job.timestamp,
-        };
-      }
-      break;
-    }
-  }
-  // not a leftover in checkpoint.bag if the angle got changed on purpose since that mow: a backup from after it
-  // (made before a save) has a different one
-  const mismatchKey = mismatch && savedArea ? `${savedArea.id} ${mismatch.since} ${savedArea.properties.angle}` : '';
-  const [changedOnPurpose, setChangedOnPurpose] = useState<string | null>(null);
-  useEffect(() => {
-    if (!mismatchKey) return;
-    const [id, since, angle] = mismatchKey.split(' ');
-    let alive = true;
-    void angleChangedSince(id, Number(since), angle === 'undefined' ? undefined : Number(angle)).then(
-      (changed) => alive && changed && setChangedOnPurpose(mismatchKey),
-    );
-    return () => {
-      alive = false;
-    };
-  }, [mismatchKey]);
-  if (mismatchKey && changedOnPurpose === mismatchKey) mismatch = null;
-  const effectiveAngle = shownArea ? plannedAngle(shownArea) + (mismatch ? previewCorrection : 0) * DEG : 0;
-
-  // the real plan from the mower when it offers one, for the area as it is in the editor right now (saved or not)
-  const planRequest = useMemo((): PlanRequest | null => {
-    if (!stripesOn || !planned || !shownArea || !shownMap) return null;
-    const p = shownArea.properties;
-    const req: PlanRequest = {
-      outline: shownArea.outline,
-      obstacles: [
-        ...shownMap.areas
-          .filter((a) => a.properties.type === 'obstacle' && a.properties.active !== false && a.outline.length > 2)
-          .map((a) => a.outline),
-        ...(areaProps.has('mow_around') ? mowAroundHoles(shownArea, shownMap.areas) : []),
-      ],
-    };
-    if (p.angle !== undefined) req.angle = p.angle;
-    if (p.outline_count !== undefined) req.outline_count = p.outline_count;
-    if (p.outline_overlap_count !== undefined) req.outline_overlap_count = p.outline_overlap_count;
-    if (p.outline_offset !== undefined) req.outline_offset = p.outline_offset;
-    if (p.angle_min !== undefined && p.angle_max !== undefined) {
-      req.angle_min = p.angle_min;
-      req.angle_max = p.angle_max;
-    }
-    return req;
-  }, [stripesOn, planned, shownArea, shownMap, areaProps]);
-  const planKey = planRequest ? JSON.stringify(planRequest) : '';
-  const [fromMower, setFromMower] = useState<{areaId: string | null; plan: MowPlan | null} | null>(null);
   // not while a point is dragged, a new plan redrawn mid-drag makes it stutter
   const [draggingPoint, setDraggingPoint] = useState(false);
-  useEffect(() => {
-    if (!planKey || draggingPoint) return;
-    const areaId = selectedAreaId;
-    let alive = true;
-    // while points are typed or clicked only once it settles
-    const t = setTimeout(() => {
-      void mowerPlan(JSON.parse(planKey)).then(
-        (plan) => alive && setFromMower({areaId, plan}),
-        () => alive && setFromMower({areaId, plan: null}),
-      );
-    }, 300);
-    return () => {
-      alive = false;
-      clearTimeout(t);
-    };
-  }, [planKey, selectedAreaId, draggingPoint]);
-  // the last answer for this area stays up while a newer one is on its way, so it doesn't flicker back to the estimate
-  // while the angle is moving the estimate follows right away, the mower's plan comes back once it stops
-  const realPlan = planKey && !angleMoving && fromMower?.areaId === selectedAreaId ? fromMower.plan : null;
-  // the mower's own plan has the angle it really mows at, a leftover increment included, nothing to warn about then
-  if (realPlan) mismatch = null;
-
-  // otherwise where the mower will drive, worked out like its planner does (lib/mowPlan)
-  const wantPlan = !!(shownMap && shownArea && planned && stripesOn && toolWidth);
-  const plan = useMemo((): MowPlan | undefined => {
-    if (realPlan) return realPlan;
-    if (!wantPlan || !shownMap || !shownArea || !toolWidth) return undefined;
-    const holes = [
-      ...shownMap.areas
-        .filter((a) => a.properties.type === 'obstacle' && a.properties.active !== false && a.outline.length > 2)
-        .map((a) => a.outline),
-      ...(areaProps.has('mow_around') ? mowAroundHoles(shownArea, shownMap.areas) : []),
-    ];
-    const p = shownArea.properties;
-    const global = (key: string) => numParam(params, PARAM.mowerLogic(key));
-    return mowPlan({
-      outline: shownArea.outline,
-      holes,
-      outlineOffset: p.outline_offset ?? global('outline_offset') ?? 0,
-      outlineCount: p.outline_count ?? global('outline_count') ?? 0,
-      overlapCount: p.outline_overlap_count ?? global('outline_overlap_count') ?? 0,
-      toolWidth,
-      angle: effectiveAngle,
-    });
-  }, [realPlan, wantPlan, shownMap, shownArea, toolWidth, params, effectiveAngle, areaProps]);
-
-  // the mower's own plan comes already joined up, the estimate gets its zigzags here
-  const stripes = useMemo(
-    () =>
-      plan && (realPlan ? plan.stripes : toolWidth ? linkStripes(plan.stripes, effectiveAngle, toolWidth) : undefined),
-    [plan, realPlan, toolWidth, effectiveAngle],
-  );
-
-  // how long the plan is to drive, closed passes included, the drives between the pieces not
-  const planLength = useMemo(() => {
-    if (!plan || !stripes) return 0;
-    const closed = plan.loops.map((o) => (o.length > 1 ? [...o, o[0]] : o));
-    return [...closed, ...stripes].reduce((s, o) => s + length(o), 0);
-  }, [plan, stripes]);
+  const {toolWidth, angleOffset, offsetIsAbsolute, angleIncrement, shownArea, autoAngle, touchAngle, mismatch, realPlan, plan, stripes, planLength} =
+    useMowPlan({params, liveMap, shownMap, selectedAreaId, pastJobs, areaProps, showStripes, previewCorrection, draggingPoint});
 
   const globalValue = (key: string) => {
     const v = numParam(params, PARAM.mowerLogic(key));
@@ -398,16 +184,8 @@ function MapEditor() {
     setSimplifyCm(null);
   };
 
-  // call before every change so it can be undone. the same map twice in a row is one step (a field that got focus
-  // and then the first change after a save)
-  const remember = () => {
-    if (map) setHistory((h) => (h[h.length - 1] === map ? h : [...h.slice(-49), map]));
-  };
-
   const undo = () => {
-    if (!history.length) return;
-    setMap(history[history.length - 1]);
-    setHistory((h) => h.slice(0, -1));
+    if (!undoStep()) return;
     setSimplifyCm(null);
     setMode('idle');
     setPendingPoints([]);
