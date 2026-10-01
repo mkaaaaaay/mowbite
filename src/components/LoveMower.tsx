@@ -19,8 +19,49 @@ function MowerArt() {
   );
 }
 
+// a little flower, they come up in the stubble after the kiss
+function Flower({color}: {color: string}) {
+  return (
+    <svg width="10" height="12" viewBox="-5 -5 10 12">
+      <path d="M0 1 L0 7" stroke="#558b2f" strokeWidth="1" />
+      {[0, 72, 144, 216, 288].map((a) => (
+        <ellipse key={a} cx="0" cy="-2.3" rx="1.5" ry="2.3" fill={color} transform={`rotate(${a})`} />
+      ))}
+      <circle r="1.4" fill="#ffd54f" />
+    </svg>
+  );
+}
+
+const FLOWERS = Array.from({length: 12}, (_, i) => ({
+  left: (i * 8.3 + 2 + ((i * 7) % 5)) % 100,
+  color: ['#ffffff', '#f48fb1', '#90caf9', '#ce93d8'][i % 4],
+  delay: (i * 137) % 600,
+}));
+
+// sparks flying out from the heart, where to
+const SPARKS = [
+  [-30, -18],
+  [30, -20],
+  [-40, 6],
+  [42, 4],
+  [-14, -34],
+  [16, -36],
+];
+
+// bits of grass flying up behind a mower while it cuts
+function Bits() {
+  return (
+    <span className={styles.bits}>
+      <i style={{'--bx': '18px', '--by': '-16px'} as React.CSSProperties} />
+      <i style={{'--bx': '10px', '--by': '-22px', animationDelay: '0.2s', background: '#9ccc65'} as React.CSSProperties} />
+      <i style={{'--bx': '24px', '--by': '-10px', animationDelay: '0.4s', background: '#558b2f'} as React.CSSProperties} />
+    </span>
+  );
+}
+
 // the top right corner of the dashboard: double tap it and a strip of lawn grows, our lawn eater leaves
-// the title and mows it from the left, an openmower from the right, until they meet and kiss
+// the title and mows it from the left, an openmower from the right, until they meet and kiss. flowers come up
+// in the stubble, and the two drive off together
 export default function LoveMower() {
   const [run, setRun] = useState<{top: number; mid: number; lawn: {left: number; width: number}[]; id: number} | null>(null);
   const busy = useRef(false);
@@ -88,17 +129,37 @@ export default function LoveMower() {
             <div className={grass.short} />
             <div className={[grass.tall, styles.leftHalf].join(' ')} />
             <div className={[grass.tall, styles.rightHalf].join(' ')} />
+            {FLOWERS.map((f, i) => (
+              <span key={i} className={styles.flower} style={{left: `${f.left}%`, animationDelay: `${f.delay}ms`}}>
+                <Flower color={f.color} />
+              </span>
+            ))}
           </div>
           <div className={styles.eater}>
-            <LogoMark size={56} bare chomp />
+            <Bits />
+            <div className={styles.joy}>
+              <LogoMark size={56} bare chomp />
+            </div>
           </div>
           <div className={styles.mower}>
-            <MowerArt />
+            <Bits />
+            <div className={styles.wiggle}>
+              <MowerArt />
+            </div>
+            <span className={styles.trail}>♥</span>
+            <span className={[styles.trail, styles.t2].join(' ')}>♥</span>
           </div>
           <span className={styles.heart}>♥</span>
-          <span className={[styles.small, styles.s1].join(' ')}>♥</span>
-          <span className={[styles.small, styles.s2].join(' ')}>♥</span>
-          <span className={[styles.small, styles.s3].join(' ')}>♥</span>
+          {[1, 2, 3, 4, 5, 6].map((n) => (
+            <span key={n} className={[styles.small, styles[`s${n}`]].join(' ')}>
+              ♥
+            </span>
+          ))}
+          {SPARKS.map(([x, y], i) => (
+            <span key={i} className={styles.spark} style={{'--sx': `${x}px`, '--sy': `${y}px`} as React.CSSProperties}>
+              ✦
+            </span>
+          ))}
         </div>
       )}
     </>
