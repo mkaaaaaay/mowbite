@@ -126,7 +126,7 @@ function FallingLeaves() {
 }
 
 // the grass along the bottom. it lies behind the page, so taps on it are caught on the window:
-// anything in the strip that isn't part of the ui counts. two quick taps start the mower
+// anything in the strip that isn't part of the ui counts. in autumn two quick taps on the heap of leaves start the mower
 export default function Grass() {
   const [phase, setPhase] = useState<'idle' | 'peek' | 'mowing' | 'growing'>('idle');
   const [dur, setDur] = useState(0);
@@ -162,9 +162,9 @@ export default function Grass() {
       const target = e.target as Element;
       if (target.closest('button, a, input, select, textarea, label, section, article, nav, svg, [role]')) return;
       if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-      // in autumn it's the middle of the heap of leaves
+      // the middle of the heap of leaves, only there in autumn
       const p = pile.current?.getBoundingClientRect();
-      if (p && Math.abs(e.clientX - (p.left + p.width / 2)) > 22) return;
+      if (!p || Math.abs(e.clientX - (p.left + p.width / 2)) > 22) return;
       if (e.timeStamp - lastTap.current > 400) {
         lastTap.current = e.timeStamp;
         return;
@@ -173,8 +173,8 @@ export default function Grass() {
       busy.current = true;
       const w = window.innerWidth;
       const ms = Math.max(3000, (w / SPEED) * 1000);
-      // under the heap in autumn, it's the middle of the screen
-      const x = p ? Math.round(p.left + p.width / 2) : Math.round(w * (0.45 + Math.random() * 0.1));
+      // the hedgehog sleeps under the heap
+      const x = Math.round(p.left + p.width / 2);
       // the mower drives from -80 to w + 10 px, its mouth (where the cut is) is 34 px in, the hedgehog
       // starts 26 px left of x
       const mouthAt = (t: number) => -46 + ((w + 90) * t) / ms;
@@ -291,7 +291,7 @@ export default function Grass() {
       {/* the grass under the jump, it stays when the rest is cut */}
       {critter && phase === 'mowing' && <div className={[styles.tall, styles.keep].join(' ')} />}
       {critter && (
-        <div className={[styles.critter, autumn ? styles.fromPile : ''].join(' ')} style={{left: critter.x - 26}}>
+        <div className={styles.critter} style={{left: critter.x - 26}}>
           <Hedgehog />
         </div>
       )}

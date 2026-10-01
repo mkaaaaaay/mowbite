@@ -104,21 +104,14 @@
   transform-origin: bottom;
 }
 
-/* the hedgehog: comes out, looks around, bristles when the eater comes, sighs with relief after the hop.
-   the times are set from the component, counted from the double tap */
+/* the hedgehog: comes out from under the heap once the leaves have flown, looks around, bristles when the eater
+   comes, sighs with relief after the hop. the times are set from the component, counted from the double tap */
 .critter {
   position: absolute;
   bottom: 0;
   width: 52px;
   height: 35px;
   transform-origin: bottom;
-  animation:
-    critter-pop 0.6s cubic-bezier(0.3, 1.6, 0.5, 1) both,
-    critter-exit 1.2s ease-in var(--t-exit) forwards;
-}
-
-/* in autumn it comes out from under the heap once the leaves have flown */
-.fromPile {
   animation:
     critter-pop 0.6s cubic-bezier(0.3, 1.6, 0.5, 1) 0.35s both,
     critter-exit 1.2s ease-in var(--t-exit) forwards;
