@@ -31,7 +31,9 @@ export default function BatteryHistory() {
           <span className={styles.dim}>
             {chargeTrend
               ? tr('{n} % against the first weeks', {n: `${change(chargeTrend) > 0 ? '+' : ''}${change(chargeTrend)}`})
-              : charges.length === 1
+              : charges.length === 0
+                ? tr('No full charge yet (from 20 minutes on the charger)')
+                : charges.length === 1
                 ? tr('1 full charge so far, the trend shows after a few weeks')
                 : tr('{n} full charges so far, the trend shows after a few weeks', {n: charges.length})}
           </span>
@@ -43,7 +45,9 @@ export default function BatteryHistory() {
           <span className={styles.dim}>
             {drainTrend
               ? tr('{n} % against the first weeks', {n: `${change(drainTrend) > 0 ? '+' : ''}${change(drainTrend)}`})
-              : drain.length === 1
+              : drain.length === 0
+                ? tr('No mow with at least 15 minutes of blade time yet')
+                : drain.length === 1
                 ? tr('1 mow so far, the trend shows after a few weeks')
                 : tr('{n} mows so far, the trend shows after a few weeks', {n: drain.length})}
           </span>

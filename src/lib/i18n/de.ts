@@ -514,6 +514,8 @@ const de: Record<string, string> = {
   "{m} m to mow": "{m} m zu mähen",
   "{n} cm apart": "{n} cm Abstand",
   "{n} mows so far, the trend shows after a few weeks": "bisher {n} Mähvorgänge, der Trend zeigt sich nach ein paar Wochen",
+  "No mow with at least 15 minutes of blade time yet": "Noch kein Mähvorgang mit mindestens 15 Minuten Messer",
+  "No full charge yet (from 20 minutes on the charger)": "Noch keine volle Ladung (ab 20 Minuten am Ladegerät)",
   "1 mow so far, the trend shows after a few weeks": "bisher 1 Mähvorgang, der Trend zeigt sich nach ein paar Wochen",
   "{n} out of range": "{n} außerhalb des Bereichs",
   "{n} points": "{n} Punkte",
