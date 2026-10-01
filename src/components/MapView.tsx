@@ -798,7 +798,7 @@ export default function MapView({
             const flip = icon.side && Math.cos(displayMower.heading) < 0 ? -1 : 1;
             return (
               <g className={styles.mower} transform={`translate(${sx} ${sy}) rotate(${deg}) scale(${size} ${flip * size})`}>
-                {icon.draw({speed: mowerSpeed, emergency})}
+                {icon.draw({speed: mowerSpeed, emergency, blades: track?.at(-1)?.at(-1)?.b === true})}
               </g>
             );
           })()}

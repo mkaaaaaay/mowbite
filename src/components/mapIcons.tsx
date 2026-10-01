@@ -30,8 +30,42 @@ type MowerIcon = {
   key: string;
   label: string;
   side?: boolean;
-  draw: (o?: {speed?: number; emergency?: boolean}) => React.ReactNode;
+  // blades: the blade is running, as far as the mower tells (position/json)
+  draw: (o?: {speed?: number; emergency?: boolean; blades?: boolean}) => React.ReactNode;
 };
+
+// the wheel of the openmower logo is its second part, turning around its middle while the mower drives. the
+// other parts are passed through as they are
+const OPENMOWER_WHEEL = '416.751 153.017';
+const wheel = (part: number, speed: number, el: React.ReactElement, key: string) =>
+  part === 1 && speed > 0.05 ? (
+    <g key={key}>
+      <animateTransform
+        attributeName="transform"
+        type="rotate"
+        values={`0 ${OPENMOWER_WHEEL};-360 ${OPENMOWER_WHEEL}`}
+        dur={`${Math.min(3, Math.max(0.4, 0.5 / speed)).toFixed(1)}s`}
+        repeatCount="indefinite"
+      />
+      {el}
+    </g>
+  ) : (
+    <g key={key}>{el}</g>
+  );
+
+// bits of grass flying up behind the openmower while the blade runs, each on its own beat
+const CLIPPINGS = [
+  {x: 300, c: '#7cb342', d: 0},
+  {x: 250, c: '#9ccc65', d: 0.25},
+  {x: 330, c: '#558b2f', d: 0.5},
+  {x: 280, c: '#aed581', d: 0.75},
+].map((g, i) => (
+  <circle key={`g${i}`} cx={g.x} cy={250} r={11} fill={g.c} opacity={0}>
+    <animate attributeName="cx" values={`${g.x};${g.x + 150}`} dur="1s" begin={`${g.d}s`} repeatCount="indefinite" />
+    <animate attributeName="cy" values="250;150;215" dur="1s" begin={`${g.d}s`} repeatCount="indefinite" />
+    <animate attributeName="opacity" values="0;1;0" dur="1s" begin={`${g.d}s`} repeatCount="indefinite" />
+  </circle>
+));
 
 // strokes in the icon's own units, the map and the settings draw lines non-scaling
 const SCALING = {vectorEffect: 'none'} as const;
@@ -174,19 +208,35 @@ export const MOWER_ICONS: MowerIcon[] = [
     key: 'openmower',
     label: 'OpenMower',
     side: true,
-    draw: () => (
+    draw: ({speed = 0, emergency = false, blades = false} = {}) => (
       // like the logo: black lines between the parts, a black edge and a white one around it so it shows on any map.
-      // the edges grow with the icon (the map draws lines at a fixed width otherwise)
+      // the edges grow with the icon (the map draws lines at a fixed width otherwise). driving, the wheel turns as fast
+      // as the mower goes, with the blade on grass flies out behind it, on an emergency stop it shakes and the lines
+      // flash red
       <g transform="scale(-0.0042 0.0042) translate(-269 -136)" strokeLinejoin="round">
-        {OPENMOWER_EDGE.map((p, i) => (
-          <path key={`w${i}`} transform={p.transform} d={p.d} fill="none" stroke="#fff" strokeWidth={26} style={SCALING} />
-        ))}
-        {OPENMOWER_PATHS.map((p, i) => (
-          <path key={`b${i}`} transform={p.transform} d={p.d} fill="#000" stroke="#000" strokeWidth={16} style={SCALING} />
-        ))}
-        {OPENMOWER_PATHS.map((p, i) => (
-          <path key={i} transform={p.transform} d={p.d} fill="var(--c-mower)" />
-        ))}
+        <g>
+          {emergency && (
+            <animateTransform attributeName="transform" type="translate" values="0 0;9 -3;-9 3;6 0;0 0" dur="0.35s" repeatCount="indefinite" />
+          )}
+          {OPENMOWER_EDGE.map((p, i) => wheel(i, speed, <path transform={p.transform} d={p.d} fill="none" stroke="#fff" strokeWidth={26} style={SCALING} />, `w${i}`))}
+          {OPENMOWER_PATHS.map((p, i) =>
+            wheel(
+              i,
+              speed,
+              <path transform={p.transform} d={p.d} fill="#000" stroke="#000" strokeWidth={16} style={SCALING}>
+                {emergency && (
+                  <>
+                    <animate attributeName="fill" values="#000;#e53935;#000" dur="0.8s" repeatCount="indefinite" />
+                    <animate attributeName="stroke" values="#000;#e53935;#000" dur="0.8s" repeatCount="indefinite" />
+                  </>
+                )}
+              </path>,
+              `b${i}`,
+            ),
+          )}
+          {OPENMOWER_PATHS.map((p, i) => wheel(i, speed, <path transform={p.transform} d={p.d} fill="var(--c-mower)" />, `c${i}`))}
+          {blades && !emergency && speed > 0.05 && CLIPPINGS}
+        </g>
       </g>
     ),
   },
