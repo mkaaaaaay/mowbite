@@ -782,8 +782,10 @@ function MapEditor() {
                 <div className={styles.warning}>
                   <p>
                     {tr(
-                      'The map on the mower was changed since you started editing here (another app or device, or a recording). Saving puts your version in its place, that change would be lost.',
-                    )}
+                      'The map on the mower was changed since you started editing here (another app or device, or a recording). Saving puts your version in its place.',
+                    )}{' '}
+                    {/* the save backs up the mower's map first when backups work */}
+                    {backups ? tr('That change is then only in the backups.') : tr('That change would be lost.')}
                   </p>
                   <a
                     onClick={() => {

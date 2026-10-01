@@ -3,7 +3,8 @@ import {getMqttClient, withPrefix} from './mqttClient';
 import {TOPIC} from './openmower';
 
 // OpenMower takes remote driving on "teleop" as bson {vx, vz} (m/s forward, rad/s counterclockwise).
-// It stops by itself when nothing arrived for half a second, so this has to be sent over and over.
+// The xCore stops the wheels when nothing arrived for a second (diff_drive_service.cpp), so this has to be sent
+// over and over.
 function twist(vx: number, vz: number): Buffer {
   const buf = Buffer.alloc(29);
   let o = 0;

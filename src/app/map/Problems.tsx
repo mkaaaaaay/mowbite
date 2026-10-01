@@ -6,7 +6,7 @@ import styles from './page.module.css';
 function text(p: Problem): string {
   switch (p.kind) {
     case 'crossing':
-      return tr('the outline crosses itself (red on the map). The mower may plan odd lanes or drive outside there, pull the points apart.');
+      return tr('the outline crosses itself (red on the map). The mower can plan wrong lanes there, pull the points apart.');
     case 'points':
       return tr("has fewer than 3 points, that's no area.");
     case 'dock':
