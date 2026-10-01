@@ -159,6 +159,18 @@ send_home_at() {
   done
 }
 
+# a start that went out only says the broker took it. the mower answers by leaving IDLE (undocking), when it
+# doesn't within a minute that's logged, the page would say started otherwise
+check_started() {
+  t=$(($(date +%s) + 60))
+  while [ "$(date +%s)" -lt "$t" ]; do
+    # shellcheck disable=SC2086
+    s=$(mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -C 1 -W 10 2>/dev/null)
+    case "$(field "$s" current_state)" in '' | IDLE) sleep 2 ;; *) return ;; esac
+  done
+  log start_failed
+}
+
 # does the run have an area left: mowed ones in the map (retained) the plan picks ($1: all or a list) and
 # that aren't paused ($2). when the map can't be read it's left to the run
 area_left() {
@@ -273,6 +285,7 @@ while :; do
       # shellcheck disable=SC2086
       if mosquitto_pub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTION" -m "$ACTION_START_MOWING"; then
         log started "$bat"
+        check_started &
         if [ "$areas" != all ] || [ -n "$paused" ]; then skip_others "$areas" "$paused" & fi
         # the end time of the start, not the next one from now (it may have waited for the battery)
         stop=$(stop_time "$end" "$sunset" "$dark" "$endat")

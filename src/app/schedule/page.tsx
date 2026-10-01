@@ -27,6 +27,7 @@ import {useMowerMap} from '@/hooks/useMowerMap';
 
 const LOG_TEXT: Record<string, string> = {
   started: 'Started',
+  start_failed: "The mower didn't react to the start, still idle a minute later",
   waiting_battery: 'Waiting for the battery ({detail} %)',
   skip_battery: 'Not started, battery only at {detail} % after two hours',
   skip_rain: "Not started, the mower's rain sensor was wet",
@@ -194,7 +195,7 @@ export default function SchedulePage() {
               {log.length === 0 && <p className={styles.dim}>{tr('Nothing yet.')}</p>}
               <ul className={styles.log}>
                 {log.slice(0, 20).map((l, i) => (
-                  <li key={i} className={l.what === 'started' ? styles.good : l.what.startsWith('skip') ? styles.bad : undefined}>
+                  <li key={i} className={l.what === 'started' ? styles.good : l.what.startsWith('skip') || l.what === 'start_failed' ? styles.bad : undefined}>
                     <span className={styles.dim}>
                       {dayLabel(new Date(l.t * 1000))}, {clock(l.t)}
                     </span>

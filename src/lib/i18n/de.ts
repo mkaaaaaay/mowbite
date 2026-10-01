@@ -306,6 +306,7 @@ const de: Record<string, string> = {
   "no area": "keine Fläche",
   "No backups yet.": "Noch keine Sicherungen.",
   "no contact with the charger": "kein Kontakt zur Ladestation",
+  "The mower didn't react to the start, still idle a minute later": "Der Mäher hat auf den Start nicht reagiert, eine Minute später noch im Leerlauf",
   "the outline crosses itself (red on the map). The mower may plan odd lanes or drive outside there, pull the points apart.": "der Umriss kreuzt sich selbst (rot auf der Karte). Der Mäher plant dort eventuell seltsame Bahnen oder fährt hinaus, zieh die Punkte auseinander.",
   "has fewer than 3 points, that's no area.": "hat weniger als 3 Punkte, das ist keine Fläche.",
   "The docking station lies outside every active mowing and navigation area, the mower can't drive there to dock.": "Die Ladestation liegt außerhalb aller aktiven Mäh- und Navigationsflächen, der Mäher kann zum Andocken nicht dorthin fahren.",
