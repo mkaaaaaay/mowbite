@@ -1,7 +1,7 @@
 // Map symbols to pick from in the settings. Mower icons face +x and span about -1..1, the caller
 // scales and rotates them. A side view (side: true) has the ground at +y, the caller mirrors it when the
 // mower heads left so it stays upright. Dock icons are drawn upright in the same unit box.
-import {OPENMOWER_PATHS} from './openmowerArt';
+import {OPENMOWER_EDGE, OPENMOWER_PATHS} from './openmowerArt';
 
 const mouth = (deg: number) => {
   const a = (deg * Math.PI) / 180;
@@ -32,6 +32,9 @@ type MowerIcon = {
   side?: boolean;
   draw: (o?: {speed?: number; emergency?: boolean}) => React.ReactNode;
 };
+
+// strokes in the icon's own units, the map and the settings draw lines non-scaling
+const SCALING = {vectorEffect: 'none'} as const;
 
 export const MOWER_ICONS: MowerIcon[] = [
   {
@@ -172,9 +175,17 @@ export const MOWER_ICONS: MowerIcon[] = [
     label: 'OpenMower',
     side: true,
     draw: () => (
-      <g transform="scale(-0.0042 0.0042) translate(-269 -136)">
+      // like the logo: black lines between the parts, a black edge and a white one around it so it shows on any map.
+      // the edges grow with the icon (the map draws lines at a fixed width otherwise)
+      <g transform="scale(-0.0042 0.0042) translate(-269 -136)" strokeLinejoin="round">
+        {OPENMOWER_EDGE.map((p, i) => (
+          <path key={`w${i}`} transform={p.transform} d={p.d} fill="none" stroke="#fff" strokeWidth={26} style={SCALING} />
+        ))}
         {OPENMOWER_PATHS.map((p, i) => (
-          <path key={i} transform={p.transform} d={p.d} fill="var(--c-mower)" stroke="#fff" strokeWidth={10} paintOrder="stroke" />
+          <path key={`b${i}`} transform={p.transform} d={p.d} fill="#000" stroke="#000" strokeWidth={16} style={SCALING} />
+        ))}
+        {OPENMOWER_PATHS.map((p, i) => (
+          <path key={i} transform={p.transform} d={p.d} fill="var(--c-mower)" />
         ))}
       </g>
     ),
