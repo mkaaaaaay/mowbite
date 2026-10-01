@@ -61,7 +61,9 @@ export function useMowPlan({
     angleTimer.current = setTimeout(() => setAngleEditing(false), 3000);
     movingTimer.current = setTimeout(() => setAngleMoving(false), 700);
   };
-  const planned = isMowArea && (shownArea?.properties.mowable !== false || angleEditing);
+  // an inactive area isn't mowed either
+  const mowed = shownArea?.properties.mowable !== false && shownArea?.properties.active !== false;
+  const planned = isMowArea && (mowed || angleEditing);
   const stripesOn = showStripes || angleEditing;
   const autoAngle = shownArea ? autoMowAngle(shownArea.outline) : 0;
 

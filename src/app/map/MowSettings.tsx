@@ -195,7 +195,9 @@ export default function MowSettings({
           />
         </label>
       ))}
-      {area.properties.mowable === false ? (
+      {area.properties.active === false ? (
+        <p className={styles.dim}>{tr('No mowing plan, this area is inactive.')}</p>
+      ) : area.properties.mowable === false ? (
         <p className={styles.dim}>{tr("No mowing plan, this area is set to don't mow.")}</p>
       ) : (
         <label className={styles.toggle}>

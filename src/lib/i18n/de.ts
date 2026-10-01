@@ -306,6 +306,7 @@ const de: Record<string, string> = {
   "no area": "keine Fläche",
   "No backups yet.": "Noch keine Sicherungen.",
   "no contact with the charger": "kein Kontakt zur Ladestation",
+  "No mowing plan, this area is inactive.": "Kein Mähplan, diese Fläche ist inaktiv.",
   "N": "N",
   "E": "O",
   "S": "S",

@@ -699,7 +699,7 @@ function MapEditor() {
                   previewCorrection={previewCorrection}
                   planFromMower={!!realPlan}
                   planAngle={realPlan?.angle}
-                  planLength={shownArea?.properties.mowable === false ? 0 : planLength}
+                  planLength={shownArea?.properties.mowable === false || shownArea?.properties.active === false ? 0 : planLength}
                   onPreviewCorrection={setPreviewCorrection}
                   angle={{offset: angleOffset, offsetIsAbsolute, increment: angleIncrement}}
                 />
