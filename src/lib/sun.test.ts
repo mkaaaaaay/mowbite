@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {sunTimes} from './sun';
+import {isAutumn, sunTimes} from './sun';
 
 process.env.TZ = 'Europe/Berlin';
 
@@ -25,5 +25,20 @@ describe('sunTimes', () => {
   });
   it('polar night gives null', () => {
     expect(sunTimes(78.2, 15.6, new Date(2026, 11, 21))).toBeNull();
+  });
+});
+
+describe('isAutumn', () => {
+  it('september to november in the north', () => {
+    expect(isAutumn(52.4, new Date(2026, 9, 1))).toBe(true);
+    expect(isAutumn(52.4, new Date(2026, 3, 15))).toBe(false);
+  });
+  it('march to may in the south', () => {
+    expect(isAutumn(-33.9, new Date(2026, 3, 15))).toBe(true);
+    expect(isAutumn(-33.9, new Date(2026, 9, 1))).toBe(false);
+  });
+  it('the north without a position', () => {
+    expect(isAutumn(undefined, new Date(2026, 10, 30))).toBe(true);
+    expect(isAutumn(undefined, new Date(2026, 11, 1))).toBe(false);
   });
 });

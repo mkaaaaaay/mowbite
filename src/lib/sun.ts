@@ -54,3 +54,9 @@ export function sunTimes(lat: number, lon: number, date = new Date()): SunTimes 
   const offset = -date.getTimezoneOffset();
   return {rise: clock(noon - 4 * hourAngle + offset), set: clock(noon + 4 * hourAngle + offset)};
 }
+
+// autumn as weather services count it: september to november, south of the equator march to may. without a position
+// the north
+export function isAutumn(lat?: number, date = new Date()): boolean {
+  return (lat !== undefined && lat < 0 ? [2, 3, 4] : [8, 9, 10]).includes(date.getMonth());
+}

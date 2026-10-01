@@ -514,7 +514,7 @@
   }
 }
 
-/* it crawls in under the leaves (the heap is drawn over it), or into the grass */
+/* it crawls in under the leaves, the heap is drawn over it */
 .hiding .hog {
   animation: hog-hide 1s ease-in forwards;
 }

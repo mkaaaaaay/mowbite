@@ -3,7 +3,7 @@
 import {datumFromParams, useMowerParams} from '@/hooks/useMowerParams';
 import {isNightTime} from '@/lib/schedule';
 import {settingsStore} from '@/lib/settings';
-import {sunTimes} from '@/lib/sun';
+import {isAutumn, sunTimes} from '@/lib/sun';
 import {usePathname} from 'next/navigation';
 import {useEffect, useRef, useState, useSyncExternalStore} from 'react';
 import LogoMark from './Logo';
@@ -16,8 +16,8 @@ const PRE_MS = 1800;
 // the hop over the hedgehog starts this long before the mower gets there
 const HOP_LEAD = 360;
 
-// at night now and then a hedgehog comes in from the right, stops to sniff, and crawls under the heap (into the grass
-// in the middle without one). looked at every half minute: about every 5 minutes in the first hour and a half after
+// autumn nights now and then a hedgehog comes in from the right, stops to sniff, and crawls under the heap of leaves.
+// looked at every half minute: about every 5 minutes in the first hour and a half after
 // sunset, every 10 later, and not again within half an hour on this device
 const WALK_CHECK_MS = 30000;
 const WALK_SPEED = 42; // px/s
@@ -66,8 +66,6 @@ function Hedgehog() {
   );
 }
 
-// autumn in the northern half of the world, there are leaves on the lawn then
-const isAutumn = () => [8, 9, 10].includes(new Date().getMonth());
 // the season doesn't change while the page is open, near enough
 const noChange = () => () => {};
 const LEAF_COLORS = ['#d9822b', '#b8452a', '#e0a93b', '#8d5a2b', '#c9652a'];
@@ -142,18 +140,19 @@ export default function Grass() {
   const pile = useRef<HTMLDivElement>(null);
   // counts the runs, a new heap blows in after each
   const [round, setRound] = useState(0);
-  // the month of the viewer, not of the build
-  const autumn = useSyncExternalStore(noChange, isAutumn, () => false);
+  // the mower's position: the half of the world for the season, and the sun times. without it the north, and night
+  // is 6 pm to 6 am like in the schedule
+  const datum = datumFromParams(useMowerParams());
+  const lat = datum?.lat;
+  const lon = datum?.lon;
+  // there are leaves on the lawn then. the month of the viewer, not of the build
+  const autumn = useSyncExternalStore(noChange, () => isAutumn(lat), () => false);
   const busy = useRef(false);
   const lastTap = useRef(0);
   const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
   const shown = settings.grass !== false;
   // on phones only on the dashboard, elsewhere it would sit on top of the content above the tab bar
   const dashboard = usePathname().replace(/(.)\/$/, '$1') === '/';
-  // the mower's position for the sun times, without it night is 6 pm to 6 am like in the schedule
-  const datum = datumFromParams(useMowerParams());
-  const lat = datum?.lat;
-  const lon = datum?.lon;
 
   useEffect(() => {
     const timers: ReturnType<typeof setTimeout>[] = [];
@@ -205,13 +204,14 @@ export default function Grass() {
   }, []);
 
   useEffect(() => {
-    if (!shown) return;
+    if (!shown || !autumn) return;
     const timers: ReturnType<typeof setTimeout>[] = [];
     let walking = false;
     const check = () => {
       if (busy.current || document.hidden || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
       // not shown on phones away from the dashboard
-      if (!strip.current?.getClientRects().length) return;
+      const p = pile.current?.getBoundingClientRect();
+      if (!p || !strip.current?.getClientRects().length) return;
       const sun = lat !== undefined && lon !== undefined ? sunTimes(lat, lon) : null;
       const now = new Date();
       if (!isNightTime(clock(now), sun)) return;
@@ -223,8 +223,7 @@ export default function Grass() {
       } catch {}
       busy.current = walking = true;
       const w = window.innerWidth;
-      const p = pile.current?.getBoundingClientRect();
-      const x = p ? Math.round(p.left + p.width / 2) : Math.round(w / 2);
+      const x = Math.round(p.left + p.width / 2);
       // in from just past the right edge, the hedgehog is drawn from 26 px left of x
       const from = w + 10 - (x - 26);
       const mid = Math.round(from * (0.35 + Math.random() * 0.3));
@@ -250,7 +249,7 @@ export default function Grass() {
         busy.current = false;
       }
     };
-  }, [shown, lat, lon]);
+  }, [shown, autumn, lat, lon]);
 
   const falling = autumn && settings.leaves !== false;
   if (!shown) return falling ? <FallingLeaves /> : null;
