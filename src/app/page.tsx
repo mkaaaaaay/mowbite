@@ -264,6 +264,7 @@ export default function Home() {
             <MapView
               map={map}
               mower={position}
+              emergency={!!state?.emergency}
               track={track}
               progress={progress ?? undefined}
               follow={driving}

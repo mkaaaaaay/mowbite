@@ -220,7 +220,7 @@ export default function RecordPage() {
           <div className={styles.layout}>
             <section className={styles.map}>
               {map && (
-                <MapView map={map} mower={position} follow followSpanMeters={16} zoomable overlay={overlay} datum={datumFromParams(params)} />
+                <MapView map={map} mower={position} emergency={!!state?.emergency} follow followSpanMeters={16} zoomable overlay={overlay} datum={datumFromParams(params)} />
               )}
               {/* on the map, so map, stick and buttons fit on one phone screen */}
               <div className={styles.stick}>

@@ -667,6 +667,7 @@ function MapEditor() {
                 viewKey="editor"
                 map={shownMap}
                 mower={position}
+                emergency={!!state?.emergency}
                 track={viewJob ? undefined : track}
                 pastTrack={viewJob?.segments?.map((s) => ({
                   points: s.points.map(([x, y]) => ({x, y})),

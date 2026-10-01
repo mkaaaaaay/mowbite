@@ -1,6 +1,7 @@
 'use client';
 
 import type {MowerMap, Point} from '@/hooks/useMowerMap';
+import {useComputedSpeed} from '@/hooks/useComputedSpeed';
 import {useEasedPose} from '@/hooks/useEasedPose';
 import {containsPoint, polygonArea} from '@/lib/geometry';
 import {settingsStore} from '@/lib/settings';
@@ -15,6 +16,8 @@ import {tr, useLang} from '@/lib/i18n';
 interface MapViewProps {
   map: MowerMap;
   mower?: {x: number; y: number; heading: number};
+  // the emergency stop is active, some mower icons show it
+  emergency?: boolean;
   selectedAreaId?: string | null;
   onSelectArea?: (id: string) => void;
   onMoveVertex?: (areaId: string, vertexIndex: number, x: number, y: number) => void;
@@ -113,6 +116,7 @@ const HEIGHT = 400;
 export default function MapView({
   map,
   mower,
+  emergency,
   selectedAreaId,
   onSelectArea,
   onMoveVertex,
@@ -228,6 +232,7 @@ export default function MapView({
   const gesture = useRef<{moved: boolean; pinchDist: number | null}>({moved: false, pinchDist: null});
   const smoothedMower = useEasedPose(mower ?? {x: 0, y: 0, heading: 0});
   const displayMower = mower ? smoothedMower : undefined;
+  const mowerSpeed = useComputedSpeed(mower);
 
   // fitted to the map only, so the geometry doesn't change while the mower moves. follow mode
   // moves the view instead
@@ -805,9 +810,12 @@ export default function MapView({
             const size = base * (settings.icons?.mowerSize ?? 1);
             // svg y points down, so the map's ccw heading becomes a cw rotation
             const deg = (-displayMower.heading * 180) / Math.PI;
+            const icon = mowerIcon(settings.icons?.mower);
+            // a side view heading left would stand on its head, mirrored it keeps its feet on the ground
+            const flip = icon.side && Math.cos(displayMower.heading) < 0 ? -1 : 1;
             return (
-              <g className={styles.mower} transform={`translate(${sx} ${sy}) rotate(${deg}) scale(${size})`}>
-                {mowerIcon(settings.icons?.mower).draw()}
+              <g className={styles.mower} transform={`translate(${sx} ${sy}) rotate(${deg}) scale(${size} ${flip * size})`}>
+                {icon.draw({speed: mowerSpeed, emergency})}
               </g>
             );
           })()}

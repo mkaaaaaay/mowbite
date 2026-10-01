@@ -409,6 +409,8 @@ const de: Record<string, string> = {
   "Returning to dock": "Fährt zum Dock",
   "Right ESC Temp": "Temperatur ESC rechts",
   "Rocket": "Rakete",
+  "Gardener": "Gärtner",
+  "Garden shed": "Gartenlaube",
   "ROS log": "ROS-Log",
   "Hide ROS log": "ROS-Log ausblenden",
   "run": "Fahrt",
