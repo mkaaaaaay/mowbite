@@ -19,12 +19,30 @@ const kept = (t: number, before: number, after: number) =>
 
 // only newer mowers keep the log, the container keeps it once it has seen one
 export async function rosLogAvailable(): Promise<boolean> {
-  if ((await rpcMethods())?.has(RPC.logs)) return true;
-  try {
-    return (await fetch(kept(0, 0, 0), {cache: 'no-store'})).ok;
-  } catch {
-    return false;
-  }
+  return (await rosLogSince()) !== null;
+}
+
+// the time of the oldest log line there is, kept by the container or still in the mower's memory. null when there's
+// no log at all. asked once per page
+let since: Promise<number | null> | null = null;
+export function rosLogSince(): Promise<number | null> {
+  since ??= (async () => {
+    const [stored, live] = await Promise.all([
+      fetch(`${apiBase()}/cgi-bin/roslog?oldest`, {cache: 'no-store'})
+        .then(async (res) => (res.ok ? Number((await res.text()).trim()) || null : null))
+        .catch(() => null),
+      rpcMethods().then((m) =>
+        m?.has(RPC.logs)
+          ? callRpc(RPC.logs, {limit: CAPACITY})
+              .then((a) => (Array.isArray(a) && typeof a[0]?.t === 'number' ? a[0].t : Date.now() / 1000))
+              .catch(() => null)
+          : null,
+      ),
+    ]);
+    const times = [stored, live].filter((t): t is number => t !== null);
+    return times.length ? Math.min(...times) : null;
+  })();
+  return since;
 }
 
 // "<unix time> <LEVEL> <node>: <message>" per line, as logkeeper.sh writes them

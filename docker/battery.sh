@@ -11,7 +11,7 @@ while :; do
     mosquitto_sub -h "$host" -p "$PORT" $AUTH -F '%U %t %p' \
       -t "${MOWER_MQTT_PREFIX}sensors/om_v_battery/data" -t "${MOWER_MQTT_PREFIX}sensors/om_charge_current/data" \
       -t "${MOWER_MQTT_PREFIX}sensors/om_charge_state/data" -t "${MOWER_MQTT_PREFIX}sensors/om_mow_motor_rpm/data" |
-      OUT="$F" awk -f /battery.awk
+      OUT="$F" STATE=/data/battery.state awk -f /battery.awk
   fi
   sleep 30
 done

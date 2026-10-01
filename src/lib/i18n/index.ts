@@ -76,7 +76,8 @@ export function tr(text: string, vars?: Record<string, string | number>): string
 }
 
 // for dates and numbers
-export const locale = () => (active === 'de' ? 'de-DE' : undefined);
+// en-GB for english: day before month and a 24 h clock, and not the browser's own language
+export const locale = () => (active === 'de' ? 'de-DE' : 'en-GB');
 
 // a number with a fixed count of decimals, decimal comma in german
 export const fmt = (v: number, digits = 0) =>

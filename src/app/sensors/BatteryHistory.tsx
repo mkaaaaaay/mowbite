@@ -31,7 +31,9 @@ export default function BatteryHistory() {
           <span className={styles.dim}>
             {chargeTrend
               ? tr('{n} % against the first weeks', {n: `${change(chargeTrend) > 0 ? '+' : ''}${change(chargeTrend)}`})
-              : tr('{n} full charges so far, the trend shows after a few weeks', {n: charges.length})}
+              : charges.length === 1
+                ? tr('1 full charge so far, the trend shows after a few weeks')
+                : tr('{n} full charges so far, the trend shows after a few weeks', {n: charges.length})}
           </span>
         </div>
         <div className={styles.card}>
@@ -41,7 +43,9 @@ export default function BatteryHistory() {
           <span className={styles.dim}>
             {drainTrend
               ? tr('{n} % against the first weeks', {n: `${change(drainTrend) > 0 ? '+' : ''}${change(drainTrend)}`})
-              : tr('{n} mows so far, the trend shows after a few weeks', {n: drain.length})}
+              : drain.length === 1
+                ? tr('1 mow so far, the trend shows after a few weeks')
+                : tr('{n} mows so far, the trend shows after a few weeks', {n: drain.length})}
           </span>
         </div>
       </div>

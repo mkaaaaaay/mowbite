@@ -2,7 +2,7 @@
 
 import {clock} from '@/lib/dates';
 import {tr} from '@/lib/i18n';
-import {rosLogAround, rosLogAvailable, type RosLogLine} from '@/lib/roslog';
+import {rosLogAround, rosLogSince, type RosLogLine} from '@/lib/roslog';
 import {useEffect, useState} from 'react';
 import styles from './RosLog.module.css';
 
@@ -12,9 +12,10 @@ export function RosLogAround({t}: {t: number}) {
   const [open, setOpen] = useState(false);
   const [lines, setLines] = useState<RosLogLine[] | null | 'failed'>(null);
 
+  // only for a moment the log can reach, a problem from before it was kept would just show nothing
   useEffect(() => {
-    void rosLogAvailable().then(setAvailable);
-  }, []);
+    void rosLogSince().then((from) => setAvailable(from !== null && t + 60 >= from));
+  }, [t]);
 
   if (!available) return null;
 
