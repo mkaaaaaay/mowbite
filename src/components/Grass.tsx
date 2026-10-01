@@ -277,8 +277,8 @@ const PILE = Array.from({length: 18}, (_, i) => {
   };
 });
 
-// a few leaves drifting down behind the page, optional. they sway and tumble, a gust blows them aside. some are
-// already on their way. the frosted cards blur them
+// a few leaves drifting down behind the page, optional. they sway and tumble, a gust blows them away. at first some
+// are already on their way, after a gust new ones start at the top one after the other. the frosted cards blur them
 const FALLING = Array.from({length: 7}, (_, i) => ({
   left: [7, 21, 34, 48, 62, 76, 89][i],
   size: 12 + (i % 3) * 2,
@@ -289,11 +289,15 @@ const FALLING = Array.from({length: 7}, (_, i) => ({
   push: 140 + ((i * 37) % 120),
 }));
 
-function FallingLeaves({gusting}: {gusting: boolean}) {
+function FallingLeaves({gusting, fresh}: {gusting: boolean; fresh: boolean}) {
   return (
     <div className={[styles.falling, gusting ? styles.gusting : ''].join(' ')} aria-hidden="true">
       {FALLING.map((l, i) => (
-        <div key={i} className={styles.fall} style={{left: `${l.left}%`, animationDuration: `${l.dur}s`, animationDelay: `${l.delay}s`}}>
+        <div
+          key={i}
+          className={styles.fall}
+          style={{left: `${l.left}%`, animationDuration: `${l.dur}s`, animationDelay: `${fresh ? 1 + i * 2.2 : l.delay}s`}}
+        >
           <div className={styles.gust} style={{'--push': `${l.push}px`} as React.CSSProperties}>
             <div className={styles.sway} style={{animationDuration: `${l.sway}s`}}>
               <div className={styles.tumble} style={{animationDuration: `${l.tumble}s`}}>
@@ -322,6 +326,8 @@ export default function Grass() {
   // ms into father christmas's run when he gets to the snowman
   const [hello, setHello] = useState(0);
   const [gusting, setGusting] = useState(false);
+  // gusts so far, the leaves in the air are new after each
+  const [gusts, setGusts] = useState(0);
   const strip = useRef<HTMLDivElement>(null);
   const pile = useRef<HTMLDivElement>(null);
   const snowman = useRef<HTMLDivElement>(null);
@@ -467,7 +473,10 @@ export default function Grass() {
           // not while the mower runs over the lawn, the grass is busy then
           if (!busy.current && !document.hidden && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
             setGusting(true);
-            calm = setTimeout(() => setGusting(false), GUST_MS);
+            calm = setTimeout(() => {
+              setGusting(false);
+              setGusts((n) => n + 1);
+            }, GUST_MS);
           }
           next();
         },
@@ -483,7 +492,11 @@ export default function Grass() {
   }, [autumn]);
 
   const falling =
-    settings.leaves === false ? null : autumn ? <FallingLeaves gusting={gusting} /> : winter ? <FallingSnow /> : null;
+    settings.leaves === false ? null : autumn ? (
+      <FallingLeaves key={gusts} gusting={gusting} fresh={gusts > 0} />
+    ) : winter ? (
+      <FallingSnow />
+    ) : null;
   if (!shown) return falling;
 
   return (
