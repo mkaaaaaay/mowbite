@@ -200,18 +200,20 @@ export default function MowSettings({
       ) : area.properties.mowable === false ? (
         <p className={styles.dim}>{tr("No mowing plan, this area is set to don't mow.")}</p>
       ) : (
-        <label className={styles.toggle}>
+        <label className={[styles.toggle, styles.toggleLong].join(' ')}>
           <input type="checkbox" checked={showStripes} onChange={onToggleStripes} />
-          {tr('show mowing plan')}
-          {toolWidth ? ` (${tr('{n} cm apart', {n: Math.round(toolWidth * 100)})})` : ''}
-          {' · '}
-          {planFromMower ? tr('from the mower') : tr('estimate')}
-          {planFromMower && planAngle !== undefined && `, ${Math.round((((planAngle * 180) / Math.PI) % 180 + 180) % 180)}°`}
-          <InfoTip>
-            {planFromMower
-              ? tr('The plan as the mower calculates it, unsaved changes included, at the angle it really mows.')
-              : tr('Estimate of where the mower drives: edge rounds first, then stripes one mower width apart. Can differ from the real plan on unusual shapes.')}
-          </InfoTip>
+          <span>
+            {tr('show mowing plan')}
+            {toolWidth ? ` (${tr('{n} cm apart', {n: Math.round(toolWidth * 100)})})` : ''}
+            {' · '}
+            {planFromMower ? tr('from the mower') : tr('estimate')}
+            {planFromMower && planAngle !== undefined && `, ${Math.round((((planAngle * 180) / Math.PI) % 180 + 180) % 180)}°`}
+            <InfoTip>
+              {planFromMower
+                ? tr('The plan as the mower calculates it, unsaved changes included, at the angle it really mows.')
+                : tr('Estimate of where the mower drives: edge rounds first, then stripes one mower width apart. Can differ from the real plan on unusual shapes.')}
+            </InfoTip>
+          </span>
         </label>
       )}
       {showStripes && planLength > 0 && (
@@ -237,13 +239,13 @@ export default function MowSettings({
             {tr("If you changed the angle since then, ignore this. Otherwise the mower most likely still has an angle increment summed up in checkpoint.bag from a time when mow_angle_increment was set. It adds that on top and never shows it anywhere. To get rid of it, while the mower is docked and idle: delete")}{' '}
             <code>{PATHS.checkpoint}</code> {tr("on the mower and run")} <code>{PATHS.restart}</code>.
           </p>
-          <label className={styles.toggle}>
+          <label className={[styles.toggle, styles.toggleLong].join(' ')}>
             <input
               type="checkbox"
               checked={previewCorrection !== 0}
               onChange={() => onPreviewCorrection(previewCorrection ? 0 : Math.round(mismatch.diff))}
             />
-            {tr('turn the preview by {n}° to match', {n: Math.round(mismatch.diff)})}
+            <span>{tr('turn the preview by {n}° to match', {n: Math.round(mismatch.diff)})}</span>
           </label>
         </div>
       )}

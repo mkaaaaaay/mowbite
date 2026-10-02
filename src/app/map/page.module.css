@@ -164,6 +164,21 @@
   white-space: nowrap;
 }
 
+/* a toggle with a long text: it wraps, the box stays next to the first line */
+.toggleLong {
+  align-items: flex-start;
+  white-space: normal;
+}
+
+.toggleLong input {
+  flex: none;
+  margin-top: 2px;
+}
+
+.toggleLong > span {
+  min-width: 0;
+}
+
 .nameInput,
 .typeSelect {
   min-height: 40px;
