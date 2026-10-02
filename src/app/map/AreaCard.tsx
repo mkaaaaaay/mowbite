@@ -9,8 +9,6 @@ import styles from './page.module.css';
 // name, type and active switch of the selected area, and what can be done with it
 export default function AreaCard({
   area,
-  enclosing,
-  onCutOut,
   showTools,
   confirmDelete,
   remember,
@@ -22,9 +20,6 @@ export default function AreaCard({
   onDeleteBlur,
 }: {
   area: Area;
-  enclosing?: Area;
-  // cuts this area out of the enclosing one, null when it doesn't lie fully inside
-  onCutOut: (() => void) | null;
   showTools: boolean;
   confirmDelete: boolean;
   remember: () => void;
@@ -38,22 +33,6 @@ export default function AreaCard({
   const type = area.properties.type ?? 'draft';
   const supported = useAreaProperties();
   const tool = [styles.pillButton, styles.tool].join(' ');
-  const outer = enclosing && {name: enclosing.properties.name || tr('unnamed')};
-  const outerMows = enclosing?.properties.type === 'mow' && enclosing.properties.mowable !== false;
-  const inactive = area.properties.active === false;
-  const skipped = inactive || type === 'nav' || area.properties.mowable === false;
-  // a mower that knows mow_around also keeps the blade off over a don't mow area, nothing to warn about then
-  const bladeOff = supported.has('mow_around') && type === 'mow' && !inactive && area.properties.mowable === false;
-  const nested =
-    outer &&
-    !bladeOff &&
-    (outerMows && skipped
-      ? tr('Lies inside "{name}", so it gets mowed and driven on anyway.', outer)
-      : outerMows
-        ? tr('Lies inside "{name}" and gets mowed with it as well.', outer)
-        : inactive
-          ? tr('Lies inside "{name}", so the mower still drives here although this area is inactive.', outer)
-          : null);
   return (
     <div className={styles.areaEditor}>
       <div className={styles.areaHead}>
@@ -123,22 +102,6 @@ export default function AreaCard({
           {fmt(polygonArea(area.outline), 1)} m²
         </span>
       </div>
-      {nested && (
-        <div className={styles.warning}>
-          {nested}{' '}
-          {onCutOut
-            ? tr("To leave it out, cut it out of \"{name}\" (it gets split in two, areas can't have holes). Or make this an obstacle so the mower never drives here.", outer)
-            : tr("It doesn't lie fully inside, to leave it out cut \"{name}\" by hand with Split area.", outer)}
-          {onCutOut && (
-            <div className={styles.inlineRow}>
-              <button className={styles.pillButton} onClick={onCutOut}>
-                <ScissorsIcon size={16} />
-                {tr('Cut out of "{name}"', outer)}
-              </button>
-            </div>
-          )}
-        </div>
-      )}
       {showTools && (
         <div className={styles.toolbar}>
           <span className={styles.toolLabel}>
