@@ -523,6 +523,11 @@
 }
 
 @media (max-width: 899px) {
+  /* turned on the map, not again in the settings below it (the field takes a typed one, empty is automatic) */
+  .angleRow {
+    display: none;
+  }
+
   .angleOnMap {
     position: absolute;
     left: 10px;
