@@ -388,22 +388,6 @@
   stroke-dasharray: 4 4;
 }
 
-.linkButton {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  border: 1px solid var(--card-border);
-  background: var(--card);
-  color: var(--foreground);
-  font-size: 18px;
-  text-decoration: none;
-  box-shadow: var(--card-shadow, none);
-  backdrop-filter: var(--card-blur, none);
-}
-
 .overlayOutline,
 .overlayObstacle,
 .overlayLive {

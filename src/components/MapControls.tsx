@@ -1,6 +1,7 @@
 import {imageryInfo, type CustomImagery, type ImagerySource} from '@/lib/imagery';
 import {tr} from '@/lib/i18n';
-import Link from 'next/link';
+import {useState} from 'react';
+import {MapLookPanel} from './MapLookSettings';
 import styles from './MapView.module.css';
 
 export const LAYERS = [
@@ -64,6 +65,8 @@ export default function MapControls({
   // only while the view can follow the mower
   follow?: {on: boolean; onToggle: () => void};
 }) {
+  // the icons, colors and aerial imagery of the maps, over the page
+  const [lookOpen, setLookOpen] = useState(false);
   return (
     <>
       <div className={styles.zoomButtons}>
@@ -103,9 +106,9 @@ export default function MapControls({
             <path d="m3 16 9 5 9-5" />
           </svg>
         </button>
-        <Link href="/settings" className={styles.linkButton} aria-label="settings" title={tr('Map colors, icons and aerial imagery')}>
+        <button onClick={() => setLookOpen(true)} aria-label="map settings" title={tr('Map colors, icons and aerial imagery')}>
           ⚙
-        </Link>
+        </button>
         {follow && (
           <button
             className={follow.on ? '' : styles.off}
@@ -130,6 +133,7 @@ export default function MapControls({
           </button>
         )}
       </div>
+      {lookOpen && <MapLookPanel onClose={() => setLookOpen(false)} />}
       {layersOpen && (
         <div className={styles.layers}>
           {/* the plan's layers only while there's a mowing run to show them for */}

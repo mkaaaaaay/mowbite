@@ -27,6 +27,45 @@
   margin: 0;
 }
 
+/* a few cards that belong together, folding away (on a phone they start folded) */
+.group > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  box-shadow: var(--card-shadow, none);
+  backdrop-filter: var(--card-blur, none);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.group > summary::-webkit-details-marker {
+  display: none;
+}
+
+.group > summary::after {
+  content: '▾';
+  color: var(--text-secondary);
+  transition: transform 0.2s ease;
+}
+
+.group[open] > summary::after {
+  transform: rotate(180deg);
+}
+
+.groupBody {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 12px;
+}
+
 .card {
   display: flex;
   flex-direction: column;
@@ -50,29 +89,8 @@
   font-size: 16px;
 }
 
-.colors {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 10px 16px;
-  margin-top: 4px;
-}
 
-.colorRow {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 14px;
-}
 
-.colorRow input[type='color'] {
-  width: 34px;
-  height: 34px;
-  padding: 0;
-  border: 1px solid var(--card-border);
-  border-radius: 8px;
-  background: transparent;
-  cursor: pointer;
-}
 
 .pillButton {
   padding: 6px 12px;
@@ -106,40 +124,10 @@
   font-size: 16px;
 }
 
-.icons {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
-  gap: 8px;
-}
 
-.icon {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 10px 6px 8px;
-  border-radius: 12px;
-  border: 1px solid var(--card-border);
-  background: var(--well);
-  color: var(--text-secondary);
-  font-size: 12px;
-  cursor: pointer;
-}
 
-.iconOn {
-  border-color: var(--accent);
-  color: var(--foreground);
-  background: color-mix(in srgb, var(--accent) 15%, transparent);
-}
 
-.preview {
-  width: 44px;
-  height: 44px;
-}
 
-.preview * {
-  vector-effect: non-scaling-stroke;
-}
 
 .check {
   display: flex;
@@ -155,24 +143,8 @@
   accent-color: var(--accent);
 }
 
-.size {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 13px;
-  color: var(--text-secondary);
-}
 
-.size input {
-  flex: 1;
-  max-width: 260px;
-  accent-color: var(--accent);
-}
 
-.size span {
-  min-width: 40px;
-  font-variant-numeric: tabular-nums;
-}
 
 .field {
   display: flex;
@@ -211,24 +183,8 @@
   color: var(--foreground);
 }
 
-.lawn {
-  width: 100%;
-  max-width: 330px;
-  border-radius: 10px;
-  border: 1px solid var(--card-border);
-  background: var(--well);
-}
 
-.lawn * {
-  vector-effect: non-scaling-stroke;
-}
 
-.lawnTrack {
-  fill: none;
-  stroke: var(--c-track);
-  stroke-width: 2;
-  opacity: 0.8;
-}
 
 .segment {
   display: flex;

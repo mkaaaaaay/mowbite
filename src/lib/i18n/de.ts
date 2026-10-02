@@ -257,6 +257,7 @@ const de: Record<string, string> = {
   "Load from file": "Aus Datei laden",
   "loading…": "lädt…",
   "Map": "Karte",
+  "General": "Allgemein",
   "Map colors": "Kartenfarben",
   "Map colors, icons and aerial imagery": "Kartenfarben, Symbole und Luftbilder",
   "map editor": "Karteneditor",
