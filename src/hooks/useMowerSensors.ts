@@ -31,3 +31,13 @@ export function useMowerSensors(): {infos: SensorInfo[]; values: Record<string, 
   const values = useSyncExternalStore(valueStore.subscribe, valueStore.get, valueStore.initial);
   return {infos, values};
 }
+
+// what a page needs of one sensor's value: it's only drawn again when that changes, not for every other sensor (a
+// dozen of them, each about once a second). select returns something comparable with ===, e.g. a number or a boolean
+export function useSensorValue<T>(id: string, select: (value: string | undefined) => T): T {
+  return useSyncExternalStore(
+    valueStore.subscribe,
+    () => select(valueStore.get()[id]),
+    () => select(undefined),
+  );
+}

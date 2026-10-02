@@ -2,9 +2,9 @@
 
 import type {MowerMap, Point} from '@/hooks/useMowerMap';
 import {useComputedSpeed} from '@/hooks/useComputedSpeed';
-import {useEasedPose} from '@/hooks/useEasedPose';
+import {useEasedPose, type Pose} from '@/hooks/useEasedPose';
 import {containsPoint, polygonArea} from '@/lib/geometry';
-import {settingsStore} from '@/lib/settings';
+import {settingsStore, type Settings} from '@/lib/settings';
 import {dockIcon, mowerIcon} from './mapIcons';
 import {availableSources, imageryTiles, type Datum} from '@/lib/imagery';
 import {handleRadius, meterGrid} from '@/lib/mapGrid';
@@ -108,6 +108,11 @@ const OVERLAY_CLASS: Record<string, string> = {
 };
 const LOUPE_PX = 120;
 const LOUPE_ZOOM = 2.5;
+// a finger on a point picks it up after resting this long, moving at once it pans the map: fingers are big and points
+// close together, panning shouldn't drag one along by accident. A mouse picks it up right away
+const HOLD_MS = 300;
+// px a finger may wobble before it pans, a mouse 4
+const TOUCH_SLOP = 8;
 
 const PADDING = 20;
 const MOWER_SIZE = 0.4; // m
@@ -116,6 +121,9 @@ const HEIGHT = 400;
 
 
 type Fit = {scale: number; padX: number; padY: number; minX: number; minY: number};
+// a point of an outline or of a line being drawn, or the middle of an edge (a new point there)
+type Handle = {mid: boolean; index: number; x: number; y: number};
+type Press = {pointerId: number; clientX: number; clientY: number; pointerType: string};
 type Meters = {x: number; y: number; span: number};
 
 // a view (center and width in meters) in svg units and back, for the map fitted as given
@@ -126,6 +134,52 @@ function viewFromMeters(m: Meters, f: Fit): View {
 
 function viewToMeters(v: View, f: Fit): Meters {
   return {x: (v.x + v.size / 2 - f.padX) / f.scale + f.minX, y: (HEIGHT - v.y - v.size / 2 - f.padY) / f.scale + f.minY, span: v.size / f.scale};
+}
+
+// the mower. It glides between the poses that come in and draws itself every frame for that, on its own: the rest
+// of the map stays as it is meanwhile
+function MowerMarker({
+  mower,
+  fit,
+  k,
+  icons,
+  emergency,
+  blades,
+}: {
+  mower: Pose;
+  fit: Fit;
+  k: number;
+  icons: Settings['icons'];
+  emergency?: boolean;
+  blades: boolean;
+}) {
+  const shown = useEasedPose(mower) ?? mower;
+  const speed = useComputedSpeed(mower);
+  // which way a side view faces. it only turns once the mower clearly heads the other way, so it doesn't flicker while
+  // the mower drives up or down the map
+  const [facing, setFacing] = useState(1);
+  const across = Math.cos(shown.heading);
+  if (across > 0.3 && facing !== 1) setFacing(1);
+  if (across < -0.3 && facing !== -1) setFacing(-1);
+  const {scale, padX, padY, minX, minY} = fit;
+  const [sx, sy] = [(shown.x - minX) * scale + padX, HEIGHT - ((shown.y - minY) * scale + padY)];
+  // same size on screen like the dock, or its real size (never smaller than a few pixels)
+  const base = icons?.mowerRealSize ? Math.max(MOWER_SIZE * scale, 7 * k) : 8 * k;
+  const size = base * (icons?.mowerSize ?? 1);
+  // svg y points down, so the map's ccw heading becomes a cw rotation
+  const deg = (-shown.heading * 180) / Math.PI;
+  const icon = mowerIcon(icons?.mower);
+  // a side view heading left would stand on its head, mirrored it keeps its feet on the ground. a figure
+  // isn't turned with the heading at all, it only looks left or right. css, so it turns around instead of
+  // flipping over at once
+  const turn = !icon.side ? undefined : icon.upright ? `scaleX(${facing})` : `scaleY(${facing})`;
+  return (
+    <g className={styles.mower} transform={`translate(${sx} ${sy}) rotate(${icon.upright ? 0 : deg}) scale(${size})`}>
+      <g className={styles.turn} style={turn ? {transform: turn} : undefined}>
+        {icon.draw({speed, emergency, blades})}
+      </g>
+    </g>
+  );
 }
 
 export default function MapView({
@@ -207,15 +261,15 @@ export default function MapView({
   const [layersOpen, setLayersOpen] = useState(false);
   const pointers = useRef(new Map<number, {x: number; y: number}>());
   const gesture = useRef<{moved: boolean; pinchDist: number | null}>({moved: false, pinchDist: null});
-  const smoothedMower = useEasedPose(mower ?? {x: 0, y: 0, heading: 0});
-  const displayMower = mower ? smoothedMower : undefined;
-  const mowerSpeed = useComputedSpeed(mower);
-  // which way a side view faces. it only turns once the mower clearly heads the other way, so it doesn't flicker while
-  // the mower drives up or down the map
-  const [facing, setFacing] = useState(1);
-  const across = Math.cos(displayMower?.heading ?? 0);
-  if (across > 0.3 && facing !== 1) setFacing(1);
-  if (across < -0.3 && facing !== -1) setFacing(-1);
+  // a finger resting on a point, until it picks it up (HOLD_MS) or turns out to pan
+  const hold = useRef<{press: Press; areaId: string; hit: Handle; timer: ReturnType<typeof setTimeout>} | null>(null);
+  const dropHold = () => {
+    if (hold.current) clearTimeout(hold.current.timer);
+    hold.current = null;
+  };
+  useEffect(() => () => dropHold(), []);
+  // the mower glides on its own (MowerMarker), the view only goes along with it in follow mode
+  const followed = useEasedPose(following && mower ? mower : null);
 
   // fitted to the map only, so the geometry doesn't change while the mower moves. follow mode
   // moves the view instead
@@ -227,7 +281,7 @@ export default function MapView({
     return {minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys)};
   }, [map, pendingPoints]);
 
-  const center = displayMower ?? {x: 0, y: 0};
+  const center = followed ?? mower ?? {x: 0, y: 0};
   const {minX, maxX, minY, maxY}: Bounds = dragging?.bounds ??
     fit ?? {
       minX: center.x - followSpanMeters / 2,
@@ -282,8 +336,8 @@ export default function MapView({
   // what's shown: the user's zoom, or in follow mode a window around the mower
   const base = view ?? restored ?? home;
   let shown = base;
-  if (following && displayMower) {
-    const [sx, sy] = toScreen(displayMower.x, displayMower.y);
+  if (following && followed) {
+    const [sx, sy] = toScreen(followed.x, followed.y);
     const size = followSpanMeters * followZoom * scale;
     shown = {x: sx - size / 2, y: sy - size / 2, size};
   }
@@ -382,7 +436,7 @@ export default function MapView({
 
     const reach = (touch ? 22 : 12) / ((pxPerMeter * svg.getBoundingClientRect().width) / WIDTH);
     const o = selectedArea.outline;
-    let best: {mid: boolean; index: number; x: number; y: number} | null = null;
+    let best: Handle | null = null;
     let bestDist = reach;
 
     o.forEach((p, i) => {
@@ -401,7 +455,7 @@ export default function MapView({
         best = {mid: true, index: i, x: mx, y: my};
       }
     });
-    return best as {mid: boolean; index: number; x: number; y: number} | null;
+    return best as Handle | null;
   };
 
   // same for the points of a line that's being drawn (split, new area)
@@ -411,7 +465,7 @@ export default function MapView({
     if (!svg || !local || !pickingPoints || !pendingPoints?.length || !onMovePending) return null;
 
     const reach = (touch ? 22 : 12) / ((pxPerMeter * svg.getBoundingClientRect().width) / WIDTH);
-    let best: {mid: boolean; index: number; x: number; y: number} | null = null;
+    let best: Handle | null = null;
     let bestDist = reach;
     pendingPoints.forEach((p, i) => {
       const d = Math.hypot(p.x - local[0], p.y - local[1]);
@@ -429,7 +483,7 @@ export default function MapView({
         best = {mid: true, index: i, x: mx, y: my};
       }
     });
-    return best as {mid: boolean; index: number; x: number; y: number} | null;
+    return best as Handle | null;
   };
 
   // zoom by factor (<1 = in) keeping the svg point (px, py) where it is on screen
@@ -477,7 +531,7 @@ export default function MapView({
     if (viewKey && viewMeters) savedViews.set(viewKey, viewMeters);
   }, [viewKey, viewMeters]);
 
-  const startDrag = (e: React.PointerEvent<SVGSVGElement>, areaId: string, hit: {mid: boolean; index: number; x: number; y: number}) => {
+  const startDrag = (e: Press, areaId: string, hit: Handle) => {
     const at = {x: hit.x, y: hit.y};
     drag.current = {
       pointerId: e.pointerId,
@@ -515,23 +569,50 @@ export default function MapView({
     gesture.current = {moved: true, pinchDist: null};
   };
 
+  // a tap on a point (a finger let go before it picked it up): like a click on it, the point gets its delete button,
+  // the middle of an edge a new point
+  const tapHandle = (areaId: string, hit: Handle) => {
+    gesture.current.moved = true; // not a click on the map as well
+    if (hit.mid) {
+      if (areaId === PENDING) onInsertPending?.(hit.index + 1, hit.x, hit.y);
+      else onInsertVertex?.(areaId, hit.index + 1, hit.x, hit.y);
+      setActive(null);
+    } else if (areaId !== PENDING) {
+      const same = active?.areaId === areaId && active.index === hit.index;
+      setActive(same ? null : {areaId, index: hit.index});
+    }
+  };
+
   const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
     const touch = e.pointerType !== 'mouse';
     if (dragging) {
       if (touch && drag.current.touch && e.pointerId !== drag.current.pointerId) cancelDrag(e);
       return;
     }
+    // a second finger while one rests on a point: a pinch
+    if (hold.current && e.pointerId !== hold.current.press.pointerId) dropHold();
 
     const pendingHit = pointers.current.size === 0 ? pickPending(e.clientX, e.clientY, touch) : null;
-    if (pendingHit) {
-      startDrag(e, PENDING, pendingHit);
+    const hit = !pendingHit && selectedArea && pointers.current.size === 0 ? pickHandle(e.clientX, e.clientY, touch) : null;
+    const grab = pendingHit ? {areaId: PENDING, hit: pendingHit} : hit && selectedArea ? {areaId: selectedArea.id, hit} : null;
+    if (grab && (e.pointerType !== 'touch' || !zoomable)) {
+      startDrag(e, grab.areaId, grab.hit);
       return;
     }
-
-    const hit = selectedArea && pointers.current.size === 0 ? pickHandle(e.clientX, e.clientY, touch) : null;
-    if (hit && selectedArea) {
-      startDrag(e, selectedArea.id, hit);
-      return;
+    if (grab) {
+      const press = {pointerId: e.pointerId, clientX: e.clientX, clientY: e.clientY, pointerType: e.pointerType};
+      hold.current = {
+        press,
+        ...grab,
+        timer: setTimeout(() => {
+          const h = hold.current;
+          hold.current = null;
+          if (!h) return;
+          // the finger stays on the point: from now on it moves the point, not the map
+          pointers.current.delete(h.press.pointerId);
+          startDrag(h.press, h.areaId, h.hit);
+        }, HOLD_MS),
+      };
     }
 
     if (!zoomable) return;
@@ -558,12 +639,14 @@ export default function MapView({
 
     const dx = e.clientX - prev.x;
     const dy = e.clientY - prev.y;
-    if (!gesture.current.moved && Math.hypot(dx, dy) < 4) {
+    if (!gesture.current.moved && Math.hypot(dx, dy) < (e.pointerType === 'touch' ? TOUCH_SLOP : 4)) {
       // not a pan yet, don't eat the click
       pointers.current.set(e.pointerId, prev);
       return;
     }
     gesture.current.moved = true;
+    // a finger that rested on a point and moves away pans, it doesn't pick the point up any more
+    dropHold();
     if (following) return; // the view is pinned to the mower
     const v = base ?? {x: 0, y: 0, size: WIDTH};
     const unitsPerPx = v.size / svg.getBoundingClientRect().width;
@@ -573,6 +656,11 @@ export default function MapView({
   const onPointerEnd = (e: React.PointerEvent<SVGSVGElement>) => {
     pointers.current.delete(e.pointerId);
     if (pointers.current.size < 2) gesture.current.pinchDist = null;
+    const h = hold.current;
+    if (h && h.press.pointerId === e.pointerId) {
+      dropHold();
+      if (e.type === 'pointerup' && !gesture.current.moved) tapHandle(h.areaId, h.hit);
+    }
   };
 
   useEffect(() => {
@@ -641,7 +729,7 @@ export default function MapView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dragging, scale, minX, minY]);
 
-  if (map.areas.length === 0 && !displayMower && !pendingPoints?.length) return null;
+  if (map.areas.length === 0 && !mower && !pendingPoints?.length) return null;
 
 
   const sources = datum ? availableSources(datum, settings.imagery) : [];
@@ -791,27 +879,16 @@ export default function MapView({
           ) : null,
         )}
 
-        {displayMower &&
-          (() => {
-            const [sx, sy] = toScreen(displayMower.x, displayMower.y);
-            // same size on screen like the dock, or its real size (never smaller than a few pixels)
-            const base = settings.icons?.mowerRealSize ? Math.max(MOWER_SIZE * scale, 7 * k) : 8 * k;
-            const size = base * (settings.icons?.mowerSize ?? 1);
-            // svg y points down, so the map's ccw heading becomes a cw rotation
-            const deg = (-displayMower.heading * 180) / Math.PI;
-            const icon = mowerIcon(settings.icons?.mower);
-            // a side view heading left would stand on its head, mirrored it keeps its feet on the ground. a figure
-            // isn't turned with the heading at all, it only looks left or right. css, so it turns around instead of
-            // flipping over at once
-            const turn = !icon.side ? undefined : icon.upright ? `scaleX(${facing})` : `scaleY(${facing})`;
-            return (
-              <g className={styles.mower} transform={`translate(${sx} ${sy}) rotate(${icon.upright ? 0 : deg}) scale(${size})`}>
-                <g className={styles.turn} style={turn ? {transform: turn} : undefined}>
-                  {icon.draw({speed: mowerSpeed, emergency, blades: track?.at(-1)?.at(-1)?.b === true})}
-                </g>
-              </g>
-            );
-          })()}
+        {mower && (
+          <MowerMarker
+            mower={mower}
+            fit={drawn}
+            k={k}
+            icons={settings.icons}
+            emergency={emergency}
+            blades={track?.at(-1)?.at(-1)?.b === true}
+          />
+        )}
 
         {selectedArea && !pickingPoints && (
           <>

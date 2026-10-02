@@ -15,8 +15,9 @@ function wrapAngle(a: number) {
 }
 
 // Poses arrive a few times a second. Easing towards each new one looks like stop and go, so this plays
-// them back one update interval late and moves at constant speed between the last two instead.
-export function useEasedPose(target: Pose): Pose {
+// them back one update interval late and moves at constant speed between the last two instead. null: nothing to
+// follow, nothing runs (every frame that moves is a render of the one using it)
+export function useEasedPose(target: Pose | null): Pose | null {
   const [pose, setPose] = useState(target);
   const samples = useRef<{t: number; pose: Pose}[]>([]);
   const interval = useRef(200);
@@ -24,6 +25,10 @@ export function useEasedPose(target: Pose): Pose {
   useEffect(() => {
     const now = performance.now();
     const list = samples.current;
+    if (!target) {
+      list.length = 0;
+      return;
+    }
     const last = list[list.length - 1];
     if (last && last.pose.x === target.x && last.pose.y === target.y && last.pose.heading === target.heading) return;
     if (last) {
@@ -55,7 +60,7 @@ export function useEasedPose(target: Pose): Pose {
           };
         }
         setPose((p) =>
-          Math.abs(p.x - next.x) < 1e-4 && Math.abs(p.y - next.y) < 1e-4 && Math.abs(p.heading - next.heading) < 1e-4
+          p && Math.abs(p.x - next.x) < 1e-4 && Math.abs(p.y - next.y) < 1e-4 && Math.abs(p.heading - next.heading) < 1e-4
             ? p
             : next,
         );
@@ -66,5 +71,5 @@ export function useEasedPose(target: Pose): Pose {
     return () => cancelAnimationFrame(frame);
   }, []);
 
-  return pose;
+  return target ? (pose ?? target) : null;
 }

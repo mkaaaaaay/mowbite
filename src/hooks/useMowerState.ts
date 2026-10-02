@@ -3,6 +3,7 @@
 import {getMqttClient, onTopic} from '@/lib/mqttClient';
 import {useSyncExternalStore} from 'react';
 import {TOPIC} from '@/lib/openmower';
+import {useSensorValue} from './useMowerSensors';
 
 export interface MowerState {
   battery_percentage: number;
@@ -78,6 +79,25 @@ export function useMowerState(): MowerLink {
     () => link,
     () => NONE,
   );
+}
+
+// what a page needs of the state: it's only drawn again when that changes, not every second. select returns
+// something comparable with ===, e.g. a boolean, or a part of the state as it came
+export function useMowerStateValue<T>(select: (link: MowerLink) => T): T {
+  return useSyncExternalStore(
+    subscribe,
+    () => select(link),
+    () => select(NONE),
+  );
+}
+
+// in the docking station, like isDocked (lib/status): idle there and charging, or the charge voltage there while the
+// charging has paused (full)
+export function useDocked(): boolean {
+  const idle = useMowerStateValue((l) => l.state?.current_state === 'IDLE');
+  const charging = useMowerStateValue((l) => !!l.state?.is_charging);
+  const voltage = useSensorValue('om_v_charge', (v) => Number(v) > 20);
+  return idle && (charging || voltage);
 }
 
 // connected and the state is current: only then is what's shown real and a command goes out right away

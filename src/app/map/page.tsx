@@ -4,16 +4,14 @@ import {TitleMark} from '@/components/Logo';
 import MapView from '@/components/MapView';
 import TrackPicker from '@/components/TrackPicker';
 import {saveMap, useMowerMap, type MowerMap, type Point} from '@/hooks/useMowerMap';
-import {useMowerSensors} from '@/hooks/useMowerSensors';
 import {useMowerPosition} from '@/hooks/useMowerPosition';
-import {useMowerState} from '@/hooks/useMowerState';
+import {useDocked, useMowerStateValue} from '@/hooks/useMowerState';
 import {clearTrack, trackPoints, useMowerTrack} from '@/hooks/useMowerTrack';
 import {datumFromParams, numParam, useMowerParams} from '@/hooks/useMowerParams';
 import {loadJobTrack, useJobList, useMowHistory, type TrackSegment} from '@/hooks/useMowHistory';
 import {simplifyPolygon} from '@/lib/simplifyPolygon';
 import {mergeOutlines} from '@/lib/mergeAreas';
 import {cutOut, generateId, splitByPath} from '@/lib/splitPolygon';
-import {isDocked} from '@/lib/status';
 import {useSearchParams} from 'next/navigation';
 import {Suspense, useEffect, useMemo, useState} from 'react';
 import styles from './page.module.css';
@@ -48,10 +46,13 @@ export default function MapPage() {
 
 function MapEditor() {
   useLang();
-  const {state} = useMowerState();
-  const position = useMowerPosition() ?? state?.pose;
-  const {values: sensorValues} = useMowerSensors();
-  const docked = isDocked(state, sensorValues['om_v_charge']);
+  // only what the page needs of the mower's state and sensors: it isn't drawn again for every message that comes in
+  const live = useMowerPosition();
+  // a mower without position/json: robot_state's pose
+  const pose = useMowerStateValue((l) => (live ? null : (l.state?.pose ?? null)));
+  const position = live ?? pose ?? undefined;
+  const emergency = useMowerStateValue((l) => !!l.state?.emergency);
+  const docked = useDocked();
   const track = useMowerTrack();
   const liveMap = useMowerMap();
   const params = useMowerParams();
@@ -478,7 +479,7 @@ function MapEditor() {
                 viewKey="editor"
                 map={shownMap}
                 mower={position}
-                emergency={!!state?.emergency}
+                emergency={emergency}
                 track={viewJob ? undefined : track}
                 pastTrack={viewJob?.segments?.map((s) => ({
                   points: s.points.map(([x, y]) => ({x, y})),
