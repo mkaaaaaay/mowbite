@@ -557,3 +557,95 @@
     color: var(--foreground);
   }
 }
+
+/* the mowing settings of the selected area, folding away */
+.fold {
+  margin-top: 12px;
+  border-radius: 12px;
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  box-shadow: var(--card-shadow, none);
+  backdrop-filter: var(--card-blur, none);
+}
+
+.fold > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.fold > summary::-webkit-details-marker {
+  display: none;
+}
+
+.fold > summary::after {
+  content: '▾';
+  color: var(--text-secondary);
+  transition: transform 0.2s ease;
+}
+
+.fold[open] > summary::after {
+  transform: rotate(180deg);
+}
+
+/* the cards inside lose their own frame and title, the fold has them */
+.fold .mowSettings {
+  margin-top: 0;
+  padding-top: 2px;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.fold .mowSettings > .cardTitle {
+  display: none;
+}
+
+/* phones: right under the map, the map stays in view while one is open */
+@media (max-width: 899px) {
+  .fold {
+    order: -1;
+  }
+
+  .fold + .fold {
+    margin-top: 6px;
+  }
+
+  /* the map stays at the top while the settings under it scroll */
+  .editing .mapCol {
+    position: sticky;
+    top: 0;
+    z-index: 4;
+    padding-top: 6px;
+    background: var(--background);
+  }
+
+  .mapSave {
+    position: absolute;
+    top: 16px;
+    left: 10px;
+    z-index: 2;
+    display: flex;
+    gap: 6px;
+  }
+
+  .mapSave button {
+    padding: 6px 12px;
+    font-size: 13px;
+    backdrop-filter: var(--card-blur, blur(18px));
+  }
+}
+
+/* on a wide screen the toolbar is always in view */
+@media (min-width: 900px) {
+  .mapSave {
+    display: none;
+  }
+}

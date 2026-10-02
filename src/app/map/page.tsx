@@ -33,6 +33,7 @@ import {closedRings} from '@/lib/rings';
 import {saveFile} from '@/lib/saveFile';
 import {useAreaProperties} from '@/lib/areaProps';
 import {useMowPlan} from './useMowPlan';
+import {Fold} from './Fold';
 import {useMapEdits} from './useMapEdits';
 import {checkMap} from '@/lib/mapCheck';
 import Problems from './Problems';
@@ -477,8 +478,19 @@ function MapEditor() {
           {tr('Map')}
         </h1>
 
-        <div className={styles.editor}>
+        <div className={[styles.editor, selectedArea && mode === 'idle' ? styles.editing : ''].filter(Boolean).join(' ')}>
           <div className={styles.mapCol}>
+            {/* phones: undo and save on the map while an area is edited, the toolbar is further down then */}
+            {selectedArea && mode === 'idle' && dirty && !preview && (
+              <div className={styles.mapSave}>
+                <button className={styles.pillButton} onClick={undo} disabled={history.length === 0} aria-label={tr('Undo')}>
+                  ↶
+                </button>
+                <button className={[styles.pillButton, styles.saveButton, styles.unsaved].join(' ')} onClick={() => void handleSave()} disabled={saving}>
+                  {saving ? tr('saving…') : tr('Save map')}
+                </button>
+              </div>
+            )}
             {spot && (
               <div className={styles.spot}>
                 <span>{spot.msg || tr('Marked spot')}</span>
@@ -685,24 +697,26 @@ function MapEditor() {
               )}
 
               {selectedArea && mode === 'idle' && simplifyCm === null && selectedArea.properties.type === 'mow' && (
-                <MowSettings
-                  area={selectedArea}
-                  autoAngle={autoAngle}
-                  globalValue={globalValue}
-                  remember={remember}
-                  update={updateProperties}
-                  showStripes={showStripes}
-                  onToggleStripes={() => setShowStripes(!showStripes)}
-                  onAngleEdit={touchAngle}
-                  toolWidth={toolWidth}
-                  mismatch={mismatch}
-                  previewCorrection={previewCorrection}
-                  planFromMower={!!realPlan}
-                  planAngle={realPlan?.angle}
-                  planLength={shownArea?.properties.mowable === false || shownArea?.properties.active === false ? 0 : planLength}
-                  onPreviewCorrection={setPreviewCorrection}
-                  angle={{offset: angleOffset, offsetIsAbsolute, increment: angleIncrement}}
-                />
+                <Fold id="mow" title={tr('Mowing settings')}>
+                  <MowSettings
+                    area={selectedArea}
+                    autoAngle={autoAngle}
+                    globalValue={globalValue}
+                    remember={remember}
+                    update={updateProperties}
+                    showStripes={showStripes}
+                    onToggleStripes={() => setShowStripes(!showStripes)}
+                    onAngleEdit={touchAngle}
+                    toolWidth={toolWidth}
+                    mismatch={mismatch}
+                    previewCorrection={previewCorrection}
+                    planFromMower={!!realPlan}
+                    planAngle={realPlan?.angle}
+                    planLength={shownArea?.properties.mowable === false || shownArea?.properties.active === false ? 0 : planLength}
+                    onPreviewCorrection={setPreviewCorrection}
+                    angle={{offset: angleOffset, offsetIsAbsolute, increment: angleIncrement}}
+                  />
+                </Fold>
               )}
 
               {selectedArea && simplified && simplifyCm !== null && (
