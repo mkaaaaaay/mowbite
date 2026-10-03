@@ -2,7 +2,7 @@
 
 import {TitleMark} from '@/components/Logo';
 import {computeGaugeScale, fallbackGaugeScale, RadialGauge, TempGauge} from '@/components/gauges';
-import {BatteryIcon} from '@/components/icons';
+import {BatteryIcon, TurnIcon} from '@/components/icons';
 import InfoTip from '@/components/InfoTip';
 import Sparkline from '@/components/Sparkline';
 import {useMowerSensors, type SensorInfo} from '@/hooks/useMowerSensors';
@@ -45,7 +45,8 @@ function digitsOf(info: SensorInfo) {
 function isCritical(info: SensorInfo | undefined, raw: string | undefined, currentState: string | undefined): boolean {
   if (!info || raw === undefined || info.value_type !== 'DOUBLE') return false;
   if (info.value_description === 'REVOLUTIONS' && currentState !== 'MOWING') return false;
-  const value = Number(raw);
+  // a mow motor turning the other way round reports negative rpm, it's as fast either way
+  const value = info.value_description === 'REVOLUTIONS' ? Math.abs(Number(raw)) : Number(raw);
   if (Number.isNaN(value)) return false;
   // -1 = unset
   if (info.has_critical_low && info.lower_critical_value >= 0 && value <= info.lower_critical_value) return true;
@@ -208,9 +209,15 @@ export default function SensorsPage() {
                 {mowing && rpm !== undefined ? (
                   <>
                     <strong className={[styles.big, isCritical(rpmInfo, values['om_mow_motor_rpm'], currentState) ? styles.error : ''].join(' ')}>
-                      {rpm.toFixed(0)} rpm
+                      {Math.abs(rpm).toFixed(0)} rpm <TurnIcon reverse={rpm < 0} />
                     </strong>
-                    {rpmInfo && <RadialGauge value={rpm} scale={computeGaugeScale(rpmInfo) ?? fallbackGaugeScale(rpm)} />}
+                    <span className={styles.dim}>
+                      {rpm < 0 ? tr('turning the other way round') : tr('turning the normal way round')}
+                      {params[PARAM.mowerLogic('randomize_mow_motor_direction')] === true && ` · ${tr('changes with every start')}`}
+                    </span>
+                    {rpmInfo && (
+                      <RadialGauge value={Math.abs(rpm)} scale={computeGaugeScale(rpmInfo) ?? fallbackGaugeScale(Math.abs(rpm))} spin={rpm} />
+                    )}
                     {motorCurrent !== undefined && <span className={styles.dim}>{fmt(motorCurrent, 2)} A</span>}
                   </>
                 ) : (

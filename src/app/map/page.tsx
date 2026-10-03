@@ -7,6 +7,7 @@ import {saveMap, useMowerMap, type MowerMap, type Point} from '@/hooks/useMowerM
 import {useMowerPosition} from '@/hooks/useMowerPosition';
 import {useDocked, useMowerStateValue} from '@/hooks/useMowerState';
 import {clearTrack, trackPoints, useMowerTrack} from '@/hooks/useMowerTrack';
+import {usePlanProgress} from '@/hooks/usePlanProgress';
 import {datumFromParams, numParam, useMowerParams} from '@/hooks/useMowerParams';
 import {loadJobTrack, useJobList, useMowHistory, type TrackSegment} from '@/hooks/useMowHistory';
 import {simplifyPolygon} from '@/lib/simplifyPolygon';
@@ -56,6 +57,10 @@ function MapEditor() {
   const track = useMowerTrack();
   const liveMap = useMowerMap();
   const params = useMowerParams();
+  // while it mows: how far it got with the area's plan, like on the overview (the state only then, it changes every
+  // second)
+  const mowingState = useMowerStateValue((l) => (l.state?.current_state === 'MOWING' ? l.state : null));
+  const progress = usePlanProgress(mowingState, liveMap, undefined);
   const {map, edited, setMap, history, remember, undoStep, originals, setOriginals, dirty, external, dropEdits, mergeNote, mergeExternal} =
     useMapEdits(liveMap);
   const [showStripes, setShowStripes] = useState(true);
@@ -491,6 +496,7 @@ function MapEditor() {
                 onDragStart={remember}
                 onDragging={setDraggingPoint}
                 onDragCancel={undo}
+                onUndo={undo}
                 onInsertVertex={simplifyCm === null ? insertVertex : undefined}
                 onDeleteVertex={simplifyCm === null ? deleteVertex : undefined}
                 pickingPoints={mode === 'split' || mode === 'draw'}
@@ -505,8 +511,10 @@ function MapEditor() {
                 onCanvasClick={handleCanvasClick}
                 onMovePending={(i, x, y) => setPendingPoints((prev) => prev.map((p, j) => (j === i ? {x, y} : p)))}
                 onInsertPending={(i, x, y) => setPendingPoints((prev) => prev.toSpliced(i, 0, {x, y}))}
-                stripes={stripes}
-                loops={plan?.loops}
+                // the area being mowed shows how far the mower got instead of its plan
+                stripes={progress && progress.areaId === selectedAreaId ? undefined : stripes}
+                loops={progress && progress.areaId === selectedAreaId ? undefined : plan?.loops}
+                progress={progress ?? undefined}
                 preview={splitPreview ?? (merged ? [merged.outline] : undefined)}
                 markers={spot || problemSpots.length ? [...(spot ? [spot] : []), ...problemSpots] : undefined}
                 focus={spot ?? undefined}

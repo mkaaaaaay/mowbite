@@ -215,6 +215,7 @@
 }
 
 .controls {
+  container: controls / inline-size;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
@@ -234,6 +235,10 @@
   font-weight: 600;
   cursor: pointer;
   box-shadow: var(--btn-3d);
+}
+
+.controls button svg {
+  flex-shrink: 0;
 }
 
 .controls button:disabled {
@@ -281,16 +286,8 @@
   flex: 1;
 }
 
-@media (max-width: 600px) {
-  .controls button:not(.reset) {
-    flex-direction: column;
-    gap: 4px;
-    padding: 10px 4px;
-    font-size: 12px;
-  }
-}
-
-@media (max-width: 600px) {
+/* by the width of the card, not the screen: four buttons side by side need about 600px for a label next to its icon */
+@container controls (max-width: 640px) {
   .controls button:not(.reset) {
     flex-direction: column;
     gap: 4px;

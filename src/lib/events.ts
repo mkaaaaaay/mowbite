@@ -19,6 +19,7 @@ export interface MowerEvent {
   reason?: string;
   attempts?: number;
   emergency?: boolean;
+  battery_voltage?: number;
 }
 
 export type Severity = 'error' | 'warning' | 'info';
@@ -38,6 +39,41 @@ const REASONS: Record<string, string> = {
   dock_failed: "no contact with the charger",
   no_gps: 'no GPS fix',
 };
+
+// why it heads home, from the reason mower_logic gives (mower_logic.cpp): "Manual pause", "Battery voltage critical:
+// 23.1 V", "Battery average voltage low: 24.2 V", "Mow motor over temp: 71 °C", "Rain detected"
+export type HomeReason = 'paused' | 'battery' | 'hot' | 'rain';
+export function homeReason(r?: string): HomeReason | null {
+  if (!r) return null;
+  if (r === 'Manual pause') return 'paused';
+  if (r.startsWith('Battery')) return 'battery';
+  if (r.startsWith('Mow motor over temp')) return 'hot';
+  if (r.startsWith('Rain')) return 'rain';
+  return null;
+}
+const number = (r: string) => r.match(/-?\d+(\.\d+)?/)?.[0];
+function homeText(r?: string): string {
+  const n = r ? number(r) : undefined;
+  switch (homeReason(r)) {
+    case 'paused':
+      return tr('Heading home: paused by you');
+    case 'battery':
+      return n ? tr('Heading home to charge: battery low ({v} V)', {v: Number(n).toFixed(1)}) : tr('Heading home to charge: battery low');
+    case 'hot':
+      return n ? tr('Heading home: mow motor too hot ({t} °C)', {t: Math.round(Number(n))}) : tr('Heading home: mow motor too hot');
+    case 'rain':
+      return tr('Heading home: rain');
+    default:
+      return r ? tr('Heading home: {reason}', {reason: reason(r)}) : tr('Heading home');
+  }
+}
+
+// worth showing in a run's summary and the day's list though it isn't a problem: why it went home (not a pause)
+export function noteworthy(e: MowerEvent, state?: string): boolean {
+  if (describe(e, state).severity !== 'info') return true;
+  const why = e.type === 'DOCKING' ? homeReason(e.reason) : null;
+  return why !== null && why !== 'paused';
+}
 
 const reason = (r?: string) => (r ? (REASONS[r] ? tr(REASONS[r]) : r.replace(/_/g, ' ').toLowerCase()) : '');
 
@@ -66,7 +102,7 @@ export function describe(e: MowerEvent, state?: string): {text: string; severity
         severity: 'error',
       };
     case 'DOCKING':
-      return info(e.reason ? tr('Heading home: {reason}', {reason: reason(e.reason)}) : tr('Heading home'));
+      return info(homeText(e.reason));
     case 'DOCKING_RETRY':
       return {text: tr('Docking retry {n} ({reason})', {n: e.attempts ?? '', reason: reason(e.reason)}).replace('  ', ' '), severity: 'warning'};
     case 'DOCKING_FAILED':
@@ -86,6 +122,10 @@ export function describe(e: MowerEvent, state?: string): {text: string; severity
         : info(tr('Emergency cleared'));
     case 'NAVIGATION_ERROR':
       return {text: tr('Navigation error'), severity: 'error'};
+    case 'MOW_MOTOR_SPINUP_FAILED':
+      return {text: tr("Mow motor didn't start"), severity: 'error'};
+    case 'FULLY_CHARGED':
+      return info(e.battery_voltage ? tr('Fully charged ({v} V)', {v: e.battery_voltage.toFixed(1)}) : tr('Fully charged'));
     case 'BOOTED':
       return info(tr('Mower started'));
     case 'SHUTDOWN':
@@ -132,6 +172,14 @@ export function explain(e: MowerEvent, state?: string, gpsTimeout?: number): str
           );
     case 'EMERGENCY':
       return e.emergency ? tr('Stop button, lift, tilt or a bumper. It has to be released and reset before it drives again.') : undefined;
+    case 'MOW_MOTOR_SPINUP_FAILED':
+      return tr(
+        "The mow motor didn't reach its speed in time (mower_logic/mower_spinup_timeout), so the mower stopped with an emergency. Often grass is wound round the blade or the blade is blocked, or the motor or its controller is faulty.",
+      );
+    case 'DOCKING':
+      return homeReason(e.reason) === 'hot'
+        ? tr('The mow motor reached mower_logic/motor_hot_temperature. It mows on once it has cooled down to motor_cold_temperature.')
+        : undefined;
   }
 }
 
@@ -147,6 +195,8 @@ export function eventSource(e: MowerEvent): {file: string; url: string; log?: st
       return src('behaviors/DockingBehavior.cpp', 'Giving up on docking');
     case 'NAVIGATION_ERROR':
       return src('behaviors/MowingBehavior.cpp', 'MowingBehavior: (MOW) PAUSED due to MBF Error at …');
+    case 'MOW_MOTOR_SPINUP_FAILED':
+      return src('behaviors/MowingBehavior.cpp', 'Mower motor failed to reach … RPM within …s. Entering emergency.');
     case 'EMERGENCY':
     case 'GPS':
       return src('mower_logic.cpp');
@@ -159,7 +209,7 @@ export function rawLine(e: MowerEvent): string {
   return JSON.stringify({id, t, type, ...rest, x, y, job_id, session_id});
 }
 
-export type Outcome = 'done' | 'paused' | 'undock_failed' | 'dock_failed' | 'emergency' | 'returned' | 'running';
+export type Outcome = 'done' | 'paused' | 'battery' | 'rain' | 'hot' | 'undock_failed' | 'dock_failed' | 'emergency' | 'returned' | 'running';
 
 export interface Run {
   start: number;
@@ -240,7 +290,12 @@ function summarize(events: MowerEvent[], finished: boolean): Run {
   else if (events.some((e) => e.type === 'EMERGENCY' && e.emergency)) outcome = 'emergency';
   else if (has('DOCKING_FAILED')) outcome = 'dock_failed';
   else if (has('UNDOCKING_FAILED') && !has('UNDOCKED')) outcome = 'undock_failed';
-  else if (events.some((e) => e.type === 'DOCKING' && e.reason === 'Manual pause')) outcome = 'paused';
+  else {
+    // why it went home, the last time it did
+    const home = events.filter((e) => e.type === 'DOCKING' && homeReason(e.reason)).pop();
+    const why = home ? homeReason(home.reason) : null;
+    if (why) outcome = why;
+  }
 
   return {
     start: events[0].t,
@@ -257,6 +312,9 @@ function summarize(events: MowerEvent[], finished: boolean): Run {
 export const OUTCOMES: Record<Outcome, {label: string; tone: 'good' | 'neutral' | 'bad' | 'live'}> = {
   done: {label: 'Finished', tone: 'good'},
   paused: {label: 'Paused by you', tone: 'neutral'},
+  battery: {label: 'Back to charge', tone: 'neutral'},
+  rain: {label: 'Stopped for rain', tone: 'neutral'},
+  hot: {label: 'Mow motor too hot', tone: 'bad'},
   returned: {label: 'Back in the dock', tone: 'neutral'},
   undock_failed: {label: "Couldn't leave the dock", tone: 'bad'},
   dock_failed: {label: 'Docking failed', tone: 'bad'},

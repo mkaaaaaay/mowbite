@@ -2,7 +2,7 @@
 
 import {TitleMark} from '@/components/Logo';
 import {clock, dayKey, dayLabel, duration, parseDay} from '@/lib/dates';
-import {describe, eventSource, explain, groupRuns, rawLine, OUTCOMES, withState, type Entry, type MowerEvent, type Run} from '@/lib/events';
+import {describe, eventSource, explain, groupRuns, noteworthy, rawLine, OUTCOMES, withState, type Entry, type MowerEvent, type Run} from '@/lib/events';
 import {useDragScroll} from '@/hooks/useDragScroll';
 import {eventsOfDay, historyDays, localDays, type DayEvents} from '@/lib/history';
 import {RosLogAround} from '@/components/RosLog';
@@ -119,7 +119,7 @@ function ProblemItem({run, next, event, state, where}: {run: Run; next?: Run; ev
 }
 
 function Problems({run, next, where}: {run: Run; next?: Run; where: Where}) {
-  const list = withState(run.events).filter(({event, state}) => describe(event, state).severity !== 'info');
+  const list = withState(run.events).filter(({event, state}) => noteworthy(event, state));
   if (!list.length) return null;
   return (
     <ul className={styles.problemList}>
@@ -226,7 +226,7 @@ export default function ActivityPage() {
 
   // outside of runs only start/shutdown and real problems are interesting, not gps toggling in the dock
   const entries: Entry[] = (events ? groupRuns(events, isToday).reverse() : []).filter(
-    (e) => e.kind === 'run' || ['BOOTED', 'SHUTDOWN'].includes(e.event.type) || describe(e.event).severity !== 'info',
+    (e) => e.kind === 'run' || ['BOOTED', 'SHUTDOWN'].includes(e.event.type) || noteworthy(e.event),
   );
   // which file and line an entry came from, the day's early or late hours sit in the neighbouring file
   const where = loaded?.where ?? new Map<string, {file: string; line: number}>();

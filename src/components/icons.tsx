@@ -10,10 +10,21 @@ export function PlayIcon({size = 20}: IconProps) {
   );
 }
 
-export function StopIcon({size = 20}: IconProps) {
+// a round arrow, the normal way round (clockwise) or the other (reverse)
+export function TurnIcon({size = 20, reverse = false}: IconProps & {reverse?: boolean}) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" style={reverse ? {transform: 'scaleX(-1)'} : undefined} aria-hidden="true">
+      <path d="M20 12a8 8 0 1 1-2.34-5.66" />
+      <path d="M20 4v5h-5" />
+    </svg>
+  );
+}
+
+export function PauseIcon({size = 20}: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
-      <rect x="6" y="6" width="12" height="12" rx="2" />
+      <rect x="6" y="5" width="4" height="14" rx="1.5" />
+      <rect x="14" y="5" width="4" height="14" rx="1.5" />
     </svg>
   );
 }

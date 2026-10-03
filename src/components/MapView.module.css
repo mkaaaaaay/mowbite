@@ -162,24 +162,62 @@
   pointer-events: none;
 }
 
-.deletePoint:active:not(:disabled) {
-  transform: translateX(-50%) translateY(1px) scale(0.96);
-}
-
+/* next to the tapped point (left/top set inline), round and big enough for a finger */
 .deletePoint {
   position: absolute;
-  left: 50%;
-  bottom: 12px;
-  transform: translateX(-50%);
-  padding: 8px 14px;
-  border-radius: 999px;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 50%;
   border: 1px solid var(--card-border);
   background: var(--card);
   color: var(--error, #ff5252);
-  font-size: 13px;
   cursor: pointer;
   box-shadow: var(--card-shadow, none);
   backdrop-filter: var(--card-blur, none);
+}
+
+.deletePoint:active:not(:disabled) {
+  transform: translateY(1px) scale(0.96);
+}
+
+/* the point is out of sight: at the top of the map, clear of the angle bar at the bottom on a phone */
+.deletePointTop {
+  left: calc(50% - 20px);
+  top: 10px;
+}
+
+/* under the undo/save buttons the map page puts at the top on a phone */
+.undoToast {
+  position: absolute;
+  left: 50%;
+  top: 56px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 13px;
+  box-shadow: var(--card-shadow, none);
+  backdrop-filter: var(--card-blur, none);
+  white-space: nowrap;
+}
+
+.undoToast button {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--card-border);
+  background: transparent;
+  color: var(--accent);
+  font-size: 13px;
+  cursor: pointer;
 }
 
 .grid line {

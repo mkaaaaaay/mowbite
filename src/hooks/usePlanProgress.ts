@@ -7,12 +7,13 @@ import {useEffect, useMemo, useState} from 'react';
 import type {MowerMap} from './useMowerMap';
 import type {MowerState} from './useMowerState';
 
-// how far the mower got with the area it's mowing, when it can hand out its plan (mowing.plan)
+// how far the mower got with the area it's mowing, when it can hand out its plan (mowing.plan). events: the day's,
+// for the time left (without them none)
 export function usePlanProgress(
   state: MowerState | null,
   map: MowerMap | null,
   events: MowerEvent[] | undefined,
-): (PlanProgress & {secondsLeft: number | null}) | null {
+): (PlanProgress & {areaId: string; secondsLeft: number | null}) | null {
   // current_area counts the mowing areas in map order, inactive ones included
   const areaId =
     state?.current_state === 'MOWING' && map && (state.current_area ?? -1) >= 0
@@ -42,10 +43,12 @@ export function usePlanProgress(
   // time left from how fast the plan got done while the blades ran in this area (event history), the same on every
   // device. checked every 10 s. a rate from a good while of mowing is kept for the editor
   const [now, setNow] = useState(() => Date.now() / 1000);
+  const timed = !!areaId && !!events;
   useEffect(() => {
+    if (!timed) return;
     const every = setInterval(() => setNow(Date.now() / 1000), 10000);
     return () => clearInterval(every);
-  }, []);
+  }, [timed]);
   const seconds = areaId && events ? bladeSeconds(events, areaId, now) : 0;
   const rate = progress && seconds > 60 && progress.doneLength > 5 ? progress.doneLength / seconds : null;
   useEffect(() => {
@@ -53,8 +56,8 @@ export function usePlanProgress(
   }, [rate, seconds]);
 
   return useMemo(() => {
-    if (!progress) return null;
+    if (!progress || !areaId) return null;
     const r = rate ?? savedRate();
-    return {...progress, secondsLeft: r ? progress.todoLength / r : null};
-  }, [progress, rate]);
+    return {...progress, areaId, secondsLeft: r ? progress.todoLength / r : null};
+  }, [progress, rate, areaId]);
 }

@@ -67,7 +67,9 @@ const fractionOf = (value: number, scale: GaugeScale) => {
   return clamp((value - scale.domainMin) / span, 0, 1);
 };
 
-export function RadialGauge({value, scale, size = 120}: {value: number; scale: GaugeScale; size?: number}) {
+// spin: rpm of what the gauge shows, a blade turns in the middle that way round (negative: the other way), at a speed
+// the eye can follow
+export function RadialGauge({value, scale, size = 120, spin}: {value: number; scale: GaugeScale; size?: number; spin?: number}) {
   const cx = size / 2;
   const cy = size / 2;
   const r = size / 2 - 16;
@@ -104,9 +106,34 @@ export function RadialGauge({value, scale, size = 120}: {value: number; scale: G
           fill="none"
         />
       ))}
+      {spin !== undefined && <Blade cx={cx} cy={cy} r={r * 0.55} rpm={spin} />}
       <line x1={cx} y1={cy} x2={needleX} y2={needleY} stroke="#616161" strokeWidth={2} />
       <circle cx={cx} cy={cy} r={4} fill="#616161" />
     </svg>
+  );
+}
+
+// a mow blade seen from above, turning with the motor: one turn takes 2.5 s at 2400 rpm (the real 40 a second would only
+// blur), standing still at 0, not turning at all for someone who asked for less motion
+function Blade({cx, cy, r, rpm}: {cx: number; cy: number; r: number; rpm: number}) {
+  const still = rpm === 0 || (typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
+  const seconds = Math.min(10, Math.max(0.8, 6000 / Math.abs(rpm || 1)));
+  return (
+    <g opacity={0.35}>
+      <rect x={cx - r} y={cy - 3} width={2 * r} height={6} rx={3} fill="#616161" />
+      <rect x={cx - r} y={cy - 3} width={6} height={6} rx={1} fill="#616161" transform={`rotate(-20 ${cx - r + 3} ${cy})`} />
+      <rect x={cx + r - 6} y={cy - 3} width={6} height={6} rx={1} fill="#616161" transform={`rotate(-20 ${cx + r - 3} ${cy})`} />
+      {!still && (
+        <animateTransform
+          attributeName="transform"
+          type="rotate"
+          from={`0 ${cx} ${cy}`}
+          to={`${rpm < 0 ? -360 : 360} ${cx} ${cy}`}
+          dur={`${seconds}s`}
+          repeatCount="indefinite"
+        />
+      )}
+    </g>
   );
 }
 

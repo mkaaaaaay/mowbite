@@ -14,6 +14,7 @@ import {useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore}
 import styles from './MapView.module.css';
 import {tr, useLang} from '@/lib/i18n';
 import {tick} from '@/lib/haptics';
+import {TrashIcon} from './icons';
 
 interface MapViewProps {
   map: MowerMap;
@@ -30,6 +31,8 @@ interface MapViewProps {
   onDragCancel?: () => void;
   onInsertVertex?: (areaId: string, vertexIndex: number, x: number, y: number) => void;
   onDeleteVertex?: (areaId: string, vertexIndex: number) => void;
+  // takes the last change back, offered for a moment after a point was deleted
+  onUndo?: () => void;
   // clicks report map coords instead of selecting (split line, new area)
   pickingPoints?: boolean;
   pendingPoints?: Point[];
@@ -194,6 +197,7 @@ export default function MapView({
   onDragCancel,
   onInsertVertex,
   onDeleteVertex,
+  onUndo,
   pickingPoints,
   pendingPoints,
   onCanvasClick,
@@ -386,6 +390,34 @@ export default function MapView({
     active && selectedArea && active.areaId === selectedArea.id && active.index < selectedArea.outline.length
       ? active.index
       : null;
+
+  // deleting the tapped point: its button next to it, the Delete key (Backspace on keyboards without one), and for a
+  // moment a way back
+  const [deletedAt, setDeletedAt] = useState<number | null>(null);
+  const deletable = !!selectedArea && activeIndex !== null && !!onDeleteVertex && selectedArea.outline.length > 3;
+  const deletePoint = () => {
+    if (!deletable) return;
+    onDeleteVertex!(selectedArea!.id, activeIndex!);
+    setActive(null);
+    if (onUndo) setDeletedAt(Date.now());
+  };
+  useEffect(() => {
+    if (!deletable) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+      const t = e.target as HTMLElement | null;
+      if (t && (['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName) || t.isContentEditable)) return;
+      e.preventDefault();
+      deletePoint();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+  useEffect(() => {
+    if (deletedAt === null) return;
+    const t = setTimeout(() => setDeletedAt(null), 5000);
+    return () => clearTimeout(t);
+  }, [deletedAt]);
 
   // keeps handles the same size at any zoom
   const k = shown ? shown.size / WIDTH : 1;
@@ -1073,16 +1105,52 @@ export default function MapView({
         }
       />
       {grid && <span className={styles.gridLabel}>{tr('grid {n} m', {n: grid.step})}</span>}
-      {selectedArea && activeIndex !== null && onDeleteVertex && selectedArea.outline.length > 3 && (
-        <button
-          className={styles.deletePoint}
-          onClick={() => {
-            onDeleteVertex(selectedArea.id, activeIndex);
-            setActive(null);
-          }}
-        >
-          {tr('Delete point')}
-        </button>
+      {deletable &&
+        (() => {
+          // up and to the right of the point, or the next corner around it that keeps clear of the map buttons on the
+          // right and the angle bar at the bottom (map page); at the top of the map while the point is out of sight
+          const v = shown ?? {x: 0, y: 0, size: WIDTH};
+          const p = selectedArea!.outline[activeIndex!];
+          const [sx, sy] = toScreen(p.x, p.y);
+          const px = ((sx - v.x) / v.size) * svgPx;
+          const py = ((sy - v.y) / v.size) * svgPx;
+          const size = 40;
+          const seen = svgPx > 0 && px >= 0 && py >= 0 && px <= svgPx && py <= svgPx;
+          const clear = ([left, top]: number[]) =>
+            left >= 0 && top >= 0 && left + size <= svgPx - 52 && top + size <= svgPx - 72;
+          const spot = seen
+            ? [
+                [px + 14, py - 14 - size],
+                [px - 14 - size, py - 14 - size],
+                [px + 14, py + 14],
+                [px - 14 - size, py + 14],
+              ].find(clear)
+            : undefined;
+          const at = spot ? {left: spot[0], top: spot[1]} : null;
+          return (
+            <button
+              className={[styles.deletePoint, at ? '' : styles.deletePointTop].join(' ')}
+              style={at ?? undefined}
+              onClick={deletePoint}
+              aria-label={tr('Delete point')}
+              title={tr('Delete point (Del)')}
+            >
+              <TrashIcon size={18} />
+            </button>
+          );
+        })()}
+      {deletedAt !== null && onUndo && (
+        <div className={styles.undoToast}>
+          {tr('Point deleted')}
+          <button
+            onClick={() => {
+              onUndo();
+              setDeletedAt(null);
+            }}
+          >
+            {tr('Undo')}
+          </button>
+        </div>
       )}
     </div>
   );

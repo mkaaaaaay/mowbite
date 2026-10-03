@@ -3,13 +3,13 @@
 import LogoMark from '@/components/Logo';
 import LoveMower from '@/components/LoveMower';
 import MapView from '@/components/MapView';
-import {HomeIcon, PlayIcon, SkipIcon, StopIcon, WarningIcon} from '@/components/icons';
+import {HomeIcon, PauseIcon, PlayIcon, SkipIcon, WarningIcon} from '@/components/icons';
 import {useComputedSpeed} from '@/hooks/useComputedSpeed';
 import {useMowerActions} from '@/hooks/useMowerActions';
 import {useMowerMap} from '@/hooks/useMowerMap';
 import {datumFromParams, numParam, useMowerParams} from '@/hooks/useMowerParams';
 import {sunTimes} from '@/lib/sun';
-import {useMowerSensors} from '@/hooks/useMowerSensors';
+import {useMowerSensors, type SensorInfo} from '@/hooks/useMowerSensors';
 import {useMowerPosition} from '@/hooks/useMowerPosition';
 import {isLive, useMowerState, type MowerState} from '@/hooks/useMowerState';
 import {useMowerTrack} from '@/hooks/useMowerTrack';
@@ -50,11 +50,32 @@ const SKIP_DELAY = 4;
 const MISSED_SEEN_KEY = 'scheduleMissedSeen';
 const ACTIONS = [
   {id: ACTION.startMowing, Icon: PlayIcon, label: 'Start', main: true},
-  {id: ACTION.pause, Icon: StopIcon, label: 'Pause'},
+  {id: ACTION.pause, Icon: PauseIcon, label: 'Pause'},
   {id: ACTION.goHome, Icon: HomeIcon, label: 'Go home'},
   {id: ACTION.skipArea, Icon: SkipIcon, label: 'Skip area'},
 ];
 
+
+// the warmest of the mower's temperatures, named after what it is: the drive and mow controllers (ESCs) and the mow
+// motor on the common hardware. Hot from the limit OpenMower gives the sensor (max_pcb_temp of an ESC, the mow motor's
+// motor_hot_temperature), 70 °C without one
+const TEMP_NAMES: Record<string, string> = {
+  om_left_esc_temp: 'left drive controller',
+  om_right_esc_temp: 'right drive controller',
+  om_mow_esc_temp: 'mow controller',
+  om_mow_motor_temp: 'mow motor',
+};
+function warmest(infos: SensorInfo[], values: Record<string, string>) {
+  let best: {value: number; name: string; hot: boolean} | null = null;
+  for (const info of infos) {
+    if (info.value_description !== 'TEMPERATURE' || values[info.sensor_id] === undefined) continue;
+    const value = Number(values[info.sensor_id]);
+    if (!Number.isFinite(value) || (best && value <= best.value)) continue;
+    const limit = info.has_min_max && info.max_value > 0 ? info.max_value : info.has_critical_high && info.upper_critical_value > 0 ? info.upper_critical_value : 70;
+    best = {value, name: tr(TEMP_NAMES[info.sensor_id] ?? info.sensor_name), hot: value >= limit};
+  }
+  return best;
+}
 
 function headline(state: MowerState, docked: boolean, chargeState: string | undefined, area: string | undefined) {
   if (state.emergency) return {title: tr('Emergency stop'), tone: 'error'};
@@ -122,7 +143,7 @@ export default function Home() {
   // offline or no fresh state: what's shown is old and commands wouldn't arrive, so the buttons are off
   const live = isLive(link);
   const {hasAction, publishAction} = useMowerActions();
-  const {values} = useMowerSensors();
+  const {infos, values} = useMowerSensors();
   const position = useMowerPosition() ?? state?.pose;
   const speed = useComputedSpeed(position);
   const track = useMowerTrack();
@@ -189,7 +210,7 @@ export default function Home() {
   const acc = state?.pose.pos_accuracy;
   const gpsQ = gpsQuality(acc, numParam(params, PARAM.maxPositionAccuracy));
   const num = (id: string) => (values[id] !== undefined ? Number(values[id]) : undefined);
-  const motorTemp = Math.max(...['om_left_esc_temp', 'om_right_esc_temp', 'om_mow_esc_temp'].map((id) => num(id) ?? -Infinity));
+  const hottest = warmest(infos, values);
   const facts: {label: string; value: string; warn?: boolean}[] = [];
   if (state) {
     facts.push({
@@ -206,7 +227,7 @@ export default function Home() {
     }
     if (charging && num('om_charge_current') !== undefined) facts.push({label: tr('Charging'), value: `${fmt(num('om_charge_current')!, 1)} A`});
     if (num('om_v_battery') !== undefined) facts.push({label: tr('Battery'), value: `${fmt(num('om_v_battery')!, 1)} V`});
-    if (motorTemp > -Infinity) facts.push({label: tr('Motors'), value: `${Math.round(motorTemp)} °C`, warn: motorTemp > 70});
+    if (hottest) facts.push({label: tr('Temperature'), value: `${Math.round(hottest.value)} °C · ${hottest.name}`, warn: hottest.hot});
     if (state.rain_detected) facts.push({label: tr('Rain'), value: tr('detected'), warn: true});
   }
 
