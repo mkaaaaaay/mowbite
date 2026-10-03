@@ -142,7 +142,8 @@ function Blade({cx, cy, r, rpm}: {cx: number; cy: number; r: number; rpm: number
 // Sensors without limits just get a neutral bar.
 // the limits from the sensor's info, or given directly (warn: yellow mark, crit: red one)
 export function TempGauge({value, info, limits}: {value: number; info?: SensorInfo; limits?: {warn?: number; crit?: number}}) {
-  const warn = info ? (info.has_min_max && info.max_value > 0 ? info.max_value : undefined) : limits?.warn;
+  // a max on its own counts, OpenMower only sets has_min_max when there's a min as well (max_pcb_temp of an ESC)
+  const warn = info ? (info.max_value > 0 ? info.max_value : undefined) : limits?.warn;
   const crit = info ? (info.has_critical_high && info.upper_critical_value >= 0 ? info.upper_critical_value : undefined) : limits?.crit;
   const max = Math.max(90, (crit ?? 0) + 10);
   const color = crit !== undefined && value >= crit ? RED : warn !== undefined && value >= warn ? YELLOW : GREEN;
