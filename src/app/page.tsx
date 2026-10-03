@@ -56,25 +56,29 @@ const ACTIONS = [
 ];
 
 
-// the warmest of the mower's temperatures, named after what it is: the drive and mow controllers (ESCs) and the mow
-// motor on the common hardware. Hot from the limit OpenMower gives the sensor (max_pcb_temp of an ESC, the mow motor's
-// motor_hot_temperature), 70 °C without one
-const TEMP_NAMES: Record<string, string> = {
-  om_left_esc_temp: 'left drive controller',
-  om_right_esc_temp: 'right drive controller',
-  om_mow_esc_temp: 'mow controller',
-  om_mow_motor_temp: 'mow motor',
-};
-function warmest(infos: SensorInfo[], values: Record<string, string>) {
-  let best: {value: number; name: string; hot: boolean} | null = null;
-  for (const info of infos) {
-    if (info.value_description !== 'TEMPERATURE' || values[info.sensor_id] === undefined) continue;
-    const value = Number(values[info.sensor_id]);
-    if (!Number.isFinite(value) || (best && value <= best.value)) continue;
-    const limit = info.has_min_max && info.max_value > 0 ? info.max_value : info.has_critical_high && info.upper_critical_value > 0 ? info.upper_critical_value : 70;
-    best = {value, name: tr(TEMP_NAMES[info.sensor_id] ?? info.sensor_name), hot: value >= limit};
-  }
-  return best;
+// every temperature of the mower in a fixed order, the blade side first, then the wheels, unknown ones after them.
+// Hot from the limit OpenMower gives the sensor (max_pcb_temp of an ESC, the mow motor's motor_hot_temperature),
+// 70 °C without one. max_value counts on its own: OpenMower sets has_min_max only when there's a min as well
+const TEMP_ORDER: [string, string][] = [
+  ['om_mow_motor_temp', 'Mow motor'],
+  ['om_mow_esc_temp', 'Mow controller'],
+  ['om_left_esc_temp', 'Left drive controller'],
+  ['om_right_esc_temp', 'Right drive controller'],
+];
+function temperatures(infos: SensorInfo[], values: Record<string, string>) {
+  const rank = (id: string) => {
+    const i = TEMP_ORDER.findIndex(([k]) => k === id);
+    return i < 0 ? TEMP_ORDER.length : i;
+  };
+  return infos
+    .filter((info) => info.value_description === 'TEMPERATURE' && Number.isFinite(Number(values[info.sensor_id])))
+    .map((info) => {
+      const value = Number(values[info.sensor_id]);
+      const limit = info.max_value > 0 ? info.max_value : info.has_critical_high && info.upper_critical_value > 0 ? info.upper_critical_value : 70;
+      const name = TEMP_ORDER.find(([k]) => k === info.sensor_id)?.[1];
+      return {id: info.sensor_id, label: name ? tr(name) : info.sensor_name, value: `${Math.round(value)} °C`, warn: value >= limit};
+    })
+    .sort((a, b) => rank(a.id) - rank(b.id) || a.label.localeCompare(b.label));
 }
 
 function headline(state: MowerState, docked: boolean, chargeState: string | undefined, area: string | undefined) {
@@ -210,7 +214,7 @@ export default function Home() {
   const acc = state?.pose.pos_accuracy;
   const gpsQ = gpsQuality(acc, numParam(params, PARAM.maxPositionAccuracy));
   const num = (id: string) => (values[id] !== undefined ? Number(values[id]) : undefined);
-  const hottest = warmest(infos, values);
+  const temps = state ? temperatures(infos, values) : [];
   const facts: {label: string; value: string; warn?: boolean}[] = [];
   if (state) {
     facts.push({
@@ -227,7 +231,6 @@ export default function Home() {
     }
     if (charging && num('om_charge_current') !== undefined) facts.push({label: tr('Charging'), value: `${fmt(num('om_charge_current')!, 1)} A`});
     if (num('om_v_battery') !== undefined) facts.push({label: tr('Battery'), value: `${fmt(num('om_v_battery')!, 1)} V`});
-    if (hottest) facts.push({label: tr('Temperature'), value: `${Math.round(hottest.value)} °C · ${hottest.name}`, warn: hottest.hot});
     if (state.rain_detected) facts.push({label: tr('Rain'), value: tr('detected'), warn: true});
   }
 
@@ -282,6 +285,16 @@ export default function Home() {
                 </div>
               ))}
             </div>
+            {temps.length > 0 && (
+              <div className={styles.facts}>
+                {temps.map((f) => (
+                  <div key={f.id} className={f.warn ? styles.warn : undefined}>
+                    <span>{f.label}</span>
+                    <strong>{f.value}</strong>
+                  </div>
+                ))}
+              </div>
+            )}
 
             <div className={styles.controls}>
               {ACTIONS.map((a) =>
