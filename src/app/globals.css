@@ -198,7 +198,6 @@ textarea {
 
 /* buttons give way under the finger like a real one */
 button,
-nav a,
 [class*='pillButton'],
 [class*='linkButton'] {
   -webkit-tap-highlight-color: transparent;
@@ -209,7 +208,6 @@ nav a,
 }
 
 button:active:not(:disabled),
-nav a:active,
 [class*='pillButton']:active,
 [class*='linkButton']:active {
   transform: translateY(1px) scale(0.96);

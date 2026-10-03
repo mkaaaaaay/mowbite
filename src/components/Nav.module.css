@@ -65,6 +65,74 @@
   filter: drop-shadow(0 0 4px color-mix(in srgb, var(--accent) 70%, transparent));
 }
 
+/* pressing a tab: a soft pill grows behind its icon and the icon gives way; switching: the line grows from the middle
+   and the icon hops once */
+.nav a {
+  isolation: isolate;
+}
+
+.nav a::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  left: 50%;
+  width: 56px;
+  height: 30px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+  opacity: 0;
+  transform: translateX(-50%) scale(0.5);
+  transition:
+    opacity 0.35s ease,
+    transform 0.35s ease;
+}
+
+.nav a:active::before {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+  transition-duration: 0.12s;
+}
+
+.nav svg {
+  transition: transform 0.2s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+
+.nav a:active svg {
+  transform: scale(0.86);
+  transition-duration: 0.08s;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .active > span::after {
+    animation: line-in 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+  }
+
+  .active svg {
+    animation: hop 0.4s cubic-bezier(0.3, 1.6, 0.5, 1);
+  }
+}
+
+@keyframes line-in {
+  from {
+    transform: scaleX(0);
+    opacity: 0;
+  }
+}
+
+@keyframes hop {
+  40% {
+    transform: translateY(-3px) scale(1.12);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav a::before,
+  .nav svg {
+    transition: none;
+  }
+}
+
 /* unsaved changes in the map editor */
 .nav a {
   position: relative;
@@ -122,6 +190,20 @@
 
   .nav a:hover {
     color: var(--foreground);
+  }
+
+  .nav a::before {
+    inset: 0;
+    left: 0;
+    width: auto;
+    height: auto;
+    border-radius: 10px;
+    background: rgba(128, 128, 128, 0.14);
+    transform: none;
+  }
+
+  .nav a:active::before {
+    transform: none;
   }
 
   .nav svg {
