@@ -116,6 +116,21 @@ const LOUPE_ZOOM = 2.5;
 const HOLD_MS = 300;
 // px a finger may wobble before it pans, a mouse 4
 const TOUCH_SLOP = 8;
+// "hold to move" when a finger slid off a point and panned instead: once a session, in the first three sessions
+const HOLD_HINT_KEY = 'holdHintSessions';
+let holdHintShown = false;
+function wantHoldHint() {
+  if (holdHintShown) return false;
+  holdHintShown = true;
+  try {
+    const n = Number(localStorage.getItem(HOLD_HINT_KEY) ?? 0);
+    if (n >= 3) return false;
+    localStorage.setItem(HOLD_HINT_KEY, String(n + 1));
+  } catch {
+    // no storage: still once a session
+  }
+  return true;
+}
 
 const PADDING = 20;
 const MOWER_SIZE = 0.4; // m
@@ -418,6 +433,12 @@ export default function MapView({
     const t = setTimeout(() => setDeletedAt(null), 5000);
     return () => clearTimeout(t);
   }, [deletedAt]);
+  const [holdHint, setHoldHint] = useState(false);
+  useEffect(() => {
+    if (!holdHint) return;
+    const t = setTimeout(() => setHoldHint(false), 2500);
+    return () => clearTimeout(t);
+  }, [holdHint]);
 
   // keeps handles the same size at any zoom
   const k = shown ? shown.size / WIDTH : 1;
@@ -678,6 +699,7 @@ export default function MapView({
     }
     gesture.current.moved = true;
     // a finger that rested on a point and moves away pans, it doesn't pick the point up any more
+    if (hold.current && wantHoldHint()) setHoldHint(true);
     dropHold();
     if (following) return; // the view is pinned to the mower
     const v = base ?? {x: 0, y: 0, size: WIDTH};
@@ -1139,6 +1161,7 @@ export default function MapView({
             </button>
           );
         })()}
+      {holdHint && deletedAt === null && <div className={styles.hintToast}>{tr('Hold to move')}</div>}
       {deletedAt !== null && onUndo && (
         <div className={styles.undoToast}>
           {tr('Point deleted')}

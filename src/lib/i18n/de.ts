@@ -120,6 +120,7 @@ const de: Record<string, string> = {
   "Edit": "Bearbeiten",
   "Delete point": "Punkt löschen",
   "Delete point (Del)": "Punkt löschen (Entf)",
+  "Hold to move": "Zum Verschieben gedrückt halten",
   "Point deleted": "Punkt gelöscht",
   "Design": "Design",
   "Details": "Details",

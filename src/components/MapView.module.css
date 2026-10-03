@@ -210,6 +210,36 @@
   white-space: nowrap;
 }
 
+/* the quiet one: no button, fades in and out */
+.hintToast {
+  position: absolute;
+  left: 50%;
+  top: 56px;
+  transform: translateX(-50%);
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--card) 85%, transparent);
+  backdrop-filter: var(--card-blur, blur(12px));
+  color: var(--text-secondary);
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: hint-fade 2.5s ease forwards;
+}
+
+@keyframes hint-fade {
+  0% {
+    opacity: 0;
+  }
+  12%,
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
 .undoToast button {
   padding: 4px 10px;
   border-radius: 999px;
