@@ -19,6 +19,9 @@ export const COLORS = [
   {key: 'selected', label: 'Selected area', value: '#ff1fa3'},
   {key: 'vertex', label: 'Outline points', value: '#2196f3'},
   {key: 'stripes', label: 'Mowing direction', value: '#ff1fa3'},
+  {key: 'body', label: 'Mower outline', value: '#ff1fa3'},
+  {key: 'swath', label: 'Cut width', value: '#ffffff'},
+  {key: 'edge', label: 'Real edges', value: '#c5e1a5'},
 ] as const;
 
 export type ColorKey = (typeof COLORS)[number]['key'];
@@ -50,6 +53,8 @@ export interface Settings {
   mowers?: OtherMower[];
   // own aerial imagery source, xyz tile url
   imagery?: {url?: string; attribution?: string};
+  // the mower's sizes in meters for its outline and the strip its blade cuts on the map (lib/mowerBody)
+  mower?: {width?: number; front?: number; rear?: number; blade?: number; bladeAhead?: number; bladeOffset?: number};
 }
 
 const STORAGE_KEY = 'appSettings';

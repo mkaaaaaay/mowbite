@@ -12,6 +12,10 @@ export const LAYERS = [
   {key: 'track', label: 'Track'},
   {key: 'transit', label: 'Driving without blades'},
   {key: 'planDone', label: 'Mowed part of the plan'},
+  {key: 'mowerIcon', label: 'Mower icon'},
+  {key: 'body', label: 'Mower outline'},
+  {key: 'swath', label: 'Cut width'},
+  {key: 'edges', label: 'Real edges'},
 ] as const;
 export type Layer = (typeof LAYERS)[number]['key'];
 
@@ -43,6 +47,7 @@ export default function MapControls({
   layersOpen,
   onLayersOpen,
   planStyle,
+  body,
   reset,
   follow,
 }: {
@@ -60,6 +65,9 @@ export default function MapControls({
   onLayersOpen: (open: boolean) => void;
   // only while there's a plan being mowed
   planStyle?: {value: PlanStyle; onChange: (s: PlanStyle) => void};
+  // only with the mower's sizes set: its outline and icon and the real edges, the strip its blade cuts only with a
+  // blade size
+  body?: {blade: boolean};
   // shown when zoomed or panned, follow: the view follows the mower
   reset: {follow: boolean; onReset: () => void} | null;
   // only while the view can follow the mower
@@ -136,8 +144,13 @@ export default function MapControls({
       {lookOpen && <MapLookPanel onClose={() => setLookOpen(false)} />}
       {layersOpen && (
         <div className={styles.layers}>
-          {/* the plan's layers only while there's a mowing run to show them for */}
-          {LAYERS.filter((l) => l.key !== 'planDone' || planStyle).map((l) => (
+          {/* the plan's layers only while there's a mowing run to show them for, the mower's own with its sizes */}
+          {LAYERS.filter(
+            (l) =>
+              (l.key !== 'planDone' || planStyle) &&
+              ((l.key !== 'mowerIcon' && l.key !== 'body' && l.key !== 'edges') || body) &&
+              (l.key !== 'swath' || body?.blade),
+          ).map((l) => (
             <label key={l.key}>
               <input type="checkbox" checked={layerOn(hidden, l.key)} onChange={() => onToggleLayer(l.key)} />
               {tr(l.label)}

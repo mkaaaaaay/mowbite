@@ -5,7 +5,9 @@ import {useComputedSpeed} from '@/hooks/useComputedSpeed';
 import {useEasedPose, type Pose} from '@/hooks/useEasedPose';
 import {containsPoint, polygonArea} from '@/lib/geometry';
 import {settingsStore, type Settings} from '@/lib/settings';
-import {dockIcon, mowerIcon} from './mapIcons';
+import {bladeSeconds, bodyShape, realEdges, swathEnd, swathPieces, useMowerBody, type MowerBody} from '@/lib/mowerBody';
+import {useSensorValue} from '@/hooks/useMowerSensors';
+import {dockIcon, drawMower, mowerIcon} from './mapIcons';
 import {availableSources, imageryTiles, type Datum} from '@/lib/imagery';
 import {handleRadius, meterGrid} from '@/lib/mapGrid';
 import MapControls, {layerOn, type Layer} from './MapControls';
@@ -97,6 +99,8 @@ const PENDING = '__pending';
 type Run = {points: string; blades: boolean};
 // drawn runs of each piece of the live trail per map geometry, pieces that are done are never worked out again
 const runCache = new WeakMap<object, Map<string, Run[]>>();
+// the same for the strip the blade cut along them, per map geometry and blade
+const swathCache = new WeakMap<object, Map<string, {lines: string[]; ends: string[]}>>();
 
 const AREA_CLASS: Record<string, string> = {
   mow: styles.mowArea,
@@ -154,6 +158,9 @@ function MowerMarker({
   fit,
   k,
   icons,
+  body,
+  outline,
+  showIcon,
   emergency,
   blades,
 }: {
@@ -161,10 +168,16 @@ function MowerMarker({
   fit: Fit;
   k: number;
   icons: Settings['icons'];
+  // the mower's sizes when set, its outline and blade drawn with outline
+  body: MowerBody | null;
+  outline: boolean;
+  showIcon: boolean;
   emergency?: boolean;
   blades: boolean;
 }) {
   const shown = useEasedPose(mower) ?? mower;
+  // the blade turning the way the mow motor does, drawn only with the outline
+  const rpm = useSensorValue('om_mow_motor_rpm', (v) => (outline && body?.blade ? Math.round(parseFloat(v ?? '') || 0) : 0));
   const speed = useComputedSpeed(mower);
   // which way a side view faces. it only turns once the mower clearly heads the other way, so it doesn't flicker while
   // the mower drives up or down the map
@@ -173,10 +186,15 @@ function MowerMarker({
   if (across > 0.3 && facing !== 1) setFacing(1);
   if (across < -0.3 && facing !== -1) setFacing(-1);
   const {scale, padX, padY, minX, minY} = fit;
-  const [sx, sy] = [(shown.x - minX) * scale + padX, HEIGHT - ((shown.y - minY) * scale + padY)];
+  const toScreen = (x: number, y: number): [number, number] => [(x - minX) * scale + padX, HEIGHT - ((y - minY) * scale + padY)];
+  const shape = body ? bodyShape(body, shown.x, shown.y, shown.heading) : null;
+  // at its real size with the sizes set the icon sits in the middle of the body, as long as it
+  const real = icons?.mowerRealSize ? shape : null;
+  const [sx, sy] = toScreen(real ? real.middle.x : shown.x, real ? real.middle.y : shown.y);
   // same size on screen like the dock, or its real size (never smaller than a few pixels)
-  const base = icons?.mowerRealSize ? Math.max(MOWER_SIZE * scale, 7 * k) : 8 * k;
-  const size = base * (icons?.mowerSize ?? 1);
+  const realSize = body && real ? ((body.front + body.rear) / 2) * scale : MOWER_SIZE * scale;
+  const base = icons?.mowerRealSize ? Math.max(realSize, 7 * k) : 8 * k;
+  const size = base * (real ? 1 : (icons?.mowerSize ?? 1));
   // svg y points down, so the map's ccw heading becomes a cw rotation
   const deg = (-shown.heading * 180) / Math.PI;
   const icon = mowerIcon(icons?.mower);
@@ -184,12 +202,63 @@ function MowerMarker({
   // isn't turned with the heading at all, it only looks left or right. css, so it turns around instead of
   // flipping over at once
   const turn = !icon.side ? undefined : icon.upright ? `scaleX(${facing})` : `scaleY(${facing})`;
+  const points = (list: {x: number; y: number}[]) => list.map((c) => toScreen(c.x, c.y).join(',')).join(' ');
+  const [bx, by] = shape ? toScreen(shape.blade.x, shape.blade.y) : [0, 0];
+  const [ax, ay] = toScreen(shown.x, shown.y);
+  const r = body ? (body.blade / 2) * scale : 0;
+  // OpenMower's rpm is negative when the motor turns the other way round (randomize_mow_motor_direction), forwards is
+  // drawn clockwise
+  const spin = Math.sign(rpm);
+  const still = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
   return (
-    <g className={styles.mower} transform={`translate(${sx} ${sy}) rotate(${icon.upright ? 0 : deg}) scale(${size})`}>
-      <g className={styles.turn} style={turn ? {transform: turn} : undefined}>
-        {icon.draw({speed, emergency, blades})}
-      </g>
-    </g>
+    <>
+      {outline && shape && <polygon className={styles.mowerBody} points={points(shape.corners)} />}
+      {showIcon && icon.fit && body && shape ? (
+        // a real mower on its body, exactly as long and wide as set
+        <g
+          className={styles.mower}
+          transform={`translate(${toScreen(shape.middle.x, shape.middle.y).join(' ')}) rotate(${deg}) scale(${((body.front + body.rear) / 2) * scale} ${(body.width / 2) * scale})`}
+        >
+          {icon.draw({speed, emergency, blades})}
+        </g>
+      ) : (
+        showIcon && (
+          <g className={styles.mower} transform={`translate(${sx} ${sy}) rotate(${icon.upright ? 0 : deg}) scale(${size})`}>
+            <g className={styles.turn} style={turn ? {transform: turn} : undefined}>
+              {drawMower(icon, {speed, emergency, blades})}
+            </g>
+          </g>
+        )
+      )}
+      {/* the blade over the icon, where it sits under the mower */}
+      {outline && shape && r > 0 && (
+        <g transform={`translate(${bx} ${by})`}>
+          <circle className={blades ? styles.mowerBladeOn : styles.mowerBlade} r={r} />
+          {/* the blade itself, turning like the mow motor: svg's y points down, so a positive angle turns clockwise */}
+          <g className={styles.mowerBladeBar}>
+            <rect x={-r * 0.92} y={-r * 0.09} width={r * 1.84} height={r * 0.18} rx={r * 0.05} />
+            <rect x={-r * 0.92} y={-r * 0.09} width={r * 0.3} height={r * 0.18} transform={`rotate(-20 ${-r * 0.77} 0)`} />
+            <rect x={r * 0.62} y={-r * 0.09} width={r * 0.3} height={r * 0.18} transform={`rotate(-20 ${r * 0.77} 0)`} />
+            {spin !== 0 && !still && (
+              <animateTransform
+                attributeName="transform"
+                type="rotate"
+                from="0 0 0"
+                to={`${spin * 360} 0 0`}
+                dur={`${bladeSeconds(rpm)}s`}
+                repeatCount="indefinite"
+              />
+            )}
+          </g>
+        </g>
+      )}
+      {outline && shape && (
+        <>
+          {!showIcon && <polyline className={styles.mowerArrow} points={points(shape.arrow)} />}
+          <circle className={styles.mowerAxle} cx={ax} cy={ay} r={1.5 * k} />
+        </>
+      )}
+    </>
   );
 }
 
@@ -392,6 +461,63 @@ export default function MapView({
     }
     return runs;
   }, [track, minX, minY, scale, padX, padY]);
+
+  // the strip the blade cut along the live trail and a recorded job, with the mower's sizes set
+  const body = useMowerBody();
+  const swathOn = !!body?.blade && layerOn(hidden, 'swath');
+  const swath = useMemo(() => {
+    const out: {lines: string[]; ends: string[]} = {lines: [], ends: []};
+    if (!swathOn || !body) return out;
+    const at = (p: Point) => `${((p.x - minX) * scale + padX).toFixed(1)} ${(HEIGHT - ((p.y - minY) * scale + padY)).toFixed(1)}`;
+    const path = (pts: Point[]) => pts.map((p, i) => `${i ? 'L' : 'M'}${at(p)}`).join('');
+    // one stretch with the blades on: its pieces, and the blade's round ends where it began and stopped
+    const draw = (pts: Point[], into: {lines: string[]; ends: string[]}) => {
+      const pieces = swathPieces(pts, body);
+      if (!pieces.length) return;
+      into.lines.push(...pieces.map(path));
+      const first = pieces[0];
+      const last = pieces[pieces.length - 1];
+      into.ends.push(
+        path(swathEnd(first[1], first[0], body.blade / 2)) + 'Z',
+        path(swathEnd(last[last.length - 2], last[last.length - 1], body.blade / 2)) + 'Z',
+      );
+    };
+    const key = `${minX},${minY},${scale},${padX},${padY},${body.blade},${body.bladeAhead},${body.bladeOffset}`;
+    for (const piece of track ?? []) {
+      let byView = swathCache.get(piece);
+      if (!byView) swathCache.set(piece, (byView = new Map()));
+      let cached = byView.get(key);
+      if (!cached) {
+        cached = {lines: [], ends: []};
+        // the stretches with the blades on
+        let start = -1;
+        for (let i = 0; i <= piece.length; i++) {
+          const on = i < piece.length && (piece[i].b ?? true);
+          if (on && start < 0) start = i;
+          if (!on && start >= 0) {
+            draw(piece.slice(start, i), cached);
+            start = -1;
+          }
+        }
+        if (byView.size > 3) byView.clear();
+        byView.set(key, cached);
+      }
+      out.lines.push(...cached.lines);
+      out.ends.push(...cached.ends);
+    }
+    for (const seg of pastTrack ?? []) if (seg.blades) draw(seg.points, out);
+    return out;
+  }, [swathOn, body, track, pastTrack, minX, minY, scale, padX, padY]);
+
+  // the edges where the mower's body reached while the outlines were recorded with its middle
+  const edgesOn = !!body && layerOn(hidden, 'edges');
+  const edges = useMemo(() => {
+    if (!edgesOn || !body) return null;
+    const at = (p: Point) => `${((p.x - minX) * scale + padX).toFixed(1)} ${(HEIGHT - ((p.y - minY) * scale + padY)).toFixed(1)}`;
+    const ring = (o: Point[]) => o.map((p, i) => `${i ? 'L' : 'M'}${at(p)}`).join('') + 'Z';
+    const {lawn, obstacles} = realEdges(map.areas, body.width);
+    return [...lawn, ...(hidden.has('obstacle') ? [] : obstacles)].map(ring).join('');
+  }, [edgesOn, body, map, hidden, minX, minY, scale, padX, padY]);
 
   const selectedArea = map.areas.find((a) => a.id === selectedAreaId);
   const activeIndex =
@@ -887,12 +1013,32 @@ export default function MapView({
 
         {map.docking_stations.map((station) => {
           const [sx, sy] = toScreen(station.position.x, station.position.y);
+          const icon = dockIcon(settings.icons?.dock);
+          if (icon.real) {
+            // a real station at its real size under the docked mower, its pins at the mower's front (as big as the
+            // other icons at least)
+            const {length, pins} = icon.real;
+            const ahead = (body?.front ?? 0.43) + pins - length / 2;
+            const c = toScreen(station.position.x + Math.cos(station.heading) * ahead, station.position.y + Math.sin(station.heading) * ahead);
+            const half = Math.max((length / 2) * scale, 8 * k * (settings.icons?.dockSize ?? 1));
+            return (
+              <g
+                key={station.id}
+                className={styles.dock}
+                transform={`translate(${c.join(' ')}) rotate(${(-station.heading * 180) / Math.PI}) scale(${half})`}
+              >
+                {icon.draw()}
+              </g>
+            );
+          }
           return (
             <g key={station.id} className={styles.dock} transform={`translate(${sx} ${sy}) scale(${8 * k * (settings.icons?.dockSize ?? 1)})`}>
-              {dockIcon(settings.icons?.dock).draw()}
+              {icon.draw()}
             </g>
           );
         })}
+
+        {edges && <path className={styles.realEdge} d={edges} />}
 
         {progress && !hidden.has('stripes') && (
           <>
@@ -907,6 +1053,15 @@ export default function MapView({
               />
             )}
           </>
+        )}
+
+        {swath.lines.length > 0 && (
+          <g className={styles.swath} strokeWidth={body!.blade * scale}>
+            {swath.lines.map((d, i) => (
+              <path key={'swath' + i} d={d} />
+            ))}
+            <path className={styles.swathEnd} d={swath.ends.join('')} />
+          </g>
         )}
 
         {!hidden.has('track') &&
@@ -932,6 +1087,10 @@ export default function MapView({
             fit={drawn}
             k={k}
             icons={settings.icons}
+            body={body}
+            // without the icon the outline shows where the mower is
+            outline={!!body && (layerOn(hidden, 'body') || !layerOn(hidden, 'mowerIcon'))}
+            showIcon={!body || layerOn(hidden, 'mowerIcon')}
             emergency={emergency}
             blades={track?.at(-1)?.at(-1)?.b === true}
           />
@@ -1085,6 +1244,7 @@ export default function MapView({
         onToggleLayer={toggleLayer}
         layersOpen={layersOpen}
         onLayersOpen={setLayersOpen}
+        body={body ? {blade: body.blade > 0} : undefined}
         planStyle={
           progress
             ? {

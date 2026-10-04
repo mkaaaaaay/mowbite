@@ -58,6 +58,9 @@ export const PARAM = {
   outlineCount: '/mower_logic/outline_count',
   dockingApproachDistance: '/mower_logic/docking_approach_distance',
   maxPositionAccuracy: '/mower_logic/max_position_accuracy',
+  // where the gps antenna sits from the point the mower turns around, xbot_positioning takes it out of the pose
+  antennaX: '/xbot_positioning/antenna_offset_x',
+  antennaY: '/xbot_positioning/antenna_offset_y',
 } as const;
 
 // mower_logic's own defaults (MowerLogic.cfg, the same in 1.4.0 and edge). params/json is sent when xbot_monitoring

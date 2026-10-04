@@ -1,6 +1,8 @@
 // Map symbols to pick from in the settings. Mower icons face +x and span about -1..1, the caller
 // scales and rotates them. A side view (side: true) has the ground at +y, the caller mirrors it when the
 // mower heads left so it stays upright. A figure (upright: true) isn't turned at all, only faces left or right.
+// A real mower from above (fit: its width over its length) fills -1..1 both ways from its back to its front: with the
+// mower's sizes set the map stretches it onto the body exactly, otherwise it's drawn that much narrower.
 // Dock icons are drawn upright in the same unit box.
 import {OPENMOWER_EDGE, OPENMOWER_PATHS} from './openmowerArt';
 
@@ -102,6 +104,7 @@ type MowerIcon = {
   label: string;
   side?: boolean;
   upright?: boolean;
+  fit?: number;
   // blades: the blade is running, as far as the mower tells (position/json)
   draw: (o?: {speed?: number; emergency?: boolean; blades?: boolean}) => React.ReactNode;
 };
@@ -138,6 +141,104 @@ const CLIPPINGS = [
     <animate attributeName="opacity" values="0;1;0" dur="1s" begin={`${g.d}s`} repeatCount="indefinite" />
   </circle>
 ));
+
+// the yard force models OpenMower is built into, from above with their colours. Lines stay thin at any size
+const BLACK = '#262626';
+const ORANGE = '#f57c00';
+const WHEEL = '#9e9e9e';
+const SILVER = '#cfd8dc';
+const STOP = '#e53935';
+const line = {stroke: '#000', strokeWidth: 0.75, strokeOpacity: 0.6} as const;
+
+// the red stop button, blinking on an emergency stop
+const stopButton = (x: number, w: number, h: number, emergency: boolean) => (
+  <rect x={x} y={-h / 2} width={w} height={h} rx={0.05} fill={STOP} {...line}>
+    {emergency && <animate attributeName="fill" values={`${STOP};#fff;${STOP}`} dur="0.8s" repeatCount="indefinite" />}
+  </rect>
+);
+
+const rearWheels = (x: number, len: number, inner: number) => (
+  <>
+    <rect x={x} y={-1} width={len} height={1 - inner} rx={0.04} fill={WHEEL} {...line} />
+    <rect x={x} y={inner} width={len} height={1 - inner} rx={0.04} fill={WHEEL} {...line} />
+  </>
+);
+
+const MODELS: MowerIcon[] = [
+  {
+    key: 'yf500',
+    label: 'YardForce Classic 500',
+    fit: 42 / 57,
+    // a box: black base, orange shell over nearly all of it, the height knob behind the middle, wheels at the back
+    draw: ({emergency = false} = {}) => (
+      <>
+        {rearWheels(-0.96, 0.52, 0.84)}
+        <rect x={-1} y={-0.86} width={2} height={1.72} rx={0.14} fill={BLACK} {...line} />
+        <path d="M-0.9,-0.74 L0.7,-0.74 Q0.92,-0.72 0.94,-0.5 L0.94,0.5 Q0.92,0.72 0.7,0.74 L-0.9,0.74 Q-0.96,0.74 -0.96,0.66 L-0.96,-0.66 Q-0.96,-0.74 -0.9,-0.74 Z" fill={ORANGE} {...line} />
+        <rect x={0.08} y={-0.36} width={0.5} height={0.72} rx={0.08} fill="#ef6c00" {...line} />
+        <circle cx={-0.32} cy={0} r={0.17} fill={BLACK} {...line} />
+        <circle cx={-0.32} cy={0} r={0.07} fill={WHEEL} />
+        {emergency && <circle cx={-0.32} cy={0} r={0.17} fill="none" stroke={STOP} strokeWidth={2}>
+          <animate attributeName="stroke-opacity" values="1;0;1" dur="0.8s" repeatCount="indefinite" />
+        </circle>}
+        <rect x={0.95} y={-0.32} width={0.05} height={0.18} fill={WHEEL} />
+        <rect x={0.95} y={0.14} width={0.05} height={0.18} fill={WHEEL} />
+      </>
+    ),
+  },
+  {
+    key: 'sa650',
+    label: 'YardForce SA650',
+    fit: 39 / 57,
+    // black with round arches over the rear wheels, an orange lid with the stop button at its back, orange nose
+    draw: ({emergency = false} = {}) => (
+      <>
+        {rearWheels(-0.9, 0.5, 0.9)}
+        <path
+          d="M-0.98,-0.7 Q-1,-0.96 -0.8,-0.97 L-0.45,-0.97 Q-0.3,-0.96 -0.25,-0.8 L0.55,-0.76 Q0.95,-0.7 1,-0.3 L1,0.3 Q0.95,0.7 0.55,0.76 L-0.25,0.8 Q-0.3,0.96 -0.45,0.97 L-0.8,0.97 Q-1,0.96 -0.98,0.7 Z"
+          fill={BLACK}
+          {...line}
+        />
+        <path d="M-0.5,-0.44 L0.38,-0.38 Q0.5,-0.36 0.5,-0.24 L0.5,0.24 Q0.5,0.36 0.38,0.38 L-0.5,0.44 Q-0.58,0.44 -0.58,0.36 L-0.58,-0.36 Q-0.58,-0.44 -0.5,-0.44 Z" fill={ORANGE} {...line} />
+        <rect x={-0.18} y={-0.22} width={0.46} height={0.44} rx={0.05} fill="#3a3a3a" {...line} />
+        {stopButton(-0.78, 0.18, 0.5, emergency)}
+        <path d="M0.68,-0.4 Q0.94,-0.36 0.97,-0.12 L0.97,0.12 Q0.94,0.36 0.68,0.4 Z" fill={ORANGE} {...line} />
+        <rect x={0.8} y={-0.24} width={0.1} height={0.14} fill={BLACK} />
+        <rect x={0.8} y={0.1} width={0.1} height={0.14} fill={BLACK} />
+      </>
+    ),
+  },
+  {
+    key: 'nx100',
+    label: 'YardForce NX100',
+    fit: 0.72,
+    // black on an orange skirt, big wheels at the back, the orange lid with the stop button at its back, silver fins and
+    // the silver plate in front of it, the orange charging ports at the very front
+    draw: ({emergency = false} = {}) => (
+      <>
+        {rearWheels(-0.94, 0.56, 0.86)}
+        <path
+          d="M-0.98,-0.84 L0.55,-0.84 Q0.98,-0.8 1,-0.35 L1,0.35 Q0.98,0.8 0.55,0.84 L-0.98,0.84 Q-1,0.84 -1,0.78 L-1,-0.78 Q-1,-0.84 -0.98,-0.84 Z"
+          fill={ORANGE}
+          {...line}
+        />
+        <path
+          d="M-0.92,-0.78 L0.5,-0.78 Q0.92,-0.74 0.94,-0.32 L0.94,0.32 Q0.92,0.74 0.5,0.78 L-0.92,0.78 Q-0.95,0.78 -0.95,0.72 L-0.95,-0.72 Q-0.95,-0.78 -0.92,-0.78 Z"
+          fill={BLACK}
+          {...line}
+        />
+        <path d="M-0.5,-0.42 L0.3,-0.36 Q0.42,-0.34 0.42,-0.22 L0.42,0.22 Q0.42,0.34 0.3,0.36 L-0.5,0.42 Q-0.56,0.42 -0.56,0.36 L-0.56,-0.36 Q-0.56,-0.42 -0.5,-0.42 Z" fill={ORANGE} {...line} />
+        <rect x={-0.2} y={-0.2} width={0.4} height={0.4} rx={0.05} fill="#3a3a3a" {...line} />
+        {stopButton(-0.76, 0.18, 0.46, emergency)}
+        <path d="M0.42,-0.3 L0.62,-0.24 L0.62,0.24 L0.42,0.3 Z" fill={SILVER} {...line} />
+        <path d="M0.3,-0.62 L0.66,-0.5 L0.6,-0.42 L0.28,-0.5 Z" fill={SILVER} {...line} />
+        <path d="M0.3,0.62 L0.66,0.5 L0.6,0.42 L0.28,0.5 Z" fill={SILVER} {...line} />
+        <rect x={0.9} y={-0.3} width={0.08} height={0.2} rx={0.02} fill={ORANGE} />
+        <rect x={0.9} y={0.1} width={0.08} height={0.2} rx={0.02} fill={ORANGE} />
+      </>
+    ),
+  },
+];
 
 export const MOWER_ICONS: MowerIcon[] = [
   {
@@ -336,10 +437,44 @@ export const MOWER_ICONS: MowerIcon[] = [
       </g>
     ),
   },
+  ...MODELS,
 ];
 
-export const DOCK_ICONS: {key: string; label: string; draw: () => React.ReactNode}[] = [
+// the yard force charging station from above, the tower at +x: the plate with the guide rails and the grip at the
+// entry, the orange cap with its window and the two charging pins under it. -1..1 from the entry to the tower
+const yfDots = [-1, 1].flatMap((side) =>
+  Array.from({length: 18}, (_, i) => {
+    const row = i % 3;
+    const col = Math.floor(i / 3);
+    return <rect key={`${side}${i}`} x={-0.92 + row * 0.12} y={side * (0.16 + col * 0.08) - 0.015} width={0.03} height={0.03} fill="#111" />;
+  }),
+);
+
+export const YF_STATION = {length: 0.64, width: 0.44, pins: 0.09}; // m, the pins this far behind the cap's front
+
+export const DOCK_ICONS: {key: string; label: string; real?: typeof YF_STATION; draw: () => React.ReactNode}[] = [
   {key: 'dot', label: 'Dot', draw: () => <circle r={0.65} fill="var(--c-dock)" />},
+  {
+    key: 'yardforce',
+    label: 'YardForce station',
+    real: YF_STATION,
+    draw: () => (
+      <>
+        <path
+          d="M-0.94,-0.69 L0.48,-0.69 L0.69,-0.6 L0.69,0.6 L0.48,0.69 L-0.94,0.69 Q-1,0.69 -1,0.63 L-1,-0.63 Q-1,-0.69 -0.94,-0.69 Z"
+          fill="#2b2b2b"
+          stroke="#000"
+          strokeWidth={0.75}
+        />
+        <path d="M0.66,-0.43 L-0.39,-0.64 M0.66,0.43 L-0.39,0.64" stroke="#111" strokeWidth={1.5} strokeLinecap="round" />
+        {yfDots}
+        <rect x={0.38} y={-0.22} width={0.08} height={0.04} fill="#bdbdbd" />
+        <rect x={0.38} y={0.18} width={0.08} height={0.04} fill="#bdbdbd" />
+        <path d="M0.45,-0.45 L0.95,-0.42 Q1,-0.41 1,-0.36 L1,0.36 Q1,0.41 0.95,0.42 L0.45,0.45 Q0.42,0.45 0.42,0.41 L0.42,-0.41 Q0.42,-0.45 0.45,-0.45 Z" fill="#f4612b" stroke="#000" strokeWidth={0.75} />
+        <rect x={0.57} y={-0.23} width={0.27} height={0.46} rx={0.05} fill="#1e1e1e" />
+      </>
+    ),
+  },
   {
     key: 'bolt',
     label: 'Charger',
@@ -419,6 +554,16 @@ export const DOCK_ICONS: {key: string; label: string; draw: () => React.ReactNod
 
 export function mowerIcon(key: string | undefined) {
   return MOWER_ICONS.find((i) => i.key === key) ?? MOWER_ICONS[0];
+}
+
+// an icon as it's drawn without the mower's sizes: a real mower as narrow as it is
+export function drawMower(icon: MowerIcon, o?: Parameters<MowerIcon['draw']>[0]) {
+  return icon.fit ? <g transform={`scale(1 ${icon.fit})`}>{icon.draw(o)}</g> : icon.draw(o);
+}
+
+// a dock icon for the settings, a station from above with its tower up
+export function drawDock(icon: (typeof DOCK_ICONS)[number]) {
+  return icon.real ? <g transform="rotate(-90)">{icon.draw()}</g> : icon.draw();
 }
 
 export function dockIcon(key: string | undefined) {

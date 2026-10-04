@@ -1,6 +1,6 @@
 'use client';
 
-import {DOCK_ICONS, dockIcon, MOWER_ICONS, mowerIcon} from '@/components/mapIcons';
+import {DOCK_ICONS, dockIcon, drawDock, drawMower, MOWER_ICONS, mowerIcon} from '@/components/mapIcons';
 import {tr} from '@/lib/i18n';
 import {isTileUrl} from '@/lib/imagery';
 import {COLORS, saveSettings, settingsStore, type ColorKey, type Settings} from '@/lib/settings';
@@ -17,7 +17,7 @@ function IconChoice({
   onChange,
   rotate,
 }: {
-  icons: {key: string; label: string; upright?: boolean; draw: () => React.ReactNode}[];
+  icons: {key: string; label: string; upright?: boolean; fit?: number; real?: object; draw: () => React.ReactNode}[];
   value: string;
   onChange: (key: string) => void;
   rotate?: boolean;
@@ -32,7 +32,15 @@ function IconChoice({
           title={tr(icon.label)}
         >
           <svg viewBox="-1.5 -1.5 3 3" className={styles.preview}>
-            <g transform={rotate && !icon.upright ? 'rotate(-30)' : undefined}>{icon.draw()}</g>
+            <g transform={rotate && !icon.upright ? 'rotate(-30)' : undefined}>
+              {icon.fit ? (
+                <g transform={`scale(1 ${icon.fit})`}>{icon.draw()}</g>
+              ) : icon.real ? (
+                <g transform="rotate(-90)">{icon.draw()}</g>
+              ) : (
+                icon.draw()
+              )}
+            </g>
           </svg>
           <span>{tr(icon.label)}</span>
         </button>
@@ -62,9 +70,9 @@ function IconPreview({icons}: {icons: NonNullable<Settings['icons']>}) {
     <svg viewBox="0 0 220 76" className={styles.lawn}>
       <rect x="0" y="0" width="220" height="76" fill="var(--c-mow)" opacity="0.18" />
       <path d="M48 40 C 90 70, 120 10, 160 36" className={styles.lawnTrack} />
-      <g transform={`translate(48 40) scale(${10 * (icons.dockSize ?? 1)})`}>{dockIcon(icons.dock).draw()}</g>
+      <g transform={`translate(48 40) scale(${10 * (icons.dockSize ?? 1)})`}>{drawDock(dockIcon(icons.dock))}</g>
       <g transform={`translate(160 36) rotate(${mowerIcon(icons.mower).upright ? 0 : -20}) scale(${10 * (icons.mowerSize ?? 1)})`}>
-        {mowerIcon(icons.mower).draw()}
+        {drawMower(mowerIcon(icons.mower))}
       </g>
     </svg>
   );

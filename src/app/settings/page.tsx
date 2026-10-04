@@ -11,6 +11,7 @@ import {appMowers, saveAppMowers} from '@/lib/mowers';
 import {isApp} from '@/lib/native';
 import {setSwipeEnabled, useSwipeEnabled} from '@/lib/swipe';
 import {UpdateSettings} from '@/components/Updates';
+import {MowerBodySettings} from '@/components/MowerBodySettings';
 
 const noop = () => () => {};
 
@@ -287,6 +288,10 @@ export default function SettingsPage() {
             </p>
           </section>
 
+        </Group>
+
+        <Group id="mower" title={tr('Your mower')}>
+          <MowerBodySettings settings={settings} styles={styles} />
         </Group>
 
         <Group id="app" title={tr('App')}>

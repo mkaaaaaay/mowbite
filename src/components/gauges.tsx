@@ -1,6 +1,7 @@
 'use client';
 
 import type {SensorInfo} from '@/hooks/useMowerSensors';
+import {bladeSeconds} from '@/lib/mowerBody';
 
 export interface GaugeZone {
   from: number;
@@ -113,11 +114,10 @@ export function RadialGauge({value, scale, size = 120, spin}: {value: number; sc
   );
 }
 
-// a mow blade seen from above, turning with the motor: one turn takes 2.5 s at 2400 rpm (the real 40 a second would only
-// blur), standing still at 0, not turning at all for someone who asked for less motion
+// a mow blade seen from above, turning with the motor (lib/mowerBody), standing still at 0, not turning at all for
+// someone who asked for less motion
 function Blade({cx, cy, r, rpm}: {cx: number; cy: number; r: number; rpm: number}) {
   const still = rpm === 0 || (typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
-  const seconds = Math.min(10, Math.max(0.8, 6000 / Math.abs(rpm || 1)));
   return (
     <g opacity={0.35}>
       <rect x={cx - r} y={cy - 3} width={2 * r} height={6} rx={3} fill="#616161" />
@@ -129,7 +129,7 @@ function Blade({cx, cy, r, rpm}: {cx: number; cy: number; r: number; rpm: number
           type="rotate"
           from={`0 ${cx} ${cy}`}
           to={`${rpm < 0 ? -360 : 360} ${cx} ${cy}`}
-          dur={`${seconds}s`}
+          dur={`${bladeSeconds(rpm)}s`}
           repeatCount="indefinite"
         />
       )}

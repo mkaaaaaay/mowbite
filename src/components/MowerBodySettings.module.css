@@ -1,0 +1,69 @@
+.sketch {
+  width: 100%;
+  max-width: 330px;
+  border-radius: 10px;
+  border: 1px solid var(--card-border);
+  background: var(--well);
+}
+
+.sketch * {
+  vector-effect: non-scaling-stroke;
+}
+
+.body {
+  fill: var(--c-body);
+  fill-opacity: 0.18;
+  stroke: var(--c-body);
+  stroke-width: 1.5;
+}
+
+.blade {
+  fill: var(--c-swath);
+  fill-opacity: 0.15;
+  stroke: var(--foreground);
+  stroke-opacity: 0.7;
+  stroke-width: 1;
+  stroke-dasharray: 3 2;
+}
+
+.axle {
+  stroke: var(--text-secondary);
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
+}
+
+.antenna {
+  fill: #4caf50;
+  stroke: var(--foreground);
+  stroke-width: 1;
+}
+
+.point {
+  fill: var(--foreground);
+}
+
+.heading {
+  fill: none;
+  stroke: var(--c-body);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+.text {
+  font-size: 0.045px;
+  fill: var(--text-secondary);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
