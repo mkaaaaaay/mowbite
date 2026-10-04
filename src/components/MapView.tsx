@@ -116,19 +116,12 @@ const LOUPE_ZOOM = 2.5;
 const HOLD_MS = 300;
 // px a finger may wobble before it pans, a mouse 4
 const TOUCH_SLOP = 8;
-// "hold to move" when a finger slid off a point and panned instead: once a session, in the first three sessions
-const HOLD_HINT_KEY = 'holdHintSessions';
-let holdHintShown = false;
+// "hold to move" when a finger slid off a point and panned instead (only fingers wait, a mouse picks it up at once),
+// not more than every 20 s so panning across a few points doesn't keep bringing it up
+let holdHintAt = 0;
 function wantHoldHint() {
-  if (holdHintShown) return false;
-  holdHintShown = true;
-  try {
-    const n = Number(localStorage.getItem(HOLD_HINT_KEY) ?? 0);
-    if (n >= 3) return false;
-    localStorage.setItem(HOLD_HINT_KEY, String(n + 1));
-  } catch {
-    // no storage: still once a session
-  }
+  if (Date.now() - holdHintAt < 20000) return false;
+  holdHintAt = Date.now();
   return true;
 }
 
