@@ -1,5 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import {containsPoint, polygonArea} from './geometry';
+import {selfCrossing} from './mapCheck';
 import {mergeOutlines} from './mergeAreas';
 import {simplifyPolygon} from './simplifyPolygon';
 import {splitByPath} from './splitPolygon';
@@ -58,6 +59,25 @@ describe('mergeOutlines', () => {
 
   it("won't join areas that don't touch", () => {
     expect(mergeOutlines(square(0, 0, 10), square(20, 0, 10))).toBeNull();
+    // a corner on a corner isn't touching either
+    expect(mergeOutlines(square(0, 0, 10), square(10, 10, 10))).toBeNull();
+  });
+
+  // a recorded outline that crosses itself once: the loop comes back as a piece of its own, the two still touch
+  const twisted = [
+    [0, 0], [10, 0], [10, 10], [6, 10], [4, 10.6], [4.6, 11], [5.2, 9.6], [3, 10], [0, 10],
+  ].map(([x, y]) => ({x, y}));
+
+  it('joins an area whose outline crosses itself with one it overlaps', () => {
+    const merged = mergeOutlines(twisted, square(8, 2, 10));
+    expect(merged).not.toBeNull();
+    expect(merged!.loopsJoined).toBe(1);
+    expect(polygonArea(merged!.outline)).toBeCloseTo(184.01, 1);
+    expect(selfCrossing(merged!.outline)).toBeNull();
+  });
+
+  it("still won't join an area that crosses itself with one it doesn't touch", () => {
+    expect(mergeOutlines(twisted, square(20, 0, 10))).toBeNull();
   });
 });
 

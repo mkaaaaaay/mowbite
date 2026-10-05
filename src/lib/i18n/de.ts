@@ -601,6 +601,7 @@ const de: Record<string, string> = {
   "YardForce SA650": "YardForce SA650",
   "YardForce NX100": "YardForce NX100",
   "YardForce station": "YardForce-Station",
+  ", where an outline crosses itself it gets tidied up": ", wo sich ein Umriss selbst kreuzt, wird er dabei bereinigt",
 };
 
 export default de;

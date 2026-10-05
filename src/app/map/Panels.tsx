@@ -1,6 +1,7 @@
 import type {Point} from '@/hooks/useMowerMap';
 import InfoTip from '@/components/InfoTip';
 import {polygonArea} from '@/lib/geometry';
+import type {Merged} from '@/lib/mergeAreas';
 import {fmt, tr} from '@/lib/i18n';
 import type {Area} from './editing';
 import styles from './page.module.css';
@@ -85,7 +86,7 @@ export function MergePanel({
 }: {
   area: Area;
   other: Area | null;
-  merged: {outline: Point[]; holesFilled: number} | null;
+  merged: Merged | null;
   onApply: () => void;
   onCancel: () => void;
 }) {
@@ -99,6 +100,7 @@ export function MergePanel({
           {area.properties.name || tr('unnamed')} + {other.properties.name || tr('unnamed')} ={' '}
           <span className={styles.pieceA}>{fmt(polygonArea(merged.outline), 1)} m²</span>
           {merged.holesFilled > 0 && tr(', the gap enclosed between them gets filled in')}
+          {merged.loopsJoined > 0 && tr(', where an outline crosses itself it gets tidied up')}
           {other.properties.type !== area.properties.type &&
             tr(', careful: {name} is a different type', {name: other.properties.name || tr('it')})}
         </p>
