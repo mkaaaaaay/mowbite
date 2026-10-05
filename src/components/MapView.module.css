@@ -149,13 +149,13 @@
   height: 36px;
   border-radius: 10px;
   border: 1px solid var(--card-border);
-  background: var(--card);
+  /* no blur over the map, it would be worked out again with every frame the map moves */
+  background: color-mix(in srgb, var(--background) 82%, transparent);
   color: var(--foreground);
   font-size: 18px;
   line-height: 1;
   cursor: pointer;
   box-shadow: var(--card-shadow, none);
-  backdrop-filter: var(--card-blur, none);
 }
 
 .activeVertex {

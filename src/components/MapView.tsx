@@ -350,6 +350,25 @@ export default function MapView({
   const [layersOpen, setLayersOpen] = useState(false);
   const pointers = useRef(new Map<number, {x: number; y: number}>());
   const gesture = useRef<{moved: boolean; pinchDist: number | null}>({moved: false, pinchDist: null});
+  // while the map moves the grass and the leaves wait (Grass.module.css): behind the frosted cards each of their frames
+  // blurs the cards again, and the map stutters
+  const stillTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const moving = () => {
+    const root = document.documentElement;
+    if (!root.hasAttribute('data-map-moving')) root.setAttribute('data-map-moving', '');
+    if (stillTimer.current) clearTimeout(stillTimer.current);
+    stillTimer.current = setTimeout(() => {
+      root.removeAttribute('data-map-moving');
+      stillTimer.current = null;
+    }, 400);
+  };
+  useEffect(
+    () => () => {
+      if (stillTimer.current) clearTimeout(stillTimer.current);
+      document.documentElement.removeAttribute('data-map-moving');
+    },
+    [],
+  );
   // a finger resting on a point, until it picks it up (HOLD_MS) or turns out to pan
   const hold = useRef<{press: Press; areaId: string; hit: Handle; timer: ReturnType<typeof setTimeout>} | null>(null);
   const dropHold = () => {
@@ -725,6 +744,7 @@ export default function MapView({
 
   // zoom by factor (<1 = in) keeping the svg point (px, py) where it is on screen
   const zoomAt = (factor: number, px: number, py: number) => {
+    moving();
     if (following) {
       setFollowZoom((z) => Math.min(8, Math.max(0.25, z * factor)));
       return;
@@ -888,6 +908,7 @@ export default function MapView({
     if (following) return; // the view is pinned to the mower
     const v = base ?? {x: 0, y: 0, size: WIDTH};
     const unitsPerPx = v.size / svg.getBoundingClientRect().width;
+    moving();
     setView({...v, x: v.x - dx * unitsPerPx, y: v.y - dy * unitsPerPx});
   };
 
