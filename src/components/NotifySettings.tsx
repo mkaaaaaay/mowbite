@@ -29,6 +29,7 @@ import local from './NotifySettings.module.css';
 type Styles = Record<string, string>;
 
 const REMIND = [0, 15, 30, 60];
+const EMERGENCY_WAIT = [0, 10, 30, 60];
 
 export function NotifySettings({settings, styles}: {settings: Settings; styles: Styles}) {
   const lang = useLang();
@@ -82,7 +83,9 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
       const c = await saveNotify(form);
       setForm(c);
       setSaved(c);
-      setState({done: c.topic ? tr('Saved. Send a test to see it arrives.') : tr('Saved. No topic, no messages.')});
+      setState({
+        done: !c.enabled ? tr('Saved. Switched off, nothing is sent.') : c.topic ? tr('Saved. Send a test to see it arrives.') : tr('Saved. No topic, no messages.'),
+      });
     } catch {
       setState({error: tr('The mower did not answer.')});
     }
@@ -110,7 +113,7 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
   };
 
   const dirty = JSON.stringify({...form, snooze: 0}) !== JSON.stringify({...saved, snooze: 0});
-  const live = !!saved?.topic;
+  const live = !!saved?.topic && saved.enabled;
   const subscribe = saved?.topic ? `${saved.server.replace(/\/+$/, '')}/${saved.topic}` : null;
 
   return (
@@ -121,6 +124,10 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
           'A message on your phone when the mower needs you: an emergency stop, docking given up and the like. The container on the mower sends it through ntfy, also when no app is open and away from home. Install the ntfy app (Android or iOS) and subscribe to the topic below.',
         )}
       </p>
+      <label className={styles.check}>
+        <input type="checkbox" checked={form.enabled} onChange={(e) => set({enabled: e.target.checked})} />
+        {tr('Send push messages')}
+      </label>
 
       <div className={local.grid}>
         <label className={styles.field}>
@@ -172,6 +179,22 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
           </label>
         ))}
       </div>
+
+      {form.events.includes('emergency') && (
+        <>
+          <h3 className={local.sub}>{tr('Tell about an emergency stop')}</h3>
+          <div className={styles.segment}>
+            {EMERGENCY_WAIT.map((s) => (
+              <button key={s} className={form.emergencyWait === s ? styles.segmentOn : undefined} onClick={() => set({emergencyWait: s})}>
+                {s === 0 ? tr('right away') : s < 60 ? tr('after {n} s', {n: s}) : tr('after {n} min', {n: s / 60})}
+              </button>
+            ))}
+          </div>
+          <p className={styles.dim}>
+            {tr('Only once it lasted that long: a bumper touched while docking often clears itself within seconds.')}
+          </p>
+        </>
+      )}
 
       <h3 className={local.sub}>{tr('Remind me')}</h3>
       <div className={styles.segment}>

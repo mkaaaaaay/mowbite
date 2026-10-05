@@ -642,6 +642,13 @@ const de: Record<string, string> = {
   "Snooze 1 h": "1 h schlummern",
   "Subscribe in the ntfy app to {topic} on {server}, or open it in the browser:": "Abonniere in der ntfy-App {topic} auf {server} oder öffne es im Browser:",
   "sent": "gesendet",
+  "Tell about an emergency stop": "Notaus melden",
+  "right away": "sofort",
+  "after {n} s": "nach {n} s",
+  "after {n} min": "nach {n} min",
+  "Only once it lasted that long: a bumper touched while docking often clears itself within seconds.": "Erst wenn er so lange dauert: Ein Bumper-Kontakt beim Andocken hebt sich oft nach Sekunden selbst auf.",
+  "Send push messages": "Benachrichtigungen schicken",
+  "Saved. Switched off, nothing is sent.": "Gespeichert. Ausgeschaltet, es wird nichts gesendet.",
 };
 
 export default de;

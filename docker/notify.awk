@@ -2,10 +2,11 @@
 # json a line, notify.sh sends it. what's sent comes from CONF (notify.cgi writes it), read again every half minute:
 #   topic, lang (de/en), name (of the mower), url (where MowBite is, for its button and a tap on the message),
 #   events (which of: emergency, dock_failed, undock_failed, nav_error, spinup, done, rain, battery),
-#   remind (minutes between reminders while the mower can't get on by itself, 0: none)
+#   remind (minutes between reminders while the mower can't get on by itself, 0: none),
+#   emergency_wait (seconds an emergency stop has to last before it's told, 10 unless set), enabled (0: switched off)
 # and SNOOZE: until when (unix time) there are no reminders.
 # the emergency stop comes from robot_state, a stop button, lifting or a bumper don't come as events. it only counts once
-# it lasted a few seconds: a bumper touched while docking clears itself.
+# it lasted emergency_wait seconds: a bumper touched while docking clears itself.
 # sent home in the middle of a path OpenMower also reports a navigation error, so one only counts when no docking
 # follows within a few seconds
 
@@ -24,7 +25,7 @@ function jesc(s) {
 }
 
 function readconf(   line, k) {
-  topic = ""; lang = "en"; name = ""; url = ""; events = ""; remind = 0
+  topic = ""; lang = "en"; name = ""; url = ""; events = ""; remind = 0; emergency_wait = 10; enabled = 1
   while ((getline line < CONF) > 0) {
     k = line
     sub(/ .*/, "", k)
@@ -35,14 +36,16 @@ function readconf(   line, k) {
     else if (k == "url") url = line
     else if (k == "events") events = "," line ","
     else if (k == "remind") remind = line * 60
+    else if (k == "emergency_wait") emergency_wait = line + 0
+    else if (k == "enabled") enabled = line + 0
   }
   close(CONF)
   snooze = 0
   if (SNOOZE && (getline line < SNOOZE) > 0) snooze = line + 0
   if (SNOOZE) close(SNOOZE)
   conf_t = t
-  # no topic: nothing to send to, notify.sh starts again once there is one
-  if (!topic) exit
+  # no topic or switched off: nothing to send, notify.sh starts again once there is
+  if (!topic || !enabled) exit
 }
 
 function on(kind) { return index(events, "," kind ",") > 0 }
@@ -110,8 +113,6 @@ BEGIN {
   NAV_WAIT = 3
   # the emergency stop a failed mow motor start puts it in
   SPINUP_WAIT = 15
-  # how long an emergency stop lasts before it's told
-  EMERGENCY_WAIT = 10
 }
 
 {
@@ -130,7 +131,7 @@ BEGIN {
       if (problem == "emergency") close_problem(1)
     }
     emergency = e
-    if (em_t && emergency && t - em_t >= EMERGENCY_WAIT) {
+    if (em_t && emergency && t - em_t >= emergency_wait) {
       close_problem(0)
       open("emergency", em_t - spinup_t <= SPINUP_WAIT ? tx("The mow motor didn't start.", "Der Mähmotor lief nicht an.") : "", em_t)
       em_t = 0

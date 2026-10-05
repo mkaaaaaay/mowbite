@@ -1,6 +1,7 @@
 #!/bin/sh
 # push messages when the mower needs someone, what and when notify.awk decides. they go to the ntfy server and topic
-# set on the settings page (notify.cgi writes /data/notify.conf), nothing happens without a topic there.
+# set on the settings page (notify.cgi writes /data/notify.conf), nothing happens without a topic there or while
+# they're switched off.
 # what was sent goes to /data/notify.log for the page
 . /broker.sh
 . /openmower.sh
@@ -29,7 +30,7 @@ send() {
 
 while :; do
   host=$(find_broker)
-  if [ -n "$host" ] && [ -n "$(conf topic)" ]; then
+  if [ -n "$host" ] && [ -n "$(conf topic)" ] && [ "$(conf enabled)" != 0 ]; then
     # shellcheck disable=SC2086
     mosquitto_sub -h "$host" -p "$PORT" $AUTH -F '%U %t %p' \
       -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -t "${MOWER_MQTT_PREFIX}$TOPIC_EVENTS" |

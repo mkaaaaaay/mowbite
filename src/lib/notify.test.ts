@@ -9,11 +9,15 @@ const fallback = defaultNotify('de', 'http://openmower:8082', 'Steve');
 
 describe('push message settings', () => {
   it('reads what notify.cgi hands out, the token only as there or not', () => {
-    const c = parseNotify('server https://ntfy.sh\ntopic mowbite-abc\nlang en\nevents emergency,done,bogus\nremind 15\ntoken set\nsnooze 1700000000\n', fallback);
+    const c = parseNotify('server https://ntfy.sh\ntopic mowbite-abc\nlang en\nevents emergency,done,bogus\nremind 15\nemergency_wait 30\ntoken set\nsnooze 1700000000\n', fallback);
     expect(c.topic).toBe('mowbite-abc');
     expect(c.lang).toBe('en');
     expect(c.events).toEqual(['emergency', 'done']);
     expect(c.remind).toBe(15);
+    expect(c.emergencyWait).toBe(30);
+    expect(c.enabled).toBe(true);
+    expect(parseNotify('enabled 0\ntopic t\n', fallback).enabled).toBe(false);
+    expect(parseNotify('topic t\n', fallback).emergencyWait).toBe(10);
     expect(c.hasToken).toBe(true);
     expect(c.token).toBe('');
     expect(c.snooze).toBe(1700000000);
@@ -26,7 +30,7 @@ describe('push message settings', () => {
   it('writes lines the cgi keeps, a token only when one was typed or is to go', () => {
     const c = {...fallback, topic: 'mowbite-abc', name: 'Ste"ve\\', server: 'https://ntfy.example.org/'};
     expect(serializeNotify(c)).toBe(
-      'server https://ntfy.example.org\ntopic mowbite-abc\nlang de\nname Steve\nurl http://openmower:8082\nevents emergency,dock_failed,undock_failed,nav_error,spinup\nremind 30',
+      'enabled 1\nserver https://ntfy.example.org\ntopic mowbite-abc\nlang de\nname Steve\nurl http://openmower:8082\nevents emergency,dock_failed,undock_failed,nav_error,spinup\nremind 30\nemergency_wait 10',
     );
     expect(serializeNotify({...c, token: 'tk_secret'})).toContain('\ntoken tk_secret\n');
     expect(serializeNotify({...c, token: '-'})).toContain('\ntoken -\n');
@@ -75,8 +79,13 @@ describe('what the container sends', () => {
     expect(out[0].actions).toHaveLength(2);
   });
 
-  it("doesn't tell about an emergency stop that clears itself within seconds", () => {
+  it("doesn't tell about an emergency stop that clears itself within seconds, as long as set", () => {
     expect(run(state(100, 1) + state(104, 0) + state(130, 0), conf)).toEqual([]);
+    // right away: told and cleared
+    expect(run(state(100, 1) + state(104, 0), conf + 'emergency_wait 0\n').map((m) => m.title)).toEqual(['Emergency stop', 'Emergency stop cleared']);
+    // a minute: 30 s isn't enough
+    expect(run(state(100, 1) + state(130, 1) + state(140, 0), conf + 'emergency_wait 60\n')).toEqual([]);
+    expect(run(state(100, 1) + state(130, 1) + state(161, 1), conf + 'emergency_wait 60\n').map((m) => m.title)).toEqual(['Emergency stop']);
   });
 
   it('leaves out the navigation error that only came with being sent home', () => {
@@ -97,5 +106,7 @@ describe('what the container sends', () => {
     expect(run(input, conf)).toEqual([]);
     expect(run(input, conf.replace('spinup', 'spinup,done,rain')).map((m) => m.title)).toEqual(['Done mowing', 'Rain']);
     expect(run(state(100, 1), 'lang en\n')).toEqual([]);
+    // switched off, the rest kept
+    expect(run(input, 'enabled 0\n' + conf.replace('spinup', 'spinup,done,rain'))).toEqual([]);
   });
 });

@@ -18,6 +18,8 @@ export type NotifyEvent = (typeof NOTIFY_EVENTS)[number]['key'];
 export const DEFAULT_SERVER = 'https://ntfy.sh';
 
 export interface NotifyConfig {
+  // switched off, everything else stays as it is
+  enabled: boolean;
   server: string;
   topic: string;
   // a new token to keep, '-' drops the one there is, empty keeps it
@@ -30,11 +32,14 @@ export interface NotifyConfig {
   events: NotifyEvent[];
   // minutes between reminders while the mower can't get on by itself, 0: none
   remind: number;
+  // seconds an emergency stop has to last before it's told: a bumper touched while docking clears itself
+  emergencyWait: number;
   // until when reminders are snoozed (unix seconds), 0: not
   snooze: number;
 }
 
 export const defaultNotify = (lang: 'de' | 'en', url: string, name = ''): NotifyConfig => ({
+  enabled: true,
   server: DEFAULT_SERVER,
   topic: '',
   token: '',
@@ -44,6 +49,7 @@ export const defaultNotify = (lang: 'de' | 'en', url: string, name = ''): Notify
   url,
   events: NOTIFY_EVENTS.filter((e) => e.problem).map((e) => e.key),
   remind: 30,
+  emergencyWait: 10,
   snooze: 0,
 });
 
@@ -57,7 +63,8 @@ export function parseNotify(text: string, fallback: NotifyConfig): NotifyConfig 
     if (at < 0) continue;
     const key = line.slice(0, at);
     const value = line.slice(at + 1).trim();
-    if (key === 'server') c.server = value;
+    if (key === 'enabled') c.enabled = value !== '0';
+    else if (key === 'server') c.server = value;
     else if (key === 'topic') c.topic = value;
     else if (key === 'token') c.hasToken = value === 'set';
     else if (key === 'lang' && (value === 'de' || value === 'en')) c.lang = value;
@@ -65,6 +72,7 @@ export function parseNotify(text: string, fallback: NotifyConfig): NotifyConfig 
     else if (key === 'url') c.url = value;
     else if (key === 'events') events = value.split(',').filter((e): e is NotifyEvent => KNOWN.has(e));
     else if (key === 'remind') c.remind = Number(value) || 0;
+    else if (key === 'emergency_wait') c.emergencyWait = Number(value) || 0;
     else if (key === 'snooze') c.snooze = Number(value) || 0;
   }
   // saved once, an empty list is what was picked
@@ -77,6 +85,7 @@ export function parseNotify(text: string, fallback: NotifyConfig): NotifyConfig 
 export function serializeNotify(c: NotifyConfig): string {
   const name = c.name.replace(/["\\\n\r]/g, '').trim().slice(0, 40);
   return [
+    `enabled ${c.enabled ? 1 : 0}`,
     `server ${c.server.trim().replace(/\/+$/, '') || DEFAULT_SERVER}`,
     c.topic && `topic ${c.topic.trim()}`,
     c.token && `token ${c.token.trim()}`,
@@ -85,6 +94,7 @@ export function serializeNotify(c: NotifyConfig): string {
     c.url && `url ${c.url.trim().replace(/\/+$/, '')}`,
     `events ${c.events.join(',')}`,
     `remind ${Math.max(0, Math.round(c.remind))}`,
+    `emergency_wait ${Math.max(0, Math.round(c.emergencyWait))}`,
   ]
     .filter(Boolean)
     .join('\n');
