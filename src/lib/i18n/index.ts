@@ -33,6 +33,12 @@ export function langChoice(): LangChoice {
   return choice;
 }
 
+// the language this device shows, also before react switched from the prebuilt english page
+export function deviceLang(): Lang {
+  const c = langChoice();
+  return c === 'auto' ? detect() : c;
+}
+
 export function setLangChoice(c: LangChoice) {
   choice = c;
   try {

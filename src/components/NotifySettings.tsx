@@ -1,7 +1,7 @@
 'use client';
 
 import {clock} from '@/lib/dates';
-import {tr, useLang} from '@/lib/i18n';
+import {deviceLang, tr, useLang} from '@/lib/i18n';
 import {apiBase} from '@/lib/mowers';
 import {isApp} from '@/lib/native';
 import {
@@ -32,7 +32,7 @@ const REMIND = [0, 15, 30, 60];
 const EMERGENCY_WAIT = [0, 10, 30, 60];
 
 export function NotifySettings({settings, styles}: {settings: Settings; styles: Styles}) {
-  const lang = useLang();
+  useLang();
   // undefined while asking, null without the container
   const [form, setForm] = useState<NotifyConfig | null | undefined>(undefined);
   const [saved, setSaved] = useState<NotifyConfig | null>(null);
@@ -43,7 +43,7 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
   useEffect(() => {
     // where MowBite is for this device, the message's button opens it there
     const url = isApp() ? apiBase() : window.location.origin;
-    const fallback = defaultNotify(lang, url, settings.thisName ?? '');
+    const fallback = defaultNotify(deviceLang(), url, settings.thisName ?? '');
     void loadNotify(fallback).then((c) => {
       setForm(c);
       setSaved(c);
