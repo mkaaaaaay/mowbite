@@ -91,3 +91,20 @@ export async function rosLogAround(t: number, before = 120, after = 60): Promise
     })
     .sort((a, b) => a.t - b.t);
 }
+
+// mower_comms_v2 logs every change of the emergency stop's reasons as a warning, "Emergency reason changed from:
+// 'LATCH' to: 'LATCH, COLLISION'", the clearing only as info, so it isn't kept. v1 mowers log it differently
+const REASON_CHANGE = /Emergency reason changed from: '([A-Z_, ]*)' to: '([A-Z_, ]*)'/;
+
+// the reasons of the latest emergency stop in the lines (oldest first): all that came up since it began out of none,
+// without LATCH, which only holds it until it's reset. null when the lines don't say
+export function emergencyReasons(lines: readonly RosLogLine[]): string[] | null {
+  let reasons: Set<string> | null = null;
+  for (const l of lines) {
+    const m = l.text.match(REASON_CHANGE);
+    if (!m) continue;
+    if (!reasons || !m[1].trim()) reasons = new Set();
+    for (const r of m[2].split(',').map((x) => x.trim())) if (r && r !== 'LATCH') reasons.add(r);
+  }
+  return reasons?.size ? [...reasons] : null;
+}

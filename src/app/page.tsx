@@ -5,6 +5,7 @@ import LoveMower from '@/components/LoveMower';
 import MapView from '@/components/MapView';
 import {HomeIcon, PauseIcon, PlayIcon, SkipIcon, WarningIcon} from '@/components/icons';
 import {useComputedSpeed} from '@/hooks/useComputedSpeed';
+import {useEmergencyReasons} from '@/hooks/useEmergencyReasons';
 import {useMowerActions} from '@/hooks/useMowerActions';
 import {useMowerMap} from '@/hooks/useMowerMap';
 import {datumFromParams, numParam, useMowerParams} from '@/hooks/useMowerParams';
@@ -18,7 +19,7 @@ import {useRecentRuns} from '@/hooks/useRecentRuns';
 import {useWeather} from '@/hooks/useWeather';
 import WeatherIcon, {WEATHER_LABELS, weatherKind} from '@/components/WeatherIcon';
 import {clock, dayKey, dayLabel, duration} from '@/lib/dates';
-import {OUTCOMES, type MowerEvent, type Run} from '@/lib/events';
+import {emergencyText, OUTCOMES, type MowerEvent, type Run} from '@/lib/events';
 import {settingsStore} from '@/lib/settings';
 import {batteryColor, GPS_QUALITY_LABEL, gpsQuality, isDocked} from '@/lib/status';
 import Link from 'next/link';
@@ -80,6 +81,8 @@ function temperatures(infos: SensorInfo[], values: Record<string, string>) {
     })
     .sort((a, b) => rank(a.id) - rank(b.id) || a.label.localeCompare(b.label));
 }
+
+const upperFirst = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 function headline(state: MowerState, docked: boolean, chargeState: string | undefined, area: string | undefined) {
   if (state.emergency) return {title: tr('Emergency stop'), tone: 'error'};
@@ -148,6 +151,7 @@ export default function Home() {
   const live = isLive(link);
   const {hasAction, publishAction} = useMowerActions();
   const {infos, values} = useMowerSensors();
+  const why = useEmergencyReasons(!!state?.emergency);
   const position = useMowerPosition() ?? state?.pose;
   const speed = useComputedSpeed(position);
   const track = useMowerTrack();
@@ -259,6 +263,7 @@ export default function Home() {
               <BatteryRing percent={battery} charging={charging} />
               <div className={styles.headline}>
                 <h2>{head.title}</h2>
+                {!!state.emergency && why && <strong className={styles.reason}>{upperFirst(emergencyText(why))}</strong>}
                 {live ? (
                   <span className={styles.dim}>
                     {state.emergency

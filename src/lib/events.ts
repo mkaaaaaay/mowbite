@@ -79,6 +79,61 @@ export function noteworthy(e: MowerEvent, state?: string): boolean {
 
 const reason = (r?: string) => (r ? (REASONS[r] ? tr(REASONS[r]) : r.replace(/_/g, ' ').toLowerCase()) : '');
 
+// the emergency stop's reasons, one bit each (EmergencyReason in open_mower_ros services/emergency_service.json)
+const EMERGENCY_BITS = [
+  'LATCH',
+  'TIMEOUT_INPUTS',
+  'STOP',
+  'LIFT',
+  'LIFT_MULTIPLE',
+  'COLLISION',
+  'TIMEOUT_HIGH_LEVEL',
+  'HIGH_LEVEL',
+  'SERVICE_NOT_READY',
+  'COLLISION_MULTIPLE',
+  'MOWER_RPM_TIMEOUT',
+  'MOWER_RPM_LIMIT',
+  'FIRMWARE_INCOMPATIBLE',
+];
+
+// the reasons in an EMERGENCY event, mower_logic sends them as the number of bits
+export function emergencyFlags(code: unknown): string[] {
+  const n = Number(code);
+  if (!Number.isInteger(n) || n <= 0) return [];
+  return EMERGENCY_BITS.filter((_, i) => n & (1 << i));
+}
+
+// what the firmware means by them (fw-openmower-v2): a single lift sensor or bumper, or two and more at once
+const EMERGENCY_TEXT: Record<string, string> = {
+  STOP: 'stop button',
+  LIFT: 'lifted',
+  LIFT_MULTIPLE: 'lifted (several sensors)',
+  COLLISION: 'bumper',
+  COLLISION_MULTIPLE: 'bumper (several at once)',
+  TIMEOUT_INPUTS: 'sensors not answering',
+  TIMEOUT_HIGH_LEVEL: 'no contact with OpenMower',
+  HIGH_LEVEL: 'stopped by OpenMower',
+  SERVICE_NOT_READY: 'firmware still starting',
+  MOWER_RPM_TIMEOUT: "mow motor didn't reach its speed",
+  MOWER_RPM_LIMIT: 'mow motor too fast',
+  FIRMWARE_INCOMPATIBLE: "firmware doesn't fit OpenMower",
+};
+
+// the reasons in words, the more telling one where two say the same. LATCH only holds it until it's reset
+export function emergencyText(flags: readonly string[]): string {
+  const has = new Set(flags);
+  return flags
+    .filter(
+      (f) =>
+        f !== 'LATCH' &&
+        !(f === 'LIFT' && has.has('LIFT_MULTIPLE')) &&
+        !(f === 'COLLISION' && has.has('COLLISION_MULTIPLE')) &&
+        !(f === 'HIGH_LEVEL' && has.has('MOWER_RPM_TIMEOUT')),
+    )
+    .map((f) => (EMERGENCY_TEXT[f] ? tr(EMERGENCY_TEXT[f]) : f.replace(/_/g, ' ').toLowerCase()))
+    .join(', ');
+}
+
 // state is what the mower was doing when the event happened, gps is switched off on purpose outside
 // of mowing, so losing it only counts as a problem while mowing
 export function describe(e: MowerEvent, state?: string): {text: string; severity: Severity} {
@@ -115,13 +170,19 @@ export function describe(e: MowerEvent, state?: string): {text: string; severity
       return info(tr('All areas done'));
     case 'JOB_RESET':
       return info(tr('Interrupted job dropped, the next start begins from the start'));
-    case 'EMERGENCY':
-      return e.emergency
-        ? {
-            text: e.reason && e.reason !== '0' ? tr('Emergency stop (code {code})', {code: e.reason}) : tr('Emergency stop'),
-            severity: 'error',
-          }
-        : info(tr('Emergency cleared'));
+    case 'EMERGENCY': {
+      if (!e.emergency) return info(tr('Emergency cleared'));
+      const why = emergencyText(emergencyFlags(e.reason));
+      const code = Number(e.reason);
+      return {
+        text: why
+          ? tr('Emergency stop: {reason}', {reason: why})
+          : code > 0
+            ? tr('Emergency stop (code {code})', {code})
+            : tr('Emergency stop'),
+        severity: 'error',
+      };
+    }
     case 'NAVIGATION_ERROR':
       return e.sentHome ? info(tr('Path stopped, sent home')) : {text: tr('Navigation error'), severity: 'error'};
     case 'MOW_MOTOR_SPINUP_FAILED':
@@ -136,6 +197,11 @@ export function describe(e: MowerEvent, state?: string): {text: string; severity
       return info(e.type.replace(/_/g, ' ').toLowerCase());
   }
 }
+
+const spinupFailed = () =>
+  tr(
+    "The mow motor didn't reach its speed in time (mower_logic/mower_spinup_timeout), so the mower stopped with an emergency. Often grass is wound round the blade or the blade is blocked, or the motor or its controller is faulty.",
+  );
 
 // what the mower's code does when it logs these, the event itself carries nothing more
 // gpsTimeout: the mower's mower_logic/gps_timeout in seconds, if known
@@ -172,12 +238,18 @@ export function explain(e: MowerEvent, state?: string, gpsTimeout?: number): str
         : tr(
             'The RTK fix had been gone for longer than the mower allows (mower_logic/gps_timeout), so it stopped with the blade off and waits until the fix is back.',
           );
-    case 'EMERGENCY':
-      return e.emergency ? tr('Stop button, lift, tilt or a bumper. It has to be released and reset before it drives again.') : undefined;
+    case 'EMERGENCY': {
+      if (!e.emergency) return undefined;
+      const flags = emergencyFlags(e.reason);
+      if (flags.includes('MOWER_RPM_TIMEOUT')) return spinupFailed();
+      if (flags.includes('HIGH_LEVEL'))
+        return tr(
+          'OpenMower stopped the mower itself, for example because the position, the wheel data or a motor controller stopped coming. The ROS log from that moment says why. It has to be reset before it drives again.',
+        );
+      return tr('Stop button, lift, tilt or a bumper. It has to be released and reset before it drives again.');
+    }
     case 'MOW_MOTOR_SPINUP_FAILED':
-      return tr(
-        "The mow motor didn't reach its speed in time (mower_logic/mower_spinup_timeout), so the mower stopped with an emergency. Often grass is wound round the blade or the blade is blocked, or the motor or its controller is faulty.",
-      );
+      return spinupFailed();
     case 'DOCKING':
       return homeReason(e.reason) === 'hot'
         ? tr('The mow motor reached mower_logic/motor_hot_temperature. It mows on once it has cooled down to motor_cold_temperature.')

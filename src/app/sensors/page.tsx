@@ -5,6 +5,7 @@ import {computeGaugeScale, fallbackGaugeScale, RadialGauge, TempGauge} from '@/c
 import {BatteryIcon, TurnIcon} from '@/components/icons';
 import InfoTip from '@/components/InfoTip';
 import Sparkline from '@/components/Sparkline';
+import {useEmergencyReasons} from '@/hooks/useEmergencyReasons';
 import {useMowerSensors, type SensorInfo} from '@/hooks/useMowerSensors';
 import {useMowerState} from '@/hooks/useMowerState';
 import {useSensorHistory, type Sample} from '@/hooks/useSensorHistory';
@@ -16,6 +17,7 @@ import {PARAM} from '@/lib/openmower';
 import styles from './page.module.css';
 import System from './System';
 import BatteryHistory from './BatteryHistory';
+import {emergencyText} from '@/lib/events';
 import {fmt, tr, useLang} from '@/lib/i18n';
 
 // sensors that get their own card instead of the generic one
@@ -90,6 +92,7 @@ export default function SensorsPage() {
   };
   const {infos, values} = useMowerSensors();
   const {state} = useMowerState();
+  const why = useEmergencyReasons(!!state?.emergency);
   const params = useMowerParams();
   const history = useSensorHistory();
   const info = (id: string) => infos.find((i) => i.sensor_id === id);
@@ -142,6 +145,7 @@ export default function SensorsPage() {
           {state && (
             <span className={[styles.chip, styles[`chip-${state.emergency ? 'error' : docked ? 'success' : stateColor(currentState)}`]].join(' ')}>
               {statusText(state, docked, values['om_charge_state'])}
+              {state.emergency && why ? `: ${emergencyText(why)}` : ''}
             </span>
           )}
           {criticalCount > 0 && <span className={styles.error}>{tr('{n} out of range', {n: criticalCount})}</span>}

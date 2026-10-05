@@ -130,6 +130,12 @@
   font-size: 13px;
 }
 
+/* why the emergency stop is on */
+.reason {
+  font-size: 15px;
+  color: var(--tone);
+}
+
 .ring {
   position: relative;
   flex: none;

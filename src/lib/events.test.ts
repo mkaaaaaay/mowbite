@@ -1,5 +1,15 @@
 import {describe, expect, it} from 'vitest';
-import {describe as describeEvent, groupRuns, homeReason, noteworthy, rawLine, type MowerEvent} from './events';
+import {
+  describe as describeEvent,
+  emergencyFlags,
+  emergencyText,
+  explain,
+  groupRuns,
+  homeReason,
+  noteworthy,
+  rawLine,
+  type MowerEvent,
+} from './events';
 
 let id = 0;
 const ev = (t: number, type: string, extra: Partial<MowerEvent> = {}): MowerEvent => ({id: String(id++), t, type, ...extra});
@@ -123,5 +133,31 @@ describe('sent home in the middle of a path', () => {
     const [entry] = run(200, 200);
     const nav = entry.kind === 'run' ? entry.run.events.find((e) => e.type === 'NAVIGATION_ERROR')! : null;
     expect(rawLine(nav!)).not.toContain('sentHome');
+  });
+});
+
+describe('emergency stop reasons', () => {
+  it('reads the bits mower_logic sends', () => {
+    expect(emergencyFlags(128)).toEqual(['HIGH_LEVEL']);
+    // MOWER_RPM_TIMEOUT, as the spinup check sends it, with what the firmware adds
+    expect(emergencyFlags('1153')).toEqual(['LATCH', 'HIGH_LEVEL', 'MOWER_RPM_TIMEOUT']);
+    expect(emergencyFlags(0)).toEqual([]);
+    expect(emergencyFlags(undefined)).toEqual([]);
+  });
+
+  it('puts them in words, the telling one where two say the same', () => {
+    expect(emergencyText(['LATCH', 'COLLISION', 'COLLISION_MULTIPLE', 'LIFT_MULTIPLE'])).toBe('bumper (several at once), lifted (several sensors)');
+    expect(emergencyText(['HIGH_LEVEL', 'MOWER_RPM_TIMEOUT'])).toBe("mow motor didn't reach its speed");
+    expect(emergencyText(['LATCH'])).toBe('');
+    expect(emergencyText(['SOMETHING_NEW'])).toBe('something new');
+  });
+
+  it('names them in the activity instead of a code', () => {
+    expect(describeEvent(ev(1, 'EMERGENCY', {emergency: true, reason: '1024'})).text).toBe("Emergency stop: mow motor didn't reach its speed");
+    expect(describeEvent(ev(1, 'EMERGENCY', {emergency: true, reason: '128'})).text).toBe('Emergency stop: stopped by OpenMower');
+    expect(describeEvent(ev(1, 'EMERGENCY', {emergency: true, reason: '0'})).text).toBe('Emergency stop');
+    expect(describeEvent(ev(1, 'EMERGENCY', {emergency: true, reason: '65536'})).text).toBe('Emergency stop (code 65536)');
+    expect(explain(ev(1, 'EMERGENCY', {emergency: true, reason: '1024'}))).toContain('mower_spinup_timeout');
+    expect(explain(ev(1, 'EMERGENCY', {emergency: true, reason: '128'}))).toContain('ROS log');
   });
 });
