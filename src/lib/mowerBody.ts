@@ -162,6 +162,44 @@ export function swathEnd(from: P, end: P, r: number): P[] {
   });
 }
 
+// the cells of a blade-sized grid the middle of a piece of the strip runs through, worked out once per piece
+const pieceCells = new WeakMap<readonly P[], number[]>();
+const cellKey = (ix: number, iy: number) => (ix + 32768) * 65536 + (iy + 32768);
+function cellsOf(piece: readonly P[], size: number): number[] {
+  const known = pieceCells.get(piece);
+  if (known) return known;
+  const cells = new Set<number>();
+  for (let i = 0; i < piece.length; i++) {
+    const a = piece[i];
+    const b = piece[i + 1] ?? a;
+    const steps = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / (size / 2)));
+    for (let s = 0; s <= steps; s++) {
+      cells.add(cellKey(Math.floor((a.x + ((b.x - a.x) * s) / steps) / size), Math.floor((a.y + ((b.y - a.y) * s) / steps) / size)));
+    }
+  }
+  const out = [...cells];
+  pieceCells.set(piece, out);
+  return out;
+}
+
+// The strip in a few paths instead of one per piece, hundreds of see-through paths make moving the map slow on a phone.
+// Each piece goes into the first group none of the pieces it overlaps is in yet (looked up in the neighbouring cells of
+// a blade-sized grid), so overlaps still show darker, each group being see-through on its own. Only where more pieces
+// than groups overlap does a piece share one
+export function swathGroups(pieces: readonly (readonly P[])[], blade: number, groups = 4): number[] {
+  const grid = new Map<number, number>();
+  return pieces.map((piece, n) => {
+    const cells = cellsOf(piece, blade);
+    let used = 0;
+    for (const c of cells) for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) used |= grid.get(c + dx * 65536 + dy) ?? 0;
+    let g = 0;
+    while (g < groups && used & (1 << g)) g++;
+    if (g === groups) g = n % groups;
+    for (const c of cells) grid.set(c, (grid.get(c) ?? 0) | (1 << g));
+    return g;
+  });
+}
+
 // clipper works in integers, this is 0.01 mm
 const SCALE = 1e5;
 const toPath = (o: P[]) => o.map((p) => ({X: Math.round(p.x * SCALE), Y: Math.round(p.y * SCALE)}));

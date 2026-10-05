@@ -5,7 +5,7 @@ import {useComputedSpeed} from '@/hooks/useComputedSpeed';
 import {useEasedPose, type Pose} from '@/hooks/useEasedPose';
 import {containsPoint, polygonArea} from '@/lib/geometry';
 import {settingsStore, type Settings} from '@/lib/settings';
-import {bladeSeconds, bodyShape, realEdges, swathEnd, swathPieces, useMowerBody, type MowerBody} from '@/lib/mowerBody';
+import {bladeSeconds, bodyShape, realEdges, swathEnd, swathGroups, swathPieces, useMowerBody, type MowerBody} from '@/lib/mowerBody';
 import {useSensorValue} from '@/hooks/useMowerSensors';
 import {dockIcon, drawMower, mowerIcon} from './mapIcons';
 import {availableSources, imageryTiles, type Datum} from '@/lib/imagery';
@@ -99,8 +99,10 @@ const PENDING = '__pending';
 type Run = {points: string; blades: boolean};
 // drawn runs of each piece of the live trail per map geometry, pieces that are done are never worked out again
 const runCache = new WeakMap<object, Map<string, Run[]>>();
-// the same for the strip the blade cut along them, per map geometry and blade
-const swathCache = new WeakMap<object, Map<string, {lines: string[]; ends: string[]}>>();
+// the same for the strip the blade cut along them, in meters per blade
+const swathCache = new WeakMap<object, Map<string, {pieces: Point[][]; ends: Point[][]}>>();
+// a piece of the strip as an svg path, per map geometry
+const pieceDs = new WeakMap<object, {key: string; d: string}>();
 
 const AREA_CLASS: Record<string, string> = {
   mow: styles.mowArea,
@@ -472,46 +474,57 @@ export default function MapView({
   const body = useMowerBody();
   const swathOn = !!body?.blade && layerOn(hidden, 'swath');
   const swath = useMemo(() => {
-    const out: {lines: string[]; ends: string[]} = {lines: [], ends: []};
+    const out: {groups: string[]; ends: string} = {groups: [], ends: ''};
     if (!swathOn || !body) return out;
+    const fitKey = `${minX},${minY},${scale},${padX},${padY}`;
     const at = (p: Point) => `${((p.x - minX) * scale + padX).toFixed(1)} ${(HEIGHT - ((p.y - minY) * scale + padY)).toFixed(1)}`;
-    const path = (pts: Point[]) => pts.map((p, i) => `${i ? 'L' : 'M'}${at(p)}`).join('');
+    const path = (pts: Point[]) => {
+      const known = pieceDs.get(pts);
+      if (known?.key === fitKey) return known.d;
+      const d = pts.map((p, i) => `${i ? 'L' : 'M'}${at(p)}`).join('');
+      pieceDs.set(pts, {key: fitKey, d});
+      return d;
+    };
     // one stretch with the blades on: its pieces, and the blade's round ends where it began and stopped
-    const draw = (pts: Point[], into: {lines: string[]; ends: string[]}) => {
+    const strip = (pts: Point[], into: {pieces: Point[][]; ends: Point[][]}) => {
       const pieces = swathPieces(pts, body);
       if (!pieces.length) return;
-      into.lines.push(...pieces.map(path));
+      into.pieces.push(...pieces);
       const first = pieces[0];
       const last = pieces[pieces.length - 1];
-      into.ends.push(
-        path(swathEnd(first[1], first[0], body.blade / 2)) + 'Z',
-        path(swathEnd(last[last.length - 2], last[last.length - 1], body.blade / 2)) + 'Z',
-      );
+      into.ends.push(swathEnd(first[1], first[0], body.blade / 2), swathEnd(last[last.length - 2], last[last.length - 1], body.blade / 2));
     };
-    const key = `${minX},${minY},${scale},${padX},${padY},${body.blade},${body.bladeAhead},${body.bladeOffset}`;
+    const all: {pieces: Point[][]; ends: Point[][]} = {pieces: [], ends: []};
+    const key = `${body.blade},${body.bladeAhead},${body.bladeOffset}`;
     for (const piece of track ?? []) {
-      let byView = swathCache.get(piece);
-      if (!byView) swathCache.set(piece, (byView = new Map()));
-      let cached = byView.get(key);
+      let byBlade = swathCache.get(piece);
+      if (!byBlade) swathCache.set(piece, (byBlade = new Map()));
+      let cached = byBlade.get(key);
       if (!cached) {
-        cached = {lines: [], ends: []};
+        cached = {pieces: [], ends: []};
         // the stretches with the blades on
         let start = -1;
         for (let i = 0; i <= piece.length; i++) {
           const on = i < piece.length && (piece[i].b ?? true);
           if (on && start < 0) start = i;
           if (!on && start >= 0) {
-            draw(piece.slice(start, i), cached);
+            strip(piece.slice(start, i), cached);
             start = -1;
           }
         }
-        if (byView.size > 3) byView.clear();
-        byView.set(key, cached);
+        if (byBlade.size > 3) byBlade.clear();
+        byBlade.set(key, cached);
       }
-      out.lines.push(...cached.lines);
-      out.ends.push(...cached.ends);
+      all.pieces.push(...cached.pieces);
+      all.ends.push(...cached.ends);
     }
-    for (const seg of pastTrack ?? []) if (seg.blades) draw(seg.points, out);
+    for (const seg of pastTrack ?? []) if (seg.blades) strip(seg.points, all);
+    // a few paths instead of one per piece, pieces that overlap in different ones
+    const groups = swathGroups(all.pieces, body.blade);
+    const ds: string[] = [];
+    all.pieces.forEach((piece, i) => (ds[groups[i]] = (ds[groups[i]] ?? '') + path(piece)));
+    out.groups = ds.filter(Boolean);
+    out.ends = all.ends.map((e) => path(e) + 'Z').join('');
     return out;
   }, [swathOn, body, track, pastTrack, minX, minY, scale, padX, padY]);
 
@@ -538,12 +551,12 @@ export default function MapView({
   );
   const swathLayer = useMemo(
     () =>
-      swath.lines.length > 0 && body ? (
+      swath.groups.length > 0 && body ? (
         <g className={styles.swath} strokeWidth={body.blade * scale}>
-          {swath.lines.map((d, i) => (
+          {swath.groups.map((d, i) => (
             <path key={'swath' + i} d={d} />
           ))}
-          <path className={styles.swathEnd} d={swath.ends.join('')} />
+          <path className={styles.swathEnd} d={swath.ends} />
         </g>
       ) : null,
     [swath, body, scale],
