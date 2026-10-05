@@ -32,7 +32,8 @@ BEGIN {
   else if (id == "om_mow_motor_rpm") {
     # blade time between two readings, gaps of the stream don't count
     if (blade && t - rpm_t < 15) blade_s += t - rpm_t
-    blade = val + 0 > 500
+    # a motor turning the other way round reports negative rpm (randomize_mow_motor_direction)
+    blade = val + 0 > 500 || val + 0 < -500
     rpm_t = t
     # the blade time of the run, once a minute is enough
     if (run_t && t - saved > 60) save()
