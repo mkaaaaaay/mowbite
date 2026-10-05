@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {appendPoint, chunked, thin, trackPoints, type Point, type TrackChunks} from './useMowerTrack';
+import {appendPoint, chunked, keepsTrail, thin, trackPoints, type Point, type TrackChunks} from './useMowerTrack';
 
 // a mowing pattern with turns, blade changes and jitter, so plenty of points survive the thinning
 function drive(n: number): Point[] {
@@ -57,5 +57,16 @@ describe('live trail in pieces', () => {
     expect(flat(chunks)).toEqual(old);
     expect(chunked([])).toEqual([]);
     expect(flat(chunked(old.slice(0, 1)))).toEqual(old.slice(0, 1));
+  });
+});
+
+describe('whose trail it is', () => {
+  it('keeps the trail of the job going on, also the last run shown while idle', () => {
+    // nothing known yet: the live points stay, the recorded track replaces them
+    expect(keepsTrail(null, 'a')).toBe(true);
+    // the same job again, e.g. resumed after rain
+    expect(keepsTrail('a', 'a')).toBe(true);
+    // a new job: the trail of the last one goes
+    expect(keepsTrail('a', 'b')).toBe(false);
   });
 });

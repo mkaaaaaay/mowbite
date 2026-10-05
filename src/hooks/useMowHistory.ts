@@ -34,6 +34,11 @@ export function loadJobList(): Promise<JobInfo[]> {
   return listCache;
 }
 
+// a new job started, the next look at the list asks the mower again
+export function forgetJobList() {
+  listCache = null;
+}
+
 export function loadJobTrack(jobId: string): Promise<TrackSegment[]> {
   let p = trackCache.get(jobId);
   if (!p) {

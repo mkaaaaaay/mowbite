@@ -6,7 +6,7 @@ import TrackPicker from '@/components/TrackPicker';
 import {saveMap, useMowerMap, type MowerMap, type Point} from '@/hooks/useMowerMap';
 import {useMowerPosition} from '@/hooks/useMowerPosition';
 import {useDocked, useMowerStateValue} from '@/hooks/useMowerState';
-import {clearTrack, trackPoints, useMowerTrack} from '@/hooks/useMowerTrack';
+import {clearTrack, trackPoints, useLastRun, useMowerTrack} from '@/hooks/useMowerTrack';
 import {usePlanProgress} from '@/hooks/usePlanProgress';
 import {datumFromParams, numParam, useMowerParams} from '@/hooks/useMowerParams';
 import {loadJobTrack, useJobList, useMowHistory, type TrackSegment} from '@/hooks/useMowHistory';
@@ -55,6 +55,7 @@ function MapEditor() {
   const emergency = useMowerStateValue((l) => !!l.state?.emergency);
   const docked = useDocked();
   const track = useMowerTrack();
+  const lastRun = useLastRun();
   const liveMap = useMowerMap();
   const params = useMowerParams();
   // while it mows: how far it got with the area's plan, like on the overview (the state only then, it changes every
@@ -605,6 +606,7 @@ function MapEditor() {
                       segments={viewJob?.segments}
                       onSelect={(id) => showJob(id ?? '')}
                       onClearLive={trackPoints(track) > 1 ? () => void clearTrack() : undefined}
+                      lastRun={trackPoints(track) > 1 ? lastRun : null}
                     />
                   )}
                   {mowAreas.length > 1 && (

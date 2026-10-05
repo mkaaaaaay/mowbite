@@ -1,5 +1,6 @@
 'use client';
 
+import {forgetJobList, loadJobList} from '@/hooks/useMowHistory';
 import {getMqttClient, onTopic} from '@/lib/mqttClient';
 import {callRpc} from '@/lib/rpc';
 import {useSyncExternalStore} from 'react';
@@ -30,6 +31,12 @@ const EMPTY: TrackChunks = [];
 let track: TrackChunks = EMPTY;
 let started = false;
 let jobId: string | null = null;
+// while no job runs (OpenMower drops the job id once it's done), the last one recorded: its trail stays until the
+// next job starts. at: when it started, unix seconds
+let lastJob: {id: string; at: number} | null = null;
+let askedLast = false;
+// the job the trail is of
+const shownJob = () => jobId ?? lastJob?.id ?? null;
 let blades: boolean | undefined;
 // what came in live while the recorded track was loading
 let whileLoading: Point[] = [];
@@ -142,7 +149,7 @@ async function seed(id: string) {
   whileLoading = [];
   try {
     const recorded = (await recordedTrack(id)).slice(clearedUpTo(id));
-    if (jobId !== id) return;
+    if (shownJob() !== id) return;
     // the recorded track replaces what was here, only what came in live while it loaded goes on top
     track = chunked(thin([...recorded, ...whileLoading]).slice(-MAX_POINTS));
     listeners.forEach((l) => l());
@@ -154,6 +161,20 @@ async function seed(id: string) {
 }
 const listeners = new Set<() => void>();
 
+// a trail stays when it's of the job that comes in (one resumed, or the last run that goes on) or of none yet: the
+// live points so far, the recorded track replaces them anyway
+export function keepsTrail(shown: string | null, next: string): boolean {
+  return shown === null || shown === next;
+}
+
+// the newest recorded job, shown while the mower is idle until the next one starts
+async function showLastJob() {
+  const [last] = await loadJobList();
+  if (!last || jobId !== null) return;
+  lastJob = {id: last.job_id, at: last.timestamp};
+  await seed(last.job_id);
+}
+
 // recorded straight from mqtt so it keeps going no matter which tab is open
 function start() {
   if (started) return;
@@ -162,10 +183,14 @@ function start() {
   // position/json is much more frequent, robot_state is the fallback for setups without it
   let fast = false;
   // after a reconnect the trail of the time without connection comes from the recorded track
-  c.on('connect', () => jobId && void seed(jobId));
+  const reseed = () => {
+    const id = shownJob();
+    if (id) void seed(id);
+  };
+  c.on('connect', reseed);
   // a phone keeps the connection a while in the background but gets no messages, so also when the page is back
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && jobId) void seed(jobId);
+    if (document.visibilityState === 'visible') reseed();
   });
   const onPose = (payload: Buffer, name: string) => {
     if (name === TOPIC.position) fast = true;
@@ -178,10 +203,15 @@ function start() {
       if (name === TOPIC.position) blades = msg.attributes?.blades;
       if (id && id !== jobId) {
         // new job, new trail
-        const first = jobId === null;
+        if (!keepsTrail(shownJob(), id)) track = EMPTY;
         jobId = id;
-        if (!first) track = EMPTY;
+        lastJob = null;
+        // the list of recorded jobs has it now
+        forgetJobList();
         void seed(id);
+      } else if (!id && name === TOPIC.position && jobId === null && !askedLast) {
+        askedLast = true;
+        void showLastJob();
       }
     } catch {
       return;
@@ -202,7 +232,7 @@ function subscribe(listener: () => void) {
 
 // empties the live trail, it starts again from the mower's position now
 export async function clearTrack() {
-  const id = jobId;
+  const id = shownJob();
   if (id) {
     try {
       const points = (await recordedTrack(id)).length;
@@ -212,6 +242,15 @@ export async function clearTrack() {
   track = EMPTY;
   whileLoading = [];
   listeners.forEach((l) => l());
+}
+
+// when the trail shown is the last run because none runs now: when that one started (unix seconds), else null
+export function useLastRun(): number | null {
+  return useSyncExternalStore(
+    subscribe,
+    () => (jobId === null ? (lastJob?.at ?? null) : null),
+    () => null,
+  );
 }
 
 export function useMowerTrack(): TrackChunks {

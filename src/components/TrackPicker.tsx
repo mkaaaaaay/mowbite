@@ -20,6 +20,7 @@ export default function TrackPicker({
   segments,
   onSelect,
   onClearLive,
+  lastRun,
 }: {
   jobs: JobInfo[];
   selected: string | null;
@@ -27,6 +28,8 @@ export default function TrackPicker({
   onSelect: (jobId: string | null) => void;
   // shown with the live trail when there's something to clear
   onClearLive?: () => void;
+  // the live trail is the last run, none runs now: when it started (unix seconds)
+  lastRun?: number | null;
 }) {
   const days: {key: string; label: string; jobs: JobInfo[]}[] = [];
   for (const j of jobs) {
@@ -81,6 +84,14 @@ export default function TrackPicker({
             </button>
           ))}
         </div>
+      )}
+
+      {selected === null && lastRun && (
+        <span className={styles.info}>
+          {tr('Last run: {when}. The next one replaces it.', {
+            when: `${dayLabel(new Date(lastRun * 1000))}, ${new Date(lastRun * 1000).toLocaleTimeString(locale(), {hour: '2-digit', minute: '2-digit'})}`,
+          })}
+        </span>
       )}
 
       {selected === null && onClearLive && (
