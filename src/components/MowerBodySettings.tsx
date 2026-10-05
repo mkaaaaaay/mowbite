@@ -74,6 +74,13 @@ function Sketch({body, antenna}: {body: MowerBody; antenna?: {x: number; y: numb
 export function MowerBodySettings({settings, styles}: {settings: Settings; styles: Styles}) {
   const sizes = settings.mower;
   const [form, setForm] = useState<Form>(() => formFrom(sizes));
+  // the saved sizes arrive after the first render (the page is built ahead, then the container answers) or change on
+  // another device: the fields follow them as long as nothing is typed in them
+  const [shown, setShown] = useState(sizes);
+  if (shown !== sizes) {
+    setShown(sizes);
+    if (JSON.stringify(form) === JSON.stringify(formFrom(shown))) setForm(formFrom(sizes));
+  }
   // "other mower" picked while the fields still hold a model's sizes
   const [other, setOther] = useState(false);
   const [state, setState] = useState<{error?: string; saved?: boolean; picked?: boolean}>({});
