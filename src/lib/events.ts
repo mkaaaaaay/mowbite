@@ -20,6 +20,8 @@ export interface MowerEvent {
   attempts?: number;
   emergency?: boolean;
   battery_voltage?: number;
+  // worked out here, not from OpenMower: a navigation error that only came because it was sent home (see markSentHome)
+  sentHome?: boolean;
 }
 
 export type Severity = 'error' | 'warning' | 'info';
@@ -121,7 +123,7 @@ export function describe(e: MowerEvent, state?: string): {text: string; severity
           }
         : info(tr('Emergency cleared'));
     case 'NAVIGATION_ERROR':
-      return {text: tr('Navigation error'), severity: 'error'};
+      return e.sentHome ? info(tr('Path stopped, sent home')) : {text: tr('Navigation error'), severity: 'error'};
     case 'MOW_MOTOR_SPINUP_FAILED':
       return {text: tr("Mow motor didn't start"), severity: 'error'};
     case 'FULLY_CHARGED':
@@ -205,7 +207,8 @@ export function eventSource(e: MowerEvent): {file: string; url: string; log?: st
 
 // the line as it is in the file: id, t, type, the event's own fields, then position and ids
 export function rawLine(e: MowerEvent): string {
-  const {id, t, type, x, y, job_id, session_id, ...rest} = e;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- worked out here, not in the file
+  const {id, t, type, x, y, job_id, session_id, sentHome, ...rest} = e;
   return JSON.stringify({id, t, type, ...rest, x, y, job_id, session_id});
 }
 
@@ -236,8 +239,21 @@ export function withState(events: MowerEvent[]): {event: MowerEvent; state?: str
 
 // A run starts when the mower leaves the dock and ends when it's docked again (or idle/off). Everything
 // in between belongs to it, the rest (boot, shutdown, gps while parked) stays a loose event.
+// sent home in the middle of a path, OpenMower also reports a navigation error (MowingBehavior.cpp checks for a pause
+// there but not for an abort). it's the one the docking follows within a moment, a real one pauses the mower
+const SENT_HOME_WITHIN = 2; // s
+export function markSentHome(sorted: MowerEvent[]): MowerEvent[] {
+  return sorted.map((e, i) => {
+    if (e.type !== 'NAVIGATION_ERROR') return e;
+    for (let j = i + 1; j < sorted.length && sorted[j].t - e.t <= SENT_HOME_WITHIN; j++) {
+      if (sorted[j].type === 'STATE' && sorted[j].state === 'DOCKING') return {...e, sentHome: true};
+    }
+    return e;
+  });
+}
+
 export function groupRuns(events: MowerEvent[], live: boolean): Entry[] {
-  const sorted = [...events].sort((a, b) => a.t - b.t);
+  const sorted = markSentHome([...events].sort((a, b) => a.t - b.t));
   const out: Entry[] = [];
   let run: MowerEvent[] | null = null;
 

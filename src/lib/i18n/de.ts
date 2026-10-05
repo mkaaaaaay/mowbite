@@ -603,6 +603,7 @@ const de: Record<string, string> = {
   "YardForce station": "YardForce-Station",
   ", where an outline crosses itself it gets tidied up": ", wo sich ein Umriss selbst kreuzt, wird er dabei bereinigt",
   "Last run: {when}. The next one replaces it.": "Letzte Fahrt: {when}. Die nächste ersetzt sie.",
+  "Path stopped, sent home": "Bahn abgebrochen, nach Hause geschickt",
 };
 
 export default de;

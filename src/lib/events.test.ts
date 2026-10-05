@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {describe as describeEvent, groupRuns, homeReason, noteworthy, type MowerEvent} from './events';
+import {describe as describeEvent, groupRuns, homeReason, noteworthy, rawLine, type MowerEvent} from './events';
 
 let id = 0;
 const ev = (t: number, type: string, extra: Partial<MowerEvent> = {}): MowerEvent => ({id: String(id++), t, type, ...extra});
@@ -87,5 +87,41 @@ describe('events', () => {
   it('knows a mow motor that does not start and a full charge', () => {
     expect(describeEvent({id: '1', t: 0, type: 'MOW_MOTOR_SPINUP_FAILED'}).severity).toBe('error');
     expect(describeEvent({id: '2', t: 0, type: 'FULLY_CHARGED', battery_voltage: 28.42}).text).toContain('28.4');
+  });
+});
+
+describe('sent home in the middle of a path', () => {
+  const run = (navAt: number, dockingAt: number) =>
+    groupRuns(
+      [
+        ev(100, 'STATE', {state: 'UNDOCKING'}),
+        ev(110, 'STATE', {state: 'MOWING'}),
+        ev(navAt, 'NAVIGATION_ERROR'),
+        ev(dockingAt, 'STATE', {state: 'DOCKING'}),
+        ev(dockingAt, 'BLADES', {enabled: false}),
+        ev(dockingAt + 60, 'DOCKED'),
+      ],
+      false,
+    );
+
+  it("doesn't count the navigation error OpenMower reports with it as a problem", () => {
+    const [entry] = run(200, 200);
+    expect(entry.kind).toBe('run');
+    if (entry.kind !== 'run') return;
+    expect(entry.run.problems).toBe(0);
+    const nav = entry.run.events.find((e) => e.type === 'NAVIGATION_ERROR')!;
+    expect(describeEvent(nav).severity).toBe('info');
+    expect(noteworthy(nav)).toBe(false);
+  });
+
+  it('still counts a real one, the docking long after it', () => {
+    const [entry] = run(200, 260);
+    expect(entry.kind === 'run' && entry.run.problems).toBe(1);
+  });
+
+  it('keeps the raw line as OpenMower wrote it', () => {
+    const [entry] = run(200, 200);
+    const nav = entry.kind === 'run' ? entry.run.events.find((e) => e.type === 'NAVIGATION_ERROR')! : null;
+    expect(rawLine(nav!)).not.toContain('sentHome');
   });
 });
