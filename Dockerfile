@@ -29,6 +29,9 @@ COPY --chmod=755 docker/roslog.cgi /www/cgi-bin/roslog
 COPY --chmod=755 docker/backups.cgi /www/cgi-bin/backups
 COPY --chmod=755 docker/recorder.sh docker/scheduler.sh docker/logkeeper.sh docker/system.sh docker/battery.sh /
 COPY --chmod=755 docker/schedule.cgi /www/cgi-bin/schedule
+COPY --chmod=755 docker/notify.cgi /www/cgi-bin/notify
+COPY --chmod=755 docker/notify.sh /
+COPY docker/notify.awk /notify.awk
 COPY docker/broker.sh /broker.sh
 COPY docker/openmower.sh /openmower.sh
 COPY docker/recorder.awk /recorder.awk
