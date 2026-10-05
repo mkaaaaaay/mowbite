@@ -14,10 +14,11 @@ import {PARAM, PATHS} from '@/lib/openmower';
 import {numParam, useMowerParams} from '@/hooks/useMowerParams';
 
 
+// newest first like the runs, the state each one came in is worked out in time order first
 function Timeline({events}: {events: MowerEvent[]}) {
   return (
     <ol className={styles.timeline}>
-      {withState(events).map(({event, state}) => {
+      {withState(events).reverse().map(({event, state}) => {
         const {text, severity} = describe(event, state);
         return (
           <li key={event.id} className={styles[severity]}>
@@ -119,7 +120,9 @@ function ProblemItem({run, next, event, state, where}: {run: Run; next?: Run; ev
 }
 
 function Problems({run, next, where}: {run: Run; next?: Run; where: Where}) {
-  const list = withState(run.events).filter(({event, state}) => noteworthy(event, state));
+  const list = withState(run.events)
+    .filter(({event, state}) => noteworthy(event, state))
+    .reverse();
   if (!list.length) return null;
   return (
     <ul className={styles.problemList}>
@@ -302,7 +305,7 @@ export default function ActivityPage() {
               <RunCard key={b.run.events[0].id} run={b.run} next={runs[runs.indexOf(b.run) - 1]} where={where} />
             ) : (
               <div key={b.events[0].id} className={styles.looseGroup}>
-                {b.events.map((ev) => (
+                {[...b.events].reverse().map((ev) => (
                   <div key={ev.id} className={[styles.loose, styles[describe(ev).severity]].join(' ')}>
                     <span className={styles.time}>{clock(ev.t)}</span>
                     {describe(ev).text}
