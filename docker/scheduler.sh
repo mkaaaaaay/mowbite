@@ -19,6 +19,12 @@ log() {
 # a plain value from compact or spaced out json, e.g. field "$state" current_state
 field() { printf '%s' "$1" | grep -o "\"$2\" *: *[^,}]*" | head -n1 | sed 's/^[^:]*: *//' | tr -d '" '; }
 conf() { sed -n "s/^$1 //p" "$F" | head -n1; }
+# the areas of a map/json, one "id":"...","properties":{...} a line. objects in the properties (settings other tools
+# keep per area) become null, so the properties end at their own brace
+map_areas() {
+  tr -d ' \n' | sed -e 's/"properties":[{]/"properties":(/g' -e ':a' -e 's/\("[^"]*":\)[{][^{}]*[}]/\1null/g' -e 'ta' \
+    -e 's/"properties":(/"properties":{/g' | grep -o '"id":"[^"]*","properties":{[^}]*}'
+}
 
 # rain right now or in the next hour(s) at the garden (open-meteo, position rounded to ~1 km).
 # no answer counts as no rain
@@ -43,7 +49,7 @@ skip_others() {
         # sent while it does would hit the next area instead
         # shellcheck disable=SC2086
         props=$(mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_MAP" -C 1 -W 5 2>/dev/null |
-          tr -d ' \n' | grep -o "\"id\":\"$a\",\"properties\":{[^}]*}" | head -n1)
+          map_areas | grep "^\"id\":\"$a\"," | head -n1)
         # skipped when the plan doesn't pick it (all or a list) or it's paused for today
         keep=1
         case ",$1," in ,all, | *",$a,"*) ;; *) keep=0 ;; esac
@@ -183,7 +189,7 @@ area_left() {
   # shellcheck disable=SC2086
   m=$(mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_MAP" -C 1 -W 5 2>/dev/null | tr -d ' \n')
   [ -n "$m" ] || return 0
-  printf '%s' "$m" | grep -o '"id":"[^"]*","properties":{[^}]*}' | grep '"type":"mow"' |
+  printf '%s' "$m" | map_areas | grep '"type":"mow"' |
     grep -v '"active":false' | grep -v '"mowable":false' | sed 's/^"id":"\([^"]*\)".*/\1/' | {
     while read -r a; do
       case ",$1," in ,all, | *",$a,"*) ;; *) continue ;; esac
