@@ -8,6 +8,9 @@
   background: #0a0a0a;
   border-radius: 8px;
   overflow: hidden;
+  /* a layer of its own: redrawing the map while it moves doesn't redo the blur of the frosted cards around it */
+  will-change: transform;
+  contain: paint;
 }
 
 .mowArea {

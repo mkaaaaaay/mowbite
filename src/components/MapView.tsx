@@ -136,6 +136,12 @@ const HEIGHT = 400;
 
 
 type Fit = {scale: number; padX: number; padY: number; minX: number; minY: number};
+
+// lines in meters as an svg path in the units of the fit
+const pathOf = (lines: readonly (readonly Point[])[], f: Fit, close = false) =>
+  lines
+    .map((o) => o.map((p, i) => `${i ? 'L' : 'M'}${(p.x - f.minX) * f.scale + f.padX} ${HEIGHT - ((p.y - f.minY) * f.scale + f.padY)}`).join('') + (close ? 'Z' : ''))
+    .join('');
 // a point of an outline or of a line being drawn, or the middle of an edge (a new point there)
 type Handle = {mid: boolean; index: number; x: number; y: number};
 type Press = {pointerId: number; clientX: number; clientY: number; pointerType: string};
@@ -518,6 +524,52 @@ export default function MapView({
     const {lawn, obstacles} = realEdges(map.areas, body.width);
     return [...lawn, ...(hidden.has('obstacle') ? [] : obstacles)].map(ring).join('');
   }, [edgesOn, body, map, hidden, minX, minY, scale, padX, padY]);
+
+  // the plan and the tracks only change with their data, panning and zooming just move the viewBox: kept as they are,
+  // a frame of a gesture doesn't build hundreds of paths again
+  const stripesPath = useMemo(() => (stripes?.length ? pathOf(stripes, {minX, minY, scale, padX, padY}) : ''), [stripes, minX, minY, scale, padX, padY]);
+  const loopsPath = useMemo(() => (loops?.length ? pathOf(loops, {minX, minY, scale, padX, padY}, true) : ''), [loops, minX, minY, scale, padX, padY]);
+  const progressPaths = useMemo(
+    () =>
+      progress
+        ? {todo: pathOf(progress.todo, {minX, minY, scale, padX, padY}), done: pathOf(progress.done, {minX, minY, scale, padX, padY})}
+        : null,
+    [progress, minX, minY, scale, padX, padY],
+  );
+  const swathLayer = useMemo(
+    () =>
+      swath.lines.length > 0 && body ? (
+        <g className={styles.swath} strokeWidth={body.blade * scale}>
+          {swath.lines.map((d, i) => (
+            <path key={'swath' + i} d={d} />
+          ))}
+          <path className={styles.swathEnd} d={swath.ends.join('')} />
+        </g>
+      ) : null,
+    [swath, body, scale],
+  );
+  const trackLayer = useMemo(
+    () =>
+      hidden.has('track') ? null : (
+        <>
+          {trackRuns
+            .filter((run) => run.blades || !hidden.has('transit'))
+            .map((run, i) => (
+              <polyline key={'run' + i} points={run.points} className={run.blades ? styles.track : styles.transit} />
+            ))}
+          {pastTrack?.map((seg, i) =>
+            seg.points.length >= 2 && (seg.blades || !hidden.has('transit')) ? (
+              <polyline
+                key={'past' + i}
+                points={seg.points.map((p) => `${(p.x - minX) * scale + padX},${HEIGHT - ((p.y - minY) * scale + padY)}`).join(' ')}
+                className={seg.blades ? styles.track : styles.transit}
+              />
+            ) : null,
+          )}
+        </>
+      ),
+    [hidden, trackRuns, pastTrack, minX, minY, scale, padX, padY],
+  );
 
   const selectedArea = map.areas.find((a) => a.id === selectedAreaId);
   const activeIndex =
@@ -958,20 +1010,8 @@ export default function MapView({
           />
         ))}
 
-        {loops && loops.length > 0 && !hidden.has('stripes') && (
-          <path
-            className={styles.stripes}
-            d={loops
-              .map((o) => o.map((p, i) => `${i ? 'L' : 'M'}${toScreen(p.x, p.y).join(' ')}`).join('') + 'Z')
-              .join('')}
-          />
-        )}
-        {stripes && stripes.length > 0 && !hidden.has('stripes') && (
-          <path
-            className={styles.stripes}
-            d={stripes.map((o) => o.map((p, i) => `${i ? 'L' : 'M'}${toScreen(p.x, p.y).join(' ')}`).join('')).join('')}
-          />
-        )}
+        {loopsPath && !hidden.has('stripes') && <path className={styles.stripes} d={loopsPath} />}
+        {stripesPath && !hidden.has('stripes') && <path className={styles.stripes} d={stripesPath} />}
 
         {selectedArea && (
           <polygon
@@ -1040,46 +1080,16 @@ export default function MapView({
 
         {edges && <path className={styles.realEdge} d={edges} />}
 
-        {progress && !hidden.has('stripes') && (
+        {progressPaths && !hidden.has('stripes') && (
           <>
-            <path
-              className={[styles.planTodo, styles[planStyle]].join(' ')}
-              d={progress.todo.map((o) => o.map((p, i) => `${i ? 'L' : 'M'}${toScreen(p.x, p.y).join(' ')}`).join('')).join('')}
-            />
-            {layerOn(hidden, 'planDone') && (
-              <path
-                className={styles.planDone}
-                d={progress.done.map((o) => o.map((p, i) => `${i ? 'L' : 'M'}${toScreen(p.x, p.y).join(' ')}`).join('')).join('')}
-              />
-            )}
+            <path className={[styles.planTodo, styles[planStyle]].join(' ')} d={progressPaths.todo} />
+            {layerOn(hidden, 'planDone') && <path className={styles.planDone} d={progressPaths.done} />}
           </>
         )}
 
-        {swath.lines.length > 0 && (
-          <g className={styles.swath} strokeWidth={body!.blade * scale}>
-            {swath.lines.map((d, i) => (
-              <path key={'swath' + i} d={d} />
-            ))}
-            <path className={styles.swathEnd} d={swath.ends.join('')} />
-          </g>
-        )}
+        {swathLayer}
 
-        {!hidden.has('track') &&
-          trackRuns
-            .filter((run) => run.blades || !hidden.has('transit'))
-            .map((run, i) => (
-              <polyline key={'run' + i} points={run.points} className={run.blades ? styles.track : styles.transit} />
-            ))}
-        {!hidden.has('track') &&
-          pastTrack?.map((seg, i) =>
-          seg.points.length >= 2 && (seg.blades || !hidden.has('transit')) ? (
-            <polyline
-              key={'past' + i}
-              points={seg.points.map((p) => toScreen(p.x, p.y).join(',')).join(' ')}
-              className={seg.blades ? styles.track : styles.transit}
-            />
-          ) : null,
-        )}
+        {trackLayer}
 
         {mower && (
           <MowerMarker
