@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import type {MapArea} from '@/hooks/useMowerMap';
-import {bladeSeconds, bodyFrom, bodyShape, realEdges, swathEnd, swathPieces} from './mowerBody';
+import {bladeSeconds, bodyFrom, bodyShape, modelOf, MOWER_MODELS, realEdges, swathEnd, swathPieces} from './mowerBody';
 
 const body = {width: 0.4, front: 0.43, rear: 0.14, blade: 0.18, bladeAhead: 0.17, bladeOffset: 0};
 
@@ -137,5 +137,14 @@ describe('real edges', () => {
 
   it('leaves out an obstacle the mower drove round tighter than its width', () => {
     expect(realEdges([square('o', 'obstacle', 0, 0, 0.3)], 0.4).obstacles).toEqual([]);
+  });
+});
+
+describe('mower models', () => {
+  it('knows the sizes measured on a real one, to the millimetre', () => {
+    expect(modelOf(MOWER_MODELS[0].sizes)).toBe('yf-nx');
+    expect(modelOf({width: 0.41, front: 0.43, rear: 0.18, blade: 0.18, bladeAhead: 0.185})).toBe('yf-nx');
+    expect(modelOf({...MOWER_MODELS[0].sizes, width: 0.42})).toBeNull();
+    expect(modelOf(undefined)).toBeNull();
   });
 });

@@ -67,3 +67,6 @@
   gap: 10px;
 }
 
+.model {
+  max-width: 330px;
+}

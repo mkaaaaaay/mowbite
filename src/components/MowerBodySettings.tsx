@@ -2,7 +2,7 @@
 
 import {numParam, useMowerParams} from '@/hooks/useMowerParams';
 import {tr} from '@/lib/i18n';
-import {bodyFrom, MAX_BLADE, type MowerBody, type MowerSizes} from '@/lib/mowerBody';
+import {bodyFrom, MAX_BLADE, modelOf, MOWER_MODELS, type MowerBody, type MowerSizes} from '@/lib/mowerBody';
 import {PARAM} from '@/lib/openmower';
 import {saveSettings, settingsStore, type Settings} from '@/lib/settings';
 import {useState} from 'react';
@@ -35,12 +35,16 @@ const metres = (text: string) => {
   return text.trim() && Number.isFinite(v) ? v / 100 : null;
 };
 
+const sizesOf = (f: Form) => Object.fromEntries(FIELDS.map(([key]) => [key, metres(f[key]) ?? undefined])) as MowerSizes;
+
 // the mower from above, heading right, to scale: body, blade, the point it follows and the gps antenna
 function Sketch({body, antenna}: {body: MowerBody; antenna?: {x: number; y: number}}) {
   const pad = 0.12;
+  // more room on the left, the width is written there
+  const left = pad + 0.06;
   const halfW = Math.max(body.width / 2, body.blade / 2 + Math.abs(body.bladeOffset));
-  const x0 = -body.rear - pad;
-  const w = body.front + body.rear + 2 * pad;
+  const x0 = -body.rear - left;
+  const w = body.front + body.rear + pad + left;
   const h = 2 * halfW + 2 * pad;
   const label = (v: number) => `${Math.round(v * 100)} cm`;
   return (
@@ -70,14 +74,17 @@ function Sketch({body, antenna}: {body: MowerBody; antenna?: {x: number; y: numb
 export function MowerBodySettings({settings, styles}: {settings: Settings; styles: Styles}) {
   const sizes = settings.mower;
   const [form, setForm] = useState<Form>(() => formFrom(sizes));
-  const [state, setState] = useState<{error?: string; saved?: boolean}>({});
+  // "other mower" picked while the fields still hold a model's sizes
+  const [other, setOther] = useState(false);
+  const [state, setState] = useState<{error?: string; saved?: boolean; picked?: boolean}>({});
   const params = useMowerParams();
   const toolWidth = numParam(params, PARAM.toolWidth);
   const antennaX = numParam(params, PARAM.antennaX);
   const antenna = antennaX === undefined ? undefined : {x: antennaX, y: numParam(params, PARAM.antennaY) ?? 0};
 
   // the sketch follows the fields while typing
-  const typed = Object.fromEntries(FIELDS.map(([key]) => [key, metres(form[key]) ?? undefined])) as MowerSizes;
+  const typed = sizesOf(form);
+  const model = other ? '' : (modelOf(typed) ?? '');
   const sketch = bodyFrom(typed);
   const stored = !!bodyFrom(sizes);
   const blade = typed.blade;
@@ -111,7 +118,17 @@ export function MowerBodySettings({settings, styles}: {settings: Settings; style
 
   const set = (key: Field, value: string) => {
     setForm({...form, [key]: value});
+    setOther(false);
     setState({});
+  };
+
+  // a model fills in its sizes, saving keeps them
+  const pick = (key: string) => {
+    const m = MOWER_MODELS.find((x) => x.key === key);
+    setOther(!m);
+    if (!m) return;
+    setForm(formFrom(m.sizes));
+    setState({picked: true});
   };
 
   // what the blade cuts against how far apart OpenMower lays the lanes
@@ -138,6 +155,17 @@ export function MowerBodySettings({settings, styles}: {settings: Settings; style
           'Optional. Measured from the middle between the rear drive wheels, the point OpenMower follows. With them the map shows the mower’s outline with its blade, along the track the strip the blade really cuts, and the real edges: the outlines were recorded with the middle of the mower, the lawn reaches half its width further out and obstacles are that much smaller. All of it can be switched on and off under the layers of the map, the mower icon too. The map itself, the mowing plan and its preview stay as they are.',
         )}
       </p>
+      <label className={`${styles.field} ${local.model}`}>
+        {tr('Model')}
+        <select value={model} onChange={(e) => pick(e.target.value)}>
+          <option value="">{tr('Other mower: enter the sizes below')}</option>
+          {MOWER_MODELS.map((m) => (
+            <option key={m.key} value={m.key}>
+              {m.label}
+            </option>
+          ))}
+        </select>
+      </label>
       {sketch && <Sketch body={sketch} antenna={antenna} />}
       <div className={local.grid}>
         {FIELDS.map(([key, label]) => (
@@ -171,6 +199,7 @@ export function MowerBodySettings({settings, styles}: {settings: Settings; style
           </button>
         )}
         {state.saved && <span className={styles.dim}>{tr('Saved.')}</span>}
+        {state.picked && <span className={styles.dim}>{tr('Filled in, save to keep them.')}</span>}
         {state.error && <span className={styles.error}>{state.error}</span>}
       </div>
     </section>

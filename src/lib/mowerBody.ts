@@ -39,6 +39,24 @@ export function bodyFrom(s: MowerSizes | undefined): MowerBody | null {
   };
 }
 
+// mowers measured on a real one: picking one under Mower sizes fills in the fields
+export const MOWER_MODELS: {key: string; label: string; sizes: Required<MowerSizes>}[] = [
+  // the same body on all three
+  {key: 'yf-nx', label: 'YardForce NX60 / NX80 / NX100', sizes: {width: 0.41, front: 0.43, rear: 0.18, blade: 0.18, bladeAhead: 0.185, bladeOffset: 0}},
+];
+
+// the model with these sizes, to the millimetre
+export function modelOf(s: MowerSizes | undefined): string | null {
+  const b = bodyFrom(s);
+  if (!b) return null;
+  const mm = (v: number) => Math.round(v * 1000);
+  const model = MOWER_MODELS.find((m) => {
+    const p = bodyFrom(m.sizes)!;
+    return (Object.keys(p) as (keyof MowerBody)[]).every((k) => mm(p[k]) === mm(b[k]));
+  });
+  return model?.key ?? null;
+}
+
 // the mower's body for drawing it, null while no sizes are set
 export function useMowerBody(): MowerBody | null {
   const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
