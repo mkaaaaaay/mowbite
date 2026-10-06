@@ -205,26 +205,46 @@ const towards = (a: P, b: P) => Math.atan2(b.y - a.y, b.x - a.x);
 // the one before ended, drawn as a line as wide as the blade they join without overlapping; the round blade's ends are
 // only at the start and the end of the stretch (swathEnd).
 export function swathPieces(points: readonly P[], b: MowerBody): P[][] {
+  return swathAfter(points, b, null).pieces;
+}
+
+// where the strip of a stretch stood after its last point, the stretch can go on from there
+export interface SwathState {
+  heading: number;
+  // the track since the last turn on the spot
+  run: P[];
+  from: P;
+  // the last two points of the last piece, and the heading where that piece began
+  end: [P, P];
+  start: number;
+}
+
+// the same going on from where the part of the stretch before ended, for a trail that comes in chunks. The state after
+// the last point, for the part after it
+export function swathAfter(points: readonly P[], b: MowerBody, before: SwathState | null): {pieces: P[][]; state: SwathState | null} {
   const blade = (p: P, h: number) => ({
     x: p.x + Math.cos(h) * b.bladeAhead - Math.sin(h) * b.bladeOffset,
     y: p.y + Math.sin(h) * b.bladeAhead + Math.cos(h) * b.bladeOffset,
   });
   const pieces: P[][] = [];
-  let piece: P[] = [];
-  let start = 0;
+  let piece: P[] = before ? [before.end[1]] : [];
+  let start = before?.start ?? 0;
   const add = (p: P, h: number) => {
     if (piece.length > 1 && Math.abs(turned(h, start)) > PIECE_TURN) {
+      // cut halfway to p, so both ends are square to the same straight bit and meet without a gap or an overlap
+      const last = piece[piece.length - 1];
+      const half = {x: (last.x + p.x) / 2, y: (last.y + p.y) / 2};
+      piece.push(half);
       pieces.push(piece);
-      piece = [piece[piece.length - 1]];
-    }
-    if (piece.length < 2) start = h;
+      piece = [half];
+      start = h;
+    } else if (!piece.length) start = h;
     piece.push(p);
   };
-  let heading: number | null = null;
-  // the track since the last turn on the spot
-  let run: P[] = [];
-  let from = points[0];
-  for (let i = 1; i < points.length; i++) {
+  let heading: number | null = before?.heading ?? null;
+  let run: P[] = before ? before.run.slice() : [];
+  let from = before?.from ?? points[0];
+  for (let i = before ? 0 : 1; i < points.length; i++) {
     const to = points[i];
     if (Math.hypot(to.x - from.x, to.y - from.y) < MIN_STEP) continue;
     const step = towards(from, to);
@@ -245,7 +265,8 @@ export function swathPieces(points: readonly P[], b: MowerBody): P[][] {
     from = to;
   }
   if (piece.length > 1) pieces.push(piece);
-  return pieces;
+  const end: [P, P] | undefined = piece.length > 1 ? [piece[piece.length - 2], piece[piece.length - 1]] : before?.end;
+  return {pieces, state: heading === null || !end ? null : {heading, run, from, end, start}};
 }
 
 // the half of the blade's circle beyond the end of a piece (at points[1], coming from points[0]): where it started or
@@ -284,17 +305,31 @@ function cellsOf(piece: readonly P[], size: number): number[] {
 // The strip in a few paths instead of one per piece, hundreds of see-through paths make moving the map slow on a phone.
 // Each piece goes into the first group none of the pieces it overlaps is in yet (looked up in the neighbouring cells of
 // a blade-sized grid), so overlaps still show darker, each group being see-through on its own. Only where more pieces
-// than groups overlap does a piece share one
+// than groups overlap does a piece share one. A piece that carries on from the one before keeps its group if nothing
+// else there is in the way: drawn as one line with it, the bend has no seam
 export function swathGroups(pieces: readonly (readonly P[])[], blade: number, groups = 4): number[] {
   const grid = new Map<number, number>();
+  const near = (cells: readonly number[], has: (c: number) => boolean) =>
+    cells.some((c) => [-1, 0, 1].some((dx) => [-1, 0, 1].some((dy) => has(c + dx * 65536 + dy))));
+  // the piece before goes into the grid only after this one is placed, it touches this one where they join
+  let before: {cells: number[]; g: number; end: P} | null = null;
   return pieces.map((piece, n) => {
     const cells = cellsOf(piece, blade);
     let used = 0;
     for (const c of cells) for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) used |= grid.get(c + dx * 65536 + dy) ?? 0;
+    const carriesOn = !!before && !!piece[0] && piece[0].x === before.end.x && piece[0].y === before.end.y;
     let g = 0;
-    while (g < groups && used & (1 << g)) g++;
-    if (g === groups) g = n % groups;
-    for (const c of cells) grid.set(c, (grid.get(c) ?? 0) | (1 << g));
+    if (before && carriesOn && !(used & (1 << before.g))) g = before.g;
+    else {
+      if (before) {
+        const own = new Set(before.cells);
+        if (carriesOn || near(cells, (c) => own.has(c))) used |= 1 << before.g;
+      }
+      while (g < groups && used & (1 << g)) g++;
+      if (g === groups) g = n % groups;
+    }
+    if (before) for (const c of before.cells) grid.set(c, (grid.get(c) ?? 0) | (1 << before.g));
+    before = {cells, g, end: piece[piece.length - 1]};
     return g;
   });
 }

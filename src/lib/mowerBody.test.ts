@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import type {MapArea} from '@/hooks/useMowerMap';
-import {bladeSeconds, bodyFrom, bodyShape, modelOf, MOWER_MODELS, outlineOf, realEdges, roundBends, swathEnd, swathGroups, swathPieces} from './mowerBody';
+import {bladeSeconds, bodyFrom, bodyShape, modelOf, MOWER_MODELS, outlineOf, realEdges, roundBends, swathAfter, swathEnd, swathGroups, swathPieces} from './mowerBody';
 
 const body = {width: 0.4, front: 0.43, rear: 0.14, blade: 0.18, bladeAhead: 0.17, bladeOffset: 0};
 
@@ -64,8 +64,14 @@ describe('cut strip', () => {
       const xs = p.map((q) => q.x);
       expect(Math.min(...xs)).toBeGreaterThan(4.7);
     }
-    // each piece goes on where the one before ended
-    for (let i = 1; i < pieces.length; i++) expect(pieces[i][0]).toEqual(pieces[i - 1][pieces[i - 1].length - 1]);
+    // each piece goes on where the one before ended, on a straight bit, so their square ends meet without a step
+    for (let i = 1; i < pieces.length; i++) {
+      const before = pieces[i - 1];
+      const [at, next] = pieces[i];
+      const from = before[before.length - 2];
+      expect(at).toEqual(before[before.length - 1]);
+      expect((at.x - from.x) * (next.y - at.y) - (at.y - from.y) * (next.x - at.x)).toBeCloseTo(0, 9);
+    }
   });
 
   it('rounds the ends of a stretch like the blade', () => {
@@ -191,6 +197,46 @@ describe('mower models', () => {
     expect(modelOf({width: 0.41, front: 0.43, rear: 0.18, blade: 0.18, bladeAhead: 0.185})).toBe('yf-nx');
     expect(modelOf({...MOWER_MODELS[0].sizes, width: 0.42})).toBeNull();
     expect(modelOf(undefined)).toBeNull();
+  });
+});
+
+describe('strip without seams', () => {
+  const body = {width: 0.41, front: 0.43, rear: 0.18, blade: 0.18, bladeAhead: 0.185, bladeOffset: 0};
+
+  it('keeps a bend round an obstacle in one group, so it is drawn as one line', () => {
+    // three quarters round, a full circle overlaps itself where it closes and shows that darker
+    const bend = Array.from({length: 48}, (_, i) => ({x: Math.cos((i / 47) * 1.5 * Math.PI), y: Math.sin((i / 47) * 1.5 * Math.PI)}));
+    const pieces = swathPieces(bend, body);
+    expect(pieces.length).toBeGreaterThan(4);
+    expect(new Set(swathGroups(pieces, body.blade)).size).toBe(1);
+  });
+
+  it('goes on across the chunks of a trail as if it were one', () => {
+    // a lane bending left, cut in two in the bend, the second chunk starting with the last point of the first
+    const track = [
+      ...Array.from({length: 20}, (_, i) => ({x: i * 0.1, y: 0})),
+      ...Array.from({length: 20}, (_, i) => ({x: 1.9 + (i + 1) * 0.07, y: (i + 1) * 0.07})),
+    ];
+    const whole = swathPieces(track, body).flat();
+    const one = swathAfter(track.slice(0, 24), body, null);
+    const two = swathAfter(track.slice(23), body, one.state);
+    const last = one.pieces[one.pieces.length - 1];
+    expect(two.pieces[0][0]).toBe(last[last.length - 1]);
+    const joined = [...one.pieces, ...two.pieces].flat();
+    expect(joined[joined.length - 1].x).toBeCloseTo(whole[whole.length - 1].x, 9);
+    expect(joined[joined.length - 1].y).toBeCloseTo(whole[whole.length - 1].y, 9);
+  });
+
+  it('still puts the lane back after a turn into another group than the lane out', () => {
+    // out along y = 0, a turn on the spot round the end, back 14 cm further over
+    const track = [
+      ...Array.from({length: 31}, (_, i) => ({x: i * 0.1, y: 0})),
+      {x: 3, y: 0.14},
+      ...Array.from({length: 31}, (_, i) => ({x: 3 - i * 0.1, y: 0.14})),
+    ];
+    const pieces = swathPieces(track, body);
+    const g = swathGroups(pieces, body.blade);
+    expect(g[0]).not.toBe(g[g.length - 1]);
   });
 });
 

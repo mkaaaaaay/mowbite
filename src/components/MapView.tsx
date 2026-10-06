@@ -5,7 +5,7 @@ import {useComputedSpeed} from '@/hooks/useComputedSpeed';
 import {useEasedPose, type Pose} from '@/hooks/useEasedPose';
 import {containsPoint, polygonArea} from '@/lib/geometry';
 import {settingsStore, type Settings} from '@/lib/settings';
-import {bladeSeconds, bodyShape, realEdges, roundBends, swathEnd, swathGroups, swathPieces, useMowerBody, type MowerBody} from '@/lib/mowerBody';
+import {bladeSeconds, bodyShape, realEdges, roundBends, swathEnd, swathGroups, swathAfter, useMowerBody, type MowerBody, type SwathState} from '@/lib/mowerBody';
 import {useSensorValue} from '@/hooks/useMowerSensors';
 import {dockIcon, drawMower, mowerIcon} from './mapIcons';
 import {availableSources, imageryTiles, type Datum} from '@/lib/imagery';
@@ -99,8 +99,9 @@ const PENDING = '__pending';
 type Run = {points: string; blades: boolean};
 // drawn runs of each piece of the live trail per map geometry, pieces that are done are never worked out again
 const runCache = new WeakMap<object, Map<string, Run[]>>();
-// the same for the strip the blade cut along them, in meters per blade
-const swathCache = new WeakMap<object, Map<string, {pieces: Point[][]; ends: Point[][]}>>();
+// the same for the strip the blade cut along them, in meters per blade. With the strip's state at the end of the piece
+// before and of this one, a stretch with the blades on goes on across pieces
+const swathCache = new WeakMap<object, Map<string, {pieces: Point[][]; ends: Point[][]; before: SwathState | null; after: SwathState | null}>>();
 // a piece of the strip as an svg path, per map geometry
 const pieceDs = new WeakMap<object, {key: string; d: string}>();
 
@@ -497,51 +498,65 @@ export default function MapView({
     if (!swathOn || !body) return out;
     const fitKey = `${minX},${minY},${scale},${padX},${padY}`;
     const at = (p: Point) => `${((p.x - minX) * scale + padX).toFixed(1)} ${(HEIGHT - ((p.y - minY) * scale + padY)).toFixed(1)}`;
-    const path = (pts: Point[]) => {
+    // a piece as a line of its own, or carrying on the line of the piece before (its first point is that one's last)
+    const path = (pts: Point[], carryOn = false) => {
+      const key = carryOn ? fitKey + '+' : fitKey;
       const known = pieceDs.get(pts);
-      if (known?.key === fitKey) return known.d;
-      const d = pts.map((p, i) => `${i ? 'L' : 'M'}${at(p)}`).join('');
-      pieceDs.set(pts, {key: fitKey, d});
+      if (known?.key === key) return known.d;
+      const d = carryOn ? pts.slice(1).map((p) => `L${at(p)}`).join('') : pts.map((p, i) => `${i ? 'L' : 'M'}${at(p)}`).join('');
+      pieceDs.set(pts, {key, d});
       return d;
     };
-    // one stretch with the blades on: its pieces, and the blade's round ends where it began and stopped
-    const strip = (pts: Point[], into: {pieces: Point[][]; ends: Point[][]}) => {
-      const pieces = swathPieces(roundBends(pts), body);
-      if (!pieces.length) return;
+    // one stretch with the blades on: its pieces, and the blade's round ends where it began and stopped. A stretch going
+    // on from the piece of the trail before has no beginning here, one going on into the next piece no end: its state
+    // at the end goes on there instead
+    const strip = (pts: Point[], into: {pieces: Point[][]; ends: Point[][]}, before: SwathState | null = null, goesOn = false) => {
+      const {pieces, state} = swathAfter(roundBends(pts), body, before);
       into.pieces.push(...pieces);
       const first = pieces[0];
-      const last = pieces[pieces.length - 1];
-      into.ends.push(swathEnd(first[1], first[0], body.blade / 2), swathEnd(last[last.length - 2], last[last.length - 1], body.blade / 2));
+      if (!before && first) into.ends.push(swathEnd(first[1], first[0], body.blade / 2));
+      if (goesOn) return state;
+      if (state) into.ends.push(swathEnd(state.end[0], state.end[1], body.blade / 2));
+      return null;
     };
     const all: {pieces: Point[][]; ends: Point[][]} = {pieces: [], ends: []};
     const key = `${body.blade},${body.bladeAhead},${body.bladeOffset}`;
+    let carried: SwathState | null = null;
     for (const piece of track ?? []) {
       let byBlade = swathCache.get(piece);
       if (!byBlade) swathCache.set(piece, (byBlade = new Map()));
       let cached = byBlade.get(key);
-      if (!cached) {
-        cached = {pieces: [], ends: []};
-        // the stretches with the blades on
+      if (!cached || cached.before !== carried) {
+        cached = {pieces: [], ends: [], before: carried, after: null};
+        // the stretches with the blades on, the first one going on from the piece before (it starts with that one's
+        // last point)
         let start = -1;
         for (let i = 0; i <= piece.length; i++) {
           const on = i < piece.length && (piece[i].b ?? true);
           if (on && start < 0) start = i;
           if (!on && start >= 0) {
-            strip(piece.slice(start, i), cached);
+            cached.after = strip(piece.slice(start, i), cached, start === 0 ? carried : null, i === piece.length);
             start = -1;
           }
         }
         if (byBlade.size > 3) byBlade.clear();
         byBlade.set(key, cached);
       }
+      carried = cached.after;
       all.pieces.push(...cached.pieces);
       all.ends.push(...cached.ends);
     }
+    // the round end where the trail stops now with the blades on
+    if (carried) all.ends.push(swathEnd(carried.end[0], carried.end[1], body.blade / 2));
     for (const seg of pastTrack ?? []) if (seg.blades) strip(seg.points, all);
     // a few paths instead of one per piece, pieces that overlap in different ones
     const groups = swathGroups(all.pieces, body.blade);
     const ds: string[] = [];
-    all.pieces.forEach((piece, i) => (ds[groups[i]] = (ds[groups[i]] ?? '') + path(piece)));
+    all.pieces.forEach((piece, i) => {
+      const before = all.pieces[i - 1];
+      const carryOn = !!before && groups[i - 1] === groups[i] && piece[0] === before[before.length - 1];
+      ds[groups[i]] = (ds[groups[i]] ?? '') + path(piece, carryOn);
+    });
     out.groups = ds.filter(Boolean);
     out.ends = all.ends.map((e) => path(e) + 'Z').join('');
     return out;
