@@ -16,7 +16,7 @@ export interface Point {
 // min distance between trail points, and how far a point may be off the line through its neighbours to get dropped
 // (straight stripes need only their ends)
 const MIN_DISTANCE = 0.03;
-const STRAIGHT = 0.01;
+const STRAIGHT = 0.005;
 const MAX_POINTS = 30000;
 // the trail is kept in pieces of this many points. finished pieces never change, so each new position only
 // touches the last one and the map only redraws that, however long the job is
@@ -53,12 +53,29 @@ function straight(a: Point, b: Point, c: Point) {
   return t >= 0 && t <= 1 && Math.abs(dy * (b.x - a.x) - dx * (b.y - a.y)) / len < STRAIGHT;
 }
 
+// the points a trail's last point stands in for, dropped since the one before it: a new point only takes its place if
+// they all stay on the line too, so a curve keeps its shape instead of being cut short bit by bit
+const dropped = new WeakMap<Point, Point[]>();
+// a long straight run is kept at some point, to bound the checks
+const MAX_RUN = 500;
+
 // appends p to out, in place
 function add(out: Point[], p: Point) {
   const last = out[out.length - 1];
   if (last && last.b === p.b && Math.hypot(p.x - last.x, p.y - last.y) < MIN_DISTANCE) return;
-  if (out.length >= 2 && straight(out[out.length - 2], last, p)) out[out.length - 1] = p;
-  else out.push(p);
+  if (out.length >= 2) {
+    const from = out[out.length - 2];
+    const run = dropped.get(last) ?? [];
+    if (run.length < MAX_RUN && straight(from, last, p) && run.every((q) => straight(from, q, p))) {
+      run.push(last);
+      dropped.delete(last);
+      dropped.set(p, run);
+      out[out.length - 1] = p;
+      return;
+    }
+  }
+  dropped.delete(p);
+  out.push(p);
 }
 
 export function thin(points: Point[]): Point[] {

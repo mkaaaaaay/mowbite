@@ -60,6 +60,44 @@ describe('live trail in pieces', () => {
   });
 });
 
+// how far the farthest of the points is from the thinned line through them
+function offLine(points: Point[], line: Point[]) {
+  const toSegment = (p: Point, a: Point, b: Point) => {
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const len2 = dx * dx + dy * dy;
+    const t = len2 ? Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2)) : 0;
+    return Math.hypot(p.x - a.x - t * dx, p.y - a.y - t * dy);
+  };
+  return Math.max(...points.map((p) => Math.min(...line.slice(1).map((b, i) => toSegment(p, line[i], b)))));
+}
+
+describe('thinning the trail', () => {
+  // a position every 150 ms at 0.45 m/s, along a bend of radius r
+  const bend = (r: number) =>
+    Array.from({length: Math.floor((r * Math.PI) / 0.0675)}, (_, i) => ({x: r * Math.cos((i * 0.0675) / r), y: r * Math.sin((i * 0.0675) / r), b: true}));
+
+  it('keeps a curve within half a centimetre of where the mower drove', () => {
+    for (const r of [1, 3, 10]) {
+      const raw = bend(r);
+      const line = thin(raw);
+      expect(offLine(raw, line)).toBeLessThan(0.0055);
+      expect(line.length).toBeLessThan(raw.length / 2);
+    }
+  });
+
+  it('needs only the ends of a straight lane', () => {
+    const raw = Array.from({length: 200}, (_, i) => ({x: i * 0.0675, y: 0, b: true}));
+    expect(thin(raw)).toEqual([raw[0], raw[199]]);
+  });
+
+  it('thins the same live, point by point', () => {
+    const raw = bend(3);
+    let chunks: TrackChunks = [];
+    for (const p of raw) chunks = appendPoint(chunks, p) ?? chunks;
+    expect(flat(chunks)).toEqual(thin(raw));
+  });
+});
+
 describe('whose trail it is', () => {
   it('keeps the trail of the job going on, also the last run shown while idle', () => {
     // nothing known yet: the live points stay, the recorded track replaces them
