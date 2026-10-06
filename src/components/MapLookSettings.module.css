@@ -207,6 +207,7 @@
 }
 
 .colorRow input[type='color'] {
+  flex: none;
   width: 34px;
   height: 34px;
   padding: 0;
@@ -214,6 +215,20 @@
   border-radius: 8px;
   background: transparent;
   cursor: pointer;
+}
+
+/* the name, and below it the way back to the default, so a long name can't squeeze the field */
+.colorName {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+.colorName .linkButton {
+  margin-left: 0;
 }
 
 .pillButton {

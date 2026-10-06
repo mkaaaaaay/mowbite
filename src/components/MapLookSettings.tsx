@@ -88,7 +88,8 @@ export function MapLookSettings() {
   const setColor = (key: ColorKey, value: string | undefined) => {
     const cur = settingsStore.snapshot();
     const next = {...cur.colors};
-    if (value === undefined) delete next[key];
+    // the default picked again is no change
+    if (value === undefined || value.toLowerCase() === COLORS.find((c) => c.key === key)?.value) delete next[key];
     else next[key] = value;
     saveSettings({...cur, colors: next});
   };
@@ -141,15 +142,18 @@ export function MapLookSettings() {
         <div className={styles.colors}>
           {COLORS.map((c) => {
             const value = colors[c.key] ?? c.value;
+            const changed = value.toLowerCase() !== c.value;
             return (
               <div key={c.key} className={styles.colorRow}>
                 <input type="color" value={value} onChange={(e) => setColor(c.key, e.target.value)} aria-label={tr(c.label)} />
-                <span>{tr(c.label)}</span>
-                {colors[c.key] && (
-                  <button className={styles.linkButton} onClick={() => setColor(c.key, undefined)}>
-                    {tr('default')}
-                  </button>
-                )}
+                <span className={styles.colorName}>
+                  {tr(c.label)}
+                  {changed && (
+                    <button className={styles.linkButton} onClick={() => setColor(c.key, undefined)}>
+                      {tr('default')}
+                    </button>
+                  )}
+                </span>
               </div>
             );
           })}
