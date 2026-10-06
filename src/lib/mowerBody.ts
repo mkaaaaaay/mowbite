@@ -43,6 +43,7 @@ export function bodyFrom(s: MowerSizes | undefined): MowerBody | null {
 export const MOWER_MODELS: {key: string; label: string; sizes: Required<MowerSizes>}[] = [
   // the same body on all three
   {key: 'yf-nx', label: 'YardForce NX60 / NX80 / NX100', sizes: {width: 0.41, front: 0.43, rear: 0.18, blade: 0.18, bladeAhead: 0.185, bladeOffset: 0}},
+  {key: 'yf-classic500', label: 'YardForce Classic 500B', sizes: {width: 0.425, front: 0.47, rear: 0.1, blade: 0.18, bladeAhead: 0.18, bladeOffset: 0}},
 ];
 
 // the model with these sizes, to the millimetre

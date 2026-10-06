@@ -143,6 +143,7 @@ describe('real edges', () => {
 describe('mower models', () => {
   it('knows the sizes measured on a real one, to the millimetre', () => {
     expect(modelOf(MOWER_MODELS[0].sizes)).toBe('yf-nx');
+    expect(modelOf({width: 0.425, front: 0.47, rear: 0.1, blade: 0.18, bladeAhead: 0.18})).toBe('yf-classic500');
     expect(modelOf({width: 0.41, front: 0.43, rear: 0.18, blade: 0.18, bladeAhead: 0.185})).toBe('yf-nx');
     expect(modelOf({...MOWER_MODELS[0].sizes, width: 0.42})).toBeNull();
     expect(modelOf(undefined)).toBeNull();

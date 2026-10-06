@@ -168,21 +168,30 @@ const MODELS: MowerIcon[] = [
   {
     key: 'yf500',
     label: 'YardForce Classic 500',
-    fit: 42 / 57,
-    // a box: black base, orange shell over nearly all of it, the height knob behind the middle, wheels at the back
+    fit: 42.5 / 57,
+    // traced from a photo from straight above (a Classic 500B, 57 x 42.5 cm): the black base narrower at the front, its
+    // corners over the wheels at the back, the orange shell over nearly all of it, the height knob in the middle, the
+    // keypad behind it and the stop button at the back
     draw: ({emergency = false} = {}) => (
       <>
-        {rearWheels(-0.96, 0.52, 0.84)}
-        <rect x={-1} y={-0.86} width={2} height={1.72} rx={0.14} fill={BLACK} {...line} />
-        <path d="M-0.9,-0.74 L0.7,-0.74 Q0.92,-0.72 0.94,-0.5 L0.94,0.5 Q0.92,0.72 0.7,0.74 L-0.9,0.74 Q-0.96,0.74 -0.96,0.66 L-0.96,-0.66 Q-0.96,-0.74 -0.9,-0.74 Z" fill={ORANGE} {...line} />
-        <rect x={0.08} y={-0.36} width={0.5} height={0.72} rx={0.08} fill="#ef6c00" {...line} />
-        <circle cx={-0.32} cy={0} r={0.17} fill={BLACK} {...line} />
-        <circle cx={-0.32} cy={0} r={0.07} fill={WHEEL} />
-        {emergency && <circle cx={-0.32} cy={0} r={0.17} fill="none" stroke={STOP} strokeWidth={2}>
-          <animate attributeName="stroke-opacity" values="1;0;1" dur="0.8s" repeatCount="indefinite" />
-        </circle>}
-        <rect x={0.95} y={-0.32} width={0.05} height={0.18} fill={WHEEL} />
-        <rect x={0.95} y={0.14} width={0.05} height={0.18} fill={WHEEL} />
+        <path
+          d="M1,-0.2 L1,0.2 Q0.97,0.6 0.8,0.85 L-0.36,0.995 L-0.46,0.982 L-0.52,0.905 L-0.92,0.875 L-0.95,0.6 Q-1,0.55 -1,0.42 L-1,-0.42 Q-1,-0.55 -0.95,-0.6 L-0.92,-0.875 L-0.52,-0.905 L-0.46,-0.982 L-0.36,-0.995 L0.8,-0.85 Q0.97,-0.6 1,-0.2 Z"
+          fill={BLACK}
+          {...line}
+        />
+        <rect x={-0.94} y={0.66} width={0.44} height={0.245} rx={0.04} fill={WHEEL} {...line} />
+        <rect x={-0.94} y={-0.905} width={0.44} height={0.245} rx={0.04} fill={WHEEL} {...line} />
+        <path
+          d="M0.94,-0.15 L0.94,0.15 Q0.93,0.7 0.72,0.796 L0.3,0.88 L-0.31,0.957 Q-0.335,0.96 -0.345,0.92 L-0.45,0.645 L-0.9,0.65 Q-0.97,0.64 -0.975,0.5 L-0.975,-0.5 Q-0.97,-0.64 -0.9,-0.65 L-0.45,-0.645 L-0.345,-0.92 Q-0.335,-0.96 -0.31,-0.957 L0.3,-0.88 L0.72,-0.796 Q0.93,-0.7 0.94,-0.15 Z"
+          fill={ORANGE}
+          {...line}
+        />
+        <rect x={0.46} y={-0.27} width={0.44} height={0.54} rx={0.05} fill="#ef6c00" {...line} />
+        <ellipse cx={0.02} cy={0} rx={0.15} ry={0.205} fill={BLACK} {...line} />
+        <ellipse cx={0.02} cy={0} rx={0.075} ry={0.1} fill={WHEEL} />
+        <rect x={-0.62} y={-0.335} width={0.346} height={0.67} rx={0.05} fill="#3a3a3a" {...line} />
+        <rect x={-1} y={-0.405} width={0.361} height={0.81} rx={0.05} fill={BLACK} {...line} />
+        {stopButton(-0.873, 0.176, 0.454, emergency)}
       </>
     ),
   },
