@@ -20,11 +20,23 @@ export interface MowerBody {
 
 export type Outline = [number, number][];
 
-// a contour of at least 3 points, each [ahead, left] in meters
+// a contour of at least 3 points, each [ahead, left] in meters around the point the mower follows: within 1.5 m of
+// it, at least 10 cm across and with that point inside, anything else (cm, another point) isn't one
 export function outlineOf(v: unknown): Outline | undefined {
   if (!Array.isArray(v) || v.length < 3) return undefined;
   const pts = v.filter((p): p is [number, number] => Array.isArray(p) && p.length >= 2 && [p[0], p[1]].every((n) => typeof n === 'number' && Number.isFinite(n)));
-  return pts.length === v.length ? pts.map(([a, l]) => [a, l]) : undefined;
+  if (pts.length !== v.length) return undefined;
+  const xs = pts.map(([a]) => a);
+  const ys = pts.map(([, l]) => l);
+  const across = Math.min(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+  let inside = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [xi, yi] = pts[i];
+    const [xj, yj] = pts[j];
+    if (yi > 0 !== yj > 0 && 0 < xi + ((0 - yi) * (xj - xi)) / (yj - yi)) inside = !inside;
+  }
+  if (across < 0.1 || pts.some(([a, l]) => Math.hypot(a, l) > 1.5) || !inside) return undefined;
+  return pts.map(([a, l]) => [a, l]);
 }
 
 export type MowerSizes = NonNullable<Settings['mower']>;

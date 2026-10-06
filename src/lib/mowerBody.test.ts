@@ -156,6 +156,11 @@ describe('real outline', () => {
     expect(bodyFrom(base)?.outline).toBeUndefined();
     expect(bodyFrom({...base, outline: outline.slice(0, 2)})?.outline).toBeUndefined();
     expect(outlineOf([[0, 0], [1, NaN], [0, 1]])).toBeUndefined();
+    // in cm, around another point, or tiny: no outline
+    expect(outlineOf(outline.map(([a, l]) => [a * 100, l * 100]))).toBeUndefined();
+    expect(outlineOf(outline.map(([a, l]) => [a + 0.6, l]))).toBeUndefined();
+    expect(outlineOf(outline.map(([a, l]) => [a / 10, l / 10]))).toBeUndefined();
+    for (const m of MOWER_MODELS.filter((x) => x.outline)) expect(outlineOf(m.outline)).toEqual(m.outline);
   });
 
   it('draws the body along the outline, turned with the heading', () => {
