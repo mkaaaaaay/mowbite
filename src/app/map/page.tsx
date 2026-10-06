@@ -106,6 +106,9 @@ function MapEditor() {
   // the area settings this mower keeps, mow_around changes the plan
   const areaProps = useAreaProperties();
   const selectedArea = map?.areas.find((a) => a.id === selectedAreaId) ?? null;
+  // while an area is edited only its plan shows, the last run's track and its cut strip went at the old settings; the
+  // area being mowed keeps its live trail
+  const trackShown = viewJob || (selectedArea && progress?.areaId !== selectedAreaId) ? undefined : track;
   const baseOutline = selectedArea ? (originals[selectedArea.id] ?? selectedArea.outline) : null;
   const simplified = useMemo(
     () =>
@@ -486,7 +489,7 @@ function MapEditor() {
                 map={shownMap}
                 mower={position}
                 emergency={emergency}
-                track={viewJob ? undefined : track}
+                track={trackShown}
                 pastTrack={viewJob?.segments?.map((s) => ({
                   points: s.points.map(([x, y]) => ({x, y})),
                   blades: !!s.attributes.blades,
