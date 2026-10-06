@@ -103,6 +103,8 @@ export function MowerBodySettings({settings, styles}: {settings: Settings; style
   const model = other ? '' : (modelOf(typed) ?? '');
   const rect = bodyFrom(typed);
   const sketch = rect && outline ? {...rect, outline} : rect;
+  // a model with a measured outline, while the rectangle is still in use: offered, not put in on its own
+  const offered = !outline ? MOWER_MODELS.find((m) => m.key === model && m.outline) : undefined;
   // the model whose outline it is, named so a wrong pick shows
   const outlineModel = outline ? MOWER_MODELS.find((m) => m.outline && JSON.stringify(m.outline) === JSON.stringify(outline)) : undefined;
   const stored = !!bodyFrom(sizes);
@@ -191,6 +193,20 @@ export function MowerBodySettings({settings, styles}: {settings: Settings; style
       </label>
       {sketch && <Sketch body={sketch} antenna={antenna} />}
       {outline && <p className={styles.dim}>{outlineModel ? tr('Outline of the {model}, measured on a photo from straight above. It counts for this model only.', {model: outlineModel.label}) : tr('A stored outline that is none of the models: pick the model again or enter the sizes.')}</p>}
+      {offered && (
+        <p className={styles.dim}>
+          {tr('This model has a measured outline.')}{' '}
+          <button
+            className={styles.linkButton}
+            onClick={() => {
+              setOutline(offered.outline ?? null);
+              setState({picked: true});
+            }}
+          >
+            {tr('Use it')}
+          </button>
+        </p>
+      )}
       <div className={local.grid}>
         {FIELDS.map(([key, label]) => (
           <label key={key} className={styles.field}>

@@ -603,6 +603,8 @@ const de: Record<string, string> = {
   "Filled in, save to keep them.": "Eingetragen, mit Speichern übernehmen.",
   "Outline of the {model}, measured on a photo from straight above. It counts for this model only.": "Kontur des {model}, vermessen auf einem Foto von genau oben. Sie gilt nur für dieses Modell.",
   "A stored outline that is none of the models: pick the model again or enter the sizes.": "Eine gespeicherte Kontur, die zu keinem Modell passt: Modell neu wählen oder Maße eintragen.",
+  "This model has a measured outline.": "Für dieses Modell gibt es eine vermessene Kontur.",
+  "Use it": "Übernehmen",
   "{what} is not a number.": "{what} ist keine Zahl.",
   "Width and the lengths to the front and back are needed.": "Breite und die Längen nach vorne und hinten werden gebraucht.",
   "The blade diameter can be at most {n} cm.": "Der Messer-Durchmesser darf höchstens {n} cm sein.",

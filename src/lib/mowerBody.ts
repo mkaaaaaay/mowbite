@@ -55,7 +55,19 @@ export function bodyFrom(s: MowerSizes | undefined): MowerBody | null {
 // mowers measured on a real one: picking one under Mower sizes fills in the fields, the outline where one was measured
 export const MOWER_MODELS: {key: string; label: string; sizes: Required<Omit<MowerSizes, 'outline'>>; outline?: Outline}[] = [
   // the same body on all three
-  {key: 'yf-nx', label: 'YardForce NX60 / NX80 / NX100', sizes: {width: 0.41, front: 0.43, rear: 0.18, blade: 0.18, bladeAhead: 0.185, bladeOffset: 0}},
+  {
+    key: 'yf-nx',
+    label: 'YardForce NX60 / NX80 / NX100',
+    sizes: {width: 0.41, front: 0.43, rear: 0.18, blade: 0.18, bladeAhead: 0.185, bladeOffset: 0},
+    // from two photos of an NX60 from above next to a folding ruler, scaled to the sizes: the front narrower with its
+    // corners cut off, widest just behind the rear axle, both sides averaged
+    outline: [
+      [0.43, 0.047], [0.428, 0.057], [0.398, 0.134], [0.389, 0.148], [0.371, 0.165], [0.203, 0.191], [0.021, 0.205],
+      [-0.079, 0.204], [-0.114, 0.194], [-0.137, 0.173], [-0.171, 0.097], [-0.18, 0.055], [-0.18, -0.055],
+      [-0.171, -0.097], [-0.137, -0.173], [-0.114, -0.194], [-0.079, -0.204], [0.021, -0.205], [0.203, -0.191],
+      [0.371, -0.165], [0.389, -0.148], [0.398, -0.134], [0.428, -0.057], [0.43, -0.047]
+    ],
+  },
   {
     key: 'yf-classic500',
     label: 'YardForce Classic 500B',
