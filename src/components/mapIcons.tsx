@@ -4,6 +4,7 @@
 // A real mower from above (fit: its width over its length) fills -1..1 both ways from its back to its front: with the
 // mower's sizes set the map stretches it onto the body exactly, otherwise it's drawn that much narrower.
 // Dock icons are drawn upright in the same unit box.
+import {useId} from 'react';
 import {OPENMOWER_EDGE, OPENMOWER_PATHS} from './openmowerArt';
 
 const mouth = (deg: number) => {
@@ -164,36 +165,249 @@ const rearWheels = (x: number, len: number, inner: number) => (
   </>
 );
 
+const soft = {stroke: '#000', strokeWidth: 0.6, strokeOpacity: 0.25} as const;
+const stopText = {
+  fill: '#fff',
+  fontFamily: 'Arial Black, Arial, Helvetica, sans-serif',
+  fontWeight: 900,
+  textAnchor: 'middle',
+} as const;
+
+type Pt = readonly [number, number];
+
+// a closed outline through the points, curving between them (Catmull-Rom as Béziers), sharp at the corners given
+function outline(pts: readonly Pt[], corners: readonly number[] = []): string {
+  const n = pts.length;
+  const at = (i: number) => pts[(i + n) % n];
+  const f = (v: number) => +v.toFixed(3);
+  let d = `M${f(pts[0][0])},${f(pts[0][1])}`;
+  for (let i = 0; i < n; i++) {
+    const [a, b, c, e] = [at(i - 1), at(i), at(i + 1), at(i + 2)];
+    const from = corners.includes(i);
+    const to = corners.includes((i + 1) % n);
+    if (from && to) {
+      d += `L${f(c[0])},${f(c[1])}`;
+      continue;
+    }
+    const c1 = from ? b : [b[0] + (c[0] - a[0]) / 6, b[1] + (c[1] - a[1]) / 6];
+    const c2 = to ? c : [c[0] - (e[0] - b[0]) / 6, c[1] - (e[1] - b[1]) / 6];
+    d += `C${f(c1[0])},${f(c1[1])} ${f(c2[0])},${f(c2[1])} ${f(c[0])},${f(c[1])}`;
+  }
+  return d + 'Z';
+}
+
+// a symmetric outline from its left half, both ends of it on the middle line
+function both(half: readonly Pt[], corners: readonly number[] = []): string {
+  const n = half.length;
+  const right = half.slice(1, -1).reverse().map(([x, y]): Pt => [x, -y]);
+  return outline([...half, ...right], [...corners, ...corners.filter((i) => i > 0 && i < n - 1).map((i) => 2 * n - 2 - i)]);
+}
+
+// gradients need ids of their own on the page, one inside a hidden svg would paint nothing
+function Shaded({draw}: {draw: (id: string) => React.ReactNode}) {
+  return draw(useId());
+}
+
+// the left and the right one of a part drawn for the left
+const SIDES = [1, -1];
+
+// a Classic 500B, traced from a photo from straight above. Symmetric parts as their left half from the front round to
+// the back, both() adds the right one
+const C500 = {
+  base: both(
+    [
+      [1, 0], [0.996, -0.214], [0.982, -0.397], [0.966, -0.506], [0.958, -0.53], [0.916, -0.533], [0.904, -0.625],
+      [0.884, -0.717], [0.857, -0.781], [0.826, -0.824], [0.789, -0.849], [0.742, -0.86], [0.62, -0.872],
+      [0.485, -0.886], [0.282, -0.909], [0.147, -0.934], [0.011, -0.956], [-0.09, -0.971], [-0.191, -0.982],
+      [-0.293, -0.991], [-0.394, -0.996], [-0.462, -0.995], [-0.523, -0.989], [-0.527, -0.941], [-0.529, -0.695],
+      [-0.935, -0.695], [-0.982, -0.658], [-0.996, -0.585], [-0.999, 0],
+    ],
+    [4, 5, 22, 23, 24, 28],
+  ),
+  bumper: both(
+    [
+      [0.991, 0], [0.986, -0.214], [0.973, -0.397], [0.958, -0.501], [0.95, -0.512], [0.924, -0.512], [0.932, -0.384],
+      [0.942, -0.214], [0.945, 0],
+    ],
+    [3, 4, 5],
+  ),
+  shell: both(
+    [
+      [0.943, 0], [0.941, -0.137], [0.935, -0.229], [0.931, -0.269], [0.918, -0.375], [0.904, -0.463], [0.89, -0.527],
+      [0.877, -0.584], [0.863, -0.637], [0.85, -0.676], [0.836, -0.705], [0.823, -0.724], [0.796, -0.753],
+      [0.755, -0.776], [0.701, -0.788], [0.62, -0.804], [0.539, -0.823], [0.458, -0.839], [0.377, -0.855],
+      [0.295, -0.868], [0.214, -0.88], [0.133, -0.892], [0.052, -0.902], [-0.029, -0.912], [-0.11, -0.921],
+      [-0.191, -0.93], [-0.272, -0.939], [-0.354, -0.947], [-0.452, -0.622], [-0.489, -0.625], [-0.597, -0.64],
+      [-0.8, -0.643], [-0.922, -0.639], [-0.954, -0.618], [-0.974, -0.576], [-0.986, -0.512], [-0.991, -0.43],
+      [-0.992, 0],
+    ],
+    [27, 28],
+  ),
+  hood: both(
+    [
+      [0.942, 0], [0.939, -0.399], [0.877, -0.404], [0.782, -0.43], [0.682, -0.469], [0.489, -0.507], [0.295, -0.547],
+      [0.147, -0.572], [0.011, -0.587], [-0.124, -0.601], [-0.259, -0.611], [-0.354, -0.614], [-0.452, -0.617],
+      [-0.489, -0.618], [-0.597, -0.494], [-0.732, -0.457], [-0.992, -0.452], [-0.992, 0],
+    ],
+    [11, 12],
+  ),
+  spine: both(
+    [
+      [0.89, 0], [0.876, -0.366], [0.654, -0.355], [0.431, -0.322], [0.282, -0.302], [0.228, -0.315], [0.079, -0.343],
+      [-0.124, -0.37], [-0.293, -0.393], [-0.496, -0.419], [-0.732, -0.439], [-0.992, -0.446], [-0.992, 0],
+    ],
+  ),
+  window: both(
+    [
+      [0.88, 0], [0.876, -0.252], [0.823, -0.265], [0.62, -0.274], [0.451, -0.28], [0.436, -0.269], [0.436, 0],
+    ],
+  ),
+  windowIn: both([[0.832, 0], [0.83, -0.216], [0.755, -0.225], [0.62, -0.232], [0.471, -0.239], [0.47, 0]]),
+  lip: both([[0.47, 0], [0.471, -0.239], [0.452, -0.274], [0.435, -0.271], [0.435, 0]]),
+  plateau: both(
+    [
+      [0.248, 0], [0.241, -0.274], [0.174, -0.311], [0.011, -0.329], [-0.191, -0.34], [-0.276, -0.347], [-0.276, 0],
+    ],
+  ),
+  fender: outline(
+    [
+      [-0.285, -0.92], [-0.45, -0.6], [-0.524, -0.598], [-0.436, -0.881], [-0.439, -0.956], [-0.335, -0.956],
+    ],
+    [0, 1, 2, 3, 4, 5],
+  ),
+  fenderTop: outline([[-0.285, -0.92], [-0.45, -0.6], [-0.47, -0.6], [-0.308, -0.914]], [0, 1, 2, 3]),
+  shine:
+    outline(
+      [
+        [0.939, -0.399], [0.877, -0.404], [0.782, -0.43], [0.682, -0.469], [0.489, -0.507], [0.295, -0.547],
+        [0.147, -0.572], [0.011, -0.587], [-0.124, -0.601], [-0.259, -0.611], [-0.354, -0.614], [-0.354, -0.629],
+        [-0.259, -0.625], [-0.124, -0.616], [0.011, -0.601], [0.147, -0.587], [0.295, -0.561], [0.489, -0.522],
+        [0.682, -0.484], [0.782, -0.444], [0.877, -0.419], [0.939, -0.413],
+      ],
+      [0, 10, 11, 21],
+    ) +
+    outline(
+      [
+        [-0.462, -0.437], [-0.597, -0.442], [-0.8, -0.448], [-0.976, -0.452], [-0.976, -0.472], [-0.8, -0.468],
+        [-0.597, -0.463], [-0.462, -0.457],
+      ],
+      [0, 3, 4, 7],
+    ),
+  keypad: outline(
+    [
+      [-0.284, -0.332], [-0.284, 0.334], [-0.298, 0.353], [-0.604, 0.353], [-0.632, 0.334], [-0.632, 0.054],
+      [-0.546, -0.083], [-0.546, -0.33], [-0.529, -0.352], [-0.3, -0.352],
+    ],
+  ),
+};
+
+function classic500(id: string, emergency: boolean) {
+  return (
+    <>
+      <defs>
+        <linearGradient id={id + 's'} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#d9520b" />
+          <stop offset="0.2" stopColor="#f4650f" />
+          <stop offset="0.5" stopColor="#ff7016" />
+          <stop offset="0.8" stopColor="#f4650f" />
+          <stop offset="1" stopColor="#d9520b" />
+        </linearGradient>
+        <linearGradient id={id + 'h'} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#f96a12" />
+          <stop offset="0.5" stopColor="#ff7d26" />
+          <stop offset="1" stopColor="#f96a12" />
+        </linearGradient>
+        <linearGradient id={id + 'p'} x1="1" y1="0" x2="0" y2="0">
+          <stop offset="0" stopColor="#ff8a3a" />
+          <stop offset="0.55" stopColor="#ff8030" />
+          <stop offset="1" stopColor="#ff7a26" />
+        </linearGradient>
+        <radialGradient id={id + 'k'} cx="0.42" cy="0.4" r="0.7">
+          <stop offset="0" stopColor="#4a4f57" />
+          <stop offset="1" stopColor="#1f2226" />
+        </radialGradient>
+        <linearGradient id={id + 'r'} x1="1" y1="0" x2="0" y2="0">
+          <stop offset="0" stopColor="#f23a52" />
+          <stop offset="1" stopColor="#c8132f" />
+        </linearGradient>
+      </defs>
+      {/* the rear wheels with their tread and the rim outside */}
+      {SIDES.map((s) => (
+        <g key={s} transform={`scale(1 ${s})`}>
+          <rect x={-0.945} y={-0.902} width={0.49} height={0.208} rx={0.024} ry={0.033} fill="#232323" {...line} />
+          {[0, 1, 2, 3, 4, 5].map((i) => (
+            <rect key={i} x={-0.579 - i * 0.065} y={-0.856} width={0.03} height={0.141} rx={0.007} ry={0.009} fill="#3d3d3d" />
+          ))}
+          <rect x={-0.935} y={-0.902} width={0.47} height={0.023} rx={0.008} ry={0.011} fill="#a9abad" />
+        </g>
+      ))}
+      <path d={C500.base} fill="#2a2d32" {...line} />
+      <path d={C500.bumper} fill="#474b52" />
+      {SIDES.map((s) => (
+        <g key={s} transform={`scale(1 ${s})`}>
+          <path d={C500.fender} fill="#2e3137" {...line} />
+          <path d={C500.fenderTop} fill="#50545b" />
+        </g>
+      ))}
+      <path d={C500.shell} fill={`url(#${id}s)`} {...line} />
+      <path d={C500.hood} fill={`url(#${id}h)`} {...soft} />
+      <path d={C500.spine} fill={`url(#${id}p)`} {...soft} />
+      {SIDES.map((s) => (
+        <path key={s} transform={`scale(1 ${s})`} d={C500.shine} fill="#ffb07a" fillOpacity={0.55} />
+      ))}
+      <path d={C500.window} fill="#ff8d45" {...soft} />
+      <path d={C500.windowIn} fill="#ff9752" />
+      <path d={C500.lip} fill="#ffc8a2" />
+      {/* the height knob on its plateau */}
+      <path d={C500.plateau} fill="#ff8a3e" {...soft} />
+      <ellipse cx={0.015} cy={0} rx={0.161} ry={0.218} fill="#1b1d20" {...line} />
+      {[
+        [0.167, 0],
+        [0.015, 0.205],
+        [-0.137, 0],
+        [0.015, -0.205],
+      ].map(([cx, cy]) => (
+        <ellipse key={`${cx} ${cy}`} cx={cx} cy={cy} rx={0.006} ry={0.008} fill="#f2f2f2" />
+      ))}
+      <ellipse cx={0.017} cy={0} rx={0.116} ry={0.157} fill={`url(#${id}k)`} />
+      <ellipse cx={0.018} cy={0} rx={0.065} ry={0.088} fill="#16181b" />
+      <ellipse cx={0.037} cy={-0.024} rx={0.027} ry={0.037} fill="#fff" fillOpacity={0.22} />
+      {/* the keypad */}
+      <path d={C500.keypad} fill="#2c3036" {...line} />
+      <g fill="#383d45" stroke="#ff7a3c" strokeOpacity={0.85} strokeWidth={0.6}>
+        <rect x={-0.347} y={-0.283} width={0.03} height={0.093} rx={0.008} ry={0.011} />
+        {[0, 1, 2, 3, 4, 5].map((i) => (
+          <rect key={'b' + i} x={-0.406} y={-0.288 + i * 0.1} width={0.035} height={0.08} rx={0.009} ry={0.013} />
+        ))}
+        {[0, 1, 2, 3, 4, 5, 6].map((i) => (
+          <rect key={'d' + i} x={-0.448} y={-0.301 + i * 0.085} width={0.03} height={0.073} rx={0.008} ry={0.011} />
+        ))}
+      </g>
+      {/* the panel at the back with the stop button */}
+      <rect x={-0.999} y={-0.399} width={0.351} height={0.799} rx={0.018} ry={0.024} fill="#2b2e33" {...line} />
+      <rect x={-0.89} y={-0.223} width={0.174} height={0.446} rx={0.02} ry={0.027} fill="#8f0f22" />
+      <rect x={-0.867} y={-0.207} width={0.142} height={0.413} rx={0.015} ry={0.02} fill={`url(#${id}r)`} />
+      {emergency && (
+        <rect x={-0.867} y={-0.207} width={0.142} height={0.413} rx={0.015} ry={0.02} fill="#fff" opacity={0}>
+          <animate attributeName="opacity" values="0;1;0" dur="0.8s" repeatCount="indefinite" />
+        </rect>
+      )}
+      {/* upright on the button: across the mower, the tops of the letters to the front */}
+      <text transform={`matrix(0 1 ${-42.5 / 57} 0 -0.839 0)`} fontSize={0.154} letterSpacing={0.004} {...stopText}>
+        STOP
+      </text>
+    </>
+  );
+}
+
 const MODELS: MowerIcon[] = [
   {
     key: 'yf500',
     label: 'YardForce Classic 500',
     fit: 42.5 / 57,
-    // traced from a photo from straight above (a Classic 500B, 57 x 42.5 cm): the black base narrower at the front, its
-    // corners over the wheels at the back, the orange shell over nearly all of it, the height knob in the middle, the
-    // keypad behind it and the stop button at the back
-    draw: ({emergency = false} = {}) => (
-      <>
-        <path
-          d="M1,-0.2 L1,0.2 Q0.97,0.6 0.8,0.85 L-0.36,0.995 L-0.46,0.982 L-0.52,0.905 L-0.92,0.875 L-0.95,0.6 Q-1,0.55 -1,0.42 L-1,-0.42 Q-1,-0.55 -0.95,-0.6 L-0.92,-0.875 L-0.52,-0.905 L-0.46,-0.982 L-0.36,-0.995 L0.8,-0.85 Q0.97,-0.6 1,-0.2 Z"
-          fill={BLACK}
-          {...line}
-        />
-        <rect x={-0.94} y={0.66} width={0.44} height={0.245} rx={0.04} fill={WHEEL} {...line} />
-        <rect x={-0.94} y={-0.905} width={0.44} height={0.245} rx={0.04} fill={WHEEL} {...line} />
-        <path
-          d="M0.94,-0.15 L0.94,0.15 Q0.93,0.7 0.72,0.796 L0.3,0.88 L-0.31,0.957 Q-0.335,0.96 -0.345,0.92 L-0.45,0.645 L-0.9,0.65 Q-0.97,0.64 -0.975,0.5 L-0.975,-0.5 Q-0.97,-0.64 -0.9,-0.65 L-0.45,-0.645 L-0.345,-0.92 Q-0.335,-0.96 -0.31,-0.957 L0.3,-0.88 L0.72,-0.796 Q0.93,-0.7 0.94,-0.15 Z"
-          fill={ORANGE}
-          {...line}
-        />
-        <rect x={0.46} y={-0.27} width={0.44} height={0.54} rx={0.05} fill="#ef6c00" {...line} />
-        <ellipse cx={0.02} cy={0} rx={0.15} ry={0.205} fill={BLACK} {...line} />
-        <ellipse cx={0.02} cy={0} rx={0.075} ry={0.1} fill={WHEEL} />
-        <rect x={-0.62} y={-0.335} width={0.346} height={0.67} rx={0.05} fill="#3a3a3a" {...line} />
-        <rect x={-1} y={-0.405} width={0.361} height={0.81} rx={0.05} fill={BLACK} {...line} />
-        {stopButton(-0.873, 0.176, 0.454, emergency)}
-      </>
-    ),
+    // a Classic 500B (57 x 42.5 cm) from above: the shell with its creases, the height knob, the keypad and the stop button
+    // at the back, under it the base with the bumper and the fenders over the rear wheels
+    draw: ({emergency = false} = {}) => <Shaded draw={(id) => classic500(id, emergency)} />,
   },
   {
     key: 'sa650',
