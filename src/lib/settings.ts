@@ -54,7 +54,8 @@ export interface Settings {
   // own aerial imagery source, xyz tile url
   imagery?: {url?: string; attribution?: string};
   // the mower's sizes in meters for its outline and the strip its blade cuts on the map (lib/mowerBody)
-  mower?: {width?: number; front?: number; rear?: number; blade?: number; bladeAhead?: number; bladeOffset?: number};
+  // outline: the body's real contour from above, [ahead, left] in meters around the same point, the rectangle without it
+  mower?: {width?: number; front?: number; rear?: number; blade?: number; bladeAhead?: number; bladeOffset?: number; outline?: [number, number][]};
 }
 
 const STORAGE_KEY = 'appSettings';

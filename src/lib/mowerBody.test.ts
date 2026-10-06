@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import type {MapArea} from '@/hooks/useMowerMap';
-import {bladeSeconds, bodyFrom, bodyShape, modelOf, MOWER_MODELS, realEdges, swathEnd, swathGroups, swathPieces} from './mowerBody';
+import {bladeSeconds, bodyFrom, bodyShape, modelOf, MOWER_MODELS, outlineOf, realEdges, swathEnd, swathGroups, swathPieces} from './mowerBody';
 
 const body = {width: 0.4, front: 0.43, rear: 0.14, blade: 0.18, bladeAhead: 0.17, bladeOffset: 0};
 
@@ -137,6 +137,45 @@ describe('real edges', () => {
 
   it('leaves out an obstacle the mower drove round tighter than its width', () => {
     expect(realEdges([square('o', 'obstacle', 0, 0, 0.3)], 0.4).obstacles).toEqual([]);
+  });
+});
+
+describe('real outline', () => {
+  const outline: [number, number][] = [
+    [0.4, 0.1],
+    [0.3, 0.2],
+    [-0.1, 0.2],
+    [-0.1, -0.2],
+    [0.3, -0.2],
+    [0.4, -0.1],
+  ];
+
+  it('takes an outline of at least 3 points, the rectangle otherwise', () => {
+    const base = {width: 0.4, front: 0.4, rear: 0.1};
+    expect(bodyFrom({...base, outline})?.outline).toEqual(outline);
+    expect(bodyFrom(base)?.outline).toBeUndefined();
+    expect(bodyFrom({...base, outline: outline.slice(0, 2)})?.outline).toBeUndefined();
+    expect(outlineOf([[0, 0], [1, NaN], [0, 1]])).toBeUndefined();
+  });
+
+  it('draws the body along the outline, turned with the heading', () => {
+    const b = {width: 0.4, front: 0.4, rear: 0.1, blade: 0.18, bladeAhead: 0.17, bladeOffset: 0, outline};
+    const north = bodyShape(b, 1, 2, Math.PI / 2);
+    expect(north.corners).toHaveLength(6);
+    // ahead is +y, left is -x
+    expect(north.corners[0].x).toBeCloseTo(0.9);
+    expect(north.corners[0].y).toBeCloseTo(2.4);
+  });
+
+  it('fits the sizes of the models that have one', () => {
+    for (const m of MOWER_MODELS.filter((x) => x.outline)) {
+      const xs = m.outline!.map(([a]) => a);
+      const ys = m.outline!.map(([, l]) => Math.abs(l));
+      expect(Math.max(...xs)).toBeCloseTo(m.sizes.front, 3);
+      expect(Math.min(...xs)).toBeCloseTo(-m.sizes.rear, 3);
+      expect(Math.max(...ys)).toBeLessThanOrEqual(m.sizes.width / 2 + 0.001);
+      expect(modelOf({...m.sizes, outline: m.outline})).toBe(m.key);
+    }
   });
 });
 

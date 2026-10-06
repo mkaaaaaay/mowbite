@@ -2,7 +2,7 @@
 
 import {numParam, useMowerParams} from '@/hooks/useMowerParams';
 import {tr} from '@/lib/i18n';
-import {bodyFrom, MAX_BLADE, modelOf, MOWER_MODELS, type MowerBody, type MowerSizes} from '@/lib/mowerBody';
+import {bodyFrom, MAX_BLADE, modelOf, MOWER_MODELS, outlineOf, type MowerBody, type MowerSizes, type Outline} from '@/lib/mowerBody';
 import {PARAM} from '@/lib/openmower';
 import {saveSettings, settingsStore, type Settings} from '@/lib/settings';
 import {useState} from 'react';
@@ -51,7 +51,11 @@ function Sketch({body, antenna}: {body: MowerBody; antenna?: {x: number; y: numb
     <svg className={local.sketch} viewBox={`${x0} ${-halfW - pad} ${w} ${h}`} role="img" aria-label={tr('The mower from above')}>
       {/* y flipped: left of the mower is up */}
       <g transform="scale(1 -1)">
-        <rect className={local.body} x={-body.rear} y={-body.width / 2} width={body.front + body.rear} height={body.width} rx={0.03} />
+        {body.outline ? (
+          <polygon className={local.body} points={body.outline.map(([ahead, left]) => `${ahead},${left}`).join(' ')} />
+        ) : (
+          <rect className={local.body} x={-body.rear} y={-body.width / 2} width={body.front + body.rear} height={body.width} rx={0.03} />
+        )}
         {body.blade > 0 && <circle className={local.blade} cx={body.bladeAhead} cy={body.bladeOffset} r={body.blade / 2} />}
         <line className={local.axle} x1={0} y1={-body.width / 2} x2={0} y2={body.width / 2} />
         <circle className={local.point} cx={0} cy={0} r={0.015} />
@@ -74,12 +78,17 @@ function Sketch({body, antenna}: {body: MowerBody; antenna?: {x: number; y: numb
 export function MowerBodySettings({settings, styles}: {settings: Settings; styles: Styles}) {
   const sizes = settings.mower;
   const [form, setForm] = useState<Form>(() => formFrom(sizes));
+  // the body's real contour, from a model; typed sizes go back to the rectangle
+  const [outline, setOutline] = useState<Outline | null>(() => outlineOf(sizes?.outline) ?? null);
   // the saved sizes arrive after the first render (the page is built ahead, then the container answers) or change on
   // another device: the fields follow them as long as nothing is typed in them
   const [shown, setShown] = useState(sizes);
   if (shown !== sizes) {
     setShown(sizes);
-    if (JSON.stringify(form) === JSON.stringify(formFrom(shown))) setForm(formFrom(sizes));
+    if (JSON.stringify(form) === JSON.stringify(formFrom(shown))) {
+      setForm(formFrom(sizes));
+      setOutline(outlineOf(sizes?.outline) ?? null);
+    }
   }
   // "other mower" picked while the fields still hold a model's sizes
   const [other, setOther] = useState(false);
@@ -92,7 +101,10 @@ export function MowerBodySettings({settings, styles}: {settings: Settings; style
   // the sketch follows the fields while typing
   const typed = sizesOf(form);
   const model = other ? '' : (modelOf(typed) ?? '');
-  const sketch = bodyFrom(typed);
+  const rect = bodyFrom(typed);
+  const sketch = rect && outline ? {...rect, outline} : rect;
+  // the model whose outline it is, named so a wrong pick shows
+  const outlineModel = outline ? MOWER_MODELS.find((m) => m.outline && JSON.stringify(m.outline) === JSON.stringify(outline)) : undefined;
   const stored = !!bodyFrom(sizes);
   const blade = typed.blade;
 
@@ -111,6 +123,7 @@ export function MowerBodySettings({settings, styles}: {settings: Settings; style
       return setState({saved: true});
     }
     if (!bodyFrom(next)) return setState({error: tr('Width and the lengths to the front and back are needed.')});
+    if (outline) next.outline = outline;
     if (next.blade !== undefined && (next.blade <= 0 || next.blade > MAX_BLADE))
       return setState({error: tr('The blade diameter can be at most {n} cm.', {n: MAX_BLADE * 100})});
     store(next);
@@ -120,11 +133,13 @@ export function MowerBodySettings({settings, styles}: {settings: Settings; style
   const remove = () => {
     store(null);
     setForm(formFrom(undefined));
+    setOutline(null);
     setState({});
   };
 
   const set = (key: Field, value: string) => {
     setForm({...form, [key]: value});
+    if (key === 'width' || key === 'front' || key === 'rear') setOutline(null);
     setOther(false);
     setState({});
   };
@@ -135,6 +150,7 @@ export function MowerBodySettings({settings, styles}: {settings: Settings; style
     setOther(!m);
     if (!m) return;
     setForm(formFrom(m.sizes));
+    setOutline(m.outline ?? null);
     setState({picked: true});
   };
 
@@ -174,6 +190,7 @@ export function MowerBodySettings({settings, styles}: {settings: Settings; style
         </select>
       </label>
       {sketch && <Sketch body={sketch} antenna={antenna} />}
+      {outline && <p className={styles.dim}>{outlineModel ? tr('Outline of the {model}, measured on a photo from straight above. It counts for this model only.', {model: outlineModel.label}) : tr('A stored outline that is none of the models: pick the model again or enter the sizes.')}</p>}
       <div className={local.grid}>
         {FIELDS.map(([key, label]) => (
           <label key={key} className={styles.field}>

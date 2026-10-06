@@ -14,6 +14,17 @@ export interface MowerBody {
   blade: number;
   bladeAhead: number;
   bladeOffset: number;
+  // the body's real contour from above: [ahead, left] around the same point, the rectangle without it
+  outline?: Outline;
+}
+
+export type Outline = [number, number][];
+
+// a contour of at least 3 points, each [ahead, left] in meters
+export function outlineOf(v: unknown): Outline | undefined {
+  if (!Array.isArray(v) || v.length < 3) return undefined;
+  const pts = v.filter((p): p is [number, number] => Array.isArray(p) && p.length >= 2 && [p[0], p[1]].every((n) => typeof n === 'number' && Number.isFinite(n)));
+  return pts.length === v.length ? pts.map(([a, l]) => [a, l]) : undefined;
 }
 
 export type MowerSizes = NonNullable<Settings['mower']>;
@@ -29,6 +40,7 @@ export function bodyFrom(s: MowerSizes | undefined): MowerBody | null {
   const rear = num(s?.rear);
   if (width === null || front === null || rear === null || width <= 0 || front + rear <= 0) return null;
   const blade = num(s?.blade) ?? 0;
+  const outline = outlineOf(s?.outline);
   return {
     width,
     front,
@@ -36,15 +48,29 @@ export function bodyFrom(s: MowerSizes | undefined): MowerBody | null {
     blade: blade > 0 && blade <= MAX_BLADE ? blade : 0,
     bladeAhead: num(s?.bladeAhead) ?? 0,
     bladeOffset: num(s?.bladeOffset) ?? 0,
+    ...(outline ? {outline} : {}),
   };
 }
 
-// mowers measured on a real one: picking one under Mower sizes fills in the fields
-export const MOWER_MODELS: {key: string; label: string; sizes: Required<MowerSizes>}[] = [
+// mowers measured on a real one: picking one under Mower sizes fills in the fields, the outline where one was measured
+export const MOWER_MODELS: {key: string; label: string; sizes: Required<Omit<MowerSizes, 'outline'>>; outline?: Outline}[] = [
   // the same body on all three
   {key: 'yf-nx', label: 'YardForce NX60 / NX80 / NX100', sizes: {width: 0.41, front: 0.43, rear: 0.18, blade: 0.18, bladeAhead: 0.185, bladeOffset: 0}},
-  {key: 'yf-classic500', label: 'YardForce Classic 500B', sizes: {width: 0.425, front: 0.47, rear: 0.1, blade: 0.18, bladeAhead: 0.18, bladeOffset: 0}},
+  {
+    key: 'yf-classic500',
+    label: 'YardForce Classic 500B',
+    sizes: {width: 0.425, front: 0.47, rear: 0.1, blade: 0.18, bladeAhead: 0.18, bladeOffset: 0},
+    // from a photo from straight above, scaled to the sizes: shell, black base with bumper and the rear wheels, the
+    // front narrower and rounded, both sides averaged
+    outline: [
+      [0.47, 0.058], [0.455, 0.12], [0.43, 0.167], [0.415, 0.18], [0.363, 0.19], [0.132, 0.212], [0.066, 0.212], [-0.043, 0.194],
+      [-0.075, 0.182], [-0.1, 0.07], [-0.1, -0.07], [-0.075, -0.182], [-0.043, -0.194], [0.066, -0.212], [0.132, -0.212],
+      [0.363, -0.19], [0.415, -0.18], [0.43, -0.167], [0.455, -0.12], [0.47, -0.058],
+    ],
+  },
 ];
+
+const SIZES = ['width', 'front', 'rear', 'blade', 'bladeAhead', 'bladeOffset'] as const;
 
 // the model with these sizes, to the millimetre
 export function modelOf(s: MowerSizes | undefined): string | null {
@@ -53,7 +79,7 @@ export function modelOf(s: MowerSizes | undefined): string | null {
   const mm = (v: number) => Math.round(v * 1000);
   const model = MOWER_MODELS.find((m) => {
     const p = bodyFrom(m.sizes)!;
-    return (Object.keys(p) as (keyof MowerBody)[]).every((k) => mm(p[k]) === mm(b[k]));
+    return SIZES.every((k) => mm(p[k]) === mm(b[k]));
   });
   return model?.key ?? null;
 }
@@ -77,7 +103,10 @@ export function bodyShape(b: MowerBody, x: number, y: number, heading: number) {
   const s = Math.sin(heading);
   const at = (ahead: number, left: number) => ({x: x + c * ahead - s * left, y: y + s * ahead + c * left});
   return {
-    corners: [at(b.front, b.width / 2), at(-b.rear, b.width / 2), at(-b.rear, -b.width / 2), at(b.front, -b.width / 2)],
+    // the contour's points, or the rectangle's corners
+    corners: b.outline
+      ? b.outline.map(([ahead, left]) => at(ahead, left))
+      : [at(b.front, b.width / 2), at(-b.rear, b.width / 2), at(-b.rear, -b.width / 2), at(b.front, -b.width / 2)],
     blade: at(b.bladeAhead, b.bladeOffset),
     // the middle of the body, where the icon goes
     middle: at((b.front - b.rear) / 2, 0),

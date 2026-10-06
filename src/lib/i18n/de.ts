@@ -601,6 +601,8 @@ const de: Record<string, string> = {
   "Model": "Modell",
   "Other mower: enter the sizes below": "Anderer Mäher: Maße unten eintragen",
   "Filled in, save to keep them.": "Eingetragen, mit Speichern übernehmen.",
+  "Outline of the {model}, measured on a photo from straight above. It counts for this model only.": "Kontur des {model}, vermessen auf einem Foto von genau oben. Sie gilt nur für dieses Modell.",
+  "A stored outline that is none of the models: pick the model again or enter the sizes.": "Eine gespeicherte Kontur, die zu keinem Modell passt: Modell neu wählen oder Maße eintragen.",
   "{what} is not a number.": "{what} ist keine Zahl.",
   "Width and the lengths to the front and back are needed.": "Breite und die Längen nach vorne und hinten werden gebraucht.",
   "The blade diameter can be at most {n} cm.": "Der Messer-Durchmesser darf höchstens {n} cm sein.",
