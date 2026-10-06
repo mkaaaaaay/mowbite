@@ -129,6 +129,51 @@ export function bodyShape(b: MowerBody, x: number, y: number, heading: number) {
 
 type P = {x: number; y: number};
 
+// Gentle bends of a recorded track drawn round: between two of its points a curve through both (centripetal
+// Catmull-Rom), where the track bends less than ROUND_UP_TO at an end. Sharper turns stay corners, the mower turns on
+// the spot there. Only for drawing: the points are kept, every one of them is on the curve
+const ROUND_UP_TO = (40 * Math.PI) / 180;
+const ROUND_FROM = (1.5 * Math.PI) / 180;
+const ROUND_STEP = 0.05; // m between the points added on a bend
+const turnAt = (a: P, b: P, c: P) => Math.abs(Math.atan2(Math.sin(Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(b.y - a.y, b.x - a.x)), Math.cos(Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(b.y - a.y, b.x - a.x))));
+
+function catmullRom(p0: P, p1: P, p2: P, p3: P, t: number): P {
+  const knot = (a: P, b: P) => Math.max(1e-6, Math.sqrt(Math.hypot(b.x - a.x, b.y - a.y)));
+  const t1 = knot(p0, p1);
+  const t2 = t1 + knot(p1, p2);
+  const t3 = t2 + knot(p2, p3);
+  const u = t1 + (t2 - t1) * t;
+  const mix = (a: P, b: P, ta: number, tb: number): P => ({
+    x: ((tb - u) * a.x + (u - ta) * b.x) / (tb - ta),
+    y: ((tb - u) * a.y + (u - ta) * b.y) / (tb - ta),
+  });
+  const a1 = mix(p0, p1, 0, t1);
+  const a2 = mix(p1, p2, t1, t2);
+  const a3 = mix(p2, p3, t2, t3);
+  return mix(mix(a1, a2, 0, t2), mix(a2, a3, t1, t3), t1, t2);
+}
+
+export function roundBends<T extends P>(pts: readonly T[]): T[] {
+  if (pts.length < 3) return pts.slice();
+  const bend = pts.map((p, i) => (i === 0 || i === pts.length - 1 ? 0 : turnAt(pts[i - 1], p, pts[i + 1])));
+  const gentle = (i: number) => bend[i] > ROUND_FROM && bend[i] < ROUND_UP_TO;
+  const out: T[] = [pts[0]];
+  for (let i = 0; i + 1 < pts.length; i++) {
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const len = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+    if ((gentle(i) || gentle(i + 1)) && len > 2 * ROUND_STEP) {
+      // a corner or a straight bit at an end: the curve leaves along this piece, it doesn't swing out there
+      const p0 = gentle(i) ? pts[i - 1] : {x: 2 * p1.x - p2.x, y: 2 * p1.y - p2.y};
+      const p3 = gentle(i + 1) ? pts[i + 2] : {x: 2 * p2.x - p1.x, y: 2 * p2.y - p1.y};
+      const n = Math.min(10, Math.ceil(len / ROUND_STEP));
+      for (let k = 1; k < n; k++) out.push({...p1, ...catmullRom(p0, p1, p2, p3, k / n)});
+    }
+    out.push(p2);
+  }
+  return out;
+}
+
 // shorter steps of the track don't say which way the mower drove
 const MIN_STEP = 0.05; // m
 // the heading is taken over this much track, gps wobble on short steps would swing the blade about

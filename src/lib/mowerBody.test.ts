@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import type {MapArea} from '@/hooks/useMowerMap';
-import {bladeSeconds, bodyFrom, bodyShape, modelOf, MOWER_MODELS, outlineOf, realEdges, swathEnd, swathGroups, swathPieces} from './mowerBody';
+import {bladeSeconds, bodyFrom, bodyShape, modelOf, MOWER_MODELS, outlineOf, realEdges, roundBends, swathEnd, swathGroups, swathPieces} from './mowerBody';
 
 const body = {width: 0.4, front: 0.43, rear: 0.14, blade: 0.18, bladeAhead: 0.17, bladeOffset: 0};
 
@@ -212,5 +212,43 @@ describe('strip in a few paths', () => {
     );
     expect(g.slice(0, 4)).toEqual([0, 1, 2, 3]);
     expect(g).toHaveLength(6);
+  });
+});
+
+describe('round bends', () => {
+  // a bend of radius 3 m with a point every 0.5 m, like a recorded track simplified to a centimetre
+  const arc = Array.from({length: 13}, (_, i) => ({x: 3 * Math.sin(i / 6), y: 3 - 3 * Math.cos(i / 6), b: true}));
+
+  it('draws a bend round through its points', () => {
+    const r = roundBends(arc);
+    for (const p of arc) expect(r).toContainEqual(p);
+    // on the real circle, where the 0.5 m straight pieces are up to 1 cm off it; at the two ends, where the track
+    // starts and stops mid bend, the curve leaves straight
+    const off = (p: {x: number; y: number}) => Math.abs(Math.hypot(p.x, p.y - 3) - 3);
+    const inner = r.filter((p) => Math.atan2(p.x, 3 - p.y) * 6 > 1 && Math.atan2(p.x, 3 - p.y) * 6 < 11);
+    for (const p of inner) expect(off(p)).toBeLessThan(0.0005);
+    for (const p of r) expect(off(p)).toBeLessThan(0.008);
+    const turns = r.slice(2).map((c, i) => {
+      const [a, b] = [r[i], r[i + 1]];
+      return Math.abs(Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(b.y - a.y, b.x - a.x));
+    });
+    expect(Math.max(...turns)).toBeLessThan((2 * Math.PI) / 180);
+    expect(r.every((p) => p.b)).toBe(true);
+  });
+
+  it('keeps the corners of a turn and straight lanes as they are', () => {
+    const lanes = [
+      {x: 0, y: 0},
+      {x: 5, y: 0},
+      {x: 5, y: 0.14},
+      {x: 0, y: 0.14},
+    ];
+    expect(roundBends(lanes)).toEqual(lanes);
+    const straight = [
+      {x: 0, y: 0},
+      {x: 1, y: 0},
+      {x: 2, y: 0},
+    ];
+    expect(roundBends(straight)).toEqual(straight);
   });
 });

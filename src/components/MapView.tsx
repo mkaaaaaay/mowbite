@@ -5,7 +5,7 @@ import {useComputedSpeed} from '@/hooks/useComputedSpeed';
 import {useEasedPose, type Pose} from '@/hooks/useEasedPose';
 import {containsPoint, polygonArea} from '@/lib/geometry';
 import {settingsStore, type Settings} from '@/lib/settings';
-import {bladeSeconds, bodyShape, realEdges, swathEnd, swathGroups, swathPieces, useMowerBody, type MowerBody} from '@/lib/mowerBody';
+import {bladeSeconds, bodyShape, realEdges, roundBends, swathEnd, swathGroups, swathPieces, useMowerBody, type MowerBody} from '@/lib/mowerBody';
 import {useSensorValue} from '@/hooks/useMowerSensors';
 import {dockIcon, drawMower, mowerIcon} from './mapIcons';
 import {availableSources, imageryTiles, type Datum} from '@/lib/imagery';
@@ -476,7 +476,7 @@ export default function MapView({
           if (i < piece.length && (piece[i].b ?? true) === (piece[start].b ?? true)) continue;
           // include the next point so the runs connect
           const pts = piece.slice(start, Math.min(i + 1, piece.length));
-          if (pts.length >= 2) own.push({points: pts.map(at).join(' '), blades: piece[start].b ?? true});
+          if (pts.length >= 2) own.push({points: roundBends(pts).map(at).join(' '), blades: piece[start].b ?? true});
           start = i;
         }
         cached = own;
@@ -506,7 +506,7 @@ export default function MapView({
     };
     // one stretch with the blades on: its pieces, and the blade's round ends where it began and stopped
     const strip = (pts: Point[], into: {pieces: Point[][]; ends: Point[][]}) => {
-      const pieces = swathPieces(pts, body);
+      const pieces = swathPieces(roundBends(pts), body);
       if (!pieces.length) return;
       into.pieces.push(...pieces);
       const first = pieces[0];
@@ -593,7 +593,9 @@ export default function MapView({
             seg.points.length >= 2 && (seg.blades || !hidden.has('transit')) ? (
               <polyline
                 key={'past' + i}
-                points={seg.points.map((p) => `${(p.x - minX) * scale + padX},${HEIGHT - ((p.y - minY) * scale + padY)}`).join(' ')}
+                points={roundBends(seg.points)
+                  .map((p) => `${(p.x - minX) * scale + padX},${HEIGHT - ((p.y - minY) * scale + padY)}`)
+                  .join(' ')}
                 className={seg.blades ? styles.track : styles.transit}
               />
             ) : null,
