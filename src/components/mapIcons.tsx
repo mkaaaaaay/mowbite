@@ -908,15 +908,37 @@ export const MOWER_ICONS: MowerIcon[] = [
 
 // the yard force charging station from above, the tower at +x: the plate with the guide rails and the grip at the
 // entry, the orange cap with its window and the two charging pins under it. -1..1 from the entry to the tower
+// the YardForce station of the NX models from above, traced from a dealer's photo: the plate with its front corners cut
+// off, the rails guiding the wheels, the pegs' holes, the orange tower at the front with the contacts under it. In units
+// of half its length, the front at +x
+const YF_PLATE = both(
+  [
+    [0.862, 0], [0.862, -0.5], [0.49, -0.677], [-0.81, -0.687], [-0.93, -0.62], [-0.99, -0.45], [-1, -0.3], [-1, 0],
+  ],
+  [1, 2],
+);
+// the dotted fields at the back, beside the wheels
 const yfDots = [-1, 1].flatMap((side) =>
-  Array.from({length: 18}, (_, i) => {
+  Array.from({length: 21}, (_, i) => {
     const row = i % 3;
     const col = Math.floor(i / 3);
-    return <rect key={`${side}${i}`} x={-0.92 + row * 0.12} y={side * (0.16 + col * 0.08) - 0.015} width={0.03} height={0.03} fill="#111" />;
+    const y = side * (0.45 + row * 0.075) - 0.015;
+    return <rect key={`${side}${i}`} x={-0.79 + col * 0.075} y={y} width={0.03} height={0.03} fill="#111" />;
   }),
 );
 
 export const YF_STATION = {length: 0.64, width: 0.44, pins: 0.09}; // m, the pins this far behind the cap's front
+
+// the John Deere Tango E5's station (the SABO MOWiT 500F's too) from above, from photos: the plate with the tread for
+// the wheels at the back, the U of the hood round the mower's nose at the front with the two contact plates inside
+const TANGO_HOOD = both(
+  [
+    [1, 0], [1, -0.4], [0.98, -0.5], [0.9, -0.55], [0.36, -0.55], [0.33, -0.5], [0.36, -0.42], [0.81, -0.42],
+    [0.81, 0],
+  ],
+  [4, 6, 7, 8],
+);
+export const TANGO_STATION = {length: 0.95, width: 0.56, pins: 0.09}; // m, the contacts this far behind the hood's front
 
 export const DOCK_ICONS: {key: string; label: string; real?: typeof YF_STATION; draw: () => React.ReactNode}[] = [
   {key: 'dot', label: 'Dot', draw: () => <circle r={0.65} fill="var(--c-dock)" />},
@@ -926,18 +948,62 @@ export const DOCK_ICONS: {key: string; label: string; real?: typeof YF_STATION; 
     real: YF_STATION,
     draw: () => (
       <>
-        <path
-          d="M-0.94,-0.69 L0.48,-0.69 L0.69,-0.6 L0.69,0.6 L0.48,0.69 L-0.94,0.69 Q-1,0.69 -1,0.63 L-1,-0.63 Q-1,-0.69 -0.94,-0.69 Z"
-          fill="#2b2b2b"
-          stroke="#000"
-          strokeWidth={0.75}
-        />
-        <path d="M0.66,-0.43 L-0.39,-0.64 M0.66,0.43 L-0.39,0.64" stroke="#111" strokeWidth={1.5} strokeLinecap="round" />
+        <path d={YF_PLATE} fill="#262626" stroke="#000" strokeWidth={0.75} />
+        {SIDES.map((s) => (
+          <path
+            key={s}
+            transform={`scale(1 ${s})`}
+            d="M0.6,-0.32 L-0.16,-0.59"
+            stroke="#3a3a3a"
+            strokeWidth={1.5}
+            strokeLinecap="round"
+          />
+        ))}
         {yfDots}
-        <rect x={0.38} y={-0.22} width={0.08} height={0.04} fill="#bdbdbd" />
-        <rect x={0.38} y={0.18} width={0.08} height={0.04} fill="#bdbdbd" />
-        <path d="M0.45,-0.45 L0.95,-0.42 Q1,-0.41 1,-0.36 L1,0.36 Q1,0.41 0.95,0.42 L0.45,0.45 Q0.42,0.45 0.42,0.41 L0.42,-0.41 Q0.42,-0.45 0.45,-0.45 Z" fill="#f4612b" stroke="#000" strokeWidth={0.75} />
-        <rect x={0.57} y={-0.23} width={0.27} height={0.46} rx={0.05} fill="#1e1e1e" />
+        <g fill="#8d8d8d">
+          <circle cx={0.286} cy={0} r={0.022} />
+          <circle cx={-0.783} cy={0} r={0.022} />
+          <circle cx={-0.88} cy={-0.54} r={0.022} />
+          <circle cx={-0.88} cy={0.54} r={0.022} />
+        </g>
+        <rect x={0.49} y={-0.16} width={0.06} height={0.08} fill="#bdbdbd" />
+        <rect x={0.49} y={0.08} width={0.06} height={0.08} fill="#bdbdbd" />
+        <rect x={0.532} y={-0.345} width={0.468} height={0.69} rx={0.08} fill="#f4612b" stroke="#000" strokeWidth={0.75} />
+        <rect x={0.665} y={-0.19} width={0.197} height={0.38} rx={0.04} fill="#1e1e1e" />
+      </>
+    ),
+  },
+  {
+    key: 'tango',
+    label: 'Tango station',
+    real: TANGO_STATION,
+    draw: () => (
+      <>
+        <rect x={-1} y={-0.589} width={2} height={1.178} rx={0.06} fill="#2e3033" stroke="#000" strokeWidth={0.75} />
+        {/* the tread for the wheels at the back */}
+        {SIDES.map((s) => (
+          <path
+            key={s}
+            transform={`scale(1 ${s})`}
+            d={[-0.94, -0.86, -0.78, -0.7, -0.62].map((x) => `M${x},-0.5 L${x + 0.08},-0.42`).join('')}
+            stroke="#1c1d1f"
+            strokeWidth={1.5}
+            strokeLinecap="round"
+          />
+        ))}
+        <path d={TANGO_HOOD} fill="#1b1c1e" stroke="#000" strokeWidth={0.75} />
+        {/* its top in the light, the contact plates inside, the lamp */}
+        <path
+          d="M0.36,-0.5 L0.9,-0.5 Q0.95,-0.48 0.955,-0.4 L0.955,0.4 Q0.95,0.48 0.9,0.5 L0.36,0.5"
+          fill="none"
+          stroke="#45484c"
+          strokeWidth={1}
+        />
+        <g fill="#c3c8cc">
+          <rect x={0.77} y={-0.24} width={0.04} height={0.13} rx={0.01} />
+          <rect x={0.77} y={0.11} width={0.04} height={0.13} rx={0.01} />
+        </g>
+        <circle cx={0.93} cy={-0.36} r={0.022} fill="#5ccf5e" />
       </>
     ),
   },
