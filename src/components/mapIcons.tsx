@@ -945,6 +945,25 @@ const YF_STUDS = [1, -1]
 
 export const YF_STATION = {length: 0.62, width: 0.46, pins: 0.09}; // m, the contacts this far behind the cap's front
 
+// the station with a cap on its tower: the plate, the U of rails, the studs, the holes for the pegs, then the cap, its
+// back edge sloping down over the contacts
+const yfStation = (cap: React.ReactNode) => (
+  <>
+    <path d={YF_PLATE} fill="#262626" stroke="#000" strokeWidth={0.75} />
+    <path d={YF_STUDS} fill="#111" />
+    <path d={YF_RAILS} fill="#34373b" stroke="#000" strokeWidth={0.5} />
+    {SIDES.map((s) => (
+      <path key={s} transform={`scale(1 ${s})`} d={YF_RAIL_TOP} fill="#4a4e53" />
+    ))}
+    <g fill="#0d0d0d">
+      <circle cx={0.668} cy={-0.361} r={0.015} />
+      <circle cx={0.668} cy={0.361} r={0.015} />
+      <circle cx={0.355} cy={0} r={0.015} />
+    </g>
+    {cap}
+  </>
+);
+
 // the John Deere Tango E5's station (the SABO MOWiT 500F's too) from above, from photos: the plate with the tread for
 // the wheels at the back, the U of the hood round the mower's nose at the front with the two contact plates inside
 const TANGO_HOOD = both(
@@ -962,35 +981,14 @@ export const DOCK_ICONS: {key: string; label: string; real?: typeof YF_STATION; 
     key: 'yardforce',
     label: 'YardForce station',
     real: YF_STATION,
-    draw: () => (
-      <>
-        <path d={YF_PLATE} fill="#262626" stroke="#000" strokeWidth={0.75} />
-        <path d={YF_STUDS} fill="#111" />
-        <path d={YF_RAILS} fill="#34373b" stroke="#000" strokeWidth={0.5} />
-        {SIDES.map((s) => (
-          <path key={s} transform={`scale(1 ${s})`} d={YF_RAIL_TOP} fill="#4a4e53" />
-        ))}
-        {/* holes for the pegs */}
-        <g fill="#0d0d0d">
-          <circle cx={0.668} cy={-0.361} r={0.015} />
-          <circle cx={0.668} cy={0.361} r={0.015} />
-          <circle cx={0.355} cy={0} r={0.015} />
-        </g>
-        {/* the tower's cap with its window, its back edge sloping down over the contacts */}
-        <rect
-          x={0.516}
-          y={-0.323}
-          width={0.484}
-          height={0.645}
-          rx={0.071}
-          fill="#f4612b"
-          stroke="#000"
-          strokeWidth={0.75}
-        />
-        <rect x={0.516} y={-0.3} width={0.055} height={0.6} rx={0.02} fill="#000" fillOpacity={0.18} />
-        <rect x={0.645} y={-0.177} width={0.226} height={0.355} rx={0.048} fill="#1e1e1e" />
-      </>
-    ),
+    draw: () =>
+      yfStation(
+        <>
+          <rect x={0.516} y={-0.323} width={0.484} height={0.645} rx={0.071} fill="#f4612b" {...line} />
+          <rect x={0.516} y={-0.3} width={0.055} height={0.6} rx={0.02} fill="#000" fillOpacity={0.18} />
+          <rect x={0.645} y={-0.177} width={0.226} height={0.355} rx={0.048} fill="#1e1e1e" />
+        </>,
+      ),
   },
   {
     key: 'tango',
