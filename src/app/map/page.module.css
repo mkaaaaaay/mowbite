@@ -623,8 +623,8 @@
     margin-top: 6px;
   }
 
-  /* the map stays at the top while the settings under it scroll */
-  .editing .mapCol {
+  /* the map stays at the top while the settings under it scroll, unless it's unpinned */
+  .pinned .mapCol {
     position: sticky;
     top: 0;
     z-index: 4;

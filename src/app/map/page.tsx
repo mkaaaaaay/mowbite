@@ -37,6 +37,9 @@ import {checkMap} from '@/lib/mapCheck';
 import Problems from './Problems';
 
 // useSearchParams needs a suspense boundary in a static export
+// '0' when the map was unpinned on this device
+const PINNED_KEY = 'mapPinned';
+
 export default function MapPage() {
   return (
     <Suspense>
@@ -65,6 +68,20 @@ function MapEditor() {
   const {map, edited, setMap, history, remember, undoStep, originals, setOriginals, dirty, external, dropEdits, mergeNote, mergeExternal} =
     useMapEdits(liveMap);
   const [showStripes, setShowStripes] = useState(true);
+  // on a phone the map stays at the top while the settings under it scroll, unless it was unpinned on this device
+  const [pinned, setPinned] = useState(() => {
+    try {
+      return localStorage.getItem(PINNED_KEY) !== '0';
+    } catch {
+      return true;
+    }
+  });
+  const togglePinned = () => {
+    setPinned(!pinned);
+    try {
+      localStorage.setItem(PINNED_KEY, pinned ? '0' : '1');
+    } catch {}
+  };
   const pastJobs = useMowHistory();
   const jobList = useJobList();
   // null = live trail, otherwise a recorded job shown instead
@@ -452,7 +469,7 @@ function MapEditor() {
           {tr('Map')}
         </h1>
 
-        <div className={[styles.editor, selectedArea && mode === 'idle' ? styles.editing : ''].filter(Boolean).join(' ')}>
+        <div className={[styles.editor, pinned ? styles.pinned : ''].filter(Boolean).join(' ')}>
           <div className={styles.mapCol}>
             {/* phones: undo and save on the map while an area is edited, the toolbar is further down then */}
             {selectedArea && mode === 'idle' && dirty && !preview && (
@@ -486,6 +503,7 @@ function MapEditor() {
               <MapView
                 zoomable
                 viewKey="editor"
+                pin={{on: pinned, onToggle: togglePinned}}
                 map={shownMap}
                 mower={position}
                 emergency={emergency}

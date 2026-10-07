@@ -273,6 +273,13 @@
   opacity: 0.45;
 }
 
+/* only a phone has the settings under the map */
+@media (min-width: 900px) {
+  .zoomButtons button.pin {
+    display: none;
+  }
+}
+
 .zoomButtons button svg {
   display: block;
   margin: auto;

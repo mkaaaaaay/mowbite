@@ -46,6 +46,7 @@ export default function MapControls({
   body,
   reset,
   follow,
+  pin,
 }: {
   // factor < 1 zooms in
   onZoom: (factor: number) => void;
@@ -68,6 +69,8 @@ export default function MapControls({
   reset: {follow: boolean; onReset: () => void} | null;
   // only while the view can follow the mower
   follow?: {on: boolean; onToggle: () => void};
+  // the map editor on a phone: the map stays at the top while the settings under it scroll
+  pin?: {on: boolean; onToggle: () => void};
 }) {
   // the icons, colors and aerial imagery of the maps, over the page
   const [lookOpen, setLookOpen] = useState(false);
@@ -124,6 +127,19 @@ export default function MapControls({
               <circle cx="12" cy="12" r="6" />
               <circle cx="12" cy="12" r="1.5" fill="currentColor" />
               <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
+            </svg>
+          </button>
+        )}
+        {pin && (
+          <button
+            className={[styles.pin, pin.on ? '' : styles.off].filter(Boolean).join(' ')}
+            onClick={pin.onToggle}
+            aria-label="pin map"
+            title={pin.on ? tr('The map stays at the top, tap to let it scroll away') : tr('Keep the map at the top while scrolling')}
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round">
+              <path d="M9 3h6l-1 6 4 3v2H6v-2l4-3-1-6Z" />
+              <path d="M12 14v7" />
             </svg>
           </button>
         )}

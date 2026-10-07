@@ -672,6 +672,8 @@ const de: Record<string, string> = {
   "The mower leaves the rest of the outline pass or lanes it is on and goes on with the next ones.": "Der Mäher lässt den Rest der Randrunde oder Bahnen aus, auf denen er gerade ist, und macht mit den nächsten weiter.",
   "all": "Alle",
   "progress": "Ablauf",
+  "The map stays at the top, tap to let it scroll away": "Die Karte bleibt oben stehen, antippen, damit sie mitscrollt",
+  "Keep the map at the top while scrolling": "Karte beim Scrollen oben halten",
 };
 
 export default de;
