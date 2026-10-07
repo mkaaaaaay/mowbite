@@ -576,9 +576,9 @@ function johnDeereTango(id: string, emergency: boolean, blades: boolean) {
       <ellipse cx={0.084} cy={-0.025} rx={0.013} ry={0.018} fill="#fff" fillOpacity={0.3} />
       {/* the console: the plate, the bezel with the stop button between the stickers, the display and keypad, the handle */}
       <path d={TANGO.plate} fill="#1c1f22" {...line} />
-      {/* and the name of the mower it was drawn from on the plate, where the real one says what it is */}
+      {/* and the name of the mower it was drawn from on the plate, where the real one says what it is, the same way round */}
       <text
-        transform={`matrix(0 1 ${-53.5 / 77.5} 0 -0.117 0)`}
+        transform={`matrix(0 -1 ${53.5 / 77.5} 0 -0.042 0)`}
         fontSize={0.15}
         letterSpacing={0.004}
         {...stopText}
