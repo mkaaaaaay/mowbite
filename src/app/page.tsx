@@ -185,6 +185,8 @@ export default function Home() {
   const datum = datumFromParams(params);
   const planned = schedule ? nextStart(schedule, undefined, datum ? sunTimes(datum.lat, datum.lon) : null) : null;
   const [confirmReset, setConfirmReset] = useState(false);
+  // the runs before the last one, unfolded under it
+  const [moreRuns, setMoreRuns] = useState(false);
   // a tapped skip (area or path) and the seconds until it goes out, null when none is waiting
   const [skip, setSkip] = useState<{id: string; left: number} | null>(null);
   useEffect(() => {
@@ -455,10 +457,19 @@ export default function Home() {
                 {tr('Next start: {when}', {when: `${dayLabel(planned)}, ${clock(planned.getTime() / 1000)}`})}
               </Link>
             )}
-            {recent.last && (
+            {recent.latest.length > 0 && (
               <>
-                <span className={styles.label}>{tr('Last run')}</span>
-                <LastRun run={recent.last} />
+                <span className={styles.label}>{moreRuns ? tr('Last runs') : tr('Last run')}</span>
+                <div className={styles.runList}>
+                  {(moreRuns ? recent.latest : recent.latest.slice(0, 1)).map((r) => (
+                    <LastRun key={r.events[0].id} run={r} />
+                  ))}
+                  {recent.latest.length > 1 && (
+                    <button className={styles.moreRuns} onClick={() => setMoreRuns(!moreRuns)}>
+                      {moreRuns ? tr('Show less') : tr('Show more')}
+                    </button>
+                  )}
+                </div>
               </>
             )}
           </section>

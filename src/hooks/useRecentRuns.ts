@@ -6,8 +6,12 @@ import {useEffect, useRef, useState} from 'react';
 export interface RecentRuns {
   today: MowerEvent[];
   runs: Run[]; // today's, oldest first
-  last: Run | null; // today's newest, or the newest of an earlier day
+  latest: Run[]; // the newest ones, newest first, from today and the days before
 }
+
+// how many runs the dashboard can show, and how many earlier days are looked through for them
+const LATEST = 4;
+const LATEST_DAYS = 7;
 
 // today's events for the dashboard. `bump` changes (e.g. the mower's state) ask again right away,
 // otherwise every 30 s since there's no live event topic
@@ -30,15 +34,13 @@ export function useRecentRuns(bump?: string): RecentRuns | null {
       const todayKey = fileDay(new Date());
       const today = (await eventsOfDay(files, todayKey)).events;
       const runs = groupRuns(today, true).flatMap((e) => (e.kind === 'run' ? [e.run] : []));
-      let last = runs[runs.length - 1] ?? null;
-      for (const d of localDays(files)) {
-        if (last || d === todayKey) continue;
+      const latest = [...runs].reverse();
+      for (const d of localDays(files).filter((d) => d !== todayKey).slice(0, LATEST_DAYS)) {
+        if (latest.length >= LATEST) break;
         const old = groupRuns((await eventsOfDay(files, d)).events, false);
-        const run = old.flatMap((e) => (e.kind === 'run' ? [e.run] : [])).pop();
-        if (run) last = run;
-        break;
+        latest.push(...old.flatMap((e) => (e.kind === 'run' ? [e.run] : [])).reverse());
       }
-      cached = {today, runs, last};
+      cached = {today, runs, latest: latest.slice(0, LATEST)};
       if (alive) setData(cached);
     };
     const run = () => void load().catch(() => {});

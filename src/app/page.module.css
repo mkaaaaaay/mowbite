@@ -352,6 +352,24 @@
   margin-bottom: -10px;
 }
 
+/* the last run, and the ones before it once unfolded */
+.runList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.moreRuns {
+  align-self: flex-start;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-size: 13px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .lastRun {
   display: flex;
   justify-content: space-between;

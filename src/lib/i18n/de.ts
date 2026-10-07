@@ -674,6 +674,9 @@ const de: Record<string, string> = {
   "progress": "Ablauf",
   "The map stays at the top, tap to let it scroll away": "Die Karte bleibt oben stehen, antippen, damit sie mitscrollt",
   "Keep the map at the top while scrolling": "Karte beim Scrollen oben halten",
+  "Last runs": "Letzte Fahrten",
+  "Show more": "Mehr anzeigen",
+  "Show less": "Weniger anzeigen",
 };
 
 export default de;
