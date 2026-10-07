@@ -267,7 +267,8 @@
   color: var(--error);
 }
 
-.controls .resetJobButton {
+.controls .resetJobButton,
+.controls .skipPathButton {
   grid-column: 1 / -1;
   padding: 8px;
   border-style: dashed;
@@ -294,7 +295,7 @@
 
 /* by the width of the card, not the screen: four buttons side by side need about 600px for a label next to its icon */
 @container controls (max-width: 640px) {
-  .controls button:not(.reset) {
+  .controls button:not(.reset):not(.skipPathButton) {
     flex-direction: column;
     gap: 4px;
     padding: 10px 4px;

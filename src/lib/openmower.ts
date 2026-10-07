@@ -40,6 +40,8 @@ export const ACTION = {
   resume: 'mower_logic:mowing/continue',
   goHome: 'mower_logic:mowing/abort_mowing',
   skipArea: 'mower_logic:mowing/skip_area',
+  // the rest of the outline pass or block of lanes being mowed, the mower goes on with the next one
+  skipPath: 'mower_logic:mowing/skip_path',
   resetEmergency: 'mower_logic/reset_emergency',
   startRecording: 'mower_logic:idle/start_area_recording',
   // drops an interrupted job, only offered while idle with one (needs an openmower that has it)

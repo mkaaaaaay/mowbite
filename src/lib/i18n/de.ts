@@ -670,6 +670,8 @@ const de: Record<string, string> = {
   "Only once it lasted that long: a bumper touched while docking often clears itself within seconds.": "Erst wenn er so lange dauert: Ein Bumper-Kontakt beim Andocken hebt sich oft nach Sekunden selbst auf.",
   "Send push messages": "Benachrichtigungen schicken",
   "Saved. Switched off, nothing is sent.": "Gespeichert. Ausgeschaltet, es wird nichts gesendet.",
+  "Skip this path": "Diesen Pfad überspringen",
+  "The mower leaves the rest of the outline pass or lanes it is on and goes on with the next ones.": "Der Mäher lässt den Rest der Randrunde oder Bahnen aus, auf denen er gerade ist, und macht mit den nächsten weiter.",
 };
 
 export default de;

@@ -45,7 +45,8 @@ import {ACTION, PARAM} from '@/lib/openmower';
 const DRIVING = new Set(['MOWING', 'PAUSED', 'DOCKING', 'UNDOCKING']);
 
 const ACTION_RESET_EMERGENCY = ACTION.resetEmergency;
-// skipping an area drops what's left of it, so it goes out only after a few seconds and a second tap takes it back
+// skipping an area or a path drops what's left of it, so it goes out only after a few seconds and a second tap takes
+// it back
 const SKIP_DELAY = 4;
 // the left out start that was closed, by its time
 const MISSED_SEEN_KEY = 'scheduleMissedSeen';
@@ -184,22 +185,23 @@ export default function Home() {
   const datum = datumFromParams(params);
   const planned = schedule ? nextStart(schedule, undefined, datum ? sunTimes(datum.lat, datum.lon) : null) : null;
   const [confirmReset, setConfirmReset] = useState(false);
-  // seconds until a tapped skip goes out, null when none is waiting
-  const [skipLeft, setSkipLeft] = useState<number | null>(null);
+  // a tapped skip (area or path) and the seconds until it goes out, null when none is waiting
+  const [skip, setSkip] = useState<{id: string; left: number} | null>(null);
   useEffect(() => {
-    if (skipLeft === null) return;
+    if (skip === null) return;
     const t = setTimeout(() => {
-      if (skipLeft > 1) return setSkipLeft(skipLeft - 1);
-      setSkipLeft(null);
-      publishAction(ACTION.skipArea);
+      if (skip.left > 1) return setSkip({...skip, left: skip.left - 1});
+      setSkip(null);
+      publishAction(skip.id);
     }, 1000);
     return () => clearTimeout(t);
-  }, [skipLeft, publishAction]);
+  }, [skip, publishAction]);
+  const toggleSkip = (id: string) => setSkip(skip?.id === id ? null : {id, left: SKIP_DELAY});
 
   const current = state?.current_state ?? '';
   const driving = DRIVING.has(current);
   // a waiting skip is dropped when there's nothing to skip anymore or the connection went
-  if (skipLeft !== null && (!live || current !== 'MOWING' || !hasAction(ACTION.skipArea))) setSkipLeft(null);
+  if (skip !== null && (!live || current !== 'MOWING' || !hasAction(skip.id))) setSkip(null);
   const showMap = !!map && (driving || settings.dashboard?.map === 'always');
   const docked = isDocked(state, values['om_v_charge']);
   const battery = state ? Math.round(state.battery_percentage * 100) : 0;
@@ -314,14 +316,22 @@ export default function Home() {
                   className={a.main ? styles.main : undefined}
                   // the mower still offers start while the emergency stop is active, it has to be reset first
                   disabled={!live || !hasAction(a.id) || !!state.emergency}
-                  onClick={() =>
-                    a.id === ACTION.skipArea ? setSkipLeft(skipLeft === null ? SKIP_DELAY : null) : publishAction(a.id)
-                  }
+                  onClick={() => (a.id === ACTION.skipArea ? toggleSkip(a.id) : publishAction(a.id))}
                 >
                   <a.Icon size={20} />
-                  {a.id === ACTION.skipArea && skipLeft !== null ? tr('Undo ({n} s)', {n: skipLeft}) : tr(a.label)}
+                  {skip?.id === a.id ? tr('Undo ({n} s)', {n: skip.left}) : tr(a.label)}
                 </button>
               ))}
+              {live && current === 'MOWING' && hasAction(ACTION.skipPath) && !state.emergency && (
+                <button
+                  className={styles.skipPathButton}
+                  title={tr('The mower leaves the rest of the outline pass or lanes it is on and goes on with the next ones.')}
+                  onClick={() => toggleSkip(ACTION.skipPath)}
+                >
+                  <SkipIcon size={16} />
+                  {skip?.id === ACTION.skipPath ? tr('Undo ({n} s)', {n: skip.left}) : tr('Skip this path')}
+                </button>
+              )}
               {live &&
                 hasAction(ACTION.resetJob) &&
                 !state.emergency &&
