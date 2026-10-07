@@ -30,7 +30,6 @@ const de: Record<string, string> = {
   "Charging time": "Ladedauer",
   "CPU load": "CPU-Last",
   "CPU temperature": "CPU-Temperatur",
-  "Already drawn the inner area? Select it, the note there cuts it out in one click.": "Innere Fläche schon gezeichnet? Wähle sie aus, der Hinweis dort schneidet sie mit einem Klick aus.",
   "Data volume": "Datenlaufwerk",
   "Each start time has its own days, times and areas. For a plan per area, add a start time for each and pick only that area.": "Jede Startzeit hat eigene Tage, Zeiten und Flächen. Für einen eigenen Plan pro Fläche lege je eine Startzeit an und wähle nur diese Fläche.",
   "End pause": "Pause beenden",
