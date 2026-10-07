@@ -400,6 +400,243 @@ function classic500(id: string, emergency: boolean) {
   );
 }
 
+// a John Deere Tango E5 (the same as a SABO MOWiT 500F), traced from a photo from straight above. Symmetric parts as
+// their left half from the front round to the back, both() adds the right one; vent, stripe, panel, faces and ear are
+// the left ones, the right ones are drawn mirrored
+const TANGO = {
+  base: both(
+    [
+      [1, 0], [1, -0.239], [0.917, -0.564], [0.837, -0.71], [0.662, -0.778], [0.396, -0.871], [-0.006, -0.92],
+      [-0.11, -0.968], [-0.265, -0.994], [-0.471, -0.998], [-0.695, -0.938], [-0.734, -0.879], [-0.801, -0.68],
+      [-0.902, -0.613], [-0.948, -0.557], [-1, -0.389], [-1, 0],
+    ],
+  ),
+  shell: both(
+    [
+      [0.972, 0], [0.972, -0.198], [0.892, -0.527], [0.823, -0.677], [0.656, -0.763], [0.396, -0.871], [-0.006, -0.92],
+      [-0.11, -0.968], [-0.265, -0.994], [-0.471, -0.998], [-0.695, -0.938], [-0.734, -0.879], [-0.801, -0.68],
+      [-0.902, -0.613], [-0.948, -0.557], [-1, -0.389], [-1, 0],
+    ],
+  ),
+  hood: both(
+    [
+      [0.965, 0], [0.961, -0.164], [0.946, -0.331], [0.799, -0.379], [0.602, -0.374], [0.415, -0.372], [0.133, -0.391],
+      [-0.144, -0.419], [-0.144, 0],
+    ],
+    [3, 7, 8],
+  ),
+  vent: outline([[0.94, -0.316], [0.943, -0.348], [0.794, -0.472], [0.789, -0.439]], [0, 1, 2, 3]),
+  chrome: outline([[0.943, -0.348], [0.941, -0.357], [0.793, -0.481], [0.794, -0.472]], [0, 1, 2, 3]),
+  brow: outline([[0.803, -0.379], [0.803, 0.379], [0.791, 0.379], [0.791, -0.379]], [0, 1, 2, 3]),
+  stripeEdge: outline(
+    [
+      [0.79, -0.485], [0.696, -0.547], [0.583, -0.593], [0.471, -0.641], [0.358, -0.677], [0.246, -0.707],
+      [0.133, -0.73], [0.021, -0.75], [-0.092, -0.768], [-0.205, -0.779], [-0.317, -0.79], [-0.43, -0.797],
+      [-0.514, -0.795], [-0.514, -0.765], [-0.43, -0.766], [-0.317, -0.76], [-0.205, -0.749], [-0.092, -0.737],
+      [0.021, -0.72], [0.133, -0.699], [0.246, -0.677], [0.358, -0.646], [0.471, -0.611], [0.583, -0.563],
+      [0.696, -0.516], [0.79, -0.455],
+    ],
+    [0, 12, 13, 25],
+  ),
+  stripe: outline(
+    [
+      [0.79, -0.477], [0.696, -0.539], [0.583, -0.586], [0.471, -0.634], [0.358, -0.669], [0.246, -0.699],
+      [0.133, -0.722], [0.021, -0.742], [-0.092, -0.76], [-0.205, -0.771], [-0.317, -0.783], [-0.43, -0.789],
+      [-0.514, -0.788], [-0.514, -0.773], [-0.43, -0.774], [-0.317, -0.768], [-0.205, -0.756], [-0.092, -0.745],
+      [0.021, -0.727], [0.133, -0.707], [0.246, -0.684], [0.358, -0.654], [0.471, -0.619], [0.583, -0.571],
+      [0.696, -0.524], [0.79, -0.462],
+    ],
+    [0, 12, 13, 25],
+  ),
+  panel: outline(
+    [
+      [0.799, -0.379], [0.787, -0.47], [0.696, -0.516], [0.583, -0.563], [0.471, -0.611], [0.358, -0.646],
+      [0.246, -0.677], [0.133, -0.699], [0.021, -0.72], [-0.092, -0.737], [-0.205, -0.749], [-0.317, -0.76],
+      [-0.43, -0.766], [-0.486, -0.765], [-0.486, -0.423], [-0.144, -0.419], [0.133, -0.391], [0.415, -0.372],
+      [0.602, -0.374],
+    ],
+    [0, 1, 12, 13, 14],
+  ),
+  rearFace: outline(
+    [
+      [-0.486, -0.423], [-0.486, -0.765], [-0.617, -0.763], [-0.739, -0.747], [-0.803, -0.697], [-0.885, -0.638],
+      [-0.938, -0.574], [-0.976, -0.486], [-0.991, -0.381], [-0.955, -0.379], [-0.867, -0.376], [-0.711, -0.402],
+      [-0.523, -0.417],
+    ],
+    [0, 1, 8, 9, 10],
+  ),
+  haunch: outline(
+    [
+      [-0.101, -0.808], [-0.242, -0.884], [-0.43, -0.928], [-0.617, -0.919], [-0.73, -0.871], [-0.692, -0.816],
+      [-0.486, -0.818], [-0.289, -0.808],
+    ],
+  ),
+  plate: both([[-0.015, 0], [-0.015, -0.331], [-0.023, -0.355], [-0.135, -0.375], [-0.144, -0.364], [-0.144, 0]]),
+  bezel: both(
+    [
+      [-0.135, 0], [-0.139, -0.253], [-0.148, -0.412], [-0.169, -0.427], [-0.336, -0.424], [-0.486, -0.417],
+      [-0.711, -0.402], [-0.833, -0.386], [-0.865, -0.348], [-0.868, 0],
+    ],
+  ),
+  bezelTop: both(
+    [
+      [-0.135, 0], [-0.139, -0.253], [-0.148, -0.412], [-0.169, -0.427], [-0.225, -0.426], [-0.221, -0.253],
+      [-0.22, 0],
+    ],
+    [4, 5],
+  ),
+  handle: both([[-0.867, 0], [-0.868, -0.376], [-0.901, -0.379], [-0.953, -0.348], [-0.957, 0]], [1]),
+  lip: both([[-0.959, 0], [-0.958, -0.331], [-0.985, -0.318], [-0.993, 0]]),
+  ear: outline(
+    [
+      [0.072, 0.055], [0.072, 0.078], [0.078, 0.102], [0.091, 0.122], [0.104, 0.139], [0.054, 0.156], [0.06, 0.132],
+      [0.064, 0.107], [0.061, 0.082], [0.052, 0.062],
+    ],
+    [0, 4, 5, 9],
+  ),
+  earHole: outline(
+    [
+      [0.081, 0.156], [0.068, 0.159], [0.058, 0.159], [0.054, 0.156], [0.057, 0.15], [0.065, 0.144], [0.077, 0.139],
+      [0.09, 0.136], [0.099, 0.136], [0.104, 0.139], [0.101, 0.145], [0.093, 0.151],
+    ],
+  ),
+  // the warning triangles on the stickers
+  warn: [
+    'M-0.29,-0.322L-0.339,-0.286L-0.339,-0.358L-0.29,-0.322Z',
+    'M-0.29,-0.202L-0.339,-0.166L-0.339,-0.238L-0.29,-0.202Z',
+    'M-0.29,0.202L-0.339,0.238L-0.339,0.166L-0.29,0.202Z',
+    'M-0.29,0.322L-0.339,0.358L-0.339,0.286L-0.29,0.322Z',
+  ].join(''),
+};
+
+function johnDeereTango(id: string, emergency: boolean, blades: boolean) {
+  return (
+    <>
+      <defs>
+        <linearGradient id={id + 's'} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#2c7a23" />
+          <stop offset="0.22" stopColor="#3b922f" />
+          <stop offset="0.5" stopColor="#46a237" />
+          <stop offset="0.78" stopColor="#3b922f" />
+          <stop offset="1" stopColor="#2c7a23" />
+        </linearGradient>
+        <linearGradient id={id + 'r'} x1="1" y1="0" x2="0" y2="0">
+          <stop offset="0" stopColor="#ef3b44" />
+          <stop offset="1" stopColor="#c4161f" />
+        </linearGradient>
+        <linearGradient id={id + 'l'} x1="1" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#a7b19a" />
+          <stop offset="1" stopColor="#7d8873" />
+        </linearGradient>
+      </defs>
+      {/* the grey bumper along the front, the green shell over all the rest */}
+      <path d={TANGO.base} fill="#5a6066" {...line} />
+      <path d={TANGO.shell} fill={`url(#${id}s)`} {...line} />
+      {/* its faces: the wheel arches in the light, the side panels and the faces sloping down at the back darker, the
+          hood in the middle lighter */}
+      {SIDES.map((s) => (
+        <g key={s} transform={`scale(1 ${s})`}>
+          <path d={TANGO.haunch} fill="#fff" fillOpacity={0.1} />
+          <path d={TANGO.panel} fill="#000" fillOpacity={0.1} />
+          <path d={TANGO.rearFace} fill="#000" fillOpacity={0.24} />
+        </g>
+      ))}
+      <path d={TANGO.hood} fill="#fff" fillOpacity={0.1} {...soft} />
+      <path d={TANGO.brow} fill="#fff" fillOpacity={0.28} />
+      {/* the slots beside the hood's front with their silver edge, the yellow stripes along the shoulders */}
+      {SIDES.map((s) => (
+        <g key={s} transform={`scale(1 ${s})`}>
+          <path d={TANGO.vent} fill="#14301a" />
+          <path d={TANGO.chrome} fill="#dfe4e8" />
+          <path d={TANGO.stripeEdge} fill="#111" />
+          <path d={TANGO.stripe} fill="#ffd400" />
+        </g>
+      ))}
+      {/* the GPS antenna, with the ears of the ogre this mower was named after, wiggling while it mows */}
+      <ellipse cx={0.038} cy={-0.013} rx={0.064} ry={0.086} fill="#000" fillOpacity={0.3} />
+      {SIDES.map((s) => (
+        <g key={s} transform={`scale(1 ${s})`}>
+          <g>
+            {blades && (
+              <animateTransform
+                attributeName="transform"
+                type="rotate"
+                values="0 0.063 0.061;10 0.063 0.061;0 0.063 0.061"
+                dur="0.5s"
+                repeatCount="indefinite"
+              />
+            )}
+            <path d={TANGO.ear} fill="#a6cf3f" stroke="#4d6814" strokeWidth={0.6} />
+            <path d={TANGO.earHole} fill="#55741a" />
+          </g>
+        </g>
+      ))}
+      <ellipse cx={0.061} cy={0} rx={0.059} ry={0.08} fill="#17191b" {...line} />
+      <ellipse cx={0.066} cy={0} rx={0.047} ry={0.063} fill="#2c3034" />
+      <ellipse cx={0.084} cy={-0.025} rx={0.013} ry={0.018} fill="#fff" fillOpacity={0.3} />
+      {/* the console: the plate, the bezel with the stop button between the stickers, the display and keypad, the handle */}
+      <path d={TANGO.plate} fill="#1c1f22" {...line} />
+      {/* and the name of the mower it was drawn from on the plate, where the real one says what it is */}
+      <text
+        transform={`matrix(0 1 ${-53.5 / 77.5} 0 -0.117 0)`}
+        fontSize={0.15}
+        letterSpacing={0.004}
+        {...stopText}
+        fill="#ffd400"
+      >
+        Shrek
+      </text>
+      <path d={TANGO.bezel} fill="#6d7479" {...line} />
+      <path d={TANGO.bezelTop} fill="#a9afb4" />
+      <g fill="#1b1d20">
+        <rect x={-0.474} y={-0.396} width={0.244} height={0.268} rx={0.013} ry={0.018} />
+        <rect x={-0.474} y={0.129} width={0.244} height={0.268} rx={0.013} ry={0.018} />
+        <rect x={-0.474} y={-0.114} width={0.244} height={0.227} rx={0.013} ry={0.018} />
+      </g>
+      <g fill="#f4cf00">
+        <rect x={-0.444} y={-0.381} width={0.181} height={0.24} rx={0.008} ry={0.01} />
+        <rect x={-0.444} y={0.141} width={0.181} height={0.24} rx={0.008} ry={0.01} />
+      </g>
+      <path d={TANGO.warn} fill="none" stroke="#000" strokeWidth={0.5} />
+      <rect
+        x={-0.454}
+        y={-0.091}
+        width={0.206}
+        height={0.182}
+        rx={0.017}
+        ry={0.023}
+        fill={`url(#${id}r)`}
+        stroke="#7d0d14"
+        strokeWidth={0.75}
+      />
+      {emergency && (
+        <rect x={-0.454} y={-0.091} width={0.206} height={0.182} rx={0.017} ry={0.023} fill="#fff" opacity={0}>
+          <animate attributeName="opacity" values="0;1;0" dur="0.8s" repeatCount="indefinite" />
+        </rect>
+      )}
+      <text transform={`matrix(0 1 ${-53.5 / 77.5} 0 -0.365 0)`} fontSize={0.055} letterSpacing={0.002} {...stopText}>
+        STOP
+      </text>
+      <rect x={-0.839} y={-0.379} width={0.326} height={0.758} rx={0.021} ry={0.028} fill="#25282c" {...line} />
+      <rect x={-0.735} y={-0.212} width={0.125} height={0.357} rx={0.008} ry={0.01} fill={`url(#${id}l)`} {...soft} />
+      <g fill="#9aa0a5">
+        <rect x={-0.639} y={-0.318} width={0.024} height={0.076} rx={0.006} ry={0.008} />
+        <rect x={-0.681} y={-0.318} width={0.024} height={0.076} rx={0.006} ry={0.008} />
+        <rect x={-0.723} y={-0.318} width={0.024} height={0.076} rx={0.006} ry={0.008} />
+      </g>
+      <ellipse cx={-0.672} cy={0.274} rx={0.075} ry={0.101} fill="#b5bbc0" {...soft} />
+      <ellipse cx={-0.672} cy={0.274} rx={0.03} ry={0.04} fill="#8a9095" />
+      <g fill="#b5bbc0">
+        <rect x={-0.808} y={-0.307} width={0.04} height={0.082} rx={0.008} ry={0.01} />
+        <rect x={-0.808} y={0.141} width={0.04} height={0.08} rx={0.008} ry={0.01} />
+        <rect x={-0.808} y={0.251} width={0.04} height={0.096} rx={0.008} ry={0.01} />
+      </g>
+      <path d={TANGO.handle} fill="#121416" {...soft} />
+      <path d={TANGO.lip} fill="#fff" fillOpacity={0.12} />
+    </>
+  );
+}
+
 const MODELS: MowerIcon[] = [
   {
     key: 'yf500',
@@ -460,6 +697,12 @@ const MODELS: MowerIcon[] = [
         <rect x={0.9} y={0.1} width={0.08} height={0.2} rx={0.02} fill={ORANGE} />
       </>
     ),
+  },
+  {
+    key: 'jd-tango',
+    label: 'John Deere Tango E5',
+    fit: 53.5 / 77.5,
+    draw: ({emergency = false, blades = false} = {}) => <Shaded draw={(id) => johnDeereTango(id, emergency, blades)} />,
   },
 ];
 
