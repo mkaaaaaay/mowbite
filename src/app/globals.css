@@ -1,26 +1,26 @@
 :root {
-  /* light: frosted cards on a soft green-blue wash, muted so it doesn't glare outside */
-  --background: #cdd6cf;
-  --foreground: #1c2420;
-  --card: rgba(255, 255, 255, 0.42);
-  --card-border: rgba(255, 255, 255, 0.6);
-  --card-blur: blur(5px) saturate(130%);
-  --card-shadow: 0 1px 2px rgba(20, 40, 30, 0.06), 0 6px 20px rgba(20, 40, 30, 0.07);
+  /* light: like frost, glass cards over soft patches of colour, only bright */
+  --background: #eef0f6;
+  --foreground: #16181d;
+  --card: rgba(255, 255, 255, 0.58);
+  --card-border: rgba(255, 255, 255, 0.85);
+  --card-blur: blur(18px) saturate(160%);
+  --card-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 1px 2px rgba(30, 36, 70, 0.05), 0 8px 24px rgba(30, 36, 70, 0.09);
   /* buttons stand out a little: a light edge on top, a soft shadow below, a bit more when hovered */
-  --btn-3d: inset 0 1px 0 rgba(255, 255, 255, 0.75), 0 1px 1px rgba(20, 40, 30, 0.1), 0 2px 6px rgba(20, 40, 30, 0.08);
-  --btn-3d-hover: inset 0 1px 0 rgba(255, 255, 255, 0.85), 0 2px 2px rgba(20, 40, 30, 0.1), 0 6px 14px rgba(20, 40, 30, 0.12);
-  --text-secondary: #4f5b54;
-  --accent: #2f6fbd;
+  --btn-3d: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 1px 1px rgba(30, 36, 70, 0.08), 0 2px 6px rgba(30, 36, 70, 0.07);
+  --btn-3d-hover: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 2px 2px rgba(30, 36, 70, 0.08), 0 6px 14px rgba(30, 36, 70, 0.11);
+  --text-secondary: #5b6170;
+  --accent: #2e6ad1;
   --warning: #a8780f;
-  --error: #c93a3e;
-  --success: #2e8a47;
-  --soft-good: #2a6d34;
+  --error: #cf3a3f;
+  --success: #2a8a47;
+  --soft-good: #276b33;
   --soft-warn: #7d5600;
   --soft-bad: #a52a2a;
-  --soft-muted: #4c5f68;
-  --bubble: #e7ece7;
-  --well: rgba(20, 40, 30, 0.06);
-  --nav-bg: rgba(226, 233, 227, 0.78);
+  --soft-muted: #4e5a68;
+  --bubble: #f5f6fa;
+  --well: rgba(30, 36, 70, 0.05);
+  --nav-bg: rgba(255, 255, 255, 0.7);
   --content-max-width: 500px;
 }
 
@@ -107,11 +107,12 @@ body {
   flex-direction: column;
   color: var(--foreground);
   background: var(--background);
-  /* light: soft patches of colour behind the frosted cards, dark has its own below */
+  /* light: the patches of colour of frost behind the glass cards, dark has its own below */
   background-image:
-    radial-gradient(circle at 12% 6%, rgba(120, 168, 222, 0.38), transparent 45%),
-    radial-gradient(circle at 90% 18%, rgba(150, 200, 160, 0.4), transparent 50%),
-    radial-gradient(circle at 50% 100%, rgba(90, 160, 110, 0.32), transparent 55%);
+    radial-gradient(circle at 15% 10%, rgba(91, 157, 240, 0.3), transparent 45%),
+    radial-gradient(circle at 85% 0%, rgba(168, 85, 247, 0.2), transparent 50%),
+    radial-gradient(circle at 70% 70%, rgba(91, 157, 240, 0.12), transparent 45%),
+    radial-gradient(circle at 50% 100%, rgba(76, 191, 114, 0.22), transparent 55%);
   background-attachment: fixed;
   font-family: Arial, Helvetica, sans-serif;
   -webkit-font-smoothing: antialiased;
