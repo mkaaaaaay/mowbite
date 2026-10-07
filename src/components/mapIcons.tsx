@@ -908,26 +908,42 @@ export const MOWER_ICONS: MowerIcon[] = [
 
 // the yard force charging station from above, the tower at +x: the plate with the guide rails and the grip at the
 // entry, the orange cap with its window and the two charging pins under it. -1..1 from the entry to the tower
-// the YardForce station of the NX models from above, traced from a dealer's photo: the plate with its front corners cut
-// off, the rails guiding the wheels, the pegs' holes, the orange tower at the front with the contacts under it. In units
-// of half its length, the front at +x
+// the YardForce station of the NX models from above, measured on one: the plate 37 cm wide at the front, flaring to
+// 45.8 at the back, the U of rails 4.3 cm wide the wheels run in, the studded fields for the wheels at the back and the
+// tower at the front under its 20 x 15 cm cap, which reaches over the contacts. In units of half its length, the front at
+// +x
 const YF_PLATE = both(
   [
-    [0.862, 0], [0.862, -0.5], [0.49, -0.677], [-0.81, -0.687], [-0.93, -0.62], [-0.99, -0.45], [-1, -0.3], [-1, 0],
+    [0.984, 0], [0.984, -0.532], [0.965, -0.581], [0.919, -0.597], [0.165, -0.597], [-0.303, -0.739], [-0.939, -0.739],
+    [-0.984, -0.726], [-1, -0.677], [-1, 0],
   ],
-  [1, 2],
+  [0, 1, 3, 4, 5, 6, 8, 9],
 );
-// the dotted fields at the back, beside the wheels
-const yfDots = [-1, 1].flatMap((side) =>
-  Array.from({length: 21}, (_, i) => {
-    const row = i % 3;
-    const col = Math.floor(i / 3);
-    const y = side * (0.45 + row * 0.075) - 0.015;
-    return <rect key={`${side}${i}`} x={-0.79 + col * 0.075} y={y} width={0.03} height={0.03} fill="#111" />;
-  }),
+const YF_RAILS = both(
+  [
+    [0.758, 0], [0.758, -0.489], [0.739, -0.535], [0.694, -0.553], [0.165, -0.553], [-0.303, -0.694], [-0.332, -0.665],
+    [-0.323, -0.568], [-0.3, -0.555], [0.142, -0.415], [0.671, -0.415], [0.706, -0.4], [0.719, -0.365], [0.719, 0],
+  ],
+  [0, 1, 3, 4, 5, 8, 9, 10, 12, 13],
 );
+const YF_RAIL_TOP = outline(
+  [
+    [0.681, -0.535], [0.174, -0.535], [-0.29, -0.674], [-0.3, -0.635], [0.152, -0.5], [0.681, -0.5],
+  ],
+  [0, 1, 2, 3, 4, 5],
+);
+// the studs for the wheels, both sides
+const YF_STUDS = [1, -1]
+  .flatMap((s) =>
+    Array.from({length: 12 * 13}, (_, i) => {
+      const x = -0.355 - Math.floor(i / 13) * 0.055;
+      const y = s * (0.213 + (i % 13) * 0.04);
+      return `M${(x - 0.008).toFixed(3)},${(y - 0.008).toFixed(3)}h0.016v0.016h-0.016z`;
+    }),
+  )
+  .join('');
 
-export const YF_STATION = {length: 0.64, width: 0.44, pins: 0.09}; // m, the pins this far behind the cap's front
+export const YF_STATION = {length: 0.62, width: 0.46, pins: 0.09}; // m, the contacts this far behind the cap's front
 
 // the John Deere Tango E5's station (the SABO MOWiT 500F's too) from above, from photos: the plate with the tread for
 // the wheels at the back, the U of the hood round the mower's nose at the front with the two contact plates inside
@@ -949,27 +965,30 @@ export const DOCK_ICONS: {key: string; label: string; real?: typeof YF_STATION; 
     draw: () => (
       <>
         <path d={YF_PLATE} fill="#262626" stroke="#000" strokeWidth={0.75} />
+        <path d={YF_STUDS} fill="#111" />
+        <path d={YF_RAILS} fill="#34373b" stroke="#000" strokeWidth={0.5} />
         {SIDES.map((s) => (
-          <path
-            key={s}
-            transform={`scale(1 ${s})`}
-            d="M0.6,-0.32 L-0.16,-0.59"
-            stroke="#3a3a3a"
-            strokeWidth={1.5}
-            strokeLinecap="round"
-          />
+          <path key={s} transform={`scale(1 ${s})`} d={YF_RAIL_TOP} fill="#4a4e53" />
         ))}
-        {yfDots}
-        <g fill="#8d8d8d">
-          <circle cx={0.286} cy={0} r={0.022} />
-          <circle cx={-0.783} cy={0} r={0.022} />
-          <circle cx={-0.88} cy={-0.54} r={0.022} />
-          <circle cx={-0.88} cy={0.54} r={0.022} />
+        {/* holes for the pegs */}
+        <g fill="#0d0d0d">
+          <circle cx={0.668} cy={-0.361} r={0.015} />
+          <circle cx={0.668} cy={0.361} r={0.015} />
+          <circle cx={0.355} cy={0} r={0.015} />
         </g>
-        <rect x={0.49} y={-0.16} width={0.06} height={0.08} fill="#bdbdbd" />
-        <rect x={0.49} y={0.08} width={0.06} height={0.08} fill="#bdbdbd" />
-        <rect x={0.532} y={-0.345} width={0.468} height={0.69} rx={0.08} fill="#f4612b" stroke="#000" strokeWidth={0.75} />
-        <rect x={0.665} y={-0.19} width={0.197} height={0.38} rx={0.04} fill="#1e1e1e" />
+        {/* the tower's cap with its window, its back edge sloping down over the contacts */}
+        <rect
+          x={0.516}
+          y={-0.323}
+          width={0.484}
+          height={0.645}
+          rx={0.071}
+          fill="#f4612b"
+          stroke="#000"
+          strokeWidth={0.75}
+        />
+        <rect x={0.516} y={-0.3} width={0.055} height={0.6} rx={0.02} fill="#000" fillOpacity={0.18} />
+        <rect x={0.645} y={-0.177} width={0.226} height={0.355} rx={0.048} fill="#1e1e1e" />
       </>
     ),
   },
