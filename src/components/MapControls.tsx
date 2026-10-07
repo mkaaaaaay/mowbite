@@ -11,16 +11,12 @@ export const LAYERS = [
   {key: 'stripes', label: 'Mowing direction'},
   {key: 'track', label: 'Track'},
   {key: 'transit', label: 'Driving without blades'},
-  {key: 'planDone', label: 'Mowed part of the plan'},
   {key: 'mowerIcon', label: 'Mower icon'},
   {key: 'body', label: 'Mower outline'},
   {key: 'swath', label: 'Cut width'},
   {key: 'edges', label: 'Real edges'},
 ] as const;
 export type Layer = (typeof LAYERS)[number]['key'];
-
-// off until switched on, the others the other way round
-const OFF_BY_DEFAULT: ReadonlySet<Layer> = new Set<Layer>(['planDone']);
 
 // how the part of the plan still to mow is drawn: dots are pellets for the pac-man mower to eat
 export const PLAN_STYLES = [
@@ -30,8 +26,8 @@ export const PLAN_STYLES = [
 ] as const;
 export type PlanStyle = (typeof PLAN_STYLES)[number]['key'];
 
-// the menu keeps the layers switched away from their default
-export const layerOn = (flipped: Set<Layer>, l: Layer) => flipped.has(l) === OFF_BY_DEFAULT.has(l);
+// the menu keeps the layers switched off
+export const layerOn = (hidden: Set<Layer>, l: Layer) => !hidden.has(l);
 
 // the buttons along the right edge of the map, the layer menu and the imagery bar
 export default function MapControls({
@@ -144,10 +140,9 @@ export default function MapControls({
       {lookOpen && <MapLookPanel onClose={() => setLookOpen(false)} />}
       {layersOpen && (
         <div className={styles.layers}>
-          {/* the plan's layers only while there's a mowing run to show them for, the mower's own with its sizes */}
+          {/* the mower's own layers only with its sizes */}
           {LAYERS.filter(
             (l) =>
-              (l.key !== 'planDone' || planStyle) &&
               ((l.key !== 'mowerIcon' && l.key !== 'body' && l.key !== 'edges') || body) &&
               (l.key !== 'swath' || body?.blade),
           ).map((l) => (

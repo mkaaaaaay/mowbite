@@ -320,7 +320,6 @@ const de: Record<string, string> = {
   "Mowing \"{area}\"": "Mäht „{area}“",
   "Mowing area": "Mähfläche",
   "Mowing direction": "Mährichtung",
-  "Mowed part of the plan": "Erledigter Teil des Plans",
   "Mowing order": "Mähreihenfolge",
   "Mowing order numbers": "Nummern der Mähreihenfolge",
   "The RTK fix had been gone for {n} s, that long it keeps driving on wheel odometry (mower_logic/gps_timeout). Then it stops with the blade off and waits until the fix is back.": "Der RTK-Fix war länger als {n} s weg, so lange fährt er noch nach Radodometrie weiter (mower_logic/gps_timeout). Dann bleibt er mit Messer aus stehen und wartet, bis der Fix wieder da ist.",
