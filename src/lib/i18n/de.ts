@@ -408,7 +408,6 @@ const de: Record<string, string> = {
   "Only possible while the mower is idle in the dock.": "Geht nur, wenn der Mäher bereit im Dock steht.",
   "The mower dropped out of recording mode right away. Older OpenMower versions do that after the mower was sent home while mowing, it then stays in \"manual pause\" until it's restarted. Run openmower restart on the mower and try again, or update OpenMower.": "Der Mäher hat den Aufnahmemodus sofort wieder verlassen. Ältere OpenMower-Versionen machen das, nachdem der Mäher beim Mähen nach Hause geschickt wurde, er bleibt dann bis zum Neustart in „manueller Pause“. Führe openmower restart auf dem Mäher aus und versuch es noch mal, oder aktualisiere OpenMower.",
   "Only possible while the mower is idle.": "Geht nur, wenn der Mäher bereit steht.",
-  "only problems": "nur Probleme",
   "Other": "Sonstiges",
   "Other mowers": "Weitere Mäher",
   "Outline done. Record obstacles inside it (beds, trees, the pond), or save the area.": "Rand fertig. Nimm Hindernisse darin auf (Beete, Bäume, den Teich) oder speichere die Fläche.",
@@ -672,6 +671,8 @@ const de: Record<string, string> = {
   "Saved. Switched off, nothing is sent.": "Gespeichert. Ausgeschaltet, es wird nichts gesendet.",
   "Skip this path": "Diesen Pfad überspringen",
   "The mower leaves the rest of the outline pass or lanes it is on and goes on with the next ones.": "Der Mäher lässt den Rest der Randrunde oder Bahnen aus, auf denen er gerade ist, und macht mit den nächsten weiter.",
+  "all": "Alle",
+  "progress": "Ablauf",
 };
 
 export default de;

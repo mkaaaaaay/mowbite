@@ -14,12 +14,14 @@ import {PARAM, PATHS} from '@/lib/openmower';
 import {numParam, useMowerParams} from '@/hooks/useMowerParams';
 
 
-// newest first like the runs, the state each one came in is worked out in time order first
-function Timeline({events}: {events: MowerEvent[]}) {
+// newest first like the runs, the state each one came in is worked out in time order first. progress: only what
+// happened, without the problems
+function Timeline({events, progress = false}: {events: MowerEvent[]; progress?: boolean}) {
   return (
     <ol className={styles.timeline}>
       {withState(events).reverse().map(({event, state}) => {
         const {text, severity} = describe(event, state);
+        if (progress && severity !== 'info') return null;
         return (
           <li key={event.id} className={styles[severity]}>
             <span className={styles.time}>{clock(event.t, true)}</span>
@@ -140,7 +142,8 @@ function Problems({run, next, where}: {run: Run; next?: Run; where: Where}) {
   );
 }
 
-function RunCard({run, next, where}: {run: Run; next?: Run; where: Where}) {
+// progress: the run's course right away instead of its problems
+function RunCard({run, next, where, progress}: {run: Run; next?: Run; where: Where; progress: boolean}) {
   const [open, setOpen] = useState(false);
   const outcome = OUTCOMES[run.outcome];
   return (
@@ -164,14 +167,14 @@ function RunCard({run, next, where}: {run: Run; next?: Run; where: Where}) {
         {run.bladeSeconds > 0 && <span className={styles.dim}>{tr('mowed {time}', {time: duration(run.bladeSeconds)})}</span>}
       </div>
 
-      <Problems run={run} next={next} where={where} />
+      {progress ? <Timeline events={run.events} progress /> : <Problems run={run} next={next} where={where} />}
 
       <div className={styles.runActions}>
-        <button onClick={() => setOpen(!open)}>{open ? tr('Hide details') : tr('Details')}</button>
+        {!progress && <button onClick={() => setOpen(!open)}>{open ? tr('Hide details') : tr('Details')}</button>}
         {run.jobId && <Link href={`/map?job=${run.jobId}`}>{tr('Show track')}</Link>}
       </div>
 
-      {open && <Timeline events={run.events} />}
+      {open && !progress && <Timeline events={run.events} />}
     </article>
   );
 }
@@ -188,7 +191,8 @@ export default function ActivityPage() {
   const [loaded, setLoaded] = useState<DayEvents | null>(() => cachedEvents.get(cachedDays?.[0] ?? '') ?? null);
   const events = loaded?.events ?? null;
   const setEvents = (d: DayEvents | null) => setLoaded(d);
-  const [onlyProblems, setOnlyProblems] = useState(false);
+  // all, only the problems, or only what happened (areas started and done) without them
+  const [filter, setFilter] = useState<'all' | 'problems' | 'progress'>('all');
   const [failed, setFailed] = useState(false);
   const daysRef = useDragScroll<HTMLDivElement>();
 
@@ -237,7 +241,11 @@ export default function ActivityPage() {
   const mowed = runs.reduce((s, r) => s + r.bladeSeconds, 0);
   const problems = runs.reduce((s, r) => s + r.problems, 0);
   const visible = entries.filter((e) =>
-    !onlyProblems ? true : e.kind === 'run' ? e.run.problems > 0 : describe(e.event).severity !== 'info',
+    filter === 'all'
+      ? true
+      : e.kind === 'run'
+        ? filter === 'progress' || e.run.problems > 0
+        : (describe(e.event).severity !== 'info') === (filter === 'problems'),
   );
   // messages between runs that follow each other share one card
   const blocks: ({kind: 'run'; run: Run} | {kind: 'loose'; events: MowerEvent[]})[] = [];
@@ -289,10 +297,19 @@ export default function ActivityPage() {
               <strong>{problems}</strong>
               <span>{problems === 1 ? tr('problem') : tr('problems')}</span>
             </div>
-            <label className={styles.filter}>
-              <input type="checkbox" checked={onlyProblems} onChange={() => setOnlyProblems(!onlyProblems)} />
-              {tr('only problems')}
-            </label>
+            <div className={styles.filter} role="group">
+              {(
+                [
+                  ['all', 'all'],
+                  ['problems', 'problems'],
+                  ['progress', 'progress'],
+                ] as const
+              ).map(([key, label]) => (
+                <button key={key} className={filter === key ? styles.on : undefined} onClick={() => setFilter(key)}>
+                  {tr(label)}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
@@ -302,7 +319,13 @@ export default function ActivityPage() {
         <div className={styles.list}>
           {blocks.map((b) =>
             b.kind === 'run' ? (
-              <RunCard key={b.run.events[0].id} run={b.run} next={runs[runs.indexOf(b.run) - 1]} where={where} />
+              <RunCard
+                key={b.run.events[0].id}
+                run={b.run}
+                next={runs[runs.indexOf(b.run) - 1]}
+                where={where}
+                progress={filter === 'progress'}
+              />
             ) : (
               <div key={b.events[0].id} className={styles.looseGroup}>
                 {[...b.events].reverse().map((ev) => (

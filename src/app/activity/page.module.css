@@ -88,13 +88,28 @@
   color: var(--error, #ff5252);
 }
 
-.filter {
+/* all, problems, progress */
+.summary .filter {
   margin-left: auto;
-  display: flex;
+  flex-direction: row;
   align-items: center;
-  gap: 6px;
-  font-size: 13px;
+  gap: 4px;
+}
+
+.filter button {
+  padding: 6px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--card-border);
+  background: transparent;
   color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.filter .on {
+  border-color: color-mix(in srgb, var(--accent) 70%, transparent);
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+  color: var(--foreground);
 }
 
 .list {
