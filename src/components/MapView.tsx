@@ -5,7 +5,7 @@ import {useComputedSpeed} from '@/hooks/useComputedSpeed';
 import {createEaser, useEasedPose, type Pose} from '@/hooks/useEasedPose';
 import {containsPoint, polygonArea} from '@/lib/geometry';
 import {settingsStore, type Settings} from '@/lib/settings';
-import {bladeSeconds, bodyShape, realEdges, roundBends, swathEnd, swathGroups, swathAfter, useMowerBody, type MowerBody, type SwathState} from '@/lib/mowerBody';
+import {bladeSeconds, bodyShape, realEdges, roundBends, swathEnd, swathGroups, swathAfter, swathTail, useMowerBody, type MowerBody, type SwathState} from '@/lib/mowerBody';
 import {useSensorValue} from '@/hooks/useMowerSensors';
 import {dockIcon, drawMower, mowerIcon} from './mapIcons';
 import {availableSources, imageryTiles, type Datum} from '@/lib/imagery';
@@ -587,14 +587,25 @@ function MapView({
     // one stretch with the blades on: its pieces, and the blade's round ends where it began and stopped. A stretch going
     // on from the piece of the trail before has no beginning here, one going on into the next piece no end: its state
     // at the end goes on there instead
+    // the track as it was recorded: rounding its bends would bow the long straight steps of a lane to the side
     const strip = (pts: Point[], into: {pieces: Point[][]; ends: Point[][]}, before: SwathState | null = null, goesOn = false) => {
-      const {pieces, state} = swathAfter(roundBends(pts), body, before);
+      const {pieces, state} = swathAfter(pts, body, before);
       into.pieces.push(...pieces);
       const first = pieces[0];
-      if (!before && first) into.ends.push(swathEnd(first[1], first[0], body.blade / 2));
+      if (!before?.end && first) into.ends.push(swathEnd(first[1], first[0], body.blade / 2));
       if (goesOn) return state;
-      if (state) into.ends.push(swathEnd(state.end[0], state.end[1], body.blade / 2));
+      finish(state, into);
       return null;
+    };
+    // the end of a stretch, with the points that still wait for a heading
+    const finish = (state: SwathState | null, into: {pieces: Point[][]; ends: Point[][]}) => {
+      if (!state) return;
+      const tail = swathTail(state, body);
+      if (tail.length > 1) {
+        into.pieces.push(tail);
+        if (!state.end) into.ends.push(swathEnd(tail[1], tail[0], body.blade / 2));
+        into.ends.push(swathEnd(tail[tail.length - 2], tail[tail.length - 1], body.blade / 2));
+      } else if (state.end) into.ends.push(swathEnd(state.end[0], state.end[1], body.blade / 2));
     };
     const all: {pieces: Point[][]; ends: Point[][]} = {pieces: [], ends: []};
     const key = `${body.blade},${body.bladeAhead},${body.bladeOffset}`;
@@ -624,7 +635,7 @@ function MapView({
       all.ends.push(...cached.ends);
     }
     // the round end where the trail stops now with the blades on
-    if (carried) all.ends.push(swathEnd(carried.end[0], carried.end[1], body.blade / 2));
+    finish(carried, all);
     for (const seg of pastTrack ?? []) if (seg.blades) strip(seg.points, all);
     // a few paths instead of one per piece, pieces that overlap in different ones
     const groups = swathGroups(all.pieces, body.blade);

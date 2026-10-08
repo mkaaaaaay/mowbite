@@ -203,10 +203,12 @@ export function roundBends<T extends P>(pts: readonly T[]): T[] {
 
 // shorter steps of the track don't say which way the mower drove
 const MIN_STEP = 0.05; // m
-// the heading is taken over this much track, gps wobble on short steps would swing the blade about
+// the heading is taken over at least this much track, gps wobble on short steps would swing the blade about. The points
+// on the way get it once it's known, so a lane is straight from its first point on
 const SMOOTH = 0.25; // m
-// a step turning further than this is a turn on the spot: the blade swings round it, drawn in steps of 15°
+// a shorter step (from 2 * MIN_STEP) turning further than this is a turn, the mower moving over to the next lane
 const SPIN = Math.PI / 3;
+// the blade swings round where the track bends, drawn in steps of 15°
 const SWING_STEP = Math.PI / 12;
 // a piece of the strip ends where the heading turned this far from where it began
 const PIECE_TURN = Math.PI / 4;
@@ -225,24 +227,27 @@ export function swathPieces(points: readonly P[], b: MowerBody): P[][] {
 
 // where the strip of a stretch stood after its last point, the stretch can go on from there
 export interface SwathState {
-  heading: number;
-  // the track since the last turn on the spot
-  run: P[];
+  heading: number | null;
+  // where the heading was taken last, and the points since then that wait for the next one
   from: P;
-  // the last two points of the last piece, and the heading where that piece began
-  end: [P, P];
+  waiting: P[];
+  // the last two points of the last piece (none yet while the first heading isn't known), and the heading where that
+  // piece began
+  end: [P, P] | null;
   start: number;
 }
+
+const bladeAt = (b: MowerBody) => (p: P, h: number) => ({
+  x: p.x + Math.cos(h) * b.bladeAhead - Math.sin(h) * b.bladeOffset,
+  y: p.y + Math.sin(h) * b.bladeAhead + Math.cos(h) * b.bladeOffset,
+});
 
 // the same going on from where the part of the stretch before ended, for a trail that comes in chunks. The state after
 // the last point, for the part after it
 export function swathAfter(points: readonly P[], b: MowerBody, before: SwathState | null): {pieces: P[][]; state: SwathState | null} {
-  const blade = (p: P, h: number) => ({
-    x: p.x + Math.cos(h) * b.bladeAhead - Math.sin(h) * b.bladeOffset,
-    y: p.y + Math.sin(h) * b.bladeAhead + Math.cos(h) * b.bladeOffset,
-  });
+  const blade = bladeAt(b);
   const pieces: P[][] = [];
-  let piece: P[] = before ? [before.end[1]] : [];
+  let piece: P[] = before?.end ? [before.end[1]] : [];
   let start = before?.start ?? 0;
   const add = (p: P, h: number) => {
     if (piece.length > 1 && Math.abs(turned(h, start)) > PIECE_TURN) {
@@ -256,32 +261,48 @@ export function swathAfter(points: readonly P[], b: MowerBody, before: SwathStat
     } else if (!piece.length) start = h;
     piece.push(p);
   };
-  let heading: number | null = before?.heading ?? null;
-  let run: P[] = before ? before.run.slice() : [];
+  let heading = before?.heading ?? null;
   let from = before?.from ?? points[0];
+  if (!from) return {pieces, state: null};
+  const waiting = before ? before.waiting.slice() : [];
   for (let i = before ? 0 : 1; i < points.length; i++) {
     const to = points[i];
-    if (Math.hypot(to.x - from.x, to.y - from.y) < MIN_STEP) continue;
+    const seen = waiting[waiting.length - 1] ?? from;
+    if (to.x === seen.x && to.y === seen.y) continue;
+    const d = Math.hypot(to.x - from.x, to.y - from.y);
     const step = towards(from, to);
-    if (heading === null) {
-      add(blade(from, step), step);
-      run = [from];
-    } else if (Math.abs(turned(step, heading)) > SPIN) {
-      const d = turned(step, heading);
-      const steps = Math.ceil(Math.abs(d) / SWING_STEP);
-      for (let s = 1; s <= steps; s++) add(blade(from, heading + (d * s) / steps), heading + (d * s) / steps);
-      run = [from];
+    if (d < SMOOTH && (heading === null || d < 2 * MIN_STEP || Math.abs(turned(step, heading)) <= SPIN)) {
+      waiting.push(to);
+      continue;
     }
-    run.push(to);
-    let back = run.length - 2;
-    while (back > 0 && Math.hypot(to.x - run[back].x, to.y - run[back].y) < SMOOTH) back--;
-    heading = towards(run[back], to);
-    add(blade(to, heading), heading);
+    // it drove from `from` to here that way: where the track bends the blade swings round first
+    if (heading === null) add(blade(from, step), step);
+    else {
+      const turn = turned(step, heading);
+      const steps = Math.ceil(Math.abs(turn) / SWING_STEP);
+      for (let s = 1; s <= steps; s++) add(blade(from, heading + (turn * s) / steps), heading + (turn * s) / steps);
+    }
+    for (const q of waiting) add(blade(q, step), step);
+    add(blade(to, step), step);
+    waiting.length = 0;
+    heading = step;
     from = to;
   }
   if (piece.length > 1) pieces.push(piece);
-  const end: [P, P] | undefined = piece.length > 1 ? [piece[piece.length - 2], piece[piece.length - 1]] : before?.end;
-  return {pieces, state: heading === null || !end ? null : {heading, run, from, end, start}};
+  const end: [P, P] | null = piece.length > 1 ? [piece[piece.length - 2], piece[piece.length - 1]] : (before?.end ?? null);
+  return {pieces, state: {heading, from, waiting, end, start}};
+}
+
+// where a stretch ends: the points still waiting for a heading go on with the last one, or the way they went when
+// there's none yet. Empty when there's nothing more to draw
+export function swathTail(state: SwathState, b: MowerBody): P[] {
+  const last = state.waiting[state.waiting.length - 1];
+  if (!last) return [];
+  const blade = bladeAt(b);
+  if (state.heading !== null) return [state.end![1], ...state.waiting.map((q) => blade(q, state.heading!))];
+  if (Math.hypot(last.x - state.from.x, last.y - state.from.y) < MIN_STEP) return [];
+  const h = towards(state.from, last);
+  return [state.from, ...state.waiting].map((q) => blade(q, h));
 }
 
 // the half of the blade's circle beyond the end of a piece (at points[1], coming from points[0]): where it started or
