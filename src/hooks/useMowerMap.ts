@@ -46,8 +46,16 @@ export interface MowerMap {
   docking_stations: DockingStation[];
 }
 
-// kept for the whole run, map/json is retained and comes only once
-const store = topicStore<MowerMap | null>(TOPIC.map, null, (payload) => openRings(JSON.parse(payload.toString())));
+// kept for the whole run. map/json is retained, it comes again with every reconnect (a phone back from standby): the
+// same map stays the same object then, plans and everything else worked out from it stay as they are
+let lastPayload: string | null = null;
+const store = topicStore<MowerMap | null>(TOPIC.map, null, (payload, prev) => {
+  const text = payload.toString();
+  if (text === lastPayload && prev) return prev;
+  const map = openRings(JSON.parse(text));
+  lastPayload = text;
+  return map;
+});
 
 export function useMowerMap(): MowerMap | null {
   return useSyncExternalStore(store.subscribe, store.get, store.initial);
