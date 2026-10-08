@@ -57,7 +57,9 @@ export function createEaser() {
   };
 }
 
-export function useEasedPose(target: Pose | null): Pose | null {
+// step: m, a new pose only once it moved this far (or turned by about a third of a degree), a drawing that moves by a
+// fraction of a pixel is drawn again for nothing
+export function useEasedPose(target: Pose | null, step = 1e-4): Pose | null {
   const [pose, setPose] = useState(target);
   const [easer] = useState(createEaser);
 
@@ -71,7 +73,7 @@ export function useEasedPose(target: Pose | null): Pose | null {
       const next = easer.at(performance.now());
       if (next) {
         setPose((p) =>
-          p && Math.abs(p.x - next.x) < 1e-4 && Math.abs(p.y - next.y) < 1e-4 && Math.abs(p.heading - next.heading) < 1e-4
+          p && Math.abs(p.x - next.x) < step && Math.abs(p.y - next.y) < step && Math.abs(p.heading - next.heading) < 0.006
             ? p
             : next,
         );
@@ -80,7 +82,7 @@ export function useEasedPose(target: Pose | null): Pose | null {
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [easer]);
+  }, [easer, step]);
 
   return target ? (pose ?? target) : null;
 }

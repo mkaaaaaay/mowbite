@@ -139,6 +139,8 @@ function wantHoldHint() {
 const PADDING = 20;
 const MOWER_SIZE = 0.4; // m
 const WIDTH = 400;
+// the svg while it glides along the mower: twice the frame, slid along by a transform
+const GLIDING: React.CSSProperties = {position: 'absolute', left: 0, top: 0, width: '200%', height: '200%', transformOrigin: '0 0'};
 const HEIGHT = 400;
 
 
@@ -188,7 +190,8 @@ function MowerMarker({
   emergency?: boolean;
   blades: boolean;
 }) {
-  const shown = useEasedPose(mower) ?? mower;
+  // (half a pixel of the map, about: k is svg units per pixel of the drawing's width)
+  const shown = useEasedPose(mower, (0.5 * k) / fit.scale) ?? mower;
   // the blade turning the way the mow motor does, drawn only with the outline
   const rpm = useSensorValue('om_mow_motor_rpm', (v) => (outline && body?.blade ? Math.round(parseFloat(v ?? '') || 0) : 0));
   const speed = useComputedSpeed(mower);
@@ -460,30 +463,66 @@ function MapView({
     const size = followSpanMeters * followZoom * scale;
     shown = {x: sx - size / 2, y: sy - size / 2, size};
   }
-  // following with the geometry fitted to the map: the window glides along every frame, set on the svg directly
-  const glides = following && !!followed && !!fit;
-  const followZoomRef = useRef(followZoom);
-  useEffect(() => {
-    followZoomRef.current = followZoom;
-  }, [followZoom]);
+  // following with the geometry fitted to the map: the map is drawn once for twice the window around an anchor and
+  // only slid along under its frame every frame (a css transform, the phone's gpu moves it without drawing anything
+  // again). Drawn again with a new anchor once the mower got too far from it. Each new viewBox drew the whole map again
+  // and stuttered on phones
+  const glides = zoomable && following && !!followed && !!fit;
+  const glideSize = followSpanMeters * followZoom * scale;
+  const [anchor, setAnchor] = useState<{x: number; y: number; size: number} | null>(null);
+  const [gx, gy] =
+    anchor && anchor.size === glideSize ? [anchor.x, anchor.y] : followed ? toScreen(followed.x, followed.y) : [0, 0];
+  // what the svg shows while gliding, for the frame loop: the anchor in svg units and the window's size
+  const glideRef = useRef<{x: number; y: number; size: number; fixed: boolean; asked: boolean} | null>(null);
+  const anchored = !!anchor && anchor.size === glideSize;
+  const frameRef = useRef<HTMLDivElement | null>(null);
+  const lastSlide = useRef<[number, number] | null>(null);
+  // slides the map so the eased mower is in the middle of the frame, asks for a new anchor when it gets near the edge
+  // of what's drawn
+  const slide = useCallback(() => {
+    const g = glideRef.current;
+    const svg = svgRef.current;
+    const frame = frameRef.current;
+    const p = followEaser.at(performance.now());
+    if (!g || !svg || !frame || !p) return;
+    const f = fitRef.current;
+    const sx = (p.x - f.minX) * f.scale + f.padX;
+    const sy = HEIGHT - ((p.y - f.minY) * f.scale + f.padY);
+    const width = frame.clientWidth || 1;
+    const unit = width / g.size;
+    const tx = width / 2 - (sx - (g.x - g.size)) * unit;
+    const ty = width / 2 - (sy - (g.y - g.size)) * unit;
+    const last = lastSlide.current;
+    if (!last || Math.abs(tx - last[0]) > 0.3 || Math.abs(ty - last[1]) > 0.3) {
+      svg.style.transform = `translate3d(${tx}px, ${ty}px, 0)`;
+      lastSlide.current = [tx, ty];
+    }
+    // (no anchor of its own yet it goes with the mower's position: kept where it is now)
+    if (!g.asked && !g.fixed) {
+      g.asked = true;
+      setAnchor({x: g.x, y: g.y, size: g.size});
+    } else if (!g.asked && (Math.abs(sx - g.x) > 0.35 * g.size || Math.abs(sy - g.y) > 0.35 * g.size)) {
+      g.asked = true;
+      setAnchor({x: sx, y: sy, size: g.size});
+    }
+  }, [followEaser]);
+  // the anchor drawn and the slide that goes with it in the same frame, the map doesn't jump when it's drawn again
   useLayoutEffect(() => {
+    glideRef.current = glides ? {x: gx, y: gy, size: glideSize, fixed: anchored, asked: false} : null;
+    lastSlide.current = null;
+    if (glides) slide();
+    else if (svgRef.current) svgRef.current.style.transform = '';
+  }, [glides, gx, gy, glideSize, anchored, slide]);
+  useEffect(() => {
     if (!glides) return;
     let frame = 0;
     const tick = () => {
-      const p = followEaser.at(performance.now());
-      const svg = svgRef.current;
-      if (p && svg) {
-        const f = fitRef.current;
-        const size = followSpanMeters * followZoomRef.current * f.scale;
-        const sx = (p.x - f.minX) * f.scale + f.padX;
-        const sy = HEIGHT - ((p.y - f.minY) * f.scale + f.padY);
-        svg.setAttribute('viewBox', `${sx - size / 2} ${sy - size / 2} ${size} ${size}`);
-      }
+      slide();
       frame = requestAnimationFrame(tick);
     };
-    tick();
+    frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [glides, followEaser, followSpanMeters]);
+  }, [glides, slide]);
 
   // outlines as svg point strings, rebuilt only when the map or the fit changes, not every frame
   const outlinePoints = useMemo(() => {
@@ -814,10 +853,12 @@ function MapView({
     zoomAt(factor, v.x + v.size / 2, v.y + v.size / 2);
   };
 
+  // the width the map takes on screen: the frame's, the svg is twice as big while it glides
   useEffect(() => {
-    if (!svgEl) return;
-    const ro = new ResizeObserver(() => setSvgPx(svgEl.getBoundingClientRect().width));
-    ro.observe(svgEl);
+    const el = frameRef.current ?? svgEl;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setSvgPx(el.getBoundingClientRect().width));
+    ro.observe(el);
     return () => ro.disconnect();
   }, [svgEl]);
 
@@ -1255,8 +1296,15 @@ function MapView({
     <svg
       ref={attachSvg}
       className={[styles.svg, zoomable ? styles.zoomable : ''].filter(Boolean).join(' ')}
-      // (gliding along the mower the window is set every frame above)
-      viewBox={glides ? undefined : shown ? `${shown.x} ${shown.y} ${shown.size} ${shown.size}` : `0 0 ${WIDTH} ${HEIGHT}`}
+      // (gliding along the mower: twice the window around the anchor, slid along under the frame above)
+      viewBox={
+        glides
+          ? `${gx - glideSize} ${gy - glideSize} ${2 * glideSize} ${2 * glideSize}`
+          : shown
+            ? `${shown.x} ${shown.y} ${shown.size} ${shown.size}`
+            : `0 0 ${WIDTH} ${HEIGHT}`
+      }
+      style={glides ? GLIDING : undefined}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerEnd}
@@ -1322,7 +1370,9 @@ function MapView({
 
   return (
     <div className={styles.wrap}>
-      {svg}
+      <div ref={frameRef} className={[styles.frame, glides ? styles.frameGliding : ''].filter(Boolean).join(' ')}>
+        {svg}
+      </div>
       {loupe}
       <MapControls
         onZoom={zoomCenter}
