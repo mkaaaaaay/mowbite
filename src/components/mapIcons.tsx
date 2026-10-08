@@ -637,6 +637,199 @@ function johnDeereTango(id: string, emergency: boolean, blades: boolean) {
   );
 }
 
+// a black NX60 with the Punisher skull on its front, traced from photos from above. Fin, scoop and wing are the left
+// ones, the right ones are drawn mirrored. The skull is upright seen from the front, its teeth to the front
+const NX60 = {
+  skirt: both(
+    [
+      [0.997, 0], [0.995, -0.311], [0.929, -0.51], [0.86, -0.733], [0.792, -0.817], [0.723, -0.848], [0.608, -0.868],
+      [0.449, -0.891], [0.312, -0.92], [0.175, -0.942], [0.038, -0.955], [-0.132, -0.967], [-0.296, -0.986],
+      [-0.46, -0.996], [-0.597, -1.002], [-0.707, -0.996], [-0.803, -0.967], [-0.885, -0.875], [-0.953, -0.642],
+      [-0.989, -0.35], [-1, 0],
+    ],
+  ),
+  shell: both(
+    [
+      [0.995, 0], [0.992, -0.311], [0.929, -0.51], [0.86, -0.733], [0.792, -0.817], [0.723, -0.848], [0.608, -0.868],
+      [0.449, -0.891], [0.312, -0.92], [0.175, -0.942], [0.038, -0.955], [-0.132, -0.967], [-0.296, -0.986],
+      [-0.46, -0.996], [-0.597, -1], [-0.7, -0.99], [-0.782, -0.957], [-0.852, -0.879], [-0.899, -0.739],
+      [-0.926, -0.486], [-0.94, 0],
+    ],
+  ),
+  hood: both(
+    [
+      [0.992, 0], [0.99, -0.311], [0.973, -0.389], [0.841, -0.428], [0.704, -0.451], [0.533, -0.467], [0.327, -0.479],
+      [0.197, -0.486], [0.197, 0],
+    ],
+  ),
+  fin: outline(
+    [
+      [0.722, -0.739], [0.636, -0.786], [0.553, -0.8], [0.416, -0.794], [0.285, -0.776], [0.341, -0.642],
+      [0.416, -0.549], [0.533, -0.51], [0.738, -0.533], [0.649, -0.576], [0.619, -0.623], [0.636, -0.681],
+    ],
+    [0, 4, 8],
+  ),
+  scoop: outline(
+    [
+      [0.722, -0.739], [0.636, -0.681], [0.619, -0.623], [0.649, -0.576], [0.738, -0.533], [0.704, -0.584],
+      [0.674, -0.642], [0.69, -0.7],
+    ],
+    [0, 4],
+  ),
+  frame: both(
+    [
+      [0.652, 0], [0.648, -0.195], [0.622, -0.307], [0.575, -0.374], [0.523, -0.405], [0.416, -0.42], [0.293, -0.432],
+      [0.244, -0.451], [0.192, -0.584], [0.118, -0.732], [0.033, -0.704], [-0.077, -0.673], [-0.268, -0.65],
+      [-0.405, -0.623], [-0.455, -0.568], [-0.477, -0.467], [-0.488, -0.346], [-0.515, -0.323], [-0.614, -0.323],
+      [-0.63, -0.292], [-0.633, 0],
+    ],
+    [16],
+  ),
+  wing: outline(
+    [
+      [0.195, -0.44], [0.156, -0.576], [0.104, -0.685], [0.005, -0.661], [-0.173, -0.634], [-0.364, -0.611],
+      [-0.419, -0.568], [-0.436, -0.486], [-0.405, -0.432], [-0.132, -0.416], [0.115, -0.416],
+    ],
+  ),
+  lid: both(
+    [
+      [0.622, 0], [0.616, -0.214], [0.581, -0.323], [0.512, -0.374], [0.416, -0.389], [0.279, -0.397], [0.115, -0.401],
+      [-0.132, -0.397], [-0.364, -0.385], [-0.405, -0.342], [-0.408, 0],
+    ],
+  ),
+  tomb: both(
+    [
+      [0.255, 0], [0.247, -0.156], [0.211, -0.253], [0.142, -0.307], [0.033, -0.323], [-0.132, -0.327], [-0.4, -0.327],
+      [-0.403, 0],
+    ],
+  ),
+  skull:
+    both(
+      [
+        [0.642, 0], [0.648, -0.11], [0.664, -0.176], [0.692, -0.217], [0.728, -0.231], [0.765, -0.227], [0.799, -0.215],
+        [0.818, -0.204], [0.829, -0.202], [0.843, -0.197], [0.852, -0.184], [0.855, -0.162], [0.855, -0.136],
+        [0.851, -0.126], [0.847, -0.121], [0.85, -0.099], [0.86, -0.081], [0.871, -0.072], [0.937, -0.072],
+        [0.942, -0.068], [0.942, -0.044], [0.937, -0.04], [0.873, -0.04], [0.873, -0.035], [0.94, -0.035],
+        [0.944, -0.031], [0.944, -0.007], [0.94, -0.003], [0.873, -0.003], [0.873, 0],
+      ],
+      [13, 14, 17, 18, 21, 22, 23, 24, 27, 28],
+    ) +
+    outline(
+      [
+        [0.746, -0.195], [0.751, -0.147], [0.765, -0.088], [0.783, -0.044], [0.801, -0.018], [0.802, -0.074],
+        [0.795, -0.132], [0.781, -0.176], [0.765, -0.191],
+      ],
+      [0, 4],
+    ) +
+    outline(
+      [
+        [0.746, 0.195], [0.751, 0.147], [0.765, 0.088], [0.783, 0.044], [0.801, 0.018], [0.802, 0.074], [0.795, 0.132],
+        [0.781, 0.176], [0.765, 0.191],
+      ],
+      [0, 4],
+    ) +
+    outline([[0.818, -0.037], [0.81, -0.028], [0.812, -0.005], [0.84, -0.005]], [0, 1, 2, 3]) +
+    outline([[0.818, 0.037], [0.81, 0.028], [0.812, 0.005], [0.84, 0.005]], [0, 1, 2, 3]),
+};
+
+function punisherNx60(id: string, emergency: boolean) {
+  return (
+    <>
+      <defs>
+        <linearGradient id={id + 's'} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#26282b" />
+          <stop offset="0.22" stopColor="#36383c" />
+          <stop offset="0.5" stopColor="#3d4044" />
+          <stop offset="0.78" stopColor="#36383c" />
+          <stop offset="1" stopColor="#26282b" />
+        </linearGradient>
+        <linearGradient id={id + 'h'} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#3b3e42" />
+          <stop offset="0.5" stopColor="#4a4d52" />
+          <stop offset="1" stopColor="#3b3e42" />
+        </linearGradient>
+        <linearGradient id={id + 'f'} x1="1" y1="0" x2="0" y2="0">
+          <stop offset="0" stopColor="#55585e" />
+          <stop offset="1" stopColor="#36393d" />
+        </linearGradient>
+        <linearGradient id={id + 'l'} x1="1" y1="0" x2="0" y2="0">
+          <stop offset="0" stopColor="#4e5156" />
+          <stop offset="1" stopColor="#43464b" />
+        </linearGradient>
+        <linearGradient id={id + 'g'} x1="1" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#2a3138" />
+          <stop offset="1" stopColor="#121519" />
+        </linearGradient>
+        <linearGradient id={id + 'r'} x1="1" y1="0" x2="0" y2="0">
+          <stop offset="0" stopColor="#ee3049" />
+          <stop offset="1" stopColor="#c0152e" />
+        </linearGradient>
+        <radialGradient id={id + 'k'} cx="0.6" cy="0.4" r="0.7">
+          <stop offset="0" stopColor="#74777c" />
+          <stop offset="1" stopColor="#3a3d41" />
+        </radialGradient>
+      </defs>
+      {/* the skirt all round, with a light edge so the black mower shows on a dark map */}
+      <path d={NX60.skirt} fill="#17181a" stroke="#9aa0a6" strokeWidth={0.75} strokeOpacity={0.5} />
+      <path d={NX60.shell} fill={`url(#${id}s)`} {...line} />
+      <path d={NX60.hood} fill={`url(#${id}h)`} {...soft} />
+      {/* the skull, faded like the real one */}
+      <path d={NX60.skull} fill="#dfe2e6" fillOpacity={0.4} fillRule="evenodd" />
+      {SIDES.map((s) => (
+        <g key={s} transform={`scale(1 ${s})`}>
+          <path d={NX60.fin} fill={`url(#${id}f)`} {...line} />
+          <path d={NX60.scoop} fill="#0f1012" />
+        </g>
+      ))}
+      {/* the ridge round the back of the lid */}
+      <path
+        d="M0.088,-0.712C0.024,-0.702 -0.191,-0.675 -0.296,-0.65C-0.401,-0.625 -0.485,-0.607 -0.542,-0.564C-0.6,-0.52 -0.622,-0.483 -0.641,-0.389C-0.66,-0.295 -0.658,-0.13 -0.658,0C-0.658,0.13 -0.66,0.295 -0.641,0.389C-0.622,0.483 -0.6,0.52 -0.542,0.564C-0.485,0.607 -0.401,0.625 -0.296,0.65C-0.191,0.675 0.024,0.702 0.088,0.712"
+        fill="none"
+        stroke="#fff"
+        strokeOpacity={0.16}
+        strokeWidth={0.8}
+      />
+      {/* the lid in its dark frame, the wings beside it, the display window */}
+      <path d={NX60.frame} fill="#121315" />
+      {SIDES.map((s) => (
+        <path key={s} transform={`scale(1 ${s})`} d={NX60.wing} fill="#3e4146" />
+      ))}
+      <path d={NX60.lid} fill={`url(#${id}l)`} />
+      <path d={NX60.tomb} fill="#52565b" {...soft} />
+      <rect x={-0.337} y={-0.274} width={0.248} height={0.549} rx={0.025} ry={0.035} fill={`url(#${id}g)`} {...line} />
+      <path d="M-0.337,-0.214 L-0.089,-0.058 L-0.089,0.019 L-0.337,-0.136Z" fill="#fff" fillOpacity={0.07} />
+      {/* the stop button in its well */}
+      <rect x={-0.627} y={-0.319} width={0.238} height={0.638} rx={0.03} ry={0.043} fill="#18191b" />
+      <rect
+        x={-0.604}
+        y={-0.286}
+        width={0.195}
+        height={0.572}
+        rx={0.027}
+        ry={0.039}
+        fill={`url(#${id}r)`}
+        stroke="#7d0d1d"
+        strokeWidth={0.75}
+      />
+      {emergency && (
+        <rect x={-0.604} y={-0.286} width={0.195} height={0.572} rx={0.027} ry={0.039} fill="#fff" opacity={0}>
+          <animate attributeName="opacity" values="0;1;0" dur="0.8s" repeatCount="indefinite" />
+        </rect>
+      )}
+      <text transform={`matrix(0 1 ${-41 / 61} 0 -0.552 0)`} fontSize={0.187} letterSpacing={0.004} {...stopText}>
+        STOP
+      </text>
+      {/* the knob at the back, the two sensors at the front */}
+      <ellipse cx={-0.792} cy={0} rx={0.077} ry={0.109} fill="#1b1c1e" {...line} />
+      <ellipse cx={-0.77} cy={0} rx={0.068} ry={0.097} fill={`url(#${id}k)`} />
+      <ellipse cx={-0.751} cy={-0.027} rx={0.022} ry={0.031} fill="#fff" fillOpacity={0.25} />
+      {SIDES.map((s) => (
+        <rect key={s} x={0.958} y={s > 0 ? -0.051 : 0.008} width={0.026} height={0.043} rx={0.004} ry={0.006} fill="#ececec" />
+      ))}
+    </>
+  );
+}
+
 const MODELS: MowerIcon[] = [
   {
     key: 'yf500',
@@ -703,6 +896,12 @@ const MODELS: MowerIcon[] = [
     label: 'John Deere Tango E5',
     fit: 53.5 / 77.5,
     draw: ({emergency = false, blades = false} = {}) => <Shaded draw={(id) => johnDeereTango(id, emergency, blades)} />,
+  },
+  {
+    key: 'punisher',
+    label: 'NX60 Punisher',
+    fit: 41 / 61,
+    draw: ({emergency = false} = {}) => <Shaded draw={(id) => punisherNx60(id, emergency)} />,
   },
 ];
 
@@ -987,6 +1186,40 @@ export const DOCK_ICONS: {key: string; label: string; real?: typeof YF_STATION; 
           <rect x={0.516} y={-0.323} width={0.484} height={0.645} rx={0.071} fill="#f4612b" {...line} />
           <rect x={0.516} y={-0.3} width={0.055} height={0.6} rx={0.02} fill="#000" fillOpacity={0.18} />
           <rect x={0.645} y={-0.177} width={0.226} height={0.355} rx={0.048} fill="#1e1e1e" />
+        </>,
+      ),
+  },
+  {
+    key: 'punisher',
+    label: 'Punisher station',
+    real: YF_STATION,
+    // the YardForce station with the cap painted black and the skull on it, like the NX60 Punisher's: in the cap's
+    // recess, its top to the front
+    draw: () =>
+      yfStation(
+        <>
+          <rect
+            x={0.516}
+            y={-0.323}
+            width={0.484}
+            height={0.645}
+            rx={0.071}
+            fill="#202224"
+            stroke="#55595e"
+            strokeWidth={0.75}
+          />
+          <rect x={0.516} y={-0.3} width={0.055} height={0.6} rx={0.02} fill="#000" fillOpacity={0.3} />
+          <rect
+            x={0.608}
+            y={-0.161}
+            width={0.242}
+            height={0.323}
+            rx={0.045}
+            fill="#141516"
+            stroke="#3a3d40"
+            strokeWidth={0.5}
+          />
+          <path d={NX60.skull} transform="matrix(-0.523 0 0 0.2446 1.1438 0)" fill="#f2f2f2" fillRule="evenodd" />
         </>,
       ),
   },

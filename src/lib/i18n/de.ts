@@ -620,6 +620,7 @@ const de: Record<string, string> = {
   "YardForce NX100": "YardForce NX100",
   "YardForce station": "YardForce-Station",
   "Tango station": "Tango-Station",
+  "Punisher station": "Punisher-Station",
   ", where an outline crosses itself it gets tidied up": ", wo sich ein Umriss selbst kreuzt, wird er dabei bereinigt",
   "Last run: {when}. The next one replaces it.": "Letzte Fahrt: {when}. Die nächste ersetzt sie.",
   "Path stopped, sent home": "Bahn abgebrochen, nach Hause geschickt",
