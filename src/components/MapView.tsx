@@ -12,7 +12,7 @@ import {availableSources, imageryTiles, type Datum} from '@/lib/imagery';
 import {handleRadius, meterGrid} from '@/lib/mapGrid';
 import MapControls, {layerOn, type Layer} from './MapControls';
 import {useMapPrefs} from './useMapPrefs';
-import {useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
+import {memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import styles from './MapView.module.css';
 import {tr, useLang} from '@/lib/i18n';
 import {tick} from '@/lib/haptics';
@@ -101,6 +101,8 @@ const PENDING = '__pending';
 type Run = {points: string; blades: boolean};
 // drawn runs of each piece of the live trail per map geometry, pieces that are done are never worked out again
 const runCache = new WeakMap<object, Map<string, Run[]>>();
+// a piece's runs with their bends rounded, the same at any view: following the mower moves the view all the time
+const bentCache = new WeakMap<object, {points: Point[]; blades: boolean}[]>();
 // the same for the strip the blade cut along them, in meters per blade. With the strip's state at the end of the piece
 // before and of this one, a stretch with the blades on goes on across pieces
 const swathCache = new WeakMap<object, Map<string, {pieces: Point[][]; ends: Point[][]; before: SwathState | null; after: SwathState | null}>>();
@@ -273,7 +275,7 @@ function MowerMarker({
   );
 }
 
-export default function MapView({
+function MapView({
   map,
   mower,
   emergency,
@@ -474,16 +476,20 @@ export default function MapView({
       if (!byView) runCache.set(piece, (byView = new Map()));
       let cached = byView.get(key);
       if (!cached) {
-        const own: Run[] = [];
-        let start = 0;
-        for (let i = 1; i <= piece.length; i++) {
-          if (i < piece.length && (piece[i].b ?? true) === (piece[start].b ?? true)) continue;
-          // include the next point so the runs connect
-          const pts = piece.slice(start, Math.min(i + 1, piece.length));
-          if (pts.length >= 2) own.push({points: roundBends(pts).map(at).join(' '), blades: piece[start].b ?? true});
-          start = i;
+        let bent = bentCache.get(piece);
+        if (!bent) {
+          bent = [];
+          let start = 0;
+          for (let i = 1; i <= piece.length; i++) {
+            if (i < piece.length && (piece[i].b ?? true) === (piece[start].b ?? true)) continue;
+            // include the next point so the runs connect
+            const pts = piece.slice(start, Math.min(i + 1, piece.length));
+            if (pts.length >= 2) bent.push({points: roundBends(pts), blades: piece[start].b ?? true});
+            start = i;
+          }
+          bentCache.set(piece, bent);
         }
-        cached = own;
+        cached = bent.map((r) => ({points: r.points.map(at).join(' '), blades: r.blades}));
         // one entry per map size it's drawn at, the dashboard and the map page differ
         if (byView.size > 3) byView.clear();
         byView.set(key, cached);
@@ -1388,3 +1394,6 @@ export default function MapView({
     </div>
   );
 }
+
+// the dashboard draws again for every sensor value, the map only when something it shows changes
+export default memo(MapView);

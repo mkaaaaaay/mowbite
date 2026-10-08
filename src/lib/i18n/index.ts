@@ -86,5 +86,14 @@ export function tr(text: string, vars?: Record<string, string | number>): string
 export const locale = () => (active === 'de' ? 'de-DE' : 'en-GB');
 
 // a number with a fixed count of decimals, decimal comma in german
-export const fmt = (v: number, digits = 0) =>
-  v.toLocaleString(locale(), {minimumFractionDigits: digits, maximumFractionDigits: digits, useGrouping: false});
+// one formatter per language and number of digits, making one is what's slow (the dashboard formats every sensor value)
+const numberFormats = new Map<string, Intl.NumberFormat>();
+export const fmt = (v: number, digits = 0) => {
+  const key = `${locale()} ${digits}`;
+  let f = numberFormats.get(key);
+  if (!f) {
+    f = new Intl.NumberFormat(locale(), {minimumFractionDigits: digits, maximumFractionDigits: digits, useGrouping: false});
+    numberFormats.set(key, f);
+  }
+  return f.format(v);
+};

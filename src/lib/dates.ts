@@ -13,8 +13,17 @@ export function dayLabel(d: Date) {
   return d.toLocaleDateString(locale(), {weekday: 'short', day: 'numeric', month: 'numeric'});
 }
 
-export const clock = (t: number, seconds = false) =>
-  new Date(t * 1000).toLocaleTimeString(locale(), {hour: '2-digit', minute: '2-digit', ...(seconds ? {second: '2-digit'} : {})});
+// like fmt: one formatter per language, with or without seconds
+const clockFormats = new Map<string, Intl.DateTimeFormat>();
+export const clock = (t: number, seconds = false) => {
+  const key = `${locale()} ${seconds}`;
+  let f = clockFormats.get(key);
+  if (!f) {
+    f = new Intl.DateTimeFormat(locale(), {hour: '2-digit', minute: '2-digit', ...(seconds ? {second: '2-digit'} : {})});
+    clockFormats.set(key, f);
+  }
+  return f.format(new Date(t * 1000));
+};
 
 export function duration(seconds: number) {
   const m = Math.round(seconds / 60);

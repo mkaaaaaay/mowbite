@@ -23,7 +23,7 @@ import {emergencyText, OUTCOMES, type MowerEvent, type Run} from '@/lib/events';
 import {settingsStore} from '@/lib/settings';
 import {batteryColor, GPS_QUALITY_LABEL, gpsQuality, isDocked} from '@/lib/status';
 import Link from 'next/link';
-import {useEffect, useState, useSyncExternalStore} from 'react';
+import {memo, useEffect, useMemo, useState, useSyncExternalStore} from 'react';
 import styles from './page.module.css';
 import {fmt, tr, useLang} from '@/lib/i18n';
 import {
@@ -123,7 +123,7 @@ function BatteryRing({percent, charging}: {percent: number; charging: boolean}) 
   );
 }
 
-function LastRun({run}: {run: Run}) {
+const LastRun = memo(function LastRun({run}: {run: Run}) {
   const outcome = OUTCOMES[run.outcome];
   const day = new Date(run.start * 1000);
   const today = dayKey(day) === dayKey(new Date());
@@ -142,7 +142,7 @@ function LastRun({run}: {run: Run}) {
       <span className={styles.badge}>{tr(outcome.label)}</span>
     </div>
   );
-}
+});
 
 export default function Home() {
   useLang();
@@ -161,7 +161,9 @@ export default function Home() {
   const progress = usePlanProgress(state ?? null, map, recent?.today);
   const params = useMowerParams();
   const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
-  const weather = useWeather(datumFromParams(params), !!settings.weather);
+  // the same object while params/json doesn't change: the map isn't drawn again for every sensor value
+  const datum = useMemo(() => datumFromParams(params), [params]);
+  const weather = useWeather(datum, !!settings.weather);
   const [schedule, setSchedule] = useState<Schedule | null>(() => cachedSchedule() ?? null);
   // the scheduler's log, for a start it left out (rain, battery, ...). again every minute while the page is open
   const [scheduleLog, setScheduleLog] = useState<LogEntry[]>(() => cachedScheduleLog() ?? []);
@@ -182,7 +184,6 @@ export default function Home() {
   });
   const missedAny = schedule?.enabled ? missedStart(scheduleLog) : null;
   const missed = missedAny && missedAny.t !== missedSeen ? missedAny : null;
-  const datum = datumFromParams(params);
   const planned = schedule ? nextStart(schedule, undefined, datum ? sunTimes(datum.lat, datum.lon) : null) : null;
   const [confirmReset, setConfirmReset] = useState(false);
   // the runs before the last one, unfolded under it
@@ -376,7 +377,7 @@ export default function Home() {
               progress={progress ?? undefined}
               follow={driving}
               zoomable
-              datum={datumFromParams(params)}
+              datum={datum}
             />
           </section>
         )}
