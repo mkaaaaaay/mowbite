@@ -2,7 +2,7 @@
 
 import type {MowerMap, Point} from '@/hooks/useMowerMap';
 import {useComputedSpeed} from '@/hooks/useComputedSpeed';
-import {useEasedPose, type Pose} from '@/hooks/useEasedPose';
+import {createEaser, useEasedPose, type Pose} from '@/hooks/useEasedPose';
 import {containsPoint, polygonArea} from '@/lib/geometry';
 import {settingsStore, type Settings} from '@/lib/settings';
 import {bladeSeconds, bodyShape, realEdges, roundBends, swathEnd, swathGroups, swathAfter, useMowerBody, type MowerBody, type SwathState} from '@/lib/mowerBody';
@@ -12,7 +12,7 @@ import {availableSources, imageryTiles, type Datum} from '@/lib/imagery';
 import {handleRadius, meterGrid} from '@/lib/mapGrid';
 import MapControls, {layerOn, type Layer} from './MapControls';
 import {useMapPrefs} from './useMapPrefs';
-import {memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
+import {memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import styles from './MapView.module.css';
 import {tr, useLang} from '@/lib/i18n';
 import {tick} from '@/lib/haptics';
@@ -382,8 +382,13 @@ function MapView({
     hold.current = null;
   };
   useEffect(() => () => dropHold(), []);
-  // the mower glides on its own (MowerMarker), the view only goes along with it in follow mode
-  const followed = useEasedPose(following && mower ? mower : null);
+  // the mower glides on its own (MowerMarker), the view only goes along with it in follow mode: every frame by moving
+  // the viewBox itself (below), a render of the whole map for every frame stuttered on phones
+  const followed = following && mower ? mower : null;
+  const [followEaser] = useState(createEaser);
+  useEffect(() => {
+    followEaser.push(followed);
+  }, [followEaser, followed]);
 
   // fitted to the map only, so the geometry doesn't change while the mower moves. follow mode
   // moves the view instead
@@ -455,6 +460,30 @@ function MapView({
     const size = followSpanMeters * followZoom * scale;
     shown = {x: sx - size / 2, y: sy - size / 2, size};
   }
+  // following with the geometry fitted to the map: the window glides along every frame, set on the svg directly
+  const glides = following && !!followed && !!fit;
+  const followZoomRef = useRef(followZoom);
+  useEffect(() => {
+    followZoomRef.current = followZoom;
+  }, [followZoom]);
+  useLayoutEffect(() => {
+    if (!glides) return;
+    let frame = 0;
+    const tick = () => {
+      const p = followEaser.at(performance.now());
+      const svg = svgRef.current;
+      if (p && svg) {
+        const f = fitRef.current;
+        const size = followSpanMeters * followZoomRef.current * f.scale;
+        const sx = (p.x - f.minX) * f.scale + f.padX;
+        const sy = HEIGHT - ((p.y - f.minY) * f.scale + f.padY);
+        svg.setAttribute('viewBox', `${sx - size / 2} ${sy - size / 2} ${size} ${size}`);
+      }
+      frame = requestAnimationFrame(tick);
+    };
+    tick();
+    return () => cancelAnimationFrame(frame);
+  }, [glides, followEaser, followSpanMeters]);
 
   // outlines as svg point strings, rebuilt only when the map or the fit changes, not every frame
   const outlinePoints = useMemo(() => {
@@ -1226,7 +1255,8 @@ function MapView({
     <svg
       ref={attachSvg}
       className={[styles.svg, zoomable ? styles.zoomable : ''].filter(Boolean).join(' ')}
-      viewBox={shown ? `${shown.x} ${shown.y} ${shown.size} ${shown.size}` : `0 0 ${WIDTH} ${HEIGHT}`}
+      // (gliding along the mower the window is set every frame above)
+      viewBox={glides ? undefined : shown ? `${shown.x} ${shown.y} ${shown.size} ${shown.size}` : `0 0 ${WIDTH} ${HEIGHT}`}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerEnd}
