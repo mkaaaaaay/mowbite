@@ -1,7 +1,7 @@
 'use client';
 
 import {tr, useLang} from '@/lib/i18n';
-import {appMowers, saveAppMowers, selectMower} from '@/lib/mowers';
+import {appMowers, DEMO_ID, isDemo, saveAppMowers, selectMower} from '@/lib/mowers';
 import {isApp} from '@/lib/native';
 import {useState, useSyncExternalStore} from 'react';
 import LogoMark from './Logo';
@@ -13,7 +13,8 @@ const never = () => () => {};
 export default function AppSetup() {
   useLang();
   const app = useSyncExternalStore(never, isApp, () => false);
-  const hasMower = useSyncExternalStore(never, () => appMowers().length > 0, () => true);
+  // the demo mower counts, it's what the app shows then
+  const hasMower = useSyncExternalStore(never, () => appMowers().length > 0 || isDemo(), () => true);
   const [host, setHost] = useState('');
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
@@ -65,6 +66,9 @@ export default function AppSetup() {
         )}
         <button className={styles.connect} onClick={() => void connect()} disabled={!clean() || busy}>
           {busy ? tr('connecting…') : tr('Connect')}
+        </button>
+        <button className={styles.link} onClick={() => selectMower(DEMO_ID)}>
+          {tr('No mower at hand? Look around with a demo mower')}
         </button>
       </div>
     </div>

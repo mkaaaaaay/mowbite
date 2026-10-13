@@ -1,5 +1,5 @@
 import {useEffect, useSyncExternalStore} from 'react';
-import {apiBase} from './mowers';
+import {apiBase, mowerFetch} from './mowers';
 
 // Looks on github for a newer release. Off by default (it tells github your ip), switched on per
 // device in the settings, then once a day. "check now" works either way.
@@ -122,7 +122,7 @@ export function dismissUpdate(version: string) {
 
 async function loadMowerVersion() {
   try {
-    const res = await fetch(`${apiBase()}/version.json`, {cache: 'no-store'});
+    const res = await mowerFetch(`${apiBase()}/version.json`, {cache: 'no-store'});
     if (res.ok) set({mower: ((await res.json()) as {version?: string}).version ?? null});
   } catch {}
 }

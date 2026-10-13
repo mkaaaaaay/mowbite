@@ -1,4 +1,4 @@
-import {apiBase} from './mowers';
+import {apiBase, mowerFetch} from './mowers';
 import {RPC} from './openmower';
 import {callRpc, rpcMethods} from './rpc';
 
@@ -28,7 +28,7 @@ let since: Promise<number | null> | null = null;
 export function rosLogSince(): Promise<number | null> {
   since ??= (async () => {
     const [stored, live] = await Promise.all([
-      fetch(`${apiBase()}/cgi-bin/roslog?oldest`, {cache: 'no-store'})
+      mowerFetch(`${apiBase()}/cgi-bin/roslog?oldest`, {cache: 'no-store'})
         .then(async (res) => (res.ok ? Number((await res.text()).trim()) || null : null))
         .catch(() => null),
       rpcMethods().then((m) =>
@@ -73,7 +73,7 @@ export function readRpcLog(answer: unknown, from: number, to: number): RosLogLin
 // what ros said from a bit before to a bit after the moment
 export async function rosLogAround(t: number, before = 120, after = 60): Promise<RosLogLine[]> {
   const [stored, live] = await Promise.all([
-    fetch(kept(t, before, after), {cache: 'no-store'})
+    mowerFetch(kept(t, before, after), {cache: 'no-store'})
       .then((res) => (res.ok ? res.text().then(readKeptLog) : []))
       .catch(() => []),
     rpcMethods().then((m) =>

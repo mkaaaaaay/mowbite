@@ -1,4 +1,4 @@
-import {apiBase} from './mowers';
+import {apiBase, mowerFetch} from './mowers';
 
 // memory, storage, load and temperature of the machine the container runs on (docker/system.cgi).
 // remote: it doesn't run on the mower but on a pc or NAS, the numbers are that machine's then
@@ -44,7 +44,7 @@ export function parseSystem(text: string): SystemInfo {
 // null: not served, an older container or MowBite not running as one
 export async function loadSystem(): Promise<SystemInfo | null> {
   try {
-    const res = await fetch(`${apiBase()}/cgi-bin/system`, {cache: 'no-store'});
+    const res = await mowerFetch(`${apiBase()}/cgi-bin/system`, {cache: 'no-store'});
     if (!res.ok || !res.headers.get('content-type')?.includes('text/plain')) return null;
     return parseSystem(await res.text());
   } catch {

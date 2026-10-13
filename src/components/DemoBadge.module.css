@@ -1,0 +1,24 @@
+.badge {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 8px 16px -4px;
+  padding: 5px 6px 5px 12px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--warning) 60%, transparent);
+  background: color-mix(in srgb, var(--warning) 18%, transparent);
+  color: var(--foreground);
+  font-size: 12px;
+}
+
+.badge button {
+  flex: none;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 12px;
+  cursor: pointer;
+}

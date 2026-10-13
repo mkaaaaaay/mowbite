@@ -1,4 +1,5 @@
 import AppSetup from "@/components/AppSetup";
+import DemoBadge from "@/components/DemoBadge";
 import Grass from "@/components/Grass";
 import Nav from "@/components/Nav";
 import SwipeNav from "@/components/SwipeNav";
@@ -49,6 +50,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <div className={styles.shell}>
           <Nav />
           <div className={styles.content} data-page>
+            <DemoBadge />
             {children}
           </div>
           <Grass />

@@ -7,7 +7,7 @@ import {useState, useSyncExternalStore} from 'react';
 import styles from './page.module.css';
 import {setLangChoice, tr, useLang, useLangChoice} from '@/lib/i18n';
 import {setThemeChoice, useThemeChoice} from '@/lib/theme';
-import {appMowers, saveAppMowers} from '@/lib/mowers';
+import {appMowers, DEMO_ID, isDemo, saveAppMowers, selectMower} from '@/lib/mowers';
 import {isApp} from '@/lib/native';
 import {setSwipeEnabled, useSwipeEnabled} from '@/lib/swipe';
 import {UpdateSettings} from '@/components/Updates';
@@ -67,6 +67,7 @@ function MowersSection({settings}: {settings: Settings}) {
   // the android app keeps its list on the phone, a mower keeps it in its shared settings
   const app = useSyncExternalStore(noop, isApp, () => false);
   const [phoneList, setPhoneList] = useState<OtherMower[]>(() => appMowers());
+  const demo = useSyncExternalStore(noop, isDemo, () => false);
   const others = app ? phoneList : (settings.mowers ?? []);
   const store = (list: OtherMower[]) => {
     if (app) {
@@ -171,6 +172,11 @@ function MowersSection({settings}: {settings: Settings}) {
           {tr('Add mower')}
         </button>
       </div>
+      {!demo && (
+        <button className={styles.linkButton} onClick={() => selectMower(DEMO_ID)}>
+          {tr('Look around with a demo mower')}
+        </button>
+      )}
     </section>
   );
 }

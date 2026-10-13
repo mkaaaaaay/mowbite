@@ -679,6 +679,10 @@ const de: Record<string, string> = {
   "Show more": "Mehr anzeigen",
   "Show less": "Weniger anzeigen",
   'Privacy policy': 'Datenschutzerklärung',
+  'Demo: a made-up mower, nothing is saved': 'Demo: ein erfundener Mäher, nichts wird gespeichert',
+  'Leave': 'Verlassen',
+  'No mower at hand? Look around with a demo mower': 'Kein Mäher zur Hand? Mit einem Demo-Mäher umsehen',
+  'Look around with a demo mower': 'Mit einem Demo-Mäher umsehen',
 };
 
 export default de;

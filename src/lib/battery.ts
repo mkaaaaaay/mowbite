@@ -1,5 +1,5 @@
 import type {Sample} from '@/hooks/useSensorHistory';
-import {apiBase} from './mowers';
+import {apiBase, mowerFetch} from './mowers';
 
 // the battery over weeks, from what docker/battery.sh keeps: a line per charge and per stretch between charges
 export interface Cycle {
@@ -44,7 +44,7 @@ export function trend(samples: Sample[], now = Date.now()): {first: number; last
 // null: not served, an older container or MowBite not running as one
 export async function loadBattery(): Promise<Cycle[] | null> {
   try {
-    const res = await fetch(`${apiBase()}/cgi-bin/battery`, {cache: 'no-store'});
+    const res = await mowerFetch(`${apiBase()}/cgi-bin/battery`, {cache: 'no-store'});
     if (!res.ok || !res.headers.get('content-type')?.includes('text/plain')) return null;
     return parseBattery(await res.text());
   } catch {

@@ -1,5 +1,6 @@
 import mqtt, {type MqttClient} from 'mqtt';
-import {selectedMower} from './mowers';
+import {demoClient} from './demo/client';
+import {isDemo, selectedMower} from './mowers';
 
 declare global {
   interface Window {
@@ -40,16 +41,7 @@ let client: MqttClient | null = null;
 
 export function getMqttClient(): MqttClient {
   if (!client) {
-    client = mqtt.connect(mqttUrl(), {
-      reconnectPeriod: 2000,
-      // a dead wifi link shows up after ~15 s instead of ~90 s with the default of 60
-      keepalive: 10,
-      // nothing sent while offline is kept for later: a start or go home tapped then would go out on the
-      // next reconnect, maybe minutes later. rpc waits for the connection itself (lib/rpc.ts)
-      queueQoSZero: false,
-      // the topics are subscribed again below, once each
-      resubscribe: false,
-    });
+    client = isDemo() ? demoClient() : connect();
     client.on('connect', () => {
       if (handlers.size) client!.subscribe([...handlers.keys()].map(withPrefix));
     });
@@ -60,6 +52,19 @@ export function getMqttClient(): MqttClient {
     });
   }
   return client;
+}
+
+function connect(): MqttClient {
+  return mqtt.connect(mqttUrl(), {
+    reconnectPeriod: 2000,
+    // a dead wifi link shows up after ~15 s instead of ~90 s with the default of 60
+    keepalive: 10,
+    // nothing sent while offline is kept for later: a start or go home tapped then would go out on the
+    // next reconnect, maybe minutes later. rpc waits for the connection itself (lib/rpc.ts)
+    queueQoSZero: false,
+    // the topics are subscribed again above, once each
+    resubscribe: false,
+  });
 }
 
 // One listener for the whole app hands each message to whoever asked for its topic (without the prefix, + for one

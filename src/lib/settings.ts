@@ -3,7 +3,7 @@
 // before the request comes back.
 
 import {mergeChanges} from './mergeChanges';
-import {apiBase} from './mowers';
+import {apiBase, mowerFetch} from './mowers';
 import {isApp} from './native';
 
 export const COLORS = [
@@ -119,7 +119,7 @@ export async function syncSettings() {
   if (synced) return;
   synced = true;
   try {
-    const res = await fetch(settingsUrl(), {cache: 'no-store'});
+    const res = await mowerFetch(settingsUrl(), {cache: 'no-store'});
     if (!res.ok || !res.headers.get('content-type')?.includes('json')) return;
     const data = await res.json();
     shared = true;
@@ -133,7 +133,7 @@ export async function syncSettings() {
 
 async function push(next: Settings) {
   for (let tries = 0; tries < 3; tries++) {
-    const res = await fetch(settingsUrl() + (version ? `?v=${encodeURIComponent(version)}` : ''), {
+    const res = await mowerFetch(settingsUrl() + (version ? `?v=${encodeURIComponent(version)}` : ''), {
       method: 'POST',
       body: JSON.stringify(next),
     });

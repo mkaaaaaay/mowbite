@@ -2,7 +2,7 @@
 
 import {onTopic} from '@/lib/mqttClient';
 import {useSyncExternalStore} from 'react';
-import {apiBase} from '@/lib/mowers';
+import {apiBase, mowerFetch} from '@/lib/mowers';
 import {TOPIC} from '@/lib/openmower';
 
 export interface Sample {
@@ -36,7 +36,7 @@ function merge() {
 
 async function loadDay() {
   try {
-    const res = await fetch(`${apiBase()}/cgi-bin/sensors`, {cache: 'no-store'});
+    const res = await mowerFetch(`${apiBase()}/cgi-bin/sensors`, {cache: 'no-store'});
     if (!res.ok || !res.headers.get('content-type')?.includes('text/plain')) return;
     const next: Record<string, Sample[]> = {};
     for (const line of (await res.text()).split('\n')) {

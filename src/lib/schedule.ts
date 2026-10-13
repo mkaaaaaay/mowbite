@@ -1,5 +1,5 @@
 import {forget, fresh} from './fresh';
-import {apiBase} from './mowers';
+import {apiBase, mowerFetch} from './mowers';
 
 // the mowing schedule, kept by the container (docker/schedule.cgi) as simple lines the scheduler
 // script reads: enabled, minbattery, skiprain, tz, one "plan <days> <HH:MM> [areas] [end=HH:MM] [dark=1] [sunset=1]
@@ -102,7 +102,7 @@ export const cachedScheduleLog = () => lastLog;
 export function loadSchedule(): Promise<Schedule | null> {
   return fresh('schedule', async () => {
     try {
-      const res = await fetch(endpoint(), {cache: 'no-store'});
+      const res = await mowerFetch(endpoint(), {cache: 'no-store'});
       if (!res.ok || !res.headers.get('content-type')?.includes('text/plain')) return (lastSchedule = null);
       return (lastSchedule = parseSchedule(await res.text()));
     } catch {
@@ -114,7 +114,7 @@ export function loadSchedule(): Promise<Schedule | null> {
 export async function saveSchedule(s: Schedule, pos?: {lat: number; lon: number}): Promise<void> {
   lastSchedule = s;
   forget('schedule');
-  const res = await fetch(endpoint(), {method: 'POST', body: serializeSchedule(s, pos)});
+  const res = await mowerFetch(endpoint(), {method: 'POST', body: serializeSchedule(s, pos)});
   if (!res.ok) throw new Error(`schedule ${res.status}`);
 }
 
@@ -176,7 +176,7 @@ export function loadScheduleLog(): Promise<LogEntry[]> {
 
 async function loadLog(): Promise<LogEntry[]> {
   try {
-    const res = await fetch(`${endpoint()}?log`, {cache: 'no-store'});
+    const res = await mowerFetch(`${endpoint()}?log`, {cache: 'no-store'});
     if (!res.ok) return lastLog ?? [];
     return (lastLog = (await res.text())
       .split('\n')

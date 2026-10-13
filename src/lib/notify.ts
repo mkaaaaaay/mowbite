@@ -1,4 +1,4 @@
-import {apiBase} from './mowers';
+import {apiBase, mowerFetch} from './mowers';
 
 // Push messages through ntfy, sent by the container on the mower (docker/notify.sh) when the mower needs someone.
 // The settings are kept there as lines (notify.cgi), the token is never handed back, only that there is one.
@@ -115,7 +115,7 @@ const endpoint = () => apiBase() + '/cgi-bin/notify';
 // null: not served by the container (the dev server, an older container), no push messages then
 export async function loadNotify(fallback: NotifyConfig): Promise<NotifyConfig | null> {
   try {
-    const res = await fetch(endpoint(), {cache: 'no-store'});
+    const res = await mowerFetch(endpoint(), {cache: 'no-store'});
     if (!res.ok || !res.headers.get('content-type')?.includes('text/plain')) return null;
     return parseNotify(await res.text(), fallback);
   } catch {
@@ -124,20 +124,20 @@ export async function loadNotify(fallback: NotifyConfig): Promise<NotifyConfig |
 }
 
 export async function saveNotify(c: NotifyConfig): Promise<NotifyConfig> {
-  const res = await fetch(endpoint(), {method: 'POST', body: serializeNotify(c)});
+  const res = await mowerFetch(endpoint(), {method: 'POST', body: serializeNotify(c)});
   if (!res.ok) throw new Error(`notify ${res.status}`);
   return parseNotify(await res.text(), c);
 }
 
 // sends a test message with what's saved: 'sent', 'failed' or 'no topic'
 export async function testNotify(): Promise<string> {
-  const res = await fetch(`${endpoint()}?test`, {method: 'POST'});
+  const res = await mowerFetch(`${endpoint()}?test`, {method: 'POST'});
   return (await res.text()).trim();
 }
 
 // no reminders for this many seconds, 0 lifts it
 export async function snoozeNotify(seconds: number): Promise<void> {
-  await fetch(`${endpoint()}?snooze=${Math.max(0, Math.round(seconds))}`, {method: 'POST'});
+  await mowerFetch(`${endpoint()}?snooze=${Math.max(0, Math.round(seconds))}`, {method: 'POST'});
 }
 
 export interface NotifyLog {
@@ -148,7 +148,7 @@ export interface NotifyLog {
 
 export async function notifyLog(): Promise<NotifyLog[]> {
   try {
-    const res = await fetch(`${endpoint()}?log`, {cache: 'no-store'});
+    const res = await mowerFetch(`${endpoint()}?log`, {cache: 'no-store'});
     if (!res.ok) return [];
     return (await res.text())
       .split('\n')
