@@ -678,6 +678,7 @@ const de: Record<string, string> = {
   "Last runs": "Letzte Fahrten",
   "Show more": "Mehr anzeigen",
   "Show less": "Weniger anzeigen",
+  'Privacy policy': 'Datenschutzerklärung',
 };
 
 export default de;

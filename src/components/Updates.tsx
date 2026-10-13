@@ -12,6 +12,7 @@ import {rpcMethods} from '@/lib/rpc';
 import styles from './Updates.module.css';
 
 const UPDATE_COMMAND = 'docker compose pull && docker compose up -d';
+const PRIVACY_URL = 'https://github.com/mkaaaaaay/mowbite/blob/main/PRIVACY.md';
 
 // what's out of date: the android app itself, and the container on the mower
 function useOutdated() {
@@ -59,6 +60,9 @@ export function UpdateSettings({cardClass, checkClass}: {cardClass: string; chec
       <span className={styles.versions}>
         {app ? `${tr('App')} ${APP_VERSION} · ${tr('Mower')} ${mower ?? '?'}` : `MowBite ${APP_VERSION}`}
       </span>
+      <a className={styles.versions} href={PRIVACY_URL} target="_blank" rel="noreferrer">
+        {tr('Privacy policy')}
+      </a>
       <NewerOpenMower />
       <label className={checkClass}>
         <input type="checkbox" checked={u.enabled} onChange={(e) => setUpdateCheck(e.target.checked)} />
