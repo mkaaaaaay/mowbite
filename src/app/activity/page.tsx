@@ -2,6 +2,7 @@
 
 import {TitleMark} from '@/components/Logo';
 import {clock, dayKey, dayLabel, duration, parseDay} from '@/lib/dates';
+import {ParamFix} from '@/components/MowerParamSettings';
 import {describe, eventSource, explain, groupRuns, noteworthy, rawLine, OUTCOMES, withState, type Entry, type MowerEvent, type Run} from '@/lib/events';
 import {useDragScroll} from '@/hooks/useDragScroll';
 import {eventsOfDay, historyDays, localDays, type DayEvents} from '@/lib/history';
@@ -81,6 +82,14 @@ function RawEntry({event, file, line}: {event: MowerEvent; file: string; line: n
   );
 }
 
+// the settings of the mower that have to do with a problem, to change them where it shows
+const FIXES: Record<string, string[]> = {
+  GPS: ['gps_timeout', 'max_position_accuracy'],
+  DOCKING_RETRY: ['docking_approach_distance', 'docking_retry_count'],
+  DOCKING_FAILED: ['docking_approach_distance', 'docking_retry_count'],
+  UNDOCKING_FAILED: ['undock_distance'],
+};
+
 function ProblemItem({run, next, event, state, where}: {run: Run; next?: Run; event: MowerEvent; state?: string; where: Where}) {
   const [raw, setRaw] = useState(false);
   const {text, severity} = describe(event, state);
@@ -93,6 +102,7 @@ function ProblemItem({run, next, event, state, where}: {run: Run; next?: Run; ev
         <strong>{text}</strong>
       </div>
       {hint && <p>{hint}</p>}
+      <ParamFix keys={FIXES[event.type] ?? []} />
       <p className={styles.facts}>{problemFacts(run, event, next).join(' · ')}</p>
       <div className={styles.problemActions}>
         {event.x !== undefined && event.y !== undefined && (

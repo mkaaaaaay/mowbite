@@ -13,6 +13,7 @@ const missing = () => new Response('', {status: 404});
 
 let schedule = ['enabled 1', 'minbattery 80', 'skiprain 1', 'skipforecast 0', 'forecasthours 1', 'plan 1,3,5 10:00', ''].join('\n');
 let notify = '';
+let params = 'enabled 1\n';
 let settings: unknown = {};
 let settingsVersion = 1;
 let backups: {id: string; t: number; name: string; areas: number; auto: boolean; size: number; map: MowerMap}[] | null = null;
@@ -136,6 +137,9 @@ export async function demoFetch(url: string, init?: RequestInit): Promise<Respon
       if (q.has('snooze')) return text('');
       if (post) notify = body;
       return text(notify);
+    case '/cgi-bin/params':
+      if (post) params = body;
+      return text(params);
     case '/cgi-bin/settings':
       if (post) {
         settings = JSON.parse(body || '{}');

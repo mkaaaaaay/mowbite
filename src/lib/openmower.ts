@@ -32,6 +32,9 @@ export const RPC = {
   areaProperties: 'map.area_properties',
   // the last warnings and errors ROS logged, kept in memory by the mower. OpenMower doesn't offer it yet
   logs: 'logs.recent',
+  // sets parameters of nodes with a dynamic_reconfigure server while they run, {params: {name: value}}. the values
+  // aren't stored, a restart brings the yaml's back
+  setParams: 'params.set',
 } as const;
 
 export const ACTION = {

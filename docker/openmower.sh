@@ -14,3 +14,7 @@ TOPIC_RPC_RESPONSE=rpc/response
 TOPIC_RPC_ERROR=rpc/error
 # the last ros warnings and errors, kept in memory by the monitoring node
 RPC_LOGS=logs.recent
+# the ros parameters as the mower has them, and setting some while it runs (newer OpenMower only, not stored there)
+TOPIC_PARAMS=params/json
+RPC_SET_PARAMS=params.set
+PARAM_MOW_ANGLE_OFFSET=/mower_logic/mow_angle_offset

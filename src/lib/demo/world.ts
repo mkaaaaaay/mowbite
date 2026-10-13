@@ -130,17 +130,28 @@ function clear(way: Point[], obstacles: Point[][]): Point[] {
 const obstaclesOf = (map: MowerMap) =>
   map.areas.filter((a) => a.properties.type === 'obstacle' && a.properties.active !== false && a.outline.length > 2).map((a) => a.outline);
 
+// the direction an area is mowed in, like mower_logic works it out: its own angle plus the offset (degrees), or the
+// offset alone when that's absolute
+export function plannedAngle(areaAngle: number | undefined, params: Record<string, number | boolean> = DEMO_PARAMS): number {
+  const offset = (((params[PARAM.mowAngleOffset] as number) ?? 0) * Math.PI) / 180;
+  return params[PARAM.mowAngleOffsetIsAbsolute] ? offset : (areaAngle ?? 0) + offset;
+}
+
 // the paths of an area in the order they're driven: the outline passes, then the blocks of lanes, the nearest next
-export function areaPaths(area: Pick<MapArea, 'outline' | 'properties'>, obstacles: Point[][]): Path[] {
+export function areaPaths(
+  area: Pick<MapArea, 'outline' | 'properties'>,
+  obstacles: Point[][],
+  params: Record<string, number | boolean> = DEMO_PARAMS,
+): Path[] {
   const p = area.properties;
-  const tool = DEMO_PARAMS[PARAM.toolWidth] as number;
-  const angle = p.angle ?? 0;
+  const tool = params[PARAM.toolWidth] as number;
+  const angle = plannedAngle(p.angle, params);
   const plan = mowPlan({
     outline: area.outline,
     holes: obstacles,
-    outlineOffset: p.outline_offset ?? (DEMO_PARAMS['/mower_logic/outline_offset'] as number),
-    outlineCount: p.outline_count ?? (DEMO_PARAMS[PARAM.outlineCount] as number),
-    overlapCount: p.outline_overlap_count ?? (DEMO_PARAMS['/mower_logic/outline_overlap_count'] as number),
+    outlineOffset: p.outline_offset ?? (params['/mower_logic/outline_offset'] as number),
+    outlineCount: p.outline_count ?? (params[PARAM.outlineCount] as number),
+    overlapCount: p.outline_overlap_count ?? (params['/mower_logic/outline_overlap_count'] as number),
     toolWidth: tool,
     angle,
   });
@@ -196,7 +207,7 @@ const dockOf = (map: MowerMap) => {
 };
 
 // a whole job: out of the station, every mowing area that's switched on, and back in
-export function buildRoute(map: MowerMap): Leg[] {
+export function buildRoute(map: MowerMap, params: Record<string, number | boolean> = DEMO_PARAMS): Leg[] {
   const dock = dockOf(map);
   if (!dock) return [];
   const legs = [leg([dock.at, dock.out], 'UNDOCKING', false, -1, -1, {reverse: true, events: [{type: 'STATE', state: 'UNDOCKING'}]})];
@@ -207,7 +218,7 @@ export function buildRoute(map: MowerMap): Leg[] {
     .filter((a) => a.properties.type === 'mow')
     .forEach((area, i) => {
       if (area.properties.active === false || area.properties.mowable === false || area.outline.length < 3) return;
-      const paths = areaPaths(area, obstacles);
+      const paths = areaPaths(area, obstacles, params);
       if (!paths.length) return;
       const events: EventPart[] = first ? [{type: 'UNDOCKED'}, {type: 'STATE', state: 'MOWING'}] : [{type: 'BLADES', enabled: false}];
       events.push({type: 'AREA', area_id: area.id, area_name: area.properties.name ?? ''});
@@ -314,6 +325,8 @@ const dayStart = (now: number, daysAgo: number, hour: number, minute = 0) => {
 
 export function createWorld(deliver: (topic: string, text: string) => void, opts: {now?: number; timer?: boolean} = {}): World {
   let map = demoMap();
+  // changed by params.set, like the ros params until the mower restarts
+  const ros: Record<string, number | boolean> = {...DEMO_PARAMS};
   let last = opts.now ?? Date.now();
   let job: {id: string; session: string; run: Run} | null = null;
   // a way driven in between: home when sent there, back to where a job stopped
@@ -335,7 +348,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
   const mowAreas = () => map.areas.filter((a) => a.properties.type === 'mow');
   const pathsOf = (area: MapArea) => {
     let p = plans.get(area.id);
-    if (!p) plans.set(area.id, (p = areaPaths(area, obstaclesOf(map))));
+    if (!p) plans.set(area.id, (p = areaPaths(area, obstaclesOf(map), ros)));
     return p;
   };
 
@@ -391,7 +404,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
   }
 
   function newJob(t: number, id = `demo${Math.round(t).toString(36)}`): number {
-    const legs = buildRoute(map);
+    const legs = buildRoute(map, ros);
     if (!legs.length) return 0;
     job = {id, session: `${id}-s`, run: {legs, at: 0, d: 0}};
     jobs.unshift({job_id: id, timestamp: Math.round(t)});
@@ -634,13 +647,26 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
       if (req?.area_id) {
         const area = map.areas.find((a) => a.id === req.area_id);
         if (!area) throw new Error(`no area ${req.area_id}`);
-        return answer(pathsOf(area), area.properties.angle ?? 0, area.id);
+        return answer(pathsOf(area), plannedAngle(area.properties.angle, ros), area.id);
       }
       if (!Array.isArray(req?.outline) || req.outline.length < 3) throw new Error('at least 3 outline points');
       const {outline, obstacles, ...properties} = req;
-      return answer(areaPaths({outline: openRing(outline), properties}, (obstacles ?? []).map(openRing)), properties.angle ?? 0);
+      return answer(areaPaths({outline: openRing(outline), properties}, (obstacles ?? []).map(openRing), ros), plannedAngle(properties.angle, ros));
     },
     [RPC.logs]: () => [],
+    // any of mower_logic's numbers and switches, kept until the demo is opened again. the next plan uses them
+    [RPC.setParams]: (request) => {
+      const wanted = (request as {params?: Record<string, unknown>})?.params;
+      if (!wanted || typeof wanted !== 'object' || !Object.keys(wanted).length) throw new Error('Expected {"params": {name: value, ...}}');
+      for (const [name, v] of Object.entries(wanted)) {
+        if (!name.startsWith('/mower_logic/')) throw new Error(`No dynamic_reconfigure server found for ${name}`);
+        if (typeof v !== 'number' && typeof v !== 'boolean') throw new Error(`${name} must be a number or a bool`);
+      }
+      Object.assign(ros, wanted);
+      plans.clear();
+      deliver(TOPIC.params, JSON.stringify(ros));
+      return wanted;
+    },
   };
   const answer = (paths: Path[], angle: number, id?: string) => ({
     ...(id ? {area_id: id} : {}),
@@ -694,7 +720,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
       if (topic === TOPIC.map) return [[topic, JSON.stringify(closedRings(map))]];
       if (topic === TOPIC.actions) return [[topic, JSON.stringify(actions())]];
       if (topic === TOPIC.sensorInfos) return [[topic, JSON.stringify(DEMO_SENSORS)]];
-      if (topic === TOPIC.params) return [[topic, JSON.stringify(DEMO_PARAMS)]];
+      if (topic === TOPIC.params) return [[topic, JSON.stringify(ros)]];
       if (topic === TOPIC.robotState) return [[topic, JSON.stringify(robotState())]];
       if (topic === TOPIC.position) return [[topic, JSON.stringify(position())]];
       if (topic === TOPIC.sensorData) return Object.entries(sensors()).map(([id, v]) => [`sensors/${id}/data`, v]);

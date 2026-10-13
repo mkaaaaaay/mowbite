@@ -5,7 +5,8 @@
 # is forecast, and waits up to two hours for the battery. not in the dark (sun times of the day at the garden,
 # 6 pm to 6 am without a position) unless the plan says so. a run it started goes home at the plan's end time,
 # and at sunset if the plan wants that. a plan can drop an interrupted job first so it begins with the first area,
-# and it can be paused for some days, for all areas or some. what happened goes to /data/schedule.log for the page
+# and it can be paused for some days, for all areas or some. a plan can have its own mowing direction (angle=<deg>),
+# set on the mower before the start. what happened goes to /data/schedule.log for the page
 . /broker.sh
 . /openmower.sh
 F=/data/schedule.txt
@@ -223,28 +224,30 @@ end=-
 dark=-
 sunset=-
 fresh=-
+angle=-
 paused=""
 while :; do
   if [ -f "$F" ] && [ "$(conf enabled)" = 1 ]; then
     tz=$(conf tz)
     now=$(TZ="$tz" date '+%u %H:%M %F')
     set -- $now
-    # plan <days> <HH:MM> [areas] [end=HH:MM] [dark=1] [sunset=1] [fresh=1]: areas, end time, dark, sunset and
-    # fresh, - when not set
+    # plan <days> <HH:MM> [areas] [end=HH:MM] [dark=1] [sunset=1] [fresh=1] [angle=<deg>]: areas, end time, dark,
+    # sunset, fresh and the angle, - when not set
     due=$(awk -v d="$1" -v t="$2" '$1 == "plan" && $3 == t {
       n = split($2, a, ","); for (i = 1; i <= n; i++) if (a[i] == d) {
-        ar = "all"; en = "-"; dk = "-"; ss = "-"; fr = "-"
+        ar = "all"; en = "-"; dk = "-"; ss = "-"; fr = "-"; an = "-"
         for (j = 4; j <= NF; j++) {
           if ($j ~ /^end=/) en = substr($j, 5); else if ($j == "dark=1") dk = 1
-          else if ($j == "sunset=1") ss = 1; else if ($j == "fresh=1") fr = 1; else ar = $j
+          else if ($j == "sunset=1") ss = 1; else if ($j == "fresh=1") fr = 1
+          else if ($j ~ /^angle=/) an = substr($j, 7); else ar = $j
         }
-        print ar, en, dk, ss, fr; exit } }' "$F")
+        print ar, en, dk, ss, fr, an; exit } }' "$F")
     if [ -n "$due" ] && [ "$3 $2" != "$last" ]; then
       last="$3 $2"
       until=$(($(date +%s) + WAIT))
       waited=""
       set -- $due
-      areas=$1 end=$2 dark=$3 sunset=$4 fresh=$5
+      areas=$1 end=$2 dark=$3 sunset=$4 fresh=$5 angle=$6
       # when this start ends: its end time today, or tomorrow when that's not after the start
       endat=""
       if [ "$end" != - ]; then
@@ -288,6 +291,18 @@ while :; do
         log waiting_battery "$bat"; waited=1
       fi
     else
+      # the mowing direction of this start. one without its own gets the usual one back when other start times
+      # have theirs: what the app keeps for the mower (params.sh), else 0
+      turn=""
+      if [ "$angle" != - ]; then
+        turn=$angle
+      elif grep -q '^plan .* angle=' "$F"; then
+        turn=$(sed -n "s|^$PARAM_MOW_ANGLE_OFFSET ||p" /data/params.txt 2>/dev/null | head -n1)
+        turn=${turn:-0}
+      fi
+      if [ -n "$turn" ]; then
+        rpc_call "$host" "$RPC_SET_PARAMS" "{\"params\":{\"$PARAM_MOW_ANGLE_OFFSET\":$turn}}" 10 | grep -q '"result"' || log angle_failed "$turn"
+      fi
       # an interrupted job is dropped first, so it begins with the first area. the mower only takes it while it
       # has one, otherwise nothing happens
       if [ "$fresh" = 1 ]; then

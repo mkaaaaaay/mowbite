@@ -1,6 +1,7 @@
 import {describe, expect, it} from 'vitest';
 import {ACTION, RPC, TOPIC} from '../openmower';
 import {parseBattery} from '../battery';
+import {parseKept} from '../mowerParams';
 import {parseSchedule} from '../schedule';
 import {demoFetch} from './api';
 import {demoMap} from './garden';
@@ -191,6 +192,23 @@ describe('the demo mower', () => {
     expect(d.state().battery_percentage).toBeGreaterThan(0.5);
   });
 
+  it('takes settings set on the mower and plans with them', async () => {
+    const d = world();
+    const front = demoMap().areas[0].id;
+    const before = await d.rpc<{angle: number; paths: {is_outline: boolean}[]}>(RPC.areaPlan, {area_id: front});
+    expect(await d.rpc(RPC.setParams, {params: {'/mower_logic/outline_count': 5, '/mower_logic/mow_angle_offset': 90}})).toEqual({
+      '/mower_logic/outline_count': 5,
+      '/mower_logic/mow_angle_offset': 90,
+    });
+    expect(JSON.parse(d.got[TOPIC.params])['/mower_logic/outline_count']).toBe(5);
+    const after = await d.rpc<{angle: number; paths: {is_outline: boolean}[]}>(RPC.areaPlan, {area_id: front});
+    expect(after.angle).toBeCloseTo(before.angle + Math.PI / 2, 6);
+    expect(after.paths.filter((p) => p.is_outline).length).toBeGreaterThan(before.paths.filter((p) => p.is_outline).length);
+    await expect(d.rpc(RPC.setParams, {params: {'/other/x': 1}})).rejects.toThrow('No dynamic_reconfigure server');
+    await expect(d.rpc(RPC.setParams, {})).rejects.toThrow('Expected');
+    expect((await d.rpc<string[]>(RPC.methods)).includes(RPC.setParams)).toBe(true);
+  });
+
   it('takes a saved map: the job is gone, it comes home and plans the new one', async () => {
     const d = world();
     const map = demoMap();
@@ -243,6 +261,8 @@ describe("the demo mower's container", () => {
     const cycles = parseBattery(await (await demoFetch('/cgi-bin/battery')).text());
     expect(cycles.filter((c) => c.kind === 'charge').length).toBeGreaterThan(20);
     expect((await demoFetch('/cgi-bin/roslog?oldest')).ok).toBe(false);
+    await demoFetch('/cgi-bin/params', {method: 'POST', body: 'enabled 1\n/mower_logic/gps_timeout 20\n'});
+    expect(parseKept(await (await demoFetch('/cgi-bin/params')).text())).toEqual({enabled: true, values: {gps_timeout: 20}});
     expect(await (await demoFetch('/version.json')).json()).toHaveProperty('version');
   });
 });

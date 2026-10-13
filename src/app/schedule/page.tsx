@@ -6,6 +6,9 @@ import {sunTimes} from '@/lib/sun';
 import {clock, dayLabel} from '@/lib/dates';
 import {tr, useLang} from '@/lib/i18n';
 import {useMowerActions} from '@/hooks/useMowerActions';
+import {useCanSetParams} from '@/components/MowerParamSettings';
+import {paramField} from '@/lib/mowerParams';
+import Link from 'next/link';
 import {ACTION} from '@/lib/openmower';
 import PlanRow from './PlanRow';
 import PauseCard from './PauseCard';
@@ -42,6 +45,7 @@ export default function SchedulePage() {
   const [log, setLog] = useState<LogEntry[]>(() => cachedScheduleLog() ?? []);
   const [error, setError] = useState<string | null>(null);
   const {knowsAction} = useMowerActions();
+  const canTurn = useCanSetParams();
 
   useEffect(() => {
     void loadSchedule().then(setSchedule);
@@ -106,6 +110,7 @@ export default function SchedulePage() {
                   sun={sun}
                   mowAreas={mowAreas}
                   canReset={knowsAction(ACTION.resetJob)}
+                  canTurn={canTurn}
                   onChange={(q) => update({...s, plans: s.plans.map((x, j) => (j === i ? q : x))})}
                   onRemove={() => update({...s, plans: s.plans.filter((_, j) => j !== i)})}
                 />
@@ -159,6 +164,14 @@ export default function SchedulePage() {
               <p className={styles.dim}>
                 {tr('The forecast comes from Open-Meteo, the mower asks for it with the position rounded to about a kilometer.')}
               </p>
+              {canTurn && (
+                <p className={styles.dim}>
+                  {tr('Rain while it mows is up to the mower: {mode}.', {
+                    mode: tr(paramField('rain_mode')!.choices![Number(params['/mower_logic/rain_mode'] ?? 0)] ?? ''),
+                  })}{' '}
+                  <Link href="/settings#openmower">{tr('Change')}</Link>
+                </p>
+              )}
               <p className={styles.dim}>{tr('The mower is only started when it stands idle and no emergency stop is active.')}</p>
               {mowAreas.length > 1 && (
                 <p className={styles.dim}>

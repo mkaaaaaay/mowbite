@@ -1,4 +1,6 @@
 import InfoTip from '@/components/InfoTip';
+import {useCanSetParams} from '@/components/MowerParamSettings';
+import Link from 'next/link';
 import {useAreaProperties} from '@/lib/areaProps';
 import {tr} from '@/lib/i18n';
 import {useState} from 'react';
@@ -110,6 +112,7 @@ export default function MowSettings({
   planLength: number;
 }) {
   const supported = useAreaProperties();
+  const canSetParams = useCanSetParams();
   const rate = savedRate();
   const p = area.properties;
   const number = (key: Override, label: string, tip: string, step: number, min?: number) => (
@@ -133,7 +136,14 @@ export default function MowSettings({
 
   return (
     <div className={styles.mowSettings}>
-      <span className={styles.cardTitle}>{tr('Mowing settings')}</span>
+      <span className={styles.cardTitle}>
+        {tr('Mowing settings')}
+        {canSetParams && (
+          <Link className={styles.allAreas} href="/settings#openmower">
+            {tr('For all areas')}
+          </Link>
+        )}
+      </span>
       {number(
         'outline_count',
         'Outline passes',

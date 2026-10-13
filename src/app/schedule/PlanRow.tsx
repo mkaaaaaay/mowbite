@@ -16,6 +16,7 @@ export default function PlanRow({
   sun,
   mowAreas,
   canReset,
+  canTurn,
   onChange,
   onRemove,
 }: {
@@ -23,6 +24,8 @@ export default function PlanRow({
   sun: SunTimes | null;
   mowAreas: Area[];
   canReset: boolean;
+  // the mower takes params.set, so a start can have its own mowing direction
+  canTurn: boolean;
   onChange: (p: Plan) => void;
   onRemove: () => void;
 }) {
@@ -118,6 +121,38 @@ export default function PlanRow({
           </label>
         )}
       </div>
+
+      {(canTurn || plan.angle !== undefined) && (
+        <div className={styles.options}>
+          <label className={styles.option}>
+            <input type="checkbox" checked={plan.angle !== undefined} onChange={(e) => set({angle: e.target.checked ? 90 : undefined})} />
+            <span>
+              {tr('Its own mowing direction')}
+              <small>
+                {plan.angle === undefined
+                  ? tr('mows the way the mower is set')
+                  : canTurn
+                    ? tr('before this start the direction of every area is turned by so much, e.g. crosswise to another start time')
+                    : tr("this mower can't do that yet, it needs a newer OpenMower")}
+              </small>
+            </span>
+          </label>
+          {plan.angle !== undefined && (
+            <label className={styles.until}>
+              {tr('turned by')}
+              <input
+                type="number"
+                min={-180}
+                max={180}
+                step={5}
+                value={plan.angle}
+                onChange={(e) => set({angle: Math.max(-180, Math.min(180, Math.round(Number(e.target.value) || 0)))})}
+              />
+              °
+            </label>
+          )}
+        </div>
+      )}
 
       {pending || (dark && !plan.dark) ? (
         <div className={styles.animals}>

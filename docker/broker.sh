@@ -8,3 +8,31 @@ find_broker() {
     nc -z -w 2 "$h" "$PORT" 2>/dev/null && echo "$h" && return
   done
 }
+
+# a json-rpc call to the mower: rpc_call <host> <method> <params json> [seconds]. prints the answer with our id,
+# nothing when none came. needs the topics from openmower.sh. answers come pretty printed over several lines on a
+# topic others answer on too, so the one with our id is picked out
+rpc_call() {
+  _id="mowbite-$$-$(date +%s)"
+  _out="/tmp/rpc.$$.out"
+  # shellcheck disable=SC2086
+  mosquitto_sub -h "$1" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_RPC_RESPONSE" -t "${MOWER_MQTT_PREFIX}$TOPIC_RPC_ERROR" -W "${4:-15}" > "$_out" 2>/dev/null &
+  _sub=$!
+  sleep 1
+  # shellcheck disable=SC2086
+  mosquitto_pub -h "$1" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_RPC_REQUEST" \
+    -m "{\"jsonrpc\":\"2.0\",\"method\":\"$2\",\"params\":$3,\"id\":\"$_id\"}" 2>/dev/null
+  _n=0
+  while [ "$_n" -lt "${4:-15}" ]; do
+    grep -q "\"$_id\"" "$_out" 2>/dev/null && break
+    sleep 1
+    _n=$((_n + 1))
+  done
+  kill "$_sub" 2>/dev/null
+  wait "$_sub" 2>/dev/null
+  awk -v id="\"$_id\"" '
+    /^\{/ { block = "" }
+    { block = block $0 "\n" }
+    /^\}/ || /^\{.*\}$/ { if (index(block, id)) printf "%s", block; block = "" }' "$_out" 2>/dev/null
+  rm -f "$_out"
+}

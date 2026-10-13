@@ -31,6 +31,8 @@ COPY --chmod=755 docker/recorder.sh docker/scheduler.sh docker/logkeeper.sh dock
 COPY --chmod=755 docker/schedule.cgi /www/cgi-bin/schedule
 COPY --chmod=755 docker/notify.cgi /www/cgi-bin/notify
 COPY --chmod=755 docker/notify.sh /
+COPY --chmod=755 docker/params.cgi /www/cgi-bin/params
+COPY --chmod=755 docker/params.sh /
 COPY docker/notify.awk /notify.awk
 COPY docker/broker.sh /broker.sh
 COPY docker/openmower.sh /openmower.sh

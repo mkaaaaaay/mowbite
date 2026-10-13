@@ -3,7 +3,7 @@ import {apiBase, mowerFetch} from './mowers';
 
 // the mowing schedule, kept by the container (docker/schedule.cgi) as simple lines the scheduler
 // script reads: enabled, minbattery, skiprain, tz, one "plan <days> <HH:MM> [areas] [end=HH:MM] [dark=1] [sunset=1]
-// [fresh=1]" per start time and "pause <YYYY-MM-DD> all|<areas>" for days off up to and including that day. days
+// [fresh=1] [angle=<deg>]" per start time and "pause <YYYY-MM-DD> all|<areas>" for days off up to and including that day. days
 // are 1 = monday .. 7 = sunday like date +%u
 
 export interface Plan {
@@ -19,6 +19,9 @@ export interface Plan {
   sunset?: boolean;
   // drops an interrupted job first, so it begins with the first area instead of carrying on
   fresh?: boolean;
+  // degrees: the mowing direction turned by this for the start (mower_logic/mow_angle_offset, set before it
+  // starts). needs a mower that takes params.set
+  angle?: number;
 }
 
 // days the schedule leaves out, entirely or some areas, from now up to and including the last day
@@ -61,6 +64,7 @@ export function parseSchedule(text: string): Schedule {
         else if (r === 'dark=1') plan.dark = true;
         else if (r === 'sunset=1') plan.sunset = true;
         else if (r === 'fresh=1') plan.fresh = true;
+        else if (/^angle=-?\d{1,3}$/.test(r)) plan.angle = Number(r.slice(6));
         else if (r) plan.areas = r.split(',');
       }
       s.plans.push(plan);
@@ -83,7 +87,7 @@ export function serializeSchedule(s: Schedule, pos?: {lat: number; lon: number})
       .filter((p) => p.days.length)
       .map(
         (p) =>
-          `plan ${[...p.days].sort().join(',')} ${p.time}${p.areas.length ? ` ${p.areas.join(',')}` : ''}${p.end ? ` end=${p.end}` : ''}${p.dark ? ' dark=1' : ''}${p.sunset ? ' sunset=1' : ''}${p.fresh ? ' fresh=1' : ''}`,
+          `plan ${[...p.days].sort().join(',')} ${p.time}${p.areas.length ? ` ${p.areas.join(',')}` : ''}${p.end ? ` end=${p.end}` : ''}${p.dark ? ' dark=1' : ''}${p.sunset ? ' sunset=1' : ''}${p.fresh ? ' fresh=1' : ''}${p.angle !== undefined ? ` angle=${Math.round(p.angle)}` : ''}`,
       ),
     ...(s.pause && (s.pause.areas === 'all' || s.pause.areas.length)
       ? [`pause ${s.pause.until} ${s.pause.areas === 'all' ? 'all' : s.pause.areas.join(',')}`]
@@ -128,6 +132,7 @@ export interface LogEntry {
 export const SCHEDULE_LOG_TEXT: Record<string, string> = {
   started: 'Started',
   start_failed: "The mower didn't react to the start, still idle a minute later",
+  angle_failed: "The mower didn't take the mowing direction ({detail}°), it mows the way it was set",
   waiting_battery: 'Waiting for the battery ({detail} %)',
   skip_battery: 'Not started, battery only at {detail} % after two hours',
   skip_rain: "Not started, the mower's rain sensor was wet",

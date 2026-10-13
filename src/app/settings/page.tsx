@@ -10,6 +10,7 @@ import {setThemeChoice, useThemeChoice} from '@/lib/theme';
 import {appMowers, DEMO_ID, isDemo, saveAppMowers, selectMower} from '@/lib/mowers';
 import {isApp} from '@/lib/native';
 import {setSwipeEnabled, useSwipeEnabled} from '@/lib/swipe';
+import {OpenMowerSettings} from '@/components/MowerParamSettings';
 import {UpdateSettings} from '@/components/Updates';
 import {MowerBodySettings} from '@/components/MowerBodySettings';
 import {NotifySettings} from '@/components/NotifySettings';
@@ -301,6 +302,8 @@ export default function SettingsPage() {
           <MowerBodySettings settings={settings} styles={styles} />
           <NotifySettings settings={settings} styles={styles} />
         </Group>
+
+        <OpenMowerSettings styles={styles} />
 
         <Group id="app" title={tr('App')}>
           <MowersSection settings={settings} />

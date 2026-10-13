@@ -41,6 +41,10 @@ describe('parse / serialize', () => {
     const s = {...schedule([{...plan([3], '10:00', ['a']), sunset: true, fresh: true}]), pause: {until: '2026-09-30', areas: ['a', 'b']}};
     const text = serializeSchedule(s);
     expect(text).toContain('plan 3 10:00 a sunset=1 fresh=1\n');
+    const turned = schedule([{...plan([1], '09:00'), fresh: true, angle: 90}, {...plan([4], '09:00'), angle: -45}, {...plan([6], '09:00'), angle: 0}]);
+    expect(serializeSchedule(turned)).toContain('plan 1 09:00 fresh=1 angle=90\nplan 4 09:00 angle=-45\nplan 6 09:00 angle=0\n');
+    expect(parseSchedule(serializeSchedule(turned)).plans.map((p) => p.angle)).toEqual([90, -45, 0]);
+    expect(parseSchedule('plan 1 09:00 angle=abc\n').plans[0]).toEqual({days: [1], time: '09:00', areas: ['angle=abc']});
     expect(text).toContain('pause 2026-09-30 a,b\n');
     expect(parseSchedule(text)).toEqual(s);
     expect(parseSchedule('pause 2026-09-30 all').pause).toEqual({until: '2026-09-30', areas: 'all'});
