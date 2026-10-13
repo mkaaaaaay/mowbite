@@ -11,6 +11,8 @@ const DISMISSED_KEY = 'updateDismissed';
 const DAY = 24 * 3600e3;
 
 export const APP_VERSION = process.env.APP_VERSION ?? '0.0.0';
+// built for google play (STORE=play): the store updates the app there, no word about a newer apk
+export const FROM_STORE = process.env.APP_STORE === 'play';
 
 export interface Release {
   version: string;

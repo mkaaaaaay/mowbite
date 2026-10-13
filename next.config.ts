@@ -12,6 +12,8 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: process.env.DEV_ORIGINS?.split(",") ?? [],
   env: {
     APP_VERSION: suffix ? `${version}-${suffix}` : version,
+    // "play" for the build that goes to google play
+    APP_STORE: process.env.STORE ?? "",
   },
 };
 

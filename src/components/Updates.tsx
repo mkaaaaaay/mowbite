@@ -3,7 +3,7 @@
 import {copyText} from '@/lib/clipboard';
 import {tr} from '@/lib/i18n';
 import {isApp} from '@/lib/native';
-import {APP_VERSION, checkNow, compareVersions, dismissUpdate, isNewer, setUpdateCheck, useUpdates} from '@/lib/updates';
+import {APP_VERSION, FROM_STORE, checkNow, compareVersions, dismissUpdate, isNewer, setUpdateCheck, useUpdates} from '@/lib/updates';
 import Link from 'next/link';
 import {useEffect, useState} from 'react';
 import {useMowerActions} from '@/hooks/useMowerActions';
@@ -24,7 +24,7 @@ function useOutdated() {
     u,
     app,
     mower,
-    appOld: !!latest && app && isNewer(latest, APP_VERSION),
+    appOld: !FROM_STORE && !!latest && app && isNewer(latest, APP_VERSION),
     mowerOld: !!latest && !!mower && isNewer(latest, mower),
   };
 }
