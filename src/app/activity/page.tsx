@@ -94,42 +94,51 @@ const FIXES: Record<string, string[]> = {
 
 function ProblemItem({run, next, event, state, where}: {run: Run; next?: Run; event: MowerEvent; state?: string; where: Where}) {
   const [raw, setRaw] = useState(false);
+  // folded to its time and what happened, the rest on a tap
+  const [open, setOpen] = useState(false);
   const {text, severity} = describe(event, state);
   const params = useMowerParams();
   const hint = explain(event, state, numParam(params, PARAM.mowerLogic('gps_timeout')));
   return (
     <li className={styles[severity]}>
-      <div>
+      <div className={styles.problemHead} onClick={() => setOpen(!open)} role="button" aria-expanded={open}>
         <span className={styles.time}>{clock(event.t, true)}</span>
         <strong>{text}</strong>
+        <span className={[styles.problemChevron, open ? styles.problemOpen : ''].join(' ')} aria-hidden="true">
+          ›
+        </span>
       </div>
-      {hint && <p>{hint}</p>}
-      <ParamFix keys={FIXES[event.type] ?? []} />
-      <p className={styles.facts}>{problemFacts(run, event, next).join(' · ')}</p>
-      <div className={styles.problemActions}>
-        {event.x !== undefined && event.y !== undefined && (
-          <Link
-            className={styles.onMap}
-            href={
-              `/map?at=${event.x.toFixed(2)},${event.y.toFixed(2)}` +
-              (run.jobId ? `&job=${run.jobId}` : '') +
-              `&msg=${encodeURIComponent(`${clock(event.t, true)} ${text}`)}`
-            }
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21Z" />
-              <circle cx="12" cy="9.5" r="2.5" />
-            </svg>
-            {tr('Show on map')}
-          </Link>
-        )}
-        <button className={styles.rawToggle} onClick={() => setRaw(!raw)}>
-          {raw ? tr('Hide entry') : tr('Show entry')}
-        </button>
-        <GpsAround t={event.t} limit={numParam(params, PARAM.maxPositionAccuracy)} />
-        <RosLogAround t={event.t} />
-      </div>
-      {raw && <RawEntry event={event} file={`${PATHS.eventHistory}${where.get(event.id)?.file ?? ''}`} line={where.get(event.id)?.line ?? 0} />}
+      {open && (
+        <>
+          {hint && <p>{hint}</p>}
+          <ParamFix keys={FIXES[event.type] ?? []} />
+          <p className={styles.facts}>{problemFacts(run, event, next).join(' · ')}</p>
+          <div className={styles.problemActions}>
+            {event.x !== undefined && event.y !== undefined && (
+              <Link
+                className={styles.onMap}
+                href={
+                  `/map?at=${event.x.toFixed(2)},${event.y.toFixed(2)}` +
+                  (run.jobId ? `&job=${run.jobId}` : '') +
+                  `&msg=${encodeURIComponent(`${clock(event.t, true)} ${text}`)}`
+                }
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21Z" />
+                  <circle cx="12" cy="9.5" r="2.5" />
+                </svg>
+                {tr('Show on map')}
+              </Link>
+            )}
+            <button className={styles.rawToggle} onClick={() => setRaw(!raw)}>
+              {raw ? tr('Hide entry') : tr('Show entry')}
+            </button>
+            <GpsAround t={event.t} limit={numParam(params, PARAM.maxPositionAccuracy)} />
+            <RosLogAround t={event.t} />
+          </div>
+          {raw && <RawEntry event={event} file={`${PATHS.eventHistory}${where.get(event.id)?.file ?? ''}`} line={where.get(event.id)?.line ?? 0} />}
+        </>
+      )}
     </li>
   );
 }

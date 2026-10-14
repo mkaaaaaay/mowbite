@@ -239,6 +239,23 @@
   gap: 10px;
 }
 
+.problemHead {
+  cursor: pointer;
+}
+
+.problemChevron {
+  margin-left: auto;
+  padding-left: 8px;
+  color: var(--text-secondary);
+  font-size: 18px;
+  line-height: 1;
+  transition: transform 0.15s;
+}
+
+.problemOpen {
+  transform: rotate(90deg);
+}
+
 .problemList p {
   margin: 4px 0 0 74px;
   color: var(--foreground);
