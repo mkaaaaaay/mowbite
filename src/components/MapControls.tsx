@@ -185,9 +185,14 @@ export default function MapControls({
               {tr(l.label)}
             </label>
           ))}
-          {(layerOn(hidden, 'gpsCover') && coverage?.gps) || (layerOn(hidden, 'wifiCover') && coverage?.wifi) ? (
+          {/* wifi is drawn over gps when both are on, so its words */}
+          {layerOn(hidden, 'wifiCover') && coverage?.wifi ? (
             <span className={styles.coverLegend}>
-              <i className={styles.good} /> {tr('good')} <i className={styles.ok} /> {tr('ok')} <i className={styles.bad} /> {tr('bad')}
+              <i className={styles.good} /> {tr('strong')} <i className={styles.ok} /> {tr('medium')} <i className={styles.bad} /> {tr('weak')}
+            </span>
+          ) : layerOn(hidden, 'gpsCover') && coverage?.gps ? (
+            <span className={styles.coverLegend}>
+              <i className={styles.good} /> {tr('RTK fix')} <i className={styles.ok} /> {tr('at times without')} <i className={styles.bad} /> {tr('often without')}
             </span>
           ) : null}
           {planStyle && (

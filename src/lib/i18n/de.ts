@@ -1174,9 +1174,11 @@ const de: Record<string, string> = {
   "Download the planner log": "Planer-Log herunterladen",
   "GPS coverage": "GPS-Abdeckung",
   "Wi-Fi coverage": "WLAN-Abdeckung",
-  "good": "gut",
-  "ok": "ok",
-  "bad": "schlecht",
+  "strong": "stark",
+  "medium": "mittel",
+  "weak": "schwach",
+  "at times without": "zeitweise ohne",
+  "often without": "oft ohne",
 };
 
 export default de;
