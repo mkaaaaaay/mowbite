@@ -300,15 +300,15 @@ export const MOWER_MODELS: {key: string; label: string; sizes: Required<Omit<Mow
   {
     key: 'jd-tango-e5',
     label: 'John Deere Tango E5 / SABO MOWiT 500F',
-    sizes: {width: 0.535, front: 0.56, rear: 0.215, blade: 0.3, bladeAhead: 0.17, bladeOffset: 0},
-    // from a photo from straight above next to a folding ruler, scaled to the maker's 77.5 x 53.5 cm, the rear axle 18 cm
-    // behind the GPS antenna as in OpenMower's Sabo settings: widest over the rear wheels, narrower towards the handle
-    // behind them, both sides averaged. The blade's place is taken from its guard between the wheels, give or take 3 cm
+    // measured on a SABO MOWiT 500F by its owner (14.10.)
+    sizes: {width: 0.505, front: 0.6, rear: 0.21, blade: 0.3, bladeAhead: 0.225, bladeOffset: 0},
+    // from a photo from straight above next to a folding ruler, scaled to the sizes above: widest over the rear wheels,
+    // narrower towards the handle behind them, both sides averaged
     outline: [
-      [0.56, 0.064], [0.528, 0.151], [0.497, 0.19], [0.429, 0.208], [0.326, 0.233], [0.17, 0.246], [0.13, 0.259], [0.07, 0.266],
-      [-0.01, 0.267], [-0.097, 0.251], [-0.112, 0.235], [-0.138, 0.182], [-0.177, 0.164], [-0.195, 0.149], [-0.215, 0.104],
-      [-0.215, -0.104], [-0.195, -0.149], [-0.177, -0.164], [-0.138, -0.182], [-0.112, -0.235], [-0.097, -0.251], [-0.01, -0.267],
-      [0.07, -0.266], [0.13, -0.259], [0.17, -0.246], [0.326, -0.233], [0.429, -0.208], [0.497, -0.19], [0.528, -0.151], [0.56, -0.064],
+      [0.6, 0.06], [0.566, 0.143], [0.532, 0.179], [0.46, 0.196], [0.349, 0.22], [0.182, 0.232], [0.139, 0.244], [0.075, 0.251],
+      [-0.01, 0.252], [-0.095, 0.237], [-0.109, 0.222], [-0.135, 0.172], [-0.173, 0.155], [-0.19, 0.141], [-0.21, 0.098], [-0.21, -0.098],
+      [-0.19, -0.141], [-0.173, -0.155], [-0.135, -0.172], [-0.109, -0.222], [-0.095, -0.237], [-0.01, -0.252], [0.075, -0.251], [0.139, -0.244],
+      [0.182, -0.232], [0.349, -0.22], [0.46, -0.196], [0.532, -0.179], [0.566, -0.143], [0.6, -0.06],
     ],
   },
 ];

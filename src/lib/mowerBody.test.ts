@@ -285,7 +285,7 @@ describe('mower models', () => {
     expect(modelOf(MOWER_MODELS[0].sizes)).toBe('yf-nx');
     expect(modelOf({width: 0.425, front: 0.47, rear: 0.1, blade: 0.18, bladeAhead: 0.18})).toBe('yf-classic500');
     expect(modelOf({width: 0.41, front: 0.43, rear: 0.18, blade: 0.18, bladeAhead: 0.185})).toBe('yf-nx');
-    expect(modelOf({width: 0.535, front: 0.56, rear: 0.215, blade: 0.3, bladeAhead: 0.17})).toBe('jd-tango-e5');
+    expect(modelOf({width: 0.505, front: 0.6, rear: 0.21, blade: 0.3, bladeAhead: 0.225})).toBe('jd-tango-e5');
     expect(modelOf({...MOWER_MODELS[0].sizes, width: 0.42})).toBeNull();
     expect(modelOf(undefined)).toBeNull();
   });
