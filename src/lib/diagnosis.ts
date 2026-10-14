@@ -423,6 +423,35 @@ export function buildDiagnosis(d: DiagnosisInput): string {
   return out.join('\n') + '\n';
 }
 
+// the planner lines the container kept (docker/logkeeper.sh): "<unix time> <LEVEL> <message as in json>"
+export function readKeptPlanner(text: string): PlannerLine[] {
+  const out: PlannerLine[] = [];
+  for (const line of text.split('\n')) {
+    const m = line.match(/^([0-9.]+) ([A-Z]+) (.*)$/);
+    if (!m) continue;
+    let msg = m[3];
+    try {
+      msg = JSON.parse(`"${m[3]}"`);
+    } catch {}
+    out.push({t: Number(m[1]), level: m[2], msg});
+  }
+  return out;
+}
+
+// kept and still in the planner's memory together, each line once, by time
+export function mergePlanner(kept: readonly PlannerLine[], live: readonly PlannerLine[] | null): PlannerLine[] | null {
+  if (!live && !kept.length) return null;
+  const seen = new Set<string>();
+  return [...kept, ...(live ?? [])]
+    .filter((l) => {
+      const key = `${l.t.toFixed(3)} ${l.msg}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .sort((a, b) => a.t - b.t);
+}
+
 // the container's sensors.tsv: sensor, bucket start, min, max, last
 export function readSensors(text: string): SensorBucket[] {
   return text

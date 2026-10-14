@@ -2,10 +2,13 @@
 # OpenMower keeps the last ros warnings and errors in memory only (logs.recent), a restart wipes them.
 # every minute the new ones are fetched and kept in /data/roslog, one file per day (utc), 14 days, so the
 # activity page has them for older problems too. lines: "<unix time> <LEVEL> <node>: <message>"
+# the same for the MowBite Planner's own lines (planner.log, also only since its start) in /data/plannerlog, 14 days and
+# 5 MB: "<unix time> <LEVEL> <message as in json, \n for a line break>"
 . /broker.sh
 . /openmower.sh
 D=/data/roslog
-mkdir -p "$D"
+P=/data/plannerlog
+mkdir -p "$D" "$P"
 TMP=/tmp/logkeeper.out
 
 while :; do
@@ -52,6 +55,24 @@ while :; do
       END { if (max != "") print max }' "$TMP")
     [ -n "$new" ] && echo "$new" > "$D/.last"
     rm -f "$TMP"
+    # the planner's lines since the last one kept. its answer is pretty printed: t, level, msg on lines of their own
+    plast=$(cat "$P/.last" 2>/dev/null)
+    pnew=$(mower_rpc "$host" "$RPC_PLANNER_LOG" "{\"since\":${plast:-0}}" 15 | awk -v dir="$P" '
+      function val(s) { sub(/^[^:]*: /, "", s); sub(/,$/, "", s); return s }
+      /^        "t": / { t = val($0) }
+      /^        "level": / { lvl = val($0); gsub(/"/, "", lvl) }
+      /^        "msg": / { msg = val($0); sub(/^"/, "", msg); sub(/"$/, "", msg) }
+      /^      \}/ && t != "" {
+        print t " " lvl " " msg >> (dir "/" strftime("%Y%m%d", int(t)) ".log")
+        if (t + 0 > max + 0) max = t
+        t = ""
+      }
+      END { if (max != "") print max }')
+    [ -n "$pnew" ] && echo "$pnew" > "$P/.last"
+    ls -1 "$P"/*.log 2>/dev/null | sort -r | tail -n +15 | while read -r f; do rm -f "$f"; done
+    while [ "$(du -sk "$P" | cut -f1)" -gt 5120 ] && [ "$(ls -1 "$P"/*.log 2>/dev/null | wc -l)" -gt 1 ]; do
+      rm -f "$(ls -1 "$P"/*.log | sort | head -n1)"
+    done
     # 14 days and at most 10 MB, a node that keeps warning mustn't fill the mower. the oldest days go first
     ls -1 "$D"/*.log 2>/dev/null | sort -r | tail -n +15 | while read -r f; do rm -f "$f"; done
     while [ "$(du -sk "$D" | cut -f1)" -gt 10240 ] && [ "$(ls -1 "$D"/*.log 2>/dev/null | wc -l)" -gt 1 ]; do

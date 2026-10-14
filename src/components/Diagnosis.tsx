@@ -1,6 +1,6 @@
 'use client';
 
-import {buildDiagnosis, readSensors, type PlannerLine} from '@/lib/diagnosis';
+import {buildDiagnosis, mergePlanner, readKeptPlanner, readSensors, type PlannerLine} from '@/lib/diagnosis';
 import {clock} from '@/lib/dates';
 import type {Run} from '@/lib/events';
 import {gpsLog, gpsLogSince} from '@/lib/gpslog';
@@ -39,7 +39,7 @@ export function DiagnosisDownload({run}: {run: Run}) {
         }),
         null,
       );
-    const [kept, planner, gps, ros, plannerLog, sensorsText, drive, snapParams, snapPlanner] = await Promise.all([
+    const [kept, planner, gps, ros, plannerLog, sensorsText, drive, snapParams, snapPlanner, plannerKept] = await Promise.all([
       quiet(loadKept(), null),
       has(RPC.plannerSettings) ? quiet(loadPlannerSettings(), null) : Promise.resolve(null),
       quiet(
@@ -55,6 +55,13 @@ export function DiagnosisDownload({run}: {run: Run}) {
       run.jobId && has(RPC.plannerDrive) ? quiet(callRpc(RPC.plannerDrive, {job_id: run.jobId}, 30000), null) : Promise.resolve(null),
       snapshot('params'),
       snapshot('planner'),
+      // what the container kept of the planner's log, also from before the planner's last start
+      quiet(
+        mowerFetch(`${apiBase()}/cgi-bin/plannerlog?from=${Math.floor(from)}&to=${Math.ceil(to)}`, {cache: 'no-store'}).then(async (r) =>
+          r.ok ? readKeptPlanner(await r.text()) : [],
+        ),
+        [] as PlannerLine[],
+      ),
     ]);
     // the planner's snapshot is its answer to planner.settings: {result: {settings: {name: {value}}}}
     const snapSettings = (snapPlanner?.result as {settings?: Record<string, {value: unknown}>} | undefined)?.settings;
@@ -71,7 +78,7 @@ export function DiagnosisDownload({run}: {run: Run}) {
         gps,
         gpsLimit: numParam(params, PARAM.maxPositionAccuracy) ?? 0.2,
         ros,
-        plannerLines: plannerLog,
+        plannerLines: mergePlanner(plannerKept, plannerLog),
         sensors: readSensors(sensorsText),
         drive,
         snapshot:

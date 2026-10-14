@@ -23,3 +23,5 @@ TOPIC_CHARGE_VOLTAGE=sensors/om_v_charge/data
 TOPIC_CHARGE_CURRENT=sensors/om_charge_current/data
 # the MowBite Planner's settings (with the planner only)
 RPC_PLANNER_SETTINGS=planner.settings
+# the MowBite Planner's own log lines, kept in memory since its start (with the planner only)
+RPC_PLANNER_LOG=planner.log

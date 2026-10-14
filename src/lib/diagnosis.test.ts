@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {buildDiagnosis, collapse, gpsChanges, gpsSummary, noise, rosEmergencies, whereOnMap} from './diagnosis';
+import {buildDiagnosis, collapse, gpsChanges, gpsSummary, mergePlanner, noise, readKeptPlanner, rosEmergencies, whereOnMap} from './diagnosis';
 import {readGpsLog} from './gpslog';
 import type {Run} from './events';
 
@@ -68,6 +68,16 @@ describe('diagnosis', () => {
     });
     expect(text).toContain('COLLISION_MULTIPLE while docking, docked 0.7 s later');
     expect(text).toMatch(/Problems\n-+\nnone/);
+  });
+
+  it('the planner lines the container kept and the ones in memory, each once', () => {
+    const kept = readKeptPlanner('10.5 INFO planned\n12 ERROR failed\\nTraceback\nbroken');
+    expect(kept).toEqual([
+      {t: 10.5, level: 'INFO', msg: 'planned'},
+      {t: 12, level: 'ERROR', msg: 'failed\nTraceback'},
+    ]);
+    expect(mergePlanner(kept, [{t: 12, level: 'ERROR', msg: 'failed\nTraceback'}, {t: 13, level: 'INFO', msg: 'new'}])?.map((l) => l.t)).toEqual([10.5, 12, 13]);
+    expect(mergePlanner([], null)).toBeNull();
   });
 
   it('leaves out ros filler lines', () => {

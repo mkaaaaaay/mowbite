@@ -27,6 +27,7 @@ COPY --chmod=755 docker/system.cgi /www/cgi-bin/system
 COPY --chmod=755 docker/battery.cgi /www/cgi-bin/battery
 COPY --chmod=755 docker/roslog.cgi /www/cgi-bin/roslog
 COPY --chmod=755 docker/gpslog.cgi /www/cgi-bin/gpslog
+COPY --chmod=755 docker/plannerlog.cgi /www/cgi-bin/plannerlog
 COPY --chmod=755 docker/backups.cgi /www/cgi-bin/backups
 COPY --chmod=755 docker/recorder.sh docker/scheduler.sh docker/logkeeper.sh docker/gpslog.sh docker/system.sh docker/battery.sh /
 COPY --chmod=755 docker/schedule.cgi /www/cgi-bin/schedule
