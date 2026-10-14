@@ -10,6 +10,7 @@ import {useMowerActions} from '@/hooks/useMowerActions';
 import {ACTION, RPC} from '@/lib/openmower';
 import {rpcMethods} from '@/lib/rpc';
 import styles from './Updates.module.css';
+import {CreditsTrigger} from './Credits';
 
 const UPDATE_COMMAND = 'docker compose pull && docker compose up -d';
 const PRIVACY_URL = 'https://github.com/mkaaaaaay/mowbite/blob/main/PRIVACY.md';
@@ -57,9 +58,9 @@ export function UpdateSettings({cardClass, checkClass}: {cardClass: string; chec
   return (
     <section className={cardClass} id="updates">
       <h2>{tr('Updates')}</h2>
-      <span className={styles.versions}>
+      <CreditsTrigger className={styles.versions}>
         {app ? `${tr('App')} ${APP_VERSION} · ${tr('Mower')} ${mower ?? '?'}` : `MowBite ${APP_VERSION}`}
-      </span>
+      </CreditsTrigger>
       <a className={styles.versions} href={PRIVACY_URL} target="_blank" rel="noreferrer">
         {tr('Privacy policy')}
       </a>

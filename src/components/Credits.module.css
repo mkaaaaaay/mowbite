@@ -1,0 +1,299 @@
+/* the version line counts down the last taps */
+.countdown {
+  margin-left: 8px;
+  color: var(--accent);
+  font-size: 11px;
+  animation: credits-count 0.3s ease-out;
+}
+
+@keyframes credits-count {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+}
+
+/* a dark cinema, the credits roll up through it */
+.screen {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  overflow: hidden;
+  background: radial-gradient(ellipse at 50% 40%, rgba(16, 32, 22, 0.985), rgba(2, 6, 4, 0.995));
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #e8f5e9;
+  cursor: pointer;
+  animation: credits-in 0.8s ease-out;
+}
+
+.out {
+  animation: credits-away 0.6s ease-in forwards;
+}
+
+@keyframes credits-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes credits-away {
+  to {
+    opacity: 0;
+  }
+}
+
+.roll {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 16px;
+  transform: translateY(100vh);
+  animation: credits-roll var(--roll) linear forwards;
+}
+
+@keyframes credits-roll {
+  to {
+    transform: translateY(calc(-1 * var(--h)));
+  }
+}
+
+.title {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 70px;
+}
+
+.title h2 {
+  margin: 6px 0 0;
+  font-size: 44px;
+  font-weight: 400;
+  letter-spacing: 0.5px;
+}
+
+.title h2 strong {
+  font-weight: 700;
+}
+
+.title p {
+  margin: 4px 0 0;
+  color: #a5d6a7;
+  font-size: 13px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+}
+
+.roll h3,
+.list h3 {
+  margin: 0 0 14px;
+  color: #81c784;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+}
+
+/* role on the left of the middle, the name on the right, like in a film */
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 18px;
+  width: min(560px, 100%);
+  margin-bottom: 9px;
+  font-size: 15px;
+}
+
+.row span {
+  text-align: right;
+  color: #a5b8aa;
+}
+
+.row strong {
+  font-weight: 600;
+}
+
+.name {
+  margin-bottom: 9px;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.line {
+  max-width: 520px;
+  margin: 0;
+  text-align: center;
+  color: #c8e6c9;
+  font-size: 15px;
+  font-style: italic;
+}
+
+.gap {
+  height: 46px;
+}
+
+/* the end, in the middle, eaten letter by letter */
+.end {
+  position: absolute;
+  inset: 0 0 60px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  animation: credits-in 1.2s ease-out;
+}
+
+/* after the meal */
+.burp {
+  margin-top: 6px;
+  color: #a5d6a7;
+  font-size: 15px;
+  font-style: italic;
+  opacity: 0;
+  animation: credits-burp 1.6s ease-out forwards;
+  animation-delay: calc(var(--hold) + var(--eat));
+}
+
+@keyframes credits-burp {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  25%,
+  70% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+
+.words {
+  position: relative;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(40px, 10vw, 72px);
+  font-style: italic;
+  letter-spacing: 1px;
+  white-space: pre;
+}
+
+.words > span:not(.eater) {
+  display: inline-block;
+  animation: credits-eaten 0.25s ease-in forwards;
+  animation-delay: calc(var(--at) + var(--hold));
+}
+
+@keyframes credits-eaten {
+  to {
+    transform: scale(0.2) translateY(20px);
+    opacity: 0;
+  }
+}
+
+/* in from the left at the height of the letters, out to the right */
+.eater {
+  position: absolute;
+  top: 50%;
+  left: -78px;
+  margin-top: -36px;
+  animation: credits-eat var(--eat) linear var(--hold) forwards;
+}
+
+@keyframes credits-eat {
+  to {
+    left: calc(100% + 30px);
+  }
+}
+
+/* the lawn along the bottom: stubble, and the tall grass that's cut where the eater has been */
+.lawn {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 44px;
+}
+
+.stubble,
+.tall {
+  position: absolute;
+  inset: 0;
+  background-repeat: repeat-x;
+  background-position: bottom left;
+}
+
+.stubble {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='12'><path d='M2 12 L3 6 M7 12 L8 5 M12 12 L11 7 M17 12 L18 5 M22 12 L21 7' stroke='%23558b2f' stroke-width='2' stroke-linecap='round'/></svg>");
+}
+
+.tall {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='44'><path d='M2 44 Q4 26 1 12 M7 44 Q8 28 12 16 M12 44 Q13 22 10 6 M17 44 Q18 30 22 20 M21 44 Q22 32 20 24' stroke='%2366bb6a' stroke-width='2.4' fill='none' stroke-linecap='round'/></svg>");
+}
+
+.mowing {
+  animation: credits-mow var(--roll) linear forwards;
+}
+
+.mown {
+  clip-path: inset(0 0 0 100%);
+}
+
+@keyframes credits-mow {
+  from {
+    clip-path: inset(0 0 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 100%);
+  }
+}
+
+.mower {
+  position: absolute;
+  bottom: -6px;
+  left: -40px;
+  animation: credits-drive var(--roll) linear forwards;
+}
+
+@keyframes credits-drive {
+  to {
+    left: calc(100% - 22px);
+  }
+}
+
+.close {
+  position: absolute;
+  top: calc(12px + env(safe-area-inset-top));
+  right: 14px;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: #e8f5e9;
+  font-size: 22px;
+  cursor: pointer;
+}
+
+/* less motion: the credits as a list to scroll, nothing rolls or gets eaten */
+.still {
+  overflow-y: auto;
+  cursor: default;
+}
+
+.still .end {
+  position: static;
+  padding: 40px 0 80px;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 60px 16px 0;
+}

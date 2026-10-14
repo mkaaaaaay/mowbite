@@ -18,6 +18,10 @@ import styles from './MapView.module.css';
 import {tr, useLang} from '@/lib/i18n';
 import {tick} from '@/lib/haptics';
 import {TrashIcon} from './icons';
+import {MapGhost} from './Halloween';
+import {MapCostume} from './Costumes';
+import {useHalloween} from '@/lib/eggs';
+import {useTrailingPose} from '@/hooks/useTrailingPose';
 import {CELL_M, MIN_SECONDS, gpsGrade, loadCoverage, wifiGrade, type CoverageCell} from '@/lib/coverage';
 import {CoverInfo} from './CoverInfo';
 
@@ -69,6 +73,9 @@ interface MapViewProps {
   // how far the current run got in the mower's plan: what's left is drawn, the planned part it has done only if
   // switched on in the layer menu (the track shows what it really drove)
   progress?: {todo: Point[][]};
+  // the mower's icon dressed up: a towel at 42 % of a mow, an umbrella while it sits out the rain (a witch's hat on
+  // halloween comes by itself)
+  costume?: {towel?: boolean; umbrella?: boolean};
   // shapes an edit would give (split pieces, merge result), drawn in two alternating colors
   preview?: Point[][];
   // click on the map where there's no area
@@ -203,6 +210,8 @@ function MowerMarker({
   showIcon,
   emergency,
   blades,
+  ghost,
+  costume,
 }: {
   mower: Pose;
   fit: Fit;
@@ -214,12 +223,16 @@ function MowerMarker({
   showIcon: boolean;
   emergency?: boolean;
   blades: boolean;
+  // halloween night: a little ghost follows a moment behind while it drives
+  ghost?: boolean;
+  costume?: {hat?: boolean; towel?: boolean; umbrella?: boolean};
 }) {
   // (half a pixel of the map, about: k is svg units per pixel of the drawing's width)
   const shown = useEasedPose(mower, (0.5 * k) / fit.scale) ?? mower;
   // the blade turning the way the mow motor does, drawn only with the outline
   const rpm = useSensorValue('om_mow_motor_rpm', (v) => (outline && body?.blade ? Math.round(parseFloat(v ?? '') || 0) : 0));
   const speed = useComputedSpeed(mower);
+  const haunt = useTrailingPose(shown, !!ghost && speed > 0.05);
   // which way a side view faces. it only turns once the mower clearly heads the other way, so it doesn't flicker while
   // the mower drives up or down the map
   const [facing, setFacing] = useState(1);
@@ -293,6 +306,24 @@ function MowerMarker({
           </g>
         </g>
       )}
+      {showIcon && (costume?.hat || costume?.towel || costume?.umbrella) && (
+        // upright over any icon, also one seen from above, at the size it's drawn
+        <g
+          transform={`translate(${(icon.fit && body && shape ? toScreen(shape.middle.x, shape.middle.y) : [sx, sy]).join(' ')}) scale(${
+            icon.fit && body ? ((body.front + body.rear) / 2) * scale : size
+          })`}
+          className={styles.costume}
+        >
+          <MapCostume hat={costume.hat} towel={costume.towel} umbrella={costume.umbrella} high={!!icon.side} />
+        </g>
+      )}
+      {haunt && (
+        <g transform={`translate(${toScreen(haunt.x, haunt.y).join(' ')}) scale(${(size * 2.2) / 30})`} className={styles.ghost}>
+          <g className={styles.ghostBob}>
+            <MapGhost />
+          </g>
+        </g>
+      )}
       {outline && shape && (
         <>
           {!showIcon && <polyline className={styles.mowerArrow} points={points(shape.arrow)} />}
@@ -327,6 +358,7 @@ function MapView({
   track,
   pastTrack,
   progress,
+  costume,
   zoomable = false,
   stripes,
   loops,
@@ -776,10 +808,12 @@ function MapView({
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [coverage, coverMode, coverCell, pickingPoints, selectedAreaId, minX, minY, scale, padX, padY]);
+  const halloween = useHalloween();
   const trackLayer = useMemo(
     () =>
       hidden.has('track') ? null : (
-        <>
+        // halloween night the track glows like ectoplasm
+        <g className={halloween.night ? styles.spooky : undefined}>
           {trackRuns
             .filter((run) => run.blades || !hidden.has('transit'))
             .map((run, i) => (
@@ -796,9 +830,9 @@ function MapView({
               />
             ) : null,
           )}
-        </>
+        </g>
       ),
-    [hidden, trackRuns, pastTrack, minX, minY, scale, padX, padY],
+    [hidden, trackRuns, pastTrack, minX, minY, scale, padX, padY, halloween.night],
   );
 
   const selectedArea = map.areas.find((a) => a.id === selectedAreaId);
@@ -1341,6 +1375,8 @@ function MapView({
             showIcon={!body || layerOn(hidden, 'mowerIcon')}
             emergency={emergency}
             blades={track?.at(-1)?.at(-1)?.b === true}
+            ghost={halloween.night}
+            costume={{hat: halloween.day, towel: costume?.towel, umbrella: costume?.umbrella}}
           />
         )}
 

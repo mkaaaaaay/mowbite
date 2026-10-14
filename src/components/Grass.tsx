@@ -7,6 +7,9 @@ import {seasonOf, sunTimes} from '@/lib/sun';
 import {usePathname} from 'next/navigation';
 import {useEffect, useRef, useState, useSyncExternalStore} from 'react';
 import LogoMark from './Logo';
+import {WitchHat} from './Costumes';
+import {PumpkinPatch} from './Halloween';
+import {useHalloween} from '@/lib/eggs';
 import {leg, pushMower, stepDur} from './mapIcons';
 import styles from './Grass.module.css';
 
@@ -342,6 +345,8 @@ export default function Grass() {
   const winter = season === 'winter';
   const busy = useRef(false);
   const lastTap = useRef(0);
+  // halloween: a pumpkin in the lawn, and the eater that mows it wears a witch's hat
+  const halloween = useHalloween();
   const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
   const shown = settings.grass !== false;
   // on phones only on the dashboard, elsewhere it would sit on top of the content above the tab bar
@@ -625,10 +630,13 @@ export default function Grass() {
           )}
         </div>
       )}
+      {halloween.day && <PumpkinPatch night={halloween.night} />}
       {phase === 'mowing' && (
         <div className={styles.mower}>
           <div className={styles.hop}>
-            <LogoMark size={64} chomp bare />
+            <LogoMark size={64} chomp bare>
+              {halloween.day && <WitchHat />}
+            </LogoMark>
           </div>
         </div>
       )}

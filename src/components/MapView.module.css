@@ -813,3 +813,70 @@
   margin-left: 6px;
   border-radius: 2px;
 }
+
+/* halloween night: the track glows, a ghost bobs along behind the mower */
+.spooky .track {
+  stroke: #b9f6ca;
+  filter: drop-shadow(0 0 2px #69f0ae);
+}
+
+.spooky .transit {
+  stroke: #a7ffeb;
+}
+
+.ghost {
+  pointer-events: none;
+  opacity: 0.9;
+}
+
+.ghostBob {
+  animation: map-ghost-bob 1.4s ease-in-out infinite;
+}
+
+@keyframes map-ghost-bob {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-5deg);
+  }
+  50% {
+    transform: translateY(-4px) rotate(5deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ghostBob {
+    animation: none;
+  }
+}
+
+/* the mower's icon dressed up: nothing of it takes a tap */
+.costume {
+  pointer-events: none;
+}
+
+/* rain on the umbrella over the mower's icon: a drop falls and bursts on it (in the icon's units) */
+.drop {
+  stroke: #90caf9;
+  stroke-width: 0.07;
+  stroke-linecap: round;
+  opacity: 0;
+  animation: map-drop 1.3s linear infinite;
+}
+
+@keyframes map-drop {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.9;
+  }
+  85% {
+    transform: translateY(var(--to));
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateY(var(--to)) scaleX(3);
+    opacity: 0;
+  }
+}

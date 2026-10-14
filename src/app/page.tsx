@@ -1,6 +1,8 @@
 'use client';
 
-import LogoMark from '@/components/Logo';
+import {BrandMark} from '@/components/BrandMark';
+import {DontPanic} from '@/components/DontPanic';
+import {useEggForced, useHalloween, useUmbrella} from '@/lib/eggs';
 import LoveMower from '@/components/LoveMower';
 import MapView from '@/components/MapView';
 import {HomeIcon, PauseIcon, PlayIcon, SkipIcon, WarningIcon} from '@/components/icons';
@@ -221,11 +223,18 @@ export default function Home() {
   const area = current === 'MOWING' ? lastOf((e) => e.type === 'AREA')?.area_name : undefined;
   const head = state ? headline(state, docked, chargeState, area) : null;
 
+  // dressed up: a towel at 42 %, an umbrella while it sits out the rain, a witch's hat on halloween
+  const halloween = useHalloween();
+  const umbrella = useUmbrella();
+  // the preview ("eggForce" towel) shows the mow at 42 % too, so it's what one would see
+  const towelPreview = useEggForced('towel');
+  const towel = towelPreview || (!!progress && Math.round(progress.fraction * 100) === 42);
+
   const acc = state?.pose.pos_accuracy;
   const gpsQ = gpsQuality(acc, numParam(params, PARAM.maxPositionAccuracy));
   const num = (id: string) => (values[id] !== undefined ? Number(values[id]) : undefined);
   const temps = state ? temperatures(infos, values) : [];
-  const facts: {label: string; value: string; warn?: boolean}[] = [];
+  const facts: {label: string; value: string; warn?: boolean; extra?: React.ReactNode}[] = [];
   if (state) {
     facts.push({
       label: 'GPS',
@@ -237,7 +246,8 @@ export default function Home() {
     if (driving) facts.push({label: tr('Speed'), value: `${fmt(speed, 2)} m/s`});
     if (progress) {
       const left = progress.secondsLeft !== null ? ` · ${tr('{time} left', {time: duration(progress.secondsLeft)})}` : '';
-      facts.push({label: tr('Progress'), value: `${Math.round(progress.fraction * 100)} %${left}`});
+      const pct = towelPreview ? 42 : Math.round(progress.fraction * 100);
+      facts.push({label: tr('Progress'), value: `${pct} %${left}`, extra: pct === 42 ? <DontPanic /> : undefined});
     }
     if (charging && num('om_charge_current') !== undefined) facts.push({label: tr('Charging'), value: `${fmt(num('om_charge_current')!, 1)} A`});
     if (num('om_v_battery') !== undefined) facts.push({label: tr('Battery'), value: `${fmt(num('om_v_battery')!, 1)} V`});
@@ -252,7 +262,7 @@ export default function Home() {
     <div className={styles.page}>
       <main className={[styles.main, showMap ? styles.withMap : ''].join(' ')}>
         <h1 className={styles.brand}>
-          <LogoMark size={40} />
+          <BrandMark hat={halloween.day} towel={towel} umbrella={umbrella} />
           <span>
             <strong>mow</strong>bite
           </span>
@@ -293,6 +303,7 @@ export default function Home() {
                 <div key={f.label} className={f.warn ? styles.warn : undefined}>
                   <span>{f.label}</span>
                   <strong>{f.value}</strong>
+                  {f.extra}
                 </div>
               ))}
             </div>
@@ -386,6 +397,7 @@ export default function Home() {
               emergency={!!state?.emergency}
               track={track}
               progress={progress ?? undefined}
+              costume={{towel, umbrella}}
               follow={driving}
               zoomable
               datum={datum}

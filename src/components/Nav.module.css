@@ -248,3 +248,8 @@
     stroke: none;
   }
 }
+
+/* a hat on halloween sticks out over the top of the eater */
+.hatted {
+  overflow: visible;
+}

@@ -6,6 +6,7 @@ import TrackPicker from '@/components/TrackPicker';
 import {saveMap, useMowerMap, type MowerMap, type Point} from '@/hooks/useMowerMap';
 import {useMowerPosition} from '@/hooks/useMowerPosition';
 import {useDocked, useMowerStateValue} from '@/hooks/useMowerState';
+import {useEggForced, useUmbrella} from '@/lib/eggs';
 import {clearTrack, trackPoints, useLastRun, useLastRunJob, useMowerTrack} from '@/hooks/useMowerTrack';
 import {useMarginPlaces} from '@/lib/marginCheck';
 import {usePlanProgress} from '@/hooks/usePlanProgress';
@@ -77,6 +78,9 @@ function MapEditor() {
   // second)
   const mowingState = useMowerStateValue((l) => (l.state?.current_state === 'MOWING' ? l.state : null));
   const progress = usePlanProgress(mowingState, liveMap, undefined);
+  // the mower's icon dressed like the eater on the dashboard
+  const umbrella = useUmbrella();
+  const towel = useEggForced('towel');
   const {map, edited, setMap, history, remember, undoStep, originals, setOriginals, dirty, external, dropEdits, mergeNote, mergeExternal} =
     useMapEdits(liveMap);
   const [showStripes, setShowStripes] = useState(true);
@@ -675,6 +679,7 @@ function MapEditor() {
                 pieces={progress && progress.areaId === selectedAreaId ? undefined : plan?.pieces}
                 openLoops={!!plan?.open}
                 progress={progress ?? undefined}
+                costume={{towel: towel || (!!progress && Math.round(progress.fraction * 100) === 42), umbrella}}
                 preview={splitPreview ?? (merged ? [merged.outline] : undefined)}
                 markers={spot || problemSpots.length ? [...(spot ? [spot] : []), ...problemSpots] : undefined}
                 // (the spot from the activity page has its message above the map already)

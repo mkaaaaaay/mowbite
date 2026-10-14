@@ -1,0 +1,73 @@
+.towel {
+  position: relative;
+  align-self: center;
+  display: inline-flex;
+  padding: 0;
+  margin-left: 2px;
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.sway {
+  transform-origin: 50% 17%;
+  animation: towel-sway 3.2s ease-in-out infinite;
+}
+
+@keyframes towel-sway {
+  0%,
+  100% {
+    transform: rotate(-4deg);
+  }
+  50% {
+    transform: rotate(4deg);
+  }
+}
+
+/* in big friendly letters */
+.bubble {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  z-index: 3;
+  padding: 5px 10px;
+  border-radius: 10px;
+  background: #e53950;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3);
+  transform: translateX(-50%);
+  animation: towel-say 0.35s cubic-bezier(0.3, 1.6, 0.6, 1);
+}
+
+.bubble::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  border: 6px solid transparent;
+  border-top-color: #e53950;
+  transform: translateX(-50%);
+}
+
+@keyframes towel-say {
+  from {
+    transform: translateX(-50%) scale(0.3);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(-50%) scale(1);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sway,
+  .bubble {
+    animation: none;
+  }
+}

@@ -2,6 +2,8 @@
 
 import {useId, useRef, useState} from 'react';
 import styles from './Logo.module.css';
+import {WitchHat} from './Costumes';
+import {useHalloween} from '@/lib/eggs';
 
 const OPEN = 'M24 32 L39.6 23 A18 18 0 1 0 39.6 41 Z';
 const SHUT = 'M24 32 L42 31.9 A18 18 0 1 0 42 32.1 Z';
@@ -68,6 +70,12 @@ export default function LogoMark({
   );
 }
 
+// in front of page headings on phones. on halloween in a witch's hat
 export function TitleMark() {
-  return <LogoMark size={28} className={styles.titleMark} />;
+  const halloween = useHalloween();
+  return (
+    <LogoMark size={28} className={[styles.titleMark, halloween.day ? styles.hatted : ''].join(' ')}>
+      {halloween.day && <WitchHat />}
+    </LogoMark>
+  );
 }

@@ -3,6 +3,8 @@
 import {startSensorHistory} from '@/hooks/useSensorHistory';
 import {syncSettings} from '@/lib/settings';
 import LogoMark from './Logo';
+import {WitchHat} from './Costumes';
+import {useHalloween} from '@/lib/eggs';
 import Link from 'next/link';
 import {usePathname} from 'next/navigation';
 import {useEffect} from 'react';
@@ -54,6 +56,8 @@ export default function Nav() {
   const pathname = usePathname().replace(/(.)\/$/, '$1');
   useLang();
   const unsavedMap = useUnsavedMap();
+  // halloween: the eater in the nav wears a witch's hat too
+  const halloween = useHalloween();
   // nav is always mounted, so sensor history records no matter which page is open
   useEffect(() => {
     startSensorHistory();
@@ -62,7 +66,7 @@ export default function Nav() {
   return (
     <nav className={styles.nav}>
       <Link href="/" className={styles.logo} aria-label="MowBite">
-        <LogoMark />
+        <LogoMark className={halloween.day ? styles.hatted : undefined}>{halloween.day && <WitchHat />}</LogoMark>
         <span className={styles.wordmark}>
           <strong>mow</strong>bite
         </span>

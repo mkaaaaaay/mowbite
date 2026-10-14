@@ -79,3 +79,8 @@
     transform: scaleY(1);
   }
 }
+
+/* a hat on halloween sticks out over the top */
+.hatted {
+  overflow: visible;
+}
