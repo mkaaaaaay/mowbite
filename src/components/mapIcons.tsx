@@ -913,7 +913,8 @@ const MODELS: MowerIcon[] = [
   {
     key: 'jd-tango',
     label: 'John Deere Tango E5',
-    fit: 53.5 / 77.5,
+    // as wide over as long as its owner measured it (50.5 cm, 60 + 21 cm), like the model in the mower sizes
+    fit: 50.5 / 81,
     draw: ({emergency = false, blades = false} = {}) => <Shaded draw={(id) => johnDeereTango(id, emergency, blades)} />,
   },
   {
