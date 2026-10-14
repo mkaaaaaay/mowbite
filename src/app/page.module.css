@@ -289,13 +289,44 @@
   flex: 1 1 100%;
 }
 
+.controls .leftovers {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.controls .leftovers span {
+  flex: 1 1 100%;
+}
+
+.controls .leftovers small {
+  display: block;
+  color: var(--text-secondary);
+}
+
+.controls .leftovers .error {
+  flex: 1 1 100%;
+  color: var(--error);
+}
+
+.controls .leftoversButton {
+  flex: 1;
+  padding: 8px;
+  border-style: dashed;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
 .controls .resetJob button {
   flex: 1;
 }
 
 /* by the width of the card, not the screen: four buttons side by side need about 600px for a label next to its icon */
 @container controls (max-width: 640px) {
-  .controls button:not(.reset):not(.skipPathButton) {
+  .controls button:not(.reset):not(.skipPathButton):not(.leftoversButton) {
     flex-direction: column;
     gap: 4px;
     padding: 10px 4px;

@@ -103,6 +103,11 @@
   box-shadow: var(--btn-3d);
 }
 
+a.pillButton {
+  align-self: flex-start;
+  text-decoration: none;
+}
+
 .pillButton:disabled {
   opacity: 0.4;
   cursor: default;

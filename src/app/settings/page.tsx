@@ -3,7 +3,7 @@
 import {TitleMark} from '@/components/Logo';
 import {saveSettings, settingsStore, sharedSettings, type OtherMower, type Settings} from '@/lib/settings';
 import {useRouter} from 'next/navigation';
-import {useState, useSyncExternalStore} from 'react';
+import {useEffect, useState, useSyncExternalStore} from 'react';
 import styles from './page.module.css';
 import {setLangChoice, tr, useLang, useLangChoice} from '@/lib/i18n';
 import {setThemeChoice, useThemeChoice} from '@/lib/theme';
@@ -12,7 +12,9 @@ import {isApp} from '@/lib/native';
 import {setSwipeEnabled, useSwipeEnabled} from '@/lib/swipe';
 import {OpenMowerSettings} from '@/components/MowerParamSettings';
 import {UpdateSettings} from '@/components/Updates';
-import {MowerBodySettings} from '@/components/MowerBodySettings';
+import {loadPlannerSettings, savePlannerSettings, slic3rPlans, usePlannerSettings} from '@/lib/mowerBody';
+import Link from 'next/link';
+import {MowerSizesSettings} from '@/components/MowerSizesSettings';
 import {NotifySettings} from '@/components/NotifySettings';
 
 const noop = () => () => {};
@@ -191,6 +193,12 @@ export default function SettingsPage() {
   // back to wherever the gear was clicked, or the dashboard when the page was opened directly
   const back = () => (window.history.length > 1 ? router.back() : router.push('/'));
   const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
+  // the MowBite Planner on the mower: its settings are with the map. Asked here too, the page may be the first one
+  // opened
+  const planner = usePlannerSettings();
+  useEffect(() => {
+    if (planner === undefined) loadPlannerSettings().catch(() => {});
+  }, [planner]);
 
   return (
     <div className={styles.page}>
@@ -298,8 +306,80 @@ export default function SettingsPage() {
 
         </Group>
 
+        {planner && (
+          <section className={styles.card}>
+            <h2>{tr('Planner and mower sizes')}</h2>
+            <p className={styles.dim}>{tr('Everything for the planner is with the map now: under the map while no area is selected, and with an area its own.')}</p>
+            <Link href="/map" className={styles.pillButton}>
+              {tr('To the map')}
+            </Link>
+          </section>
+        )}
+        {planner && (
+          <section className={styles.card}>
+            <h2>{tr('Mow the leftovers')}</h2>
+            <p className={styles.dim}>
+              {tr(
+                'After a finished mow the planner looks at the real track for pieces the mower missed (it drifted, went round something). On the dashboard you can have just those mowed, or it happens by itself: once the mower is back in the dock it goes out again for them. Only with the MowBite container on the mower.',
+              )}
+            </p>
+            {planner.settings.leftovers_auto ? (
+              <>
+                {/* a planner that sends the mower out for the leftovers itself: its switch, the container's own stays off */}
+                <label className={styles.check}>
+                  <input
+                    type="checkbox"
+                    checked={planner.settings.leftovers_auto.value === true}
+                    disabled={slic3rPlans(planner)}
+                    onChange={(e) => {
+                      const cur = settingsStore.snapshot();
+                      if (cur.leftovers?.auto) saveSettings({...cur, leftovers: {...cur.leftovers, auto: false}});
+                      savePlannerSettings({leftovers_auto: e.target.checked}).catch(() => {});
+                    }}
+                  />
+                  {tr('Mow the leftovers automatically')}
+                </label>
+                <p className={styles.dim}>
+                  {slic3rPlans(planner)
+                    ? tr("Not with OpenMower's slic3r planner, it plans no leftovers.")
+                    : tr('After a mow the mower goes out again by itself when more than 0.3 m² it can reach was left, within 15 minutes of the end of the mow or not at all. Not in the rain, not with an emergency stop. It does not wait for daylight: after a mow that ended at dusk it goes out in the dark.')}
+                </p>
+              </>
+            ) : (
+              <>
+                <label className={styles.check}>
+                  <input
+                    type="checkbox"
+                    checked={!!settings.leftovers?.auto}
+                    onChange={(e) => {
+                      const cur = settingsStore.snapshot();
+                      saveSettings({...cur, leftovers: {...cur.leftovers, auto: e.target.checked}});
+                    }}
+                  />
+                  {tr('Mow the leftovers by itself after every finished mow')}
+                </label>
+                <label className={styles.field}>
+                  {tr('Only from this much left, in m²')}
+                  <input
+                    key={'leftmin' + (settings.leftovers?.min ?? '')}
+                    inputMode="decimal"
+                    defaultValue={settings.leftovers?.min ?? 0.5}
+                    disabled={!settings.leftovers?.auto}
+                    onBlur={(e) => {
+                      const v = Number(e.target.value.trim().replace(',', '.'));
+                      const cur = settingsStore.snapshot();
+                      saveSettings({...cur, leftovers: {...cur.leftovers, min: Number.isFinite(v) && v >= 0 ? v : 0.5}});
+                    }}
+                  />
+                </label>
+                <p className={styles.dim}>{tr('Not in the dark, not in the rain, not with an emergency stop, like the schedule. What it did is in the schedule log.')}</p>
+              </>
+            )}
+          </section>
+        )}
         <Group id="mower" title={tr('Your mower')}>
-          <MowerBodySettings settings={settings} styles={styles} />
+          {/* without the MowBite Planner the sizes are kept in the app */}
+          {planner === null && <MowerSizesSettings settings={settings} styles={styles} />}
           <NotifySettings settings={settings} styles={styles} />
         </Group>
 

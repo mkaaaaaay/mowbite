@@ -17,6 +17,7 @@ export function Fold({id, title, children}: {id: string; title: string; children
   });
   return (
     <details
+      id={'fold-' + id}
       className={styles.fold}
       open={open}
       onToggle={(e) => {

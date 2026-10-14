@@ -6,6 +6,7 @@ import {createEaser, useEasedPose, type Pose} from '@/hooks/useEasedPose';
 import {containsPoint, polygonArea} from '@/lib/geometry';
 import {settingsStore, type Settings} from '@/lib/settings';
 import {bladeSeconds, bodyShape, realEdges, roundBends, swathEnd, swathGroups, swathAfter, swathTail, useMowerBody, type MowerBody, type SwathState} from '@/lib/mowerBody';
+import type {FitPose, PlanPiece} from '@/lib/mowPlan';
 import {useSensorValue} from '@/hooks/useMowerSensors';
 import {dockIcon, drawMower, mowerIcon} from './mapIcons';
 import {availableSources, imageryTiles, type Datum} from '@/lib/imagery';
@@ -55,8 +56,14 @@ interface MapViewProps {
   zoomable?: boolean;
   // mowing direction preview
   stripes?: Point[][];
+  // the plan in pieces by what they are (the MowBite Planner tells): drawn in place of the stripes and loops, the
+  // turns and the drives between the parts left out when switched off in the layer menu
+  pieces?: PlanPiece[];
   // the outline passes of the mowing plan, drawn with the stripes
   loops?: Point[][];
+  // the loops are paths as driven (the mower's plan), drawn without closing them: closed, the line back to the start
+  // would cut across the area, even outside a bent one
+  openLoops?: boolean;
   // how far the current run got in the mower's plan: what's left is drawn, the planned part it has done only if
   // switched on in the layer menu (the track shows what it really drove)
   progress?: {todo: Point[][]};
@@ -70,6 +77,22 @@ interface MapViewProps {
   orderLabels?: Record<string, number>;
   // spots to point out, e.g. where an error happened (red, pulsing)
   markers?: Point[];
+  // a marker tapped: its index, null to close
+  onMarkerPick?: (index: number) => void;
+  // poses where the planner found the mower's body sticking out, drawn as the body there
+  bodySpots?: {x: number; y: number; yaw: number}[];
+  // the planner's collision mode: where the body may go, the places it drove another way (m: left out there) and
+  // where clean stripes still turned in the field
+  bodySpace?: Point[][];
+  fitPlaces?: {x: number; y: number; m: number; pose?: FitPose}[];
+  // the place picked: the body drawn where it would have stuck out. A place with a pose can be picked, again: none
+  fitPicked?: number | null;
+  onFitPick?: (index: number | null) => void;
+  turnPlaces?: Point[];
+  // where the path jumps, a cross each
+  jumpPlaces?: Point[];
+  // after a run: where the body got into the safety distances, m how far
+  marginPlaces?: {x: number; y: number; m: number}[];
   // start zoomed in around this point instead of showing the whole map
   focus?: Point;
   // zoom and position are kept under this key while the app runs, e.g. across a visit to the settings
@@ -305,9 +328,20 @@ function MapView({
   zoomable = false,
   stripes,
   loops,
+  openLoops,
+  pieces,
   preview,
   overlay,
   markers,
+  onMarkerPick,
+  bodySpots,
+  bodySpace,
+  fitPlaces,
+  fitPicked,
+  onFitPick,
+  turnPlaces,
+  jumpPlaces,
+  marginPlaces,
   focus,
   viewKey,
   onClickEmpty,
@@ -392,6 +426,7 @@ function MapView({
   useEffect(() => {
     followEaser.push(followed);
   }, [followEaser, followed]);
+  const body = useMowerBody();
 
   // fitted to the map only, so the geometry doesn't change while the mower moves. follow mode
   // moves the view instead
@@ -568,7 +603,6 @@ function MapView({
   }, [track, minX, minY, scale, padX, padY]);
 
   // the strip the blade cut along the live trail and a recorded job, with the mower's sizes set
-  const body = useMowerBody();
   const swathOn = !!body?.blade && layerOn(hidden, 'swath');
   const swath = useMemo(() => {
     const out: {groups: string[]; ends: string} = {groups: [], ends: ''};
@@ -652,6 +686,10 @@ function MapView({
 
   // the edges where the mower's body reached while the outlines were recorded with its middle
   const edgesOn = !!body && layerOn(hidden, 'edges');
+  // what the collision check found and fixed in the plan shown
+  const checksOn = layerOn(hidden, 'checks');
+  // the places where the body came too close get their cm once the map shows less than about 12 m across
+  const marginLabels = (shown?.size ?? WIDTH) / scale <= 12;
   const edges = useMemo(() => {
     if (!edgesOn || !body) return null;
     const at = (p: Point) => `${((p.x - minX) * scale + padX).toFixed(1)} ${(HEIGHT - ((p.y - minY) * scale + padY)).toFixed(1)}`;
@@ -662,8 +700,26 @@ function MapView({
 
   // the plan and the tracks only change with their data, panning and zooming just move the viewBox: kept as they are,
   // a frame of a gesture doesn't build hundreds of paths again
-  const stripesPath = useMemo(() => (stripes?.length ? pathOf(stripes, {minX, minY, scale, padX, padY}) : ''), [stripes, minX, minY, scale, padX, padY]);
-  const loopsPath = useMemo(() => (loops?.length ? pathOf(loops, {minX, minY, scale, padX, padY}, true) : ''), [loops, minX, minY, scale, padX, padY]);
+  // with the plan in pieces the outline passes and lanes are one path, the turns and the drives between the parts
+  // their own, each switched off on its own
+  const turnsOn = layerOn(hidden, 'planTurns');
+  const transitOn = layerOn(hidden, 'planTransit');
+  const piecePaths = useMemo(() => {
+    if (!pieces?.length) return null;
+    const of = (types: PlanPiece['type'][]) => {
+      const list = pieces.filter((q) => types.includes(q.type)).map((q) => q.points);
+      return list.length ? pathOf(list, {minX, minY, scale, padX, padY}) : '';
+    };
+    return {mowed: of(['perimeter', 'lane']), turns: of(['turn']), transit: of(['transit'])};
+  }, [pieces, minX, minY, scale, padX, padY]);
+  const stripesPath = useMemo(
+    () => (!piecePaths && stripes?.length ? pathOf(stripes, {minX, minY, scale, padX, padY}) : ''),
+    [piecePaths, stripes, minX, minY, scale, padX, padY],
+  );
+  const loopsPath = useMemo(
+    () => (!piecePaths && loops?.length ? pathOf(loops, {minX, minY, scale, padX, padY}, !openLoops) : ''),
+    [piecePaths, loops, openLoops, minX, minY, scale, padX, padY],
+  );
   const todoPath = useMemo(
     () => (progress ? pathOf(progress.todo, {minX, minY, scale, padX, padY}) : null),
     [progress, minX, minY, scale, padX, padY],
@@ -1150,6 +1206,13 @@ function MapView({
 
         {loopsPath && !hidden.has('stripes') && <path className={styles.stripes} d={loopsPath} />}
         {stripesPath && !hidden.has('stripes') && <path className={styles.stripes} d={stripesPath} />}
+        {piecePaths && !hidden.has('stripes') && (
+          <>
+            {piecePaths.mowed && <path className={styles.stripes} d={piecePaths.mowed} />}
+            {turnsOn && piecePaths.turns && <path className={styles.stripes} d={piecePaths.turns} />}
+            {transitOn && piecePaths.transit && <path className={styles.planTransit} d={piecePaths.transit} />}
+          </>
+        )}
 
         {selectedArea && (
           <polygon
@@ -1343,11 +1406,99 @@ function MapView({
       }}
     >
       {renderContent(k)}
+      {bodySpace && bodySpace.length > 0 && <path className={styles.bodySpace} d={pathOf(bodySpace, drawn, true)} />}
+      {/* small and the same size at any zoom, the plan stays readable under them */}
+      {checksOn &&
+        turnPlaces?.map((p, i) => {
+          const [x, y] = toScreen(p.x, p.y);
+          return <circle key={'turn' + i} className={styles.turnPlace} cx={x} cy={y} r={4 * k} />;
+        })}
+      {checksOn &&
+        body &&
+        fitPlaces?.[fitPicked ?? -1]?.pose &&
+        (() => {
+          const pose = fitPlaces[fitPicked!].pose!;
+          const shape = bodyShape(body, pose.x, pose.y, pose.yaw);
+          // turning on the spot the body sweeps round the rear axle: how far its farthest point reaches then
+          const reach = Math.max(...shape.corners.map((c) => Math.hypot(c.x - pose.x, c.y - pose.y)));
+          const [cx, cy] = toScreen(pose.x, pose.y);
+          return (
+            <>
+              {pose.spin && <circle className={styles.fitSweep} cx={cx} cy={cy} r={reach * scale} />}
+              <polygon className={styles.fitBody} points={shape.corners.map((c) => toScreen(c.x, c.y).join(',')).join(' ')} />
+            </>
+          );
+        })()}
+      {checksOn && fitPlaces?.map((p, i) => {
+        // where the body would have stuck out, once the planner tells
+        const [x, y] = toScreen(p.pose?.x ?? p.x, p.pose?.y ?? p.y);
+        const dot = <circle className={[p.m > 0 ? styles.fitSkip : styles.fitPlace, i === fitPicked ? styles.fitPicked : ''].join(' ')} cx={x} cy={y} r={4 * k} />;
+        if (!p.pose || !onFitPick) return <g key={'fit' + i}>{dot}</g>;
+        return (
+          <g
+            key={'fit' + i}
+            className={styles.fitPick}
+            // a dot is small for a finger: a bigger round to hit, the map doesn't pan or deselect from it
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              onFitPick(i === fitPicked ? null : i);
+            }}
+          >
+            <circle cx={x} cy={y} r={16 * k} fill="transparent" stroke="none" />
+            {dot}
+          </g>
+        );
+      })}
+      {checksOn && jumpPlaces?.map((p, i) => {
+        const [x, y] = toScreen(p.x, p.y);
+        const r = 6 * k;
+        return <path key={'jump' + i} className={styles.jumpPlace} d={`M ${x - r} ${y - r} L ${x + r} ${y + r} M ${x - r} ${y + r} L ${x + r} ${y - r}`} />;
+      })}
+      {!hidden.has('margins') &&
+        marginPlaces?.map((p, i) => {
+          const [x, y] = toScreen(p.x, p.y);
+          return (
+            <g key={'margin' + i} className={styles.marginPlace}>
+              <circle cx={x} cy={y} r={2.5 * k} />
+              {/* the numbers only zoomed in, over the whole garden they lie on top of each other */}
+              {marginLabels && (
+                <text x={x + 4 * k} y={y} dy="0.35em" fontSize={9 * k} strokeWidth={2.5 * k}>
+                  {Math.round(p.m * 100)} cm
+                </text>
+              )}
+            </g>
+          );
+        })}
+      {body &&
+        bodySpots?.map((s, i) => {
+          const shape = bodyShape(body, s.x, s.y, s.yaw);
+          return (
+            <polygon
+              key={'body' + i}
+              className={styles.bodyOut}
+              points={shape.corners.map((c) => toScreen(c.x, c.y).join(',')).join(' ')}
+            />
+          );
+        })}
       {/* last, so a spot at the dock isn't hidden under the mower */}
       {markers?.map((m, i) => {
         const [mx, my] = toScreen(m.x, m.y);
         return (
-          <g key={'mk' + i} className={styles.marker}>
+          <g
+            key={'mk' + i}
+            className={[styles.marker, onMarkerPick ? styles.markerPick : ''].join(' ')}
+            // like a dot of the collision check: the map doesn't pan or deselect from it
+            onPointerDown={onMarkerPick ? (e) => e.stopPropagation() : undefined}
+            onClick={
+              onMarkerPick
+                ? (e) => {
+                    e.stopPropagation();
+                    onMarkerPick(i);
+                  }
+                : undefined
+            }
+          >
             <circle cx={mx} cy={my} r={20 * k} className={styles.markerPulse} />
             <circle cx={mx} cy={my} r={6 * k} />
           </g>
@@ -1398,6 +1549,7 @@ function MapView({
         layersOpen={layersOpen}
         onLayersOpen={setLayersOpen}
         body={body ? {blade: body.blade > 0} : undefined}
+        planParts={!!pieces?.length}
         planStyle={
           progress
             ? {

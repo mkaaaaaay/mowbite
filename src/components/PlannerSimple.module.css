@@ -1,0 +1,225 @@
+.simple {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 4px 14px 14px;
+}
+
+/* what's set for all areas, or what an area sets itself, at a glance */
+.summary {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--well);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.line {
+  margin: 0;
+}
+
+/* set, but it doesn't count */
+.idle {
+  opacity: 0.6;
+}
+
+.saved {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.section + .section {
+  padding-top: 14px;
+  border-top: 1px solid var(--card-border);
+}
+
+.heading {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+/* on or off for all areas */
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.switch input {
+  appearance: none;
+  position: relative;
+  width: 38px;
+  height: 22px;
+  padding: 0;
+  margin: 0;
+  border-radius: 999px;
+  border: 1px solid var(--card-border);
+  background: var(--well);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.switch input::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--foreground);
+  transition: transform 0.15s;
+}
+
+.switch input:checked {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 60%, transparent);
+}
+
+.switch input:checked::after {
+  transform: translateX(16px);
+}
+
+.word {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.row {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.segment,
+.inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.segment button,
+.inline button {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--card-border);
+  background: transparent;
+  color: var(--foreground);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.segment button:disabled,
+.inline button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.segment .on,
+.inline .on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.simple input:not([type='checkbox']) {
+  width: 72px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--card-border);
+  background: transparent;
+  color: var(--foreground);
+  font-size: 14px;
+}
+
+.note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-secondary);
+}
+
+.error {
+  color: var(--error, #ff5252);
+  font-size: 12px;
+}
+
+/* the full list of the planner's settings, behind a small switch */
+.expert {
+  margin: 0 14px 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.expert > summary {
+  cursor: pointer;
+  list-style: none;
+  text-decoration: underline;
+}
+
+.expert > summary::-webkit-details-marker {
+  display: none;
+}
+
+/* which value counts where: the areas with one of their own, an area's own one, OpenMower's */
+.source {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* the sections, greyed out while OpenMower's slic3r planner plans: they only count with the MowBite Planner */
+.sections,
+.off {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.off {
+  opacity: 0.4;
+}

@@ -28,7 +28,7 @@ while :; do
           else { d = a - b; print (d < 0.000001 && d > -0.000001) } }')
         [ "$same" = 1 ] || printf '"%s":%s,' "$name" "$want"
       done)
-      [ -n "$set" ] && rpc_call "$host" "$RPC_SET_PARAMS" "{\"params\":{${set%,}}}" 15 > /dev/null
+      [ -n "$set" ] && mower_rpc "$host" "$RPC_SET_PARAMS" "{\"params\":{${set%,}}}" 15 > /dev/null
     fi
   fi
   sleep 60

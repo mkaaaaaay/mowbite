@@ -56,6 +56,9 @@ export interface Settings {
   // the mower's sizes in meters for its outline and the strip its blade cuts on the map (lib/mowerBody)
   // outline: the body's real contour from above, [ahead, left] in meters around the same point, the rectangle without it
   mower?: {width?: number; front?: number; rear?: number; blade?: number; bladeAhead?: number; bladeOffset?: number; outline?: [number, number][]};
+  // after every finished mow the container asks the MowBite Planner what the track left unmowed and mows that right
+  // away when it's at least min m² (docker/scheduler.sh), off unless switched on
+  leftovers?: {auto?: boolean; min?: number};
 }
 
 const STORAGE_KEY = 'appSettings';

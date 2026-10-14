@@ -436,6 +436,17 @@
 }
 
 /* the mower's plan for the area it's mowing: what's left, and what it has done */
+/* the drives between the parts of the plan, dashed like the track without blades */
+.planTransit {
+  fill: none;
+  stroke: var(--c-stripes);
+  stroke-opacity: 0.45;
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
 .planTodo {
   fill: none;
   stroke: var(--foreground);
@@ -494,6 +505,12 @@
 
 .marker {
   pointer-events: none;
+}
+
+/* one that tells what it is when tapped */
+.marker.markerPick {
+  pointer-events: auto;
+  cursor: pointer;
 }
 
 .marker circle {
@@ -597,4 +614,108 @@
 
 .svg .swath path {
   vector-effect: none;
+}
+
+/* where the planner found the body sticking out: the body there, in red */
+.bodyOut {
+  pointer-events: none;
+  fill: #ff5252;
+  fill-opacity: 0.18;
+  stroke: #ff5252;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+/* the planner's collision mode: where the body may go, faint */
+.bodySpace {
+  pointer-events: none;
+  fill: none;
+  stroke: var(--c-body);
+  stroke-opacity: 0.4;
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+}
+
+/* a place driven another way so the body fits, a dot where a piece is left out */
+/* after a run, where the body got into the safety distances: small, it's a hint */
+.marginPlace {
+  pointer-events: none;
+}
+
+.marginPlace circle {
+  fill: #ef5350;
+  fill-opacity: 0.8;
+}
+
+.marginPlace text {
+  fill: #ff8a80;
+  font-weight: 600;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.6);
+}
+
+.fitPlace,
+.fitSkip {
+  pointer-events: none;
+  stroke: #fbc02d;
+  stroke-opacity: 0.8;
+  stroke-width: 1;
+}
+
+.fitPlace {
+  fill: none;
+}
+
+.fitSkip {
+  fill: #fbc02d;
+  fill-opacity: 0.55;
+}
+
+/* a place that can be picked: the body where it would have stuck out shows */
+.fitPick {
+  pointer-events: all;
+  cursor: pointer;
+}
+
+.fitPicked {
+  stroke: #fff;
+  stroke-opacity: 1;
+  stroke-width: 2;
+}
+
+/* turning on the spot: the circle the farthest point of the body sweeps round the rear axle */
+.fitSweep {
+  pointer-events: none;
+  fill: #ff5252;
+  fill-opacity: 0.06;
+  stroke: #ff5252;
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+}
+
+.fitBody {
+  pointer-events: none;
+  fill: #ff5252;
+  fill-opacity: 0.22;
+  stroke: #ff5252;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+/* the path jumps there, OpenMower drives the way on its own */
+.jumpPlace {
+  pointer-events: none;
+  fill: none;
+  stroke: #ff3b3b;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+/* clean stripes: a turn that still happens in the field of lanes */
+.turnPlace {
+  pointer-events: none;
+  fill: none;
+  stroke: var(--accent);
+  stroke-opacity: 0.8;
+  stroke-width: 1;
 }

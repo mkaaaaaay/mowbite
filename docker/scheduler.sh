@@ -20,8 +20,8 @@ log() {
 # a plain value from compact or spaced out json, e.g. field "$state" current_state
 field() { printf '%s' "$1" | grep -o "\"$2\" *: *[^,}]*" | head -n1 | sed 's/^[^:]*: *//' | tr -d '" '; }
 conf() { sed -n "s/^$1 //p" "$F" | head -n1; }
-# the areas of a map/json, one "id":"...","properties":{...} a line. objects in the properties (settings other tools
-# keep per area) become null, so the properties end at their own brace
+# the areas of a map/json, one "id":"...","properties":{...} a line. objects in the properties (an area's planner
+# settings) become null, so the properties end at their own brace
 map_areas() {
   tr -d ' \n' | sed -e 's/"properties":[{]/"properties":(/g' -e ':a' -e 's/\("[^"]*":\)[{][^{}]*[}]/\1null/g' -e 'ta' \
     -e 's/"properties":(/"properties":{/g' | grep -o '"id":"[^"]*","properties":{[^}]*}'
@@ -215,6 +215,94 @@ rain_forecast() {
   echo "${cur:-0} ${soon}" | awk -v per=4 '{ if ($1 >= 0.05) r = 1; n = split($2, q, ","); for (i = 1; i <= n; i++) { h[int((i - 1) / per)] += q[i] } for (k in h) if (h[k] >= 0.2) r = 1 } END { exit !r }'
 }
 
+# a json-rpc call over mqtt ($1 method, $2 params as json, $3 seconds to wait): the answer as one line, nothing without
+# one. the answers of everyone come on one topic, pretty printed over several lines: the object with our id is picked
+rpc_call() {
+  id="mb$$$(date +%s)"
+  out=$(mktemp)
+  # shellcheck disable=SC2086
+  mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_RPC_RESPONSE" -W "$3" > "$out" 2>/dev/null &
+  reader=$!
+  sleep 1
+  # shellcheck disable=SC2086
+  mosquitto_pub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_RPC_REQUEST" \
+    -m "{\"jsonrpc\":\"2.0\",\"id\":\"$id\",\"method\":\"$1\",\"params\":$2}"
+  t=$(($(date +%s) + $3))
+  while ! grep -q "\"id\": *\"$id\"" "$out" 2>/dev/null && [ "$(date +%s)" -lt "$t" ]; do sleep 1; done
+  sleep 1
+  kill "$reader" 2>/dev/null
+  # an answer on one line, or pretty printed from a line starting with { to one starting with }
+  awk -v id="$id" '/^\{/ { b = "" } { b = b $0 } /^\}/ || /^\{.*\}$/ { if (b ~ "\"id\": *\"" id "\"") { print b; exit } }' "$out"
+  rm -f "$out"
+}
+
+# the leftovers setting from the app's settings (settings.cgi): "leftovers":{"auto":true,"min":0.5}
+leftovers_conf() { grep -o '"leftovers":{[^}]*}' /data/settings.json 2>/dev/null | head -n1; }
+
+# after a finished mow ($1: its job id): what its real track left unmowed, by the MowBite Planner on the mower
+# (planner.leftovers), and when that's at least the m² set, the planner is armed and the mower started again once
+# it's back in the dock: it drives only the passes over the leftovers then. not in the dark, the rain or with an
+# emergency stop, like a start by schedule. the run for the leftovers doesn't get looked at itself
+leftovers_after() {
+  c=$(leftovers_conf)
+  [ "$(field "$c" auto)" = true ] || return
+  min=$(field "$c" min)
+  # a planner that sends the mower out for the leftovers itself (its setting leftovers_auto): not twice
+  case "$(rpc_call planner.settings '{}' 20)" in *'"leftovers_auto"'*) return ;; esac
+  if [ -f "$LEFT" ]; then
+    # the run that just finished was the one for the leftovers (a flag older than 6 h is a leftover itself)
+    age=$(($(date +%s) - $(cat "$LEFT")))
+    rm -f "$LEFT"
+    [ "$age" -lt 21600 ] && return
+  fi
+  tz=$(conf tz)
+  # home first: the mower docks after the job, a start only works while it stands idle there
+  t=$(($(date +%s) + 900))
+  s=""
+  while [ "$(date +%s)" -lt "$t" ]; do
+    # shellcheck disable=SC2086
+    s=$(mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -C 1 -W 10 2>/dev/null)
+    [ "$(field "$s" current_state)" = IDLE ] && break
+    sleep 10
+  done
+  if [ "$(field "$s" current_state)" != IDLE ]; then log leftovers_skip "$(field "$s" current_state)"; return; fi
+  if [ "$(field "$s" emergency)" != 0 ]; then log leftovers_skip emergency; return; fi
+  if [ "$(conf skiprain)" = 1 ] && [ "$(field "$s" rain_detected)" != 0 ]; then log leftovers_skip rain; return; fi
+  if is_dark "$(minutes)"; then log leftovers_skip dark; return; fi
+  r=$(rpc_call planner.leftovers "{\"job_id\":\"$1\"}" 240)
+  if [ -z "$r" ] || printf '%s' "$r" | grep -q '"error"'; then log leftovers_failed; return; fi
+  # m² left over all areas, from each area's stats.leftovers
+  left=$(printf '%s' "$r" | grep -o '"leftovers": *{[^}]*}' | grep -o '"left_m2": *[0-9.eE+-]*' | cut -d: -f2 | awk '{ s += $1 } END { printf "%.2f", s }')
+  if [ "$(echo "${left:-0} ${min:-0.5}" | awk '{ print ($1 >= $2 && $1 > 0) ? 1 : 0 }')" != 1 ]; then log leftovers_little "$left"; return; fi
+  r=$(rpc_call planner.leftovers "{\"job_id\":\"$1\",\"arm\":true}" 240)
+  if [ "$(echo "$(field "$r" armed)" | awk '{ print ($1 > 0) ? 1 : 0 }')" != 1 ]; then log leftovers_failed; return; fi
+  # shellcheck disable=SC2086
+  if mosquitto_pub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTION" -m "$ACTION_START_MOWING"; then
+    date +%s > "$LEFT"
+    log leftovers_started "$left"
+    check_started &
+  else
+    log leftovers_failed
+  fi
+}
+
+# every finished mow (JOB_COMPLETE, with the job's id) gets its leftovers looked at, while that's switched on
+leftovers_watch() {
+  while :; do
+    host=$(find_broker)
+    if [ -n "$host" ] && [ "$(field "$(leftovers_conf)" auto)" = true ]; then
+      # shellcheck disable=SC2086
+      timeout 86400 mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_EVENTS" | while read -r e; do
+        [ "$(field "$e" type)" = JOB_COMPLETE ] || continue
+        leftovers_after "$(field "$e" job_id)"
+      done
+    fi
+    sleep 60
+  done
+}
+LEFT=/tmp/leftovers.started
+leftovers_watch &
+
 last=""
 until=0
 endat=""
@@ -301,7 +389,7 @@ while :; do
         turn=${turn:-0}
       fi
       if [ -n "$turn" ]; then
-        rpc_call "$host" "$RPC_SET_PARAMS" "{\"params\":{\"$PARAM_MOW_ANGLE_OFFSET\":$turn}}" 10 | grep -q '"result"' || log angle_failed "$turn"
+        rpc_call "$RPC_SET_PARAMS" "{\"params\":{\"$PARAM_MOW_ANGLE_OFFSET\":$turn}}" 10 | grep -q '"result"' || log angle_failed "$turn"
       fi
       # an interrupted job is dropped first, so it begins with the first area. the mower only takes it while it
       # has one, otherwise nothing happens

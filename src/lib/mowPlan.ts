@@ -22,6 +22,80 @@ export interface MowPlan {
   loops: Point[][]; // the outline passes, around the area and around obstacles
   stripes: [Point, Point][];
   angle?: number; // rad, only the mower's own plan says it
+  // the loops are paths as the mower drives them (its own plan: several passes joined into one), not rings to close
+  open?: boolean;
+  // the stripes are the lanes one by one (the MowBite Planner's estimate), not joined into zigzags here
+  lanes?: boolean;
+  // m, what the mower drives besides the loops and the stripes (the estimate's turns and drives between the parts)
+  between?: number;
+  // what the MowBite Planner planned with (lane_spacing_mode auto: what it picked)
+  chosen?: PlanChosen;
+  // what its collision mode found while planning
+  checks?: PlanChecks;
+  // the plan cut into pieces by what they are (the MowBite Planner tells): the map leaves turns and drives out on wish
+  pieces?: PlanPiece[];
+  // how long it says the plan takes
+  duration?: PlanDuration;
+  // the parts of the lawn with a lane direction of their own (split_zones)
+  zones?: PlanZone[];
+}
+
+export interface PlanPiece {
+  type: 'perimeter' | 'lane' | 'turn' | 'transit';
+  points: Point[];
+}
+
+// min: the mowing time, the planner's model corrected by the last runs finished mows (factor, runs 0: not corrected yet)
+export interface PlanDuration {
+  min: number;
+  modelMin: number;
+  factor: number;
+  runs: number;
+}
+
+export interface PlanZone {
+  angle: number; // rad
+  lanes: number;
+  outlines: Point[][];
+}
+
+// The MowBite Planner with the mower's body checks every plan: where the body would stick out past a real edge or into
+// what to keep off, it drives another way and leaves a little out where nothing fits
+// where the body would have stuck out furthest on the plan as it came: d m into the space it keeps free (spin: turning on
+// the spot, the extra distance for that counts too)
+export interface FitPose {
+  x: number;
+  y: number;
+  yaw: number;
+  d: number;
+  spin: boolean;
+}
+
+export interface PlanChecks {
+  // where the body may go: the real edges less the distances kept, outlines and holes
+  space?: Point[][];
+  // places driven another way, m: meters of loops and lanes left out there (0: only driven differently), with where the
+  // body would have stuck out when the planner tells
+  places: {x: number; y: number; m: number; pose?: FitPose}[];
+  // how many were driven another way, how many left out as nothing fits there (the path jumps over them), m left out
+  fixed: number;
+  left: number;
+  skipped: number;
+  // where the path jumps: OpenMower drives the way between the parts itself, without the body checked
+  jumps: Point[];
+  // where the plan starts or ends without the body checked, OpenMower drives from or to there on its own
+  unchecked: Point[];
+  // clean stripes: where it still had to turn in the field of lanes
+  turns: Point[];
+  warnings: string[];
+}
+
+export interface PlanChosen {
+  lane_spacing: number; // m
+  perimeter_passes: number;
+  mode: string; // fixed, auto
+  // lanes or concentric, what the planner took with fill_pattern auto (a planner from before doesn't say)
+  fill_pattern?: string;
 }
 
 // clipper works in integers, this is 0.01 mm

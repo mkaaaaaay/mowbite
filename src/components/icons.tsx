@@ -58,43 +58,12 @@ export function WarningIcon({size = 20}: IconProps) {
   );
 }
 
-export function MapPinIcon({size = 22}: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 21s-7-6.5-7-11a7 7 0 0 1 14 0c0 4.5-7 11-7 11z" />
-      <circle cx="12" cy="10" r="2.5" />
-    </svg>
-  );
-}
-
 export function BatteryIcon({size = 20}: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
       <rect x="2" y="7" width="18" height="10" rx="2" />
       <line x1="22" y1="10.5" x2="22" y2="13.5" />
       <rect x="4" y="9" width="10" height="6" fill="currentColor" stroke="none" />
-    </svg>
-  );
-}
-
-export function SpeedIcon({size = 20}: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 15a8 8 0 1 1 16 0" />
-      <line x1="12" y1="15" x2="15.5" y2="10.5" />
-      <circle cx="12" cy="15" r="1" fill="currentColor" stroke="none" />
-    </svg>
-  );
-}
-
-export function GpsIcon({size = 20}: IconProps) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="3" />
-      <line x1="12" y1="2" x2="12" y2="5" />
-      <line x1="12" y1="19" x2="12" y2="22" />
-      <line x1="2" y1="12" x2="5" y2="12" />
-      <line x1="19" y1="12" x2="22" y2="12" />
     </svg>
   );
 }

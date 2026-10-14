@@ -1,11 +1,15 @@
 import * as ClipperLib from 'clipper-lib';
 import type {MapArea} from '@/hooks/useMowerMap';
-import {useMemo, useSyncExternalStore} from 'react';
+import {useEffect, useMemo, useSyncExternalStore} from 'react';
+import type {PlanRequest} from './areaPlan';
+import {RPC} from './openmower';
+import {callRpc, isMissingMethod, rpcMethods} from './rpc';
 import {settingsStore, type Settings} from './settings';
 
-// The mower's body and blade as set under Mower sizes in the settings, in meters: a rectangle around the point
-// OpenMower follows (the middle between the rear drive wheels), front ahead of it, rear behind, width wide, and the
-// blade (blade across) bladeAhead ahead of it and bladeOffset to the left. Nothing until they are set.
+// The mower's body and blade as the MowBite Planner on the mower knows them (planner.settings): a rectangle around
+// the point the path is for (OpenMower's base_link, the middle between the rear drive wheels), robot_front ahead of
+// it, robot_rear behind, robot_width wide, and the blade (mower_width across) blade_ahead ahead and blade_offset to
+// the left. All in meters. Without the MowBite Planner (or sizes there) the ones set under Mower sizes in the settings.
 
 export interface MowerBody {
   width: number;
@@ -14,7 +18,7 @@ export interface MowerBody {
   blade: number;
   bladeAhead: number;
   bladeOffset: number;
-  // the body's real contour from above: [ahead, left] around the same point, the rectangle without it
+  // the body's real contour from above (robot_outline): [ahead, left] around the same point, the rectangle without it
   outline?: Outline;
 }
 
@@ -39,27 +43,227 @@ export function outlineOf(v: unknown): Outline | undefined {
   return pts.map(([a, l]) => [a, l]);
 }
 
+export interface PlannerSetting {
+  value: unknown;
+  default: unknown;
+  stored: boolean;
+  type: string;
+  unit?: string;
+  min?: number;
+  max?: number;
+  choices?: string[];
+  settable: boolean;
+  // where its value comes from while it isn't set for the planner (a mower_logic parameter)
+  from?: string;
+  nullable?: boolean;
+  // the value for "the planner works it out" (perimeter_passes -1)
+  auto_value?: number;
+}
+
+export interface PlannerSettings {
+  settings: Record<string, PlannerSetting>;
+  own_angle?: boolean;
+  file?: string | null;
+  // the angle turned further after finished mows: steps so far (each angle_increment, an area's own or the one for
+  // all), finished mows since the last step, and the steps with the one for all areas (rad)
+  angle_steps?: number;
+  angle_mows?: number;
+  angle_turned?: number;
+}
+
+// the settings the app shows as the mower's sizes, in this order
+export const BODY_SETTINGS = [
+  'robot_width',
+  'robot_front',
+  'robot_rear',
+  'mower_width',
+  'blade_ahead',
+  'blade_offset',
+] as const;
+export type BodySetting = (typeof BODY_SETTINGS)[number];
+
+// undefined: not asked yet, null: no MowBite Planner on this mower
+let current: PlannerSettings | null | undefined;
+let asking: Promise<PlannerSettings | null> | null = null;
+const listeners = new Set<() => void>();
+
+function set(s: PlannerSettings | null) {
+  current = s;
+  listeners.forEach((l) => l());
+}
+
+export function plannerSettings(): PlannerSettings | null | undefined {
+  return current;
+}
+
+// asked once per page load, again with force (the settings page). A mower without the MowBite Planner doesn't have
+// the method, that's null; no answer leaves it unknown so it's asked again next time
+export function loadPlannerSettings(force = false): Promise<PlannerSettings | null> {
+  if (!force && current !== undefined) return Promise.resolve(current);
+  if (!force && asking) return asking;
+  asking = callRpc<PlannerSettings>(RPC.plannerSettings, {}, 10000).then(
+    (s) => {
+      asking = null;
+      set(s && typeof s === 'object' && s.settings ? s : null);
+      return current ?? null;
+    },
+    (e) => {
+      asking = null;
+      if (isMissingMethod(e)) set(null);
+      throw e;
+    },
+  );
+  return asking;
+}
+
+// changes some settings (null: back to the default), the planner checks them as a whole and answers like
+// planner.settings
+export async function savePlannerSettings(values: Record<string, unknown>): Promise<PlannerSettings> {
+  const s = await callRpc<PlannerSettings>(RPC.plannerSettingsSet, values, 15000);
+  set(s);
+  return s;
+}
+
+// the angle turned further back to 0 (planner.angle.reset), the next finished mow counts from there
+export async function resetPlannerAngle(): Promise<PlannerSettings> {
+  const s = await callRpc<PlannerSettings>(RPC.plannerAngleReset, {}, 15000);
+  set(s);
+  return s;
+}
+
+const num = (s: PlannerSettings | null | undefined, key: string) => {
+  const v = s?.settings[key]?.value;
+  return typeof v === 'number' && Number.isFinite(v) ? v : null;
+};
+
+export function bodyFrom(s: PlannerSettings | null | undefined): MowerBody | null {
+  const width = num(s, 'robot_width');
+  const front = num(s, 'robot_front');
+  const rear = num(s, 'robot_rear');
+  if (width === null || front === null || rear === null || width <= 0 || front + rear <= 0) return null;
+  const outline = outlineOf(s?.settings.robot_outline?.value);
+  return {
+    width,
+    front,
+    rear,
+    blade: num(s, 'mower_width') ?? 0,
+    bladeAhead: num(s, 'blade_ahead') ?? 0,
+    bladeOffset: num(s, 'blade_offset') ?? 0,
+    ...(outline ? {outline} : {}),
+  };
+}
+
+const subscribe = (l: () => void) => {
+  listeners.add(l);
+  return () => listeners.delete(l);
+};
+
+// the mower's body for drawing it, null until known (or when there's none)
+export function useMowerBody(): MowerBody | null {
+  const s = useSyncExternalStore(subscribe, plannerSettings, () => undefined);
+  const app = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
+  useEffect(() => {
+    if (current === undefined) loadPlannerSettings().catch(() => {});
+  }, []);
+  return useMemo(() => bodyFrom(s) ?? sizesBody(app.mower), [s, app.mower]);
+}
+
+export function usePlannerSettings(): PlannerSettings | null | undefined {
+  return useSyncExternalStore(subscribe, plannerSettings, () => undefined);
+}
+
+// OpenMower's own slic3r planner switched on in the MowBite Planner (its setting planner): the plans come from it, the
+// MowBite Planner's own settings don't count then
+export const slic3rPlans = (s: PlannerSettings | null | undefined) => s?.settings.planner?.value === 'slic3r';
+
+// where the planner found the body sticking out beyond what the map allows, with what the mower does there
+export interface BodySpot {
+  x: number;
+  y: number;
+  yaw: number;
+  kind: string; // turn, spin, lane_end, loop, transit
+}
+
+export interface BodyCheck {
+  spots: BodySpot[];
+  hard: string[];
+  soft: string[];
+}
+
+// the places of the spots: the planner reports every pose of the path where the body sticks out (10 cm apart, a turn on
+// the spot dozens of times), what's within a mower's length of a place is that place. Each with the pose in the middle
+// of its spots, for drawing one body there, and what happens there
+const PLACE = 0.75; // m
+export function spotPlaces(spots: BodySpot[]): {spot: BodySpot; kinds: string[]}[] {
+  const places: {x: number; y: number; spots: BodySpot[]}[] = [];
+  for (const s of spots) {
+    const near = places.find((p) => Math.hypot(p.x - s.x, p.y - s.y) <= PLACE);
+    if (near) near.spots.push(s);
+    else places.push({x: s.x, y: s.y, spots: [s]});
+  }
+  return places.map((p) => ({spot: p.spots[p.spots.length >> 1], kinds: [...new Set(p.spots.map((s) => s.kind))]}));
+}
+
+// the plan of an area checked against the mower's body (planner.plan with report). null when the mower has no
+// MowBite Planner. A planner that doesn't check the body yet gives no spots
+export async function checkBody(req: PlanRequest): Promise<BodyCheck | null> {
+  const known = await rpcMethods();
+  if (known && !known.has(RPC.plannerPlan)) return null;
+  const answer = await callRpc<{report?: {body_out?: unknown; hard?: unknown; soft?: unknown}}>(
+    RPC.plannerPlan,
+    {...req, report: true},
+    90000,
+  );
+  const r = answer?.report ?? {};
+  const list = (v: unknown) => (Array.isArray(v) ? v.filter((s): s is string => typeof s === 'string') : []);
+  const spots = (Array.isArray(r.body_out) ? r.body_out : []).flatMap((s: Partial<BodySpot>) =>
+    typeof s?.x === 'number' && typeof s.y === 'number'
+      ? [{x: s.x, y: s.y, yaw: typeof s.yaw === 'number' ? s.yaw : 0, kind: typeof s.kind === 'string' ? s.kind : ''}]
+      : [],
+  );
+  return {spots, hard: list(r.hard), soft: list(r.soft)};
+}
+
+// the corners of the body and the blade's centre in the map, for the mower at x, y facing heading (rad, ccw)
+export function bodyShape(b: MowerBody, x: number, y: number, heading: number) {
+  const c = Math.cos(heading);
+  const s = Math.sin(heading);
+  const at = (ahead: number, left: number) => ({x: x + c * ahead - s * left, y: y + s * ahead + c * left});
+  return {
+    // the contour's points, or the rectangle's corners
+    corners: b.outline
+      ? b.outline.map(([ahead, left]) => at(ahead, left))
+      : [at(b.front, b.width / 2), at(-b.rear, b.width / 2), at(-b.rear, -b.width / 2), at(b.front, -b.width / 2)],
+    blade: at(b.bladeAhead, b.bladeOffset),
+    // the middle of the body, where the icon goes
+    middle: at((b.front - b.rear) / 2, 0),
+    // a little arrow at the front, which way it faces without the icon
+    arrow: [at(b.front - 0.1, b.width / 5), at(b.front - 0.04, 0), at(b.front - 0.1, -b.width / 5)],
+  };
+}
+
 export type MowerSizes = NonNullable<Settings['mower']>;
 
 // the widest blade the app takes, more than any mower running OpenMower cuts
 export const MAX_BLADE = 0.4; // m
 
-const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+const metres = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
-export function bodyFrom(s: MowerSizes | undefined): MowerBody | null {
-  const width = num(s?.width);
-  const front = num(s?.front);
-  const rear = num(s?.rear);
+// the sizes set in the app
+export function sizesBody(s: MowerSizes | undefined): MowerBody | null {
+  const width = metres(s?.width);
+  const front = metres(s?.front);
+  const rear = metres(s?.rear);
   if (width === null || front === null || rear === null || width <= 0 || front + rear <= 0) return null;
-  const blade = num(s?.blade) ?? 0;
+  const blade = metres(s?.blade) ?? 0;
   const outline = outlineOf(s?.outline);
   return {
     width,
     front,
     rear,
     blade: blade > 0 && blade <= MAX_BLADE ? blade : 0,
-    bladeAhead: num(s?.bladeAhead) ?? 0,
-    bladeOffset: num(s?.bladeOffset) ?? 0,
+    bladeAhead: metres(s?.bladeAhead) ?? 0,
+    bladeOffset: metres(s?.bladeOffset) ?? 0,
     ...(outline ? {outline} : {}),
   };
 }
@@ -111,22 +315,56 @@ export const MOWER_MODELS: {key: string; label: string; sizes: Required<Omit<Mow
 
 const SIZES = ['width', 'front', 'rear', 'blade', 'bladeAhead', 'bladeOffset'] as const;
 
+// what the planner gets on top of a measured outline: it checks the outline as it comes, a photo is good to a centimetre
+export const OUTLINE_LEEWAY = 0.01; // m
+
+// the outline moved outwards by d: every side pushed out along its normal, the corners where the pushed sides meet
+// (pointed), points that end up within 2 mm of the line through their neighbours dropped, to the millimetre
+export function grownOutline(o: Outline, d: number): Outline {
+  const n = o.length;
+  const area = o.reduce((a, [x, y], i) => a + x * o[(i + 1) % n][1] - o[(i + 1) % n][0] * y, 0);
+  const side = area > 0 ? 1 : -1; // counter-clockwise: outwards is to the right of each side
+  const normal = (i: number) => {
+    const [x0, y0] = o[i];
+    const [x1, y1] = o[(i + 1) % n];
+    const len = Math.hypot(x1 - x0, y1 - y0) || 1;
+    return [(side * (y1 - y0)) / len, (side * -(x1 - x0)) / len];
+  };
+  const out: Outline = o.map(([x, y], i) => {
+    const a = normal((i - 1 + n) % n);
+    const b = normal(i);
+    // the corner's direction, as long as its two sides need: d / cos(half the turn)
+    const s = 1 + a[0] * b[0] + a[1] * b[1];
+    if (s < 1e-6) return [x + d * a[0], y + d * a[1]];
+    return [x + (d * (a[0] + b[0])) / s, y + (d * (a[1] + b[1])) / s];
+  });
+  const kept = out.filter((p, i) => {
+    const [ax, ay] = out[(i - 1 + n) % n];
+    const [bx, by] = out[(i + 1) % n];
+    const len = Math.hypot(bx - ax, by - ay) || 1;
+    return Math.abs((by - ay) * (p[0] - ax) - (bx - ax) * (p[1] - ay)) / len >= 0.002;
+  });
+  return kept.map(([x, y]) => [Math.round(x * 1000) / 1000, Math.round(y * 1000) / 1000]);
+}
+
+// a stored outline back to its model's measured one, when it is that one (as measured or grown for the planner)
+export function measuredOutline(o: Outline | undefined): Outline | undefined {
+  if (!o) return undefined;
+  const key = JSON.stringify(o);
+  const m = MOWER_MODELS.find((x) => x.outline && (JSON.stringify(x.outline) === key || JSON.stringify(grownOutline(x.outline, OUTLINE_LEEWAY)) === key));
+  return m?.outline ?? o;
+}
+
 // the model with these sizes, to the millimetre
 export function modelOf(s: MowerSizes | undefined): string | null {
-  const b = bodyFrom(s);
+  const b = sizesBody(s);
   if (!b) return null;
   const mm = (v: number) => Math.round(v * 1000);
   const model = MOWER_MODELS.find((m) => {
-    const p = bodyFrom(m.sizes)!;
+    const p = sizesBody(m.sizes)!;
     return SIZES.every((k) => mm(p[k]) === mm(b[k]));
   });
   return model?.key ?? null;
-}
-
-// the mower's body for drawing it, null while no sizes are set
-export function useMowerBody(): MowerBody | null {
-  const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
-  return useMemo(() => bodyFrom(settings.mower), [settings.mower]);
 }
 
 // seconds for one turn of a drawn blade: 2.5 s at 2400 rpm (the real 40 a second would only blur), in half seconds
@@ -134,24 +372,6 @@ export function useMowerBody(): MowerBody | null {
 export function bladeSeconds(rpm: number): number {
   const s = Math.min(10, Math.max(0.8, 6000 / Math.abs(rpm || 1)));
   return Math.max(1, Math.round(s * 2)) / 2;
-}
-
-// the corners of the body and the blade's centre in the map, for the mower at x, y facing heading (rad, ccw)
-export function bodyShape(b: MowerBody, x: number, y: number, heading: number) {
-  const c = Math.cos(heading);
-  const s = Math.sin(heading);
-  const at = (ahead: number, left: number) => ({x: x + c * ahead - s * left, y: y + s * ahead + c * left});
-  return {
-    // the contour's points, or the rectangle's corners
-    corners: b.outline
-      ? b.outline.map(([ahead, left]) => at(ahead, left))
-      : [at(b.front, b.width / 2), at(-b.rear, b.width / 2), at(-b.rear, -b.width / 2), at(b.front, -b.width / 2)],
-    blade: at(b.bladeAhead, b.bladeOffset),
-    // the middle of the body, where the icon goes
-    middle: at((b.front - b.rear) / 2, 0),
-    // a little arrow at the front, which way it faces without the icon
-    arrow: [at(b.front - 0.1, b.width / 5), at(b.front - 0.04, 0), at(b.front - 0.1, -b.width / 5)],
-  };
 }
 
 type P = {x: number; y: number};

@@ -9,6 +9,39 @@ export interface PlanPath {
   outline: boolean;
   points: Point[];
   index?: number[]; // pose index per point, rising. without it there's no telling how far the mower got
+  // what the stretches of the path are (the MowBite Planner tells): an outline pass, a lane, a turn between lanes or
+  // a drive between the parts, start and end are pose indices
+  segments?: PlanSegment[];
+}
+
+export type SegmentType = 'perimeter' | 'lane' | 'turn' | 'transit';
+export interface PlanSegment {
+  type: SegmentType;
+  start: number;
+  end: number;
+}
+
+// a path's points cut into pieces by what they are, from its segments and pose_index. The stretch from one point to
+// the next is what the segment its first pose lies in says, stretches of a kind in a row are one piece, and the point
+// where a piece ends starts the next so the line goes on. Without segments the whole path is one piece: perimeter
+// for an outline pass, lane otherwise
+export function planPieces(p: PlanPath): {type: SegmentType; points: Point[]}[] {
+  if (!p.points.length) return [];
+  if (!p.segments?.length || !p.index || p.index.length !== p.points.length) return [{type: p.outline ? 'perimeter' : 'lane', points: p.points}];
+  const segs = [...p.segments].sort((a, b) => a.start - b.start);
+  const typeAt = (pose: number) => {
+    let found = segs[0];
+    for (const s of segs) if (s.start <= pose) found = s;
+    return found.type;
+  };
+  const out: {type: SegmentType; points: Point[]}[] = [];
+  for (let i = 1; i < p.points.length; i++) {
+    const t = typeAt(p.index[i - 1]);
+    const last = out[out.length - 1];
+    if (last && last.type === t) last.points.push(p.points[i]);
+    else out.push({type: t, points: [p.points[i - 1], p.points[i]]});
+  }
+  return out.length ? out : [{type: typeAt(p.index[0]), points: p.points}];
 }
 
 export interface PlanProgress {

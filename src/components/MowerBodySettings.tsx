@@ -1,44 +1,74 @@
 'use client';
 
-import {numParam, useMowerParams} from '@/hooks/useMowerParams';
 import {tr} from '@/lib/i18n';
-import {bodyFrom, MAX_BLADE, modelOf, MOWER_MODELS, outlineOf, type MowerBody, type MowerSizes, type Outline} from '@/lib/mowerBody';
-import {PARAM} from '@/lib/openmower';
-import {saveSettings, settingsStore, type Settings} from '@/lib/settings';
-import {useState} from 'react';
+import {
+  BODY_SETTINGS,
+  bodyFrom,
+  loadPlannerSettings,
+  modelOf,
+  MOWER_MODELS,
+  measuredOutline,
+  OUTLINE_LEEWAY,
+  grownOutline,
+  outlineOf,
+  savePlannerSettings,
+  sizesBody,
+  slic3rPlans,
+  usePlannerSettings,
+  type BodySetting,
+  type MowerBody,
+  type MowerSizes,
+  type Outline,
+} from '@/lib/mowerBody';
+import {RpcError} from '@/lib/rpc';
+import {settingsStore} from '@/lib/settings';
+import {useEffect, useState, useSyncExternalStore} from 'react';
 import local from './MowerBodySettings.module.css';
 
-// The mower's sizes, optional: with them the map draws its outline and blade and, along the track, the strip the blade
-// really cuts. Kept with the other settings. The mowing plan and its preview stay with OpenMower's tool_width.
+// The mower's sizes for the MowBite Planner on the mower (planner.settings): it keeps the body clear of the edges in
+// turns and corners and draws the mower at its real size on the map. Kept by the planner, so every app and the
+// planner itself use the same ones.
 
-const FIELDS = [
-  ['width', 'Width'],
-  ['front', 'Rear axle to the front'],
-  ['rear', 'Rear axle to the back'],
-  ['blade', 'Blade diameter'],
-  ['bladeAhead', 'Blade ahead of the rear axle'],
-  ['bladeOffset', 'Blade to the left of the middle'],
-] as const;
-type Field = (typeof FIELDS)[number][0];
-type Form = Record<Field, string>;
+const LABELS: Record<BodySetting, string> = {
+  robot_width: 'Width',
+  robot_front: 'Rear axle to the front',
+  robot_rear: 'Rear axle to the back',
+  mower_width: 'Blade diameter',
+  blade_ahead: 'Blade ahead of the rear axle',
+  blade_offset: 'Blade to the left of the middle',
+};
 
 type Styles = Record<string, string>;
+type Form = Record<BodySetting, string>;
 
 const cm = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? String(Math.round(v * 1000) / 10) : '');
 
-function formFrom(s: MowerSizes | undefined): Form {
-  return Object.fromEntries(FIELDS.map(([key]) => [key, cm(s?.[key])])) as Form;
+function formFrom(settings: Record<string, {value: unknown}> | undefined): Form {
+  const f = {} as Form;
+  for (const key of BODY_SETTINGS) f[key] = cm(settings?.[key]?.value);
+  return f;
 }
 
-const metres = (text: string) => {
-  const v = parseFloat(text.replace(',', '.'));
-  return text.trim() && Number.isFinite(v) ? v / 100 : null;
-};
+// the planner's names for a model's sizes
+const MODEL_FIELDS = [
+  ['robot_width', 'width'],
+  ['robot_front', 'front'],
+  ['robot_rear', 'rear'],
+  ['mower_width', 'blade'],
+  ['blade_ahead', 'bladeAhead'],
+  ['blade_offset', 'bladeOffset'],
+] as const;
 
-const sizesOf = (f: Form) => Object.fromEntries(FIELDS.map(([key]) => [key, metres(f[key]) ?? undefined])) as MowerSizes;
+const sizesOf = (f: Form): MowerSizes =>
+  Object.fromEntries(
+    MODEL_FIELDS.map(([key, size]) => {
+      const v = parseFloat(f[key].replace(',', '.'));
+      return [size, Number.isFinite(v) ? v / 100 : undefined];
+    }),
+  );
 
-// the mower from above, heading right, to scale: body, blade, the point it follows and the gps antenna
-function Sketch({body, antenna}: {body: MowerBody; antenna?: {x: number; y: number}}) {
+// the mower from above, heading right, to scale: body, blade, the point it follows
+function Sketch({body}: {body: MowerBody}) {
   const pad = 0.12;
   // more room on the left, the width is written there
   const left = pad + 0.06;
@@ -60,7 +90,6 @@ function Sketch({body, antenna}: {body: MowerBody; antenna?: {x: number; y: numb
         <line className={local.axle} x1={0} y1={-body.width / 2} x2={0} y2={body.width / 2} />
         <circle className={local.point} cx={0} cy={0} r={0.015} />
         <path className={local.heading} d={`M ${body.front - 0.09} 0 l -0.05 0.035 m 0.05 -0.035 l -0.05 -0.035`} />
-        {antenna && <circle className={local.antenna} cx={antenna.x} cy={antenna.y} r={0.02} />}
       </g>
       <text className={local.text} x={body.front / 2} y={-body.width / 2 - 0.03} textAnchor="middle">
         {label(body.front)}
@@ -75,111 +104,186 @@ function Sketch({body, antenna}: {body: MowerBody; antenna?: {x: number; y: numb
   );
 }
 
-export function MowerBodySettings({settings, styles}: {settings: Settings; styles: Styles}) {
-  const sizes = settings.mower;
-  const [form, setForm] = useState<Form>(() => formFrom(sizes));
-  // the body's real contour, from a model; typed sizes go back to the rectangle
-  const [outline, setOutline] = useState<Outline | null>(() => outlineOf(sizes?.outline) ?? null);
-  // the saved sizes arrive after the first render (the page is built ahead, then the container answers) or change on
-  // another device: the fields follow them as long as nothing is typed in them
-  const [shown, setShown] = useState(sizes);
-  if (shown !== sizes) {
-    setShown(sizes);
-    if (JSON.stringify(form) === JSON.stringify(formFrom(shown))) {
-      setForm(formFrom(sizes));
-      setOutline(outlineOf(sizes?.outline) ?? null);
+// A planner that knows the body's sizes but has none: it plans without checking the body, whatever the collision check
+// and the distances say. Sizes set in this app before the planner came only draw the mower on the map, they are
+// offered to the planner here.
+export function NoSizesWarning() {
+  const settings = usePlannerSettings();
+  const app = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
+  const [state, setState] = useState<{busy?: boolean; error?: string}>({});
+  const known = settings?.settings;
+  if (!known?.robot_width || !known.robot_front || !known.robot_rear || slic3rPlans(settings) || bodyFrom(settings)) return null;
+  const own = sizesBody(app.mower);
+
+  const take = async () => {
+    if (!own) return;
+    const changes: Record<string, unknown> = {robot_width: own.width, robot_front: own.front, robot_rear: own.rear};
+    if (known.mower_width && own.blade > 0) changes.mower_width = own.blade;
+    if (known.blade_ahead) changes.blade_ahead = own.bladeAhead;
+    if (known.blade_offset) changes.blade_offset = own.bladeOffset;
+    if (known.robot_outline && own.outline) changes.robot_outline = grownOutline(own.outline, OUTLINE_LEEWAY);
+    setState({busy: true});
+    try {
+      await savePlannerSettings(changes);
+      setState({});
+    } catch (e) {
+      setState({error: e instanceof RpcError && e.code !== 'timeout' ? e.message : tr('The mower did not answer.')});
     }
-  }
+  };
+  const open = () => {
+    const fold = document.getElementById('fold-mowerSizes') as HTMLDetailsElement | null;
+    if (!fold) return;
+    fold.open = true;
+    fold.scrollIntoView({behavior: 'smooth', block: 'start'});
+  };
+
+  return (
+    <div className={local.warning}>
+      <span>
+        {tr(
+          'The planner has no mower sizes. It plans without checking the body: the collision check does nothing, and the front can swing out past the edge in turns.',
+        )}
+      </span>
+      {own && (
+        <>
+          <span>
+            {tr('The sizes set in this app ({w} cm wide, {l} cm long) only draw the mower on the map, the planner does not have them.', {
+              w: Math.round(own.width * 100),
+              l: Math.round((own.front + own.rear) * 100),
+            })}
+          </span>
+          <button type="button" disabled={state.busy} onClick={() => void take()}>
+            {state.busy ? tr('Saving…') : tr('Give these sizes to the planner')}
+          </button>
+        </>
+      )}
+      <button type="button" onClick={open}>
+        {own ? tr('Or set them under Mower sizes') : tr('Set them under Mower sizes')}
+      </button>
+      {state.error && <span>{state.error}</span>}
+    </div>
+  );
+}
+
+export function MowerBodySettings({styles}: {styles: Styles}) {
+  const settings = usePlannerSettings();
+  const [form, setForm] = useState<Form>(() => formFrom(settings?.settings));
+  const [state, setState] = useState<{busy?: boolean; error?: string; saved?: boolean; offline?: boolean; picked?: boolean}>({});
   // "other mower" picked while the fields still hold a model's sizes
   const [other, setOther] = useState(false);
-  const [state, setState] = useState<{error?: string; saved?: boolean; picked?: boolean}>({});
-  const params = useMowerParams();
-  const toolWidth = numParam(params, PARAM.toolWidth);
-  const antennaX = numParam(params, PARAM.antennaX);
-  const antenna = antennaX === undefined ? undefined : {x: antennaX, y: numParam(params, PARAM.antennaY) ?? 0};
+  // the body's real contour (robot_outline), from a model; typed sizes go back to the rectangle
+  // the measured one, the planner has it 1 cm larger
+  const [outline, setOutline] = useState<Outline | null>(() => measuredOutline(outlineOf(settings?.settings.robot_outline?.value)) ?? null);
 
-  // the sketch follows the fields while typing
-  const typed = sizesOf(form);
-  const model = other ? '' : (modelOf(typed) ?? '');
-  const rect = bodyFrom(typed);
+  useEffect(() => {
+    loadPlannerSettings(true).then(
+      (s) => {
+        setForm(formFrom(s?.settings));
+        setOutline(measuredOutline(outlineOf(s?.settings.robot_outline?.value)) ?? null);
+      },
+      () => setState({offline: true}),
+    );
+  }, []);
+
+  if (settings === null) {
+    return (
+      <section className={styles.card}>
+        <h2>{tr('Mower sizes')}</h2>
+        <p className={styles.dim}>
+          {tr(
+            'Only with the MowBite Planner on the mower (OM_PLANNER=mowbite): it keeps the body clear of the edges and the map shows the mower at its real size. With the slic3r planner the map shows the icon as before.',
+          )}
+        </p>
+      </section>
+    );
+  }
+
+  const known = settings?.settings ?? {};
+  const keys = BODY_SETTINGS;
+  // what the form would make of it: the sketch follows the fields while typing
+  const metres = (key: BodySetting) => {
+    const v = parseFloat(form[key].replace(',', '.'));
+    return Number.isFinite(v) ? v / 100 : null;
+  };
+  const rect = bodyFrom({
+    settings: Object.fromEntries(BODY_SETTINGS.map((k) => [k, {value: metres(k)} as never])),
+  });
   const sketch = rect && outline ? {...rect, outline} : rect;
-  // a model with a measured outline, while the rectangle is still in use: offered, not put in on its own
-  const offered = !outline ? MOWER_MODELS.find((m) => m.key === model && m.outline) : undefined;
   // the model whose outline it is, named so a wrong pick shows
   const outlineModel = outline ? MOWER_MODELS.find((m) => m.outline && JSON.stringify(m.outline) === JSON.stringify(outline)) : undefined;
-  const stored = !!bodyFrom(sizes);
-  const blade = typed.blade;
+  const missing = keys.filter((k) => !known[k]);
+  const model = other ? '' : (modelOf(sizesOf(form)) ?? '');
+  // a model with a measured outline, while the rectangle is still in use: offered, not put in on its own
+  const offered = !outline ? MOWER_MODELS.find((m) => m.key === model && m.outline) : undefined;
+  // a planner from before the body check takes robot_width as "the lines are walls": its centre then keeps half the
+  // width off them all the way round, so the width only goes to one that knows the rest too
+  const usable = (key: BodySetting) => !!known[key] && (key !== 'robot_width' || (!!known.robot_front && !!known.edges));
 
-  const store = (next: MowerSizes | null) => saveSettings({...settingsStore.snapshot(), mower: next ?? undefined});
-
-  const save = () => {
-    const next: MowerSizes = {};
-    for (const [key, label] of FIELDS) {
-      if (!form[key].trim()) continue;
-      const v = metres(form[key]);
-      if (v === null) return setState({error: tr('{what} is not a number.', {what: tr(label)})});
-      next[key] = Math.round(v * 10000) / 10000;
+  const save = async () => {
+    const changes: Record<string, unknown> = {};
+    for (const key of keys) {
+      const s = known[key];
+      if (!s || !usable(key)) continue;
+      const text = form[key].trim();
+      if (!text) {
+        if (s.stored) changes[key] = null; // back to the default
+        continue;
+      }
+      const v = metres(key);
+      if (v === null) {
+        setState({error: tr('{what} is not a number.', {what: tr(LABELS[key])})});
+        return;
+      }
+      if (!s.stored || typeof s.value !== 'number' || Math.abs(s.value - v) > 1e-6) changes[key] = Math.round(v * 10000) / 10000;
     }
-    if (!Object.keys(next).length) {
-      store(null);
-      return setState({saved: true});
+    // the contour only to a planner that knows it, null is the rectangle again
+    const send = outline ? grownOutline(outline, OUTLINE_LEEWAY) : null;
+    if (known.robot_outline && JSON.stringify(outlineOf(known.robot_outline.value) ?? null) !== JSON.stringify(send)) {
+      changes.robot_outline = send;
     }
-    if (!bodyFrom(next)) return setState({error: tr('Width and the lengths to the front and back are needed.')});
-    if (outline) next.outline = outline;
-    if (next.blade !== undefined && (next.blade <= 0 || next.blade > MAX_BLADE))
-      return setState({error: tr('The blade diameter can be at most {n} cm.', {n: MAX_BLADE * 100})});
-    store(next);
-    setState({saved: true});
+    if (!Object.keys(changes).length) {
+      setState({saved: true});
+      return;
+    }
+    setState({busy: true});
+    try {
+      const s = await savePlannerSettings(changes);
+      setForm(formFrom(s.settings));
+      setOutline(measuredOutline(outlineOf(s.settings.robot_outline?.value)) ?? null);
+      setState({saved: true});
+    } catch (e) {
+      setState({error: e instanceof RpcError && e.code !== 'timeout' ? e.message : tr('The mower did not answer.')});
+    }
   };
 
-  const remove = () => {
-    store(null);
-    setForm(formFrom(undefined));
-    setOutline(null);
-    setState({});
-  };
-
-  const set = (key: Field, value: string) => {
+  const set = (key: keyof Form, value: string) => {
     setForm({...form, [key]: value});
-    if (key === 'width' || key === 'front' || key === 'rear') setOutline(null);
+    if (key === 'robot_width' || key === 'robot_front' || key === 'robot_rear') setOutline(null);
     setOther(false);
     setState({});
   };
 
-  // a model fills in its sizes, saving keeps them
+  // a model fills in its sizes, saving keeps them; the leeway and the curve radius stay
   const pick = (key: string) => {
     const m = MOWER_MODELS.find((x) => x.key === key);
     setOther(!m);
     if (!m) return;
-    setForm(formFrom(m.sizes));
+    const next = {...form};
+    for (const [field, size] of MODEL_FIELDS) next[field] = cm(m.sizes[size]);
+    setForm(next);
     setOutline(m.outline ?? null);
     setState({picked: true});
   };
-
-  // what the blade cuts against how far apart OpenMower lays the lanes
-  const lanes =
-    blade && blade > 0 && blade <= MAX_BLADE && toolWidth
-      ? Math.round((blade - toolWidth) * 100) === 0
-        ? tr('OpenMower lays the lanes {w} cm apart, they just touch.', {w: Math.round(toolWidth * 100)})
-        : blade > toolWidth
-          ? tr('OpenMower lays the lanes {w} cm apart, so they overlap by {d} cm.', {
-              w: Math.round(toolWidth * 100),
-              d: Math.round((blade - toolWidth) * 100),
-            })
-          : tr('OpenMower lays the lanes {w} cm apart, so {d} cm stay uncut between them.', {
-              w: Math.round(toolWidth * 100),
-              d: Math.round((toolWidth - blade) * 100),
-            })
-      : null;
 
   return (
     <section className={styles.card}>
       <h2>{tr('Mower sizes')}</h2>
       <p className={styles.dim}>
         {tr(
-          'Optional. Measured from the middle between the rear drive wheels, the point OpenMower follows. With them the map shows the mower’s outline with its blade, along the track the strip the blade really cuts, and the real edges: the outlines were recorded with the middle of the mower, the lawn reaches half its width further out and obstacles are that much smaller. All of it can be switched on and off under the layers of the map, the mower icon too. The map itself, the mowing plan and its preview stay as they are.',
+          'Measured from the middle between the rear drive wheels, the point the mower follows. The planner keeps the body clear of the edges in turns and corners, the map shows the mower at its real size ("Real size" under Mower icon).',
         )}
       </p>
+      {state.offline && settings === undefined && <span className={styles.error}>{tr('The mower did not answer.')}</span>}
       <label className={`${styles.field} ${local.model}`}>
         {tr('Model')}
         <select value={model} onChange={(e) => pick(e.target.value)}>
@@ -191,9 +295,18 @@ export function MowerBodySettings({settings, styles}: {settings: Settings; style
           ))}
         </select>
       </label>
-      {sketch && <Sketch body={sketch} antenna={antenna} />}
-      {outline && <p className={styles.dim}>{outlineModel ? tr('Outline of the {model}, measured on a photo from straight above. It counts for this model only.', {model: outlineModel.label}) : tr('A stored outline that is none of the models: pick the model again or enter the sizes.')}</p>}
-      {offered && (
+      {sketch && <Sketch body={sketch} />}
+      {outline && (
+        <p className={styles.dim}>
+          {outlineModel ? tr(known.robot_outline ? 'Outline of the {model} plus 1 cm, measured on a photo from straight above. It counts for this model only.' : 'Outline of the {model}, measured on a photo from straight above. It counts for this model only, the planner on the mower checks the rectangle until it knows outlines (newer image).', {model: outlineModel.label}) : tr('A stored outline that is none of the models: pick the model again or enter the sizes.')}
+        </p>
+      )}
+      {offered && !known.robot_outline && (
+        <p className={styles.dim}>
+          {tr('This model has a measured outline. The planner on the mower does not know outlines yet (newer image), it checks the rectangle until then.')}
+        </p>
+      )}
+      {offered && known.robot_outline && (
         <p className={styles.dim}>
           {tr('This model has a measured outline.')}{' '}
           <button
@@ -208,37 +321,39 @@ export function MowerBodySettings({settings, styles}: {settings: Settings; style
         </p>
       )}
       <div className={local.grid}>
-        {FIELDS.map(([key, label]) => (
+        {keys.map((key) => (
           <label key={key} className={styles.field}>
-            {tr(label)} (cm)
-            <input inputMode="decimal" value={form[key]} onChange={(e) => set(key, e.target.value)} />
+            {tr(LABELS[key])} (cm)
+            <input
+              inputMode="decimal"
+              value={form[key]}
+              placeholder={known[key] ? cm(known[key].default) || tr('none') : ''}
+              disabled={!usable(key)}
+              onChange={(e) => set(key, e.target.value)}
+            />
           </label>
         ))}
       </div>
-      {blade !== undefined && blade > 0 && blade <= MAX_BLADE && (
-        <p className={styles.dim}>
-          <strong>{tr('Cut width {n} cm', {n: Math.round(blade * 1000) / 10})}</strong>
-          {lanes && ` · ${lanes}`}
-        </p>
-      )}
-      {antenna && (
-        <p className={styles.dim}>
-          {tr(
-            'The GPS antenna is already taken out by OpenMower: antenna_offset_x {x} cm and antenna_offset_y {y} cm in mower_params.yaml (the green dot). If that is off, the outline and the strip are off by as much.',
-            {x: Math.round(antenna.x * 1000) / 10, y: Math.round(antenna.y * 1000) / 10},
-          )}
+      {missing.length > 0 && settings && (
+        <p className={styles.error}>
+          {tr('The planner on the mower is older and does not know all sizes yet ({which}), it needs a new image.', {
+            which: keys.filter((k) => !usable(k))
+              .map((k) => tr(LABELS[k]))
+              .join(', '),
+          })}
         </p>
       )}
       <div className={local.actions}>
-        <button className={styles.pillButton} onClick={save}>
-          {tr('Save')}
+        <button className={styles.pillButton} onClick={save} disabled={state.busy || !settings}>
+          {state.busy ? tr('Saving…') : tr('Save')}
         </button>
-        {stored && (
-          <button className={styles.pillButton} onClick={remove}>
-            {tr('Remove')}
-          </button>
+        {state.saved && (
+          <span className={styles.dim}>
+            {outline && !known.robot_outline
+              ? tr('Saved, without the outline: the planner on the mower does not know outlines yet.')
+              : tr('Saved. It counts from the next plan, an interrupted area starts again.')}
+          </span>
         )}
-        {state.saved && <span className={styles.dim}>{tr('Saved.')}</span>}
         {state.picked && <span className={styles.dim}>{tr('Filled in, save to keep them.')}</span>}
         {state.error && <span className={styles.error}>{state.error}</span>}
       </div>

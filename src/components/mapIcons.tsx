@@ -509,6 +509,20 @@ const TANGO = {
   ].join(''),
 };
 
+// the maker's badge on the hood: the deer as on the photo, upright seen from in front of the mower
+const TANGO_DEER = outline(
+  [
+    [0.741, -0.077], [0.736, -0.07], [0.728, -0.062], [0.719, -0.033], [0.712, -0.02], [0.712, 0.026], [0.711, 0.045],
+    [0.715, 0.045], [0.721, 0.038], [0.726, 0.031], [0.723, 0.043], [0.717, 0.053], [0.712, 0.062], [0.707, 0.067],
+    [0.703, 0.065], [0.7, 0.054], [0.699, 0.042], [0.697, 0.038], [0.687, 0.033], [0.68, 0.031], [0.678, 0.037],
+    [0.675, 0.039], [0.671, 0.029], [0.667, 0.049], [0.664, 0.033], [0.657, 0.046], [0.66, 0.029], [0.651, 0.031],
+    [0.659, 0.021], [0.647, 0.012], [0.659, 0.01], [0.661, 0.006], [0.668, -0.007], [0.67, 0.004], [0.673, 0.009],
+    [0.678, 0.011], [0.686, 0.013], [0.69, 0.011], [0.693, 0.007], [0.695, -0.036], [0.691, -0.038], [0.682, -0.034],
+    [0.687, -0.043], [0.692, -0.047], [0.699, -0.046], [0.714, -0.053], [0.726, -0.068], [0.732, -0.076],
+  ],
+  [0, 9, 23, 24, 25, 26, 27, 28, 29, 30, 32, 41],
+);
+
 function johnDeereTango(id: string, emergency: boolean, blades: boolean) {
   return (
     <>
@@ -543,6 +557,11 @@ function johnDeereTango(id: string, emergency: boolean, blades: boolean) {
       ))}
       <path d={TANGO.hood} fill="#fff" fillOpacity={0.1} {...soft} />
       <path d={TANGO.brow} fill="#fff" fillOpacity={0.28} />
+      {/* the maker's badge */}
+      <rect x={0.638} y={-0.102} width={0.116} height={0.205} rx={0.013} ry={0.018} fill="#1a1a1a" />
+      <rect x={0.64} y={-0.1} width={0.113} height={0.199} rx={0.012} ry={0.016} fill="#ffd400" />
+      <rect x={0.647} y={-0.091} width={0.099} height={0.182} rx={0.009} ry={0.013} fill="#151515" />
+      <path d={TANGO_DEER} fill="#ffd400" />
       {/* the slots beside the hood's front with their silver edge, the yellow stripes along the shoulders */}
       {SIDES.map((s) => (
         <g key={s} transform={`scale(1 ${s})`}>

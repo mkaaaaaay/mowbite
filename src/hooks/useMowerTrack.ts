@@ -270,6 +270,15 @@ export function useLastRun(): number | null {
   );
 }
 
+// the job of the last run while that one's trail is shown, else null
+export function useLastRunJob(): string | null {
+  return useSyncExternalStore(
+    subscribe,
+    () => (jobId === null ? (lastJob?.id ?? null) : null),
+    () => null,
+  );
+}
+
 export function useMowerTrack(): TrackChunks {
   return useSyncExternalStore(
     subscribe,

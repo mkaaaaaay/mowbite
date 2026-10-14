@@ -11,15 +11,14 @@
 }
 
 .body {
-  fill: var(--c-body);
+  fill: var(--c-mower);
   fill-opacity: 0.18;
-  stroke: var(--c-body);
+  stroke: var(--c-mower);
   stroke-width: 1.5;
 }
 
 .blade {
-  fill: var(--c-swath);
-  fill-opacity: 0.15;
+  fill: none;
   stroke: var(--foreground);
   stroke-opacity: 0.7;
   stroke-width: 1;
@@ -32,19 +31,13 @@
   stroke-dasharray: 2 2;
 }
 
-.antenna {
-  fill: #4caf50;
-  stroke: var(--foreground);
-  stroke-width: 1;
-}
-
 .point {
   fill: var(--foreground);
 }
 
 .heading {
   fill: none;
-  stroke: var(--c-body);
+  stroke: var(--c-mower);
   stroke-width: 1.5;
   stroke-linecap: round;
 }
@@ -69,4 +62,32 @@
 
 .model {
   max-width: 330px;
+}
+
+.warning {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 183, 77, 0.5);
+  background: rgba(255, 183, 77, 0.08);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.warning button {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.warning button:disabled {
+  opacity: 0.6;
+  cursor: default;
 }

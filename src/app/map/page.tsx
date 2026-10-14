@@ -6,7 +6,8 @@ import TrackPicker from '@/components/TrackPicker';
 import {saveMap, useMowerMap, type MowerMap, type Point} from '@/hooks/useMowerMap';
 import {useMowerPosition} from '@/hooks/useMowerPosition';
 import {useDocked, useMowerStateValue} from '@/hooks/useMowerState';
-import {clearTrack, trackPoints, useLastRun, useMowerTrack} from '@/hooks/useMowerTrack';
+import {clearTrack, trackPoints, useLastRun, useLastRunJob, useMowerTrack} from '@/hooks/useMowerTrack';
+import {useMarginPlaces} from '@/lib/marginCheck';
 import {usePlanProgress} from '@/hooks/usePlanProgress';
 import {datumFromParams, numParam, useMowerParams} from '@/hooks/useMowerParams';
 import {loadJobTrack, useJobList, useMowHistory, type TrackSegment} from '@/hooks/useMowHistory';
@@ -16,25 +17,35 @@ import {cutOut, generateId, splitByPath} from '@/lib/splitPolygon';
 import {useSearchParams} from 'next/navigation';
 import {Suspense, useEffect, useMemo, useState} from 'react';
 import styles from './page.module.css';
-import {tr, useLang} from '@/lib/i18n';
+import {fmt, tr, useLang} from '@/lib/i18n';
 import MapBackups, {backupLabel} from '@/components/MapBackups';
 import {deleteBackup, listBackups, loadBackup, saveBackup, type BackupInfo} from '@/lib/backups';
 import AreaCard from './AreaCard';
 import {type UpdateArea, NEW_AREA_SETTINGS} from './editing';
 import EditorToolbar from './EditorToolbar';
-import MowSettings, {AngleOnMap} from './MowSettings';
+import MowSettings, {AngleOnMap, AreaDirection, AreaPlanInfo, OpenMowerArea} from './MowSettings';
 import OrderBox from './OrderBox';
 import {DrawPanel, MergePanel, RestorePanel, SimplifyPanel, SplitPanel} from './Panels';
 import {PARAM} from '@/lib/openmower';
 import {rpcErrorText} from '@/lib/rpcText';
 import {closedRings} from '@/lib/rings';
 import {saveFile} from '@/lib/saveFile';
+import {savePlanCase} from '@/lib/planCase';
 import {useAreaProperties} from '@/lib/areaProps';
 import {useMowPlan} from './useMowPlan';
-import {Fold} from './Fold';
 import {useMapEdits} from './useMapEdits';
 import {checkMap} from '@/lib/mapCheck';
-import Problems from './Problems';
+import {narrowPassages} from '@/lib/narrowPassages';
+import Problems, {problemText} from './Problems';
+import {BodyCheck, PlanChecks} from './BodyCheck';
+import {AreaPlanner} from './AreaPlanner';
+import {Fold} from './Fold';
+import {bodyFrom, slic3rPlans, useMowerBody, usePlannerSettings, type BodySpot} from '@/lib/mowerBody';
+import {MowerBodySettings, NoSizesWarning} from '@/components/MowerBodySettings';
+import {PlannerSettings} from '@/components/PlannerSettings';
+import {PlannerSimple} from '@/components/PlannerSimple';
+import simpleStyles from '@/components/PlannerSimple.module.css';
+import settingsStyles from '../settings/page.module.css';
 
 // useSearchParams needs a suspense boundary in a static export
 // '0' when the map was unpinned on this device
@@ -59,6 +70,7 @@ function MapEditor() {
   const docked = useDocked();
   const track = useMowerTrack();
   const lastRun = useLastRun();
+  const lastRunJob = useLastRunJob();
   const liveMap = useMowerMap();
   const params = useMowerParams();
   // while it mows: how far it got with the area's plan, like on the overview (the state only then, it changes every
@@ -126,6 +138,8 @@ function MapEditor() {
   // while an area is edited only its plan shows, the last run's track and its cut strip went at the old settings; the
   // area being mowed keeps its live trail
   const trackShown = viewJob || (selectedArea && progress?.areaId !== selectedAreaId) ? undefined : track;
+  // the finished run on the map, a picked one or the last: where the body got into the safety distances
+  const marginPlaces = useMarginPlaces(viewJob?.id ?? (trackShown ? lastRunJob : null));
   const baseOutline = selectedArea ? (originals[selectedArea.id] ?? selectedArea.outline) : null;
   const simplified = useMemo(
     () =>
@@ -145,16 +159,74 @@ function MapEditor() {
     [map, selectedArea, simplified],
   );
 
-  // self crossing outlines, a dock off the drivable areas and the like, also in the preview of reducing points
+  // self crossing outlines, a dock off the drivable areas and the like, also in the preview of reducing points. With a
+  // planner that keeps the mower's body off the edges and obstacles: where it doesn't get through between them
   const approachDistance = numParam(params, PARAM.dockingApproachDistance);
-  const problems = useMemo(() => (shownMap ? checkMap(shownMap, approachDistance) : []), [shownMap, approachDistance]);
+  const plannerSettings = usePlannerSettings();
+  // OpenMower's slic3r planner switched on in the MowBite Planner: no distances kept, no collision check
+  const slic3r = slic3rPlans(plannerSettings);
+  const margins = useMemo(() => {
+    if (slic3rPlans(plannerSettings)) return null;
+    const value = (k: string) => plannerSettings?.settings[k]?.value;
+    const sized = ['robot_width', 'robot_front', 'robot_rear'].every((k) => {
+      const v = value(k);
+      return typeof v === 'number' && v > 0;
+    });
+    const [edge, obstacle, width] = [value('edge_margin'), value('obstacle_margin'), value('robot_width')];
+    return sized && typeof edge === 'number' && typeof obstacle === 'number' ? {edge, obstacle, width: width as number} : null;
+  }, [plannerSettings]);
+  const problems = useMemo(
+    () => (shownMap ? [...checkMap(shownMap, approachDistance), ...(margins ? narrowPassages(shownMap, margins) : [])] : []),
+    [shownMap, approachDistance, margins],
+  );
   const warnings = problems.filter((p) => p.level === 'warn').length;
-  const problemSpots = problems.flatMap((p) => ('at' in p ? [p.at] : []));
+  const spotted = problems.flatMap((p) => ('at' in p ? [p] : []));
+  const problemSpots = spotted.map((p) => p.at);
+  // a red spot tapped on the map: what it is, in words
+  const [problemPick, setProblemPick] = useState<number | null>(null);
+  const pickedProblem = problemPick !== null && shownMap ? spotted[problemPick] : undefined;
 
   // not while a point is dragged, a new plan redrawn mid-drag makes it stutter
   const [draggingPoint, setDraggingPoint] = useState(false);
-  const {toolWidth, angleOffset, offsetIsAbsolute, angleIncrement, shownArea, autoAngle, touchAngle, mismatch, realPlan, plan, stripes, planLength} =
+  // the mower's body as the planner knows it, and where it would stick out in the selected area's plan
+  const body = useMowerBody();
+  // a planner that checks the mower's body in every plan (it has body_fit): what it found shows with the plan
+  const collisionMode = !!plannerSettings?.settings.body_fit && !slic3r;
+  // a planner that takes the body's sizes and has none: it checks nothing, whatever sizes the app itself draws with
+  const unsized = !!plannerSettings?.settings.robot_front && !bodyFrom(plannerSettings);
+  const [bodySpots, setBodySpots] = useState<BodySpot[] | null>(null);
+  const {toolWidth, angleOffset, offsetIsAbsolute, angleIncrement, shownArea, autoAngle, touchAngle, mismatch, realPlan, plan, stripes, planLength, planRequest} =
     useMowPlan({params, liveMap, shownMap, selectedAreaId, pastJobs, areaProps, showStripes, previewCorrection, draggingPoint});
+  // a place of the collision check picked on the map: the body where it would have stuck out, for the plan it's from
+  const [fitPick, setFitPick] = useState<{plan: unknown; index: number} | null>(null);
+  const fitPlace = fitPick && fitPick.plan === realPlan ? realPlan?.checks?.places[fitPick.index] : undefined;
+  const pickedText = (() => {
+    const pose = fitPlace?.pose;
+    if (!pose) return null;
+    const own = selectedArea?.properties.planner ?? {};
+    const value = (k: string) => {
+      const v = own[k] ?? plannerSettings?.settings[k]?.value;
+      return typeof v === 'number' ? v : 0;
+    };
+    // past the real edge only where it's more than the larger of the distances, the place doesn't tell which one
+    const kept = Math.max(value('edge_margin'), value('obstacle_margin')) + (pose.spin ? value('spin_margin') : 0);
+    const past = pose.d > kept + 0.005;
+    const cm = Math.max(1, Math.round((past ? pose.d - kept : pose.d) * 100));
+    const what = past
+      ? pose.spin
+        ? tr('Turning on the spot here, the mower would have stuck out past the real edge, by {cm} cm at least.', {cm})
+        : tr('Here the mower would have stuck out past the real edge, by {cm} cm at least.', {cm})
+      : pose.spin
+        ? tr('Turning on the spot here, the mower would have come {cm} cm into the safety distance.', {cm})
+        : tr('Here the mower would have come {cm} cm into the safety distance.', {cm});
+    const then =
+      fitPlace!.m > 0
+        ? tr('The planner drives another way there and leaves {m} m of loops and lanes out.', {m: fmt(fitPlace!.m, 1)})
+        : tr('The planner drives another way there.');
+    // (the map draws the body at one heading, turning its corners sweep round)
+    const sweep = pose.spin ? ` ${tr('The dashed circle is how far its corners reach while it turns.')}` : '';
+    return `${what} ${then}${sweep}`;
+  })();
 
   const globalValue = (key: string) => {
     const v = numParam(params, PARAM.mowerLogic(key));
@@ -461,6 +533,54 @@ function MapEditor() {
     }
   };
 
+  // the selected mowing area's angle and plan (MowSettings), with the planner in its menu
+  const mowProps =
+    selectedArea && mode === 'idle' && simplifyCm === null && selectedArea.properties.type === 'mow'
+      ? {
+          area: selectedArea,
+          autoAngle,
+          globalValue,
+          remember,
+          update: updateProperties,
+          showStripes,
+          onToggleStripes: () => setShowStripes(!showStripes),
+          onAngleEdit: touchAngle,
+          toolWidth,
+          mismatch,
+          previewCorrection,
+          planFromMower: !!realPlan,
+          planChosen: plan?.chosen,
+          planDuration: realPlan?.duration,
+          planZones: realPlan?.zones?.length,
+          byPlanner: !!plannerSettings,
+          planAngle: realPlan?.angle,
+          planLength: shownArea?.properties.mowable === false || shownArea?.properties.active === false ? 0 : planLength,
+          onPreviewCorrection: setPreviewCorrection,
+          angle: {offset: angleOffset, offsetIsAbsolute, increment: angleIncrement},
+          onSaveCase: planRequest
+            ? () =>
+                savePlanCase({
+                  areaId: selectedArea.id,
+                  areaName: selectedArea.properties.name ?? '',
+                  request: planRequest,
+                  viaPlanner: !!plannerSettings && !slic3r,
+                  map: liveMap,
+                  params,
+                })
+            : undefined,
+        }
+      : null;
+  // a mow angle set wins: the area's own way of working the direction out goes, the planner would take that first
+  const updateDirection: UpdateArea = (patch, undoable) => {
+    const own = selectedArea?.properties.planner;
+    if (patch.angle !== undefined && own?.angle_strategy !== undefined) {
+      const rest = {...own};
+      delete rest.angle_strategy;
+      return updateProperties({...patch, planner: Object.keys(rest).length ? rest : undefined}, undoable);
+    }
+    updateProperties(patch, undoable);
+  };
+
   return (
     <div className={styles.page}>
       <main className={styles.main}>
@@ -479,6 +599,22 @@ function MapEditor() {
                 </button>
                 <button className={[styles.pillButton, styles.saveButton, styles.unsaved].join(' ')} onClick={() => void handleSave()} disabled={saving}>
                   {saving ? tr('saving…') : tr('Save map')}
+                </button>
+              </div>
+            )}
+            {pickedProblem && shownMap && (
+              <div className={styles.previewBar}>
+                <span>{problemText(pickedProblem, shownMap)}</span>
+                <button onClick={() => setProblemPick(null)} aria-label="close">
+                  ×
+                </button>
+              </div>
+            )}
+            {pickedText && (
+              <div className={styles.previewBar}>
+                <span>{pickedText}</span>
+                <button onClick={() => setFitPick(null)} aria-label="close">
+                  ×
                 </button>
               </div>
             )}
@@ -536,9 +672,24 @@ function MapEditor() {
                 // the area being mowed shows how far the mower got instead of its plan
                 stripes={progress && progress.areaId === selectedAreaId ? undefined : stripes}
                 loops={progress && progress.areaId === selectedAreaId ? undefined : plan?.loops}
+                pieces={progress && progress.areaId === selectedAreaId ? undefined : plan?.pieces}
+                openLoops={!!plan?.open}
                 progress={progress ?? undefined}
                 preview={splitPreview ?? (merged ? [merged.outline] : undefined)}
                 markers={spot || problemSpots.length ? [...(spot ? [spot] : []), ...problemSpots] : undefined}
+                // (the spot from the activity page has its message above the map already)
+                onMarkerPick={(i) => {
+                  const n = i - (spot ? 1 : 0);
+                  if (n >= 0) setProblemPick(n === problemPick ? null : n);
+                }}
+                bodySpots={bodySpots ?? undefined}
+                bodySpace={realPlan?.checks?.space}
+                fitPlaces={realPlan?.checks?.places}
+                fitPicked={fitPlace ? fitPick!.index : null}
+                onFitPick={(index) => setFitPick(index === null ? null : {plan: realPlan, index})}
+                turnPlaces={realPlan?.checks?.turns}
+                marginPlaces={marginPlaces.length ? marginPlaces : undefined}
+                jumpPlaces={realPlan?.checks ? [...realPlan.checks.jumps, ...realPlan.checks.unchecked] : undefined}
                 focus={spot ?? undefined}
               />
             )}
@@ -634,6 +785,30 @@ function MapEditor() {
                     <OrderBox areas={mowAreas} docked={docked} onSelect={selectArea} onMove={moveInOrder} />
                   )}
 
+                  {/* everything for the planner is here at the map: for all areas and the mower's sizes, an area's own
+                      with the area */}
+                  {plannerSettings && (
+                    <Fold id="plannerAll" title={tr('Planner for all areas')}>
+                      <PlannerSimple toolWidth={toolWidth} omIncrement={angleIncrement} map={map} onSelectArea={selectArea} />
+                      <details className={simpleStyles.expert}>
+                        <summary>{tr('More settings (expert)')}</summary>
+                        {slic3r && <p className={simpleStyles.note}>{tr('Only with the MowBite Planner:')}</p>}
+                        <div className={slic3r ? simpleStyles.off : undefined} inert={slic3r}>
+                          <div className={styles.foldCards}>
+                            <PlannerSettings styles={settingsStyles} />
+                          </div>
+                        </div>
+                      </details>
+                    </Fold>
+                  )}
+                  {plannerSettings && (
+                    <Fold id="mowerSizes" title={tr('Mower sizes')}>
+                      <div className={styles.foldCards}>
+                        <MowerBodySettings styles={settingsStyles} />
+                      </div>
+                    </Fold>
+                  )}
+
                   <MapBackups
                     backups={backups ?? null}
                     onCreate={async (name) => {
@@ -690,26 +865,61 @@ function MapEditor() {
                 />
               )}
 
-              {selectedArea && mode === 'idle' && simplifyCm === null && selectedArea.properties.type === 'mow' && (
+              {/* without the planner: OpenMower's own settings of the area, its angle and its plan */}
+              {mowProps && !plannerSettings && (
                 <Fold id="mow" title={tr('Mowing settings')}>
-                  <MowSettings
-                    area={selectedArea}
-                    autoAngle={autoAngle}
-                    globalValue={globalValue}
-                    remember={remember}
-                    update={updateProperties}
-                    showStripes={showStripes}
-                    onToggleStripes={() => setShowStripes(!showStripes)}
-                    onAngleEdit={touchAngle}
+                  <MowSettings {...mowProps} />
+                </Fold>
+              )}
+              {/* with the planner everything of the area in one place, in the sections of the planner menu */}
+              {mowProps && selectedArea && plannerSettings && (
+                <Fold id="area" title={tr('This area')}>
+                  <PlannerSimple
                     toolWidth={toolWidth}
-                    mismatch={mismatch}
-                    previewCorrection={previewCorrection}
-                    planFromMower={!!realPlan}
-                    planAngle={realPlan?.angle}
-                    planLength={shownArea?.properties.mowable === false || shownArea?.properties.active === false ? 0 : planLength}
-                    onPreviewCorrection={setPreviewCorrection}
-                    angle={{offset: angleOffset, offsetIsAbsolute, increment: angleIncrement}}
+                    omIncrement={angleIncrement}
+                    map={map}
+                    onSelectArea={selectArea}
+                    plan={<AreaPlanInfo {...mowProps} />}
+                    direction={<AreaDirection {...mowProps} update={updateDirection} />}
+                    openmower={<OpenMowerArea {...mowProps} inMenu />}
+                    area={{
+                      own: selectedArea.properties.planner ?? {},
+                      openmower: {
+                        outline_count: selectedArea.properties.outline_count,
+                        outline_overlap_count: selectedArea.properties.outline_overlap_count,
+                        outline_offset: selectedArea.properties.outline_offset,
+                      },
+                      dropOpenMower: (key) => updateProperties({[key]: undefined}),
+                      // OpenMower's values go too, they'd count over the ones for all areas
+                      clear: () =>
+                        updateProperties({planner: undefined, outline_count: undefined, outline_overlap_count: undefined, outline_offset: undefined}),
+                      planned: plan?.chosen?.perimeter_passes,
+                      outline: selectedArea.outline,
+                      set: (key, value) => {
+                        const own = {...(selectedArea.properties.planner ?? {})};
+                        if (value === undefined || value === null) delete own[key];
+                        else own[key] = value;
+                        updateProperties({planner: Object.keys(own).length ? own : undefined});
+                      },
+                    }}
                   />
+                  <details className={simpleStyles.expert}>
+                    <summary>{tr('More settings (expert)')}</summary>
+                    {slic3r && <p className={simpleStyles.note}>{tr('Only with the MowBite Planner:')}</p>}
+                    <div className={slic3r ? simpleStyles.off : undefined} inert={slic3r}>
+                      <AreaPlanner properties={selectedArea.properties} update={updateProperties} remember={remember} />
+                    </div>
+                  </details>
+                  {realPlan && !slic3r && unsized && <NoSizesWarning />}
+                  {body &&
+                    realPlan &&
+                    !slic3r &&
+                    !unsized &&
+                    (collisionMode ? (
+                      <PlanChecks checks={realPlan.checks} on={(selectedArea.properties.planner?.body_fit ?? plannerSettings?.settings.body_fit?.value) !== false} />
+                    ) : (
+                      <BodyCheck request={planRequest} onSpots={setBodySpots} />
+                    ))}
                 </Fold>
               )}
 

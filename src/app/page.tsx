@@ -37,6 +37,7 @@ import {
   type LogEntry,
   type Schedule,
 } from '@/lib/schedule';
+import {LeftoversCard} from '@/components/Leftovers';
 import MowerSwitch from '@/components/MowerSwitch';
 import {UpdateBanner} from '@/components/Updates';
 import {ACTION, PARAM} from '@/lib/openmower';
@@ -357,6 +358,16 @@ export default function Home() {
                     {tr('Drop the interrupted job')}
                   </button>
                 ))}
+              {/* idle in the dock: what the last mow left, and mowing just that */}
+              {live && hasAction(ACTION.startMowing) && !state.emergency && (
+                <LeftoversCard
+                  jobId={recent?.latest.find((r) => r.outcome === 'done' && r.areas.length > 0 && r.jobId)?.jobId}
+                  map={map}
+                  live={live}
+                  onStart={() => publishAction(ACTION.startMowing)}
+                  styles={styles}
+                />
+              )}
               {!!state.emergency && (
                 <button className={styles.reset} disabled={!live} onClick={() => publishAction(ACTION_RESET_EMERGENCY)}>
                   <WarningIcon size={20} />

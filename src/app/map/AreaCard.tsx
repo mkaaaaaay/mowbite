@@ -3,6 +3,8 @@ import InfoTip from '@/components/InfoTip';
 import {polygonArea} from '@/lib/geometry';
 import {fmt, tr} from '@/lib/i18n';
 import {useAreaProperties} from '@/lib/areaProps';
+import {usePlannerSettings} from '@/lib/mowerBody';
+import {useState} from 'react';
 import {AREA_TYPES, type Area, type UpdateArea} from './editing';
 import styles from './page.module.css';
 
@@ -33,6 +35,22 @@ export default function AreaCard({
   const type = area.properties.type ?? 'draft';
   const supported = useAreaProperties();
   const tool = [styles.pillButton, styles.tool].join(' ');
+  // how far the body keeps off it, with a planner that checks the mower's body (obstacle_margin): for an obstacle, an
+  // area not mowed or an inactive one. The mower keeps it as a property of the area it doesn't know (not in
+  // map.area_properties), the planner takes it once the map is saved
+  const planner = usePlannerSettings();
+  const keepOff = planner?.settings.obstacle_margin;
+  const marginShown = !!keepOff && (type === 'obstacle' || area.properties.active === false || area.properties.mowable === false);
+  const [marginDraft, setMarginDraft] = useState<string | null>(null);
+  const marginCm = typeof area.properties.margin === 'number' ? String(Math.round(area.properties.margin * 1000) / 10) : '';
+  const defaultCm = typeof keepOff?.value === 'number' ? String(Math.round(keepOff.value * 1000) / 10) : '';
+  const applyMargin = () => {
+    if (marginDraft === null) return;
+    const v = Number(marginDraft.trim().replace(',', '.'));
+    setMarginDraft(null);
+    if (!marginDraft.trim()) return update({margin: undefined});
+    if (Number.isFinite(v)) update({margin: Math.min(100, Math.max(0, v)) / 100});
+  };
   return (
     <div className={styles.areaEditor}>
       <div className={styles.areaHead}>
@@ -91,6 +109,33 @@ export default function AreaCard({
               )}
             </InfoTip>
           </label>
+        )}
+        {marginShown && (
+          <label className={styles.toggle}>
+            {tr('Own distance')}
+            <input
+              className={styles.marginInput}
+              inputMode="decimal"
+              value={marginDraft ?? marginCm}
+              placeholder={defaultCm}
+              onChange={(e) => setMarginDraft(e.target.value)}
+              onBlur={applyMargin}
+              onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+            />
+            cm
+            <InfoTip>
+              {tr('How far the mower keeps its body off this one. Empty: the distance to obstacles of the planner ({cm} cm). It counts once the map is saved.', {
+                cm: defaultCm,
+              })}
+            </InfoTip>
+          </label>
+        )}
+        {marginShown && (
+          <span className={styles.dim}>
+            {marginCm
+              ? tr('Counts here in place of the {cm} cm for all obstacles (planner menu, Obstacles).', {cm: defaultCm})
+              : tr('Empty: the {cm} cm for all obstacles (planner menu, Obstacles).', {cm: defaultCm})}
+          </span>
         )}
         <span className={styles.dim}>
           {area.properties.active === false

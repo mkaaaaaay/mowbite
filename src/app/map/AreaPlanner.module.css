@@ -1,0 +1,59 @@
+/* the class names PlannerField takes, the look of the map editor's fields */
+.wide {
+  grid-column: 1 / -1;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.field input {
+  min-height: 36px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--card-border);
+  background: transparent;
+  color: var(--foreground);
+  font-size: 14px;
+}
+
+.segment {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.segment button {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--card-border);
+  background: transparent;
+  color: var(--foreground);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.segment .segmentOn {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.note {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+}

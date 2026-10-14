@@ -2,6 +2,8 @@
 
 import type {Area} from '@/app/map/editing';
 import {locale, tr} from '@/lib/i18n';
+import {duration} from '@/lib/dates';
+import {scheduledDuration, windowMinutes} from '@/lib/planDurations';
 import {isNightTime, type Plan} from '@/lib/schedule';
 import type {SunTimes} from '@/lib/sun';
 import {useState} from 'react';
@@ -42,6 +44,11 @@ export default function PlanRow({
   const time = pending?.field === 'time' ? pending.value : plan.time;
   const end = pending?.field === 'end' ? pending.value : plan.end;
   const dark = isNightTime(time, sun) || (!!end && isNightTime(end, sun));
+  // how long the areas picked take by the planner's reckoning (the map asked it), against the window
+  const picked = plan.areas.length ? mowAreas.filter((a) => plan.areas.includes(a.id)) : mowAreas;
+  const took = scheduledDuration(picked.map((a) => a.id));
+  const window = end ? windowMinutes(time, end) : null;
+  const known = picked.length - took.unknown.length;
 
   return (
     <div className={styles.plan}>
@@ -73,6 +80,17 @@ export default function PlanRow({
         </label>
         {!end && <span className={styles.dimLine}>{tr('no end time, it mows until done or the battery is low')}</span>}
       </div>
+      {known > 0 && (
+        <p className={window !== null && took.min > window && took.unknown.length === 0 ? styles.short : styles.dimLine}>
+          {took.unknown.length === 0
+            ? tr('about {time} by the planner', {time: duration(took.min * 60)})
+            : tr('about {time} by the planner for {n} of {m} areas, open the others in the map once', {time: duration(took.min * 60), n: known, m: picked.length})}
+          {window !== null &&
+            (took.min > window
+              ? ` · ${tr('longer than the {time} until the end time, it carries on next time', {time: duration(window * 60)})}`
+              : ` · ${tr('fits the {time} until the end time', {time: duration(window * 60)})}`)}
+        </p>
+      )}
 
       {mowAreas.length > 1 && (
         <div className={styles.areas}>

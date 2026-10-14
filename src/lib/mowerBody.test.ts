@@ -1,21 +1,50 @@
-import {describe, expect, it} from 'vitest';
 import type {MapArea} from '@/hooks/useMowerMap';
-import {bladeSeconds, bodyFrom, bodyShape, modelOf, MOWER_MODELS, outlineOf, realEdges, roundBends, swathAfter, swathEnd, swathGroups, swathPieces} from './mowerBody';
+import {describe, expect, it} from 'vitest';
+import {
+  bladeSeconds,
+  bodyFrom,
+  bodyShape,
+  grownOutline,
+  measuredOutline,
+  modelOf,
+  MOWER_MODELS,
+  OUTLINE_LEEWAY,
+  outlineOf,
+  realEdges,
+  roundBends,
+  sizesBody,
+  spotPlaces,
+  swathAfter,
+  swathEnd,
+  swathGroups,
+  swathPieces,
+  type PlannerSettings,
+} from './mowerBody';
 
-const body = {width: 0.4, front: 0.43, rear: 0.14, blade: 0.18, bladeAhead: 0.17, bladeOffset: 0};
+const settings = (values: Record<string, unknown>): PlannerSettings => ({
+  settings: Object.fromEntries(
+    Object.entries(values).map(([k, value]) => [k, {value, default: null, stored: true, type: 'number', settable: true}]),
+  ),
+});
 
 describe('mower body', () => {
   it('needs width, front and rear', () => {
-    expect(bodyFrom(undefined)).toBeNull();
-    expect(bodyFrom({width: 0.4, front: 0.43})).toBeNull();
-    expect(bodyFrom({width: 0, front: 0.43, rear: 0.14})).toBeNull();
-    expect(bodyFrom({width: 0.4, front: 0.43, rear: 0.14, blade: 0.18, bladeAhead: 0.17})).toEqual(body);
-    // a blade wider than 40 cm isn't taken
-    expect(bodyFrom({width: 0.4, front: 0.43, rear: 0.14, blade: 0.5})?.blade).toBe(0);
+    expect(bodyFrom(null)).toBeNull();
+    expect(bodyFrom(settings({robot_width: 0.4, robot_front: 0.43}))).toBeNull();
+    expect(bodyFrom(settings({robot_width: 0.4, robot_front: 0.43, robot_rear: null}))).toBeNull();
+    expect(bodyFrom(settings({robot_width: 0, robot_front: 0.43, robot_rear: 0.14}))).toBeNull();
+    expect(bodyFrom(settings({robot_width: 0.4, robot_front: 0.43, robot_rear: 0.14, mower_width: 0.18, blade_ahead: 0.17}))).toEqual({
+      width: 0.4,
+      front: 0.43,
+      rear: 0.14,
+      blade: 0.18,
+      bladeAhead: 0.17,
+      bladeOffset: 0,
+    });
   });
 
   it('puts the body around the point the mower follows, turned with its heading', () => {
-    const b = {...body, bladeOffset: 0.05};
+    const b = {width: 0.4, front: 0.43, rear: 0.14, blade: 0.18, bladeAhead: 0.17, bladeOffset: 0.05};
     const east = bodyShape(b, 1, 2, 0);
     expect(east.corners.map((c) => [+c.x.toFixed(6), +c.y.toFixed(6)])).toEqual([
       [1.43, 2.2],
@@ -30,6 +59,35 @@ describe('mower body', () => {
     const north = bodyShape(b, 0, 0, Math.PI / 2);
     expect(north.blade.x).toBeCloseTo(-0.05);
     expect(north.blade.y).toBeCloseTo(0.17);
+    expect(north.corners[0].x).toBeCloseTo(-0.2);
+    expect(north.corners[0].y).toBeCloseTo(0.43);
+  });
+});
+
+describe('body spots', () => {
+  it('draws one body per place', () => {
+    // a turn on the spot reported 30 times, a loop corner over half a metre of path, a drive between parts further away
+    const spin = Array.from({length: 30}, (_, i) => ({x: 1, y: 1, yaw: i * 0.2, kind: 'spin'}));
+    const corner = Array.from({length: 6}, (_, i) => ({x: 1.2 + i * 0.1, y: 1, yaw: 0, kind: 'loop'}));
+    const transit = [{x: 5, y: 5, yaw: 1, kind: 'transit'}];
+    const places = spotPlaces([...spin, ...corner, ...transit]);
+    expect(places).toHaveLength(2);
+    expect(places[0].kinds).toEqual(['spin', 'loop']);
+    expect(places[1]).toEqual({spot: transit[0], kinds: ['transit']});
+    expect(spotPlaces([])).toEqual([]);
+  });
+});
+
+const body = {width: 0.4, front: 0.43, rear: 0.14, blade: 0.18, bladeAhead: 0.17, bladeOffset: 0};
+
+describe('mower sizes in the app', () => {
+  it('takes the sizes set in the app, width, front and rear needed', () => {
+    expect(sizesBody(undefined)).toBeNull();
+    expect(sizesBody({width: 0.4, front: 0.43})).toBeNull();
+    expect(sizesBody({width: 0, front: 0.43, rear: 0.14})).toBeNull();
+    expect(sizesBody({width: 0.4, front: 0.43, rear: 0.14, blade: 0.18, bladeAhead: 0.17})).toEqual(body);
+    // a blade wider than 40 cm isn't taken
+    expect(sizesBody({width: 0.4, front: 0.43, rear: 0.14, blade: 0.5})?.blade).toBe(0);
   });
 
   it('turns a drawn blade slower than the real one', () => {
@@ -156,17 +214,18 @@ describe('real outline', () => {
     [0.4, -0.1],
   ];
 
-  it('takes an outline of at least 3 points, the rectangle otherwise', () => {
-    const base = {width: 0.4, front: 0.4, rear: 0.1};
-    expect(bodyFrom({...base, outline})?.outline).toEqual(outline);
-    expect(bodyFrom(base)?.outline).toBeUndefined();
-    expect(bodyFrom({...base, outline: outline.slice(0, 2)})?.outline).toBeUndefined();
+  it('takes robot_outline when it is at least 3 points, the rectangle otherwise', () => {
+    const base = {robot_width: 0.4, robot_front: 0.4, robot_rear: 0.1};
+    expect(bodyFrom(settings({...base, robot_outline: outline}))?.outline).toEqual(outline);
+    expect(bodyFrom(settings({...base, robot_outline: null}))?.outline).toBeUndefined();
+    expect(bodyFrom(settings({...base, robot_outline: outline.slice(0, 2)}))?.outline).toBeUndefined();
     expect(outlineOf([[0, 0], [1, NaN], [0, 1]])).toBeUndefined();
     // in cm, around another point, or tiny: no outline
     expect(outlineOf(outline.map(([a, l]) => [a * 100, l * 100]))).toBeUndefined();
     expect(outlineOf(outline.map(([a, l]) => [a + 0.6, l]))).toBeUndefined();
     expect(outlineOf(outline.map(([a, l]) => [a / 10, l / 10]))).toBeUndefined();
     for (const m of MOWER_MODELS.filter((x) => x.outline)) expect(outlineOf(m.outline)).toEqual(m.outline);
+    expect(sizesBody({width: 0.4, front: 0.4, rear: 0.1, outline})?.outline).toEqual(outline);
   });
 
   it('draws the body along the outline, turned with the heading', () => {
@@ -176,6 +235,37 @@ describe('real outline', () => {
     // ahead is +y, left is -x
     expect(north.corners[0].x).toBeCloseTo(0.9);
     expect(north.corners[0].y).toBeCloseTo(2.4);
+  });
+
+  it('grows an outline outwards with pointed corners, either way round', () => {
+    const square: [number, number][] = [
+      [0.1, 0.1],
+      [-0.1, 0.1],
+      [-0.1, -0.1],
+      [0.1, -0.1],
+    ];
+    expect(grownOutline(square, 0.01)).toEqual([
+      [0.11, 0.11],
+      [-0.11, 0.11],
+      [-0.11, -0.11],
+      [0.11, -0.11],
+    ]);
+    expect(grownOutline([...square].reverse(), 0.01)).toEqual([
+      [0.11, -0.11],
+      [-0.11, -0.11],
+      [-0.11, 0.11],
+      [0.11, 0.11],
+    ]);
+  });
+
+  it('finds the model of an outline grown for the planner', () => {
+    for (const m of MOWER_MODELS.filter((x) => x.outline)) {
+      const g = grownOutline(m.outline!, OUTLINE_LEEWAY);
+      expect(Math.max(...g.map(([a]) => a))).toBeCloseTo(m.sizes.front + OUTLINE_LEEWAY, 2);
+      expect(Math.min(...g.map(([a]) => a))).toBeCloseTo(-m.sizes.rear - OUTLINE_LEEWAY, 2);
+      expect(measuredOutline(g)).toEqual(m.outline);
+    }
+    expect(measuredOutline(outline)).toEqual(outline);
   });
 
   it('fits the sizes of the models that have one', () => {

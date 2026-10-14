@@ -32,6 +32,18 @@ export const RPC = {
   areaProperties: 'map.area_properties',
   // the last warnings and errors ROS logged, kept in memory by the mower. OpenMower doesn't offer it yet
   logs: 'logs.recent',
+  // the MowBite Planner's settings (with OM_PLANNER=mowbite only): every setting with value, default and range,
+  // and changing them (null: back to the default)
+  plannerSettings: 'planner.settings',
+  plannerSettingsSet: 'planner.settings.set',
+  // a plan straight from the MowBite Planner, with report: true where the mower's body would stick out
+  plannerPlan: 'planner.plan',
+  // a finished run's track checked against the body's safety distances: where it got into them and how far
+  plannerDrive: 'planner.drive',
+  // the angle turned further after finished mows (angle_increment) back to 0, answers like planner.settings
+  plannerAngleReset: 'planner.angle.reset',
+  // what a finished mow's real track left unmowed, as passes over it; armed, the mower drives those on the next start
+  plannerLeftovers: 'planner.leftovers',
   // sets parameters of nodes with a dynamic_reconfigure server while they run, {params: {name: value}}. the values
   // aren't stored, a restart brings the yaml's back
   setParams: 'params.set',

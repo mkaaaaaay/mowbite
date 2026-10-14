@@ -218,7 +218,7 @@
   backdrop-filter: var(--card-blur, none);
 }
 
-.mowSettings label:not(.toggle) {
+.mowSettings label:not(.toggle):not(.dirRow):not(.dirPairField) {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -570,7 +570,20 @@
   }
 }
 
-/* the mowing settings of the selected area, folding away */
+/* the plan checked against the mower's body (MowBite Planner) */
+.bodyCheck {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.warningText {
+  color: #ffb74d;
+}
+
+/* the mowing and planner settings of the selected area, folding away */
 .fold {
   margin-top: 12px;
   border-radius: 12px;
@@ -620,6 +633,10 @@
   display: none;
 }
 
+.fold .bodyCheck {
+  padding: 0 14px 12px;
+}
+
 /* phones: right under the map, the map stays in view while one is open */
 @media (max-width: 899px) {
   .fold {
@@ -660,4 +677,128 @@
   .mapSave {
     display: none;
   }
+}
+
+/* the cards for all areas from the settings in a fold: without their own frame and title, the fold has them */
+.foldCards > section {
+  padding: 4px 14px 14px;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.foldCards > section > h2,
+.foldCards > section > div:first-child > h2 {
+  display: none;
+}
+
+/* an obstacle's own distance, in the area card */
+.marginInput {
+  width: 56px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--card-border);
+  background: transparent;
+  color: var(--foreground);
+  font-size: 13px;
+}
+
+/* an area's direction (MowSettings): in the planner menu like its other settings, without the planner in the card */
+.areaDirection {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dirRow {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.dirLabel {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.dirNote {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-secondary);
+}
+
+.dirPair {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.dirPairField {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* (label: wins over the menu's own narrower fields) */
+.areaDirection label input[type='number'] {
+  width: 110px;
+  min-height: 36px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--card-border);
+  background: transparent;
+  color: var(--foreground);
+  font-size: 14px;
+}
+
+/* an area's plan (MowSettings): shown or not, how long */
+.areaPlan {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* room for "like all areas: 2°" */
+.areaDirection label input.dirWide[type='number'] {
+  width: 190px;
+}
+
+/* OpenMower's own values of an area (MowSettings OpenMowerArea): in the card's grid, or on their own in the planner menu */
+.openMowerArea {
+  display: contents;
+}
+
+.openMowerMenu {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.openMowerMenu label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.openMowerMenu label input[type='number'] {
+  width: 140px;
+  min-height: 36px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--card-border);
+  background: transparent;
+  color: var(--foreground);
+  font-size: 14px;
 }

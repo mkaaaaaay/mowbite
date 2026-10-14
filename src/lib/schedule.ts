@@ -149,6 +149,10 @@ export const SCHEDULE_LOG_TEXT: Record<string, string> = {
   paused_area: 'Skipped an area paused for today',
   skipped_area: "Skipped an area that wasn't picked",
   unknown_area: "An area the map doesn't have (an older job?), left it alone",
+  leftovers_started: 'Started again for the leftovers ({detail} m²)',
+  leftovers_little: 'Leftovers too small to go out again ({detail} m²)',
+  leftovers_skip: "Leftovers not mowed, the mower wasn't ready or it's dark or raining ({detail})",
+  leftovers_failed: "Leftovers not mowed, the planner didn't answer",
 };
 
 // how a start the schedule tried ended: started, or why not

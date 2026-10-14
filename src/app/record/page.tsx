@@ -153,8 +153,8 @@ export default function RecordPage() {
     ];
   } else if (phase === 'recording') {
     text = hasOutline
-      ? tr('Drive around the obstacle, then stop. It closes by itself.')
-      : tr('Drive along the edge until you are back at the start, then stop. The outline closes by itself.');
+      ? tr('Drive around the obstacle, close to it all the way: the line is the middle of the mower. Then stop, it closes by itself.')
+      : tr('Drive along the edge, close to it all the way: the line is the middle of the mower. Back at the start, stop: the outline closes by itself.');
     buttons = [
       button('stop_recording', 'Stop', 'main'),
       button('collect_point', 'Set point here'),

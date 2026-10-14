@@ -17,11 +17,6 @@ const CAPACITY = 1000;
 const kept = (t: number, before: number, after: number) =>
   `${apiBase()}/cgi-bin/roslog?t=${Math.round(t)}&before=${before}&after=${after}`;
 
-// only newer mowers keep the log, the container keeps it once it has seen one
-export async function rosLogAvailable(): Promise<boolean> {
-  return (await rosLogSince()) !== null;
-}
-
 // the time of the oldest log line there is, kept by the container or still in the mower's memory. null when there's
 // no log at all. asked once per page
 let since: Promise<number | null> | null = null;

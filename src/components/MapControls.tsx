@@ -9,7 +9,12 @@ export const LAYERS = [
   {key: 'nav', label: 'Navigation areas'},
   {key: 'order', label: 'Mowing order numbers'},
   {key: 'stripes', label: 'Mowing direction'},
+  // the turns between the lanes and the drives between the parts in the plan, only when the planner tells them apart
+  {key: 'planTurns', label: 'Turns in the plan'},
+  {key: 'planTransit', label: 'Drives in the plan'},
   {key: 'track', label: 'Track'},
+  {key: 'margins', label: 'Too close'},
+  {key: 'checks', label: 'Collision check fixes'},
   {key: 'transit', label: 'Driving without blades'},
   {key: 'mowerIcon', label: 'Mower icon'},
   {key: 'body', label: 'Mower outline'},
@@ -47,6 +52,7 @@ export default function MapControls({
   reset,
   follow,
   pin,
+  planParts,
 }: {
   // factor < 1 zooms in
   onZoom: (factor: number) => void;
@@ -65,6 +71,8 @@ export default function MapControls({
   // only with the mower's sizes set: its outline and icon and the real edges, the strip its blade cuts only with a
   // blade size
   body?: {blade: boolean};
+  // the plan shown tells its turns and drives apart, the two layers for them show
+  planParts?: boolean;
   // shown when zoomed or panned, follow: the view follows the mower
   reset: {follow: boolean; onReset: () => void} | null;
   // only while the view can follow the mower
@@ -160,7 +168,8 @@ export default function MapControls({
           {LAYERS.filter(
             (l) =>
               ((l.key !== 'mowerIcon' && l.key !== 'body' && l.key !== 'edges') || body) &&
-              (l.key !== 'swath' || body?.blade),
+              (l.key !== 'swath' || body?.blade) &&
+              ((l.key !== 'planTurns' && l.key !== 'planTransit') || planParts),
           ).map((l) => (
             <label key={l.key}>
               <input type="checkbox" checked={layerOn(hidden, l.key)} onChange={() => onToggleLayer(l.key)} />

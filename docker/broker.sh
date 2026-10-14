@@ -9,10 +9,10 @@ find_broker() {
   done
 }
 
-# a json-rpc call to the mower: rpc_call <host> <method> <params json> [seconds]. prints the answer with our id,
+# a json-rpc call to the mower: mower_rpc <host> <method> <params json> [seconds]. prints the answer with our id,
 # nothing when none came. needs the topics from openmower.sh. answers come pretty printed over several lines on a
 # topic others answer on too, so the one with our id is picked out
-rpc_call() {
+mower_rpc() {
   _id="mowbite-$$-$(date +%s)"
   _out="/tmp/rpc.$$.out"
   # shellcheck disable=SC2086
