@@ -2,7 +2,7 @@
 
 import type {ImagerySource} from '@/lib/imagery';
 import {useState} from 'react';
-import type {Layer, PlanStyle} from './MapControls';
+import type {Coverage, Layer, PlanStyle} from './MapControls';
 
 function read<T>(key: string, parse: (v: string | null) => T, fallback: T): T {
   try {
@@ -29,7 +29,13 @@ export function useMapPrefs() {
   const [planStyle, setPlanStyleState] = useState(() =>
     read<PlanStyle>('planStyle', (v) => (v === 'solid' || v === 'dots' ? v : 'dashed'), 'dashed'),
   );
+  const [coverage, setCoverageState] = useState(() => read<Coverage>('mapCoverage', (v) => (v === 'gps' || v === 'wifi' ? v : 'off'), 'off'));
   return {
+    coverage,
+    setCoverage: (c: Coverage) => {
+      setCoverageState(c);
+      write('mapCoverage', c === 'off' ? null : c);
+    },
     imagery,
     setImagery: (next: ImagerySource | null) => {
       setImageryState(next);

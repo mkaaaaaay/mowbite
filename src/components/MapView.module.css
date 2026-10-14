@@ -723,7 +723,58 @@
 /* where gps or wifi were good, ok or bad, squares of half a metre under everything the mower drew */
 .cover rect {
   stroke: none;
-  opacity: 0.55;
+  cursor: pointer;
+}
+
+/* while points are being set, taps go through to the map */
+.coverQuiet {
+  pointer-events: none;
+}
+
+.cover .coverPicked {
+  stroke: #fff;
+  stroke-width: 2px;
+  opacity: 0.9;
+}
+
+.coverHint {
+  max-width: 200px;
+  white-space: normal;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* the numbers of the square tapped, bottom left in the map */
+.coverInfo {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: calc(100% - 80px);
+  padding: 8px 28px 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--card-border);
+  background: rgba(20, 20, 22, 0.92);
+  color: #fff;
+  font-size: 12px;
+  z-index: 2;
+}
+
+.coverInfo button {
+  position: absolute;
+  top: 2px;
+  right: 6px;
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.coverInfoDim {
+  color: rgba(255, 255, 255, 0.6);
 }
 
 .cover .good,

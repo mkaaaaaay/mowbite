@@ -1172,13 +1172,21 @@ const de: Record<string, string> = {
   "GPS log": "GPS-Log",
   "Download GPS log": "GPS-Log herunterladen",
   "Download the planner log": "Planer-Log herunterladen",
-  "GPS coverage": "GPS-Abdeckung",
-  "Wi-Fi coverage": "WLAN-Abdeckung",
   "strong": "stark",
   "medium": "mittel",
   "weak": "schwach",
   "at times without": "zeitweise ohne",
   "often without": "oft ohne",
+  "Coverage": "Abdeckung",
+  "Wi-Fi": "WLAN",
+  "Paler: little data there. Tap a square for its numbers.": "Blasser: dort gibt es wenig Daten. Ein Quadrat antippen zeigt seine Zahlen.",
+  "{p} % of the time without RTK fix": "{p} % der Zeit ohne RTK-Fix",
+  "{s} s without any GPS": "{s} s ganz ohne GPS",
+  "at worst {cm} cm": "schlechtestens {cm} cm",
+  "no Wi-Fi signal kept here": "hier kein WLAN-Pegel gespeichert",
+  "{dbm} dBm on average": "{dbm} dBm im Mittel",
+  "at worst {dbm} dBm": "schlechtestens {dbm} dBm",
+  "{time} of data in this square": "{time} Daten in diesem Quadrat",
 };
 
 export default de;

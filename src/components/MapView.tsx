@@ -19,6 +19,7 @@ import {tr, useLang} from '@/lib/i18n';
 import {tick} from '@/lib/haptics';
 import {TrashIcon} from './icons';
 import {CELL_M, MIN_SECONDS, gpsGrade, loadCoverage, wifiGrade, type CoverageCell} from '@/lib/coverage';
+import {CoverInfo} from './CoverInfo';
 
 interface MapViewProps {
   map: MowerMap;
@@ -389,14 +390,14 @@ function MapView({
   const [free, setFree] = useState(false);
   if (free && !follow) setFree(false);
   const following = follow && !free;
-  const {imagery, setImagery, showGrid, toggleGrid, hidden, toggleLayer, planStyle, setPlanStyle} = useMapPrefs();
+  const {imagery, setImagery, showGrid, toggleGrid, hidden, toggleLayer, planStyle, setPlanStyle, coverage: coverMode, setCoverage: setCoverMode} = useMapPrefs();
   const [svgPx, setSvgPx] = useState(0);
   const [layersOpen, setLayersOpen] = useState(false);
-  // gps and wifi where the mower drove, asked for once the layer menu opens or one of the two is on
-  const gpsCoverOn = layerOn(hidden, 'gpsCover');
-  const wifiCoverOn = layerOn(hidden, 'wifiCover');
+  // gps or wifi where the mower drove, asked for once the layer menu opens or the coverage is on. the square tapped
+  // shows its numbers
   const [coverage, setCoverage] = useState<CoverageCell[] | null>(null);
-  const wantCoverage = layersOpen || gpsCoverOn || wifiCoverOn;
+  const [coverCell, setCoverCell] = useState<CoverageCell | null>(null);
+  const wantCoverage = layersOpen || coverMode !== 'off';
   useEffect(() => {
     if (wantCoverage) void loadCoverage().then(setCoverage);
   }, [wantCoverage]);
@@ -746,24 +747,37 @@ function MapView({
     [swath, body, scale],
   );
   const coverLayer = useMemo(() => {
-    if (!coverage || !(gpsCoverOn || wifiCoverOn)) return null;
+    if (!coverage || coverMode === 'off') return null;
     const size = CELL_M * scale;
     return (
-      <g className={styles.cover}>
+      <g className={[styles.cover, pickingPoints ? styles.coverQuiet : ''].join(' ')}>
         {coverage
           .filter((c) => c.seconds >= MIN_SECONDS)
           .map((c) => {
-            // wifi over gps when both are on: its squares are drawn second
-            const grades = [gpsCoverOn ? gpsGrade(c) : null, wifiCoverOn ? wifiGrade(c) : null].filter(Boolean);
-            const grade = grades[grades.length - 1];
+            const grade = coverMode === 'gps' ? gpsGrade(c) : wifiGrade(c);
             if (!grade) return null;
             const [x, y] = toScreen(c.x, c.y + CELL_M);
-            return <rect key={`${c.x} ${c.y}`} className={styles[grade]} x={x} y={y} width={size} height={size} />;
+            return (
+              <rect
+                key={`${c.x} ${c.y}`}
+                className={[styles[grade], coverCell === c ? styles.coverPicked : ''].join(' ')}
+                // paler where there's little to go by, full from two minutes on
+                opacity={0.2 + 0.45 * Math.min(1, c.seconds / 120)}
+                x={x}
+                y={y}
+                width={size}
+                height={size}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setCoverCell(coverCell === c ? null : c);
+                }}
+              />
+            );
           })}
       </g>
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [coverage, gpsCoverOn, wifiCoverOn, minX, minY, scale, padX, padY]);
+  }, [coverage, coverMode, coverCell, pickingPoints, minX, minY, scale, padX, padY]);
   const trackLayer = useMemo(
     () =>
       hidden.has('track') ? null : (
@@ -1566,6 +1580,7 @@ function MapView({
         {svg}
       </div>
       {loupe}
+      {coverCell && coverMode !== 'off' && <CoverInfo cell={coverCell} mode={coverMode} onClose={() => setCoverCell(null)} />}
       <MapControls
         onZoom={zoomCenter}
         showGrid={showGrid}
@@ -1580,7 +1595,19 @@ function MapView({
         onLayersOpen={setLayersOpen}
         body={body ? {blade: body.blade > 0} : undefined}
         planParts={!!pieces?.length}
-        coverage={coverage?.length ? {gps: true, wifi: coverage.some((c) => c.wifi !== null)} : undefined}
+        coverage={
+          coverage?.length
+            ? {
+                gps: true,
+                wifi: coverage.some((c) => c.wifi !== null),
+                value: coverMode,
+                onChange: (c) => {
+                  setCoverMode(c);
+                  setCoverCell(null);
+                },
+              }
+            : undefined
+        }
         planStyle={
           progress
             ? {
