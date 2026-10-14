@@ -1,9 +1,8 @@
 'use client';
 
 import {clock} from '@/lib/dates';
-import {gpsBefore, gpsCsv, gpsLog, gpsLogSince, type GpsSample} from '@/lib/gpslog';
+import {gpsBefore, gpsLog, gpsLogSince, type GpsSample} from '@/lib/gpslog';
 import {fmt, tr} from '@/lib/i18n';
-import {saveFile} from '@/lib/saveFile';
 import {useEffect, useState} from 'react';
 import styles from './RosLog.module.css';
 
@@ -76,34 +75,5 @@ export function GpsAround({t, limit}: {t: number; limit?: number}) {
         </div>
       )}
     </>
-  );
-}
-
-// the whole run's positions and accuracy as a csv file
-export function GpsDownload({from, to}: {from: number; to: number}) {
-  const [available, setAvailable] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [failed, setFailed] = useState(false);
-  useEffect(() => {
-    void gpsLogSince().then((s) => setAvailable(s !== null && to >= s));
-  }, [to]);
-  if (!available) return null;
-  return (
-    <button
-      className={styles.link}
-      disabled={busy}
-      onClick={() => {
-        setBusy(true);
-        setFailed(false);
-        const d = new Date(from * 1000);
-        const name = `mowbite-gps-${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}-${clock(from).replace(':', '')}.csv`;
-        gpsLog(from - 60, to + 60)
-          .then((s) => saveFile(name, gpsCsv(s), 'text/csv'))
-          .catch(() => setFailed(true))
-          .finally(() => setBusy(false));
-      }}
-    >
-      {failed ? tr('failed') : busy ? tr('loading…') : tr('Download GPS log')}
-    </button>
   );
 }

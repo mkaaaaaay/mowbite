@@ -81,6 +81,17 @@ export function tr(text: string, vars?: Record<string, string | number>): string
   return vars ? s.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m)) : s;
 }
 
+// something worked out in english whatever the device shows, for files that go to github or discord
+export function inEnglish<T>(make: () => T): T {
+  const was = active;
+  active = 'en';
+  try {
+    return make();
+  } finally {
+    active = was;
+  }
+}
+
 // for dates and numbers
 // en-GB for english: day before month and a 24 h clock, and not the browser's own language
 export const locale = () => (active === 'de' ? 'de-DE' : 'en-GB');

@@ -1165,7 +1165,6 @@ const de: Record<string, string> = {
   "no GPS": "kein GPS",
   "Hide GPS log": "GPS-Log ausblenden",
   "GPS log": "GPS-Log",
-  "Download GPS log": "GPS-Log herunterladen",
   "Download the planner log": "Planer-Log herunterladen",
   "strong": "stark",
   "medium": "mittel",
@@ -1188,6 +1187,7 @@ const de: Record<string, string> = {
   "RTK fix before, at worst {acc}": "davor RTK-Fix, schlechtestens {acc}",
   "{s} s without RTK fix in the minute before, at worst {acc}": "in der Minute davor {s} s ohne RTK-Fix, schlechtestens {acc}",
   "Its position may have been off.": "Die Position kann daneben gelegen haben.",
+  "Diagnosis file": "Diagnose-Datei",
 };
 
 export default de;

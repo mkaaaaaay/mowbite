@@ -10,6 +10,7 @@ export interface GpsSample {
   x: number;
   y: number;
   acc: number | null; // m, null without any gps position
+  wifi?: number | null; // dBm, null when the container couldn't read it
 }
 
 // "<unix time> <state> <x> <y> <accuracy> [wifi dBm]" per line, 999 for no gps
@@ -21,7 +22,8 @@ export function readGpsLog(text: string): GpsSample[] {
     if (p.length !== 5 && p.length !== 6) continue;
     const [t, x, y, acc] = [Number(p[0]), Number(p[2]), Number(p[3]), Number(p[4])];
     if (![t, x, y, acc].every(Number.isFinite)) continue;
-    out.push({t, state: p[1], x, y, acc: acc >= 999 ? null : acc});
+    const wifi = p.length === 6 && p[5] !== '-' && Number.isFinite(Number(p[5])) ? Number(p[5]) : null;
+    out.push({t, state: p[1], x, y, acc: acc >= 999 ? null : acc, ...(p.length === 6 ? {wifi} : {})});
   }
   return out;
 }
@@ -89,6 +91,8 @@ export function gpsBefore(samples: readonly GpsSample[], t: number, limit = 0.2,
 
 // as a file to open in a spreadsheet: time, state, x, y, accuracy in m (empty without gps)
 export function gpsCsv(samples: readonly GpsSample[]): string {
-  const rows = samples.map((s) => [new Date(s.t * 1000).toISOString(), s.state, s.x.toFixed(3), s.y.toFixed(3), s.acc === null ? '' : s.acc.toFixed(3)].join(','));
-  return ['time,state,x,y,accuracy_m', ...rows].join('\n') + '\n';
+  const rows = samples.map((s) =>
+    [new Date(s.t * 1000).toISOString(), s.state, s.x.toFixed(3), s.y.toFixed(3), s.acc === null ? '' : s.acc.toFixed(3), s.wifi ?? ''].join(','),
+  );
+  return ['time,state,x,y,accuracy_m,wifi_dbm', ...rows].join('\n') + '\n';
 }

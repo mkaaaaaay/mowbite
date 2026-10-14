@@ -53,7 +53,7 @@ describe('gps log', () => {
 
   it('writes a csv', () => {
     expect(gpsCsv(log([[0, 0.02], [1, null]]))).toBe(
-      'time,state,x,y,accuracy_m\n1970-01-01T00:00:00.000Z,MOWING,1.000,2.000,0.020\n1970-01-01T00:00:01.000Z,MOWING,1.000,2.000,\n',
+      'time,state,x,y,accuracy_m,wifi_dbm\n1970-01-01T00:00:00.000Z,MOWING,1.000,2.000,0.020,\n1970-01-01T00:00:01.000Z,MOWING,1.000,2.000,,\n',
     );
   });
 });
