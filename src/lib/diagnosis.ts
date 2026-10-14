@@ -453,22 +453,26 @@ export function buildDiagnosis(d: DiagnosisInput): string {
     if (drive) lines.push(`    ${drive}`);
     return lines;
   };
-  for (const {event, state} of withState(run.events).filter(({event, state}) => noteworthy(event, state))) {
-    const lines = [`${stamp(event.t)}  ${describe(event, state).text}` + (event.x !== undefined ? `  at ${event.x.toFixed(2)}, ${event.y?.toFixed(2)}` : '')];
-    const hint = explain(event, state, typeof d.params['/mower_logic/gps_timeout'] === 'number' ? (d.params['/mower_logic/gps_timeout'] as number) : undefined);
-    if (hint) lines.push(`    ${hint}`);
-    problems.push({t: event.t, lines: [...lines, ...context(event.t, event.x, event.y, event.type)]});
-  }
-  // the ones OpenMower wrote an EMERGENCY event for are there already
+  // emergency stops only in the ros log, the ones OpenMower wrote an EMERGENCY event for are there already. stops close
+  // together (a bumper pressed again right after each reset) are one problem
   const evStops = run.events.filter((e) => e.type === 'EMERGENCY' && e.emergency);
   const notes: string[] = [];
+  const groups: {t: number; end: number; reasons: Set<string>; inputs: Set<string>; n: number; lifted: string | null}[] = [];
   for (const e of rosEmergencies(d.ros.filter((l) => l.t >= run.start && l.t <= run.end + 5))) {
     if (evStops.some((x) => Math.abs(x.t - e.t) < 2)) continue;
     // a bump driving into the dock that docked right after (no retry, no error) is how docking goes on some mowers
     const docked = run.events.find((x) => x.type === 'DOCKED' && x.t >= e.t && x.t - e.t <= 5);
     const failedAfter = run.events.some((x) => /DOCKING_(RETRY|FAILED)/.test(x.type) && x.t >= e.t && (!docked || x.t <= docked.t));
+    // lifted and somewhere else a moment later: carried, most likely
+    let lifted: string | null = null;
+    if (/LIFT/.test(e.reasons) && d.gps) {
+      const before = d.gps.filter((g) => g.t <= e.t).pop();
+      const after = d.gps.find((g) => g.t >= e.t + 1 && g.t <= e.t + 4);
+      if (before && after && Math.hypot(after.x - before.x, after.y - before.y) > 0.2)
+        lifted = `lifted and moved ${Math.hypot(after.x - before.x, after.y - before.y).toFixed(2)} m within ${(after.t - before.t).toFixed(0)} s: carried by hand?`;
+    }
     if (docked && !failedAfter) {
-      notes.push(`${stamp(e.t)}  ${e.inputs.join(', ') || e.reasons} while docking, docked ${(docked.t - e.t).toFixed(1)} s later`);
+      notes.push(`${stamp(e.t)}  ${e.inputs.join(', ') || e.reasons} while docking, docked ${(docked.t - e.t).toFixed(1)} s later${lifted ? `, ${lifted}` : ''}`);
       continue;
     }
     // without LATCH it clears by itself and the mower goes on, e.g. a short TIMEOUT_HIGH_LEVEL
@@ -476,10 +480,58 @@ export function buildDiagnosis(d: DiagnosisInput): string {
       notes.push(`${stamp(e.t)}  short emergency without latch (${e.reasons}), cleared by itself, the mower went on`);
       continue;
     }
-    problems.push({
-      t: e.t,
-      lines: [`${stamp(e.t)}  Emergency stop (ROS log only, no event): ${e.reasons}${e.inputs.length ? `; inputs: ${e.inputs.join(', ')}` : ''}`, ...context(e.t)],
-    });
+    const last = groups[groups.length - 1];
+    if (last && e.t - last.end <= 4) {
+      last.end = e.t;
+      last.n++;
+      e.reasons.split(', ').forEach((r) => last.reasons.add(r));
+      e.inputs.forEach((i) => last.inputs.add(i));
+      last.lifted ??= lifted;
+    } else groups.push({t: e.t, end: e.t, reasons: new Set(e.reasons.split(', ')), inputs: new Set(e.inputs), n: 1, lifted});
+  }
+  const resets = (from: number, to: number) => d.ros.filter((l) => l.t >= from && l.t <= to && /Got reset emergency action/.test(l.text)).length;
+  // a docking retry or failure right after stops: they were its cause
+  const gaveUp = (g: {end: number}) => run.events.find((x) => /DOCKING_(RETRY|FAILED)|UNDOCKING_FAILED/.test(x.type) && x.t >= g.end && x.t - g.end <= 10);
+  for (const g of groups) {
+    const what = `${[...g.reasons].join(', ')}${g.inputs.size ? `; inputs: ${[...g.inputs].join(', ')}` : ''}`;
+    const r = resets(g.t, g.end + 3);
+    const lines = [
+      g.n > 1
+        ? `${stamp(g.t)}  Emergency stop ${g.n}x within ${Math.round(g.end - g.t)} s (ROS log only, no event): ${what}`
+        : `${stamp(g.t)}  Emergency stop (ROS log only, no event): ${what}`,
+      ...context(g.t),
+    ];
+    if (g.n > 1 && dock && d.gps) {
+      // where each of them was, against the dock while it docked
+      const along = d.ros
+        .filter((l) => l.t >= g.t && l.t <= g.end && /Emergency reason changed from: '' to/.test(l.text))
+        .map((l) => d.gps!.filter((s) => s.t <= l.t + 0.5).pop())
+        .filter((s): s is GpsSample => !!s && (s.state === 'DOCKING' || s.state === 'UNDOCKING'))
+        .map((s) => (s.x - dock.position.x) * Math.cos(dock.heading) + (s.y - dock.position.y) * Math.sin(dock.heading));
+      if (along.length > 1)
+        lines.push(`    Each time ${cm(Math.abs(Math.max(...along)))} to ${cm(Math.abs(Math.min(...along)))} ${Math.max(...along) <= 0 ? 'short of' : 'around'} the dock point`);
+    }
+    if (r) lines.push(`    Reset ${r}x in between (a reset sent from an app, Home Assistant or the like; MowBite never resets by itself)`);
+    if (g.lifted) lines.push(`    ${g.lifted}`);
+    const after = gaveUp(g);
+    if (after) lines.push(`    Then: ${describe(after).text} at ${stamp(after.t)}`);
+    problems.push({t: g.t, lines});
+  }
+
+  const dockingDistance = (d.snapshot?.params ?? d.params)['/mower_logic/docking_distance'];
+  for (const {event, state} of withState(run.events).filter(({event, state}) => noteworthy(event, state))) {
+    const lines = [`${stamp(event.t)}  ${describe(event, state).text}` + (event.x !== undefined ? `  at ${event.x.toFixed(2)}, ${event.y?.toFixed(2)}` : '')];
+    let hint = explain(event, state, typeof d.params['/mower_logic/gps_timeout'] === 'number' ? (d.params['/mower_logic/gps_timeout'] as number) : undefined);
+    // "in front of the dock" only when it is: well past the dock point it drove all of docking_distance without contact
+    if (/DOCKING_(RETRY|FAILED)/.test(event.type) && event.reason === 'dock_failed' && dock && event.x !== undefined && event.y !== undefined) {
+      const along = (event.x - dock.position.x) * Math.cos(dock.heading) + (event.y - dock.position.y) * Math.sin(dock.heading);
+      if (along > 0.3)
+        hint = `It drove its whole docking distance${typeof dockingDistance === 'number' ? ` (docking_distance ${dockingDistance} m)` : ''} without reaching the contacts and backed out to try again: the wheels slipped at or against the dock, or the position (wheels only by then) is off.`;
+    }
+    if (hint) lines.push(`    ${hint}`);
+    const cause = groups.find((g) => gaveUp(g) === event);
+    if (cause) lines.push(`    Cause: the emergency stops from ${stamp(cause.t)} just before (see there), not the contacts`);
+    problems.push({t: event.t, lines: [...lines, ...context(event.t, event.x, event.y, event.type)]});
   }
   problems.sort((a, b) => a.t - b.t);
   if (!problems.length) out.push('none');
