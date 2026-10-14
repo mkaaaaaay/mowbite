@@ -10,18 +10,27 @@ interface Line {
   t?: number;
   level?: string;
   msg?: string;
+  node?: string;
 }
 
-// the planner's log lines as text, one a line: local time, level, message
-export function plannerLogText(answer: unknown): string {
-  const lines = (Array.isArray(answer) ? answer : (answer as {lines?: unknown})?.lines) as Line[] | undefined;
-  if (!Array.isArray(lines)) return '';
-  return lines
-    .map((l) => {
-      const t = typeof l?.t === 'number' ? new Date(l.t * 1000).toISOString() : '';
-      return `${t} ${String(l?.level ?? '')} ${String(l?.msg ?? '')}`.trim();
-    })
-    .join('\n') + '\n';
+const linesOf = (answer: unknown): Line[] => {
+  const l = Array.isArray(answer) ? answer : (answer as {lines?: unknown})?.lines;
+  return Array.isArray(l) ? l : [];
+};
+
+// the planner's own lines (planner.log, info too and whole tracebacks) and the warnings and errors of all the other
+// ros nodes (logs.recent) around them, sorted by time: local time, level, node, message, one a line. the planner's
+// own warnings are in both, they're taken from planner.log
+export function plannerLogText(planner: unknown, ros: unknown = []): string {
+  const own = linesOf(planner).map((l) => ({...l, node: 'planner'}));
+  const others = linesOf(ros).filter((l) => !String(l?.node ?? '').includes('slic3r_coverage_planner'));
+  return (
+    [...own, ...others]
+      .filter((l) => typeof l?.t === 'number')
+      .sort((a, b) => a.t! - b.t!)
+      .map((l) => `${new Date(l.t! * 1000).toISOString()} ${String(l.level ?? '')} ${String(l.node ?? '').replace(/^\//, '')}: ${String(l.msg ?? '')}`)
+      .join('\n') + '\n'
+  );
 }
 
 // only when the planner on the mower keeps its log (planner.log)
@@ -39,8 +48,8 @@ export function PlannerLogDownload({className}: {className?: string}) {
       disabled={state === 'busy'}
       onClick={() => {
         setState('busy');
-        callRpc(RPC.plannerLog, {}, 20000)
-          .then((a) => saveFile(`mowbite-planner-${new Date().toISOString().slice(0, 16).replace(':', '')}.log`, plannerLogText(a), 'text/plain'))
+        Promise.all([callRpc(RPC.plannerLog, {}, 20000), callRpc(RPC.logs, {limit: 1000}, 20000).catch(() => [])])
+          .then(([a, ros]) => saveFile(`mowbite-planner-${new Date().toISOString().slice(0, 16).replace(':', '')}.log`, plannerLogText(a, ros), 'text/plain'))
           .then(
             () => setState('idle'),
             () => setState('failed'),
