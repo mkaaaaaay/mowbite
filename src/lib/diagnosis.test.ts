@@ -55,6 +55,7 @@ describe('diagnosis', () => {
       plannerLines: [{t: 1040, level: 'INFO', msg: 'planned'}],
       sensors: [],
       drive: null,
+      snapshot: null,
     });
     for (const part of ['MowBite diagnosis', 'Problems', 'GPS the minute before', 'planner INFO', '/mower_logic/gps_timeout = 15', 'dock d: 1.000, 2.000', 'Raw: GPS'])
       expect(text).toContain(part);

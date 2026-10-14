@@ -17,6 +17,15 @@ if [ "$QUERY_STRING" = oldest ]; then
   exit 0
 fi
 num() { printf '%s' "$QUERY_STRING" | tr '&' '\n' | sed -n "s/^$1=\([0-9]*\)$/\1/p" | head -n1; }
+# ?snapshot=<unix time>&kind=params|planner: the settings kept when the run that started then left the dock (gpslog.sh),
+# the last one up to a minute after it. empty when there's none
+snap=$(num snapshot)
+if [ -n "$snap" ]; then
+  kind=$(printf '%s' "$QUERY_STRING" | tr '&' '\n' | sed -n 's/^kind=\(params\|planner\)$/\1/p')
+  f=$(ls "$D"/snapshot-*-"${kind:-params}".json 2>/dev/null | awk -F- -v t="$snap" '{ s = $(NF - 1) + 0 } s <= t + 60 && s >= t - 3600 { print }' | tail -n1)
+  [ -n "$f" ] && cat "$f"
+  exit 0
+fi
 # ?cells=<cm>: all days kept, summed up per square of that size for the coverage on the map. lines:
 # "<col> <row> <seconds> <without rtk fix> <without gps> <worst accuracy m> <wifi samples> <wifi dBm sum> <wifi worst>"
 # (col, row: x and y divided by the size, rounded down). only while mowing or driving, not standing in the dock

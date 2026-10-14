@@ -31,7 +31,15 @@ export function DiagnosisDownload({run}: {run: Run}) {
     const to = run.end + 60;
     const methods = await rpcMethods();
     const has = (m: string) => !!methods?.has(m);
-    const [kept, planner, gps, ros, plannerLog, sensorsText, drive] = await Promise.all([
+    const snapshot = (kind: 'params' | 'planner') =>
+      quiet(
+        mowerFetch(`${apiBase()}/cgi-bin/gpslog?snapshot=${Math.round(run.start)}&kind=${kind}`, {cache: 'no-store'}).then(async (r) => {
+          const text = r.ok ? (await r.text()).trim() : '';
+          return text ? (JSON.parse(text) as Record<string, unknown>) : null;
+        }),
+        null,
+      );
+    const [kept, planner, gps, ros, plannerLog, sensorsText, drive, snapParams, snapPlanner] = await Promise.all([
       quiet(loadKept(), null),
       has(RPC.plannerSettings) ? quiet(loadPlannerSettings(), null) : Promise.resolve(null),
       quiet(
@@ -45,23 +53,35 @@ export function DiagnosisDownload({run}: {run: Run}) {
         '',
       ),
       run.jobId && has(RPC.plannerDrive) ? quiet(callRpc(RPC.plannerDrive, {job_id: run.jobId}, 30000), null) : Promise.resolve(null),
+      snapshot('params'),
+      snapshot('planner'),
     ]);
+    // the planner's snapshot is its answer to planner.settings: {result: {settings: {name: {value}}}}
+    const snapSettings = (snapPlanner?.result as {settings?: Record<string, {value: unknown}>} | undefined)?.settings;
     const text = inEnglish(() =>
       buildDiagnosis({
-      run,
-      appVersion: APP_VERSION,
-      created: Date.now() / 1000,
-      methods: methods ? [...methods].sort() : null,
-      params,
-      kept: kept?.values ?? null,
-      map,
-      planner: planner ? Object.fromEntries(Object.entries(planner.settings).map(([k, s]) => [k, s.value])) : null,
-      gps,
-      gpsLimit: numParam(params, PARAM.maxPositionAccuracy) ?? 0.2,
-      ros,
-      plannerLines: plannerLog,
-      sensors: readSensors(sensorsText),
-      drive,
+        run,
+        appVersion: APP_VERSION,
+        created: Date.now() / 1000,
+        methods: methods ? [...methods].sort() : null,
+        params,
+        kept: kept?.values ?? null,
+        map,
+        planner: planner ? Object.fromEntries(Object.entries(planner.settings).map(([k, s]) => [k, s.value])) : null,
+        gps,
+        gpsLimit: numParam(params, PARAM.maxPositionAccuracy) ?? 0.2,
+        ros,
+        plannerLines: plannerLog,
+        sensors: readSensors(sensorsText),
+        drive,
+        snapshot:
+          snapParams || snapSettings
+            ? {
+                t: run.start,
+                params: snapParams,
+                planner: snapSettings ? Object.fromEntries(Object.entries(snapSettings).map(([k, v]) => [k, v?.value])) : null,
+              }
+            : null,
       }),
     );
     const d = new Date(run.start * 1000);

@@ -18,3 +18,8 @@ RPC_LOGS=logs.recent
 TOPIC_PARAMS=params/json
 RPC_SET_PARAMS=params.set
 PARAM_MOW_ANGLE_OFFSET=/mower_logic/mow_angle_offset
+# the charging contacts, for the gps log around docking problems
+TOPIC_CHARGE_VOLTAGE=sensors/om_v_charge/data
+TOPIC_CHARGE_CURRENT=sensors/om_charge_current/data
+# the MowBite Planner's settings (with the planner only)
+RPC_PLANNER_SETTINGS=planner.settings

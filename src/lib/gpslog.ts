@@ -11,21 +11,51 @@ export interface GpsSample {
   y: number;
   acc: number | null; // m, null without any gps position
   wifi?: number | null; // dBm, null when the container couldn't read it
+  vCharge?: number | null; // V at the charging contacts
+  iCharge?: number | null; // A
+  // the accuracy didn't change while the mower drove on: a value left over, not a measurement (gps paused)
+  stale?: boolean;
 }
 
-// "<unix time> <state> <x> <y> <accuracy> [wifi dBm]" per line, 999 for no gps
+// "<unix time> <state> <x> <y> <accuracy> [wifi dBm] [charge V] [charge A]" per line, 999 for no gps, - for unknown
 export function readGpsLog(text: string): GpsSample[] {
   const out: GpsSample[] = [];
   for (const line of text.split('\n')) {
     const p = line.trim().split(' ');
-    // a sixth column, the wifi signal, since it's kept too
-    if (p.length !== 5 && p.length !== 6) continue;
+    // more columns since more is kept: the wifi signal, then the charging contacts
+    if (p.length < 5 || p.length > 8) continue;
     const [t, x, y, acc] = [Number(p[0]), Number(p[2]), Number(p[3]), Number(p[4])];
     if (![t, x, y, acc].every(Number.isFinite)) continue;
-    const wifi = p.length === 6 && p[5] !== '-' && Number.isFinite(Number(p[5])) ? Number(p[5]) : null;
-    out.push({t, state: p[1], x, y, acc: acc >= 999 ? null : acc, ...(p.length === 6 ? {wifi} : {})});
+    const col = (i: number) => (p[i] !== undefined && p[i] !== '-' && Number.isFinite(Number(p[i])) ? Number(p[i]) : null);
+    out.push({
+      t,
+      state: p[1],
+      x,
+      y,
+      acc: acc >= 999 ? null : acc,
+      ...(p.length >= 6 ? {wifi: col(5)} : {}),
+      ...(p.length >= 8 ? {vCharge: col(6), iCharge: col(7)} : {}),
+    });
   }
-  return out;
+  return markStale(out);
+}
+
+// the gps is paused for the dock approach before it says so: the accuracy stays the same to the mm while the mower
+// drives on, then there's none. such a stretch (4 samples or more, 20 cm or more, right before no gps or while docking)
+// is a value left over after its first sample, not measured. a good fix can also stay at 2.0 cm for a while, that's
+// why it has to end like this
+export function markStale(samples: GpsSample[]): GpsSample[] {
+  let i = 0;
+  while (i < samples.length) {
+    let j = i + 1;
+    while (j < samples.length && samples[i].acc !== null && samples[j].acc === samples[i].acc) j++;
+    const moved = Math.hypot(samples[j - 1].x - samples[i].x, samples[j - 1].y - samples[i].y);
+    const docking = samples[i].state === 'DOCKING' || samples[i].state === 'UNDOCKING';
+    const thenNone = j < samples.length && samples[j].acc === null;
+    if (j - i >= 4 && moved >= 0.2 && (thenNone || docking)) for (let k = i + 1; k < j; k++) samples[k].stale = true;
+    i = j;
+  }
+  return samples;
 }
 
 // the time of the first line kept, null when the container keeps none (older one). asked once per page
@@ -64,10 +94,12 @@ export interface GpsBefore {
 
 // how the gps was in the window (s) before a moment: a sample counts until the next one, at most 2 s
 export function gpsBefore(samples: readonly GpsSample[], t: number, limit = 0.2, window = 60): GpsBefore | null {
-  const offOnPurpose = (s: GpsSample) => s.acc === null && (s.state === 'DOCKING' || s.state === 'UNDOCKING');
+  // a value left over says nothing either way, it's left out like the dock approach
+  const dockApproach = (s: GpsSample) => s.acc === null && (s.state === 'DOCKING' || s.state === 'UNDOCKING');
+  const offOnPurpose = (s: GpsSample) => dockApproach(s) || !!s.stale;
   const all = samples.filter((s) => s.t >= t - window && s.t <= t + 1);
   const last = all.filter((s) => s.t <= t + 1).pop();
-  const dockOff = !!last && t - last.t <= 3 && offOnPurpose(last);
+  const dockOff = !!last && t - last.t <= 3 && dockApproach(last);
   const inside = all.filter((s) => !offOnPurpose(s));
   if (!all.length) return null;
   let worst: number | null = 0;
@@ -85,7 +117,7 @@ export function gpsBefore(samples: readonly GpsSample[], t: number, limit = 0.2,
       worst = null;
     } else if (worst !== null && s.acc > worst) worst = s.acc;
   });
-  const at = last && t - last.t <= 3 && !dockOff ? {acc: last.acc, quality: gpsQuality(last.acc ?? 999, limit)} : undefined;
+  const at = last && t - last.t <= 3 && !offOnPurpose(last) ? {acc: last.acc, quality: gpsQuality(last.acc ?? 999, limit)} : undefined;
   return {dockOff, at, worst, noFix: Math.round(noFix), none: Math.round(none), covered: Math.round(covered)};
 }
 

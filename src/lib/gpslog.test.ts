@@ -51,6 +51,15 @@ describe('gps log', () => {
     expect(b.worst).toBe(0.02);
   });
 
+  it('marks an accuracy that stays the same while the mower drives on', () => {
+    const s = readGpsLog([0, 1, 2, 3, 4, 5].map((i) => `${i} DOCKING ${i * 0.1} 0 ${i < 5 ? '0.050' : '0.040'} -40 0.1 0`).join('\n'));
+    expect(s.map((x) => !!x.stale)).toEqual([false, true, true, true, true, false]);
+    expect(s[0].vCharge).toBe(0.1);
+    // standing still it's just the same, and a good fix while mowing may stay at 2 cm
+    expect(readGpsLog([0, 1, 2, 3, 4].map((i) => `${i} IDLE 0 0 0.050`).join('\n')).some((x) => x.stale)).toBe(false);
+    expect(readGpsLog([0, 1, 2, 3, 4, 5].map((i) => `${i} MOWING ${i * 0.1} 0 0.020`).join('\n')).some((x) => x.stale)).toBe(false);
+  });
+
   it('writes a csv', () => {
     expect(gpsCsv(log([[0, 0.02], [1, null]]))).toBe(
       'time,state,x,y,accuracy_m,wifi_dbm\n1970-01-01T00:00:00.000Z,MOWING,1.000,2.000,0.020,\n1970-01-01T00:00:01.000Z,MOWING,1.000,2.000,,\n',
