@@ -750,7 +750,8 @@ function MapView({
     if (!coverage || coverMode === 'off') return null;
     const size = CELL_M * scale;
     return (
-      <g className={[styles.cover, pickingPoints ? styles.coverQuiet : ''].join(' ')}>
+      // taps go through to the map, areas stay selectable: the square under a tap is found there (onClick of the svg)
+      <g className={[styles.cover, styles.coverQuiet].join(' ')}>
         {coverage
           .filter((c) => c.seconds >= MIN_SECONDS)
           .map((c) => {
@@ -767,10 +768,6 @@ function MapView({
                 y={y}
                 width={size}
                 height={size}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setCoverCell(coverCell === c ? null : c);
-                }}
               />
             );
           })}
@@ -1443,6 +1440,14 @@ function MapView({
       }}
       onClick={(e) => {
         setActive(null);
+        // with the coverage on, a tap also shows the numbers of the square under it (or closes them off the squares)
+        if (!pickingPoints && coverMode !== 'off' && coverage) {
+          const local = clientToLocal(e.clientX, e.clientY);
+          const c = local
+            ? coverage.find((q) => q.seconds >= MIN_SECONDS && local[0] >= q.x && local[0] < q.x + CELL_M && local[1] >= q.y && local[1] < q.y + CELL_M)
+            : undefined;
+          setCoverCell(c && c !== coverCell ? c : null);
+        }
         if (!pickingPoints && !(e.target as Element).closest('[data-area]')) onClickEmpty?.();
         if (!pickingPoints || !onCanvasClick) return;
         const local = clientToLocal(e.clientX, e.clientY);

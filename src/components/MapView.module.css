@@ -723,10 +723,9 @@
 /* where gps or wifi were good, ok or bad, squares of half a metre under everything the mower drew */
 .cover rect {
   stroke: none;
-  cursor: pointer;
 }
 
-/* while points are being set, taps go through to the map */
+/* taps go through to the map and its areas, the square under a tap is looked up there */
 .coverQuiet {
   pointer-events: none;
 }
