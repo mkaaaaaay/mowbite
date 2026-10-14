@@ -287,7 +287,13 @@ export function buildDiagnosis(d: DiagnosisInput): string {
     sensors.set(b.id, {lo: Math.min(s.lo, b.lo), hi: Math.max(s.hi, b.hi)});
   }
   if (sensors.size) out.push(`Sensors (5 min buckets): ${[...sensors].sort().map(([id, s]) => `${id} ${+s.lo.toFixed(2)}..${+s.hi.toFixed(2)}`).join(', ')}`);
-  out.push(`Logs in this file: OpenMower events ${run.events.length}, ROS warnings/errors ${d.ros.length}, planner lines ${d.plannerLines?.length ?? 'none (no planner.log)'}, GPS samples ${d.gps?.length ?? 'none'}`);
+  // what's in the timeline, from a minute before the run to a minute after
+  const inRun = (t: number) => t >= from && t <= to;
+  out.push(
+    `Logs in this file: OpenMower events ${run.events.length}, ROS warnings/errors ${d.ros.filter((l) => inRun(l.t)).length}, planner lines ${
+      d.plannerLines ? d.plannerLines.filter((l) => inRun(l.t)).length + (d.plannerLines.some((l) => l.t < from) ? '' : ' (the planner keeps them only since its last start)') : 'none (no planner.log)'
+    }, GPS samples ${d.gps?.length ?? 'none'}`,
+  );
 
   h('Problems');
   const dock = d.map?.docking_stations[0];
@@ -326,6 +332,13 @@ export function buildDiagnosis(d: DiagnosisInput): string {
   const notes: string[] = [];
   for (const e of rosEmergencies(d.ros.filter((l) => l.t >= run.start && l.t <= run.end + 5))) {
     if (evStops.some((x) => Math.abs(x.t - e.t) < 2)) continue;
+    // a bump driving into the dock that docked right after (no retry, no error) is how docking goes on some mowers
+    const docked = run.events.find((x) => x.type === 'DOCKED' && x.t >= e.t && x.t - e.t <= 5);
+    const failedAfter = run.events.some((x) => /DOCKING_(RETRY|FAILED)/.test(x.type) && x.t >= e.t && (!docked || x.t <= docked.t));
+    if (docked && !failedAfter) {
+      notes.push(`${stamp(e.t)}  ${e.inputs.join(', ') || e.reasons} while docking, docked ${(docked.t - e.t).toFixed(1)} s later`);
+      continue;
+    }
     // without LATCH it clears by itself and the mower goes on, e.g. a short TIMEOUT_HIGH_LEVEL
     if (!e.latched) {
       notes.push(`${stamp(e.t)}  short emergency without latch (${e.reasons}), cleared by itself, the mower went on`);

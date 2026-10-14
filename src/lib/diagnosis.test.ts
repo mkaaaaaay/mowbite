@@ -47,6 +47,29 @@ describe('diagnosis', () => {
     expect(whereOnMap(map, 5, 1)).toBe('(5.00, 1.00), 100 cm outside mow "Garten"');
   });
 
+  it('a bump right before docking is a note, not a problem', () => {
+    const run: Run = {start: 0, end: 100, events: [{id: 'd', type: 'DOCKED', t: 50.7}], areas: [], bladeSeconds: 0, problems: 0, outcome: 'done'};
+    const text = buildDiagnosis({
+      run,
+      appVersion: '1',
+      created: 0,
+      methods: null,
+      params: {},
+      kept: null,
+      map: null,
+      planner: null,
+      gps: null,
+      gpsLimit: 0.2,
+      ros: [{t: 50, level: 'WARN', text: "mower_comms_v2: Emergency reason changed from: '' to: 'LATCH, COLLISION_MULTIPLE'"}],
+      plannerLines: [],
+      sensors: [],
+      drive: null,
+      snapshot: null,
+    });
+    expect(text).toContain('COLLISION_MULTIPLE while docking, docked 0.7 s later');
+    expect(text).toMatch(/Problems\n-+\nnone/);
+  });
+
   it('leaves out ros filler lines', () => {
     expect(noise('mower_comms_v2: Active Inputs bitmask: 32')).toBe(true);
     expect(noise('mower_comms_v2: "Bumper rear left" is active')).toBe(false);
