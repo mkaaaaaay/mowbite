@@ -505,8 +505,9 @@ export function buildDiagnosis(d: DiagnosisInput): string {
       // where each of them was, against the dock while it docked
       const along = d.ros
         .filter((l) => l.t >= g.t && l.t <= g.end && /Emergency reason changed from: '' to/.test(l.text))
-        .map((l) => d.gps!.filter((s) => s.t <= l.t + 0.5).pop())
-        .filter((s): s is GpsSample => !!s && (s.state === 'DOCKING' || s.state === 'UNDOCKING'))
+        // the same sample as "Where" takes for a single stop
+        .map((l) => d.gps!.filter((s) => s.t <= l.t + 1).pop())
+        .filter((s): s is GpsSample => !!s)
         .map((s) => (s.x - dock.position.x) * Math.cos(dock.heading) + (s.y - dock.position.y) * Math.sin(dock.heading));
       if (along.length > 1)
         lines.push(`    Each time ${cm(Math.abs(Math.max(...along)))} to ${cm(Math.abs(Math.min(...along)))} ${Math.max(...along) <= 0 ? 'short of' : 'around'} the dock point`);
