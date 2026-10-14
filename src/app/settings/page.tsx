@@ -16,6 +16,7 @@ import {loadPlannerSettings, savePlannerSettings, slic3rPlans, usePlannerSetting
 import Link from 'next/link';
 import {MowerSizesSettings} from '@/components/MowerSizesSettings';
 import {NotifySettings} from '@/components/NotifySettings';
+import {PlannerLogDownload} from '@/components/PlannerLog';
 
 const noop = () => () => {};
 
@@ -310,9 +311,12 @@ export default function SettingsPage() {
           <section className={styles.card}>
             <h2>{tr('Planner and mower sizes')}</h2>
             <p className={styles.dim}>{tr('Everything for the planner is with the map now: under the map while no area is selected, and with an area its own.')}</p>
-            <Link href="/map" className={styles.pillButton}>
-              {tr('To the map')}
-            </Link>
+            <div className={styles.pillRow}>
+              <Link href="/map" className={styles.pillButton}>
+                {tr('To the map')}
+              </Link>
+              <PlannerLogDownload className={styles.pillButton} />
+            </div>
           </section>
         )}
         {planner && (

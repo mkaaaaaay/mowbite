@@ -262,3 +262,10 @@ a.pillButton {
   margin-top: 8px;
   max-width: 200px;
 }
+
+/* buttons side by side in a card */
+.pillRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

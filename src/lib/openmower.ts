@@ -47,6 +47,8 @@ export const RPC = {
   // sets parameters of nodes with a dynamic_reconfigure server while they run, {params: {name: value}}. the values
   // aren't stored, a restart brings the yaml's back
   setParams: 'params.set',
+  // the MowBite Planner's last log lines, {since?, limit?} -> {lines: [{t, level, msg}]}, oldest first
+  plannerLog: 'planner.log',
 } as const;
 
 export const ACTION = {

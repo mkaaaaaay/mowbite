@@ -8,6 +8,7 @@ printf 'window.__MOWER_CONFIG__ = {mqttUrl: "%s", mqttPrefix: "%s"};\n' \
 
 /recorder.sh &
 /logkeeper.sh &
+/gpslog.sh &
 /battery.sh &
 # push messages, only once a topic is set on the settings page
 /notify.sh &

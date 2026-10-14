@@ -45,3 +45,10 @@
   cursor: pointer;
   text-decoration: none;
 }
+
+/* how the gps was before a problem */
+.gps {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 12px;
+}

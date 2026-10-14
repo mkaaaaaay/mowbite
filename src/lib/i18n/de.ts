@@ -1162,6 +1162,16 @@ const de: Record<string, string> = {
   "The mower didn't take the mowing direction ({detail}°), it mows the way it was set": "Der Mäher hat die Mährichtung ({detail}°) nicht angenommen, er mäht so, wie er eingestellt war",
   "For all areas": "Für alle Flächen",
   "Lanes and outline passes": "Bahnen und Randrunden",
+  "{acc} at that moment ({quality})": "{acc} in dem Moment ({quality})",
+  "no GPS position at that moment": "in dem Moment keine GPS-Position",
+  "RTK fix the whole minute before, at worst {acc}": "die ganze Minute davor RTK-Fix, schlechtestens {acc}",
+  "no RTK fix for {s} s of the minute before, at worst {acc}": "in der Minute davor {s} s ohne RTK-Fix, schlechtestens {acc}",
+  "no GPS": "kein GPS",
+  "The mower may not have been where it thought it was.": "Der Mäher war womöglich nicht da, wo er dachte.",
+  "Hide GPS log": "GPS-Log ausblenden",
+  "GPS log": "GPS-Log",
+  "Download GPS log": "GPS-Log herunterladen",
+  "Download the planner log": "Planer-Log herunterladen",
 };
 
 export default de;

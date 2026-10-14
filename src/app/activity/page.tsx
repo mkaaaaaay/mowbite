@@ -7,6 +7,7 @@ import {describe, eventSource, explain, groupRuns, noteworthy, rawLine, OUTCOMES
 import {useDragScroll} from '@/hooks/useDragScroll';
 import {eventsOfDay, historyDays, localDays, type DayEvents} from '@/lib/history';
 import {RosLogAround} from '@/components/RosLog';
+import {GpsAround, GpsDownload} from '@/components/GpsLog';
 import Link from 'next/link';
 import {useEffect, useState} from 'react';
 import styles from './page.module.css';
@@ -124,6 +125,7 @@ function ProblemItem({run, next, event, state, where}: {run: Run; next?: Run; ev
         <button className={styles.rawToggle} onClick={() => setRaw(!raw)}>
           {raw ? tr('Hide entry') : tr('Show entry')}
         </button>
+        <GpsAround t={event.t} limit={numParam(params, PARAM.maxPositionAccuracy)} />
         <RosLogAround t={event.t} />
       </div>
       {raw && <RawEntry event={event} file={`${PATHS.eventHistory}${where.get(event.id)?.file ?? ''}`} line={where.get(event.id)?.line ?? 0} />}
@@ -182,6 +184,7 @@ function RunCard({run, next, where, progress}: {run: Run; next?: Run; where: Whe
       <div className={styles.runActions}>
         {!progress && <button onClick={() => setOpen(!open)}>{open ? tr('Hide details') : tr('Details')}</button>}
         {run.jobId && <Link href={`/map?job=${run.jobId}`}>{tr('Show track')}</Link>}
+        <GpsDownload from={run.start} to={run.end} />
       </div>
 
       {open && !progress && <Timeline events={run.events} />}

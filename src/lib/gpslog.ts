@@ -1,0 +1,88 @@
+import {apiBase, mowerFetch} from './mowers';
+import {gpsQuality, type GpsQuality} from './status';
+
+// the position and gps accuracy the container keeps once a second while the mower is out of the dock
+// (docker/gpslog.sh, 14 days). OpenMower's own track has neither times nor the accuracy
+
+export interface GpsSample {
+  t: number; // unix seconds
+  state: string;
+  x: number;
+  y: number;
+  acc: number | null; // m, null without any gps position
+}
+
+// "<unix time> <state> <x> <y> <accuracy>" per line, 999 for no gps
+export function readGpsLog(text: string): GpsSample[] {
+  const out: GpsSample[] = [];
+  for (const line of text.split('\n')) {
+    const p = line.trim().split(' ');
+    if (p.length !== 5) continue;
+    const [t, x, y, acc] = [Number(p[0]), Number(p[2]), Number(p[3]), Number(p[4])];
+    if (![t, x, y, acc].every(Number.isFinite)) continue;
+    out.push({t, state: p[1], x, y, acc: acc >= 999 ? null : acc});
+  }
+  return out;
+}
+
+// the time of the first line kept, null when the container keeps none (older one). asked once per page
+let since: Promise<number | null> | null = null;
+export function gpsLogSince(): Promise<number | null> {
+  since ??= mowerFetch(`${apiBase()}/cgi-bin/gpslog?oldest`, {cache: 'no-store'})
+    .then(async (res) => (res.ok ? Number((await res.text()).trim()) || null : null))
+    .catch(() => null);
+  return since;
+}
+
+// at most a day at a time, longer runs are asked in pieces
+export async function gpsLog(from: number, to: number): Promise<GpsSample[]> {
+  const out: GpsSample[] = [];
+  for (let a = Math.floor(from); a < to; a += 86400) {
+    const res = await mowerFetch(`${apiBase()}/cgi-bin/gpslog?from=${a}&to=${Math.ceil(Math.min(to, a + 86400))}`, {cache: 'no-store'});
+    if (!res.ok) throw new Error(String(res.status));
+    out.push(...readGpsLog(await res.text()));
+  }
+  return out;
+}
+
+export interface GpsBefore {
+  // at the moment (the last sample up to 3 s before it), undefined when there's none that close
+  at?: {acc: number | null; quality: GpsQuality};
+  // the worst accuracy in the window, null when there was no gps at all for a while
+  worst: number | null;
+  // seconds of the window without an rtk fix, and of those without any gps position
+  noFix: number;
+  none: number;
+  // how much of the window the samples cover, s
+  covered: number;
+}
+
+// how the gps was in the window (s) before a moment: a sample counts until the next one, at most 2 s
+export function gpsBefore(samples: readonly GpsSample[], t: number, limit = 0.2, window = 60): GpsBefore | null {
+  const inside = samples.filter((s) => s.t >= t - window && s.t <= t + 1);
+  if (!inside.length) return null;
+  let worst: number | null = 0;
+  let noFix = 0;
+  let none = 0;
+  let covered = 0;
+  inside.forEach((s, i) => {
+    const until = Math.min(inside[i + 1]?.t ?? t, t, s.t + 2);
+    const d = Math.max(0, until - s.t);
+    covered += d;
+    const q = gpsQuality(s.acc ?? 999, limit);
+    if (q !== 'fix') noFix += d;
+    if (s.acc === null) {
+      none += d;
+      worst = null;
+    } else if (worst !== null && s.acc > worst) worst = s.acc;
+  });
+  const last = inside.filter((s) => s.t <= t + 1).pop();
+  const at = last && t - last.t <= 3 ? {acc: last.acc, quality: gpsQuality(last.acc ?? 999, limit)} : undefined;
+  return {at, worst, noFix: Math.round(noFix), none: Math.round(none), covered: Math.round(covered)};
+}
+
+// as a file to open in a spreadsheet: time, state, x, y, accuracy in m (empty without gps)
+export function gpsCsv(samples: readonly GpsSample[]): string {
+  const rows = samples.map((s) => [new Date(s.t * 1000).toISOString(), s.state, s.x.toFixed(3), s.y.toFixed(3), s.acc === null ? '' : s.acc.toFixed(3)].join(','));
+  return ['time,state,x,y,accuracy_m', ...rows].join('\n') + '\n';
+}
