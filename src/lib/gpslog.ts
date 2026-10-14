@@ -41,8 +41,8 @@ export function readGpsLog(text: string): GpsSample[] {
 }
 
 // the gps is paused for the dock approach before it says so: the accuracy stays the same to the mm while the mower
-// drives on, then there's none. such a stretch (4 samples or more, 20 cm or more, right before no gps or while docking)
-// is a value left over after its first sample, not measured. a good fix can also stay at 2.0 cm for a while, that's
+// drives on, then there's none. such a stretch (while docking 3 samples or more, otherwise 4 or more over 20 cm right
+// before no gps) is a value left over after its first sample, not measured. a good fix can also stay at 2.0 cm for a while, that's
 // why it has to end like this
 export function markStale(samples: GpsSample[]): GpsSample[] {
   let i = 0;
@@ -52,7 +52,8 @@ export function markStale(samples: GpsSample[]): GpsSample[] {
     const moved = Math.hypot(samples[j - 1].x - samples[i].x, samples[j - 1].y - samples[i].y);
     const docking = samples[i].state === 'DOCKING' || samples[i].state === 'UNDOCKING';
     const thenNone = j < samples.length && samples[j].acc === null;
-    if (j - i >= 4 && moved >= 0.2 && (thenNone || docking)) for (let k = i + 1; k < j; k++) samples[k].stale = true;
+    // driving into the dock is slow, 3 the same while it moves at all are enough there
+    if ((docking && j - i >= 3 && moved >= 0.05) || (j - i >= 4 && moved >= 0.2 && thenNone)) for (let k = i + 1; k < j; k++) samples[k].stale = true;
     i = j;
   }
   return samples;

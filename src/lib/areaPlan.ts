@@ -196,8 +196,17 @@ export async function mowerPlanAnswer(req: PlanRequest, viaPlanner = false): Pro
   return {method: RPC.areaPlan, answer: await callRpc(RPC.areaPlan, plain, 20000)};
 }
 
-// the plan in the order it's driven, for showing the progress of a run
-export async function mowerPaths(areaId: string): Promise<PlanPath[] | null> {
-  if (!(await rpcMethods())?.has(RPC.areaPlan)) return null;
-  return readPaths(await callRpc(RPC.areaPlan, {area_id: areaId}, 20000));
+// the plan in the order it's driven, for showing the progress of a run. asked once per area and map: the dashboard
+// and the map ask for it at the same time, a failed answer is asked again next time
+const asked = new WeakMap<object, Map<string, Promise<PlanPath[] | null>>>();
+export function mowerPaths(areaId: string, map: object): Promise<PlanPath[] | null> {
+  let forMap = asked.get(map);
+  if (!forMap) asked.set(map, (forMap = new Map()));
+  let p = forMap.get(areaId);
+  if (!p) {
+    p = (async () => ((await rpcMethods())?.has(RPC.areaPlan) ? readPaths(await callRpc(RPC.areaPlan, {area_id: areaId}, 20000)) : null))();
+    forMap.set(areaId, p);
+    p.catch(() => forMap.delete(areaId));
+  }
+  return p;
 }

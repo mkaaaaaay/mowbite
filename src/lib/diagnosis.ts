@@ -1,6 +1,6 @@
 import {describe, explain, noteworthy, OUTCOMES, withState, type MowerEvent, type Run} from './events';
 import {gpsBefore, type GpsSample} from './gpslog';
-import {polygonArea} from './geometry';
+import {containsPoint, polygonArea} from './geometry';
 import type {MowerMap} from '@/hooks/useMowerMap';
 import type {RosLogLine} from './roslog';
 
@@ -107,9 +107,11 @@ const band = (s: GpsSample, limit: number): Band =>
         : s.acc <= limit
           ? 'float'
           : 'poor';
+// told by the receiver's estimated accuracy, not a fix flag (OpenMower doesn't pass that on): up to 5 cm is what an RTK
+// fix gives
 const BAND_TEXT: Record<Band, string> = {
-  fix: 'RTK fix',
-  float: 'no RTK fix, still usable',
+  fix: 'at most 5 cm, RTK fix level',
+  float: 'over 5 cm, still usable',
   poor: 'too inaccurate, the mower ignores it',
   none: 'no GPS',
   dock: 'off in the dock approach (normal)',
@@ -121,7 +123,9 @@ export function gpsChanges(samples: readonly GpsSample[], limit: number): Line[]
   const out: Line[] = [];
   let cur: Band | null = null;
   for (const s of samples) {
-    const b = band(s, limit);
+    let b = band(s, limit);
+    // 5.0 and 5.1 cm back and forth isn't news: once at most 5 cm, it takes over 6 cm to count as worse
+    if (cur === 'fix' && b === 'float' && s.acc !== null && s.acc <= 0.06) b = 'fix';
     if (b === cur) continue;
     cur = b;
     const wifi = s.wifi === undefined || s.wifi === null ? '' : `, Wi-Fi ${s.wifi} dBm`;
@@ -150,11 +154,11 @@ export function gpsSummary(samples: readonly GpsSample[], limit: number): string
   const pct = (v: number) => `${all ? Math.round((v / all) * 100) : 0} %`;
   const wifi = samples.map((s) => s.wifi).filter((w): w is number => typeof w === 'number');
   const lines = [
-    `GPS: RTK fix ${pct(time.fix)} of the time, without fix but usable ${mins(time.float)}, too inaccurate ${mins(time.poor)}, no GPS ${mins(time.none)}` +
+    `GPS (by its accuracy): at most 5 cm ${pct(time.fix)} of the time, over 5 cm but usable ${mins(time.float)}, too inaccurate ${mins(time.poor)}, no GPS ${mins(time.none)}` +
       (time.dock ? `, off in the dock approach ${mins(time.dock)}` : '') +
       (time.stale ? `, accuracy not updated ${mins(time.stale)} (left out of the share)` : '') +
       `. Worst accuracy ${cm(worst)}.`,
-    gap.to > gap.from ? `Longest stretch without RTK fix: ${mins(gap.to - gap.from)} from ${stamp(gap.from)}.` : 'Never without RTK fix outside the dock approach.',
+    gap.to > gap.from ? `Longest stretch over 5 cm: ${mins(gap.to - gap.from)} from ${stamp(gap.from)}.` : 'Never over 5 cm outside the dock approach.',
   ];
   if (wifi.length) {
     const sorted = [...wifi].sort((a, b) => a - b);
@@ -166,26 +170,53 @@ export function gpsSummary(samples: readonly GpsSample[], limit: number): string
 
 // emergency stops that only show in the ros log (mower_comms_v2 on v2 hardware): OpenMower writes no event for many of
 // them, e.g. a bumper while docking. one for each time the reasons go from none to some, with the inputs active then
-export function rosEmergencies(ros: readonly RosLogLine[]): {t: number; reasons: string; inputs: string[]}[] {
-  const out: {t: number; reasons: string; inputs: string[]}[] = [];
-  let active = false;
+export function rosEmergencies(ros: readonly RosLogLine[]): {t: number; reasons: string; inputs: string[]; latched: boolean}[] {
+  const out: {t: number; reasons: string[]; inputs: string[]; latched: boolean}[] = [];
   for (const l of ros) {
-    const m = l.text.match(/Emergency reason changed from: '.*' to: '(.*)'$/);
+    const m = l.text.match(/Emergency reason changed from: '(.*)' to: '(.*)'$/);
     if (!m) continue;
-    const real = m[1]
-      .split(',')
-      .map((r) => r.trim())
-      .filter((r) => r && r !== 'LATCH');
-    if (real.length && !active) {
-      const inputs = ros
-        .filter((i) => Math.abs(i.t - l.t) <= 0.6)
-        .map((i) => i.text.match(/"(.+)" is active$/)?.[1])
-        .filter((i): i is string => !!i);
-      out.push({t: l.t, reasons: real.join(', '), inputs: [...new Set(inputs)]});
-    }
-    active = real.length > 0;
+    const list = (v: string) => v.split(',').map((r) => r.trim()).filter(Boolean);
+    const to = list(m[2]);
+    const real = to.filter((r) => r !== 'LATCH');
+    if (!real.length) continue;
+    const inputs = ros
+      .filter((i) => Math.abs(i.t - l.t) <= 0.6)
+      .map((i) => i.text.match(/"(.+)" is active$/)?.[1])
+      .filter((i): i is string => !!i);
+    const last = out[out.length - 1];
+    // from nothing at all: a new stop. from something (LATCH held): more reasons of the same one, e.g. one bump that
+    // shows as COLLISION_MULTIPLE and then COLLISION. a stop without LATCH clears without a line, the next one starts
+    // from nothing again
+    if (list(m[1]).length && last) {
+      last.reasons = [...new Set([...last.reasons, ...real])];
+      last.inputs = [...new Set([...last.inputs, ...inputs])];
+      last.latched ||= to.includes('LATCH');
+    } else out.push({t: l.t, reasons: real, inputs: [...new Set(inputs)], latched: to.includes('LATCH')});
   }
-  return out;
+  return out.map((e) => ({...e, reasons: e.reasons.join(', ')}));
+}
+
+// where on the map: in which area (or how far outside the nearest) and how far from its edge
+export function whereOnMap(map: MowerMap, x: number, y: number): string {
+  const edgeDist = (o: {x: number; y: number}[]) => {
+    let best = Infinity;
+    for (let i = 0; i < o.length; i++) {
+      const a = o[i];
+      const b = o[(i + 1) % o.length];
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const l = dx * dx + dy * dy;
+      const k = l ? Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / l)) : 0;
+      best = Math.min(best, Math.hypot(x - a.x - k * dx, y - a.y - k * dy));
+    }
+    return best;
+  };
+  const name = (a: MowerMap['areas'][number]) => `${a.properties.type ?? 'area'} "${a.properties.name ?? a.id}"`;
+  const at = `(${x.toFixed(2)}, ${y.toFixed(2)})`;
+  const inside = map.areas.filter((a) => a.outline.length > 2 && containsPoint(a.outline, x, y));
+  if (inside.length) return `${at} in ${inside.map((a) => `${name(a)}, ${cm(edgeDist(a.outline))} inside its edge`).join('; ')}`;
+  const near = map.areas.filter((a) => a.outline.length > 2).sort((a, b) => edgeDist(a.outline) - edgeDist(b.outline))[0];
+  return near ? `${at}, ${cm(edgeDist(near.outline))} outside ${name(near)}` : at;
 }
 
 // where a position lies from the dock: along the way the mower drives in (+ past the dock point) and to the side
@@ -261,18 +292,23 @@ export function buildDiagnosis(d: DiagnosisInput): string {
   h('Problems');
   const dock = d.map?.docking_stations[0];
   const problems: {t: number; lines: string[]}[] = [];
-  const context = (t: number, x?: number, y?: number) => {
+  const context = (t: number, x?: number, y?: number, type?: string) => {
     const lines: string[] = [];
     const sample = d.gps?.filter((s) => s.t <= t + 1).pop();
     const px = x ?? sample?.x;
     const py = y ?? sample?.y;
-    if (dock && px !== undefined && py !== undefined) lines.push(`    Where: ${fromDock(px, py, dock)}`);
+    // from the dock while docking or undocking, on the map otherwise
+    const atDock = /DOCK/.test(type ?? '') || sample?.state === 'DOCKING' || sample?.state === 'UNDOCKING';
+    if (px !== undefined && py !== undefined) {
+      if (atDock && dock) lines.push(`    Where: ${fromDock(px, py, dock)}`);
+      else if (d.map) lines.push(`    Where: ${whereOnMap(d.map, px, py)}`);
+    }
     const src = d.gps ? positionSource(d.gps, t) : '';
     if (src) lines.push(`    ${src}`);
     const b = d.gps && gpsBefore(d.gps, t, d.gpsLimit);
     if (b)
       lines.push(
-        `    GPS the minute before: ${b.dockOff ? 'off in the dock approach (normal); ' : ''}${b.noFix} s without RTK fix, ${b.none} s no GPS, worst ${b.worst === null ? 'no GPS' : cm(b.worst)}` +
+        `    GPS the minute before: ${b.dockOff ? 'off in the dock approach (normal); ' : ''}${b.noFix} s over 5 cm, ${b.none} s no GPS, worst ${b.worst === null ? 'no GPS' : cm(b.worst)}` +
           (b.at ? `, at the moment ${b.at.acc === null ? 'none' : cm(b.at.acc)}` : ''),
       );
     const c = d.gps && chargeContact(d.gps, t);
@@ -283,12 +319,18 @@ export function buildDiagnosis(d: DiagnosisInput): string {
     const lines = [`${stamp(event.t)}  ${describe(event, state).text}` + (event.x !== undefined ? `  at ${event.x.toFixed(2)}, ${event.y?.toFixed(2)}` : '')];
     const hint = explain(event, state, typeof d.params['/mower_logic/gps_timeout'] === 'number' ? (d.params['/mower_logic/gps_timeout'] as number) : undefined);
     if (hint) lines.push(`    ${hint}`);
-    problems.push({t: event.t, lines: [...lines, ...context(event.t, event.x, event.y)]});
+    problems.push({t: event.t, lines: [...lines, ...context(event.t, event.x, event.y, event.type)]});
   }
   // the ones OpenMower wrote an EMERGENCY event for are there already
   const evStops = run.events.filter((e) => e.type === 'EMERGENCY' && e.emergency);
+  const notes: string[] = [];
   for (const e of rosEmergencies(d.ros.filter((l) => l.t >= run.start && l.t <= run.end + 5))) {
     if (evStops.some((x) => Math.abs(x.t - e.t) < 2)) continue;
+    // without LATCH it clears by itself and the mower goes on, e.g. a short TIMEOUT_HIGH_LEVEL
+    if (!e.latched) {
+      notes.push(`${stamp(e.t)}  short emergency without latch (${e.reasons}), cleared by itself, the mower went on`);
+      continue;
+    }
     problems.push({
       t: e.t,
       lines: [`${stamp(e.t)}  Emergency stop (ROS log only, no event): ${e.reasons}${e.inputs.length ? `; inputs: ${e.inputs.join(', ')}` : ''}`, ...context(e.t)],
@@ -297,6 +339,7 @@ export function buildDiagnosis(d: DiagnosisInput): string {
   problems.sort((a, b) => a.t - b.t);
   if (!problems.length) out.push('none');
   for (const p of problems) out.push(...p.lines);
+  if (notes.length) out.push('', 'Not problems, just to know:', ...notes);
 
   h('Timeline (events, ROS, planner and GPS by time; repeats counted, filler lines only in the raw ROS log)');
   const lines: Line[] = [

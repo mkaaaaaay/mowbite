@@ -22,9 +22,9 @@ export function usePlanProgress(
   const [plan, setPlan] = useState<{areaId: string; paths: PlanPath[]} | null>(null);
 
   useEffect(() => {
-    if (!areaId) return;
+    if (!areaId || !map) return;
     let gone = false;
-    mowerPaths(areaId)
+    mowerPaths(areaId, map)
       .then((paths) => !gone && setPlan(paths ? {areaId, paths} : null))
       .catch(() => !gone && setPlan(null));
     return () => {
