@@ -134,16 +134,18 @@
 }
 
 .fix {
-  display: flex;
-  flex-direction: column;
-  margin-top: 6px;
-  padding: 6px 12px 2px;
+  margin-top: 4px;
+}
+
+.fix[open] {
+  padding: 0 12px 2px;
   border-radius: 10px;
   border: 1px solid var(--card-border);
 }
 
 .fixTitle {
   padding: 4px 0;
-  color: var(--text-secondary);
+  color: var(--accent);
   font-size: 12px;
+  cursor: pointer;
 }

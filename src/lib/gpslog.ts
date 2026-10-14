@@ -47,6 +47,8 @@ export async function gpsLog(from: number, to: number): Promise<GpsSample[]> {
 }
 
 export interface GpsBefore {
+  // in the dock approach and backing out of the dock OpenMower drives without gps on purpose, that's left out
+  dockOff: boolean;
   // at the moment (the last sample up to 3 s before it), undefined when there's none that close
   at?: {acc: number | null; quality: GpsQuality};
   // the worst accuracy in the window, null when there was no gps at all for a while
@@ -60,8 +62,12 @@ export interface GpsBefore {
 
 // how the gps was in the window (s) before a moment: a sample counts until the next one, at most 2 s
 export function gpsBefore(samples: readonly GpsSample[], t: number, limit = 0.2, window = 60): GpsBefore | null {
-  const inside = samples.filter((s) => s.t >= t - window && s.t <= t + 1);
-  if (!inside.length) return null;
+  const offOnPurpose = (s: GpsSample) => s.acc === null && (s.state === 'DOCKING' || s.state === 'UNDOCKING');
+  const all = samples.filter((s) => s.t >= t - window && s.t <= t + 1);
+  const last = all.filter((s) => s.t <= t + 1).pop();
+  const dockOff = !!last && t - last.t <= 3 && offOnPurpose(last);
+  const inside = all.filter((s) => !offOnPurpose(s));
+  if (!all.length) return null;
   let worst: number | null = 0;
   let noFix = 0;
   let none = 0;
@@ -77,9 +83,8 @@ export function gpsBefore(samples: readonly GpsSample[], t: number, limit = 0.2,
       worst = null;
     } else if (worst !== null && s.acc > worst) worst = s.acc;
   });
-  const last = inside.filter((s) => s.t <= t + 1).pop();
-  const at = last && t - last.t <= 3 ? {acc: last.acc, quality: gpsQuality(last.acc ?? 999, limit)} : undefined;
-  return {at, worst, noFix: Math.round(noFix), none: Math.round(none), covered: Math.round(covered)};
+  const at = last && t - last.t <= 3 && !dockOff ? {acc: last.acc, quality: gpsQuality(last.acc ?? 999, limit)} : undefined;
+  return {dockOff, at, worst, noFix: Math.round(noFix), none: Math.round(none), covered: Math.round(covered)};
 }
 
 // as a file to open in a spreadsheet: time, state, x, y, accuracy in m (empty without gps)

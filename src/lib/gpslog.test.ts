@@ -40,6 +40,17 @@ describe('gps log', () => {
     expect(gpsBefore(log([[1000, 0.02]]), 2000)).toBeNull();
   });
 
+  it('leaves out the dock approach without gps', () => {
+    const s = readGpsLog(
+      Array.from({length: 61}, (_, i) => `${1000 + i} DOCKING 1 2 ${i < 40 ? '0.020' : '999.000'}`).join('\n'),
+    );
+    const b = gpsBefore(s, 1060)!;
+    expect(b.dockOff).toBe(true);
+    expect(b.at).toBeUndefined();
+    expect(b.noFix).toBe(0);
+    expect(b.worst).toBe(0.02);
+  });
+
   it('writes a csv', () => {
     expect(gpsCsv(log([[0, 0.02], [1, null]]))).toBe(
       'time,state,x,y,accuracy_m\n1970-01-01T00:00:00.000Z,MOWING,1.000,2.000,0.020\n1970-01-01T00:00:01.000Z,MOWING,1.000,2.000,\n',

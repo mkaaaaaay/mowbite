@@ -4,7 +4,6 @@ import {clock} from '@/lib/dates';
 import {gpsBefore, gpsCsv, gpsLog, gpsLogSince, type GpsSample} from '@/lib/gpslog';
 import {fmt, tr} from '@/lib/i18n';
 import {saveFile} from '@/lib/saveFile';
-import {GPS_QUALITY_LABEL} from '@/lib/status';
 import {useEffect, useState} from 'react';
 import styles from './RosLog.module.css';
 
@@ -47,21 +46,20 @@ export function GpsAround({t, limit}: {t: number; limit?: number}) {
   const b = samples && gpsBefore(samples, t, limit);
   if (!samples || !b) return null;
 
-  const good = b.noFix === 0;
-  const at = b.at
-    ? b.at.acc === null
-      ? tr('no GPS position at that moment')
-      : tr('{acc} at that moment ({quality})', {acc: cm(b.at.acc), quality: tr(GPS_QUALITY_LABEL[b.at.quality])})
-    : null;
-  const before = good
-    ? tr('RTK fix the whole minute before, at worst {acc}', {acc: cm(b.worst ?? 0)})
-    : tr('no RTK fix for {s} s of the minute before, at worst {acc}', {s: b.noFix, acc: b.worst === null ? tr('no GPS') : cm(b.worst)});
+  // short: good is one line in normal colour, only a real gap is orange. a second or two just over 5 cm says nothing
+  const good = b.noFix <= 2 && b.none === 0;
+  const worst = b.worst === null ? tr('no GPS') : cm(b.worst);
+  const parts = [
+    b.dockOff ? tr('off in the dock approach, as it should be') : null,
+    b.at && b.at.quality !== 'fix' ? (b.at.acc === null ? tr('none at that moment') : tr('{acc} at that moment', {acc: cm(b.at.acc)})) : null,
+    b.covered === 0 ? null : good ? tr('RTK fix before, at worst {acc}', {acc: worst}) : tr('{s} s without RTK fix in the minute before, at worst {acc}', {s: b.noFix, acc: worst}),
+  ].filter(Boolean);
 
   return (
     <>
       <p className={styles.gps}>
         <span className={good ? undefined : styles.WARN}>
-          GPS: {[at, before].filter(Boolean).join(', ')}.{!good && ' ' + tr('The mower may not have been where it thought it was.')}
+          GPS: {parts.join(', ')}.{!good && ' ' + tr('Its position may have been off.')}
         </span>
       </p>
       <button className={styles.link} onClick={() => setOpen(!open)}>

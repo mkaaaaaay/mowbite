@@ -159,13 +159,14 @@ export function ParamFix({keys}: {keys: string[]}) {
   const can = useCanSetParams();
   const fields = PARAM_FIELDS.filter((f) => keys.includes(f.key));
   if (!can || !fields.length) return null;
+  // folded, under a problem it's only for when it keeps happening
   return (
-    <div className={local.fix}>
-      <span className={local.fixTitle}>{tr('Change on the mower')}</span>
+    <details className={local.fix}>
+      <summary className={local.fixTitle}>{tr('Change on the mower')}</summary>
       {fields.map((f) => (
         <ParamRow key={f.key} field={f} />
       ))}
-    </div>
+    </details>
   );
 }
 
