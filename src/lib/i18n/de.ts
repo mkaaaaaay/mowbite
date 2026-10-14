@@ -1172,6 +1172,11 @@ const de: Record<string, string> = {
   "GPS log": "GPS-Log",
   "Download GPS log": "GPS-Log herunterladen",
   "Download the planner log": "Planer-Log herunterladen",
+  "GPS coverage": "GPS-Abdeckung",
+  "Wi-Fi coverage": "WLAN-Abdeckung",
+  "good": "gut",
+  "ok": "ok",
+  "bad": "schlecht",
 };
 
 export default de;

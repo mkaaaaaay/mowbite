@@ -10,6 +10,8 @@ services:
     volumes:
       # settings shared by all devices (map colors etc.)
       - settings:/data
+      # the mower's wifi signal for the coverage on the map, read only. leave it out and the map has no wifi layer
+      - /proc/1/net:/host-net:ro
     # shows up on the openmower start page (xtech/web-openmower-entrypoint)
     labels:
       openmower.ui: "true"

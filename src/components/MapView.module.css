@@ -719,3 +719,43 @@
   stroke-opacity: 0.8;
   stroke-width: 1;
 }
+
+/* where gps or wifi were good, ok or bad, squares of half a metre under everything the mower drew */
+.cover rect {
+  stroke: none;
+  opacity: 0.55;
+}
+
+.cover .good,
+.coverLegend .good {
+  fill: #43a047;
+  background: #43a047;
+}
+
+.cover .ok,
+.coverLegend .ok {
+  fill: #fdd835;
+  background: #fdd835;
+}
+
+.cover .bad,
+.coverLegend .bad {
+  fill: #e53935;
+  background: #e53935;
+}
+
+.coverLegend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.coverLegend i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-left: 6px;
+  border-radius: 2px;
+}

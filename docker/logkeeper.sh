@@ -52,8 +52,16 @@ while :; do
       END { if (max != "") print max }' "$TMP")
     [ -n "$new" ] && echo "$new" > "$D/.last"
     rm -f "$TMP"
-    # 14 days
+    # 14 days and at most 10 MB, a node that keeps warning mustn't fill the mower. the oldest days go first
     ls -1 "$D"/*.log 2>/dev/null | sort -r | tail -n +15 | while read -r f; do rm -f "$f"; done
+    while [ "$(du -sk "$D" | cut -f1)" -gt 10240 ] && [ "$(ls -1 "$D"/*.log 2>/dev/null | wc -l)" -gt 1 ]; do
+      rm -f "$(ls -1 "$D"/*.log | sort | head -n1)"
+    done
+    # today's alone that big: only its newest half stays
+    f=$(ls -1 "$D"/*.log 2>/dev/null | tail -n1)
+    if [ -n "$f" ] && [ "$(du -sk "$f" | cut -f1)" -gt 10240 ]; then
+      tail -c 5000000 "$f" | sed 1d > "$f.tmp" && mv "$f.tmp" "$f"
+    fi
   fi
   sleep 60
 done

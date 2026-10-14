@@ -12,12 +12,13 @@ export interface GpsSample {
   acc: number | null; // m, null without any gps position
 }
 
-// "<unix time> <state> <x> <y> <accuracy>" per line, 999 for no gps
+// "<unix time> <state> <x> <y> <accuracy> [wifi dBm]" per line, 999 for no gps
 export function readGpsLog(text: string): GpsSample[] {
   const out: GpsSample[] = [];
   for (const line of text.split('\n')) {
     const p = line.trim().split(' ');
-    if (p.length !== 5) continue;
+    // a sixth column, the wifi signal, since it's kept too
+    if (p.length !== 5 && p.length !== 6) continue;
     const [t, x, y, acc] = [Number(p[0]), Number(p[2]), Number(p[3]), Number(p[4])];
     if (![t, x, y, acc].every(Number.isFinite)) continue;
     out.push({t, state: p[1], x, y, acc: acc >= 999 ? null : acc});

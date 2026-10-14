@@ -20,6 +20,9 @@ export const LAYERS = [
   {key: 'body', label: 'Mower outline'},
   {key: 'swath', label: 'Cut width'},
   {key: 'edges', label: 'Real edges'},
+  // where gps and wifi were good or bad, from the last 14 days. off until switched on
+  {key: 'gpsCover', label: 'GPS coverage'},
+  {key: 'wifiCover', label: 'Wi-Fi coverage'},
 ] as const;
 export type Layer = (typeof LAYERS)[number]['key'];
 
@@ -31,8 +34,9 @@ export const PLAN_STYLES = [
 ] as const;
 export type PlanStyle = (typeof PLAN_STYLES)[number]['key'];
 
-// the menu keeps the layers switched off
-export const layerOn = (hidden: Set<Layer>, l: Layer) => !hidden.has(l);
+// the menu keeps the layers switched off, and of the ones off by default those switched on
+const OFF_BY_DEFAULT = new Set<Layer>(['gpsCover', 'wifiCover']);
+export const layerOn = (hidden: Set<Layer>, l: Layer) => (OFF_BY_DEFAULT.has(l) ? hidden.has(l) : !hidden.has(l));
 
 // the buttons along the right edge of the map, the layer menu and the imagery bar
 export default function MapControls({
@@ -53,6 +57,7 @@ export default function MapControls({
   follow,
   pin,
   planParts,
+  coverage,
 }: {
   // factor < 1 zooms in
   onZoom: (factor: number) => void;
@@ -73,6 +78,8 @@ export default function MapControls({
   body?: {blade: boolean};
   // the plan shown tells its turns and drives apart, the two layers for them show
   planParts?: boolean;
+  // what the container kept for the coverage layers: gps where it drove, wifi only when it can read the signal
+  coverage?: {gps: boolean; wifi: boolean};
   // shown when zoomed or panned, follow: the view follows the mower
   reset: {follow: boolean; onReset: () => void} | null;
   // only while the view can follow the mower
@@ -169,13 +176,20 @@ export default function MapControls({
             (l) =>
               ((l.key !== 'mowerIcon' && l.key !== 'body' && l.key !== 'edges') || body) &&
               (l.key !== 'swath' || body?.blade) &&
-              ((l.key !== 'planTurns' && l.key !== 'planTransit') || planParts),
+              ((l.key !== 'planTurns' && l.key !== 'planTransit') || planParts) &&
+              (l.key !== 'gpsCover' || coverage?.gps) &&
+              (l.key !== 'wifiCover' || coverage?.wifi),
           ).map((l) => (
             <label key={l.key}>
               <input type="checkbox" checked={layerOn(hidden, l.key)} onChange={() => onToggleLayer(l.key)} />
               {tr(l.label)}
             </label>
           ))}
+          {(layerOn(hidden, 'gpsCover') && coverage?.gps) || (layerOn(hidden, 'wifiCover') && coverage?.wifi) ? (
+            <span className={styles.coverLegend}>
+              <i className={styles.good} /> {tr('good')} <i className={styles.ok} /> {tr('ok')} <i className={styles.bad} /> {tr('bad')}
+            </span>
+          ) : null}
           {planStyle && (
             <label>
               {tr('Rest of the plan')}

@@ -17,6 +17,24 @@ if [ "$QUERY_STRING" = oldest ]; then
   exit 0
 fi
 num() { printf '%s' "$QUERY_STRING" | tr '&' '\n' | sed -n "s/^$1=\([0-9]*\)$/\1/p" | head -n1; }
+# ?cells=<cm>: all days kept, summed up per square of that size for the coverage on the map. lines:
+# "<col> <row> <seconds> <without rtk fix> <without gps> <worst accuracy m> <wifi samples> <wifi dBm sum> <wifi worst>"
+# (col, row: x and y divided by the size, rounded down). only while mowing or driving, not standing in the dock
+cells=$(num cells)
+if [ -n "$cells" ]; then
+  cat "$D"/*.log | awk -v c="${cells}" '
+    $2 == "IDLE" || $2 == "" || NF < 5 { next }
+    {
+      k = int(($3 * 100) / c - (($3 * 100) % c < 0)) " " int(($4 * 100) / c - (($4 * 100) % c < 0))
+      n[k]++
+      if ($5 >= 999) none[k]++
+      else if ($5 > 0.05) nofix[k]++
+      if ($5 < 999 && $5 > worst[k]) worst[k] = $5
+      if (NF >= 6 && $6 != "-") { wn[k]++; ws[k] += $6; if (!(k in wmin) || $6 < wmin[k]) wmin[k] = $6 }
+    }
+    END { for (k in n) print k, n[k], nofix[k] + none[k], none[k] + 0, worst[k] + 0, wn[k] + 0, ws[k] + 0, (k in wmin) ? wmin[k] : 0 }'
+  exit 0
+fi
 from=$(num from)
 to=$(num to)
 from=${from:-0}
