@@ -751,7 +751,8 @@ function MapView({
     const size = CELL_M * scale;
     return (
       // taps go through to the map, areas stay selectable: the square under a tap is found there (onClick of the svg)
-      <g className={[styles.cover, styles.coverQuiet].join(' ')}>
+      // faded while an area is being edited, its points and lines stay clear on top
+      <g className={[styles.cover, styles.coverQuiet, selectedAreaId || pickingPoints ? styles.coverFaded : ''].join(' ')}>
         {coverage
           .filter((c) => c.seconds >= MIN_SECONDS)
           .map((c) => {
@@ -774,7 +775,7 @@ function MapView({
       </g>
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [coverage, coverMode, coverCell, pickingPoints, minX, minY, scale, padX, padY]);
+  }, [coverage, coverMode, coverCell, pickingPoints, selectedAreaId, minX, minY, scale, padX, padY]);
   const trackLayer = useMemo(
     () =>
       hidden.has('track') ? null : (

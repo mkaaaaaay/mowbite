@@ -730,6 +730,10 @@
   pointer-events: none;
 }
 
+.coverFaded {
+  opacity: 0.3;
+}
+
 .cover .coverPicked {
   stroke: #fff;
   stroke-width: 2px;
