@@ -25,3 +25,6 @@ TOPIC_CHARGE_CURRENT=sensors/om_charge_current/data
 RPC_PLANNER_SETTINGS=planner.settings
 # the MowBite Planner's own log lines, kept in memory since its start (with the planner only)
 RPC_PLANNER_LOG=planner.log
+# the plan of an area: the MowBite Planner's (with the planner only) and OpenMower's own
+RPC_PLANNER_PLAN=planner.plan
+RPC_AREA_PLAN=mowing.plan

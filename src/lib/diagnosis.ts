@@ -35,6 +35,10 @@ export interface DiagnosisInput {
   plannerLines: PlannerLine[] | null;
   sensors: SensorBucket[];
   drive: unknown;
+  // the map as the run left the dock (kept by the container when it changed), null when there's none for it
+  startMap: MowerMap | null;
+  // the plans of the areas as the mower started on them
+  plans: KeptPlan[];
   // the settings kept when the run left the dock, null when the container has none for it (older data)
   snapshot: {t: number; params: Record<string, unknown> | null; planner: Record<string, unknown> | null} | null;
 }
@@ -265,6 +269,110 @@ function chargeContact(gps: readonly GpsSample[], t: number): string | null {
   return parts.length ? `charging contacts: ${parts.join('; ')}` : `charging contacts: no voltage from 20 s before to 5 s after (at most ${top.toFixed(1)} V)`;
 }
 
+export interface KeptPlanPath {
+  points: [number, number][];
+  poseIndex: number[];
+  poses: number;
+  segments: {start: number; end: number; type?: string; maneuver?: string}[];
+  outline?: boolean;
+}
+
+export interface KeptPlan {
+  t: number;
+  areaId: string;
+  paths: KeptPlanPath[];
+  // from the MowBite Planner: the plan it kept (and so the one mower_logic got), its fingerprint, angles and warnings
+  kept?: boolean;
+  fingerprint?: string;
+  angles?: unknown;
+  warnings?: unknown[];
+}
+
+// what the container kept of planner.plan or OpenMower's mowing.plan: the json-rpc answer
+export function readKeptPlan(t: number, areaId: string, answer: unknown): KeptPlan | null {
+  const r = (answer as {result?: Record<string, unknown>})?.result;
+  if (!r || !Array.isArray(r.paths)) return null;
+  const paths = (r.paths as Record<string, unknown>[]).map((p) => ({
+    points: (Array.isArray(p.points) ? p.points : []) as [number, number][],
+    poseIndex: (Array.isArray(p.pose_index) ? p.pose_index : []) as number[],
+    poses: typeof p.poses === 'number' ? p.poses : Math.max(0, ...((p.pose_index as number[]) ?? [0])) + 1,
+    segments: (Array.isArray(p.segments) ? p.segments : []) as KeptPlanPath['segments'],
+    outline: p.is_outline === true,
+  }));
+  return {
+    t,
+    areaId,
+    paths,
+    kept: typeof r.kept === 'boolean' ? r.kept : undefined,
+    fingerprint: typeof r.fingerprint === 'string' ? r.fingerprint : undefined,
+    angles: r.angles,
+    warnings: Array.isArray(r.warnings) ? r.warnings : undefined,
+  };
+}
+
+const angleDeg = (a: number) => ((((a * 180) / Math.PI) % 360) + 540) % 360 - 180;
+
+// where the mower was against the plan it drove: robot_state's path and pose index give the point the plan was at,
+// the distance across goes to the planned line around it
+export function planSpot(plan: KeptPlan, path: number, index: number, x: number, y: number, heading?: number | null) {
+  const p = plan.paths[path];
+  if (!p || p.points.length < 2 || p.poseIndex.length !== p.points.length) return null;
+  let k = 0;
+  while (k + 1 < p.poseIndex.length && p.poseIndex[k + 1] <= index) k++;
+  const a = p.points[k];
+  const b = p.points[Math.min(k + 1, p.points.length - 1)];
+  const span = p.poseIndex[Math.min(k + 1, p.poseIndex.length - 1)] - p.poseIndex[k];
+  const f = span > 0 ? Math.min(1, Math.max(0, (index - p.poseIndex[k]) / span)) : 0;
+  const ex = a[0] + (b[0] - a[0]) * f;
+  const ey = a[1] + (b[1] - a[1]) * f;
+  let across = Infinity;
+  for (let i = Math.max(0, k - 40); i < Math.min(p.points.length - 1, k + 40); i++) {
+    const [ax, ay] = p.points[i];
+    const [bx, by] = p.points[i + 1];
+    const dx = bx - ax;
+    const dy = by - ay;
+    const l = dx * dx + dy * dy;
+    const u = l ? Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / l)) : 0;
+    across = Math.min(across, Math.hypot(x - ax - u * dx, y - ay - u * dy));
+  }
+  const dir = Math.atan2(b[1] - a[1], b[0] - a[0]);
+  const seg = p.segments.find((s) => s.start <= index && index <= s.end);
+  const kind = seg ? [seg.type, seg.maneuver].filter(Boolean).join(' ') : p.outline ? 'outline' : '';
+  return {
+    across,
+    behind: Math.hypot(x - ex, y - ey),
+    headingOff: heading === undefined || heading === null || (a[0] === b[0] && a[1] === b[1]) ? null : angleDeg(heading - dir),
+    where: `${kind ? kind + ', ' : ''}path ${path + 1} of ${plan.paths.length}, ${Math.round((index / Math.max(1, p.poses)) * 100)} % of it`,
+  };
+}
+
+// the plan the mower was on at a sample: its area (index among the mowing areas of the map) and the latest plan kept
+// for it before
+function planOf(d: DiagnosisInput, s: GpsSample): KeptPlan | null {
+  const map = d.startMap ?? d.map;
+  if (!map || s.area === undefined || s.area === null || s.area < 0) return null;
+  const area = map.areas.filter((a) => a.properties.type === 'mow')[s.area];
+  if (!area) return null;
+  return d.plans.filter((p) => p.areaId === area.id && p.t <= s.t + 2).pop() ?? null;
+}
+
+const fmt1 = (v: number | null | undefined, unit: string, digits = 1) => (v === null || v === undefined ? '-' : `${v.toFixed(digits)}${unit}`);
+
+// the drive around a moment: mow motor, battery and the two drive escs, 30 s before to 10 s after
+function driveAround(gps: readonly GpsSample[], t: number): string | null {
+  const near = gps.filter((s) => s.t >= t - 30 && s.t <= t + 10 && s.vBattery !== undefined);
+  if (!near.length) return null;
+  const at = near.filter((s) => s.t <= t + 1).pop() ?? near[0];
+  const nums = (f: (s: GpsSample) => number | null | undefined) => near.map(f).filter((v): v is number => typeof v === 'number');
+  const max = (v: number[]) => (v.length ? Math.max(...v) : null);
+  const min = (v: number[]) => (v.length ? Math.min(...v) : null);
+  return (
+    `Drive (30 s before to 10 s after): mow motor ${fmt1(at.mowCurrent, ' A', 2)} then, at most ${fmt1(max(nums((s) => s.mowCurrent)), ' A', 2)}, ` +
+    `${fmt1(at.mowRpm, ' rpm', 0)} then, lowest ${fmt1(min(nums((s) => s.mowRpm)), ' rpm', 0)}; battery ${fmt1(min(nums((s) => s.vBattery)), ' V', 2)} lowest; ` +
+    `drive escs left ${fmt1(max(nums((s) => s.escLeft)), ' °C')}, right ${fmt1(max(nums((s) => s.escRight)), ' °C')} at most`
+  );
+}
+
 export function buildDiagnosis(d: DiagnosisInput): string {
   const {run} = d;
   // a minute before, what led to the start (a planner sending it out, the end of the run before)
@@ -280,6 +388,20 @@ export function buildDiagnosis(d: DiagnosisInput): string {
 
   h('Summary');
   if (d.gps) out.push(...gpsSummary(d.gps.filter((s) => s.t >= run.start && s.t <= run.end), d.gpsLimit));
+  // how well the mower followed its plans while mowing: the largest distance across and where
+  if (d.gps && d.plans.length) {
+    let worst: {t: number; across: number; x: number; y: number} | null = null;
+    let n = 0;
+    for (const s of d.gps) {
+      if (s.state !== 'MOWING' || s.t < run.start || s.t > run.end) continue;
+      const plan = planOf(d, s);
+      const spot = plan && planSpot(plan, s.path ?? -1, s.pathIndex ?? -1, s.x, s.y);
+      if (!spot) continue;
+      n++;
+      if (!worst || spot.across > worst.across) worst = {t: s.t, across: spot.across, x: s.x, y: s.y};
+    }
+    if (worst) out.push(`Plan followed (${n} samples): at most ${cm(worst.across)} beside the planned line, at ${stamp(worst.t)} (${worst.x.toFixed(2)}, ${worst.y.toFixed(2)})`);
+  }
   const sensors = new Map<string, {lo: number; hi: number}>();
   for (const b of d.sensors) {
     if (b.t + 300 < run.start || b.t > run.end) continue;
@@ -296,7 +418,8 @@ export function buildDiagnosis(d: DiagnosisInput): string {
   );
 
   h('Problems');
-  const dock = d.map?.docking_stations[0];
+  const where = d.startMap ?? d.map;
+  const dock = where?.docking_stations[0];
   const problems: {t: number; lines: string[]}[] = [];
   const context = (t: number, x?: number, y?: number, type?: string) => {
     const lines: string[] = [];
@@ -307,7 +430,7 @@ export function buildDiagnosis(d: DiagnosisInput): string {
     const atDock = /DOCK/.test(type ?? '') || sample?.state === 'DOCKING' || sample?.state === 'UNDOCKING';
     if (px !== undefined && py !== undefined) {
       if (atDock && dock) lines.push(`    Where: ${fromDock(px, py, dock)}`);
-      else if (d.map) lines.push(`    Where: ${whereOnMap(d.map, px, py)}`);
+      else if (where) lines.push(`    Where: ${whereOnMap(where, px, py)}`);
     }
     const src = d.gps ? positionSource(d.gps, t) : '';
     if (src) lines.push(`    ${src}`);
@@ -319,6 +442,15 @@ export function buildDiagnosis(d: DiagnosisInput): string {
       );
     const c = d.gps && chargeContact(d.gps, t);
     if (c) lines.push(`    ${c}`);
+    const plan = sample && sample.state === 'MOWING' ? planOf(d, sample) : null;
+    const spot = plan && sample && px !== undefined && py !== undefined ? planSpot(plan, sample.path ?? -1, sample.pathIndex ?? -1, px, py, sample.heading) : null;
+    if (spot)
+      lines.push(
+        `    Plan: ${spot.where}; ${cm(spot.across)} beside the planned line, ${cm(spot.behind)} from where the plan was then` +
+          (spot.headingOff === null ? '' : `, heading off by ${Math.round(spot.headingOff)}°`),
+      );
+    const drive = d.gps && driveAround(d.gps, t);
+    if (drive) lines.push(`    ${drive}`);
     return lines;
   };
   for (const {event, state} of withState(run.events).filter(({event, state}) => noteworthy(event, state))) {
@@ -390,14 +522,32 @@ export function buildDiagnosis(d: DiagnosisInput): string {
     out.push(snap?.planner ? 'MowBite Planner (as the run left the dock):' : 'MowBite Planner (now):');
     out.push(...Object.entries(planner).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => `  ${k} = ${JSON.stringify(v)}`));
   }
-  if (d.map) {
-    out.push('Map:');
-    for (const a of d.map.areas)
+  if (d.startMap && d.map)
+    out.push(
+      `Map: as the run left the dock${JSON.stringify(d.startMap.areas) === JSON.stringify(d.map.areas) ? ', unchanged since' : ', CHANGED since then (places above use the one from the start)'}`,
+    );
+  else if (d.map) out.push('Map: as it is now (none kept from the start of this run)');
+  const shownMap = d.startMap ?? d.map;
+  if (shownMap) {
+    for (const a of shownMap.areas)
       out.push(
         `  ${a.properties.type ?? '?'} "${a.properties.name ?? ''}" ${a.id}: ${polygonArea(a.outline).toFixed(1)} m2, ${a.outline.length} points` +
           `${a.properties.active === false ? ', inactive' : ''}${a.properties.mowable === false ? ', not mowed' : ''}`,
       );
-    for (const s of d.map.docking_stations) out.push(`  dock ${s.id}: ${s.position.x.toFixed(3)}, ${s.position.y.toFixed(3)}, heading ${((s.heading * 180) / Math.PI).toFixed(1)} deg`);
+    for (const s of shownMap.docking_stations) out.push(`  dock ${s.id}: ${s.position.x.toFixed(3)}, ${s.position.y.toFixed(3)}, heading ${((s.heading * 180) / Math.PI).toFixed(1)} deg`);
+  }
+  if (d.plans.length) {
+    out.push('Plans kept as the mower started on an area:');
+    for (const p of d.plans) {
+      const name = shownMap?.areas.find((a) => a.id === p.areaId)?.properties.name ?? p.areaId;
+      out.push(
+        `  ${stamp(p.t)} "${name}": ${p.paths.length} paths, ${p.paths.reduce((n, x) => n + x.poses, 0)} poses` +
+          (p.kept === undefined ? ' (OpenMower\'s plan)' : `, MowBite Planner kept: ${p.kept}, fingerprint ${p.fingerprint ?? '-'}`) +
+          (p.warnings?.length ? `, ${p.warnings.length} warnings` : ''),
+      );
+    }
+    if ((d.plannerLines ?? []).some((l) => l.t >= from && l.t <= to && /leftovers armed/.test(l.msg)))
+      out.push('  leftovers were armed: the mower drove the leftover passes, not the whole plan above');
   }
   out.push(`Mower answers: ${d.methods?.join(', ') ?? 'unknown (no rpc.methods)'}`);
 
@@ -412,11 +562,14 @@ export function buildDiagnosis(d: DiagnosisInput): string {
   h('Raw: OpenMower events (event_history)');
   out.push(...run.events.map((e: MowerEvent) => JSON.stringify(e)));
   if (d.gps?.length) {
-    h('Raw: GPS once a second (time, state, x, y, accuracy m, Wi-Fi dBm, charge V, charge A; * = accuracy left over)');
+    h('Raw: GPS once a second (time, state, x, y, accuracy m, Wi-Fi dBm, charge V, charge A, heading, area, path, index, battery V, mow A, mow rpm, esc left °C, esc right °C; * = accuracy left over)');
     out.push(
       ...d.gps.map(
         (s) =>
-          `${stamp(s.t)} ${s.state} ${s.x.toFixed(3)} ${s.y.toFixed(3)} ${s.acc === null ? '-' : s.acc.toFixed(3)}${s.stale ? '*' : ''} ${s.wifi ?? '-'} ${s.vCharge ?? '-'} ${s.iCharge ?? '-'}`,
+          `${stamp(s.t)} ${s.state} ${s.x.toFixed(3)} ${s.y.toFixed(3)} ${s.acc === null ? '-' : s.acc.toFixed(3)}${s.stale ? '*' : ''} ${s.wifi ?? '-'} ${s.vCharge ?? '-'} ${s.iCharge ?? '-'}` +
+          (s.vBattery === undefined
+            ? ''
+            : ` ${s.heading ?? '-'} ${s.area ?? '-'} ${s.path ?? '-'} ${s.pathIndex ?? '-'} ${s.vBattery ?? '-'} ${s.mowCurrent ?? '-'} ${s.mowRpm ?? '-'} ${s.escLeft ?? '-'} ${s.escRight ?? '-'}`),
       ),
     );
   }

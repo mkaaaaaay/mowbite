@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {buildDiagnosis, collapse, gpsChanges, gpsSummary, mergePlanner, noise, readKeptPlanner, rosEmergencies, whereOnMap} from './diagnosis';
+import {buildDiagnosis, collapse, gpsChanges, gpsSummary, mergePlanner, noise, planSpot, readKeptPlan, readKeptPlanner, rosEmergencies, whereOnMap} from './diagnosis';
 import {readGpsLog} from './gpslog';
 import type {Run} from './events';
 
@@ -65,6 +65,8 @@ describe('diagnosis', () => {
       sensors: [],
       drive: null,
       snapshot: null,
+      startMap: null,
+      plans: [],
     });
     expect(text).toContain('COLLISION_MULTIPLE while docking, docked 0.7 s later');
     expect(text).toMatch(/Problems\n-+\nnone/);
@@ -78,6 +80,22 @@ describe('diagnosis', () => {
     ]);
     expect(mergePlanner(kept, [{t: 12, level: 'ERROR', msg: 'failed\nTraceback'}, {t: 13, level: 'INFO', msg: 'new'}])?.map((l) => l.t)).toEqual([10.5, 12, 13]);
     expect(mergePlanner([], null)).toBeNull();
+  });
+
+  it('finds where the mower was against its plan', () => {
+    const plan = readKeptPlan(0, 'g', {
+      result: {
+        paths: [{points: [[0, 0], [10, 0]], pose_index: [0, 100], poses: 101, segments: [{start: 0, end: 100, type: 'lane'}]}],
+        kept: true,
+        fingerprint: 'abc',
+      },
+    })!;
+    const spot = planSpot(plan, 0, 50, 5.2, 0.3, Math.PI / 2)!;
+    expect(spot.across).toBeCloseTo(0.3);
+    expect(spot.behind).toBeCloseTo(Math.hypot(0.2, 0.3));
+    expect(spot.headingOff).toBeCloseTo(90);
+    expect(spot.where).toBe('lane, path 1 of 1, 50 % of it');
+    expect(planSpot(plan, 3, 0, 0, 0)).toBeNull();
   });
 
   it('leaves out ros filler lines', () => {
@@ -112,6 +130,8 @@ describe('diagnosis', () => {
       sensors: [],
       drive: null,
       snapshot: null,
+      startMap: null,
+      plans: [],
     });
     for (const part of ['MowBite diagnosis', 'Problems', 'GPS the minute before', 'planner INFO', '/mower_logic/gps_timeout = 15', 'dock d: 1.000, 2.000', 'Raw: GPS'])
       expect(text).toContain(part);

@@ -1,6 +1,8 @@
 'use client';
 
-import {buildDiagnosis, mergePlanner, readKeptPlanner, readSensors, type PlannerLine} from '@/lib/diagnosis';
+import {buildDiagnosis, mergePlanner, readKeptPlan, readKeptPlanner, readSensors, type KeptPlan, type PlannerLine} from '@/lib/diagnosis';
+import type {MowerMap} from '@/hooks/useMowerMap';
+import {openRings} from '@/lib/rings';
 import {clock} from '@/lib/dates';
 import type {Run} from '@/lib/events';
 import {gpsLog, gpsLogSince} from '@/lib/gpslog';
@@ -31,7 +33,7 @@ export function DiagnosisDownload({run}: {run: Run}) {
     const to = run.end + 60;
     const methods = await rpcMethods();
     const has = (m: string) => !!methods?.has(m);
-    const snapshot = (kind: 'params' | 'planner') =>
+    const snapshot = (kind: 'params' | 'planner' | 'map') =>
       quiet(
         mowerFetch(`${apiBase()}/cgi-bin/gpslog?snapshot=${Math.round(run.start)}&kind=${kind}`, {cache: 'no-store'}).then(async (r) => {
           const text = r.ok ? (await r.text()).trim() : '';
@@ -39,7 +41,7 @@ export function DiagnosisDownload({run}: {run: Run}) {
         }),
         null,
       );
-    const [kept, planner, gps, ros, plannerLog, sensorsText, drive, snapParams, snapPlanner, plannerKept] = await Promise.all([
+    const [kept, planner, gps, ros, plannerLog, sensorsText, drive, snapParams, snapPlanner, plannerKept, startMap, plans] = await Promise.all([
       quiet(loadKept(), null),
       has(RPC.plannerSettings) ? quiet(loadPlannerSettings(), null) : Promise.resolve(null),
       quiet(
@@ -62,6 +64,28 @@ export function DiagnosisDownload({run}: {run: Run}) {
         ),
         [] as PlannerLine[],
       ),
+      // the map as the run left the dock, and the plan of every area it started on
+      snapshot('map') as Promise<MowerMap | null>,
+      quiet(
+        mowerFetch(`${apiBase()}/cgi-bin/gpslog?plans&from=${Math.floor(from)}&to=${Math.ceil(to)}`, {cache: 'no-store'})
+          .then((r) => (r.ok ? r.text() : ''))
+          .then((text) =>
+            Promise.all(
+              text
+                .split('\n')
+                .map((l) => l.trim().split(' '))
+                .filter((p) => p.length === 2)
+                .map(([t, id]) =>
+                  mowerFetch(`${apiBase()}/cgi-bin/gpslog?plan=${t}-${id}`, {cache: 'no-store'})
+                    .then((r) => (r.ok ? r.json() : null))
+                    .then((a) => readKeptPlan(Number(t), id, a))
+                    .catch(() => null),
+                ),
+            ),
+          )
+          .then((all) => all.filter((p): p is KeptPlan => !!p).sort((a, b) => a.t - b.t)),
+        [] as KeptPlan[],
+      ),
     ]);
     // the planner's snapshot is its answer to planner.settings: {result: {settings: {name: {value}}}}
     const snapSettings = (snapPlanner?.result as {settings?: Record<string, {value: unknown}>} | undefined)?.settings;
@@ -81,6 +105,9 @@ export function DiagnosisDownload({run}: {run: Run}) {
         plannerLines: mergePlanner(plannerKept, plannerLog),
         sensors: readSensors(sensorsText),
         drive,
+        // the same shape as the map the app has (outlines not closed), so the two compare
+        startMap: startMap && Array.isArray(startMap.areas) ? openRings(startMap) : null,
+        plans,
         snapshot:
           snapParams || snapSettings
             ? {

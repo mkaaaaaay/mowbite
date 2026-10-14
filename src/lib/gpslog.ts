@@ -13,17 +13,30 @@ export interface GpsSample {
   wifi?: number | null; // dBm, null when the container couldn't read it
   vCharge?: number | null; // V at the charging contacts
   iCharge?: number | null; // A
+  // from robot_state: heading (rad), the area (index among the mowing areas), the path in its plan and the pose in it
+  heading?: number | null;
+  area?: number | null;
+  path?: number | null;
+  pathIndex?: number | null;
+  // the sensors that matter for driving
+  vBattery?: number | null;
+  mowCurrent?: number | null;
+  mowRpm?: number | null;
+  escLeft?: number | null; // °C
+  escRight?: number | null;
   // the accuracy didn't change while the mower drove on: a value left over, not a measurement (gps paused)
   stale?: boolean;
 }
 
-// "<unix time> <state> <x> <y> <accuracy> [wifi dBm] [charge V] [charge A]" per line, 999 for no gps, - for unknown
+// "<unix time> <state> <x> <y> <accuracy> [wifi dBm] [charge V] [charge A] [heading] [area] [path] [path index]
+// [battery V] [mow motor A] [mow motor rpm] [left esc °C] [right esc °C]" per line (more columns came over time),
+// 999 for no gps, - for unknown
 export function readGpsLog(text: string): GpsSample[] {
   const out: GpsSample[] = [];
   for (const line of text.split('\n')) {
     const p = line.trim().split(' ');
     // more columns since more is kept: the wifi signal, then the charging contacts
-    if (p.length < 5 || p.length > 8) continue;
+    if (p.length < 5 || p.length > 17) continue;
     const [t, x, y, acc] = [Number(p[0]), Number(p[2]), Number(p[3]), Number(p[4])];
     if (![t, x, y, acc].every(Number.isFinite)) continue;
     const col = (i: number) => (p[i] !== undefined && p[i] !== '-' && Number.isFinite(Number(p[i])) ? Number(p[i]) : null);
@@ -35,6 +48,19 @@ export function readGpsLog(text: string): GpsSample[] {
       acc: acc >= 999 ? null : acc,
       ...(p.length >= 6 ? {wifi: col(5)} : {}),
       ...(p.length >= 8 ? {vCharge: col(6), iCharge: col(7)} : {}),
+      ...(p.length >= 17
+        ? {
+            heading: col(8),
+            area: col(9),
+            path: col(10),
+            pathIndex: col(11),
+            vBattery: col(12),
+            mowCurrent: col(13),
+            mowRpm: col(14),
+            escLeft: col(15),
+            escRight: col(16),
+          }
+        : {}),
     });
   }
   return markStale(out);

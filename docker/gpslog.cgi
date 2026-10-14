@@ -17,15 +17,37 @@ if [ "$QUERY_STRING" = oldest ]; then
   exit 0
 fi
 num() { printf '%s' "$QUERY_STRING" | tr '&' '\n' | sed -n "s/^$1=\([0-9]*\)$/\1/p" | head -n1; }
-# ?snapshot=<unix time>&kind=params|planner: the settings kept when the run that started then left the dock (gpslog.sh),
-# the last one up to a minute after it. empty when there's none
+# ?snapshot=<unix time>&kind=params|planner|map: what gpslog.sh kept as the run that started then left the dock. params
+# and planner: the last one up to a minute after it and at most an hour before. map: the newest up to a minute after
+# it, kept only when the map changed. empty when there's none
+# ?plans&from=<unix time>&to=<unix time>: the area plans kept then, "<time> <area id>" a line
+# ?plan=<time>-<area id>: one of them
+S=$D/snap
 snap=$(num snapshot)
 if [ -n "$snap" ]; then
-  kind=$(printf '%s' "$QUERY_STRING" | tr '&' '\n' | sed -n 's/^kind=\(params\|planner\)$/\1/p')
-  f=$(ls "$D"/snapshot-*-"${kind:-params}".json 2>/dev/null | awk -F- -v t="$snap" '{ s = $(NF - 1) + 0 } s <= t + 60 && s >= t - 3600 { print }' | tail -n1)
-  [ -n "$f" ] && cat "$f"
+  kind=$(printf '%s' "$QUERY_STRING" | tr '&' '\n' | sed -n 's/^kind=\(params\|planner\|map\)$/\1/p')
+  if [ "$kind" = map ]; then
+    f=$(ls "$S"/map-*-x.json.gz 2>/dev/null | awk -F- -v t="$snap" '{ s = $(NF - 1) + 0 } s <= t + 60 { print }' | tail -n1)
+    [ -n "$f" ] && gzip -dc "$f"
+  else
+    f=$(ls "$S"/snapshot-*-"${kind:-params}".json 2>/dev/null | awk -F- -v t="$snap" '{ s = $(NF - 1) + 0 } s <= t + 60 && s >= t - 3600 { print }' | tail -n1)
+    [ -n "$f" ] && cat "$f"
+  fi
   exit 0
 fi
+case "$QUERY_STRING" in
+  plans*)
+    from=$(num from)
+    to=$(num to)
+    ls "$S"/plan-*.json.gz 2>/dev/null | sed 's|.*/plan-\([0-9]*\)-\(.*\)\.json\.gz$|\1 \2|' | awk -v a="${from:-0}" -v b="${to:-0}" '$1 >= a && $1 <= b'
+    exit 0
+    ;;
+  plan=*)
+    p=$(printf '%s' "$QUERY_STRING" | sed -n 's/^plan=\([0-9]*-[A-Za-z0-9_-]*\)$/\1/p')
+    [ -n "$p" ] && [ -f "$S/plan-$p.json.gz" ] && gzip -dc "$S/plan-$p.json.gz"
+    exit 0
+    ;;
+esac
 # ?cells=<cm>: all days kept, summed up per square of that size for the coverage on the map. lines:
 # "<col> <row> <seconds> <without rtk fix> <without gps> <worst accuracy m> <wifi samples> <wifi dBm sum> <wifi worst>"
 # (col, row: x and y divided by the size, rounded down). only while mowing or driving, not standing in the dock
