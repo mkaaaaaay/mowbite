@@ -15,6 +15,8 @@ export interface Sample {
 
 const KEEP_MS = 60 * 60 * 1000;
 const EVERY_MS = 5000;
+// the recorder's file is some 150 kB, asked for again this often while it's shown
+const DAY_EVERY_MS = 5 * 60 * 1000;
 
 // sensor id -> samples, oldest first. only covers the time the app has been open
 let live: Record<string, Sample[]> = {};
@@ -46,19 +48,21 @@ async function loadDay() {
     }
     for (const list of Object.values(next)) list.sort((a, b) => a.t - b.t);
     day = next;
+    dayAt = Date.now();
     merge();
   } catch {
     // not served by the container
   }
 }
 let started = false;
+let dayAt = 0;
+let dayTimer: ReturnType<typeof setInterval> | null = null;
 const listeners = new Set<() => void>();
 
+// the live values, from the start on whichever page is open
 export function startSensorHistory() {
   if (started) return;
   started = true;
-  void loadDay();
-  setInterval(loadDay, 5 * 60 * 1000);
   onTopic(TOPIC.sensorData, (payload, topic) => {
     const m = topic.match(/^sensors\/(.+)\/data$/);
     if (!m) return;
@@ -73,10 +77,21 @@ export function startSensorHistory() {
   });
 }
 
+// the recorder's 24 h only while someone looks at them, a slow link to the mower shouldn't carry them all the time
 function subscribe(listener: () => void) {
   startSensorHistory();
   listeners.add(listener);
-  return () => listeners.delete(listener);
+  if (!dayTimer) {
+    if (Date.now() - dayAt > DAY_EVERY_MS) void loadDay();
+    dayTimer = setInterval(loadDay, DAY_EVERY_MS);
+  }
+  return () => {
+    listeners.delete(listener);
+    if (!listeners.size && dayTimer) {
+      clearInterval(dayTimer);
+      dayTimer = null;
+    }
+  };
 }
 
 const EMPTY: Record<string, Sample[]> = {};

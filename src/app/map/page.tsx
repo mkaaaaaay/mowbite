@@ -105,7 +105,6 @@ function MapEditor() {
       localStorage.setItem(PINNED_KEY, pinned ? '0' : '1');
     } catch {}
   };
-  const pastJobs = useMowHistory();
   const jobList = useJobList();
   // null = live trail, otherwise a recorded job shown instead
   // ?job=<id> (from the activity page) opens that job's track until another one is picked
@@ -129,6 +128,8 @@ function MapEditor() {
   const [previewCorrection, setPreviewCorrection] = useState(0);
 
   const [selectedAreaId, setSelectedAreaId] = useState<string | null>(null);
+  // only the angle check of a picked area needs them
+  const pastJobs = useMowHistory(!!selectedAreaId);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveWarning, setSaveWarning] = useState(false);

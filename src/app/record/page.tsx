@@ -15,8 +15,7 @@ import {useEffect, useRef, useState} from 'react';
 import styles from './page.module.css';
 import {tr, useLang} from '@/lib/i18n';
 import {ACTION} from '@/lib/openmower';
-import {eventsOfDay, fileDay, historyDays} from '@/lib/history';
-import {forget} from '@/lib/fresh';
+import {eventsOfDay, fileDay, forgetToday, historyDays} from '@/lib/history';
 
 const START = ACTION.startRecording;
 const A = ACTION.recording;
@@ -57,7 +56,7 @@ export default function RecordPage() {
   // the state is published once a second, a bounce is usually over before that: the event history has it
   const checkBounce = async () => {
     if (recordingRef.current) return;
-    forget('events:');
+    forgetToday();
     const {events} = await eventsOfDay(await historyDays(), fileDay(new Date()));
     const since = startedAt.current / 1000 - 5;
     if (events.some((e) => e.type === 'DOCKING' && e.reason === 'Manual pause' && e.t >= since)) setBounced(true);

@@ -1,6 +1,5 @@
 import {groupRuns, type MowerEvent, type Run} from '@/lib/events';
-import {forget} from '@/lib/fresh';
-import {eventsOfDay, fileDay, historyDays, localDays} from '@/lib/history';
+import {eventsOfDay, fileDay, forgetToday, historyDays, localDays} from '@/lib/history';
 import {useEffect, useRef, useState} from 'react';
 
 export interface RecentRuns {
@@ -30,7 +29,7 @@ export function useRecentRuns(bump?: string): RecentRuns | null {
     // the state changed, so there's something new in the history: don't reuse a recent answer
     if (bump !== lastBump.current) {
       lastBump.current = bump;
-      forget('events:');
+      forgetToday();
     }
     const load = async () => {
       const files = await historyDays();

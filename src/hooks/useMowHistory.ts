@@ -69,10 +69,12 @@ export function useJobList(): JobInfo[] | null {
 
 const RECENT = 5;
 
-// the last few jobs with their tracks, newest first, null while loading
-export function useMowHistory(): PastJob[] | null {
+// the last few jobs with their tracks, newest first, null while loading. asked for once wanted, they're some 100 kB
+// each
+export function useMowHistory(wanted = true): PastJob[] | null {
   const [jobs, setJobs] = useState<PastJob[] | null>(null);
   useEffect(() => {
+    if (!wanted) return;
     let alive = true;
     void loadJobList()
       .then((list) =>
@@ -82,6 +84,6 @@ export function useMowHistory(): PastJob[] | null {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [wanted]);
   return jobs;
 }

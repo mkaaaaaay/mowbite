@@ -1,14 +1,28 @@
 import {dayKey, parseDay} from './dates';
 import type {MowerEvent} from './events';
-import {fresh} from './fresh';
+import {forget, fresh} from './fresh';
 import {callRpc} from './rpc';
 import {RPC} from './openmower';
 
 // the mower's event history, shared by the dashboard and the activity page
 export const historyDays = () => fresh('events:list', () => callRpc<string[]>(RPC.eventDays));
 
+// the mower's file day of a moment (UTC). A file of a day that's over doesn't change any more
+const utcDay = (ms: number) => new Date(ms).toISOString().slice(0, 10).replace(/-/g, '');
+
 export const historyOf = (date: string) =>
-  fresh(`events:${date}`, () => callRpc<MowerEvent[]>(RPC.events, {date}, 20000));
+  fresh(
+    `events:${date}`,
+    () => callRpc<MowerEvent[]>(RPC.events, {date}, 20000),
+    date < utcDay(Date.now() - 600000) ? Infinity : 15000,
+  );
+
+// something happened: the list and the file still being written are asked for again, older files are kept
+export function forgetToday() {
+  forget('events:list');
+  forget(`events:${utcDay(Date.now())}`);
+  forget(`events:${utcDay(Date.now() - 600000)}`);
+}
 
 // The mower names its files by the day in UTC, the app shows local days. So the first or last hours
 // of a local day sit in the file next to it, depending on which side of UTC the time zone is.

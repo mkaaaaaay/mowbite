@@ -7,7 +7,11 @@ ENV VERSION_SUFFIX=$VERSION_SUFFIX
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
-RUN npm run build && mkdir /empty
+# with a .gz next to a file busybox httpd sends that to browsers that take gzip, a third of the size. not config.js, the
+# container writes it at the start
+RUN npm run build && mkdir /empty && \
+    find out -type f \( -name '*.js' -o -name '*.css' -o -name '*.html' -o -name '*.txt' -o -name '*.svg' -o -name '*.json' \) \
+      ! -name config.js -size +1k -exec gzip -9 -k {} +
 
 # mqtt client for the recorder and scheduler, unpacked for the target arch without running anything of it
 FROM --platform=$BUILDPLATFORM alpine:3.22 AS mqtt
