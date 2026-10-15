@@ -46,12 +46,20 @@ export function GpsAround({t, limit}: {t: number; limit?: number}) {
   if (!samples || !b) return null;
 
   // short: good is one line in normal colour, only a real gap is orange. a second or two just over 5 cm says nothing
-  const good = b.noFix <= 2 && b.none === 0;
+  const over = b.noFix - b.none;
+  const good = over <= 2 && b.none === 0;
   const worst = b.worst === null ? tr('no GPS') : cm(b.worst);
+  const before = good
+    ? tr('RTK fix before, at worst {acc}', {acc: worst})
+    : b.none === 0
+      ? tr('{s} s over 5 cm in the minute before, at worst {acc}', {s: over, acc: worst})
+      : over > 0
+        ? tr('{s} s over 5 cm and {n} s without GPS in the minute before', {s: over, n: b.none})
+        : tr('{n} s without GPS in the minute before', {n: b.none});
   const parts = [
     b.dockOff ? tr('off in the dock approach, as it should be') : null,
     b.at && b.at.quality !== 'fix' ? (b.at.acc === null ? tr('none at that moment') : tr('{acc} at that moment', {acc: cm(b.at.acc)})) : null,
-    b.covered === 0 ? null : good ? tr('RTK fix before, at worst {acc}', {acc: worst}) : tr('{s} s without RTK fix in the minute before, at worst {acc}', {s: b.noFix, acc: worst}),
+    b.covered === 0 ? null : before,
   ].filter(Boolean);
 
   return (

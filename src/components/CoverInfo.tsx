@@ -6,12 +6,13 @@ import {fmt, tr} from '@/lib/i18n';
 import styles from './MapView.module.css';
 
 // the numbers behind a coverage square that was tapped
-export function CoverInfo({cell, mode, onClose}: {cell: CoverageCell; mode: 'gps' | 'wifi'; onClose: () => void}) {
+// raised: over the angle bar the map page puts at the bottom on a phone while an area is picked
+export function CoverInfo({cell, mode, raised, onClose}: {cell: CoverageCell; mode: 'gps' | 'wifi'; raised?: boolean; onClose: () => void}) {
   const share = Math.round((cell.noFix / cell.seconds) * 100);
   const lines =
     mode === 'gps'
       ? [
-          tr('{p} % of the time without RTK fix', {p: share}),
+          tr('{p} % of the time over 5 cm or without GPS', {p: share}),
           cell.none > 0 ? tr('{s} s without any GPS', {s: cell.none}) : null,
           cell.worst > 0 ? tr('at worst {cm} cm', {cm: fmt(cell.worst * 100, cell.worst < 0.1 ? 1 : 0)}) : null,
         ]
@@ -20,7 +21,7 @@ export function CoverInfo({cell, mode, onClose}: {cell: CoverageCell; mode: 'gps
           cell.wifiWorst !== null ? tr('at worst {dbm} dBm', {dbm: cell.wifiWorst}) : null,
         ];
   return (
-    <div className={styles.coverInfo}>
+    <div className={[styles.coverInfo, raised ? styles.coverInfoRaised : ''].join(' ')}>
       <strong>{mode === 'gps' ? 'GPS' : tr('Wi-Fi')}</strong>
       {lines.filter(Boolean).map((l) => (
         <span key={l}>{l}</span>

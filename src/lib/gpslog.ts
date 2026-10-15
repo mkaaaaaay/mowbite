@@ -24,7 +24,8 @@ export interface GpsSample {
   mowRpm?: number | null;
   escLeft?: number | null; // °C
   escRight?: number | null;
-  // the accuracy didn't change while the mower drove on: a value left over, not a measurement (gps paused)
+  // the accuracy didn't change while the mower drove on: OpenMower took no gps position any more and repeats the last
+  // one's accuracy (up to 10 s, then 999). in the dock approach it switched the gps off, elsewhere it lost it
   stale?: boolean;
 }
 
@@ -85,12 +86,16 @@ export function markStale(samples: GpsSample[]): GpsSample[] {
   return samples;
 }
 
-// the time of the first line kept, null when the container keeps none (older one). asked once per page
+// the time of the first line kept, null when the container keeps none (older one). asked once per page, again after no
+// answer
 let since: Promise<number | null> | null = null;
 export function gpsLogSince(): Promise<number | null> {
   since ??= mowerFetch(`${apiBase()}/cgi-bin/gpslog?oldest`, {cache: 'no-store'})
     .then(async (res) => (res.ok ? Number((await res.text()).trim()) || null : null))
-    .catch(() => null);
+    .catch(() => {
+      since = null;
+      return null;
+    });
   return since;
 }
 
@@ -112,7 +117,8 @@ export interface GpsBefore {
   at?: {acc: number | null; quality: GpsQuality};
   // the worst accuracy in the window, null when there was no gps at all for a while
   worst: number | null;
-  // seconds of the window without an rtk fix, and of those without any gps position
+  // seconds of the window over 5 cm or without any gps position, and of those without one (OpenMower takes only rtk
+  // fixed positions, over 5 cm is a fix with a poorer estimate)
   noFix: number;
   none: number;
   // how much of the window the samples cover, s
@@ -121,9 +127,11 @@ export interface GpsBefore {
 
 // how the gps was in the window (s) before a moment: a sample counts until the next one, at most 2 s
 export function gpsBefore(samples: readonly GpsSample[], t: number, limit = 0.2, window = 60): GpsBefore | null {
-  // a value left over says nothing either way, it's left out like the dock approach
-  const dockApproach = (s: GpsSample) => s.acc === null && (s.state === 'DOCKING' || s.state === 'UNDOCKING');
-  const offOnPurpose = (s: GpsSample) => dockApproach(s) || !!s.stale;
+  // the gps is off on purpose in the dock approach, a value left over there too. elsewhere it's a position lost
+  const docking = (s: GpsSample) => s.state === 'DOCKING' || s.state === 'UNDOCKING';
+  const dockApproach = (s: GpsSample) => docking(s) && (s.acc === null || !!s.stale);
+  const offOnPurpose = dockApproach;
+  const acc = (s: GpsSample) => (s.stale ? null : s.acc);
   const all = samples.filter((s) => s.t >= t - window && s.t <= t + 1);
   const last = all.filter((s) => s.t <= t + 1).pop();
   const dockOff = !!last && t - last.t <= 3 && dockApproach(last);
@@ -137,21 +145,14 @@ export function gpsBefore(samples: readonly GpsSample[], t: number, limit = 0.2,
     const until = Math.min(inside[i + 1]?.t ?? t, t, s.t + 2);
     const d = Math.max(0, until - s.t);
     covered += d;
-    const q = gpsQuality(s.acc ?? 999, limit);
+    const a = acc(s);
+    const q = gpsQuality(a ?? 999, limit);
     if (q !== 'fix') noFix += d;
-    if (s.acc === null) {
+    if (a === null) {
       none += d;
       worst = null;
-    } else if (worst !== null && s.acc > worst) worst = s.acc;
+    } else if (worst !== null && a > worst) worst = a;
   });
-  const at = last && t - last.t <= 3 && !offOnPurpose(last) ? {acc: last.acc, quality: gpsQuality(last.acc ?? 999, limit)} : undefined;
+  const at = last && t - last.t <= 3 && !offOnPurpose(last) ? {acc: acc(last), quality: gpsQuality(acc(last) ?? 999, limit)} : undefined;
   return {dockOff, at, worst, noFix: Math.round(noFix), none: Math.round(none), covered: Math.round(covered)};
-}
-
-// as a file to open in a spreadsheet: time, state, x, y, accuracy in m (empty without gps)
-export function gpsCsv(samples: readonly GpsSample[]): string {
-  const rows = samples.map((s) =>
-    [new Date(s.t * 1000).toISOString(), s.state, s.x.toFixed(3), s.y.toFixed(3), s.acc === null ? '' : s.acc.toFixed(3), s.wifi ?? ''].join(','),
-  );
-  return ['time,state,x,y,accuracy_m,wifi_dbm', ...rows].join('\n') + '\n';
 }

@@ -101,7 +101,9 @@ export function collapse(lines: readonly Line[], within = 5): (Line & {n: number
 type Band = 'fix' | 'float' | 'poor' | 'none' | 'dock' | 'stale';
 const band = (s: GpsSample, limit: number): Band =>
   s.stale
-    ? 'stale'
+    ? s.state === 'DOCKING' || s.state === 'UNDOCKING'
+      ? 'dock'
+      : 'stale'
     : s.acc === null
       ? s.state === 'DOCKING' || s.state === 'UNDOCKING'
         ? 'dock'
@@ -111,15 +113,15 @@ const band = (s: GpsSample, limit: number): Band =>
         : s.acc <= limit
           ? 'float'
           : 'poor';
-// told by the receiver's estimated accuracy, not a fix flag (OpenMower doesn't pass that on): up to 5 cm is what an RTK
-// fix gives
+// OpenMower takes only rtk fixed positions within max_gps_accuracy and passes on their estimated accuracy, the last
+// one for up to 10 s after it took none, then 999
 const BAND_TEXT: Record<Band, string> = {
-  fix: 'at most 5 cm, RTK fix level',
-  float: 'over 5 cm, still usable',
+  fix: 'at most 5 cm',
+  float: 'over 5 cm, still taken',
   poor: 'too inaccurate, the mower ignores it',
   none: 'no GPS',
   dock: 'off in the dock approach (normal)',
-  stale: 'accuracy not updated any more (a value left over, gps probably paused)',
+  stale: 'no GPS position taken any more (OpenMower repeats the last accuracy for up to 10 s)',
 };
 
 // a line whenever the gps gets into another band, with the worst of the stretch before it
@@ -149,20 +151,22 @@ export function gpsSummary(samples: readonly GpsSample[], limit: number): string
     const b = band(s, limit);
     time[b] += d;
     if (s.acc !== null && !s.stale && s.acc > worst) worst = s.acc;
-    if (b !== 'fix' && b !== 'dock' && b !== 'stale') {
+    if (b !== 'fix' && b !== 'dock') {
       gapStart ??= s.t;
       if (s.t + d - gapStart > gap.to - gap.from) gap = {from: gapStart, to: s.t + d};
     } else gapStart = null;
   });
-  const all = time.fix + time.float + time.poor + time.none;
+  const all = time.fix + time.float + time.poor + time.none + time.stale;
   const pct = (v: number) => `${all ? Math.round((v / all) * 100) : 0} %`;
   const wifi = samples.map((s) => s.wifi).filter((w): w is number => typeof w === 'number');
   const lines = [
-    `GPS (by its accuracy): at most 5 cm ${pct(time.fix)} of the time, over 5 cm but usable ${mins(time.float)}, too inaccurate ${mins(time.poor)}, no GPS ${mins(time.none)}` +
+    `GPS (by its accuracy): at most 5 cm ${pct(time.fix)} of the time, over 5 cm but taken ${mins(time.float)}, too inaccurate ${mins(time.poor)}, no GPS ${mins(time.none + time.stale)}` +
+      (time.stale ? ` (${mins(time.stale)} of it with the last accuracy repeated)` : '') +
       (time.dock ? `, off in the dock approach ${mins(time.dock)}` : '') +
-      (time.stale ? `, accuracy not updated ${mins(time.stale)} (left out of the share)` : '') +
       `. Worst accuracy ${cm(worst)}.`,
-    gap.to > gap.from ? `Longest stretch over 5 cm: ${mins(gap.to - gap.from)} from ${stamp(gap.from)}.` : 'Never over 5 cm outside the dock approach.',
+    gap.to > gap.from
+      ? `Longest stretch over 5 cm or without GPS: ${mins(gap.to - gap.from)} from ${stamp(gap.from)}.`
+      : 'Never over 5 cm or without GPS outside the dock approach.',
   ];
   if (wifi.length) {
     const sorted = [...wifi].sort((a, b) => a - b);
@@ -460,7 +464,7 @@ export function buildDiagnosis(d: DiagnosisInput): string {
     const b = d.gps && gpsBefore(d.gps, t, d.gpsLimit);
     if (b)
       lines.push(
-        `    GPS the minute before: ${b.dockOff ? 'off in the dock approach (normal); ' : ''}${b.noFix} s over 5 cm, ${b.none} s no GPS, worst ${b.worst === null ? 'no GPS' : cm(b.worst)}` +
+        `    GPS the minute before: ${b.dockOff ? 'off in the dock approach (normal); ' : ''}${b.noFix - b.none} s over 5 cm, ${b.none} s no GPS, worst ${b.worst === null ? 'no GPS' : cm(b.worst)}` +
           (b.at ? `, at the moment ${b.at.acc === null ? 'none' : cm(b.at.acc)}` : ''),
       );
     const c = d.gps && chargeContact(d.gps, t);
@@ -545,7 +549,8 @@ export function buildDiagnosis(d: DiagnosisInput): string {
   const dockingDistance = (d.snapshot?.params ?? d.params)['/mower_logic/docking_distance'];
   for (const {event, state} of withState(run.events).filter(({event, state}) => noteworthy(event, state))) {
     const lines = [`${stamp(event.t)}  ${describe(event, state).text}` + (event.x !== undefined ? `  at ${event.x.toFixed(2)}, ${event.y?.toFixed(2)}` : '')];
-    let hint = explain(event, state, typeof d.params['/mower_logic/gps_timeout'] === 'number' ? (d.params['/mower_logic/gps_timeout'] as number) : undefined);
+    const gpsTimeout = (d.snapshot?.params ?? d.params)['/mower_logic/gps_timeout'];
+    let hint = explain(event, state, typeof gpsTimeout === 'number' ? gpsTimeout : undefined);
     // "in front of the dock" only when it is: well past the dock point it drove all of docking_distance without contact
     if (/DOCKING_(RETRY|FAILED)/.test(event.type) && event.reason === 'dock_failed' && dock && event.x !== undefined && event.y !== undefined) {
       const along = (event.x - dock.position.x) * Math.cos(dock.heading) + (event.y - dock.position.y) * Math.sin(dock.heading);

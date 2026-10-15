@@ -194,9 +194,9 @@ export default function MapControls({
               </label>
               {coverage.value !== 'off' && (
                 <span className={styles.coverLegend}>
-                  <i className={styles.good} /> {tr(coverage.value === 'gps' ? 'RTK fix' : 'strong')}
-                  <i className={styles.ok} /> {tr(coverage.value === 'gps' ? 'at times without' : 'medium')}
-                  <i className={styles.bad} /> {tr(coverage.value === 'gps' ? 'often without' : 'weak')}
+                  <i className={styles.good} /> {tr(coverage.value === 'gps' ? 'at most 5 cm' : 'strong')}
+                  <i className={styles.ok} /> {tr(coverage.value === 'gps' ? 'at times worse' : 'medium')}
+                  <i className={styles.bad} /> {tr(coverage.value === 'gps' ? 'often worse' : 'weak')}
                 </span>
               )}
               {coverage.value !== 'off' && <span className={styles.coverHint}>{tr('Paler: little data there. Tap a square for its numbers.')}</span>}

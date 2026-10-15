@@ -9,7 +9,7 @@ export interface CoverageCell {
   x: number; // lower left corner, m
   y: number;
   seconds: number;
-  noFix: number; // seconds without an rtk fix, the ones without any gps included
+  noFix: number; // seconds over 5 cm or without any gps position (OpenMower takes only rtk fixed ones), the latter included
   none: number;
   worst: number; // m
   wifi: number | null; // average dBm, null when it couldn't be read there
@@ -32,7 +32,7 @@ export function readCoverage(text: string, cell = CELL_M): CoverageCell[] {
 // a few seconds say nothing about a place, and a square the mower only crossed once is mostly that
 export const MIN_SECONDS = 3;
 
-// the share of the time without an rtk fix there
+// the share of the time over 5 cm or without gps there
 export function gpsGrade(c: CoverageCell): Grade {
   const share = c.noFix / c.seconds;
   return share <= 0.05 ? 'good' : share <= 0.25 ? 'ok' : 'bad';

@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {gpsBefore, gpsCsv, readGpsLog} from './gpslog';
+import {gpsBefore, readGpsLog} from './gpslog';
 
 const log = (rows: [number, number | null][]) =>
   readGpsLog(rows.map(([t, acc]) => `${t} MOWING 1.000 2.000 ${acc === null ? '999.000' : acc}`).join('\n'));
@@ -51,6 +51,22 @@ describe('gps log', () => {
     expect(b.worst).toBe(0.02);
   });
 
+  it('counts an accuracy repeated while mowing as no gps: OpenMower took no position any more', () => {
+    // a good fix up to 1052, then the last accuracy repeated while it drives on, 999 from 1062. a bump at 1060
+    const rows = Array.from({length: 63}, (_, i) => {
+      const t = 1000 + i;
+      const acc = t < 1052 ? (0.015 + (i % 3) * 0.002).toFixed(3) : t < 1062 ? '0.019' : '999.000';
+      return `${t} MOWING ${(i * 0.3).toFixed(2)} 2 ${acc}`;
+    });
+    const b = gpsBefore(readGpsLog(rows.join('\n')), 1060)!;
+    expect(b.dockOff).toBe(false);
+    expect(b.at?.quality).toBe('none');
+    // the first of the repeated ones may still be a position taken
+    expect(b.none).toBe(7);
+    expect(b.noFix).toBe(b.none);
+    expect(b.worst).toBeNull();
+  });
+
   it('marks an accuracy that stays the same while the mower drives on', () => {
     const s = readGpsLog([0, 1, 2, 3, 4, 5].map((i) => `${i} DOCKING ${i * 0.1} 0 ${i < 5 ? '0.050' : '0.040'} -40 0.1 0`).join('\n'));
     expect(s.map((x) => !!x.stale)).toEqual([false, true, true, true, true, false]);
@@ -58,11 +74,5 @@ describe('gps log', () => {
     // standing still it's just the same, and a good fix while mowing may stay at 2 cm
     expect(readGpsLog([0, 1, 2, 3, 4].map((i) => `${i} IDLE 0 0 0.050`).join('\n')).some((x) => x.stale)).toBe(false);
     expect(readGpsLog([0, 1, 2, 3, 4, 5].map((i) => `${i} MOWING ${i * 0.1} 0 0.020`).join('\n')).some((x) => x.stale)).toBe(false);
-  });
-
-  it('writes a csv', () => {
-    expect(gpsCsv(log([[0, 0.02], [1, null]]))).toBe(
-      'time,state,x,y,accuracy_m,wifi_dbm\n1970-01-01T00:00:00.000Z,MOWING,1.000,2.000,0.020,\n1970-01-01T00:00:01.000Z,MOWING,1.000,2.000,,\n',
-    );
   });
 });

@@ -17,7 +17,7 @@ describe('diagnosis', () => {
   it('a gps line only when it gets better or worse', () => {
     const s = readGpsLog(['1 MOWING 1 2 0.020 -50', '2 MOWING 1 2 0.021 -50', '3 MOWING 1 2 0.300 -60', '4 DOCKING 1 2 999 -55'].join('\n'));
     expect(gpsChanges(s, 0.2).map((l) => l.text)).toEqual([
-      'at most 5 cm, RTK fix level (2.0 cm) at 1.00, 2.00, Wi-Fi -50 dBm',
+      'at most 5 cm (2.0 cm) at 1.00, 2.00, Wi-Fi -50 dBm',
       'too inaccurate, the mower ignores it (30 cm) at 1.00, 2.00, Wi-Fi -60 dBm',
       'off in the dock approach (normal) at 1.00, 2.00, Wi-Fi -55 dBm',
     ]);
