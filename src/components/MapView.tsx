@@ -2,7 +2,8 @@
 
 import type {MowerMap, Point} from '@/hooks/useMowerMap';
 import {useComputedSpeed} from '@/hooks/useComputedSpeed';
-import {createEaser, useEasedPose, type Pose} from '@/hooks/useEasedPose';
+import {createEaser, type Easer, type Pose} from '@/lib/poseEaser';
+import {liveGlide} from '@/hooks/useMowerPosition';
 import {containsPoint, polygonArea} from '@/lib/geometry';
 import {settingsStore, type Settings} from '@/lib/settings';
 import {bladeSeconds, bodyShape, realEdges, roundBends, swathEnd, swathGroups, swathAfter, swathTail, useMowerBody, type MowerBody, type SwathState} from '@/lib/mowerBody';
@@ -198,10 +199,12 @@ function viewToMeters(v: View, f: Fit): Meters {
   return {x: (v.x + v.size / 2 - f.padX) / f.scale + f.minX, y: (HEIGHT - v.y - v.size / 2 - f.padY) / f.scale + f.minY, span: v.size / f.scale};
 }
 
-// the mower. It glides between the poses that come in and draws itself every frame for that, on its own: the rest
+// the mower. It glides between the poses that come in and moves itself every frame for that without drawing again:
+// its parts are drawn once around its position and the frame loop only moves and turns the groups they sit in. The rest
 // of the map stays as it is meanwhile
 function MowerMarker({
   mower,
+  poses,
   fit,
   k,
   icons,
@@ -214,6 +217,8 @@ function MowerMarker({
   costume,
 }: {
   mower: Pose;
+  // the live poses as they came (useMowerPosition), else it eases along mower on its own
+  poses: Easer | null;
   fit: Fit;
   k: number;
   icons: Settings['icons'];
@@ -227,111 +232,182 @@ function MowerMarker({
   ghost?: boolean;
   costume?: {hat?: boolean; towel?: boolean; umbrella?: boolean};
 }) {
-  // (a fiftieth of a pixel of the map, about: k is svg units per pixel of the drawing's width). it moves on in every
-  // frame, with half a pixel it went in steps a dozen times a second on a whole garden
-  const shown = useEasedPose(mower, (0.02 * k) / fit.scale) ?? mower;
+  const [own] = useState(createEaser);
+  useEffect(() => {
+    own.push(poses ? null : mower);
+  }, [own, poses, mower]);
   // the blade turning the way the mow motor does, drawn only with the outline
   const rpm = useSensorValue('om_mow_motor_rpm', (v) => (outline && body?.blade ? Math.round(parseFloat(v ?? '') || 0) : 0));
   const speed = useComputedSpeed(mower);
-  const haunt = useTrailingPose(shown, !!ghost && speed > 0.05);
   // which way a side view faces. it only turns once the mower clearly heads the other way, so it doesn't flicker while
   // the mower drives up or down the map
   const [facing, setFacing] = useState(1);
-  const across = Math.cos(shown.heading);
+  const across = Math.cos(mower.heading);
   if (across > 0.3 && facing !== 1) setFacing(1);
   if (across < -0.3 && facing !== -1) setFacing(-1);
-  const {scale, padX, padY, minX, minY} = fit;
-  const toScreen = (x: number, y: number): [number, number] => [(x - minX) * scale + padX, HEIGHT - ((y - minY) * scale + padY)];
-  const shape = body ? bodyShape(body, shown.x, shown.y, shown.heading) : null;
+  const {scale} = fit;
+  // the parts around the mower's position with it heading along x, in svg units (svg's y points down)
+  const shape = body ? bodyShape(body, 0, 0, 0) : null;
+  const local = (p: {x: number; y: number}): [number, number] => [p.x * scale, -p.y * scale];
   // at its real size with the sizes set the icon sits in the middle of the body, as long as it
   const real = icons?.mowerRealSize ? shape : null;
-  const [sx, sy] = toScreen(real ? real.middle.x : shown.x, real ? real.middle.y : shown.y);
   // same size on screen like the dock, or its real size (never smaller than a few pixels)
   const realSize = body && real ? ((body.front + body.rear) / 2) * scale : MOWER_SIZE * scale;
   const base = icons?.mowerRealSize ? Math.max(realSize, 7 * k) : 8 * k;
   const size = base * (real ? 1 : (icons?.mowerSize ?? 1));
-  // svg y points down, so the map's ccw heading becomes a cw rotation
-  const deg = (-shown.heading * 180) / Math.PI;
   const icon = mowerIcon(icons?.mower);
+  // a real mower on its body, exactly as long and wide as set
+  const fitted = showIcon && icon.fit && !!body && !!shape;
+  // where the icon sits: the body's middle at real size or fitted to the body, else the mower's position
+  const [mx, my] = shape && (fitted || real) ? local(shape.middle) : [0, 0];
   // a side view heading left would stand on its head, mirrored it keeps its feet on the ground. a figure
   // isn't turned with the heading at all, it only looks left or right. css, so it turns around instead of
   // flipping over at once
   const turn = !icon.side ? undefined : icon.upright ? `scaleX(${facing})` : `scaleY(${facing})`;
-  const points = (list: {x: number; y: number}[]) => list.map((c) => toScreen(c.x, c.y).join(',')).join(' ');
-  const [bx, by] = shape ? toScreen(shape.blade.x, shape.blade.y) : [0, 0];
-  const [ax, ay] = toScreen(shown.x, shown.y);
+  const points = (list: {x: number; y: number}[]) => list.map((c) => local(c).join(',')).join(' ');
+  const [bx, by] = shape ? local(shape.blade) : [0, 0];
   const r = body ? (body.blade / 2) * scale : 0;
   // OpenMower's rpm is negative when the motor turns the other way round (randomize_mow_motor_direction), forwards is
   // drawn clockwise
   const spin = Math.sign(rpm);
   const still = stillPreferred();
+
+  // moved to the eased pose: all of it, the parts that turn with the heading (under the icon and over it), and the
+  // ones that stay upright at the turned middle
+  const moveRef = useRef<SVGGElement | null>(null);
+  const turnRefs = useRef<(SVGGElement | null)[]>([]);
+  const uprightRefs = useRef<(SVGGElement | null)[]>([]);
+  const placed = useRef({sx: NaN, sy: NaN, deg: NaN});
+  const latest = useRef({fit, k, mx, my, mower});
+  // the time of the frame being shown: placed again after a render at that time, a later one would put it a bit ahead
+  // until the next frame and it would twitch with every render
+  const shownAt = useRef<number | null>(null);
+  const place = useCallback(
+    (now: number = shownAt.current ?? performance.now()) => {
+      const {fit: f, k: unit, mx: ox, my: oy, mower: m} = latest.current;
+      const p = (poses ?? own).at(now) ?? m;
+      const sx = (p.x - f.minX) * f.scale + f.padX;
+      const sy = HEIGHT - ((p.y - f.minY) * f.scale + f.padY);
+      // svg y points down, so the map's ccw heading becomes a cw rotation
+      const deg = (-p.heading * 180) / Math.PI;
+      const last = placed.current;
+      // (a fiftieth of a pixel, a twentieth of a degree: nothing is set again while it stands)
+      if (Math.abs(sx - last.sx) < 0.02 * unit && Math.abs(sy - last.sy) < 0.02 * unit && Math.abs(deg - last.deg) < 0.05) return;
+      placed.current = {sx, sy, deg};
+      moveRef.current?.setAttribute('transform', `translate(${sx} ${sy})`);
+      for (const g of turnRefs.current) g?.setAttribute('transform', `rotate(${deg})`);
+      const a = (deg * Math.PI) / 180;
+      const up = `translate(${ox * Math.cos(a) - oy * Math.sin(a)} ${ox * Math.sin(a) + oy * Math.cos(a)})`;
+      for (const g of uprightRefs.current) g?.setAttribute('transform', up);
+    },
+    [poses, own],
+  );
+  // after every render: what's drawn may be new, it's placed before it shows
+  useLayoutEffect(() => {
+    latest.current = {fit, k, mx, my, mower};
+    placed.current = {sx: NaN, sy: NaN, deg: NaN};
+    place();
+  });
+  useEffect(() => {
+    let frame = 0;
+    const tick = (now: number) => {
+      shownAt.current = now;
+      place(now);
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [place]);
+
+  const drawIcon = (
+    <g className={styles.turn} style={turn ? {transform: turn} : undefined}>
+      {drawMower(icon, {speed, emergency, blades})}
+    </g>
+  );
   return (
     <>
-      {outline && shape && <polygon className={styles.mowerBody} points={points(shape.corners)} />}
-      {showIcon && icon.fit && body && shape ? (
-        // a real mower on its body, exactly as long and wide as set
-        <g
-          className={styles.mower}
-          transform={`translate(${toScreen(shape.middle.x, shape.middle.y).join(' ')}) rotate(${deg}) scale(${((body.front + body.rear) / 2) * scale} ${(body.width / 2) * scale})`}
-        >
-          {icon.draw({speed, emergency, blades})}
+      <g ref={moveRef}>
+        <g ref={(el) => void (turnRefs.current[0] = el)}>
+          {outline && shape && <polygon className={styles.mowerBody} points={points(shape.corners)} />}
+          {fitted ? (
+            <g
+              className={styles.mower}
+              transform={`translate(${mx} ${my}) scale(${((body.front + body.rear) / 2) * scale} ${(body.width / 2) * scale})`}
+            >
+              {icon.draw({speed, emergency, blades})}
+            </g>
+          ) : (
+            showIcon &&
+            !icon.upright && (
+              <g className={styles.mower} transform={`translate(${mx} ${my}) scale(${size})`}>
+                {drawIcon}
+              </g>
+            )
+          )}
         </g>
-      ) : (
-        showIcon && (
-          <g className={styles.mower} transform={`translate(${sx} ${sy}) rotate(${icon.upright ? 0 : deg}) scale(${size})`}>
-            <g className={styles.turn} style={turn ? {transform: turn} : undefined}>
-              {drawMower(icon, {speed, emergency, blades})}
+        {showIcon && !fitted && icon.upright && (
+          <g ref={(el) => void (uprightRefs.current[0] = el)}>
+            <g className={styles.mower} transform={`scale(${size})`}>
+              {drawIcon}
             </g>
           </g>
-        )
-      )}
-      {/* the blade over the icon, where it sits under the mower */}
-      {outline && shape && r > 0 && (
-        <g transform={`translate(${bx} ${by})`}>
-          <circle className={blades ? styles.mowerBladeOn : styles.mowerBlade} r={r} />
-          {/* the blade itself, turning like the mow motor: svg's y points down, so a positive angle turns clockwise */}
-          <g className={styles.mowerBladeBar}>
-            <rect x={-r * 0.92} y={-r * 0.09} width={r * 1.84} height={r * 0.18} rx={r * 0.05} />
-            <rect x={-r * 0.92} y={-r * 0.09} width={r * 0.3} height={r * 0.18} transform={`rotate(-20 ${-r * 0.77} 0)`} />
-            <rect x={r * 0.62} y={-r * 0.09} width={r * 0.3} height={r * 0.18} transform={`rotate(-20 ${r * 0.77} 0)`} />
-            {spin !== 0 && !still && (
-              <animateTransform
-                attributeName="transform"
-                type="rotate"
-                from="0 0 0"
-                to={`${spin * 360} 0 0`}
-                dur={`${bladeSeconds(rpm)}s`}
-                repeatCount="indefinite"
-              />
-            )}
+        )}
+        <g ref={(el) => void (turnRefs.current[1] = el)}>
+          {/* the blade over the icon, where it sits under the mower */}
+          {outline && shape && r > 0 && (
+            <g transform={`translate(${bx} ${by})`}>
+              <circle className={blades ? styles.mowerBladeOn : styles.mowerBlade} r={r} />
+              {/* the blade itself, turning like the mow motor: svg's y points down, so a positive angle turns clockwise */}
+              <g className={styles.mowerBladeBar}>
+                <rect x={-r * 0.92} y={-r * 0.09} width={r * 1.84} height={r * 0.18} rx={r * 0.05} />
+                <rect x={-r * 0.92} y={-r * 0.09} width={r * 0.3} height={r * 0.18} transform={`rotate(-20 ${-r * 0.77} 0)`} />
+                <rect x={r * 0.62} y={-r * 0.09} width={r * 0.3} height={r * 0.18} transform={`rotate(-20 ${r * 0.77} 0)`} />
+                {spin !== 0 && !still && (
+                  <animateTransform
+                    attributeName="transform"
+                    type="rotate"
+                    from="0 0 0"
+                    to={`${spin * 360} 0 0`}
+                    dur={`${bladeSeconds(rpm)}s`}
+                    repeatCount="indefinite"
+                  />
+                )}
+              </g>
+            </g>
+          )}
+          {outline && shape && (
+            <>
+              {!showIcon && <polyline className={styles.mowerArrow} points={points(shape.arrow)} />}
+              <circle className={styles.mowerAxle} cx={0} cy={0} r={1.5 * k} />
+            </>
+          )}
+        </g>
+        {showIcon && (costume?.hat || costume?.towel || costume?.umbrella) && (
+          // upright over any icon, also one seen from above, at the size it's drawn
+          <g ref={(el) => void (uprightRefs.current[1] = el)}>
+            <g transform={`scale(${fitted ? ((body.front + body.rear) / 2) * scale : size})`} className={styles.costume}>
+              <MapCostume hat={costume.hat} towel={costume.towel} umbrella={costume.umbrella} high={!!icon.side} />
+            </g>
           </g>
-        </g>
-      )}
-      {showIcon && (costume?.hat || costume?.towel || costume?.umbrella) && (
-        // upright over any icon, also one seen from above, at the size it's drawn
-        <g
-          transform={`translate(${(icon.fit && body && shape ? toScreen(shape.middle.x, shape.middle.y) : [sx, sy]).join(' ')}) scale(${
-            icon.fit && body ? ((body.front + body.rear) / 2) * scale : size
-          })`}
-          className={styles.costume}
-        >
-          <MapCostume hat={costume.hat} towel={costume.towel} umbrella={costume.umbrella} high={!!icon.side} />
-        </g>
-      )}
-      {haunt && (
-        <g transform={`translate(${toScreen(haunt.x, haunt.y).join(' ')}) scale(${(size * 2.2) / 30})`} className={styles.ghost}>
-          <g className={styles.ghostBob}>
-            <MapGhost />
-          </g>
-        </g>
-      )}
-      {outline && shape && (
-        <>
-          {!showIcon && <polyline className={styles.mowerArrow} points={points(shape.arrow)} />}
-          <circle className={styles.mowerAxle} cx={ax} cy={ay} r={1.5 * k} />
-        </>
-      )}
+        )}
+      </g>
+      {ghost && <MarkerGhost mower={mower} on={speed > 0.05} fit={fit} size={size} />}
     </>
+  );
+}
+
+// halloween night: a little ghost follows a moment behind while it drives, drawn again every frame on its own
+function MarkerGhost({mower, on, fit, size}: {mower: Pose; on: boolean; fit: Fit; size: number}) {
+  const haunt = useTrailingPose(mower, on);
+  if (!haunt) return null;
+  const sx = (haunt.x - fit.minX) * fit.scale + fit.padX;
+  const sy = HEIGHT - ((haunt.y - fit.minY) * fit.scale + fit.padY);
+  return (
+    <g transform={`translate(${sx} ${sy}) scale(${(size * 2.2) / 30})`} className={styles.ghost}>
+      <g className={styles.ghostBob}>
+        <MapGhost />
+      </g>
+    </g>
   );
 }
 
@@ -463,12 +539,14 @@ function MapView({
   };
   useEffect(() => () => dropHold(), []);
   // the mower glides on its own (MowerMarker), the view only goes along with it in follow mode: every frame by moving
-  // the viewBox itself (below), a render of the whole map for every frame stuttered on phones
+  // the viewBox itself (below), a render of the whole map for every frame stuttered on phones. Both along the live poses
+  // as they came when the mower is the live one, at the same frame time: the mower stays right in the middle
+  const livePoses = liveGlide(mower);
   const followed = following && mower ? mower : null;
   const [followEaser] = useState(createEaser);
   useEffect(() => {
-    followEaser.push(followed);
-  }, [followEaser, followed]);
+    followEaser.push(livePoses ? null : followed);
+  }, [followEaser, followed, livePoses]);
   const body = useMowerBody();
 
   // fitted to the map only, so the geometry doesn't change while the mower moves. follow mode
@@ -555,35 +633,40 @@ function MapView({
   const anchored = !!anchor && anchor.size === glideSize;
   const frameRef = useRef<HTMLDivElement | null>(null);
   const lastSlide = useRef<[number, number] | null>(null);
+  // the time of the frame being shown, slid again at that time after a render (see MowerMarker)
+  const slidAt = useRef<number | null>(null);
   // slides the map so the eased mower is in the middle of the frame, asks for a new anchor when it gets near the edge
   // of what's drawn
-  const slide = useCallback(() => {
-    const g = glideRef.current;
-    const svg = svgRef.current;
-    const frame = frameRef.current;
-    const p = followEaser.at(performance.now());
-    if (!g || !svg || !frame || !p) return;
-    const f = fitRef.current;
-    const sx = (p.x - f.minX) * f.scale + f.padX;
-    const sy = HEIGHT - ((p.y - f.minY) * f.scale + f.padY);
-    const width = frame.clientWidth || 1;
-    const unit = width / g.size;
-    const tx = width / 2 - (sx - (g.x - g.size)) * unit;
-    const ty = width / 2 - (sy - (g.y - g.size)) * unit;
-    const last = lastSlide.current;
-    if (!last || Math.abs(tx - last[0]) > 0.02 || Math.abs(ty - last[1]) > 0.02) {
-      svg.style.transform = `translate3d(${tx}px, ${ty}px, 0)`;
-      lastSlide.current = [tx, ty];
-    }
-    // (no anchor of its own yet it goes with the mower's position: kept where it is now)
-    if (!g.asked && !g.fixed) {
-      g.asked = true;
-      setAnchor({x: g.x, y: g.y, size: g.size});
-    } else if (!g.asked && (Math.abs(sx - g.x) > 0.35 * g.size || Math.abs(sy - g.y) > 0.35 * g.size)) {
-      g.asked = true;
-      setAnchor({x: sx, y: sy, size: g.size});
-    }
-  }, [followEaser]);
+  const slide = useCallback(
+    (now: number = slidAt.current ?? performance.now()) => {
+      const g = glideRef.current;
+      const svg = svgRef.current;
+      const frame = frameRef.current;
+      const p = (livePoses ?? followEaser).at(now);
+      if (!g || !svg || !frame || !p) return;
+      const f = fitRef.current;
+      const sx = (p.x - f.minX) * f.scale + f.padX;
+      const sy = HEIGHT - ((p.y - f.minY) * f.scale + f.padY);
+      const width = frame.clientWidth || 1;
+      const unit = width / g.size;
+      const tx = width / 2 - (sx - (g.x - g.size)) * unit;
+      const ty = width / 2 - (sy - (g.y - g.size)) * unit;
+      const last = lastSlide.current;
+      if (!last || Math.abs(tx - last[0]) > 0.02 || Math.abs(ty - last[1]) > 0.02) {
+        svg.style.transform = `translate3d(${tx}px, ${ty}px, 0)`;
+        lastSlide.current = [tx, ty];
+      }
+      // (no anchor of its own yet it goes with the mower's position: kept where it is now)
+      if (!g.asked && !g.fixed) {
+        g.asked = true;
+        setAnchor({x: g.x, y: g.y, size: g.size});
+      } else if (!g.asked && (Math.abs(sx - g.x) > 0.35 * g.size || Math.abs(sy - g.y) > 0.35 * g.size)) {
+        g.asked = true;
+        setAnchor({x: sx, y: sy, size: g.size});
+      }
+    },
+    [followEaser, livePoses],
+  );
   // the anchor drawn and the slide that goes with it in the same frame, the map doesn't jump when it's drawn again
   useLayoutEffect(() => {
     glideRef.current = glides ? {x: gx, y: gy, size: glideSize, fixed: anchored, asked: false} : null;
@@ -594,8 +677,9 @@ function MapView({
   useEffect(() => {
     if (!glides) return;
     let frame = 0;
-    const tick = () => {
-      slide();
+    const tick = (now: number) => {
+      slidAt.current = now;
+      slide(now);
       frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
@@ -1376,6 +1460,7 @@ function MapView({
         {mower && (
           <MowerMarker
             mower={mower}
+            poses={livePoses}
             fit={drawn}
             k={k}
             icons={settings.icons}

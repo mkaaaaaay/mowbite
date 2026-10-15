@@ -1,7 +1,3 @@
-'use client';
-
-import {useEffect, useState} from 'react';
-
 export interface Pose {
   x: number;
   y: number;
@@ -23,9 +19,9 @@ function curve(a: number, b: number, c: number, d: number, f: number) {
 // go, so this plays them back two and a half intervals late, along a smooth curve through them. They're placed at the steady
 // pace they were sent: when they came only pulls a little, wifi bunching them up doesn't change the speed. One interval
 // late, a pose that came a few ms late stopped the mower for a frame, and straight lines between them changed its speed
-// every 150 ms. null: nothing to follow, nothing runs (every frame that moves is a render of the one using it)
-// the playback behind useEasedPose: poses in as they come, the pose to show at a time out. For a view that moves itself
-// every frame without a render
+// every 150 ms. Poses in as they come (at: when, if they were held up on the way), the pose to show at a time out, for
+// a view that moves itself every frame without a render. null: nothing to follow
+export type Easer = ReturnType<typeof createEaser>;
 export function createEaser() {
   const list: {t: number; pose: Pose}[] = [];
   // ms between poses as they come, and how late the playback runs: that follows only slowly, a jump in it would jerk
@@ -34,8 +30,8 @@ export function createEaser() {
   let came = 0;
   let pushed: Pose | null = null;
   return {
-    push(target: Pose | null) {
-      const now = performance.now();
+    push(target: Pose | null, at?: number) {
+      const now = at ?? performance.now();
       if (!target) {
         list.length = 0;
         pushed = null;
@@ -84,34 +80,4 @@ export function createEaser() {
       };
     },
   };
-}
-
-// step: m, a new pose only once it moved this far (or turned by a twentieth of a degree), nothing is drawn again while
-// it stands
-export function useEasedPose(target: Pose | null, step = 1e-4): Pose | null {
-  const [pose, setPose] = useState(target);
-  const [easer] = useState(createEaser);
-
-  useEffect(() => {
-    easer.push(target);
-  }, [easer, target]);
-
-  useEffect(() => {
-    let frame = 0;
-    const tick = () => {
-      const next = easer.at(performance.now());
-      if (next) {
-        setPose((p) =>
-          p && Math.abs(p.x - next.x) < step && Math.abs(p.y - next.y) < step && Math.abs(p.heading - next.heading) < 0.001
-            ? p
-            : next,
-        );
-      }
-      frame = requestAnimationFrame(tick);
-    };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, [easer, step]);
-
-  return target ? (pose ?? target) : null;
 }

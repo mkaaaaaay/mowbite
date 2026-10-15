@@ -3,6 +3,7 @@
 import {onTopic} from '@/lib/mqttClient';
 import {useSyncExternalStore} from 'react';
 import {TOPIC} from '@/lib/openmower';
+import {createEaser, type Easer} from '@/lib/poseEaser';
 
 export interface Position {
   x: number;
@@ -18,6 +19,10 @@ const TURNED = (2 * Math.PI) / 180;
 let position: Position | null = null;
 let started = false;
 const listeners = new Set<() => void>();
+// every pose with the time it came, for the map's glide: the small moves left out above, or a page drawing the map a
+// moment after the pose came, made the mower stop and jump now and then. handedOut: the poses the store gave the pages
+const glide = createEaser();
+const handedOut = new WeakSet<Position>();
 
 function start() {
   if (started) return;
@@ -31,9 +36,11 @@ function start() {
     } catch {
       return;
     }
+    glide.push(p, performance.now());
     const turned = position ? Math.abs(Math.atan2(Math.sin(p.heading - position.heading), Math.cos(p.heading - position.heading))) : Infinity;
     if (position && Math.hypot(p.x - position.x, p.y - position.y) < MOVED && turned < TURNED) return;
     position = p;
+    handedOut.add(p);
     listeners.forEach((l) => l());
   });
 }
@@ -51,4 +58,9 @@ export function useMowerPosition(): Position | null {
     () => position,
     () => null,
   );
+}
+
+// the glide along every live pose, for a map showing one the store handed out; null for any other pose (robot_state's)
+export function liveGlide(p: Position | null | undefined): Easer | null {
+  return p && handedOut.has(p) ? glide : null;
 }

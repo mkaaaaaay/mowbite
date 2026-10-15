@@ -1,5 +1,5 @@
 import {afterEach, describe, expect, it, vi} from 'vitest';
-import {createEaser, type Pose} from './useEasedPose';
+import {createEaser, type Pose} from './poseEaser';
 
 let clock = 0;
 vi.spyOn(performance, 'now').mockImplementation(() => clock);
