@@ -70,7 +70,6 @@ export default function MapBackups({
                   <span>{backupLabel(b)}</span>
                   <span className={styles.dim}>
                     {tr('{n} areas', {n: b.areas})}
-                    {b.auto && ` · ${tr('automatic')}`}
                   </span>
                 </div>
                 <div className={styles.actions}>

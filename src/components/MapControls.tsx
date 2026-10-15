@@ -8,7 +8,7 @@ export const LAYERS = [
   {key: 'obstacle', label: 'Obstacles'},
   {key: 'nav', label: 'Navigation areas'},
   {key: 'order', label: 'Mowing order numbers'},
-  {key: 'stripes', label: 'Mowing direction'},
+  {key: 'stripes', label: 'Mowing plan'},
   // the turns between the lanes and the drives between the parts in the plan, only when the planner tells them apart
   {key: 'planTurns', label: 'Turns in the plan'},
   {key: 'planTransit', label: 'Drives in the plan'},

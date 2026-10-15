@@ -244,7 +244,7 @@ function MapEditor() {
 
   const globalValue = (key: string) => {
     const v = numParam(params, PARAM.mowerLogic(key));
-    return v === undefined ? 'global' : `global ${v}`;
+    return v === undefined ? tr('like all areas') : `${tr('like all areas')}: ${fmt(v, Number.isInteger(v) ? 0 : 2)}`;
   };
 
   const selectArea = (id: string) => {

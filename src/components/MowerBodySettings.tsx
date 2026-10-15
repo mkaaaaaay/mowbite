@@ -161,19 +161,6 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
     loadPlannerSettings(true).catch(() => setState({offline: true}));
   }, []);
 
-  if (settings === null) {
-    return (
-      <section className={styles.card}>
-        <h2>{tr('Mower sizes')}</h2>
-        <p className={styles.dim}>
-          {tr(
-            'Only with the MowBite Planner on the mower (OM_PLANNER=mowbite): it keeps the body clear of the edges and the map shows the mower at its real size. With the slic3r planner the map shows the icon as before.',
-          )}
-        </p>
-      </section>
-    );
-  }
-
   const known = settings?.settings ?? {};
   const keys = BODY_SETTINGS;
   // what the form would make of it: the sketch follows the fields while typing
@@ -262,7 +249,7 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
       <h2>{tr('Mower sizes')}</h2>
       <p className={styles.dim}>
         {tr(
-          'Measured from the middle between the rear drive wheels, the point the mower follows. The planner keeps the body clear of the edges in turns and corners, the map shows the mower at its real size ("Real size" under Mower icon).',
+          'Measured from the middle between the rear drive wheels, the point the mower follows. The planner keeps the body clear of the edges in turns and corners, the map shows the mower at its real size (⚙ on the map, Mower icon, "Real size").',
         )}
       </p>
       {state.offline && settings === undefined && <span className={styles.error}>{tr('The mower did not answer.')}</span>}

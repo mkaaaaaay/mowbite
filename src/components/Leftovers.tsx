@@ -62,7 +62,7 @@ export function LeftoversCard({
     <div className={styles.leftovers}>
       {!found && (
         <button className={styles.leftoversButton} disabled={!live || state.busy} onClick={() => void check()}>
-          {state.busy ? tr('Looking at the track…') : tr('What did the last mow leave?')}
+          {state.busy ? tr('Looking at the track…') : tr('Check the last mow for leftovers')}
         </button>
       )}
       {found && (

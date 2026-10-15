@@ -1,5 +1,6 @@
 import type {MowerMap} from '@/hooks/useMowerMap';
 import {tr} from '../i18n';
+import {CONTAINER_LEVEL} from '../updates';
 import {closedRings} from '../rings';
 import {demoMap, DEMO_SENSORS} from './garden';
 import {demoMows} from './world';
@@ -123,7 +124,8 @@ export async function demoFetch(url: string, init?: RequestInit): Promise<Respon
   const body = typeof init?.body === 'string' ? init.body : '';
   switch (pathname) {
     case '/version.json':
-      return json({version: process.env.APP_VERSION ?? '0.0.0'});
+    case '/cgi-bin/version':
+      return json({version: process.env.APP_VERSION ?? '0.0.0', level: CONTAINER_LEVEL});
     case '/cgi-bin/schedule':
       if (q.has('log')) {
         const day = 86400;

@@ -114,11 +114,11 @@ function tell(phase, why,   m) {
       send(problem, phase, tx("Emergency stop", "Notaus"), m, phase == "new" ? 5 : 4, "rotating_light")
     }
   } else if (problem == "dock_failed") {
-    if (phase == "clear") send(problem, phase, tx("Back in the dock", "Wieder in der Ladestation"), tx(who() " is charging again.", who() " lädt wieder."), 2, "white_check_mark")
-    else send(problem, phase, tx("Docking failed", "Andocken gescheitert"), phase == "new" ? tx(who() " gave up docking after several tries and is standing outside the dock.", who() " hat das Andocken nach mehreren Versuchen aufgegeben und steht außerhalb der Ladestation.") : tx(who() " is still outside the dock (for " minutes(t - since) " min).", who() " steht immer noch außerhalb der Ladestation (seit " minutes(t - since) " min)."), 4, "warning")
+    if (phase == "clear") send(problem, phase, tx("Back in the dock", "Wieder im Dock"), tx(who() " is charging again.", who() " lädt wieder."), 2, "white_check_mark")
+    else send(problem, phase, tx("Docking failed", "Andocken fehlgeschlagen"), phase == "new" ? tx(who() " gave up docking after several tries and is standing outside the dock.", who() " hat das Andocken nach mehreren Versuchen aufgegeben und steht außerhalb des Docks.") : tx(who() " is still outside the dock (for " minutes(t - since) " min).", who() " steht immer noch außerhalb des Docks (seit " minutes(t - since) " min)."), 4, "warning")
   } else if (problem == "undock_failed") {
-    if (phase == "clear") send(problem, phase, tx("On its way again", "Wieder unterwegs"), tx(who() " got out of the dock.", who() " ist aus der Ladestation gekommen."), 2, "white_check_mark")
-    else send(problem, phase, tx("Undocking failed", "Abdocken gescheitert"), phase == "new" ? tx(who() " didn't get out of the dock and stopped.", who() " ist nicht aus der Ladestation gekommen und hat angehalten.") : tx(who() " still hasn't got out of the dock (for " minutes(t - since) " min).", who() " ist immer noch nicht aus der Ladestation gekommen (seit " minutes(t - since) " min)."), 4, "warning")
+    if (phase == "clear") send(problem, phase, tx("On its way again", "Wieder unterwegs"), tx(who() " got out of the dock.", who() " ist aus dem Dock gekommen."), 2, "white_check_mark")
+    else send(problem, phase, tx("Undocking failed", "Abdocken fehlgeschlagen"), phase == "new" ? tx(who() " didn't get out of the dock and stopped.", who() " ist nicht aus dem Dock gekommen und hat angehalten.") : tx(who() " still hasn't got out of the dock (for " minutes(t - since) " min).", who() " ist immer noch nicht aus dem Dock gekommen (seit " minutes(t - since) " min)."), 4, "warning")
   }
 }
 

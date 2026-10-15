@@ -32,7 +32,6 @@ interface Native {
   requestNotifications(): Promise<{permission: PushStatus['permission']}>;
   openSettings(o: {channel?: PushChannel}): Promise<void>;
   openStore(o: {id?: string}): Promise<void>;
-  showSample(o: Record<string, unknown>): Promise<void>;
   addListener(event: 'endpoint', fn: (d: {url: string | null}) => void): Promise<PluginListenerHandle>;
   addListener(event: 'failed', fn: (d: {reason: string}) => void): Promise<PluginListenerHandle>;
   addListener(event: 'opened', fn: (d: {path: string; api?: string}) => void): Promise<PluginListenerHandle>;

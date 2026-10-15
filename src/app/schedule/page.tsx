@@ -23,7 +23,7 @@ import {
   saveSchedule,
   type LogEntry,
   type Schedule,
-  SCHEDULE_LOG_TEXT,
+  scheduleLogText,
 } from '@/lib/schedule';
 import {useEffect, useState} from 'react';
 import styles from './page.module.css';
@@ -95,13 +95,10 @@ export default function SchedulePage() {
               </p>
             </section>
 
-            {s.plans.length > 0 && <PauseCard schedule={s} mowAreas={mowAreas} update={update} />}
+            {error && <p className={styles.error}>{error}</p>}
 
             <section className={styles.card}>
               <h2>{tr('Start times')}</h2>
-              <p className={styles.dim}>
-                {tr('Each start time has its own days, times and areas. For a plan per area, add a start time for each and pick only that area.')}
-              </p>
               {s.plans.length === 0 && <p className={styles.dim}>{tr('No start times yet.')}</p>}
               {s.plans.map((p, i) => (
                 <PlanRow
@@ -118,7 +115,13 @@ export default function SchedulePage() {
               <button className={styles.add} onClick={() => update({...s, plans: [...s.plans, {days: [1, 3, 5], time: '10:00', areas: []}]})}>
                 + {tr('Add start time')}
               </button>
+              {mowAreas.length > 1 && s.plans.length > 0 && (
+                <p className={styles.dim}>{tr('With only some areas picked, it starts as usual and skips the others when their turn comes.')}</p>
+              )}
             </section>
+
+            {/* switched off it would do nothing, unless one runs already */}
+            {s.plans.length > 0 && (s.enabled || !!s.pause) && <PauseCard schedule={s} mowAreas={mowAreas} update={update} />}
 
             <section className={styles.card}>
               <h2>{tr('Conditions')}</h2>
@@ -133,9 +136,7 @@ export default function SchedulePage() {
                   onChange={(e) => update({...s, minBattery: Number(e.target.value)})}
                 />
               </label>
-              <p className={styles.dim}>
-                {tr("If it isn't charged that far at the start time, it waits for up to two hours and then leaves it for that day.")}
-              </p>
+              <p className={styles.dim}>{tr("If the battery isn't that full at the start time, it waits up to two hours, then skips this start.")}</p>
               <label className={styles.check}>
                 <input type="checkbox" checked={s.skipRain} onChange={(e) => update({...s, skipRain: e.target.checked})} />
                 {tr("Not when the mower's rain sensor is wet")}
@@ -147,7 +148,7 @@ export default function SchedulePage() {
                   disabled={!datum}
                   onChange={(e) => update({...s, skipForecast: e.target.checked})}
                 />
-                {tr('Not when it rains or rain is forecast for the next')}
+                {tr('Not when it rains or rain is forecast for')}
                 <select
                   className={styles.hours}
                   value={s.forecastHours}
@@ -156,7 +157,7 @@ export default function SchedulePage() {
                 >
                   {FORECAST_HOURS.map((h) => (
                     <option key={h} value={h}>
-                      {h === 1 ? tr('hour') : tr('{n} hours', {n: h})}
+                      {h === 1 ? tr('the next hour') : tr('the next {n} hours', {n: h})}
                     </option>
                   ))}
                 </select>
@@ -172,14 +173,6 @@ export default function SchedulePage() {
                   <Link href="/settings#openmower">{tr('Change')}</Link>
                 </p>
               )}
-              <p className={styles.dim}>{tr('The mower is only started when it stands idle and no emergency stop is active.')}</p>
-              {mowAreas.length > 1 && (
-                <p className={styles.dim}>
-                  {tr(
-                    'With only some areas picked, the mower still starts as usual and skips the others when it gets to them, in the normal mowing order.',
-                  )}
-                </p>
-              )}
             </section>
 
             <section className={styles.card}>
@@ -191,13 +184,11 @@ export default function SchedulePage() {
                     <span className={styles.dim}>
                       {dayLabel(new Date(l.t * 1000))}, {clock(l.t)}
                     </span>
-                    {tr(SCHEDULE_LOG_TEXT[l.what] ?? l.what, {detail: l.detail ?? ''})}
+                    {tr(scheduleLogText(l), {detail: l.detail ?? ''})}
                   </li>
                 ))}
               </ul>
             </section>
-
-            {error && <p className={styles.error}>{error}</p>}
           </>
         )}
       </main>

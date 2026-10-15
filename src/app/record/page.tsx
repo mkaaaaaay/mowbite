@@ -13,7 +13,7 @@ import {sendDrive} from '@/lib/teleop';
 import Link from 'next/link';
 import {useEffect, useRef, useState} from 'react';
 import styles from './page.module.css';
-import {tr, useLang} from '@/lib/i18n';
+import {fmt, tr, useLang} from '@/lib/i18n';
 import {ACTION} from '@/lib/openmower';
 import {eventsOfDay, fileDay, forgetToday, historyDays} from '@/lib/history';
 
@@ -251,7 +251,7 @@ export default function RecordPage() {
                       speedRef.current = v;
                     }}
                   >
-                    {v}
+                    {fmt(v, 2)}
                   </button>
                 ))}
               </div>

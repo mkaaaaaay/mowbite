@@ -18,7 +18,7 @@ export const COLORS = [
   {key: 'draft', label: 'Draft', value: '#888888'},
   {key: 'selected', label: 'Selected area', value: '#ff1fa3'},
   {key: 'vertex', label: 'Outline points', value: '#2196f3'},
-  {key: 'stripes', label: 'Mowing direction', value: '#ff1fa3'},
+  {key: 'stripes', label: 'Mowing plan', value: '#ff1fa3'},
   {key: 'body', label: 'Mower outline', value: '#ff1fa3'},
   {key: 'swath', label: 'Cut width', value: '#ffffff'},
   {key: 'edge', label: 'Real edges', value: '#c5e1a5'},

@@ -267,7 +267,7 @@ export const FIELDS: Record<string, Field> = {
   },
   spin_margin: {
     label: 'Extra distance when turning',
-    help: 'When turning, on the spot and all along the turns between the lanes, the body keeps this much more distance: it often wanders a little there.',
+    help: 'When turning on the spot and all along the turns between the lanes, the body keeps this much more distance: it often wanders a little there.',
     group: 'turns',
     unit: 'm',
     step: 0.01,

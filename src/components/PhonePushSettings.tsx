@@ -4,12 +4,15 @@ import {tr, useLang} from '@/lib/i18n';
 import {apiBase} from '@/lib/mowers';
 import {addPush, removePush, saveNotify, testPush, type NotifyConfig} from '@/lib/notify';
 import {NTFY, pushPlugin, rememberEndpoint, waitForEndpoint, withPush, type PushChannel, type PushStatus} from '@/lib/push';
+import {containerHas, useUpdates} from '@/lib/updates';
 import {useCallback, useEffect, useState} from 'react';
 import local from './NotifySettings.module.css';
+import {UpdateCommand, versionNote} from './Updates';
 
 // In the Android app: this mower's messages on this phone as MowBite's own (lib/push.ts), with its icon, sorted into
 // problems, reminders and info, a tap opens the page. Delivered by a UnifiedPush app running unseen (e.g. ntfy). What
-// is told, when and how often are the settings around it, the same as for the topic
+// is told, when and how often are the settings around it, the same as for the topic. Needs a container that takes the
+// phones' addresses, an older one took them for its settings
 
 type Styles = Record<string, string>;
 
@@ -43,6 +46,7 @@ export function PhonePushSettings({
   const [status, setStatus] = useState<PushStatus | null>(null);
   const [pick, setPick] = useState<string | null>(null);
   const [state, setState] = useState<{busy?: boolean; error?: string; done?: string}>({});
+  const u = useUpdates();
 
   const refresh = useCallback(() => {
     void withPush((p) => p.status())
@@ -56,6 +60,25 @@ export function PhonePushSettings({
     document.addEventListener('visibilitychange', back);
     return () => document.removeEventListener('visibilitychange', back);
   }, [refresh]);
+
+  const head = (
+    <>
+      <h3 className={local.sub}>{tr('On this phone, as MowBite messages')}</h3>
+      <p className={styles.dim}>{tr("With MowBite's icon, sorted into problems, reminders and info, a tap opens MowBite. Away from home too.")}</p>
+    </>
+  );
+  if (u.level === null) return null;
+  if (!containerHas(u.level, 'phones')) {
+    return (
+      <>
+        {head}
+        <div className={local.info}>
+          <span>{tr('MowBite on the mower{old} is too old for this, it needs an update first.', {old: versionNote(u.mower)})}</span>
+          <UpdateCommand />
+        </div>
+      </>
+    );
+  }
   if (!status) return null;
 
   const api = apiBase();
@@ -121,27 +144,12 @@ export function PhonePushSettings({
     }
   };
 
-  // a message here and now, the way a problem comes: looks and sound without the way through the mower
-  const sample = () =>
-    withPush((p) =>
-      p.showSample({
-        title: tr('Emergency stop'),
-        message: tr('{name} is in emergency stop. (A sample, nothing happened.)', {name: saved.name || tr('The mower')}),
-        kind: 'sample',
-        problem: true,
-        phase: 'new',
-        path: '/activity/',
-        api,
-        t: Math.round(Date.now() / 1000),
-      }),
-    );
-
   return (
     <>
-      <h3 className={local.sub}>{tr('On this phone, as MowBite messages')}</h3>
-      <p className={styles.dim}>
+      {head}
+      <p className={local.info}>
         {tr(
-          "With MowBite's icon, sorted into problems, reminders and info, a tap opens MowBite. Delivered by a UnifiedPush app running unseen in the background, e.g. ntfy: install it once, no need to open it or subscribe to anything. Away from home too.",
+          'All it takes is the ntfy app on this phone: install it once, no need to open it or subscribe to anything. It delivers the messages unseen in the background. Then switch them on here.',
         )}
       </p>
       {list.length === 0 ? (
@@ -189,12 +197,11 @@ export function PhonePushSettings({
                 <button className={styles.pillButton} onClick={test} disabled={state.busy}>
                   {tr('Send a test to this phone')}
                 </button>
-                <button className={styles.pillButton} onClick={() => void sample()}>
-                  {tr('Show what one looks like')}
-                </button>
               </div>
               <h3 className={local.sub}>{tr('Sound and importance')}</h3>
-              <p className={styles.dim}>{tr('Set in Android for each kind: sound, vibration, popping up, do not disturb.')}</p>
+              <p className={styles.dim}>
+                {tr('Set in Android for each kind: sound, vibration, popping up, do not disturb. To begin with problems and reminders ring and vibrate, info stays silent.')}
+              </p>
               <div className={local.actions}>
                 {CHANNELS.map((c) => (
                   <button key={c.key} className={styles.pillButton} onClick={() => void withPush((p) => p.openSettings({channel: c.key}))}>

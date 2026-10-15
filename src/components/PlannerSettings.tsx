@@ -166,14 +166,6 @@ export function PlannerSettings({styles}: {styles: Styles}) {
     return () => clearTimeout(t);
   }, [state.saved]);
 
-  if (settings === null) {
-    return (
-      <section className={styles.card}>
-        <h2>{tr('Planner')}</h2>
-        <p className={styles.dim}>{tr('Only with the MowBite Planner on the mower (OM_PLANNER=mowbite).')}</p>
-      </section>
-    );
-  }
   if (!settings) return null;
 
   const all = settings.settings;
@@ -242,9 +234,6 @@ export function PlannerSettings({styles}: {styles: Styles}) {
         <h2>{tr('More planner settings')}</h2>
         {state.saved && <span className={styles.dim}>✓ {tr('saved')}</span>}
       </div>
-      <p className={styles.dim}>
-        {tr('For all areas, each one is saved on the mower right away. An area can set some of them for itself (This area).')}
-      </p>
       {GROUPS.map((g) => {
         const main = keys.filter((k) => group(k) === g.key && !advanced(k));
         if (!main.length) return null;

@@ -1,4 +1,4 @@
-import {tr} from './i18n';
+import {fmt, tr} from './i18n';
 import {LOGIC_SOURCE} from './openmower';
 
 // events from the mower's event history (events.history rpc), grouped into runs for the activity page
@@ -57,10 +57,11 @@ const number = (r: string) => r.match(/-?\d+(\.\d+)?/)?.[0];
 function homeText(r?: string): string {
   const n = r ? number(r) : undefined;
   switch (homeReason(r)) {
+    // "Manual pause" is what OpenMower says to home while mowing, from the app or the schedule's stop alike
     case 'paused':
-      return tr('Heading home: paused by you');
+      return tr('Sent home');
     case 'battery':
-      return n ? tr('Heading home to charge: battery low ({v} V)', {v: Number(n).toFixed(1)}) : tr('Heading home to charge: battery low');
+      return n ? tr('Heading home to charge: battery low ({v} V)', {v: fmt(Number(n), 1)}) : tr('Heading home to charge: battery low');
     case 'hot':
       return n ? tr('Heading home: mow motor too hot ({t} °C)', {t: Math.round(Number(n))}) : tr('Heading home: mow motor too hot');
     case 'rain':
@@ -169,7 +170,7 @@ export function describe(e: MowerEvent, state?: string): {text: string; severity
     case 'JOB_COMPLETE':
       return info(tr('All areas done'));
     case 'JOB_RESET':
-      return info(tr('Interrupted job dropped, the next start begins from the start'));
+      return info(tr('Interrupted job dropped, the next start mows from the beginning'));
     case 'EMERGENCY': {
       if (!e.emergency) return info(tr('Emergency cleared'));
       const why = emergencyText(emergencyFlags(e.reason));
@@ -188,11 +189,12 @@ export function describe(e: MowerEvent, state?: string): {text: string; severity
     case 'MOW_MOTOR_SPINUP_FAILED':
       return {text: tr("Mow motor didn't start"), severity: 'error'};
     case 'FULLY_CHARGED':
-      return info(e.battery_voltage ? tr('Fully charged ({v} V)', {v: e.battery_voltage.toFixed(1)}) : tr('Fully charged'));
+      return info(e.battery_voltage ? tr('Fully charged ({v} V)', {v: fmt(e.battery_voltage, 1)}) : tr('Fully charged'));
+    // ros on the mower started or ended (also a restart or an update), not the mower switched on or off
     case 'BOOTED':
-      return info(tr('Mower started'));
+      return info(tr('OpenMower started'));
     case 'SHUTDOWN':
-      return info(tr('Shut down'));
+      return info(tr('OpenMower stopped'));
     default:
       return info(e.type.replace(/_/g, ' ').toLowerCase());
   }
@@ -252,7 +254,7 @@ export function explain(e: MowerEvent, state?: string, gpsTimeout?: number): str
       return spinupFailed();
     case 'DOCKING':
       return homeReason(e.reason) === 'hot'
-        ? tr('The mow motor reached mower_logic/motor_hot_temperature. It mows on once it has cooled down to motor_cold_temperature.')
+        ? tr("The mow motor reached mower_logic/motor_hot_temperature. Once it's down to motor_cold_temperature it mows on by itself in semi-automatic or automatic mode, otherwise it waits for a start.")
         : undefined;
   }
 }
@@ -399,12 +401,12 @@ function summarize(events: MowerEvent[], finished: boolean): Run {
 
 export const OUTCOMES: Record<Outcome, {label: string; tone: 'good' | 'neutral' | 'bad' | 'live'}> = {
   done: {label: 'Finished', tone: 'good'},
-  paused: {label: 'Paused by you', tone: 'neutral'},
+  paused: {label: 'Sent home', tone: 'neutral'},
   battery: {label: 'Back to charge', tone: 'neutral'},
   rain: {label: 'Stopped for rain', tone: 'neutral'},
   hot: {label: 'Mow motor too hot', tone: 'bad'},
   returned: {label: 'Back in the dock', tone: 'neutral'},
-  undock_failed: {label: "Couldn't leave the dock", tone: 'bad'},
+  undock_failed: {label: 'Undocking failed', tone: 'bad'},
   dock_failed: {label: 'Docking failed', tone: 'bad'},
   emergency: {label: 'Emergency stop', tone: 'bad'},
   running: {label: 'Running', tone: 'live'},

@@ -18,9 +18,11 @@ import org.json.JSONObject;
 // reminders and news each in a channel of their own, so sound and importance are set in Android's settings. A problem's
 // reminder and its all clear take the place of the message about it.
 final class PushNotifier {
-    static final String PROBLEMS = "problems";
-    static final String REMINDERS = "reminders";
-    static final String INFO = "info";
+    static final String PROBLEMS = "mowbite_problems";
+    static final String REMINDERS = "mowbite_reminders";
+    static final String INFO = "mowbite_info";
+    // the channels of the first test builds. Android keeps a channel as it was made, so the ones above have new names
+    private static final String[] GONE = {"problems", "reminders", "info"};
     // on the intent a tap opens the app with: the page to show and the mower it's about
     static final String EXTRA_PATH = "mowbite_path";
     static final String EXTRA_API = "mowbite_api";
@@ -29,28 +31,43 @@ final class PushNotifier {
 
     private PushNotifier() {}
 
+    // the page's names for them (src/lib/push.ts PushChannel)
+    static String channel(String key) {
+        if ("problems".equals(key)) return PROBLEMS;
+        if ("reminders".equals(key)) return REMINDERS;
+        if ("info".equals(key)) return INFO;
+        return null;
+    }
+
     static void channels(Context context) {
         if (Build.VERSION.SDK_INT < 26) return;
+        NotificationManager nm = context.getSystemService(NotificationManager.class);
+        for (String id : GONE) nm.deleteNotificationChannel(id);
         NotificationChannel problems = new NotificationChannel(
             PROBLEMS,
             context.getString(R.string.push_channel_problems),
             NotificationManager.IMPORTANCE_HIGH
         );
         problems.setDescription(context.getString(R.string.push_channel_problems_about));
+        problems.enableVibration(true);
         NotificationChannel reminders = new NotificationChannel(
             REMINDERS,
             context.getString(R.string.push_channel_reminders),
             NotificationManager.IMPORTANCE_DEFAULT
         );
         reminders.setDescription(context.getString(R.string.push_channel_reminders_about));
+        reminders.enableVibration(true);
         NotificationChannel info = new NotificationChannel(
             INFO,
             context.getString(R.string.push_channel_info),
             NotificationManager.IMPORTANCE_DEFAULT
         );
         info.setDescription(context.getString(R.string.push_channel_info_about));
+        // shown like the others, without sound or vibration
+        info.setSound(null, null);
+        info.enableVibration(false);
         // (names and descriptions follow the phone's language, what the user changed stays)
-        context.getSystemService(NotificationManager.class).createNotificationChannels(Arrays.asList(problems, reminders, info));
+        nm.createNotificationChannels(Arrays.asList(problems, reminders, info));
     }
 
     // the message as notify.awk sends it: title, message, kind (emergency, done, test, ...), problem, phase (new, again,
@@ -61,7 +78,8 @@ final class PushNotifier {
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return;
         channels(context);
         String phase = m.optString("phase", "new");
-        boolean problem = m.optBoolean("problem", false) && !"clear".equals(phase);
+        // a test comes the way a problem does: whether that reaches you is what it's for
+        boolean problem = (m.optBoolean("problem", false) || "test".equals(m.optString("kind"))) && !"clear".equals(phase);
         String channel = !problem ? INFO : "again".equals(phase) ? REMINDERS : PROBLEMS;
         String api = m.optString("api", "");
         // one message per mower and kind of problem or news, a newer one takes its place
@@ -86,8 +104,9 @@ final class PushNotifier {
             .setAutoCancel(true)
             .setGroup(GROUP)
             .setCategory(problem ? NotificationCompat.CATEGORY_ERROR : NotificationCompat.CATEGORY_STATUS)
-            // (before Android 8 there are no channels, the priority does it)
+            // (before Android 8 there are no channels, priority and defaults do it)
             .setPriority(PROBLEMS.equals(channel) ? NotificationCompat.PRIORITY_HIGH : NotificationCompat.PRIORITY_DEFAULT);
+        if (!INFO.equals(channel)) b.setDefaults(NotificationCompat.DEFAULT_ALL);
         long t = m.optLong("t", 0);
         if (t > 0) b.setWhen(t * 1000).setShowWhen(true);
         String snooze = m.optString("snooze", "");

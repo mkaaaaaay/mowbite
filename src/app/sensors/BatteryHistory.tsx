@@ -54,7 +54,7 @@ export default function BatteryHistory() {
         </div>
       </div>
       <p className={styles.footnote}>
-        {tr('An ageing battery takes a shorter charge and loses more volts per hour of mowing. Kept since MowBite started recording it.')}
+        {tr('An ageing battery takes a shorter charge and loses more volts per hour of mowing.')}
       </p>
     </>
   );

@@ -26,8 +26,8 @@ const MOTOR_IDS = new Set(['om_mow_motor_current', 'om_mow_motor_rpm']);
 const GPS_ID = 'om_gps_accuracy';
 // xbot_positioning reports 999 when there's no fix
 const NO_FIX = 999;
-// left/right esc first, rest in arrival order
-const TEMP_ORDER = ['om_left_esc_temp', 'om_right_esc_temp'];
+// as on the dashboard: the blade side first, then the wheels, the rest as they come
+const TEMP_ORDER = ['om_mow_motor_temp', 'om_mow_esc_temp', 'om_left_esc_temp', 'om_right_esc_temp'];
 
 function unitOf(info: SensorInfo) {
   return info.unit === 'deg.C' ? '°C' : info.unit;
@@ -184,18 +184,18 @@ export default function SensorsPage() {
                     <BatteryIcon size={26} />
                   </span>
                   <strong className={[styles.big, styles[`text-${batteryTone}`]].join(' ')}>{battery ?? '–'}%</strong>
-                  {values['om_charge_state'] && <span className={styles.pill}>{tr(values['om_charge_state'])}</span>}
+                  {values['om_charge_state'] && docked && <span className={styles.pill}>{tr(values['om_charge_state'])}</span>}
                 </div>
                 <div className={styles.details}>
                   {num('om_v_battery') !== undefined && (
                     <div>
-                      <span className={styles.dim}>{tr('Battery')}</span>
+                      <span className={styles.dim}>{tr('Voltage')}</span>
                       {fmt(num('om_v_battery')!, 2)} V
                     </div>
                   )}
                   {num('om_v_charge') !== undefined && docked && (
                     <div>
-                      <span className={styles.dim}>{tr('Charger')}</span>
+                      <span className={styles.dim}>{tr('Charge voltage')}</span>
                       {fmt(num('om_v_charge')!, 1)} V
                     </div>
                   )}
@@ -213,7 +213,7 @@ export default function SensorsPage() {
                 {mowing && rpm !== undefined ? (
                   <>
                     <strong className={[styles.big, isCritical(rpmInfo, values['om_mow_motor_rpm'], currentState) ? styles.error : ''].join(' ')}>
-                      {Math.abs(rpm).toFixed(0)} rpm <TurnIcon reverse={rpm < 0} />
+                      {Math.abs(rpm).toFixed(0)} {tr('rpm')} <TurnIcon reverse={rpm < 0} />
                     </strong>
                     <span className={styles.dim}>
                       {rpm < 0 ? tr('turning the other way round') : tr('turning the normal way round')}
@@ -258,6 +258,8 @@ export default function SensorsPage() {
                 <Sparkline samples={gpsHistory} digits={1} unit="cm" minSpan={5} />
               </Card>
             </div>
+            {/* the container keeps a day of it, without one the curves start when the app does */}
+            {!sharedSettings() && <p className={styles.footnote}>{tr('History covers the last hour while the app is open.')}</p>}
 
             {temps.length > 0 && (
               <>
@@ -300,10 +302,6 @@ export default function SensorsPage() {
             )}
 
             <BatteryHistory />
-
-            <p className={styles.footnote}>
-              {sharedSettings() ? tr('History covers the last 24 hours.') : tr('History covers the last hour while the app is open.')}
-            </p>
           </>
         )}
       </main>

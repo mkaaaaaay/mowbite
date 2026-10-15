@@ -13,7 +13,7 @@ const gb = (bytes: number) => `${fmt(bytes / 1e9, 1)} GB`;
 const uptime = (s: number) => {
   const d = Math.floor(s / 86400);
   const h = Math.floor((s % 86400) / 3600);
-  return d ? `${d} d ${h} h` : `${h} h ${Math.floor((s % 3600) / 60)} min`;
+  return d ? `${d} ${tr('d')} ${h} h` : `${h} h ${Math.floor((s % 3600) / 60)} min`;
 };
 
 function Bar({used, warn}: {used: number; warn?: boolean}) {
@@ -84,7 +84,7 @@ export default function System({history}: {history: Record<string, Sample[] | un
           <div className={styles.card}>
             <span className={styles.cardLabel}>{tr('CPU load')}</span>
             <strong className={styles.big}>{fmt(sys.load, 2)}</strong>
-            {sys.cpus !== undefined && <span className={styles.dim}>{tr('{n} cores, one per core is full load', {n: sys.cpus})}</span>}
+            {sys.cpus !== undefined && <span className={styles.dim}>{tr('{n} cores, full load is {n}', {n: sys.cpus})}</span>}
             <Sparkline samples={history.sys_load} digits={2} minSpan={1} />
           </div>
         )}

@@ -666,7 +666,7 @@ export function PlannerSimple({
                   </div>
                   {!!omIncrement && (
                     <span className={local.error}>
-                      {tr('OpenMower turns the angle further as well (mow_angle_increment {deg}°), the two add up. Set it to 0 in mower_params.yaml.', {
+                      {tr('OpenMower turns the angle further as well ({deg}° after every whole mow), the two add up. Set that to 0 under Settings > OpenMower or in mower_params.yaml.', {
                         deg: omIncrement,
                       })}
                     </span>
@@ -872,7 +872,6 @@ export function PlannerSimple({
               <Row
                 label={tr('Distance to obstacles')}
                 help={tr('How far the mower keeps its body off obstacles, areas not mowed and inactive ones. An obstacle can have its own distance, in the editor under the obstacle, that one counts there.')}
-                note={margins.length ? null : tr('Each obstacle can have its own, in the editor.')}
                 source={
                   <>
                     {others('obstacle_margin') || ownLine('obstacle_margin')}
@@ -931,7 +930,7 @@ export function PlannerSimple({
               <Row
                 label={tr('Extra distance when turning')}
                 help={tr(
-                  'When turning, on the spot and all along the turns between the lanes, the mower keeps its body this much further off the edge and obstacles: it often wanders a little there. Loops along the edge, lanes and drives keep the plain distances.',
+                  'When turning on the spot and all along the turns between the lanes, the mower keeps its body this much further off the edge and obstacles: it often wanders a little there. Loops along the edge, lanes and drives keep the plain distances.',
                 )}
                 note={tr('On top of the distances to the edge and to obstacles.')}
                 source={others('spin_margin') || ownLine('spin_margin')}

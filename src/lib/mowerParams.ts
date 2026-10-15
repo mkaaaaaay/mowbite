@@ -52,10 +52,10 @@ export const PARAM_FIELDS: ParamField[] = [
   {key: 'max_position_accuracy', group: 'gps', label: 'Position has to be better than', help: "A worse position counts as no fix. An RTK fix is at a few cm.", type: 'double', min: 0.01, max: 1, def: 0.2, unit: 'cm', scale: 100, step: 1},
   {key: 'gps_wait_time', group: 'gps', label: 'Wait after the fix is back', type: 'double', min: 0, max: 60, def: 10, unit: 's', step: 1},
 
-  {key: 'docking_approach_distance', group: 'docking', label: 'Approach in a straight line from', help: 'How far in front of the station the mower lines up before it drives in.', type: 'double', min: 0, max: 5, def: 1.5, unit: 'm', step: 0.1},
+  {key: 'docking_approach_distance', group: 'docking', label: 'Approach in a straight line from', help: 'How far in front of the dock the mower lines up before it drives in.', type: 'double', min: 0, max: 5, def: 1.5, unit: 'm', step: 0.1},
   {key: 'docking_distance', group: 'docking', label: 'Drives in at most', help: 'How far it drives forward looking for the charging contacts.', type: 'double', min: 0, max: 100, def: 2, unit: 'm', step: 0.1},
-  {key: 'docking_retry_count', group: 'docking', label: 'Tries to dock', help: 'How often it backs out and tries again before it gives up.', type: 'int', min: 0, max: 50, def: 4},
-  {key: 'undock_distance', group: 'docking', label: 'Backs out of the station by', type: 'double', min: 0, max: 100, def: 2, unit: 'm', step: 0.1},
+  {key: 'docking_retry_count', group: 'docking', label: 'Retries when docking', help: 'How often it backs out and tries again before it gives up.', type: 'int', min: 0, max: 50, def: 4},
+  {key: 'undock_distance', group: 'docking', label: 'Backs out of the dock by', type: 'double', min: 0, max: 100, def: 2, unit: 'm', step: 0.1},
 
   {key: 'motor_hot_temperature', group: 'motor', label: 'Too hot to mow from', help: 'The mow motor pauses and the mower goes home.', type: 'double', min: 20, max: 150, def: 70, unit: '°C', step: 1},
   {key: 'motor_cold_temperature', group: 'motor', label: 'Cool enough again at', type: 'double', min: 20, max: 150, def: 40, unit: '°C', step: 1},

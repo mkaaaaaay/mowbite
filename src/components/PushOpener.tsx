@@ -3,6 +3,7 @@
 import {apiBase, mowerList, selectMower, selectedMower} from '@/lib/mowers';
 import {addPush, removePush} from '@/lib/notify';
 import {pushPlugin, rememberEndpoint, sentEndpoint} from '@/lib/push';
+import {mowerHas} from '@/lib/updates';
 import type {PluginListenerHandle} from '@capacitor/core';
 import {useRouter} from 'next/navigation';
 import {useEffect} from 'react';
@@ -43,7 +44,8 @@ export default function PushOpener() {
       const api = apiBase();
       const sent = api ? sentEndpoint(api) : null;
       const {endpoint} = await p.status();
-      if (!sent || !endpoint || endpoint === sent) return;
+      // (an older container would take the address for its settings)
+      if (!sent || !endpoint || endpoint === sent || !(await mowerHas('phones'))) return;
       await removePush(sent).catch(() => {});
       await addPush(endpoint).then(
         () => rememberEndpoint(api, endpoint),

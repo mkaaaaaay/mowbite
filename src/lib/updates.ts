@@ -1,4 +1,5 @@
 import {useEffect, useSyncExternalStore} from 'react';
+import FEATURES from './containerFeatures.json';
 import {apiBase, mowerFetch} from './mowers';
 
 // Looks on github for a newer release. Off by default (it tells github your ip), switched on per
@@ -8,6 +9,8 @@ const REPO = 'mkaaaaaay/mowbite';
 const ENABLED_KEY = 'updateCheck';
 const INFO_KEY = 'updateInfo';
 const DISMISSED_KEY = 'updateDismissed';
+const BEHIND_KEY = 'mowerBehindDismissed';
+const BEHIND_NEVER_KEY = 'mowerBehindNever';
 const DAY = 24 * 3600e3;
 
 export const APP_VERSION = process.env.APP_VERSION ?? '0.0.0';
@@ -40,6 +43,20 @@ export function compareVersions(a: string, b: string): number {
 
 export const isNewer = (release: string, current: string) => compareVersions(release, current) > 0;
 
+// what MowBite's container on the mower has from which level on (its version.json, scripts/version.mjs). with an older
+// one the app tells what doesn't work yet: a new entry, one level up, for each change there the app relies on
+export const CONTAINER_LEVEL = Math.max(0, ...FEATURES.map((f) => f.level));
+
+// whether the container has it, false while its level is unknown
+export function containerHas(level: number | null, key: string): boolean {
+  const f = FEATURES.find((x) => x.key === key);
+  return !!f && level !== null && level >= f.level;
+}
+
+// what the app knows and the container doesn't have yet, nothing while unknown
+export const missingOnMower = (level: number | null): string[] =>
+  level === null ? [] : FEATURES.filter((f) => f.level > level).map((f) => f.what);
+
 function read<T>(key: string): T | null {
   try {
     const v = localStorage.getItem(key);
@@ -65,9 +82,26 @@ interface State {
   dismissed: string | null;
   // the version the mower's container runs, when known
   mower: string | null;
+  // and its level, 0 for one from before there were levels
+  level: number | null;
+  // the dashboard's note about an older container was waved away: its version and the level the app knew
+  behindDismissed: string | null;
+  // or isn't wanted at all on this device
+  behindNever: boolean;
 }
 
-const EMPTY: State = {enabled: false, latest: null, checkedAt: null, checking: false, failed: false, dismissed: null, mower: null};
+const EMPTY: State = {
+  enabled: false,
+  latest: null,
+  checkedAt: null,
+  checking: false,
+  failed: false,
+  dismissed: null,
+  mower: null,
+  level: null,
+  behindDismissed: null,
+  behindNever: false,
+};
 let state: State | null = null;
 const listeners = new Set<() => void>();
 
@@ -80,6 +114,8 @@ function current(): State {
       latest: info?.latest ?? null,
       checkedAt: info?.at ?? null,
       dismissed: read<string>(DISMISSED_KEY),
+      behindDismissed: read<string>(BEHIND_KEY),
+      behindNever: read<boolean>(BEHIND_NEVER_KEY) === true,
     };
   }
   return state;
@@ -120,11 +156,49 @@ export function dismissUpdate(version: string) {
   set({dismissed: version});
 }
 
-async function loadMowerVersion() {
-  try {
-    const res = await mowerFetch(`${apiBase()}/version.json`, {cache: 'no-store'});
-    if (res.ok) set({mower: ((await res.json()) as {version?: string}).version ?? null});
-  } catch {}
+// the note stays away until the container or what the app relies on changes
+export const behindKey = (mower: string | null) => `${mower} ${CONTAINER_LEVEL}`;
+
+export function dismissBehind(key: string) {
+  write(BEHIND_KEY, key);
+  set({behindDismissed: key});
+}
+
+export function setBehindNote(on: boolean) {
+  write(BEHIND_NEVER_KEY, on ? null : true);
+  set({behindNever: !on});
+}
+
+type Version = {version?: string; level?: number};
+
+// the mower's version once, asked again next time when it didn't answer. the app runs on another origin and can't read
+// version.json, the cgi allows it. a container from before that cgi still answers the system one: older, level 0
+let asked: Promise<void> | null = null;
+function askMower(): Promise<void> {
+  const base = apiBase();
+  const version = () =>
+    mowerFetch(`${base}/cgi-bin/version`, {cache: 'no-store'})
+      .then((res) => (res.ok ? (res.json() as Promise<Version>) : null))
+      .catch(() => null);
+  asked ??= (async () => {
+    let v = await version();
+    if (!v) {
+      const res = await mowerFetch(`${base}/cgi-bin/system`, {cache: 'no-store'});
+      if (!res.ok) throw new Error(String(res.status));
+      // once more, the first one may have got lost on the way
+      v = (await version()) ?? {};
+    }
+    set({mower: v.version ?? null, level: v.level ?? 0});
+  })().catch(() => {
+    asked = null;
+  });
+  return asked;
+}
+
+// whether the mower's container has it (containerFeatures.json), false when it can't tell
+export async function mowerHas(key: string): Promise<boolean> {
+  await askMower();
+  return containerHas(current().level, key);
 }
 
 let started = false;
@@ -140,9 +214,9 @@ export function useUpdates(): State {
     () => EMPTY,
   );
   useEffect(() => {
+    void askMower();
     if (started) return;
     started = true;
-    void loadMowerVersion();
     const c = current();
     if (c.enabled && (!c.checkedAt || Date.now() - c.checkedAt > DAY)) void checkNow();
   }, []);

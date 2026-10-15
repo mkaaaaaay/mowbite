@@ -1,5 +1,4 @@
 import type {Point} from '@/hooks/useMowerMap';
-import InfoTip from '@/components/InfoTip';
 import {polygonArea} from '@/lib/geometry';
 import type {Merged} from '@/lib/mergeAreas';
 import {fmt, tr} from '@/lib/i18n';
@@ -31,11 +30,6 @@ export function SplitPanel({
       <label className={styles.toggle}>
         <input type="checkbox" checked={cutShape} onChange={(e) => onCutShape(e.target.checked)} />
         {tr('Cut out a shape')}
-        <InfoTip>
-          {tr("Off: a line across the area cuts it in two.")}
-          <br />
-          {tr("On: click the corners of a shape inside the area. It becomes its own area with the same settings and the rest leaves it out. Since areas can't have holes, the rest is split in two by the shortest straight cut through the shape. The mower drives across the cut normally.")}
-        </InfoTip>
       </label>
       <p className={styles.dim}>
         {cutShape

@@ -28,6 +28,7 @@ COPY --from=build --chown=1000:1000 /app/out /www
 COPY --chmod=755 docker/settings.cgi /www/cgi-bin/settings
 COPY --chmod=755 docker/sensors.cgi /www/cgi-bin/sensors
 COPY --chmod=755 docker/system.cgi /www/cgi-bin/system
+COPY --chmod=755 docker/version.cgi /www/cgi-bin/version
 COPY --chmod=755 docker/battery.cgi /www/cgi-bin/battery
 COPY --chmod=755 docker/roslog.cgi /www/cgi-bin/roslog
 COPY --chmod=755 docker/gpslog.cgi /www/cgi-bin/gpslog

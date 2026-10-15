@@ -112,15 +112,14 @@ export default function MowSettings(props: Props) {
   const canSetParams = useCanSetParams();
   return (
     <div className={styles.mowSettings}>
-      <span className={styles.cardTitle}>
-        {tr('Mowing settings')}
+      <p className={styles.dim}>
+        {tr('Only for this area, saved with the map ("Save map").')}
         {canSetParams && (
           <Link className={styles.allAreas} href="/settings#openmower">
             {tr('For all areas')}
           </Link>
         )}
-      </span>
-      <p className={styles.dim}>{tr('Only for this area, saved with the map ("Save map").')}</p>
+      </p>
       {!props.byPlanner && <OpenMowerArea {...props} />}
       <AreaDirection {...props} />
       <AreaPlanInfo {...props} />
@@ -156,7 +155,7 @@ export function OpenMowerArea({area, globalValue, remember, update, inMenu}: Pro
       {number(
         'outline_count',
         'Outline passes',
-        "How many rounds the mower drives along the edge before it mows the inside in stripes. Empty means the mower's global setting.",
+        "How many rounds the mower drives along the edge before it mows the inside in stripes. Empty: like all areas.",
         1,
         0,
       )}

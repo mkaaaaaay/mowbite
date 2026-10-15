@@ -92,7 +92,7 @@ export default function TrackPicker({
 
       {selected === null && lastRun && (
         <span className={styles.info}>
-          {tr('Last run: {when}. The next one replaces it.', {
+          {tr('Shows the last run ({when}) until the next one starts.', {
             when: `${dayLabel(new Date(lastRun * 1000))}, ${clock(lastRun)}`,
           })}
         </span>

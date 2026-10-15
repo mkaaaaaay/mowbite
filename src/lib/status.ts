@@ -38,9 +38,10 @@ export function statusText(
   if (state.emergency) return tr('Emergency');
   if (docked) return chargeState === 'Done' ? tr('Docked · charged') : tr('Docked · charging');
   const names: Record<string, string> = {
-    IDLE: 'Idle',
+    // not in the dock (that's above), as the dashboard says it
+    IDLE: 'Waiting on the lawn',
     MOWING: 'Mowing',
-    DOCKING: 'Returning to dock',
+    DOCKING: 'Heading home',
     UNDOCKING: 'Leaving the dock',
     AREA_RECORDING: 'Recording an area',
     PAUSED: 'Paused',

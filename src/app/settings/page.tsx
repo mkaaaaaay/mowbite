@@ -16,7 +16,6 @@ import {loadPlannerSettings, savePlannerSettings, slic3rPlans, usePlannerSetting
 import Link from 'next/link';
 import {MowerSizesSettings} from '@/components/MowerSizesSettings';
 import {NotifySettings} from '@/components/NotifySettings';
-import {PlannerLogDownload} from '@/components/PlannerLog';
 import {datumFromParams, useMowerParams} from '@/hooks/useMowerParams';
 import {posixTz} from '@/lib/schedule';
 import {RpcError} from '@/lib/rpc';
@@ -33,18 +32,42 @@ const groupOpen = (key: string) => {
 };
 
 // a few cards that belong together, folding away: on a phone it starts folded so the page stays short, on a wide
-// screen open. Open or not is kept per device (read once the page runs, it's built ahead without it)
-function Group({id, title, note, children}: {id: string; title: string; note?: string; children: React.ReactNode}) {
+// screen open. Open or not is kept per device (read once the page runs, it's built ahead without it). The line under the
+// title says what's inside. A link to it or to one of its cards (#updates) opens it
+function Group({
+  id,
+  title,
+  hint,
+  note,
+  anchors = [],
+  children,
+}: {
+  id: string;
+  title: string;
+  hint?: string;
+  note?: React.ReactNode;
+  anchors?: string[];
+  children: React.ReactNode;
+}) {
   const key = 'settingsGroup.' + id;
+  const linked = useSyncExternalStore(
+    noop,
+    () => [id, ...anchors].some((a) => window.location.hash === '#' + a),
+    () => false,
+  );
   const kept = useSyncExternalStore(
     noop,
     () => groupOpen(key),
     () => false,
   );
   const [toggled, setToggled] = useState<boolean | null>(null);
-  const open = toggled ?? kept;
+  const open = toggled ?? (linked || kept);
+  useEffect(() => {
+    if (linked) document.getElementById(window.location.hash.slice(1))?.scrollIntoView({block: 'start'});
+  }, [linked]);
   return (
     <details
+      id={id}
       className={styles.group}
       open={open}
       onToggle={(e) => {
@@ -56,7 +79,12 @@ function Group({id, title, note, children}: {id: string; title: string; note?: s
         } catch {}
       }}
     >
-      <summary>{title}</summary>
+      <summary>
+        <span className={styles.groupTitle}>
+          {title}
+          {hint && <small>{hint}</small>}
+        </span>
+      </summary>
       <div className={styles.groupBody}>
         {note && <p className={styles.dim}>{note}</p>}
         {children}
@@ -110,7 +138,7 @@ function MowersSection({settings}: {settings: Settings}) {
       <h2>{tr('Mowers')}</h2>
       <p className={styles.dim}>
         {tr(
-          "Got more than one robot mower with MowBite? Add the others here, as many as you like, and switch between them at the top of the dashboard (on a computer in the sidebar). Colors, icons and the language stay the same for all.",
+          'More than one mower with MowBite? Add the others here and switch between them at the top of the dashboard (on a computer in the sidebar). Colors, icons and the language stay the same for all.',
         )}
       </p>
 
@@ -126,7 +154,7 @@ function MowersSection({settings}: {settings: Settings}) {
         </label>
       )}
 
-      {others.length > 0 && <span className={styles.subTitle}>{tr('Other mowers')}</span>}
+      {others.length > 0 && <span className={styles.subTitle}>{app ? tr('Your mowers') : tr('Other mowers')}</span>}
       {others.map((m) => (
         <div key={m.id} className={styles.mowerRow}>
           <span>
@@ -231,9 +259,99 @@ export default function SettingsPage() {
           {sharedSettings() ? tr('Saved on the mower, the same on all your devices.') : tr('Saved on this device only.')}
         </p>
 
-        <Group id="general" title={tr('General')}>
+        {(planner !== undefined || unanswered) && (
+          <Group
+            id="mower"
+            title={tr('Your mower')}
+            hint={planner ? tr('Leftovers, planner') : tr('Mower sizes')}
+            note={
+              planner && (
+                <>
+                  {tr("The planner's settings and the mower sizes are with the map: under it for all areas, with an area selected for that one.")}{' '}
+                  <Link href="/map">{tr('To the map')}</Link>
+                </>
+              )
+            }
+          >
+            {planner && (
+            <section className={styles.card}>
+              <h2>{tr('Mow the leftovers')}</h2>
+              <p className={styles.dim}>
+                {tr(
+                  'After a finished mow the planner looks at the real track for pieces the mower missed, e.g. where it drifted or went round something. They can be mowed from the dashboard, or by themselves once the mower is back in the dock.',
+                )}
+              </p>
+              {planner.settings.leftovers_auto ? (
+                <>
+                  {/* a planner that sends the mower out for the leftovers itself: its switch, the container's own stays off */}
+                  <label className={styles.check}>
+                    <input
+                      type="checkbox"
+                      checked={planner.settings.leftovers_auto.value === true}
+                      disabled={slic3rPlans(planner)}
+                      onChange={(e) => {
+                        const cur = settingsStore.snapshot();
+                        if (cur.leftovers?.auto) saveSettings({...cur, leftovers: {...cur.leftovers, auto: false}});
+                        setLeftoversFailed(null);
+                        savePlannerSettings({leftovers_auto: e.target.checked}).catch((err: unknown) =>
+                          setLeftoversFailed(err instanceof RpcError && err.code !== 'timeout' ? err.message : tr('The mower did not answer.')),
+                        );
+                      }}
+                    />
+                    {tr('Mow the leftovers automatically')}
+                  </label>
+                  {leftoversFailed && <p className={styles.error}>{leftoversFailed}</p>}
+                  <p className={styles.dim}>
+                    {slic3rPlans(planner)
+                      ? tr("Not with OpenMower's slic3r planner, it plans no leftovers.")
+                      : tr("It goes out again by itself when more than 0.3 m² it can reach was left, within 15 minutes of the end or not at all. Not in the rain or with an emergency stop. It doesn't wait for daylight: after a mow that ended at dusk it goes out in the dark.")}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <label className={styles.check}>
+                    <input
+                      type="checkbox"
+                      checked={!!settings.leftovers?.auto}
+                      onChange={(e) => {
+                        saveSettings({...settingsStore.snapshot(), leftovers: leftovers({auto: e.target.checked})});
+                      }}
+                    />
+                    {tr('Mow the leftovers by itself after every finished mow')}
+                  </label>
+                  <label className={styles.field}>
+                    {tr('Only from this much left, in m²')}
+                    <input
+                      key={'leftmin' + (settings.leftovers?.min ?? '')}
+                      inputMode="decimal"
+                      defaultValue={settings.leftovers?.min ?? 0.5}
+                      disabled={!settings.leftovers?.auto}
+                      onBlur={(e) => {
+                        const v = Number(e.target.value.trim().replace(',', '.'));
+                        saveSettings({...settingsStore.snapshot(), leftovers: leftovers({min: Number.isFinite(v) && v >= 0 ? v : 0.5})});
+                      }}
+                    />
+                  </label>
+                  <p className={styles.dim}>
+                    {tr('Not in the dark, not in the rain, not with an emergency stop, like the schedule. What it did is in the schedule log. Needs the MowBite container on the mower.')}
+                  </p>
+                </>
+              )}
+            </section>
+            )}
+            {/* without the MowBite Planner the sizes are kept in the app */}
+            {!planner && <MowerSizesSettings settings={settings} styles={styles} />}
+          </Group>
+        )}
+
+        <Group id="notify" title={tr('Push messages')} hint={tr('On the phone when the mower needs you')}>
+          <NotifySettings settings={settings} styles={styles} />
+        </Group>
+
+        <Group id="look" title={tr('Appearance')} hint={tr('Language, design, map, weather')}>
           <section className={styles.card}>
-            <h2>{tr('Language')}</h2>
+            <h2>{tr('Language and design')}</h2>
+            <span className={styles.subTitle}>{tr('Language')}</span>
             <div className={styles.segment}>
               {(
                 [
@@ -247,11 +365,7 @@ export default function SettingsPage() {
                 </button>
               ))}
             </div>
-            <p className={styles.dim}>{tr("Only for this device. Automatic follows the browser's language.")}</p>
-          </section>
-
-          <section className={styles.card}>
-            <h2>{tr('Design')}</h2>
+            <span className={styles.subTitle}>{tr('Design')}</span>
             <div className={styles.segment}>
               {(
                 [
@@ -266,7 +380,7 @@ export default function SettingsPage() {
                 </button>
               ))}
             </div>
-            <p className={styles.dim}>{tr("Only for this device. Automatic follows the phone's or computer's setting.")}</p>
+            <p className={styles.dim}>{tr("Both only for this device. Automatic follows the device's setting.")}</p>
           </section>
 
           <section className={styles.card}>
@@ -280,7 +394,7 @@ export default function SettingsPage() {
                   saveSettings({...cur, dashboard: {...cur.dashboard, map: e.target.checked ? 'always' : 'auto'}});
                 }}
               />
-              {tr('Always show the map, not only while the mower is driving')}
+              {tr('Always show the map on the dashboard, not only while the mower drives')}
             </label>
             <label className={styles.check}>
               <input
@@ -302,10 +416,6 @@ export default function SettingsPage() {
               <input type="checkbox" checked={swipe} onChange={(e) => setSwipeEnabled(e.target.checked)} />
               {tr('Swipe left and right between the pages (on this device)')}
             </label>
-          </section>
-
-          <section className={styles.card}>
-            <h2>{tr('Weather')}</h2>
             <label className={styles.check}>
               <input
                 type="checkbox"
@@ -320,94 +430,11 @@ export default function SettingsPage() {
               )}
             </p>
           </section>
-
-        </Group>
-
-        {planner && (
-          <section className={styles.card}>
-            <h2>{tr('Planner and mower sizes')}</h2>
-            <p className={styles.dim}>{tr('Everything for the planner is with the map now: under the map while no area is selected, and with an area its own.')}</p>
-            <div className={styles.pillRow}>
-              <Link href="/map" className={styles.pillButton}>
-                {tr('To the map')}
-              </Link>
-              <PlannerLogDownload className={styles.pillButton} />
-            </div>
-          </section>
-        )}
-        {planner && (
-          <section className={styles.card}>
-            <h2>{tr('Mow the leftovers')}</h2>
-            <p className={styles.dim}>
-              {tr(
-                'After a finished mow the planner looks at the real track for pieces the mower missed (it drifted, went round something). On the dashboard you can have just those mowed, or it happens by itself: once the mower is back in the dock it goes out again for them. Only with the MowBite container on the mower.',
-              )}
-            </p>
-            {planner.settings.leftovers_auto ? (
-              <>
-                {/* a planner that sends the mower out for the leftovers itself: its switch, the container's own stays off */}
-                <label className={styles.check}>
-                  <input
-                    type="checkbox"
-                    checked={planner.settings.leftovers_auto.value === true}
-                    disabled={slic3rPlans(planner)}
-                    onChange={(e) => {
-                      const cur = settingsStore.snapshot();
-                      if (cur.leftovers?.auto) saveSettings({...cur, leftovers: {...cur.leftovers, auto: false}});
-                      setLeftoversFailed(null);
-                      savePlannerSettings({leftovers_auto: e.target.checked}).catch((err: unknown) =>
-                        setLeftoversFailed(err instanceof RpcError && err.code !== 'timeout' ? err.message : tr('The mower did not answer.')),
-                      );
-                    }}
-                  />
-                  {tr('Mow the leftovers automatically')}
-                </label>
-                {leftoversFailed && <p className={styles.error}>{leftoversFailed}</p>}
-                <p className={styles.dim}>
-                  {slic3rPlans(planner)
-                    ? tr("Not with OpenMower's slic3r planner, it plans no leftovers.")
-                    : tr('After a mow the mower goes out again by itself when more than 0.3 m² it can reach was left, within 15 minutes of the end of the mow or not at all. Not in the rain, not with an emergency stop. It does not wait for daylight: after a mow that ended at dusk it goes out in the dark.')}
-                </p>
-              </>
-            ) : (
-              <>
-                <label className={styles.check}>
-                  <input
-                    type="checkbox"
-                    checked={!!settings.leftovers?.auto}
-                    onChange={(e) => {
-                      saveSettings({...settingsStore.snapshot(), leftovers: leftovers({auto: e.target.checked})});
-                    }}
-                  />
-                  {tr('Mow the leftovers by itself after every finished mow')}
-                </label>
-                <label className={styles.field}>
-                  {tr('Only from this much left, in m²')}
-                  <input
-                    key={'leftmin' + (settings.leftovers?.min ?? '')}
-                    inputMode="decimal"
-                    defaultValue={settings.leftovers?.min ?? 0.5}
-                    disabled={!settings.leftovers?.auto}
-                    onBlur={(e) => {
-                      const v = Number(e.target.value.trim().replace(',', '.'));
-                      saveSettings({...settingsStore.snapshot(), leftovers: leftovers({min: Number.isFinite(v) && v >= 0 ? v : 0.5})});
-                    }}
-                  />
-                </label>
-                <p className={styles.dim}>{tr('Not in the dark, not in the rain, not with an emergency stop, like the schedule. What it did is in the schedule log.')}</p>
-              </>
-            )}
-          </section>
-        )}
-        <Group id="mower" title={tr('Your mower')}>
-          {/* without the MowBite Planner the sizes are kept in the app */}
-          {(planner === null || (planner === undefined && unanswered)) && <MowerSizesSettings settings={settings} styles={styles} />}
-          <NotifySettings settings={settings} styles={styles} />
         </Group>
 
         <OpenMowerSettings styles={styles} />
 
-        <Group id="app" title={tr('App')}>
+        <Group id="app" title={tr('App')} hint={tr('Mowers, updates, privacy')} anchors={['updates']}>
           <MowersSection settings={settings} />
           <UpdateSettings cardClass={styles.card} checkClass={styles.check} />
         </Group>

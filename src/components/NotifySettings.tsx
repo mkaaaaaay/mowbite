@@ -20,6 +20,7 @@ import {
   type NotifyLog,
 } from '@/lib/notify';
 import type {Settings} from '@/lib/settings';
+import {containerHas, useUpdates} from '@/lib/updates';
 import {useEffect, useState} from 'react';
 import local from './NotifySettings.module.css';
 import {PhonePushSettings} from './PhonePushSettings';
@@ -40,6 +41,7 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
   const [state, setState] = useState<{busy?: boolean; error?: string; done?: string}>({});
   const [log, setLog] = useState<NotifyLog[]>([]);
   const [now, setNow] = useState(() => Date.now() / 1000);
+  const u = useUpdates();
 
   useEffect(() => {
     // where MowBite is for this device, the message's button opens it there
@@ -61,7 +63,6 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
   if (form === null) {
     return (
       <section className={styles.card}>
-        <h2>{tr('Push messages')}</h2>
         <p className={styles.dim}>
           {tr('Only with the MowBite container on the mower: it watches the mower and sends the messages, also when no app is open.')}
         </p>
@@ -122,24 +123,16 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
     setForm((f) => (f ? {...f, pushes: c.pushes, stored: c.stored} : c));
   };
 
+  const phone = isApp() && !isDemo();
+  // MowBite's own messages on this phone, the topic is for other devices then
+  const own = phone && containerHas(u.level, 'phones');
   const dirty = JSON.stringify({...form, snooze: 0}) !== JSON.stringify({...saved, snooze: 0});
   const live = !!saved && saved.enabled && (!!saved.topic || saved.pushes.length > 0);
   const subscribe = saved?.topic ? `${saved.server.replace(/\/+$/, '')}/${saved.topic}` : null;
 
-  return (
-    <section className={styles.card}>
-      <h2>{tr('Push messages')}</h2>
-      <p className={styles.dim}>
-        {tr(
-          'A message on your phone when the mower needs you: an emergency stop, docking given up and the like. The container on the mower sends it through ntfy, also when no app is open and away from home. Install the ntfy app (Android or iOS) and subscribe to the topic below.',
-        )}
-      </p>
-      <label className={styles.check}>
-        <input type="checkbox" checked={form.enabled} onChange={(e) => set({enabled: e.target.checked})} />
-        {tr('Send push messages')}
-      </label>
-      {isApp() && !isDemo() && saved && <PhonePushSettings saved={saved} reload={reload} styles={styles} />}
-
+  // where the container sends through ntfy: the way in a browser and on other devices, in the app only for those
+  const topicFields = (
+    <>
       <div className={local.grid}>
         <label className={styles.field}>
           {tr('ntfy server')}
@@ -164,10 +157,6 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
             placeholder={form.hasToken ? tr('saved, empty keeps it') : tr('only for a server that needs one')}
           />
         </label>
-        <label className={styles.field}>
-          {tr('Name in the messages')}
-          <input value={form.name} onChange={(e) => set({name: e.target.value})} placeholder={tr('The mower')} />
-        </label>
       </div>
       {form.hasToken && (
         <label className={styles.check}>
@@ -180,6 +169,43 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
           'On ntfy.sh anyone who knows the topic can read along: take a random one, or your own server with a token. The messages only say what the mower is doing.',
         )}
       </p>
+      {subscribe && (
+        <p className={styles.dim}>
+          {tr('Subscribe in the ntfy app to {topic} on {server}, or open it in the browser:', {topic: saved!.topic, server: saved!.server})}{' '}
+          <a href={subscribe} target="_blank" rel="noreferrer">
+            {subscribe}
+          </a>
+        </p>
+      )}
+    </>
+  );
+
+  return (
+    <section className={styles.card}>
+      <p className={styles.dim}>
+        {tr(
+          'A message on your phone when the mower needs you: an emergency stop, docking given up and the like. The container on the mower sends it through ntfy, also when no app is open and away from home.',
+        )}
+        {!own && ` ${tr('Install the ntfy app (Android or iOS) and subscribe to the topic below.')}`}
+      </p>
+      <label className={styles.check}>
+        <input type="checkbox" checked={form.enabled} onChange={(e) => set({enabled: e.target.checked})} />
+        {tr('Send push messages')}
+      </label>
+      {phone && saved && <PhonePushSettings saved={saved} reload={reload} styles={styles} />}
+      {own ? (
+        <details className={local.more} open={!!saved?.topic || undefined}>
+          <summary>{tr('Through an ntfy topic, for other devices')}</summary>
+          <p className={styles.dim}>{tr("An iPhone, a browser, a phone without MowBite: subscribe to the topic there in the ntfy app. This phone doesn't need it.")}</p>
+          {topicFields}
+        </details>
+      ) : (
+        topicFields
+      )}
+      <label className={styles.field}>
+        {tr('Name in the messages')}
+        <input value={form.name} onChange={(e) => set({name: e.target.value})} placeholder={tr('The mower')} />
+      </label>
 
       <h3 className={local.sub}>{tr('Tell me about')}</h3>
       <div className={local.events}>
@@ -254,15 +280,6 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
       </div>
       {state.done && <p className={styles.dim}>{state.done}</p>}
       {state.error && <p className={styles.error}>{state.error}</p>}
-      {subscribe && (
-        <p className={styles.dim}>
-          {tr('Subscribe in the ntfy app to {topic} on {server}, or open it in the browser:', {topic: saved!.topic, server: saved!.server})}{' '}
-          <a href={subscribe} target="_blank" rel="noreferrer">
-            {subscribe}
-          </a>
-        </p>
-      )}
-
       {log.length > 0 && (
         <ul className={local.log}>
           {log.slice(0, 5).map((l, i) => (

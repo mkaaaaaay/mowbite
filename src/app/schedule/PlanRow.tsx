@@ -64,7 +64,7 @@ export default function PlanRow({
             </button>
           ))}
         </div>
-        <button className={styles.remove} onClick={onRemove} aria-label="remove">
+        <button className={styles.remove} onClick={onRemove} aria-label={tr('remove')}>
           ×
         </button>
       </div>
@@ -95,7 +95,7 @@ export default function PlanRow({
       {mowAreas.length > 1 && (
         <div className={styles.areas}>
           <button className={plan.areas.length === 0 ? styles.on : undefined} onClick={() => set({areas: []})}>
-            {tr('All active areas')}
+            {tr('All areas')}
           </button>
           {mowAreas.map((a) => {
             const on = plan.areas.includes(a.id);

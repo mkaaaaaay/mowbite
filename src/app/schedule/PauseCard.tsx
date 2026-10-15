@@ -39,7 +39,8 @@ export default function PauseCard({schedule, mowAreas, update}: {schedule: Sched
       ) : (
         <p className={styles.dim}>{tr('Leave out mowing for a few days, e.g. a party, new seed or a holiday. Afterwards the schedule runs as usual again.')}</p>
       )}
-      {mowAreas.length > 1 && (
+      {/* while one runs only ending it, so a tap doesn't put a shorter one over it */}
+      {!pause && mowAreas.length > 1 && (
         <div className={styles.areas}>
           <button className={picked.length === 0 ? styles.on : undefined} onClick={() => setPicked([])}>
             {tr('All areas')}
@@ -54,13 +55,15 @@ export default function PauseCard({schedule, mowAreas, update}: {schedule: Sched
           })}
         </div>
       )}
+      {!pause && (
       <div className={styles.areas}>
-        <button onClick={() => start(today)}>{tr('Today')}</button>
+        <button onClick={() => start(today)}>{tr('Just today')}</button>
         <label className={styles.until}>
           {tr('until')}
           <input type="date" min={today} onChange={(e) => e.target.value && start(e.target.value)} />
         </label>
       </div>
+      )}
     </section>
   );
 }

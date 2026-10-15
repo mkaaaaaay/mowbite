@@ -35,7 +35,7 @@ import {
   loadScheduleLog,
   missedStart,
   nextStart,
-  SCHEDULE_LOG_TEXT,
+  scheduleLogText,
   type LogEntry,
   type Schedule,
 } from '@/lib/schedule';
@@ -44,8 +44,8 @@ import MowerSwitch from '@/components/MowerSwitch';
 import {UpdateBanner} from '@/components/Updates';
 import {ACTION, PARAM} from '@/lib/openmower';
 
-// paused counts too, the mower is standing somewhere on the lawn then
-const DRIVING = new Set(['MOWING', 'PAUSED', 'DOCKING', 'UNDOCKING']);
+// paused counts too, the mower is standing somewhere on the lawn then. recording drives with gps as well
+const DRIVING = new Set(['MOWING', 'PAUSED', 'DOCKING', 'UNDOCKING', 'AREA_RECORDING']);
 
 const ACTION_RESET_EMERGENCY = ACTION.resetEmergency;
 // skipping an area or a path drops what's left of it, so it goes out only after a few seconds and a second tap takes
@@ -109,7 +109,7 @@ function headline(state: MowerState, docked: boolean, chargeState: string | unde
   }
 }
 
-function BatteryRing({percent, charging}: {percent: number; charging: boolean}) {
+function BatteryRing({percent}: {percent: number}) {
   const r = 34;
   const c = 2 * Math.PI * r;
   return (
@@ -120,7 +120,6 @@ function BatteryRing({percent, charging}: {percent: number; charging: boolean}) 
       </svg>
       <div>
         <strong>{percent}%</strong>
-        {charging && <span>{tr('charging')}</span>}
       </div>
     </div>
   );
@@ -239,7 +238,8 @@ export default function Home() {
   const num = (id: string) => (values[id] !== undefined ? Number(values[id]) : undefined);
   const temps = state ? temperatures(infos, values) : [];
   const facts: {label: string; value: string; warn?: boolean; extra?: React.ReactNode}[] = [];
-  if (state) {
+  // standing still the mower switches gps off, "off" there says nothing
+  if (state && (driving || gpsQ !== 'none')) {
     facts.push({
       label: 'GPS',
       value:
@@ -260,6 +260,7 @@ export default function Home() {
   }
 
   const runs = recent?.runs ?? [];
+  const finished = (recent?.latest ?? []).filter((r) => r.outcome !== 'running');
   const mowed = runs.reduce((s, r) => s + r.bladeSeconds, 0);
   const problems = runs.reduce((s, r) => s + r.problems, 0);
 
@@ -281,7 +282,7 @@ export default function Home() {
         {state && head && (
           <section className={[styles.status, live ? styles[`tone-${head.tone}`] : styles.stale].join(' ')}>
             <div className={styles.statusTop}>
-              <BatteryRing percent={battery} charging={charging} />
+              <BatteryRing percent={battery} />
               <div className={styles.headline}>
                 <h2>{head.title}</h2>
                 {!!state.emergency && why && <strong className={styles.reason}>{upperFirst(emergencyText(why))}</strong>}
@@ -326,6 +327,13 @@ export default function Home() {
             )}
 
             <div className={styles.controls}>
+              {/* first, the buttons below are locked until it's reset */}
+              {!!state.emergency && (
+                <button className={styles.reset} disabled={!live} onClick={() => publishAction(ACTION_RESET_EMERGENCY)}>
+                  <WarningIcon size={20} />
+                  {tr('Reset emergency')}
+                </button>
+              )}
               {ACTIONS.map((a) =>
                 // paused: the pause button turns into continue. only by the state, the mower also offers continue
                 // while mowing until it was paused once
@@ -387,12 +395,6 @@ export default function Home() {
                   styles={styles}
                 />
               )}
-              {!!state.emergency && (
-                <button className={styles.reset} disabled={!live} onClick={() => publishAction(ACTION_RESET_EMERGENCY)}>
-                  <WarningIcon size={20} />
-                  {tr('Reset emergency')}
-                </button>
-              )}
             </div>
           </section>
         )}
@@ -413,12 +415,37 @@ export default function Home() {
           </section>
         )}
 
-        {recent && (
+        {(recent || weather || planned || missed) && (
           <section className={styles.today}>
             <div className={styles.todayHead}>
               <h2>{tr('Today')}</h2>
-              <Link href="/activity">{tr('Activity')}</Link>
+              <Link href="/activity">{tr('All runs')}</Link>
             </div>
+            {missed && (
+              <div className={styles.missed}>
+                <WarningIcon size={16} />
+                <Link href="/schedule">
+                  <strong>
+                    {dayKey(new Date(missed.t * 1000)) === dayKey(new Date())
+                      ? tr('Scheduled start at {time}', {time: clock(missed.t)})
+                      : tr('Scheduled start yesterday at {time}', {time: clock(missed.t)})}
+                  </strong>
+                  <span>{tr(scheduleLogText(missed), {detail: missed.detail ?? ''})}</span>
+                </Link>
+                <button
+                  title={tr('Close')}
+                  aria-label={tr('Close')}
+                  onClick={() => {
+                    setMissedSeen(missed.t);
+                    try {
+                      localStorage.setItem(MISSED_SEEN_KEY, String(missed.t));
+                    } catch {}
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            )}
             {weather && (
               <div className={styles.weather}>
                 <WeatherIcon code={weather.code} day={weather.day} />
@@ -445,6 +472,7 @@ export default function Home() {
                 </a>
               </div>
             )}
+            {recent && (
             <div className={styles.todayNumbers}>
               <div>
                 <strong>{mowed ? duration(mowed) : '0 min'}</strong>
@@ -459,44 +487,21 @@ export default function Home() {
                 <span>{problems === 1 ? tr('problem') : tr('problems')}</span>
               </div>
             </div>
-            {missed && (
-              <div className={styles.missed}>
-                <WarningIcon size={16} />
-                <Link href="/schedule">
-                  <strong>
-                    {dayKey(new Date(missed.t * 1000)) === dayKey(new Date())
-                      ? tr('Scheduled start at {time}', {time: clock(missed.t)})
-                      : tr('Scheduled start yesterday at {time}', {time: clock(missed.t)})}
-                  </strong>
-                  <span>{tr(SCHEDULE_LOG_TEXT[missed.what] ?? missed.what, {detail: missed.detail ?? ''})}</span>
-                </Link>
-                <button
-                  title={tr('Close')}
-                  aria-label={tr('Close')}
-                  onClick={() => {
-                    setMissedSeen(missed.t);
-                    try {
-                      localStorage.setItem(MISSED_SEEN_KEY, String(missed.t));
-                    } catch {}
-                  }}
-                >
-                  ×
-                </button>
-              </div>
             )}
             {planned && (
               <Link href="/schedule" className={styles.nextRun}>
                 {tr('Next start: {when}', {when: `${dayLabel(planned)}, ${clock(planned.getTime() / 1000)}`})}
               </Link>
             )}
-            {recent.latest.length > 0 && (
+            {/* the one under way is the status above */}
+            {finished.length > 0 && (
               <>
                 <span className={styles.label}>{moreRuns ? tr('Last runs') : tr('Last run')}</span>
                 <div className={styles.runList}>
-                  {(moreRuns ? recent.latest : recent.latest.slice(0, 1)).map((r) => (
+                  {(moreRuns ? finished : finished.slice(0, 1)).map((r) => (
                     <LastRun key={r.events[0].id} run={r} />
                   ))}
-                  {recent.latest.length > 1 && (
+                  {finished.length > 1 && (
                     <button className={styles.moreRuns} onClick={() => setMoreRuns(!moreRuns)}>
                       {moreRuns ? tr('Show less') : tr('Show more')}
                     </button>

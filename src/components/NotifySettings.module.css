@@ -44,3 +44,27 @@
 .log span {
   font-variant-numeric: tabular-nums;
 }
+
+/* what it takes, or what's missing for it */
+.info {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  font-size: 14px;
+}
+
+/* the topic in the app, folded: it's for other devices there */
+.more > summary {
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.more > * + * {
+  margin-top: 10px;
+}

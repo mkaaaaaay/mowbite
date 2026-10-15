@@ -155,7 +155,7 @@ public class PushPlugin extends Plugin {
     @PluginMethod
     public void openSettings(PluginCall call) {
         String pkg = getContext().getPackageName();
-        String channel = call.getString("channel");
+        String channel = PushNotifier.channel(call.getString("channel"));
         Intent i;
         if (Build.VERSION.SDK_INT >= 26 && channel != null) {
             PushNotifier.channels(getContext());
@@ -180,13 +180,6 @@ public class PushPlugin extends Plugin {
         } catch (ActivityNotFoundException e) {
             getActivity().startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=" + id)));
         }
-        call.resolve();
-    }
-
-    // shows a message here and now, the same way as one from the mower: how it looks and sounds, without the way there
-    @PluginMethod
-    public void showSample(PluginCall call) {
-        PushNotifier.show(getContext(), call.getData());
         call.resolve();
     }
 

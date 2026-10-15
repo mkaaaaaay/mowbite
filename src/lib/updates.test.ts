@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {compareVersions, isNewer} from './updates';
+import {CONTAINER_LEVEL, compareVersions, containerHas, isNewer, missingOnMower} from './updates';
 
 describe('compareVersions', () => {
   it('orders by major, minor, patch', () => {
@@ -20,5 +20,20 @@ describe('compareVersions', () => {
     expect(isNewer('1.0.0', '1.0.0')).toBe(false);
     expect(isNewer('1.0.0', '1.1.0-dev.2')).toBe(false);
     expect(isNewer('1.1.0', '1.1.0-dev.2')).toBe(true);
+  });
+});
+
+describe('the container on the mower', () => {
+  it('has a feature from its level on', () => {
+    expect(containerHas(1, 'phones')).toBe(true);
+    expect(containerHas(0, 'phones')).toBe(false);
+    expect(containerHas(null, 'phones')).toBe(false);
+    expect(containerHas(CONTAINER_LEVEL, 'bogus')).toBe(false);
+  });
+
+  it('tells what an older one leaves out, nothing while unknown', () => {
+    expect(missingOnMower(0)).toContain("messages on this phone with MowBite's icon");
+    expect(missingOnMower(CONTAINER_LEVEL)).toEqual([]);
+    expect(missingOnMower(null)).toEqual([]);
   });
 });

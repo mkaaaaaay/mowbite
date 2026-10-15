@@ -230,7 +230,12 @@ export function OpenMowerSettings({styles}: {styles: Styles}) {
         if (now !== open) setToggled(now);
       }}
     >
-      <summary>{tr('OpenMower')}</summary>
+      <summary>
+        <span className={styles.groupTitle}>
+          {tr('OpenMower')}
+          <small>{tr('Its own settings from mower_params.yaml')}</small>
+        </span>
+      </summary>
       <div className={styles.groupBody}>
         <p className={styles.dim}>
           {tr(

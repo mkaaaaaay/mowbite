@@ -16,7 +16,7 @@ import MapControls, {layerOn, type Layer} from './MapControls';
 import {useMapPrefs} from './useMapPrefs';
 import {memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import styles from './MapView.module.css';
-import {tr, useLang} from '@/lib/i18n';
+import {fmt, tr, useLang} from '@/lib/i18n';
 import {tick} from '@/lib/haptics';
 import {TrashIcon} from './icons';
 import {MapGhost} from './Halloween';
@@ -1780,7 +1780,7 @@ function MapView({
             : undefined
         }
       />
-      {grid && <span className={styles.gridLabel}>{tr('grid {n} m', {n: grid.step})}</span>}
+      {grid && <span className={styles.gridLabel}>{tr('grid {n} m', {n: fmt(grid.step, grid.step < 1 ? 1 : 0)})}</span>}
       {deletable &&
         (() => {
           // up and to the right of the point, or the next corner around it that keeps clear of the map buttons on the

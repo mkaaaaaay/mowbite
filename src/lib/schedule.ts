@@ -137,10 +137,10 @@ export const SCHEDULE_LOG_TEXT: Record<string, string> = {
   skip_battery: 'Not started, battery only at {detail} % after two hours',
   skip_rain: "Not started, the mower's rain sensor was wet",
   skip_forecast: 'Not started, rain was forecast',
-  skip_busy: 'Not started, the mower was busy ({detail})',
+  skip_busy: 'Not started, the mower was busy',
   skip_emergency: 'Not started, emergency stop was active',
   skip_offline: "Not started, the mower wasn't reachable",
-  skip_dark: "Not started, it's dark (hedgehogs)",
+  skip_dark: 'Not started, it was dark (hedgehogs)',
   stopped_end: 'Sent home, end time reached',
   stopped_dark: 'Sent home at sunset (hedgehogs)',
   stopped_again: 'Sent home again, it carried on by itself after charging',
@@ -151,9 +151,21 @@ export const SCHEDULE_LOG_TEXT: Record<string, string> = {
   unknown_area: "An area the map doesn't have (an older job?), left it alone",
   leftovers_started: 'Started again for the leftovers ({detail} m²)',
   leftovers_little: 'Leftovers too small to go out again ({detail} m²)',
-  leftovers_skip: "Leftovers not mowed, the mower wasn't ready or it's dark or raining ({detail})",
   leftovers_failed: "Leftovers not mowed, the planner didn't answer",
 };
+
+// leftovers_skip says why in its detail: dark, rain, emergency or the state the mower was in
+const LEFTOVERS_SKIP: Record<string, string> = {
+  dark: "Leftovers not mowed, it's dark",
+  rain: "Leftovers not mowed, it's raining",
+  emergency: 'Leftovers not mowed, emergency stop',
+};
+
+// a log line in words (english, translated where it's shown)
+export function scheduleLogText(l: LogEntry): string {
+  if (l.what === 'leftovers_skip') return LEFTOVERS_SKIP[l.detail ?? ''] ?? "Leftovers not mowed, the mower wasn't ready";
+  return SCHEDULE_LOG_TEXT[l.what] ?? l.what;
+}
 
 // how a start the schedule tried ended: started, or why not
 const START_OUTCOMES = new Set([

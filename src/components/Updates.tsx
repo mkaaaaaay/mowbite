@@ -4,7 +4,20 @@ import {copyText} from '@/lib/clipboard';
 import {tr} from '@/lib/i18n';
 import {isDemo} from '@/lib/mowers';
 import {isApp} from '@/lib/native';
-import {APP_VERSION, FROM_STORE, checkNow, compareVersions, dismissUpdate, isNewer, setUpdateCheck, useUpdates} from '@/lib/updates';
+import {
+  APP_VERSION,
+  FROM_STORE,
+  behindKey,
+  checkNow,
+  compareVersions,
+  dismissBehind,
+  dismissUpdate,
+  isNewer,
+  missingOnMower,
+  setBehindNote,
+  setUpdateCheck,
+  useUpdates,
+} from '@/lib/updates';
 import Link from 'next/link';
 import {useEffect, useState} from 'react';
 import {useMowerActions} from '@/hooks/useMowerActions';
@@ -13,7 +26,8 @@ import {rpcMethods} from '@/lib/rpc';
 import styles from './Updates.module.css';
 import {CreditsTrigger} from './Credits';
 
-const UPDATE_COMMAND = 'docker compose pull && docker compose up -d';
+// the newest version, then the old image goes (and any other no container uses and no name points to)
+const UPDATE_COMMAND = 'docker compose pull && docker compose up -d && docker image prune -f';
 const PRIVACY_URL = 'https://github.com/mkaaaaaay/mowbite/blob/main/PRIVACY.md';
 
 // what's out of date: the android app itself, and the container on the mower
@@ -23,10 +37,13 @@ function useOutdated() {
   // in the browser the page comes from the container, so its version is the mower's
   const mower = u.mower ?? (app ? null : APP_VERSION);
   const latest = u.latest?.version;
+  // in the browser the page comes from the container, it has what it needs
+  const missing = app && !isDemo() ? missingOnMower(u.level) : [];
   return {
     u,
     app,
     mower,
+    missing,
     appOld: !FROM_STORE && !!latest && app && isNewer(latest, APP_VERSION),
     // from the Play Store the store brings it, nothing to download here
     storeOld: FROM_STORE && !!latest && app && isNewer(latest, APP_VERSION),
@@ -55,15 +72,47 @@ function NewerOpenMower() {
   return <p className={styles.versions}>{tr('A newer OpenMower on the mower also brings: {list}.', {list: missing.map((m) => tr(m)).join(', ')})}</p>;
 }
 
-export function UpdateSettings({cardClass, checkClass}: {cardClass: string; checkClass: string}) {
-  const {u, app, mower, appOld, mowerOld, storeOld} = useOutdated();
+// how MowBite on the mower gets the newest version, to copy
+export function UpdateCommand() {
   const [copied, setCopied] = useState(false);
+  return (
+    <>
+      <span className={styles.versions}>{tr('To update, run this on the mower in the mowbite folder. It clears away the old image too:')}</span>
+      <div className={styles.command}>
+        <code>{UPDATE_COMMAND}</code>
+        <button
+          className={styles.button}
+          onClick={() => {
+            copyText(UPDATE_COMMAND);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1500);
+          }}
+        >
+          {copied ? tr('copied') : tr('Copy')}
+        </button>
+      </div>
+    </>
+  );
+}
+
+// the version after a name, when the mower told it (one from before doesn't)
+export const versionNote = (v: string | null) => (v ? ` (${v})` : '');
+
+// the app is newer than MowBite on the mower, and some of it needs that one newer too
+const behindText = (mower: string | null, missing: string[]) =>
+  tr("MowBite on the mower{old} is older than this app. Until it's updated, this doesn't work yet: {list}.", {
+    old: versionNote(mower),
+    list: missing.map((m) => tr(m)).join(', '),
+  });
+
+export function UpdateSettings({cardClass, checkClass}: {cardClass: string; checkClass: string}) {
+  const {u, app, mower, missing, appOld, mowerOld, storeOld} = useOutdated();
 
   return (
     <section className={cardClass} id="updates">
       <h2>{tr('Updates')}</h2>
       <CreditsTrigger className={styles.versions}>
-        {app ? `${tr('App')} ${APP_VERSION} · ${tr('Mower')} ${mower ?? '?'}` : `MowBite ${APP_VERSION}`}
+        {app ? `${tr('App')} ${APP_VERSION} · ${tr('Mower')} ${mower ?? (u.level === 0 ? tr('older version') : '?')}` : `MowBite ${APP_VERSION}`}
       </CreditsTrigger>
       <a className={styles.versions} href={PRIVACY_URL} target="_blank" rel="noreferrer">
         {tr('Privacy policy')}
@@ -73,6 +122,12 @@ export function UpdateSettings({cardClass, checkClass}: {cardClass: string; chec
         <input type="checkbox" checked={u.enabled} onChange={(e) => setUpdateCheck(e.target.checked)} />
         {tr('Look for updates once a day (asks GitHub, which sees your IP address)')}
       </label>
+      {app && (
+        <label className={checkClass}>
+          <input type="checkbox" checked={!u.behindNever} onChange={(e) => setBehindNote(e.target.checked)} />
+          {tr('A note on the dashboard when MowBite on the mower is too old for something in the app')}
+        </label>
+      )}
       <div className={styles.status}>
         <button className={styles.button} onClick={() => void checkNow()} disabled={u.checking}>
           {u.checking ? tr('checking…') : tr('Check now')}
@@ -112,37 +167,45 @@ export function UpdateSettings({cardClass, checkClass}: {cardClass: string; chec
         </div>
       )}
 
-      {u.latest && mowerOld && (
+      {((u.latest && mowerOld) || missing.length > 0) && (
         <div className={styles.news}>
-          <span>
-            {tr('The mower runs MowBite {old}, {v} is out.', {old: mower ?? '', v: u.latest.version})}{' '}
-            <a href={u.latest.url} target="_blank" rel="noreferrer">
-              {tr("What's new")}
-            </a>
-          </span>
-          <span className={styles.versions}>{tr('To update, run this on the mower in the mowbite folder:')}</span>
-          <div className={styles.command}>
-            <code>{UPDATE_COMMAND}</code>
-            <button
-              className={styles.button}
-              onClick={() => {
-                copyText(UPDATE_COMMAND);
-                setCopied(true);
-                setTimeout(() => setCopied(false), 1500);
-              }}
-            >
-              {copied ? tr('copied') : tr('Copy')}
-            </button>
-          </div>
+          {u.latest && mowerOld && (
+            <span>
+              {tr('The mower runs MowBite {old}, {v} is out.', {old: mower ?? '', v: u.latest.version})}{' '}
+              <a href={u.latest.url} target="_blank" rel="noreferrer">
+                {tr("What's new")}
+              </a>
+            </span>
+          )}
+          {missing.length > 0 && <span>{behindText(mower, missing)}</span>}
+          <UpdateCommand />
         </div>
       )}
     </section>
   );
 }
 
-// on the dashboard, only when a check found something and it wasn't waved away
+// on the dashboard, when MowBite on the mower is too old for some of the app or a check found something, and it wasn't
+// waved away
 export function UpdateBanner() {
-  const {u, appOld, mowerOld} = useOutdated();
+  const {u, mower, missing, appOld, mowerOld} = useOutdated();
+  if (missing.length > 0 && !u.behindNever && u.behindDismissed !== behindKey(mower)) {
+    return (
+      <div className={[styles.banner, styles.behind].join(' ')}>
+        <div>
+          <span>{behindText(mower, missing)}</span>
+          <UpdateCommand />
+          <label className={styles.never}>
+            <input type="checkbox" onChange={(e) => e.target.checked && setBehindNote(false)} />
+            {tr("Don't show again")}
+          </label>
+        </div>
+        <button onClick={() => dismissBehind(behindKey(mower))} aria-label="close">
+          ×
+        </button>
+      </div>
+    );
+  }
   if (!u.latest || !(appOld || mowerOld) || u.dismissed === u.latest.version) return null;
   const v = u.latest.version;
   return (

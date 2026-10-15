@@ -19,7 +19,7 @@ export default function OrderBox({
     <div className={styles.orderBox}>
       <span className={styles.orderTitle}>
         {tr('Mowing order')}
-        <InfoTip>{tr("The mower mows the areas in this order. Can only be changed while it's idle in the dock.")}</InfoTip>
+        <InfoTip>{tr('The mower mows the areas in this order.')}</InfoTip>
       </span>
       {!docked && <span className={styles.dim}>{tr('Can only be changed while the mower is idle in the dock.')}</span>}
       {areas.map((a, i) => (

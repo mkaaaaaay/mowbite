@@ -79,7 +79,9 @@ export default function AreaCard({
           />
           {tr('active')}
           <InfoTip>
-            {tr('Ignored by the mower and not drivable. Careful: if the mower stands on an inactive area, it gets stuck.')}
+            {type === 'obstacle'
+              ? tr("Off: the mower ignores the obstacle and mows over the spot as if it wasn't there.")
+              : tr('Ignored by the mower and not drivable. Careful: if the mower stands on an inactive area, it gets stuck.')}
           </InfoTip>
         </label>
         {type === 'mow' && area.properties.active !== false && supported.has('mowable') && (
@@ -124,9 +126,7 @@ export default function AreaCard({
             />
             cm
             <InfoTip>
-              {tr('How far the mower keeps its body off this one. Empty: the distance to obstacles of the planner ({cm} cm). It counts once the map is saved.', {
-                cm: defaultCm,
-              })}
+              {tr('How far the mower keeps its body off this one. It counts once the map is saved.')}
             </InfoTip>
           </label>
         )}
@@ -139,7 +139,9 @@ export default function AreaCard({
         )}
         <span className={styles.dim}>
           {area.properties.active === false
-            ? tr('inactive: not driven on and not mowed')
+            ? type === 'obstacle'
+              ? tr('inactive: ignored, the mower mows there')
+              : tr('inactive: not driven on and not mowed')
             : type === 'mow' && area.properties.mowable === false
               ? tr('driven on, but not mowed')
               : tr(AREA_TYPES.find((t) => t.value === type)?.hint ?? '')}

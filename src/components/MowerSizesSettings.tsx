@@ -140,7 +140,7 @@ export function MowerSizesSettings({settings, styles}: {settings: Settings; styl
       <h2>{tr('Mower sizes')}</h2>
       <p className={styles.dim}>
         {tr(
-          'Optional. Measured from the middle between the rear drive wheels, the point OpenMower follows. With them the map shows the mower’s outline with its blade, along the track the strip the blade really cuts, and the real edges: the outlines were recorded with the middle of the mower, the lawn reaches half its width further out and obstacles are that much smaller. All of it can be switched on and off under the layers of the map, the mower icon too. The map itself, the mowing plan and its preview stay as they are.',
+          "Optional, measured from the middle between the rear drive wheels (the point OpenMower follows). With them the map shows the mower's outline, the strip its blade really cuts and the lawn's real edges, each can be switched on and off under the map's layers. The map itself and the mowing plan stay as they are.",
         )}
       </p>
       <label className={`${styles.field} ${local.model}`}>

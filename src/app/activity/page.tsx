@@ -111,7 +111,6 @@ function ProblemItem({run, next, event, state, where}: {run: Run; next?: Run; ev
       {open && (
         <>
           {hint && <p>{hint}</p>}
-          <ParamFix keys={FIXES[event.type] ?? []} />
           <p className={styles.facts}>{problemFacts(run, event, next).join(' · ')}</p>
           <div className={styles.problemActions}>
             {event.x !== undefined && event.y !== undefined && (
@@ -131,12 +130,14 @@ function ProblemItem({run, next, event, state, where}: {run: Run; next?: Run; ev
               </Link>
             )}
             <button className={styles.rawToggle} onClick={() => setRaw(!raw)}>
-              {raw ? tr('Hide entry') : tr('Show entry')}
+              {raw ? tr('Hide raw data') : tr('Show raw data')}
             </button>
             <GpsAround t={event.t} limit={numParam(params, PARAM.maxPositionAccuracy)} />
             <RosLogAround t={event.t} />
           </div>
           {raw && <RawEntry event={event} file={`${PATHS.eventHistory}${where.get(event.id)?.file ?? ''}`} line={where.get(event.id)?.line ?? 0} />}
+          {/* when it keeps happening: the settings that help, last */}
+          <ParamFix keys={FIXES[event.type] ?? []} />
         </>
       )}
     </li>
@@ -287,7 +288,9 @@ export default function ActivityPage() {
           {tr('Activity')}
         </h1>
 
-        {failed && !days && <p className={styles.dim}>{tr("This mower doesn't keep an event history.")}</p>}
+        {failed && !events && (
+          <p className={styles.dim}>{tr("No event history: the mower can't be reached, or its OpenMower doesn't keep one yet.")}</p>
+        )}
 
         {days && (
           <div className={styles.days} ref={daysRef}>
@@ -297,6 +300,7 @@ export default function ActivityPage() {
                 className={d === shown ? styles.on : undefined}
                 onClick={() => {
                   setEvents(null);
+                  setFailed(false);
                   setDay(d);
                 }}
               >
@@ -323,9 +327,9 @@ export default function ActivityPage() {
             <div className={styles.filter} role="group">
               {(
                 [
-                  ['all', 'all'],
-                  ['problems', 'problems'],
-                  ['progress', 'progress'],
+                  ['all', 'All'],
+                  ['problems', 'Problems'],
+                  ['progress', 'Timeline'],
                 ] as const
               ).map(([key, label]) => (
                 <button key={key} className={filter === key ? styles.on : undefined} onClick={() => setFilter(key)}>
@@ -336,8 +340,10 @@ export default function ActivityPage() {
           </div>
         )}
 
-        {shown && !events && <p className={styles.dim}>{tr('loading…')}</p>}
-        {events && visible.length === 0 && <p className={styles.dim}>{tr('Nothing here.')}</p>}
+        {shown && !events && !failed && <p className={styles.dim}>{tr('loading…')}</p>}
+        {events && visible.length === 0 && (
+          <p className={styles.dim}>{filter === 'problems' ? tr('No problems on this day.') : tr('Nothing here.')}</p>
+        )}
 
         <div className={styles.list}>
           {blocks.map((b) =>
