@@ -243,6 +243,7 @@ const de: Record<string, string> = {
   "Follow the mower again": "Wieder dem Mäher folgen",
   "Following the mower, click to move the map freely": "Folgt dem Mäher. Tippen, um die Karte frei zu bewegen",
   "Frosted glass": "Milchglas",
+  "Aurora": "Polarlicht",
   "Ghost": "Geist",
   "Go home": "Nach Hause",
   "GPS accuracy": "GPS-Genauigkeit",

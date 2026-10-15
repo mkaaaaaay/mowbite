@@ -2,15 +2,15 @@ import {useSyncExternalStore} from 'react';
 import {THEME_KEY as KEY} from './themeBoot';
 
 // the design per device, frost unless picked otherwise. 'auto' follows the device, the css reads data-theme on <html>.
-// frost is dark with milky glass cards
-export type ThemeChoice = 'auto' | 'light' | 'dark' | 'frost';
+// frost is dark with milky glass cards, aurora goes from violet to petrol, lighter than frost and darker than light
+export type ThemeChoice = 'auto' | 'light' | 'dark' | 'frost' | 'aurora';
 
 const listeners = new Set<() => void>();
 
 function read(): ThemeChoice {
   try {
     const v = localStorage.getItem(KEY);
-    if (v === 'light' || v === 'auto' || v === 'dark' || v === 'frost') return v;
+    if (v === 'light' || v === 'auto' || v === 'dark' || v === 'frost' || v === 'aurora') return v;
   } catch {}
   return 'frost';
 }

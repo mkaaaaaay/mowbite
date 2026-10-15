@@ -2,4 +2,4 @@
 export const THEME_KEY = 'theme';
 
 // inline in <head>, so the theme is there before the first paint: frost unless light, dark or auto was picked
-export const THEME_BOOT_SCRIPT = `var t='frost';try{t=localStorage.getItem('${THEME_KEY}')||t}catch(e){}if(t!=='auto')document.documentElement.dataset.theme=t==='light'||t==='dark'?t:'frost'`;
+export const THEME_BOOT_SCRIPT = `var t='frost';try{t=localStorage.getItem('${THEME_KEY}')||t}catch(e){}if(t!=='auto')document.documentElement.dataset.theme=t==='light'||t==='dark'||t==='aurora'?t:'frost'`;

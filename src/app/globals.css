@@ -58,7 +58,8 @@
 }
 
 :root[data-theme='dark'],
-:root[data-theme='frost'] {
+:root[data-theme='frost'],
+:root[data-theme='aurora'] {
   --background: #101114;
   --foreground: #f1f1f1;
   --card: rgba(255, 255, 255, 0.05);
@@ -160,6 +161,27 @@ body {
     radial-gradient(circle at 85% 0%, rgba(168, 85, 247, 0.2), transparent 50%),
     radial-gradient(circle at 70% 70%, rgba(91, 157, 240, 0.1), transparent 45%),
     radial-gradient(circle at 50% 100%, rgba(76, 191, 114, 0.18), transparent 55%);
+  background-attachment: fixed;
+  background-color: var(--background);
+}
+
+/* aurora: from violet at the top to petrol at the bottom, milky cards and mint, lighter than frost, darker than light */
+:root[data-theme='aurora'] {
+  --background: #4a5e82;
+  --foreground: #f3f5f9;
+  --card: rgba(255, 255, 255, 0.1);
+  --card-border: rgba(255, 255, 255, 0.22);
+  --card-blur: blur(18px) saturate(140%);
+  --card-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 6px 22px rgba(20, 24, 60, 0.18);
+  --text-secondary: #bec9c6;
+  --accent: #82d5c8;
+  --bubble: #44507a;
+  --well: rgba(0, 0, 0, 0.14);
+  --nav-bg: rgba(32, 75, 81, 0.94);
+}
+
+:root[data-theme='aurora'] body {
+  background-image: linear-gradient(180deg, #6b5c92 0%, #5f5f8d 20%, #555d87 30%, #4a5e82 42%, #3f5f7e 54%, #38647b 66%, #326878 100%);
   background-attachment: fixed;
   background-color: var(--background);
 }

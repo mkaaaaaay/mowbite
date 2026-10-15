@@ -225,6 +225,7 @@ export default function SettingsPage() {
   // back to wherever the gear was clicked, or the dashboard when the page was opened directly
   const back = () => (window.history.length > 1 ? router.back() : router.push('/'));
   const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
+  const shared = useSyncExternalStore(settingsStore.subscribe, sharedSettings, () => false);
   // the MowBite Planner on the mower: its settings are with the map. Asked here too, the page may be the first one
   // opened
   const planner = usePlannerSettings();
@@ -256,7 +257,7 @@ export default function SettingsPage() {
           {tr('Settings')}
         </h1>
         <p className={styles.dim}>
-          {sharedSettings() ? tr('Saved on the mower, the same on all your devices.') : tr('Saved on this device only.')}
+          {shared ? tr('Saved on the mower, the same on all your devices.') : tr('Saved on this device only.')}
         </p>
 
         {(planner !== undefined || unanswered) && (
@@ -373,6 +374,7 @@ export default function SettingsPage() {
                   ['light', tr('Light')],
                   ['dark', tr('Dark')],
                   ['frost', tr('Frosted glass')],
+                  ['aurora', tr('Aurora')],
                 ] as const
               ).map(([k, label]) => (
                 <button key={k} className={theme === k ? styles.segmentOn : undefined} onClick={() => setThemeChoice(k)}>

@@ -19,7 +19,7 @@ import {
   useUpdates,
 } from '@/lib/updates';
 import Link from 'next/link';
-import {useEffect, useState} from 'react';
+import {useEffect, useState, useSyncExternalStore} from 'react';
 import {useMowerActions} from '@/hooks/useMowerActions';
 import {ACTION, RPC} from '@/lib/openmower';
 import {rpcMethods} from '@/lib/rpc';
@@ -30,10 +30,13 @@ import {CreditsTrigger} from './Credits';
 const UPDATE_COMMAND = 'docker compose pull && docker compose up -d && docker image prune -f';
 const PRIVACY_URL = 'https://github.com/mkaaaaaay/mowbite/blob/main/PRIVACY.md';
 
+const noop = () => () => {};
+
 // what's out of date: the android app itself, and the container on the mower
 function useOutdated() {
   const u = useUpdates();
-  const app = isApp();
+  // (as the page was built ahead first, else the page put together in the app doesn't match it)
+  const app = useSyncExternalStore(noop, isApp, () => false);
   // in the browser the page comes from the container, so its version is the mower's
   const mower = u.mower ?? (app ? null : APP_VERSION);
   const latest = u.latest?.version;
