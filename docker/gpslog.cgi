@@ -49,21 +49,48 @@ case "$QUERY_STRING" in
     ;;
 esac
 # ?cells=<cm>: all days kept, summed up per square of that size for the coverage on the map. lines:
-# "<col> <row> <seconds> <without rtk fix> <without gps> <worst accuracy m> <wifi samples> <wifi dBm sum> <wifi worst>"
-# (col, row: x and y divided by the size, rounded down). only while mowing or driving, not standing in the dock
-cells=$(num cells)
-if [ -n "$cells" ]; then
-  cat "$D"/*.log | awk -v c="${cells}" '
+# "<col> <row> <seconds> <over 5 cm or without gps> <without gps> <worst accuracy m> <wifi samples> <wifi dBm sum>
+# <wifi worst>" (col, row: x and y divided by the size, rounded down). only while mowing or driving, not standing in the
+# dock, and not the dock approach without gps (OpenMower switches it off there)
+cellsum() {
+  awk -v c="$1" '
     $2 == "IDLE" || $2 == "" || NF < 5 { next }
+    ($2 == "DOCKING" || $2 == "UNDOCKING") && $5 >= 999 { next }
     {
       k = int(($3 * 100) / c - (($3 * 100) % c < 0)) " " int(($4 * 100) / c - (($4 * 100) % c < 0))
       n[k]++
       if ($5 >= 999) none[k]++
-      else if ($5 > 0.05) nofix[k]++
+      else if ($5 > 0.05) over[k]++
       if ($5 < 999 && $5 > worst[k]) worst[k] = $5
       if (NF >= 6 && $6 != "-") { wn[k]++; ws[k] += $6; if (!(k in wmin) || $6 < wmin[k]) wmin[k] = $6 }
     }
-    END { for (k in n) print k, n[k], nofix[k] + none[k], none[k] + 0, worst[k] + 0, wn[k] + 0, ws[k] + 0, (k in wmin) ? wmin[k] : 0 }'
+    END { for (k in n) print k, n[k], over[k] + none[k], none[k] + 0, worst[k] + 0, wn[k] + 0, ws[k] + 0, (k in wmin) ? wmin[k] : 0 }'
+}
+cells=$(num cells)
+if [ -n "$cells" ]; then
+  # a finished day is summed up once and kept in cells/ as long as its log (a day takes the mower seconds), only the
+  # newest one each time
+  C=$D/cells
+  mkdir -p "$C"
+  newest=$(ls -1 "$D"/*.log | tail -n1)
+  for f in "$D"/*.log; do
+    [ "$f" = "$newest" ] && continue
+    c="$C/$(basename "$f" .log)-$cells"
+    [ -s "$c" ] && [ ! "$f" -nt "$c" ] && continue
+    cellsum "$cells" < "$f" > "$c.$$" && mv "$c.$$" "$c"
+  done
+  for c in "$C"/*; do
+    [ -f "$c" ] || continue
+    n=${c##*/}
+    case "$n" in *-"$cells") [ -f "$D/${n%-*}.log" ] || rm -f "$c" ;; *) rm -f "$c" ;; esac
+  done
+  { cat "$C"/*-"$cells" 2>/dev/null; cellsum "$cells" < "$newest"; } | awk '
+    {
+      k = $1 " " $2; n[k] += $3; over[k] += $4; none[k] += $5; wn[k] += $7; ws[k] += $8
+      if ($6 > worst[k]) worst[k] = $6
+      if ($7 > 0 && (!(k in wmin) || $9 < wmin[k])) wmin[k] = $9
+    }
+    END { for (k in n) print k, n[k], over[k], none[k], worst[k] + 0, wn[k], ws[k], (k in wmin) ? wmin[k] : 0 }'
   exit 0
 fi
 from=$(num from)

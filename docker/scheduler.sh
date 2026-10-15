@@ -11,6 +11,8 @@
 . /openmower.sh
 F=/data/schedule.txt
 LOG=/data/schedule.log
+# the mower's mowing direction before a start turned it, for the starts without their own
+NORMAL=/data/angle.normal
 WAIT=7200
 
 log() {
@@ -216,25 +218,8 @@ rain_forecast() {
 }
 
 # a json-rpc call over mqtt ($1 method, $2 params as json, $3 seconds to wait): the answer as one line, nothing without
-# one. the answers of everyone come on one topic, pretty printed over several lines: the object with our id is picked
-rpc_call() {
-  id="mb$$$(date +%s)"
-  out=$(mktemp)
-  # shellcheck disable=SC2086
-  mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_RPC_RESPONSE" -W "$3" > "$out" 2>/dev/null &
-  reader=$!
-  sleep 1
-  # shellcheck disable=SC2086
-  mosquitto_pub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_RPC_REQUEST" \
-    -m "{\"jsonrpc\":\"2.0\",\"id\":\"$id\",\"method\":\"$1\",\"params\":$2}"
-  t=$(($(date +%s) + $3))
-  while ! grep -q "\"id\": *\"$id\"" "$out" 2>/dev/null && [ "$(date +%s)" -lt "$t" ]; do sleep 1; done
-  sleep 1
-  kill "$reader" 2>/dev/null
-  # an answer on one line, or pretty printed from a line starting with { to one starting with }
-  awk -v id="$id" '/^\{/ { b = "" } { b = b $0 } /^\}/ || /^\{.*\}$/ { if (b ~ "\"id\": *\"" id "\"") { print b; exit } }' "$out"
-  rm -f "$out"
-}
+# one
+rpc_call() { mower_rpc "$host" "$1" "$2" "$3" | tr -d '\n'; }
 
 # the leftovers setting from the app's settings (settings.cgi): "leftovers":{"auto":true,"min":0.5}
 leftovers_conf() { grep -o '"leftovers":{[^}]*}' /data/settings.json 2>/dev/null | head -n1; }
@@ -380,13 +365,21 @@ while :; do
       fi
     else
       # the mowing direction of this start. one without its own gets the usual one back when other start times
-      # have theirs: what the app keeps for the mower (params.sh), else 0
+      # have theirs: what the app keeps for the mower (params.sh), else what the mower had before a start turned it
       turn=""
       if [ "$angle" != - ]; then
         turn=$angle
+        if [ ! -f "$NORMAL" ]; then
+          # shellcheck disable=SC2086
+          now=$(mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_PARAMS" -C 1 -W 10 2>/dev/null)
+          now=$(field "$now" "$PARAM_MOW_ANGLE_OFFSET")
+          [ -n "$now" ] && echo "$now" > "$NORMAL"
+        fi
       elif grep -q '^plan .* angle=' "$F"; then
         turn=$(sed -n "s|^$PARAM_MOW_ANGLE_OFFSET ||p" /data/params.txt 2>/dev/null | head -n1)
+        turn=${turn:-$(cat "$NORMAL" 2>/dev/null)}
         turn=${turn:-0}
+        rm -f "$NORMAL"
       fi
       if [ -n "$turn" ]; then
         rpc_call "$RPC_SET_PARAMS" "{\"params\":{\"$PARAM_MOW_ANGLE_OFFSET\":$turn}}" 10 | grep -q '"result"' || log angle_failed "$turn"

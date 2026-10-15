@@ -20,9 +20,14 @@ if [ "$1" = tidy ]; then
   while [ "$(cat "$D"/*.log 2>/dev/null | wc -c)" -gt 20971520 ] && [ "$(ls -1 "$D"/*.log 2>/dev/null | wc -l)" -gt 1 ]; do
     rm -f "$(ls -1 "$D"/*.log | sort | head -n1)"
   done
+  # today's alone that big: only its newest half stays
+  f=$(ls -1 "$D"/*.log 2>/dev/null | tail -n1)
+  if [ -n "$f" ] && [ "$(wc -c < "$f")" -gt 20971520 ]; then
+    tail -c 10000000 "$f" | sed 1d > "$f.tmp" && mv "$f.tmp" "$f"
+  fi
   # snap/: 14 days and 10 MB, the oldest first. the newest map stays, a run uses it as long as the map doesn't change
   keep=$(ls -1 "$S"/map-*.json.gz 2>/dev/null | sort | tail -n1)
-  find "$S" -type f -mtime +14 ! -path "$keep" -exec rm -f {} + 2>/dev/null
+  find "$S" -type f -mtime +14 ! -path "$keep" ! -name .mapsum -exec rm -f {} + 2>/dev/null
   while [ "$(du -sk "$S" | cut -f1)" -gt 10240 ]; do
     old=$(ls -1 "$S" | grep -v "^${keep##*/}$" | sed 's/^[a-z]*-\([0-9]*\)-.*/\1 &/' | sort -n | head -n1 | cut -d' ' -f2)
     [ -n "$old" ] || break
@@ -130,10 +135,14 @@ while :; do
           home = state == "IDLE" && num("is_charging") == 1
           if (home && was_home) next
           if (state == last_state && t - written < 0.9) next
-          # leaving the dock (or idle) starts a run: its settings and map as they are now
-          if (state != "IDLE" && (last_state == "IDLE" || last_state == "")) system("/gpslog.sh snapshot " int(t) " &")
           x = num("x"); y = num("y"); acc = num("pos_accuracy"); h = num("heading")
           if (x == "-" || y == "-" || acc == "-") next
+          # idle out of the dock (no power at the dock, the contacts dropping out) says little more: once a minute
+          # unless it moves
+          if (state == "IDLE" && last_state == "IDLE" && t - written < 60 && (x - lx) * (x - lx) + (y - ly) * (y - ly) < 0.0025) next
+          # leaving the dock (or idle) starts a run: its settings and map as they are now
+          if (state != "IDLE" && (last_state == "IDLE" || last_state == "")) system("/gpslog.sh snapshot " int(t) " &")
+          lx = x; ly = y
           was_home = home
           last_state = state
           heading = h == "-" ? "-" : sprintf("%.2f", h)

@@ -13,8 +13,9 @@ find_broker() {
 # nothing when none came. needs the topics from openmower.sh. answers come pretty printed over several lines on a
 # topic others answer on too, so the one with our id is picked out
 mower_rpc() {
-  _id="mowbite-$$-$(date +%s)"
-  _out="/tmp/rpc.$$.out"
+  # a subshell has the same $$: a random part, two calls in the same second don't take each other's answer
+  _id="mowbite-$$-$(date +%s)-$(od -An -N4 -tx4 /dev/urandom | tr -d ' ')"
+  _out=$(mktemp)
   # shellcheck disable=SC2086
   mosquitto_sub -h "$1" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_RPC_RESPONSE" -t "${MOWER_MQTT_PREFIX}$TOPIC_RPC_ERROR" -W "${4:-15}" > "$_out" 2>/dev/null &
   _sub=$!
