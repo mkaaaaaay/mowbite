@@ -3,7 +3,7 @@
 // before the request comes back.
 
 import {mergeChanges} from './mergeChanges';
-import {apiBase, mowerFetch} from './mowers';
+import {apiBase, isDemo, mowerFetch} from './mowers';
 import {isApp} from './native';
 
 export const COLORS = [
@@ -88,10 +88,11 @@ export function applyColors(colors: Settings['colors'] = {}) {
   for (const c of COLORS) root.setProperty(`--c-${c.key}`, colors[c.key] ?? c.value);
 }
 
+// the demo's settings stay in memory, the ones of this device's mowers are kept as they were
 function setLocal(next: Settings) {
   current = next;
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    if (!isDemo()) localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   } catch {}
   applyColors(next.colors);
   listeners.forEach((l) => l());

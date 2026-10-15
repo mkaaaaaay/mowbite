@@ -2,7 +2,7 @@
 
 import {clock} from '@/lib/dates';
 import {deviceLang, tr, useLang} from '@/lib/i18n';
-import {apiBase} from '@/lib/mowers';
+import {apiBase, isDemo} from '@/lib/mowers';
 import {isApp} from '@/lib/native';
 import {
   defaultNotify,
@@ -92,6 +92,7 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
   };
 
   const test = async () => {
+    if (isDemo()) return setState({done: tr('The demo sends nothing, with your mower it comes to the phone.')});
     setState({busy: true});
     try {
       const r = await testNotify();

@@ -197,8 +197,10 @@ export default function SettingsPage() {
   // the MowBite Planner on the mower: its settings are with the map. Asked here too, the page may be the first one
   // opened
   const planner = usePlannerSettings();
+  // no answer (OpenMower restarting, a slow connection): the sizes as without the planner, so they can be set
+  const [unanswered, setUnanswered] = useState(false);
   useEffect(() => {
-    if (planner === undefined) loadPlannerSettings().catch(() => {});
+    if (planner === undefined) loadPlannerSettings().catch(() => setUnanswered(true));
   }, [planner]);
 
   return (
@@ -383,7 +385,7 @@ export default function SettingsPage() {
         )}
         <Group id="mower" title={tr('Your mower')}>
           {/* without the MowBite Planner the sizes are kept in the app */}
-          {planner === null && <MowerSizesSettings settings={settings} styles={styles} />}
+          {(planner === null || (planner === undefined && unanswered)) && <MowerSizesSettings settings={settings} styles={styles} />}
           <NotifySettings settings={settings} styles={styles} />
         </Group>
 

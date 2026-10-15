@@ -1,4 +1,5 @@
 import type {MowerMap} from '@/hooks/useMowerMap';
+import {tr} from '../i18n';
 import {closedRings} from '../rings';
 import {demoMap, DEMO_SENSORS} from './garden';
 import {demoMows} from './world';
@@ -24,7 +25,7 @@ function backupList() {
     const size = JSON.stringify(map).length;
     const now = Date.now() / 1000;
     backups = [
-      {id: 'demo-2', t: now - 3 * 86400, name: 'before the flower bed', areas: map.areas.length, auto: false, size, map},
+      {id: 'demo-2', t: now - 3 * 86400, name: tr('before the flower bed'), areas: map.areas.length, auto: false, size, map},
       {id: 'demo-1', t: now - 12 * 86400, name: '', areas: map.areas.length, auto: true, size, map},
     ];
   }
@@ -34,8 +35,8 @@ function backupList() {
 // what the mower did at a moment (unix seconds): mowing, charging for an hour after it, or full in the dock
 function phase(t: number): {mowing: boolean; charging: boolean; battery: number} {
   for (const m of demoMows()) {
-    if (t >= m.start && t < m.end) return {mowing: true, charging: false, battery: 1 - (t - m.start) / 6000};
-    const low = 1 - (m.end - m.start) / 6000;
+    if (t >= m.start && t < m.end) return {mowing: true, charging: false, battery: Math.max(0.05, 1 - (t - m.start) / 6000)};
+    const low = Math.max(0.05, 1 - (m.end - m.start) / 6000);
     const charged = (t - m.end) / 3600;
     if (t >= m.end && low + charged < 1) return {mowing: false, charging: true, battery: low + charged};
   }

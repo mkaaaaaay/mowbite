@@ -464,18 +464,20 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
   }
   place();
 
+  // all of them every time like a real mower, the state only switches them on and off
   const actions = () => {
     const s = state();
     const a = (id: string, name: string, on: boolean) => ({action_id: id, action_name: name, enabled: on ? 1 : 0});
-    const fixed = [a(ACTION.resetEmergency, 'Reset Emergency', true)];
-    if (s === 'IDLE')
-      return [...fixed, a(ACTION.startMowing, 'Start Mowing', true), a(ACTION.startRecording, 'Start Area Recording', false), a(ACTION.resetJob, 'Reset Job', !!job)];
+    const idle = s === 'IDLE';
     const mowing = s === 'MOWING' && !detour;
     return [
-      ...fixed,
+      a(ACTION.resetEmergency, 'Reset Emergency', true),
+      a(ACTION.startMowing, 'Start Mowing', idle),
+      a(ACTION.startRecording, 'Start Area Recording', false),
+      a(ACTION.resetJob, 'Reset Job', idle && !!job),
       a(ACTION.pause, 'Pause', s === 'MOWING'),
       a(ACTION.resume, 'Continue', s === 'PAUSED'),
-      a(ACTION.goHome, 'Stop Mowing', s !== 'DOCKING'),
+      a(ACTION.goHome, 'Stop Mowing', !idle && s !== 'DOCKING'),
       a(ACTION.skipArea, 'Skip Area', mowing),
       a(ACTION.skipPath, 'Skip Path', mowing),
     ];
@@ -692,7 +694,8 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
   }
 
   function tick(now = Date.now()) {
-    const dt = Math.max(0, (now - last) / 1000);
+    // a tab asleep for hours doesn't mow them all at once on waking: the demo goes on where it was
+    const dt = Math.min(60, Math.max(0, (now - last) / 1000));
     const was = state();
     step(SPEED * dt, last / 1000);
     last = now;

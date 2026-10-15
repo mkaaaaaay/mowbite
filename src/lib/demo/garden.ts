@@ -1,4 +1,5 @@
 import type {MowerMap, Point} from '@/hooks/useMowerMap';
+import {tr} from '../i18n';
 import {PARAM} from '../openmower';
 
 // The demo mower's garden, made up: two lawns joined by a path, a few obstacles and the docking station in a short
@@ -40,33 +41,33 @@ export function demoMap(): MowerMap {
     areas: [
       {
         id: FRONT,
-        properties: {name: 'Front lawn', type: 'mow', angle: 0.35},
+        properties: {name: tr('Front lawn'), type: 'mow', angle: 0.35},
         outline: rounded([[0, 0], [10, 0], [10, 4.5], [7.5, 7.5], [0, 7.5]], 0.9),
       },
       {
         id: BACK,
-        properties: {name: 'Back lawn', type: 'mow', angle: -0.5},
+        properties: {name: tr('Back lawn'), type: 'mow', angle: -0.5},
         outline: rounded([[-0.5, 10], [7, 10], [8, 15], [0.5, 15.5]], 0.8),
       },
       {
         id: 'demo-path',
-        properties: {name: 'Path', type: 'nav'},
+        properties: {name: tr('Path'), type: 'nav'},
         outline: rounded([[1.2, 7], [2.4, 7], [2.4, 10.4], [1.2, 10.4]], 0.15, 2),
       },
       {
         id: 'demo-dock-bay',
-        properties: {name: 'Dock', type: 'nav'},
+        properties: {name: tr('Dock'), type: 'nav'},
         outline: rounded([[-1.7, 3], [0.4, 3], [0.4, 4], [-1.7, 4]], 0.1, 2),
       },
-      {id: 'demo-tree', properties: {name: 'Tree', type: 'obstacle'}, outline: circle(3.1, 2.3, 0.55)},
+      {id: 'demo-tree', properties: {name: tr('Tree'), type: 'obstacle'}, outline: circle(3.1, 2.3, 0.55)},
       {
         id: 'demo-flower-bed',
-        properties: {name: 'Flower bed', type: 'obstacle'},
+        properties: {name: tr('Flower bed'), type: 'obstacle'},
         outline: rounded([[5.5, 4.2], [7.7, 3.9], [7.9, 5], [5.7, 5.3]], 0.35),
       },
       {
         id: 'demo-sandpit',
-        properties: {name: 'Sandpit', type: 'obstacle'},
+        properties: {name: tr('Sandpit'), type: 'obstacle'},
         outline: rounded([[3.8, 11.8], [5.4, 11.8], [5.4, 13.4], [3.8, 13.4]], 0.2, 2),
       },
     ],

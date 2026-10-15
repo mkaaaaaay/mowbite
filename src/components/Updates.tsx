@@ -2,6 +2,7 @@
 
 import {copyText} from '@/lib/clipboard';
 import {tr} from '@/lib/i18n';
+import {isDemo} from '@/lib/mowers';
 import {isApp} from '@/lib/native';
 import {APP_VERSION, FROM_STORE, checkNow, compareVersions, dismissUpdate, isNewer, setUpdateCheck, useUpdates} from '@/lib/updates';
 import Link from 'next/link';
@@ -27,7 +28,10 @@ function useOutdated() {
     app,
     mower,
     appOld: !FROM_STORE && !!latest && app && isNewer(latest, APP_VERSION),
-    mowerOld: !!latest && !!mower && isNewer(latest, mower),
+    // from the Play Store the store brings it, nothing to download here
+    storeOld: FROM_STORE && !!latest && app && isNewer(latest, APP_VERSION),
+    // the demo has no container to update
+    mowerOld: !isDemo() && !!latest && !!mower && isNewer(latest, mower),
   };
 }
 
@@ -52,7 +56,7 @@ function NewerOpenMower() {
 }
 
 export function UpdateSettings({cardClass, checkClass}: {cardClass: string; checkClass: string}) {
-  const {u, app, mower, appOld, mowerOld} = useOutdated();
+  const {u, app, mower, appOld, mowerOld, storeOld} = useOutdated();
   const [copied, setCopied] = useState(false);
 
   return (
@@ -79,7 +83,9 @@ export function UpdateSettings({cardClass, checkClass}: {cardClass: string; chec
             : u.latest
               ? appOld || mowerOld
                 ? ''
-                : compareVersions(APP_VERSION, u.latest.version) > 0
+                : storeOld
+                  ? tr('Version {v} is out, the app gets it from the Play Store.', {v: u.latest.version})
+                  : compareVersions(APP_VERSION, u.latest.version) > 0
                   ? tr("You're on a pre-release, the newest published one is {v}.", {v: u.latest.version})
                   : tr('Up to date, the newest release is {v}.', {v: u.latest.version})
               : ''}
