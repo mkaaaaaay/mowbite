@@ -227,8 +227,9 @@ function MowerMarker({
   ghost?: boolean;
   costume?: {hat?: boolean; towel?: boolean; umbrella?: boolean};
 }) {
-  // (half a pixel of the map, about: k is svg units per pixel of the drawing's width)
-  const shown = useEasedPose(mower, (0.5 * k) / fit.scale) ?? mower;
+  // (a fiftieth of a pixel of the map, about: k is svg units per pixel of the drawing's width). it moves on in every
+  // frame, with half a pixel it went in steps a dozen times a second on a whole garden
+  const shown = useEasedPose(mower, (0.02 * k) / fit.scale) ?? mower;
   // the blade turning the way the mow motor does, drawn only with the outline
   const rpm = useSensorValue('om_mow_motor_rpm', (v) => (outline && body?.blade ? Math.round(parseFloat(v ?? '') || 0) : 0));
   const speed = useComputedSpeed(mower);
@@ -570,7 +571,7 @@ function MapView({
     const tx = width / 2 - (sx - (g.x - g.size)) * unit;
     const ty = width / 2 - (sy - (g.y - g.size)) * unit;
     const last = lastSlide.current;
-    if (!last || Math.abs(tx - last[0]) > 0.3 || Math.abs(ty - last[1]) > 0.3) {
+    if (!last || Math.abs(tx - last[0]) > 0.02 || Math.abs(ty - last[1]) > 0.02) {
       svg.style.transform = `translate3d(${tx}px, ${ty}px, 0)`;
       lastSlide.current = [tx, ty];
     }
