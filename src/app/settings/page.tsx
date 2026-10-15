@@ -19,6 +19,7 @@ import {NotifySettings} from '@/components/NotifySettings';
 import {PlannerLogDownload} from '@/components/PlannerLog';
 import {datumFromParams, useMowerParams} from '@/hooks/useMowerParams';
 import {posixTz} from '@/lib/schedule';
+import {RpcError} from '@/lib/rpc';
 
 const noop = () => () => {};
 
@@ -210,6 +211,8 @@ export default function SettingsPage() {
   });
   // no answer (OpenMower restarting, a slow connection): the sizes as without the planner, so they can be set
   const [unanswered, setUnanswered] = useState(false);
+  // why the planner's switch for the leftovers didn't change, it stays as the planner says
+  const [leftoversFailed, setLeftoversFailed] = useState<string | null>(null);
   useEffect(() => {
     if (planner === undefined) loadPlannerSettings().catch(() => setUnanswered(true));
   }, [planner]);
@@ -351,11 +354,15 @@ export default function SettingsPage() {
                     onChange={(e) => {
                       const cur = settingsStore.snapshot();
                       if (cur.leftovers?.auto) saveSettings({...cur, leftovers: {...cur.leftovers, auto: false}});
-                      savePlannerSettings({leftovers_auto: e.target.checked}).catch(() => {});
+                      setLeftoversFailed(null);
+                      savePlannerSettings({leftovers_auto: e.target.checked}).catch((err: unknown) =>
+                        setLeftoversFailed(err instanceof RpcError && err.code !== 'timeout' ? err.message : tr('The mower did not answer.')),
+                      );
                     }}
                   />
                   {tr('Mow the leftovers automatically')}
                 </label>
+                {leftoversFailed && <p className={styles.error}>{leftoversFailed}</p>}
                 <p className={styles.dim}>
                   {slic3rPlans(planner)
                     ? tr("Not with OpenMower's slic3r planner, it plans no leftovers.")

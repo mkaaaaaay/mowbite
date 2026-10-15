@@ -56,7 +56,8 @@ export function getMqttClient(): MqttClient {
 
 function connect(): MqttClient {
   const c = mqtt.connect(mqttUrl(), {
-    reconnectPeriod: 2000,
+    // mqtt.js tries one connection after the other, the next only once the last is gone
+    reconnectPeriod: 1000,
     // a dead wifi link shows up after ~15 s instead of ~90 s with the default of 60
     keepalive: 10,
     // nothing sent while offline is kept for later: a start or go home tapped then would go out on the
@@ -66,15 +67,15 @@ function connect(): MqttClient {
     resubscribe: false,
   });
   // back from the background (app minimised, phone asleep): a page that couldn't ping for 15 s (1.5 x keepalive) has
-  // been dropped by the broker. when nothing came for that long, connect again right away instead of waiting for the
-  // keepalive or the next retry
+  // been dropped by the broker, often without its socket saying so. when nothing came for that long the socket is
+  // closed, mqtt.js connects again a second later instead of after the keepalive. never a connect of its own next to
+  // mqtt.js's: two connections with the same client id threw each other out every 2 s (session taken over)
   let lastPacket = Date.now();
   c.on('packetreceive', () => (lastPacket = Date.now()));
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState !== 'visible' || Date.now() - lastPacket < 15000 || c.disconnecting) return;
+    if (document.visibilityState !== 'visible' || !c.connected || Date.now() - lastPacket < 15000) return;
     lastPacket = Date.now();
-    if (c.connected) c.end(true, () => c.reconnect());
-    else c.reconnect();
+    c.stream.destroy();
   });
   return c;
 }
