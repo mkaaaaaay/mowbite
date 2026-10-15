@@ -575,7 +575,6 @@ function MapEditor() {
                   areaId: selectedArea.id,
                   areaName: selectedArea.properties.name ?? '',
                   request: planRequest,
-                  viaPlanner: !!plannerSettings && !slic3r,
                   map: liveMap,
                   params,
                 })

@@ -1,6 +1,7 @@
-import type {Point} from '@/hooks/useMowerMap';
+import type {MowerMap, Point} from '@/hooks/useMowerMap';
 import type {MowPlan, PlanChecks, PlanChosen, PlanDuration, PlanPiece, PlanZone} from './mowPlan';
 import {planPieces, type PlanPath, type PlanSegment, type SegmentType} from './planProgress';
+import {loadPlannerSettings, slic3rPlans} from './mowerBody';
 import {RPC} from './openmower';
 import {callRpc, rpcMethods} from './rpc';
 
@@ -178,15 +179,18 @@ export type PlanRequest = ({area_id: string} & PlanProps) | ({outline: Point[]; 
 // mower it plans the area directly (planner.plan, the same settings mower_logic's plans get): it takes the area's
 // planner settings as edited and says what it planned with (the lane spacing it picked). mowing.plan only knows
 // OpenMower's area settings
-export async function mowerPlan(req: PlanRequest, viaPlanner = false): Promise<MowPlan | null> {
-  const asked = await mowerPlanAnswer(req, viaPlanner);
+export async function mowerPlan(req: PlanRequest): Promise<MowPlan | null> {
+  const asked = await mowerPlanAnswer(req);
   return asked ? readPlan(asked.answer as PlanAnswer) : null;
 }
 
-// the mower's answer as it comes, and the method that gave it
-export async function mowerPlanAnswer(req: PlanRequest, viaPlanner = false): Promise<{method: string; answer: unknown} | null> {
+// the mower's answer as it comes, and the method that gave it. With the MowBite Planner planning: planner.plan.
+// mowing.plan goes through the service mower_logic gets its plans from, the planner takes a call there for the mower's
+// own (the run isn't timed, armed leftovers go to the caller). With the planner handing the plans to OpenMower's slic3r
+// it only passes mowing.plan on, that's exactly mower_logic's plan (planner.plan rebuilds it a little differently)
+export async function mowerPlanAnswer(req: PlanRequest): Promise<{method: string; answer: unknown} | null> {
   const known = await rpcMethods();
-  if ((viaPlanner || req.settings) && known?.has(RPC.plannerPlan)) {
+  if (known?.has(RPC.plannerPlan) && (req.settings || !slic3rPlans(await loadPlannerSettings().catch(() => null)))) {
     // with the body checked a plan takes the mower 10 to 20 s, more for a whole new one
     return {method: RPC.plannerPlan, answer: await callRpc(RPC.plannerPlan, req, 90000)};
   }
@@ -196,17 +200,17 @@ export async function mowerPlanAnswer(req: PlanRequest, viaPlanner = false): Pro
   return {method: RPC.areaPlan, answer: await callRpc(RPC.areaPlan, plain, 20000)};
 }
 
-// the plan in the order it's driven, for showing the progress of a run. asked once per area and map: the dashboard
-// and the map ask for it at the same time, a failed answer is asked again next time
-const asked = new WeakMap<object, Map<string, Promise<PlanPath[] | null>>>();
-export function mowerPaths(areaId: string, map: object): Promise<PlanPath[] | null> {
-  let forMap = asked.get(map);
-  if (!forMap) asked.set(map, (forMap = new Map()));
-  let p = forMap.get(areaId);
+// the plan in the order it's driven, for showing the progress of a run (planner.plan or mowing.plan, see
+// mowerPlanAnswer). asked once per area as it is: the dashboard and the map ask at the same time, and the map comes
+// again after every reconnect. a failed answer is asked again next time
+const asked = new Map<string, Promise<PlanPath[] | null>>();
+export function mowerPaths(areaId: string, map: MowerMap): Promise<PlanPath[] | null> {
+  const key = `${areaId} ${JSON.stringify(map.areas.find((a) => a.id === areaId) ?? null)}`;
+  let p = asked.get(key);
   if (!p) {
-    p = (async () => ((await rpcMethods())?.has(RPC.areaPlan) ? readPaths(await callRpc(RPC.areaPlan, {area_id: areaId}, 20000)) : null))();
-    forMap.set(areaId, p);
-    p.catch(() => forMap.delete(areaId));
+    p = mowerPlanAnswer({area_id: areaId}).then((a) => (a ? readPaths(a.answer as PlanAnswer) : null));
+    asked.set(key, p);
+    p.catch(() => asked.delete(key));
   }
   return p;
 }

@@ -14,19 +14,17 @@ export async function savePlanCase({
   areaId,
   areaName,
   request,
-  viaPlanner,
   map,
   params,
 }: {
   areaId: string;
   areaName: string;
   request: PlanRequest;
-  viaPlanner: boolean;
   map: MowerMap | null;
   params: MowerParams;
 }) {
   const [asked, planner] = await Promise.all([
-    mowerPlanAnswer(request, viaPlanner).then(
+    mowerPlanAnswer(request).then(
       (a) => a ?? {error: 'no plan from this mower'},
       (e: unknown) => ({error: e instanceof RpcError ? `${e.method}: ${e.code} ${e.message}` : String(e)}),
     ),

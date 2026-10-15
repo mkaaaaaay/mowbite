@@ -7,8 +7,8 @@ import {useEffect, useMemo, useState} from 'react';
 import type {MowerMap} from './useMowerMap';
 import type {MowerState} from './useMowerState';
 
-// how far the mower got with the area it's mowing, when it can hand out its plan (mowing.plan). events: the day's,
-// for the time left (without them none)
+// how far the mower got with the area it's mowing, when it can hand out its plan (planner.plan or mowing.plan).
+// events: the day's, for the time left (without them none)
 export function usePlanProgress(
   state: MowerState | null,
   map: MowerMap | null,

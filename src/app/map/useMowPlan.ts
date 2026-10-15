@@ -35,8 +35,7 @@ const mapVersion = (map: object | null) => {
   return mapVersions.get(map)!;
 };
 
-// planner: asked of the MowBite Planner (planner.plan), which says what it planned with
-type PlanJob = {areaId: string | null; key: string; cacheKey: string; angleKey: string; planner: boolean};
+type PlanJob = {areaId: string | null; key: string; cacheKey: string; angleKey: string};
 // what the planner last planned an area with (the lane spacing it picked), for the estimate until it's asked again
 const CHOSEN = new Map<string, PlanChosen>();
 
@@ -251,7 +250,7 @@ export function useMowPlan({
       return;
     }
     asking.current = true;
-    void mowerPlan(JSON.parse(job.key), job.planner)
+    void mowerPlan(JSON.parse(job.key))
       .then(
         (plan) => {
           remember(job.cacheKey, plan);
@@ -285,7 +284,7 @@ export function useMowPlan({
   useEffect(() => {
     if (!planKey || draggingPoint || angleMoving || PLANS.has(cacheKey)) return;
     // while points are typed or clicked only once it settles, an area as saved at once
-    const t = setTimeout(() => send({areaId: selectedAreaId, key: planKey, cacheKey, angleKey, planner: !!planner}, false), unchanged ? 0 : 300);
+    const t = setTimeout(() => send({areaId: selectedAreaId, key: planKey, cacheKey, angleKey}, false), unchanged ? 0 : 300);
     return () => clearTimeout(t);
   }, [planKey, cacheKey, angleKey, selectedAreaId, draggingPoint, angleMoving, unchanged, send, planner]);
   // the saved mowing areas worked out ahead while the map is open, so picking one shows its plan at once
@@ -297,7 +296,7 @@ export function useMowPlan({
       const p = area.properties;
       if (p.type !== 'mow' || p.active === false || p.mowable === false || area.outline.length < 3) continue;
       const key = JSON.stringify(requestFor(area, liveMap, true));
-      send({areaId: area.id, key, cacheKey: key + contextKey, angleKey: '', planner: !!planner}, true);
+      send({areaId: area.id, key, cacheKey: key + contextKey, angleKey: ''}, true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showStripes, liveMap, planner, contextKey, send]);
