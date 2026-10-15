@@ -58,7 +58,8 @@ export interface Settings {
   mower?: {width?: number; front?: number; rear?: number; blade?: number; bladeAhead?: number; bladeOffset?: number; outline?: [number, number][]};
   // after every finished mow the container asks the MowBite Planner what the track left unmowed and mows that right
   // away when it's at least min m² (docker/scheduler.sh), off unless switched on
-  leftovers?: {auto?: boolean; min?: number};
+  // tz and pos: the time zone and the place for "not in the dark", for the container without a schedule saved
+  leftovers?: {auto?: boolean; min?: number; tz?: string; pos?: string};
 }
 
 const STORAGE_KEY = 'appSettings';

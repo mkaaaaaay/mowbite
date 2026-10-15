@@ -17,6 +17,8 @@ import Link from 'next/link';
 import {MowerSizesSettings} from '@/components/MowerSizesSettings';
 import {NotifySettings} from '@/components/NotifySettings';
 import {PlannerLogDownload} from '@/components/PlannerLog';
+import {datumFromParams, useMowerParams} from '@/hooks/useMowerParams';
+import {posixTz} from '@/lib/schedule';
 
 const noop = () => () => {};
 
@@ -197,6 +199,15 @@ export default function SettingsPage() {
   // the MowBite Planner on the mower: its settings are with the map. Asked here too, the page may be the first one
   // opened
   const planner = usePlannerSettings();
+  const datum = datumFromParams(useMowerParams());
+  // the leftovers setting with this device's time zone and the mower's place: the container needs them for "not in the
+  // dark" when no schedule is saved
+  const leftovers = (change: Partial<NonNullable<Settings['leftovers']>>): Settings['leftovers'] => ({
+    ...settingsStore.snapshot().leftovers,
+    ...change,
+    tz: posixTz(),
+    ...(datum ? {pos: `${datum.lat.toFixed(2)} ${datum.lon.toFixed(2)}`} : {}),
+  });
   // no answer (OpenMower restarting, a slow connection): the sizes as without the planner, so they can be set
   const [unanswered, setUnanswered] = useState(false);
   useEffect(() => {
@@ -358,8 +369,7 @@ export default function SettingsPage() {
                     type="checkbox"
                     checked={!!settings.leftovers?.auto}
                     onChange={(e) => {
-                      const cur = settingsStore.snapshot();
-                      saveSettings({...cur, leftovers: {...cur.leftovers, auto: e.target.checked}});
+                      saveSettings({...settingsStore.snapshot(), leftovers: leftovers({auto: e.target.checked})});
                     }}
                   />
                   {tr('Mow the leftovers by itself after every finished mow')}
@@ -373,8 +383,7 @@ export default function SettingsPage() {
                     disabled={!settings.leftovers?.auto}
                     onBlur={(e) => {
                       const v = Number(e.target.value.trim().replace(',', '.'));
-                      const cur = settingsStore.snapshot();
-                      saveSettings({...cur, leftovers: {...cur.leftovers, min: Number.isFinite(v) && v >= 0 ? v : 0.5}});
+                      saveSettings({...settingsStore.snapshot(), leftovers: leftovers({min: Number.isFinite(v) && v >= 0 ? v : 0.5})});
                     }}
                   />
                 </label>

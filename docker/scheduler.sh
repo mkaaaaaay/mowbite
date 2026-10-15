@@ -75,6 +75,7 @@ skip_others() {
 # src/lib/sun.ts. nothing without a position or when the sun doesn't rise or set
 sun_today() {
   set -- $(conf pos)
+  [ -n "$2" ] || set -- $where
   [ -n "$2" ] || return 1
   noon=$(date -u -d "$(TZ="$tz" date +%F) 12:00:00" +%s 2>/dev/null) || return 1
   awk -v lat="$1" -v lon="$2" -v noon="$noon" -v off="$(TZ="$tz" date +%z)" '
@@ -241,6 +242,9 @@ leftovers_after() {
     [ "$age" -lt 21600 ] && return
   fi
   tz=$(conf tz)
+  # without a schedule saved the time zone and the place come with the setting (the app adds them)
+  [ -n "$tz" ] || tz=$(printf '%s' "$c" | grep -o '"tz":"[A-Za-z0-9<>+:,./-]*"' | cut -d'"' -f4)
+  where=$(printf '%s' "$c" | grep -o '"pos":"-\{0,1\}[0-9.]* -\{0,1\}[0-9.]*"' | cut -d'"' -f4)
   # home first: the mower docks after the job, a start only works while it stands idle there
   t=$(($(date +%s) + 900))
   s=""
