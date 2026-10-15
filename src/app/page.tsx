@@ -161,6 +161,8 @@ export default function Home() {
   const track = useMowerTrack();
   const map = useMowerMap();
   const recent = useRecentRuns(state?.current_state);
+  // the last finished mow, for what it left
+  const leftoverJob = recent?.latest.find((r) => r.outcome === 'done' && r.areas.length > 0 && r.jobId)?.jobId;
   const progress = usePlanProgress(state ?? null, map, recent?.today);
   const params = useMowerParams();
   const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
@@ -372,7 +374,8 @@ export default function Home() {
               {/* idle in the dock: what the last mow left, and mowing just that */}
               {live && hasAction(ACTION.startMowing) && !state.emergency && (
                 <LeftoversCard
-                  jobId={recent?.latest.find((r) => r.outcome === 'done' && r.areas.length > 0 && r.jobId)?.jobId}
+                  key={leftoverJob ?? ''}
+                  jobId={leftoverJob}
                   map={map}
                   live={live}
                   onStart={() => publishAction(ACTION.startMowing)}

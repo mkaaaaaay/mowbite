@@ -49,8 +49,6 @@ export function PlannerField({
   value,
   onChange,
   styles,
-  placeholder,
-  globalLabel,
   warning,
 }: {
   name: string;
@@ -58,10 +56,6 @@ export function PlannerField({
   value: Value;
   onChange: (v: Value) => void;
   styles: Styles;
-  // for a number left empty
-  placeholder?: string;
-  // a choice field per area: the extra choice "as set for all areas"
-  globalLabel?: string;
   // what's off about the value set, shown under it
   warning?: string | null;
 }) {
@@ -100,11 +94,6 @@ export function PlannerField({
       <div className={local.wide}>
         {label}
         <div className={styles.segment}>
-          {globalLabel !== undefined && (
-            <button className={value === '' ? styles.segmentOn : undefined} onClick={() => onChange('')}>
-              {globalLabel}
-            </button>
-          )}
           {choices.map((c) => (
             <button key={c} className={value === c ? styles.segmentOn : undefined} onClick={() => onChange(c)}>
               {tr(field?.choices?.[c] ?? c)}
@@ -132,7 +121,7 @@ export function PlannerField({
       inputMode="decimal"
       value={isAuto ? '' : (value as string)}
       step={field?.step}
-      placeholder={isAuto ? tr('automatic') : (placeholder ?? fromText ?? (toInput(field, setting.default) || tr('none')))}
+      placeholder={isAuto ? tr('automatic') : (fromText ?? (toInput(field, setting.default) || tr('none')))}
       onChange={(e) => onChange(e.target.value)}
     />
   );

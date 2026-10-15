@@ -85,9 +85,13 @@ export type BodySetting = (typeof BODY_SETTINGS)[number];
 // undefined: not asked yet, null: no MowBite Planner on this mower
 let current: PlannerSettings | null | undefined;
 let asking: Promise<PlannerSettings | null> | null = null;
+// counts the changes saved, an answer to a load asked before one is older than what the save brought
+let saves = 0;
 const listeners = new Set<() => void>();
 
+// the same settings again keep the object, so what's worked out from them isn't worked out again
 function set(s: PlannerSettings | null) {
+  if (s && current && JSON.stringify(s) === JSON.stringify(current)) return;
   current = s;
   listeners.forEach((l) => l());
 }
@@ -96,15 +100,17 @@ export function plannerSettings(): PlannerSettings | null | undefined {
   return current;
 }
 
-// asked once per page load, again with force (the settings page). A mower without the MowBite Planner doesn't have
-// the method, that's null; no answer leaves it unknown so it's asked again next time
+// asked once per page load, again with force (the settings page); one asked already is waited for, forced or not. A
+// mower without the MowBite Planner doesn't have the method, that's null; no answer leaves it unknown so it's asked
+// again next time
 export function loadPlannerSettings(force = false): Promise<PlannerSettings | null> {
   if (!force && current !== undefined) return Promise.resolve(current);
-  if (!force && asking) return asking;
+  if (asking) return asking;
+  const before = saves;
   asking = callRpc<PlannerSettings>(RPC.plannerSettings, {}, 10000).then(
     (s) => {
       asking = null;
-      set(s && typeof s === 'object' && s.settings ? s : null);
+      if (before === saves) set(s && typeof s === 'object' && s.settings ? s : null);
       return current ?? null;
     },
     (e) => {
@@ -120,6 +126,7 @@ export function loadPlannerSettings(force = false): Promise<PlannerSettings | nu
 // planner.settings
 export async function savePlannerSettings(values: Record<string, unknown>): Promise<PlannerSettings> {
   const s = await callRpc<PlannerSettings>(RPC.plannerSettingsSet, values, 15000);
+  saves++;
   set(s);
   return s;
 }
@@ -127,6 +134,7 @@ export async function savePlannerSettings(values: Record<string, unknown>): Prom
 // the angle turned further back to 0 (planner.angle.reset), the next finished mow counts from there
 export async function resetPlannerAngle(): Promise<PlannerSettings> {
   const s = await callRpc<PlannerSettings>(RPC.plannerAngleReset, {}, 15000);
+  saves++;
   set(s);
   return s;
 }
@@ -162,8 +170,22 @@ const subscribe = (l: () => void) => {
 export function useMowerBody(): MowerBody | null {
   const s = useSyncExternalStore(subscribe, plannerSettings, () => undefined);
   const app = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
+  // no answer (a phone waking up can take a while to connect): asked again, the map plans only once it's known
   useEffect(() => {
-    if (current === undefined) loadPlannerSettings().catch(() => {});
+    let alive = true;
+    let tries = 0;
+    let t: ReturnType<typeof setTimeout> | undefined;
+    const ask = () => {
+      if (current !== undefined) return;
+      loadPlannerSettings().catch(() => {
+        if (alive && ++tries < 5) t = setTimeout(ask, 15000);
+      });
+    };
+    ask();
+    return () => {
+      alive = false;
+      clearTimeout(t);
+    };
   }, []);
   return useMemo(() => bodyFrom(s) ?? sizesBody(app.mower), [s, app.mower]);
 }

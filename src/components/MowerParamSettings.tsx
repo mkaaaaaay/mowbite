@@ -62,16 +62,28 @@ const useKept = () =>
     () => undefined,
   );
 
+// shown at once, back as it was when the container didn't take it
 async function storeKept(next: KeptParams) {
+  const before = kept ?? null;
   setKept(next);
-  await saveKept(next).catch(() => {});
+  try {
+    await saveKept(next);
+  } catch (e) {
+    setKept(before);
+    throw e;
+  }
 }
+
+class NotKept extends Error {}
 
 // sets it on the mower, and has the container keep what the mower took
 async function apply(f: ParamField, value: number | boolean) {
   const applied = await setParams({[f.key]: value});
   const took = applied[f.key] ?? value;
-  if (kept?.enabled) await storeKept({...kept, values: {...kept.values, [f.key]: took}});
+  if (kept?.enabled)
+    await storeKept({...kept, values: {...kept.values, [f.key]: took}}).catch(() => {
+      throw new NotKept(tr("Set on the mower, but MowBite couldn't keep it for after a restart."));
+    });
 }
 
 // one setting: its value on the mower, changed right there
@@ -90,7 +102,7 @@ export function ParamRow({field: f}: {field: ParamField}) {
     try {
       await apply(f, v);
     } catch (e) {
-      setError(e instanceof RpcError && e.code !== 'timeout' ? e.message : tr('The mower did not answer.'));
+      setError(e instanceof NotKept || (e instanceof RpcError && e.code !== 'timeout') ? e.message : tr('The mower did not answer.'));
     } finally {
       setBusy(false);
     }
@@ -142,7 +154,7 @@ export function ParamRow({field: f}: {field: ParamField}) {
             onClick={() => {
               const values = {...k!.values};
               delete values[f.key];
-              void storeKept({...k!, values});
+              storeKept({...k!, values}).catch(() => {});
             }}
           >
             {tr('no longer')}
@@ -227,7 +239,7 @@ export function OpenMowerSettings({styles}: {styles: Styles}) {
         </p>
         {k && (
           <label className={styles.check}>
-            <input type="checkbox" checked={k.enabled} onChange={(e) => void storeKept({...k, enabled: e.target.checked})} />
+            <input type="checkbox" checked={k.enabled} onChange={(e) => storeKept({...k, enabled: e.target.checked}).catch(() => {})} />
             {tr('MowBite sets what you change here again after a restart')}
           </label>
         )}

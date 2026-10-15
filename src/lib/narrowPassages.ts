@@ -101,6 +101,16 @@ function gapOf(a: Point[], b: Point[], limit: number): Gap | null {
   return hit.gap && hit.gap.d < limit ? hit.gap : null;
 }
 
+// whether a lies (partly) in b, by the pair: while a point is dragged only the dragged area's outline is new
+const within = new WeakMap<Point[], WeakMap<Point[], boolean>>();
+function liesIn(a: Point[], b: Point[]): boolean {
+  let row = within.get(a);
+  if (!row) within.set(a, (row = new WeakMap()));
+  let hit = row.get(b);
+  if (hit === undefined) row.set(b, (hit = shareInside(a, b) > 0));
+  return hit;
+}
+
 const number = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : undefined);
 
 // how far p is from the outline o
@@ -140,7 +150,7 @@ export function narrowPassages(map: MowerMap, margins: Margins): Narrow[] {
       const m = number(o.properties.margin);
       return m !== undefined && m >= 0 && m <= 1 ? m : keep;
     };
-    const inside = obstacles.filter((o) => o !== lawn && shareInside(o.outline, lawn.outline) > 0);
+    const inside = obstacles.filter((o) => o !== lawn && liesIn(o.outline, lawn.outline));
     for (const o of inside) found(o, lawn, true, edge + marginOf(o));
     for (let i = 0; i < inside.length; i++) {
       for (let j = i + 1; j < inside.length; j++) {

@@ -266,13 +266,21 @@ export function useMowPlan({
         asking.current = false;
         const queued = next.current;
         next.current = null;
-        if (queued && queued.cacheKey !== job.cacheKey) send(queued, false);
-        else {
-          const later = ahead.current.shift();
-          if (later) send(later, true);
-        }
+        if (queued && queued.cacheKey !== job.cacheKey) return send(queued, false);
+        // the next one ahead that isn't known by now (the one just asked for in front is often among them)
+        let later = ahead.current.shift();
+        while (later && PLANS.has(later.cacheKey)) later = ahead.current.shift();
+        if (later) send(later, true);
       });
   }, []);
+  // off the map nothing more is asked for
+  useEffect(
+    () => () => {
+      ahead.current = [];
+      next.current = null;
+    },
+    [],
+  );
   // not while a point is dragged or the angle is moving: every pause would queue up a plan on the mower
   useEffect(() => {
     if (!planKey || draggingPoint || angleMoving || PLANS.has(cacheKey)) return;
@@ -282,6 +290,8 @@ export function useMowPlan({
   }, [planKey, cacheKey, angleKey, selectedAreaId, draggingPoint, angleMoving, unchanged, send, planner]);
   // the saved mowing areas worked out ahead while the map is open, so picking one shows its plan at once
   useEffect(() => {
+    // the ones still waiting are for settings or a map from before
+    ahead.current = [];
     if (!showStripes || !liveMap || planner === undefined) return;
     for (const area of liveMap.areas) {
       const p = area.properties;

@@ -16,7 +16,6 @@ import {
   slic3rPlans,
   usePlannerSettings,
   type BodySetting,
-  type MowerBody,
   type MowerSizes,
   type Outline,
 } from '@/lib/mowerBody';
@@ -24,6 +23,7 @@ import {RpcError} from '@/lib/rpc';
 import {settingsStore} from '@/lib/settings';
 import {useEffect, useState, useSyncExternalStore} from 'react';
 import local from './MowerBodySettings.module.css';
+import {MowerSketch} from './MowerSketch';
 
 // The mower's sizes for the MowBite Planner on the mower (planner.settings): it keeps the body clear of the edges in
 // turns and corners and draws the mower at its real size on the map. Kept by the planner, so every app and the
@@ -67,47 +67,10 @@ const sizesOf = (f: Form): MowerSizes =>
     }),
   );
 
-// the mower from above, heading right, to scale: body, blade, the point it follows
-function Sketch({body}: {body: MowerBody}) {
-  const pad = 0.12;
-  // more room on the left, the width is written there
-  const left = pad + 0.06;
-  const halfW = Math.max(body.width / 2, body.blade / 2 + Math.abs(body.bladeOffset));
-  const x0 = -body.rear - left;
-  const w = body.front + body.rear + pad + left;
-  const h = 2 * halfW + 2 * pad;
-  const label = (v: number) => `${Math.round(v * 100)} cm`;
-  return (
-    <svg className={local.sketch} viewBox={`${x0} ${-halfW - pad} ${w} ${h}`} role="img" aria-label={tr('The mower from above')}>
-      {/* y flipped: left of the mower is up */}
-      <g transform="scale(1 -1)">
-        {body.outline ? (
-          <polygon className={local.body} points={body.outline.map(([ahead, left]) => `${ahead},${left}`).join(' ')} />
-        ) : (
-          <rect className={local.body} x={-body.rear} y={-body.width / 2} width={body.front + body.rear} height={body.width} rx={0.03} />
-        )}
-        {body.blade > 0 && <circle className={local.blade} cx={body.bladeAhead} cy={body.bladeOffset} r={body.blade / 2} />}
-        <line className={local.axle} x1={0} y1={-body.width / 2} x2={0} y2={body.width / 2} />
-        <circle className={local.point} cx={0} cy={0} r={0.015} />
-        <path className={local.heading} d={`M ${body.front - 0.09} 0 l -0.05 0.035 m 0.05 -0.035 l -0.05 -0.035`} />
-      </g>
-      <text className={local.text} x={body.front / 2} y={-body.width / 2 - 0.03} textAnchor="middle">
-        {label(body.front)}
-      </text>
-      <text className={local.text} x={-body.rear / 2} y={-body.width / 2 - 0.03} textAnchor="middle">
-        {label(body.rear)}
-      </text>
-      <text className={local.text} x={-body.rear - 0.02} y={0.015} textAnchor="end">
-        {label(body.width)}
-      </text>
-    </svg>
-  );
-}
-
 // A planner that knows the body's sizes but has none: it plans without checking the body, whatever the collision check
 // and the distances say. Sizes set in this app before the planner came only draw the mower on the map, they are
-// offered to the planner here.
-export function NoSizesWarning() {
+// offered to the planner here. With an area picked the sizes aren't on the page, the way there is said.
+export function NoSizesWarning({inArea}: {inArea?: boolean}) {
   const settings = usePlannerSettings();
   const app = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
   const [state, setState] = useState<{busy?: boolean; error?: string}>({});
@@ -157,9 +120,13 @@ export function NoSizesWarning() {
           </button>
         </>
       )}
-      <button type="button" onClick={open}>
-        {own ? tr('Or set them under Mower sizes') : tr('Set them under Mower sizes')}
-      </button>
+      {inArea ? (
+        <span>{own ? tr('Or set them under Mower sizes, with no area picked.') : tr('Set them under Mower sizes, with no area picked.')}</span>
+      ) : (
+        <button type="button" onClick={open}>
+          {own ? tr('Or set them under Mower sizes') : tr('Set them under Mower sizes')}
+        </button>
+      )}
       {state.error && <span>{state.error}</span>}
     </div>
   );
@@ -176,15 +143,22 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
   const [outline, setOutline] = useState<Outline | null>(() => measuredOutline(outlineOf(settings?.settings.robot_outline?.value)) ?? null);
   // the turn radius of the model just picked, saved with the sizes
   const [turn, setTurn] = useState<number | null>(null);
+  // the stored sizes arrive after the first render or change elsewhere (the warning's button, another device): the
+  // fields follow them as long as nothing is typed in them, saving would clear what they don't show
+  const [shown, setShown] = useState(settings);
+  if (shown !== settings) {
+    setShown(settings);
+    const untouched =
+      JSON.stringify(form) === JSON.stringify(formFrom(shown?.settings)) &&
+      JSON.stringify(outline) === JSON.stringify(measuredOutline(outlineOf(shown?.settings.robot_outline?.value)) ?? null);
+    if (untouched) {
+      setForm(formFrom(settings?.settings));
+      setOutline(measuredOutline(outlineOf(settings?.settings.robot_outline?.value)) ?? null);
+    }
+  }
 
   useEffect(() => {
-    loadPlannerSettings(true).then(
-      (s) => {
-        setForm(formFrom(s?.settings));
-        setOutline(measuredOutline(outlineOf(s?.settings.robot_outline?.value)) ?? null);
-      },
-      () => setState({offline: true}),
-    );
+    loadPlannerSettings(true).catch(() => setState({offline: true}));
   }, []);
 
   if (settings === null) {
@@ -303,7 +277,7 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
           ))}
         </select>
       </label>
-      {sketch && <Sketch body={sketch} />}
+      {sketch && <MowerSketch body={sketch} />}
       {outline && (
         <p className={styles.dim}>
           {outlineModel ? tr(known.robot_outline ? 'Outline of the {model} plus 1 cm, measured on a photo from straight above. It counts for this model only.' : 'Outline of the {model}, measured on a photo from straight above. It counts for this model only, the planner on the mower checks the rectangle until it knows outlines (newer image).', {model: outlineModel.label}) : tr('A stored outline that is none of the models: pick the model again or enter the sizes.')}

@@ -1376,7 +1376,7 @@ function prepare(input: PlannerEstimateInput): Prepared | null {
     input.outline, input.holes, input.spacing, input.bladeWidth, input.perimeterOffset, input.passes, input.overlapPasses,
     input.fillPattern === 'concentric', input.minLaneLength, input.narrowParts, input.turnRadius, input.bladeOffset,
     input.body, input.start, input.perimeterOrder, input.perimeterDirection, input.cornerRadius, input.simplifyTolerance,
-    input.edgeMargin, input.holeMargins,
+    input.edgeMargin, input.holeMargins, input.bladeAhead,
   ]);
   if (PREPARED.has(key)) {
     const known = PREPARED.get(key)!;

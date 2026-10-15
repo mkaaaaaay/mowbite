@@ -39,10 +39,9 @@ import {checkMap} from '@/lib/mapCheck';
 import {narrowPassages} from '@/lib/narrowPassages';
 import Problems, {problemText} from './Problems';
 import {BodyCheck, PlanChecks} from './BodyCheck';
-import {AreaPlanner} from './AreaPlanner';
 import {Fold} from './Fold';
 import {bodyFrom, slic3rPlans, useMowerBody, usePlannerSettings, type BodySpot} from '@/lib/mowerBody';
-import {MowerBodySettings, NoSizesWarning} from '@/components/MowerBodySettings';
+import {MowerBodySettings} from '@/components/MowerBodySettings';
 import {PlannerSettings} from '@/components/PlannerSettings';
 import {PlannerSimple} from '@/components/PlannerSimple';
 import simpleStyles from '@/components/PlannerSimple.module.css';
@@ -908,14 +907,6 @@ function MapEditor() {
                       },
                     }}
                   />
-                  <details className={simpleStyles.expert}>
-                    <summary>{tr('More settings (expert)')}</summary>
-                    {slic3r && <p className={simpleStyles.note}>{tr('Only with the MowBite Planner:')}</p>}
-                    <div className={slic3r ? simpleStyles.off : undefined} inert={slic3r}>
-                      <AreaPlanner properties={selectedArea.properties} update={updateProperties} remember={remember} />
-                    </div>
-                  </details>
-                  {realPlan && !slic3r && unsized && <NoSizesWarning />}
                   {body &&
                     realPlan &&
                     !slic3r &&

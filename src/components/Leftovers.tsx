@@ -60,7 +60,7 @@ export function LeftoversCard({
   const left = found?.areas.filter((a) => a.passes > 0) ?? [];
   return (
     <div className={styles.leftovers}>
-      {!found && !state.error && (
+      {!found && (
         <button className={styles.leftoversButton} disabled={!live || state.busy} onClick={() => void check()}>
           {state.busy ? tr('Looking at the track…') : tr('What did the last mow leave?')}
         </button>

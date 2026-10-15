@@ -309,8 +309,9 @@ export function PlannerSimple({
   const allSpacingCm = typeof allOverlap === 'number' ? blade * (1 - allOverlap) * 100 : toolWidth !== undefined ? toolWidth * 100 : null;
   const passes = effective('perimeter_passes');
   const autoPasses = all.perimeter_passes?.auto_value;
-  const passesAuto = autoPasses !== undefined && passes === autoPasses;
+  // what counts: the area's own, then OpenMower's of the area (it beats the one for all areas), then that one
   const passesShown = area && area.own.perimeter_passes === undefined ? (omCount('outline_count') ?? global('perimeter_passes')) : passes;
+  const passesAuto = autoPasses !== undefined && passesShown === autoPasses;
   // the passes round the obstacles: automatic is as many as along the outline
   const autoObstacle = all.obstacle_passes?.auto_value;
   const obstacleAuto = autoObstacle !== undefined && effective('obstacle_passes') === autoObstacle;
@@ -380,7 +381,7 @@ export function PlannerSimple({
 
   return (
     <div className={local.simple}>
-      {!slic3r && <NoSizesWarning />}
+      {!slic3r && <NoSizesWarning inArea={!!area} />}
       {bladeDefault && !area && (
         <p className={local.note}>
           {tr("The blade is not set in the planner, it plans with {a} cm. Lanes are spaced by it: set your mower's blade under Mower sizes.", {
@@ -739,7 +740,12 @@ export function PlannerSimple({
                   <button
                     className={passesAuto ? local.on : undefined}
                     disabled={state.busy || passesAuto}
-                    onClick={() => void save('perimeter_passes', area && global('perimeter_passes') === autoPasses ? undefined : autoPasses)}
+                    onClick={() =>
+                      void save(
+                        'perimeter_passes',
+                        area && global('perimeter_passes') === autoPasses && omCount('outline_count') === undefined ? undefined : autoPasses,
+                      )
+                    }
                   >
                     {tr('automatic')}
                   </button>
