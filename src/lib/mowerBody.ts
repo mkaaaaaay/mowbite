@@ -268,13 +268,23 @@ export function sizesBody(s: MowerSizes | undefined): MowerBody | null {
   };
 }
 
-// mowers measured on a real one: picking one under Mower sizes fills in the fields, the outline where one was measured
-export const MOWER_MODELS: {key: string; label: string; sizes: Required<Omit<MowerSizes, 'outline'>>; outline?: Outline}[] = [
+// mowers measured on a real one: picking one under Mower sizes fills in the fields, the outline where one was measured,
+// and the planner's turn radius: the inner wheel still rolls at a quarter of the speed or more (from OpenMower's
+// wheel_distance_m for the model), without more outline passes than a tighter one
+export const MOWER_MODELS: {
+  key: string;
+  label: string;
+  sizes: Required<Omit<MowerSizes, 'outline'>>;
+  outline?: Outline;
+  turnRadius: number;
+}[] = [
   // the same body on all three
   {
     key: 'yf-nx',
     label: 'YardForce NX60 / NX80 / NX100',
     sizes: {width: 0.41, front: 0.43, rear: 0.18, blade: 0.18, bladeAhead: 0.185, bladeOffset: 0},
+    // 32.5 cm between the wheels
+    turnRadius: 0.25,
     // from two photos of an NX60 from above next to a folding ruler, scaled to the sizes: the front narrower with its
     // corners cut off, widest just behind the rear axle, both sides averaged
     outline: [
@@ -288,6 +298,7 @@ export const MOWER_MODELS: {key: string; label: string; sizes: Required<Omit<Mow
     key: 'yf-classic500',
     label: 'YardForce Classic 500B',
     sizes: {width: 0.425, front: 0.47, rear: 0.1, blade: 0.18, bladeAhead: 0.18, bladeOffset: 0},
+    turnRadius: 0.25,
     // from a photo from straight above, scaled to the sizes: shell, black base with bumper and the rear wheels, the
     // front narrower and rounded, both sides averaged
     outline: [
@@ -302,6 +313,8 @@ export const MOWER_MODELS: {key: string; label: string; sizes: Required<Omit<Mow
     label: 'John Deere Tango E5 / SABO MOWiT 500F',
     // measured on a SABO MOWiT 500F by its owner (14.10.)
     sizes: {width: 0.505, front: 0.6, rear: 0.21, blade: 0.3, bladeAhead: 0.225, bladeOffset: 0},
+    // 45 cm between the wheels: at 25 cm the inner one nearly stands
+    turnRadius: 0.3,
     // from a photo from straight above next to a folding ruler, scaled to the sizes above: widest over the rear wheels,
     // narrower towards the handle behind them, both sides averaged
     outline: [

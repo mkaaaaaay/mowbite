@@ -174,6 +174,8 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
   // the body's real contour (robot_outline), from a model; typed sizes go back to the rectangle
   // the measured one, the planner has it 1 cm larger
   const [outline, setOutline] = useState<Outline | null>(() => measuredOutline(outlineOf(settings?.settings.robot_outline?.value)) ?? null);
+  // the turn radius of the model just picked, saved with the sizes
+  const [turn, setTurn] = useState<number | null>(null);
 
   useEffect(() => {
     loadPlannerSettings(true).then(
@@ -218,6 +220,9 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
   // a planner from before the body check takes robot_width as "the lines are walls": its centre then keeps half the
   // width off them all the way round, so the width only goes to one that knows the rest too
   const usable = (key: BodySetting) => !!known[key] && (key !== 'robot_width' || (!!known.robot_front && !!known.edges));
+  // the picked model's turn radius where the planner's is another
+  const stored = known.turn_radius?.value;
+  const turnChange = turn !== null && known.turn_radius && (typeof stored !== 'number' || Math.abs(stored - turn) > 1e-6) ? turn : null;
 
   const save = async () => {
     const changes: Record<string, unknown> = {};
@@ -241,6 +246,7 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
     if (known.robot_outline && JSON.stringify(outlineOf(known.robot_outline.value) ?? null) !== JSON.stringify(send)) {
       changes.robot_outline = send;
     }
+    if (turnChange !== null) changes.turn_radius = turnChange;
     if (!Object.keys(changes).length) {
       setState({saved: true});
       return;
@@ -250,6 +256,7 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
       const s = await savePlannerSettings(changes);
       setForm(formFrom(s.settings));
       setOutline(measuredOutline(outlineOf(s.settings.robot_outline?.value)) ?? null);
+      setTurn(null);
       setState({saved: true});
     } catch (e) {
       setState({error: e instanceof RpcError && e.code !== 'timeout' ? e.message : tr('The mower did not answer.')});
@@ -263,10 +270,11 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
     setState({});
   };
 
-  // a model fills in its sizes, saving keeps them; the leeway and the curve radius stay
+  // a model fills in its sizes and its turn radius, saving keeps them; the leeway stays
   const pick = (key: string) => {
     const m = MOWER_MODELS.find((x) => x.key === key);
     setOther(!m);
+    setTurn(m?.turnRadius ?? null);
     if (!m) return;
     const next = {...form};
     for (const [field, size] of MODEL_FIELDS) next[field] = cm(m.sizes[size]);
@@ -354,7 +362,15 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
               : tr('Saved. It counts from the next plan, an interrupted area starts again.')}
           </span>
         )}
-        {state.picked && <span className={styles.dim}>{tr('Filled in, save to keep them.')}</span>}
+        {state.picked && (
+          <span className={styles.dim}>
+            {turnChange !== null
+              ? tr('Filled in, save to keep them. The turn radius goes to {cm} cm with them, gentle on the lawn for this mower.', {
+                  cm: Math.round(turnChange * 100),
+                })
+              : tr('Filled in, save to keep them.')}
+          </span>
+        )}
         {state.error && <span className={styles.error}>{state.error}</span>}
       </div>
     </section>
