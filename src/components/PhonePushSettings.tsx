@@ -3,7 +3,7 @@
 import {tr, useLang} from '@/lib/i18n';
 import {apiBase} from '@/lib/mowers';
 import {addPush, removePush, saveNotify, testPush, type NotifyConfig} from '@/lib/notify';
-import {NTFY, pushPlugin, rememberEndpoint, waitForEndpoint, type PushChannel, type PushStatus} from '@/lib/push';
+import {NTFY, pushPlugin, rememberEndpoint, waitForEndpoint, withPush, type PushChannel, type PushStatus} from '@/lib/push';
 import {useCallback, useEffect, useState} from 'react';
 import local from './NotifySettings.module.css';
 
@@ -45,9 +45,8 @@ export function PhonePushSettings({
   const [state, setState] = useState<{busy?: boolean; error?: string; done?: string}>({});
 
   const refresh = useCallback(() => {
-    void pushPlugin()
-      ?.then((p) => p.status())
-      .then(setStatus)
+    void withPush((p) => p.status())
+      ?.then(setStatus)
       .catch(() => setStatus(null));
   }, []);
   useEffect(() => {
@@ -64,12 +63,11 @@ export function PhonePushSettings({
   const list = status.distributors;
   const chosen = pick ?? status.distributor ?? (list.length === 1 ? list[0].id : null);
   const chosenName = list.find((d) => d.id === (status.distributor ?? chosen))?.name;
-  const native = async () => (await pushPlugin())!;
 
   const enable = async () => {
     setState({busy: true});
     try {
-      const p = await native();
+      const {native: p} = (await pushPlugin())!;
       let permission = status.permission;
       if (permission !== 'granted') permission = (await p.requestNotifications()).permission;
       if (permission !== 'granted') {
@@ -124,20 +122,19 @@ export function PhonePushSettings({
   };
 
   // a message here and now, the way a problem comes: looks and sound without the way through the mower
-  const sample = async () => {
-    await (
-      await native()
-    ).showSample({
-      title: tr('Emergency stop'),
-      message: tr('{name} is in emergency stop. (A sample, nothing happened.)', {name: saved.name || tr('The mower')}),
-      kind: 'sample',
-      problem: true,
-      phase: 'new',
-      path: '/activity/',
-      api,
-      t: Math.round(Date.now() / 1000),
-    });
-  };
+  const sample = () =>
+    withPush((p) =>
+      p.showSample({
+        title: tr('Emergency stop'),
+        message: tr('{name} is in emergency stop. (A sample, nothing happened.)', {name: saved.name || tr('The mower')}),
+        kind: 'sample',
+        problem: true,
+        phase: 'new',
+        path: '/activity/',
+        api,
+        t: Math.round(Date.now() / 1000),
+      }),
+    );
 
   return (
     <>
@@ -151,7 +148,7 @@ export function PhonePushSettings({
         <>
           <p className={styles.dim}>{tr('There is no such app on this phone yet.')}</p>
           <div className={local.actions}>
-            <button className={styles.pillButton} onClick={() => void native().then((p) => p.openStore({id: NTFY}))}>
+            <button className={styles.pillButton} onClick={() => void withPush((p) => p.openStore({id: NTFY}))}>
               {tr('Get ntfy')}
             </button>
           </div>
@@ -181,7 +178,7 @@ export function PhonePushSettings({
           {status.permission === 'denied' && (
             <p className={styles.error}>
               {tr("Notifications are off for MowBite in Android's settings.")}{' '}
-              <button className={styles.pillButton} onClick={() => void native().then((p) => p.openSettings({}))}>
+              <button className={styles.pillButton} onClick={() => void withPush((p) => p.openSettings({}))}>
                 {tr("Android's settings")}
               </button>
             </p>
@@ -200,7 +197,7 @@ export function PhonePushSettings({
               <p className={styles.dim}>{tr('Set in Android for each kind: sound, vibration, popping up, do not disturb.')}</p>
               <div className={local.actions}>
                 {CHANNELS.map((c) => (
-                  <button key={c.key} className={styles.pillButton} onClick={() => void native().then((p) => p.openSettings({channel: c.key}))}>
+                  <button key={c.key} className={styles.pillButton} onClick={() => void withPush((p) => p.openSettings({channel: c.key}))}>
                     {tr(c.label)}
                   </button>
                 ))}

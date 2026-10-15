@@ -41,11 +41,18 @@ interface Native {
 // the ntfy app: the distributor to get when there's none
 export const NTFY = 'io.heckel.ntfy';
 
-let plugin: Promise<Native> | null = null;
-export function pushPlugin(): Promise<Native> | null {
+// a capacitor plugin is a proxy that answers every property, then too: a promise resolved with it takes it for another
+// promise and calls then() on the native side. so it's always handed out wrapped, and never returned from an async
+let plugin: Promise<{native: Native}> | null = null;
+export function pushPlugin(): Promise<{native: Native}> | null {
   if (!isApp()) return null;
-  plugin ??= import('@capacitor/core').then(({registerPlugin}) => registerPlugin<Native>('MowbitePush'));
+  plugin ??= import('@capacitor/core').then(({registerPlugin}) => ({native: registerPlugin<Native>('MowbitePush')}));
   return plugin;
+}
+
+// fn with the plugin, null outside the app
+export function withPush<T>(fn: (p: Native) => Promise<T> | T): Promise<T> | null {
+  return pushPlugin()?.then(({native}) => fn(native)) ?? null;
 }
 
 // the address after signing up, it comes a moment later (or never: then why, from failed)

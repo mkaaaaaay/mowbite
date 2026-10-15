@@ -26,7 +26,7 @@ export default function PushOpener() {
     } catch {}
     let gone = false;
     let handle: PluginListenerHandle | undefined;
-    void native.then(async (p) => {
+    void native.then(async ({native: p}) => {
       const h = await p.addListener('opened', ({path, api}) => {
         const mower = api ? mowerList().find((m) => `http://${m.host}:${m.appPort ?? 8082}` === api.replace(/\/+$/, '')) : undefined;
         if (mower && mower.id !== selectedMower()?.id) {
