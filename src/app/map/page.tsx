@@ -7,6 +7,7 @@ import {saveMap, useMowerMap, type MowerMap, type Point} from '@/hooks/useMowerM
 import {useMowerPosition} from '@/hooks/useMowerPosition';
 import {useDocked, useMowerStateValue} from '@/hooks/useMowerState';
 import {useEggForced, useUmbrella} from '@/lib/eggs';
+import {lastRun as newestRun} from '@/hooks/useRecentRuns';
 import {clearTrack, trackPoints, useLastRun, useLastRunJob, useMowerTrack} from '@/hooks/useMowerTrack';
 import {useMarginPlaces} from '@/lib/marginCheck';
 import {usePlanProgress} from '@/hooks/usePlanProgress';
@@ -16,7 +17,7 @@ import {simplifyPolygon} from '@/lib/simplifyPolygon';
 import {mergeOutlines} from '@/lib/mergeAreas';
 import {cutOut, generateId, splitByPath} from '@/lib/splitPolygon';
 import {useSearchParams} from 'next/navigation';
-import {Suspense, useEffect, useMemo, useState} from 'react';
+import {Suspense, useEffect, useMemo, useState, type ComponentProps} from 'react';
 import styles from './page.module.css';
 import {fmt, tr, useLang} from '@/lib/i18n';
 import MapBackups, {backupLabel} from '@/components/MapBackups';
@@ -59,13 +60,17 @@ export default function MapPage() {
   );
 }
 
+// the map with the mower where it is: its position read here, the editor with all its menus isn't drawn again for every
+// move. A mower without position/json: robot_state's pose
+function LiveMapView(props: Omit<ComponentProps<typeof MapView>, 'mower'>) {
+  const live = useMowerPosition();
+  const pose = useMowerStateValue((l) => (live ? null : (l.state?.pose ?? null)));
+  return <MapView {...props} mower={live ?? pose ?? undefined} />;
+}
+
 function MapEditor() {
   useLang();
   // only what the page needs of the mower's state and sensors: it isn't drawn again for every message that comes in
-  const live = useMowerPosition();
-  // a mower without position/json: robot_state's pose
-  const pose = useMowerStateValue((l) => (live ? null : (l.state?.pose ?? null)));
-  const position = live ?? pose ?? undefined;
   const emergency = useMowerStateValue((l) => !!l.state?.emergency);
   const docked = useDocked();
   const track = useMowerTrack();
@@ -78,8 +83,11 @@ function MapEditor() {
   const mowingState = useMowerStateValue((l) => (l.state?.current_state === 'MOWING' ? l.state : null));
   const progress = usePlanProgress(mowingState, liveMap, undefined);
   // the mower's icon dressed like the eater on the dashboard
-  const umbrella = useUmbrella();
+  const umbrella = useUmbrella(newestRun());
   const towel = useEggForced('towel');
+  const towelNow = towel || (!!progress && Math.round(progress.fraction * 100) === 42);
+  // the same object while nothing changes, the map is drawn again only when it does
+  const costume = useMemo(() => ({towel: towelNow, umbrella}), [towelNow, umbrella]);
   const {map, edited, setMap, history, remember, undoStep, originals, setOriginals, dirty, external, dropEdits, mergeNote, mergeExternal} =
     useMapEdits(liveMap);
   const [showStripes, setShowStripes] = useState(true);
@@ -637,14 +645,13 @@ function MapEditor() {
                 </button>
               </div>
             )}
-            {preview && <MapView zoomable map={preview.map} mower={position} datum={datumFromParams(params)} />}
+            {preview && <LiveMapView zoomable map={preview.map} datum={datumFromParams(params)} />}
             {!preview && shownMap && (
-              <MapView
+              <LiveMapView
                 zoomable
                 viewKey="editor"
                 pin={{on: pinned, onToggle: togglePinned}}
                 map={shownMap}
-                mower={position}
                 emergency={emergency}
                 track={trackShown}
                 pastTrack={viewJob?.segments?.map((s) => ({
@@ -678,7 +685,7 @@ function MapEditor() {
                 pieces={progress && progress.areaId === selectedAreaId ? undefined : plan?.pieces}
                 openLoops={!!plan?.open}
                 progress={progress ?? undefined}
-                costume={{towel: towel || (!!progress && Math.round(progress.fraction * 100) === 42), umbrella}}
+                costume={costume}
                 preview={splitPreview ?? (merged ? [merged.outline] : undefined)}
                 markers={spot || problemSpots.length ? [...(spot ? [spot] : []), ...problemSpots] : undefined}
                 // (the spot from the activity page has its message above the map already)

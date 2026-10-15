@@ -315,6 +315,9 @@
   background: rgba(20, 20, 22, 0.92);
   font-size: 13px;
   z-index: 2;
+  /* on a small map it scrolls instead of being cut off */
+  max-height: calc(100% - 20px);
+  overflow-y: auto;
 }
 
 .layers label {
@@ -765,6 +768,12 @@
   z-index: 2;
 }
 
+@media (max-width: 899px) {
+  .coverInfoRaised {
+    bottom: 70px;
+  }
+}
+
 .coverInfo button {
   position: absolute;
   top: 2px;
@@ -849,9 +858,13 @@
   }
 }
 
-/* the mower's icon dressed up: nothing of it takes a tap */
+/* the mower's icon dressed up: nothing of it takes a tap. drawn in the icon's units, its lines scale with it */
 .costume {
   pointer-events: none;
+}
+
+.costume * {
+  vector-effect: none;
 }
 
 /* rain on the umbrella over the mower's icon: a drop falls and bursts on it (in the icon's units) */
@@ -860,6 +873,9 @@
   stroke-width: 0.07;
   stroke-linecap: round;
   opacity: 0;
+  /* it bursts round its own lower end, not the icon's middle */
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
   animation: map-drop 1.3s linear infinite;
 }
 

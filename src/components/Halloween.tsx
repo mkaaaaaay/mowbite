@@ -39,11 +39,14 @@ function Pumpkin() {
   );
 }
 
+// the ghost's sheet, in a 26 by 30 box
+const GHOST = 'M3 28 L3 13 C3 6 7.6 1.6 13 1.6 C18.4 1.6 23 6 23 13 L23 28 L19.6 25.4 L16.4 28.4 L13 25.6 L9.6 28.4 L6.4 25.4 Z';
+
 function Ghost() {
   return (
     <svg width="26" height="30" viewBox="0 0 26 30" aria-hidden="true">
       <path
-        d="M3 28 L3 13 C3 6 7.6 1.6 13 1.6 C18.4 1.6 23 6 23 13 L23 28 L19.6 25.4 L16.4 28.4 L13 25.6 L9.6 28.4 L6.4 25.4 Z"
+        d={GHOST}
         fill="#fafafa"
         stroke="#cfd8dc"
         strokeWidth="0.7"
@@ -140,7 +143,7 @@ export function MapGhost() {
   return (
     <g transform="translate(-13 -15)">
       <path
-        d="M3 28 L3 13 C3 6 7.6 1.6 13 1.6 C18.4 1.6 23 6 23 13 L23 28 L19.6 25.4 L16.4 28.4 L13 25.6 L9.6 28.4 L6.4 25.4 Z"
+        d={GHOST}
         fill="#fafafa"
         fillOpacity="0.85"
         stroke="#b2dfdb"

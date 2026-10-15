@@ -223,7 +223,7 @@ export function useMowPlan({
     () => JSON.stringify([planner ? Object.entries(planner.settings).map(([k, v]) => [k, v.value]) : null, params, mapVersion(liveMap)]),
     [planner, params, liveMap],
   );
-  const planKey = planRequest ? JSON.stringify(planRequest) : '';
+  const planKey = useMemo(() => (planRequest ? JSON.stringify(planRequest) : ''), [planRequest]);
   // the angle a plan is for: the mower's answer for another one has the stripes the wrong way
   const angleKey = planRequest
     ? JSON.stringify([

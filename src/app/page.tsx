@@ -227,10 +227,12 @@ export default function Home() {
 
   // dressed up: a towel at 42 %, an umbrella while it sits out the rain, a witch's hat on halloween
   const halloween = useHalloween();
-  const umbrella = useUmbrella();
+  const umbrella = useUmbrella(recent?.latest[0]);
   // the preview ("eggForce" towel) shows the mow at 42 % too, so it's what one would see
   const towelPreview = useEggForced('towel');
   const towel = towelPreview || (!!progress && Math.round(progress.fraction * 100) === 42);
+  // the same object while nothing changes: the map isn't drawn again for every sensor value
+  const costume = useMemo(() => ({towel, umbrella}), [towel, umbrella]);
 
   const acc = state?.pose.pos_accuracy;
   const gpsQ = gpsQuality(acc, numParam(params, PARAM.maxPositionAccuracy));
@@ -400,7 +402,7 @@ export default function Home() {
               emergency={!!state?.emergency}
               track={track}
               progress={progress ?? undefined}
-              costume={{towel, umbrella}}
+              costume={costume}
               follow={driving}
               zoomable
               datum={datum}

@@ -18,6 +18,9 @@ const LATEST_DAYS = 7;
 // kept so the dashboard doesn't start empty every time it's opened again
 let cached: RecentRuns | null = null;
 
+// the newest run as last asked for, without asking again
+export const lastRun = (): Run | undefined => cached?.latest[0];
+
 export function useRecentRuns(bump?: string): RecentRuns | null {
   const [data, setData] = useState<RecentRuns | null>(cached);
   const lastBump = useRef(bump);

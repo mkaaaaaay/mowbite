@@ -3,7 +3,7 @@
 import {useId, useRef, useState} from 'react';
 import styles from './Logo.module.css';
 import {WitchHat} from './Costumes';
-import {useHalloween} from '@/lib/eggs';
+import {stillPreferred, useHalloween} from '@/lib/eggs';
 
 const OPEN = 'M24 32 L39.6 23 A18 18 0 1 0 39.6 41 Z';
 const SHUT = 'M24 32 L42 31.9 A18 18 0 1 0 42 32.1 Z';
@@ -31,7 +31,7 @@ export default function LogoMark({
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const startChomp = () => {
-    if (chomping || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    if (chomping || stillPreferred()) return;
     setChomping(true);
     clearTimeout(timer.current);
     timer.current = setTimeout(() => setChomping(false), CHOMP_MS);

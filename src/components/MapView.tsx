@@ -20,7 +20,7 @@ import {tick} from '@/lib/haptics';
 import {TrashIcon} from './icons';
 import {MapGhost} from './Halloween';
 import {MapCostume} from './Costumes';
-import {useHalloween} from '@/lib/eggs';
+import {stillPreferred, useHalloween} from '@/lib/eggs';
 import {useTrailingPose} from '@/hooks/useTrailingPose';
 import {CELL_M, MIN_SECONDS, gpsGrade, loadCoverage, wifiGrade, type CoverageCell} from '@/lib/coverage';
 import {CoverInfo} from './CoverInfo';
@@ -263,7 +263,7 @@ function MowerMarker({
   // OpenMower's rpm is negative when the motor turns the other way round (randomize_mow_motor_direction), forwards is
   // drawn clockwise
   const spin = Math.sign(rpm);
-  const still = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  const still = stillPreferred();
   return (
     <>
       {outline && shape && <polygon className={styles.mowerBody} points={points(shape.corners)} />}
@@ -730,6 +730,11 @@ function MapView({
   const edgesOn = !!body && layerOn(hidden, 'edges');
   // what the collision check found and fixed in the plan shown
   const checksOn = layerOn(hidden, 'checks');
+  // the room the body has, built again only when it or the view changes, not on every pan frame or position
+  const bodySpacePath = useMemo(
+    () => (bodySpace?.length ? pathOf(bodySpace, {scale, padX, padY, minX, minY}, true) : null),
+    [bodySpace, scale, padX, padY, minX, minY],
+  );
   // the places where the body came too close get their cm once the map shows less than about 12 m across
   const marginLabels = (shown?.size ?? WIDTH) / scale <= 12;
   const edges = useMemo(() => {
@@ -973,6 +978,10 @@ function MapView({
     });
     return best as Handle | null;
   };
+  // a press on a marker near a point of the area being edited moves the point: the marker only takes it otherwise
+  const grabbable = (e: React.PointerEvent) =>
+    !!(pickPending(e.clientX, e.clientY, e.pointerType !== 'mouse') || (selectedArea && pickHandle(e.clientX, e.clientY, e.pointerType !== 'mouse')));
+
 
   // zoom by factor (<1 = in) keeping the svg point (px, py) where it is on screen
   const zoomAt = (factor: number, px: number, py: number) => {
@@ -1492,7 +1501,7 @@ function MapView({
       }}
     >
       {renderContent(k)}
-      {bodySpace && bodySpace.length > 0 && <path className={styles.bodySpace} d={pathOf(bodySpace, drawn, true)} />}
+      {checksOn && bodySpacePath && <path className={styles.bodySpace} d={bodySpacePath} />}
       {/* small and the same size at any zoom, the plan stays readable under them */}
       {checksOn &&
         turnPlaces?.map((p, i) => {
@@ -1525,7 +1534,7 @@ function MapView({
             key={'fit' + i}
             className={styles.fitPick}
             // a dot is small for a finger: a bigger round to hit, the map doesn't pan or deselect from it
-            onPointerDown={(e) => e.stopPropagation()}
+            onPointerDown={(e) => !grabbable(e) && e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();
               onFitPick(i === fitPicked ? null : i);
@@ -1575,7 +1584,7 @@ function MapView({
             key={'mk' + i}
             className={[styles.marker, onMarkerPick ? styles.markerPick : ''].join(' ')}
             // like a dot of the collision check: the map doesn't pan or deselect from it
-            onPointerDown={onMarkerPick ? (e) => e.stopPropagation() : undefined}
+            onPointerDown={onMarkerPick ? (e) => !grabbable(e) && e.stopPropagation() : undefined}
             onClick={
               onMarkerPick
                 ? (e) => {
@@ -1622,7 +1631,7 @@ function MapView({
         {svg}
       </div>
       {loupe}
-      {coverCell && coverMode !== 'off' && <CoverInfo cell={coverCell} mode={coverMode} onClose={() => setCoverCell(null)} />}
+      {coverCell && coverMode !== 'off' && <CoverInfo cell={coverCell} mode={coverMode} raised={!!selectedAreaId} onClose={() => setCoverCell(null)} />}
       <MapControls
         onZoom={zoomCenter}
         showGrid={showGrid}

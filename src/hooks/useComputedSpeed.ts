@@ -29,6 +29,12 @@ export function useComputedSpeed(position: Position | null | undefined, halfLife
     } else {
       lastRef.current = {x: position.x, y: position.y, t: now};
     }
+    // standing still nothing more comes (the position is sent on 2 cm or 2° only): back to 0 after a while
+    const still = setTimeout(() => {
+      smoothedRef.current = 0;
+      setSpeed(0);
+    }, 1500);
+    return () => clearTimeout(still);
   }, [position, halfLifeMs]);
 
   return speed;

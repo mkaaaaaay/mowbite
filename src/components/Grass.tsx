@@ -9,7 +9,7 @@ import {useEffect, useRef, useState, useSyncExternalStore} from 'react';
 import LogoMark from './Logo';
 import {WitchHat} from './Costumes';
 import {PumpkinPatch} from './Halloween';
-import {useHalloween} from '@/lib/eggs';
+import {stillPreferred, useHalloween} from '@/lib/eggs';
 import {leg, pushMower, stepDur} from './mapIcons';
 import styles from './Grass.module.css';
 
@@ -359,7 +359,7 @@ export default function Grass() {
       if (!r || busy.current || e.clientY < r.top || e.clientY > r.bottom) return;
       const target = e.target as Element;
       if (target.closest('button, a, input, select, textarea, label, section, article, nav, svg, [role]')) return;
-      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      if (stillPreferred()) return;
       // the middle of the heap of leaves in autumn, of the snowman in winter
       const p = (pile.current ?? snowman.current)?.getBoundingClientRect();
       if (!p || Math.abs(e.clientX - (p.left + p.width / 2)) > 22) return;
@@ -425,7 +425,7 @@ export default function Grass() {
     const timers: ReturnType<typeof setTimeout>[] = [];
     let walking = false;
     const check = () => {
-      if (busy.current || document.hidden || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+      if (busy.current || document.hidden || stillPreferred()) return;
       // not shown on phones away from the dashboard
       const p = pile.current?.getBoundingClientRect();
       if (!p || !strip.current?.getClientRects().length) return;
@@ -476,7 +476,7 @@ export default function Grass() {
       wait = setTimeout(
         () => {
           // not while the mower runs over the lawn, the grass is busy then
-          if (!busy.current && !document.hidden && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+          if (!busy.current && !document.hidden && !stillPreferred()) {
             setGusting(true);
             calm = setTimeout(() => {
               setGusting(false);
