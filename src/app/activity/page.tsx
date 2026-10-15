@@ -309,7 +309,7 @@ export default function ActivityPage() {
         {events && (
           <div className={styles.summary}>
             <div>
-              <strong>{duration(mowed)}</strong>
+              <strong>{mowed ? duration(mowed) : '0 min'}</strong>
               <span>{tr('mowed')}</span>
             </div>
             <div>

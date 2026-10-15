@@ -373,6 +373,29 @@ function driveAround(gps: readonly GpsSample[], t: number): string | null {
   );
 }
 
+// planner.drive per area: how many points of the track it checked and where the body got into the margins (x, y, how
+// far in m), the answer as it came where it looks different
+export function driveLines(drive: unknown, map: MowerMap | null | undefined): string[] {
+  const areas = (drive as {areas?: unknown} | null)?.areas;
+  if (!areas || typeof areas !== 'object') return [JSON.stringify(drive)];
+  return Object.entries(areas as Record<string, {checked?: unknown; places?: unknown}>).map(([id, a]) => {
+    const name = map?.areas.find((x) => x.id === id)?.properties.name ?? id;
+    const checked = typeof a?.checked === 'number' ? a.checked : 0;
+    const places = (Array.isArray(a?.places) ? (a.places as unknown[]) : []).filter(
+      (p): p is number[] => Array.isArray(p) && p.length >= 3 && p.slice(0, 3).every((v) => typeof v === 'number'),
+    );
+    if (!checked) return `  "${name}": not driven`;
+    if (!places.length) return `  "${name}": ${checked} points checked, the body kept its margins`;
+    const worst = places.reduce((w, p) => Math.max(w, p[2]), 0);
+    const shown = places.slice(0, 5).map((p) => `${p[0].toFixed(2)}, ${p[1].toFixed(2)} (${(p[2] * 100).toFixed(0)} cm)`);
+    return (
+      `  "${name}": ${checked} points checked, the body got into the margins at ${places.length} places, ${(worst * 100).toFixed(0)} cm the most: ` +
+      shown.join('; ') +
+      (places.length > shown.length ? `; and ${places.length - shown.length} more` : '')
+    );
+  });
+}
+
 export function buildDiagnosis(d: DiagnosisInput): string {
   const {run} = d;
   // a minute before, what led to the start (a planner sending it out, the end of the run before)
@@ -606,7 +629,7 @@ export function buildDiagnosis(d: DiagnosisInput): string {
 
   if (d.drive) {
     h('Planner body check of the real track (planner.drive)');
-    out.push(JSON.stringify(d.drive));
+    out.push(...driveLines(d.drive, shownMap));
   }
 
   out.push('', '', '########## Raw data ##########');

@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {buildDiagnosis, collapse, gpsChanges, gpsSummary, mergePlanner, noise, planSpot, readKeptPlan, readKeptPlanner, rosEmergencies, whereOnMap} from './diagnosis';
+import {buildDiagnosis, collapse, driveLines, gpsChanges, gpsSummary, mergePlanner, noise, planSpot, readKeptPlan, readKeptPlanner, rosEmergencies, whereOnMap} from './diagnosis';
 import {readGpsLog} from './gpslog';
 import type {Run} from './events';
 
@@ -137,5 +137,23 @@ describe('diagnosis', () => {
       expect(text).toContain(part);
     // the filler line only in the raw part
     expect(text.indexOf('Active Inputs')).toBeGreaterThan(text.indexOf('Raw data'));
+  });
+});
+
+describe('driveLines', () => {
+  const map = {areas: [{id: 'g', properties: {name: 'Garden'}}]} as unknown as Parameters<typeof driveLines>[1];
+  it('names the areas and the places the body got into the margins', () => {
+    const lines = driveLines(
+      {file: 'x.jsonl', areas: {g: {checked: 168, places: [], worst: 0}, n: {checked: 0, places: [], worst: 0}, k: {checked: 9, places: [[1, 2, 0.04], [3.256, -1, 0.1]], worst: 0.1}}},
+      map,
+    );
+    expect(lines).toEqual([
+      '  "Garden": 168 points checked, the body kept its margins',
+      '  "n": not driven',
+      '  "k": 9 points checked, the body got into the margins at 2 places, 10 cm the most: 1.00, 2.00 (4 cm); 3.26, -1.00 (10 cm)',
+    ]);
+  });
+  it('keeps an answer it does not know as it came', () => {
+    expect(driveLines({other: 1}, null)).toEqual(['{"other":1}']);
   });
 });
