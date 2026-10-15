@@ -153,6 +153,10 @@ describe('driveLines', () => {
       '  "k": 9 points checked, the body got into the margins at 2 places, 10 cm the most: 1.00, 2.00 (4 cm); 3.26, -1.00 (10 cm)',
     ]);
   });
+  it('tells areas of the same name apart', () => {
+    const two = {areas: [{id: 'a', properties: {name: 'Lawn'}}, {id: 'b', properties: {name: 'Lawn'}}]} as unknown as Parameters<typeof driveLines>[1];
+    expect(driveLines({areas: {b: {checked: 3, places: []}}}, two)).toEqual(['  "Lawn" b: 3 points checked, the body kept its margins']);
+  });
   it('keeps an answer it does not know as it came', () => {
     expect(driveLines({other: 1}, null)).toEqual(['{"other":1}']);
   });

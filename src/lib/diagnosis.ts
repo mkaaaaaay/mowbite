@@ -1,5 +1,5 @@
 import {describe, explain, noteworthy, OUTCOMES, withState, type MowerEvent, type Run} from './events';
-import {gpsBefore, type GpsSample} from './gpslog';
+import {gpsBefore, gpsOffOnPurpose, type GpsSample} from './gpslog';
 import {containsPoint, polygonArea} from './geometry';
 import type {MowerMap} from '@/hooks/useMowerMap';
 import type {RosLogLine} from './roslog';
@@ -101,7 +101,7 @@ export function collapse(lines: readonly Line[], within = 5): (Line & {n: number
 type Band = 'fix' | 'float' | 'poor' | 'none' | 'dock' | 'stale';
 const band = (s: GpsSample, limit: number): Band =>
   s.stale
-    ? s.state === 'DOCKING' || s.state === 'UNDOCKING'
+    ? gpsOffOnPurpose(s)
       ? 'dock'
       : 'stale'
     : s.acc === null
@@ -383,17 +383,20 @@ export function driveLines(drive: unknown, map: MowerMap | null | undefined): st
   const areas = (drive as {areas?: unknown} | null)?.areas;
   if (!areas || typeof areas !== 'object') return [JSON.stringify(drive)];
   return Object.entries(areas as Record<string, {checked?: unknown; places?: unknown}>).map(([id, a]) => {
-    const name = map?.areas.find((x) => x.id === id)?.properties.name ?? id;
+    const known = map?.areas.find((x) => x.id === id)?.properties.name;
+    // two areas of the same name told apart by their id
+    const twice = known !== undefined && map!.areas.filter((x) => x.properties.name === known).length > 1;
+    const name = known === undefined ? `"${id}"` : twice ? `"${known}" ${id}` : `"${known}"`;
     const checked = typeof a?.checked === 'number' ? a.checked : 0;
     const places = (Array.isArray(a?.places) ? (a.places as unknown[]) : []).filter(
       (p): p is number[] => Array.isArray(p) && p.length >= 3 && p.slice(0, 3).every((v) => typeof v === 'number'),
     );
-    if (!checked) return `  "${name}": not driven`;
-    if (!places.length) return `  "${name}": ${checked} points checked, the body kept its margins`;
+    if (!checked) return `  ${name}: not driven`;
+    if (!places.length) return `  ${name}: ${checked} points checked, the body kept its margins`;
     const worst = places.reduce((w, p) => Math.max(w, p[2]), 0);
     const shown = places.slice(0, 5).map((p) => `${p[0].toFixed(2)}, ${p[1].toFixed(2)} (${(p[2] * 100).toFixed(0)} cm)`);
     return (
-      `  "${name}": ${checked} points checked, the body got into the margins at ${places.length} places, ${(worst * 100).toFixed(0)} cm the most: ` +
+      `  ${name}: ${checked} points checked, the body got into the margins at ${places.length} places, ${(worst * 100).toFixed(0)} cm the most: ` +
       shown.join('; ') +
       (places.length > shown.length ? `; and ${places.length - shown.length} more` : '')
     );

@@ -315,8 +315,9 @@
   background: rgba(20, 20, 22, 0.92);
   font-size: 13px;
   z-index: 2;
-  /* on a small map it scrolls instead of being cut off */
+  /* on a small map it scrolls instead of being cut off, and stays inside it */
   max-height: calc(100% - 20px);
+  max-width: calc(100% - 64px);
   overflow-y: auto;
 }
 
@@ -324,7 +325,6 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  white-space: nowrap;
   cursor: pointer;
 }
 

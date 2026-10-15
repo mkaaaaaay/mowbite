@@ -110,6 +110,11 @@ export async function gpsLog(from: number, to: number): Promise<GpsSample[]> {
   return out;
 }
 
+// OpenMower switches the gps off for the dock approach: none there, or the last accuracy repeated, also in the dock
+// after it. a value repeated anywhere else is a position lost
+export const gpsOffOnPurpose = (s: GpsSample) =>
+  s.state === 'DOCKING' || s.state === 'UNDOCKING' ? s.acc === null || !!s.stale : s.state === 'IDLE' && !!s.stale;
+
 export interface GpsBefore {
   // in the dock approach and backing out of the dock OpenMower drives without gps on purpose, that's left out
   dockOff: boolean;
@@ -127,9 +132,7 @@ export interface GpsBefore {
 
 // how the gps was in the window (s) before a moment: a sample counts until the next one, at most 2 s
 export function gpsBefore(samples: readonly GpsSample[], t: number, limit = 0.2, window = 60): GpsBefore | null {
-  // the gps is off on purpose in the dock approach, a value left over there too. elsewhere it's a position lost
-  const docking = (s: GpsSample) => s.state === 'DOCKING' || s.state === 'UNDOCKING';
-  const dockApproach = (s: GpsSample) => docking(s) && (s.acc === null || !!s.stale);
+  const dockApproach = gpsOffOnPurpose;
   const offOnPurpose = dockApproach;
   const acc = (s: GpsSample) => (s.stale ? null : s.acc);
   const all = samples.filter((s) => s.t >= t - window && s.t <= t + 1);
