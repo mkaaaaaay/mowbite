@@ -2,15 +2,24 @@ import {locale} from './i18n';
 
 export const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 
-// today/yesterday in the app's language, like the weekday names
+// today/yesterday in the app's language, like the weekday names. the formatters once per language, making them costs
+// far more than formatting (the map's track picker labels every day while the mower drives)
+const dayFormats = new Map<string, {rel: Intl.RelativeTimeFormat; date: Intl.DateTimeFormat}>();
 export function dayLabel(d: Date) {
   const today = new Date();
   const yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
-  const rel = new Intl.RelativeTimeFormat(locale(), {numeric: 'auto'});
+  let f = dayFormats.get(locale());
+  if (!f) {
+    f = {
+      rel: new Intl.RelativeTimeFormat(locale(), {numeric: 'auto'}),
+      date: new Intl.DateTimeFormat(locale(), {weekday: 'short', day: 'numeric', month: 'numeric'}),
+    };
+    dayFormats.set(locale(), f);
+  }
   const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
-  if (dayKey(d) === dayKey(today)) return cap(rel.format(0, 'day'));
-  if (dayKey(d) === dayKey(yesterday)) return cap(rel.format(-1, 'day'));
-  return d.toLocaleDateString(locale(), {weekday: 'short', day: 'numeric', month: 'numeric'});
+  if (dayKey(d) === dayKey(today)) return cap(f.rel.format(0, 'day'));
+  if (dayKey(d) === dayKey(yesterday)) return cap(f.rel.format(-1, 'day'));
+  return f.date.format(d);
 }
 
 // like fmt: one formatter per language, with or without seconds

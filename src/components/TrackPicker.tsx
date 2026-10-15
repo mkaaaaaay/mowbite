@@ -2,10 +2,10 @@
 
 import type {JobInfo, TrackSegment} from '@/hooks/useMowHistory';
 import {useDragScroll} from '@/hooks/useDragScroll';
-import {dayKey, dayLabel} from '@/lib/dates';
-import {useState} from 'react';
+import {clock, dayKey, dayLabel} from '@/lib/dates';
+import {useMemo, useState} from 'react';
 import styles from './TrackPicker.module.css';
-import {locale, tr, useLang} from '@/lib/i18n';
+import {tr, useLang} from '@/lib/i18n';
 
 function length(points: [number, number][]) {
   let m = 0;
@@ -31,17 +31,21 @@ export default function TrackPicker({
   // the live trail is the last run, none runs now: when it started (unix seconds)
   lastRun?: number | null;
 }) {
-  const days: {key: string; label: string; jobs: JobInfo[]}[] = [];
-  for (const j of jobs) {
-    const d = new Date(j.timestamp * 1000);
-    const key = dayKey(d);
-    const last = days[days.length - 1];
-    if (last?.key === key) last.jobs.push(j);
-    else days.push({key, label: dayLabel(d), jobs: [j]});
-  }
+  useLang();
+  // the page draws again with every bit of the live track, the days only change with the jobs
+  const days = useMemo(() => {
+    const list: {key: string; date: Date; jobs: JobInfo[]}[] = [];
+    for (const j of jobs) {
+      const date = new Date(j.timestamp * 1000);
+      const key = dayKey(date);
+      const last = list[list.length - 1];
+      if (last?.key === key) last.jobs.push(j);
+      else list.push({key, date, jobs: [j]});
+    }
+    return list;
+  }, [jobs]);
 
   const selectedDay = days.find((d) => d.jobs.some((j) => j.job_id === selected))?.key ?? null;
-  useLang();
   const daysRef = useDragScroll<HTMLDivElement>();
   const [openDay, setOpenDay] = useState<string | null>(selectedDay);
   const day = days.find((d) => d.key === (openDay ?? selectedDay));
@@ -71,7 +75,7 @@ export default function TrackPicker({
               if (d.jobs.length === 1) onSelect(d.jobs[0].job_id);
             }}
           >
-            {d.label}
+            {dayLabel(d.date)}
           </button>
         ))}
       </div>
@@ -80,7 +84,7 @@ export default function TrackPicker({
         <div className={styles.times}>
           {day.jobs.map((j) => (
             <button key={j.job_id} className={j.job_id === selected ? styles.on : undefined} onClick={() => onSelect(j.job_id)}>
-              {new Date(j.timestamp * 1000).toLocaleTimeString(locale(), {hour: '2-digit', minute: '2-digit'})}
+              {clock(j.timestamp)}
             </button>
           ))}
         </div>
@@ -89,7 +93,7 @@ export default function TrackPicker({
       {selected === null && lastRun && (
         <span className={styles.info}>
           {tr('Last run: {when}. The next one replaces it.', {
-            when: `${dayLabel(new Date(lastRun * 1000))}, ${new Date(lastRun * 1000).toLocaleTimeString(locale(), {hour: '2-digit', minute: '2-digit'})}`,
+            when: `${dayLabel(new Date(lastRun * 1000))}, ${clock(lastRun)}`,
           })}
         </span>
       )}
