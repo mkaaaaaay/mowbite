@@ -55,7 +55,7 @@ export function getMqttClient(): MqttClient {
 }
 
 function connect(): MqttClient {
-  return mqtt.connect(mqttUrl(), {
+  const c = mqtt.connect(mqttUrl(), {
     reconnectPeriod: 2000,
     // a dead wifi link shows up after ~15 s instead of ~90 s with the default of 60
     keepalive: 10,
@@ -65,6 +65,18 @@ function connect(): MqttClient {
     // the topics are subscribed again above, once each
     resubscribe: false,
   });
+  // back from the background (app minimised, phone asleep): a page that couldn't ping for 15 s (1.5 x keepalive) has
+  // been dropped by the broker. when nothing came for that long, connect again right away instead of waiting for the
+  // keepalive or the next retry
+  let lastPacket = Date.now();
+  c.on('packetreceive', () => (lastPacket = Date.now()));
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible' || Date.now() - lastPacket < 15000 || c.disconnecting) return;
+    lastPacket = Date.now();
+    if (c.connected) c.end(true, () => c.reconnect());
+    else c.reconnect();
+  });
+  return c;
 }
 
 // One listener for the whole app hands each message to whoever asked for its topic (without the prefix, + for one

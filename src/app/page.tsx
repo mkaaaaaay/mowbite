@@ -292,6 +292,8 @@ export default function Home() {
                         ? tr('since {time}', {time: clock(since)})
                         : ''}
                   </span>
+                ) : link.resuming ? (
+                  <span className={styles.dim}>{tr('connecting…')}</span>
                 ) : (
                   <span className={styles.offline}>
                     {tr(connected ? 'No data from the mower since {time}' : 'Connection lost, last data at {time}', {

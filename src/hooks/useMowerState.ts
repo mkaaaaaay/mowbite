@@ -33,15 +33,20 @@ export interface MowerLink {
   stale: boolean;
   // ms, when the last state came
   lastAt: number;
+  // just back from the background and connecting again, for a few seconds that's not a lost connection
+  resuming: boolean;
 }
 
 // mower_logic sends its state once a second, this long without one means none is coming
 const STALE_MS = 5000;
 
-const NONE: MowerLink = {state: null, connected: false, stale: false, lastAt: 0};
+const NONE: MowerLink = {state: null, connected: false, stale: false, lastAt: 0, resuming: false};
+const RESUME_MS = 8000;
 // one store for every page, so remounting doesn't flash "waiting" or "connection lost"
 let link = NONE;
 let started = false;
+let resumedAt = 0;
+let connectedAt = 0;
 const listeners = new Set<() => void>();
 
 function update(patch: Partial<MowerLink>) {
@@ -54,17 +59,39 @@ function start() {
   if (started) return;
   started = true;
   const c = getMqttClient();
-  c.on('connect', () => update({connected: true}));
+  c.on('connect', () => {
+    connectedAt = Date.now();
+    update({connected: true});
+  });
   c.on('close', () => update({connected: false}));
   if (c.connected) update({connected: true});
   onTopic(TOPIC.robotState, (payload) => {
     try {
-      update({state: JSON.parse(payload.toString()), lastAt: Date.now(), stale: false});
+      // back once a state comes over a connection made after the return, one still queued on the old one doesn't count
+      const back = link.resuming && connectedAt >= resumedAt;
+      update({
+        state: JSON.parse(payload.toString()),
+        lastAt: Date.now(),
+        stale: false,
+        ...(back ? {resuming: false} : {}),
+      });
     } catch {
       // ignore malformed payloads
     }
   });
-  setInterval(() => update({stale: !!link.state && Date.now() - link.lastAt > STALE_MS}), 1000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    resumedAt = Date.now();
+    update({resuming: true});
+  });
+  setInterval(
+    () =>
+      update({
+        stale: !!link.state && Date.now() - link.lastAt > STALE_MS,
+        resuming: link.resuming && Date.now() - resumedAt < RESUME_MS,
+      }),
+    1000,
+  );
 }
 
 function subscribe(listener: () => void) {
