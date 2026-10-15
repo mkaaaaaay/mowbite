@@ -630,8 +630,19 @@ export function buildDiagnosis(d: DiagnosisInput): string {
           (p.warnings?.length ? `, ${p.warnings.length} warnings` : ''),
       );
     }
-    if ((d.plannerLines ?? []).some((l) => l.t >= from && l.t <= to && /leftovers armed/.test(l.msg)))
-      out.push('  leftovers were armed: the mower drove the leftover passes, not the whole plan above');
+    // the planner says so when it hands mower_logic the leftover passes in place of an area's plan. armed alone they may
+    // not be driven at all (the check after a run arms them and stays in for a few)
+    const leftovers = [
+      ...new Set(
+        (d.plannerLines ?? [])
+          .filter((l) => l.t >= run.start && l.t <= run.end)
+          .flatMap((l) => /area (\S+), the leftovers:/.exec(l.msg)?.[1] ?? []),
+      ),
+    ];
+    if (leftovers.length)
+      out.push(
+        `  the mower drove the leftover passes, not the whole plan above: ${leftovers.map((id) => `"${shownMap?.areas.find((a) => a.id === id)?.properties.name ?? id}"`).join(', ')}`,
+      );
   }
   out.push(`Mower answers: ${d.methods?.join(', ') ?? 'unknown (no rpc.methods)'}`);
 

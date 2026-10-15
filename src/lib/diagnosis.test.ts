@@ -72,6 +72,39 @@ describe('diagnosis', () => {
     expect(text).toMatch(/Problems\n-+\nnone/);
   });
 
+  it('leftovers only when the planner handed them out during the run', () => {
+    const run: Run = {start: 1000, end: 2000, events: [], areas: ['Garten'], bladeSeconds: 900, problems: 0, outcome: 'done'};
+    const input = (plannerLines: {t: number; level: string; msg: string}[]) => ({
+      run,
+      appVersion: '1',
+      created: 3000,
+      methods: null,
+      params: {},
+      kept: null,
+      map: {areas: [{id: 'g', outline: [], properties: {type: 'mow', name: 'Garten'}}], docking_stations: []},
+      planner: null,
+      gps: null,
+      gpsLimit: 0.2,
+      ros: [],
+      plannerLines,
+      sensors: [],
+      drive: null,
+      snapshot: null,
+      startMap: null,
+      plans: [{t: 1001, areaId: 'g', paths: [{points: [], poseIndex: [], poses: 10, segments: []}], kept: true}],
+    });
+    // armed by the check after the run, under the minimum, so it stayed in
+    const after = buildDiagnosis(
+      input([
+        {t: 2059, level: 'INFO', msg: 'leftovers armed for 900 s: g 0.06 m2 in 2 passes'},
+        {t: 2059, level: 'INFO', msg: '0.06 m2 of leftovers to mow, under 0.30: the mower stays in'},
+      ]),
+    );
+    expect(after).not.toContain('leftover passes');
+    const driven = buildDiagnosis(input([{t: 1001, level: 'INFO', msg: 'area g, the leftovers: 1 paths, 5 m, 2 passes'}]));
+    expect(driven).toContain('the mower drove the leftover passes, not the whole plan above: "Garten"');
+  });
+
   it('the planner lines the container kept and the ones in memory, each once', () => {
     const kept = readKeptPlanner('10.5 INFO planned\n12 ERROR failed\\nTraceback\nbroken');
     expect(kept).toEqual([
