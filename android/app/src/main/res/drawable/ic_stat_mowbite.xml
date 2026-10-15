@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- the eater of the logo in the status bar: one colour, its eye left out, grass in front of it -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="64"
+    android:viewportHeight="64">
+    <group android:translateX="1">
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:fillType="evenOdd"
+            android:pathData="M24,32 L39.6,23 A18,18 0 1,0 39.6,41 Z M28.4,21.5 A2.4,2.4 0 1,0 23.6,21.5 A2.4,2.4 0 1,0 28.4,21.5 Z" />
+        <path
+            android:pathData="M45,45 Q46,38 44,33 M48.5,45 Q48.5,36 51,30 M52,45 Q52,39 55,35"
+            android:strokeWidth="3.4"
+            android:strokeColor="#FFFFFFFF"
+            android:strokeLineCap="round" />
+    </group>
+</vector>

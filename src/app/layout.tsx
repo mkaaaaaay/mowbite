@@ -5,6 +5,7 @@ import Nav from "@/components/Nav";
 import SwipeNav from "@/components/SwipeNav";
 import EdgeBounce from "@/components/EdgeBounce";
 import FreshPage from "@/components/FreshPage";
+import PushOpener from "@/components/PushOpener";
 import { COLOR_BOOT_SCRIPT } from "@/lib/settings";
 import { THEME_BOOT_SCRIPT } from "@/lib/themeBoot";
 import type { Metadata, Viewport } from "next";
@@ -58,6 +59,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <SwipeNav />
           <EdgeBounce />
           <FreshPage />
+          <PushOpener />
         </div>
       </body>
     </html>

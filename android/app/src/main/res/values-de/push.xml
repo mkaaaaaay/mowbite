@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="push_channel_problems">Probleme</string>
+    <string name="push_channel_problems_about">Notaus, Andocken oder Abdocken aufgegeben, Navigationsfehler, Mähmotor lief nicht an</string>
+    <string name="push_channel_reminders">Erinnerungen</string>
+    <string name="push_channel_reminders_about">Immer wieder, solange der Mäher nicht von selbst weiterkommt</string>
+    <string name="push_channel_info">Info</string>
+    <string name="push_channel_info_about">Fertig gemäht, Heimfahrt wegen Regen oder zum Laden, ein behobenes Problem, Tests</string>
+    <string name="push_snooze_failed">Mäher nicht erreicht, schlummern geht nur aus dem Heimnetz</string>
+</resources>

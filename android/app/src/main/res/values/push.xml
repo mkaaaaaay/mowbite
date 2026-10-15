@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- the logo's green, for the icon in the notification -->
+    <color name="push_accent">#35A64F</color>
+    <string name="push_channel_problems">Problems</string>
+    <string name="push_channel_problems_about">Emergency stop, docking or undocking given up, navigation error, mow motor didn\'t start</string>
+    <string name="push_channel_reminders">Reminders</string>
+    <string name="push_channel_reminders_about">Again and again while the mower can\'t get on by itself</string>
+    <string name="push_channel_info">Info</string>
+    <string name="push_channel_info_about">Done mowing, going home for rain or to charge, a problem that\'s over, tests</string>
+    <string name="push_snooze_failed">Couldn\'t reach the mower, snoozing only works from the home network</string>
+</resources>

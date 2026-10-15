@@ -25,6 +25,20 @@
 
         </activity>
 
+        <!-- what the mower's container pushes, handed over by the UnifiedPush distributor (PushService) -->
+        <service
+            android:name=".MowbitePushService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="org.unifiedpush.android.connector.PUSH_EVENT" />
+            </intent-filter>
+        </service>
+
+        <!-- "Snooze 1 h" on a problem's message -->
+        <receiver
+            android:name=".SnoozeReceiver"
+            android:exported="false" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -39,4 +53,5 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 </manifest>

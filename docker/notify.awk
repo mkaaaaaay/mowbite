@@ -1,6 +1,8 @@
-# input: "<unix time> <topic> <json>" from mosquitto_sub (robot_state/json and events/json). output: one ntfy message as
-# json a line, notify.sh sends it. what's sent comes from CONF (notify.cgi writes it), read again every half minute:
-#   topic, lang (de/en), name (of the mower), url (where MowBite is, for its button and a tap on the message),
+# input: "<unix time> <topic> <json>" from mosquitto_sub (robot_state/json and events/json). output, a line each, for
+# notify.sh: "ntfy <json>" for the topic and "push <json>" for the phones signed up in MowBite's app (UnifiedPush, the
+# app shows those itself). what's sent comes from CONF (notify.cgi writes it), read again every half minute:
+#   topic, push (a phone's address, a line each), lang (de/en), name (of the mower), url (where MowBite is, for its
+#   button and a tap on the message),
 #   events (which of: emergency, dock_failed, undock_failed, nav_error, spinup, done, rain, battery),
 #   remind (minutes between reminders while the mower can't get on by itself, 0: none),
 #   emergency_wait (seconds an emergency stop has to last before it's told, 10 unless set), enabled (0: switched off)
@@ -25,12 +27,13 @@ function jesc(s) {
 }
 
 function readconf(   line, k) {
-  topic = ""; lang = "en"; name = ""; url = ""; events = ""; remind = 0; emergency_wait = 10; enabled = 1
+  topic = ""; npush = 0; lang = "en"; name = ""; url = ""; events = ""; remind = 0; emergency_wait = 10; enabled = 1
   while ((getline line < CONF) > 0) {
     k = line
     sub(/ .*/, "", k)
     sub(/^[^ ]* /, "", line)
     if (k == "topic") topic = line
+    else if (k == "push") npush++
     else if (k == "lang") lang = line
     else if (k == "name") name = line
     else if (k == "url") url = line
@@ -44,8 +47,8 @@ function readconf(   line, k) {
   if (SNOOZE && (getline line < SNOOZE) > 0) snooze = line + 0
   if (SNOOZE) close(SNOOZE)
   conf_t = t
-  # no topic or switched off: nothing to send, notify.sh starts again once there is
-  if (!topic || !enabled) exit
+  # nowhere to send or switched off: nothing to do, notify.sh starts again once there is
+  if ((!topic && !npush) || !enabled) exit
 }
 
 function on(kind) { return index(events, "," kind ",") > 0 }
@@ -56,8 +59,10 @@ function who() { return name ? name : tx("The mower", "Der Mäher") }
 
 function minutes(s) { return int(s / 60 + 0.5) }
 
-# kind: problem or info, phase: new, again or clear. prio: ntfy priority, tags: ntfy emoji tags
+# kind: emergency, done, ... (the events), phase: new, again or clear. prio: ntfy priority, tags: ntfy emoji tags
 function send(kind, phase, title, msg, prio, tags,   json, acts) {
+  if (npush) push(kind, phase, title, msg, prio)
+  if (!topic) return
   json = "{\"topic\":\"" jesc(topic) "\",\"title\":\"" jesc(title) "\",\"message\":\"" jesc(msg) "\",\"priority\":" prio
   json = json ",\"tags\":[\"" tags "\"]"
   if (url) {
@@ -69,7 +74,22 @@ function send(kind, phase, title, msg, prio, tags,   json, acts) {
         "/cgi-bin/notify?snooze=3600\",\"method\":\"POST\",\"clear\":true}"
     json = json ",\"actions\":[" acts "]"
   }
-  print json "}"
+  print "ntfy " json "}"
+  fflush()
+}
+
+# the same for MowBite's app: it sorts it into its channels (problems, reminders, info), a reminder and the all clear
+# take the place of the message about the problem, a tap opens the page, snooze has a button (from the home network)
+function push(kind, phase, title, msg, prio,   json, problem) {
+  problem = kind ~ /^(emergency|dock_failed|undock_failed|nav_error|spinup)$/
+  json = "{\"title\":\"" jesc(title) "\",\"message\":\"" jesc(msg) "\",\"kind\":\"" kind "\",\"phase\":\"" phase "\""
+  json = json ",\"problem\":" (problem ? "true" : "false")
+  json = json ",\"prio\":" prio ",\"t\":" int(t) ",\"lang\":\"" lang "\",\"path\":\"/activity/\""
+  if (url) {
+    json = json ",\"api\":\"" jesc(url) "\""
+    if (problem && phase != "clear" && remind) json = json ",\"snooze\":\"" jesc(tx("Snooze 1 h", "1 h schlummern")) "\""
+  }
+  print "push " json "}"
   fflush()
 }
 

@@ -49,7 +49,8 @@ describe('push message settings', () => {
 
 // docker/notify.awk with the awk of this machine, the container's busybox one reads it the same
 describe('what the container sends', () => {
-  const run = (input: string, conf: string, snooze?: number) => {
+  // what it puts out for the topic (ntfy) or for the phones signed up in the app (push)
+  const lines = (input: string, conf: string, snooze?: number, to: 'ntfy' | 'push' = 'ntfy') => {
     const dir = mkdtempSync(join(tmpdir(), 'notify-'));
     writeFileSync(join(dir, 'conf'), conf);
     if (snooze !== undefined) writeFileSync(join(dir, 'snooze'), `${snooze}\n`);
@@ -60,9 +61,13 @@ describe('what the container sends', () => {
     return r.stdout
       .toString()
       .split('\n')
-      .filter(Boolean)
-      .map((l) => JSON.parse(l) as {title: string; message: string; priority: number; actions?: unknown[]});
+      .filter((l) => l.startsWith(to + ' '))
+      .map((l) => JSON.parse(l.slice(to.length + 1)));
   };
+  const run = (input: string, conf: string, snooze?: number) =>
+    lines(input, conf, snooze) as {title: string; message: string; priority: number; actions?: unknown[]}[];
+  type Push = {title: string; kind: string; phase: string; problem: boolean; snooze?: string; api?: string; path: string; t: number};
+  const push = (input: string, conf: string) => lines(input, conf, undefined, 'push') as Push[];
   const conf = 'topic t\nlang en\nname Steve\nurl http://openmower:8082\nevents emergency,dock_failed,nav_error,spinup\nremind 1\n';
   const state = (t: number, emergency: number, charging = 0) =>
     `${t} robot_state/json {"emergency":${emergency},"is_charging":${charging},"current_state":"IDLE"}\n`;
@@ -108,5 +113,25 @@ describe('what the container sends', () => {
     expect(run(state(100, 1), 'lang en\n')).toEqual([]);
     // switched off, the rest kept
     expect(run(input, 'enabled 0\n' + conf.replace('spinup', 'spinup,done,rain'))).toEqual([]);
+  });
+
+  it('sends the same to the phones signed up in the app, also without a topic', () => {
+    const input = state(100, 1) + state(111, 1) + state(175, 1) + state(300, 0) + event(310, '{"type":"JOB_COMPLETE"}');
+    const phones = conf.replace('topic t\n', '').replace('spinup', 'spinup,done') + 'push https://ntfy.sh/upAbc?up=1\n';
+    const out = push(input, phones);
+    expect(out.map((m) => [m.title, m.kind, m.phase, m.problem])).toEqual([
+      ['Emergency stop', 'emergency', 'new', true],
+      ['Emergency stop', 'emergency', 'again', true],
+      ['Emergency stop cleared', 'emergency', 'clear', true],
+      ['Done mowing', 'done', 'new', false],
+    ]);
+    // snoozing only while a problem lasts
+    expect(out.map((m) => m.snooze ?? null)).toEqual(['Snooze 1 h', 'Snooze 1 h', null, null]);
+    expect(out[0]).toMatchObject({api: 'http://openmower:8082', path: '/activity/', t: 111});
+    expect(run(input, phones)).toEqual([]);
+    // with a topic as well: both
+    expect(run(input, phones + 'topic t\n')).toHaveLength(4);
+    expect(push(input, phones + 'topic t\n')).toHaveLength(4);
+    expect(push(input, 'enabled 0\n' + phones)).toEqual([]);
   });
 });

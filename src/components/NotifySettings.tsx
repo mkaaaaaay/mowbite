@@ -22,6 +22,7 @@ import {
 import type {Settings} from '@/lib/settings';
 import {useEffect, useState} from 'react';
 import local from './NotifySettings.module.css';
+import {PhonePushSettings} from './PhonePushSettings';
 
 // Push messages on the phone when the mower needs someone, sent by the container on the mower through ntfy, also when
 // no app is open and away from home. Kept on the mower for every device.
@@ -113,8 +114,16 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
     setNow(Date.now() / 1000);
   };
 
+  // the phones signed up changed on the mower: kept, the rest of what's typed stays as it is
+  const reload = async () => {
+    const c = await loadNotify(saved ?? form);
+    if (!c) return;
+    setSaved(c);
+    setForm((f) => (f ? {...f, pushes: c.pushes, stored: c.stored} : c));
+  };
+
   const dirty = JSON.stringify({...form, snooze: 0}) !== JSON.stringify({...saved, snooze: 0});
-  const live = !!saved?.topic && saved.enabled;
+  const live = !!saved && saved.enabled && (!!saved.topic || saved.pushes.length > 0);
   const subscribe = saved?.topic ? `${saved.server.replace(/\/+$/, '')}/${saved.topic}` : null;
 
   return (
@@ -129,6 +138,7 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
         <input type="checkbox" checked={form.enabled} onChange={(e) => set({enabled: e.target.checked})} />
         {tr('Send push messages')}
       </label>
+      {isApp() && !isDemo() && saved && <PhonePushSettings saved={saved} reload={reload} styles={styles} />}
 
       <div className={local.grid}>
         <label className={styles.field}>

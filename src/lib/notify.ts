@@ -1,7 +1,8 @@
 import {apiBase, mowerFetch} from './mowers';
 
-// Push messages through ntfy, sent by the container on the mower (docker/notify.sh) when the mower needs someone.
-// The settings are kept there as lines (notify.cgi), the token is never handed back, only that there is one.
+// Push messages through ntfy, sent by the container on the mower (docker/notify.sh) when the mower needs someone: to a
+// topic, and to the phones signed up in MowBite's app (their UnifiedPush address, lib/push.ts). The settings are kept
+// there as lines (notify.cgi), the token is never handed back, only that there is one.
 
 export const NOTIFY_EVENTS = [
   {key: 'emergency', label: 'Emergency stop', problem: true},
@@ -36,6 +37,10 @@ export interface NotifyConfig {
   emergencyWait: number;
   // until when reminders are snoozed (unix seconds), 0: not
   snooze: number;
+  // the addresses of the phones signed up in the app, kept by the container (a save doesn't send them)
+  pushes: string[];
+  // saved on the mower before: without, it sends nothing (no events picked), also to a phone signed up
+  stored: boolean;
 }
 
 export const defaultNotify = (lang: 'de' | 'en', url: string, name = ''): NotifyConfig => ({
@@ -51,12 +56,14 @@ export const defaultNotify = (lang: 'de' | 'en', url: string, name = ''): Notify
   remind: 30,
   emergencyWait: 10,
   snooze: 0,
+  pushes: [],
+  stored: false,
 });
 
 const KNOWN = new Set<string>(NOTIFY_EVENTS.map((e) => e.key));
 
 export function parseNotify(text: string, fallback: NotifyConfig): NotifyConfig {
-  const c: NotifyConfig = {...fallback, token: '', hasToken: false, snooze: 0};
+  const c: NotifyConfig = {...fallback, token: '', hasToken: false, snooze: 0, pushes: []};
   let events: NotifyEvent[] | null = null;
   for (const line of text.split('\n')) {
     const at = line.indexOf(' ');
@@ -74,8 +81,10 @@ export function parseNotify(text: string, fallback: NotifyConfig): NotifyConfig 
     else if (key === 'remind') c.remind = Number(value) || 0;
     else if (key === 'emergency_wait') c.emergencyWait = Number(value) || 0;
     else if (key === 'snooze') c.snooze = Number(value) || 0;
+    else if (key === 'push') c.pushes.push(value);
   }
   // saved once, an empty list is what was picked
+  c.stored = !!events;
   if (events) c.events = events;
   else if (c.topic) c.events = [];
   return c;
@@ -129,9 +138,26 @@ export async function saveNotify(c: NotifyConfig): Promise<NotifyConfig> {
   return parseNotify(await res.text(), c);
 }
 
-// sends a test message with what's saved: 'sent', 'failed' or 'no topic'
+// sends a test message with what's saved, to the topic and the phones: 'sent', 'failed' or 'no topic' (neither)
 export async function testNotify(): Promise<string> {
   const res = await mowerFetch(`${endpoint()}?test`, {method: 'POST'});
+  return (await res.text()).trim();
+}
+
+// a phone's UnifiedPush address on the mower, it sends there too from now on (a few per mower, the oldest goes)
+export async function addPush(address: string): Promise<void> {
+  const res = await mowerFetch(`${endpoint()}?push-add`, {method: 'POST', body: address});
+  const r = (await res.text()).trim();
+  if (!res.ok || r !== 'ok') throw new Error(r || `notify ${res.status}`);
+}
+
+export async function removePush(address: string): Promise<void> {
+  await mowerFetch(`${endpoint()}?push-remove`, {method: 'POST', body: address});
+}
+
+// a test to one phone signed up: 'sent', 'failed' or 'not signed up'
+export async function testPush(address: string): Promise<string> {
+  const res = await mowerFetch(`${endpoint()}?push-test`, {method: 'POST', body: address});
   return (await res.text()).trim();
 }
 
