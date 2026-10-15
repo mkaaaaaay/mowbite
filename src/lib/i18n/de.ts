@@ -473,6 +473,7 @@ const de: Record<string, string> = {
   "problem": "Problem",
   "problems": "Probleme",
   "Progress": "Fortschritt",
+  "leftovers of the last mow": "Reste vom letzten Mähen",
   "Rain": "Regen",
   "Rain from about {time}": "Regen ab etwa {time}",
   "Rain soon": "Regen in Kürze",

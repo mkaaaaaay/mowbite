@@ -4,21 +4,24 @@ import {mowerPaths} from '@/lib/areaPlan';
 import type {MowerEvent} from '@/lib/events';
 import {bladeSeconds, saveRate, savedRate, splitPlan, type PlanPath, type PlanProgress} from '@/lib/planProgress';
 import {useEffect, useMemo, useState} from 'react';
+import {useLeftoverRun} from './useLeftoverRun';
 import type {MowerMap} from './useMowerMap';
 import type {MowerState} from './useMowerState';
 
 // how far the mower got with the area it's mowing, when it can hand out its plan (planner.plan or mowing.plan).
-// events: the day's, for the time left (without them none)
+// events: the day's, for the time left (without them none). leftovers: it drives the leftover passes of the last mow
+// in place of the plan, there's no progress along it then
 export function usePlanProgress(
   state: MowerState | null,
   map: MowerMap | null,
   events: MowerEvent[] | undefined,
-): (PlanProgress & {areaId: string; secondsLeft: number | null}) | null {
+): (PlanProgress & {areaId: string; secondsLeft: number | null; leftovers?: true}) | null {
   // current_area counts the mowing areas in map order, inactive ones included
   const areaId =
     state?.current_state === 'MOWING' && map && (state.current_area ?? -1) >= 0
       ? map.areas.filter((a) => a.properties.type === 'mow')[state.current_area!]?.id
       : undefined;
+  const leftovers = useLeftoverRun(areaId, events);
   const [plan, setPlan] = useState<{areaId: string; paths: PlanPath[]} | null>(null);
 
   useEffect(() => {
@@ -50,14 +53,16 @@ export function usePlanProgress(
     return () => clearInterval(every);
   }, [timed]);
   const seconds = areaId && events ? bladeSeconds(events, areaId, now) : 0;
-  const rate = progress && seconds > 60 && progress.doneLength > 5 ? progress.doneLength / seconds : null;
+  const rate = !leftovers && progress && seconds > 60 && progress.doneLength > 5 ? progress.doneLength / seconds : null;
   useEffect(() => {
     if (rate && seconds > 600) saveRate(rate);
   }, [rate, seconds]);
 
   return useMemo(() => {
-    if (!progress || !areaId) return null;
+    if (!areaId) return null;
+    if (leftovers) return {done: [], todo: [], doneLength: 0, todoLength: 0, fraction: 0, areaId, secondsLeft: null, leftovers: true};
+    if (!progress) return null;
     const r = rate ?? savedRate();
     return {...progress, areaId, secondsLeft: r ? progress.todoLength / r : null};
-  }, [progress, rate, areaId]);
+  }, [progress, rate, areaId, leftovers]);
 }

@@ -81,7 +81,9 @@ function MapEditor() {
   // while it mows: how far it got with the area's plan, like on the overview (the state only then, it changes every
   // second)
   const mowingState = useMowerStateValue((l) => (l.state?.current_state === 'MOWING' ? l.state : null));
-  const progress = usePlanProgress(mowingState, liveMap, undefined);
+  // (driving the leftover passes of the last mow there's no progress along the plan to draw)
+  const planProgress = usePlanProgress(mowingState, liveMap, undefined);
+  const progress = planProgress?.leftovers ? null : planProgress;
   // the mower's icon dressed like the eater on the dashboard
   const umbrella = useUmbrella(newestRun());
   const towel = useEggForced('towel');

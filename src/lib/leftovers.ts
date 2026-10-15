@@ -65,3 +65,32 @@ export async function askLeftovers(req: {jobId?: string; arm?: boolean} = {}): P
   if (req.arm) params.arm = true;
   return readLeftovers(await callRpc<Answer>(RPC.plannerLeftovers, params, 180000));
 }
+
+// the areas the MowBite Planner gave mower_logic the leftover passes for in place of their plans: it logs that when it
+// hands them out ("area <id>, the leftovers: …"), arming them alone doesn't say they're driven
+export function leftoverAreas(lines: readonly {msg: string}[]): Set<string> {
+  return new Set(lines.flatMap((l) => /area (\S+), the leftovers:/.exec(l.msg)?.[1] ?? []));
+}
+
+// whether the mower got the leftover passes for an area it started on at `since` (unix s): the planner's lines from a
+// moment before, mower_logic fetches the plan right before it starts the area. once known it isn't asked again
+const handedOut = new Map<string, Promise<boolean>>();
+export function leftoversHandedOut(areaId: string, since: number): Promise<boolean> {
+  const key = `${areaId} ${since}`;
+  let p = handedOut.get(key);
+  if (!p) {
+    p = (async () => {
+      if (!(await rpcMethods())?.has(RPC.plannerLog)) return false;
+      const a = await callRpc<{lines?: {msg: string}[]}>(RPC.plannerLog, {since: since - 10}, 20000);
+      return leftoverAreas(a?.lines ?? []).has(areaId);
+    })();
+    handedOut.set(key, p);
+    const asked = p;
+    // a no right after the start may only be early, a failed answer isn't kept
+    asked.then(
+      (yes) => !yes && Date.now() / 1000 - since < 120 && handedOut.delete(key),
+      () => handedOut.delete(key),
+    );
+  }
+  return p;
+}

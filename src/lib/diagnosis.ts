@@ -1,5 +1,6 @@
 import {describe, explain, noteworthy, OUTCOMES, withState, type MowerEvent, type Run} from './events';
 import {gpsBefore, gpsOffOnPurpose, type GpsSample} from './gpslog';
+import {leftoverAreas} from './leftovers';
 import {containsPoint, polygonArea} from './geometry';
 import type {MowerMap} from '@/hooks/useMowerMap';
 import type {RosLogLine} from './roslog';
@@ -632,13 +633,7 @@ export function buildDiagnosis(d: DiagnosisInput): string {
     }
     // the planner says so when it hands mower_logic the leftover passes in place of an area's plan. armed alone they may
     // not be driven at all (the check after a run arms them and stays in for a few)
-    const leftovers = [
-      ...new Set(
-        (d.plannerLines ?? [])
-          .filter((l) => l.t >= run.start && l.t <= run.end)
-          .flatMap((l) => /area (\S+), the leftovers:/.exec(l.msg)?.[1] ?? []),
-      ),
-    ];
+    const leftovers = [...leftoverAreas((d.plannerLines ?? []).filter((l) => l.t >= run.start && l.t <= run.end))];
     if (leftovers.length)
       out.push(
         `  the mower drove the leftover passes, not the whole plan above: ${leftovers.map((id) => `"${shownMap?.areas.find((a) => a.id === id)?.properties.name ?? id}"`).join(', ')}`,

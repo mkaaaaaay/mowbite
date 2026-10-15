@@ -230,7 +230,7 @@ export default function Home() {
   const umbrella = useUmbrella(recent?.latest[0]);
   // the preview ("eggForce" towel) shows the mow at 42 % too, so it's what one would see
   const towelPreview = useEggForced('towel');
-  const towel = towelPreview || (!!progress && Math.round(progress.fraction * 100) === 42);
+  const towel = towelPreview || (!!progress && !progress.leftovers && Math.round(progress.fraction * 100) === 42);
   // the same object while nothing changes: the map isn't drawn again for every sensor value
   const costume = useMemo(() => ({towel, umbrella}), [towel, umbrella]);
 
@@ -248,7 +248,8 @@ export default function Home() {
       warn: driving && gpsQ !== 'fix',
     });
     if (driving) facts.push({label: tr('Speed'), value: `${fmt(speed, 2)} m/s`});
-    if (progress) {
+    if (progress?.leftovers) facts.push({label: tr('Progress'), value: tr('leftovers of the last mow')});
+    else if (progress) {
       const left = progress.secondsLeft !== null ? ` · ${tr('{time} left', {time: duration(progress.secondsLeft)})}` : '';
       const pct = towelPreview ? 42 : Math.round(progress.fraction * 100);
       facts.push({label: tr('Progress'), value: `${pct} %${left}`, extra: pct === 42 ? <DontPanic /> : undefined});
