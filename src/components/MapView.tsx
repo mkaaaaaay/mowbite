@@ -6,7 +6,7 @@ import {createEaser, type Easer, type Pose} from '@/lib/poseEaser';
 import {liveGlide} from '@/hooks/useMowerPosition';
 import {containsPoint, polygonArea} from '@/lib/geometry';
 import {settingsStore, type Settings} from '@/lib/settings';
-import {bladeSeconds, bodyShape, realEdges, roundBends, swathEnd, swathGroups, swathAfter, swathTail, useMowerBody, type MowerBody, type SwathState} from '@/lib/mowerBody';
+import {bladeSeconds, bodyShape, realEdges, roundBends, swathEnd, swathGroups, swathAfter, swathTail, useMowerBody, usePlannerSettings, type MowerBody, type SwathState} from '@/lib/mowerBody';
 import type {FitPose, PlanPiece} from '@/lib/mowPlan';
 import {useSensorValue} from '@/hooks/useMowerSensors';
 import {dockIcon, drawMower, mowerIcon} from './mapIcons';
@@ -548,6 +548,7 @@ function MapView({
     followEaser.push(livePoses ? null : followed);
   }, [followEaser, followed, livePoses]);
   const body = useMowerBody();
+  const plannerSettings = usePlannerSettings();
 
   // fitted to the map only, so the geometry doesn't change while the mower moves. follow mode
   // moves the view instead
@@ -1732,6 +1733,7 @@ function MapView({
         onLayersOpen={setLayersOpen}
         body={body ? {blade: body.blade > 0} : undefined}
         planParts={!!pieces?.length}
+        planner={!!plannerSettings}
         coverage={
           coverage?.length
             ? {

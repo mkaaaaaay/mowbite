@@ -1030,6 +1030,7 @@ const de: Record<string, string> = {
   "Save the plan as a file": "Plan als Datei speichern",
   "Saving the plan…": "Speichere den Plan…",
   "The plan with what it was made from: the map, the planner's settings and OpenMower's mowing settings. For a plan that looks wrong, it can be planned again exactly the same way from it.": "Der Plan mit allem, woraus er entstanden ist: Karte, Planer-Einstellungen und Mäheinstellungen von OpenMower. Für einen Plan, der falsch aussieht: Damit lässt er sich genau so noch einmal planen.",
+  "The plan with what it was made from: the map and OpenMower's mowing settings. For a plan that looks wrong, it can be planned again exactly the same way from it.": "Der Plan mit allem, woraus er entstanden ist: Karte und Mäheinstellungen von OpenMower. Für einen Plan, der falsch aussieht: Damit lässt er sich genau so noch einmal planen.",
   "Skip this path": "Diesen Abschnitt überspringen",
   "The mower leaves the rest of the outline pass or lanes it is on and goes on with the next ones.": "Der Mäher lässt den Rest der Randrunde oder Bahnen aus, auf denen er gerade ist, und macht mit den nächsten weiter.",
   "The map stays at the top, tap to let it scroll away": "Die Karte bleibt oben stehen, antippen, damit sie mitscrollt",

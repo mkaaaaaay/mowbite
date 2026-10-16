@@ -350,7 +350,8 @@ export function AreaPlanInfo({
   onSaveCase,
 }: Props) {
   const rate = savedRate();
-  const slic3r = slic3rPlans(usePlannerSettings());
+  const plannerSettings = usePlannerSettings();
+  const slic3r = slic3rPlans(plannerSettings);
   return (
     <div className={styles.areaPlan}>
       {area.properties.active === false ? (
@@ -397,7 +398,7 @@ export function AreaPlanInfo({
           </InfoTip>
         </p>
       )}
-      {showStripes && onSaveCase && <SaveCase save={onSaveCase} />}
+      {showStripes && onSaveCase && <SaveCase save={onSaveCase} planner={!!plannerSettings} />}
       {mismatch && (
         <div className={styles.warning}>
           <p>
@@ -427,7 +428,7 @@ export function AreaPlanInfo({
 }
 
 // for a plan that looks wrong: it and everything it was made from as a file, so it can be planned again the same way
-function SaveCase({save}: {save: () => Promise<void>}) {
+function SaveCase({save, planner}: {save: () => Promise<void>; planner: boolean}) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   return (
@@ -447,7 +448,9 @@ function SaveCase({save}: {save: () => Promise<void>}) {
         {busy ? tr('Saving the plan…') : tr('Save the plan as a file')}
       </button>
       <InfoTip>
-        {tr("The plan with what it was made from: the map, the planner's settings and OpenMower's mowing settings. For a plan that looks wrong, it can be planned again exactly the same way from it.")}
+        {planner
+          ? tr("The plan with what it was made from: the map, the planner's settings and OpenMower's mowing settings. For a plan that looks wrong, it can be planned again exactly the same way from it.")
+          : tr("The plan with what it was made from: the map and OpenMower's mowing settings. For a plan that looks wrong, it can be planned again exactly the same way from it.")}
       </InfoTip>
       {error && <span className={styles.error}> {error}</span>}
     </p>

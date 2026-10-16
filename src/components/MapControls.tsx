@@ -56,6 +56,7 @@ export default function MapControls({
   follow,
   pin,
   planParts,
+  planner,
   coverage,
 }: {
   // factor < 1 zooms in
@@ -77,6 +78,8 @@ export default function MapControls({
   body?: {blade: boolean};
   // the plan shown tells its turns and drives apart, the two layers for them show
   planParts?: boolean;
+  // the MowBite Planner on the mower: where the mower came too close and what its collision check fixed, only it tells
+  planner?: boolean;
   // only when the container keeps the gps log, wifi only when it can read the signal
   coverage?: {gps: boolean; wifi: boolean; value: Coverage; onChange: (c: Coverage) => void};
   // shown when zoomed or panned, follow: the view follows the mower
@@ -175,7 +178,8 @@ export default function MapControls({
             (l) =>
               ((l.key !== 'mowerIcon' && l.key !== 'body' && l.key !== 'edges') || body) &&
               (l.key !== 'swath' || body?.blade) &&
-              ((l.key !== 'planTurns' && l.key !== 'planTransit') || planParts),
+              ((l.key !== 'planTurns' && l.key !== 'planTransit') || planParts) &&
+              ((l.key !== 'margins' && l.key !== 'checks') || planner),
           ).map((l) => (
             <label key={l.key}>
               <input type="checkbox" checked={layerOn(hidden, l.key)} onChange={() => onToggleLayer(l.key)} />
