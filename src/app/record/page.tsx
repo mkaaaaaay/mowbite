@@ -31,7 +31,7 @@ export default function RecordPage() {
   const link = useMowerState();
   const {state, connected} = link;
   const live = isLive(link);
-  const {hasAction, publishAction} = useMowerActions();
+  const {hasAction, knowsAction, publishAction} = useMowerActions();
   const map = useMowerMap();
   const params = useMowerParams();
   const position = useMowerPosition() ?? state?.pose;
@@ -74,6 +74,15 @@ export default function RecordPage() {
   const hasOutline = overlay.some((l) => l.closed && l.color === 'green');
   // no fresh state also stops it: the wifi can be gone a while before the connection counts as lost
   const canDrive = recordingMode && live && !state?.emergency;
+  // mowing by hand: in recording mode OpenMower runs the blade until it's switched off or the mode ends, also while the
+  // mower stands still
+  const bladeOn = recordingMode && hasAction(A('stop_manual_mowing'));
+  const blade = useRef({on: bladeOn, off: () => publishAction(A('stop_manual_mowing'))});
+  blade.current = {on: bladeOn, off: () => publishAction(A('stop_manual_mowing'))};
+  // after an emergency stop it would start again by itself once that's reset
+  useEffect(() => {
+    if (state?.emergency && bladeOn && live) blade.current.off();
+  }, [state?.emergency, bladeOn, live]);
 
   // stick position lives in a ref, the timer keeps sending it until the stick is let go
   const stick = useRef({x: 0, y: 0});
@@ -110,9 +119,13 @@ export default function RecordPage() {
     sendDrive(0, 0);
   }, [canDrive]);
 
-  // leaving the page or putting the phone away stops the mower
+  // leaving the page or putting the phone away stops the mower, and the blade
   useEffect(() => {
-    const hidden = () => document.hidden && stop();
+    const hidden = () => {
+      if (!document.hidden) return;
+      stop();
+      if (blade.current.on) blade.current.off();
+    };
     document.addEventListener('visibilitychange', hidden);
     return () => {
       document.removeEventListener('visibilitychange', hidden);
@@ -120,6 +133,7 @@ export default function RecordPage() {
         clearInterval(timer.current);
         sendDrive(0, 0);
       }
+      if (blade.current.on) blade.current.off();
     };
   }, []);
 
@@ -195,6 +209,11 @@ export default function RecordPage() {
             <p className={styles.dim}>
               {tr('Keep the mower in sight. It stops as soon as you let go of the stick, switch apps or lose the connection.')}
             </p>
+            {knowsAction(A('start_manual_mowing')) && (
+              <p className={styles.dim}>
+                {tr('Recording mode is also for mowing by hand: switch the blade on and drive with the stick, without recording anything.')}
+              </p>
+            )}
             <button
               className={styles.main}
               disabled={!live || !hasAction(START)}
@@ -240,6 +259,19 @@ export default function RecordPage() {
             <section className={styles.card}>
               <p>{text}</p>
               <div className={styles.buttons}>{buttons}</div>
+              {knowsAction(A('start_manual_mowing')) && (
+                <div className={styles.buttons}>
+                  {button('start_manual_mowing', 'Blade on')}
+                  {button('stop_manual_mowing', 'Blade off', 'danger')}
+                </div>
+              )}
+              {bladeOn && (
+                <p className={styles.warn}>
+                  {tr(
+                    'The blade is turning, also while the mower stands still. It goes off when you switch it off, leave this page or the app. If the connection drops, it keeps turning: then press the stop button on the mower.',
+                  )}
+                </p>
+              )}
               <div className={styles.speeds}>
                 <span className={styles.dim}>{tr('Speed m/s')}</span>
                 {SPEEDS.map((v, i) => (

@@ -1255,6 +1255,10 @@ const de: Record<string, string> = {
   "How far in front of the dock the mower lines up before it drives in.": "Wie weit vor dem Dock sich der Mäher ausrichtet, bevor er einfährt.",
   "Shows the last run ({when}) until the next one starts.": "Zeigt die letzte Fahrt ({when}), bis die nächste startet.",
   "The mow motor reached mower_logic/motor_hot_temperature. Once it's down to motor_cold_temperature it mows on by itself in semi-automatic or automatic mode, otherwise it waits for a start.": "Der Mähmotor hat mower_logic/motor_hot_temperature erreicht. Ist er auf motor_cold_temperature abgekühlt, mäht er im halb- oder vollautomatischen Modus von selbst weiter, sonst wartet er auf einen Start.",
+  "Recording mode is also for mowing by hand: switch the blade on and drive with the stick, without recording anything.": "Im Aufnahmemodus kannst du auch von Hand mähen: Messer an und mit dem Joystick fahren, ohne etwas aufzunehmen.",
+  "Blade on": "Messer an",
+  "Blade off": "Messer aus",
+  "The blade is turning, also while the mower stands still. It goes off when you switch it off, leave this page or the app. If the connection drops, it keeps turning: then press the stop button on the mower.": "Das Messer dreht sich, auch wenn der Mäher steht. Es geht aus, wenn du es ausschaltest oder diese Seite oder die App verlässt. Bricht die Verbindung ab, dreht es weiter: Dann am Mäher die Stopptaste drücken.",
 };
 
 export default de;
