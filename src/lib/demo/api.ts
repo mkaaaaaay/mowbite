@@ -104,6 +104,41 @@ function batteryHistory(): string {
   return lines.join('\n');
 }
 
+// what stats.sh counts, from the demo mows: blade time and 0.3 m/s with the blade by the hour, 40 m without a run.
+// the blades two thirds through their hours
+let parts: string[] | null = null;
+function demoStats(): {text: string; blade: number} {
+  const now = Date.now() / 1000;
+  const hours = new Map<number, number[]>();
+  let since = now;
+  for (const m of demoMows()) {
+    since = Math.min(since, m.start);
+    for (let t = m.start; t < Math.min(m.end, now); ) {
+      const h = t - (t % 3600);
+      const until = Math.min(m.end, now, h + 3600);
+      const v = hours.get(h) ?? [0, 0, 0, 0];
+      v[0] += until - t;
+      v[1] += (until - t) * 0.3;
+      if (t === m.start) {
+        v[2] += 40;
+        v[3] += 1;
+      }
+      hours.set(h, v);
+      t = until;
+    }
+  }
+  const total = [...hours.values()].reduce((a, v) => a.map((x, i) => x + v[i]), [0, 0, 0, 0]);
+  parts ??= [`blade 80 ${Math.max(0, total[0] - 0.65 * 80 * 3600).toFixed(1)} ${Math.round(now - 9 * 86400)}`, 'clean 200 0 0'];
+  const line = (v: number[]) => `${v[0].toFixed(1)} ${v[1].toFixed(1)} ${v[2].toFixed(1)} ${v[3]}`;
+  const text = [
+    `since ${Math.round(since)}`,
+    `total ${line(total)}`,
+    ...[...hours].sort((a, b) => a[0] - b[0]).map(([h, v]) => `hour ${Math.round(h)} ${line(v)}`),
+    ...parts.map((p) => `maint ${p}`),
+  ].join('\n');
+  return {text, blade: total[0]};
+}
+
 const SYSTEM = [
   'remote 0',
   'mem_total 3976200192',
@@ -116,6 +151,10 @@ const SYSTEM = [
   'cpus 4',
   'cpu_temp 48.7',
   `uptime ${6 * 86400 + 4 * 3600}`,
+  'wifi_iface wlan0',
+  'wifi_signal -58',
+  'net_iface wlan0',
+  'net_ip 192.168.178.42',
 ].join('\n');
 
 export async function demoFetch(url: string, init?: RequestInit): Promise<Response> {
@@ -181,6 +220,19 @@ export async function demoFetch(url: string, init?: RequestInit): Promise<Respon
       return text(batteryHistory());
     case '/cgi-bin/system':
       return text(SYSTEM);
+    case '/cgi-bin/stats': {
+      const {blade} = demoStats();
+      const part = q.get('done') ?? q.get('due');
+      if (post && part && parts) {
+        parts = parts.map((p) => {
+          const f = p.split(' ');
+          if (f[0] !== part) return p;
+          if (q.has('done')) return `${f[0]} ${f[1]} ${blade.toFixed(1)} ${Math.round(Date.now() / 1000)}`;
+          return `${f[0]} ${Math.round(Number(q.get('h')))} ${f[2]} ${f[3]}`;
+        });
+      }
+      return text(demoStats().text);
+    }
     default:
       // the kept ros log among others: the demo mower has none
       return missing();

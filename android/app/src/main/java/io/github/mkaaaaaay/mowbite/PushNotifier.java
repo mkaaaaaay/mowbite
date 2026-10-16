@@ -80,7 +80,9 @@ final class PushNotifier {
         String phase = m.optString("phase", "new");
         // a test comes the way a problem does: whether that reaches you is what it's for
         boolean problem = (m.optBoolean("problem", false) || "test".equals(m.optString("kind"))) && !"clear".equals(phase);
-        String channel = !problem ? INFO : "again".equals(phase) ? REMINDERS : PROBLEMS;
+        // a part due for maintenance (blades, cleaning) is a reminder too
+        boolean maintenance = m.optString("kind").startsWith("maintenance");
+        String channel = maintenance || (problem && "again".equals(phase)) ? REMINDERS : !problem ? INFO : PROBLEMS;
         String api = m.optString("api", "");
         // one message per mower and kind of problem or news, a newer one takes its place
         int id = (api + " " + m.optString("kind", "info")).hashCode();

@@ -9,6 +9,7 @@ import {eventsOfDay, historyDays, localDays, type DayEvents} from '@/lib/history
 import {RosLogAround} from '@/components/RosLog';
 import {GpsAround} from '@/components/GpsLog';
 import {DiagnosisDownload} from '@/components/Diagnosis';
+import MowingStats from '@/components/MowingStats';
 import Link from 'next/link';
 import {useEffect, useState} from 'react';
 import styles from './page.module.css';
@@ -287,6 +288,8 @@ export default function ActivityPage() {
           <TitleMark />
           {tr('Activity')}
         </h1>
+
+        <MowingStats />
 
         {failed && !events && (
           <p className={styles.dim}>{tr("No event history: the mower can't be reached, or its OpenMower doesn't keep one yet.")}</p>

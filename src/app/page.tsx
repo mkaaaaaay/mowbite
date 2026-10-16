@@ -16,6 +16,8 @@ import {useMowerSensors, type SensorInfo} from '@/hooks/useMowerSensors';
 import {useMowerPosition} from '@/hooks/useMowerPosition';
 import {isLive, useMowerState, type MowerState} from '@/hooks/useMowerState';
 import {useMowerTrack} from '@/hooks/useMowerTrack';
+import {useMowerWifi} from '@/hooks/useMowerWifi';
+import {wifiLevel} from '@/lib/coverage';
 import {usePlanProgress} from '@/hooks/usePlanProgress';
 import {useRecentRuns} from '@/hooks/useRecentRuns';
 import {useWeather} from '@/hooks/useWeather';
@@ -23,7 +25,7 @@ import WeatherIcon, {WEATHER_LABELS, weatherKind} from '@/components/WeatherIcon
 import {clock, dayKey, dayLabel, duration} from '@/lib/dates';
 import {emergencyText, OUTCOMES, type MowerEvent, type Run} from '@/lib/events';
 import {settingsStore} from '@/lib/settings';
-import {batteryColor, GPS_QUALITY_LABEL, gpsQuality, isDocked} from '@/lib/status';
+import {batteryColor, GPS_QUALITY_LABEL, gpsQuality, isDocked, WIFI_LEVEL_LABEL} from '@/lib/status';
 import Link from 'next/link';
 import {memo, useEffect, useMemo, useState, useSyncExternalStore} from 'react';
 import styles from './page.module.css';
@@ -168,6 +170,7 @@ export default function Home() {
   // the same object while params/json doesn't change: the map isn't drawn again for every sensor value
   const datum = useMemo(() => datumFromParams(params), [params]);
   const weather = useWeather(datum, !!settings.weather);
+  const wifi = useMowerWifi();
   const [schedule, setSchedule] = useState<Schedule | null>(() => cachedSchedule() ?? null);
   // the scheduler's log, for a start it left out (rain, battery, ...). again every minute while the page is open
   const [scheduleLog, setScheduleLog] = useState<LogEntry[]>(() => cachedScheduleLog() ?? []);
@@ -257,6 +260,11 @@ export default function Home() {
     if (charging && num('om_charge_current') !== undefined) facts.push({label: tr('Charging'), value: `${fmt(num('om_charge_current')!, 1)} A`});
     if (num('om_v_battery') !== undefined) facts.push({label: tr('Battery'), value: `${fmt(num('om_v_battery')!, 1)} V`});
     if (state.rain_detected) facts.push({label: tr('Rain'), value: tr('detected'), warn: true});
+  }
+  // the app and the correction data for gps come over it
+  if (state && wifi !== undefined) {
+    const level = wifiLevel(wifi);
+    facts.push({label: tr('Wi-Fi'), value: `${wifi} dBm · ${tr(WIFI_LEVEL_LABEL[level])}`, warn: level === 'bad'});
   }
 
   const runs = recent?.runs ?? [];

@@ -34,7 +34,8 @@ COPY --chmod=755 docker/roslog.cgi /www/cgi-bin/roslog
 COPY --chmod=755 docker/gpslog.cgi /www/cgi-bin/gpslog
 COPY --chmod=755 docker/plannerlog.cgi /www/cgi-bin/plannerlog
 COPY --chmod=755 docker/backups.cgi /www/cgi-bin/backups
-COPY --chmod=755 docker/recorder.sh docker/scheduler.sh docker/logkeeper.sh docker/gpslog.sh docker/system.sh docker/battery.sh /
+COPY --chmod=755 docker/stats.cgi /www/cgi-bin/stats
+COPY --chmod=755 docker/recorder.sh docker/scheduler.sh docker/logkeeper.sh docker/gpslog.sh docker/system.sh docker/battery.sh docker/stats.sh /
 COPY --chmod=755 docker/schedule.cgi /www/cgi-bin/schedule
 COPY --chmod=755 docker/notify.cgi /www/cgi-bin/notify
 COPY --chmod=755 docker/notify.sh /
@@ -45,6 +46,7 @@ COPY docker/broker.sh /broker.sh
 COPY docker/openmower.sh /openmower.sh
 COPY docker/recorder.awk /recorder.awk
 COPY docker/battery.awk /battery.awk
+COPY docker/stats.awk /stats.awk
 COPY docker/httpd.conf /etc/httpd.conf
 COPY docker/entrypoint.sh /entrypoint.sh
 # empty, writable settings dir. no RUN in this stage, so building for arm on a pc needs no emulation

@@ -39,9 +39,10 @@ export function gpsGrade(c: CoverageCell): Grade {
 }
 
 // below about -75 dBm the connection (and with it NTRIP and the app) starts to drop out
+export const wifiLevel = (dbm: number): Grade => (dbm >= -67 ? 'good' : dbm >= -75 ? 'ok' : 'bad');
+
 export function wifiGrade(c: CoverageCell): Grade | null {
-  if (c.wifi === null) return null;
-  return c.wifi >= -67 ? 'good' : c.wifi >= -75 ? 'ok' : 'bad';
+  return c.wifi === null ? null : wifiLevel(c.wifi);
 }
 
 let asked: {at: number; cells: Promise<CoverageCell[] | null>} | null = null;

@@ -63,3 +63,6 @@ export function gpsQuality(accuracy: number | undefined, limit = 0.2): GpsQualit
 
 export const GPS_QUALITY_LABEL: Record<GpsQuality, string> = {none: 'no fix', fix: 'RTK fix', float: 'float', poor: 'too inaccurate'};
 
+// the wifi by its signal (coverage.ts wifiLevel), the words of the coverage layer
+export const WIFI_LEVEL_LABEL = {good: 'strong', ok: 'medium', bad: 'weak'} as const;
+

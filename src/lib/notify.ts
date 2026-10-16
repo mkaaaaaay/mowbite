@@ -13,6 +13,7 @@ export const NOTIFY_EVENTS = [
   {key: 'done', label: 'Done mowing', problem: false},
   {key: 'rain', label: 'Going home for rain', problem: false},
   {key: 'battery', label: 'Going home to charge', problem: false},
+  {key: 'maintenance', label: 'Maintenance due (blades, cleaning)', problem: false},
 ] as const;
 export type NotifyEvent = (typeof NOTIFY_EVENTS)[number]['key'];
 
@@ -52,7 +53,7 @@ export const defaultNotify = (lang: 'de' | 'en', url: string, name = ''): Notify
   lang,
   name,
   url,
-  events: NOTIFY_EVENTS.filter((e) => e.problem).map((e) => e.key),
+  events: NOTIFY_EVENTS.filter((e) => e.problem || e.key === 'maintenance').map((e) => e.key),
   remind: 30,
   emergencyWait: 10,
   snooze: 0,

@@ -1,1 +1,3 @@
-[{"key": "phones", "level": 1, "what": "messages on this phone with MowBite's icon"}]
+[{"key": "phones", "level": 1, "what": "messages on this phone with MowBite's icon"},
+ {"key": "stats", "level": 2, "what": "mowing hours, maintenance and its push messages"},
+ {"key": "wifi", "level": 2, "what": "the mower's wifi signal"}]

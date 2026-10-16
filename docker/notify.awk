@@ -3,10 +3,11 @@
 # app shows those itself). what's sent comes from CONF (notify.cgi writes it), read again every half minute:
 #   topic, push (a phone's address, a line each), lang (de/en), name (of the mower), url (where MowBite is, for its
 #   button and a tap on the message),
-#   events (which of: emergency, dock_failed, undock_failed, nav_error, spinup, done, rain, battery),
+#   events (which of: emergency, dock_failed, undock_failed, nav_error, spinup, done, rain, battery, maintenance),
 #   remind (minutes between reminders while the mower can't get on by itself, 0: none),
 #   emergency_wait (seconds an emergency stop has to last before it's told, 10 unless set), enabled (0: switched off)
-# and SNOOZE: until when (unix time) there are no reminders.
+# and SNOOZE: until when (unix time) there are no reminders. STATS: where stats.sh counts the blade hours, a part
+# whose maintenance is due is told once, until it's done again (STATS/reminded keeps which were told).
 # the emergency stop comes from robot_state, a stop button, lifting or a bumper don't come as events. it only counts once
 # it lasted emergency_wait seconds: a bumper touched while docking clears itself.
 # sent home in the middle of a path OpenMower also reports a navigation error, so one only counts when no docking
@@ -126,6 +127,29 @@ function info(kind, title, msg, tags) {
   if (on(kind)) send(kind, "new", title, msg, 3, tags)
 }
 
+# the parts due for maintenance by the blade hours, each once until it's seen to again
+function maintenance(   line, p, total, h, k) {
+  maint_t = t
+  if (!STATS || !on("maintenance")) return
+  if ((getline line < (STATS "/state")) <= 0) { close(STATS "/state"); return }
+  close(STATS "/state")
+  split(line, p, " ")
+  total = p[2] + 0
+  while ((getline line < (STATS "/maint")) > 0) {
+    split(line, p, " ")
+    if (p[2] + 0 <= 0 || total - p[3] < p[2] * 3600 || (p[1] in reminded && reminded[p[1]] == p[4])) continue
+    h = int((total - p[3]) / 3600)
+    if (p[1] == "blade") send("maintenance_blade", "new", tx("Change the blades", "Messer wechseln"), tx(who() " has mowed " h " h since the blades were last changed.", who() " hat seit dem letzten Messerwechsel " h " h gemäht."), 3, "wrench")
+    else if (p[1] == "clean") send("maintenance_clean", "new", tx("Time for a clean", "Zeit zum Reinigen"), tx(who() " has mowed " h " h since it was last cleaned: underside, wheels and charging contacts.", who() " hat seit der letzten Reinigung " h " h gemäht: Unterseite, Räder und Ladekontakte."), 3, "broom")
+    else continue
+    reminded[p[1]] = p[4]
+    printf "" > (STATS "/reminded")
+    for (k in reminded) print k, reminded[k] >> (STATS "/reminded")
+    close(STATS "/reminded")
+  }
+  close(STATS "/maint")
+}
+
 BEGIN {
   CONF = ENVIRON["CONF"]
   SNOOZE = ENVIRON["SNOOZE"]
@@ -133,6 +157,14 @@ BEGIN {
   NAV_WAIT = 3
   # the emergency stop a failed mow motor start puts it in
   SPINUP_WAIT = 15
+  STATS = ENVIRON["STATS"]
+  if (STATS) {
+    while ((getline line < (STATS "/reminded")) > 0) {
+      split(line, p, " ")
+      reminded[p[1]] = p[2]
+    }
+    close(STATS "/reminded")
+  }
 }
 
 {
@@ -141,6 +173,7 @@ BEGIN {
   json = $0
   sub(/^[^ ]+ [^ ]+ /, "", json)
   if (!conf_t || t - conf_t >= 30) readconf()
+  if (t - maint_t >= 300) maintenance()
 
   if (topic_in ~ /robot_state\/json$/) {
     e = field(json, "emergency")

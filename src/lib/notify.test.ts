@@ -21,8 +21,8 @@ describe('push message settings', () => {
     expect(c.hasToken).toBe(true);
     expect(c.token).toBe('');
     expect(c.snooze).toBe(1700000000);
-    // not saved yet: the problems by default
-    expect(parseNotify('', fallback).events).toEqual(['emergency', 'dock_failed', 'undock_failed', 'nav_error', 'spinup']);
+    // not saved yet: the problems and maintenance by default
+    expect(parseNotify('', fallback).events).toEqual(['emergency', 'dock_failed', 'undock_failed', 'nav_error', 'spinup', 'maintenance']);
     // saved with none picked
     expect(parseNotify('topic t\n', fallback).events).toEqual([]);
   });
@@ -30,7 +30,7 @@ describe('push message settings', () => {
   it('writes lines the cgi keeps, a token only when one was typed or is to go', () => {
     const c = {...fallback, topic: 'mowbite-abc', name: 'Ste"ve\\', server: 'https://ntfy.example.org/'};
     expect(serializeNotify(c)).toBe(
-      'enabled 1\nserver https://ntfy.example.org\ntopic mowbite-abc\nlang de\nname Steve\nurl http://openmower:8082\nevents emergency,dock_failed,undock_failed,nav_error,spinup\nremind 30\nemergency_wait 10',
+      'enabled 1\nserver https://ntfy.example.org\ntopic mowbite-abc\nlang de\nname Steve\nurl http://openmower:8082\nevents emergency,dock_failed,undock_failed,nav_error,spinup,maintenance\nremind 30\nemergency_wait 10',
     );
     expect(serializeNotify({...c, token: 'tk_secret'})).toContain('\ntoken tk_secret\n');
     expect(serializeNotify({...c, token: '-'})).toContain('\ntoken -\n');
@@ -113,6 +113,32 @@ describe('what the container sends', () => {
     expect(run(state(100, 1), 'lang en\n')).toEqual([]);
     // switched off, the rest kept
     expect(run(input, 'enabled 0\n' + conf.replace('spinup', 'spinup,done,rain'))).toEqual([]);
+  });
+
+  it('tells once when a part is due by its blade hours, again only after it was done', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'notify-'));
+    writeFileSync(join(dir, 'conf'), conf.replace('spinup', 'spinup,maintenance'));
+    writeFileSync(join(dir, 'state'), '100 300000.0 1.0 1.0 3 0 0 0 0 0\n');
+    writeFileSync(join(dir, 'maint'), 'blade 80 0 0\nclean 200 0 0\n');
+    const told = (c = 'conf') =>
+      spawnSync('awk', ['-f', 'docker/notify.awk'], {
+        input: state(1000, 0) + state(1400, 0),
+        env: {...process.env, CONF: join(dir, c), SNOOZE: '', STATS: dir},
+      })
+        .stdout.toString()
+        .split('\n')
+        .filter((l) => l.startsWith('ntfy '))
+        .map((l) => JSON.parse(l.slice(5)).message);
+    expect(told()).toEqual(['Steve has mowed 83 h since the blades were last changed.']);
+    // once, also after a restart
+    expect(told()).toEqual([]);
+    // changed: due again after another 80 h
+    writeFileSync(join(dir, 'maint'), 'blade 80 300000.0 2000\nclean 200 0 0\n');
+    expect(told()).toEqual([]);
+    writeFileSync(join(dir, 'state'), '100 600000.0 1.0 1.0 3 0 0 0 0 0\n');
+    writeFileSync(join(dir, 'off'), conf);
+    expect(told('off')).toEqual([]);
+    expect(told()).toEqual(['Steve has mowed 83 h since the blades were last changed.']);
   });
 
   it('sends the same to the phones signed up in the app, also without a topic', () => {

@@ -4,6 +4,8 @@ import {TempGauge} from '@/components/gauges';
 import Sparkline from '@/components/Sparkline';
 import type {Sample} from '@/hooks/useSensorHistory';
 import {fmt, tr} from '@/lib/i18n';
+import {wifiLevel} from '@/lib/coverage';
+import {WIFI_LEVEL_LABEL} from '@/lib/status';
 import {loadSystem, type SystemInfo} from '@/lib/system';
 import {useEffect, useState} from 'react';
 import styles from './page.module.css';
@@ -86,6 +88,25 @@ export default function System({history}: {history: Record<string, Sample[] | un
             <strong className={styles.big}>{fmt(sys.load, 2)}</strong>
             {sys.cpus !== undefined && <span className={styles.dim}>{tr('{n} cores, full load is {n}', {n: sys.cpus})}</span>}
             <Sparkline samples={history.sys_load} digits={2} minSpan={1} />
+          </div>
+        )}
+        {(sys.wifiSignal !== undefined || sys.netIp) && (
+          <div className={styles.card}>
+            <span className={styles.cardLabel}>{sys.wifiSignal !== undefined ? tr('Wi-Fi') : tr('Network')}</span>
+            {sys.wifiSignal !== undefined && (
+              <>
+                <strong className={[styles.big, wifiLevel(sys.wifiSignal) === 'bad' ? styles.error : ''].join(' ')}>
+                  {sys.wifiSignal} dBm
+                </strong>
+                <span className={styles.dim}>{tr(WIFI_LEVEL_LABEL[wifiLevel(sys.wifiSignal)])}</span>
+              </>
+            )}
+            {sys.netIp && (
+              <span className={styles.dim}>
+                {sys.netIface} · {sys.netIp}
+              </span>
+            )}
+            {sys.wifiSignal !== undefined && <Sparkline samples={history.sys_wifi} digits={0} unit="dBm" minSpan={10} />}
           </div>
         )}
         {sys.uptime !== undefined && (

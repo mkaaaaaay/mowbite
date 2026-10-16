@@ -21,3 +21,30 @@ for z in /sys/class/thermal/thermal_zone*; do
   case "$(cat "$z/type" 2>/dev/null)" in *cpu* | *soc* | *CPU*) t=$z/temp; break ;; esac
 done
 [ -n "$t" ] && awk '{ print "cpu_temp", $1 / 1000 }' "$t"
+# the mower's own network, from its /proc/net (/proc/1/net mounted at /host-net, compose.yaml): the signal of the first
+# wifi interface in dBm (some drivers count it from 0), the interface the default route goes out on and its address
+N=/host-net
+[ -r "$N/wireless" ] && awk 'NR > 2 && $1 ~ /:$/ {
+  sub(/:$/, "", $1); w = $4 + 0; if (w > 0) w -= 256
+  print "wifi_iface", $1; print "wifi_signal", w; exit
+}' "$N/wireless"
+[ -r "$N/route" ] && [ -r "$N/fib_trie" ] && awk '
+  function hex(s,    i, n) { for (i = 1; i <= length(s); i++) n = n * 16 + index("0123456789ABCDEF", toupper(substr(s, i, 1))) - 1; return n }
+  # the routing table keeps addresses as little endian hex
+  function le(s) { return hex(substr(s, 7, 2) substr(s, 5, 2) substr(s, 3, 2) substr(s, 1, 2)) }
+  function ip(s,    a) { split(s, a, "."); return ((a[1] * 256 + a[2]) * 256 + a[3]) * 256 + a[4] }
+  FILENAME ~ /route$/ {
+    if (FNR == 1) next
+    if ($2 == "00000000") { if (dev == "" || $7 + 0 < metric) { dev = $1; metric = $7 + 0 } }
+    else { n++; net[n] = $1; dest[n] = le($2); mask[n] = le($8) }
+    next
+  }
+  # an address line, then what it is: "/32 host LOCAL" is an address of this machine
+  $1 == "|--" { addr = $2; next }
+  /\/32 host LOCAL/ && addr != "" { own[addr] = 1 }
+  END {
+    if (dev == "") exit
+    print "net_iface", dev
+    for (a in own) for (i = 1; i <= n; i++)
+      if (net[i] == dev && and(ip(a), mask[i]) == dest[i]) { print "net_ip", a; exit }
+  }' "$N/route" "$N/fib_trie"

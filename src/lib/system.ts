@@ -14,6 +14,12 @@ export interface SystemInfo {
   cpus?: number;
   cpuTemp?: number; // °C
   uptime?: number; // s
+  // the mower's network (from its /proc/net, compose.yaml mounts it): the signal of its wifi in dBm, the interface the
+  // default route goes out on and its address
+  wifiIface?: string;
+  wifiSignal?: number;
+  netIface?: string;
+  netIp?: string;
 }
 
 export function parseSystem(text: string): SystemInfo {
@@ -38,6 +44,10 @@ export function parseSystem(text: string): SystemInfo {
     cpus: num('cpus'),
     cpuTemp: num('cpu_temp'),
     uptime: num('uptime'),
+    wifiIface: v.wifi_iface?.[0],
+    wifiSignal: num('wifi_signal'),
+    netIface: v.net_iface?.[0],
+    netIp: v.net_ip?.[0],
   };
 }
 

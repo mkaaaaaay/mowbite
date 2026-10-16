@@ -14,6 +14,7 @@ while :; do
         /system.sh | awk -v t="$(date +%s)" '
           $1 == "mem_total" { mt = $2 } $1 == "mem_available" { ma = $2 } $1 == "disk_free" { print t, "sensors/sys_disk_free/data", $2 / 1e9 }
           $1 == "cpu_temp" { print t, "sensors/sys_cpu_temp/data", $2 } $1 == "load" { print t, "sensors/sys_load/data", $2 }
+          $1 == "wifi_signal" { print t, "sensors/sys_wifi/data", $2 }
           END { if (mt) print t, "sensors/sys_mem/data", (mt - ma) / mt * 100 }'
         sleep 60
       done &

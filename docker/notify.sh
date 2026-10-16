@@ -69,7 +69,7 @@ while :; do
     # shellcheck disable=SC2086
     mosquitto_sub -h "$host" -p "$PORT" $AUTH -F '%U %t %p' \
       -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -t "${MOWER_MQTT_PREFIX}$TOPIC_EVENTS" |
-      CONF="$C" SNOOZE=/data/notify.snooze awk -f /notify.awk | while IFS= read -r m; do send "$m"; done
+      CONF="$C" SNOOZE=/data/notify.snooze STATS=/data/stats awk -f /notify.awk | while IFS= read -r m; do send "$m"; done
   fi
   sleep 30
 done

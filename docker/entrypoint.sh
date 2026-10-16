@@ -10,6 +10,8 @@ printf 'window.__MOWER_CONFIG__ = {mqttUrl: "%s", mqttPrefix: "%s"};\n' \
 /logkeeper.sh &
 /gpslog.sh &
 /battery.sh &
+# mowing hours, distance and runs, and the blade hours the maintenance counts from
+/stats.sh &
 # push messages, only once a topic is set on the settings page
 /notify.sh &
 # sets what the app changed on the mower again after the mower restarts
