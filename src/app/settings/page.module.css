@@ -31,17 +31,20 @@
   color: var(--accent);
 }
 
-/* a few cards that belong together, folding away (on a phone they start folded) */
-.group > summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
+/* a few cards that belong together, folding away (on a phone they start folded). open, the cards sit inside it */
+.group {
   border-radius: 14px;
   border: 1px solid var(--card-border);
   background: var(--card);
   box-shadow: var(--card-shadow, none);
   backdrop-filter: var(--card-blur, none);
+}
+
+.group > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
@@ -80,8 +83,21 @@
 .groupBody {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  margin-top: 12px;
+  gap: 10px;
+  padding: 0 10px 10px;
+}
+
+.groupBody > .dim {
+  padding: 0 6px;
+}
+
+/* plainer inside the group, it's the card around them */
+.group .card {
+  border-radius: 10px;
+  border-color: transparent;
+  background: rgba(128, 128, 128, 0.08);
+  box-shadow: none;
+  backdrop-filter: none;
 }
 
 .card {
