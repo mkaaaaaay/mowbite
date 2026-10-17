@@ -11,8 +11,8 @@ export interface ArtProps {
   dock: Dock;
 }
 
-const STONE = '#8f8778';
-const ROOF = '#aeb3bd';
+export const STONE = '#8f8778';
+export const ROOF = '#aeb3bd';
 const LINE = 2.2;
 const FILL = 0.28;
 
@@ -60,7 +60,7 @@ function Drawn({d, color, dur, t0, t1, fill, f0, f1, dash}: {d: string; color: s
   );
 }
 
-function Lawn({d = LAWN}: {d?: string}) {
+export function Lawn({d = LAWN}: {d?: string}) {
   const id = useId();
   return (
     <>
@@ -75,7 +75,7 @@ function Lawn({d = LAWN}: {d?: string}) {
   );
 }
 
-function Tree({x, y}: {x: number; y: number}) {
+export function Tree({x, y}: {x: number; y: number}) {
   return (
     <g>
       <ellipse cx={x + 5} cy={y + 6} rx={19} ry={15} fill="#000" opacity={0.2} />
