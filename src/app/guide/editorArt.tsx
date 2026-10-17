@@ -1,6 +1,7 @@
 'use client';
 
 import {CheckIcon, MergeIcon, ScissorsIcon, SimplifyIcon, TrashIcon} from '@/components/icons';
+import {useId} from 'react';
 import {anim, Lawn, ROOF, Scene, STONE, Tree} from './art';
 
 // the drawings of the editor guide: the garden from above with the map on it, as the editor shows it over the aerial
@@ -70,22 +71,52 @@ function Dot({x, y, r = 3.6}: {x: number; y: number; r?: number}) {
   return <circle cx={x} cy={y} r={r} fill={VERTEX} stroke="#fff" strokeWidth={1.3} />;
 }
 
-// a hand from below, the fingertip at its origin: where it goes over the loop
-function Hand({dur, times, at, show}: {dur: number; times: number[]; at: P[]; show: [number, number]}) {
+// a pointing hand, the tip of the index finger at its origin, the other fingers curled and the thumb out to the side
+const HAND =
+  'M-5 23 L-5 5 A5 5 0 0 1 5 5 L5 18 Q5 14 9 14 Q13 14 13 18 Q13 16 16.5 16 Q20 16 20 20 Q20.5 18.5 23 19.5 ' +
+  'Q26 21 25.5 25 L25 37 Q24 47 15 51 L2 51 Q-6 49 -8 41 L-14 34 Q-17 30 -13 28 L-6 32 Z';
+
+// press: the stretches of the loop it touches the screen, pushed in a little meanwhile
+function Hand({dur, times, at, show, press}: {dur: number; times: number[]; at: P[]; show: [number, number]; press: [number, number][]}) {
+  const id = useId();
+  const keys = [0];
+  const scale = [1];
+  for (const [a, b] of press) {
+    keys.push(a - 0.012, a, b, b + 0.012);
+    scale.push(1, 0.88, 0.88, 1);
+  }
+  keys.push(1);
+  scale.push(1);
   return (
     <g opacity={0}>
+      <defs>
+        <linearGradient id={`${id}f`} x1="0" y1="0" x2="0.4" y2="1">
+          <stop offset="0" stopColor="#ffffff" />
+          <stop offset="1" stopColor="#dfe5eb" />
+        </linearGradient>
+        <filter id={`${id}s`} x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation={1.8} />
+        </filter>
+      </defs>
       <animateTransform attributeName="transform" type="translate" dur={`${dur}s`} repeatCount="indefinite" keyTimes={times.join(';')} values={at.map(([x, y]) => `${x} ${y}`).join(';')} />
       {anim('opacity', dur, [0, show[0], show[0] + 0.03, show[1], show[1] + 0.03, 1], [0, 0, 1, 1, 0, 0])}
-      <g transform="rotate(-18)">
-        <rect x={-6} y={18} width={30} height={40} rx={12} fill="#fff" stroke="#7d8790" strokeWidth={1.2} />
-        <rect x={-6} y={-2} width={12} height={36} rx={6} fill="#fff" stroke="#7d8790" strokeWidth={1.2} />
-        <rect x={-3.5} y={0.5} width={7} height={7} rx={3} fill="#e8edf2" />
-        <path d="M-3 22 H3" stroke="#c3cad1" strokeWidth={1} strokeLinecap="round" />
-        <path d="M8 22 Q13 19 18 22 M8 30 Q14 27 20 30" stroke="#c3cad1" strokeWidth={1} fill="none" strokeLinecap="round" />
+      <g>
+        <animateTransform attributeName="transform" type="scale" dur={`${dur}s`} repeatCount="indefinite" keyTimes={keys.join(';')} values={scale.join(';')} />
+        <g transform="rotate(-15) scale(0.9)">
+          <path d={HAND} transform="translate(3 5)" fill="#000" opacity={0.3} filter={`url(#${id}s)`} />
+          <path d={HAND} fill={`url(#${id}f)`} stroke="#56616c" strokeWidth={1.3} strokeLinejoin="round" />
+          <path d="M-3 6 Q-3 2.2 0 2.2 Q3 2.2 3 6 L3 9 Q0 10.5 -3 9 Z" fill="#f6f8fa" stroke="#c4ccd4" strokeWidth={0.7} />
+          <path d="M-3 15 Q0 16.5 3 15" stroke="#bcc5ce" strokeWidth={0.9} fill="none" strokeLinecap="round" />
+          <path d="M13 18 Q13.6 21 12.6 24.5 M20 20 Q20.6 23 19.6 26.5" stroke="#bcc5ce" strokeWidth={0.9} fill="none" strokeLinecap="round" />
+          <path d="M-7.5 34.5 Q-9.5 36 -10.5 38" stroke="#bcc5ce" strokeWidth={0.9} fill="none" strokeLinecap="round" />
+        </g>
       </g>
     </g>
   );
 }
+
+// a tap at t of the loop, and how long the finger stays down for it
+const taps = (...ts: number[]): [number, number][] => ts.map((t) => [t - 0.005, t + 0.03]);
 
 function Tap({x, y, dur, at}: {x: number; y: number; dur: number; at: number}) {
   return (
@@ -195,7 +226,7 @@ function Select() {
         ))}
       </g>
       <Bar dur={dur} upAt={0.33} />
-      <Hand dur={dur} times={[0, 0.2, 1]} at={[[300, 215], [104, 118], [104, 118]]} show={[0.02, 0.4]} />
+      <Hand dur={dur} times={[0, 0.2, 1]} at={[[300, 215], [104, 118], [104, 118]]} show={[0.02, 0.4]} press={taps(0.22)} />
       <Tap x={104} y={118} dur={dur} at={0.22} />
     </Scene>
   );
@@ -251,6 +282,7 @@ function Points() {
         times={[0, 0.1, 0.27, 0.32, 0.42, 0.6, 0.66, 0.72, 0.78, 0.81, 0.9, 1]}
         at={[[300, 215], base[5], [82, 146], [82, 146], base[2], [145, 42], [145, 42], base[7], base[7], bin, bin, bin]}
         show={[0.01, 0.88]}
+        press={[[0.1, 0.27], [0.42, 0.6], ...taps(0.73, 0.82)]}
       />
       <Tap x={base[7][0]} y={base[7][1]} dur={dur} at={0.73} />
       <Tap x={bin[0]} y={bin[1]} dur={dur} at={0.82} />
@@ -294,7 +326,7 @@ function Split() {
           <Area pts={RIGHT_PART} />
         </g>
       </g>
-      <Hand dur={dur} times={[0, 0.1, 0.16, 0.25, 0.32, 0.4, 0.47, 0.56, 1]} at={[[300, 215], toolAt(0), toolAt(0), CUT[0], CUT[0], CUT[1], CUT[1], APPLY, APPLY]} show={[0.01, 0.64]} />
+      <Hand dur={dur} times={[0, 0.1, 0.16, 0.25, 0.32, 0.4, 0.47, 0.56, 1]} at={[[300, 215], toolAt(0), toolAt(0), CUT[0], CUT[0], CUT[1], CUT[1], APPLY, APPLY]} show={[0.01, 0.64]} press={taps(0.11, 0.26, 0.41, 0.57)} />
       <Tap x={toolAt(0)[0]} y={toolAt(0)[1]} dur={dur} at={0.11} />
       <Tap x={CUT[0][0]} y={CUT[0][1]} dur={dur} at={0.26} />
       <Tap x={CUT[1][0]} y={CUT[1][1]} dur={dur} at={0.41} />
@@ -329,7 +361,7 @@ function Merge() {
       <Picked pts={BOTH} from={0.62} to={0.94} dur={dur} />
       <Bar dur={dur} upAt={-1} goneAt={0.16} used={{tool: 1, at: 0.12}} />
       <ApplyBar dur={dur} from={0.18} to={0.6} />
-      <Hand dur={dur} times={[0, 0.1, 0.16, 0.3, 0.44, 0.56, 1]} at={[[300, 215], toolAt(1), toolAt(1), [236, 118], [236, 118], APPLY, APPLY]} show={[0.01, 0.64]} />
+      <Hand dur={dur} times={[0, 0.1, 0.16, 0.3, 0.44, 0.56, 1]} at={[[300, 215], toolAt(1), toolAt(1), [236, 118], [236, 118], APPLY, APPLY]} show={[0.01, 0.64]} press={taps(0.11, 0.31, 0.57)} />
       <Tap x={toolAt(1)[0]} y={toolAt(1)[1]} dur={dur} at={0.11} />
       <Tap x={236} y={118} dur={dur} at={0.31} />
       <Tap x={APPLY[0]} y={APPLY[1]} dur={dur} at={0.57} />
@@ -377,6 +409,7 @@ function Reduce() {
         times={[0, 0.1, 0.16, 0.22, 0.24, 0.46, 0.52, 0.6, 1]}
         at={[[300, 215], toolAt(2), toolAt(2), [SLIDE[0], BAR.y + 16], [SLIDE[0], BAR.y + 16], [SLIDE[1], BAR.y + 16], [SLIDE[1], BAR.y + 16], APPLY, APPLY]}
         show={[0.01, 0.68]}
+        press={[...taps(0.11), [0.23, 0.46], ...taps(0.61)]}
       />
       <Tap x={toolAt(2)[0]} y={toolAt(2)[1]} dur={dur} at={0.11} />
       <Tap x={APPLY[0]} y={APPLY[1]} dur={dur} at={0.61} />
