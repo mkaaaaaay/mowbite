@@ -37,7 +37,14 @@ export const layerOn = (hidden: Set<Layer>, l: Layer) => !hidden.has(l);
 // where gps or wifi were good or bad over the last 14 days, one of them at a time
 export type Coverage = 'off' | 'gps' | 'wifi';
 
-// the buttons along the right edge of the map, the layer menu and the imagery bar
+const COVER_ORDER: Coverage[] = ['wifi', 'off', 'gps'];
+const COVER_TITLES: Record<Coverage, string> = {
+  wifi: 'Wi-Fi signal where the mower drove',
+  off: 'No coverage on the map',
+  gps: 'GPS accuracy where the mower drove',
+};
+
+// the buttons along the right edge of the map, the switch for the coverage, the layer menu and the imagery bar
 export default function MapControls({
   onZoom,
   showGrid,
@@ -80,8 +87,9 @@ export default function MapControls({
   planParts?: boolean;
   // the MowBite Planner on the mower: where the mower came too close and what its collision check fixed, only it tells
   planner?: boolean;
-  // only when the container keeps the gps log, wifi only when it can read the signal
-  coverage?: {gps: boolean; wifi: boolean; value: Coverage; onChange: (c: Coverage) => void};
+  // the three way switch on the map (wifi, off, gps), when MowBite's container keeps the gps log. wifi false: no signal
+  // in it
+  coverage?: {wifi: boolean; value: Coverage; onChange: (c: Coverage) => void};
   // shown when zoomed or panned, follow: the view follows the mower
   reset: {follow: boolean; onReset: () => void} | null;
   // only while the view can follow the mower
@@ -93,6 +101,37 @@ export default function MapControls({
   const [lookOpen, setLookOpen] = useState(false);
   return (
     <>
+      {/* where gps or wifi were good or bad: wifi left, off in the middle, gps right, the knob slides */}
+      {coverage && (
+        <div className={styles.coverSwitchWrap}>
+          <div className={styles.coverSwitch} role="radiogroup" aria-label={tr('Coverage')}>
+            <span
+              className={[styles.coverKnob, coverage.value === 'off' ? styles.coverKnobOff : ''].filter(Boolean).join(' ')}
+              style={{transform: `translateX(${COVER_ORDER.indexOf(coverage.value) * 100}%)`}}
+            />
+            {COVER_ORDER.map((c) => (
+              <button
+                key={c}
+                role="radio"
+                aria-checked={coverage.value === c}
+                className={coverage.value === c ? styles.coverOn : undefined}
+                disabled={c === 'wifi' && !coverage.wifi}
+                title={tr(COVER_TITLES[c])}
+                onClick={() => coverage.onChange(c)}
+              >
+                {c === 'gps' ? 'GPS' : tr(c === 'wifi' ? 'Wi-Fi' : 'Off')}
+              </button>
+            ))}
+          </div>
+          {coverage.value !== 'off' && (
+            <span className={styles.coverLegend} title={tr('Paler: little data there. Tap a square for its numbers.')}>
+              <i className={styles.good} /> {coverage.value === 'gps' ? '≤ 5 cm' : tr('strong')}
+              <i className={styles.ok} /> {tr(coverage.value === 'gps' ? 'at times worse' : 'medium')}
+              <i className={styles.bad} /> {tr(coverage.value === 'gps' ? 'often worse' : 'weak')}
+            </span>
+          )}
+        </div>
+      )}
       <div className={styles.zoomButtons}>
         <button onClick={() => onZoom(1 / 1.5)} aria-label="zoom in" title={tr('Zoom in (or mouse wheel / pinch)')}>
           +
@@ -186,26 +225,6 @@ export default function MapControls({
               {tr(l.label)}
             </label>
           ))}
-          {coverage?.gps && (
-            <>
-              <label>
-                {tr('Coverage')}
-                <select value={coverage.value} onChange={(e) => coverage.onChange(e.target.value as Coverage)}>
-                  <option value="off">{tr('off')}</option>
-                  <option value="gps">GPS</option>
-                  {coverage.wifi && <option value="wifi">{tr('Wi-Fi')}</option>}
-                </select>
-              </label>
-              {coverage.value !== 'off' && (
-                <span className={styles.coverLegend}>
-                  <i className={styles.good} /> {tr(coverage.value === 'gps' ? 'at most 5 cm' : 'strong')}
-                  <i className={styles.ok} /> {tr(coverage.value === 'gps' ? 'at times worse' : 'medium')}
-                  <i className={styles.bad} /> {tr(coverage.value === 'gps' ? 'often worse' : 'weak')}
-                </span>
-              )}
-              {coverage.value !== 'off' && <span className={styles.coverHint}>{tr('Paler: little data there. Tap a square for its numbers.')}</span>}
-            </>
-          )}
           {planStyle && (
             <label>
               {tr('Rest of the plan')}

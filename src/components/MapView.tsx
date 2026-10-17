@@ -24,6 +24,7 @@ import {MapCostume} from './Costumes';
 import {stillPreferred, useHalloween} from '@/lib/eggs';
 import {useTrailingPose} from '@/hooks/useTrailingPose';
 import {CELL_M, MIN_SECONDS, gpsGrade, loadCoverage, wifiGrade, type CoverageCell} from '@/lib/coverage';
+import {useUpdates} from '@/lib/updates';
 import {CoverInfo} from './CoverInfo';
 
 interface MapViewProps {
@@ -506,11 +507,12 @@ function MapView({
   const {imagery, setImagery, showGrid, toggleGrid, hidden, toggleLayer, planStyle, setPlanStyle, coverage: coverMode, setCoverage: setCoverMode} = useMapPrefs();
   const [svgPx, setSvgPx] = useState(0);
   const [layersOpen, setLayersOpen] = useState(false);
-  // gps or wifi where the mower drove, asked for once the layer menu opens or the coverage is on. the square tapped
-  // shows its numbers
+  // MowBite's container on the mower: it keeps the gps log the coverage comes from
+  const updates = useUpdates();
+  // gps or wifi where the mower drove, asked for once the coverage is switched on. the square tapped shows its numbers
   const [coverage, setCoverage] = useState<CoverageCell[] | null>(null);
   const [coverCell, setCoverCell] = useState<CoverageCell | null>(null);
-  const wantCoverage = layersOpen || coverMode !== 'off';
+  const wantCoverage = coverMode !== 'off';
   useEffect(() => {
     if (wantCoverage) void loadCoverage().then(setCoverage);
   }, [wantCoverage]);
@@ -1767,10 +1769,10 @@ function MapView({
         planParts={!!pieces?.length}
         planner={!!plannerSettings}
         coverage={
-          coverage?.length
+          // on the maps to look around in, with MowBite's container (it keeps the gps log). wifi off once the log has none
+          zoomable && updates.level !== null
             ? {
-                gps: true,
-                wifi: coverage.some((c) => c.wifi !== null),
+                wifi: !coverage || coverage.some((c) => c.wifi !== null),
                 value: coverMode,
                 onChange: (c) => {
                   setCoverMode(c);
