@@ -46,7 +46,6 @@ import {bodyFrom, slic3rPlans, useMowerBody, usePlannerSettings, type BodySpot} 
 import {MowerBodySettings} from '@/components/MowerBodySettings';
 import {PlannerSettings} from '@/components/PlannerSettings';
 import {PlannerSimple} from '@/components/PlannerSimple';
-import simpleStyles from '@/components/PlannerSimple.module.css';
 import settingsStyles from '../settings/page.module.css';
 
 // useSearchParams needs a suspense boundary in a static export
@@ -806,16 +805,17 @@ function MapEditor() {
                       with the area */}
                   {plannerSettings && (
                     <Fold id="plannerAll" title={tr('Planner for all areas')}>
-                      <PlannerSimple toolWidth={toolWidth} omIncrement={angleIncrement} map={map} onSelectArea={selectArea} />
-                      <details className={simpleStyles.expert}>
-                        <summary>{tr('More settings (expert)')}</summary>
-                        {slic3r && <p className={simpleStyles.note}>{tr('Only with the MowBite Planner:')}</p>}
-                        <div className={slic3r ? simpleStyles.off : undefined} inert={slic3r}>
+                      <PlannerSimple
+                        toolWidth={toolWidth}
+                        omIncrement={angleIncrement}
+                        map={map}
+                        onSelectArea={selectArea}
+                        expert={
                           <div className={styles.foldCards}>
                             <PlannerSettings styles={settingsStyles} />
                           </div>
-                        </div>
-                      </details>
+                        }
+                      />
                     </Fold>
                   )}
                   {plannerSettings && (
@@ -916,6 +916,14 @@ function MapEditor() {
                         const own = {...(selectedArea.properties.planner ?? {})};
                         if (value === undefined || value === null) delete own[key];
                         else own[key] = value;
+                        updateProperties({planner: Object.keys(own).length ? own : undefined});
+                      },
+                      setMany: (values) => {
+                        const own = {...(selectedArea.properties.planner ?? {})};
+                        for (const [key, value] of Object.entries(values)) {
+                          if (value === undefined || value === null) delete own[key];
+                          else own[key] = value;
+                        }
                         updateProperties({planner: Object.keys(own).length ? own : undefined});
                       },
                     }}

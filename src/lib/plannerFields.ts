@@ -231,7 +231,7 @@ export const FIELDS: Record<string, Field> = {
     area: true,
   },
   mop_up: {
-    label: 'Mow the leftovers',
+    label: 'Fill the gaps of the plan',
     help: 'At the end one more round over the biggest pieces the plan leaves unmowed, a short pass over each. Only with the mower sizes.',
     group: 'pattern',
     area: true,
@@ -365,6 +365,8 @@ export const SIMPLE = [
   'perimeter_order',
   'edge_margin',
   'obstacle_margin',
+  'perimeter_direction',
+  'leftovers_auto',
   'bend_max_gap',
   'nested_areas',
   'turn_on_spot',
@@ -409,4 +411,31 @@ export function fromInput(field: Field | undefined, text: string): number | null
   const v = Number(t);
   if (!Number.isFinite(v)) return 'invalid';
   return field?.unit === 'deg' ? v / DEG : v;
+}
+
+// a few settings together, how the mower turns and covers an area (the planner menu's style). set: what choosing it
+// sets, by: the settings that tell which one is on (a planner without changes is gentle)
+export const STYLES: Record<string, {set: Record<string, unknown>; by: Record<string, unknown>}> = {
+  gentle: {
+    set: {turn_on_spot: false, lane_order: 'skip', headland_turns: false, turn_radius_auto: true},
+    by: {turn_on_spot: false, lane_order: 'skip', headland_turns: false},
+  },
+  quick: {
+    set: {turn_on_spot: true, lane_order: 'snake', headland_turns: false, turn_radius_auto: false},
+    by: {turn_on_spot: true, lane_order: 'snake', headland_turns: false},
+  },
+  clean: {set: {headland_turns: true, turn_on_spot: false}, by: {headland_turns: true}},
+};
+export const STYLE_LABELS: Record<string, string> = {gentle: 'Gentle on the lawn', quick: 'Quick', clean: 'Clean stripes'};
+export const STYLE_NOTES: Record<string, string> = {
+  gentle: 'Loops instead of turning on the spot, wide turns, lanes skipped for room: kind to the lawn, a little more driving.',
+  quick: 'Turns on the spot, lane after lane: the shortest, the wheels may scuff the lawn where it turns.',
+  clean: 'Only straight lanes, it turns along the outline passes: clean stripes, about a quarter longer.',
+};
+
+// the style the settings for all areas make up, null for a mix of their own. A setting the planner doesn't have counts as
+// fitting
+export function styleOf(all: Record<string, {value: unknown}>): string | null {
+  const fits = (by: Record<string, unknown>) => Object.entries(by).every(([k, v]) => !all[k] || all[k].value === v);
+  return Object.keys(STYLES).find((k) => fits(STYLES[k].by)) ?? null;
 }

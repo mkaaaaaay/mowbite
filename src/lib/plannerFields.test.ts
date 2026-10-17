@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {FIELDS, fromInput, toInput} from './plannerFields';
+import {FIELDS, fromInput, toInput, STYLES, styleOf} from './plannerFields';
 
 describe('planner fields', () => {
   it('shows angles in degrees and meters as they are', () => {
@@ -40,5 +40,28 @@ describe('planner fields', () => {
       'route_order',
       'bend_max_gap',
     ]);
+  });
+});
+
+describe('style of the planner settings', () => {
+  const settings = (v: Record<string, unknown>) => Object.fromEntries(Object.entries(v).map(([k, value]) => [k, {value}]));
+
+  it("takes a planner without changes as gentle on the lawn", () => {
+    expect(styleOf(settings({turn_on_spot: false, lane_order: 'skip', headland_turns: false, turn_radius_auto: false}))).toBe('gentle');
+  });
+
+  it('knows each style by what choosing it sets', () => {
+    for (const k of Object.keys(STYLES)) {
+      const base = {turn_on_spot: false, lane_order: 'skip', headland_turns: false, turn_radius_auto: true};
+      expect(styleOf(settings({...base, ...STYLES[k].set}))).toBe(k);
+    }
+  });
+
+  it('calls a mix of its own none of them', () => {
+    expect(styleOf(settings({turn_on_spot: true, lane_order: 'skip', headland_turns: false}))).toBeNull();
+  });
+
+  it('leaves out what an older planner does not have', () => {
+    expect(styleOf(settings({turn_on_spot: true}))).toBe('quick');
   });
 });
