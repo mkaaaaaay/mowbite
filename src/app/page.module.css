@@ -194,25 +194,91 @@
   color: var(--text-secondary);
 }
 
-.facts {
+.factBlock {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  flex-direction: column;
+  gap: 6px;
 }
 
-.facts div {
-  display: flex;
-  align-items: baseline;
+/* two to a row and both as wide, one alone gets the whole row */
+.facts {
+  container: facts / inline-size;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
+}
+
+.facts > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding: 5px 10px;
   border-radius: 8px;
   background: rgba(128, 128, 128, 0.1);
   font-size: 13px;
+  /* the same line for label and value, so both sit at one height */
+  line-height: 17px;
+  white-space: nowrap;
 }
 
+/* every one on a single line: on a screen too small a label is cut short rather than the value wrapping */
 .facts span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--text-secondary);
   font-size: 12px;
+}
+
+/* the value at the right end */
+.facts strong {
+  flex-shrink: 0;
+  max-width: 100%;
+  margin-left: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.facts strong small {
+  font-size: inherit;
+  font-weight: 500;
+  opacity: 0.75;
+}
+
+/* over the whole row the value is in the middle */
+.facts > .whole {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+}
+
+.facts > .whole strong {
+  grid-column: 2;
+  margin-left: 0;
+}
+
+.facts > .whole > button {
+  justify-self: start;
+}
+
+/* a note goes under the value */
+.facts > div > span ~ span {
+  grid-column: 1 / -1;
+  white-space: normal;
+  text-align: center;
+}
+
+/* small phones: a little tighter, so label and value still fit on one line */
+@container facts (max-width: 330px) {
+  .facts > div {
+    padding: 5px 7px;
+    column-gap: 5px;
+    font-size: 12.5px;
+  }
+
+  .facts span {
+    font-size: 11.5px;
+  }
 }
 
 .facts .warn {
@@ -326,11 +392,16 @@
 
 /* by the width of the card, not the screen: four buttons side by side need about 600px for a label next to its icon */
 @container controls (max-width: 640px) {
+  /* the icons in one line, also when a label takes two */
   .controls button:not(.reset):not(.skipPathButton):not(.leftoversButton) {
     flex-direction: column;
+    justify-content: flex-start;
     gap: 4px;
     padding: 10px 4px;
-    font-size: 12px;
+    font-size: 11px;
+    /* a long word is split rather than sticking out */
+    hyphens: auto;
+    overflow-wrap: break-word;
   }
 }
 

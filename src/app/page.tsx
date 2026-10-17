@@ -70,9 +70,9 @@ const ACTIONS = [
 // 70 °C without one. max_value counts on its own: OpenMower sets has_min_max only when there's a min as well
 const TEMP_ORDER: [string, string][] = [
   ['om_mow_motor_temp', 'Mow motor'],
-  ['om_mow_esc_temp', 'Mow controller'],
-  ['om_left_esc_temp', 'Left drive controller'],
-  ['om_right_esc_temp', 'Right drive controller'],
+  ['om_mow_esc_temp', 'Mow ESC'],
+  ['om_left_esc_temp', 'Left ESC'],
+  ['om_right_esc_temp', 'Right ESC'],
 ];
 function temperatures(infos: SensorInfo[], values: Record<string, string>) {
   const rank = (id: string) => {
@@ -91,6 +91,29 @@ function temperatures(infos: SensorInfo[], values: Record<string, string>) {
 }
 
 const upperFirst = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+// which ones get a whole row: the wide ones and one left without a partner, so every row is filled
+function wholeRow(items: {label: string; wide?: boolean}[]): boolean[] {
+  const whole = items.map((f) => !!f.wide);
+  let single = -1;
+  items.forEach((f, i) => {
+    if (f.wide && single >= 0) whole[single] = true;
+    single = f.wide || single >= 0 ? -1 : i;
+  });
+  if (single >= 0) whole[single] = true;
+  return whole;
+}
+
+// the first part of a value stands out, what follows after " · " (how good, time left) is plainer
+function FactValue({value}: {value: string}) {
+  const [main, ...rest] = value.split(' · ');
+  return (
+    <strong>
+      {main}
+      {rest.length > 0 && <small> · {rest.join(' · ')}</small>}
+    </strong>
+  );
+}
 
 function headline(state: MowerState, docked: boolean, chargeState: string | undefined, area: string | undefined) {
   if (state.emergency) return {title: tr('Emergency stop'), tone: 'error'};
@@ -244,7 +267,8 @@ export default function Home() {
   const gpsQ = gpsQuality(acc, numParam(params, PARAM.maxPositionAccuracy));
   const num = (id: string) => (values[id] !== undefined ? Number(values[id]) : undefined);
   const temps = state ? temperatures(infos, values) : [];
-  const facts: {label: string; value: string; warn?: boolean; extra?: React.ReactNode}[] = [];
+  // wide: gets a whole row, its value is longer
+  const facts: {label: string; value: string; warn?: boolean; wide?: boolean; extra?: React.ReactNode}[] = [];
   // standing still the mower switches gps off, "off" there says nothing
   if (state && (driving || gpsQ !== 'none')) {
     facts.push({
@@ -262,13 +286,14 @@ export default function Home() {
       facts.push({
         label: tr('Progress'),
         value: known ? tr('leftovers {pct} %', {pct: Math.round(progress.fraction * 100)}) + left : tr('leftovers of the last mow'),
+        wide: true,
         extra: before ? <span>{tr('its track faded on the map')}</span> : undefined,
       });
     }
     else if (progress) {
       const left = progress.secondsLeft !== null ? ` · ${tr('{time} left', {time: duration(progress.secondsLeft)})}` : '';
       const pct = towelPreview ? 42 : Math.round(progress.fraction * 100);
-      facts.push({label: tr('Progress'), value: `${pct} %${left}`, extra: pct === 42 ? <DontPanic /> : undefined});
+      facts.push({label: tr('Progress'), value: `${pct} %${left}`, wide: true, extra: pct === 42 ? <DontPanic /> : undefined});
     }
     if (charging && num('om_charge_current') !== undefined) facts.push({label: tr('Charging'), value: `${fmt(num('om_charge_current')!, 1)} A`});
     if (num('om_v_battery') !== undefined) facts.push({label: tr('Battery'), value: `${fmt(num('om_v_battery')!, 1)} V`});
@@ -279,6 +304,9 @@ export default function Home() {
     const level = wifiLevel(wifi);
     facts.push({label: tr('Wi-Fi'), value: `${wifi} dBm · ${tr(WIFI_LEVEL_LABEL[level])}`, warn: level === 'bad'});
   }
+
+  const factRows = wholeRow(facts);
+  const tempRows = wholeRow(temps);
 
   const runs = recent?.runs ?? [];
   const finished = (recent?.latest ?? []).filter((r) => r.outcome !== 'running');
@@ -341,23 +369,29 @@ export default function Home() {
             </div>
             {connected && link.silent && <LogicHint className={[styles.dim, styles.logicHint].join(' ')} />}
 
-            <div className={styles.facts}>
-              {facts.map((f) => (
-                <div key={f.label} className={f.warn ? styles.warn : undefined}>
-                  <span>{f.label}</span>
-                  <strong>{f.value}</strong>
-                  {f.extra}
-                </div>
-              ))}
-            </div>
-            {temps.length > 0 && (
-              <div className={styles.facts}>
-                {temps.map((f) => (
-                  <div key={f.id} className={f.warn ? styles.warn : undefined}>
-                    <span>{f.label}</span>
-                    <strong>{f.value}</strong>
+            {(facts.length > 0 || temps.length > 0) && (
+              <div className={styles.factBlock}>
+                {facts.length > 0 && (
+                  <div className={styles.facts}>
+                    {facts.map((f, i) => (
+                      <div key={f.label} className={[f.warn ? styles.warn : '', factRows[i] ? styles.whole : ''].join(' ')}>
+                        <span>{f.label}</span>
+                        <FactValue value={f.value} />
+                        {f.extra}
+                      </div>
+                    ))}
                   </div>
-                ))}
+                )}
+                {temps.length > 0 && (
+                  <div className={styles.facts}>
+                    {temps.map((f, i) => (
+                      <div key={f.id} className={[f.warn ? styles.warn : '', tempRows[i] ? styles.whole : ''].join(' ')}>
+                        <span>{f.label}</span>
+                        <FactValue value={f.value} />
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
