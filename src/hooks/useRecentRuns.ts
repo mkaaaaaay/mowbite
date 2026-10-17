@@ -8,8 +8,9 @@ export interface RecentRuns {
   latest: Run[]; // the newest ones, newest first, from today and the days before
 }
 
-// how many runs the dashboard can show, and how many earlier days are looked through for them
-const LATEST = 4;
+// how many runs the dashboard can show (six finished and one under way), and how many earlier days are looked
+// through for them
+const LATEST = 7;
 const LATEST_DAYS = 7;
 
 // today's events for the dashboard. `bump` changes (e.g. the mower's state) ask again right away,

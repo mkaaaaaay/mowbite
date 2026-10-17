@@ -29,13 +29,60 @@
   font-weight: 700;
 }
 
+/* the title, and the weather now at the right end */
+.top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.top .brand {
+  flex: 1;
+  min-width: 0;
+}
+
+.topWeather {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  transition: opacity 0.3s;
+}
+
+/* now, today's highest and lowest, and rain now or coming */
+.topWeather > div {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.topWeather strong {
+  font-size: 20px;
+}
+
+.topWeather span {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.topWeather small {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.topWeather.away {
+  opacity: 0;
+}
+
 @media (min-width: 900px) {
   .main {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     align-items: start;
   }
 
-  .main h1 {
+  .main .top {
     grid-column: 1 / -1;
   }
 
@@ -454,7 +501,7 @@
   margin-bottom: -10px;
 }
 
-/* the last run, and the ones before it once unfolded */
+/* the last three runs, and three more once unfolded */
 .runList {
   display: flex;
   flex-direction: column;
@@ -524,48 +571,6 @@
 
 .run-live {
   border-left-color: var(--accent);
-}
-
-.weather {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 12px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  background: rgba(128, 128, 128, 0.08);
-  font-size: 13px;
-}
-
-.weather > div {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.weather strong {
-  font-size: 18px;
-}
-
-.weather strong .dim {
-  font-size: 13px;
-  font-weight: 400;
-}
-
-.rainHint {
-  padding: 3px 10px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--accent) 18%, transparent);
-  color: var(--accent);
-  font-weight: 600;
-}
-
-.credit {
-  margin-left: auto;
-  align-self: flex-end;
-  font-size: 10px;
-  color: var(--text-secondary);
-  opacity: 0.7;
 }
 
 .nextRun {

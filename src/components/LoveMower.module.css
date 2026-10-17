@@ -1,13 +1,15 @@
-/* the rest of the title row, the invisible button sits at its right end */
+/* the rest of the title row, the invisible button sits in its middle */
 .gap {
   flex: 1;
+  display: flex;
+  justify-content: center;
+  align-self: stretch;
 }
 
 .spot {
   width: 56px;
-  align-self: stretch;
   min-height: 48px;
-  margin: -8px -16px -8px 0;
+  margin: -8px 0;
   border: none;
   background: none;
   padding: 0;

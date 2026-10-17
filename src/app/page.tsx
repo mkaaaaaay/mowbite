@@ -220,8 +220,10 @@ export default function Home() {
   const missed = missedAny && missedAny.t !== missedSeen ? missedAny : null;
   const planned = schedule ? nextStart(schedule, undefined, datum ? sunTimes(datum.lat, datum.lon) : null) : null;
   const [confirmReset, setConfirmReset] = useState(false);
-  // the runs before the last one, unfolded under it
+  // three more runs unfolded under the last three
   const [moreRuns, setMoreRuns] = useState(false);
+  // the two mowers meet in the title row, the weather makes room for them
+  const [loveRun, setLoveRun] = useState(false);
   // a tapped skip (area or path) and the seconds until it goes out, null when none is waiting
   const [skip, setSkip] = useState<{id: string; left: number} | null>(null);
   useEffect(() => {
@@ -316,13 +318,38 @@ export default function Home() {
   return (
     <div className={styles.page}>
       <main className={[styles.main, showMap ? styles.withMap : ''].join(' ')}>
-        <h1 className={styles.brand}>
-          <BrandMark hat={halloween.day} towel={towel} umbrella={umbrella} />
-          <span>
-            <strong>mow</strong>bite
-          </span>
-          <LoveMower />
-        </h1>
+        <div className={styles.top}>
+          <h1 className={styles.brand}>
+            <BrandMark hat={halloween.day} towel={towel} umbrella={umbrella} />
+            <span>
+              <strong>mow</strong>bite
+            </span>
+            <LoveMower onRun={setLoveRun} />
+          </h1>
+          {weather && (
+            <div
+              className={[styles.topWeather, loveRun ? styles.away : ''].join(' ')}
+              title={`${tr(WEATHER_LABELS[weatherKind(weather.code)])}, ${tr('max. {max}°, min. {min}°', {max: fmt(weather.max), min: fmt(weather.min)})}`}
+            >
+              <WeatherIcon code={weather.code} day={weather.day} size={34} />
+              <div>
+                <strong>{fmt(weather.temp)}°</strong>
+                <span>
+                  ↑{fmt(weather.max)}° ↓{fmt(weather.min)}°
+                </span>
+                {(weather.raining || weather.rainAt) && (
+                  <small>
+                    {weather.raining
+                      ? tr('Raining')
+                      : weather.rainSoon
+                        ? tr('Rain soon')
+                        : tr('Rain from about {time}', {time: clock(weather.rainAt!)})}
+                  </small>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
         <MowerSwitch className={styles.mowerSwitch} />
         <UpdateBanner />
 
@@ -485,7 +512,7 @@ export default function Home() {
           </section>
         )}
 
-        {(recent || weather || planned || missed) && (
+        {(recent || planned || missed) && (
           <section className={styles.today}>
             <div className={styles.todayHead}>
               <h2>{tr('Today')}</h2>
@@ -516,32 +543,6 @@ export default function Home() {
                 </button>
               </div>
             )}
-            {weather && (
-              <div className={styles.weather}>
-                <WeatherIcon code={weather.code} day={weather.day} />
-                <div>
-                  <strong>
-                    {fmt(weather.temp)}°{' '}
-                    <span className={styles.dim}>{tr(WEATHER_LABELS[weatherKind(weather.code)])}</span>
-                  </strong>
-                  <span className={styles.dim}>
-                    {tr('max. {max}°, min. {min}°', {max: fmt(weather.max), min: fmt(weather.min)})}
-                  </span>
-                </div>
-                {(weather.raining || weather.rainAt) && (
-                  <span className={styles.rainHint}>
-                    {weather.raining
-                      ? tr('Raining')
-                      : weather.rainSoon
-                        ? tr('Rain soon')
-                        : tr('Rain from about {time}', {time: clock(weather.rainAt!)})}
-                  </span>
-                )}
-                <a className={styles.credit} href="https://open-meteo.com" target="_blank" rel="noreferrer">
-                  Open-Meteo
-                </a>
-              </div>
-            )}
             {recent && (
             <div className={styles.todayNumbers}>
               <div>
@@ -566,12 +567,12 @@ export default function Home() {
             {/* the one under way is the status above */}
             {finished.length > 0 && (
               <>
-                <span className={styles.label}>{moreRuns ? tr('Last runs') : tr('Last run')}</span>
+                <span className={styles.label}>{finished.length > 1 ? tr('Last runs') : tr('Last run')}</span>
                 <div className={styles.runList}>
-                  {(moreRuns ? finished : finished.slice(0, 1)).map((r) => (
+                  {finished.slice(0, moreRuns ? 6 : 3).map((r) => (
                     <LastRun key={r.events[0].id} run={r} />
                   ))}
-                  {finished.length > 1 && (
+                  {finished.length > 3 && (
                     <button className={styles.moreRuns} onClick={() => setMoreRuns(!moreRuns)}>
                       {moreRuns ? tr('Show less') : tr('Show more')}
                     </button>

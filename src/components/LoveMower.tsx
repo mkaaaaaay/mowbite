@@ -91,7 +91,8 @@ function Bits() {
 // the top right corner of the dashboard: double tap it and a strip of lawn grows, our lawn eater leaves
 // the title and mows it from the left, an openmower from the right, until they meet and kiss. flowers come up
 // in the stubble, and the two drive off together
-export default function LoveMower() {
+// onRun: told when the two start and when they're gone again, the title row clears up meanwhile
+export default function LoveMower({onRun}: {onRun?: (running: boolean) => void}) {
   const [run, setRun] = useState<{top: number; mid: number; lawn: {left: number; width: number}[]; id: number} | null>(null);
   const busy = useRef(false);
   const lastTap = useRef(0);
@@ -109,7 +110,7 @@ export default function LoveMower() {
     const r = e.currentTarget.getBoundingClientRect();
     const g = gap.current?.getBoundingClientRect() ?? r;
     // the lawn stands on the top edge of the first card below the title, they meet in the middle of the
-    // empty space next to the title
+    // empty space next to the title, where the button is
     const main = e.currentTarget.closest('main');
     const card = main?.querySelector('section');
     const top = card ? card.getBoundingClientRect().top : r.bottom + 14;
@@ -120,15 +121,17 @@ export default function LoveMower() {
           .filter((b) => Math.abs(b.top - top) < 3)
           .map((b) => ({left: b.left, width: b.width}))
       : [];
-    setRun({top, mid: (g.left + r.right) / 2, lawn, id: Date.now()});
+    setRun({top, mid: (g.left + g.right) / 2, lawn, id: Date.now()});
+    onRun?.(true);
     // the eater in the title is the one driving, so it's gone from there meanwhile
-    const logo = e.currentTarget.parentElement?.querySelector<SVGElement>('svg');
+    const logo = gap.current?.parentElement?.querySelector<SVGElement>('svg');
     if (logo) {
       logo.style.transition = 'opacity 0.3s';
       logo.style.opacity = '0';
     }
     setTimeout(() => {
       if (logo) logo.style.opacity = '';
+      onRun?.(false);
     }, DURATION - 300);
     setTimeout(() => {
       busy.current = false;
@@ -138,8 +141,9 @@ export default function LoveMower() {
 
   return (
     <>
-      <span ref={gap} className={styles.gap} />
-      <button className={styles.spot} onClick={start} tabIndex={-1} aria-hidden="true" />
+      <span ref={gap} className={styles.gap}>
+        <button className={styles.spot} onClick={start} tabIndex={-1} aria-hidden="true" />
+      </span>
       {run && (
         <div className={styles.lane} style={{top: run.top, '--dur': `${DURATION}ms`, '--mid': `${run.mid}px`} as React.CSSProperties} key={run.id}>
           <div
