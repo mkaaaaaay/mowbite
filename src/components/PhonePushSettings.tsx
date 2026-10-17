@@ -10,7 +10,7 @@ import local from './NotifySettings.module.css';
 import {UpdateCommand, versionNote} from './Updates';
 
 // In the Android app: this mower's messages on this phone as MowBite's own (lib/push.ts), with its icon, sorted into
-// problems, reminders and info, a tap opens the page. Delivered by a UnifiedPush app running unseen (e.g. ntfy). What
+// problems, reminders and info, a tap opens the page. Delivered by a UnifiedPush app in the background (e.g. ntfy). What
 // is told, when and how often are the settings around it, the same as for the topic. Needs a container that takes the
 // phones' addresses, an older one took them for its settings
 
@@ -149,7 +149,7 @@ export function PhonePushSettings({
       {head}
       <p className={local.info}>
         {tr(
-          'All it takes is the ntfy app on this phone: install it once, no need to open it or subscribe to anything. It delivers the messages unseen in the background. Then switch them on here.',
+          'All it takes is the ntfy app on this phone: install it once, no need to open it or subscribe to anything. It delivers the messages in the background. Then switch them on here.',
         )}
       </p>
       {list.length === 0 ? (
@@ -183,6 +183,14 @@ export function PhonePushSettings({
           </label>
           {!saved.enabled && <p className={styles.dim}>{tr('Push messages are switched off above.')}</p>}
           {on && chosenName && <p className={styles.dim}>{tr('Delivered by {app}.', {app: chosenName})}</p>}
+          {/* ntfy shows a lasting notification while it waits for messages, android wants one for that */}
+          {on && (status.distributor ?? chosen) === NTFY && (
+            <p className={styles.dim}>
+              {tr(
+                "ntfy keeps a notification 'Listening for incoming notifications' up for it. To hide it, press and hold it and switch off only its category 'Background service', the messages still come.",
+              )}
+            </p>
+          )}
           {status.permission === 'denied' && (
             <p className={styles.error}>
               {tr("Notifications are off for MowBite in Android's settings.")}{' '}
