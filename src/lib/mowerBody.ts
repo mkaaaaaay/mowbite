@@ -2,6 +2,7 @@ import * as ClipperLib from 'clipper-lib';
 import type {MapArea} from '@/hooks/useMowerMap';
 import {useEffect, useMemo, useSyncExternalStore} from 'react';
 import type {PlanRequest} from './areaPlan';
+import {apiBase} from './mowers';
 import {RPC} from './openmower';
 import {callRpc, isMissingMethod, rpcMethods} from './rpc';
 import {settingsStore, type Settings} from './settings';
@@ -91,10 +92,34 @@ const listeners = new Set<() => void>();
 
 // the same settings again keep the object, so what's worked out from them isn't worked out again
 function set(s: PlannerSettings | null) {
+  if (s) rememberPlanner();
   if (s && current && JSON.stringify(s) === JSON.stringify(current)) return;
   current = s;
   listeners.forEach((l) => l());
 }
+
+// the mowers whose MowBite Planner answered here once (per device, by where their MowBite answers): when mower_logic
+// sends nothing, the app asks whether the planner runs (OpenMower set to OM_PLANNER=external waits for it)
+const SEEN_KEY = 'plannerSeen';
+function seenList(): Record<string, number> {
+  try {
+    const v = JSON.parse(localStorage.getItem(SEEN_KEY) ?? '{}');
+    return v && typeof v === 'object' ? v : {};
+  } catch {
+    return {};
+  }
+}
+
+function rememberPlanner() {
+  const all = seenList();
+  if (all[apiBase()]) return;
+  all[apiBase()] = Math.round(Date.now() / 1000);
+  try {
+    localStorage.setItem(SEEN_KEY, JSON.stringify(all));
+  } catch {}
+}
+
+export const plannerSeen = () => !!seenList()[apiBase()];
 
 export function plannerSettings(): PlannerSettings | null | undefined {
   return current;

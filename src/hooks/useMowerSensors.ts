@@ -21,10 +21,16 @@ export interface SensorInfo {
 
 // kept for the whole run, sensor_infos/json is retained and comes only once
 const infoStore = topicStore<SensorInfo[]>(TOPIC.sensorInfos, [], (payload) => JSON.parse(payload.toString()));
+// ms, when the last sensor value came (0: none yet, or no page asked for them)
+let sensorsAt = 0;
 const valueStore = topicStore<Record<string, string>>(TOPIC.sensorData, {}, (payload, prev, topic) => {
   const id = topic.match(/^sensors\/(.+)\/data$/)?.[1];
+  if (id) sensorsAt = Date.now();
   return id ? {...prev, [id]: payload.toString()} : prev;
 });
+
+// the sensors come from OpenMower's monitoring, also while mower_logic isn't running
+export const lastSensorAt = () => sensorsAt;
 
 export function useMowerSensors(): {infos: SensorInfo[]; values: Record<string, string>} {
   const infos = useSyncExternalStore(infoStore.subscribe, infoStore.get, infoStore.initial);

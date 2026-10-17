@@ -75,25 +75,32 @@ function NewerOpenMower() {
   return <p className={styles.versions}>{tr('A newer OpenMower on the mower also brings: {list}.', {list: missing.map((m) => tr(m)).join(', ')})}</p>;
 }
 
+// a command to run on the mower, with a button that copies it
+export function CopyCommand({command}: {command: string}) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className={styles.command}>
+      <code>{command}</code>
+      <button
+        className={styles.button}
+        onClick={() => {
+          copyText(command);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1500);
+        }}
+      >
+        {copied ? tr('copied') : tr('Copy')}
+      </button>
+    </div>
+  );
+}
+
 // how MowBite on the mower gets the newest version, to copy
 export function UpdateCommand() {
-  const [copied, setCopied] = useState(false);
   return (
     <>
       <span className={styles.versions}>{tr('To update, run this on the mower in the mowbite folder. It clears away the old image too:')}</span>
-      <div className={styles.command}>
-        <code>{UPDATE_COMMAND}</code>
-        <button
-          className={styles.button}
-          onClick={() => {
-            copyText(UPDATE_COMMAND);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 1500);
-          }}
-        >
-          {copied ? tr('copied') : tr('Copy')}
-        </button>
-      </div>
+      <CopyCommand command={UPDATE_COMMAND} />
     </>
   );
 }

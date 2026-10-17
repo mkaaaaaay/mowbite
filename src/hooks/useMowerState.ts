@@ -3,7 +3,7 @@
 import {getMqttClient, onTopic} from '@/lib/mqttClient';
 import {useSyncExternalStore} from 'react';
 import {TOPIC} from '@/lib/openmower';
-import {useSensorValue} from './useMowerSensors';
+import {lastSensorAt, useSensorValue} from './useMowerSensors';
 
 export interface MowerState {
   battery_percentage: number;
@@ -35,12 +35,22 @@ export interface MowerLink {
   lastAt: number;
   // just back from the background and connecting again, for a few seconds that's not a lost connection
   resuming: boolean;
+  // the rest of OpenMower answers (its sensors come), only mower_logic sends no state: it isn't running, starting again
+  // or waiting for something (the MowBite Planner with OM_PLANNER=external)
+  silent: boolean;
 }
 
 // mower_logic sends its state once a second, this long without one means none is coming
 const STALE_MS = 5000;
+// OpenMower starting again takes a while, mower_logic waiting for a planner gives up after 60 s
+const SILENT_MS = 20000;
 
-const NONE: MowerLink = {state: null, connected: false, stale: false, lastAt: 0, resuming: false};
+// no state from mower_logic for SILENT_MS (since the last one or since connecting) while the sensors still come
+export function logicSilent(connected: boolean, since: number, sensorsAt: number, now = Date.now()): boolean {
+  return connected && since > 0 && now - since > SILENT_MS && sensorsAt > 0 && now - sensorsAt < STALE_MS;
+}
+
+const NONE: MowerLink = {state: null, connected: false, stale: false, lastAt: 0, resuming: false, silent: false};
 const RESUME_MS = 8000;
 // one store for every page, so remounting doesn't flash "waiting" or "connection lost"
 let link = NONE;
@@ -64,7 +74,10 @@ function start() {
     update({connected: true});
   });
   c.on('close', () => update({connected: false}));
-  if (c.connected) update({connected: true});
+  if (c.connected) {
+    connectedAt = Date.now();
+    update({connected: true});
+  }
   onTopic(TOPIC.robotState, (payload) => {
     try {
       // back once a state comes over a connection made after the return, one still queued on the old one doesn't count
@@ -73,6 +86,7 @@ function start() {
         state: JSON.parse(payload.toString()),
         lastAt: Date.now(),
         stale: false,
+        silent: false,
         ...(back ? {resuming: false} : {}),
       });
     } catch {
@@ -89,6 +103,9 @@ function start() {
       update({
         stale: !!link.state && Date.now() - link.lastAt > STALE_MS,
         resuming: link.resuming && Date.now() - resumedAt < RESUME_MS,
+        // counted from the later of the last state and the connection, after connecting the sensors can come first
+        silent:
+          !link.resuming && logicSilent(link.connected, Math.max(link.state ? link.lastAt : 0, connectedAt), lastSensorAt()),
       }),
     1000,
   );

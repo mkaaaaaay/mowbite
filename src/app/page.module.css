@@ -551,3 +551,12 @@
     display: none;
   }
 }
+
+/* what to look at on the mower when mower_logic sends nothing */
+.logicHint {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 13px;
+}

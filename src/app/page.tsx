@@ -3,6 +3,7 @@
 import {BrandMark} from '@/components/BrandMark';
 import {DontPanic} from '@/components/DontPanic';
 import {useEggForced, useHalloween, useUmbrella} from '@/lib/eggs';
+import LogicHint from '@/components/LogicHint';
 import LoveMower from '@/components/LoveMower';
 import MapView from '@/components/MapView';
 import {HomeIcon, PauseIcon, PlayIcon, SkipIcon, WarningIcon} from '@/components/icons';
@@ -285,7 +286,15 @@ export default function Home() {
         <MowerSwitch className={styles.mowerSwitch} />
         <UpdateBanner />
 
-        {!state && <p className={styles.dim}>{connected ? tr('waiting for the mower…') : tr('connecting…')}</p>}
+        {!state &&
+          (link.silent ? (
+            <div className={styles.dim}>
+              <p className={styles.offline}>{tr("The rest of OpenMower answers, but mower_logic doesn't send its state.")}</p>
+              <LogicHint className={styles.logicHint} />
+            </div>
+          ) : (
+            <p className={styles.dim}>{connected ? tr('waiting for the mower…') : tr('connecting…')}</p>
+          ))}
 
         {state && head && (
           <section className={[styles.status, live ? styles[`tone-${head.tone}`] : styles.stale].join(' ')}>
@@ -306,13 +315,19 @@ export default function Home() {
                   <span className={styles.dim}>{tr('connecting…')}</span>
                 ) : (
                   <span className={styles.offline}>
-                    {tr(connected ? 'No data from the mower since {time}' : 'Connection lost, last data at {time}', {
-                      time: clock(link.lastAt / 1000, true),
-                    })}
+                    {tr(
+                      !connected
+                        ? 'Connection lost, last data at {time}'
+                        : link.silent
+                          ? "mower_logic hasn't sent its state since {time}, the rest of OpenMower answers"
+                          : 'No data from the mower since {time}',
+                      {time: clock(link.lastAt / 1000, true)},
+                    )}
                   </span>
                 )}
               </div>
             </div>
+            {connected && link.silent && <LogicHint className={[styles.dim, styles.logicHint].join(' ')} />}
 
             <div className={styles.facts}>
               {facts.map((f) => (
