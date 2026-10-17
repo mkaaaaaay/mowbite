@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import {TitleMark} from '@/components/Logo';
 import MapView from '@/components/MapView';
 import TrackPicker from '@/components/TrackPicker';
@@ -786,7 +787,12 @@ function MapEditor() {
 
               {map && !selectedArea && mode === 'idle' && (
                 <>
-                  <p className={styles.dim}>{tr('Click an area to edit it.')}</p>
+                  <p className={styles.dim}>
+                    {tr('Click an area to edit it.')}{' '}
+                    <Link href="/guide/editor" className={styles.guideLink}>
+                      {tr('How it works, step by step')}
+                    </Link>
+                  </p>
                   {jobList && jobList.length > 0 && (
                     <TrackPicker
                       jobs={jobList}

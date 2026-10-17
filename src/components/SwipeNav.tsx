@@ -88,8 +88,8 @@ export default function SwipeNav() {
   }, [path]);
 
   useEffect(() => {
-    // not while recording, the stick is in use there
-    if (path === '/record') return;
+    // not while recording, the stick is in use there, nor in the guide, a swipe turns its pages
+    if (path === '/record' || path.startsWith('/guide')) return;
     const i = ORDER.indexOf(path);
     const neighbour = (dx: number) => {
       const n = i === -1 ? -1 : i + (dx < 0 ? 1 : -1);

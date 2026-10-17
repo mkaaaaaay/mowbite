@@ -206,6 +206,9 @@ export default function RecordPage() {
               )}{' '}
               <Link href="/map">{tr('map editor')}</Link>.
             </p>
+            <Link href="/guide" className={styles.guide}>
+              {tr('How it works, step by step')}
+            </Link>
             <p className={styles.dim}>
               {tr('Keep the mower in sight. It stops as soon as you let go of the stick, switch apps or lose the connection.')}
             </p>

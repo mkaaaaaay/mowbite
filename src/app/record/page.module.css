@@ -175,3 +175,16 @@
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 20%, transparent);
 }
+
+/* to the guide with the drawings */
+.guide {
+  align-self: flex-start;
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.guide::before {
+  content: '▶ ';
+  font-size: 11px;
+}

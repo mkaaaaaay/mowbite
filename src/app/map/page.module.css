@@ -798,3 +798,10 @@
   color: var(--foreground);
   font-size: 14px;
 }
+
+/* to the guide with the drawings */
+.guideLink {
+  color: var(--accent);
+  font-weight: 600;
+  white-space: nowrap;
+}

@@ -1,0 +1,203 @@
+.page {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  /* the screen above the tab bar, so next sits at the bottom */
+  min-height: calc(100dvh - 64px - env(safe-area-inset-bottom) - env(safe-area-inset-top));
+}
+
+.main {
+  flex: 1;
+  width: 100%;
+  max-width: 560px;
+  padding: 20px 16px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* back on the left, the title in the middle */
+.head {
+  display: grid;
+  grid-template-columns: 44px 1fr 44px;
+  align-items: center;
+}
+
+.head h1 {
+  margin: 0;
+  font-size: 21px;
+  text-align: center;
+}
+
+.back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border-radius: 13px;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  backdrop-filter: var(--card-blur, none);
+  box-shadow: var(--btn-3d);
+  color: var(--foreground);
+  cursor: pointer;
+}
+
+.back svg {
+  width: 22px;
+  height: 22px;
+}
+
+.art {
+  overflow: hidden;
+  border-radius: 18px;
+  border: 1px solid var(--card-border);
+  box-shadow: var(--card-shadow, none);
+  aspect-ratio: 320 / 200;
+  touch-action: pan-y;
+  user-select: none;
+}
+
+.art svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* the mower and the station as thin lined as on the map */
+.art :global(.icon) * {
+  vector-effect: non-scaling-stroke;
+}
+
+.progress {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--text-secondary);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.dots {
+  display: flex;
+  gap: 6px;
+}
+
+.dots i {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--text-secondary);
+  opacity: 0.35;
+  transition: width 0.25s ease, opacity 0.25s ease;
+}
+
+.dots .on {
+  width: 20px;
+  background: var(--accent);
+  opacity: 1;
+}
+
+.text {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+/* what a map has, each with its picture */
+.legend {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  backdrop-filter: var(--card-blur, none);
+}
+
+.legend h2 {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.legend ul {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.legend svg {
+  flex: none;
+}
+
+.legend div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.legend span {
+  color: var(--text-secondary);
+}
+
+/* always in reach at the bottom, above the tab bar on a phone */
+.next {
+  position: sticky;
+  bottom: calc(76px + env(safe-area-inset-bottom));
+  margin-top: auto;
+  padding: 15px;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--accent) 70%, transparent);
+  background: color-mix(in srgb, var(--accent) 45%, var(--background));
+  box-shadow: var(--btn-3d);
+  color: var(--foreground);
+  font-size: 17px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+@media (min-width: 900px) {
+  .page {
+    min-height: 100vh;
+  }
+
+  .next {
+    bottom: 16px;
+  }
+}
+
+/* a button of the editor's bar, as it looks there */
+.tool {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid var(--card-border);
+  background: rgba(128, 128, 128, 0.12);
+  color: var(--foreground);
+}
+
+.tool.save {
+  border-color: color-mix(in srgb, var(--accent) 70%, transparent);
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+}
