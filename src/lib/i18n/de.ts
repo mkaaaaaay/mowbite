@@ -1346,6 +1346,11 @@ const de: Record<string, string> = {
   "A new area by driving around it with the mower.": "Eine neue Fläche, indem du sie mit dem Mäher abfährst.",
   "Takes the last change back, as often as you like.": "Nimmt die letzte Änderung zurück, so oft du willst.",
   "Sends the map to the mower. With MowBite's container the old one is backed up first.": "Schickt die Karte an den Mäher. Mit dem MowBite-Container wird die alte vorher gesichert.",
+  "Drive around the obstacle, close to it all the way: the line is the middle of the mower. Back at the start, it closes by itself.": "Fahre eng am Hindernis entlang einmal herum: Die Linie ist die Mitte des Mähers. Zurück am Anfang schließt es sich von selbst.",
+  "Drive along the edge, close to it all the way: the line is the middle of the mower. Back at the start, the outline closes by itself.": "Fahre die ganze Zeit eng an der Kante entlang: Die Linie ist die Mitte des Mähers. Zurück am Anfang schließt sich der Umriss von selbst.",
+  "Back at the start, closing it in {n} s.": "Zurück am Anfang, wird in {n} s geschlossen.",
+  "Keep recording": "Weiter aufnehmen",
+  "Close by itself once back at the start": "Von selbst schließen, wenn er wieder am Anfang ist",
 };
 
 export default de;

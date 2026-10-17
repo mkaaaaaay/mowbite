@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {containsPoint, polygonArea} from './geometry';
+import {backAtStart, containsPoint, polygonArea} from './geometry';
 import {selfCrossing} from './mapCheck';
 import {mergeOutlines} from './mergeAreas';
 import {simplifyPolygon} from './simplifyPolygon';
@@ -97,5 +97,31 @@ describe('simplifyPolygon', () => {
   it('keeps small shapes as they are', () => {
     const s = square(0, 0, 1);
     expect(simplifyPolygon(s, 1)).toBe(s);
+  });
+});
+
+describe('backAtStart', () => {
+  // round a 2 m square, a point every 0.5 m
+  const square = [
+    [0, 0], [0.5, 0], [1, 0], [1.5, 0], [2, 0], [2, 0.5], [2, 1], [2, 1.5], [2, 2], [1.5, 2], [1, 2], [0.5, 2], [0, 2], [0, 1.5], [0, 1], [0, 0.5],
+  ].map(([x, y]) => ({x, y}));
+
+  it('closes once round and back at the start', () => {
+    expect(backAtStart(square, {x: 0.1, y: 0.2})).toBe(true);
+  });
+
+  it('not while still away from the start', () => {
+    expect(backAtStart(square, {x: 0, y: 0.6})).toBe(false);
+  });
+
+  it('not right after starting, nor on a short way out and back', () => {
+    expect(backAtStart(square.slice(0, 2), {x: 0, y: 0})).toBe(false);
+    const outAndBack = [{x: 0, y: 0}, {x: 0.4, y: 0}, {x: 0.8, y: 0}, {x: 0.4, y: 0.05}];
+    expect(backAtStart(outAndBack, {x: 0.05, y: 0})).toBe(false);
+  });
+
+  it('closes small obstacles too', () => {
+    const tree = Array.from({length: 12}, (_, i) => ({x: 0.6 * Math.cos((i / 12) * 2 * Math.PI), y: 0.6 * Math.sin((i / 12) * 2 * Math.PI)}));
+    expect(backAtStart(tree, {x: 0.58, y: -0.1})).toBe(true);
   });
 });

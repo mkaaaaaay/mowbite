@@ -25,3 +25,19 @@ export function shareInside(a: Point[], b: Point[]): number {
   if (!a.length) return 0;
   return a.filter((p) => containsPoint(b, p.x, p.y)).length / a.length;
 }
+
+// recording an outline: the mower went round and is back where the line started, so it can be closed. it has to
+// have been away (at least away m from the start, length m driven) and be within near m of the start now
+export function backAtStart(line: Point[], at: Point, near = 0.35, away = 1, length = 2.5): boolean {
+  if (line.length < 3) return false;
+  const start = line[0];
+  const dist = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y);
+  if (dist(at, start) > near) return false;
+  let driven = 0;
+  let far = 0;
+  for (let i = 1; i < line.length; i++) {
+    driven += dist(line[i - 1], line[i]);
+    far = Math.max(far, dist(line[i], start));
+  }
+  return driven >= length && far >= away;
+}

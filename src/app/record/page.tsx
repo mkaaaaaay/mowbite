@@ -16,6 +16,8 @@ import styles from './page.module.css';
 import {fmt, tr, useLang} from '@/lib/i18n';
 import {ACTION} from '@/lib/openmower';
 import {eventsOfDay, fileDay, forgetToday, historyDays} from '@/lib/history';
+import {backAtStart} from '@/lib/geometry';
+import {tick} from '@/lib/haptics';
 
 const START = ACTION.startRecording;
 const A = ACTION.recording;
@@ -25,6 +27,10 @@ const SPEEDS = [0.15, 0.25, 0.35, 0.5];
 const TURN_PER_SPEED = 3;
 
 type Phase = 'off' | 'empty' | 'recording' | 'outlined' | 'dock';
+
+// back at the start of the line: closed after this many seconds unless the user goes on. on unless switched off
+const CLOSE_SECONDS = 3;
+const AUTO_CLOSE_KEY = 'recordAutoClose';
 
 export default function RecordPage() {
   useLang();
@@ -138,6 +144,37 @@ export default function RecordPage() {
   }, []);
 
   const act = (id: string) => publishAction(A(id));
+  const actRef = useRef(act);
+  actRef.current = act;
+
+  // round once and back where the line started: it closes by itself after a few seconds, like stop does
+  const [autoClose, setAutoClose] = useState(() => {
+    try {
+      return localStorage.getItem(AUTO_CLOSE_KEY) !== '0';
+    } catch {
+      return true;
+    }
+  });
+  // seconds left until it's closed, null while not
+  const [closing, setClosing] = useState<number | null>(null);
+  // the user went on, or it was just sent: not again until the mower was away from the start
+  const [held, setHeld] = useState(false);
+  const line = overlay.find((l) => !l.closed)?.points ?? [];
+  const fromStart = line.length && position ? Math.hypot(position.x - line[0].x, position.y - line[0].y) : null;
+  if (held && (phase !== 'recording' || (fromStart ?? 0) > 1)) setHeld(false);
+  if (closing === null && phase === 'recording' && autoClose && !held && position && backAtStart(line, position)) setClosing(CLOSE_SECONDS);
+  if (closing !== null && (phase !== 'recording' || !autoClose || (fromStart ?? 0) > 0.6)) setClosing(null);
+  useEffect(() => {
+    if (closing === null) return;
+    const t = setTimeout(() => {
+      if (closing > 1) return setClosing(closing - 1);
+      setClosing(null);
+      setHeld(true);
+      tick();
+      actRef.current('stop_recording');
+    }, 1000);
+    return () => clearTimeout(t);
+  }, [closing]);
   const button = (id: string, label: string, kind?: 'main' | 'danger', after?: () => void) =>
     hasAction(A(id)) && (
       <button
@@ -165,9 +202,13 @@ export default function RecordPage() {
       button('exit_recording_mode', 'Leave recording mode', undefined, stop),
     ];
   } else if (phase === 'recording') {
-    text = hasOutline
-      ? tr('Drive around the obstacle, close to it all the way: the line is the middle of the mower. Then stop, it closes by itself.')
-      : tr('Drive along the edge, close to it all the way: the line is the middle of the mower. Back at the start, stop: the outline closes by itself.');
+    text = autoClose
+      ? hasOutline
+        ? tr('Drive around the obstacle, close to it all the way: the line is the middle of the mower. Back at the start, it closes by itself.')
+        : tr('Drive along the edge, close to it all the way: the line is the middle of the mower. Back at the start, the outline closes by itself.')
+      : hasOutline
+        ? tr('Drive around the obstacle, close to it all the way: the line is the middle of the mower. Then stop, it closes by itself.')
+        : tr('Drive along the edge, close to it all the way: the line is the middle of the mower. Back at the start, stop: the outline closes by itself.');
     buttons = [
       button('stop_recording', 'Stop', 'main'),
       button('collect_point', 'Set point here'),
@@ -261,6 +302,19 @@ export default function RecordPage() {
 
             <section className={styles.card}>
               <p>{text}</p>
+              {closing !== null && (
+                <div className={styles.closing}>
+                  <span>{tr('Back at the start, closing it in {n} s.', {n: closing})}</span>
+                  <button
+                    onClick={() => {
+                      setClosing(null);
+                      setHeld(true);
+                    }}
+                  >
+                    {tr('Keep recording')}
+                  </button>
+                </div>
+              )}
               <div className={styles.buttons}>{buttons}</div>
               {knowsAction(A('start_manual_mowing')) && (
                 <div className={styles.buttons}>
@@ -275,6 +329,19 @@ export default function RecordPage() {
                   )}
                 </p>
               )}
+              <label className={styles.check}>
+                <input
+                  type="checkbox"
+                  checked={autoClose}
+                  onChange={(e) => {
+                    setAutoClose(e.target.checked);
+                    try {
+                      localStorage.setItem(AUTO_CLOSE_KEY, e.target.checked ? '1' : '0');
+                    } catch {}
+                  }}
+                />
+                {tr('Close by itself once back at the start')}
+              </label>
               <div className={styles.speeds}>
                 <span className={styles.dim}>{tr('Speed m/s')}</span>
                 {SPEEDS.map((v, i) => (
