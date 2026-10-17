@@ -3,7 +3,19 @@
 import InfoTip from './InfoTip';
 import {UpdateCommand, versionNote} from './Updates';
 import {fmt, locale, tr} from '@/lib/i18n';
-import {amountsOf, loadStats, partDone, partUse, setPartDue, type Part, type Period, type Stats} from '@/lib/stats';
+import {
+  amountsOf,
+  dueParts,
+  loadStats,
+  nextDue,
+  partDone,
+  PARTS,
+  partUse,
+  setPartDue,
+  type Part,
+  type Period,
+  type Stats,
+} from '@/lib/stats';
 import {containerHas, useUpdates} from '@/lib/updates';
 import {useEffect, useState} from 'react';
 import styles from './MowingStats.module.css';
@@ -15,12 +27,6 @@ const PERIODS: {key: Period; label: string}[] = [
   {key: 'year', label: 'Year'},
   {key: 'total', label: 'Total'},
 ];
-
-// the parts the container keeps (docker/stats.sh), what seeing to them is called
-const PARTS: Record<string, {label: string; done: string; ask: string}> = {
-  blade: {label: 'Blades', done: 'Changed', ask: 'Blades changed? Their hours start again from 0.'},
-  clean: {label: 'Cleaning', done: 'Cleaned', ask: 'Cleaned it? The hours start again from 0.'},
-};
 
 const hours = (s: number) => (s < 3600 ? `${Math.round(s / 60)} min` : `${fmt(s / 3600, s < 360000 ? 1 : 0)} h`);
 const distance = (m: number) => (m < 1000 ? `${Math.round(m)} m` : `${fmt(m / 1000, 1)} km`);
@@ -109,12 +115,15 @@ function PartRow({stats, part, onStats}: {stats: Stats; part: Part; onStats: (s:
 }
 
 // mowing hours, runs and distance over a week, month, year or all the time, and the parts due by the blade hours.
-// counted by MowBite's container on the mower (docker/stats.sh), so nothing older than that container is in it
+// counted by MowBite's container on the mower (docker/stats.sh), so nothing older than that container is in it.
+// folded away, open by itself while something is due
 export default function MowingStats() {
   const u = useUpdates();
   // undefined: loading, null: not served
   const [stats, setStats] = useState<Stats | null | undefined>(undefined);
   const [period, setPeriod] = useState<Period>('week');
+  // opened or folded by hand, null: as it comes
+  const [toggled, setToggled] = useState<boolean | null>(null);
   useEffect(() => {
     let alive = true;
     const get = () => void loadStats().then((s) => alive && setStats(s));
@@ -138,18 +147,40 @@ export default function MowingStats() {
   }
   if (!stats) return null;
   const a = amountsOf(stats, period);
+  const due = dueParts(stats).length > 0;
+  const open = toggled ?? due;
+  const next = nextDue(stats);
+  // folded: this week and the next maintenance
+  const summary = [
+    tr('This week {time} mowed', {time: hours(amountsOf(stats, 'week').blade)}),
+    due ? tr('Maintenance due') : next !== null ? tr('maintenance in {n} h', {n: fmt(next, next < 10 ? 1 : 0)}) : '',
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
-    <section className={styles.card}>
-      <div className={styles.head}>
-        <h2>
-          {tr('Mowing hours')}
-          <InfoTip>
-            {tr(
-              "Counted by MowBite on the mower: how long the mow motor turned, how far the mower drove with and without it and how often it set off to mow. It counts from when MowBite got this, older runs aren't in it.",
-            )}
-          </InfoTip>
-        </h2>
+    <details
+      className={styles.card}
+      open={open}
+      onToggle={(e) => {
+        const now = e.currentTarget.open;
+        if (now !== open) setToggled(now);
+      }}
+    >
+      <summary className={styles.summary}>
+        <span className={styles.title}>
+          <h2>
+            {tr('Mowing hours and maintenance')}
+            <InfoTip>
+              {tr(
+                "Counted by MowBite on the mower: how long the mow motor turned, how far the mower drove with and without it and how often it set off to mow. It counts from when MowBite got this, older runs aren't in it.",
+              )}
+            </InfoTip>
+          </h2>
+          {!open && <small className={due ? styles.due : undefined}>{summary}</small>}
+        </span>
+      </summary>
+      <div className={styles.body}>
         <div className={styles.periods} role="group">
           {PERIODS.map((p) => (
             <button key={p.key} className={period === p.key ? styles.on : undefined} onClick={() => setPeriod(p.key)}>
@@ -157,42 +188,42 @@ export default function MowingStats() {
             </button>
           ))}
         </div>
-      </div>
-      <div className={styles.values}>
-        <div>
-          <strong>{hours(a.blade)}</strong>
-          <span>{tr('mowed')}</span>
+        <div className={styles.values}>
+          <div>
+            <strong>{hours(a.blade)}</strong>
+            <span>{tr('mowed')}</span>
+          </div>
+          <div>
+            <strong>{a.runs}</strong>
+            <span>{a.runs === 1 ? tr('run') : tr('runs')}</span>
+          </div>
+          <div>
+            <strong>{distance(a.mowed)}</strong>
+            <span>{tr('with the blade')}</span>
+          </div>
+          <div>
+            <strong>{distance(a.driven)}</strong>
+            <span>{tr('without the blade')}</span>
+          </div>
         </div>
-        <div>
-          <strong>{a.runs}</strong>
-          <span>{a.runs === 1 ? tr('run') : tr('runs')}</span>
-        </div>
-        <div>
-          <strong>{distance(a.mowed)}</strong>
-          <span>{tr('with the blade')}</span>
-        </div>
-        <div>
-          <strong>{distance(a.driven)}</strong>
-          <span>{tr('without the blade')}</span>
-        </div>
-      </div>
-      {period === 'total' && stats.since > 0 && <span className={styles.dim}>{tr('Counted since {date}.', {date: date(stats.since)})}</span>}
+        {period === 'total' && stats.since > 0 && <span className={styles.dim}>{tr('Counted since {date}.', {date: date(stats.since)})}</span>}
 
-      {stats.parts.some((p) => PARTS[p.key]) && (
-        <>
-          <h3>
-            {tr('Maintenance')}
-            <InfoTip>
-              {tr(
-                'By the hours the blade turned since you last did it. When one is due, MowBite sends a push message if they are set up and "Maintenance due" is ticked there.',
-              )}
-            </InfoTip>
-          </h3>
-          {stats.parts.map((p) => (
-            <PartRow key={p.key} stats={stats} part={p} onStats={setStats} />
-          ))}
-        </>
-      )}
-    </section>
+        {stats.parts.some((p) => PARTS[p.key]) && (
+          <>
+            <h3>
+              {tr('Maintenance')}
+              <InfoTip>
+                {tr(
+                  'By the hours the blade turned since you last did it. When one is due, MowBite sends a push message if they are set up and "Maintenance due" is ticked there.',
+                )}
+              </InfoTip>
+            </h3>
+            {stats.parts.map((p) => (
+              <PartRow key={p.key} stats={stats} part={p} onStats={setStats} />
+            ))}
+          </>
+        )}
+      </div>
+    </details>
   );
 }

@@ -3,7 +3,7 @@ import {mkdtempSync, readFileSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {describe, expect, it} from 'vitest';
-import {amountsOf, parseStats, partUse, periodStart} from './stats';
+import {amountsOf, dueParts, nextDue, parseStats, partUse, periodStart} from './stats';
 
 describe('stats', () => {
   // a wednesday at noon, local time
@@ -47,6 +47,13 @@ describe('stats', () => {
   it('counts the blade hours since a part was done', () => {
     expect(partUse(stats, stats.parts[0])).toEqual({seconds: 28800, fraction: 0.1, due: false});
     expect(partUse(stats, stats.parts[1]).due).toBe(true);
+  });
+
+  it('knows what is due and when the next one is', () => {
+    expect(dueParts(stats).map((p) => p.key)).toEqual(['clean']);
+    expect(nextDue(stats)).toBe(0);
+    expect(nextDue({...stats, parts: [stats.parts[0]]})).toBe(72);
+    expect(nextDue({...stats, parts: [{...stats.parts[0], key: 'other'}]})).toBeNull();
   });
 });
 

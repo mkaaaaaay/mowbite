@@ -27,12 +27,52 @@
   font-size: 15px;
 }
 
-.head {
+.summary {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.summary::-webkit-details-marker {
+  display: none;
+}
+
+.summary::after {
+  content: '▾';
+  color: var(--text-secondary);
+  transition: transform 0.2s ease;
+}
+
+details[open] > .summary::after {
+  transform: rotate(180deg);
+}
+
+/* the title and, folded, a line with this week and the next maintenance */
+.title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.title small {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.title small.due {
+  color: var(--warning);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 10px;
 }
 
 .dim {
@@ -170,4 +210,8 @@
   border: none;
   padding: 6px 4px;
   color: var(--accent);
+}
+
+details.card {
+  display: block;
 }

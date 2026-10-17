@@ -1,3 +1,4 @@
+import {useEffect, useState} from 'react';
 import {apiBase, mowerFetch} from './mowers';
 
 // mowing hours, distance and runs as docker/stats.sh counts them (a line per hour), and the maintenance of parts by
@@ -72,6 +73,20 @@ export function partUse(stats: Stats, part: Part): {seconds: number; fraction: n
   return {seconds, fraction, due: fraction >= 1};
 }
 
+// the parts the container keeps (docker/stats.sh), what seeing to them is called
+export const PARTS: Record<string, {label: string; done: string; ask: string}> = {
+  blade: {label: 'Blades', done: 'Changed', ask: 'Blades changed? Their hours start again from 0.'},
+  clean: {label: 'Cleaning', done: 'Cleaned', ask: 'Cleaned it? The hours start again from 0.'},
+};
+
+export const dueParts = (stats: Stats) => stats.parts.filter((p) => PARTS[p.key] && partUse(stats, p).due);
+
+// blade hours until the next part is due, 0 when one is, null without any
+export function nextDue(stats: Stats): number | null {
+  const left = stats.parts.filter((p) => PARTS[p.key]).map((p) => Math.max(0, p.dueHours - partUse(stats, p).seconds / 3600));
+  return left.length ? Math.min(...left) : null;
+}
+
 const endpoint = () => `${apiBase()}/cgi-bin/stats`;
 
 async function ask(query = '', post = false): Promise<Stats | null> {
@@ -93,3 +108,23 @@ export const partDone = (key: string) => ask(`?done=${encodeURIComponent(key)}`,
 // after how many blade hours it's due again
 export const setPartDue = (key: string, hours: number) =>
   ask(`?due=${encodeURIComponent(key)}&h=${Math.round(hours)}`, true);
+
+// for the dashboard: the parts due and their blade hours, asked now and then (none while not enabled)
+export function useDueParts(enabled: boolean): {key: string; used: number; due: number}[] {
+  const [due, setDue] = useState<{key: string; used: number; due: number}[]>([]);
+  useEffect(() => {
+    if (!enabled) return;
+    let alive = true;
+    const get = () =>
+      void loadStats().then((s) => {
+        if (alive) setDue(s ? dueParts(s).map((p) => ({key: p.key, used: partUse(s, p).seconds / 3600, due: p.dueHours})) : []);
+      });
+    get();
+    const every = setInterval(get, 10 * 60000);
+    return () => {
+      alive = false;
+      clearInterval(every);
+    };
+  }, [enabled]);
+  return enabled ? due : [];
+}

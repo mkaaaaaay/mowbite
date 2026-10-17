@@ -27,6 +27,8 @@ import WeatherIcon, {WEATHER_LABELS, weatherKind} from '@/components/WeatherIcon
 import {clock, dayKey, dayLabel, duration} from '@/lib/dates';
 import {emergencyText, OUTCOMES, type MowerEvent, type Run} from '@/lib/events';
 import {settingsStore} from '@/lib/settings';
+import {PARTS, useDueParts} from '@/lib/stats';
+import {containerHas, useUpdates} from '@/lib/updates';
 import {batteryColor, GPS_QUALITY_LABEL, gpsQuality, isDocked, WIFI_LEVEL_LABEL} from '@/lib/status';
 import Link from 'next/link';
 import {memo, useEffect, useMemo, useState, useSyncExternalStore} from 'react';
@@ -197,6 +199,9 @@ export default function Home() {
   // the same object while params/json doesn't change: the map isn't drawn again for every sensor value
   const datum = useMemo(() => datumFromParams(params), [params]);
   const weather = useWeather(datum, !!settings.weather);
+  // blades or cleaning due, counted by MowBite's container
+  const updates = useUpdates();
+  const due = useDueParts(updates.level !== null && containerHas(updates.level, 'stats'));
   const wifi = useMowerWifi();
   const [schedule, setSchedule] = useState<Schedule | null>(() => cachedSchedule() ?? null);
   // the scheduler's log, for a start it left out (rain, battery, ...). again every minute while the page is open
@@ -512,7 +517,7 @@ export default function Home() {
           </section>
         )}
 
-        {(recent || planned || missed) && (
+        {(recent || planned || missed || due.length > 0) && (
           <section className={styles.today}>
             <div className={styles.todayHead}>
               <h2>{tr('Today')}</h2>
@@ -541,6 +546,19 @@ export default function Home() {
                 >
                   ×
                 </button>
+              </div>
+            )}
+            {due.length > 0 && (
+              <div className={styles.missed}>
+                <WarningIcon size={16} />
+                <Link href="/activity">
+                  <strong>{tr('Maintenance due')}</strong>
+                  <span>
+                    {due
+                      .map((d) => `${tr(PARTS[d.key].label)}: ${tr('{used} of {due} h', {used: fmt(d.used, d.used < 10 ? 1 : 0), due: d.due})}`)
+                      .join(' · ')}
+                  </span>
+                </Link>
               </div>
             )}
             {recent && (
