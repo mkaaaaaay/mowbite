@@ -59,6 +59,9 @@ interface MapViewProps {
   track?: readonly (Point & {b?: boolean})[][];
   // a recorded job instead of the live trail, mowed parts solid, driving without blades dashed
   pastTrack?: {points: Point[]; blades: boolean}[];
+  // while it drives the leftovers of the mow before: that mow's track, faded under the trail. Its cut counts in the
+  // cut width too, so what's still left shows as gaps there until the passes fill them
+  beforeTrack?: {points: Point[]; blades: boolean}[];
   // wheel / pinch zoom, drag to pan
   zoomable?: boolean;
   // mowing direction preview
@@ -434,6 +437,7 @@ function MapView({
   followSpanMeters = 6,
   track,
   pastTrack,
+  beforeTrack,
   progress,
   costume,
   zoomable = false,
@@ -798,7 +802,20 @@ function MapView({
     }
     // the round end where the trail stops now with the blades on
     finish(carried, all);
-    for (const seg of pastTrack ?? []) if (seg.blades) strip(seg.points, all);
+    // a recorded track's strips are worked out once per segment, the live trail next to it changes all the time
+    for (const seg of [...(pastTrack ?? []), ...(beforeTrack ?? [])]) {
+      if (!seg.blades) continue;
+      let byBlade = swathCache.get(seg);
+      if (!byBlade) swathCache.set(seg, (byBlade = new Map()));
+      let cached = byBlade.get(key);
+      if (!cached) {
+        cached = {pieces: [], ends: [], before: null, after: null};
+        strip(seg.points, cached);
+        byBlade.set(key, cached);
+      }
+      all.pieces.push(...cached.pieces);
+      all.ends.push(...cached.ends);
+    }
     // a few paths instead of one per piece, pieces that overlap in different ones
     const groups = swathGroups(all.pieces, body.blade);
     const ds: string[] = [];
@@ -810,7 +827,7 @@ function MapView({
     out.groups = ds.filter(Boolean);
     out.ends = all.ends.map((e) => path(e) + 'Z').join('');
     return out;
-  }, [swathOn, body, track, pastTrack, minX, minY, scale, padX, padY]);
+  }, [swathOn, body, track, pastTrack, beforeTrack, minX, minY, scale, padX, padY]);
 
   // the edges where the mower's body reached while the outlines were recorded with its middle
   const edgesOn = !!body && layerOn(hidden, 'edges');
@@ -900,11 +917,26 @@ function MapView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [coverage, coverMode, coverCell, pickingPoints, selectedAreaId, minX, minY, scale, padX, padY]);
   const halloween = useHalloween();
+  // the mow before, only drawn again when it or the fit changes, not with every point of the trail
+  const beforeLines = useMemo(
+    () =>
+      (beforeTrack ?? [])
+        .filter((seg) => seg.blades && seg.points.length >= 2)
+        .map((seg) =>
+          roundBends(seg.points)
+            .map((p) => `${(p.x - minX) * scale + padX},${HEIGHT - ((p.y - minY) * scale + padY)}`)
+            .join(' '),
+        ),
+    [beforeTrack, minX, minY, scale, padX, padY],
+  );
   const trackLayer = useMemo(
     () =>
       hidden.has('track') ? null : (
         // halloween night the track glows like ectoplasm
         <g className={halloween.night ? styles.spooky : undefined}>
+          {beforeLines.map((points, i) => (
+            <polyline key={'before' + i} points={points} className={styles.trackBefore} />
+          ))}
           {trackRuns
             .filter((run) => run.blades || !hidden.has('transit'))
             .map((run, i) => (
@@ -923,7 +955,7 @@ function MapView({
           )}
         </g>
       ),
-    [hidden, trackRuns, pastTrack, minX, minY, scale, padX, padY, halloween.night],
+    [hidden, trackRuns, pastTrack, beforeLines, minX, minY, scale, padX, padY, halloween.night],
   );
 
   const selectedArea = map.areas.find((a) => a.id === selectedAreaId);

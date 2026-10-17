@@ -2,15 +2,17 @@
 
 import {mowerPaths} from '@/lib/areaPlan';
 import type {MowerEvent} from '@/lib/events';
+import {leftoverPaths} from '@/lib/leftovers';
 import {bladeSeconds, saveRate, savedRate, splitPlan, type PlanPath, type PlanProgress} from '@/lib/planProgress';
 import {useEffect, useMemo, useState} from 'react';
+import {useLeftoversSource} from './useLeftoversBefore';
 import {useLeftoverRun} from './useLeftoverRun';
 import type {MowerMap} from './useMowerMap';
 import type {MowerState} from './useMowerState';
 
 // how far the mower got with the area it's mowing, when it can hand out its plan (planner.plan or mowing.plan).
 // events: the day's, for the time left (without them none). leftovers: it drives the leftover passes of the last mow
-// in place of the plan, there's no progress along it then
+// in place of the plan, the progress is along those then (the planner works them out again), none when it can't
 export function usePlanProgress(
   state: MowerState | null,
   map: MowerMap | null,
@@ -22,25 +24,28 @@ export function usePlanProgress(
       ? map.areas.filter((a) => a.properties.type === 'mow')[state.current_area!]?.id
       : undefined;
   const leftovers = useLeftoverRun(areaId, events);
-  const [plan, setPlan] = useState<{areaId: string; paths: PlanPath[]} | null>(null);
+  // the mow they're the leftovers of
+  const source = useLeftoversSource(leftovers);
+  const [plan, setPlan] = useState<{areaId: string; paths: PlanPath[]; leftovers: boolean} | null>(null);
 
   useEffect(() => {
-    if (!areaId || !map) return;
+    if (!areaId || !map || (leftovers && !source)) return;
     let gone = false;
-    mowerPaths(areaId, map)
-      .then((paths) => !gone && setPlan(paths ? {areaId, paths} : null))
+    (leftovers ? leftoverPaths(source!, areaId) : mowerPaths(areaId, map))
+      .then((paths) => !gone && setPlan(paths ? {areaId, paths, leftovers} : null))
       .catch(() => !gone && setPlan(null));
     return () => {
       gone = true;
     };
     // again when the map changes, the plan might have too
-  }, [areaId, map]);
+  }, [areaId, map, leftovers, source]);
 
   const path = state?.current_path ?? -1;
   const pose = state?.current_path_index ?? 0;
   const progress = useMemo(
-    () => (areaId && plan?.areaId === areaId && path >= 0 ? splitPlan(plan.paths, path, pose) : null),
-    [areaId, plan, path, pose],
+    () =>
+      areaId && plan?.areaId === areaId && plan.leftovers === leftovers && path >= 0 ? splitPlan(plan.paths, path, pose) : null,
+    [areaId, plan, leftovers, path, pose],
   );
 
   // time left from how fast the plan got done while the blades ran in this area (event history), the same on every
@@ -60,9 +65,9 @@ export function usePlanProgress(
 
   return useMemo(() => {
     if (!areaId) return null;
-    if (leftovers) return {done: [], todo: [], doneLength: 0, todoLength: 0, fraction: 0, areaId, secondsLeft: null, leftovers: true};
+    if (leftovers && !progress) return {done: [], todo: [], doneLength: 0, todoLength: 0, fraction: 0, areaId, secondsLeft: null, leftovers: true};
     if (!progress) return null;
     const r = rate ?? savedRate();
-    return {...progress, areaId, secondsLeft: r ? progress.todoLength / r : null};
+    return {...progress, areaId, secondsLeft: r ? progress.todoLength / r : null, ...(leftovers ? {leftovers: true as const} : {})};
   }, [progress, rate, areaId, leftovers]);
 }

@@ -9,6 +9,7 @@ import MapView from '@/components/MapView';
 import {HomeIcon, PauseIcon, PlayIcon, SkipIcon, WarningIcon} from '@/components/icons';
 import {useComputedSpeed} from '@/hooks/useComputedSpeed';
 import {useEmergencyReasons} from '@/hooks/useEmergencyReasons';
+import {useLeftoversBefore} from '@/hooks/useLeftoversBefore';
 import {useMowerActions} from '@/hooks/useMowerActions';
 import {useMowerMap} from '@/hooks/useMowerMap';
 import {datumFromParams, numParam, useMowerParams} from '@/hooks/useMowerParams';
@@ -166,6 +167,8 @@ export default function Home() {
   // the last finished mow, for what it left
   const leftoverJob = recent?.latest.find((r) => r.outcome === 'done' && r.areas.length > 0 && r.jobId)?.jobId;
   const progress = usePlanProgress(state ?? null, map, recent?.today);
+  // driving the leftovers of the last mow: that mow's track, faded on the map
+  const before = useLeftoversBefore(!!progress?.leftovers);
   const params = useMowerParams();
   const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
   // the same object while params/json doesn't change: the map isn't drawn again for every sensor value
@@ -252,7 +255,16 @@ export default function Home() {
       warn: driving && gpsQ !== 'fix',
     });
     if (driving) facts.push({label: tr('Speed'), value: `${fmt(speed, 2)} m/s`});
-    if (progress?.leftovers) facts.push({label: tr('Progress'), value: tr('leftovers of the last mow')});
+    if (progress?.leftovers) {
+      // along the leftover passes when the planner worked them out again
+      const known = progress.doneLength + progress.todoLength > 0;
+      const left = known && progress.secondsLeft !== null ? ` · ${tr('{time} left', {time: duration(progress.secondsLeft)})}` : '';
+      facts.push({
+        label: tr('Progress'),
+        value: known ? tr('leftovers {pct} %', {pct: Math.round(progress.fraction * 100)}) + left : tr('leftovers of the last mow'),
+        extra: before ? <span>{tr('its track faded on the map')}</span> : undefined,
+      });
+    }
     else if (progress) {
       const left = progress.secondsLeft !== null ? ` · ${tr('{time} left', {time: duration(progress.secondsLeft)})}` : '';
       const pct = towelPreview ? 42 : Math.round(progress.fraction * 100);
@@ -429,6 +441,7 @@ export default function Home() {
               mower={position}
               emergency={!!state?.emergency}
               track={track}
+              beforeTrack={before}
               progress={progress ?? undefined}
               costume={costume}
               follow={driving}

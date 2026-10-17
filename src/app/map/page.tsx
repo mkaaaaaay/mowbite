@@ -10,6 +10,7 @@ import {useEggForced, useUmbrella} from '@/lib/eggs';
 import {lastRun as newestRun} from '@/hooks/useRecentRuns';
 import {clearTrack, trackPoints, useLastRun, useLastRunJob, useMowerTrack} from '@/hooks/useMowerTrack';
 import {useMarginPlaces} from '@/lib/marginCheck';
+import {useLeftoversBefore} from '@/hooks/useLeftoversBefore';
 import {usePlanProgress} from '@/hooks/usePlanProgress';
 import {datumFromParams, numParam, useMowerParams} from '@/hooks/useMowerParams';
 import {loadJobTrack, useJobList, useMowHistory, type TrackSegment} from '@/hooks/useMowHistory';
@@ -81,13 +82,15 @@ function MapEditor() {
   // while it mows: how far it got with the area's plan, like on the overview (the state only then, it changes every
   // second)
   const mowingState = useMowerStateValue((l) => (l.state?.current_state === 'MOWING' ? l.state : null));
-  // (driving the leftover passes of the last mow there's no progress along the plan to draw)
+  // (driving the leftover passes of the last mow: along those, nothing to draw when the planner can't work them out again)
   const planProgress = usePlanProgress(mowingState, liveMap, undefined);
-  const progress = planProgress?.leftovers ? null : planProgress;
+  const progress = planProgress?.leftovers && !planProgress.todoLength && !planProgress.doneLength ? null : planProgress;
+  // and that mow's track, faded under the trail
+  const before = useLeftoversBefore(!!planProgress?.leftovers);
   // the mower's icon dressed like the eater on the dashboard
   const umbrella = useUmbrella(newestRun());
   const towel = useEggForced('towel');
-  const towelNow = towel || (!!progress && Math.round(progress.fraction * 100) === 42);
+  const towelNow = towel || (!!progress && !progress.leftovers && Math.round(progress.fraction * 100) === 42);
   // the same object while nothing changes, the map is drawn again only when it does
   const costume = useMemo(() => ({towel: towelNow, umbrella}), [towelNow, umbrella]);
   const {map, edited, setMap, history, remember, undoStep, originals, setOriginals, dirty, external, dropEdits, mergeNote, mergeExternal} =
@@ -656,6 +659,7 @@ function MapEditor() {
                 map={shownMap}
                 emergency={emergency}
                 track={trackShown}
+                beforeTrack={trackShown ? before : undefined}
                 pastTrack={viewJob?.segments?.map((s) => ({
                   points: s.points.map(([x, y]) => ({x, y})),
                   blades: !!s.attributes.blades,

@@ -279,6 +279,11 @@ export function useLastRunJob(): string | null {
   );
 }
 
+// the job the trail shown is of: the one running, or the last one while none runs
+export function useTrailJob(): string | null {
+  return useSyncExternalStore(subscribe, shownJob, () => null);
+}
+
 export function useMowerTrack(): TrackChunks {
   return useSyncExternalStore(
     subscribe,

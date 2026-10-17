@@ -479,6 +479,8 @@ const de: Record<string, string> = {
   "problems": "Probleme",
   "Progress": "Fortschritt",
   "leftovers of the last mow": "Reste vom letzten Mähen",
+  "its track faded on the map": "seine Spur blass auf der Karte",
+  "leftovers {pct} %": "Reste {pct} %",
   "Rain": "Regen",
   "Rain from about {time}": "Regen ab etwa {time}",
   "Rain soon": "Regen in Kürze",

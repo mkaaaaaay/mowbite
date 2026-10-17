@@ -1,12 +1,12 @@
 import {describe, expect, it, vi} from 'vitest';
-import {leftoverAreas, leftoversHandedOut, readLeftovers} from './leftovers';
+import {leftoverAreas, leftoverPaths, leftoversHandedOut, readLeftovers} from './leftovers';
 
-const rpc = vi.hoisted(() => ({lines: [] as {t: number; msg: string}[], asked: [] as unknown[]}));
+const rpc = vi.hoisted(() => ({lines: [] as {t: number; msg: string}[], asked: [] as unknown[], areas: {} as Record<string, unknown>}));
 vi.mock('./rpc', () => ({
-  rpcMethods: async () => new Set(['planner.log']),
+  rpcMethods: async () => new Set(['planner.log', 'planner.leftovers']),
   callRpc: async (method: string, params: unknown) => {
     rpc.asked.push([method, params]);
-    return {lines: rpc.lines};
+    return method === 'planner.leftovers' ? {areas: rpc.areas} : {lines: rpc.lines};
   },
 }));
 
@@ -56,3 +56,19 @@ describe('leftovers handed out', () => {
   });
 });
 
+
+describe('leftover passes', () => {
+  it("asks the planner for the area's passes of that mow and reads them like a plan", async () => {
+    rpc.areas = {
+      a: {area_id: 'a', paths: [{is_outline: false, points: [[0, 0], [2, 0]], pose_index: [0, 4]}], left_m2: 0.3},
+    };
+    const paths = await leftoverPaths('job1', 'a');
+    expect(rpc.asked.at(-1)).toEqual(['planner.leftovers', {job_id: 'job1', area_id: 'a'}]);
+    expect(paths).toEqual([{outline: false, points: [{x: 0, y: 0}, {x: 2, y: 0}], index: [0, 4]}]);
+  });
+
+  it('gives none for an area without passes', async () => {
+    rpc.areas = {b: {area_id: 'b', paths: [], message: 'most of the area is left'}};
+    expect(await leftoverPaths('job1', 'b')).toBeNull();
+  });
+});

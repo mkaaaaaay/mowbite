@@ -1,4 +1,6 @@
+import {readPaths} from './areaPlan';
 import {RPC} from './openmower';
+import type {PlanPath} from './planProgress';
 import {callRpc, rpcMethods} from './rpc';
 
 // What a finished mow's real track left unmowed, from the MowBite Planner on the mower (planner.leftovers): for
@@ -91,6 +93,30 @@ export function leftoversHandedOut(areaId: string, since: number): Promise<boole
       (yes) => !yes && Date.now() / 1000 - since < 120 && handedOut.delete(key),
       () => handedOut.delete(key),
     );
+  }
+  return p;
+}
+
+// the leftover passes of one area as the planner gave them to mower_logic for the leftovers of `jobId`, worked out
+// again from the same track, map and settings: current_path counts these. null when there are none (or no planner)
+const passes = new Map<string, Promise<PlanPath[] | null>>();
+export function leftoverPaths(jobId: string, areaId: string): Promise<PlanPath[] | null> {
+  const key = `${jobId} ${areaId}`;
+  let p = passes.get(key);
+  if (!p) {
+    p = (async () => {
+      if ((await rpcMethods())?.has(RPC.plannerLeftovers) === false) return null;
+      const a = await callRpc<{areas?: Record<string, Parameters<typeof readPaths>[0]>}>(
+        RPC.plannerLeftovers,
+        {job_id: jobId, area_id: areaId},
+        180000,
+      );
+      const area = a?.areas?.[areaId];
+      const paths = area ? readPaths(area) : [];
+      return paths.length ? paths : null;
+    })();
+    passes.set(key, p);
+    p.catch(() => passes.delete(key));
   }
   return p;
 }

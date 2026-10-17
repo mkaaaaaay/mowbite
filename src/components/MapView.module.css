@@ -86,6 +86,16 @@
   stroke-linecap: round;
 }
 
+/* the mow before, whose leftovers it drives now: faded under the trail */
+.trackBefore {
+  fill: none;
+  stroke: var(--c-track);
+  stroke-opacity: 0.22;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
 .vertex {
   fill: var(--c-vertex);
   fill-opacity: 0.6;
