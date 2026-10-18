@@ -900,7 +900,7 @@
   }
 }
 
-/* gps or wifi coverage: a small, quiet three way switch at the top of the map, the legend under it while it's on.
+/* gps or wifi coverage: a quiet three way switch at the top of the map, the legend under it while it's on.
    Centred on the map left of the buttons along the right edge */
 .coverSwitchWrap {
   position: absolute;
@@ -917,8 +917,8 @@
 .coverSwitch {
   position: relative;
   display: grid;
-  grid-template-columns: repeat(3, 28px);
-  padding: 1px;
+  grid-template-columns: repeat(3, 40px);
+  padding: 2px;
   border-radius: 999px;
   border: 1px solid color-mix(in srgb, var(--card-border) 70%, transparent);
   /* no blur over the map, like the buttons */
@@ -928,22 +928,22 @@
 .coverSwitch button {
   position: relative;
   z-index: 1;
-  height: 15px;
+  height: 22px;
   padding: 0;
   border: none;
   background: none;
   color: color-mix(in srgb, var(--text-secondary) 80%, transparent);
   font: inherit;
-  font-size: 8px;
+  font-size: 11px;
   font-weight: 500;
   cursor: pointer;
 }
 
-/* small to look at, the finger still finds it */
+/* a little more room for the finger than it shows */
 .coverSwitch button::after {
   content: '';
   position: absolute;
-  inset: -8px -1px;
+  inset: -6px -1px;
 }
 
 .coverSwitch button.coverOn {
@@ -958,10 +958,10 @@
 /* under the choice taken, it slides */
 .coverKnob {
   position: absolute;
-  top: 1px;
-  left: 1px;
-  width: 28px;
-  height: 15px;
+  top: 2px;
+  left: 2px;
+  width: 40px;
+  height: 22px;
   border-radius: 999px;
   border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
   background: color-mix(in srgb, var(--accent) 22%, transparent);
@@ -974,25 +974,36 @@
 }
 
 .coverSwitchWrap .coverLegend {
-  padding: 1px 5px;
+  padding: 2px 9px 2px 4px;
   border-radius: 999px;
   background: color-mix(in srgb, var(--background) 55%, transparent);
-  font-size: 8px;
+  font-size: 11px;
   color: var(--text-secondary);
 }
 
 .coverSwitchWrap .coverLegend i {
-  width: 6px;
-  height: 6px;
-  margin-left: 3px;
+  width: 9px;
+  height: 9px;
+  margin-left: 5px;
+}
+
+/* small phones: the gps legend in German would reach past the map's left edge */
+@media (max-width: 380px) {
+  .coverSwitchWrap .coverLegend {
+    font-size: 10px;
+  }
+
+  .coverSwitchWrap .coverLegend i {
+    margin-left: 4px;
+  }
 }
 
 /* under the legend on the editor's map: editing waits while the coverage is shown */
 .coverPaused {
-  padding: 2px 8px;
+  padding: 3px 10px;
   border-radius: 999px;
   background: rgba(20, 20, 22, 0.85);
   color: rgba(255, 255, 255, 0.75);
-  font-size: 9px;
+  font-size: 11px;
   white-space: nowrap;
 }
