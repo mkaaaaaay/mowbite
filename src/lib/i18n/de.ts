@@ -1358,6 +1358,7 @@ const de: Record<string, string> = {
   "How to record it, step by step": "So nimmst du sie auf, Schritt für Schritt",
   "No area yet.": "Noch keine Fläche.",
   "How to record the map, step by step": "So nimmst du die Karte auf, Schritt für Schritt",
+  "Editing is off while the coverage is shown": "Bearbeiten aus, solange die Abdeckung an ist",
 };
 
 export default de;

@@ -89,7 +89,8 @@ export default function MapControls({
   planner?: boolean;
   // the three way switch on the map (wifi, off, gps), when MowBite's container keeps the gps log. wifi false: no signal
   // in it
-  coverage?: {wifi: boolean; value: Coverage; onChange: (c: Coverage) => void};
+  // paused: the map can be edited, but not while the coverage is shown
+  coverage?: {wifi: boolean; value: Coverage; paused?: boolean; onChange: (c: Coverage) => void};
   // shown when zoomed or panned, follow: the view follows the mower
   reset: {follow: boolean; onReset: () => void} | null;
   // only while the view can follow the mower
@@ -130,6 +131,7 @@ export default function MapControls({
               <i className={styles.bad} /> {tr(coverage.value === 'gps' ? 'often worse' : 'weak')}
             </span>
           )}
+          {coverage.value !== 'off' && coverage.paused && <span className={styles.coverPaused}>{tr('Editing is off while the coverage is shown')}</span>}
         </div>
       )}
       <div className={styles.zoomButtons}>

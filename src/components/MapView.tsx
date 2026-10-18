@@ -513,6 +513,8 @@ function MapView({
   const [coverage, setCoverage] = useState<CoverageCell[] | null>(null);
   const [coverCell, setCoverCell] = useState<CoverageCell | null>(null);
   const wantCoverage = coverMode !== 'off';
+  // with the coverage shown the map is for looking: a tap shows a square's numbers, nothing is picked or moved
+  const editing = coverMode === 'off';
   useEffect(() => {
     if (wantCoverage) void loadCoverage().then(setCoverage);
   }, [wantCoverage]);
@@ -1100,6 +1102,7 @@ function MapView({
   };
   // a press on a marker near a point of the area being edited moves the point: the marker only takes it otherwise
   const grabbable = (e: React.PointerEvent) =>
+    editing &&
     !!(pickPending(e.clientX, e.clientY, e.pointerType !== 'mouse') || (selectedArea && pickHandle(e.clientX, e.clientY, e.pointerType !== 'mouse')));
 
 
@@ -1212,8 +1215,8 @@ function MapView({
     // a second finger while one rests on a point: a pinch
     if (hold.current && e.pointerId !== hold.current.press.pointerId) dropHold();
 
-    const pendingHit = pointers.current.size === 0 ? pickPending(e.clientX, e.clientY, touch) : null;
-    const hit = !pendingHit && selectedArea && pointers.current.size === 0 ? pickHandle(e.clientX, e.clientY, touch) : null;
+    const pendingHit = editing && pointers.current.size === 0 ? pickPending(e.clientX, e.clientY, touch) : null;
+    const hit = editing && !pendingHit && selectedArea && pointers.current.size === 0 ? pickHandle(e.clientX, e.clientY, touch) : null;
     const grab = pendingHit ? {areaId: PENDING, hit: pendingHit} : hit && selectedArea ? {areaId: selectedArea.id, hit} : null;
     if (grab && (e.pointerType !== 'touch' || !zoomable)) {
       startDrag(e, grab.areaId, grab.hit);
@@ -1402,7 +1405,7 @@ function MapView({
               .join(' ')}
             data-area
             onClick={(e) => {
-              if (!pickingPoints) selectAt(area.id, e.clientX, e.clientY);
+              if (!pickingPoints && editing) selectAt(area.id, e.clientX, e.clientY);
             }}
           />
         ))}
@@ -1599,6 +1602,7 @@ function MapView({
         }
       }}
       onDoubleClick={(e) => {
+        if (!editing) return;
         const hit = pickHandle(e.clientX, e.clientY, false);
         if (hit && !hit.mid && selectedArea && selectedArea.outline.length > 3) {
           onDeleteVertex?.(selectedArea.id, hit.index);
@@ -1616,7 +1620,7 @@ function MapView({
           setCoverCell(c && c !== coverCell ? c : null);
         }
         if (!pickingPoints && !(e.target as Element).closest('[data-area]')) onClickEmpty?.();
-        if (!pickingPoints || !onCanvasClick) return;
+        if (!pickingPoints || !onCanvasClick || !editing) return;
         const local = clientToLocal(e.clientX, e.clientY);
         if (local) onCanvasClick(local[0], local[1]);
       }}
@@ -1752,7 +1756,23 @@ function MapView({
         {svg}
       </div>
       {loupe}
-      {coverCell && coverMode !== 'off' && <CoverInfo cell={coverCell} mode={coverMode} raised={!!selectedAreaId} onClose={() => setCoverCell(null)} />}
+      {coverCell && coverMode !== 'off' && (
+        <CoverInfo
+          cell={coverCell}
+          mode={coverMode}
+          raised={!!selectedAreaId}
+          at={(() => {
+            // where the square is in the map, its numbers go next to it
+            if (svgPx <= 0) return null;
+            const v = shown ?? {x: 0, y: 0, size: WIDTH};
+            const [sx, sy] = toScreen(coverCell.x + CELL_M / 2, coverCell.y + CELL_M / 2);
+            const x = ((sx - v.x) / v.size) * svgPx;
+            const y = ((sy - v.y) / v.size) * svgPx;
+            return x >= 0 && y >= 0 && x <= svgPx && y <= svgPx ? {x, y, size: svgPx} : null;
+          })()}
+          onClose={() => setCoverCell(null)}
+        />
+      )}
       <MapControls
         onZoom={zoomCenter}
         showGrid={showGrid}
@@ -1774,9 +1794,13 @@ function MapView({
             ? {
                 wifi: !coverage || coverage.some((c) => c.wifi !== null),
                 value: coverMode,
+                // the editor's map: says that editing waits while the coverage is shown
+                paused: !editing && !!onSelectArea,
                 onChange: (c) => {
                   setCoverMode(c);
                   setCoverCell(null);
+                  // shown, it's for looking: an area being edited is let go
+                  if (c !== 'off' && selectedAreaId) onClickEmpty?.();
                 },
               }
             : undefined

@@ -5,9 +5,29 @@ import {duration} from '@/lib/dates';
 import {fmt, tr} from '@/lib/i18n';
 import styles from './MapView.module.css';
 
-// the numbers behind a coverage square that was tapped
-// raised: over the angle bar the map page puts at the bottom on a phone while an area is picked
-export function CoverInfo({cell, mode, raised, onClose}: {cell: CoverageCell; mode: 'gps' | 'wifi'; raised?: boolean; onClose: () => void}) {
+// the buttons along the right edge, the switch with its legend at the top, about how tall the box is (px)
+const BUTTONS = 56;
+const TOP = 72;
+const HEIGHT = 104;
+
+// on the side of the square with more room, below it when there's no room above under the switch
+function placeBeside(at: {x: number; y: number; size: number}): React.CSSProperties {
+  const right = at.size - BUTTONS - (at.x + 12);
+  const left = at.x - 12 - 8;
+  const toRight = right >= left;
+  const below = at.y - 12 < TOP + HEIGHT;
+  return {
+    left: toRight ? at.x + 12 : 'auto',
+    right: toRight ? 'auto' : at.size - at.x + 12,
+    top: below ? at.y + 12 : 'auto',
+    bottom: below ? 'auto' : at.size - at.y + 12,
+    maxWidth: Math.max(140, Math.min(200, toRight ? right : left)),
+  };
+}
+
+// the numbers behind a coverage square that was tapped, next to it when at says where it is in the map (px), else
+// bottom left. raised: over the angle bar the map page puts at the bottom on a phone while an area is picked
+export function CoverInfo({cell, mode, raised, at, onClose}: {cell: CoverageCell; mode: 'gps' | 'wifi'; raised?: boolean; at?: {x: number; y: number; size: number} | null; onClose: () => void}) {
   const share = Math.round((cell.noFix / cell.seconds) * 100);
   const lines =
     mode === 'gps'
@@ -21,7 +41,11 @@ export function CoverInfo({cell, mode, raised, onClose}: {cell: CoverageCell; mo
           cell.wifiWorst !== null ? tr('at worst {dbm} dBm', {dbm: cell.wifiWorst}) : null,
         ];
   return (
-    <div className={[styles.coverInfo, raised ? styles.coverInfoRaised : ''].join(' ')}>
+    <div
+      className={[styles.coverInfo, raised && !at ? styles.coverInfoRaised : ''].join(' ')}
+      // beside the square, clear of the map's buttons on the right and the switch at the top
+      style={at ? placeBeside(at) : undefined}
+    >
       <strong>{mode === 'gps' ? 'GPS' : tr('Wi-Fi')}</strong>
       {lines.filter(Boolean).map((l) => (
         <span key={l}>{l}</span>

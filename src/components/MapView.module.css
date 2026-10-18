@@ -986,3 +986,13 @@
   height: 6px;
   margin-left: 3px;
 }
+
+/* under the legend on the editor's map: editing waits while the coverage is shown */
+.coverPaused {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(20, 20, 22, 0.85);
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 9px;
+  white-space: nowrap;
+}
