@@ -56,6 +56,10 @@ export interface Settings {
   // the mower's sizes in meters for its outline and the strip its blade cuts on the map (lib/mowerBody)
   // outline: the body's real contour from above, [ahead, left] in meters around the same point, the rectangle without it
   mower?: {width?: number; front?: number; rear?: number; blade?: number; bladeAhead?: number; bladeOffset?: number; outline?: [number, number][]};
+  // sizes that are exactly a model's with a measured outline take that outline on their own (lib/mowerBody): keepRectangle
+  // stays with the rectangle instead, autoOutline is the model whose outline the app gave the MowBite Planner by itself
+  keepRectangle?: boolean;
+  autoOutline?: string;
   // after every finished mow the container asks the MowBite Planner what the track left unmowed and mows that right
   // away when it's at least min m² (docker/scheduler.sh), off unless switched on
   // tz and pos: the time zone and the place for "not in the dark", for the container without a schedule saved
@@ -119,21 +123,23 @@ export function sharedSettings() {
 let server: Settings = {};
 let version: string | null = null;
 
-let synced = false;
-export async function syncSettings() {
-  if (synced) return;
-  synced = true;
-  try {
-    const res = await mowerFetch(settingsUrl(), {cache: 'no-store'});
-    if (!res.ok || !res.headers.get('content-type')?.includes('json')) return;
-    const data = await res.json();
-    shared = true;
-    server = data && typeof data === 'object' ? data : {};
-    version = res.headers.get('X-Settings-Version') || null;
-    setLocal(server);
-  } catch {
-    // not served by the container, keep it local
-  }
+// asked once, everyone asking waits for the same answer
+let syncing: Promise<void> | null = null;
+export function syncSettings(): Promise<void> {
+  syncing ??= (async () => {
+    try {
+      const res = await mowerFetch(settingsUrl(), {cache: 'no-store'});
+      if (!res.ok || !res.headers.get('content-type')?.includes('json')) return;
+      const data = await res.json();
+      shared = true;
+      server = data && typeof data === 'object' ? data : {};
+      version = res.headers.get('X-Settings-Version') || null;
+      setLocal(server);
+    } catch {
+      // not served by the container, keep it local
+    }
+  })();
+  return syncing;
 }
 
 async function push(next: Settings) {

@@ -2,6 +2,7 @@
 
 import {tr} from '@/lib/i18n';
 import {
+  autoOutlineModel,
   BODY_SETTINGS,
   bodyFrom,
   loadPlannerSettings,
@@ -15,12 +16,13 @@ import {
   sizesBody,
   slic3rPlans,
   usePlannerSettings,
+  withModelOutline,
   type BodySetting,
   type MowerSizes,
   type Outline,
 } from '@/lib/mowerBody';
 import {RpcError} from '@/lib/rpc';
-import {settingsStore} from '@/lib/settings';
+import {saveSettings, settingsStore} from '@/lib/settings';
 import {useEffect, useState, useSyncExternalStore} from 'react';
 import local from './MowerBodySettings.module.css';
 import {MowerSketch} from './MowerSketch';
@@ -76,7 +78,7 @@ export function NoSizesWarning({inArea}: {inArea?: boolean}) {
   const [state, setState] = useState<{busy?: boolean; error?: string}>({});
   const known = settings?.settings;
   if (!known?.robot_width || !known.robot_front || !known.robot_rear || slic3rPlans(settings) || bodyFrom(settings)) return null;
-  const own = sizesBody(app.mower);
+  const own = sizesBody(withModelOutline(app.mower, app.keepRectangle));
 
   const take = async () => {
     if (!own) return;
@@ -134,6 +136,7 @@ export function NoSizesWarning({inArea}: {inArea?: boolean}) {
 
 export function MowerBodySettings({styles}: {styles: Styles}) {
   const settings = usePlannerSettings();
+  const app = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
   const [form, setForm] = useState<Form>(() => formFrom(settings?.settings));
   const [state, setState] = useState<{busy?: boolean; error?: string; saved?: boolean; offline?: boolean; picked?: boolean}>({});
   // "other mower" picked while the fields still hold a model's sizes
@@ -174,6 +177,12 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
   const sketch = rect && outline ? {...rect, outline} : rect;
   // the model whose outline it is, named so a wrong pick shows
   const outlineModel = outline ? MOWER_MODELS.find((m) => m.outline && JSON.stringify(m.outline) === JSON.stringify(outline)) : undefined;
+  // the outline the app gave the planner by itself, while the card shows what's stored
+  const taken =
+    !!outlineModel &&
+    app.autoOutline === outlineModel.key &&
+    JSON.stringify(outline) === JSON.stringify(measuredOutline(outlineOf(known.robot_outline?.value)) ?? null) &&
+    JSON.stringify(form) === JSON.stringify(formFrom(settings?.settings));
   const missing = keys.filter((k) => !known[k]);
   const model = other ? '' : (modelOf(sizesOf(form)) ?? '');
   // a model with a measured outline, while the rectangle is still in use: offered, not put in on its own
@@ -185,7 +194,16 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
   const stored = known.turn_radius?.value;
   const turnChange = turn !== null && known.turn_radius && (typeof stored !== 'number' || Math.abs(stored - turn) > 1e-6) ? turn : null;
 
-  const save = async () => {
+  // a save decides: an outline the app gave by itself is no longer that, one sent along ends a kept rectangle, the
+  // rectangle saved for a model's sizes (to a planner that knows outlines) is kept
+  const decided = (o: Outline | null) => {
+    const now = settingsStore.snapshot();
+    const keep = o ? undefined : known.robot_outline && autoOutlineModel(sizesOf(form)) ? true : now.keepRectangle;
+    if (now.autoOutline === undefined && now.keepRectangle === keep) return;
+    saveSettings({...now, autoOutline: undefined, keepRectangle: keep});
+  };
+
+  const save = async (o: Outline | null = outline) => {
     const changes: Record<string, unknown> = {};
     for (const key of keys) {
       const s = known[key];
@@ -203,22 +221,37 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
       if (!s.stored || typeof s.value !== 'number' || Math.abs(s.value - v) > 1e-6) changes[key] = Math.round(v * 10000) / 10000;
     }
     // the contour only to a planner that knows it, null is the rectangle again
-    const send = outline ? grownOutline(outline, OUTLINE_LEEWAY) : null;
+    const send = o ? grownOutline(o, OUTLINE_LEEWAY) : null;
     if (known.robot_outline && JSON.stringify(outlineOf(known.robot_outline.value) ?? null) !== JSON.stringify(send)) {
       changes.robot_outline = send;
     }
     if (turnChange !== null) changes.turn_radius = turnChange;
     if (!Object.keys(changes).length) {
+      decided(o);
       setState({saved: true});
       return;
     }
     setState({busy: true});
     try {
       const s = await savePlannerSettings(changes);
+      decided(o);
       setForm(formFrom(s.settings));
       setOutline(measuredOutline(outlineOf(s.settings.robot_outline?.value)) ?? null);
       setTurn(null);
       setState({saved: true});
+    } catch (e) {
+      setState({error: e instanceof RpcError && e.code !== 'timeout' ? e.message : tr('The mower did not answer.')});
+    }
+  };
+
+  // the rectangle for a model's sizes: the planner checks it again and the outline doesn't come back on its own
+  const toRectangle = async () => {
+    setState({busy: true});
+    try {
+      const s = await savePlannerSettings({robot_outline: null});
+      saveSettings({...settingsStore.snapshot(), keepRectangle: true, autoOutline: undefined});
+      setOutline(measuredOutline(outlineOf(s.settings.robot_outline?.value)) ?? null);
+      setState({});
     } catch (e) {
       setState({error: e instanceof RpcError && e.code !== 'timeout' ? e.message : tr('The mower did not answer.')});
     }
@@ -270,6 +303,14 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
           {outlineModel ? tr(known.robot_outline ? 'Outline of the {model} plus 1 cm, measured on a photo from straight above. It counts for this model only.' : 'Outline of the {model}, measured on a photo from straight above. It counts for this model only, the planner on the mower checks the rectangle until it knows outlines (newer image).', {model: outlineModel.label}) : tr('A stored outline that is none of the models: pick the model again or enter the sizes.')}
         </p>
       )}
+      {taken && (
+        <p className={styles.dim}>
+          {tr("Taken on its own: the sizes are exactly this model's.")}{' '}
+          <button className={styles.linkButton} disabled={state.busy} onClick={() => void toRectangle()}>
+            {tr('Keep the rectangle')}
+          </button>
+        </p>
+      )}
       {offered && !known.robot_outline && (
         <p className={styles.dim}>
           {tr('This model has a measured outline. The planner on the mower does not know outlines yet (newer image), it checks the rectangle until then.')}
@@ -280,9 +321,10 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
           {tr('This model has a measured outline.')}{' '}
           <button
             className={styles.linkButton}
+            disabled={state.busy}
             onClick={() => {
               setOutline(offered.outline ?? null);
-              setState({picked: true});
+              void save(offered.outline ?? null);
             }}
           >
             {tr('Use it')}
@@ -313,7 +355,7 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
         </p>
       )}
       <div className={local.actions}>
-        <button className={styles.pillButton} onClick={save} disabled={state.busy || !settings}>
+        <button className={styles.pillButton} onClick={() => void save()} disabled={state.busy || !settings}>
           {state.busy ? tr('Saving…') : tr('Save')}
         </button>
         {state.saved && (

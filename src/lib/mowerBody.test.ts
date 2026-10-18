@@ -1,6 +1,7 @@
 import type {MapArea} from '@/hooks/useMowerMap';
 import {describe, expect, it} from 'vitest';
 import {
+  autoOutlineModel,
   bladeSeconds,
   bodyFrom,
   bodyShape,
@@ -10,6 +11,7 @@ import {
   MOWER_MODELS,
   OUTLINE_LEEWAY,
   outlineOf,
+  plannerSizes,
   realEdges,
   roundBends,
   sizesBody,
@@ -18,6 +20,7 @@ import {
   swathEnd,
   swathGroups,
   swathPieces,
+  withModelOutline,
   type PlannerSettings,
 } from './mowerBody';
 
@@ -288,6 +291,38 @@ describe('mower models', () => {
     expect(modelOf({width: 0.505, front: 0.6, rear: 0.21, blade: 0.3, bladeAhead: 0.225})).toBe('jd-tango-e5');
     expect(modelOf({...MOWER_MODELS[0].sizes, width: 0.42})).toBeNull();
     expect(modelOf(undefined)).toBeNull();
+  });
+});
+
+describe('outline on its own', () => {
+  const nx = MOWER_MODELS.find((m) => m.key === 'yf-nx')!;
+
+  it("goes with sizes that are exactly a model's, not with the rectangle kept or other sizes", () => {
+    expect(autoOutlineModel(nx.sizes)?.key).toBe('yf-nx');
+    expect(autoOutlineModel(nx.sizes, true)).toBeUndefined();
+    expect(autoOutlineModel({...nx.sizes, width: 0.42})).toBeUndefined();
+    expect(autoOutlineModel(undefined)).toBeUndefined();
+    expect(withModelOutline(nx.sizes)?.outline).toEqual(nx.outline);
+    expect(withModelOutline(nx.sizes, true)?.outline).toBeUndefined();
+    expect(sizesBody(withModelOutline(nx.sizes))?.outline).toEqual(nx.outline);
+    expect(withModelOutline(undefined)).toBeUndefined();
+  });
+
+  it('keeps an outline that is stored', () => {
+    const own: [number, number][] = [
+      [0.43, 0.1],
+      [-0.18, 0.1],
+      [-0.18, -0.1],
+      [0.43, -0.1],
+    ];
+    expect(withModelOutline({...nx.sizes, outline: own})?.outline).toEqual(own);
+  });
+
+  it("reads the planner's sizes as the app's", () => {
+    const s = settings({robot_width: 0.505, robot_front: 0.6, robot_rear: 0.21, mower_width: 0.3, blade_ahead: 0.225, blade_offset: 0});
+    expect(plannerSizes(s)).toEqual({width: 0.505, front: 0.6, rear: 0.21, blade: 0.3, bladeAhead: 0.225, bladeOffset: 0});
+    expect(autoOutlineModel(plannerSizes(s))?.key).toBe('jd-tango-e5');
+    expect(autoOutlineModel(plannerSizes(settings({robot_width: 0.505, robot_front: 0.6})))).toBeUndefined();
   });
 });
 

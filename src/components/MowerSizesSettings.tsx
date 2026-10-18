@@ -2,7 +2,7 @@
 
 import {numParam, useMowerParams} from '@/hooks/useMowerParams';
 import {tr} from '@/lib/i18n';
-import {MAX_BLADE, modelOf, MOWER_MODELS, outlineOf, sizesBody, type MowerSizes, type Outline} from '@/lib/mowerBody';
+import {autoOutlineModel, MAX_BLADE, modelOf, MOWER_MODELS, outlineOf, sizesBody, withModelOutline, type MowerSizes, type Outline} from '@/lib/mowerBody';
 import {PARAM} from '@/lib/openmower';
 import {saveSettings, settingsStore, type Settings} from '@/lib/settings';
 import {useState} from 'react';
@@ -36,21 +36,26 @@ const metres = (text: string) => {
   return text.trim() && Number.isFinite(v) ? v / 100 : null;
 };
 
+// the outline that goes with stored sizes: their own, or their model's on its own
+const outlineWith = (s: MowerSizes | undefined, keep?: boolean) => outlineOf(withModelOutline(s, keep)?.outline) ?? null;
+
 const sizesOf = (f: Form) => Object.fromEntries(FIELDS.map(([key]) => [key, metres(f[key]) ?? undefined])) as MowerSizes;
 
 export function MowerSizesSettings({settings, styles}: {settings: Settings; styles: Styles}) {
   const sizes = settings.mower;
+  const keep = settings.keepRectangle;
   const [form, setForm] = useState<Form>(() => formFrom(sizes));
-  // the body's real contour, from a model; typed sizes go back to the rectangle
-  const [outline, setOutline] = useState<Outline | null>(() => outlineOf(sizes?.outline) ?? null);
+  // the body's real contour, from a model (sizes that are exactly one's bring it on their own); typed sizes go back to
+  // the rectangle
+  const [outline, setOutline] = useState<Outline | null>(() => outlineWith(sizes, keep));
   // the saved sizes arrive after the first render (the page is built ahead, then the container answers) or change on
   // another device: the fields follow them as long as nothing is typed in them
-  const [shown, setShown] = useState(sizes);
-  if (shown !== sizes) {
-    setShown(sizes);
-    if (JSON.stringify(form) === JSON.stringify(formFrom(shown))) {
+  const [shown, setShown] = useState({sizes, keep});
+  if (shown.sizes !== sizes || shown.keep !== keep) {
+    setShown({sizes, keep});
+    if (JSON.stringify(form) === JSON.stringify(formFrom(shown.sizes)) && JSON.stringify(outline) === JSON.stringify(outlineWith(shown.sizes, shown.keep))) {
       setForm(formFrom(sizes));
-      setOutline(outlineOf(sizes?.outline) ?? null);
+      setOutline(outlineWith(sizes, keep));
     }
   }
   // "other mower" picked while the fields still hold a model's sizes
@@ -73,9 +78,16 @@ export function MowerSizesSettings({settings, styles}: {settings: Settings; styl
   const stored = !!sizesBody(sizes);
   const blade = typed.blade;
 
-  const store = (next: MowerSizes | null) => saveSettings({...settingsStore.snapshot(), mower: next ?? undefined});
+  // the outline the stored sizes brought on their own, while the card shows them
+  const taken =
+    !outlineOf(sizes?.outline) &&
+    !!outline &&
+    JSON.stringify(outline) === JSON.stringify(outlineWith(sizes, keep)) &&
+    JSON.stringify(form) === JSON.stringify(formFrom(sizes));
 
-  const save = () => {
+  const store = (next: MowerSizes | null, extra: Settings = {}) => saveSettings({...settingsStore.snapshot(), mower: next ?? undefined, ...extra});
+
+  const save = (o: Outline | null = outline) => {
     const next: MowerSizes = {};
     for (const [key, label] of FIELDS) {
       if (!form[key].trim()) continue;
@@ -84,19 +96,27 @@ export function MowerSizesSettings({settings, styles}: {settings: Settings; styl
       next[key] = Math.round(v * 10000) / 10000;
     }
     if (!Object.keys(next).length) {
-      store(null);
+      store(null, {keepRectangle: undefined});
       return setState({saved: true});
     }
     if (!sizesBody(next)) return setState({error: tr('Width and the lengths to the front and back are needed.')});
-    if (outline) next.outline = outline;
+    if (o) next.outline = o;
     if (next.blade !== undefined && (next.blade <= 0 || next.blade > MAX_BLADE))
       return setState({error: tr('The blade diameter can be at most {n} cm.', {n: MAX_BLADE * 100})});
-    store(next);
+    // the rectangle saved for a model's sizes is kept, an outline saved with them ends a kept one
+    store(next, {keepRectangle: o ? undefined : autoOutlineModel(next) ? true : keep});
     setState({saved: true});
   };
 
+  // the rectangle for a model's sizes: the outline doesn't come back on its own
+  const toRectangle = () => {
+    store(sizes ? {...sizes, outline: undefined} : null, {keepRectangle: true});
+    setOutline(null);
+    setState({});
+  };
+
   const remove = () => {
-    store(null);
+    store(null, {keepRectangle: undefined});
     setForm(formFrom(undefined));
     setOutline(null);
     setState({});
@@ -156,6 +176,14 @@ export function MowerSizesSettings({settings, styles}: {settings: Settings; styl
       </label>
       {sketch && <MowerSketch body={sketch} antenna={antenna} />}
       {outline && <p className={styles.dim}>{outlineModel ? tr('Outline of the {model}, measured on a photo from straight above. It counts for this model only.', {model: outlineModel.label}) : tr('A stored outline that is none of the models: pick the model again or enter the sizes.')}</p>}
+      {taken && (
+        <p className={styles.dim}>
+          {tr("Taken on its own: the sizes are exactly this model's.")}{' '}
+          <button className={styles.linkButton} onClick={toRectangle}>
+            {tr('Keep the rectangle')}
+          </button>
+        </p>
+      )}
       {offered && (
         <p className={styles.dim}>
           {tr('This model has a measured outline.')}{' '}
@@ -163,7 +191,7 @@ export function MowerSizesSettings({settings, styles}: {settings: Settings; styl
             className={styles.linkButton}
             onClick={() => {
               setOutline(offered.outline ?? null);
-              setState({picked: true});
+              save(offered.outline ?? null);
             }}
           >
             {tr('Use it')}
@@ -193,7 +221,7 @@ export function MowerSizesSettings({settings, styles}: {settings: Settings; styl
         </p>
       )}
       <div className={local.actions}>
-        <button className={styles.pillButton} onClick={save}>
+        <button className={styles.pillButton} onClick={() => save()}>
           {tr('Save')}
         </button>
         {stored && (

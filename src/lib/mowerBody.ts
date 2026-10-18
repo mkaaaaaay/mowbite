@@ -5,7 +5,7 @@ import type {PlanRequest} from './areaPlan';
 import {apiBase} from './mowers';
 import {RPC} from './openmower';
 import {callRpc, isMissingMethod, rpcMethods} from './rpc';
-import {settingsStore, type Settings} from './settings';
+import {saveSettings, settingsStore, syncSettings, type Settings} from './settings';
 
 // The mower's body and blade as the MowBite Planner on the mower knows them (planner.settings): a rectangle around
 // the point the path is for (OpenMower's base_link, the middle between the rear drive wheels), robot_front ahead of
@@ -136,6 +136,7 @@ export function loadPlannerSettings(force = false): Promise<PlannerSettings | nu
     (s) => {
       asking = null;
       if (before === saves) set(s && typeof s === 'object' && s.settings ? s : null);
+      if (current) void giveOutline().catch(() => {});
       return current ?? null;
     },
     (e) => {
@@ -154,6 +155,21 @@ export async function savePlannerSettings(values: Record<string, unknown>): Prom
   saves++;
   set(s);
   return s;
+}
+
+// A planner that knows outlines but plans with the rectangle while its sizes are exactly a model's with a measured
+// outline gets that outline from the app by itself: once per start, after the shared settings are in (the rectangle
+// may be kept there), and the model is noted for the sizes card
+let outlineChecked = false;
+export async function giveOutline() {
+  if (outlineChecked || !current?.settings.robot_outline?.settable) return;
+  outlineChecked = true;
+  await syncSettings();
+  if (!current || outlineOf(current.settings.robot_outline?.value)) return;
+  const m = autoOutlineModel(plannerSizes(current), settingsStore.snapshot().keepRectangle);
+  if (!m?.outline) return;
+  await savePlannerSettings({robot_outline: grownOutline(m.outline, OUTLINE_LEEWAY)});
+  saveSettings({...settingsStore.snapshot(), autoOutline: m.key});
 }
 
 // the angle turned further back to 0 (planner.angle.reset), the next finished mow counts from there
@@ -212,7 +228,9 @@ export function useMowerBody(): MowerBody | null {
       clearTimeout(t);
     };
   }, []);
-  return useMemo(() => bodyFrom(s) ?? sizesBody(app.mower), [s, app.mower]);
+  const own = app.mower;
+  const keep = app.keepRectangle;
+  return useMemo(() => bodyFrom(s) ?? sizesBody(withModelOutline(own, keep)), [s, own, keep]);
 }
 
 export function usePlannerSettings(): PlannerSettings | null | undefined {
@@ -425,6 +443,34 @@ export function modelOf(s: MowerSizes | undefined): string | null {
     return SIZES.every((k) => mm(p[k]) === mm(b[k]));
   });
   return model?.key ?? null;
+}
+
+// the model with a measured outline these sizes are exactly: its outline goes with them on its own, unless the
+// rectangle is kept
+export function autoOutlineModel(s: MowerSizes | undefined, keepRectangle?: boolean) {
+  if (keepRectangle) return undefined;
+  const key = modelOf(s);
+  return MOWER_MODELS.find((m) => m.key === key && m.outline);
+}
+
+// the sizes set in the app with their model's outline, while none is stored
+export function withModelOutline(s: MowerSizes | undefined, keepRectangle?: boolean): MowerSizes | undefined {
+  if (!s || outlineOf(s.outline)) return s;
+  const m = autoOutlineModel(s, keepRectangle);
+  return m ? {...s, outline: m.outline} : s;
+}
+
+// the planner's sizes in the app's terms
+export function plannerSizes(s: PlannerSettings | null | undefined): MowerSizes {
+  const v = (key: string) => num(s, key) ?? undefined;
+  return {
+    width: v('robot_width'),
+    front: v('robot_front'),
+    rear: v('robot_rear'),
+    blade: v('mower_width'),
+    bladeAhead: v('blade_ahead'),
+    bladeOffset: v('blade_offset'),
+  };
 }
 
 // seconds for one turn of a drawn blade: 2.5 s at 2400 rpm (the real 40 a second would only blur), in half seconds

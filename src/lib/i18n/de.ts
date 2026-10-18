@@ -665,6 +665,8 @@ const de: Record<string, string> = {
   "Outline of the {model} plus 1 cm, measured on a photo from straight above. It counts for this model only.": "Kontur des {model} plus 1 cm, vermessen auf einem Foto von genau oben. Sie gilt nur für dieses Modell.",
   "A stored outline that is none of the models: pick the model again or enter the sizes.": "Eine gespeicherte Kontur, die zu keinem Modell passt: Modell neu wählen oder Maße eintragen.",
   "This model has a measured outline.": "Für dieses Modell gibt es eine vermessene Kontur.",
+  "Taken on its own: the sizes are exactly this model's.": "Von selbst übernommen, weil die Maße genau zu diesem Modell passen.",
+  "Keep the rectangle": "Rechteck behalten",
   "This model has a measured outline. The planner on the mower does not know outlines yet (newer image), it checks the rectangle until then.":
     "Für dieses Modell gibt es eine vermessene Kontur. Der Planer auf dem Mäher kennt noch keine Konturen (neueres Image), bis dahin prüft er das Rechteck.",
   "Saved, without the outline: the planner on the mower does not know outlines yet.": "Gespeichert, ohne Kontur: Der Planer auf dem Mäher kennt noch keine Konturen.",
