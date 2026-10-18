@@ -97,6 +97,7 @@ export function MapLookSettings() {
     const cur = settingsStore.snapshot();
     saveSettings({...cur, imagery: {...cur.imagery, [field]: value.trim() || undefined}});
   };
+  const setStyle = (mapStyle: Settings['mapStyle']) => saveSettings({...settingsStore.snapshot(), mapStyle});
   const setIcon = (field: 'mower' | 'dock' | 'mowerSize' | 'dockSize' | 'mowerRealSize', value: string | number | boolean) => {
     const cur = settingsStore.snapshot();
     saveSettings({...cur, icons: {...cur.icons, [field]: value}});
@@ -104,6 +105,23 @@ export function MapLookSettings() {
 
   return (
     <>
+      <section className={styles.section}>
+        <h3>{tr('Map style')}</h3>
+        <div className={styles.segment}>
+          <button className={settings.mapStyle !== 'garden' ? styles.segmentOn : undefined} onClick={() => setStyle(undefined)}>
+            {tr('Plain')}
+          </button>
+          <button className={settings.mapStyle === 'garden' ? styles.segmentOn : undefined} onClick={() => setStyle('garden')}>
+            {tr('Garden')}
+          </button>
+        </div>
+        <p className={styles.dim}>
+          {tr(
+            "Garden draws the map from above like the guides: the lawn in stripes along each area's mowing direction, ways as gravel, obstacles as a picture. With an area picked, its picture can be changed under the map, without one it follows the name (pond, tree, pool, house ...).",
+          )}
+        </p>
+      </section>
+
       <section className={styles.section}>
         <h3>{tr('Mower icon')}</h3>
         <IconChoice icons={MOWER_ICONS} value={icons.mower ?? MOWER_ICONS[0].key} onChange={(k) => setIcon('mower', k)} rotate />

@@ -1,10 +1,13 @@
+import {areaLook, LookPicker, LookSwatch, type Look} from '@/components/gardenLook';
+import {PICTURES} from '@/components/gardenPictures';
 import {MergeIcon, ScissorsIcon, SimplifyIcon, TrashIcon} from '@/components/icons';
 import InfoTip from '@/components/InfoTip';
 import {polygonArea} from '@/lib/geometry';
 import {fmt, tr} from '@/lib/i18n';
 import {useAreaProperties} from '@/lib/areaProps';
 import {usePlannerSettings} from '@/lib/mowerBody';
-import {useState} from 'react';
+import {saveSettings, settingsStore} from '@/lib/settings';
+import {useState, useSyncExternalStore} from 'react';
 import {AREA_TYPES, type Area, type UpdateArea} from './editing';
 import styles from './page.module.css';
 
@@ -44,6 +47,19 @@ export default function AreaCard({
   const [marginDraft, setMarginDraft] = useState<string | null>(null);
   const marginCm = typeof area.properties.margin === 'number' ? String(Math.round(area.properties.margin * 1000) / 10) : '';
   const defaultCm = typeof keepOff?.value === 'number' ? String(Math.round(keepOff.value * 1000) / 10) : '';
+  // in the garden map style the picture a way or an obstacle is drawn as, kept with the app's settings (not the map)
+  const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
+  const pictured = settings.mapStyle === 'garden' && (type === 'obstacle' || type === 'nav');
+  const picked = settings.looks?.[area.id];
+  const shown = areaLook(area, settings.looks);
+  const [picking, setPicking] = useState(false);
+  const setLook = (look: Look | undefined) => {
+    const cur = settingsStore.snapshot();
+    const looks = {...cur.looks};
+    if (look) looks[area.id] = look;
+    else delete looks[area.id];
+    saveSettings({...cur, looks});
+  };
   const applyMargin = () => {
     if (marginDraft === null) return;
     const v = Number(marginDraft.trim().replace(',', '.'));
@@ -149,6 +165,27 @@ export default function AreaCard({
           {fmt(polygonArea(area.outline), 1)} m²
         </span>
       </div>
+      {pictured && (
+        <div className={styles.lookRow}>
+          <span className={styles.dim}>{tr('Picture on the map')}</span>
+          <button className={styles.lookButton} onClick={() => setPicking(true)}>
+            <LookSwatch look={shown} size={28} />
+            {tr(PICTURES[shown].label)}
+            {!picked && <span className={styles.dim}>({tr('auto')})</span>}
+          </button>
+        </div>
+      )}
+      {picking && (
+        <LookPicker
+          value={picked}
+          auto={areaLook(area)}
+          onPick={(look) => {
+            setLook(look);
+            setPicking(false);
+          }}
+          onClose={() => setPicking(false)}
+        />
+      )}
       {showTools && (
         <div className={styles.toolbar}>
           <span className={styles.toolLabel}>

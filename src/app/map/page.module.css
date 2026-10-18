@@ -96,6 +96,29 @@
   align-items: center;
 }
 
+/* the picture a way or an obstacle is drawn as in the garden map style, a tap opens all of them */
+.lookRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 13px;
+}
+
+.lookButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px 3px 3px;
+  border-radius: 10px;
+  border: 1px solid var(--card-border);
+  background: transparent;
+  color: var(--foreground);
+  font-size: 13px;
+  cursor: pointer;
+}
+
 .toolLabel:first-child {
   margin-top: 0;
 }

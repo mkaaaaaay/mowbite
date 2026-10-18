@@ -53,6 +53,10 @@ export interface Settings {
   mowers?: OtherMower[];
   // own aerial imagery source, xyz tile url
   imagery?: {url?: string; attribution?: string};
+  // how the maps are drawn: plain colored areas (default) or garden, from above like the guides (components/gardenLook)
+  mapStyle?: 'garden';
+  // the garden style's picture of a way or an obstacle by area id, picked under the map (else from its name)
+  looks?: Record<string, string>;
   // the mower's sizes in meters for its outline and the strip its blade cuts on the map (lib/mowerBody)
   // outline: the body's real contour from above, [ahead, left] in meters around the same point, the rectangle without it
   mower?: {width?: number; front?: number; rear?: number; blade?: number; bladeAhead?: number; bladeOffset?: number; outline?: [number, number][]};

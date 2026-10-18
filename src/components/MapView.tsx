@@ -1,6 +1,6 @@
 'use client';
 
-import type {MowerMap, Point} from '@/hooks/useMowerMap';
+import type {MapArea, MowerMap, Point} from '@/hooks/useMowerMap';
 import {useComputedSpeed} from '@/hooks/useComputedSpeed';
 import {createEaser, type Easer, type Pose} from '@/lib/poseEaser';
 import {liveGlide} from '@/hooks/useMowerPosition';
@@ -14,7 +14,7 @@ import {availableSources, imageryTiles, type Datum} from '@/lib/imagery';
 import {handleRadius, meterGrid} from '@/lib/mapGrid';
 import MapControls, {layerOn, type Layer} from './MapControls';
 import {useMapPrefs} from './useMapPrefs';
-import {memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
+import {Fragment, memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import styles from './MapView.module.css';
 import {fmt, tr, useLang} from '@/lib/i18n';
 import {tick} from '@/lib/haptics';
@@ -26,6 +26,8 @@ import {useTrailingPose} from '@/hooks/useTrailingPose';
 import {CELL_M, MIN_SECONDS, gpsGrade, loadCoverage, wifiGrade, type CoverageCell} from '@/lib/coverage';
 import {useUpdates} from '@/lib/updates';
 import {CoverInfo} from './CoverInfo';
+import {areaLook, drawThing, GardenDefs, groundOf, isThing, type Box, type Look} from './gardenLook';
+import {autoMowAngle} from '@/lib/mowStripes';
 
 interface MapViewProps {
   map: MowerMap;
@@ -716,6 +718,43 @@ function MapView({
     }
     return out;
   }, [map, minX, minY, scale, padX, padY]);
+  // the garden style: each mowing area's lawn in stripes along its mowing direction, ways and obstacles as their
+  // pictures, a thing (tree, pond ...) fitted into the box around the area and cut to its outline
+  const garden = settings.mapStyle === 'garden';
+  const uid = 'g' + useId().replace(/[^a-zA-Z0-9]/g, '');
+  const gardenLook = useMemo(() => {
+    if (!garden) return null;
+    const lawns = new Map<string, number>();
+    const looks = new Map<string, Look>();
+    const things = new Map<string, {i: number; look: Look; box: Box}>();
+    const angles: number[] = [];
+    const clips: string[] = [];
+    for (const a of map.areas) {
+      const type = a.properties.type;
+      if (type === 'mow') {
+        lawns.set(a.id, angles.length);
+        angles.push(a.properties.angle ?? autoMowAngle(a.outline));
+      } else if ((type === 'obstacle' || type === 'nav') && a.outline.length > 2) {
+        const look = areaLook(a, settings.looks);
+        looks.set(a.id, look);
+        if (!isThing(look)) continue;
+        const xs = a.outline.map((p) => (p.x - minX) * scale + padX);
+        const ys = a.outline.map((p) => HEIGHT - ((p.y - minY) * scale + padY));
+        const [x, y] = [Math.min(...xs), Math.min(...ys)];
+        things.set(a.id, {i: clips.length, look, box: {x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y}});
+        clips.push(outlinePoints.get(a.id) ?? '');
+      }
+    }
+    return {lawns, looks, things, defs: <GardenDefs uid={uid} m={scale} lawns={angles} clips={clips} />};
+  }, [garden, map, settings.looks, uid, scale, minX, minY, padX, padY, outlinePoints]);
+  const gardenFill = (a: MapArea): React.CSSProperties | undefined => {
+    if (!gardenLook) return undefined;
+    const lawn = gardenLook.lawns.get(a.id);
+    const look = gardenLook.looks.get(a.id);
+    const fill =
+      a.properties.type === 'mow' ? (a.properties.mowable === false ? 'meadow' : lawn !== undefined ? `lawn${lawn}` : null) : look ? groundOf(look) : null;
+    return fill ? {fill: `url(#${uid}${fill})`, fillOpacity: 1} : undefined;
+  };
   // the live trail cut where the blades go on or off, driving without them is drawn dashed. worked out per
   // piece and kept for pieces that didn't change, so a long trail costs the same as a short one while driving
   const trackRuns = useMemo(() => {
@@ -1412,23 +1451,36 @@ function MapView({
         </g>
       )}
         {edges?.grassOutside && <path className={styles.realGrass} d={edges.grassOutside} />}
-        {areasBySize.filter((area) => !hidden.has(area.properties.type as Layer)).map((area) => (
-          <polygon
-            key={area.id}
-            points={outlinePoints.get(area.id)}
-            className={[
-              AREA_CLASS[area.properties.type ?? 'draft'] ?? styles.draftArea,
-              area.properties.active === false ? styles.inactive : '',
-              area.properties.mowable === false ? styles.skipMowing : '',
-            ]
-              .filter(Boolean)
-              .join(' ')}
-            data-area
-            onClick={(e) => {
-              if (!pickingPoints && editing) selectAt(area.id, e.clientX, e.clientY);
-            }}
-          />
-        ))}
+        {areasBySize.filter((area) => !hidden.has(area.properties.type as Layer)).map((area) => {
+          const thing = gardenLook?.things.get(area.id);
+          return (
+            <Fragment key={area.id}>
+              <polygon
+                points={outlinePoints.get(area.id)}
+                className={[
+                  AREA_CLASS[area.properties.type ?? 'draft'] ?? styles.draftArea,
+                  area.properties.active === false ? styles.inactive : '',
+                  area.properties.mowable === false ? styles.skipMowing : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
+                style={gardenFill(area)}
+                data-area
+                onClick={(e) => {
+                  if (!pickingPoints && editing) selectAt(area.id, e.clientX, e.clientY);
+                }}
+              />
+              {thing && isThing(thing.look) && (
+                <g
+                  className={[styles.gardenThing, area.properties.active === false ? styles.gardenOff : ''].filter(Boolean).join(' ')}
+                  clipPath={`url(#${uid}clip${thing.i})`}
+                >
+                  {drawThing(thing.look, thing.box)}
+                </g>
+              )}
+            </Fragment>
+          );
+        })}
         {edges?.grassObstacles && <path className={styles.realGrass} d={edges.grassObstacles} />}
 
         {coverLayer}
@@ -1601,7 +1653,7 @@ function MapView({
   const svg = (
     <svg
       ref={attachSvg}
-      className={[styles.svg, zoomable ? styles.zoomable : ''].filter(Boolean).join(' ')}
+      className={[styles.svg, zoomable ? styles.zoomable : '', garden ? styles.garden : ''].filter(Boolean).join(' ')}
       // (gliding along the mower: twice the window around the anchor, slid along under the frame above)
       viewBox={
         glides
@@ -1646,6 +1698,7 @@ function MapView({
         if (local) onCanvasClick(local[0], local[1]);
       }}
     >
+      {gardenLook?.defs}
       {renderContent(k)}
       {checksOn && bodySpacePath && <path className={styles.bodySpace} d={bodySpacePath} />}
       {/* small and the same size at any zoom, the plan stays readable under them */}
@@ -1763,7 +1816,7 @@ function MapView({
     const top = above >= 0 ? above : Math.min(finger.width - LOUPE_PX, finger.y + 60);
     loupe = (
       <div className={styles.loupe} style={{left, top, width: LOUPE_PX, height: LOUPE_PX}}>
-        <svg className={styles.svg} viewBox={`${cx - size / 2} ${cy - size / 2} ${size} ${size}`}>
+        <svg className={[styles.svg, garden ? styles.garden : ''].filter(Boolean).join(' ')} viewBox={`${cx - size / 2} ${cy - size / 2} ${size} ${size}`}>
           {renderContent(k / LOUPE_ZOOM)}
         </svg>
         <span className={styles.crosshair} />

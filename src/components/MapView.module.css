@@ -51,6 +51,27 @@
   stroke-dasharray: 4 3;
 }
 
+/* the garden style (components/gardenLook): paving around the lawn, the areas filled with their textures, an inactive
+   one and its picture faded */
+.garden {
+  background: #8f8778;
+}
+
+.garden .inactive,
+.gardenOff {
+  opacity: 0.45;
+}
+
+.gardenThing {
+  pointer-events: none;
+}
+
+/* the lawn up to the real edges, as the lawn */
+.garden .realGrass {
+  fill: #4e8d3e;
+  fill-opacity: 1;
+}
+
 /* drivable but not mowed: its own color, the edge stays solid */
 .skipMowing {
   fill: var(--c-unmowed);
