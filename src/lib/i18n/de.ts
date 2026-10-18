@@ -1368,7 +1368,6 @@ const de: Record<string, string> = {
   "Line: where the middle of the mower drove": "Linie: Hier fuhr die Mitte des Mähers",
   "Dashed: how far its body reached": "Gestrichelt: So weit reichte sein Körper",
   "Green between them: lawn too": "Grün dazwischen: auch Rasen",
-  "In corners its front reaches further": "In Ecken reicht seine Front weiter",
   "Paths and the way to the dock": "Wege und Dock-Zufahrt",
   "The mower only drives on mowing and navigation areas. If two lawns don't touch, record the path between them the same way and tap Save as navigation area. The spot about 1.5 m in front of the dock has to lie in one of them too: from there it drives straight in.": "Der Mäher fährt nur auf Mäh- und Navigationsflächen. Liegen zwei Rasenflächen nicht aneinander, nimm den Weg dazwischen genauso auf und tippe „Als Navigationsfläche speichern“. Auch der Punkt etwa 1,5 m vor dem Dock muss in einer dieser Flächen liegen: Von dort fährt er gerade hinein.",
   "Tips": "Tipps",

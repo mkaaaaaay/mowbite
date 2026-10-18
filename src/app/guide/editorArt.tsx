@@ -759,15 +759,14 @@ function Order() {
 }
 
 // 10: where the lawn really ends, close up at a corner: the line is where the middle drove, dashed where the body
-// reached, green between them, and around the corner the front reaches further
+// reached, green between them
 const NX = MOWER_MODELS.find((m) => m.key === 'yf-nx')!;
 const NX_BODY = sizesBody({...NX.sizes, outline: NX.outline})!;
 // what the map says from when on
 const EDGE_SAYS: [number, string][] = [
   [0.1, 'Line: where the middle of the mower drove'],
-  [0.32, 'Dashed: how far its body reached'],
-  [0.52, 'Green between them: lawn too'],
-  [0.7, 'In corners its front reaches further'],
+  [0.38, 'Dashed: how far its body reached'],
+  [0.64, 'Green between them: lawn too'],
   [0.92, ''],
 ];
 
@@ -793,16 +792,14 @@ function Edges() {
         moves: [
           [0, 'off'],
           [0.1, {map: pt(12.2, 0)}],
-          [0.3, {map: pt(12.2, 0)}],
-          [0.34, {map: pt(12.2, -0.2)}],
-          [0.5, {map: pt(12.2, -0.2)}],
-          [0.54, {map: pt(12.2, -0.1)}],
-          [0.68, {map: pt(12.2, -0.1)}],
-          [0.74, {map: pt(14.35, -0.1)}],
-          [0.9, {map: pt(14.35, -0.1)}],
+          [0.36, {map: pt(12.2, 0)}],
+          [0.4, {map: pt(12.2, -0.2)}],
+          [0.62, {map: pt(12.2, -0.2)}],
+          [0.66, {map: pt(12.2, -0.1)}],
+          [0.9, {map: pt(12.2, -0.1)}],
         ],
         press: [],
-        taps: [0.12, 0.36, 0.56, 0.76],
+        taps: [0.12, 0.42, 0.68],
         show: [0.06, 0.92],
       }}
     />

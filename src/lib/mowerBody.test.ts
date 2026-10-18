@@ -197,20 +197,19 @@ describe('real edges', () => {
   const rect: MowerBody = {width: 0.4, front: 0.43, rear: 0.18, blade: 0.18, bladeAhead: 0.18, bladeOffset: 0};
   const inside = (rings: {x: number; y: number}[][], x: number, y: number) => rings.filter((r) => containsPoint(r, x, y)).length % 2 === 1;
 
-  it('reaches half the width past an edge it drove along, its front further into a corner it drove at', () => {
+  it('grows the lawn by half the width, round at the corners, areas side by side as one', () => {
     const {lawn} = realEdges([square('a', 'mow', 0, 0, 4), square('b', 'mow', 4, 0, 4), square('n', 'nav', 9, 0, 2)], rect);
-    // side by side as one, the nav area not in it
+    // the nav area not in it
     expect(lawn).toHaveLength(1);
     expect(inside(lawn, 2, -0.15)).toBe(true);
     expect(inside(lawn, 2, -0.25)).toBe(false);
-    // driven at the corner from the left: the front reaches 43 cm, more than the 20 cm of the side
-    expect(inside(lawn, 8.4, 0.05)).toBe(true);
-    expect(inside(lawn, 10, 1)).toBe(false);
+    // a corner rounded by the 20 cm, the front reaches no further there
+    expect(inside(lawn, 8.1, -0.1)).toBe(true);
+    expect(inside(lawn, 8.17, -0.17)).toBe(false);
     const [x0, y0, x1, y1] = box(lawn[0]);
-    expect(x0).toBeLessThan(-0.4);
-    expect(x1).toBeGreaterThan(8.4);
-    expect(y0).toBeLessThan(-0.4);
-    expect(y1).toBeGreaterThan(4.4);
+    for (const v of [x0, y0]) expect(v).toBeCloseTo(-0.2, 2);
+    expect(x1).toBeCloseTo(8.2, 2);
+    expect(y1).toBeCloseTo(4.2, 2);
   });
 
   it('takes the side off the obstacles it drove round', () => {
