@@ -51,9 +51,14 @@
   stroke-dasharray: 4 3;
 }
 
-/* the garden style (components/gardenLook): paving around the lawn, the areas filled with their textures, an inactive
-   one and its picture faded */
+/* the garden style (components/gardenLook): paving around the lawn, half see-through so the page shows a little, the
+   areas filled with their textures, an inactive one and its picture faded */
 .garden {
+  background: color-mix(in srgb, #8f8778 30%, transparent);
+}
+
+/* the loupe over the map stays solid, the map under it would show through */
+.loupe .garden {
   background: #8f8778;
 }
 

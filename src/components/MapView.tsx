@@ -1656,6 +1656,8 @@ function MapView({
     <svg
       ref={attachSvg}
       className={[styles.svg, zoomable ? styles.zoomable : '', garden ? styles.garden : ''].filter(Boolean).join(' ')}
+      // for the page around it: the garden style's paving lets the page show through
+      data-garden={garden || undefined}
       // (gliding along the mower: twice the window around the anchor, slid along under the frame above)
       viewBox={
         glides

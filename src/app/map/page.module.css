@@ -679,6 +679,13 @@
     background: var(--background);
   }
 
+  /* the garden map style's paving is see-through: the page shows behind the pinned map, what scrolls under it blurred */
+  .pinned .mapCol:has([data-garden]) {
+    background: transparent;
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+  }
+
   .mapSave {
     position: absolute;
     top: 16px;
