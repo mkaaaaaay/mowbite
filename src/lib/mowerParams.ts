@@ -49,7 +49,7 @@ export const PARAM_FIELDS: ParamField[] = [
   {key: 'automatic_mode', group: 'auto', label: 'Starting by itself', help: "OpenMower's own automatic, apart from MowBite's schedule: with a schedule leave it on manual, or both start the mower.", type: 'choice', def: 0, choices: ['Manual: only when started', 'Semi-automatic: after a start it mows the whole map, charging in between', 'Automatic: mows whenever it can']},
 
   {key: 'gps_timeout', group: 'gps', label: 'Keeps driving without a fix for', help: 'On wheel odometry. After that it stops with the blade off and waits for the fix.', type: 'double', min: 0, max: 60, def: 10, unit: 's', step: 1},
-  {key: 'max_position_accuracy', group: 'gps', label: 'Position has to be better than', help: "A worse position counts as no fix. An RTK fix is at a few cm.", type: 'double', min: 0.01, max: 1, def: 0.2, unit: 'cm', scale: 100, step: 1},
+  {key: 'max_position_accuracy', group: 'gps', label: 'Required GPS accuracy', help: "OpenMower's max_position_accuracy: a position less accurate than this counts as no fix. An RTK fix is at a few cm.", type: 'double', min: 0.01, max: 1, def: 0.2, unit: 'cm', scale: 100, step: 1},
   {key: 'gps_wait_time', group: 'gps', label: 'Wait after the fix is back', type: 'double', min: 0, max: 60, def: 10, unit: 's', step: 1},
 
   {key: 'docking_approach_distance', group: 'docking', label: 'Approach in a straight line from', help: 'How far in front of the dock the mower lines up before it drives in.', type: 'double', min: 0, max: 5, def: 1.5, unit: 'm', step: 0.1},

@@ -1175,8 +1175,9 @@ const de: Record<string, string> = {
   "Automatic: mows whenever it can": "Automatisch: mäht, wann immer er kann",
   "Keeps driving without a fix for": "Fährt ohne Fix weiter für",
   "On wheel odometry. After that it stops with the blade off and waits for the fix.": "Mit der Rad-Odometrie. Danach hält er mit abgeschaltetem Messer und wartet auf den Fix.",
-  "Position has to be better than": "Position muss besser sein als",
-  "A worse position counts as no fix. An RTK fix is at a few cm.": "Eine schlechtere Position zählt als kein Fix. Ein RTK-Fix liegt bei wenigen cm.",
+  "Required GPS accuracy": "Nötige GPS-Genauigkeit",
+  "OpenMower's max_position_accuracy: a position less accurate than this counts as no fix. An RTK fix is at a few cm.":
+    "OpenMowers max_position_accuracy: Ist die Position ungenauer, zählt sie als kein Fix. Ein RTK-Fix liegt bei wenigen cm.",
   "Wait after the fix is back": "Warten, wenn der Fix zurück ist",
   "Approach in a straight line from": "Gerade anfahren ab",
   "Drives in at most": "Fährt höchstens ein",
