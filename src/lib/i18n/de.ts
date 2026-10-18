@@ -714,7 +714,8 @@ const de: Record<string, string> = {
   "First": "Zuerst",
   "Last": "Zuletzt",
   "Way round": "Umlaufrichtung",
-  "Which way the outline passes go round. Automatic: the way the mower already faces. Random: one or the other, anew after every finished mow (only with a planner that knows it).": "In welche Richtung die Randrunden laufen. Automatisch: wie der Mäher gerade steht. Zufällig: mal so, mal so, nach jedem fertigen Mähvorgang neu (nur mit einem Planer, der das kennt).",
+  "Which way the outline passes go round. Automatic: the way the mower already faces. Random: one or the other, anew after every finished mow (only with a planner that knows it). With the mower's outline such a planner drives the outermost pass of both the way the edge was recorded.":
+    "In welche Richtung die Randrunden laufen. Automatisch: wie der Mäher gerade steht. Zufällig: mal so, mal so, nach jedem fertigen Mähvorgang neu (nur mit einem Planer, der das kennt). Mit Kontur fährt so ein Planer bei beiden die äußerste Runde in Aufnahmerichtung.",
   "Counter-clockwise": "Gegen den Uhrzeigersinn",
   "Clockwise": "Im Uhrzeigersinn",
   "Turn radius": "Wenderadius",
@@ -1352,6 +1353,10 @@ const de: Record<string, string> = {
   "Keep recording": "Weiter aufnehmen",
   "Close by itself once back at the start": "Von selbst schließen, wenn er wieder am Anfang ist",
   "One or the other, anew after every finished mow.": "Mal so, mal so, nach jedem fertigen Mähvorgang neu.",
+  "The outermost pass the way the edge was recorded, the others the way the mower already faces.":
+    "Die äußerste Runde in Aufnahmerichtung, die übrigen so, wie der Mäher gerade steht.",
+  "The outermost pass the way the edge was recorded, the others one or the other, anew after every finished mow.":
+    "Die äußerste Runde in Aufnahmerichtung, die übrigen mal so, mal so, nach jedem fertigen Mähvorgang neu.",
   "Guides": "Anleitungen",
   "Step by step with moving pictures.": "Schritt für Schritt mit bewegten Bildern.",
   "No map yet": "Noch keine Karte",

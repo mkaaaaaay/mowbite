@@ -2,7 +2,7 @@
 
 import type {MowerMap, Point} from '@/hooks/useMowerMap';
 import {tr} from '@/lib/i18n';
-import {resetPlannerAngle, savePlannerSettings, slic3rPlans, usePlannerSettings, type PlannerSetting} from '@/lib/mowerBody';
+import {outlineOf, resetPlannerAngle, savePlannerSettings, slic3rPlans, usePlannerSettings, type PlannerSetting} from '@/lib/mowerBody';
 import {ANGLE_FOR_ALL, FIELDS, STYLE_LABELS, STYLE_NOTES, STYLES, styleOf} from '@/lib/plannerFields';
 import {areasWith, areasWithDirection, ownMargins, ownSettings, shown, type AreaValue, type OpenMowerOwn} from '@/lib/plannerOwn';
 import {RpcError} from '@/lib/rpc';
@@ -169,6 +169,8 @@ export function PlannerSimple({
   const value = (k: string) => (area ? area.own[k] : global(k));
   const effective = (k: string) => (area && area.own[k] !== undefined ? area.own[k] : global(k));
   const num = (k: string) => (typeof effective(k) === 'number' ? (effective(k) as number) : undefined);
+  // with the body's outline a planner that knows random drives the outermost pass of auto and random the way the edge was recorded
+  const recordedFirst = !!outlineOf(all.robot_outline?.value) && !!all.perimeter_direction?.choices?.includes('random');
   const store = async (values: Record<string, unknown>) => {
     setState({busy: true});
     try {
@@ -767,9 +769,13 @@ export function PlannerSimple({
               help={tr(FIELDS.perimeter_direction.help)}
               note={
                 effective('perimeter_direction') === 'auto'
-                  ? tr('The way the mower already faces.')
+                  ? tr(recordedFirst ? 'The outermost pass the way the edge was recorded, the others the way the mower already faces.' : 'The way the mower already faces.')
                   : effective('perimeter_direction') === 'random'
-                    ? tr('One or the other, anew after every finished mow.')
+                    ? tr(
+                        recordedFirst
+                          ? 'The outermost pass the way the edge was recorded, the others one or the other, anew after every finished mow.'
+                          : 'One or the other, anew after every finished mow.',
+                      )
                     : tr('Always this way round.')
               }
               source={others('perimeter_direction') || ownLine('perimeter_direction')}

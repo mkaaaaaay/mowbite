@@ -180,7 +180,7 @@ export const FIELDS: Record<string, Field> = {
   },
   perimeter_direction: {
     label: 'Way round',
-    help: 'Which way the outline passes go round. Automatic: the way the mower already faces. Random: one or the other, anew after every finished mow (only with a planner that knows it).',
+    help: "Which way the outline passes go round. Automatic: the way the mower already faces. Random: one or the other, anew after every finished mow (only with a planner that knows it). With the mower's outline such a planner drives the outermost pass of both the way the edge was recorded.",
     group: 'edge',
     choices: {auto: 'Automatic', ccw: 'Counter-clockwise', cw: 'Clockwise', random: 'Random'},
   },
