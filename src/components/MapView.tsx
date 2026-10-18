@@ -848,8 +848,14 @@ function MapView({
     if (!edgesOn || !body) return null;
     const at = (p: Point) => `${((p.x - minX) * scale + padX).toFixed(1)} ${(HEIGHT - ((p.y - minY) * scale + padY)).toFixed(1)}`;
     const ring = (o: Point[]) => o.map((p, i) => `${i ? 'L' : 'M'}${at(p)}`).join('') + 'Z';
-    const {lawn, obstacles} = realEdges(map.areas, body);
-    return [...lawn, ...(hidden.has('obstacle') ? [] : obstacles)].map(ring).join('');
+    const {lawn, obstacles, grass} = realEdges(map.areas, body);
+    const inObstacles = !hidden.has('obstacle');
+    return {
+      line: [...lawn, ...(inObstacles ? obstacles : [])].map(ring).join(''),
+      // the lawn between the lines and the real edges: outside the mowing areas under them, in the obstacles over them
+      grassOutside: grass.outside.map(ring).join(''),
+      grassObstacles: inObstacles ? grass.obstacles.map(ring).join('') : '',
+    };
   }, [edgesOn, body, map, hidden, minX, minY, scale, padX, padY]);
 
   // the plan and the tracks only change with their data, panning and zooming just move the viewBox: kept as they are,
@@ -1392,6 +1398,7 @@ function MapView({
           })}
         </g>
       )}
+        {edges?.grassOutside && <path className={styles.realGrass} d={edges.grassOutside} />}
         {areasBySize.filter((area) => !hidden.has(area.properties.type as Layer)).map((area) => (
           <polygon
             key={area.id}
@@ -1409,6 +1416,7 @@ function MapView({
             }}
           />
         ))}
+        {edges?.grassObstacles && <path className={styles.realGrass} d={edges.grassObstacles} />}
 
         {coverLayer}
 
@@ -1487,7 +1495,7 @@ function MapView({
           );
         })}
 
-        {edges && <path className={styles.realEdge} d={edges} />}
+        {edges?.line && <path className={styles.realEdge} d={edges.line} />}
 
         {todoPath && !hidden.has('stripes') && <path className={[styles.planTodo, styles[planStyle]].join(' ')} d={todoPath} />}
 

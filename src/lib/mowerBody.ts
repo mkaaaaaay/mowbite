@@ -745,14 +745,23 @@ export function bodySweep(line: P[], body: MowerBody): ClipperLib.Paths {
 // Where the edges really are: the outlines were recorded with the middle of the mower driving along them, the body
 // reached past them, its front further into a corner it drove at than its side along an edge. So the mowing areas
 // together with what the body covered along their lines, and obstacles less of it (one the mower drove round smaller
-// than its body leaves nothing)
-export function realEdges(areas: readonly MapArea[], body: MowerBody): {lawn: P[][]; obstacles: P[][]} {
-  const mow = areas.filter((a) => a.properties.type === 'mow' && a.outline.length >= 3);
-  const lawn = clipAll(ClipperLib.ClipType.ctUnion, [...mow.map((a) => toPath(a.outline)), ...mow.flatMap((a) => bodySweep(a.outline, body))]);
+// than its body leaves nothing). grass: what's lawn too between the lines and the real edges, outside the mowing areas
+// and inside the obstacles
+export function realEdges(
+  areas: readonly MapArea[],
+  body: MowerBody,
+): {lawn: P[][]; obstacles: P[][]; grass: {outside: P[][]; obstacles: P[][]}} {
+  const mow = areas.filter((a) => a.properties.type === 'mow' && a.outline.length >= 3).map((a) => toPath(a.outline));
+  const swept = areas.filter((a) => a.properties.type === 'mow' && a.outline.length >= 3).flatMap((a) => bodySweep(a.outline, body));
+  const lawn = clipAll(ClipperLib.ClipType.ctUnion, [...mow, ...swept]);
+  const obstacles = areas.filter((a) => a.properties.type === 'obstacle' && a.outline.length >= 3);
+  const sweeps = obstacles.map((a) => bodySweep(a.outline, body));
   return {
     lawn: lawn.map(fromPath),
-    obstacles: areas
-      .filter((a) => a.properties.type === 'obstacle' && a.outline.length >= 3)
-      .flatMap((a) => clipAll(ClipperLib.ClipType.ctDifference, [toPath(a.outline)], bodySweep(a.outline, body)).map(fromPath)),
+    obstacles: obstacles.flatMap((a, i) => clipAll(ClipperLib.ClipType.ctDifference, [toPath(a.outline)], sweeps[i]).map(fromPath)),
+    grass: {
+      outside: clipAll(ClipperLib.ClipType.ctDifference, lawn, mow).map(fromPath),
+      obstacles: obstacles.flatMap((a, i) => clipAll(ClipperLib.ClipType.ctIntersection, [toPath(a.outline)], sweeps[i]).map(fromPath)),
+    },
   };
 }

@@ -224,6 +224,15 @@ describe('real edges', () => {
   it('leaves out an obstacle the mower drove round tighter than its width', () => {
     expect(realEdges([square('o', 'obstacle', 0, 0, 0.3)], rect).obstacles).toEqual([]);
   });
+
+  it('counts the strip between a line and its real edge as lawn, outside the area and inside an obstacle', () => {
+    const {grass} = realEdges([square('a', 'mow', 0, 0, 4), square('o', 'obstacle', 1, 1, 1)], rect);
+    expect(inside(grass.outside, 2, -0.1)).toBe(true);
+    expect(inside(grass.outside, 2, 0.1)).toBe(false);
+    expect(inside(grass.outside, 2, -0.3)).toBe(false);
+    expect(inside(grass.obstacles, 1.1, 1.5)).toBe(true);
+    expect(inside(grass.obstacles, 1.5, 1.5)).toBe(false);
+  });
 });
 
 describe('real outline', () => {

@@ -598,6 +598,15 @@
   stroke-linejoin: round;
 }
 
+/* lawn too, between the lines (the middle of the mower) and the real edges, as green as the mowing areas */
+.realGrass {
+  pointer-events: none;
+  fill: var(--c-mow);
+  fill-opacity: 0.35;
+  fill-rule: evenodd;
+  stroke: none;
+}
+
 /* where the edges really are, the outlines being the middle of the mower */
 .realEdge {
   pointer-events: none;
