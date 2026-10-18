@@ -436,7 +436,19 @@ export default function SettingsPage() {
 
         <OpenMowerSettings styles={styles} />
 
-        <Group id="app" title={tr('App')} hint={tr('Mowers, updates, privacy')} anchors={['updates']}>
+        <Group id="app" title={tr('App')} hint={tr('Guides, mowers, updates, privacy')} anchors={['updates', 'guides']}>
+          <section className={styles.card} id="guides">
+            <h2>{tr('Guides')}</h2>
+            <p className={styles.dim}>{tr('Step by step with moving pictures.')}</p>
+            <div className={styles.guides}>
+              <Link href="/guide" className={styles.pillButton}>
+                {tr('Map your garden')}
+              </Link>
+              <Link href="/guide/editor" className={styles.pillButton}>
+                {tr('Edit the map')}
+              </Link>
+            </div>
+          </section>
           <MowersSection settings={settings} />
           <UpdateSettings cardClass={styles.card} checkClass={styles.check} />
         </Group>

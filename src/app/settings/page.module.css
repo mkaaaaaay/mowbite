@@ -303,3 +303,10 @@ a.pillButton {
   flex-wrap: wrap;
   gap: 8px;
 }
+
+/* the two guides */
+.guides {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

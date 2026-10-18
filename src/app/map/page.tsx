@@ -787,12 +787,21 @@ function MapEditor() {
 
               {map && !selectedArea && mode === 'idle' && (
                 <>
-                  <p className={styles.dim}>
-                    {tr('Click an area to edit it.')}{' '}
-                    <Link href="/guide/editor" className={styles.guideLink}>
-                      {tr('How it works, step by step')}
-                    </Link>
-                  </p>
+                  {map.areas.length ? (
+                    <p className={styles.dim}>
+                      {tr('Click an area to edit it.')}{' '}
+                      <Link href="/guide/editor" className={styles.guideLink}>
+                        {tr('How it works, step by step')}
+                      </Link>
+                    </p>
+                  ) : (
+                    <p className={styles.dim}>
+                      {tr('No area yet.')}{' '}
+                      <Link href="/guide" className={styles.guideLink}>
+                        {tr('How to record the map, step by step')}
+                      </Link>
+                    </p>
+                  )}
                   {jobList && jobList.length > 0 && (
                     <TrackPicker
                       jobs={jobList}

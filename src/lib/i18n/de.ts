@@ -1133,7 +1133,7 @@ const de: Record<string, string> = {
   "For the body only once the planner has the mower sizes.": "Für den Körper erst, wenn der Planer die Mäher-Maße hat.",
   "The blade is not set in the planner, it plans with {a} cm. Lanes are spaced by it: set your mower's blade under Mower sizes.": "Das Messer ist im Planer nicht eingestellt, er plant mit {a} cm. Danach richtet sich der Bahnabstand: Stell das Messer deines Mähers unter Mäher-Maße ein.",
   'Privacy policy': 'Datenschutzerklärung',
-  "Mowers, updates, privacy": "Mäher, Updates, Datenschutz",
+  "Guides, mowers, updates, privacy": "Anleitungen, Mäher, Updates, Datenschutz",
   'Demo: a made-up mower, nothing is saved': 'Demo: ein erfundener Mäher, nichts wird gespeichert',
   'Leave': 'Verlassen',
   'No mower at hand? Look around with a demo mower': 'Kein Mäher zur Hand? Mit einem Demo-Mäher umsehen',
@@ -1352,6 +1352,12 @@ const de: Record<string, string> = {
   "Keep recording": "Weiter aufnehmen",
   "Close by itself once back at the start": "Von selbst schließen, wenn er wieder am Anfang ist",
   "One or the other, anew after every finished mow.": "Mal so, mal so, nach jedem fertigen Mähvorgang neu.",
+  "Guides": "Anleitungen",
+  "Step by step with moving pictures.": "Schritt für Schritt mit bewegten Bildern.",
+  "No map yet": "Noch keine Karte",
+  "How to record it, step by step": "So nimmst du sie auf, Schritt für Schritt",
+  "No area yet.": "Noch keine Fläche.",
+  "How to record the map, step by step": "So nimmst du die Karte auf, Schritt für Schritt",
 };
 
 export default de;

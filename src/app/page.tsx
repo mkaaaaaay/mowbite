@@ -497,6 +497,13 @@ export default function Home() {
                 />
               )}
             </div>
+            {/* a mower without a map yet: how to make one */}
+            {map && map.areas.length === 0 && (
+              <Link href="/guide" className={styles.firstMap}>
+                <strong>{tr('No map yet')}</strong>
+                <span>{tr('How to record it, step by step')}</span>
+              </Link>
+            )}
           </section>
         )}
 
