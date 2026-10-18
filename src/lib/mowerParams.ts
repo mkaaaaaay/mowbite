@@ -36,7 +36,7 @@ export const PARAM_GROUPS: {key: ParamGroup; title: string}[] = [
 
 export const PARAM_FIELDS: ParamField[] = [
   {key: 'outline_count', group: 'mowing', label: 'Outline passes', help: 'Rounds along the edge of an area and around its obstacles before the lanes. An area can have its own number.', type: 'int', min: 0, max: 20, def: 3},
-  {key: 'outline_overlap_count', group: 'mowing', label: 'Outline passes the lanes reach under', help: 'So nothing is left standing between the lanes and the rounds along the edge.', type: 'int', min: 0, max: 20, def: 0},
+  {key: 'outline_overlap_count', group: 'mowing', label: 'Overlapping passes', help: 'How many of the outline passes the lanes reach into, so nothing is left standing between the lanes and the rounds along the edge.', type: 'int', min: 0, max: 20, def: 0},
   {key: 'outline_offset', group: 'mowing', label: 'Distance to the edge', help: 'How far the outer pass stays inside the outline. Negative mows beyond it.', type: 'double', min: -1, max: 1, def: 0, unit: 'cm', scale: 100, step: 1},
   {key: 'tool_width', group: 'mowing', label: 'Lane spacing', help: "OpenMower's tool_width: how far the lanes are apart. Narrower than the blade, so they overlap.", type: 'double', min: 0.1, max: 2, def: 0.14, unit: 'cm', scale: 100, step: 1},
   {key: 'mow_angle_offset', group: 'mowing', label: 'Mowing direction turned by', help: "Added to every area's direction. The schedule can set it for each start time.", type: 'double', min: -180, max: 180, def: 0, unit: '°', step: 5},
