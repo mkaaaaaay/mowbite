@@ -723,6 +723,15 @@ function grow(paths: ClipperLib.Paths, delta: number): ClipperLib.Paths {
   return out;
 }
 
+// an obstacle's real edge: its outline shrunk by half the mower's width, the biggest piece of it (null when nothing
+// is left of it)
+export function insideEdge(outline: P[], body: MowerBody): P[] | null {
+  const pieces = outline.length >= 3 ? grow([ccw(toPath(outline))], -body.width / 2) : [];
+  if (!pieces.length) return null;
+  const size = (p: ClipperLib.Path) => Math.abs(ClipperLib.Clipper.Area(p));
+  return fromPath(pieces.reduce((a, b) => (size(b) > size(a) ? b : a)));
+}
+
 // Where the edges really are: the outlines were recorded with the middle of the mower driving along them, the body
 // reached half its width further. So the mowing areas together grown by that, and obstacles shrunk by it (one the
 // mower drove round smaller than that leaves nothing). grass: what's lawn too between the lines and the real edges,

@@ -13,6 +13,7 @@ import {
   OUTLINE_LEEWAY,
   outlineOf,
   plannerSizes,
+  insideEdge,
   realEdges,
   roundBends,
   sizesBody,
@@ -218,6 +219,13 @@ describe('real edges', () => {
     const [x0, y0, x1, y1] = box(obstacles[0]);
     for (const v of [x0, y0]) expect(v).toBeCloseTo(1.2, 2);
     for (const v of [x1, y1]) expect(v).toBeCloseTo(1.8, 2);
+  });
+
+  it("finds an obstacle's real edge, none for one tighter than the width", () => {
+    const [x0, y0, x1, y1] = box(insideEdge(square('o', 'obstacle', 1, 1, 1).outline, rect)!);
+    for (const v of [x0, y0]) expect(v).toBeCloseTo(1.2, 2);
+    for (const v of [x1, y1]) expect(v).toBeCloseTo(1.8, 2);
+    expect(insideEdge(square('o', 'obstacle', 0, 0, 0.3).outline, rect)).toBeNull();
   });
 
   it('leaves out an obstacle the mower drove round tighter than its width', () => {

@@ -6,7 +6,7 @@ import {createEaser, type Easer, type Pose} from '@/lib/poseEaser';
 import {liveGlide} from '@/hooks/useMowerPosition';
 import {containsPoint, polygonArea} from '@/lib/geometry';
 import {settingsStore, type Settings} from '@/lib/settings';
-import {bladeSeconds, bodyShape, realEdges, roundBends, swathEnd, swathGroups, swathAfter, swathTail, useMowerBody, usePlannerSettings, type MowerBody, type SwathState} from '@/lib/mowerBody';
+import {bladeSeconds, bodyShape, insideEdge, realEdges, roundBends, swathEnd, swathGroups, swathAfter, swathTail, useMowerBody, usePlannerSettings, type MowerBody, type SwathState} from '@/lib/mowerBody';
 import type {FitPose, PlanPiece} from '@/lib/mowPlan';
 import {useSensorValue} from '@/hooks/useMowerSensors';
 import {dockIcon, drawMower, mowerIcon} from './mapIcons';
@@ -719,7 +719,8 @@ function MapView({
     return out;
   }, [map, minX, minY, scale, padX, padY]);
   // the garden style: each mowing area's lawn in stripes along its mowing direction, ways and obstacles as their
-  // pictures, a thing (tree, pond ...) placed inside the area and cut to its outline should it still stick out
+  // pictures, a thing (tree, pond ...) placed inside the area's real edge (with the mower's sizes known, else inside
+  // its outline) and cut to it should it still stick out
   const garden = settings.mapStyle === 'garden';
   const uid = 'g' + useId().replace(/[^a-zA-Z0-9]/g, '');
   const gardenLook = useMemo(() => {
@@ -738,13 +739,14 @@ function MapView({
         const look = areaLook(a, settings.looks);
         looks.set(a.id, look);
         if (!isThing(look)) continue;
-        const outline = a.outline.map((p) => ({x: (p.x - minX) * scale + padX, y: HEIGHT - ((p.y - minY) * scale + padY)}));
+        const inside = (body && insideEdge(a.outline, body)) || a.outline;
+        const outline = inside.map((p) => ({x: (p.x - minX) * scale + padX, y: HEIGHT - ((p.y - minY) * scale + padY)}));
         things.set(a.id, {i: clips.length, look, place: placeThing(look, outline)});
-        clips.push(outlinePoints.get(a.id) ?? '');
+        clips.push(outline.map((p) => `${p.x},${p.y}`).join(' '));
       }
     }
     return {lawns, looks, things, defs: <GardenDefs uid={uid} m={scale} lawns={angles} clips={clips} />};
-  }, [garden, map, settings.looks, uid, scale, minX, minY, padX, padY, outlinePoints]);
+  }, [garden, map, settings.looks, uid, scale, minX, minY, padX, padY, body]);
   const gardenFill = (a: MapArea): React.CSSProperties | undefined => {
     if (!gardenLook) return undefined;
     const lawn = gardenLook.lawns.get(a.id);
