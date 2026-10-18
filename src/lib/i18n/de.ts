@@ -667,6 +667,11 @@ const de: Record<string, string> = {
   "This model has a measured outline.": "Für dieses Modell gibt es eine vermessene Kontur.",
   "Taken on its own: the sizes are exactly this model's.": "Von selbst übernommen, weil die Maße genau zu diesem Modell passen.",
   "Keep the rectangle": "Rechteck behalten",
+  "This page ran into an error.": "Auf dieser Seite ist ein Fehler aufgetreten.",
+  "The other tabs still work. If it happens again, the line below helps with a bug report.":
+    "Die anderen Reiter gehen weiter. Passiert es wieder, hilft die Zeile darunter bei einer Fehlermeldung.",
+  "Try again": "Nochmal versuchen",
+  "Reload the app": "App neu laden",
   "This model has a measured outline. The planner on the mower does not know outlines yet (newer image), it checks the rectangle until then.":
     "Für dieses Modell gibt es eine vermessene Kontur. Der Planer auf dem Mäher kennt noch keine Konturen (neueres Image), bis dahin prüft er das Rechteck.",
   "Saved, without the outline: the planner on the mower does not know outlines yet.": "Gespeichert, ohne Kontur: Der Planer auf dem Mäher kennt noch keine Konturen.",

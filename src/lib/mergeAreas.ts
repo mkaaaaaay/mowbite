@@ -21,10 +21,26 @@ export interface Merged {
   loopsJoined: number;
 }
 
-// one outline for both areas, null if they don't touch. outlines recorded by driving cross themselves now and then,
-// they fall apart into pieces touching in a point, so the two touch when together they're fewer pieces than each on
-// its own
+// one outline for both areas, null if they don't touch. polygon-clipping gives up now and then on outlines that run
+// along each other within a hair ("Unable to complete output ring"): snapped to 0.01 mm they go through, if not even
+// then the two count as not touching
 export function mergeOutlines(a: Point[], b: Point[]): Merged | null {
+  try {
+    return union(a, b);
+  } catch {
+    try {
+      return union(snap(a), snap(b));
+    } catch {
+      return null;
+    }
+  }
+}
+
+const snap = (o: Point[]): Point[] => o.map((p) => ({x: Math.round(p.x * SCALE) / SCALE, y: Math.round(p.y * SCALE) / SCALE}));
+
+// outlines recorded by driving cross themselves now and then, they fall apart into pieces touching in a point, so the
+// two touch when together they're fewer pieces than each on its own
+function union(a: Point[], b: Point[]): Merged | null {
   const result = polygonClipping.union([toRing(a)], [toRing(b)]);
   if (result.length === 1) {
     const [outer, ...holes] = result[0];
