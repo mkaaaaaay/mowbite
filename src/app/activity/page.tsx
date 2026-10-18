@@ -1,6 +1,7 @@
 'use client';
 
 import {TitleMark} from '@/components/Logo';
+import {TitleRow} from '@/components/TopWeather';
 import {clock, dayKey, dayLabel, duration, parseDay} from '@/lib/dates';
 import {ParamFix} from '@/components/MowerParamSettings';
 import {describe, eventSource, explain, groupRuns, noteworthy, rawLine, OUTCOMES, withState, type Entry, type MowerEvent, type Run} from '@/lib/events';
@@ -284,10 +285,12 @@ export default function ActivityPage() {
   return (
     <div className={styles.page}>
       <main className={styles.main}>
-        <h1>
-          <TitleMark />
-          {tr('Activity')}
-        </h1>
+        <TitleRow>
+          <h1>
+            <TitleMark />
+            {tr('Activity')}
+          </h1>
+        </TitleRow>
 
         <MowingStats />
 

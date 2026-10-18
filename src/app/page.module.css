@@ -41,41 +41,6 @@
   min-width: 0;
 }
 
-.topWeather {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: 6px;
-  transition: opacity 0.3s;
-}
-
-/* now, today's highest and lowest, and rain now or coming */
-.topWeather > div {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.2;
-}
-
-.topWeather strong {
-  font-size: 20px;
-}
-
-.topWeather span {
-  color: var(--text-secondary);
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.topWeather small {
-  color: var(--accent);
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.topWeather.away {
-  opacity: 0;
-}
-
 @media (min-width: 900px) {
   .main {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);

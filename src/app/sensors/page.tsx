@@ -1,6 +1,7 @@
 'use client';
 
 import {TitleMark} from '@/components/Logo';
+import {TitleRow} from '@/components/TopWeather';
 import {computeGaugeScale, fallbackGaugeScale, RadialGauge, TempGauge} from '@/components/gauges';
 import {BatteryIcon, TurnIcon} from '@/components/icons';
 import InfoTip from '@/components/InfoTip';
@@ -137,19 +138,21 @@ export default function SensorsPage() {
   return (
     <div className={styles.page}>
       <main className={styles.main}>
-        <div className={styles.header}>
-          <h1>
-          <TitleMark />
-          {tr('Sensors')}
-        </h1>
-          {state && (
-            <span className={[styles.chip, styles[`chip-${state.emergency ? 'error' : docked ? 'success' : stateColor(currentState)}`]].join(' ')}>
-              {statusText(state, docked, values['om_charge_state'])}
-              {state.emergency && why ? `: ${emergencyText(why)}` : ''}
-            </span>
-          )}
-          {criticalCount > 0 && <span className={styles.error}>{tr('{n} out of range', {n: criticalCount})}</span>}
-        </div>
+        <TitleRow className={styles.titleRow}>
+          <div className={styles.header}>
+            <h1>
+              <TitleMark />
+              {tr('Sensors')}
+            </h1>
+            {state && (
+              <span className={[styles.chip, styles[`chip-${state.emergency ? 'error' : docked ? 'success' : stateColor(currentState)}`]].join(' ')}>
+                {statusText(state, docked, values['om_charge_state'])}
+                {state.emergency && why ? `: ${emergencyText(why)}` : ''}
+              </span>
+            )}
+            {criticalCount > 0 && <span className={styles.error}>{tr('{n} out of range', {n: criticalCount})}</span>}
+          </div>
+        </TitleRow>
 
         <div className={styles.tabs}>
           <button className={tab === 'mower' ? styles.tabOn : undefined} onClick={() => pick('mower')}>

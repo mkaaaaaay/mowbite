@@ -22,8 +22,7 @@ import {useMowerWifi} from '@/hooks/useMowerWifi';
 import {wifiLevel} from '@/lib/coverage';
 import {usePlanProgress} from '@/hooks/usePlanProgress';
 import {useRecentRuns} from '@/hooks/useRecentRuns';
-import {useWeather} from '@/hooks/useWeather';
-import WeatherIcon, {WEATHER_LABELS, weatherKind} from '@/components/WeatherIcon';
+import TopWeather from '@/components/TopWeather';
 import {clock, dayKey, dayLabel, duration} from '@/lib/dates';
 import {emergencyText, OUTCOMES, type MowerEvent, type Run} from '@/lib/events';
 import {settingsStore} from '@/lib/settings';
@@ -198,7 +197,6 @@ export default function Home() {
   const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
   // the same object while params/json doesn't change: the map isn't drawn again for every sensor value
   const datum = useMemo(() => datumFromParams(params), [params]);
-  const weather = useWeather(datum, !!settings.weather);
   // blades or cleaning due, counted by MowBite's container
   const updates = useUpdates();
   const due = useDueParts(updates.level !== null && containerHas(updates.level, 'stats'));
@@ -331,29 +329,7 @@ export default function Home() {
             </span>
             <LoveMower onRun={setLoveRun} />
           </h1>
-          {weather && (
-            <div
-              className={[styles.topWeather, loveRun ? styles.away : ''].join(' ')}
-              title={`${tr(WEATHER_LABELS[weatherKind(weather.code)])}, ${tr('max. {max}°, min. {min}°', {max: fmt(weather.max), min: fmt(weather.min)})}`}
-            >
-              <WeatherIcon code={weather.code} day={weather.day} size={34} />
-              <div>
-                <strong>{fmt(weather.temp)}°</strong>
-                <span>
-                  ↑{fmt(weather.max)}° ↓{fmt(weather.min)}°
-                </span>
-                {(weather.raining || weather.rainAt) && (
-                  <small>
-                    {weather.raining
-                      ? tr('Raining')
-                      : weather.rainSoon
-                        ? tr('Rain soon')
-                        : tr('Rain from about {time}', {time: clock(weather.rainAt!)})}
-                  </small>
-                )}
-              </div>
-            </div>
-          )}
+          <TopWeather away={loveRun} />
         </div>
         <MowerSwitch className={styles.mowerSwitch} />
         <UpdateBanner />

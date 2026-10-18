@@ -1,0 +1,46 @@
+.weather {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  transition: opacity 0.3s;
+}
+
+/* now, today's highest and lowest, and rain now or coming */
+.weather > div {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.weather strong {
+  font-size: 20px;
+}
+
+.weather span {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.weather small {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.weather.away {
+  opacity: 0;
+}
+
+/* the title on the left, the weather on the right */
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.row > :first-child {
+  flex: 1;
+  min-width: 0;
+}

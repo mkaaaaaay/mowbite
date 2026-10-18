@@ -1,6 +1,7 @@
 'use client';
 
 import {TitleMark} from '@/components/Logo';
+import {TitleRow} from '@/components/TopWeather';
 import {saveSettings, settingsStore, sharedSettings, type OtherMower, type Settings} from '@/lib/settings';
 import {useEffect, useState, useSyncExternalStore} from 'react';
 import styles from './page.module.css';
@@ -230,10 +231,12 @@ export default function SettingsPage() {
   return (
     <div className={styles.page}>
       <main className={styles.main}>
-        <h1>
-          <TitleMark />
-          {tr('Settings')}
-        </h1>
+        <TitleRow>
+          <h1>
+            <TitleMark />
+            {tr('Settings')}
+          </h1>
+        </TitleRow>
         <p className={styles.dim}>
           {shared ? tr('Saved on the mower, the same on all your devices.') : tr('Saved on this device only.')}
         </p>

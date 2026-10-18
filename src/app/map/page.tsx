@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import {TitleMark} from '@/components/Logo';
+import {TitleRow} from '@/components/TopWeather';
 import MapView from '@/components/MapView';
 import TrackPicker from '@/components/TrackPicker';
 import {saveMap, useMowerMap, type MowerMap, type Point} from '@/hooks/useMowerMap';
@@ -600,10 +601,12 @@ function MapEditor() {
   return (
     <div className={styles.page}>
       <main className={styles.main}>
-        <h1>
-          <TitleMark />
-          {tr('Map')}
-        </h1>
+        <TitleRow className={styles.titleRow}>
+          <h1>
+            <TitleMark />
+            {tr('Map')}
+          </h1>
+        </TitleRow>
 
         <div className={[styles.editor, pinned ? styles.pinned : ''].filter(Boolean).join(' ')}>
           <div className={styles.mapCol}>

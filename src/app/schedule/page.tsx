@@ -1,6 +1,7 @@
 'use client';
 
 import {TitleMark} from '@/components/Logo';
+import {TitleRow} from '@/components/TopWeather';
 import {datumFromParams, useMowerParams} from '@/hooks/useMowerParams';
 import {sunTimes} from '@/lib/sun';
 import {clock, dayLabel} from '@/lib/dates';
@@ -70,10 +71,12 @@ export default function SchedulePage() {
   return (
     <div className={styles.page}>
       <main className={styles.main}>
-        <h1>
-          <TitleMark />
-          {tr('Schedule')}
-        </h1>
+        <TitleRow>
+          <h1>
+            <TitleMark />
+            {tr('Schedule')}
+          </h1>
+        </TitleRow>
 
         {schedule === null && (
           <p className={styles.dim}>{tr('The schedule needs MowBite running as its container on the mower.')}</p>

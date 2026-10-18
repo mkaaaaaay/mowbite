@@ -123,12 +123,16 @@
 }
 
 
+/* the title and the weather */
+.titleRow {
+  margin-bottom: 16px;
+}
+
 .header {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 12px;
-  margin-bottom: 16px;
 }
 
 .header h1 {
