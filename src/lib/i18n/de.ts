@@ -714,7 +714,7 @@ const de: Record<string, string> = {
   "First": "Zuerst",
   "Last": "Zuletzt",
   "Way round": "Umlaufrichtung",
-  "Which way the outline passes go round. Automatic: the way the mower already faces.": "In welche Richtung die Randrunden laufen. Automatisch: wie der Mäher gerade steht.",
+  "Which way the outline passes go round. Automatic: the way the mower already faces. Random: one or the other, anew after every finished mow (only with a planner that knows it).": "In welche Richtung die Randrunden laufen. Automatisch: wie der Mäher gerade steht. Zufällig: mal so, mal so, nach jedem fertigen Mähvorgang neu (nur mit einem Planer, der das kennt).",
   "Counter-clockwise": "Gegen den Uhrzeigersinn",
   "Clockwise": "Im Uhrzeigersinn",
   "Turn radius": "Wenderadius",
@@ -1351,6 +1351,7 @@ const de: Record<string, string> = {
   "Back at the start, closing it in {n} s.": "Zurück am Anfang, wird in {n} s geschlossen.",
   "Keep recording": "Weiter aufnehmen",
   "Close by itself once back at the start": "Von selbst schließen, wenn er wieder am Anfang ist",
+  "One or the other, anew after every finished mow.": "Mal so, mal so, nach jedem fertigen Mähvorgang neu.",
 };
 
 export default de;

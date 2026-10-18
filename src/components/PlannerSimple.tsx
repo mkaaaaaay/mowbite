@@ -765,7 +765,13 @@ export function PlannerSimple({
             <Row
               label={tr('Way round')}
               help={tr(FIELDS.perimeter_direction.help)}
-              note={effective('perimeter_direction') === 'auto' ? tr('The way the mower already faces.') : tr('Always this way round.')}
+              note={
+                effective('perimeter_direction') === 'auto'
+                  ? tr('The way the mower already faces.')
+                  : effective('perimeter_direction') === 'random'
+                    ? tr('One or the other, anew after every finished mow.')
+                    : tr('Always this way round.')
+              }
               source={others('perimeter_direction') || ownLine('perimeter_direction')}
             >
               {choice('perimeter_direction', FIELDS.perimeter_direction.choices!)}

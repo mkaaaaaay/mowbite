@@ -180,9 +180,9 @@ export const FIELDS: Record<string, Field> = {
   },
   perimeter_direction: {
     label: 'Way round',
-    help: 'Which way the outline passes go round. Automatic: the way the mower already faces.',
+    help: 'Which way the outline passes go round. Automatic: the way the mower already faces. Random: one or the other, anew after every finished mow (only with a planner that knows it).',
     group: 'edge',
-    choices: {auto: 'Automatic', ccw: 'Counter-clockwise', cw: 'Clockwise'},
+    choices: {auto: 'Automatic', ccw: 'Counter-clockwise', cw: 'Clockwise', random: 'Random'},
   },
   turn_radius: {
     label: 'Turn radius',
@@ -340,8 +340,9 @@ export const RETIRED = [
 ];
 // choices not offered any more, though a planner from before still has them
 export const DROPPED_CHOICES: Record<string, string[]> = {fill_pattern: ['auto'], turn_types: ['k_turn']};
-// counted by the planner itself, shown with the angle turned further (simple menu), not in the lists
-export const COUNTED = ['angle_steps'];
+// counted by the planner itself, not in the lists: the angle turned further (shown with it in the simple menu), the
+// finished mows the random way round goes by
+export const COUNTED = ['angle_steps', 'finished_mows'];
 // in the planner menu at the map (PlannerSimple), the lists for experts leave them out
 export const SIMPLE = [
   'planner',
