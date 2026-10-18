@@ -1,5 +1,6 @@
 import type {MapArea} from '@/hooks/useMowerMap';
 import {describe, expect, it} from 'vitest';
+import {containsPoint} from './geometry';
 import {
   autoOutlineModel,
   bladeSeconds,
@@ -21,6 +22,7 @@ import {
   swathGroups,
   swathPieces,
   withModelOutline,
+  type MowerBody,
   type PlannerSettings,
 } from './mowerBody';
 
@@ -191,19 +193,36 @@ describe('real edges', () => {
     return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)].map((v) => +v.toFixed(3));
   };
 
-  it('grows the lawn by half the width and shrinks obstacles by it, areas side by side as one', () => {
-    const {lawn, obstacles} = realEdges(
-      [square('a', 'mow', 0, 0, 4), square('b', 'mow', 4, 0, 4), square('o', 'obstacle', 1, 1, 1), square('n', 'nav', 9, 0, 2)],
-      0.4,
-    );
+  // a rectangle 40 cm wide, 43 cm ahead of the rear axle and 18 cm behind it
+  const rect: MowerBody = {width: 0.4, front: 0.43, rear: 0.18, blade: 0.18, bladeAhead: 0.18, bladeOffset: 0};
+  const inside = (rings: {x: number; y: number}[][], x: number, y: number) => rings.filter((r) => containsPoint(r, x, y)).length % 2 === 1;
+
+  it('reaches half the width past an edge it drove along, its front further into a corner it drove at', () => {
+    const {lawn} = realEdges([square('a', 'mow', 0, 0, 4), square('b', 'mow', 4, 0, 4), square('n', 'nav', 9, 0, 2)], rect);
+    // side by side as one, the nav area not in it
     expect(lawn).toHaveLength(1);
-    expect(box(lawn[0])).toEqual([-0.2, -0.2, 8.2, 4.2]);
+    expect(inside(lawn, 2, -0.15)).toBe(true);
+    expect(inside(lawn, 2, -0.25)).toBe(false);
+    // driven at the corner from the left: the front reaches 43 cm, more than the 20 cm of the side
+    expect(inside(lawn, 8.4, 0.05)).toBe(true);
+    expect(inside(lawn, 10, 1)).toBe(false);
+    const [x0, y0, x1, y1] = box(lawn[0]);
+    expect(x0).toBeLessThan(-0.4);
+    expect(x1).toBeGreaterThan(8.4);
+    expect(y0).toBeLessThan(-0.4);
+    expect(y1).toBeGreaterThan(4.4);
+  });
+
+  it('takes the side off the obstacles it drove round', () => {
+    const {obstacles} = realEdges([square('o', 'obstacle', 1, 1, 1)], rect);
     expect(obstacles).toHaveLength(1);
-    expect(box(obstacles[0])).toEqual([1.2, 1.2, 1.8, 1.8]);
+    const [x0, y0, x1, y1] = box(obstacles[0]);
+    for (const v of [x0, y0]) expect(v).toBeCloseTo(1.2, 2);
+    for (const v of [x1, y1]) expect(v).toBeCloseTo(1.8, 2);
   });
 
   it('leaves out an obstacle the mower drove round tighter than its width', () => {
-    expect(realEdges([square('o', 'obstacle', 0, 0, 0.3)], 0.4).obstacles).toEqual([]);
+    expect(realEdges([square('o', 'obstacle', 0, 0, 0.3)], rect).obstacles).toEqual([]);
   });
 });
 

@@ -848,7 +848,7 @@ function MapView({
     if (!edgesOn || !body) return null;
     const at = (p: Point) => `${((p.x - minX) * scale + padX).toFixed(1)} ${(HEIGHT - ((p.y - minY) * scale + padY)).toFixed(1)}`;
     const ring = (o: Point[]) => o.map((p, i) => `${i ? 'L' : 'M'}${at(p)}`).join('') + 'Z';
-    const {lawn, obstacles} = realEdges(map.areas, body.width);
+    const {lawn, obstacles} = realEdges(map.areas, body);
     return [...lawn, ...(hidden.has('obstacle') ? [] : obstacles)].map(ring).join('');
   }, [edgesOn, body, map, hidden, minX, minY, scale, padX, padY]);
 

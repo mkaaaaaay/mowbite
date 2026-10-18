@@ -2,10 +2,12 @@ import * as ClipperLib from 'clipper-lib';
 import type {MapArea} from '@/hooks/useMowerMap';
 import {useEffect, useMemo, useSyncExternalStore} from 'react';
 import type {PlanRequest} from './areaPlan';
+import {convexHull} from './geometry';
 import {apiBase} from './mowers';
 import {RPC} from './openmower';
 import {callRpc, isMissingMethod, rpcMethods} from './rpc';
 import {saveSettings, settingsStore, syncSettings, type Settings} from './settings';
+import {simplifyPolygon} from './simplifyPolygon';
 
 // The mower's body and blade as the MowBite Planner on the mower knows them (planner.settings): a rectangle around
 // the point the path is for (OpenMower's base_link, the middle between the rear drive wheels), robot_front ahead of
@@ -701,27 +703,56 @@ const SCALE = 1e5;
 const toPath = (o: P[]) => o.map((p) => ({X: Math.round(p.x * SCALE), Y: Math.round(p.y * SCALE)}));
 const fromPath = (p: ClipperLib.Path): P[] => p.map((q) => ({x: q.X / SCALE, y: q.Y / SCALE}));
 
-function grow(paths: ClipperLib.Paths, delta: number): P[][] {
-  const co = new ClipperLib.ClipperOffset(2, 0.002 * SCALE);
-  co.AddPaths(paths, ClipperLib.JoinType.jtRound, ClipperLib.EndType.etClosedPolygon);
+// the turn at a bend of a recorded line, in steps of this
+const TURN_STEP = (10 * Math.PI) / 180;
+// GPS jitter between close points of a recorded line would turn the body back and forth
+const LINE_JITTER = 0.03; // m
+
+// all the same way round: with clipper's nonzero fill one going the other way would cancel out where they overlap
+const ccw = (p: ClipperLib.Path) => (ClipperLib.Clipper.Orientation(p) ? p : [...p].reverse());
+
+function clipAll(type: ClipperLib.ClipType, subject: ClipperLib.Paths, cut: ClipperLib.Paths = []): ClipperLib.Paths {
+  const c = new ClipperLib.Clipper();
+  c.AddPaths(subject.map(ccw), ClipperLib.PolyType.ptSubject, true);
+  if (cut.length) c.AddPaths(cut.map(ccw), ClipperLib.PolyType.ptClip, true);
   const out: ClipperLib.Paths = [];
-  co.Execute(out, delta * SCALE);
-  return out.map(fromPath);
+  c.Execute(type, out, ClipperLib.PolyFillType.pftNonZero, ClipperLib.PolyFillType.pftNonZero);
+  return out;
+}
+
+// What the body covered driving along a recorded line: moved along each piece facing the way it drove, turned on the
+// spot at the bends. Convex pieces, the body's own contour taken as its hull
+export function bodySweep(line: P[], body: MowerBody): ClipperLib.Paths {
+  const o = simplifyPolygon(line, LINE_JITTER);
+  const n = o.length;
+  if (n < 3) return [];
+  const at = (p: P, h: number) => bodyShape(body, p.x, p.y, h).corners;
+  const heading = (i: number) => Math.atan2(o[(i + 1) % n].y - o[i].y, o[(i + 1) % n].x - o[i].x);
+  const out: ClipperLib.Paths = [];
+  for (let i = 0; i < n; i++) {
+    const b = o[(i + 1) % n];
+    const h = heading(i);
+    out.push(toPath(convexHull([...at(o[i], h), ...at(b, h)])));
+    // the bend at b: from this way round to the next one
+    const d = heading((i + 1) % n) - h;
+    const turn = Math.atan2(Math.sin(d), Math.cos(d));
+    const steps = Math.ceil(Math.abs(turn) / TURN_STEP);
+    for (let k = 1; k <= steps; k++) out.push(toPath(convexHull([...at(b, h + (turn * (k - 1)) / steps), ...at(b, h + (turn * k) / steps)])));
+  }
+  return out;
 }
 
 // Where the edges really are: the outlines were recorded with the middle of the mower driving along them, the body
-// reached half its width further. So the mowing areas together grown by that, and obstacles shrunk by it (one the
-// mower drove round smaller than that leaves nothing)
-export function realEdges(areas: readonly MapArea[], width: number): {lawn: P[][]; obstacles: P[][]} {
+// reached past them, its front further into a corner it drove at than its side along an edge. So the mowing areas
+// together with what the body covered along their lines, and obstacles less of it (one the mower drove round smaller
+// than its body leaves nothing)
+export function realEdges(areas: readonly MapArea[], body: MowerBody): {lawn: P[][]; obstacles: P[][]} {
   const mow = areas.filter((a) => a.properties.type === 'mow' && a.outline.length >= 3);
-  const c = new ClipperLib.Clipper();
-  c.AddPaths(mow.map((a) => toPath(a.outline)), ClipperLib.PolyType.ptSubject, true);
-  const lawn: ClipperLib.Paths = [];
-  c.Execute(ClipperLib.ClipType.ctUnion, lawn, ClipperLib.PolyFillType.pftNonZero, ClipperLib.PolyFillType.pftNonZero);
+  const lawn = clipAll(ClipperLib.ClipType.ctUnion, [...mow.map((a) => toPath(a.outline)), ...mow.flatMap((a) => bodySweep(a.outline, body))]);
   return {
-    lawn: grow(lawn, width / 2),
+    lawn: lawn.map(fromPath),
     obstacles: areas
       .filter((a) => a.properties.type === 'obstacle' && a.outline.length >= 3)
-      .flatMap((a) => grow([toPath(a.outline)], -width / 2)),
+      .flatMap((a) => clipAll(ClipperLib.ClipType.ctDifference, [toPath(a.outline)], bodySweep(a.outline, body)).map(fromPath)),
   };
 }
