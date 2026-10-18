@@ -61,10 +61,41 @@
   user-select: none;
 }
 
-.art svg {
+.art > svg {
   display: block;
   width: 100%;
   height: 100%;
+}
+
+/* the editor guide brings the app's own map and its card, no frame of its own */
+.artTall {
+  aspect-ratio: auto;
+  overflow: visible;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.stage {
+  position: relative;
+  pointer-events: none;
+  /* the map and its card as in the app, a little smaller so the text still fits under them */
+  zoom: 0.8;
+}
+
+.stageMap {
+  position: relative;
+}
+
+/* the hand above everything, the map's buttons too */
+.handLayer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 50;
 }
 
 /* the mower and the station as thin lined as on the map */

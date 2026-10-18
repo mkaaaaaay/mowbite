@@ -39,5 +39,5 @@ const ITEMS: GuideItem[] = [
 ];
 
 export default function EditorGuidePage() {
-  return <Guide steps={STEPS} items={ITEMS} itemsTitle="In the editor bar" done={{label: 'To the map', href: '/map'}} />;
+  return <Guide steps={STEPS} items={ITEMS} itemsTitle="In the editor bar" done={{label: 'To the map', href: '/map'}} tallArt />;
 }

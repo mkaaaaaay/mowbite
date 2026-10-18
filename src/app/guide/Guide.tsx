@@ -26,7 +26,8 @@ export interface GuideItem {
 const ABSTRACT = ['dot'];
 
 // a guide page: a drawing, a few lines and next, step by step. done: where the last step leads
-export default function Guide({steps, items, itemsTitle, done}: {steps: GuideStep[]; items?: GuideItem[]; itemsTitle?: string; done: {label: string; href: string}}) {
+// tallArt: the drawings bring their own frame and height (the editor guide's map and card)
+export default function Guide({steps, items, itemsTitle, done, tallArt}: {steps: GuideStep[]; items?: GuideItem[]; itemsTitle?: string; done: {label: string; href: string}; tallArt?: boolean}) {
   useLang();
   const router = useRouter();
   const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
@@ -59,7 +60,7 @@ export default function Guide({steps, items, itemsTitle, done}: {steps: GuideSte
         </header>
 
         <div
-          className={styles.art}
+          className={[styles.art, tallArt ? styles.artTall : ''].join(' ')}
           onPointerDown={(e) => (swipe.current = {x: e.clientX, y: e.clientY})}
           onPointerUp={(e) => {
             const s = swipe.current;
