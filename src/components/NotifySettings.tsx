@@ -21,7 +21,7 @@ import {
 } from '@/lib/notify';
 import type {Settings} from '@/lib/settings';
 import {containerHas, useUpdates} from '@/lib/updates';
-import {useEffect, useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
 import local from './NotifySettings.module.css';
 import {PhonePushSettings} from './PhonePushSettings';
 
@@ -37,7 +37,15 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
   useLang();
   // undefined while asking, null without the container
   const [form, setForm] = useState<NotifyConfig | null | undefined>(undefined);
-  const [saved, setSaved] = useState<NotifyConfig | null>(null);
+  const [saved, setSavedState] = useState<NotifyConfig | null>(null);
+  // what's on the mower, also between renders: a switch flipped right after another one builds on that
+  const savedRef = useRef<NotifyConfig | null>(null);
+  const setSaved = (c: NotifyConfig | null) => {
+    savedRef.current = c;
+    setSavedState(c);
+  };
+  // switches save one after another
+  const queue = useRef<Promise<void>>(Promise.resolve());
   const [state, setState] = useState<{busy?: boolean; error?: string; done?: string}>({});
   const [log, setLog] = useState<NotifyLog[]>([]);
   const [now, setNow] = useState(() => Date.now() / 1000);
@@ -74,8 +82,29 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
     setForm({...form, ...patch});
     setState({});
   };
+  // switches and choices save right away, on top of what's saved: what's typed in the fields waits for Save
+  const instant = (patch: Partial<NotifyConfig>) => {
+    const next = {...(savedRef.current ?? form), ...patch};
+    setSaved(next);
+    setForm((f) => (f ? {...f, ...patch} : f));
+    setState({});
+    queue.current = queue.current.then(async () => {
+      try {
+        const c = await saveNotify(next);
+        if (savedRef.current) setSaved({...savedRef.current, pushes: c.pushes, stored: c.stored, hasToken: c.hasToken});
+        setState({done: tr('Saved.')});
+      } catch {
+        setState({error: tr('The mower did not answer.')});
+        // back to what the mower has
+        const c = await loadNotify(next);
+        if (!c) return;
+        setSaved(c);
+        setForm((f) => (f ? {...f, enabled: c.enabled, events: c.events, remind: c.remind, emergencyWait: c.emergencyWait, lang: c.lang} : c));
+      }
+    });
+  };
   const toggle = (e: NotifyEvent) =>
-    set({events: form.events.includes(e) ? form.events.filter((x) => x !== e) : [...form.events, e]});
+    instant({events: form.events.includes(e) ? form.events.filter((x) => x !== e) : [...form.events, e]});
 
   const save = async () => {
     if (form.topic && !validTopic(form.topic.trim())) return setState({error: tr('The topic may only hold letters, digits, - and _.')});
@@ -189,7 +218,7 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
         {!own && ` ${tr('Install the ntfy app (Android or iOS) and subscribe to the topic below.')}`}
       </p>
       <label className={styles.check}>
-        <input type="checkbox" checked={form.enabled} onChange={(e) => set({enabled: e.target.checked})} />
+        <input type="checkbox" checked={form.enabled} onChange={(e) => instant({enabled: e.target.checked})} />
         {tr('Send push messages')}
       </label>
       {phone && saved && <PhonePushSettings saved={saved} reload={reload} styles={styles} />}
@@ -222,7 +251,7 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
           <h3 className={local.sub}>{tr('Tell about an emergency stop')}</h3>
           <div className={styles.segment}>
             {EMERGENCY_WAIT.map((s) => (
-              <button key={s} className={form.emergencyWait === s ? styles.segmentOn : undefined} onClick={() => set({emergencyWait: s})}>
+              <button key={s} className={form.emergencyWait === s ? styles.segmentOn : undefined} onClick={() => instant({emergencyWait: s})}>
                 {s === 0 ? tr('right away') : s < 60 ? tr('after {n} s', {n: s}) : tr('after {n} min', {n: s / 60})}
               </button>
             ))}
@@ -236,7 +265,7 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
       <h3 className={local.sub}>{tr('Remind me')}</h3>
       <div className={styles.segment}>
         {REMIND.map((m) => (
-          <button key={m} className={form.remind === m ? styles.segmentOn : undefined} onClick={() => set({remind: m})}>
+          <button key={m} className={form.remind === m ? styles.segmentOn : undefined} onClick={() => instant({remind: m})}>
             {m ? tr('every {n} min', {n: m}) : tr('never')}
           </button>
         ))}
@@ -253,7 +282,7 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
             ['en', 'English'],
           ] as const
         ).map(([k, label]) => (
-          <button key={k} className={form.lang === k ? styles.segmentOn : undefined} onClick={() => set({lang: k})}>
+          <button key={k} className={form.lang === k ? styles.segmentOn : undefined} onClick={() => instant({lang: k})}>
             {label}
           </button>
         ))}
@@ -280,6 +309,7 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
       </div>
       {state.done && <p className={styles.dim}>{state.done}</p>}
       {state.error && <p className={styles.error}>{state.error}</p>}
+      {!state.done && !state.error && <p className={styles.dim}>{tr('Switches and choices save right away, what you type with Save.')}</p>}
       {log.length > 0 && (
         <ul className={local.log}>
           {log.slice(0, 5).map((l, i) => (

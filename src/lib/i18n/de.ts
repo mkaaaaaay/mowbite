@@ -823,6 +823,7 @@ const de: Record<string, string> = {
   "Remove the saved token": "Gespeichertes Token entfernen",
   "On ntfy.sh anyone who knows the topic can read along: take a random one, or your own server with a token. The messages only say what the mower is doing.": "Auf ntfy.sh kann jeder mitlesen, der das Topic kennt: Nimm ein zufälliges oder einen eigenen Server mit Token. Die Nachrichten sagen nur, was der Mäher macht.",
   "Tell me about": "Melden bei",
+  "Switches and choices save right away, what you type with Save.": "Schalter und Auswahl speichern sofort, Getipptes mit Speichern.",
   "Remind me": "Erinnern",
   "every {n} min": "alle {n} min",
   "never": "nie",
