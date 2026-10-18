@@ -14,6 +14,9 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // the android project holds a copy of the built app
     "android/**",
+    // pieces of mowbite-art.js that scripts/build-art.mjs puts together, not modules of their own
+    "scripts/art-runtime.js",
+    "scripts/art-exports.js",
   ]),
 ]);
 

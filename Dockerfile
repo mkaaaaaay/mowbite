@@ -7,9 +7,12 @@ ENV VERSION_SUFFIX=$VERSION_SUFFIX
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
+# mowbite-art.js: the map's pictures for the home assistant card (scripts/build-art.mjs). without it the app is the same,
+# version.json just doesn't say "art"
 # with a .gz next to a file busybox httpd sends that to browsers that take gzip, a third of the size. not config.js, the
 # container writes it at the start
 RUN npm run build && mkdir /empty && \
+    { node scripts/build-art.mjs || echo 'mowbite-art.js left out'; } && \
     find out -type f \( -name '*.js' -o -name '*.css' -o -name '*.html' -o -name '*.txt' -o -name '*.svg' -o -name '*.json' \) \
       ! -name config.js -size +1k -exec gzip -9 -k {} +
 
