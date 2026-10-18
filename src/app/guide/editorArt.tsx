@@ -139,14 +139,14 @@ function HandShape() {
 
 // map spot -> place in the stage, from where the map drew an area it was given
 function mapToStage(stage: HTMLElement, map: MowerMap): ((p: Point) => [number, number]) | null {
-  const svg = stage.querySelector('svg');
-  const ctm = svg?.getScreenCTM();
-  if (!svg || !ctm) return null;
   const box = stage.getBoundingClientRect();
   // shown smaller (css zoom): the page measures it zoomed, what's inside it counts without
   const z = parseFloat(getComputedStyle(stage).zoom) || 1;
   // the area it is: the one whose every point lands on the drawn ones the same way
-  for (const el of stage.querySelectorAll('polygon[data-area]')) {
+  for (const el of stage.querySelectorAll<SVGPolygonElement>('polygon[data-area]')) {
+    // the area's own place on the screen, the map moves its drawing around inside the svg
+    const ctm = el.getScreenCTM();
+    if (!ctm) continue;
     const drawn = (el.getAttribute('points') ?? '').trim().split(/\s+/).map((s) => s.split(',').map(Number));
     for (const a of map.areas) {
       const o = a.outline;
@@ -187,17 +187,23 @@ function Stage({t, map, selected, picking, pending, preview, extra, under, hand}
   const stage = useRef<HTMLDivElement>(null);
   const handRef = useRef<SVGGElement>(null);
   const ripple = useRef<SVGCircleElement>(null);
+  // map spot -> stage, worked out anew every frame: the map can still settle after it's shown. what's drawn next to a
+  // spot (the delete button) gets it a frame later, only when it changed
   const [place, setPlace] = useState<((p: Point) => [number, number]) | null>(null);
-
-  // the map's spots move only when the map is drawn anew
-  useLayoutEffect(() => {
-    if (stage.current) setPlace(() => mapToStage(stage.current!, map));
-  }, [map]);
+  const placed = useRef<((p: Point) => [number, number]) | null>(null);
 
   useLayoutEffect(() => {
     const el = stage.current;
     const g = handRef.current;
     if (!el || !g) return;
+    const fresh = mapToStage(el, map);
+    const was = placed.current;
+    const probe = (f: (p: Point) => [number, number]) => [...f(pt(0, 0)), ...f(pt(10, 10))];
+    if (fresh && (!was || probe(fresh).some((v, i) => Math.abs(v - probe(was)[i]) > 0.5))) {
+      placed.current = fresh;
+      requestAnimationFrame(() => setPlace(() => fresh));
+    }
+    const place = fresh ?? was;
     const box = el.getBoundingClientRect();
     const z = parseFloat(getComputedStyle(el).zoom) || 1;
     const at = (target: Target): [number, number] | null => {
