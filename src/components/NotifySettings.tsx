@@ -194,7 +194,7 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
       </label>
       {phone && saved && <PhonePushSettings saved={saved} reload={reload} styles={styles} />}
       {own ? (
-        <details className={local.more} open={!!saved?.topic || undefined}>
+        <details className={local.more}>
           <summary>{tr('Through an ntfy topic, for other devices')}</summary>
           <p className={styles.dim}>{tr("An iPhone, a browser, a phone without MowBite: subscribe to the topic there in the ntfy app. This phone doesn't need it.")}</p>
           {topicFields}

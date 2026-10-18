@@ -22,18 +22,11 @@ import {RpcError} from '@/lib/rpc';
 
 const noop = () => () => {};
 
-// open or not as kept for this device, else open on a wide screen
-const groupOpen = (key: string) => {
-  try {
-    const v = localStorage.getItem(key);
-    if (v === '1' || v === '0') return v === '1';
-  } catch {}
-  return window.matchMedia('(min-width: 900px)').matches;
-};
+// open or not while the app runs: every start, all groups are folded again
+const opened = new Map<string, boolean>();
 
-// a few cards that belong together, folding away: on a phone it starts folded so the page stays short, on a wide
-// screen open. Open or not is kept per device (read once the page runs, it's built ahead without it). The line under the
-// title says what's inside. A link to it or to one of its cards (#updates) opens it
+// a few cards that belong together, folding away so the page stays short. The line under the title says what's
+// inside. A link to it or to one of its cards (#updates) opens it
 function Group({
   id,
   title,
@@ -49,19 +42,13 @@ function Group({
   anchors?: string[];
   children: React.ReactNode;
 }) {
-  const key = 'settingsGroup.' + id;
   const linked = useSyncExternalStore(
     noop,
     () => [id, ...anchors].some((a) => window.location.hash === '#' + a),
     () => false,
   );
-  const kept = useSyncExternalStore(
-    noop,
-    () => groupOpen(key),
-    () => false,
-  );
-  const [toggled, setToggled] = useState<boolean | null>(null);
-  const open = toggled ?? (linked || kept);
+  const [toggled, setToggled] = useState<boolean | null>(() => opened.get(id) ?? null);
+  const open = toggled ?? linked;
   useEffect(() => {
     if (linked) document.getElementById(window.location.hash.slice(1))?.scrollIntoView({block: 'start'});
   }, [linked]);
@@ -74,9 +61,7 @@ function Group({
         const now = (e.currentTarget as HTMLDetailsElement).open;
         if (now === open) return;
         setToggled(now);
-        try {
-          localStorage.setItem(key, now ? '1' : '0');
-        } catch {}
+        opened.set(id, now);
       }}
     >
       <summary>
