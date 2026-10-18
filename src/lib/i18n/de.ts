@@ -823,6 +823,11 @@ const de: Record<string, string> = {
   "Remove the saved token": "Gespeichertes Token entfernen",
   "On ntfy.sh anyone who knows the topic can read along: take a random one, or your own server with a token. The messages only say what the mower is doing.": "Auf ntfy.sh kann jeder mitlesen, der das Topic kennt: Nimm ein zufälliges oder einen eigenen Server mit Token. Die Nachrichten sagen nur, was der Mäher macht.",
   "Tell me about": "Melden bei",
+  "Mowing for all areas": "Mähen für alle Flächen",
+  "OpenMower's own values from mower_params.yaml, for every area without its own. A change counts right away.":
+    "OpenMowers eigene Werte aus der mower_params.yaml, für jede Fläche ohne eigene. Eine Änderung gilt sofort.",
+  "The mowing values (outline passes, lane spacing, direction) are with the map: under \"Mowing for all areas\", with the MowBite Planner in its menu there.":
+    "Die Mähwerte (Randrunden, Bahnabstand, Richtung) stehen bei der Karte: unter „Mähen für alle Flächen“, mit dem MowBite-Planer in seinem Menü dort.",
   "Switches and choices save right away, what you type with Save.": "Schalter und Auswahl speichern sofort, Getipptes mit Speichern.",
   "Remind me": "Erinnern",
   "every {n} min": "alle {n} min",
@@ -1287,7 +1292,8 @@ const de: Record<string, string> = {
   "Mowing plan": "Mähplan",
   "Measured from the middle between the rear drive wheels, the point the mower follows. The planner keeps the body clear of the edges in turns and corners, the map shows the mower at its real size (⚙ on the map, Mower icon, \"Real size\").": "Gemessen ab der Mitte zwischen den hinteren Antriebsrädern, dem Punkt, dem der Mäher folgt. Der Planer hält den Körper bei Wenden und in Ecken von den Kanten fern, die Karte kann den Mäher in echter Größe zeigen (⚙ an der Karte, Mäher-Symbol, „Echte Größe“).",
   "How many rounds the mower drives along the edge before it mows the inside in stripes. Empty: like all areas.": "Wie viele Runden der Mäher am Rand entlangfährt, bevor er das Innere in Bahnen mäht. Leer: wie alle Flächen.",
-  "OpenMower turns the angle further as well ({deg}° after every whole mow), the two add up. Set that to 0 under Settings > OpenMower or in mower_params.yaml.": "OpenMower dreht den Winkel zusätzlich weiter ({deg}° nach jedem ganzen Mähvorgang), beides addiert sich. Stell das unter Einstellungen > OpenMower oder in der mower_params.yaml auf 0.",
+  "OpenMower turns the angle further as well ({deg}° after every whole mow), the two add up.": "OpenMower dreht den Winkel auch weiter ({deg}° nach jedem ganzen Mähvorgang), beides addiert sich.",
+  "Set OpenMower's to 0": "In OpenMower auf 0 setzen",
   "When turning on the spot and all along the turns between the lanes, the mower keeps its body this much further off the edge and obstacles: it often wanders a little there. Loops along the edge, lanes and drives keep the plain distances.": "Beim Drehen auf der Stelle und in den Wenden zwischen den Bahnen hält der Mäher mit dem Körper so viel mehr Abstand zur Kante und zu Hindernissen: Dort weicht er oft etwas ab. Randrunden, Bahnen und Fahrten halten die normalen Abstände.",
   "Retries when docking": "Wiederholungen beim Andocken",
   "How far in front of the dock the mower lines up before it drives in.": "Wie weit vor dem Dock sich der Mäher ausrichtet, bevor er einfährt.",

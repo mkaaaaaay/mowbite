@@ -18,6 +18,7 @@ import {
 } from '@/lib/mowerParams';
 import {RPC} from '@/lib/openmower';
 import {RpcError, rpcMethods} from '@/lib/rpc';
+import Link from 'next/link';
 import {useEffect, useRef, useState, useSyncExternalStore} from 'react';
 import InfoTip from './InfoTip';
 import local from './MowerParamSettings.module.css';
@@ -84,6 +85,12 @@ async function apply(f: ParamField, value: number | boolean) {
     await storeKept({...kept, values: {...kept.values, [f.key]: took}}).catch(() => {
       throw new NotKept(tr("Set on the mower, but MowBite couldn't keep it for after a restart."));
     });
+}
+
+// one of OpenMower's settings changed from elsewhere (the planner's menu), kept like one changed here
+export async function setOpenMowerParam(key: string, value: number | boolean) {
+  const f = paramField(key);
+  if (f) await apply(f, value);
 }
 
 // one setting: its value on the mower, changed right there
@@ -201,6 +208,25 @@ function summary(group: ParamGroup, params: Record<string, unknown>): string {
 }
 const AUTOMATIC_SHORT = ['starts by hand', 'semi-automatic', 'automatic'];
 
+// OpenMower's own values for mowing every area (mower_params.yaml), with the map where an area can have its own
+export function OpenMowerMowing({styles}: {styles: Styles}) {
+  const k = useKept();
+  return (
+    <div className={local.rows}>
+      <p className={styles.dim}>{tr("OpenMower's own values from mower_params.yaml, for every area without its own. A change counts right away.")}</p>
+      {k && !k.enabled && (
+        <label className={styles.check}>
+          <input type="checkbox" checked={false} onChange={() => storeKept({...k, enabled: true}).catch(() => {})} />
+          {tr('MowBite sets what you change here again after a restart')}
+        </label>
+      )}
+      {PARAM_FIELDS.filter((f) => f.group === 'mowing').map((f) => (
+        <ParamRow key={f.key} field={f} />
+      ))}
+    </div>
+  );
+}
+
 // the settings page's group: everything folded when the page opens, every time
 export function OpenMowerSettings({styles}: {styles: Styles}) {
   const can = useCanSetParams();
@@ -248,7 +274,11 @@ export function OpenMowerSettings({styles}: {styles: Styles}) {
             {tr('MowBite sets what you change here again after a restart')}
           </label>
         )}
-        {PARAM_GROUPS.map((g) => (
+        <p className={styles.dim}>
+          {tr('The mowing values (outline passes, lane spacing, direction) are with the map: under "Mowing for all areas", with the MowBite Planner in its menu there.')}{' '}
+          <Link href="/map">{tr('To the map')}</Link>
+        </p>
+        {PARAM_GROUPS.filter((g) => g.key !== 'mowing').map((g) => (
           <details key={g.key} className={local.section}>
             <summary>
               <span className={local.title}>

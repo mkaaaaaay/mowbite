@@ -45,6 +45,7 @@ import Problems, {problemText} from './Problems';
 import {BodyCheck, PlanChecks} from './BodyCheck';
 import {Fold} from './Fold';
 import {bodyFrom, slic3rPlans, useMowerBody, usePlannerSettings, type BodySpot} from '@/lib/mowerBody';
+import {OpenMowerMowing, useCanSetParams} from '@/components/MowerParamSettings';
 import {PlannerSettings} from '@/components/PlannerSettings';
 import {PlannerSimple} from '@/components/PlannerSimple';
 import settingsStyles from '../settings/page.module.css';
@@ -183,6 +184,8 @@ function MapEditor() {
   const plannerSettings = usePlannerSettings();
   // OpenMower's slic3r planner switched on in the MowBite Planner: no distances kept, no collision check
   const slic3r = slic3rPlans(plannerSettings);
+  // OpenMower's own mowing values can be changed here (params.set)
+  const canSetParams = useCanSetParams();
   const margins = useMemo(() => {
     if (slic3rPlans(plannerSettings)) return null;
     const value = (k: string) => plannerSettings?.settings[k]?.value;
@@ -817,8 +820,18 @@ function MapEditor() {
                     <OrderBox areas={mowAreas} idle={idle} onSelect={selectArea} onMove={moveInOrder} />
                   )}
 
-                  {/* everything for the planner is here at the map: for all areas and the mower's sizes, an area's own
-                      with the area */}
+                  {/* without the planner (or with OpenMower's slic3r planning) OpenMower's own values for all areas */}
+                  {(!plannerSettings || slic3r) && canSetParams && (
+                    <Fold id="mowingAll" title={tr('Mowing for all areas')}>
+                      <div className={styles.foldCards}>
+                        <section className={settingsStyles.card}>
+                          <OpenMowerMowing styles={settingsStyles} />
+                        </section>
+                      </div>
+                    </Fold>
+                  )}
+
+                  {/* everything for the planner is here at the map: for all areas, an area's own with the area */}
                   {plannerSettings && (
                     <Fold id="plannerAll" title={tr('Planner for all areas')}>
                       <PlannerSimple

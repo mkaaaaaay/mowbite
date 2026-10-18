@@ -9,6 +9,7 @@ import {RpcError} from '@/lib/rpc';
 import {useEffect, useState} from 'react';
 import InfoTip from './InfoTip';
 import {NoSizesWarning} from './MowerBodySettings';
+import {setOpenMowerParam} from './MowerParamSettings';
 import local from './PlannerSimple.module.css';
 
 // The planner's settings that matter for a garden, in the same sections for all areas and for one area: the style (a
@@ -345,6 +346,17 @@ export function PlannerSimple({
       setState({error: e instanceof RpcError && e.code !== 'timeout' ? e.message : tr('The mower did not answer.')});
     }
   };
+  // OpenMower's own turning further off, the planner's is the one to use (it's kept for after a restart like a change
+  // in OpenMower's settings)
+  const zeroOmIncrement = async () => {
+    setState({busy: true});
+    try {
+      await setOpenMowerParam('mow_angle_increment', 0);
+      setState({});
+    } catch (e) {
+      setState({error: e instanceof RpcError && e.code !== 'timeout' ? e.message : tr('The mower did not answer.')});
+    }
+  };
   // a direction still stored for all areas, the menu doesn't offer it any more
   const angleForAll = ANGLE_FOR_ALL.filter((k) => all[k]?.stored && all[k].value !== null && all[k].value !== undefined);
   // with the mower's sizes the planner checks its body, the lines are where its middle drove (collision mode): what the
@@ -630,9 +642,10 @@ export function PlannerSimple({
                   </div>
                   {!!omIncrement && (
                     <span className={local.error}>
-                      {tr('OpenMower turns the angle further as well ({deg}° after every whole mow), the two add up. Set that to 0 under Settings > OpenMower or in mower_params.yaml.', {
-                        deg: omIncrement,
-                      })}
+                      {tr('OpenMower turns the angle further as well ({deg}° after every whole mow), the two add up.', {deg: omIncrement})}{' '}
+                      <button disabled={state.busy} onClick={() => void zeroOmIncrement()}>
+                        {tr("Set OpenMower's to 0")}
+                      </button>
                     </span>
                   )}
                 </Row>
