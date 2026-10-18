@@ -2,7 +2,6 @@
 
 import {TitleMark} from '@/components/Logo';
 import {saveSettings, settingsStore, sharedSettings, type OtherMower, type Settings} from '@/lib/settings';
-import {useRouter} from 'next/navigation';
 import {useEffect, useState, useSyncExternalStore} from 'react';
 import styles from './page.module.css';
 import {setLangChoice, tr, useLang, useLangChoice} from '@/lib/i18n';
@@ -206,9 +205,6 @@ export default function SettingsPage() {
   const choice = useLangChoice();
   const theme = useThemeChoice();
   const swipe = useSwipeEnabled();
-  const router = useRouter();
-  // back to wherever the gear was clicked, or the dashboard when the page was opened directly
-  const back = () => (window.history.length > 1 ? router.back() : router.push('/'));
   const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
   const shared = useSyncExternalStore(settingsStore.subscribe, sharedSettings, () => false);
   // the MowBite Planner on the mower: its settings are with the map. Asked here too, the page may be the first one
@@ -234,9 +230,6 @@ export default function SettingsPage() {
   return (
     <div className={styles.page}>
       <main className={styles.main}>
-        <button className={styles.back} onClick={back}>
-          ← {tr('Back')}
-        </button>
         <h1>
           <TitleMark />
           {tr('Settings')}
