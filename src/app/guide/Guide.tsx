@@ -118,7 +118,7 @@ export default function Guide({steps, items, itemsTitle, done, tallArt}: {steps:
           </section>
         )}
 
-        <button className={[styles.next, tallArt ? styles.nextEnd : ''].join(' ')} onClick={() => go(step + 1)}>
+        <button className={[styles.next, tallArt || (last && items) ? styles.nextEnd : ''].join(' ')} onClick={() => go(step + 1)}>
           {last ? tr(done.label) : tr('Next')}
         </button>
       </main>

@@ -33,7 +33,7 @@ const STEPS: GuideStep[] = [
   },
   {
     title: 'Reduce points',
-    text: 'Recorded edges have a point every few centimeters, which makes editing fiddly. Reduce points takes out the ones that barely change the shape. The slider sets how far the edge may move at most.',
+    text: 'Recorded edges mostly have a point every 10 cm, which makes editing fiddly. Reduce points takes out the ones that barely change the shape. The slider sets how far the edge may move at most.',
   },
   {
     title: 'Mow angle',

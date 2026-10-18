@@ -1,6 +1,7 @@
 'use client';
 
 import {drawDock, type dockIcon} from '@/components/mapIcons';
+import {fmt, tr} from '@/lib/i18n';
 import {useEffect, useId, useRef} from 'react';
 
 // the drawings of the guide: a garden from above and the map growing on it, in the colors of the map. each one
@@ -227,12 +228,11 @@ function Intro({dock}: ArtProps) {
   );
 }
 
-// 2: a meter in front of the station, then straight in until it sits on the contacts
+// 2: backed out of the station a meter, then straight in until it sits on the contacts
 function Docking({dock}: ArtProps) {
   const dur = 7;
-  // the mower's middle: start, a meter in front, on the contacts
-  const [from, front, docked] = [198, 136, 88];
-  const at = (y: number) => (from - y) / (from - docked);
+  // the mower's middle: a meter in front, on the contacts
+  const [front, docked] = [136, 88];
   return (
     <Scene still={dur * 0.85} label="">
       <Lawn d="M0 0 H320 V200 H0 Z" />
@@ -251,7 +251,8 @@ function Docking({dock}: ArtProps) {
         {anim('opacity', dur, [0, 0.38, 0.6, 0.94, 1], [0, 0, 1, 1, 0])}
       </path>
       <g>
-        <animateMotion dur={`${dur}s`} repeatCount="indefinite" rotate="auto" calcMode="linear" keyTimes="0;0.15;0.38;0.62;1" keyPoints={`0;${at(front)};${at(front)};1;1`} path={`M160 ${from} V${docked}`} />
+        {/* along the way in, facing the station also while it backs out */}
+        <animateMotion dur={`${dur}s`} repeatCount="indefinite" rotate="auto" calcMode="linear" keyTimes="0;0.15;0.38;0.62;1" keyPoints="1;0;0;1;1" path={`M160 ${front} V${docked}`} />
         <MowerAt size={15} />
       </g>
       {/* a tap on record docking station while it waits in front */}
@@ -312,22 +313,17 @@ function Obstacles({dock}: ArtProps) {
   );
 }
 
-// 5: everything a map has, two lawns joined by a way across the path
+// the garden of the last steps: two lawns with a path between them, the house above
 const LEFT = 'M18 50 H146 V182 Q146 190 138 190 H26 Q18 190 18 182 Z';
 const RIGHT = 'M174 50 H302 V182 Q302 190 294 190 H182 Q174 190 174 182 Z';
 const LEFT_AREA = 'M26 58 H138 V176 Q138 182 132 182 H32 Q26 182 26 176 Z';
 const RIGHT_AREA = 'M182 58 H294 V176 Q294 182 288 182 H188 Q182 182 182 176 Z';
 const WAY = 'M128 148 H192 V174 H128 Z';
-const BED = 'M214 98 H262 Q268 98 268 104 V122 Q268 128 262 128 H214 Q208 128 208 122 V104 Q208 98 214 98 Z';
-const BED_AROUND = 'M210 92 H266 Q274 92 274 100 V126 Q274 134 266 134 H210 Q202 134 202 126 V100 Q202 92 210 92 Z';
-const TREE_LEFT = {x: 80, y: 118};
-const ACROSS = 'M104 158 H216 Q226 165 216 172 H104 Q94 165 104 158 Z';
+const stroke = (color: string) => ({fill: 'none', stroke: color, strokeWidth: LINE, strokeLinejoin: 'round' as const});
 
-function Elements({dock}: ArtProps) {
-  const dur = 7;
-  const stroke = (color: string) => ({fill: 'none', stroke: color, strokeWidth: LINE, strokeLinejoin: 'round' as const});
+function TwoLawns() {
   return (
-    <Scene still={0} label="">
+    <>
       <rect width={320} height={200} fill={STONE} />
       <rect x={146} y={0} width={28} height={200} fill="#b8b0a1" />
       <g transform="translate(-40 0)">
@@ -336,6 +332,134 @@ function Elements({dock}: ArtProps) {
       </g>
       <Lawn d={LEFT} />
       <Lawn d={RIGHT} />
+    </>
+  );
+}
+
+// 5: the way across the path recorded like an area and saved as a navigation area, then through it to the spot in
+// front of the station, which lies in the lawn, and straight in from there
+const WAY_ROUND = 'M192 161 V174 H128 V148 H192 Z';
+const WAY_IN = 'M192 161 H112 C70 161 46 142 46 112 V54';
+const IN_FRONT = {x: 46, y: 91};
+
+function Paths({dock}: ArtProps) {
+  const dur = 10;
+  return (
+    <Scene still={dur * 0.9} label="">
+      <TwoLawns />
+      <path d={LEFT_AREA} fill="var(--c-mow)" opacity={FILL} />
+      <path d={LEFT_AREA} {...stroke('var(--c-mow)')} />
+      <path d={RIGHT_AREA} fill="var(--c-mow)" opacity={FILL} />
+      <path d={RIGHT_AREA} {...stroke('var(--c-mow)')} />
+      <Station dock={dock} x={46} y={46} size={11} />
+      <g>
+        {anim('opacity', dur, [0, 0.95, 1], [1, 1, 0])}
+        <Drawn d={WAY_ROUND} color="var(--c-nav)" dur={dur} t0={0.02} t1={0.34} fill f0={0.34} f1={0.4} />
+      </g>
+      <g opacity={0}>
+        {anim('opacity', dur, [0, 0.01, 0.39, 0.4, 1], [0, 1, 1, 0, 0])}
+        <g>
+          <animateMotion dur={`${dur}s`} repeatCount="indefinite" rotate="auto" calcMode="linear" keyTimes="0;0.02;0.34;1" keyPoints="0;0;1;1" path={WAY_ROUND} />
+          <MowerAt size={8} />
+        </g>
+      </g>
+      {/* how far in front of the station it heads for */}
+      <g opacity={0} color="#fff">
+        {anim('opacity', dur, [0, 0.42, 0.46, 0.94, 0.97, 1], [0, 0, 1, 1, 0, 0])}
+        <path d={`M60 54 V${IN_FRONT.y}`} stroke="currentColor" strokeWidth={1.2} strokeDasharray="3 3" />
+        <path d={`M56 54 H64 M56 ${IN_FRONT.y} H64`} stroke="currentColor" strokeWidth={1.2} />
+        <text x={67} y={77} fontSize={11} fontWeight={700} fill="currentColor">
+          {fmt(1.5, 1)} m
+        </text>
+        <circle cx={IN_FRONT.x} cy={IN_FRONT.y} r={4.5} fill="var(--c-dock)" stroke="#fff" strokeWidth={1.2} />
+      </g>
+      <g opacity={0}>
+        {anim('opacity', dur, [0, 0.39, 0.4, 1], [0, 0, 1, 1])}
+        <g>
+          <animateMotion dur={`${dur}s`} repeatCount="indefinite" rotate="auto" calcMode="linear" keyTimes="0;0.46;0.88;1" keyPoints="0;0;1;1" path={WAY_IN} />
+          <MowerAt size={8} />
+        </g>
+      </g>
+    </Scene>
+  );
+}
+
+// 6: a lawn with straight edges recorded with an rtk fix and auto points off: a point only at each corner, the edge
+// straight from one to the next
+const PLOT = 'M40 60 H280 V184 H40 Z';
+const PLOT_ROUND = 'M50 174 V70 H270 V174 Z';
+const PLOT_CORNERS: [number, number][] = [
+  [50, 174],
+  [50, 70],
+  [270, 70],
+  [270, 174],
+];
+
+function Tips() {
+  const dur = 9;
+  // the mower drives from 0.05 to 0.85, at a corner when it has come this far along the sides
+  const sides = PLOT_CORNERS.map((c, i) => {
+    const n = PLOT_CORNERS[(i + 1) % PLOT_CORNERS.length];
+    return Math.hypot(n[0] - c[0], n[1] - c[1]);
+  });
+  const total = sides.reduce((a, b) => a + b, 0);
+  const reached = PLOT_CORNERS.map((_, i) => 0.05 + (0.8 * sides.slice(0, i).reduce((a, b) => a + b, 0)) / total);
+  return (
+    <Scene still={dur * 0.9} label="">
+      <rect width={320} height={200} fill={STONE} />
+      <Lawn d={PLOT} />
+      <path d={PLOT_ROUND} fill="var(--c-mow)" opacity={0}>
+        {anim('opacity', dur, [0, 0.85, 0.9, 0.95, 1], [0, 0, FILL, FILL, 0])}
+      </path>
+      {/* each side of the edge once the mower set the point at its end */}
+      {PLOT_CORNERS.map((c, i) => {
+        const n = PLOT_CORNERS[(i + 1) % PLOT_CORNERS.length];
+        const at = i + 1 < PLOT_CORNERS.length ? reached[i + 1] : 0.85;
+        return (
+          <path key={i} d={`M${c[0]} ${c[1]} L${n[0]} ${n[1]}`} stroke="var(--c-mow)" strokeWidth={LINE} strokeLinecap="round" opacity={0}>
+            {anim('opacity', dur, [0, at, at + 0.01, 0.95, 1], [0, 0, 1, 1, 0])}
+          </path>
+        );
+      })}
+      {PLOT_CORNERS.map(([x, y], i) => (
+        <g key={i}>
+          <circle cx={x} cy={y} r={4} fill="var(--c-mow)" stroke="#fff" strokeWidth={1.2} opacity={0}>
+            {anim('opacity', dur, [0, reached[i], reached[i] + 0.01, 0.95, 1], [0, 0, 1, 1, 0])}
+          </circle>
+          {/* a tap on set point here */}
+          <circle cx={x} cy={y} r={8} fill="none" stroke="#fff" strokeWidth={2} opacity={0}>
+            {anim('r', dur, [0, reached[i], reached[i] + 0.08, 1], [8, 8, 22, 22])}
+            {anim('opacity', dur, [0, reached[i], reached[i] + 0.01, reached[i] + 0.08, 1], [0, 0, 0.9, 0, 0])}
+          </circle>
+        </g>
+      ))}
+      <g>
+        <animateMotion dur={`${dur}s`} repeatCount="indefinite" rotate="auto" calcMode="linear" keyTimes="0;0.05;0.85;1" keyPoints="0;0;1;1" path={PLOT_ROUND} />
+        <MowerAt size={8} />
+      </g>
+      {/* the fix it needs, up in the corner */}
+      <g transform="translate(222 14)">
+        <rect width={88} height={24} rx={12} fill="#fff" fillOpacity={0.92} />
+        <circle cx={14} cy={12} r={5} fill="#4caf50" />
+        <text x={25} y={16.5} fontSize={12} fontWeight={700} fill="#20262c">
+          {tr('RTK fix')}
+        </text>
+      </g>
+    </Scene>
+  );
+}
+
+// 7: everything a map has, two lawns joined by a way across the path
+const BED = 'M214 98 H262 Q268 98 268 104 V122 Q268 128 262 128 H214 Q208 128 208 122 V104 Q208 98 214 98 Z';
+const BED_AROUND = 'M210 92 H266 Q274 92 274 100 V126 Q274 134 266 134 H210 Q202 134 202 126 V100 Q202 92 210 92 Z';
+const TREE_LEFT = {x: 80, y: 118};
+const ACROSS = 'M104 158 H216 Q226 165 216 172 H104 Q94 165 104 158 Z';
+
+function Elements({dock}: ArtProps) {
+  const dur = 7;
+  return (
+    <Scene still={0} label="">
+      <TwoLawns />
       <Tree {...TREE_LEFT} />
       <path d={BED} fill="#6d4c36" />
       {[0, 1, 2, 3, 4, 5].map((i) => (
@@ -360,7 +484,7 @@ function Elements({dock}: ArtProps) {
   );
 }
 
-export const ART = [Intro, Docking, Outline, Obstacles, Elements];
+export const ART = [Intro, Docking, Outline, Obstacles, Paths, Tips, Elements];
 
 // the small pictures in the list of what a map has
 export function LegendIcon({kind, dock}: {kind: 'mow' | 'nav' | 'obstacle' | 'dock'; dock: Dock}) {
