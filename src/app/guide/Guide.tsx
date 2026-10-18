@@ -47,6 +47,24 @@ export default function Guide({steps, items, itemsTitle, done, tallArt}: {steps:
   // a swipe on the drawing turns the page
   const swipe = useRef<{x: number; y: number} | null>(null);
 
+  // where it is and what to do: under a small drawing, above a tall one (the map and its card), on screen with it
+  const words = (
+    <>
+      <div className={styles.progress}>
+        <span>
+          {step + 1}/{steps.length}
+        </span>
+        <div className={styles.dots} aria-hidden="true">
+          {steps.map((_, i) => (
+            <i key={i} className={i === step ? styles.on : undefined} />
+          ))}
+        </div>
+      </div>
+
+      <p className={[styles.text, tallArt ? styles.textTall : ''].join(' ')}>{tr(steps[step].text)}</p>
+    </>
+  );
+
   return (
     <div className={styles.page}>
       <main className={styles.main}>
@@ -57,7 +75,16 @@ export default function Guide({steps, items, itemsTitle, done, tallArt}: {steps:
             </svg>
           </button>
           <h1>{tr(steps[step].title)}</h1>
+          {!last && (
+            <button className={styles.back} onClick={() => go(step + 1)} aria-label={tr('Next')}>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M9 5 L16 12 L9 19" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          )}
         </header>
+
+        {tallArt && words}
 
         <div
           className={[styles.art, tallArt ? styles.artTall : ''].join(' ')}
@@ -73,18 +100,7 @@ export default function Guide({steps, items, itemsTitle, done, tallArt}: {steps:
           <Art key={step} dock={dock} />
         </div>
 
-        <div className={styles.progress}>
-          <span>
-            {step + 1}/{steps.length}
-          </span>
-          <div className={styles.dots} aria-hidden="true">
-            {steps.map((_, i) => (
-              <i key={i} className={i === step ? styles.on : undefined} />
-            ))}
-          </div>
-        </div>
-
-        <p className={styles.text}>{tr(steps[step].text)}</p>
+        {!tallArt && words}
         {last && items && (
           <section className={styles.legend}>
             {itemsTitle && <h2>{tr(itemsTitle)}</h2>}
@@ -102,7 +118,7 @@ export default function Guide({steps, items, itemsTitle, done, tallArt}: {steps:
           </section>
         )}
 
-        <button className={styles.next} onClick={() => go(step + 1)}>
+        <button className={[styles.next, tallArt ? styles.nextEnd : ''].join(' ')} onClick={() => go(step + 1)}>
           {last ? tr(done.label) : tr('Next')}
         </button>
       </main>

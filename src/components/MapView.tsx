@@ -89,6 +89,10 @@ interface MapViewProps {
   datum?: Datum;
   // numbers drawn in areas, e.g. mowing order
   orderLabels?: Record<string, number>;
+  // the mower's body to draw with instead of its own (the editor guide shows the real edges of an example mower)
+  bodyOverride?: MowerBody;
+  // every layer shown, whatever the layer menu hides (the editor guide)
+  allLayers?: boolean;
   // spots to point out, e.g. where an error happened (red, pulsing)
   markers?: Point[];
   // a marker tapped: its index, null to close
@@ -109,6 +113,8 @@ interface MapViewProps {
   marginPlaces?: {x: number; y: number; m: number}[];
   // start zoomed in around this point instead of showing the whole map
   focus?: Point;
+  // how many m around the focus point, 12 if not given
+  focusSpan?: number;
   // zoom and position are kept under this key while the app runs, e.g. across a visit to the settings
   viewKey?: string;
   // what the mower draws itself, e.g. the lines of an area recording
@@ -134,6 +140,7 @@ const MAX_ZOOM = 40;
 const savedViews = new Map<string, {x: number; y: number; span: number}>();
 // dragging.areaId while a point of the line being drawn is dragged
 const PENDING = '__pending';
+const NO_LAYERS_HIDDEN = new Set<Layer>();
 
 type Run = {points: string; blades: boolean};
 // drawn runs of each piece of the live trail per map geometry, pieces that are done are never worked out again
@@ -459,10 +466,13 @@ function MapView({
   jumpPlaces,
   marginPlaces,
   focus,
+  focusSpan,
   viewKey,
   onClickEmpty,
   datum,
   orderLabels,
+  bodyOverride,
+  allLayers,
 }: MapViewProps) {
   useLang();
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -504,7 +514,9 @@ function MapView({
   const [free, setFree] = useState(false);
   if (free && !follow) setFree(false);
   const following = follow && !free;
-  const {imagery, setImagery, showGrid, toggleGrid, hidden, toggleLayer, planStyle, setPlanStyle, coverage: coverMode, setCoverage: setCoverMode} = useMapPrefs();
+  const prefs = useMapPrefs();
+  const {imagery, setImagery, showGrid, toggleGrid, toggleLayer, planStyle, setPlanStyle, coverage: coverMode, setCoverage: setCoverMode} = prefs;
+  const hidden = allLayers ? NO_LAYERS_HIDDEN : prefs.hidden;
   const [svgPx, setSvgPx] = useState(0);
   const [layersOpen, setLayersOpen] = useState(false);
   // MowBite's container on the mower: it keeps the gps log the coverage comes from
@@ -555,7 +567,8 @@ function MapView({
   useEffect(() => {
     followEaser.push(livePoses ? null : followed);
   }, [followEaser, followed, livePoses]);
-  const body = useMowerBody();
+  const ownBody = useMowerBody();
+  const body = bodyOverride ?? ownBody;
   const plannerSettings = usePlannerSettings();
 
   // fitted to the map only, so the geometry doesn't change while the mower moves. follow mode
@@ -603,11 +616,11 @@ function MapView({
   const toScreen = (x: number, y: number): [number, number] => [(x - minX) * scale + padX, HEIGHT - ((y - minY) * scale + padY)];
   const toLocal = (sx: number, sy: number): [number, number] => [(sx - padX) / scale + minX, (HEIGHT - sy - padY) / scale + minY];
 
-  // about 12 m around the focus point, until the user zooms or pans themselves
+  // about 12 m around the focus point (or what's asked for), until the user zooms or pans themselves
   const home: View | null = focus
     ? (() => {
         const [fx, fy] = toScreen(focus.x, focus.y);
-        const size = Math.min(WIDTH, 12 * scale);
+        const size = Math.min(WIDTH, (focusSpan ?? 12) * scale);
         return {x: fx - size / 2, y: fy - size / 2, size};
       })()
     : null;

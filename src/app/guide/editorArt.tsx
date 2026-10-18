@@ -1,15 +1,21 @@
 'use client';
 
-import {MergePanel, SimplifyPanel, SplitPanel} from '@/app/map/Panels';
-import {AREA_TYPES} from '@/app/map/editing';
+import {MergePanel, RestorePanel, SimplifyPanel, SplitPanel} from '@/app/map/Panels';
+import EditorToolbar from '@/app/map/EditorToolbar';
+import OrderBox from '@/app/map/OrderBox';
+import {AREA_TYPES, DEG} from '@/app/map/editing';
+import {AngleCompass, AngleOnMap, AngleSlider, AngleStep} from '@/app/map/MowSettings';
 import mapPage from '@/app/map/page.module.css';
 import {MergeIcon, ScissorsIcon, SimplifyIcon, TrashIcon} from '@/components/icons';
+import MapBackups from '@/components/MapBackups';
 import MapView from '@/components/MapView';
 import mapView from '@/components/MapView.module.css';
 import type {MapArea, MowerMap, Point} from '@/hooks/useMowerMap';
 import {polygonArea} from '@/lib/geometry';
 import {fmt, tr} from '@/lib/i18n';
 import {mergeOutlines} from '@/lib/mergeAreas';
+import {MOWER_MODELS, sizesBody} from '@/lib/mowerBody';
+import {mowPlan} from '@/lib/mowPlan';
 import {simplifyPolygon} from '@/lib/simplifyPolygon';
 import {splitByPath} from '@/lib/splitPolygon';
 import {useEffect, useId, useLayoutEffect, useMemo, useRef, useState} from 'react';
@@ -96,8 +102,14 @@ const ease = (t: number, a: number, b: number) => {
 };
 const mix = (p: Point, q: Point, f: number) => pt(p.x + (q.x - p.x) * f, p.y + (q.y - p.y) * f);
 
-// where the hand is: a spot on the map, a button (by what it says), the range slider at a value, or off the bottom
-type Target = {map: Point; dx?: number; dy?: number} | {button: string} | {range: number} | 'off';
+// where the hand is: a spot on the map, a button (by what it says or one of several it can say, the nth of them), a
+// switch's box (by its words), the range slider at a value, or off the bottom
+type Target =
+  | {map: Point; dx?: number; dy?: number}
+  | {button: string | string[]; nth?: number}
+  | {label: string}
+  | {range: number}
+  | 'off';
 interface HandPlan {
   moves: [number, Target][];
   // the stretches it touches the screen
@@ -173,13 +185,15 @@ function mapToStage(stage: HTMLElement, map: MowerMap): ((p: Point) => [number, 
 }
 
 // the stage: the map as the editor shows it, what's under it and the hand on top
-function Stage({t, map, selected, picking, pending, preview, extra, under, hand}: {
+function Stage({t, map, selected, picking, pending, preview, view, extra, under, hand}: {
   t: number;
   map: MowerMap;
   selected: string | null;
   picking?: boolean;
   pending?: Point[];
   preview?: Point[][];
+  // more for the map: the plan's lanes and loops, the mowing order, a mower's body for the real edges, a spot to zoom to
+  view?: Pick<React.ComponentProps<typeof MapView>, 'stripes' | 'loops' | 'orderLabels' | 'bodyOverride' | 'focus' | 'focusSpan'>;
   extra?: (toStage: (p: Point) => [number, number]) => React.ReactNode;
   under: React.ReactNode;
   hand: HandPlan;
@@ -191,6 +205,8 @@ function Stage({t, map, selected, picking, pending, preview, extra, under, hand}
   // spot (the delete button) gets it a frame later, only when it changed
   const [place, setPlace] = useState<((p: Point) => [number, number]) | null>(null);
   const placed = useRef<((p: Point) => [number, number]) | null>(null);
+  // where each target was last seen: once its button is gone (the panel after it showed up) the hand goes on from there
+  const seen = useRef(new Map<string, [number, number]>());
 
   useLayoutEffect(() => {
     const el = stage.current;
@@ -206,7 +222,8 @@ function Stage({t, map, selected, picking, pending, preview, extra, under, hand}
     const place = fresh ?? was;
     const box = el.getBoundingClientRect();
     const z = parseFloat(getComputedStyle(el).zoom) || 1;
-    const at = (target: Target): [number, number] | null => {
+    const middle = (r: DOMRect): [number, number] => [(r.left - box.left + r.width / 2) / z, (r.top - box.top + r.height / 2) / z];
+    const find = (target: Target): [number, number] | null => {
       if (target === 'off') return [(box.width / z) * 0.85, box.height / z + 70];
       if ('map' in target) {
         if (!place) return null;
@@ -214,16 +231,27 @@ function Stage({t, map, selected, picking, pending, preview, extra, under, hand}
         return [x + (target.dx ?? 0), y + (target.dy ?? 0)];
       }
       if ('button' in target) {
-        const b = [...el.querySelectorAll('button')].find((x) => x.textContent?.trim() === target.button);
-        if (!b) return null;
-        const r = b.getBoundingClientRect();
-        return [(r.left - box.left + r.width / 2) / z, (r.top - box.top + r.height / 2) / z];
+        const says = [target.button].flat();
+        const b = [...el.querySelectorAll('button')].filter((x) => says.includes(x.textContent?.trim() ?? ''))[target.nth ?? 0];
+        return b ? middle(b.getBoundingClientRect()) : null;
       }
-      const input = el.querySelector<HTMLInputElement>('input[type=range]');
+      if ('label' in target) {
+        const l = [...el.querySelectorAll('label')].find((x) => x.textContent?.trim() === target.label);
+        const check = l?.querySelector('input') ?? l;
+        return check ? middle(check.getBoundingClientRect()) : null;
+      }
+      // the one shown: the angle's slider sits on the map on a phone, in the settings on a wide screen
+      const input = [...el.querySelectorAll<HTMLInputElement>('input[type=range]')].find((x) => x.getClientRects().length > 0);
       if (!input) return null;
       const r = input.getBoundingClientRect();
       const f = (target.range - Number(input.min)) / (Number(input.max) - Number(input.min));
       return [(r.left - box.left + 8 + f * (r.width - 16)) / z, (r.top - box.top + r.height / 2) / z];
+    };
+    const at = (target: Target): [number, number] | null => {
+      const key = JSON.stringify(target);
+      const found = find(target);
+      if (found) seen.current.set(key, found);
+      return found ?? seen.current.get(key) ?? null;
     };
     // where the hand is at a time: between the two stops around it
     const handAt = (time: number): [number, number] | null => {
@@ -269,6 +297,8 @@ function Stage({t, map, selected, picking, pending, preview, extra, under, hand}
           pickingPoints={picking}
           pendingPoints={pending}
           preview={preview}
+          allLayers
+          {...view}
         />
         {place && extra?.(place)}
       </div>
@@ -283,10 +313,11 @@ function Stage({t, map, selected, picking, pending, preview, extra, under, hand}
   );
 }
 
-// what the map page shows under the map for a picked area: name, type, what it is and its tools
+// what the map page shows under the map for a picked area: name, type, its switches, what it is and its tools
 function AreaCard({a}: {a: MapArea}) {
   const tool = [mapPage.pillButton, mapPage.tool].join(' ');
   const type = AREA_TYPES.find((x) => x.value === a.properties.type);
+  const on = a.properties.active !== false;
   return (
     <div className={mapPage.areaEditor}>
       <div className={mapPage.areaHead}>
@@ -301,11 +332,25 @@ function AreaCard({a}: {a: MapArea}) {
       </div>
       <div className={mapPage.areaMeta}>
         <label className={mapPage.toggle}>
-          <input type="checkbox" checked readOnly tabIndex={-1} />
+          <input type="checkbox" checked={on} readOnly tabIndex={-1} />
           {tr('active')}
         </label>
+        {a.properties.type === 'mow' && on && (
+          <label className={mapPage.toggle}>
+            <input type="checkbox" checked={a.properties.mowable === false} readOnly tabIndex={-1} />
+            {tr("don't mow")}
+          </label>
+        )}
         <span className={mapPage.dim}>
-          {tr(type?.hint ?? '')} · {fmt(polygonArea(a.outline), 1)} m²
+          {!on
+            ? a.properties.type === 'obstacle'
+              ? tr('inactive: ignored, the mower mows there')
+              : tr('inactive: not driven on and not mowed')
+            : a.properties.mowable === false
+              ? tr('driven on, but not mowed')
+              : tr(type?.hint ?? '')}
+          {' · '}
+          {fmt(polygonArea(a.outline), 1)} m²
         </span>
       </div>
       <div className={mapPage.toolbar}>
@@ -349,7 +394,66 @@ function Select() {
   );
 }
 
-// 2: a dent pulled out to the edge, a cut off corner pulled back out between two points, a stray point deleted
+// 2: the types: a path, a bed and a lawn tapped one after another, the card says what the mower does there
+const NAV_SPOT = pt(9, 11.5);
+const BED_SPOT = pt(10, 17);
+
+function Types() {
+  const t = useLoop(10, 0.85);
+  const picked = t >= 0.72 ? GARTEN : t >= 0.42 ? BED : t >= 0.12 ? WEG : null;
+  return (
+    <Stage
+      t={t}
+      map={GARDEN}
+      selected={picked?.id ?? null}
+      under={picked ? <AreaCard a={picked} /> : <Hint />}
+      hand={{
+        moves: [
+          [0, 'off'],
+          [0.1, {map: NAV_SPOT}],
+          [0.14, {map: NAV_SPOT}],
+          [0.4, {map: BED_SPOT}],
+          [0.44, {map: BED_SPOT}],
+          [0.7, {map: SPOT}],
+          [0.8, {map: SPOT}],
+        ],
+        press: tap(0.12, 0.42, 0.72),
+        taps: [0.12, 0.42, 0.72],
+        show: [0.02, 0.85],
+      }}
+    />
+  );
+}
+
+// 3: don't mow (driven across, not mowed), then not active (left out, not even driven on)
+function Switches() {
+  const t = useLoop(11, 0.4);
+  const skip = t >= 0.2 && t < 0.5;
+  const off = t >= 0.62 && t < 0.92;
+  const front = {...VORGARTEN, properties: {...VORGARTEN.properties, mowable: skip ? false : undefined, active: !off}};
+  const map = cached(`switches ${skip} ${off}`, () => mapOf(GARTEN, TREE, front, WEG, BED));
+  return (
+    <Stage
+      t={t}
+      map={map}
+      selected={VORGARTEN.id}
+      under={<AreaCard a={front} />}
+      hand={{
+        moves: [
+          [0, 'off'],
+          [0.16, {label: tr("don't mow")}],
+          [0.52, {label: tr("don't mow")}],
+          [0.58, {label: tr('active')}],
+        ],
+        press: tap(0.18, 0.48, 0.6, 0.9),
+        taps: [0.18, 0.48, 0.6, 0.9],
+        show: [0.06, 0.95],
+      }}
+    />
+  );
+}
+
+// 4: a dent pulled out to the edge, a cut off corner pulled back out between two points, a stray point deleted
 const P_BASE = [
   [0, 0], [3, 0], [6, 0], [9, 0], [12, 0], [14, 0], [14, 3], [14, 6], [14, 8.4], [12.6, 10], [10, 10], [7, 8.6], [4, 10], [0, 10], [-0.8, 5], [0, 2],
 ].map(([x, y]) => pt(x, y));
@@ -427,7 +531,7 @@ function Points() {
   );
 }
 
-// 3: split: the button, two points for a line across, apply: two areas
+// 5: split: the button, two points for a line across, apply: two areas
 const CUT = [pt(5.5, 11.6), pt(7.5, -1.6)];
 
 function Split() {
@@ -480,7 +584,7 @@ function Split() {
   );
 }
 
-// 4: merge: the button, then the other area, apply: one area from both
+// 6: merge: the button, then the other area, apply: one area from both
 const STRIP = area('streifen', 'Streifen', 'mow', recorded([pt(13.6, 2.5), pt(19, 2.5), pt(19, 7.5), pt(13.6, 7.5)], 1.4, 0.03, 3));
 const BOTH = mapOf(GARTEN, STRIP, TREE, VORGARTEN, WEG, BED);
 
@@ -516,7 +620,7 @@ function Merge() {
   );
 }
 
-// 5: a recorded edge with a point every few cm: the slider takes out the ones that barely matter
+// 7: a recorded edge with a point every few cm: the slider takes out the ones that barely matter
 const DENSE = recorded(GARTEN_CORNERS, 0.22, 0.05, 4);
 
 function Reduce() {
@@ -558,4 +662,228 @@ function Reduce() {
   );
 }
 
-export const EDITOR_ART = [Select, Points, Split, Merge, Reduce];
+// 8: an area's own direction: on a phone the slider at the bottom of the map, the field (on a wide screen the slider
+// too) in the mowing settings. turning it shows the lanes of the plan
+const angled = (deg: number) => ({
+  area: {...GARTEN, properties: {...GARTEN.properties, angle: deg * DEG}},
+  autoAngle: 0,
+  remember: noop,
+  update: noop,
+});
+// lanes 60 cm apart, wider than a blade: few enough to follow while they turn
+const LANES = {outline: GARTEN.outline, holes: [TREE.outline], outlineOffset: 0, outlineCount: 2, overlapCount: 0, toolWidth: 0.6};
+
+function AngleSettings({deg}: {deg: number}) {
+  return (
+    <details className={mapPage.fold} open>
+      <summary>{tr('Mowing settings')}</summary>
+      <div className={mapPage.foldBody}>
+        <div className={mapPage.mowSettings}>
+          <p className={mapPage.dim}>{tr('Only for this area, saved with the map ("Save map").')}</p>
+          <div className={mapPage.areaDirection}>
+            <label className={mapPage.dirRow}>
+              <span className={mapPage.dirLabel}>{tr('Mow angle (°)')}</span>
+              <input type="number" value={deg} readOnly tabIndex={-1} />
+            </label>
+            <div className={mapPage.angleRow}>
+              <AngleCompass rad={deg * DEG} />
+              <AngleStep {...angled(deg)} by={-1} />
+              <AngleSlider {...angled(deg)} />
+              <AngleStep {...angled(deg)} by={1} />
+              <button className={mapPage.pillButton} tabIndex={-1}>
+                {tr('Auto')}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </details>
+  );
+}
+
+function Direction() {
+  const t = useLoop(10, 0.3);
+  const deg = Math.round(20 + 90 * ease(t, 0.25, 0.6));
+  const plan = useMemo(() => mowPlan({...LANES, angle: deg * DEG}), [deg]);
+  return (
+    <Stage
+      t={t}
+      map={GARDEN}
+      selected={GARTEN.id}
+      view={{stripes: plan.stripes, loops: plan.loops}}
+      extra={() => <AngleOnMap {...angled(deg)} />}
+      under={<AngleSettings deg={deg} />}
+      hand={{
+        moves: [
+          [0, 'off'],
+          [0.2, {range: 20}],
+          [0.25, {range: 20}],
+          [0.6, {range: 110}],
+          [0.66, {range: 110}],
+        ],
+        press: [[0.24, 0.61]],
+        taps: [],
+        show: [0.06, 0.75],
+      }}
+    />
+  );
+}
+
+// 9: the mowing order under the map: a lawn moved down, the numbers on the map go with it, then back up
+function Order() {
+  const t = useLoop(9, 0.2);
+  const swapped = t >= 0.34 && t < 0.74;
+  const order = swapped ? [VORGARTEN, GARTEN] : [GARTEN, VORGARTEN];
+  const labels = Object.fromEntries(order.map((a, i) => [a.id, i + 1]));
+  return (
+    <Stage
+      t={t}
+      map={GARDEN}
+      selected={null}
+      view={{orderLabels: labels}}
+      under={<OrderBox areas={order} idle onSelect={noop} onMove={noop} />}
+      hand={{
+        moves: [
+          [0, 'off'],
+          [0.28, {button: '↓'}],
+          [0.36, {button: '↓'}],
+          [0.68, {button: '↑', nth: 1}],
+          [0.78, {button: '↑', nth: 1}],
+        ],
+        press: tap(0.32, 0.72),
+        taps: [0.32, 0.72],
+        show: [0.2, 0.84],
+      }}
+    />
+  );
+}
+
+// 10: where the lawn really ends, close up at a corner: the line is where the middle drove, dashed where the body
+// reached, green between them, and around the corner the front reaches further
+const NX = MOWER_MODELS.find((m) => m.key === 'yf-nx')!;
+const NX_BODY = sizesBody({...NX.sizes, outline: NX.outline})!;
+// what the map says from when on
+const EDGE_SAYS: [number, string][] = [
+  [0.1, 'Line: where the middle of the mower drove'],
+  [0.32, 'Dashed: how far its body reached'],
+  [0.52, 'Green between them: lawn too'],
+  [0.7, 'In corners its front reaches further'],
+  [0.92, ''],
+];
+
+function Edges() {
+  const t = useLoop(11, 0.6);
+  const say = [...EDGE_SAYS].reverse().find(([from]) => t >= from)?.[1];
+  return (
+    <Stage
+      t={t}
+      map={GARDEN}
+      selected={null}
+      view={{bodyOverride: NX_BODY, focus: pt(13, 0.6), focusSpan: 4}}
+      // each its own, so it fades in again
+      extra={() =>
+        say && (
+          <div key={say} className={mapView.hintToast}>
+            {tr(say)}
+          </div>
+        )
+      }
+      under={<Hint />}
+      hand={{
+        moves: [
+          [0, 'off'],
+          [0.1, {map: pt(12.2, 0)}],
+          [0.3, {map: pt(12.2, 0)}],
+          [0.34, {map: pt(12.2, -0.2)}],
+          [0.5, {map: pt(12.2, -0.2)}],
+          [0.54, {map: pt(12.2, -0.1)}],
+          [0.68, {map: pt(12.2, -0.1)}],
+          [0.74, {map: pt(14.35, -0.1)}],
+          [0.9, {map: pt(14.35, -0.1)}],
+        ],
+        press: [],
+        taps: [0.12, 0.36, 0.56, 0.76],
+        show: [0.06, 0.92],
+      }}
+    />
+  );
+}
+
+// 11: save: the old map goes into the backups first, its preview can bring it back
+const BACKUP = {id: 'b1', t: Math.round(Date.now() / 1000) - 120, name: 'before saving', auto: true, areas: GARDEN.areas.length, size: 1};
+
+// the backups as the map page shows them, opened
+function OpenBackups() {
+  const box = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    box.current?.querySelector('details')?.setAttribute('open', '');
+  });
+  return (
+    <div ref={box}>
+      <MapBackups backups={[BACKUP]} onCreate={async () => {}} onPreview={noop} onDelete={noop} onDownload={noop} onFile={noop} />
+    </div>
+  );
+}
+
+function Save() {
+  const t = useLoop(11, 0.5);
+  const saving = t >= 0.16 && t < 0.26;
+  const saved = t >= 0.26;
+  const preview = t >= 0.56;
+  // the buttons say something else a moment later: saving, asking again
+  const saveSays = [tr('Save map'), tr('saving…')];
+  const restoreSays = [tr('Restore'), tr('Really restore?')];
+  return (
+    <Stage
+      t={t}
+      map={GARDEN}
+      selected={null}
+      under={
+        preview ? (
+          <RestorePanel
+            areas={BACKUP.areas}
+            backedUp
+            idle
+            restoring={false}
+            confirm={t >= 0.8}
+            error={null}
+            onRestore={noop}
+            onDisarm={noop}
+            onClose={noop}
+          />
+        ) : (
+          <>
+            <EditorToolbar
+              idle
+              canUndo={!saved}
+              unsaved={!saved}
+              saving={saving}
+              saveLabel={saving ? tr('saving…') : tr('Save map')}
+              saveError={null}
+              onDraw={noop}
+              onUndo={noop}
+              onSave={noop}
+            />
+            {saved && <OpenBackups />}
+          </>
+        )
+      }
+      hand={{
+        moves: [
+          [0, 'off'],
+          [0.1, {button: saveSays}],
+          [0.3, {button: saveSays}],
+          [0.48, {button: tr('Preview')}],
+          [0.56, {button: tr('Preview')}],
+          [0.74, {button: restoreSays}],
+          [0.9, {button: restoreSays}],
+        ],
+        press: tap(0.14, 0.53, 0.78),
+        taps: [0.14, 0.53, 0.78],
+        show: [0.04, 0.92],
+      }}
+    />
+  );
+}
+
+export const EDITOR_ART = [Select, Types, Switches, Points, Split, Merge, Reduce, Direction, Order, Edges, Save];

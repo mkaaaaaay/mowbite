@@ -138,6 +138,18 @@
   line-height: 1.5;
 }
 
+/* above a tall drawing: room for the longest step, so the drawing doesn't jump from step to step */
+.textTall {
+  min-height: 9em;
+}
+
+/* narrower phones: the longest step takes a line more */
+@media (max-width: 399px) {
+  .textTall {
+    min-height: 10.5em;
+  }
+}
+
 /* what a map has, each with its picture */
 .legend {
   display: flex;
@@ -202,6 +214,11 @@
   font-size: 17px;
   font-weight: 700;
   cursor: pointer;
+}
+
+/* under a tall drawing at the end of the page: kept at the bottom of the screen it would cover the card under the map */
+.nextEnd {
+  position: static;
 }
 
 @media (min-width: 900px) {

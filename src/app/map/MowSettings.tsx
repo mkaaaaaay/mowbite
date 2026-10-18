@@ -531,7 +531,7 @@ export function AngleSlider({
 
 // the angle on a little compass, north up like the map: the line is the stripe direction, the arrow points where
 // the angle points (0° east, 90° north). 90° and 270° give the same lanes, but the mower starts them on the other side
-function AngleCompass({rad}: {rad: number}) {
+export function AngleCompass({rad}: {rad: number}) {
   const r = 15;
   const [ux, uy] = [Math.cos(rad), -Math.sin(rad)];
   const at = (along: number, across = 0) => `${ux * along + uy * across},${uy * along - ux * across}`;
@@ -549,7 +549,7 @@ function AngleCompass({rad}: {rad: number}) {
 }
 
 // one degree at a time, the slider is hard to hit exactly on a phone
-function AngleStep({area, autoAngle, remember, update, onEdit, by}: Parameters<typeof AngleSlider>[0] & {by: number}) {
+export function AngleStep({area, autoAngle, remember, update, onEdit, by}: Parameters<typeof AngleSlider>[0] & {by: number}) {
   return (
     <button
       className={styles.angleStep}
