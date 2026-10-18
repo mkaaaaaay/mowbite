@@ -1918,7 +1918,7 @@ function MapView({
             : undefined
         }
       />
-      {grid && <span className={styles.gridLabel}>{tr('grid {n} m', {n: fmt(grid.step, grid.step < 1 ? 1 : 0)})}</span>}
+      {grid && <span className={styles.gridLabel} data-grid-label>{tr('grid {n} m', {n: fmt(grid.step, grid.step < 1 ? 1 : 0)})}</span>}
       {deletable &&
         (() => {
           // up and to the right of the point, or the next corner around it that keeps clear of the map buttons on the

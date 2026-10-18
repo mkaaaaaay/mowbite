@@ -178,7 +178,7 @@ body {
   --accent: #82d5c8;
   --bubble: #44507a;
   --well: rgba(0, 0, 0, 0.14);
-  --nav-bg: rgba(32, 75, 81, 0.94);
+  --nav-bg: rgba(20, 24, 60, 0.3);
 }
 
 :root[data-theme='aurora'] body {
@@ -200,7 +200,7 @@ body {
   --accent: #ffd166;
   --bubble: #3f7899;
   --well: rgba(0, 0, 0, 0.13);
-  --nav-bg: rgba(33, 78, 58, 0.94);
+  --nav-bg: rgba(10, 40, 50, 0.3);
 }
 
 :root[data-theme='sunny'] body {

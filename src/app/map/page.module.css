@@ -584,6 +584,11 @@
     min-width: 0;
   }
 
+  /* the slider takes the corner of the grid label */
+  .mapCol:has(.angleOnMap) [data-grid-label] {
+    display: none;
+  }
+
   .angleOnMap .compass {
     width: 40px;
     height: 40px;
@@ -679,9 +684,17 @@
     background: var(--background);
   }
 
-  /* the garden map style's paving is see-through: the page shows behind the pinned map, what scrolls under it blurred */
+  /* the garden map style's paving is see-through: the page shows behind the pinned map, what scrolls under it blurred.
+     the blur sits on a ::before, on the column itself chrome no longer blurs behind the angle slider and buttons in it */
   .pinned .mapCol:has([data-garden]) {
     background: transparent;
+  }
+
+  .pinned .mapCol:has([data-garden])::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
     -webkit-backdrop-filter: blur(16px);
     backdrop-filter: blur(16px);
   }
