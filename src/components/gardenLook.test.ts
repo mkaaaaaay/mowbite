@@ -1,6 +1,6 @@
 import type {MapArea} from '@/hooks/useMowerMap';
 import {describe, expect, it} from 'vitest';
-import {areaLook, groundOf} from './gardenLook';
+import {areaLook, groundOf, placeThing} from './gardenLook';
 
 const area = (name: string, type = 'obstacle', id = 'a'): MapArea => ({id, properties: {name, type}, outline: []});
 
@@ -42,5 +42,46 @@ describe('groundOf', () => {
     expect(groundOf('tree')).toBe('meadow');
     expect(groundOf('pool')).toBe('paving');
     expect(groundOf('gravel')).toBe('gravel');
+  });
+});
+
+describe('placeThing', () => {
+  const square = [
+    {x: 0, y: 0},
+    {x: 10, y: 0},
+    {x: 10, y: 10},
+    {x: 0, y: 10},
+  ];
+  it('puts a round thing into the biggest circle', () => {
+    const p = placeThing('umbrella', square);
+    expect(p.cx).toBeCloseTo(5, 0);
+    expect(p.cy).toBeCloseTo(5, 0);
+    expect(p.w).toBeGreaterThan(9);
+    expect(p.w).toBeLessThanOrEqual(10);
+  });
+
+  it('lays a long thing along the long side, inside the area', () => {
+    const strip = [
+      {x: 0, y: 0},
+      {x: 40, y: 0},
+      {x: 40, y: 10},
+      {x: 0, y: 10},
+    ];
+    const p = placeThing('table', strip);
+    expect(Math.abs(p.deg) % 180).toBeCloseTo(0, 0);
+    expect(p.w).toBeGreaterThan(p.h * 3);
+    expect(p.w).toBeLessThanOrEqual(40);
+    expect(p.h).toBeLessThanOrEqual(10);
+  });
+
+  it('turns it with the area', () => {
+    const a = Math.PI / 6;
+    const turned = [
+      [0, 0],
+      [40, 0],
+      [40, 10],
+      [0, 10],
+    ].map(([x, y]) => ({x: x * Math.cos(a) - y * Math.sin(a), y: x * Math.sin(a) + y * Math.cos(a)}));
+    expect(placeThing('car', turned).deg).toBeCloseTo(30, 0);
   });
 });

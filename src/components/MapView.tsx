@@ -26,7 +26,7 @@ import {useTrailingPose} from '@/hooks/useTrailingPose';
 import {CELL_M, MIN_SECONDS, gpsGrade, loadCoverage, wifiGrade, type CoverageCell} from '@/lib/coverage';
 import {useUpdates} from '@/lib/updates';
 import {CoverInfo} from './CoverInfo';
-import {areaLook, drawThing, GardenDefs, groundOf, isThing, type Box, type Look} from './gardenLook';
+import {areaLook, drawThing, GardenDefs, groundOf, isThing, placeThing, type Look, type Place} from './gardenLook';
 import {autoMowAngle} from '@/lib/mowStripes';
 
 interface MapViewProps {
@@ -719,14 +719,14 @@ function MapView({
     return out;
   }, [map, minX, minY, scale, padX, padY]);
   // the garden style: each mowing area's lawn in stripes along its mowing direction, ways and obstacles as their
-  // pictures, a thing (tree, pond ...) fitted into the box around the area and cut to its outline
+  // pictures, a thing (tree, pond ...) placed inside the area and cut to its outline should it still stick out
   const garden = settings.mapStyle === 'garden';
   const uid = 'g' + useId().replace(/[^a-zA-Z0-9]/g, '');
   const gardenLook = useMemo(() => {
     if (!garden) return null;
     const lawns = new Map<string, number>();
     const looks = new Map<string, Look>();
-    const things = new Map<string, {i: number; look: Look; box: Box}>();
+    const things = new Map<string, {i: number; look: Look; place: Place}>();
     const angles: number[] = [];
     const clips: string[] = [];
     for (const a of map.areas) {
@@ -738,10 +738,8 @@ function MapView({
         const look = areaLook(a, settings.looks);
         looks.set(a.id, look);
         if (!isThing(look)) continue;
-        const xs = a.outline.map((p) => (p.x - minX) * scale + padX);
-        const ys = a.outline.map((p) => HEIGHT - ((p.y - minY) * scale + padY));
-        const [x, y] = [Math.min(...xs), Math.min(...ys)];
-        things.set(a.id, {i: clips.length, look, box: {x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y}});
+        const outline = a.outline.map((p) => ({x: (p.x - minX) * scale + padX, y: HEIGHT - ((p.y - minY) * scale + padY)}));
+        things.set(a.id, {i: clips.length, look, place: placeThing(look, outline)});
         clips.push(outlinePoints.get(a.id) ?? '');
       }
     }
@@ -1475,7 +1473,9 @@ function MapView({
                   className={[styles.gardenThing, area.properties.active === false ? styles.gardenOff : ''].filter(Boolean).join(' ')}
                   clipPath={`url(#${uid}clip${thing.i})`}
                 >
-                  {drawThing(thing.look, thing.box)}
+                  <g transform={`translate(${thing.place.cx} ${thing.place.cy}) rotate(${thing.place.deg})`}>
+                    {drawThing(thing.look, {x: -thing.place.w / 2, y: -thing.place.h / 2, w: thing.place.w, h: thing.place.h})}
+                  </g>
                 </g>
               )}
             </Fragment>

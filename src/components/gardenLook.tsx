@@ -1,6 +1,7 @@
 'use client';
 
-import type {MapArea} from '@/hooks/useMowerMap';
+import type {MapArea, Point} from '@/hooks/useMowerMap';
+import {containsPoint} from '@/lib/geometry';
 import {tr} from '@/lib/i18n';
 import {useEffect, useId} from 'react';
 import {createPortal} from 'react-dom';
@@ -30,6 +31,77 @@ export function areaLook(area: MapArea, looks?: Record<string, string>): Look {
 export const groundOf = (look: Look): Look => (isThing(look) ? (PICTURES[look].around ?? 'meadow') : look);
 
 export const drawThing = (look: Look, box: Box) => PICTURES[look]?.thing?.(box);
+
+// how far a point is from the outline
+function edgeDistance(o: Point[], x: number, y: number) {
+  let best = Infinity;
+  o.forEach((a, i) => {
+    const b = o[(i + 1) % o.length];
+    const [dx, dy] = [b.x - a.x, b.y - a.y];
+    const len = dx * dx + dy * dy;
+    const t = len ? Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / len)) : 0;
+    best = Math.min(best, Math.hypot(x - a.x - t * dx, y - a.y - t * dy));
+  });
+  return best;
+}
+
+export interface Place {
+  cx: number;
+  cy: number;
+  deg: number;
+  w: number;
+  h: number;
+}
+
+// where a thing goes in its area, o its outline in svg units: around cx, cy, turned deg, w by h. a long one along the
+// area's long side into the biggest box of that shape that fits in it, any other into the biggest circle in it
+export function placeThing(look: Look, o: Point[]): Place {
+  const n = o.length;
+  const [mx, my] = [o.reduce((s, p) => s + p.x, 0) / n, o.reduce((s, p) => s + p.y, 0) / n];
+  if (PICTURES[look]?.long) {
+    // the long side from how the points spread
+    let [sxx, syy, sxy] = [0, 0, 0];
+    for (const p of o) {
+      sxx += (p.x - mx) ** 2;
+      syy += (p.y - my) ** 2;
+      sxy += (p.x - mx) * (p.y - my);
+    }
+    const a = 0.5 * Math.atan2(2 * sxy, sxx - syy);
+    const [c, s] = [Math.cos(a), Math.sin(a)];
+    const us = o.map((p) => (p.x - mx) * c + (p.y - my) * s);
+    const vs = o.map((p) => -(p.x - mx) * s + (p.y - my) * c);
+    const [u0, u1, v0, v1] = [Math.min(...us), Math.max(...us), Math.min(...vs), Math.max(...vs)];
+    const [uc, vc] = [(u0 + u1) / 2, (v0 + v1) / 2];
+    const [cx, cy] = [mx + uc * c - vc * s, my + uc * s + vc * c];
+    // smaller until its corners and the middles of its sides are inside
+    for (let f = 0.92; f > 0.3; f -= 0.04) {
+      const [w, h] = [(u1 - u0) * f, (v1 - v0) * f];
+      const edge = [-1, 0, 1].flatMap((i) => [-1, 0, 1].map((j) => [i, j])).filter(([i, j]) => i || j);
+      if (edge.every(([i, j]) => containsPoint(o, cx + ((i * w) / 2) * c - ((j * h) / 2) * s, cy + ((i * w) / 2) * s + ((j * h) / 2) * c))) {
+        return {cx, cy, deg: (a * 180) / Math.PI, w, h};
+      }
+    }
+  }
+  // the biggest circle: its middle looked for on a grid, finer around the best one so far
+  let best = {x: mx, y: my, r: containsPoint(o, mx, my) ? edgeDistance(o, mx, my) : 0};
+  const xs = o.map((p) => p.x);
+  const ys = o.map((p) => p.y);
+  let [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+  for (let pass = 0; pass < 3; pass++) {
+    const k = 14;
+    for (let i = 0; i < k; i++) {
+      for (let j = 0; j < k; j++) {
+        const [x, y] = [x0 + ((x1 - x0) * (i + 0.5)) / k, y0 + ((y1 - y0) * (j + 0.5)) / k];
+        if (!containsPoint(o, x, y)) continue;
+        const r = edgeDistance(o, x, y);
+        if (r > best.r) best = {x, y, r};
+      }
+    }
+    const [dx, dy] = [(x1 - x0) / k, (y1 - y0) / k];
+    [x0, x1, y0, y1] = [best.x - dx, best.x + dx, best.y - dy, best.y + dy];
+  }
+  return {cx: best.x, cy: best.y, deg: 0, w: 2 * best.r, h: 2 * best.r};
+}
 
 // a ground as a texture with this id, m: svg units per meter
 function texture(look: Look, id: string, m: number) {

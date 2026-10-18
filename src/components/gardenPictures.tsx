@@ -30,9 +30,11 @@ interface Tile {
 export interface Picture {
   label: string;
   group: Group;
-  // a thing: drawn into the box, with this ground around it
+  // a thing: drawn into the box, with this ground around it. long: drawn along the area's long side into the box that
+  // fits in it, else into the biggest circle that fits in it
   thing?: (b: Box) => React.ReactNode;
   around?: string;
+  long?: boolean;
   // a ground: the texture
   tile?: Tile;
 }
@@ -52,6 +54,14 @@ const star = (cx: number, cy: number, outer: number, inner: number, n: number, t
     const rr = i % 2 ? inner : outer;
     return `${cx + rr * Math.cos(a)},${cy + rr * Math.sin(a)}`;
   }).join(' ');
+// a chair from above around x, y, c big, its back turned deg (0: up)
+const chair = (x: number, y: number, c: number, deg: number) => (
+  <g key={`${x} ${y}`} transform={`rotate(${deg} ${x} ${y})`}>
+    <rect x={x - c / 2 + c * 0.06} y={y - c / 2 + c * 0.1} width={c} height={c} rx={c * 0.22} fill="#000" opacity={0.18} />
+    <rect x={x - c / 2} y={y - c / 2} width={c} height={c} rx={c * 0.22} fill="#b0bec5" />
+    <rect x={x - c / 2} y={y - c / 2} width={c} height={c * 0.28} rx={c * 0.12} fill="#78909c" />
+  </g>
+);
 // a hipped roof filling the box: the ridge along the long side, the hips from the corners to its ends
 const roof = ({x, y, w, h}: Box, tile: string, ridge: string) => {
   const {cx, cy} = middle({x, y, w, h});
@@ -263,6 +273,7 @@ export const PICTURES: Record<string, Picture> = {
   raisedBed: {
     label: 'Raised bed',
     group: 'plants',
+    long: true,
     around: 'meadow',
     thing: (b) =>
       along(inset(b, 0.06), (l, d) => {
@@ -350,6 +361,7 @@ export const PICTURES: Record<string, Picture> = {
   pond: {
     label: 'Pond',
     group: 'water',
+    long: true,
     around: 'meadow',
     thing: ({x, y, w, h}) => {
       const {cx, cy} = middle({x, y, w, h});
@@ -365,6 +377,7 @@ export const PICTURES: Record<string, Picture> = {
   pool: {
     label: 'Pool',
     group: 'water',
+    long: true,
     around: 'paving',
     thing: ({x, y, w, h}) => {
       const rim = Math.min(w, h) * 0.08;
@@ -478,6 +491,7 @@ export const PICTURES: Record<string, Picture> = {
   sandbox: {
     label: 'Sandbox',
     group: 'play',
+    long: true,
     around: 'meadow',
     thing: (b) =>
       along(inset(b, 0.08), (l, d) => {
@@ -496,6 +510,7 @@ export const PICTURES: Record<string, Picture> = {
   swing: {
     label: 'Swing',
     group: 'play',
+    long: true,
     around: 'meadow',
     thing: (b) =>
       along(inset(b, 0.06), (l, d) => (
@@ -514,6 +529,7 @@ export const PICTURES: Record<string, Picture> = {
   goal: {
     label: 'Goal',
     group: 'play',
+    long: true,
     around: 'meadow',
     thing: (b) =>
       along(inset(b, 0.06), (l, d) => (
@@ -529,11 +545,12 @@ export const PICTURES: Record<string, Picture> = {
   },
 
   // buildings
-  house: {label: 'House', group: 'buildings', around: 'paving', thing: (b) => roof(b, '#aeb3bd', '#8d939e')},
-  shed: {label: 'Shed', group: 'buildings', around: 'gravel', thing: (b) => roof(inset(b, 0.06), '#8d5a3b', '#6d4430')},
+  house: {label: 'House', group: 'buildings', around: 'paving', long: true, thing: (b) => roof(b, '#aeb3bd', '#8d939e')},
+  shed: {label: 'Shed', group: 'buildings', around: 'gravel', long: true, thing: (b) => roof(inset(b, 0.06), '#8d5a3b', '#6d4430')},
   greenhouse: {
     label: 'Greenhouse',
     group: 'buildings',
+    long: true,
     around: 'gravel',
     thing: (b) =>
       along(inset(b, 0.06), (l, d) => (
@@ -585,6 +602,7 @@ export const PICTURES: Record<string, Picture> = {
   car: {
     label: 'Car',
     group: 'buildings',
+    long: true,
     around: 'paving',
     thing: (b) =>
       along(b, (l, d) => {
@@ -609,20 +627,19 @@ export const PICTURES: Record<string, Picture> = {
   furniture: {
     label: 'Seating',
     group: 'outdoor',
-    around: 'paving',
+    around: 'meadow',
     thing: (b) => {
       const {cx, cy, r} = middle(b);
-      const c = r * 0.26;
       return (
         <>
-          {[0, 1, 2, 3].map((i) => {
-            const a = (i * Math.PI) / 2;
-            const [x, y] = [cx + Math.cos(a) * r * 0.62, cy + Math.sin(a) * r * 0.62];
-            return <rect key={i} x={x - c / 2} y={y - c / 2} width={c} height={c} rx={c * 0.25} fill="#eceff1" />;
+          {[45, 135, 225, 315].map((deg) => {
+            const a = (deg * Math.PI) / 180;
+            return chair(cx + Math.cos(a) * r * 0.66, cy + Math.sin(a) * r * 0.66, r * 0.3, deg + 90);
           })}
-          {shadow(cx, cy, r * 0.38)}
-          <circle cx={cx} cy={cy} r={r * 0.38} fill="#a0743f" />
-          <circle cx={cx} cy={cy} r={r * 0.3} fill="#b4874e" />
+          {shadow(cx, cy, r * 0.42)}
+          <circle cx={cx} cy={cy} r={r * 0.42} fill="#9a6f3d" />
+          <circle cx={cx} cy={cy} r={r * 0.36} fill="#b07f48" />
+          <circle cx={cx} cy={cy} r={r * 0.24} fill="none" stroke="#9a6f3d" strokeWidth={0.8} />
         </>
       );
     },
@@ -630,22 +647,20 @@ export const PICTURES: Record<string, Picture> = {
   table: {
     label: 'Table',
     group: 'outdoor',
-    around: 'paving',
+    long: true,
+    around: 'meadow',
     thing: (b) =>
-      along(inset(b, 0.06), (l, d) => {
-        const [tl, td] = [l * 0.62, d * 0.42];
-        const c = Math.min(tl / 4, d * 0.2);
+      along(b, (l, d) => {
+        const c = Math.min(l * 0.18, d * 0.26);
+        const [tl, td] = [l * 0.78, Math.max(d - 2 * c * 1.25, d * 0.3)];
         return (
           <>
-            {[-1, 0, 1].flatMap((i) =>
-              [-1, 1].map((s) => (
-                <rect key={`${i}${s}`} x={i * tl * 0.33 - c / 2} y={s * (td / 2 + c * 0.75) - c / 2} width={c} height={c} rx={c * 0.25} fill="#eceff1" />
-              )),
-            )}
-            <rect x={-tl / 2 + td * 0.06} y={-td / 2 + td * 0.08} width={tl} height={td} rx={td * 0.08} fill="#000" opacity={0.2} />
-            <rect x={-tl / 2} y={-td / 2} width={tl} height={td} rx={td * 0.08} fill="#a0743f" />
+            {[-1, 0, 1].flatMap((i) => [-1, 1].map((s) => chair(i * tl * 0.3, s * (td / 2 + c * 0.55), c, s < 0 ? 0 : 180)))}
+            <rect x={-tl / 2 + td * 0.06} y={-td / 2 + td * 0.08} width={tl} height={td} rx={td * 0.06} fill="#000" opacity={0.2} />
+            <rect x={-tl / 2} y={-td / 2} width={tl} height={td} rx={td * 0.06} fill="#9a6f3d" />
+            <rect x={-tl / 2 + td * 0.05} y={-td / 2 + td * 0.05} width={tl - td * 0.1} height={td * 0.9} rx={td * 0.04} fill="#b07f48" />
             {[1, 2, 3].map((k) => (
-              <rect key={k} x={-tl / 2} y={-td / 2 + (td * k) / 4 - td * 0.01} width={tl} height={td * 0.02} fill="#86602f" />
+              <rect key={k} x={-tl / 2 + td * 0.05} y={-td / 2 + (td * k) / 4 - td * 0.008} width={tl - td * 0.1} height={td * 0.016} fill="#9a6f3d" />
             ))}
           </>
         );
@@ -654,6 +669,7 @@ export const PICTURES: Record<string, Picture> = {
   bench: {
     label: 'Bench',
     group: 'outdoor',
+    long: true,
     around: 'meadow',
     thing: (b) =>
       along(inset(b, 0.1), (l, d) => {
@@ -676,17 +692,18 @@ export const PICTURES: Record<string, Picture> = {
   lounger: {
     label: 'Sun lounger',
     group: 'outdoor',
-    around: 'paving',
+    long: true,
+    around: 'meadow',
     thing: (b) =>
-      along(inset(b, 0.08), (l, d) => {
-        const [ll, ld] = [Math.min(l * 0.9, d * 2.6), Math.min(l * 0.9, d * 2.6) / 2.6];
+      along(b, (l, d) => {
+        const [ll, ld] = [Math.min(l * 0.95, d * 2.6), Math.min(l * 0.95, d * 2.6) / 2.6];
         return (
           <>
             <rect x={-ll / 2 + ld * 0.06} y={-ld / 2 + ld * 0.1} width={ll} height={ld} rx={ld * 0.12} fill="#000" opacity={0.2} />
-            <rect x={-ll / 2} y={-ld / 2} width={ll} height={ld} rx={ld * 0.12} fill="#eceff1" />
-            <rect x={-ll / 2 + ld * 0.08} y={-ld / 2 + ld * 0.1} width={ll - ld * 0.16} height={ld * 0.8} rx={ld * 0.1} fill="#4fc3f7" />
-            <rect x={ll / 2 - ld * 0.62} y={-ld / 2 + ld * 0.1} width={ld * 0.54} height={ld * 0.8} rx={ld * 0.1} fill="#29b6f6" />
-            <rect x={-ll * 0.1} y={-ld / 2 + ld * 0.1} width={ll * 0.12} height={ld * 0.8} fill="#fff" opacity={0.55} />
+            <rect x={-ll / 2} y={-ld / 2} width={ll} height={ld} rx={ld * 0.12} fill="#9a6f3d" />
+            <rect x={-ll / 2 + ld * 0.08} y={-ld / 2 + ld * 0.1} width={ll - ld * 0.16} height={ld * 0.8} rx={ld * 0.12} fill="#e8e2d6" />
+            <rect x={ll / 2 - ld * 0.62} y={-ld / 2 + ld * 0.1} width={ld * 0.54} height={ld * 0.8} rx={ld * 0.12} fill="#d6cdbd" />
+            <rect x={-ll * 0.12} y={-ld / 2 + ld * 0.1} width={ll * 0.1} height={ld * 0.8} fill="#8fb3c9" opacity={0.7} />
           </>
         );
       }),
@@ -694,6 +711,7 @@ export const PICTURES: Record<string, Picture> = {
   lounge: {
     label: 'Lounge sofa',
     group: 'outdoor',
+    long: true,
     around: 'wood',
     thing: (b) =>
       along(inset(b, 0.06), (l, d) => {
@@ -719,7 +737,7 @@ export const PICTURES: Record<string, Picture> = {
   grill: {
     label: 'Barbecue',
     group: 'outdoor',
-    around: 'paving',
+    around: 'meadow',
     thing: (b) => {
       const {cx, cy, r} = middle(b);
       const g = r * 0.6;
@@ -738,6 +756,7 @@ export const PICTURES: Record<string, Picture> = {
   hammock: {
     label: 'Hammock',
     group: 'outdoor',
+    long: true,
     around: 'meadow',
     thing: (b) =>
       along(inset(b, 0.06), (l, d) => {
@@ -759,18 +778,22 @@ export const PICTURES: Record<string, Picture> = {
   umbrella: {
     label: 'Parasol',
     group: 'outdoor',
-    around: 'paving',
+    around: 'meadow',
     thing: (b) => {
       const {cx, cy, r} = middle(b);
-      const pts = Array.from({length: 8}, (_, i) => [cx + Math.cos((i * Math.PI) / 4) * r * 0.9, cy + Math.sin((i * Math.PI) / 4) * r * 0.9]);
+      const pts = Array.from({length: 8}, (_, i) => [cx + Math.cos(((i + 0.5) * Math.PI) / 4) * r * 0.92, cy + Math.sin(((i + 0.5) * Math.PI) / 4) * r * 0.92]);
       return (
         <>
-          {shadow(cx, cy, r * 0.88)}
+          {shadow(cx, cy, r * 0.9)}
           {pts.map(([x, y], i) => {
             const [nx, ny] = pts[(i + 1) % 8];
-            return <polygon key={i} points={`${cx},${cy} ${x},${y} ${nx},${ny}`} fill={i % 2 ? '#fafafa' : '#e53935'} />;
+            return <polygon key={i} points={`${cx},${cy} ${x},${y} ${nx},${ny}`} fill={i % 2 ? '#ece2cc' : '#e0d3b6'} />;
           })}
-          <circle cx={cx} cy={cy} r={r * 0.07} fill="#6d4c41" />
+          <polygon points={pts.map((q) => q.join(',')).join(' ')} fill="none" stroke="#c4ae86" strokeWidth={1} />
+          {pts.map(([x, y], i) => (
+            <path key={i} d={`M${cx} ${cy} L${x} ${y}`} stroke="#c4ae86" strokeWidth={0.8} />
+          ))}
+          <circle cx={cx} cy={cy} r={r * 0.07} fill="#7a5c3a" />
         </>
       );
     },
@@ -850,6 +873,7 @@ export const PICTURES: Record<string, Picture> = {
   bins: {
     label: 'Bins',
     group: 'other',
+    long: true,
     around: 'paving',
     thing: (b) =>
       along(inset(b, 0.06), (l, d) => {
