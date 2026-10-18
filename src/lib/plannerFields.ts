@@ -100,7 +100,7 @@ export const FIELDS: Record<string, Field> = {
     advanced: true,
   },
   angle_step: {
-    label: 'Steps tried',
+    label: 'Tries a direction every',
     help: 'With the automatic direction "Fewest lanes and turns": the directions tried are this far apart. Smaller takes longer.',
     group: 'angle',
     unit: 'deg',
@@ -158,7 +158,7 @@ export const FIELDS: Record<string, Field> = {
   },
   perimeter_offset: {
     label: 'Outline offset',
-    help: "How far inside the lines of the map the first outline pass runs. Empty: OpenMower's (outline_offset). With the mower sizes the distance to the edge counts instead.",
+    help: "How far inside the lines of the map the first outline pass runs. Empty: OpenMower's (outline_offset). With the mower sizes the safety distance to the edge counts instead.",
     group: 'edge',
     unit: 'm',
     step: 0.05,
@@ -244,7 +244,7 @@ export const FIELDS: Record<string, Field> = {
     area: true,
   },
   edge_margin: {
-    label: 'Distance to the edge',
+    label: 'Safety distance to the edge',
     help: "How far the mower's body keeps off the real edge, everywhere.",
     group: 'edge',
     unit: 'm',
@@ -252,7 +252,7 @@ export const FIELDS: Record<string, Field> = {
     area: true,
   },
   obstacle_margin: {
-    label: 'Distance to obstacles',
+    label: 'Safety distance to obstacles',
     help: "How far the mower's body keeps off obstacles, areas not mowed and inactive ones. An obstacle's own distance wins.",
     group: 'obstacles',
     unit: 'm',
@@ -301,7 +301,7 @@ export const FIELDS: Record<string, Field> = {
     group: 'obstacles',
   },
   transit_edge_distance: {
-    label: 'Drives away from edges',
+    label: 'Distance of the drives to edges',
     help: "Drives between the parts keep this far from walls and beds where that doesn't cost much more. 0 = the shortest way.",
     group: 'route',
     unit: 'm',

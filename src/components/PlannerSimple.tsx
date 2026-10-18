@@ -1027,7 +1027,7 @@ export function PlannerSimple({
                 )}
                 {has('edge_margin') && (
                   <Row
-                    label={tr('Distance to the edge')}
+                    label={tr('Safety distance to the edge')}
                     help={tr('How far the mower keeps its whole body off the real edge, everywhere. More is safer along walls and beds, less mows closer.')}
                     note={sized || !has('robot_front') ? tr('The body keeps this far off the real edge.') : tr('For the body only once the planner has the mower sizes.')}
                     source={others('edge_margin') || ownLine('edge_margin')}
@@ -1041,7 +1041,7 @@ export function PlannerSimple({
               <Section title={tr('Obstacles')}>
                 {has('obstacle_margin') && (
                   <Row
-                    label={tr('Distance to obstacles')}
+                    label={tr('Safety distance to obstacles')}
                     help={tr('How far the mower keeps its body off obstacles, areas not mowed and inactive ones. An obstacle can have its own distance, in the editor under the obstacle, that one counts there.')}
                     source={
                       <>
@@ -1142,7 +1142,7 @@ export function PlannerSimple({
                 )}
                 {!area && has('transit_edge_distance') && (
                   <Row
-                    label={tr('Drives away from edges')}
+                    label={tr('Distance of the drives to edges')}
                     help={tr(FIELDS.transit_edge_distance.help)}
                     note={
                       (num('transit_edge_distance') ?? 0) > 0

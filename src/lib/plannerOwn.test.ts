@@ -25,7 +25,7 @@ describe('ownSettings', () => {
     expect(own.map((o) => [o.label, o.value, o.idle])).toEqual([
       ['Pattern', 'Rings', null],
       ['Outline passes', 'automatic', null],
-      ['Distance to obstacles', '3 cm', null],
+      ['Safety distance to obstacles', '3 cm', null],
       // allow_reverse is a setting of before, the planner leaves it out
     ]);
   });

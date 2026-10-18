@@ -37,11 +37,11 @@ export const PARAM_GROUPS: {key: ParamGroup; title: string}[] = [
 export const PARAM_FIELDS: ParamField[] = [
   {key: 'outline_count', group: 'mowing', label: 'Outline passes', help: 'Rounds along the edge of an area and around its obstacles before the lanes. An area can have its own number.', type: 'int', min: 0, max: 20, def: 3},
   {key: 'outline_overlap_count', group: 'mowing', label: 'Overlapping passes', help: 'How many of the outline passes the lanes reach into, so nothing is left standing between the lanes and the rounds along the edge.', type: 'int', min: 0, max: 20, def: 0},
-  {key: 'outline_offset', group: 'mowing', label: 'Distance to the edge', help: 'How far the outer pass stays inside the outline. Negative mows beyond it.', type: 'double', min: -1, max: 1, def: 0, unit: 'cm', scale: 100, step: 1},
+  {key: 'outline_offset', group: 'mowing', label: 'Outline offset', help: 'How far the outer pass stays inside the outline. Negative mows beyond it.', type: 'double', min: -1, max: 1, def: 0, unit: 'cm', scale: 100, step: 1},
   {key: 'tool_width', group: 'mowing', label: 'Lane spacing', help: "OpenMower's tool_width: how far the lanes are apart. Narrower than the blade, so they overlap.", type: 'double', min: 0.1, max: 2, def: 0.14, unit: 'cm', scale: 100, step: 1},
   {key: 'mow_angle_offset', group: 'mowing', label: 'Mowing direction turned by', help: "Added to every area's direction. The schedule can set it for each start time.", type: 'double', min: -180, max: 180, def: 0, unit: '°', step: 5},
   {key: 'mow_angle_offset_is_absolute', group: 'mowing', label: 'That is the direction itself, for every area', help: "Off: it's added to the direction each area has or the mower picks for it. On: all areas are mowed in that direction, counted from east.", type: 'bool', def: false},
-  {key: 'mow_angle_increment', group: 'mowing', label: 'Turn further after every whole mow', help: 'Added each time all areas are done, so the lanes run another way next time. 0 keeps the direction.', type: 'double', min: 0, max: 180, def: 0, unit: '°', step: 5},
+  {key: 'mow_angle_increment', group: 'mowing', label: 'Turn further after every whole mowing run', help: 'Added each time all areas are done, so the lanes run another way next time. 0 keeps the direction.', type: 'double', min: 0, max: 180, def: 0, unit: '°', step: 5},
 
   {key: 'rain_mode', group: 'auto', label: 'When the rain sensor is wet', type: 'choice', def: 0, choices: ['Keep mowing', 'Go home', 'Go home and wait until dry', 'Pause automatic mode']},
   {key: 'rain_delay_minutes', group: 'auto', label: 'Wait after the rain', help: 'With "wait until dry": how long it has to be dry before it mows on.', type: 'int', min: 30, max: 1440, def: 30, unit: 'min', step: 10},
@@ -53,7 +53,7 @@ export const PARAM_FIELDS: ParamField[] = [
   {key: 'gps_wait_time', group: 'gps', label: 'Wait after the fix is back', type: 'double', min: 0, max: 60, def: 10, unit: 's', step: 1},
 
   {key: 'docking_approach_distance', group: 'docking', label: 'Approach in a straight line from', help: 'How far in front of the dock the mower lines up before it drives in.', type: 'double', min: 0, max: 5, def: 1.5, unit: 'm', step: 0.1},
-  {key: 'docking_distance', group: 'docking', label: 'Drives in at most', help: 'How far it drives forward looking for the charging contacts.', type: 'double', min: 0, max: 100, def: 2, unit: 'm', step: 0.1},
+  {key: 'docking_distance', group: 'docking', label: 'Drives in at most this far', help: 'How far it drives forward looking for the charging contacts.', type: 'double', min: 0, max: 100, def: 2, unit: 'm', step: 0.1},
   {key: 'docking_retry_count', group: 'docking', label: 'Retries when docking', help: 'How often it backs out and tries again before it gives up.', type: 'int', min: 0, max: 50, def: 4},
   {key: 'undock_distance', group: 'docking', label: 'Backs out of the dock by', type: 'double', min: 0, max: 100, def: 2, unit: 'm', step: 0.1},
 

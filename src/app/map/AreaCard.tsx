@@ -114,7 +114,7 @@ export default function AreaCard({
         )}
         {marginShown && (
           <label className={styles.toggle}>
-            {tr('Own distance')}
+            {tr('Own safety distance')}
             <input
               className={styles.marginInput}
               inputMode="decimal"

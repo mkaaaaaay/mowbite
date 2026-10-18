@@ -24,11 +24,11 @@ function text(p: Shown, map: MowerMap): string {
       const cm = {gap: Math.round(p.gap * 100), need: Math.round(p.need * 100)};
       return p.edge
         ? tr(
-            "probably too narrow to the edge of {area} here (red on the map): {gap} cm between the lines, with the distances set it needs about {need} cm. Move the obstacle away, or grass likely stays standing there.",
+            "probably too narrow to the edge of {area} here (red on the map): {gap} cm between the lines, with the safety distances set it needs about {need} cm. Move the obstacle away or give it a smaller own safety distance, or grass likely stays standing there.",
             {area: other, ...cm},
           )
         : tr(
-            "probably too narrow to {other} here (red on the map): {gap} cm between the lines, with the distances set it needs about {need} cm. Move one of them away, or grass likely stays standing there.",
+            "probably too narrow to {other} here (red on the map): {gap} cm between the lines, with the safety distances set it needs about {need} cm. Move one of them away or give it a smaller own safety distance, or grass likely stays standing there.",
             {other, ...cm},
           );
     }
