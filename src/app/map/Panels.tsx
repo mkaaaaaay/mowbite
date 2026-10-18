@@ -160,7 +160,7 @@ export function SimplifyPanel({
 export function RestorePanel({
   areas,
   backedUp,
-  docked,
+  idle,
   restoring,
   confirm,
   error,
@@ -171,7 +171,7 @@ export function RestorePanel({
   areas: number;
   // the mower's map is backed up before restoring (only when MowBite runs as its container)
   backedUp: boolean;
-  docked: boolean;
+  idle: boolean;
   restoring: boolean;
   confirm: boolean;
   error: string | null;
@@ -187,11 +187,11 @@ export function RestorePanel({
           ? tr('Restoring replaces the map on the mower with this one. The current map is backed up first, so this can be undone.')
           : tr("Restoring replaces the map on the mower with this one. Backups don't work here, download the current map first if you might want it back.")}
       </p>
-      {!docked && <p className={styles.error}>{tr('Only possible while the mower is idle in the dock.')}</p>}
+      {!idle && <p className={styles.error}>{tr('Only possible while the mower is not busy (mowing, docking, recording).')}</p>}
       <div className={styles.inlineRow}>
         <button
           className={[styles.pillButton, styles.danger].join(' ')}
-          disabled={!docked || restoring}
+          disabled={!idle || restoring}
           onClick={onRestore}
           onBlur={onDisarm}
         >

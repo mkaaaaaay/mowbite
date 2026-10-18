@@ -144,5 +144,10 @@ export function useDocked(): boolean {
   return idle && (charging || voltage);
 }
 
+// not on a job: no mowing, docking, undocking or recording that a map change could break off, wherever it stands
+export function useIdle(): boolean {
+  return useMowerStateValue((l) => l.state?.current_state === 'IDLE');
+}
+
 // connected and the state is current: only then is what's shown real and a command goes out right away
 export const isLive = (l: MowerLink) => l.connected && !l.stale;

@@ -6,12 +6,12 @@ import styles from './page.module.css';
 // the order the mower goes through the mowing areas in
 export default function OrderBox({
   areas,
-  docked,
+  idle,
   onSelect,
   onMove,
 }: {
   areas: Area[];
-  docked: boolean;
+  idle: boolean;
   onSelect: (id: string) => void;
   onMove: (id: string, by: number) => void;
 }) {
@@ -21,7 +21,7 @@ export default function OrderBox({
         {tr('Mowing order')}
         <InfoTip>{tr('The mower mows the areas in this order.')}</InfoTip>
       </span>
-      {!docked && <span className={styles.dim}>{tr('Can only be changed while the mower is idle in the dock.')}</span>}
+      {!idle && <span className={styles.dim}>{tr('Can only be changed while the mower is not busy (mowing, docking, recording).')}</span>}
       {areas.map((a, i) => (
         <div key={a.id} className={styles.orderRow}>
           <span className={styles.orderNum}>{i + 1}</span>
@@ -35,7 +35,7 @@ export default function OrderBox({
           <button
             className={styles.pillButton}
             onClick={() => onMove(a.id, -1)}
-            disabled={i === 0 || !docked}
+            disabled={i === 0 || !idle}
             aria-label="earlier"
           >
             ↑
@@ -43,7 +43,7 @@ export default function OrderBox({
           <button
             className={styles.pillButton}
             onClick={() => onMove(a.id, 1)}
-            disabled={i === areas.length - 1 || !docked}
+            disabled={i === areas.length - 1 || !idle}
             aria-label="later"
           >
             ↓

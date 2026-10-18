@@ -7,7 +7,7 @@ import MapView from '@/components/MapView';
 import TrackPicker from '@/components/TrackPicker';
 import {saveMap, useMowerMap, type MowerMap, type Point} from '@/hooks/useMowerMap';
 import {useMowerPosition} from '@/hooks/useMowerPosition';
-import {useDocked, useMowerStateValue} from '@/hooks/useMowerState';
+import {useIdle, useMowerStateValue} from '@/hooks/useMowerState';
 import {useEggForced, useUmbrella} from '@/lib/eggs';
 import {lastRun as newestRun} from '@/hooks/useRecentRuns';
 import {clearTrack, trackPoints, useLastRun, useLastRunJob, useMowerTrack} from '@/hooks/useMowerTrack';
@@ -74,7 +74,8 @@ function MapEditor() {
   useLang();
   // only what the page needs of the mower's state and sensors: it isn't drawn again for every message that comes in
   const emergency = useMowerStateValue((l) => !!l.state?.emergency);
-  const docked = useDocked();
+  // no job a map change could break off
+  const idle = useIdle();
   const track = useMowerTrack();
   const lastRun = useLastRun();
   const lastRunJob = useLastRunJob();
@@ -323,7 +324,7 @@ function MapEditor() {
   const mowAreas = map?.areas.filter((a) => a.properties.type === 'mow') ?? [];
 
   const moveInOrder = (id: string, by: number) => {
-    if (!map || !docked) return;
+    if (!map || !idle) return;
     const order = [...mowAreas];
     const i = order.findIndex((a) => a.id === id);
     const j = i + by;
@@ -528,8 +529,8 @@ function MapEditor() {
 
   const handleSave = async () => {
     if (!map) return;
-    // saving while the mower is out can make it lose track of the area it's on, ask first
-    if (!docked && !saveWarning) {
+    // saving while the mower is on a job can make it lose track of the area it's on, ask first
+    if (!idle && !saveWarning) {
       setSaveWarning(true);
       return;
     }
@@ -727,7 +728,7 @@ function MapEditor() {
               <RestorePanel
                 areas={preview.map.areas.length}
                 backedUp={!!backups}
-                docked={docked}
+                idle={idle}
                 restoring={restoring}
                 confirm={confirmRestore}
                 error={restoreError}
@@ -744,7 +745,7 @@ function MapEditor() {
                   unsaved={dirty}
                   saving={saving}
                   saveLabel={
-                    saving ? tr('saving…') : (external && dirty) || warnings || (saveWarning && !docked) ? tr('Save anyway') : tr('Save map')
+                    saving ? tr('saving…') : (external && dirty) || warnings || (saveWarning && !idle) ? tr('Save anyway') : tr('Save map')
                   }
                   saveError={saveError ?? droppedNote}
                   onDraw={startDraw}
@@ -779,11 +780,9 @@ function MapEditor() {
 
               {mergeNote && dirty && <p className={styles.warning}>{mergeNote}</p>}
 
-              {saveWarning && !docked && (
+              {saveWarning && !idle && (
                 <div className={styles.warning}>
-                  <p>
-                    {tr("The mower isn't idle in the dock. Changing the map during a job can stop the job. Better save once it's back in the dock.")}
-                  </p>
+                  <p>{tr('The mower is busy (mowing, docking or recording). Changing the map now can break that off. Better save once it is done.')}</p>
                   <a onClick={() => setSaveWarning(false)}>{tr("don't save for now")}</a>
                 </div>
               )}
@@ -816,7 +815,7 @@ function MapEditor() {
                     />
                   )}
                   {mowAreas.length > 1 && (
-                    <OrderBox areas={mowAreas} docked={docked} onSelect={selectArea} onMove={moveInOrder} />
+                    <OrderBox areas={mowAreas} idle={idle} onSelect={selectArea} onMove={moveInOrder} />
                   )}
 
                   {/* everything for the planner is here at the map: for all areas and the mower's sizes, an area's own
