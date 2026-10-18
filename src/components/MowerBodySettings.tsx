@@ -22,6 +22,7 @@ import {
   type Outline,
 } from '@/lib/mowerBody';
 import {RpcError} from '@/lib/rpc';
+import {useRouter} from 'next/navigation';
 import {saveSettings, settingsStore} from '@/lib/settings';
 import {useEffect, useState, useSyncExternalStore} from 'react';
 import local from './MowerBodySettings.module.css';
@@ -29,7 +30,7 @@ import {MowerSketch} from './MowerSketch';
 
 // The mower's sizes for the MowBite Planner on the mower (planner.settings): it keeps the body clear of the edges in
 // turns and corners and draws the mower at its real size on the map. Kept by the planner, so every app and the
-// planner itself use the same ones.
+// planner itself use the same ones. Set once, so in the settings.
 
 const LABELS: Record<BodySetting, string> = {
   robot_width: 'Width',
@@ -71,8 +72,9 @@ const sizesOf = (f: Form): MowerSizes =>
 
 // A planner that knows the body's sizes but has none: it plans without checking the body, whatever the collision check
 // and the distances say. Sizes set in this app before the planner came only draw the mower on the map, they are
-// offered to the planner here. With an area picked the sizes aren't on the page, the way there is said.
-export function NoSizesWarning({inArea}: {inArea?: boolean}) {
+// offered to the planner here, or the way to the sizes in the settings
+export function NoSizesWarning() {
+  const router = useRouter();
   const settings = usePlannerSettings();
   const app = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
   const [state, setState] = useState<{busy?: boolean; error?: string}>({});
@@ -95,12 +97,6 @@ export function NoSizesWarning({inArea}: {inArea?: boolean}) {
       setState({error: e instanceof RpcError && e.code !== 'timeout' ? e.message : tr('The mower did not answer.')});
     }
   };
-  const open = () => {
-    const fold = document.getElementById('fold-mowerSizes') as HTMLDetailsElement | null;
-    if (!fold) return;
-    fold.open = true;
-    fold.scrollIntoView({behavior: 'smooth', block: 'start'});
-  };
 
   return (
     <div className={local.warning}>
@@ -122,13 +118,9 @@ export function NoSizesWarning({inArea}: {inArea?: boolean}) {
           </button>
         </>
       )}
-      {inArea ? (
-        <span>{own ? tr('Or set them under Mower sizes, with no area picked.') : tr('Set them under Mower sizes, with no area picked.')}</span>
-      ) : (
-        <button type="button" onClick={open}>
-          {own ? tr('Or set them under Mower sizes') : tr('Set them under Mower sizes')}
-        </button>
-      )}
+      <button type="button" onClick={() => router.push('/settings#sizes')}>
+        {own ? tr('Or set them in the settings') : tr('Set them in the settings')}
+      </button>
       {state.error && <span>{state.error}</span>}
     </div>
   );

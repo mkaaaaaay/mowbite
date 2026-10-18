@@ -45,7 +45,6 @@ import Problems, {problemText} from './Problems';
 import {BodyCheck, PlanChecks} from './BodyCheck';
 import {Fold} from './Fold';
 import {bodyFrom, slic3rPlans, useMowerBody, usePlannerSettings, type BodySpot} from '@/lib/mowerBody';
-import {MowerBodySettings} from '@/components/MowerBodySettings';
 import {PlannerSettings} from '@/components/PlannerSettings';
 import {PlannerSimple} from '@/components/PlannerSimple';
 import settingsStyles from '../settings/page.module.css';
@@ -833,13 +832,6 @@ function MapEditor() {
                           </div>
                         }
                       />
-                    </Fold>
-                  )}
-                  {plannerSettings && (
-                    <Fold id="mowerSizes" title={tr('Mower sizes')}>
-                      <div className={styles.foldCards}>
-                        <MowerBodySettings styles={settingsStyles} />
-                      </div>
                     </Fold>
                   )}
 

@@ -14,6 +14,7 @@ import {OpenMowerSettings} from '@/components/MowerParamSettings';
 import {UpdateSettings} from '@/components/Updates';
 import {loadPlannerSettings, savePlannerSettings, slic3rPlans, usePlannerSettings} from '@/lib/mowerBody';
 import Link from 'next/link';
+import {MowerBodySettings} from '@/components/MowerBodySettings';
 import {MowerSizesSettings} from '@/components/MowerSizesSettings';
 import {NotifySettings} from '@/components/NotifySettings';
 import {datumFromParams, useMowerParams} from '@/hooks/useMowerParams';
@@ -245,16 +246,21 @@ export default function SettingsPage() {
           <Group
             id="mower"
             title={tr('Your mower')}
-            hint={planner ? tr('Leftovers, planner') : tr('Mower sizes')}
+            hint={planner ? tr('Mower sizes, leftovers') : tr('Mower sizes')}
+            anchors={['sizes']}
             note={
               planner && (
                 <>
-                  {tr("The planner's settings and the mower sizes are with the map: under it for all areas, with an area selected for that one.")}{' '}
+                  {tr("The planner's settings are with the map: under it for all areas, with an area selected for that one.")}{' '}
                   <Link href="/map">{tr('To the map')}</Link>
                 </>
               )
             }
           >
+            {/* set once: with the MowBite Planner kept by it, without it in the app */}
+            <div id="sizes">
+              {planner ? <MowerBodySettings styles={styles} /> : <MowerSizesSettings settings={settings} styles={styles} />}
+            </div>
             {planner && (
             <section className={styles.card}>
               <h2>{tr('Mow the leftovers')}</h2>
@@ -321,8 +327,6 @@ export default function SettingsPage() {
               )}
             </section>
             )}
-            {/* without the MowBite Planner the sizes are kept in the app */}
-            {!planner && <MowerSizesSettings settings={settings} styles={styles} />}
           </Group>
         )}
 

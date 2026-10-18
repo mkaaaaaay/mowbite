@@ -400,10 +400,10 @@ export function PlannerSimple({
 
   return (
     <div className={local.simple}>
-      {!slic3r && <NoSizesWarning inArea={!!area} />}
+      {!slic3r && <NoSizesWarning />}
       {bladeDefault && !area && (
         <p className={local.note}>
-          {tr("The blade is not set in the planner, it plans with {a} cm. Lanes are spaced by it: set your mower's blade under Mower sizes.", {
+          {tr("The blade is not set in the planner, it plans with {a} cm. Lanes are spaced by it: set your mower's blade in the settings under Mower sizes.", {
             a: Math.round(blade * 1000) / 10,
           })}
         </p>
