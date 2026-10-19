@@ -403,6 +403,13 @@ export default function RecordPage() {
               {tr('Start recording mode')}
             </button>
             {!hasAction(START) && <p className={styles.dim}>{tr('Only possible while the mower is idle.')}</p>}
+            {/* out mowing: home first, then recording mode can start */}
+            {!hasAction(START) && hasAction(ACTION.goHome) && (
+              <button disabled={!live} onClick={() => publishAction(ACTION.goHome)}>
+                <HomeIcon size={18} />
+                {tr('Send it home first')}
+              </button>
+            )}
             {bounced && (
               <p className={styles.warn}>
                 {tr(

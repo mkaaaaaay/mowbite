@@ -64,7 +64,8 @@ export function demoClient(): MqttClient {
       return client;
     },
     publish(topic: string, message: string | Buffer) {
-      world?.published(topic, message.toString());
+      // the stick's commands are bson, the rest text
+      world?.published(topic, typeof message === 'string' ? message : new Uint8Array(message));
       return client;
     },
   };

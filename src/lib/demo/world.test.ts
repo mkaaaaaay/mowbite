@@ -5,7 +5,7 @@ import {parseKept} from '../mowerParams';
 import {parseSchedule} from '../schedule';
 import {demoFetch} from './api';
 import {demoMap} from './garden';
-import {areaPaths, buildRoute, createWorld, poseIndex} from './world';
+import {areaPaths, buildRoute, createWorld, poseIndex, twistOf} from './world';
 
 const NOW = Date.UTC(2026, 5, 15, 12, 0, 0);
 
@@ -227,6 +227,95 @@ describe('the demo mower', () => {
     expect(d.state().current_state).toBe('IDLE');
     const today = await d.rpc<{type: string; area_name?: string}[]>(RPC.events, {date: '20260615'});
     expect(today.filter((e) => e.type === 'AREA').map((e) => e.area_name)).toEqual(['Front lawn', 'Front lawn']);
+  });
+});
+
+// the stick's command as the app sends it (lib/teleop): bson {vx, vz}
+function twist(vx: number, vz: number): Uint8Array {
+  const b = new Uint8Array(29);
+  const v = new DataView(b.buffer);
+  v.setInt32(0, 29, true);
+  let o = 4;
+  for (const [key, value] of [['vx', vx], ['vz', vz]] as const) {
+    b[o++] = 0x01;
+    for (const ch of key) b[o++] = ch.charCodeAt(0);
+    b[o++] = 0;
+    v.setFloat64(o, value, true);
+    o += 8;
+  }
+  return b;
+}
+
+describe('the demo mower recording', () => {
+  const R = ACTION.recording;
+  const recording = () => {
+    const d = world();
+    d.act(ACTION.goHome);
+    d.pass(120);
+    d.act(ACTION.startRecording);
+    // with the stick, a fifth of a second at a time like the app sends it
+    const drive = (vx: number, vz: number, seconds: number) => {
+      for (let s = 0; s < seconds - 1e-9; s += 0.2) {
+        d.w.published(TOPIC.teleop, twist(vx, vz));
+        d.pass(0.2, 0.2);
+      }
+    };
+    return {...d, drive, overlay: () => JSON.parse(d.w.retained(TOPIC.mapOverlay)[0][1]).polygons};
+  };
+
+  it('reads the stick the way the app sends it', () => {
+    expect(twistOf(twist(0.25, -0.5))).toEqual({vx: 0.25, vz: -0.5});
+  });
+
+  it('records an area driven with the stick and saves it in the map', () => {
+    const d = recording();
+    expect(d.state().current_state).toBe('AREA_RECORDING');
+    expect(d.actions()).toMatchObject({[R('start_recording')]: 1, [R('record_dock')]: 1, [R('exit_recording_mode')]: 1, [R('stop_recording')]: 0});
+    const start = d.state().pose;
+    // out of the station backwards, then round a square of 3.2 m with quarter turns
+    d.drive(-0.4, 0, 4);
+    expect(Math.hypot(d.state().pose.x - start.x, d.state().pose.y - start.y)).toBeCloseTo(1.6, 1);
+    d.act(R('start_recording'));
+    expect(d.actions()).toMatchObject({[R('stop_recording')]: 1, [R('auto_point_collecting_disable')]: 1, [R('record_dock')]: 0});
+    for (let side = 0; side < 4; side++) {
+      d.drive(0.4, 0, 8);
+      d.drive(0, Math.PI / 4, 2);
+    }
+    expect(d.overlay()[0]).toMatchObject({color: 'blue', closed: false});
+    d.act(R('stop_recording'));
+    const [outline] = d.overlay();
+    expect(outline).toMatchObject({color: 'green', closed: true});
+    expect(outline.polygon.points.length).toBeGreaterThan(60);
+    d.act(R('finish_mowing_area'));
+    const map = JSON.parse(d.w.retained(TOPIC.map)[0][1]);
+    expect(map.areas).toHaveLength(demoMap().areas.length + 1);
+    expect(map.areas.at(-1).properties.type).toBe('mow');
+    expect(d.overlay()).toEqual([]);
+  });
+
+  it('stops without the stick, takes the station, and drives home when recording ends', () => {
+    const d = recording();
+    d.w.published(TOPIC.teleop, twist(-0.4, 0));
+    d.pass(3, 0.2);
+    const stopped = d.state().pose;
+    expect(Math.hypot(stopped.x - demoMap().docking_stations[0].position.x, stopped.y - demoMap().docking_stations[0].position.y)).toBeLessThan(0.5);
+    d.pass(3, 0.2);
+    expect(d.state().pose).toMatchObject({x: stopped.x, y: stopped.y});
+    // the station anew: in front of it, then onto it
+    d.drive(-0.4, 0, 3);
+    d.act(R('record_dock'));
+    expect(d.actions()).toMatchObject({[R('record_dock')]: 1, [R('start_recording')]: 0, [R('exit_recording_mode')]: 0});
+    d.drive(0.4, 0, 2);
+    d.act(R('record_dock'));
+    const station = JSON.parse(d.w.retained(TOPIC.map)[0][1]).docking_stations[0];
+    expect(Math.hypot(station.position.x - d.state().pose.x, station.position.y - d.state().pose.y)).toBeLessThan(0.01);
+    d.act(R('start_manual_mowing'));
+    expect(d.actions()[R('stop_manual_mowing')]).toBe(1);
+    d.drive(-0.4, 0, 6);
+    d.act(R('exit_recording_mode'));
+    expect(d.state().current_state).toBe('DOCKING');
+    d.pass(120);
+    expect(d.state()).toMatchObject({current_state: 'IDLE'});
   });
 });
 

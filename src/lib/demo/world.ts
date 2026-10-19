@@ -6,7 +6,8 @@ import {DEMO_PARAMS, DEMO_SENSORS, demoMap} from './garden';
 
 // The demo mower: what OpenMower would send and answer, made up here so the app can be looked at without a mower.
 // It drives the plan of its garden at a mower's pace, takes the commands (start, pause, home, skip), keeps its
-// events and tracks like the real history does and takes a map saved in the editor. Nothing leaves the device and
+// events and tracks like the real history does and takes a map saved in the editor. In recording mode it drives with
+// the stick and records areas, obstacles and its station like OpenMower's area recording. Nothing leaves the device and
 // nothing is kept, a reload starts it again in the middle of a mow.
 
 const SPEED = 0.45; // m/s
@@ -19,7 +20,7 @@ const STARTED_AGO = 9 * 60;
 const DRAIN = 1 / 6000;
 const CHARGE = 1 / 3600;
 
-type State = 'IDLE' | 'UNDOCKING' | 'MOWING' | 'PAUSED' | 'DOCKING';
+type State = 'IDLE' | 'UNDOCKING' | 'MOWING' | 'PAUSED' | 'DOCKING' | 'AREA_RECORDING';
 type EventPart = {type: string} & Record<string, unknown>;
 
 export interface Leg {
@@ -43,6 +44,34 @@ export interface Leg {
 export interface Path {
   outline: boolean;
   points: Point[];
+}
+
+// the stick's command as OpenMower takes it on "teleop": bson {vx, vz} (lib/teleop), m/s forward and rad/s
+export function twistOf(b: Uint8Array): {vx: number; vz: number} | null {
+  const v = new DataView(b.buffer, b.byteOffset, b.byteLength);
+  const out: Record<string, number> = {};
+  let o = 4;
+  while (o < b.length && b[o] !== 0) {
+    const type = b[o++];
+    let key = '';
+    while (o < b.length && b[o] !== 0) key += String.fromCharCode(b[o++]);
+    o++;
+    if (type !== 0x01 || o + 8 > b.length) return null;
+    out[key] = v.getFloat64(o, true);
+    o += 8;
+  }
+  return typeof out.vx === 'number' && typeof out.vz === 'number' ? {vx: out.vx, vz: out.vz} : null;
+}
+
+// recording mode: the outline once its line was stopped, the obstacles recorded in it after, the line being recorded,
+// the first pose of the station once taken (in front of it), points set along the way by themselves, the blade by hand
+interface Recording {
+  outline: Point[] | null;
+  obstacles: Point[][];
+  line: Point[] | null;
+  dockFrom: Point | null;
+  auto: boolean;
+  blade: boolean;
 }
 
 const dist = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y);
@@ -303,7 +332,8 @@ interface DemoEvent {
 export interface World {
   // what a new subscriber of a topic gets right away
   retained(topic: string): [string, string][];
-  published(topic: string, message: string): void;
+  // the stick's commands (teleop) come as bytes, everything else as text
+  published(topic: string, message: string | Uint8Array): void;
   tick(now?: number): void;
   stop(): void;
 }
@@ -343,6 +373,10 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
   let ids = 0;
   let ticks = 0;
   mows = [];
+  let rec: Recording | null = null;
+  // the stick's last command and when it came: the wheels stop a second after the last one, like on the xcore
+  let stick = {vx: 0, vz: 0, at: -Infinity};
+  let recorded = 0;
 
   const dock = () => dockOf(map);
   const mowAreas = () => map.areas.filter((a) => a.properties.type === 'mow');
@@ -385,13 +419,16 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     return run ? (run.legs[run.at] ?? null) : null;
   };
   const state = (): State => {
+    if (rec) return 'AREA_RECORDING';
     if (parked) return 'IDLE';
     if (paused) return 'PAUSED';
     return activeLeg()?.state ?? 'IDLE';
   };
-  const blades = () => !parked && !paused && !!activeLeg()?.blades;
+  const blades = () => !!rec?.blade || (!rec && !parked && !paused && !!activeLeg()?.blades);
 
   function place() {
+    // the stick drives it
+    if (rec) return;
     const run = activeRun();
     const l = run?.legs[run.at];
     const d = dock();
@@ -423,7 +460,8 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
   function step(meters: number, t: number) {
     const run = activeRun();
     const who = detour ?? job;
-    if (parked || paused || !run || !who) return;
+    // a job stopped for recording waits
+    if (rec || parked || paused || !run || !who) return;
     const through = advance(run, meters, t, hooksFor(who.id, who.session));
     if (!through) return;
     const end = t + meters / SPEED;
@@ -473,19 +511,43 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     return [
       a(ACTION.resetEmergency, 'Reset Emergency', true),
       a(ACTION.startMowing, 'Start Mowing', idle),
-      a(ACTION.startRecording, 'Start Area Recording', false),
+      a(ACTION.startRecording, 'Start Area Recording', idle),
       a(ACTION.resetJob, 'Reset Job', idle && !!job),
       a(ACTION.pause, 'Pause', s === 'MOWING'),
       a(ACTION.resume, 'Continue', s === 'PAUSED'),
-      a(ACTION.goHome, 'Stop Mowing', !idle && s !== 'DOCKING'),
+      a(ACTION.goHome, 'Stop Mowing', !idle && s !== 'DOCKING' && !rec),
       a(ACTION.skipArea, 'Skip Area', mowing),
       a(ACTION.skipPath, 'Skip Path', mowing),
+      ...recordingActions(),
+    ];
+  };
+  // like AreaRecordingBehavior's: the station's second pose only once its first is taken, a line can be stopped, saved
+  // or thrown away, an outline saved or thrown away, the blade by hand any time
+  const recordingActions = () => {
+    const a = (step: string, name: string, on: boolean) => ({action_id: ACTION.recording(step), action_name: name, enabled: on ? 1 : 0});
+    const r = rec;
+    const line = !!r?.line;
+    const dock = !!r?.dockFrom;
+    const some = !!r && !dock && (line || !!r.outline);
+    return [
+      a('start_recording', 'Start Recording', !!r && !line && !dock),
+      a('stop_recording', 'Stop Recording', line),
+      a('finish_navigation_area', 'Save Navigation Area', some),
+      a('finish_mowing_area', 'Save Mowing Area', some),
+      a('exit_recording_mode', 'Exit', !!r && !dock),
+      a('finish_discard', 'Discard', some),
+      a('record_dock', 'Record Docking Point', !!r && !line && !r.outline),
+      a('auto_point_collecting_enable', 'Enable Auto Points', line && !r!.auto),
+      a('auto_point_collecting_disable', 'Disable Auto Points', line && r!.auto),
+      a('collect_point', 'Collect Point', line && !r!.auto),
+      a('start_manual_mowing', 'Start Manual Mowing', !!r && !r.blade),
+      a('stop_manual_mowing', 'Stop Manual Mowing', !!r && r.blade),
     ];
   };
 
   const robotState = () => {
     const s = state();
-    const run = !detour && job && !parked ? job.run : null;
+    const run = !rec && !detour && job && !parked ? job.run : null;
     const l = run?.legs[run.at];
     const onPath = !!l && l.area >= 0;
     return {
@@ -527,9 +589,20 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
 
   const position = () => ({
     ...pose,
-    attributes: {job_id: job && !parked ? job.id : '', session_id: job && !parked ? job.session : '', blades: blades()},
+    attributes: {job_id: job && !parked && !rec ? job.id : '', session_id: job && !parked && !rec ? job.session : '', blades: blades()},
+  });
+  // the lines of the recording on the map, like OpenMower's overlay: the outline green, obstacles red, the line blue
+  const overlay = () => ({
+    polygons: rec
+      ? [
+          ...(rec.outline ? [{polygon: {points: rec.outline}, color: 'green', closed: true}] : []),
+          ...rec.obstacles.map((o) => ({polygon: {points: o}, color: 'red', closed: true})),
+          ...(rec.line ? [{polygon: {points: rec.line}, color: 'blue', closed: false}] : []),
+        ]
+      : [],
   });
   const send = {
+    overlay: () => deliver(TOPIC.mapOverlay, JSON.stringify(overlay())),
     map: () => deliver(TOPIC.map, JSON.stringify(closedRings(map))),
     actions: () => deliver(TOPIC.actions, JSON.stringify(actions())),
     state: () => deliver(TOPIC.robotState, JSON.stringify(robotState())),
@@ -611,8 +684,89 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     else if (id === ACTION.resetJob && s === 'IDLE' && job) {
       note(t, pose, {type: 'JOB_RESET'});
       job = null;
-    } else return;
+    } else if (id === ACTION.startRecording && s === 'IDLE') {
+      rec = {outline: null, obstacles: [], line: null, dockFrom: null, auto: true, blade: false};
+      parked = false;
+      paused = false;
+      note(t, pose, {type: 'STATE', state: 'AREA_RECORDING'});
+    } else if (!rec || !id.startsWith(ACTION.recording('')) || !record(id.slice(ACTION.recording('').length), t)) return;
+    send.overlay();
     changed();
+  }
+
+  // a step of the recording, false when it isn't one now
+  function record(step: string, t: number): boolean {
+    const r = rec!;
+    const here = {x: pose.x, y: pose.y};
+    // the line stopped: the outline, or once there is one an obstacle in it. too short a line is dropped
+    const close = () => {
+      const line = r.line;
+      r.line = null;
+      if (!line || line.length < 3) return;
+      if (r.outline) r.obstacles.push(line);
+      else r.outline = line;
+    };
+    if (step === 'start_recording' && !r.line && !r.dockFrom) r.line = [here];
+    else if (step === 'stop_recording' && r.line) close();
+    else if (step === 'collect_point' && r.line) r.line.push(here);
+    else if (step === 'auto_point_collecting_enable') r.auto = true;
+    else if (step === 'auto_point_collecting_disable') r.auto = false;
+    else if ((step === 'finish_mowing_area' || step === 'finish_navigation_area') && !r.dockFrom) {
+      close();
+      if (r.outline) {
+        const id = `demo-recorded-${++recorded}`;
+        const type = step === 'finish_mowing_area' ? 'mow' : 'nav';
+        const obstacles = r.obstacles.map((o, i) => ({id: `${id}-${i + 1}`, properties: {name: '', type: 'obstacle'}, outline: o}));
+        map = {...map, areas: [...map.areas, {id, properties: {name: '', type}, outline: r.outline}, ...obstacles]};
+        plans.clear();
+        send.map();
+      }
+      r.outline = null;
+      r.obstacles = [];
+    } else if (step === 'finish_discard') {
+      r.line = null;
+      r.outline = null;
+      r.obstacles = [];
+    } else if (step === 'record_dock' && !r.line && !r.outline) {
+      // first in front of the station, then on its contacts: the way between is the way in
+      if (!r.dockFrom) r.dockFrom = here;
+      else {
+        const heading = Math.atan2(here.y - r.dockFrom.y, here.x - r.dockFrom.x);
+        map = {...map, docking_stations: [{id: map.docking_stations[0]?.id ?? 'demo-dock', position: here, heading}]};
+        r.dockFrom = null;
+        send.map();
+      }
+    } else if (step === 'start_manual_mowing') r.blade = true;
+    else if (step === 'stop_manual_mowing') r.blade = false;
+    else if (step === 'exit_recording_mode' && !r.dockFrom) {
+      // nothing saved that wasn't: what's open is gone. on the station it stays there, else it drives home
+      rec = null;
+      stick = {vx: 0, vz: 0, at: -Infinity};
+      const d = dock();
+      const legs = d && Math.hypot(pose.x - d.at.x, pose.y - d.at.y) > 0.6 ? homeLegs(pose, map, [{type: 'STATE', state: 'DOCKING'}]) : [];
+      if (legs.length) detour = {id: `demo-home-${Math.round(t)}`, session: 'demo-home', run: {legs, at: 0, d: 0}, then: 'idle'};
+      else docked(t);
+    } else return false;
+    return true;
+  }
+
+  // driven with the stick in recording mode, a point every 10 cm on the line with auto points
+  function drive(from: number, to: number) {
+    if (!rec) return;
+    let left = Math.max(0, (Math.min(to, stick.at + 1000) - Math.max(from, stick.at)) / 1000);
+    while (left > 0) {
+      const h = Math.min(0.05, left);
+      pose.heading = Math.atan2(Math.sin(pose.heading + stick.vz * h), Math.cos(pose.heading + stick.vz * h));
+      pose.x += Math.cos(pose.heading) * stick.vx * h;
+      pose.y += Math.sin(pose.heading) * stick.vx * h;
+      left -= h;
+    }
+    const line = rec.line;
+    const end = line?.[line.length - 1];
+    if (line && rec.auto && end && Math.hypot(pose.x - end.x, pose.y - end.y) >= 0.1) {
+      line.push({x: pose.x, y: pose.y});
+      send.overlay();
+    }
   }
 
   const utcDay = (t: number) => new Date(t * 1000).toISOString().slice(0, 10).replace(/-/g, '');
@@ -698,13 +852,14 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     const dt = Math.min(60, Math.max(0, (now - last) / 1000));
     const was = state();
     step(SPEED * dt, last / 1000);
+    drive(last, now);
     last = now;
     const s = state();
     battery = Math.min(1, Math.max(0.05, battery + (parked ? CHARGE : -DRAIN) * dt));
     const k = Math.min(1, dt / 240);
     temps.esc += ((s === 'IDLE' || s === 'PAUSED' ? 31 : 42) - temps.esc) * k;
     temps.motor += ((blades() ? 47 : 24) - temps.motor) * k;
-    if (!parked && !job && !detour) parked = true;
+    if (!rec && !parked && !job && !detour) parked = true;
     const open = mows[mows.length - 1];
     if (open && open.end === Infinity && (parked || !job)) open.end = now / 1000;
     place();
@@ -726,12 +881,19 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
       if (topic === TOPIC.params) return [[topic, JSON.stringify(ros)]];
       if (topic === TOPIC.robotState) return [[topic, JSON.stringify(robotState())]];
       if (topic === TOPIC.position) return [[topic, JSON.stringify(position())]];
+      if (topic === TOPIC.mapOverlay) return [[topic, JSON.stringify(overlay())]];
       if (topic === TOPIC.sensorData) return Object.entries(sensors()).map(([id, v]) => [`sensors/${id}/data`, v]);
       return [];
     },
     published(topic, message) {
-      if (topic === TOPIC.action) act(message);
-      else if (topic === TOPIC.rpcRequest) rpc(message);
+      if (topic === TOPIC.teleop) {
+        const twist = typeof message === 'string' ? null : twistOf(message);
+        if (twist && rec) stick = {...twist, at: last};
+        return;
+      }
+      const text = typeof message === 'string' ? message : new TextDecoder().decode(message);
+      if (topic === TOPIC.action) act(text);
+      else if (topic === TOPIC.rpcRequest) rpc(text);
     },
     tick,
     stop() {

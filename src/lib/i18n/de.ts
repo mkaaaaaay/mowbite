@@ -1477,6 +1477,7 @@ const de: Record<string, string> = {
   "Season and weather on the lawn": "Jahreszeit und Wetter auf dem Rasen",
   "Lawn growing back, cut where the mower goes": "Rasen wächst nach, frisch gemäht, wo der Mäher fährt",
   "A mowing edge of stones": "Mähkante aus Steinen",
+  "Send it home first": "Erst nach Hause schicken",
 };
 
 export default de;
