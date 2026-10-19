@@ -851,25 +851,37 @@ function punisherNx60(id: string, emergency: boolean) {
 
 // an Airseekers Tron, traced from a photo from straight above: a light spine from the camera at the front to the handle at
 // the back with the stop button and the keys on it, a dark lattice frame on both sides, the bar in front, small wheels on
-// arms at the front corners and big ones at the back. as wide over the rear wheels as its owner measured it, and as long
-// (47 cm, 38 + 34 cm)
-const TRON_FIT = 47 / 72;
+// arms at the front corners and big ones at the back. as wide over the rear wheels as its owner measured it (47 cm), as
+// long from the bar to the handle as the photo makes it with the 61 cm he measured from the rear axle to the bar
+const TRON_FIT = 47 / 81.5;
 const TRON = {
+  // the dark frame: round the camera at the front, past the joints of the front wheels to the lattice on each side,
+  // beside the rear wheels and round the handle at the back
   frame: both(
     [
-      [0.8, 0], [0.8, -0.335], [0.775, -0.42], [0.745, -0.52], [0.68, -0.585], [0.55, -0.615], [0.47, -0.655],
-      [0.43, -0.735], [0.37, -0.815], [0.25, -0.855], [0.06, -0.875], [-0.04, -0.87], [-0.1, -0.835], [-0.15, -0.765],
-      [-0.21, -0.68], [-0.26, -0.655], [-0.7, -0.655], [-0.765, -0.6], [-0.79, -0.515], [-0.86, -0.505], [-0.93, -0.46],
-      [-0.975, -0.36], [-0.995, -0.2], [-1, 0],
+      [0.885, 0], [0.885, -0.37], [0.8, -0.4], [0.76, -0.5], [0.7, -0.575], [0.6, -0.6], [0.5, -0.62], [0.46, -0.68],
+      [0.44, -0.717], [0.4, -0.79], [0.36, -0.844], [0.32, -0.866], [0.2, -0.884], [0.1, -0.898], [0, -0.91], [-0.06, -0.909],
+      [-0.1, -0.876], [-0.14, -0.815], [-0.18, -0.756], [-0.225, -0.7], [-0.76, -0.7], [-0.785, -0.6], [-0.795, -0.505],
+      [-0.84, -0.495], [-0.88, -0.48], [-0.92, -0.447], [-0.96, -0.377], [-0.98, -0.308], [-0.995, -0.2], [-1, 0],
     ],
-    [1, 15, 16, 18],
+    [1, 7, 19, 20, 22],
   ),
+  // the light spine, narrow beside the camera, slightly waisted, round at its end
   spine: both(
     [
-      [0.935, 0], [0.932, -0.24], [0.915, -0.27], [0.81, -0.275], [0.79, -0.3], [0.785, -0.37], [0.765, -0.385],
-      [-0.6, -0.385], [-0.68, -0.37], [-0.71, -0.32], [-0.72, -0.2], [-0.72, 0],
+      [0.885, 0], [0.885, -0.33], [0.875, -0.36], [0.815, -0.36], [0.805, -0.4], [0.79, -0.423], [0.7, -0.423], [0.5, -0.425],
+      [0.4, -0.414], [0.3, -0.402], [0, -0.405], [-0.3, -0.411], [-0.5, -0.417], [-0.6, -0.42], [-0.64, -0.414], [-0.68, -0.399],
+      [-0.7, -0.365], [-0.72, -0.331], [-0.74, -0.27], [-0.755, -0.15], [-0.758, 0],
     ],
-    [3, 5],
+    [3, 4],
+  ),
+  // the rails beside the spine, from the camera's bracket into the handle
+  rail: outline(
+    [
+      [0.8, -0.423], [0.8, -0.495], [0.47, -0.497], [0.2, -0.5], [-0.2, -0.512], [-0.7, -0.505], [-0.79, -0.505], [-0.79, -0.418],
+      [-0.6, -0.42], [-0.3, -0.411], [0, -0.405], [0.3, -0.402], [0.4, -0.414], [0.5, -0.425], [0.7, -0.423],
+    ],
+    [0, 1, 6, 7],
   ),
   bracket: both([[0.955, 0], [0.955, -0.31], [0.94, -0.335], [0.8, -0.335], [0.8, -0.272], [0.927, -0.272], [0.927, 0]], [2, 3, 4, 5]),
   bar: both(
@@ -879,12 +891,39 @@ const TRON = {
     ],
     [5, 6],
   ),
-  // the frame's two big openings on each side
-  holes:
-    outline([[0.47, -0.545], [0.4, -0.75], [0.19, -0.8], [0.3, -0.63]], [0, 1, 2, 3]) +
-    outline([[0.18, -0.635], [0.04, -0.81], [-0.13, -0.79], [-0.11, -0.62]], [0, 1, 2, 3]),
-  rearTire: 'M-0.71,-1 L-0.285,-1 Q-0.215,-1 -0.215,-0.9 L-0.215,-0.765 Q-0.215,-0.665 -0.285,-0.665 L-0.71,-0.665 Q-0.78,-0.665 -0.78,-0.765 L-0.78,-0.9 Q-0.78,-1 -0.71,-1Z',
-  frontTire: 'M0.54,-0.875 L0.82,-0.875 Q0.87,-0.875 0.87,-0.8 L0.87,-0.705 Q0.87,-0.63 0.82,-0.63 L0.54,-0.63 Q0.49,-0.63 0.49,-0.705 L0.49,-0.8 Q0.49,-0.875 0.54,-0.875Z',
+  // the lattice on each side: two sunken panels, black slots round them, traced from the photo
+  panels:
+    outline([[0.465, -0.515], [0.45, -0.6], [0.345, -0.8], [0.12, -0.835], [0.19, -0.6], [0.3, -0.57]], [0, 1, 2, 3, 4, 5]) +
+    outline([[0.16, -0.665], [-0.03, -0.84], [-0.175, -0.64], [-0.1, -0.565], [0.1, -0.565]], [0, 1, 2, 3, 4]),
+  slots:
+    outline(
+      [[0.469, -0.496], [0.457, -0.51], [0.3, -0.607], [0.251, -0.583], [0.188, -0.589], [0.197, -0.578], [0.259, -0.55], [0.301, -0.545], [0.384, -0.505]],
+      [0, 1, 2, 3, 4, 5, 6, 7, 8],
+    ) +
+    outline(
+      [[0.452, -0.6], [0.448, -0.631], [0.356, -0.793], [0.339, -0.809], [0.313, -0.821], [0.115, -0.843], [0.124, -0.829], [0.328, -0.798], [0.349, -0.777], [0.448, -0.596]],
+      [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+    ) +
+    outline(
+      [[0.219, -0.505], [0.127, -0.547], [0.084, -0.544], [0.079, -0.558], [0.004, -0.562], [-0.193, -0.522], [-0.205, -0.511], [0.183, -0.499]],
+      [0, 1, 2, 3, 4, 5, 6, 7],
+    ) +
+    outline(
+      [
+        [0.163, -0.662], [0.157, -0.687], [-0.008, -0.837], [-0.029, -0.847], [-0.056, -0.83], [-0.161, -0.682], [-0.175, -0.66],
+        [-0.177, -0.637], [-0.169, -0.63], [-0.152, -0.638], [-0.136, -0.673], [-0.061, -0.786], [-0.056, -0.804], [-0.037, -0.824],
+        [-0.009, -0.807], [0.067, -0.688], [0.093, -0.629],
+      ],
+      [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+    ),
+  // the big rear wheels, 33.5 cm apart inside and 47 cm outside
+  rearTire: 'M-0.71,-1 L-0.295,-1 Q-0.225,-1 -0.225,-0.9 L-0.225,-0.813 Q-0.225,-0.713 -0.295,-0.713 L-0.71,-0.713 Q-0.785,-0.713 -0.785,-0.813 L-0.785,-0.9 Q-0.785,-1 -0.71,-1Z',
+  // the opening in the handle, from the spine's end to the handle's bar
+  opening: both([[-0.75, 0], [-0.75, -0.39], [-0.82, -0.398], [-0.855, -0.363], [-0.893, -0.3], [-0.916, -0.18], [-0.92, 0]], [1]),
+  // the front wheels: omni wheels leaning outwards, from above their rim of four rollers is an arc round the hub
+  rim: 'M0.407,-0.705 L0.399,-0.724 L0.393,-0.743 L0.389,-0.761 L0.389,-0.779 L0.392,-0.795 L0.399,-0.808 L0.409,-0.818 L0.423,-0.826 L0.439,-0.831 L0.457,-0.832 L0.476,-0.831 L0.496,-0.829 L0.502,-0.843 L0.510,-0.856 L0.521,-0.868 L0.534,-0.876 L0.549,-0.882 L0.566,-0.884 L0.585,-0.882 L0.604,-0.877 L0.624,-0.868 L0.644,-0.857 L0.663,-0.844 L0.681,-0.829 L0.698,-0.832 L0.717,-0.833 L0.736,-0.832 L0.756,-0.827 L0.775,-0.820 L0.794,-0.809 L0.812,-0.796 L0.828,-0.780 L0.842,-0.763 L0.853,-0.744 L0.863,-0.725 L0.870,-0.706 L0.890,-0.696 L0.910,-0.684 L0.928,-0.671 L0.945,-0.655 L0.960,-0.639 L0.971,-0.621 L0.979,-0.603 L0.983,-0.585 L0.984,-0.567 L0.982,-0.550 L0.977,-0.535 L0.971,-0.521 L0.868,-0.543 L0.857,-0.554 L0.847,-0.564 L0.837,-0.573 L0.829,-0.582 L0.822,-0.590 L0.817,-0.599 L0.813,-0.607 L0.811,-0.616 L0.809,-0.625 L0.808,-0.636 L0.806,-0.648 L0.804,-0.660 L0.791,-0.665 L0.778,-0.668 L0.766,-0.672 L0.755,-0.675 L0.746,-0.679 L0.737,-0.684 L0.729,-0.690 L0.721,-0.697 L0.713,-0.706 L0.704,-0.716 L0.695,-0.727 L0.684,-0.738 L0.674,-0.733 L0.665,-0.729 L0.657,-0.724 L0.649,-0.721 L0.642,-0.718 L0.634,-0.717 L0.625,-0.718 L0.616,-0.721 L0.605,-0.724 L0.593,-0.728 L0.581,-0.733 L0.567,-0.738 L0.566,-0.726 L0.565,-0.715 L0.564,-0.705 L0.563,-0.697 L0.561,-0.689 L0.558,-0.683 L0.554,-0.678 L0.547,-0.674 L0.539,-0.671 L0.530,-0.667 L0.521,-0.664 L0.511,-0.659Z',
+  joints: 'M0.496,-0.829 L0.567,-0.738M0.681,-0.829 L0.684,-0.738M0.870,-0.706 L0.804,-0.660',
+  ribs: 'M0.400,-0.745 L0.525,-0.674M0.400,-0.785 L0.544,-0.684M0.420,-0.813 L0.554,-0.698M0.457,-0.824 L0.557,-0.719M0.519,-0.853 L0.593,-0.735M0.550,-0.872 L0.619,-0.727M0.591,-0.872 L0.640,-0.727M0.638,-0.853 L0.660,-0.735M0.723,-0.825 L0.709,-0.720M0.769,-0.814 L0.730,-0.698M0.812,-0.787 L0.751,-0.684M0.844,-0.746 L0.778,-0.675M0.910,-0.676 L0.816,-0.635M0.949,-0.640 L0.821,-0.610M0.972,-0.599 L0.832,-0.589M0.974,-0.558 L0.852,-0.567',
   groove: 'M-0.548,-0.333 L-0.64,-0.333 Q-0.672,-0.333 -0.672,-0.28 L-0.672,0.28 Q-0.672,0.333 -0.64,0.333 L-0.548,0.333',
 };
 
@@ -925,27 +964,38 @@ function airseekersTron(id: string, emergency: boolean) {
           <stop offset="0" stopColor="#5a5e64" />
           <stop offset="1" stopColor="#3c4045" />
         </linearGradient>
+        <linearGradient id={id + 't'} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#6d7176" />
+          <stop offset="0.55" stopColor="#5a5e63" />
+          <stop offset="1" stopColor="#3b3f44" />
+        </linearGradient>
+        <radialGradient id={id + 'j'} cx="0.6" cy="0.35" r="0.7">
+          <stop offset="0" stopColor="#53575c" />
+          <stop offset="1" stopColor="#222528" />
+        </radialGradient>
       </defs>
       {SIDES.map((s) => (
         <g key={s} transform={`scale(1 ${s})`}>
           <path d={TRON.rearTire} fill="#1c1c1c" stroke="#9aa0a6" strokeWidth={0.75} strokeOpacity={0.45} />
-          {lugs(-0.76, -0.235, -0.985, -0.68, 9)}
-          <path d={TRON.frontTire} fill="#1c1c1c" stroke="#9aa0a6" strokeWidth={0.75} strokeOpacity={0.45} />
-          {lugs(0.5, 0.86, -0.865, -0.64, 6)}
+          {lugs(-0.765, -0.245, -0.985, -0.728, 9)}
+          <ellipse cx={0.69} cy={-0.58} rx={0.2} ry={0.13} transform="rotate(40 0.69 -0.58)" fill="#2b2e32" />
+          <path d={TRON.rim} fill="#1e1e1e" stroke="#9aa0a6" strokeWidth={0.75} strokeOpacity={0.45} />
+          <path d={TRON.ribs} fill="none" stroke="#333" strokeWidth={0.6} />
+          <path d={TRON.joints} fill="none" stroke="#5b5f64" strokeWidth={1} />
         </g>
       ))}
-      {/* the frame with a light edge, so the dark mower shows on a dark map, its openings and the round joints of the front wheels */}
+      {/* the frame with a light edge, so the dark mower shows on a dark map: the sunken panels of the lattice with their
+          slots, the round joints of the front wheels, the rails beside the spine and the opening in the handle */}
       <path d={TRON.frame} fill={`url(#${id}f)`} stroke="#9aa0a6" strokeWidth={0.75} strokeOpacity={0.5} />
       {SIDES.map((s) => (
         <g key={s} transform={`scale(1 ${s})`}>
-          <path d={TRON.holes} fill="#121315" />
-          <ellipse cx={0.672} cy={-0.47} rx={0.075} ry={0.088} fill="#2b2e32" {...soft} />
-          <ellipse cx={0.69} cy={-0.495} rx={0.03} ry={0.035} fill="#fff" fillOpacity={0.08} />
-          <rect x={-0.785} y={-0.468} width={1.555} height={0.083} rx={0.02} fill="#5c6065" />
+          <path d={TRON.panels} fill="#2a2d31" />
+          <path d={TRON.slots} fill="#0e0f11" />
+          <ellipse cx={0.652} cy={-0.47} rx={0.081} ry={0.11} fill={`url(#${id}j)`} {...soft} />
+          <path d={TRON.rail} fill={`url(#${id}t)`} />
         </g>
       ))}
-      {/* the handle at the back */}
-      <rect x={-0.922} y={-0.405} width={0.088} height={0.81} rx={0.03} ry={0.05} fill="#121315" />
+      <path d={TRON.opening} fill="#121315" />
       <path d={TRON.spine} fill={`url(#${id}s)`} {...soft} />
       <path d={TRON.groove} fill="none" stroke="#f4f5f6" strokeWidth={0.7} strokeOpacity={0.7} />
       <text transform={`matrix(0 1 ${-TRON_FIT} 0 -0.567 0)`} fontSize={0.075} fill="#5d6166" textAnchor="middle" fontFamily="Arial, Helvetica, sans-serif" letterSpacing={0.004}>
@@ -961,11 +1011,9 @@ function airseekersTron(id: string, emergency: boolean) {
       {SIDES.map((s) => (
         <circle key={s} cx={0.466} cy={s * 0.016} r={0.006} fill="#e8eaec" />
       ))}
-      <rect x={0.143} y={-0.151} width={0.103} height={0.302} rx={0.022} ry={0.035} fill={`url(#${id}r)`} stroke="#8e1019" strokeWidth={0.75}>
-        {emergency && <animate attributeName="fill" values={`url(#${id}r);#fff;url(#${id}r)`} dur="0.8s" repeatCount="indefinite" />}
-      </rect>
+      <rect x={0.144} y={-0.154} width={0.103} height={0.308} rx={0.022} ry={0.035} fill={`url(#${id}r)`} stroke="#8e1019" strokeWidth={0.75} />
       {emergency && (
-        <rect x={0.143} y={-0.151} width={0.103} height={0.302} rx={0.022} ry={0.035} fill="#fff" opacity={0}>
+        <rect x={0.144} y={-0.154} width={0.103} height={0.308} rx={0.022} ry={0.035} fill="#fff" opacity={0}>
           <animate attributeName="opacity" values="0;1;0" dur="0.8s" repeatCount="indefinite" />
         </rect>
       )}
