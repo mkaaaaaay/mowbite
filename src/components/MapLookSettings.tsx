@@ -13,7 +13,7 @@ import styles from './MapLookSettings.module.css';
 // aerial imagery source of your own. Saved like the other settings (on the mower when it keeps them, else here).
 
 // what can come alive in the garden style, each off unless switched on
-const LIFE: [keyof GardenLife, string][] = [
+export const LIFE: [keyof GardenLife, string][] = [
   ['sun', 'Light and shadows after the sun'],
   ['season', 'Season and weather on the lawn'],
   ['growth', 'Lawn growing back, cut where the mower goes'],

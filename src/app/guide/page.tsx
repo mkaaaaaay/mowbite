@@ -10,8 +10,12 @@ const STEPS: GuideStep[] = [
     text: 'The mower mows by a map: the areas it mows, the obstacles it drives around and its docking station. You record them once by driving it around them with the joystick, the app draws along. To start, tap Record under the map on the Map tab.',
   },
   {
+    title: 'Driving',
+    text: "Tap Start recording mode, if it's out mowing tap Send it home first. Upright you drive with the joystick. Held sideways the phone becomes a remote control: the left pad drives forward and back, the right one steers, the steps are buttons at the bottom. A phone that doesn't turn gets it with Sideways.",
+  },
+  {
     title: 'Docking station',
-    text: 'Tap Start recording mode. If the mower is in the dock, back it out about a meter, it then faces the station. Tap Record docking station, drive straight in until it sits on the contacts and tap Save docking position. That way in becomes its docking direction.',
+    text: 'If the mower is in the dock, back it out about a meter, it then faces the station. Tap Record docking station, drive straight in until it sits on the contacts and tap Save docking position. That way in becomes its docking direction.',
   },
   {
     title: 'Mowing area',
@@ -27,7 +31,7 @@ const STEPS: GuideStep[] = [
   },
   {
     title: 'Tips',
-    text: 'Only record with an RTK fix, otherwise the edge ends up off. Drive slowly along edges. For straight edges switch Auto points off and tap Set point here only at the corners, otherwise the mower sets a point every 10 cm. When you are done, tap Leave recording mode.',
+    text: 'Only record with an RTK fix, otherwise the edge ends up off. Drive slowly along edges. For straight edges switch Auto points off and tap Set point here only at the corners, otherwise the mower sets a point every 10 cm. When you are done, tap Leave recording mode, held sideways the ✕. Leaving the page asks first and ends it as well.',
   },
   {
     title: 'What a map is made of',

@@ -228,7 +228,86 @@ function Intro({dock}: ArtProps) {
   );
 }
 
-// 2: backed out of the station a meter, then straight in until it sits on the contacts
+// 2: held sideways the phone is a remote control: the left pad forward, the right one steers through the corners, the
+// mower records its way on the map between them and the steps are buttons at the bottom
+const ROUND = 'M128 118 H192 A10 10 0 0 0 202 108 V90 A10 10 0 0 0 192 80 H128 A10 10 0 0 0 118 90 V108 A10 10 0 0 0 128 118 Z';
+// where along the way the corners start and end (64 straight, 15.7 round, 18 straight ...)
+const ROUND_CORNERS: [number, number][] = [
+  [0.282, 0.351],
+  [0.431, 0.5],
+  [0.782, 0.851],
+  [0.931, 1],
+];
+
+function Remote() {
+  const dur = 8;
+  // it drives from 0.08 to 0.8 of the loop
+  const at = (f: number) => 0.08 + 0.72 * f;
+  const steer = ROUND_CORNERS.flatMap(([a, b]) => [at(a) - 0.012, at(a), at(b), at(b) + 0.012]);
+  const screen = useId();
+  return (
+    <Scene still={dur * 0.9} label="">
+      <rect width={320} height={200} fill={STONE} />
+      <rect x={22} y={26} width={276} height={148} rx={20} fill="#16191e" stroke="#3b414b" strokeWidth={2} />
+      <defs>
+        <clipPath id={screen}>
+          <rect x={32} y={36} width={256} height={128} rx={12} />
+        </clipPath>
+      </defs>
+      <g clipPath={`url(#${screen})`}>
+        <Lawn d="M32 36 H288 V164 H32 Z" />
+        <g>
+          {anim('opacity', dur, [0, 0.95, 1], [1, 1, 0])}
+          <Drawn d={ROUND} color="var(--c-mow)" dur={dur} t0={0.08} t1={0.8} fill f0={0.8} f1={0.86} />
+        </g>
+        <g>
+          <animateMotion dur={`${dur}s`} repeatCount="indefinite" rotate="auto" calcMode="linear" keyTimes="0;0.08;0.8;1" keyPoints="0;0;1;1" path={ROUND} />
+          <MowerAt size={7} />
+        </g>
+        {/* recording, and the cross to end it */}
+        <rect x={40} y={43} width={30} height={13} rx={6.5} fill="#26a69a" />
+        <circle cx={47} cy={49.5} r={3} fill="#fff" />
+        <rect x={268} y={42} width={14} height={14} rx={4} fill="#20262c" />
+        <path d="M271.5 45.5 l7 7 m0 -7 l-7 7" stroke="#fff" strokeWidth={1.4} strokeLinecap="round" />
+        {/* the steps as buttons, the first one tapped */}
+        <rect x={110} y={145} width={42} height={13} rx={6.5} fill="#3f6e69" stroke="#8fd1c8" strokeWidth={0.8} />
+        <circle cx={119} cy={151.5} r={3} fill="none" stroke="#fff" strokeWidth={1.2} />
+        <rect x={156} y={145} width={34} height={13} rx={6.5} fill="#20262c" />
+        <rect x={194} y={145} width={20} height={13} rx={6.5} fill="#20262c" />
+        <circle cx={131} cy={151.5} r={6} fill="none" stroke="#fff" strokeWidth={1.6} opacity={0}>
+          {anim('r', dur, [0, 0.02, 0.08, 1], [6, 6, 16, 16])}
+          {anim('opacity', dur, [0, 0.02, 0.03, 0.08, 1], [0, 0, 0.9, 0, 0])}
+        </circle>
+        {/* forward and back on the left, steering on the right */}
+        <g transform="translate(66 104)">
+          <circle r={23} fill="#000" fillOpacity={0.35} stroke="#fff" strokeOpacity={0.35} />
+          <path d="M0 -31 l-3 4 h6 Z M0 31 l-3 -4 h6 Z" fill="#fff" fillOpacity={0.7} />
+          <g>
+            <animateTransform attributeName="transform" type="translate" dur={`${dur}s`} repeatCount="indefinite" keyTimes="0;0.06;0.08;0.8;0.82;1" values="0 0;0 0;0 -10;0 -10;0 0;0 0" />
+            <rect x={-6} y={-11} width={12} height={22} rx={6} fill="#f4f6f8" />
+          </g>
+        </g>
+        <g transform="translate(254 104)">
+          <circle r={23} fill="#000" fillOpacity={0.35} stroke="#fff" strokeOpacity={0.35} />
+          <path d="M-31 0 l4 -3 v6 Z M31 0 l-4 -3 v6 Z" fill="#fff" fillOpacity={0.7} />
+          <g>
+            <animateTransform
+              attributeName="transform"
+              type="translate"
+              dur={`${dur}s`}
+              repeatCount="indefinite"
+              keyTimes={[0, ...steer, 1].join(';')}
+              values={['0 0', ...steer.map((_, i) => (i % 4 === 1 || i % 4 === 2 ? '-10 0' : '0 0')), '0 0'].join(';')}
+            />
+            <rect x={-11} y={-6} width={22} height={12} rx={6} fill="#f4f6f8" />
+          </g>
+        </g>
+      </g>
+    </Scene>
+  );
+}
+
+// 3: backed out of the station a meter, then straight in until it sits on the contacts
 function Docking({dock}: ArtProps) {
   const dur = 7;
   // the mower's middle: a meter in front, on the contacts
@@ -270,7 +349,7 @@ function Docking({dock}: ArtProps) {
   );
 }
 
-// 3: once around the edge, the outline closes by itself and becomes the mowing area
+// 4: once around the edge, the outline closes by itself and becomes the mowing area
 function Outline({dock}: ArtProps) {
   const dur = 8;
   return (
@@ -290,7 +369,7 @@ function Outline({dock}: ArtProps) {
   );
 }
 
-// 4: the lawn is in, now closely around the tree; the pond is done already
+// 5: the lawn is in, now closely around the tree; the pond is done already
 function Obstacles({dock}: ArtProps) {
   const dur = 7;
   return (
@@ -336,7 +415,7 @@ function TwoLawns() {
   );
 }
 
-// 5: the way across the path recorded like an area and saved as a navigation area, then through it to the spot in
+// 6: the way across the path recorded like an area and saved as a navigation area, then through it to the spot in
 // front of the station, which lies in the lawn, and straight in from there
 const WAY_ROUND = 'M192 161 V174 H128 V148 H192 Z';
 const WAY_IN = 'M192 161 H112 C70 161 46 142 46 112 V54';
@@ -384,7 +463,7 @@ function Paths({dock}: ArtProps) {
   );
 }
 
-// 6: a lawn with straight edges recorded with an rtk fix and auto points off: a point only at each corner, the edge
+// 7: a lawn with straight edges recorded with an rtk fix and auto points off: a point only at each corner, the edge
 // straight from one to the next
 const PLOT = 'M40 60 H280 V184 H40 Z';
 const PLOT_ROUND = 'M50 174 V70 H270 V174 Z';
@@ -449,7 +528,7 @@ function Tips() {
   );
 }
 
-// 7: everything a map has, two lawns joined by a way across the path
+// 8: everything a map has, two lawns joined by a way across the path
 const BED = 'M214 98 H262 Q268 98 268 104 V122 Q268 128 262 128 H214 Q208 128 208 122 V104 Q208 98 214 98 Z';
 const BED_AROUND = 'M210 92 H266 Q274 92 274 100 V126 Q274 134 266 134 H210 Q202 134 202 126 V100 Q202 92 210 92 Z';
 const TREE_LEFT = {x: 80, y: 118};
@@ -484,7 +563,7 @@ function Elements({dock}: ArtProps) {
   );
 }
 
-export const ART = [Intro, Docking, Outline, Obstacles, Paths, Tips, Elements];
+export const ART = [Intro, Remote, Docking, Outline, Obstacles, Paths, Tips, Elements];
 
 // the small pictures in the list of what a map has
 export function LegendIcon({kind, dock}: {kind: 'mow' | 'nav' | 'obstacle' | 'dock'; dock: Dock}) {

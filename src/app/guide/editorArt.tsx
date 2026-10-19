@@ -8,6 +8,8 @@ import {AngleCompass, AngleOnMap, AngleSlider, AngleStep} from '@/app/map/MowSet
 import mapPage from '@/app/map/page.module.css';
 import {MergeIcon, ScissorsIcon, SimplifyIcon, TrashIcon} from '@/components/icons';
 import MapBackups from '@/components/MapBackups';
+import {LIFE} from '@/components/MapLookSettings';
+import look from '@/components/MapLookSettings.module.css';
 import MapView from '@/components/MapView';
 import mapView from '@/components/MapView.module.css';
 import type {MapArea, MowerMap, Point} from '@/hooks/useMowerMap';
@@ -21,8 +23,8 @@ import {splitByPath} from '@/lib/splitPolygon';
 import {useEffect, useId, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import styles from './page.module.css';
 
-// the editor guide shows the app's own map with an example garden on it and what the map page shows under it, the
-// same parts the editor uses. a hand on top does what the step says, each step a loop played by a timeline
+// the editor guide shows the app's own map with an example garden on it in the garden style and what the map page shows
+// under it, the same parts the editor uses. a hand on top does what the step says, each step a loop played by a timeline
 
 const pt = (x: number, y: number): Point => ({x, y});
 const noop = () => {};
@@ -102,11 +104,12 @@ const ease = (t: number, a: number, b: number) => {
 };
 const mix = (p: Point, q: Point, f: number) => pt(p.x + (q.x - p.x) * f, p.y + (q.y - p.y) * f);
 
-// where the hand is: a spot on the map, a button (by what it says or one of several it can say, the nth of them), a
-// switch's box (by its words), the range slider at a value, or off the bottom
+// where the hand is: a spot on the map, a button (by what it says or one of several it can say, the nth of them, or an
+// icon's by its aria-label), a switch's box (by its words), the range slider at a value, or off the bottom
 type Target =
   | {map: Point; dx?: number; dy?: number}
   | {button: string | string[]; nth?: number}
+  | {aria: string}
   | {label: string}
   | {range: number}
   | 'off';
@@ -193,12 +196,16 @@ function Stage({t, map, selected, picking, pending, preview, view, extra, under,
   pending?: Point[];
   preview?: Point[][];
   // more for the map: the plan's lanes and loops, the mowing order, a mower's body for the real edges, a spot to zoom to
-  view?: Pick<React.ComponentProps<typeof MapView>, 'stripes' | 'loops' | 'orderLabels' | 'bodyOverride' | 'focus' | 'focusSpan'>;
+  view?: Pick<React.ComponentProps<typeof MapView>, 'stripes' | 'loops' | 'orderLabels' | 'bodyOverride' | 'focus' | 'focusSpan' | 'mapStyle'>;
   extra?: (toStage: (p: Point) => [number, number]) => React.ReactNode;
   under: React.ReactNode;
   hand: HandPlan;
 }) {
   const stage = useRef<HTMLDivElement>(null);
+  const frame = useRef<HTMLDivElement>(null);
+  const mover = useRef<HTMLDivElement>(null);
+  // how far the stage is slid up under its window (px), following the hand
+  const camera = useRef(0);
   const handRef = useRef<SVGGElement>(null);
   const ripple = useRef<SVGCircleElement>(null);
   // map spot -> stage, worked out anew every frame: the map can still settle after it's shown. what's drawn next to a
@@ -207,6 +214,35 @@ function Stage({t, map, selected, picking, pending, preview, view, extra, under,
   const placed = useRef<((p: Point) => [number, number]) | null>(null);
   // where each target was last seen: once its button is gone (the panel after it showed up) the hand goes on from there
   const seen = useRef(new Map<string, [number, number]>());
+
+  // the stage seen through a window that ends above the tab bar (on a phone the map and its card don't fit on the screen
+  // under the words): it slides up while the hand works further down and back when it's done, the page itself stays.
+  // tip: where the finger is, to: where it's going, in px from the stage's top (null with the hand away)
+  const follow = (tip: number | null, to: number | null, height: number) => {
+    const f = frame.current;
+    const m = mover.current;
+    if (!f || !m) return;
+    const nav = document.querySelector('nav')?.getBoundingClientRect();
+    const bottom = nav && nav.top > window.innerHeight / 2 ? nav.top : window.innerHeight;
+    const room = Math.max(300, Math.round(bottom - (f.getBoundingClientRect().top + window.scrollY) - 12));
+    const fits = height <= room;
+    f.style.maxHeight = fits ? '' : `${room}px`;
+    f.style.overflow = fits ? '' : 'hidden';
+    let want = camera.current;
+    if (fits || tip === null) want = 0;
+    else {
+      // the finger with the hand under it in view, where it is and where it's going, or the latter if both don't fit
+      const ys = to === null ? [tip] : [tip, to];
+      const [low, high] = [Math.max(...ys) - (room - 64), Math.min(...ys) - 30];
+      if (low <= high) want = Math.min(Math.max(want, low), high);
+      else if (to !== null) want = Math.min(Math.max(want, to - (room - 64)), to - 30);
+      // a little past the bottom, the hand under the last row
+      want = Math.max(0, Math.min(want, height + 70 - room));
+    }
+    const at = Math.abs(want - camera.current) < 0.5 ? want : camera.current + (want - camera.current) * 0.18;
+    camera.current = at;
+    m.style.transform = at ? `translateY(${-at.toFixed(1)}px)` : '';
+  };
 
   useLayoutEffect(() => {
     const el = stage.current;
@@ -233,6 +269,10 @@ function Stage({t, map, selected, picking, pending, preview, view, extra, under,
       if ('button' in target) {
         const says = [target.button].flat();
         const b = [...el.querySelectorAll('button')].filter((x) => says.includes(x.textContent?.trim() ?? ''))[target.nth ?? 0];
+        return b ? middle(b.getBoundingClientRect()) : null;
+      }
+      if ('aria' in target) {
+        const b = el.querySelector(`button[aria-label="${target.aria}"]`);
         return b ? middle(b.getBoundingClientRect()) : null;
       }
       if ('label' in target) {
@@ -265,13 +305,18 @@ function Stage({t, map, selected, picking, pending, preview, view, extra, under,
       return [from[0] + (to[0] - from[0]) * f, from[1] + (to[1] - from[1]) * f];
     };
     const now = handAt(t);
+    const shown = !!now && t > hand.show[0] && t < hand.show[1];
+    // the stop it's heading for (or at), not off the bottom
+    const next = hand.moves.find(([time]) => time > t)?.[1] ?? hand.moves[hand.moves.length - 1][1];
+    const to = shown && next !== 'off' ? at(next) : null;
+    follow(now && shown ? now[1] * z : null, to ? to[1] * z : null, el.getBoundingClientRect().height);
     if (!now) {
       g.setAttribute('opacity', '0');
       return;
     }
     const pressed = hand.press.some(([a, b]) => t >= a && t <= b);
     g.setAttribute('transform', `translate(${now[0]} ${now[1]}) scale(${pressed ? 0.88 : 1})`);
-    g.setAttribute('opacity', t > hand.show[0] && t < hand.show[1] ? '1' : '0');
+    g.setAttribute('opacity', shown ? '1' : '0');
     // a ring where it just tapped, staying there while the hand moves on
     const tapped = hand.taps.find((s) => t - s >= 0 && t - s < 0.07);
     const spot = tapped === undefined ? null : handAt(tapped);
@@ -285,30 +330,36 @@ function Stage({t, map, selected, picking, pending, preview, view, extra, under,
   });
 
   return (
-    <div ref={stage} className={styles.stage}>
-      <div className={styles.stageMap}>
-        <MapView
-          map={map}
-          zoomable
-          selectedAreaId={selected}
-          onSelectArea={noop}
-          onMoveVertex={noop}
-          onInsertVertex={noop}
-          pickingPoints={picking}
-          pendingPoints={pending}
-          preview={preview}
-          allLayers
-          {...view}
-        />
-        {place && extra?.(place)}
+    <div ref={frame} className={styles.stageFrame}>
+      <div ref={mover} className={styles.stageMover}>
+        <div ref={stage} className={styles.stage}>
+          <div className={styles.stageMap}>
+            <MapView
+              map={map}
+              zoomable
+              selectedAreaId={selected}
+              onSelectArea={noop}
+              onMoveVertex={noop}
+              onInsertVertex={noop}
+              pickingPoints={picking}
+              pendingPoints={pending}
+              preview={preview}
+              allLayers
+              sample
+              mapStyle="garden"
+              {...view}
+            />
+            {place && extra?.(place)}
+          </div>
+          <div className={mapPage.panel}>{under}</div>
+          <svg className={styles.handLayer} aria-hidden="true">
+            <circle ref={ripple} r={8} fill="none" stroke="#fff" strokeWidth={2} opacity={0} />
+            <g ref={handRef} opacity={0}>
+              <HandShape />
+            </g>
+          </svg>
+        </div>
       </div>
-      <div className={mapPage.panel}>{under}</div>
-      <svg className={styles.handLayer} aria-hidden="true">
-        <circle ref={ripple} r={8} fill="none" stroke="#fff" strokeWidth={2} opacity={0} />
-        <g ref={handRef} opacity={0}>
-          <HandShape />
-        </g>
-      </svg>
     </div>
   );
 }
@@ -806,7 +857,62 @@ function Edges() {
   );
 }
 
-// 11: save: the old map goes into the backups first, its preview can bring it back
+// 11: the map's style: the gear on the map, then Garden, the lawn in stripes, ways and obstacles as pictures. what can
+// come alive in the garden is switched on under it, each on its own
+function StyleSettings({garden}: {garden: boolean}) {
+  return (
+    <section className={look.section}>
+      <h3>{tr('Map style')}</h3>
+      <div className={look.segment}>
+        <button className={garden ? undefined : look.segmentOn} onClick={noop} tabIndex={-1}>
+          {tr('Plain')}
+        </button>
+        <button className={garden ? look.segmentOn : undefined} onClick={noop} tabIndex={-1}>
+          {tr('Garden')}
+        </button>
+      </div>
+      {garden && (
+        <div className={look.lifeChecks}>
+          {LIFE.map(([part, label]) => (
+            <label key={part}>
+              <input type="checkbox" checked={false} onChange={noop} tabIndex={-1} />
+              {tr(label)}
+            </label>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function Style() {
+  const t = useLoop(9, 0.8);
+  const open = t >= 0.17;
+  const garden = t >= 0.42;
+  return (
+    <Stage
+      t={t}
+      map={GARDEN}
+      selected={null}
+      view={{mapStyle: garden ? 'garden' : 'plain'}}
+      under={open ? <StyleSettings garden={garden} /> : <Hint />}
+      hand={{
+        moves: [
+          [0, 'off'],
+          [0.12, {aria: 'map settings'}],
+          [0.2, {aria: 'map settings'}],
+          [0.38, {button: tr('Garden')}],
+          [0.8, {button: tr('Garden')}],
+        ],
+        press: tap(0.15, 0.4),
+        taps: [0.15, 0.4],
+        show: [0.06, 0.86],
+      }}
+    />
+  );
+}
+
+// 12: save: the old map goes into the backups first, its preview can bring it back
 const BACKUP = {id: 'b1', t: Math.round(Date.now() / 1000) - 120, name: 'before saving', auto: true, areas: GARDEN.areas.length, size: 1};
 
 // the backups as the map page shows them, opened
@@ -883,4 +989,4 @@ function Save() {
   );
 }
 
-export const EDITOR_ART = [Select, Types, Switches, Points, Split, Merge, Reduce, Direction, Order, Edges, Save];
+export const EDITOR_ART = [Select, Types, Switches, Points, Split, Merge, Reduce, Direction, Order, Edges, Style, Save];

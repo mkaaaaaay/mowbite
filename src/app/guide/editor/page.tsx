@@ -48,6 +48,10 @@ const STEPS: GuideStep[] = [
     text: "When recording, the mower keeps the path of its middle: that's the line. Its body reaches further though, up to the dashed line, the real edge. So the green strip between them is lawn too. The dashed line needs your mower's sizes (Settings, Your mower).",
   },
   {
+    title: 'Map style',
+    text: 'With the gear on the map you pick the map style: Plain shows colored areas, Garden draws the garden from above. There ways and obstacles get a picture by their name, with one picked you change it under the map at Picture on the map. Light and shadows, the season, the lawn growing back and a mowing edge can be switched on one by one.',
+  },
+  {
     title: 'Save and backups',
     text: 'Save map sends the map to the mower. With MowBite running as a container on the mower, the old map is backed up first: under the map at Backups (no area picked) Preview shows it and Restore brings it back.',
   },

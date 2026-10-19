@@ -76,6 +76,16 @@
   box-shadow: none;
 }
 
+/* the editor guide's stage slides along after the hand under a window that ends above the tab bar, when it doesn't fit
+   on the screen (editorArt Stage sets its height) */
+.stageFrame {
+  position: relative;
+}
+
+.stageMover {
+  transition: transform 80ms linear;
+}
+
 .stage {
   position: relative;
   pointer-events: none;

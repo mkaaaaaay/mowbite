@@ -100,6 +100,10 @@ interface MapViewProps {
   bodyOverride?: MowerBody;
   // every layer shown, whatever the layer menu hides (the editor guide)
   allLayers?: boolean;
+  // a made-up map (the editor guide): the garden's life stays off, it's the real garden's (its time, weather and runs)
+  sample?: boolean;
+  // drawn in this style instead of the one set (the editor guide shows both)
+  mapStyle?: 'plain' | 'garden';
   // spots to point out, e.g. where an error happened (red, pulsing)
   markers?: Point[];
   // a marker tapped: its index, null to close
@@ -481,6 +485,8 @@ function MapView({
   orderLabels,
   bodyOverride,
   allLayers,
+  sample,
+  mapStyle,
 }: MapViewProps) {
   useLang();
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -727,7 +733,7 @@ function MapView({
   // the garden style: each mowing area's lawn in stripes along its mowing direction, ways and obstacles as their
   // pictures, a thing (tree, pond ...) placed inside the area's real edge (with the mower's sizes known, else inside
   // its outline) and cut to it should it still stick out
-  const garden = settings.mapStyle === 'garden';
+  const garden = mapStyle ? mapStyle === 'garden' : settings.mapStyle === 'garden';
   const uid = 'g' + useId().replace(/[^a-zA-Z0-9]/g, '');
   const gardenLook = useMemo(() => {
     if (!garden) return null;
@@ -736,7 +742,7 @@ function MapView({
   }, [garden, map, settings.looks, uid, scale, minX, minY, padX, padY, body]);
   // the garden's life (gardenLife): light after the sun, the season and the weather on the lawn, a mowing edge and
   // the lawn growing back since it was last cut. the time moves on every five minutes, the layers are worked out below
-  const life = garden ? lifeOf(settings.garden) : null;
+  const life = garden && !sample ? lifeOf(settings.garden) : null;
   const [lifeNow, setLifeNow] = useState(() => Date.now());
   useEffect(() => {
     if (!garden) return;
@@ -903,7 +909,7 @@ function MapView({
   // the garden's life in its layers (gardenLife), the stones along the real edges when they're shown, else the outlines
   const scene = useMemo(
     () =>
-      garden
+      garden && !sample
         ? lifeScene({
             areas: map.areas,
             garden: settings.garden,
@@ -922,7 +928,7 @@ function MapView({
             hidden,
           })
         : null,
-    [garden, map, settings.garden, settings.looks, body, minX, minY, scale, padX, padY, uid, lifeNow, datum, weather, rainSensor, mower, history, track, edges, hidden],
+    [garden, sample, map, settings.garden, settings.looks, body, minX, minY, scale, padX, padY, uid, lifeNow, datum, weather, rainSensor, mower, history, track, edges, hidden],
   );
   const gardenFill = (a: MapArea): React.CSSProperties | undefined => {
     if (!gardenLook) return undefined;
