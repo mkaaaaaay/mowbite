@@ -379,6 +379,11 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
   let recorded = 0;
 
   const dock = () => dockOf(map);
+  // on the station's contacts: parked there, or recording before it has driven off
+  const onContacts = () => {
+    const d = dock();
+    return parked || (!!rec && !!d && Math.hypot(pose.x - d.at.x, pose.y - d.at.y) < 0.05);
+  };
   const mowAreas = () => map.areas.filter((a) => a.properties.type === 'mow');
   const pathsOf = (area: MapArea) => {
     let p = plans.get(area.id);
@@ -560,7 +565,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
       current_path: onPath ? l.path : -1,
       current_path_index: onPath ? (l.approach ? 0 : Math.round(run!.d * 100)) : -1,
       emergency: 0,
-      is_charging: parked && battery < 0.999 ? 1 : 0,
+      is_charging: onContacts() && battery < 0.999 ? 1 : 0,
       rain_detected: 0,
       pose: {...pose, pos_accuracy: accuracy(), heading_accuracy: 0.01, heading_valid: 1},
     };
@@ -573,8 +578,8 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     const on = blades();
     const n = (v: number) => v.toFixed(6);
     return {
-      om_charge_current: n(parked && battery < 0.999 ? 1.25 + 0.03 * wobble(2) : 0),
-      om_charge_state: parked ? (battery < 0.9 ? 'CC' : battery < 0.999 ? 'CV' : 'Done') : 'Not Charging',
+      om_charge_current: n(onContacts() && battery < 0.999 ? 1.25 + 0.03 * wobble(2) : 0),
+      om_charge_state: onContacts() ? (battery < 0.9 ? 'CC' : battery < 0.999 ? 'CV' : 'Done') : 'Not Charging',
       om_gps_accuracy: n(accuracy()),
       om_left_esc_temp: n(temps.esc + 0.4 * wobble(3)),
       om_mow_esc_temp: n(temps.esc + 2 + 0.4 * wobble(4)),
@@ -582,8 +587,8 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
       om_mow_motor_rpm: n(on ? 3050 + 45 * wobble(6) : 0),
       om_mow_motor_temp: n(temps.motor + 0.3 * wobble(7)),
       om_right_esc_temp: n(temps.esc + 0.8 + 0.4 * wobble(8)),
-      om_v_battery: n(24.7 + 3.5 * battery + (parked && battery < 0.999 ? 0.5 : 0)),
-      om_v_charge: n(parked ? 32.1 + 0.02 * wobble(9) : 0),
+      om_v_battery: n(24.7 + 3.5 * battery + (onContacts() && battery < 0.999 ? 0.5 : 0)),
+      om_v_charge: n(onContacts() ? 32.1 + 0.02 * wobble(9) : 0),
     };
   };
 
@@ -855,7 +860,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     drive(last, now);
     last = now;
     const s = state();
-    battery = Math.min(1, Math.max(0.05, battery + (parked ? CHARGE : -DRAIN) * dt));
+    battery = Math.min(1, Math.max(0.05, battery + (onContacts() ? CHARGE : -DRAIN) * dt));
     const k = Math.min(1, dt / 240);
     temps.esc += ((s === 'IDLE' || s === 'PAUSED' ? 31 : 42) - temps.esc) * k;
     temps.motor += ((blades() ? 47 : 24) - temps.motor) * k;

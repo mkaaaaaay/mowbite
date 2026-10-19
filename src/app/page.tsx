@@ -28,7 +28,7 @@ import {emergencyText, OUTCOMES, type MowerEvent, type Run} from '@/lib/events';
 import {settingsStore} from '@/lib/settings';
 import {PARTS, useDueParts} from '@/lib/stats';
 import {containerHas, useUpdates} from '@/lib/updates';
-import {batteryColor, GPS_QUALITY_LABEL, gpsQuality, isDocked, WIFI_LEVEL_LABEL} from '@/lib/status';
+import {batteryColor, GPS_QUALITY_LABEL, gpsQuality, isDocked, onCharger, WIFI_LEVEL_LABEL} from '@/lib/status';
 import Link from 'next/link';
 import {memo, useEffect, useMemo, useState, useSyncExternalStore} from 'react';
 import styles from './page.module.css';
@@ -116,10 +116,10 @@ function FactValue({value}: {value: string}) {
   );
 }
 
-function headline(state: MowerState, docked: boolean, chargeState: string | undefined, area: string | undefined) {
+function headline(state: MowerState, docked: boolean, charger: boolean, chargeState: string | undefined, area: string | undefined) {
   if (state.emergency) return {title: tr('Emergency stop'), tone: 'error'};
-  // left on in the dock it says so, it's why the map shows
-  if (state.current_state === 'AREA_RECORDING') return {title: docked ? tr('Recording mode, in the dock') : tr('Recording an area'), tone: 'live'};
+  // left on in the dock it says so, it's why the map shows. docked is idle only, so it's the station's contacts here
+  if (state.current_state === 'AREA_RECORDING') return {title: charger ? tr('Recording mode, in the dock') : tr('Recording an area'), tone: 'live'};
   if (docked) return chargeState === 'Done' ? {title: tr('Charged, in the dock'), tone: 'good'} : {title: tr('Charging in the dock'), tone: 'good'};
   switch (state.current_state) {
     case 'MOWING':
@@ -257,7 +257,7 @@ export default function Home() {
   const lastState = lastOf((e) => e.type === 'STATE');
   const since = lastState?.state === current ? lastState.t : undefined;
   const area = current === 'MOWING' ? lastOf((e) => e.type === 'AREA')?.area_name : undefined;
-  const head = state ? headline(state, docked, chargeState, area) : null;
+  const head = state ? headline(state, docked, onCharger(state, values['om_v_charge']), chargeState, area) : null;
 
   // dressed up: a towel at 42 %, an umbrella while it sits out the rain, a witch's hat on halloween
   const halloween = useHalloween();

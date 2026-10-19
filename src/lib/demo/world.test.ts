@@ -263,6 +263,15 @@ describe('the demo mower recording', () => {
     return {...d, drive, overlay: () => JSON.parse(d.w.retained(TOPIC.mapOverlay)[0][1]).polygons};
   };
 
+  it("is on the station's contacts until it drives off", () => {
+    const d = recording();
+    const charge = () => Number(Object.fromEntries(d.w.retained(TOPIC.sensorData))['sensors/om_v_charge/data']);
+    expect(charge()).toBeGreaterThan(20);
+    d.drive(-0.4, 0, 2);
+    expect(charge()).toBe(0);
+    expect(d.state().is_charging).toBe(0);
+  });
+
   it('reads the stick the way the app sends it', () => {
     expect(twistOf(twist(0.25, -0.5))).toEqual({vx: 0.25, vz: -0.5});
   });

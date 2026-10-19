@@ -24,9 +24,14 @@ export function batteryColor(percent: number): 'success' | 'warning' | 'error' {
   return 'error';
 }
 
-// idle in the station. is_charging drops when the battery is full, so the charge voltage counts too
+// on the station's contacts, whatever it's doing. is_charging drops when the battery is full, so the charge voltage counts too
+export function onCharger(state: {is_charging: number} | null | undefined, vCharge?: string) {
+  return !!state?.is_charging || Number(vCharge) > 20;
+}
+
+// idle in the station
 export function isDocked(state: {current_state: string; is_charging: number} | null | undefined, vCharge?: string) {
-  return state?.current_state === 'IDLE' && (!!state.is_charging || Number(vCharge) > 20);
+  return state?.current_state === 'IDLE' && onCharger(state, vCharge);
 }
 
 export function statusText(
