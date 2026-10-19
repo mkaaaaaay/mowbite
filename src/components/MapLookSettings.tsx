@@ -4,12 +4,21 @@ import {DOCK_ICONS, dockIcon, drawDock, drawMower, MOWER_ICONS, mowerIcon} from 
 import {tr} from '@/lib/i18n';
 import {isTileUrl} from '@/lib/imagery';
 import {COLORS, saveSettings, settingsStore, type ColorKey, type Settings} from '@/lib/settings';
+import {lifeOf, type GardenLife} from './gardenLife';
 import {useEffect, useSyncExternalStore} from 'react';
 import {createPortal} from 'react-dom';
 import styles from './MapLookSettings.module.css';
 
 // How the maps look, opened with the gear on the map: the mower's and the docking station's icon, the colors and an
 // aerial imagery source of your own. Saved like the other settings (on the mower when it keeps them, else here).
+
+// what can come alive in the garden style, each off unless switched on
+const LIFE: [keyof GardenLife, string][] = [
+  ['sun', 'Light and shadows after the sun'],
+  ['season', 'Season and weather on the lawn'],
+  ['growth', 'Lawn growing back, cut where the mower goes'],
+  ['edge', 'A mowing edge of stones'],
+];
 
 function IconChoice({
   icons,
@@ -98,6 +107,11 @@ export function MapLookSettings() {
     saveSettings({...cur, imagery: {...cur.imagery, [field]: value.trim() || undefined}});
   };
   const setStyle = (mapStyle: Settings['mapStyle']) => saveSettings({...settingsStore.snapshot(), mapStyle});
+  const life = lifeOf(settings.garden);
+  const setLife = (part: keyof GardenLife, on: boolean) => {
+    const cur = settingsStore.snapshot();
+    saveSettings({...cur, garden: {...cur.garden, [part]: on}});
+  };
   const setIcon = (field: 'mower' | 'dock' | 'mowerSize' | 'dockSize' | 'mowerRealSize', value: string | number | boolean) => {
     const cur = settingsStore.snapshot();
     saveSettings({...cur, icons: {...cur.icons, [field]: value}});
@@ -120,6 +134,16 @@ export function MapLookSettings() {
             "Garden draws the map from above like the guides: the lawn in stripes along each area's mowing direction, ways as gravel, obstacles as a picture. With an area picked, its picture can be changed under the map, without one it follows the name (pond, tree, pool, house ...).",
           )}
         </p>
+        {settings.mapStyle === 'garden' && (
+          <div className={styles.lifeChecks}>
+            {LIFE.map(([part, label]) => (
+              <label key={part}>
+                <input type="checkbox" checked={life[part]} onChange={(e) => setLife(part, e.target.checked)} />
+                {tr(label)}
+              </label>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className={styles.section}>

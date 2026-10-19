@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {seasonOf, sunTimes} from './sun';
+import {seasonOf, sunPosition, sunTimes} from './sun';
 
 process.env.TZ = 'Europe/Berlin';
 
@@ -45,5 +45,32 @@ describe('seasonOf', () => {
   it('the north without a position', () => {
     expect(seasonOf(undefined, new Date(2026, 10, 30))).toBe('autumn');
     expect(seasonOf(undefined, new Date(2026, 11, 1))).toBe('winter');
+  });
+});
+
+describe('sunPosition', () => {
+  it('has the sun high in the south at noon in summer', () => {
+    // Berlin, midsummer, an hour after the sun's noon there (about 11:07 UTC)
+    const p = sunPosition(52.52, 13.4, new Date(Date.UTC(2026, 5, 21, 12, 7)));
+    expect(p.elevation).toBeGreaterThan(55);
+    expect(p.elevation).toBeLessThan(62);
+    expect(p.azimuth).toBeGreaterThan(190);
+    expect(p.azimuth).toBeLessThan(225);
+  });
+
+  it('rises in the east and sets in the west', () => {
+    // Hanover in October: morning south-east and low, evening south-west and low
+    const morning = sunPosition(52.37, 9.73, new Date(Date.UTC(2026, 9, 19, 7, 0)));
+    const evening = sunPosition(52.37, 9.73, new Date(Date.UTC(2026, 9, 19, 15, 0)));
+    expect(morning.azimuth).toBeGreaterThan(110);
+    expect(morning.azimuth).toBeLessThan(140);
+    expect(evening.azimuth).toBeGreaterThan(215);
+    expect(evening.azimuth).toBeLessThan(245);
+    expect(morning.elevation).toBeLessThan(15);
+    expect(evening.elevation).toBeLessThan(20);
+  });
+
+  it('is below the horizon at midnight', () => {
+    expect(sunPosition(52.37, 9.73, new Date(Date.UTC(2026, 9, 19, 23, 0))).elevation).toBeLessThan(-20);
   });
 });

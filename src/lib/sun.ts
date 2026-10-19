@@ -63,3 +63,42 @@ export function seasonOf(lat?: number, date = new Date()): Season {
   const m = (date.getMonth() + (lat !== undefined && lat < 0 ? 6 : 0)) % 12;
   return m < 2 || m === 11 ? 'winter' : m < 5 ? 'spring' : m < 8 ? 'summer' : 'autumn';
 }
+
+// where the sun is right now, NOAA's formulas again: azimuth in degrees from north going east, elevation in degrees
+// above the horizon (below it negative). For the shadows and the light of the garden map
+export function sunPosition(lat: number, lon: number, date = new Date()): {azimuth: number; elevation: number} {
+  const julianDay = date.getTime() / 86400000 + 2440587.5;
+  const t = (julianDay - 2451545) / 36525;
+  const meanLon = (280.46646 + t * (36000.76983 + t * 0.0003032)) % 360;
+  const meanAnom = 357.52911 + t * (35999.05029 - 0.0001537 * t);
+  const ecc = 0.016708634 - t * (0.000042037 + 0.0000001267 * t);
+  const center =
+    Math.sin(rad(meanAnom)) * (1.914602 - t * (0.004817 + 0.000014 * t)) +
+    Math.sin(rad(2 * meanAnom)) * (0.019993 - 0.000101 * t) +
+    Math.sin(rad(3 * meanAnom)) * 0.000289;
+  const omega = 125.04 - 1934.136 * t;
+  const apparentLon = meanLon + center - 0.00569 - 0.00478 * Math.sin(rad(omega));
+  const obliquity = 23 + (26 + (21.448 - t * (46.815 + t * (0.00059 - t * 0.001813))) / 60) / 60;
+  const obliqCorr = obliquity + 0.00256 * Math.cos(rad(omega));
+  const declination = Math.asin(Math.sin(rad(obliqCorr)) * Math.sin(rad(apparentLon)));
+  const y = Math.tan(rad(obliqCorr / 2)) ** 2;
+  const eqTime =
+    4 *
+    deg(
+      y * Math.sin(2 * rad(meanLon)) -
+        2 * ecc * Math.sin(rad(meanAnom)) +
+        4 * ecc * y * Math.sin(rad(meanAnom)) * Math.cos(2 * rad(meanLon)) -
+        0.5 * y * y * Math.sin(4 * rad(meanLon)) -
+        1.25 * ecc * ecc * Math.sin(2 * rad(meanAnom)),
+    );
+  const minutes = date.getUTCHours() * 60 + date.getUTCMinutes() + date.getUTCSeconds() / 60;
+  const solarTime = (((minutes + eqTime + 4 * lon) % 1440) + 1440) % 1440;
+  const hourAngle = rad(solarTime / 4 - 180);
+  const cosZenith = Math.sin(rad(lat)) * Math.sin(declination) + Math.cos(rad(lat)) * Math.cos(declination) * Math.cos(hourAngle);
+  const zenith = Math.acos(Math.max(-1, Math.min(1, cosZenith)));
+  // from north going east: 0 north, 90 east, 180 south
+  const azimuth = deg(
+    Math.atan2(Math.sin(hourAngle), Math.cos(hourAngle) * Math.sin(rad(lat)) - Math.tan(declination) * Math.cos(rad(lat))),
+  );
+  return {azimuth: (azimuth + 180 + 360) % 360, elevation: 90 - deg(zenith)};
+}

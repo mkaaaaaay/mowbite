@@ -77,6 +77,45 @@
   fill-opacity: 1;
 }
 
+/* the garden's life (gardenLife): what lies on the lawn and the light over it take no taps, the areas under them do */
+.gardenLife,
+.gardenLight,
+.stones {
+  pointer-events: none;
+}
+
+/* the lawn cut along the mower's way, as wide as its blade: lighter going along the stripes, darker coming back */
+.svg .cuts path,
+.svg .stones path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: none;
+}
+
+.cutThere {
+  stroke: #5aa046;
+}
+
+.cutBack {
+  stroke: #4a8a3b;
+}
+
+/* the mowing edge: stones a quarter meter long with narrow joints, a lighter top on a darker bed */
+.svg .stones path {
+  stroke: #8b8478;
+  stroke-linecap: butt;
+}
+
+.svg .stones .stoneTop {
+  stroke: #d3ccbc;
+}
+
+/* the shadows after the sun cost a lot while the map moves, they come back when it stops */
+:root[data-map-moving] .gardenShadow {
+  filter: none;
+}
+
 /* drivable but not mowed: its own color, the edge stays solid */
 .skipMowing {
   fill: var(--c-unmowed);

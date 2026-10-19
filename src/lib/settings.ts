@@ -2,6 +2,7 @@
 // (docker/settings.cgi), otherwise per device. localStorage is also the cache so they're there
 // before the request comes back.
 
+import type {GardenLife} from '@/components/gardenLife';
 import {mergeChanges} from './mergeChanges';
 import {apiBase, isDemo, mowerFetch} from './mowers';
 import {isApp} from './native';
@@ -57,6 +58,8 @@ export interface Settings {
   mapStyle?: 'garden';
   // the garden style's picture of a way or an obstacle by area id, picked under the map (else from its name)
   looks?: Record<string, string>;
+  // what makes the garden style come alive (components/gardenLife), each off unless switched on
+  garden?: Partial<GardenLife>;
   // the mower's sizes in meters for its outline and the strip its blade cuts on the map (lib/mowerBody)
   // outline: the body's real contour from above, [ahead, left] in meters around the same point, the rectangle without it
   mower?: {width?: number; front?: number; rear?: number; blade?: number; bladeAhead?: number; bladeOffset?: number; outline?: [number, number][]};
