@@ -156,7 +156,8 @@ try {
     art.drawSprinkle({x: 10, y: 10, turn: 30, color: '#c8642a'}, 20, 'autumn'),
     ...lifeScenes(art, square),
   ];
-  const wrong = drawn.findIndex((svg) => typeof svg !== 'string' || !svg.startsWith('<') || /<script|<foreignObject|\son[a-z]+=|NaN|\[object/i.test(svg));
+  // an empty class is a css module's name that didn't come through
+  const wrong = drawn.findIndex((svg) => typeof svg !== 'string' || !svg.startsWith('<') || /<script|<foreignObject|\son[a-z]+=|NaN|\[object|class=""/i.test(svg));
   if (wrong >= 0) throw new Error(`picture ${wrong} came out wrong: ${String(drawn[wrong]).slice(0, 200)}`);
   art.placeThing('table', square);
   art.realEdges([{id: 'a', properties: {type: 'mow'}, outline: square}], art.sizesBody({width: 0.4, front: 0.4, rear: 0.15}));
