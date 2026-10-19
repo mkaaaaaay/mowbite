@@ -851,9 +851,9 @@ function punisherNx60(id: string, emergency: boolean) {
 
 // an Airseekers Tron, traced from a photo from straight above: a light spine from the camera at the front to the handle at
 // the back with the stop button and the keys on it, a dark lattice frame on both sides, the bar in front, small wheels on
-// arms at the front corners and big ones at the back. as long from the bar to the handle (72 cm) and as wide over the
-// rear wheels (47 cm) as its owner measured it
-const TRON_FIT = 47 / 72;
+// arms at the front corners and big ones at the back. 71.8 cm long from the bar to the handle and 47 cm wide over the
+// rear wheels as in its data sheet, its owner measured the same
+const TRON_FIT = 470 / 718;
 const TRON = {
   // the dark frame: round the camera at the front, past the joints of the front wheels to the lattice on each side,
   // beside the rear wheels and round the handle at the back
@@ -916,8 +916,8 @@ const TRON = {
       ],
       [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
     ),
-  // the big rear wheels, 33.5 cm apart inside and 47 cm outside
-  rearTire: 'M-0.71,-1 L-0.295,-1 Q-0.225,-1 -0.225,-0.9 L-0.225,-0.813 Q-0.225,-0.713 -0.295,-0.713 L-0.71,-0.713 Q-0.785,-0.713 -0.785,-0.813 L-0.785,-0.9 Q-0.785,-1 -0.71,-1Z',
+  // the big rear wheels, 22.5 cm across, 33.5 cm apart inside and 47 cm outside
+  rearTire: 'M-0.745,-1 L-0.265,-1 Q-0.192,-1 -0.192,-0.9 L-0.192,-0.813 Q-0.192,-0.713 -0.265,-0.713 L-0.745,-0.713 Q-0.818,-0.713 -0.818,-0.813 L-0.818,-0.9 Q-0.818,-1 -0.745,-1Z',
   // the opening in the handle, from the spine's end to the handle's bar
   opening: both([[-0.75, 0], [-0.75, -0.39], [-0.82, -0.398], [-0.855, -0.363], [-0.893, -0.3], [-0.916, -0.18], [-0.92, 0]], [1]),
   // the front wheels: omni wheels leaning outwards, from above three ribbed rollers end to end round the rim, one across at
@@ -978,7 +978,7 @@ function airseekersTron(id: string, emergency: boolean) {
       {SIDES.map((s) => (
         <g key={s} transform={`scale(1 ${s})`}>
           <path d={TRON.rearTire} fill="#1c1c1c" stroke="#9aa0a6" strokeWidth={0.75} strokeOpacity={0.45} />
-          {lugs(-0.765, -0.245, -0.985, -0.728, 9)}
+          {lugs(-0.8, -0.21, -0.985, -0.728, 10)}
           {/* the wheel's disc behind its rollers, the axle stubs between them */}
           <ellipse cx={0.7} cy={-0.66} rx={0.13} ry={0.14} fill="#191a1b" />
           <path d={TRON.rollers} fill="#232323" stroke="#9aa0a6" strokeWidth={0.75} strokeOpacity={0.45} />
