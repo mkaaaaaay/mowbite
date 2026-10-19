@@ -658,8 +658,8 @@ function MapView({
   // following with the geometry fitted to the map: the map is drawn once for twice the window around an anchor and
   // only slid along under its frame every frame (a css transform, the phone's gpu moves it without drawing anything
   // again). Drawn again with a new anchor once the mower got too far from it. Each new viewBox drew the whole map again
-  // and stuttered on phones
-  const glides = zoomable && following && !!followed && !!fit;
+  // and stuttered on phones. also without zoom, the record page's remote follows the mower like that
+  const glides = following && !!followed && !!fit;
   const glideSize = followSpanMeters * followZoom * scale;
   const [anchor, setAnchor] = useState<{x: number; y: number; size: number} | null>(null);
   const [gx, gy] =
@@ -2015,7 +2015,7 @@ function MapView({
     </svg>
   );
 
-  if (!zoomable) return svg;
+  if (!zoomable && !glides) return svg;
 
   // magnified copy of the map above the finger, the finger hides the point otherwise
   let loupe = null;
@@ -2061,7 +2061,7 @@ function MapView({
           onClose={() => setCoverCell(null)}
         />
       )}
-      {!bare && (
+      {zoomable && !bare && (
         <MapControls
           onZoom={zoomCenter}
           showGrid={showGrid}
