@@ -145,3 +145,85 @@ export function TrashIcon({size = 20}: IconProps) {
     </svg>
   );
 }
+
+// recording: a pin where a point goes
+export function PinIcon({size = 20}: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...line}>
+      <path d="M12 21s-6.5-5.6-6.5-10.5a6.5 6.5 0 1 1 13 0C18.5 15.4 12 21 12 21Z" />
+      <circle cx="12" cy="10.5" r="2.2" />
+    </svg>
+  );
+}
+
+// points set along the way by themselves
+export function AutoPointsIcon({size = 20}: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...line}>
+      <path d="M3 18c4-1 5-8 9-8s5 6 9 4" strokeDasharray="0.1 4.2" />
+      <circle cx="3" cy="18" r="1.4" fill="currentColor" />
+      <circle cx="21" cy="14" r="1.4" fill="currentColor" />
+      <path d="M15 4l1 2 2 1-2 1-1 2-1-2-2-1 2-1z" strokeWidth={1.6} />
+    </svg>
+  );
+}
+
+// an outline closed and done
+export function OutlineDoneIcon({size = 20}: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...line}>
+      <path d="M4 17V7l7-3 9 4-2 11-9 1z" strokeDasharray="3 2.4" />
+      <path d="m8.5 12.5 2.5 2.5 5-5.5" />
+    </svg>
+  );
+}
+
+// recording a new line: a dot in a ring
+export function RecordIcon({size = 20}: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...line}>
+      <circle cx="12" cy="12" r="8" />
+      <circle cx="12" cy="12" r="3.5" fill="currentColor" />
+    </svg>
+  );
+}
+
+// the blade from above
+export function BladeIcon({size = 20}: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...line}>
+      <circle cx="12" cy="12" r="2" />
+      <path d="M12 10c0-4 1.5-6 4-7-1 3-1 5-3 7M14 12c4 0 6 1.5 7 4-3-1-5-1-7-3M12 14c0 4-1.5 6-4 7 1-3 1-5 3-7M10 12c-4 0-6-1.5-7-4 3 1 5 1 7 3" />
+    </svg>
+  );
+}
+
+export function CloseIcon({size = 20}: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...line}>
+      <path d="M6 6l12 12M18 6 6 18" />
+    </svg>
+  );
+}
+
+// how fast: a gauge
+export function SpeedIcon({size = 20}: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...line}>
+      <path d="M6.3 18.7a8 8 0 1 1 11.4 0" />
+      <path d="m12 13 3.5-3.5" />
+      <circle cx="12" cy="13" r="1.2" />
+    </svg>
+  );
+}
+
+// the phone turned on its side
+export function RotateIcon({size = 20}: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...line}>
+      <rect x="3" y="9" width="14" height="9" rx="2" />
+      <path d="M8 4h5a5 5 0 0 1 5 5v1" />
+      <path d="m16 8 2 2 2-2" />
+    </svg>
+  );
+}

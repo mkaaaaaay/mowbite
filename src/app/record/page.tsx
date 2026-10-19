@@ -1,9 +1,25 @@
 'use client';
 
+import DrivePad from '@/components/DrivePad';
+import {
+  AutoPointsIcon,
+  BladeIcon,
+  CheckIcon,
+  CloseIcon,
+  HomeIcon,
+  OutlineDoneIcon,
+  PinIcon,
+  RecordIcon,
+  RotateIcon,
+  RouteIcon,
+  SpeedIcon,
+  TrashIcon,
+} from '@/components/icons';
 import Joystick from '@/components/Joystick';
 import {TitleMark} from '@/components/Logo';
 import MapView from '@/components/MapView';
 import {useMapOverlay} from '@/hooks/useMapOverlay';
+import {useMedia} from '@/hooks/useMedia';
 import {useMowerActions} from '@/hooks/useMowerActions';
 import {useMowerMap} from '@/hooks/useMowerMap';
 import {datumFromParams, useMowerParams} from '@/hooks/useMowerParams';
@@ -35,6 +51,26 @@ type Phase = 'off' | 'empty' | 'recording' | 'outlined' | 'dock';
 // back at the start of the line: closed after this many seconds unless the user goes on. on unless switched off
 const CLOSE_SECONDS = 3;
 const AUTO_CLOSE_KEY = 'recordAutoClose';
+// the sideways layout drawn turned, for a phone that doesn't turn the page itself
+const TURNED_KEY = 'recordTurned';
+// how many meters the map shows across around the mower in the sideways layout, the buttons step through them
+const SPANS = [8, 12, 16, 24, 32, 48];
+
+// next to the text on the buttons, to tell them apart at a glance
+const ICONS: Record<string, React.ReactNode> = {
+  start_recording: <RecordIcon size={18} />,
+  record_dock: <HomeIcon size={18} />,
+  exit_recording_mode: <CloseIcon size={18} />,
+  stop_recording: <OutlineDoneIcon size={18} />,
+  collect_point: <PinIcon size={18} />,
+  auto_point_collecting_enable: <AutoPointsIcon size={18} />,
+  auto_point_collecting_disable: <AutoPointsIcon size={18} />,
+  finish_discard: <TrashIcon size={18} />,
+  finish_mowing_area: <CheckIcon size={18} />,
+  finish_navigation_area: <RouteIcon size={18} />,
+  start_manual_mowing: <BladeIcon size={18} />,
+  stop_manual_mowing: <BladeIcon size={18} />,
+};
 
 export default function RecordPage() {
   useLang();
@@ -84,6 +120,27 @@ export default function RecordPage() {
   const hasOutline = overlay.some((l) => l.closed && l.color === 'green');
   // no fresh state also stops it: the wifi can be gone a while before the connection counts as lost
   const canDrive = recordingMode && live && !state?.emergency;
+
+  // held sideways on a phone: a remote control over the whole screen, a pad for forward and back on the left and one
+  // for steering on the right. turned: the same drawn a quarter turn for a phone whose page doesn't turn
+  const sideways = useMedia('(orientation: landscape) and (max-height: 500px)');
+  const [turnedOn, setTurnedOn] = useState(() => {
+    try {
+      return localStorage.getItem(TURNED_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
+  const turnSideways = (on: boolean) => {
+    setTurnedOn(on);
+    try {
+      localStorage.setItem(TURNED_KEY, on ? '1' : '0');
+    } catch {}
+  };
+  const turned = turnedOn && !sideways;
+  const remote = recordingMode && (sideways || turned);
+  const [span, setSpan] = useState(2);
+  const remoteRef = useRef<HTMLDivElement>(null);
   // mowing by hand: in recording mode OpenMower runs the blade until it's switched off or the mode ends, also while the
   // mower stands still
   const bladeOn = recordingMode && hasAction(A('stop_manual_mowing'));
@@ -159,6 +216,9 @@ export default function RecordPage() {
   const away = useRef({recordingMode, phase, canExit, ended: false});
   away.current = {...away.current, recordingMode, phase, canExit};
   useEffect(() => {
+    if (recordingMode) away.current.ended = false;
+  }, [recordingMode]);
+  useEffect(() => {
     if (!recordingMode) return;
     const onClick = (e: MouseEvent) => {
       const a = e.target instanceof Element ? e.target.closest('a[href]') : null;
@@ -198,6 +258,12 @@ export default function RecordPage() {
     }
     if (to) router.push(to);
   };
+  // the cross of the sideways layout ends recording mode, it asks first when something isn't saved yet
+  const endRecording = () => {
+    if (phase !== 'empty' || !canExit) return setLeaving('');
+    stop();
+    act('exit_recording_mode');
+  };
 
   // round once and back where the line started: it closes by itself after a few seconds, like stop does
   const [autoClose, setAutoClose] = useState(() => {
@@ -231,13 +297,14 @@ export default function RecordPage() {
     hasAction(A(id)) && (
       <button
         key={id}
-        className={kind ? styles[kind] : undefined}
+        className={kind === 'main' ? styles.primary : kind ? styles[kind] : undefined}
         disabled={!live}
         onClick={() => {
           act(id);
           after?.();
         }}
       >
+        {ICONS[id]}
         {tr(label)}
       </button>
     );
@@ -251,7 +318,7 @@ export default function RecordPage() {
     buttons = [
       button('start_recording', 'Record outline', 'main', () => setSaved(null)),
       button('record_dock', 'Record docking station'),
-      button('exit_recording_mode', 'Leave recording mode', undefined, stop),
+      !remote && button('exit_recording_mode', 'Leave recording mode', undefined, stop),
     ];
   } else if (phase === 'recording') {
     text = autoClose
@@ -280,6 +347,17 @@ export default function RecordPage() {
     text = tr('Now drive straight into the docking station until it sits on the contacts, then save. The way from the first point to here becomes the docking direction.');
     buttons = [button('record_dock', 'Save docking position', 'main', () => setSaved('Docking station'))];
   }
+
+  // the green pill of the sideways layout: the step, while recording with the length of the line so far
+  const lineLength = line.reduce((sum, p, i) => (i ? sum + Math.hypot(p.x - line[i - 1].x, p.y - line[i - 1].y) : 0), 0);
+  const status =
+    phase === 'recording'
+      ? tr('Recording · {m} m', {m: fmt(lineLength, 1)})
+      : phase === 'outlined'
+        ? tr('Outline done')
+        : phase === 'dock'
+          ? tr('Docking station')
+          : tr('Recording mode');
 
   return (
     <div className={styles.page}>
@@ -311,7 +389,7 @@ export default function RecordPage() {
               </p>
             )}
             <button
-              className={styles.main}
+              className={styles.primary}
               disabled={!live || !hasAction(START)}
               onClick={() => {
                 startedAt.current = Date.now();
@@ -321,6 +399,7 @@ export default function RecordPage() {
                 setTimeout(() => void checkBounce().catch(() => {}), 4000);
               }}
             >
+              <RecordIcon size={18} />
               {tr('Start recording mode')}
             </button>
             {!hasAction(START) && <p className={styles.dim}>{tr('Only possible while the mower is idle.')}</p>}
@@ -334,7 +413,7 @@ export default function RecordPage() {
           </section>
         )}
 
-        {recordingMode && (
+        {recordingMode && !remote && (
           <div className={styles.layout}>
             <section className={styles.map}>
               {map && (
@@ -409,10 +488,120 @@ export default function RecordPage() {
                   </button>
                 ))}
               </div>
+              <div className={styles.phoneOnly}>
+                <button onClick={() => turnSideways(true)}>
+                  <RotateIcon size={18} />
+                  {tr('Sideways')}
+                </button>
+                <p className={styles.dim}>{tr('Two pads like a remote control car. Turning the phone switches by itself.')}</p>
+              </div>
             </section>
           </div>
         )}
       </main>
+
+      {remote && (
+        <div ref={remoteRef} className={[styles.remote, turned ? styles.turned : ''].join(' ')}>
+          <div className={styles.remoteMap}>
+            {map && (
+              <MapView
+                map={map}
+                mower={position}
+                emergency={!!state?.emergency}
+                follow
+                followSpanMeters={SPANS[span]}
+                overlay={overlay}
+                datum={datumFromParams(params)}
+                bare
+              />
+            )}
+          </div>
+
+          <div className={styles.topBar}>
+            <span className={[styles.status, phase === 'recording' ? styles.live : ''].join(' ')}>
+              <i />
+              {status}
+            </span>
+            <span className={styles.grow} />
+            <div className={styles.chips}>
+              <button aria-label={tr('Zoom out')} disabled={span === SPANS.length - 1} onClick={() => setSpan(span + 1)}>
+                −
+              </button>
+              <button aria-label={tr('Zoom in')} disabled={span === 0} onClick={() => setSpan(span - 1)}>
+                +
+              </button>
+            </div>
+            <div className={styles.chips} title={tr('Speed m/s')}>
+              <SpeedIcon size={16} />
+              {SPEEDS.map((v, i) => (
+                <button
+                  key={v}
+                  className={i === speed ? styles.on : undefined}
+                  onClick={() => {
+                    setSpeed(i);
+                    speedRef.current = v;
+                  }}
+                >
+                  {fmt(v, 2)}
+                </button>
+              ))}
+            </div>
+            {turned && (
+              <button className={styles.square} aria-label={tr('Upright')} title={tr('Upright')} onClick={() => turnSideways(false)}>
+                <RotateIcon size={20} />
+              </button>
+            )}
+            <button className={styles.square} aria-label={tr('End recording mode')} title={tr('End recording mode')} onClick={endRecording}>
+              <CloseIcon size={20} />
+            </button>
+          </div>
+
+          {closing !== null ? (
+            <div className={styles.remoteNote}>
+              <span>{tr('Back at the start, closing it in {n} s.', {n: closing})}</span>
+              <button
+                onClick={() => {
+                  setClosing(null);
+                  setHeld(true);
+                }}
+              >
+                {tr('Keep recording')}
+              </button>
+            </div>
+          ) : (
+            text && <p className={styles.remoteNote}>{text}</p>
+          )}
+          {(state?.emergency || !live) && (
+            <p className={styles.remoteWarn}>
+              {state?.emergency
+                ? tr('Emergency stop is active, reset it on the dashboard before driving.')
+                : tr('No connection to the mower, it stops by itself. Driving works again once the connection is back.')}
+            </p>
+          )}
+
+          <div className={[styles.pad, styles.padLeft].join(' ')}>
+            <DrivePad axis="y" turned={turned} disabled={!canDrive} onMove={(v) => canDrive && onStick(stick.current.x, v)} />
+          </div>
+          <div className={[styles.pad, styles.padRight].join(' ')}>
+            <DrivePad axis="x" turned={turned} disabled={!canDrive} onMove={(v) => canDrive && onStick(v, stick.current.y)} />
+          </div>
+
+          <div className={styles.bottomBar}>
+            {bladeOn && (
+              <p className={styles.remoteBlade}>
+                {tr(
+                  'The blade is turning, also while the mower stands still. It goes off when you switch it off, leave this page or the app. If the connection drops, it keeps turning: then press the stop button on the mower.',
+                )}
+              </p>
+            )}
+            <div className={styles.remoteButtons}>
+              {buttons}
+              {button('start_manual_mowing', 'Blade on')}
+              {button('stop_manual_mowing', 'Blade off', 'danger')}
+            </div>
+          </div>
+        </div>
+      )}
 
       {leaving !== null &&
         createPortal(
@@ -434,7 +623,7 @@ export default function RecordPage() {
               </p>
               <div className={styles.buttons}>
                 {canExit ? (
-                  <button className={phase === 'empty' ? styles.main : styles.danger} onClick={() => leave(true)}>
+                  <button className={phase === 'empty' ? styles.primary : styles.danger} onClick={() => leave(true)}>
                     {tr(phase === 'empty' ? 'End recording mode' : 'Discard and end')}
                   </button>
                 ) : (
@@ -444,7 +633,8 @@ export default function RecordPage() {
               </div>
             </section>
           </div>,
-        document.body,
+        // over the sideways layout, turned with it
+        remoteRef.current ?? document.body,
       )}
     </div>
   );

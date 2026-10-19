@@ -1466,6 +1466,13 @@ const de: Record<string, string> = {
   "Leave anyway": "Trotzdem verlassen",
   "Stay": "Hierbleiben",
   "Recording mode, in the dock": "Aufnahmemodus, im Dock",
+  "Recording · {m} m": "Aufnahme · {m} m",
+  "Outline done": "Rand fertig",
+  "Recording mode": "Aufnahmemodus",
+  "Zoom in": "Hineinzoomen",
+  "Upright": "Hochformat",
+  "Sideways": "Querformat",
+  "Two pads like a remote control car. Turning the phone switches by itself.": "Zwei Steuerfelder wie bei einem ferngesteuerten Auto. Drehst du das Handy, wechselt die Ansicht von selbst.",
 };
 
 export default de;

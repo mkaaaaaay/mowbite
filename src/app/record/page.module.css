@@ -155,6 +155,10 @@
 
 .card button,
 .speeds button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
   padding: 11px 14px;
   border-radius: 12px;
   border: 1px solid var(--card-border);
@@ -170,7 +174,8 @@
   cursor: default;
 }
 
-.card .main {
+.card .primary {
+  width: 100%;
   border-color: color-mix(in srgb, var(--accent) 70%, transparent);
   background: color-mix(in srgb, var(--accent) 35%, transparent);
   backdrop-filter: var(--card-blur, none);
@@ -237,4 +242,283 @@
   align-items: center;
   gap: 8px;
   font-size: 14px;
+}
+
+/* the button for the sideways layout, on a phone held upright */
+.phoneOnly {
+  display: none;
+}
+
+@media (max-width: 899px) {
+  .phoneOnly {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+}
+
+.phoneOnly .dim {
+  margin: 0;
+}
+
+/* recording on a phone held sideways: the map over the whole screen, a pad on each side like a remote control car,
+   the steps as buttons at the bottom */
+.remote {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  overflow: hidden;
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 13px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* for a phone that doesn't turn the page: the same drawn a quarter turn, its top to the right edge of the upright
+   screen */
+.turned {
+  inset: auto;
+  top: 0;
+  left: 0;
+  width: 100vh;
+  width: 100dvh;
+  height: 100vw;
+  height: 100dvw;
+  transform-origin: top left;
+  transform: translateX(100vw) rotate(90deg);
+}
+
+/* the map is square: as wide as the screen and the band around the mower in the middle */
+.remoteMap {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.remoteMap > * {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.topBar {
+  position: absolute;
+  top: 10px;
+  left: max(12px, env(safe-area-inset-left));
+  right: max(12px, env(safe-area-inset-right));
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.grow {
+  flex: 1;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 13px;
+  border-radius: 999px;
+  background: #22a88f;
+  color: #fff;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.status i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.3);
+}
+
+.live i {
+  animation: recording 1.2s ease-in-out infinite;
+}
+
+@keyframes recording {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.chips {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 4px 3px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(20, 24, 60, 0.45);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  color: #d5dbe0;
+}
+
+.chips button {
+  min-width: 34px;
+  padding: 5px 8px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.chips button:disabled {
+  opacity: 0.4;
+}
+
+.chips .on {
+  background: color-mix(in srgb, var(--accent) 40%, transparent);
+  color: #fff;
+}
+
+.square {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: none;
+  border-radius: 11px;
+  background: rgba(15, 18, 30, 0.82);
+  color: #fff;
+  cursor: pointer;
+}
+
+/* what to do now, or the outline closing by itself */
+.remoteNote {
+  position: absolute;
+  top: 58px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 46%;
+  margin: 0;
+  padding: 6px 12px;
+  border-radius: 12px;
+  background: rgba(20, 24, 60, 0.45);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  color: #e6ebef;
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: center;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.remoteNote button {
+  padding: 5px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.remoteWarn {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  max-width: 40%;
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(10, 10, 10, 0.75);
+  color: #ff8a96;
+  text-align: center;
+}
+
+/* the two pads, in the middle of each side clear of the bars */
+.pad {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.padLeft {
+  left: max(40px, calc(env(safe-area-inset-left) + 28px));
+}
+
+.padRight {
+  right: max(40px, calc(env(safe-area-inset-right) + 28px));
+}
+
+.bottomBar {
+  position: absolute;
+  bottom: 10px;
+  left: max(12px, env(safe-area-inset-left));
+  right: max(12px, env(safe-area-inset-right));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.remoteBlade {
+  max-width: 60%;
+  margin: 0;
+  padding: 5px 10px;
+  border-radius: 10px;
+  background: rgba(10, 10, 10, 0.6);
+  color: #ff8a96;
+  font-size: 11px;
+  text-align: center;
+}
+
+.remoteButtons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  pointer-events: auto;
+}
+
+.remoteButtons button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 13px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(20, 24, 60, 0.45);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.remoteButtons button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.remoteButtons .primary {
+  padding: 10px 18px;
+  border-color: color-mix(in srgb, var(--accent) 80%, transparent);
+  background: color-mix(in srgb, var(--accent) 45%, rgba(20, 24, 60, 0.45));
+  font-size: 14px;
+}
+
+.remoteButtons .danger {
+  border-color: rgba(255, 107, 122, 0.55);
+  color: #ff8a96;
 }

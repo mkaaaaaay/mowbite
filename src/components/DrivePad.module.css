@@ -1,0 +1,96 @@
+/* a pad of the remote control: see-through over the map, the grip slides one way and springs back to the middle */
+.pad {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.2);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: grab;
+}
+
+.active {
+  background: rgba(255, 255, 255, 0.28);
+  cursor: grabbing;
+}
+
+.off {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* which way it goes: small arrows outside the circle */
+.arrows::before,
+.arrows::after {
+  position: absolute;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.y .arrows::before {
+  content: '▲';
+  top: -19px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.y .arrows::after {
+  content: '▼';
+  bottom: -19px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.x .arrows::before {
+  content: '◀';
+  left: -19px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.x .arrows::after {
+  content: '▶';
+  right: -19px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.grip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border-radius: 999px;
+  background: #f4f7f8;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+  transition: transform 0.15s ease-out;
+}
+
+.active .grip {
+  transition: none;
+}
+
+.y .grip {
+  flex-direction: column;
+  width: 40px;
+  height: 64px;
+}
+
+.x .grip {
+  width: 64px;
+  height: 40px;
+}
+
+.grip i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #9aa6ad;
+}

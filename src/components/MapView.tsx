@@ -56,6 +56,8 @@ interface MapViewProps {
   follow?: boolean;
   // a button that keeps the map at the top of the page on a phone (MapControls)
   pin?: {on: boolean; onToggle: () => void};
+  // without the buttons on the map, the page has its own (recording on a phone held sideways)
+  bare?: boolean;
   followSpanMeters?: number;
   // oldest first
   // the live trail in pieces (see useMowerTrack), finished pieces keep their identity
@@ -444,6 +446,7 @@ function MapView({
   onInsertPending,
   follow = false,
   pin,
+  bare = false,
   followSpanMeters = 6,
   track,
   pastTrack,
@@ -1851,73 +1854,75 @@ function MapView({
           onClose={() => setCoverCell(null)}
         />
       )}
-      <MapControls
-        onZoom={zoomCenter}
-        showGrid={showGrid}
-        onToggleGrid={toggleGrid}
-        sources={sources}
-        source={source}
-        imagerySettings={settings.imagery}
-        onSource={setImagery}
-        hidden={hidden}
-        onToggleLayer={toggleLayer}
-        layersOpen={layersOpen}
-        onLayersOpen={setLayersOpen}
-        body={body ? {blade: body.blade > 0} : undefined}
-        planParts={!!pieces?.length}
-        planner={!!plannerSettings}
-        coverage={
-          // on the maps to look around in, with MowBite's container (it keeps the gps log). wifi off once the log has none
-          zoomable && updates.level !== null
-            ? {
-                wifi: !coverage || coverage.some((c) => c.wifi !== null),
-                value: coverMode,
-                // the editor's map: says that editing waits while the coverage is shown
-                paused: !editing && !!onSelectArea,
-                onChange: (c) => {
-                  setCoverMode(c);
-                  setCoverCell(null);
-                  // shown, it's for looking: an area being edited is let go
-                  if (c !== 'off' && selectedAreaId) onClickEmpty?.();
-                },
-              }
-            : undefined
-        }
-        planStyle={
-          progress
-            ? {
-                value: planStyle,
-                onChange: setPlanStyle,
-              }
-            : undefined
-        }
-        reset={
-          view || restore || (following && followZoom !== 1)
-            ? {
-                follow: following,
-                onReset: () => {
-                  setView(null);
-                  setRestore(null);
-                  setFollowZoom(1);
-                  if (viewKey) savedViews.delete(viewKey);
-                },
-              }
-            : null
-        }
-        pin={pin}
-        follow={
-          follow
-            ? {
-                on: following,
-                onToggle: () => {
-                  // carries on from what's on screen instead of jumping to the whole map
-                  if (following && shown) setView(shown);
-                  setFree(following);
-                },
-              }
-            : undefined
-        }
-      />
+      {!bare && (
+        <MapControls
+          onZoom={zoomCenter}
+          showGrid={showGrid}
+          onToggleGrid={toggleGrid}
+          sources={sources}
+          source={source}
+          imagerySettings={settings.imagery}
+          onSource={setImagery}
+          hidden={hidden}
+          onToggleLayer={toggleLayer}
+          layersOpen={layersOpen}
+          onLayersOpen={setLayersOpen}
+          body={body ? {blade: body.blade > 0} : undefined}
+          planParts={!!pieces?.length}
+          planner={!!plannerSettings}
+          coverage={
+            // on the maps to look around in, with MowBite's container (it keeps the gps log). wifi off once the log has none
+            zoomable && updates.level !== null
+              ? {
+                  wifi: !coverage || coverage.some((c) => c.wifi !== null),
+                  value: coverMode,
+                  // the editor's map: says that editing waits while the coverage is shown
+                  paused: !editing && !!onSelectArea,
+                  onChange: (c) => {
+                    setCoverMode(c);
+                    setCoverCell(null);
+                    // shown, it's for looking: an area being edited is let go
+                    if (c !== 'off' && selectedAreaId) onClickEmpty?.();
+                  },
+                }
+              : undefined
+          }
+          planStyle={
+            progress
+              ? {
+                  value: planStyle,
+                  onChange: setPlanStyle,
+                }
+              : undefined
+          }
+          reset={
+            view || restore || (following && followZoom !== 1)
+              ? {
+                  follow: following,
+                  onReset: () => {
+                    setView(null);
+                    setRestore(null);
+                    setFollowZoom(1);
+                    if (viewKey) savedViews.delete(viewKey);
+                  },
+                }
+              : null
+          }
+          pin={pin}
+          follow={
+            follow
+              ? {
+                  on: following,
+                  onToggle: () => {
+                    // carries on from what's on screen instead of jumping to the whole map
+                    if (following && shown) setView(shown);
+                    setFree(following);
+                  },
+                }
+              : undefined
+          }
+        />
+      )}
       {grid && <span className={styles.gridLabel} data-grid-label>{tr('grid {n} m', {n: fmt(grid.step, grid.step < 1 ? 1 : 0)})}</span>}
       {deletable &&
         (() => {
