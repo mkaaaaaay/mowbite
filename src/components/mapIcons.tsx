@@ -851,9 +851,9 @@ function punisherNx60(id: string, emergency: boolean) {
 
 // an Airseekers Tron, traced from a photo from straight above: a light spine from the camera at the front to the handle at
 // the back with the stop button and the keys on it, a dark lattice frame on both sides, the bar in front, small wheels on
-// arms at the front corners and big ones at the back. as wide over the rear wheels as its owner measured it (47 cm), as
-// long from the bar to the handle as the photo makes it with the 61 cm he measured from the rear axle to the bar
-const TRON_FIT = 47 / 81.5;
+// arms at the front corners and big ones at the back. as long from the bar to the handle (72 cm) and as wide over the
+// rear wheels (47 cm) as its owner measured it
+const TRON_FIT = 47 / 72;
 const TRON = {
   // the dark frame: round the camera at the front, past the joints of the front wheels to the lattice on each side,
   // beside the rear wheels and round the handle at the back

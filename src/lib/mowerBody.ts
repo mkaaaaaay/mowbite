@@ -392,17 +392,17 @@ export const MOWER_MODELS: {
   {
     key: 'airseekers-tron',
     label: 'Airseekers Tron',
-    // measured by its owner (19.10.): the bar 38 cm in front of the blade's middle, the back of the body 34 cm behind it and
-    // the rear axle 11 cm in front of that back, 47 cm over the rear wheels, cutting 22 cm wide in the middle. the handle
-    // behind the body from the photo
-    sizes: {width: 0.47, front: 0.61, rear: 0.205, blade: 0.22, bladeAhead: 0.23, bladeOffset: 0},
+    // measured by its owner (19.10.): 72 cm from the bar to the end of the handle, the blade's middle 38 cm behind the bar,
+    // 47 cm over the rear wheels, cutting 22 cm wide in the middle. the rear axle 11 cm in front of the back of the body,
+    // the handle behind it from the photo: the axle 17.8 cm in front of the handle's end
+    sizes: {width: 0.47, front: 0.542, rear: 0.178, blade: 0.22, bladeAhead: 0.162, bladeOffset: 0},
     // 39.5 cm between the rear wheels
     turnRadius: 0.27,
     // from a photo from straight above, scaled to the sizes: the bar in front, the omni wheels at its corners, widest over the
     // rear wheels, the handle narrower behind them, both sides averaged
     outline: [
-      [0.61, 0.13], [0.566, 0.188], [0.429, 0.227], [0.006, 0.235], [-0.09, 0.226], [-0.112, 0.213], [-0.205, 0.07],
-      [-0.205, -0.07], [-0.112, -0.213], [-0.09, -0.226], [0.006, -0.235], [0.429, -0.227], [0.566, -0.188], [0.61, -0.13],
+      [0.542, 0.13], [0.503, 0.188], [0.382, 0.227], [0.008, 0.235], [-0.077, 0.226], [-0.096, 0.213], [-0.178, 0.07],
+      [-0.178, -0.07], [-0.096, -0.213], [-0.077, -0.226], [0.008, -0.235], [0.382, -0.227], [0.503, -0.188], [0.542, -0.13],
     ],
   },
 ];
