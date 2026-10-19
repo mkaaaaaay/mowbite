@@ -111,9 +111,19 @@
   stroke: #d3ccbc;
 }
 
-/* the shadows after the sun cost a lot while the map moves, they come back when it stops */
-:root[data-map-moving] .gardenShadow {
-  filter: none;
+/* a thing's shadow after the sun: the thing once more, all dark and see-through */
+.thingShadow {
+  opacity: 0.22;
+  pointer-events: none;
+}
+
+.thingShadow [fill]:not([fill='none']),
+.thingShadow [style*='fill'] {
+  fill: #000 !important;
+}
+
+.thingShadow [stroke]:not([stroke='none']) {
+  stroke: #000 !important;
 }
 
 /* drivable but not mowed: its own color, the edge stays solid */

@@ -849,40 +849,28 @@ function MapView({
   const frosty = season === 'winter' && (!weather || weather.temp <= 3);
   const wet = !!life?.season && (rainSensor || !!weather?.raining);
   const light = life?.sun && sun ? lightOf(sun.elevation) : null;
-  const castShadow = life?.sun ? shadowOf(sun) : null;
+  const castShadow = useMemo(() => (life?.sun ? shadowOf(sun) : null), [life?.sun, sun]);
+  // where each thing's shadow lies: away from the sun, the lower it is the longer, and drawn from above it can't lie
+  // meters away from what casts it: at most almost half the thing's size
+  const thingShadows = useMemo(() => {
+    if (!castShadow || !gardenLook) return null;
+    const out = new Map<number, {dx: number; dy: number}>();
+    const length = Math.hypot(castShadow.x, castShadow.y);
+    for (const t of gardenLook.things.values()) {
+      const h = heightOf(t.look);
+      if (!h || !length) continue;
+      const r = Math.hypot(t.place.w, t.place.h) / 2;
+      const reach = Math.max(0.12 * scale, Math.min(h * length * 0.35 * scale, 0.45 * r));
+      out.set(t.i, {dx: (castShadow.x / length) * reach, dy: (-castShadow.y / length) * reach});
+    }
+    return out;
+  }, [castShadow, gardenLook, scale]);
   const lifeDefs = life ? (
     <defs>
       <LifeDefs uid={uid} m={scale} />
       <clipPath id={`${uid}lawnClip`}>
         <path d={lawnD} clipRule="evenodd" />
       </clipPath>
-      {castShadow &&
-        gardenLook &&
-        [...gardenLook.things.values()].map((t) => {
-          const h = heightOf(t.look);
-          if (!h) return null;
-          const r = Math.hypot(t.place.w, t.place.h) / 2;
-          // drawn from above a shadow can't lie meters away from what casts it: as long as the sun says, at most
-          // almost half the thing's size
-          const length = Math.hypot(castShadow.x, castShadow.y);
-          const reach = Math.max(0.12 * scale, Math.min(h * length * 0.35 * scale, 0.45 * r));
-          const dx = length ? (castShadow.x / length) * reach : 0;
-          const dy = length ? (-castShadow.y / length) * reach : 0;
-          const pad = Math.hypot(dx, dy) + 0.4 * scale;
-          return (
-            <filter
-              key={t.i}
-              id={`${uid}sh${t.i}`}
-              filterUnits="userSpaceOnUse"
-              x={t.place.cx - r - pad}
-              y={t.place.cy - r - pad}
-              width={2 * (r + pad)}
-              height={2 * (r + pad)}
-            >
-              <feDropShadow dx={dx} dy={dy} stdDeviation={0.08 * scale} floodColor="#000" floodOpacity={0.3} />
-            </filter>
-          );
-        })}
     </defs>
   ) : null;
   const gardenFill = (a: MapArea): React.CSSProperties | undefined => {
@@ -1593,17 +1581,27 @@ function MapView({
   const thingOf = (area: MapArea) => {
     const thing = gardenLook?.things.get(area.id);
     if (!thing || !isThing(thing.look)) return null;
-    return (
-      <g className={styles.gardenShadow} filter={castShadow && heightOf(thing.look) ? `url(#${uid}sh${thing.i})` : undefined}>
-        <g
-          className={[styles.gardenThing, area.properties.active === false ? styles.gardenOff : ''].filter(Boolean).join(' ')}
-          clipPath={`url(#${uid}clip${thing.i})`}
-        >
-          <g transform={`translate(${thing.place.cx} ${thing.place.cy}) rotate(${thing.place.deg})`}>
-            {drawThing(thing.look, {x: -thing.place.w / 2, y: -thing.place.h / 2, w: thing.place.w, h: thing.place.h})}
-          </g>
+    const drawn = (
+      <g
+        className={[styles.gardenThing, area.properties.active === false ? styles.gardenOff : ''].filter(Boolean).join(' ')}
+        clipPath={`url(#${uid}clip${thing.i})`}
+      >
+        <g transform={`translate(${thing.place.cx} ${thing.place.cy}) rotate(${thing.place.deg})`}>
+          {drawThing(thing.look, {x: -thing.place.w / 2, y: -thing.place.h / 2, w: thing.place.w, h: thing.place.h})}
         </g>
       </g>
+    );
+    // its shadow: the same once more, dark and moved away from the sun (no filter, it stays while the map moves)
+    const shade = thingShadows?.get(thing.i);
+    return (
+      <>
+        {shade && (
+          <g className={styles.thingShadow} transform={`translate(${shade.dx} ${shade.dy})`}>
+            {drawn}
+          </g>
+        )}
+        {drawn}
+      </>
     );
   };
   const renderContent = (k: number) => (
