@@ -20,7 +20,11 @@ export interface Weather {
 const EVERY_MS = 20 * 60 * 1000;
 let cache: {key: string; at: number; data: Weather} | null = null;
 
-async function load(lat: number, lon: number): Promise<Weather> {
+// the weather at a place now and the next hours, asked with the position rounded to about a kilometer. no hook, the home
+// assistant card asks it the same way
+export async function loadWeather(lat: number, lon: number): Promise<Weather> {
+  lat = Math.round(lat * 100) / 100;
+  lon = Math.round(lon * 100) / 100;
   const url =
     `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
     '&current=temperature_2m,weather_code,is_day,precipitation' +
@@ -66,7 +70,7 @@ export function useWeather(pos: {lat: number; lon: number} | undefined, enabled:
         setData(cache.data);
         return;
       }
-      load(lat, lon).then(
+      loadWeather(lat, lon).then(
         (w) => {
           cache = {key, at: Date.now(), data: w};
           if (alive) setData(w);

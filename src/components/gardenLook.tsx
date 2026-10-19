@@ -3,6 +3,8 @@
 import type {MapArea, Point} from '@/hooks/useMowerMap';
 import {containsPoint} from '@/lib/geometry';
 import {tr} from '@/lib/i18n';
+import {insideEdge, type MowerBody} from '@/lib/mowerBody';
+import {autoMowAngle} from '@/lib/mowStripes';
 import {useEffect, useId} from 'react';
 import {createPortal} from 'react-dom';
 import {BY_NAME, GROUPS, PICTURE_KEYS, PICTURES, type Box} from './gardenPictures';
@@ -143,6 +145,56 @@ export function GardenDefs({uid, m, lawns, clips}: {uid: string; m: number; lawn
       ))}
     </defs>
   );
+}
+
+// where MapView's square of 400 shows the map: m svg units per meter, the map's corner minX, minY at padX, padY from the
+// square's bottom left (svg's y points down)
+export interface Fit {
+  minX: number;
+  minY: number;
+  m: number;
+  padX: number;
+  padY: number;
+}
+
+export const fitKey = (f: Fit) => `${f.minX},${f.minY},${f.m},${f.padX},${f.padY}`;
+export const inSquare = (f: Fit) => (p: Point): Point => ({x: (p.x - f.minX) * f.m + f.padX, y: 400 - ((p.y - f.minY) * f.m + f.padY)});
+
+// a map's garden as MapView draws it: each mowing area's lawn by the index of its stripes (angles: their directions),
+// each way's and obstacle's look, and a thing placed inside the area's real edge (with the mower's body known, else
+// inside its outline), cut to clips[i]. worked out again only for another map, looks, body or fit
+export interface GardenThings {
+  lawns: Map<string, number>;
+  looks: Map<string, Look>;
+  things: Map<string, {i: number; look: Look; place: Place}>;
+  angles: number[];
+  clips: string[];
+}
+
+const thingsCache = new WeakMap<object, {looks?: object; body: object | null; key: string; out: GardenThings}>();
+
+export function gardenThings(areas: MapArea[], looks: Record<string, string> | undefined, body: MowerBody | null, fit: Fit): GardenThings {
+  const key = fitKey(fit);
+  const hit = thingsCache.get(areas);
+  if (hit && hit.looks === looks && hit.body === body && hit.key === key) return hit.out;
+  const at = inSquare(fit);
+  const out: GardenThings = {lawns: new Map(), looks: new Map(), things: new Map(), angles: [], clips: []};
+  for (const a of areas) {
+    const type = a.properties.type;
+    if (type === 'mow') {
+      out.lawns.set(a.id, out.angles.length);
+      out.angles.push(a.properties.angle ?? autoMowAngle(a.outline));
+    } else if ((type === 'obstacle' || type === 'nav') && a.outline.length > 2) {
+      const look = areaLook(a, looks);
+      out.looks.set(a.id, look);
+      if (!isThing(look)) continue;
+      const outline = ((body && insideEdge(a.outline, body)) || a.outline).map(at);
+      out.things.set(a.id, {i: out.clips.length, look, place: placeThing(look, outline)});
+      out.clips.push(outline.map((p) => `${p.x},${p.y}`).join(' '));
+    }
+  }
+  thingsCache.set(areas, {looks, body, key, out});
+  return out;
 }
 
 // a picture as a small square: its ground, a thing drawn on top

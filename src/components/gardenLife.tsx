@@ -1,9 +1,13 @@
 'use client';
 
+import type {ReactNode} from 'react';
 import type {MapArea, Point} from '@/hooks/useMowerMap';
 import {containsPoint, polygonArea} from '@/lib/geometry';
-import type {Season} from '@/lib/sun';
-import type {Look} from './gardenLook';
+import {realEdges, type MowerBody} from '@/lib/mowerBody';
+import {autoMowAngle} from '@/lib/mowStripes';
+import {seasonOf, sunPosition, type Season} from '@/lib/sun';
+import {drawThing, fitKey, gardenThings, inSquare, type Fit, type Look, type Place} from './gardenLook';
+import styles from './MapView.module.css';
 
 // what makes the garden map style come alive, each part switched on on its own in the map settings (all off by default):
 // light and shadows after the sun, the season and the weather on the lawn, a mowing edge of stones and the lawn
@@ -230,4 +234,276 @@ export function LifeDefs({uid, m}: {uid: string; m: number}) {
       </radialGradient>
     </>
   );
+}
+
+// ---- the garden's life as MapView draws it, the same for the app and the home assistant card (mowbite-art.js)
+
+// where the sun is worked out from when the mower has no position on earth: the middle of germany
+const SOMEWHERE = {lat: 51, lon: 10};
+
+// a point in the square of 400 as svg path text
+export function svgAt(fit: Fit) {
+  const at = inSquare(fit);
+  return (p: Point) => {
+    const q = at(p);
+    return `${q.x.toFixed(1)} ${q.y.toFixed(1)}`;
+  };
+}
+
+const rings = (areas: {outline: Point[]}[], at: (p: Point) => string) => areas.map((a) => 'M' + a.outline.map(at).join('L') + 'Z').join('');
+
+// worked out once per object (a map's areas, a job, a piece of the trail) and key, while they stay the same
+function cached<T>(cache: WeakMap<object, {key: string; value: T}>, of: object, key: string, make: () => T): T {
+  const hit = cache.get(of);
+  if (hit && hit.key === key) return hit.value;
+  const value = make();
+  cache.set(of, {key, value});
+  return value;
+}
+
+type Lawns = {lawns: MapArea[]; obstacles: MapArea[]; bySize: MapArea[]; along: {x: number; y: number}};
+const lawnsCache = new WeakMap<object, {key: string; value: Lawns}>();
+const lawnDCache = new WeakMap<object, {key: string; value: string}>();
+const edgeCache = new WeakMap<object, {key: string; value: string}>();
+const sprinkleCache = new WeakMap<object, {key: string; value: Sprinkle[]}>();
+const jobCache = new WeakMap<object, {key: string; value: {there: string; back: string} | null}>();
+const pieceCache = new WeakMap<object, {key: string; value: {there: string; back: string}}>();
+
+// the lawns as they're cut (active, mowed), what lies in them, all areas biggest first like MapView draws them, and the
+// stripes' way of the biggest lawn: a cut along it looks lighter, against it darker
+function lawnsOf(areas: MapArea[]): Lawns {
+  return cached(lawnsCache, areas, '', () => {
+    const lawns = areas.filter((a) => a.properties.type === 'mow' && a.properties.active !== false && a.properties.mowable !== false && a.outline.length > 2);
+    const obstacles = areas.filter((a) => a.properties.type === 'obstacle' && a.outline.length > 2);
+    const bySize = [...areas].sort((a, b) => polygonArea(b.outline) - polygonArea(a.outline));
+    const biggest = bySize.find((a) => lawns.includes(a));
+    const angle = biggest ? (biggest.properties.angle ?? autoMowAngle(biggest.outline)) : 0;
+    return {lawns, obstacles, bySize, along: {x: Math.cos(angle), y: Math.sin(angle)}};
+  });
+}
+
+// the real edges as one line, the mowing areas grown and the obstacles shrunk by half the mower's width (lib/mowerBody)
+export function realEdgeLine(areas: MapArea[], body: MowerBody, fit: Fit, obstacles = true) {
+  const at = svgAt(fit);
+  return cached(edgeCache, areas, `${fitKey(fit)}|${obstacles}|${JSON.stringify(body)}`, () => {
+    const edges = realEdges(areas, body);
+    return rings([...edges.lawn, ...(obstacles ? edges.obstacles : [])].map((outline) => ({outline})), at);
+  });
+}
+
+// where a thing's shadow lies in svg units: away from the sun, the lower it is the longer, and drawn from above it can't
+// lie meters away from what casts it: at most almost half the thing's size. null for a flat one
+export function thingShadow(look: Look, place: {w: number; h: number}, shadow: {x: number; y: number}, m: number) {
+  const height = heightOf(look);
+  const length = Math.hypot(shadow.x, shadow.y);
+  if (!height || !length) return null;
+  const r = Math.hypot(place.w, place.h) / 2;
+  const reach = Math.max(0.12 * m, Math.min(height * length * 0.35 * m, 0.45 * r));
+  return {dx: (shadow.x / length) * reach, dy: (-shadow.y / length) * reach};
+}
+
+// an area's picture standing in it (a tree, a table ...), cut to its place (clip i of GardenDefs) and faded when the
+// area is off. with a shadow the same once more first, dark and moved away from the sun (no filter, it stays while the
+// map moves)
+export function GardenThing({uid, thing, off, shade}: {uid: string; thing: {i: number; look: Look; place: Place}; off: boolean; shade?: {dx: number; dy: number} | null}) {
+  const {cx, cy, deg, w, h} = thing.place;
+  const drawn = (
+    <g className={[styles.gardenThing, off ? styles.gardenOff : ''].filter(Boolean).join(' ')} clipPath={`url(#${uid}clip${thing.i})`}>
+      <g transform={`translate(${cx} ${cy}) rotate(${deg})`}>{drawThing(thing.look, {x: -w / 2, y: -h / 2, w, h})}</g>
+    </g>
+  );
+  return (
+    <>
+      {shade && (
+        <g className={styles.thingShadow} transform={`translate(${shade.dx} ${shade.dy})`}>
+          {drawn}
+        </g>
+      )}
+      {drawn}
+    </>
+  );
+}
+
+// a recorded job as useMowHistory has it: position.history.list's entry with the segments position.history gives
+export interface LifeJob {
+  job_id: string;
+  timestamp: number;
+  segments: {attributes: {blades?: boolean}; points: [number, number][]}[];
+}
+
+// what the life is drawn from, all of it what MapView has: the map's areas, settings.garden and settings.looks, the
+// mower's body (sizesBody, null without sizes), the fit and the ids' start of the garden's defs, now in ms, the map's
+// place on earth (datum), the weather (useWeather, only with settings.weather), the mower's rain sensor, its position,
+// the last jobs newest first, the live trail in pieces of poses (b: blades on), the real edges' line as drawn (left out
+// it's worked out from the body, null for the outlines) and the layers switched off (MapControls)
+export interface LifeInput {
+  areas: MapArea[];
+  garden?: Partial<GardenLife>;
+  looks?: Record<string, string>;
+  body?: MowerBody | null;
+  fit: Fit;
+  uid: string;
+  now?: number;
+  datum?: {lat: number; lon: number} | null;
+  weather?: {code: number; temp: number; raining: boolean} | null;
+  rain?: boolean;
+  mower?: {x: number; y: number} | null;
+  jobs?: LifeJob[] | null;
+  track?: readonly {x: number; y: number; b?: boolean}[][] | null;
+  edgeLine?: string | null;
+  hidden?: Iterable<string> | null;
+}
+
+export interface LifeScene {
+  parts: GardenLife;
+  // with runs to show the lawn not cut lately is long: the active lawns are filled with {uid}long instead of their stripes
+  long: boolean;
+  defs: ReactNode;
+  lawn: ReactNode;
+  things: ReactNode;
+  stones: ReactNode;
+  sky: ReactNode;
+}
+
+const FAR = {x: -10 * 400, y: -10 * 400, width: 21 * 400, height: 21 * 400};
+
+// the garden's life in MapView's layers, null with none of it switched on. over the areas and their fills in this order:
+// lawn (the cuts, frost and snow, leaves or daisies, cut to the lawns), the real lawn in the obstacles, things (each with
+// its shadow, here instead of with its area), stones (the mowing edge, the real edges' line is left out then) and sky
+// (wet and the light over all of it), then the plan, the dock, the track and the mower
+export function lifeScene(s: LifeInput): LifeScene | null {
+  const parts = lifeOf(s.garden);
+  if (!parts.sun && !parts.season && !parts.edge && !parts.growth) return null;
+  const {fit, uid} = s;
+  const m = fit.m;
+  const now = s.now ?? Date.now();
+  const at = svgAt(fit);
+  const square = inSquare(fit);
+  const hidden = new Set(s.hidden ?? []);
+  const {lawns, obstacles, bySize, along} = lawnsOf(s.areas);
+  const key = `${fitKey(fit)}|${along.x},${along.y}`;
+  // the lawns without what lies in them, one path to cut the cuts and the season to (even-odd)
+  const lawnD = cached(lawnDCache, s.areas, fitKey(fit), () => rings([...lawns, ...obstacles], at));
+  const season = seasonOf(s.datum?.lat, new Date(now));
+  const place = s.datum ?? SOMEWHERE;
+  const sun = parts.sun ? sunPosition(place.lat, place.lon, new Date(now)) : null;
+
+  // the last runs cut into the lawn, oldest first, fading as the grass grows back, and the live trail cut fresh
+  const past = parts.growth
+    ? [...(s.jobs ?? [])]
+        .reverse()
+        .map((job) => {
+          const cut = cached(jobCache, job, key, () => {
+            const stretches = job.segments.filter((g) => g.attributes.blades).map((g) => g.points.map(([x, y]) => ({x, y})));
+            return stretches.length ? cutPaths(stretches, along, at) : null;
+          });
+          return cut && {id: job.job_id, opacity: freshness((now / 1000 - job.timestamp) / 86400), ...cut};
+        })
+        .filter((r) => r !== null)
+    : [];
+  let live: {there: string; back: string} | null = null;
+  if (parts.growth && s.track?.length) {
+    let there = '';
+    let back = '';
+    for (const piece of s.track) {
+      const cut = cached(pieceCache, piece, key, () => {
+        const stretches: Point[][] = [];
+        let run: Point[] = [];
+        for (const p of piece) {
+          if (p.b ?? true) run.push(p);
+          else {
+            if (run.length > 1) stretches.push(run);
+            run = [];
+          }
+        }
+        if (run.length > 1) stretches.push(run);
+        return cutPaths(stretches, along, at);
+      });
+      there += cut.there;
+      back += cut.back;
+    }
+    if (there || back) live = {there, back};
+  }
+
+  // the season on the lawn with the weather: frost in winter unless it's warmer than 3°, snow while it snows (wmo codes),
+  // wet in the rain
+  const weather = s.weather;
+  const snowing = !!weather && ((weather.code >= 71 && weather.code <= 77) || weather.code === 85 || weather.code === 86);
+  const frosty = season === 'winter' && (!weather || weather.temp <= 3);
+  const wet = parts.season && (!!s.rain || !!weather?.raining);
+  const lawnSprinkles = parts.season ? cached(sprinkleCache, s.areas, season, () => sprinkles(lawns, obstacles, season)) : [];
+  const light = sun ? lightOf(sun.elevation) : null;
+  const castShadow = shadowOf(sun);
+  const mower = s.mower ? square(s.mower) : null;
+
+  const edgeLine = s.edgeLine !== undefined ? s.edgeLine : s.body ? realEdgeLine(s.areas, s.body, fit, !hidden.has('obstacle')) : null;
+  const stonesD = parts.edge ? (edgeLine ?? rings([...lawns, ...(hidden.has('obstacle') ? [] : obstacles)], at)) : '';
+  const garden = gardenThings(s.areas, s.looks, s.body ?? null, fit);
+
+  return {
+    parts,
+    long: past.length > 0,
+    defs: (
+      <defs>
+        <LifeDefs uid={uid} m={m} />
+        <clipPath id={`${uid}lawnClip`}>
+          <path d={lawnD} clipRule="evenodd" />
+        </clipPath>
+      </defs>
+    ),
+    lawn: (
+      <g className={styles.gardenLife} clipPath={`url(#${uid}lawnClip)`}>
+        {/* where the mower cut lately, fading as it grows back, and where it cuts now */}
+        {(past.length > 0 || live) && (
+          <g className={styles.cuts} strokeWidth={(s.body?.blade || 0.18) * m}>
+            {past.map((c) => (
+              <g key={c.id} opacity={c.opacity}>
+                <path className={styles.cutThere} d={c.there} />
+                <path className={styles.cutBack} d={c.back} />
+              </g>
+            ))}
+            {live && (
+              <>
+                <path className={styles.cutThere} d={live.there} />
+                <path className={styles.cutBack} d={live.back} />
+              </>
+            )}
+          </g>
+        )}
+        {parts.season && (frosty || snowing) && <path d={lawnD} fillRule="evenodd" fill={`url(#${uid}frost)`} />}
+        {parts.season && snowing && <path d={lawnD} fillRule="evenodd" fill="rgba(255,255,255,.5)" />}
+        {lawnSprinkles.map((sp, i) => drawSprinkle({...sp, ...square(sp)}, m, season, i))}
+      </g>
+    ),
+    things: bySize
+      .filter((a) => !hidden.has(a.properties.type ?? ''))
+      .map((a) => {
+        const thing = garden.things.get(a.id);
+        if (!thing) return null;
+        const shade = castShadow ? thingShadow(thing.look, thing.place, castShadow, m) : null;
+        return <GardenThing key={'t' + a.id} uid={uid} thing={thing} off={a.properties.active === false} shade={shade} />;
+      }),
+    stones: stonesD ? (
+      <g className={styles.stones}>
+        <path d={stonesD} strokeWidth={0.17 * m} strokeDasharray={`${0.26 * m} ${0.04 * m}`} />
+        <path className={styles.stoneTop} d={stonesD} strokeWidth={0.11 * m} strokeDasharray={`${0.26 * m} ${0.04 * m}`} />
+      </g>
+    ) : null,
+    sky: (
+      <>
+        {wet && <rect className={styles.gardenLight} {...FAR} fill={`url(#${uid}wet)`} />}
+        {light && (
+          <>
+            {light.dark && mower && (
+              <mask id={`${uid}night`} maskUnits="userSpaceOnUse" {...FAR}>
+                <rect {...FAR} fill="#fff" />
+                <circle cx={mower.x} cy={mower.y} r={3.5 * m} fill={`url(#${uid}pool)`} />
+              </mask>
+            )}
+            <rect className={styles.gardenLight} {...FAR} fill={light.color} opacity={light.opacity} mask={light.dark && mower ? `url(#${uid}night)` : undefined} />
+          </>
+        )}
+      </>
+    ),
+  };
 }
