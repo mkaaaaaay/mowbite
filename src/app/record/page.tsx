@@ -11,7 +11,9 @@ import {useMowerPosition} from '@/hooks/useMowerPosition';
 import {isLive, useMowerState} from '@/hooks/useMowerState';
 import {sendDrive} from '@/lib/teleop';
 import Link from 'next/link';
+import {useRouter} from 'next/navigation';
 import {useEffect, useRef, useState} from 'react';
+import {createPortal} from 'react-dom';
 import styles from './page.module.css';
 import {fmt, tr, useLang} from '@/lib/i18n';
 import {ACTION} from '@/lib/openmower';
@@ -21,6 +23,8 @@ import {tick} from '@/lib/haptics';
 
 const START = ACTION.startRecording;
 const A = ACTION.recording;
+// the page is open: react mounts it twice while developing, leaving it is only when it stays closed
+let open = 0;
 
 // m/s at full stick, the turn rate follows along
 const SPEEDS = [0.15, 0.25, 0.35, 0.5];
@@ -146,6 +150,54 @@ export default function RecordPage() {
   const act = (id: string) => publishAction(A(id));
   const actRef = useRef(act);
   actRef.current = act;
+
+  // leaving the page ends recording mode: a link or a tab asks first, what isn't saved yet is lost with it. the way back
+  // (the phone's back button) can't ask, it ends the mode only when nothing is being recorded
+  const router = useRouter();
+  const [leaving, setLeaving] = useState<string | null>(null);
+  const canExit = hasAction(A('exit_recording_mode'));
+  const away = useRef({recordingMode, phase, canExit, ended: false});
+  away.current = {...away.current, recordingMode, phase, canExit};
+  useEffect(() => {
+    if (!recordingMode) return;
+    const onClick = (e: MouseEvent) => {
+      const a = e.target instanceof Element ? e.target.closest('a[href]') : null;
+      if (!(a instanceof HTMLAnchorElement) || a.target === '_blank' || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const url = new URL(a.href);
+      if (url.origin !== location.origin || url.pathname.replace(/\/$/, '') === '/record') return;
+      // before the link's own click: it doesn't go anywhere until it's answered
+      e.preventDefault();
+      e.stopPropagation();
+      setLeaving(url.pathname + url.search + url.hash);
+    };
+    document.addEventListener('click', onClick, true);
+    return () => document.removeEventListener('click', onClick, true);
+  }, [recordingMode]);
+  useEffect(() => {
+    if (leaving === null) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setLeaving(null);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [leaving]);
+  useEffect(() => {
+    open++;
+    return () => {
+      open--;
+      const {recordingMode, phase, canExit, ended} = away.current;
+      if (!recordingMode || ended || phase !== 'empty' || !canExit) return;
+      setTimeout(() => open || publishAction(A('exit_recording_mode')), 300);
+    };
+  }, [publishAction]);
+  const leave = (end: boolean) => {
+    const to = leaving;
+    setLeaving(null);
+    if (end && canExit) {
+      away.current.ended = true;
+      stop();
+      act('exit_recording_mode');
+    }
+    if (to) router.push(to);
+  };
 
   // round once and back where the line started: it closes by itself after a few seconds, like stop does
   const [autoClose, setAutoClose] = useState(() => {
@@ -361,6 +413,39 @@ export default function RecordPage() {
           </div>
         )}
       </main>
+
+      {leaving !== null &&
+        createPortal(
+          <div className={styles.backdrop} onClick={() => setLeaving(null)}>
+            <section
+              className={[styles.card, styles.dialog].join(' ')}
+              role="alertdialog"
+              aria-modal="true"
+              aria-label={tr('End recording mode?')}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2>{tr('End recording mode?')}</h2>
+              <p>
+                {phase === 'dock'
+                  ? tr("The docking station isn't saved yet, recording mode can only end after that. If you leave anyway, it stays on.")
+                  : phase === 'recording' || phase === 'outlined'
+                    ? tr("The area isn't saved yet and is lost when recording mode ends.")
+                    : tr('The mower is still in recording mode. Leaving the page ends it.')}
+              </p>
+              <div className={styles.buttons}>
+                {canExit ? (
+                  <button className={phase === 'empty' ? styles.main : styles.danger} onClick={() => leave(true)}>
+                    {tr(phase === 'empty' ? 'End recording mode' : 'Discard and end')}
+                  </button>
+                ) : (
+                  <button onClick={() => leave(false)}>{tr('Leave anyway')}</button>
+                )}
+                <button onClick={() => setLeaving(null)}>{tr('Stay')}</button>
+              </div>
+            </section>
+          </div>,
+        document.body,
+      )}
     </div>
   );
 }

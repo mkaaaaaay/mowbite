@@ -42,6 +42,36 @@
   color: var(--accent);
 }
 
+/* asked when the page is left in recording mode */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.dialog {
+  width: min(380px, 100%);
+  background: var(--background);
+}
+
+.dialog h2,
+.dialog p {
+  margin: 0;
+}
+
+.dialog h2 {
+  font-size: 18px;
+}
+
+.dialog .buttons {
+  flex-direction: column;
+}
+
 .layout {
   display: flex;
   flex-direction: column;

@@ -118,6 +118,8 @@ function FactValue({value}: {value: string}) {
 
 function headline(state: MowerState, docked: boolean, chargeState: string | undefined, area: string | undefined) {
   if (state.emergency) return {title: tr('Emergency stop'), tone: 'error'};
+  // left on in the dock it says so, it's why the map shows
+  if (state.current_state === 'AREA_RECORDING') return {title: docked ? tr('Recording mode, in the dock') : tr('Recording an area'), tone: 'live'};
   if (docked) return chargeState === 'Done' ? {title: tr('Charged, in the dock'), tone: 'good'} : {title: tr('Charging in the dock'), tone: 'good'};
   switch (state.current_state) {
     case 'MOWING':
@@ -128,8 +130,6 @@ function headline(state: MowerState, docked: boolean, chargeState: string | unde
       return {title: tr('Leaving the dock'), tone: 'live'};
     case 'PAUSED':
       return {title: tr('Paused'), tone: 'warn'};
-    case 'AREA_RECORDING':
-      return {title: tr('Recording an area'), tone: 'live'};
     case 'IDLE':
       return {title: tr('Waiting on the lawn'), tone: 'warn'};
     default:

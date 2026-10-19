@@ -1457,6 +1457,15 @@ const de: Record<string, string> = {
   "No area yet.": "Noch keine Fläche.",
   "How to record the map, step by step": "So nimmst du die Karte auf, Schritt für Schritt",
   "Editing is off while the coverage is shown": "Bearbeiten aus, solange die Abdeckung an ist",
+  "End recording mode?": "Aufnahmemodus beenden?",
+  "The mower is still in recording mode. Leaving the page ends it.": "Der Mäher ist noch im Aufnahmemodus. Wenn du die Seite verlässt, wird er beendet.",
+  "The area isn't saved yet and is lost when recording mode ends.": "Die Fläche ist noch nicht gespeichert und geht verloren, wenn der Aufnahmemodus endet.",
+  "The docking station isn't saved yet, recording mode can only end after that. If you leave anyway, it stays on.": "Das Dock ist noch nicht gespeichert, erst danach lässt sich der Aufnahmemodus beenden. Verlässt du die Seite trotzdem, bleibt er an.",
+  "End recording mode": "Aufnahmemodus beenden",
+  "Discard and end": "Verwerfen und beenden",
+  "Leave anyway": "Trotzdem verlassen",
+  "Stay": "Hierbleiben",
+  "Recording mode, in the dock": "Aufnahmemodus, im Dock",
 };
 
 export default de;
