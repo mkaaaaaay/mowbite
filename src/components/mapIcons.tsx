@@ -849,6 +849,140 @@ function punisherNx60(id: string, emergency: boolean) {
   );
 }
 
+// an Airseekers Tron, traced from a photo from straight above: a light spine from the camera at the front to the handle at
+// the back with the stop button and the keys on it, a dark lattice frame on both sides, the bar in front, small wheels on
+// arms at the front corners and big ones at the back. as wide over the rear wheels as its owner measured it, and as long
+// (47 cm, 38 + 34 cm)
+const TRON_FIT = 47 / 72;
+const TRON = {
+  frame: both(
+    [
+      [0.8, 0], [0.8, -0.335], [0.775, -0.42], [0.745, -0.52], [0.68, -0.585], [0.55, -0.615], [0.47, -0.655],
+      [0.43, -0.735], [0.37, -0.815], [0.25, -0.855], [0.06, -0.875], [-0.04, -0.87], [-0.1, -0.835], [-0.15, -0.765],
+      [-0.21, -0.68], [-0.26, -0.655], [-0.7, -0.655], [-0.765, -0.6], [-0.79, -0.515], [-0.86, -0.505], [-0.93, -0.46],
+      [-0.975, -0.36], [-0.995, -0.2], [-1, 0],
+    ],
+    [1, 15, 16, 18],
+  ),
+  spine: both(
+    [
+      [0.935, 0], [0.932, -0.24], [0.915, -0.27], [0.81, -0.275], [0.79, -0.3], [0.785, -0.37], [0.765, -0.385],
+      [-0.6, -0.385], [-0.68, -0.37], [-0.71, -0.32], [-0.72, -0.2], [-0.72, 0],
+    ],
+    [3, 5],
+  ),
+  bracket: both([[0.955, 0], [0.955, -0.31], [0.94, -0.335], [0.8, -0.335], [0.8, -0.272], [0.927, -0.272], [0.927, 0]], [2, 3, 4, 5]),
+  bar: both(
+    [
+      [0.993, 0], [0.995, -0.4], [0.985, -0.585], [0.95, -0.66], [0.885, -0.76], [0.855, -0.81], [0.815, -0.8],
+      [0.83, -0.745], [0.885, -0.655], [0.915, -0.57], [0.925, -0.4], [0.925, 0],
+    ],
+    [5, 6],
+  ),
+  // the frame's two big openings on each side
+  holes:
+    outline([[0.47, -0.545], [0.4, -0.75], [0.19, -0.8], [0.3, -0.63]], [0, 1, 2, 3]) +
+    outline([[0.18, -0.635], [0.04, -0.81], [-0.13, -0.79], [-0.11, -0.62]], [0, 1, 2, 3]),
+  rearTire: 'M-0.71,-1 L-0.285,-1 Q-0.215,-1 -0.215,-0.9 L-0.215,-0.765 Q-0.215,-0.665 -0.285,-0.665 L-0.71,-0.665 Q-0.78,-0.665 -0.78,-0.765 L-0.78,-0.9 Q-0.78,-1 -0.71,-1Z',
+  frontTire: 'M0.54,-0.875 L0.82,-0.875 Q0.87,-0.875 0.87,-0.8 L0.87,-0.705 Q0.87,-0.63 0.82,-0.63 L0.54,-0.63 Q0.49,-0.63 0.49,-0.705 L0.49,-0.8 Q0.49,-0.875 0.54,-0.875Z',
+  groove: 'M-0.548,-0.333 L-0.64,-0.333 Q-0.672,-0.333 -0.672,-0.28 L-0.672,0.28 Q-0.672,0.333 -0.64,0.333 L-0.548,0.333',
+};
+
+function airseekersTron(id: string, emergency: boolean) {
+  // lugs across a tire, every other one from the outside
+  const lugs = (x0: number, x1: number, outer: number, inner: number, n: number) =>
+    Array.from({length: n}, (_, i) => {
+      const w = (x1 - x0) / n;
+      const mid = (outer + inner) / 2;
+      const [a, b] = i % 2 ? [outer, mid + (inner - mid) * 0.3] : [mid + (outer - mid) * 0.3, inner];
+      return <rect key={i} x={x0 + i * w + w * 0.18} y={Math.min(a, b)} width={w * 0.64} height={Math.abs(b - a)} rx={0.01} fill="#343434" />;
+    });
+  return (
+    <>
+      <defs>
+        <linearGradient id={id + 's'} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#aeb1b4" />
+          <stop offset="0.18" stopColor="#c9cbcd" />
+          <stop offset="0.5" stopColor="#d6d8da" />
+          <stop offset="0.82" stopColor="#c9cbcd" />
+          <stop offset="1" stopColor="#aeb1b4" />
+        </linearGradient>
+        <linearGradient id={id + 'f'} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#4a4e53" />
+          <stop offset="0.3" stopColor="#363a3e" />
+          <stop offset="0.7" stopColor="#363a3e" />
+          <stop offset="1" stopColor="#4a4e53" />
+        </linearGradient>
+        <linearGradient id={id + 'm'} x1="1" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#45484c" />
+          <stop offset="1" stopColor="#26282b" />
+        </linearGradient>
+        <linearGradient id={id + 'r'} x1="1" y1="0" x2="0" y2="0">
+          <stop offset="0" stopColor="#f2414b" />
+          <stop offset="1" stopColor="#cc1e2b" />
+        </linearGradient>
+        <linearGradient id={id + 'b'} x1="1" y1="0" x2="0" y2="0">
+          <stop offset="0" stopColor="#5a5e64" />
+          <stop offset="1" stopColor="#3c4045" />
+        </linearGradient>
+      </defs>
+      {SIDES.map((s) => (
+        <g key={s} transform={`scale(1 ${s})`}>
+          <path d={TRON.rearTire} fill="#1c1c1c" stroke="#9aa0a6" strokeWidth={0.75} strokeOpacity={0.45} />
+          {lugs(-0.76, -0.235, -0.985, -0.68, 9)}
+          <path d={TRON.frontTire} fill="#1c1c1c" stroke="#9aa0a6" strokeWidth={0.75} strokeOpacity={0.45} />
+          {lugs(0.5, 0.86, -0.865, -0.64, 6)}
+        </g>
+      ))}
+      {/* the frame with a light edge, so the dark mower shows on a dark map, its openings and the round joints of the front wheels */}
+      <path d={TRON.frame} fill={`url(#${id}f)`} stroke="#9aa0a6" strokeWidth={0.75} strokeOpacity={0.5} />
+      {SIDES.map((s) => (
+        <g key={s} transform={`scale(1 ${s})`}>
+          <path d={TRON.holes} fill="#121315" />
+          <ellipse cx={0.672} cy={-0.47} rx={0.075} ry={0.088} fill="#2b2e32" {...soft} />
+          <ellipse cx={0.69} cy={-0.495} rx={0.03} ry={0.035} fill="#fff" fillOpacity={0.08} />
+          <rect x={-0.785} y={-0.468} width={1.555} height={0.083} rx={0.02} fill="#5c6065" />
+        </g>
+      ))}
+      {/* the handle at the back */}
+      <rect x={-0.922} y={-0.405} width={0.088} height={0.81} rx={0.03} ry={0.05} fill="#121315" />
+      <path d={TRON.spine} fill={`url(#${id}s)`} {...soft} />
+      <path d={TRON.groove} fill="none" stroke="#f4f5f6" strokeWidth={0.7} strokeOpacity={0.7} />
+      <text transform={`matrix(0 1 ${-TRON_FIT} 0 -0.567 0)`} fontSize={0.075} fill="#5d6166" textAnchor="middle" fontFamily="Arial, Helvetica, sans-serif" letterSpacing={0.004}>
+        AIR<tspan fontWeight={700}>SEEKERS</tspan>
+      </text>
+      {/* the camera in front, held by the bracket, the bar across the front */}
+      <path d={TRON.bracket} fill={`url(#${id}f)`} {...line} />
+      <rect x={0.55} y={-0.228} width={0.338} height={0.456} rx={0.035} ry={0.05} fill={`url(#${id}m)`} {...line} />
+      <rect x={0.565} y={-0.2} width={0.06} height={0.4} rx={0.02} fill="#fff" fillOpacity={0.05} />
+      <path d={TRON.bar} fill={`url(#${id}b)`} stroke="#9aa0a6" strokeWidth={0.75} strokeOpacity={0.5} />
+      {/* the light, the stop button and the three keys */}
+      <rect x={0.457} y={-0.045} width={0.018} height={0.09} rx={0.009} ry={0.012} fill="#2a2c2f" />
+      {SIDES.map((s) => (
+        <circle key={s} cx={0.466} cy={s * 0.016} r={0.006} fill="#e8eaec" />
+      ))}
+      <rect x={0.143} y={-0.151} width={0.103} height={0.302} rx={0.022} ry={0.035} fill={`url(#${id}r)`} stroke="#8e1019" strokeWidth={0.75}>
+        {emergency && <animate attributeName="fill" values={`url(#${id}r);#fff;url(#${id}r)`} dur="0.8s" repeatCount="indefinite" />}
+      </rect>
+      {emergency && (
+        <rect x={0.143} y={-0.151} width={0.103} height={0.302} rx={0.022} ry={0.035} fill="#fff" opacity={0}>
+          <animate attributeName="opacity" values="0;1;0" dur="0.8s" repeatCount="indefinite" />
+        </rect>
+      )}
+      <text transform={`matrix(0 1 ${-TRON_FIT} 0 0.166 0)`} fontSize={0.112} fill="#a3101c" textAnchor="middle" fontFamily="Arial Black, Arial, Helvetica, sans-serif" fontWeight={900}>
+        STOP
+      </text>
+      <rect x={-0.009} y={-0.14} width={0.059} height={0.28} rx={0.012} ry={0.02} fill="#e3e5e7" stroke="#9aa0a6" strokeWidth={0.6} />
+      {[-1, 1].map((s) => (
+        <path key={s} d={`M-0.009,${s * 0.047} L0.05,${s * 0.047}`} stroke="#9aa0a6" strokeWidth={0.5} />
+      ))}
+      {[-0.093, 0, 0.093].map((y) => (
+        <circle key={y} cx={0.0205} cy={y} r={0.015} fill="none" stroke="#7d8287" strokeWidth={0.6} />
+      ))}
+    </>
+  );
+}
+
 const MODELS: MowerIcon[] = [
   {
     key: 'yf500',
@@ -916,6 +1050,12 @@ const MODELS: MowerIcon[] = [
     // as wide over as long as its owner measured it (50.5 cm, 60 + 21 cm), like the model in the mower sizes
     fit: 50.5 / 81,
     draw: ({emergency = false, blades = false} = {}) => <Shaded draw={(id) => johnDeereTango(id, emergency, blades)} />,
+  },
+  {
+    key: 'tron',
+    label: 'Airseekers Tron',
+    fit: TRON_FIT,
+    draw: ({emergency = false} = {}) => <Shaded draw={(id) => airseekersTron(id, emergency)} />,
   },
   {
     key: 'punisher',
