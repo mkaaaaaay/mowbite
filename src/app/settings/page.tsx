@@ -361,6 +361,7 @@ export default function SettingsPage() {
                   ['frost', tr('Frosted glass')],
                   ['aurora', tr('Aurora')],
                   ['sunny', tr('Sunny')],
+                  ['openmower', 'OpenMower'],
                 ] as const
               ).map(([k, label]) => (
                 <button key={k} className={theme === k ? styles.segmentOn : undefined} onClick={() => setThemeChoice(k)}>

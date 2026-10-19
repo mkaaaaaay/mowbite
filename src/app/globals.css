@@ -60,7 +60,8 @@
 :root[data-theme='dark'],
 :root[data-theme='frost'],
 :root[data-theme='aurora'],
-:root[data-theme='sunny'] {
+:root[data-theme='sunny'],
+:root[data-theme='openmower'] {
   --background: #101114;
   --foreground: #f1f1f1;
   --card: rgba(255, 255, 255, 0.05);
@@ -187,8 +188,8 @@ body {
   background-color: var(--background);
 }
 
-/* sunny: a summer sky with the sun at the top right going down over teal to a meadow, mid-tone so it doesn't glare,
-   milky glass cards, light text, sun yellow, the bar at the bottom like grass */
+/* sunny: a summer sky with a few clouds going down over teal to a meadow, mid-tone so it doesn't glare, milky glass
+   cards, light text, mint, the bar at the bottom like grass */
 :root[data-theme='sunny'] {
   --background: #4b8fb8;
   --foreground: #f7faf5;
@@ -197,7 +198,7 @@ body {
   --card-blur: blur(18px) saturate(140%);
   --card-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 6px 22px rgba(10, 40, 50, 0.18);
   --text-secondary: #d0e2dc;
-  --accent: #ffd166;
+  --accent: #9ff0bf;
   --bubble: #3f7899;
   --well: rgba(0, 0, 0, 0.13);
   --nav-bg: rgba(10, 40, 50, 0.3);
@@ -205,10 +206,33 @@ body {
 
 :root[data-theme='sunny'] body {
   background-image:
-    radial-gradient(circle at 86% 3%, rgba(255, 236, 160, 0.85) 0 4%, rgba(255, 205, 100, 0.42) 11%, rgba(255, 205, 100, 0) 30%),
     radial-gradient(ellipse 36% 6% at 20% 12%, rgba(255, 255, 255, 0.2), transparent 70%),
     radial-gradient(ellipse 24% 4% at 32% 17%, rgba(255, 255, 255, 0.16), transparent 70%),
     linear-gradient(180deg, #3f86c4 0%, #4a8fc6 20%, #5698c0 36%, #5b9eb0 50%, #57a092 64%, #4c946f 82%, #427f55 100%);
+  background-attachment: fixed;
+  background-color: var(--background);
+}
+
+/* openmower: like openmower.de, nearly black with OpenMower's green, dark glass cards edged in green and a green glow
+   coming up from the bottom */
+:root[data-theme='openmower'] {
+  --background: #0e110f;
+  --foreground: #f2f5f3;
+  --card: rgba(255, 255, 255, 0.05);
+  --card-border: rgba(61, 172, 108, 0.24);
+  --card-blur: blur(14px) saturate(140%);
+  --card-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 6px 22px rgba(0, 0, 0, 0.35);
+  --text-secondary: #a3ada7;
+  --accent: #3dac6c;
+  --bubble: #18201b;
+  --well: rgba(0, 0, 0, 0.3);
+  --nav-bg: rgba(10, 14, 12, 0.88);
+}
+
+:root[data-theme='openmower'] body {
+  background-image:
+    radial-gradient(ellipse 120% 50% at 50% 108%, rgba(27, 157, 82, 0.34), transparent 70%),
+    radial-gradient(ellipse 70% 30% at 50% 100%, rgba(20, 133, 63, 0.22), transparent 70%);
   background-attachment: fixed;
   background-color: var(--background);
 }
