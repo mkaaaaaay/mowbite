@@ -1,6 +1,6 @@
 'use client';
 
-import type {ReactNode} from 'react';
+import {memo, type ReactNode} from 'react';
 import type {MapArea, Point} from '@/hooks/useMowerMap';
 import {containsPoint, polygonArea} from '@/lib/geometry';
 import {joinedOutlines, realEdges, type MowerBody} from '@/lib/mowerBody';
@@ -368,53 +368,61 @@ export const coversOf = (things: Thing[]) =>
 // reaches over it, faded when the area is off. with a shadow the same once more first, dark and moved away from the sun
 // (no filter, it stays while the map moves). part: only what's on the ground (with the shadow of all of it) or only the
 // crowns and parasols over it, they go over the mower
-export function GardenThing({
-  uid,
-  thing,
-  off,
-  shade,
-  part,
-}: {
-  uid: string;
-  thing: Thing;
-  off: boolean;
-  shade?: {dx: number; dy: number} | null;
-  part?: 'ground' | 'over';
-}) {
-  const one = ({cx, cy, deg, w, h, seed}: Place, k: number) => (
-    <g key={k} transform={`translate(${cx} ${cy}) rotate(${deg})`}>
-      {drawThing(thing.look, {x: -w / 2, y: -h / 2, w, h}, `${uid}t${thing.i}${k ? '_' + k : ''}`, {
-        seed: seed ?? thing.id,
-        variant: thing.variant,
-        m: thing.m,
-        closed: thing.closed,
-        // a bed is never turned, its edge only moved to its middle
-        edge: thing.edge?.map((q): [number, number] => [q.x - cx, q.y - cy]),
-      })}
-    </g>
-  );
-  const group = (ground: boolean, over: boolean) => {
-    const inside = ground ? thing.places.map((pl, k) => (pl.over || pl.loose ? null : one(pl, k))) : [];
-    return (
-      <g className={[styles.gardenThing, off ? styles.gardenOff : ''].filter(Boolean).join(' ')}>
-        {inside.some(Boolean) && <g clipPath={`url(#${uid}clip${thing.i})`}>{inside}</g>}
-        {ground && thing.places.map((pl, k) => (pl.loose && !pl.over ? one(pl, k) : null))}
-        {over && thing.places.map((pl, k) => (pl.over ? one(pl, k) : null))}
-      </g>
-    );
-  };
-  const drawn = group(part !== 'over', part !== 'ground');
-  return (
-    <>
-      {shade && part !== 'over' && (
-        <g className={styles.thingShadow} transform={`translate(${shade.dx} ${shade.dy})`}>
-          {group(true, true)}
+type ThingProps = {uid: string; thing: Thing; off: boolean; shade?: {dx: number; dy: number} | null; part?: 'ground' | 'over'};
+
+export const GardenThing = memo(
+  function GardenThing({uid, thing, off, shade, part}: ThingProps) {
+    const one = ({cx, cy, deg, w, h, seed}: Place, k: number) => {
+      const p = `${uid}t${thing.i}${k ? '_' + k : ''}`;
+      const o = {seed: seed ?? thing.id, variant: thing.variant, m: thing.m, closed: thing.closed};
+      // a bed is never turned, its edge only moved to its middle
+      const edge = thing.edge?.map((q): [number, number] => [q.x - cx, q.y - cy]);
+      if (thing.fill) {
+        // a bed as a pattern of one tile 2.4 m across, the browser draws it once and repeats it, and its border
+        const t = Math.max(1, 2.4 * thing.m);
+        return (
+          <g key={k} transform={`translate(${cx} ${cy})`}>
+            <defs>
+              <pattern id={p + 'tile'} patternUnits="userSpaceOnUse" width={t} height={t}>
+                {drawThing(thing.look, {x: 0, y: 0, w: t, h: t}, p + 'x', {...o, tile: true})}
+              </pattern>
+            </defs>
+            <rect x={-w / 2} y={-h / 2} width={w} height={h} fill={`url(#${p}tile)`} />
+            {edge && drawThing(thing.look, {x: -w / 2, y: -h / 2, w, h}, p, {...o, edge, border: true})}
+          </g>
+        );
+      }
+      return (
+        <g key={k} transform={`translate(${cx} ${cy}) rotate(${deg})`}>
+          {drawThing(thing.look, {x: -w / 2, y: -h / 2, w, h}, p, {...o, edge})}
         </g>
-      )}
-      {drawn}
-    </>
-  );
-}
+      );
+    };
+    const group = (ground: boolean, over: boolean) => {
+      const inside = ground ? thing.places.map((pl, k) => (pl.over || pl.loose ? null : one(pl, k))) : [];
+      return (
+        <g className={[styles.gardenThing, off ? styles.gardenOff : ''].filter(Boolean).join(' ')}>
+          {inside.some(Boolean) && <g clipPath={`url(#${uid}clip${thing.i})`}>{inside}</g>}
+          {ground && thing.places.map((pl, k) => (pl.loose && !pl.over ? one(pl, k) : null))}
+          {over && thing.places.map((pl, k) => (pl.over ? one(pl, k) : null))}
+        </g>
+      );
+    };
+    const drawn = group(part !== 'over', part !== 'ground');
+    return (
+      <>
+        {shade && part !== 'over' && (
+          <g className={styles.thingShadow} transform={`translate(${shade.dx} ${shade.dy})`}>
+            {group(true, true)}
+          </g>
+        )}
+        {drawn}
+      </>
+    );
+  },
+  // drawn again only for another thing (the same while nothing of it changes), another shadow, part or state
+  (a, b) => a.thing === b.thing && a.uid === b.uid && a.off === b.off && a.part === b.part && a.shade?.dx === b.shade?.dx && a.shade?.dy === b.shade?.dy,
+);
 
 // a recorded job as useMowHistory has it: position.history.list's entry with the segments position.history gives
 export interface LifeJob {

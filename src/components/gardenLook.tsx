@@ -34,9 +34,14 @@ export const groundOf = (look: Look): Look => (isThing(look) ? (PICTURES[look].a
 
 // p starts the ids of its gradients and clips, unique on the page. seed varies it (the area's id: the same tree every time,
 // p without one), variant is the color picked for it (settings.lookVariants), m svg units per meter (left out: from the box),
-// edge a bed's real edge in the box's units, closed a parasol folded up
-export const drawThing = (look: Look, box: Box, p = 'gp', o?: {seed?: string; variant?: string; m?: number; edge?: [number, number][]; closed?: boolean}) =>
-  PICTURES[look]?.thing?.(box, p, {seed: o?.seed ?? p, variant: o?.variant, m: o?.m, edge: o?.edge, closed: o?.closed});
+// edge a bed's real edge in the box's units, closed a parasol folded up, tile a bed as one tile of a pattern, border only
+// its border
+export const drawThing = (
+  look: Look,
+  box: Box,
+  p = 'gp',
+  o?: {seed?: string; variant?: string; m?: number; edge?: [number, number][]; closed?: boolean; tile?: boolean; border?: boolean},
+) => PICTURES[look]?.thing?.(box, p, {seed: o?.seed ?? p, variant: o?.variant, m: o?.m, edge: o?.edge, closed: o?.closed, tile: o?.tile, border: o?.border});
 
 // how far a point is from the outline
 function edgeDistance(o: Point[], x: number, y: number) {
@@ -266,6 +271,8 @@ export interface GardenThing {
   edge?: Point[];
   // a parasol folded up
   closed?: boolean;
+  // a bed over the whole area, drawn as a pattern
+  fill?: boolean;
 }
 export interface GardenThings {
   lawns: Map<string, number>;
@@ -341,9 +348,9 @@ export function gardenThings(
         placed = {key: placeKey, body, outline, places: placeThings(look, outline, fit.m, a.id, sizes?.[a.id], turn)};
         placeCache.set(a, placed);
       }
-      const edge = PICTURES[look].fill ? placed.outline : undefined;
+      const edge = PICTURES[look].edged ? placed.outline : undefined;
       const folded = PICTURES[look].folds && closed?.[a.id] ? true : undefined;
-      out.things.set(a.id, {i: out.clips.length, id: a.id, look, variant: variants?.[a.id], m: fit.m, places: placed.places, edge, closed: folded});
+      out.things.set(a.id, {i: out.clips.length, id: a.id, look, variant: variants?.[a.id], m: fit.m, places: placed.places, edge, closed: folded, fill: PICTURES[look].fill});
       out.clips.push(placed.outline.map((p) => `${p.x},${p.y}`).join(' '));
     }
   }

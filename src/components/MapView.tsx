@@ -1507,6 +1507,42 @@ function MapView({
     if (pointers.current.size === 1) gesture.current = {moved: false, pinchDist: null};
   };
 
+  // a pan or a pinch moves the map that's drawn by a css transform (the phone's gpu moves it, nothing is drawn again), the
+  // view is set from it when the fingers let go and now and then on a long move: a map full of pictures drawn again for
+  // every move of a finger stuttered
+  const shift = useRef<{tx: number; ty: number; s: number; at: number} | null>(null);
+  const shiftDrawn = useRef(false);
+  const commitShift = () => {
+    const sh = shift.current;
+    const frame = frameRef.current;
+    shift.current = null;
+    if (!sh || !frame) return;
+    const v = base ?? {x: 0, y: 0, size: WIDTH};
+    const unit = v.size / (frame.clientWidth || 1);
+    shiftDrawn.current = true;
+    setView({x: v.x - (sh.tx / sh.s) * unit, y: v.y - (sh.ty / sh.s) * unit, size: Math.min(WIDTH * 4, Math.max(WIDTH / MAX_ZOOM, v.size / sh.s))});
+  };
+  // moved by dx, dy (px), scaled by f round q (px from the frame's corner), t the event's time
+  const nudge = (t: number, dx: number, dy: number, f = 1, qx = 0, qy = 0) => {
+    const svg = svgRef.current;
+    const frame = frameRef.current;
+    if (!svg || !frame) return;
+    const sh = (shift.current ??= {tx: 0, ty: 0, s: 1, at: t});
+    sh.tx = f * (sh.tx - qx) + qx + dx;
+    sh.ty = f * (sh.ty - qy) + qy + dy;
+    sh.s *= f;
+    svg.style.transformOrigin = '0 0';
+    svg.style.transform = `translate(${sh.tx}px, ${sh.ty}px) scale(${sh.s})`;
+    const w = frame.clientWidth || 1;
+    if (Math.abs(sh.tx) > 0.35 * w || Math.abs(sh.ty) > 0.35 * w || sh.s > 1.6 || sh.s < 0.6 || t - sh.at > 700) commitShift();
+  };
+  // the view set from a shift drawn: the transform off in the same frame
+  useLayoutEffect(() => {
+    if (!shiftDrawn.current) return;
+    shiftDrawn.current = false;
+    if (svgRef.current && !shift.current) svgRef.current.style.transform = '';
+  });
+
   const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
     const prev = pointers.current.get(e.pointerId);
     if (!zoomable || !prev || dragging) return;
@@ -1518,8 +1554,14 @@ function MapView({
 
     if (pts.length >= 2) {
       const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
-      const mid = clientToSvg((pts[0].x + pts[1].x) / 2, (pts[0].y + pts[1].y) / 2);
-      if (gesture.current.pinchDist && mid) zoomAt(gesture.current.pinchDist / dist, mid[0], mid[1]);
+      const [mx, my] = [(pts[0].x + pts[1].x) / 2, (pts[0].y + pts[1].y) / 2];
+      const mid = clientToSvg(mx, my);
+      const box = frameRef.current?.getBoundingClientRect();
+      if (gesture.current.pinchDist && following && mid) zoomAt(gesture.current.pinchDist / dist, mid[0], mid[1]);
+      else if (gesture.current.pinchDist && box && !glides) {
+        moving();
+        nudge(e.timeStamp, 0, 0, dist / gesture.current.pinchDist, mx - box.left, my - box.top);
+      }
       gesture.current = {moved: true, pinchDist: dist};
       return;
     }
@@ -1536,15 +1578,18 @@ function MapView({
     if (hold.current && wantHoldHint()) setHoldHint(true);
     dropHold();
     if (following) return; // the view is pinned to the mower
-    const v = base ?? {x: 0, y: 0, size: WIDTH};
-    const unitsPerPx = v.size / svg.getBoundingClientRect().width;
     moving();
-    setView({...v, x: v.x - dx * unitsPerPx, y: v.y - dy * unitsPerPx});
+    if (glides || !frameRef.current) {
+      const v = base ?? {x: 0, y: 0, size: WIDTH};
+      const unitsPerPx = v.size / svg.getBoundingClientRect().width;
+      setView({...v, x: v.x - dx * unitsPerPx, y: v.y - dy * unitsPerPx});
+    } else nudge(e.timeStamp, dx, dy);
   };
 
   const onPointerEnd = (e: React.PointerEvent<SVGSVGElement>) => {
     pointers.current.delete(e.pointerId);
     if (pointers.current.size < 2) gesture.current.pinchDist = null;
+    if (pointers.current.size === 0) commitShift();
     const h = hold.current;
     if (h && h.press.pointerId === e.pointerId) {
       dropHold();

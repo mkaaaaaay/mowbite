@@ -42,6 +42,10 @@ export interface ThingOptions {
   edge?: [number, number][];
   // a parasol folded up
   closed?: boolean;
+  // a bed drawn as one tile of a pattern repeating it: its plants run round the tile's edges, no border. border: only a
+  // bed's border along its edge
+  tile?: boolean;
+  border?: boolean;
 }
 export interface Picture {
   label: string;
@@ -72,6 +76,8 @@ export interface Picture {
   round?: boolean;
   // a parasol: it can be folded up (settings.lookClosed)
   folds?: boolean;
+  // a bed with a border along its real edge (ThingOptions.edge)
+  edged?: boolean;
   // a ground: the texture
   tile?: Tile;
 }
@@ -204,7 +210,7 @@ const rimLight = (cx: number, cy: number, r: number, w: number, o = 0.4) => (
 // a crown of leaves: lobes round the middle and over it that run into each other, each with clumps of leaves lit
 // from the top left and shaded down right, a ragged edge of small clumps. the lobes down right of the middle are a
 // little darker, the whole crown is lit from the top left
-function crown(p: string, cx: number, cy: number, r: number, c: string, rnd: () => number, lobes = 8, size = 0.37, leaves = 18) {
+function crown(p: string, cx: number, cy: number, r: number, c: string, rnd: () => number, lobes = 8, size = 0.37, leaves = 10) {
   const ring = (count: number, dist: number, k: number, turn: number): Dot[] =>
     Array.from({length: count}, (_, i) => {
       const a = turn + ((i + (rnd() - 0.5) * 0.5) / count) * 2 * PI;
@@ -242,8 +248,7 @@ function crown(p: string, cx: number, cy: number, r: number, c: string, rnd: () 
       <path d={circles([...outer, ...edge])} fill={tone(c, -0.5)} transform={`translate(${n2(r * 0.03)} ${n2(r * 0.045)})`} />
       <path d={circles(edge.filter((e) => litSide(e, cx, cy)))} fill={tone(c, 0.02)} />
       <path d={circles(edge.filter((e) => !litSide(e, cx, cy)))} fill={tone(c, -0.22)} />
-      <path d={circles(all)} fill={`url(#${p}l)`} />
-      <path d={circles(all)} fill="none" stroke={tone(c, -0.4)} strokeOpacity={0.22} strokeWidth={n2(r * 0.012)} />
+      <path d={circles(all)} fill={`url(#${p}l)`} stroke={tone(c, -0.4)} strokeOpacity={0.22} strokeWidth={n2(r * 0.012)} />
       <path d={circles(all.map(([x, y, rr]) => [x - rr * 0.22, y - rr * 0.25, rr * 0.58]))} fill={tone(c, 0.16)} opacity={0.42} />
       <path d={circles(dark)} fill={tone(c, -0.32)} opacity={0.5} />
       <path d={circles(lit)} fill={tone(c, 0.26)} opacity={0.5} />
@@ -264,9 +269,9 @@ function bigCrown(p: string, cx: number, cy: number, r: number, c: string, rnd: 
   return (
     <>
       {parts.map(([x, y, rr], i) => (
-        <g key={i}>{crown(`${p}c${i}`, x, y, rr, tone(c, ((cx - x + cy - y) / r) * 0.08), rnd, 8, 0.37, 12)}</g>
+        <g key={i}>{crown(`${p}c${i}`, x, y, rr, tone(c, ((cx - x + cy - y) / r) * 0.08), rnd, 8, 0.37, 4)}</g>
       ))}
-      {crown(`${p}cm`, cx - r * 0.04, cy - r * 0.05, r * 0.5, tone(c, 0.05), rnd, 8, 0.37, 12)}
+      {crown(`${p}cm`, cx - r * 0.04, cy - r * 0.05, r * 0.5, tone(c, 0.05), rnd, 8, 0.37, 4)}
     </>
   );
 }
@@ -531,21 +536,37 @@ const onStalk = (x: number, y: number, a: number, l: number, bend: number, t: nu
   const [dx, dy] = [2 * (1 - t) * qx + 2 * t * (ex - qx), 2 * (1 - t) * qy + 2 * t * (ey - qy)];
   return [x + px, y + py, Math.atan2(dy, dx)];
 };
-// places over a box about step apart in rows moved on by half, shaken so no rows show
-const spread = (b: Box, step: number, rnd: () => number, most = 320): Pt[] => {
-  const out: Pt[] = [];
-  const dy = step * 0.87;
-  const rows = Math.ceil(b.h / dy) + 1;
-  const cols = Math.ceil(b.w / step) + 1;
-  // too many for the box: further apart
-  const k = Math.max(1, Math.sqrt((rows * cols) / most));
-  for (let j = 0; j * dy * k < b.h + step; j++) {
-    for (let i = 0; i * step * k < b.w + step; i++) {
-      out.push([b.x + (i + (j % 2) * 0.5 + (rnd() - 0.5) * 0.7) * step * k, b.y + (j + (rnd() - 0.5) * 0.7) * dy * k]);
+// a bed's plants about step apart in rows moved on by half, shaken so no rows show, each with random numbers of its own
+// (from seed and where it is in the rows). tile: the box repeats itself, rows and columns fit it exactly and a plant near
+// an edge comes once more past the other edge, the same plant
+function spots(b: Box, step: number, seed: string, tile = false, most = 320): {x: number; y: number; r: () => number}[] {
+  let cols = Math.max(1, Math.round(b.w / step));
+  let rows = Math.max(2, Math.round(b.h / (step * 0.87)));
+  if (tile) rows += rows % 2;
+  else {
+    // too many for the box: further apart
+    const k = Math.sqrt((rows * cols) / most);
+    if (k > 1) [cols, rows] = [Math.max(1, Math.round(cols / k)), Math.max(2, Math.round(rows / k))];
+  }
+  const [sx, sy] = [b.w / cols, b.h / rows];
+  const out: {x: number; y: number; r: () => number}[] = [];
+  for (let j = 0; j < rows + (tile ? 0 : 1); j++) {
+    for (let i = 0; i < cols + (tile ? 0 : 1); i++) {
+      const id = `${seed}:${j}:${i}`;
+      const shake = random(id);
+      const [x, y] = [b.x + (i + (j % 2) * 0.5 + (shake() - 0.5) * 0.7) * sx, b.y + (j + 0.5 + (shake() - 0.5) * 0.7) * sy];
+      for (const dx of tile ? [-b.w, 0, b.w] : [0]) {
+        for (const dy of tile ? [-b.h, 0, b.h] : [0]) {
+          const [qx, qy] = [x + dx, y + dy];
+          if (!dx && !dy) out.push({x, y, r: random(id + 'p')});
+          else if (qx > b.x - step && qx < b.x + b.w + step && qy > b.y - step && qy < b.y + b.h + step) out.push({x: qx, y: qy, r: random(id + 'p')});
+        }
+      }
     }
   }
   return out;
-};
+}
+
 // a small leafy mound from above, as dots in three tones (lit up left, shaded down right): for the many plants of a bed
 const mound = (x: number, y: number, s: number, rnd: () => number): Dot[][] => {
   const lobes = Array.from({length: 5}, (_, k): Dot => {
@@ -1060,7 +1081,7 @@ export const PICTURES: Record<string, Picture> = {
     thing: (b, p, o) => {
       const {cx, cy, r} = middle(b);
       const rnd = random(o.seed + 'fruit');
-      const leafy = crown(p, cx, cy, r * 0.86, '#4c8d38', rnd, 9, 0.34, 26);
+      const leafy = crown(p, cx, cy, r * 0.86, '#4c8d38', rnd, 9, 0.34, 10);
       const kind = pick(o, FRUITS);
       const fruit = scatter(rnd, 12, cx, cy, r * 0.74, [r * 0.04 * kind.s, r * 0.05 * kind.s], (v) => 0.35 + 0.65 * Math.sqrt(v));
       const fallen = Array.from({length: 2}, (): Dot => {
@@ -1159,7 +1180,7 @@ export const PICTURES: Record<string, Picture> = {
       return (
         <>
           {halo(p + 'h', cx, cy, r * 0.97, r * 0.92)}
-          {crown(p, cx, cy, r * 0.86, pick(o, BUSHES).c, random(o.seed + 'bush'), 11, 0.31, 36)}
+          {crown(p, cx, cy, r * 0.86, pick(o, BUSHES).c, random(o.seed + 'bush'), 11, 0.31, 12)}
         </>
       );
     },
@@ -1181,7 +1202,7 @@ export const PICTURES: Record<string, Picture> = {
       return (
         <>
           {halo(p + 'h', cx, cy, r * 0.97, r * 0.92)}
-          {crown(p, cx, cy, r * 0.86, '#3f7d38', rnd, 10, 0.33, 24)}
+          {crown(p, cx, cy, r * 0.86, '#3f7d38', rnd, 10, 0.33, 10)}
           <path d={circles(heads.map(([x, y, hs]) => [x + hs * 0.25, y + hs * 0.3, hs]))} fill="#1f3f1c" opacity={0.35} />
           <path d={circles(heads)} fill={tone(c, -0.12)} />
           <path d={circles(flowers.filter((f) => !litSide(f, cx, cy)))} fill={c} />
@@ -1205,17 +1226,17 @@ export const PICTURES: Record<string, Picture> = {
       const c = pick(o, BUDDLEJAS, true).c;
       // long arching shoots from the middle, grey-green leaves along them, a cone of flowers at the end of each, butterflies
       // on two of them
-      const shoots = Array.from({length: 14}, (_, i) => ({a: ((i + rnd() * 0.8) / 14) * 2 * PI, l: r * (0.44 + rnd() * 0.14), bend: (rnd() - 0.5) * 0.4}));
+      const shoots = Array.from({length: 12}, (_, i) => ({a: ((i + rnd() * 0.8) / 12) * 2 * PI, l: r * (0.44 + rnd() * 0.14), bend: (rnd() - 0.5) * 0.4}));
       const leaves = shoots.flatMap((sh) =>
-        [0.3, 0.45, 0.6, 0.75, 0.9].map((t, k) => {
+        [0.35, 0.6, 0.85].map((t, k) => {
           const [x, y, a] = onStalk(cx, cy, sh.a, sh.l, sh.bend, t);
           return leaf(x, y, a + (k % 2 ? 0.8 : -0.8), r * 0.16, r * 0.045);
         }),
       );
       const tips = shoots.map((sh) => onStalk(cx, cy, sh.a, sh.l, sh.bend, 1));
       const florets = tips.flatMap(([x, y, a]) =>
-        Array.from({length: 12}, (_, k): Dot => {
-          const t = k / 11;
+        Array.from({length: 8}, (_, k): Dot => {
+          const t = k / 7;
           const w = r * 0.07 * (1 - t * 0.75);
           const side = (rnd() - 0.5) * 2 * w;
           const out = r * 0.34 * t;
@@ -1226,7 +1247,7 @@ export const PICTURES: Record<string, Picture> = {
       return (
         <>
           {halo(p + 'h', cx, cy, r * 0.95, r * 0.9)}
-          {crown(p, cx, cy, r * 0.62, '#647f58', rnd, 8, 0.36, 10)}
+          {crown(p, cx, cy, r * 0.62, '#647f58', rnd, 8, 0.36, 4)}
           <path d={shoots.map((sh) => stalk(cx, cy, sh.a, sh.l, sh.bend)).join('')} stroke="#5a5244" strokeWidth={n2(r * 0.014)} fill="none" strokeLinecap="round" />
           <path d={leaves.join('')} fill="#86a079" stroke="#55704a" strokeWidth={n2(r * 0.005)} />
           <path d={circles(florets.map(([x, y, s]) => [x + s * 0.3, y + s * 0.4, s]))} fill={tone(c, -0.5)} opacity={0.45} />
@@ -1264,7 +1285,7 @@ export const PICTURES: Record<string, Picture> = {
       return (
         <>
           {halo(p + 'h', cx, cy, r * 0.97, r * 0.92)}
-          {crown(p, cx, cy, r * 0.88, '#3f7a35', rnd, 10, 0.35, 16)}
+          {crown(p, cx, cy, r * 0.88, '#3f7a35', rnd, 10, 0.35, 6)}
           <path d={circles(heads.map(([x, y, s]) => [x + s * 0.15, y + s * 0.22, s]))} fill="#1f3a1c" opacity={0.35} />
           <path d={circles(heads)} fill={tone(c, -0.12)} />
           <path d={circles(florets.filter(([, lit]) => !lit).map(([d]) => d))} fill={c} />
@@ -1333,7 +1354,7 @@ export const PICTURES: Record<string, Picture> = {
       return (
         <>
           {halo(p + 'h', cx, cy, r * 0.97, r * 0.92)}
-          {crown(p, cx, cy, r * 0.86, '#365f2c', rnd, 10, 0.33, 30)}
+          {crown(p, cx, cy, r * 0.86, '#365f2c', rnd, 10, 0.33, 10)}
           <path d={circles(blooms.map(([x, y, s]) => [x + s * 0.2, y + s * 0.3, s]))} fill="#14260f" opacity={0.4} />
           <path d={circles(blooms)} fill={c} />
           <path d={circles(blooms.map(([x, y, s]) => [x - s * 0.2, y - s * 0.2, s * 0.6]))} fill={light} opacity={0.6} />
@@ -1412,7 +1433,7 @@ export const PICTURES: Record<string, Picture> = {
           return `${n2(x + Math.cos(a) * rr)} ${n2(y + Math.sin(a) * rr)}`;
         }).join('L') +
         'Z';
-      const leaves = scatter(rnd, 110, cx, cy, r * 0.82, [r * 0.05, r * 0.075]);
+      const leaves = scatter(rnd, 70, cx, cy, r * 0.82, [r * 0.06, r * 0.085]);
       return (
         <>
           {halo(p + 'h', cx, cy, r * 0.98, r * 0.92)}
@@ -1601,7 +1622,6 @@ export const PICTURES: Record<string, Picture> = {
     fill: true,
     around: 'mulch',
     thing: (b, p, o) => {
-      const rnd = random(o.seed + 'perennials');
       const m = o.m ?? Math.max(b.w, b.h) / 1.6;
       const kind = pick(o, PERENNIALS);
       // clumps of perennials about 45 cm apart on dark soil, each a mound of leaves with its own kind of flowers: daisies,
@@ -1610,7 +1630,7 @@ export const PICTURES: Record<string, Picture> = {
       const flowers: [Dot, string][] = [];
       const hearts: [Dot, string][] = [];
       const grass: string[] = [];
-      for (const [x, y] of spread(b, 0.32 * m, rnd, 260)) {
+      for (const {x, y, r: rnd} of spots(b, 0.32 * m, o.seed + 'perennials', o.tile, 260)) {
         const s = (0.22 + rnd() * 0.08) * m;
         const what = rnd();
         const c = kind.c[Math.floor(rnd() * kind.c.length)];
@@ -1665,7 +1685,7 @@ export const PICTURES: Record<string, Picture> = {
       // rose bushes about half a meter apart on bark, dark leaves with open roses on them
       const leaves: Dot[][] = [[], [], []];
       const blooms: Dot[] = [];
-      for (const [x, y] of spread(b, 0.36 * m, rnd, 240)) {
+      for (const {x, y, r: rnd} of spots(b, 0.36 * m, o.seed + 'rosebed', o.tile, 240)) {
         const s = (0.26 + rnd() * 0.06) * m;
         mound(x, y, s, rnd).forEach((d, i) => leaves[i].push(...d));
         for (let k = 0; k < 4; k++) {
@@ -1701,8 +1721,13 @@ export const PICTURES: Record<string, Picture> = {
       const drifts = Array.from({length: 6}, () => ({x: b.x + rnd() * b.w, y: b.y + rnd() * b.h, c: colors[Math.floor(rnd() * colors.length)]}));
       const leaves: string[] = [];
       const cups: [Dot, string][] = [];
-      for (const [x, y] of spread(b, 0.12 * m, rnd, 520)) {
-        const near = drifts.reduce((best, d) => (Math.hypot(d.x - x, d.y - y) < Math.hypot(best.x - x, best.y - y) ? d : best));
+      for (const {x, y, r: rnd} of spots(b, 0.12 * m, o.seed + 'spring', o.tile, 520)) {
+        // the drift a tulip is in, round the tile's edges when it repeats
+        const gap = (d: {x: number; y: number}) => {
+          const [dx, dy] = [Math.abs(d.x - x), Math.abs(d.y - y)];
+          return o.tile ? Math.hypot(Math.min(dx % b.w, b.w - (dx % b.w)), Math.min(dy % b.h, b.h - (dy % b.h))) : Math.hypot(dx, dy);
+        };
+        const near = drifts.reduce((best, d) => (gap(d) < gap(best) ? d : best));
         const s = (0.035 + rnd() * 0.01) * m;
         const a = rnd() * PI;
         leaves.push(leaf(x, y, a, s * 3.8, s * 1.1), leaf(x, y, a + PI + (rnd() - 0.5), s * 3.4, s * 1));
@@ -1727,13 +1752,12 @@ export const PICTURES: Record<string, Picture> = {
     fill: true,
     around: 'soil',
     thing: (b, p, o) => {
-      const rnd = random(o.seed + 'summer');
       const m = o.m ?? Math.max(b.w, b.h) / 1.6;
       const colors = pick(o, SUMMER).c;
       // a dense carpet of low leaves covered in flowers of every color
       const leaves: Dot[][] = [[], [], []];
       const flowers: [number, number, number, string][] = [];
-      for (const [x, y] of spread(b, 0.2 * m, rnd, 340)) {
+      for (const {x, y, r: rnd} of spots(b, 0.2 * m, o.seed + 'summer', o.tile, 340)) {
         const s = (0.14 + rnd() * 0.03) * m;
         mound(x, y, s, rnd).forEach((d, i) => leaves[i].push(...d));
         for (let k = 0; k < 3; k++) {
@@ -1759,13 +1783,12 @@ export const PICTURES: Record<string, Picture> = {
     fill: true,
     around: 'soil',
     thing: (b, p, o) => {
-      const rnd = random(o.seed + 'cover');
       const m = o.m ?? Math.max(b.w, b.h) / 1.6;
       const kind = pick(o, GROUND_COVERS);
       // small leaves close together in three shades, little flowers here and there
       const shades: string[][] = [[], [], []];
       const flowers: [number, number, number, string][] = [];
-      for (const [x, y] of spread(b, 0.075 * m, rnd, 1100)) {
+      for (const {x, y, r: rnd} of spots(b, 0.075 * m, o.seed + 'cover', o.tile, 1100)) {
         const s = (0.045 + rnd() * 0.02) * m;
         const [jx, jy] = [x + (rnd() - 0.5) * 0.05 * m, y + (rnd() - 0.5) * 0.05 * m];
         shades[Math.floor(rnd() * 3)].push(leaf(jx, jy, rnd() * 2 * PI, s, s * 0.45));
@@ -2088,7 +2111,7 @@ export const PICTURES: Record<string, Picture> = {
           {rimLight(cx, cy, rp * 0.95, rp * 0.03)}
           <circle cx={n2(cx)} cy={n2(cy)} r={n2(rp * 0.84)} fill={tone('#c56a3d', -0.35)} />
           <circle cx={n2(cx + rp * 0.03)} cy={n2(cy + rp * 0.04)} r={n2(rp * 0.78)} fill="#4a3324" />
-          {crown(p, cx, cy, rp * 0.7, '#4f8f3c', rnd, 7, 0.38, 14)}
+          {crown(p, cx, cy, rp * 0.7, '#4f8f3c', rnd, 7, 0.38, 4)}
           {blossoms(flowers.map(([x, y, s]) => [x, y, s, pick(o, POTS, true).c]))}
         </>
       );
@@ -2161,6 +2184,7 @@ export const PICTURES: Record<string, Picture> = {
     group: 'beds',
     variants: choices(EDGINGS),
     fill: true,
+    edged: true,
     around: 'soil',
     thing: (b, p, o) => {
       const rnd = random(o.seed + 'herbs');
@@ -2168,11 +2192,46 @@ export const PICTURES: Record<string, Picture> = {
       const edging = pick(o, EDGINGS);
       // herbs about 30 cm apart on dark soil (basil, sage, parsley, chives with their purple balls, thyme, rosemary) and a
       // border of stones, bricks or logs along the edge
+      // the border: along the area's edge, half of it inside (the map cuts the rest), round the box without one
+      const edge = o.edge?.length
+        ? 'M' + o.edge.map(([x, y]) => `${n2(x)} ${n2(y)}`).join('L') + 'Z'
+        : `M${n2(b.x)} ${n2(b.y)}h${n2(b.w)}v${n2(b.h)}h${n2(-b.w)}Z`;
+      const c = edging.c;
+      const border =
+        edging.kind === 'wood' ? (
+          <>
+            <path d={edge} fill="none" stroke={tone(c, -0.4)} strokeWidth={n2(0.24 * m)} strokeLinecap="round" strokeDasharray={`0.001 ${n2(0.13 * m)}`} />
+            <path d={edge} fill="none" stroke={c} strokeWidth={n2(0.2 * m)} strokeLinecap="round" strokeDasharray={`0.001 ${n2(0.13 * m)}`} />
+            <path d={edge} fill="none" stroke={tone(c, 0.3)} strokeWidth={n2(0.1 * m)} strokeLinecap="round" strokeDasharray={`0.001 ${n2(0.13 * m)}`} />
+          </>
+        ) : (
+          <>
+            <path d={edge} fill="none" stroke={edging.kind === 'brick' ? '#cfc5b5' : tone(c, -0.45)} strokeWidth={n2(0.34 * m)} strokeLinejoin="round" />
+            <path
+              d={edge}
+              fill="none"
+              stroke={c}
+              strokeWidth={n2(0.3 * m)}
+              strokeLinejoin="round"
+              strokeDasharray={edging.kind === 'brick' ? `${n2(0.22 * m)} ${n2(0.015 * m)}` : `${n2(0.17 * m)} ${n2(0.04 * m)} ${n2(0.23 * m)} ${n2(0.035 * m)}`}
+            />
+            <path
+              d={edge}
+              fill="none"
+              stroke={tone(c, 0.28)}
+              strokeOpacity={0.7}
+              strokeWidth={n2(0.12 * m)}
+              strokeLinejoin="round"
+              strokeDasharray={edging.kind === 'brick' ? `${n2(0.22 * m)} ${n2(0.015 * m)}` : `${n2(0.17 * m)} ${n2(0.04 * m)} ${n2(0.23 * m)} ${n2(0.035 * m)}`}
+            />
+          </>
+        );
+      if (o.border) return border;
       const leaves = new Map<string, string[]>();
       const lines = new Map<string, string[]>();
       const dotsOf: [Dot, string][] = [];
       const add = (map: Map<string, string[]>, c: string, d: string) => map.set(c, [...(map.get(c) ?? []), d]);
-      for (const [x, y] of spread(b, 0.25 * m, rnd, 300)) {
+      for (const {x, y, r: rnd} of spots(b, 0.25 * m, o.seed + 'herbs', o.tile, 300)) {
         const s = (0.13 + rnd() * 0.04) * m;
         const turn = rnd() * 2 * PI;
         const kind = Math.floor(rnd() * 6);
@@ -2197,11 +2256,6 @@ export const PICTURES: Record<string, Picture> = {
           for (let k = 0; k < 3; k++) dotsOf.push([[x + Math.cos(turn + k * 2) * s * 0.4, y + Math.sin(turn + k * 2) * s * 0.4, s * 0.08], '#a9bde8']);
         }
       }
-      // the border: along the area's edge, half of it inside (the map cuts the rest), round the box without one
-      const edge = o.edge?.length
-        ? 'M' + o.edge.map(([x, y]) => `${n2(x)} ${n2(y)}`).join('L') + 'Z'
-        : `M${n2(b.x)} ${n2(b.y)}h${n2(b.w)}v${n2(b.h)}h${n2(-b.w)}Z`;
-      const c = edging.c;
       return (
         <>
           <rect x={n2(b.x)} y={n2(b.y)} width={n2(b.w)} height={n2(b.h)} fill="#4f3a2a" />
@@ -2216,34 +2270,7 @@ export const PICTURES: Record<string, Picture> = {
             <path key={lc} d={ds.join('')} fill="none" stroke={lc} strokeWidth={n2(0.012 * m)} strokeLinecap="round" />
           ))}
           {byColor(dotsOf)}
-          {edging.kind === 'wood' ? (
-            <>
-              <path d={edge} fill="none" stroke={tone(c, -0.4)} strokeWidth={n2(0.24 * m)} strokeLinecap="round" strokeDasharray={`0.001 ${n2(0.13 * m)}`} />
-              <path d={edge} fill="none" stroke={c} strokeWidth={n2(0.2 * m)} strokeLinecap="round" strokeDasharray={`0.001 ${n2(0.13 * m)}`} />
-              <path d={edge} fill="none" stroke={tone(c, 0.3)} strokeWidth={n2(0.1 * m)} strokeLinecap="round" strokeDasharray={`0.001 ${n2(0.13 * m)}`} />
-            </>
-          ) : (
-            <>
-              <path d={edge} fill="none" stroke={edging.kind === 'brick' ? '#cfc5b5' : tone(c, -0.45)} strokeWidth={n2(0.34 * m)} strokeLinejoin="round" />
-              <path
-                d={edge}
-                fill="none"
-                stroke={c}
-                strokeWidth={n2(0.3 * m)}
-                strokeLinejoin="round"
-                strokeDasharray={edging.kind === 'brick' ? `${n2(0.22 * m)} ${n2(0.015 * m)}` : `${n2(0.17 * m)} ${n2(0.04 * m)} ${n2(0.23 * m)} ${n2(0.035 * m)}`}
-              />
-              <path
-                d={edge}
-                fill="none"
-                stroke={tone(c, 0.28)}
-                strokeOpacity={0.7}
-                strokeWidth={n2(0.12 * m)}
-                strokeLinejoin="round"
-                strokeDasharray={edging.kind === 'brick' ? `${n2(0.22 * m)} ${n2(0.015 * m)}` : `${n2(0.17 * m)} ${n2(0.04 * m)} ${n2(0.23 * m)} ${n2(0.035 * m)}`}
-              />
-            </>
-          )}
+          {!o.tile && border}
         </>
       );
     },
