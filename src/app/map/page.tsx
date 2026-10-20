@@ -36,6 +36,7 @@ import {PARAM} from '@/lib/openmower';
 import {rpcErrorText} from '@/lib/rpcText';
 import {closedRings} from '@/lib/rings';
 import {saveFile} from '@/lib/saveFile';
+import {mapToGeoJson} from '@/lib/geojson';
 import {savePlanCase} from '@/lib/planCase';
 import {useAreaProperties} from '@/lib/areaProps';
 import {useMowPlan} from './useMowPlan';
@@ -537,13 +538,20 @@ function MapEditor() {
     }
   };
   // a backup, or the map as it is on the mower right now, as a file
+  const fileName = (t: Date, ext: string) => {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `mowbite-map-${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}-${pad(t.getHours())}${pad(t.getMinutes())}.${ext}`;
+  };
   const download = async (b: BackupInfo | null) => {
     const m = b ? await loadBackup(b.id) : liveMap;
     if (!m) return;
-    const t = new Date((b ? b.t : Date.now() / 1000) * 1000);
-    const pad = (n: number) => String(n).padStart(2, '0');
-    const name = `mowbite-map-${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}-${pad(t.getHours())}${pad(t.getMinutes())}.json`;
-    await saveFile(name, JSON.stringify(closedRings(m), null, 2));
+    await saveFile(fileName(new Date((b ? b.t : Date.now() / 1000) * 1000), 'json'), JSON.stringify(closedRings(m), null, 2));
+  };
+  // the mower's map in longitude and latitude, for other map apps
+  const datum = datumFromParams(params);
+  const downloadGeo = async () => {
+    if (!liveMap || !datum) return;
+    await saveFile(fileName(new Date(), 'geojson'), JSON.stringify(mapToGeoJson(liveMap, datum), null, 2), 'application/geo+json');
   };
 
   // an openmower that doesn't know the newer area settings drops them when saving, noticed once its map comes back
@@ -906,7 +914,9 @@ function MapEditor() {
                     }
                     onDelete={(b) => void deleteBackup(b.id).then(refreshBackups)}
                     onDownload={(b) => void download(b)}
+                    onDownloadGeo={() => void downloadGeo()}
                     onFile={(m, name) => setPreview({map: m, label: name})}
+                    geo={datum ? {datum, base: liveMap} : null}
                   />
                 </>
               )}

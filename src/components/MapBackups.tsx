@@ -1,6 +1,8 @@
 'use client';
 
 import {parseMapFile, type BackupInfo} from '@/lib/backups';
+import {GeoJsonError, isGeoJson, mapFromGeoJson} from '@/lib/geojson';
+import type {Datum} from '@/lib/imagery';
 import type {MowerMap} from '@/hooks/useMowerMap';
 import {dayLabel, clock} from '@/lib/dates';
 import {tr} from '@/lib/i18n';
@@ -10,14 +12,16 @@ import styles from './MapBackups.module.css';
 export const backupLabel = (b: BackupInfo) =>
   `${dayLabel(new Date(b.t * 1000))}, ${clock(b.t)}${b.name ? ` · ${b.auto ? tr(b.name) : b.name}` : ''}`;
 
-// list of the container's map backups plus export/import as a file
+// list of the container's map backups plus export/import as a file, also as geojson when the mower's datum is known
 export default function MapBackups({
   backups,
   onCreate,
   onPreview,
   onDelete,
   onDownload,
+  onDownloadGeo,
   onFile,
+  geo,
 }: {
   // null: not served by the container, no backups on the mower then
   backups: BackupInfo[] | null;
@@ -25,7 +29,10 @@ export default function MapBackups({
   onPreview: (b: BackupInfo) => void;
   onDelete: (b: BackupInfo) => void;
   onDownload: (b: BackupInfo | null) => void;
+  onDownloadGeo: () => void;
   onFile: (map: MowerMap, name: string) => void;
+  // the datum for geojson's longitude and latitude, and the map a geojson file's areas go into
+  geo: {datum: Datum; base: MowerMap | null} | null;
 }) {
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
@@ -99,27 +106,43 @@ export default function MapBackups({
         <button className={styles.button} onClick={() => onDownload(null)}>
           {tr('Download current map')}
         </button>
+        {geo && (
+          <button className={styles.button} onClick={onDownloadGeo}>
+            {tr('As GeoJSON')}
+          </button>
+        )}
         <button className={styles.button} onClick={() => file.current?.click()}>
           {tr('Load from file')}
         </button>
         <input
           ref={file}
           type="file"
-          accept=".json,application/json"
+          accept=".json,.geojson,application/json,application/geo+json"
           hidden
           onChange={async (e) => {
             const f = e.target.files?.[0];
             e.target.value = '';
             if (!f) return;
             try {
-              onFile(parseMapFile(await f.text()), f.name);
+              const text = await f.text();
+              const json = JSON.parse(text);
+              if (isGeoJson(json)) {
+                if (!geo) throw new GeoJsonError("For GeoJSON the mower's position is needed, it isn't known yet.");
+                const r = mapFromGeoJson(json, geo.datum, geo.base);
+                onFile(r.map, `${f.name}, ${tr('{changed} changed, {added} new', {changed: r.changed, added: r.added})}`);
+              } else onFile(parseMapFile(text), f.name);
               setError(null);
-            } catch {
-              setError(tr("That file doesn't look like a map."));
+            } catch (e) {
+              setError(e instanceof GeoJsonError ? tr(e.message) : tr("That file doesn't look like a map."));
             }
           }}
         />
       </div>
+      {geo && (
+        <p className={styles.dim}>
+          {tr('GeoJSON opens in QGIS, geojson.io and other map apps. Loaded back, an area from the file takes the place of the one with its id, others come in as new ones, drafts unless the file says what they are.')}
+        </p>
+      )}
       {error && <p className={styles.error}>{error}</p>}
     </details>
   );
