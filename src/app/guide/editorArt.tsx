@@ -959,12 +959,14 @@ function Save() {
             <EditorToolbar
               idle
               canUndo={!saved}
+              canRedo={false}
               unsaved={!saved}
               saving={saving}
               saveLabel={saving ? tr('saving…') : tr('Save map')}
               saveError={null}
               onDraw={noop}
               onUndo={noop}
+              onRedo={noop}
               onSave={noop}
             />
             {saved && <OpenBackups />}

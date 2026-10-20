@@ -95,7 +95,7 @@ function MapEditor() {
   const towelNow = towel || (!!progress && !progress.leftovers && Math.round(progress.fraction * 100) === 42);
   // the same object while nothing changes, the map is drawn again only when it does
   const costume = useMemo(() => ({towel: towelNow, umbrella}), [towelNow, umbrella]);
-  const {map, edited, setMap, history, remember, undoStep, originals, setOriginals, dirty, external, dropEdits, mergeNote, mergeExternal} =
+  const {map, edited, setMap, history, future, remember, undoStep, redoStep, originals, setOriginals, dirty, external, dropEdits, mergeNote, mergeExternal} =
     useMapEdits(liveMap);
   const [showStripes, setShowStripes] = useState(true);
   // on a phone the map stays at the top while the settings under it scroll, unless it was unpinned on this device
@@ -276,9 +276,21 @@ function MapEditor() {
     setPendingPoints([]);
   };
 
+  const redo = () => {
+    if (!redoStep()) return;
+    setSimplifyCm(null);
+    setMode('idle');
+    setPendingPoints([]);
+  };
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+      const key = e.key.toLowerCase();
+      // ctrl+y, or ctrl+shift+z as on a mac
+      if ((e.ctrlKey || e.metaKey) && (key === 'y' || (key === 'z' && e.shiftKey))) {
+        e.preventDefault();
+        redo();
+      } else if ((e.ctrlKey || e.metaKey) && key === 'z') {
         e.preventDefault();
         undo();
       }
@@ -619,6 +631,11 @@ function MapEditor() {
                 <button className={styles.pillButton} onClick={undo} disabled={history.length === 0} aria-label={tr('Undo')}>
                   ↶
                 </button>
+                {future.length > 0 && (
+                  <button className={styles.pillButton} onClick={redo} aria-label={tr('Redo')}>
+                    ↷
+                  </button>
+                )}
                 <button className={[styles.pillButton, styles.saveButton, styles.unsaved].join(' ')} onClick={() => void handleSave()} disabled={saving}>
                   {saving ? tr('saving…') : tr('Save map')}
                 </button>
@@ -675,7 +692,8 @@ function MapEditor() {
                 onMoveVertex={simplifyCm === null && mode === 'idle' ? moveVertex : undefined}
                 onDragStart={remember}
                 onDragging={setDraggingPoint}
-                onDragCancel={undo}
+                // the start of a pinch, nothing to redo
+                onDragCancel={() => undoStep(false)}
                 onUndo={undo}
                 onInsertVertex={simplifyCm === null ? insertVertex : undefined}
                 onDeleteVertex={simplifyCm === null ? deleteVertex : undefined}
@@ -744,6 +762,7 @@ function MapEditor() {
                 <EditorToolbar
                   idle={mode === 'idle'}
                   canUndo={history.length > 0}
+                  canRedo={future.length > 0}
                   unsaved={dirty}
                   saving={saving}
                   saveLabel={
@@ -752,6 +771,7 @@ function MapEditor() {
                   saveError={saveError ?? droppedNote}
                   onDraw={startDraw}
                   onUndo={undo}
+                  onRedo={redo}
                   onSave={() => void handleSave()}
                 />
               )}

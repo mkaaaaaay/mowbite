@@ -1,22 +1,25 @@
-import {CheckIcon, PencilIcon, RouteIcon, UndoIcon} from '@/components/icons';
+import {CheckIcon, PencilIcon, RedoIcon, RouteIcon, UndoIcon} from '@/components/icons';
 import {tr} from '@/lib/i18n';
 import Link from 'next/link';
 import styles from './page.module.css';
 
-// new area (only while nothing else is going on), undo and save
+// new area (only while nothing else is going on), undo, redo and save
 export default function EditorToolbar({
   idle,
   canUndo,
+  canRedo,
   unsaved,
   saving,
   saveLabel,
   saveError,
   onDraw,
   onUndo,
+  onRedo,
   onSave,
 }: {
   idle: boolean;
   canUndo: boolean;
+  canRedo: boolean;
   // changed from the mower's map
   unsaved: boolean;
   saving: boolean;
@@ -24,6 +27,7 @@ export default function EditorToolbar({
   saveError: string | null;
   onDraw: () => void;
   onUndo: () => void;
+  onRedo: () => void;
   onSave: () => void;
 }) {
   const tool = [styles.pillButton, styles.tool].join(' ');
@@ -55,8 +59,12 @@ export default function EditorToolbar({
         <UndoIcon size={16} />
         {tr('Undo')}
       </button>
+      <button className={tool} onClick={onRedo} disabled={!canRedo}>
+        <RedoIcon size={16} />
+        {tr('Redo')}
+      </button>
       <button
-        className={[tool, styles.saveButton, unsaved ? styles.unsaved : ''].join(' ')}
+        className={[tool, styles.toolWide, styles.saveButton, unsaved ? styles.unsaved : ''].join(' ')}
         onClick={onSave}
         disabled={saving || !unsaved}
       >

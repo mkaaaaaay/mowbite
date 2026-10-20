@@ -619,6 +619,7 @@ const de: Record<string, string> = {
   "Tried again {time} later, that worked": "{time} später erneut versucht, hat geklappt",
   "turn the preview by {n}° to match": "Vorschau um {n}° drehen, damit sie passt",
   "Undo": "Rückgängig",
+  "Redo": "Wiederholen",
   "unnamed": "ohne Namen",
   "Use it anyway": "Trotzdem verwenden",
   "Used on every map in the app.": "Gilt für alle Karten in der App.",

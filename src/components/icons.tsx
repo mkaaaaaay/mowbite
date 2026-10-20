@@ -98,6 +98,15 @@ export function UndoIcon({size = 20}: IconProps) {
   );
 }
 
+export function RedoIcon({size = 20}: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...line}>
+      <path d="M15 14l5-5-5-5" />
+      <path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13" />
+    </svg>
+  );
+}
+
 export function CheckIcon({size = 20}: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" {...line}>
