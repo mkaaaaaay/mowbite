@@ -357,9 +357,10 @@ function MowerMarker({
       {drawMower(icon, {speed, emergency, blades})}
     </g>
   );
-  // its outline where a crown or a parasol hides it: the body's, and the icon's drawn round its shape (a pixel and a bit
-  // wide at any zoom)
+  // its outline where a crown or a parasol hides it: the body's (a real model's contour with its sizes), without sizes the
+  // icon's drawn round its shape (a pixel and a bit wide at any zoom)
   const hidden = covers && covers.length > 0 && coverId;
+  const iconOutline = showIcon && !shape;
   const [ox, oy] = fitted ? [((body.front + body.rear) / 2) * scale, (body.width / 2) * scale] : [size, size];
   const silhouette = (
     <filter id={coverId + 'o'} x="-30%" y="-30%" width="160%" height="160%">
@@ -446,13 +447,13 @@ function MowerMarker({
                 <circle key={i} cx={c.cx} cy={c.cy} r={c.r} fill="#fff" />
               ))}
             </mask>
-            {showIcon && silhouette}
+            {iconOutline && silhouette}
           </defs>
           <g mask={`url(#${coverId})`} className={styles.mowerUnder}>
             <g ref={(el) => void (moveRefs.current[1] = el)}>
               <g ref={(el) => void (turnRefs.current[2] = el)}>
                 {shape && <polygon className={styles.mowerUnderBody} points={points(shape.corners)} />}
-                {showIcon &&
+                {iconOutline &&
                   (fitted ? (
                     <g transform={`translate(${mx} ${my}) scale(${ox} ${oy})`} filter={`url(#${coverId}o)`}>
                       {icon.draw({speed, emergency, blades})}
@@ -465,7 +466,7 @@ function MowerMarker({
                     )
                   ))}
               </g>
-              {showIcon && !fitted && icon.upright && (
+              {iconOutline && !fitted && icon.upright && (
                 <g ref={(el) => void (uprightRefs.current[2] = el)}>
                   <g transform={`scale(${size})`} filter={`url(#${coverId}o)`}>
                     {drawIcon}
