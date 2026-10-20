@@ -356,7 +356,7 @@ const COVERS: Record<string, {r: number; rim?: number; ahead?: number}> = {
 export const coversOf = (things: Thing[]) =>
   things.flatMap((t) =>
     t.places
-      .filter((pl) => pl.over && COVERS[t.look])
+      .filter((pl) => pl.over && COVERS[t.look] && !t.closed)
       .map((pl) => {
         const {r, rim = 1, ahead = 0} = COVERS[t.look];
         const a = (pl.deg * Math.PI) / 180;
@@ -387,16 +387,18 @@ export function GardenThing({
         seed: seed ?? thing.id,
         variant: thing.variant,
         m: thing.m,
+        closed: thing.closed,
         // a bed is never turned, its edge only moved to its middle
         edge: thing.edge?.map((q): [number, number] => [q.x - cx, q.y - cy]),
       })}
     </g>
   );
   const group = (ground: boolean, over: boolean) => {
-    const inside = ground ? thing.places.map((pl, k) => (pl.over ? null : one(pl, k))) : [];
+    const inside = ground ? thing.places.map((pl, k) => (pl.over || pl.loose ? null : one(pl, k))) : [];
     return (
       <g className={[styles.gardenThing, off ? styles.gardenOff : ''].filter(Boolean).join(' ')}>
         {inside.some(Boolean) && <g clipPath={`url(#${uid}clip${thing.i})`}>{inside}</g>}
+        {ground && thing.places.map((pl, k) => (pl.loose && !pl.over ? one(pl, k) : null))}
         {over && thing.places.map((pl, k) => (pl.over ? one(pl, k) : null))}
       </g>
     );
@@ -433,6 +435,7 @@ export interface LifeInput {
   lookVariants?: Record<string, string>;
   lookSizes?: Record<string, number>;
   lookTurns?: Record<string, number>;
+  lookClosed?: Record<string, boolean>;
   body?: MowerBody | null;
   fit: Fit;
   uid: string;
@@ -546,7 +549,7 @@ export function lifeScene(s: LifeInput): LifeScene | null {
         at,
       )
     : '';
-  const garden = gardenThings(s.areas, s.looks, s.body ?? null, fit, s.lookVariants, s.lookSizes, s.lookTurns);
+  const garden = gardenThings(s.areas, s.looks, s.body ?? null, fit, {variants: s.lookVariants, sizes: s.lookSizes, turns: s.lookTurns, closed: s.lookClosed});
   // the things reaching over the others and the mower, of the areas shown
   const shown = bySize
     .filter((a) => !hidden.has(a.properties.type ?? ''))

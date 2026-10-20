@@ -392,6 +392,50 @@
   vector-effect: non-scaling-stroke;
 }
 
+/* the handles of the picture of the area being edited: turn it, make it bigger or smaller */
+.thingHandles {
+  pointer-events: none;
+}
+
+.thingFrame {
+  fill: none;
+  stroke: #fff;
+  stroke-opacity: 0.8;
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+}
+
+.thingHandle {
+  fill: #fff;
+  stroke: #1e2a18;
+  stroke-width: 1.2;
+}
+
+.thingIcon {
+  fill: none;
+  stroke: #1e2a18;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.thingLabel {
+  fill: #fff;
+  font-weight: 700;
+  text-anchor: middle;
+  paint-order: stroke;
+  stroke: #0d140a;
+  stroke-width: 3;
+}
+
+/* a point lying exactly on another area's corner or edge */
+.vertexAttached {
+  fill: none;
+  stroke: #ffd54f;
+  stroke-width: 2;
+  pointer-events: none;
+}
+
 .snapCorner,
 .snapEdge {
   fill: none;

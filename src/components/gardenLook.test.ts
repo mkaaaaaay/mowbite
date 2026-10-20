@@ -180,6 +180,22 @@ describe('placeThings', () => {
     expect(p.h).toBeCloseTo(2.3 * m, 5);
   });
 
+  it('takes a size of its own, bigger than its area not cut to it', () => {
+    const [lamp] = placeThings('lamp', rect(1, 1), m, 'a', 0.5);
+    expect(lamp.w).toBeCloseTo(5, 5);
+    expect(lamp.loose).toBeFalsy();
+    const [house] = placeThings('house', rect(6, 4), m, 'a', 9);
+    expect(house.w).toBeCloseTo(90, 5);
+    expect(house.loose).toBe(true);
+  });
+
+  it('lies the way it is turned, along it', () => {
+    const [bench] = placeThings('bench', rect(3, 3), m, 'a', undefined, 90);
+    expect(bench.deg).toBeCloseTo(90, 5);
+    expect(bench.w).toBeGreaterThanOrEqual(bench.h);
+    expect(placeThings('table', rect(3, 2), m, 'a', undefined, 30)[0].deg).toBeCloseTo(30, 5);
+  });
+
   it('spreads a bed over its whole area', () => {
     const o = [
       {x: 0, y: 0},

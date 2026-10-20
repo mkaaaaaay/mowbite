@@ -5,7 +5,7 @@ import {useComputedSpeed} from '@/hooks/useComputedSpeed';
 import {createEaser, type Easer, type Pose} from '@/lib/poseEaser';
 import {liveGlide} from '@/hooks/useMowerPosition';
 import {containsPoint, polygonArea} from '@/lib/geometry';
-import {snapPoint} from '@/lib/snapAreas';
+import {nearestOnOutline, snapPoint} from '@/lib/snapAreas';
 import {saveSettings, settingsStore, type Settings} from '@/lib/settings';
 import {bladeSeconds, bodyShape, realEdges, roundBends, swathEnd, swathGroups, swathAfter, swathTail, useMowerBody, usePlannerSettings, type MowerBody, type SwathState} from '@/lib/mowerBody';
 import type {FitPose, PlanPiece} from '@/lib/mowPlan';
@@ -28,7 +28,8 @@ import {CELL_M, MIN_SECONDS, gpsGrade, loadCoverage, wifiGrade, type CoverageCel
 import {useUpdates} from '@/lib/updates';
 import {CoverInfo} from './CoverInfo';
 import {GardenDefs, gardenThings, groundOf} from './gardenLook';
-import {coversOf, GardenThing, lifeOf, lifeScene} from './gardenLife';
+import {biggest, coversOf, GardenThing, lifeOf, lifeScene} from './gardenLife';
+import {PICTURES} from './gardenPictures';
 import {useMowHistory} from '@/hooks/useMowHistory';
 import {useWeather} from '@/hooks/useWeather';
 import {useMowerStateValue} from '@/hooks/useMowerState';
@@ -154,6 +155,8 @@ const MAX_ZOOM = 40;
 const savedViews = new Map<string, {x: number; y: number; span: number}>();
 // dragging.areaId while a point of the line being drawn is dragged
 const PENDING = '__pending';
+// dragging.areaId while a handle of the picture of the area being edited is dragged (index 0 turns it, 1 sizes it)
+const THING = '__thing';
 const NO_LAYERS_HIDDEN = new Set<Layer>();
 
 type Run = {points: string; blades: boolean};
@@ -636,6 +639,8 @@ function MapView({
   );
   // a finger resting on a point, until it picks it up (HOLD_MS) or turns out to pan
   const hold = useRef<{press: Press; areaId: string; hit: Handle; timer: ReturnType<typeof setTimeout>} | null>(null);
+  // what a picture's handle started from: its middle (svg), its size (m) and how far from the middle the finger was
+  const thingDrag = useRef<{kind: 'turn' | 'size'; areaId: string; cx: number; cy: number; size: number; dist: number; reaches: boolean} | null>(null);
   const dropHold = () => {
     if (hold.current) clearTimeout(hold.current.timer);
     hold.current = null;
@@ -806,9 +811,14 @@ function MapView({
   const uid = 'g' + useId().replace(/[^a-zA-Z0-9]/g, '');
   const gardenLook = useMemo(() => {
     if (!garden) return null;
-    const g = gardenThings(map.areas, settings.looks, body ?? null, {minX, minY, m: scale, padX, padY}, settings.lookVariants, settings.lookSizes, settings.lookTurns);
+    const g = gardenThings(map.areas, settings.looks, body ?? null, {minX, minY, m: scale, padX, padY}, {
+      variants: settings.lookVariants,
+      sizes: settings.lookSizes,
+      turns: settings.lookTurns,
+      closed: settings.lookClosed,
+    });
     return {...g, defs: <GardenDefs uid={uid} m={scale} lawns={g.angles} clips={g.clips} />};
-  }, [garden, map, settings.looks, settings.lookVariants, settings.lookSizes, settings.lookTurns, uid, scale, minX, minY, padX, padY, body]);
+  }, [garden, map, settings.looks, settings.lookVariants, settings.lookSizes, settings.lookTurns, settings.lookClosed, uid, scale, minX, minY, padX, padY, body]);
   // the garden's life (gardenLife): light after the sun, the season and the weather on the lawn, a mowing edge and
   // the lawn growing back since it was last cut. the time moves on every five minutes, the layers are worked out below
   const life = garden && !sample ? lifeOf(settings.garden) : null;
@@ -990,6 +1000,7 @@ function MapView({
             lookVariants: settings.lookVariants,
             lookSizes: settings.lookSizes,
             lookTurns: settings.lookTurns,
+            lookClosed: settings.lookClosed,
             body: body ?? null,
             fit: {minX, minY, m: scale, padX, padY},
             uid,
@@ -1004,7 +1015,7 @@ function MapView({
             hidden,
           })
         : null,
-    [garden, sample, map, settings.garden, settings.looks, settings.lookVariants, settings.lookSizes, settings.lookTurns, body, minX, minY, scale, padX, padY, uid, lifeNow, datum, weather, rainSensor, mower, history, track, edges, hidden],
+    [garden, sample, map, settings.garden, settings.looks, settings.lookVariants, settings.lookSizes, settings.lookTurns, settings.lookClosed, body, minX, minY, scale, padX, padY, uid, lifeNow, datum, weather, rainSensor, mower, history, track, edges, hidden],
   );
   const gardenFill = (a: MapArea): React.CSSProperties | undefined => {
     if (!gardenLook) return undefined;
@@ -1136,6 +1147,12 @@ function MapView({
   );
 
   const selectedArea = map.areas.find((a) => a.id === selectedAreaId);
+  // the points of the area being edited that lie exactly on another area's corner or edge (snapped there), ringed
+  const attached = useMemo(() => {
+    if (!editing || !selectedArea) return null;
+    const others = map.areas.filter((a) => a.id !== selectedArea.id && a.outline.length > 1 && !hidden.has(a.properties.type as Layer));
+    return selectedArea.outline.map((p) => others.some((a) => (nearestOnOutline(a.outline, p)?.d ?? 1) < 0.002));
+  }, [editing, selectedArea, map.areas, hidden]);
   const activeIndex =
     active && selectedArea && active.areaId === selectedArea.id && active.index < selectedArea.outline.length
       ? active.index
@@ -1177,6 +1194,24 @@ function MapView({
 
   // keeps handles the same size at any zoom
   const k = shown ? shown.size / WIDTH : 1;
+  // the picture of the area being edited in the garden style, with a handle to turn it (above it, a cantilever parasol's
+  // out past its canopy) and one to make it bigger or smaller (at its corner), a dashed frame round it
+  const pickedThing = editing && !pickingPoints && selectedAreaId && gardenLook ? gardenLook.things.get(selectedAreaId) : undefined;
+  const pickedPic = pickedThing ? PICTURES[pickedThing.look] : undefined;
+  const handles = (() => {
+    if (!pickedThing || !pickedPic || pickedPic.fill || !pickedThing.places.length) return null;
+    const pl = biggest(pickedThing.places);
+    const a = (pl.deg * Math.PI) / 180;
+    const at = (u: number, v: number): [number, number] => [pl.cx + u * Math.cos(a) - v * Math.sin(a), pl.cy + u * Math.sin(a) + v * Math.cos(a)];
+    const reaches = !!pickedPic.turn;
+    return {
+      pl,
+      reaches,
+      frame: reaches ? null : [at(-pl.w / 2, -pl.h / 2), at(pl.w / 2, -pl.h / 2), at(pl.w / 2, pl.h / 2), at(-pl.w / 2, pl.h / 2)],
+      turn: pickedPic.round ? null : reaches ? at(pl.w * 1.18, 0) : at(0, -pl.h / 2 - 16 * k),
+      size: reaches ? at(pl.w * 1.1, pl.w * 0.55) : at(pl.w / 2 + 7 * k, pl.h / 2 + 7 * k),
+    };
+  })();
   const pxPerMeter = scale / k;
 
   const clientToSvg = (clientX: number, clientY: number): [number, number] | null => {
@@ -1218,7 +1253,7 @@ function MapView({
   const snapAt = (x: number, y: number, exclude: string | null, touch: boolean) => {
     const svg = svgRef.current;
     if (!snap?.on || !svg) return null;
-    const reach = (touch ? 16 : 10) / ((pxPerMeter * svg.getBoundingClientRect().width) / WIDTH);
+    const reach = (touch ? 20 : 10) / ((pxPerMeter * svg.getBoundingClientRect().width) / WIDTH);
     const others = map.areas.filter((a) => a.id !== exclude && !hidden.has(a.properties.type as Layer)).map((a) => a.outline);
     return snapPoint({x, y}, others, reach);
   };
@@ -1337,6 +1372,46 @@ function MapView({
     if (viewKey && viewMeters) savedViews.set(viewKey, viewMeters);
   }, [viewKey, viewMeters]);
 
+  // a press on one of the picture's handles: which one, null for none in reach
+  const pickThingHandle = (clientX: number, clientY: number, touch: boolean): 'turn' | 'size' | null => {
+    const p = clientToSvg(clientX, clientY);
+    const svg = svgRef.current;
+    if (!p || !svg || !handles) return null;
+    const reach = ((touch ? 22 : 12) * (shown?.size ?? WIDTH)) / svg.getBoundingClientRect().width;
+    const far = (q: [number, number] | null) => (q ? Math.hypot(q[0] - p[0], q[1] - p[1]) : Infinity);
+    const [turn, size] = [far(handles.turn), far(handles.size)];
+    if (Math.min(turn, size) > reach) return null;
+    return turn <= size ? 'turn' : 'size';
+  };
+
+  const startThingDrag = (e: Press, kind: 'turn' | 'size') => {
+    if (!handles || !pickedThing || !selectedAreaId) return;
+    const p = clientToSvg(e.clientX, e.clientY);
+    const {pl} = handles;
+    thingDrag.current = {
+      kind,
+      areaId: selectedAreaId,
+      cx: pl.cx,
+      cy: pl.cy,
+      size: settings.lookSizes?.[selectedAreaId] ?? Math.max(pl.w, pl.h) / pickedThing.m,
+      dist: p ? Math.max(1e-6, Math.hypot(p[0] - pl.cx, p[1] - pl.cy)) : 1,
+      reaches: handles.reaches,
+    };
+    drag.current = {
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      lastX: e.clientX,
+      lastY: e.clientY,
+      moved: false,
+      touch: e.pointerType !== 'mouse',
+      insert: null,
+      orig: null,
+    };
+    gesture.current.moved = true; // eat the click that follows
+    setDragging({areaId: THING, index: kind === 'turn' ? 0 : 1, bounds: {minX, maxX, minY, maxY}});
+  };
+
   const startDrag = (e: Press, areaId: string, hit: Handle) => {
     const at = {x: hit.x, y: hit.y};
     drag.current = {
@@ -1359,7 +1434,8 @@ function MapView({
   const cancelDrag = (e: React.PointerEvent<SVGSVGElement>) => {
     if (!dragging) return;
     const d = drag.current;
-    if (d.moved) {
+    if (dragging.areaId === THING) thingDrag.current = null;
+    else if (d.moved) {
       if (dragging.areaId !== PENDING) onDragCancel?.();
       else if (d.orig) onMovePending?.(dragging.index, d.orig.x, d.orig.y);
     }
@@ -1398,6 +1474,11 @@ function MapView({
     // a second finger while one rests on a point: a pinch
     if (hold.current && e.pointerId !== hold.current.press.pointerId) dropHold();
 
+    const thingHit = editing && handles && pointers.current.size === 0 ? pickThingHandle(e.clientX, e.clientY, touch) : null;
+    if (thingHit) {
+      startThingDrag(e, thingHit);
+      return;
+    }
     const pendingHit = editing && pointers.current.size === 0 ? pickPending(e.clientX, e.clientY, touch) : null;
     const hit = editing && !pendingHit && selectedArea && pointers.current.size === 0 ? pickHandle(e.clientX, e.clientY, touch) : null;
     const grab = pendingHit ? {areaId: PENDING, hit: pendingHit} : hit && selectedArea ? {areaId: selectedArea.id, hit} : null;
@@ -1484,6 +1565,26 @@ function MapView({
       if (e.pointerId !== d.pointerId) return;
       d.lastX = e.clientX;
       d.lastY = e.clientY;
+      // a picture's handle: turned in steps of 5°, sized in steps of 10 cm, kept with the app's settings
+      if (dragging.areaId === THING) {
+        const t = thingDrag.current;
+        const p = clientToSvg(e.clientX, e.clientY);
+        if (!d.moved) {
+          if (Math.hypot(e.clientX - d.startX, e.clientY - d.startY) < (d.touch ? 6 : 3)) return;
+          d.moved = true;
+          onDragging?.(true);
+        }
+        if (!t || !p) return;
+        const cur = settingsStore.snapshot();
+        if (t.kind === 'turn') {
+          const deg = (Math.atan2(p[1] - t.cy, p[0] - t.cx) * 180) / Math.PI + (t.reaches ? 0 : 90);
+          saveSettings({...cur, lookTurns: {...cur.lookTurns, [t.areaId]: (Math.round((((deg % 360) + 360) % 360) / 5) * 5) % 360}});
+        } else {
+          const size = Math.max(0.1, Math.round(t.size * (Math.hypot(p[0] - t.cx, p[1] - t.cy) / t.dist) * 10) / 10);
+          saveSettings({...cur, lookSizes: {...cur.lookSizes, [t.areaId]: size}});
+        }
+        return;
+      }
       if (!d.moved) {
         // a finger needs a bit more way, so the second finger of a pinch comes in before anything changes
         if (Math.hypot(e.clientX - d.startX, e.clientY - d.startY) < (d.touch ? 10 : 4)) return;
@@ -1507,6 +1608,12 @@ function MapView({
       if (e.pointerId !== d.pointerId) return;
       // handled, a repeated up for the same finger does nothing
       d.pointerId = -1;
+      if (dragging.areaId === THING) {
+        thingDrag.current = null;
+        setDragging(null);
+        onDragging?.(false);
+        return;
+      }
       if (!d.moved && d.insert) {
         // a tap on an edge midpoint adds the point there
         addPoint(d.insert.x, d.insert.y);
@@ -1784,16 +1891,45 @@ function MapView({
             {selectedArea.outline.map((p, i) => {
               const [sx, sy] = toScreen(p.x, p.y);
               return (
-                <circle
-                  key={i}
-                  cx={sx}
-                  cy={sy}
-                  r={(i === activeIndex ? 4 : vertexR) * k}
-                  className={i === activeIndex ? styles.activeVertex : styles.vertex}
-                />
+                <Fragment key={i}>
+                  {attached?.[i] && <circle cx={sx} cy={sy} r={((i === activeIndex ? 4 : vertexR) + 2.2) * k} className={styles.vertexAttached} />}
+                  <circle cx={sx} cy={sy} r={(i === activeIndex ? 4 : vertexR) * k} className={i === activeIndex ? styles.activeVertex : styles.vertex} />
+                </Fragment>
               );
             })}
           </>
+        )}
+
+        {handles && (
+          <g className={styles.thingHandles}>
+            {handles.frame && <polygon points={handles.frame.map((q) => q.join(',')).join(' ')} className={styles.thingFrame} />}
+            {handles.turn && (
+              <g transform={`translate(${handles.turn[0]} ${handles.turn[1]})`}>
+                <circle r={9 * k} className={styles.thingHandle} />
+                <path
+                  d={`M${-4.5 * k} ${-1 * k}A${4.5 * k} ${4.5 * k} 0 1 1 ${-1 * k} ${4.4 * k}M${-4.6 * k} ${-4.4 * k}L${-4.5 * k} ${-1 * k}L${-1.2 * k} ${-1.4 * k}`}
+                  className={styles.thingIcon}
+                />
+              </g>
+            )}
+            <g transform={`translate(${handles.size[0]} ${handles.size[1]})`}>
+              <circle r={9 * k} className={styles.thingHandle} />
+              <path
+                d={`M${-4 * k} ${4 * k}L${4 * k} ${-4 * k}M${0.5 * k} ${-4 * k}H${4 * k}V${-0.5 * k}M${-4 * k} ${0.5 * k}V${4 * k}H${-0.5 * k}`}
+                className={styles.thingIcon}
+              />
+            </g>
+            {dragging?.areaId === THING && selectedAreaId && (
+              <text
+                className={styles.thingLabel}
+                x={(dragging.index === 0 && handles.turn ? handles.turn : handles.size)[0]}
+                y={(dragging.index === 0 && handles.turn ? handles.turn : handles.size)[1] - 14 * k}
+                fontSize={11 * k}
+              >
+                {dragging.index === 0 ? `${settings.lookTurns?.[selectedAreaId] ?? 0}°` : `${fmt(settings.lookSizes?.[selectedAreaId] ?? 0, 1)} m`}
+              </text>
+            )}
+          </g>
         )}
 
         {snapMark && (

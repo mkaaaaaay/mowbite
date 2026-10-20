@@ -34,9 +34,9 @@ export const groundOf = (look: Look): Look => (isThing(look) ? (PICTURES[look].a
 
 // p starts the ids of its gradients and clips, unique on the page. seed varies it (the area's id: the same tree every time,
 // p without one), variant is the color picked for it (settings.lookVariants), m svg units per meter (left out: from the box),
-// edge a bed's real edge in the box's units
-export const drawThing = (look: Look, box: Box, p = 'gp', o?: {seed?: string; variant?: string; m?: number; edge?: [number, number][]}) =>
-  PICTURES[look]?.thing?.(box, p, {seed: o?.seed ?? p, variant: o?.variant, m: o?.m, edge: o?.edge});
+// edge a bed's real edge in the box's units, closed a parasol folded up
+export const drawThing = (look: Look, box: Box, p = 'gp', o?: {seed?: string; variant?: string; m?: number; edge?: [number, number][]; closed?: boolean}) =>
+  PICTURES[look]?.thing?.(box, p, {seed: o?.seed ?? p, variant: o?.variant, m: o?.m, edge: o?.edge, closed: o?.closed});
 
 // how far a point is from the outline
 function edgeDistance(o: Point[], x: number, y: number) {
@@ -59,13 +59,15 @@ export interface Place {
   h: number;
   // reaches over the area's edge (a crown, a parasol), not cut to it
   over?: boolean;
+  // made bigger than its area by hand: not cut to it either, but on the ground
+  loose?: boolean;
   // one of several in the area, varied by this
   seed?: string;
 }
 
 // where a thing goes in its area, o its outline in svg units: around cx, cy, turned deg, w by h. a long one along the
 // area's long side into the biggest box of that shape that fits in it, any other into the biggest circle in it
-export function placeThing(look: Look, o: Point[]): Place {
+export function placeThing(look: Look, o: Point[], turn?: number): Place {
   if (PICTURES[look]?.fill) {
     // a bed over the whole area
     const [xs, ys] = [o.map((q) => q.x), o.map((q) => q.y)];
@@ -75,14 +77,14 @@ export function placeThing(look: Look, o: Point[]): Place {
   const n = o.length;
   const [mx, my] = [o.reduce((s, p) => s + p.x, 0) / n, o.reduce((s, p) => s + p.y, 0) / n];
   if (PICTURES[look]?.long) {
-    // the long side from how the points spread
+    // the long side from how the points spread, or the way it's turned (degrees)
     let [sxx, syy, sxy] = [0, 0, 0];
     for (const p of o) {
       sxx += (p.x - mx) ** 2;
       syy += (p.y - my) ** 2;
       sxy += (p.x - mx) * (p.y - my);
     }
-    const a = 0.5 * Math.atan2(2 * sxy, sxx - syy);
+    const a = turn !== undefined ? (turn * Math.PI) / 180 : 0.5 * Math.atan2(2 * sxy, sxx - syy);
     const [c, s] = [Math.cos(a), Math.sin(a)];
     const us = o.map((p) => (p.x - mx) * c + (p.y - my) * s);
     const vs = o.map((p) => -(p.x - mx) * s + (p.y - my) * c);
@@ -116,7 +118,7 @@ export function placeThing(look: Look, o: Point[]): Place {
     const [dx, dy] = [(x1 - x0) / k, (y1 - y0) / k];
     [x0, x1, y0, y1] = [best.x - dx, best.x + dx, best.y - dy, best.y + dy];
   }
-  return {cx: best.x, cy: best.y, deg: 0, w: 2 * best.r, h: 2 * best.r};
+  return {cx: best.x, cy: best.y, deg: turn ?? 0, w: 2 * best.r, h: 2 * best.r};
 }
 
 // round ones as big across as each() says packed into the outline as snug as they go, each a little into the next. over:
@@ -153,18 +155,26 @@ function pack(o: Point[], each: () => number, over: boolean, rnd: () => number, 
 }
 
 // where a thing goes in its area about as big as it really is (PICTURES' size), o the area's outline in svg units, m svg
-// units per meter, seed the area's id, size the one picked for the area in meters, turn which way one that faces a way
-// does (degrees in the svg, 0 right): a long one no longer nor deeper than it is, a crown or a parasol round the middle
-// reaching over the edge, several bushes or trees where there's room for them, any other into the biggest circle but no
-// bigger than it is
+// units per meter, seed the area's id. size and turn picked for the area: how big it is in meters (across, a long one its
+// length, bushes and trees each), which way it lies or reaches (degrees in the svg, 0 right). by itself a long one lies
+// along the area no longer nor deeper than it is, a crown or a parasol reaches over the edge, several bushes or trees
+// stand where there's room, any other goes into the biggest circle but no bigger than it is. one made bigger than its
+// area isn't cut to it
 export function placeThings(look: Look, o: Point[], m: number, seed: string, size?: number, turn?: number): Place[] {
   const pic = PICTURES[look];
-  const fit = placeThing(look, o);
+  const fit = placeThing(look, o, pic?.over ? undefined : turn);
   if (!pic || !(m > 0)) return [fit];
-  if (pic.long) return [{...fit, w: pic.size ? Math.min(fit.w, pic.size[1] * m) : fit.w, h: pic.deep ? Math.min(fit.h, pic.deep * m) : fit.h}];
-  if (!pic.size) return [fit];
-  const [lo, hi] = [pic.size[0] * m, pic.size[1] * m];
   const own = size && size > 0 ? size * m : undefined;
+  if (pic.long) {
+    const w = pic.size ? Math.min(fit.w, pic.size[1] * m) : fit.w;
+    // turned by hand it keeps lying that way: never deeper than long
+    const h = Math.min(pic.deep ? Math.min(fit.h, pic.deep * m) : fit.h, turn !== undefined ? w : Infinity);
+    if (!own) return [{...fit, w, h}];
+    const k = own / w;
+    return [{...fit, w: own, h: h * k, loose: own > fit.w + 0.01 || h * k > fit.h + 0.01}];
+  }
+  if (!pic.size) return [own ? {...fit, w: own, h: own, loose: own > fit.w + 0.01} : fit];
+  const [lo, hi] = [pic.size[0] * m, pic.size[1] * m];
   if (pic.many) {
     const rnd = random(seed + 'many');
     // trees as big as they are over the edge, bushes no bigger than fits, mostly on the small side
@@ -174,7 +184,7 @@ export function placeThings(look: Look, o: Point[], m: number, seed: string, siz
     const spots = pack(o, each, !!pic.over, rnd, {x: fit.cx, y: fit.cy, e: fit.w / 2});
     if (spots.length > 1) {
       return spots
-        .map((c, k) => ({cx: c.x, cy: c.y, deg: 0, w: 2 * c.r, h: 2 * c.r, over: pic.over, seed: k ? `${seed}~${k}` : undefined}))
+        .map((c, k) => ({cx: c.x, cy: c.y, deg: turn ?? 0, w: 2 * c.r, h: 2 * c.r, over: pic.over, seed: k ? `${seed}~${k}` : undefined}))
         .sort((a, b) => a.w - b.w);
     }
   }
@@ -182,8 +192,8 @@ export function placeThings(look: Look, o: Point[], m: number, seed: string, siz
     const s = own ?? Math.min(Math.max(fit.w, lo), hi);
     return [{...fit, w: s, h: s, over: true, deg: turn ?? fit.deg}];
   }
-  const s = Math.min(fit.w, own ?? hi);
-  return [{...fit, w: s, h: s}];
+  const s = own ?? Math.min(fit.w, hi);
+  return [{...fit, w: s, h: s, loose: s > fit.w + 0.01}];
 }
 
 // a ground as a texture with this id, m: svg units per meter
@@ -254,6 +264,8 @@ export interface GardenThing {
   places: Place[];
   // a bed's real edge (svg units), its border goes along it
   edge?: Point[];
+  // a parasol folded up
+  closed?: boolean;
 }
 export interface GardenThings {
   lawns: Map<string, number>;
@@ -263,7 +275,16 @@ export interface GardenThings {
   clips: string[];
 }
 
-const thingsCache = new WeakMap<object, {looks?: object; variants?: object; sizes?: object; turns?: object; body: object | null; key: string; out: GardenThings}>();
+// what's picked for each area's picture besides which one (settings.lookVariants, lookSizes, lookTurns, lookClosed): its
+// color, size (m), direction (degrees in the svg) and a parasol folded up, by area id
+export interface ThingsOwn {
+  variants?: Record<string, string>;
+  sizes?: Record<string, number>;
+  turns?: Record<string, number>;
+  closed?: Record<string, boolean>;
+}
+
+const thingsCache = new WeakMap<object, {looks?: object; own: ThingsOwn; body: object | null; key: string; out: GardenThings}>();
 
 // the things a cantilever parasol stands by, it reaches over them
 const SEATS = ['table', 'furniture', 'lounge', 'lounger', 'bench', 'pingPong', 'grill', 'firePit', 'hotTub'];
@@ -294,13 +315,13 @@ export function gardenThings(
   looks: Record<string, string> | undefined,
   body: MowerBody | null,
   fit: Fit,
-  variants?: Record<string, string>,
-  sizes?: Record<string, number>,
-  turns?: Record<string, number>,
+  own: ThingsOwn = {},
 ): GardenThings {
+  const {variants, sizes, turns, closed} = own;
   const key = fitKey(fit);
   const hit = thingsCache.get(areas);
-  if (hit && hit.looks === looks && hit.variants === variants && hit.sizes === sizes && hit.turns === turns && hit.body === body && hit.key === key) return hit.out;
+  const same = (o: ThingsOwn) => o.variants === variants && o.sizes === sizes && o.turns === turns && o.closed === closed;
+  if (hit && hit.looks === looks && same(hit.own) && hit.body === body && hit.key === key) return hit.out;
   const at = inSquare(fit);
   const out: GardenThings = {lawns: new Map(), looks: new Map(), things: new Map(), angles: [], clips: []};
   for (const a of areas) {
@@ -312,7 +333,7 @@ export function gardenThings(
       const look = areaLook(a, looks);
       out.looks.set(a.id, look);
       if (!isThing(look)) continue;
-      const turn = PICTURES[look].turn ? (turns?.[a.id] ?? facing(a, areas, looks, at)) : undefined;
+      const turn = turns?.[a.id] ?? (PICTURES[look].turn ? facing(a, areas, looks, at) : undefined);
       const placeKey = `${look}|${sizes?.[a.id] ?? ''}|${turn ?? ''}|${key}`;
       let placed = placeCache.get(a);
       if (!placed || placed.key !== placeKey || placed.body !== body) {
@@ -321,11 +342,12 @@ export function gardenThings(
         placeCache.set(a, placed);
       }
       const edge = PICTURES[look].fill ? placed.outline : undefined;
-      out.things.set(a.id, {i: out.clips.length, id: a.id, look, variant: variants?.[a.id], m: fit.m, places: placed.places, edge});
+      const folded = PICTURES[look].folds && closed?.[a.id] ? true : undefined;
+      out.things.set(a.id, {i: out.clips.length, id: a.id, look, variant: variants?.[a.id], m: fit.m, places: placed.places, edge, closed: folded});
       out.clips.push(placed.outline.map((p) => `${p.x},${p.y}`).join(' '));
     }
   }
-  thingsCache.set(areas, {looks, variants, sizes, turns, body, key, out});
+  thingsCache.set(areas, {looks, own: {variants, sizes, turns, closed}, body, key, out});
   return out;
 }
 

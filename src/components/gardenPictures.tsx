@@ -40,6 +40,8 @@ export interface ThingOptions {
   m?: number;
   // a bed's real edge in the box's units, for a border along it
   edge?: [number, number][];
+  // a parasol folded up
+  closed?: boolean;
 }
 export interface Picture {
   label: string;
@@ -66,6 +68,10 @@ export interface Picture {
   fill?: boolean;
   // faces a way: turned by the place (settings.lookTurns, else towards what it belongs to)
   turn?: boolean;
+  // looks the same turned any way (a crown, a round pool): nothing to turn
+  round?: boolean;
+  // a parasol: it can be folded up (settings.lookClosed)
+  folds?: boolean;
   // a ground: the texture
   tile?: Tile;
 }
@@ -261,6 +267,27 @@ function bigCrown(p: string, cx: number, cy: number, r: number, c: string, rnd: 
         <g key={i}>{crown(`${p}c${i}`, x, y, rr, tone(c, ((cx - x + cy - y) / r) * 0.08), rnd, 8, 0.37, 12)}</g>
       ))}
       {crown(`${p}cm`, cx - r * 0.04, cy - r * 0.05, r * 0.5, tone(c, 0.05), rnd, 8, 0.37, 12)}
+    </>
+  );
+}
+
+// a parasol folded up, from above: its cloth hanging in folds round the pole, r out from it, a strap round them, the top
+// in the middle
+function folded(cx: number, cy: number, r: number, c: string, c2: string) {
+  const folds = Array.from({length: 8}, (_, i) => {
+    const a = ((i + 0.5) / 8) * 2 * PI;
+    const [x1, y1, x2, y2] = [cx + Math.cos(a - 0.22) * r, cy + Math.sin(a - 0.22) * r, cx + Math.cos(a + 0.22) * r, cy + Math.sin(a + 0.22) * r];
+    return {a, d: `M${n2(cx)} ${n2(cy)}L${n2(x1)} ${n2(y1)}Q${n2(cx + Math.cos(a) * r * 1.3)} ${n2(cy + Math.sin(a) * r * 1.3)} ${n2(x2)} ${n2(y2)}Z`, c: i % 2 ? c2 : c};
+  });
+  return (
+    <>
+      <path d={circles([[cx + r * 0.2, cy + r * 0.3, r * 1.15]])} fill="#000" opacity={0.25} data-halo="" />
+      {folds.map((f, i) => (
+        <path key={i} d={f.d} fill={tone(f.c, Math.cos(f.a + (3 * PI) / 4) * 0.16 - 0.04)} stroke={tone(c, -0.38)} strokeWidth={n2(r * 0.04)} strokeLinejoin="round" />
+      ))}
+      <circle cx={n2(cx)} cy={n2(cy)} r={n2(r * 0.55)} fill="none" stroke="#5a4a3a" strokeWidth={n2(r * 0.12)} />
+      <circle cx={n2(cx)} cy={n2(cy)} r={n2(r * 0.22)} fill={tone(c, -0.1)} stroke={tone(c, -0.4)} strokeWidth={n2(r * 0.04)} />
+      <circle cx={n2(cx)} cy={n2(cy)} r={n2(r * 0.09)} fill="#7a5c3a" />
     </>
   );
 }
@@ -913,24 +940,30 @@ function cantilever(sides: 4 | 8) {
     const metal = '#6b6f73';
     return (
       <>
-        {sides === 4 ? softBox(ax - s / 2, ay - s / 2, s, s, s * 0.04, s * 0.06) : halo(p + 'h', ax, ay, R, R, 0.3)}
+        {o.closed ? null : sides === 4 ? softBox(ax - s / 2, ay - s / 2, s, s, s * 0.04, s * 0.06) : halo(p + 'h', ax, ay, R, R, 0.3)}
         <path d={circles(petals)} fill="#45484c" stroke="#2a2c2f" strokeWidth={n2(s * 0.006)} />
         <path d={circles(petals.map(([x, y, r]) => [x - r * 0.2, y - r * 0.2, r * 0.55]))} fill="#5d6166" opacity={0.7} />
         <path d={petals.map(([x, y, r]) => `M${n2(x - r * 0.85)} ${n2(y)}h${n2(r * 1.7)}`).join('')} stroke="#1f2124" strokeWidth={n2(s * 0.01)} />
         <path d={`M${n2(fx)} ${n2(fy)}L${n2(ax)} ${n2(ay)}`} stroke={metal} strokeWidth={n2(s * 0.022)} strokeLinecap="round" />
         <circle cx={n2(fx)} cy={n2(fy)} r={n2(s * 0.035)} fill={tone(metal, -0.2)} stroke="#2a2c2f" strokeWidth={n2(s * 0.006)} />
         <circle cx={n2(fx - s * 0.008)} cy={n2(fy - s * 0.008)} r={n2(s * 0.015)} fill={tone(metal, 0.4)} />
-        {corners.map(([x, y], i) => {
-          const [nx, ny] = corners[(i + 1) % sides];
-          const mid = Math.atan2((y + ny) / 2 - ay, (x + nx) / 2 - ax);
-          return <polygon key={i} points={poly([[ax, ay], [x, y], [nx, ny]])} fill={tone(c, Math.cos(mid + (3 * PI) / 4) * 0.14 - 0.03)} />;
-        })}
-        <path d={corners.map(([x, y]) => `M${n2(ax)} ${n2(ay)}L${n2(x)} ${n2(y)}`).join('')} stroke={tone(c, -0.35)} strokeWidth={n2(s * 0.008)} />
-        <polygon points={poly(corners)} fill="none" stroke={tone(c, -0.4)} strokeWidth={n2(s * 0.012)} strokeLinejoin="round" />
-        <path d={circles([[ax + s * 0.01, ay + s * 0.015, s * 0.1]])} fill="#000" opacity={0.25} />
-        <circle cx={n2(ax)} cy={n2(ay)} r={n2(s * 0.1)} fill={tone(c, 0.08)} stroke={tone(c, -0.35)} strokeWidth={n2(s * 0.006)} />
-        <circle cx={n2(ax)} cy={n2(ay)} r={n2(s * 0.03)} fill={tone(c, -0.3)} />
-        <path d={circles(corners.map(([x, y]) => [x, y, s * 0.012]))} fill="#2a2c2f" />
+        {o.closed ? (
+          folded(ax, ay, s * 0.075, c, c)
+        ) : (
+          <>
+            {corners.map(([x, y], i) => {
+              const [nx, ny] = corners[(i + 1) % sides];
+              const mid = Math.atan2((y + ny) / 2 - ay, (x + nx) / 2 - ax);
+              return <polygon key={i} points={poly([[ax, ay], [x, y], [nx, ny]])} fill={tone(c, Math.cos(mid + (3 * PI) / 4) * 0.14 - 0.03)} />;
+            })}
+            <path d={corners.map(([x, y]) => `M${n2(ax)} ${n2(ay)}L${n2(x)} ${n2(y)}`).join('')} stroke={tone(c, -0.35)} strokeWidth={n2(s * 0.008)} />
+            <polygon points={poly(corners)} fill="none" stroke={tone(c, -0.4)} strokeWidth={n2(s * 0.012)} strokeLinejoin="round" />
+            <path d={circles([[ax + s * 0.01, ay + s * 0.015, s * 0.1]])} fill="#000" opacity={0.25} />
+            <circle cx={n2(ax)} cy={n2(ay)} r={n2(s * 0.1)} fill={tone(c, 0.08)} stroke={tone(c, -0.35)} strokeWidth={n2(s * 0.006)} />
+            <circle cx={n2(ax)} cy={n2(ay)} r={n2(s * 0.03)} fill={tone(c, -0.3)} />
+            <path d={circles(corners.map(([x, y]) => [x, y, s * 0.012]))} fill="#2a2c2f" />
+          </>
+        )}
       </>
     );
   };
@@ -941,6 +974,7 @@ export const PICTURES: Record<string, Picture> = {
   tree: {
     label: 'Tree',
     group: 'trees',
+    round: true,
     size: [3.5, 8],
     over: true,
     many: true,
@@ -967,6 +1001,7 @@ export const PICTURES: Record<string, Picture> = {
   conifer: {
     label: 'Conifer',
     group: 'trees',
+    round: true,
     size: [0.8, 5],
     many: true,
     variants: choices(CONIFERS),
@@ -1016,6 +1051,7 @@ export const PICTURES: Record<string, Picture> = {
   fruitTree: {
     label: 'Fruit tree',
     group: 'trees',
+    round: true,
     size: [3, 6],
     over: true,
     many: true,
@@ -1048,6 +1084,7 @@ export const PICTURES: Record<string, Picture> = {
   palm: {
     label: 'Palm',
     group: 'trees',
+    round: true,
     size: [2.5, 5],
     over: true,
     many: true,
@@ -1112,6 +1149,7 @@ export const PICTURES: Record<string, Picture> = {
   bush: {
     label: 'Bush',
     group: 'trees',
+    round: true,
     size: [0.8, 2.2],
     many: true,
     variants: choices(BUSHES),
@@ -1129,6 +1167,7 @@ export const PICTURES: Record<string, Picture> = {
   floweringBush: {
     label: 'Flowering shrub',
     group: 'trees',
+    round: true,
     size: [0.8, 2.5],
     many: true,
     variants: choices(BLOOMS),
@@ -1155,6 +1194,7 @@ export const PICTURES: Record<string, Picture> = {
   butterflyBush: {
     label: 'Butterfly bush',
     group: 'trees',
+    round: true,
     variants: choices(BUDDLEJAS),
     size: [1.2, 3],
     many: true,
@@ -1202,6 +1242,7 @@ export const PICTURES: Record<string, Picture> = {
   hydrangea: {
     label: 'Hydrangea',
     group: 'trees',
+    round: true,
     variants: choices(HYDRANGEAS),
     size: [0.8, 2.2],
     many: true,
@@ -1236,6 +1277,7 @@ export const PICTURES: Record<string, Picture> = {
   rhododendron: {
     label: 'Rhododendron',
     group: 'trees',
+    round: true,
     variants: choices(RHODOS),
     size: [1, 3],
     many: true,
@@ -1274,6 +1316,7 @@ export const PICTURES: Record<string, Picture> = {
   rose: {
     label: 'Rose bush',
     group: 'trees',
+    round: true,
     variants: choices(ROSES),
     size: [0.6, 1.8],
     many: true,
@@ -1351,6 +1394,7 @@ export const PICTURES: Record<string, Picture> = {
   japaneseMaple: {
     label: 'Japanese maple',
     group: 'trees',
+    round: true,
     variants: choices(MAPLES),
     size: [1.2, 4],
     many: true,
@@ -1382,6 +1426,7 @@ export const PICTURES: Record<string, Picture> = {
   bamboo: {
     label: 'Bamboo',
     group: 'trees',
+    round: true,
     size: [1, 4],
     many: true,
     around: 'mulch',
@@ -1412,6 +1457,7 @@ export const PICTURES: Record<string, Picture> = {
   stump: {
     label: 'Tree stump',
     group: 'trees',
+    round: true,
     variants: choices(STUMPS),
     size: [0.4, 1.4],
     around: 'meadow',
@@ -1521,9 +1567,9 @@ export const PICTURES: Record<string, Picture> = {
     tile: {
       w: 0.9,
       h: 0.9,
-      base: '#5e4130',
+      base: '#3d4f2b',
       draw: (m) => {
-        const plants = tileScatter('bed', 7, 0.9, 0.9);
+        const plants = tileScatter('bed', 14, 0.9, 0.9);
         const colors = ['#e2457a', '#f2c230', '#9b5fd0', '#f7f2ea', '#e8642c', '#5b8fe0', '#ef8fb7'];
         return (
           <>
@@ -1538,8 +1584,8 @@ export const PICTURES: Record<string, Picture> = {
             ])}
             {plants.map(([x, y], i) => (
               <g key={i}>
-                <circle cx={n2(x * m + 0.02 * m)} cy={n2(y * m + 0.025 * m)} r={n2(0.13 * m)} fill="#000" opacity={0.2} />
-                {rosette(x * m, y * m, 0.13 * m, i % 2 ? '#3f7d36' : '#4c8b3c', 6)}
+                <circle cx={n2(x * m + 0.02 * m)} cy={n2(y * m + 0.025 * m)} r={n2(0.14 * m)} fill="#000" opacity={0.2} />
+                {rosette(x * m, y * m, 0.14 * m, i % 2 ? '#3f7d36' : '#4c8b3c', 6)}
               </g>
             ))}
             {blossoms(plants.flatMap(([x, y], i) => [0, 1, 2].map((k): [number, number, number, string] => [(x + Math.cos(k * 2.1 + i) * 0.05) * m, (y + Math.sin(k * 2.1 + i) * 0.05) * m, 0.045 * m, colors[i % colors.length]])))}
@@ -1564,8 +1610,8 @@ export const PICTURES: Record<string, Picture> = {
       const flowers: [Dot, string][] = [];
       const hearts: [Dot, string][] = [];
       const grass: string[] = [];
-      for (const [x, y] of spread(b, 0.38 * m, rnd, 240)) {
-        const s = (0.2 + rnd() * 0.08) * m;
+      for (const [x, y] of spread(b, 0.32 * m, rnd, 260)) {
+        const s = (0.22 + rnd() * 0.08) * m;
         const what = rnd();
         const c = kind.c[Math.floor(rnd() * kind.c.length)];
         if (kind.grass && what < 0.25) {
@@ -1595,7 +1641,7 @@ export const PICTURES: Record<string, Picture> = {
       }
       return (
         <>
-          <rect x={n2(b.x)} y={n2(b.y)} width={n2(b.w)} height={n2(b.h)} fill="#4a3626" />
+          <rect x={n2(b.x)} y={n2(b.y)} width={n2(b.w)} height={n2(b.h)} fill="#33482a" />
           <path d={circles(leaves[0])} fill="#1f3a18" opacity={0.45} />
           <path d={circles(leaves[1])} fill="#4a8a3a" />
           <path d={circles(leaves[2])} fill="#6fa852" opacity={0.7} />
@@ -1619,8 +1665,8 @@ export const PICTURES: Record<string, Picture> = {
       // rose bushes about half a meter apart on bark, dark leaves with open roses on them
       const leaves: Dot[][] = [[], [], []];
       const blooms: Dot[] = [];
-      for (const [x, y] of spread(b, 0.5 * m, rnd, 200)) {
-        const s = (0.2 + rnd() * 0.06) * m;
+      for (const [x, y] of spread(b, 0.36 * m, rnd, 240)) {
+        const s = (0.26 + rnd() * 0.06) * m;
         mound(x, y, s, rnd).forEach((d, i) => leaves[i].push(...d));
         for (let k = 0; k < 4; k++) {
           const [a, d] = [rnd() * 2 * PI, s * 0.55 * Math.sqrt(rnd())];
@@ -1655,16 +1701,16 @@ export const PICTURES: Record<string, Picture> = {
       const drifts = Array.from({length: 6}, () => ({x: b.x + rnd() * b.w, y: b.y + rnd() * b.h, c: colors[Math.floor(rnd() * colors.length)]}));
       const leaves: string[] = [];
       const cups: [Dot, string][] = [];
-      for (const [x, y] of spread(b, 0.16 * m, rnd, 420)) {
+      for (const [x, y] of spread(b, 0.12 * m, rnd, 520)) {
         const near = drifts.reduce((best, d) => (Math.hypot(d.x - x, d.y - y) < Math.hypot(best.x - x, best.y - y) ? d : best));
         const s = (0.035 + rnd() * 0.01) * m;
         const a = rnd() * PI;
-        leaves.push(leaf(x, y, a, s * 3.2, s * 0.9), leaf(x, y, a + PI + (rnd() - 0.5), s * 2.8, s * 0.8));
+        leaves.push(leaf(x, y, a, s * 3.8, s * 1.1), leaf(x, y, a + PI + (rnd() - 0.5), s * 3.4, s * 1));
         cups.push([[x, y, s], near.c]);
       }
       return (
         <>
-          <rect x={n2(b.x)} y={n2(b.y)} width={n2(b.w)} height={n2(b.h)} fill="#5d4330" />
+          <rect x={n2(b.x)} y={n2(b.y)} width={n2(b.w)} height={n2(b.h)} fill="#4a4f30" />
           <path d={leaves.join('')} fill="#7f9a6a" stroke="#56704a" strokeWidth={n2(0.004 * m)} />
           <path d={circles(cups.map(([[x, y, s]]) => [x + s * 0.25, y + s * 0.35, s]))} fill="#000" opacity={0.25} />
           {byColor(cups)}
@@ -1687,8 +1733,8 @@ export const PICTURES: Record<string, Picture> = {
       // a dense carpet of low leaves covered in flowers of every color
       const leaves: Dot[][] = [[], [], []];
       const flowers: [number, number, number, string][] = [];
-      for (const [x, y] of spread(b, 0.24 * m, rnd, 300)) {
-        const s = (0.12 + rnd() * 0.03) * m;
+      for (const [x, y] of spread(b, 0.2 * m, rnd, 340)) {
+        const s = (0.14 + rnd() * 0.03) * m;
         mound(x, y, s, rnd).forEach((d, i) => leaves[i].push(...d));
         for (let k = 0; k < 3; k++) {
           const [a, d] = [rnd() * 2 * PI, s * 0.6 * Math.sqrt(rnd())];
@@ -1697,7 +1743,7 @@ export const PICTURES: Record<string, Picture> = {
       }
       return (
         <>
-          <rect x={n2(b.x)} y={n2(b.y)} width={n2(b.w)} height={n2(b.h)} fill="#4a3626" />
+          <rect x={n2(b.x)} y={n2(b.y)} width={n2(b.w)} height={n2(b.h)} fill="#33482a" />
           <path d={circles(leaves[0])} fill="#1f3a18" opacity={0.4} />
           <path d={circles(leaves[1])} fill="#4f8f3c" />
           <path d={circles(leaves[2])} fill="#72ad55" opacity={0.6} />
@@ -1851,6 +1897,7 @@ export const PICTURES: Record<string, Picture> = {
   lavender: {
     label: 'Lavender',
     group: 'plants',
+    round: true,
     variants: choices(LAVENDERS),
     size: [0.4, 1],
     many: true,
@@ -1882,6 +1929,7 @@ export const PICTURES: Record<string, Picture> = {
   fern: {
     label: 'Fern',
     group: 'plants',
+    round: true,
     variants: choices(FERNS),
     size: [0.4, 1.5],
     many: true,
@@ -1922,6 +1970,7 @@ export const PICTURES: Record<string, Picture> = {
   grass: {
     label: 'Ornamental grass',
     group: 'plants',
+    round: true,
     variants: choices(GRASSES),
     size: [0.4, 2.2],
     many: true,
@@ -1976,6 +2025,7 @@ export const PICTURES: Record<string, Picture> = {
   hosta: {
     label: 'Hosta',
     group: 'plants',
+    round: true,
     variants: choices(HOSTAS),
     size: [0.4, 1.2],
     many: true,
@@ -2020,6 +2070,7 @@ export const PICTURES: Record<string, Picture> = {
   pot: {
     label: 'Planter',
     group: 'plants',
+    round: true,
     size: [0.4, 1.2],
     many: true,
     variants: choices(POTS),
@@ -2121,8 +2172,8 @@ export const PICTURES: Record<string, Picture> = {
       const lines = new Map<string, string[]>();
       const dotsOf: [Dot, string][] = [];
       const add = (map: Map<string, string[]>, c: string, d: string) => map.set(c, [...(map.get(c) ?? []), d]);
-      for (const [x, y] of spread(b, 0.3 * m, rnd, 260)) {
-        const s = (0.11 + rnd() * 0.04) * m;
+      for (const [x, y] of spread(b, 0.25 * m, rnd, 300)) {
+        const s = (0.13 + rnd() * 0.04) * m;
         const turn = rnd() * 2 * PI;
         const kind = Math.floor(rnd() * 6);
         const ring = (n: number, f: (a: number) => void) => Array.from({length: n}, (_, k) => f(turn + (k / n) * 2 * PI));
@@ -2396,6 +2447,7 @@ export const PICTURES: Record<string, Picture> = {
   roundPool: {
     label: 'Round pool',
     group: 'water',
+    round: true,
     size: [2, 7],
     around: 'meadow',
     thing: (b, p) => {
@@ -2475,6 +2527,7 @@ export const PICTURES: Record<string, Picture> = {
   fountain: {
     label: 'Fountain',
     group: 'water',
+    round: true,
     size: [0.8, 3],
     around: 'paving',
     thing: (b, p) => {
@@ -2514,6 +2567,7 @@ export const PICTURES: Record<string, Picture> = {
   rainBarrel: {
     label: 'Rain barrel',
     group: 'water',
+    round: true,
     size: [0.5, 1.1],
     variants: choices(BARRELS),
     around: 'gravel',
@@ -2580,6 +2634,7 @@ export const PICTURES: Record<string, Picture> = {
   trampoline: {
     label: 'Trampoline',
     group: 'play',
+    round: true,
     size: [2.4, 4.6],
     variants: choices(PADS),
     around: 'meadow',
@@ -3352,6 +3407,8 @@ export const PICTURES: Record<string, Picture> = {
   umbrella: {
     label: 'Parasol',
     group: 'outdoor',
+    round: true,
+    folds: true,
     size: [2.6, 4],
     over: true,
     around: 'meadow',
@@ -3360,6 +3417,17 @@ export const PICTURES: Record<string, Picture> = {
       const {cx, cy, r} = middle(b);
       const n = 8;
       const [c, c2] = pick(o, FABRICS, true).c;
+      // folded up: its round stand under the cloth hanging round the pole
+      if (o.closed) {
+        return (
+          <>
+            {halo(p + 'h', cx, cy, r * 0.24, r * 0.24, 0.3)}
+            <circle cx={n2(cx)} cy={n2(cy)} r={n2(r * 0.2)} fill="#45484c" stroke="#2a2c2f" strokeWidth={n2(r * 0.01)} />
+            <circle cx={n2(cx - r * 0.03)} cy={n2(cy - r * 0.03)} r={n2(r * 0.12)} fill="#5d6166" opacity={0.6} />
+            {folded(cx, cy, r * 0.14, c, c2)}
+          </>
+        );
+      }
       const pts = Array.from({length: n}, (_, i): Pt => [cx + Math.cos(((i + 0.5) * 2 * PI) / n) * r * 0.9, cy + Math.sin(((i + 0.5) * 2 * PI) / n) * r * 0.9]);
       return (
         <>
@@ -3388,6 +3456,7 @@ export const PICTURES: Record<string, Picture> = {
     group: 'outdoor',
     variants: choices(CANTILEVERS),
     size: [2.5, 4],
+    folds: true,
     over: true,
     turn: true,
     around: 'meadow',
@@ -3398,6 +3467,7 @@ export const PICTURES: Record<string, Picture> = {
     group: 'outdoor',
     variants: choices(CANTILEVERS),
     size: [2.5, 4],
+    folds: true,
     over: true,
     turn: true,
     around: 'meadow',
@@ -3435,6 +3505,7 @@ export const PICTURES: Record<string, Picture> = {
   firePit: {
     label: 'Fire pit',
     group: 'outdoor',
+    round: true,
     size: [0.9, 2.2],
     around: 'gravel',
     thing: (b, p, o) => {
@@ -3518,6 +3589,7 @@ export const PICTURES: Record<string, Picture> = {
   clothesDryer: {
     label: 'Rotary dryer',
     group: 'other',
+    round: true,
     size: [2.6, 4],
     over: true,
     around: 'meadow',
@@ -3743,6 +3815,7 @@ export const PICTURES: Record<string, Picture> = {
   rocks: {
     label: 'Rocks',
     group: 'other',
+    round: true,
     size: [0.5, 2.5],
     many: true,
     around: 'meadow',
