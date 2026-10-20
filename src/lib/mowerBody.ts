@@ -753,6 +753,11 @@ export function insideEdge(outline: P[], body: MowerBody): P[] | null {
 // reached half its width further. So the mowing areas together grown by that, and obstacles shrunk by it (one the
 // mower drove round smaller than that leaves nothing). grass: what's lawn too between the lines and the real edges,
 // outside the mowing areas and inside the obstacles
+// outlines as one, without edges where they meet or overlap
+export function joinedOutlines(outlines: readonly P[][]): P[][] {
+  return clipAll(ClipperLib.ClipType.ctUnion, outlines.filter((o) => o.length >= 3).map(toPath)).map(fromPath);
+}
+
 export function realEdges(
   areas: readonly MapArea[],
   body: MowerBody,

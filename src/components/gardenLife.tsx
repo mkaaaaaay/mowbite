@@ -3,7 +3,7 @@
 import type {ReactNode} from 'react';
 import type {MapArea, Point} from '@/hooks/useMowerMap';
 import {containsPoint, polygonArea} from '@/lib/geometry';
-import {realEdges, type MowerBody} from '@/lib/mowerBody';
+import {joinedOutlines, realEdges, type MowerBody} from '@/lib/mowerBody';
 import {autoMowAngle} from '@/lib/mowStripes';
 import {seasonOf, sunPosition, type Season} from '@/lib/sun';
 import {drawThing, fitKey, gardenThings, inSquare, type Fit, type Look, type Place} from './gardenLook';
@@ -265,6 +265,7 @@ type Lawns = {lawns: MapArea[]; obstacles: MapArea[]; bySize: MapArea[]; along: 
 const lawnsCache = new WeakMap<object, {key: string; value: Lawns}>();
 const lawnDCache = new WeakMap<object, {key: string; value: string}>();
 const edgeCache = new WeakMap<object, {key: string; value: string}>();
+const lawnLineCache = new WeakMap<object, {key: string; value: string}>();
 const sprinkleCache = new WeakMap<object, {key: string; value: Sprinkle[]}>();
 const jobCache = new WeakMap<object, {key: string; value: {there: string; back: string} | null}>();
 const pieceCache = new WeakMap<object, {key: string; value: {there: string; back: string}}>();
@@ -289,6 +290,12 @@ export function realEdgeLine(areas: MapArea[], body: MowerBody, fit: Fit, obstac
     const edges = realEdges(areas, body);
     return rings([...edges.lawn, ...(obstacles ? edges.obstacles : [])].map((outline) => ({outline})), at);
   });
+}
+
+// the lawns' outlines as one line: where two lawns meet there's no edge
+function lawnLine(lawns: MapArea[], areas: MapArea[], fit: Fit) {
+  const at = svgAt(fit);
+  return cached(lawnLineCache, areas, fitKey(fit), () => rings(joinedOutlines(lawns.map((a) => a.outline)).map((outline) => ({outline})), at));
 }
 
 // where a thing's shadow lies in svg units: away from the sun, the lower it is the longer, and drawn from above it can't
@@ -437,9 +444,19 @@ export function lifeScene(s: LifeInput): LifeScene | null {
   const castShadow = shadowOf(sun);
   const mower = s.mower ? square(s.mower) : null;
 
-  // the stones only along the lawns, the obstacles keep their line
+  // the stones only along the lawns (the obstacles keep their line), none where two lawns meet, nor where a way, an
+  // obstacle or an area not mowed lies against them or over them
   const edgeLine = s.edgeLine !== undefined ? s.edgeLine : s.body ? realEdgeLine(s.areas, s.body, fit, false) : null;
-  const stonesD = parts.edge ? (edgeLine ?? rings(lawns, at)) : '';
+  const stonesD = parts.edge ? (edgeLine ?? lawnLine(lawns, s.areas, fit)) : '';
+  const besideD = stonesD
+    ? rings(
+        s.areas.filter((a) => {
+          const type = a.properties.type ?? '';
+          return a.outline.length > 2 && !hidden.has(type) && (type === 'nav' || type === 'obstacle' || (type === 'mow' && !lawns.includes(a)));
+        }),
+        at,
+      )
+    : '';
   const garden = gardenThings(s.areas, s.looks, s.body ?? null, fit);
 
   return {
@@ -486,10 +503,19 @@ export function lifeScene(s: LifeInput): LifeScene | null {
         return <GardenThing key={'t' + a.id} uid={uid} thing={thing} off={a.properties.active === false} shade={shade} />;
       }),
     stones: stonesD ? (
-      <g className={styles.stones}>
-        <path d={stonesD} strokeWidth={0.17 * m} strokeDasharray={`${0.26 * m} ${0.04 * m}`} />
-        <path className={styles.stoneTop} d={stonesD} strokeWidth={0.11 * m} strokeDasharray={`${0.26 * m} ${0.04 * m}`} />
-      </g>
+      <>
+        {/* a little over the areas lying against the lawn, a stone half on them would show */}
+        {besideD && (
+          <mask id={`${uid}stones`} maskUnits="userSpaceOnUse" {...FAR}>
+            <rect {...FAR} fill="#fff" />
+            <path d={besideD} fill="#000" stroke="#000" strokeWidth={0.2 * m} />
+          </mask>
+        )}
+        <g className={styles.stones} mask={besideD ? `url(#${uid}stones)` : undefined}>
+          <path d={stonesD} strokeWidth={0.17 * m} strokeDasharray={`${0.26 * m} ${0.04 * m}`} />
+          <path className={styles.stoneTop} d={stonesD} strokeWidth={0.11 * m} strokeDasharray={`${0.26 * m} ${0.04 * m}`} />
+        </g>
+      </>
     ) : null,
     sky: (
       <>
