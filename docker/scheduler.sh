@@ -1,8 +1,8 @@
 #!/bin/sh
 # starts mowing at the times from the schedule page (/data/schedule.txt, written by schedule.cgi).
 # a plan can name the areas to mow, the others get skipped when the mower gets to them.
-# it only starts an idle mower without emergency, optionally not when its rain sensor is wet or rain
-# is forecast, and waits up to two hours for the battery. not in the dark (sun times of the day at the garden,
+# it only starts an idle mower without emergency, optionally not when its rain sensor is wet, rain
+# is forecast or it's too cold, and waits up to two hours for the battery. not in the dark (sun times of the day at the garden,
 # 6 pm to 6 am without a position) unless the plan says so. a run it started goes home at the plan's end time,
 # and at sunset if the plan wants that. a plan can drop an interrupted job first so it begins with the first area,
 # and it can be paused for some days, for all areas or some. a plan can have its own mowing direction (angle=<deg>),
@@ -218,6 +218,18 @@ rain_forecast() {
   echo "${cur:-0} ${soon}" | awk -v per=4 '{ if ($1 >= 0.05) r = 1; n = split($2, q, ","); for (i = 1; i <= n; i++) { h[int((i - 1) / per)] += q[i] } for (k in h) if (h[k] >= 0.2) r = 1 } END { exit !r }'
 }
 
+# colder at the garden right now than mintemp (open-meteo, like the rain): says the temperature. no answer counts as warm
+# enough
+too_cold() {
+  set -- $(conf pos)
+  [ -n "$2" ] || return 1
+  w=$(wget -q -T 15 -O- "https://api.open-meteo.com/v1/forecast?latitude=$1&longitude=$2&current=temperature_2m" 2>/dev/null)
+  temp=$(printf '%s' "$w" | grep -o '"current":{[^}]*}' | grep -o '"temperature_2m":-\{0,1\}[0-9.]*' | cut -d: -f2)
+  [ -n "$temp" ] || return 1
+  min=$(conf mintemp)
+  awk -v t="$temp" -v m="${min:-5}" 'BEGIN { exit !(t < m) }' && echo "$temp"
+}
+
 # a json-rpc call over mqtt ($1 method, $2 params as json, $3 seconds to wait): the answer as one line, nothing without
 # one
 rpc_call() { mower_rpc "$host" "$1" "$2" "$3" | tr -d '\n'; }
@@ -357,6 +369,8 @@ while :; do
       log skip_rain; until=0
     elif [ "$(conf skipforecast)" = 1 ] && rain_forecast; then
       log skip_forecast; until=0
+    elif [ "$(conf skipcold)" = 1 ] && cold=$(too_cold); then
+      log skip_cold "$cold"; until=0
     elif [ "$dark" != 1 ] && is_dark "$(minutes)"; then
       log skip_dark; until=0
     elif [ "$(field "$s" current_state)" != IDLE ]; then

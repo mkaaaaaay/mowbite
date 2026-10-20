@@ -2,7 +2,7 @@ import {forget, fresh} from './fresh';
 import {apiBase, mowerFetch} from './mowers';
 
 // the mowing schedule, kept by the container (docker/schedule.cgi) as simple lines the scheduler
-// script reads: enabled, minbattery, skiprain, tz, one "plan <days> <HH:MM> [areas] [end=HH:MM] [dark=1] [sunset=1]
+// script reads: enabled, minbattery, skiprain, skipforecast, skipcold, mintemp, tz, one "plan <days> <HH:MM> [areas] [end=HH:MM] [dark=1] [sunset=1]
 // [fresh=1] [angle=<deg>]" per start time and "pause <YYYY-MM-DD> all|<areas>" for days off up to and including that day. days
 // are 1 = monday .. 7 = sunday like date +%u
 
@@ -37,12 +37,25 @@ export interface Schedule {
   skipForecast: boolean;
   // how far ahead the forecast is checked, in hours
   forecastHours: number;
+  // not when it's colder than minTemp °C at the garden right now
+  skipCold: boolean;
+  minTemp: number;
   plans: Plan[];
   pause?: Pause;
 }
 
 export const FORECAST_HOURS = [1, 2, 3];
-export const EMPTY_SCHEDULE: Schedule = {enabled: false, minBattery: 80, skipRain: true, skipForecast: false, forecastHours: 1, plans: []};
+export const COLD_TEMPS = [3, 5, 8, 10];
+export const EMPTY_SCHEDULE: Schedule = {
+  enabled: false,
+  minBattery: 80,
+  skipRain: true,
+  skipForecast: false,
+  forecastHours: 1,
+  skipCold: false,
+  minTemp: 5,
+  plans: [],
+};
 
 const PATH = '/cgi-bin/schedule';
 const endpoint = () => apiBase() + PATH;
@@ -56,6 +69,8 @@ export function parseSchedule(text: string): Schedule {
     if (key === 'skiprain') s.skipRain = a === '1';
     if (key === 'skipforecast') s.skipForecast = a === '1';
     if (key === 'forecasthours' && FORECAST_HOURS.includes(Number(a))) s.forecastHours = Number(a);
+    if (key === 'skipcold') s.skipCold = a === '1';
+    if (key === 'mintemp' && COLD_TEMPS.includes(Number(a))) s.minTemp = Number(a);
     if (key === 'pause' && a && b) s.pause = {until: a, areas: b === 'all' ? 'all' : b.split(',')};
     if (key === 'plan' && a && b) {
       const plan: Plan = {days: a.split(',').map(Number), time: b, areas: []};
@@ -81,6 +96,8 @@ export function serializeSchedule(s: Schedule, pos?: {lat: number; lon: number})
     `skiprain ${s.skipRain ? 1 : 0}`,
     `skipforecast ${s.skipForecast ? 1 : 0}`,
     `forecasthours ${s.forecastHours}`,
+    `skipcold ${s.skipCold ? 1 : 0}`,
+    `mintemp ${s.minTemp}`,
     ...(pos ? [`pos ${pos.lat.toFixed(2)} ${pos.lon.toFixed(2)}`] : []),
     `tz ${posixTz()}`,
     ...s.plans
@@ -137,6 +154,7 @@ export const SCHEDULE_LOG_TEXT: Record<string, string> = {
   skip_battery: 'Not started, battery only at {detail} % after two hours',
   skip_rain: "Not started, the mower's rain sensor was wet",
   skip_forecast: 'Not started, rain was forecast',
+  skip_cold: 'Not started, too cold ({detail} °C)',
   skip_busy: 'Not started, the mower was busy',
   skip_emergency: 'Not started, emergency stop was active',
   skip_offline: "Not started, the mower wasn't reachable",
@@ -174,6 +192,7 @@ const START_OUTCOMES = new Set([
   'skip_battery',
   'skip_rain',
   'skip_forecast',
+  'skip_cold',
   'skip_busy',
   'skip_emergency',
   'skip_offline',

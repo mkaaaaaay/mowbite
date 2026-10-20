@@ -11,6 +11,8 @@ const schedule = (plans: Schedule['plans'], enabled = true): Schedule => ({
   skipRain: true,
   skipForecast: false,
   forecastHours: 2,
+  skipCold: false,
+  minTemp: 5,
   plans,
 });
 
@@ -27,6 +29,15 @@ describe('parse / serialize', () => {
     expect(text).toContain('pos 52.25 10.56\n');
     expect(text).toContain('plan 1,5 09:00 x\n');
     expect(text).toMatch(/^tz \S+$/m);
+  });
+
+  it("keeps the cold it doesn't start in", () => {
+    const s = {...schedule([plan([1], '09:00')]), skipCold: true, minTemp: 8};
+    const text = serializeSchedule(s);
+    expect(text).toContain('skipcold 1\nmintemp 8\n');
+    expect(parseSchedule(text)).toEqual(s);
+    // a temperature not offered is the usual one
+    expect(parseSchedule('skipcold 1\nmintemp 7\n').minTemp).toBe(5);
   });
 
   it('keeps end time and dark, with and without areas', () => {

@@ -9,6 +9,7 @@ import {tr, useLang} from '@/lib/i18n';
 import {useMowerActions} from '@/hooks/useMowerActions';
 import {useCanSetParams} from '@/components/MowerParamSettings';
 import {paramField} from '@/lib/mowerParams';
+import {containerHas, useUpdates} from '@/lib/updates';
 import Link from 'next/link';
 import {ACTION} from '@/lib/openmower';
 import PlanRow from './PlanRow';
@@ -17,6 +18,7 @@ import {
   cachedSchedule,
   cachedScheduleLog,
   EMPTY_SCHEDULE,
+  COLD_TEMPS,
   FORECAST_HOURS,
   loadSchedule,
   loadScheduleLog,
@@ -39,6 +41,8 @@ export default function SchedulePage() {
     (a) => a.properties.type === 'mow' && a.properties.active !== false && a.properties.mowable !== false,
   );
   const datum = datumFromParams(params);
+  // what MowBite's container on the mower can do
+  const updates = useUpdates();
   // today's sunrise and sunset, so the animal hint follows the real night
   const sun = datum ? sunTimes(datum.lat, datum.lon) : null;
   // undefined: loading, null: not served by the container
@@ -165,8 +169,23 @@ export default function SchedulePage() {
                   ))}
                 </select>
               </label>
+              {/* a newer container only, shown while that can't be told */}
+              {(updates.level === null || containerHas(updates.level, 'cold')) && (
+              <label className={styles.check}>
+                <input type="checkbox" checked={s.skipCold} disabled={!datum} onChange={(e) => update({...s, skipCold: e.target.checked})} />
+                {tr('Not when it is colder than')}
+                <select className={styles.hours} value={s.minTemp} disabled={!datum} onChange={(e) => update({...s, minTemp: Number(e.target.value)})}>
+                  {COLD_TEMPS.map((c) => (
+                    <option key={c} value={c}>
+                      {c} °C
+                    </option>
+                  ))}
+                </select>
+              </label>
+              )}
               <p className={styles.dim}>
-                {tr('The forecast comes from Open-Meteo, the mower asks for it with the position rounded to about a kilometer.')}
+                {tr('Cold grass takes mowing badly, below about 5 °C it hardly grows anyway.')}{' '}
+                {tr('The forecast and the temperature come from Open-Meteo, the mower asks for them with the position rounded to about a kilometer.')}
               </p>
               {canTurn && (
                 <p className={styles.dim}>
