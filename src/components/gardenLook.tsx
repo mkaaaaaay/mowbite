@@ -32,7 +32,8 @@ export function areaLook(area: MapArea, looks?: Record<string, string>): Look {
 // the texture an area is filled with: the ground itself, or the one around a thing
 export const groundOf = (look: Look): Look => (isThing(look) ? (PICTURES[look].around ?? 'meadow') : look);
 
-export const drawThing = (look: Look, box: Box) => PICTURES[look]?.thing?.(box);
+// p starts the ids of its gradients and clips, unique on the page
+export const drawThing = (look: Look, box: Box, p = 'gp') => PICTURES[look]?.thing?.(box, p);
 
 // how far a point is from the outline
 function edgeDistance(o: Point[], x: number, y: number) {
@@ -204,7 +205,7 @@ export function LookSwatch({look, size = 44}: {look: Look; size?: number}) {
     <svg viewBox="0 0 40 40" width={size} height={size} aria-hidden="true">
       <defs>{texture(groundOf(look), id, 40)}</defs>
       <rect width={40} height={40} rx={7} fill={`url(#${id})`} />
-      {isThing(look) && drawThing(look, {x: 4, y: 4, w: 32, h: 32})}
+      {isThing(look) && drawThing(look, {x: 4, y: 4, w: 32, h: 32}, id + 't')}
     </svg>
   );
 }

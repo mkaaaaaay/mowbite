@@ -63,6 +63,17 @@ const HEIGHTS: Record<string, number> = {
   gnome: 0.4,
   house: 7,
   shed: 2.5,
+  floweringBush: 1.6,
+  herbSpiral: 0.8,
+  hotTub: 0.9,
+  playTower: 3,
+  pingPong: 0.8,
+  pergola: 2.5,
+  sunSail: 2.6,
+  lamp: 0.7,
+  woodpile: 1.2,
+  birdhouse: 1.6,
+  statue: 1.4,
 };
 
 export const heightOf = (look: Look) => HEIGHTS[look] ?? 0;
@@ -316,7 +327,7 @@ export function GardenThing({uid, thing, off, shade}: {uid: string; thing: {i: n
   const {cx, cy, deg, w, h} = thing.place;
   const drawn = (
     <g className={[styles.gardenThing, off ? styles.gardenOff : ''].filter(Boolean).join(' ')} clipPath={`url(#${uid}clip${thing.i})`}>
-      <g transform={`translate(${cx} ${cy}) rotate(${deg})`}>{drawThing(thing.look, {x: -w / 2, y: -h / 2, w, h})}</g>
+      <g transform={`translate(${cx} ${cy}) rotate(${deg})`}>{drawThing(thing.look, {x: -w / 2, y: -h / 2, w, h}, `${uid}t${thing.i}`)}</g>
     </g>
   );
   return (

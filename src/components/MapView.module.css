@@ -126,6 +126,11 @@
   stroke: #000 !important;
 }
 
+/* the soft shadow round a thing's foot isn't part of the shadow the sun casts */
+.thingShadow [data-halo] {
+  display: none;
+}
+
 /* drivable but not mowed: its own color, the edge stays solid */
 .skipMowing {
   fill: var(--c-unmowed);

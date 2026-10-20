@@ -1,8 +1,8 @@
 // what the home assistant card uses (mowbite-art.js), the app's pictures as svg strings
 
 // which version of this interface the file has, counted up when a signature changes or something's added (2: the
-// garden's life)
-export const ART_API = 2;
+// garden's life, 3: the pictures drawn anew with gradients, drawThing takes an id, new pictures)
+export const ART_API = 3;
 const mapIcons = require('@/components/mapIcons');
 const gardenLook = require('@/components/gardenLook');
 const gardenPictures = require('@/components/gardenPictures');
@@ -40,7 +40,8 @@ export const groundOf = gardenLook.groundOf;
 export const placeThing = gardenLook.placeThing;
 export const autoMowAngle = mowStripes.autoMowAngle;
 export const PICTURE_KEYS = gardenPictures.PICTURE_KEYS;
-export const drawThing = (look, box) => render(gardenLook.drawThing(look, box));
+// id starts the ids of the picture's gradients and clips: one of its own for every picture in a page
+export const drawThing = (look, box, id) => render(gardenLook.drawThing(look, box, id));
 // the lawns' stripes, the grounds' textures and the things' clip paths, m: svg units per meter
 export const gardenDefs = (uid, m, lawns, clips) => render(gardenLook.GardenDefs({uid, m, lawns, clips}));
 
