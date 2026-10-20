@@ -3,7 +3,7 @@ import {toUtm, utmZone} from './utm';
 // Official orthophotos, all free to use in apps without a key (licenses checked 2026-09). The German
 // states as wms, other countries as web mercator tiles. Saarland isn't here, it needs a contract for
 // use in other apps. Anything else the user adds as an xyz tile url in the settings and is
-// responsible for its terms.
+// responsible for its terms. Esri only with the user's own key, see ESRI.
 const YEAR = new Date().getFullYear();
 
 interface WmsSource {
@@ -218,16 +218,28 @@ export const COUNTRY_IMAGERY: Record<string, TileSource> = {
   },
 };
 
+// Esri World Imagery, worldwide. Outside Esri's own software its terms (checked 2026-10) want an ArcGIS
+// subscription, so it only shows up with an ArcGIS Location Platform key of the user's own (free up to a
+// monthly number of tiles), and "Powered by Esri" with the data sources has to be on the map
+const ESRI = {
+  label: 'Esri World Imagery',
+  template: 'https://ibasemaps-api.arcgis.com/arcgis/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+  attribution: 'Esri, Vantor, Earthstar Geographics, and the GIS User Community | Powered by Esri',
+};
+
 const inBox = (d: {lat: number; lon: number}, [s, n, w, e]: [number, number, number, number]) =>
   d.lat >= s && d.lat <= n && d.lon >= w && d.lon <= e;
 
-// a key from STATE_IMAGERY or COUNTRY_IMAGERY, or the user's own xyz source
+// a key from STATE_IMAGERY or COUNTRY_IMAGERY, 'esri', or the user's own xyz source
 export type ImagerySource = string;
 
 export interface CustomImagery {
   url?: string;
   attribution?: string;
+  esriKey?: string;
 }
+
+const esriKey = (custom?: CustomImagery) => custom?.esriKey?.trim() || '';
 
 // xyz tiles with the three placeholders, or a wms in EPSG:3857 with {bbox}. http(s) only
 export function isTileUrl(url: string | undefined): url is string {
@@ -235,7 +247,7 @@ export function isTileUrl(url: string | undefined): url is string {
 }
 
 export function imageryInfo(source: ImagerySource, custom?: CustomImagery): {label: string; attribution: string} {
-  const known = STATE_IMAGERY[source] ?? COUNTRY_IMAGERY[source];
+  const known = STATE_IMAGERY[source] ?? COUNTRY_IMAGERY[source] ?? (source === 'esri' ? ESRI : undefined);
   if (known) return {label: known.label, attribution: known.attribution};
   let host = '';
   try {
@@ -249,10 +261,11 @@ export interface Datum {
   lon: number;
 }
 
-// the states and countries whose box contains the mower (neighbours overlap a bit), then the own
-// source. the german wms tiles are requested in the map's utm zone, the services only offer 32 and 33
+// Esri first when the user gave a key for it, then the states and countries whose box contains the mower
+// (neighbours overlap a bit), then the own source. the german wms tiles are requested in the map's utm
+// zone, the services only offer 32 and 33
 export function availableSources(datum: Datum, custom?: CustomImagery): ImagerySource[] {
-  const out: ImagerySource[] = [];
+  const out: ImagerySource[] = esriKey(custom) ? ['esri'] : [];
   const zone = utmZone(datum.lat, datum.lon);
   if (zone === 32 || zone === 33) {
     for (const [key, st] of Object.entries(STATE_IMAGERY)) if (inBox(datum, st.box)) out.push(key);
@@ -381,5 +394,9 @@ export function imageryTiles(source: ImagerySource, datum: Datum, v: View, custo
   if (state) return wmsTiles(state, datum, v);
   const country = COUNTRY_IMAGERY[source];
   if (country) return xyzTiles(country.template, datum, v);
+  if (source === 'esri') {
+    const key = esriKey(custom);
+    return key ? xyzTiles(`${ESRI.template}?token=${encodeURIComponent(key)}`, datum, v) : [];
+  }
   return source === 'custom' && isTileUrl(custom?.url) ? xyzTiles(custom.url, datum, v) : [];
 }

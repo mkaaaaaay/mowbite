@@ -52,8 +52,8 @@ export interface Settings {
   // name of the mower this app runs on, and the other ones to switch to
   thisName?: string;
   mowers?: OtherMower[];
-  // own aerial imagery source, xyz tile url
-  imagery?: {url?: string; attribution?: string};
+  // own aerial imagery source, xyz tile url, and the user's own ArcGIS key for Esri World Imagery
+  imagery?: {url?: string; attribution?: string; esriKey?: string};
   // how the maps are drawn: plain colored areas (default) or garden, from above like the guides (components/gardenLook)
   mapStyle?: 'garden';
   // the garden style's picture of a way or an obstacle by area id, picked under the map (else from its name)
