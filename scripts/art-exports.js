@@ -69,7 +69,8 @@ export const seasonOf = sun.seasonOf;
 // all of it at once in MapView's layers as svg text, null with none of it on. input: {areas, garden, looks, body, fit,
 // uid, now, datum, weather, rain, mower, jobs, track, edgeLine, hidden}, see LifeInput in src/components/gardenLife.tsx.
 // defs into the svg's defs, then over the areas in this order: lawn, the real lawn in the obstacles, things (instead of
-// the areas' own), stones (instead of the real edges' line), sky. long: the active lawns are filled with url(#{uid}long)
+// the areas' own), stones (along the lawns, instead of their real edges' line), sky. long: the active lawns are filled with
+// url(#{uid}long)
 export function gardenLife(input) {
   const scene = life.lifeScene(input);
   if (!scene) return null;

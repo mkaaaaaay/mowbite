@@ -334,8 +334,8 @@ export interface LifeJob {
 // what the life is drawn from, all of it what MapView has: the map's areas, settings.garden and settings.looks, the
 // mower's body (sizesBody, null without sizes), the fit and the ids' start of the garden's defs, now in ms, the map's
 // place on earth (datum), the weather (useWeather, only with settings.weather), the mower's rain sensor, its position,
-// the last jobs newest first, the live trail in pieces of poses (b: blades on), the real edges' line as drawn (left out
-// it's worked out from the body, null for the outlines) and the layers switched off (MapControls)
+// the last jobs newest first, the live trail in pieces of poses (b: blades on), the lawns' real edges as drawn (left out
+// they're worked out from the body, null for the outlines) and the layers switched off (MapControls)
 export interface LifeInput {
   areas: MapArea[];
   garden?: Partial<GardenLife>;
@@ -369,7 +369,8 @@ const FAR = {x: -10 * 400, y: -10 * 400, width: 21 * 400, height: 21 * 400};
 
 // the garden's life in MapView's layers, null with none of it switched on. over the areas and their fills in this order:
 // lawn (the cuts, frost and snow, leaves or daisies, cut to the lawns), the real lawn in the obstacles, things (each with
-// its shadow, here instead of with its area), stones (the mowing edge, the real edges' line is left out then) and sky
+// its shadow, here instead of with its area), stones (the mowing edge along the lawns, their real edges' line is left out
+// then) and sky
 // (wet and the light over all of it), then the plan, the dock, the track and the mower
 export function lifeScene(s: LifeInput): LifeScene | null {
   const parts = lifeOf(s.garden);
@@ -436,8 +437,9 @@ export function lifeScene(s: LifeInput): LifeScene | null {
   const castShadow = shadowOf(sun);
   const mower = s.mower ? square(s.mower) : null;
 
-  const edgeLine = s.edgeLine !== undefined ? s.edgeLine : s.body ? realEdgeLine(s.areas, s.body, fit, !hidden.has('obstacle')) : null;
-  const stonesD = parts.edge ? (edgeLine ?? rings([...lawns, ...(hidden.has('obstacle') ? [] : obstacles)], at)) : '';
+  // the stones only along the lawns, the obstacles keep their line
+  const edgeLine = s.edgeLine !== undefined ? s.edgeLine : s.body ? realEdgeLine(s.areas, s.body, fit, false) : null;
+  const stonesD = parts.edge ? (edgeLine ?? rings(lawns, at)) : '';
   const garden = gardenThings(s.areas, s.looks, s.body ?? null, fit);
 
   return {

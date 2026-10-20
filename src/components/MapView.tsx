@@ -902,8 +902,12 @@ function MapView({
     const ring = (o: Point[]) => o.map((p, i) => `${i ? 'L' : 'M'}${at(p)}`).join('') + 'Z';
     const {lawn, obstacles, grass} = realEdges(map.areas, body);
     const inObstacles = !hidden.has('obstacle');
+    const [lawnLine, obstacleLine] = [lawn.map(ring).join(''), inObstacles ? obstacles.map(ring).join('') : ''];
     return {
-      line: [...lawn, ...(inObstacles ? obstacles : [])].map(ring).join(''),
+      line: lawnLine + obstacleLine,
+      // the garden style's stones go along the lawn's, the obstacles keep the dashed line
+      lawnLine,
+      obstacleLine,
       // the lawn between the lines and the real edges: outside the mowing areas under them, in the obstacles over them
       grassOutside: grass.outside.map(ring).join(''),
       grassObstacles: inObstacles ? grass.obstacles.map(ring).join('') : '',
@@ -927,7 +931,7 @@ function MapView({
             mower,
             jobs: history,
             track,
-            edgeLine: edges?.line ?? null,
+            edgeLine: edges?.lawnLine ?? null,
             hidden,
           })
         : null,
@@ -1615,7 +1619,7 @@ function MapView({
           );
         })}
 
-        {edges?.line && !scene?.stones && <path className={styles.realEdge} d={edges.line} />}
+        {edges && (scene?.stones ? edges.obstacleLine : edges.line) && <path className={styles.realEdge} d={scene?.stones ? edges.obstacleLine : edges.line} />}
 
         {todoPath && !hidden.has('stripes') && <path className={[styles.planTodo, styles[planStyle]].join(' ')} d={todoPath} />}
 
