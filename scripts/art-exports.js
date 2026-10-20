@@ -1,7 +1,8 @@
 // what the home assistant card uses (mowbite-art.js), the app's pictures as svg strings
 
 // which version of this interface the file has, counted up when a signature changes or something's added (2: the
-// garden's life, 3: the pictures drawn anew with gradients, drawThing takes an id, new pictures)
+// garden's life, 3: the pictures drawn anew with gradients, drawThing takes an id, seed, color and m, placeThings at their
+// real size, new pictures)
 export const ART_API = 3;
 const mapIcons = require('@/components/mapIcons');
 const gardenLook = require('@/components/gardenLook');
@@ -38,11 +39,16 @@ export const areaLook = gardenLook.areaLook;
 export const isThing = gardenLook.isThing;
 export const groundOf = gardenLook.groundOf;
 export const placeThing = gardenLook.placeThing;
+// where a thing goes as big as it really is: placeThings(look, outline, m, seed, size) with the outline in svg units, m
+// svg units per meter, seed the area's id, size picked for the area (settings.lookSizes, m across). gives one or several
+// places {cx, cy, deg, w, h, over, seed}: over not cut to the area (a crown, a parasol), seed for drawThing when there
+export const placeThings = gardenLook.placeThings;
 export const autoMowAngle = mowStripes.autoMowAngle;
 export const PICTURE_KEYS = gardenPictures.PICTURE_KEYS;
 // id starts the ids of the picture's gradients and clips: one of its own for every picture in a page. seed varies the picture
-// (the area's id), variant is the color picked for it (settings.lookVariants of the area)
-export const drawThing = (look, box, id, seed, variant) => render(gardenLook.drawThing(look, box, id, {seed, variant}));
+// (the area's id), variant is the color picked for it (settings.lookVariants of the area), m svg units per meter (steps,
+// chairs at their real size, left out it's worked out from the box)
+export const drawThing = (look, box, id, seed, variant, m) => render(gardenLook.drawThing(look, box, id, {seed, variant, m}));
 // the lawns' stripes, the grounds' textures and the things' clip paths, m: svg units per meter
 export const gardenDefs = (uid, m, lawns, clips) => render(gardenLook.GardenDefs({uid, m, lawns, clips}));
 
@@ -69,7 +75,7 @@ export const sunPosition = sun.sunPosition;
 export const seasonOf = sun.seasonOf;
 
 // all of it at once in MapView's layers as svg text, null with none of it on. input: {areas, garden, looks, body, fit,
-// uid, now, datum, weather, rain, mower, jobs, track, edgeLine, hidden, lookVariants}, see LifeInput in src/components/gardenLife.tsx.
+// uid, now, datum, weather, rain, mower, jobs, track, edgeLine, hidden, lookVariants, lookSizes}, see LifeInput in src/components/gardenLife.tsx.
 // defs into the svg's defs, then over the areas in this order: lawn, the real lawn in the obstacles, things (instead of
 // the areas' own), stones (along the lawns, instead of their real edges' line), sky. long: the active lawns are filled with
 // url(#{uid}long)

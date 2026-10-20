@@ -1,4 +1,4 @@
-import {areaLook, LookPicker, LookSwatch, type Look} from '@/components/gardenLook';
+import {areaLook, LookPicker, LookSwatch, placeThing, type Look} from '@/components/gardenLook';
 import {PICTURES} from '@/components/gardenPictures';
 import {MergeIcon, ScissorsIcon, SimplifyIcon, SubtractIcon, TrashIcon} from '@/components/icons';
 import InfoTip from '@/components/InfoTip';
@@ -7,7 +7,7 @@ import {fmt, tr} from '@/lib/i18n';
 import {useAreaProperties} from '@/lib/areaProps';
 import {usePlannerSettings} from '@/lib/mowerBody';
 import {saveSettings, settingsStore} from '@/lib/settings';
-import {useState, useSyncExternalStore} from 'react';
+import {useMemo, useState, useSyncExternalStore} from 'react';
 import {AREA_TYPES, type Area, type UpdateArea} from './editing';
 import styles from './page.module.css';
 
@@ -72,6 +72,22 @@ export default function AreaCard({
   // another picture starts with its own usual color
   const setLook = (look: Look | undefined) => save(look, undefined);
   const setVariant = (key: string | undefined) => save(picked, key);
+  // how big a tree, a parasol or bushes are drawn (m across), none: by the area and their usual size. the slider starts
+  // about where they are
+  const sizes = PICTURES[shown]?.over || PICTURES[shown]?.many ? PICTURES[shown].size : undefined;
+  const ownSize = sizes ? settings.lookSizes?.[area.id] : undefined;
+  const autoSize = useMemo(() => {
+    if (!sizes || area.outline.length < 3) return 0;
+    const across = placeThing(shown, area.outline).w;
+    return PICTURES[shown].over ? Math.min(Math.max(across, sizes[0]), sizes[1]) : Math.min(Math.max((sizes[0] + Math.min(sizes[1], across)) / 2, sizes[0]), sizes[1]);
+  }, [sizes, shown, area.outline]);
+  const setSize = (v: number | undefined) => {
+    const cur = settingsStore.snapshot();
+    const lookSizes = {...cur.lookSizes};
+    if (v) lookSizes[area.id] = v;
+    else delete lookSizes[area.id];
+    saveSettings({...cur, lookSizes: Object.keys(lookSizes).length ? lookSizes : undefined});
+  };
   const applyMargin = () => {
     if (marginDraft === null) return;
     const v = Number(marginDraft.trim().replace(',', '.'));
@@ -212,6 +228,32 @@ export default function AreaCard({
                 <LookSwatch look={shown} size={30} seed={area.id} variant={v.key} />
               </button>
             ))}
+          </div>
+        </div>
+      )}
+      {pictured && sizes && (
+        <div className={styles.lookRow}>
+          <span className={[styles.dim, styles.variantLabel].join(' ')}>{tr('Size')}</span>
+          <div className={styles.variantList}>
+            <button
+              role="switch"
+              aria-checked={!ownSize}
+              className={[styles.variantButton, styles.variantText, !ownSize ? styles.variantOn : ''].join(' ')}
+              onClick={() => setSize(undefined)}
+            >
+              {tr('auto')}
+            </button>
+            <input
+              type="range"
+              className={styles.sizeSlider}
+              aria-label={tr('Size')}
+              min={Math.round(sizes[0] * 5) / 10}
+              max={Math.round(sizes[1] * 15) / 10}
+              step={0.1}
+              value={ownSize ?? Math.round(autoSize * 10) / 10}
+              onChange={(e) => setSize(Number(e.target.value))}
+            />
+            <span className={styles.sizeValue}>{ownSize ? `${fmt(ownSize, 1)} m` : ''}</span>
           </div>
         </div>
       )}

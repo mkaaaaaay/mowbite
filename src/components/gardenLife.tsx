@@ -6,7 +6,7 @@ import {containsPoint, polygonArea} from '@/lib/geometry';
 import {joinedOutlines, realEdges, type MowerBody} from '@/lib/mowerBody';
 import {autoMowAngle} from '@/lib/mowStripes';
 import {seasonOf, sunPosition, type Season} from '@/lib/sun';
-import {drawThing, fitKey, gardenThings, inSquare, type Fit, type Look, type Place} from './gardenLook';
+import {drawThing, fitKey, gardenThings, inSquare, type Fit, type GardenThing as Thing, type Look, type Place} from './gardenLook';
 import styles from './MapView.module.css';
 
 // what makes the garden map style come alive, each part switched on on its own in the map settings (all off by default):
@@ -74,6 +74,9 @@ const HEIGHTS: Record<string, number> = {
   woodpile: 1.2,
   birdhouse: 1.6,
   statue: 1.4,
+  stump: 0.4,
+  woodStairs: 0.6,
+  bridge: 0.7,
 };
 
 export const heightOf = (look: Look) => HEIGHTS[look] ?? 0;
@@ -320,24 +323,24 @@ export function thingShadow(look: Look, place: {w: number; h: number}, shadow: {
   return {dx: (shadow.x / length) * reach, dy: (-shadow.y / length) * reach};
 }
 
-// an area's picture standing in it (a tree, a table ...), cut to its place (clip i of GardenDefs) and faded when the
-// area is off. with a shadow the same once more first, dark and moved away from the sun (no filter, it stays while the
-// map moves)
-export function GardenThing({
-  uid,
-  thing,
-  off,
-  shade,
-}: {
-  uid: string;
-  thing: {i: number; id: string; look: Look; variant?: string; place: Place};
-  off: boolean;
-  shade?: {dx: number; dy: number} | null;
-}) {
-  const {cx, cy, deg, w, h} = thing.place;
+// the biggest of a thing's places, what its shadow goes by
+export const biggest = (places: Place[]) => places.reduce((a, b) => (b.w * b.h > a.w * a.h ? b : a));
+
+// an area's picture standing in it (a tree, a table ... or several), cut to the area (clip i of GardenDefs) unless it
+// reaches over it, faded when the area is off. with a shadow the same once more first, dark and moved away from the sun
+// (no filter, it stays while the map moves)
+export function GardenThing({uid, thing, off, shade}: {uid: string; thing: Thing; off: boolean; shade?: {dx: number; dy: number} | null}) {
+  const one = ({cx, cy, deg, w, h, seed}: Place, k: number) => (
+    <g key={k} transform={`translate(${cx} ${cy}) rotate(${deg})`}>
+      {drawThing(thing.look, {x: -w / 2, y: -h / 2, w, h}, `${uid}t${thing.i}${k ? '_' + k : ''}`, {seed: seed ?? thing.id, variant: thing.variant, m: thing.m})}
+    </g>
+  );
+  const inside = thing.places.map((pl, k) => (pl.over ? null : one(pl, k)));
+  const over = thing.places.map((pl, k) => (pl.over ? one(pl, k) : null));
   const drawn = (
-    <g className={[styles.gardenThing, off ? styles.gardenOff : ''].filter(Boolean).join(' ')} clipPath={`url(#${uid}clip${thing.i})`}>
-      <g transform={`translate(${cx} ${cy}) rotate(${deg})`}>{drawThing(thing.look, {x: -w / 2, y: -h / 2, w, h}, `${uid}t${thing.i}`, {seed: thing.id, variant: thing.variant})}</g>
+    <g className={[styles.gardenThing, off ? styles.gardenOff : ''].filter(Boolean).join(' ')}>
+      {inside.some(Boolean) && <g clipPath={`url(#${uid}clip${thing.i})`}>{inside}</g>}
+      {over}
     </g>
   );
   return (
@@ -369,6 +372,7 @@ export interface LifeInput {
   garden?: Partial<GardenLife>;
   looks?: Record<string, string>;
   lookVariants?: Record<string, string>;
+  lookSizes?: Record<string, number>;
   body?: MowerBody | null;
   fit: Fit;
   uid: string;
@@ -479,7 +483,7 @@ export function lifeScene(s: LifeInput): LifeScene | null {
         at,
       )
     : '';
-  const garden = gardenThings(s.areas, s.looks, s.body ?? null, fit, s.lookVariants);
+  const garden = gardenThings(s.areas, s.looks, s.body ?? null, fit, s.lookVariants, s.lookSizes);
 
   return {
     parts,
@@ -521,7 +525,7 @@ export function lifeScene(s: LifeInput): LifeScene | null {
       .map((a) => {
         const thing = garden.things.get(a.id);
         if (!thing) return null;
-        const shade = castShadow ? thingShadow(thing.look, thing.place, castShadow, m) : null;
+        const shade = castShadow ? thingShadow(thing.look, biggest(thing.places), castShadow, m) : null;
         return <GardenThing key={'t' + a.id} uid={uid} thing={thing} off={a.properties.active === false} shade={shade} />;
       }),
     stones: stonesD ? (

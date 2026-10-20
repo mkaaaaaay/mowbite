@@ -1,5 +1,6 @@
 // The pictures of the garden map style, from above with the light from the top left like the guides. A thing is drawn
-// once into the box of its area (svg units, y down) and cut to the area's outline by the map, with a ground around it.
+// into a box in its area (svg units, y down) about as big as it really is, cut to the area's outline by the map unless it
+// reaches over it (a crown, a parasol), with a ground around it.
 // Its gradients and clips get ids starting with p, every drawing its own, and p varies it a little: two trees on a map
 // aren't the same tree. A ground is a texture in meters, it grows and shrinks with the map.
 
@@ -10,7 +11,7 @@ export interface Box {
   h: number;
 }
 
-export type Group = 'plants' | 'water' | 'play' | 'buildings' | 'outdoor' | 'other' | 'ground';
+export type Group = 'plants' | 'water' | 'play' | 'buildings' | 'outdoor' | 'other' | 'ways' | 'ground';
 export const GROUPS: {key: Group; label: string}[] = [
   {key: 'plants', label: 'Plants'},
   {key: 'water', label: 'Water'},
@@ -18,6 +19,7 @@ export const GROUPS: {key: Group; label: string}[] = [
   {key: 'buildings', label: 'Buildings'},
   {key: 'outdoor', label: 'Sitting and fire'},
   {key: 'other', label: 'Other'},
+  {key: 'ways', label: 'Steps and paths'},
   {key: 'ground', label: 'Ground'},
 ];
 
@@ -32,6 +34,8 @@ interface Tile {
 export interface ThingOptions {
   seed: string;
   variant?: string;
+  // svg units per meter, for what has a size of its own (a step, a chair), else worked out from the box
+  m?: number;
 }
 export interface Picture {
   label: string;
@@ -43,6 +47,17 @@ export interface Picture {
   variants?: {key: string; label: string}[];
   around?: string;
   long?: boolean;
+  // how big it really is in meters, from to: across, a long one along. in a bigger area it's drawn no bigger, the
+  // ground round it. deep: at most so deep across a long one
+  size?: [number, number];
+  deep?: number;
+  // reaches over its area like a crown or a parasol (the area is just its foot): drawn at least size[0] across round the
+  // area's middle and not cut to it
+  over?: boolean;
+  // a bigger area gets several of them (bushes, trees, planters)
+  many?: boolean;
+  // a way can be drawn as it too (steps, a bridge), any other thing only an obstacle
+  way?: boolean;
   // a ground: the texture
   tile?: Tile;
 }
@@ -62,7 +77,7 @@ export function tone(hex: string, t: number): string {
 }
 
 // the same random numbers between 0 and 1 for the same seed
-function random(seed: string) {
+export function random(seed: string) {
   let h = 2166136261;
   for (let i = 0; i < seed.length; i++) h = Math.imul(h ^ seed.charCodeAt(i), 16777619);
   let s = ((h >>> 0) % 2147483646) + 1;
@@ -394,6 +409,53 @@ function boards(x: number, y: number, w: number, h: number, n: number, c: string
   );
 }
 
+// what fills between steps over a rectangle, m svg units per meter: little stones, chips of bark or blades of grass, about
+// as many as on that much ground, a path per color
+function strewn(kind: 'gravel' | 'bark' | 'grass', x: number, y: number, w: number, h: number, m: number, rnd: () => number) {
+  const per = (k: number, most: number) => Math.min(most, Math.round(((w * h) / (m * m)) * k));
+  const at = (): Pt => [x + rnd() * w, y + rnd() * h];
+  if (kind === 'gravel') {
+    const colors = ['#a59c8c', '#cfc8ba', '#9a9182', '#ddd6c9'];
+    const stones = Array.from({length: per(260, 360)}, (): Dot => [...at(), (0.012 + rnd() * 0.012) * m]);
+    return (
+      <>
+        <rect x={n2(x)} y={n2(y)} width={n2(w)} height={n2(h)} fill="#b8b0a1" />
+        {colors.map((c, i) => (
+          <path key={c} d={circles(stones.filter((_, k) => k % colors.length === i))} fill={c} />
+        ))}
+      </>
+    );
+  }
+  if (kind === 'bark') {
+    const colors = ['#8a6142', '#4f3524', '#7a5438'];
+    const chips = Array.from({length: per(140, 220)}, () => {
+      const [cx, cy] = at();
+      const a = rnd() * PI;
+      const [ux, uy, vx, vy] = [Math.cos(a) * 0.028 * m, Math.sin(a) * 0.028 * m, -Math.sin(a) * 0.008 * m, Math.cos(a) * 0.008 * m];
+      return `M${n2(cx - ux - vx)} ${n2(cy - uy - vy)}L${n2(cx + ux - vx)} ${n2(cy + uy - vy)}L${n2(cx + ux + vx)} ${n2(cy + uy + vy)}L${n2(cx - ux + vx)} ${n2(cy - uy + vy)}Z`;
+    });
+    return (
+      <>
+        <rect x={n2(x)} y={n2(y)} width={n2(w)} height={n2(h)} fill="#6b4a32" />
+        {colors.map((c, i) => (
+          <path key={c} d={chips.filter((_, k) => k % colors.length === i).join('')} fill={c} />
+        ))}
+      </>
+    );
+  }
+  const blades = Array.from({length: per(200, 280)}, () => {
+    const [bx, by] = at();
+    return `M${n2(bx)} ${n2(by)}l${n2((rnd() - 0.5) * 0.03 * m)} ${n2(-0.05 * m)}`;
+  });
+  return (
+    <>
+      <rect x={n2(x)} y={n2(y)} width={n2(w)} height={n2(h)} fill="#4f8f3c" />
+      <path d={blades.filter((_, k) => k % 2).join('')} stroke="#6aa94f" strokeWidth={n2(0.008 * m)} strokeLinecap="round" />
+      <path d={blades.filter((_, k) => !(k % 2)).join('')} stroke="#3b7330" strokeWidth={n2(0.008 * m)} strokeLinecap="round" />
+    </>
+  );
+}
+
 // a few blades of grass standing at x, y in meters
 const tuft = (m: number, x: number, y: number, s = 1) =>
   `M${n2(x * m)} ${n2(y * m)} l${n2(-0.04 * m * s)} ${n2(-0.11 * m * s)} l${n2(0.03 * m * s)} ${n2(0.08 * m * s)} l${n2(0.01 * m * s)} ${n2(-0.12 * m * s)} ` +
@@ -597,6 +659,39 @@ const FABRICS: Variants<{c: [string, string]}> = {
   red: {label: 'Red and white', c: ['#f2efe6', '#c9643f']},
 };
 
+const STUMPS: Variants<{cut: string; bark: string; moss: number}> = {
+  weathered: {label: 'Weathered', cut: '#ab9c84', bark: '#54473a', moss: 0.3},
+  fresh: {label: 'Fresh', cut: '#d9b37c', bark: '#5d4532', moss: 0},
+  mossy: {label: 'Mossy', cut: '#8f8a70', bark: '#4a4033', moss: 1},
+};
+const STEP_FILLS: Variants<{fill: 'gravel' | 'bark' | 'grass'}> = {
+  gravel: {label: 'Gravel', fill: 'gravel'},
+  bark: {label: 'Bark mulch', fill: 'bark'},
+  grass: {label: 'Grass', fill: 'grass'},
+};
+const WOODS: Variants<{c: string}> = {
+  natural: {label: 'Natural', c: '#a8794a'},
+  larch: {label: 'Larch', c: '#c4925a'},
+  grey: {label: 'Weathered', c: '#9b968c'},
+  dark: {label: 'Dark brown', c: '#6b4a2e'},
+};
+const STONE_STEPS: Variants<{c: string}> = {
+  granite: {label: 'Granite', c: '#a9a9a3'},
+  sandstone: {label: 'Sandstone', c: '#cbb18a'},
+  anthracite: {label: 'Anthracite', c: '#5f6366'},
+};
+const STEPPERS: Variants<{c: string; shape: 'stone' | 'slice' | 'slab'}> = {
+  stone: {label: 'Natural stone', c: '#a8a49a', shape: 'stone'},
+  sandstone: {label: 'Sandstone', c: '#cdb48a', shape: 'stone'},
+  slices: {label: 'Wood slices', c: '#c9a26b', shape: 'slice'},
+  slabs: {label: 'Concrete slabs', c: '#b9b6ae', shape: 'slab'},
+};
+const BRIDGES: Variants<{deck: string; rail: string}> = {
+  natural: {label: 'Natural', deck: '#a8794a', rail: '#8a6440'},
+  grey: {label: 'Weathered', deck: '#9b968c', rail: '#7d786f'},
+  red: {label: 'Red railing', deck: '#a8794a', rail: '#b8452f'},
+};
+
 const WOOD = '#9c7447';
 const STONE = '#b3ad9f';
 const WATER = '#2f86bf';
@@ -606,6 +701,9 @@ export const PICTURES: Record<string, Picture> = {
   tree: {
     label: 'Tree',
     group: 'plants',
+    size: [3.5, 8],
+    over: true,
+    many: true,
     variants: choices(TREES),
     around: 'meadow',
     thing: (b, p, o) => {
@@ -621,6 +719,8 @@ export const PICTURES: Record<string, Picture> = {
   conifer: {
     label: 'Conifer',
     group: 'plants',
+    size: [0.8, 5],
+    many: true,
     variants: choices(CONIFERS),
     around: 'meadow',
     thing: (b, p, o) => {
@@ -668,6 +768,9 @@ export const PICTURES: Record<string, Picture> = {
   fruitTree: {
     label: 'Fruit tree',
     group: 'plants',
+    size: [3, 6],
+    over: true,
+    many: true,
     variants: choices(FRUITS),
     around: 'meadow',
     thing: (b, p, o) => {
@@ -697,6 +800,9 @@ export const PICTURES: Record<string, Picture> = {
   palm: {
     label: 'Palm',
     group: 'plants',
+    size: [2.5, 5],
+    over: true,
+    many: true,
     around: 'meadow',
     thing: (b, p, o) => {
       const {cx, cy, r} = middle(b);
@@ -758,6 +864,8 @@ export const PICTURES: Record<string, Picture> = {
   bush: {
     label: 'Bush',
     group: 'plants',
+    size: [0.8, 2.2],
+    many: true,
     variants: choices(BUSHES),
     around: 'meadow',
     thing: (b, p, o) => {
@@ -773,6 +881,8 @@ export const PICTURES: Record<string, Picture> = {
   floweringBush: {
     label: 'Flowering shrub',
     group: 'plants',
+    size: [0.8, 2.5],
+    many: true,
     variants: choices(BLOOMS),
     around: 'meadow',
     thing: (b, p, o) => {
@@ -790,6 +900,87 @@ export const PICTURES: Record<string, Picture> = {
           <path d={circles(flowers.filter((f) => !litSide(f, cx, cy)))} fill={c} />
           <path d={circles(flowers.filter((f) => litSide(f, cx, cy)))} fill={light} />
           <path d={circles(heads.map(([x, y, hs]) => [x, y, hs * 0.14]))} fill="#f6d36a" />
+        </>
+      );
+    },
+  },
+  stump: {
+    label: 'Tree stump',
+    group: 'plants',
+    variants: choices(STUMPS),
+    size: [0.4, 1.4],
+    around: 'meadow',
+    thing: (b, p, o) => {
+      const {cx, cy, r} = middle(b);
+      const rnd = random(o.seed + 'stump');
+      const kind = pick(o, STUMPS);
+      // the roots running off into the grass, the bark round the cut, growth rings round the heart a little off the
+      // middle, cracks out from it, moss on the side in the shade
+      const rs = r * 0.66;
+      const [hx, hy] = [cx + rs * 0.1, cy + rs * 0.06];
+      const roots = Array.from({length: 5}, (_, i) => {
+        const a = ((i + rnd() * 0.6) / 5) * 2 * PI;
+        const [ca, sa] = [Math.cos(a), Math.sin(a)];
+        const len = r * (0.78 + rnd() * 0.16);
+        const w = rs * (0.5 + rnd() * 0.16);
+        const bend = (rnd() - 0.5) * 0.5;
+        const at = (t: number, side: number): Pt => {
+          const dd = rs * 0.55 + (len - rs * 0.55) * t;
+          const off = (side * w * (1 - t * 0.7)) / 2 + bend * len * t * t * 0.25;
+          return [cx + ca * dd - sa * off, cy + sa * dd + ca * off];
+        };
+        return {d: smooth([at(0, -1), at(0.35, -1), at(0.7, -1), at(0.95, -0.6), at(1, 0), at(0.95, 0.6), at(0.7, 1), at(0.35, 1), at(0, 1)]), end: at(0.92, 0)};
+      });
+      const bark = blob(cx, cy, rs, rs * 0.96, rnd, 16, 0.07);
+      const cut = blob(cx, cy, rs * 0.83, rs * 0.8, rnd, 14, 0.05);
+      const rings = [0.18, 0.34, 0.5, 0.64, 0.76].map((f) => smooth(blob(hx + (cx - hx) * f, hy + (cy - hy) * f, rs * 0.83 * f, rs * 0.8 * f, rnd, 12, 0.06)));
+      const cracks = Array.from({length: 3}, () => {
+        const a = rnd() * 2 * PI;
+        const [r0, r1] = [rs * 0.08, rs * (0.45 + rnd() * 0.32)];
+        return `M${n2(hx + Math.cos(a) * r0)} ${n2(hy + Math.sin(a) * r0)}L${n2(hx + Math.cos(a + 0.08) * (r0 + r1) / 2)} ${n2(hy + Math.sin(a + 0.08) * (r0 + r1) / 2)}L${n2(hx + Math.cos(a) * r1)} ${n2(hy + Math.sin(a) * r1)}`;
+      });
+      const barkLines = Array.from({length: 26}, (_, i) => {
+        const a = (i / 26) * 2 * PI + rnd() * 0.1;
+        const [r0, r1] = [rs * 0.86, rs * (0.95 + rnd() * 0.05)];
+        return `M${n2(cx + Math.cos(a) * r0)} ${n2(cy + Math.sin(a) * r0)}L${n2(cx + Math.cos(a) * r1)} ${n2(cy + Math.sin(a) * r1)}`;
+      }).join('');
+      const moss = kind.moss
+        ? Array.from({length: Math.round(10 * kind.moss) + 2}, (): Dot => {
+            const a = PI * (0.05 + rnd() * 0.75);
+            const dd = rs * (0.7 + rnd() * 0.32);
+            return [cx + Math.cos(a) * dd, cy + Math.sin(a) * dd, rs * (0.07 + rnd() * 0.07)];
+          })
+        : [];
+      const caps: Dot[] = kind.moss > 0.5 ? [[cx + rs * 0.95, cy + rs * 0.55, rs * 0.11], [cx + rs * 0.78, cy + rs * 0.82, rs * 0.08]] : [];
+      return (
+        <>
+          <defs>
+            {ball(p + 'c', kind.cut, 0.18, -0.2)}
+          </defs>
+          {halo(p + 'h', cx, cy, rs * 1.25, rs * 1.2)}
+          {roots.map(({d}, i) => (
+            <path key={i} d={d} fill={tone(kind.bark, 0.04)} stroke={tone(kind.bark, -0.4)} strokeWidth={n2(rs * 0.02)} />
+          ))}
+          <path d={roots.map(({end}) => tuft(1, end[0], end[1], rs * 1.4)).join('')} fill="#4c8a3a" />
+          <path d={smooth(bark)} fill={kind.bark} stroke={tone(kind.bark, -0.45)} strokeWidth={n2(rs * 0.025)} />
+          <path d={barkLines} stroke={tone(kind.bark, -0.4)} strokeWidth={n2(rs * 0.025)} strokeLinecap="round" />
+          {rimLight(cx, cy, rs * 0.97, rs * 0.04, 0.25)}
+          <path d={smooth(cut)} fill={`url(#${p}c)`} stroke={tone(kind.cut, -0.3)} strokeWidth={n2(rs * 0.02)} />
+          <path d={rings.join('')} fill="none" stroke={tone(kind.cut, -0.2)} strokeOpacity={0.55} strokeWidth={n2(rs * 0.012)} />
+          <path d={cracks.join('')} fill="none" stroke={tone(kind.cut, -0.55)} strokeWidth={n2(rs * 0.025)} strokeLinecap="round" strokeLinejoin="round" />
+          <circle cx={n2(hx)} cy={n2(hy)} r={n2(rs * 0.04)} fill={tone(kind.cut, -0.4)} />
+          {moss.length > 0 && (
+            <>
+              <path d={circles(moss)} fill="#5f8a3a" />
+              <path d={circles(moss.map(([x, y, rr]): Dot => [x - rr * 0.25, y - rr * 0.25, rr * 0.5]))} fill="#86b04f" opacity={0.7} />
+            </>
+          )}
+          {caps.length > 0 && (
+            <>
+              <path d={circles(caps)} fill="#b98d5a" stroke="#7a5a37" strokeWidth={n2(rs * 0.012)} />
+              <path d={circles(caps.map(([x, y, rr]): Dot => [x - rr * 0.25, y - rr * 0.25, rr * 0.4]))} fill="#e2c495" />
+            </>
+          )}
         </>
       );
     },
@@ -913,6 +1104,7 @@ export const PICTURES: Record<string, Picture> = {
   raisedBed: {
     label: 'Raised bed',
     group: 'plants',
+    deep: 1.4,
     long: true,
     around: 'meadow',
     thing: (b, p, o) =>
@@ -966,6 +1158,8 @@ export const PICTURES: Record<string, Picture> = {
   pot: {
     label: 'Planter',
     group: 'plants',
+    size: [0.4, 1.2],
+    many: true,
     variants: choices(POTS),
     around: 'paving',
     thing: (b, p, o) => {
@@ -990,6 +1184,7 @@ export const PICTURES: Record<string, Picture> = {
   herbSpiral: {
     label: 'Herb spiral',
     group: 'plants',
+    size: [1.4, 3.5],
     around: 'meadow',
     thing: (b, p, o) => {
       const {cx, cy, r} = middle(b);
@@ -1247,6 +1442,7 @@ export const PICTURES: Record<string, Picture> = {
   roundPool: {
     label: 'Round pool',
     group: 'water',
+    size: [2, 7],
     around: 'meadow',
     thing: (b, p) => {
       const {cx, cy, r} = middle(b);
@@ -1280,6 +1476,7 @@ export const PICTURES: Record<string, Picture> = {
   hotTub: {
     label: 'Hot tub',
     group: 'water',
+    size: [1.6, 2.6],
     variants: choices(CABINETS),
     around: 'wood',
     thing: (b, p, o) => {
@@ -1324,6 +1521,7 @@ export const PICTURES: Record<string, Picture> = {
   fountain: {
     label: 'Fountain',
     group: 'water',
+    size: [0.8, 3],
     around: 'paving',
     thing: (b, p) => {
       const {cx, cy, r} = middle(b);
@@ -1362,6 +1560,7 @@ export const PICTURES: Record<string, Picture> = {
   rainBarrel: {
     label: 'Rain barrel',
     group: 'water',
+    size: [0.5, 1.1],
     variants: choices(BARRELS),
     around: 'gravel',
     thing: (b, p, o) => {
@@ -1427,6 +1626,7 @@ export const PICTURES: Record<string, Picture> = {
   trampoline: {
     label: 'Trampoline',
     group: 'play',
+    size: [2.4, 4.6],
     variants: choices(PADS),
     around: 'meadow',
     thing: (b, p, o) => {
@@ -1519,6 +1719,8 @@ export const PICTURES: Record<string, Picture> = {
   swing: {
     label: 'Swing',
     group: 'play',
+    size: [2, 4.5],
+    deep: 2.4,
     variants: choices(SEATS),
     long: true,
     around: 'meadow',
@@ -1565,6 +1767,8 @@ export const PICTURES: Record<string, Picture> = {
   playTower: {
     label: 'Play tower',
     group: 'play',
+    size: [2.5, 6],
+    deep: 4.5,
     variants: choices(TOWERS),
     long: true,
     around: 'sand',
@@ -1598,6 +1802,8 @@ export const PICTURES: Record<string, Picture> = {
   pingPong: {
     label: 'Table tennis',
     group: 'play',
+    size: [2.8, 3.1],
+    deep: 1.75,
     variants: choices(TABLES),
     long: true,
     around: 'paving',
@@ -1637,6 +1843,8 @@ export const PICTURES: Record<string, Picture> = {
   goal: {
     label: 'Goal',
     group: 'play',
+    size: [1.5, 5],
+    deep: 2,
     long: true,
     around: 'meadow',
     thing: (b, p) =>
@@ -1731,6 +1939,7 @@ export const PICTURES: Record<string, Picture> = {
   gazebo: {
     label: 'Gazebo',
     group: 'buildings',
+    size: [2.5, 6],
     variants: choices(CANVAS),
     around: 'paving',
     thing: (b, p, o) => {
@@ -1815,6 +2024,8 @@ export const PICTURES: Record<string, Picture> = {
   kennel: {
     label: 'Hutch',
     group: 'buildings',
+    size: [0.8, 3],
+    deep: 2,
     variants: choices(SMALL_ROOFS),
     long: true,
     around: 'meadow',
@@ -1852,6 +2063,8 @@ export const PICTURES: Record<string, Picture> = {
   car: {
     label: 'Car',
     group: 'buildings',
+    size: [4.2, 5.2],
+    deep: 2.3,
     variants: choices(CARS),
     long: true,
     around: 'paving',
@@ -1904,6 +2117,7 @@ export const PICTURES: Record<string, Picture> = {
   furniture: {
     label: 'Seating',
     group: 'outdoor',
+    size: [1.5, 3.5],
     variants: choices(CUSHIONS),
     around: 'meadow',
     thing: (b, p, o) => {
@@ -1935,15 +2149,20 @@ export const PICTURES: Record<string, Picture> = {
   table: {
     label: 'Table',
     group: 'outdoor',
+    size: [1, 4.5],
+    deep: 2.8,
     variants: choices(CUSHIONS),
     long: true,
     around: 'meadow',
     thing: (b, p, o) =>
       along(b, (l, d) => {
         const rnd = random(o.seed + 'table');
-        const c = Math.min(l * 0.17, d * 0.25);
-        const [tl, td] = [l * 0.78, Math.max(d - 2 * c * 1.3, d * 0.3)];
-        const places = [-1, 0, 1].flatMap((i) => [-1, 1].map((s) => ({x: i * tl * 0.3, s})));
+        const m = o.m ?? l / 2.2;
+        // chairs about half a meter, the table at most 0.95 deep, as many places a side as there's room for
+        const c = Math.min(0.5 * m, l * 0.17, d * 0.25);
+        const [tl, td] = [l * 0.78, Math.max(Math.min(d - 2 * c * 1.3, 0.95 * m), d * 0.3)];
+        const per = Math.max(1, Math.min(6, Math.floor(tl / (0.62 * m))));
+        const places = Array.from({length: per}, (_, i) => (i - (per - 1) / 2) * (tl / per)).flatMap((x) => [-1, 1].map((s) => ({x, s})));
         return (
           <>
             {places.map(({x, s}) => chair(x, s * (td / 2 + c * 0.55), c, s < 0 ? 0 : 180, pick(o, CUSHIONS).c))}
@@ -1952,9 +2171,9 @@ export const PICTURES: Record<string, Picture> = {
             {boards(-tl / 2 + td * 0.04, -td / 2 + td * 0.04, tl - td * 0.08, td * 0.92, 4, '#b5864f', rnd)}
             {places.map(({x, s}) => (
               <g key={`${x}${s}`}>
-                <circle cx={n2(x)} cy={n2(s * td * 0.24)} r={n2(td * 0.13)} fill="#f4f2ed" stroke="#c9c4ba" strokeWidth={n2(td * 0.01)} />
-                <circle cx={n2(x)} cy={n2(s * td * 0.24)} r={n2(td * 0.08)} fill="#fff" />
-                <circle cx={n2(x + tl * 0.07)} cy={n2(s * td * 0.3)} r={n2(td * 0.045)} fill="#bfe3f2" stroke="#8fb9cc" strokeWidth={n2(td * 0.008)} />
+                <circle cx={n2(x)} cy={n2(s * td * 0.24)} r={n2(Math.min(td * 0.13, 0.12 * m))} fill="#f4f2ed" stroke="#c9c4ba" strokeWidth={n2(td * 0.01)} />
+                <circle cx={n2(x)} cy={n2(s * td * 0.24)} r={n2(Math.min(td * 0.08, 0.075 * m))} fill="#fff" />
+                <circle cx={n2(x + Math.min(tl * 0.07, 0.16 * m))} cy={n2(s * td * 0.3)} r={n2(Math.min(td * 0.045, 0.04 * m))} fill="#bfe3f2" stroke="#8fb9cc" strokeWidth={n2(td * 0.008)} />
               </g>
             ))}
             <circle cx={0} cy={0} r={n2(td * 0.16)} fill="#f4f2ed" stroke="#c9c4ba" strokeWidth={n2(td * 0.01)} />
@@ -1968,6 +2187,8 @@ export const PICTURES: Record<string, Picture> = {
   bench: {
     label: 'Bench',
     group: 'outdoor',
+    size: [1.2, 2.2],
+    deep: 0.9,
     variants: choices(BENCHES),
     long: true,
     around: 'meadow',
@@ -1992,6 +2213,8 @@ export const PICTURES: Record<string, Picture> = {
   lounger: {
     label: 'Sun lounger',
     group: 'outdoor',
+    size: [1.8, 2.2],
+    deep: 0.9,
     variants: choices(STRIPES),
     long: true,
     around: 'meadow',
@@ -2021,6 +2244,8 @@ export const PICTURES: Record<string, Picture> = {
   lounge: {
     label: 'Lounge sofa',
     group: 'outdoor',
+    size: [2, 5],
+    deep: 3.2,
     variants: choices(LOUNGES),
     long: true,
     around: 'wood',
@@ -2067,6 +2292,7 @@ export const PICTURES: Record<string, Picture> = {
   grill: {
     label: 'Barbecue',
     group: 'outdoor',
+    size: [0.6, 1.6],
     variants: choices(GRILLS),
     around: 'paving',
     thing: (b, p, o) => {
@@ -2128,6 +2354,8 @@ export const PICTURES: Record<string, Picture> = {
   hammock: {
     label: 'Hammock',
     group: 'outdoor',
+    size: [2.8, 4.5],
+    deep: 1.6,
     variants: choices(HAMMOCKS),
     long: true,
     around: 'meadow',
@@ -2170,6 +2398,8 @@ export const PICTURES: Record<string, Picture> = {
   umbrella: {
     label: 'Parasol',
     group: 'outdoor',
+    size: [2.6, 4],
+    over: true,
     around: 'meadow',
     variants: choices(FABRICS),
     thing: (b, p, o) => {
@@ -2202,6 +2432,8 @@ export const PICTURES: Record<string, Picture> = {
   sunSail: {
     label: 'Shade sail',
     group: 'outdoor',
+    size: [3.5, 6],
+    over: true,
     variants: choices(SAILS),
     around: 'meadow',
     thing: (b, p, o) => {
@@ -2229,6 +2461,7 @@ export const PICTURES: Record<string, Picture> = {
   firePit: {
     label: 'Fire pit',
     group: 'outdoor',
+    size: [0.9, 2.2],
     around: 'gravel',
     thing: (b, p, o) => {
       const {cx, cy, r} = middle(b);
@@ -2277,6 +2510,7 @@ export const PICTURES: Record<string, Picture> = {
   lamp: {
     label: 'Garden lamp',
     group: 'outdoor',
+    size: [0.3, 0.7],
     variants: choices(LAMPS),
     around: 'meadow',
     thing: (b, p, o) => {
@@ -2310,6 +2544,8 @@ export const PICTURES: Record<string, Picture> = {
   clothesDryer: {
     label: 'Rotary dryer',
     group: 'other',
+    size: [2.6, 4],
+    over: true,
     around: 'meadow',
     thing: (b, p, o) => {
       const {cx, cy, r} = middle(b);
@@ -2349,6 +2585,7 @@ export const PICTURES: Record<string, Picture> = {
   compost: {
     label: 'Compost',
     group: 'other',
+    size: [0.9, 2.4],
     around: 'soil',
     thing: (b, p, o) => {
       const {cx, cy, r} = middle(b);
@@ -2380,6 +2617,8 @@ export const PICTURES: Record<string, Picture> = {
   bins: {
     label: 'Bins',
     group: 'other',
+    size: [1, 3],
+    deep: 1,
     long: true,
     around: 'paving',
     thing: (b) =>
@@ -2411,6 +2650,7 @@ export const PICTURES: Record<string, Picture> = {
   woodpile: {
     label: 'Woodpile',
     group: 'other',
+    deep: 1.4,
     long: true,
     around: 'gravel',
     thing: (b, p, o) =>
@@ -2445,6 +2685,7 @@ export const PICTURES: Record<string, Picture> = {
   birdhouse: {
     label: 'Bird feeder',
     group: 'other',
+    size: [0.5, 1],
     variants: choices(SMALL_ROOFS),
     around: 'meadow',
     thing: (b, p, o) => {
@@ -2479,6 +2720,7 @@ export const PICTURES: Record<string, Picture> = {
   statue: {
     label: 'Statue',
     group: 'other',
+    size: [0.5, 1.6],
     variants: choices(STATUES),
     around: 'gravel',
     thing: (b, p, o) => {
@@ -2527,6 +2769,8 @@ export const PICTURES: Record<string, Picture> = {
   rocks: {
     label: 'Rocks',
     group: 'other',
+    size: [0.5, 2.5],
+    many: true,
     around: 'meadow',
     thing: (b, p, o) => {
       const {cx, cy, r} = middle(b);
@@ -2559,6 +2803,8 @@ export const PICTURES: Record<string, Picture> = {
   gnome: {
     label: 'Garden gnome',
     group: 'other',
+    size: [0.3, 0.7],
+    many: true,
     variants: choices(HATS),
     around: 'meadow',
     thing: (b, p, o) => {
@@ -2585,6 +2831,348 @@ export const PICTURES: Record<string, Picture> = {
         </>
       );
     },
+  },
+
+  // steps and paths
+  woodSteps: {
+    label: 'Wooden steps',
+    group: 'ways',
+    variants: choices(STEP_FILLS),
+    long: true,
+    way: true,
+    deep: 2.2,
+    around: 'meadow',
+    thing: (b, p, o) =>
+      along(b, (l, d) => {
+        const rnd = random(o.seed + 'steps');
+        const m = o.m ?? l / 2.4;
+        // up at the left: each step a tread and the beam holding it at its lower end, that beam's shadow on the next one
+        const n = Math.max(2, Math.round(l / (0.42 * m)));
+        const t = l / n;
+        const bw = Math.min(t * 0.34, 0.15 * m);
+        const w = d * 0.92;
+        const shade = Math.min(t * 0.55, 0.18 * m);
+        const beams = Array.from({length: n}, (_, i) => ({x: -l / 2 + (i + 1) * t - bw, c: tone('#7a5a3c', (rnd() - 0.5) * 0.14)}));
+        const stakes = beams.flatMap(({x}): Dot[] => [-1, 1].map((s): Dot => [x + bw * 1.05, s * (w / 2 - bw * 0.7), bw * 0.3]));
+        return (
+          <>
+            <defs>
+              <linearGradient id={p + 's'} x1={0} y1={0} x2={1} y2={0}>
+                <stop offset={0} stopColor="#000" stopOpacity={0.6} />
+                <stop offset={0.35} stopColor="#000" stopOpacity={0.3} />
+                <stop offset={1} stopColor="#000" stopOpacity={0} />
+              </linearGradient>
+              <linearGradient id={p + 'w'} x1={0} y1={0} x2={1} y2={0}>
+                <stop offset={0} stopColor="#fff" stopOpacity={0.22} />
+                <stop offset={0.5} stopColor="#fff" stopOpacity={0} />
+                <stop offset={1} stopColor="#000" stopOpacity={0.25} />
+              </linearGradient>
+            </defs>
+            {softBox(-l / 2, -w / 2, l, w, 0, Math.min(d, l) * 0.03)}
+            {strewn(pick(o, STEP_FILLS).fill, -l / 2, -w * 0.47, l, w * 0.94, m, rnd)}
+            {beams.slice(0, -1).map(({x}, i) => (
+              <rect key={i} x={n2(x + bw)} y={n2(-w * 0.47)} width={n2(shade)} height={n2(w * 0.94)} fill={`url(#${p}s)`} />
+            ))}
+            {beams.map(({x, c}, i) => (
+              <g key={i}>
+                <rect x={n2(x)} y={n2(-w / 2)} width={n2(bw)} height={n2(w)} rx={n2(bw * 0.1)} fill={c} stroke={tone(c, -0.45)} strokeWidth={n2(bw * 0.05)} />
+                <rect x={n2(x)} y={n2(-w / 2)} width={n2(bw)} height={n2(w)} rx={n2(bw * 0.1)} fill={`url(#${p}w)`} />
+              </g>
+            ))}
+            {/* the grain along each beam, a crack from one end, the sawn ends lighter */}
+            <path
+              d={beams
+                .map(({x}) =>
+                  [0.3, 0.55, 0.78]
+                    .map((k) => `M${n2(x + bw * k)} ${n2(-w / 2 + w * rnd() * 0.15)}v${n2(w * (0.4 + rnd() * 0.4))}`)
+                    .join(''),
+                )
+                .join('')}
+              stroke="#4a3522"
+              strokeOpacity={0.4}
+              strokeWidth={n2(bw * 0.05)}
+              strokeLinecap="round"
+            />
+            <path d={beams.map(({x}) => `M${n2(x + bw * 0.45)} ${n2(w / 2)}v${n2(-w * (0.1 + rnd() * 0.15))}`).join('')} stroke="#2e2116" strokeOpacity={0.6} strokeWidth={n2(bw * 0.07)} strokeLinecap="round" />
+            <path d={beams.map(({x}) => `M${n2(x)} ${n2(-w / 2)}h${n2(bw)}M${n2(x)} ${n2(w / 2)}h${n2(bw)}`).join('')} stroke="#c9a273" strokeOpacity={0.55} strokeWidth={n2(bw * 0.16)} />
+            {/* the stakes holding them, their tops */}
+            <path d={circles(stakes)} fill="#6e5038" stroke="#3c2a1b" strokeWidth={n2(bw * 0.05)} />
+            <path d={circles(stakes.map(([x, y, r]): Dot => [x - r * 0.15, y - r * 0.15, r * 0.45]))} fill="#a98457" opacity={0.7} />
+          </>
+        );
+      }),
+  },
+  woodStairs: {
+    label: 'Wooden stairs',
+    group: 'ways',
+    variants: choices(WOODS),
+    long: true,
+    way: true,
+    deep: 2,
+    around: 'gravel',
+    thing: (b, p, o) =>
+      along(b, (l, d) => {
+        const rnd = random(o.seed + 'stairs');
+        const m = o.m ?? l / 2.4;
+        const wood = pick(o, WOODS).c;
+        // up at the left: treads of two boards between the stringers, each lower one in the shadow of the one above, a
+        // handrail on posts (both sides when it's wide)
+        const n = Math.max(2, Math.round(l / (0.3 * m)));
+        const t = l / n;
+        const w = d * 0.94;
+        const sw = Math.min(Math.max(0.06 * m, w * 0.05), w * 0.12);
+        const inner = w - 2 * sw;
+        const gap = Math.min(t * 0.08, 0.012 * m);
+        const ps = Math.min(sw * 1.25, t * 0.6);
+        const rh = ps * 0.62;
+        const rails = d >= 0.9 * m ? [-1, 1] : [-1];
+        const posts = Math.max(2, Math.round(l / (1.2 * m)) + 1);
+        const boardsAt = Array.from({length: n * 2}, (_, k) => {
+          const x = -l / 2 + Math.floor(k / 2) * t + gap / 2 + ((k % 2) * (t - gap)) / 2;
+          return {x, w: (t - gap) / 2 - (k % 2 ? 0 : gap / 4), c: tone(wood, (rnd() - 0.5) * 0.08)};
+        });
+        return (
+          <>
+            <defs>
+              <linearGradient id={p + 's'} x1={0} y1={0} x2={1} y2={0}>
+                <stop offset={0} stopColor="#000" stopOpacity={0.62} />
+                <stop offset={0.3} stopColor="#000" stopOpacity={0.32} />
+                <stop offset={1} stopColor="#000" stopOpacity={0} />
+              </linearGradient>
+              {tube(p + 'r', tone(wood, -0.05))}
+            </defs>
+            {softBox(-l / 2, -w / 2, l, w, 0, Math.min(d, l) * 0.04)}
+            <rect x={n2(-l / 2)} y={n2(-w / 2)} width={n2(l)} height={n2(w)} fill={tone(wood, -0.55)} />
+            {boardsAt.map((bd, k) => (
+              <rect key={k} x={n2(bd.x)} y={n2(-inner / 2)} width={n2(bd.w)} height={n2(inner)} fill={bd.c} />
+            ))}
+            <path
+              d={boardsAt.map((bd) => `M${n2(bd.x + bd.w * (0.3 + rnd() * 0.4))} ${n2(-inner / 2 + inner * rnd() * 0.2)}v${n2(inner * (0.3 + rnd() * 0.4))}`).join('')}
+              stroke={tone(wood, -0.35)}
+              strokeOpacity={0.45}
+              strokeWidth={n2(t * 0.025)}
+              strokeLinecap="round"
+            />
+            {/* the nosing of each tread lit, the shadow it casts on the next one down */}
+            <path d={Array.from({length: n}, (_, i) => `M${n2(-l / 2 + (i + 1) * t - gap / 2 - t * 0.03)} ${n2(-inner / 2)}v${n2(inner)}`).join('')} stroke={tone(wood, 0.35)} strokeOpacity={0.7} strokeWidth={n2(t * 0.05)} />
+            {Array.from({length: n - 1}, (_, i) => (
+              <rect key={i} x={n2(-l / 2 + (i + 1) * t)} y={n2(-inner / 2)} width={n2(t * 0.55)} height={n2(inner)} fill={`url(#${p}s)`} />
+            ))}
+            {[-1, 1].map((s) => (
+              <g key={s}>
+                <rect x={n2(-l / 2)} y={n2(s < 0 ? -w / 2 : w / 2 - sw)} width={n2(l)} height={n2(sw)} fill={tone(wood, -0.2)} />
+                <rect x={n2(-l / 2)} y={n2(s < 0 ? -w / 2 : w / 2 - sw)} width={n2(l)} height={n2(sw * 0.25)} fill={tone(wood, 0.2)} opacity={0.6} />
+              </g>
+            ))}
+            {rails.map((s) => {
+              const y = s * (w / 2 - sw / 2);
+              const xs = Array.from({length: posts}, (_, k) => -l / 2 + ps / 2 + ((l - ps) * k) / (posts - 1));
+              return (
+                <g key={s}>
+                  <rect x={n2(-l / 2 + rh * 0.6)} y={n2(y - rh / 2 + rh * 0.9)} width={n2(l)} height={n2(rh)} rx={n2(rh / 2)} fill="#000" opacity={0.22} data-halo="" />
+                  {xs.map((x, k) => (
+                    <rect key={k} x={n2(x - ps / 2)} y={n2(y - ps / 2)} width={n2(ps)} height={n2(ps)} rx={n2(ps * 0.1)} fill={tone(wood, -0.3)} stroke={tone(wood, -0.55)} strokeWidth={n2(ps * 0.06)} />
+                  ))}
+                  <rect x={n2(-l / 2)} y={n2(y - rh / 2)} width={n2(l)} height={n2(rh)} rx={n2(rh / 2)} fill={`url(#${p}r)`} />
+                </g>
+              );
+            })}
+          </>
+        );
+      }),
+  },
+  stoneSteps: {
+    label: 'Stone steps',
+    group: 'ways',
+    variants: choices(STONE_STEPS),
+    long: true,
+    way: true,
+    deep: 2.6,
+    around: 'meadow',
+    thing: (b, p, o) =>
+      along(b, (l, d) => {
+        const rnd = random(o.seed + 'stone');
+        const m = o.m ?? l / 2.4;
+        const c = pick(o, STONE_STEPS).c;
+        // up at the left: a step of blocks about a meter long, the joints of every other step moved on by half, each
+        // step's front edge lit and its shadow on the next one down
+        const n = Math.max(2, Math.round(l / (0.36 * m)));
+        const t = l / n;
+        const w = d * 0.94;
+        const k = Math.max(1, Math.round(w / m));
+        const joint = Math.min(t * 0.06, 0.015 * m);
+        const blocks = Array.from({length: n}, (_, i) => {
+          const off = k > 1 && i % 2 ? w / k / 2 : 0;
+          const cuts = [-w / 2, ...Array.from({length: k + 1}, (_, j) => -w / 2 + off + (j * w) / k).filter((y) => y > -w / 2 + w * 0.05 && y < w / 2 - w * 0.05), w / 2];
+          return cuts.slice(0, -1).map((y0, j) => ({x: -l / 2 + i * t, y0, y1: cuts[j + 1], c: tone(c, (rnd() - 0.5) * 0.1)}));
+        }).flat();
+        const grain = blocks.flatMap((bk) =>
+          Array.from({length: Math.min(30, Math.round(((t * (bk.y1 - bk.y0)) / (m * m)) * 90))}, (): Dot => [bk.x + joint + rnd() * (t - 2 * joint), bk.y0 + joint + rnd() * (bk.y1 - bk.y0 - 2 * joint), (0.006 + rnd() * 0.008) * m]),
+        );
+        return (
+          <>
+            <defs>
+              {face(p + 'f', c, 0.12, -0.1)}
+              <linearGradient id={p + 's'} x1={0} y1={0} x2={1} y2={0}>
+                <stop offset={0} stopColor="#000" stopOpacity={0.62} />
+                <stop offset={0.3} stopColor="#000" stopOpacity={0.3} />
+                <stop offset={1} stopColor="#000" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            {softBox(-l / 2, -w / 2, l, w, joint, Math.min(d, l) * 0.04)}
+            <rect x={n2(-l / 2)} y={n2(-w / 2)} width={n2(l)} height={n2(w)} fill={tone(c, -0.45)} />
+            {blocks.map((bk, i) => (
+              <g key={i}>
+                <rect x={n2(bk.x + joint / 2)} y={n2(bk.y0 + joint / 2)} width={n2(t - joint)} height={n2(bk.y1 - bk.y0 - joint)} rx={n2(joint)} fill={bk.c} />
+                <rect x={n2(bk.x + joint / 2)} y={n2(bk.y0 + joint / 2)} width={n2(t - joint)} height={n2(bk.y1 - bk.y0 - joint)} rx={n2(joint)} fill={`url(#${p}f)`} opacity={0.6} />
+              </g>
+            ))}
+            <path d={circles(grain.filter((_, i) => i % 2))} fill={tone(c, -0.3)} opacity={0.55} />
+            <path d={circles(grain.filter((_, i) => !(i % 2)))} fill={tone(c, 0.3)} opacity={0.55} />
+            {/* the lit front edge of each step (down the steps), the shadow below it */}
+            <path d={Array.from({length: n}, (_, i) => `M${n2(-l / 2 + (i + 1) * t - joint * 1.6)} ${n2(-w / 2 + joint)}v${n2(w - 2 * joint)}`).join('')} stroke={tone(c, 0.35)} strokeOpacity={0.8} strokeWidth={n2(joint * 1.4)} />
+            {Array.from({length: n - 1}, (_, i) => (
+              <rect key={i} x={n2(-l / 2 + (i + 1) * t)} y={n2(-w / 2)} width={n2(t * 0.5)} height={n2(w)} fill={`url(#${p}s)`} />
+            ))}
+          </>
+        );
+      }),
+  },
+  steppingStones: {
+    label: 'Stepping stones',
+    group: 'ways',
+    variants: choices(STEPPERS),
+    long: true,
+    way: true,
+    deep: 1.4,
+    around: 'meadow',
+    thing: (b, p, o) =>
+      along(b, (l, d) => {
+        const rnd = random(o.seed + 'stepping');
+        const m = o.m ?? l / 2.4;
+        const kind = pick(o, STEPPERS);
+        // a stone a step, about 60 cm apart, the line swaying a little, grass growing over their edges
+        const n = Math.max(2, Math.round(l / (0.62 * m)));
+        const sp = l / n;
+        const s = Math.min(sp * 0.74, d * 0.8, 0.48 * m);
+        const sway = Math.max(0, Math.min(d / 2 - s * 0.55, 0.1 * m));
+        const phase = rnd() * 2 * PI;
+        const stones = Array.from({length: n}, (_, i) => ({
+          x: -l / 2 + (i + 0.5) * sp + (rnd() - 0.5) * sp * 0.08,
+          y: sway * Math.sin(i * 1.1 + phase),
+          a: (rnd() - 0.5) * 50,
+          k: 0.88 + rnd() * 0.22,
+        }));
+        const tufts = stones.flatMap(({x, y, k}) =>
+          Array.from({length: 4}, () => {
+            const a = rnd() * 2 * PI;
+            const r = (s / 2) * k * (kind.shape === 'slab' ? 0.75 : 0.92);
+            return tuft(m, (x + Math.cos(a) * r) / m, (y + Math.sin(a) * r * 0.85) / m, 0.5 + rnd() * 0.3);
+          }),
+        );
+        const shapeOf = (st: (typeof stones)[number]): React.ReactNode => {
+          const r = (s / 2) * st.k;
+          if (kind.shape === 'slice') {
+            return (
+              <>
+                <circle cx={n2(st.x)} cy={n2(st.y)} r={n2(r)} fill="#5a4330" stroke="#3a2a1d" strokeWidth={n2(r * 0.04)} />
+                <circle cx={n2(st.x)} cy={n2(st.y)} r={n2(r * 0.86)} fill={`url(#${p}s)`} />
+                <path d={[0.25, 0.45, 0.65].map((f) => `M${n2(st.x + r * f * 0.86)} ${n2(st.y)}a${n2(r * f * 0.86)} ${n2(r * f * 0.86)} 0 1 0 ${n2(-2 * r * f * 0.86)} 0a${n2(r * f * 0.86)} ${n2(r * f * 0.86)} 0 1 0 ${n2(2 * r * f * 0.86)} 0`).join('')} fill="none" stroke={tone(kind.c, -0.25)} strokeOpacity={0.6} strokeWidth={n2(r * 0.03)} />
+                <path d={`M${n2(st.x)} ${n2(st.y)}l${n2(Math.cos(st.a * 0.12) * r * 0.8)} ${n2(Math.sin(st.a * 0.12) * r * 0.8)}`} stroke={tone(kind.c, -0.55)} strokeWidth={n2(r * 0.05)} strokeLinecap="round" />
+              </>
+            );
+          }
+          if (kind.shape === 'slab') {
+            return (
+              <g transform={`rotate(${n2(st.a * 0.3)} ${n2(st.x)} ${n2(st.y)})`}>
+                <rect x={n2(st.x - r * 0.62)} y={n2(st.y - r)} width={n2(r * 1.24)} height={n2(r * 2)} rx={n2(r * 0.08)} fill={`url(#${p}s)`} stroke={tone(kind.c, -0.3)} strokeWidth={n2(r * 0.03)} />
+                <rect x={n2(st.x - r * 0.62)} y={n2(st.y - r)} width={n2(r * 1.24)} height={n2(r * 0.08)} rx={n2(r * 0.04)} fill="#fff" opacity={0.3} />
+              </g>
+            );
+          }
+          return (
+            <>
+              <path d={smooth(blob(st.x, st.y, r, r * 0.82, rnd, 10, 0.16))} fill={`url(#${p}s)`} stroke={tone(kind.c, -0.35)} strokeWidth={n2(r * 0.03)} />
+              <path d={smooth(blob(st.x - r * 0.18, st.y - r * 0.2, r * 0.5, r * 0.36, rnd, 8, 0.2))} fill="#fff" opacity={0.12} />
+            </>
+          );
+        };
+        return (
+          <>
+            <defs>{kind.shape === 'slab' ? face(p + 's', kind.c, 0.12, -0.12) : ball(p + 's', kind.c, 0.22, -0.28)}</defs>
+            {kind.shape === 'slab' ? (
+              stones.map(({x, y, k, a}, i) => (
+                <rect key={i} x={n2(x - (s / 2) * k * 0.62 + s * 0.05)} y={n2(y - (s / 2) * k + s * 0.07)} width={n2(s * k * 0.62)} height={n2(s * k)} rx={n2(s * 0.06)} fill="#000" opacity={0.2} transform={`rotate(${n2(a * 0.3)} ${n2(x)} ${n2(y)})`} data-halo="" />
+              ))
+            ) : (
+              <path d={circles(stones.map(({x, y, k}): Dot => [x + s * 0.05, y + s * 0.07, (s / 2) * k * 1.02]))} fill="#000" opacity={0.2} data-halo="" />
+            )}
+            {stones.map((st, i) => (
+              <g key={i}>{shapeOf(st)}</g>
+            ))}
+            <path d={tufts.join('')} fill="#4c8a3a" />
+          </>
+        );
+      }),
+  },
+  bridge: {
+    label: 'Wooden bridge',
+    group: 'ways',
+    variants: choices(BRIDGES),
+    long: true,
+    way: true,
+    deep: 2.4,
+    around: 'water',
+    thing: (b, p, o) =>
+      along(b, (l, d) => {
+        const rnd = random(o.seed + 'bridge');
+        const m = o.m ?? l / 3;
+        const kind = pick(o, BRIDGES);
+        // planks across, lighter on the half rising towards the light, a handrail on posts along both sides
+        const L = l * 0.98;
+        const W = Math.min(d * 0.84, 1.6 * m);
+        const n = Math.min(90, Math.max(6, Math.round(L / (0.14 * m))));
+        const pw = L / n;
+        const ps = Math.min(Math.max(W * 0.07, 0.07 * m), W * 0.14);
+        const rh = ps * 0.7;
+        const posts = Math.max(2, Math.round(L / m) + 1);
+        const nails = Array.from({length: n}, (_, i): Dot[] => [-1, 1].map((s): Dot => [-L / 2 + (i + 0.5) * pw, s * (W / 2 - ps * 1.4), pw * 0.06])).flat();
+        return (
+          <>
+            <defs>
+              <linearGradient id={p + 'a'} x1={0} y1={0} x2={1} y2={0}>
+                <stop offset={0} stopColor="#000" stopOpacity={0.14} />
+                <stop offset={0.28} stopColor="#fff" stopOpacity={0.18} />
+                <stop offset={0.5} stopColor="#fff" stopOpacity={0.04} />
+                <stop offset={0.78} stopColor="#000" stopOpacity={0.1} />
+                <stop offset={1} stopColor="#000" stopOpacity={0.3} />
+              </linearGradient>
+              {tube(p + 'r', kind.rail)}
+            </defs>
+            <rect x={n2(-L / 2 + W * 0.06)} y={n2(-W / 2 + W * 0.12)} width={n2(L)} height={n2(W)} fill="#0b2a3a" opacity={0.3} data-halo="" />
+            <rect x={n2(-L / 2)} y={n2(-W / 2)} width={n2(L)} height={n2(W)} fill={tone(kind.deck, -0.5)} />
+            {Array.from({length: n}, (_, i) => (
+              <rect key={i} x={n2(-L / 2 + i * pw + pw * 0.05)} y={n2(-W / 2)} width={n2(pw * 0.9)} height={n2(W)} fill={tone(kind.deck, (rnd() - 0.5) * 0.14)} />
+            ))}
+            <path d={Array.from({length: n}, (_, i) => `M${n2(-L / 2 + (i + 0.3 + rnd() * 0.4) * pw)} ${n2(-W / 2 + W * rnd() * 0.3)}v${n2(W * (0.25 + rnd() * 0.3))}`).join('')} stroke={tone(kind.deck, -0.3)} strokeOpacity={0.4} strokeWidth={n2(pw * 0.06)} strokeLinecap="round" />
+            <path d={circles(nails)} fill="#3d3b38" opacity={0.6} />
+            <rect x={n2(-L / 2)} y={n2(-W / 2)} width={n2(L)} height={n2(W)} fill={`url(#${p}a)`} />
+            {[-1, 1].map((s) => {
+              const y = s * (W / 2 - ps / 2);
+              const xs = Array.from({length: posts}, (_, k) => -L / 2 + ps / 2 + ((L - ps) * k) / (posts - 1));
+              return (
+                <g key={s}>
+                  <rect x={n2(-L / 2 + rh * 0.7)} y={n2(y - rh / 2 + rh)} width={n2(L)} height={n2(rh)} rx={n2(rh / 2)} fill="#000" opacity={0.2} data-halo="" />
+                  {xs.map((x, k) => (
+                    <rect key={k} x={n2(x - ps / 2)} y={n2(y - ps / 2)} width={n2(ps)} height={n2(ps)} rx={n2(ps * 0.12)} fill={tone(kind.rail, -0.25)} stroke={tone(kind.rail, -0.5)} strokeWidth={n2(ps * 0.06)} />
+                  ))}
+                  <rect x={n2(-L / 2)} y={n2(y - rh / 2)} width={n2(L)} height={n2(rh)} rx={n2(rh / 2)} fill={`url(#${p}r)`} />
+                </g>
+              );
+            })}
+          </>
+        );
+      }),
   },
 
   // ground
@@ -2768,6 +3356,11 @@ export const PICTURE_KEYS = Object.keys(PICTURES);
 // from the name, the first that fits, the more particular ones first (a garden house before a house, a wall before a
 // house: the keep-out strip along one, firewood before a fire, a whirlpool before a pool)
 export const BY_NAME: [string, RegExp][] = [
+  ['steppingStones', /trittstein|trittplatte|stepping|holzscheibe/i],
+  ['stoneSteps', /(stein|beton|granit|block|natur)\w*(treppe|stufe)|stone ?(steps|stairs)/i],
+  ['woodStairs', /holztreppe|treppe aus holz|wooden ?stairs|deck ?stairs/i],
+  ['woodSteps', /treppe|stufe|stairs|\bsteps\b/i],
+  ['bridge', /brücke|bruecke|bridge/i],
   ['raisedBed', /hochbeet|raised/i],
   ['herbSpiral', /kräuterspirale|kraeuterspirale|herb ?spiral|spirale/i],
   ['vegetables', /gemüse|vegetable|kräuter|herb|salat|tomate/i],
@@ -2777,6 +3370,7 @@ export const BY_NAME: [string, RegExp][] = [
   ['conifer', /tanne|fichte|kiefer|nadel|conifer|pine|\bfir\b|spruce|thuja|lebensbaum/i],
   ['palm', /palme|palm/i],
   ['woodpile', /holzstapel|brennholz|feuerholz|kaminholz|holzlager|woodpile|firewood|log ?pile/i],
+  ['stump', /stumpf|stubben|\bstump/i],
   ['tree', /baum|bäume|tree|linde|eiche|ahorn|birke|buche|walnuss|kastanie/i],
   ['hedge', /hecke|hedge|wald|forest/i],
   ['floweringBush', /rose|hortensie|hydrangea|flieder|lilac|rhododendron|azalee|azalea|blühstrauch|forsythie|forsythia|hibiskus|hibiscus/i],

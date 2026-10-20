@@ -61,6 +61,8 @@ export interface Settings {
   looks?: Record<string, string>;
   // the color picked for an area's picture that comes in several (a parasol's fabric, a roof), by area id
   lookVariants?: Record<string, string>;
+  // how big an area's tree, parasol or bushes are drawn in meters (across), by area id
+  lookSizes?: Record<string, number>;
   // what makes the garden style come alive (components/gardenLife), each off unless switched on
   garden?: Partial<GardenLife>;
   // the mower's sizes in meters for its outline and the strip its blade cuts on the map (lib/mowerBody)

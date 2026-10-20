@@ -151,6 +151,7 @@ try {
     ]),
     ...art.DOCK_KEYS.map((key) => art.dockIcon(key).draw()),
     ...art.PICTURE_KEYS.filter(art.isThing).map((look) => art.drawThing(look, {x: -4, y: -3, w: 8, h: 6})),
+    ...art.PICTURE_KEYS.filter(art.isThing).map((look) => art.drawThing(look, {x: -40, y: -30, w: 80, h: 60}, 'm', 'a', undefined, 20)),
     art.gardenDefs('t', 20, [0.4], ['0,0 160,0 160,100']),
     art.lifeDefs('t', 20),
     art.drawSprinkle({x: 10, y: 10, turn: 30, color: '#c8642a'}, 20, 'autumn'),
@@ -160,6 +161,7 @@ try {
   const wrong = drawn.findIndex((svg) => typeof svg !== 'string' || !svg.startsWith('<') || /<script|<foreignObject|\son[a-z]+=|NaN|\[object|class=""/i.test(svg));
   if (wrong >= 0) throw new Error(`picture ${wrong} came out wrong: ${String(drawn[wrong]).slice(0, 200)}`);
   art.placeThing('table', square);
+  if (art.placeThings('bush', square, 1, 'a').length < 2) throw new Error('placeThings put one bush into a big bed');
   art.realEdges([{id: 'a', properties: {type: 'mow'}, outline: square}], art.sizesBody({width: 0.4, front: 0.4, rear: 0.15}));
 } catch (e) {
   fs.rmSync(file);

@@ -7,7 +7,7 @@ import {insideEdge, type MowerBody} from '@/lib/mowerBody';
 import {autoMowAngle} from '@/lib/mowStripes';
 import {useEffect, useId} from 'react';
 import {createPortal} from 'react-dom';
-import {BY_NAME, GROUPS, PICTURE_KEYS, PICTURES, type Box} from './gardenPictures';
+import {BY_NAME, GROUPS, PICTURE_KEYS, PICTURES, random, type Box} from './gardenPictures';
 import styles from './MapLookSettings.module.css';
 
 // The garden map style, drawn from above like the pictures in the guides: the lawn mown in stripes along each area's
@@ -20,22 +20,22 @@ export type {Box};
 export const isThing = (look: Look) => !!PICTURES[look]?.thing;
 
 // what a way or an obstacle is drawn as: the picture picked for it, else from its name, a way only as a ground (gravel
-// unless the name says otherwise), an obstacle as anything (a bed unless the name says otherwise)
+// unless the name says otherwise) or as steps or a bridge, an obstacle as anything (a bed unless the name says otherwise)
 export function areaLook(area: MapArea, looks?: Record<string, string>): Look {
   const picked = looks?.[area.id];
   if (picked && PICTURES[picked]) return picked;
   const name = area.properties.name ?? '';
   const way = area.properties.type === 'nav';
-  return BY_NAME.find(([look, re]) => (!way || !isThing(look)) && re.test(name))?.[0] ?? (way ? 'gravel' : 'bed');
+  return BY_NAME.find(([look, re]) => (!way || !isThing(look) || PICTURES[look].way) && re.test(name))?.[0] ?? (way ? 'gravel' : 'bed');
 }
 
 // the texture an area is filled with: the ground itself, or the one around a thing
 export const groundOf = (look: Look): Look => (isThing(look) ? (PICTURES[look].around ?? 'meadow') : look);
 
 // p starts the ids of its gradients and clips, unique on the page. seed varies it (the area's id: the same tree every time,
-// p without one), variant is the color picked for it (settings.lookVariants)
-export const drawThing = (look: Look, box: Box, p = 'gp', o?: {seed?: string; variant?: string}) =>
-  PICTURES[look]?.thing?.(box, p, {seed: o?.seed ?? p, variant: o?.variant});
+// p without one), variant is the color picked for it (settings.lookVariants), m svg units per meter (left out: from the box)
+export const drawThing = (look: Look, box: Box, p = 'gp', o?: {seed?: string; variant?: string; m?: number}) =>
+  PICTURES[look]?.thing?.(box, p, {seed: o?.seed ?? p, variant: o?.variant, m: o?.m});
 
 // how far a point is from the outline
 function edgeDistance(o: Point[], x: number, y: number) {
@@ -56,6 +56,10 @@ export interface Place {
   deg: number;
   w: number;
   h: number;
+  // reaches over the area's edge (a crown, a parasol), not cut to it
+  over?: boolean;
+  // one of several in the area, varied by this
+  seed?: string;
 }
 
 // where a thing goes in its area, o its outline in svg units: around cx, cy, turned deg, w by h. a long one along the
@@ -106,6 +110,72 @@ export function placeThing(look: Look, o: Point[]): Place {
     [x0, x1, y0, y1] = [best.x - dx, best.x + dx, best.y - dy, best.y + dy];
   }
   return {cx: best.x, cy: best.y, deg: 0, w: 2 * best.r, h: 2 * best.r};
+}
+
+// round ones as big across as each() says packed into the outline as snug as they go, each a little into the next. over:
+// only their middles inside (crowns over the edge), else inside but for a little. extra: a spot that's surely free
+function pack(o: Point[], each: () => number, over: boolean, rnd: () => number, extra: Point & {e: number}, most = 40) {
+  const xs = o.map((p) => p.x);
+  const ys = o.map((p) => p.y);
+  const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+  const big = Math.max(x1 - x0, y1 - y0);
+  const first = each() / 2;
+  const step = Math.max(big / 60, Math.min(big / 30, first * 0.25));
+  const spots = [extra];
+  for (let x = x0 + step / 2; x < x1; x += step) {
+    for (let y = y0 + step / 2; y < y1; y += step) {
+      if (containsPoint(o, x, y)) spots.push({x, y, e: edgeDistance(o, x, y)});
+    }
+  }
+  const out: {x: number; y: number; r: number}[] = [];
+  for (let k = 0; k < most; k++) {
+    const r = k ? each() / 2 : first;
+    let best: Point | null = null;
+    let least = Infinity;
+    for (const c of spots) {
+      let gap = c.e - r * (over ? 0.15 : 0.8);
+      for (let i = 0; i < out.length && gap >= 0; i++) gap = Math.min(gap, Math.hypot(c.x - out[i].x, c.y - out[i].y) - (r + out[i].r) * (over ? 0.62 : 0.8));
+      if (gap < 0) continue;
+      const score = gap + rnd() * r * 0.3;
+      if (score < least) [least, best] = [score, c];
+    }
+    if (!best) break;
+    out.push({x: best.x, y: best.y, r});
+  }
+  return out;
+}
+
+// where a thing goes in its area about as big as it really is (PICTURES' size), o the area's outline in svg units, m svg
+// units per meter, seed the area's id, size the one picked for the area in meters: a long one no longer nor deeper than
+// it is, a crown or a parasol round the middle reaching over the edge, several bushes or trees where there's room for
+// them, any other into the biggest circle but no bigger than it is
+export function placeThings(look: Look, o: Point[], m: number, seed: string, size?: number): Place[] {
+  const pic = PICTURES[look];
+  const fit = placeThing(look, o);
+  if (!pic || !(m > 0)) return [fit];
+  if (pic.long) return [{...fit, w: pic.size ? Math.min(fit.w, pic.size[1] * m) : fit.w, h: pic.deep ? Math.min(fit.h, pic.deep * m) : fit.h}];
+  if (!pic.size) return [fit];
+  const [lo, hi] = [pic.size[0] * m, pic.size[1] * m];
+  const own = size && size > 0 ? size * m : undefined;
+  if (pic.many) {
+    const rnd = random(seed + 'many');
+    // trees as big as they are over the edge, bushes no bigger than fits, mostly on the small side
+    const top = pic.over ? hi : Math.min(hi, fit.w * 0.9);
+    const from = Math.min(lo, top);
+    const each = own ? () => own : () => from + (top - from) * (pic.over ? 0.1 + rnd() * 0.4 : rnd() * 0.55);
+    const spots = pack(o, each, !!pic.over, rnd, {x: fit.cx, y: fit.cy, e: fit.w / 2});
+    if (spots.length > 1) {
+      return spots
+        .map((c, k) => ({cx: c.x, cy: c.y, deg: 0, w: 2 * c.r, h: 2 * c.r, over: pic.over, seed: k ? `${seed}~${k}` : undefined}))
+        .sort((a, b) => a.w - b.w);
+    }
+  }
+  if (pic.over) {
+    const s = own ?? Math.min(Math.max(fit.w, lo), hi);
+    return [{...fit, w: s, h: s, over: true}];
+  }
+  const s = Math.min(fit.w, own ?? hi);
+  return [{...fit, w: s, h: s}];
 }
 
 // a ground as a texture with this id, m: svg units per meter
@@ -164,17 +234,27 @@ export const fitKey = (f: Fit) => `${f.minX},${f.minY},${f.m},${f.padX},${f.padY
 export const inSquare = (f: Fit) => (p: Point): Point => ({x: (p.x - f.minX) * f.m + f.padX, y: 400 - ((p.y - f.minY) * f.m + f.padY)});
 
 // a map's garden as MapView draws it: each mowing area's lawn by the index of its stripes (angles: their directions),
-// each way's and obstacle's look, and a thing placed inside the area's real edge (with the mower's body known, else
-// inside its outline), cut to clips[i]. worked out again only for another map, looks, body or fit
+// each way's and obstacle's look, and things placed in the area's real edge (with the mower's body known, else in its
+// outline) at their size (sizes: picked per area, settings.lookSizes), cut to clips[i] unless they reach over it. m: svg
+// units per meter. worked out again only for another map, looks, body or fit, the places only for an area that changed
+export interface GardenThing {
+  i: number;
+  id: string;
+  look: Look;
+  variant?: string;
+  m: number;
+  places: Place[];
+}
 export interface GardenThings {
   lawns: Map<string, number>;
   looks: Map<string, Look>;
-  things: Map<string, {i: number; id: string; look: Look; variant?: string; place: Place}>;
+  things: Map<string, GardenThing>;
   angles: number[];
   clips: string[];
 }
 
-const thingsCache = new WeakMap<object, {looks?: object; variants?: object; body: object | null; key: string; out: GardenThings}>();
+const thingsCache = new WeakMap<object, {looks?: object; variants?: object; sizes?: object; body: object | null; key: string; out: GardenThings}>();
+const placeCache = new WeakMap<MapArea, {key: string; body: object | null; outline: Point[]; places: Place[]}>();
 
 export function gardenThings(
   areas: MapArea[],
@@ -182,10 +262,11 @@ export function gardenThings(
   body: MowerBody | null,
   fit: Fit,
   variants?: Record<string, string>,
+  sizes?: Record<string, number>,
 ): GardenThings {
   const key = fitKey(fit);
   const hit = thingsCache.get(areas);
-  if (hit && hit.looks === looks && hit.variants === variants && hit.body === body && hit.key === key) return hit.out;
+  if (hit && hit.looks === looks && hit.variants === variants && hit.sizes === sizes && hit.body === body && hit.key === key) return hit.out;
   const at = inSquare(fit);
   const out: GardenThings = {lawns: new Map(), looks: new Map(), things: new Map(), angles: [], clips: []};
   for (const a of areas) {
@@ -197,12 +278,18 @@ export function gardenThings(
       const look = areaLook(a, looks);
       out.looks.set(a.id, look);
       if (!isThing(look)) continue;
-      const outline = ((body && insideEdge(a.outline, body)) || a.outline).map(at);
-      out.things.set(a.id, {i: out.clips.length, id: a.id, look, variant: variants?.[a.id], place: placeThing(look, outline)});
-      out.clips.push(outline.map((p) => `${p.x},${p.y}`).join(' '));
+      const placeKey = `${look}|${sizes?.[a.id] ?? ''}|${key}`;
+      let placed = placeCache.get(a);
+      if (!placed || placed.key !== placeKey || placed.body !== body) {
+        const outline = ((body && insideEdge(a.outline, body)) || a.outline).map(at);
+        placed = {key: placeKey, body, outline, places: placeThings(look, outline, fit.m, a.id, sizes?.[a.id])};
+        placeCache.set(a, placed);
+      }
+      out.things.set(a.id, {i: out.clips.length, id: a.id, look, variant: variants?.[a.id], m: fit.m, places: placed.places});
+      out.clips.push(placed.outline.map((p) => `${p.x},${p.y}`).join(' '));
     }
   }
-  thingsCache.set(areas, {looks, variants, body, key, out});
+  thingsCache.set(areas, {looks, variants, sizes, body, key, out});
   return out;
 }
 
