@@ -1741,10 +1741,14 @@ function MapView({
         )}
 
         {selectedArea && (
-          <polygon
-            points={selectedArea.outline.map((p) => toScreen(p.x, p.y).join(',')).join(' ')}
-            className={styles.selected}
-          />
+          <>
+            {/* a dark rim under it in the garden style */}
+            <polygon points={selectedArea.outline.map((p) => toScreen(p.x, p.y).join(',')).join(' ')} className={styles.selectedHalo} />
+            <polygon
+              points={selectedArea.outline.map((p) => toScreen(p.x, p.y).join(',')).join(' ')}
+              className={styles.selected}
+            />
+          </>
         )}
 
         {orderLabels &&

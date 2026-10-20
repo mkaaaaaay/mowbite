@@ -77,6 +77,126 @@
   fill-opacity: 1;
 }
 
+/* the garden style's lines in the colors of a garden: the outlines soft and dark, the plan and the real edges like chalk,
+   the track a fresh light green. what's picked and its points stay plain to see, white with a dark rim */
+.garden .mowArea {
+  stroke: #24461c;
+  stroke-opacity: 0.55;
+  stroke-width: 1;
+}
+
+.garden .navArea,
+.garden .obstacleArea {
+  stroke: #4a3a28;
+  stroke-opacity: 0.5;
+  stroke-width: 1;
+}
+
+.garden .draftArea {
+  stroke: #fff6e0;
+  stroke-opacity: 0.75;
+}
+
+.garden .skipMowing {
+  stroke: #eadfae;
+  stroke-opacity: 0.85;
+  stroke-width: 1.2;
+  stroke-dasharray: 5 3;
+}
+
+.garden .realEdge {
+  stroke: #f6eedb;
+  stroke-opacity: 0.7;
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+}
+
+.garden .stripes {
+  stroke: #fffaf0;
+  stroke-opacity: 0.38;
+  stroke-width: 0.8;
+}
+
+.garden .planTransit,
+.garden .planTodo:not(.dots) {
+  stroke: #fffaf0;
+  stroke-opacity: 0.35;
+}
+
+.garden .track,
+.garden .transit {
+  stroke: #e9f6c9;
+  stroke-opacity: 0.75;
+}
+
+.garden .transit {
+  stroke-opacity: 0.5;
+}
+
+.garden .trackBefore {
+  stroke: #e9f6c9;
+  stroke-opacity: 0.28;
+}
+
+.svg.garden .swath {
+  stroke: #e9f6c9;
+  stroke-opacity: 0.2;
+}
+
+.svg.garden .swath .swathEnd {
+  fill: #e9f6c9;
+  fill-opacity: 0.2;
+}
+
+.garden .selected {
+  stroke: #fff;
+  stroke-width: 2.5;
+}
+
+.selectedHalo {
+  display: none;
+}
+
+.garden .selectedHalo {
+  display: inline;
+  fill: none;
+  stroke: #0d140a;
+  stroke-opacity: 0.65;
+  stroke-width: 5.5;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.garden .vertex {
+  fill: #fff;
+  fill-opacity: 0.95;
+  stroke: #1e2a18;
+  stroke-opacity: 0.8;
+  stroke-width: 1;
+}
+
+.garden .midpoint {
+  fill: #fff;
+  fill-opacity: 0.55;
+  stroke: #1e2a18;
+  stroke-opacity: 0.6;
+}
+
+.garden .activeVertex {
+  fill: #ffd54f;
+  stroke: #1e2a18;
+}
+
+.garden .orderLabel circle {
+  fill: #f3ead3;
+  stroke: #7a5c3a;
+  stroke-width: 1.2;
+}
+
+.garden .orderLabel text {
+  fill: #2f4f23;
+}
+
 /* the garden's life (gardenLife): what lies on the lawn and the light over it take no taps, the areas under them do */
 .gardenLife,
 .gardenLight,
