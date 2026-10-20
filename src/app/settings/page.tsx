@@ -423,7 +423,7 @@ export default function SettingsPage() {
 
         <OpenMowerSettings styles={styles} />
 
-        <Group id="app" title={tr('App')} hint={tr('Guides, mowers, updates, privacy')} anchors={['updates', 'guides']}>
+        <Group id="app" title={tr('App')} hint={tr('Guides, mowers, updates, privacy, license')} anchors={['updates', 'guides']}>
           <section className={styles.card} id="guides">
             <h2>{tr('Guides')}</h2>
             <p className={styles.dim}>{tr('Step by step with moving pictures.')}</p>

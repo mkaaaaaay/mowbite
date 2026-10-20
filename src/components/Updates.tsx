@@ -29,6 +29,7 @@ import {CreditsTrigger} from './Credits';
 // the newest version, then the old image goes (and any other no container uses and no name points to)
 const UPDATE_COMMAND = 'docker compose pull && docker compose up -d && docker image prune -f';
 const PRIVACY_URL = 'https://github.com/mkaaaaaay/mowbite/blob/main/PRIVACY.md';
+const LICENSE_URL = 'https://github.com/mkaaaaaay/mowbite#license';
 
 const noop = () => () => {};
 
@@ -127,6 +128,13 @@ export function UpdateSettings({cardClass, checkClass}: {cardClass: string; chec
       <a className={styles.versions} href={PRIVACY_URL} target="_blank" rel="noreferrer">
         {tr('Privacy policy')}
       </a>
+      {/* copyright and license, versions passed on with changes keep showing them */}
+      <span className={[styles.versions, styles.legal].join(' ')}>
+        © 2026 mkay · {tr('Free software under the GPL-3.0: you may pass it on and change it under its terms. It comes without any warranty.')}{' '}
+        <a href={LICENSE_URL} target="_blank" rel="noreferrer">
+          {tr('License and source code')}
+        </a>
+      </span>
       <NewerOpenMower />
       <label className={checkClass}>
         <input type="checkbox" checked={u.enabled} onChange={(e) => setUpdateCheck(e.target.checked)} />

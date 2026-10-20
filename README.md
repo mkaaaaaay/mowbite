@@ -192,10 +192,17 @@ cd android && ./gradlew assembleDebug
 
 ## License
 
-GPL-3.0, see [LICENSE](LICENSE).
+Copyright (C) 2026 mkay
+
+GPL-3.0, see [LICENSE](LICENSE). MowBite comes without any warranty. On top of the GPL, these terms
+under its section 7 apply to versions that are passed on with changes:
+
+- The license doesn't cover the name MowBite or its logo (7e). A changed version needs a name and
+  logo of its own and mustn't pass itself off as MowBite or as made by its author (7c).
+- "© 2026 mkay" stays in the legal notices the app shows, next to the changed version's own (7b).
 
 Built-in aerial imagery comes from the official surveying and mapping agencies under their open
 data licenses (CC BY 4.0, CC0, dl-de/by-2-0, dl-de/zero-2-0, Etalab 2.0, the Flemish free reuse
 license, swisstopo's free use terms, US public domain). Finland's comes from the National Land Survey
-through the servers of Kapsi, a Finnish non-profit (CC BY 4.0. The app shows the required attribution
+through the servers of Kapsi, a Finnish non-profit (CC BY 4.0). The app shows the required attribution
 while imagery is on. For a tile source you add yourself, you're responsible for its terms.

@@ -12,6 +12,10 @@
   -webkit-user-select: text;
 }
 
+.legal a {
+  text-decoration: underline;
+}
+
 .news {
   display: flex;
   flex-direction: column;
