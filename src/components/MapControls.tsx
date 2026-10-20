@@ -51,6 +51,7 @@ export default function MapControls({
   onToggleGrid,
   sources,
   source,
+  lastSource,
   imagerySettings,
   onSource,
   hidden,
@@ -72,6 +73,8 @@ export default function MapControls({
   onToggleGrid: () => void;
   sources: ImagerySource[];
   source: ImagerySource | null;
+  // picked last on this device, switching the imagery on brings it back while it's still offered
+  lastSource: ImagerySource | null;
   imagerySettings: CustomImagery | undefined;
   onSource: (s: ImagerySource | null) => void;
   hidden: Set<Layer>;
@@ -152,7 +155,7 @@ export default function MapControls({
         {sources.length > 0 && (
           <button
             className={source ? '' : styles.off}
-            onClick={() => onSource(source ? null : sources[0])}
+            onClick={() => onSource(source ? null : lastSource && sources.includes(lastSource) ? lastSource : sources[0])}
             aria-label="toggle aerial imagery"
             title={tr('Aerial imagery (loads images of this area from the selected provider)')}
           >

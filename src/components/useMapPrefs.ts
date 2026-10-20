@@ -24,6 +24,8 @@ function write(key: string, value: string | null) {
 export function useMapPrefs() {
   // off by default, it sends the map area to the imagery provider
   const [imagery, setImageryState] = useState(() => read('mapImagery', (v) => (v as ImagerySource | null) || null, null));
+  // the source picked last, kept while the imagery is off so switching it on brings it back
+  const [lastImagery, setLastImagery] = useState(() => read('mapImageryLast', (v) => (v as ImagerySource | null) || null, null) ?? imagery);
   const [showGrid, setShowGrid] = useState(() => read('mapGrid', (v) => v !== 'off', true));
   const [hidden, setHidden] = useState(() => read('mapHidden', (v) => new Set<Layer>(JSON.parse(v ?? '[]')), new Set<Layer>()));
   const [planStyle, setPlanStyleState] = useState(() =>
@@ -37,9 +39,14 @@ export function useMapPrefs() {
       write('mapCoverage', c === 'off' ? null : c);
     },
     imagery,
+    lastImagery,
     setImagery: (next: ImagerySource | null) => {
       setImageryState(next);
       write('mapImagery', next);
+      if (next) {
+        setLastImagery(next);
+        write('mapImageryLast', next);
+      }
     },
     showGrid,
     toggleGrid: () => {

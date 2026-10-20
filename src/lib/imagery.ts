@@ -261,11 +261,11 @@ export interface Datum {
   lon: number;
 }
 
-// Esri first when the user gave a key for it, then the states and countries whose box contains the mower
-// (neighbours overlap a bit), then the own source. the german wms tiles are requested in the map's utm
-// zone, the services only offer 32 and 33
+// the states and countries whose box contains the mower (neighbours overlap a bit), then Esri when the user
+// gave a key for it, then the own source. the german wms tiles are requested in the map's utm zone, the
+// services only offer 32 and 33
 export function availableSources(datum: Datum, custom?: CustomImagery): ImagerySource[] {
-  const out: ImagerySource[] = esriKey(custom) ? ['esri'] : [];
+  const out: ImagerySource[] = [];
   const zone = utmZone(datum.lat, datum.lon);
   if (zone === 32 || zone === 33) {
     for (const [key, st] of Object.entries(STATE_IMAGERY)) if (inBox(datum, st.box)) out.push(key);
@@ -278,6 +278,7 @@ export function availableSources(datum: Datum, custom?: CustomImagery): ImageryS
       .sort((a, b) => a[1] - b[1])
       .map(([key]) => key),
   );
+  if (esriKey(custom)) out.push('esri');
   if (isTileUrl(custom?.url)) out.push('custom');
   return out;
 }

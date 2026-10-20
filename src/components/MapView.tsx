@@ -529,7 +529,8 @@ function MapView({
   if (free && !follow) setFree(false);
   const following = follow && !free;
   const prefs = useMapPrefs();
-  const {imagery, setImagery, showGrid, toggleGrid, toggleLayer, planStyle, setPlanStyle, coverage: coverMode, setCoverage: setCoverMode} = prefs;
+  const {imagery, lastImagery, setImagery, showGrid, toggleGrid, toggleLayer, planStyle, setPlanStyle, coverage: coverMode, setCoverage: setCoverMode} =
+    prefs;
   const hidden = allLayers ? NO_LAYERS_HIDDEN : prefs.hidden;
   const [svgPx, setSvgPx] = useState(0);
   const [layersOpen, setLayersOpen] = useState(false);
@@ -1897,6 +1898,7 @@ function MapView({
           onToggleGrid={toggleGrid}
           sources={sources}
           source={source}
+          lastSource={lastImagery}
           imagerySettings={settings.imagery}
           onSource={setImagery}
           hidden={hidden}

@@ -5,10 +5,10 @@ const hanover = {lat: 52.37, lon: 9.73};
 const view = {left: -20, right: 20, bottom: -20, top: 20, metersPerPixel: 0.1};
 
 describe('esri', () => {
-  it('only with a key, and then first', () => {
+  it('only with a key, after the official sources', () => {
     expect(availableSources(hanover)).not.toContain('esri');
     expect(availableSources(hanover, {esriKey: '  '})).not.toContain('esri');
-    expect(availableSources(hanover, {esriKey: 'AAPTkey'})[0]).toBe('esri');
+    expect(availableSources(hanover, {esriKey: 'AAPTkey'})).toEqual(['ni', 'esri']);
     // anywhere, not just where an official source exists
     expect(availableSources({lat: -33.9, lon: 18.4}, {esriKey: 'AAPTkey'})).toEqual(['esri']);
   });

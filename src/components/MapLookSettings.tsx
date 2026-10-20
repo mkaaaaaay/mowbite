@@ -236,7 +236,7 @@ export function MapLookSettings() {
         </label>
         <p className={styles.dim}>
           {tr(
-            'Esri World Imagery covers the whole world, but only with an API key of your own from the ArcGIS Location Platform (free up to a monthly number of map tiles, the key needs the privilege Basemaps). It then comes first among the choices on the map. The key is kept with the other settings, so everyone who can open this app can read it.',
+            'Esri World Imagery covers the whole world, but only with an API key of your own from the ArcGIS Location Platform (free up to a monthly number of map tiles, the key needs the privilege Basemaps). It then shows up as a choice on the map, after the official orthophotos where there are any. The key is kept with the other settings, so everyone who can open this app can read it.',
           )}
         </p>
         <label className={styles.field}>
