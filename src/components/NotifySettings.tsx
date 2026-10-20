@@ -238,7 +238,8 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
 
       <h3 className={local.sub}>{tr('Tell me about')}</h3>
       <div className={local.events}>
-        {NOTIFY_EVENTS.map((e) => (
+        {/* standing still is told by a newer container only, shown while that can't be told */}
+        {NOTIFY_EVENTS.filter((e) => e.key !== 'standstill' || u.level === null || containerHas(u.level, 'standstill')).map((e) => (
           <label key={e.key} className={styles.check}>
             <input type="checkbox" checked={form.events.includes(e.key)} onChange={() => toggle(e.key)} />
             {tr(e.label)}

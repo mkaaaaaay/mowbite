@@ -10,6 +10,7 @@ export const NOTIFY_EVENTS = [
   {key: 'undock_failed', label: "Didn't get out of the dock", problem: true},
   {key: 'nav_error', label: 'Navigation error, waiting', problem: true},
   {key: 'spinup', label: "Mow motor didn't start", problem: true},
+  {key: 'standstill', label: "Standing still for 10 min, not charging", problem: true},
   {key: 'done', label: 'Done mowing', problem: false},
   {key: 'rain', label: 'Going home for rain', problem: false},
   {key: 'battery', label: 'Going home to charge', problem: false},

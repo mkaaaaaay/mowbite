@@ -22,7 +22,7 @@ describe('push message settings', () => {
     expect(c.token).toBe('');
     expect(c.snooze).toBe(1700000000);
     // not saved yet: the problems and maintenance by default
-    expect(parseNotify('', fallback).events).toEqual(['emergency', 'dock_failed', 'undock_failed', 'nav_error', 'spinup', 'maintenance']);
+    expect(parseNotify('', fallback).events).toEqual(['emergency', 'dock_failed', 'undock_failed', 'nav_error', 'spinup', 'standstill', 'maintenance']);
     // saved with none picked
     expect(parseNotify('topic t\n', fallback).events).toEqual([]);
   });
@@ -30,7 +30,7 @@ describe('push message settings', () => {
   it('writes lines the cgi keeps, a token only when one was typed or is to go', () => {
     const c = {...fallback, topic: 'mowbite-abc', name: 'Ste"ve\\', server: 'https://ntfy.example.org/'};
     expect(serializeNotify(c)).toBe(
-      'enabled 1\nserver https://ntfy.example.org\ntopic mowbite-abc\nlang de\nname Steve\nurl http://openmower:8082\nevents emergency,dock_failed,undock_failed,nav_error,spinup,maintenance\nremind 30\nemergency_wait 10',
+      'enabled 1\nserver https://ntfy.example.org\ntopic mowbite-abc\nlang de\nname Steve\nurl http://openmower:8082\nevents emergency,dock_failed,undock_failed,nav_error,spinup,standstill,maintenance\nremind 30\nemergency_wait 10',
     );
     expect(serializeNotify({...c, token: 'tk_secret'})).toContain('\ntoken tk_secret\n');
     expect(serializeNotify({...c, token: '-'})).toContain('\ntoken -\n');
@@ -139,6 +139,36 @@ describe('what the container sends', () => {
     writeFileSync(join(dir, 'off'), conf);
     expect(told('off')).toEqual([]);
     expect(told()).toEqual(['Steve has mowed 83 h since the blades were last changed.']);
+  });
+
+  it('tells when it stands still for ten minutes and is not charging, until it moves or charges again', () => {
+    const at = (t: number, st: string, x: number, charging = 0) =>
+      `${t} robot_state/json {"emergency":0,"is_charging":${charging},"current_state":"${st}","pose":{"x":${x},"y":2.5,"heading":0.1}}\n`;
+    const volts = (t: number, v: number) => `${t} sensors/om_v_charge/data ${v}\n`;
+    const still = conf.replace('spinup', 'spinup,standstill');
+    // waiting for gps in the middle of the lawn, then on again
+    const gps = at(100, 'MOWING', 3) + at(200, 'PAUSED', 3.2) + at(699, 'PAUSED', 3.3) + at(700, 'PAUSED', 3.3) + at(770, 'PAUSED', 3.3) + at(800, 'MOWING', 4);
+    const out = run(gps, still);
+    expect(out.map((m) => m.title)).toEqual(['Standing still', 'Standing still', 'On its way again']);
+    expect(out[0].message).toBe("Steve has been standing still for 10 min and isn't charging. Paused: by hand, or waiting for GPS.");
+    expect(out[1].message).toBe('Steve is still standing still (for 11 min).');
+    // not picked: nothing, and it doesn't keep a docking given up from being told
+    expect(run(gps, conf)).toEqual([]);
+    expect(run(at(100, 'DOCKING', 3) + at(800, 'DOCKING', 3) + event(810, '{"type":"DOCKING_FAILED"}'), conf).map((m) => m.title)).toEqual(['Docking failed']);
+    // a docking given up says more than standing still
+    expect(run(at(100, 'DOCKING', 3) + at(800, 'DOCKING', 3) + event(810, '{"type":"DOCKING_FAILED"}'), still).map((m) => m.title)).toEqual([
+      'Standing still',
+      'Docking failed',
+    ]);
+    // idle in the dock with a full battery: is_charging is off, the contacts have voltage
+    expect(run(volts(90, 31.5) + at(100, 'IDLE', 0) + at(900, 'IDLE', 0), still)).toEqual([]);
+    // the dock without power, or left on the lawn
+    const dead = run(volts(90, 0.2) + at(100, 'IDLE', 0) + at(900, 'IDLE', 0) + volts(950, 30.8) + at(960, 'IDLE', 0), still);
+    expect(dead.map((m) => m.title)).toEqual(['Standing still', 'Charging again']);
+    expect(dead[0].message).toContain('Waiting on the lawn, or in the dock and that has no power.');
+    // idle without a charge voltage isn't watched, recording isn't either
+    expect(run(at(100, 'IDLE', 0) + at(900, 'IDLE', 0), still)).toEqual([]);
+    expect(run(at(100, 'AREA_RECORDING', 0) + at(900, 'AREA_RECORDING', 0), still)).toEqual([]);
   });
 
   it('sends the same to the phones signed up in the app, also without a topic', () => {

@@ -3,7 +3,8 @@
 # app shows those itself). what's sent comes from CONF (notify.cgi writes it), read again every half minute:
 #   topic, push (a phone's address, a line each), lang (de/en), name (of the mower), url (where MowBite is, for its
 #   button and a tap on the message),
-#   events (which of: emergency, dock_failed, undock_failed, nav_error, spinup, done, rain, battery, maintenance),
+#   events (which of: emergency, dock_failed, undock_failed, nav_error, spinup, standstill, done, rain, battery,
+#   maintenance),
 #   remind (minutes between reminders while the mower can't get on by itself, 0: none),
 #   emergency_wait (seconds an emergency stop has to last before it's told, 10 unless set), enabled (0: switched off)
 # and SNOOZE: until when (unix time) there are no reminders. STATS: where stats.sh counts the blade hours, a part
@@ -11,7 +12,10 @@
 # the emergency stop comes from robot_state, a stop button, lifting or a bumper don't come as events. it only counts once
 # it lasted emergency_wait seconds: a bumper touched while docking clears itself.
 # sent home in the middle of a path OpenMower also reports a navigation error, so one only counts when no docking
-# follows within a few seconds
+# follows within a few seconds.
+# standing still: not half a meter on in ten minutes and not charging (is_charging, or the charge voltage when the
+# battery is full), outside recording and an emergency stop. waiting for gps, stuck, left waiting on the lawn, or in a
+# dock without power
 
 function field(s, k,   v) {
   if (!match(s, "\"" k "\" *: *(\"[^\"]*\"|[^,}]*)")) return ""
@@ -82,7 +86,7 @@ function send(kind, phase, title, msg, prio, tags,   json, acts) {
 # the same for MowBite's app: it sorts it into its channels (problems, reminders, info), a reminder and the all clear
 # take the place of the message about the problem, a tap opens the page, snooze has a button (from the home network)
 function push(kind, phase, title, msg, prio,   json, problem) {
-  problem = kind ~ /^(emergency|dock_failed|undock_failed|nav_error|spinup)$/
+  problem = kind ~ /^(emergency|dock_failed|undock_failed|nav_error|spinup|standstill)$/
   json = "{\"title\":\"" jesc(title) "\",\"message\":\"" jesc(msg) "\",\"kind\":\"" kind "\",\"phase\":\"" phase "\""
   json = json ",\"problem\":" (problem ? "true" : "false")
   json = json ",\"prio\":" prio ",\"t\":" int(t) ",\"lang\":\"" lang "\",\"path\":\"/activity/\""
@@ -94,8 +98,10 @@ function push(kind, phase, title, msg, prio,   json, problem) {
   fflush()
 }
 
-# the problems the mower can't get out of by itself: one at a time, the first one stays until it's over
+# the problems the mower can't get out of by itself: one at a time, the first one stays until it's over. standing still
+# makes way for one that says why
 function open(kind, why, from) {
+  if (problem == "standstill" && kind != "standstill") close_problem(0)
   if (problem) return
   problem = kind; since = from ? from : t; told = 0
   if (on(kind)) { tell("new", why); told = t }
@@ -117,9 +123,44 @@ function tell(phase, why,   m) {
   } else if (problem == "dock_failed") {
     if (phase == "clear") send(problem, phase, tx("Back in the dock", "Wieder im Dock"), tx(who() " is charging again.", who() " lädt wieder."), 2, "white_check_mark")
     else send(problem, phase, tx("Docking failed", "Andocken fehlgeschlagen"), phase == "new" ? tx(who() " gave up docking after several tries and is standing outside the dock.", who() " hat das Andocken nach mehreren Versuchen aufgegeben und steht außerhalb des Docks.") : tx(who() " is still outside the dock (for " minutes(t - since) " min).", who() " steht immer noch außerhalb des Docks (seit " minutes(t - since) " min)."), 4, "warning")
+  } else if (problem == "standstill") {
+    if (phase == "clear") {
+      if (still_home) send(problem, phase, tx("Charging again", "Lädt wieder"), tx(who() " is charging again.", who() " lädt wieder."), 2, "white_check_mark")
+      else send(problem, phase, tx("On its way again", "Wieder unterwegs"), tx(who() " is moving again.", who() " bewegt sich wieder."), 2, "white_check_mark")
+    } else {
+      m = phase == "new" ? tx(who() " has been standing still for " minutes(t - since) " min and isn't charging.", who() " steht seit " minutes(t - since) " min still und lädt nicht.") : tx(who() " is still standing still (for " minutes(t - since) " min).", who() " steht immer noch still (seit " minutes(t - since) " min).")
+      if (phase != "new") ;
+      else if (still_why == "PAUSED") m = m " " tx("Paused: by hand, or waiting for GPS.", "Pausiert: von Hand, oder weil GPS fehlt.")
+      else if (still_why == "IDLE") m = m " " tx("Waiting on the lawn, or in the dock and that has no power.", "Wartet auf dem Rasen, oder steht in der Station und die hat keinen Strom.")
+      else m = m " " tx("Not getting on, maybe stuck.", "Kommt nicht weiter, steckt vielleicht fest.")
+      send(problem, phase, tx("Standing still", "Steht still"), m, 4, "warning")
+    }
   } else if (problem == "undock_failed") {
     if (phase == "clear") send(problem, phase, tx("On its way again", "Wieder unterwegs"), tx(who() " got out of the dock.", who() " ist aus dem Dock gekommen."), 2, "white_check_mark")
     else send(problem, phase, tx("Undocking failed", "Abdocken fehlgeschlagen"), phase == "new" ? tx(who() " didn't get out of the dock and stopped.", who() " ist nicht aus dem Dock gekommen und hat angehalten.") : tx(who() " still hasn't got out of the dock (for " minutes(t - since) " min).", who() " ist immer noch nicht aus dem Dock gekommen (seit " minutes(t - since) " min)."), 4, "warning")
+  }
+}
+
+# st: robot_state's current_state, x and y its position, home: charging or on the contacts. without a charge voltage
+# idle isn't watched, a full battery in the dock wouldn't look any different
+function standstill(st, x, y, home,   dx, dy) {
+  if (home || emergency || st == "" || st == "AREA_RECORDING" || (st == "IDLE" && !have_v)) {
+    still_t = 0
+    still_home = home
+    if (problem == "standstill") close_problem(home)
+    return
+  }
+  dx = x - still_x
+  dy = y - still_y
+  if (!still_t || dx * dx + dy * dy > STILL_M * STILL_M) {
+    still_home = 0
+    if (still_t && problem == "standstill") close_problem(1)
+    still_t = t; still_x = x; still_y = y
+    return
+  }
+  if (t - still_t >= STILL_WAIT && !problem && on("standstill")) {
+    still_why = st
+    open("standstill", "", still_t)
   }
 }
 
@@ -157,6 +198,9 @@ BEGIN {
   NAV_WAIT = 3
   # the emergency stop a failed mow motor start puts it in
   SPINUP_WAIT = 15
+  # standing still: not this far on in this many seconds
+  STILL_M = 0.5
+  STILL_WAIT = 600
   STATS = ENVIRON["STATS"]
   if (STATS) {
     while ((getline line < (STATS "/reminded")) > 0) {
@@ -191,6 +235,10 @@ BEGIN {
     }
     charging = field(json, "is_charging")
     if (problem == "dock_failed" && (charging == "1" || charging == "true")) close_problem(1)
+    standstill(field(json, "current_state"), field(json, "x") + 0, field(json, "y") + 0, charging == "1" || charging == "true" || v_charge > 20)
+  } else if (topic_in ~ /sensors\/om_v_charge\/data$/) {
+    v_charge = json + 0
+    have_v = 1
   } else if (topic_in ~ /events\/json$/) {
     type = field(json, "type")
     if (type == "DOCKING_FAILED") open("dock_failed")
