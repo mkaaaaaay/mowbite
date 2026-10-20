@@ -323,11 +323,21 @@ export function thingShadow(look: Look, place: {w: number; h: number}, shadow: {
 // an area's picture standing in it (a tree, a table ...), cut to its place (clip i of GardenDefs) and faded when the
 // area is off. with a shadow the same once more first, dark and moved away from the sun (no filter, it stays while the
 // map moves)
-export function GardenThing({uid, thing, off, shade}: {uid: string; thing: {i: number; look: Look; place: Place}; off: boolean; shade?: {dx: number; dy: number} | null}) {
+export function GardenThing({
+  uid,
+  thing,
+  off,
+  shade,
+}: {
+  uid: string;
+  thing: {i: number; id: string; look: Look; variant?: string; place: Place};
+  off: boolean;
+  shade?: {dx: number; dy: number} | null;
+}) {
   const {cx, cy, deg, w, h} = thing.place;
   const drawn = (
     <g className={[styles.gardenThing, off ? styles.gardenOff : ''].filter(Boolean).join(' ')} clipPath={`url(#${uid}clip${thing.i})`}>
-      <g transform={`translate(${cx} ${cy}) rotate(${deg})`}>{drawThing(thing.look, {x: -w / 2, y: -h / 2, w, h}, `${uid}t${thing.i}`)}</g>
+      <g transform={`translate(${cx} ${cy}) rotate(${deg})`}>{drawThing(thing.look, {x: -w / 2, y: -h / 2, w, h}, `${uid}t${thing.i}`, {seed: thing.id, variant: thing.variant})}</g>
     </g>
   );
   return (
@@ -358,6 +368,7 @@ export interface LifeInput {
   areas: MapArea[];
   garden?: Partial<GardenLife>;
   looks?: Record<string, string>;
+  lookVariants?: Record<string, string>;
   body?: MowerBody | null;
   fit: Fit;
   uid: string;
@@ -468,7 +479,7 @@ export function lifeScene(s: LifeInput): LifeScene | null {
         at,
       )
     : '';
-  const garden = gardenThings(s.areas, s.looks, s.body ?? null, fit);
+  const garden = gardenThings(s.areas, s.looks, s.body ?? null, fit, s.lookVariants);
 
   return {
     parts,

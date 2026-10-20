@@ -55,13 +55,23 @@ export default function AreaCard({
   const picked = settings.looks?.[area.id];
   const shown = areaLook(area, settings.looks);
   const [picking, setPicking] = useState(false);
-  const setLook = (look: Look | undefined) => {
+  // the color of a picture that comes in several, none: its usual one (or one of its own by the area)
+  const variants = PICTURES[shown]?.variants;
+  const kept = settings.lookVariants?.[area.id];
+  const variant = variants?.some((v) => v.key === kept) ? kept : undefined;
+  const save = (look: string | undefined, key: string | undefined) => {
     const cur = settingsStore.snapshot();
     const looks = {...cur.looks};
     if (look) looks[area.id] = look;
     else delete looks[area.id];
-    saveSettings({...cur, looks});
+    const lookVariants = {...cur.lookVariants};
+    if (key) lookVariants[area.id] = key;
+    else delete lookVariants[area.id];
+    saveSettings({...cur, looks, lookVariants: Object.keys(lookVariants).length ? lookVariants : undefined});
   };
+  // another picture starts with its own usual color
+  const setLook = (look: Look | undefined) => save(look, undefined);
+  const setVariant = (key: string | undefined) => save(picked, key);
   const applyMargin = () => {
     if (marginDraft === null) return;
     const v = Number(marginDraft.trim().replace(',', '.'));
@@ -171,10 +181,38 @@ export default function AreaCard({
         <div className={styles.lookRow}>
           <span className={styles.dim}>{tr('Picture on the map')}</span>
           <button className={styles.lookButton} onClick={() => setPicking(true)}>
-            <LookSwatch look={shown} size={28} />
+            <LookSwatch look={shown} size={28} seed={area.id} variant={variant} />
             {tr(PICTURES[shown].label)}
             {!picked && <span className={styles.dim}>({tr('auto')})</span>}
           </button>
+        </div>
+      )}
+      {pictured && variants && (
+        <div className={styles.lookRow}>
+          <span className={[styles.dim, styles.variantLabel].join(' ')}>{tr('Color')}</span>
+          <div className={styles.variantList} role="radiogroup" aria-label={tr('Color')}>
+            <button
+              role="radio"
+              aria-checked={!variant}
+              className={[styles.variantButton, styles.variantText, !variant ? styles.variantOn : ''].join(' ')}
+              onClick={() => setVariant(undefined)}
+            >
+              {tr('auto')}
+            </button>
+            {variants.map((v) => (
+              <button
+                key={v.key}
+                role="radio"
+                aria-checked={variant === v.key}
+                className={[styles.variantButton, variant === v.key ? styles.variantOn : ''].join(' ')}
+                onClick={() => setVariant(v.key)}
+                title={tr(v.label)}
+                aria-label={tr(v.label)}
+              >
+                <LookSwatch look={shown} size={30} seed={area.id} variant={v.key} />
+              </button>
+            ))}
+          </div>
         </div>
       )}
       {picking && (

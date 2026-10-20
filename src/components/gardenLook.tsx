@@ -32,8 +32,10 @@ export function areaLook(area: MapArea, looks?: Record<string, string>): Look {
 // the texture an area is filled with: the ground itself, or the one around a thing
 export const groundOf = (look: Look): Look => (isThing(look) ? (PICTURES[look].around ?? 'meadow') : look);
 
-// p starts the ids of its gradients and clips, unique on the page
-export const drawThing = (look: Look, box: Box, p = 'gp') => PICTURES[look]?.thing?.(box, p);
+// p starts the ids of its gradients and clips, unique on the page. seed varies it (the area's id: the same tree every time,
+// p without one), variant is the color picked for it (settings.lookVariants)
+export const drawThing = (look: Look, box: Box, p = 'gp', o?: {seed?: string; variant?: string}) =>
+  PICTURES[look]?.thing?.(box, p, {seed: o?.seed ?? p, variant: o?.variant});
 
 // how far a point is from the outline
 function edgeDistance(o: Point[], x: number, y: number) {
@@ -167,17 +169,23 @@ export const inSquare = (f: Fit) => (p: Point): Point => ({x: (p.x - f.minX) * f
 export interface GardenThings {
   lawns: Map<string, number>;
   looks: Map<string, Look>;
-  things: Map<string, {i: number; look: Look; place: Place}>;
+  things: Map<string, {i: number; id: string; look: Look; variant?: string; place: Place}>;
   angles: number[];
   clips: string[];
 }
 
-const thingsCache = new WeakMap<object, {looks?: object; body: object | null; key: string; out: GardenThings}>();
+const thingsCache = new WeakMap<object, {looks?: object; variants?: object; body: object | null; key: string; out: GardenThings}>();
 
-export function gardenThings(areas: MapArea[], looks: Record<string, string> | undefined, body: MowerBody | null, fit: Fit): GardenThings {
+export function gardenThings(
+  areas: MapArea[],
+  looks: Record<string, string> | undefined,
+  body: MowerBody | null,
+  fit: Fit,
+  variants?: Record<string, string>,
+): GardenThings {
   const key = fitKey(fit);
   const hit = thingsCache.get(areas);
-  if (hit && hit.looks === looks && hit.body === body && hit.key === key) return hit.out;
+  if (hit && hit.looks === looks && hit.variants === variants && hit.body === body && hit.key === key) return hit.out;
   const at = inSquare(fit);
   const out: GardenThings = {lawns: new Map(), looks: new Map(), things: new Map(), angles: [], clips: []};
   for (const a of areas) {
@@ -190,22 +198,22 @@ export function gardenThings(areas: MapArea[], looks: Record<string, string> | u
       out.looks.set(a.id, look);
       if (!isThing(look)) continue;
       const outline = ((body && insideEdge(a.outline, body)) || a.outline).map(at);
-      out.things.set(a.id, {i: out.clips.length, look, place: placeThing(look, outline)});
+      out.things.set(a.id, {i: out.clips.length, id: a.id, look, variant: variants?.[a.id], place: placeThing(look, outline)});
       out.clips.push(outline.map((p) => `${p.x},${p.y}`).join(' '));
     }
   }
-  thingsCache.set(areas, {looks, body, key, out});
+  thingsCache.set(areas, {looks, variants, body, key, out});
   return out;
 }
 
-// a picture as a small square: its ground, a thing drawn on top
-export function LookSwatch({look, size = 44}: {look: Look; size?: number}) {
+// a picture as a small square: its ground, a thing drawn on top, as the area with this seed draws it in that color
+export function LookSwatch({look, size = 44, seed, variant}: {look: Look; size?: number; seed?: string; variant?: string}) {
   const id = 'look' + useId().replace(/[^a-zA-Z0-9]/g, '');
   return (
     <svg viewBox="0 0 40 40" width={size} height={size} aria-hidden="true">
       <defs>{texture(groundOf(look), id, 40)}</defs>
       <rect width={40} height={40} rx={7} fill={`url(#${id})`} />
-      {isThing(look) && drawThing(look, {x: 4, y: 4, w: 32, h: 32}, id + 't')}
+      {isThing(look) && drawThing(look, {x: 4, y: 4, w: 32, h: 32}, id + 't', {seed, variant})}
     </svg>
   );
 }

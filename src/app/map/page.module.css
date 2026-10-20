@@ -119,6 +119,46 @@
   cursor: pointer;
 }
 
+/* the colors a picture comes in, the one picked framed */
+.variantLabel {
+  align-self: flex-start;
+  line-height: 38px;
+}
+
+.variantList {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.variantButton {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 9px;
+  border: 2px solid transparent;
+  background: transparent;
+  cursor: pointer;
+}
+
+.variantText {
+  align-items: center;
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--card-border);
+  color: var(--foreground);
+  font-size: 13px;
+}
+
+.variantOn {
+  border-color: var(--accent);
+}
+
+.variantText.variantOn {
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
 .toolLabel:first-child {
   margin-top: 0;
 }

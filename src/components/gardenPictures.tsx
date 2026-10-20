@@ -28,12 +28,19 @@ interface Tile {
   base: string;
   draw: (m: number) => React.ReactNode;
 }
+// how a thing is drawn: seed varies it (the area's id, the same tree every time), variant is a color picked for it
+export interface ThingOptions {
+  seed: string;
+  variant?: string;
+}
 export interface Picture {
   label: string;
   group: Group;
   // a thing: drawn into the box with ids starting with p, with this ground around it. long: drawn along the area's long
   // side into the box that fits in it, else into the biggest circle that fits in it
-  thing?: (b: Box, p: string) => React.ReactNode;
+  thing?: (b: Box, p: string, o: ThingOptions) => React.ReactNode;
+  // the colors it comes in, picked per area (settings.lookVariants), else one by its seed
+  variants?: {key: string; label: string}[];
   around?: string;
   long?: boolean;
   // a ground: the texture
@@ -402,7 +409,194 @@ const tileScatter = (seed: string, n: number, w: number, h: number): Pt[] => {
   return Array.from({length: n}, () => [rnd() * w, rnd() * h]);
 };
 
-const LEAF = '#3f7a34';
+// the colors a picture comes in, by key: its name and what it changes
+type Variants<T> = Record<string, T & {label: string}>;
+// the color picked for the drawing, else one by its seed (vary: every one its own) or the first, the usual one
+function pick<T>(o: ThingOptions, list: Variants<T>, vary = false): T & {label: string} {
+  const keys = Object.keys(list);
+  return list[o.variant ?? ''] ?? list[keys[vary ? Math.floor(random(o.seed + 'color')() * keys.length) : 0]];
+}
+const choices = (list: Variants<object>) => Object.entries(list).map(([key, v]) => ({key, label: v.label}));
+
+const TREES: Variants<{c: string}> = {
+  green: {label: 'Green', c: '#3f7a34'},
+  light: {label: 'Light green', c: '#5c9a40'},
+  copper: {label: 'Red leaves', c: '#6e3a3c'},
+  golden: {label: 'Golden', c: '#9a9f45'},
+};
+const CONIFERS: Variants<{c: string}> = {
+  green: {label: 'Green', c: '#2d6b47'},
+  blue: {label: 'Blue-green', c: '#4a7a78'},
+  golden: {label: 'Golden', c: '#8f9a3c'},
+};
+const BUSHES: Variants<{c: string}> = {
+  green: {label: 'Green', c: '#56923d'},
+  dark: {label: 'Dark green', c: '#3f7a34'},
+  red: {label: 'Red leaves', c: '#7a3d3a'},
+  golden: {label: 'Golden', c: '#9aa548'},
+};
+const BLOOMS: Variants<{c: [string, string]}> = {
+  pink: {label: 'Pink', c: ['#e27fae', '#f7c6dc']},
+  purple: {label: 'Purple', c: ['#a77fd0', '#dcc6f0']},
+  white: {label: 'White', c: ['#ece8dd', '#ffffff']},
+  red: {label: 'Red', c: ['#c8352d', '#f08a7e']},
+  yellow: {label: 'Yellow', c: ['#e8b62a', '#f6dc7a']},
+};
+const FRUITS: Variants<{c: [string, string]; s: number}> = {
+  red: {label: 'Red apples', c: ['#c8392b', '#e7a733'], s: 1},
+  yellow: {label: 'Yellow apples', c: ['#e2b93a', '#c9a12c'], s: 1},
+  pears: {label: 'Pears', c: ['#b4bf48', '#d7c052'], s: 1.1},
+  cherries: {label: 'Cherries', c: ['#8c1a24', '#b0202c'], s: 0.65},
+};
+const ROOFS: Variants<{c: string}> = {
+  red: {label: 'Red', c: '#b0573d'},
+  anthracite: {label: 'Anthracite', c: '#4f555c'},
+  brown: {label: 'Brown', c: '#7a4f3a'},
+  grey: {label: 'Grey', c: '#8a8f96'},
+};
+const SHEDS: Variants<{c: string}> = {
+  green: {label: 'Green-grey', c: '#5d675b'},
+  anthracite: {label: 'Anthracite', c: '#4a4e53'},
+  red: {label: 'Red', c: '#a24a36'},
+  wood: {label: 'Wood', c: '#8a6440'},
+};
+const SMALL_ROOFS: Variants<{c: string}> = {
+  red: {label: 'Red', c: '#b0503a'},
+  green: {label: 'Green', c: '#4a7a4a'},
+  blue: {label: 'Blue', c: '#4a6a9a'},
+  wood: {label: 'Wood', c: '#8a6440'},
+};
+const CANVAS: Variants<{c: string}> = {
+  cream: {label: 'Cream', c: '#ece5d6'},
+  white: {label: 'White', c: '#f4f4f0'},
+  grey: {label: 'Grey', c: '#9aa0a6'},
+  green: {label: 'Green', c: '#7f9f7a'},
+  anthracite: {label: 'Anthracite', c: '#5b6168'},
+};
+const SAILS: Variants<{c: string}> = {
+  sand: {label: 'Sand', c: '#e6dcc4'},
+  white: {label: 'White', c: '#f2f0ea'},
+  anthracite: {label: 'Anthracite', c: '#5b6168'},
+  terracotta: {label: 'Terracotta', c: '#c9643f'},
+  green: {label: 'Green', c: '#8fae8a'},
+};
+const CUSHIONS: Variants<{c: string}> = {
+  cream: {label: 'Cream', c: '#e9e0cc'},
+  grey: {label: 'Grey', c: '#c9cdd0'},
+  green: {label: 'Green', c: '#9fb98f'},
+  terracotta: {label: 'Terracotta', c: '#d98a6a'},
+  blue: {label: 'Blue', c: '#9fb7d0'},
+};
+const STRIPES: Variants<{c: string}> = {
+  blue: {label: 'Blue', c: '#4e86b5'},
+  red: {label: 'Red', c: '#c9643f'},
+  green: {label: 'Green', c: '#5f8f5a'},
+  grey: {label: 'Grey', c: '#7a8088'},
+  yellow: {label: 'Yellow', c: '#e0a83a'},
+};
+const LOUNGES: Variants<{c: string}> = {
+  grey: {label: 'Grey', c: '#cfd5d8'},
+  cream: {label: 'Cream', c: '#e9e0cc'},
+  anthracite: {label: 'Anthracite', c: '#6a7077'},
+  blue: {label: 'Blue', c: '#8fa9c4'},
+};
+const BENCHES: Variants<{c: string}> = {
+  wood: {label: 'Wood', c: '#a8794a'},
+  grey: {label: 'Grey', c: '#9aa0a6'},
+  white: {label: 'White', c: '#e6e2d8'},
+  green: {label: 'Green', c: '#4f7a5a'},
+};
+const HAMMOCKS: Variants<{c: string[]}> = {
+  colorful: {label: 'Colorful', c: ['#e0a83a', '#d4693f', '#3f8f8a', '#efe6d0', '#c94c4c']},
+  blue: {label: 'Blue and white', c: ['#3f6f9f', '#f2efe6']},
+  natural: {label: 'Natural', c: ['#e6dcc4', '#cdbf9f']},
+  green: {label: 'Green and white', c: ['#5f8f5a', '#f2efe6']},
+};
+const CARS: Variants<{c: string}> = {
+  blue: {label: 'Blue', c: '#4b6b9b'},
+  red: {label: 'Red', c: '#b8342c'},
+  white: {label: 'White', c: '#e2e5e8'},
+  black: {label: 'Black', c: '#2a2d31'},
+  silver: {label: 'Silver', c: '#9aa3ab'},
+  green: {label: 'Green', c: '#3f6b4a'},
+};
+const PADS: Variants<{c: string}> = {
+  blue: {label: 'Blue', c: '#2f72b4'},
+  green: {label: 'Green', c: '#3f8f4a'},
+  red: {label: 'Red', c: '#c0392b'},
+  grey: {label: 'Grey', c: '#5b6168'},
+  orange: {label: 'Orange', c: '#e07b2a'},
+};
+const GRILLS: Variants<{c: string}> = {
+  black: {label: 'Black', c: '#24272b'},
+  red: {label: 'Red', c: '#a8302a'},
+  blue: {label: 'Blue', c: '#2f5f9f'},
+};
+const BARRELS: Variants<{c: string}> = {
+  green: {label: 'Green', c: '#2f6b3b'},
+  grey: {label: 'Grey', c: '#5b6168'},
+  brown: {label: 'Brown', c: '#6b4a2e'},
+  terracotta: {label: 'Terracotta', c: '#a8583a'},
+};
+const CABINETS: Variants<{c: string}> = {
+  wood: {label: 'Wood', c: '#6e5442'},
+  grey: {label: 'Grey', c: '#5b6168'},
+  black: {label: 'Black', c: '#2f3236'},
+};
+const TABLES: Variants<{c: string}> = {
+  blue: {label: 'Blue', c: '#1f5d8c'},
+  green: {label: 'Green', c: '#2f6f4a'},
+};
+const SEATS: Variants<{c: [string, string]}> = {
+  redgreen: {label: 'Red and green', c: ['#d6453a', '#2f8a4f']},
+  blueyellow: {label: 'Blue and yellow', c: ['#2f6fc0', '#f0c636']},
+  black: {label: 'Black', c: ['#2b2e31', '#2b2e31']},
+};
+const TOWERS: Variants<{roof: string; slide: string}> = {
+  green: {label: 'Green', roof: '#3f8f4a', slide: '#f2c230'},
+  red: {label: 'Red', roof: '#b8453a', slide: '#f2c230'},
+  blue: {label: 'Blue', roof: '#3f6fa8', slide: '#d6453a'},
+  wood: {label: 'Wood', roof: '#8a6440', slide: '#3f8f4a'},
+};
+const LAMPS: Variants<{c: string}> = {
+  black: {label: 'Black', c: '#3d4146'},
+  copper: {label: 'Copper', c: '#9a6a3a'},
+  white: {label: 'White', c: '#d6d6d0'},
+};
+const STATUES: Variants<{c: string}> = {
+  stone: {label: 'Stone', c: '#cdc7ba'},
+  bronze: {label: 'Bronze', c: '#8a6a44'},
+  patina: {label: 'Patina', c: '#7d9c86'},
+};
+const HATS: Variants<{hat: string; coat: string}> = {
+  red: {label: 'Red', hat: '#d9302a', coat: '#2f64b5'},
+  blue: {label: 'Blue', hat: '#2f64b5', coat: '#c0392b'},
+  green: {label: 'Green', hat: '#3f8f4a', coat: '#c0392b'},
+};
+const POTS: Variants<{c: string}> = {
+  red: {label: 'Red', c: '#d83a3a'},
+  pink: {label: 'Pink', c: '#e98bb5'},
+  white: {label: 'White', c: '#f4f1ea'},
+  purple: {label: 'Purple', c: '#9b5fd0'},
+  yellow: {label: 'Yellow', c: '#f2c230'},
+};
+const VINES: Variants<{c: string}> = {
+  grapes: {label: 'Grapes', c: '#7b4a9e'},
+  wisteria: {label: 'Wisteria', c: '#a58ad8'},
+  roses: {label: 'Roses', c: '#d6456a'},
+};
+
+// a parasol's fabric: its panels in turn
+const FABRICS: Variants<{c: [string, string]}> = {
+  cream: {label: 'Cream', c: ['#ece2cb', '#ece2cb']},
+  anthracite: {label: 'Anthracite', c: ['#5b6168', '#5b6168']},
+  terracotta: {label: 'Terracotta', c: ['#c9643f', '#c9643f']},
+  sage: {label: 'Sage', c: ['#8fae8a', '#8fae8a']},
+  yellow: {label: 'Yellow', c: ['#e8b844', '#e8b844']},
+  blue: {label: 'Blue and white', c: ['#f2efe6', '#3f6f9f']},
+  red: {label: 'Red and white', c: ['#f2efe6', '#c9643f']},
+};
+
 const WOOD = '#9c7447';
 const STONE = '#b3ad9f';
 const WATER = '#2f86bf';
@@ -412,13 +606,14 @@ export const PICTURES: Record<string, Picture> = {
   tree: {
     label: 'Tree',
     group: 'plants',
+    variants: choices(TREES),
     around: 'meadow',
-    thing: (b, p) => {
+    thing: (b, p, o) => {
       const {cx, cy, r} = middle(b);
       return (
         <>
           {halo(p + 'h', cx, cy, r, r * 0.96)}
-          {crown(p, cx, cy, r * 0.92, LEAF, random(p + 'tree'))}
+          {crown(p, cx, cy, r * 0.92, pick(o, TREES).c, random(o.seed + 'tree'))}
         </>
       );
     },
@@ -426,11 +621,12 @@ export const PICTURES: Record<string, Picture> = {
   conifer: {
     label: 'Conifer',
     group: 'plants',
+    variants: choices(CONIFERS),
     around: 'meadow',
-    thing: (b, p) => {
+    thing: (b, p, o) => {
       const {cx, cy, r} = middle(b);
-      const rnd = random(p + 'conifer');
-      const c = '#2d6b47';
+      const rnd = random(o.seed + 'conifer');
+      const c = pick(o, CONIFERS).c;
       // a tier of needle tips round the middle, shallow so the edge looks soft
       const tier = (outer: number, depth: number, n: number) => {
         const turn = rnd();
@@ -472,12 +668,14 @@ export const PICTURES: Record<string, Picture> = {
   fruitTree: {
     label: 'Fruit tree',
     group: 'plants',
+    variants: choices(FRUITS),
     around: 'meadow',
-    thing: (b, p) => {
+    thing: (b, p, o) => {
       const {cx, cy, r} = middle(b);
-      const rnd = random(p + 'fruit');
+      const rnd = random(o.seed + 'fruit');
       const leafy = crown(p, cx, cy, r * 0.86, '#4c8d38', rnd, 9, 0.34, 26);
-      const fruit = scatter(rnd, 12, cx, cy, r * 0.74, [r * 0.04, r * 0.05], (v) => 0.35 + 0.65 * Math.sqrt(v));
+      const kind = pick(o, FRUITS);
+      const fruit = scatter(rnd, 12, cx, cy, r * 0.74, [r * 0.04 * kind.s, r * 0.05 * kind.s], (v) => 0.35 + 0.65 * Math.sqrt(v));
       const fallen = Array.from({length: 2}, (): Dot => {
         const a = PI * (0.1 + rnd() * 0.6);
         return [cx + Math.cos(a) * r * 0.9, cy + Math.sin(a) * r * 0.9, r * 0.04];
@@ -487,10 +685,10 @@ export const PICTURES: Record<string, Picture> = {
       return (
         <>
           {halo(p + 'h', cx, cy, r, r * 0.96)}
-          <path d={circles(fallen)} fill="#9c3a2a" stroke="#6b2419" strokeWidth={n2(r * 0.008)} data-halo="" />
+          <path d={circles(fallen)} fill={tone(kind.c[0], -0.25)} stroke={tone(kind.c[0], -0.5)} strokeWidth={n2(r * 0.008)} data-halo="" />
           {leafy}
-          <path d={circles(red)} fill="#c8392b" stroke="#8c2219" strokeWidth={n2(r * 0.01)} />
-          <path d={circles(yellow)} fill="#e7a733" stroke="#a8721c" strokeWidth={n2(r * 0.01)} />
+          <path d={circles(red)} fill={kind.c[0]} stroke={tone(kind.c[0], -0.35)} strokeWidth={n2(r * 0.01)} />
+          <path d={circles(yellow)} fill={kind.c[1]} stroke={tone(kind.c[1], -0.3)} strokeWidth={n2(r * 0.01)} />
           <path d={circles(fruit.map(([x, y, s]) => [x - s * 0.35, y - s * 0.35, s * 0.3]))} fill="#fff" opacity={0.6} />
         </>
       );
@@ -500,9 +698,9 @@ export const PICTURES: Record<string, Picture> = {
     label: 'Palm',
     group: 'plants',
     around: 'meadow',
-    thing: (b, p) => {
+    thing: (b, p, o) => {
       const {cx, cy, r} = middle(b);
-      const rnd = random(p + 'palm');
+      const rnd = random(o.seed + 'palm');
       const c = '#4c8f3c';
       const n = 10;
       const fronds = Array.from({length: n}, (_, i) => {
@@ -560,13 +758,14 @@ export const PICTURES: Record<string, Picture> = {
   bush: {
     label: 'Bush',
     group: 'plants',
+    variants: choices(BUSHES),
     around: 'meadow',
-    thing: (b, p) => {
+    thing: (b, p, o) => {
       const {cx, cy, r} = middle(b);
       return (
         <>
           {halo(p + 'h', cx, cy, r * 0.97, r * 0.92)}
-          {crown(p, cx, cy, r * 0.86, '#56923d', random(p + 'bush'), 11, 0.31, 36)}
+          {crown(p, cx, cy, r * 0.86, pick(o, BUSHES).c, random(o.seed + 'bush'), 11, 0.31, 36)}
         </>
       );
     },
@@ -574,11 +773,12 @@ export const PICTURES: Record<string, Picture> = {
   floweringBush: {
     label: 'Flowering shrub',
     group: 'plants',
+    variants: choices(BLOOMS),
     around: 'meadow',
-    thing: (b, p) => {
+    thing: (b, p, o) => {
       const {cx, cy, r} = middle(b);
-      const rnd = random(p + 'bloom');
-      const [c, light] = [['#e27fae', '#f7c6dc'], ['#a77fd0', '#dcc6f0'], ['#ece8dd', '#ffffff']][Math.floor(rnd() * 3)];
+      const rnd = random(o.seed + 'bloom');
+      const [c, light] = pick(o, BLOOMS, true).c;
       const heads = scatter(rnd, 26, cx, cy, r * 0.76, [r * 0.045, r * 0.07]);
       const flowers = heads.flatMap(([x, y, hs]) => Array.from({length: 5}, (_, k): Dot => [x + Math.cos(k * 1.26 + x) * hs * 0.55, y + Math.sin(k * 1.26 + x) * hs * 0.55, hs * 0.36]));
       return (
@@ -715,9 +915,9 @@ export const PICTURES: Record<string, Picture> = {
     group: 'plants',
     long: true,
     around: 'meadow',
-    thing: (b, p) =>
+    thing: (b, p, o) =>
       along(inset(b, 0.05), (l, d) => {
-        const rnd = random(p + 'raised');
+        const rnd = random(o.seed + 'raised');
         const f = d * 0.1;
         const [sx, sy, sw, sh] = [-l / 2 + f, -d / 2 + f, l - 2 * f, d - 2 * f];
         const n = Math.max(2, Math.round(sw / (sh / 2)));
@@ -766,10 +966,11 @@ export const PICTURES: Record<string, Picture> = {
   pot: {
     label: 'Planter',
     group: 'plants',
+    variants: choices(POTS),
     around: 'paving',
-    thing: (b, p) => {
+    thing: (b, p, o) => {
       const {cx, cy, r} = middle(b);
-      const rnd = random(p + 'pot');
+      const rnd = random(o.seed + 'pot');
       const rp = r * 0.82;
       const flowers = scatter(rnd, 7, cx, cy, rp * 0.55, [rp * 0.07, rp * 0.09]);
       return (
@@ -781,7 +982,7 @@ export const PICTURES: Record<string, Picture> = {
           <circle cx={n2(cx)} cy={n2(cy)} r={n2(rp * 0.84)} fill={tone('#c56a3d', -0.35)} />
           <circle cx={n2(cx + rp * 0.03)} cy={n2(cy + rp * 0.04)} r={n2(rp * 0.78)} fill="#4a3324" />
           {crown(p, cx, cy, rp * 0.7, '#4f8f3c', rnd, 7, 0.38, 14)}
-          {blossoms(flowers.map(([x, y, s]) => [x, y, s, '#d83a3a']))}
+          {blossoms(flowers.map(([x, y, s]) => [x, y, s, pick(o, POTS, true).c]))}
         </>
       );
     },
@@ -790,9 +991,9 @@ export const PICTURES: Record<string, Picture> = {
     label: 'Herb spiral',
     group: 'plants',
     around: 'meadow',
-    thing: (b, p) => {
+    thing: (b, p, o) => {
       const {cx, cy, r} = middle(b);
-      const rnd = random(p + 'herbs');
+      const rnd = random(o.seed + 'herbs');
       const turns = 2.1;
       const path: Pt[] = Array.from({length: 90}, (_, i) => {
         const t = i / 89;
@@ -916,9 +1117,9 @@ export const PICTURES: Record<string, Picture> = {
     group: 'water',
     long: true,
     around: 'meadow',
-    thing: ({x, y, w, h}, p) => {
+    thing: ({x, y, w, h}, p, o) => {
       const {cx, cy} = middle({x, y, w, h});
-      const rnd = random(p + 'pond');
+      const rnd = random(o.seed + 'pond');
       const shore = blob(cx, cy, w * 0.47, h * 0.45, rnd, 14, 0.1);
       const water = shore.map(([px, py]): Pt => [cx + (px - cx) * 0.88, cy + (py - cy) * 0.85]);
       const s = Math.min(w, h);
@@ -1079,10 +1280,11 @@ export const PICTURES: Record<string, Picture> = {
   hotTub: {
     label: 'Hot tub',
     group: 'water',
+    variants: choices(CABINETS),
     around: 'wood',
-    thing: (b, p) => {
+    thing: (b, p, o) => {
       const {cx, cy, r} = middle(b);
-      const rnd = random(p + 'tub');
+      const rnd = random(o.seed + 'tub');
       const s = r * 0.86;
       const t = s * 0.7;
       const bubbles = scatter(rnd, 26, cx, cy, t * 0.8, [s * 0.008, s * 0.02]);
@@ -1090,7 +1292,7 @@ export const PICTURES: Record<string, Picture> = {
       return (
         <>
           <defs>
-            {face(p + 'c', '#6e5442', 0.12, -0.15)}
+            {face(p + 'c', pick(o, CABINETS).c, 0.12, -0.15)}
             {face(p + 's', '#e7e9ea', 0.05, -0.12)}
             <radialGradient id={p + 'w'} cx={0.5} cy={0.5} r={0.6}>
               <stop offset={0} stopColor="#58d1e8" />
@@ -1101,7 +1303,7 @@ export const PICTURES: Record<string, Picture> = {
           <rect x={n2(cx - s)} y={n2(cy - s)} width={n2(2 * s)} height={n2(2 * s)} rx={n2(s * 0.22)} fill={`url(#${p}c)`} />
           <path
             d={Array.from({length: 9}, (_, i) => `M${n2(cx - s + (2 * s * (i + 1)) / 10)} ${n2(cy - s)}v${n2(s * 0.12)}M${n2(cx - s + (2 * s * (i + 1)) / 10)} ${n2(cy + s - s * 0.12)}v${n2(s * 0.12)}`).join('')}
-            stroke="#4e3a2d"
+            stroke={tone(pick(o, CABINETS).c, -0.3)}
             strokeWidth={n2(s * 0.012)}
           />
           <rect x={n2(cx - s * 0.88)} y={n2(cy - s * 0.88)} width={n2(s * 1.76)} height={n2(s * 1.76)} rx={n2(s * 0.2)} fill={`url(#${p}s)`} />
@@ -1160,34 +1362,36 @@ export const PICTURES: Record<string, Picture> = {
   rainBarrel: {
     label: 'Rain barrel',
     group: 'water',
+    variants: choices(BARRELS),
     around: 'gravel',
-    thing: (b, p) => {
+    thing: (b, p, o) => {
       const {cx, cy, r} = middle(b);
       const rb = r * 0.78;
+      const c = pick(o, BARRELS).c;
       return (
         <>
           <defs>
-            {ball(p + 'b', '#2f6b3b', 0.25, -0.4)}
-            {ball(p + 'l', '#3a7d47', 0.2, -0.3)}
+            {ball(p + 'b', c, 0.25, -0.4)}
+            {ball(p + 'l', tone(c, 0.12), 0.2, -0.3)}
             {tube(p + 'd', '#9aa3a8', true)}
           </defs>
           {halo(p + 'h', cx, cy, r, r)}
           <rect x={n2(cx - r * 0.07)} y={n2(cy - r)} width={n2(r * 0.14)} height={n2(r * 0.4)} fill={`url(#${p}d)`} />
           <circle cx={n2(cx)} cy={n2(cy)} r={n2(rb)} fill={`url(#${p}b)`} />
           {rimLight(cx, cy, rb * 0.96, rb * 0.03)}
-          <circle cx={n2(cx)} cy={n2(cy)} r={n2(rb * 0.9)} fill="none" stroke="#4f8f5c" strokeOpacity={0.6} strokeWidth={n2(rb * 0.03)} />
-          <circle cx={n2(cx)} cy={n2(cy)} r={n2(rb * 0.82)} fill={`url(#${p}l)`} stroke="#22502b" strokeWidth={n2(rb * 0.03)} />
+          <circle cx={n2(cx)} cy={n2(cy)} r={n2(rb * 0.9)} fill="none" stroke={tone(c, 0.3)} strokeOpacity={0.6} strokeWidth={n2(rb * 0.03)} />
+          <circle cx={n2(cx)} cy={n2(cy)} r={n2(rb * 0.82)} fill={`url(#${p}l)`} stroke={tone(c, -0.3)} strokeWidth={n2(rb * 0.03)} />
           <path
             d={Array.from({length: 8}, (_, i) => {
               const a = (i / 8) * 2 * PI;
               return `M${n2(cx + Math.cos(a) * rb * 0.3)} ${n2(cy + Math.sin(a) * rb * 0.3)}L${n2(cx + Math.cos(a) * rb * 0.78)} ${n2(cy + Math.sin(a) * rb * 0.78)}`;
             }).join('')}
-            stroke="#22502b"
+            stroke={tone(c, -0.3)}
             strokeOpacity={0.6}
             strokeWidth={n2(rb * 0.025)}
           />
-          <rect x={n2(cx - rb * 0.32)} y={n2(cy - rb * 0.07)} width={n2(rb * 0.64)} height={n2(rb * 0.14)} rx={n2(rb * 0.07)} fill="#22502b" />
-          <rect x={n2(cx - rb * 0.3)} y={n2(cy - rb * 0.07)} width={n2(rb * 0.6)} height={n2(rb * 0.05)} rx={n2(rb * 0.03)} fill="#5c9a68" opacity={0.6} />
+          <rect x={n2(cx - rb * 0.32)} y={n2(cy - rb * 0.07)} width={n2(rb * 0.64)} height={n2(rb * 0.14)} rx={n2(rb * 0.07)} fill={tone(c, -0.3)} />
+          <rect x={n2(cx - rb * 0.3)} y={n2(cy - rb * 0.07)} width={n2(rb * 0.6)} height={n2(rb * 0.05)} rx={n2(rb * 0.03)} fill={tone(c, 0.35)} opacity={0.6} />
           <rect x={n2(cx - r * 0.11)} y={n2(cy - rb * 1.02)} width={n2(r * 0.22)} height={n2(r * 0.16)} rx={n2(r * 0.03)} fill="#8a9398" />
         </>
       );
@@ -1223,8 +1427,9 @@ export const PICTURES: Record<string, Picture> = {
   trampoline: {
     label: 'Trampoline',
     group: 'play',
+    variants: choices(PADS),
     around: 'meadow',
-    thing: (b, p) => {
+    thing: (b, p, o) => {
       const {cx, cy, r} = middle(b);
       const springs = Array.from({length: 48}, (_, i) => {
         const a = (i / 48) * 2 * PI;
@@ -1238,7 +1443,7 @@ export const PICTURES: Record<string, Picture> = {
       return (
         <>
           <defs>
-            {ball(p + 'p', '#2f72b4', 0.3, -0.3)}
+            {ball(p + 'p', pick(o, PADS).c, 0.3, -0.3)}
             <radialGradient id={p + 'm'} cx={0.4} cy={0.36} r={0.7}>
               <stop offset={0} stopColor="#3a3d42" />
               <stop offset={1} stopColor="#141517" />
@@ -1247,7 +1452,7 @@ export const PICTURES: Record<string, Picture> = {
           {halo(p + 'h', cx, cy, r, r)}
           <circle cx={n2(cx)} cy={n2(cy)} r={n2(r * 0.93)} fill="none" stroke="#2a2d31" strokeOpacity={0.45} strokeWidth={n2(r * 0.014)} />
           <circle cx={n2(cx)} cy={n2(cy)} r={n2(r * 0.88)} fill={`url(#${p}p)`} />
-          <path d={seams} stroke="#1d4f80" strokeOpacity={0.6} strokeWidth={n2(r * 0.012)} />
+          <path d={seams} stroke={tone(pick(o, PADS).c, -0.35)} strokeOpacity={0.6} strokeWidth={n2(r * 0.012)} />
           {rimLight(cx, cy, r * 0.84, r * 0.02, 0.35)}
           <circle cx={n2(cx)} cy={n2(cy)} r={n2(r * 0.73)} fill="#b9c0c6" />
           <path d={springs} stroke="#5b636a" strokeWidth={n2(r * 0.014)} />
@@ -1264,9 +1469,9 @@ export const PICTURES: Record<string, Picture> = {
     group: 'play',
     long: true,
     around: 'meadow',
-    thing: (b, p) =>
+    thing: (b, p, o) =>
       along(inset(b, 0.06), (l, d) => {
-        const rnd = random(p + 'sand');
+        const rnd = random(o.seed + 'sand');
         const f = d * 0.1;
         const [sx, sy, sw, sh] = [-l / 2 + f, -d / 2 + f, l - 2 * f, d - 2 * f];
         const grains = scatter(rnd, 40, 0, 0, 1, [f * 0.04, f * 0.08]).map(([x, y, r]): Dot => [x * sw * 0.48, y * sh * 0.48, r]);
@@ -1314,14 +1519,15 @@ export const PICTURES: Record<string, Picture> = {
   swing: {
     label: 'Swing',
     group: 'play',
+    variants: choices(SEATS),
     long: true,
     around: 'meadow',
-    thing: (b, p) =>
+    thing: (b, p, o) =>
       along(inset(b, 0.04), (l, d) => {
         const post = l * 0.035;
         const seats = [
-          {x: -l * 0.18, y: d * 0.16, c: '#d6453a'},
-          {x: l * 0.18, y: -d * 0.1, c: '#2f8a4f'},
+          {x: -l * 0.18, y: d * 0.16, c: pick(o, SEATS).c[0]},
+          {x: l * 0.18, y: -d * 0.1, c: pick(o, SEATS).c[1]},
         ];
         return (
           <>
@@ -1359,30 +1565,32 @@ export const PICTURES: Record<string, Picture> = {
   playTower: {
     label: 'Play tower',
     group: 'play',
+    variants: choices(TOWERS),
     long: true,
     around: 'sand',
-    thing: (b, p) =>
+    thing: (b, p, o) =>
       along(inset(b, 0.04), (l, d) => {
         const s = Math.min(d * 0.78, l * 0.42);
         const tx = -l / 2 + s / 2 + l * 0.05;
         const sw = s * 0.4;
         const end = l / 2 - l * 0.02;
+        const tower = pick(o, TOWERS);
         return (
           <>
             <defs>
               <linearGradient id={p + 's'} x1={0} y1={0} x2={0} y2={1}>
-                <stop offset={0} stopColor="#f7d35a" />
-                <stop offset={0.5} stopColor="#f2c230" />
-                <stop offset={1} stopColor="#c89414" />
+                <stop offset={0} stopColor={tone(tower.slide, 0.25)} />
+                <stop offset={0.5} stopColor={tower.slide} />
+                <stop offset={1} stopColor={tone(tower.slide, -0.25)} />
               </linearGradient>
             </defs>
             {softBox(tx - s / 2, -s / 2, s, s, s * 0.02, s * 0.08)}
             <path d={`M${n2(tx + s * 0.45)} ${n2(-sw / 2)}L${n2(end - sw * 0.3)} ${n2(-sw * 0.6)}Q${n2(end)} ${n2(-sw * 0.6)} ${n2(end)} 0Q${n2(end)} ${n2(sw * 0.6)} ${n2(end - sw * 0.3)} ${n2(sw * 0.6)}L${n2(tx + s * 0.45)} ${n2(sw / 2)}Z`} fill="#000" opacity={0.18} transform={`translate(${n2(s * 0.03)} ${n2(s * 0.05)})`} data-halo="" />
-            <path d={`M${n2(tx + s * 0.45)} ${n2(-sw / 2)}L${n2(end - sw * 0.3)} ${n2(-sw * 0.6)}Q${n2(end)} ${n2(-sw * 0.6)} ${n2(end)} 0Q${n2(end)} ${n2(sw * 0.6)} ${n2(end - sw * 0.3)} ${n2(sw * 0.6)}L${n2(tx + s * 0.45)} ${n2(sw / 2)}Z`} fill={`url(#${p}s)`} stroke="#b07f10" strokeWidth={n2(sw * 0.06)} />
+            <path d={`M${n2(tx + s * 0.45)} ${n2(-sw / 2)}L${n2(end - sw * 0.3)} ${n2(-sw * 0.6)}Q${n2(end)} ${n2(-sw * 0.6)} ${n2(end)} 0Q${n2(end)} ${n2(sw * 0.6)} ${n2(end - sw * 0.3)} ${n2(sw * 0.6)}L${n2(tx + s * 0.45)} ${n2(sw / 2)}Z`} fill={`url(#${p}s)`} stroke={tone(tower.slide, -0.35)} strokeWidth={n2(sw * 0.06)} />
             <path d={`M${n2(tx + s * 0.5)} 0L${n2(end - sw * 0.35)} 0`} stroke="#fff" strokeOpacity={0.45} strokeWidth={n2(sw * 0.14)} strokeLinecap="round" />
             <path d={`M${n2(tx - s / 2 - l * 0.045)} ${n2(-s * 0.18)}h${n2(l * 0.045)}M${n2(tx - s / 2 - l * 0.045)} ${n2(s * 0.18)}h${n2(l * 0.045)}`} stroke={tone(WOOD, -0.1)} strokeWidth={n2(s * 0.05)} strokeLinecap="round" />
             <path d={Array.from({length: 4}, (_, i) => `M${n2(tx - s / 2 - l * 0.045 + (i * l * 0.045) / 3)} ${n2(-s * 0.18)}v${n2(s * 0.36)}`).join('')} stroke={WOOD} strokeWidth={n2(s * 0.03)} />
-            <g transform={`translate(${n2(tx)} 0)`}>{gableRoof(p, s, s, '#3f8f4a', s * 0.12)}</g>
+            <g transform={`translate(${n2(tx)} 0)`}>{gableRoof(p, s, s, tower.roof, s * 0.12)}</g>
           </>
         );
       }),
@@ -1390,16 +1598,17 @@ export const PICTURES: Record<string, Picture> = {
   pingPong: {
     label: 'Table tennis',
     group: 'play',
+    variants: choices(TABLES),
     long: true,
     around: 'paving',
-    thing: (b, p) =>
+    thing: (b, p, o) =>
       along(inset(b, 0.06), (l, d) => {
         const len = Math.min(l * 0.94, d * 0.94 * 1.8);
         const wid = len / 1.8;
         const line = wid * 0.02;
         return (
           <>
-            <defs>{face(p + 't', '#1f5d8c', 0.12, -0.15)}</defs>
+            <defs>{face(p + 't', pick(o, TABLES).c, 0.12, -0.15)}</defs>
             {softBox(-len / 2, -wid / 2, len, wid, wid * 0.02, wid * 0.08)}
             <rect x={n2(-len / 2)} y={n2(-wid / 2)} width={n2(len)} height={n2(wid)} rx={n2(wid * 0.015)} fill={`url(#${p}t)`} />
             <rect x={n2(-len / 2 + line / 2)} y={n2(-wid / 2 + line / 2)} width={n2(len - line)} height={n2(wid - line)} fill="none" stroke="#fff" strokeWidth={n2(line)} />
@@ -1461,17 +1670,18 @@ export const PICTURES: Record<string, Picture> = {
   },
 
   // buildings
-  house: {label: 'House', group: 'buildings', around: 'paving', long: true, thing: (b, p) => hipRoof(p, b, '#b0573d')},
+  house: {label: 'House', group: 'buildings', around: 'paving', long: true, variants: choices(ROOFS), thing: (b, p, o) => hipRoof(p, b, pick(o, ROOFS).c)},
   shed: {
     label: 'Shed',
     group: 'buildings',
+    variants: choices(SHEDS),
     around: 'gravel',
     long: true,
-    thing: (b, p) =>
+    thing: (b, p, o) =>
       along(inset(b, 0.05), (l, d) => (
         <>
           {softBox(-l / 2, -d / 2, l, d, d * 0.02, d * 0.06)}
-          {gableRoof(p, l, d, '#5d675b')}
+          {gableRoof(p, l, d, pick(o, SHEDS).c)}
           <rect x={n2(-l / 2)} y={n2(-d / 2)} width={n2(d * 0.06)} height={n2(d)} fill={tone(WOOD, 0.1)} />
           <rect x={n2(l / 2 - d * 0.06)} y={n2(-d / 2)} width={n2(d * 0.06)} height={n2(d)} fill={tone(WOOD, -0.15)} />
           <rect x={n2(-l * 0.15)} y={n2(-d * 0.36)} width={n2(d * 0.18)} height={n2(d * 0.2)} rx={n2(d * 0.01)} fill="#d6dadd" />
@@ -1485,9 +1695,9 @@ export const PICTURES: Record<string, Picture> = {
     group: 'buildings',
     long: true,
     around: 'gravel',
-    thing: (b, p) =>
+    thing: (b, p, o) =>
       along(inset(b, 0.05), (l, d) => {
-        const rnd = random(p + 'glass');
+        const rnd = random(o.seed + 'glass');
         const panes = Math.max(3, Math.round(l / (d * 0.32)));
         const plants = [-1, 1].flatMap((row) => Array.from({length: panes * 2}, (_, i): Dot => [-l / 2 + (l * (i + 0.5)) / (panes * 2), row * d * 0.26, d * (0.08 + rnd() * 0.03)]));
         return (
@@ -1521,12 +1731,13 @@ export const PICTURES: Record<string, Picture> = {
   gazebo: {
     label: 'Gazebo',
     group: 'buildings',
+    variants: choices(CANVAS),
     around: 'paving',
-    thing: (b) => {
+    thing: (b, p, o) => {
       const {cx, cy, r} = middle(b);
       const s = r * 0.84;
       const [l, t, rt, bt] = [cx - s, cy - s, cx + s, cy + s];
-      const c = '#ece5d6';
+      const c = pick(o, CANVAS).c;
       const scallops = (x0: number, y0: number, dx: number, dy: number, nx: number, ny: number) =>
         Array.from({length: 8}, (_, i) => {
           const [x, y] = [x0 + (dx * (i + 0.5)) / 8, y0 + (dy * (i + 0.5)) / 8];
@@ -1556,11 +1767,12 @@ export const PICTURES: Record<string, Picture> = {
   pergola: {
     label: 'Pergola',
     group: 'buildings',
+    variants: choices(VINES),
     long: true,
     around: 'wood',
-    thing: (b, p) =>
+    thing: (b, p, o) =>
       along(inset(b, 0.04), (l, d) => {
-        const rnd = random(p + 'pergola');
+        const rnd = random(o.seed + 'pergola');
         const n = Math.max(4, Math.round(l / (d * 0.16)));
         const vine = Array.from({length: 18}, (): Dot => {
           const along = rnd();
@@ -1595,7 +1807,7 @@ export const PICTURES: Record<string, Picture> = {
             <path d={circles(vine.map(([x, y, r]) => [x + r * 0.2, y + r * 0.25, r]))} fill="#24501f" opacity={0.6} />
             <path d={circles(vine)} fill="#3f7d36" />
             <path d={circles(vine.map(([x, y, r]) => [x - r * 0.3, y - r * 0.3, r * 0.5]))} fill="#5e9c48" />
-            <path d={circles(grapes.flatMap(([x, y, r]) => [0, 1, 2, 3].map((k): Dot => [x + (k % 2) * r * 0.4, y + r * 0.6 + Math.floor(k / 2) * r * 0.35, r * 0.2])))} fill="#7b4a9e" />
+            <path d={circles(grapes.flatMap(([x, y, r]) => [0, 1, 2, 3].map((k): Dot => [x + (k % 2) * r * 0.4, y + r * 0.6 + Math.floor(k / 2) * r * 0.35, r * 0.2])))} fill={pick(o, VINES).c} />
           </>
         );
       }),
@@ -1603,14 +1815,15 @@ export const PICTURES: Record<string, Picture> = {
   kennel: {
     label: 'Hutch',
     group: 'buildings',
+    variants: choices(SMALL_ROOFS),
     long: true,
     around: 'meadow',
-    thing: (b, p) =>
+    thing: (b, p, o) =>
       along(inset(b, 0.05), (l, d) => {
         const s = Math.min(d * 0.86, l * 0.42);
         const hx = -l / 2 + s / 2;
         const [rx, rw] = [hx + s / 2, l / 2 - (hx + s / 2)];
-        const rnd = random(p + 'hutch');
+        const rnd = random(o.seed + 'hutch');
         const straw = Array.from({length: 18}, () => {
           const [x, y] = [rx + rnd() * rw, (rnd() - 0.5) * d * 0.8];
           const a = rnd() * PI;
@@ -1630,7 +1843,7 @@ export const PICTURES: Record<string, Picture> = {
             <rect x={n2(rx)} y={n2(-d * 0.45)} width={n2(rw)} height={n2(d * 0.9)} fill="none" stroke={tone(WOOD, -0.15)} strokeWidth={n2(d * 0.035)} />
             <g transform={`translate(${n2(hx)} 0)`}>
               {softBox(-s / 2, -s / 2, s, s, s * 0.02, s * 0.06)}
-              {gableRoof(p, s, s, '#b5533c', s * 0.13)}
+              {gableRoof(p, s, s, pick(o, SMALL_ROOFS).c, s * 0.13)}
             </g>
           </>
         );
@@ -1639,11 +1852,13 @@ export const PICTURES: Record<string, Picture> = {
   car: {
     label: 'Car',
     group: 'buildings',
+    variants: choices(CARS),
     long: true,
     around: 'paving',
-    thing: (b, p) =>
+    thing: (b, p, o) =>
       along(b, (l, d) => {
         const len = Math.min(l * 0.9, d * 0.9 * 2.2);
+        const paint = pick(o, CARS, true).c;
         const wid = len / 2.2;
         const [x0, x1] = [-len / 2, len / 2];
         const body = `M${n2(x0 + wid * 0.25)} ${n2(-wid / 2)}H${n2(x1 - wid * 0.32)}Q${n2(x1)} ${n2(-wid / 2)} ${n2(x1)} ${n2(-wid * 0.2)}V${n2(wid * 0.2)}Q${n2(x1)} ${n2(wid / 2)} ${n2(x1 - wid * 0.32)} ${n2(wid / 2)}H${n2(x0 + wid * 0.25)}Q${n2(x0)} ${n2(wid / 2)} ${n2(x0)} ${n2(wid * 0.25)}V${n2(-wid * 0.25)}Q${n2(x0)} ${n2(-wid / 2)} ${n2(x0 + wid * 0.25)} ${n2(-wid / 2)}Z`;
@@ -1652,9 +1867,9 @@ export const PICTURES: Record<string, Picture> = {
           <>
             <defs>
               <linearGradient id={p + 'b'} x1={0} y1={0} x2={0} y2={1}>
-                <stop offset={0} stopColor="#6f8fbd" />
-                <stop offset={0.45} stopColor="#4b6b9b" />
-                <stop offset={1} stopColor="#2e4568" />
+                <stop offset={0} stopColor={tone(paint, 0.28)} />
+                <stop offset={0.45} stopColor={paint} />
+                <stop offset={1} stopColor={tone(paint, -0.38)} />
               </linearGradient>
               <linearGradient id={p + 'g'} x1={0} y1={0} x2={1} y2={1}>
                 <stop offset={0} stopColor="#3c4b5c" />
@@ -1667,17 +1882,17 @@ export const PICTURES: Record<string, Picture> = {
                 <rect key={`${i}${j}`} x={n2(i * len * 0.3 - wid * 0.16)} y={n2(j * wid * 0.5 - wid * 0.05 - (j > 0 ? wid * 0.02 : 0))} width={n2(wid * 0.32)} height={n2(wid * 0.12)} rx={n2(wid * 0.04)} fill="#1b1d20" />
               )),
             )}
-            <path d={body} fill={`url(#${p}b)`} stroke="#22344f" strokeWidth={n2(wid * 0.015)} />
+            <path d={body} fill={`url(#${p}b)`} stroke={tone(paint, -0.55)} strokeWidth={n2(wid * 0.015)} />
             <polygon points={glass(len * 0.08, len * 0.13, 0.82)} fill={`url(#${p}g)`} />
             <polygon points={glass(-len * 0.3, -len * 0.08, 0.85)} fill={`url(#${p}g)`} />
-            <rect x={n2(-len * 0.3)} y={n2(-wid * 0.32)} width={n2(len * 0.38)} height={n2(wid * 0.64)} rx={n2(wid * 0.08)} fill="#5f81b3" />
+            <rect x={n2(-len * 0.3)} y={n2(-wid * 0.32)} width={n2(len * 0.38)} height={n2(wid * 0.64)} rx={n2(wid * 0.08)} fill={tone(paint, 0.14)} />
             <rect x={n2(-len * 0.26)} y={n2(-wid * 0.28)} width={n2(len * 0.3)} height={n2(wid * 0.12)} rx={n2(wid * 0.05)} fill="#fff" opacity={0.18} />
             <path d={`M${n2(-len * 0.3)} ${n2(-wid * 0.4)}H${n2(len * 0.08)}M${n2(-len * 0.3)} ${n2(wid * 0.4)}H${n2(len * 0.08)}`} stroke="#1c2633" strokeWidth={n2(wid * 0.06)} strokeLinecap="round" />
             <path d={`M${n2(len * 0.12)} ${n2(-wid * 0.25)}l${n2(len * 0.06)} ${n2(wid * 0.18)}`} stroke="#fff" strokeOpacity={0.3} strokeWidth={n2(wid * 0.04)} strokeLinecap="round" />
-            <path d={`M${n2(len * 0.24)} ${n2(-wid * 0.42)}Q${n2(len * 0.36)} 0 ${n2(len * 0.24)} ${n2(wid * 0.42)}`} stroke="#22344f" strokeOpacity={0.5} strokeWidth={n2(wid * 0.012)} fill="none" />
-            <path d={`M${n2(-len * 0.06)} ${n2(-wid * 0.5)}v${n2(wid * 0.06)}M${n2(-len * 0.06)} ${n2(wid * 0.5)}v${n2(-wid * 0.06)}`} stroke="#22344f" strokeWidth={n2(wid * 0.012)} />
-            <ellipse cx={n2(len * 0.08)} cy={n2(-wid * 0.54)} rx={n2(wid * 0.07)} ry={n2(wid * 0.04)} fill="#3f5f8e" />
-            <ellipse cx={n2(len * 0.08)} cy={n2(wid * 0.54)} rx={n2(wid * 0.07)} ry={n2(wid * 0.04)} fill="#3f5f8e" />
+            <path d={`M${n2(len * 0.24)} ${n2(-wid * 0.42)}Q${n2(len * 0.36)} 0 ${n2(len * 0.24)} ${n2(wid * 0.42)}`} stroke={tone(paint, -0.55)} strokeOpacity={0.5} strokeWidth={n2(wid * 0.012)} fill="none" />
+            <path d={`M${n2(-len * 0.06)} ${n2(-wid * 0.5)}v${n2(wid * 0.06)}M${n2(-len * 0.06)} ${n2(wid * 0.5)}v${n2(-wid * 0.06)}`} stroke={tone(paint, -0.55)} strokeWidth={n2(wid * 0.012)} />
+            <ellipse cx={n2(len * 0.08)} cy={n2(-wid * 0.54)} rx={n2(wid * 0.07)} ry={n2(wid * 0.04)} fill={tone(paint, -0.15)} />
+            <ellipse cx={n2(len * 0.08)} cy={n2(wid * 0.54)} rx={n2(wid * 0.07)} ry={n2(wid * 0.04)} fill={tone(paint, -0.15)} />
             <path d={circles([-1, 1].map((j): Dot => [x1 - wid * 0.07, j * wid * 0.32, wid * 0.06]))} fill="#f6f1d8" />
             <path d={`M${n2(x0 + wid * 0.03)} ${n2(-wid * 0.38)}v${n2(wid * 0.14)}M${n2(x0 + wid * 0.03)} ${n2(wid * 0.38)}v${n2(-wid * 0.14)}`} stroke="#d0312d" strokeWidth={n2(wid * 0.05)} strokeLinecap="round" />
           </>
@@ -1689,10 +1904,11 @@ export const PICTURES: Record<string, Picture> = {
   furniture: {
     label: 'Seating',
     group: 'outdoor',
+    variants: choices(CUSHIONS),
     around: 'meadow',
-    thing: (b, p) => {
+    thing: (b, p, o) => {
       const {cx, cy, r} = middle(b);
-      const rnd = random(p + 'seat');
+      const rnd = random(o.seed + 'seat');
       const tr = r * 0.4;
       return (
         <>
@@ -1704,7 +1920,7 @@ export const PICTURES: Record<string, Picture> = {
           </defs>
           {[45, 135, 225, 315].map((deg) => {
             const a = (deg * PI) / 180;
-            return chair(cx + Math.cos(a) * r * 0.66, cy + Math.sin(a) * r * 0.66, r * 0.32, deg + 90);
+            return chair(cx + Math.cos(a) * r * 0.66, cy + Math.sin(a) * r * 0.66, r * 0.32, deg + 90, pick(o, CUSHIONS).c);
           })}
           {halo(p + 'h', cx, cy, tr * 1.15, tr * 1.15, 0.3)}
           <circle cx={n2(cx)} cy={n2(cy)} r={n2(tr)} fill={`url(#${p}t)`} />
@@ -1719,17 +1935,18 @@ export const PICTURES: Record<string, Picture> = {
   table: {
     label: 'Table',
     group: 'outdoor',
+    variants: choices(CUSHIONS),
     long: true,
     around: 'meadow',
-    thing: (b, p) =>
+    thing: (b, p, o) =>
       along(b, (l, d) => {
-        const rnd = random(p + 'table');
+        const rnd = random(o.seed + 'table');
         const c = Math.min(l * 0.17, d * 0.25);
         const [tl, td] = [l * 0.78, Math.max(d - 2 * c * 1.3, d * 0.3)];
         const places = [-1, 0, 1].flatMap((i) => [-1, 1].map((s) => ({x: i * tl * 0.3, s})));
         return (
           <>
-            {places.map(({x, s}) => chair(x, s * (td / 2 + c * 0.55), c, s < 0 ? 0 : 180))}
+            {places.map(({x, s}) => chair(x, s * (td / 2 + c * 0.55), c, s < 0 ? 0 : 180, pick(o, CUSHIONS).c))}
             {softBox(-tl / 2, -td / 2, tl, td, td * 0.06, td * 0.07)}
             <rect x={n2(-tl / 2)} y={n2(-td / 2)} width={n2(tl)} height={n2(td)} rx={n2(td * 0.06)} fill="#8f6640" />
             {boards(-tl / 2 + td * 0.04, -td / 2 + td * 0.04, tl - td * 0.08, td * 0.92, 4, '#b5864f', rnd)}
@@ -1751,18 +1968,20 @@ export const PICTURES: Record<string, Picture> = {
   bench: {
     label: 'Bench',
     group: 'outdoor',
+    variants: choices(BENCHES),
     long: true,
     around: 'meadow',
-    thing: (b, p) =>
+    thing: (b, p, o) =>
       along(inset(b, 0.1), (l, d) => {
-        const rnd = random(p + 'bench');
+        const rnd = random(o.seed + 'bench');
         const [bl, bd] = [l * 0.9, Math.min(d * 0.55, l * 0.3)];
+        const wood = pick(o, BENCHES).c;
         return (
           <>
             {softBox(-bl / 2, -bd / 2, bl, bd, bd * 0.06, bd * 0.12)}
-            {boards(-bl / 2, -bd * 0.18, bl, bd * 0.68, 3, '#a8794a', rnd)}
-            <rect x={n2(-bl / 2)} y={n2(-bd / 2)} width={n2(bl)} height={n2(bd * 0.24)} rx={n2(bd * 0.04)} fill="#7a5530" />
-            <rect x={n2(-bl / 2)} y={n2(-bd / 2)} width={n2(bl)} height={n2(bd * 0.08)} rx={n2(bd * 0.03)} fill="#a8794a" />
+            {boards(-bl / 2, -bd * 0.18, bl, bd * 0.68, 3, wood, rnd)}
+            <rect x={n2(-bl / 2)} y={n2(-bd / 2)} width={n2(bl)} height={n2(bd * 0.24)} rx={n2(bd * 0.04)} fill={tone(wood, -0.3)} />
+            <rect x={n2(-bl / 2)} y={n2(-bd / 2)} width={n2(bl)} height={n2(bd * 0.08)} rx={n2(bd * 0.03)} fill={wood} />
             {[-1, 1].map((s) => (
               <rect key={s} x={n2(s * (bl / 2 - bd * 0.06) - bd * 0.06)} y={n2(-bd / 2)} width={n2(bd * 0.12)} height={n2(bd)} rx={n2(bd * 0.05)} fill="#3a3c3f" />
             ))}
@@ -1773,14 +1992,15 @@ export const PICTURES: Record<string, Picture> = {
   lounger: {
     label: 'Sun lounger',
     group: 'outdoor',
+    variants: choices(STRIPES),
     long: true,
     around: 'meadow',
-    thing: (b, p) =>
+    thing: (b, p, o) =>
       along(b, (l, d) => {
         const ll = Math.min(l * 0.95, d * 2.6);
         const ld = ll / 2.6;
         const stripes = Array.from({length: 7}, (_, i) => (
-          <rect key={i} x={n2(-ll / 2 + ld * 0.1)} y={n2(-ld / 2 + ld * 0.12 + (ld * 0.76 * i) / 7)} width={n2(ll - ld * 0.2)} height={n2((ld * 0.76) / 14)} fill="#4e86b5" opacity={0.5} />
+          <rect key={i} x={n2(-ll / 2 + ld * 0.1)} y={n2(-ld / 2 + ld * 0.12 + (ld * 0.76 * i) / 7)} width={n2(ll - ld * 0.2)} height={n2((ld * 0.76) / 14)} fill={pick(o, STRIPES).c} opacity={0.5} />
         ));
         return (
           <>
@@ -1801,15 +2021,16 @@ export const PICTURES: Record<string, Picture> = {
   lounge: {
     label: 'Lounge sofa',
     group: 'outdoor',
+    variants: choices(LOUNGES),
     long: true,
     around: 'wood',
-    thing: (b, p) =>
+    thing: (b, p, o) =>
       along(inset(b, 0.06), (l, d) => {
         const t = Math.min(l, d) * 0.24;
         const [x0, y0] = [-l / 2, -d / 2];
         const weave: string[] = [];
         for (let k = 0; k < l + d; k += t * 0.22) weave.push(`M${n2(x0 + k)} ${n2(y0)}l${n2(-d)} ${n2(d)}`);
-        const cushion = '#cfd5d8';
+        const cushion = pick(o, LOUNGES).c;
         const pillows = [
           {x: x0 + l * 0.32, y: y0 + t * 0.5, c: '#e0a83a', turn: -8},
           {x: x0 + t * 0.5, y: y0 + d * 0.62, c: '#3f8f8a', turn: 12},
@@ -1846,11 +2067,13 @@ export const PICTURES: Record<string, Picture> = {
   grill: {
     label: 'Barbecue',
     group: 'outdoor',
+    variants: choices(GRILLS),
     around: 'paving',
-    thing: (b, p) => {
+    thing: (b, p, o) => {
       const {cx, cy, r} = middle(b);
-      const rnd = random(p + 'grill');
+      const rnd = random(o.seed + 'grill');
       const g = r * 0.6;
+      const enamel = pick(o, GRILLS).c;
       const bars = Array.from({length: 9}, (_, i) => {
         const y = cy - g * 0.8 + (i + 0.5) * ((g * 1.6) / 9);
         const half = Math.sqrt(Math.max(0, (g * 0.82) ** 2 - (y - cy) ** 2));
@@ -1866,9 +2089,9 @@ export const PICTURES: Record<string, Picture> = {
         <>
           <defs>
             <radialGradient id={p + 'k'} cx={0.42} cy={0.4} r={0.6} fx={0.3} fy={0.26}>
-              <stop offset={0} stopColor="#5d636b" />
-              <stop offset={0.5} stopColor="#24272b" />
-              <stop offset={1} stopColor="#0b0c0e" />
+              <stop offset={0} stopColor={tone(enamel, 0.35)} />
+              <stop offset={0.5} stopColor={enamel} />
+              <stop offset={1} stopColor={tone(enamel, -0.6)} />
             </radialGradient>
             <radialGradient id={p + 'e'}>
               <stop offset={0} stopColor="#ff9a3c" />
@@ -1879,7 +2102,7 @@ export const PICTURES: Record<string, Picture> = {
           </defs>
           {halo(p + 'h', cx, cy, g * 1.3, g * 1.3)}
           <path d={`M${n2(cx + g * 0.92)} ${n2(cy - g * 0.55)}A${n2(g * 0.62)} ${n2(g * 0.62)} 0 0 1 ${n2(cx + g * 0.92)} ${n2(cy + g * 0.55)}Z`} fill={`url(#${p}k)`} transform={`translate(${n2(g * 0.18)} 0)`} />
-          <circle cx={n2(cx)} cy={n2(cy)} r={n2(g)} fill="#1b1d20" />
+          <circle cx={n2(cx)} cy={n2(cy)} r={n2(g)} fill={tone(enamel, -0.25)} />
           {rimLight(cx, cy, g * 0.97, g * 0.04, 0.35)}
           <circle cx={n2(cx)} cy={n2(cy)} r={n2(g * 0.86)} fill={`url(#${p}e)`} />
           <path d={circles(coals)} fill="#ffcf6a" opacity={0.7} />
@@ -1905,12 +2128,13 @@ export const PICTURES: Record<string, Picture> = {
   hammock: {
     label: 'Hammock',
     group: 'outdoor',
+    variants: choices(HAMMOCKS),
     long: true,
     around: 'meadow',
-    thing: (b, p) =>
+    thing: (b, p, o) =>
       along(inset(b, 0.05), (l, d) => {
         const w = Math.min(d * 0.32, l * 0.15);
-        const colors = ['#e0a83a', '#d4693f', '#3f8f8a', '#efe6d0', '#c94c4c'];
+        const colors = pick(o, HAMMOCKS).c;
         const ends = l * 0.46;
         const fabric = `M${n2(-l * 0.32)} 0Q0 ${n2(-w * 1.5)} ${n2(l * 0.32)} 0Q0 ${n2(w * 1.5)} ${n2(-l * 0.32)} 0Z`;
         return (
@@ -1947,11 +2171,11 @@ export const PICTURES: Record<string, Picture> = {
     label: 'Parasol',
     group: 'outdoor',
     around: 'meadow',
-    thing: (b, p) => {
+    variants: choices(FABRICS),
+    thing: (b, p, o) => {
       const {cx, cy, r} = middle(b);
       const n = 8;
-      const fabrics: [string, string][] = [['#ece2cb', '#ece2cb'], ['#c9643f', '#c9643f'], ['#8fae8a', '#8fae8a'], ['#f2efe6', '#3f6f9f'], ['#f2efe6', '#c9643f']];
-      const [c, c2] = fabrics[Math.floor(random(p + 'parasol')() * fabrics.length)];
+      const [c, c2] = pick(o, FABRICS, true).c;
       const pts = Array.from({length: n}, (_, i): Pt => [cx + Math.cos(((i + 0.5) * 2 * PI) / n) * r * 0.9, cy + Math.sin(((i + 0.5) * 2 * PI) / n) * r * 0.9]);
       return (
         <>
@@ -1978,10 +2202,11 @@ export const PICTURES: Record<string, Picture> = {
   sunSail: {
     label: 'Shade sail',
     group: 'outdoor',
+    variants: choices(SAILS),
     around: 'meadow',
-    thing: (b, p) => {
+    thing: (b, p, o) => {
       const {cx, cy, r} = middle(b);
-      const c = '#e6dcc4';
+      const c = pick(o, SAILS).c;
       const corners = [-90, 30, 150].map((deg): Pt => [cx + Math.cos((deg * PI) / 180) * r * 0.86, cy + Math.sin((deg * PI) / 180) * r * 0.86]);
       const edge = (a: Pt, e: Pt) => {
         const [mx, my] = [(a[0] + e[0]) / 2, (a[1] + e[1]) / 2];
@@ -2005,9 +2230,9 @@ export const PICTURES: Record<string, Picture> = {
     label: 'Fire pit',
     group: 'outdoor',
     around: 'gravel',
-    thing: (b, p) => {
+    thing: (b, p, o) => {
       const {cx, cy, r} = middle(b);
-      const rnd = random(p + 'fire');
+      const rnd = random(o.seed + 'fire');
       const stones = Array.from({length: 12}, (_, i) => {
         const a = (i / 12) * 2 * PI;
         return blob(cx + Math.cos(a) * r * 0.74, cy + Math.sin(a) * r * 0.74, r * 0.15, r * 0.12, rnd, 7, 0.15);
@@ -2052,10 +2277,12 @@ export const PICTURES: Record<string, Picture> = {
   lamp: {
     label: 'Garden lamp',
     group: 'outdoor',
+    variants: choices(LAMPS),
     around: 'meadow',
-    thing: (b, p) => {
+    thing: (b, p, o) => {
       const {cx, cy, r} = middle(b);
       const s = r * 0.34;
+      const metal = pick(o, LAMPS).c;
       return (
         <>
           <defs>
@@ -2067,12 +2294,12 @@ export const PICTURES: Record<string, Picture> = {
           <circle cx={n2(cx)} cy={n2(cy)} r={n2(s * 2.1)} fill={`url(#${p}g)`} data-halo="" />
           {halo(p + 'h', cx, cy, s * 1.45, s * 1.45, 0.32)}
           <rect x={n2(cx - s * 0.92)} y={n2(cy - s * 0.92)} width={n2(s * 1.84)} height={n2(s * 1.84)} rx={n2(s * 0.08)} fill="#ffe6a3" stroke="#d8b25a" strokeWidth={n2(s * 0.04)} />
-          <polygon points={poly([[cx - s * 0.8, cy - s * 0.8], [cx + s * 0.8, cy - s * 0.8], [cx, cy]])} fill="#4a4e53" />
-          <polygon points={poly([[cx + s * 0.8, cy - s * 0.8], [cx + s * 0.8, cy + s * 0.8], [cx, cy]])} fill="#2c2f33" />
-          <polygon points={poly([[cx + s * 0.8, cy + s * 0.8], [cx - s * 0.8, cy + s * 0.8], [cx, cy]])} fill="#25282b" />
-          <polygon points={poly([[cx - s * 0.8, cy + s * 0.8], [cx - s * 0.8, cy - s * 0.8], [cx, cy]])} fill="#3d4146" />
-          <path d={`M${n2(cx - s * 0.8)} ${n2(cy - s * 0.8)}L${n2(cx + s * 0.8)} ${n2(cy + s * 0.8)}M${n2(cx + s * 0.8)} ${n2(cy - s * 0.8)}L${n2(cx - s * 0.8)} ${n2(cy + s * 0.8)}`} stroke="#5d6268" strokeWidth={n2(s * 0.04)} />
-          <rect x={n2(cx - s * 0.22)} y={n2(cy - s * 0.22)} width={n2(s * 0.44)} height={n2(s * 0.44)} fill="#55595e" stroke="#1c1e21" strokeWidth={n2(s * 0.03)} />
+          <polygon points={poly([[cx - s * 0.8, cy - s * 0.8], [cx + s * 0.8, cy - s * 0.8], [cx, cy]])} fill={tone(metal, 0.14)} />
+          <polygon points={poly([[cx + s * 0.8, cy - s * 0.8], [cx + s * 0.8, cy + s * 0.8], [cx, cy]])} fill={tone(metal, -0.25)} />
+          <polygon points={poly([[cx + s * 0.8, cy + s * 0.8], [cx - s * 0.8, cy + s * 0.8], [cx, cy]])} fill={tone(metal, -0.38)} />
+          <polygon points={poly([[cx - s * 0.8, cy + s * 0.8], [cx - s * 0.8, cy - s * 0.8], [cx, cy]])} fill={metal} />
+          <path d={`M${n2(cx - s * 0.8)} ${n2(cy - s * 0.8)}L${n2(cx + s * 0.8)} ${n2(cy + s * 0.8)}M${n2(cx + s * 0.8)} ${n2(cy - s * 0.8)}L${n2(cx - s * 0.8)} ${n2(cy + s * 0.8)}`} stroke={tone(metal, 0.25)} strokeWidth={n2(s * 0.04)} />
+          <rect x={n2(cx - s * 0.22)} y={n2(cy - s * 0.22)} width={n2(s * 0.44)} height={n2(s * 0.44)} fill={tone(metal, 0.2)} stroke={tone(metal, -0.5)} strokeWidth={n2(s * 0.03)} />
           <circle cx={n2(cx)} cy={n2(cy)} r={n2(s * 0.1)} fill="#1c1e21" />
         </>
       );
@@ -2084,9 +2311,9 @@ export const PICTURES: Record<string, Picture> = {
     label: 'Rotary dryer',
     group: 'other',
     around: 'meadow',
-    thing: (b, p) => {
+    thing: (b, p, o) => {
       const {cx, cy, r} = middle(b);
-      const rnd = random(p + 'dryer');
+      const rnd = random(o.seed + 'dryer');
       const colors = ['#f4f1ea', '#8cc0e6', '#f2b8c6', '#f2d36b', '#9bcf8a', '#f4f1ea', '#d9824f'];
       const lines = [0.36, 0.56, 0.76, 0.93];
       // laundry on the lines: a side of a square and how far along
@@ -2123,9 +2350,9 @@ export const PICTURES: Record<string, Picture> = {
     label: 'Compost',
     group: 'other',
     around: 'soil',
-    thing: (b, p) => {
+    thing: (b, p, o) => {
       const {cx, cy, r} = middle(b);
-      const rnd = random(p + 'compost');
+      const rnd = random(o.seed + 'compost');
       const s = r * 0.8;
       const f = s * 0.1;
       const fresh = scatter(rnd, 40, cx - s / 2, cy, s * 0.4, [f * 0.25, f * 0.5]);
@@ -2186,9 +2413,9 @@ export const PICTURES: Record<string, Picture> = {
     group: 'other',
     long: true,
     around: 'gravel',
-    thing: (b, p) =>
+    thing: (b, p, o) =>
       along(inset(b, 0.05), (l, d) => {
-        const rnd = random(p + 'wood');
+        const rnd = random(o.seed + 'wood');
         const n = Math.max(4, Math.round(l / (d * 0.2)));
         const lw = l / n;
         return (
@@ -2218,10 +2445,11 @@ export const PICTURES: Record<string, Picture> = {
   birdhouse: {
     label: 'Bird feeder',
     group: 'other',
+    variants: choices(SMALL_ROOFS),
     around: 'meadow',
-    thing: (b, p) => {
+    thing: (b, p, o) => {
       const {cx, cy, r} = middle(b);
-      const rnd = random(p + 'bird');
+      const rnd = random(o.seed + 'bird');
       const seeds = scatter(rnd, 30, cx, cy, r * 0.95, [r * 0.008, r * 0.016], (v) => 0.6 + 0.4 * v);
       const s = r * 0.5;
       const bird = {x: cx + s * 0.8, y: cy + s * 0.6};
@@ -2233,7 +2461,7 @@ export const PICTURES: Record<string, Picture> = {
           <rect x={n2(cx - s * 0.95)} y={n2(cy - s * 0.95)} width={n2(s * 1.9)} height={n2(s * 1.9)} rx={n2(s * 0.06)} fill="#9c7447" />
           <rect x={n2(cx - s * 0.85)} y={n2(cy - s * 0.85)} width={n2(s * 1.7)} height={n2(s * 1.7)} fill="#d8c08c" />
           <path d={circles(scatter(rnd, 20, cx, cy, s * 0.8, [s * 0.025, s * 0.04]))} fill="#a88a52" />
-          <g transform={`translate(${n2(cx)} ${n2(cy)})`}>{gableRoof(p, s * 1.5, s * 1.3, '#a24a36', s * 0.18)}</g>
+          <g transform={`translate(${n2(cx)} ${n2(cy)})`}>{gableRoof(p, s * 1.5, s * 1.3, pick(o, SMALL_ROOFS).c, s * 0.18)}</g>
           <g transform={`translate(${n2(bird.x)} ${n2(bird.y)}) scale(${k}) translate(${n2(-bird.x)} ${n2(-bird.y)})`}>
             <ellipse cx={n2(bird.x + s * 0.06)} cy={n2(bird.y + s * 0.08)} rx={n2(s * 0.24)} ry={n2(s * 0.16)} fill="#000" opacity={0.2} />
             <path d={`M${n2(bird.x - s * 0.2)} ${n2(bird.y)}l${n2(-s * 0.2)} ${n2(-s * 0.09)}l0 ${n2(s * 0.18)}Z`} fill="#6b4329" />
@@ -2251,11 +2479,12 @@ export const PICTURES: Record<string, Picture> = {
   statue: {
     label: 'Statue',
     group: 'other',
+    variants: choices(STATUES),
     around: 'gravel',
-    thing: (b, p) => {
+    thing: (b, p, o) => {
       const {cx, cy, r} = middle(b);
       const s = r * 0.62;
-      const stone = '#cdc7ba';
+      const stone = pick(o, STATUES).c;
       const [fx, fy] = [cx, cy + s * 0.12];
       // an angel from above: the wings spread back from the shoulders, feathers along their edge
       const wing = (side: number) =>
@@ -2299,9 +2528,9 @@ export const PICTURES: Record<string, Picture> = {
     label: 'Rocks',
     group: 'other',
     around: 'meadow',
-    thing: (b, p) => {
+    thing: (b, p, o) => {
       const {cx, cy, r} = middle(b);
-      const rnd = random(p + 'rocks');
+      const rnd = random(o.seed + 'rocks');
       const rocks = [
         {x: cx - r * 0.22, y: cy - r * 0.12, rx: r * 0.5, ry: r * 0.42},
         {x: cx + r * 0.36, y: cy + r * 0.3, rx: r * 0.36, ry: r * 0.3},
@@ -2330,26 +2559,28 @@ export const PICTURES: Record<string, Picture> = {
   gnome: {
     label: 'Garden gnome',
     group: 'other',
+    variants: choices(HATS),
     around: 'meadow',
-    thing: (b, p) => {
+    thing: (b, p, o) => {
       const {cx, cy, r} = middle(b);
       const s = r * 0.55;
+      const look = pick(o, HATS);
       return (
         <>
           <defs>
             <radialGradient id={p + 'c'} cx={0.5} cy={0.62} r={0.6} fx={0.48} fy={0.72}>
-              <stop offset={0} stopColor="#ff6b5e" />
-              <stop offset={0.6} stopColor="#d9302a" />
-              <stop offset={1} stopColor="#8f1914" />
+              <stop offset={0} stopColor={tone(look.hat, 0.3)} />
+              <stop offset={0.6} stopColor={look.hat} />
+              <stop offset={1} stopColor={tone(look.hat, -0.45)} />
             </radialGradient>
-            {ball(p + 'b', '#2f64b5', 0.3, -0.35)}
+            {ball(p + 'b', look.coat, 0.3, -0.35)}
           </defs>
           {halo(p + 'h', cx, cy, s * 1.1, s * 1.1, 0.32)}
           <path d={circles([-1, 1].map((i): Dot => [cx + i * s * 0.28, cy + s * 0.62, s * 0.16]))} fill="#2a2522" />
           <ellipse cx={n2(cx)} cy={n2(cy + s * 0.18)} rx={n2(s * 0.62)} ry={n2(s * 0.48)} fill={`url(#${p}b)`} />
           <path d={circles([[cx - s * 0.2, cy + s * 0.34, s * 0.2], [cx + s * 0.2, cy + s * 0.34, s * 0.2], [cx, cy + s * 0.44, s * 0.22], [cx, cy + s * 0.22, s * 0.24]])} fill="#f4f1ea" stroke="#cfc8bb" strokeWidth={n2(s * 0.02)} />
           <circle cx={n2(cx)} cy={n2(cy - s * 0.08)} r={n2(s * 0.46)} fill={`url(#${p}c)`} />
-          <circle cx={n2(cx + s * 0.02)} cy={n2(cy + s * 0.12)} r={n2(s * 0.08)} fill="#ff8a7a" />
+          <circle cx={n2(cx + s * 0.02)} cy={n2(cy + s * 0.12)} r={n2(s * 0.08)} fill={tone(look.hat, 0.4)} />
           <path d={circles([-1, 1].map((i): Dot => [cx + i * s * 0.6, cy + s * 0.2, s * 0.1]))} fill="#f0c2a0" />
         </>
       );

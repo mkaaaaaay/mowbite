@@ -59,6 +59,8 @@ export interface Settings {
   mapStyle?: 'garden';
   // the garden style's picture of a way or an obstacle by area id, picked under the map (else from its name)
   looks?: Record<string, string>;
+  // the color picked for an area's picture that comes in several (a parasol's fabric, a roof), by area id
+  lookVariants?: Record<string, string>;
   // what makes the garden style come alive (components/gardenLife), each off unless switched on
   garden?: Partial<GardenLife>;
   // the mower's sizes in meters for its outline and the strip its blade cuts on the map (lib/mowerBody)
