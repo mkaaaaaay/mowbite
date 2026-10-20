@@ -47,8 +47,9 @@ export const autoMowAngle = mowStripes.autoMowAngle;
 export const PICTURE_KEYS = gardenPictures.PICTURE_KEYS;
 // id starts the ids of the picture's gradients and clips: one of its own for every picture in a page. seed varies the picture
 // (the area's id), variant is the color picked for it (settings.lookVariants of the area), m svg units per meter (steps,
-// chairs at their real size, left out it's worked out from the box)
-export const drawThing = (look, box, id, seed, variant, m) => render(gardenLook.drawThing(look, box, id, {seed, variant, m}));
+// chairs at their real size, left out it's worked out from the box), edge a bed's real edge as [x, y] in the box's units
+// (the herb garden's border goes along it)
+export const drawThing = (look, box, id, seed, variant, m, edge) => render(gardenLook.drawThing(look, box, id, {seed, variant, m, edge}));
 // the lawns' stripes, the grounds' textures and the things' clip paths, m: svg units per meter
 export const gardenDefs = (uid, m, lawns, clips) => render(gardenLook.GardenDefs({uid, m, lawns, clips}));
 

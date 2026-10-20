@@ -36,6 +36,34 @@ describe('areaLook', () => {
     expect(areaLook(area('Brücke', 'nav'))).toBe('bridge');
   });
 
+  it('knows the plants and beds by their names', () => {
+    const names: [string, string][] = [
+      ['Schmetterlingsflieder', 'butterflyBush'],
+      ['Flieder', 'floweringBush'],
+      ['Hortensien', 'hydrangea'],
+      ['Rhododendron', 'rhododendron'],
+      ['Rosenbeet', 'roseBed'],
+      ['Rosen', 'rose'],
+      ['Rosenbogen', 'pergola'],
+      ['Lavendel', 'lavender'],
+      ['Buchskugel', 'boxwood'],
+      ['Farn', 'fern'],
+      ['Ziergras', 'grass'],
+      ['Rasen', 'meadow'],
+      ['Funkien', 'hosta'],
+      ['Bambus', 'bamboo'],
+      ['Fächerahorn', 'japaneseMaple'],
+      ['Staudenbeet', 'perennialBed'],
+      ['Tulpen', 'springBed'],
+      ['Sommerblumen', 'summerBed'],
+      ['Efeu', 'groundCover'],
+      ['Kräutergarten', 'herbGarden'],
+      ['Kräuterspirale', 'herbSpiral'],
+      ['Gemüsebeet', 'vegetables'],
+    ];
+    for (const [name, look] of names) expect([name, areaLook(area(name))]).toEqual([name, look]);
+  });
+
   it('knows a stump from a tree', () => {
     expect(areaLook(area('Baumstumpf'))).toBe('stump');
     expect(areaLook(area('Baumscheibe'))).toBe('tree');
@@ -149,6 +177,15 @@ describe('placeThings', () => {
     const [p] = placeThings('car', rect(9, 6), m, 'a');
     expect(p.w).toBeCloseTo(5.2 * m, 5);
     expect(p.h).toBeCloseTo(2.3 * m, 5);
+  });
+
+  it('spreads a bed over its whole area', () => {
+    const o = [
+      {x: 0, y: 0},
+      {x: 40, y: 0},
+      {x: 30, y: 20},
+    ];
+    expect(placeThings('perennialBed', o, m, 'a')).toEqual([{cx: 20, cy: 10, deg: 0, w: 40, h: 20}]);
   });
 
   it('leaves steps as long as their area, but no wider than steps', () => {

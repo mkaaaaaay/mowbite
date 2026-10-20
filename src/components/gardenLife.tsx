@@ -77,6 +77,17 @@ const HEIGHTS: Record<string, number> = {
   stump: 0.4,
   woodStairs: 0.6,
   bridge: 0.7,
+  butterflyBush: 2.2,
+  hydrangea: 1.2,
+  rhododendron: 1.6,
+  rose: 1,
+  boxwood: 0.8,
+  japaneseMaple: 2.5,
+  bamboo: 3,
+  lavender: 0.5,
+  fern: 0.6,
+  grass: 1.2,
+  hosta: 0.4,
 };
 
 export const heightOf = (look: Look) => HEIGHTS[look] ?? 0;
@@ -355,7 +366,13 @@ export function GardenThing({
 }) {
   const one = ({cx, cy, deg, w, h, seed}: Place, k: number) => (
     <g key={k} transform={`translate(${cx} ${cy}) rotate(${deg})`}>
-      {drawThing(thing.look, {x: -w / 2, y: -h / 2, w, h}, `${uid}t${thing.i}${k ? '_' + k : ''}`, {seed: seed ?? thing.id, variant: thing.variant, m: thing.m})}
+      {drawThing(thing.look, {x: -w / 2, y: -h / 2, w, h}, `${uid}t${thing.i}${k ? '_' + k : ''}`, {
+        seed: seed ?? thing.id,
+        variant: thing.variant,
+        m: thing.m,
+        // a bed is never turned, its edge only moved to its middle
+        edge: thing.edge?.map((q): [number, number] => [q.x - cx, q.y - cy]),
+      })}
     </g>
   );
   const group = (ground: boolean, over: boolean) => {

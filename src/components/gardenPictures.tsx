@@ -11,9 +11,11 @@ export interface Box {
   h: number;
 }
 
-export type Group = 'plants' | 'water' | 'play' | 'buildings' | 'outdoor' | 'other' | 'ways' | 'ground';
+export type Group = 'trees' | 'plants' | 'beds' | 'water' | 'play' | 'buildings' | 'outdoor' | 'other' | 'ways' | 'ground';
 export const GROUPS: {key: Group; label: string}[] = [
-  {key: 'plants', label: 'Plants'},
+  {key: 'trees', label: 'Trees and shrubs'},
+  {key: 'plants', label: 'Perennials and grasses'},
+  {key: 'beds', label: 'Beds'},
   {key: 'water', label: 'Water'},
   {key: 'play', label: 'Play'},
   {key: 'buildings', label: 'Buildings'},
@@ -36,6 +38,8 @@ export interface ThingOptions {
   variant?: string;
   // svg units per meter, for what has a size of its own (a step, a chair), else worked out from the box
   m?: number;
+  // a bed's real edge in the box's units, for a border along it
+  edge?: [number, number][];
 }
 export interface Picture {
   label: string;
@@ -58,6 +62,8 @@ export interface Picture {
   many?: boolean;
   // a way can be drawn as it too (steps, a bridge), any other thing only an obstacle
   way?: boolean;
+  // fills its whole area like a ground, but planted anew for every area (a bed)
+  fill?: boolean;
   // a ground: the texture
   tile?: Tile;
 }
@@ -234,6 +240,25 @@ function crown(p: string, cx: number, cy: number, r: number, c: string, rnd: () 
       <path d={circles(dark)} fill={tone(c, -0.32)} opacity={0.5} />
       <path d={circles(lit)} fill={tone(c, 0.26)} opacity={0.5} />
       <path d={circles(specks)} fill={tone(c, -0.5)} opacity={0.45} />
+    </>
+  );
+}
+
+// a crown, a big one (meters across, from 6 on) as several crowns of branches leaning together, the ones up left lying
+// over the others in the light
+function bigCrown(p: string, cx: number, cy: number, r: number, c: string, rnd: () => number, meters: number) {
+  if (meters < 6) return crown(p, cx, cy, r, c, rnd);
+  const n = Math.min(9, Math.round(meters / 1.6));
+  const parts = Array.from({length: n}, (_, i): Dot => {
+    const a = ((i + rnd() * 0.5) / n) * 2 * PI;
+    return [cx + Math.cos(a) * r * 0.52, cy + Math.sin(a) * r * 0.52, r * (0.46 + rnd() * 0.08)];
+  }).sort((a, e) => e[0] + e[1] - (a[0] + a[1]));
+  return (
+    <>
+      {parts.map(([x, y, rr], i) => (
+        <g key={i}>{crown(`${p}c${i}`, x, y, rr, tone(c, ((cx - x + cy - y) / r) * 0.08), rnd, 8, 0.37, 12)}</g>
+      ))}
+      {crown(`${p}cm`, cx - r * 0.04, cy - r * 0.05, r * 0.5, tone(c, 0.05), rnd, 8, 0.37, 12)}
     </>
   );
 }
@@ -456,6 +481,71 @@ function strewn(kind: 'gravel' | 'bark' | 'grass', x: number, y: number, w: numb
   );
 }
 
+// a leaf from above, pointed at both ends: from x, y along a (radians), l long, about w wide
+const leaf = (x: number, y: number, a: number, l: number, w: number) => {
+  const [c, s] = [Math.cos(a), Math.sin(a)];
+  const [mx, my] = [x + (c * l) / 2, y + (s * l) / 2];
+  const [nx, ny] = [-s * w, c * w];
+  return `M${n2(x)} ${n2(y)}Q${n2(mx + nx)} ${n2(my + ny)} ${n2(x + c * l)} ${n2(y + s * l)}Q${n2(mx - nx)} ${n2(my - ny)} ${n2(x)} ${n2(y)}Z`;
+};
+// a stalk or a blade from x, y along a, l long, bent sideways by bend of its length
+const stalk = (x: number, y: number, a: number, l: number, bend: number) => {
+  const [c, s] = [Math.cos(a), Math.sin(a)];
+  return `M${n2(x)} ${n2(y)}Q${n2(x + (c * l) / 2 - s * bend * l)} ${n2(y + (s * l) / 2 + c * bend * l)} ${n2(x + c * l)} ${n2(y + s * l)}`;
+};
+// the point t of the way along such a stalk, and which way it goes there
+const onStalk = (x: number, y: number, a: number, l: number, bend: number, t: number): [number, number, number] => {
+  const [c, s] = [Math.cos(a), Math.sin(a)];
+  const [qx, qy] = [(c * l) / 2 - s * bend * l, (s * l) / 2 + c * bend * l];
+  const [ex, ey] = [c * l, s * l];
+  const [px, py] = [2 * (1 - t) * t * qx + t * t * ex, 2 * (1 - t) * t * qy + t * t * ey];
+  const [dx, dy] = [2 * (1 - t) * qx + 2 * t * (ex - qx), 2 * (1 - t) * qy + 2 * t * (ey - qy)];
+  return [x + px, y + py, Math.atan2(dy, dx)];
+};
+// places over a box about step apart in rows moved on by half, shaken so no rows show
+const spread = (b: Box, step: number, rnd: () => number, most = 320): Pt[] => {
+  const out: Pt[] = [];
+  const dy = step * 0.87;
+  const rows = Math.ceil(b.h / dy) + 1;
+  const cols = Math.ceil(b.w / step) + 1;
+  // too many for the box: further apart
+  const k = Math.max(1, Math.sqrt((rows * cols) / most));
+  for (let j = 0; j * dy * k < b.h + step; j++) {
+    for (let i = 0; i * step * k < b.w + step; i++) {
+      out.push([b.x + (i + (j % 2) * 0.5 + (rnd() - 0.5) * 0.7) * step * k, b.y + (j + (rnd() - 0.5) * 0.7) * dy * k]);
+    }
+  }
+  return out;
+};
+// a small leafy mound from above, as dots in three tones (lit up left, shaded down right): for the many plants of a bed
+const mound = (x: number, y: number, s: number, rnd: () => number): Dot[][] => {
+  const lobes = Array.from({length: 5}, (_, k): Dot => {
+    const a = (k / 5) * 2 * PI + rnd();
+    return [x + Math.cos(a) * s * 0.42, y + Math.sin(a) * s * 0.42, s * (0.4 + rnd() * 0.12)];
+  });
+  return [
+    lobes.map(([lx, ly, r]) => [lx + s * 0.06, ly + s * 0.08, r]),
+    [...lobes, [x, y, s * 0.5]],
+    lobes.filter((l) => litSide(l, x, y)).map(([lx, ly, r]) => [lx - r * 0.2, ly - r * 0.2, r * 0.5]),
+  ];
+};
+// dots of many plants by color, a path each
+function byColor(list: [Dot, string][]) {
+  const groups = new Map<string, Dot[]>();
+  for (const [d, c] of list) groups.set(c, [...(groups.get(c) ?? []), d]);
+  return [...groups].map(([c, ds]) => <path key={c} d={circles(ds)} fill={c} />);
+}
+// a butterfly sitting with its wings open, s across, its wings c
+const butterfly = (x: number, y: number, s: number, a: number, c: string) => (
+  <g transform={`translate(${n2(x)} ${n2(y)}) rotate(${n2((a * 180) / PI)})`}>
+    <path d={circles([[-s * 0.24, -s * 0.2, s * 0.24], [-s * 0.24, s * 0.2, s * 0.24]])} fill={c} stroke="#2a2522" strokeWidth={n2(s * 0.05)} />
+    <path d={circles([[s * 0.12, -s * 0.16, s * 0.17], [s * 0.12, s * 0.16, s * 0.17]])} fill={tone(c, -0.15)} stroke="#2a2522" strokeWidth={n2(s * 0.05)} />
+    <path d={circles([[-s * 0.3, -s * 0.26, s * 0.06], [-s * 0.3, s * 0.26, s * 0.06]])} fill="#2a2522" />
+    <path d={circles([[-s * 0.3, -s * 0.26, s * 0.025], [-s * 0.3, s * 0.26, s * 0.025]])} fill="#f4f1ea" />
+    <rect x={n2(-s * 0.32)} y={n2(-s * 0.03)} width={n2(s * 0.62)} height={n2(s * 0.06)} rx={n2(s * 0.03)} fill="#2a2522" />
+  </g>
+);
+
 // a few blades of grass standing at x, y in meters
 const tuft = (m: number, x: number, y: number, s = 1) =>
   `M${n2(x * m)} ${n2(y * m)} l${n2(-0.04 * m * s)} ${n2(-0.11 * m * s)} l${n2(0.03 * m * s)} ${n2(0.08 * m * s)} l${n2(0.01 * m * s)} ${n2(-0.12 * m * s)} ` +
@@ -480,11 +570,12 @@ function pick<T>(o: ThingOptions, list: Variants<T>, vary = false): T & {label: 
 }
 const choices = (list: Variants<object>) => Object.entries(list).map(([key, v]) => ({key, label: v.label}));
 
-const TREES: Variants<{c: string}> = {
+const TREES: Variants<{c: string; bloom?: string}> = {
   green: {label: 'Green', c: '#3f7a34'},
   light: {label: 'Light green', c: '#5c9a40'},
   copper: {label: 'Red leaves', c: '#6e3a3c'},
   golden: {label: 'Golden', c: '#9a9f45'},
+  blossom: {label: 'Cherry blossom', c: '#5a8a3f', bloom: '#f6c6d8'},
 };
 const CONIFERS: Variants<{c: string}> = {
   green: {label: 'Green', c: '#2d6b47'},
@@ -692,6 +783,98 @@ const BRIDGES: Variants<{deck: string; rail: string}> = {
   red: {label: 'Red railing', deck: '#a8794a', rail: '#b8452f'},
 };
 
+const BUDDLEJAS: Variants<{c: string}> = {
+  purple: {label: 'Purple', c: '#8a5cc2'},
+  dark: {label: 'Dark purple', c: '#5b2f8a'},
+  pink: {label: 'Pink', c: '#d873b0'},
+  white: {label: 'White', c: '#efece4'},
+};
+const HYDRANGEAS: Variants<{c: [string, string]}> = {
+  blue: {label: 'Blue', c: ['#6f8fd8', '#a9c1f0']},
+  pink: {label: 'Pink', c: ['#e48bb8', '#f6c3dc']},
+  white: {label: 'White', c: ['#dfe4e2', '#ffffff']},
+  purple: {label: 'Purple', c: ['#9a72c9', '#cdb6ea']},
+};
+const RHODOS: Variants<{c: [string, string]}> = {
+  pink: {label: 'Pink', c: ['#d9579a', '#f3a8cd']},
+  purple: {label: 'Purple', c: ['#8a4fbf', '#c7a3e6']},
+  red: {label: 'Red', c: ['#c8302f', '#ee7f78']},
+  white: {label: 'White', c: ['#e9e2e4', '#ffffff']},
+};
+const ROSES: Variants<{c: [string, string]}> = {
+  red: {label: 'Red', c: ['#b81d2a', '#e2525a']},
+  pink: {label: 'Pink', c: ['#e2759f', '#f7bdd2']},
+  yellow: {label: 'Yellow', c: ['#e8b62a', '#f6dc7a']},
+  white: {label: 'White', c: ['#ece6da', '#ffffff']},
+  apricot: {label: 'Apricot', c: ['#f0a070', '#fad0b0']},
+};
+const GRASSES: Variants<{c: string; plume?: string; low?: boolean}> = {
+  green: {label: 'Silver grass', c: '#7a9a4a', plume: '#dcd2ae'},
+  red: {label: 'Red', c: '#8a4a3a', plume: '#d0a090'},
+  pampas: {label: 'Pampas grass', c: '#8fa36a', plume: '#f4efe4'},
+  blue: {label: 'Blue fescue', c: '#7f9fa8', low: true},
+};
+const HOSTAS: Variants<{c: string; edge?: string}> = {
+  green: {label: 'Green', c: '#4f8f3c'},
+  blue: {label: 'Blue-green', c: '#5a8a88'},
+  white: {label: 'White edge', c: '#4a8a3a', edge: '#eef0d8'},
+  gold: {label: 'Golden', c: '#a3b448'},
+};
+const MAPLES: Variants<{c: string}> = {
+  red: {label: 'Red', c: '#9a2a2a'},
+  orange: {label: 'Orange', c: '#d0702a'},
+  green: {label: 'Green', c: '#6a9a3a'},
+};
+const FERNS: Variants<{c: string}> = {
+  green: {label: 'Green', c: '#4f9a3a'},
+  dark: {label: 'Dark green', c: '#2f6b2f'},
+  rust: {label: 'Autumn', c: '#a8743a'},
+};
+const LAVENDERS: Variants<{c: string}> = {
+  purple: {label: 'Purple', c: '#8a6fc4'},
+  blue: {label: 'Blue', c: '#6f7fd0'},
+  white: {label: 'White', c: '#eeeaf2'},
+  pink: {label: 'Pink', c: '#d898c4'},
+};
+const BOXES: Variants<{c: string; shape: 'ball' | 'cone' | 'block'}> = {
+  ball: {label: 'Ball', c: '#3f6f2f', shape: 'ball'},
+  cone: {label: 'Cone', c: '#3a6a2f', shape: 'cone'},
+  block: {label: 'Block', c: '#3f6f2f', shape: 'block'},
+};
+const PERENNIALS: Variants<{c: string[]; grass?: boolean}> = {
+  colorful: {label: 'Colorful', c: ['#8a6fd0', '#e27fae', '#f2c230', '#f4f1ea', '#d9534f']},
+  blue: {label: 'Blue and white', c: ['#6a7fd0', '#9fb2ea', '#f4f1ea', '#8a6fd0']},
+  pink: {label: 'Pink and purple', c: ['#e27fae', '#b05fc0', '#f7c6dc', '#8a6fd0']},
+  warm: {label: 'Warm', c: ['#f2c230', '#e8762a', '#d9534f', '#f6dc7a']},
+  prairie: {label: 'Prairie', c: ['#d873b0', '#f2c230', '#b07ad0', '#e8762a'], grass: true},
+};
+const SPRING: Variants<{c: string[]}> = {
+  colorful: {label: 'Colorful', c: ['#d9302a', '#f2c230', '#e27fae', '#f4f1ea', '#8a4fbf']},
+  red: {label: 'Red and yellow', c: ['#d9302a', '#f2c230']},
+  pink: {label: 'Pink and white', c: ['#e27fae', '#f4f1ea']},
+  purple: {label: 'Purple', c: ['#6a2f8a', '#a37ad6', '#f4f1ea']},
+};
+const SUMMER: Variants<{c: string[]}> = {
+  colorful: {label: 'Colorful', c: ['#e8762a', '#f2c230', '#d9302a', '#e27fae', '#8a4fbf', '#f4f1ea']},
+  warm: {label: 'Warm', c: ['#e8762a', '#f2c230', '#d9302a']},
+  pink: {label: 'Pink and white', c: ['#e27fae', '#f4f1ea', '#c04f8a']},
+  blue: {label: 'Blue and white', c: ['#5a6fd0', '#9fb2ea', '#f4f1ea']},
+};
+const GROUND_COVERS: Variants<{c: string; bloom?: string}> = {
+  ivy: {label: 'Ivy', c: '#2f5a2a'},
+  periwinkle: {label: 'Periwinkle', c: '#2f6a32', bloom: '#7f8fe0'},
+  thyme: {label: 'Thyme', c: '#6f8a5a', bloom: '#c48fd0'},
+  cranesbill: {label: 'Cranesbill', c: '#4f8a3f', bloom: '#d880c0'},
+};
+
+// a bed's border along its edge
+const EDGINGS: Variants<{c: string; kind: 'stone' | 'brick' | 'wood'}> = {
+  stone: {label: 'Natural stone', c: '#a39d92', kind: 'stone'},
+  sandstone: {label: 'Sandstone', c: '#cdb48a', kind: 'stone'},
+  brick: {label: 'Brick', c: '#a8553a', kind: 'brick'},
+  wood: {label: 'Wood', c: '#8a6440', kind: 'wood'},
+};
+
 const WOOD = '#9c7447';
 const STONE = '#b3ad9f';
 const WATER = '#2f86bf';
@@ -700,7 +883,7 @@ export const PICTURES: Record<string, Picture> = {
   // plants
   tree: {
     label: 'Tree',
-    group: 'plants',
+    group: 'trees',
     size: [3.5, 8],
     over: true,
     many: true,
@@ -708,17 +891,25 @@ export const PICTURES: Record<string, Picture> = {
     around: 'meadow',
     thing: (b, p, o) => {
       const {cx, cy, r} = middle(b);
+      const kind = pick(o, TREES);
+      const flowers = kind.bloom ? scatter(random(o.seed + 'bloom'), 110, cx, cy, r * 0.82, [r * 0.018, r * 0.032]) : [];
       return (
         <>
           {halo(p + 'h', cx, cy, r, r * 0.96)}
-          {crown(p, cx, cy, r * 0.92, pick(o, TREES).c, random(o.seed + 'tree'))}
+          {bigCrown(p, cx, cy, r * 0.92, kind.c, random(o.seed + 'tree'), o.m ? (2 * r) / o.m : 0)}
+          {kind.bloom && (
+            <>
+              <path d={circles(flowers)} fill={kind.bloom} />
+              <path d={circles(flowers.filter((f) => litSide(f, cx, cy)).map(([x, y, s]) => [x - s * 0.3, y - s * 0.3, s * 0.5]))} fill="#fff" opacity={0.7} />
+            </>
+          )}
         </>
       );
     },
   },
   conifer: {
     label: 'Conifer',
-    group: 'plants',
+    group: 'trees',
     size: [0.8, 5],
     many: true,
     variants: choices(CONIFERS),
@@ -767,7 +958,7 @@ export const PICTURES: Record<string, Picture> = {
   },
   fruitTree: {
     label: 'Fruit tree',
-    group: 'plants',
+    group: 'trees',
     size: [3, 6],
     over: true,
     many: true,
@@ -799,7 +990,7 @@ export const PICTURES: Record<string, Picture> = {
   },
   palm: {
     label: 'Palm',
-    group: 'plants',
+    group: 'trees',
     size: [2.5, 5],
     over: true,
     many: true,
@@ -863,7 +1054,7 @@ export const PICTURES: Record<string, Picture> = {
   },
   bush: {
     label: 'Bush',
-    group: 'plants',
+    group: 'trees',
     size: [0.8, 2.2],
     many: true,
     variants: choices(BUSHES),
@@ -880,7 +1071,7 @@ export const PICTURES: Record<string, Picture> = {
   },
   floweringBush: {
     label: 'Flowering shrub',
-    group: 'plants',
+    group: 'trees',
     size: [0.8, 2.5],
     many: true,
     variants: choices(BLOOMS),
@@ -904,9 +1095,266 @@ export const PICTURES: Record<string, Picture> = {
       );
     },
   },
+  butterflyBush: {
+    label: 'Butterfly bush',
+    group: 'trees',
+    variants: choices(BUDDLEJAS),
+    size: [1.2, 3],
+    many: true,
+    around: 'meadow',
+    thing: (b, p, o) => {
+      const {cx, cy, r} = middle(b);
+      const rnd = random(o.seed + 'buddleja');
+      const c = pick(o, BUDDLEJAS, true).c;
+      // long arching shoots from the middle, grey-green leaves along them, a cone of flowers at the end of each, butterflies
+      // on two of them
+      const shoots = Array.from({length: 14}, (_, i) => ({a: ((i + rnd() * 0.8) / 14) * 2 * PI, l: r * (0.44 + rnd() * 0.14), bend: (rnd() - 0.5) * 0.4}));
+      const leaves = shoots.flatMap((sh) =>
+        [0.3, 0.45, 0.6, 0.75, 0.9].map((t, k) => {
+          const [x, y, a] = onStalk(cx, cy, sh.a, sh.l, sh.bend, t);
+          return leaf(x, y, a + (k % 2 ? 0.8 : -0.8), r * 0.16, r * 0.045);
+        }),
+      );
+      const tips = shoots.map((sh) => onStalk(cx, cy, sh.a, sh.l, sh.bend, 1));
+      const florets = tips.flatMap(([x, y, a]) =>
+        Array.from({length: 12}, (_, k): Dot => {
+          const t = k / 11;
+          const w = r * 0.07 * (1 - t * 0.75);
+          const side = (rnd() - 0.5) * 2 * w;
+          const out = r * 0.34 * t;
+          return [x + Math.cos(a) * out - Math.sin(a) * side, y + Math.sin(a) * out + Math.cos(a) * side, r * (0.03 - t * 0.012)];
+        }),
+      );
+      const [b1, b2] = [tips[Math.floor(rnd() * tips.length)], tips[Math.floor(rnd() * tips.length)]];
+      return (
+        <>
+          {halo(p + 'h', cx, cy, r * 0.95, r * 0.9)}
+          {crown(p, cx, cy, r * 0.62, '#647f58', rnd, 8, 0.36, 10)}
+          <path d={shoots.map((sh) => stalk(cx, cy, sh.a, sh.l, sh.bend)).join('')} stroke="#5a5244" strokeWidth={n2(r * 0.014)} fill="none" strokeLinecap="round" />
+          <path d={leaves.join('')} fill="#86a079" stroke="#55704a" strokeWidth={n2(r * 0.005)} />
+          <path d={circles(florets.map(([x, y, s]) => [x + s * 0.3, y + s * 0.4, s]))} fill={tone(c, -0.5)} opacity={0.45} />
+          <path d={circles(florets)} fill={tone(c, -0.1)} />
+          <path d={circles(florets.filter((_, i) => i % 3 === 0).map(([x, y, s]) => [x - s * 0.25, y - s * 0.25, s * 0.6]))} fill={tone(c, 0.3)} />
+          <path d={circles(florets.filter((_, i) => i % 4 === 1).map(([x, y, s]) => [x, y, s * 0.28]))} fill="#f2c230" opacity={0.8} />
+          {butterfly(b1[0] + Math.cos(b1[2]) * r * 0.12, b1[1] + Math.sin(b1[2]) * r * 0.12, r * 0.16, b1[2] + 1.2, '#e8862a')}
+          {butterfly(b2[0], b2[1], r * 0.13, b2[2] - 1, '#f2efe6')}
+        </>
+      );
+    },
+  },
+  hydrangea: {
+    label: 'Hydrangea',
+    group: 'trees',
+    variants: choices(HYDRANGEAS),
+    size: [0.8, 2.2],
+    many: true,
+    around: 'meadow',
+    thing: (b, p, o) => {
+      const {cx, cy, r} = middle(b);
+      const rnd = random(o.seed + 'hydrangea');
+      const [c, light] = pick(o, HYDRANGEAS, true).c;
+      // a mound of big leaves full of round flower heads, each of many little florets, lighter where the light falls on it
+      const heads = scatter(rnd, 13, cx, cy, r * 0.6, [r * 0.13, r * 0.17]);
+      const florets = heads.flatMap(([x, y, s]) =>
+        Array.from({length: 16}, (): [Dot, boolean] => {
+          const a = rnd() * 2 * PI;
+          const d = s * 0.82 * Math.sqrt(rnd());
+          const [fx, fy] = [Math.cos(a) * d, Math.sin(a) * d];
+          return [[x + fx, y + fy, s * 0.2], fx + fy < -s * 0.15];
+        }),
+      );
+      return (
+        <>
+          {halo(p + 'h', cx, cy, r * 0.97, r * 0.92)}
+          {crown(p, cx, cy, r * 0.88, '#3f7a35', rnd, 10, 0.35, 16)}
+          <path d={circles(heads.map(([x, y, s]) => [x + s * 0.15, y + s * 0.22, s]))} fill="#1f3a1c" opacity={0.35} />
+          <path d={circles(heads)} fill={tone(c, -0.12)} />
+          <path d={circles(florets.filter(([, lit]) => !lit).map(([d]) => d))} fill={c} />
+          <path d={circles(florets.filter(([, lit]) => lit).map(([d]) => d))} fill={light} />
+          <path d={circles(florets.map(([[x, y, s]]) => [x, y, s * 0.28]))} fill={tone(c, -0.35)} opacity={0.45} />
+        </>
+      );
+    },
+  },
+  rhododendron: {
+    label: 'Rhododendron',
+    group: 'trees',
+    variants: choices(RHODOS),
+    size: [1, 3],
+    many: true,
+    around: 'mulch',
+    thing: (b, p, o) => {
+      const {cx, cy, r} = middle(b);
+      const rnd = random(o.seed + 'rhodo');
+      const [c, light] = pick(o, RHODOS, true).c;
+      // whorls of long leathery leaves, a truss of flowers in the middle of most of them
+      const whorls = scatter(rnd, 22, cx, cy, r * 0.66, [r * 0.2, r * 0.26]);
+      const leaves = whorls.flatMap(([x, y, s]) => Array.from({length: 7}, (_, k) => ({x, y, a: (k / 7) * 2 * PI + x * 0.7, s})));
+      const flowers = whorls
+        .filter((_, i) => i % 3 !== 2)
+        .flatMap(([x, y, s]) => [
+          ...Array.from({length: 7}, (_, k): Dot => {
+            const a = (k / 7) * 2 * PI + y;
+            return [x + Math.cos(a) * s * 0.36, y + Math.sin(a) * s * 0.36, s * 0.24];
+          }),
+          [x, y, s * 0.24] as Dot,
+        ]);
+      return (
+        <>
+          {halo(p + 'h', cx, cy, r * 0.97, r * 0.93)}
+          {crown(p, cx, cy, r * 0.84, '#2a4f25', rnd, 10, 0.34, 0)}
+          <path d={leaves.map((l) => leaf(l.x, l.y, l.a, l.s, l.s * 0.28)).join('')} fill="#2f5a2a" stroke="#1a3417" strokeWidth={n2(r * 0.006)} />
+          <path d={leaves.filter((l) => Math.cos(l.a + (3 * PI) / 4) > 0).map((l) => leaf(l.x, l.y, l.a, l.s * 0.9, l.s * 0.12)).join('')} fill="#4f7d3f" opacity={0.6} />
+          <path d={leaves.map((l) => stalk(l.x, l.y, l.a, l.s * 0.85, 0)).join('')} stroke="#6f9a5a" strokeOpacity={0.6} strokeWidth={n2(r * 0.006)} />
+          <path d={circles(flowers.map(([x, y, s]) => [x + s * 0.2, y + s * 0.3, s]))} fill="#14260f" opacity={0.4} />
+          <path d={circles(flowers)} fill={c} stroke={tone(c, -0.3)} strokeWidth={n2(r * 0.005)} />
+          <path d={circles(flowers.map(([x, y, s]) => [x - s * 0.25, y - s * 0.25, s * 0.5]))} fill={light} opacity={0.75} />
+          <path d={circles(flowers.map(([x, y, s]) => [x + s * 0.1, y + s * 0.05, s * 0.14]))} fill={tone(c, -0.45)} opacity={0.8} />
+        </>
+      );
+    },
+  },
+  rose: {
+    label: 'Rose bush',
+    group: 'trees',
+    variants: choices(ROSES),
+    size: [0.6, 1.8],
+    many: true,
+    around: 'mulch',
+    thing: (b, p, o) => {
+      const {cx, cy, r} = middle(b);
+      const rnd = random(o.seed + 'rose');
+      const [c, light] = pick(o, ROSES, true).c;
+      // a dark leafy bush with roses open on it, their petals curling round to a tight middle, a few buds
+      const blooms = scatter(rnd, 11, cx, cy, r * 0.68, [r * 0.085, r * 0.12]);
+      const buds = scatter(rnd, 6, cx, cy, r * 0.75, [r * 0.03, r * 0.04]);
+      const swirl = (x: number, y: number, s: number) =>
+        `M${n2(x + s * 0.55)} ${n2(y)}A${n2(s * 0.55)} ${n2(s * 0.55)} 0 1 1 ${n2(x)} ${n2(y - s * 0.55)}A${n2(s * 0.35)} ${n2(s * 0.35)} 0 1 1 ${n2(x - s * 0.1)} ${n2(y + s * 0.3)}A${n2(s * 0.15)} ${n2(s * 0.15)} 0 1 1 ${n2(x + s * 0.1)} ${n2(y - s * 0.05)}`;
+      return (
+        <>
+          {halo(p + 'h', cx, cy, r * 0.97, r * 0.92)}
+          {crown(p, cx, cy, r * 0.86, '#365f2c', rnd, 10, 0.33, 30)}
+          <path d={circles(blooms.map(([x, y, s]) => [x + s * 0.2, y + s * 0.3, s]))} fill="#14260f" opacity={0.4} />
+          <path d={circles(blooms)} fill={c} />
+          <path d={circles(blooms.map(([x, y, s]) => [x - s * 0.2, y - s * 0.2, s * 0.6]))} fill={light} opacity={0.6} />
+          <path d={blooms.map(([x, y, s]) => swirl(x, y, s)).join('')} fill="none" stroke={tone(c, -0.4)} strokeWidth={n2(r * 0.009)} />
+          <path d={circles(buds)} fill={tone(c, -0.2)} stroke="#2f5a2a" strokeWidth={n2(r * 0.01)} />
+        </>
+      );
+    },
+  },
+  boxwood: {
+    label: 'Boxwood',
+    group: 'trees',
+    variants: choices(BOXES),
+    size: [0.3, 1.4],
+    many: true,
+    around: 'gravel',
+    thing: (b, p, o) => {
+      const {cx, cy, r} = middle(b);
+      const rnd = random(o.seed + 'box');
+      const kind = pick(o, BOXES);
+      const c = kind.c;
+      const rr = r * 0.86;
+      // clipped tight: a dense ball, cone or block of tiny leaves, the light on its top left
+      const leaves = scatter(rnd, 150, cx, cy, rr * 1.02, [rr * 0.025, rr * 0.045]);
+      const outline =
+        kind.shape === 'block' ? (
+          <rect x={n2(cx - rr)} y={n2(cy - rr)} width={n2(rr * 2)} height={n2(rr * 2)} rx={n2(rr * 0.2)} />
+        ) : (
+          <circle cx={n2(cx)} cy={n2(cy)} r={n2(rr)} />
+        );
+      return (
+        <>
+          <defs>
+            {kind.shape === 'block' ? face(p + 'b', c, 0.22, -0.28) : ball(p + 'b', c, 0.3, -0.42)}
+            <clipPath id={p + 'k'}>{outline}</clipPath>
+          </defs>
+          {kind.shape === 'block' ? softBox(cx - rr, cy - rr, rr * 2, rr * 2, rr * 0.2, rr * 0.12) : halo(p + 'h', cx, cy, r, r * 0.96)}
+          <g fill={`url(#${p}b)`}>{outline}</g>
+          <g clipPath={`url(#${p}k)`}>
+            <path d={circles(leaves.filter((l) => !litSide(l, cx, cy)))} fill={tone(c, -0.35)} opacity={0.5} />
+            <path d={circles(leaves.filter((l) => litSide(l, cx, cy)))} fill={tone(c, 0.38)} opacity={0.5} />
+            {kind.shape === 'cone' && (
+              <path
+                d={[0.3, 0.55, 0.8].map((f) => `M${n2(cx + rr * f)} ${n2(cy)}a${n2(rr * f)} ${n2(rr * f)} 0 1 0 ${n2(-2 * rr * f)} 0a${n2(rr * f)} ${n2(rr * f)} 0 1 0 ${n2(2 * rr * f)} 0`).join('')}
+                fill="none"
+                stroke={tone(c, -0.3)}
+                strokeOpacity={0.4}
+                strokeWidth={n2(rr * 0.04)}
+              />
+            )}
+          </g>
+          {kind.shape === 'cone' && <circle cx={n2(cx - rr * 0.03)} cy={n2(cy - rr * 0.03)} r={n2(rr * 0.07)} fill={tone(c, 0.45)} />}
+          {kind.shape !== 'block' && rimLight(cx, cy, rr * 0.96, rr * 0.03, 0.3)}
+        </>
+      );
+    },
+  },
+  japaneseMaple: {
+    label: 'Japanese maple',
+    group: 'trees',
+    variants: choices(MAPLES),
+    size: [1.2, 4],
+    many: true,
+    around: 'meadow',
+    thing: (b, p, o) => {
+      const {cx, cy, r} = middle(b);
+      const rnd = random(o.seed + 'maple');
+      const c = pick(o, MAPLES).c;
+      // a low wide crown of fine hand-shaped leaves, lighter on top where the light falls
+      const star = (x: number, y: number, s: number, turn: number) =>
+        'M' +
+        Array.from({length: 14}, (_, k) => {
+          const a = turn + (k / 14) * 2 * PI;
+          const rr = k % 2 ? s * 0.42 : s;
+          return `${n2(x + Math.cos(a) * rr)} ${n2(y + Math.sin(a) * rr)}`;
+        }).join('L') +
+        'Z';
+      const leaves = scatter(rnd, 110, cx, cy, r * 0.82, [r * 0.05, r * 0.075]);
+      return (
+        <>
+          {halo(p + 'h', cx, cy, r * 0.98, r * 0.92)}
+          {crown(p, cx, cy, r * 0.88, c, rnd, 12, 0.3, 0)}
+          <path d={leaves.filter((l) => !litSide(l, cx, cy)).map(([x, y, s]) => star(x, y, s, x)).join('')} fill={tone(c, -0.22)} />
+          <path d={leaves.filter((l) => litSide(l, cx, cy)).map(([x, y, s]) => star(x, y, s, y)).join('')} fill={tone(c, 0.24)} />
+        </>
+      );
+    },
+  },
+  bamboo: {
+    label: 'Bamboo',
+    group: 'trees',
+    size: [1, 4],
+    many: true,
+    around: 'mulch',
+    thing: (b, p, o) => {
+      const {cx, cy, r} = middle(b);
+      const rnd = random(o.seed + 'bamboo');
+      // a clump of canes in the middle, narrow leaves on twigs all round it, lighter where the light falls
+      const canes = scatter(rnd, 16, cx, cy, r * 0.28, [r * 0.035, r * 0.05]);
+      const twigs = Array.from({length: 22}, () => ({a: rnd() * 2 * PI, l: r * (0.55 + rnd() * 0.4), bend: (rnd() - 0.5) * 0.4}));
+      const leaves = twigs.flatMap((tw) =>
+        Array.from({length: 6}, (_, k) => {
+          const [x, y, a] = onStalk(cx, cy, tw.a, tw.l, tw.bend, 0.35 + k * 0.12);
+          return {d: leaf(x, y, a + (k % 2 ? 0.6 : -0.6), r * 0.2, r * 0.035), lit: Math.cos(a + (3 * PI) / 4) > 0};
+        }),
+      );
+      return (
+        <>
+          {halo(p + 'h', cx, cy, r * 0.95, r * 0.9)}
+          <path d={leaves.filter((l) => !l.lit).map((l) => l.d).join('')} fill="#4f7f2f" stroke="#2f5a1f" strokeWidth={n2(r * 0.004)} />
+          <path d={twigs.map((tw) => stalk(cx, cy, tw.a, tw.l * 0.9, tw.bend * 0.9)).join('')} stroke="#7a8a3a" strokeWidth={n2(r * 0.008)} fill="none" />
+          <path d={leaves.filter((l) => l.lit).map((l) => l.d).join('')} fill="#7aa84a" stroke="#4f7f2f" strokeWidth={n2(r * 0.004)} />
+          <path d={circles(canes)} fill="#a8b04a" stroke="#5f6a22" strokeWidth={n2(r * 0.01)} />
+          <path d={circles(canes.map(([x, y, s]) => [x - s * 0.25, y - s * 0.25, s * 0.45]))} fill="#d4d88a" opacity={0.8} />
+        </>
+      );
+    },
+  },
   stump: {
     label: 'Tree stump',
-    group: 'plants',
+    group: 'trees',
     variants: choices(STUMPS),
     size: [0.4, 1.4],
     around: 'meadow',
@@ -987,7 +1435,7 @@ export const PICTURES: Record<string, Picture> = {
   },
   hedge: {
     label: 'Hedge',
-    group: 'plants',
+    group: 'trees',
     tile: {
       w: 2.4,
       h: 2.4,
@@ -1012,7 +1460,7 @@ export const PICTURES: Record<string, Picture> = {
   },
   bed: {
     label: 'Flower bed',
-    group: 'plants',
+    group: 'beds',
     tile: {
       w: 0.9,
       h: 0.9,
@@ -1043,9 +1491,197 @@ export const PICTURES: Record<string, Picture> = {
       },
     },
   },
+  perennialBed: {
+    label: 'Perennial bed',
+    group: 'beds',
+    variants: choices(PERENNIALS),
+    fill: true,
+    around: 'mulch',
+    thing: (b, p, o) => {
+      const rnd = random(o.seed + 'perennials');
+      const m = o.m ?? Math.max(b.w, b.h) / 1.6;
+      const kind = pick(o, PERENNIALS);
+      // clumps of perennials about 45 cm apart on dark soil, each a mound of leaves with its own kind of flowers: daisies,
+      // spikes or flat heads, and in a prairie bed tufts of grass between them
+      const leaves: Dot[][] = [[], [], []];
+      const flowers: [Dot, string][] = [];
+      const hearts: [Dot, string][] = [];
+      const grass: string[] = [];
+      for (const [x, y] of spread(b, 0.38 * m, rnd, 240)) {
+        const s = (0.2 + rnd() * 0.08) * m;
+        const what = rnd();
+        const c = kind.c[Math.floor(rnd() * kind.c.length)];
+        if (kind.grass && what < 0.25) {
+          for (let k = 0; k < 14; k++) grass.push(stalk(x, y, rnd() * 2 * PI, s * (1 + rnd() * 0.5), (rnd() - 0.5) * 0.5));
+          continue;
+        }
+        mound(x, y, s, rnd).forEach((d, i) => leaves[i].push(...d));
+        if (what < 0.45) {
+          for (let k = 0; k < 3; k++) {
+            const [a, d] = [rnd() * 2 * PI, s * 0.6 * Math.sqrt(rnd())];
+            const [fx, fy, fs] = [x + Math.cos(a) * d, y + Math.sin(a) * d, s * 0.24];
+            for (let q = 0; q < 6; q++) flowers.push([[fx + Math.cos(q * 1.047 + fx) * fs * 0.6, fy + Math.sin(q * 1.047 + fx) * fs * 0.6, fs * 0.38], c]);
+            hearts.push([[fx, fy, fs * 0.3], c === '#f2c230' || c === '#e8762a' ? '#5a3418' : '#f2c230']);
+          }
+        } else if (what < 0.75) {
+          for (let k = 0; k < 5; k++) {
+            const a = rnd() * 2 * PI;
+            for (let q = 0; q < 3; q++) flowers.push([[x + Math.cos(a) * s * (0.4 + q * 0.2), y + Math.sin(a) * s * (0.4 + q * 0.2), s * (0.09 - q * 0.015)], c]);
+          }
+        } else {
+          for (let k = 0; k < 3; k++) {
+            const [a, d] = [rnd() * 2 * PI, s * 0.5 * Math.sqrt(rnd())];
+            const [fx, fy] = [x + Math.cos(a) * d, y + Math.sin(a) * d];
+            for (let q = 0; q < 5; q++) flowers.push([[fx + (rnd() - 0.5) * s * 0.32, fy + (rnd() - 0.5) * s * 0.32, s * 0.07], c]);
+          }
+        }
+      }
+      return (
+        <>
+          <rect x={n2(b.x)} y={n2(b.y)} width={n2(b.w)} height={n2(b.h)} fill="#4a3626" />
+          <path d={circles(leaves[0])} fill="#1f3a18" opacity={0.45} />
+          <path d={circles(leaves[1])} fill="#4a8a3a" />
+          <path d={circles(leaves[2])} fill="#6fa852" opacity={0.7} />
+          {grass.length > 0 && <path d={grass.join('')} stroke="#b0b46e" strokeWidth={n2(0.018 * m)} fill="none" strokeLinecap="round" />}
+          {byColor(flowers)}
+          {byColor(hearts)}
+        </>
+      );
+    },
+  },
+  roseBed: {
+    label: 'Rose bed',
+    group: 'beds',
+    variants: choices(ROSES),
+    fill: true,
+    around: 'mulch',
+    thing: (b, p, o) => {
+      const rnd = random(o.seed + 'rosebed');
+      const m = o.m ?? Math.max(b.w, b.h) / 1.6;
+      const [c, light] = pick(o, ROSES, true).c;
+      // rose bushes about half a meter apart on bark, dark leaves with open roses on them
+      const leaves: Dot[][] = [[], [], []];
+      const blooms: Dot[] = [];
+      for (const [x, y] of spread(b, 0.5 * m, rnd, 200)) {
+        const s = (0.2 + rnd() * 0.06) * m;
+        mound(x, y, s, rnd).forEach((d, i) => leaves[i].push(...d));
+        for (let k = 0; k < 4; k++) {
+          const [a, d] = [rnd() * 2 * PI, s * 0.55 * Math.sqrt(rnd())];
+          blooms.push([x + Math.cos(a) * d, y + Math.sin(a) * d, s * (0.16 + rnd() * 0.05)]);
+        }
+      }
+      return (
+        <>
+          {strewn('bark', b.x, b.y, b.w, b.h, m, rnd)}
+          <path d={circles(leaves[0])} fill="#14260f" opacity={0.45} />
+          <path d={circles(leaves[1])} fill="#30572a" />
+          <path d={circles(leaves[2])} fill="#4a7a3a" opacity={0.7} />
+          <path d={circles(blooms.map(([x, y, s]) => [x + s * 0.2, y + s * 0.3, s]))} fill="#0f1f0c" opacity={0.35} />
+          <path d={circles(blooms)} fill={c} />
+          <path d={circles(blooms.map(([x, y, s]) => [x - s * 0.2, y - s * 0.2, s * 0.55]))} fill={light} opacity={0.65} />
+          <path d={circles(blooms.map(([x, y, s]) => [x + s * 0.05, y + s * 0.05, s * 0.22]))} fill={tone(c, -0.4)} opacity={0.6} />
+        </>
+      );
+    },
+  },
+  springBed: {
+    label: 'Spring bed',
+    group: 'beds',
+    variants: choices(SPRING),
+    fill: true,
+    around: 'soil',
+    thing: (b, p, o) => {
+      const rnd = random(o.seed + 'spring');
+      const m = o.m ?? Math.max(b.w, b.h) / 1.6;
+      const colors = pick(o, SPRING).c;
+      // tulips in drifts of one color each, two broad grey-green leaves under each cup
+      const drifts = Array.from({length: 6}, () => ({x: b.x + rnd() * b.w, y: b.y + rnd() * b.h, c: colors[Math.floor(rnd() * colors.length)]}));
+      const leaves: string[] = [];
+      const cups: [Dot, string][] = [];
+      for (const [x, y] of spread(b, 0.16 * m, rnd, 420)) {
+        const near = drifts.reduce((best, d) => (Math.hypot(d.x - x, d.y - y) < Math.hypot(best.x - x, best.y - y) ? d : best));
+        const s = (0.035 + rnd() * 0.01) * m;
+        const a = rnd() * PI;
+        leaves.push(leaf(x, y, a, s * 3.2, s * 0.9), leaf(x, y, a + PI + (rnd() - 0.5), s * 2.8, s * 0.8));
+        cups.push([[x, y, s], near.c]);
+      }
+      return (
+        <>
+          <rect x={n2(b.x)} y={n2(b.y)} width={n2(b.w)} height={n2(b.h)} fill="#5d4330" />
+          <path d={leaves.join('')} fill="#7f9a6a" stroke="#56704a" strokeWidth={n2(0.004 * m)} />
+          <path d={circles(cups.map(([[x, y, s]]) => [x + s * 0.25, y + s * 0.35, s]))} fill="#000" opacity={0.25} />
+          {byColor(cups)}
+          {byColor(cups.map(([[x, y, s], c]) => [[x - s * 0.15, y - s * 0.15, s * 0.55], tone(c, 0.3)]))}
+          <path d={circles(cups.map(([[x, y, s]]) => [x + s * 0.05, y + s * 0.05, s * 0.22]))} fill="#2a2018" opacity={0.6} />
+        </>
+      );
+    },
+  },
+  summerBed: {
+    label: 'Summer flowers',
+    group: 'beds',
+    variants: choices(SUMMER),
+    fill: true,
+    around: 'soil',
+    thing: (b, p, o) => {
+      const rnd = random(o.seed + 'summer');
+      const m = o.m ?? Math.max(b.w, b.h) / 1.6;
+      const colors = pick(o, SUMMER).c;
+      // a dense carpet of low leaves covered in flowers of every color
+      const leaves: Dot[][] = [[], [], []];
+      const flowers: [number, number, number, string][] = [];
+      for (const [x, y] of spread(b, 0.24 * m, rnd, 300)) {
+        const s = (0.12 + rnd() * 0.03) * m;
+        mound(x, y, s, rnd).forEach((d, i) => leaves[i].push(...d));
+        for (let k = 0; k < 3; k++) {
+          const [a, d] = [rnd() * 2 * PI, s * 0.6 * Math.sqrt(rnd())];
+          flowers.push([x + Math.cos(a) * d, y + Math.sin(a) * d, s * (0.32 + rnd() * 0.1), colors[Math.floor(rnd() * colors.length)]]);
+        }
+      }
+      return (
+        <>
+          <rect x={n2(b.x)} y={n2(b.y)} width={n2(b.w)} height={n2(b.h)} fill="#4a3626" />
+          <path d={circles(leaves[0])} fill="#1f3a18" opacity={0.4} />
+          <path d={circles(leaves[1])} fill="#4f8f3c" />
+          <path d={circles(leaves[2])} fill="#72ad55" opacity={0.6} />
+          {blossoms(flowers)}
+        </>
+      );
+    },
+  },
+  groundCover: {
+    label: 'Ground cover',
+    group: 'beds',
+    variants: choices(GROUND_COVERS),
+    fill: true,
+    around: 'soil',
+    thing: (b, p, o) => {
+      const rnd = random(o.seed + 'cover');
+      const m = o.m ?? Math.max(b.w, b.h) / 1.6;
+      const kind = pick(o, GROUND_COVERS);
+      // small leaves close together in three shades, little flowers here and there
+      const shades: string[][] = [[], [], []];
+      const flowers: [number, number, number, string][] = [];
+      for (const [x, y] of spread(b, 0.075 * m, rnd, 1100)) {
+        const s = (0.045 + rnd() * 0.02) * m;
+        const [jx, jy] = [x + (rnd() - 0.5) * 0.05 * m, y + (rnd() - 0.5) * 0.05 * m];
+        shades[Math.floor(rnd() * 3)].push(leaf(jx, jy, rnd() * 2 * PI, s, s * 0.45));
+        if (kind.bloom && rnd() < 0.16) flowers.push([jx, jy, s * 0.55, kind.bloom]);
+      }
+      return (
+        <>
+          <rect x={n2(b.x)} y={n2(b.y)} width={n2(b.w)} height={n2(b.h)} fill={tone(kind.c, -0.45)} />
+          {shades.map((d, k) => (
+            <path key={k} d={d.join('')} fill={tone(kind.c, (k - 1) * 0.18)} />
+          ))}
+          {flowers.length > 0 && blossoms(flowers)}
+        </>
+      );
+    },
+  },
   flowerMeadow: {
     label: 'Wildflowers',
-    group: 'plants',
+    group: 'beds',
     tile: {
       w: 1.6,
       h: 1.6,
@@ -1067,7 +1703,7 @@ export const PICTURES: Record<string, Picture> = {
   },
   vegetables: {
     label: 'Vegetable patch',
-    group: 'plants',
+    group: 'beds',
     tile: {
       w: 0.9,
       h: 0.6,
@@ -1103,7 +1739,7 @@ export const PICTURES: Record<string, Picture> = {
   },
   raisedBed: {
     label: 'Raised bed',
-    group: 'plants',
+    group: 'beds',
     deep: 1.4,
     long: true,
     around: 'meadow',
@@ -1155,6 +1791,175 @@ export const PICTURES: Record<string, Picture> = {
         );
       }),
   },
+  lavender: {
+    label: 'Lavender',
+    group: 'plants',
+    variants: choices(LAVENDERS),
+    size: [0.4, 1],
+    many: true,
+    around: 'gravel',
+    thing: (b, p, o) => {
+      const {cx, cy, r} = middle(b);
+      const rnd = random(o.seed + 'lavender');
+      const c = pick(o, LAVENDERS).c;
+      // a round silvery cushion of fine leaves, flower spikes on thin stalks out all round it
+      const stalks = Array.from({length: 34}, () => ({a: rnd() * 2 * PI, l: r * (0.62 + rnd() * 0.3), bend: (rnd() - 0.5) * 0.3}));
+      const spikes = stalks.flatMap((st) =>
+        Array.from({length: 5}, (_, k): Dot => {
+          const [x, y] = onStalk(cx, cy, st.a, st.l, st.bend, 0.72 + k * 0.07);
+          return [x, y, r * (0.04 - k * 0.004)];
+        }),
+      );
+      return (
+        <>
+          {halo(p + 'h', cx, cy, r * 0.9, r * 0.86)}
+          {crown(p, cx, cy, r * 0.6, '#8aa085', rnd, 9, 0.32, 0)}
+          <path d={stalks.map((st) => stalk(cx, cy, st.a, st.l * 0.72, st.bend * 0.72)).join('')} stroke="#a3b59e" strokeWidth={n2(r * 0.012)} fill="none" />
+          <path d={circles(spikes.map(([x, y, s]) => [x + s * 0.3, y + s * 0.4, s]))} fill="#000" opacity={0.18} />
+          <path d={circles(spikes)} fill={tone(c, -0.15)} />
+          <path d={circles(spikes.filter((_, i) => i % 2).map(([x, y, s]) => [x - s * 0.3, y - s * 0.3, s * 0.6]))} fill={tone(c, 0.3)} />
+        </>
+      );
+    },
+  },
+  fern: {
+    label: 'Fern',
+    group: 'plants',
+    variants: choices(FERNS),
+    size: [0.4, 1.5],
+    many: true,
+    around: 'mulch',
+    thing: (b, p, o) => {
+      const {cx, cy, r} = middle(b);
+      const rnd = random(o.seed + 'fern');
+      const c = pick(o, FERNS).c;
+      // fronds from the middle, leaflets in pairs along each, longest a third of the way out, young ones curled up in the
+      // middle
+      const fronds = Array.from({length: 11}, (_, i) => ({a: ((i + rnd() * 0.6) / 11) * 2 * PI, l: r * (0.78 + rnd() * 0.18), bend: (rnd() - 0.5) * 0.35}));
+      const pinnae = (f: (typeof fronds)[number]) =>
+        Array.from({length: 13}, (_, k) => {
+          const t = 0.12 + (k / 12) * 0.86;
+          const [x, y, a] = onStalk(cx, cy, f.a, f.l, f.bend, t);
+          const len = r * 0.2 * Math.sin(PI * Math.min(1, t * 1.1)) * (1 - t * 0.35);
+          return [-1, 1].map((sd) => leaf(x, y, a + sd * 1.05, len, len * 0.22)).join('');
+        }).join('');
+      const lit = (f: (typeof fronds)[number]) => Math.cos(f.a + (3 * PI) / 4) > 0;
+      const curls = Array.from({length: 3}, (_, k) => {
+        const a = (k / 3) * 2 * PI + rnd();
+        const [x, y] = [cx + Math.cos(a) * r * 0.07, cy + Math.sin(a) * r * 0.07];
+        const s = r * 0.035;
+        return `M${n2(x + s)} ${n2(y)}A${n2(s)} ${n2(s)} 0 1 1 ${n2(x)} ${n2(y - s)}A${n2(s * 0.5)} ${n2(s * 0.5)} 0 1 1 ${n2(x + s * 0.2)} ${n2(y + s * 0.4)}`;
+      });
+      return (
+        <>
+          {halo(p + 'h', cx, cy, r * 0.85, r * 0.8)}
+          <path d={fronds.filter((f) => !lit(f)).map(pinnae).join('')} fill={tone(c, -0.15)} stroke={tone(c, -0.42)} strokeWidth={n2(r * 0.004)} />
+          <path d={fronds.filter(lit).map(pinnae).join('')} fill={tone(c, 0.14)} stroke={tone(c, -0.3)} strokeWidth={n2(r * 0.004)} />
+          <path d={fronds.map((f) => stalk(cx, cy, f.a, f.l, f.bend)).join('')} stroke={tone(c, -0.35)} strokeWidth={n2(r * 0.012)} fill="none" />
+          <circle cx={n2(cx)} cy={n2(cy)} r={n2(r * 0.09)} fill={tone(c, -0.3)} />
+          <path d={curls.join('')} fill="none" stroke={tone(c, 0.35)} strokeWidth={n2(r * 0.018)} strokeLinecap="round" />
+        </>
+      );
+    },
+  },
+  grass: {
+    label: 'Ornamental grass',
+    group: 'plants',
+    variants: choices(GRASSES),
+    size: [0.4, 2.2],
+    many: true,
+    around: 'gravel',
+    thing: (b, p, o) => {
+      const {cx, cy, r} = middle(b);
+      const rnd = random(o.seed + 'grass');
+      const kind = pick(o, GRASSES);
+      // blades arching out from the middle in three shades, feathery plumes over them (the low blue fescue has none)
+      const blades = Array.from({length: kind.low ? 70 : 54}, () => ({
+        a: rnd() * 2 * PI,
+        l: r * (kind.low ? 0.55 + rnd() * 0.35 : 0.6 + rnd() * 0.38),
+        bend: (rnd() - 0.5) * 0.5,
+        k: Math.floor(rnd() * 3),
+      }));
+      const plumes = kind.plume ? Array.from({length: 9}, () => ({a: rnd() * 2 * PI, l: r * (0.55 + rnd() * 0.35), bend: (rnd() - 0.5) * 0.3})) : [];
+      return (
+        <>
+          {halo(p + 'h', cx, cy, r * 0.85, r * 0.8)}
+          {[-0.25, 0, 0.25].map((t, k) => (
+            <path
+              key={k}
+              d={blades
+                .filter((bl) => bl.k === k)
+                .map((bl) => stalk(cx, cy, bl.a, bl.l, bl.bend))
+                .join('')}
+              stroke={tone(kind.c, t)}
+              strokeWidth={n2(r * (kind.low ? 0.016 : 0.02))}
+              fill="none"
+              strokeLinecap="round"
+            />
+          ))}
+          {kind.plume && (
+            <path
+              d={plumes
+                .map((pl) => {
+                  const [x, y, a] = onStalk(cx, cy, pl.a, pl.l, pl.bend, 0.68);
+                  return leaf(x, y, a, r * 0.34, r * 0.08);
+                })
+                .join('')}
+              fill={kind.plume}
+              opacity={0.88}
+              stroke={tone(kind.plume, -0.22)}
+              strokeWidth={n2(r * 0.006)}
+            />
+          )}
+          <circle cx={n2(cx)} cy={n2(cy)} r={n2(r * 0.1)} fill={tone(kind.c, -0.35)} />
+        </>
+      );
+    },
+  },
+  hosta: {
+    label: 'Hosta',
+    group: 'plants',
+    variants: choices(HOSTAS),
+    size: [0.4, 1.2],
+    many: true,
+    around: 'mulch',
+    thing: (b, p, o) => {
+      const {cx, cy, r} = middle(b);
+      const rnd = random(o.seed + 'hosta');
+      const kind = pick(o, HOSTAS);
+      // broad leaves from the middle in two rings, the inner ones over them, veins curving along each
+      const ring = (n: number, l: number) => {
+        const turn = rnd() * 2 * PI;
+        return Array.from({length: n}, (_, k) => ({a: turn + ((k + rnd() * 0.3) / n) * 2 * PI, l: r * l * (0.9 + rnd() * 0.15)}));
+      };
+      const veins = (ls: {a: number; l: number}[]) =>
+        ls
+          .map(({a, l}) => {
+            const [x, y] = [cx + Math.cos(a) * r * 0.08, cy + Math.sin(a) * r * 0.08];
+            const side = [0.3, 0.55].flatMap((t) => [-1, 1].map((sd) => stalk(x + Math.cos(a) * l * t, y + Math.sin(a) * l * t, a + sd * 0.55, l * 0.24, -sd * 0.1)));
+            return stalk(x, y, a, l * 0.88, 0) + side.join('');
+          })
+          .join('');
+      const layer = (ls: {a: number; l: number}[], c: string) => (
+        <>
+          <path
+            d={ls.map(({a, l}) => leaf(cx + Math.cos(a) * r * 0.08, cy + Math.sin(a) * r * 0.08, a, l, l * 0.5)).join('')}
+            fill={c}
+            stroke={kind.edge ?? tone(c, -0.35)}
+            strokeWidth={n2(kind.edge ? r * 0.022 : r * 0.008)}
+          />
+          <path d={veins(ls)} fill="none" stroke={tone(c, 0.3)} strokeOpacity={0.55} strokeWidth={n2(r * 0.008)} />
+        </>
+      );
+      return (
+        <>
+          {halo(p + 'h', cx, cy, r * 0.95, r * 0.9)}
+          {layer(ring(9, 0.88), tone(kind.c, -0.1))}
+          {layer(ring(6, 0.6), tone(kind.c, 0.1))}
+        </>
+      );
+    },
+  },
   pot: {
     label: 'Planter',
     group: 'plants',
@@ -1183,7 +1988,7 @@ export const PICTURES: Record<string, Picture> = {
   },
   herbSpiral: {
     label: 'Herb spiral',
-    group: 'plants',
+    group: 'beds',
     size: [1.4, 3.5],
     around: 'meadow',
     thing: (b, p, o) => {
@@ -1243,9 +2048,101 @@ export const PICTURES: Record<string, Picture> = {
       );
     },
   },
+  herbGarden: {
+    label: 'Herb garden',
+    group: 'beds',
+    variants: choices(EDGINGS),
+    fill: true,
+    around: 'soil',
+    thing: (b, p, o) => {
+      const rnd = random(o.seed + 'herbs');
+      const m = o.m ?? Math.max(b.w, b.h) / 1.6;
+      const edging = pick(o, EDGINGS);
+      // herbs about 30 cm apart on dark soil (basil, sage, parsley, chives with their purple balls, thyme, rosemary) and a
+      // border of stones, bricks or logs along the edge
+      const leaves = new Map<string, string[]>();
+      const lines = new Map<string, string[]>();
+      const dotsOf: [Dot, string][] = [];
+      const add = (map: Map<string, string[]>, c: string, d: string) => map.set(c, [...(map.get(c) ?? []), d]);
+      for (const [x, y] of spread(b, 0.3 * m, rnd, 260)) {
+        const s = (0.11 + rnd() * 0.04) * m;
+        const turn = rnd() * 2 * PI;
+        const kind = Math.floor(rnd() * 6);
+        const ring = (n: number, f: (a: number) => void) => Array.from({length: n}, (_, k) => f(turn + (k / n) * 2 * PI));
+        if (kind === 0) ring(6, (a) => add(leaves, '#5fae3f', leaf(x, y, a, s, s * 0.55)));
+        else if (kind === 1) ring(7, (a) => add(leaves, '#93a98d', leaf(x, y, a, s * 0.9, s * 0.42)));
+        else if (kind === 2) {
+          for (let k = 0; k < 12; k++) {
+            const [a, d] = [rnd() * 2 * PI, s * 0.7 * Math.sqrt(rnd())];
+            dotsOf.push([[x + Math.cos(a) * d, y + Math.sin(a) * d, s * 0.2], k % 3 ? '#3f7f2f' : '#5a9a3f']);
+          }
+        } else if (kind === 3) {
+          ring(14, (a) => add(lines, '#5f9a3f', stalk(x, y, a, s * (0.8 + rnd() * 0.3), (rnd() - 0.5) * 0.3)));
+          for (let k = 0; k < 3; k++) dotsOf.push([[x + Math.cos(turn + k * 2.1) * s * 0.6, y + Math.sin(turn + k * 2.1) * s * 0.6, s * 0.14], '#b48ad8']);
+        } else if (kind === 4) {
+          for (let k = 0; k < 16; k++) {
+            const [a, d] = [rnd() * 2 * PI, s * 0.75 * Math.sqrt(rnd())];
+            dotsOf.push([[x + Math.cos(a) * d, y + Math.sin(a) * d, s * 0.12], k % 5 ? '#7f9a6a' : '#d9a3d0']);
+          }
+        } else {
+          ring(22, (a) => add(lines, '#4f6f4a', stalk(x, y, a, s * (0.7 + rnd() * 0.3), 0)));
+          for (let k = 0; k < 3; k++) dotsOf.push([[x + Math.cos(turn + k * 2) * s * 0.4, y + Math.sin(turn + k * 2) * s * 0.4, s * 0.08], '#a9bde8']);
+        }
+      }
+      // the border: along the area's edge, half of it inside (the map cuts the rest), round the box without one
+      const edge = o.edge?.length
+        ? 'M' + o.edge.map(([x, y]) => `${n2(x)} ${n2(y)}`).join('L') + 'Z'
+        : `M${n2(b.x)} ${n2(b.y)}h${n2(b.w)}v${n2(b.h)}h${n2(-b.w)}Z`;
+      const c = edging.c;
+      return (
+        <>
+          <rect x={n2(b.x)} y={n2(b.y)} width={n2(b.w)} height={n2(b.h)} fill="#4f3a2a" />
+          {dots(1, Array.from({length: Math.min(300, Math.round(((b.w * b.h) / (m * m)) * 60))}, (): [number, number, number, string] => [b.x + rnd() * b.w, b.y + rnd() * b.h, (0.01 + rnd() * 0.01) * m, rnd() < 0.5 ? '#3f2e22' : '#6a4f3a']))}
+          {[...leaves].map(([lc, ds]) => (
+            <g key={lc}>
+              <path d={ds.join('')} fill="#000" opacity={0.25} transform={`translate(${n2(0.012 * m)} ${n2(0.018 * m)})`} />
+              <path d={ds.join('')} fill={lc} stroke={tone(lc, -0.3)} strokeWidth={n2(0.004 * m)} />
+            </g>
+          ))}
+          {[...lines].map(([lc, ds]) => (
+            <path key={lc} d={ds.join('')} fill="none" stroke={lc} strokeWidth={n2(0.012 * m)} strokeLinecap="round" />
+          ))}
+          {byColor(dotsOf)}
+          {edging.kind === 'wood' ? (
+            <>
+              <path d={edge} fill="none" stroke={tone(c, -0.4)} strokeWidth={n2(0.24 * m)} strokeLinecap="round" strokeDasharray={`0.001 ${n2(0.13 * m)}`} />
+              <path d={edge} fill="none" stroke={c} strokeWidth={n2(0.2 * m)} strokeLinecap="round" strokeDasharray={`0.001 ${n2(0.13 * m)}`} />
+              <path d={edge} fill="none" stroke={tone(c, 0.3)} strokeWidth={n2(0.1 * m)} strokeLinecap="round" strokeDasharray={`0.001 ${n2(0.13 * m)}`} />
+            </>
+          ) : (
+            <>
+              <path d={edge} fill="none" stroke={edging.kind === 'brick' ? '#cfc5b5' : tone(c, -0.45)} strokeWidth={n2(0.34 * m)} strokeLinejoin="round" />
+              <path
+                d={edge}
+                fill="none"
+                stroke={c}
+                strokeWidth={n2(0.3 * m)}
+                strokeLinejoin="round"
+                strokeDasharray={edging.kind === 'brick' ? `${n2(0.22 * m)} ${n2(0.015 * m)}` : `${n2(0.17 * m)} ${n2(0.04 * m)} ${n2(0.23 * m)} ${n2(0.035 * m)}`}
+              />
+              <path
+                d={edge}
+                fill="none"
+                stroke={tone(c, 0.28)}
+                strokeOpacity={0.7}
+                strokeWidth={n2(0.12 * m)}
+                strokeLinejoin="round"
+                strokeDasharray={edging.kind === 'brick' ? `${n2(0.22 * m)} ${n2(0.015 * m)}` : `${n2(0.17 * m)} ${n2(0.04 * m)} ${n2(0.23 * m)} ${n2(0.035 * m)}`}
+              />
+            </>
+          )}
+        </>
+      );
+    },
+  },
   rockGarden: {
     label: 'Rock garden',
-    group: 'plants',
+    group: 'beds',
     tile: {
       w: 2,
       h: 2,
@@ -1291,7 +2188,7 @@ export const PICTURES: Record<string, Picture> = {
   },
   meadow: {
     label: 'Meadow',
-    group: 'plants',
+    group: 'beds',
     tile: {
       w: 0.9,
       h: 0.9,
@@ -3361,9 +4258,26 @@ export const BY_NAME: [string, RegExp][] = [
   ['woodStairs', /holztreppe|treppe aus holz|wooden ?stairs|deck ?stairs/i],
   ['woodSteps', /treppe|stufe|stairs|\bsteps\b/i],
   ['bridge', /brücke|bruecke|bridge/i],
+  ['butterflyBush', /schmetterlingsflieder|sommerflieder|buddleja|butterfly ?bush/i],
+  ['hydrangea', /hortensie|hydrangea/i],
+  ['rhododendron', /rhododendron|azalee|azalea/i],
+  ['roseBed', /rosenbeet|rose ?bed/i],
+  ['rose', /\brosen?\b|rosenstrauch|rosenbusch|\broses?\b/i],
+  ['lavender', /lavendel|lavender/i],
+  ['boxwood', /buchs|boxwood/i],
+  ['fern', /farn|\bferns?\b/i],
+  ['grass', /ziergras|chinaschilf|pampas|lampenputzer|miscanthus|schilf|blauschwingel|federgras/i],
+  ['hosta', /funkie|hosta/i],
+  ['bamboo', /bambus|bamboo/i],
+  ['japaneseMaple', /fächerahorn|faecherahorn|japanese ?maple/i],
+  ['perennialBed', /staude|präriebeet|prairie|perennial/i],
+  ['springBed', /tulpe|narzisse|frühlingsbeet|zwiebel|krokus|tulip|daffodil|spring ?bed/i],
+  ['summerBed', /sommerblume|einjährige|annuals?|summer ?flowers?/i],
+  ['groundCover', /bodendecker|efeu|immergrün|ground ?cover|\bivy\b/i],
   ['raisedBed', /hochbeet|raised/i],
   ['herbSpiral', /kräuterspirale|kraeuterspirale|herb ?spiral|spirale/i],
-  ['vegetables', /gemüse|vegetable|kräuter|herb|salat|tomate/i],
+  ['herbGarden', /kräuter|herb/i],
+  ['vegetables', /gemüse|vegetable|salat|tomate/i],
   ['flowerMeadow', /blumenwiese|wildblume|wildflower|insekt|bienenweide/i],
   ['rockGarden', /steingarten|steinbeet|rock ?garden/i],
   ['fruitTree', /obst|apfel|birne|kirsch|pflaume|zwetsch|fruit|apple|cherry|pear|plum/i],
@@ -3373,7 +4287,7 @@ export const BY_NAME: [string, RegExp][] = [
   ['stump', /stumpf|stubben|\bstump/i],
   ['tree', /baum|bäume|tree|linde|eiche|ahorn|birke|buche|walnuss|kastanie/i],
   ['hedge', /hecke|hedge|wald|forest/i],
-  ['floweringBush', /rose|hortensie|hydrangea|flieder|lilac|rhododendron|azalee|azalea|blühstrauch|forsythie|forsythia|hibiskus|hibiscus/i],
+  ['floweringBush', /flieder|lilac|blühstrauch|forsythie|forsythia|hibiskus|hibiscus|weigelie|spiere/i],
   ['bush', /busch|büsche|bush|strauch|sträucher|shrub/i],
   ['pot', /kübel|topf|\bpots?\b|planter|amphore/i],
   ['hotTub', /whirlpool|jacuzzi|hot ?tub|badefass|\bspa\b/i],

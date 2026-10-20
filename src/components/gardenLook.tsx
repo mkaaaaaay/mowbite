@@ -33,9 +33,10 @@ export function areaLook(area: MapArea, looks?: Record<string, string>): Look {
 export const groundOf = (look: Look): Look => (isThing(look) ? (PICTURES[look].around ?? 'meadow') : look);
 
 // p starts the ids of its gradients and clips, unique on the page. seed varies it (the area's id: the same tree every time,
-// p without one), variant is the color picked for it (settings.lookVariants), m svg units per meter (left out: from the box)
-export const drawThing = (look: Look, box: Box, p = 'gp', o?: {seed?: string; variant?: string; m?: number}) =>
-  PICTURES[look]?.thing?.(box, p, {seed: o?.seed ?? p, variant: o?.variant, m: o?.m});
+// p without one), variant is the color picked for it (settings.lookVariants), m svg units per meter (left out: from the box),
+// edge a bed's real edge in the box's units
+export const drawThing = (look: Look, box: Box, p = 'gp', o?: {seed?: string; variant?: string; m?: number; edge?: [number, number][]}) =>
+  PICTURES[look]?.thing?.(box, p, {seed: o?.seed ?? p, variant: o?.variant, m: o?.m, edge: o?.edge});
 
 // how far a point is from the outline
 function edgeDistance(o: Point[], x: number, y: number) {
@@ -65,6 +66,12 @@ export interface Place {
 // where a thing goes in its area, o its outline in svg units: around cx, cy, turned deg, w by h. a long one along the
 // area's long side into the biggest box of that shape that fits in it, any other into the biggest circle in it
 export function placeThing(look: Look, o: Point[]): Place {
+  if (PICTURES[look]?.fill) {
+    // a bed over the whole area
+    const [xs, ys] = [o.map((q) => q.x), o.map((q) => q.y)];
+    const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+    return {cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, deg: 0, w: x1 - x0, h: y1 - y0};
+  }
   const n = o.length;
   const [mx, my] = [o.reduce((s, p) => s + p.x, 0) / n, o.reduce((s, p) => s + p.y, 0) / n];
   if (PICTURES[look]?.long) {
@@ -244,6 +251,8 @@ export interface GardenThing {
   variant?: string;
   m: number;
   places: Place[];
+  // a bed's real edge (svg units), its border goes along it
+  edge?: Point[];
 }
 export interface GardenThings {
   lawns: Map<string, number>;
@@ -285,7 +294,8 @@ export function gardenThings(
         placed = {key: placeKey, body, outline, places: placeThings(look, outline, fit.m, a.id, sizes?.[a.id])};
         placeCache.set(a, placed);
       }
-      out.things.set(a.id, {i: out.clips.length, id: a.id, look, variant: variants?.[a.id], m: fit.m, places: placed.places});
+      const edge = PICTURES[look].fill ? placed.outline : undefined;
+      out.things.set(a.id, {i: out.clips.length, id: a.id, look, variant: variants?.[a.id], m: fit.m, places: placed.places, edge});
       out.clips.push(placed.outline.map((p) => `${p.x},${p.y}`).join(' '));
     }
   }
