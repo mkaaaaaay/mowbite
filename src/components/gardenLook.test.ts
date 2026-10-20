@@ -1,6 +1,7 @@
 import type {MapArea} from '@/hooks/useMowerMap';
 import {describe, expect, it} from 'vitest';
-import {areaLook, groundOf, placeThing, placeThings} from './gardenLook';
+import {coversOf} from './gardenLife';
+import {areaLook, facing, groundOf, placeThing, placeThings} from './gardenLook';
 
 const area = (name: string, type = 'obstacle', id = 'a'): MapArea => ({id, properties: {name, type}, outline: []});
 
@@ -192,5 +193,33 @@ describe('placeThings', () => {
     const [p] = placeThings('woodSteps', rect(6, 3), m, 'a');
     expect(p.w).toBeGreaterThan(5 * m);
     expect(p.h).toBeCloseTo(2.2 * m, 5);
+  });
+});
+
+describe('cantilever parasol', () => {
+  const square = (x: number, y: number, r: number) => [
+    {x: x - r, y: y - r},
+    {x: x + r, y: y - r},
+    {x: x + r, y: y + r},
+    {x: x - r, y: y + r},
+  ];
+  const lawn: MapArea = {id: 'l', properties: {type: 'mow'}, outline: square(5, 5, 5)};
+  const foot: MapArea = {id: 'f', properties: {type: 'obstacle', name: 'Ampelschirm'}, outline: square(5, 2, 0.3)};
+  const table: MapArea = {id: 't', properties: {type: 'obstacle', name: 'Tisch'}, outline: square(7, 2, 0.8)};
+  // the svg's y points down
+  const at = (q: {x: number; y: number}) => ({x: q.x, y: -q.y});
+
+  it('reaches over the table next to it, else into the lawn', () => {
+    expect(areaLook(foot)).toBe('cantilever');
+    expect(facing(foot, [lawn, foot, table], undefined, at)).toBeCloseTo(0, 5);
+    expect(facing(foot, [lawn, foot], undefined, at)).toBeCloseTo(-90, 5);
+  });
+
+  it('is turned that way, the mower hidden under its canopy off to that side', () => {
+    const [pl] = placeThings('cantilever', square(0, 0, 3), 10, 'f', undefined, 90);
+    expect(pl.deg).toBe(90);
+    const [cover] = coversOf([{i: 0, id: 'f', look: 'cantilever', m: 10, places: [pl]}]);
+    expect(cover.cx).toBeCloseTo(0, 5);
+    expect(cover.cy).toBeCloseTo(0.6 * pl.w, 5);
   });
 });

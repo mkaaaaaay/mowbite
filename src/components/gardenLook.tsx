@@ -153,10 +153,11 @@ function pack(o: Point[], each: () => number, over: boolean, rnd: () => number, 
 }
 
 // where a thing goes in its area about as big as it really is (PICTURES' size), o the area's outline in svg units, m svg
-// units per meter, seed the area's id, size the one picked for the area in meters: a long one no longer nor deeper than
-// it is, a crown or a parasol round the middle reaching over the edge, several bushes or trees where there's room for
-// them, any other into the biggest circle but no bigger than it is
-export function placeThings(look: Look, o: Point[], m: number, seed: string, size?: number): Place[] {
+// units per meter, seed the area's id, size the one picked for the area in meters, turn which way one that faces a way
+// does (degrees in the svg, 0 right): a long one no longer nor deeper than it is, a crown or a parasol round the middle
+// reaching over the edge, several bushes or trees where there's room for them, any other into the biggest circle but no
+// bigger than it is
+export function placeThings(look: Look, o: Point[], m: number, seed: string, size?: number, turn?: number): Place[] {
   const pic = PICTURES[look];
   const fit = placeThing(look, o);
   if (!pic || !(m > 0)) return [fit];
@@ -179,7 +180,7 @@ export function placeThings(look: Look, o: Point[], m: number, seed: string, siz
   }
   if (pic.over) {
     const s = own ?? Math.min(Math.max(fit.w, lo), hi);
-    return [{...fit, w: s, h: s, over: true}];
+    return [{...fit, w: s, h: s, over: true, deg: turn ?? fit.deg}];
   }
   const s = Math.min(fit.w, own ?? hi);
   return [{...fit, w: s, h: s}];
@@ -262,7 +263,30 @@ export interface GardenThings {
   clips: string[];
 }
 
-const thingsCache = new WeakMap<object, {looks?: object; variants?: object; sizes?: object; body: object | null; key: string; out: GardenThings}>();
+const thingsCache = new WeakMap<object, {looks?: object; variants?: object; sizes?: object; turns?: object; body: object | null; key: string; out: GardenThings}>();
+
+// the things a cantilever parasol stands by, it reaches over them
+const SEATS = ['table', 'furniture', 'lounge', 'lounger', 'bench', 'pingPong', 'grill', 'firePit', 'hotTub'];
+
+// which way a thing that faces a way does by itself: towards the nearest table or seats within 6 m, else towards the
+// middle of the lawn it stands in. degrees in the svg (at: map to svg), 0 without either
+export function facing(a: MapArea, areas: MapArea[], looks: Record<string, string> | undefined, at: (p: Point) => Point): number {
+  const mid = (o: Point[]) => ({x: o.reduce((s, p) => s + p.x, 0) / o.length, y: o.reduce((s, p) => s + p.y, 0) / o.length});
+  const from = mid(a.outline);
+  let near: {d: number; to: Point} | null = null;
+  for (const b of areas) {
+    if (b === a || b.outline.length < 3 || (b.properties.type !== 'obstacle' && b.properties.type !== 'nav')) continue;
+    if (!SEATS.includes(areaLook(b, looks))) continue;
+    const to = mid(b.outline);
+    const d = Math.hypot(to.x - from.x, to.y - from.y);
+    if (d < 6 && (!near || d < near.d)) near = {d, to};
+  }
+  const lawn = near ? null : areas.find((b) => b.properties.type === 'mow' && b.outline.length > 2 && containsPoint(b.outline, from.x, from.y));
+  const to = near?.to ?? (lawn ? mid(lawn.outline) : null);
+  if (!to) return 0;
+  const [p, q] = [at(from), at(to)];
+  return (Math.atan2(q.y - p.y, q.x - p.x) * 180) / Math.PI;
+}
 const placeCache = new WeakMap<MapArea, {key: string; body: object | null; outline: Point[]; places: Place[]}>();
 
 export function gardenThings(
@@ -272,10 +296,11 @@ export function gardenThings(
   fit: Fit,
   variants?: Record<string, string>,
   sizes?: Record<string, number>,
+  turns?: Record<string, number>,
 ): GardenThings {
   const key = fitKey(fit);
   const hit = thingsCache.get(areas);
-  if (hit && hit.looks === looks && hit.variants === variants && hit.sizes === sizes && hit.body === body && hit.key === key) return hit.out;
+  if (hit && hit.looks === looks && hit.variants === variants && hit.sizes === sizes && hit.turns === turns && hit.body === body && hit.key === key) return hit.out;
   const at = inSquare(fit);
   const out: GardenThings = {lawns: new Map(), looks: new Map(), things: new Map(), angles: [], clips: []};
   for (const a of areas) {
@@ -287,11 +312,12 @@ export function gardenThings(
       const look = areaLook(a, looks);
       out.looks.set(a.id, look);
       if (!isThing(look)) continue;
-      const placeKey = `${look}|${sizes?.[a.id] ?? ''}|${key}`;
+      const turn = PICTURES[look].turn ? (turns?.[a.id] ?? facing(a, areas, looks, at)) : undefined;
+      const placeKey = `${look}|${sizes?.[a.id] ?? ''}|${turn ?? ''}|${key}`;
       let placed = placeCache.get(a);
       if (!placed || placed.key !== placeKey || placed.body !== body) {
         const outline = ((body && insideEdge(a.outline, body)) || a.outline).map(at);
-        placed = {key: placeKey, body, outline, places: placeThings(look, outline, fit.m, a.id, sizes?.[a.id])};
+        placed = {key: placeKey, body, outline, places: placeThings(look, outline, fit.m, a.id, sizes?.[a.id], turn)};
         placeCache.set(a, placed);
       }
       const edge = PICTURES[look].fill ? placed.outline : undefined;
@@ -299,7 +325,7 @@ export function gardenThings(
       out.clips.push(placed.outline.map((p) => `${p.x},${p.y}`).join(' '));
     }
   }
-  thingsCache.set(areas, {looks, variants, sizes, body, key, out});
+  thingsCache.set(areas, {looks, variants, sizes, turns, body, key, out});
   return out;
 }
 
@@ -308,9 +334,14 @@ export function LookSwatch({look, size = 44, seed, variant}: {look: Look; size?:
   const id = 'look' + useId().replace(/[^a-zA-Z0-9]/g, '');
   return (
     <svg viewBox="0 0 40 40" width={size} height={size} aria-hidden="true">
-      <defs>{texture(groundOf(look), id, 40)}</defs>
+      <defs>
+        {texture(groundOf(look), id, 40)}
+        <clipPath id={id + 'c'}>
+          <rect width={40} height={40} rx={7} />
+        </clipPath>
+      </defs>
       <rect width={40} height={40} rx={7} fill={`url(#${id})`} />
-      {isThing(look) && drawThing(look, {x: 4, y: 4, w: 32, h: 32}, id + 't', {seed, variant})}
+      {isThing(look) && <g clipPath={`url(#${id}c)`}>{drawThing(look, {x: 4, y: 4, w: 32, h: 32}, id + 't', {seed, variant})}</g>}
     </svg>
   );
 }

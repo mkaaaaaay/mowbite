@@ -64,6 +64,8 @@ export interface Picture {
   way?: boolean;
   // fills its whole area like a ground, but planted anew for every area (a bed)
   fill?: boolean;
+  // faces a way: turned by the place (settings.lookTurns, else towards what it belongs to)
+  turn?: boolean;
   // a ground: the texture
   tile?: Tile;
 }
@@ -875,9 +877,64 @@ const EDGINGS: Variants<{c: string; kind: 'stone' | 'brick' | 'wood'}> = {
   wood: {label: 'Wood', c: '#8a6440', kind: 'wood'},
 };
 
+const CANTILEVERS: Variants<{c: string}> = {
+  anthracite: {label: 'Anthracite', c: '#4f5459'},
+  grey: {label: 'Grey', c: '#9aa0a6'},
+  beige: {label: 'Beige', c: '#d9cdb4'},
+  taupe: {label: 'Taupe', c: '#8a7f72'},
+  white: {label: 'White', c: '#eeece6'},
+  terracotta: {label: 'Terracotta', c: '#b9643f'},
+};
+
 const WOOD = '#9c7447';
 const STONE = '#b3ad9f';
 const WATER = '#2f86bf';
+
+// a cantilever parasol: its foot of weights and the mast where the area is, the canopy on its arm off to the side (to the
+// right, the place turns it), square or with eight sides, its faces lit from the top left, ribs to the corners, a vent on
+// top. as a swatch (no m) smaller and moved so both fit
+function cantilever(sides: 4 | 8) {
+  return function canopy(b: Box, p: string, o: ThingOptions): React.ReactNode {
+    const {cx, cy} = middle(b);
+    const swatch = o.m === undefined;
+    const s = Math.min(b.w, b.h) * (swatch ? 0.66 : 0.96);
+    const c = pick(o, CANTILEVERS, true).c;
+    const [fx, fy] = [swatch ? cx - s * 0.47 : cx, cy];
+    const [ax, ay] = [fx + s * 0.62, fy];
+    // the corners: a square's at its side, an octagon's as wide across its flats
+    const R = sides === 4 ? s * 0.707 : s * 0.541;
+    const turn = sides === 4 ? -PI / 4 : -PI / 2 + PI / 8;
+    const corners = Array.from({length: sides}, (_, i): Pt => [ax + Math.cos(turn + (i / sides) * 2 * PI) * R, ay + Math.sin(turn + (i / sides) * 2 * PI) * R]);
+    const foot = s * 0.17;
+    const petals = Array.from({length: 4}, (_, k): Dot => {
+      const a = (k / 4) * 2 * PI + PI / 4;
+      return [fx + Math.cos(a) * foot * 0.55, fy + Math.sin(a) * foot * 0.55, foot * 0.55];
+    });
+    const metal = '#6b6f73';
+    return (
+      <>
+        {sides === 4 ? softBox(ax - s / 2, ay - s / 2, s, s, s * 0.04, s * 0.06) : halo(p + 'h', ax, ay, R, R, 0.3)}
+        <path d={circles(petals)} fill="#45484c" stroke="#2a2c2f" strokeWidth={n2(s * 0.006)} />
+        <path d={circles(petals.map(([x, y, r]) => [x - r * 0.2, y - r * 0.2, r * 0.55]))} fill="#5d6166" opacity={0.7} />
+        <path d={petals.map(([x, y, r]) => `M${n2(x - r * 0.85)} ${n2(y)}h${n2(r * 1.7)}`).join('')} stroke="#1f2124" strokeWidth={n2(s * 0.01)} />
+        <path d={`M${n2(fx)} ${n2(fy)}L${n2(ax)} ${n2(ay)}`} stroke={metal} strokeWidth={n2(s * 0.022)} strokeLinecap="round" />
+        <circle cx={n2(fx)} cy={n2(fy)} r={n2(s * 0.035)} fill={tone(metal, -0.2)} stroke="#2a2c2f" strokeWidth={n2(s * 0.006)} />
+        <circle cx={n2(fx - s * 0.008)} cy={n2(fy - s * 0.008)} r={n2(s * 0.015)} fill={tone(metal, 0.4)} />
+        {corners.map(([x, y], i) => {
+          const [nx, ny] = corners[(i + 1) % sides];
+          const mid = Math.atan2((y + ny) / 2 - ay, (x + nx) / 2 - ax);
+          return <polygon key={i} points={poly([[ax, ay], [x, y], [nx, ny]])} fill={tone(c, Math.cos(mid + (3 * PI) / 4) * 0.14 - 0.03)} />;
+        })}
+        <path d={corners.map(([x, y]) => `M${n2(ax)} ${n2(ay)}L${n2(x)} ${n2(y)}`).join('')} stroke={tone(c, -0.35)} strokeWidth={n2(s * 0.008)} />
+        <polygon points={poly(corners)} fill="none" stroke={tone(c, -0.4)} strokeWidth={n2(s * 0.012)} strokeLinejoin="round" />
+        <path d={circles([[ax + s * 0.01, ay + s * 0.015, s * 0.1]])} fill="#000" opacity={0.25} />
+        <circle cx={n2(ax)} cy={n2(ay)} r={n2(s * 0.1)} fill={tone(c, 0.08)} stroke={tone(c, -0.35)} strokeWidth={n2(s * 0.006)} />
+        <circle cx={n2(ax)} cy={n2(ay)} r={n2(s * 0.03)} fill={tone(c, -0.3)} />
+        <path d={circles(corners.map(([x, y]) => [x, y, s * 0.012]))} fill="#2a2c2f" />
+      </>
+    );
+  };
+}
 
 export const PICTURES: Record<string, Picture> = {
   // plants
@@ -3326,6 +3383,26 @@ export const PICTURES: Record<string, Picture> = {
       );
     },
   },
+  cantilever: {
+    label: 'Cantilever parasol',
+    group: 'outdoor',
+    variants: choices(CANTILEVERS),
+    size: [2.5, 4],
+    over: true,
+    turn: true,
+    around: 'meadow',
+    thing: cantilever(4),
+  },
+  cantilever8: {
+    label: 'Octagonal cantilever parasol',
+    group: 'outdoor',
+    variants: choices(CANTILEVERS),
+    size: [2.5, 4],
+    over: true,
+    turn: true,
+    around: 'meadow',
+    thing: cantilever(8),
+  },
   sunSail: {
     label: 'Shade sail',
     group: 'outdoor',
@@ -4314,6 +4391,8 @@ export const BY_NAME: [string, RegExp][] = [
   ['grill', /grill|bbq|barbecue/i],
   ['firePit', /feuer|fire/i],
   ['sunSail', /sonnensegel|sun ?sail|shade ?sail/i],
+  ['cantilever8', /(acht|8)[- ]?eck\w*\s*ampel|ampel\w*\s*(acht|8)[- ]?eck|octagonal ?cantilever/i],
+  ['cantilever', /ampelschirm|freiarm|cantilever|seglar/i],
   ['umbrella', /schirm|umbrella|parasol/i],
   ['lamp', /lampe|laterne|leuchte|lantern|\blamp\b|light/i],
   ['hammock', /hängematte|hammock/i],

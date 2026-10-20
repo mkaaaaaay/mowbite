@@ -806,9 +806,9 @@ function MapView({
   const uid = 'g' + useId().replace(/[^a-zA-Z0-9]/g, '');
   const gardenLook = useMemo(() => {
     if (!garden) return null;
-    const g = gardenThings(map.areas, settings.looks, body ?? null, {minX, minY, m: scale, padX, padY}, settings.lookVariants, settings.lookSizes);
+    const g = gardenThings(map.areas, settings.looks, body ?? null, {minX, minY, m: scale, padX, padY}, settings.lookVariants, settings.lookSizes, settings.lookTurns);
     return {...g, defs: <GardenDefs uid={uid} m={scale} lawns={g.angles} clips={g.clips} />};
-  }, [garden, map, settings.looks, settings.lookVariants, settings.lookSizes, uid, scale, minX, minY, padX, padY, body]);
+  }, [garden, map, settings.looks, settings.lookVariants, settings.lookSizes, settings.lookTurns, uid, scale, minX, minY, padX, padY, body]);
   // the garden's life (gardenLife): light after the sun, the season and the weather on the lawn, a mowing edge and
   // the lawn growing back since it was last cut. the time moves on every five minutes, the layers are worked out below
   const life = garden && !sample ? lifeOf(settings.garden) : null;
@@ -989,6 +989,7 @@ function MapView({
             looks: settings.looks,
             lookVariants: settings.lookVariants,
             lookSizes: settings.lookSizes,
+            lookTurns: settings.lookTurns,
             body: body ?? null,
             fit: {minX, minY, m: scale, padX, padY},
             uid,
@@ -1003,7 +1004,7 @@ function MapView({
             hidden,
           })
         : null,
-    [garden, sample, map, settings.garden, settings.looks, settings.lookVariants, settings.lookSizes, body, minX, minY, scale, padX, padY, uid, lifeNow, datum, weather, rainSensor, mower, history, track, edges, hidden],
+    [garden, sample, map, settings.garden, settings.looks, settings.lookVariants, settings.lookSizes, settings.lookTurns, body, minX, minY, scale, padX, padY, uid, lifeNow, datum, weather, rainSensor, mower, history, track, edges, hidden],
   );
   const gardenFill = (a: MapArea): React.CSSProperties | undefined => {
     if (!gardenLook) return undefined;

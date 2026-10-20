@@ -88,6 +88,8 @@ const HEIGHTS: Record<string, number> = {
   fern: 0.6,
   grass: 1.2,
   hosta: 0.4,
+  cantilever: 2.6,
+  cantilever8: 2.6,
 };
 
 export const heightOf = (look: Look) => HEIGHTS[look] ?? 0;
@@ -337,14 +339,29 @@ export function thingShadow(look: Look, place: {w: number; h: number}, shadow: {
 // the biggest of a thing's places, what its shadow goes by
 export const biggest = (places: Place[]) => places.reduce((a, b) => (b.w * b.h > a.w * a.h ? b : a));
 
-// how much of a crown's or a parasol's circle hides what's under it (a rotary dryer's lines nothing)
-const COVERS: Record<string, number> = {umbrella: 0.92, tree: 0.88, fruitTree: 0.86, palm: 0.75, sunSail: 0.55};
+// how much of a crown's or a parasol's circle hides what's under it (of half its place, a rotary dryer's lines nothing),
+// the circle round all of it (rim) and how far its middle is off the place's (ahead, of the place, the way it's turned)
+const COVERS: Record<string, {r: number; rim?: number; ahead?: number}> = {
+  umbrella: {r: 0.92},
+  tree: {r: 0.88},
+  fruitTree: {r: 0.86},
+  palm: {r: 0.75},
+  sunSail: {r: 0.55},
+  cantilever: {r: 0.96, rim: 1.36, ahead: 0.6},
+  cantilever8: {r: 0.96, rim: 1.06, ahead: 0.6},
+};
 
 // where the mower is hidden under a crown or a parasol: a circle each (svg units), rim the whole crown's (the plan and
 // the track go over that)
 export const coversOf = (things: Thing[]) =>
   things.flatMap((t) =>
-    t.places.filter((pl) => pl.over && COVERS[t.look]).map((pl) => ({cx: pl.cx, cy: pl.cy, r: (pl.w / 2) * COVERS[t.look], rim: pl.w / 2})),
+    t.places
+      .filter((pl) => pl.over && COVERS[t.look])
+      .map((pl) => {
+        const {r, rim = 1, ahead = 0} = COVERS[t.look];
+        const a = (pl.deg * Math.PI) / 180;
+        return {cx: pl.cx + Math.cos(a) * ahead * pl.w, cy: pl.cy + Math.sin(a) * ahead * pl.w, r: (pl.w / 2) * r, rim: (pl.w / 2) * rim};
+      }),
   );
 
 // an area's picture standing in it (a tree, a table ... or several), cut to the area (clip i of GardenDefs) unless it
@@ -415,6 +432,7 @@ export interface LifeInput {
   looks?: Record<string, string>;
   lookVariants?: Record<string, string>;
   lookSizes?: Record<string, number>;
+  lookTurns?: Record<string, number>;
   body?: MowerBody | null;
   fit: Fit;
   uid: string;
@@ -528,7 +546,7 @@ export function lifeScene(s: LifeInput): LifeScene | null {
         at,
       )
     : '';
-  const garden = gardenThings(s.areas, s.looks, s.body ?? null, fit, s.lookVariants, s.lookSizes);
+  const garden = gardenThings(s.areas, s.looks, s.body ?? null, fit, s.lookVariants, s.lookSizes, s.lookTurns);
   // the things reaching over the others and the mower, of the areas shown
   const shown = bySize
     .filter((a) => !hidden.has(a.properties.type ?? ''))

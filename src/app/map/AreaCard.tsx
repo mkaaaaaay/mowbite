@@ -61,19 +61,28 @@ export default function AreaCard({
   const variants = PICTURES[shown]?.variants;
   const kept = settings.lookVariants?.[area.id];
   const variant = variants?.some((v) => v.key === kept) ? kept : undefined;
-  const save = (look: string | undefined, key: string | undefined) => {
+  // what's kept for the area's picture: which one, its color, size and direction. null takes one back to auto, left out
+  // it stays
+  const keep = (to: {look?: string | null; variant?: string | null; size?: number | null; turn?: number | null}) => {
     const cur = settingsStore.snapshot();
-    const looks = {...cur.looks};
-    if (look) looks[area.id] = look;
-    else delete looks[area.id];
-    const lookVariants = {...cur.lookVariants};
-    if (key) lookVariants[area.id] = key;
-    else delete lookVariants[area.id];
-    saveSettings({...cur, looks, lookVariants: Object.keys(lookVariants).length ? lookVariants : undefined});
+    const put = <T,>(all: Record<string, T> | undefined, v: T | null | undefined) => {
+      if (v === undefined) return all;
+      const next = {...all};
+      if (v === null) delete next[area.id];
+      else next[area.id] = v;
+      return Object.keys(next).length ? next : undefined;
+    };
+    saveSettings({
+      ...cur,
+      looks: put(cur.looks, to.look) ?? {},
+      lookVariants: put(cur.lookVariants, to.variant),
+      lookSizes: put(cur.lookSizes, to.size),
+      lookTurns: put(cur.lookTurns, to.turn),
+    });
   };
-  // another picture starts with its own usual color
-  const setLook = (look: Look | undefined) => save(look, undefined);
-  const setVariant = (key: string | undefined) => save(picked, key);
+  // another picture starts with its own usual color, size and direction
+  const setLook = (look: Look | undefined) => keep({look: look ?? null, variant: null, size: null, turn: null});
+  const setVariant = (key: string | undefined) => keep({variant: key ?? null});
   // how big a tree, a parasol or bushes are drawn (m across), none: by the area and their usual size. the slider starts
   // about where they are
   const sizes = PICTURES[shown]?.over || PICTURES[shown]?.many ? PICTURES[shown].size : undefined;
@@ -83,13 +92,12 @@ export default function AreaCard({
     const across = placeThing(shown, area.outline).w;
     return PICTURES[shown].over ? Math.min(Math.max(across, sizes[0]), sizes[1]) : Math.min(Math.max((sizes[0] + Math.min(sizes[1], across)) / 2, sizes[0]), sizes[1]);
   }, [sizes, shown, area.outline]);
-  const setSize = (v: number | undefined) => {
-    const cur = settingsStore.snapshot();
-    const lookSizes = {...cur.lookSizes};
-    if (v) lookSizes[area.id] = v;
-    else delete lookSizes[area.id];
-    saveSettings({...cur, lookSizes: Object.keys(lookSizes).length ? lookSizes : undefined});
-  };
+  const setSize = (v: number | undefined) => keep({size: v ?? null});
+  // which way a cantilever parasol reaches (degrees on the map, 0 east), none: towards the seats next to it or the lawn
+  const turnable = !!PICTURES[shown]?.turn;
+  const ownTurn = turnable ? settings.lookTurns?.[area.id] : undefined;
+  const setTurn = (v: number | undefined) => keep({turn: v ?? null});
+  const compass = (deg: number) => ['east', 'southeast', 'south', 'southwest', 'west', 'northwest', 'north', 'northeast'][Math.round((((deg % 360) + 360) % 360) / 45) % 8];
   const applyMargin = () => {
     if (marginDraft === null) return;
     const v = Number(marginDraft.trim().replace(',', '.'));
@@ -256,6 +264,32 @@ export default function AreaCard({
               onChange={(e) => setSize(Number(e.target.value))}
             />
             <span className={styles.sizeValue}>{ownSize ? `${fmt(ownSize, 1)} m` : ''}</span>
+          </div>
+        </div>
+      )}
+      {pictured && turnable && (
+        <div className={styles.lookRow}>
+          <span className={[styles.dim, styles.variantLabel].join(' ')}>{tr('Direction')}</span>
+          <div className={styles.variantList}>
+            <button
+              role="switch"
+              aria-checked={ownTurn === undefined}
+              className={[styles.variantButton, styles.variantText, ownTurn === undefined ? styles.variantOn : ''].join(' ')}
+              onClick={() => setTurn(undefined)}
+            >
+              {tr('auto')}
+            </button>
+            <input
+              type="range"
+              className={styles.sizeSlider}
+              aria-label={tr('Direction')}
+              min={0}
+              max={345}
+              step={15}
+              value={ownTurn ?? 0}
+              onChange={(e) => setTurn(Number(e.target.value))}
+            />
+            <span className={styles.sizeValue}>{ownTurn !== undefined ? tr(compass(ownTurn)) : ''}</span>
           </div>
         </div>
       )}

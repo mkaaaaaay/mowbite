@@ -39,10 +39,12 @@ export const areaLook = gardenLook.areaLook;
 export const isThing = gardenLook.isThing;
 export const groundOf = gardenLook.groundOf;
 export const placeThing = gardenLook.placeThing;
-// where a thing goes as big as it really is: placeThings(look, outline, m, seed, size) with the outline in svg units, m
-// svg units per meter, seed the area's id, size picked for the area (settings.lookSizes, m across). gives one or several
-// places {cx, cy, deg, w, h, over, seed}: over not cut to the area (a crown, a parasol), seed for drawThing when there
+// where a thing goes as big as it really is: placeThings(look, outline, m, seed, size, turn) with the outline in svg
+// units, m svg units per meter, seed the area's id, size picked for the area (settings.lookSizes, m across), turn the way a
+// cantilever parasol reaches (settings.lookTurns, else facing(area, areas, looks, toSvg)). gives one or several places
+// {cx, cy, deg, w, h, over, seed}: over not cut to the area (a crown, a parasol), seed for drawThing when there
 export const placeThings = gardenLook.placeThings;
+export const facing = gardenLook.facing;
 export const autoMowAngle = mowStripes.autoMowAngle;
 export const PICTURE_KEYS = gardenPictures.PICTURE_KEYS;
 // id starts the ids of the picture's gradients and clips: one of its own for every picture in a page. seed varies the picture
@@ -76,7 +78,7 @@ export const sunPosition = sun.sunPosition;
 export const seasonOf = sun.seasonOf;
 
 // all of it at once in MapView's layers as svg text, null with none of it on. input: {areas, garden, looks, body, fit,
-// uid, now, datum, weather, rain, mower, jobs, track, edgeLine, hidden, lookVariants, lookSizes}, see LifeInput in src/components/gardenLife.tsx.
+// uid, now, datum, weather, rain, mower, jobs, track, edgeLine, hidden, lookVariants, lookSizes, lookTurns}, see LifeInput in src/components/gardenLife.tsx.
 // defs into the svg's defs, then over the areas in this order: lawn, the real lawn in the obstacles, things (instead of
 // the areas' own), stones (along the lawns, instead of their real edges' line), sky. long: the active lawns are filled with
 // url(#{uid}long). canopies: the crowns and parasols, they go over the mower, and covers the circles {cx, cy, r} where
