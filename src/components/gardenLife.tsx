@@ -329,9 +329,12 @@ export const biggest = (places: Place[]) => places.reduce((a, b) => (b.w * b.h >
 // how much of a crown's or a parasol's circle hides what's under it (a rotary dryer's lines nothing)
 const COVERS: Record<string, number> = {umbrella: 0.92, tree: 0.88, fruitTree: 0.86, palm: 0.75, sunSail: 0.55};
 
-// where the mower is hidden under a crown or a parasol: a circle each (svg units)
+// where the mower is hidden under a crown or a parasol: a circle each (svg units), rim the whole crown's (the plan and
+// the track go over that)
 export const coversOf = (things: Thing[]) =>
-  things.flatMap((t) => t.places.filter((pl) => pl.over && COVERS[t.look]).map((pl) => ({cx: pl.cx, cy: pl.cy, r: (pl.w / 2) * COVERS[t.look]})));
+  things.flatMap((t) =>
+    t.places.filter((pl) => pl.over && COVERS[t.look]).map((pl) => ({cx: pl.cx, cy: pl.cy, r: (pl.w / 2) * COVERS[t.look], rim: pl.w / 2})),
+  );
 
 // an area's picture standing in it (a tree, a table ... or several), cut to the area (clip i of GardenDefs) unless it
 // reaches over it, faded when the area is off. with a shadow the same once more first, dark and moved away from the sun
@@ -420,7 +423,7 @@ export interface LifeScene {
   sky: ReactNode;
   // the crowns and parasols reaching over everything, the mower too, and where they hide it
   canopies: ReactNode;
-  covers: {cx: number; cy: number; r: number}[];
+  covers: {cx: number; cy: number; r: number; rim: number}[];
 }
 
 const FAR = {x: -10 * 400, y: -10 * 400, width: 21 * 400, height: 21 * 400};

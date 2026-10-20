@@ -1589,6 +1589,29 @@ function MapView({
     ? scene.canopies
     : overThings.map((t) => <GardenThing key={'c' + t.id} uid={uid} thing={t} off={map.areas.find((a) => a.id === t.id)?.properties.active === false} part="over" />);
   const covers = scene ? scene.covers : coversOf(overThings);
+  // the plan's lanes and loops, under the dock and the track
+  const planLines = (
+    <>
+      {loopsPath && !hidden.has('stripes') && <path className={styles.stripes} d={loopsPath} />}
+      {stripesPath && !hidden.has('stripes') && <path className={styles.stripes} d={stripesPath} />}
+      {piecePaths && !hidden.has('stripes') && (
+        <>
+          {piecePaths.mowed && <path className={styles.stripes} d={piecePaths.mowed} />}
+          {turnsOn && piecePaths.turns && <path className={styles.stripes} d={piecePaths.turns} />}
+          {transitOn && piecePaths.transit && <path className={styles.planTransit} d={piecePaths.transit} />}
+        </>
+      )}
+    </>
+  );
+  // the real edges, what's left to mow, the strip the blade cut and the track
+  const lateLines = (
+    <>
+      {edges && (scene?.stones ? edges.obstacleLine : edges.line) && <path className={styles.realEdge} d={scene?.stones ? edges.obstacleLine : edges.line} />}
+      {todoPath && !hidden.has('stripes') && <path className={[styles.planTodo, styles[planStyle]].join(' ')} d={todoPath} />}
+      {(!scene?.parts.growth || !!pastTrack?.length || !!beforeTrack?.length) && swathLayer}
+      {trackLayer}
+    </>
+  );
   const renderContent = (k: number) => (
     <>
       {tiles.length > 0 && (
@@ -1635,15 +1658,7 @@ function MapView({
 
         {coverLayer}
 
-        {loopsPath && !hidden.has('stripes') && <path className={styles.stripes} d={loopsPath} />}
-        {stripesPath && !hidden.has('stripes') && <path className={styles.stripes} d={stripesPath} />}
-        {piecePaths && !hidden.has('stripes') && (
-          <>
-            {piecePaths.mowed && <path className={styles.stripes} d={piecePaths.mowed} />}
-            {turnsOn && piecePaths.turns && <path className={styles.stripes} d={piecePaths.turns} />}
-            {transitOn && piecePaths.transit && <path className={styles.planTransit} d={piecePaths.transit} />}
-          </>
-        )}
+        {planLines}
 
         {grid && (
           <g className={styles.grid}>
@@ -1685,13 +1700,7 @@ function MapView({
           );
         })}
 
-        {edges && (scene?.stones ? edges.obstacleLine : edges.line) && <path className={styles.realEdge} d={scene?.stones ? edges.obstacleLine : edges.line} />}
-
-        {todoPath && !hidden.has('stripes') && <path className={[styles.planTodo, styles[planStyle]].join(' ')} d={todoPath} />}
-
-        {(!scene?.parts.growth || !!pastTrack?.length || !!beforeTrack?.length) && swathLayer}
-
-        {trackLayer}
+        {lateLines}
 
         {mower && (
           <MowerMarker
@@ -1714,6 +1723,22 @@ function MapView({
           />
         )}
         {!mower && canopies}
+        {/* the plan, the real edges and the track over the crowns too, only where they are (else they'd be twice) */}
+        {covers.length > 0 && (
+          <>
+            <defs>
+              <mask id={uid + 'rim'} maskUnits="userSpaceOnUse" x={-10 * WIDTH} y={-10 * HEIGHT} width={21 * WIDTH} height={21 * HEIGHT}>
+                {covers.map((c, i) => (
+                  <circle key={i} cx={c.cx} cy={c.cy} r={c.rim} fill="#fff" />
+                ))}
+              </mask>
+            </defs>
+            <g mask={`url(#${uid}rim)`}>
+              {planLines}
+              {lateLines}
+            </g>
+          </>
+        )}
 
         {selectedArea && (
           <polygon
