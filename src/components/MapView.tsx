@@ -5,12 +5,12 @@ import {useComputedSpeed} from '@/hooks/useComputedSpeed';
 import {createEaser, type Easer, type Pose} from '@/lib/poseEaser';
 import {liveGlide} from '@/hooks/useMowerPosition';
 import {containsPoint, polygonArea} from '@/lib/geometry';
-import {settingsStore, type Settings} from '@/lib/settings';
+import {saveSettings, settingsStore, type Settings} from '@/lib/settings';
 import {bladeSeconds, bodyShape, realEdges, roundBends, swathEnd, swathGroups, swathAfter, swathTail, useMowerBody, usePlannerSettings, type MowerBody, type SwathState} from '@/lib/mowerBody';
 import type {FitPose, PlanPiece} from '@/lib/mowPlan';
 import {useSensorValue} from '@/hooks/useMowerSensors';
 import {dockIcon, drawMower, mowerIcon} from './mapIcons';
-import {availableSources, imageryTiles, type Datum} from '@/lib/imagery';
+import {availableSources, imageryShift, imageryTiles, type Datum} from '@/lib/imagery';
 import {handleRadius, meterGrid} from '@/lib/mapGrid';
 import MapControls, {layerOn, type Layer} from './MapControls';
 import {useMapPrefs} from './useMapPrefs';
@@ -520,6 +520,8 @@ function MapView({
   // a new area drawn outside) rescales the drawing, but what's looked at stays put
   const [viewMeters, setViewMeters] = useState<Meters | null>(null);
   const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
+  // the aerial imagery moved by hand until it lines up: the shift while it's being set
+  const [aligning, setAligning] = useState<[number, number] | null>(null);
   // the view from the last visit, until zoomed, panned or reset. a spot to show wins over it
   const [restore, setRestore] = useState(() => (viewKey && !focus ? (savedViews.get(viewKey) ?? null) : null));
   // in follow mode zooming changes how many meters around the mower are shown
@@ -1457,14 +1459,24 @@ function MapView({
 
   const sources = datum ? availableSources(datum, settings.imagery) : [];
   const source = imagery && sources.length ? (sources.includes(imagery) ? imagery : sources[0]) : null;
+  const savedShift = source ? imageryShift(source, settings.imagery) : null;
   let tiles: ReturnType<typeof imageryTiles> = [];
   if (zoomable && datum && source && svgPx > 0) {
     const v = shown ?? {x: 0, y: 0, size: WIDTH};
     const [left, bottom] = toLocal(v.x, v.y + v.size);
     const [right, top] = toLocal(v.x + v.size, v.y);
     const metersPerPixel = 1 / ((pxPerMeter * svgPx) / WIDTH);
-    tiles = imageryTiles(source, datum, {left, right, bottom, top, metersPerPixel}, settings.imagery);
+    tiles = imageryTiles(source, datum, {left, right, bottom, top, metersPerPixel}, settings.imagery, aligning ?? savedShift ?? undefined);
   }
+  // kept with the settings, for every device: per source, none when it's back at nothing
+  const saveShift = (shift: [number, number]) => {
+    if (!source) return;
+    const cur = settingsStore.snapshot();
+    const offsets = {...cur.imagery?.offsets};
+    if (Math.abs(shift[0]) < 0.005 && Math.abs(shift[1]) < 0.005) delete offsets[source];
+    else offsets[source] = shift;
+    saveSettings({...cur, imagery: {...cur.imagery, offsets: Object.keys(offsets).length ? offsets : undefined}});
+  };
 
   let grid: ReturnType<typeof meterGrid> | null = null;
   if (zoomable && showGrid) {
@@ -1489,8 +1501,10 @@ function MapView({
           {tiles.map((t) => {
             const [p0, p1, p2] = t.corners.map((c) => toScreen(c.x, c.y));
             const m = [p1[0] - p0[0], p1[1] - p0[1], p2[0] - p0[0], p2[1] - p0[1], p0[0], p0[1]].join(' ');
+            // a hair over the next tile, else a thin line of what's under them shows where they meet
+            const over = (a: number[], b: number[]) => 1 + (0.75 * k) / Math.max(1e-9, Math.hypot(b[0] - a[0], b[1] - a[1]));
             return (
-              <image key={t.href} href={t.href} width={1} height={1} preserveAspectRatio="none" transform={`matrix(${m})`} />
+              <image key={t.href} href={t.href} width={over(p0, p1)} height={over(p0, p2)} preserveAspectRatio="none" transform={`matrix(${m})`} />
             );
           })}
         </g>
@@ -1901,6 +1915,19 @@ function MapView({
           lastSource={lastImagery}
           imagerySettings={settings.imagery}
           onSource={setImagery}
+          align={
+            savedShift
+              ? {
+                  shift: aligning,
+                  onStart: () => setAligning(savedShift),
+                  onChange: setAligning,
+                  onDone: () => {
+                    if (aligning) saveShift(aligning);
+                    setAligning(null);
+                  },
+                }
+              : undefined
+          }
           hidden={hidden}
           onToggleLayer={toggleLayer}
           layersOpen={layersOpen}

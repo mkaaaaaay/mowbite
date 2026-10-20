@@ -498,6 +498,52 @@
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
 }
 
+/* moving the aerial imagery by hand: how far, the arrows, the step, done */
+.alignBar {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(20, 20, 22, 0.82);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  color: #fff;
+  font-size: 12px;
+}
+
+.alignBar div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.alignBar button {
+  min-width: 34px;
+  padding: 5px 9px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(20, 20, 22, 0.8);
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.alignBar button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.alignBar .alignDone {
+  margin-left: auto;
+  font-weight: 600;
+  border-color: color-mix(in srgb, var(--success) 70%, transparent);
+}
+
 .imageryBar select {
   font-size: 11px;
   padding: 2px 4px;

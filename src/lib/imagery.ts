@@ -237,6 +237,8 @@ export interface CustomImagery {
   url?: string;
   attribution?: string;
   esriKey?: string;
+  // m east and north a source's pictures are moved by, set by hand where they don't line up with the map
+  offsets?: Record<string, [number, number]>;
 }
 
 const esriKey = (custom?: CustomImagery) => custom?.esriKey?.trim() || '';
@@ -390,7 +392,21 @@ function xyzTiles(template: string, datum: Datum, v: View): ImageryTile[] {
   return tiles;
 }
 
-export function imageryTiles(source: ImagerySource, datum: Datum, v: View, custom?: CustomImagery): ImageryTile[] {
+// how far a source's pictures are moved by hand, [east, north] in m
+export function imageryShift(source: ImagerySource, custom?: CustomImagery): [number, number] {
+  const s = custom?.offsets?.[source];
+  return Array.isArray(s) && s.length === 2 && s.every(Number.isFinite) ? [s[0], s[1]] : [0, 0];
+}
+
+// the tiles over the view, moved by shift ([east, north] in m) where they don't line up with the map
+export function imageryTiles(source: ImagerySource, datum: Datum, v: View, custom?: CustomImagery, shift: [number, number] = [0, 0]): ImageryTile[] {
+  const [dx, dy] = shift;
+  if (!dx && !dy) return tilesOf(source, datum, v, custom);
+  const moved = tilesOf(source, datum, {...v, left: v.left - dx, right: v.right - dx, bottom: v.bottom - dy, top: v.top - dy}, custom);
+  return moved.map((t) => ({...t, corners: t.corners.map((c) => ({x: c.x + dx, y: c.y + dy})) as ImageryTile['corners']}));
+}
+
+function tilesOf(source: ImagerySource, datum: Datum, v: View, custom?: CustomImagery): ImageryTile[] {
   const state = STATE_IMAGERY[source];
   if (state) return wmsTiles(state, datum, v);
   const country = COUNTRY_IMAGERY[source];

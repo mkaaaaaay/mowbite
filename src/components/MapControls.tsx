@@ -1,5 +1,5 @@
 import {imageryInfo, type CustomImagery, type ImagerySource} from '@/lib/imagery';
-import {tr} from '@/lib/i18n';
+import {fmt, tr} from '@/lib/i18n';
 import {useState} from 'react';
 import {MapLookPanel} from './MapLookSettings';
 import styles from './MapView.module.css';
@@ -54,6 +54,7 @@ export default function MapControls({
   lastSource,
   imagerySettings,
   onSource,
+  align,
   hidden,
   onToggleLayer,
   layersOpen,
@@ -77,6 +78,8 @@ export default function MapControls({
   lastSource: ImagerySource | null;
   imagerySettings: CustomImagery | undefined;
   onSource: (s: ImagerySource | null) => void;
+  // moving the aerial imagery by hand until it lines up with the map: the shift while it's being set, else null
+  align?: {shift: [number, number] | null; onStart: () => void; onChange: (shift: [number, number]) => void; onDone: () => void};
   hidden: Set<Layer>;
   onToggleLayer: (l: Layer) => void;
   layersOpen: boolean;
@@ -244,20 +247,65 @@ export default function MapControls({
           )}
         </div>
       )}
-      {source && (
+      {source && !align?.shift && (
         <div className={styles.imageryBar}>
-          {sources.length > 1 && (
-            <select value={source} onChange={(e) => onSource(e.target.value as ImagerySource)}>
+          {/* moving the imagery by hand is tucked away at the end of the list */}
+          {(sources.length > 1 || align) && (
+            <select value={source} onChange={(e) => (e.target.value === ALIGN ? align?.onStart() : onSource(e.target.value as ImagerySource))}>
               {sources.map((s) => (
                 <option key={s} value={s}>
                   {tr(imageryInfo(s, imagerySettings).label)}
                 </option>
               ))}
+              {align && <option value={ALIGN}>{tr('Align…')}</option>}
             </select>
           )}
           <span>© {imageryInfo(source, imagerySettings).attribution}</span>
         </div>
       )}
+      {source && align?.shift && <AlignBar shift={align.shift} onChange={align.onChange} onDone={align.onDone} />}
     </>
+  );
+}
+
+// the entry in the list of imagery sources that opens the arrows
+const ALIGN = 'align';
+
+// the aerial imagery moved in steps of 10 cm or 1 m until it lines up with the map, kept for its source on every device
+function AlignBar({shift, onChange, onDone}: {shift: [number, number]; onChange: (shift: [number, number]) => void; onDone: () => void}) {
+  const [step, setStep] = useState(0.1);
+  const [dx, dy] = shift;
+  const move = (x: number, y: number) => onChange([Math.round((dx + x * step) * 100) / 100, Math.round((dy + y * step) * 100) / 100]);
+  const parts = [
+    ...(dx ? [tr(dx > 0 ? '{m} m east' : '{m} m west', {m: fmt(Math.abs(dx), 1)})] : []),
+    ...(dy ? [tr(dy > 0 ? '{m} m north' : '{m} m south', {m: fmt(Math.abs(dy), 1)})] : []),
+  ];
+  return (
+    <div className={styles.alignBar}>
+      <span>{parts.length ? tr('Imagery moved {what}', {what: parts.join(', ')}) : tr('Imagery not moved')}</span>
+      <div>
+        <button onClick={() => move(-1, 0)} aria-label={tr('west')}>
+          ←
+        </button>
+        <button onClick={() => move(0, 1)} aria-label={tr('north')}>
+          ↑
+        </button>
+        <button onClick={() => move(0, -1)} aria-label={tr('south')}>
+          ↓
+        </button>
+        <button onClick={() => move(1, 0)} aria-label={tr('east')}>
+          →
+        </button>
+        <button onClick={() => setStep(step < 1 ? 1 : 0.1)} title={tr('Step')}>
+          {step < 1 ? '10 cm' : '1 m'}
+        </button>
+        <button onClick={() => onChange([0, 0])} disabled={!dx && !dy}>
+          {tr('Reset')}
+        </button>
+        <button className={styles.alignDone} onClick={onDone}>
+          {tr('Finish')}
+        </button>
+      </div>
+    </div>
   );
 }
