@@ -19,6 +19,7 @@ import {loadJobTrack, useJobList, useMowHistory, type TrackSegment} from '@/hook
 import {simplifyPolygon} from '@/lib/simplifyPolygon';
 import {mergeOutlines} from '@/lib/mergeAreas';
 import {cutOut, generateId, splitByPath} from '@/lib/splitPolygon';
+import {layAgainst, movingOf} from '@/lib/snapAreas';
 import {subtractOutline} from '@/lib/subtractAreas';
 import {useSearchParams} from 'next/navigation';
 import {Suspense, useEffect, useMemo, useState, type ComponentProps} from 'react';
@@ -31,7 +32,7 @@ import {type UpdateArea, NEW_AREA_SETTINGS} from './editing';
 import EditorToolbar from './EditorToolbar';
 import MowSettings, {AngleOnMap, AreaDirection, AreaPlanInfo, OpenMowerArea} from './MowSettings';
 import OrderBox from './OrderBox';
-import {DrawPanel, MergePanel, RestorePanel, SimplifyPanel, SplitPanel, SubtractPanel} from './Panels';
+import {DrawPanel, MergePanel, RestorePanel, SimplifyPanel, SnapPanel, SplitPanel, SubtractPanel} from './Panels';
 import {PARAM} from '@/lib/openmower';
 import {rpcErrorText} from '@/lib/rpcText';
 import {closedRings} from '@/lib/rings';
@@ -55,6 +56,7 @@ import settingsStyles from '../settings/page.module.css';
 // useSearchParams needs a suspense boundary in a static export
 // '0' when the map was unpinned on this device
 const PINNED_KEY = 'mapPinned';
+const SNAP_KEY = 'mapSnap';
 
 export default function MapPage() {
   return (
@@ -114,6 +116,20 @@ function MapEditor() {
       localStorage.setItem(PINNED_KEY, pinned ? '0' : '1');
     } catch {}
   };
+  // points snap onto other areas' corners and edges, unless switched off on this device
+  const [snapOn, setSnapOn] = useState(() => {
+    try {
+      return localStorage.getItem(SNAP_KEY) !== '0';
+    } catch {
+      return true;
+    }
+  });
+  const toggleSnap = () => {
+    setSnapOn(!snapOn);
+    try {
+      localStorage.setItem(SNAP_KEY, snapOn ? '0' : '1');
+    } catch {}
+  };
   const jobList = useJobList();
   // null = live trail, otherwise a recorded job shown instead
   // ?job=<id> (from the activity page) opens that job's track until another one is picked
@@ -142,7 +158,9 @@ function MapEditor() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveWarning, setSaveWarning] = useState(false);
-  const [mode, setMode] = useState<'idle' | 'split' | 'draw' | 'merge' | 'subtract'>('idle');
+  const [mode, setMode] = useState<'idle' | 'split' | 'draw' | 'merge' | 'subtract' | 'snap'>('idle');
+  // how far off an area's corners may be to be laid against another one
+  const [snapCm, setSnapCm] = useState(50);
   // the other area clicked to merge with or to take out
   const [otherId, setOtherId] = useState<string | null>(null);
   const [pendingPoints, setPendingPoints] = useState<Point[]>([]);
@@ -258,7 +276,7 @@ function MapEditor() {
   };
 
   const selectArea = (id: string) => {
-    if (mode === 'merge' || mode === 'subtract') {
+    if (mode === 'merge' || mode === 'subtract' || mode === 'snap') {
       if (id !== selectedAreaId) setOtherId(id);
       return;
     }
@@ -450,6 +468,17 @@ function MapEditor() {
     remember();
     setMap({...map, areas: map.areas.flatMap((a) => (a.id === selectedArea.id ? pieces : [a]))});
     setSelectedAreaId(pieces[0].id);
+    cancelPicking();
+  };
+
+  // laying one against the other: a mowing area stays as it is, unless both are (then the selected one moves)
+  const [moving, fixed] = mode === 'snap' && selectedArea && other ? movingOf(selectedArea, other) : [null, null];
+  const laid = moving && fixed ? layAgainst(moving.outline, fixed.outline, snapCm / 100) : null;
+
+  const applySnap = () => {
+    if (!map || !moving || !laid?.valid) return;
+    remember();
+    setMap({...map, areas: map.areas.map((a) => (a.id === moving.id ? {...a, outline: laid.outline} : a))});
     cancelPicking();
   };
 
@@ -710,6 +739,7 @@ function MapEditor() {
                 zoomable
                 viewKey="editor"
                 pin={{on: pinned, onToggle: togglePinned}}
+                snap={{on: snapOn, onToggle: toggleSnap}}
                 map={shownMap}
                 emergency={emergency}
                 track={trackShown}
@@ -747,7 +777,7 @@ function MapEditor() {
                 openLoops={!!plan?.open}
                 progress={progress ?? undefined}
                 costume={costume}
-                preview={splitPreview ?? (merged ? [merged.outline] : subtractable ? subtracted?.pieces : undefined)}
+                preview={splitPreview ?? (merged ? [merged.outline] : subtractable ? subtracted?.pieces : laid?.valid ? [laid.outline] : undefined)}
                 markers={spot || problemSpots.length ? [...(spot ? [spot] : []), ...problemSpots] : undefined}
                 // (the spot from the activity page has its message above the map already)
                 onMarkerPick={(i) => {
@@ -941,6 +971,10 @@ function MapEditor() {
                 <SubtractPanel area={selectedArea} other={other} result={subtracted} onApply={applySubtract} onCancel={cancelPicking} />
               )}
 
+              {mode === 'snap' && selectedArea && (
+                <SnapPanel area={selectedArea} other={other} moving={moving} laid={laid} cm={snapCm} onCm={setSnapCm} onApply={applySnap} onCancel={cancelPicking} />
+              )}
+
               {mode === 'draw' && <DrawPanel points={pendingPoints.length} onFinish={finishDraw} onCancel={cancelPicking} />}
 
               {selectedArea && mode === 'idle' && (
@@ -958,6 +992,10 @@ function MapEditor() {
                   onSubtract={() => {
                     setSimplifyCm(null);
                     setMode('subtract');
+                  }}
+                  onSnap={() => {
+                    setSimplifyCm(null);
+                    setMode('snap');
                   }}
                   onSimplify={() => setSimplifyCm(5)}
                   onDelete={deleteArea}

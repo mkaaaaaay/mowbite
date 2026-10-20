@@ -1,6 +1,7 @@
 import type {Point} from '@/hooks/useMowerMap';
 import {polygonArea} from '@/lib/geometry';
 import type {Merged} from '@/lib/mergeAreas';
+import type {Laid} from '@/lib/snapAreas';
 import type {Subtracted} from '@/lib/subtractAreas';
 import {fmt, tr} from '@/lib/i18n';
 import type {Area} from './editing';
@@ -174,6 +175,63 @@ export function DrawPanel({points, onFinish, onCancel}: {points: number; onFinis
 }
 
 // the reduce-points slider, cm is how far the new outline may be off
+// laying an area against another one: how far off its corners may be, which of the two moves and what it comes to
+export function SnapPanel({
+  area,
+  other,
+  moving,
+  laid,
+  cm,
+  onCm,
+  onApply,
+  onCancel,
+}: {
+  area: Area;
+  other: Area | null;
+  moving: Area | null;
+  laid: Laid | null;
+  cm: number;
+  onCm: (cm: number) => void;
+  onApply: () => void;
+  onCancel: () => void;
+}) {
+  const nameOf = (a: Area) => a.properties.name || tr('unnamed');
+  const fixed = moving && other ? (moving.id === area.id ? other : area) : null;
+  return (
+    <div className={styles.splitBox}>
+      <p className={styles.dim}>
+        {tr('Click the area to lay {name} against. Its corners close to the edge move onto it, between them it takes over that edge. A mowing area stays as it is, unless both are.', {name: nameOf(area)})}
+      </p>
+      <div className={styles.inlineRow}>
+        <input type="range" min={5} max={150} step={5} value={cm} onChange={(e) => onCm(Number(e.target.value))} aria-label={tr('Reach')} />
+        <span className={styles.dim}>{tr('corners up to {n} cm away', {n: cm})}</span>
+      </div>
+      {moving && fixed && laid?.valid && (
+        <p>
+          {tr('{moving} is laid against {fixed}: {n} corners move onto its edge, {m} of its corners are taken over.', {
+            moving: nameOf(moving),
+            fixed: nameOf(fixed),
+            n: laid.moved,
+            m: laid.taken,
+          })}
+        </p>
+      )}
+      {moving && other && !laid && (
+        <p className={styles.error}>{tr('No corner of {name} is that close to the other area, or all of them are. Change the reach.', {name: nameOf(moving)})}</p>
+      )}
+      {laid && !laid.valid && <p className={styles.error}>{tr('Its outline would cross itself. Make the reach smaller.')}</p>}
+      <div className={styles.inlineRow}>
+        <button className={styles.pillButton} onClick={onApply} disabled={!laid?.valid}>
+          {tr('Lay against')}
+        </button>
+        <button className={styles.pillButton} onClick={onCancel}>
+          {tr('Cancel')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function SimplifyPanel({
   cm,
   from,

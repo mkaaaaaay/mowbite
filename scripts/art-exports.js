@@ -78,7 +78,8 @@ export const seasonOf = sun.seasonOf;
 // uid, now, datum, weather, rain, mower, jobs, track, edgeLine, hidden, lookVariants, lookSizes}, see LifeInput in src/components/gardenLife.tsx.
 // defs into the svg's defs, then over the areas in this order: lawn, the real lawn in the obstacles, things (instead of
 // the areas' own), stones (along the lawns, instead of their real edges' line), sky. long: the active lawns are filled with
-// url(#{uid}long)
+// url(#{uid}long). canopies: the crowns and parasols, they go over the mower, and covers the circles {cx, cy, r} where
+// they hide it (the app draws the mower's outline there)
 export function gardenLife(input) {
   const scene = life.lifeScene(input);
   if (!scene) return null;
@@ -90,5 +91,7 @@ export function gardenLife(input) {
     things: render(scene.things),
     stones: render(scene.stones),
     sky: render(scene.sky),
+    canopies: render(scene.canopies),
+    covers: scene.covers,
   };
 }

@@ -326,28 +326,50 @@ export function thingShadow(look: Look, place: {w: number; h: number}, shadow: {
 // the biggest of a thing's places, what its shadow goes by
 export const biggest = (places: Place[]) => places.reduce((a, b) => (b.w * b.h > a.w * a.h ? b : a));
 
+// how much of a crown's or a parasol's circle hides what's under it (a rotary dryer's lines nothing)
+const COVERS: Record<string, number> = {umbrella: 0.92, tree: 0.88, fruitTree: 0.86, palm: 0.75, sunSail: 0.55};
+
+// where the mower is hidden under a crown or a parasol: a circle each (svg units)
+export const coversOf = (things: Thing[]) =>
+  things.flatMap((t) => t.places.filter((pl) => pl.over && COVERS[t.look]).map((pl) => ({cx: pl.cx, cy: pl.cy, r: (pl.w / 2) * COVERS[t.look]})));
+
 // an area's picture standing in it (a tree, a table ... or several), cut to the area (clip i of GardenDefs) unless it
 // reaches over it, faded when the area is off. with a shadow the same once more first, dark and moved away from the sun
-// (no filter, it stays while the map moves)
-export function GardenThing({uid, thing, off, shade}: {uid: string; thing: Thing; off: boolean; shade?: {dx: number; dy: number} | null}) {
+// (no filter, it stays while the map moves). part: only what's on the ground (with the shadow of all of it) or only the
+// crowns and parasols over it, they go over the mower
+export function GardenThing({
+  uid,
+  thing,
+  off,
+  shade,
+  part,
+}: {
+  uid: string;
+  thing: Thing;
+  off: boolean;
+  shade?: {dx: number; dy: number} | null;
+  part?: 'ground' | 'over';
+}) {
   const one = ({cx, cy, deg, w, h, seed}: Place, k: number) => (
     <g key={k} transform={`translate(${cx} ${cy}) rotate(${deg})`}>
       {drawThing(thing.look, {x: -w / 2, y: -h / 2, w, h}, `${uid}t${thing.i}${k ? '_' + k : ''}`, {seed: seed ?? thing.id, variant: thing.variant, m: thing.m})}
     </g>
   );
-  const inside = thing.places.map((pl, k) => (pl.over ? null : one(pl, k)));
-  const over = thing.places.map((pl, k) => (pl.over ? one(pl, k) : null));
-  const drawn = (
-    <g className={[styles.gardenThing, off ? styles.gardenOff : ''].filter(Boolean).join(' ')}>
-      {inside.some(Boolean) && <g clipPath={`url(#${uid}clip${thing.i})`}>{inside}</g>}
-      {over}
-    </g>
-  );
+  const group = (ground: boolean, over: boolean) => {
+    const inside = ground ? thing.places.map((pl, k) => (pl.over ? null : one(pl, k))) : [];
+    return (
+      <g className={[styles.gardenThing, off ? styles.gardenOff : ''].filter(Boolean).join(' ')}>
+        {inside.some(Boolean) && <g clipPath={`url(#${uid}clip${thing.i})`}>{inside}</g>}
+        {over && thing.places.map((pl, k) => (pl.over ? one(pl, k) : null))}
+      </g>
+    );
+  };
+  const drawn = group(part !== 'over', part !== 'ground');
   return (
     <>
-      {shade && (
+      {shade && part !== 'over' && (
         <g className={styles.thingShadow} transform={`translate(${shade.dx} ${shade.dy})`}>
-          {drawn}
+          {group(true, true)}
         </g>
       )}
       {drawn}
@@ -396,6 +418,9 @@ export interface LifeScene {
   things: ReactNode;
   stones: ReactNode;
   sky: ReactNode;
+  // the crowns and parasols reaching over everything, the mower too, and where they hide it
+  canopies: ReactNode;
+  covers: {cx: number; cy: number; r: number}[];
 }
 
 const FAR = {x: -10 * 400, y: -10 * 400, width: 21 * 400, height: 21 * 400};
@@ -484,6 +509,11 @@ export function lifeScene(s: LifeInput): LifeScene | null {
       )
     : '';
   const garden = gardenThings(s.areas, s.looks, s.body ?? null, fit, s.lookVariants, s.lookSizes);
+  // the things reaching over the others and the mower, of the areas shown
+  const shown = bySize
+    .filter((a) => !hidden.has(a.properties.type ?? ''))
+    .map((a) => garden.things.get(a.id))
+    .filter((t): t is Thing => !!t && t.places.some((pl) => pl.over));
 
   return {
     parts,
@@ -526,8 +556,12 @@ export function lifeScene(s: LifeInput): LifeScene | null {
         const thing = garden.things.get(a.id);
         if (!thing) return null;
         const shade = castShadow ? thingShadow(thing.look, biggest(thing.places), castShadow, m) : null;
-        return <GardenThing key={'t' + a.id} uid={uid} thing={thing} off={a.properties.active === false} shade={shade} />;
+        return <GardenThing key={'t' + a.id} uid={uid} thing={thing} off={a.properties.active === false} shade={shade} part="ground" />;
       }),
+    canopies: shown.map((thing) => (
+      <GardenThing key={'c' + thing.id} uid={uid} thing={thing} off={s.areas.find((a) => a.id === thing.id)?.properties.active === false} part="over" />
+    )),
+    covers: coversOf(shown),
     stones: stonesD ? (
       <>
         {/* a little over the areas lying against the lawn, a stone half on them would show */}

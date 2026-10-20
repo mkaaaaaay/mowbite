@@ -1,6 +1,6 @@
 import {areaLook, LookPicker, LookSwatch, placeThing, type Look} from '@/components/gardenLook';
 import {PICTURES} from '@/components/gardenPictures';
-import {MergeIcon, ScissorsIcon, SimplifyIcon, SubtractIcon, TrashIcon} from '@/components/icons';
+import {MagnetIcon, MergeIcon, ScissorsIcon, SimplifyIcon, SubtractIcon, TrashIcon} from '@/components/icons';
 import InfoTip from '@/components/InfoTip';
 import {polygonArea} from '@/lib/geometry';
 import {fmt, tr} from '@/lib/i18n';
@@ -21,6 +21,7 @@ export default function AreaCard({
   onSplit,
   onMerge,
   onSubtract,
+  onSnap,
   onSimplify,
   onDelete,
   onDeleteBlur,
@@ -33,6 +34,7 @@ export default function AreaCard({
   onSplit: () => void;
   onMerge: () => void;
   onSubtract: () => void;
+  onSnap: () => void;
   onSimplify: () => void;
   onDelete: () => void;
   onDeleteBlur: () => void;
@@ -282,6 +284,9 @@ export default function AreaCard({
               <b>{tr('Take out')}:</b>{' '}
               {tr('Cuts another area you click out of this one, e.g. a path lying over the lawn. The other one stays as it is.')}
               <br />
+              <b>{tr('Lay against')}:</b>{' '}
+              {tr('Moves the corners of this area that lie close to another one you click onto its edge, so the two meet without a gap. A mowing area stays as it is, unless both are.')}
+              <br />
               <b>{tr('Reduce points')}:</b>{' '}
               {tr('Recorded outlines have a point every few cm. This removes the ones that barely change the shape, the slider sets how far the outline may move.')}
             </InfoTip>
@@ -298,11 +303,15 @@ export default function AreaCard({
             <SubtractIcon size={16} />
             {tr('Take out')}
           </button>
+          <button className={tool} onClick={onSnap}>
+            <MagnetIcon size={16} />
+            {tr('Lay against')}
+          </button>
           <button className={tool} onClick={onSimplify}>
             <SimplifyIcon size={16} />
             {tr('Reduce points')}
           </button>
-          <button className={[tool, styles.toolWide, styles.danger].join(' ')} onClick={onDelete} onBlur={onDeleteBlur}>
+          <button className={[tool, styles.danger].join(' ')} onClick={onDelete} onBlur={onDeleteBlur}>
             <TrashIcon size={16} />
             {confirmDelete ? tr('Really delete?') : tr('Delete area')}
           </button>

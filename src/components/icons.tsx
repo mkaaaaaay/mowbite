@@ -145,6 +145,16 @@ export function SubtractIcon({size = 20}: IconProps) {
   );
 }
 
+// a horseshoe magnet: points that snap, an area laid against another
+export function MagnetIcon({size = 20}: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...line}>
+      <path d="M5 3h5v9a2 2 0 0 0 4 0V3h5v9a7 7 0 0 1-14 0Z" />
+      <path d="M5 7h5M14 7h5" />
+    </svg>
+  );
+}
+
 // a wiggly line smoothed out
 export function SimplifyIcon({size = 20}: IconProps) {
   return (

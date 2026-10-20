@@ -5,6 +5,7 @@ import {useComputedSpeed} from '@/hooks/useComputedSpeed';
 import {createEaser, type Easer, type Pose} from '@/lib/poseEaser';
 import {liveGlide} from '@/hooks/useMowerPosition';
 import {containsPoint, polygonArea} from '@/lib/geometry';
+import {snapPoint} from '@/lib/snapAreas';
 import {saveSettings, settingsStore, type Settings} from '@/lib/settings';
 import {bladeSeconds, bodyShape, realEdges, roundBends, swathEnd, swathGroups, swathAfter, swathTail, useMowerBody, usePlannerSettings, type MowerBody, type SwathState} from '@/lib/mowerBody';
 import type {FitPose, PlanPiece} from '@/lib/mowPlan';
@@ -14,7 +15,7 @@ import {availableSources, imageryShift, imageryTiles, type Datum} from '@/lib/im
 import {handleRadius, meterGrid} from '@/lib/mapGrid';
 import MapControls, {layerOn, type Layer} from './MapControls';
 import {useMapPrefs} from './useMapPrefs';
-import {Fragment, memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
+import {Fragment, memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
 import styles from './MapView.module.css';
 import {fmt, tr, useLang} from '@/lib/i18n';
 import {tick} from '@/lib/haptics';
@@ -27,7 +28,7 @@ import {CELL_M, MIN_SECONDS, gpsGrade, loadCoverage, wifiGrade, type CoverageCel
 import {useUpdates} from '@/lib/updates';
 import {CoverInfo} from './CoverInfo';
 import {GardenDefs, gardenThings, groundOf} from './gardenLook';
-import {GardenThing, lifeOf, lifeScene} from './gardenLife';
+import {coversOf, GardenThing, lifeOf, lifeScene} from './gardenLife';
 import {useMowHistory} from '@/hooks/useMowHistory';
 import {useWeather} from '@/hooks/useWeather';
 import {useMowerStateValue} from '@/hooks/useMowerState';
@@ -59,6 +60,8 @@ interface MapViewProps {
   follow?: boolean;
   // a button that keeps the map at the top of the page on a phone (MapControls)
   pin?: {on: boolean; onToggle: () => void};
+  // the map editor: points dragged or set snap onto the corners and edges of other areas nearby, a button switches it
+  snap?: {on: boolean; onToggle: () => void};
   // without the buttons on the map, the page has its own (recording on a phone held sideways)
   bare?: boolean;
   followSpanMeters?: number;
@@ -237,6 +240,9 @@ function MowerMarker({
   blades,
   ghost,
   costume,
+  cover,
+  covers,
+  coverId,
 }: {
   mower: Pose;
   // the live poses as they came (useMowerPosition), else it eases along mower on its own
@@ -253,6 +259,11 @@ function MowerMarker({
   // halloween night: a little ghost follows a moment behind while it drives
   ghost?: boolean;
   costume?: {hat?: boolean; towel?: boolean; umbrella?: boolean};
+  // the crowns and parasols over it, where they hide it (circles in svg units) it shows as its outline. coverId starts
+  // the ids for that
+  cover?: ReactNode;
+  covers?: {cx: number; cy: number; r: number}[];
+  coverId?: string;
 }) {
   const [own] = useState(createEaser);
   useEffect(() => {
@@ -296,7 +307,7 @@ function MowerMarker({
 
   // moved to the eased pose: all of it, the parts that turn with the heading (under the icon and over it), and the
   // ones that stay upright at the turned middle
-  const moveRef = useRef<SVGGElement | null>(null);
+  const moveRefs = useRef<(SVGGElement | null)[]>([]);
   const turnRefs = useRef<(SVGGElement | null)[]>([]);
   const uprightRefs = useRef<(SVGGElement | null)[]>([]);
   const placed = useRef({sx: NaN, sy: NaN, deg: NaN});
@@ -316,7 +327,7 @@ function MowerMarker({
       // (a fiftieth of a pixel, a twentieth of a degree: nothing is set again while it stands)
       if (Math.abs(sx - last.sx) < 0.02 * unit && Math.abs(sy - last.sy) < 0.02 * unit && Math.abs(deg - last.deg) < 0.05) return;
       placed.current = {sx, sy, deg};
-      moveRef.current?.setAttribute('transform', `translate(${sx} ${sy})`);
+      for (const g of moveRefs.current) g?.setAttribute('transform', `translate(${sx} ${sy})`);
       for (const g of turnRefs.current) g?.setAttribute('transform', `rotate(${deg})`);
       const a = (deg * Math.PI) / 180;
       const up = `translate(${ox * Math.cos(a) - oy * Math.sin(a)} ${ox * Math.sin(a) + oy * Math.cos(a)})`;
@@ -346,9 +357,21 @@ function MowerMarker({
       {drawMower(icon, {speed, emergency, blades})}
     </g>
   );
+  // its outline where a crown or a parasol hides it: the body's, and the icon's drawn round its shape (a pixel and a bit
+  // wide at any zoom)
+  const hidden = covers && covers.length > 0 && coverId;
+  const [ox, oy] = fitted ? [((body.front + body.rear) / 2) * scale, (body.width / 2) * scale] : [size, size];
+  const silhouette = (
+    <filter id={coverId + 'o'} x="-30%" y="-30%" width="160%" height="160%">
+      <feMorphology in="SourceAlpha" operator="dilate" radius={`${(1.4 * k) / ox} ${(1.4 * k) / oy}`} result="grown" />
+      <feComposite in="grown" in2="SourceAlpha" operator="out" result="ring" />
+      <feFlood floodColor="#fff" floodOpacity={0.9} />
+      <feComposite in2="ring" operator="in" />
+    </filter>
+  );
   return (
     <>
-      <g ref={moveRef}>
+      <g ref={(el) => void (moveRefs.current[0] = el)}>
         <g ref={(el) => void (turnRefs.current[0] = el)}>
           {outline && shape && <polygon className={styles.mowerBody} points={points(shape.corners)} />}
           {fitted ? (
@@ -414,6 +437,45 @@ function MowerMarker({
         )}
       </g>
       {ghost && <MarkerGhost mower={mower} on={speed > 0.05} fit={fit} size={size} />}
+      {cover}
+      {hidden && (
+        <>
+          <defs>
+            <mask id={coverId} maskUnits="userSpaceOnUse" x={-10 * WIDTH} y={-10 * HEIGHT} width={21 * WIDTH} height={21 * HEIGHT}>
+              {covers.map((c, i) => (
+                <circle key={i} cx={c.cx} cy={c.cy} r={c.r} fill="#fff" />
+              ))}
+            </mask>
+            {showIcon && silhouette}
+          </defs>
+          <g mask={`url(#${coverId})`} className={styles.mowerUnder}>
+            <g ref={(el) => void (moveRefs.current[1] = el)}>
+              <g ref={(el) => void (turnRefs.current[2] = el)}>
+                {shape && <polygon className={styles.mowerUnderBody} points={points(shape.corners)} />}
+                {showIcon &&
+                  (fitted ? (
+                    <g transform={`translate(${mx} ${my}) scale(${ox} ${oy})`} filter={`url(#${coverId}o)`}>
+                      {icon.draw({speed, emergency, blades})}
+                    </g>
+                  ) : (
+                    !icon.upright && (
+                      <g transform={`translate(${mx} ${my}) scale(${size})`} filter={`url(#${coverId}o)`}>
+                        {drawIcon}
+                      </g>
+                    )
+                  ))}
+              </g>
+              {showIcon && !fitted && icon.upright && (
+                <g ref={(el) => void (uprightRefs.current[2] = el)}>
+                  <g transform={`scale(${size})`} filter={`url(#${coverId}o)`}>
+                    {drawIcon}
+                  </g>
+                </g>
+              )}
+            </g>
+          </g>
+        </>
+      )}
     </>
   );
 }
@@ -453,6 +515,7 @@ function MapView({
   onInsertPending,
   follow = false,
   pin,
+  snap,
   bare = false,
   followSpanMeters = 6,
   track,
@@ -499,6 +562,8 @@ function MapView({
   }, []);
   // bounds frozen while dragging so the map doesn't rescale under the cursor
   const [dragging, setDragging] = useState<{areaId: string; index: number; bounds: Bounds} | null>(null);
+  // where the point being dragged snapped to
+  const [snapMark, setSnapMark] = useState<{x: number; y: number; corner: boolean} | null>(null);
   const drag = useRef<{
     pointerId: number;
     startX: number;
@@ -1146,6 +1211,16 @@ function MapView({
     if (stack.length > 1) onSelectArea?.(stack[(i + 1) % stack.length].id);
   };
 
+  // a point being dragged or set put onto the nearest corner or edge of another area within reach (snap on, without alt
+  // held), with the place it went to marked
+  const snapAt = (x: number, y: number, exclude: string | null, touch: boolean) => {
+    const svg = svgRef.current;
+    if (!snap?.on || !svg) return null;
+    const reach = (touch ? 16 : 10) / ((pxPerMeter * svg.getBoundingClientRect().width) / WIDTH);
+    const others = map.areas.filter((a) => a.id !== exclude && !hidden.has(a.properties.type as Layer)).map((a) => a.outline);
+    return snapPoint({x, y}, others, reach);
+  };
+
   // midpoints are only offered where there's room for them
   const showMidpoint = (a: Point, b: Point) => Math.hypot(b.x - a.x, b.y - a.y) * pxPerMeter >= 30;
 
@@ -1417,8 +1492,11 @@ function MapView({
         if (dragging.areaId !== PENDING) onDragging?.(true);
       }
       const local = clientToLocal(e.clientX, e.clientY);
-      if (local && dragging.areaId === PENDING) onMovePending?.(dragging.index, local[0], local[1]);
-      else if (local) onMoveVertex?.(dragging.areaId, dragging.index, local[0], local[1]);
+      const s = local && !e.altKey ? snapAt(local[0], local[1], dragging.areaId === PENDING ? null : dragging.areaId, d.touch) : null;
+      setSnapMark(s);
+      const [x, y] = s ? [s.x, s.y] : (local ?? [0, 0]);
+      if (local && dragging.areaId === PENDING) onMovePending?.(dragging.index, x, y);
+      else if (local) onMoveVertex?.(dragging.areaId, dragging.index, x, y);
       const rect = svgRef.current?.getBoundingClientRect();
       if (d.touch && rect) setFinger({x: e.clientX - rect.left, y: e.clientY - rect.top, width: rect.width});
     };
@@ -1439,6 +1517,7 @@ function MapView({
       }
       setDragging(null);
       setFinger(null);
+      setSnapMark(null);
       onDragging?.(false);
     };
     const onCancel = (e: PointerEvent) => {
@@ -1446,6 +1525,7 @@ function MapView({
       drag.current.pointerId = -1;
       setDragging(null);
       setFinger(null);
+      setSnapMark(null);
       onDragging?.(false);
     };
 
@@ -1498,8 +1578,16 @@ function MapView({
   // an area's picture standing in it (a tree, a table ...), with the garden's life drawn over the lawn's (scene.things)
   const thingOf = (area: MapArea) => {
     const thing = gardenLook?.things.get(area.id);
-    return thing ? <GardenThing uid={uid} thing={thing} off={area.properties.active === false} /> : null;
+    return thing ? <GardenThing uid={uid} thing={thing} off={area.properties.active === false} part="ground" /> : null;
   };
+  // the crowns and parasols over everything on the ground and the mower too, where they hide it the mower shows as its
+  // outline (the garden's life has them as well)
+  const shownThings = gardenLook ? areasBySize.filter((a) => !hidden.has(a.properties.type as Layer)).flatMap((a) => gardenLook.things.get(a.id) ?? []) : [];
+  const overThings = shownThings.filter((t) => t.places.some((pl) => pl.over));
+  const canopies = scene
+    ? scene.canopies
+    : overThings.map((t) => <GardenThing key={'c' + t.id} uid={uid} thing={t} off={map.areas.find((a) => a.id === t.id)?.properties.active === false} part="over" />);
+  const covers = scene ? scene.covers : coversOf(overThings);
   const renderContent = (k: number) => (
     <>
       {tiles.length > 0 && (
@@ -1555,31 +1643,6 @@ function MapView({
             {transitOn && piecePaths.transit && <path className={styles.planTransit} d={piecePaths.transit} />}
           </>
         )}
-
-        {selectedArea && (
-          <polygon
-            points={selectedArea.outline.map((p) => toScreen(p.x, p.y).join(',')).join(' ')}
-            className={styles.selected}
-          />
-        )}
-
-        {orderLabels &&
-          !hidden.has('order') &&
-          map.areas.map((area) => {
-            const n = orderLabels[area.id];
-            if (!n || !area.outline.length) return null;
-            const cx = area.outline.reduce((s, p) => s + p.x, 0) / area.outline.length;
-            const cy = area.outline.reduce((s, p) => s + p.y, 0) / area.outline.length;
-            const [sx, sy] = toScreen(cx, cy);
-            return (
-              <g key={'n' + area.id} className={styles.orderLabel}>
-                <circle cx={sx} cy={sy} r={8 * k} />
-                <text x={sx} y={sy} fontSize={10 * k} dy="0.35em">
-                  {n}
-                </text>
-              </g>
-            );
-          })}
 
         {grid && (
           <g className={styles.grid}>
@@ -1644,8 +1707,38 @@ function MapView({
             blades={track?.at(-1)?.at(-1)?.b === true}
             ghost={halloween.night}
             costume={{hat: halloween.day, towel: costume?.towel, umbrella: costume?.umbrella}}
+            cover={canopies}
+            covers={covers}
+            coverId={uid + 'under'}
           />
         )}
+        {!mower && canopies}
+
+        {selectedArea && (
+          <polygon
+            points={selectedArea.outline.map((p) => toScreen(p.x, p.y).join(',')).join(' ')}
+            className={styles.selected}
+          />
+        )}
+
+        {orderLabels &&
+          !hidden.has('order') &&
+          map.areas.map((area) => {
+            const n = orderLabels[area.id];
+            if (!n || !area.outline.length) return null;
+            const cx = area.outline.reduce((s, p) => s + p.x, 0) / area.outline.length;
+            const cy = area.outline.reduce((s, p) => s + p.y, 0) / area.outline.length;
+            const [sx, sy] = toScreen(cx, cy);
+            return (
+              <g key={'n' + area.id} className={styles.orderLabel}>
+                <circle cx={sx} cy={sy} r={8 * k} />
+                <text x={sx} y={sy} fontSize={10 * k} dy="0.35em">
+                  {n}
+                </text>
+              </g>
+            );
+          })}
+
 
         {selectedArea && !pickingPoints && (
           <>
@@ -1670,6 +1763,15 @@ function MapView({
               );
             })}
           </>
+        )}
+
+        {snapMark && (
+          <circle
+            className={snapMark.corner ? styles.snapCorner : styles.snapEdge}
+            cx={toScreen(snapMark.x, snapMark.y)[0]}
+            cy={toScreen(snapMark.x, snapMark.y)[1]}
+            r={(snapMark.corner ? 7 : 5) * k}
+          />
         )}
 
         {overlay?.map((line, i) => {
@@ -1758,7 +1860,9 @@ function MapView({
         if (!pickingPoints && !(e.target as Element).closest('[data-area]')) onClickEmpty?.();
         if (!pickingPoints || !onCanvasClick || !editing) return;
         const local = clientToLocal(e.clientX, e.clientY);
-        if (local) onCanvasClick(local[0], local[1]);
+        if (!local) return;
+        const s = e.altKey ? null : snapAt(local[0], local[1], null, (e.nativeEvent as PointerEvent).pointerType !== 'mouse');
+        onCanvasClick(s ? s.x : local[0], s ? s.y : local[1]);
       }}
     >
       {gardenLook?.defs}
@@ -1980,6 +2084,7 @@ function MapView({
               : null
           }
           pin={pin}
+          snap={editing ? snap : undefined}
           follow={
             follow
               ? {

@@ -260,6 +260,31 @@
   box-shadow: var(--card-shadow, none);
 }
 
+.mowerUnder {
+  pointer-events: none;
+}
+
+.mowerUnderBody {
+  fill: none;
+  stroke: #fff;
+  stroke-opacity: 0.9;
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.snapCorner,
+.snapEdge {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 2.5;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.snapEdge {
+  stroke-dasharray: 3 2;
+}
+
 .activeVertex {
   fill: #fff;
   stroke: var(--c-vertex);

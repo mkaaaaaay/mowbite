@@ -1,6 +1,7 @@
 import {imageryInfo, type CustomImagery, type ImagerySource} from '@/lib/imagery';
 import {fmt, tr} from '@/lib/i18n';
 import {useState} from 'react';
+import {MagnetIcon} from './icons';
 import {MapLookPanel} from './MapLookSettings';
 import styles from './MapView.module.css';
 
@@ -64,6 +65,7 @@ export default function MapControls({
   reset,
   follow,
   pin,
+  snap,
   planParts,
   planner,
   coverage,
@@ -103,6 +105,8 @@ export default function MapControls({
   follow?: {on: boolean; onToggle: () => void};
   // the map editor on a phone: the map stays at the top while the settings under it scroll
   pin?: {on: boolean; onToggle: () => void};
+  // the map editor: points snap onto other areas' corners and edges
+  snap?: {on: boolean; onToggle: () => void};
 }) {
   // the icons, colors and aerial imagery of the maps, over the page
   const [lookOpen, setLookOpen] = useState(false);
@@ -180,6 +184,17 @@ export default function MapControls({
         <button onClick={() => setLookOpen(true)} aria-label="map settings" title={tr('Map colors, icons and aerial imagery')}>
           ⚙
         </button>
+        {snap && (
+          <button
+            className={snap.on ? '' : styles.off}
+            onClick={snap.onToggle}
+            aria-label="snap"
+            aria-pressed={snap.on}
+            title={snap.on ? tr('Points snap onto the corners and edges of other areas (hold Alt to place one freely), tap to switch it off') : tr('Let points snap onto the corners and edges of other areas')}
+          >
+            <MagnetIcon size={18} />
+          </button>
+        )}
         {follow && (
           <button
             className={follow.on ? '' : styles.off}
