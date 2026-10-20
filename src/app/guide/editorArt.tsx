@@ -1,12 +1,12 @@
 'use client';
 
-import {MergePanel, RestorePanel, SimplifyPanel, SplitPanel} from '@/app/map/Panels';
+import {MergePanel, RestorePanel, SimplifyPanel, SplitPanel, SubtractPanel} from '@/app/map/Panels';
 import EditorToolbar from '@/app/map/EditorToolbar';
 import OrderBox from '@/app/map/OrderBox';
 import {AREA_TYPES, DEG} from '@/app/map/editing';
 import {AngleCompass, AngleOnMap, AngleSlider, AngleStep} from '@/app/map/MowSettings';
 import mapPage from '@/app/map/page.module.css';
-import {MergeIcon, ScissorsIcon, SimplifyIcon, TrashIcon} from '@/components/icons';
+import {MergeIcon, ScissorsIcon, SimplifyIcon, SubtractIcon, TrashIcon} from '@/components/icons';
 import MapBackups from '@/components/MapBackups';
 import {LIFE} from '@/components/MapLookSettings';
 import look from '@/components/MapLookSettings.module.css';
@@ -20,6 +20,7 @@ import {MOWER_MODELS, sizesBody} from '@/lib/mowerBody';
 import {mowPlan} from '@/lib/mowPlan';
 import {simplifyPolygon} from '@/lib/simplifyPolygon';
 import {splitByPath} from '@/lib/splitPolygon';
+import {subtractOutline} from '@/lib/subtractAreas';
 import {useEffect, useId, useLayoutEffect, useMemo, useRef, useState} from 'react';
 import styles from './page.module.css';
 
@@ -415,10 +416,14 @@ function AreaCard({a}: {a: MapArea}) {
           {tr('Merge')}
         </button>
         <button className={tool} tabIndex={-1}>
+          <SubtractIcon size={16} />
+          {tr('Take out')}
+        </button>
+        <button className={tool} tabIndex={-1}>
           <SimplifyIcon size={16} />
           {tr('Reduce points')}
         </button>
-        <button className={[tool, mapPage.danger].join(' ')} tabIndex={-1}>
+        <button className={[tool, mapPage.toolWide, mapPage.danger].join(' ')} tabIndex={-1}>
           <TrashIcon size={16} />
           {tr('Delete area')}
         </button>
@@ -671,7 +676,42 @@ function Merge() {
   );
 }
 
-// 7: a recorded edge with a point every few cm: the slider takes out the ones that barely matter
+// 7: take out: the button, then the path lying over the lawn, apply: the lawn without the part under the path
+function Subtract() {
+  const t = useLoop(11, 0.4);
+  const result = useMemo(() => subtractOutline(GARTEN.outline, WEG.outline), []);
+  const picking = t >= 0.14 && t < 0.54;
+  const other = t >= 0.32 ? WEG : null;
+  const done = t >= 0.54 && !!result?.pieces.length;
+  const map = useMemo(() => (done ? mapOf({...GARTEN, outline: result!.pieces[0]}, TREE, VORGARTEN, WEG, BED) : GARDEN), [done, result]);
+  return (
+    <Stage
+      t={t}
+      map={map}
+      selected={GARTEN.id}
+      preview={picking && other && result ? result.pieces : undefined}
+      under={
+        picking ? <SubtractPanel area={GARTEN} other={other} result={other ? result : null} onApply={noop} onCancel={noop} /> : <AreaCard a={map.areas[0]} />
+      }
+      hand={{
+        moves: [
+          [0, 'off'],
+          [0.1, {button: tr('Take out')}],
+          [0.16, {button: tr('Take out')}],
+          [0.3, {map: NAV_SPOT}],
+          [0.34, {map: NAV_SPOT}],
+          [0.5, {button: tr('Take out')}],
+          [0.62, {button: tr('Take out')}],
+        ],
+        press: tap(0.12, 0.32, 0.52),
+        taps: [0.12, 0.32, 0.52],
+        show: [0.02, 0.6],
+      }}
+    />
+  );
+}
+
+// 8: a recorded edge with a point every few cm: the slider takes out the ones that barely matter
 const DENSE = recorded(GARTEN_CORNERS, 0.22, 0.05, 4);
 
 function Reduce() {
@@ -991,4 +1031,4 @@ function Save() {
   );
 }
 
-export const EDITOR_ART = [Select, Types, Switches, Points, Split, Merge, Reduce, Direction, Order, Edges, Style, Save];
+export const EDITOR_ART = [Select, Types, Switches, Points, Split, Merge, Subtract, Reduce, Direction, Order, Edges, Style, Save];

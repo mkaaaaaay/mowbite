@@ -1,6 +1,7 @@
 import type {Point} from '@/hooks/useMowerMap';
 import {polygonArea} from '@/lib/geometry';
 import type {Merged} from '@/lib/mergeAreas';
+import type {Subtracted} from '@/lib/subtractAreas';
 import {fmt, tr} from '@/lib/i18n';
 import type {Area} from './editing';
 import styles from './page.module.css';
@@ -101,6 +102,54 @@ export function MergePanel({
       <div className={styles.inlineRow}>
         <button className={styles.pillButton} onClick={onApply} disabled={!merged}>
           {tr('Apply merge')}
+        </button>
+        <button className={styles.pillButton} onClick={onCancel}>
+          {tr('Cancel')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export function SubtractPanel({
+  area,
+  other,
+  result,
+  onApply,
+  onCancel,
+}: {
+  area: Area;
+  other: Area | null;
+  result: Subtracted | null;
+  onApply: () => void;
+  onCancel: () => void;
+}) {
+  const pieceClass = [styles.pieceA, styles.pieceB, styles.pieceC];
+  const name = area.properties.name || tr('this one');
+  const otherName = other?.properties.name || tr('unnamed');
+  // an obstacle inside the area isn't mowed anyway
+  const inside = other?.properties.type === 'obstacle' && !!result?.cut;
+  return (
+    <div className={styles.splitBox}>
+      <p className={styles.dim}>{tr('Click the area to take out of {name}. That one stays as it is.', {name})}</p>
+      {other && result && result.pieces.length > 0 && !inside && (
+        <p>
+          {area.properties.name || tr('unnamed')} − {otherName} ={' '}
+          {result.pieces.map((piece, i) => (
+            <span key={i}>
+              {i > 0 && (i === result.pieces.length - 1 ? ` ${tr('and')} ` : ', ')}
+              <span className={pieceClass[i] ?? styles.pieceB}>{fmt(polygonArea(piece), 1)} m²</span>
+            </span>
+          ))}
+          {result.cut > 0 && tr(", it lies inside, so the rest is cut in two through it (areas can't have holes)")}
+        </p>
+      )}
+      {other && !result && <p className={styles.error}>{tr("These two don't overlap, there's nothing to take out.")}</p>}
+      {other && result && !result.pieces.length && <p className={styles.error}>{tr('Nothing would be left of {name}.', {name})}</p>}
+      {inside && <p className={styles.error}>{tr("{name} is an obstacle inside it, the mower doesn't mow there anyway.", {name: otherName})}</p>}
+      <div className={styles.inlineRow}>
+        <button className={styles.pillButton} onClick={onApply} disabled={!result?.pieces.length || inside}>
+          {tr('Take out')}
         </button>
         <button className={styles.pillButton} onClick={onCancel}>
           {tr('Cancel')}

@@ -102,7 +102,7 @@ function clip(type: ClipperLib.ClipType, subject: ClipperLib.Paths, cut: Clipper
 const perimeter = (o: Point[]) => o.reduce((sum, p, i) => sum + Math.hypot(o[(i + 1) % o.length].x - p.x, o[(i + 1) % o.length].y - p.y), 0);
 
 // a point inside the shape: its centroid, or else the middle between two of its corners
-function pointInside(shape: Point[]): Point | null {
+export function pointInside(shape: Point[]): Point | null {
   const c = {x: shape.reduce((s, p) => s + p.x, 0) / shape.length, y: shape.reduce((s, p) => s + p.y, 0) / shape.length};
   if (containsPoint(shape, c.x, c.y)) return c;
   for (let i = 0; i < shape.length; i++) {

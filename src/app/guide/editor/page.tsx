@@ -1,6 +1,6 @@
 'use client';
 
-import {CheckIcon, PencilIcon, RouteIcon, UndoIcon} from '@/components/icons';
+import {CheckIcon, PencilIcon, RedoIcon, RouteIcon, UndoIcon} from '@/components/icons';
 import {EDITOR_ART} from '../editorArt';
 import Guide, {type GuideItem, type GuideStep} from '../Guide';
 import styles from '../page.module.css';
@@ -9,7 +9,7 @@ import styles from '../page.module.css';
 const STEPS: GuideStep[] = [
   {
     title: 'Edit the map',
-    text: 'On the Map tab, tap an area: its points show up, and under the map you find its settings and tools. Nothing changes on the mower until you tap Save map, until then Undo takes every step back.',
+    text: 'On the Map tab, tap an area: its points show up, and under the map you find its settings and tools. Nothing changes on the mower until you tap Save map, until then Undo takes every step back and Redo brings it back.',
   },
   {
     title: 'Area types',
@@ -30,6 +30,10 @@ const STEPS: GuideStep[] = [
   {
     title: 'Merge',
     text: 'Tap Merge and then the second area. The two have to touch or overlap. The new area keeps the name, type and settings of the one picked first.',
+  },
+  {
+    title: 'Take out',
+    text: 'If an area lies over another one, e.g. a path over the lawn, pick the lawn, tap Take out and then the path. The part under the path drops out of the lawn, the path stays as it is. If it lies fully inside, the rest is split in two through it.',
   },
   {
     title: 'Reduce points',
@@ -63,6 +67,7 @@ const ITEMS: GuideItem[] = [
   {key: 'draw', title: 'Draw', text: 'A new area by tapping its corners on the map.', icon: () => tool(<PencilIcon size={20} />)},
   {key: 'record', title: 'Record', text: 'A new area by driving around it with the mower.', icon: () => tool(<RouteIcon size={20} />)},
   {key: 'undo', title: 'Undo', text: 'Takes the last change back, step by step up to the last save.', icon: () => tool(<UndoIcon size={20} />)},
+  {key: 'redo', title: 'Redo', text: 'Brings back what Undo took back, until something else gets changed.', icon: () => tool(<RedoIcon size={20} />)},
   {key: 'save', title: 'Save map', text: 'Sends the map to the mower, nothing changes there before.', icon: () => tool(<CheckIcon size={20} />, true)},
 ];
 

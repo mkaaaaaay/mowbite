@@ -19,6 +19,7 @@ import {loadJobTrack, useJobList, useMowHistory, type TrackSegment} from '@/hook
 import {simplifyPolygon} from '@/lib/simplifyPolygon';
 import {mergeOutlines} from '@/lib/mergeAreas';
 import {cutOut, generateId, splitByPath} from '@/lib/splitPolygon';
+import {subtractOutline} from '@/lib/subtractAreas';
 import {useSearchParams} from 'next/navigation';
 import {Suspense, useEffect, useMemo, useState, type ComponentProps} from 'react';
 import styles from './page.module.css';
@@ -30,7 +31,7 @@ import {type UpdateArea, NEW_AREA_SETTINGS} from './editing';
 import EditorToolbar from './EditorToolbar';
 import MowSettings, {AngleOnMap, AreaDirection, AreaPlanInfo, OpenMowerArea} from './MowSettings';
 import OrderBox from './OrderBox';
-import {DrawPanel, MergePanel, RestorePanel, SimplifyPanel, SplitPanel} from './Panels';
+import {DrawPanel, MergePanel, RestorePanel, SimplifyPanel, SplitPanel, SubtractPanel} from './Panels';
 import {PARAM} from '@/lib/openmower';
 import {rpcErrorText} from '@/lib/rpcText';
 import {closedRings} from '@/lib/rings';
@@ -140,8 +141,9 @@ function MapEditor() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveWarning, setSaveWarning] = useState(false);
-  const [mode, setMode] = useState<'idle' | 'split' | 'draw' | 'merge'>('idle');
-  const [mergeWithId, setMergeWithId] = useState<string | null>(null);
+  const [mode, setMode] = useState<'idle' | 'split' | 'draw' | 'merge' | 'subtract'>('idle');
+  // the other area clicked to merge with or to take out
+  const [otherId, setOtherId] = useState<string | null>(null);
   const [pendingPoints, setPendingPoints] = useState<Point[]>([]);
   // split: the points are a closed shape inside the area to cut out, not a line across it
   const [cutShape, setCutShape] = useState(false);
@@ -255,8 +257,8 @@ function MapEditor() {
   };
 
   const selectArea = (id: string) => {
-    if (mode === 'merge') {
-      if (id !== selectedAreaId) setMergeWithId(id);
+    if (mode === 'merge' || mode === 'subtract') {
+      if (id !== selectedAreaId) setOtherId(id);
       return;
     }
     setSelectedAreaId(id);
@@ -408,24 +410,45 @@ function MapEditor() {
   function cancelPicking() {
     setMode('idle');
     setPendingPoints([]);
-    setMergeWithId(null);
+    setOtherId(null);
   }
 
-  const mergeWith = map?.areas.find((a) => a.id === mergeWithId) ?? null;
-  const merged = mode === 'merge' && selectedArea && mergeWith ? mergeOutlines(selectedArea.outline, mergeWith.outline) : null;
+  const other = map?.areas.find((a) => a.id === otherId) ?? null;
+  const merged = mode === 'merge' && selectedArea && other ? mergeOutlines(selectedArea.outline, other.outline) : null;
 
   const applyMerge = () => {
-    if (!map || !selectedArea || !mergeWith || !merged) return;
+    if (!map || !selectedArea || !other || !merged) return;
     // keeps the id of the selected one like its name and settings, schedules and pauses pick areas by it
     const area = {...selectedArea, outline: merged.outline};
     // in the place of the first of the two, the order in map.json is the mowing order
-    const first = map.areas.find((a) => a.id === selectedArea.id || a.id === mergeWith.id)!;
+    const first = map.areas.find((a) => a.id === selectedArea.id || a.id === other.id)!;
     remember();
     setMap({
       ...map,
-      areas: map.areas.flatMap((a) => (a === first ? [area] : a.id === selectedArea.id || a.id === mergeWith.id ? [] : [a])),
+      areas: map.areas.flatMap((a) => (a === first ? [area] : a.id === selectedArea.id || a.id === other.id ? [] : [a])),
     });
     setSelectedAreaId(area.id);
+    cancelPicking();
+  };
+
+  // what's left of the selected area with the other one taken out
+  const subtracted = mode === 'subtract' && selectedArea && other ? subtractOutline(selectedArea.outline, other.outline) : null;
+  // an obstacle inside the area isn't mowed anyway, cutting the area open around it changes nothing
+  const subtractable = !!subtracted?.pieces.length && !(other?.properties.type === 'obstacle' && subtracted.cut > 0);
+
+  const applySubtract = () => {
+    if (!map || !selectedArea || !subtracted || !subtractable) return;
+    const name = selectedArea.properties.name;
+    // the biggest piece keeps the name and the id (schedules and pauses pick areas by it), the others get a number
+    const pieces = subtracted.pieces.map((outline, i) => ({
+      ...selectedArea,
+      id: i ? generateId() : selectedArea.id,
+      outline,
+      properties: {...selectedArea.properties, name: name && i ? `${name} ${i + 1}` : name},
+    }));
+    remember();
+    setMap({...map, areas: map.areas.flatMap((a) => (a.id === selectedArea.id ? pieces : [a]))});
+    setSelectedAreaId(pieces[0].id);
     cancelPicking();
   };
 
@@ -716,7 +739,7 @@ function MapEditor() {
                 openLoops={!!plan?.open}
                 progress={progress ?? undefined}
                 costume={costume}
-                preview={splitPreview ?? (merged ? [merged.outline] : undefined)}
+                preview={splitPreview ?? (merged ? [merged.outline] : subtractable ? subtracted?.pieces : undefined)}
                 markers={spot || problemSpots.length ? [...(spot ? [spot] : []), ...problemSpots] : undefined}
                 // (the spot from the activity page has its message above the map already)
                 onMarkerPick={(i) => {
@@ -901,7 +924,11 @@ function MapEditor() {
               )}
 
               {mode === 'merge' && selectedArea && (
-                <MergePanel area={selectedArea} other={mergeWith} merged={merged} onApply={applyMerge} onCancel={cancelPicking} />
+                <MergePanel area={selectedArea} other={other} merged={merged} onApply={applyMerge} onCancel={cancelPicking} />
+              )}
+
+              {mode === 'subtract' && selectedArea && (
+                <SubtractPanel area={selectedArea} other={other} result={subtracted} onApply={applySubtract} onCancel={cancelPicking} />
               )}
 
               {mode === 'draw' && <DrawPanel points={pendingPoints.length} onFinish={finishDraw} onCancel={cancelPicking} />}
@@ -917,6 +944,10 @@ function MapEditor() {
                   onMerge={() => {
                     setSimplifyCm(null);
                     setMode('merge');
+                  }}
+                  onSubtract={() => {
+                    setSimplifyCm(null);
+                    setMode('subtract');
                   }}
                   onSimplify={() => setSimplifyCm(5)}
                   onDelete={deleteArea}

@@ -135,6 +135,16 @@ export function MergeIcon({size = 20}: IconProps) {
   );
 }
 
+// a shape with a bite taken out where another one lies over it
+export function SubtractIcon({size = 20}: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...line}>
+      <path d="M14 10V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h5" />
+      <rect x="10" y="10" width="11" height="11" rx="2" strokeDasharray="2.5 2.5" />
+    </svg>
+  );
+}
+
 // a wiggly line smoothed out
 export function SimplifyIcon({size = 20}: IconProps) {
   return (
