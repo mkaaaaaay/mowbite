@@ -20,7 +20,8 @@ function curve(a: number, b: number, c: number, d: number, f: number) {
 // pace they were sent: when they came only pulls a little, wifi bunching them up doesn't change the speed. One interval
 // late, a pose that came a few ms late stopped the mower for a frame, and straight lines between them changed its speed
 // every 150 ms. Poses in as they come (at: when, if they were held up on the way), the pose to show at a time out, for
-// a view that moves itself every frame without a render. null: nothing to follow
+// a view that moves itself every frame without a render. null: nothing to follow. still: nothing changes any more until a
+// pose comes that's somewhere else, listen: called when one does
 export type Easer = ReturnType<typeof createEaser>;
 export function createEaser() {
   const list: {t: number; pose: Pose}[] = [];
@@ -29,6 +30,8 @@ export function createEaser() {
   let lag = 0;
   let came = 0;
   let pushed: Pose | null = null;
+  const listeners = new Set<() => void>();
+  const same = (a: Pose, b: Pose) => a.x === b.x && a.y === b.y && a.heading === b.heading;
   return {
     push(target: Pose | null, at?: number) {
       const now = at ?? performance.now();
@@ -57,6 +60,20 @@ export function createEaser() {
       came = now;
       list.push({t, pose: target});
       if (list.length > 12) list.shift();
+      if (!last || !same(last.pose, target)) for (const f of listeners) f();
+    },
+    still(now: number): boolean {
+      const n = list.length;
+      if (n < 2) return true;
+      // the poses the curve still goes through from here on, the one before it too
+      let i = n - 2;
+      while (i > 0 && list[i].t > now - lag) i--;
+      for (let k = Math.max(0, i - 1); k < n - 1; k++) if (!same(list[k].pose, list[n - 1].pose)) return false;
+      return true;
+    },
+    listen(f: () => void) {
+      listeners.add(f);
+      return () => void listeners.delete(f);
     },
     at(now: number): Pose | null {
       const n = list.length;

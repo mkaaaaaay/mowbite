@@ -66,4 +66,24 @@ describe('createEaser', () => {
     easer.push({x: 20, y: 0, heading: 0});
     expect(easer.at(900)?.x).toBe(20);
   });
+  it('is still once the curve has passed the last pose that moved, and calls when one moves again', () => {
+    const easer = createEaser();
+    let woken = 0;
+    easer.listen(() => woken++);
+    const push = (i: number) => {
+      clock = i * 150;
+      easer.push({x: Math.min(i, 5) * 0.045, y: 0, heading: 0});
+    };
+    for (let i = 0; i < 6; i++) push(i);
+    // still on its way to the last pose
+    expect(easer.still(clock)).toBe(false);
+    for (let i = 6; i < 20; i++) push(i);
+    // the same pose again and again doesn't call
+    expect(woken).toBe(6);
+    expect(easer.still(clock)).toBe(true);
+    clock = 20 * 150;
+    easer.push({x: 0.3, y: 0, heading: 0});
+    expect(woken).toBe(7);
+    expect(easer.still(clock)).toBe(false);
+  });
 });

@@ -350,16 +350,23 @@ function MowerMarker({
     placed.current = {sx: NaN, sy: NaN, deg: NaN};
     place();
   });
+  // every frame while it moves, at rest until a pose comes that's somewhere else
   useEffect(() => {
+    const eased = poses ?? own;
     let frame = 0;
     const tick = (now: number) => {
       shownAt.current = now;
       place(now);
-      frame = requestAnimationFrame(tick);
+      frame = eased.still(now) ? 0 : requestAnimationFrame(tick);
     };
+    const wake = () => void (frame ||= requestAnimationFrame(tick));
     frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
-  }, [place]);
+    const off = eased.listen(wake);
+    return () => {
+      off();
+      cancelAnimationFrame(frame);
+    };
+  }, [place, poses, own]);
 
   const drawIcon = (
     <g className={styles.turn} style={turn ? {transform: turn} : undefined}>
@@ -1353,6 +1360,8 @@ function MapView({
   };
 
   const zoomCenter = (factor: number) => {
+    const frame = frameRef.current;
+    if (zoomable && !following && !glides && frame) return zoomShift(factor, frame.clientWidth / 2, frame.clientWidth / 2, true);
     const v = base ?? {x: 0, y: 0, size: WIDTH};
     zoomAt(factor, v.x + v.size / 2, v.y + v.size / 2);
   };
@@ -1366,6 +1375,8 @@ function MapView({
     return () => ro.disconnect();
   }, [svgEl]);
 
+  // the wheel's zoom round the pointer, as a shift unless the view goes with the mower
+  const wheel = useRef<(factor: number, clientX: number, clientY: number) => void>(() => {});
   useEffect(() => {
     const svg = svgEl;
     if (!zoomable || !svg) return;
@@ -1373,13 +1384,11 @@ function MapView({
     // react's onWheel is passive, can't preventDefault the page scroll there
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      const p = clientToSvg(e.clientX, e.clientY);
-      if (p) zoomAt(Math.exp(e.deltaY * 0.0015), p[0], p[1]);
+      wheel.current(Math.exp(e.deltaY * 0.0015), e.clientX, e.clientY);
     };
     svg.addEventListener('wheel', onWheel, {passive: false});
     return () => svg.removeEventListener('wheel', onWheel);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- zoomAt only uses setters and following
-  }, [zoomable, following, svgEl]);
+  }, [zoomable, svgEl]);
 
   useEffect(() => {
     if (viewKey && viewMeters) savedViews.set(viewKey, viewMeters);
@@ -1535,19 +1544,73 @@ function MapView({
     shiftDrawn.current = true;
     setView({x: v.x - (sh.tx / sh.s) * unit, y: v.y - (sh.ty / sh.s) * unit, size: Math.min(WIDTH * 4, Math.max(WIDTH / MAX_ZOOM, v.size / sh.s))});
   };
-  // moved by dx, dy (px), scaled by f round q (px from the frame's corner)
+  // moved by dx, dy (px), scaled by f round q (px from the frame's corner) within the zoom's limits. drawn again only
+  // once the frame gets near the edge of what's drawn (OVERSCAN: from -w/2 to 3w/2 at scale 1) or it's three times as
+  // big and blurred
   const nudge = (dx: number, dy: number, f = 1, qx = 0, qy = 0) => {
     const svg = sheetRef.current;
     const frame = frameRef.current;
     if (!svg || !frame) return;
     const sh = (shift.current ??= {tx: 0, ty: 0, s: 1});
+    const size = (base ?? {size: WIDTH}).size / sh.s;
+    f = size / Math.min(WIDTH * 4, Math.max(WIDTH / MAX_ZOOM, size / f));
     sh.tx = f * (sh.tx - qx) + qx + dx;
     sh.ty = f * (sh.ty - qy) + qy + dy;
     sh.s *= f;
     svg.style.transform = `translate(${sh.tx}px, ${sh.ty}px) scale(${sh.s})`;
     const w = frame.clientWidth || 1;
-    if (Math.abs(sh.tx) > 0.35 * w || Math.abs(sh.ty) > 0.35 * w || sh.s > 1.6 || sh.s < 0.6) commitShift();
+    const covers = (t: number) => t - (sh.s * w) / 2 <= -0.05 * w && t + 1.5 * sh.s * w >= 1.05 * w;
+    if (!covers(sh.tx) || !covers(sh.ty) || sh.s > 3) commitShift();
   };
+  // a button's or the wheel's zoom by factor (<1 = in) round q (px from the frame's corner) as a shift, the view set
+  // from it once it's there. a button's eases out over a few frames, a click during it adds to what's left (a css
+  // transition would have it drawn at the end's size first), the wheel's goes at once and is set a moment after its last
+  const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const settle = useRef(commitShift);
+  const easing = useRef({left: 0, frame: 0, qx: 0, qy: 0});
+  const zoomShift = (factor: number, qx: number, qy: number, ease: boolean) => {
+    moving();
+    if (settleTimer.current) clearTimeout(settleTimer.current);
+    settleTimer.current = null;
+    if (!ease) {
+      nudge(0, 0, 1 / factor, qx, qy);
+      settleTimer.current = setTimeout(() => {
+        settleTimer.current = null;
+        settle.current();
+      }, 200);
+      return;
+    }
+    const z = easing.current;
+    Object.assign(z, {left: z.left - Math.log(factor), qx, qy});
+    if (z.frame) return;
+    let last: number | null = null;
+    const step = (now: number) => {
+      // each frame a part of what's left, most of it in the first 150 ms
+      const d = Math.abs(z.left) < 0.004 ? z.left : z.left * (1 - Math.exp(-Math.max(0, now - (last ?? now - 16)) / 50));
+      last = now;
+      z.left -= d;
+      nudge(0, 0, Math.exp(d), z.qx, z.qy);
+      z.frame = z.left ? requestAnimationFrame(step) : 0;
+      if (!z.frame) settle.current();
+    };
+    z.frame = requestAnimationFrame(step);
+  };
+  useLayoutEffect(() => {
+    settle.current = commitShift;
+    wheel.current = (factor, clientX, clientY) => {
+      const box = frameRef.current?.getBoundingClientRect();
+      if (box && !following && !glides) return zoomShift(factor, clientX - box.left, clientY - box.top, false);
+      const p = clientToSvg(clientX, clientY);
+      if (p) zoomAt(factor, p[0], p[1]);
+    };
+  });
+  useEffect(
+    () => () => {
+      if (settleTimer.current) clearTimeout(settleTimer.current);
+      cancelAnimationFrame(easing.current.frame);
+    },
+    [],
+  );
   // the view set from a shift drawn: the transform off in the same frame
   useLayoutEffect(() => {
     if (!shiftDrawn.current) return;
