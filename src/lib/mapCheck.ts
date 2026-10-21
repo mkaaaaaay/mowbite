@@ -69,8 +69,8 @@ const usable = (a: MapArea) => a.properties.active !== false && (a.properties.ty
 // approachDistance: docking_approach_distance of the mower (m), 1.5 is its default
 export function checkMap(map: MowerMap, approachDistance = 1.5): Problem[] {
   const problems: Problem[] = [];
-  // drafts are ignored by the mower
-  const areas = map.areas.filter((a) => a.properties.type !== 'draft');
+  // drafts and decoration are ignored by the mower
+  const areas = map.areas.filter((a) => a.properties.type !== 'draft' && a.properties.type !== 'decor');
   const drivable = areas.filter((a) => usable(a) && a.outline.length > 2);
   for (const a of areas) {
     if (a.outline.length < 3) {

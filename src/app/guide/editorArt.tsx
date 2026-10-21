@@ -1,12 +1,12 @@
 'use client';
 
-import {MergePanel, RestorePanel, SimplifyPanel, SplitPanel, SubtractPanel} from '@/app/map/Panels';
+import {MergePanel, RestorePanel, SimplifyPanel, SnapPanel, SplitPanel, SubtractPanel} from '@/app/map/Panels';
 import EditorToolbar from '@/app/map/EditorToolbar';
 import OrderBox from '@/app/map/OrderBox';
 import {AREA_TYPES, DEG} from '@/app/map/editing';
 import {AngleCompass, AngleOnMap, AngleSlider, AngleStep} from '@/app/map/MowSettings';
 import mapPage from '@/app/map/page.module.css';
-import {MergeIcon, ScissorsIcon, SimplifyIcon, SubtractIcon, TrashIcon} from '@/components/icons';
+import {MagnetIcon, MergeIcon, ScissorsIcon, SimplifyIcon, SubtractIcon, TrashIcon} from '@/components/icons';
 import MapBackups from '@/components/MapBackups';
 import {LIFE} from '@/components/MapLookSettings';
 import look from '@/components/MapLookSettings.module.css';
@@ -19,6 +19,7 @@ import {mergeOutlines} from '@/lib/mergeAreas';
 import {MOWER_MODELS, sizesBody} from '@/lib/mowerBody';
 import {mowPlan} from '@/lib/mowPlan';
 import {simplifyPolygon} from '@/lib/simplifyPolygon';
+import {layAgainst, movingOf} from '@/lib/snapAreas';
 import {splitByPath} from '@/lib/splitPolygon';
 import {subtractOutline} from '@/lib/subtractAreas';
 import {useEffect, useId, useLayoutEffect, useMemo, useRef, useState} from 'react';
@@ -58,8 +59,10 @@ const TREE = area('baum', 'Baum', 'obstacle', circle(4.5, 6, 1.1));
 const VORGARTEN = area('vorgarten', 'Vorgarten', 'mow', recorded([pt(1, 13), pt(13, 13), pt(13, 20), pt(1, 20)], 1.4, 0.04, 2));
 const WEG = area('weg', 'Weg', 'nav', [pt(8, 9.6), pt(10, 9.6), pt(10, 13.4), pt(8, 13.4)]);
 const BED = area('beet', 'Beet', 'obstacle', [pt(8.5, 16), pt(11.5, 16), pt(11.5, 18), pt(8.5, 18)]);
+// a bed along the lawn, outside it: only a picture, a little off the lawn's edge
+const BORDER = area('staudenbeet', 'Staudenbeet', 'decor', [pt(-2.6, 1.5), pt(-0.45, 1.5), pt(-0.45, 10), pt(-2.6, 10)]);
 const DOCK = {id: 'dock', position: pt(2.2, -0.9), heading: Math.PI / 2};
-const mapOf = (...areas: MapArea[]): MowerMap => ({areas, docking_stations: [DOCK]});
+const mapOf = (...areas: MapArea[]): MowerMap => ({areas: [...areas, BORDER], docking_stations: [DOCK]});
 const GARDEN = mapOf(GARTEN, TREE, VORGARTEN, WEG, BED);
 
 // a map made once for each state of a step, so the map is drawn anew only when something on it changes
@@ -197,7 +200,7 @@ function Stage({t, map, selected, picking, pending, preview, view, extra, under,
   pending?: Point[];
   preview?: Point[][];
   // more for the map: the plan's lanes and loops, the mowing order, a mower's body for the real edges, a spot to zoom to
-  view?: Pick<React.ComponentProps<typeof MapView>, 'stripes' | 'loops' | 'orderLabels' | 'bodyOverride' | 'focus' | 'focusSpan' | 'mapStyle'>;
+  view?: Pick<React.ComponentProps<typeof MapView>, 'stripes' | 'loops' | 'orderLabels' | 'bodyOverride' | 'focus' | 'focusSpan' | 'mapStyle' | 'snap'>;
   extra?: (toStage: (p: Point) => [number, number]) => React.ReactNode;
   under: React.ReactNode;
   hand: HandPlan;
@@ -420,6 +423,10 @@ function AreaCard({a}: {a: MapArea}) {
           {tr('Take out')}
         </button>
         <button className={tool} tabIndex={-1}>
+          <MagnetIcon size={16} />
+          {tr('Lay against')}
+        </button>
+        <button className={tool} tabIndex={-1}>
           <SimplifyIcon size={16} />
           {tr('Reduce points')}
         </button>
@@ -450,13 +457,15 @@ function Select() {
   );
 }
 
-// 2: the types: a path, a bed and a lawn tapped one after another, the card says what the mower does there
+// 2: the types: a path, a bed, the bed along the lawn and a lawn tapped one after another, the card says what the mower
+// does there
 const NAV_SPOT = pt(9, 11.5);
 const BED_SPOT = pt(10, 17);
+const BORDER_SPOT = pt(-1.5, 5);
 
 function Types() {
-  const t = useLoop(10, 0.85);
-  const picked = t >= 0.72 ? GARTEN : t >= 0.42 ? BED : t >= 0.12 ? WEG : null;
+  const t = useLoop(12, 0.88);
+  const picked = t >= 0.78 ? GARTEN : t >= 0.56 ? BORDER : t >= 0.34 ? BED : t >= 0.12 ? WEG : null;
   return (
     <Stage
       t={t}
@@ -468,14 +477,16 @@ function Types() {
           [0, 'off'],
           [0.1, {map: NAV_SPOT}],
           [0.14, {map: NAV_SPOT}],
-          [0.4, {map: BED_SPOT}],
-          [0.44, {map: BED_SPOT}],
-          [0.7, {map: SPOT}],
-          [0.8, {map: SPOT}],
+          [0.32, {map: BED_SPOT}],
+          [0.36, {map: BED_SPOT}],
+          [0.54, {map: BORDER_SPOT}],
+          [0.58, {map: BORDER_SPOT}],
+          [0.76, {map: SPOT}],
+          [0.84, {map: SPOT}],
         ],
-        press: tap(0.12, 0.42, 0.72),
-        taps: [0.12, 0.42, 0.72],
-        show: [0.02, 0.85],
+        press: tap(0.12, 0.34, 0.56, 0.78),
+        taps: [0.12, 0.34, 0.56, 0.78],
+        show: [0.02, 0.88],
       }}
     />
   );
@@ -582,6 +593,60 @@ function Points() {
         press: [[0.11, 0.31], [0.43, 0.58], ...tap(0.7, 0.785)],
         taps: [0.7, 0.785],
         show: [0.02, 0.9],
+      }}
+    />
+  );
+}
+
+// snapping: the bed's corner dragged towards the lawn's corner next to it, close to it it jumps onto it and stays ringed
+// there. the magnet on the map switches it off
+const withBorder = (outline: Point[]): MowerMap => ({areas: [GARTEN, TREE, VORGARTEN, WEG, BED, {...BORDER, outline}], docking_stations: [DOCK]});
+const B_CORNER = 2;
+// the lawn's recorded corner next to the bed's
+const L_CORNER = GARTEN.outline.reduce((a, b) => (Math.hypot(b.x, b.y - 10) < Math.hypot(a.x, a.y - 10) ? b : a));
+const NEAR = pt(L_CORNER.x - 0.16, L_CORNER.y + 0.14);
+
+function Snap() {
+  const t = useLoop(10, 0.6);
+  const snapped = t >= 0.42;
+  const corner = snapped ? L_CORNER : mix(BORDER.outline[B_CORNER], NEAR, ease(t, 0.18, 0.4));
+  const map = cached(`snap ${corner.x.toFixed(2)},${corner.y.toFixed(2)}`, () => withBorder(BORDER.outline.map((p, i) => (i === B_CORNER ? corner : p))));
+  const held = t >= 0.15 && t < 0.52;
+  const on = t < 0.74;
+  return (
+    <Stage
+      t={t}
+      map={map}
+      selected={BORDER.id}
+      view={{focus: pt(-0.5, 9.2), focusSpan: 3, snap: {on, onToggle: noop}}}
+      under={<AreaCard a={map.areas[5]} />}
+      extra={(at) => {
+        const [x, y] = at(L_CORNER);
+        return (
+          <>
+            {t >= 0.12 && t < 0.2 && <div className={mapView.hintToast}>{tr('Hold to move')}</div>}
+            {snapped && held && (
+              <svg className={styles.handLayer}>
+                <circle cx={x} cy={y} r={11} className={mapView.snapCorner} />
+              </svg>
+            )}
+          </>
+        );
+      }}
+      hand={{
+        moves: [
+          [0, 'off'],
+          [0.1, {map: BORDER.outline[B_CORNER]}],
+          [0.18, {map: BORDER.outline[B_CORNER]}],
+          [0.4, {map: NEAR}],
+          [0.43, {map: L_CORNER}],
+          [0.52, {map: L_CORNER}],
+          [0.66, {aria: tr('Snap')}],
+          [0.82, {aria: tr('Snap')}],
+        ],
+        press: [[0.15, 0.52], ...tap(0.73)],
+        taps: [0.73],
+        show: [0.02, 0.86],
       }}
     />
   );
@@ -702,6 +767,47 @@ function Subtract() {
           [0.34, {map: NAV_SPOT}],
           [0.5, {button: tr('Take out')}],
           [0.62, {button: tr('Take out')}],
+        ],
+        press: tap(0.12, 0.32, 0.52),
+        taps: [0.12, 0.32, 0.52],
+        show: [0.02, 0.6],
+      }}
+    />
+  );
+}
+
+// lay against: the bed along the lawn picked, the button, then the lawn: its corners near the lawn move onto its edge
+function Lay() {
+  const t = useLoop(11, 0.4);
+  const [moving, fixed] = movingOf(BORDER, GARTEN);
+  const laid = useMemo(() => layAgainst(moving.outline, fixed.outline, 0.5), [moving, fixed]);
+  const picking = t >= 0.14 && t < 0.54;
+  const other = t >= 0.32 ? GARTEN : null;
+  const done = t >= 0.54 && !!laid?.valid;
+  const map = useMemo(() => (done ? withBorder(laid!.outline) : GARDEN), [done, laid]);
+  return (
+    <Stage
+      t={t}
+      map={map}
+      selected={BORDER.id}
+      view={{focus: pt(-0.8, 5), focusSpan: 9}}
+      preview={picking && other && laid?.valid ? [laid.outline] : undefined}
+      under={
+        picking ? (
+          <SnapPanel area={BORDER} other={other} moving={other ? moving : null} laid={other ? laid : null} cm={50} onCm={noop} onApply={noop} onCancel={noop} />
+        ) : (
+          <AreaCard a={map.areas[5]} />
+        )
+      }
+      hand={{
+        moves: [
+          [0, 'off'],
+          [0.1, {button: tr('Lay against')}],
+          [0.16, {button: tr('Lay against')}],
+          [0.3, {map: pt(3, 5)}],
+          [0.34, {map: pt(3, 5)}],
+          [0.5, {button: tr('Lay against')}],
+          [0.62, {button: tr('Lay against')}],
         ],
         press: tap(0.12, 0.32, 0.52),
         taps: [0.12, 0.32, 0.52],
@@ -1031,4 +1137,4 @@ function Save() {
   );
 }
 
-export const EDITOR_ART = [Select, Types, Switches, Points, Split, Merge, Subtract, Reduce, Direction, Order, Edges, Style, Save];
+export const EDITOR_ART = [Select, Types, Switches, Points, Snap, Split, Merge, Subtract, Lay, Reduce, Direction, Order, Edges, Style, Save];

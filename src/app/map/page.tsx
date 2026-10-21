@@ -47,7 +47,7 @@ import {narrowPassages} from '@/lib/narrowPassages';
 import Problems, {problemText} from './Problems';
 import {BodyCheck, PlanChecks} from './BodyCheck';
 import {Fold} from './Fold';
-import {bodyFrom, slic3rPlans, useMowerBody, usePlannerSettings, type BodySpot} from '@/lib/mowerBody';
+import {bodyFrom, slic3rPlans, standing, useMowerBody, usePlannerSettings, type BodySpot} from '@/lib/mowerBody';
 import {OpenMowerMowing, useCanSetParams} from '@/components/MowerParamSettings';
 import {PlannerSettings} from '@/components/PlannerSettings';
 import {PlannerSimple} from '@/components/PlannerSimple';
@@ -459,7 +459,7 @@ function MapEditor() {
 
   // what's left of the selected area with the other one taken out
   const subtracted =
-    mode === 'subtract' && selectedArea && other ? subtractOutline(selectedArea.outline, other.outline, selectedArea.properties.type !== 'obstacle') : null;
+    mode === 'subtract' && selectedArea && other ? subtractOutline(selectedArea.outline, other.outline, !standing(selectedArea)) : null;
   // an obstacle inside the area isn't mowed anyway, cutting the area open around it changes nothing
   const subtractable = !!subtracted?.pieces.length && !(other?.properties.type === 'obstacle' && subtracted.cut > 0);
 

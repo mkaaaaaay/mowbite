@@ -190,6 +190,7 @@ const AREA_CLASS: Record<string, string> = {
   mow: styles.mowArea,
   nav: styles.navArea,
   obstacle: styles.obstacleArea,
+  decor: styles.decorArea,
   draft: styles.draftArea,
 };
 const OVERLAY_CLASS: Record<string, string> = {

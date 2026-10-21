@@ -296,6 +296,14 @@ describe('gardenThings', () => {
     expect(auto.things.get('b')?.bare).toBeUndefined();
   });
 
+  it('draws decoration like an obstacle, by its name or the picture picked', () => {
+    const decor: MapArea = {...tree, id: 'd', properties: {type: 'decor', name: 'Baum'}};
+    const g = gardenThings([lawn(5), decor], {}, null, fit);
+    expect(g.looks.get('d')).toBe('tree');
+    expect(g.things.get('d')?.places).toEqual(gardenThings([lawn(5), {...tree, id: 'd'}], {}, null, fit).things.get('d')?.places);
+    expect(gardenThings([lawn(5), decor], {d: 'rose'}, null, fit).looks.get('d')).toBe('rose');
+  });
+
   it('leaves out a thing with no room in its area', () => {
     const flat: MapArea = {id: 'f', properties: {type: 'obstacle', name: 'Haus'}, outline: [0, 1, 2].map((i) => ({x: i, y: 1}))};
     const g = gardenThings([lawn(5), flat], undefined, null, fit);

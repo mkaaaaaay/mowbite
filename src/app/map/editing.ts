@@ -13,6 +13,7 @@ export const AREA_TYPES = [
   {value: 'mow', label: 'Mowing area', hint: 'driven on and mowed'},
   {value: 'nav', label: 'Navigation area', hint: 'driven on but not mowed, e.g. a path between two lawns'},
   {value: 'obstacle', label: 'Obstacle', hint: 'no-go zone, keep it inside a mowing area'},
+  {value: 'decor', label: 'Decoration', hint: 'only a picture on the map, the mower ignores it (lying in a lawn, it mows over it)'},
   {value: 'draft', label: 'Draft', hint: 'ignored by the mower'},
 ];
 

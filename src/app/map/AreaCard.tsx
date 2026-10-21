@@ -49,13 +49,13 @@ export default function AreaCard({
   // map.area_properties), the planner takes it once the map is saved
   const planner = usePlannerSettings();
   const keepOff = planner?.settings.obstacle_margin;
-  const marginShown = !!keepOff && (type === 'obstacle' || area.properties.active === false || area.properties.mowable === false);
+  const marginShown = !!keepOff && type !== 'decor' && (type === 'obstacle' || area.properties.active === false || area.properties.mowable === false);
   const [marginDraft, setMarginDraft] = useState<string | null>(null);
   const marginCm = typeof area.properties.margin === 'number' ? String(Math.round(area.properties.margin * 1000) / 10) : '';
   const defaultCm = typeof keepOff?.value === 'number' ? String(Math.round(keepOff.value * 1000) / 10) : '';
-  // in the garden map style the picture a way or an obstacle is drawn as, kept with the app's settings (not the map)
+  // in the garden map style the picture a way, an obstacle or decoration is drawn as, kept with the app's settings (not the map)
   const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
-  const pictured = settings.mapStyle === 'garden' && (type === 'obstacle' || type === 'nav');
+  const pictured = settings.mapStyle === 'garden' && (type === 'obstacle' || type === 'decor' || type === 'nav');
   const picked = settings.looks?.[area.id];
   const shown = areaLook(area, settings.looks);
   const [picking, setPicking] = useState(false);
@@ -169,7 +169,9 @@ export default function AreaCard({
           <InfoTip>
             {type === 'obstacle'
               ? tr("Off: the mower ignores the obstacle and mows over the spot as if it wasn't there.")
-              : tr('Ignored by the mower and not drivable. Careful: if the mower stands on an inactive area, it gets stuck.')}
+              : type === 'decor'
+                ? tr('Off: drawn faded. The mower ignores decoration either way.')
+                : tr('Ignored by the mower and not drivable. Careful: if the mower stands on an inactive area, it gets stuck.')}
           </InfoTip>
         </label>
         {type === 'mow' && area.properties.active !== false && supported.has('mowable') && (
@@ -226,7 +228,7 @@ export default function AreaCard({
           </span>
         )}
         <span className={styles.dim}>
-          {area.properties.active === false
+          {area.properties.active === false && type !== 'decor'
             ? type === 'obstacle'
               ? tr('inactive: ignored, the mower mows there')
               : tr('inactive: not driven on and not mowed')

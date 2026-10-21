@@ -788,15 +788,18 @@ interface Insides {
 // a clipper result smaller than a square centimeter is nothing
 const nothing = (paths: ClipperLib.Paths) => paths.reduce((s, p) => s + Math.abs(ClipperLib.Clipper.Area(p)), 0) < 1e-4 * SCALE * SCALE;
 
+// what stands in the garden: an obstacle, or decoration the mower doesn't know (only a picture), drawn the same
+export const standing = (a: MapArea) => a.properties.type === 'obstacle' || a.properties.type === 'decor';
+
 // the obstacles and ways (outline at least 3 points)
-const sidesOf = (areas: readonly MapArea[]) => areas.filter((a) => (a.properties.type === 'obstacle' || a.properties.type === 'nav') && a.outline.length >= 3);
+const sidesOf = (areas: readonly MapArea[]) => areas.filter((a) => (standing(a) || a.properties.type === 'nav') && a.outline.length >= 3);
 
 // the last one worked out, again only when an obstacle's or a way's outline or the body changes, not for a lawn moved
 let insidesLast: {obstacles: P[][]; ways: P[][]; body: MowerBody; out: Insides} | null = null;
 
 function insidesOf(sides: MapArea[], body: MowerBody): Insides {
-  const obstacles = sides.filter((a) => a.properties.type === 'obstacle').map((a) => a.outline);
-  const ways = sides.filter((a) => a.properties.type !== 'obstacle').map((a) => a.outline);
+  const obstacles = sides.filter(standing).map((a) => a.outline);
+  const ways = sides.filter((a) => !standing(a)).map((a) => a.outline);
   const same = (a: P[][], b: P[][]) => a.length === b.length && a.every((o, i) => o === b[i]);
   const last = insidesLast;
   if (last && last.body === body && same(last.obstacles, obstacles) && same(last.ways, ways)) return last.out;
@@ -841,7 +844,7 @@ export function realInsides(areas: readonly MapArea[], body: MowerBody): Map<str
   const inside = insidesOf(list, body);
   const out = new Map(
     list.map((a): [string, P[] | null] => {
-      const from = a.properties.type === 'obstacle' ? inside.obstacles : inside.ways;
+      const from = standing(a) ? inside.obstacles : inside.ways;
       let known = edgeCache.get(a.outline);
       if (!known || known.from !== from) {
         known = {from, edge: biggest(cutBy(ClipperLib.ClipType.ctIntersection, [ccw(toPath(a.outline))], from))};
@@ -875,7 +878,7 @@ export function realEdges(
   if (!inside.edges) {
     const obstacles = clipAll(
       ClipperLib.ClipType.ctUnion,
-      sides.filter((a) => a.properties.type === 'obstacle').map((a) => toPath(a.outline)),
+      sides.filter(standing).map((a) => toPath(a.outline)),
     );
     // the lawn in them only where it borders lawn, not on a way
     const strip = cutBy(ClipperLib.ClipType.ctDifference, obstacles, inside.obstacles);

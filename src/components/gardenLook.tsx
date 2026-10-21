@@ -3,7 +3,7 @@
 import type {MapArea, Point} from '@/hooks/useMowerMap';
 import {containsPoint, polygonArea} from '@/lib/geometry';
 import {tr} from '@/lib/i18n';
-import {realInsides, type MowerBody} from '@/lib/mowerBody';
+import {realInsides, standing, type MowerBody} from '@/lib/mowerBody';
 import {autoMowAngle} from '@/lib/mowStripes';
 import {memo, useEffect, useId} from 'react';
 import {createPortal} from 'react-dom';
@@ -360,7 +360,7 @@ export function facing(a: MapArea, areas: MapArea[], looks: Record<string, strin
   const from = mid(a.outline);
   let near: {d: number; to: Point} | null = null;
   for (const b of areas) {
-    if (b === a || b.outline.length < 3 || (b.properties.type !== 'obstacle' && b.properties.type !== 'nav')) continue;
+    if (b === a || b.outline.length < 3 || (!standing(b) && b.properties.type !== 'nav')) continue;
     if (!SEATS.includes(areaLook(b, looks))) continue;
     const to = mid(b.outline);
     const d = Math.hypot(to.x - from.x, to.y - from.y);
@@ -395,7 +395,7 @@ export function gardenThings(
     if (type === 'mow') {
       out.lawns.set(a.id, out.angles.length);
       out.angles.push(a.properties.angle ?? autoMowAngle(a.outline));
-    } else if ((type === 'obstacle' || type === 'nav') && a.outline.length > 2) {
+    } else if ((standing(a) || type === 'nav') && a.outline.length > 2) {
       const look = areaLook(a, looks);
       out.looks.set(a.id, look);
       if (!isThing(look)) continue;

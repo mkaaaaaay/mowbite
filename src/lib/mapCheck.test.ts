@@ -51,6 +51,10 @@ describe('checkMap', () => {
     expect(checkMap(map([lawn, area('far', 'obstacle', square(20, 20, 2))]))).toEqual([{kind: 'outside', level: 'hint', areaId: 'far'}]);
   });
 
+  it('leaves decoration alone, the mower ignores it', () => {
+    expect(checkMap(map([lawn, area('beds', 'decor', square(20, 20, 2)), area('eight', 'decor', pts(0, 0, 10, 10, 10, 0, 0, 10))]))).toEqual([]);
+  });
+
   it('takes a dock just outside the lawn, it docks from the approach point in front of it', () => {
     expect(checkMap(map([lawn], {x: -0.5, y: 1}))).toEqual([]);
   });

@@ -3,7 +3,7 @@
 import {memo, type ReactNode} from 'react';
 import type {MapArea, Point} from '@/hooks/useMowerMap';
 import {containsPoint, polygonArea} from '@/lib/geometry';
-import {joinedOutlines, realEdges, type MowerBody} from '@/lib/mowerBody';
+import {joinedOutlines, realEdges, standing, type MowerBody} from '@/lib/mowerBody';
 import {autoMowAngle} from '@/lib/mowStripes';
 import {seasonOf, sunPosition, type Season} from '@/lib/sun';
 import {drawThing, fillOf, fitKey, GardenDefs, gardenThings, inSquare, type Fit, type GardenThing as Thing, type Look, type Place} from './gardenLook';
@@ -303,7 +303,7 @@ const pieceCache = new WeakMap<object, {key: string; value: {there: string; back
 function lawnsOf(areas: MapArea[]): Lawns {
   return cached(lawnsCache, areas, '', () => {
     const lawns = areas.filter((a) => a.properties.type === 'mow' && a.properties.active !== false && a.properties.mowable !== false && a.outline.length > 2);
-    const obstacles = areas.filter((a) => a.properties.type === 'obstacle' && a.outline.length > 2);
+    const obstacles = areas.filter((a) => standing(a) && a.outline.length > 2);
     const bySize = [...areas].sort((a, b) => polygonArea(b.outline) - polygonArea(a.outline));
     const biggest = bySize.find((a) => lawns.includes(a));
     const angle = biggest ? (biggest.properties.angle ?? autoMowAngle(biggest.outline)) : 0;
@@ -588,7 +588,7 @@ export function lifeScene(s: LifeInput): LifeScene | null {
     ? rings(
         s.areas.filter((a) => {
           const type = a.properties.type ?? '';
-          return a.outline.length > 2 && !hidden.has(type) && (type === 'nav' || type === 'obstacle' || (type === 'mow' && !lawns.includes(a)));
+          return a.outline.length > 2 && !hidden.has(type) && (type === 'nav' || standing(a) || (type === 'mow' && !lawns.includes(a)));
         }),
         at,
       )

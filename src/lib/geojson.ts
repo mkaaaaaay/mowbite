@@ -26,7 +26,7 @@ const KNOWN: Record<string, 'string' | 'boolean' | 'number' | 'object'> = {
   planner: 'object',
   margin: 'number',
 };
-const TYPES = ['mow', 'nav', 'obstacle', 'draft'];
+const TYPES = ['mow', 'nav', 'obstacle', 'decor', 'draft'];
 // farther from the datum than this a file is for another place (or has latitude and longitude swapped)
 const FAR = 2000; // m
 

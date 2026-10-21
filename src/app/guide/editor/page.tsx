@@ -13,7 +13,7 @@ const STEPS: GuideStep[] = [
   },
   {
     title: 'Area types',
-    text: "Mowing areas are driven on and mowed, navigation areas only driven on (e.g. a path between two lawns), the mower doesn't go anywhere else. Obstacles such as beds lie inside a mowing area and are driven around. A draft is just a sketch, the mower ignores it.",
+    text: "Mowing areas are driven on and mowed, navigation areas only driven on (e.g. a path between two lawns), the mower doesn't go anywhere else. Obstacles such as beds lie inside a mowing area and are driven around. Decoration such as the beds round the lawn is only a picture on the map, the mower ignores it. A draft is just a sketch, the mower ignores it too.",
   },
   {
     title: 'Leaving areas out',
@@ -22,6 +22,10 @@ const STEPS: GuideStep[] = [
   {
     title: 'Edit points',
     text: 'Hold a point for a moment and drag it to where the edge really is. Drag the small dot between two points the same way, a new point appears there. To delete a point, tap it and then the trash button next to it.',
+  },
+  {
+    title: 'Snapping',
+    text: "Dragged or set close to another area's corner or edge, a point snaps onto it, so the two meet without a gap. A ring shows it. The magnet on the map switches snapping off, on a computer Alt places a single point freely.",
   },
   {
     title: 'Split area',
@@ -34,6 +38,10 @@ const STEPS: GuideStep[] = [
   {
     title: 'Take out',
     text: 'If an area lies over another one, e.g. a path over the lawn, pick the lawn, tap Take out and then the path. The part under the path drops out of the lawn, the path stays as it is. If it lies fully inside, the rest is split in two through it.',
+  },
+  {
+    title: 'Lay against',
+    text: 'For a whole edge at once: pick e.g. a bed, tap Lay against and then the lawn next to it. Its corners close to the lawn move onto the lawn\'s edge, the slider sets how far they may be off. A mowing area stays as it is, unless both are.',
   },
   {
     title: 'Reduce points',
@@ -53,7 +61,7 @@ const STEPS: GuideStep[] = [
   },
   {
     title: 'Map style',
-    text: 'With the gear on the map you pick the map style: Plain shows colored areas, Garden draws the garden from above. There ways and obstacles get a picture by their name, with one picked you change it under the map at Picture on the map. Light and shadows, the season, the lawn growing back and a mowing edge can be switched on one by one.',
+    text: 'With the gear on the map you pick the map style: Plain shows colored areas, Garden draws the garden from above (off until you pick it). There ways, obstacles and decoration get a picture by their name. With one picked you change it under the map at Picture on the map, and its color, size, direction and the ground under it. Light and shadows, the season, the lawn growing back and a mowing edge can be switched on one by one.',
   },
   {
     title: 'Save and backups',

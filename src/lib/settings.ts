@@ -16,6 +16,7 @@ export const COLORS = [
   {key: 'unmowed', label: 'Mowing area, not mowed', value: '#ffb300'},
   {key: 'nav', label: 'Navigation area', value: '#29b6f6'},
   {key: 'obstacle', label: 'Obstacle', value: '#ef5350'},
+  {key: 'decor', label: 'Decoration', value: '#a1887f'},
   {key: 'draft', label: 'Draft', value: '#888888'},
   {key: 'selected', label: 'Selected area', value: '#ff1fa3'},
   {key: 'vertex', label: 'Outline points', value: '#2196f3'},

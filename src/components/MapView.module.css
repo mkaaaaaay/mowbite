@@ -37,6 +37,14 @@
   cursor: pointer;
 }
 
+.decorArea {
+  fill: var(--c-decor);
+  fill-opacity: 0.25;
+  stroke: var(--c-decor);
+  stroke-width: 1;
+  cursor: pointer;
+}
+
 .draftArea {
   fill: var(--c-draft);
   fill-opacity: 0.12;
@@ -86,7 +94,8 @@
 }
 
 .garden .navArea,
-.garden .obstacleArea {
+.garden .obstacleArea,
+.garden .decorArea {
   stroke: #4a3a28;
   stroke-opacity: 0.5;
   stroke-width: 1;

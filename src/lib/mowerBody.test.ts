@@ -284,6 +284,13 @@ describe('real edges', () => {
     for (const [x, y] of [[3.6, 1], [4.4, 1], [3.9, 3], [0.15, 2]]) expect(inside(grass.obstacles, x, y)).toBe(false);
   });
 
+  it('shrinks decoration like an obstacle, side by side together with one', () => {
+    const areas = [square('a', 'obstacle', 1, 1, 1), square('b', 'decor', 2, 1, 1)];
+    const as = [square('a', 'obstacle', 1, 1, 1), square('b', 'obstacle', 2, 1, 1)];
+    expect(box(realInsides(areas, rect).get('b')!)).toEqual(box(realInsides(as, rect).get('b')!));
+    expect(realEdges(areas, rect).obstacles).toHaveLength(1);
+  });
+
   it('keeps what the obstacles and ways give while only a lawn changes', () => {
     const sides = [square('o', 'obstacle', 1, 1, 1), square('w', 'nav', 3, 0, 2)];
     const before = realEdges([square('a', 'mow', 0, 0, 4), ...sides], rect);
