@@ -744,15 +744,53 @@ function grow(paths: ClipperLib.Paths, delta: number): ClipperLib.Paths {
 // is left of it)
 export function insideEdge(outline: P[], body: MowerBody): P[] | null {
   const pieces = outline.length >= 3 ? grow([ccw(toPath(outline))], -body.width / 2) : [];
+  return biggest(pieces);
+}
+
+const biggest = (pieces: ClipperLib.Paths): P[] | null => {
   if (!pieces.length) return null;
   const size = (p: ClipperLib.Path) => Math.abs(ClipperLib.Clipper.Area(p));
   return fromPath(pieces.reduce((a, b) => (size(b) > size(a) ? b : a)));
+};
+
+// obstacles and ways closer than this are one where they meet
+const TOUCH = 0.05;
+
+// the obstacles and ways shrunk by half the width together, so where they meet there's no edge between them: grown by
+// TOUCH, as one, shrunk by half the width and TOUCH (a result of clipper's, holes the other way round)
+function joinedInside(outlines: P[][], body: MowerBody): ClipperLib.Paths {
+  const joined = clipAll(ClipperLib.ClipType.ctUnion, grow(outlines.map((o) => ccw(toPath(o))), TOUCH), [], true);
+  return grow(joined, -body.width / 2 - TOUCH);
+}
+
+// paths of a clipper result cut by another one, both as they are
+function cutBy(type: ClipperLib.ClipType, subject: ClipperLib.Paths, cut: ClipperLib.Paths): ClipperLib.Paths {
+  const c = new ClipperLib.Clipper();
+  c.AddPaths(subject, ClipperLib.PolyType.ptSubject, true);
+  c.AddPaths(cut, ClipperLib.PolyType.ptClip, true);
+  const out: ClipperLib.Paths = [];
+  c.Execute(type, out, ClipperLib.PolyFillType.pftNonZero, ClipperLib.PolyFillType.pftNonZero);
+  return out;
+}
+
+const insidesCache = new WeakMap<readonly MapArea[], {body: MowerBody; out: Map<string, P[] | null>}>();
+
+// the real edge of every obstacle and way by its id: its outline in the ones shrunk together, the biggest piece (null
+// when nothing is left of it). worked out again only for other areas or another body
+export function realInsides(areas: readonly MapArea[], body: MowerBody): Map<string, P[] | null> {
+  const hit = insidesCache.get(areas);
+  if (hit && hit.body === body) return hit.out;
+  const list = areas.filter((a) => (a.properties.type === 'obstacle' || a.properties.type === 'nav') && a.outline.length >= 3);
+  const inside = joinedInside(list.map((a) => a.outline), body);
+  const out = new Map(list.map((a) => [a.id, biggest(cutBy(ClipperLib.ClipType.ctIntersection, [ccw(toPath(a.outline))], inside))]));
+  insidesCache.set(areas, {body, out});
+  return out;
 }
 
 // Where the edges really are: the outlines were recorded with the middle of the mower driving along them, the body
 // reached half its width further. So the mowing areas together grown by that, and obstacles shrunk by it (one the
-// mower drove round smaller than that leaves nothing). grass: what's lawn too between the lines and the real edges,
-// outside the mowing areas and inside the obstacles
+// mower drove round smaller than that leaves nothing), obstacles and ways side by side together. grass: what's lawn
+// too between the lines and the real edges, outside the mowing areas and inside the obstacles
 // outlines as one, without edges where they meet or overlap
 export function joinedOutlines(outlines: readonly P[][]): P[][] {
   return clipAll(ClipperLib.ClipType.ctUnion, outlines.filter((o) => o.length >= 3).map(toPath)).map(fromPath);
@@ -765,14 +803,20 @@ export function realEdges(
   const half = body.width / 2;
   const mow = areas.filter((a) => a.properties.type === 'mow' && a.outline.length >= 3).map((a) => toPath(a.outline));
   const lawn = grow(clipAll(ClipperLib.ClipType.ctUnion, mow), half);
-  const obstacles = areas.filter((a) => a.properties.type === 'obstacle' && a.outline.length >= 3).map((a) => ccw(toPath(a.outline)));
-  const shrunk = obstacles.map((o) => grow([o], -half));
+  const obstacles = clipAll(
+    ClipperLib.ClipType.ctUnion,
+    areas.filter((a) => a.properties.type === 'obstacle' && a.outline.length >= 3).map((a) => toPath(a.outline)),
+  );
+  const inside = joinedInside(
+    areas.filter((a) => (a.properties.type === 'obstacle' || a.properties.type === 'nav') && a.outline.length >= 3).map((a) => a.outline),
+    body,
+  );
   return {
     lawn: lawn.map(fromPath),
-    obstacles: shrunk.flat().map(fromPath),
+    obstacles: cutBy(ClipperLib.ClipType.ctIntersection, obstacles, inside).map(fromPath),
     grass: {
       outside: clipAll(ClipperLib.ClipType.ctDifference, lawn, mow, true).map(fromPath),
-      obstacles: obstacles.flatMap((o, i) => clipAll(ClipperLib.ClipType.ctDifference, [o], shrunk[i]).map(fromPath)),
+      obstacles: cutBy(ClipperLib.ClipType.ctDifference, obstacles, inside).map(fromPath),
     },
   };
 }

@@ -3,7 +3,7 @@
 import type {MapArea, Point} from '@/hooks/useMowerMap';
 import {containsPoint} from '@/lib/geometry';
 import {tr} from '@/lib/i18n';
-import {insideEdge, type MowerBody} from '@/lib/mowerBody';
+import {realInsides, type MowerBody} from '@/lib/mowerBody';
 import {autoMowAngle} from '@/lib/mowStripes';
 import {useEffect, useId} from 'react';
 import {createPortal} from 'react-dom';
@@ -315,7 +315,7 @@ export function facing(a: MapArea, areas: MapArea[], looks: Record<string, strin
   const [p, q] = [at(from), at(to)];
   return (Math.atan2(q.y - p.y, q.x - p.x) * 180) / Math.PI;
 }
-const placeCache = new WeakMap<MapArea, {key: string; body: object | null; outline: Point[]; places: Place[]}>();
+const placeCache = new WeakMap<MapArea, {key: string; body: object | null; real: string; outline: Point[]; places: Place[]}>();
 
 export function gardenThings(
   areas: MapArea[],
@@ -330,6 +330,7 @@ export function gardenThings(
   const same = (o: ThingsOwn) => o.variants === variants && o.sizes === sizes && o.turns === turns && o.closed === closed;
   if (hit && hit.looks === looks && same(hit.own) && hit.body === body && hit.key === key) return hit.out;
   const at = inSquare(fit);
+  const insides = body ? realInsides(areas, body) : null;
   const out: GardenThings = {lawns: new Map(), looks: new Map(), things: new Map(), angles: [], clips: []};
   for (const a of areas) {
     const type = a.properties.type;
@@ -342,10 +343,13 @@ export function gardenThings(
       if (!isThing(look)) continue;
       const turn = turns?.[a.id] ?? (PICTURES[look].turn ? facing(a, areas, looks, at) : undefined);
       const placeKey = `${look}|${sizes?.[a.id] ?? ''}|${turn ?? ''}|${key}`;
+      // the real edge, shrunk together with its neighbours
+      const real = insides?.get(a.id) ?? a.outline;
+      const realKey = real.map((p) => `${p.x},${p.y}`).join(' ');
       let placed = placeCache.get(a);
-      if (!placed || placed.key !== placeKey || placed.body !== body) {
-        const outline = ((body && insideEdge(a.outline, body)) || a.outline).map(at);
-        placed = {key: placeKey, body, outline, places: placeThings(look, outline, fit.m, a.id, sizes?.[a.id], turn)};
+      if (!placed || placed.key !== placeKey || placed.body !== body || placed.real !== realKey) {
+        const outline = real.map(at);
+        placed = {key: placeKey, body, real: realKey, outline, places: placeThings(look, outline, fit.m, a.id, sizes?.[a.id], turn)};
         placeCache.set(a, placed);
       }
       const edge = PICTURES[look].edged ? placed.outline : undefined;

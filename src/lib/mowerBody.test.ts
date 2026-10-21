@@ -15,6 +15,7 @@ import {
   plannerSizes,
   insideEdge,
   realEdges,
+  realInsides,
   roundBends,
   sizesBody,
   spotPlaces,
@@ -230,6 +231,22 @@ describe('real edges', () => {
 
   it('leaves out an obstacle the mower drove round tighter than its width', () => {
     expect(realEdges([square('o', 'obstacle', 0, 0, 0.3)], rect).obstacles).toEqual([]);
+  });
+
+  it('shrinks obstacles side by side together, no edge between them', () => {
+    const areas = [square('a', 'obstacle', 1, 1, 1), square('b', 'obstacle', 2, 1, 1), square('w', 'nav', 1, 2.02, 2)];
+    const {obstacles, grass} = realEdges(areas, rect);
+    expect(obstacles).toHaveLength(1);
+    expect(inside(obstacles, 2, 1.5)).toBe(true);
+    expect(inside(grass.obstacles, 2, 1.5)).toBe(false);
+    // the way 2 cm off is one with them too, the outside keeps its strip
+    expect(inside(grass.obstacles, 1.5, 1.95)).toBe(false);
+    expect(inside(grass.obstacles, 1.5, 1.1)).toBe(true);
+    const of = realInsides(areas, rect);
+    const [x0, , x1] = box(of.get('a')!);
+    expect(x0).toBeCloseTo(1.2, 2);
+    expect(x1).toBeCloseTo(2, 2);
+    expect(box(of.get('b')!)[0]).toBeCloseTo(2, 2);
   });
 
   it('counts the strip between a line and its real edge as lawn, outside the area and inside an obstacle', () => {
