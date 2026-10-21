@@ -188,7 +188,7 @@ export default function MapControls({
           <button
             className={snap.on ? '' : styles.off}
             onClick={snap.onToggle}
-            aria-label="snap"
+            aria-label={tr('Snap')}
             aria-pressed={snap.on}
             title={snap.on ? tr('Points snap onto the corners and edges of other areas (hold Alt to place one freely), tap to switch it off') : tr('Let points snap onto the corners and edges of other areas')}
           >
@@ -264,33 +264,53 @@ export default function MapControls({
       )}
       {source && !align?.shift && (
         <div className={styles.imageryBar}>
-          {/* moving the imagery by hand is tucked away at the end of the list */}
-          {(sources.length > 1 || align) && (
-            <select value={source} onChange={(e) => (e.target.value === ALIGN ? align?.onStart() : onSource(e.target.value as ImagerySource))}>
+          {sources.length > 1 && (
+            <select value={source} onChange={(e) => onSource(e.target.value as ImagerySource)}>
               {sources.map((s) => (
                 <option key={s} value={s}>
                   {tr(imageryInfo(s, imagerySettings).label)}
                 </option>
               ))}
-              {align && <option value={ALIGN}>{tr('Align…')}</option>}
             </select>
+          )}
+          {/* a button next to the list, arrowing through the sources doesn't start moving the imagery */}
+          {align && (
+            <button className={styles.alignOpen} onClick={align.onStart}>
+              {tr('Align…')}
+            </button>
           )}
           <span>© {imageryInfo(source, imagerySettings).attribution}</span>
         </div>
       )}
-      {source && align?.shift && <AlignBar shift={align.shift} onChange={align.onChange} onDone={align.onDone} />}
+      {source && align?.shift && (
+        <AlignBar
+          shift={align.shift}
+          attribution={imageryInfo(source, imagerySettings).attribution}
+          onChange={align.onChange}
+          onDone={align.onDone}
+        />
+      )}
     </>
   );
 }
 
-// the entry in the list of imagery sources that opens the arrows
-const ALIGN = 'align';
-
-// the aerial imagery moved in steps of 10 cm or 1 m until it lines up with the map, kept for its source on every device
-function AlignBar({shift, onChange, onDone}: {shift: [number, number]; onChange: (shift: [number, number]) => void; onDone: () => void}) {
+// the aerial imagery moved in steps of 10 cm or 1 m until it lines up with the map, kept for its source on every device.
+// the imagery's credits stay on the map meanwhile
+function AlignBar({
+  shift,
+  attribution,
+  onChange,
+  onDone,
+}: {
+  shift: [number, number];
+  attribution: string;
+  onChange: (shift: [number, number]) => void;
+  onDone: () => void;
+}) {
   const [step, setStep] = useState(0.1);
   const [dx, dy] = shift;
   const move = (x: number, y: number) => onChange([Math.round((dx + x * step) * 100) / 100, Math.round((dy + y * step) * 100) / 100]);
+  const stepLabel = step < 1 ? '10 cm' : '1 m';
   const parts = [
     ...(dx ? [tr(dx > 0 ? '{m} m east' : '{m} m west', {m: fmt(Math.abs(dx), 1)})] : []),
     ...(dy ? [tr(dy > 0 ? '{m} m north' : '{m} m south', {m: fmt(Math.abs(dy), 1)})] : []),
@@ -311,8 +331,8 @@ function AlignBar({shift, onChange, onDone}: {shift: [number, number]; onChange:
         <button onClick={() => move(1, 0)} aria-label={tr('east')}>
           →
         </button>
-        <button onClick={() => setStep(step < 1 ? 1 : 0.1)} title={tr('Step')}>
-          {step < 1 ? '10 cm' : '1 m'}
+        <button onClick={() => setStep(step < 1 ? 1 : 0.1)} title={tr('Step')} aria-label={tr('Step: {step}', {step: stepLabel})}>
+          {stepLabel}
         </button>
         <button onClick={() => onChange([0, 0])} disabled={!dx && !dy}>
           {tr('Reset')}
@@ -321,6 +341,7 @@ function AlignBar({shift, onChange, onDone}: {shift: [number, number]; onChange:
           {tr('Finish')}
         </button>
       </div>
+      <span className={styles.alignCredit}>© {attribution}</span>
     </div>
   );
 }

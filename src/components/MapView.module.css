@@ -692,7 +692,7 @@
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
 }
 
-/* moving the aerial imagery by hand: how far, the arrows, the step, done */
+/* moving the aerial imagery by hand: how far, the arrows, the step, done, and the imagery's credits */
 .alignBar {
   position: absolute;
   left: 10px;
@@ -703,11 +703,12 @@
   gap: 6px;
   padding: 8px 10px;
   border-radius: 12px;
-  background: rgba(20, 20, 22, 0.82);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
-  color: #fff;
+  border: 1px solid var(--card-border);
+  /* no blur over the map, like the zoom buttons */
+  background: color-mix(in srgb, var(--background) 82%, transparent);
+  color: var(--foreground);
   font-size: 12px;
+  box-shadow: var(--card-shadow, none);
 }
 
 .alignBar div {
@@ -720,11 +721,12 @@
   min-width: 34px;
   padding: 5px 9px;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  background: rgba(20, 20, 22, 0.8);
-  color: #fff;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  color: var(--foreground);
   font-size: 13px;
   cursor: pointer;
+  box-shadow: var(--btn-3d);
 }
 
 .alignBar button:disabled {
@@ -736,6 +738,23 @@
   margin-left: auto;
   font-weight: 600;
   border-color: color-mix(in srgb, var(--success) 70%, transparent);
+}
+
+.alignCredit {
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+/* opens the arrows, next to the list of imagery sources and styled like it */
+.alignOpen {
+  flex: none;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  border: 1px solid var(--card-border);
+  background: rgba(20, 20, 22, 0.8);
+  color: #fff;
+  cursor: pointer;
 }
 
 .imageryBar select {
