@@ -15,7 +15,7 @@ import {availableSources, imageryShift, imageryTiles, type Datum} from '@/lib/im
 import {handleRadius, meterGrid} from '@/lib/mapGrid';
 import MapControls, {layerOn, type Layer} from './MapControls';
 import {useMapPrefs} from './useMapPrefs';
-import {Fragment, memo, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
+import {Fragment, memo, startTransition, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
 import styles from './MapView.module.css';
 import {fmt, tr, useLang} from '@/lib/i18n';
 import {tick} from '@/lib/haptics';
@@ -630,7 +630,8 @@ function MapView({
     if (wantCoverage) void loadCoverage().then(setCoverage);
   }, [wantCoverage]);
   const pointers = useRef(new Map<number, {x: number; y: number}>());
-  const gesture = useRef<{moved: boolean; pinchDist: number | null}>({moved: false, pinchDist: null});
+  // a pinch: how far apart the fingers were and their middle (client px) at the last move
+  const gesture = useRef<{moved: boolean; pinchDist: number | null; pinchMid?: [number, number]}>({moved: false, pinchDist: null});
   // while the map moves the grass and the leaves wait (Grass.module.css): behind the frosted cards each of their frames
   // blurs the cards again, and the map stutters
   const stillTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1527,40 +1528,74 @@ function MapView({
     if (!zoomable) return;
     pointers.current.set(e.pointerId, {x: e.clientX, y: e.clientY});
     if (pointers.current.size === 1) gesture.current = {moved: false, pinchDist: null};
+    // the second finger: the pinch goes from how far apart they are now, its first move zooms already
+    if (pointers.current.size === 2) {
+      const [a, b] = [...pointers.current.values()];
+      gesture.current.pinchDist = Math.hypot(a.x - b.x, a.y - b.y);
+      gesture.current.pinchMid = [(a.x + b.x) / 2, (a.y + b.y) / 2];
+    }
   };
 
   // a pan or a pinch moves the map that's drawn by a css transform (the phone's gpu moves it, nothing is drawn again), the
   // view is set from it when the fingers let go and before they reach the edge of what's drawn round the view: a map full
   // of pictures drawn again for every move of a finger stuttered
-  const shift = useRef<{tx: number; ty: number; s: number} | null>(null);
-  const shiftDrawn = useRef(false);
+  // the view is set in a transition, react draws it in pieces and the fingers go on moving the map meanwhile. until it's
+  // drawn the map on screen is the one before, moved by what was set (pending) and then by the shift since: a finger
+  // moving before it was drawn (with two fingers that's the other one, in the same frame) jumped back to the old view
+  type Shift = {tx: number; ty: number; s: number};
+  const shift = useRef<Shift | null>(null);
+  // the shifts set as views and not drawn yet, oldest first, each with the view and its number (drawnShift once drawn)
+  const pending = useRef<(Shift & {view: View; n: number})[]>([]);
+  const [drawnShift, setDrawnShift] = useState(0);
+  // the view drawn, for an ease or a timer started a few renders ago
+  const drawnView = useRef(base);
+  useLayoutEffect(() => {
+    drawnView.current = base;
+  });
+  // the map on screen moved by the pending shifts and the one since, one after the other
+  const moved = (): Shift =>
+    [...pending.current, shift.current ?? {tx: 0, ty: 0, s: 1}].reduce((a, b) => ({tx: b.tx + b.s * a.tx, ty: b.ty + b.s * a.ty, s: b.s * a.s}), {tx: 0, ty: 0, s: 1});
+  const show = () => {
+    const sheet = sheetRef.current;
+    if (!sheet) return;
+    const m = moved();
+    sheet.style.transform = !pending.current.length && !shift.current ? '' : `translate(${m.tx}px, ${m.ty}px) scale(${m.s})`;
+  };
   const commitShift = () => {
     const sh = shift.current;
     const frame = frameRef.current;
     shift.current = null;
     if (!sh || !frame) return;
-    const v = base ?? {x: 0, y: 0, size: WIDTH};
+    const last = pending.current.at(-1);
+    const v = last?.view ?? drawnView.current ?? {x: 0, y: 0, size: WIDTH};
     const unit = v.size / (frame.clientWidth || 1);
-    shiftDrawn.current = true;
-    setView({x: v.x - (sh.tx / sh.s) * unit, y: v.y - (sh.ty / sh.s) * unit, size: Math.min(WIDTH * 4, Math.max(WIDTH / MAX_ZOOM, v.size / sh.s))});
+    const view = {x: v.x - (sh.tx / sh.s) * unit, y: v.y - (sh.ty / sh.s) * unit, size: Math.min(WIDTH * 4, Math.max(WIDTH / MAX_ZOOM, v.size / sh.s))};
+    const n = (last?.n ?? drawnShift) + 1;
+    pending.current = [...pending.current, {...sh, view, n}];
+    startTransition(() => {
+      setView(view);
+      setDrawnShift(n);
+    });
   };
   // moved by dx, dy (px), scaled by f round q (px from the frame's corner) within the zoom's limits. drawn again only
-  // once the frame gets near the edge of what's drawn (OVERSCAN: from -w/2 to 3w/2 at scale 1) or it's three times as
-  // big and blurred
+  // once the frame gets near the edge of what's drawn (OVERSCAN: from -w/2 to 3w/2 at scale 1) or it's six times as big
+  // and blurred
   const nudge = (dx: number, dy: number, f = 1, qx = 0, qy = 0) => {
     const svg = sheetRef.current;
     const frame = frameRef.current;
     if (!svg || !frame) return;
     const sh = (shift.current ??= {tx: 0, ty: 0, s: 1});
-    const size = (base ?? {size: WIDTH}).size / sh.s;
+    const size = (pending.current.at(-1)?.view ?? drawnView.current ?? {size: WIDTH}).size / sh.s;
     f = size / Math.min(WIDTH * 4, Math.max(WIDTH / MAX_ZOOM, size / f));
     sh.tx = f * (sh.tx - qx) + qx + dx;
     sh.ty = f * (sh.ty - qy) + qy + dy;
     sh.s *= f;
-    svg.style.transform = `translate(${sh.tx}px, ${sh.ty}px) scale(${sh.s})`;
+    show();
+    // against what's drawn now, the view before the pending ones
+    const {tx, ty, s} = moved();
     const w = frame.clientWidth || 1;
-    const covers = (t: number) => t - (sh.s * w) / 2 <= -0.05 * w && t + 1.5 * sh.s * w >= 1.05 * w;
-    if (!covers(sh.tx) || !covers(sh.ty) || sh.s > 3) commitShift();
+    const covers = (t: number) => t - (s * w) / 2 <= -0.05 * w && t + 1.5 * s * w >= 1.05 * w;
+    if (!covers(tx) || !covers(ty) || s > 6) commitShift();
   };
   // a button's or the wheel's zoom by factor (<1 = in) round q (px from the frame's corner) as a shift, the view set
   // from it once it's there. a button's eases out over a few frames, a click during it adds to what's left (a css
@@ -1611,11 +1646,11 @@ function MapView({
     },
     [],
   );
-  // the view set from a shift drawn: the transform off in the same frame
+  // the views set from shifts drawn: only the shift since on the map, in the same frame
   useLayoutEffect(() => {
-    if (!shiftDrawn.current) return;
-    shiftDrawn.current = false;
-    if (sheetRef.current && !shift.current) sheetRef.current.style.transform = '';
+    if (!pending.current.some((p) => p.n <= drawnShift)) return;
+    pending.current = pending.current.filter((p) => p.n > drawnShift);
+    show();
   });
 
   const onPointerMove = (e: React.PointerEvent<Element>) => {
@@ -1632,12 +1667,14 @@ function MapView({
       const [mx, my] = [(pts[0].x + pts[1].x) / 2, (pts[0].y + pts[1].y) / 2];
       const mid = clientToSvg(mx, my);
       const box = frameRef.current?.getBoundingClientRect();
+      const last = gesture.current.pinchMid ?? [mx, my];
       if (gesture.current.pinchDist && following && mid) zoomAt(gesture.current.pinchDist / dist, mid[0], mid[1]);
       else if (gesture.current.pinchDist && box && !glides) {
         moving();
-        nudge(0, 0, dist / gesture.current.pinchDist, mx - box.left, my - box.top);
+        // scaled round where the fingers' middle was and moved along with it: what's under the fingers stays there
+        nudge(mx - last[0], my - last[1], dist / gesture.current.pinchDist, last[0] - box.left, last[1] - box.top);
       }
-      gesture.current = {moved: true, pinchDist: dist};
+      gesture.current = {moved: true, pinchDist: dist, pinchMid: [mx, my]};
       return;
     }
 
@@ -1663,7 +1700,7 @@ function MapView({
 
   const onPointerEnd = (e: React.PointerEvent<Element>) => {
     pointers.current.delete(e.pointerId);
-    if (pointers.current.size < 2) gesture.current.pinchDist = null;
+    if (pointers.current.size < 2) gesture.current = {...gesture.current, pinchDist: null, pinchMid: undefined};
     if (pointers.current.size === 0) commitShift();
     const h = hold.current;
     if (h && h.press.pointerId === e.pointerId) {
