@@ -7,7 +7,7 @@ import {liveGlide} from '@/hooks/useMowerPosition';
 import {containsPoint, polygonArea} from '@/lib/geometry';
 import {nearestOnOutline, snapPoint} from '@/lib/snapAreas';
 import {saveSettings, settingsStore, type Settings} from '@/lib/settings';
-import {bladeSeconds, bodyShape, realEdges, roundBends, swathEnd, swathGroups, swathAfter, swathTail, useMowerBody, usePlannerSettings, type MowerBody, type SwathState} from '@/lib/mowerBody';
+import {bladeSeconds, bodyShape, roundBends, swathEnd, swathGroups, swathAfter, swathTail, useMowerBody, usePlannerSettings, type MowerBody, type SwathState} from '@/lib/mowerBody';
 import type {FitPose, PlanPiece} from '@/lib/mowPlan';
 import {useSensorValue} from '@/hooks/useMowerSensors';
 import {dockIcon, drawMower, mowerIcon} from './mapIcons';
@@ -27,8 +27,8 @@ import {useTrailingPose} from '@/hooks/useTrailingPose';
 import {CELL_M, MIN_SECONDS, gpsGrade, loadCoverage, wifiGrade, type CoverageCell} from '@/lib/coverage';
 import {useUpdates} from '@/lib/updates';
 import {CoverInfo} from './CoverInfo';
-import {GardenDefs, gardenThings, groundOf} from './gardenLook';
-import {biggest, coversOf, GardenThing, lifeOf, lifeScene} from './gardenLife';
+import {fillOf, GardenDefs, gardenThings} from './gardenLook';
+import {biggest, coversOf, edgePaths, GardenThing, lifeOf, lifeScene} from './gardenLife';
 import {PICTURES} from './gardenPictures';
 import {useMowHistory} from '@/hooks/useMowHistory';
 import {useWeather} from '@/hooks/useWeather';
@@ -1042,23 +1042,12 @@ function MapView({
   );
   // the places where the body came too close get their cm once the map shows less than about 12 m across
   const marginLabels = (shown?.size ?? WIDTH) / scale <= 12;
-  const edges = useMemo(() => {
-    if (!edgesOn || !body) return null;
-    const at = (p: Point) => `${((p.x - minX) * scale + padX).toFixed(1)} ${(HEIGHT - ((p.y - minY) * scale + padY)).toFixed(1)}`;
-    const ring = (o: Point[]) => o.map((p, i) => `${i ? 'L' : 'M'}${at(p)}`).join('') + 'Z';
-    const {lawn, obstacles, grass} = realEdges(map.areas, body);
-    const inObstacles = !hidden.has('obstacle');
-    const [lawnLine, obstacleLine] = [lawn.map(ring).join(''), inObstacles ? obstacles.map(ring).join('') : ''];
-    return {
-      line: lawnLine + obstacleLine,
-      // the garden style's stones go along the lawn's, the obstacles keep the dashed line
-      lawnLine,
-      obstacleLine,
-      // the lawn between the lines and the real edges: outside the mowing areas under them, in the obstacles over them
-      grassOutside: grass.outside.map(ring).join(''),
-      grassObstacles: inObstacles ? grass.obstacles.map(ring).join('') : '',
-    };
-  }, [edgesOn, body, map, hidden, minX, minY, scale, padX, padY]);
+  // the lines along them, and the lawn between the lines and the real edges: outside the mowing areas under them, in the
+  // obstacles over them. the garden style's stones go along the lawn's, the obstacles keep the dashed line
+  const edges = useMemo(
+    () => (edgesOn && body ? edgePaths(map.areas, body, {minX, minY, m: scale, padX, padY}, !hidden.has('obstacle')) : null),
+    [edgesOn, body, map, hidden, minX, minY, scale, padX, padY],
+  );
   // the garden's life in its layers (gardenLife), the stones along the real edges when they're shown, else the outlines
   const scene = useMemo(
     () =>
@@ -1089,20 +1078,9 @@ function MapView({
   );
   const gardenFill = (a: MapArea): React.CSSProperties | undefined => {
     if (!gardenLook) return undefined;
-    const lawn = gardenLook.lawns.get(a.id);
-    const look = gardenLook.looks.get(a.id);
-    const fill =
-      a.properties.type === 'mow'
-        ? a.properties.mowable === false
-          ? 'meadow'
-          : scene?.long && a.properties.active !== false
-            ? 'long'
-            : lawn !== undefined
-              ? `lawn${lawn}`
-              : null
-        : look
-          ? groundOf(look)
-          : null;
+    // a lawn grown long with the garden's life, else as the garden style fills it
+    const long = a.properties.type === 'mow' && a.properties.mowable !== false && scene?.long && a.properties.active !== false;
+    const fill = long ? 'long' : fillOf(a, gardenLook);
     return fill ? {fill: `url(#${uid}${fill})`, fillOpacity: 1} : undefined;
   };
 
@@ -1291,6 +1269,14 @@ function MapView({
   // the esri key its tiles didn't load with (a wrong or expired one): the imagery stays empty, a hint says why for a
   // moment, once each time it's switched on
   const [rejectedKey, setRejectedKey] = useState<string | null>(null);
+  // the key a tile has loaded with, and the tiles that failed with one none has loaded with yet: a tile failing now and
+  // then (the wifi gone for a moment) isn't a rejected key
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
+  const failedTiles = useRef<{key: string | null; hrefs: Set<string>}>({key: null, hrefs: new Set()});
+  // counted again each time the imagery is switched on or to another source
+  useEffect(() => {
+    failedTiles.current = {key: null, hrefs: new Set()};
+  }, [imagery]);
   const [imageryHint, setImageryHint] = useState(false);
   useEffect(() => {
     if (!imageryHint) return;
@@ -1358,13 +1344,17 @@ function MapView({
 
   // a point being dragged or set put onto the nearest corner or edge of another area within reach (snap on, without alt
   // held), with the place it went to marked. A line being drawn to split an area or cut a shape out of it doesn't snap
-  // onto that area: put onto its edge, the line wouldn't cross it and a shape would touch it
+  // onto that area, nor onto a neighbour's corner or edge on its outline or across it: put onto its edge or over it, the
+  // line wouldn't cross it and a shape would touch it
   const snapAt = (x: number, y: number, exclude: string | null, touch: boolean) => {
     const svg = svgRef.current;
     if (!snap?.on || !svg) return null;
     const reach = (touch ? 20 : 10) / ((pxPerMeter * framePx()) / WIDTH);
     const others = map.areas.filter((a) => a.id !== exclude && !hidden.has(a.properties.type as Layer)).map((a) => a.outline);
-    return snapPoint({x, y}, others, reach);
+    const s = snapPoint({x, y}, others, reach);
+    const cut = pickingPoints ? map.areas.find((a) => a.id === exclude) : undefined;
+    if (s && cut && ((nearestOnOutline(cut.outline, s)?.d ?? 1) < 0.002 || containsPoint(cut.outline, s.x, s.y) !== containsPoint(cut.outline, x, y))) return null;
+    return s;
   };
 
   // midpoints are only offered where there's room for them
@@ -1640,6 +1630,8 @@ function MapView({
   // the shifts set as views and not drawn yet, oldest first, each with the view and its number (drawnShift once drawn)
   const pending = useRef<(Shift & {view: View; n: number})[]>([]);
   const [drawnShift, setDrawnShift] = useState(0);
+  // the last number given, counted on when pending is emptied: a shift still being drawn never shares one with a newer
+  const lastShift = useRef(0);
   // the view drawn, for an ease or a timer started a few renders ago
   const drawnView = useRef(base);
   useLayoutEffect(() => {
@@ -1664,7 +1656,7 @@ function MapView({
     const v = last?.view ?? drawnView.current ?? {x: 0, y: 0, size: WIDTH};
     const unit = v.size / (frame.clientWidth || 1);
     const view = {x: v.x - (sh.tx / sh.s) * unit, y: v.y - (sh.ty / sh.s) * unit, size: Math.min(WIDTH * 4, Math.max(WIDTH / MAX_ZOOM, v.size / sh.s))};
-    const n = (last?.n ?? drawnShift) + 1;
+    const n = ++lastShift.current;
     pending.current = [...pending.current, {...sh, view, n}];
     startTransition(() => {
       setView(view);
@@ -1937,10 +1929,11 @@ function MapView({
   const sources = datum ? availableSources(datum, settings.imagery) : [];
   const source = imagery && sources.length ? (sources.includes(imagery) ? imagery : sources[0]) : null;
   const savedShift = source ? imageryShift(source, settings.imagery) : null;
-  // esri's tiles all fail with a key it doesn't take, a tile that loads takes that back (other sources have no key)
+  // esri's tiles all fail with a key it doesn't take: said once two have failed and none has loaded with it, a tile that
+  // loads takes that back (other sources have no key)
   const esriKey = source === 'esri' ? (settings.imagery?.esriKey?.trim() ?? '') : null;
   if (rejectedKey !== null && esriKey === null) setRejectedKey(null);
-  const imageryRejected = esriKey !== null && rejectedKey === esriKey;
+  const imageryRejected = esriKey !== null && rejectedKey === esriKey && loadedKey !== esriKey;
   let tiles: ReturnType<typeof imageryTiles> = [];
   if (zoomable && datum && source && svgPx > 0) {
     const v = svgBox;
@@ -2043,14 +2036,18 @@ function MapView({
                 preserveAspectRatio="none"
                 transform={`matrix(${m})`}
                 onError={
-                  esriKey !== null && !imageryRejected
+                  esriKey !== null && loadedKey !== esriKey && !imageryRejected
                     ? () => {
+                        if (failedTiles.current.key !== esriKey) failedTiles.current = {key: esriKey, hrefs: new Set()};
+                        const {hrefs} = failedTiles.current;
+                        hrefs.add(t.href);
+                        if (hrefs.size < 2) return;
                         setRejectedKey(esriKey);
                         setImageryHint(true);
                       }
                     : undefined
                 }
-                onLoad={imageryRejected ? () => setRejectedKey(null) : undefined}
+                onLoad={esriKey !== null && loadedKey !== esriKey ? () => setLoadedKey(esriKey) : undefined}
               />
             );
           })}
