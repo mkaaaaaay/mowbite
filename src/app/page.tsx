@@ -40,7 +40,7 @@ import {
   loadScheduleLog,
   missedStart,
   nextStart,
-  scheduleLogText,
+  scheduleLogLine,
   type LogEntry,
   type Schedule,
 } from '@/lib/schedule';
@@ -515,7 +515,7 @@ export default function Home() {
                       ? tr('Scheduled start at {time}', {time: clock(missed.t)})
                       : tr('Scheduled start yesterday at {time}', {time: clock(missed.t)})}
                   </strong>
-                  <span>{tr(scheduleLogText(missed), {detail: missed.detail ?? ''})}</span>
+                  <span>{scheduleLogLine(missed)}</span>
                 </Link>
                 <button
                   title={tr('Close')}

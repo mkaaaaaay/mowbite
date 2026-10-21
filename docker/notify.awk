@@ -1,6 +1,7 @@
-# input: "<unix time> <topic> <json>" from mosquitto_sub (robot_state/json and events/json). output, a line each, for
-# notify.sh: "ntfy <json>" for the topic and "push <json>" for the phones signed up in MowBite's app (UnifiedPush, the
-# app shows those itself). what's sent comes from CONF (notify.cgi writes it), read again every half minute:
+# input: "<unix time> <topic> <json>" from mosquitto_sub (robot_state/json, events/json, actions/json and
+# sensors/om_v_charge/data). output, a line each, for notify.sh: "ntfy <json>" for the topic and "push <json>" for the
+# phones signed up in MowBite's app (UnifiedPush, the app shows those itself). what's sent comes from CONF (notify.cgi
+# writes it), read again every half minute:
 #   topic, push (a phone's address, a line each), lang (de/en), name (of the mower), url (where MowBite is, for its
 #   button and a tap on the message),
 #   events (which of: emergency, dock_failed, undock_failed, nav_error, spinup, standstill, done, rain, battery,
@@ -244,7 +245,8 @@ BEGIN {
     v_charge = json + 0
     have_v = 1
   } else if (topic_in ~ /actions\/json$/) {
-    # mowing's continue is offered only while it's paused by hand, waiting for gps it isn't
+    # mowing's continue is offered only while it's paused by hand, waiting for gps it isn't. v1's start button continues
+    # without new actions, a pause ended by it while gps is missing isn't told as standing still
     manual = 0
     if (match(json, /[{][^{}]*"mower_logic:mowing\/continue"[^{}]*[}]/)) {
       a = field(substr(json, RSTART, RLENGTH), "enabled")

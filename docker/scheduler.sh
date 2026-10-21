@@ -29,8 +29,6 @@ map_areas() {
     -e 's/"properties":(/"properties":{/g' | grep -o '"id":"[^"]*","properties":{[^}]*}'
 }
 
-# rain right now or in the next hour(s) at the garden (open-meteo, position rounded to ~1 km).
-# no answer counts as no rain
 # during a run this script started: skip every area the plan doesn't pick ($1: all or a list) and the ones
 # paused for today ($2), until the job is done (also across breaks for charging) or the next start. a run sent
 # home at its end time keeps its job open, without stopping at the next start this would go on skipping the
@@ -204,6 +202,8 @@ area_left() {
   }
 }
 
+# rain right now or in the next hour(s) at the garden (open-meteo, position rounded to ~1 km).
+# no answer counts as no rain
 rain_forecast() {
   set -- $(conf pos)
   [ -n "$2" ] || return 1
@@ -308,7 +308,6 @@ last=""
 until=0
 endat=""
 waited=""
-coldchecked=""
 areas=all
 end=-
 dark=-
@@ -336,7 +335,6 @@ while :; do
       last="$3 $2"
       until=$(($(date +%s) + WAIT))
       waited=""
-      coldchecked=""
       set -- $due
       areas=$1 end=$2 dark=$3 sunset=$4 fresh=$5 angle=$6
       # when this start ends: its end time today, or tomorrow when that's not after the start
@@ -369,21 +367,21 @@ while :; do
       log skip_emergency; until=0
     elif [ "$(conf skiprain)" = 1 ] && [ "$(field "$s" rain_detected)" != 0 ]; then
       log skip_rain; until=0
-    elif [ "$(conf skipforecast)" = 1 ] && rain_forecast; then
-      log skip_forecast; until=0
     elif [ "$dark" != 1 ] && is_dark "$(minutes)"; then
       log skip_dark; until=0
     elif [ "$(field "$s" current_state)" != IDLE ]; then
       log skip_busy "$(field "$s" current_state)"; until=0
-    # the temperature is asked for once a start, not again on every pass while it waits for the battery
-    elif [ "$(conf skipcold)" = 1 ] && [ -z "$coldchecked" ] && coldchecked=1 && cold=$(too_cold); then
-      log skip_cold "$cold"; until=0
     elif [ "${bat:-0}" -lt "${minbat:-0}" ]; then
       if [ "$(date +%s)" -gt "$until" ]; then
         log skip_battery "$bat"; until=0
       elif [ -z "$waited" ]; then
         log waiting_battery "$bat"; waited=1
       fi
+    # the forecast and the temperature for when it really starts: asked for once, when the battery is enough
+    elif [ "$(conf skipforecast)" = 1 ] && rain_forecast; then
+      log skip_forecast; until=0
+    elif [ "$(conf skipcold)" = 1 ] && cold=$(too_cold); then
+      log skip_cold "$cold"; until=0
     else
       # the mowing direction of this start. one without its own gets the usual one back when other start times
       # have theirs: what the app keeps for the mower (params.sh), else what the mower had before a start turned it
