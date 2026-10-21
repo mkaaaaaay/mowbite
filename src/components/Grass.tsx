@@ -224,7 +224,7 @@ const FLAKES = Array.from({length: 26}, (_, i) => ({
 
 function FallingSnow() {
   return (
-    <div className={styles.falling} aria-hidden="true">
+    <div className={styles.falling} aria-hidden="true" data-waits>
       {FLAKES.map((f, i) => (
         <div
           key={i}
@@ -294,7 +294,7 @@ const FALLING = Array.from({length: 7}, (_, i) => ({
 
 function FallingLeaves({gusting, fresh}: {gusting: boolean; fresh: boolean}) {
   return (
-    <div className={[styles.falling, gusting ? styles.gusting : ''].join(' ')} aria-hidden="true">
+    <div className={[styles.falling, gusting ? styles.gusting : ''].join(' ')} aria-hidden="true" data-waits>
       {FALLING.map((l, i) => (
         <div
           key={i}
@@ -509,6 +509,7 @@ export default function Grass() {
     {falling}
     <div
       ref={strip}
+      data-waits
       className={[
         styles.grass,
         phase !== 'idle' ? styles[phase] : '',

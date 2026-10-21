@@ -220,7 +220,15 @@ const WIDTH = 400;
 const GLIDING: React.CSSProperties = {position: 'absolute', left: 0, top: 0, width: '200%', height: '200%', transformOrigin: '0 0'};
 // the svg of a map that can be moved: twice the frame with the view in its middle, a pan or pinch slides it under the
 // frame and finds the map already drawn round the edges
-const OVERSCAN: React.CSSProperties = {position: 'absolute', left: '-50%', top: '-50%', width: '200%', height: '200%', transformOrigin: '25% 25%'};
+const SPAN = 3;
+const OVERSCAN: React.CSSProperties = {
+  position: 'absolute',
+  left: `${(-(SPAN - 1) / 2) * 100}%`,
+  top: `${(-(SPAN - 1) / 2) * 100}%`,
+  width: `${SPAN * 100}%`,
+  height: `${SPAN * 100}%`,
+  transformOrigin: `${((SPAN - 1) / 2 / SPAN) * 100}% ${((SPAN - 1) / 2 / SPAN) * 100}%`,
+};
 // the two layers on it (ground and over, see renderContent), each one the phone's gpu keeps drawn on its own
 const LAYER: React.CSSProperties = {position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', willChange: 'transform'};
 const OVER: React.CSSProperties = {...LAYER, pointerEvents: 'none', background: 'none', boxShadow: 'none'};
@@ -649,21 +657,23 @@ function MapView({
   // a pinch: how far apart the fingers were and their middle (client px) at the last move
   const gesture = useRef<{moved: boolean; pinchDist: number | null; pinchMid?: [number, number]}>({moved: false, pinchDist: null});
   // while the map moves the grass and the leaves wait (Grass.module.css): behind the frosted cards each of their frames
-  // blurs the cards again, and the map stutters
+  // blurs the cards again, and the map stutters. only they are told (data-waits): a mark on the page's root styles every
+  // element of the page again at the start and the end of each move
   const stillTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const waiting = (on: boolean) =>
+    document.querySelectorAll('[data-waits]').forEach((el) => (on ? el.setAttribute('data-map-moving', '') : el.removeAttribute('data-map-moving')));
   const moving = () => {
-    const root = document.documentElement;
-    if (!root.hasAttribute('data-map-moving')) root.setAttribute('data-map-moving', '');
-    if (stillTimer.current) clearTimeout(stillTimer.current);
+    if (!stillTimer.current) waiting(true);
+    else clearTimeout(stillTimer.current);
     stillTimer.current = setTimeout(() => {
-      root.removeAttribute('data-map-moving');
+      waiting(false);
       stillTimer.current = null;
     }, 400);
   };
   useEffect(
     () => () => {
       if (stillTimer.current) clearTimeout(stillTimer.current);
-      document.documentElement.removeAttribute('data-map-moving');
+      document.querySelectorAll('[data-waits]').forEach((el) => el.removeAttribute('data-map-moving'));
     },
     [],
   );
@@ -773,7 +783,7 @@ function MapView({
   const anchored = !!anchor && anchor.size === glideSize;
   // what the frame shows, and what the svg draws: that, twice as big round its middle when the map can be moved (OVERSCAN)
   const framed = shown ?? {x: 0, y: 0, size: WIDTH};
-  const svgBox = zoomable && !glides ? {x: framed.x - framed.size / 2, y: framed.y - framed.size / 2, size: 2 * framed.size} : framed;
+  const svgBox = zoomable && !glides ? {x: framed.x - (framed.size * (SPAN - 1)) / 2, y: framed.y - (framed.size * (SPAN - 1)) / 2, size: SPAN * framed.size} : framed;
   const frameRef = useRef<HTMLDivElement | null>(null);
   // what moves under the frame: both layers of the map
   const sheetRef = useRef<HTMLDivElement | null>(null);
@@ -851,9 +861,10 @@ function MapView({
       sizes: settings.lookSizes,
       turns: settings.lookTurns,
       closed: settings.lookClosed,
+      grounds: settings.lookGrounds,
     });
     return {...g, defs: <GardenDefs uid={uid} m={scale} lawns={g.angles} clips={g.clips} />};
-  }, [garden, map, settings.looks, settings.lookVariants, settings.lookSizes, settings.lookTurns, settings.lookClosed, uid, scale, minX, minY, padX, padY, body]);
+  }, [garden, map, settings.looks, settings.lookVariants, settings.lookSizes, settings.lookTurns, settings.lookClosed, settings.lookGrounds, uid, scale, minX, minY, padX, padY, body]);
   // the garden's life (gardenLife): light after the sun, the season and the weather on the lawn, a mowing edge and
   // the lawn growing back since it was last cut. the time moves on every five minutes, the layers are worked out below
   const life = garden && !sample ? lifeOf(settings.garden) : null;
@@ -1060,6 +1071,7 @@ function MapView({
             lookSizes: settings.lookSizes,
             lookTurns: settings.lookTurns,
             lookClosed: settings.lookClosed,
+            lookGrounds: settings.lookGrounds,
             body: body ?? null,
             fit: {minX, minY, m: scale, padX, padY},
             uid,
@@ -1074,7 +1086,7 @@ function MapView({
             hidden,
           })
         : null,
-    [garden, sample, map, settings.garden, settings.looks, settings.lookVariants, settings.lookSizes, settings.lookTurns, settings.lookClosed, body, minX, minY, scale, padX, padY, uid, lifeNow, datum, weather, rainSensor, mower, history, track, edges, hidden],
+    [garden, sample, map, settings.garden, settings.looks, settings.lookVariants, settings.lookSizes, settings.lookTurns, settings.lookClosed, settings.lookGrounds, body, minX, minY, scale, padX, padY, uid, lifeNow, datum, weather, rainSensor, mower, history, track, edges, hidden],
   );
   const gardenFill = (a: MapArea): React.CSSProperties | undefined => {
     if (!gardenLook) return undefined;
@@ -1680,7 +1692,7 @@ function MapView({
     // against what's drawn now, the view before the pending ones
     const {tx, ty, s} = moved();
     const w = frame.clientWidth || 1;
-    const covers = (t: number) => t - (s * w) / 2 <= -0.05 * w && t + 1.5 * s * w >= 1.05 * w;
+    const covers = (t: number) => t - (s * w * (SPAN - 1)) / 2 <= -0.05 * w && t + (s * w * (SPAN + 1)) / 2 >= 1.05 * w;
     if (!covers(tx) || !covers(ty) || s > 6) commitShift();
   };
   // a button's or the wheel's zoom by factor (<1 = in) round q (px from the frame's corner) as a shift, the view set

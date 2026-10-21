@@ -1082,8 +1082,8 @@
   }
 }
 
-/* while the map is moved they wait (MapView): behind the frosted cards each of their frames blurs the cards again */
-:global(:root[data-map-moving]) .grass *,
-:global(:root[data-map-moving]) .falling * {
+/* while the map is moved they wait (MapView marks them only, a mark on the page's root styles every element again) */
+.grass[data-map-moving] *,
+.falling[data-map-moving] * {
   animation-play-state: paused;
 }
