@@ -99,7 +99,7 @@ function MapEditor() {
   const towelNow = towel || (!!progress && !progress.leftovers && Math.round(progress.fraction * 100) === 42);
   // the same object while nothing changes, the map is drawn again only when it does
   const costume = useMemo(() => ({towel: towelNow, umbrella}), [towelNow, umbrella]);
-  const {map, edited, setMap, history, future, remember, undoStep, redoStep, originals, setOriginals, dirty, external, dropEdits, mergeNote, mergeExternal} =
+  const {map, edited, setMap, history, future, remember, undoStep, redoStep, originalOf, keepOriginal, dirty, external, dropEdits, mergeNote, mergeExternal} =
     useMapEdits(liveMap);
   const [showStripes, setShowStripes] = useState(true);
   // on a phone the map stays at the top while the settings under it scroll, unless it was unpinned on this device
@@ -180,7 +180,7 @@ function MapEditor() {
   const trackShown = viewJob || (selectedArea && progress?.areaId !== selectedAreaId) ? undefined : track;
   // the finished run on the map, a picked one or the last: where the body got into the safety distances
   const marginPlaces = useMarginPlaces(viewJob?.id ?? (trackShown ? lastRunJob : null));
-  const baseOutline = selectedArea ? (originals[selectedArea.id] ?? selectedArea.outline) : null;
+  const baseOutline = selectedArea ? originalOf(selectedArea) : null;
   const simplified = useMemo(
     () =>
       baseOutline && simplifyCm !== null
@@ -332,18 +332,13 @@ function MapEditor() {
   });
 
   const applySimplify = () => {
-    if (shownMap && selectedArea) {
+    if (shownMap && selectedArea && baseOutline && simplified) {
       remember();
-      if (!originals[selectedArea.id]) setOriginals({...originals, [selectedArea.id]: selectedArea.outline});
+      keepOriginal(selectedArea.id, baseOutline, simplified);
       setMap(shownMap);
     }
     setSimplifyCm(null);
   };
-
-  // outlines changed some other way: reducing points starts from them, the one from before a reduce would bring the
-  // old shape back
-  const dropOriginals = (...ids: string[]) =>
-    setOriginals((o) => (ids.some((id) => id in o) ? Object.fromEntries(Object.entries(o).filter(([id]) => !ids.includes(id))) : o));
 
   const updateProperties: UpdateArea = (patch, undoable = true) => {
     if (!map || !selectedArea) return;
@@ -387,7 +382,6 @@ function MapEditor() {
 
 
   const moveVertex = (areaId: string, vertexIndex: number, x: number, y: number) => {
-    dropOriginals(areaId);
     setMap((prev) =>
       prev
         ? {
@@ -402,7 +396,6 @@ function MapEditor() {
 
   const insertVertex = (areaId: string, vertexIndex: number, x: number, y: number) => {
     remember();
-    dropOriginals(areaId);
     setMap((prev) =>
       prev
         ? {
@@ -417,7 +410,6 @@ function MapEditor() {
 
   const deleteVertex = (areaId: string, vertexIndex: number) => {
     remember();
-    dropOriginals(areaId);
     setMap((prev) =>
       prev
         ? {
@@ -457,7 +449,6 @@ function MapEditor() {
     // in the place of the first of the two, the order in map.json is the mowing order
     const first = map.areas.find((a) => a.id === selectedArea.id || a.id === other.id)!;
     remember();
-    dropOriginals(selectedArea.id, other.id);
     setMap({
       ...map,
       areas: map.areas.flatMap((a) => (a === first ? [area] : a.id === selectedArea.id || a.id === other.id ? [] : [a])),
@@ -467,7 +458,8 @@ function MapEditor() {
   };
 
   // what's left of the selected area with the other one taken out
-  const subtracted = mode === 'subtract' && selectedArea && other ? subtractOutline(selectedArea.outline, other.outline) : null;
+  const subtracted =
+    mode === 'subtract' && selectedArea && other ? subtractOutline(selectedArea.outline, other.outline, selectedArea.properties.type !== 'obstacle') : null;
   // an obstacle inside the area isn't mowed anyway, cutting the area open around it changes nothing
   const subtractable = !!subtracted?.pieces.length && !(other?.properties.type === 'obstacle' && subtracted.cut > 0);
 
@@ -482,7 +474,6 @@ function MapEditor() {
       properties: {...selectedArea.properties, name: name && i ? `${name} ${i + 1}` : name},
     }));
     remember();
-    dropOriginals(selectedArea.id);
     setMap({...map, areas: map.areas.flatMap((a) => (a.id === selectedArea.id ? pieces : [a]))});
     setSelectedAreaId(pieces[0].id);
     cancelPicking();
@@ -495,7 +486,6 @@ function MapEditor() {
   const applySnap = () => {
     if (!map || !moving || !laid?.valid) return;
     remember();
-    dropOriginals(moving.id);
     setMap({...map, areas: map.areas.map((a) => (a.id === moving.id ? {...a, outline: laid.outline} : a))});
     cancelPicking();
   };
@@ -541,7 +531,6 @@ function MapEditor() {
       properties: {...selectedArea.properties, name: name && i ? `${name} ${i + 1}` : name},
     }));
     remember();
-    dropOriginals(selectedArea.id);
     setMap({
       ...map,
       areas: map.areas.flatMap((a) => (a.id === selectedArea.id ? pieces : [a])),
@@ -972,9 +961,7 @@ function MapEditor() {
                             datum,
                             base: map,
                             onLoad: (m) => {
-                              const kept = new Set(map.areas.map((a) => a.outline));
                               remember();
-                              dropOriginals(...m.areas.filter((a) => !kept.has(a.outline)).map((a) => a.id));
                               setMap(m);
                             },
                           }
@@ -1010,9 +997,10 @@ function MapEditor() {
 
               {mode === 'draw' && <DrawPanel points={pendingPoints.length} onFinish={finishDraw} onCancel={cancelPicking} />}
 
-              {selectedArea && mode === 'idle' && (
+              {map && selectedArea && mode === 'idle' && (
                 <AreaCard
                   area={selectedArea}
+                  areas={map.areas}
                   showTools={simplifyCm === null}
                   confirmDelete={confirmDelete === selectedArea.id}
                   remember={remember}

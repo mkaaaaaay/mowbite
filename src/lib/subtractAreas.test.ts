@@ -54,6 +54,38 @@ describe('taking one area out of another', () => {
     const kept = subtractOutline(rect(0, 0, 10, 6), rect(0.12, -1, 3, 7));
     expect(kept && areas(kept.pieces)).toEqual([42, 0.72]);
     expect(kept?.dropped).toBe(0);
+    // a 6 cm strip 5 m long with a 35 cm blob at its end, 0.42 m² but only the blob is wide enough
+    const around = [
+      {x: -1, y: 7},
+      {x: -1, y: 0.06},
+      {x: 5, y: 0.06},
+      {x: 5, y: 0.35},
+      {x: 5.35, y: 0.35},
+      {x: 5.35, y: -1},
+      {x: 5.5, y: -1},
+      {x: 5.5, y: 7},
+    ];
+    const lollipop = subtractOutline(rect(0, 0, 10, 6), around);
+    expect(lollipop && areas(lollipop.pieces)).toEqual([27]);
+    expect(lollipop?.dropped).toBe(1);
+  });
+
+  it("doesn't count crumbs of the computing as slivers", () => {
+    // 1 mm along the edge, 0.006 m²
+    const r = subtractOutline(rect(0, 0, 10, 6), rect(0.001, -1, 3, 7));
+    expect(r && areas(r.pieces)).toEqual([42]);
+    expect(r?.dropped).toBe(0);
+  });
+
+  it('keeps the biggest piece even when it is small or narrow', () => {
+    // a path over a 40 cm post
+    const post = subtractOutline(rect(0, 0, 0.4, 0.4), rect(-1, 0.3, 2, 1));
+    expect(post && areas(post.pieces)).toEqual([0.12]);
+    expect(post?.dropped).toBe(0);
+    // all that's left of a way is a 6 cm strip
+    const strip = subtractOutline(rect(0, 0, 5, 0.5), rect(0.06, -1, 6, 1));
+    expect(strip && areas(strip.pieces)).toEqual([0.03]);
+    expect(strip?.dropped).toBe(0);
   });
 
   it("says so when the outlines can't be worked with, not that they don't overlap", () => {
@@ -65,5 +97,12 @@ describe('taking one area out of another', () => {
     } finally {
       spy.mockRestore();
     }
+  });
+  it('keeps every piece of an obstacle, a path through a post leaves both halves', () => {
+    const post = rect(0, 0, 0.4, 0.4);
+    const path = rect(0.15, -1, 0.25, 3);
+    const out = subtractOutline(post, path, false)!;
+    expect(out.pieces).toHaveLength(2);
+    expect(out.dropped).toBe(0);
   });
 });

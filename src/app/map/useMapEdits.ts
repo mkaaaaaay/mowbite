@@ -1,10 +1,13 @@
-import type {MowerMap, Point} from '@/hooks/useMowerMap';
+import type {MapArea, MowerMap, Point} from '@/hooks/useMowerMap';
 import {useKeptState} from '@/hooks/useKeptState';
 import {tr} from '@/lib/i18n';
 import {mergeMaps} from '@/lib/mergeMap';
 import {sameMap} from '@/lib/sameMap';
 import {setUnsavedMap} from '@/lib/unsavedMap';
 import {useEffect, useMemo, useRef, useState} from 'react';
+
+// the same points, also when they came back from the mower after a save
+const sameOutline = (a: Point[], b: Point[]) => a === b || (a.length === b.length && a.every((p, i) => p.x === b[i].x && p.y === b[i].y));
 
 // The map being edited: the live map until the first edit, after that a copy of our own so updates don't overwrite
 // edits, with undo and redo steps. Kept while the app runs, a look at another tab doesn't lose them. Also notices when
@@ -25,8 +28,17 @@ export function useMapEdits(liveMap: MowerMap | null) {
     put(next);
     if (future.length) setFuture([]);
   };
-  // outlines before the first reduce, so the slider can go back up
-  const [originals, setOriginals] = useKeptState<Record<string, Point[]>>('map:originals', {});
+  // per area its outlines before the first reduce and the ones it got reduced to, newest last, so the slider can go back
+  // up while the area still has one of those (again after an undo), not after any other change
+  const [originals, setOriginals] = useKeptState<Record<string, {from: Point[]; to: Point[]}[]>>('map:originals', {});
+  // what reducing the points of an area starts from
+  const originalOf = (a: MapArea) => {
+    const list = originals[a.id];
+    return [...(Array.isArray(list) ? list : [])].reverse().find((o) => sameOutline(o.to, a.outline))?.from ?? a.outline;
+  };
+  // an area's points reduced, from the one outline to the other, the last 20 times
+  const keepOriginal = (id: string, from: Point[], to: Point[]) =>
+    setOriginals((o) => ({...o, [id]: [...(Array.isArray(o[id]) ? o[id] : []), {from, to}].slice(-20)}));
 
   // really changed, not just a field that got focus (that already makes an undo step)
   const dirty = useMemo(() => !!edited && (!base || !sameMap(edited, base)), [edited, base]);
@@ -104,8 +116,8 @@ export function useMapEdits(liveMap: MowerMap | null) {
     remember,
     undoStep,
     redoStep,
-    originals,
-    setOriginals,
+    originalOf,
+    keepOriginal,
     dirty,
     external,
     dropEdits,

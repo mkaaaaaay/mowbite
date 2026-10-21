@@ -2,7 +2,6 @@ import {areaLook, facing, LookPicker, LookSwatch, placeThing, type Look} from '@
 import {PICTURES} from '@/components/gardenPictures';
 import {MagnetIcon, MergeIcon, ScissorsIcon, SimplifyIcon, SubtractIcon, TrashIcon} from '@/components/icons';
 import InfoTip from '@/components/InfoTip';
-import {useMowerMap} from '@/hooks/useMowerMap';
 import {polygonArea} from '@/lib/geometry';
 import {fmt, tr} from '@/lib/i18n';
 import {useAreaProperties} from '@/lib/areaProps';
@@ -29,7 +28,7 @@ export default function AreaCard({
   onDeleteBlur,
 }: {
   area: Area;
-  areas?: Area[];
+  areas: Area[];
   showTools: boolean;
   confirmDelete: boolean;
   remember: () => void;
@@ -104,17 +103,15 @@ export default function AreaCard({
   const sizeTo = Math.min(30, Math.round(Math.max(pic?.size?.[1] ?? autoSize, autoSize) * 25) / 10);
   const setSize = (v: number | undefined) => keep({size: v ?? null});
   // which way it lies (degrees on the map, 0 east), a cantilever parasol which way it reaches. none: along the area, a
-  // parasol towards the seats next to it or into the lawn like the map draws it (by areas, else the mower's map). not
-  // for what looks the same turned any way
+  // parasol towards the seats next to it or into the lawn like the map draws it. not for what looks the same turned
+  // any way
   const turnable = sizable && !pic.round;
   const ownTurn = turnable ? settings.lookTurns?.[area.id] : undefined;
-  const liveMap = useMowerMap();
-  const around = areas ?? liveMap?.areas;
   const faces = turnable && !!pic.turn;
   // the map's y points up, the drawing's down
   const faced = useMemo(
-    () => (faces && around && area.outline.length > 2 ? facing(area, around, settings.looks, (p) => ({x: p.x, y: -p.y})) : null),
-    [faces, around, area, settings.looks],
+    () => (faces && area.outline.length > 2 ? facing(area, areas, settings.looks, (p) => ({x: p.x, y: -p.y})) : null),
+    [faces, areas, area, settings.looks],
   );
   const autoDeg = faced ?? (fitted && pic.long ? -fitted.deg : 0);
   const autoTurn = (Math.round((((autoDeg % 360) + 360) % 360) / 5) * 5) % 360;
