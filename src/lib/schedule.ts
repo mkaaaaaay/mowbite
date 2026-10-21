@@ -1,4 +1,5 @@
 import {forget, fresh} from './fresh';
+import {fmt, tr} from './i18n';
 import {apiBase, mowerFetch} from './mowers';
 
 // the mowing schedule, kept by the container (docker/schedule.cgi) as simple lines the scheduler
@@ -183,6 +184,14 @@ const LEFTOVERS_SKIP: Record<string, string> = {
 export function scheduleLogText(l: LogEntry): string {
   if (l.what === 'leftovers_skip') return LEFTOVERS_SKIP[l.detail ?? ''] ?? "Leftovers not mowed, the mower wasn't ready";
   return SCHEDULE_LOG_TEXT[l.what] ?? l.what;
+}
+
+// a log line as shown, translated. a number with decimals in its detail (a temperature, m²) keeps them, with the
+// language's decimal comma
+export function scheduleLogLine(l: LogEntry): string {
+  const detail = l.detail ?? '';
+  const decimals = /^-?\d+\.(\d+)$/.exec(detail)?.[1].length;
+  return tr(scheduleLogText(l), {detail: decimals ? fmt(Number(detail), decimals) : detail});
 }
 
 // how a start the schedule tried ended: started, or why not

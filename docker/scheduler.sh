@@ -308,6 +308,7 @@ last=""
 until=0
 endat=""
 waited=""
+coldchecked=""
 areas=all
 end=-
 dark=-
@@ -335,6 +336,7 @@ while :; do
       last="$3 $2"
       until=$(($(date +%s) + WAIT))
       waited=""
+      coldchecked=""
       set -- $due
       areas=$1 end=$2 dark=$3 sunset=$4 fresh=$5 angle=$6
       # when this start ends: its end time today, or tomorrow when that's not after the start
@@ -369,12 +371,13 @@ while :; do
       log skip_rain; until=0
     elif [ "$(conf skipforecast)" = 1 ] && rain_forecast; then
       log skip_forecast; until=0
-    elif [ "$(conf skipcold)" = 1 ] && cold=$(too_cold); then
-      log skip_cold "$cold"; until=0
     elif [ "$dark" != 1 ] && is_dark "$(minutes)"; then
       log skip_dark; until=0
     elif [ "$(field "$s" current_state)" != IDLE ]; then
       log skip_busy "$(field "$s" current_state)"; until=0
+    # the temperature is asked for once a start, not again on every pass while it waits for the battery
+    elif [ "$(conf skipcold)" = 1 ] && [ -z "$coldchecked" ] && coldchecked=1 && cold=$(too_cold); then
+      log skip_cold "$cold"; until=0
     elif [ "${bat:-0}" -lt "${minbat:-0}" ]; then
       if [ "$(date +%s)" -gt "$until" ]; then
         log skip_battery "$bat"; until=0

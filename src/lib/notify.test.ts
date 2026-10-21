@@ -104,6 +104,9 @@ describe('what the container sends', () => {
     const input = event(100, '{"type":"DOCKING_FAILED","reason":"dock_failed"}') + state(170, 0) + event(200, '{"type":"DOCKED"}');
     expect(run(input, conf).map((m) => m.title)).toEqual(['Docking failed', 'Docking failed', 'Back in the dock']);
     expect(run(input, conf, 99999).map((m) => m.title)).toEqual(['Docking failed', 'Back in the dock']);
+    // an emergency stop that isn't picked doesn't take its place
+    const bumped = event(100, '{"type":"DOCKING_FAILED"}') + state(105, 1) + state(120, 1) + state(130, 0) + event(200, '{"type":"DOCKED"}');
+    expect(run(bumped, conf.replace('emergency,', '')).map((m) => m.title)).toEqual(['Docking failed', 'Back in the dock']);
   });
 
   it('sends only what was picked, nothing without a topic', () => {
@@ -141,17 +144,27 @@ describe('what the container sends', () => {
     expect(told()).toEqual(['Steve has mowed 83 h since the blades were last changed.']);
   });
 
-  it('tells when it stands still for ten minutes and is not charging, until it moves or charges again', () => {
+  it('tells once when it stands still for ten minutes and is not charging, until it moves or charges again', () => {
     const at = (t: number, st: string, x: number, charging = 0) =>
       `${t} robot_state/json {"emergency":0,"is_charging":${charging},"current_state":"${st}","pose":{"x":${x},"y":2.5,"heading":0.1}}\n`;
     const volts = (t: number, v: number) => `${t} sensors/om_v_charge/data ${v}\n`;
+    // what the mower offers, continue only while paused by hand
+    const actions = (t: number, cont: number) =>
+      `${t} actions/json [{"action_id":"mower_logic:mowing/pause","action_name":"Pause Mowing","enabled":${1 - cont}},{"action_id":"mower_logic:mowing/continue","action_name":"Continue Mowing","enabled":${cont}},{"action_id":"mower_logic:mowing/abort_mowing","action_name":"Stop Mowing","enabled":1}]\n`;
     const still = conf.replace('spinup', 'spinup,standstill');
-    // waiting for gps in the middle of the lawn, then on again
+    // waiting for gps in the middle of the lawn, then on again. no reminders and no snooze
     const gps = at(100, 'MOWING', 3) + at(200, 'PAUSED', 3.2) + at(699, 'PAUSED', 3.3) + at(700, 'PAUSED', 3.3) + at(770, 'PAUSED', 3.3) + at(800, 'MOWING', 4);
     const out = run(gps, still);
-    expect(out.map((m) => m.title)).toEqual(['Standing still', 'Standing still', 'On its way again']);
-    expect(out[0].message).toBe("Steve has been standing still for 10 min and isn't charging. Paused: by hand, or waiting for GPS.");
-    expect(out[1].message).toBe('Steve is still standing still (for 11 min).');
+    expect(out.map((m) => m.title)).toEqual(['Standing still', 'On its way again']);
+    expect(out[0].message).toBe("Steve has been standing still for 10 min and isn't charging. Paused, waiting for GPS.");
+    expect(out[0].actions).toHaveLength(1);
+    expect(push(gps, still + 'push https://ntfy.sh/upAbc?up=1\n')[0].snooze).toBeUndefined();
+    // paused by hand: nothing, until it's asked to go on and waits for gps
+    const byHand = at(100, 'MOWING', 3) + actions(150, 1) + at(200, 'PAUSED', 3) + at(900, 'PAUSED', 3);
+    expect(run(byHand, still)).toEqual([]);
+    expect(run(byHand + actions(950, 0) + at(960, 'PAUSED', 3) + at(1559, 'PAUSED', 3) + at(1560, 'PAUSED', 3), still).map((m) => m.title)).toEqual(['Standing still']);
+    // continue is on as well from the start of a mow until its first pause, stuck while mowing still counts
+    expect(run(actions(90, 1) + at(100, 'MOWING', 3) + at(700, 'MOWING', 3), still).map((m) => m.title)).toEqual(['Standing still']);
     // not picked: nothing, and it doesn't keep a docking given up from being told
     expect(run(gps, conf)).toEqual([]);
     expect(run(at(100, 'DOCKING', 3) + at(800, 'DOCKING', 3) + event(810, '{"type":"DOCKING_FAILED"}'), conf).map((m) => m.title)).toEqual(['Docking failed']);
@@ -162,10 +175,16 @@ describe('what the container sends', () => {
     ]);
     // idle in the dock with a full battery: is_charging is off, the contacts have voltage
     expect(run(volts(90, 31.5) + at(100, 'IDLE', 0) + at(900, 'IDLE', 0), still)).toEqual([]);
-    // the dock without power, or left on the lawn
-    const dead = run(volts(90, 0.2) + at(100, 'IDLE', 0) + at(900, 'IDLE', 0) + volts(950, 30.8) + at(960, 'IDLE', 0), still);
+    // the dock without power, or left on the lawn: once for the whole night
+    const dead = run(volts(90, 0.2) + at(100, 'IDLE', 0) + at(900, 'IDLE', 0) + at(4500, 'IDLE', 0) + at(30000, 'IDLE', 0) + volts(30050, 30.8) + at(30060, 'IDLE', 0), still);
     expect(dead.map((m) => m.title)).toEqual(['Standing still', 'Charging again']);
     expect(dead[0].message).toContain('Waiting on the lawn, or in the dock and that has no power.');
+    // docking given up not picked: standing still is told all the same, and stays until it's charging again
+    const offDock = still.replace('dock_failed,', '');
+    const failed = volts(90, 0.2) + at(100, 'DOCKING', 3) + event(110, '{"type":"DOCKING_FAILED"}') + at(120, 'IDLE', 3) + at(800, 'IDLE', 3);
+    expect(run(failed, offDock).map((m) => m.title)).toEqual(['Standing still']);
+    const after = volts(90, 0.2) + at(100, 'DOCKING', 3) + at(800, 'DOCKING', 3) + event(810, '{"type":"DOCKING_FAILED"}') + at(820, 'IDLE', 3) + volts(900, 30.5) + at(910, 'IDLE', 3);
+    expect(run(after, offDock).map((m) => m.title)).toEqual(['Standing still', 'Charging again']);
     // idle without a charge voltage isn't watched, recording isn't either
     expect(run(at(100, 'IDLE', 0) + at(900, 'IDLE', 0), still)).toEqual([]);
     expect(run(at(100, 'AREA_RECORDING', 0) + at(900, 'AREA_RECORDING', 0), still)).toEqual([]);

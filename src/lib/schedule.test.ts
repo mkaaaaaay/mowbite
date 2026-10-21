@@ -1,5 +1,6 @@
-import {describe, expect, it} from 'vitest';
-import {isNightTime, missedStart, nextStart, parseSchedule, posixTz, serializeSchedule, type Schedule} from './schedule';
+import {describe, expect, it, vi} from 'vitest';
+import {setLangChoice} from './i18n';
+import {isNightTime, missedStart, nextStart, parseSchedule, posixTz, scheduleLogLine, serializeSchedule, type Schedule} from './schedule';
 
 // the dates below are local times, so the same zone everywhere (github runs in UTC)
 process.env.TZ = 'Europe/Berlin';
@@ -181,5 +182,22 @@ describe('missedStart', () => {
   });
   it('a start the mower ignored counts', () => {
     expect(missedStart([{t: now - 60, what: 'start_failed'}], now)?.what).toBe('start_failed');
+  });
+});
+
+describe('scheduleLogLine', () => {
+  it('puts the detail in, a number with its decimals the way the language writes it', () => {
+    expect(scheduleLogLine({t: 0, what: 'skip_cold', detail: '4.2'})).toBe('Not started, too cold (4.2 °C)');
+    expect(scheduleLogLine({t: 0, what: 'waiting_battery', detail: '45'})).toBe('Waiting for the battery (45 %)');
+    // tr() follows the language set, that marks the page with it
+    vi.stubGlobal('document', {documentElement: {lang: 'en'}});
+    setLangChoice('de');
+    try {
+      expect(scheduleLogLine({t: 0, what: 'skip_cold', detail: '-0.5'})).toBe('Nicht gestartet, zu kalt (-0,5 °C)');
+      expect(scheduleLogLine({t: 0, what: 'waiting_battery', detail: '45'})).toBe('Wartet auf den Akku (45 %)');
+    } finally {
+      setLangChoice('en');
+      vi.unstubAllGlobals();
+    }
   });
 });

@@ -6,6 +6,8 @@ TOPIC_SENSOR_DATA='sensors/+/data'
 # the charge contacts' voltage, there also when the battery is full and is_charging is off
 TOPIC_CHARGE_VOLTAGE=sensors/om_v_charge/data
 TOPIC_ACTION=action
+# the actions the mower knows, with enabled 1/0 for what it takes right now (retained)
+TOPIC_ACTIONS=actions/json
 TOPIC_MAP=map/json
 ACTION_START_MOWING=mower_logic:idle/start_mowing
 ACTION_SKIP_AREA=mower_logic:mowing/skip_area

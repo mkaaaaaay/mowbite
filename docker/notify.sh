@@ -68,7 +68,8 @@ while :; do
   if [ -n "$host" ] && { [ -n "$(conf topic)" ] || grep -q '^push ' "$C" 2>/dev/null; } && [ "$(conf enabled)" != 0 ]; then
     # shellcheck disable=SC2086
     mosquitto_sub -h "$host" -p "$PORT" $AUTH -F '%U %t %p' \
-      -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -t "${MOWER_MQTT_PREFIX}$TOPIC_EVENTS" -t "${MOWER_MQTT_PREFIX}$TOPIC_CHARGE_VOLTAGE" |
+      -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -t "${MOWER_MQTT_PREFIX}$TOPIC_EVENTS" -t "${MOWER_MQTT_PREFIX}$TOPIC_CHARGE_VOLTAGE" \
+      -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTIONS" |
       CONF="$C" SNOOZE=/data/notify.snooze STATS=/data/stats awk -f /notify.awk | while IFS= read -r m; do send "$m"; done
   fi
   sleep 30

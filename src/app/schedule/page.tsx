@@ -26,7 +26,7 @@ import {
   saveSchedule,
   type LogEntry,
   type Schedule,
-  scheduleLogText,
+  scheduleLogLine,
 } from '@/lib/schedule';
 import {useEffect, useState} from 'react';
 import styles from './page.module.css';
@@ -43,6 +43,8 @@ export default function SchedulePage() {
   const datum = datumFromParams(params);
   // what MowBite's container on the mower can do
   const updates = useUpdates();
+  // the cold check is a newer container's only, shown while that can't be told
+  const hasCold = updates.level === null || containerHas(updates.level, 'cold');
   // today's sunrise and sunset, so the animal hint follows the real night
   const sun = datum ? sunTimes(datum.lat, datum.lon) : null;
   // undefined: loading, null: not served by the container
@@ -169,8 +171,7 @@ export default function SchedulePage() {
                   ))}
                 </select>
               </label>
-              {/* a newer container only, shown while that can't be told */}
-              {(updates.level === null || containerHas(updates.level, 'cold')) && (
+              {hasCold && (
               <label className={styles.check}>
                 <input type="checkbox" checked={s.skipCold} disabled={!datum} onChange={(e) => update({...s, skipCold: e.target.checked})} />
                 {tr('Not when it is colder than')}
@@ -184,8 +185,14 @@ export default function SchedulePage() {
               </label>
               )}
               <p className={styles.dim}>
-                {tr('Cold grass takes mowing badly, below about 5 °C it hardly grows anyway.')}{' '}
-                {tr('The forecast and the temperature come from Open-Meteo, the mower asks for them with the position rounded to about a kilometer.')}
+                {hasCold ? (
+                  <>
+                    {tr('Cold grass takes mowing badly, below about 5 °C it hardly grows anyway.')}{' '}
+                    {tr('The forecast and the temperature come from Open-Meteo, the mower asks for them with the position rounded to about a kilometer.')}
+                  </>
+                ) : (
+                  tr('The forecast comes from Open-Meteo, the mower asks for it with the position rounded to about a kilometer.')
+                )}
               </p>
               {canTurn && (
                 <p className={styles.dim}>
@@ -206,7 +213,7 @@ export default function SchedulePage() {
                     <span className={styles.dim}>
                       {dayLabel(new Date(l.t * 1000))}, {clock(l.t)}
                     </span>
-                    {tr(scheduleLogText(l), {detail: l.detail ?? ''})}
+                    {scheduleLogLine(l)}
                   </li>
                 ))}
               </ul>

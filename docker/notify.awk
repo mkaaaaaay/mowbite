@@ -14,8 +14,8 @@
 # sent home in the middle of a path OpenMower also reports a navigation error, so one only counts when no docking
 # follows within a few seconds.
 # standing still: not half a meter on in ten minutes and not charging (is_charging, or the charge voltage when the
-# battery is full), outside recording and an emergency stop. waiting for gps, stuck, left waiting on the lawn, or in a
-# dock without power
+# battery is full), outside recording, an emergency stop and a pause by hand (actions/json). waiting for gps, stuck,
+# left waiting on the lawn, or in a dock without power. told once, a dock without power stays so all night
 
 function field(s, k,   v) {
   if (!match(s, "\"" k "\" *: *(\"[^\"]*\"|[^,}]*)")) return ""
@@ -58,6 +58,9 @@ function readconf(   line, k) {
 
 function on(kind) { return index(events, "," kind ",") > 0 }
 
+# standing still is told once, the other problems are reminded of while they last
+function reminds(kind) { return remind && kind != "standstill" }
+
 function tx(en, de) { return lang == "de" ? de : en }
 
 function who() { return name ? name : tx("The mower", "Der Mäher") }
@@ -74,7 +77,7 @@ function send(kind, phase, title, msg, prio, tags,   json, acts) {
     json = json ",\"click\":\"" jesc(url) "/activity/\""
     acts = "{\"action\":\"view\",\"label\":\"" jesc(tx("Open MowBite", "MowBite öffnen")) "\",\"url\":\"" jesc(url) "/\"}"
     # only reaches the mower from the home network
-    if (phase != "clear" && remind)
+    if (phase != "clear" && reminds(kind))
       acts = acts ",{\"action\":\"http\",\"label\":\"" jesc(tx("Snooze 1 h", "1 h schlummern")) "\",\"url\":\"" jesc(url) \
         "/cgi-bin/notify?snooze=3600\",\"method\":\"POST\",\"clear\":true}"
     json = json ",\"actions\":[" acts "]"
@@ -92,19 +95,20 @@ function push(kind, phase, title, msg, prio,   json, problem) {
   json = json ",\"prio\":" prio ",\"t\":" int(t) ",\"lang\":\"" lang "\",\"path\":\"/activity/\""
   if (url) {
     json = json ",\"api\":\"" jesc(url) "\""
-    if (problem && phase != "clear" && remind) json = json ",\"snooze\":\"" jesc(tx("Snooze 1 h", "1 h schlummern")) "\""
+    if (problem && phase != "clear" && reminds(kind)) json = json ",\"snooze\":\"" jesc(tx("Snooze 1 h", "1 h schlummern")) "\""
   }
   print "push " json "}"
   fflush()
 }
 
 # the problems the mower can't get out of by itself: one at a time, the first one stays until it's over. standing still
-# makes way for one that says why
+# makes way for one that says why. one that isn't picked is left out and doesn't hold back the others
 function open(kind, why, from) {
+  if (!on(kind)) return
   if (problem == "standstill" && kind != "standstill") close_problem(0)
   if (problem) return
-  problem = kind; since = from ? from : t; told = 0
-  if (on(kind)) { tell("new", why); told = t }
+  problem = kind; since = from ? from : t
+  tell("new", why); told = t
 }
 
 function close_problem(fixed) {
@@ -128,9 +132,8 @@ function tell(phase, why,   m) {
       if (still_home) send(problem, phase, tx("Charging again", "Lädt wieder"), tx(who() " is charging again.", who() " lädt wieder."), 2, "white_check_mark")
       else send(problem, phase, tx("On its way again", "Wieder unterwegs"), tx(who() " is moving again.", who() " bewegt sich wieder."), 2, "white_check_mark")
     } else {
-      m = phase == "new" ? tx(who() " has been standing still for " minutes(t - since) " min and isn't charging.", who() " steht seit " minutes(t - since) " min still und lädt nicht.") : tx(who() " is still standing still (for " minutes(t - since) " min).", who() " steht immer noch still (seit " minutes(t - since) " min).")
-      if (phase != "new") ;
-      else if (still_why == "PAUSED") m = m " " tx("Paused: by hand, or waiting for GPS.", "Pausiert: von Hand, oder weil GPS fehlt.")
+      m = tx(who() " has been standing still for " minutes(t - since) " min and isn't charging.", who() " steht seit " minutes(t - since) " min still und lädt nicht.")
+      if (still_why == "PAUSED") m = m " " tx("Paused, waiting for GPS.", "Pausiert, weil GPS fehlt.")
       else if (still_why == "IDLE") m = m " " tx("Waiting on the lawn, or in the dock and that has no power.", "Wartet auf dem Rasen, oder steht in der Station und die hat keinen Strom.")
       else m = m " " tx("Not getting on, maybe stuck.", "Kommt nicht weiter, steckt vielleicht fest.")
       send(problem, phase, tx("Standing still", "Steht still"), m, 4, "warning")
@@ -142,9 +145,9 @@ function tell(phase, why,   m) {
 }
 
 # st: robot_state's current_state, x and y its position, home: charging or on the contacts. without a charge voltage
-# idle isn't watched, a full battery in the dock wouldn't look any different
+# idle isn't watched, a full battery in the dock wouldn't look any different. paused by hand it waits on purpose
 function standstill(st, x, y, home,   dx, dy) {
-  if (home || emergency || st == "" || st == "AREA_RECORDING" || (st == "IDLE" && !have_v)) {
+  if (home || emergency || st == "" || st == "AREA_RECORDING" || (st == "IDLE" && !have_v) || (st == "PAUSED" && manual)) {
     still_t = 0
     still_home = home
     if (problem == "standstill") close_problem(home)
@@ -229,7 +232,8 @@ BEGIN {
     }
     emergency = e
     if (em_t && emergency && t - em_t >= emergency_wait) {
-      close_problem(0)
+      # takes the place of what was before, unless it isn't picked
+      if (on("emergency")) close_problem(0)
       open("emergency", em_t - spinup_t <= SPINUP_WAIT ? tx("The mow motor didn't start.", "Der Mähmotor lief nicht an.") : "", em_t)
       em_t = 0
     }
@@ -239,6 +243,13 @@ BEGIN {
   } else if (topic_in ~ /sensors\/om_v_charge\/data$/) {
     v_charge = json + 0
     have_v = 1
+  } else if (topic_in ~ /actions\/json$/) {
+    # mowing's continue is offered only while it's paused by hand, waiting for gps it isn't
+    manual = 0
+    if (match(json, /[{][^{}]*"mower_logic:mowing\/continue"[^{}]*[}]/)) {
+      a = field(substr(json, RSTART, RLENGTH), "enabled")
+      manual = a == "1" || a == "true"
+    }
   } else if (topic_in ~ /events\/json$/) {
     type = field(json, "type")
     if (type == "DOCKING_FAILED") open("dock_failed")
@@ -268,7 +279,7 @@ BEGIN {
     nav_t = 0
     info("nav_error", tx("Navigation error", "Navigationsfehler"), tx(who() " couldn't follow its path and is waiting. Often something is in the way.", who() " kam auf der Bahn nicht weiter und wartet. Oft ist etwas im Weg."), "warning")
   }
-  if (problem && told && remind && t - told >= remind && t >= snooze) {
+  if (problem && told && reminds(problem) && t - told >= remind && t >= snooze) {
     tell("again")
     told = t
   }
