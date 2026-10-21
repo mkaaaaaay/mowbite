@@ -68,6 +68,8 @@ export interface Settings {
   lookTurns?: Record<string, number>;
   // an area's parasol folded up, by area id
   lookClosed?: Record<string, boolean>;
+  // the ground under and round an area's picture (gardenPictures' GROUND_KEYS), by area id, else the picture's own
+  lookGrounds?: Record<string, string>;
   // what makes the garden style come alive (components/gardenLife), each off unless switched on
   garden?: Partial<GardenLife>;
   // the mower's sizes in meters for its outline and the strip its blade cuts on the map (lib/mowerBody)

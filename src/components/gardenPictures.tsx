@@ -46,6 +46,8 @@ export interface ThingOptions {
   // bed's border along its edge
   tile?: boolean;
   border?: boolean;
+  // a bed without its own soil: the ground picked for the area shows between the plants
+  bare?: boolean;
 }
 export interface Picture {
   label: string;
@@ -71,6 +73,9 @@ export interface Picture {
   // fills its whole area like a ground, but planted anew for every area (a bed). span: the meters before it repeats
   fill?: boolean;
   span?: number;
+  // what stands in a bed on its own, whole inside the area: a picture (look) about once every so many square meters, so
+  // big across (m, from to), in one of these colors
+  accent?: {look: string; every: number; size: [number, number]; variants?: string[]};
   // faces a way: turned by the place (settings.lookTurns, else towards what it belongs to)
   turn?: boolean;
   // looks the same turned any way (a crown, a round pool): nothing to turn
@@ -907,7 +912,7 @@ const MIXED: Variants<{c: string[]}> = {
   warm: {label: 'Warm', c: ['#f2c230', '#e8762a', '#d9534f', '#f6dc7a', '#f4f1ea']},
 };
 // what grows in a mixed bed, daisies and spikes the most
-const MIXED_KINDS = ['daisy', 'daisy', 'spike', 'spike', 'heads', 'grass', 'cushion', 'shrub'] as const;
+const MIXED_KINDS = ['daisy', 'daisy', 'spike', 'spike', 'heads', 'grass', 'cushion', 'cushion'] as const;
 const SPRING: Variants<{c: string[]}> = {
   colorful: {label: 'Colorful', c: ['#d9302a', '#f2c230', '#e27fae', '#f4f1ea', '#8a4fbf']},
   red: {label: 'Red and yellow', c: ['#d9302a', '#f2c230']},
@@ -1598,13 +1603,14 @@ export const PICTURES: Record<string, Picture> = {
     variants: choices(MIXED),
     fill: true,
     span: 3.6,
+    accent: {look: 'bush', every: 2.5, size: [0.6, 0.9], variants: ['green', 'green', 'dark', 'red']},
     around: 'mulch',
     thing: (b, p, o) => {
       const rnd = random(o.seed + 'mixed');
       const m = o.m ?? Math.max(b.w, b.h) / 1.6;
       const colors = pick(o, MIXED).c;
       // planted in drifts like a border, each of one kind: perennials with daisies, spikes or flat heads in one color,
-      // grasses, low cushions and now and then a small shrub, about one drift per square meter
+      // grasses and low cushions, about one drift per square meter. its shrubs stand in the area on their own (accent)
       const drifts = Array.from({length: Math.max(4, Math.round((b.w * b.h) / (m * m)))}, () => ({
         x: b.x + rnd() * b.w,
         y: b.y + rnd() * b.h,
@@ -1618,9 +1624,6 @@ export const PICTURES: Record<string, Picture> = {
         return o.tile ? Math.hypot(Math.min(dx % b.w, b.w - (dx % b.w)), Math.min(dy % b.h, b.h - (dy % b.h))) : Math.hypot(dx, dy);
       };
       // a small shrub in the middle of its drift, low cushions round it
-      const bushes = drifts
-        .filter((d) => d.kind === 'shrub')
-        .map((d, k) => ({x: d.x, y: d.y, r: (0.3 + (d.s - 0.85) * 0.4) * m, c: d.s > 1.15 ? '#6e3a3c' : d.s > 1 ? '#2f5e2a' : '#4a7f36', bloom: d.s <= 0.92, k}));
       const shadow: Dot[] = [];
       const low: [Dot, string][] = [];
       const leaves: [Dot, string][] = [];
@@ -1632,9 +1635,8 @@ export const PICTURES: Record<string, Picture> = {
         shadow.push(...ds[0]);
       };
       for (const {x, y, r: rnd} of spots(b, 0.3 * m, o.seed + 'mixed', o.tile, 320)) {
-        if (bushes.some((q) => gap(q, x, y) < q.r * 0.8)) continue;
         const d = drifts.reduce((best, q) => (gap(q, x, y) < gap(best, x, y) ? q : best));
-        const kind = d.kind === 'shrub' ? 'cushion' : d.kind;
+        const kind = d.kind;
         const s = (kind === 'cushion' ? 0.21 : 0.28) * (d.s + rnd() * 0.2) * m;
         if (kind === 'grass') {
           // a clump of grass, its blades fanning out over it
@@ -1671,33 +1673,15 @@ export const PICTURES: Record<string, Picture> = {
           }
         }
       }
-      // the shrubs once more past the other edge when the tile repeats
-      const shifts = (q: {x: number; y: number; r: number}) =>
-        (o.tile ? [-b.w, 0, b.w] : [0]).flatMap((dx) => (o.tile ? [-b.h, 0, b.h] : [0]).map((dy): Pt => [dx, dy]))
-          .filter(([dx, dy]) => q.x + dx + q.r > b.x && q.x + dx - q.r < b.x + b.w && q.y + dy + q.r > b.y && q.y + dy - q.r < b.y + b.h);
       return (
         <>
-          <rect x={n2(b.x)} y={n2(b.y)} width={n2(b.w)} height={n2(b.h)} fill="#3a3a26" />
+          {!o.bare && <rect x={n2(b.x)} y={n2(b.y)} width={n2(b.w)} height={n2(b.h)} fill="#3a3a26" />}
           <path d={circles(shadow)} fill="#141f0e" opacity={0.4} />
           {byColor(low)}
           {byColor(leaves)}
           {byColor(flowers)}
           {byColor(hearts)}
           {grass.length > 0 && <path d={grass.join('')} stroke="#bcc47a" strokeWidth={n2(0.014 * m)} fill="none" strokeLinecap="round" />}
-          {bushes.flatMap((q) =>
-            shifts(q).map(([dx, dy], j) => {
-              const [x, y] = [q.x + dx, q.y + dy];
-              const rnd = random(o.seed + 'shrub' + q.k);
-              const dots = q.bloom ? scatter(random(o.seed + 'bloom' + q.k), 9, x, y, q.r * 0.7, [q.r * 0.05, q.r * 0.08]) : [];
-              return (
-                <g key={`${q.k}_${j}`}>
-                  <circle cx={n2(x + q.r * 0.12)} cy={n2(y + q.r * 0.16)} r={n2(q.r)} fill="#141f0e" opacity={0.4} />
-                  {crown(`${p}s${q.k}_${j}`, x, y, q.r, q.c, rnd, 9, 0.33, 6)}
-                  {dots.length > 0 && <path d={circles(dots)} fill="#f4f1ea" />}
-                </g>
-              );
-            }),
-          )}
         </>
       );
     },
@@ -1748,7 +1732,7 @@ export const PICTURES: Record<string, Picture> = {
       }
       return (
         <>
-          <rect x={n2(b.x)} y={n2(b.y)} width={n2(b.w)} height={n2(b.h)} fill="#33482a" />
+          {!o.bare && <rect x={n2(b.x)} y={n2(b.y)} width={n2(b.w)} height={n2(b.h)} fill="#33482a" />}
           <path d={circles(leaves[0])} fill="#1f3a18" opacity={0.45} />
           <path d={circles(leaves[1])} fill="#4a8a3a" />
           <path d={circles(leaves[2])} fill="#6fa852" opacity={0.7} />
@@ -1782,7 +1766,7 @@ export const PICTURES: Record<string, Picture> = {
       }
       return (
         <>
-          {strewn('bark', b.x, b.y, b.w, b.h, m, rnd)}
+          {!o.bare && strewn('bark', b.x, b.y, b.w, b.h, m, rnd)}
           <path d={circles(leaves[0])} fill="#14260f" opacity={0.45} />
           <path d={circles(leaves[1])} fill="#30572a" />
           <path d={circles(leaves[2])} fill="#4a7a3a" opacity={0.7} />
@@ -1822,7 +1806,7 @@ export const PICTURES: Record<string, Picture> = {
       }
       return (
         <>
-          <rect x={n2(b.x)} y={n2(b.y)} width={n2(b.w)} height={n2(b.h)} fill="#4a4f30" />
+          {!o.bare && <rect x={n2(b.x)} y={n2(b.y)} width={n2(b.w)} height={n2(b.h)} fill="#4a4f30" />}
           <path d={leaves.join('')} fill="#7f9a6a" stroke="#56704a" strokeWidth={n2(0.004 * m)} />
           <path d={circles(cups.map(([[x, y, s]]) => [x + s * 0.25, y + s * 0.35, s]))} fill="#000" opacity={0.25} />
           {byColor(cups)}
@@ -1854,7 +1838,7 @@ export const PICTURES: Record<string, Picture> = {
       }
       return (
         <>
-          <rect x={n2(b.x)} y={n2(b.y)} width={n2(b.w)} height={n2(b.h)} fill="#33482a" />
+          {!o.bare && <rect x={n2(b.x)} y={n2(b.y)} width={n2(b.w)} height={n2(b.h)} fill="#33482a" />}
           <path d={circles(leaves[0])} fill="#1f3a18" opacity={0.4} />
           <path d={circles(leaves[1])} fill="#4f8f3c" />
           <path d={circles(leaves[2])} fill="#72ad55" opacity={0.6} />
@@ -1883,7 +1867,7 @@ export const PICTURES: Record<string, Picture> = {
       }
       return (
         <>
-          <rect x={n2(b.x)} y={n2(b.y)} width={n2(b.w)} height={n2(b.h)} fill={tone(kind.c, -0.45)} />
+          {!o.bare && <rect x={n2(b.x)} y={n2(b.y)} width={n2(b.w)} height={n2(b.h)} fill={tone(kind.c, -0.45)} />}
           {shades.map((d, k) => (
             <path key={k} d={d.join('')} fill={tone(kind.c, (k - 1) * 0.18)} />
           ))}
@@ -2345,7 +2329,7 @@ export const PICTURES: Record<string, Picture> = {
       }
       return (
         <>
-          <rect x={n2(b.x)} y={n2(b.y)} width={n2(b.w)} height={n2(b.h)} fill="#4f3a2a" />
+          {!o.bare && <rect x={n2(b.x)} y={n2(b.y)} width={n2(b.w)} height={n2(b.h)} fill="#4f3a2a" />}
           {dots(1, Array.from({length: Math.min(300, Math.round(((b.w * b.h) / (m * m)) * 60))}, (): [number, number, number, string] => [b.x + rnd() * b.w, b.y + rnd() * b.h, (0.01 + rnd() * 0.01) * m, rnd() < 0.5 ? '#3f2e22' : '#6a4f3a']))}
           {[...leaves].map(([lc, ds]) => (
             <g key={lc}>
@@ -4472,6 +4456,25 @@ export const PICTURES: Record<string, Picture> = {
         )),
     },
   },
+  turf: {
+    label: 'Lawn',
+    group: 'ground',
+    tile: {
+      w: 1.2,
+      h: 1.2,
+      base: '#4e8d3e',
+      draw: (m) => {
+        const blades = tileScatter('turf', 46, 1.2, 1.2);
+        return (
+          <>
+            {blades.map(([x, y], i) => (
+              <path key={i} d={tuft(m, x, y, 0.55 + (i % 3) * 0.12)} fill={['#47843a', '#5a9a46', '#53913f'][i % 3]} />
+            ))}
+          </>
+        );
+      },
+    },
+  },
   soil: {
     label: 'Soil',
     group: 'ground',
@@ -4513,6 +4516,8 @@ export const PICTURES: Record<string, Picture> = {
 };
 
 export const PICTURE_KEYS = Object.keys(PICTURES);
+// the grounds to pick for what's under and round an area's picture (settings.lookGrounds)
+export const GROUND_KEYS = ['soil', 'mulch', 'turf', 'meadow', 'gravel', 'sand', 'paving', 'brick', 'concrete', 'wood'];
 
 // from the name, the first that fits, the more particular ones first (a garden house before a house, a wall before a
 // house: the keep-out strip along one, firewood before a fire, a whirlpool before a pool)

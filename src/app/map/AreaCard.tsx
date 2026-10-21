@@ -1,5 +1,5 @@
 import {areaLook, facing, LookPicker, LookSwatch, placeThing, type Look} from '@/components/gardenLook';
-import {PICTURES} from '@/components/gardenPictures';
+import {GROUND_KEYS, PICTURES} from '@/components/gardenPictures';
 import {MagnetIcon, MergeIcon, ScissorsIcon, SimplifyIcon, SubtractIcon, TrashIcon} from '@/components/icons';
 import InfoTip from '@/components/InfoTip';
 import {polygonArea} from '@/lib/geometry';
@@ -7,7 +7,7 @@ import {fmt, tr} from '@/lib/i18n';
 import {useAreaProperties} from '@/lib/areaProps';
 import {usePlannerSettings} from '@/lib/mowerBody';
 import {saveSettings, settingsStore} from '@/lib/settings';
-import {useMemo, useState, useSyncExternalStore} from 'react';
+import {useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import {AREA_TYPES, type Area, type UpdateArea} from './editing';
 import styles from './page.module.css';
 
@@ -63,9 +63,9 @@ export default function AreaCard({
   const variants = PICTURES[shown]?.variants;
   const kept = settings.lookVariants?.[area.id];
   const variant = variants?.some((v) => v.key === kept) ? kept : undefined;
-  // what's kept for the area's picture: which one, its color, size and direction. null takes one back to auto, left out
-  // it stays
-  const keep = (to: {look?: string | null; variant?: string | null; size?: number | null; turn?: number | null; closed?: true | null}) => {
+  // what's kept for the area's picture: which one, its color, size, direction and the ground under it. null takes one
+  // back to auto, left out it stays
+  const keep = (to: {look?: string | null; variant?: string | null; size?: number | null; turn?: number | null; closed?: true | null; ground?: string | null}) => {
     const cur = settingsStore.snapshot();
     const put = <T,>(all: Record<string, T> | undefined, v: T | null | undefined) => {
       if (v === undefined) return all;
@@ -81,8 +81,13 @@ export default function AreaCard({
       lookSizes: put(cur.lookSizes, to.size),
       lookTurns: put(cur.lookTurns, to.turn),
       lookClosed: put(cur.lookClosed, to.closed),
+      lookGrounds: put(cur.lookGrounds, to.ground),
     });
   };
+  // the ground under and round a picture standing in the area (what shows between a bed's plants too), none: its own
+  const grounded = pictured && !!PICTURES[shown]?.thing;
+  const ground = grounded && GROUND_KEYS.includes(settings.lookGrounds?.[area.id] ?? '') ? settings.lookGrounds?.[area.id] : undefined;
+  const setGround = (key: string | undefined) => keep({ground: key ?? null});
   // another picture starts with its own usual color, size and direction
   const setLook = (look: Look | undefined) => keep({look: look ?? null, variant: null, size: null, turn: null, closed: null});
   const setVariant = (key: string | undefined) => keep({variant: key ?? null});
@@ -102,6 +107,12 @@ export default function AreaCard({
   const sizeFrom = Math.max(0.1, Math.round(Math.min(pic?.size?.[0] ?? autoSize, autoSize) * 4) / 10);
   const sizeTo = Math.min(30, Math.round(Math.max(pic?.size?.[1] ?? autoSize, autoSize) * 25) / 10);
   const setSize = (v: number | undefined) => keep({size: v ?? null});
+  // a step bigger or smaller from what it's drawn at, finer while it's small
+  const stepSize = (dir: 1 | -1) => {
+    const now = settingsStore.snapshot().lookSizes?.[area.id] ?? Math.round(autoSize * 10) / 10;
+    const by = now < 2 ? 0.1 : now < 10 ? 0.5 : 1;
+    setSize(Math.min(sizeTo, Math.max(sizeFrom, Math.round((now + dir * by) / by) * by)));
+  };
   // which way it lies (degrees on the map, 0 east), a cantilever parasol which way it reaches. none: along the area, a
   // parasol towards the seats next to it or into the lawn like the map draws it. not for what looks the same turned
   // any way
@@ -116,6 +127,7 @@ export default function AreaCard({
   const autoDeg = faced ?? (fitted && pic.long ? -fitted.deg : 0);
   const autoTurn = (Math.round((((autoDeg % 360) + 360) % 360) / 5) * 5) % 360;
   const setTurn = (v: number | undefined) => keep({turn: v ?? null});
+  const stepTurn = (dir: 1 | -1) => setTurn((((settingsStore.snapshot().lookTurns?.[area.id] ?? autoTurn) + dir * 5) % 360 + 360) % 360);
   // a parasol open or folded up
   const folds = sizable && !!pic.folds;
   const closed = folds && settings.lookClosed?.[area.id] === true;
@@ -263,6 +275,34 @@ export default function AreaCard({
           </div>
         </div>
       )}
+      {grounded && (
+        <div className={styles.lookRow}>
+          <span className={[styles.dim, styles.variantLabel].join(' ')}>{tr('Ground under it')}</span>
+          <div className={styles.variantList} role="radiogroup" aria-label={tr('Ground under it')}>
+            <button
+              role="radio"
+              aria-checked={!ground}
+              className={[styles.variantButton, styles.variantText, !ground ? styles.variantOn : ''].join(' ')}
+              onClick={() => setGround(undefined)}
+            >
+              {tr('auto')}
+            </button>
+            {GROUND_KEYS.map((key) => (
+              <button
+                key={key}
+                role="radio"
+                aria-checked={ground === key}
+                className={[styles.variantButton, ground === key ? styles.variantOn : ''].join(' ')}
+                onClick={() => setGround(key)}
+                title={tr(PICTURES[key].label)}
+                aria-label={tr(PICTURES[key].label)}
+              >
+                <LookSwatch look={key} size={30} />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       {sizable && (
         <div className={styles.lookRow}>
           <span className={[styles.dim, styles.variantLabel].join(' ')}>{tr('Size')}</span>
@@ -275,17 +315,7 @@ export default function AreaCard({
             >
               {tr('auto')}
             </button>
-            <input
-              type="range"
-              className={styles.sizeSlider}
-              aria-label={tr('Size')}
-              min={sizeFrom}
-              max={sizeTo}
-              step={0.1}
-              value={ownSize ?? Math.round(autoSize * 10) / 10}
-              onChange={(e) => setSize(Number(e.target.value))}
-            />
-            <span className={styles.sizeValue}>{ownSize ? `${fmt(ownSize, 1)} m` : ''}</span>
+            <Stepper label={tr('Size')} text={`${fmt(ownSize ?? Math.round(autoSize * 10) / 10, 1)} m`} dim={!ownSize} onStep={stepSize} />
           </div>
         </div>
       )}
@@ -319,17 +349,12 @@ export default function AreaCard({
             >
               {tr('auto')}
             </button>
-            <input
-              type="range"
-              className={styles.sizeSlider}
-              aria-label={pic.turn ? tr('Direction') : tr('Rotation')}
-              min={0}
-              max={355}
-              step={5}
-              value={ownTurn ?? autoTurn}
-              onChange={(e) => setTurn(Number(e.target.value))}
+            <Stepper
+              label={pic.turn ? tr('Direction') : tr('Rotation')}
+              text={pic.turn ? tr(compass(ownTurn ?? autoTurn)) : `${ownTurn ?? autoTurn}°`}
+              dim={ownTurn === undefined}
+              onStep={stepTurn}
             />
-            <span className={styles.sizeValue}>{ownTurn === undefined ? '' : pic.turn ? tr(compass(ownTurn)) : `${ownTurn}°`}</span>
           </div>
         </div>
       )}
@@ -391,6 +416,54 @@ export default function AreaCard({
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+// a value set a step at a time with - and +, held down it goes on, faster and faster. no slider: a finger scrolling the
+// card over one moved it. a tap steps once, a finger that scrolls on is no tap (the browser takes it over)
+function Stepper({label, text, dim, onStep}: {label: string; text: string; dim: boolean; onStep: (dir: 1 | -1) => void}) {
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const held = useRef(false);
+  const stop = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+  };
+  useEffect(() => stop, []);
+  const button = (dir: 1 | -1) => (
+    <button
+      className={[styles.variantButton, styles.variantText, styles.stepButton].join(' ')}
+      aria-label={dir > 0 ? tr('More') : tr('Less')}
+      onPointerDown={() => {
+        held.current = false;
+        stop();
+        let wait = 450;
+        const again = () => {
+          held.current = true;
+          onStep(dir);
+          wait = Math.max(60, wait * 0.75);
+          timer.current = setTimeout(again, wait);
+        };
+        timer.current = setTimeout(again, wait);
+      }}
+      onPointerUp={stop}
+      onPointerLeave={stop}
+      onPointerCancel={stop}
+      onClick={() => {
+        if (!held.current) onStep(dir);
+        held.current = false;
+      }}
+    >
+      {dir > 0 ? '+' : '−'}
+    </button>
+  );
+  return (
+    <div className={styles.stepper} role="group" aria-label={label}>
+      {button(-1)}
+      <span className={[styles.sizeValue, dim ? styles.dim : ''].join(' ')} aria-live="polite">
+        {text}
+      </span>
+      {button(1)}
     </div>
   );
 }

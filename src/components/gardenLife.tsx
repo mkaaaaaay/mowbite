@@ -377,7 +377,7 @@ export const coversOf = (things: Thing[]) =>
 
 // the start of the ids of a thing's place k, and what it's drawn with
 const placeId = (uid: string, thing: Thing, k: number) => `${uid}t${thing.i}${k ? '_' + k : ''}`;
-const drawnWith = (thing: Thing, pl: Place) => ({seed: pl.seed ?? thing.id, variant: thing.variant, m: thing.m, closed: thing.closed});
+const drawnWith = (thing: Thing, pl: Place) => ({seed: pl.seed ?? thing.id, variant: pl.variant ?? thing.variant, m: thing.m, closed: thing.closed, bare: pl.look ? undefined : thing.bare});
 
 // a bed's place k as a pattern of one tile 2.4 m across (or its span), the browser draws it once and repeats it
 function bedTile(uid: string, thing: Thing, pl: Place, k: number) {
@@ -391,7 +391,8 @@ function bedTile(uid: string, thing: Thing, pl: Place, k: number) {
 }
 
 // the beds' tiles of these things for the defs, when they're drawn tiled
-export const bedTiles = (uid: string, things: Iterable<Thing>) => [...things].flatMap((t) => (t.fill ? t.places.map((pl, k) => bedTile(uid, t, pl, k)) : []));
+export const bedTiles = (uid: string, things: Iterable<Thing>) =>
+  [...things].flatMap((t) => (t.fill ? t.places.map((pl, k) => (pl.look ? null : bedTile(uid, t, pl, k))).filter((x) => x !== null) : []));
 
 // an area's picture standing in it (a tree, a table ... or several), cut to the area (clip i of GardenDefs) unless it
 // reaches over it, faded when the area is off. with a shadow the same once more first, dark and moved away from the sun
@@ -407,6 +408,14 @@ export const GardenThing = memo(
       const o = drawnWith(thing, pl);
       // a bed is never turned, its edge only moved to its middle
       const edge = thing.edge?.map((q): [number, number] => [q.x - cx, q.y - cy]);
+      // a shrub standing in the bed
+      if (pl.look) {
+        return (
+          <g key={k} transform={`translate(${cx} ${cy}) rotate(${deg})`}>
+            {drawThing(pl.look, {x: -w / 2, y: -h / 2, w, h}, p, o)}
+          </g>
+        );
+      }
       if (thing.fill) {
         // a bed as a pattern of its tile, and its border
         return (
@@ -470,6 +479,7 @@ export interface LifeInput {
   lookSizes?: Record<string, number>;
   lookTurns?: Record<string, number>;
   lookClosed?: Record<string, boolean>;
+  lookGrounds?: Record<string, string>;
   body?: MowerBody | null;
   fit: Fit;
   uid: string;
@@ -583,7 +593,13 @@ export function lifeScene(s: LifeInput): LifeScene | null {
         at,
       )
     : '';
-  const garden = gardenThings(s.areas, s.looks, s.body ?? null, fit, {variants: s.lookVariants, sizes: s.lookSizes, turns: s.lookTurns, closed: s.lookClosed});
+  const garden = gardenThings(s.areas, s.looks, s.body ?? null, fit, {
+    variants: s.lookVariants,
+    sizes: s.lookSizes,
+    turns: s.lookTurns,
+    closed: s.lookClosed,
+    grounds: s.lookGrounds,
+  });
   // the things reaching over the others and the mower, of the areas shown
   const shown = bySize
     .filter((a) => !hidden.has(a.properties.type ?? ''))
@@ -673,7 +689,7 @@ export function lifeScene(s: LifeInput): LifeScene | null {
 
 // ---- the garden without its life as MapView draws it, for the home assistant card (mowbite-art.js gardenAreas)
 
-export type GardenInput = Pick<LifeInput, 'areas' | 'looks' | 'lookVariants' | 'lookSizes' | 'lookTurns' | 'lookClosed' | 'body' | 'fit' | 'uid'>;
+export type GardenInput = Pick<LifeInput, 'areas' | 'looks' | 'lookVariants' | 'lookSizes' | 'lookTurns' | 'lookClosed' | 'lookGrounds' | 'body' | 'fit' | 'uid'>;
 
 export interface GardenScene {
   // GardenDefs and the beds' tiles, everything the rest refers to
@@ -691,7 +707,13 @@ export interface GardenScene {
 // real edges
 export function gardenScene(s: GardenInput): GardenScene {
   const {fit, uid} = s;
-  const garden = gardenThings(s.areas, s.looks, s.body ?? null, fit, {variants: s.lookVariants, sizes: s.lookSizes, turns: s.lookTurns, closed: s.lookClosed});
+  const garden = gardenThings(s.areas, s.looks, s.body ?? null, fit, {
+    variants: s.lookVariants,
+    sizes: s.lookSizes,
+    turns: s.lookTurns,
+    closed: s.lookClosed,
+    grounds: s.lookGrounds,
+  });
   const fills: Record<string, Look> = {};
   const things: Record<string, ReactNode> = {};
   const over: Record<string, ReactNode> = {};

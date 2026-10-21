@@ -133,10 +133,17 @@
   min-width: 0;
 }
 
-.sizeSlider {
-  flex: 1;
-  min-width: 110px;
-  accent-color: var(--accent);
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stepButton {
+  min-width: 34px;
+  justify-content: center;
+  font-size: 1.1em;
+  touch-action: manipulation;
 }
 
 .sizeValue {

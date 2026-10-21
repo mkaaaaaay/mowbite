@@ -1,7 +1,7 @@
 'use client';
 
 import type {MapArea, Point} from '@/hooks/useMowerMap';
-import {containsPoint} from '@/lib/geometry';
+import {containsPoint, polygonArea} from '@/lib/geometry';
 import {tr} from '@/lib/i18n';
 import {realInsides, type MowerBody} from '@/lib/mowerBody';
 import {autoMowAngle} from '@/lib/mowStripes';
@@ -40,10 +40,19 @@ export const drawThing = (
   look: Look,
   box: Box,
   p = 'gp',
-  o?: {seed?: string; variant?: string; m?: number; edge?: [number, number][]; closed?: boolean; tile?: boolean; border?: boolean},
+  o?: {seed?: string; variant?: string; m?: number; edge?: [number, number][]; closed?: boolean; tile?: boolean; border?: boolean; bare?: boolean},
 ) =>
   box.w > 0 && box.h > 0
-    ? PICTURES[look]?.thing?.(box, p, {seed: o?.seed ?? p, variant: o?.variant, m: (o?.m ?? 0) > 0 ? o?.m : undefined, edge: o?.edge, closed: o?.closed, tile: o?.tile, border: o?.border})
+    ? PICTURES[look]?.thing?.(box, p, {
+        seed: o?.seed ?? p,
+        variant: o?.variant,
+        m: (o?.m ?? 0) > 0 ? o?.m : undefined,
+        edge: o?.edge,
+        closed: o?.closed,
+        tile: o?.tile,
+        border: o?.border,
+        bare: o?.bare,
+      })
     : null;
 
 // how far a point is from the outline
@@ -71,6 +80,9 @@ export interface Place {
   loose?: boolean;
   // one of several in the area, varied by this
   seed?: string;
+  // a shrub standing in a bed (its accent): drawn as this picture in this color
+  look?: Look;
+  variant?: string;
 }
 
 // where a thing goes in its area, o its outline in svg units: around cx, cy, turned deg, w by h. a long one along the
@@ -147,7 +159,7 @@ function pack(o: Point[], each: () => number, over: boolean, rnd: () => number, 
   const out: {x: number; y: number; r: number}[] = [];
   for (let k = 0; k < most; k++) {
     const r = k ? each() / 2 : first;
-    let best: Point | null = null;
+    let best: (Point & {e: number}) | null = null;
     let least = Infinity;
     for (const c of spots) {
       let gap = c.e - r * (over ? 0.15 : 0.8);
@@ -157,7 +169,8 @@ function pack(o: Point[], each: () => number, over: boolean, rnd: () => number, 
       if (score < least) [least, best] = [score, c];
     }
     if (!best) break;
-    out.push({x: best.x, y: best.y, r});
+    // a crown reaches over the edge, a bush is only as big as fits there: whole inside the area, cut to it otherwise
+    out.push({x: best.x, y: best.y, r: over ? r : Math.min(r, best.e)});
   }
   return out;
 }
@@ -172,7 +185,36 @@ function pack(o: Point[], each: () => number, over: boolean, rnd: () => number, 
 export function placeThings(look: Look, o: Point[], m: number, seed: string, size?: number, turn?: number): Place[] {
   const least = m > 0 ? 0.01 * m : 0;
   const fill = !!PICTURES[look]?.fill;
-  return placesOf(look, o, m, seed, size, turn).filter((pl) => pl.w > least && pl.h > least && (fill || Math.min(pl.w, pl.h) * 100 >= Math.max(pl.w, pl.h)));
+  const places = placesOf(look, o, m, seed, size, turn).filter((pl) => pl.w > least && pl.h > least && (fill || Math.min(pl.w, pl.h) * 100 >= Math.max(pl.w, pl.h)));
+  return places.length ? [...places, ...accents(look, o, m, seed)] : places;
+}
+
+// the shrubs standing in a bed (PICTURES' accent): about one every so many square meters, each whole inside the area
+// with room round it and apart from the others, the same every time
+function accents(look: Look, o: Point[], m: number, seed: string): Place[] {
+  const a = PICTURES[look]?.accent;
+  if (!a || !(m > 0) || o.length < 3) return [];
+  const n = Math.min(12, Math.floor(Math.abs(polygonArea(o)) / (m * m) / a.every));
+  if (!n) return [];
+  const rnd = random(seed + 'accent');
+  const xs = o.map((p) => p.x);
+  const ys = o.map((p) => p.y);
+  const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+  const step = Math.max(0.15 * m, Math.sqrt(((x1 - x0) * (y1 - y0)) / 3000));
+  const spots: {x: number; y: number; e: number}[] = [];
+  for (let x = x0 + step / 2; x < x1; x += step) {
+    for (let y = y0 + step / 2; y < y1; y += step) if (containsPoint(o, x, y)) spots.push({x, y, e: edgeDistance(o, x, y)});
+  }
+  const out: Place[] = [];
+  for (let k = 0; k < n * 4 && out.length < n; k++) {
+    const r = ((a.size[0] + (a.size[1] - a.size[0]) * rnd()) * m) / 2;
+    const free = spots.filter((c) => c.e >= r * 1.15 && out.every((q) => Math.hypot(c.x - q.cx, c.y - q.cy) >= (r + q.w / 2) * 1.6));
+    if (!free.length) continue;
+    const c = free[Math.floor(rnd() * free.length)];
+    const variant = a.variants?.[Math.floor(rnd() * a.variants.length)];
+    out.push({cx: c.x, cy: c.y, deg: 0, w: 2 * r, h: 2 * r, seed: `${seed}~a${out.length}`, look: a.look, variant});
+  }
+  return out;
 }
 
 function placesOf(look: Look, o: Point[], m: number, seed: string, size?: number, turn?: number): Place[] {
@@ -283,22 +325,27 @@ export interface GardenThing {
   closed?: boolean;
   // a bed over the whole area, drawn as a pattern
   fill?: boolean;
+  // a bed without its own soil, the ground picked for the area shows between its plants
+  bare?: boolean;
 }
 export interface GardenThings {
   lawns: Map<string, number>;
   looks: Map<string, Look>;
+  // the ground picked for what's under and round an area's picture, by area id
+  grounds: Map<string, Look>;
   things: Map<string, GardenThing>;
   angles: number[];
   clips: string[];
 }
 
-// what's picked for each area's picture besides which one (settings.lookVariants, lookSizes, lookTurns, lookClosed): its
-// color, size (m), direction (degrees in the svg) and a parasol folded up, by area id
+// what's picked for each area's picture besides which one (settings.lookVariants, lookSizes, lookTurns, lookClosed,
+// lookGrounds): its color, size (m), direction (degrees in the svg), a parasol folded up and the ground under it, by area id
 export interface ThingsOwn {
   variants?: Record<string, string>;
   sizes?: Record<string, number>;
   turns?: Record<string, number>;
   closed?: Record<string, boolean>;
+  grounds?: Record<string, string>;
 }
 
 const thingsCache = new WeakMap<object, {looks?: object; own: ThingsOwn; body: object | null; key: string; out: GardenThings}>();
@@ -335,14 +382,14 @@ export function gardenThings(
   fit: Fit,
   own: ThingsOwn = {},
 ): GardenThings {
-  const {variants, sizes, turns, closed} = own;
+  const {variants, sizes, turns, closed, grounds} = own;
   const key = fitKey(fit);
   const hit = thingsCache.get(areas);
-  const same = (o: ThingsOwn) => o.variants === variants && o.sizes === sizes && o.turns === turns && o.closed === closed;
+  const same = (o: ThingsOwn) => o.variants === variants && o.sizes === sizes && o.turns === turns && o.closed === closed && o.grounds === grounds;
   if (hit && hit.looks === looks && same(hit.own) && hit.body === body && hit.key === key) return hit.out;
   const at = inSquare(fit);
   const insides = body ? realInsides(areas, body) : null;
-  const out: GardenThings = {lawns: new Map(), looks: new Map(), things: new Map(), angles: [], clips: []};
+  const out: GardenThings = {lawns: new Map(), looks: new Map(), grounds: new Map(), things: new Map(), angles: [], clips: []};
   for (const a of areas) {
     const type = a.properties.type;
     if (type === 'mow') {
@@ -352,6 +399,8 @@ export function gardenThings(
       const look = areaLook(a, looks);
       out.looks.set(a.id, look);
       if (!isThing(look)) continue;
+      const ground = grounds?.[a.id];
+      if (ground && PICTURES[ground]?.tile) out.grounds.set(a.id, ground);
       const turn = turns?.[a.id] ?? (PICTURES[look].turn ? facing(a, areas, looks, at) : undefined);
       const placeKey = `${look}|${sizes?.[a.id] ?? ''}|${turn ?? ''}|${key}`;
       // the real edge, shrunk together with its neighbours
@@ -366,26 +415,28 @@ export function gardenThings(
       if (!placed.places.length) continue;
       const edge = PICTURES[look].edged ? placed.outline : undefined;
       const folded = PICTURES[look].folds && closed?.[a.id] ? true : undefined;
-      const thing: GardenThing = {i: out.clips.length, id: a.id, look, variant: variants?.[a.id], m: fit.m, places: placed.places, edge, closed: folded, fill: PICTURES[look].fill};
+      const fill = PICTURES[look].fill;
+      const bare = fill && out.grounds.has(a.id) ? true : undefined;
+      const thing: GardenThing = {i: out.clips.length, id: a.id, look, variant: variants?.[a.id], m: fit.m, places: placed.places, edge, closed: folded, fill, bare};
       const was = placed.thing;
       placed.thing = was && (Object.keys(thing) as (keyof GardenThing)[]).every((k) => was[k] === thing[k]) ? was : thing;
       out.things.set(a.id, placed.thing);
       out.clips.push(placed.outline.map((p) => `${p.x},${p.y}`).join(' '));
     }
   }
-  thingsCache.set(areas, {looks, own: {variants, sizes, turns, closed}, body, key, out});
+  thingsCache.set(areas, {looks, own: {variants, sizes, turns, closed, grounds}, body, key, out});
   return out;
 }
 
 // what an area is filled with, {uid}{this} of GardenDefs: a lawn its stripes, one not mowed meadow, a way or an obstacle
-// its ground. null for none
+// its ground (the one picked for it under a picture). null for none
 export function fillOf(a: MapArea, g: GardenThings): Look | null {
   if (a.properties.type === 'mow') {
     const lawn = g.lawns.get(a.id);
     return a.properties.mowable === false ? 'meadow' : lawn !== undefined ? `lawn${lawn}` : null;
   }
   const look = g.looks.get(a.id);
-  return look ? groundOf(look) : null;
+  return look ? (g.grounds.get(a.id) ?? groundOf(look)) : null;
 }
 
 // a picture as a small square: its ground, a thing drawn on top, as the area with this seed draws it in that color. drawn

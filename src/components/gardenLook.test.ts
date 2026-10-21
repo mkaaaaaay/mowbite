@@ -1,7 +1,7 @@
 import type {MapArea} from '@/hooks/useMowerMap';
 import {describe, expect, it} from 'vitest';
 import {coversOf} from './gardenLife';
-import {areaLook, drawThing, facing, gardenThings, groundOf, isThing, placeThing, placeThings} from './gardenLook';
+import {areaLook, drawThing, facing, fillOf, gardenThings, groundOf, isThing, placeThing, placeThings} from './gardenLook';
 import {PICTURE_KEYS} from './gardenPictures';
 
 const area = (name: string, type = 'obstacle', id = 'a'): MapArea => ({id, properties: {name, type}, outline: []});
@@ -166,6 +166,29 @@ describe('placeThings', () => {
     expect(new Set(places.map((p) => p.seed)).size).toBe(places.length);
   });
 
+  it('stands bushes whole inside their area, smaller where it is narrow', () => {
+    const o = rect(4, 0.6);
+    for (const p of placeThings('bush', o, m, 'a')) {
+      expect(p.cy - p.w / 2).toBeGreaterThanOrEqual(-1e-9);
+      expect(p.cy + p.w / 2).toBeLessThanOrEqual(0.6 * m + 1e-9);
+    }
+  });
+
+  it('stands the shrubs of a mixed bed whole inside it and apart, the same every time', () => {
+    const o = rect(8, 2);
+    const shrubs = placeThings('bed', o, m, 'a').filter((p) => p.look);
+    expect(shrubs.length).toBeGreaterThan(1);
+    for (const p of shrubs) {
+      expect(p.look).toBe('bush');
+      for (const [c, w] of [[p.cx, 8 * m], [p.cy, 2 * m]]) {
+        expect(c - p.w / 2).toBeGreaterThan(0);
+        expect(c + p.w / 2).toBeLessThan(w);
+      }
+    }
+    for (const [i, a] of shrubs.entries()) for (const b of shrubs.slice(i + 1)) expect(Math.hypot(a.cx - b.cx, a.cy - b.cy)).toBeGreaterThan((a.w + b.w) / 2);
+    expect(placeThings('bed', o, m, 'a')).toEqual(placeThings('bed', o, m, 'a'));
+  });
+
   it('puts a row of conifers into a long narrow strip', () => {
     expect(placeThings('conifer', rect(8, 0.8), m, 'a').length).toBeGreaterThan(5);
   });
@@ -259,6 +282,18 @@ describe('gardenThings', () => {
     const red = gardenThings([lawn(6), tree], undefined, null, fit, {variants: {t: 'copper'}}).things.get('t');
     expect(red).not.toBe(before);
     expect(red?.variant).toBe('copper');
+  });
+
+  it('fills the area round a picture with the ground picked for it, a bed shows it between its plants', () => {
+    const bed: MapArea = {id: 'b', properties: {type: 'obstacle', name: 'Beet'}, outline: square(5, 5, 1)};
+    const g = gardenThings([lawn(5), tree, bed], undefined, null, fit, {grounds: {t: 'turf', b: 'soil'}});
+    expect(fillOf(tree, g)).toBe('turf');
+    expect(fillOf(bed, g)).toBe('soil');
+    expect(g.things.get('b')?.bare).toBe(true);
+    expect(g.things.get('t')?.bare).toBeUndefined();
+    const auto = gardenThings([lawn(5), tree, bed], undefined, null, fit);
+    expect(fillOf(tree, auto)).toBe(groundOf('tree'));
+    expect(auto.things.get('b')?.bare).toBeUndefined();
   });
 
   it('leaves out a thing with no room in its area', () => {

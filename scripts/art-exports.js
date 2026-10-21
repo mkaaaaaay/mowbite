@@ -79,7 +79,7 @@ export const sunPosition = sun.sunPosition;
 export const seasonOf = sun.seasonOf;
 
 // all of it at once in MapView's layers as svg text, null with none of it on. input: {areas, garden, looks, body, fit,
-// uid, now, datum, weather, rain, mower, jobs, track, edgeLine, hidden, lookVariants, lookSizes, lookTurns, lookClosed}, see LifeInput in src/components/gardenLife.tsx.
+// uid, now, datum, weather, rain, mower, jobs, track, edgeLine, hidden, lookVariants, lookSizes, lookTurns, lookClosed, lookGrounds}, see LifeInput in src/components/gardenLife.tsx.
 // defs into the svg's defs, then over the areas in this order: lawn, the real lawn in the obstacles, things (instead of
 // the areas' own), stones (along the lawns, instead of their real edges' line), sky. long: the active lawns are filled with
 // url(#{uid}long). canopies: the crowns and parasols, they go over the mower, and covers the circles {cx, cy, r} where
@@ -102,7 +102,7 @@ export function gardenLife(input) {
 
 // the garden without its life as MapView draws it, svg text in its square of 400 (fit: {minX, minY, m, padX, padY}, m svg
 // units per meter, the map's corner minX, minY at padX, padY from the square's bottom left, see Fit in gardenLook.tsx).
-// input: {areas, looks, lookVariants, lookSizes, lookTurns, lookClosed, body, uid, fit}, see GardenInput in
+// input: {areas, looks, lookVariants, lookSizes, lookTurns, lookClosed, lookGrounds, body, uid, fit}, see GardenInput in
 // src/components/gardenLife.tsx. defs into the svg's defs (the lawns' stripes, the grounds, the clips and the beds'
 // tiles, instead of gardenDefs). fills: each area's polygon filled with url(#{uid}{fill}) (the long lawn of the garden's
 // life is the card's). things: by area id what stands on its ground, over its polygon (gardenLife's things instead with
