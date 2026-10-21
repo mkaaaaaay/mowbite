@@ -202,6 +202,9 @@ const MOWER_SIZE = 0.4; // m
 const WIDTH = 400;
 // the svg while it glides along the mower: twice the frame, slid along by a transform
 const GLIDING: React.CSSProperties = {position: 'absolute', left: 0, top: 0, width: '200%', height: '200%', transformOrigin: '0 0'};
+// the svg of a map that can be moved: twice the frame with the view in its middle, a pan or pinch slides it under the
+// frame and finds the map already drawn round the edges
+const OVERSCAN: React.CSSProperties = {position: 'absolute', left: '-50%', top: '-50%', width: '200%', height: '200%', transformOrigin: '25% 25%'};
 const HEIGHT = 400;
 
 
@@ -741,6 +744,9 @@ function MapView({
   // what the svg shows while gliding, for the frame loop: the anchor in svg units and the window's size
   const glideRef = useRef<{x: number; y: number; size: number; fixed: boolean; asked: boolean} | null>(null);
   const anchored = !!anchor && anchor.size === glideSize;
+  // what the frame shows, and what the svg draws: that, twice as big round its middle when the map can be moved (OVERSCAN)
+  const framed = shown ?? {x: 0, y: 0, size: WIDTH};
+  const svgBox = zoomable && !glides ? {x: framed.x - framed.size / 2, y: framed.y - framed.size / 2, size: 2 * framed.size} : framed;
   const frameRef = useRef<HTMLDivElement | null>(null);
   const lastSlide = useRef<[number, number] | null>(null);
   // the time of the frame being shown, slid again at that time after a render (see MowerMarker)
@@ -1213,6 +1219,8 @@ function MapView({
     };
   })();
   const pxPerMeter = scale / k;
+  // the width the map takes on screen (px): the frame's, the svg is twice as big
+  const framePx = () => (frameRef.current ?? svgRef.current)?.getBoundingClientRect().width || 1;
 
   const clientToSvg = (clientX: number, clientY: number): [number, number] | null => {
     const svg = svgRef.current;
@@ -1253,7 +1261,7 @@ function MapView({
   const snapAt = (x: number, y: number, exclude: string | null, touch: boolean) => {
     const svg = svgRef.current;
     if (!snap?.on || !svg) return null;
-    const reach = (touch ? 20 : 10) / ((pxPerMeter * svg.getBoundingClientRect().width) / WIDTH);
+    const reach = (touch ? 20 : 10) / ((pxPerMeter * framePx()) / WIDTH);
     const others = map.areas.filter((a) => a.id !== exclude && !hidden.has(a.properties.type as Layer)).map((a) => a.outline);
     return snapPoint({x, y}, others, reach);
   };
@@ -1267,7 +1275,7 @@ function MapView({
     const local = clientToLocal(clientX, clientY);
     if (!svg || !local || !selectedArea || !onMoveVertex || pickingPoints) return null;
 
-    const reach = (touch ? 22 : 12) / ((pxPerMeter * svg.getBoundingClientRect().width) / WIDTH);
+    const reach = (touch ? 22 : 12) / ((pxPerMeter * framePx()) / WIDTH);
     const o = selectedArea.outline;
     let best: Handle | null = null;
     let bestDist = reach;
@@ -1297,7 +1305,7 @@ function MapView({
     const local = clientToLocal(clientX, clientY);
     if (!svg || !local || !pickingPoints || !pendingPoints?.length || !onMovePending) return null;
 
-    const reach = (touch ? 22 : 12) / ((pxPerMeter * svg.getBoundingClientRect().width) / WIDTH);
+    const reach = (touch ? 22 : 12) / ((pxPerMeter * framePx()) / WIDTH);
     let best: Handle | null = null;
     let bestDist = reach;
     pendingPoints.forEach((p, i) => {
@@ -1377,7 +1385,7 @@ function MapView({
     const p = clientToSvg(clientX, clientY);
     const svg = svgRef.current;
     if (!p || !svg || !handles) return null;
-    const reach = ((touch ? 22 : 12) * (shown?.size ?? WIDTH)) / svg.getBoundingClientRect().width;
+    const reach = ((touch ? 22 : 12) * framed.size) / framePx();
     const far = (q: [number, number] | null) => (q ? Math.hypot(q[0] - p[0], q[1] - p[1]) : Infinity);
     const [turn, size] = [far(handles.turn), far(handles.size)];
     if (Math.min(turn, size) > reach) return null;
@@ -1508,9 +1516,9 @@ function MapView({
   };
 
   // a pan or a pinch moves the map that's drawn by a css transform (the phone's gpu moves it, nothing is drawn again), the
-  // view is set from it when the fingers let go and now and then on a long move: a map full of pictures drawn again for
-  // every move of a finger stuttered
-  const shift = useRef<{tx: number; ty: number; s: number; at: number} | null>(null);
+  // view is set from it when the fingers let go and before they reach the edge of what's drawn round the view: a map full
+  // of pictures drawn again for every move of a finger stuttered
+  const shift = useRef<{tx: number; ty: number; s: number} | null>(null);
   const shiftDrawn = useRef(false);
   const commitShift = () => {
     const sh = shift.current;
@@ -1522,19 +1530,18 @@ function MapView({
     shiftDrawn.current = true;
     setView({x: v.x - (sh.tx / sh.s) * unit, y: v.y - (sh.ty / sh.s) * unit, size: Math.min(WIDTH * 4, Math.max(WIDTH / MAX_ZOOM, v.size / sh.s))});
   };
-  // moved by dx, dy (px), scaled by f round q (px from the frame's corner), t the event's time
-  const nudge = (t: number, dx: number, dy: number, f = 1, qx = 0, qy = 0) => {
+  // moved by dx, dy (px), scaled by f round q (px from the frame's corner)
+  const nudge = (dx: number, dy: number, f = 1, qx = 0, qy = 0) => {
     const svg = svgRef.current;
     const frame = frameRef.current;
     if (!svg || !frame) return;
-    const sh = (shift.current ??= {tx: 0, ty: 0, s: 1, at: t});
+    const sh = (shift.current ??= {tx: 0, ty: 0, s: 1});
     sh.tx = f * (sh.tx - qx) + qx + dx;
     sh.ty = f * (sh.ty - qy) + qy + dy;
     sh.s *= f;
-    svg.style.transformOrigin = '0 0';
     svg.style.transform = `translate(${sh.tx}px, ${sh.ty}px) scale(${sh.s})`;
     const w = frame.clientWidth || 1;
-    if (Math.abs(sh.tx) > 0.35 * w || Math.abs(sh.ty) > 0.35 * w || sh.s > 1.6 || sh.s < 0.6 || t - sh.at > 700) commitShift();
+    if (Math.abs(sh.tx) > 0.35 * w || Math.abs(sh.ty) > 0.35 * w || sh.s > 1.6 || sh.s < 0.6) commitShift();
   };
   // the view set from a shift drawn: the transform off in the same frame
   useLayoutEffect(() => {
@@ -1560,7 +1567,7 @@ function MapView({
       if (gesture.current.pinchDist && following && mid) zoomAt(gesture.current.pinchDist / dist, mid[0], mid[1]);
       else if (gesture.current.pinchDist && box && !glides) {
         moving();
-        nudge(e.timeStamp, 0, 0, dist / gesture.current.pinchDist, mx - box.left, my - box.top);
+        nudge(0, 0, dist / gesture.current.pinchDist, mx - box.left, my - box.top);
       }
       gesture.current = {moved: true, pinchDist: dist};
       return;
@@ -1583,7 +1590,7 @@ function MapView({
       const v = base ?? {x: 0, y: 0, size: WIDTH};
       const unitsPerPx = v.size / svg.getBoundingClientRect().width;
       setView({...v, x: v.x - dx * unitsPerPx, y: v.y - dy * unitsPerPx});
-    } else nudge(e.timeStamp, dx, dy);
+    } else nudge(dx, dy);
   };
 
   const onPointerEnd = (e: React.PointerEvent<SVGSVGElement>) => {
@@ -1645,7 +1652,7 @@ function MapView({
       const [x, y] = s ? [s.x, s.y] : (local ?? [0, 0]);
       if (local && dragging.areaId === PENDING) onMovePending?.(dragging.index, x, y);
       else if (local) onMoveVertex?.(dragging.areaId, dragging.index, x, y);
-      const rect = svgRef.current?.getBoundingClientRect();
+      const rect = (frameRef.current ?? svgRef.current)?.getBoundingClientRect();
       if (d.touch && rect) setFinger({x: e.clientX - rect.left, y: e.clientY - rect.top, width: rect.width});
     };
     const onUp = (e: PointerEvent) => {
@@ -1702,7 +1709,7 @@ function MapView({
   const savedShift = source ? imageryShift(source, settings.imagery) : null;
   let tiles: ReturnType<typeof imageryTiles> = [];
   if (zoomable && datum && source && svgPx > 0) {
-    const v = shown ?? {x: 0, y: 0, size: WIDTH};
+    const v = svgBox;
     const [left, bottom] = toLocal(v.x, v.y + v.size);
     const [right, top] = toLocal(v.x + v.size, v.y);
     const metersPerPixel = 1 / ((pxPerMeter * svgPx) / WIDTH);
@@ -1720,7 +1727,7 @@ function MapView({
 
   let grid: ReturnType<typeof meterGrid> | null = null;
   if (zoomable && showGrid) {
-    const v = shown ?? {x: 0, y: 0, size: WIDTH};
+    const v = svgBox;
     const [left, bottom] = toLocal(v.x, v.y + v.size);
     const [right, top] = toLocal(v.x + v.size, v.y);
     grid = meterGrid({left, right, bottom, top}, pxPerMeter);
@@ -2031,15 +2038,10 @@ function MapView({
       className={[styles.svg, zoomable ? styles.zoomable : '', garden ? styles.garden : ''].filter(Boolean).join(' ')}
       // for the page around it: the garden style's paving lets the page show through
       data-garden={garden || undefined}
-      // (gliding along the mower: twice the window around the anchor, slid along under the frame above)
-      viewBox={
-        glides
-          ? `${gx - glideSize} ${gy - glideSize} ${2 * glideSize} ${2 * glideSize}`
-          : shown
-            ? `${shown.x} ${shown.y} ${shown.size} ${shown.size}`
-            : `0 0 ${WIDTH} ${HEIGHT}`
-      }
-      style={glides ? GLIDING : undefined}
+      // (gliding along the mower: twice the window around the anchor, slid along under the frame above; a map that can be
+      // moved: twice the view round its middle)
+      viewBox={glides ? `${gx - glideSize} ${gy - glideSize} ${2 * glideSize} ${2 * glideSize}` : `${svgBox.x} ${svgBox.y} ${svgBox.size} ${svgBox.size}`}
+      style={glides ? GLIDING : zoomable ? OVERSCAN : undefined}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerEnd}

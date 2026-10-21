@@ -340,15 +340,15 @@
   -webkit-user-select: none;
 }
 
-/* the map's frame: while it glides along the mower the svg is twice its size and slides under it */
+/* the map's frame: the svg is twice its size and slides under it, moved by a finger or gliding along the mower */
 .frame {
   position: relative;
   border-radius: 8px;
+  aspect-ratio: 1;
+  overflow: hidden;
 }
 
 .frameGliding {
-  aspect-ratio: 1;
-  overflow: hidden;
   background: #0a0a0a;
 }
 
