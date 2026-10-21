@@ -205,6 +205,9 @@ const GLIDING: React.CSSProperties = {position: 'absolute', left: 0, top: 0, wid
 // the svg of a map that can be moved: twice the frame with the view in its middle, a pan or pinch slides it under the
 // frame and finds the map already drawn round the edges
 const OVERSCAN: React.CSSProperties = {position: 'absolute', left: '-50%', top: '-50%', width: '200%', height: '200%', transformOrigin: '25% 25%'};
+// the two layers on it (ground and over, see renderContent), each one the phone's gpu keeps drawn on its own
+const LAYER: React.CSSProperties = {position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', willChange: 'transform'};
+const OVER: React.CSSProperties = {...LAYER, pointerEvents: 'none', background: 'none', boxShadow: 'none'};
 const HEIGHT = 400;
 
 
@@ -748,6 +751,8 @@ function MapView({
   const framed = shown ?? {x: 0, y: 0, size: WIDTH};
   const svgBox = zoomable && !glides ? {x: framed.x - framed.size / 2, y: framed.y - framed.size / 2, size: 2 * framed.size} : framed;
   const frameRef = useRef<HTMLDivElement | null>(null);
+  // what moves under the frame: both layers of the map
+  const sheetRef = useRef<HTMLDivElement | null>(null);
   const lastSlide = useRef<[number, number] | null>(null);
   // the time of the frame being shown, slid again at that time after a render (see MowerMarker)
   const slidAt = useRef<number | null>(null);
@@ -756,7 +761,7 @@ function MapView({
   const slide = useCallback(
     (now: number = slidAt.current ?? performance.now()) => {
       const g = glideRef.current;
-      const svg = svgRef.current;
+      const svg = sheetRef.current;
       const frame = frameRef.current;
       const p = (livePoses ?? followEaser).at(now);
       if (!g || !svg || !frame || !p) return;
@@ -788,7 +793,7 @@ function MapView({
     glideRef.current = glides ? {x: gx, y: gy, size: glideSize, fixed: anchored, asked: false} : null;
     lastSlide.current = null;
     if (glides) slide();
-    else if (svgRef.current) svgRef.current.style.transform = '';
+    else if (sheetRef.current) sheetRef.current.style.transform = '';
   }, [glides, gx, gy, glideSize, anchored, slide]);
   useEffect(() => {
     if (!glides) return;
@@ -1439,7 +1444,7 @@ function MapView({
   };
 
   // a second finger while a point is held means the first one was the start of a pinch
-  const cancelDrag = (e: React.PointerEvent<SVGSVGElement>) => {
+  const cancelDrag = (e: React.PointerEvent<Element>) => {
     if (!dragging) return;
     const d = drag.current;
     if (dragging.areaId === THING) thingDrag.current = null;
@@ -1473,7 +1478,7 @@ function MapView({
     }
   };
 
-  const onPointerDown = (e: React.PointerEvent<SVGSVGElement>) => {
+  const onPointerDown = (e: React.PointerEvent<Element>) => {
     const touch = e.pointerType !== 'mouse';
     if (dragging) {
       if (touch && drag.current.touch && e.pointerId !== drag.current.pointerId) cancelDrag(e);
@@ -1532,7 +1537,7 @@ function MapView({
   };
   // moved by dx, dy (px), scaled by f round q (px from the frame's corner)
   const nudge = (dx: number, dy: number, f = 1, qx = 0, qy = 0) => {
-    const svg = svgRef.current;
+    const svg = sheetRef.current;
     const frame = frameRef.current;
     if (!svg || !frame) return;
     const sh = (shift.current ??= {tx: 0, ty: 0, s: 1});
@@ -1547,10 +1552,10 @@ function MapView({
   useLayoutEffect(() => {
     if (!shiftDrawn.current) return;
     shiftDrawn.current = false;
-    if (svgRef.current && !shift.current) svgRef.current.style.transform = '';
+    if (sheetRef.current && !shift.current) sheetRef.current.style.transform = '';
   });
 
-  const onPointerMove = (e: React.PointerEvent<SVGSVGElement>) => {
+  const onPointerMove = (e: React.PointerEvent<Element>) => {
     const prev = pointers.current.get(e.pointerId);
     if (!zoomable || !prev || dragging) return;
     const svg = svgRef.current;
@@ -1593,7 +1598,7 @@ function MapView({
     } else nudge(dx, dy);
   };
 
-  const onPointerEnd = (e: React.PointerEvent<SVGSVGElement>) => {
+  const onPointerEnd = (e: React.PointerEvent<Element>) => {
     pointers.current.delete(e.pointerId);
     if (pointers.current.size < 2) gesture.current.pinchDist = null;
     if (pointers.current.size === 0) commitShift();
@@ -1772,8 +1777,12 @@ function MapView({
       {trackLayer}
     </>
   );
-  const renderContent = (k: number) => (
+  // part: the map on the ground, or what's over it and changes often (the mower, the crowns over it, the picked area and
+  // its points), drawn as two layers on a map that can move: a mower driving along doesn't draw all the garden again
+  const renderContent = (k: number, part: 'all' | 'ground' | 'over' = 'all') => (
     <>
+      {part !== 'over' && (
+        <>
       {tiles.length > 0 && (
         <g className={styles.imagery}>
           {tiles.map((t) => {
@@ -1862,6 +1871,10 @@ function MapView({
 
         {lateLines}
 
+        </>
+      )}
+      {part !== 'ground' && (
+        <>
         {mower && (
           <MowerMarker
             mower={mower}
@@ -2029,59 +2042,53 @@ function MapView({
           const [sx, sy] = toScreen(p.x, p.y);
           return <circle key={i} cx={sx} cy={sy} r={5 * k} className={styles.splitPoint} />;
         })}
+        </>
+      )}
     </>
   );
 
-  const svg = (
-    <svg
-      ref={attachSvg}
-      className={[styles.svg, zoomable ? styles.zoomable : '', garden ? styles.garden : ''].filter(Boolean).join(' ')}
-      // for the page around it: the garden style's paving lets the page show through
-      data-garden={garden || undefined}
-      // (gliding along the mower: twice the window around the anchor, slid along under the frame above; a map that can be
-      // moved: twice the view round its middle)
-      viewBox={glides ? `${gx - glideSize} ${gy - glideSize} ${2 * glideSize} ${2 * glideSize}` : `${svgBox.x} ${svgBox.y} ${svgBox.size} ${svgBox.size}`}
-      style={glides ? GLIDING : zoomable ? OVERSCAN : undefined}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerEnd}
-      onPointerCancel={onPointerEnd}
-      onClickCapture={(e) => {
-        // swallow the click at the end of a pan/pinch
-        if (gesture.current.moved) {
-          e.stopPropagation();
-          gesture.current.moved = false;
-        }
-      }}
-      onDoubleClick={(e) => {
-        if (!editing) return;
-        const hit = pickHandle(e.clientX, e.clientY, false);
-        if (hit && !hit.mid && selectedArea && selectedArea.outline.length > 3) {
-          onDeleteVertex?.(selectedArea.id, hit.index);
-          setActive(null);
-        }
-      }}
-      onClick={(e) => {
+  // the pointer on the map: on the svg, or on the sheet both layers lie on
+  const events = {
+    onPointerDown,
+    onPointerMove,
+    onPointerUp: onPointerEnd,
+    onPointerCancel: onPointerEnd,
+    onClickCapture: (e: React.MouseEvent) => {
+      // swallow the click at the end of a pan/pinch
+      if (gesture.current.moved) {
+        e.stopPropagation();
+        gesture.current.moved = false;
+      }
+    },
+    onDoubleClick: (e: React.MouseEvent) => {
+      if (!editing) return;
+      const hit = pickHandle(e.clientX, e.clientY, false);
+      if (hit && !hit.mid && selectedArea && selectedArea.outline.length > 3) {
+        onDeleteVertex?.(selectedArea.id, hit.index);
         setActive(null);
-        // with the coverage on, a tap also shows the numbers of the square under it (or closes them off the squares)
-        if (!pickingPoints && coverMode !== 'off' && coverage) {
-          const local = clientToLocal(e.clientX, e.clientY);
-          const c = local
-            ? coverage.find((q) => q.seconds >= MIN_SECONDS && local[0] >= q.x && local[0] < q.x + CELL_M && local[1] >= q.y && local[1] < q.y + CELL_M)
-            : undefined;
-          setCoverCell(c && c !== coverCell ? c : null);
-        }
-        if (!pickingPoints && !(e.target as Element).closest('[data-area]')) onClickEmpty?.();
-        if (!pickingPoints || !onCanvasClick || !editing) return;
+      }
+    },
+    onClick: (e: React.MouseEvent) => {
+      setActive(null);
+      // with the coverage on, a tap also shows the numbers of the square under it (or closes them off the squares)
+      if (!pickingPoints && coverMode !== 'off' && coverage) {
         const local = clientToLocal(e.clientX, e.clientY);
-        if (!local) return;
-        const s = e.altKey ? null : snapAt(local[0], local[1], null, (e.nativeEvent as PointerEvent).pointerType !== 'mouse');
-        onCanvasClick(s ? s.x : local[0], s ? s.y : local[1]);
-      }}
-    >
-      {gardenLook?.defs}
-      {scene?.defs}
-      {renderContent(k)}
+        const c = local
+          ? coverage.find((q) => q.seconds >= MIN_SECONDS && local[0] >= q.x && local[0] < q.x + CELL_M && local[1] >= q.y && local[1] < q.y + CELL_M)
+          : undefined;
+        setCoverCell(c && c !== coverCell ? c : null);
+      }
+      if (!pickingPoints && !(e.target as Element).closest('[data-area]')) onClickEmpty?.();
+      if (!pickingPoints || !onCanvasClick || !editing) return;
+      const local = clientToLocal(e.clientX, e.clientY);
+      if (!local) return;
+      const s = e.altKey ? null : snapAt(local[0], local[1], null, (e.nativeEvent as PointerEvent).pointerType !== 'mouse');
+      onCanvasClick(s ? s.x : local[0], s ? s.y : local[1]);
+    },
+  };
+  // what's drawn over everything else: the check's spots and bodies, the markers
+  const after = (
+    <>
       {checksOn && bodySpacePath && <path className={styles.bodySpace} d={bodySpacePath} />}
       {/* small and the same size at any zoom, the plan stays readable under them */}
       {checksOn &&
@@ -2180,9 +2187,27 @@ function MapView({
           </g>
         );
       })}
+    </>
+  );
+  const layered = zoomable || glides;
+  const svg = (
+    <svg
+      ref={attachSvg}
+      className={[styles.svg, zoomable ? styles.zoomable : '', garden ? styles.garden : ''].filter(Boolean).join(' ')}
+      // for the page around it: the garden style's paving lets the page show through
+      data-garden={garden || undefined}
+      // (gliding along the mower: twice the window around the anchor, slid along under the frame above; a map that can be
+      // moved: twice the view round its middle)
+      viewBox={glides ? `${gx - glideSize} ${gy - glideSize} ${2 * glideSize} ${2 * glideSize}` : `${svgBox.x} ${svgBox.y} ${svgBox.size} ${svgBox.size}`}
+      style={layered ? LAYER : undefined}
+      {...(layered ? {} : events)}
+    >
+      {gardenLook?.defs}
+      {scene?.defs}
+      {renderContent(k, layered ? 'ground' : 'all')}
+      {!layered && after}
     </svg>
   );
-
   if (!zoomable && !glides) return svg;
 
   // magnified copy of the map above the finger, the finger hides the point otherwise
@@ -2209,7 +2234,17 @@ function MapView({
   return (
     <div className={styles.wrap}>
       <div ref={frameRef} className={[styles.frame, glides ? styles.frameGliding : ''].filter(Boolean).join(' ')}>
-        {svg}
+        <div ref={sheetRef} style={glides ? GLIDING : OVERSCAN} {...events}>
+          {svg}
+          <svg
+            className={[styles.svg, zoomable ? styles.zoomable : '', garden ? styles.garden : ''].filter(Boolean).join(' ')}
+            viewBox={svg.props.viewBox}
+            style={OVER}
+          >
+            {renderContent(k, 'over')}
+            {after}
+          </svg>
+        </div>
       </div>
       {loupe}
       {coverCell && coverMode !== 'off' && (
