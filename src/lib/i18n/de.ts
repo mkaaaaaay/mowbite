@@ -1506,6 +1506,7 @@ const de: Record<string, string> = {
   "Ornamental grass": "Ziergras",
   "Hosta": "Funkie",
   "Perennial bed": "Staudenbeet",
+  "Mixed bed": "Mischbeet",
   "Rose bed": "Rosenbeet",
   "Spring bed": "Frühlingsbeet",
   "Summer flowers": "Sommerblumen",

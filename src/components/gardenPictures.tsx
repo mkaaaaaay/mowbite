@@ -68,8 +68,9 @@ export interface Picture {
   many?: boolean;
   // a way can be drawn as it too (steps, a bridge), any other thing only an obstacle
   way?: boolean;
-  // fills its whole area like a ground, but planted anew for every area (a bed)
+  // fills its whole area like a ground, but planted anew for every area (a bed). span: the meters before it repeats
   fill?: boolean;
+  span?: number;
   // faces a way: turned by the place (settings.lookTurns, else towards what it belongs to)
   turn?: boolean;
   // looks the same turned any way (a crown, a round pool): nothing to turn
@@ -898,6 +899,14 @@ const PERENNIALS: Variants<{c: string[]; grass?: boolean}> = {
   warm: {label: 'Warm', c: ['#f2c230', '#e8762a', '#d9534f', '#f6dc7a']},
   prairie: {label: 'Prairie', c: ['#d873b0', '#f2c230', '#b07ad0', '#e8762a'], grass: true},
 };
+const MIXED: Variants<{c: string[]}> = {
+  colorful: {label: 'Colorful', c: ['#d9534f', '#f2c230', '#e27fae', '#f4f1ea', '#8a6fd0', '#e8762a']},
+  pink: {label: 'Pink and purple', c: ['#e27fae', '#b05fc0', '#f7c6dc', '#f4f1ea', '#8a6fd0']},
+  blue: {label: 'Blue and white', c: ['#6a7fd0', '#9fb2ea', '#f4f1ea', '#8a6fd0']},
+  warm: {label: 'Warm', c: ['#f2c230', '#e8762a', '#d9534f', '#f6dc7a', '#f4f1ea']},
+};
+// what grows in a mixed bed, daisies and spikes the most
+const MIXED_KINDS = ['daisy', 'daisy', 'spike', 'spike', 'heads', 'grass', 'cushion', 'shrub'] as const;
 const SPRING: Variants<{c: string[]}> = {
   colorful: {label: 'Colorful', c: ['#d9302a', '#f2c230', '#e27fae', '#f4f1ea', '#8a4fbf']},
   red: {label: 'Red and yellow', c: ['#d9302a', '#f2c230']},
@@ -1583,36 +1592,113 @@ export const PICTURES: Record<string, Picture> = {
     },
   },
   bed: {
-    label: 'Flower bed',
+    label: 'Mixed bed',
     group: 'beds',
-    tile: {
-      w: 0.9,
-      h: 0.9,
-      base: '#3d4f2b',
-      draw: (m) => {
-        const plants = tileScatter('bed', 14, 0.9, 0.9);
-        const colors = ['#e2457a', '#f2c230', '#9b5fd0', '#f7f2ea', '#e8642c', '#5b8fe0', '#ef8fb7'];
-        return (
-          <>
-            {dots(m, [
-              [0.1, 0.08, 0.012, '#7a5640'],
-              [0.42, 0.2, 0.01, '#4a3324'],
-              [0.7, 0.12, 0.012, '#7a5640'],
-              [0.22, 0.5, 0.01, '#4a3324'],
-              [0.62, 0.62, 0.012, '#7a5640'],
-              [0.84, 0.44, 0.01, '#4a3324'],
-              [0.3, 0.8, 0.012, '#7a5640'],
-            ])}
-            {plants.map(([x, y], i) => (
-              <g key={i}>
-                <circle cx={n2(x * m + 0.02 * m)} cy={n2(y * m + 0.025 * m)} r={n2(0.14 * m)} fill="#000" opacity={0.2} />
-                {rosette(x * m, y * m, 0.14 * m, i % 2 ? '#3f7d36' : '#4c8b3c', 6)}
-              </g>
-            ))}
-            {blossoms(plants.flatMap(([x, y], i) => [0, 1, 2].map((k): [number, number, number, string] => [(x + Math.cos(k * 2.1 + i) * 0.05) * m, (y + Math.sin(k * 2.1 + i) * 0.05) * m, 0.045 * m, colors[i % colors.length]])))}
-          </>
-        );
-      },
+    variants: choices(MIXED),
+    fill: true,
+    span: 3.6,
+    around: 'mulch',
+    thing: (b, p, o) => {
+      const rnd = random(o.seed + 'mixed');
+      const m = o.m ?? Math.max(b.w, b.h) / 1.6;
+      const colors = pick(o, MIXED).c;
+      // planted in drifts like a border, each of one kind: perennials with daisies, spikes or flat heads in one color,
+      // grasses, low cushions and now and then a small shrub, about one drift per square meter
+      const drifts = Array.from({length: Math.max(4, Math.round((b.w * b.h) / (m * m)))}, () => ({
+        x: b.x + rnd() * b.w,
+        y: b.y + rnd() * b.h,
+        kind: MIXED_KINDS[Math.floor(rnd() * MIXED_KINDS.length)],
+        c: colors[Math.floor(rnd() * colors.length)],
+        s: 0.85 + rnd() * 0.35,
+      }));
+      // the drift a plant is in, round the tile's edges when it repeats
+      const gap = (d: {x: number; y: number}, x: number, y: number) => {
+        const [dx, dy] = [Math.abs(d.x - x), Math.abs(d.y - y)];
+        return o.tile ? Math.hypot(Math.min(dx % b.w, b.w - (dx % b.w)), Math.min(dy % b.h, b.h - (dy % b.h))) : Math.hypot(dx, dy);
+      };
+      // a small shrub in the middle of its drift, low cushions round it
+      const bushes = drifts
+        .filter((d) => d.kind === 'shrub')
+        .map((d, k) => ({x: d.x, y: d.y, r: (0.3 + (d.s - 0.85) * 0.4) * m, c: d.s > 1.15 ? '#6e3a3c' : d.s > 1 ? '#2f5e2a' : '#4a7f36', bloom: d.s <= 0.92, k}));
+      const shadow: Dot[] = [];
+      const low: [Dot, string][] = [];
+      const leaves: [Dot, string][] = [];
+      const flowers: [Dot, string][] = [];
+      const hearts: [Dot, string][] = [];
+      const grass: string[] = [];
+      const lit = (list: [Dot, string][], ds: Dot[][], c: string) => {
+        list.push(...ds[1].map((d): [Dot, string] => [d, c]), ...ds[2].map((d): [Dot, string] => [d, tone(c, 0.22)]));
+        shadow.push(...ds[0]);
+      };
+      for (const {x, y, r: rnd} of spots(b, 0.3 * m, o.seed + 'mixed', o.tile, 320)) {
+        if (bushes.some((q) => gap(q, x, y) < q.r * 0.8)) continue;
+        const d = drifts.reduce((best, q) => (gap(q, x, y) < gap(best, x, y) ? q : best));
+        const kind = d.kind === 'shrub' ? 'cushion' : d.kind;
+        const s = (kind === 'cushion' ? 0.21 : 0.28) * (d.s + rnd() * 0.2) * m;
+        if (kind === 'grass') {
+          // a clump of grass, its blades fanning out over it
+          lit(leaves, mound(x, y, s * 0.6, rnd), '#6d8f3a');
+          for (let k = 0; k < 12; k++) grass.push(stalk(x, y, rnd() * 2 * PI, s * (0.9 + rnd() * 0.5), (rnd() - 0.5) * 0.5));
+          continue;
+        }
+        if (kind === 'cushion') {
+          lit(low, mound(x, y, s, rnd), '#5d7f4c');
+          for (let k = 0; k < 6; k++) {
+            const [a, r] = [rnd() * 2 * PI, s * 0.7 * Math.sqrt(rnd())];
+            flowers.push([[x + Math.cos(a) * r, y + Math.sin(a) * r, s * 0.1], d.c]);
+          }
+          continue;
+        }
+        lit(leaves, mound(x, y, s, rnd), kind === 'spike' ? '#3f7d3a' : kind === 'heads' ? '#5a9440' : '#4a8a3a');
+        if (kind === 'daisy') {
+          for (let k = 0; k < 3; k++) {
+            const [a, r] = [rnd() * 2 * PI, s * 0.6 * Math.sqrt(rnd())];
+            const [fx, fy, fs] = [x + Math.cos(a) * r, y + Math.sin(a) * r, s * 0.24];
+            for (let q = 0; q < 6; q++) flowers.push([[fx + Math.cos(q * 1.047 + fx) * fs * 0.6, fy + Math.sin(q * 1.047 + fx) * fs * 0.6, fs * 0.38], d.c]);
+            hearts.push([[fx, fy, fs * 0.3], d.c === '#f2c230' || d.c === '#e8762a' ? '#5a3418' : '#f2c230']);
+          }
+        } else if (kind === 'spike') {
+          for (let k = 0; k < 5; k++) {
+            const a = rnd() * 2 * PI;
+            for (let q = 0; q < 3; q++) flowers.push([[x + Math.cos(a) * s * (0.4 + q * 0.2), y + Math.sin(a) * s * (0.4 + q * 0.2), s * (0.09 - q * 0.015)], d.c]);
+          }
+        } else {
+          for (let k = 0; k < 3; k++) {
+            const [a, r] = [rnd() * 2 * PI, s * 0.5 * Math.sqrt(rnd())];
+            const [fx, fy] = [x + Math.cos(a) * r, y + Math.sin(a) * r];
+            for (let q = 0; q < 5; q++) flowers.push([[fx + (rnd() - 0.5) * s * 0.32, fy + (rnd() - 0.5) * s * 0.32, s * 0.07], d.c]);
+          }
+        }
+      }
+      // the shrubs once more past the other edge when the tile repeats
+      const shifts = (q: {x: number; y: number; r: number}) =>
+        (o.tile ? [-b.w, 0, b.w] : [0]).flatMap((dx) => (o.tile ? [-b.h, 0, b.h] : [0]).map((dy): Pt => [dx, dy]))
+          .filter(([dx, dy]) => q.x + dx + q.r > b.x && q.x + dx - q.r < b.x + b.w && q.y + dy + q.r > b.y && q.y + dy - q.r < b.y + b.h);
+      return (
+        <>
+          <rect x={n2(b.x)} y={n2(b.y)} width={n2(b.w)} height={n2(b.h)} fill="#3a3a26" />
+          <path d={circles(shadow)} fill="#141f0e" opacity={0.4} />
+          {byColor(low)}
+          {byColor(leaves)}
+          {byColor(flowers)}
+          {byColor(hearts)}
+          {grass.length > 0 && <path d={grass.join('')} stroke="#bcc47a" strokeWidth={n2(0.014 * m)} fill="none" strokeLinecap="round" />}
+          {bushes.flatMap((q) =>
+            shifts(q).map(([dx, dy], j) => {
+              const [x, y] = [q.x + dx, q.y + dy];
+              const rnd = random(o.seed + 'shrub' + q.k);
+              const dots = q.bloom ? scatter(random(o.seed + 'bloom' + q.k), 9, x, y, q.r * 0.7, [q.r * 0.05, q.r * 0.08]) : [];
+              return (
+                <g key={`${q.k}_${j}`}>
+                  <circle cx={n2(x + q.r * 0.12)} cy={n2(y + q.r * 0.16)} r={n2(q.r)} fill="#141f0e" opacity={0.4} />
+                  {crown(`${p}s${q.k}_${j}`, x, y, q.r, q.c, rnd, 9, 0.33, 6)}
+                  {dots.length > 0 && <path d={circles(dots)} fill="#f4f1ea" />}
+                </g>
+              );
+            }),
+          )}
+        </>
+      );
     },
   },
   perennialBed: {

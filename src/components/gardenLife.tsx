@@ -7,6 +7,7 @@ import {joinedOutlines, realEdges, type MowerBody} from '@/lib/mowerBody';
 import {autoMowAngle} from '@/lib/mowStripes';
 import {seasonOf, sunPosition, type Season} from '@/lib/sun';
 import {drawThing, fitKey, gardenThings, inSquare, type Fit, type GardenThing as Thing, type Look, type Place} from './gardenLook';
+import {PICTURES} from './gardenPictures';
 import styles from './MapView.module.css';
 
 // what makes the garden map style come alive, each part switched on on its own in the map settings (all off by default):
@@ -378,8 +379,8 @@ export const GardenThing = memo(
       // a bed is never turned, its edge only moved to its middle
       const edge = thing.edge?.map((q): [number, number] => [q.x - cx, q.y - cy]);
       if (thing.fill) {
-        // a bed as a pattern of one tile 2.4 m across, the browser draws it once and repeats it, and its border
-        const t = Math.max(1, 2.4 * thing.m);
+        // a bed as a pattern of one tile 2.4 m across (or its span), the browser draws it once and repeats it, and its border
+        const t = Math.max(1, (PICTURES[thing.look]?.span ?? 2.4) * thing.m);
         return (
           <g key={k} transform={`translate(${cx} ${cy})`}>
             <defs>
