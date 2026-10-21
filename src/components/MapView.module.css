@@ -680,13 +680,17 @@
   pointer-events: none;
 }
 
+/* kept clear of the grid label in the left corner, long credits wrap under the list and the button */
 .imageryBar {
   position: absolute;
   right: 10px;
   bottom: 8px;
+  max-width: calc(100% - 100px);
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   align-items: center;
-  gap: 8px;
+  gap: 4px 8px;
   font-size: 10px;
   color: rgba(255, 255, 255, 0.75);
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
@@ -745,11 +749,14 @@
   color: var(--text-secondary);
 }
 
-/* opens the arrows, next to the list of imagery sources and styled like it */
+/* opens the arrows: a small square next to the list of imagery sources, styled like it */
 .alignOpen {
   flex: none;
-  font-size: 11px;
-  padding: 2px 6px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
   border-radius: 6px;
   border: 1px solid var(--card-border);
   background: rgba(20, 20, 22, 0.8);
@@ -758,12 +765,17 @@
 }
 
 .imageryBar select {
+  height: 22px;
   font-size: 11px;
   padding: 2px 4px;
   border-radius: 6px;
   border: 1px solid var(--card-border);
   background: rgba(20, 20, 22, 0.8);
-  color: var(--foreground);
+  color: #fff;
+}
+
+.imageryBar span {
+  text-align: right;
 }
 
 .orderLabel {

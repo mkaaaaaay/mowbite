@@ -1,7 +1,7 @@
 import {imageryInfo, type CustomImagery, type ImagerySource} from '@/lib/imagery';
 import {fmt, tr} from '@/lib/i18n';
-import {useState} from 'react';
-import {MagnetIcon} from './icons';
+import {useRef, useState} from 'react';
+import {MagnetIcon, MoveIcon} from './icons';
 import {MapLookPanel} from './MapLookSettings';
 import styles from './MapView.module.css';
 
@@ -110,6 +110,8 @@ export default function MapControls({
 }) {
   // the icons, colors and aerial imagery of the maps, over the page
   const [lookOpen, setLookOpen] = useState(false);
+  // done with the arrows: the button that opened them gets the focus back
+  const refocusAlign = useRef(false);
   return (
     <>
       {/* where gps or wifi were good or bad: wifi left, off in the middle, gps right, the knob slides */}
@@ -273,10 +275,21 @@ export default function MapControls({
               ))}
             </select>
           )}
-          {/* a button next to the list, arrowing through the sources doesn't start moving the imagery */}
+          {/* moving the imagery by hand opens from its own button, the list only picks the source */}
           {align && (
-            <button className={styles.alignOpen} onClick={align.onStart}>
-              {tr('Align…')}
+            <button
+              ref={(b) => {
+                if (b && refocusAlign.current) {
+                  refocusAlign.current = false;
+                  b.focus();
+                }
+              }}
+              className={styles.alignOpen}
+              onClick={align.onStart}
+              aria-label={tr('Align…')}
+              title={tr('Align…')}
+            >
+              <MoveIcon size={14} />
             </button>
           )}
           <span>© {imageryInfo(source, imagerySettings).attribution}</span>
@@ -287,15 +300,18 @@ export default function MapControls({
           shift={align.shift}
           attribution={imageryInfo(source, imagerySettings).attribution}
           onChange={align.onChange}
-          onDone={align.onDone}
+          onDone={() => {
+            refocusAlign.current = true;
+            align.onDone();
+          }}
         />
       )}
     </>
   );
 }
 
-// the aerial imagery moved in steps of 10 cm or 1 m until it lines up with the map, kept for its source on every device.
-// the imagery's credits stay on the map meanwhile
+// the aerial imagery moved in steps of 10 cm or 1 m until it lines up with the map, kept for its source on every
+// device, with its credits still on the map
 function AlignBar({
   shift,
   attribution,
@@ -319,7 +335,7 @@ function AlignBar({
     <div className={styles.alignBar}>
       <span>{parts.length ? tr('Imagery moved {what}', {what: parts.join(', ')}) : tr('Imagery not moved')}</span>
       <div>
-        <button onClick={() => move(-1, 0)} aria-label={tr('west')}>
+        <button onClick={() => move(-1, 0)} aria-label={tr('west')} autoFocus>
           ←
         </button>
         <button onClick={() => move(0, 1)} aria-label={tr('north')}>

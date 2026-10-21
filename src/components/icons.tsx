@@ -155,6 +155,16 @@ export function MagnetIcon({size = 20}: IconProps) {
   );
 }
 
+// arrows all four ways: moving something by hand until it fits
+export function MoveIcon({size = 20}: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...line}>
+      <path d="M12 3v18M3 12h18" />
+      <path d="m9 6 3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3" />
+    </svg>
+  );
+}
+
 // a wiggly line smoothed out
 export function SimplifyIcon({size = 20}: IconProps) {
   return (
