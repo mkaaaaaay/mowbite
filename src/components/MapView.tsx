@@ -182,6 +182,9 @@ const idOf = (o: object | null | undefined) => {
   if (!id) ids.set(o, (id = ++lastId));
   return id;
 };
+// per area its box, and for each point of the area being edited whether it lies on that area's outline: a point being
+// dragged is a new one each move, only it is worked out again
+const onOutline = new WeakMap<MapArea, {box: Bounds; at: WeakMap<Point, boolean>}>();
 
 const AREA_CLASS: Record<string, string> = {
   mow: styles.mowArea,
@@ -1225,8 +1228,27 @@ function MapView({
   // the points of the area being edited that lie exactly on another area's corner or edge (snapped there), ringed
   const attached = useMemo(() => {
     if (!editing || !selectedArea) return null;
-    const others = map.areas.filter((a) => a.id !== selectedArea.id && a.outline.length > 1 && !hidden.has(a.properties.type as Layer));
-    return selectedArea.outline.map((p) => others.some((a) => (nearestOnOutline(a.outline, p)?.d ?? 1) < 0.002));
+    const others = map.areas
+      .filter((a) => a.id !== selectedArea.id && a.outline.length > 1 && !hidden.has(a.properties.type as Layer))
+      .map((a) => {
+        let known = onOutline.get(a);
+        if (!known) {
+          const xs = a.outline.map((p) => p.x);
+          const ys = a.outline.map((p) => p.y);
+          known = {box: {minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys)}, at: new WeakMap()};
+          onOutline.set(a, known);
+        }
+        return {outline: a.outline, ...known};
+      });
+    return selectedArea.outline.map((p) =>
+      others.some(({outline, box, at}) => {
+        // outside the area's box it can't be on its outline, its edges aren't gone through
+        if (p.x < box.minX - 0.002 || p.x > box.maxX + 0.002 || p.y < box.minY - 0.002 || p.y > box.maxY + 0.002) return false;
+        let on = at.get(p);
+        if (on === undefined) at.set(p, (on = (nearestOnOutline(outline, p)?.d ?? 1) < 0.002));
+        return on;
+      }),
+    );
   }, [editing, selectedArea, map.areas, hidden]);
   const activeIndex =
     active && selectedArea && active.areaId === selectedArea.id && active.index < selectedArea.outline.length
@@ -1266,6 +1288,15 @@ function MapView({
     const t = setTimeout(() => setHoldHint(false), 2500);
     return () => clearTimeout(t);
   }, [holdHint]);
+  // the esri key its tiles didn't load with (a wrong or expired one): the imagery stays empty, a hint says why for a
+  // moment, once each time it's switched on
+  const [rejectedKey, setRejectedKey] = useState<string | null>(null);
+  const [imageryHint, setImageryHint] = useState(false);
+  useEffect(() => {
+    if (!imageryHint) return;
+    const t = setTimeout(() => setImageryHint(false), 2500);
+    return () => clearTimeout(t);
+  }, [imageryHint]);
 
   // keeps handles the same size at any zoom
   const k = shown ? shown.size / WIDTH : 1;
@@ -1326,7 +1357,8 @@ function MapView({
   };
 
   // a point being dragged or set put onto the nearest corner or edge of another area within reach (snap on, without alt
-  // held), with the place it went to marked
+  // held), with the place it went to marked. A line being drawn to split an area or cut a shape out of it doesn't snap
+  // onto that area: put onto its edge, the line wouldn't cross it and a shape would touch it
   const snapAt = (x: number, y: number, exclude: string | null, touch: boolean) => {
     const svg = svgRef.current;
     if (!snap?.on || !svg) return null;
@@ -1435,24 +1467,25 @@ function MapView({
   // the wheel's zoom round the pointer, as a shift unless the view goes with the mower
   const wheel = useRef<(factor: number, clientX: number, clientY: number) => void>(() => {});
   useEffect(() => {
-    const svg = svgEl;
-    if (!zoomable || !svg) return;
+    // on the sheet both layers lie on, so it zooms over the markers on the layer above too
+    const sheet = sheetRef.current;
+    if (!zoomable || !svgEl || !sheet) return;
 
     // react's onWheel is passive, can't preventDefault the page scroll there
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       wheel.current(Math.exp(e.deltaY * 0.0015), e.clientX, e.clientY);
     };
-    svg.addEventListener('wheel', onWheel, {passive: false});
-    return () => svg.removeEventListener('wheel', onWheel);
+    sheet.addEventListener('wheel', onWheel, {passive: false});
+    return () => sheet.removeEventListener('wheel', onWheel);
   }, [zoomable, svgEl]);
 
   useEffect(() => {
     if (viewKey && viewMeters) savedViews.set(viewKey, viewMeters);
   }, [viewKey, viewMeters]);
 
-  // a press on one of the picture's handles: which one, null for none in reach
-  const pickThingHandle = (clientX: number, clientY: number, touch: boolean): 'turn' | 'size' | null => {
+  // a press on one of the picture's handles: which one and how far from it (svg units), null for none in reach
+  const pickThingHandle = (clientX: number, clientY: number, touch: boolean): {kind: 'turn' | 'size'; d: number} | null => {
     const p = clientToSvg(clientX, clientY);
     const svg = svgRef.current;
     if (!p || !svg || !handles) return null;
@@ -1460,7 +1493,7 @@ function MapView({
     const far = (q: [number, number] | null) => (q ? Math.hypot(q[0] - p[0], q[1] - p[1]) : Infinity);
     const [turn, size] = [far(handles.turn), far(handles.size)];
     if (Math.min(turn, size) > reach) return null;
-    return turn <= size ? 'turn' : 'size';
+    return turn <= size ? {kind: 'turn', d: turn} : {kind: 'size', d: size};
   };
 
   const startThingDrag = (e: Press, kind: 'turn' | 'size') => {
@@ -1554,12 +1587,16 @@ function MapView({
     if (hold.current && e.pointerId !== hold.current.press.pointerId) dropHold();
 
     const thingHit = editing && handles && pointers.current.size === 0 ? pickThingHandle(e.clientX, e.clientY, touch) : null;
-    if (thingHit) {
-      startThingDrag(e, thingHit);
-      return;
-    }
     const pendingHit = editing && pointers.current.size === 0 ? pickPending(e.clientX, e.clientY, touch) : null;
     const hit = editing && !pendingHit && selectedArea && pointers.current.size === 0 ? pickHandle(e.clientX, e.clientY, touch) : null;
+    // the picture's handle only when it's closer than the point or edge's middle in reach: its size handle sits right by a
+    // corner
+    const at = thingHit && hit ? clientToSvg(e.clientX, e.clientY) : null;
+    const [hx, hy] = hit ? toScreen(hit.x, hit.y) : [0, 0];
+    if (thingHit && !(at && Math.hypot(hx - at[0], hy - at[1]) <= thingHit.d)) {
+      startThingDrag(e, thingHit.kind);
+      return;
+    }
     const grab = pendingHit ? {areaId: PENDING, hit: pendingHit} : hit && selectedArea ? {areaId: selectedArea.id, hit} : null;
     if (grab && (e.pointerType !== 'touch' || !zoomable)) {
       startDrag(e, grab.areaId, grab.hit);
@@ -1613,7 +1650,8 @@ function MapView({
     [...pending.current, shift.current ?? {tx: 0, ty: 0, s: 1}].reduce((a, b) => ({tx: b.tx + b.s * a.tx, ty: b.ty + b.s * a.ty, s: b.s * a.s}), {tx: 0, ty: 0, s: 1});
   const show = () => {
     const sheet = sheetRef.current;
-    if (!sheet) return;
+    // (while it glides along the mower the transform is slide's)
+    if (!sheet || glideRef.current) return;
     const m = moved();
     sheet.style.transform = !pending.current.length && !shift.current ? '' : `translate(${m.tx}px, ${m.ty}px) scale(${m.s})`;
   };
@@ -1702,6 +1740,17 @@ function MapView({
     },
     [],
   );
+  // following the mower the frame loop slides the map (slide): a zoom still easing or waiting to be set is dropped, and
+  // so are the shifts not drawn yet
+  useLayoutEffect(() => {
+    if (!glides) return;
+    if (settleTimer.current) clearTimeout(settleTimer.current);
+    settleTimer.current = null;
+    cancelAnimationFrame(easing.current.frame);
+    Object.assign(easing.current, {left: 0, frame: 0});
+    shift.current = null;
+    pending.current = [];
+  }, [glides]);
   // the views set from shifts drawn: only the shift since on the map, in the same frame
   useLayoutEffect(() => {
     if (!pending.current.some((p) => p.n <= drawnShift)) return;
@@ -1712,6 +1761,8 @@ function MapView({
   const onPointerMove = (e: React.PointerEvent<Element>) => {
     const prev = pointers.current.get(e.pointerId);
     if (!zoomable || !prev || dragging) return;
+    // a mouse let go where its up didn't come here: the pan ended there
+    if (e.pointerType === 'mouse' && e.buttons === 0) return onPointerEnd(e);
     const svg = svgRef.current;
     if (!svg) return;
 
@@ -1754,7 +1805,7 @@ function MapView({
     } else nudge(dx, dy);
   };
 
-  const onPointerEnd = (e: React.PointerEvent<Element>) => {
+  const onPointerEnd = (e: {pointerId: number; type: string}) => {
     pointers.current.delete(e.pointerId);
     if (pointers.current.size < 2) gesture.current = {...gesture.current, pinchDist: null, pinchMid: undefined};
     if (pointers.current.size === 0) commitShift();
@@ -1764,6 +1815,22 @@ function MapView({
       if (e.type === 'pointerup' && !gesture.current.moved) tapHandle(h.areaId, h.hit);
     }
   };
+  // a mouse let go outside the frame: its up goes to what's under it there, the pan ends all the same
+  const pointerEnd = useRef(onPointerEnd);
+  useLayoutEffect(() => {
+    pointerEnd.current = onPointerEnd;
+  });
+  useEffect(() => {
+    const onUp = (e: PointerEvent) => {
+      if (pointers.current.has(e.pointerId)) pointerEnd.current(e);
+    };
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+    return () => {
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
+  }, []);
 
   useEffect(() => {
     if (!dragging) return;
@@ -1778,7 +1845,8 @@ function MapView({
       if (e.pointerId !== d.pointerId) return;
       d.lastX = e.clientX;
       d.lastY = e.clientY;
-      // a picture's handle: turned in steps of 5°, sized in steps of 10 cm, kept with the app's settings
+      // a picture's handle: turned in steps of 5°, sized in steps of 10 cm, kept with the app's settings once the step
+      // changes (each save draws the garden again)
       if (dragging.areaId === THING) {
         const t = thingDrag.current;
         const p = clientToSvg(e.clientX, e.clientY);
@@ -1791,10 +1859,11 @@ function MapView({
         const cur = settingsStore.snapshot();
         if (t.kind === 'turn') {
           const deg = (Math.atan2(p[1] - t.cy, p[0] - t.cx) * 180) / Math.PI + (t.reaches ? 0 : 90);
-          saveSettings({...cur, lookTurns: {...cur.lookTurns, [t.areaId]: (Math.round((((deg % 360) + 360) % 360) / 5) * 5) % 360}});
+          const turn = (Math.round((((deg % 360) + 360) % 360) / 5) * 5) % 360;
+          if (cur.lookTurns?.[t.areaId] !== turn) saveSettings({...cur, lookTurns: {...cur.lookTurns, [t.areaId]: turn}});
         } else {
           const size = Math.max(0.1, Math.round(t.size * (Math.hypot(p[0] - t.cx, p[1] - t.cy) / t.dist) * 10) / 10);
-          saveSettings({...cur, lookSizes: {...cur.lookSizes, [t.areaId]: size}});
+          if (cur.lookSizes?.[t.areaId] !== size) saveSettings({...cur, lookSizes: {...cur.lookSizes, [t.areaId]: size}});
         }
         return;
       }
@@ -1808,7 +1877,7 @@ function MapView({
         if (dragging.areaId !== PENDING) onDragging?.(true);
       }
       const local = clientToLocal(e.clientX, e.clientY);
-      const s = local && !e.altKey ? snapAt(local[0], local[1], dragging.areaId === PENDING ? null : dragging.areaId, d.touch) : null;
+      const s = local && !e.altKey ? snapAt(local[0], local[1], dragging.areaId === PENDING ? (selectedAreaId ?? null) : dragging.areaId, d.touch) : null;
       setSnapMark(s);
       const [x, y] = s ? [s.x, s.y] : (local ?? [0, 0]);
       if (local && dragging.areaId === PENDING) onMovePending?.(dragging.index, x, y);
@@ -1868,6 +1937,10 @@ function MapView({
   const sources = datum ? availableSources(datum, settings.imagery) : [];
   const source = imagery && sources.length ? (sources.includes(imagery) ? imagery : sources[0]) : null;
   const savedShift = source ? imageryShift(source, settings.imagery) : null;
+  // esri's tiles all fail with a key it doesn't take, a tile that loads takes that back (other sources have no key)
+  const esriKey = source === 'esri' ? (settings.imagery?.esriKey?.trim() ?? '') : null;
+  if (rejectedKey !== null && esriKey === null) setRejectedKey(null);
+  const imageryRejected = esriKey !== null && rejectedKey === esriKey;
   let tiles: ReturnType<typeof imageryTiles> = [];
   if (zoomable && datum && source && svgPx > 0) {
     const v = svgBox;
@@ -1962,7 +2035,23 @@ function MapView({
             // a hair over the next tile, else a thin line of what's under them shows where they meet
             const over = (a: number[], b: number[]) => 1 + (0.75 * k) / Math.max(1e-9, Math.hypot(b[0] - a[0], b[1] - a[1]));
             return (
-              <image key={t.href} href={t.href} width={over(p0, p1)} height={over(p0, p2)} preserveAspectRatio="none" transform={`matrix(${m})`} />
+              <image
+                key={t.href}
+                href={t.href}
+                width={over(p0, p1)}
+                height={over(p0, p2)}
+                preserveAspectRatio="none"
+                transform={`matrix(${m})`}
+                onError={
+                  esriKey !== null && !imageryRejected
+                    ? () => {
+                        setRejectedKey(esriKey);
+                        setImageryHint(true);
+                      }
+                    : undefined
+                }
+                onLoad={imageryRejected ? () => setRejectedKey(null) : undefined}
+              />
             );
           })}
         </g>
@@ -2253,7 +2342,7 @@ function MapView({
       if (!pickingPoints || !onCanvasClick || !editing) return;
       const local = clientToLocal(e.clientX, e.clientY);
       if (!local) return;
-      const s = e.altKey ? null : snapAt(local[0], local[1], null, (e.nativeEvent as PointerEvent).pointerType !== 'mouse');
+      const s = e.altKey ? null : snapAt(local[0], local[1], selectedAreaId ?? null, (e.nativeEvent as PointerEvent).pointerType !== 'mouse');
       onCanvasClick(s ? s.x : local[0], s ? s.y : local[1]);
     },
   };
@@ -2560,6 +2649,7 @@ function MapView({
           );
         })()}
       {holdHint && deletedAt === null && <div className={styles.hintToast}>{tr('Hold to move')}</div>}
+      {imageryHint && imageryRejected && <div className={styles.hintToast}>{tr('Esri key rejected or expired')}</div>}
       {deletedAt !== null && onUndo && (
         <div className={styles.undoToast}>
           {tr('Point deleted')}
