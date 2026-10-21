@@ -26,6 +26,16 @@ const handedOut = new WeakSet<Position>();
 // a mower that stayed within MOVED and TURNED of where it was for a second stands: the glide keeps that pose, the gps
 // and the heading drifting in the dock turned the marker a little every frame and the whole map was drawn again for it
 const STANDS = 1000; // ms
+// the pages get a new pose at most this often, the map's marker and view glide along every pose anyway: each one drew
+// the whole page again
+const HAND_OUT_MS = 400;
+let handedAt = -Infinity;
+let handTimer: ReturnType<typeof setTimeout> | null = null;
+const handOut = () => {
+  handTimer = null;
+  handedAt = performance.now();
+  listeners.forEach((l) => l());
+};
 let anchor: {pose: Position; at: number} | null = null;
 
 export function glidePose(p: Position, now: number): Position {
@@ -59,7 +69,7 @@ function start() {
     if (position && near(p, position)) return;
     position = p;
     handedOut.add(p);
-    listeners.forEach((l) => l());
+    if (!handTimer) handTimer = setTimeout(handOut, Math.max(0, HAND_OUT_MS - (now - handedAt)));
   });
 }
 
