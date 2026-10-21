@@ -23,6 +23,24 @@ const listeners = new Set<() => void>();
 // moment after the pose came, made the mower stop and jump now and then. handedOut: the poses the store gave the pages
 const glide = createEaser();
 const handedOut = new WeakSet<Position>();
+// a mower that stayed within MOVED and TURNED of where it was for a second stands: the glide keeps that pose, the gps
+// and the heading drifting in the dock turned the marker a little every frame and the whole map was drawn again for it
+const STANDS = 1000; // ms
+let anchor: {pose: Position; at: number} | null = null;
+
+export function glidePose(p: Position, now: number): Position {
+  if (!anchor || !near(p, anchor.pose)) {
+    // only turned on the spot: it still stands, a heading drifting on goes on in steps of TURNED
+    const turned = !!anchor && Math.hypot(p.x - anchor.pose.x, p.y - anchor.pose.y) < MOVED;
+    anchor = {pose: p, at: turned ? anchor!.at : now};
+    return p;
+  }
+  return now - anchor.at >= STANDS ? {...anchor.pose} : p;
+}
+
+function near(p: Position, q: Position) {
+  return Math.hypot(p.x - q.x, p.y - q.y) < MOVED && Math.abs(Math.atan2(Math.sin(p.heading - q.heading), Math.cos(p.heading - q.heading))) < TURNED;
+}
 
 function start() {
   if (started) return;
@@ -36,9 +54,9 @@ function start() {
     } catch {
       return;
     }
-    glide.push(p, performance.now());
-    const turned = position ? Math.abs(Math.atan2(Math.sin(p.heading - position.heading), Math.cos(p.heading - position.heading))) : Infinity;
-    if (position && Math.hypot(p.x - position.x, p.y - position.y) < MOVED && turned < TURNED) return;
+    const now = performance.now();
+    glide.push(glidePose(p, now), now);
+    if (position && near(p, position)) return;
     position = p;
     handedOut.add(p);
     listeners.forEach((l) => l());
