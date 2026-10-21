@@ -167,9 +167,12 @@ function pack(o: Point[], each: () => number, over: boolean, rnd: () => number, 
 // length, bushes and trees each), which way it lies or reaches (degrees in the svg, 0 right). by itself a long one lies
 // along the area no longer nor deeper than it is, a crown or a parasol reaches over the edge, several bushes or trees
 // stand where there's room, any other goes into the biggest circle but no bigger than it is. one made bigger than its
-// area isn't cut to it. none where nothing fits (all of the outline on a line)
+// area isn't cut to it. none where nothing fits (all of the outline on a line), nor one under a centimeter wide or deep,
+// nor a picture a hundred times longer than deep (a bed fills any area, it's drawn as a tile)
 export function placeThings(look: Look, o: Point[], m: number, seed: string, size?: number, turn?: number): Place[] {
-  return placesOf(look, o, m, seed, size, turn).filter((pl) => pl.w > 0 && pl.h > 0);
+  const least = m > 0 ? 0.01 * m : 0;
+  const fill = !!PICTURES[look]?.fill;
+  return placesOf(look, o, m, seed, size, turn).filter((pl) => pl.w > least && pl.h > least && (fill || Math.min(pl.w, pl.h) * 100 >= Math.max(pl.w, pl.h)));
 }
 
 function placesOf(look: Look, o: Point[], m: number, seed: string, size?: number, turn?: number): Place[] {
@@ -374,10 +377,23 @@ export function gardenThings(
   return out;
 }
 
+// what an area is filled with, {uid}{this} of GardenDefs: a lawn its stripes, one not mowed meadow, a way or an obstacle
+// its ground. null for none
+export function fillOf(a: MapArea, g: GardenThings): Look | null {
+  if (a.properties.type === 'mow') {
+    const lawn = g.lawns.get(a.id);
+    return a.properties.mowable === false ? 'meadow' : lawn !== undefined ? `lawn${lawn}` : null;
+  }
+  const look = g.looks.get(a.id);
+  return look ? groundOf(look) : null;
+}
+
 // a picture as a small square: its ground, a thing drawn on top, as the area with this seed draws it in that color. drawn
 // again only for another one
 export const LookSwatch = memo(function LookSwatch({look, size = 44, seed, variant}: {look: Look; size?: number; seed?: string; variant?: string}) {
   const id = 'look' + useId().replace(/[^a-zA-Z0-9]/g, '');
+  // a bed as 0.8 m of it, planted as densely as on the map
+  const m = PICTURES[look]?.fill ? 40 : undefined;
   return (
     <svg viewBox="0 0 40 40" width={size} height={size} aria-hidden="true">
       <defs>
@@ -387,7 +403,7 @@ export const LookSwatch = memo(function LookSwatch({look, size = 44, seed, varia
         </clipPath>
       </defs>
       <rect width={40} height={40} rx={7} fill={`url(#${id})`} />
-      {isThing(look) && <g clipPath={`url(#${id}c)`}>{drawThing(look, {x: 4, y: 4, w: 32, h: 32}, id + 't', {seed, variant})}</g>}
+      {isThing(look) && <g clipPath={`url(#${id}c)`}>{drawThing(look, {x: 4, y: 4, w: 32, h: 32}, id + 't', {seed, variant, m})}</g>}
     </svg>
   );
 });

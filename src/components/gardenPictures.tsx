@@ -538,8 +538,6 @@ const onStalk = (x: number, y: number, a: number, l: number, bend: number, t: nu
   const [dx, dy] = [2 * (1 - t) * qx + 2 * t * (ex - qx), 2 * (1 - t) * qy + 2 * t * (ey - qy)];
   return [x + px, y + py, Math.atan2(dy, dx)];
 };
-// a box less than this many svg units across (about as many pixels, a swatch) gets fewer of a bed's plants, by its size
-const SMALL = 128;
 // a bed's plants about step apart in rows moved on by half, shaken so no rows show, each with random numbers of its own
 // (from seed and where it is in the rows). tile: the box repeats itself, rows and columns fit it exactly and a plant near
 // an edge comes once more past the other edge (as far as twice step, a plant reaches that far), the same plant
@@ -548,8 +546,8 @@ function spots(b: Box, step: number, seed: string, tile = false, most = 320): {x
   let rows = Math.max(2, Math.round(b.h / (step * 0.87)));
   if (tile) rows += rows % 2;
   else {
-    // too many for the box (fewer for a small one): further apart
-    const k = Math.sqrt((rows * cols) / (most * Math.min(1, (b.w * b.h) / (SMALL * SMALL))));
+    // too many for the box: further apart
+    const k = Math.sqrt((rows * cols) / most);
     if (k > 1) [cols, rows] = [Math.max(1, Math.round(cols / k)), Math.max(2, Math.round(rows / k))];
   }
   const [sx, sy] = [b.w / cols, b.h / rows];

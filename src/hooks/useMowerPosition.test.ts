@@ -21,4 +21,17 @@ describe('glidePose', () => {
     // standing again it keeps the last heading, no step back
     for (let i = 0; i < 12; i++) expect(glidePose({x: 5, y: 5, heading: (20 * Math.PI) / 180}, 14500 + i * 150).heading).toBeCloseTo((20 * Math.PI) / 180, 9);
   });
+
+  it('keeps where a turn slowing down came to stand, no step back', () => {
+    for (let i = 0; i < 10; i++) glidePose({x: 8, y: 8, heading: 0}, 20000 + i * 150);
+    // 3 degrees a pose down to none, the last bits too small for a turn
+    const steps = [3, 3, 2, 1.5, 1, 0.6, 0.4, 0.3, 0.2, 0.1, ...Array(12).fill(0)];
+    let heading = 0;
+    const shown = steps.map((d, i) => {
+      heading += (d * Math.PI) / 180;
+      return glidePose({x: 8, y: 8, heading}, 21500 + i * 150).heading;
+    });
+    for (let i = 1; i < shown.length; i++) expect(shown[i]).toBeGreaterThanOrEqual(shown[i - 1]);
+    expect(shown[shown.length - 1]).toBeCloseTo(heading, 9);
+  });
 });

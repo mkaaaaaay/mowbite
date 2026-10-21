@@ -39,7 +39,8 @@ const handOut = () => {
 // a heading turning on by this much from one pose to the next is the mower turning on the spot, not drifting: the
 // glide follows every pose of the turn
 const TURNING = TURNED / 4;
-let anchor: {pose: Position; at: number} | null = null;
+// held: the pose shown since it stands, the anchor can be up to MOVED and TURNED behind it (a turn slowing down)
+let anchor: {pose: Position; at: number; held?: Position} | null = null;
 let before: Position | null = null;
 
 export function glidePose(p: Position, now: number): Position {
@@ -48,10 +49,13 @@ export function glidePose(p: Position, now: number): Position {
   if (!anchor || turning || !near(p, anchor.pose)) {
     // only turned on the spot: it still stands, a heading drifting on goes on in steps of TURNED
     const turned = !turning && !!anchor && Math.hypot(p.x - anchor.pose.x, p.y - anchor.pose.y) < MOVED;
-    anchor = {pose: p, at: turned ? anchor!.at : now};
+    const at = turned ? anchor!.at : now;
+    anchor = {pose: p, at, held: now - at >= STANDS ? p : undefined};
     return p;
   }
-  return now - anchor.at >= STANDS ? {...anchor.pose} : p;
+  if (now - anchor.at < STANDS) return p;
+  anchor.held ??= p;
+  return {...anchor.held};
 }
 
 function turnedBy(p: Position, q: Position) {

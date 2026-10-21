@@ -260,8 +260,28 @@ describe('real edges', () => {
     const {obstacles, grass} = realEdges(areas, rect);
     expect(inside(obstacles, 2, 2)).toBe(true);
     expect(inside(obstacles, 1.6, 2)).toBe(false);
-    expect(inside(grass.obstacles, 1.6, 2)).toBe(true);
+    // the strip round the tree is the terrace, the bed's along the lawn is lawn
+    expect(inside(grass.obstacles, 1.6, 2)).toBe(false);
     expect(inside(grass.obstacles, 4.1, 1.5)).toBe(false);
+    expect(inside(grass.obstacles, 4.9, 1.5)).toBe(true);
+  });
+
+  it('shrinks an obstacle all round across where two ways meet and beside another way it touches', () => {
+    // two terraces side by side, a tree across where they meet, a pot in the first against the second, one near the edge
+    const areas = [
+      square('w1', 'nav', 0, 0, 4),
+      square('w2', 'nav', 4, 0, 4),
+      square('t', 'obstacle', 3.5, 0.5, 1),
+      square('p', 'obstacle', 3, 2.5, 1),
+      square('e', 'obstacle', 0.1, 1.5, 1),
+    ];
+    const of = realInsides(areas, rect);
+    const all = (id: string, want: number[]) => box(of.get(id)!).forEach((v, i) => expect(v).toBeCloseTo(want[i], 2));
+    all('t', [3.7, 0.7, 4.3, 1.3]);
+    all('p', [3.2, 2.7, 3.8, 3.3]);
+    // none of their strips is lawn, the one by the terrace's edge neither
+    const {grass} = realEdges(areas, rect);
+    for (const [x, y] of [[3.6, 1], [4.4, 1], [3.9, 3], [0.15, 2]]) expect(inside(grass.obstacles, x, y)).toBe(false);
   });
 
   it('keeps what the obstacles and ways give while only a lawn changes', () => {

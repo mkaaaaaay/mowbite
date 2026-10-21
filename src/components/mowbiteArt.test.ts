@@ -3,23 +3,58 @@ import {mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {describe, expect, it} from 'vitest';
+import {afterAll, beforeAll, describe, expect, it} from 'vitest';
 
 const root = fileURLToPath(new URL('../..', import.meta.url));
 
 // mowbite-art.js for the home assistant card is built here too: a picture that breaks it or an import the build doesn't
 // know shows up in the tests, not only in the container, which is then built without it
 describe('scripts/build-art.mjs', () => {
-  it('builds mowbite-art.js, draws every picture and puts art into version.json', () => {
-    const dir = mkdtempSync(path.join(tmpdir(), 'art-'));
-    try {
-      writeFileSync(path.join(dir, 'version.json'), JSON.stringify({version: '1.0.0', level: 2}));
-      const said = execFileSync(process.execPath, [path.join(root, 'scripts/build-art.mjs'), dir], {encoding: 'utf8'});
-      expect(said).toMatch(/\d+ pictures, art \d+/);
-      expect(JSON.parse(readFileSync(path.join(dir, 'version.json'), 'utf8'))).toEqual({version: '1.0.0', level: 2, art: expect.any(Number)});
-      expect(readFileSync(path.join(dir, 'mowbite-art.js'), 'utf8')).toContain('export function mowerIcon');
-    } finally {
-      rmSync(dir, {recursive: true, force: true});
-    }
+  let dir = '';
+  let said = '';
+  beforeAll(() => {
+    dir = mkdtempSync(path.join(tmpdir(), 'art-'));
+    writeFileSync(path.join(dir, 'version.json'), JSON.stringify({version: '1.0.0', level: 2}));
+    said = execFileSync(process.execPath, [path.join(root, 'scripts/build-art.mjs'), dir], {encoding: 'utf8'});
   }, 60000);
+  afterAll(() => rmSync(dir, {recursive: true, force: true}));
+
+  it('builds mowbite-art.js, draws every picture and puts art into version.json', () => {
+    expect(said).toMatch(/\d+ pictures, art \d+/);
+    expect(JSON.parse(readFileSync(path.join(dir, 'version.json'), 'utf8'))).toEqual({version: '1.0.0', level: 2, art: expect.any(Number)});
+    expect(readFileSync(path.join(dir, 'mowbite-art.js'), 'utf8')).toContain('export function mowerIcon');
+  });
+
+  it('hands the card the whole garden, the tiles and clips in the defs', () => {
+    // a lawn with a tree and a bed, in a node of its own like the card's
+    const script = `
+      import {readFileSync} from 'node:fs';
+      const art = await import('data:text/javascript;base64,' + readFileSync(process.argv[1]).toString('base64'));
+      const square = (x, y, s) => [[x, y], [x + s, y], [x + s, y + s], [x, y + s]].map(([x, y]) => ({x, y}));
+      const areas = [
+        {id: 'lawn', properties: {type: 'mow'}, outline: square(0, 0, 10)},
+        {id: 'tree', properties: {type: 'obstacle'}, outline: square(2, 2, 2)},
+        {id: 'bed', properties: {type: 'obstacle'}, outline: square(6, 6, 3)},
+      ];
+      const input = {areas, looks: {tree: 'tree', bed: 'perennialBed'}, fit: {minX: 0, minY: 0, m: 20, padX: 20, padY: 20}, uid: 'g'};
+      const body = art.sizesBody({width: 0.4, front: 0.4, rear: 0.15});
+      console.log(JSON.stringify([art.gardenAreas({...input, body}), art.gardenAreas(input)]));
+    `;
+    const [garden, bare] = JSON.parse(execFileSync(process.execPath, ['--input-type=module', '-e', script, path.join(dir, 'mowbite-art.js')], {encoding: 'utf8'}));
+    expect(garden.fills).toEqual({lawn: 'lawn0', tree: 'meadow', bed: expect.any(String)});
+    expect(Object.keys(garden.things)).toEqual(['bed']);
+    expect(Object.keys(garden.over)).toEqual(['tree']);
+    expect(garden.covers.length).toBeGreaterThan(0);
+    // the bed as its tile from the defs, cut to its clip
+    expect(garden.things.bed).toContain('url(#gt1tile)');
+    expect(garden.things.bed).toContain('url(#gclip1)');
+    expect(garden.things.bed).not.toContain('<pattern');
+    for (const [id, svg] of [...Object.entries(garden.things), ...Object.entries(garden.over)] as [string, string][]) {
+      for (const [, ref] of svg.matchAll(/url\(#([^)]+)\)/g)) expect([id, ref, garden.defs.includes(`id="${ref}"`) || svg.includes(`id="${ref}"`)]).toEqual([id, ref, true]);
+    }
+    for (const ref of ['glawn0', 'gclip0', 'gclip1', 'gt1tile', `g${garden.fills.bed}`]) expect(garden.defs).toContain(`id="${ref}"`);
+    expect(garden.edges.lawnLine).toMatch(/^M\d/);
+    expect(garden.edges.grassObstacles).toMatch(/^M/);
+    expect(bare.edges).toBeNull();
+  });
 });

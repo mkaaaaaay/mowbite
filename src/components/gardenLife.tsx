@@ -6,7 +6,7 @@ import {containsPoint, polygonArea} from '@/lib/geometry';
 import {joinedOutlines, realEdges, type MowerBody} from '@/lib/mowerBody';
 import {autoMowAngle} from '@/lib/mowStripes';
 import {seasonOf, sunPosition, type Season} from '@/lib/sun';
-import {drawThing, fitKey, gardenThings, inSquare, type Fit, type GardenThing as Thing, type Look, type Place} from './gardenLook';
+import {drawThing, fillOf, fitKey, GardenDefs, gardenThings, inSquare, type Fit, type GardenThing as Thing, type Look, type Place} from './gardenLook';
 import {PICTURES} from './gardenPictures';
 import styles from './MapView.module.css';
 
@@ -320,6 +320,16 @@ export function realEdgeLine(areas: MapArea[], body: MowerBody, fit: Fit, obstac
   });
 }
 
+// the real edges as MapView draws them: the lawns' line and the obstacles', and the lawn between the lines and the real
+// edges, outside the mowing areas (under the areas) and in the obstacles (over them). obstacles false: without theirs
+export function edgePaths(areas: MapArea[], body: MowerBody, fit: Fit, obstacles = true) {
+  const at = svgAt(fit);
+  const d = (list: Point[][]) => rings(list.map((outline) => ({outline})), at);
+  const edges = realEdges(areas, body);
+  const [lawnLine, obstacleLine] = [d(edges.lawn), obstacles ? d(edges.obstacles) : ''];
+  return {line: lawnLine + obstacleLine, lawnLine, obstacleLine, grassOutside: d(edges.grass.outside), grassObstacles: obstacles ? d(edges.grass.obstacles) : ''};
+}
+
 // the lawns' outlines as one line: where two lawns meet there's no edge
 function lawnLine(lawns: MapArea[], areas: MapArea[], fit: Fit) {
   const at = svgAt(fit);
@@ -365,29 +375,43 @@ export const coversOf = (things: Thing[]) =>
       }),
   );
 
+// the start of the ids of a thing's place k, and what it's drawn with
+const placeId = (uid: string, thing: Thing, k: number) => `${uid}t${thing.i}${k ? '_' + k : ''}`;
+const drawnWith = (thing: Thing, pl: Place) => ({seed: pl.seed ?? thing.id, variant: thing.variant, m: thing.m, closed: thing.closed});
+
+// a bed's place k as a pattern of one tile 2.4 m across (or its span), the browser draws it once and repeats it
+function bedTile(uid: string, thing: Thing, pl: Place, k: number) {
+  const p = placeId(uid, thing, k);
+  const t = Math.max(1, (PICTURES[thing.look]?.span ?? 2.4) * thing.m);
+  return (
+    <pattern key={p} id={p + 'tile'} patternUnits="userSpaceOnUse" width={t} height={t}>
+      {drawThing(thing.look, {x: 0, y: 0, w: t, h: t}, p + 'x', {...drawnWith(thing, pl), tile: true})}
+    </pattern>
+  );
+}
+
+// the beds' tiles of these things for the defs, when they're drawn tiled
+export const bedTiles = (uid: string, things: Iterable<Thing>) => [...things].flatMap((t) => (t.fill ? t.places.map((pl, k) => bedTile(uid, t, pl, k)) : []));
+
 // an area's picture standing in it (a tree, a table ... or several), cut to the area (clip i of GardenDefs) unless it
 // reaches over it, faded when the area is off. with a shadow the same once more first, dark and moved away from the sun
 // (no filter, it stays while the map moves). part: only what's on the ground (with the shadow of all of it) or only the
-// crowns and parasols over it, they go over the mower
-type ThingProps = {uid: string; thing: Thing; off: boolean; shade?: {dx: number; dy: number} | null; part?: 'ground' | 'over'};
+// crowns and parasols over it, they go over the mower. tiled: a bed's tile is in the defs (bedTiles), not drawn with it
+type ThingProps = {uid: string; thing: Thing; off: boolean; shade?: {dx: number; dy: number} | null; part?: 'ground' | 'over'; tiled?: boolean};
 
 export const GardenThing = memo(
-  function GardenThing({uid, thing, off, shade, part}: ThingProps) {
-    const one = ({cx, cy, deg, w, h, seed}: Place, k: number) => {
-      const p = `${uid}t${thing.i}${k ? '_' + k : ''}`;
-      const o = {seed: seed ?? thing.id, variant: thing.variant, m: thing.m, closed: thing.closed};
+  function GardenThing({uid, thing, off, shade, part, tiled}: ThingProps) {
+    const one = (pl: Place, k: number) => {
+      const {cx, cy, deg, w, h} = pl;
+      const p = placeId(uid, thing, k);
+      const o = drawnWith(thing, pl);
       // a bed is never turned, its edge only moved to its middle
       const edge = thing.edge?.map((q): [number, number] => [q.x - cx, q.y - cy]);
       if (thing.fill) {
-        // a bed as a pattern of one tile 2.4 m across (or its span), the browser draws it once and repeats it, and its border
-        const t = Math.max(1, (PICTURES[thing.look]?.span ?? 2.4) * thing.m);
+        // a bed as a pattern of its tile, and its border
         return (
           <g key={k} transform={`translate(${cx} ${cy})`}>
-            <defs>
-              <pattern id={p + 'tile'} patternUnits="userSpaceOnUse" width={t} height={t}>
-                {drawThing(thing.look, {x: 0, y: 0, w: t, h: t}, p + 'x', {...o, tile: true})}
-              </pattern>
-            </defs>
+            {!tiled && <defs>{bedTile(uid, thing, pl, k)}</defs>}
             <rect x={-w / 2} y={-h / 2} width={w} height={h} fill={`url(#${p}tile)`} />
             {edge && drawThing(thing.look, {x: -w / 2, y: -h / 2, w, h}, p, {...o, edge, border: true})}
           </g>
@@ -422,7 +446,8 @@ export const GardenThing = memo(
     );
   },
   // drawn again only for another thing (the same while nothing of it changes), another shadow, part or state
-  (a, b) => a.thing === b.thing && a.uid === b.uid && a.off === b.off && a.part === b.part && a.shade?.dx === b.shade?.dx && a.shade?.dy === b.shade?.dy,
+  (a, b) =>
+    a.thing === b.thing && a.uid === b.uid && a.off === b.off && a.part === b.part && a.tiled === b.tiled && a.shade?.dx === b.shade?.dx && a.shade?.dy === b.shade?.dy,
 );
 
 // a recorded job as useMowHistory has it: position.history.list's entry with the segments position.history gives
@@ -643,5 +668,57 @@ export function lifeScene(s: LifeInput): LifeScene | null {
         )}
       </>
     ),
+  };
+}
+
+// ---- the garden without its life as MapView draws it, for the home assistant card (mowbite-art.js gardenAreas)
+
+export type GardenInput = Pick<LifeInput, 'areas' | 'looks' | 'lookVariants' | 'lookSizes' | 'lookTurns' | 'lookClosed' | 'body' | 'fit' | 'uid'>;
+
+export interface GardenScene {
+  // GardenDefs and the beds' tiles, everything the rest refers to
+  defs: ReactNode;
+  // by area id: what it's filled with ({uid}{fill}), what stands on its ground and the crowns and parasols over it
+  fills: Record<string, Look>;
+  things: Record<string, ReactNode>;
+  over: Record<string, ReactNode>;
+  covers: {cx: number; cy: number; r: number; rim: number}[];
+  // the real edges (edgePaths), null without the mower's body
+  edges: ReturnType<typeof edgePaths> | null;
+}
+
+// what MapView draws of the garden without its life: the defs, each area's fill, the things on the ground and over it, the
+// real edges
+export function gardenScene(s: GardenInput): GardenScene {
+  const {fit, uid} = s;
+  const garden = gardenThings(s.areas, s.looks, s.body ?? null, fit, {variants: s.lookVariants, sizes: s.lookSizes, turns: s.lookTurns, closed: s.lookClosed});
+  const fills: Record<string, Look> = {};
+  const things: Record<string, ReactNode> = {};
+  const over: Record<string, ReactNode> = {};
+  const overThings: Thing[] = [];
+  for (const a of s.areas) {
+    const fill = fillOf(a, garden);
+    if (fill) fills[a.id] = fill;
+    const thing = garden.things.get(a.id);
+    if (!thing) continue;
+    const off = a.properties.active === false;
+    if (thing.places.some((pl) => !pl.over)) things[a.id] = <GardenThing uid={uid} thing={thing} off={off} part="ground" tiled />;
+    if (thing.places.some((pl) => pl.over)) {
+      over[a.id] = <GardenThing uid={uid} thing={thing} off={off} part="over" tiled />;
+      overThings.push(thing);
+    }
+  }
+  return {
+    defs: (
+      <>
+        <GardenDefs uid={uid} m={fit.m} lawns={garden.angles} clips={garden.clips} />
+        <defs>{bedTiles(uid, garden.things.values())}</defs>
+      </>
+    ),
+    fills,
+    things,
+    over,
+    covers: coversOf(overThings),
+    edges: s.body ? edgePaths(s.areas, s.body, fit) : null,
   };
 }

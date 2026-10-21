@@ -212,10 +212,11 @@ describe('placeThings', () => {
     expect(p.h).toBeCloseTo(2.2 * m, 5);
   });
 
-  it('puts nothing on an outline with all its points on a line', () => {
+  it('puts nothing on an outline with all its points on a line, nor on one under a centimeter deep', () => {
     const line = [0, 1, 2].map((i) => ({x: i * m, y: i * m}));
     expect(placeThings('house', line, m, 'a', 9)).toEqual([]);
     expect(placeThings('lamp', line, m, 'a')).toEqual([]);
+    for (const look of ['raisedBed', 'house', 'kennel', 'lounge', 'perennialBed']) expect(placeThings(look, rect(4, 0.002), m, 'a')).toEqual([]);
   });
 });
 
@@ -225,6 +226,19 @@ describe('drawThing', () => {
       expect(drawThing(look, {x: 0, y: 0, w: 40, h: 0})).toBeNull();
       expect(() => drawThing(look, {x: 0, y: 0, w: 40, h: 30}, 'p', {m: 0})).not.toThrow();
     }
+  });
+
+  it('plants a small bed as densely as a big one', () => {
+    // the paths' parts in what's drawn: two leaves for each tulip
+    const parts = (node: unknown): number => {
+      if (Array.isArray(node)) return node.reduce((s: number, n) => s + parts(n), 0);
+      const props = (node as {props?: {d?: unknown; children?: unknown}} | null)?.props;
+      if (!props) return 0;
+      return (typeof props.d === 'string' && props.d.includes('Q') ? props.d.split('M').length - 1 : 0) + parts(props.children);
+    };
+    // a swatch's 0.8 m of spring bed, its tulips about 12 cm apart
+    const tulips = parts(drawThing('springBed', {x: 4, y: 4, w: 32, h: 32}, 'p', {m: 40})) / 2;
+    expect(tulips).toBeGreaterThan((0.8 * 0.8) / (0.12 * 0.12 * 0.87));
   });
 });
 
