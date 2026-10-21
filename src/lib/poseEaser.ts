@@ -64,7 +64,8 @@ export function createEaser() {
     },
     still(now: number): boolean {
       const n = list.length;
-      if (n < 2) return true;
+      // past the last pose (none came for a while) it stays there
+      if (n < 2 || now - lag >= list[n - 1].t) return true;
       // the poses the curve still goes through from here on, the one before it too
       let i = n - 2;
       while (i > 0 && list[i].t > now - lag) i--;

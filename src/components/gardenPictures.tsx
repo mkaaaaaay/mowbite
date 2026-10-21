@@ -341,6 +341,7 @@ const rosette = (x: number, y: number, s: number, c: string, leaves = 7) => {
 function tiled(p: string, faces: [Pt[], 'n' | 's' | 'w' | 'e'][], c: string, row: number, box: Box) {
   const light = {n: 0.14, w: 0.05, e: -0.08, s: -0.16};
   const lines = (dir: 'n' | 's' | 'w' | 'e') => {
+    if (!(row > 0)) return '';
     const d: string[] = [];
     if (dir === 'n' || dir === 's') for (let y = box.y + row; y < box.y + box.h; y += row) d.push(`M${n2(box.x)} ${n2(y)}h${n2(box.w)}`);
     else for (let x = box.x + row; x < box.x + box.w; x += row) d.push(`M${n2(x)} ${n2(box.y)}v${n2(box.h)}`);
@@ -414,7 +415,7 @@ function gableRoof(p: string, l: number, d: number, c: string, row = d * 0.09) {
       {tiled(p, faces, c, row, b)}
       {/* the shingles' joints, every other row moved on by half */}
       <path
-        d={Array.from({length: Math.ceil(d / row)}, (_, i) => {
+        d={Array.from({length: row > 0 ? Math.ceil(d / row) : 0}, (_, i) => {
           const y = -d / 2 + i * row;
           const off = i % 2 ? row : 0;
           const out: string[] = [];
@@ -537,16 +538,18 @@ const onStalk = (x: number, y: number, a: number, l: number, bend: number, t: nu
   const [dx, dy] = [2 * (1 - t) * qx + 2 * t * (ex - qx), 2 * (1 - t) * qy + 2 * t * (ey - qy)];
   return [x + px, y + py, Math.atan2(dy, dx)];
 };
+// a box less than this many svg units across (about as many pixels, a swatch) gets fewer of a bed's plants, by its size
+const SMALL = 128;
 // a bed's plants about step apart in rows moved on by half, shaken so no rows show, each with random numbers of its own
 // (from seed and where it is in the rows). tile: the box repeats itself, rows and columns fit it exactly and a plant near
-// an edge comes once more past the other edge, the same plant
+// an edge comes once more past the other edge (as far as twice step, a plant reaches that far), the same plant
 function spots(b: Box, step: number, seed: string, tile = false, most = 320): {x: number; y: number; r: () => number}[] {
   let cols = Math.max(1, Math.round(b.w / step));
   let rows = Math.max(2, Math.round(b.h / (step * 0.87)));
   if (tile) rows += rows % 2;
   else {
-    // too many for the box: further apart
-    const k = Math.sqrt((rows * cols) / most);
+    // too many for the box (fewer for a small one): further apart
+    const k = Math.sqrt((rows * cols) / (most * Math.min(1, (b.w * b.h) / (SMALL * SMALL))));
     if (k > 1) [cols, rows] = [Math.max(1, Math.round(cols / k)), Math.max(2, Math.round(rows / k))];
   }
   const [sx, sy] = [b.w / cols, b.h / rows];
@@ -560,7 +563,7 @@ function spots(b: Box, step: number, seed: string, tile = false, most = 320): {x
         for (const dy of tile ? [-b.h, 0, b.h] : [0]) {
           const [qx, qy] = [x + dx, y + dy];
           if (!dx && !dy) out.push({x, y, r: random(id + 'p')});
-          else if (qx > b.x - step && qx < b.x + b.w + step && qy > b.y - step && qy < b.y + b.h + step) out.push({x: qx, y: qy, r: random(id + 'p')});
+          else if (qx > b.x - 2 * step && qx < b.x + b.w + 2 * step && qy > b.y - 2 * step && qy < b.y + b.h + 2 * step) out.push({x: qx, y: qy, r: random(id + 'p')});
         }
       }
     }
@@ -3163,7 +3166,7 @@ export const PICTURES: Record<string, Picture> = {
           return `M${n2(x)} ${n2(y)}l${n2(Math.cos(a) * d * 0.06)} ${n2(Math.sin(a) * d * 0.06)}`;
         }).join('');
         const mesh: string[] = [];
-        for (let x = rx; x < rx + rw; x += d * 0.06) mesh.push(`M${n2(x)} ${n2(-d * 0.45)}v${n2(d * 0.9)}`);
+        for (let x = rx; d > 0 && x < rx + rw; x += d * 0.06) mesh.push(`M${n2(x)} ${n2(-d * 0.45)}v${n2(d * 0.9)}`);
         for (let y = -d * 0.45; y < d * 0.45; y += d * 0.06) mesh.push(`M${n2(rx)} ${n2(y)}h${n2(rw)}`);
         return (
           <>
@@ -3376,7 +3379,7 @@ export const PICTURES: Record<string, Picture> = {
         const t = Math.min(l, d) * 0.24;
         const [x0, y0] = [-l / 2, -d / 2];
         const weave: string[] = [];
-        for (let k = 0; k < l + d; k += t * 0.22) weave.push(`M${n2(x0 + k)} ${n2(y0)}l${n2(-d)} ${n2(d)}`);
+        for (let k = 0; t > 0 && k < l + d; k += t * 0.22) weave.push(`M${n2(x0 + k)} ${n2(y0)}l${n2(-d)} ${n2(d)}`);
         const cushion = pick(o, LOUNGES).c;
         const pillows = [
           {x: x0 + l * 0.32, y: y0 + t * 0.5, c: '#e0a83a', turn: -8},

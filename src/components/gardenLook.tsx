@@ -5,7 +5,7 @@ import {containsPoint} from '@/lib/geometry';
 import {tr} from '@/lib/i18n';
 import {realInsides, type MowerBody} from '@/lib/mowerBody';
 import {autoMowAngle} from '@/lib/mowStripes';
-import {useEffect, useId} from 'react';
+import {memo, useEffect, useId} from 'react';
 import {createPortal} from 'react-dom';
 import {BY_NAME, GROUPS, PICTURE_KEYS, PICTURES, random, type Box} from './gardenPictures';
 import styles from './MapLookSettings.module.css';
@@ -33,15 +33,18 @@ export function areaLook(area: MapArea, looks?: Record<string, string>): Look {
 export const groundOf = (look: Look): Look => (isThing(look) ? (PICTURES[look].around ?? 'meadow') : look);
 
 // p starts the ids of its gradients and clips, unique on the page. seed varies it (the area's id: the same tree every time,
-// p without one), variant is the color picked for it (settings.lookVariants), m svg units per meter (left out: from the box),
-// edge a bed's real edge in the box's units, closed a parasol folded up, tile a bed as one tile of a pattern, border only
-// its border
+// p without one), variant is the color picked for it (settings.lookVariants), m svg units per meter (left out or not above
+// 0: from the box), edge a bed's real edge in the box's units, closed a parasol folded up, tile a bed as one tile of a
+// pattern, border only its border. nothing in a box without width or height
 export const drawThing = (
   look: Look,
   box: Box,
   p = 'gp',
   o?: {seed?: string; variant?: string; m?: number; edge?: [number, number][]; closed?: boolean; tile?: boolean; border?: boolean},
-) => PICTURES[look]?.thing?.(box, p, {seed: o?.seed ?? p, variant: o?.variant, m: o?.m, edge: o?.edge, closed: o?.closed, tile: o?.tile, border: o?.border});
+) =>
+  box.w > 0 && box.h > 0
+    ? PICTURES[look]?.thing?.(box, p, {seed: o?.seed ?? p, variant: o?.variant, m: (o?.m ?? 0) > 0 ? o?.m : undefined, edge: o?.edge, closed: o?.closed, tile: o?.tile, border: o?.border})
+    : null;
 
 // how far a point is from the outline
 function edgeDistance(o: Point[], x: number, y: number) {
@@ -164,8 +167,12 @@ function pack(o: Point[], each: () => number, over: boolean, rnd: () => number, 
 // length, bushes and trees each), which way it lies or reaches (degrees in the svg, 0 right). by itself a long one lies
 // along the area no longer nor deeper than it is, a crown or a parasol reaches over the edge, several bushes or trees
 // stand where there's room, any other goes into the biggest circle but no bigger than it is. one made bigger than its
-// area isn't cut to it
+// area isn't cut to it. none where nothing fits (all of the outline on a line)
 export function placeThings(look: Look, o: Point[], m: number, seed: string, size?: number, turn?: number): Place[] {
+  return placesOf(look, o, m, seed, size, turn).filter((pl) => pl.w > 0 && pl.h > 0);
+}
+
+function placesOf(look: Look, o: Point[], m: number, seed: string, size?: number, turn?: number): Place[] {
   const pic = PICTURES[look];
   const fit = placeThing(look, o, pic?.over ? undefined : turn);
   if (!pic || !(m > 0)) return [fit];
@@ -315,7 +322,8 @@ export function facing(a: MapArea, areas: MapArea[], looks: Record<string, strin
   const [p, q] = [at(from), at(to)];
   return (Math.atan2(q.y - p.y, q.x - p.x) * 180) / Math.PI;
 }
-const placeCache = new WeakMap<MapArea, {key: string; body: object | null; real: string; outline: Point[]; places: Place[]}>();
+// thing: the one handed out last for the area, kept while nothing of it changes so GardenThing isn't drawn again
+const placeCache = new WeakMap<MapArea, {key: string; body: object | null; real: string; outline: Point[]; places: Place[]; thing?: GardenThing}>();
 
 export function gardenThings(
   areas: MapArea[],
@@ -352,9 +360,13 @@ export function gardenThings(
         placed = {key: placeKey, body, real: realKey, outline, places: placeThings(look, outline, fit.m, a.id, sizes?.[a.id], turn)};
         placeCache.set(a, placed);
       }
+      if (!placed.places.length) continue;
       const edge = PICTURES[look].edged ? placed.outline : undefined;
       const folded = PICTURES[look].folds && closed?.[a.id] ? true : undefined;
-      out.things.set(a.id, {i: out.clips.length, id: a.id, look, variant: variants?.[a.id], m: fit.m, places: placed.places, edge, closed: folded, fill: PICTURES[look].fill});
+      const thing: GardenThing = {i: out.clips.length, id: a.id, look, variant: variants?.[a.id], m: fit.m, places: placed.places, edge, closed: folded, fill: PICTURES[look].fill};
+      const was = placed.thing;
+      placed.thing = was && (Object.keys(thing) as (keyof GardenThing)[]).every((k) => was[k] === thing[k]) ? was : thing;
+      out.things.set(a.id, placed.thing);
       out.clips.push(placed.outline.map((p) => `${p.x},${p.y}`).join(' '));
     }
   }
@@ -362,8 +374,9 @@ export function gardenThings(
   return out;
 }
 
-// a picture as a small square: its ground, a thing drawn on top, as the area with this seed draws it in that color
-export function LookSwatch({look, size = 44, seed, variant}: {look: Look; size?: number; seed?: string; variant?: string}) {
+// a picture as a small square: its ground, a thing drawn on top, as the area with this seed draws it in that color. drawn
+// again only for another one
+export const LookSwatch = memo(function LookSwatch({look, size = 44, seed, variant}: {look: Look; size?: number; seed?: string; variant?: string}) {
   const id = 'look' + useId().replace(/[^a-zA-Z0-9]/g, '');
   return (
     <svg viewBox="0 0 40 40" width={size} height={size} aria-hidden="true">
@@ -377,7 +390,7 @@ export function LookSwatch({look, size = 44, seed, variant}: {look: Look; size?:
       {isThing(look) && <g clipPath={`url(#${id}c)`}>{drawThing(look, {x: 4, y: 4, w: 32, h: 32}, id + 't', {seed, variant})}</g>}
     </svg>
   );
-}
+});
 
 // all pictures to pick from, by group, over the page like the map settings. value: the one picked, auto: what the
 // area is drawn as without one

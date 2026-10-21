@@ -249,6 +249,30 @@ describe('real edges', () => {
     expect(box(of.get('b')!)[0]).toBeCloseTo(2, 2);
   });
 
+  it('shrinks an obstacle lying in a way all round, one beside the way together with it', () => {
+    // a tree in the middle of a terrace, a bed 2 cm off its side
+    const areas = [square('w', 'nav', 0, 0, 4), square('t', 'obstacle', 1.5, 1.5, 1), square('b', 'obstacle', 4.02, 1, 1)];
+    const of = realInsides(areas, rect);
+    for (const [v, want] of box(of.get('t')!).map((v, i) => [v, [1.7, 1.7, 2.3, 2.3][i]])) expect(v).toBeCloseTo(want, 2);
+    const [x0, , x1] = box(of.get('b')!);
+    expect(x0).toBeCloseTo(4.02, 2);
+    expect(x1).toBeCloseTo(4.82, 2);
+    const {obstacles, grass} = realEdges(areas, rect);
+    expect(inside(obstacles, 2, 2)).toBe(true);
+    expect(inside(obstacles, 1.6, 2)).toBe(false);
+    expect(inside(grass.obstacles, 1.6, 2)).toBe(true);
+    expect(inside(grass.obstacles, 4.1, 1.5)).toBe(false);
+  });
+
+  it('keeps what the obstacles and ways give while only a lawn changes', () => {
+    const sides = [square('o', 'obstacle', 1, 1, 1), square('w', 'nav', 3, 0, 2)];
+    const before = realEdges([square('a', 'mow', 0, 0, 4), ...sides], rect);
+    const after = realEdges([square('a', 'mow', 0, 0, 5), ...sides], rect);
+    expect(after.obstacles).toBe(before.obstacles);
+    expect(after.lawn).not.toEqual(before.lawn);
+    expect(realInsides([square('a', 'mow', 0, 0, 5), ...sides], rect).get('o')).toBe(realInsides([...sides], rect).get('o'));
+  });
+
   it('counts the strip between a line and its real edge as lawn, outside the area and inside an obstacle', () => {
     const {grass} = realEdges([square('a', 'mow', 0, 0, 4), square('o', 'obstacle', 1, 1, 1)], rect);
     expect(inside(grass.outside, 2, -0.1)).toBe(true);

@@ -12,4 +12,13 @@ describe('glidePose', () => {
     const driving = Array.from({length: 10}, (_, i) => ({x: 1 + (i + 1) * 0.045, y: 2, heading: 0}));
     driving.forEach((p, i) => expect(glidePose(p, 6000 + i * 150)).toBe(p));
   });
+
+  it('follows a slow turn on the spot after standing, and keeps where it turned to', () => {
+    for (let i = 0; i < 10; i++) glidePose({x: 5, y: 5, heading: 0}, 10000 + i * 150);
+    // a degree every pose
+    const turn = Array.from({length: 20}, (_, i) => ({x: 5, y: 5, heading: ((i + 1) * Math.PI) / 180}));
+    turn.forEach((p, i) => expect(glidePose(p, 11500 + i * 150)).toBe(p));
+    // standing again it keeps the last heading, no step back
+    for (let i = 0; i < 12; i++) expect(glidePose({x: 5, y: 5, heading: (20 * Math.PI) / 180}, 14500 + i * 150).heading).toBeCloseTo((20 * Math.PI) / 180, 9);
+  });
 });

@@ -1,7 +1,8 @@
 import type {MapArea} from '@/hooks/useMowerMap';
 import {describe, expect, it} from 'vitest';
 import {coversOf} from './gardenLife';
-import {areaLook, facing, groundOf, placeThing, placeThings} from './gardenLook';
+import {areaLook, drawThing, facing, gardenThings, groundOf, isThing, placeThing, placeThings} from './gardenLook';
+import {PICTURE_KEYS} from './gardenPictures';
 
 const area = (name: string, type = 'obstacle', id = 'a'): MapArea => ({id, properties: {name, type}, outline: []});
 
@@ -209,6 +210,48 @@ describe('placeThings', () => {
     const [p] = placeThings('woodSteps', rect(6, 3), m, 'a');
     expect(p.w).toBeGreaterThan(5 * m);
     expect(p.h).toBeCloseTo(2.2 * m, 5);
+  });
+
+  it('puts nothing on an outline with all its points on a line', () => {
+    const line = [0, 1, 2].map((i) => ({x: i * m, y: i * m}));
+    expect(placeThings('house', line, m, 'a', 9)).toEqual([]);
+    expect(placeThings('lamp', line, m, 'a')).toEqual([]);
+  });
+});
+
+describe('drawThing', () => {
+  it('draws nothing in a box without width or height, and works out m from the box without one above 0', () => {
+    for (const look of PICTURE_KEYS.filter(isThing)) {
+      expect(drawThing(look, {x: 0, y: 0, w: 40, h: 0})).toBeNull();
+      expect(() => drawThing(look, {x: 0, y: 0, w: 40, h: 30}, 'p', {m: 0})).not.toThrow();
+    }
+  });
+});
+
+describe('gardenThings', () => {
+  const fit = {minX: 0, minY: 0, m: 10, padX: 0, padY: 0};
+  const square = (x: number, y: number, r: number) => [
+    {x: x - r, y: y - r},
+    {x: x + r, y: y - r},
+    {x: x + r, y: y + r},
+    {x: x - r, y: y + r},
+  ];
+  const tree: MapArea = {id: 't', properties: {type: 'obstacle', name: 'Baum'}, outline: square(5, 5, 1)};
+  const lawn = (r: number): MapArea => ({id: 'l', properties: {type: 'mow'}, outline: square(5, 5, r)});
+
+  it('hands out the same thing while only a lawn changes, a new one for another color', () => {
+    const before = gardenThings([lawn(5), tree], undefined, null, fit).things.get('t');
+    expect(gardenThings([lawn(6), tree], undefined, null, fit).things.get('t')).toBe(before);
+    const red = gardenThings([lawn(6), tree], undefined, null, fit, {variants: {t: 'copper'}}).things.get('t');
+    expect(red).not.toBe(before);
+    expect(red?.variant).toBe('copper');
+  });
+
+  it('leaves out a thing with no room in its area', () => {
+    const flat: MapArea = {id: 'f', properties: {type: 'obstacle', name: 'Haus'}, outline: [0, 1, 2].map((i) => ({x: i, y: 1}))};
+    const g = gardenThings([lawn(5), flat], undefined, null, fit);
+    expect(g.looks.get('f')).toBe('house');
+    expect(g.things.has('f')).toBe(false);
   });
 });
 

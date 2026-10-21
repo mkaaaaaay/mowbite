@@ -86,4 +86,17 @@ describe('createEaser', () => {
     expect(woken).toBe(7);
     expect(easer.still(clock)).toBe(false);
   });
+
+  it('is still once the curve has reached the last pose when no more come while it drives', () => {
+    const easer = createEaser();
+    for (let i = 0; i < 8; i++) {
+      clock = i * 150;
+      easer.push({x: i * 0.045, y: 0, heading: 0});
+    }
+    // the wifi drops: the curve plays on up to the last pose and stays there
+    expect(easer.still(clock)).toBe(false);
+    const end = clock + 1000;
+    expect(easer.at(end)).toEqual({x: 7 * 0.045, y: 0, heading: 0});
+    expect(easer.still(end)).toBe(true);
+  });
 });
