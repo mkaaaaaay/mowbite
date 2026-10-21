@@ -1,4 +1,5 @@
 import type {Point} from '@/hooks/useMowerMap';
+import * as ClipperLib from 'clipper-lib';
 // the esm build only has a default export, despite what its types say
 import polygonClipping, {type Polygon, type Ring} from 'polygon-clipping';
 import {polygonArea} from './geometry';
@@ -10,6 +11,12 @@ const fromRing = (r: Ring): Point[] => r.slice(0, -1).map(([x, y]) => ({x, y}));
 // 0.01 mm, polygon-clipping gives up now and then on outlines that run along each other within a hair
 const snap = (o: Point[]): Point[] => o.map((p) => ({x: Math.round(p.x * 1e5) / 1e5, y: Math.round(p.y * 1e5) / 1e5}));
 
+// pieces left over this small or this narrow (a wobbly path taken out of a lawn) are no area to mow
+const SLIVER_AREA = 0.25; // m²
+const SLIVER_WIDTH = 0.1; // m
+// clipper works in integers, this is 0.01 mm
+const SCALE = 1e5;
+
 const areaOf = (polygon: Polygon) => polygon.reduce((sum, r, i) => sum + (i ? -1 : 1) * polygonArea(fromRing(r)), 0);
 const lengthOf = (r: Ring) => r.slice(1).reduce((sum, [x, y], i) => sum + Math.hypot(x - r[i][0], y - r[i][1]), 0);
 
@@ -18,9 +25,13 @@ export interface Subtracted {
   pieces: Point[][];
   // the other one lay inside a piece: that piece got cut open through it, as often as this
   cut: number;
+  // slivers left over, too small or too narrow to be an area, left out
+  dropped: number;
+  // polygon-clipping gave up on the two outlines (it can where they share an edge exactly), no pieces then
+  failed?: boolean;
 }
 
-// What's left of outline a where b lies over it, null when they don't overlap (or the outlines can't be worked with)
+// What's left of outline a where b lies over it, null when they don't overlap
 export function subtractOutline(a: Point[], b: Point[]): Subtracted | null {
   try {
     return subtract(a, b);
@@ -28,9 +39,18 @@ export function subtractOutline(a: Point[], b: Point[]): Subtracted | null {
     try {
       return subtract(snap(a), snap(b));
     } catch {
-      return null;
+      return {pieces: [], cut: 0, dropped: 0, failed: true};
     }
   }
+}
+
+// nothing left of it shrunk by half the width: narrower than that everywhere
+function narrow(o: Point[]): boolean {
+  const co = new ClipperLib.ClipperOffset();
+  co.AddPath(o.map((p) => ({X: Math.round(p.x * SCALE), Y: Math.round(p.y * SCALE)})), ClipperLib.JoinType.jtMiter, ClipperLib.EndType.etClosedPolygon);
+  const out: ClipperLib.Paths = [];
+  co.Execute(out, (-SLIVER_WIDTH / 2) * SCALE);
+  return !out.length;
 }
 
 function subtract(a: Point[], b: Point[]): Subtracted | null {
@@ -40,13 +60,11 @@ function subtract(a: Point[], b: Point[]): Subtracted | null {
   const after = rest.reduce((sum, p) => sum + areaOf(p), 0);
   if (before - after < 0.01) return null;
   const opened = rest.flatMap((p) => cutOpen(p));
-  return {
-    pieces: opened
-      .filter((p) => areaOf(p) >= 0.01)
-      .sort((x, y) => areaOf(y) - areaOf(x))
-      .map((p) => fromRing(p[0])),
-    cut: rest.reduce((n, p) => n + p.length - 1, 0),
-  };
+  const pieces = opened
+    .sort((x, y) => areaOf(y) - areaOf(x))
+    .map((p) => fromRing(p[0]))
+    .filter((o) => polygonArea(o) >= SLIVER_AREA && !narrow(o));
+  return {pieces, cut: rest.reduce((n, p) => n + p.length - 1, 0), dropped: opened.length - pieces.length};
 }
 
 // An area can't have a hole: a piece with one is cut in two straight through it, in the direction where the cut is

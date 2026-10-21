@@ -4,7 +4,7 @@ import {tr} from '@/lib/i18n';
 import {mergeMaps} from '@/lib/mergeMap';
 import {sameMap} from '@/lib/sameMap';
 import {setUnsavedMap} from '@/lib/unsavedMap';
-import {useEffect, useMemo, useState} from 'react';
+import {useEffect, useMemo, useRef, useState} from 'react';
 
 // The map being edited: the live map until the first edit, after that a copy of our own so updates don't overwrite
 // edits, with undo and redo steps. Kept while the app runs, a look at another tab doesn't lose them. Also notices when
@@ -66,16 +66,21 @@ export function useMapEdits(liveMap: MowerMap | null) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- dropEdits only uses setters
   }, [external, dirty]);
 
+  // the steps to redo when the last change got remembered, a change called off gives them back
+  const futureThen = useRef(future);
   // call before every change so it can be undone. the same map twice in a row is one step (a field that got focus
   // and then the first change after a save)
   const remember = () => {
+    futureThen.current = future;
     if (map) setHistory((h) => (h[h.length - 1] === map ? h : [...h.slice(-49), map]));
   };
 
-  // one step back, false when there's none. redoable: it can be redone (not a drag that was called off)
+  // one step back, false when there's none. redoable: it can be redone (not a drag that was called off, that one
+  // leaves what could be redone before it)
   const undoStep = (redoable = true) => {
     if (!history.length) return false;
-    if (redoable && map) setFuture((f) => [...f.slice(-49), map]);
+    if (!redoable) setFuture(futureThen.current);
+    else if (map) setFuture((f) => [...f.slice(-49), map]);
     put(history[history.length - 1]);
     setHistory((h) => h.slice(0, -1));
     return true;

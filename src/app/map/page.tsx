@@ -307,6 +307,13 @@ function MapEditor() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const key = e.key.toLowerCase();
+      // in a text field undo and redo are the typing's own
+      const t = e.target;
+      const typing =
+        t instanceof HTMLTextAreaElement ||
+        (t instanceof HTMLElement && t.isContentEditable) ||
+        (t instanceof HTMLInputElement && !['checkbox', 'radio', 'range', 'button', 'color', 'file'].includes(t.type));
+      if ((e.ctrlKey || e.metaKey) && typing) return;
       // ctrl+y, or ctrl+shift+z as on a mac
       if ((e.ctrlKey || e.metaKey) && (key === 'y' || (key === 'z' && e.shiftKey))) {
         e.preventDefault();
@@ -332,6 +339,11 @@ function MapEditor() {
     }
     setSimplifyCm(null);
   };
+
+  // outlines changed some other way: reducing points starts from them, the one from before a reduce would bring the
+  // old shape back
+  const dropOriginals = (...ids: string[]) =>
+    setOriginals((o) => (ids.some((id) => id in o) ? Object.fromEntries(Object.entries(o).filter(([id]) => !ids.includes(id))) : o));
 
   const updateProperties: UpdateArea = (patch, undoable = true) => {
     if (!map || !selectedArea) return;
@@ -375,6 +387,7 @@ function MapEditor() {
 
 
   const moveVertex = (areaId: string, vertexIndex: number, x: number, y: number) => {
+    dropOriginals(areaId);
     setMap((prev) =>
       prev
         ? {
@@ -389,6 +402,7 @@ function MapEditor() {
 
   const insertVertex = (areaId: string, vertexIndex: number, x: number, y: number) => {
     remember();
+    dropOriginals(areaId);
     setMap((prev) =>
       prev
         ? {
@@ -403,6 +417,7 @@ function MapEditor() {
 
   const deleteVertex = (areaId: string, vertexIndex: number) => {
     remember();
+    dropOriginals(areaId);
     setMap((prev) =>
       prev
         ? {
@@ -442,6 +457,7 @@ function MapEditor() {
     // in the place of the first of the two, the order in map.json is the mowing order
     const first = map.areas.find((a) => a.id === selectedArea.id || a.id === other.id)!;
     remember();
+    dropOriginals(selectedArea.id, other.id);
     setMap({
       ...map,
       areas: map.areas.flatMap((a) => (a === first ? [area] : a.id === selectedArea.id || a.id === other.id ? [] : [a])),
@@ -466,6 +482,7 @@ function MapEditor() {
       properties: {...selectedArea.properties, name: name && i ? `${name} ${i + 1}` : name},
     }));
     remember();
+    dropOriginals(selectedArea.id);
     setMap({...map, areas: map.areas.flatMap((a) => (a.id === selectedArea.id ? pieces : [a]))});
     setSelectedAreaId(pieces[0].id);
     cancelPicking();
@@ -478,6 +495,7 @@ function MapEditor() {
   const applySnap = () => {
     if (!map || !moving || !laid?.valid) return;
     remember();
+    dropOriginals(moving.id);
     setMap({...map, areas: map.areas.map((a) => (a.id === moving.id ? {...a, outline: laid.outline} : a))});
     cancelPicking();
   };
@@ -523,6 +541,7 @@ function MapEditor() {
       properties: {...selectedArea.properties, name: name && i ? `${name} ${i + 1}` : name},
     }));
     remember();
+    dropOriginals(selectedArea.id);
     setMap({
       ...map,
       areas: map.areas.flatMap((a) => (a.id === selectedArea.id ? pieces : [a])),
@@ -946,7 +965,21 @@ function MapEditor() {
                     onDownload={(b) => void download(b)}
                     onDownloadGeo={() => void downloadGeo()}
                     onFile={(m, name) => setPreview({map: m, label: name})}
-                    geo={datum ? {datum, base: liveMap} : null}
+                    // a geojson file goes into the map being edited, checked like any edit, undone or saved from here
+                    geo={
+                      datum
+                        ? {
+                            datum,
+                            base: map,
+                            onLoad: (m) => {
+                              const kept = new Set(map.areas.map((a) => a.outline));
+                              remember();
+                              dropOriginals(...m.areas.filter((a) => !kept.has(a.outline)).map((a) => a.id));
+                              setMap(m);
+                            },
+                          }
+                        : null
+                    }
                   />
                 </>
               )}

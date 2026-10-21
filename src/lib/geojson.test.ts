@@ -22,7 +22,8 @@ describe('the map as geojson', () => {
     expect(ring[0][0]).toEqual(ring[0][ring[0].length - 1]);
     expect(ring[0][0][0]).toBeCloseTo(datum.lon, 6);
     const {map, added} = mapFromGeoJson(JSON.parse(JSON.stringify(json)), datum, null);
-    expect(added).toBe(2);
+    // the two areas and the docking station
+    expect(added).toBe(3);
     expect(map.areas.map((a) => a.properties)).toEqual(MAP.areas.map((a) => a.properties));
     map.areas.forEach((a, i) =>
       a.outline.forEach((p, k) => {
@@ -55,6 +56,24 @@ describe('the map as geojson', () => {
     expect(map.docking_stations).toEqual(MAP.docking_stations);
   });
 
+  it('leaves what the file has unchanged as it is and counts only real changes', () => {
+    const json = JSON.parse(JSON.stringify(mapToGeoJson(MAP, datum))) as Json;
+    const same = mapFromGeoJson(json, datum, MAP);
+    expect([same.changed, same.added]).toEqual([0, 0]);
+    same.map.areas.forEach((a, i) => expect(a).toBe(MAP.areas[i]));
+    expect(same.map.docking_stations[0]).toBe(MAP.docking_stations[0]);
+    // only a property changed: the outline keeps its points to the bit
+    json.features[1].properties.name = 'Roses';
+    (json.features[2].geometry.coordinates as number[])[0] += 0.00002;
+    const renamed = mapFromGeoJson(json, datum, MAP);
+    expect([renamed.changed, renamed.added]).toEqual([2, 0]);
+    expect(renamed.map.areas[0]).toBe(MAP.areas[0]);
+    expect(renamed.map.areas[1].properties.name).toBe('Roses');
+    expect(renamed.map.areas[1].outline).toBe(MAP.areas[1].outline);
+    // the docking station moved by about 1.4 m
+    expect(renamed.map.docking_stations[0].position.x).toBeGreaterThan(0);
+  });
+
   it('takes a hole as an obstacle and refuses a file for another place', () => {
     const square = (lon: number, lat: number, d: number) => [[lon, lat], [lon + d, lat], [lon + d, lat + d], [lon, lat + d], [lon, lat]];
     const holed = {type: 'Feature', properties: {type: 'mow'}, geometry: {type: 'Polygon', coordinates: [square(13.4035, 52.4735, 0.0003), square(13.4036, 52.4736, 0.00005)]}};
@@ -62,5 +81,12 @@ describe('the map as geojson', () => {
     expect(map.areas.map((a) => a.properties.type)).toEqual(['mow', 'obstacle']);
     expect(() => mapFromGeoJson({...holed, geometry: {type: 'Polygon', coordinates: [square(52.4735, 13.4035, 0.0003)]}}, datum, null)).toThrow(/2 km/);
     expect(() => mapFromGeoJson({type: 'FeatureCollection', features: []}, datum, null)).toThrow(/No areas/);
+  });
+
+  it('says so when the coordinates are meters of a projected system, not longitude and latitude', () => {
+    // utm zone 33 around the datum
+    const utm = [[392000, 5815000], [392030, 5815000], [392030, 5815020], [392000, 5815000]];
+    const feature = {type: 'Feature', properties: {type: 'mow'}, geometry: {type: 'Polygon', coordinates: [utm]}};
+    expect(() => mapFromGeoJson(feature, datum, null)).toThrow(/longitude and latitude/);
   });
 });

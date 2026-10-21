@@ -145,8 +145,18 @@ export function SubtractPanel({
           {result.cut > 0 && tr(", it lies inside, so the rest is cut in two through it (areas can't have holes)")}
         </p>
       )}
+      {other && !!result?.dropped && !inside && (
+        <p className={styles.dim}>
+          {result.dropped === 1
+            ? tr('1 sliver left over is dropped (under 0.25 m² or narrower than 10 cm).')
+            : tr('{n} slivers left over are dropped (under 0.25 m² or narrower than 10 cm).', {n: result.dropped})}
+        </p>
+      )}
       {other && !result && <p className={styles.error}>{tr("These two don't overlap, there's nothing to take out.")}</p>}
-      {other && result && !result.pieces.length && <p className={styles.error}>{tr('Nothing would be left of {name}.', {name})}</p>}
+      {other && result?.failed && (
+        <p className={styles.error}>{tr("These two outlines can't be worked out together, often because they share an edge exactly. Move a point of one of them a little and try again.")}</p>
+      )}
+      {other && result && !result.failed && !result.pieces.length && <p className={styles.error}>{tr('Nothing would be left of {name}.', {name})}</p>}
       {inside && <p className={styles.error}>{tr("{name} is an obstacle inside it, the mower doesn't mow there anyway.", {name: otherName})}</p>}
       <div className={styles.inlineRow}>
         <button className={styles.pillButton} onClick={onApply} disabled={!result?.pieces.length || inside}>

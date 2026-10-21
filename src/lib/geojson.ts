@@ -94,18 +94,28 @@ interface Feature {
 }
 
 const isPosition = (c: unknown): c is [number, number] =>
-  Array.isArray(c) && c.length >= 2 && Number.isFinite(c[0]) && Number.isFinite(c[1]) && Math.abs(c[0]) <= 180 && Math.abs(c[1]) <= 90;
+  Array.isArray(c) && c.length >= 2 && Number.isFinite(c[0]) && Number.isFinite(c[1]);
+// projected coordinates (utm and the like) are meters, far outside of this
+const isLonLat = ([lon, lat]: [number, number]) => Math.abs(lon) <= 180 && Math.abs(lat) <= 90;
+// what moves less than this (rounding on the way there and back) stays as it is
+const SAME = 0.001; // m
+const near = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y) < SAME;
+const sameOutline = (a: Point[], b: Point[]) => a.length === b.length && a.every((p, i) => near(p, b[i]));
 
-// What a geojson file gives the map: base with the file's areas and docking stations in it. Throws a GeoJsonError when
-// there's nothing to take or it lies somewhere else
+// What a geojson file gives the map: base with the file's areas and docking stations in it, what didn't change keeps
+// its object. Throws a GeoJsonError when there's nothing to take or it lies somewhere else
 export function mapFromGeoJson(json: unknown, datum: Datum, base: MowerMap | null): {map: MowerMap; changed: number; added: number} {
   const {toLocal} = frame(datum);
   const features: Feature[] = (json as {type?: string}).type === 'Feature' ? [json as Feature] : ((json as {features?: Feature[]}).features ?? []);
   const areas = [...(base?.areas ?? [])];
   const docks = [...(base?.docking_stations ?? [])];
-  let [changed, added, far] = [0, 0, 0];
+  let [changed, added, found, far, projected] = [0, 0, 0, 0, 0];
   const ringOf = (r: unknown): Point[] | null => {
     if (!Array.isArray(r) || !r.every(isPosition)) return null;
+    if (!r.every(isLonLat)) {
+      projected++;
+      return null;
+    }
     const o = r.map(([lon, lat]) => toLocal(lon, lat));
     // geojson closes its rings, the editor's outlines are open
     const last = o[o.length - 1];
@@ -123,9 +133,15 @@ export function mapFromGeoJson(json: unknown, datum: Datum, base: MowerMap | nul
     return out as MapArea['properties'];
   };
   const put = (id: string | null, properties: MapArea['properties'], outline: Point[]) => {
+    found++;
     const i = id ? areas.findIndex((a) => a.id === id) : -1;
     if (i >= 0) {
-      areas[i] = {...areas[i], properties: {...areas[i].properties, ...properties}, outline};
+      const was = areas[i];
+      const merged = {...was.properties, ...properties};
+      const sameProps = JSON.stringify(merged) === JSON.stringify(was.properties);
+      const sameShape = sameOutline(outline, was.outline);
+      if (sameProps && sameShape) return;
+      areas[i] = {...was, properties: sameProps ? was.properties : merged, outline: sameShape ? was.outline : outline};
       changed++;
     } else {
       areas.push({id: id ?? generateId(), properties: {type: 'draft', ...properties}, outline});
@@ -138,13 +154,22 @@ export function mapFromGeoJson(json: unknown, datum: Datum, base: MowerMap | nul
     const id = typeof f.id === 'string' && f.id ? f.id : typeof f.properties?.id === 'string' && f.properties.id ? f.properties.id : null;
     if (g?.type === 'Point' && isPosition(g.coordinates)) {
       if (f.properties?.type !== 'docking_station') continue;
+      if (!isLonLat(g.coordinates)) {
+        projected++;
+        continue;
+      }
       const [lon, lat] = g.coordinates;
       const heading = typeof f.properties.heading === 'number' && Number.isFinite(f.properties.heading) ? f.properties.heading : 0;
       const dock: DockingStation = {id: id ?? generateId(), position: toLocal(lon, lat), heading};
       if (Math.hypot(dock.position.x, dock.position.y) > FAR) far++;
       const i = docks.findIndex((d) => d.id === dock.id);
-      if (i >= 0) docks[i] = dock;
-      else docks.push(dock);
+      if (i < 0) {
+        docks.push(dock);
+        added++;
+      } else if (!near(dock.position, docks[i].position) || dock.heading !== docks[i].heading) {
+        docks[i] = dock;
+        changed++;
+      }
       continue;
     }
     const polygons = g?.type === 'Polygon' ? [g.coordinates] : g?.type === 'MultiPolygon' && Array.isArray(g.coordinates) ? g.coordinates : [];
@@ -161,7 +186,8 @@ export function mapFromGeoJson(json: unknown, datum: Datum, base: MowerMap | nul
       }
     });
   }
+  if (projected) throw new GeoJsonError("The file's coordinates aren't longitude and latitude, it's likely in a projected system like UTM. Save it in WGS84 (EPSG:4326).");
   if (far) throw new GeoJsonError("The file's areas lie more than 2 km from the mower's map, it's likely for another place.");
-  if (!changed && !added) throw new GeoJsonError('No areas in the file.');
+  if (!found) throw new GeoJsonError('No areas in the file.');
   return {map: {...(base ?? {areas: [], docking_stations: []}), areas, docking_stations: docks}, changed, added};
 }

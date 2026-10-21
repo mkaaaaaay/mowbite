@@ -1,4 +1,5 @@
-import {describe, expect, it} from 'vitest';
+import {describe, expect, it, vi} from 'vitest';
+import polygonClipping from 'polygon-clipping';
 import type {Point} from '@/hooks/useMowerMap';
 import {polygonArea} from './geometry';
 import {subtractOutline} from './subtractAreas';
@@ -37,5 +38,32 @@ describe('taking one area out of another', () => {
     expect(subtractOutline(rect(0, 0, 10, 6), rect(12, 0, 14, 6))).toBeNull();
     expect(subtractOutline(rect(0, 0, 10, 6), rect(10, 0, 14, 6))).toBeNull();
     expect(subtractOutline(rect(0, 0, 10, 6), rect(-1, -1, 11, 7))?.pieces).toEqual([]);
+  });
+
+  it('drops slivers left over, too narrow or too small to be an area', () => {
+    // a 5 cm strip along the edge, 0.3 m² but no area to mow
+    const strip = subtractOutline(rect(0, 0, 10, 6), rect(0.05, -1, 3, 7));
+    expect(strip && areas(strip.pieces)).toEqual([42]);
+    expect(strip?.dropped).toBe(1);
+    // a 40 cm corner, wide enough but only 0.16 m²
+    const path = [{x: -1, y: 0.4}, {x: 0.4, y: 0.4}, {x: 0.4, y: -1}, {x: 3, y: -1}, {x: 3, y: 7}, {x: -1, y: 7}];
+    const corner = subtractOutline(rect(0, 0, 10, 6), path);
+    expect(corner && areas(corner.pieces)).toEqual([42]);
+    expect(corner?.dropped).toBe(1);
+    // 12 cm wide and 0.72 m² stays
+    const kept = subtractOutline(rect(0, 0, 10, 6), rect(0.12, -1, 3, 7));
+    expect(kept && areas(kept.pieces)).toEqual([42, 0.72]);
+    expect(kept?.dropped).toBe(0);
+  });
+
+  it("says so when the outlines can't be worked with, not that they don't overlap", () => {
+    const spy = vi.spyOn(polygonClipping, 'difference').mockImplementation(() => {
+      throw new Error('Unable to complete output ring');
+    });
+    try {
+      expect(subtractOutline(rect(0, 0, 10, 6), rect(3, -1, 5, 7))).toEqual({pieces: [], cut: 0, dropped: 0, failed: true});
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

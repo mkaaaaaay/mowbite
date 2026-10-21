@@ -31,13 +31,16 @@ export default function MapBackups({
   onDownload: (b: BackupInfo | null) => void;
   onDownloadGeo: () => void;
   onFile: (map: MowerMap, name: string) => void;
-  // the datum for geojson's longitude and latitude, and the map a geojson file's areas go into
-  geo: {datum: Datum; base: MowerMap | null} | null;
+  // the datum for geojson's longitude and latitude, the map a geojson file's areas go into (the one being edited), and
+  // onLoad takes the map with them in
+  geo: {datum: Datum; base: MowerMap | null; onLoad: (map: MowerMap) => void} | null;
 }) {
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  // what a geojson file brought, said while the map being edited is still just what came of it
+  const [loaded, setLoaded] = useState<{map: MowerMap; note: string} | null>(null);
   const file = useRef<HTMLInputElement>(null);
 
   const create = async () => {
@@ -129,7 +132,16 @@ export default function MapBackups({
               if (isGeoJson(json)) {
                 if (!geo) throw new GeoJsonError("For GeoJSON the mower's position is needed, it isn't known yet.");
                 const r = mapFromGeoJson(json, geo.datum, geo.base);
-                onFile(r.map, `${f.name}, ${tr('{changed} changed, {added} new', {changed: r.changed, added: r.added})}`);
+                if (!r.changed && !r.added) throw new GeoJsonError('Nothing in the file differs from the map.');
+                geo.onLoad(r.map);
+                setLoaded({
+                  map: r.map,
+                  note: tr('From {file}: {changed} changed, {added} new. Only in the editor so far, the mower gets it when you save the map.', {
+                    file: f.name,
+                    changed: r.changed,
+                    added: r.added,
+                  }),
+                });
               } else onFile(parseMapFile(text), f.name);
               setError(null);
             } catch (e) {
@@ -140,9 +152,11 @@ export default function MapBackups({
       </div>
       {geo && (
         <p className={styles.dim}>
-          {tr('GeoJSON opens in QGIS, geojson.io and other map apps. Loaded back, an area from the file takes the place of the one with its id, others come in as new ones, drafts unless the file says what they are.')}
+          {tr('GeoJSON opens in QGIS, geojson.io and other map apps. Loaded back, an area from the file takes the place of the one with its id, others come in as new ones, drafts unless the file says what they are.')}{' '}
+          {tr("Coordinates are WGS84 longitude and latitude, angles in radians. An area deleted in the file isn't deleted on the map.")}
         </p>
       )}
+      {loaded && loaded.map === geo?.base && !error && <p className={styles.dim}>{loaded.note}</p>}
       {error && <p className={styles.error}>{error}</p>}
     </details>
   );
