@@ -19,8 +19,8 @@ const MIN_DISTANCE = 0.03;
 const STRAIGHT = 0.005;
 const MAX_POINTS = 30000;
 // the trail is kept in pieces of this many points. finished pieces never change, so each new position only
-// touches the last one and the map only redraws that, however long the job is
-const CHUNK = 400;
+// touches the last one and the map only draws that again, a short stretch, however long the job is
+const CHUNK = 120;
 // at most this often the map gets told about new points, positions come in several times a second
 const NOTIFY_MS = 200;
 

@@ -169,6 +169,19 @@ const bentCache = new WeakMap<object, {points: Point[]; blades: boolean}[]>();
 const swathCache = new WeakMap<object, Map<string, {pieces: Point[][]; ends: Point[][]; before: SwathState | null; after: SwathState | null}>>();
 // a piece of the strip as an svg path, per map geometry
 const pieceDs = new WeakMap<object, {key: string; d: string}>();
+type Strips = {groups: string[]; ends: string};
+const settledRuns = new Map<string, Run[]>();
+// the strips of the trail's pieces that are done and of the recorded tracks, with the state the last of them left: the
+// same until the next piece is done, by the pieces and the view they're drawn for
+const settledStrips = new Map<string, Strips & {carried: SwathState | null}>();
+const ids = new WeakMap<object, number>();
+let lastId = 0;
+const idOf = (o: object | null | undefined) => {
+  if (!o) return 0;
+  let id = ids.get(o);
+  if (!id) ids.set(o, (id = ++lastId));
+  return id;
+};
 
 const AREA_CLASS: Record<string, string> = {
   mow: styles.mowArea,
@@ -853,11 +866,11 @@ function MapView({
   // the live trail cut where the blades go on or off, driving without them is drawn dashed. worked out per
   // piece and kept for pieces that didn't change, so a long trail costs the same as a short one while driving
   const trackRuns = useMemo(() => {
-    const runs: Run[] = [];
+    const runs: {settled: Run[]; live: Run[]} = {settled: [], live: []};
     if (!track) return runs;
     const key = `${minX},${minY},${scale},${padX},${padY}`;
     const at = (p: Point) => `${(p.x - minX) * scale + padX},${HEIGHT - ((p.y - minY) * scale + padY)}`;
-    for (const piece of track) {
+    track.forEach((piece, n) => {
       let byView = runCache.get(piece);
       if (!byView) runCache.set(piece, (byView = new Map()));
       let cached = byView.get(key);
@@ -880,16 +893,27 @@ function MapView({
         if (byView.size > 3) byView.clear();
         byView.set(key, cached);
       }
-      runs.push(...cached);
+      // the last piece still grows, the others are done
+      (n === track.length - 1 ? runs.live : runs.settled).push(...cached);
+    });
+    // the same list as before while no piece got done, its lines aren't looked at again
+    const settledKey = `${idOf(track.at(-2))}|${key}`;
+    const known = settledRuns.get(settledKey);
+    if (known) runs.settled = known;
+    else {
+      if (settledRuns.size >= 4) settledRuns.delete(settledRuns.keys().next().value!);
+      settledRuns.set(settledKey, runs.settled);
     }
     return runs;
   }, [track, minX, minY, scale, padX, padY]);
 
   // the strip the blade cut along the live trail and a recorded job, with the mower's sizes set
   const swathOn = !!body?.blade && layerOn(hidden, 'swath');
+  // the pieces of the trail that are done (and the recorded tracks) apart from the last one that grows: a new position
+  // draws only that again, the strips of the whole job stay as they are
   const swath = useMemo(() => {
-    const out: {groups: string[]; ends: string} = {groups: [], ends: ''};
-    if (!swathOn || !body) return out;
+    const none: Strips = {groups: [], ends: ''};
+    if (!swathOn || !body) return {settled: none, live: none};
     const fitKey = `${minX},${minY},${scale},${padX},${padY}`;
     const at = (p: Point) => `${((p.x - minX) * scale + padX).toFixed(1)} ${(HEIGHT - ((p.y - minY) * scale + padY)).toFixed(1)}`;
     // a piece as a line of its own, or carrying on the line of the piece before (its first point is that one's last)
@@ -924,10 +948,9 @@ function MapView({
         into.ends.push(swathEnd(tail[tail.length - 2], tail[tail.length - 1], body.blade / 2));
       } else if (state.end) into.ends.push(swathEnd(state.end[0], state.end[1], body.blade / 2));
     };
-    const all: {pieces: Point[][]; ends: Point[][]} = {pieces: [], ends: []};
     const key = `${body.blade},${body.bladeAhead},${body.bladeOffset}`;
-    let carried: SwathState | null = null;
-    for (const piece of track ?? []) {
+    // a piece's strips, worked out once for the state the piece before left
+    const stripsOf = (piece: NonNullable<typeof track>[number], carried: SwathState | null) => {
       let byBlade = swathCache.get(piece);
       if (!byBlade) swathCache.set(piece, (byBlade = new Map()));
       let cached = byBlade.get(key);
@@ -947,37 +970,62 @@ function MapView({
         if (byBlade.size > 3) byBlade.clear();
         byBlade.set(key, cached);
       }
+      return cached;
+    };
+    // a few paths instead of one per piece, pieces that overlap in different ones
+    const draw = (all: {pieces: Point[][]; ends: Point[][]}): Strips => {
+      const groups = swathGroups(all.pieces, body.blade);
+      const ds: string[] = [];
+      all.pieces.forEach((piece, i) => {
+        const before = all.pieces[i - 1];
+        const carryOn = !!before && groups[i - 1] === groups[i] && piece[0] === before[before.length - 1];
+        ds[groups[i]] = (ds[groups[i]] ?? '') + path(piece, carryOn);
+      });
+      return {groups: ds.filter(Boolean), ends: all.ends.map((e) => path(e) + 'Z').join('')};
+    };
+    const pieces = track ?? [];
+    const settledKey = [idOf(pieces.at(-2)), idOf(pastTrack), idOf(beforeTrack), fitKey, key].join('|');
+    let settled = settledStrips.get(settledKey);
+    if (!settled) {
+      const all: {pieces: Point[][]; ends: Point[][]} = {pieces: [], ends: []};
+      let carried: SwathState | null = null;
+      for (const piece of pieces.slice(0, -1)) {
+        const cached = stripsOf(piece, carried);
+        carried = cached.after;
+        all.pieces.push(...cached.pieces);
+        all.ends.push(...cached.ends);
+      }
+      // a recorded track's strips are worked out once per segment
+      for (const seg of [...(pastTrack ?? []), ...(beforeTrack ?? [])]) {
+        if (!seg.blades) continue;
+        let byBlade = swathCache.get(seg);
+        if (!byBlade) swathCache.set(seg, (byBlade = new Map()));
+        let cached = byBlade.get(key);
+        if (!cached) {
+          cached = {pieces: [], ends: [], before: null, after: null};
+          strip(seg.points, cached);
+          byBlade.set(key, cached);
+        }
+        all.pieces.push(...cached.pieces);
+        all.ends.push(...cached.ends);
+      }
+      settled = {...draw(all), carried};
+      // the dashboard's and the map page's view, a job before
+      if (settledStrips.size >= 4) settledStrips.delete(settledStrips.keys().next().value!);
+      settledStrips.set(settledKey, settled);
+    }
+    const live: {pieces: Point[][]; ends: Point[][]} = {pieces: [], ends: []};
+    let carried = settled.carried;
+    const last = pieces.at(-1);
+    if (last) {
+      const cached = stripsOf(last, carried);
       carried = cached.after;
-      all.pieces.push(...cached.pieces);
-      all.ends.push(...cached.ends);
+      live.pieces.push(...cached.pieces);
+      live.ends.push(...cached.ends);
     }
     // the round end where the trail stops now with the blades on
-    finish(carried, all);
-    // a recorded track's strips are worked out once per segment, the live trail next to it changes all the time
-    for (const seg of [...(pastTrack ?? []), ...(beforeTrack ?? [])]) {
-      if (!seg.blades) continue;
-      let byBlade = swathCache.get(seg);
-      if (!byBlade) swathCache.set(seg, (byBlade = new Map()));
-      let cached = byBlade.get(key);
-      if (!cached) {
-        cached = {pieces: [], ends: [], before: null, after: null};
-        strip(seg.points, cached);
-        byBlade.set(key, cached);
-      }
-      all.pieces.push(...cached.pieces);
-      all.ends.push(...cached.ends);
-    }
-    // a few paths instead of one per piece, pieces that overlap in different ones
-    const groups = swathGroups(all.pieces, body.blade);
-    const ds: string[] = [];
-    all.pieces.forEach((piece, i) => {
-      const before = all.pieces[i - 1];
-      const carryOn = !!before && groups[i - 1] === groups[i] && piece[0] === before[before.length - 1];
-      ds[groups[i]] = (ds[groups[i]] ?? '') + path(piece, carryOn);
-    });
-    out.groups = ds.filter(Boolean);
-    out.ends = all.ends.map((e) => path(e) + 'Z').join('');
-    return out;
+    finish(carried, live);
+    return {settled, live: draw(live)};
   }, [swathOn, body, track, pastTrack, beforeTrack, minX, minY, scale, padX, padY]);
 
   // the edges where the mower's body reached while the outlines were recorded with its middle
@@ -1081,18 +1129,19 @@ function MapView({
     () => (progress ? pathOf(progress.todo, {minX, minY, scale, padX, padY}) : null),
     [progress, minX, minY, scale, padX, padY],
   );
-  const swathLayer = useMemo(
-    () =>
-      swath.groups.length > 0 && body ? (
-        <g className={styles.swath} strokeWidth={body.blade * scale}>
-          {swath.groups.map((d, i) => (
-            <path key={'swath' + i} d={d} />
-          ))}
-          <path className={styles.swathEnd} d={swath.ends} />
-        </g>
-      ) : null,
-    [swath, body, scale],
-  );
+  const strips = (st: Strips) =>
+    st.groups.length > 0 && body ? (
+      <g className={styles.swath} strokeWidth={body.blade * scale}>
+        {st.groups.map((d, i) => (
+          <path key={'swath' + i} d={d} />
+        ))}
+        <path className={styles.swathEnd} d={st.ends} />
+      </g>
+    ) : null;
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- strips only uses body and scale
+  const swathSettled = useMemo(() => strips(swath.settled), [swath.settled, body, scale]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- strips only uses body and scale
+  const swathLive = useMemo(() => strips(swath.live), [swath.live, body, scale]);
   const coverLayer = useMemo(() => {
     if (!coverage || coverMode === 'off') return null;
     const size = CELL_M * scale;
@@ -1136,7 +1185,12 @@ function MapView({
         ),
     [beforeTrack, minX, minY, scale, padX, padY],
   );
-  const trackLayer = useMemo(
+  const runLines = (runs: Run[]) =>
+    runs
+      .filter((run) => run.blades || !hidden.has('transit'))
+      .map((run, i) => <polyline key={'run' + i} points={run.points} className={run.blades ? styles.track : styles.transit} />);
+  // the trail's pieces that are done and the recorded tracks, and the piece that grows
+  const trackSettled = useMemo(
     () =>
       hidden.has('track') ? null : (
         // halloween night the track glows like ectoplasm
@@ -1144,11 +1198,7 @@ function MapView({
           {beforeLines.map((points, i) => (
             <polyline key={'before' + i} points={points} className={styles.trackBefore} />
           ))}
-          {trackRuns
-            .filter((run) => run.blades || !hidden.has('transit'))
-            .map((run, i) => (
-              <polyline key={'run' + i} points={run.points} className={run.blades ? styles.track : styles.transit} />
-            ))}
+          {runLines(trackRuns.settled)}
           {pastTrack?.map((seg, i) =>
             seg.points.length >= 2 && (seg.blades || !hidden.has('transit')) ? (
               <polyline
@@ -1162,7 +1212,13 @@ function MapView({
           )}
         </g>
       ),
-    [hidden, trackRuns, pastTrack, beforeLines, minX, minY, scale, padX, padY, halloween.night],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runLines only uses hidden
+    [hidden, trackRuns.settled, pastTrack, beforeLines, minX, minY, scale, padX, padY, halloween.night],
+  );
+  const trackLive = useMemo(
+    () => (hidden.has('track') ? null : <g className={halloween.night ? styles.spooky : undefined}>{runLines(trackRuns.live)}</g>),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runLines only uses hidden
+    [hidden, trackRuns.live, halloween.night],
   );
 
   const selectedArea = map.areas.find((a) => a.id === selectedAreaId);
@@ -1868,20 +1924,35 @@ function MapView({
       )}
     </>
   );
-  // the real edges, what's left to mow, the strip the blade cut and the track
-  const lateLines = (
+  // the real edges, the strip the blade cut and the track of the pieces that are done, and what's left to mow with the
+  // strip and the track of the piece that grows
+  const swathShown = !scene?.parts.growth || !!pastTrack?.length || !!beforeTrack?.length;
+  const settledLines = (
     <>
       {edges && (scene?.stones ? edges.obstacleLine : edges.line) && <path className={styles.realEdge} d={scene?.stones ? edges.obstacleLine : edges.line} />}
-      {todoPath && !hidden.has('stripes') && <path className={[styles.planTodo, styles[planStyle]].join(' ')} d={todoPath} />}
-      {(!scene?.parts.growth || !!pastTrack?.length || !!beforeTrack?.length) && swathLayer}
-      {trackLayer}
+      {swathShown && swathSettled}
+      {trackSettled}
     </>
   );
-  // part: the map on the ground, or what's over it and changes often (the mower, the crowns over it, the picked area and
-  // its points), drawn as two layers on a map that can move: a mower driving along doesn't draw all the garden again
-  const renderContent = (k: number, part: 'all' | 'ground' | 'over' = 'all') => (
+  const liveLines = (
     <>
-      {part !== 'over' && (
+      {todoPath && !hidden.has('stripes') && <path className={[styles.planTodo, styles[planStyle]].join(' ')} d={todoPath} />}
+      {swathShown && swathLive}
+      {trackLive}
+    </>
+  );
+  const lateLines = (
+    <>
+      {settledLines}
+      {liveLines}
+    </>
+  );
+  // part: the map on the ground, the lines that grow while the mower drives (the strip the blade cut, the track, what's
+  // left to mow), or what's over it and changes often (the mower, the crowns over it, the picked area and its points),
+  // drawn as layers on a map that can move: a mower driving along doesn't draw all the garden again
+  const renderContent = (k: number, part: 'all' | 'ground' | 'settled' | 'live' | 'over' = 'all') => (
+    <>
+      {(part === 'all' || part === 'ground') && (
         <>
       {tiles.length > 0 && (
         <g className={styles.imagery}>
@@ -1969,11 +2040,11 @@ function MapView({
           );
         })}
 
-        {lateLines}
-
         </>
       )}
-      {part !== 'ground' && (
+      {(part === 'all' || part === 'settled') && settledLines}
+      {(part === 'all' || part === 'live') && liveLines}
+      {(part === 'all' || part === 'over') && (
         <>
         {mower && (
           <MowerMarker
@@ -2336,6 +2407,11 @@ function MapView({
       <div ref={frameRef} className={[styles.frame, glides ? styles.frameGliding : ''].filter(Boolean).join(' ')}>
         <div ref={sheetRef} style={glides ? GLIDING : OVERSCAN} {...events}>
           {svg}
+          {(['settled', 'live'] as const).map((part) => (
+            <svg key={part} className={[styles.svg, zoomable ? styles.zoomable : '', garden ? styles.garden : ''].filter(Boolean).join(' ')} viewBox={svg.props.viewBox} style={OVER}>
+              {renderContent(k, part)}
+            </svg>
+          ))}
           <svg
             className={[styles.svg, zoomable ? styles.zoomable : '', garden ? styles.garden : ''].filter(Boolean).join(' ')}
             viewBox={svg.props.viewBox}
