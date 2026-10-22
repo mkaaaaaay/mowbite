@@ -1,8 +1,8 @@
 # input: "<unix time> <topic> <value>" from mosquitto_sub. output, appended to OUT:
 #   charge <start> <end> <minutes> <volts at start> <volts at the end>   from charging on until the charger says Done
 #   run <start> <end> <blade minutes> <volts after charging> <volts when charging starts again>   between two charges
-# an older battery takes a shorter charge and loses more volts per hour of mowing. the state in between (a run since
-# the last charge, a charge going on) is kept in STATE, so a restart of the container doesn't lose the run it was in
+# the state in between (a run since the last charge, a charge going on) is kept in STATE, so a restart of the container
+# doesn't lose the run it was in
 #
 # what the battery's capacity is read from, appended to HEALTH. only the current into the battery while charging is
 # measured, nothing measures what it gives out, so the charge is counted and the voltages it passes:

@@ -21,25 +21,10 @@ export function parseBattery(text: string): Cycle[] {
   return out;
 }
 
-// full charges only, a top up after a short drive says nothing about the battery
-export const chargeSamples = (cycles: Cycle[]): Sample[] =>
-  cycles.filter((c) => c.kind === 'charge' && c.minutes >= 20).map((c) => ({t: c.end * 1000, v: c.minutes}));
+// full charges only, a top up after a short drive is over in a few minutes
+export const fullCharges = (cycles: Cycle[]): Cycle[] => cycles.filter((c) => c.kind === 'charge' && c.minutes >= 20);
 
-// volts lost per hour with the blade on, only stretches with a fair bit of mowing
-export const drainSamples = (cycles: Cycle[]): Sample[] =>
-  cycles.filter((c) => c.kind === 'run' && c.minutes >= 15 && c.from > c.to).map((c) => ({t: c.end * 1000, v: (c.from - c.to) / (c.minutes / 60)}));
-
-// the mean of the last four weeks against the first four the data has, once there's enough for both
-export function trend(samples: Sample[], now = Date.now()): {first: number; last: number} | null {
-  if (samples.length < 6) return null;
-  const week = 7 * 86400e3;
-  const t0 = samples[0].t;
-  if (now - t0 < 6 * week) return null;
-  const mean = (xs: Sample[]) => (xs.length ? xs.reduce((a, s) => a + s.v, 0) / xs.length : NaN);
-  const first = mean(samples.filter((s) => s.t < t0 + 4 * week));
-  const last = mean(samples.filter((s) => s.t > now - 4 * week));
-  return Number.isFinite(first) && Number.isFinite(last) ? {first, last} : null;
-}
+export const chargeSamples = (cycles: Cycle[]): Sample[] => fullCharges(cycles).map((c) => ({t: c.end * 1000, v: c.minutes}));
 
 // null: not served, an older container or MowBite not running as one
 export async function loadBattery(): Promise<Cycle[] | null> {
