@@ -1,5 +1,10 @@
 #!/bin/sh
-# the charge and discharge cycles battery.sh kept, for the sensors page
+# the charge and discharge cycles battery.sh kept, for the sensors page. ?health: the lines the battery's capacity is
+# read from (battery.awk), an older container answers with the cycles
 printf 'Access-Control-Allow-Origin: *\r\n'
 printf 'Content-Type: text/plain\r\nCache-Control: no-store\r\n\r\n'
-cat /data/battery.log 2>/dev/null
+if [ "$QUERY_STRING" = health ]; then
+  cat /data/battery-health.log 2>/dev/null
+else
+  cat /data/battery.log 2>/dev/null
+fi
