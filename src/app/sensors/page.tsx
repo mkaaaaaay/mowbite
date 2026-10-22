@@ -177,9 +177,13 @@ export default function SensorsPage() {
                   <>
                     {tr('Battery')}
                     <InfoTip>
-                      {tr(
-                        "The percentage is worked out from the battery voltage, between the empty and full voltage set on the mower. While charging, the charger pushes the voltage up, so it drops a bit as soon as the mower leaves the dock. Under load, especially with the blade running or uphill, it sags and comes back when the mower stops. Short jumps are normal, only the trend over a whole mow says something about the battery.",
-                      )}
+                      {level !== undefined
+                        ? tr(
+                            "MowBite works out the percentage from the battery voltage as if only the electronics drew on it, so it stays put when the blade starts or the mower leaves the dock. It goes up only while charging and down only while not. 0 % is where OpenMower sends the mower home. In the dock it goes down slowly after a full charge until the charger tops it up.",
+                          )
+                        : tr(
+                            "The percentage is worked out from the battery voltage, between the empty and full voltage set on the mower. While charging, the charger pushes the voltage up, so it drops a bit as soon as the mower leaves the dock. Under load, especially with the blade running or uphill, it sags and comes back when the mower stops. Short jumps are normal, only the trend over a whole mow says something about the battery.",
+                          )}
                     </InfoTip>
                   </>
                 }

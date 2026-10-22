@@ -24,7 +24,8 @@
 # TRACES: a file per charge with a line a second "<time> <A> <V> <dock V> <charger state>", from a minute before it to
 # half an hour after (12 h at most), then handed to TIDY
 #
-# LEVEL: how full the battery is, "<time> <percent> charging|full|dock|out", for the app and the schedule (level())
+# LEVEL: how full the battery is, "<time> <percent> charging|full|dock|out", for the app and the schedule (level()).
+# not written where it can't be worked out (another board, OpenMower v1), they take OpenMower's percentage then
 function save(    k, line) {
   if (!STATE) return
   line = sprintf("%d %.2f %.1f %d %d %.2f", run_t, run_v, blade_s, charging, charge_t, charge_v)
@@ -44,7 +45,8 @@ function start_charge(    x) {
   c["idle"] = c["prev"] == "done" && h["done_t"] ? sprintf("%.2f", (t - h["done_t"]) / 3600) : -1
   c["off"] = c["prev"] == "done" ? int(h["off"]) : -1
   c["blade"] = h["blade_t"] ? int((t - h["blade_t"]) / 60) : -1
-  c["v0"] = v_before ? v_before : "-"
+  # from just before it, not from before a gap of the stream
+  c["v0"] = v_before && t - vb_t <= 5 ? v_before : "-"
   c["tm"] = tm != "" ? tm : "-"
   c["cpu"] = "-"
   if (CPUT) { if ((getline x < CPUT) > 0 && x ~ /^-?[0-9]+$/) c["cpu"] = x / 1000; close(CPUT) }
@@ -147,12 +149,12 @@ function finish(how, te,    line) {
 # standing without power at the dock with the blade off for 10 minutes: how long the battery takes from one half volt to
 # the next shows what it holds, the electronics drawing about the same all the time
 function idle_volts() {
-  # after a start the dock's voltage and the robot's state come a moment later
-  if (!vct || rstate == "") return
+  # after a start the dock's voltage and the robot's state come a moment later. 0 V: the charger not read yet
+  if (!vct || rstate == "" || volts < 5) return
   # a gap of the stream or a restart up to two minutes goes on with the same (it's saved once a minute)
   if (h["dt"] != "" && t - h["dl"] > 125) end_dis("gap")
   if (t - vct >= 10) return
-  if (vc < 20 && rstate == "IDLE" && (!h["blade_t"] || t - h["blade_t"] >= 600)) {
+  if (vc < DOCK && rstate == "IDLE" && (!h["blade_t"] || t - h["blade_t"] >= 600)) {
     if (h["dt"] == "") {
       h["dt"] = int(t)
       h["dq"] = sprintf("%.3f:0", volts)
@@ -165,7 +167,7 @@ function idle_volts() {
       dirty = 1
     }
     h["dl"] = int(t)
-  } else if (h["dt"] != "") end_dis(vc >= 20 ? "power" : rstate != "IDLE" ? "drive" : "blade")
+  } else if (h["dt"] != "") end_dis(vc >= DOCK ? "power" : rstate != "IDLE" ? "drive" : "blade")
 }
 
 function end_dis(why,    x) {
@@ -215,48 +217,71 @@ function curve(v,    j) {
 }
 
 # OpenMower's empty and full voltage, the min and max of the battery's sensor. 0 % is where it sends the mower home: the
-# empty voltage with the blade on, the battery's own 0.24 V above the charger's
-function limits(    x, a, b) {
+# empty voltage with the blade on, the battery's own 0.24 V above the charger's. the cells counted from the full one,
+# nothing when the two don't fit a lithium ion battery of that many
+function limits(    x, a, b, n) {
+  FULL = 0
   if (!match($0, /"sensor_id": *"om_v_battery"[^}]*/)) return
   x = substr($0, RSTART, RLENGTH)
   if (!match(x, /"min_value": *[0-9.]+/)) return
   a = substr(x, RSTART, RLENGTH); sub(/.*: */, "", a)
   if (!match(x, /"max_value": *[0-9.]+/)) return
   b = substr(x, RSTART, RLENGTH); sub(/.*: */, "", b)
-  if (a + 0 < 5 || b + 0 <= a + 0) return
-  FULL = b + 0
-  # read as a 7 cell battery, about 4 V a cell when full
-  K = 7 / int(FULL / 4 + 0.5)
+  a += 0; b += 0
+  if (a < 5 || b <= a) return
+  n = int(b / 4.05 + 0.5)
+  if (b / n > 4.35 || a / n < 2.8 || a / n > 3.85) return
+  # read as a 7 cell battery
+  K = 7 / n
   L0 = curve((a - 0.24) * K + 0.36)
+  if (L0 < 90) FULL = b
 }
 
-# how full the battery is. the voltage is read as under the electronics alone: the blade takes 0.26 V, the wheels 0.1 V,
-# the dock's power gives 0.05 V back and the charger's current lifts it by 1.55 V. at constant voltage the falling
-# current says how far it is, from 86 % to Done at 0.25 A. a 2 minute mean that goes up only while charging or at Done
-# and down only while not charging, so the blade or the wheels starting or stopping don't move it
-function level(    r, e, how) {
-  if (!FULL) return
-  if (cur > 0.1 && vc >= 20) {
+# how full the battery is. the voltage is read as under the electronics alone: the blade takes 0.65 V per A (0.26 V at
+# its usual 0.4 A), the wheels 0.1 V, the dock's power gives 0.05 V back and the charger lifts it by 0.59 V and 1.09 V
+# per A (1.55 V at 0.88 A). at constant voltage the falling current says how far it is, from 86 % to Done at 0.25 A. a 2
+# minute mean that goes up only while charging or at Done and down only while not charging, so the blade or the wheels
+# starting or stopping don't move it. it starts from what's shown when one of these changes to another. at Done it goes
+# down no faster than the last time the mower stood there until the charger topped it up
+function level(    r, e, how, x) {
+  # only with OpenMower v2's charger on a YardForce board, what it's read off, and once the dock, the robot's state and
+  # the blade are known. 0 V: the charger not read yet
+  if (!FULL || !BQ || OTHER || !cur_t || t - cur_t > 60 ||!vct || t - vct >= 10 || rstate == "" || !rpm_t || volts < 5) return
+  if (cur > 0.1 && vc >= DOCK) {
     how = "charging"
     if (st ~ /^(Taper|Top Off)/) {
       e = c["im"] > 0.3 ? c["im"] : 0.87
       r = 86 + 14 * (e - cur) / (e - 0.25)
       r = r < 86 ? 86 : r > 100 ? 100 : r
-    } else r = curve(volts * K - 1.55)
+    } else r = curve(volts * K - 0.59 - 1.09 * cur)
   } else {
-    how = vc < 20 ? "out" : st ~ /^Done/ ? "full" : "dock"
-    r = curve(volts * K + (vc >= 20 ? -0.05 : (rstate != "IDLE" && rstate != "" ? 0.1 : 0) + (blade ? 0.26 : 0)))
+    how = vc < DOCK ? "out" : st ~ /^Done/ ? "full" : "dock"
+    r = curve(volts * K + (vc >= DOCK ? -0.05 : (rstate != "IDLE" ? 0.1 : 0) + (t - mct <= 5 ? (mc > 0 ? 0.65 * mc : 0) : blade ? 0.26 : 0)))
   }
   r = (r - L0) / (100 - L0) * 100
   r = r < 0 ? 0 : r > 100 ? 100 : r
-  # new after 10 minutes without it (a restart, the stream gone)
-  if (h["lvt"] == "" || t - h["lvt"] > 600 || t < h["lvt"]) { h["lve"] = r; h["lv"] = r }
-  else {
+  if (how == "full") {
+    fv = r
+    if (h["dr"] && h["done_t"] && t > h["done_t"]) { x = 100 - h["dr"] * (t - h["done_t"]) / 3600; if (r > x) r = x }
+  }
+  # the charger tops it up, at Done since then and the dock's power on: how fast it went down in between, %/h
+  if (how == "charging" && lm == "full" && h["off"] < 60 && h["done_t"] && t - h["done_t"] > 14400 && fv < 95) {
+    x = (100 - fv) * 3600 / (t - h["done_t"])
+    x = x < 0.2 ? 0.2 : x > 5 ? 5 : x
+    h["dr"] = h["dr"] ? (h["dr"] + x) / 2 : x
+  }
+  # new after 10 minutes without it (a restart, the stream gone), during the same charge not below what it showed
+  if (h["lvt"] == "" || t - h["lvt"] > 600 || t < h["lvt"]) {
+    if (!(how == "charging" && charging && h["lvt"] >= charge_t && h["lv"] > r)) h["lv"] = r
+    h["lve"] = h["lv"]
+  } else {
+    if (how != lm) h["lve"] = h["lv"]
     h["lve"] += (r - h["lve"]) * (t - h["lvt"] < 120 ? t - h["lvt"] : 120) / 120
     if (how != "charging" && h["lve"] < h["lv"]) h["lv"] = h["lve"]
     if ((how == "charging" || how == "full") && h["lve"] > h["lv"]) h["lv"] = h["lve"]
   }
   h["lvt"] = t
+  lm = how
   if (LEVEL && (int(h["lv"] + 0.5) != lw || how != lh || t - lwt >= 30)) {
     lw = int(h["lv"] + 0.5); lh = how; lwt = t
     printf "%d %d %s\n", t, lw, how > LEVEL
@@ -274,6 +299,8 @@ BEGIN {
   TIDY = ENVIRON["TIDY"]
   CPUT = ENVIRON["CPUT"]
   LEVEL = ENVIRON["LEVEL"]
+  # the dock's voltage from which the mower is in it, as OpenMower takes it
+  DOCK = 10
   LN = split("20.25 22 23 23.5 23.75 24 24.25 24.5 24.75 25 25.25 25.5 25.75 26 26.25 26.5 26.75 27 27.25 27.5 27.75 27.97", LV, " ")
   split("0 1.5 3.5 5.3 7.7 13.4 17.5 22.5 28.3 34.4 40.1 44.6 48.4 52.1 56.7 63 68.7 74.4 80.1 85.2 93 100", LR, " ")
   if (STATE && (getline line < STATE) > 0) {
@@ -305,6 +332,13 @@ BEGIN {
     next
   }
   if ($2 ~ /sensor_infos\/json$/) { limits(); next }
+  # the board OpenMower was set up for (ll/board), the level isn't worked out on others. none on an older OpenMower
+  if ($2 ~ /params\/json$/) {
+    x = match($0, /"\/ll\/board": *"[^"]*"/) ? substr($0, RSTART, RLENGTH) : ""
+    sub(/.*: *"/, "", x); sub(/"$/, "", x)
+    OTHER = x != "" && x != "YardForce" && x != "YardForce-V4"
+    next
+  }
   id = $2
   sub(/.*sensors\//, "", id)
   sub(/\/data$/, "", id)
@@ -326,14 +360,16 @@ BEGIN {
     blade = val + 0 > 500 || val + 0 < -500
     if (blade) h["blade_t"] = int(t)
     rpm_t = t
+  } else if (id == "om_mow_motor_current") {
+    mc = val + 0; mct = t
   } else if (id == "om_charge_current") {
     i = val + 0
     if (charging) count()
     # the battery's voltage before the charger switches on (the current comes before the voltage of the same second)
-    else if (i < 0.05) v_before = volts
+    else if (i < 0.05) { v_before = volts; vb_t = t }
     # seen without charging: the next charge is seen from its start
     if (i <= 0.1) up = 1
-    cur = i
+    cur = i; cur_t = t
     if (i > 0.1) {
       no_current_t = 0
       if (!charging && volts) {
@@ -360,6 +396,8 @@ BEGIN {
     }
   } else if (id == "om_charge_state") {
     st = val
+    # OpenMower v2's charger, v1 says N/A
+    if (st ~ /^(Not Charging|Trickle Charge|Pre Charge|Fast Charge|Taper Charge|Top Off|Done)/) BQ = 1
     if (st ~ /^Fast Charge/) sst = "cc"
     else if (st ~ /^Taper/) sst = "cv"
     else { sst = tolower(st); gsub(/[^a-z]/, "", sst) }
@@ -381,8 +419,8 @@ BEGIN {
   } else if (id == "om_v_charge") {
     vc = val + 0
     # only while it charges from the dock, off it the margin says nothing
-    if (charging && cur > 0.1 && vc >= 20) dock()
-    else if (vc < 20 && vct && t - vct < 10) h["off"] += t - vct
+    if (charging && cur > 0.1 && vc >= DOCK) dock()
+    else if (vc < DOCK && vct && t - vct < 10) h["off"] += t - vct
     vct = t
   } else if (id == "om_mow_motor_temp") tm = val + 0
 }

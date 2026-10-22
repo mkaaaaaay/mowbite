@@ -2,4 +2,5 @@
  {"key": "stats", "level": 2, "what": "mowing hours, maintenance and its push messages"},
  {"key": "wifi", "level": 2, "what": "the mower's wifi signal"},
  {"key": "standstill", "level": 3, "what": "the push message when it stands still"},
- {"key": "cold", "level": 3, "what": "not starting in the cold"}]
+ {"key": "cold", "level": 3, "what": "not starting in the cold"},
+ {"key": "level", "level": 4, "what": "a battery level that stays put when the mower drives off"}]

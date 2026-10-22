@@ -22,10 +22,12 @@ log() {
 # a plain value from compact or spaced out json, e.g. field "$state" current_state
 field() { printf '%s' "$1" | grep -o "\"$2\" *: *[^,}]*" | head -n1 | sed 's/^[^:]*: *//' | tr -d '" '; }
 conf() { sed -n "s/^$1 //p" "$F" | head -n1; }
-# how full the battery is in %: battery.awk's while it's fresh, else OpenMower's from the robot state $1
+# how full the battery is in %: battery.awk's while it's fresh, else OpenMower's from the robot state $1. at Done it
+# counts as full, in the dock it goes down until the charger tops it up
 battery() {
   lvl=$(cat /dev/shm/battery.level 2>/dev/null)
   case "$lvl" in
+    [0-9]*' '[0-9]*' full') [ "$(($(date +%s) - ${lvl%% *}))" -le 120 ] && { echo 100; return; } ;;
     [0-9]*' '[0-9]*' '[a-z]*) [ "$(($(date +%s) - ${lvl%% *}))" -le 120 ] && { echo "$lvl" | cut -d' ' -f2; return; } ;;
   esac
   field "$1" battery_percentage | awk '{printf "%d", $1 * 100}'

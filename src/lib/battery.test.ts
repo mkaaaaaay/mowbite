@@ -6,9 +6,12 @@ import {describe, expect, it} from 'vitest';
 import {chargeSamples, fullCharges, parseBattery, parseLevel} from './battery';
 
 describe('battery', () => {
-  const cycles = parseBattery('charge 100 6000 98.3 24.10 28.00\nrun 6000 7100 30.0 28.00 26.50\nrun 7100 7200 2 26.5 26.4\ncharge 7200 7500 5 26.4 28\nbad line\n');
+  const cycles = parseBattery(
+    'charge 100 6000 98.3 24.10 28.00\nrun 6000 7100 30.0 28.00 26.50\nrun 7100 7200 2 26.5 26.4\ncharge 7200 7500 5 26.4 28\nbad line\n' +
+      'charge 80000 83200 52.8 27.51 29.08\ncharge 90000 91900 31.2 27.78 29.09\n',
+  );
   it('reads what battery.sh writes', () => {
-    expect(cycles).toHaveLength(4);
+    expect(cycles).toHaveLength(6);
     expect(cycles[0]).toEqual({kind: 'charge', start: 100, end: 6000, minutes: 98.3, from: 24.1, to: 28});
   });
   it('leaves out top ups', () => {
@@ -238,21 +241,30 @@ describe('battery health', () => {
 describe('battery level', () => {
   const infos = `0 sensor_infos/json [{"sensor_id":"om_v_charge","has_min_max":1,"min_value":0,"max_value":32},{"sensor_id":"om_v_battery","sensor_name":"V Battery","has_min_max":1,"min_value":24.5,"max_value":28.2}]\n`;
   const line = (t: number, id: string, v: string | number) => `${t} sensors/${id}/data ${v}\n`;
-  // a second: robot state, charger, blade, dock and battery
-  const at = (t: number, v: number, o: {a?: number; vc?: number; st?: string; rpm?: number; robot?: string} = {}) =>
-    `${t} robot_state/json {"current_state":"${o.robot ?? 'IDLE'}","battery_percentage":0.5}\n` +
+  // a second in the order the mower sends it: charger, battery, dock, then blade and robot state (quiet: those left out,
+  // they stay as they were)
+  type At = {a?: number; vc?: number; st?: string; rpm?: number; ma?: number; robot?: string; quiet?: boolean};
+  const at = (t: number, v: number, o: At = {}) =>
     line(t, 'om_charge_current', o.a ?? 0) +
     line(t, 'om_charge_state', o.st ?? 'Not Charging') +
-    line(t, 'om_mow_motor_rpm', o.rpm ?? 0) +
-    line(t + 0.1, 'om_v_charge', o.vc ?? 0.4) +
-    line(t + 0.2, 'om_v_battery', v);
-  const span = (from: number, to: number, v: (s: number) => number, o: Parameters<typeof at>[2] = {}, step = 1) => {
+    line(t + 0.1, 'om_v_battery', v) +
+    line(t + 0.2, 'om_v_charge', o.vc ?? 0.4) +
+    (o.quiet
+      ? ''
+      : line(t + 0.3, 'om_mow_motor_rpm', o.rpm ?? 0) +
+        line(t + 0.3, 'om_mow_motor_current', o.ma ?? 0) +
+        `${t + 0.6} robot_state/json {"current_state":"${o.robot ?? 'IDLE'}","battery_percentage":0.5}\n`);
+  const span = (from: number, to: number, v: (s: number) => number, o: At = {}, step = 1) => {
     let input = '';
     for (let t = from; t < to; t += step) input += at(t, v(t - from), o);
     return input;
   };
   const docked = {vc: 31.9, st: 'Done'};
-  const mowing = {robot: 'MOWING', rpm: 2800};
+  const mowing = {robot: 'MOWING', rpm: 2800, ma: 0.4};
+  const cc = {a: 0.88, vc: 29.5, st: 'Fast Charge (CC)'};
+  const limits = (empty: number, full: number) =>
+    `0 sensor_infos/json [{"sensor_id":"om_v_battery","has_min_max":true,"min_value":${empty},"max_value":${full}}]\n`;
+  const board = (b: string) => `0 params/json {"/ll/bind_ip":"0.0.0.0","/ll/board":"${b}","/ll/services/power/battery_full_voltage":28.2}\n`;
   const level = (input: string, d = mkdtempSync(join(tmpdir(), 'battery-')), state = '') => {
     spawnSync('awk', ['-f', 'docker/battery.awk'], {
       input,
@@ -335,6 +347,100 @@ describe('battery level', () => {
     expect(level(infos + span(900, 1000, () => 27.4, {robot: 'IDLE'}), d, state)!.pct).toBe(first);
     // 20 minutes later it's read from the voltage
     expect(level(infos + span(2200, 2300, () => 27.4, {robot: 'IDLE'}), d, state)!.pct).toBeGreaterThan(first + 5);
+  });
+
+  it('comes up in the middle of a charge from the charge, not from the voltage the charger lifts', () => {
+    // 27.65 V at 0.88 A is about 38 %, without the charger that voltage would be 84 %
+    const now = level(infos + span(1, 300, () => 27.65, cc))!;
+    expect(now.how).toBe('charging');
+    expect(now.pct).toBeGreaterThan(33);
+    expect(now.pct).toBeLessThan(43);
+  });
+
+  it('keeps what it showed when it comes back during the same charge', () => {
+    const d = mkdtempSync(join(tmpdir(), 'battery-'));
+    const state = join(d, 'state');
+    const first = level(infos + span(1, 600, () => 26.9, mowing) + span(600, 1200, () => 28.3, cc), d, state)!;
+    expect(first.how).toBe('charging');
+    // 20 minutes later, the voltage at constant current reads less than what was shown
+    expect(level(infos + span(2400, 2500, () => 28.5, cc), d, state)!.pct).toBeGreaterThanOrEqual(first.pct);
+  });
+
+  it("doesn't drop when the mower leaves after a short charge, nor jump when it docks again", () => {
+    let input = infos + span(1, 900, () => 26.9, mowing) + span(900, 960, () => 27.2, {robot: 'DOCKING'});
+    const home = level(input)!.pct;
+    // 3 minutes at constant current, then off again: the voltage comes back higher than it was
+    input += span(960, 1140, () => 28.3, cc);
+    input += span(1140, 1300, () => 27.3, {robot: 'UNDOCKING'});
+    const off = level(input)!.pct;
+    expect(off).toBeGreaterThanOrEqual(home - 1);
+    input += span(1300, 1360, () => 28.3, cc);
+    expect(level(input)!.pct).toBeLessThanOrEqual(off + 1);
+  });
+
+  it('takes the blade by the current it draws', () => {
+    const light = level(infos + span(1, 600, () => 26.6, mowing))!.pct;
+    // thick grass: three times the current, 0.52 V lower
+    const heavy = level(infos + span(1, 600, () => 26.08, {...mowing, ma: 1.2}))!.pct;
+    expect(Math.abs(heavy - light)).toBeLessThanOrEqual(1);
+  });
+
+  it("isn't moved by 0 V while the charger isn't read yet", () => {
+    const mown = infos + span(1, 600, () => 26.6, mowing);
+    const before = level(mown)!.pct;
+    expect(level(mown + span(600, 603, () => 0, mowing) + span(603, 700, () => 26.6, mowing))!.pct).toBe(before);
+  });
+
+  it("isn't worked out where it can't be: another board, OpenMower v1, no charge current", () => {
+    const full = span(1, 120, () => 28.06, docked);
+    expect(level(infos + board('YardForce') + full)).toMatchObject({pct: 100, how: 'full'});
+    expect(level(infos + board('YardForce-V4') + full)).toMatchObject({pct: 100, how: 'full'});
+    expect(level(infos + board('Worx') + full)).toBeNull();
+    expect(level(infos + board('YardForce-V1') + full)).toBeNull();
+    // v1's charger says N/A
+    expect(level(infos + span(1, 120, () => 28.06, {vc: 31.9, st: 'N/A'}))).toBeNull();
+    // ignore_charging_current: OpenMower leaves its sensor out
+    expect(level(infos + full.replace(/^.*om_charge_current.*\n/gm, ''))).toBeNull();
+  });
+
+  it("counts the cells from the full voltage, nothing where the two voltages don't fit", () => {
+    const at7 = (v: number) => (v / 7) * 10;
+    expect(level(limits(35, 42) + span(1, 120, () => at7(28.06), docked))).toMatchObject({pct: 100, how: 'full'});
+    expect(level(limits(35, 42) + span(1, 600, () => at7(26.6), mowing))!.pct).toBeLessThan(70);
+    expect(level(limits(18.5, 20.5) + span(1, 120, () => (28.06 / 7) * 5, docked))).toMatchObject({pct: 100});
+    // 24.5 and 25.9 V, 28 and 28.4 V: nothing, and the rest goes on
+    for (const [empty, full] of [
+      [24.5, 25.9],
+      [28, 28.4],
+    ]) {
+      const d = mkdtempSync(join(tmpdir(), 'battery-'));
+      const input = limits(empty, full) + span(1, 60, () => 26, cc) + line(60, 'om_charge_state', 'Done');
+      expect(level(input, d)).toBeNull();
+      expect(readFileSync(join(d, 'battery.log'), 'utf8')).toMatch(/^charge 2 60 /);
+    }
+  });
+
+  it('takes a dock below 20 V as the dock', () => {
+    expect(level(infos + span(1, 300, () => 27.65, {...cc, vc: 15}))).toMatchObject({how: 'charging'});
+    expect(level(infos + span(1, 120, () => 28.06, {...docked, vc: 15}))).toMatchObject({pct: 100, how: 'full'});
+  });
+
+  it('goes down at Done as fast as the last time the mower stood there until the charger topped it up', () => {
+    const d = mkdtempSync(join(tmpdir(), 'battery-'));
+    const state = join(d, 'state');
+    const done = (from: number, to: number, v: (s: number) => number) =>
+      span(from, from + 60, v, docked) + span(from + 60, to, (s) => v(s + 60), {...docked, quiet: true}, 8);
+    // 6 hours at Done, the voltage down from 28.27 to 27.6 V (about 82 %): 3 % an hour. then the charger tops up and is
+    // done again, 5 minutes at constant current and 20 at constant voltage
+    const h6 = 6 * 3600;
+    let input = infos + done(1, h6, (s) => 28.27 - (0.67 * s) / h6);
+    input += span(h6, h6 + 300, () => 28.3, cc, 5) + span(h6 + 300, h6 + 1500, () => 29.08, {a: 0.26, vc: 29.5, st: 'Taper Charge (CV)'}, 5);
+    expect(level(input + done(h6 + 1500, h6 + 1620, () => 28.27), d, state)).toMatchObject({pct: 100, how: 'full'});
+    // 3 hours on at Done the voltage still reads full, it went down by about 9 %
+    const later = level(infos + done(h6 + 1620, 9.5 * 3600, () => 28.1), d, state)!;
+    expect(later.how).toBe('full');
+    expect(later.pct).toBeGreaterThan(87);
+    expect(later.pct).toBeLessThan(95);
   });
 });
 

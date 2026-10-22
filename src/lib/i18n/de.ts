@@ -620,7 +620,8 @@ const de: Record<string, string> = {
   "the next hour": "die nächste Stunde",
   "Not when it rains or rain is forecast for": "Nicht bei Regen oder Regenvorhersage für",
   "Not when it is colder than": "Nicht, wenn es kälter ist als",
-  "If the battery isn't that full at the start time, it waits up to two hours, then skips this start.": "Ist der Akku zur Startzeit nicht so voll, wartet er bis zu zwei Stunden und lässt diesen Start dann aus.",
+  "If the battery isn't that full at the start time, it waits up to two hours, then skips this start. Charged in the dock it counts as full, even when it went down a little since.":
+    "Ist der Akku zur Startzeit nicht so voll, wartet er bis zu zwei Stunden und lässt diesen Start dann aus. Im Dock voll geladen gilt er als voll, auch wenn er seitdem etwas gesunken ist.",
   "Started": "Gestartet",
   "State changed": "Zustand geändert",
   "Stop": "Stopp",
@@ -644,6 +645,8 @@ const de: Record<string, string> = {
   "The mower is busy (mowing, docking or recording). Changing the map now can break that off. Better save once it is done.":
     "Der Mäher ist gerade unterwegs (Mähen, Andocken oder Aufnehmen). Eine Kartenänderung kann das jetzt abbrechen. Besser speichern, wenn er fertig ist.",
   "The mower's address (IP or name in your network)": "Adresse des Mähers (IP oder Name im Heimnetz)",
+  "MowBite works out the percentage from the battery voltage as if only the electronics drew on it, so it stays put when the blade starts or the mower leaves the dock. It goes up only while charging and down only while not. 0 % is where OpenMower sends the mower home. In the dock it goes down slowly after a full charge until the charger tops it up.":
+    "MowBite berechnet die Prozentzahl aus der Akkuspannung, als zöge nur die Elektronik am Akku. So bleibt sie stehen, wenn das Messer anläuft oder der Mäher losfährt. Sie steigt nur beim Laden und fällt nur, wenn er nicht lädt. 0 % ist dort, wo OpenMower den Mäher heimschickt. Im Dock sinkt sie nach dem Volladen langsam, bis das Ladegerät nachlädt.",
   "The percentage is worked out from the battery voltage, between the empty and full voltage set on the mower. While charging, the charger pushes the voltage up, so it drops a bit as soon as the mower leaves the dock. Under load, especially with the blade running or uphill, it sags and comes back when the mower stops. Short jumps are normal, only the trend over a whole mow says something about the battery.": "Die Prozentzahl wird aus der Akkuspannung berechnet, zwischen der am Mäher eingestellten Leer- und Vollspannung. Im Dock drückt das Ladegerät die Spannung hoch, unter Last (Messer, bergauf) sackt sie ab. Kurze Sprünge sind normal, aussagekräftig ist nur der Verlauf über eine ganze Fahrt.",
   "The schedule needs MowBite running as its container on the mower.": "Der Zeitplan geht nur, wenn MowBite als Container auf dem Mäher läuft.",
   "The url needs to start with http(s) and contain {z}, {x} and {y}, or {bbox} for a WMS.": "Die URL muss mit http(s) beginnen und {z}, {x} und {y} enthalten, oder {bbox} für einen WMS.",
@@ -1375,6 +1378,7 @@ const de: Record<string, string> = {
   "mowing hours, maintenance and its push messages": "Mähstunden, Wartung und deren Push-Nachrichten",
   "the push message when it stands still": "die Push-Nachricht bei Stillstand",
   "not starting in the cold": "nicht bei Kälte starten",
+  "a battery level that stays put when the mower drives off": "ein Akkustand, der beim Losfahren nicht absackt",
   "the mower's wifi signal": "das WLAN-Signal des Mähers",
   "Network": "Netzwerk",
   "Recording mode is also for mowing by hand: switch the blade on and drive with the stick, without recording anything.": "Im Aufnahmemodus kannst du auch von Hand mähen: Messer an und mit dem Joystick fahren, ohne etwas aufzunehmen.",

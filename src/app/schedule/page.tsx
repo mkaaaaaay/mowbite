@@ -145,7 +145,7 @@ export default function SchedulePage() {
                   onChange={(e) => update({...s, minBattery: Number(e.target.value)})}
                 />
               </label>
-              <p className={styles.dim}>{tr("If the battery isn't that full at the start time, it waits up to two hours, then skips this start.")}</p>
+              <p className={styles.dim}>{tr("If the battery isn't that full at the start time, it waits up to two hours, then skips this start. Charged in the dock it counts as full, even when it went down a little since.")}</p>
               <label className={styles.check}>
                 <input type="checkbox" checked={s.skipRain} onChange={(e) => update({...s, skipRain: e.target.checked})} />
                 {tr("Not when the mower's rain sensor is wet")}

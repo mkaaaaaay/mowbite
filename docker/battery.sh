@@ -39,6 +39,9 @@ case "${MOWER_MQTT_HOST:-localhost}" in
     done
     ;;
 esac
+# awk stops at a file it can't write, the rest goes on without the level then
+L=""
+[ -d /dev/shm ] && [ -w /dev/shm ] && L=/dev/shm/battery.level
 while :; do
   [ -f "$F" ] && tail -n 2000 "$F" > "$F.tmp" && mv "$F.tmp" "$F"
   [ -f "$H" ] && tail -n 4000 "$H" > "$H.tmp" && mv "$H.tmp" "$H"
@@ -49,8 +52,9 @@ while :; do
       -t "${MOWER_MQTT_PREFIX}sensors/om_v_battery/data" -t "${MOWER_MQTT_PREFIX}sensors/om_charge_current/data" \
       -t "${MOWER_MQTT_PREFIX}sensors/om_charge_state/data" -t "${MOWER_MQTT_PREFIX}sensors/om_mow_motor_rpm/data" \
       -t "${MOWER_MQTT_PREFIX}$TOPIC_CHARGE_VOLTAGE" -t "${MOWER_MQTT_PREFIX}sensors/om_mow_motor_temp/data" \
-      -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -t "${MOWER_MQTT_PREFIX}sensor_infos/json" |
-      OUT="$F" STATE=/data/battery.state HEALTH="$H" TRACES="$C" TIDY="/battery.sh tidy" CPUT="$T" LEVEL=/dev/shm/battery.level \
+      -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -t "${MOWER_MQTT_PREFIX}sensor_infos/json" \
+      -t "${MOWER_MQTT_PREFIX}sensors/om_mow_motor_current/data" -t "${MOWER_MQTT_PREFIX}$TOPIC_PARAMS" |
+      OUT="$F" STATE=/data/battery.state HEALTH="$H" TRACES="$C" TIDY="/battery.sh tidy" CPUT="$T" LEVEL="$L" \
         awk -f /battery.awk
   fi
   sleep 30

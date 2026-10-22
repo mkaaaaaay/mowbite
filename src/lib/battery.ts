@@ -21,8 +21,10 @@ export function parseBattery(text: string): Cycle[] {
   return out;
 }
 
-// full charges only, a top up after a short drive is over in a few minutes
-export const fullCharges = (cycles: Cycle[]): Cycle[] => cycles.filter((c) => c.kind === 'charge' && c.minutes >= 20);
+// full charges only: not the charger topping it up in the dock or after a short drive (less than a quarter volt a cell
+// below where it ended, about 4.15 V a cell then), nor one cut short
+export const fullCharges = (cycles: Cycle[]): Cycle[] =>
+  cycles.filter((c) => c.kind === 'charge' && c.minutes >= 20 && c.to - c.from >= 0.25 * Math.round(c.to / 4.15));
 
 export const chargeSamples = (cycles: Cycle[]): Sample[] => fullCharges(cycles).map((c) => ({t: c.end * 1000, v: c.minutes}));
 
