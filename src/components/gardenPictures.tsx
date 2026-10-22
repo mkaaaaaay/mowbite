@@ -282,23 +282,29 @@ function bigCrown(p: string, cx: number, cy: number, r: number, c: string, rnd: 
   );
 }
 
-// a parasol folded up, from above: its cloth hanging in folds round the pole, r out from it, a strap round them, the top
-// in the middle
-function folded(cx: number, cy: number, r: number, c: string, c2: string) {
-  const folds = Array.from({length: 8}, (_, i) => {
-    const a = ((i + 0.5) / 8) * 2 * PI;
-    const [x1, y1, x2, y2] = [cx + Math.cos(a - 0.22) * r, cy + Math.sin(a - 0.22) * r, cx + Math.cos(a + 0.22) * r, cy + Math.sin(a + 0.22) * r];
-    return {a, d: `M${n2(cx)} ${n2(cy)}L${n2(x1)} ${n2(y1)}Q${n2(cx + Math.cos(a) * r * 1.3)} ${n2(cy + Math.sin(a) * r * 1.3)} ${n2(x2)} ${n2(y2)}Z`, c: i % 2 ? c2 : c};
+// a parasol folded up, from above: its cloth hanging in folds round the top, r out from it and bulging between them, a
+// strap round them, the top in the middle (cap: its color, else the cloth's round a wooden pole), n folds
+function folded(cx: number, cy: number, r: number, c: string, c2: string, cap?: string, n = 8) {
+  const folds = Array.from({length: n}, (_, i) => {
+    const a = ((i + 0.5) / n) * 2 * PI;
+    const [x1, y1, x2, y2] = [cx + Math.cos(a - PI / n) * r, cy + Math.sin(a - PI / n) * r, cx + Math.cos(a + PI / n) * r, cy + Math.sin(a + PI / n) * r];
+    return {a, d: `M${n2(cx)} ${n2(cy)}L${n2(x1)} ${n2(y1)}Q${n2(cx + Math.cos(a) * r * 1.2)} ${n2(cy + Math.sin(a) * r * 1.2)} ${n2(x2)} ${n2(y2)}Z`, c: i % 2 ? c2 : c};
   });
   return (
     <>
-      <path d={circles([[cx + r * 0.2, cy + r * 0.3, r * 1.15]])} fill="#000" opacity={0.25} data-halo="" />
+      <path d={circles([[cx + r * 0.2, cy + r * 0.3, r * 1.2]])} fill="#000" opacity={0.25} data-halo="" />
       {folds.map((f, i) => (
         <path key={i} d={f.d} fill={tone(f.c, Math.cos(f.a + (3 * PI) / 4) * 0.16 - 0.04)} stroke={tone(c, -0.38)} strokeWidth={n2(r * 0.04)} strokeLinejoin="round" />
       ))}
-      <circle cx={n2(cx)} cy={n2(cy)} r={n2(r * 0.55)} fill="none" stroke="#5a4a3a" strokeWidth={n2(r * 0.12)} />
-      <circle cx={n2(cx)} cy={n2(cy)} r={n2(r * 0.22)} fill={tone(c, -0.1)} stroke={tone(c, -0.4)} strokeWidth={n2(r * 0.04)} />
-      <circle cx={n2(cx)} cy={n2(cy)} r={n2(r * 0.09)} fill="#7a5c3a" />
+      <circle cx={n2(cx)} cy={n2(cy)} r={n2(r * 0.55)} fill="none" stroke={tone(c, -0.32)} strokeWidth={n2(r * 0.1)} />
+      {cap ? (
+        <circle cx={n2(cx)} cy={n2(cy)} r={n2(r * 0.3)} fill={cap} stroke={tone(cap, -0.35)} strokeWidth={n2(r * 0.04)} />
+      ) : (
+        <>
+          <circle cx={n2(cx)} cy={n2(cy)} r={n2(r * 0.22)} fill={tone(c, -0.1)} stroke={tone(c, -0.4)} strokeWidth={n2(r * 0.04)} />
+          <circle cx={n2(cx)} cy={n2(cy)} r={n2(r * 0.09)} fill="#7a5c3a" />
+        </>
+      )}
     </>
   );
 }
@@ -953,9 +959,11 @@ const WOOD = '#9c7447';
 const STONE = '#b3ad9f';
 const WATER = '#2f86bf';
 
-// a cantilever parasol: its foot of weights and the mast where the area is, the canopy on its arm off to the side (to the
-// right, the place turns it), square or with eight sides, its faces lit from the top left, ribs to the corners, a vent on
-// top. as a swatch (no m) smaller and moved so both fit
+// a cantilever parasol: its foot where the area is, a cross with four concrete slabs of 50 cm laid between its arms, the
+// mast in the middle on its flange, the curved arm from its crank behind the mast over it to the canopy off to the side
+// (to the right, the place turns it), square or with eight sides, its faces lit from the top left, ribs to the corners, a
+// vent on top. folded up the cloth hangs from the arm's head right beside the mast. as a swatch (no m) smaller and moved
+// so both fit
 function cantilever(sides: 4 | 8) {
   return function canopy(b: Box, p: string, o: ThingOptions): React.ReactNode {
     const {cx, cy} = middle(b);
@@ -963,28 +971,49 @@ function cantilever(sides: 4 | 8) {
     const s = Math.min(b.w, b.h) * (swatch ? 0.66 : 0.96);
     const c = pick(o, CANTILEVERS, true).c;
     const [fx, fy] = [swatch ? cx - s * 0.47 : cx, cy];
-    const [ax, ay] = [fx + s * 0.62, fy];
+    const [ax, ay] = [o.closed ? fx + s * 0.1 : fx + s * 0.62, fy];
     // the corners: a square's at its side, an octagon's as wide across its flats
     const R = sides === 4 ? s * 0.707 : s * 0.541;
     const turn = sides === 4 ? -PI / 4 : -PI / 2 + PI / 8;
     const corners = Array.from({length: sides}, (_, i): Pt => [ax + Math.cos(turn + (i / sides) * 2 * PI) * R, ay + Math.sin(turn + (i / sides) * 2 * PI) * R]);
-    const foot = s * 0.17;
-    const petals = Array.from({length: 4}, (_, k): Dot => {
-      const a = (k / 4) * 2 * PI + PI / 4;
-      return [fx + Math.cos(a) * foot * 0.55, fy + Math.sin(a) * foot * 0.55, foot * 0.55];
-    });
-    const metal = '#6b6f73';
+    // the slabs (at 3 m about 50 cm), the arms in the gaps between them and just past their edges, the crank over one
+    const w = s * 0.17;
+    const gap = s * 0.016;
+    const slabs = [-1, 1].flatMap((i) => [-1, 1].map((j): Pt => [fx + (i < 0 ? -w - gap / 2 : gap / 2), fy + (j < 0 ? -w - gap / 2 : gap / 2)]));
+    const reach = w + gap / 2 + s * 0.012;
+    const ends: Pt[] = [[fx + reach, fy], [fx, fy + reach], [fx - reach, fy], [fx, fy - reach]];
+    const [kx, ky] = [fx - s * 0.12, fy];
+    const metal = '#3c3f43';
+    const concrete = '#a9aca9';
     return (
       <>
         {o.closed ? null : sides === 4 ? softBox(ax - s / 2, ay - s / 2, s, s, s * 0.04, s * 0.06) : halo(p + 'h', ax, ay, R, R, 0.3)}
-        <path d={circles(petals)} fill="#45484c" stroke="#2a2c2f" strokeWidth={n2(s * 0.006)} />
-        <path d={circles(petals.map(([x, y, r]) => [x - r * 0.2, y - r * 0.2, r * 0.55]))} fill="#5d6166" opacity={0.7} />
-        <path d={petals.map(([x, y, r]) => `M${n2(x - r * 0.85)} ${n2(y)}h${n2(r * 1.7)}`).join('')} stroke="#1f2124" strokeWidth={n2(s * 0.01)} />
-        <path d={`M${n2(fx)} ${n2(fy)}L${n2(ax)} ${n2(ay)}`} stroke={metal} strokeWidth={n2(s * 0.022)} strokeLinecap="round" />
-        <circle cx={n2(fx)} cy={n2(fy)} r={n2(s * 0.035)} fill={tone(metal, -0.2)} stroke="#2a2c2f" strokeWidth={n2(s * 0.006)} />
-        <circle cx={n2(fx - s * 0.008)} cy={n2(fy - s * 0.008)} r={n2(s * 0.015)} fill={tone(metal, 0.4)} />
+        {slabs.map(([x, y], i) => (
+          <g key={i}>
+            <rect x={n2(x)} y={n2(y)} width={n2(w)} height={n2(w)} rx={n2(w * 0.03)} fill={tone(concrete, i === 0 ? 0.1 : i === 3 ? -0.05 : 0.03)} stroke={tone(concrete, -0.28)} strokeWidth={n2(s * 0.004)} />
+            <path
+              d={[0.22, 0.47, 0.71].map((k, j) => `M${n2(x + w * 0.08)} ${n2(y + w * k)}h${n2(w * (0.5 + 0.12 * j))}`).join('')}
+              stroke="#fff"
+              strokeWidth={n2(w * 0.05)}
+              strokeLinecap="round"
+              opacity={0.18}
+            />
+          </g>
+        ))}
+        <path d={`M${n2(fx - reach)} ${n2(fy)}H${n2(fx + reach)}M${n2(fx)} ${n2(fy - reach)}V${n2(fy + reach)}`} stroke={metal} strokeWidth={n2(gap * 0.85)} />
+        {ends.map(([x, y], i) => (
+          <rect key={i} x={n2(x - s * 0.008)} y={n2(y - gap * 0.7)} width={n2(s * 0.016)} height={n2(gap * 1.4)} rx={n2(s * 0.004)} transform={`rotate(${i * 90} ${n2(x)} ${n2(y)})`} fill="#1f2124" />
+        ))}
+        <circle cx={n2(fx)} cy={n2(fy)} r={n2(s * 0.032)} fill={tone(metal, 0.12)} stroke="#1f2124" strokeWidth={n2(s * 0.005)} />
+        <path d={circles([0, 1, 2, 3].map((k): Dot => [fx + Math.cos(k * (PI / 2) + PI / 4) * s * 0.022, fy + Math.sin(k * (PI / 2) + PI / 4) * s * 0.022, s * 0.004]))} fill="#9aa0a6" />
+        {o.closed && folded(ax, ay, s * 0.075, c, c, tone(metal, 0.15), 12)}
+        <circle cx={n2(fx)} cy={n2(fy)} r={n2(s * 0.02)} fill={metal} stroke="#1f2124" strokeWidth={n2(s * 0.005)} />
+        <circle cx={n2(fx - s * 0.005)} cy={n2(fy - s * 0.005)} r={n2(s * 0.008)} fill={tone(metal, 0.45)} />
+        <path d={`M${n2(kx)} ${n2(ky)}L${n2(ax)} ${n2(ay)}`} stroke={metal} strokeWidth={n2(s * 0.022)} strokeLinecap="round" />
+        <path d={`M${n2(kx)} ${n2(ky)}v${n2(-s * 0.035)}h${n2(-s * 0.02)}`} fill="none" stroke="#c4c8cc" strokeWidth={n2(s * 0.008)} strokeLinecap="round" strokeLinejoin="round" />
+        <circle cx={n2(kx)} cy={n2(ky)} r={n2(s * 0.018)} fill={tone(metal, 0.1)} stroke="#1f2124" strokeWidth={n2(s * 0.005)} />
         {o.closed ? (
-          folded(ax, ay, s * 0.075, c, c)
+          <circle cx={n2(ax)} cy={n2(ay)} r={n2(s * 0.016)} fill={tone(metal, 0.25)} stroke="#1f2124" strokeWidth={n2(s * 0.004)} />
         ) : (
           <>
             {corners.map(([x, y], i) => {
