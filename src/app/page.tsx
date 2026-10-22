@@ -19,6 +19,7 @@ import {useMowerPosition} from '@/hooks/useMowerPosition';
 import {isLive, useMowerState, type MowerState} from '@/hooks/useMowerState';
 import {useMowerTrack} from '@/hooks/useMowerTrack';
 import {useMowerWifi} from '@/hooks/useMowerWifi';
+import {useBatteryLevel} from '@/hooks/useBatteryLevel';
 import {wifiLevel} from '@/lib/coverage';
 import {usePlanProgress} from '@/hooks/usePlanProgress';
 import {useRecentRuns} from '@/hooks/useRecentRuns';
@@ -201,6 +202,7 @@ export default function Home() {
   const updates = useUpdates();
   const due = useDueParts(updates.level !== null && containerHas(updates.level, 'stats'));
   const wifi = useMowerWifi();
+  const level = useBatteryLevel();
   const [schedule, setSchedule] = useState<Schedule | null>(() => cachedSchedule() ?? null);
   // the scheduler's log, for a start it left out (rain, battery, ...). again every minute while the page is open
   const [scheduleLog, setScheduleLog] = useState<LogEntry[]>(() => cachedScheduleLog() ?? []);
@@ -246,7 +248,7 @@ export default function Home() {
   if (skip !== null && (!live || current !== 'MOWING' || !hasAction(skip.id))) setSkip(null);
   const showMap = !!map && (driving || settings.dashboard?.map === 'always');
   const docked = isDocked(state, values['om_v_charge']);
-  const battery = state ? Math.round(state.battery_percentage * 100) : 0;
+  const battery = level ?? (state ? Math.round(state.battery_percentage * 100) : 0);
   const chargeState = values['om_charge_state'];
   const charging = docked && chargeState !== 'Done';
 

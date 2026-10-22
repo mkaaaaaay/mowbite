@@ -3,7 +3,7 @@ import {mkdtempSync, readFileSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {describe, expect, it} from 'vitest';
-import {chargeSamples, fullCharges, parseBattery} from './battery';
+import {chargeSamples, fullCharges, parseBattery, parseLevel} from './battery';
 
 describe('battery', () => {
   const cycles = parseBattery('charge 100 6000 98.3 24.10 28.00\nrun 6000 7100 30.0 28.00 26.50\nrun 7100 7200 2 26.5 26.4\ncharge 7200 7500 5 26.4 28\nbad line\n');
@@ -231,5 +231,119 @@ describe('battery health', () => {
     // its end was saved, after a restart it isn't written to again
     awk(d, second(80010, 0, 28.3, 31.9, 'Done'));
     expect(readFileSync(join(d, '73000.tsv'), 'utf8').trim().split('\n')).toEqual(lines);
+  });
+});
+
+// how full the battery is (LEVEL), against the drive on 15.10. OpenMower's percentage fell from 100 to about 88 there
+describe('battery level', () => {
+  const infos = `0 sensor_infos/json [{"sensor_id":"om_v_charge","has_min_max":1,"min_value":0,"max_value":32},{"sensor_id":"om_v_battery","sensor_name":"V Battery","has_min_max":1,"min_value":24.5,"max_value":28.2}]\n`;
+  const line = (t: number, id: string, v: string | number) => `${t} sensors/${id}/data ${v}\n`;
+  // a second: robot state, charger, blade, dock and battery
+  const at = (t: number, v: number, o: {a?: number; vc?: number; st?: string; rpm?: number; robot?: string} = {}) =>
+    `${t} robot_state/json {"current_state":"${o.robot ?? 'IDLE'}","battery_percentage":0.5}\n` +
+    line(t, 'om_charge_current', o.a ?? 0) +
+    line(t, 'om_charge_state', o.st ?? 'Not Charging') +
+    line(t, 'om_mow_motor_rpm', o.rpm ?? 0) +
+    line(t + 0.1, 'om_v_charge', o.vc ?? 0.4) +
+    line(t + 0.2, 'om_v_battery', v);
+  const span = (from: number, to: number, v: (s: number) => number, o: Parameters<typeof at>[2] = {}, step = 1) => {
+    let input = '';
+    for (let t = from; t < to; t += step) input += at(t, v(t - from), o);
+    return input;
+  };
+  const docked = {vc: 31.9, st: 'Done'};
+  const mowing = {robot: 'MOWING', rpm: 2800};
+  const level = (input: string, d = mkdtempSync(join(tmpdir(), 'battery-')), state = '') => {
+    spawnSync('awk', ['-f', 'docker/battery.awk'], {
+      input,
+      env: {...process.env, LC_ALL: 'C', OUT: join(d, 'battery.log'), STATE: state, LEVEL: join(d, 'level')},
+    });
+    try {
+      const [t, pct, how] = readFileSync(join(d, 'level'), 'utf8').trim().split(' ');
+      return {t: +t, pct: +pct, how};
+    } catch {
+      return null;
+    }
+  };
+
+  it('needs OpenMower\'s empty and full voltage', () => {
+    expect(level(span(0, 60, () => 27))).toBeNull();
+  });
+
+  it('is full a while after Done and goes down in the dock until the charger tops it up again', () => {
+    expect(level(infos + span(1, 300, () => 28.06, docked))).toMatchObject({pct: 100, how: 'full'});
+    // 20 h on, 27.51 V: what the top up gives back (0.56 Ah of the 2.6 Ah down to going home)
+    const low = level(infos + span(1, 300, () => 27.51, docked))!;
+    expect(low.pct).toBeGreaterThanOrEqual(77);
+    expect(low.pct).toBeLessThanOrEqual(81);
+  });
+
+  it("doesn't jump when the mower drives off and the blade starts", () => {
+    let input = infos + span(1, 300, () => 28.06, docked);
+    input += span(300, 330, () => 27.88, {robot: 'UNDOCKING'});
+    input += span(330, 450, () => 27.6, mowing);
+    const out = level(input)!;
+    expect(out.how).toBe('out');
+    expect(out.pct).toBeGreaterThanOrEqual(99);
+    // OpenMower's own from the same voltage
+    expect(Math.round(((27.6 + 0.24 - 24.5) / 3.7) * 100)).toBe(90);
+  });
+
+  it("doesn't go up while not charging", () => {
+    const d = mkdtempSync(join(tmpdir(), 'battery-'));
+    const mown = infos + span(1, 600, () => 26.6, mowing);
+    const before = level(mown, d)!.pct;
+    // the blade stops on the way home, the voltage comes back by more than the blade took
+    expect(level(mown + span(600, 900, () => 27.0, {robot: 'DOCKING'}), d)!.pct).toBe(before);
+    expect(before).toBeGreaterThan(60);
+    expect(before).toBeLessThan(70);
+  });
+
+  it('goes up while charging and is full at Done', () => {
+    let input = infos + span(1, 120, () => 26.2, {vc: 31.9, st: 'Not Charging'});
+    const start = level(input)!.pct;
+    let last = start;
+    // constant current from 27.4 to 29.08 V in 3 h, then the current falls to 0.25 A at constant voltage
+    for (let s = 0; s < 3 * 3600; s += 1800) {
+      input += span(120 + s, 120 + s + 1800, (k) => 27.4 + ((s + k) / (3 * 3600)) * 1.68, {a: 0.88, vc: 29.5, st: 'Fast Charge (CC)'}, 5);
+      const now = level(input)!;
+      expect(now.how).toBe('charging');
+      expect(now.pct).toBeGreaterThanOrEqual(last);
+      last = now.pct;
+    }
+    expect(last).toBeGreaterThan(78);
+    expect(last).toBeLessThan(84);
+    let t = 120 + 3 * 3600;
+    for (let s = 0; 0.88 * Math.exp(-s / 2000) > 0.25; s += 5, t += 5) input += at(t, 29.08, {a: 0.88 * Math.exp(-s / 2000), vc: 29.5, st: 'Taper Charge (CV)'});
+    const cv = level(input)!.pct;
+    expect(cv).toBeGreaterThan(95);
+    expect(level(input + span(t, t + 60, () => 28.27, docked))).toMatchObject({pct: 100, how: 'full'});
+    expect(start).toBeLessThan(55);
+  });
+
+  it('is 0 where OpenMower sends the mower home', () => {
+    // its 24.5 V empty on the battery's own reading, 0.24 V above the charger's
+    expect(level(infos + span(1, 900, () => 24.26, mowing))!.pct).toBe(0);
+    expect(level(infos + span(1, 900, () => 24.6, mowing))!.pct).toBeGreaterThan(3);
+  });
+
+  it('keeps it across a restart, after 10 minutes without it it starts from the voltage again', () => {
+    const d = mkdtempSync(join(tmpdir(), 'battery-'));
+    const state = join(d, 'state');
+    const first = level(infos + span(1, 600, () => 26.6, mowing), d, state)!.pct;
+    // back 5 minutes later, standing: the voltage came back, the level stays
+    expect(level(infos + span(900, 1000, () => 27.4, {robot: 'IDLE'}), d, state)!.pct).toBe(first);
+    // 20 minutes later it's read from the voltage
+    expect(level(infos + span(2200, 2300, () => 27.4, {robot: 'IDLE'}), d, state)!.pct).toBeGreaterThan(first + 5);
+  });
+});
+
+describe('parseLevel', () => {
+  it('takes it while fresh', () => {
+    expect(parseLevel('1000 990 87 out\n')).toBe(87);
+    expect(parseLevel('1000 870 87 out')).toBeNull();
+    // battery.awk doesn't know yet, or an older container answering with the cycles
+    expect(parseLevel('1000 \n')).toBeNull();
+    expect(parseLevel('charge 100 6000 98.3 24.10 28.00\n')).toBeNull();
   });
 });

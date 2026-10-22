@@ -6,6 +6,7 @@ import {computeGaugeScale, fallbackGaugeScale, RadialGauge, TempGauge} from '@/c
 import {BatteryIcon, TurnIcon} from '@/components/icons';
 import InfoTip from '@/components/InfoTip';
 import Sparkline from '@/components/Sparkline';
+import {useBatteryLevel} from '@/hooks/useBatteryLevel';
 import {useEmergencyReasons} from '@/hooks/useEmergencyReasons';
 import {useMowerSensors, type SensorInfo} from '@/hooks/useMowerSensors';
 import {useMowerState} from '@/hooks/useMowerState';
@@ -96,13 +97,14 @@ export default function SensorsPage() {
   const why = useEmergencyReasons(!!state?.emergency);
   const params = useMowerParams();
   const history = useSensorHistory();
+  const level = useBatteryLevel();
   const info = (id: string) => infos.find((i) => i.sensor_id === id);
   const num = (id: string) => (values[id] !== undefined ? Number(values[id]) : undefined);
 
   const currentState = state?.current_state;
   const docked = isDocked(state, values['om_v_charge']);
   const mowing = currentState === 'MOWING';
-  const battery = state ? Math.round(state.battery_percentage * 100) : undefined;
+  const battery = level ?? (state ? Math.round(state.battery_percentage * 100) : undefined);
   const criticalCount = infos.filter((i) => isCritical(i, values[i.sensor_id], currentState)).length;
 
   const batteryCritical = ['om_v_battery', 'om_v_charge', 'om_charge_current'].some((id) =>

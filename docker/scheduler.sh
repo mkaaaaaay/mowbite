@@ -22,6 +22,14 @@ log() {
 # a plain value from compact or spaced out json, e.g. field "$state" current_state
 field() { printf '%s' "$1" | grep -o "\"$2\" *: *[^,}]*" | head -n1 | sed 's/^[^:]*: *//' | tr -d '" '; }
 conf() { sed -n "s/^$1 //p" "$F" | head -n1; }
+# how full the battery is in %: battery.awk's while it's fresh, else OpenMower's from the robot state $1
+battery() {
+  lvl=$(cat /dev/shm/battery.level 2>/dev/null)
+  case "$lvl" in
+    [0-9]*' '[0-9]*' '[a-z]*) [ "$(($(date +%s) - ${lvl%% *}))" -le 120 ] && { echo "$lvl" | cut -d' ' -f2; return; } ;;
+  esac
+  field "$1" battery_percentage | awk '{printf "%d", $1 * 100}'
+}
 # the areas of a map/json, one "id":"...","properties":{...} a line. objects in the properties (an area's planner
 # settings) become null, so the properties end at their own brace
 map_areas() {
@@ -353,7 +361,7 @@ while :; do
     host=$(find_broker)
     # shellcheck disable=SC2086
     s=$([ -n "$host" ] && mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -C 1 -W 10 2>/dev/null)
-    bat=$(field "$s" battery_percentage | awk '{printf "%d", $1 * 100}')
+    bat=$(battery "$s")
     minbat=$(conf minbattery)
     if [ -n "$endat" ] && [ "$(date +%s)" -ge "$endat" ]; then
       log skip_end; until=0

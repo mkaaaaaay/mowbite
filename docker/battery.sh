@@ -1,7 +1,7 @@
 #!/bin/sh
 # the battery over weeks: a line per charge and per discharge in /data/battery.log (battery.awk), about a year. what its
 # capacity is read from in /data/battery-health.log, a few years, and a trace of each charge in /data/charges/, 60 of
-# them and 10 MB
+# them and 10 MB. how full it is now in /dev/shm/battery.level, for the app and the schedule
 F=/data/battery.log
 H=/data/battery-health.log
 C=/data/charges
@@ -49,8 +49,9 @@ while :; do
       -t "${MOWER_MQTT_PREFIX}sensors/om_v_battery/data" -t "${MOWER_MQTT_PREFIX}sensors/om_charge_current/data" \
       -t "${MOWER_MQTT_PREFIX}sensors/om_charge_state/data" -t "${MOWER_MQTT_PREFIX}sensors/om_mow_motor_rpm/data" \
       -t "${MOWER_MQTT_PREFIX}$TOPIC_CHARGE_VOLTAGE" -t "${MOWER_MQTT_PREFIX}sensors/om_mow_motor_temp/data" \
-      -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" |
-      OUT="$F" STATE=/data/battery.state HEALTH="$H" TRACES="$C" TIDY="/battery.sh tidy" CPUT="$T" awk -f /battery.awk
+      -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -t "${MOWER_MQTT_PREFIX}sensor_infos/json" |
+      OUT="$F" STATE=/data/battery.state HEALTH="$H" TRACES="$C" TIDY="/battery.sh tidy" CPUT="$T" LEVEL=/dev/shm/battery.level \
+        awk -f /battery.awk
   fi
   sleep 30
 done

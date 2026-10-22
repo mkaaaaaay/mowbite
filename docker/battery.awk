@@ -23,6 +23,8 @@
 # the charger's voltage isn't the battery's: while charging it reads about 0.35 V + 0.49 V per A above it
 # TRACES: a file per charge with a line a second "<time> <A> <V> <dock V> <charger state>", from a minute before it to
 # half an hour after (12 h at most), then handed to TIDY
+#
+# LEVEL: how full the battery is, "<time> <percent> charging|full|dock|out", for the app and the schedule (level())
 function save(    k, line) {
   if (!STATE) return
   line = sprintf("%d %.2f %.1f %d %d %.2f", run_t, run_v, blade_s, charging, charge_t, charge_v)
@@ -203,6 +205,65 @@ function end_trace(    f) {
   if (TIDY) system(TIDY " " f " &")
 }
 
+# the share of the charge left to where a 7 cell battery switches off, by its voltage under the electronics alone
+# (about 0.28 A), from three nights without power at the dock
+function curve(v,    j) {
+  if (v <= LV[1]) return 0
+  if (v >= LV[LN]) return 100
+  for (j = 2; v > LV[j]; j++);
+  return LR[j - 1] + (LR[j] - LR[j - 1]) * (v - LV[j - 1]) / (LV[j] - LV[j - 1])
+}
+
+# OpenMower's empty and full voltage, the min and max of the battery's sensor. 0 % is where it sends the mower home: the
+# empty voltage with the blade on, the battery's own 0.24 V above the charger's
+function limits(    x, a, b) {
+  if (!match($0, /"sensor_id": *"om_v_battery"[^}]*/)) return
+  x = substr($0, RSTART, RLENGTH)
+  if (!match(x, /"min_value": *[0-9.]+/)) return
+  a = substr(x, RSTART, RLENGTH); sub(/.*: */, "", a)
+  if (!match(x, /"max_value": *[0-9.]+/)) return
+  b = substr(x, RSTART, RLENGTH); sub(/.*: */, "", b)
+  if (a + 0 < 5 || b + 0 <= a + 0) return
+  FULL = b + 0
+  # read as a 7 cell battery, about 4 V a cell when full
+  K = 7 / int(FULL / 4 + 0.5)
+  L0 = curve((a - 0.24) * K + 0.36)
+}
+
+# how full the battery is. the voltage is read as under the electronics alone: the blade takes 0.26 V, the wheels 0.1 V,
+# the dock's power gives 0.05 V back and the charger's current lifts it by 1.55 V. at constant voltage the falling
+# current says how far it is, from 86 % to Done at 0.25 A. a 2 minute mean that goes up only while charging or at Done
+# and down only while not charging, so the blade or the wheels starting or stopping don't move it
+function level(    r, e, how) {
+  if (!FULL) return
+  if (cur > 0.1 && vc >= 20) {
+    how = "charging"
+    if (st ~ /^(Taper|Top Off)/) {
+      e = c["im"] > 0.3 ? c["im"] : 0.87
+      r = 86 + 14 * (e - cur) / (e - 0.25)
+      r = r < 86 ? 86 : r > 100 ? 100 : r
+    } else r = curve(volts * K - 1.55)
+  } else {
+    how = vc < 20 ? "out" : st ~ /^Done/ ? "full" : "dock"
+    r = curve(volts * K + (vc >= 20 ? -0.05 : (rstate != "IDLE" && rstate != "" ? 0.1 : 0) + (blade ? 0.26 : 0)))
+  }
+  r = (r - L0) / (100 - L0) * 100
+  r = r < 0 ? 0 : r > 100 ? 100 : r
+  # new after 10 minutes without it (a restart, the stream gone)
+  if (h["lvt"] == "" || t - h["lvt"] > 600 || t < h["lvt"]) { h["lve"] = r; h["lv"] = r }
+  else {
+    h["lve"] += (r - h["lve"]) * (t - h["lvt"] < 120 ? t - h["lvt"] : 120) / 120
+    if (how != "charging" && h["lve"] < h["lv"]) h["lv"] = h["lve"]
+    if ((how == "charging" || how == "full") && h["lve"] > h["lv"]) h["lv"] = h["lve"]
+  }
+  h["lvt"] = t
+  if (LEVEL && (int(h["lv"] + 0.5) != lw || how != lh || t - lwt >= 30)) {
+    lw = int(h["lv"] + 0.5); lh = how; lwt = t
+    printf "%d %d %s\n", t, lw, how > LEVEL
+    close(LEVEL)
+  }
+}
+
 BEGIN {
   # times kept in STATE with their fraction
   CONVFMT = "%.12g"
@@ -212,6 +273,9 @@ BEGIN {
   TRACES = ENVIRON["TRACES"]
   TIDY = ENVIRON["TIDY"]
   CPUT = ENVIRON["CPUT"]
+  LEVEL = ENVIRON["LEVEL"]
+  LN = split("20.25 22 23 23.5 23.75 24 24.25 24.5 24.75 25 25.25 25.5 25.75 26 26.25 26.5 26.75 27 27.25 27.5 27.75 27.97", LV, " ")
+  split("0 1.5 3.5 5.3 7.7 13.4 17.5 22.5 28.3 34.4 40.1 44.6 48.4 52.1 56.7 63 68.7 74.4 80.1 85.2 93 100", LR, " ")
   if (STATE && (getline line < STATE) > 0) {
     close(STATE)
     n = split(line, s, " ")
@@ -240,6 +304,7 @@ BEGIN {
     if (match($0, /"current_state":"[A-Z_]*"/)) rstate = substr($0, RSTART + 17, RLENGTH - 18)
     next
   }
+  if ($2 ~ /sensor_infos\/json$/) { limits(); next }
   id = $2
   sub(/.*sensors\//, "", id)
   sub(/\/data$/, "", id)
@@ -251,6 +316,7 @@ BEGIN {
     volts = val + 0
     if (charging) charge_volts()
     else idle_volts()
+    level()
     if (TRACES) trace()
     if (dirty || t - saved > 60) save()
   } else if (id == "om_mow_motor_rpm") {
