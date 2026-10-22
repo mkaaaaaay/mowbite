@@ -25,7 +25,7 @@ const STEPS: GuideStep[] = [
   },
   {
     title: 'Snapping',
-    text: "Dragged or set close to another area's corner or edge, a point snaps onto it, so the two meet without a gap. A ring shows it. The magnet on the map switches snapping off, on a computer Alt places a single point freely.",
+    text: "Dragged or set close to another area's corner or edge, a point snaps onto it, so the two meet without a gap. The magnet on the map switches snapping off, on a computer Alt places a single point freely.",
   },
   {
     title: 'Split area',

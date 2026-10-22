@@ -598,8 +598,8 @@ function Points() {
   );
 }
 
-// snapping: the bed's corner dragged towards the lawn's corner next to it, close to it it jumps onto it and stays ringed
-// there. the magnet on the map switches it off
+// snapping: the bed's corner dragged towards the lawn's corner next to it, close to it it jumps onto it and stays there.
+// the magnet on the map switches it off
 const withBorder = (outline: Point[]): MowerMap => ({areas: [GARTEN, TREE, VORGARTEN, WEG, BED, {...BORDER, outline}], docking_stations: [DOCK]});
 const B_CORNER = 2;
 // the lawn's recorded corner next to the bed's

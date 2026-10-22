@@ -182,9 +182,6 @@ const idOf = (o: object | null | undefined) => {
   if (!id) ids.set(o, (id = ++lastId));
   return id;
 };
-// per area its box, and for each point of the area being edited whether it lies on that area's outline: a point being
-// dragged is a new one each move, only it is worked out again
-const onOutline = new WeakMap<MapArea, {box: Bounds; at: WeakMap<Point, boolean>}>();
 
 const AREA_CLASS: Record<string, string> = {
   mow: styles.mowArea,
@@ -1216,31 +1213,6 @@ function MapView({
   );
 
   const selectedArea = map.areas.find((a) => a.id === selectedAreaId);
-  // the points of the area being edited that lie exactly on another area's corner or edge (snapped there), ringed
-  const attached = useMemo(() => {
-    if (!editing || !selectedArea) return null;
-    const others = map.areas
-      .filter((a) => a.id !== selectedArea.id && a.outline.length > 1 && !hidden.has(a.properties.type as Layer))
-      .map((a) => {
-        let known = onOutline.get(a);
-        if (!known) {
-          const xs = a.outline.map((p) => p.x);
-          const ys = a.outline.map((p) => p.y);
-          known = {box: {minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys)}, at: new WeakMap()};
-          onOutline.set(a, known);
-        }
-        return {outline: a.outline, ...known};
-      });
-    return selectedArea.outline.map((p) =>
-      others.some(({outline, box, at}) => {
-        // outside the area's box it can't be on its outline, its edges aren't gone through
-        if (p.x < box.minX - 0.002 || p.x > box.maxX + 0.002 || p.y < box.minY - 0.002 || p.y > box.maxY + 0.002) return false;
-        let on = at.get(p);
-        if (on === undefined) at.set(p, (on = (nearestOnOutline(outline, p)?.d ?? 1) < 0.002));
-        return on;
-      }),
-    );
-  }, [editing, selectedArea, map.areas, hidden]);
   const activeIndex =
     active && selectedArea && active.areaId === selectedArea.id && active.index < selectedArea.outline.length
       ? active.index
@@ -2228,7 +2200,6 @@ function MapView({
               const [sx, sy] = toScreen(p.x, p.y);
               return (
                 <Fragment key={i}>
-                  {attached?.[i] && <circle cx={sx} cy={sy} r={((i === activeIndex ? 4 : vertexR) + 2.2) * k} className={styles.vertexAttached} />}
                   <circle cx={sx} cy={sy} r={(i === activeIndex ? 4 : vertexR) * k} className={i === activeIndex ? styles.activeVertex : styles.vertex} />
                 </Fragment>
               );

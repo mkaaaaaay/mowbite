@@ -438,13 +438,6 @@
 }
 
 /* a point lying exactly on another area's corner or edge */
-.vertexAttached {
-  fill: none;
-  stroke: #ffd54f;
-  stroke-width: 2;
-  pointer-events: none;
-}
-
 .snapCorner,
 .snapEdge {
   fill: none;
