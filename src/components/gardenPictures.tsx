@@ -48,6 +48,9 @@ export interface ThingOptions {
   border?: boolean;
   // a bed without its own soil: the ground picked for the area shows between the plants
   bare?: boolean;
+  // the foot of something turned (a cantilever parasol's): how it lies against the place (degrees) and how big it may be
+  // at most to stay in its area (the box's units)
+  foot?: {deg: number; s: number};
 }
 export interface Picture {
   label: string;
@@ -69,6 +72,9 @@ export interface Picture {
   // stands up on posts and the mower can be under it (outdoor stairs, its garage): drawn over the mower in its own shape,
   // like a crown
   above?: boolean;
+  // stands on a foot in its area that lies the way the area does and stays in it, only the rest turns (a cantilever
+  // parasol)
+  foot?: boolean;
   // a bigger area gets several of them (bushes, trees, planters)
   many?: boolean;
   // a way can be drawn as it too (steps, a bridge), any other thing only an obstacle
@@ -979,11 +985,13 @@ function cantilever(sides: 4 | 8) {
     const R = sides === 4 ? s * 0.707 : s * 0.541;
     const turn = sides === 4 ? -PI / 4 : -PI / 2 + PI / 8;
     const corners = Array.from({length: sides}, (_, i): Pt => [ax + Math.cos(turn + (i / sides) * 2 * PI) * R, ay + Math.sin(turn + (i / sides) * 2 * PI) * R]);
-    // the slabs (at 3 m about 50 cm), the arms in the gaps between them and just past their edges, the crank over one
-    const w = s * 0.17;
-    const gap = s * 0.016;
+    // the slabs (at 3 m about 50 cm), the arms in the gaps between them and just past their edges, the crank over one.
+    // in an area the foot lies the way the area does, smaller where it wouldn't fit
+    const k = o.foot ? Math.min(1, o.foot.s / (s * 0.37)) : 1;
+    const w = s * 0.17 * k;
+    const gap = s * 0.016 * k;
     const slabs = [-1, 1].flatMap((i) => [-1, 1].map((j): Pt => [fx + (i < 0 ? -w - gap / 2 : gap / 2), fy + (j < 0 ? -w - gap / 2 : gap / 2)]));
-    const reach = w + gap / 2 + s * 0.012;
+    const reach = w + gap / 2 + s * 0.012 * k;
     const ends: Pt[] = [[fx + reach, fy], [fx, fy + reach], [fx - reach, fy], [fx, fy - reach]];
     const [kx, ky] = [fx - s * 0.12, fy];
     const metal = '#3c3f43';
@@ -991,6 +999,7 @@ function cantilever(sides: 4 | 8) {
     return (
       <>
         {o.closed ? null : sides === 4 ? softBox(ax - s / 2, ay - s / 2, s, s, s * 0.04, s * 0.06) : halo(p + 'h', ax, ay, R, R, 0.3)}
+        <g transform={o.foot ? `rotate(${n2(o.foot.deg)} ${n2(fx)} ${n2(fy)})` : undefined}>
         {slabs.map(([x, y], i) => (
           <g key={i}>
             <rect x={n2(x)} y={n2(y)} width={n2(w)} height={n2(w)} rx={n2(w * 0.03)} fill={tone(concrete, i === 0 ? 0.1 : i === 3 ? -0.05 : 0.03)} stroke={tone(concrete, -0.28)} strokeWidth={n2(s * 0.004)} />
@@ -1008,7 +1017,8 @@ function cantilever(sides: 4 | 8) {
           <rect key={i} x={n2(x - s * 0.008)} y={n2(y - gap * 0.7)} width={n2(s * 0.016)} height={n2(gap * 1.4)} rx={n2(s * 0.004)} transform={`rotate(${i * 90} ${n2(x)} ${n2(y)})`} fill="#1f2124" />
         ))}
         <circle cx={n2(fx)} cy={n2(fy)} r={n2(s * 0.032)} fill={tone(metal, 0.12)} stroke="#1f2124" strokeWidth={n2(s * 0.005)} />
-        <path d={circles([0, 1, 2, 3].map((k): Dot => [fx + Math.cos(k * (PI / 2) + PI / 4) * s * 0.022, fy + Math.sin(k * (PI / 2) + PI / 4) * s * 0.022, s * 0.004]))} fill="#9aa0a6" />
+        <path d={circles([0, 1, 2, 3].map((j): Dot => [fx + Math.cos(j * (PI / 2) + PI / 4) * s * 0.022, fy + Math.sin(j * (PI / 2) + PI / 4) * s * 0.022, s * 0.004]))} fill="#9aa0a6" />
+        </g>
         {o.closed && folded(ax, ay, s * 0.075, c, c, tone(metal, 0.15), 12)}
         <circle cx={n2(fx)} cy={n2(fy)} r={n2(s * 0.02)} fill={metal} stroke="#1f2124" strokeWidth={n2(s * 0.005)} />
         <circle cx={n2(fx - s * 0.005)} cy={n2(fy - s * 0.005)} r={n2(s * 0.008)} fill={tone(metal, 0.45)} />
@@ -3960,7 +3970,6 @@ export const PICTURES: Record<string, Picture> = {
     deep: 0.95,
     variants: choices(GARAGES),
     long: true,
-    turn: true,
     around: 'turf',
     above: true,
     thing: mowerGarage,
@@ -3972,7 +3981,6 @@ export const PICTURES: Record<string, Picture> = {
     deep: 2.2,
     variants: choices(SAUNAS),
     long: true,
-    turn: true,
     around: 'gravel',
     thing: barrelSauna,
   },
@@ -4035,7 +4043,6 @@ export const PICTURES: Record<string, Picture> = {
     size: [2, 4.2],
     deep: 2.4,
     long: true,
-    turn: true,
     around: 'gravel',
     above: true,
     thing: (b, p, o) =>
@@ -4775,6 +4782,7 @@ export const PICTURES: Record<string, Picture> = {
     over: true,
     turn: true,
     around: 'meadow',
+    foot: true,
     thing: cantilever(4),
   },
   cantilever8: {
@@ -4786,6 +4794,7 @@ export const PICTURES: Record<string, Picture> = {
     over: true,
     turn: true,
     around: 'meadow',
+    foot: true,
     thing: cantilever(8),
   },
   sunSail: {
@@ -5129,7 +5138,6 @@ export const PICTURES: Record<string, Picture> = {
     label: 'Hose reel',
     group: 'other',
     size: [0.5, 0.7],
-    turn: true,
     variants: choices(HOSES),
     around: 'meadow',
     thing: (b, p, o) => {

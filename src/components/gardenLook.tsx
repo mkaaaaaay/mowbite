@@ -40,7 +40,7 @@ export const drawThing = (
   look: Look,
   box: Box,
   p = 'gp',
-  o?: {seed?: string; variant?: string; m?: number; edge?: [number, number][]; closed?: boolean; tile?: boolean; border?: boolean; bare?: boolean},
+  o?: {seed?: string; variant?: string; m?: number; edge?: [number, number][]; closed?: boolean; foot?: {deg: number; s: number}; tile?: boolean; border?: boolean; bare?: boolean},
 ) =>
   box.w > 0 && box.h > 0
     ? PICTURES[look]?.thing?.(box, p, {
@@ -49,6 +49,7 @@ export const drawThing = (
         m: (o?.m ?? 0) > 0 ? o?.m : undefined,
         edge: o?.edge,
         closed: o?.closed,
+        foot: o?.foot,
         tile: o?.tile,
         border: o?.border,
         bare: o?.bare,
@@ -80,6 +81,8 @@ export interface Place {
   loose?: boolean;
   // one of several in the area, varied by this
   seed?: string;
+  // the foot of something turned: which way it lies (degrees in the svg) and how big it may be to stay in the area
+  foot?: {deg: number; s: number};
   // a shrub standing in a bed (its accent): drawn as this picture in this color
   look?: Look;
   variant?: string;
@@ -139,6 +142,29 @@ export function placeThing(look: Look, o: Point[], turn?: number): Place {
     [x0, x1, y0, y1] = [best.x - dx, best.x + dx, best.y - dy, best.y + dy];
   }
   return {cx: best.x, cy: best.y, deg: turn ?? 0, w: 2 * best.r, h: 2 * best.r};
+}
+
+// a foot round cx, cy in the outline: lying the way the outline does (the narrowest box round it, a square drawn by hand
+// lies along its sides) and the biggest square that way with its corners and the middles of its sides inside
+function footIn(o: Point[], cx: number, cy: number): {deg: number; s: number} {
+  let best = {a: 0, area: Infinity};
+  for (let d = 0; d < 90; d++) {
+    const a = (d * Math.PI) / 180;
+    const us = o.map((p) => p.x * Math.cos(a) + p.y * Math.sin(a));
+    const vs = o.map((p) => -p.x * Math.sin(a) + p.y * Math.cos(a));
+    const area = (Math.max(...us) - Math.min(...us)) * (Math.max(...vs) - Math.min(...vs));
+    if (area < best.area) best = {a, area};
+  }
+  const [c, sn] = [Math.cos(best.a), Math.sin(best.a)];
+  const inside = (h: number) =>
+    [-1, 0, 1].every((i) => [-1, 0, 1].every((j) => (!i && !j) || containsPoint(o, cx + i * h * c - j * h * sn, cy + i * h * sn + j * h * c)));
+  let [lo, hi] = [0, Math.sqrt(best.area)];
+  for (let k = 0; k < 20; k++) {
+    const h = (lo + hi) / 2;
+    if (inside(h)) lo = h;
+    else hi = h;
+  }
+  return {deg: (best.a * 180) / Math.PI, s: 2 * lo};
 }
 
 // round ones as big across as each() says packed into the outline as snug as they go, each a little into the next. over:
@@ -250,7 +276,7 @@ function placesOf(look: Look, o: Point[], m: number, seed: string, size?: number
   }
   if (pic.over) {
     const s = own ?? Math.min(Math.max(fit.w, lo), hi);
-    return [{...fit, w: s, h: s, over: true, deg: turn ?? fit.deg}];
+    return [{...fit, w: s, h: s, over: true, deg: turn ?? fit.deg, foot: pic.foot ? footIn(o, fit.cx, fit.cy) : undefined}];
   }
   const s = own ?? Math.min(fit.w, hi);
   return [{...fit, w: s, h: s, loose: s > fit.w + 0.01}];

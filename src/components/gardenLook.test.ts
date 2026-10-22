@@ -338,6 +338,16 @@ describe('cantilever parasol', () => {
     expect(cover.cx).toBeCloseTo(0, 5);
     expect(cover.cy).toBeCloseTo(0.6 * pl.w, 5);
   });
+
+  it('keeps its foot in its area, lying the way the area does, when the canopy turns', () => {
+    // a square of 1 m turned 20°, the parasol turned to 90°
+    const turned = (x: number, y: number) => ({x: x * Math.cos(0.349) - y * Math.sin(0.349), y: x * Math.sin(0.349) + y * Math.cos(0.349)});
+    const [pl] = placeThings('cantilever', [turned(-5, -5), turned(5, -5), turned(5, 5), turned(-5, 5)], 10, 'f', undefined, 90);
+    expect(pl.deg).toBe(90);
+    expect(pl.foot!.deg).toBeCloseTo(20, 0);
+    expect(pl.foot!.s).toBeGreaterThan(9.5);
+    expect(pl.foot!.s).toBeLessThanOrEqual(10.01);
+  });
 });
 
 describe('outdoor stairs', () => {

@@ -406,7 +406,15 @@ export const coversOf = (things: Thing[]): Cover[] =>
 
 // the start of the ids of a thing's place k, and what it's drawn with
 const placeId = (uid: string, thing: Thing, k: number) => `${uid}t${thing.i}${k ? '_' + k : ''}`;
-const drawnWith = (thing: Thing, pl: Place) => ({seed: pl.seed ?? thing.id, variant: pl.variant ?? thing.variant, m: thing.m, closed: thing.closed, bare: pl.look ? undefined : thing.bare});
+const drawnWith = (thing: Thing, pl: Place) => ({
+  seed: pl.seed ?? thing.id,
+  variant: pl.variant ?? thing.variant,
+  m: thing.m,
+  closed: thing.closed,
+  bare: pl.look ? undefined : thing.bare,
+  // the foot lies against the place, which is turned
+  foot: pl.foot && {deg: pl.foot.deg - pl.deg, s: pl.foot.s},
+});
 
 // a bed's place k as a pattern of one tile 2.4 m across (or its span), the browser draws it once and repeats it
 function bedTile(uid: string, thing: Thing, pl: Place, k: number) {
