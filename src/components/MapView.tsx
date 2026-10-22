@@ -28,7 +28,7 @@ import {CELL_M, MIN_SECONDS, gpsGrade, loadCoverage, wifiGrade, type CoverageCel
 import {useUpdates} from '@/lib/updates';
 import {CoverInfo} from './CoverInfo';
 import {fillOf, GardenDefs, gardenThings} from './gardenLook';
-import {biggest, coversOf, edgePaths, GardenThing, lifeOf, lifeScene} from './gardenLife';
+import {biggest, type Cover, coversOf, edgePaths, GardenThing, lifeOf, lifeScene} from './gardenLife';
 import {PICTURES} from './gardenPictures';
 import {useMowHistory} from '@/hooks/useMowHistory';
 import {useWeather} from '@/hooks/useWeather';
@@ -296,7 +296,7 @@ function MowerMarker({
   // the crowns and parasols over it, where they hide it (circles in svg units) it shows as its outline. coverId starts
   // the ids for that
   cover?: ReactNode;
-  covers?: {cx: number; cy: number; r: number}[];
+  covers?: Cover[];
   coverId?: string;
 }) {
   const [own] = useState(createEaser);
@@ -484,9 +484,9 @@ function MowerMarker({
         <>
           <defs>
             <mask id={coverId} maskUnits="userSpaceOnUse" x={-10 * WIDTH} y={-10 * HEIGHT} width={21 * WIDTH} height={21 * HEIGHT}>
-              {covers.map((c, i) => (
-                <circle key={i} cx={c.cx} cy={c.cy} r={c.r} fill="#fff" />
-              ))}
+              {covers.map((c, i) =>
+                c.pts ? <polygon key={i} points={c.pts.map((p) => p.join(',')).join(' ')} fill="#fff" /> : <circle key={i} cx={c.cx} cy={c.cy} r={c.r} fill="#fff" />,
+              )}
             </mask>
             {iconOutline && silhouette}
           </defs>
@@ -1308,7 +1308,8 @@ function MapView({
     const pl = biggest(pickedThing.places);
     const a = (pl.deg * Math.PI) / 180;
     const at = (u: number, v: number): [number, number] => [pl.cx + u * Math.cos(a) - v * Math.sin(a), pl.cy + u * Math.sin(a) + v * Math.cos(a)];
-    const reaches = !!pickedPic.turn;
+    // a parasol reaches over its area: no frame, its handles out by its canopy
+    const reaches = !!pickedPic.turn && !!pickedPic.over;
     return {
       pl,
       reaches,
@@ -2171,9 +2172,9 @@ function MapView({
           <>
             <defs>
               <mask id={uid + 'rim'} maskUnits="userSpaceOnUse" x={-10 * WIDTH} y={-10 * HEIGHT} width={21 * WIDTH} height={21 * HEIGHT}>
-                {covers.map((c, i) => (
-                  <circle key={i} cx={c.cx} cy={c.cy} r={c.rim} fill="#fff" />
-                ))}
+                {covers.map((c, i) =>
+                  c.pts ? <polygon key={i} points={c.pts.map((p) => p.join(',')).join(' ')} fill="#fff" /> : <circle key={i} cx={c.cx} cy={c.cy} r={c.rim} fill="#fff" />,
+                )}
               </mask>
             </defs>
             <g mask={`url(#${uid}rim)`}>

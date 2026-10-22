@@ -66,6 +66,9 @@ export interface Picture {
   // reaches over its area like a crown or a parasol (the area is just its foot): drawn at least size[0] across round the
   // area's middle and not cut to it
   over?: boolean;
+  // stands up on posts and the mower can be under it (outdoor stairs, its garage): drawn over the mower in its own shape,
+  // like a crown
+  above?: boolean;
   // a bigger area gets several of them (bushes, trees, planters)
   many?: boolean;
   // a way can be drawn as it too (steps, a bridge), any other thing only an obstacle
@@ -1033,6 +1036,674 @@ function cantilever(sides: 4 | 8) {
     );
   };
 }
+
+const GAS_GRILLS: Variants<{c: string; shelf: string; panel: string; caps: string; cover?: boolean}> = {
+  black: {label: 'Black', c: '#2b2e32', shelf: '#3b3e42', panel: '#46494d', caps: '#1f2124'},
+  steel: {label: 'Stainless steel', c: '#b4bac0', shelf: '#aab0b5', panel: '#9ea4a9', caps: '#2f3236'},
+  covered: {label: 'Covered', c: '#2d3034', shelf: '#2d3034', panel: '#2d3034', caps: '#2d3034', cover: true},
+};
+const OVENS: Variants<{c: string; base: string; kind: 'clay' | 'brick' | 'plaster'}> = {
+  clay: {label: 'Clay', c: '#c38a5c', base: '#b3ad9f', kind: 'clay'},
+  brick: {label: 'Red brick', c: '#a9553b', base: '#a7a39b', kind: 'brick'},
+  white: {label: 'White', c: '#ebe6dc', base: '#c4bdb0', kind: 'plaster'},
+};
+
+// where a thing with its front to the right is drawn around: cx, cy. as a swatch (no m) its front down instead, mirrored
+// over the diagonal so the light stays up left
+const frontTo = (cx: number, cy: number, o: ThingOptions) => `translate(${n2(cx)} ${n2(cy)})${o.m === undefined ? ' matrix(0 1 1 0 0 0)' : ''}`;
+
+// a gas grill on its cart from above, its front to the right (the place turns it towards the table or the lawn): the
+// hood in the middle with its handle and thermometer, the knobs in a row on the panel in front of it, a shelf on each
+// side, the two wheels at one end. covered: under a black cover, high over the hood and down over the shelves, in folds
+function gasGrill(b: Box, p: string, o: ThingOptions) {
+  const {cx, cy} = middle(b);
+  const v = pick(o, GAS_GRILLS);
+  const rnd = random(o.seed + 'gas');
+  // about 1.3 m long with its shelves, 0.55 m deep, the hood half as long
+  const l = Math.min(b.w, b.h) * 0.94;
+  const d = l * 0.42;
+  const h = l * 0.48;
+  const [x0, x1, hx] = [-d / 2, d / 2, d * 0.2];
+  const [sx, sw, gap] = [x0 + d * 0.05, d * 0.8, d * 0.03];
+  const knobs = [-0.3, -0.1, 0.1, 0.3].map((k): Dot => [(hx + x1) / 2 + d * 0.01, k * h, d * 0.052]);
+  if (v.cover) {
+    // the cover's hem a little wavy round all of it, the hood under it a hump, the cover falling off it to the shelves and
+    // down its front over the knobs, pulled tight from the hood to the corners, in folds where it hangs at the hem
+    const c = v.c;
+    const [ox0, ox1, oy] = [x0 - d * 0.05, x1 + d * 0.04, l / 2 + d * 0.04];
+    const hem: Pt[] = [];
+    const side = (a: Pt, e: Pt, n: number, nx: number, ny: number) => {
+      for (let i = 0; i < n; i++) {
+        const t = i / n;
+        const out = i ? (rnd() - 0.4) * d * 0.035 : -d * 0.01;
+        hem.push([a[0] + (e[0] - a[0]) * t + nx * out, a[1] + (e[1] - a[1]) * t + ny * out]);
+      }
+    };
+    side([ox0, -oy], [ox1, -oy], 2, 0, -1);
+    side([ox1, -oy], [ox1, oy], 6, 1, 0);
+    side([ox1, oy], [ox0, oy], 2, 0, 1);
+    side([ox0, oy], [ox0, -oy], 6, -1, 0);
+    const [ux0, ux1, uy] = [x0 - d * 0.01, hx + d * 0.1, h / 2 + d * 0.03];
+    const fold = (x: number, y: number, ex: number, ey: number, bend: number) => `M${n2(x)} ${n2(y)}Q${n2((x + ex) / 2 + bend)} ${n2((y + ey) / 2 - bend)} ${n2(ex)} ${n2(ey)}`;
+    const hang: [number, number, number][] = [[ox0, -oy * 0.5, 1], [ox0, oy * 0.56, 1], [ox1, -oy * 0.86, -1], [ox1, oy * 0.82, -1]];
+    const folds = [
+      fold(ux1 - d * 0.02, -uy, ox1 - d * 0.02, -uy - d * 0.3, -d * 0.02),
+      fold(ux1 - d * 0.02, uy, ox1 - d * 0.02, uy + d * 0.34, d * 0.02),
+      fold(ux0 + d * 0.25, -uy, ox0 + d * 0.12, -oy + d * 0.06, d * 0.03),
+      fold(ux0 + d * 0.25, uy, ox0 + d * 0.12, oy - d * 0.06, -d * 0.03),
+      ...hang.map(([x, y, k]) => fold(x + k * d * 0.01, y, x + k * d * 0.18, y + (rnd() - 0.5) * d * 0.1, d * 0.012)),
+    ].join('');
+    return (
+      <g transform={frontTo(cx, cy, o)}>
+        <defs>
+          {face(p + 'c', c, 0.12, -0.12)}
+          <linearGradient id={p + 'u'} x1={0} y1={0} x2={1} y2={0}>
+            <stop offset={0} stopColor={tone(c, 0.12)} />
+            <stop offset={0.35} stopColor={tone(c, 0.24)} />
+            <stop offset={0.65} stopColor={tone(c, 0.04)} />
+            <stop offset={1} stopColor={tone(c, -0.3)} />
+          </linearGradient>
+          <linearGradient id={p + 'n'} x1={0} y1={1} x2={0} y2={0}>
+            <stop offset={0} stopColor={tone(c, 0.3)} stopOpacity={0.6} />
+            <stop offset={1} stopColor={tone(c, 0.3)} stopOpacity={0} />
+          </linearGradient>
+          <linearGradient id={p + 'o'} x1={0} y1={0} x2={0} y2={1}>
+            <stop offset={0} stopColor="#000" stopOpacity={0.45} />
+            <stop offset={1} stopColor="#000" stopOpacity={0} />
+          </linearGradient>
+          <linearGradient id={p + 'e'} x1={0} y1={0} x2={1} y2={0}>
+            <stop offset={0} stopColor="#000" stopOpacity={0.4} />
+            <stop offset={1} stopColor="#000" stopOpacity={0.08} />
+          </linearGradient>
+        </defs>
+        {softBox(ox0, -oy, ox1 - ox0, 2 * oy, d * 0.1, d * 0.1)}
+        <path d={smooth(hem)} fill={`url(#${p}c)`} stroke={tone(c, -0.5)} strokeWidth={n2(d * 0.012)} />
+        {/* where it falls from the hood: towards the light lighter, away from it darker */}
+        <polygon points={poly([[ux0, -uy], [ux1, -uy], [ox1 - d * 0.05, -uy - d * 0.26], [ox0 + d * 0.05, -uy - d * 0.26]])} fill={`url(#${p}n)`} />
+        <polygon points={poly([[ux0, uy], [ux1, uy], [ox1 - d * 0.05, uy + d * 0.26], [ox0 + d * 0.05, uy + d * 0.26]])} fill={`url(#${p}o)`} />
+        <polygon points={poly([[ux1, -uy], [ox1 - d * 0.02, -uy - d * 0.05], [ox1 - d * 0.02, uy + d * 0.05], [ux1, uy]])} fill={`url(#${p}e)`} />
+        <path d={circles(knobs.map(([x, y, r]) => [x + r * 0.2, y + r * 0.25, r * 1.1]))} fill="#000" opacity={0.25} />
+        <path d={circles(knobs.map(([x, y, r]) => [x, y, r * 1.05]))} fill={tone(c, 0.1)} />
+        <path d={circles(knobs.map(([x, y, r]) => [x - r * 0.3, y - r * 0.3, r * 0.45]))} fill={tone(c, 0.3)} opacity={0.5} />
+        <rect x={n2(ux0)} y={n2(-uy)} width={n2(ux1 - ux0)} height={n2(2 * uy)} rx={n2(d * 0.08)} fill={`url(#${p}u)`} />
+        <path d={folds} stroke="#000" strokeOpacity={0.35} strokeWidth={n2(d * 0.05)} strokeLinecap="round" fill="none" />
+        <path d={folds} stroke={tone(c, -0.5)} strokeWidth={n2(d * 0.012)} strokeLinecap="round" fill="none" />
+        <path d={folds} stroke={tone(c, 0.45)} strokeOpacity={0.3} strokeWidth={n2(d * 0.016)} strokeLinecap="round" fill="none" transform={`translate(${n2(-d * 0.022)} ${n2(-d * 0.022)})`} />
+        {/* the sheen along the top of the hood */}
+        <path d={`M${n2(ux0 + d * 0.2)} ${n2(-uy * 0.8)}Q${n2(ux0 + d * 0.16)} 0 ${n2(ux0 + d * 0.21)} ${n2(uy * 0.75)}`} stroke="#fff" strokeOpacity={0.16} strokeWidth={n2(d * 0.06)} strokeLinecap="round" fill="none" />
+      </g>
+    );
+  }
+  return (
+    <g transform={frontTo(cx, cy, o)}>
+      <defs>
+        <linearGradient id={p + 'h'} x1={0} y1={0} x2={1} y2={0}>
+          <stop offset={0} stopColor={tone(v.c, 0.08)} />
+          <stop offset={0.32} stopColor={tone(v.c, 0.32)} />
+          <stop offset={0.62} stopColor={v.c} />
+          <stop offset={1} stopColor={tone(v.c, -0.4)} />
+        </linearGradient>
+        <linearGradient id={p + 'k'} x1={0} y1={0} x2={1} y2={0}>
+          <stop offset={0} stopColor={tone(v.caps, 0.15)} />
+          <stop offset={0.32} stopColor={tone(v.caps, 0.3)} />
+          <stop offset={1} stopColor={tone(v.caps, -0.3)} />
+        </linearGradient>
+        {face(p + 's', v.shelf, 0.14, -0.1)}
+        {face(p + 'f', v.panel, 0.06, -0.16)}
+        {tube(p + 't', '#c9cfd3', true)}
+      </defs>
+      {softBox(x0, -l / 2, d, l, d * 0.04, d * 0.08)}
+      {/* the wheels at the left end, out past the cart in front and behind, their tread across */}
+      {[x0 - d * 0.08, x1 - d * 0.01].map((x) => (
+        <g key={x}>
+          <rect x={n2(x)} y={n2(-h / 2 - d * 0.31)} width={n2(d * 0.09)} height={n2(d * 0.36)} rx={n2(d * 0.035)} fill="#1b1d20" />
+          <path d={[0.08, 0.14, 0.2, 0.26].map((t) => `M${n2(x + d * 0.012)} ${n2(-h / 2 - d * 0.31 + d * t * 1.2)}h${n2(d * 0.066)}`).join('')} stroke="#45494e" strokeWidth={n2(d * 0.012)} />
+        </g>
+      ))}
+      <rect x={n2(x0 + d * 0.02)} y={n2(-h / 2 - gap - d * 0.02)} width={n2(x1 - x0 - d * 0.03)} height={n2(h + 2 * gap + d * 0.04)} rx={n2(d * 0.02)} fill={tone(v.caps, -0.25)} />
+      {[-1, 1].map((k) => {
+        const [y, w] = [k < 0 ? -l / 2 : h / 2 + gap, l / 2 - h / 2 - gap];
+        return (
+          <g key={k}>
+            <rect x={n2(sx)} y={n2(y)} width={n2(sw)} height={n2(w)} rx={n2(d * 0.03)} fill={`url(#${p}s)`} stroke={tone(v.shelf, -0.45)} strokeWidth={n2(d * 0.012)} />
+            <rect x={n2(sx + d * 0.04)} y={n2(y + d * 0.04)} width={n2(sw - d * 0.08)} height={n2(w - d * 0.08)} rx={n2(d * 0.02)} fill="none" stroke={tone(v.shelf, -0.25)} strokeWidth={n2(d * 0.008)} />
+          </g>
+        );
+      })}
+      {/* tongs on the right shelf */}
+      <path
+        d={`M${n2(sx + sw * 0.18)} ${n2(h / 2 + (l / 2 - h / 2) * 0.42)}L${n2(sx + sw * 0.78)} ${n2(h / 2 + (l / 2 - h / 2) * 0.32)}M${n2(sx + sw * 0.18)} ${n2(h / 2 + (l / 2 - h / 2) * 0.42)}L${n2(sx + sw * 0.78)} ${n2(h / 2 + (l / 2 - h / 2) * 0.55)}`}
+        stroke="#d4d9dc"
+        strokeWidth={n2(d * 0.018)}
+        strokeLinecap="round"
+        fill="none"
+      />
+      <circle cx={n2(sx + sw * 0.18)} cy={n2(h / 2 + (l / 2 - h / 2) * 0.42)} r={n2(d * 0.02)} fill="#1f2124" />
+      <rect x={n2(x0)} y={n2(-h / 2)} width={n2(hx - x0)} height={n2(h)} rx={n2(d * 0.05)} fill={`url(#${p}h)`} stroke={tone(v.c, -0.5)} strokeWidth={n2(d * 0.012)} />
+      {[-1, 1].map((k) => (
+        <rect key={k} x={n2(x0)} y={n2(k < 0 ? -h / 2 : h / 2 - h * 0.08)} width={n2(hx - x0)} height={n2(h * 0.08)} rx={n2(d * 0.03)} fill={`url(#${p}k)`} />
+      ))}
+      <circle cx={n2(hx - d * 0.13)} cy={0} r={n2(d * 0.05)} fill="#eceeef" stroke="#8a9096" strokeWidth={n2(d * 0.014)} />
+      <path d={`M${n2(hx - d * 0.13)} 0l${n2(d * 0.02)} ${n2(-d * 0.03)}`} stroke="#c8352d" strokeWidth={n2(d * 0.01)} strokeLinecap="round" />
+      <rect x={n2(hx)} y={n2(-h / 2)} width={n2(x1 - hx)} height={n2(h)} rx={n2(d * 0.02)} fill={`url(#${p}f)`} stroke={tone(v.panel, -0.45)} strokeWidth={n2(d * 0.012)} />
+      <path d={circles(knobs.map(([x, y, r]) => [x + r * 0.15, y + r * 0.2, r]))} fill="#000" opacity={0.3} />
+      <path d={circles(knobs)} fill="#1a1c1f" stroke="#7d8389" strokeWidth={n2(d * 0.01)} />
+      <path d={knobs.map(([x, y, r]) => `M${n2(x)} ${n2(y)}h${n2(-r * 0.8)}`).join('')} stroke="#e8eaec" strokeWidth={n2(d * 0.012)} strokeLinecap="round" />
+      <circle cx={n2((hx + x1) / 2)} cy={n2(h * 0.43)} r={n2(d * 0.022)} fill="#c8352d" />
+      {/* the hood's handle in front of it, its shadow on the panel */}
+      <rect x={n2(hx + d * 0.035)} y={n2(-h * 0.38)} width={n2(d * 0.045)} height={n2(h * 0.76)} rx={n2(d * 0.02)} fill="#000" opacity={0.3} />
+      <path d={`M${n2(hx - d * 0.02)} ${n2(-h * 0.36)}h${n2(d * 0.05)}M${n2(hx - d * 0.02)} ${n2(h * 0.36)}h${n2(d * 0.05)}`} stroke="#8a9096" strokeWidth={n2(d * 0.03)} />
+      <rect x={n2(hx + d * 0.02)} y={n2(-h * 0.4)} width={n2(d * 0.045)} height={n2(h * 0.8)} rx={n2(d * 0.022)} fill={`url(#${p}t)`} stroke="#6f767c" strokeWidth={n2(d * 0.006)} />
+    </g>
+  );
+}
+
+// a pizza oven from above, its mouth to the right (the place turns it): the dome on its stone base, lit from the top
+// left, the vault in front of it under a brick arch with the flue on top, the ledge before the mouth warm from the fire,
+// logs beside the dome. clay with cracks, red brick in rings, white plaster
+function pizzaOven(b: Box, p: string, o: ThingOptions) {
+  const {cx, cy} = middle(b);
+  const s = Math.min(b.w, b.h);
+  const v = pick(o, OVENS);
+  const rnd = random(o.seed + 'oven');
+  const brick = '#a9553b';
+  const mortar = '#d9d0c1';
+  // the base about 1.1 m square, the dome 0.8 m across back from its middle, the vault out of it to 15 cm before the edge
+  const k = s * 0.46;
+  const [dx, r] = [-s * 0.1, s * 0.33];
+  const [vx0, vx1, vw] = [dx + r * 0.62, s * 0.33, s * 0.3];
+  const vault = `M${n2(vx0)} ${n2(-vw / 2)}H${n2(vx1)}V${n2(vw / 2)}H${n2(vx0)}Q${n2(vx0 - vw * 0.3)} 0 ${n2(vx0)} ${n2(-vw / 2)}Z`;
+  // brick: courses round the top, closer towards the edge where the dome turns down, their joints moved on by half
+  const rings = [0.16, 0.34, 0.5, 0.63, 0.74, 0.83, 0.91];
+  const joints = rings.slice(0, -1).map((ra, i) => {
+    const rb = rings[i + 1];
+    const n = Math.max(5, Math.round((2 * PI * ((ra + rb) / 2)) / 0.2));
+    return Array.from({length: n}, (_, j) => {
+      const a = ((j + (i % 2) * 0.5) / n) * 2 * PI;
+      return `M${n2(dx + Math.cos(a) * r * ra)} ${n2(Math.sin(a) * r * ra)}L${n2(dx + Math.cos(a) * r * rb)} ${n2(Math.sin(a) * r * rb)}`;
+    }).join('');
+  });
+  const cracks = Array.from({length: 4}, () => {
+    const a = rnd() * 2 * PI;
+    const [d0, len] = [r * (0.3 + rnd() * 0.45), r * (0.12 + rnd() * 0.12)];
+    const [x, y] = [dx + Math.cos(a) * d0, Math.sin(a) * d0];
+    const t = a + (rnd() - 0.5) * 1.6;
+    return `M${n2(x)} ${n2(y)}l${n2(Math.cos(t) * len * 0.5)} ${n2(Math.sin(t) * len * 0.5)}l${n2(Math.cos(t + 0.6) * len * 0.5)} ${n2(Math.sin(t + 0.6) * len * 0.5)}`;
+  }).join('');
+  const logs = [0, 1, 2].map((i) => ({x: s * (0.15 + rnd() * 0.03), y: s * (0.27 + i * 0.068), w: s * (0.23 + rnd() * 0.04)}));
+  const [fx, fr] = [vx1 - s * 0.1, s * 0.055];
+  return (
+    <g transform={frontTo(cx, cy, o)}>
+      <defs>
+        {face(p + 'b', v.base, 0.12, -0.12)}
+        {ball(p + 'd', v.c, v.kind === 'plaster' ? 0.2 : 0.3, -0.38)}
+        {tube(p + 'v', tone(v.c, v.kind === 'clay' ? 0.04 : 0))}
+        {tube(p + 'a', brick)}
+        {tube(p + 'l', '#7a5434')}
+        <radialGradient id={p + 'g'}>
+          <stop offset={0} stopColor="#ffb347" stopOpacity={0.75} />
+          <stop offset={0.5} stopColor="#ff7a2a" stopOpacity={0.3} />
+          <stop offset={1} stopColor="#ff5a1a" stopOpacity={0} />
+        </radialGradient>
+      </defs>
+      {softBox(-k, -k, 2 * k, 2 * k, s * 0.01, s * 0.05)}
+      <rect x={n2(-k)} y={n2(-k)} width={n2(2 * k)} height={n2(2 * k)} rx={n2(s * 0.01)} fill={`url(#${p}b)`} stroke={tone(v.base, -0.4)} strokeWidth={n2(s * 0.006)} />
+      <path d={`M${n2(-k + s * 0.01)} ${n2(k - s * 0.01)}V${n2(-k + s * 0.01)}H${n2(k - s * 0.01)}`} stroke="#fff" strokeOpacity={0.35} strokeWidth={n2(s * 0.008)} fill="none" />
+      {/* the fire's glow on the ledge before the mouth */}
+      <ellipse cx={n2(vx1)} cy={0} rx={n2(s * 0.16)} ry={n2(vw * 0.55)} fill={`url(#${p}g)`} />
+      <path d={circles([[dx + r * 0.12, r * 0.16, r * 1.02]])} fill="#000" opacity={0.25} data-halo="" />
+      <path d={vault} fill="#000" opacity={0.22} transform={`translate(${n2(s * 0.015)} ${n2(s * 0.03)})`} data-halo="" />
+      {logs.map((lg, i) => (
+        <g key={i}>
+          <rect x={n2(lg.x + s * 0.01)} y={n2(lg.y - s * 0.03 + s * 0.015)} width={n2(lg.w)} height={n2(s * 0.06)} rx={n2(s * 0.03)} fill="#000" opacity={0.25} />
+          <rect x={n2(lg.x)} y={n2(lg.y - s * 0.03)} width={n2(lg.w)} height={n2(s * 0.06)} rx={n2(s * 0.025)} fill={`url(#${p}l)`} />
+          <ellipse cx={n2(lg.x + lg.w - s * 0.008)} cy={n2(lg.y)} rx={n2(s * 0.012)} ry={n2(s * 0.026)} fill="#c9a06b" />
+        </g>
+      ))}
+      {v.kind === 'clay' ? (
+        <path d={smooth(blob(dx, 0, r, r, rnd, 14, 0.03))} fill={`url(#${p}d)`} stroke={tone(v.c, -0.4)} strokeWidth={n2(s * 0.006)} />
+      ) : (
+        <circle cx={n2(dx)} cy={0} r={n2(r)} fill={`url(#${p}d)`} stroke={tone(v.c, -0.4)} strokeWidth={n2(s * 0.006)} />
+      )}
+      {v.kind === 'brick' && (
+        <>
+          <path d={rings.map((ra) => `M${n2(dx - r * ra)} 0a${n2(r * ra)} ${n2(r * ra)} 0 1 0 ${n2(2 * r * ra)} 0a${n2(r * ra)} ${n2(r * ra)} 0 1 0 ${n2(-2 * r * ra)} 0`).join('')} fill="none" stroke={mortar} strokeOpacity={0.55} strokeWidth={n2(s * 0.007)} />
+          <path d={joints.join('')} stroke={mortar} strokeOpacity={0.5} strokeWidth={n2(s * 0.006)} />
+        </>
+      )}
+      {v.kind === 'clay' && (
+        <>
+          <path d={circles(scatter(rnd, 30, dx, 0, r * 0.9, [s * 0.003, s * 0.006]))} fill={tone(v.c, 0.3)} opacity={0.5} />
+          <path d={cracks} stroke={tone(v.c, -0.45)} strokeWidth={n2(s * 0.005)} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        </>
+      )}
+      {v.kind === 'plaster' && rimLight(dx, 0, r * 0.95, s * 0.01, 0.5)}
+      {/* the vault before the dome, the arch of bricks round its mouth */}
+      <path d={vault} fill={`url(#${p}v)`} stroke={tone(v.c, -0.4)} strokeWidth={n2(s * 0.006)} />
+      {v.kind === 'brick' && <path d={[0.35, 0.6, 0.85].map((t) => `M${n2(vx0 + (vx1 - vx0) * t)} ${n2(-vw / 2)}v${n2(vw)}`).join('')} stroke={mortar} strokeOpacity={0.5} strokeWidth={n2(s * 0.006)} />}
+      <rect x={n2(vx1 - s * 0.05)} y={n2(-vw / 2 - s * 0.02)} width={n2(s * 0.05)} height={n2(vw + s * 0.04)} rx={n2(s * 0.008)} fill={`url(#${p}a)`} stroke={tone(brick, -0.4)} strokeWidth={n2(s * 0.005)} />
+      <path d={[-0.3, -0.1, 0.1, 0.3].map((t) => `M${n2(vx1 - s * 0.05)} ${n2(t * (vw + s * 0.04))}h${n2(s * 0.05)}`).join('')} stroke={mortar} strokeOpacity={0.7} strokeWidth={n2(s * 0.005)} />
+      {/* the flue on top of the vault, its soot inside */}
+      <path d={circles([[fx + fr * 0.4, fr * 0.6, fr * (v.kind === 'plaster' ? 1.3 : 1.1)]])} fill="#000" opacity={0.3} />
+      {v.kind === 'brick' ? (
+        <>
+          <rect x={n2(fx - fr * 1.1)} y={n2(-fr * 1.1)} width={n2(fr * 2.2)} height={n2(fr * 2.2)} rx={n2(fr * 0.08)} fill={tone(brick, 0.08)} stroke={tone(brick, -0.4)} strokeWidth={n2(s * 0.005)} />
+          <rect x={n2(fx - fr * 0.55)} y={n2(-fr * 0.55)} width={n2(fr * 1.1)} height={n2(fr * 1.1)} fill="#231d19" />
+        </>
+      ) : v.kind === 'clay' ? (
+        <>
+          <circle cx={n2(fx)} cy={0} r={n2(fr)} fill="#b8673f" stroke="#7a3f25" strokeWidth={n2(s * 0.005)} />
+          <circle cx={n2(fx)} cy={0} r={n2(fr * 0.62)} fill="#231d19" />
+        </>
+      ) : (
+        <>
+          <circle cx={n2(fx)} cy={0} r={n2(fr * 1.25)} fill="#9aa1a7" stroke="#5f666c" strokeWidth={n2(s * 0.005)} />
+          <circle cx={n2(fx - fr * 0.3)} cy={n2(-fr * 0.3)} r={n2(fr * 0.7)} fill="#d4d9dc" opacity={0.7} />
+          <circle cx={n2(fx)} cy={0} r={n2(fr * 0.2)} fill="#5f666c" />
+        </>
+      )}
+    </g>
+  );
+}
+
+// a hanging egg chair's woven shell. open: woven loosely, the cushion shows through
+const EGGS: Variants<{c: string; open: boolean}> = {
+  black: {label: 'Black', c: '#3a3d41', open: true},
+  grey: {label: 'Grey', c: '#9a9da0', open: true},
+  natural: {label: 'Natural', c: '#c39a5f', open: false},
+};
+// a beach chair's canvas (its stripes and between them) and its wicker
+const BEACH_CHAIRS: Variants<{c: [string, string]; wicker: string}> = {
+  blue: {label: 'Blue and white', c: ['#2f5f9f', '#f2efe6'], wicker: '#ebe6da'},
+  red: {label: 'Red and white', c: ['#c0392b', '#f2efe6'], wicker: '#d8c39b'},
+  grey: {label: 'Grey', c: ['#7d8288', '#d4d6d7'], wicker: '#9c9d99'},
+};
+
+const BISTROS: Variants<{c: string}> = {
+  anthracite: {label: 'Anthracite', c: '#4b5451'},
+  green: {label: 'Dark green', c: '#2f4d3b'},
+  white: {label: 'White', c: '#ecebe6'},
+};
+// a cushion box's lid: woven, slats in a frame or smooth plastic
+const CUSHION_BOXES: Variants<{c: string; kind: 'rattan' | 'wood' | 'plastic'}> = {
+  rattan: {label: 'Rattan', c: '#4c4f52', kind: 'rattan'},
+  wood: {label: 'Wood', c: '#a8794a', kind: 'wood'},
+  grey: {label: 'Grey', c: '#8e959b', kind: 'plastic'},
+};
+
+const PLANTER_WOODS: Variants<{c: string; moss: number}> = {
+  weathered: {label: 'Weathered', c: '#a39784', moss: 1},
+  dark: {label: 'Dark wood', c: '#6b4a32', moss: 0},
+  light: {label: 'Light wood', c: '#c7a06a', moss: 0},
+};
+const ZINC_TUBS: Variants<{oval: boolean; flowers?: [string, string]}> = {
+  round: {label: 'Round', oval: false},
+  oval: {label: 'Oval', oval: true},
+  flowers: {label: 'With flowers', oval: true, flowers: ['#d8323a', '#f27c7c']},
+};
+const ZINC = '#9ba3a6';
+
+// bark mulch over an ellipse: chips in three shades on dark soil, s about a chip's length
+function mulched(rnd: () => number, n: number, cx: number, cy: number, rx: number, ry: number, s: number) {
+  const chips = Array.from({length: n}, () => {
+    const a = rnd() * 2 * PI;
+    const d = Math.sqrt(rnd()) * 0.9;
+    const [x, y] = [cx + Math.cos(a) * d * rx, cy + Math.sin(a) * d * ry];
+    const t = rnd() * PI;
+    const l = s * (0.35 + rnd() * 0.3);
+    const [ux, uy, vx, vy] = [Math.cos(t) * l, Math.sin(t) * l, -Math.sin(t) * l * 0.3, Math.cos(t) * l * 0.3];
+    return `M${n2(x - ux - vx)} ${n2(y - uy - vy)}L${n2(x + ux - vx)} ${n2(y + uy - vy)}L${n2(x + ux + vx)} ${n2(y + uy + vy)}L${n2(x - ux + vx)} ${n2(y - uy + vy)}Z`;
+  });
+  return (
+    <>
+      <ellipse cx={n2(cx)} cy={n2(cy)} rx={n2(rx)} ry={n2(ry)} fill="#3f2b1e" />
+      {['#7a5238', '#4a3222', '#94704c'].map((c, i) => (
+        <path key={c} d={chips.filter((_, k) => k % 3 === i).join('')} fill={c} />
+      ))}
+    </>
+  );
+}
+
+// a planter box with six sides from above: the top boards mitred round it with their grain, cracks and in weathered wood
+// moss, a black pot in it with bark mulch and a young rhododendron's whorls of leathery leaves reaching over the boards
+function hexPlanter(b: Box, p: string, o: ThingOptions) {
+  const {cx, cy, r} = middle(b);
+  const rnd = random(o.seed + 'hex');
+  const wood = pick(o, PLANTER_WOODS);
+  const c = wood.c;
+  const R = r * 0.86;
+  const f = R * 0.19;
+  const ap = R * Math.cos(PI / 6) - f;
+  const corner = (k: number, rr: number): Pt => [cx + Math.cos((k * PI) / 3) * rr, cy + Math.sin((k * PI) / 3) * rr];
+  const outer = Array.from({length: 6}, (_, k) => corner(k, R));
+  const inner = Array.from({length: 6}, (_, k) => corner(k, ap / Math.cos(PI / 6)));
+  const lerp = (a: Pt, e: Pt, t: number): Pt => [a[0] + (e[0] - a[0]) * t, a[1] + (e[1] - a[1]) * t];
+  const line = (a: Pt, e: Pt) => `M${n2(a[0])} ${n2(a[1])}L${n2(e[0])} ${n2(e[1])}`;
+  // a point on board k: t of the way in from its outer edge, u of the way along it
+  const on = (k: number, t: number, u: number) => lerp(lerp(outer[k], inner[k], t), lerp(outer[(k + 1) % 6], inner[(k + 1) % 6], t), u);
+  // how much each board's outer edge looks towards the light
+  const lit = outer.map((_, k) => Math.cos(((k + 0.5) * PI) / 3 + (3 * PI) / 4));
+  const grain = outer
+    .flatMap((_, k) =>
+      [0.26, 0.5, 0.74].map((t) => {
+        const u = 0.06 + rnd() * 0.3;
+        return line(on(k, t, u), on(k, t + (rnd() - 0.5) * 0.08, Math.min(0.94, u + 0.3 + rnd() * 0.4)));
+      }),
+    )
+    .join('');
+  const cracks = outer.map((_, k) => (k % 2 ? '' : line(on(k, 0.4 + rnd() * 0.2, 0.1 + rnd() * 0.15), on(k, 0.45 + rnd() * 0.2, 0.55 + rnd() * 0.3)))).join('');
+  const moss: Dot[] = wood.moss ? Array.from({length: 9}, () => [...on(Math.floor(rnd() * 6), 0.15 + rnd() * 0.7, 0.05 + rnd() * 0.9), R * (0.012 + rnd() * 0.016)] as Dot) : [];
+  // the pot in it, the shrub's whorls of leaves at the tips of its shoots: five round the pot reaching over its rim, two
+  // over them in the middle
+  const rp = ap * 0.9;
+  const turn = rnd() * 2 * PI;
+  const whorls: Dot[] = [
+    ...Array.from({length: 5}, (_, i): Dot => {
+      const a = turn + ((i + (rnd() - 0.5) * 0.5) / 5) * 2 * PI;
+      return [cx + Math.cos(a) * rp * 0.6, cy + Math.sin(a) * rp * 0.6, R * (0.3 + rnd() * 0.06)];
+    }),
+    [cx - R * 0.12, cy - R * 0.03, R * 0.32],
+    [cx + R * 0.1, cy + R * 0.09, R * 0.3],
+  ];
+  const leaves = whorls.flatMap(([x, y, s], i) => Array.from({length: 7}, (_, k) => ({x, y, a: ((k + rnd() * 0.5) / 7) * 2 * PI + i, s: s * (0.8 + rnd() * 0.3), top: i > 4})));
+  type Leaf = (typeof leaves)[number];
+  const shape = (ls: Leaf[], dx = 0) => ls.map((l) => leaf(l.x + dx, l.y + dx * 1.5, l.a, l.s, l.s * 0.4)).join('');
+  // a glossy streak beside the midrib on the side towards the light
+  const shine = (ls: Leaf[]) =>
+    ls
+      .map((l) => {
+        const k = (Math.sin(l.a) - Math.cos(l.a) > 0 ? 1 : -1) * l.s * 0.07;
+        return leaf(l.x + Math.cos(l.a) * l.s * 0.12 - Math.sin(l.a) * k, l.y + Math.sin(l.a) * l.s * 0.12 + Math.cos(l.a) * k, l.a, l.s * 0.7, l.s * 0.12);
+      })
+      .join('');
+  const ribs = (ls: Leaf[]) => ls.map((l) => stalk(l.x, l.y, l.a, l.s * 0.85, 0)).join('');
+  const [low, top] = [leaves.filter((l) => !l.top), leaves.filter((l) => l.top)];
+  return (
+    <>
+      <defs>{face(p + 'g', '#3a2e24', -0.55, 0.15)}</defs>
+      {halo(p + 'h', cx, cy, R * 1.06, R * 1.02)}
+      <polygon points={poly(outer.map(([x, y]) => [x + R * 0.05, y + R * 0.08]))} fill="#000" opacity={0.22} data-halo="" />
+      {outer.map((_, k) => (
+        <polygon key={k} points={poly([outer[k], outer[(k + 1) % 6], inner[(k + 1) % 6], inner[k]])} fill={tone(c, (rnd() - 0.5) * 0.12 + lit[k] * 0.04)} />
+      ))}
+      <path d={grain} stroke={tone(c, -0.32)} strokeOpacity={0.5} strokeWidth={n2(R * 0.009)} strokeLinecap="round" />
+      <path d={cracks} stroke={tone(c, -0.55)} strokeOpacity={0.7} strokeWidth={n2(R * 0.012)} strokeLinecap="round" />
+      {moss.length > 0 && <path d={circles(moss)} fill="#7f9147" opacity={0.6} />}
+      <path d={outer.map((_, k) => line(outer[k], inner[k])).join('')} stroke={tone(c, -0.5)} strokeWidth={n2(R * 0.012)} />
+      <path d={outer.map((_, k) => (lit[k] > 0.2 ? line(outer[k], outer[(k + 1) % 6]) : '')).join('')} stroke="#fff" strokeOpacity={0.35} strokeWidth={n2(R * 0.022)} strokeLinecap="round" />
+      <polygon points={poly(outer)} fill="none" stroke={tone(c, -0.5)} strokeWidth={n2(R * 0.012)} strokeLinejoin="round" />
+      <polygon points={poly(inner)} fill={`url(#${p}g)`} stroke={tone(c, -0.55)} strokeWidth={n2(R * 0.012)} />
+      <path d={outer.map((_, k) => (lit[k] < -0.2 ? line(inner[k], inner[(k + 1) % 6]) : '')).join('')} stroke="#fff" strokeOpacity={0.25} strokeWidth={n2(R * 0.016)} strokeLinecap="round" />
+      <circle cx={n2(cx + R * 0.015)} cy={n2(cy + R * 0.02)} r={n2(rp)} fill="#2b2d30" stroke="#18191b" strokeWidth={n2(R * 0.01)} />
+      {rimLight(cx + R * 0.015, cy + R * 0.02, rp * 0.97, rp * 0.035, 0.3)}
+      {mulched(rnd, 48, cx + R * 0.015, cy + R * 0.02, rp * 0.88, rp * 0.88, R * 0.09)}
+      <path d={`M${n2(cx - rp * 0.78)} ${n2(cy + rp * 0.3)}A${n2(rp * 0.84)} ${n2(rp * 0.84)} 0 0 1 ${n2(cx + rp * 0.3)} ${n2(cy - rp * 0.78)}`} fill="none" stroke="#000" strokeOpacity={0.35} strokeWidth={n2(rp * 0.14)} strokeLinecap="round" />
+      <path d={shape(leaves, R * 0.035)} fill="#000" opacity={0.3} />
+      <path d={shape(low)} fill="#2c5527" stroke="#18321a" strokeWidth={n2(R * 0.008)} />
+      <path d={shine(low)} fill="#5a8a46" opacity={0.6} />
+      <path d={ribs(low)} stroke="#a9c47e" strokeOpacity={0.5} strokeWidth={n2(R * 0.008)} />
+      <path d={shape(top, R * 0.025)} fill="#000" opacity={0.25} />
+      <path d={shape(top)} fill="#356530" stroke="#1d3a1a" strokeWidth={n2(R * 0.008)} />
+      <path d={shine(top)} fill="#6b9a52" opacity={0.6} />
+      <path d={ribs(top)} stroke="#b4cf88" strokeOpacity={0.55} strokeWidth={n2(R * 0.008)} />
+      <path d={circles(whorls.map(([x, y]) => [x, y, R * 0.022]))} fill="#6f8a3a" stroke="#3f5222" strokeWidth={n2(R * 0.006)} />
+    </>
+  );
+}
+
+// a galvanized tub as a planter from above: its rolled rim round or oval, a handle out at each end, the inner wall lit on
+// the far side, soil with bark mulch and a small shrub with young plants beside it, or geraniums in flower all along it
+function zincTub(b: Box, p: string, o: ThingOptions) {
+  const {cx, cy, r} = middle(b);
+  const rnd = random(o.seed + 'zinc');
+  const kind = pick(o, ZINC_TUBS);
+  const rx = r * 0.8;
+  const ry = kind.oval ? r * 0.56 : rx;
+  const w = r * 0.07;
+  const [sx, sy] = [rx - w * 1.7, ry - w * 1.7];
+  const at = (ax: number, ay: number, t: number): Pt => [cx + Math.cos(t) * ax, cy + Math.sin(t) * ay];
+  const arc = (ax: number, ay: number, t0: number, t1: number) => {
+    const [a, e] = [at(ax, ay, t0), at(ax, ay, t1)];
+    return `M${n2(a[0])} ${n2(a[1])}A${n2(ax)} ${n2(ay)} 0 0 1 ${n2(e[0])} ${n2(e[1])}`;
+  };
+  // the handles: a loop from the rim out at each end
+  const handles = [0, PI]
+    .map((t) => {
+      const [a, e] = [at(rx, ry, t - 0.28), at(rx, ry, t + 0.28)];
+      const out = Math.cos(t) * r * 0.16;
+      return `M${n2(a[0])} ${n2(a[1])}C${n2(a[0] + out)} ${n2(a[1])} ${n2(e[0] + out)} ${n2(e[1])} ${n2(e[0])} ${n2(e[1])}`;
+    })
+    .join('');
+  // zinc's patches on the inner wall
+  const patches = Array.from({length: 12}, (_, i): Dot => {
+    const [x, y] = at(rx - w * 1.15, ry - w * 1.15, rnd() * 2 * PI);
+    return [x, y, w * (0.2 + rnd() * 0.2) * (i % 2 ? 1 : 1.3)];
+  });
+  // what grows in it: geraniums along it, else a shrub and two small rosettes of light leaves beside it
+  const plants: Dot[] = kind.flowers
+    ? [-1, 0, 1].map((i): Dot => [cx + i * sx * 0.55, cy + (rnd() - 0.5) * sy * 0.2, sy * (i ? 0.62 : 0.7)])
+    : kind.oval
+      ? [[cx - sx * 0.32, cy - sy * 0.05, sy * 0.95]]
+      : [[cx + sx * 0.1, cy - sy * 0.08, sx * 0.62]];
+  const sprigs: Dot[] = kind.oval
+    ? [[cx + sx * 0.42, cy + sy * 0.12, sy * 0.36], [cx + sx * 0.66, cy - sy * 0.3, sy * 0.24]]
+    : [[cx - sx * 0.42, cy + sy * 0.4, sx * 0.24], [cx - sx * 0.12, cy + sy * 0.62, sx * 0.17]];
+  // a geranium's flower heads: balls of small flowers
+  const heads = kind.flowers ? plants.flatMap(([x, y, s]) => scatter(rnd, 3, x, y, s * 0.5, [r * 0.07, r * 0.09])) : [];
+  const florets = heads.flatMap(([x, y, s]) => [
+    ...Array.from({length: 5}, (_, k): Dot => [x + Math.cos(k * 1.26 + x) * s * 0.52, y + Math.sin(k * 1.26 + x) * s * 0.52, s * 0.4]),
+    [x, y, s * 0.4] as Dot,
+  ]);
+  return (
+    <>
+      <defs>{face(p + 'w', ZINC, -0.32, 0.18)}</defs>
+      {halo(p + 'h', cx, cy, rx * 1.1, ry * 1.12)}
+      <path d={handles} fill="none" stroke="#000" strokeOpacity={0.3} strokeWidth={n2(r * 0.035)} transform={`translate(${n2(r * 0.02)} ${n2(r * 0.035)})`} />
+      <path d={handles} fill="none" stroke={tone(ZINC, -0.1)} strokeWidth={n2(r * 0.035)} strokeLinecap="round" />
+      <path d={handles} fill="none" stroke="#fff" strokeOpacity={0.4} strokeWidth={n2(r * 0.01)} transform={`translate(${n2(-r * 0.005)} ${n2(-r * 0.007)})`} />
+      <ellipse cx={n2(cx)} cy={n2(cy)} rx={n2(rx)} ry={n2(ry)} fill={`url(#${p}w)`} stroke={ZINC} strokeWidth={n2(w)} />
+      <path d={circles(patches.filter((_, i) => i % 2))} fill="#d3d9db" opacity={0.25} />
+      <path d={circles(patches.filter((_, i) => !(i % 2)))} fill="#5f676a" opacity={0.2} />
+      <ellipse cx={n2(cx)} cy={n2(cy)} rx={n2(rx - w * 1.15)} ry={n2(ry - w * 1.15)} fill="none" stroke={tone(ZINC, -0.25)} strokeOpacity={0.5} strokeWidth={n2(w * 0.2)} />
+      <ellipse cx={n2(cx)} cy={n2(cy)} rx={n2(rx + w / 2)} ry={n2(ry + w / 2)} fill="none" stroke={tone(ZINC, -0.45)} strokeWidth={n2(r * 0.01)} />
+      <path d={arc(rx - w * 0.1, ry - w * 0.1, PI * 0.9, PI * 1.62)} fill="none" stroke="#fff" strokeOpacity={0.6} strokeWidth={n2(w * 0.35)} strokeLinecap="round" />
+      <path d={arc(rx + w * 0.2, ry + w * 0.2, -PI * 0.1, PI * 0.62)} fill="none" stroke="#000" strokeOpacity={0.25} strokeWidth={n2(w * 0.3)} strokeLinecap="round" />
+      {mulched(rnd, kind.oval ? 50 : 64, cx, cy, sx, sy, r * 0.07)}
+      <path d={arc(sx * 0.94, sy * 0.94, PI * 0.85, PI * 1.65)} fill="none" stroke="#000" strokeOpacity={0.35} strokeWidth={n2(r * 0.07)} strokeLinecap="round" />
+      {!kind.flowers && (
+        <>
+          <path d={circles(sprigs.map(([x, y, s]) => [x + s * 0.12, y + s * 0.18, s * 0.75]))} fill="#000" opacity={0.3} />
+          {sprigs.map(([x, y, s]) => rosette(x, y, s, '#6aa84a', 6))}
+        </>
+      )}
+      {plants.map(([x, y, s], i) => (
+        <g key={i}>{crown(`${p}c${i}`, x, y, s, kind.flowers ? '#3f7a34' : '#4a8a3a', rnd, 7, 0.36, 3)}</g>
+      ))}
+      {kind.flowers && (
+        <>
+          <path d={circles(heads.map(([x, y, s]) => [x + s * 0.2, y + s * 0.3, s]))} fill="#14260f" opacity={0.4} />
+          <path d={circles(heads.map(([x, y, s]) => [x, y, s * 0.85]))} fill={tone(kind.flowers[0], -0.3)} />
+          <path d={circles(florets)} fill={kind.flowers[0]} />
+          <path d={circles(florets.filter(([x, y], i) => heads[Math.floor(i / 6)][0] - x + (heads[Math.floor(i / 6)][1] - y) >= 0).map(([x, y, s]) => [x - s * 0.15, y - s * 0.15, s * 0.55]))} fill={kind.flowers[1]} opacity={0.85} />
+        </>
+      )}
+    </>
+  );
+}
+
+const GARAGES: Variants<{c: string; hood?: boolean; sign?: string}> = {
+  wood: {label: 'Wood', c: '#a47a4c'},
+  anthracite: {label: 'Anthracite', c: '#4c5157', hood: true, sign: '#d6d9dc'},
+  white: {label: 'White', c: '#e9e8e3', hood: true, sign: '#5b6168'},
+};
+
+// a robot mower's garage over its dock, open to the right where the mower drives in: a wooden gable roof with its ridge
+// running in, or a plastic hood curving down to both sides with ribs across, its front bulging out over the opening and
+// a small sign on it
+function mowerGarage(b: Box, p: string, o: ThingOptions) {
+  return along(b, (l, d) => {
+    const g = pick(o, GARAGES);
+    const c = g.c;
+    const L = l * 0.94;
+    const W = Math.min(d * 0.94, L * 0.86);
+    const [x0, y0] = [-L / 2, -W / 2];
+    if (g.hood) {
+      // the back corners round, the front bulging out over the opening as a visor
+      const r = W * 0.14;
+      const [xf, xe, y1] = [x0 + L - W * 0.2, x0 + L, y0 + W];
+      const shell = `M${n2(x0 + r)} ${n2(y0)}H${n2(xf)}Q${n2(xe)} ${n2(y0)} ${n2(xe)} 0Q${n2(xe)} ${n2(y1)} ${n2(xf)} ${n2(y1)}H${n2(x0 + r)}Q${n2(x0)} ${n2(y1)} ${n2(x0)} ${n2(y1 - r)}V${n2(y0 + r)}Q${n2(x0)} ${n2(y0)} ${n2(x0 + r)} ${n2(y0)}Z`;
+      const e = W * 0.05;
+      const ribs = [0.26, 0.4, 0.54].map((k) => x0 + L * k);
+      return (
+        <>
+          <defs>
+            <linearGradient id={p + 'h'} x1={0} y1={0} x2={0} y2={1}>
+              <stop offset={0} stopColor={tone(c, 0)} />
+              <stop offset={0.26} stopColor={tone(c, 0.24)} />
+              <stop offset={0.55} stopColor={c} />
+              <stop offset={1} stopColor={tone(c, -0.42)} />
+            </linearGradient>
+          </defs>
+          {softBox(x0, y0, L, W, W * 0.18, W * 0.07)}
+          <path d={shell} fill={`url(#${p}h)`} stroke={tone(c, -0.45)} strokeWidth={n2(W * 0.015)} />
+          <path d={`M${n2(xf - e)} ${n2(y0 + e)}Q${n2(xe - e)} ${n2(y0 + e)} ${n2(xe - e)} 0Q${n2(xe - e)} ${n2(y1 - e)} ${n2(xf - e)} ${n2(y1 - e)}`} fill="none" stroke={tone(c, -0.28)} strokeWidth={n2(W * 0.02)} />
+          {/* the ribs moulded across, a groove in the shade and its lit edge */}
+          <path d={ribs.map((x) => `M${n2(x)} ${n2(y0 + W * 0.05)}v${n2(W * 0.9)}`).join('')} stroke={tone(c, -0.35)} strokeOpacity={0.6} strokeWidth={n2(W * 0.022)} strokeLinecap="round" />
+          <path d={ribs.map((x) => `M${n2(x - W * 0.018)} ${n2(y0 + W * 0.05)}v${n2(W * 0.9)}`).join('')} stroke={tone(c, 0.4)} strokeOpacity={0.45} strokeWidth={n2(W * 0.01)} strokeLinecap="round" />
+          <rect x={n2(x0 + L * 0.64)} y={n2(-W * 0.08)} width={n2(L * 0.13)} height={n2(W * 0.16)} rx={n2(W * 0.03)} fill={g.sign} stroke={tone(c, -0.45)} strokeWidth={n2(W * 0.008)} />
+          <circle cx={n2(x0 + L * 0.705)} cy={0} r={n2(W * 0.04)} fill="#5f9a45" />
+        </>
+      );
+    }
+    // boards along the ridge on both faces, the face up in the light, the ridge board over them, a barge board at each
+    // end reaching a little past the eaves
+    const rnd = random(o.seed + 'garage');
+    const rows = 4;
+    const bh = W / 2 / rows;
+    const ys = Array.from({length: rows * 2}, (_, i) => y0 + i * bh);
+    const bb = Math.min(L * 0.05, W * 0.05);
+    return (
+      <>
+        {softBox(x0, y0, L, W, W * 0.02, W * 0.07)}
+        <rect x={n2(x0)} y={n2(y0)} width={n2(L)} height={n2(W / 2)} fill={tone(c, 0.14)} />
+        <rect x={n2(x0)} y={0} width={n2(L)} height={n2(W / 2)} fill={tone(c, -0.2)} />
+        <path d={ys.map((y, i) => (i % 2 ? `M${n2(x0)} ${n2(y)}h${n2(L)}v${n2(bh)}h${n2(-L)}Z` : '')).join('')} fill="#fff" opacity={0.07} />
+        <path
+          d={ys.map((y) => `M${n2(x0 + L * (0.08 + rnd() * 0.3))} ${n2(y + bh * (0.35 + rnd() * 0.3))}h${n2(L * (0.2 + rnd() * 0.3))}`).join('')}
+          stroke={tone(c, -0.35)}
+          strokeOpacity={0.4}
+          strokeWidth={n2(bh * 0.07)}
+          strokeLinecap="round"
+        />
+        <path d={ys.slice(1).map((y) => `M${n2(x0)} ${n2(y)}h${n2(L)}`).join('')} stroke={tone(c, -0.5)} strokeOpacity={0.7} strokeWidth={n2(bh * 0.08)} />
+        <rect x={n2(x0)} y={n2(-W * 0.045)} width={n2(L)} height={n2(W * 0.09)} fill={tone(c, -0.05)} stroke={tone(c, -0.45)} strokeWidth={n2(W * 0.008)} />
+        <rect x={n2(x0)} y={n2(-W * 0.04)} width={n2(L)} height={n2(W * 0.035)} fill={tone(c, 0.3)} opacity={0.6} />
+        <rect x={n2(x0)} y={n2(y0)} width={n2(L)} height={n2(W)} fill="none" stroke={tone(c, -0.5)} strokeWidth={n2(W * 0.015)} />
+        <rect x={n2(x0 - bb * 0.2)} y={n2(y0 - bb * 0.4)} width={n2(bb)} height={n2(W + bb * 0.8)} rx={n2(bb * 0.15)} fill={tone(c, 0.22)} stroke={tone(c, -0.45)} strokeWidth={n2(W * 0.008)} />
+        <rect x={n2(x0 + L - bb * 0.8)} y={n2(y0 - bb * 0.4)} width={n2(bb)} height={n2(W + bb * 0.8)} rx={n2(bb * 0.15)} fill={tone(c, -0.3)} stroke={tone(c, -0.5)} strokeWidth={n2(W * 0.008)} />
+      </>
+    );
+  });
+}
+
+const SAUNAS: Variants<{c: string}> = {
+  thermo: {label: 'Thermowood', c: '#6e4a2f'},
+  spruce: {label: 'Spruce', c: '#cfa36b'},
+};
+
+// a barrel sauna lying along x, its door at the right under the staves reaching on past the front wall: the staves from
+// end to end, closer together towards the sides where the barrel curves away, steel bands round it, the stove's chimney
+// with its rain cap behind the front wall, a step in front of the door. as a swatch longer than wide
+function barrelSauna(b: Box, p: string, o: ThingOptions) {
+  return along(b, (l, d) => {
+    const c = pick(o, SAUNAS).c;
+    const rnd = random(o.seed + 'sauna');
+    // about two meters across: R is about a meter
+    const R = Math.min(d * 0.47, l * (o.m === undefined ? 0.34 : 0.47));
+    const [x0, x1] = [-l / 2 + l * 0.02, l / 2 - R * 0.22];
+    const L = x1 - x0;
+    const xw = x1 - Math.min(R * 0.42, L * 0.16);
+    const n = 26;
+    const ys = Array.from({length: n + 1}, (_, i) => -R * Math.cos((PI * i) / n));
+    const bands = Math.max(2, Math.round((xw - x0) / (R * 1.1)));
+    const bx = Array.from({length: bands}, (_, i) => x0 + R * 0.16 + ((xw - R * 0.06 - x0 - R * 0.16) * i) / (bands - 1));
+    const staves = (k: number) => ys.slice(0, n).map((y, i) => (i % 3 === k ? `M${n2(x0)} ${n2(y)}h${n2(L)}V${n2(ys[i + 1])}H${n2(x0)}Z` : '')).join('');
+    const grain = Array.from({length: 22}, () => {
+      const i = 2 + Math.floor(rnd() * (n - 4));
+      const y = (ys[i] + ys[i + 1]) / 2;
+      return `M${n2(x0 + rnd() * L * 0.85)} ${n2(y)}h${n2(R * (0.2 + rnd() * 0.35))}`;
+    }).join('');
+    const [kx, ky] = [xw - R * 0.36, R * 0.2];
+    const metal = '#3a3d41';
+    return (
+      <>
+        <defs>
+          <linearGradient id={p + 'b'} x1={0} y1={0} x2={0} y2={1}>
+            <stop offset={0} stopColor={tone(c, -0.08)} />
+            <stop offset={0.22} stopColor={tone(c, 0.26)} />
+            <stop offset={0.5} stopColor={tone(c, 0.02)} />
+            <stop offset={0.8} stopColor={tone(c, -0.3)} />
+            <stop offset={1} stopColor={tone(c, -0.54)} />
+          </linearGradient>
+          <linearGradient id={p + 's'} x1={0} y1={0} x2={0} y2={1}>
+            <stop offset={0} stopColor="#8f959b" />
+            <stop offset={0.26} stopColor="#e4e7ea" />
+            <stop offset={0.6} stopColor="#a9afb4" />
+            <stop offset={1} stopColor="#5d6267" />
+          </linearGradient>
+          {ball(p + 'k', metal, 0.35, -0.3)}
+        </defs>
+        {softBox(x0, -R, L, 2 * R, R * 0.3, R * 0.08)}
+        {/* the step in front of the door, under the canopy */}
+        {softBox(x1 - R * 0.1, -R * 0.36, R * 0.32, R * 0.72, R * 0.02, R * 0.04)}
+        <rect x={n2(x1 - R * 0.1)} y={n2(-R * 0.36)} width={n2(R * 0.32)} height={n2(R * 0.72)} fill={tone(c, 0.1)} stroke={tone(c, -0.45)} strokeWidth={n2(R * 0.01)} />
+        <path d={`M${n2(x1 + R * 0.11)} ${n2(-R * 0.36)}v${n2(R * 0.72)}`} stroke={tone(c, -0.45)} strokeWidth={n2(R * 0.012)} />
+        <rect x={n2(x0)} y={n2(-R)} width={n2(L)} height={n2(2 * R)} fill={`url(#${p}b)`} />
+        <path d={staves(0)} fill="#fff" opacity={0.07} />
+        <path d={staves(1)} fill="#000" opacity={0.06} />
+        <path d={grain} stroke={tone(c, -0.35)} strokeOpacity={0.35} strokeWidth={n2(R * 0.008)} strokeLinecap="round" />
+        <path d={ys.slice(1, n).map((y) => `M${n2(x0)} ${n2(y)}h${n2(L)}`).join('')} stroke={tone(c, -0.5)} strokeOpacity={0.55} strokeWidth={n2(R * 0.008)} />
+        {bx.map((x, i) => (
+          <rect key={i} x={n2(x - R * 0.016)} y={n2(-R)} width={n2(R * 0.032)} height={n2(2 * R)} fill={`url(#${p}s)`} />
+        ))}
+        <rect x={n2(x0)} y={n2(-R)} width={n2(L)} height={n2(2 * R)} fill="none" stroke={tone(c, -0.55)} strokeWidth={n2(R * 0.014)} />
+        {/* the chimney: the plate round its pipe on the staves, the shadow it casts, its rain cap */}
+        <rect x={n2(kx - R * 0.14)} y={n2(ky - R * 0.14)} width={n2(R * 0.28)} height={n2(R * 0.28)} rx={n2(R * 0.03)} fill="#9aa0a5" stroke="#6b7075" strokeWidth={n2(R * 0.008)} />
+        <g data-halo="" opacity={0.25}>
+          <path d={`M${n2(kx)} ${n2(ky)}l${n2(R * 0.24)} ${n2(R * 0.32)}`} stroke="#000" strokeWidth={n2(R * 0.13)} strokeLinecap="round" />
+          <circle cx={n2(kx + R * 0.27)} cy={n2(ky + R * 0.36)} r={n2(R * 0.12)} />
+        </g>
+        <circle cx={n2(kx)} cy={n2(ky)} r={n2(R * 0.13)} fill={`url(#${p}k)`} stroke="#1f2124" strokeWidth={n2(R * 0.008)} />
+        <circle cx={n2(kx)} cy={n2(ky)} r={n2(R * 0.075)} fill="none" stroke="#1f2124" strokeOpacity={0.35} strokeWidth={n2(R * 0.008)} />
+        <circle cx={n2(kx - R * 0.006)} cy={n2(ky - R * 0.006)} r={n2(R * 0.022)} fill={tone(metal, 0.35)} />
+      </>
+    );
+  });
+}
+
+const HOOPS: Variants<{c: string}> = {
+  black: {label: 'Black', c: '#2b2e31'},
+  blue: {label: 'Blue', c: '#2f5f9f'},
+  red: {label: 'Red', c: '#b8342c'},
+};
+const HEATERS: Variants<{c: string; shine: number}> = {
+  steel: {label: 'Stainless steel', c: '#a9b0b6', shine: 1},
+  black: {label: 'Black', c: '#34373b', shine: 0.6},
+};
+
+// an outdoor staircase's treads and the posts and beams it hangs on
+const STAIR_KINDS: Variants<{tread: string; post: string; steel?: boolean}> = {
+  dark: {label: 'Dark wood', tread: '#5e5045', post: '#3b302a'},
+  light: {label: 'Light wood', tread: '#b48a5a', post: '#8a6644'},
+  steel: {label: 'Galvanized', tread: '#a7adb1', post: '#4f5459', steel: true},
+};
+// the hose on a hose reel
+const HOSES: Variants<{c: string}> = {
+  green: {label: 'Green', c: '#3f9a3a'},
+  yellow: {label: 'Yellow', c: '#e3b22b'},
+  orange: {label: 'Orange', c: '#e0782a'},
+  black: {label: 'Black', c: '#33373b'},
+};
 
 export const PICTURES: Record<string, Picture> = {
   // plants
@@ -2217,6 +2888,24 @@ export const PICTURES: Record<string, Picture> = {
       );
     },
   },
+  hexPlanter: {
+    label: 'Hexagonal planter',
+    group: 'plants',
+    size: [0.5, 0.8],
+    many: true,
+    variants: choices(PLANTER_WOODS),
+    around: 'paving',
+    thing: hexPlanter,
+  },
+  zincTub: {
+    label: 'Zinc tub',
+    group: 'plants',
+    size: [0.5, 1],
+    many: true,
+    variants: choices(ZINC_TUBS),
+    around: 'mulch',
+    thing: zincTub,
+  },
   herbSpiral: {
     label: 'Herb spiral',
     group: 'beds',
@@ -3012,6 +3701,74 @@ export const PICTURES: Record<string, Picture> = {
         );
       }),
   },
+  basketball: {
+    label: 'Basketball hoop',
+    group: 'play',
+    size: [1.2, 1.6],
+    turn: true,
+    variants: choices(HOOPS),
+    around: 'paving',
+    // a portable hoop: its filled tank behind, the pole from the tank's front leaning back, the arms forward to the
+    // board, the ring with its net in front of it (to the right, the place turns it), a ball lying by the tank
+    thing: (b, p, o) => {
+      const {cx, cy} = middle(b);
+      const s = Math.min(b.w, b.h);
+      const rnd = random(o.seed + 'hoop');
+      const c = pick(o, HOOPS).c;
+      const metal = '#3a3d41';
+      const [x0, bl, bw] = [cx - s * 0.48, s * 0.44, s * 0.42];
+      const [px, tx] = [cx - s * 0.07, cx - s * 0.17];
+      const [bx, bt] = [cx + s * 0.08, s * 0.032];
+      const rr = s * 0.14;
+      const rx = bx + bt + s * 0.035 + rr;
+      // the net: its strings zigzag from the ring's hooks down to its narrower bottom, diamonds from above
+      const zig = (r1: number, r2: number) =>
+        Array.from({length: 25}, (_, i) => {
+          const [a, d] = [(i * PI) / 12, i % 2 ? r2 : r1];
+          return `${i ? 'L' : 'M'}${n2(rx + Math.cos(a) * d)} ${n2(cy + Math.sin(a) * d)}`;
+        }).join('');
+      const side = rnd() < 0.5 ? -1 : 1;
+      const [qx, qy, qr, qa] = [x0 + bl * (0.3 + rnd() * 0.4), cy + side * (bw / 2 + s * 0.1), s * 0.075, rnd() * 180];
+      return (
+        <>
+          <defs>
+            {face(p + 'b', c, 0.14, -0.2)}
+            {tube(p + 'm', metal)}
+            {ball(p + 'q', '#d9682a', 0.3, -0.4)}
+          </defs>
+          {softBox(x0, cy - bw / 2, bl, bw, s * 0.06, s * 0.03)}
+          <rect x={n2(px - s * 0.05)} y={n2(cy - bw / 2 - s * 0.02)} width={n2(s * 0.08)} height={n2(bw + s * 0.04)} rx={n2(s * 0.02)} fill="#1f2124" />
+          <rect x={n2(x0)} y={n2(cy - bw / 2)} width={n2(bl)} height={n2(bw)} rx={n2(s * 0.06)} fill={`url(#${p}b)`} stroke={tone(c, -0.4)} strokeWidth={n2(s * 0.006)} />
+          <rect x={n2(x0 + s * 0.035)} y={n2(cy - bw / 2 + s * 0.035)} width={n2(bl - s * 0.15)} height={n2(bw - s * 0.07)} rx={n2(s * 0.035)} fill={tone(c, 0.06)} stroke={tone(c, -0.3)} strokeWidth={n2(s * 0.006)} />
+          <path d={[0.3, 0.5, 0.7].map((k) => `M${n2(x0 + s * 0.06)} ${n2(cy - bw / 2 + bw * k)}h${n2(bl * 0.45)}`).join('')} stroke={tone(c, -0.25)} strokeWidth={n2(s * 0.008)} strokeLinecap="round" />
+          <circle cx={n2(x0 + bl * 0.5)} cy={n2(cy - bw * 0.3)} r={n2(s * 0.03)} fill={tone(c, -0.15)} stroke={tone(c, -0.45)} strokeWidth={n2(s * 0.006)} />
+          <circle cx={n2(x0 + bl * 0.5 - s * 0.007)} cy={n2(cy - bw * 0.3 - s * 0.007)} r={n2(s * 0.013)} fill={tone(c, 0.25)} />
+          <rect x={n2(tx)} y={n2(cy - s * 0.03)} width={n2(px - tx + s * 0.03)} height={n2(s * 0.06)} rx={n2(s * 0.012)} fill={`url(#${p}m)`} stroke="#1f2124" strokeWidth={n2(s * 0.005)} />
+          {[-1, 1].map((k) => (
+            <rect key={k} x={n2(tx)} y={n2(cy + k * s * 0.07 - s * 0.011)} width={n2(bx - tx)} height={n2(s * 0.022)} rx={n2(s * 0.008)} fill={`url(#${p}m)`} stroke="#1f2124" strokeWidth={n2(s * 0.004)} />
+          ))}
+          <rect x={n2(tx - s * 0.005)} y={n2(cy - s * 0.09)} width={n2(s * 0.03)} height={n2(s * 0.18)} rx={n2(s * 0.01)} fill={metal} stroke="#1f2124" strokeWidth={n2(s * 0.004)} />
+          <rect x={n2(bx - s * 0.025)} y={n2(cy - s * 0.12)} width={n2(s * 0.025)} height={n2(s * 0.24)} fill={metal} />
+          <rect x={n2(bx)} y={n2(cy - s * 0.34)} width={n2(bt)} height={n2(s * 0.68)} rx={n2(bt * 0.3)} fill="#26282b" />
+          <rect x={n2(bx + bt * 0.2)} y={n2(cy - s * 0.335)} width={n2(bt * 0.35)} height={n2(s * 0.67)} rx={n2(bt * 0.15)} fill="#e9edf0" opacity={0.55} />
+          <rect x={n2(bx + bt)} y={n2(cy - s * 0.04)} width={n2(rx - rr - bx - bt + s * 0.01)} height={n2(s * 0.08)} rx={n2(s * 0.01)} fill="#c2501c" />
+          <path d={zig(rr, rr * 0.8) + zig(rr * 0.6, rr * 0.8)} fill="none" stroke="#fff" strokeOpacity={0.85} strokeWidth={n2(s * 0.005)} />
+          <circle cx={n2(rx)} cy={n2(cy)} r={n2(rr * 0.6)} fill="none" stroke="#fff" strokeOpacity={0.8} strokeWidth={n2(s * 0.006)} />
+          <circle cx={n2(rx)} cy={n2(cy)} r={n2(rr)} fill="none" stroke="#e2621f" strokeWidth={n2(s * 0.016)} />
+          <path d={`M${n2(rx - rr * 0.94)} ${n2(cy - rr * 0.34)}A${n2(rr)} ${n2(rr)} 0 0 1 ${n2(rx - rr * 0.34)} ${n2(cy - rr * 0.94)}`} stroke="#ffb27a" strokeWidth={n2(s * 0.005)} fill="none" strokeLinecap="round" />
+          {halo(p + 'h', qx, qy, qr * 1.25, qr * 1.25, 0.3)}
+          <circle cx={n2(qx)} cy={n2(qy)} r={n2(qr)} fill={`url(#${p}q)`} />
+          <path
+            d={`M${n2(qx - qr)} ${n2(qy)}H${n2(qx + qr)}M${n2(qx)} ${n2(qy - qr)}V${n2(qy + qr)}M${n2(qx - qr * 0.7)} ${n2(qy - qr * 0.7)}Q${n2(qx - qr * 0.25)} ${n2(qy)} ${n2(qx - qr * 0.7)} ${n2(qy + qr * 0.7)}M${n2(qx + qr * 0.7)} ${n2(qy - qr * 0.7)}Q${n2(qx + qr * 0.25)} ${n2(qy)} ${n2(qx + qr * 0.7)} ${n2(qy + qr * 0.7)}`}
+            stroke="#2a1a12"
+            strokeWidth={n2(qr * 0.07)}
+            fill="none"
+            transform={`rotate(${n2(qa)} ${n2(qx)} ${n2(qy)})`}
+          />
+        </>
+      );
+    },
+  },
 
   // buildings
   house: {label: 'House', group: 'buildings', around: 'paving', long: true, variants: choices(ROOFS), thing: (b, p, o) => hipRoof(p, b, pick(o, ROOFS).c)},
@@ -3196,6 +3953,29 @@ export const PICTURES: Record<string, Picture> = {
         );
       }),
   },
+  mowerGarage: {
+    label: 'Robot mower garage',
+    group: 'buildings',
+    size: [0.7, 1.1],
+    deep: 0.95,
+    variants: choices(GARAGES),
+    long: true,
+    turn: true,
+    around: 'turf',
+    above: true,
+    thing: mowerGarage,
+  },
+  barrelSauna: {
+    label: 'Barrel sauna',
+    group: 'buildings',
+    size: [2, 4],
+    deep: 2.2,
+    variants: choices(SAUNAS),
+    long: true,
+    turn: true,
+    around: 'gravel',
+    thing: barrelSauna,
+  },
   car: {
     label: 'Car',
     group: 'buildings',
@@ -3244,6 +4024,173 @@ export const PICTURES: Record<string, Picture> = {
             <ellipse cx={n2(len * 0.08)} cy={n2(wid * 0.54)} rx={n2(wid * 0.07)} ry={n2(wid * 0.04)} fill={tone(paint, -0.15)} />
             <path d={circles([-1, 1].map((j): Dot => [x1 - wid * 0.07, j * wid * 0.32, wid * 0.06]))} fill="#f6f1d8" />
             <path d={`M${n2(x0 + wid * 0.03)} ${n2(-wid * 0.38)}v${n2(wid * 0.14)}M${n2(x0 + wid * 0.03)} ${n2(wid * 0.38)}v${n2(-wid * 0.14)}`} stroke="#d0312d" strokeWidth={n2(wid * 0.05)} strokeLinecap="round" />
+          </>
+        );
+      }),
+  },
+  outdoorStairs: {
+    label: 'Outdoor staircase',
+    group: 'buildings',
+    variants: choices(STAIR_KINDS),
+    size: [2, 4.2],
+    deep: 2.4,
+    long: true,
+    turn: true,
+    around: 'gravel',
+    above: true,
+    thing: (b, p, o) =>
+      along(b, (l, d) => {
+        const rnd = random(o.seed + 'outdoor');
+        const kind = pick(o, STAIR_KINDS);
+        const m = o.m ?? l / 4.4;
+        // up at the left, the house wall there: the landing at the door, the lower flight on the far side from the ground beside
+        // it to the right, winders round the turn, the upper flight on the near side back to the landing. open treads about
+        // 27 cm on steel stringers, four tall posts with beams on top along the upper flight and the turn, cables round the rest
+        const L = l * 0.98;
+        const W = Math.min(d * 0.95, o.m ? Infinity : L * 0.56);
+        const [x0, x1] = [-L / 2, L / 2];
+        const well = Math.min(0.1 * m, W * 0.06);
+        const fw = (W - well) / 2;
+        const land = Math.min(fw, L * 0.26);
+        const xt = x1 - Math.min(fw, L * 0.28);
+        const n = Math.max(2, Math.round((xt - x0 - land) / (0.27 * m)));
+        const t = (xt - x0 - land) / n;
+        const gap = Math.min(t * 0.16, 0.035 * m);
+        const tw = t - gap;
+        const ps = Math.min(0.13 * m, W * 0.08);
+        const bw = ps * 0.6;
+        const si = Math.min(0.07 * m, fw * 0.1);
+        const steel = '#9ba3a8';
+        const wood = kind.tread;
+        // the lower flight's treads darker, each in the shadow of the next one up (the lower ones a little more)
+        const treads = [-1, 1].flatMap((s) =>
+          Array.from({length: n}, (_, i) => ({x: x0 + land + i * t + gap / 2, y: s < 0 ? -W / 2 : well / 2, low: s < 0, c: tone(wood, (rnd() - 0.5) * 0.12 + (s < 0 ? -0.08 : 0))})),
+        );
+        // the winders: wedges round the end of the well, from the lower flight's side up to the upper one's, each between two
+        // directions and round the corners it reaches
+        const nw = 7;
+        const hit = (a: number): Pt => {
+          const [c, s] = [Math.cos(a), Math.sin(a)];
+          const k = Math.min(c > 1e-6 ? (x1 - xt) / c : Infinity, Math.abs(s) > 1e-6 ? W / 2 / Math.abs(s) : Infinity);
+          return [xt + c * k, s * k];
+        };
+        const corners: [number, Pt][] = [
+          [Math.atan2(-W / 2, x1 - xt), [x1, -W / 2]],
+          [Math.atan2(W / 2, x1 - xt), [x1, W / 2]],
+        ];
+        const wedge = (a: number, e: number): Pt[] => [[xt, 0], hit(a), ...corners.filter(([ca]) => ca > a && ca < e).map(([, pt]) => pt), hit(e)];
+        const winders = Array.from({length: nw}, (_, j) => {
+          const [a, e] = [-PI / 2 + (j * PI) / nw, -PI / 2 + ((j + 1) * PI) / nw];
+          return {a, e, c: tone(wood, -0.08 + (0.08 * j) / (nw - 1) + (rnd() - 0.5) * 0.08)};
+        });
+        const ray = (a: number, from: number, to: number) => {
+          const [x, y] = hit(a);
+          return `M${n2(xt + (x - xt) * from)} ${n2(y * from)}L${n2(xt + (x - xt) * to)} ${n2(y * to)}`;
+        };
+        const posts: Pt[] = [
+          [x0 + ps / 2, W / 2 - ps / 2],
+          [x0 + land, W / 2 - ps / 2],
+          [x1 - ps / 2, W / 2 - ps / 2],
+          [x1 - ps / 2, -W / 2 + ps / 2],
+        ];
+        const [by, bx] = [W / 2 - ps / 2, x1 - ps / 2];
+        // a galvanized grating (bars across, a cross bar every 10 cm) or the grain of the wood
+        const grating = (x: number, y: number, w: number, h: number) => {
+          const k = Math.max(1, Math.round(h / (0.1 * m)));
+          return (
+            Array.from({length: 6}, (_, i) => `M${n2(x + (w * (i + 0.5)) / 6)} ${n2(y)}v${n2(h)}`).join('') +
+            Array.from({length: k}, (_, i) => `M${n2(x)} ${n2(y + (h * (i + 0.5)) / k)}h${n2(w)}`).join('')
+          );
+        };
+        const grain = treads.map((td) => `M${n2(td.x + tw * (0.25 + rnd() * 0.5))} ${n2(td.y + fw * rnd() * 0.2)}v${n2(fw * (0.4 + rnd() * 0.4))}`).join('');
+        return (
+          <>
+            <defs>
+              <linearGradient id={p + 's'} x1={0} y1={0} x2={1} y2={0}>
+                <stop offset={0} stopColor="#000" stopOpacity={0.42} />
+                <stop offset={1} stopColor="#000" stopOpacity={0} />
+              </linearGradient>
+              <linearGradient id={p + 'r'} x1={1} y1={0} x2={0} y2={0}>
+                <stop offset={0} stopColor="#000" stopOpacity={0.5} />
+                <stop offset={1} stopColor="#000" stopOpacity={0} />
+              </linearGradient>
+              {tube(p + 'b', kind.post)}
+              {tube(p + 'v', kind.post, true)}
+            </defs>
+            {/* the ground under the flights in their shade, the stringers seen between the treads */}
+            <rect x={n2(x0 + land)} y={n2(-W / 2)} width={n2(x1 - x0 - land)} height={n2(W)} fill="#000" opacity={0.42} data-halo="" />
+            <path
+              d={`M${n2(x0 + land)} ${n2(-W / 2 + si)}H${n2(x1 - si)}V${n2(W / 2 - si)}H${n2(x0 + land)}M${n2(x0 + land)} ${n2(-well / 2 - si)}H${n2(xt)}M${n2(x0 + land)} ${n2(well / 2 + si)}H${n2(xt)}`}
+              fill="none"
+              stroke={steel}
+              strokeWidth={n2(Math.min(0.05 * m, si * 0.8))}
+            />
+            <rect x={n2(x0 + land)} y={n2(-well / 2 - si)} width={n2(xt - x0 - land)} height={n2(well + 2 * si)} fill="#000" opacity={0.3} />
+            {treads.map((td, i) => (
+              <rect key={i} x={n2(td.x)} y={n2(td.y)} width={n2(tw)} height={n2(fw)} fill={td.c} />
+            ))}
+            {winders.map((wd, j) => (
+              <polygon key={j} points={poly(wedge(wd.a, wd.e))} fill={wd.c} />
+            ))}
+            {kind.steel ? (
+              <path
+                d={treads.map((td) => grating(td.x, td.y, tw, fw)).join('') + winders.map((wd) => [0.25, 0.5, 0.75].map((f) => ray(wd.a + (wd.e - wd.a) * f, 0.15, 0.97)).join('')).join('')}
+                stroke={tone(wood, -0.4)}
+                strokeOpacity={0.5}
+                strokeWidth={n2(tw * 0.03)}
+              />
+            ) : (
+              <path d={grain + winders.map((wd) => ray(wd.a + (wd.e - wd.a) * (0.35 + rnd() * 0.3), 0.3 + rnd() * 0.2, 0.75 + rnd() * 0.15)).join('')} stroke={tone(wood, -0.35)} strokeOpacity={0.5} strokeWidth={n2(tw * 0.03)} strokeLinecap="round" />
+            )}
+            {/* each winder in the shadow of the next one up */}
+            {[0.45, 0.22].map((f) => (
+              <path key={f} d={winders.map((wd) => `M${poly(wedge(wd.e - (wd.e - wd.a) * f, wd.e))}Z`).join('')} fill="#000" opacity={0.16} />
+            ))}
+            {treads.map((td, i) => (
+              <rect key={i} x={n2(td.low ? td.x + tw * 0.5 : td.x)} y={n2(td.y)} width={n2(tw * (td.low ? 0.5 : 0.38))} height={n2(fw)} fill={`url(#${p}${td.low ? 'r' : 's'})`} />
+            ))}
+            {/* the edge of each tread facing down its flight lit, the gaps between the winders */}
+            <path
+              d={treads.map((td) => `M${n2(td.low ? td.x + tw * 0.03 : td.x + tw * 0.97)} ${n2(td.y)}v${n2(fw)}`).join('') + winders.map((wd) => ray(wd.a + (wd.e - wd.a) * 0.06, 0.1, 1)).join('')}
+              stroke={tone(wood, 0.3)}
+              strokeOpacity={0.6}
+              strokeWidth={n2(tw * 0.05)}
+            />
+            <path
+              d={Array.from({length: nw + 1}, (_, j) => {
+                const [x, y] = hit(-PI / 2 + (j * PI) / nw);
+                return `M${n2(xt)} 0L${n2(x)} ${n2(y)}`;
+              }).join('')}
+              stroke="#000"
+              strokeOpacity={0.5}
+              strokeWidth={n2(gap)}
+            />
+            {/* the landing high up, boards towards the wall on a steel frame, its shadow on the foot of the lower flight */}
+            <rect x={n2(x0 + land)} y={n2(-W / 2)} width={n2(Math.min(0.5 * m, tw * 2))} height={n2(fw)} fill={`url(#${p}s)`} />
+            {kind.steel ? (
+              <>
+                <rect x={n2(x0)} y={n2(-W / 2)} width={n2(land)} height={n2(W)} fill={tone(wood, 0.06)} />
+                <path d={grating(x0, -W / 2, land, W)} stroke={tone(wood, -0.4)} strokeOpacity={0.5} strokeWidth={n2(tw * 0.03)} />
+              </>
+            ) : (
+              boards(x0, -W / 2, land, W, Math.max(3, Math.round(W / (0.14 * m))), tone(wood, 0.06), rnd)
+            )}
+            <rect x={n2(x0)} y={n2(-W / 2)} width={n2(land)} height={n2(W)} fill="none" stroke={tone(steel, -0.25)} strokeWidth={n2(si * 0.35)} />
+            {/* the posts' shadows, the cables and a steel handrail round the lower flight and the landing */}
+            <path d={posts.map(([x, y]) => `M${n2(x - ps * 0.45)} ${n2(y - ps * 0.35)}h${n2(ps * 1.2)}v${n2(ps * 1.2)}h${n2(-ps * 1.2)}Z`).join('')} fill="#000" opacity={0.28} data-halo="" />
+            <path d={`M${n2(x0 + ps)} ${n2(by + bw * 0.9)}H${n2(bx + bw * 0.9)}V${n2(-W / 2 + ps)}`} fill="none" stroke="#000" strokeOpacity={0.22} strokeWidth={n2(bw)} data-halo="" />
+            <path
+              d={`M${n2(x0)} ${n2(-W / 2 + ps * 0.3)}H${n2(bx)}M${n2(x0 + land)} ${n2(-W / 2 + ps * 0.3)}V${n2(-well / 2)}M${n2(x0 + ps)} ${n2(by - bw * 0.75)}H${n2(bx - bw * 0.75)}V${n2(-W / 2 + ps)}`}
+              fill="none"
+              stroke="#d6dbde"
+              strokeWidth={n2(Math.max(0.015 * m, bw * 0.12))}
+            />
+            <path d={`M${n2(x0)} ${n2(-W / 2 + ps * 0.3)}H${n2(bx - ps / 2)}M${n2(x0 + land)} ${n2(-W / 2 + ps * 0.3)}V${n2(-well / 2)}`} fill="none" stroke={tone(steel, -0.15)} strokeWidth={n2(bw * 0.4)} strokeLinecap="round" />
+            {/* the beams along the top of the posts, then the posts' tops with a cap */}
+            <rect x={n2(x0)} y={n2(by - bw / 2)} width={n2(bx - x0)} height={n2(bw)} fill={`url(#${p}b)`} />
+            <rect x={n2(bx - bw / 2)} y={n2(-W / 2 + ps / 2)} width={n2(bw)} height={n2(W - ps)} fill={`url(#${p}v)`} />
+            <path d={posts.map(([x, y]) => `M${n2(x - ps / 2)} ${n2(y - ps / 2)}h${n2(ps)}v${n2(ps)}h${n2(-ps)}Z`).join('')} fill={tone(kind.post, -0.1)} stroke={tone(kind.post, -0.45)} strokeWidth={n2(ps * 0.06)} />
+            <path d={posts.map(([x, y]) => `M${n2(x - ps * 0.32)} ${n2(y - ps * 0.32)}h${n2(ps * 0.64)}v${n2(ps * 0.64)}h${n2(-ps * 0.64)}Z`).join('')} fill={tone(kind.post, 0.18)} />
           </>
         );
       }),
@@ -3319,6 +4266,46 @@ export const PICTURES: Record<string, Picture> = {
           </>
         );
       }),
+  },
+  bistroTable: {
+    label: 'Bistro table',
+    group: 'outdoor',
+    size: [0.8, 1.2],
+    variants: choices(BISTROS),
+    around: 'meadow',
+    thing: (b, p, o) => {
+      const {cx, cy, r} = middle(b);
+      const c = pick(o, BISTROS).c;
+      // the round top, under it four bent tubes on the diagonals reaching out past it to their feet
+      const t = r * 0.76;
+      const legs = [1, 3, 5, 7].map((k) => {
+        const a = (k * PI) / 4;
+        // the tube's lit side towards the top left
+        const lit = ((Math.sin(a) - Math.cos(a)) / Math.SQRT2) * r * 0.012;
+        return {x: cx + Math.cos(a) * r * 0.95, y: cy + Math.sin(a) * r * 0.95, dx: -Math.sin(a) * lit, dy: Math.cos(a) * lit};
+      });
+      const tubes = legs.map(({x, y}) => `M${n2(cx)} ${n2(cy)}L${n2(x)} ${n2(y)}`).join('');
+      // holes punched in rings, the band at the rim left whole
+      const rings = [0.2, 0.28, 0.36, 0.44, 0.52, 0.6, 0.68, 0.76].map((k) => ({r: t * k, n: Math.round(k * 75)}));
+      return (
+        <>
+          <defs>{face(p + 't', c, 0.14, -0.16)}</defs>
+          <path d={tubes} stroke="#000" strokeOpacity={0.2} strokeWidth={n2(r * 0.07)} strokeLinecap="round" transform={`translate(${n2(r * 0.03)} ${n2(r * 0.04)})`} data-halo="" />
+          <path d={tubes} stroke={tone(c, -0.28)} strokeWidth={n2(r * 0.065)} strokeLinecap="round" />
+          <path d={legs.map(({x, y, dx, dy}) => `M${n2(cx + dx)} ${n2(cy + dy)}L${n2(x + dx)} ${n2(y + dy)}`).join('')} stroke={tone(c, 0.32)} strokeOpacity={0.6} strokeWidth={n2(r * 0.02)} strokeLinecap="round" />
+          <path d={circles(legs.map(({x, y}) => [x, y, r * 0.04]))} fill="#1f2124" />
+          {halo(p + 'h', cx + r * 0.03, cy + r * 0.05, t * 1.14, t * 1.14, 0.32)}
+          <circle cx={n2(cx)} cy={n2(cy)} r={n2(t)} fill={tone(c, -0.24)} />
+          <circle cx={n2(cx)} cy={n2(cy)} r={n2(t * 0.93)} fill={`url(#${p}t)`} />
+          {rimLight(cx, cy, t * 0.965, t * 0.03, 0.4)}
+          {rings.map((ring) => (
+            <circle key={ring.n} cx={n2(cx)} cy={n2(cy)} r={n2(ring.r)} fill="none" stroke={tone(c, -0.5)} strokeOpacity={0.75} strokeWidth={n2(t * 0.026)} strokeLinecap="round" strokeDasharray={`0 ${n2((2 * PI * ring.r) / ring.n)}`} />
+          ))}
+          <circle cx={n2(cx)} cy={n2(cy)} r={n2(t * 0.07)} fill={tone(c, -0.12)} stroke={tone(c, -0.4)} strokeWidth={n2(t * 0.012)} />
+          <circle cx={n2(cx)} cy={n2(cy)} r={n2(t * 0.035)} fill="#1f2124" />
+        </>
+      );
+    },
   },
   bench: {
     label: 'Bench',
@@ -3487,6 +4474,24 @@ export const PICTURES: Record<string, Picture> = {
       );
     },
   },
+  gasGrill: {
+    label: 'Gas grill',
+    group: 'outdoor',
+    size: [0.6, 1.4],
+    variants: choices(GAS_GRILLS),
+    turn: true,
+    around: 'paving',
+    thing: gasGrill,
+  },
+  pizzaOven: {
+    label: 'Pizza oven',
+    group: 'outdoor',
+    size: [1, 1.2],
+    variants: choices(OVENS),
+    turn: true,
+    around: 'paving',
+    thing: pizzaOven,
+  },
   hammock: {
     label: 'Hammock',
     group: 'outdoor',
@@ -3530,6 +4535,189 @@ export const PICTURES: Record<string, Picture> = {
           </>
         );
       }),
+  },
+  eggChair: {
+    label: 'Hanging egg chair',
+    group: 'outdoor',
+    size: [0.9, 1.1],
+    turn: true,
+    variants: choices(EGGS),
+    around: 'meadow',
+    thing: (b, p, o) => {
+      const {cx, cy} = middle(b);
+      const s = Math.min(b.w, b.h);
+      const {c, open} = pick(o, EGGS);
+      const rnd = random(o.seed + 'egg');
+      const metal = '#3a3d41';
+      const cushion = '#e4dfd4';
+      // the egg rx to the front and ry across, its top over the back, the opening to the front from the angle a on
+      const [ex, rx, ry, a] = [cx + s * 0.03, s * 0.34, s * 0.44, 1.05];
+      const [sx, sy] = [ex + Math.cos(a) * rx, Math.sin(a) * ry];
+      const rim = `M${n2(sx)} ${n2(cy - sy)}Q${n2(ex - rx * 0.3)} ${n2(cy)} ${n2(sx)} ${n2(cy + sy)}`;
+      const top = `M${n2(sx)} ${n2(cy - sy)}A${n2(rx)} ${n2(ry)} 0 1 0 ${n2(sx)} ${n2(cy + sy)}Q${n2(ex - rx * 0.3)} ${n2(cy)} ${n2(sx)} ${n2(cy - sy)}Z`;
+      const lip = `M${n2(sx)} ${n2(cy - sy)}A${n2(rx)} ${n2(ry)} 0 0 1 ${n2(sx)} ${n2(cy + sy)}`;
+      // where it hangs and where the stand's arch comes up behind it
+      const [tx, fx] = [ex - rx * 0.1, cx - s * 0.44];
+      // the strands round the shell from side to side, each from above half an ellipse bowed k of the way out
+      const at = (x: number, y: number) => `${n2(ex + x * rx * 1.04)} ${n2(cy + y * ry * 1.04)}`;
+      const n = open ? 26 : 36;
+      const strands = Array.from({length: n}, (_, i) => {
+        const f = ((i + rnd() * 0.8) / n) * PI;
+        const k = (rnd() * 2 - 1) * 0.85;
+        const [ux, uy, nx, ny] = [Math.cos(f), Math.sin(f), -Math.sin(f) * k, Math.cos(f) * k];
+        return `M${at(ux, uy)}C${at(ux + nx * 0.55, uy + ny * 0.55)} ${at(nx + ux * 0.55, ny + uy * 0.55)} ${at(nx, ny)}S${at(nx * 0.55 - ux, ny * 0.55 - uy)} ${at(-ux, -uy)}`;
+      }).join('');
+      return (
+        <>
+          <defs>
+            {face(p + 'b', metal, 0.16, -0.16)}
+            {ball(p + 'e', c, 0.3, -0.42)}
+            {ball(p + 's', c, 0.45, -0.35)}
+            {ball(p + 'c', cushion, 0.25, -0.22)}
+            {tube(p + 'a', metal)}
+            <radialGradient id={p + 'g'} cx={0.5} cy={0.5} r={0.55} fx={0.32} fy={0.3}>
+              <stop offset={0} stopColor="#fff" stopOpacity={0.22} />
+              <stop offset={0.5} stopColor="#fff" stopOpacity={0} />
+              <stop offset={1} stopColor="#000" stopOpacity={0.3} />
+            </radialGradient>
+            <clipPath id={p + 't'}>
+              <path d={top} />
+            </clipPath>
+            <clipPath id={p + 'o'}>
+              <ellipse cx={n2(ex)} cy={n2(cy)} rx={n2(rx)} ry={n2(ry)} />
+            </clipPath>
+          </defs>
+          {halo(p + 'h', cx, cy, s * 0.5, s * 0.5, 0.3)}
+          {/* the round foot, the arch's flange at its back */}
+          <circle cx={n2(cx)} cy={n2(cy)} r={n2(s * 0.46)} fill={`url(#${p}b)`} stroke={tone(metal, -0.4)} strokeWidth={n2(s * 0.008)} />
+          <circle cx={n2(cx)} cy={n2(cy)} r={n2(s * 0.42)} fill="none" stroke={tone(metal, 0.3)} strokeOpacity={0.5} strokeWidth={n2(s * 0.006)} />
+          {rimLight(cx, cy, s * 0.455, s * 0.008, 0.3)}
+          <circle cx={n2(fx)} cy={n2(cy)} r={n2(s * 0.04)} fill={tone(metal, 0.1)} stroke={tone(metal, -0.4)} strokeWidth={n2(s * 0.006)} />
+          <ellipse cx={n2(ex + s * 0.05)} cy={n2(cy + s * 0.07)} rx={n2(rx)} ry={n2(ry)} fill="#000" opacity={0.4} />
+          {/* inside: the shell's wall round the cushion, in the top's shadow at the back */}
+          <ellipse cx={n2(ex)} cy={n2(cy)} rx={n2(rx)} ry={n2(ry)} fill={tone(c, -0.4)} />
+          <ellipse cx={n2(ex + rx * 0.2)} cy={n2(cy)} rx={n2(rx * 0.72)} ry={n2(ry * 0.78)} fill={`url(#${p}c)`} stroke={tone(cushion, -0.3)} strokeWidth={n2(s * 0.006)} />
+          <ellipse cx={n2(ex + rx * 0.2)} cy={n2(cy)} rx={n2(rx * 0.5)} ry={n2(ry * 0.56)} fill="none" stroke={tone(cushion, -0.18)} strokeWidth={n2(s * 0.005)} />
+          <circle cx={n2(ex + rx * 0.4)} cy={n2(cy)} r={n2(s * 0.01)} fill={tone(cushion, -0.3)} />
+          <path d={top} fill="#000" opacity={0.3} transform={`translate(${n2(s * 0.035)} ${n2(s * 0.05)})`} clipPath={`url(#${p}o)`} />
+          <path d={lip} fill="none" stroke={tone(c, 0.05)} strokeWidth={n2(s * 0.035)} strokeLinecap="round" />
+          <path d={lip} fill="none" stroke={tone(c, 0.35)} strokeOpacity={0.5} strokeWidth={n2(s * 0.01)} strokeLinecap="round" transform={`translate(${n2(-s * 0.006)} ${n2(-s * 0.008)})`} />
+          {/* the top, woven: the cushion through the gaps of a loose weave */}
+          <path d={top} fill={open ? tone(cushion, -0.5) : `url(#${p}e)`} />
+          <g clipPath={`url(#${p}t)`}>
+            <path d={strands} fill="none" stroke={tone(c, -0.5)} strokeWidth={n2(s * (open ? 0.02 : 0.014))} transform={`translate(${n2(s * 0.004)} ${n2(s * 0.006)})`} />
+            <path d={strands} fill="none" stroke={`url(#${p}s)`} strokeWidth={n2(s * (open ? 0.013 : 0.009))} />
+          </g>
+          <path d={top} fill={`url(#${p}g)`} />
+          <path d={`M${at(Math.cos(2.7) * 0.91, Math.sin(2.7) * 0.91)}A${n2(rx * 0.95)} ${n2(ry * 0.95)} 0 0 1 ${at(Math.cos(4.5) * 0.91, Math.sin(4.5) * 0.91)}`} fill="none" stroke="#fff" strokeOpacity={0.3} strokeWidth={n2(s * 0.012)} strokeLinecap="round" />
+          <path d={rim} fill="none" stroke={tone(c, 0.12)} strokeWidth={n2(s * 0.03)} strokeLinecap="round" />
+          {/* the stand's arch from the back of the foot over to the top, and the hook it hangs on */}
+          <path d={`M${n2(fx)} ${n2(cy)}H${n2(tx)}`} stroke="#000" strokeOpacity={0.35} strokeWidth={n2(s * 0.042)} strokeLinecap="round" transform={`translate(${n2(s * 0.035)} ${n2(s * 0.05)})`} />
+          <rect x={n2(fx - s * 0.021)} y={n2(cy - s * 0.021)} width={n2(tx - fx + s * 0.042)} height={n2(s * 0.042)} rx={n2(s * 0.021)} fill={`url(#${p}a)`} />
+          <circle cx={n2(tx)} cy={n2(cy)} r={n2(s * 0.032)} fill="none" stroke="#a9afb5" strokeWidth={n2(s * 0.009)} />
+          <circle cx={n2(tx)} cy={n2(cy)} r={n2(s * 0.018)} fill={tone(metal, 0.25)} />
+        </>
+      );
+    },
+  },
+  beachChair: {
+    label: 'Beach chair',
+    group: 'outdoor',
+    size: [1, 1.4],
+    turn: true,
+    variants: choices(BEACH_CHAIRS),
+    around: 'sand',
+    thing: (b, p, o) => {
+      const {cx, cy} = middle(b);
+      const s = Math.min(b.w, b.h);
+      const {c, wicker} = pick(o, BEACH_CHAIRS);
+      const wood = '#b48a5a';
+      // the body d deep and w wide facing the front (+x), its back at x0, the foot rests pulled out f past its front
+      const [w, d, f] = [s * 0.88, s * 0.6, s * 0.3];
+      const [x0, y0] = [cx - (d + f) / 2, cy - w / 2];
+      const x1 = x0 + d;
+      // the arms each side, the hood over the back, the backrest leaning back under it
+      const [arm, hood, back, rr] = [s * 0.1, s * 0.32, s * 0.07, s * 0.12];
+      const [iy, iw] = [y0 + arm, w - 2 * arm];
+      const roof = `M${n2(x0 + hood)} ${n2(y0)}H${n2(x0 + rr)}Q${n2(x0)} ${n2(y0)} ${n2(x0)} ${n2(y0 + rr)}V${n2(y0 + w - rr)}Q${n2(x0)} ${n2(y0 + w)} ${n2(x0 + rr)} ${n2(y0 + w)}H${n2(x0 + hood)}Q${n2(x0 + hood + s * 0.06)} ${n2(cy)} ${n2(x0 + hood)} ${n2(y0)}Z`;
+      const front = `M${n2(x0 + hood)} ${n2(y0)}Q${n2(x0 + hood + s * 0.06)} ${n2(cy)} ${n2(x0 + hood)} ${n2(y0 + w)}`;
+      // stripes along x over a strip from x, y, len long and n stripes of k wide
+      const stripes = (x: number, y: number, len: number, n: number, k: number) =>
+        Array.from({length: n}, (_, i) => (i % 2 ? '' : `M${n2(x)} ${n2(y + i * k)}h${n2(len)}v${n2(k)}h${n2(-len)}Z`)).join('');
+      const k = iw / 15;
+      const [sx, sl] = [x0 + hood - s * 0.02, x1 - s * 0.03 - (x0 + hood - s * 0.02)];
+      // the wicker's rows across the roof and the stakes through them
+      const rows = Array.from({length: 22}, (_, i) => `M${n2(x0 + ((i + 0.6) * (hood + s * 0.05)) / 22)} ${n2(y0)}v${n2(w)}`).join('');
+      const stakes = Array.from({length: 11}, (_, i) => `M${n2(x0)} ${n2(y0 + ((i + 0.5) * w) / 11)}h${n2(hood + s * 0.06)}`).join('');
+      const rests = [cy - iw / 2 + s * 0.02, cy + s * 0.01];
+      const rw = iw / 2 - s * 0.03;
+      return (
+        <>
+          <defs>
+            <linearGradient id={p + 'w'} x1={0} y1={0} x2={1} y2={0}>
+              <stop offset={0} stopColor={tone(wicker, 0.08)} />
+              <stop offset={0.35} stopColor={tone(wicker, 0.16)} />
+              <stop offset={0.8} stopColor={tone(wicker, -0.04)} />
+              <stop offset={1} stopColor={tone(wicker, -0.2)} />
+            </linearGradient>
+            <linearGradient id={p + 'v'} x1={0} y1={0} x2={0} y2={1}>
+              <stop offset={0} stopColor="#fff" stopOpacity={0.2} />
+              <stop offset={0.3} stopColor="#fff" stopOpacity={0} />
+              <stop offset={0.7} stopColor="#000" stopOpacity={0} />
+              <stop offset={1} stopColor="#000" stopOpacity={0.18} />
+            </linearGradient>
+            {face(p + 'a', wicker, 0.06, -0.2)}
+            <linearGradient id={p + 'd'} x1={0} y1={0} x2={1} y2={0}>
+              <stop offset={0} stopColor="#000" stopOpacity={0.35} />
+              <stop offset={1} stopColor="#000" stopOpacity={0} />
+            </linearGradient>
+            <clipPath id={p + 'r'}>
+              <path d={roof} />
+            </clipPath>
+          </defs>
+          {softBox(x0, y0, d, w, s * 0.06, s * 0.05)}
+          {softBox(x1, rests[0], f, iw - s * 0.04, s * 0.01, s * 0.025)}
+          {/* the foot rests pulled out, a pad on each */}
+          {rests.map((y) => (
+            <g key={y}>
+              <rect x={n2(x1 - s * 0.02)} y={n2(y)} width={n2(f + s * 0.02)} height={n2(rw)} rx={n2(s * 0.015)} fill={wood} stroke={tone(wood, -0.35)} strokeWidth={n2(s * 0.005)} />
+              <rect x={n2(x1 + s * 0.01)} y={n2(y + s * 0.02)} width={n2(f - s * 0.04)} height={n2(rw - s * 0.04)} rx={n2(s * 0.02)} fill={c[1]} />
+              <path d={stripes(x1 + s * 0.01, y + s * 0.02, f - s * 0.04, 6, (rw - s * 0.04) / 6)} fill={c[0]} />
+              <rect x={n2(x1 + s * 0.01)} y={n2(y + s * 0.02)} width={n2(f - s * 0.04)} height={n2(rw - s * 0.04)} rx={n2(s * 0.02)} fill="none" stroke={tone(c[0], -0.3)} strokeOpacity={0.5} strokeWidth={n2(s * 0.005)} />
+            </g>
+          ))}
+          {/* the body: the wicker round it, the seat and the backrest striped */}
+          <path d={`M${n2(x1)} ${n2(y0)}H${n2(x0 + rr)}Q${n2(x0)} ${n2(y0)} ${n2(x0)} ${n2(y0 + rr)}V${n2(y0 + w - rr)}Q${n2(x0)} ${n2(y0 + w)} ${n2(x0 + rr)} ${n2(y0 + w)}H${n2(x1)}Z`} fill={`url(#${p}a)`} stroke={tone(wicker, -0.4)} strokeWidth={n2(s * 0.006)} />
+          <rect x={n2(sx)} y={n2(iy)} width={n2(sl)} height={n2(iw)} fill={c[1]} />
+          <path d={stripes(sx, iy, sl, 15, k)} fill={c[0]} />
+          <rect x={n2(sx)} y={n2(iy)} width={n2(back + s * 0.02)} height={n2(iw)} fill="#000" opacity={0.22} />
+          <rect x={n2(x0 + hood)} y={n2(iy)} width={n2(s * 0.12)} height={n2(iw)} fill={`url(#${p}d)`} />
+          <path d={`M${n2(x0 + hood + back)} ${n2(iy)}v${n2(iw)}`} stroke="#000" strokeOpacity={0.25} strokeWidth={n2(s * 0.008)} />
+          <rect x={n2(x1 - s * 0.03)} y={n2(iy)} width={n2(s * 0.03)} height={n2(iw)} fill={tone(wicker, -0.1)} />
+          {/* the arms with a board on top and a little table folded out at the front */}
+          {[y0, y0 + w - arm].map((y) => (
+            <g key={y}>
+              <rect x={n2(x0 + hood - s * 0.02)} y={n2(y + arm * 0.18)} width={n2(d - hood + s * 0.02)} height={n2(arm * 0.64)} rx={n2(arm * 0.2)} fill={wood} stroke={tone(wood, -0.35)} strokeWidth={n2(s * 0.005)} />
+              <rect x={n2(x0 + hood)} y={n2(y + arm * 0.24)} width={n2(d - hood - s * 0.02)} height={n2(arm * 0.14)} rx={n2(arm * 0.07)} fill="#fff" opacity={0.25} />
+            </g>
+          ))}
+          <rect x={n2(x1 - s * 0.03)} y={n2(y0 - s * 0.005)} width={n2(s * 0.13)} height={n2(arm + s * 0.01)} rx={n2(s * 0.01)} fill={tone(wood, 0.08)} stroke={tone(wood, -0.35)} strokeWidth={n2(s * 0.005)} />
+          <circle cx={n2(x1 + s * 0.04)} cy={n2(y0 + arm * 0.5)} r={n2(s * 0.024)} fill="#bfe3f2" stroke="#8fb9cc" strokeWidth={n2(s * 0.005)} />
+          {/* the hood: a wicker roof curving over the back, the edge of its striped canvas under the front */}
+          <path d={front} fill="none" stroke={c[1]} strokeWidth={n2(s * 0.06)} />
+          <path d={front} fill="none" stroke={c[0]} strokeWidth={n2(s * 0.06)} strokeDasharray={n2(k)} strokeDashoffset={n2(2 * k - (arm % (2 * k)))} />
+          <path d={roof} fill="#000" opacity={0.18} transform={`translate(${n2(s * 0.02)} ${n2(s * 0.03)})`} />
+          <path d={roof} fill={`url(#${p}w)`} />
+          <g clipPath={`url(#${p}r)`}>
+            <path d={rows} stroke={tone(wicker, -0.32)} strokeOpacity={0.5} strokeWidth={n2(s * 0.004)} />
+            <path d={stakes} stroke={tone(wicker, -0.25)} strokeOpacity={0.35} strokeWidth={n2(s * 0.003)} />
+          </g>
+          <path d={roof} fill={`url(#${p}v)`} />
+          <path d={roof} fill="none" stroke={tone(wicker, -0.4)} strokeWidth={n2(s * 0.007)} />
+          <path d={front} fill="none" stroke={tone(wicker, 0.25)} strokeWidth={n2(s * 0.018)} strokeLinecap="round" />
+        </>
+      );
+    },
   },
   umbrella: {
     label: 'Parasol',
@@ -3679,6 +4867,43 @@ export const PICTURES: Record<string, Picture> = {
       );
     },
   },
+  patioHeater: {
+    label: 'Patio heater',
+    group: 'outdoor',
+    round: true,
+    size: [0.8, 0.9],
+    variants: choices(HEATERS),
+    around: 'paving',
+    // a gas heater seen from above: its round reflector, a flat cone in segments lit from the top left with a bright
+    // streak towards the light, bolts along its seams, the cap on top
+    thing: (b, p, o) => {
+      const {cx, cy, r} = middle(b);
+      const R = r * (o.m === undefined ? 0.8 : 0.92);
+      const {c, shine} = pick(o, HEATERS);
+      const n = 24;
+      const at = (a: number, d: number): Pt => [cx + Math.cos(a) * d, cy + Math.sin(a) * d];
+      const seams = [0, 1, 2, 3].map((i) => PI / 4 + (i * PI) / 2);
+      return (
+        <>
+          <defs>{ball(p + 'c', c, 0.4 * shine, -0.35)}</defs>
+          {halo(p + 'h', cx, cy, R * 1.04, R * 1.04, 0.3)}
+          {Array.from({length: n}, (_, i) => {
+            const [a, e] = [(i / n) * 2 * PI, ((i + 1) / n) * 2 * PI];
+            const lit = Math.cos((a + e) / 2 + (3 * PI) / 4);
+            const t = tone(c, (lit * 0.36 + Math.max(0, lit) ** 10 * 0.55) * shine - 0.06);
+            return <polygon key={i} points={poly([[cx, cy], at(a, R), at(e, R)])} fill={t} stroke={t} strokeWidth={n2(R * 0.004)} />;
+          })}
+          <path d={seams.map((a) => `M${n2(at(a, R * 0.2)[0])} ${n2(at(a, R * 0.2)[1])}L${n2(at(a, R)[0])} ${n2(at(a, R)[1])}`).join('')} stroke={tone(c, -0.35)} strokeWidth={n2(R * 0.012)} />
+          <path d={circles(seams.flatMap((a) => [0.45, 0.75].map((d): Dot => [...at(a, R * d), R * 0.018])))} fill={tone(c, 0.3)} stroke={tone(c, -0.4)} strokeWidth={n2(R * 0.006)} />
+          <circle cx={n2(cx)} cy={n2(cy)} r={n2(R * 0.985)} fill="none" stroke={tone(c, -0.38)} strokeWidth={n2(R * 0.03)} />
+          {rimLight(cx, cy, R * 0.96, R * 0.025, 0.5 * shine)}
+          <circle cx={n2(cx + R * 0.02)} cy={n2(cy + R * 0.03)} r={n2(R * 0.19)} fill="#000" opacity={0.25} />
+          <circle cx={n2(cx)} cy={n2(cy)} r={n2(R * 0.17)} fill={`url(#${p}c)`} stroke={tone(c, -0.4)} strokeWidth={n2(R * 0.01)} />
+          <circle cx={n2(cx)} cy={n2(cy)} r={n2(R * 0.06)} fill={tone(c, -0.2)} stroke={tone(c, -0.45)} strokeWidth={n2(R * 0.008)} />
+        </>
+      );
+    },
+  },
   lamp: {
     label: 'Garden lamp',
     group: 'outdoor',
@@ -3819,6 +5044,150 @@ export const PICTURES: Record<string, Picture> = {
           </>
         );
       }),
+  },
+  cushionBox: {
+    label: 'Cushion box',
+    group: 'other',
+    size: [0.7, 1.4],
+    deep: 0.7,
+    long: true,
+    variants: choices(CUSHION_BOXES),
+    around: 'paving',
+    thing: (b, p, o) =>
+      along(b, (l, d) => {
+        const {c, kind} = pick(o, CUSHION_BOXES);
+        const rnd = random(o.seed + 'box');
+        // the lid seen from above, its hinges at the back (up), a grip at the front, handles out at the ends
+        const bl = Math.min(l * 0.88, d * 2.1);
+        const bd = Math.min(d * 0.9, bl * 0.52);
+        const [x0, y0] = [-bl / 2, -bd / 2];
+        const e = bd * 0.08;
+        const [ix, iy, iw, ih] = [x0 + e, y0 + e, bl - 2 * e, bd - 2 * e];
+        // a basket weave: squares of three strands, across and along in turn
+        const t = bd * 0.095;
+        const strands = (rows: boolean, odd: number) => {
+          const out: string[] = [];
+          const [n, span] = rows ? [Math.ceil(ih / t), iw] : [Math.ceil(iw / t), ih];
+          for (let i = odd; i < n; i += 2) {
+            for (let k = 0; k < 3; k++) {
+              const at = i * t + ((k + 0.5) * t) / 3;
+              out.push(rows ? `M${n2(ix)} ${n2(iy + at)}h${n2(span)}` : `M${n2(ix + at)} ${n2(iy)}v${n2(span)}`);
+            }
+          }
+          return out.join('');
+        };
+        const metal = '#5f656b';
+        const panels = [x0 + e * 1.6, e * 0.3];
+        return (
+          <>
+            <defs>
+              {face(p + 'l', c, 0.12, -0.14)}
+              <clipPath id={p + 'c'}>
+                <rect x={n2(ix)} y={n2(iy)} width={n2(iw)} height={n2(ih)} />
+              </clipPath>
+            </defs>
+            {softBox(x0, y0, bl, bd, bd * 0.04, bd * 0.09)}
+            {[-1, 1].map((s) => (
+              <rect key={s} x={n2(s * (bl / 2 + bd * 0.025) - bd * 0.03)} y={n2(-bd * 0.14)} width={n2(bd * 0.06)} height={n2(bd * 0.28)} rx={n2(bd * 0.025)} fill={tone(c, -0.45)} />
+            ))}
+            <rect x={n2(x0)} y={n2(y0)} width={n2(bl)} height={n2(bd)} rx={n2(bd * 0.04)} fill={`url(#${p}l)`} stroke={tone(c, -0.4)} strokeWidth={n2(bd * 0.012)} />
+            {kind === 'rattan' && (
+              <g clipPath={`url(#${p}c)`}>
+                <rect x={n2(ix)} y={n2(iy)} width={n2(iw)} height={n2(ih)} fill={tone(c, -0.45)} />
+                {[true, false].map((rows) =>
+                  [0, 1].map((odd) => (
+                    <path key={`${rows}${odd}`} d={strands(rows, odd)} stroke={tone(c, rows ? 0.2 : 0.08)} strokeWidth={n2(t * 0.24)} strokeDasharray={`${n2(t)} ${n2(t)}`} strokeDashoffset={n2(odd === (rows ? 0 : 1) ? 0 : t)} />
+                  )),
+                )}
+              </g>
+            )}
+            {kind === 'wood' && (
+              <>
+                {boards(ix, iy, iw, ih, 5, tone(c, 0.06), rnd)}
+                {[-1, 1].map((s) => (
+                  <rect key={s} x={n2(s < 0 ? x0 : bl / 2 - e * 1.4)} y={n2(y0)} width={n2(e * 1.4)} height={n2(bd)} rx={n2(bd * 0.03)} fill={tone(c, s < 0 ? -0.02 : -0.16)} stroke={tone(c, -0.4)} strokeWidth={n2(bd * 0.01)} />
+                ))}
+              </>
+            )}
+            {kind === 'plastic' &&
+              panels.map((x) => (
+                <g key={x}>
+                  <rect x={n2(x)} y={n2(iy + e * 0.6)} width={n2(bl / 2 - e * 1.9)} height={n2(ih - e * 1.2)} rx={n2(bd * 0.03)} fill={tone(c, -0.05)} stroke={tone(c, 0.3)} strokeWidth={n2(bd * 0.014)} />
+                  <path d={`M${n2(x)} ${n2(iy + ih - e * 0.6)}V${n2(iy + e * 0.6)}H${n2(x + bl / 2 - e * 1.9)}`} fill="none" stroke={tone(c, -0.35)} strokeWidth={n2(bd * 0.016)} strokeLinejoin="round" />
+                </g>
+              ))}
+            <rect x={n2(x0)} y={n2(y0)} width={n2(bl)} height={n2(bd * 0.03)} rx={n2(bd * 0.015)} fill="#fff" opacity={0.25} />
+            {[-1, 1].map((s) => (
+              <rect key={s} x={n2(s * bl * 0.3 - bd * 0.05)} y={n2(y0 - bd * 0.025)} width={n2(bd * 0.1)} height={n2(bd * 0.07)} rx={n2(bd * 0.01)} fill={kind === 'wood' ? metal : tone(c, -0.3)} stroke={tone(kind === 'wood' ? metal : c, -0.45)} strokeWidth={n2(bd * 0.008)} />
+            ))}
+            <rect x={n2(-bd * 0.14)} y={n2(-y0 - bd * 0.035)} width={n2(bd * 0.28)} height={n2(bd * 0.07)} rx={n2(bd * 0.03)} fill={kind === 'wood' ? metal : tone(c, -0.3)} stroke={tone(kind === 'wood' ? metal : c, -0.5)} strokeWidth={n2(bd * 0.008)} />
+          </>
+        );
+      }),
+  },
+  hoseReel: {
+    label: 'Hose reel',
+    group: 'other',
+    size: [0.5, 0.7],
+    turn: true,
+    variants: choices(HOSES),
+    around: 'meadow',
+    thing: (b, p, o) => {
+      const {cx, cy, r} = middle(b);
+      const hose = pick(o, HOSES).c;
+      const cart = '#6b7278';
+      const k = r * (o.m === undefined ? 0.92 : 1);
+      // facing right: the drum with the hose wound on it between two side plates, the wheels behind it under the handle
+      // going back to the left, the crank on the far side, the hose's end with its nozzle on the ground in front
+      const [dx0, dx1, dy] = [cx - k * 0.36, cx + k * 0.6, k * 0.42];
+      const turns = 14;
+      const handle = `M${n2(cx - k * 0.36)} ${n2(cy - k * 0.48)}L${n2(cx - k * 0.84)} ${n2(cy - k * 0.44)}Q${n2(cx - k * 0.92)} ${n2(cy - k * 0.44)} ${n2(cx - k * 0.92)} ${n2(cy - k * 0.36)}V${n2(cy + k * 0.36)}Q${n2(cx - k * 0.92)} ${n2(cy + k * 0.44)} ${n2(cx - k * 0.84)} ${n2(cy + k * 0.44)}L${n2(cx - k * 0.36)} ${n2(cy + k * 0.48)}`;
+      const end = `M${n2(dx1 - k * 0.04)} ${n2(cy + k * 0.06)}C${n2(cx + k * 1.02)} ${n2(cy + k * 0.1)} ${n2(cx + k * 0.98)} ${n2(cy + k * 0.86)} ${n2(cx + k * 0.6)} ${n2(cy + k * 0.86)}`;
+      return (
+        <>
+          <defs>
+            {tube(p + 'd', hose, true)}
+            {tube(p + 'w', '#2c2f33', true)}
+          </defs>
+          {halo(p + 'h', cx - k * 0.1, cy, k * 0.95, k * 0.85, 0.3)}
+          <path d={handle} fill="none" stroke="#000" strokeOpacity={0.16} strokeWidth={n2(k * 0.08)} strokeLinecap="round" transform={`translate(${n2(k * 0.05)} ${n2(k * 0.08)})`} data-halo="" />
+          {[-1, 1].map((s) => (
+            <g key={s}>
+              <rect x={n2(cx - k * 0.64)} y={n2(cy + (s < 0 ? -k * 0.72 : k * 0.56))} width={n2(k * 0.64)} height={n2(k * 0.16)} rx={n2(k * 0.07)} fill={`url(#${p}w)`} />
+              <path d={Array.from({length: 7}, (_, i) => `M${n2(cx - k * 0.6 + i * k * 0.093)} ${n2(cy + (s < 0 ? -k * 0.71 : k * 0.57))}v${n2(k * 0.14)}`).join('')} stroke="#17191b" strokeWidth={n2(k * 0.02)} />
+            </g>
+          ))}
+          <path d={end} fill="none" stroke="#000" strokeOpacity={0.25} strokeWidth={n2(k * 0.08)} strokeLinecap="round" transform={`translate(${n2(k * 0.02)} ${n2(k * 0.03)})`} data-halo="" />
+          <path d={end} fill="none" stroke={tone(hose, -0.1)} strokeWidth={n2(k * 0.075)} strokeLinecap="round" />
+          <path d={end} fill="none" stroke={tone(hose, 0.35)} strokeOpacity={0.6} strokeWidth={n2(k * 0.022)} strokeLinecap="round" transform={`translate(${n2(-k * 0.01)} ${n2(-k * 0.015)})`} />
+          {/* the spray gun at its end: its shadow, the trigger under it, its body, the head */}
+          <g transform={`rotate(-174 ${n2(cx + k * 0.6)} ${n2(cy + k * 0.86)})`}>
+            <rect x={n2(cx + k * 0.62)} y={n2(cy + k * 0.86 - k * 0.04)} width={n2(k * 0.36)} height={n2(k * 0.12)} rx={n2(k * 0.04)} fill="#000" opacity={0.25} data-halo="" />
+            <rect x={n2(cx + k * 0.66)} y={n2(cy + k * 0.86 + k * 0.02)} width={n2(k * 0.12)} height={n2(k * 0.07)} rx={n2(k * 0.03)} fill="#2fa3a8" />
+            <rect x={n2(cx + k * 0.58)} y={n2(cy + k * 0.86 - k * 0.055)} width={n2(k * 0.36)} height={n2(k * 0.11)} rx={n2(k * 0.04)} fill="#4f5459" />
+            <rect x={n2(cx + k * 0.88)} y={n2(cy + k * 0.86 - k * 0.075)} width={n2(k * 0.1)} height={n2(k * 0.15)} rx={n2(k * 0.04)} fill="#2fa3a8" stroke="#1f6e72" strokeWidth={n2(k * 0.012)} />
+            <rect x={n2(cx + k * 0.6)} y={n2(cy + k * 0.86 - k * 0.045)} width={n2(k * 0.26)} height={n2(k * 0.025)} rx={n2(k * 0.012)} fill="#fff" opacity={0.3} />
+          </g>
+          <rect x={n2(dx0)} y={n2(cy - dy)} width={n2(dx1 - dx0)} height={n2(2 * dy)} rx={n2(k * 0.08)} fill={`url(#${p}d)`} />
+          {/* the hose's turns, each lit on its upper side */}
+          <path d={Array.from({length: turns - 1}, (_, i) => `M${n2(dx0 + k * 0.03)} ${n2(cy - dy + ((i + 1) * 2 * dy) / turns)}H${n2(dx1 - k * 0.03)}`).join('')} stroke={tone(hose, -0.5)} strokeOpacity={0.55} strokeWidth={n2(k * 0.014)} />
+          <path d={Array.from({length: turns}, (_, i) => `M${n2(dx0 + k * 0.12)} ${n2(cy - dy + ((i + 0.3) * 2 * dy) / turns)}H${n2(dx1 - k * 0.3)}`).join('')} stroke="#fff" strokeOpacity={0.28} strokeWidth={n2(k * 0.014)} strokeLinecap="round" />
+          {[-1, 1].map((s) => (
+            <g key={s}>
+              <rect x={n2(cx - k * 0.46)} y={n2(cy + (s < 0 ? -k * 0.53 : k * 0.42))} width={n2(k * 1.12)} height={n2(k * 0.11)} rx={n2(k * 0.05)} fill={tone(cart, s < 0 ? 0.08 : -0.08)} stroke={tone(cart, -0.4)} strokeWidth={n2(k * 0.012)} />
+              <rect x={n2(cx - k * 0.42)} y={n2(cy + (s < 0 ? -k * 0.52 : k * 0.43))} width={n2(k * 1.02)} height={n2(k * 0.03)} rx={n2(k * 0.015)} fill="#fff" opacity={0.25} />
+            </g>
+          ))}
+          <path d={handle} fill="none" stroke={cart} strokeWidth={n2(k * 0.06)} strokeLinecap="round" strokeLinejoin="round" />
+          <path d={handle} fill="none" stroke="#fff" strokeOpacity={0.3} strokeWidth={n2(k * 0.018)} strokeLinecap="round" transform={`translate(${n2(-k * 0.012)} ${n2(-k * 0.012)})`} />
+          <path d={`M${n2(cx - k * 0.92)} ${n2(cy - k * 0.26)}V${n2(cy + k * 0.26)}`} stroke="#2f3236" strokeWidth={n2(k * 0.1)} strokeLinecap="round" />
+          {/* the crank: its arm off the axle, the knob sticking out */}
+          <path d={`M${n2(cx + k * 0.12)} ${n2(cy - k * 0.58)}H${n2(cx + k * 0.4)}`} stroke={tone(cart, -0.2)} strokeWidth={n2(k * 0.06)} strokeLinecap="round" />
+          <circle cx={n2(cx + k * 0.12)} cy={n2(cy - k * 0.58)} r={n2(k * 0.05)} fill={tone(cart, 0.1)} stroke={tone(cart, -0.4)} strokeWidth={n2(k * 0.012)} />
+          <rect x={n2(cx + k * 0.35)} y={n2(cy - k * 0.76)} width={n2(k * 0.1)} height={n2(k * 0.2)} rx={n2(k * 0.04)} fill="#2fa3a8" stroke="#1f6e72" strokeWidth={n2(k * 0.012)} />
+        </>
+      );
+    },
   },
   woodpile: {
     label: 'Woodpile',
@@ -4552,6 +5921,7 @@ export const GROUND_KEYS = ['soil', 'mulch', 'turf', 'meadow', 'gravel', 'sand',
 // house: the keep-out strip along one, firewood before a fire, a whirlpool before a pool)
 export const BY_NAME: [string, RegExp][] = [
   ['steppingStones', /trittstein|trittplatte|stepping|holzscheibe/i],
+  ['outdoorStairs', /au(ß|ss)entreppe|balkontreppe|treppe zum balkon|wendeltreppe|spindeltreppe|stahltreppe|gartentreppe am haus|(outdoor|exterior|outside|balcony|spiral) ?stair/i],
   ['stoneSteps', /(stein|beton|granit|block|natur)\w*(treppe|stufe)|stone ?(steps|stairs)/i],
   ['woodStairs', /holztreppe|treppe aus holz|wooden ?stairs|deck ?stairs/i],
   ['woodSteps', /treppe|stufe|stairs|\bsteps\b/i],
@@ -4587,29 +5957,39 @@ export const BY_NAME: [string, RegExp][] = [
   ['hedge', /hecke|hedge|wald|forest/i],
   ['floweringBush', /flieder|lilac|blühstrauch|forsythie|forsythia|hibiskus|hibiscus|weigelie|spiere/i],
   ['bush', /busch|büsche|bush|strauch|sträucher|shrub/i],
+  ['hexPlanter', /(sechs|6)[- ]?eck\w*[- ]?(pflanz|blumen|holz)?\w*(kasten|kübel|kuebel|topf|trog)|hexagonal ?(planter|plant ?box)|pflanzkasten|blumenkasten|planter ?box/i],
+  ['zincTub', /zink|zinc|(?<!teich)wanne|zuber/i],
   ['pot', /kübel|topf|\bpots?\b|planter|amphore/i],
+  ['barrelSauna', /sauna/i],
   ['hotTub', /whirlpool|jacuzzi|hot ?tub|badefass|\bspa\b/i],
   ['roundPool', /rundpool|planschbecken|paddling|aufstellpool|frame ?pool/i],
   ['pool', /pool|schwimm|swim/i],
   ['birdhouse', /vogelhaus|futterhaus|nistkasten|bird ?house|bird ?feeder|futterstelle/i],
   ['fountain', /brunnen|fountain|vogeltränke|birdbath/i],
   ['rainBarrel', /regentonne|regenfass|wasserfass|barrel|zisterne/i],
+  ['hoseReel', /schlauch|hose ?reel|\bhoses?\b/i],
   ['pond', /teich|pond|biotop|tümpel|\bsee\b|lake|bach|wasser|water/i],
   ['trampoline', /trampolin/i],
   ['sandbox', /sandkasten|sandkiste|sandbox|sandpit/i],
   ['playTower', /spielturm|klettergerüst|kletterturm|rutsche|slide|play ?tower|spielhaus|playhouse/i],
+  ['eggChair', /hängesessel|haengesessel|hängekorb|haengekorb|hängestuhl|haengestuhl|kokon|cocoon|(egg|nest|hanging|swing) ?chair/i],
   ['swing', /schaukel|swing|kletter|spielplatz|playground/i],
   ['pingPong', /tischtennis|ping ?pong|table tennis/i],
+  ['basketball', /basketball|korbball|basket ?hoop/i],
   ['goal', /fußballtor|fussballtor|\btor\b|goal|fußball|fussball|football|soccer/i],
   ['greenhouse', /gewächshaus|greenhouse|frühbeet|treibhaus/i],
   ['pergola', /pergola|rankgerüst|rosenbogen|arbor|trellis/i],
   ['gazebo', /pavillon|gazebo/i],
   ['kennel', /hund|dog|hühner|chicken|kaninchen|hase|rabbit|stall|coop|voliere/i],
+  ['mowerGarage', /(mäh|maeh)(roboter|er)?[- ]?(garage|carport|haus|dach|unterstand)|roboter[- ]?(garage|carport|haus|dach|unterstand)|(robot|mower) ?(garage|carport|house|shelter|roof)/i],
   ['car', /carport|\bauto\b|\bcar\b|stellplatz|parkplatz|parking/i],
   ['shed', /gartenhaus|schuppen|shed|hütte|laube|geräte/i],
   ['wall', /mauer|wall|wand|zaun|fence/i],
   ['house', /haus|house|dach|roof|garage|anbau/i],
+  ['pizzaOven', /pizza|backofen|lehmofen|brotofen|holzofen|bread ?oven|wood[- ]?fired|clay ?oven/i],
+  ['gasGrill', /gas ?grill|grillwagen|grillstation|(outdoor|außen|aussen|sommer|garten)[- ]?küche|outdoor ?kitchen|gas ?(bbq|barbecue)/i],
   ['grill', /grill|bbq|barbecue/i],
+  ['patioHeater', /heizpilz|terrassen(strahler|heizer)|patio ?heater|heater/i],
   ['firePit', /feuer|fire/i],
   ['sunSail', /sonnensegel|sun ?sail|shade ?sail/i],
   ['cantilever8', /(acht|8)[- ]?eck\w*\s*ampel|ampel\w*\s*(acht|8)[- ]?eck|octagonal ?cantilever/i],
@@ -4617,13 +5997,16 @@ export const BY_NAME: [string, RegExp][] = [
   ['umbrella', /schirm|umbrella|parasol/i],
   ['lamp', /lampe|laterne|leuchte|lantern|\blamp\b|light/i],
   ['hammock', /hängematte|hammock/i],
+  ['beachChair', /strandk[oö]rb|beach ?chair/i],
   ['lounger', /liege|lounger/i],
   ['lounge', /lounge|sofa|couch/i],
   ['furniture', /sitzgruppe|sitzecke|stuhl|stühle|chair|möbel|furniture|seating/i],
+  ['bistroTable', /bistro|rund\w* ?tisch|tisch,? rund|metalltisch|round ?table/i],
   ['table', /tisch|table/i],
   ['bench', /bank|bench/i],
   ['clothesDryer', /wäsche|laundry|clothes/i],
   ['compost', /kompost|compost/i],
+  ['cushionBox', /(auflagen|kissen|polster|garten) ?(box|truhe)|(cushion|storage|deck) ?box/i],
   ['bins', /müll|tonne|\bbins?\b|trash|abfall|container/i],
   ['statue', /statue|skulptur|sculpture|figur|denkmal|büste|buddha|engel|angel/i],
   ['gnome', /zwerg|gnome/i],

@@ -339,3 +339,34 @@ describe('cantilever parasol', () => {
     expect(cover.cy).toBeCloseTo(0.6 * pl.w, 5);
   });
 });
+
+describe('outdoor stairs', () => {
+  const rect = (x0: number, y0: number, x1: number, y1: number) => [
+    {x: x0, y: y0},
+    {x: x1, y: y0},
+    {x: x1, y: y1},
+    {x: x0, y: y1},
+  ];
+
+  it('goes by its name before the steps in a garden', () => {
+    expect(areaLook({id: 's', properties: {type: 'obstacle', name: 'Außentreppe'}, outline: []})).toBe('outdoorStairs');
+    expect(areaLook({id: 's', properties: {type: 'obstacle', name: 'Treppe'}, outline: []})).toBe('woodSteps');
+  });
+
+  it('stands over the mower in its own shape, the mower hidden under all of it', () => {
+    const [pl] = placeThings('outdoorStairs', rect(0, 0, 40, 24), 10, 's');
+    expect(pl.over).toBe(true);
+    expect(pl.w).toBeGreaterThan(pl.h * 1.4);
+    const [cover] = coversOf([{i: 0, id: 's', look: 'outdoorStairs', m: 10, places: [pl]}]);
+    expect(cover.pts).toHaveLength(4);
+    const xs = cover.pts!.map((p) => p[0]);
+    const ys = cover.pts!.map((p) => p[1]);
+    expect(Math.max(...xs) - Math.min(...xs)).toBeCloseTo(pl.w, 5);
+    expect(Math.max(...ys) - Math.min(...ys)).toBeCloseTo(pl.h, 5);
+    expect(cover.r).toBeCloseTo(pl.h / 2, 5);
+  });
+
+  it("doesn't put other stairs and steps over the mower", () => {
+    for (const look of ['woodStairs', 'woodSteps', 'stoneSteps']) expect(placeThings(look, rect(0, 0, 40, 24), 10, 's').some((pl) => pl.over)).toBe(false);
+  });
+});

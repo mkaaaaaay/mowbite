@@ -29,6 +29,20 @@ export const lifeOf = (s?: Partial<GardenLife>): GardenLife => ({
 
 // how tall a thing stands for its shadow (m), a flat one casts none
 const HEIGHTS: Record<string, number> = {
+  gasGrill: 1.1,
+  pizzaOven: 1.6,
+  eggChair: 1.9,
+  beachChair: 1.6,
+  bistroTable: 0.75,
+  cushionBox: 0.6,
+  hexPlanter: 0.9,
+  zincTub: 0.6,
+  mowerGarage: 0.6,
+  barrelSauna: 2.3,
+  basketball: 3,
+  patioHeater: 2.2,
+  outdoorStairs: 3,
+  hoseReel: 0.9,
   tree: 5,
   conifer: 6,
   fruitTree: 3.5,
@@ -351,8 +365,9 @@ export function thingShadow(look: Look, place: {w: number; h: number}, shadow: {
 export const biggest = (places: Place[]) => places.reduce((a, b) => (b.w * b.h > a.w * a.h ? b : a));
 
 // how much of a crown's or a parasol's circle hides what's under it (of half its place, a rotary dryer's lines nothing),
-// the circle round all of it (rim) and how far its middle is off the place's (ahead, of the place, the way it's turned)
-const COVERS: Record<string, {r: number; rim?: number; ahead?: number}> = {
+// the circle round all of it (rim) and how far its middle is off the place's (ahead, of the place, the way it's turned).
+// box: all of its place hides it, not a circle (stairs, the mower's garage)
+const COVERS: Record<string, {r: number; rim?: number; ahead?: number; box?: boolean}> = {
   umbrella: {r: 0.92},
   tree: {r: 0.88},
   fruitTree: {r: 0.86},
@@ -360,17 +375,31 @@ const COVERS: Record<string, {r: number; rim?: number; ahead?: number}> = {
   sunSail: {r: 0.55},
   cantilever: {r: 0.96, rim: 1.36, ahead: 0.6},
   cantilever8: {r: 0.96, rim: 1.06, ahead: 0.6},
+  outdoorStairs: {r: 1, box: true},
+  mowerGarage: {r: 1, box: true},
 };
 
 // where the mower is hidden under a crown or a parasol: a circle each (svg units), rim the whole crown's (the plan and
-// the track go over that)
-export const coversOf = (things: Thing[]) =>
+// the track go over that). under stairs their place's corners (pts), the circles then fit in it and round it
+export interface Cover {
+  cx: number;
+  cy: number;
+  r: number;
+  rim: number;
+  pts?: [number, number][];
+}
+export const coversOf = (things: Thing[]): Cover[] =>
   things.flatMap((t) =>
     t.places
       .filter((pl) => pl.over && COVERS[t.look] && !t.closed)
       .map((pl) => {
-        const {r, rim = 1, ahead = 0} = COVERS[t.look];
+        const {r, rim = 1, ahead = 0, box} = COVERS[t.look];
         const a = (pl.deg * Math.PI) / 180;
+        if (box) {
+          const at = (u: number, v: number): [number, number] => [pl.cx + u * Math.cos(a) - v * Math.sin(a), pl.cy + u * Math.sin(a) + v * Math.cos(a)];
+          const [u, v] = [pl.w / 2, pl.h / 2];
+          return {cx: pl.cx, cy: pl.cy, r: Math.min(u, v), rim: Math.hypot(u, v), pts: [at(-u, -v), at(u, -v), at(u, v), at(-u, v)]};
+        }
         return {cx: pl.cx + Math.cos(a) * ahead * pl.w, cy: pl.cy + Math.sin(a) * ahead * pl.w, r: (pl.w / 2) * r, rim: (pl.w / 2) * rim};
       }),
   );
@@ -505,7 +534,7 @@ export interface LifeScene {
   sky: ReactNode;
   // the crowns and parasols reaching over everything, the mower too, and where they hide it
   canopies: ReactNode;
-  covers: {cx: number; cy: number; r: number; rim: number}[];
+  covers: Cover[];
 }
 
 const FAR = {x: -10 * 400, y: -10 * 400, width: 21 * 400, height: 21 * 400};
@@ -698,7 +727,7 @@ export interface GardenScene {
   fills: Record<string, Look>;
   things: Record<string, ReactNode>;
   over: Record<string, ReactNode>;
-  covers: {cx: number; cy: number; r: number; rim: number}[];
+  covers: Cover[];
   // the real edges (edgePaths), null without the mower's body
   edges: ReturnType<typeof edgePaths> | null;
 }

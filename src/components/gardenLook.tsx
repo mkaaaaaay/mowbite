@@ -185,7 +185,10 @@ function pack(o: Point[], each: () => number, over: boolean, rnd: () => number, 
 export function placeThings(look: Look, o: Point[], m: number, seed: string, size?: number, turn?: number): Place[] {
   const least = m > 0 ? 0.01 * m : 0;
   const fill = !!PICTURES[look]?.fill;
-  const places = placesOf(look, o, m, seed, size, turn).filter((pl) => pl.w > least && pl.h > least && (fill || Math.min(pl.w, pl.h) * 100 >= Math.max(pl.w, pl.h)));
+  const above = !!PICTURES[look]?.above;
+  const places = placesOf(look, o, m, seed, size, turn)
+    .filter((pl) => pl.w > least && pl.h > least && (fill || Math.min(pl.w, pl.h) * 100 >= Math.max(pl.w, pl.h)))
+    .map((pl) => (above ? {...pl, over: true} : pl));
   return places.length ? [...places, ...accents(look, o, m, seed)] : places;
 }
 
