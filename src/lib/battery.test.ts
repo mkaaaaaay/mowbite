@@ -8,15 +8,17 @@ import {chargeSamples, fullCharges, parseBattery, parseLevel} from './battery';
 describe('battery', () => {
   const cycles = parseBattery(
     'charge 100 6000 98.3 24.10 28.00\nrun 6000 7100 30.0 28.00 26.50\nrun 7100 7200 2 26.5 26.4\ncharge 7200 7500 5 26.4 28\nbad line\n' +
-      'charge 80000 83200 52.8 27.51 29.08\ncharge 90000 91900 31.2 27.78 29.09\n',
+      'charge 80000 83200 52.8 27.51 29.08\ncharge 90000 91900 31.2 27.78 29.09\n' +
+      // after mowing 22 minutes, and after a night without power at the dock
+      'run 91900 95000 22.5 29.09 27.52\ncharge 95000 97400 40.9 27.52 29.09\nrun 97400 140000 0.0 29.09 21.90\ncharge 140000 150000 166 21.9 29.08\n',
   );
   it('reads what battery.sh writes', () => {
-    expect(cycles).toHaveLength(6);
+    expect(cycles).toHaveLength(10);
     expect(cycles[0]).toEqual({kind: 'charge', start: 100, end: 6000, minutes: 98.3, from: 24.1, to: 28});
   });
   it('leaves out top ups', () => {
-    expect(chargeSamples(cycles)).toEqual([{t: 6000e3, v: 98.3}]);
-    expect(fullCharges(cycles).map((c) => c.from)).toEqual([24.1]);
+    expect(fullCharges(cycles).map((c) => c.from)).toEqual([24.1, 27.52, 21.9]);
+    expect(chargeSamples(cycles)[0]).toEqual({t: 6000e3, v: 98.3});
   });
 });
 
@@ -241,19 +243,16 @@ describe('battery health', () => {
 describe('battery level', () => {
   const infos = `0 sensor_infos/json [{"sensor_id":"om_v_charge","has_min_max":1,"min_value":0,"max_value":32},{"sensor_id":"om_v_battery","sensor_name":"V Battery","has_min_max":1,"min_value":24.5,"max_value":28.2}]\n`;
   const line = (t: number, id: string, v: string | number) => `${t} sensors/${id}/data ${v}\n`;
-  // a second in the order the mower sends it: charger, battery, dock, then blade and robot state (quiet: those left out,
-  // they stay as they were)
-  type At = {a?: number; vc?: number; st?: string; rpm?: number; ma?: number; robot?: string; quiet?: boolean};
+  // a second in the order the mower sends it: charger, battery, dock, then blade and robot state
+  type At = {a?: number; vc?: number; st?: string; rpm?: number; ma?: number; robot?: string};
   const at = (t: number, v: number, o: At = {}) =>
     line(t, 'om_charge_current', o.a ?? 0) +
     line(t, 'om_charge_state', o.st ?? 'Not Charging') +
     line(t + 0.1, 'om_v_battery', v) +
     line(t + 0.2, 'om_v_charge', o.vc ?? 0.4) +
-    (o.quiet
-      ? ''
-      : line(t + 0.3, 'om_mow_motor_rpm', o.rpm ?? 0) +
-        line(t + 0.3, 'om_mow_motor_current', o.ma ?? 0) +
-        `${t + 0.6} robot_state/json {"current_state":"${o.robot ?? 'IDLE'}","battery_percentage":0.5}\n`);
+    line(t + 0.3, 'om_mow_motor_rpm', o.rpm ?? 0) +
+    line(t + 0.3, 'om_mow_motor_current', o.ma ?? 0) +
+    `${t + 0.6} robot_state/json {"current_state":"${o.robot ?? 'IDLE'}","battery_percentage":0.5}\n`;
   const span = (from: number, to: number, v: (s: number) => number, o: At = {}, step = 1) => {
     let input = '';
     for (let t = from; t < to; t += step) input += at(t, v(t - from), o);
@@ -272,7 +271,7 @@ describe('battery level', () => {
     });
     try {
       const [t, pct, how] = readFileSync(join(d, 'level'), 'utf8').trim().split(' ');
-      return {t: +t, pct: +pct, how};
+      return /^\d+$/.test(pct) ? {t: +t, pct: +pct, how} : null;
     } catch {
       return null;
     }
@@ -425,28 +424,70 @@ describe('battery level', () => {
     expect(level(infos + span(1, 120, () => 28.06, {...docked, vc: 15}))).toMatchObject({pct: 100, how: 'full'});
   });
 
+  // at Done from 0 s to h6, then the charger tops up and is done again: 5 minutes at constant current and 20 at constant
+  // voltage. before it a charge that ends at Done, or none seen
+  const done = (from: number, to: number, v: (s: number) => number) =>
+    span(from, from + 60, v, docked) + span(from + 60, to, (s) => v(s + 60), docked, 8);
+  const cv = {a: 0.26, vc: 29.5, st: 'Taper Charge (CV)'};
+  const h6 = 6 * 3600;
+  const cycle = (charged: boolean) =>
+    infos +
+    (charged ? span(-1200, -600, () => 28.3, cc, 5) + span(-600, 0, () => 29.08, cv, 5) : '') +
+    done(0, h6, (s) => 28.27 - (0.67 * s) / h6) +
+    span(h6, h6 + 300, () => 28.3, cc, 5) +
+    span(h6 + 300, h6 + 1500, () => 29.08, cv, 5) +
+    done(h6 + 1500, h6 + 1620, () => 28.27);
+
   it('goes down at Done as fast as the last time the mower stood there until the charger topped it up', () => {
     const d = mkdtempSync(join(tmpdir(), 'battery-'));
     const state = join(d, 'state');
-    const done = (from: number, to: number, v: (s: number) => number) =>
-      span(from, from + 60, v, docked) + span(from + 60, to, (s) => v(s + 60), {...docked, quiet: true}, 8);
-    // 6 hours at Done, the voltage down from 28.27 to 27.6 V (about 82 %): 3 % an hour. then the charger tops up and is
-    // done again, 5 minutes at constant current and 20 at constant voltage
-    const h6 = 6 * 3600;
-    let input = infos + done(1, h6, (s) => 28.27 - (0.67 * s) / h6);
-    input += span(h6, h6 + 300, () => 28.3, cc, 5) + span(h6 + 300, h6 + 1500, () => 29.08, {a: 0.26, vc: 29.5, st: 'Taper Charge (CV)'}, 5);
-    expect(level(input + done(h6 + 1500, h6 + 1620, () => 28.27), d, state)).toMatchObject({pct: 100, how: 'full'});
+    // 6 hours at Done, the voltage down from 28.27 to 27.6 V (about 82 %): 3 % an hour
+    expect(level(cycle(true), d, state)).toMatchObject({pct: 100, how: 'full'});
     // 3 hours on at Done the voltage still reads full, it went down by about 9 %
     const later = level(infos + done(h6 + 1620, 9.5 * 3600, () => 28.1), d, state)!;
     expect(later.how).toBe('full');
     expect(later.pct).toBeGreaterThan(87);
     expect(later.pct).toBeLessThan(95);
   });
+
+  it("doesn't learn it from a Done it didn't see come", () => {
+    // MowBite came up while the charger said Done already: the hours since Done aren't known
+    const d = mkdtempSync(join(tmpdir(), 'battery-'));
+    const state = join(d, 'state');
+    level(cycle(false), d, state);
+    expect(level(infos + done(h6 + 1620, 9.5 * 3600, () => 28.1), d, state)).toMatchObject({pct: 100, how: 'full'});
+    // nor after an hour without it, a top up may have gone by
+    const d2 = mkdtempSync(join(tmpdir(), 'battery-'));
+    const state2 = join(d2, 'state');
+    level(cycle(true), d2, state2);
+    expect(level(infos + done(9 * 3600, 10 * 3600, () => 28.1), d2, state2)).toMatchObject({pct: 100, how: 'full'});
+  });
+
+  it('starts from the charge after an hour without it, another charge may have begun', () => {
+    const d = mkdtempSync(join(tmpdir(), 'battery-'));
+    const state = join(d, 'state');
+    level(infos + span(1, 600, () => 26.9, mowing) + span(600, 1200, () => 28.3, cc), d, state);
+    // 6 hours later charging from low again
+    expect(level(infos + span(23000, 23100, () => 26.5, cc), d, state)!.pct).toBeLessThan(15);
+  });
+
+  it("isn't worked out with a stronger charger than YardForce's or another robot's settings", () => {
+    const params = (o: string) => `0 params/json {"/ll/bind_ip":"0.0.0.0"${o}}\n`;
+    const full = span(1, 120, () => 28.06, docked);
+    // Sabo and xBot set no board
+    expect(level(infos + params('') + full)).toMatchObject({pct: 100});
+    expect(level(infos + params(',"/ll/services/power/charge_current":2.5') + full)).toBeNull();
+    expect(level(infos + params(',"/ll/services/power/charge_current":1.0') + full)).toMatchObject({pct: 100});
+    expect(level(infos + params(',"/ll/services/input/config_file":"/opt/open_mower_ros/src/open_mower/params/hardware_specific/Sabo/inputs.yaml"') + full)).toBeNull();
+    expect(level(infos + params(',"/ll/services/input/config_file":"/opt/open_mower_ros/src/open_mower/params/hardware_specific/YardForce500/inputs.yaml"') + full)).toMatchObject({pct: 100});
+    // charging with 2.5 A for a minute
+    expect(level(infos + span(1, 120, () => 27.65, {...cc, a: 2.5}) + full.replace(/^(\d+)/gm, (t) => String(+t + 200)))).toBeNull();
+  });
 });
 
 describe('parseLevel', () => {
-  it('takes it while fresh', () => {
-    expect(parseLevel('1000 990 87 out\n')).toBe(87);
+  it('takes it while fresh, with how old it is', () => {
+    expect(parseLevel('1000 990 87 out\n')).toEqual({pct: 87, age: 10});
     expect(parseLevel('1000 870 87 out')).toBeNull();
     // battery.awk doesn't know yet, or an older container answering with the cycles
     expect(parseLevel('1000 \n')).toBeNull();

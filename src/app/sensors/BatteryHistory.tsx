@@ -27,7 +27,7 @@ export default function BatteryHistory() {
           <span className={styles.dim}>
             {last
               ? tr('The last one from {v} V', {v: fmt(last.from, 1)})
-              : tr('No full charge yet (from 20 minutes on the charger)')}
+              : tr('No full charge yet (from 20 minutes on the charger, top ups in the dock left out)')}
           </span>
         </div>
       </div>

@@ -25,7 +25,8 @@
 # half an hour after (12 h at most), then handed to TIDY
 #
 # LEVEL: how full the battery is, "<time> <percent> charging|full|dock|out", for the app and the schedule (level()).
-# not written where it can't be worked out (another board, OpenMower v1), they take OpenMower's percentage then
+# not written where it can't be worked out (OpenMower v1, not yet), "<time> - off" on another board or charger. they
+# take OpenMower's percentage then
 function save(    k, line) {
   if (!STATE) return
   line = sprintf("%d %.2f %.1f %d %d %.2f", run_t, run_v, blade_s, charging, charge_t, charge_v)
@@ -244,9 +245,14 @@ function limits(    x, a, b, n) {
 # starting or stopping don't move it. it starts from what's shown when one of these changes to another. at Done it goes
 # down no faster than the last time the mower stood there until the charger topped it up
 function level(    r, e, how, x) {
-  # only with OpenMower v2's charger on a YardForce board, what it's read off, and once the dock, the robot's state and
-  # the blade are known. 0 V: the charger not read yet
-  if (!FULL || !BQ || OTHER || !cur_t || t - cur_t > 60 ||!vct || t - vct >= 10 || rstate == "" || !rpm_t || volts < 5) return
+  # only on a YardForce board, what it's read off (hi: it charged with more than 1.3 A, not one of those), with OpenMower
+  # v2's charger and once the dock, the robot's state and the blade are known. 0 V: the charger not read yet
+  if (OTHER || h["hi"]) {
+    # off for good: said once, the app and the schedule take OpenMower's percentage right away
+    if (LEVEL && lh != "off") { lh = "off"; printf "%d - off\n", t > LEVEL; close(LEVEL) }
+    return
+  }
+  if (!FULL || !BQ || !cur_t || t - cur_t > 60 || !vct || t - vct >= 10 || rstate == "" || !rpm_t || t - rpm_t > 15 || volts < 5) return
   if (cur > 0.1 && vc >= DOCK) {
     how = "charging"
     if (st ~ /^(Taper|Top Off)/) {
@@ -262,17 +268,20 @@ function level(    r, e, how, x) {
   r = r < 0 ? 0 : r > 100 ? 100 : r
   if (how == "full") {
     fv = r
-    if (h["dr"] && h["done_t"] && t > h["done_t"]) { x = 100 - h["dr"] * (t - h["done_t"]) / 3600; if (r > x) r = x }
+    if (h["dr"] && h["dok"] && t > h["done_t"]) { x = 100 - h["dr"] * (t - h["done_t"]) / 3600; if (r > x) r = x < 0 ? 0 : x }
   }
-  # the charger tops it up, at Done since then and the dock's power on: how fast it went down in between, %/h
-  if (how == "charging" && lm == "full" && h["off"] < 60 && h["done_t"] && t - h["done_t"] > 14400 && fv < 95) {
+  # the charger tops it up, at Done since a charge ended there and the dock's power on: how fast it went down in between,
+  # %/h
+  if (how == "charging" && lm == "full" && h["dok"] && h["off"] < 60 && t - h["done_t"] > 14400 && fv < 95) {
     x = (100 - fv) * 3600 / (t - h["done_t"])
     x = x < 0.2 ? 0.2 : x > 5 ? 5 : x
     h["dr"] = h["dr"] ? (h["dr"] + x) / 2 : x
   }
-  # new after 10 minutes without it (a restart, the stream gone), during the same charge not below what it showed
+  # new after 10 minutes without it (a restart, the stream gone), during the same charge not below what it showed (a gap
+  # under an hour). a top up and its Done may have gone by in the gap
   if (h["lvt"] == "" || t - h["lvt"] > 600 || t < h["lvt"]) {
-    if (!(how == "charging" && charging && h["lvt"] >= charge_t && h["lv"] > r)) h["lv"] = r
+    if (!(how == "charging" && charging && h["lvt"] >= charge_t && t - h["lvt"] < 3600 && h["lv"] > r)) h["lv"] = r
+    delete h["dok"]
     h["lve"] = h["lv"]
   } else {
     if (how != lm) h["lve"] = h["lv"]
@@ -337,6 +346,15 @@ BEGIN {
     x = match($0, /"\/ll\/board": *"[^"]*"/) ? substr($0, RSTART, RLENGTH) : ""
     sub(/.*: *"/, "", x); sub(/"$/, "", x)
     OTHER = x != "" && x != "YardForce" && x != "YardForce-V4"
+    # none set (Sabo and xBot find out themselves, OpenMower before 1.4.0): not one set to charge with more than
+    # YardForce's 1 A or with another robot's inputs
+    if (x == "") {
+      if (match($0, /"\/ll\/services\/power\/charge_current": *[0-9.]+/)) {
+        x = substr($0, RSTART, RLENGTH); sub(/.*: */, "", x)
+        if (x + 0 > 1.05) OTHER = 1
+      }
+      if (match($0, /"\/ll\/services\/input\/config_file": *"[^"]*hardware_specific\/[^"]*"/) && substr($0, RSTART, RLENGTH) !~ /hardware_specific\/YardForce/) OTHER = 1
+    }
     next
   }
   id = $2
@@ -370,6 +388,8 @@ BEGIN {
     # seen without charging: the next charge is seen from its start
     if (i <= 0.1) up = 1
     cur = i; cur_t = t
+    # half a minute at more than YardForce's charger gives (1 A at most): another charger, the level isn't for it
+    if (i > 1.3 && vc >= DOCK) { if (++hin >= 30) h["hi"] = 1 } else hin = 0
     if (i > 0.1) {
       no_current_t = 0
       if (!charging && volts) {
@@ -404,7 +424,7 @@ BEGIN {
     # since when it says Done, the end of a charge too, and its last state when not charging. a reading it couldn't take
     # doesn't change them
     if (st !~ /^(Comms Error|Unknown)/) {
-      if (sst == "done" && h["lst"] != "done") { h["done_t"] = int(t); h["off"] = 0 }
+      if (sst == "done" && h["lst"] != "done") { h["done_t"] = int(t); h["off"] = 0; h["dok"] = h["lst"] ~ /^(cc|cv|topoff|tricklecharge|precharge)$/ }
       h["lst"] = sst
       if (st !~ /^(Trickle Charge|Pre Charge|Fast Charge|Taper Charge|Top Off)/) h["pst"] = sst
     }

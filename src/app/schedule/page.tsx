@@ -45,6 +45,8 @@ export default function SchedulePage() {
   const updates = useUpdates();
   // the cold check is a newer container's only, shown while that can't be told
   const hasCold = updates.level === null || containerHas(updates.level, 'cold');
+  // MowBite's own battery level, it goes down in the dock after Done
+  const hasLevel = containerHas(updates.level, 'level');
   // today's sunrise and sunset, so the animal hint follows the real night
   const sun = datum ? sunTimes(datum.lat, datum.lon) : null;
   // undefined: loading, null: not served by the container
@@ -145,7 +147,10 @@ export default function SchedulePage() {
                   onChange={(e) => update({...s, minBattery: Number(e.target.value)})}
                 />
               </label>
-              <p className={styles.dim}>{tr("If the battery isn't that full at the start time, it waits up to two hours, then skips this start. Charged in the dock it counts as full, even when it went down a little since.")}</p>
+              <p className={styles.dim}>
+                {tr("If the battery isn't that full at the start time, it waits up to two hours, then skips this start.")}
+                {hasLevel && ` ${tr('Charged in the dock it counts as full, even when it went down a little since.')}`}
+              </p>
               <label className={styles.check}>
                 <input type="checkbox" checked={s.skipRain} onChange={(e) => update({...s, skipRain: e.target.checked})} />
                 {tr("Not when the mower's rain sensor is wet")}
