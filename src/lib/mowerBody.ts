@@ -788,8 +788,33 @@ interface Insides {
 // a clipper result smaller than a square centimeter is nothing
 const nothing = (paths: ClipperLib.Paths) => paths.reduce((s, p) => s + Math.abs(ClipperLib.Clipper.Area(p)), 0) < 1e-4 * SCALE * SCALE;
 
-// what stands in the garden: an obstacle, or decoration the mower doesn't know (only a picture), drawn the same
-export const standing = (a: MapArea) => a.properties.type === 'obstacle' || a.properties.type === 'decor';
+// how big a pin's square is (m across), its picture stands in the middle (pinAt)
+export const PIN_SIDE = 0.1;
+
+// a pin's square: 4 corners PIN_SIDE apart along the map's axes, a millimeter off at most (kept as floats)
+function pinShaped(o: readonly P[]): boolean {
+  if (o.length !== 4) return false;
+  const xs = o.map((p) => p.x);
+  const ys = o.map((p) => p.y);
+  const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+  const near = (a: number, b: number) => Math.abs(a - b) < 1e-3;
+  return near(x1 - x0, PIN_SIDE) && near(y1 - y0, PIN_SIDE) && o.every((p) => (near(p.x, x0) || near(p.x, x1)) && (near(p.y, y0) || near(p.y, y1)));
+}
+
+// a picture standing by itself (decoration with pin set): no area of its own, only where it stands. an older openmower
+// drops pin when saving, its square still says it
+export const isPin = (a: MapArea) => a.properties.type === 'decor' && (a.properties.pin === true || pinShaped(a.outline));
+
+// where a pin stands: the middle of its square
+export function pinAt(a: MapArea): P {
+  const xs = a.outline.map((p) => p.x);
+  const ys = a.outline.map((p) => p.y);
+  return {x: (Math.min(...xs) + Math.max(...xs)) / 2, y: (Math.min(...ys) + Math.max(...ys)) / 2};
+}
+
+// what stands in the garden: an obstacle, or decoration the mower doesn't know (only a picture), drawn the same. a pin
+// doesn't, the lawn and the edges go on under it
+export const standing = (a: MapArea) => a.properties.type === 'obstacle' || (a.properties.type === 'decor' && !isPin(a));
 
 // the obstacles and ways (outline at least 3 points)
 const sidesOf = (areas: readonly MapArea[]) => areas.filter((a) => (standing(a) || a.properties.type === 'nav') && a.outline.length >= 3);

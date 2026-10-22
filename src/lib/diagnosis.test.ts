@@ -45,6 +45,11 @@ describe('diagnosis', () => {
     const map = {areas: [{id: 'g', properties: {type: 'mow', name: 'Garten'}, outline: [{x: 0, y: 0}, {x: 4, y: 0}, {x: 4, y: 4}, {x: 0, y: 4}]}], docking_stations: []};
     expect(whereOnMap(map, 1, 0.5)).toBe('(1.00, 0.50) in mow "Garten", 50 cm inside its edge');
     expect(whereOnMap(map, 5, 1)).toBe('(5.00, 1.00), 100 cm outside mow "Garten"');
+    // a picture standing by itself isn't a place, on the lawn or next to it
+    const lamp = (x: number, y: number) => ({id: `l${x}`, properties: {type: 'decor', pin: true, name: 'Lampe'}, outline: [{x: x - 0.05, y: y - 0.05}, {x: x + 0.05, y: y - 0.05}, {x: x + 0.05, y: y + 0.05}, {x: x - 0.05, y: y + 0.05}]});
+    const lit = {...map, areas: [...map.areas, lamp(1, 0.5), lamp(5.1, 1)]};
+    expect(whereOnMap(lit, 1, 0.5)).toBe('(1.00, 0.50) in mow "Garten", 50 cm inside its edge');
+    expect(whereOnMap(lit, 5, 1)).toBe('(5.00, 1.00), 100 cm outside mow "Garten"');
   });
 
   it('a bump right before docking is a note, not a problem', () => {
@@ -70,6 +75,36 @@ describe('diagnosis', () => {
     });
     expect(text).toContain('COLLISION_MULTIPLE while docking, docked 0.7 s later');
     expect(text).toMatch(/Problems\n-+\nnone/);
+  });
+
+  it('says when only pictures on the map changed since the run left the dock, without listing them', () => {
+    const run: Run = {start: 0, end: 100, events: [], areas: [], bladeSeconds: 0, problems: 0, outcome: 'done'};
+    const lawn = {id: 'g', properties: {type: 'mow', name: 'Garten'}, outline: [{x: 0, y: 0}, {x: 4, y: 0}, {x: 4, y: 4}]};
+    const gnome = {id: 'z', properties: {type: 'decor', pin: true, name: 'Gartenzwerg'}, outline: [{x: 1, y: 1}, {x: 1.1, y: 1}, {x: 1.1, y: 1.1}, {x: 1, y: 1.1}]};
+    const text = (map: {areas: (typeof lawn)[]; docking_stations: []}) =>
+      buildDiagnosis({
+        run,
+        appVersion: '1',
+        created: 0,
+        methods: null,
+        params: {},
+        kept: null,
+        map,
+        planner: null,
+        gps: null,
+        gpsLimit: 0.2,
+        ros: [],
+        plannerLines: [],
+        sensors: [],
+        drive: null,
+        snapshot: null,
+        startMap: {areas: [lawn], docking_stations: []},
+        plans: [],
+      });
+    expect(text({areas: [lawn], docking_stations: []})).toContain('Map: as the run left the dock, unchanged since');
+    expect(text({areas: [lawn, gnome], docking_stations: []})).toContain('Map: as the run left the dock, only pictures (pins) changed since');
+    expect(text({areas: [{...lawn, outline: lawn.outline.slice(1)}, gnome], docking_stations: []})).toContain('CHANGED since then');
+    expect(text({areas: [lawn, gnome], docking_stations: []})).not.toContain('Gartenzwerg');
   });
 
   it('leftovers only when the planner handed them out during the run', () => {

@@ -55,6 +55,11 @@ describe('checkMap', () => {
     expect(checkMap(map([lawn, area('beds', 'decor', square(20, 20, 2)), area('eight', 'decor', pts(0, 0, 10, 10, 10, 0, 0, 10))]))).toEqual([]);
   });
 
+  it('is fine with pins, on the lawn and off it', () => {
+    const pin = (id: string, x: number, y: number): MapArea => ({id, properties: {type: 'decor', pin: true}, outline: square(x - 0.05, y - 0.05, 0.1)});
+    expect(checkMap(map([lawn, pin('p', 3, 3), pin('q', 30, 30)]))).toEqual([]);
+  });
+
   it('takes a dock just outside the lawn, it docks from the approach point in front of it', () => {
     expect(checkMap(map([lawn], {x: -0.5, y: 1}))).toEqual([]);
   });

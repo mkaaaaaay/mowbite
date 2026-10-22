@@ -14,11 +14,15 @@ import {
   outlineOf,
   plannerSizes,
   insideEdge,
+  isPin,
+  PIN_SIDE,
+  pinAt,
   realEdges,
   realInsides,
   roundBends,
   sizesBody,
   spotPlaces,
+  standing,
   swathAfter,
   swathEnd,
   swathGroups,
@@ -289,6 +293,29 @@ describe('real edges', () => {
     const as = [square('a', 'obstacle', 1, 1, 1), square('b', 'obstacle', 2, 1, 1)];
     expect(box(realInsides(areas, rect).get('b')!)).toEqual(box(realInsides(as, rect).get('b')!));
     expect(realEdges(areas, rect).obstacles).toHaveLength(1);
+  });
+
+  it('leaves pins out: they stand on the lawn, nothing goes round them', () => {
+    const pin = (id: string, x: number, y: number): MapArea => ({...square(id, 'decor', x - 0.05, y - 0.05, 0.1), properties: {type: 'decor', pin: true}});
+    const decor = square('d', 'decor', 1, 1, 1);
+    expect([isPin(pin('p', 1, 1)), standing(pin('p', 1, 1)), isPin(decor), standing(decor)]).toEqual([true, false, false, true]);
+    expect(isPin({...decor, properties: {type: 'obstacle', pin: true}})).toBe(false);
+    // an openmower that dropped pin: its square says it, kept as floats too. any other decoration doesn't
+    const lost = {...pin('p', 2.95, -7.3), properties: {type: 'decor'}};
+    expect(isPin(lost)).toBe(true);
+    expect(isPin({...lost, outline: lost.outline.map((p) => ({x: Math.fround(p.x), y: Math.fround(p.y)}))})).toBe(true);
+    expect(isPin({...lost, properties: {type: 'obstacle'}})).toBe(false);
+    expect(isPin(square('d', 'decor', 1, 1, PIN_SIDE * 2))).toBe(false);
+    expect(isPin({...lost, outline: [...lost.outline, lost.outline[0]]})).toBe(false);
+    // turned it isn't the square
+    const turned = lost.outline.map((p) => ({x: 2.95 + (p.x - 2.95 - (p.y + 7.3)) * Math.SQRT1_2, y: -7.3 + (p.x - 2.95 + (p.y + 7.3)) * Math.SQRT1_2}));
+    expect(isPin({...lost, outline: turned})).toBe(false);
+    expect(pinAt(pin('p', 1.5, 2))).toEqual({x: expect.closeTo(1.5, 9), y: expect.closeTo(2, 9)});
+    const areas = [square('a', 'mow', 0, 0, 4), square('o', 'obstacle', 1, 1, 1), square('w', 'nav', 3, 0, 1)];
+    // one on the lawn, one in the obstacle, one on the way
+    const pinned = [...areas, pin('p', 0.5, 3), pin('q', 1.5, 1.5), pin('r', 3.5, 0.5)];
+    expect(realEdges(pinned, rect)).toEqual(realEdges(areas, rect));
+    expect(realInsides(pinned, rect)).toEqual(realInsides(areas, rect));
   });
 
   it('keeps what the obstacles and ways give while only a lawn changes', () => {

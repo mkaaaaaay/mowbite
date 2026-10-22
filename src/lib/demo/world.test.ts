@@ -344,7 +344,7 @@ describe("the demo mower's container", () => {
     await demoFetch('/cgi-bin/backups?name=mine&areas=7&auto=0', {method: 'POST', body: JSON.stringify(demoMap())});
     const [mine] = await list();
     expect(mine.name).toBe('mine');
-    expect((await (await demoFetch(`/cgi-bin/backups?id=${mine.id}`)).json()).areas).toHaveLength(7);
+    expect((await (await demoFetch(`/cgi-bin/backups?id=${mine.id}`)).json()).areas).toHaveLength(demoMap().areas.length);
     await demoFetch(`/cgi-bin/backups?action=delete&id=${mine.id}`, {method: 'POST'});
     expect(await list()).toHaveLength(before.length);
   });

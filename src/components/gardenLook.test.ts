@@ -1,8 +1,12 @@
+import {pinSquare} from '@/app/map/editing';
 import type {MapArea} from '@/hooks/useMowerMap';
+import {demoMap} from '@/lib/demo/garden';
+import de from '@/lib/i18n/de';
+import {isPin, pinAt} from '@/lib/mowerBody';
 import {describe, expect, it} from 'vitest';
 import {coversOf} from './gardenLife';
-import {areaLook, drawThing, facing, fillOf, gardenThings, groundOf, isThing, placeThing, placeThings} from './gardenLook';
-import {PICTURE_KEYS} from './gardenPictures';
+import {areaLook, drawThing, facing, fillOf, gardenThings, groundOf, inSquare, isThing, PIN_KEYS, pinSize, pinTapped, placeThing, placeThings} from './gardenLook';
+import {PICTURE_KEYS, PICTURES} from './gardenPictures';
 
 const area = (name: string, type = 'obstacle', id = 'a'): MapArea => ({id, properties: {name, type}, outline: []});
 
@@ -378,5 +382,132 @@ describe('outdoor stairs', () => {
 
   it("doesn't put other stairs and steps over the mower", () => {
     for (const look of ['woodStairs', 'woodSteps', 'stoneSteps']) expect(placeThings(look, rect(0, 0, 40, 24), 10, 's').some((pl) => pl.over)).toBe(false);
+  });
+});
+
+describe('pins', () => {
+  const fit = {minX: 0, minY: 0, m: 10, padX: 0, padY: 0};
+  const at = inSquare(fit);
+  const pin = (id: string, x: number, y: number, name?: string): MapArea => ({id, properties: {type: 'decor', pin: true, name}, outline: pinSquare(x, y)});
+  const square = (x: number, y: number, r: number) => [
+    {x: x - r, y: y - r},
+    {x: x + r, y: y - r},
+    {x: x + r, y: y + r},
+    {x: x - r, y: y + r},
+  ];
+  const lawn: MapArea = {id: 'l', properties: {type: 'mow'}, outline: square(10, 10, 10)};
+
+  it('takes things with a size of their own, no bed, ground or way', () => {
+    for (const k of PIN_KEYS) {
+      const pic = PICTURES[k];
+      expect([k, !!pic.thing, !!pic.size, !!pic.fill, !!pic.tile, !!pic.way]).toEqual([k, true, true, false, false, false]);
+    }
+    for (const k of ['gnome', 'lamp', 'pot', 'grill', 'statue', 'bench', 'umbrella', 'tree']) expect(PIN_KEYS).toContain(k);
+    for (const k of ['bed', 'perennialBed', 'gravel', 'woodSteps', 'house', 'pond']) expect(PIN_KEYS).not.toContain(k);
+  });
+
+  it('is drawn a third of the way from its smallest to its biggest size', () => {
+    const sizes = Object.fromEntries(['gnome', 'lamp', 'pot', 'grill', 'statue', 'furniture', 'umbrella', 'tree', 'bench'].map((k) => [k, pinSize(k)]));
+    expect(sizes).toEqual({gnome: 0.4, lamp: 0.4, pot: 0.7, grill: 0.9, statue: 0.9, furniture: 2.2, umbrella: 3.1, tree: 5, bench: 1.5});
+  });
+
+  it('stands once round where it is, its usual size or the one picked, not cut to its square nor filled', () => {
+    const gnome = pin('p', 3, 4);
+    const g = gardenThings([lawn, gnome], {p: 'gnome'}, null, fit);
+    const places = g.things.get('p')!.places;
+    expect(places).toHaveLength(1);
+    const mid = at(pinAt(gnome));
+    expect(places[0]).toMatchObject({cx: mid.x, cy: mid.y, deg: 0, loose: true});
+    expect(places[0].w).toBeCloseTo(0.4 * fit.m, 9);
+    expect(places[0].h).toBeCloseTo(0.4 * fit.m, 9);
+    expect(places[0].over).toBeUndefined();
+    expect(fillOf(gnome, g)).toBeNull();
+    expect(g.looks.has('p')).toBe(false);
+    const big = gardenThings([lawn, gnome], {p: 'gnome'}, null, fit, {sizes: {p: 0.6}, grounds: {p: 'gravel'}});
+    expect(big.things.get('p')!.places[0].w).toBeCloseTo(6, 9);
+    expect(big.grounds.has('p')).toBe(false);
+  });
+
+  it('reaches over the mower as a crown, a parasol, stairs or the mower garage', () => {
+    for (const look of ['tree', 'umbrella', 'mowerGarage', 'outdoorStairs']) {
+      const [pl] = gardenThings([lawn, pin('p', 5, 5)], {p: look}, null, fit).things.get('p')!.places;
+      expect([look, pl.over]).toEqual([look, true]);
+    }
+  });
+
+  it('is one of several only once, a bush as big as picked', () => {
+    const places = gardenThings([lawn, pin('p', 5, 5)], {p: 'bush'}, null, fit, {sizes: {p: 2}}).things.get('p')!.places;
+    expect(places).toHaveLength(1);
+    expect(places[0].w).toBeCloseTo(20, 9);
+  });
+
+  it('lies a long one as deep for its length as at its usual size, turned as picked', () => {
+    const bench = (own: {sizes?: Record<string, number>; turns?: Record<string, number>}) =>
+      gardenThings([lawn, pin('p', 5, 5)], {p: 'bench'}, null, fit, own).things.get('p')!.places[0];
+    expect([bench({}).w, bench({}).h].map((v) => +v.toFixed(6))).toEqual([15, 9]);
+    expect([bench({sizes: {p: 3}}).w, bench({sizes: {p: 3}}).h].map((v) => +v.toFixed(6))).toEqual([30, 18]);
+    expect(bench({turns: {p: 40}}).deg).toBe(40);
+  });
+
+  it('draws nothing for a picture that needs an area, nor without one', () => {
+    expect(gardenThings([lawn, pin('p', 5, 5, 'Beet')], {}, null, fit).things.has('p')).toBe(false);
+    expect(gardenThings([lawn, pin('p', 5, 5)], {p: 'perennialBed'}, null, fit).things.has('p')).toBe(false);
+    expect(gardenThings([lawn, pin('p', 5, 5)], {}, null, fit).things.has('p')).toBe(false);
+  });
+
+  it('goes by its name without a picture picked, every picture by its own name', () => {
+    for (const k of PIN_KEYS) {
+      for (const name of [PICTURES[k].label, de[PICTURES[k].label]]) expect([name, areaLook(pin('p', 0, 0, name))]).toEqual([name, k]);
+    }
+  });
+
+  it('keeps every thing with the outline it is cut to', () => {
+    const tree: MapArea = {id: 't', properties: {type: 'obstacle', name: 'Baum'}, outline: square(12, 12, 1)};
+    const bed: MapArea = {id: 'b', properties: {type: 'obstacle', name: 'Staudenbeet'}, outline: square(5, 15, 1.5)};
+    const g = gardenThings([lawn, tree, pin('p', 3, 3), bed], {p: 'lamp'}, null, fit);
+    expect(g.clips).toHaveLength(3);
+    const bedClip = bed.outline.map(at).map((q) => `${q.x},${q.y}`).join(' ');
+    expect(g.clips[g.things.get('b')!.i]).toBe(bedClip);
+  });
+
+  it('turns a cantilever parasol towards seats standing as pins, and a cantilever area too', () => {
+    const seats = pin('s', 7, 5);
+    const parasol = pin('c', 4, 5);
+    const looks = {s: 'furniture', c: 'cantilever'};
+    // the svg's y points down: to the east is 0
+    expect(gardenThings([lawn, parasol, seats], looks, null, fit).things.get('c')!.places[0].deg).toBeCloseTo(0, 5);
+    expect(gardenThings([lawn, parasol, seats], looks, null, fit, {turns: {c: 120}}).things.get('c')!.places[0].deg).toBe(120);
+    const foot: MapArea = {id: 'f', properties: {type: 'obstacle', name: 'Ampelschirm'}, outline: square(5, 2, 0.3)};
+    // the table north of it
+    expect(facing(foot, [lawn, foot, pin('s', 5, 4)], {s: 'table'}, (q) => ({x: q.x, y: -q.y}))).toBeCloseTo(-90, 5);
+  });
+
+  it('is hit by a tap round its middle, the nearest one first, a crown only in its middle', () => {
+    const areas = [lawn, pin('g', 3, 3), pin('l', 3.6, 3), pin('t', 10, 10)];
+    const g = gardenThings(areas, {g: 'gnome', l: 'lamp', t: 'tree'}, null, fit);
+    const tap = (x: number, y: number, reach = 2) => pinTapped(areas, g.things, at, at({x, y}), reach)?.id ?? null;
+    expect(tap(3.1, 3)).toBe('g');
+    expect(tap(3.4, 3)).toBe('l');
+    // the lawn round them takes the tap
+    expect(tap(5, 5)).toBeNull();
+    // 5 m of crown, a tap 2 m off its middle is on the lawn under it, one in reach picks it
+    expect(tap(12, 10)).toBeNull();
+    expect(tap(10.1, 10)).toBe('t');
+    // a big picture within its own size, a little reach or not
+    const pool = [lawn, pin('p', 5, 5)];
+    const big = gardenThings(pool, {p: 'roundPool'}, null, fit, {sizes: {p: 3}});
+    expect(pinTapped(pool, big.things, at, at({x: 6.2, y: 5}), 2)?.id).toBe('p');
+    expect(pinTapped(pool, big.things, at, at({x: 6.8, y: 5}), 2)).toBeNull();
+    // drawn as nothing it's only its middle
+    expect(pinTapped(pool, null, at, at({x: 5.1, y: 5}), 2)?.id).toBe('p');
+    expect(pinTapped(pool, null, at, at({x: 5.5, y: 5}), 2)).toBeNull();
+    // areas aren't pins
+    expect(pinTapped([lawn], g.things, at, at({x: 10, y: 10}), 2)).toBeNull();
+  });
+
+  it('stands in the demo garden by its name', () => {
+    const pins = demoMap().areas.filter(isPin);
+    expect(pins.map((a) => areaLook(a)).sort()).toEqual(['bench', 'gnome', 'lamp', 'lamp']);
+    for (const a of pins) expect(a.outline).toEqual(pinSquare(pinAt(a).x, pinAt(a).y).map((q) => ({x: expect.closeTo(q.x, 9), y: expect.closeTo(q.y, 9)})));
   });
 });

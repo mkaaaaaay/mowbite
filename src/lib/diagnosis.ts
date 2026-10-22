@@ -2,6 +2,7 @@ import {describe, explain, noteworthy, OUTCOMES, withState, type MowerEvent, typ
 import {gpsBefore, gpsOffOnPurpose, type GpsSample} from './gpslog';
 import {leftoverAreas} from './leftovers';
 import {containsPoint, polygonArea} from './geometry';
+import {isPin} from './mowerBody';
 import type {MowerMap} from '@/hooks/useMowerMap';
 import type {RosLogLine} from './roslog';
 
@@ -205,7 +206,8 @@ export function rosEmergencies(ros: readonly RosLogLine[]): {t: number; reasons:
   return out.map((e) => ({...e, reasons: e.reasons.join(', ')}));
 }
 
-// where on the map: in which area (or how far outside the nearest) and how far from its edge
+// where on the map: in which area (or how far outside the nearest) and how far from its edge. not a pin, it's only a
+// picture
 export function whereOnMap(map: MowerMap, x: number, y: number): string {
   const edgeDist = (o: {x: number; y: number}[]) => {
     let best = Infinity;
@@ -222,9 +224,10 @@ export function whereOnMap(map: MowerMap, x: number, y: number): string {
   };
   const name = (a: MowerMap['areas'][number]) => `${a.properties.type ?? 'area'} "${a.properties.name ?? a.id}"`;
   const at = `(${x.toFixed(2)}, ${y.toFixed(2)})`;
-  const inside = map.areas.filter((a) => a.outline.length > 2 && containsPoint(a.outline, x, y));
+  const areas = map.areas.filter((a) => a.outline.length > 2 && !isPin(a));
+  const inside = areas.filter((a) => containsPoint(a.outline, x, y));
   if (inside.length) return `${at} in ${inside.map((a) => `${name(a)}, ${cm(edgeDist(a.outline))} inside its edge`).join('; ')}`;
-  const near = map.areas.filter((a) => a.outline.length > 2).sort((a, b) => edgeDist(a.outline) - edgeDist(b.outline))[0];
+  const near = areas.sort((a, b) => edgeDist(a.outline) - edgeDist(b.outline))[0];
   return near ? `${at}, ${cm(edgeDist(near.outline))} outside ${name(near)}` : at;
 }
 
@@ -607,18 +610,26 @@ export function buildDiagnosis(d: DiagnosisInput): string {
     out.push(snap?.planner ? 'MowBite Planner (as the run left the dock):' : 'MowBite Planner (now):');
     out.push(...Object.entries(planner).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => `  ${k} = ${JSON.stringify(v)}`));
   }
-  if (d.startMap && d.map)
-    out.push(
-      `Map: as the run left the dock${JSON.stringify(d.startMap.areas) === JSON.stringify(d.map.areas) ? ', unchanged since' : ', CHANGED since then (places above use the one from the start)'}`,
-    );
-  else if (d.map) out.push('Map: as it is now (none kept from the start of this run)');
+  if (d.startMap && d.map) {
+    // pins are only pictures, the mower doesn't know them
+    const areas = (m: MowerMap, pins: boolean) => JSON.stringify(m.areas.filter((a) => pins || !isPin(a)));
+    const since =
+      areas(d.startMap, true) === areas(d.map, true)
+        ? ', unchanged since'
+        : areas(d.startMap, false) === areas(d.map, false)
+          ? ', only pictures (pins) changed since'
+          : ', CHANGED since then (places above use the one from the start)';
+    out.push(`Map: as the run left the dock${since}`);
+  } else if (d.map) out.push('Map: as it is now (none kept from the start of this run)');
   const shownMap = d.startMap ?? d.map;
   if (shownMap) {
-    for (const a of shownMap.areas)
+    for (const a of shownMap.areas.filter((a) => !isPin(a)))
       out.push(
         `  ${a.properties.type ?? '?'} "${a.properties.name ?? ''}" ${a.id}: ${polygonArea(a.outline).toFixed(1)} m2, ${a.outline.length} points` +
           `${a.properties.active === false ? ', inactive' : ''}${a.properties.mowable === false ? ', not mowed' : ''}`,
       );
+    const pins = shownMap.areas.filter(isPin).length;
+    if (pins) out.push(`  ${pins} pictures (pins), only drawn by the app`);
     for (const s of shownMap.docking_stations) out.push(`  dock ${s.id}: ${s.position.x.toFixed(3)}, ${s.position.y.toFixed(3)}, heading ${((s.heading * 180) / Math.PI).toFixed(1)} deg`);
   }
   if (d.plans.length) {

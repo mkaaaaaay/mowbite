@@ -192,6 +192,52 @@ export function saveSettings(next: Settings) {
   }, 400);
 }
 
+// what's kept for an area's picture by its id: which one, its color, size, direction, folded up and the ground under it
+export const LOOK_KEYS = ['looks', 'lookVariants', 'lookSizes', 'lookTurns', 'lookClosed', 'lookGrounds'] as const;
+export type LookKey = (typeof LOOK_KEYS)[number];
+// what's kept for some areas' pictures, by area id, a setting not there when there's none
+export type KeptLooks = Record<string, {[K in LookKey]?: NonNullable<Settings[K]>[string]}>;
+
+// what's kept for these areas' pictures, to put back later with withLooks
+export function looksOf(s: Settings, ids: readonly string[]): KeptLooks {
+  const of = (id: string) => Object.fromEntries(LOOK_KEYS.flatMap((k) => (s[k]?.[id] !== undefined ? [[k, s[k]?.[id]]] : [])));
+  return Object.fromEntries(ids.map((id) => [id, of(id)]));
+}
+
+// the settings with these areas' pictures as kept, a setting that wasn't there taken out. the same settings when
+// nothing changes. one emptied stays {}, another device's saved meanwhile is put together with it by area id
+export function withLooks(s: Settings, kept: KeptLooks): Settings {
+  let out = s;
+  for (const k of LOOK_KEYS) {
+    let next: Record<string, unknown> | undefined;
+    for (const [id, was] of Object.entries(kept)) {
+      if (s[k]?.[id] === was[k]) continue;
+      next ??= {...s[k]};
+      if (was[k] === undefined) delete next[id];
+      else next[id] = was[k];
+    }
+    if (next) out = {...out, [k]: next};
+  }
+  return out;
+}
+
+// the settings with nothing kept for these areas' pictures
+export const withoutLooks = (s: Settings, ids: readonly string[]) => withLooks(s, Object.fromEntries(ids.map((id) => [id, {}])));
+
+// these areas' pictures back as kept (looksOf), saved only when that changes anything
+export function restoreLooks(kept: KeptLooks) {
+  const now = load();
+  const next = withLooks(now, kept);
+  if (next !== now) saveSettings(next);
+}
+
+// what's kept for these areas' pictures taken out (areas deleted), saved only when there was any
+export function dropLooks(ids: readonly string[]) {
+  const now = load();
+  const next = withoutLooks(now, ids);
+  if (next !== now) saveSettings(next);
+}
+
 // inline in <head>: sets the color variables before anything is drawn, so saved colors don't flash
 export const COLOR_BOOT_SCRIPT = `try{var s=JSON.parse(localStorage.getItem('${STORAGE_KEY}')||'null'),c=(s&&s.colors)||JSON.parse(localStorage.getItem('mapColors')||'{}'),d=${JSON.stringify(
   Object.fromEntries(COLORS.map((c) => [c.key, c.value])),

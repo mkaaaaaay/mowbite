@@ -25,6 +25,7 @@ const KNOWN: Record<string, 'string' | 'boolean' | 'number' | 'object'> = {
   angle_max: 'number',
   planner: 'object',
   margin: 'number',
+  pin: 'boolean',
 };
 const TYPES = ['mow', 'nav', 'obstacle', 'decor', 'draft'];
 // farther from the datum than this a file is for another place (or has latitude and longitude swapped)

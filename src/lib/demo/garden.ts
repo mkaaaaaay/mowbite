@@ -1,9 +1,10 @@
-import type {MowerMap, Point} from '@/hooks/useMowerMap';
+import type {MapArea, MowerMap, Point} from '@/hooks/useMowerMap';
 import {tr} from '../i18n';
 import {PARAM} from '../openmower';
 
-// The demo mower's garden, made up: two lawns joined by a path, a few obstacles and the docking station in a short
-// bay next to the front lawn. Meters, like a recorded map.
+// The demo mower's garden, made up: two lawns joined by a path, a few obstacles, some pictures standing by themselves
+// (two lamps by the path, a gnome and a bench) and the docking station in a short bay next to the front lawn. Meters,
+// like a recorded map.
 
 // the corners cut round, like an outline driven by hand
 function rounded(corners: [number, number][], r: number, steps = 4): Point[] {
@@ -35,6 +36,18 @@ const circle = (cx: number, cy: number, r: number, n = 14): Point[] =>
 
 export const FRONT = 'demo-front-lawn';
 export const BACK = 'demo-back-lawn';
+
+// a picture standing by itself at x, y (app/map/editing pinSquare), drawn by its name without settings of its own
+const pin = (id: string, name: string, x: number, y: number): MapArea => ({
+  id,
+  properties: {name, type: 'decor', pin: true},
+  outline: [
+    {x: x - 0.05, y: y - 0.05},
+    {x: x + 0.05, y: y - 0.05},
+    {x: x + 0.05, y: y + 0.05},
+    {x: x - 0.05, y: y + 0.05},
+  ],
+});
 
 export function demoMap(): MowerMap {
   return {
@@ -70,6 +83,10 @@ export function demoMap(): MowerMap {
         properties: {name: tr('Sandpit'), type: 'obstacle'},
         outline: rounded([[3.8, 11.8], [5.4, 11.8], [5.4, 13.4], [3.8, 13.4]], 0.2, 2),
       },
+      pin('demo-lamp-left', tr('Garden lamp'), 0.85, 8.7),
+      pin('demo-lamp-right', tr('Garden lamp'), 2.75, 8.7),
+      pin('demo-gnome', tr('Garden gnome'), 10.6, 1.4),
+      pin('demo-bench', tr('Bench'), -1.1, 6.3),
     ],
     docking_stations: [{id: 'demo-dock', position: {x: -1.1, y: 3.5}, heading: Math.PI}],
   };

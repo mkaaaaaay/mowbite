@@ -1,9 +1,10 @@
 'use client';
 
 import {MergePanel, RestorePanel, SimplifyPanel, SnapPanel, SplitPanel, SubtractPanel} from '@/app/map/Panels';
+import DecorPanel from '@/app/map/DecorPanel';
 import EditorToolbar from '@/app/map/EditorToolbar';
 import OrderBox from '@/app/map/OrderBox';
-import {AREA_TYPES, DEG} from '@/app/map/editing';
+import {AREA_TYPES, DEG, pinSquare} from '@/app/map/editing';
 import {AngleCompass, AngleOnMap, AngleSlider, AngleStep} from '@/app/map/MowSettings';
 import mapPage from '@/app/map/page.module.css';
 import {MagnetIcon, MergeIcon, ScissorsIcon, SimplifyIcon, SubtractIcon, TrashIcon} from '@/components/icons';
@@ -200,7 +201,7 @@ function Stage({t, map, selected, picking, pending, preview, view, extra, under,
   pending?: Point[];
   preview?: Point[][];
   // more for the map: the plan's lanes and loops, the mowing order, a mower's body for the real edges, a spot to zoom to
-  view?: Pick<React.ComponentProps<typeof MapView>, 'stripes' | 'loops' | 'orderLabels' | 'bodyOverride' | 'focus' | 'focusSpan' | 'mapStyle' | 'snap'>;
+  view?: Pick<React.ComponentProps<typeof MapView>, 'stripes' | 'loops' | 'orderLabels' | 'bodyOverride' | 'focus' | 'focusSpan' | 'mapStyle' | 'snap' | 'decor'>;
   extra?: (toStage: (p: Point) => [number, number]) => React.ReactNode;
   under: React.ReactNode;
   hand: HandPlan;
@@ -336,7 +337,8 @@ function Stage({t, map, selected, picking, pending, preview, view, extra, under,
   return (
     <div ref={frame} className={styles.stageFrame}>
       <div ref={mover} className={styles.stageMover}>
-        <div ref={stage} className={styles.stage}>
+        {/* only a picture of the page: nothing in it takes a tap, a key or the focus */}
+        <div ref={stage} className={styles.stage} inert>
           <div className={styles.stageMap}>
             <MapView
               map={map}
@@ -1058,7 +1060,70 @@ function Style() {
   );
 }
 
-// 12: save: the old map goes into the backups first, its preview can bring it back
+// 12: decorating: a gnome picked in the row under the map and set with a tap on the map, picked right away (the lamps
+// by the path have their rings), then held a moment and taken to another spot
+const pinOf = (id: string, name: string, at: Point): MapArea => ({id, properties: {name, type: 'decor', pin: true}, outline: pinSquare(at.x, at.y)});
+const LAMPS = [pinOf('lampe1', 'Gartenlampe', pt(7.4, 11)), pinOf('lampe2', 'Gartenlampe', pt(10.6, 11))];
+const GNOME_AT = pt(12, 3.2);
+const GNOME_TO = pt(11.4, 7.2);
+
+function Decorate() {
+  const t = useLoop(11, 0.62);
+  const armed = t >= 0.14 && t < 0.36;
+  const set = t >= 0.36;
+  const at = mix(GNOME_AT, GNOME_TO, ease(t, 0.58, 0.74));
+  const map = cached(`decor ${set} ${at.x.toFixed(2)},${at.y.toFixed(2)}`, () =>
+    mapOf(GARTEN, TREE, VORGARTEN, WEG, BED, ...LAMPS, ...(set ? [pinOf('zwerg', 'Gartenzwerg', at)] : [])),
+  );
+  return (
+    <Stage
+      t={t}
+      map={map}
+      selected={set ? 'zwerg' : null}
+      view={{decor: {armed}}}
+      under={
+        <DecorPanel
+          areas={map.areas}
+          pin={map.areas.find((a) => a.id === 'zwerg') ?? null}
+          armed={armed ? {look: 'gnome', copy: false} : null}
+          canUndo={set}
+          canRedo={false}
+          unsaved={set}
+          saving={false}
+          busy={false}
+          error={null}
+          changed={set}
+          onArm={noop}
+          onCopy={noop}
+          onRemove={noop}
+          onUndo={noop}
+          onRedo={noop}
+          onFinish={noop}
+          onSaveAnyway={noop}
+          onLater={noop}
+          onCancel={noop}
+          onSwap={noop}
+        />
+      }
+      hand={{
+        moves: [
+          [0, 'off'],
+          [0.1, {button: tr('Garden gnome')}],
+          [0.16, {button: tr('Garden gnome')}],
+          [0.32, {map: GNOME_AT}],
+          [0.56, {map: GNOME_AT}],
+          [0.74, {map: GNOME_TO}],
+          [0.8, {map: GNOME_TO}],
+        ],
+        press: [...tap(0.13, 0.34), [0.48, 0.75]],
+        taps: [0.13, 0.34],
+        show: [0.04, 0.86],
+      }}
+    />
+  );
+}
+
+// 13: save: the old map goes into the backups first, its preview can bring it back
 const BACKUP = {id: 'b1', t: Math.round(Date.now() / 1000) - 120, name: 'before saving', auto: true, areas: GARDEN.areas.length, size: 1};
 
 // the backups as the map page shows them, opened
@@ -1111,6 +1176,7 @@ function Save() {
               saveLabel={saving ? tr('saving…') : tr('Save map')}
               saveError={null}
               onDraw={noop}
+              onDecorate={noop}
               onUndo={noop}
               onRedo={noop}
               onSave={noop}
@@ -1137,4 +1203,4 @@ function Save() {
   );
 }
 
-export const EDITOR_ART = [Select, Types, Switches, Points, Snap, Split, Merge, Subtract, Lay, Reduce, Direction, Order, Edges, Style, Save];
+export const EDITOR_ART = [Select, Types, Switches, Points, Snap, Split, Merge, Subtract, Lay, Reduce, Direction, Order, Edges, Style, Decorate, Save];

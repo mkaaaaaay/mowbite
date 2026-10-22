@@ -35,6 +35,16 @@ describe('the map as geojson', () => {
     expect(Math.abs(map.docking_stations[0].position.x + 1.25)).toBeLessThan(0.001);
   });
 
+  it('keeps a pin a pin there and back', () => {
+    const pinned: MowerMap = {
+      ...MAP,
+      areas: [...MAP.areas, {id: 'gnome', properties: {name: 'Gartenzwerg', type: 'decor', pin: true}, outline: [{x: 2.95, y: 1.45}, {x: 3.05, y: 1.45}, {x: 3.05, y: 1.55}, {x: 2.95, y: 1.55}]}],
+    };
+    const {map} = mapFromGeoJson(JSON.parse(JSON.stringify(mapToGeoJson(pinned, datum))), datum, null);
+    expect(map.areas[2].properties).toEqual({name: 'Gartenzwerg', type: 'decor', pin: true});
+    expect(map.areas[2].outline).toHaveLength(4);
+  });
+
   it('puts an area back in place of the one with its id and adds new ones as drafts, other apps\' styles stay out', () => {
     const json = mapToGeoJson(MAP, datum) as unknown as Json;
     const moved = json.features[0];

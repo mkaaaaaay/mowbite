@@ -3,7 +3,7 @@
 import type {MapArea, Point} from '@/hooks/useMowerMap';
 import {containsPoint, polygonArea} from '@/lib/geometry';
 import {tr} from '@/lib/i18n';
-import {realInsides, standing, type MowerBody} from '@/lib/mowerBody';
+import {isPin, pinAt, realInsides, standing, type MowerBody} from '@/lib/mowerBody';
 import {autoMowAngle} from '@/lib/mowStripes';
 import {memo, useEffect, useId} from 'react';
 import {createPortal} from 'react-dom';
@@ -18,6 +18,19 @@ export type Look = string;
 export type {Box};
 
 export const isThing = (look: Look) => !!PICTURES[look]?.thing;
+
+// what can stand by itself as a pin: a thing with a size of its own, not a bed, a ground or a way
+export const PIN_KEYS = PICTURE_KEYS.filter((k) => {
+  const pic = PICTURES[k];
+  return !!pic.thing && !!pic.size && !pic.fill && !pic.way && !pic.tile;
+});
+
+// how big a pin is drawn without a size picked (m across, a long one its length): a third of the way from its smallest
+// to its biggest, rounded to 10 cm
+export function pinSize(look: Look): number {
+  const [lo, hi] = PICTURES[look]?.size ?? [1, 1];
+  return Math.round((lo + (hi - lo) / 3) * 10) / 10;
+}
 
 // what a way or an obstacle is drawn as: the picture picked for it, else from its name, a way only as a ground (gravel
 // unless the name says otherwise) or as steps or a bridge, an obstacle as anything (a bed unless the name says otherwise)
@@ -339,8 +352,9 @@ export const inSquare = (f: Fit) => (p: Point): Point => ({x: (p.x - f.minX) * f
 
 // a map's garden as MapView draws it: each mowing area's lawn by the index of its stripes (angles: their directions),
 // each way's and obstacle's look, and things placed in the area's real edge (with the mower's body known, else in its
-// outline) at their size (sizes: picked per area, settings.lookSizes), cut to clips[i] unless they reach over it. m: svg
-// units per meter. worked out again only for another map, looks, body or fit, the places only for an area that changed
+// outline) at their size (sizes: picked per area, settings.lookSizes), cut to clips[i] unless they reach over it. a pin's
+// thing stands round where it is, it has no look (nothing to fill). m: svg units per meter. worked out again only for
+// another map, looks, body or fit, the places only for an area that changed
 export interface GardenThing {
   i: number;
   id: string;
@@ -382,14 +396,14 @@ const thingsCache = new WeakMap<object, {looks?: object; own: ThingsOwn; body: o
 // the things a cantilever parasol stands by, it reaches over them
 const SEATS = ['table', 'furniture', 'lounge', 'lounger', 'bench', 'pingPong', 'grill', 'firePit', 'hotTub'];
 
-// which way a thing that faces a way does by itself: towards the nearest table or seats within 6 m, else towards the
-// middle of the lawn it stands in. degrees in the svg (at: map to svg), 0 without either
+// which way a thing that faces a way does by itself: towards the nearest table or seats within 6 m (a pin's too), else
+// towards the middle of the lawn it stands in. degrees in the svg (at: map to svg), 0 without either
 export function facing(a: MapArea, areas: MapArea[], looks: Record<string, string> | undefined, at: (p: Point) => Point): number {
   const mid = (o: Point[]) => ({x: o.reduce((s, p) => s + p.x, 0) / o.length, y: o.reduce((s, p) => s + p.y, 0) / o.length});
   const from = mid(a.outline);
   let near: {d: number; to: Point} | null = null;
   for (const b of areas) {
-    if (b === a || b.outline.length < 3 || (!standing(b) && b.properties.type !== 'nav')) continue;
+    if (b === a || b.outline.length < 3 || (!standing(b) && !isPin(b) && b.properties.type !== 'nav')) continue;
     if (!SEATS.includes(areaLook(b, looks))) continue;
     const to = mid(b.outline);
     const d = Math.hypot(to.x - from.x, to.y - from.y);
@@ -402,7 +416,8 @@ export function facing(a: MapArea, areas: MapArea[], looks: Record<string, strin
   return (Math.atan2(q.y - p.y, q.x - p.x) * 180) / Math.PI;
 }
 // thing: the one handed out last for the area, kept while nothing of it changes so GardenThing isn't drawn again
-const placeCache = new WeakMap<MapArea, {key: string; body: object | null; real: string; outline: Point[]; places: Place[]; thing?: GardenThing}>();
+type Placed = {key: string; body: object | null; real: string; outline: Point[]; places: Place[]; thing?: GardenThing};
+const placeCache = new WeakMap<MapArea, Placed>();
 
 export function gardenThings(
   areas: MapArea[],
@@ -419,11 +434,44 @@ export function gardenThings(
   const at = inSquare(fit);
   const insides = body ? realInsides(areas, body) : null;
   const out: GardenThings = {lawns: new Map(), looks: new Map(), grounds: new Map(), things: new Map(), angles: [], clips: []};
+  // the area's thing, the same one as before while nothing of it changed, and the outline it's cut to (clip i)
+  const handOut = (a: MapArea, look: Look, placed: Placed) => {
+    const edge = PICTURES[look].edged ? placed.outline : undefined;
+    const folded = PICTURES[look].folds && closed?.[a.id] ? true : undefined;
+    const fill = PICTURES[look].fill;
+    const bare = fill && out.grounds.has(a.id) ? true : undefined;
+    const thing: GardenThing = {i: out.clips.length, id: a.id, look, variant: variants?.[a.id], m: fit.m, places: placed.places, edge, closed: folded, fill, bare};
+    const was = placed.thing;
+    placed.thing = was && (Object.keys(thing) as (keyof GardenThing)[]).every((k) => was[k] === thing[k]) ? was : thing;
+    out.things.set(a.id, placed.thing);
+    out.clips.push(placed.outline.map((p) => `${p.x},${p.y}`).join(' '));
+  };
   for (const a of areas) {
     const type = a.properties.type;
     if (type === 'mow') {
       out.lawns.set(a.id, out.angles.length);
       out.angles.push(a.properties.angle ?? autoMowAngle(a.outline));
+    } else if (isPin(a)) {
+      // a pin: its picture once round where it stands, as big and turned as picked (else its usual size, towards what it
+      // faces or not turned), not cut to anything and without a ground of its own
+      const look = areaLook(a, looks);
+      if (!PIN_KEYS.includes(look) || !a.outline.length) continue;
+      const pic = PICTURES[look];
+      const own = sizes?.[a.id];
+      const size = own && own > 0 ? own : pinSize(look);
+      const deg = turns?.[a.id] ?? (pic.turn ? facing(a, areas, looks, at) : 0);
+      const mid = at(pinAt(a));
+      const placeKey = `pin|${look}|${size}|${deg}|${mid.x},${mid.y}|${key}`;
+      let placed = placeCache.get(a);
+      if (!placed || placed.key !== placeKey) {
+        // a long one as deep for its length as at its usual size
+        const deep = pic.long && pic.deep ? Math.min(1, pic.deep / pinSize(look)) : 1;
+        const w = size * fit.m;
+        const place: Place = {cx: mid.x, cy: mid.y, deg, w, h: w * deep, loose: true, over: pic.over || pic.above || undefined};
+        placed = {key: placeKey, body: null, real: '', outline: a.outline.map(at), places: [place]};
+        placeCache.set(a, placed);
+      }
+      handOut(a, look, placed);
     } else if ((standing(a) || type === 'nav') && a.outline.length > 2) {
       const look = areaLook(a, looks);
       out.looks.set(a.id, look);
@@ -442,19 +490,29 @@ export function gardenThings(
         placeCache.set(a, placed);
       }
       if (!placed.places.length) continue;
-      const edge = PICTURES[look].edged ? placed.outline : undefined;
-      const folded = PICTURES[look].folds && closed?.[a.id] ? true : undefined;
-      const fill = PICTURES[look].fill;
-      const bare = fill && out.grounds.has(a.id) ? true : undefined;
-      const thing: GardenThing = {i: out.clips.length, id: a.id, look, variant: variants?.[a.id], m: fit.m, places: placed.places, edge, closed: folded, fill, bare};
-      const was = placed.thing;
-      placed.thing = was && (Object.keys(thing) as (keyof GardenThing)[]).every((k) => was[k] === thing[k]) ? was : thing;
-      out.things.set(a.id, placed.thing);
-      out.clips.push(placed.outline.map((p) => `${p.x},${p.y}`).join(' '));
+      handOut(a, look, placed);
     }
   }
   thingsCache.set(areas, {looks, own: {variants, sizes, turns, closed, grounds}, body, key, out});
   return out;
+}
+
+// the pin a tap at p hits (svg units, at: map to svg): the one with its middle nearest, within reach of it or within its
+// picture, a crown's or a parasol's only within reach (the lawn under it stays free). things: gardenThings', without
+// one a pin is only its middle. null for none
+export function pinTapped(areas: MapArea[], things: Map<string, GardenThing> | null, at: (p: Point) => Point, p: Point, reach: number) {
+  let best: {id: string; d: number; r: number} | null = null;
+  for (const a of areas) {
+    if (!isPin(a) || !a.outline.length) continue;
+    const pl = things?.get(a.id)?.places[0];
+    const mid = pl ? {x: pl.cx, y: pl.cy} : at(pinAt(a));
+    const r = pl && !pl.over ? Math.max(pl.w, pl.h) / 2 : 0;
+    const d = Math.hypot(mid.x - p.x, mid.y - p.y);
+    if (d > Math.max(reach, r)) continue;
+    // the nearer one, the smaller one of two as near
+    if (!best || d < best.d - 1e-9 || (Math.abs(d - best.d) <= 1e-9 && r < best.r)) best = {id: a.id, d, r};
+  }
+  return best && {id: best.id, d: best.d};
 }
 
 // what an area is filled with, {uid}{this} of GardenDefs: a lawn its stripes, one not mowed meadow, a way or an obstacle
@@ -488,18 +546,31 @@ export const LookSwatch = memo(function LookSwatch({look, size = 44, seed, varia
   );
 });
 
-// all pictures to pick from, by group, over the page like the map settings. value: the one picked, auto: what the
-// area is drawn as without one
-export function LookPicker({value, auto, onPick, onClose}: {value?: string; auto: Look; onPick: (look: Look | undefined) => void; onClose: () => void}) {
+// the pictures to pick from (keys, else all), by group, over the page like the map settings. value: the one picked,
+// auto: what the area is drawn as without one, null for no auto (a pin)
+export function LookPicker({
+  value,
+  auto,
+  keys = PICTURE_KEYS,
+  onPick,
+  onClose,
+}: {
+  value?: string;
+  auto: Look | null;
+  keys?: readonly Look[];
+  onPick: (look: Look | undefined) => void;
+  onClose: () => void;
+}) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
   const keep = (e: React.SyntheticEvent) => e.stopPropagation();
-  const choice = (look: Look | undefined, label: string) => (
+  // drawn: what it's drawn as, auto's the area's own
+  const choice = (look: Look | undefined, drawn: Look, label: string) => (
     <button key={look ?? 'auto'} className={[styles.icon, value === look ? styles.iconOn : ''].join(' ')} onClick={() => onPick(look)}>
-      <LookSwatch look={look ?? auto} />
+      <LookSwatch look={drawn} />
       <span>{label}</span>
     </button>
   );
@@ -512,16 +583,21 @@ export function LookPicker({value, auto, onPick, onClose}: {value?: string; auto
             ✕
           </button>
         </div>
-        <section className={styles.section}>
-          <div className={styles.icons}>{choice(undefined, tr('Auto ({what})', {what: tr(PICTURES[auto].label)}))}</div>
-          <p className={styles.dim}>{tr('Auto goes by the name of the area.')}</p>
-        </section>
-        {GROUPS.map((g) => (
-          <section key={g.key} className={styles.section}>
-            <h3>{tr(g.label)}</h3>
-            <div className={styles.icons}>{PICTURE_KEYS.filter((k) => PICTURES[k].group === g.key).map((k) => choice(k, tr(PICTURES[k].label)))}</div>
+        {auto !== null && (
+          <section className={styles.section}>
+            <div className={styles.icons}>{choice(undefined, auto, tr('Auto ({what})', {what: tr(PICTURES[auto].label)}))}</div>
+            <p className={styles.dim}>{tr('Auto goes by the name of the area.')}</p>
           </section>
-        ))}
+        )}
+        {GROUPS.map((g) => {
+          const shown = keys.filter((k) => PICTURES[k]?.group === g.key);
+          return shown.length ? (
+            <section key={g.key} className={styles.section}>
+              <h3>{tr(g.label)}</h3>
+              <div className={styles.icons}>{shown.map((k) => choice(k, k, tr(PICTURES[k].label)))}</div>
+            </section>
+          ) : null;
+        })}
       </div>
     </div>,
     document.body,

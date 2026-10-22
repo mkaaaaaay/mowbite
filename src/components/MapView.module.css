@@ -437,6 +437,24 @@
   stroke-width: 3;
 }
 
+/* decorating: a picture standing by itself (a pin), it can be picked and moved */
+.pinRing {
+  fill: none;
+  pointer-events: none;
+}
+
+.pinRing circle:first-child {
+  stroke: #0d140a;
+  stroke-opacity: 0.55;
+  stroke-width: 3.5;
+}
+
+.pinRing circle:last-child {
+  stroke: #fff;
+  stroke-opacity: 0.95;
+  stroke-width: 1.5;
+}
+
 /* a point lying exactly on another area's corner or edge */
 .snapCorner,
 .snapEdge {
@@ -521,6 +539,15 @@
   white-space: nowrap;
   pointer-events: none;
   animation: hint-fade 2.5s ease forwards;
+}
+
+/* one that says more, on more than a line, clear of the buttons down the right */
+.hintLong {
+  width: max-content;
+  max-width: calc(100% - 112px);
+  white-space: normal;
+  text-align: center;
+  animation-duration: 4s;
 }
 
 @keyframes hint-fade {

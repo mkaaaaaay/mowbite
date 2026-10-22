@@ -1,5 +1,6 @@
 import type {MowerMap} from '@/hooks/useMowerMap';
 import {tr} from '../i18n';
+import {isPin} from '../mowerBody';
 import {CONTAINER_LEVEL} from '../updates';
 import {closedRings} from '../rings';
 import {demoMap, DEMO_SENSORS} from './garden';
@@ -25,9 +26,11 @@ function backupList() {
     const map = closedRings(demoMap());
     const size = JSON.stringify(map).length;
     const now = Date.now() / 1000;
+    // pins not counted, like lib/backups
+    const areas = map.areas.filter((a) => !isPin(a)).length;
     backups = [
-      {id: 'demo-2', t: now - 3 * 86400, name: tr('before the flower bed'), areas: map.areas.length, auto: false, size, map},
-      {id: 'demo-1', t: now - 12 * 86400, name: '', areas: map.areas.length, auto: true, size, map},
+      {id: 'demo-2', t: now - 3 * 86400, name: tr('before the flower bed'), areas, auto: false, size, map},
+      {id: 'demo-1', t: now - 12 * 86400, name: '', areas, auto: true, size, map},
     ];
   }
   return backups;

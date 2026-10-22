@@ -6,8 +6,8 @@ import {createEaser, type Easer, type Pose} from '@/lib/poseEaser';
 import {liveGlide} from '@/hooks/useMowerPosition';
 import {containsPoint, polygonArea} from '@/lib/geometry';
 import {nearestOnOutline, snapPoint} from '@/lib/snapAreas';
-import {saveSettings, settingsStore, type Settings} from '@/lib/settings';
-import {bladeSeconds, bodyShape, roundBends, swathEnd, swathGroups, swathAfter, swathTail, useMowerBody, usePlannerSettings, type MowerBody, type SwathState} from '@/lib/mowerBody';
+import {looksOf, saveSettings, settingsStore, withLooks, type KeptLooks, type Settings} from '@/lib/settings';
+import {bladeSeconds, bodyShape, isPin, pinAt, roundBends, swathEnd, swathGroups, swathAfter, swathTail, useMowerBody, usePlannerSettings, type MowerBody, type SwathState} from '@/lib/mowerBody';
 import type {FitPose, PlanPiece} from '@/lib/mowPlan';
 import {useSensorValue} from '@/hooks/useMowerSensors';
 import {dockIcon, drawMower, mowerIcon} from './mapIcons';
@@ -27,7 +27,7 @@ import {useTrailingPose} from '@/hooks/useTrailingPose';
 import {CELL_M, MIN_SECONDS, gpsGrade, loadCoverage, wifiGrade, type CoverageCell} from '@/lib/coverage';
 import {useUpdates} from '@/lib/updates';
 import {CoverInfo} from './CoverInfo';
-import {fillOf, GardenDefs, gardenThings} from './gardenLook';
+import {fillOf, GardenDefs, gardenThings, pinTapped} from './gardenLook';
 import {biggest, type Cover, coversOf, edgePaths, GardenThing, lifeOf, lifeScene} from './gardenLife';
 import {PICTURES} from './gardenPictures';
 import {useMowHistory} from '@/hooks/useMowHistory';
@@ -96,6 +96,9 @@ interface MapViewProps {
   preview?: Point[][];
   // click on the map where there's no area
   onClickEmpty?: () => void;
+  // decorating (the map page): a tap sets a picture (armed) or picks a picture standing by itself (a pin, ringed), held a
+  // moment a pin goes along with the finger. areas take no taps meanwhile, outside of it pins take none
+  decor?: {armed: boolean};
   // gps datum of the map, enables the aerial imagery option
   datum?: Datum;
   // numbers drawn in areas, e.g. mowing order
@@ -583,6 +586,7 @@ function MapView({
   focusSpan,
   viewKey,
   onClickEmpty,
+  decor,
   datum,
   orderLabels,
   bodyOverride,
@@ -615,7 +619,9 @@ function MapView({
     insert: {x: number; y: number} | null;
     // where the point was before, for putting a drawn point back
     orig: {x: number; y: number} | null;
-  }>({pointerId: -1, startX: 0, startY: 0, lastX: 0, lastY: 0, moved: false, touch: false, insert: null, orig: null});
+    // a pin being moved: how far its middle is from the finger, it doesn't jump to it
+    off: {x: number; y: number} | null;
+  }>({pointerId: -1, startX: 0, startY: 0, lastX: 0, lastY: 0, moved: false, touch: false, insert: null, orig: null, off: null});
   // finger position while dragging on touch, drives the loupe
   const [finger, setFinger] = useState<{x: number; y: number; width: number} | null>(null);
   // tapped point, gets a delete button
@@ -635,8 +641,10 @@ function MapView({
   if (free && !follow) setFree(false);
   const following = follow && !free;
   const prefs = useMapPrefs();
-  const {imagery, lastImagery, setImagery, showGrid, toggleGrid, toggleLayer, planStyle, setPlanStyle, coverage: coverMode, setCoverage: setCoverMode} =
+  const {imagery, lastImagery, setImagery, showGrid, toggleGrid, toggleLayer, planStyle, setPlanStyle, coverage: coverPref, setCoverage: setCoverMode} =
     prefs;
+  // decorating the map is for that, the coverage waits (its switch is gone meanwhile)
+  const coverMode = decor ? 'off' : coverPref;
   const hidden = allLayers ? NO_LAYERS_HIDDEN : prefs.hidden;
   const [svgPx, setSvgPx] = useState(0);
   const [layersOpen, setLayersOpen] = useState(false);
@@ -675,10 +683,13 @@ function MapView({
     },
     [],
   );
-  // a finger resting on a point, until it picks it up (HOLD_MS) or turns out to pan
-  const hold = useRef<{press: Press; areaId: string; hit: Handle; timer: ReturnType<typeof setTimeout>} | null>(null);
-  // what a picture's handle started from: its middle (svg), its size (m) and how far from the middle the finger was
-  const thingDrag = useRef<{kind: 'turn' | 'size'; areaId: string; cx: number; cy: number; size: number; dist: number; reaches: boolean} | null>(null);
+  // a finger resting on a point or on a pin (decorating), until it picks it up (HOLD_MS) or turns out to pan
+  const hold = useRef<{press: Press; areaId: string; hit: Handle; pin?: boolean; timer: ReturnType<typeof setTimeout>} | null>(null);
+  // what a picture's handle started from: its middle (svg), its size (m), how far from the middle the finger was and what
+  // was kept for the picture (put back when it turns out to be a pinch)
+  const thingDrag = useRef<{kind: 'turn' | 'size'; areaId: string; cx: number; cy: number; size: number; dist: number; reaches: boolean; was: KeptLooks} | null>(
+    null,
+  );
   const dropHold = () => {
     if (hold.current) clearTimeout(hold.current.timer);
     hold.current = null;
@@ -1212,7 +1223,8 @@ function MapView({
     [hidden, trackRuns.live, halloween.night],
   );
 
-  const selectedArea = map.areas.find((a) => a.id === selectedAreaId);
+  // the area being edited with its points. a pin picked while decorating has none, it moves as a whole by its middle
+  const selectedArea = map.areas.find((a) => a.id === selectedAreaId && !isPin(a));
   const activeIndex =
     active && selectedArea && active.areaId === selectedArea.id && active.index < selectedArea.outline.length
       ? active.index
@@ -1251,6 +1263,13 @@ function MapView({
     const t = setTimeout(() => setHoldHint(false), 2500);
     return () => clearTimeout(t);
   }, [holdHint]);
+  // decorating: an area's picture tapped, where it's changed instead (n: shown again for the next tap)
+  const [areaHint, setAreaHint] = useState<{text: string; n: number} | null>(null);
+  useEffect(() => {
+    if (!areaHint) return;
+    const t = setTimeout(() => setAreaHint(null), 4000);
+    return () => clearTimeout(t);
+  }, [areaHint]);
   // the esri key its tiles didn't load with (a wrong or expired one): the imagery stays empty, a hint says why for a
   // moment, once each time it's switched on
   const [rejectedKey, setRejectedKey] = useState<string | null>(null);
@@ -1323,7 +1342,7 @@ function MapView({
       onSelectArea?.(clickedId);
       return;
     }
-    const stack = areasBySize.filter((a) => containsPoint(a.outline, local[0], local[1])).reverse();
+    const stack = areasBySize.filter((a) => !isPin(a) && containsPoint(a.outline, local[0], local[1])).reverse();
     const i = stack.findIndex((a) => a.id === selectedAreaId);
     if (stack.length > 1) onSelectArea?.(stack[(i + 1) % stack.length].id);
   };
@@ -1331,12 +1350,12 @@ function MapView({
   // a point being dragged or set put onto the nearest corner or edge of another area within reach (snap on, without alt
   // held), with the place it went to marked. A line being drawn to split an area or cut a shape out of it doesn't snap
   // onto that area, nor onto a neighbour's corner or edge on its outline or across it: put onto its edge or over it, the
-  // line wouldn't cross it and a shape would touch it
+  // line wouldn't cross it and a shape would touch it. a pin isn't snapped onto, and nothing snaps while decorating
   const snapAt = (x: number, y: number, exclude: string | null, touch: boolean) => {
     const svg = svgRef.current;
-    if (!snap?.on || !svg) return null;
+    if (!snap?.on || !svg || decor) return null;
     const reach = (touch ? 20 : 10) / ((pxPerMeter * framePx()) / WIDTH);
-    const others = map.areas.filter((a) => a.id !== exclude && !hidden.has(a.properties.type as Layer)).map((a) => a.outline);
+    const others = map.areas.filter((a) => a.id !== exclude && !isPin(a) && !hidden.has(a.properties.type as Layer)).map((a) => a.outline);
     const s = snapPoint({x, y}, others, reach);
     const cut = pickingPoints ? map.areas.find((a) => a.id === exclude) : undefined;
     if (s && cut && ((nearestOnOutline(cut.outline, s)?.d ?? 1) < 0.002 || containsPoint(cut.outline, s.x, s.y) !== containsPoint(cut.outline, x, y))) return null;
@@ -1403,10 +1422,27 @@ function MapView({
     });
     return best as Handle | null;
   };
-  // a press on a marker near a point of the area being edited moves the point: the marker only takes it otherwise
+  // decorating with no picture to set: the pin a press or a tap hits (gardenLook pinTapped, a finger's 24 px round its
+  // middle at least) and where it stands
+  const pickPin = (clientX: number, clientY: number) => {
+    const p = decor && !decor.armed ? clientToSvg(clientX, clientY) : null;
+    if (!p) return null;
+    const at = (q: Point) => {
+      const [x, y] = toScreen(q.x, q.y);
+      return {x, y};
+    };
+    const hit = pinTapped(map.areas, gardenLook?.things ?? null, at, {x: p[0], y: p[1]}, (24 * framed.size) / framePx());
+    const a = hit && map.areas.find((x) => x.id === hit.id);
+    return hit && a ? {id: a.id, d: hit.d, at: pinAt(a)} : null;
+  };
+  // a press on a marker near a point of the area being edited (or near a pin) moves it: the marker only takes it otherwise
   const grabbable = (e: React.PointerEvent) =>
     editing &&
-    !!(pickPending(e.clientX, e.clientY, e.pointerType !== 'mouse') || (selectedArea && pickHandle(e.clientX, e.clientY, e.pointerType !== 'mouse')));
+    !!(
+      pickPending(e.clientX, e.clientY, e.pointerType !== 'mouse') ||
+      (selectedArea && pickHandle(e.clientX, e.clientY, e.pointerType !== 'mouse')) ||
+      pickPin(e.clientX, e.clientY)
+    );
 
 
   // zoom by factor (<1 = in) keeping the svg point (px, py) where it is on screen
@@ -1484,6 +1520,7 @@ function MapView({
       size: settings.lookSizes?.[selectedAreaId] ?? Math.max(pl.w, pl.h) / pickedThing.m,
       dist: p ? Math.max(1e-6, Math.hypot(p[0] - pl.cx, p[1] - pl.cy)) : 1,
       reaches: handles.reaches,
+      was: looksOf(settingsStore.snapshot(), [selectedAreaId]),
     };
     drag.current = {
       pointerId: e.pointerId,
@@ -1495,6 +1532,7 @@ function MapView({
       touch: e.pointerType !== 'mouse',
       insert: null,
       orig: null,
+      off: null,
     };
     gesture.current.moved = true; // eat the click that follows
     setDragging({areaId: THING, index: kind === 'turn' ? 0 : 1, bounds: {minX, maxX, minY, maxY}});
@@ -1502,6 +1540,7 @@ function MapView({
 
   const startDrag = (e: Press, areaId: string, hit: Handle) => {
     const at = {x: hit.x, y: hit.y};
+    const from = map.areas.some((a) => a.id === areaId && isPin(a)) ? clientToLocal(e.clientX, e.clientY) : null;
     drag.current = {
       pointerId: e.pointerId,
       startX: e.clientX,
@@ -1512,6 +1551,7 @@ function MapView({
       touch: e.pointerType !== 'mouse',
       insert: hit.mid ? at : null,
       orig: hit.mid ? null : at,
+      off: from ? {x: hit.x - from[0], y: hit.y - from[1]} : null,
     };
     gesture.current.moved = true; // eat the click that follows
     if (e.pointerType === 'touch') tick();
@@ -1522,8 +1562,13 @@ function MapView({
   const cancelDrag = (e: React.PointerEvent<Element>) => {
     if (!dragging) return;
     const d = drag.current;
-    if (dragging.areaId === THING) thingDrag.current = null;
-    else if (d.moved) {
+    if (dragging.areaId === THING) {
+      // what the handle changed goes back
+      const was = thingDrag.current?.was;
+      const cur = settingsStore.snapshot();
+      if (d.moved && was && withLooks(cur, was) !== cur) saveSettings(withLooks(cur, was));
+      thingDrag.current = null;
+    } else if (d.moved) {
       if (dragging.areaId !== PENDING) onDragCancel?.();
       else if (d.orig) onMovePending?.(dragging.index, d.orig.x, d.orig.y);
     }
@@ -1562,19 +1607,29 @@ function MapView({
     // a second finger while one rests on a point: a pinch
     if (hold.current && e.pointerId !== hold.current.press.pointerId) dropHold();
 
-    const thingHit = editing && handles && pointers.current.size === 0 ? pickThingHandle(e.clientX, e.clientY, touch) : null;
+    // (a picture to set picked: a tap by the picked pin sets it, its handles take nothing)
+    const thingHit = editing && handles && !decor?.armed && pointers.current.size === 0 ? pickThingHandle(e.clientX, e.clientY, touch) : null;
     const pendingHit = editing && pointers.current.size === 0 ? pickPending(e.clientX, e.clientY, touch) : null;
     const hit = editing && !pendingHit && selectedArea && pointers.current.size === 0 ? pickHandle(e.clientX, e.clientY, touch) : null;
-    // the picture's handle only when it's closer than the point or edge's middle in reach: its size handle sits right by a
-    // corner
+    const pinHit = editing && !pendingHit && !hit && pointers.current.size === 0 ? pickPin(e.clientX, e.clientY) : null;
+    // the picture's handle only when it's closer than the point or edge's middle in reach (its size handle sits right by a
+    // corner) or than a pin's middle
     const at = thingHit && hit ? clientToSvg(e.clientX, e.clientY) : null;
     const [hx, hy] = hit ? toScreen(hit.x, hit.y) : [0, 0];
-    if (thingHit && !(at && Math.hypot(hx - at[0], hy - at[1]) <= thingHit.d)) {
+    if (thingHit && !(at && Math.hypot(hx - at[0], hy - at[1]) <= thingHit.d) && !(pinHit && pinHit.d < thingHit.d)) {
       startThingDrag(e, thingHit.kind);
       return;
     }
-    const grab = pendingHit ? {areaId: PENDING, hit: pendingHit} : hit && selectedArea ? {areaId: selectedArea.id, hit} : null;
+    // a pin goes along by its middle, picked as it's picked up
+    const grab = pendingHit
+      ? {areaId: PENDING, hit: pendingHit}
+      : hit && selectedArea
+        ? {areaId: selectedArea.id, hit}
+        : pinHit
+          ? {areaId: pinHit.id, hit: {mid: false, index: 0, ...pinHit.at}, pin: true}
+          : null;
     if (grab && (e.pointerType !== 'touch' || !zoomable)) {
+      if (grab.pin) onSelectArea?.(grab.areaId);
       startDrag(e, grab.areaId, grab.hit);
       return;
     }
@@ -1589,6 +1644,7 @@ function MapView({
           if (!h) return;
           // the finger stays on the point: from now on it moves the point, not the map
           pointers.current.delete(h.press.pointerId);
+          if (h.pin) onSelectArea?.(h.areaId);
           startDrag(h.press, h.areaId, h.hit);
         }, HOLD_MS),
       };
@@ -1790,7 +1846,12 @@ function MapView({
     const h = hold.current;
     if (h && h.press.pointerId === e.pointerId) {
       dropHold();
-      if (e.type === 'pointerup' && !gesture.current.moved) tapHandle(h.areaId, h.hit);
+      if (e.type !== 'pointerup' || gesture.current.moved) return;
+      // a tap on a pin picks it, not a click on the map as well
+      if (h.pin) {
+        gesture.current.moved = true;
+        onSelectArea?.(h.areaId);
+      } else tapHandle(h.areaId, h.hit);
     }
   };
   // a mouse let go outside the frame: its up goes to what's under it there, the pan ends all the same
@@ -1857,7 +1918,7 @@ function MapView({
       const local = clientToLocal(e.clientX, e.clientY);
       const s = local && !e.altKey ? snapAt(local[0], local[1], dragging.areaId === PENDING ? (selectedAreaId ?? null) : dragging.areaId, d.touch) : null;
       setSnapMark(s);
-      const [x, y] = s ? [s.x, s.y] : (local ?? [0, 0]);
+      const [x, y] = s ? [s.x, s.y] : local ? [local[0] + (d.off?.x ?? 0), local[1] + (d.off?.y ?? 0)] : [0, 0];
       if (local && dragging.areaId === PENDING) onMovePending?.(dragging.index, x, y);
       else if (local) onMoveVertex?.(dragging.areaId, dragging.index, x, y);
       const rect = (frameRef.current ?? svgRef.current)?.getBoundingClientRect();
@@ -1878,7 +1939,7 @@ function MapView({
         // a tap on an edge midpoint adds the point there
         addPoint(d.insert.x, d.insert.y);
         setActive(null);
-      } else if (!d.moved && dragging.areaId !== PENDING) {
+      } else if (!d.moved && dragging.areaId !== PENDING && !d.off) {
         const same = active?.areaId === dragging.areaId && active.index === dragging.index;
         setActive(same ? null : {areaId: dragging.areaId, index: dragging.index});
       } else {
@@ -2041,6 +2102,8 @@ function MapView({
       )}
         {edges?.grassOutside && <path className={styles.realGrass} d={edges.grassOutside} />}
         {areasBySize.filter((area) => !hidden.has(area.properties.type as Layer)).map((area) => {
+          // a pin is only its picture, its square isn't drawn
+          if (isPin(area)) return <Fragment key={area.id}>{!scene && thingOf(area)}</Fragment>;
           return (
             <Fragment key={area.id}>
               <polygon
@@ -2052,10 +2115,11 @@ function MapView({
                 ]
                   .filter(Boolean)
                   .join(' ')}
-                style={gardenFill(area)}
+                // (decorating the taps go by themselves, see onClick)
+                style={decor ? {...gardenFill(area), pointerEvents: 'none'} : gardenFill(area)}
                 data-area
                 onClick={(e) => {
-                  if (!pickingPoints && editing) selectAt(area.id, e.clientX, e.clientY);
+                  if (!pickingPoints && editing && !decor) selectAt(area.id, e.clientX, e.clientY);
                 }}
               />
               {!scene && thingOf(area)}
@@ -2155,6 +2219,22 @@ function MapView({
             </g>
           </>
         )}
+
+        {/* decorating: a ring round each pin's middle, the picked one has its frame */}
+        {decor &&
+          map.areas.map((a) => {
+            if (!isPin(a) || a.id === selectedAreaId || !a.outline.length) return null;
+            const pl = gardenLook?.things.get(a.id)?.places[0];
+            const [cx, cy] = pl ? [pl.cx, pl.cy] : toScreen(pinAt(a).x, pinAt(a).y);
+            // round the picture when it's small, else a small one in its middle (and under a crown or a parasol)
+            const r = Math.min(Math.max(pl && !pl.over ? Math.max(pl.w, pl.h) / 2 + 2 * k : 0, 7 * k), 14 * k);
+            return (
+              <g key={'pin' + a.id} className={styles.pinRing}>
+                <circle cx={cx} cy={cy} r={r} />
+                <circle cx={cx} cy={cy} r={r} />
+              </g>
+            );
+          })}
 
         {selectedArea && (
           <>
@@ -2320,6 +2400,24 @@ function MapView({
           : undefined;
         setCoverCell(c && c !== coverCell ? c : null);
       }
+      // decorating: a tap sets the picture picked, else picks the pin it hits or lets the picked one go. a tap on an area's
+      // picture says where that one is changed
+      if (decor) {
+        const local = editing ? clientToLocal(e.clientX, e.clientY) : null;
+        if (!local) return;
+        if (decor.armed) return onCanvasClick?.(local[0], local[1]);
+        const pin = pickPin(e.clientX, e.clientY);
+        if (pin) return onSelectArea?.(pin.id);
+        onClickEmpty?.();
+        const owner = areasBySize
+          .filter((a) => !isPin(a) && !hidden.has(a.properties.type as Layer) && gardenLook?.things.has(a.id) && containsPoint(a.outline, local[0], local[1]))
+          .at(-1);
+        if (!owner) return;
+        const name = owner.properties.name;
+        const text = name ? tr('Belongs to the area "{name}", tap it after Finish.', {name}) : tr('Belongs to an area, tap it after Finish.');
+        setAreaHint((h) => ({text, n: (h?.n ?? 0) + 1}));
+        return;
+      }
       if (!pickingPoints && !(e.target as Element).closest('[data-area]')) onClickEmpty?.();
       if (!pickingPoints || !onCanvasClick || !editing) return;
       const local = clientToLocal(e.clientX, e.clientY);
@@ -2454,8 +2552,9 @@ function MapView({
 
   // magnified copy of the map above the finger, the finger hides the point otherwise
   let loupe = null;
+  const draggedPin = dragging ? map.areas.find((a) => a.id === dragging.areaId && isPin(a)) : undefined;
   const dragged =
-    dragging && (dragging.areaId === PENDING ? pendingPoints?.[dragging.index] : selectedArea?.outline[dragging.index]);
+    dragging && (dragging.areaId === PENDING ? pendingPoints?.[dragging.index] : draggedPin ? pinAt(draggedPin) : selectedArea?.outline[dragging.index]);
   if (finger && dragged) {
     const [cx, cy] = toScreen(dragged.x, dragged.y);
     const size = (LOUPE_PX * (shown?.size ?? WIDTH)) / finger.width / LOUPE_ZOOM;
@@ -2542,8 +2641,9 @@ function MapView({
           planParts={!!pieces?.length}
           planner={!!plannerSettings}
           coverage={
-            // on the maps to look around in, with MowBite's container (it keeps the gps log). wifi off once the log has none
-            zoomable && updates.level !== null
+            // on the maps to look around in, with MowBite's container (it keeps the gps log). wifi off once the log has none.
+            // not while decorating, undo, redo and finish are there
+            zoomable && updates.level !== null && !decor
               ? {
                   wifi: !coverage || coverage.some((c) => c.wifi !== null),
                   value: coverMode,
@@ -2631,6 +2731,11 @@ function MapView({
           );
         })()}
       {holdHint && deletedAt === null && <div className={styles.hintToast}>{tr('Hold to move')}</div>}
+      {areaHint && !holdHint && (
+        <div key={areaHint.n} className={[styles.hintToast, styles.hintLong].join(' ')}>
+          {areaHint.text}
+        </div>
+      )}
       {imageryHint && imageryRejected && <div className={styles.hintToast}>{tr('Esri key rejected or expired')}</div>}
       {deletedAt !== null && onUndo && (
         <div className={styles.undoToast}>

@@ -23,4 +23,16 @@ describe('rings', () => {
     expect(o[0]).toEqual(o[o.length - 1]);
     expect(openRings(saved)).toEqual(map);
   });
+
+  it("keeps a pin's square, 5 points closed and 4 again when opened", () => {
+    const square = [
+      {x: 2.95, y: 1.45},
+      {x: 3.05, y: 1.45},
+      {x: 3.05, y: 1.55},
+      {x: 2.95, y: 1.55},
+    ];
+    const map = {areas: [{id: 'p', properties: {type: 'decor', pin: true}, outline: square}], docking_stations: []} as MowerMap;
+    expect(closedRings(map).areas[0].outline).toHaveLength(5);
+    expect(openRings(closedRings(map)).areas[0].outline).toEqual(square);
+  });
 });

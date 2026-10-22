@@ -56,10 +56,10 @@ export function useMapEdits(liveMap: MowerMap | null) {
     if (keep !== 'originals') setOriginals({});
   };
   // what got changed here put together with the change on the mower, see lib/mergeMap. areas both changed keep the
-  // version from here, the note names them
+  // version from here, the note names them. the map put together, null when there's nothing to
   const [mergeNote, setMergeNote] = useState<string | null>(null);
   const mergeExternal = () => {
-    if (!edited || !base || !liveMap) return;
+    if (!edited || !base || !liveMap) return null;
     const {map: merged, conflicts} = mergeMaps(base, edited, liveMap);
     remember();
     setEdited(merged);
@@ -70,6 +70,7 @@ export function useMapEdits(liveMap: MowerMap | null) {
         ? tr('Docking station')
         : merged.areas.find((a) => a.id === id)?.properties.name || tr('unnamed');
     setMergeNote(conflicts.length ? tr('Changed on both sides: {names}. Your version is kept there.', {names: conflicts.map(name).join(', ')}) : null);
+    return merged;
   };
   useEffect(() => setUnsavedMap(dirty), [dirty]);
   // nothing of ours in the copy: follow the mower's map again
@@ -110,6 +111,7 @@ export function useMapEdits(liveMap: MowerMap | null) {
   return {
     map,
     edited,
+    base,
     setMap,
     history,
     future,

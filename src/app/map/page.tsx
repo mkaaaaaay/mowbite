@@ -22,13 +22,14 @@ import {cutOut, generateId, splitByPath} from '@/lib/splitPolygon';
 import {layAgainst, movingOf} from '@/lib/snapAreas';
 import {subtractOutline} from '@/lib/subtractAreas';
 import {useSearchParams} from 'next/navigation';
-import {Suspense, useEffect, useMemo, useState, type ComponentProps} from 'react';
+import {Suspense, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ComponentProps} from 'react';
 import styles from './page.module.css';
 import {fmt, tr, useLang} from '@/lib/i18n';
 import MapBackups, {backupLabel} from '@/components/MapBackups';
 import {deleteBackup, listBackups, loadBackup, saveBackup, type BackupInfo} from '@/lib/backups';
 import AreaCard from './AreaCard';
-import {type UpdateArea, NEW_AREA_SETTINGS} from './editing';
+import DecorPanel, {showUnderMap} from './DecorPanel';
+import {decorRedo, decorUndo, goneLooks, onlyPinsChanged, pinSquare, pinsFrom, type UpdateArea, NEW_AREA_SETTINGS} from './editing';
 import EditorToolbar from './EditorToolbar';
 import MowSettings, {AngleOnMap, AreaDirection, AreaPlanInfo, OpenMowerArea} from './MowSettings';
 import OrderBox from './OrderBox';
@@ -47,16 +48,33 @@ import {narrowPassages} from '@/lib/narrowPassages';
 import Problems, {problemText} from './Problems';
 import {BodyCheck, PlanChecks} from './BodyCheck';
 import {Fold} from './Fold';
-import {bodyFrom, slic3rPlans, standing, useMowerBody, usePlannerSettings, type BodySpot} from '@/lib/mowerBody';
+import {bodyFrom, isPin, slic3rPlans, standing, useMowerBody, usePlannerSettings, type BodySpot} from '@/lib/mowerBody';
 import {OpenMowerMowing, useCanSetParams} from '@/components/MowerParamSettings';
 import {PlannerSettings} from '@/components/PlannerSettings';
 import {PlannerSimple} from '@/components/PlannerSimple';
 import settingsStyles from '../settings/page.module.css';
+import {areaLook, pinSize, type Look} from '@/components/gardenLook';
+import {PICTURES} from '@/components/gardenPictures';
+import {useKeptState} from '@/hooks/useKeptState';
+import {tick} from '@/lib/haptics';
+import {dropLooks, looksOf, restoreLooks, saveSettings, settingsStore, withLooks, type KeptLooks} from '@/lib/settings';
 
 // useSearchParams needs a suspense boundary in a static export
 // '0' when the map was unpinned on this device
 const PINNED_KEY = 'mapPinned';
 const SNAP_KEY = 'mapSnap';
+
+// decorating (mode 'decor'), kept while the app runs like the edits: on while it's open (off again after "after mowing",
+// what it kept stays for the next round), the picture the next tap sets (copy: the picked pin's color, size and direction
+// go along), what was kept for the pins' pictures before (cancel puts it back, {} for a pin set since) and the map it
+// started from (undo goes back no further)
+interface Decor {
+  on: boolean;
+  look: Look | null;
+  copy: KeptLooks[string] | null;
+  kept: KeptLooks;
+  start: MowerMap | null;
+}
 
 export default function MapPage() {
   return (
@@ -99,7 +117,7 @@ function MapEditor() {
   const towelNow = towel || (!!progress && !progress.leftovers && Math.round(progress.fraction * 100) === 42);
   // the same object while nothing changes, the map is drawn again only when it does
   const costume = useMemo(() => ({towel: towelNow, umbrella}), [towelNow, umbrella]);
-  const {map, edited, setMap, history, future, remember, undoStep, redoStep, originalOf, keepOriginal, dirty, external, dropEdits, mergeNote, mergeExternal} =
+  const {map, edited, base, setMap, history, future, remember, undoStep, redoStep, originalOf, keepOriginal, dirty, external, dropEdits, mergeNote, mergeExternal} =
     useMapEdits(liveMap);
   const [showStripes, setShowStripes] = useState(true);
   // on a phone the map stays at the top while the settings under it scroll, unless it was unpinned on this device
@@ -158,7 +176,10 @@ function MapEditor() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveWarning, setSaveWarning] = useState(false);
-  const [mode, setMode] = useState<'idle' | 'split' | 'draw' | 'merge' | 'subtract' | 'snap'>('idle');
+  const [editMode, setMode] = useState<'idle' | 'split' | 'draw' | 'merge' | 'subtract' | 'snap'>('idle');
+  const [decor, setDecor] = useKeptState<Decor | null>('map:decor', null);
+  const mode = decor?.on ? 'decor' : editMode;
+  const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
   // how far off an area's corners may be to be laid against another one
   const [snapCm, setSnapCm] = useState(50);
   // the other area clicked to merge with or to take out
@@ -276,6 +297,11 @@ function MapEditor() {
   };
 
   const selectArea = (id: string) => {
+    // decorating only a pin is picked
+    if (mode === 'decor') {
+      if (map?.areas.some((a) => a.id === id && isPin(a))) setSelectedAreaId(id);
+      return;
+    }
     if (mode === 'merge' || mode === 'subtract' || mode === 'snap') {
       if (id !== selectedAreaId) setOtherId(id);
       return;
@@ -285,20 +311,24 @@ function MapEditor() {
   };
 
   const deselect = () => {
-    if (mode !== 'idle') return;
+    if (mode !== 'idle' && mode !== 'decor') return;
     setSelectedAreaId(null);
     setSimplifyCm(null);
   };
 
+  // decorating stays on: undo goes back no further than where it started, redo only brings pins back
+  const canUndo = mode === 'decor' ? !!map && decorUndo(map, decor?.start ?? null, history) : history.length > 0;
+  const canRedo = mode === 'decor' ? !!map && decorRedo(map, future) : future.length > 0;
+
   const undo = () => {
-    if (!undoStep()) return;
+    if (!canUndo || !undoStep()) return;
     setSimplifyCm(null);
     setMode('idle');
     setPendingPoints([]);
   };
 
   const redo = () => {
-    if (!redoStep()) return;
+    if (!canRedo || !redoStep()) return;
     setSimplifyCm(null);
     setMode('idle');
     setPendingPoints([]);
@@ -323,7 +353,9 @@ function MapEditor() {
         undo();
       }
       if (e.key === 'Escape' && !(e.target instanceof HTMLInputElement)) {
-        if (mode !== 'idle') cancelPicking();
+        // decorating: the picture to set let go, else the pin picked
+        if (mode === 'decor' && decor?.look) setDecor({...decor, look: null, copy: null});
+        else if (mode !== 'idle' && mode !== 'decor') cancelPicking();
         else deselect();
       }
     };
@@ -381,13 +413,18 @@ function MapEditor() {
   };
 
 
+  // a pin moves as a whole, by its middle
   const moveVertex = (areaId: string, vertexIndex: number, x: number, y: number) => {
     setMap((prev) =>
       prev
         ? {
             ...prev,
             areas: prev.areas.map((a) =>
-              a.id === areaId ? {...a, outline: a.outline.map((p, i) => (i === vertexIndex ? {x, y} : p))} : a,
+              a.id !== areaId
+                ? a
+                : isPin(a)
+                  ? {...a, outline: pinSquare(x, y)}
+                  : {...a, outline: a.outline.map((p, i) => (i === vertexIndex ? {x, y} : p))},
             ),
           }
         : prev,
@@ -505,6 +542,11 @@ function MapEditor() {
   };
 
   const handleCanvasClick = (x: number, y: number) => {
+    if (mode === 'decor') {
+      placePin(x, y);
+      return;
+    }
+
     if (mode === 'draw') {
       setPendingPoints((prev) => [...prev, {x, y}]);
       return;
@@ -609,30 +651,180 @@ function MapEditor() {
       })
     : null;
 
-  const handleSave = async () => {
-    if (!map) return;
+  // anyway: asked already (decorating asks on its own), saved while the mower is busy too. next: the map to save, the one
+  // edited unless it was just put together with the mower's. true once it's on the mower
+  const handleSave = async (anyway = false, next = map) => {
+    if (!next) return false;
     // saving while the mower is on a job can make it lose track of the area it's on, ask first
-    if (!idle && !saveWarning) {
+    if (!idle && !saveWarning && !anyway) {
       setSaveWarning(true);
-      return;
+      return false;
     }
     setSaveWarning(false);
     setSaving(true);
     setSaveError(null);
+    // the pins the edits took away (and the ones set while decorating and gone again): what's kept for their pictures
+    // goes once it's saved. not a pin set somewhere else meanwhile, a backup can still bring that one back
+    const pins = [...((base ?? liveMap)?.areas.filter(isPin).map((a) => a.id) ?? []), ...Object.keys(decor?.kept ?? {})];
+    const gone = [...new Set(pins)].filter((id) => !next.areas.some((a) => a.id === id));
     try {
       // the version on the mower goes into the backups first, so every save can be undone
       if (backups && liveMap) await saveBackup(liveMap, 'before saving', true).catch(() => {});
-      await saveMap(map);
-      setNewSaved({areas: map.areas.filter((a) => NEW_AREA_SETTINGS.some((k) => a.properties[k] !== undefined)), before: liveMap});
+      await saveMap(next);
+      setNewSaved({areas: next.areas.filter((a) => NEW_AREA_SETTINGS.some((k) => a.properties[k] !== undefined)), before: liveMap});
       // back to the live map, it comes back from the mower with what was just saved
       dropEdits('originals');
+      dropLooks(gone);
+      // a round of decorating left for after mowing is saved with it
+      if (decor && !decor.on) setDecor(null);
       void refreshBackups();
+      return true;
     } catch (e) {
       setSaveError(rpcErrorText(e));
+      return false;
     } finally {
       setSaving(false);
     }
   };
+
+  // decorating: what has to come first, the garden style (pictures are drawn only there) or the changes to areas saved
+  // (finish saves pins only). saved from there it starts once the map is the mower's again (next)
+  const [decorAsk, setDecorAsk] = useState<'style' | 'save' | null>(null);
+  const [decorNext, setDecorNext] = useState(false);
+  // finish tapped while the mower is out, asked first
+  const [decorBusy, setDecorBusy] = useState(false);
+  // saved or left for after mowing, said for a moment on the map
+  const [decorNote, setDecorNote] = useState<string | null>(null);
+  // a question before decorating, brought into view under the map
+  const askRef = useRef<HTMLDivElement>(null);
+  useEffect(() => showUnderMap(askRef.current), [decorAsk]);
+  // a pin just taken away, for 5 s with the way back (map: the map then, after any other change the way back is gone)
+  const [removed, setRemoved] = useState<{what: string; map: MowerMap} | null>(null);
+  const garden = settings.mapStyle === 'garden';
+  // (against the map the edits started from: a change on the mower meanwhile isn't one of ours)
+  const areasChanged = !!map && !!liveMap && !onlyPinsChanged(base ?? liveMap, map);
+  const pickedPin = mode === 'decor' && selectedArea && isPin(selectedArea) ? selectedArea : null;
+
+  const startDecor = () => {
+    if (!map) return;
+    // the pictures as they are now, a round left for after mowing and not saved since keeps what it kept then
+    const now = looksOf(settingsStore.snapshot(), map.areas.filter(isPin).map((a) => a.id));
+    setDecor({on: true, look: null, copy: null, kept: decor ? {...now, ...decor.kept} : now, start: map});
+    setDecorAsk(null);
+    setDecorBusy(false);
+    setSelectedAreaId(null);
+    setSimplifyCm(null);
+    setConfirmDelete(null);
+    cancelPicking();
+  };
+  const enterDecor = () => {
+    if (!garden) setDecorAsk('style');
+    else if (areasChanged) setDecorAsk('save');
+    else startDecor();
+  };
+  const decorInGarden = () => {
+    saveSettings({...settingsStore.snapshot(), mapStyle: 'garden'});
+    if (areasChanged) setDecorAsk('save');
+    else startDecor();
+  };
+  if (decorNext && !dirty) {
+    setDecorNext(false);
+    startDecor();
+  }
+
+  // the picture picked set where the map was tapped, a pin of its own, picked right away. once: the next one is picked
+  // again
+  const placePin = (x: number, y: number) => {
+    if (!map || !decor?.look) return;
+    const look = decor.look;
+    const id = generateId();
+    remember();
+    setMap({...map, areas: [...map.areas, {id, properties: {type: 'decor', pin: true, name: tr(PICTURES[look].label)}, outline: pinSquare(x, y)}]});
+    // its size written down too: a MowBite that doesn't know pins yet still draws it that big
+    const copy = decor.copy ?? {};
+    saveSettings(withLooks(settingsStore.snapshot(), {[id]: {...copy, looks: look, lookSizes: copy.lookSizes ?? pinSize(look)}}));
+    setDecor({...decor, look: null, copy: null, kept: {...decor.kept, [id]: {}}});
+    setSelectedAreaId(id);
+    tick();
+  };
+  const armPin = (look: Look | null) => {
+    if (decor) setDecor({...decor, look, copy: null});
+  };
+  // another one like the pin picked with the next tap, its color, size and direction along. again: none after all
+  const copyPin = () => {
+    if (!decor || !pickedPin) return;
+    if (decor.copy) setDecor({...decor, look: null, copy: null});
+    else setDecor({...decor, look: areaLook(pickedPin, settings.looks), copy: looksOf(settings, [pickedPin.id])[pickedPin.id]});
+  };
+  const removePin = () => {
+    if (!map || !pickedPin) return;
+    const next = {...map, areas: map.areas.filter((a) => a.id !== pickedPin.id)};
+    remember();
+    setMap(next);
+    setSelectedAreaId(null);
+    setRemoved({what: tr(PICTURES[areaLook(pickedPin, settings.looks)].label), map: next});
+  };
+  useEffect(() => {
+    if (!removed) return;
+    const t = setTimeout(() => setRemoved(null), 5000);
+    return () => clearTimeout(t);
+  }, [removed]);
+  useEffect(() => {
+    if (!decorNote) return;
+    const t = setTimeout(() => setDecorNote(null), 4000);
+    return () => clearTimeout(t);
+  }, [decorNote]);
+  // another picture in the picked pin's place: its name goes along, it's drawn by that where its settings aren't known
+  const swapPin = (look: Look) => updateProperties({name: tr(PICTURES[look].label)}, false);
+
+  const closeDecor = () => {
+    setDecor(null);
+    setDecorBusy(false);
+    setSelectedAreaId(null);
+    setRemoved(null);
+  };
+  // finish: the map saved once, with the pins (asked first while the mower is out), put together first with a change on
+  // the mower meanwhile (only pins were changed here). nothing changed on the map: only closed, the pictures' settings
+  // count at once anyway, those of pins set and gone again go
+  const finishDecor = async (anyway = false) => {
+    if (!dirty) {
+      if (decor) restoreLooks(goneLooks(decor.kept, map));
+      return closeDecor();
+    }
+    if (!idle && !anyway) return setDecorBusy(true);
+    setDecorBusy(false);
+    if (!(await handleSave(true, external ? mergeExternal() : map))) return;
+    closeDecor();
+    setDecorNote(tr('Decoration saved on the mower'));
+  };
+  // after mowing: closed, what it changed stays here unsaved, decorating again goes on with it
+  const decorLater = () => {
+    if (decor) setDecor({...decor, on: false, look: null, copy: null});
+    setDecorBusy(false);
+    setSelectedAreaId(null);
+    setRemoved(null);
+    setDecorNote(tr('Kept in the app. Later: Decorate, then Finish.'));
+  };
+  // a round left for after mowing whose changes are gone meanwhile (dropped, a backup restored): over, the pictures of its
+  // pins no longer on the map as they were
+  useEffect(() => {
+    if (!decor || decor.on || edited) return;
+    restoreLooks(goneLooks(decor.kept, liveMap));
+    setDecor(null);
+  }, [decor, edited, liveMap, setDecor]);
+  // called off: the pins as they are on the mower, their pictures as they were. the outlines from before reducing points
+  // stay (pins don't change them), with nothing changed on the map the steps to undo and redo too
+  const cancelDecor = () => {
+    if (!decor) return;
+    if (map && liveMap && base && !onlyPinsChanged(base, map)) {
+      remember();
+      setMap(pinsFrom(map, liveMap));
+    } else if (dirty) dropEdits('originals');
+    restoreLooks(decor.kept);
+    closeDecor();
+  };
+  // something cancel throws away: a change to the map or to the pins' pictures
+  const decorChanged = dirty || (!!decor && withLooks(settings, decor.kept) !== settings);
 
   // the selected mowing area's angle and plan (MowSettings), with the planner in its menu
   const mowProps =
@@ -691,8 +883,41 @@ function MapEditor() {
           </h1>
         </TitleRow>
 
-        <div className={[styles.editor, pinned ? styles.pinned : ''].filter(Boolean).join(' ')}>
+        {/* decorating the map stays at the top */}
+        <div className={[styles.editor, pinned || mode === 'decor' ? styles.pinned : ''].filter(Boolean).join(' ')}>
           <div className={styles.mapCol}>
+            {/* phones: undo, redo and finish on the map while decorating, the panel under it has the pictures */}
+            {mode === 'decor' && !preview && (
+              <div className={styles.mapSave}>
+                <button className={styles.pillButton} onClick={undo} disabled={!canUndo} aria-label={tr('Undo')}>
+                  ↶
+                </button>
+                <button className={styles.pillButton} onClick={redo} disabled={!canRedo} aria-label={tr('Redo')}>
+                  ↷
+                </button>
+                <button
+                  className={[styles.pillButton, styles.saveButton, dirty ? styles.unsaved : ''].join(' ')}
+                  onClick={() => void finishDecor()}
+                  disabled={saving}
+                >
+                  {saving ? tr('saving…') : tr('Finish')}
+                </button>
+              </div>
+            )}
+            {removed && removed.map === map && mode === 'decor' && (
+              <p className={styles.mapToast}>
+                {tr('{what} removed', {what: removed.what})}
+                <button
+                  onClick={() => {
+                    undo();
+                    setRemoved(null);
+                  }}
+                >
+                  {tr('Undo')}
+                </button>
+              </p>
+            )}
+            {decorNote && <p className={[styles.mapToast, styles.mapToastLong].join(' ')}>{decorNote}</p>}
             {/* phones: undo and save on the map while an area is edited, the toolbar is further down then */}
             {selectedArea && mode === 'idle' && dirty && !preview && (
               <div className={styles.mapSave}>
@@ -746,8 +971,8 @@ function MapEditor() {
               <LiveMapView
                 zoomable
                 viewKey="editor"
-                pin={{on: pinned, onToggle: togglePinned}}
-                snap={{on: snapOn, onToggle: toggleSnap}}
+                pin={mode === 'decor' ? undefined : {on: pinned, onToggle: togglePinned}}
+                snap={mode === 'decor' ? undefined : {on: snapOn, onToggle: toggleSnap}}
                 map={shownMap}
                 emergency={emergency}
                 track={trackShown}
@@ -758,16 +983,17 @@ function MapEditor() {
                 }))}
                 selectedAreaId={selectedAreaId}
                 onSelectArea={selectArea}
-                onMoveVertex={simplifyCm === null && mode === 'idle' ? moveVertex : undefined}
+                onMoveVertex={simplifyCm === null && (mode === 'idle' || mode === 'decor') ? moveVertex : undefined}
                 onDragStart={remember}
                 onDragging={setDraggingPoint}
                 // the start of a pinch, nothing to redo
                 onDragCancel={() => undoStep(false)}
                 onUndo={undo}
-                onInsertVertex={simplifyCm === null ? insertVertex : undefined}
-                onDeleteVertex={simplifyCm === null ? deleteVertex : undefined}
+                onInsertVertex={simplifyCm === null && mode !== 'decor' ? insertVertex : undefined}
+                onDeleteVertex={simplifyCm === null && mode !== 'decor' ? deleteVertex : undefined}
                 pickingPoints={mode === 'split' || mode === 'draw'}
                 onClickEmpty={deselect}
+                decor={mode === 'decor' ? {armed: !!decor?.look} : undefined}
                 datum={datumFromParams(params)}
                 orderLabels={
                   mowAreas.length > 1 && !selectedArea
@@ -815,7 +1041,7 @@ function MapEditor() {
           <div className={styles.panel}>
             {preview ? (
               <RestorePanel
-                areas={preview.map.areas.length}
+                areas={preview.map.areas.filter((a) => !isPin(a)).length}
                 backedUp={!!backups}
                 idle={idle}
                 restoring={restoring}
@@ -827,7 +1053,7 @@ function MapEditor() {
               />
             ) : (
               <>
-              {map && (
+              {map && mode !== 'decor' && (
                 <EditorToolbar
                   idle={mode === 'idle'}
                   canUndo={history.length > 0}
@@ -839,16 +1065,74 @@ function MapEditor() {
                   }
                   saveError={saveError ?? droppedNote}
                   onDraw={startDraw}
+                  onDecorate={enterDecor}
                   onUndo={undo}
                   onRedo={redo}
                   onSave={() => void handleSave()}
                 />
               )}
 
+              {decorAsk === 'style' && !garden && mode === 'idle' && (
+                <div ref={askRef} className={styles.warning}>
+                  <p>{tr('Pictures are only drawn in the garden style.')}</p>
+                  <div className={styles.inlineRow}>
+                    <button className={styles.pillButton} onClick={decorInGarden}>
+                      {tr('Switch on the garden style')}
+                    </button>
+                    <button className={styles.pillButton} onClick={() => setDecorAsk(null)}>
+                      {tr('Cancel')}
+                    </button>
+                  </div>
+                </div>
+              )}
+              {decorAsk === 'save' && areasChanged && mode === 'idle' && (
+                <div ref={askRef} className={styles.warning}>
+                  {/* the mower out: asked here, not in the warning further down */}
+                  <p>
+                    {tr('Save your map changes first.')}
+                    {!idle && ` ${tr('The mower is busy. Saving now can interrupt it.')}`}
+                  </p>
+                  <div className={styles.inlineRow}>
+                    <button className={styles.pillButton} onClick={() => void handleSave(true).then((ok) => setDecorNext(ok))} disabled={saving}>
+                      {saving ? tr('saving…') : idle ? tr('Save map') : tr('Save anyway')}
+                    </button>
+                    <button className={styles.pillButton} onClick={() => setDecorAsk(null)}>
+                      {tr('Cancel')}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {mode === 'decor' && map && decor && (
+                <DecorPanel
+                  areas={map.areas}
+                  pin={pickedPin}
+                  armed={decor.look ? {look: decor.look, copy: !!decor.copy} : null}
+                  canUndo={canUndo}
+                  canRedo={canRedo}
+                  unsaved={dirty}
+                  saving={saving}
+                  busy={decorBusy && !idle}
+                  error={saveError}
+                  changed={decorChanged}
+                  onArm={armPin}
+                  onCopy={copyPin}
+                  onRemove={removePin}
+                  onUndo={undo}
+                  onRedo={redo}
+                  onFinish={() => void finishDecor()}
+                  onSaveAnyway={() => void finishDecor(true)}
+                  onLater={decorLater}
+                  onCancel={cancelDecor}
+                  onSwap={swapPin}
+                />
+              )}
+
 
               {mode === 'idle' && map && <Problems problems={problems} map={map} onSelect={selectArea} />}
 
-              {external && dirty && (
+              {/* (finishing decorating puts both together by itself) */}
+              {external && dirty && mode !== 'decor' && (
                 <div className={styles.warning}>
                   <p>
                     {tr(
@@ -883,6 +1167,8 @@ function MapEditor() {
                   {map.areas.length ? (
                     <p className={styles.dim}>
                       {tr('Click an area to edit it.')}{' '}
+                      {/* the pictures standing by themselves take no taps here */}
+                      {garden && map.areas.some(isPin) && `${tr('Set and change pictures: Decorate.')} `}
                       <Link href="/guide/editor" className={styles.guideLink}>
                         {tr('How it works, step by step')}
                       </Link>

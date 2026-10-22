@@ -911,3 +911,158 @@
   font-weight: 600;
   white-space: nowrap;
 }
+
+/* decorating: the panel under the map, a row of pictures that scrolls sideways and the pin picked */
+.decorPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.decorHint {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.decorTiles {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 2px 2px 6px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+
+.decorTile {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  /* as wide as its longest word, up to a point */
+  width: auto;
+  min-width: 68px;
+  max-width: 104px;
+  padding: 5px 3px;
+  border-radius: 12px;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 11px;
+  cursor: pointer;
+  box-shadow: var(--btn-3d);
+  backdrop-filter: var(--card-blur, none);
+}
+
+/* a long name on two lines, broken between its words, within a word only when it's longer than the widest tile */
+.decorTile > span:last-child {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  max-width: 100%;
+  min-height: 2.4em;
+  overflow: hidden;
+  font-size: 10px;
+  line-height: 1.2;
+  text-align: center;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+.decorTileOn {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent), var(--btn-3d);
+}
+
+/* all the pictures, over the page */
+.decorMore {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 7px;
+  border: 1px dashed var(--card-border);
+  color: var(--text-secondary);
+  font-size: 18px;
+}
+
+.pinHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pinName {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.pinTools {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pinTools button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* on the map: a picture just removed with the way back, or the decoration saved */
+.mapToast {
+  position: absolute;
+  left: 50%;
+  top: 56px;
+  z-index: 3;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 13px;
+  box-shadow: var(--card-shadow, none);
+  backdrop-filter: var(--card-blur, none);
+  white-space: nowrap;
+}
+
+/* one that says more, on more than a line, clear of the buttons down the right */
+.mapToastLong {
+  width: max-content;
+  max-width: calc(100% - 112px);
+  white-space: normal;
+  text-align: center;
+}
+
+.mapToast button {
+  margin-right: -6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--card-border);
+  background: transparent;
+  color: var(--accent);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+/* a phone has undo, redo and finish on the map */
+@media (max-width: 899px) {
+  .decorBar {
+    display: none;
+  }
+}

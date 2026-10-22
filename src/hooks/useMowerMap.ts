@@ -37,6 +37,9 @@ export interface MapArea {
     // m, how far the mower's body keeps off this obstacle, a mowing area not mowed or an inactive one (MowBite Planner),
     // in place of its obstacle_margin. Saved only by a mower_map that keeps properties it doesn't know
     margin?: number;
+    // decoration only: a picture standing by itself on the map (a pin), its outline a small square round where it
+    // stands (app/map/editing pinSquare). Saved only by a mower_map that keeps properties it doesn't know
+    pin?: boolean;
   };
   outline: Point[];
 }

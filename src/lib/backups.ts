@@ -1,5 +1,6 @@
 import type {MowerMap} from '@/hooks/useMowerMap';
 import {forget, fresh} from './fresh';
+import {isPin} from './mowerBody';
 import {apiBase, mowerFetch} from './mowers';
 import {closedRings, openRings} from './rings';
 
@@ -34,8 +35,9 @@ export async function loadBackup(id: string): Promise<MowerMap> {
   return openRings(await res.json());
 }
 
+// areas: how many it has, pins not counted
 export async function saveBackup(map: MowerMap, name: string, auto: boolean): Promise<void> {
-  const q = new URLSearchParams({name, areas: String(map.areas.length), auto: auto ? '1' : '0'});
+  const q = new URLSearchParams({name, areas: String(map.areas.filter((a) => !isPin(a)).length), auto: auto ? '1' : '0'});
   const res = await mowerFetch(`${endpoint()}?${q}`, {method: 'POST', body: JSON.stringify(closedRings(map))});
   forget('backups');
   if (!res.ok) throw new Error(`backup ${res.status}`);
