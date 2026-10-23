@@ -3,6 +3,7 @@
 import {numParam, useMowerParams} from '@/hooks/useMowerParams';
 import {tr} from '@/lib/i18n';
 import {autoOutlineModel, MAX_BLADE, modelOf, MOWER_MODELS, outlineOf, sizesBody, withModelOutline, type MowerSizes, type Outline} from '@/lib/mowerBody';
+import {copyText} from '@/lib/clipboard';
 import {PARAM} from '@/lib/openmower';
 import {saveSettings, settingsStore, type Settings} from '@/lib/settings';
 import {useState} from 'react';
@@ -64,7 +65,20 @@ export function MowerSizesSettings({settings, styles}: {settings: Settings; styl
   const params = useMowerParams();
   const toolWidth = numParam(params, PARAM.toolWidth);
   const antennaX = numParam(params, PARAM.antennaX);
-  const antenna = antennaX === undefined ? undefined : {x: antennaX, y: numParam(params, PARAM.antennaY) ?? 0};
+  const mowerAntenna = antennaX === undefined ? undefined : {x: antennaX, y: numParam(params, PARAM.antennaY) ?? 0};
+  // where the antenna really sits, typed here: OpenMower reads it from its yaml at the start only (no params.set), so
+  // the app hands over the lines to put there. the fields follow the mower's values until something is typed
+  const [antennaForm, setAntennaForm] = useState<{x: string; y: string} | null>(null);
+  const antennaText = antennaForm ?? {x: cm(mowerAntenna?.x), y: cm(mowerAntenna?.y)};
+  const typedX = metres(antennaText.x);
+  const typedY = metres(antennaText.y);
+  const antenna = typedX !== null ? {x: typedX, y: typedY ?? 0} : mowerAntenna;
+  const antennaChanged =
+    !!antennaForm && typedX !== null && (!mowerAntenna || Math.abs(typedX - mowerAntenna.x) > 0.0005 || Math.abs((typedY ?? 0) - mowerAntenna.y) > 0.0005);
+  const yamlLines = antennaChanged
+    ? `xbot_positioning:\n  antenna_offset_x: ${Math.round(typedX * 1000) / 1000}\n  antenna_offset_y: ${Math.round((typedY ?? 0) * 1000) / 1000}`
+    : '';
+  const [copied, setCopied] = useState(false);
 
   // the sketch follows the fields while typing
   const typed = sizesOf(form);
@@ -212,14 +226,6 @@ export function MowerSizesSettings({settings, styles}: {settings: Settings; styl
           {lanes && ` · ${lanes}`}
         </p>
       )}
-      {antenna && (
-        <p className={styles.dim}>
-          {tr(
-            "Important: the GPS antenna's position has to be exact. OpenMower works out the mower's position from it with antenna_offset_x {x} cm (ahead of the middle of the rear wheels, behind is minus) and antenna_offset_y {y} cm (to the left) in mower_params.yaml, the green dot. Measure it to the centimetre: if it is off, the mower's position, the outline and the cut strip are off by as much, and in turns the position swings.",
-            {x: Math.round(antenna.x * 1000) / 10, y: Math.round(antenna.y * 1000) / 10},
-          )}
-        </p>
-      )}
       <div className={local.actions}>
         <button className={styles.pillButton} onClick={() => save()}>
           {tr('Save')}
@@ -233,6 +239,48 @@ export function MowerSizesSettings({settings, styles}: {settings: Settings; styl
         {state.picked && <span className={styles.dim}>{tr('Filled in, save to keep them.')}</span>}
         {state.error && <span className={styles.error}>{state.error}</span>}
       </div>
+      {mowerAntenna && (
+        <>
+          <p className={styles.dim}>
+            {tr(
+              "Important: the GPS antenna's position has to be exact. OpenMower works out the mower's position from it with antenna_offset_x {x} cm (ahead of the middle of the rear wheels, behind is minus) and antenna_offset_y {y} cm (to the left) in mower_params.yaml, the green dot. Measure it to the centimetre: if it is off, the mower's position, the outline and the cut strip are off by as much, and in turns the position swings.",
+              {x: Math.round(mowerAntenna.x * 1000) / 10, y: Math.round(mowerAntenna.y * 1000) / 10},
+            )}
+          </p>
+          <div className={local.grid}>
+            <label className={styles.field}>
+              {tr('Antenna ahead of the rear axle')} (cm)
+              <input inputMode="decimal" value={antennaText.x} onChange={(e) => setAntennaForm({...antennaText, x: e.target.value})} />
+            </label>
+            <label className={styles.field}>
+              {tr('Antenna to the left of the middle')} (cm)
+              <input inputMode="decimal" value={antennaText.y} onChange={(e) => setAntennaForm({...antennaText, y: e.target.value})} />
+            </label>
+          </div>
+          {antennaChanged && (
+            <>
+              <p className={styles.dim}>
+                {tr(
+                  'OpenMower takes the antenna only from its mower_params.yaml, the app cannot set it. Put these lines there (replacing the ones it has) and restart OpenMower, e.g. with openmower restart:',
+                )}
+              </p>
+              <div className={local.command}>
+                <code>{yamlLines}</code>
+                <button
+                  className={styles.pillButton}
+                  onClick={() => {
+                    copyText(yamlLines);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 1500);
+                  }}
+                >
+                  {copied ? tr('copied') : tr('Copy')}
+                </button>
+              </div>
+            </>
+          )}
+        </>
+      )}
     </section>
   );
 }

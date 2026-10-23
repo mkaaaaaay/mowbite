@@ -14,3 +14,22 @@
 .model {
   max-width: 330px;
 }
+
+.command {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.command code {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--well);
+  font-size: 12px;
+  white-space: pre;
+  overflow-x: auto;
+  user-select: text;
+  -webkit-user-select: text;
+}

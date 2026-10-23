@@ -104,6 +104,8 @@ export const DEMO_PARAMS: Record<string, number | boolean> = {
   [PARAM.mowAngleIncrement]: 0,
   [PARAM.dockingApproachDistance]: 1.5,
   [PARAM.maxPositionAccuracy]: 0.2,
+  [PARAM.antennaX]: -0.1,
+  [PARAM.antennaY]: 0,
   '/mower_logic/gps_timeout': 10,
   '/mower_logic/gps_wait_time': 10,
   '/mower_logic/rain_mode': 2,
