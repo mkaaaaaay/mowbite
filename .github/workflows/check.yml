@@ -1,6 +1,6 @@
 name: check
 
-# lint, types and the tests on every push
+# lint, types, the tests and the click tests on every push
 
 on:
   push:
@@ -25,3 +25,24 @@ jobs:
       - run: npx next typegen
       - run: npx tsc --noEmit
       - run: npm test
+
+  # the click tests (e2e/) on a phone and a desktop, against the built app with the demo mower
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run e2e
+      # what went wrong: the report with the screenshots and traces of the failed tests
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-report
+          path: playwright-report/
+          retention-days: 7

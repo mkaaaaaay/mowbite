@@ -12,6 +12,9 @@
 
 # testing
 /coverage
+# the click tests (e2e/): screenshots and traces of the last run
+/test-results/
+/playwright-report/
 
 # next.js
 /.next/
