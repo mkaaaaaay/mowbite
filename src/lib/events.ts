@@ -338,6 +338,8 @@ export function groupRuns(events: MowerEvent[], live: boolean): Entry[] {
 
   for (const e of sorted) {
     const starts = e.type === 'STATE' && (e.state === 'UNDOCKING' || e.state === 'MOWING');
+    // leaving the dock always starts a new run, also when the last one never got back (put in the dock by hand)
+    if (run && e.type === 'STATE' && e.state === 'UNDOCKING') close(true);
     if (!run && starts) run = [];
     if (!run) {
       out.push({kind: 'event', event: e});
@@ -347,7 +349,7 @@ export function groupRuns(events: MowerEvent[], live: boolean): Entry[] {
     const ends =
       e.type === 'DOCKED' ||
       e.type === 'SHUTDOWN' ||
-      (e.type === 'STATE' && e.state === 'IDLE' && run.some((r) => r.type === 'UNDOCKING_FAILED'));
+      (e.type === 'STATE' && e.state === 'IDLE' && run.some((r) => r.type === 'UNDOCKING_FAILED' || r.type === 'DOCKING_FAILED'));
     if (ends) close(true);
   }
   close(false);
