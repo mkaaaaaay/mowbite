@@ -877,7 +877,7 @@ const de: Record<string, string> = {
   "Cut width {n} cm": "Schnittbreite {n} cm",
   "Saved.": "Gespeichert.",
   "Your mower": "Dein Mäher",
-  "The GPS antenna is already taken out by OpenMower: antenna_offset_x {x} cm and antenna_offset_y {y} cm in mower_params.yaml (the green dot). If that is off, the outline and the strip are off by as much.": "Die GPS-Antenne rechnet OpenMower schon heraus: antenna_offset_x {x} cm und antenna_offset_y {y} cm in der mower_params.yaml (der grüne Punkt). Stimmt das nicht, liegen Umriss und Streifen um genauso viel daneben.",
+  "Important: the GPS antenna's position has to be exact. OpenMower works out the mower's position from it with antenna_offset_x {x} cm (ahead of the middle of the rear wheels, behind is minus) and antenna_offset_y {y} cm (to the left) in mower_params.yaml, the green dot. Measure it to the centimetre: if it is off, the mower's position, the outline and the cut strip are off by as much, and in turns the position swings.": "Wichtig: Die Position der GPS-Antenne muss genau stimmen. OpenMower berechnet daraus die Position des Mähers, mit antenna_offset_x {x} cm (vor der Mitte der Hinterräder, dahinter minus) und antenna_offset_y {y} cm (nach links) in der mower_params.yaml, der grüne Punkt. Auf den Zentimeter genau messen: Stimmt sie nicht, liegen Position, Umriss und Mähstreifen um genauso viel daneben, und in Kurven schwankt die Position.",
   "Real edges": "Echte Kanten",
   "YardForce Classic 500": "YardForce Classic 500",
   "YardForce SA650": "YardForce SA650",
