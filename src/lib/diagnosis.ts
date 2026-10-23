@@ -1,3 +1,4 @@
+import {scrub} from './gardenExport';
 import {describe, explain, noteworthy, OUTCOMES, withState, type MowerEvent, type Run} from './events';
 import {gpsBefore, gpsOffOnPurpose, type GpsSample} from './gpslog';
 import {leftoverAreas} from './leftovers';
@@ -43,6 +44,8 @@ export interface DiagnosisInput {
   plans: KeptPlan[];
   // the settings kept when the run left the dock, null when the container has none for it (older data)
   snapshot: {t: number; params: Record<string, unknown> | null; planner: Record<string, unknown> | null} | null;
+  // the garden to plan and drive it again (lib/gardenExport), last in the file
+  garden?: unknown;
 }
 
 const pad = (n: number, w = 2) => String(n).padStart(w, '0');
@@ -674,7 +677,11 @@ export function buildDiagnosis(d: DiagnosisInput): string {
       ),
     );
   }
-  return out.join('\n') + '\n';
+  if (d.garden) {
+    h('Raw: the garden to plan and drive again (JSON, mowbite-garden-export)');
+    out.push(JSON.stringify(d.garden));
+  }
+  return scrub(out.join('\n') + '\n');
 }
 
 // the planner lines the container kept (docker/logkeeper.sh): "<unix time> <LEVEL> <message as in json>"

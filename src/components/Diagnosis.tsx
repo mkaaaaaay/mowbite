@@ -1,5 +1,7 @@
 'use client';
 
+import {gardenExport, scrub} from '@/lib/gardenExport';
+import {settingsStore} from '@/lib/settings';
 import {buildDiagnosis, mergePlanner, readKeptPlan, readKeptPlanner, readSensors, type KeptPlan, type PlannerLine} from '@/lib/diagnosis';
 import type {MowerMap} from '@/hooks/useMowerMap';
 import {openRings} from '@/lib/rings';
@@ -8,7 +10,7 @@ import type {Run} from '@/lib/events';
 import {gpsLog, gpsLogSince} from '@/lib/gpslog';
 import {inEnglish, tr} from '@/lib/i18n';
 import {loadKept} from '@/lib/mowerParams';
-import {loadPlannerSettings} from '@/lib/mowerBody';
+import {loadPlannerSettings, type PlannerSettings} from '@/lib/mowerBody';
 import {apiBase, mowerFetch} from '@/lib/mowers';
 import {RPC} from '@/lib/openmower';
 import {rosLogAround} from '@/lib/roslog';
@@ -108,6 +110,19 @@ export function DiagnosisDownload({run}: {run: Run}) {
         // the same shape as the map the app has (outlines not closed), so the two compare
         startMap: startMap && Array.isArray(startMap.areas) ? openRings(startMap) : null,
         plans,
+        garden: gardenExport({
+          created: Date.now() / 1000,
+          appVersion: APP_VERSION,
+          methods: methods ? [...methods].sort() : null,
+          map,
+          planner,
+          params,
+          sizes: settingsStore.snapshot().mower,
+          startMap,
+          startPlanner: (snapPlanner?.result as PlannerSettings | undefined) ?? null,
+          startParams: snapParams,
+          plans,
+        }),
         snapshot:
           snapParams || snapSettings
             ? {
@@ -135,6 +150,47 @@ export function DiagnosisDownload({run}: {run: Run}) {
       }}
     >
       {state === 'failed' ? tr('failed') : state === 'busy' ? tr('loading…') : tr('Diagnosis file')}
+    </button>
+  );
+}
+
+// the garden on its own (lib/gardenExport), without a run: from the settings
+export function GardenDownload({className}: {className?: string}) {
+  const params = useMowerParams();
+  const map = useMowerMap();
+  const [state, setState] = useState<'idle' | 'busy' | 'failed'>('idle');
+
+  const make = async () => {
+    const methods = await rpcMethods();
+    const planner = methods?.has(RPC.plannerSettings) ? await quiet(loadPlannerSettings(true), null) : null;
+    const now = Date.now() / 1000;
+    const garden = gardenExport({
+      created: now,
+      appVersion: APP_VERSION,
+      methods: methods ? [...methods].sort() : null,
+      map,
+      planner,
+      params,
+      sizes: settingsStore.snapshot().mower,
+    });
+    const d = new Date(now * 1000);
+    const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    await saveFile(`mowbite-garden-${day}-${clock(now).replace(':', '')}.json`, scrub(JSON.stringify(garden, null, 1)), 'application/json');
+  };
+
+  return (
+    <button
+      className={className}
+      disabled={state === 'busy' || !map}
+      onClick={() => {
+        setState('busy');
+        make().then(
+          () => setState('idle'),
+          () => setState('failed'),
+        );
+      }}
+    >
+      {state === 'failed' ? tr('failed') : state === 'busy' ? tr('loading…') : tr('Save the garden as a file')}
     </button>
   );
 }

@@ -1,5 +1,6 @@
 'use client';
 
+import {GardenDownload} from '@/components/Diagnosis';
 import {TitleMark} from '@/components/Logo';
 import {TitleRow} from '@/components/TopWeather';
 import {saveSettings, settingsStore, sharedSettings, type OtherMower, type Settings} from '@/lib/settings';
@@ -327,6 +328,16 @@ export default function SettingsPage() {
               )}
             </section>
             )}
+            {/* everything to plan and drive this garden again elsewhere, for sharing: one file */}
+            <section className={styles.card}>
+              <h2>{tr('Garden file')}</h2>
+              <p className={styles.dim}>
+                {tr(
+                  "The map, the planner's settings and what OpenMower mows and drives with, in one file, to share for a look at a plan or to improve the planner. No logins and not where the garden is. For a mow that went wrong take the diagnosis file of that run under Activity, it has this in it too.",
+                )}
+              </p>
+              <GardenDownload className={styles.pillButton} />
+            </section>
           </Group>
         )}
 
