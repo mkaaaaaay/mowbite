@@ -5,7 +5,7 @@ import {DontPanic} from '@/components/DontPanic';
 import {useEggForced, useHalloween, useUmbrella} from '@/lib/eggs';
 import LogicHint from '@/components/LogicHint';
 import LoveMower from '@/components/LoveMower';
-import MapView from '@/components/MapView';
+import MapView, {useMapAhead} from '@/components/MapView';
 import {HomeIcon, PauseIcon, PlayIcon, SkipIcon, WarningIcon} from '@/components/icons';
 import {useComputedSpeed} from '@/hooks/useComputedSpeed';
 import {useEmergencyReasons} from '@/hooks/useEmergencyReasons';
@@ -188,6 +188,8 @@ export default function Home() {
   const speed = useComputedSpeed(position);
   const track = useMowerTrack();
   const map = useMowerMap();
+  // the map page's map worked out while this one idles
+  useMapAhead(map);
   const recent = useRecentRuns(state?.current_state);
   // the last finished mow, for what it left
   const leftoverJob = recent?.latest.find((r) => r.outcome === 'done' && r.areas.length > 0 && r.jobId)?.jobId;

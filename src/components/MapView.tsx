@@ -7,14 +7,14 @@ import {liveGlide} from '@/hooks/useMowerPosition';
 import {containsPoint, polygonArea} from '@/lib/geometry';
 import {nearestOnOutline, snapPoint} from '@/lib/snapAreas';
 import {looksOf, saveSettings, settingsStore, withLooks, type KeptLooks, type Settings} from '@/lib/settings';
-import {bladeSeconds, bodyShape, isPin, pinAt, roundBends, swathEnd, swathGroups, swathAfter, swathTail, useMowerBody, usePlannerSettings, type MowerBody, type SwathState} from '@/lib/mowerBody';
+import {bladeSeconds, bodyShape, isPin, pinAt, realEdges, realInsides, roundBends, swathEnd, swathGroups, swathAfter, swathTail, useMowerBody, usePlannerSettings, type MowerBody, type SwathState} from '@/lib/mowerBody';
 import type {FitPose, PlanPiece} from '@/lib/mowPlan';
 import {useSensorValue} from '@/hooks/useMowerSensors';
 import {dockIcon, drawMower, mowerIcon} from './mapIcons';
 import {availableSources, imageryShift, imageryTiles, type Datum} from '@/lib/imagery';
 import {handleRadius, meterGrid} from '@/lib/mapGrid';
 import MapControls, {layerOn, type Layer} from './MapControls';
-import {useMapPrefs} from './useMapPrefs';
+import {hiddenLayers, useMapPrefs} from './useMapPrefs';
 import {Fragment, memo, startTransition, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
 import styles from './MapView.module.css';
 import {fmt, tr, useLang} from '@/lib/i18n';
@@ -146,6 +146,15 @@ interface Bounds {
   maxY: number;
 }
 
+// the bounds of the areas' outlines and the points of a line being drawn, null for none
+function boundsOf(map: MowerMap, pendingPoints?: Point[]): Bounds | null {
+  const points = [...map.areas.flatMap((a) => a.outline), ...(pendingPoints ?? [])];
+  if (!points.length) return null;
+  const xs = points.map((p) => p.x);
+  const ys = points.map((p) => p.y);
+  return {minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys)};
+}
+
 // square viewBox window, in svg units
 interface View {
   x: number;
@@ -237,6 +246,24 @@ const HEIGHT = 400;
 
 
 type Fit = {scale: number; padX: number; padY: number; minX: number; minY: number};
+// bounds in the square: svg units per meter and the margins round them, whatever doesn't fill the square centered
+function fitIn({minX, maxX, minY, maxY}: Bounds) {
+  const scaleX = (WIDTH - 2 * PADDING) / (maxX - minX || 1);
+  const scaleY = (HEIGHT - 2 * PADDING) / (maxY - minY || 1);
+  const scale = Math.min(scaleX, scaleY);
+  return {scale, padX: PADDING + (WIDTH - 2 * PADDING - (maxX - minX) * scale) / 2, padY: PADDING + (HEIGHT - 2 * PADDING - (maxY - minY) * scale) / 2};
+}
+// the ground of the map (draw), kept as it was while a point is held and the view stays: nothing on it changes
+// meanwhile, it isn't gone through again for every move
+const Ground = memo(
+  function Ground({draw}: {draw: () => ReactNode; held: object | null; view: string}) {
+    return draw();
+  },
+  (a, b) => !!b.held && a.held === b.held && a.view === b.view,
+);
+// what's drawn of the map in one svg (see renderContent)
+type Part = 'all' | 'ground' | 'settled' | 'live' | 'over' | 'loupe';
+const drawsPart = (part: Part, p: Part) => part === 'all' || part === 'loupe' || part === p;
 
 // lines in meters as an svg path in the units of the fit
 const pathOf = (lines: readonly (readonly Point[])[], f: Fit, close = false) =>
@@ -605,6 +632,9 @@ function MapView({
   }, []);
   // bounds frozen while dragging so the map doesn't rescale under the cursor
   const [dragging, setDragging] = useState<{areaId: string; index: number; bounds: Bounds} | null>(null);
+  // a point of an area dragged: the map and its bounds as they were when it was picked up (see shapeMap), until the
+  // garden of the map it was let go on is worked out
+  const [held, setHeld] = useState<{map: MowerMap; bounds: Bounds} | null>(null);
   // where the point being dragged snapped to
   const [snapMark, setSnapMark] = useState<{x: number; y: number; corner: boolean} | null>(null);
   const drag = useRef<{
@@ -710,16 +740,14 @@ function MapView({
 
   // fitted to the map only, so the geometry doesn't change while the mower moves. follow mode
   // moves the view instead
-  const fit = useMemo(() => {
-    const points = [...map.areas.flatMap((a) => a.outline), ...(pendingPoints ?? [])];
-    if (!points.length) return null;
-    const xs = points.map((p) => p.x);
-    const ys = points.map((p) => p.y);
-    return {minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys)};
-  }, [map, pendingPoints]);
+  const fit = useMemo(() => boundsOf(map, pendingPoints), [map, pendingPoints]);
+  // what's drawn of the map (the areas, the garden, the real edges): while a point of an area is dragged the map as it
+  // was when it was picked up, the area being dragged goes along as its outline and points over it. worked out again
+  // once it's let go, not for every move
+  const shapeMap = held?.map ?? map;
 
   const center = followed ?? mower ?? {x: 0, y: 0};
-  const {minX, maxX, minY, maxY}: Bounds = dragging?.bounds ??
+  const {minX, maxX, minY, maxY}: Bounds = dragging?.bounds ?? held?.bounds ??
     fit ?? {
       minX: center.x - followSpanMeters / 2,
       maxX: center.x + followSpanMeters / 2,
@@ -727,12 +755,7 @@ function MapView({
       maxY: center.y + followSpanMeters / 2,
     };
 
-  const scaleX = (WIDTH - 2 * PADDING) / (maxX - minX || 1);
-  const scaleY = (HEIGHT - 2 * PADDING) / (maxY - minY || 1);
-  const scale = Math.min(scaleX, scaleY);
-  // center whatever doesn't fill the square
-  const padX = PADDING + (WIDTH - 2 * PADDING - (maxX - minX) * scale) / 2;
-  const padY = PADDING + (HEIGHT - 2 * PADDING - (maxY - minY) * scale) / 2;
+  const {scale, padX, padY} = fitIn({minX, maxX, minY, maxY});
 
   // the view between meters and svg units. setView may run from the wheel handler set up earlier, so it takes
   // the fit from a ref the last render left
@@ -853,11 +876,11 @@ function MapView({
   // outlines as svg point strings, rebuilt only when the map or the fit changes, not every frame
   const outlinePoints = useMemo(() => {
     const out = new Map<string, string>();
-    for (const a of map.areas) {
+    for (const a of shapeMap.areas) {
       out.set(a.id, a.outline.map((p) => `${(p.x - minX) * scale + padX},${HEIGHT - ((p.y - minY) * scale + padY)}`).join(' '));
     }
     return out;
-  }, [map, minX, minY, scale, padX, padY]);
+  }, [shapeMap, minX, minY, scale, padX, padY]);
   // the garden style: each mowing area's lawn in stripes along its mowing direction, ways and obstacles as their
   // pictures, a thing (tree, pond ...) placed inside the area's real edge (with the mower's sizes known, else inside
   // its outline) and cut to it should it still stick out
@@ -865,7 +888,7 @@ function MapView({
   const uid = 'g' + useId().replace(/[^a-zA-Z0-9]/g, '');
   const gardenLook = useMemo(() => {
     if (!garden) return null;
-    const g = gardenThings(map.areas, settings.looks, body ?? null, {minX, minY, m: scale, padX, padY}, {
+    const g = gardenThings(shapeMap.areas, settings.looks, body ?? null, {minX, minY, m: scale, padX, padY}, {
       variants: settings.lookVariants,
       sizes: settings.lookSizes,
       turns: settings.lookTurns,
@@ -873,7 +896,7 @@ function MapView({
       grounds: settings.lookGrounds,
     });
     return {...g, defs: <GardenDefs uid={uid} m={scale} lawns={g.angles} clips={g.clips} />};
-  }, [garden, map, settings.looks, settings.lookVariants, settings.lookSizes, settings.lookTurns, settings.lookClosed, settings.lookGrounds, uid, scale, minX, minY, padX, padY, body]);
+  }, [garden, shapeMap, settings.looks, settings.lookVariants, settings.lookSizes, settings.lookTurns, settings.lookClosed, settings.lookGrounds, uid, scale, minX, minY, padX, padY, body]);
   // the garden's life (gardenLife): light after the sun, the season and the weather on the lawn, a mowing edge and
   // the lawn growing back since it was last cut. the time moves on every five minutes, the layers are worked out below
   const life = garden && !sample ? lifeOf(settings.garden) : null;
@@ -1065,15 +1088,30 @@ function MapView({
   // the lines along them, and the lawn between the lines and the real edges: outside the mowing areas under them, in the
   // obstacles over them. the garden style's stones go along the lawn's, the obstacles keep the dashed line
   const edges = useMemo(
-    () => (edgesOn && body ? edgePaths(map.areas, body, {minX, minY, m: scale, padX, padY}, !hidden.has('obstacle')) : null),
-    [edgesOn, body, map, hidden, minX, minY, scale, padX, padY],
+    () => (edgesOn && body ? edgePaths(shapeMap.areas, body, {minX, minY, m: scale, padX, padY}, !hidden.has('obstacle')) : null),
+    [edgesOn, body, shapeMap, hidden, minX, minY, scale, padX, padY],
   );
-  // the garden's life in its layers (gardenLife), the stones along the real edges when they're shown, else the outlines
+  // a point let go: the real edges of the map as it is now worked out one after the other, the lines along them (with
+  // the obstacles shrunk together) and the areas' own, then it's drawn with them. no frame takes all of it at once
+  useEffect(() => {
+    if (!held || dragging) return;
+    const steps = [() => edgesOn && body && realEdges(map.areas, body), () => garden && body && realInsides(map.areas, body), () => setHeld(null)];
+    let timer = setTimeout(function next() {
+      steps.shift()?.();
+      if (steps.length) timer = setTimeout(next);
+    });
+    return () => clearTimeout(timer);
+  }, [held, dragging, map, body, garden, edgesOn]);
+  // the garden's life in its layers (gardenLife), the stones along the real edges when they're shown, else the outlines.
+  // the mower only for the light round it at night, the trail only for the cuts: a position that came doesn't work the
+  // life out again otherwise
+  const nightMower = life?.sun ? mower : undefined;
+  const cutTrack = life?.growth ? track : undefined;
   const scene = useMemo(
     () =>
       garden && !sample
         ? lifeScene({
-            areas: map.areas,
+            areas: shapeMap.areas,
             garden: settings.garden,
             looks: settings.looks,
             lookVariants: settings.lookVariants,
@@ -1088,14 +1126,14 @@ function MapView({
             datum,
             weather,
             rain: rainSensor,
-            mower,
+            mower: nightMower,
             jobs: history,
-            track,
+            track: cutTrack,
             edgeLine: edges?.lawnLine ?? null,
             hidden,
           })
         : null,
-    [garden, sample, map, settings.garden, settings.looks, settings.lookVariants, settings.lookSizes, settings.lookTurns, settings.lookClosed, settings.lookGrounds, body, minX, minY, scale, padX, padY, uid, lifeNow, datum, weather, rainSensor, mower, history, track, edges, hidden],
+    [garden, sample, shapeMap, settings.garden, settings.looks, settings.lookVariants, settings.lookSizes, settings.lookTurns, settings.lookClosed, settings.lookGrounds, body, minX, minY, scale, padX, padY, uid, lifeNow, datum, weather, rainSensor, nightMower, history, cutTrack, edges, hidden],
   );
   const gardenFill = (a: MapArea): React.CSSProperties | undefined => {
     if (!gardenLook) return undefined;
@@ -1331,8 +1369,8 @@ function MapView({
 
   // big areas first so small ones on top stay clickable
   const areasBySize = useMemo(
-    () => [...map.areas].sort((a, b) => polygonArea(b.outline) - polygonArea(a.outline)),
-    [map],
+    () => [...shapeMap.areas].sort((a, b) => polygonArea(b.outline) - polygonArea(a.outline)),
+    [shapeMap],
   );
 
   // clicking the selected area again goes to the next one underneath
@@ -1556,6 +1594,8 @@ function MapView({
     gesture.current.moved = true; // eat the click that follows
     if (e.pointerType === 'touch') tick();
     setDragging({areaId, index: hit.mid ? hit.index + 1 : hit.index, bounds: {minX, maxX, minY, maxY}});
+    // a pin is only its picture, that goes along with the finger
+    setHeld(areaId === PENDING || from ? null : {map, bounds: {minX, maxX, minY, maxY}});
   };
 
   // a second finger while a point is held means the first one was the start of a pinch
@@ -1573,8 +1613,10 @@ function MapView({
       else if (d.orig) onMovePending?.(dragging.index, d.orig.x, d.orig.y);
     }
     setDragging(null);
+    setHeld(null);
     setFinger(null);
     setActive(null);
+    onDragging?.(false);
     const first = d.pointerId;
     d.pointerId = -1;
     if (!zoomable) return;
@@ -1946,6 +1988,8 @@ function MapView({
         setActive(null);
       }
       setDragging(null);
+      // moved, it's let go once its garden is worked out (above)
+      if (!d.moved) setHeld(null);
       setFinger(null);
       setSnapMark(null);
       onDragging?.(false);
@@ -1954,6 +1998,7 @@ function MapView({
       if (e.pointerId !== drag.current.pointerId) return;
       drag.current.pointerId = -1;
       setDragging(null);
+      if (!drag.current.moved) setHeld(null);
       setFinger(null);
       setSnapMark(null);
       onDragging?.(false);
@@ -2007,7 +2052,9 @@ function MapView({
     grid = meterGrid({left, right, bottom, top}, pxPerMeter);
   }
 
-  const vertexR = selectedArea ? handleRadius(selectedArea.outline, pxPerMeter) : 2.5;
+  // as big as the points of the area picked up while one of them is dragged, they don't all change with every move
+  const heldArea = held && selectedArea ? held.map.areas.find((a) => a.id === selectedArea.id) : undefined;
+  const vertexR = selectedArea ? handleRadius((heldArea ?? selectedArea).outline, pxPerMeter) : 2.5;
 
   // k = svg units per screen unit, the loupe passes its own so handles don't get magnified
   // an area's picture standing in it (a tree, a table ...), with the garden's life drawn over the lawn's (scene.things)
@@ -2021,7 +2068,7 @@ function MapView({
   const overThings = shownThings.filter((t) => t.places.some((pl) => pl.over));
   const canopies = scene
     ? scene.canopies
-    : overThings.map((t) => <GardenThing key={'c' + t.id} uid={uid} thing={t} off={map.areas.find((a) => a.id === t.id)?.properties.active === false} part="over" />);
+    : overThings.map((t) => <GardenThing key={'c' + t.id} uid={uid} thing={t} off={shapeMap.areas.find((a) => a.id === t.id)?.properties.active === false} part="over" />);
   const covers = scene ? scene.covers : coversOf(overThings);
   // the plan's lanes and loops, under the dock and the track
   const planLines = (
@@ -2040,13 +2087,15 @@ function MapView({
   // the real edges, the strip the blade cut and the track of the pieces that are done, and what's left to mow with the
   // strip and the track of the piece that grows
   const swathShown = !scene?.parts.growth || !!pastTrack?.length || !!beforeTrack?.length;
-  const settledLines = (
+  // with the garden's stones along the lawns' real edges only the obstacles' line (the loupe has no stones)
+  const settledOf = (stones: boolean) => (
     <>
-      {edges && (scene?.stones ? edges.obstacleLine : edges.line) && <path className={styles.realEdge} d={scene?.stones ? edges.obstacleLine : edges.line} />}
+      {edges && (stones ? edges.obstacleLine : edges.line) && <path className={styles.realEdge} d={stones ? edges.obstacleLine : edges.line} />}
       {swathShown && swathSettled}
       {trackSettled}
     </>
   );
+  const settledLines = settledOf(!!scene?.stones);
   const liveLines = (
     <>
       {todoPath && !hidden.has('stripes') && <path className={[styles.planTodo, styles[planStyle]].join(' ')} d={todoPath} />}
@@ -2062,10 +2111,11 @@ function MapView({
   );
   // part: the map on the ground, the lines that grow while the mower drives (the strip the blade cut, the track, what's
   // left to mow), or what's over it and changes often (the mower, the crowns over it, the picked area and its points),
-  // drawn as layers on a map that can move: a mower driving along doesn't draw all the garden again
-  const renderContent = (k: number, part: 'all' | 'ground' | 'settled' | 'live' | 'over' = 'all') => (
+  // drawn as layers on a map that can move: a mower driving along doesn't draw all the garden again. loupe: all but the
+  // garden's pictures, it comes up with every point picked up (their patterns would be on the page twice too)
+  const renderContent = (k: number, part: Part = 'all') => (
     <>
-      {(part === 'all' || part === 'ground') && (
+      {drawsPart(part, 'ground') && (
         <>
       {tiles.length > 0 && (
         <g className={styles.imagery}>
@@ -2083,7 +2133,7 @@ function MapView({
                 preserveAspectRatio="none"
                 transform={`matrix(${m})`}
                 onError={
-                  esriKey !== null && loadedKey !== esriKey && !imageryRejected
+                  part !== 'loupe' && esriKey !== null && loadedKey !== esriKey && !imageryRejected
                     ? () => {
                         if (failedTiles.current.key !== esriKey) failedTiles.current = {key: esriKey, hrefs: new Set()};
                         const {hrefs} = failedTiles.current;
@@ -2094,7 +2144,7 @@ function MapView({
                       }
                     : undefined
                 }
-                onLoad={esriKey !== null && loadedKey !== esriKey ? () => setLoadedKey(esriKey) : undefined}
+                onLoad={part !== 'loupe' && esriKey !== null && loadedKey !== esriKey ? () => setLoadedKey(esriKey) : undefined}
               />
             );
           })}
@@ -2102,8 +2152,9 @@ function MapView({
       )}
         {edges?.grassOutside && <path className={styles.realGrass} d={edges.grassOutside} />}
         {areasBySize.filter((area) => !hidden.has(area.properties.type as Layer)).map((area) => {
-          // a pin is only its picture, its square isn't drawn
-          if (isPin(area)) return <Fragment key={area.id}>{!scene && thingOf(area)}</Fragment>;
+          // a pin is only its picture, its square isn't drawn. the loupe has the one being dragged
+          if (isPin(area))
+            return <Fragment key={area.id}>{(part === 'loupe' ? area.id === dragging?.areaId : !scene) && thingOf(area)}</Fragment>;
           return (
             <Fragment key={area.id}>
               <polygon
@@ -2122,17 +2173,20 @@ function MapView({
                   if (!pickingPoints && editing && !decor) selectAt(area.id, e.clientX, e.clientY);
                 }}
               />
-              {!scene && thingOf(area)}
+              {!scene && part !== 'loupe' && thingOf(area)}
             </Fragment>
           );
         })}
-        {scene?.lawn}
+        {part !== 'loupe' && scene?.lawn}
         {edges?.grassObstacles && <path className={styles.realGrass} d={edges.grassObstacles} />}
-        {scene?.stones}
-        {scene?.things}
-        {scene?.sky}
-
-        {coverLayer}
+        {part !== 'loupe' && (
+          <>
+            {scene?.stones}
+            {scene?.things}
+            {scene?.sky}
+            {coverLayer}
+          </>
+        )}
 
         {planLines}
 
@@ -2178,9 +2232,9 @@ function MapView({
 
         </>
       )}
-      {(part === 'all' || part === 'settled') && settledLines}
-      {(part === 'all' || part === 'live') && liveLines}
-      {(part === 'all' || part === 'over') && (
+      {drawsPart(part, 'settled') && (part === 'loupe' ? settledOf(false) : settledLines)}
+      {drawsPart(part, 'live') && liveLines}
+      {drawsPart(part, 'over') && (
         <>
         {mower && (
           <MowerMarker
@@ -2197,14 +2251,14 @@ function MapView({
             blades={track?.at(-1)?.at(-1)?.b === true}
             ghost={halloween.night}
             costume={{hat: halloween.day, towel: costume?.towel, umbrella: costume?.umbrella}}
-            cover={canopies}
-            covers={covers}
+            cover={part === 'loupe' ? undefined : canopies}
+            covers={part === 'loupe' ? undefined : covers}
             coverId={uid + 'under'}
           />
         )}
-        {!mower && canopies}
+        {part !== 'loupe' && !mower && canopies}
         {/* the plan, the real edges and the track over the crowns too, only where they are (else they'd be twice) */}
-        {covers.length > 0 && (
+        {part !== 'loupe' && covers.length > 0 && (
           <>
             <defs>
               <mask id={uid + 'rim'} maskUnits="userSpaceOnUse" x={-10 * WIDTH} y={-10 * HEIGHT} width={21 * WIDTH} height={21 * HEIGHT}>
@@ -2544,7 +2598,7 @@ function MapView({
     >
       {gardenLook?.defs}
       {scene?.defs}
-      {renderContent(k, layered ? 'ground' : 'all')}
+      <Ground draw={() => renderContent(k, layered ? 'ground' : 'all')} held={held} view={`${k} ${svgBox.x} ${svgBox.y} ${svgBox.size} ${layered}`} />
       {!layered && after}
     </svg>
   );
@@ -2565,7 +2619,7 @@ function MapView({
     loupe = (
       <div className={styles.loupe} style={{left, top, width: LOUPE_PX, height: LOUPE_PX}}>
         <svg className={[styles.svg, garden ? styles.garden : ''].filter(Boolean).join(' ')} viewBox={`${cx - size / 2} ${cy - size / 2} ${size} ${size}`}>
-          {renderContent(k / LOUPE_ZOOM)}
+          {renderContent(k / LOUPE_ZOOM, 'loupe')}
         </svg>
         <span className={styles.crosshair} />
       </div>
@@ -2752,6 +2806,41 @@ function MapView({
       )}
     </div>
   );
+}
+
+// the editor's map worked out ahead while another page is open: the real edges, the garden's things placed and the
+// lines along the edges, as the editor's MapView keeps them (they go by the same map, body and fit). a piece at a time
+// while the page idles, the map opens without most of that work then
+export function useMapAhead(map: MowerMap | null) {
+  const body = useMowerBody();
+  const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
+  useEffect(() => {
+    const bounds = map && boundsOf(map);
+    if (!map || !bounds) return;
+    const {scale, padX, padY} = fitIn(bounds);
+    const fit = {minX: bounds.minX, minY: bounds.minY, m: scale, padX, padY};
+    const garden = settings.mapStyle === 'garden';
+    const hidden = hiddenLayers();
+    const edgesOn = !!body && layerOn(hidden, 'edges');
+    const own = {variants: settings.lookVariants, sizes: settings.lookSizes, turns: settings.lookTurns, closed: settings.lookClosed, grounds: settings.lookGrounds};
+    const steps = [
+      () => edgesOn && body && realEdges(map.areas, body),
+      () => garden && body && realInsides(map.areas, body),
+      () => garden && gardenThings(map.areas, settings.looks, body, fit, own),
+      () => edgesOn && body && edgePaths(map.areas, body, fit, !hidden.has('obstacle')),
+    ];
+    let stop = false;
+    const idle = (f: () => void) => (typeof requestIdleCallback === 'function' ? requestIdleCallback(f, {timeout: 10000}) : setTimeout(f, 300));
+    const next = () => {
+      if (stop) return;
+      steps.shift()?.();
+      if (steps.length) idle(next);
+    };
+    idle(next);
+    return () => {
+      stop = true;
+    };
+  }, [map, body, settings]);
 }
 
 // the dashboard draws again for every sensor value, the map only when something it shows changes

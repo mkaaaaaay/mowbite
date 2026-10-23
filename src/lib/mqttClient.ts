@@ -1,6 +1,7 @@
 import mqtt, {type MqttClient} from 'mqtt';
 import {demoClient} from './demo/client';
 import {isDemo, selectedMower} from './mowers';
+import {TOPIC} from './openmower';
 
 declare global {
   interface Window {
@@ -48,7 +49,8 @@ export function getMqttClient(): MqttClient {
     client.on('message', (full, payload) => {
       const topic = unprefix(full);
       if (topic === null) return;
-      for (const [t, set] of handlers) if (t === topic || matches(t, topic)) set.forEach((h) => h(payload, topic));
+      if (held && topic !== TOPIC.rpcResponse) held.list.push([topic, payload]);
+      else deliver(topic, payload);
     });
   }
   return client;
@@ -85,6 +87,31 @@ function connect(): MqttClient {
 // stops listening, retained topics like the map wouldn't come again otherwise.
 export type TopicHandler = (payload: Buffer, topic: string) => void;
 const handlers = new Map<string, Set<TopicHandler>>();
+
+function deliver(topic: string, payload: Buffer) {
+  for (const [t, set] of handlers) if (t === topic || matches(t, topic)) set.forEach((h) => h(payload, topic));
+}
+
+// While another page is being drawn the messages wait, at most ms, and come in one go once it's there (passMessages).
+// Each one draws what's open again at once, and react starts the new page over then: a page with the garden's map
+// would only be drawn once its time ran out. An rpc's answer doesn't wait, its call would time out meanwhile
+let held: {list: [string, Buffer][]; timer: ReturnType<typeof setTimeout>} | null = null;
+
+// the messages are waiting: none coming doesn't mean the mower went quiet
+export const messagesHeld = () => held !== null;
+
+export function holdMessages(ms = 10000) {
+  if (held) clearTimeout(held.timer);
+  held = {list: held?.list ?? [], timer: setTimeout(passMessages, ms)};
+}
+
+export function passMessages() {
+  const h = held;
+  if (!h) return;
+  clearTimeout(h.timer);
+  held = null;
+  for (const [topic, payload] of h.list) deliver(topic, payload);
+}
 
 const matches = (pattern: string, topic: string) => {
   if (!pattern.includes('+')) return false;

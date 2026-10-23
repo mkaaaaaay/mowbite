@@ -604,7 +604,11 @@ const mound = (x: number, y: number, s: number, rnd: () => number): Dot[][] => {
 // dots of many plants by color, a path each
 function byColor(list: [Dot, string][]) {
   const groups = new Map<string, Dot[]>();
-  for (const [d, c] of list) groups.set(c, [...(groups.get(c) ?? []), d]);
+  for (const [d, c] of list) {
+    const same = groups.get(c);
+    if (same) same.push(d);
+    else groups.set(c, [d]);
+  }
   return [...groups].map(([c, ds]) => <path key={c} d={circles(ds)} fill={c} />);
 }
 // a butterfly sitting with its wings open, s across, its wings c

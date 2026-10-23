@@ -307,6 +307,7 @@ type Lawns = {lawns: MapArea[]; obstacles: MapArea[]; bySize: MapArea[]; along: 
 const lawnsCache = new WeakMap<object, {key: string; value: Lawns}>();
 const lawnDCache = new WeakMap<object, {key: string; value: string}>();
 const edgeCache = new WeakMap<object, {key: string; value: string}>();
+const edgePathsCache = new WeakMap<object, {key: string; value: EdgePaths}>();
 const lawnLineCache = new WeakMap<object, {key: string; value: string}>();
 const sprinkleCache = new WeakMap<object, {key: string; value: Sprinkle[]}>();
 const jobCache = new WeakMap<object, {key: string; value: {there: string; back: string} | null}>();
@@ -335,13 +336,17 @@ export function realEdgeLine(areas: MapArea[], body: MowerBody, fit: Fit, obstac
 }
 
 // the real edges as MapView draws them: the lawns' line and the obstacles', and the lawn between the lines and the real
-// edges, outside the mowing areas (under the areas) and in the obstacles (over them). obstacles false: without theirs
-export function edgePaths(areas: MapArea[], body: MowerBody, fit: Fit, obstacles = true) {
-  const at = svgAt(fit);
-  const d = (list: Point[][]) => rings(list.map((outline) => ({outline})), at);
-  const edges = realEdges(areas, body);
-  const [lawnLine, obstacleLine] = [d(edges.lawn), obstacles ? d(edges.obstacles) : ''];
-  return {line: lawnLine + obstacleLine, lawnLine, obstacleLine, grassOutside: d(edges.grass.outside), grassObstacles: obstacles ? d(edges.grass.obstacles) : ''};
+// edges, outside the mowing areas (under the areas) and in the obstacles (over them). obstacles false: without theirs.
+// the same object again for the same areas, body and fit
+type EdgePaths = {line: string; lawnLine: string; obstacleLine: string; grassOutside: string; grassObstacles: string};
+export function edgePaths(areas: MapArea[], body: MowerBody, fit: Fit, obstacles = true): EdgePaths {
+  return cached(edgePathsCache, areas, `${fitKey(fit)}|${obstacles}|${JSON.stringify(body)}`, () => {
+    const at = svgAt(fit);
+    const d = (list: Point[][]) => rings(list.map((outline) => ({outline})), at);
+    const edges = realEdges(areas, body);
+    const [lawnLine, obstacleLine] = [d(edges.lawn), obstacles ? d(edges.obstacles) : ''];
+    return {line: lawnLine + obstacleLine, lawnLine, obstacleLine, grassOutside: d(edges.grass.outside), grassObstacles: obstacles ? d(edges.grass.obstacles) : ''};
+  });
 }
 
 // the lawns' outlines as one line: where two lawns meet there's no edge
@@ -416,15 +421,26 @@ const drawnWith = (thing: Thing, pl: Place) => ({
   foot: pl.foot && {deg: pl.foot.deg - pl.deg, s: pl.foot.s},
 });
 
+// the tiles drawn by what they're drawn from: a bed whose edge moved keeps its tile. a few hundred at most
+const tiles = new Map<string, ReactNode>();
+
 // a bed's place k as a pattern of one tile 2.4 m across (or its span), the browser draws it once and repeats it
 function bedTile(uid: string, thing: Thing, pl: Place, k: number) {
   const p = placeId(uid, thing, k);
   const t = Math.max(1, (PICTURES[thing.look]?.span ?? 2.4) * thing.m);
-  return (
-    <pattern key={p} id={p + 'tile'} patternUnits="userSpaceOnUse" width={t} height={t}>
-      {drawThing(thing.look, {x: 0, y: 0, w: t, h: t}, p + 'x', {...drawnWith(thing, pl), tile: true})}
-    </pattern>
-  );
+  const o = drawnWith(thing, pl);
+  const key = [p, thing.look, t, o.seed, o.variant, o.m, o.closed, o.bare, o.foot?.deg, o.foot?.s].join('|');
+  let tile = tiles.get(key);
+  if (!tile) {
+    if (tiles.size >= 300) tiles.clear();
+    tile = (
+      <pattern key={p} id={p + 'tile'} patternUnits="userSpaceOnUse" width={t} height={t}>
+        {drawThing(thing.look, {x: 0, y: 0, w: t, h: t}, p + 'x', {...o, tile: true})}
+      </pattern>
+    );
+    tiles.set(key, tile);
+  }
+  return tile;
 }
 
 // the beds' tiles of these things for the defs, when they're drawn tiled

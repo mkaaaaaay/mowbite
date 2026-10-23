@@ -19,6 +19,9 @@ function write(key: string, value: string | null) {
   } catch {}
 }
 
+// the layers switched off in the map's menu on this device
+export const hiddenLayers = () => read('mapHidden', (v) => new Set<Layer>(JSON.parse(v ?? '[]')), new Set<Layer>());
+
 // How the map is shown on this device: aerial imagery, the grid, the layers switched off in the menu and the style
 // of what's left of a plan. Only used once the map arrived, client side, so localStorage is there.
 export function useMapPrefs() {
@@ -27,7 +30,7 @@ export function useMapPrefs() {
   // the source picked last, kept while the imagery is off so switching it on brings it back
   const [lastImagery, setLastImagery] = useState(() => read('mapImageryLast', (v) => (v as ImagerySource | null) || null, null) ?? imagery);
   const [showGrid, setShowGrid] = useState(() => read('mapGrid', (v) => v !== 'off', true));
-  const [hidden, setHidden] = useState(() => read('mapHidden', (v) => new Set<Layer>(JSON.parse(v ?? '[]')), new Set<Layer>()));
+  const [hidden, setHidden] = useState(hiddenLayers);
   const [planStyle, setPlanStyleState] = useState(() =>
     read<PlanStyle>('planStyle', (v) => (v === 'solid' || v === 'dots' ? v : 'dashed'), 'dashed'),
   );

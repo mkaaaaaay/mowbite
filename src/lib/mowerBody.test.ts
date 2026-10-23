@@ -23,6 +23,7 @@ import {
   sizesBody,
   spotPlaces,
   standing,
+  steadyBody,
   swathAfter,
   swathEnd,
   swathGroups,
@@ -36,6 +37,18 @@ const settings = (values: Record<string, unknown>): PlannerSettings => ({
   settings: Object.fromEntries(
     Object.entries(values).map(([k, value]) => [k, {value, default: null, stored: true, type: 'number', settable: true}]),
   ),
+});
+
+describe('steadyBody', () => {
+  it('gives the same object for the same sizes', () => {
+    const a: MowerBody = {width: 0.41, front: 0.43, rear: 0.18, blade: 0.18, bladeAhead: 0.185, bladeOffset: 0};
+    expect(steadyBody(a)).toBe(a);
+    expect(steadyBody({...a})).toBe(a);
+    const b = {...a, width: 0.4};
+    expect(steadyBody(b)).toBe(b);
+    expect(steadyBody({...a})).not.toBe(a);
+    expect(steadyBody(null)).toBeNull();
+  });
 });
 
 describe('mower body', () => {
@@ -325,6 +338,29 @@ describe('real edges', () => {
     expect(after.obstacles).toBe(before.obstacles);
     expect(after.lawn).not.toEqual(before.lawn);
     expect(realInsides([square('a', 'mow', 0, 0, 5), ...sides], rect).get('o')).toBe(realInsides([...sides], rect).get('o'));
+  });
+
+  it("keeps an obstacle's real edge while one far off moves, works out the one moved and its neighbour again", () => {
+    const far = square('c', 'obstacle', 6, 6, 1);
+    const before = realInsides([square('a', 'obstacle', 1, 1, 1), square('b', 'obstacle', 2, 1, 1), far], rect);
+    // a moved half a meter off b: they aren't one any more
+    const a = square('a', 'obstacle', 1, 1, 1);
+    a.outline[1] = {x: 1.5, y: 1};
+    a.outline[2] = {x: 1.5, y: 2};
+    const after = realInsides([a, square('b', 'obstacle', 2, 1, 1), far], rect);
+    expect(after.get('c')).toBe(before.get('c'));
+    expect(box(before.get('b')!)[0]).toBeCloseTo(2, 2);
+    expect(box(after.get('b')!)[0]).toBeCloseTo(2.2, 2);
+    expect(box(after.get('a')!)[2]).toBeCloseTo(1.3, 2);
+  });
+
+  it("keeps the lawns' real edge while only an obstacle moves", () => {
+    const lawn = square('l', 'mow', 0, 0, 4);
+    const before = realEdges([lawn, square('o', 'obstacle', 1, 1, 1)], rect);
+    const after = realEdges([lawn, square('o', 'obstacle', 1.5, 1, 1)], rect);
+    expect(after.lawn).toBe(before.lawn);
+    expect(after.grass.outside).toBe(before.grass.outside);
+    expect(after.obstacles).not.toEqual(before.obstacles);
   });
 
   it('counts the strip between a line and its real edge as lawn, outside the area and inside an obstacle', () => {

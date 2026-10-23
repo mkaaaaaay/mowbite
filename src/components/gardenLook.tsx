@@ -69,16 +69,21 @@ export const drawThing = (
       })
     : null;
 
-// how far a point is from the outline
+// how far a point is from the outline. an edge clearly farther than the nearest so far isn't measured exactly
 function edgeDistance(o: Point[], x: number, y: number) {
   let best = Infinity;
-  o.forEach((a, i) => {
-    const b = o[(i + 1) % o.length];
+  let square = Infinity;
+  for (let i = 0; i < o.length; i++) {
+    const [a, b] = [o[i], o[(i + 1) % o.length]];
     const [dx, dy] = [b.x - a.x, b.y - a.y];
     const len = dx * dx + dy * dy;
     const t = len ? Math.max(0, Math.min(1, ((x - a.x) * dx + (y - a.y) * dy) / len)) : 0;
-    best = Math.min(best, Math.hypot(x - a.x - t * dx, y - a.y - t * dy));
-  });
+    const [ex, ey] = [x - a.x - t * dx, y - a.y - t * dy];
+    const sq = ex * ex + ey * ey;
+    if (sq > square * 1.000001) continue;
+    square = Math.min(square, sq);
+    best = Math.min(best, Math.hypot(ex, ey));
+  }
   return best;
 }
 
@@ -307,6 +312,11 @@ function texture(look: Look, id: string, m: number) {
   );
 }
 
+// every ground as a texture {uid}{its name}, drawn again only for another uid or size
+const GardenTextures = memo(function GardenTextures({uid, m}: {uid: string; m: number}) {
+  return <>{PICTURE_KEYS.map((look) => texture(look, uid + look, m))}</>;
+});
+
 // the textures and outlines to cut things to, once per map. lawns: each mowing area's direction in radians, the area's
 // lawn is {uid}lawn{its index}, every ground {uid}{its name}, the outline of thing i {uid}clip{i}. ids start with uid,
 // several maps can be on one page
@@ -327,7 +337,7 @@ export function GardenDefs({uid, m, lawns, clips}: {uid: string; m: number; lawn
           <rect width={2 * m} height={m} fill="#539340" />
         </pattern>
       ))}
-      {PICTURE_KEYS.map((look) => texture(look, uid + look, m))}
+      <GardenTextures uid={uid} m={m} />
       {clips.map((points, i) => (
         <clipPath key={i} id={`${uid}clip${i}`}>
           <polygon points={points} />

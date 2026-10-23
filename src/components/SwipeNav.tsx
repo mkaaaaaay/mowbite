@@ -4,6 +4,7 @@ import {usePathname, useRouter} from 'next/navigation';
 import {lazy, Suspense, useEffect, useLayoutEffect, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
 import layout from '@/app/layout.module.css';
+import {holdMessages} from '@/lib/mqttClient';
 import {swipeEnabled} from '@/lib/swipe';
 
 // the pages in the order of the tab bar
@@ -170,6 +171,7 @@ export default function SwipeNav() {
       }
       const dir = dx < 0 ? 1 : -1;
       if (!d.el || calm()) {
+        holdMessages();
         router.push(next);
         return;
       }
@@ -185,6 +187,7 @@ export default function SwipeNav() {
       }
       setTimeout(() => {
         entering = true;
+        holdMessages();
         router.push(next);
         // in case the page never changes, don't leave it off screen
         setTimeout(() => {

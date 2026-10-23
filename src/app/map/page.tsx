@@ -220,6 +220,17 @@ function MapEditor() {
     [map, selectedArea, simplified],
   );
 
+  // not while a point is dragged, a new plan redrawn mid-drag makes it stutter
+  const [draggingPoint, setDraggingPoint] = useState(false);
+  // the map the checks and the plan go by: while a point is dragged the one from before it was picked up, worked out
+  // again once it's let go
+  const [heldMap, setHeldMap] = useState<MowerMap | null>(null);
+  const planMap = draggingPoint && heldMap ? heldMap : shownMap;
+  const dragging = (on: boolean) => {
+    setDraggingPoint(on);
+    setHeldMap(on ? shownMap : null);
+  };
+
   // self crossing outlines, a dock off the drivable areas and the like, also in the preview of reducing points. With a
   // planner that keeps the mower's body off the edges and obstacles: where it doesn't get through between them
   const approachDistance = numParam(params, PARAM.dockingApproachDistance);
@@ -239,8 +250,8 @@ function MapEditor() {
     return sized && typeof edge === 'number' && typeof obstacle === 'number' ? {edge, obstacle, width: width as number} : null;
   }, [plannerSettings]);
   const problems = useMemo(
-    () => (shownMap ? [...checkMap(shownMap, approachDistance), ...(margins ? narrowPassages(shownMap, margins) : [])] : []),
-    [shownMap, approachDistance, margins],
+    () => (planMap ? [...checkMap(planMap, approachDistance), ...(margins ? narrowPassages(planMap, margins) : [])] : []),
+    [planMap, approachDistance, margins],
   );
   const warnings = problems.filter((p) => p.level === 'warn').length;
   const spotted = problems.flatMap((p) => ('at' in p ? [p] : []));
@@ -249,8 +260,6 @@ function MapEditor() {
   const [problemPick, setProblemPick] = useState<number | null>(null);
   const pickedProblem = problemPick !== null && shownMap ? spotted[problemPick] : undefined;
 
-  // not while a point is dragged, a new plan redrawn mid-drag makes it stutter
-  const [draggingPoint, setDraggingPoint] = useState(false);
   // the mower's body as the planner knows it, and where it would stick out in the selected area's plan
   const body = useMowerBody();
   // a planner that checks the mower's body in every plan (it has body_fit): what it found shows with the plan
@@ -259,7 +268,7 @@ function MapEditor() {
   const unsized = !!plannerSettings?.settings.robot_front && !bodyFrom(plannerSettings);
   const [bodySpots, setBodySpots] = useState<BodySpot[] | null>(null);
   const {toolWidth, angleOffset, offsetIsAbsolute, angleIncrement, shownArea, autoAngle, touchAngle, mismatch, realPlan, plan, stripes, planLength, planRequest} =
-    useMowPlan({params, liveMap, shownMap, selectedAreaId, pastJobs, areaProps, showStripes, previewCorrection, draggingPoint});
+    useMowPlan({params, liveMap, shownMap: planMap, selectedAreaId, pastJobs, areaProps, showStripes, previewCorrection, draggingPoint});
   // a place of the collision check picked on the map: the body where it would have stuck out, for the plan it's from
   const [fitPick, setFitPick] = useState<{plan: unknown; index: number} | null>(null);
   const fitPlace = fitPick && fitPick.plan === realPlan ? realPlan?.checks?.places[fitPick.index] : undefined;
@@ -985,7 +994,7 @@ function MapEditor() {
                 onSelectArea={selectArea}
                 onMoveVertex={simplifyCm === null && (mode === 'idle' || mode === 'decor') ? moveVertex : undefined}
                 onDragStart={remember}
-                onDragging={setDraggingPoint}
+                onDragging={dragging}
                 // the start of a pinch, nothing to redo
                 onDragCancel={() => undoStep(false)}
                 onUndo={undo}

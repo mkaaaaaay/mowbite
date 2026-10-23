@@ -47,8 +47,18 @@ export function numParam(params: MowerParams, key: string): number | undefined {
   return params === EMPTY ? undefined : PARAM_DEFAULTS[key];
 }
 
-// gps datum, v2 keeps it under /ll/services/gps/, v1 under the gps driver, so match by the end of the key
+const datums = new WeakMap<MowerParams, {lat: number; lon: number} | undefined>();
+
+// gps datum, v2 keeps it under /ll/services/gps/, v1 under the gps driver, so match by the end of the key. the same
+// object again for the same params
 export function datumFromParams(params: MowerParams): {lat: number; lon: number} | undefined {
+  if (datums.has(params)) return datums.get(params);
+  const datum = findDatum(params);
+  datums.set(params, datum);
+  return datum;
+}
+
+function findDatum(params: MowerParams): {lat: number; lon: number} | undefined {
   let lat: number | undefined;
   let lon: number | undefined;
   for (const [k, v] of Object.entries(params)) {

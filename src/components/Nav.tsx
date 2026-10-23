@@ -1,6 +1,8 @@
 'use client';
 
 import {startSensorHistory} from '@/hooks/useSensorHistory';
+import {loadPlannerSettings} from '@/lib/mowerBody';
+import {holdMessages, passMessages} from '@/lib/mqttClient';
 import {syncSettings} from '@/lib/settings';
 import LogoMark from './Logo';
 import {WitchHat} from './Costumes';
@@ -58,14 +60,21 @@ export default function Nav() {
   const unsavedMap = useUnsavedMap();
   // halloween: the eater in the nav wears a witch's hat too
   const halloween = useHalloween();
-  // nav is always mounted, so sensor history records no matter which page is open
+  // nav is always mounted, so sensor history records no matter which page is open. the planner's settings are there
+  // before the map is opened, it's drawn with the mower's body from the start
   useEffect(() => {
     startSensorHistory();
     void syncSettings();
+    loadPlannerSettings().catch(() => {});
   }, []);
+  // the messages wait while another page is drawn (lib/mqttClient), they come once it's there
+  useEffect(() => passMessages(), [pathname]);
+  const leave = (href: string) => () => {
+    if (href !== pathname) holdMessages();
+  };
   return (
     <nav className={styles.nav}>
-      <Link href="/" className={styles.logo} aria-label="MowBite">
+      <Link href="/" className={styles.logo} aria-label="MowBite" onNavigate={leave('/')}>
         <LogoMark className={halloween.day ? styles.hatted : undefined}>{halloween.day && <WitchHat />}</LogoMark>
         <span className={styles.wordmark}>
           <strong>mow</strong>bite
@@ -73,7 +82,7 @@ export default function Nav() {
       </Link>
       <MowerSwitch className={styles.mowerSwitch} />
       {LINKS.map((link) => (
-        <Link key={link.href} href={link.href} className={pathname === link.href ? styles.active : undefined}>
+        <Link key={link.href} href={link.href} className={pathname === link.href ? styles.active : undefined} onNavigate={leave(link.href)}>
           <svg viewBox="0 0 24 24" aria-hidden="true">
             {link.icon}
           </svg>
@@ -81,7 +90,7 @@ export default function Nav() {
           {link.href === '/map' && unsavedMap && <i className={styles.unsaved} title={tr('Unsaved changes')} />}
         </Link>
       ))}
-      <Link href="/settings" className={[styles.settings, pathname === '/settings' ? styles.active : ''].join(' ')}>
+      <Link href="/settings" className={[styles.settings, pathname === '/settings' ? styles.active : ''].join(' ')} onNavigate={leave('/settings')}>
         <svg viewBox="0 0 24 24" aria-hidden="true">
           {ICONS.settings}
         </svg>
