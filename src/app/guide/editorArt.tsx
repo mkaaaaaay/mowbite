@@ -4,6 +4,7 @@ import {MergePanel, RestorePanel, SimplifyPanel, SnapPanel, SplitPanel, Subtract
 import DecorPanel from '@/app/map/DecorPanel';
 import EditorToolbar from '@/app/map/EditorToolbar';
 import OrderBox from '@/app/map/OrderBox';
+import {SimPlayer, SimulationView} from '@/app/map/PlanSimulation';
 import {AREA_TYPES, DEG, pinSquare} from '@/app/map/editing';
 import {AngleCompass, AngleOnMap, AngleSlider, AngleStep} from '@/app/map/MowSettings';
 import mapPage from '@/app/map/page.module.css';
@@ -20,6 +21,7 @@ import {mergeOutlines} from '@/lib/mergeAreas';
 import {MOWER_MODELS, sizesBody} from '@/lib/mowerBody';
 import {mowPlan} from '@/lib/mowPlan';
 import {simplifyPolygon} from '@/lib/simplifyPolygon';
+import {createSimClock, type SimFrame, type SimResult} from '@/lib/simulate';
 import {layAgainst, movingOf} from '@/lib/snapAreas';
 import {splitByPath} from '@/lib/splitPolygon';
 import {subtractOutline} from '@/lib/subtractAreas';
@@ -201,7 +203,10 @@ function Stage({t, map, selected, picking, pending, preview, view, extra, under,
   pending?: Point[];
   preview?: Point[][];
   // more for the map: the plan's lanes and loops, the mowing order, a mower's body for the real edges, a spot to zoom to
-  view?: Pick<React.ComponentProps<typeof MapView>, 'stripes' | 'loops' | 'orderLabels' | 'bodyOverride' | 'focus' | 'focusSpan' | 'mapStyle' | 'snap' | 'decor'>;
+  view?: Pick<
+    React.ComponentProps<typeof MapView>,
+    'stripes' | 'loops' | 'orderLabels' | 'bodyOverride' | 'focus' | 'focusSpan' | 'mapStyle' | 'snap' | 'decor' | 'sim' | 'leftPieces' | 'marginPlaces'
+  >;
   extra?: (toStage: (p: Point) => [number, number]) => React.ReactNode;
   under: React.ReactNode;
   hand: HandPlan;
@@ -1005,7 +1010,105 @@ function Edges() {
   );
 }
 
-// 11: the map's style: the gear on the map, then Garden, the lawn in stripes, ways and obstacles as pictures. what can
+// 11: the plan driven by the planner: the button under the map, then the mower round the lawn and along its lanes with
+// its trail on the map, what it left (orange) and where the body got into the safety distance (red)
+// the plan driven at a steady pace, turning on the spot at every corner
+function framesAlong(path: Point[], speed = 0.45, turn = 0.8): SimFrame[] {
+  const frames: SimFrame[] = [];
+  let t = 0;
+  for (let i = 1; i < path.length; i++) {
+    const a = path[i - 1];
+    const b = path[i];
+    const len = Math.hypot(b.x - a.x, b.y - a.y);
+    if (len < 0.01) continue;
+    const yaw = Math.atan2(b.y - a.y, b.x - a.x);
+    if (frames.length) t += turn;
+    frames.push([t, a.x, a.y, yaw, 1]);
+    t += len / speed;
+    frames.push([t, b.x, b.y, yaw, 1]);
+  }
+  return frames;
+}
+const SIM_PLAN = mowPlan({...LANES, angle: 20 * DEG});
+// round the lawn once, then the lanes one way and the next one back
+const SIM_FRAMES = framesAlong([...(SIM_PLAN.loops[0] ?? []), ...SIM_PLAN.stripes.flatMap(([a, b], i) => (i % 2 ? [b, a] : [a, b]))]);
+const SIM_MINUTES = (SIM_FRAMES.at(-1)?.[0] ?? 0) / 60;
+const SIM_RESULT: SimResult = {
+  minutes: {all: SIM_MINUTES, mow: SIM_MINUTES * 0.97, plan: SIM_MINUTES * 1.06},
+  drivenM: 0,
+  mowedM2: 0,
+  leftM2: 0.3,
+  plannedLeftM2: 0.1,
+  left: [{m2: 0.3, outline: [pt(13.3, 8.6), pt(13.85, 8.6), pt(13.4, 9.4)]}],
+  touches: [
+    {x: 6.15, y: 6.1, m: 0.031},
+    {x: 4.4, y: 7.7, m: 0.018},
+    {x: 2.9, y: 5.5, m: 0.012},
+  ],
+  navErrors: [],
+  aborted: false,
+  offPlan: {usual: 0.018, p95: 0.037, max: 0.05},
+  spins: 4,
+  frames: SIM_FRAMES,
+};
+const SIM_LEFT = SIM_RESULT.left.map((l) => l.outline);
+
+function Simulate() {
+  const t = useLoop(13, 0.86);
+  const driving = t >= 0.12 && t < 0.22;
+  const done = t >= 0.22;
+  const clock = useMemo(() => createSimClock(SIM_FRAMES), []);
+  // the drive played from start to end while the loop goes from 0.24 to 0.92
+  useEffect(() => clock.seek(clock.end * Math.min(1, Math.max(0, (t - 0.24) / 0.68))), [clock, t]);
+  const sim = useMemo(() => ({frames: SIM_FRAMES, clock}), [clock]);
+  return (
+    <Stage
+      t={t}
+      map={GARDEN}
+      selected={GARTEN.id}
+      view={{
+        stripes: SIM_PLAN.stripes,
+        loops: SIM_PLAN.loops,
+        bodyOverride: NX_BODY,
+        ...(done ? {sim, leftPieces: SIM_LEFT, marginPlaces: SIM_RESULT.touches} : {}),
+      }}
+      extra={() => (done ? <SimPlayer clock={clock} onClose={noop} /> : null)}
+      under={
+        <details className={mapPage.fold} open>
+          <summary>{tr('This area')}</summary>
+          <div className={mapPage.foldBody}>
+            <SimulationView
+              model="realistic"
+              locked={driving}
+              wait={driving ? tr('{what}, {pct} %', {what: tr('driving'), pct: Math.round(Math.min(1, (t - 0.12) / 0.1) * 100)}) : null}
+              error={null}
+              result={done ? SIM_RESULT : null}
+              shown={done}
+              canCancel
+              onRun={noop}
+              onModel={noop}
+              onStop={noop}
+              onShow={noop}
+            />
+          </div>
+        </details>
+      }
+      hand={{
+        moves: [
+          [0, 'off'],
+          [0.05, {button: tr('Simulate the drive')}],
+          [0.12, {button: tr('Simulate the drive')}],
+          [0.16, 'off'],
+        ],
+        press: tap(0.1),
+        taps: [0.1],
+        show: [0.03, 0.15],
+      }}
+    />
+  );
+}
+
+// 12: the map's style: the gear on the map, then Garden, the lawn in stripes, ways and obstacles as pictures. what can
 // come alive in the garden is switched on under it, each on its own
 function StyleSettings({garden}: {garden: boolean}) {
   return (
@@ -1060,7 +1163,7 @@ function Style() {
   );
 }
 
-// 12: decorating: a gnome picked in the row under the map and set with a tap on the map, picked right away (the lamps
+// 13: decorating: a gnome picked in the row under the map and set with a tap on the map, picked right away (the lamps
 // by the path have their rings), then held a moment and taken to another spot
 const pinOf = (id: string, name: string, at: Point): MapArea => ({id, properties: {name, type: 'decor', pin: true}, outline: pinSquare(at.x, at.y)});
 const LAMPS = [pinOf('lampe1', 'Gartenlampe', pt(7.4, 11)), pinOf('lampe2', 'Gartenlampe', pt(10.6, 11))];
@@ -1123,7 +1226,7 @@ function Decorate() {
   );
 }
 
-// 13: save: the old map goes into the backups first, its preview can bring it back
+// 14: save: the old map goes into the backups first, its preview can bring it back
 const BACKUP = {id: 'b1', t: Math.round(Date.now() / 1000) - 120, name: 'before saving', auto: true, areas: GARDEN.areas.length, size: 1};
 
 // the backups as the map page shows them, opened
@@ -1202,4 +1305,4 @@ function Save() {
   );
 }
 
-export const EDITOR_ART = [Select, Types, Switches, Points, Snap, Split, Merge, Subtract, Lay, Reduce, Direction, Order, Edges, Style, Decorate, Save];
+export const EDITOR_ART = [Select, Types, Switches, Points, Snap, Split, Merge, Subtract, Lay, Reduce, Direction, Order, Edges, Simulate, Style, Decorate, Save];

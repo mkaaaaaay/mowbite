@@ -1,40 +1,38 @@
 'use client';
 
 import type {MapArea, MowerMap, Point} from '@/hooks/useMowerMap';
-import {useComputedSpeed} from '@/hooks/useComputedSpeed';
-import {createEaser, type Easer, type Pose} from '@/lib/poseEaser';
+import {createEaser} from '@/lib/poseEaser';
 import {liveGlide} from '@/hooks/useMowerPosition';
 import {containsPoint, polygonArea} from '@/lib/geometry';
 import {nearestOnOutline, snapPoint} from '@/lib/snapAreas';
-import {looksOf, saveSettings, settingsStore, withLooks, type KeptLooks, type Settings} from '@/lib/settings';
-import {bladeSeconds, bodyShape, isPin, pinAt, realEdges, realInsides, roundBends, swathEnd, swathGroups, swathAfter, swathTail, useMowerBody, usePlannerSettings, type MowerBody, type SwathState} from '@/lib/mowerBody';
+import {looksOf, saveSettings, settingsStore, withLooks, type KeptLooks} from '@/lib/settings';
+import {bodyShape, isPin, pinAt, realEdges, realInsides, roundBends, swathEnd, swathGroups, swathAfter, swathTail, useMowerBody, usePlannerSettings, type MowerBody, type SwathState} from '@/lib/mowerBody';
 import type {FitPose, PlanPiece} from '@/lib/mowPlan';
-import {useSensorValue} from '@/hooks/useMowerSensors';
-import {dockIcon, drawMower, mowerIcon} from './mapIcons';
+import {dockIcon} from './mapIcons';
 import {availableSources, imageryShift, imageryTiles, type Datum} from '@/lib/imagery';
 import {handleRadius, meterGrid} from '@/lib/mapGrid';
 import MapControls, {layerOn, type Layer} from './MapControls';
 import {hiddenLayers, useMapPrefs} from './useMapPrefs';
-import {Fragment, memo, startTransition, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
+import {Fragment, isValidElement, memo, startTransition, useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode} from 'react';
 import styles from './MapView.module.css';
 import {fmt, tr, useLang} from '@/lib/i18n';
 import {tick} from '@/lib/haptics';
 import {TrashIcon} from './icons';
-import {MapGhost} from './Halloween';
-import {MapCostume} from './Costumes';
-import {stillPreferred, useHalloween} from '@/lib/eggs';
-import {useTrailingPose} from '@/hooks/useTrailingPose';
+import {useHalloween} from '@/lib/eggs';
 import {CELL_M, MIN_SECONDS, gpsGrade, loadCoverage, wifiGrade, type CoverageCell} from '@/lib/coverage';
 import {useUpdates} from '@/lib/updates';
 import {CoverInfo} from './CoverInfo';
 import {fillOf, GardenDefs, gardenThings, pinTapped} from './gardenLook';
-import {biggest, type Cover, coversOf, edgePaths, GardenThing, lifeOf, lifeScene} from './gardenLife';
+import {biggest, coversOf, edgePaths, GardenThing, lifeOf, lifeScene} from './gardenLife';
 import {PICTURES} from './gardenPictures';
 import {useMowHistory} from '@/hooks/useMowHistory';
 import {useWeather} from '@/hooks/useWeather';
 import {useMowerStateValue} from '@/hooks/useMowerState';
-import {framesUntil, poseAt, type SimClock, type SimFrame} from '@/lib/simulate';
-import {flushSync} from 'react-dom';
+import type {SimClock, SimFrame} from '@/lib/simulate';
+import {boundsOf, fitIn, HEIGHT, pathOf, viewFromMeters, viewToMeters, WIDTH, type Bounds, type Fit, type Meters, type View} from './mapFrame';
+import {LiveDrag, LiveLoupe, LivePin, liveStore, Loupe, LOUPE_ZOOM} from './MapLive';
+import {MowerMarker} from './MowerMarker';
+import {SimTrail} from './SimTrail';
 
 interface MapViewProps {
   map: MowerMap;
@@ -149,29 +147,6 @@ interface MapViewProps {
   navErrors?: Point[];
 }
 
-interface Bounds {
-  minX: number;
-  maxX: number;
-  minY: number;
-  maxY: number;
-}
-
-// the bounds of the areas' outlines and the points of a line being drawn, null for none
-function boundsOf(map: MowerMap, pendingPoints?: Point[]): Bounds | null {
-  const points = [...map.areas.flatMap((a) => a.outline), ...(pendingPoints ?? [])];
-  if (!points.length) return null;
-  const xs = points.map((p) => p.x);
-  const ys = points.map((p) => p.y);
-  return {minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys)};
-}
-
-// square viewBox window, in svg units
-interface View {
-  x: number;
-  y: number;
-  size: number;
-}
-
 const MAX_ZOOM = 40;
 // center and width in meters, so a changed map doesn't move what was looked at
 const savedViews = new Map<string, {x: number; y: number; span: number}>();
@@ -217,8 +192,6 @@ const OVERLAY_CLASS: Record<string, string> = {
   red: styles.overlayObstacle,
   blue: styles.overlayLive,
 };
-const LOUPE_PX = 120;
-const LOUPE_ZOOM = 2.5;
 // a finger on a point picks it up after resting this long, moving at once it pans the map: fingers are big and points
 // close together, panning shouldn't drag one along by accident. A mouse picks it up right away
 const HOLD_MS = 300;
@@ -233,9 +206,6 @@ function wantHoldHint() {
   return true;
 }
 
-const PADDING = 20;
-const MOWER_SIZE = 0.4; // m
-const WIDTH = 400;
 // the svg while it glides along the mower: twice the frame, slid along by a transform
 const GLIDING: React.CSSProperties = {position: 'absolute', left: 0, top: 0, width: '200%', height: '200%', transformOrigin: '0 0'};
 // the svg of a map that can be moved: twice the frame with the view in its middle, a pan or pinch slides it under the
@@ -252,516 +222,24 @@ const OVERSCAN: React.CSSProperties = {
 // the two layers on it (ground and over, see renderContent), each one the phone's gpu keeps drawn on its own
 const LAYER: React.CSSProperties = {position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', willChange: 'transform'};
 const OVER: React.CSSProperties = {...LAYER, pointerEvents: 'none', background: 'none', boxShadow: 'none'};
-const HEIGHT = 400;
-
-
-type Fit = {scale: number; padX: number; padY: number; minX: number; minY: number};
-// bounds in the square: svg units per meter and the margins round them, whatever doesn't fill the square centered
-function fitIn({minX, maxX, minY, maxY}: Bounds) {
-  const scaleX = (WIDTH - 2 * PADDING) / (maxX - minX || 1);
-  const scaleY = (HEIGHT - 2 * PADDING) / (maxY - minY || 1);
-  const scale = Math.min(scaleX, scaleY);
-  return {scale, padX: PADDING + (WIDTH - 2 * PADDING - (maxX - minX) * scale) / 2, padY: PADDING + (HEIGHT - 2 * PADDING - (maxY - minY) * scale) / 2};
-}
 // the ground of the map (draw), kept as it was while a point is held and the view stays: nothing on it changes
 // meanwhile, it isn't gone through again for every move
-// A simulated drive's trail up to where its clock is: the strip the blade cut (with the mower's sizes), the line driven
-// with the blades on and without. In pieces of a minute, a frame of the playback draws only the last one again
-const SIM_PIECE = 60;
-type SimFit = {minX: number; minY: number; m: number; padX: number; padY: number};
-type SimPiece = {cut: string; on: string; off: string};
-function simPiece(frames: readonly SimFrame[], from: number, to: number, fit: SimFit, body: MowerBody | null, tail: Pose | null): SimPiece {
-  const at = (x: number, y: number) => `${((x - fit.minX) * fit.m + fit.padX).toFixed(1)} ${(HEIGHT - ((y - fit.minY) * fit.m + fit.padY)).toFixed(1)}`;
-  // the blade's middle, ahead of the mower's and to its left by the sizes set
-  const blade = (x: number, y: number, yaw: number) =>
-    body ? at(x + Math.cos(yaw) * body.bladeAhead - Math.sin(yaw) * body.bladeOffset, y + Math.sin(yaw) * body.bladeAhead + Math.cos(yaw) * body.bladeOffset) : '';
-  const pts: [number, number, number, number][] = [];
-  for (let i = from; i < to; i++) pts.push([frames[i][1], frames[i][2], frames[i][3], frames[i][4]]);
-  if (tail && pts.length) pts.push([tail.x, tail.y, tail.heading, pts[pts.length - 1][3]]);
-  const out = {cut: '', on: '', off: ''};
-  // a stretch from one frame to the next goes as the first one had the blades
-  let last: 'on' | 'off' | null = null;
-  for (let i = 1; i < pts.length; i++) {
-    const [ax, ay, ayaw, ab] = pts[i - 1];
-    const [bx, by, byaw] = pts[i];
-    const kind = ab ? 'on' : 'off';
-    if (kind !== last) out[kind] += `M${at(ax, ay)}`;
-    out[kind] += `L${at(bx, by)}`;
-    if (kind === 'on' && body?.blade) out.cut += `${last === 'on' ? '' : `M${blade(ax, ay, ayaw)}`}L${blade(bx, by, byaw)}`;
-    last = kind;
-  }
-  return out;
-}
-
-function SimTrail({frames, clock, fit, body, swath, transit}: {
-  frames: readonly SimFrame[];
-  clock: SimClock;
-  fit: SimFit;
-  body: MowerBody | null;
-  swath: boolean;
-  transit: boolean;
-}) {
-  const [, redraw] = useState(0);
-  // every frame while it plays, in the same frame as the mower (flushSync), once more when it's paused or moved
-  useEffect(() => {
-    let frame = 0;
-    const tick = () => {
-      flushSync(() => redraw((n) => n + 1));
-      frame = clock.still(performance.now()) ? 0 : requestAnimationFrame(tick);
-    };
-    const off = clock.listen(() => void (frame ||= requestAnimationFrame(tick)));
-    frame = requestAnimationFrame(tick);
-    return () => {
-      off();
-      cancelAnimationFrame(frame);
-    };
-  }, [clock]);
-  // the pieces that are done, for the fit and the blade they were worked out with
-  const done = useRef<{key: string; pieces: Map<number, SimPiece>}>({key: '', pieces: new Map()});
-  const key = `${fit.minX},${fit.minY},${fit.m},${fit.padX},${fit.padY},${body?.blade},${body?.bladeAhead},${body?.bladeOffset}`;
-  // eslint-disable-next-line react-hooks/refs -- a cache of strings worked out from props, nothing drawn depends on when
-  if (done.current.key !== key || done.current.pieces.size * SIM_PIECE > frames.length) done.current = {key, pieces: new Map()};
-  const t = clock.time();
-  const n = framesUntil(frames, t);
-  const pieces: SimPiece[] = [];
-  for (let start = 0; start < n; start += SIM_PIECE) {
-    const stop = Math.min(n, start + SIM_PIECE);
-    // done once a frame after it has come: drawn on to that one, the lines go on without a gap
-    const full = stop - start === SIM_PIECE && stop < n;
-    // eslint-disable-next-line react-hooks/refs
-    let piece = full ? done.current.pieces.get(start) : undefined;
-    if (!piece) {
-      piece = simPiece(frames, start, full ? stop + 1 : stop, fit, body, full ? null : poseAt(frames, t));
-      // eslint-disable-next-line react-hooks/refs
-      if (full) done.current.pieces.set(start, piece);
-    }
-    pieces.push(piece);
-  }
-  return (
-    <>
-      {swath && body?.blade ? (
-        <g className={styles.swath} strokeWidth={body.blade * fit.m}>
-          {pieces.map((p, i) => (p.cut ? <path key={i} d={p.cut} /> : null))}
-        </g>
-      ) : null}
-      {pieces.map((p, i) => (
-        <Fragment key={i}>
-          {p.on && <path className={styles.track} d={p.on} />}
-          {transit && p.off && <path className={styles.transit} d={p.off} />}
-        </Fragment>
-      ))}
-    </>
-  );
-}
-
 const Ground = memo(
   function Ground({draw}: {draw: () => ReactNode; held: object | null; view: string}) {
     return draw();
   },
   (a, b) => !!b.held && a.held === b.held && a.view === b.view,
 );
-// a point of an area being dragged: where it is (meters), what it snapped to and where the finger is on the frame (for
-// the loupe). set by every move, only what reads it is drawn again: the rest of the map stays as it was until it's let go
-type Snap = {x: number; y: number; corner: boolean};
-type Finger = {x: number; y: number; width: number};
-type Live = {x: number; y: number; snap: Snap | null; finger: Finger | null};
-function liveStore() {
-  let now: Live | null = null;
-  const listeners = new Set<() => void>();
-  return {
-    get: () => now,
-    set(v: Live | null) {
-      now = v;
-      listeners.forEach((l) => l());
-    },
-    subscribe(l: () => void) {
-      listeners.add(l);
-      return () => void listeners.delete(l);
-    },
-  };
-}
-type LiveStore = ReturnType<typeof liveStore>;
-const useLive = (s: LiveStore) => useSyncExternalStore(s.subscribe, s.get, s.get);
-
-// the area whose point is dragged, from where the point is now: its outline (part 'outline'), or the point and the spot
-// it snapped to (part 'point')
-const LiveDrag = memo(function LiveDrag({live, outline, index, toScreen, k, part}: {
-  live: LiveStore;
-  outline: Point[];
-  index: number;
-  toScreen: (x: number, y: number) => [number, number];
-  k: number;
-  part: 'outline' | 'point';
-}) {
-  const now = useLive(live);
-  const at = now ?? outline[index];
-  if (!at) return null;
-  if (part === 'outline') {
-    const points = outline.map((p, i) => toScreen(i === index ? at.x : p.x, i === index ? at.y : p.y).join(',')).join(' ');
-    return (
-      <>
-        <polygon points={points} className={styles.selectedHalo} />
-        <polygon points={points} className={styles.selected} />
-      </>
-    );
-  }
-  const [sx, sy] = toScreen(at.x, at.y);
-  const snap = now?.snap;
-  return (
-    <>
-      <circle cx={sx} cy={sy} r={4 * k} className={styles.activeVertex} />
-      {snap && (
-        <circle
-          className={snap.corner ? styles.snapCorner : styles.snapEdge}
-          cx={toScreen(snap.x, snap.y)[0]}
-          cy={toScreen(snap.x, snap.y)[1]}
-          r={(snap.corner ? 7 : 5) * k}
-        />
-      )}
-    </>
-  );
-});
-
-// the magnified map above the finger (the finger hides the point otherwise), at (svg) in its middle. size: the svg units
-// the frame's width shows
-function Loupe({finger, at, size, garden, children}: {finger: Finger; at: [number, number]; size: number; garden: boolean; children: ReactNode}) {
-  const w = (LOUPE_PX * size) / finger.width / LOUPE_ZOOM;
-  const left = Math.min(finger.width - LOUPE_PX, Math.max(0, finger.x - LOUPE_PX / 2));
-  // above the finger, or below it when there's no room at the top
-  const above = finger.y - LOUPE_PX - 60;
-  const top = above >= 0 ? above : Math.min(finger.width - LOUPE_PX, finger.y + 60);
-  return (
-    <div className={styles.loupe} style={{left, top, width: LOUPE_PX, height: LOUPE_PX}}>
-      <svg className={[styles.svg, garden ? styles.garden : ''].filter(Boolean).join(' ')} viewBox={`${at[0] - w / 2} ${at[1] - w / 2} ${w} ${w}`}>
-        {children}
-      </svg>
-      <span className={styles.crosshair} />
-    </div>
-  );
-}
-
-// the loupe while a point of an area is dragged: it goes along with the finger, the map in it (children) stays as it is
-function LiveLoupe({live, toScreen, size, garden, children}: {
-  live: LiveStore;
-  toScreen: (x: number, y: number) => [number, number];
-  size: number;
-  garden: boolean;
-  children: ReactNode;
-}) {
-  const now = useLive(live);
-  if (!now?.finger) return null;
-  return (
-    <Loupe finger={now.finger} at={toScreen(now.x, now.y)} size={size} garden={garden}>
-      {children}
-    </Loupe>
-  );
-}
+// the pictures of a list without the one under this key (the garden's life lists them keyed by their area)
+const withoutKey = (nodes: ReactNode, key: string) => (Array.isArray(nodes) ? nodes.filter((n) => !(isValidElement(n) && n.key === key)) : nodes);
 
 // what's drawn of the map in one svg (see renderContent)
 type Part = 'all' | 'ground' | 'settled' | 'live' | 'over' | 'loupe';
 const drawsPart = (part: Part, p: Part) => part === 'all' || part === 'loupe' || part === p;
 
-// lines in meters as an svg path in the units of the fit
-const pathOf = (lines: readonly (readonly Point[])[], f: Fit, close = false) =>
-  lines
-    .map((o) => o.map((p, i) => `${i ? 'L' : 'M'}${(p.x - f.minX) * f.scale + f.padX} ${HEIGHT - ((p.y - f.minY) * f.scale + f.padY)}`).join('') + (close ? 'Z' : ''))
-    .join('');
 // a point of an outline or of a line being drawn, or the middle of an edge (a new point there)
 type Handle = {mid: boolean; index: number; x: number; y: number};
 type Press = {pointerId: number; clientX: number; clientY: number; pointerType: string};
-type Meters = {x: number; y: number; span: number};
-
-// a view (center and width in meters) in svg units and back, for the map fitted as given
-function viewFromMeters(m: Meters, f: Fit): View {
-  const size = m.span * f.scale;
-  return {x: (m.x - f.minX) * f.scale + f.padX - size / 2, y: HEIGHT - ((m.y - f.minY) * f.scale + f.padY) - size / 2, size};
-}
-
-function viewToMeters(v: View, f: Fit): Meters {
-  return {x: (v.x + v.size / 2 - f.padX) / f.scale + f.minX, y: (HEIGHT - v.y - v.size / 2 - f.padY) / f.scale + f.minY, span: v.size / f.scale};
-}
-
-// the mower. It glides between the poses that come in and moves itself every frame for that without drawing again:
-// its parts are drawn once around its position and the frame loop only moves and turns the groups they sit in. The rest
-// of the map stays as it is meanwhile
-// what tells where the mower is at a time: the live poses, a simulated drive played back
-type Glide = Pick<Easer, 'at' | 'still' | 'listen'>;
-
-function MowerMarker({
-  mower,
-  poses,
-  fit,
-  k,
-  icons,
-  body,
-  outline,
-  showIcon,
-  emergency,
-  blades,
-  ghost,
-  costume,
-  cover,
-  covers,
-  coverId,
-}: {
-  mower: Pose;
-  // the live poses as they came (useMowerPosition) or a simulated drive's clock, else it eases along mower on its own
-  poses: Glide | null;
-  fit: Fit;
-  k: number;
-  icons: Settings['icons'];
-  // the mower's sizes when set, its outline and blade drawn with outline
-  body: MowerBody | null;
-  outline: boolean;
-  showIcon: boolean;
-  emergency?: boolean;
-  blades: boolean;
-  // halloween night: a little ghost follows a moment behind while it drives
-  ghost?: boolean;
-  costume?: {hat?: boolean; towel?: boolean; umbrella?: boolean};
-  // the crowns and parasols over it, where they hide it (circles in svg units) it shows as its outline. coverId starts
-  // the ids for that
-  cover?: ReactNode;
-  covers?: Cover[];
-  coverId?: string;
-}) {
-  const [own] = useState(createEaser);
-  useEffect(() => {
-    own.push(poses ? null : mower);
-  }, [own, poses, mower]);
-  // the blade turning the way the mow motor does, drawn only with the outline
-  const rpm = useSensorValue('om_mow_motor_rpm', (v) => (outline && body?.blade ? Math.round(parseFloat(v ?? '') || 0) : 0));
-  const speed = useComputedSpeed(mower);
-  // which way a side view faces. it only turns once the mower clearly heads the other way, so it doesn't flicker while
-  // the mower drives up or down the map
-  const [facing, setFacing] = useState(1);
-  const across = Math.cos(mower.heading);
-  if (across > 0.3 && facing !== 1) setFacing(1);
-  if (across < -0.3 && facing !== -1) setFacing(-1);
-  const {scale} = fit;
-  // the parts around the mower's position with it heading along x, in svg units (svg's y points down)
-  const shape = body ? bodyShape(body, 0, 0, 0) : null;
-  const local = (p: {x: number; y: number}): [number, number] => [p.x * scale, -p.y * scale];
-  // at its real size with the sizes set the icon sits in the middle of the body, as long as it
-  const real = icons?.mowerRealSize ? shape : null;
-  // same size on screen like the dock, or its real size (never smaller than a few pixels)
-  const realSize = body && real ? ((body.front + body.rear) / 2) * scale : MOWER_SIZE * scale;
-  const base = icons?.mowerRealSize ? Math.max(realSize, 7 * k) : 8 * k;
-  const size = base * (real ? 1 : (icons?.mowerSize ?? 1));
-  const icon = mowerIcon(icons?.mower);
-  // a real mower on its body, exactly as long and wide as set
-  const fitted = showIcon && icon.fit && !!body && !!shape;
-  // where the icon sits: the body's middle at real size or fitted to the body, else the mower's position
-  const [mx, my] = shape && (fitted || real) ? local(shape.middle) : [0, 0];
-  // a side view heading left would stand on its head, mirrored it keeps its feet on the ground. a figure
-  // isn't turned with the heading at all, it only looks left or right. css, so it turns around instead of
-  // flipping over at once
-  const turn = !icon.side ? undefined : icon.upright ? `scaleX(${facing})` : `scaleY(${facing})`;
-  const points = (list: {x: number; y: number}[]) => list.map((c) => local(c).join(',')).join(' ');
-  const [bx, by] = shape ? local(shape.blade) : [0, 0];
-  const r = body ? (body.blade / 2) * scale : 0;
-  // OpenMower's rpm is negative when the motor turns the other way round (randomize_mow_motor_direction), forwards is
-  // drawn clockwise
-  const spin = Math.sign(rpm);
-  const still = stillPreferred();
-
-  // moved to the eased pose: all of it, the parts that turn with the heading (under the icon and over it), and the
-  // ones that stay upright at the turned middle
-  const moveRefs = useRef<(SVGGElement | null)[]>([]);
-  const turnRefs = useRef<(SVGGElement | null)[]>([]);
-  const uprightRefs = useRef<(SVGGElement | null)[]>([]);
-  const placed = useRef({sx: NaN, sy: NaN, deg: NaN});
-  const latest = useRef({fit, k, mx, my, mower});
-  // the time of the frame being shown: placed again after a render at that time, a later one would put it a bit ahead
-  // until the next frame and it would twitch with every render
-  const shownAt = useRef<number | null>(null);
-  const place = useCallback(
-    (now: number = shownAt.current ?? performance.now()) => {
-      const {fit: f, k: unit, mx: ox, my: oy, mower: m} = latest.current;
-      const p = (poses ?? own).at(now) ?? m;
-      const sx = (p.x - f.minX) * f.scale + f.padX;
-      const sy = HEIGHT - ((p.y - f.minY) * f.scale + f.padY);
-      // svg y points down, so the map's ccw heading becomes a cw rotation
-      const deg = (-p.heading * 180) / Math.PI;
-      const last = placed.current;
-      // (a fiftieth of a pixel, a twentieth of a degree: nothing is set again while it stands)
-      if (Math.abs(sx - last.sx) < 0.02 * unit && Math.abs(sy - last.sy) < 0.02 * unit && Math.abs(deg - last.deg) < 0.05) return;
-      placed.current = {sx, sy, deg};
-      for (const g of moveRefs.current) g?.setAttribute('transform', `translate(${sx} ${sy})`);
-      for (const g of turnRefs.current) g?.setAttribute('transform', `rotate(${deg})`);
-      const a = (deg * Math.PI) / 180;
-      const up = `translate(${ox * Math.cos(a) - oy * Math.sin(a)} ${ox * Math.sin(a) + oy * Math.cos(a)})`;
-      for (const g of uprightRefs.current) g?.setAttribute('transform', up);
-    },
-    [poses, own],
-  );
-  // after every render: what's drawn may be new, it's placed before it shows
-  useLayoutEffect(() => {
-    latest.current = {fit, k, mx, my, mower};
-    placed.current = {sx: NaN, sy: NaN, deg: NaN};
-    place();
-  });
-  // every frame while it moves, at rest until a pose comes that's somewhere else
-  useEffect(() => {
-    const eased = poses ?? own;
-    let frame = 0;
-    const tick = (now: number) => {
-      shownAt.current = now;
-      place(now);
-      frame = eased.still(now) ? 0 : requestAnimationFrame(tick);
-    };
-    const wake = () => void (frame ||= requestAnimationFrame(tick));
-    frame = requestAnimationFrame(tick);
-    const off = eased.listen(wake);
-    return () => {
-      off();
-      cancelAnimationFrame(frame);
-    };
-  }, [place, poses, own]);
-
-  const drawIcon = (
-    <g className={styles.turn} style={turn ? {transform: turn} : undefined}>
-      {drawMower(icon, {speed, emergency, blades})}
-    </g>
-  );
-  // its outline where a crown or a parasol hides it: the body's (a real model's contour with its sizes), without sizes the
-  // icon's drawn round its shape (a pixel and a bit wide at any zoom)
-  const hidden = covers && covers.length > 0 && coverId;
-  const iconOutline = showIcon && !shape;
-  const [ox, oy] = fitted ? [((body.front + body.rear) / 2) * scale, (body.width / 2) * scale] : [size, size];
-  const silhouette = (
-    <filter id={coverId + 'o'} x="-30%" y="-30%" width="160%" height="160%">
-      <feMorphology in="SourceAlpha" operator="dilate" radius={`${(1.4 * k) / ox} ${(1.4 * k) / oy}`} result="grown" />
-      <feComposite in="grown" in2="SourceAlpha" operator="out" result="ring" />
-      <feFlood floodColor="#fff" floodOpacity={0.9} />
-      <feComposite in2="ring" operator="in" />
-    </filter>
-  );
-  return (
-    <>
-      <g ref={(el) => void (moveRefs.current[0] = el)}>
-        <g ref={(el) => void (turnRefs.current[0] = el)}>
-          {outline && shape && <polygon className={styles.mowerBody} points={points(shape.corners)} />}
-          {fitted ? (
-            <g
-              className={styles.mower}
-              transform={`translate(${mx} ${my}) scale(${((body.front + body.rear) / 2) * scale} ${(body.width / 2) * scale})`}
-            >
-              {icon.draw({speed, emergency, blades})}
-            </g>
-          ) : (
-            showIcon &&
-            !icon.upright && (
-              <g className={styles.mower} transform={`translate(${mx} ${my}) scale(${size})`}>
-                {drawIcon}
-              </g>
-            )
-          )}
-        </g>
-        {showIcon && !fitted && icon.upright && (
-          <g ref={(el) => void (uprightRefs.current[0] = el)}>
-            <g className={styles.mower} transform={`scale(${size})`}>
-              {drawIcon}
-            </g>
-          </g>
-        )}
-        <g ref={(el) => void (turnRefs.current[1] = el)}>
-          {/* the blade over the icon, where it sits under the mower */}
-          {outline && shape && r > 0 && (
-            <g transform={`translate(${bx} ${by})`}>
-              <circle className={blades ? styles.mowerBladeOn : styles.mowerBlade} r={r} />
-              {/* the blade itself, turning like the mow motor: svg's y points down, so a positive angle turns clockwise */}
-              <g className={styles.mowerBladeBar}>
-                <rect x={-r * 0.92} y={-r * 0.09} width={r * 1.84} height={r * 0.18} rx={r * 0.05} />
-                <rect x={-r * 0.92} y={-r * 0.09} width={r * 0.3} height={r * 0.18} transform={`rotate(-20 ${-r * 0.77} 0)`} />
-                <rect x={r * 0.62} y={-r * 0.09} width={r * 0.3} height={r * 0.18} transform={`rotate(-20 ${r * 0.77} 0)`} />
-                {spin !== 0 && !still && (
-                  <animateTransform
-                    attributeName="transform"
-                    type="rotate"
-                    from="0 0 0"
-                    to={`${spin * 360} 0 0`}
-                    dur={`${bladeSeconds(rpm)}s`}
-                    repeatCount="indefinite"
-                  />
-                )}
-              </g>
-            </g>
-          )}
-          {outline && shape && (
-            <>
-              {!showIcon && <polyline className={styles.mowerArrow} points={points(shape.arrow)} />}
-              <circle className={styles.mowerAxle} cx={0} cy={0} r={1.5 * k} />
-            </>
-          )}
-        </g>
-        {showIcon && (costume?.hat || costume?.towel || costume?.umbrella) && (
-          // upright over any icon, also one seen from above, at the size it's drawn
-          <g ref={(el) => void (uprightRefs.current[1] = el)}>
-            <g transform={`scale(${fitted ? ((body.front + body.rear) / 2) * scale : size})`} className={styles.costume}>
-              <MapCostume hat={costume.hat} towel={costume.towel} umbrella={costume.umbrella} high={!!icon.side} />
-            </g>
-          </g>
-        )}
-      </g>
-      {ghost && <MarkerGhost mower={mower} on={speed > 0.05} fit={fit} size={size} />}
-      {cover}
-      {hidden && (
-        <>
-          <defs>
-            <mask id={coverId} maskUnits="userSpaceOnUse" x={-10 * WIDTH} y={-10 * HEIGHT} width={21 * WIDTH} height={21 * HEIGHT}>
-              {covers.map((c, i) =>
-                c.pts ? <polygon key={i} points={c.pts.map((p) => p.join(',')).join(' ')} fill="#fff" /> : <circle key={i} cx={c.cx} cy={c.cy} r={c.r} fill="#fff" />,
-              )}
-            </mask>
-            {iconOutline && silhouette}
-          </defs>
-          <g mask={`url(#${coverId})`} className={styles.mowerUnder}>
-            <g ref={(el) => void (moveRefs.current[1] = el)}>
-              <g ref={(el) => void (turnRefs.current[2] = el)}>
-                {shape && <polygon className={styles.mowerUnderBody} points={points(shape.corners)} />}
-                {iconOutline &&
-                  (fitted ? (
-                    <g transform={`translate(${mx} ${my}) scale(${ox} ${oy})`} filter={`url(#${coverId}o)`}>
-                      {icon.draw({speed, emergency, blades})}
-                    </g>
-                  ) : (
-                    !icon.upright && (
-                      <g transform={`translate(${mx} ${my}) scale(${size})`} filter={`url(#${coverId}o)`}>
-                        {drawIcon}
-                      </g>
-                    )
-                  ))}
-              </g>
-              {iconOutline && !fitted && icon.upright && (
-                <g ref={(el) => void (uprightRefs.current[2] = el)}>
-                  <g transform={`scale(${size})`} filter={`url(#${coverId}o)`}>
-                    {drawIcon}
-                  </g>
-                </g>
-              )}
-            </g>
-          </g>
-        </>
-      )}
-    </>
-  );
-}
-
-// halloween night: a little ghost follows a moment behind while it drives, drawn again every frame on its own
-function MarkerGhost({mower, on, fit, size}: {mower: Pose; on: boolean; fit: Fit; size: number}) {
-  const haunt = useTrailingPose(mower, on);
-  if (!haunt) return null;
-  const sx = (haunt.x - fit.minX) * fit.scale + fit.padX;
-  const sy = HEIGHT - ((haunt.y - fit.minY) * fit.scale + fit.padY);
-  return (
-    <g transform={`translate(${sx} ${sy}) scale(${(size * 2.2) / 30})`} className={styles.ghost}>
-      <g className={styles.ghostBob}>
-        <MapGhost />
-      </g>
-    </g>
-  );
-}
 
 function MapView({
   map,
@@ -1482,6 +960,9 @@ function MapView({
       : null;
   // one of its points being dragged: the area and the point drawn from where it is now (live), the rest stays as it is
   const gliding = !!dragging && !!selectedArea && dragging.areaId === selectedArea.id && !!onMoveVertex;
+  // a pin being moved (decorating): drawn where the finger has it (LivePin), on the map it stays where it was until it's
+  // let go
+  const glidingPin = dragging && onMoveVertex ? map.areas.find((a) => a.id === dragging.areaId && isPin(a)) : undefined;
 
   // deleting the tapped point: its button next to it, the Delete key (Backspace on keyboards without one), and for a
   // moment a way back
@@ -1548,7 +1029,7 @@ function MapView({
   const pickedThing = editing && !pickingPoints && selectedAreaId && gardenLook ? gardenLook.things.get(selectedAreaId) : undefined;
   const pickedPic = pickedThing ? PICTURES[pickedThing.look] : undefined;
   const handles = (() => {
-    if (!pickedThing || !pickedPic || pickedPic.fill || !pickedThing.places.length) return null;
+    if (glidingPin || !pickedThing || !pickedPic || pickedPic.fill || !pickedThing.places.length) return null;
     const pl = biggest(pickedThing.places);
     const a = (pl.deg * Math.PI) / 180;
     const at = (u: number, v: number): [number, number] => [pl.cx + u * Math.cos(a) - v * Math.sin(a), pl.cy + u * Math.sin(a) + v * Math.cos(a)];
@@ -1809,8 +1290,7 @@ function MapView({
     gesture.current.moved = true; // eat the click that follows
     if (e.pointerType === 'touch') tick();
     setDragging({areaId, index: hit.mid ? hit.index + 1 : hit.index, bounds: {minX, maxX, minY, maxY}});
-    // a pin is only its picture, that goes along with the finger
-    setHeld(areaId === PENDING || from ? null : {map, bounds: {minX, maxX, minY, maxY}});
+    setHeld(areaId === PENDING ? null : {map, bounds: {minX, maxX, minY, maxY}});
   };
 
   // a second finger while a point is held means the first one was the start of a pinch
@@ -2179,8 +1659,8 @@ function MapView({
       const [x, y] = s ? [s.x, s.y] : local ? [local[0] + (d.off?.x ?? 0), local[1] + (d.off?.y ?? 0)] : [0, 0];
       const rect = (frameRef.current ?? svgRef.current)?.getBoundingClientRect();
       const at = d.touch && rect ? {x: e.clientX - rect.left, y: e.clientY - rect.top, width: rect.width} : null;
-      // a point of an area: only it goes along, the area gets it once it's let go
-      if (dragging.areaId !== PENDING && !d.off) {
+      // a point of an area or a pin: only it goes along, the map gets it once it's let go
+      if (dragging.areaId !== PENDING) {
         if (!local || !onMoveVertex) return;
         d.at = {x, y};
         live.set({x, y, snap: s, finger: at});
@@ -2194,7 +1674,7 @@ function MapView({
     // the point of an area moved where it was let go
     const putDown = () => {
       const d = drag.current;
-      if (d.at && d.moved && dragging.areaId !== PENDING && !d.off) onMoveVertex?.(dragging.areaId, dragging.index, d.at.x, d.at.y);
+      if (d.at && d.moved && dragging.areaId !== PENDING) onMoveVertex?.(dragging.areaId, dragging.index, d.at.x, d.at.y);
       d.at = undefined;
       live.set(null);
     };
@@ -2221,8 +1701,8 @@ function MapView({
         setActive(null);
       }
       setDragging(null);
-      // moved, it's let go once its garden is worked out (above)
-      if (!d.moved) setHeld(null);
+      // moved, it's let go once its garden is worked out (above). a pin's picture right away where it went
+      if (!d.moved || d.off) setHeld(null);
       setFinger(null);
       setSnapMark(null);
       onDragging?.(false);
@@ -2232,7 +1712,7 @@ function MapView({
       drag.current.pointerId = -1;
       putDown();
       setDragging(null);
-      if (!drag.current.moved) setHeld(null);
+      if (!drag.current.moved || drag.current.off) setHeld(null);
       setFinger(null);
       setSnapMark(null);
       onDragging?.(false);
@@ -2301,8 +1781,12 @@ function MapView({
   const shownThings = gardenLook ? areasBySize.filter((a) => !hidden.has(a.properties.type as Layer)).flatMap((a) => gardenLook.things.get(a.id) ?? []) : [];
   const overThings = shownThings.filter((t) => t.places.some((pl) => pl.over));
   const canopies = scene
-    ? scene.canopies
-    : overThings.map((t) => <GardenThing key={'c' + t.id} uid={uid} thing={t} off={shapeMap.areas.find((a) => a.id === t.id)?.properties.active === false} part="over" />);
+    ? glidingPin
+      ? withoutKey(scene.canopies, 'c' + glidingPin.id)
+      : scene.canopies
+    : overThings
+        .filter((t) => t.id !== glidingPin?.id)
+        .map((t) => <GardenThing key={'c' + t.id} uid={uid} thing={t} off={shapeMap.areas.find((a) => a.id === t.id)?.properties.active === false} part="over" />);
   const covers = scene ? scene.covers : coversOf(overThings);
   // the plan's lanes and loops, under the dock and the track
   const planLines = (
@@ -2391,7 +1875,9 @@ function MapView({
         {areasBySize.filter((area) => !hidden.has(area.properties.type as Layer)).map((area) => {
           // a pin is only its picture, its square isn't drawn. the loupe has the one being dragged
           if (isPin(area))
-            return <Fragment key={area.id}>{(part === 'loupe' ? area.id === dragging?.areaId : !scene) && thingOf(area)}</Fragment>;
+            return (
+              <Fragment key={area.id}>{area.id !== glidingPin?.id && (part === 'loupe' ? area.id === dragging?.areaId : !scene) && thingOf(area)}</Fragment>
+            );
           return (
             <Fragment key={area.id}>
               <polygon
@@ -2419,7 +1905,7 @@ function MapView({
         {part !== 'loupe' && (
           <>
             {scene?.stones}
-            {scene?.things}
+            {glidingPin ? withoutKey(scene?.things, 't' + glidingPin.id) : scene?.things}
             {scene?.sky}
             {coverLayer}
           </>
@@ -2618,6 +2104,9 @@ function MapView({
 
         {gliding && selectedArea && dragging && (
           <LiveDrag live={live} outline={selectedArea.outline} index={dragging.index} toScreen={toScreen} k={k} part="point" />
+        )}
+        {glidingPin && gardenLook?.things.get(glidingPin.id) && (
+          <LivePin live={live} thing={gardenLook.things.get(glidingPin.id)!} uid={uid} from={pinAt(glidingPin)} scale={scale} toScreen={toScreen} k={k} />
         )}
         {snapMark && (
           <circle
@@ -2863,7 +2352,7 @@ function MapView({
   const draggedPin = dragging ? map.areas.find((a) => a.id === dragging.areaId && isPin(a)) : undefined;
   const dragged =
     dragging && (dragging.areaId === PENDING ? pendingPoints?.[dragging.index] : draggedPin ? pinAt(draggedPin) : selectedArea?.outline[dragging.index]);
-  if (gliding && selectedArea) {
+  if ((gliding && selectedArea) || glidingPin) {
     loupe = (
       <LiveLoupe live={live} toScreen={toScreen} size={shown?.size ?? WIDTH} garden={garden}>
         {renderContent(k / LOUPE_ZOOM, 'loupe')}

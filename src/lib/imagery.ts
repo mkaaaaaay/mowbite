@@ -306,13 +306,23 @@ const MAX_TILES = 120;
 function wmsTiles(src: WmsSource, datum: Datum, v: View): ImageryTile[] {
   const zone = utmZone(datum.lat, datum.lon);
   const d = toUtm(datum.lat, datum.lon, zone);
-  const res = 2 ** Math.max(-3, Math.min(5, Math.floor(Math.log2(v.metersPerPixel))));
-  const span = 256 * res;
-  const x0 = Math.floor((d.e + v.left) / span);
-  const x1 = Math.floor((d.e + v.right) / span);
-  const y0 = Math.floor((d.n + v.bottom) / span);
-  const y1 = Math.floor((d.n + v.top) / span);
-  if ((x1 - x0 + 1) * (y1 - y0 + 1) > MAX_TILES) return [];
+  // more tiles than that for the view: coarser ones, each twice as wide, until they fit (a little blurry beats none)
+  let res = 2 ** Math.max(-3, Math.min(5, Math.floor(Math.log2(v.metersPerPixel))));
+  const grid = () => {
+    const span = 256 * res;
+    const x0 = Math.floor((d.e + v.left) / span);
+    const x1 = Math.floor((d.e + v.right) / span);
+    const y0 = Math.floor((d.n + v.bottom) / span);
+    const y1 = Math.floor((d.n + v.top) / span);
+    return {span, x0, x1, y0, y1, n: (x1 - x0 + 1) * (y1 - y0 + 1)};
+  };
+  let g = grid();
+  while (g.n > MAX_TILES && res < 32) {
+    res *= 2;
+    g = grid();
+  }
+  const {span, x0, x1, y0, y1} = g;
+  if (g.n > MAX_TILES) return [];
 
   const tiles: ImageryTile[] = [];
   for (let ix = x0; ix <= x1; ix++) {
@@ -348,7 +358,7 @@ function xyzTiles(template: string, datum: Datum, v: View): ImageryTile[] {
   const zone = utmZone(datum.lat, datum.lon);
   const d = toUtm(datum.lat, datum.lon, zone);
   const cosLat = Math.cos((datum.lat * Math.PI) / 180);
-  const z = Math.max(3, Math.min(19, Math.round(Math.log2((156543.03 * cosLat) / v.metersPerPixel))));
+  let z = Math.max(3, Math.min(19, Math.round(Math.log2((156543.03 * cosLat) / v.metersPerPixel))));
 
   // rough lat/lon of the view, only used to pick tiles, one tile of margin covers the error
   const toLat = (y: number) => datum.lat + y / 111320;
@@ -358,11 +368,21 @@ function xyzTiles(template: string, datum: Datum, v: View): ImageryTile[] {
     const r = (lat * Math.PI) / 180;
     return Math.floor(((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2) * 2 ** z);
   };
-  const x0 = tx(toLon(v.left)) - 1;
-  const x1 = tx(toLon(v.right)) + 1;
-  const y0 = ty(toLat(v.top)) - 1;
-  const y1 = ty(toLat(v.bottom)) + 1;
-  if ((x1 - x0 + 1) * (y1 - y0 + 1) > MAX_TILES) return [];
+  // more tiles than that for the view: the next zoom level out until they fit (a little blurry beats none)
+  const grid = () => {
+    const x0 = tx(toLon(v.left)) - 1;
+    const x1 = tx(toLon(v.right)) + 1;
+    const y0 = ty(toLat(v.top)) - 1;
+    const y1 = ty(toLat(v.bottom)) + 1;
+    return {x0, x1, y0, y1, n: (x1 - x0 + 1) * (y1 - y0 + 1)};
+  };
+  let g = grid();
+  while (g.n > MAX_TILES && z > 3) {
+    z--;
+    g = grid();
+  }
+  const {x0, x1, y0, y1} = g;
+  if (g.n > MAX_TILES) return [];
 
   const local = (lat: number, lon: number) => {
     const u = toUtm(lat, lon, zone);

@@ -114,42 +114,78 @@ export function PlanSimulation({request, sim, onResult, onShow}: {
     setRunning(null);
   };
 
-  const busy = running?.key === key;
   const result = sim?.key === key ? sim : null;
-  const r = result?.result;
+  return (
+    <SimulationView
+      model={model}
+      locked={!!running}
+      wait={
+        running?.key === key
+          ? progress
+            ? tr('{what}, {pct} %', {what: tr(PHASES[progress.phase] ?? progress.phase), pct: Math.round(progress.fraction * 100)})
+            : tr('{s} s', {s: elapsed})
+          : null
+      }
+      error={error?.key === key ? error.text : null}
+      result={result?.result ?? null}
+      shown={!!result?.shown}
+      canCancel={canCancel}
+      onRun={() => void run()}
+      onModel={setModel}
+      onStop={stop}
+      onShow={onShow}
+    />
+  );
+}
+
+// What the section shows (the map page, the editor guide): the button with the mower to drive with, what it says while
+// it drives (wait: the seconds or how far it got, null when it doesn't), what came
+export function SimulationView({model, locked, wait, error, result, shown, canCancel, onRun, onModel, onStop, onShow}: {
+  model: SimModel;
+  // a drive going on, of this plan or another one: no other one meanwhile
+  locked: boolean;
+  wait: string | null;
+  error: string | null;
+  result: SimResult | null;
+  shown: boolean;
+  canCancel: boolean;
+  onRun: () => void;
+  onModel: (m: SimModel) => void;
+  onStop: () => void;
+  onShow: (shown: boolean) => void;
+}) {
+  const r = result;
   const worst = r?.touches.reduce((m, t) => Math.max(m, t.m), 0) ?? 0;
   return (
     <div className={styles.simulation}>
       <div className={styles.simulationRow}>
-        <button className={styles.pillButton} onClick={() => void run()} disabled={!!running}>
-          {busy ? tr('Driving it…') : r ? tr('Drive it again') : tr('Simulate the drive')}
+        <button className={styles.pillButton} onClick={onRun} disabled={locked}>
+          {wait !== null ? tr('Driving it…') : r ? tr('Drive it again') : tr('Simulate the drive')}
         </button>
         <div className={styles.simModel} role="radiogroup" aria-label={tr('Mower')}>
           {(['realistic', 'ideal'] as const).map((m) => (
-            <button key={m} role="radio" aria-checked={model === m} className={model === m ? styles.simModelOn : undefined} onClick={() => setModel(m)} disabled={!!running}>
+            <button key={m} role="radio" aria-checked={model === m} className={model === m ? styles.simModelOn : undefined} onClick={() => onModel(m)} disabled={locked}>
               {m === 'realistic' ? tr('realistic') : tr('ideal')}
             </button>
           ))}
         </div>
       </div>
-      {!r && !busy && (
+      {!r && wait === null && (
         <span className={styles.dim}>
           {tr(
             "The planner drives the plan the way your mower would: OpenMower's controller with the errors of GPS, wheels and drive (realistic) or a mower that drives exactly (ideal). It shows what's left unmowed, where the body gets into the safety distance and how long it takes. On the mower that takes about half a minute for ten minutes of mowing.",
           )}
         </span>
       )}
-      {busy && (
+      {wait !== null && (
         <span className={styles.dim}>
-          {progress
-            ? tr('{what}, {pct} %', {what: tr(PHASES[progress.phase] ?? progress.phase), pct: Math.round(progress.fraction * 100)})
-            : tr('{s} s', {s: elapsed})}{' '}
-          <button className={styles.simLink} onClick={stop}>
+          {wait}{' '}
+          <button className={styles.simLink} onClick={onStop}>
             {canCancel ? tr('Stop simulating') : tr("Don't wait")}
           </button>
         </span>
       )}
-      {error?.key === key && <span className={styles.warningText}>{error.text}</span>}
+      {error && <span className={styles.warningText}>{error}</span>}
       {r && (
         <>
           <span>
@@ -185,8 +221,8 @@ export function PlanSimulation({request, sim, onResult, onShow}: {
               {tr('Off the plan on the lanes: usually {usual} cm, at most {max} cm.', {usual: fmt(r.offPlan.usual * 100, 1), max: fmt(r.offPlan.max * 100, 0)})}
             </span>
           )}
-          <button className={styles.simLink} onClick={() => onShow(!result.shown)}>
-            {result.shown ? tr('Hide it on the map') : tr('Show it on the map')}
+          <button className={styles.simLink} onClick={() => onShow(!shown)}>
+            {shown ? tr('Hide it on the map') : tr('Show it on the map')}
           </button>
         </>
       )}

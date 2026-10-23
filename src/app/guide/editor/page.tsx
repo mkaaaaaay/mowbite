@@ -60,6 +60,10 @@ const STEPS: GuideStep[] = [
     text: "When recording, the mower keeps the path of its middle: that's the line. Its body reaches further though, up to the dashed line, the real edge. So the green strip between them is lawn too. The dashed line needs your mower's sizes (Settings, Your mower).",
   },
   {
+    title: 'Simulate the drive',
+    text: "With the MowBite Planner on the mower, Simulate the drive under This area drives the area's plan the way your mower would: with OpenMower's controller and the errors of GPS, wheels and drive. On the map you see what's left unmowed (orange), where the body gets into the safety distance (red) and how long it takes. The bar at the bottom of the map plays the drive back, faster or slower. Change something on the area and the result is gone, simulate again then.",
+  },
+  {
     title: 'Map style',
     text: 'With the gear on the map you pick the map style: Plain shows colored areas, Garden draws the garden from above (off until you pick it). There ways, obstacles and decoration get a picture by their name. With one picked you change it under the map at Picture on the map, and its color, size, direction and the ground under it. Light and shadows, the season, the lawn growing back and a mowing edge can be switched on one by one.',
   },

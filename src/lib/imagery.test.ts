@@ -46,3 +46,28 @@ describe('imagery moved by hand', () => {
     expect(Math.max(...x)).toBeGreaterThanOrEqual(view.right);
   });
 });
+
+describe('a wide view', () => {
+  // the map three times its width on a tablet zoomed out: about 360 m across at 0.14 m per pixel
+  const wide = {left: -180, right: 180, bottom: -180, top: 180, metersPerPixel: 0.14};
+  const across = (tiles: ReturnType<typeof imageryTiles>) => {
+    const x = tiles.flatMap((t) => t.corners.map((c) => c.x));
+    return [Math.min(...x), Math.max(...x)];
+  };
+
+  it('gets coarser tiles instead of none', () => {
+    for (const tiles of [imageryTiles('ni', hanover, wide), imageryTiles('esri', hanover, wide, {esriKey: 'AAPTkey'})]) {
+      expect(tiles.length).toBeGreaterThan(0);
+      expect(tiles.length).toBeLessThanOrEqual(120);
+      const [left, right] = across(tiles);
+      expect(left).toBeLessThanOrEqual(wide.left);
+      expect(right).toBeGreaterThanOrEqual(wide.right);
+    }
+  });
+
+  it('keeps the fine ones where they fit', () => {
+    const fine = imageryTiles('ni', hanover, view);
+    // 0.1 m per pixel: the finest, tiles 256 * 0.125 = 32 m wide
+    expect(fine[0].corners[1].x - fine[0].corners[0].x).toBeCloseTo(32, 6);
+  });
+});

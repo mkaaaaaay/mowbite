@@ -19,10 +19,11 @@ function claimsSwipe(el: Element | null): boolean {
   return false;
 }
 
-// the neighbour page is rendered for real while swiping, so it's there even on the first swipe
+// the neighbour page is rendered for real while swiping, so it's there even on the first swipe. the map only as its frame:
+// its editor is kept by the layout and shows once the swipe is done (components/MapKeeper)
 const LOAD: Record<string, () => Promise<{default: React.ComponentType}>> = {
   '/': () => import('@/app/page'),
-  '/map': () => import('@/app/map/MapEditor'),
+  '/map': () => import('@/app/map/MapPeek'),
   '/sensors': () => import('@/app/sensors/page'),
   '/schedule': () => import('@/app/schedule/page'),
   '/activity': () => import('@/app/activity/page'),
