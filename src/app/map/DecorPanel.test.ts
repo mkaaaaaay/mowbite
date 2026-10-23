@@ -1,7 +1,9 @@
 import type {MapArea} from '@/hooks/useMowerMap';
 import {createElement, type ComponentProps, type ReactElement} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
-import {describe, expect, it} from 'vitest';
+import {describe, expect, it, vi} from 'vitest';
+import {MapLookSettings} from '@/components/MapLookSettings';
+import {settingsStore, type Settings} from '@/lib/settings';
 import DecorPanel from './DecorPanel';
 import EditorToolbar from './EditorToolbar';
 import {pinSquare} from './editing';
@@ -90,11 +92,27 @@ describe('decorating under the map', () => {
   });
 });
 
-describe('the editor bar', () => {
-  const bar = (idle: boolean) =>
-    markup(
+describe('decorating, started from the map settings', () => {
+  const look = (mapStyle: Settings['mapStyle'], onDecorate?: () => void) => {
+    const none = settingsStore.serverSnapshot();
+    const spy = vi.spyOn(settingsStore, 'serverSnapshot').mockReturnValue({...none, mapStyle});
+    try {
+      return markup(createElement(MapLookSettings, {onDecorate}));
+    } finally {
+      spy.mockRestore();
+    }
+  };
+
+  it('is under the garden style, only on the map editor', () => {
+    expect(look('garden', noop)).toContain('Decorate');
+    expect(look(undefined, noop)).not.toContain('Decorate');
+    expect(look('garden')).not.toContain('Decorate');
+  });
+
+  it("isn't in the editor bar any more", () => {
+    const bar = markup(
       createElement(EditorToolbar, {
-        idle,
+        idle: true,
         canUndo: false,
         canRedo: false,
         unsaved: false,
@@ -102,15 +120,12 @@ describe('the editor bar', () => {
         saveLabel: 'Save map',
         saveError: null,
         onDraw: noop,
-        onDecorate: noop,
         onUndo: noop,
         onRedo: noop,
         onSave: noop,
       }),
     );
-
-  it('has Decorate next to Draw and Record, only while nothing else is going on', () => {
-    expect(bar(true)).toContain('Decorate');
-    expect(bar(false)).not.toContain('Decorate');
+    expect(bar).toContain('Draw');
+    expect(bar).not.toContain('Decorate');
   });
 });

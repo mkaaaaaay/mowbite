@@ -66,6 +66,7 @@ export default function MapControls({
   follow,
   pin,
   snap,
+  decorate,
   planParts,
   planner,
   coverage,
@@ -107,6 +108,8 @@ export default function MapControls({
   pin?: {on: boolean; onToggle: () => void};
   // the map editor: points snap onto other areas' corners and edges
   snap?: {on: boolean; onToggle: () => void};
+  // the map editor: decorating, started from the map's settings
+  decorate?: () => void;
 }) {
   // the icons, colors and aerial imagery of the maps, over the page
   const [lookOpen, setLookOpen] = useState(false);
@@ -234,7 +237,18 @@ export default function MapControls({
           </button>
         )}
       </div>
-      {lookOpen && <MapLookPanel onClose={() => setLookOpen(false)} />}
+      {lookOpen && (
+        <MapLookPanel
+          onClose={() => setLookOpen(false)}
+          onDecorate={
+            decorate &&
+            (() => {
+              setLookOpen(false);
+              decorate();
+            })
+          }
+        />
+      )}
       {layersOpen && (
         <div className={styles.layers}>
           {/* the mower's own layers only with its sizes */}

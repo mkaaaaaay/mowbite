@@ -242,6 +242,16 @@
   box-shadow: var(--btn-3d);
 }
 
+/* the map editor's decorating, right under the garden style */
+.decorate {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  font-size: 15px;
+}
+
 .pillButton:disabled {
   opacity: 0.4;
   cursor: default;

@@ -5,6 +5,7 @@ import {tr} from '@/lib/i18n';
 import {isTileUrl} from '@/lib/imagery';
 import {COLORS, saveSettings, settingsStore, type ColorKey, type Settings} from '@/lib/settings';
 import {lifeOf, type GardenLife} from './gardenLife';
+import {LookSwatch} from './gardenLook';
 import {useEffect, useSyncExternalStore} from 'react';
 import {createPortal} from 'react-dom';
 import styles from './MapLookSettings.module.css';
@@ -87,7 +88,8 @@ function IconPreview({icons}: {icons: NonNullable<Settings['icons']>}) {
   );
 }
 
-export function MapLookSettings() {
+// onDecorate: the map editor's decorating, offered in the garden style
+export function MapLookSettings({onDecorate}: {onDecorate?: () => void}) {
   const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
   const colors = settings.colors ?? {};
   const icons = settings.icons ?? {};
@@ -134,6 +136,12 @@ export function MapLookSettings() {
             "Garden draws the map from above like the guides: the lawn in stripes along each area's mowing direction, ways as gravel, obstacles as a picture. With an area picked, its picture can be changed under the map, without one it follows the name (pond, tree, pool, house ...).",
           )}
         </p>
+        {settings.mapStyle === 'garden' && onDecorate && (
+          <button className={[styles.pillButton, styles.decorate].join(' ')} onClick={onDecorate}>
+            <LookSwatch look="gnome" size={18} />
+            {tr('Decorate')}
+          </button>
+        )}
         {settings.mapStyle === 'garden' && (
           <div className={styles.lifeChecks}>
             {LIFE.map(([part, label]) => (
@@ -258,7 +266,7 @@ export function MapLookSettings() {
 
 // the map settings over the page: from the side on a wide screen, from the bottom on a phone. Escape, the cross or a
 // tap next to it closes them
-export function MapLookPanel({onClose}: {onClose: () => void}) {
+export function MapLookPanel({onClose, onDecorate}: {onClose: () => void; onDecorate?: () => void}) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
@@ -275,7 +283,7 @@ export function MapLookPanel({onClose}: {onClose: () => void}) {
             ✕
           </button>
         </div>
-        <MapLookSettings />
+        <MapLookSettings onDecorate={onDecorate} />
       </div>
     </div>,
     document.body,

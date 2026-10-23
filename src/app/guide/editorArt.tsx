@@ -1176,7 +1176,6 @@ function Save() {
               saveLabel={saving ? tr('saving…') : tr('Save map')}
               saveError={null}
               onDraw={noop}
-              onDecorate={noop}
               onUndo={noop}
               onRedo={noop}
               onSave={noop}

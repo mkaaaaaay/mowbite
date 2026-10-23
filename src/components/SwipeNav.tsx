@@ -22,7 +22,7 @@ function claimsSwipe(el: Element | null): boolean {
 // the neighbour page is rendered for real while swiping, so it's there even on the first swipe
 const LOAD: Record<string, () => Promise<{default: React.ComponentType}>> = {
   '/': () => import('@/app/page'),
-  '/map': () => import('@/app/map/page'),
+  '/map': () => import('@/app/map/MapEditor'),
   '/sensors': () => import('@/app/sensors/page'),
   '/schedule': () => import('@/app/schedule/page'),
   '/activity': () => import('@/app/activity/page'),

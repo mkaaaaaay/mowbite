@@ -63,6 +63,8 @@ interface MapViewProps {
   pin?: {on: boolean; onToggle: () => void};
   // the map editor: points dragged or set snap onto the corners and edges of other areas nearby, a button switches it
   snap?: {on: boolean; onToggle: () => void};
+  // the map editor: pictures standing by themselves (decorating), started from the map's settings in the garden style
+  onDecorate?: () => void;
   // without the buttons on the map, the page has its own (recording on a phone held sideways)
   bare?: boolean;
   followSpanMeters?: number;
@@ -261,6 +263,103 @@ const Ground = memo(
   },
   (a, b) => !!b.held && a.held === b.held && a.view === b.view,
 );
+// a point of an area being dragged: where it is (meters), what it snapped to and where the finger is on the frame (for
+// the loupe). set by every move, only what reads it is drawn again: the rest of the map stays as it was until it's let go
+type Snap = {x: number; y: number; corner: boolean};
+type Finger = {x: number; y: number; width: number};
+type Live = {x: number; y: number; snap: Snap | null; finger: Finger | null};
+function liveStore() {
+  let now: Live | null = null;
+  const listeners = new Set<() => void>();
+  return {
+    get: () => now,
+    set(v: Live | null) {
+      now = v;
+      listeners.forEach((l) => l());
+    },
+    subscribe(l: () => void) {
+      listeners.add(l);
+      return () => void listeners.delete(l);
+    },
+  };
+}
+type LiveStore = ReturnType<typeof liveStore>;
+const useLive = (s: LiveStore) => useSyncExternalStore(s.subscribe, s.get, s.get);
+
+// the area whose point is dragged, from where the point is now: its outline (part 'outline'), or the point and the spot
+// it snapped to (part 'point')
+const LiveDrag = memo(function LiveDrag({live, outline, index, toScreen, k, part}: {
+  live: LiveStore;
+  outline: Point[];
+  index: number;
+  toScreen: (x: number, y: number) => [number, number];
+  k: number;
+  part: 'outline' | 'point';
+}) {
+  const now = useLive(live);
+  const at = now ?? outline[index];
+  if (!at) return null;
+  if (part === 'outline') {
+    const points = outline.map((p, i) => toScreen(i === index ? at.x : p.x, i === index ? at.y : p.y).join(',')).join(' ');
+    return (
+      <>
+        <polygon points={points} className={styles.selectedHalo} />
+        <polygon points={points} className={styles.selected} />
+      </>
+    );
+  }
+  const [sx, sy] = toScreen(at.x, at.y);
+  const snap = now?.snap;
+  return (
+    <>
+      <circle cx={sx} cy={sy} r={4 * k} className={styles.activeVertex} />
+      {snap && (
+        <circle
+          className={snap.corner ? styles.snapCorner : styles.snapEdge}
+          cx={toScreen(snap.x, snap.y)[0]}
+          cy={toScreen(snap.x, snap.y)[1]}
+          r={(snap.corner ? 7 : 5) * k}
+        />
+      )}
+    </>
+  );
+});
+
+// the magnified map above the finger (the finger hides the point otherwise), at (svg) in its middle. size: the svg units
+// the frame's width shows
+function Loupe({finger, at, size, garden, children}: {finger: Finger; at: [number, number]; size: number; garden: boolean; children: ReactNode}) {
+  const w = (LOUPE_PX * size) / finger.width / LOUPE_ZOOM;
+  const left = Math.min(finger.width - LOUPE_PX, Math.max(0, finger.x - LOUPE_PX / 2));
+  // above the finger, or below it when there's no room at the top
+  const above = finger.y - LOUPE_PX - 60;
+  const top = above >= 0 ? above : Math.min(finger.width - LOUPE_PX, finger.y + 60);
+  return (
+    <div className={styles.loupe} style={{left, top, width: LOUPE_PX, height: LOUPE_PX}}>
+      <svg className={[styles.svg, garden ? styles.garden : ''].filter(Boolean).join(' ')} viewBox={`${at[0] - w / 2} ${at[1] - w / 2} ${w} ${w}`}>
+        {children}
+      </svg>
+      <span className={styles.crosshair} />
+    </div>
+  );
+}
+
+// the loupe while a point of an area is dragged: it goes along with the finger, the map in it (children) stays as it is
+function LiveLoupe({live, toScreen, size, garden, children}: {
+  live: LiveStore;
+  toScreen: (x: number, y: number) => [number, number];
+  size: number;
+  garden: boolean;
+  children: ReactNode;
+}) {
+  const now = useLive(live);
+  if (!now?.finger) return null;
+  return (
+    <Loupe finger={now.finger} at={toScreen(now.x, now.y)} size={size} garden={garden}>
+      {children}
+    </Loupe>
+  );
+}
+
 // what's drawn of the map in one svg (see renderContent)
 type Part = 'all' | 'ground' | 'settled' | 'live' | 'over' | 'loupe';
 const drawsPart = (part: Part, p: Part) => part === 'all' || part === 'loupe' || part === p;
@@ -574,6 +673,7 @@ function MapView({
   onDragStart,
   onDragging,
   onDragCancel,
+  onDecorate,
   onInsertVertex,
   onDeleteVertex,
   onUndo,
@@ -651,7 +751,11 @@ function MapView({
     orig: {x: number; y: number} | null;
     // a pin being moved: how far its middle is from the finger, it doesn't jump to it
     off: {x: number; y: number} | null;
+    // a point of an area: where it was moved to last, it's put there once it's let go (see live)
+    at?: {x: number; y: number};
   }>({pointerId: -1, startX: 0, startY: 0, lastX: 0, lastY: 0, moved: false, touch: false, insert: null, orig: null, off: null});
+  // a point of an area being dragged: where it is now, drawn by what reads it (LiveDrag, LiveLoupe), not the whole map
+  const [live] = useState(liveStore);
   // finger position while dragging on touch, drives the loupe
   const [finger, setFinger] = useState<{x: number; y: number; width: number} | null>(null);
   // tapped point, gets a delete button
@@ -1267,6 +1371,8 @@ function MapView({
     active && selectedArea && active.areaId === selectedArea.id && active.index < selectedArea.outline.length
       ? active.index
       : null;
+  // one of its points being dragged: the area and the point drawn from where it is now (live), the rest stays as it is
+  const gliding = !!dragging && !!selectedArea && dragging.areaId === selectedArea.id && !!onMoveVertex;
 
   // deleting the tapped point: its button next to it, the Delete key (Backspace on keyboards without one), and for a
   // moment a way back
@@ -1612,6 +1718,8 @@ function MapView({
       if (dragging.areaId !== PENDING) onDragCancel?.();
       else if (d.orig) onMovePending?.(dragging.index, d.orig.x, d.orig.y);
     }
+    d.at = undefined;
+    live.set(null);
     setDragging(null);
     setHeld(null);
     setFinger(null);
@@ -1959,12 +2067,27 @@ function MapView({
       }
       const local = clientToLocal(e.clientX, e.clientY);
       const s = local && !e.altKey ? snapAt(local[0], local[1], dragging.areaId === PENDING ? (selectedAreaId ?? null) : dragging.areaId, d.touch) : null;
-      setSnapMark(s);
       const [x, y] = s ? [s.x, s.y] : local ? [local[0] + (d.off?.x ?? 0), local[1] + (d.off?.y ?? 0)] : [0, 0];
+      const rect = (frameRef.current ?? svgRef.current)?.getBoundingClientRect();
+      const at = d.touch && rect ? {x: e.clientX - rect.left, y: e.clientY - rect.top, width: rect.width} : null;
+      // a point of an area: only it goes along, the area gets it once it's let go
+      if (dragging.areaId !== PENDING && !d.off) {
+        if (!local || !onMoveVertex) return;
+        d.at = {x, y};
+        live.set({x, y, snap: s, finger: at});
+        return;
+      }
+      setSnapMark(s);
       if (local && dragging.areaId === PENDING) onMovePending?.(dragging.index, x, y);
       else if (local) onMoveVertex?.(dragging.areaId, dragging.index, x, y);
-      const rect = (frameRef.current ?? svgRef.current)?.getBoundingClientRect();
-      if (d.touch && rect) setFinger({x: e.clientX - rect.left, y: e.clientY - rect.top, width: rect.width});
+      if (at) setFinger(at);
+    };
+    // the point of an area moved where it was let go
+    const putDown = () => {
+      const d = drag.current;
+      if (d.at && d.moved && dragging.areaId !== PENDING && !d.off) onMoveVertex?.(dragging.areaId, dragging.index, d.at.x, d.at.y);
+      d.at = undefined;
+      live.set(null);
     };
     const onUp = (e: PointerEvent) => {
       const d = drag.current;
@@ -1977,6 +2100,7 @@ function MapView({
         onDragging?.(false);
         return;
       }
+      putDown();
       if (!d.moved && d.insert) {
         // a tap on an edge midpoint adds the point there
         addPoint(d.insert.x, d.insert.y);
@@ -1997,6 +2121,7 @@ function MapView({
     const onCancel = (e: PointerEvent) => {
       if (e.pointerId !== drag.current.pointerId) return;
       drag.current.pointerId = -1;
+      putDown();
       setDragging(null);
       if (!drag.current.moved) setHeld(null);
       setFinger(null);
@@ -2290,16 +2415,19 @@ function MapView({
             );
           })}
 
-        {selectedArea && (
-          <>
-            {/* a dark rim under it in the garden style */}
-            <polygon points={selectedArea.outline.map((p) => toScreen(p.x, p.y).join(',')).join(' ')} className={styles.selectedHalo} />
-            <polygon
-              points={selectedArea.outline.map((p) => toScreen(p.x, p.y).join(',')).join(' ')}
-              className={styles.selected}
-            />
-          </>
-        )}
+        {selectedArea &&
+          (gliding && dragging ? (
+            <LiveDrag live={live} outline={selectedArea.outline} index={dragging.index} toScreen={toScreen} k={k} part="outline" />
+          ) : (
+            <>
+              {/* a dark rim under it in the garden style */}
+              <polygon points={selectedArea.outline.map((p) => toScreen(p.x, p.y).join(',')).join(' ')} className={styles.selectedHalo} />
+              <polygon
+                points={selectedArea.outline.map((p) => toScreen(p.x, p.y).join(',')).join(' ')}
+                className={styles.selected}
+              />
+            </>
+          ))}
 
         {orderLabels &&
           !hidden.has('order') &&
@@ -2323,6 +2451,7 @@ function MapView({
         {selectedArea && !pickingPoints && (
           <>
             {onInsertVertex &&
+              !gliding &&
               selectedArea.outline.map((p, i) => {
                 const next = selectedArea.outline[(i + 1) % selectedArea.outline.length];
                 if (!showMidpoint(p, next)) return null;
@@ -2331,6 +2460,7 @@ function MapView({
               })}
 
             {selectedArea.outline.map((p, i) => {
+              if (gliding && i === dragging?.index) return null;
               const [sx, sy] = toScreen(p.x, p.y);
               return (
                 <Fragment key={i}>
@@ -2373,6 +2503,9 @@ function MapView({
           </g>
         )}
 
+        {gliding && selectedArea && dragging && (
+          <LiveDrag live={live} outline={selectedArea.outline} index={dragging.index} toScreen={toScreen} k={k} part="point" />
+        )}
         {snapMark && (
           <circle
             className={snapMark.corner ? styles.snapCorner : styles.snapEdge}
@@ -2609,20 +2742,17 @@ function MapView({
   const draggedPin = dragging ? map.areas.find((a) => a.id === dragging.areaId && isPin(a)) : undefined;
   const dragged =
     dragging && (dragging.areaId === PENDING ? pendingPoints?.[dragging.index] : draggedPin ? pinAt(draggedPin) : selectedArea?.outline[dragging.index]);
-  if (finger && dragged) {
-    const [cx, cy] = toScreen(dragged.x, dragged.y);
-    const size = (LOUPE_PX * (shown?.size ?? WIDTH)) / finger.width / LOUPE_ZOOM;
-    const left = Math.min(finger.width - LOUPE_PX, Math.max(0, finger.x - LOUPE_PX / 2));
-    // above the finger, or below it when there's no room at the top
-    const above = finger.y - LOUPE_PX - 60;
-    const top = above >= 0 ? above : Math.min(finger.width - LOUPE_PX, finger.y + 60);
+  if (gliding && selectedArea) {
     loupe = (
-      <div className={styles.loupe} style={{left, top, width: LOUPE_PX, height: LOUPE_PX}}>
-        <svg className={[styles.svg, garden ? styles.garden : ''].filter(Boolean).join(' ')} viewBox={`${cx - size / 2} ${cy - size / 2} ${size} ${size}`}>
-          {renderContent(k / LOUPE_ZOOM, 'loupe')}
-        </svg>
-        <span className={styles.crosshair} />
-      </div>
+      <LiveLoupe live={live} toScreen={toScreen} size={shown?.size ?? WIDTH} garden={garden}>
+        {renderContent(k / LOUPE_ZOOM, 'loupe')}
+      </LiveLoupe>
+    );
+  } else if (finger && dragged) {
+    loupe = (
+      <Loupe finger={finger} at={toScreen(dragged.x, dragged.y)} size={shown?.size ?? WIDTH} garden={garden}>
+        {renderContent(k / LOUPE_ZOOM, 'loupe')}
+      </Loupe>
     );
   }
 
@@ -2735,6 +2865,7 @@ function MapView({
           }
           pin={pin}
           snap={editing ? snap : undefined}
+          decorate={editing ? onDecorate : undefined}
           follow={
             follow
               ? {

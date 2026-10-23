@@ -1,6 +1,7 @@
 import AppSetup from "@/components/AppSetup";
 import DemoBadge from "@/components/DemoBadge";
 import Grass from "@/components/Grass";
+import MapKeeper from "@/components/MapKeeper";
 import Nav from "@/components/Nav";
 import SwipeNav from "@/components/SwipeNav";
 import EdgeBounce from "@/components/EdgeBounce";
@@ -53,6 +54,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <div className={styles.content} data-page>
             <DemoBadge />
             {children}
+            {/* the map editor, kept while other pages are open (the /map route is empty) */}
+            <MapKeeper />
           </div>
           <Grass />
           <AppSetup />

@@ -1,10 +1,9 @@
-import {LookSwatch} from '@/components/gardenLook';
 import {CheckIcon, PencilIcon, RedoIcon, RouteIcon, UndoIcon} from '@/components/icons';
 import {tr} from '@/lib/i18n';
 import Link from 'next/link';
 import styles from './page.module.css';
 
-// new area and decorating (only while nothing else is going on), undo, redo and save
+// new area (only while nothing else is going on), undo, redo and save
 export default function EditorToolbar({
   idle,
   canUndo,
@@ -14,7 +13,6 @@ export default function EditorToolbar({
   saveLabel,
   saveError,
   onDraw,
-  onDecorate,
   onUndo,
   onRedo,
   onSave,
@@ -28,8 +26,6 @@ export default function EditorToolbar({
   saveLabel: string;
   saveError: string | null;
   onDraw: () => void;
-  // pictures standing by themselves, set and changed on the map (a gnome, a lamp ...)
-  onDecorate?: () => void;
   onUndo: () => void;
   onRedo: () => void;
   onSave: () => void;
@@ -55,12 +51,6 @@ export default function EditorToolbar({
               <RouteIcon size={16} />
               {tr('Record')}
             </Link>
-          )}
-          {onDecorate && (
-            <button className={[tool, styles.toolWide].join(' ')} onClick={onDecorate}>
-              <LookSwatch look="gnome" size={18} />
-              {tr('Decorate')}
-            </button>
           )}
           <span className={styles.toolLabel}>{tr('Changes')}</span>
         </>

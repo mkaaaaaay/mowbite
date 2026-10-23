@@ -1,6 +1,5 @@
 'use client';
 
-import {LookSwatch} from '@/components/gardenLook';
 import {CheckIcon, PencilIcon, RedoIcon, RouteIcon, UndoIcon} from '@/components/icons';
 import {EDITOR_ART} from '../editorArt';
 import Guide, {type GuideItem, type GuideStep} from '../Guide';
@@ -66,7 +65,7 @@ const STEPS: GuideStep[] = [
   },
   {
     title: 'Decorate',
-    text: "In the garden style Decorate sets pictures that stand by themselves, such as a gnome, a lamp or a bench: tap one in the row under the map, then the spot on the map. Tap a picture with a ring to change its color, size and rotation, hold it to move it. Finish saves them on the mower, Cancel takes it all back. To the mower they are only pictures, it doesn't drive round them.",
+    text: "In the garden style the gear on the map has Decorate. It sets pictures that stand by themselves, such as a gnome, a lamp or a bench: tap one in the row under the map, then the spot on the map. Tap a picture with a ring to change its color, size and rotation, hold it to move it. Finish saves them on the mower, Cancel takes it all back. To the mower they are only pictures, it doesn't drive round them.",
   },
   {
     title: 'Save and backups',
@@ -79,12 +78,6 @@ const tool = (icon: React.ReactNode, save = false) => <span className={[styles.t
 const ITEMS: GuideItem[] = [
   {key: 'draw', title: 'Draw', text: 'A new area by tapping its corners on the map.', icon: () => tool(<PencilIcon size={20} />)},
   {key: 'record', title: 'Record', text: 'A new area by driving around it with the mower.', icon: () => tool(<RouteIcon size={20} />)},
-  {
-    key: 'decorate',
-    title: 'Decorate',
-    text: 'Pictures such as a gnome or a lamp, set anywhere on the map.',
-    icon: () => tool(<LookSwatch look="gnome" size={20} />),
-  },
   {key: 'undo', title: 'Undo', text: 'Takes the last change back, step by step up to the last save.', icon: () => tool(<UndoIcon size={20} />)},
   {key: 'redo', title: 'Redo', text: 'Brings back what Undo took back, until something else gets changed.', icon: () => tool(<RedoIcon size={20} />)},
   {key: 'save', title: 'Save map', text: 'Sends the map to the mower, nothing changes there before.', icon: () => tool(<CheckIcon size={20} />, true)},
