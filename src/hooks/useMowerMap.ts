@@ -70,7 +70,8 @@ export function useMowerMap(): MowerMap | null {
   return useSyncExternalStore(store.subscribe, store.get, store.initial);
 }
 
-// map.replace takes the same shape as map/json, outlines closed like the mower records them
+// map.replace takes the same shape as map/json, outlines closed like the mower records them. it can take the mower a
+// while (its planner plans the areas again after a change), so it's waited for a minute
 export function saveMap(map: MowerMap): Promise<unknown> {
-  return callRpc(RPC.replaceMap, [closedRings(map)]);
+  return callRpc(RPC.replaceMap, [closedRings(map)], 60_000);
 }

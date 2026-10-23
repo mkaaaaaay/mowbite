@@ -72,6 +72,8 @@ export function useMapEdits(liveMap: MowerMap | null) {
     setMergeNote(conflicts.length ? tr('Changed on both sides: {names}. Your version is kept there.', {names: conflicts.map(name).join(', ')}) : null);
     return merged;
   };
+  // the mower's map is now this one (a save of ours that answered late): the edits made since go on from it
+  const rebase = (m: MowerMap) => setBase(m);
   useEffect(() => setUnsavedMap(dirty), [dirty]);
   // nothing of ours in the copy: follow the mower's map again
   useEffect(() => {
@@ -123,6 +125,7 @@ export function useMapEdits(liveMap: MowerMap | null) {
     dirty,
     external,
     dropEdits,
+    rebase,
     mergeNote,
     mergeExternal,
   };

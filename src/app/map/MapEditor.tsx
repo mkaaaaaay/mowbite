@@ -35,7 +35,9 @@ import MowSettings, {AngleOnMap, AreaDirection, AreaPlanInfo, OpenMowerArea} fro
 import OrderBox from './OrderBox';
 import {DrawPanel, MergePanel, RestorePanel, SimplifyPanel, SnapPanel, SplitPanel, SubtractPanel} from './Panels';
 import {PARAM} from '@/lib/openmower';
+import {RpcError} from '@/lib/rpc';
 import {rpcErrorText} from '@/lib/rpcText';
+import {sameContent} from '@/lib/sameMap';
 import {closedRings} from '@/lib/rings';
 import {saveFile} from '@/lib/saveFile';
 import {mapToGeoJson} from '@/lib/geojson';
@@ -120,7 +122,7 @@ function MapEditor() {
   const towelNow = towel || (!!progress && !progress.leftovers && Math.round(progress.fraction * 100) === 42);
   // the same object while nothing changes, the map is drawn again only when it does
   const costume = useMemo(() => ({towel: towelNow, umbrella}), [towelNow, umbrella]);
-  const {map, edited, base, setMap, history, future, remember, undoStep, redoStep, originalOf, keepOriginal, dirty, external, dropEdits, mergeNote, mergeExternal} =
+  const {map, edited, base, setMap, history, future, remember, undoStep, redoStep, originalOf, keepOriginal, dirty, external, dropEdits, rebase, mergeNote, mergeExternal} =
     useMapEdits(liveMap);
   const [showStripes, setShowStripes] = useState(true);
   // on a phone the map stays at the top while the settings under it scroll, unless it was unpinned on this device
@@ -695,22 +697,42 @@ function MapEditor() {
     try {
       // the version on the mower goes into the backups first, so every save can be undone
       if (backups && liveMap) await saveBackup(liveMap, 'before saving', true).catch(() => {});
+      lateSave.current = {map: next, gone, before: liveMap};
       await saveMap(next);
-      setNewSaved({areas: next.areas.filter((a) => NEW_AREA_SETTINGS.some((k) => a.properties[k] !== undefined)), before: liveMap});
-      // back to the live map, it comes back from the mower with what was just saved
-      dropEdits('originals');
-      dropLooks(gone);
-      // a round of decorating left for after mowing is saved with it
-      if (decor && !decor.on) setDecor(null);
-      void refreshBackups();
+      lateSave.current = null;
+      saved(next, gone, liveMap);
       return true;
     } catch (e) {
+      // no answer: it may still get there, then it's saved after all (below)
+      if (!(e instanceof RpcError && e.code === 'timeout')) lateSave.current = null;
       setSaveError(rpcErrorText(e));
       return false;
     } finally {
       setSaving(false);
     }
   };
+  // a map on the mower: back to the mower's map (it comes back from there with it), the pictures of the pins the edits
+  // took away go
+  const saved = (next: MowerMap, gone: string[], before: MowerMap | null) => {
+    setNewSaved({areas: next.areas.filter((a) => NEW_AREA_SETTINGS.some((k) => a.properties[k] !== undefined)), before});
+    dropEdits('originals');
+    dropLooks(gone);
+    // a round of decorating left for after mowing is saved with it
+    if (decor && !decor.on) setDecor(null);
+    void refreshBackups();
+  };
+  // a save the mower didn't answer in time: once its map comes back from there it's saved after all, not a change from
+  // somewhere else. edits made meanwhile stay and go on from it
+  const lateSave = useRef<{map: MowerMap; gone: string[]; before: MowerMap | null} | null>(null);
+  useEffect(() => {
+    const late = lateSave.current;
+    if (!late || !liveMap || !sameContent(liveMap, late.map)) return;
+    lateSave.current = null;
+    setSaveError(null);
+    if (map === late.map) saved(late.map, late.gone, late.before);
+    else rebase(liveMap);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only when the mower's map comes
+  }, [liveMap]);
 
   // decorating: what has to come first, the garden style (pictures are drawn only there) or the changes to areas saved
   // (finish saves pins only). saved from there it starts once the map is the mower's again (next)

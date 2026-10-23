@@ -1,6 +1,7 @@
 import {describe, expect, it} from 'vitest';
 import type {MowerMap} from '@/hooks/useMowerMap';
-import {sameMap} from './sameMap';
+import {sameContent, sameMap} from './sameMap';
+import {closedRings} from './rings';
 
 const map = (): MowerMap => ({
   areas: [
@@ -35,5 +36,25 @@ describe('sameMap', () => {
 
   it('counts other fields of map.json too', () => {
     expect(sameMap(map(), {...map(), version: 2} as MowerMap)).toBe(false);
+  });
+});
+
+describe('sameContent', () => {
+  it('takes a map as the mower writes it back as the same: keys sorted, outlines closed, numbers a little off', () => {
+    const sent = map();
+    const back = closedRings(map());
+    back.areas[0] = {outline: back.areas[0].outline, properties: {type: 'mow', name: 'Front'}, id: 'a'};
+    back.areas[1].outline[0] = {x: 0.2 + 1e-9, y: 0.2};
+    expect(sameMap(sent, back)).toBe(false);
+    expect(sameContent(sent, back)).toBe(true);
+  });
+
+  it('still spots a real change', () => {
+    const back = map();
+    back.areas[0].outline[1] = {x: 1.01, y: 0};
+    expect(sameContent(map(), back)).toBe(false);
+    const setting = map();
+    setting.areas[0].properties.angle = 0.5;
+    expect(sameContent(map(), setting)).toBe(false);
   });
 });
