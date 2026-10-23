@@ -1100,6 +1100,24 @@
 }
 
 /* the path jumps there, OpenMower drives the way on its own */
+/* a simulated drive: what it left unmowed, and where the controller would have given up */
+.leftPiece {
+  pointer-events: none;
+  fill: #ff9800;
+  fill-opacity: 0.45;
+  stroke: #ffb74d;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+.navError {
+  pointer-events: none;
+  fill: none;
+  stroke: #ff3b3b;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
 .jumpPlace {
   pointer-events: none;
   fill: none;

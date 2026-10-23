@@ -1066,3 +1066,116 @@
     display: none;
   }
 }
+
+/* the plan driven by the planner (MowBite Planner's simulation): the button, the mower to drive with, what came */
+.simulation {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 10px;
+  font-size: 13px;
+}
+
+.simulationRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.simModel {
+  display: inline-flex;
+  border: 1px solid var(--card-border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.simModel button {
+  padding: 5px 12px;
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.simModel .simModelOn {
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+  color: var(--foreground);
+}
+
+.simLink {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-size: 13px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* the drive played back, at the bottom of the map */
+.simPlayer {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--card-border);
+  background: var(--nav-bg);
+  backdrop-filter: var(--card-blur, blur(18px));
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.simPlayer input {
+  flex: 1;
+  min-width: 0;
+}
+
+.simPlay,
+.simSpeed,
+.simClose {
+  flex: none;
+  height: 32px;
+  border: 1px solid var(--card-border);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--foreground);
+  cursor: pointer;
+  box-shadow: var(--btn-3d);
+}
+
+.simPlay {
+  width: 32px;
+  font-size: 13px;
+}
+
+.simSpeed {
+  padding: 0 10px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.simClose {
+  width: 32px;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.simTime {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  color: var(--foreground);
+}
+
+/* the player takes the corner of the grid label */
+.mapCol:has(.simPlayer) [data-grid-label] {
+  display: none;
+}

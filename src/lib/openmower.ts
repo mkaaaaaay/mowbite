@@ -49,6 +49,10 @@ export const RPC = {
   setParams: 'params.set',
   // the MowBite Planner's last log lines, {since?, limit?} -> {lines: [{t, level, msg}]}, oldest first
   plannerLog: 'planner.log',
+  // a plan driven the way the mower would (lib/simulate), how far the one running got, and stopping it
+  plannerSimulate: 'planner.simulate',
+  plannerSimulateStatus: 'planner.simulate.status',
+  plannerSimulateCancel: 'planner.simulate.cancel',
 } as const;
 
 export const ACTION = {

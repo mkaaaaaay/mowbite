@@ -47,6 +47,8 @@ import {checkMap} from '@/lib/mapCheck';
 import {narrowPassages} from '@/lib/narrowPassages';
 import Problems, {problemText} from './Problems';
 import {BodyCheck, PlanChecks} from './BodyCheck';
+import {PlanSimulation, SimPlayer, type ShownSim} from './PlanSimulation';
+import {createSimClock} from '@/lib/simulate';
 import {Fold} from './Fold';
 import {bodyFrom, isPin, slic3rPlans, standing, useMowerBody, usePlannerSettings, type BodySpot} from '@/lib/mowerBody';
 import {OpenMowerMowing, useCanSetParams} from '@/components/MowerParamSettings';
@@ -276,6 +278,16 @@ function MapEditor() {
   // a place of the collision check picked on the map: the body where it would have stuck out, for the plan it's from
   const [fitPick, setFitPick] = useState<{plan: unknown; index: number} | null>(null);
   const fitPlace = fitPick && fitPick.plan === realPlan ? realPlan?.checks?.places[fitPick.index] : undefined;
+  // the plan driven by the planner (PlanSimulation): for the plan it was asked for, on the map and played back there until
+  // hidden. the live trail and the last run's margins make way for it meanwhile
+  const [sim, setSim] = useState<ShownSim | null>(null);
+  const simKey = planRequest ? JSON.stringify(planRequest) : '';
+  const simNow = sim && sim.key === simKey ? sim : null;
+  const simOnMap = simNow?.shown && mode === 'idle' ? simNow : null;
+  const simResult = simOnMap?.result;
+  const simClock = useMemo(() => (simResult ? createSimClock(simResult.frames) : null), [simResult]);
+  const simShown = useMemo(() => (simResult && simClock ? {frames: simResult.frames, clock: simClock} : undefined), [simResult, simClock]);
+  const simLeft = useMemo(() => simResult?.left.map((l) => l.outline), [simResult]);
   const pickedText = (() => {
     const pose = fitPlace?.pose;
     if (!pose) return null;
@@ -997,12 +1009,19 @@ function MapEditor() {
                 snap={mode === 'decor' ? undefined : {on: snapOn, onToggle: toggleSnap}}
                 map={shownMap}
                 emergency={emergency}
-                track={trackShown}
-                beforeTrack={trackShown ? before : undefined}
-                pastTrack={viewJob?.segments?.map((s) => ({
-                  points: s.points.map(([x, y]) => ({x, y})),
-                  blades: !!s.attributes.blades,
-                }))}
+                track={simShown ? undefined : trackShown}
+                beforeTrack={trackShown && !simShown ? before : undefined}
+                pastTrack={
+                  simShown
+                    ? undefined
+                    : viewJob?.segments?.map((s) => ({
+                        points: s.points.map(([x, y]) => ({x, y})),
+                        blades: !!s.attributes.blades,
+                      }))
+                }
+                sim={simShown}
+                leftPieces={simLeft}
+                navErrors={simResult?.navErrors}
                 selectedAreaId={selectedAreaId}
                 onSelectArea={selectArea}
                 onMoveVertex={simplifyCm === null && (mode === 'idle' || mode === 'decor') ? moveVertex : undefined}
@@ -1047,15 +1066,16 @@ function MapEditor() {
                 fitPicked={fitPlace ? fitPick!.index : null}
                 onFitPick={(index) => setFitPick(index === null ? null : {plan: realPlan, index})}
                 turnPlaces={realPlan?.checks?.turns}
-                marginPlaces={marginPlaces.length ? marginPlaces : undefined}
+                marginPlaces={simResult ? simResult.touches : marginPlaces.length ? marginPlaces : undefined}
                 jumpPlaces={realPlan?.checks ? [...realPlan.checks.jumps, ...realPlan.checks.unchecked] : undefined}
                 focus={spot ?? undefined}
               />
             )}
 
-            {!preview && selectedArea && mode === 'idle' && simplifyCm === null && selectedArea.properties.type === 'mow' && (
+            {!preview && selectedArea && mode === 'idle' && simplifyCm === null && selectedArea.properties.type === 'mow' && !simClock && (
               <AngleOnMap area={selectedArea} autoAngle={autoAngle} remember={remember} update={updateProperties} onEdit={touchAngle} />
             )}
+            {!preview && simClock && <SimPlayer clock={simClock} onClose={() => setSim((s) => (s ? {...s, shown: false} : s))} />}
 
 
             {!map && <p className={styles.dim}>{tr('waiting for map…')}</p>}
@@ -1387,6 +1407,9 @@ function MapEditor() {
                     ) : (
                       <BodyCheck request={planRequest} onSpots={setBodySpots} />
                     ))}
+                  {selectedArea.properties.type === 'mow' && (
+                    <PlanSimulation request={planRequest} sim={simNow} onResult={setSim} onShow={(shown) => setSim((s) => (s ? {...s, shown} : s))} />
+                  )}
                 </Fold>
               )}
 

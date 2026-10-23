@@ -33,6 +33,8 @@ import {PICTURES} from './gardenPictures';
 import {useMowHistory} from '@/hooks/useMowHistory';
 import {useWeather} from '@/hooks/useWeather';
 import {useMowerStateValue} from '@/hooks/useMowerState';
+import {framesUntil, poseAt, type SimClock, type SimFrame} from '@/lib/simulate';
+import {flushSync} from 'react-dom';
 
 interface MapViewProps {
   map: MowerMap;
@@ -139,6 +141,12 @@ interface MapViewProps {
   viewKey?: string;
   // what the mower draws itself, e.g. the lines of an area recording
   overlay?: {points: Point[]; color: string; closed: boolean}[];
+  // a drive of the plan the planner simulated (lib/simulate): the mower and its trail where its clock is, played back
+  // without drawing the map again. in place of the live mower
+  sim?: {frames: readonly SimFrame[]; clock: SimClock};
+  // what that drive left unmowed, and where the controller would have given up (a cross each)
+  leftPieces?: Point[][];
+  navErrors?: Point[];
 }
 
 interface Bounds {
@@ -257,6 +265,95 @@ function fitIn({minX, maxX, minY, maxY}: Bounds) {
 }
 // the ground of the map (draw), kept as it was while a point is held and the view stays: nothing on it changes
 // meanwhile, it isn't gone through again for every move
+// A simulated drive's trail up to where its clock is: the strip the blade cut (with the mower's sizes), the line driven
+// with the blades on and without. In pieces of a minute, a frame of the playback draws only the last one again
+const SIM_PIECE = 60;
+type SimFit = {minX: number; minY: number; m: number; padX: number; padY: number};
+type SimPiece = {cut: string; on: string; off: string};
+function simPiece(frames: readonly SimFrame[], from: number, to: number, fit: SimFit, body: MowerBody | null, tail: Pose | null): SimPiece {
+  const at = (x: number, y: number) => `${((x - fit.minX) * fit.m + fit.padX).toFixed(1)} ${(HEIGHT - ((y - fit.minY) * fit.m + fit.padY)).toFixed(1)}`;
+  // the blade's middle, ahead of the mower's and to its left by the sizes set
+  const blade = (x: number, y: number, yaw: number) =>
+    body ? at(x + Math.cos(yaw) * body.bladeAhead - Math.sin(yaw) * body.bladeOffset, y + Math.sin(yaw) * body.bladeAhead + Math.cos(yaw) * body.bladeOffset) : '';
+  const pts: [number, number, number, number][] = [];
+  for (let i = from; i < to; i++) pts.push([frames[i][1], frames[i][2], frames[i][3], frames[i][4]]);
+  if (tail && pts.length) pts.push([tail.x, tail.y, tail.heading, pts[pts.length - 1][3]]);
+  const out = {cut: '', on: '', off: ''};
+  // a stretch from one frame to the next goes as the first one had the blades
+  let last: 'on' | 'off' | null = null;
+  for (let i = 1; i < pts.length; i++) {
+    const [ax, ay, ayaw, ab] = pts[i - 1];
+    const [bx, by, byaw] = pts[i];
+    const kind = ab ? 'on' : 'off';
+    if (kind !== last) out[kind] += `M${at(ax, ay)}`;
+    out[kind] += `L${at(bx, by)}`;
+    if (kind === 'on' && body?.blade) out.cut += `${last === 'on' ? '' : `M${blade(ax, ay, ayaw)}`}L${blade(bx, by, byaw)}`;
+    last = kind;
+  }
+  return out;
+}
+
+function SimTrail({frames, clock, fit, body, swath, transit}: {
+  frames: readonly SimFrame[];
+  clock: SimClock;
+  fit: SimFit;
+  body: MowerBody | null;
+  swath: boolean;
+  transit: boolean;
+}) {
+  const [, redraw] = useState(0);
+  // every frame while it plays, in the same frame as the mower (flushSync), once more when it's paused or moved
+  useEffect(() => {
+    let frame = 0;
+    const tick = () => {
+      flushSync(() => redraw((n) => n + 1));
+      frame = clock.still(performance.now()) ? 0 : requestAnimationFrame(tick);
+    };
+    const off = clock.listen(() => void (frame ||= requestAnimationFrame(tick)));
+    frame = requestAnimationFrame(tick);
+    return () => {
+      off();
+      cancelAnimationFrame(frame);
+    };
+  }, [clock]);
+  // the pieces that are done, for the fit and the blade they were worked out with
+  const done = useRef<{key: string; pieces: Map<number, SimPiece>}>({key: '', pieces: new Map()});
+  const key = `${fit.minX},${fit.minY},${fit.m},${fit.padX},${fit.padY},${body?.blade},${body?.bladeAhead},${body?.bladeOffset}`;
+  // eslint-disable-next-line react-hooks/refs -- a cache of strings worked out from props, nothing drawn depends on when
+  if (done.current.key !== key || done.current.pieces.size * SIM_PIECE > frames.length) done.current = {key, pieces: new Map()};
+  const t = clock.time();
+  const n = framesUntil(frames, t);
+  const pieces: SimPiece[] = [];
+  for (let start = 0; start < n; start += SIM_PIECE) {
+    const stop = Math.min(n, start + SIM_PIECE);
+    // done once a frame after it has come: drawn on to that one, the lines go on without a gap
+    const full = stop - start === SIM_PIECE && stop < n;
+    // eslint-disable-next-line react-hooks/refs
+    let piece = full ? done.current.pieces.get(start) : undefined;
+    if (!piece) {
+      piece = simPiece(frames, start, full ? stop + 1 : stop, fit, body, full ? null : poseAt(frames, t));
+      // eslint-disable-next-line react-hooks/refs
+      if (full) done.current.pieces.set(start, piece);
+    }
+    pieces.push(piece);
+  }
+  return (
+    <>
+      {swath && body?.blade ? (
+        <g className={styles.swath} strokeWidth={body.blade * fit.m}>
+          {pieces.map((p, i) => (p.cut ? <path key={i} d={p.cut} /> : null))}
+        </g>
+      ) : null}
+      {pieces.map((p, i) => (
+        <Fragment key={i}>
+          {p.on && <path className={styles.track} d={p.on} />}
+          {transit && p.off && <path className={styles.transit} d={p.off} />}
+        </Fragment>
+      ))}
+    </>
+  );
+}
+
 const Ground = memo(
   function Ground({draw}: {draw: () => ReactNode; held: object | null; view: string}) {
     return draw();
@@ -387,6 +484,9 @@ function viewToMeters(v: View, f: Fit): Meters {
 // the mower. It glides between the poses that come in and moves itself every frame for that without drawing again:
 // its parts are drawn once around its position and the frame loop only moves and turns the groups they sit in. The rest
 // of the map stays as it is meanwhile
+// what tells where the mower is at a time: the live poses, a simulated drive played back
+type Glide = Pick<Easer, 'at' | 'still' | 'listen'>;
+
 function MowerMarker({
   mower,
   poses,
@@ -405,8 +505,8 @@ function MowerMarker({
   coverId,
 }: {
   mower: Pose;
-  // the live poses as they came (useMowerPosition), else it eases along mower on its own
-  poses: Easer | null;
+  // the live poses as they came (useMowerPosition) or a simulated drive's clock, else it eases along mower on its own
+  poses: Glide | null;
   fit: Fit;
   k: number;
   icons: Settings['icons'];
@@ -699,6 +799,9 @@ function MapView({
   pieces,
   preview,
   overlay,
+  sim,
+  leftPieces,
+  navErrors,
   markers,
   onMarkerPick,
   bodySpots,
@@ -833,6 +936,12 @@ function MapView({
   // the viewBox itself (below), a render of the whole map for every frame stuttered on phones. Both along the live poses
   // as they came when the mower is the live one, at the same frame time: the mower stays right in the middle
   const livePoses = liveGlide(mower);
+  // a simulated drive played back: its mower in place of the live one, from where the drive starts
+  const simStart = useMemo(() => {
+    const f = sim?.frames[0];
+    return f ? {x: f[1], y: f[2], heading: f[3]} : null;
+  }, [sim]);
+  const markerMower = sim ? (simStart ?? undefined) : mower;
   const followed = following && mower ? mower : null;
   const [followEaser] = useState(createEaser);
   useEffect(() => {
@@ -2226,6 +2335,9 @@ function MapView({
       {todoPath && !hidden.has('stripes') && <path className={[styles.planTodo, styles[planStyle]].join(' ')} d={todoPath} />}
       {swathShown && swathLive}
       {trackLive}
+      {sim && !hidden.has('track') && (
+        <SimTrail frames={sim.frames} clock={sim.clock} fit={{minX, minY, m: scale, padX, padY}} body={body} swath={swathOn} transit={!hidden.has('transit')} />
+      )}
     </>
   );
   const lateLines = (
@@ -2361,10 +2473,10 @@ function MapView({
       {drawsPart(part, 'live') && liveLines}
       {drawsPart(part, 'over') && (
         <>
-        {mower && (
+        {markerMower && (
           <MowerMarker
-            mower={mower}
-            poses={livePoses}
+            mower={markerMower}
+            poses={sim ? sim.clock : livePoses}
             fit={drawn}
             k={k}
             icons={settings.icons}
@@ -2373,7 +2485,7 @@ function MapView({
             outline={!!body && (layerOn(hidden, 'body') || !layerOn(hidden, 'mowerIcon'))}
             showIcon={!body || layerOn(hidden, 'mowerIcon')}
             emergency={emergency}
-            blades={track?.at(-1)?.at(-1)?.b === true}
+            blades={!sim && track?.at(-1)?.at(-1)?.b === true}
             ghost={halloween.night}
             costume={{hat: halloween.day, towel: costume?.towel, umbrella: costume?.umbrella}}
             cover={part === 'loupe' ? undefined : canopies}
@@ -2381,7 +2493,7 @@ function MapView({
             coverId={uid + 'under'}
           />
         )}
-        {part !== 'loupe' && !mower && canopies}
+        {part !== 'loupe' && !markerMower && canopies}
         {/* the plan, the real edges and the track over the crowns too, only where they are (else they'd be twice) */}
         {part !== 'loupe' && covers.length > 0 && (
           <>
@@ -2448,7 +2560,8 @@ function MapView({
           })}
 
 
-        {selectedArea && !pickingPoints && (
+        {/* (not while a simulated drive plays back on it: the mower and its trail would go under them) */}
+        {selectedArea && !pickingPoints && !sim && (
           <>
             {onInsertVertex &&
               !gliding &&
@@ -2616,6 +2729,14 @@ function MapView({
   // what's drawn over everything else: the check's spots and bodies, the markers
   const after = (
     <>
+      {leftPieces?.map((piece, i) => (
+        <polygon key={'left' + i} className={styles.leftPiece} points={piece.map((p) => toScreen(p.x, p.y).join(',')).join(' ')} />
+      ))}
+      {navErrors?.map((p, i) => {
+        const [x, y] = toScreen(p.x, p.y);
+        const r = 7 * k;
+        return <path key={'nav' + i} className={styles.navError} d={`M ${x - r} ${y - r} L ${x + r} ${y + r} M ${x - r} ${y + r} L ${x + r} ${y - r}`} />;
+      })}
       {checksOn && bodySpacePath && <path className={styles.bodySpace} d={bodySpacePath} />}
       {/* small and the same size at any zoom, the plan stays readable under them */}
       {checksOn &&
