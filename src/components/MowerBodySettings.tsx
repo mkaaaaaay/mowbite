@@ -26,6 +26,7 @@ import {useRouter} from 'next/navigation';
 import {saveSettings, settingsStore} from '@/lib/settings';
 import {useEffect, useState, useSyncExternalStore} from 'react';
 import local from './MowerBodySettings.module.css';
+import {useAntennaFields} from './AntennaFields';
 import {MowerSketch} from './MowerSketch';
 
 // The mower's sizes for the MowBite Planner on the mower (planner.settings): it keeps the body clear of the edges in
@@ -166,6 +167,7 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
   const rect = bodyFrom({
     settings: Object.fromEntries(BODY_SETTINGS.map((k) => [k, {value: metres(k)} as never])),
   });
+  const {antenna, fields: antennaFields} = useAntennaFields(styles);
   const sketch = rect && outline ? {...rect, outline} : rect;
   // the model whose outline it is, named so a wrong pick shows
   const outlineModel = outline ? MOWER_MODELS.find((m) => m.outline && JSON.stringify(m.outline) === JSON.stringify(outline)) : undefined;
@@ -289,7 +291,7 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
           ))}
         </select>
       </label>
-      {sketch && <MowerSketch body={sketch} />}
+      {sketch && <MowerSketch body={sketch} antenna={antenna} />}
       {outline && (
         <p className={styles.dim}>
           {outlineModel ? tr(known.robot_outline ? 'Outline of the {model} plus 1 cm, measured on a photo from straight above. It counts for this model only.' : 'Outline of the {model}, measured on a photo from straight above. It counts for this model only, the planner on the mower checks the rectangle until it knows outlines (newer image).', {model: outlineModel.label}) : tr('A stored outline that is none of the models: pick the model again or enter the sizes.')}
@@ -368,6 +370,7 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
         )}
         {state.error && <span className={styles.error}>{state.error}</span>}
       </div>
+      {antennaFields}
     </section>
   );
 }
