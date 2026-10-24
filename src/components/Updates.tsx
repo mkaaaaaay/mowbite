@@ -24,6 +24,7 @@ import {useMowerActions} from '@/hooks/useMowerActions';
 import {ACTION, RPC} from '@/lib/openmower';
 import {rpcMethods} from '@/lib/rpc';
 import styles from './Updates.module.css';
+import {AutoUpdate} from './AutoUpdate';
 import {CreditsTrigger} from './Credits';
 
 // the newest version, then the old image goes (and any other no container uses and no name points to)
@@ -164,6 +165,8 @@ export function UpdateSettings({cardClass, checkClass}: {cardClass: string; chec
               : ''}
         </span>
       </div>
+
+      <AutoUpdate checkClass={checkClass} />
 
       {u.latest && appOld && (
         <div className={styles.news}>

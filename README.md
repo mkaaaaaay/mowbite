@@ -114,6 +114,18 @@ docker compose up -d
 Your settings stay, they live in the `settings` volume. Reload the page afterwards, phones like to
 keep the old version for a while.
 
+### Automatic updates
+
+`compose.yaml` has a second, optional service: `updater`. With it MowBite updates itself at night, only with the
+mower idle in the dock. Under Settings, App, Updates you pick the channel (off, beta = `latest`, stable = the newest
+release without "beta"), the time, and whether it looks for a newer OpenMower image (it only says so, OpenMower
+isn't touched). If a new version doesn't come up, it goes back to the one before and leaves that version out.
+Afterwards it clears away old images and the build cache, two older versions are kept to go back to.
+
+It's the only container here with access to docker (`/var/run/docker.sock`), and it only changes this stack's
+`mowbite` service. It needs the stack's folder at the same path inside, `/opt/stacks` (dockge's) by default: change
+both sides of that line in `compose.yaml` if your stacks live elsewhere. Leave the service out to update by hand.
+
 ### Remove
 
 ```bash

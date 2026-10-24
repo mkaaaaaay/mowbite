@@ -30,5 +30,19 @@ services:
     #   MOWER_MQTT_USER: ""
     #   MOWER_MQTT_PASSWORD: ""
 
+  # optional: keeps the app up to date by itself, at night with the mower in the dock (the channel and the time are set
+  # in the app: Settings, App, Updates). the only container here with docker, it changes nothing but this stack's app,
+  # goes back when a new version doesn't start and tidies up old images. needs the stack's folder at the same path
+  # inside: /opt/stacks is dockge's, change it if yours is elsewhere
+  updater:
+    image: ghcr.io/mkaaaaaay/mowbite-updater:latest
+    container_name: mowbite-updater
+    restart: unless-stopped
+    volumes:
+      - settings:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /opt/stacks:/opt/stacks
+      - /etc/localtime:/etc/localtime:ro
+
 volumes:
   settings:
