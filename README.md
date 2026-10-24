@@ -116,15 +116,31 @@ keep the old version for a while.
 
 ### Automatic updates
 
-`compose.yaml` has a second, optional service: `updater`. With it MowBite updates itself at night, only with the
-mower idle in the dock. Under Settings, App, Updates you pick the channel (off, beta = `latest`, stable = the newest
-release without "beta"), the time, and whether it looks for a newer OpenMower image (it only says so, OpenMower
-isn't touched). If a new version doesn't come up, it goes back to the one before and leaves that version out.
-Afterwards it clears away old images and the build cache, two older versions are kept to go back to.
+`compose.yaml` has a second, optional service: `updater`. With it MowBite, OpenMower and the MowBite Planner update
+themselves at night, only with the mower idle in the dock. Under Settings, Updates you pick for each part:
 
-It's the only container here with access to docker (`/var/run/docker.sock`), and it only changes this stack's
-`mowbite` service. It needs the stack's folder at the same path inside, `/opt/stacks` (dockge's) by default: change
-both sides of that line in `compose.yaml` if your stacks live elsewhere. Leave the service out to update by hand.
+- MowBite: off, beta (`latest`) or stable (the newest release without "beta")
+- OpenMower: off, only tell when there's a newer image, edge or release (its `latest`; with the MowBite Planner only
+  edge, the planner needs it)
+- the MowBite Planner: off or newest (built again on the mower from GitHub; a planner built from a local copy is left
+  alone)
+
+and the time and the days. If a new version doesn't come up, it goes back to the one before and leaves that version
+out. OpenMower only when there's room for its old and new image at once, the planner is built again on the new
+OpenMower right after. Afterwards old images and the build cache are cleared away.
+
+It's the only container here with access to docker (`/var/run/docker.sock`) and changes the stacks only through their
+own compose files, so dockge shows the same. It needs the stacks' folder at the same path inside, `/opt/stacks`
+(dockge's) by default: change both sides of that line in `compose.yaml` if your stacks live elsewhere. Leave the
+service out to update by hand.
+
+Other apps (Home Assistant, another app) can use it through MowBite on port 8082, the same as the app does:
+
+- `GET /cgi-bin/update`: the settings, what it did last and its log, as JSON (`conf`, `status`, `log`)
+- `POST /cgi-bin/update?conf` with lines like `mowbite beta`, `openmower check`, `planner off`, `at 03:00`,
+  `days daily` (or `days 1,3,5`, monday is 1): sets them, lines left out stay as they are
+- `POST /cgi-bin/update?now`: run within the next minute (it still waits for the mower to be idle in the dock)
+- `GET /cgi-bin/update?docked`: `1` when the mower is idle in the dock, else `0` and its state
 
 ### Remove
 

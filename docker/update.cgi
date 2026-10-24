@@ -1,7 +1,7 @@
 #!/bin/sh
 # the updater (updater.sh, a container of its own): what the app sets for it, "now", what it did, and for the updater
 # whether the mower is idle in the dock (?docked: "1", else "0 <state>").
-# conf lines: mowbite off|beta|stable, at HH:MM, openmower check|off
+# conf lines: mowbite off|beta|stable, openmower off|check|edge|release, planner off|main, at HH:MM, days daily|1,3,5 (monday 1)
 . /broker.sh
 . /openmower.sh
 cors() { printf 'Access-Control-Allow-Origin: *\r\n'; }
@@ -36,8 +36,11 @@ case "$REQUEST_METHOD $QUERY_STRING" in
   body=$(head -c "$len")
   m=$(printf '%s\n' "$body" | sed -En 's/^mowbite (off|beta|stable)$/\1/p' | head -n1)
   at=$(printf '%s\n' "$body" | sed -En 's/^at ([01][0-9]|2[0-3]):([0-5][0-9])$/\1:\2/p' | head -n1)
-  om=$(printf '%s\n' "$body" | sed -En 's/^openmower (check|off)$/\1/p' | head -n1)
-  printf 'mowbite %s\nat %s\nopenmower %s\n' "${m:-$(conf mowbite off)}" "${at:-$(conf at 03:00)}" "${om:-$(conf openmower check)}" > "$C.tmp" &&
+  om=$(printf '%s\n' "$body" | sed -En 's/^openmower (off|check|edge|release)$/\1/p' | head -n1)
+  pl=$(printf '%s\n' "$body" | sed -En 's/^planner (off|main)$/\1/p' | head -n1)
+  days=$(printf '%s\n' "$body" | sed -En 's/^days (daily|[1-7](,[1-7]){0,6})$/\1/p' | head -n1)
+  printf 'mowbite %s\nopenmower %s\nplanner %s\nat %s\ndays %s\n' "${m:-$(conf mowbite off)}" "${om:-$(conf openmower off)}" \
+    "${pl:-$(conf planner off)}" "${at:-$(conf at 03:00)}" "${days:-$(conf days daily)}" > "$C.tmp" &&
     mv "$C.tmp" "$C" && echo ok || echo failed
   ;;
 "POST now")
@@ -48,8 +51,9 @@ case "$REQUEST_METHOD $QUERY_STRING" in
 *)
   cors
   printf 'Content-Type: application/json\r\nCache-Control: no-store\r\n\r\n'
-  printf '{"conf":{"mowbite":"%s","at":"%s","openmower":"%s"},"requested":%s,"status":{' \
-    "$(conf mowbite off)" "$(conf at 03:00)" "$(conf openmower check)" "$([ -f "$D/update.request" ] && echo true || echo false)"
+  printf '{"conf":{"mowbite":"%s","openmower":"%s","planner":"%s","at":"%s","days":"%s"},"requested":%s,"status":{' \
+    "$(conf mowbite off)" "$(conf openmower off)" "$(conf planner off)" "$(conf at 03:00)" "$(conf days daily)" \
+    "$([ -f "$D/update.request" ] && echo true || echo false)"
   sed 's/^\([a-z_]*\) \(.*\)$/\1\t\2/' "$D/update.status" 2>/dev/null |
     awk -F'\t' '{gsub(/\\/, "\\\\", $2); gsub(/"/, "\\\"", $2); printf "%s\"%s\":\"%s\"", (NR > 1 ? "," : ""), $1, $2}'
   printf '},"log":['

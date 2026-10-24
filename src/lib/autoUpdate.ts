@@ -1,15 +1,20 @@
 import {tr} from './i18n';
 import {apiBase, mowerFetch} from './mowers';
 
-// the updater next to MowBite on the mower (docker/updater.sh), through the container's cgi-bin/update: what it's set
-// to, "now", and what it did. without the updater the container still answers, but nothing says it's alive
+// the updater next to MowBite on the mower (docker/updater.sh), through the container's cgi-bin/update: which channel
+// each part follows, when, "now", and what it did. without the updater the container still answers, but nothing says
+// it's alive
 
-export type Channel = 'off' | 'beta' | 'stable';
+export type AppChannel = 'off' | 'beta' | 'stable';
+export type OpenMowerChannel = 'off' | 'check' | 'edge' | 'release';
+export type PlannerChannel = 'off' | 'main';
 
 export interface UpdateConf {
-  mowbite: Channel;
+  mowbite: AppChannel;
+  openmower: OpenMowerChannel;
+  planner: PlannerChannel;
   at: string; // HH:MM, the mower's time
-  openmower: 'check' | 'off';
+  days: string; // daily, or the weekdays 1-7 (monday 1) with commas
 }
 
 export interface UpdateState {
@@ -29,7 +34,8 @@ export async function loadUpdate(): Promise<UpdateState | null> {
 }
 
 export async function saveUpdateConf(c: UpdateConf): Promise<void> {
-  const res = await mowerFetch(endpoint() + '?conf', {method: 'POST', body: `mowbite ${c.mowbite}\nat ${c.at}\nopenmower ${c.openmower}\n`});
+  const body = `mowbite ${c.mowbite}\nopenmower ${c.openmower}\nplanner ${c.planner}\nat ${c.at}\ndays ${c.days}\n`;
+  const res = await mowerFetch(endpoint() + '?conf', {method: 'POST', body});
   if (!res.ok || (await res.text()).trim() !== 'ok') throw new Error(tr('failed'));
 }
 
@@ -41,29 +47,39 @@ export async function requestUpdate(): Promise<void> {
 // it writes "alive" every minute
 export const updaterAlive = (s: UpdateState | null, now = Date.now() / 1000) => !!s && now - Number(s.status.alive ?? 0) < 180;
 
-// what it did last, in words
-export function lastResult(s: UpdateState): string | null {
-  const [result, ...rest] = (s.status.result ?? '').split(' ');
-  switch (result) {
-    case 'updated':
-      return tr('Updated to {v}.', {v: s.status.version ?? '?'});
+const day = (t: string | undefined) =>
+  t ? new Date(Number(t) * 1000).toLocaleString([], {dateStyle: 'short', timeStyle: 'short'}) : '?';
+
+// what it did last with a part, in words: "<state> <values>" as updater.sh writes them
+export function partResult(s: UpdateState, part: 'mowbite' | 'openmower' | 'planner'): string | null {
+  const [state, ...rest] = (s.status[part] ?? '').split(' ');
+  switch (state) {
     case 'current':
-      return tr('Up to date.');
-    case 'waiting':
-      return tr("Not updated: the mower wasn't idle in the dock. It tries again tonight.");
+      return tr('up to date');
+    case 'newer':
+      return tr('a newer version is out ({image})', {image: rest[0] ?? '?'});
+    case 'updated':
+      return tr('updated {when}', {when: day(rest[0])}) + (rest[1] ? ` (${rest[1].length === 40 ? rest[1].slice(0, 7) : rest[1]})` : '');
+    case 'local':
+      return tr('built from a local copy, not updated from GitHub');
+    case 'nospace':
+      return tr('not enough room on the mower: needs about {need} MB and 1 GB to spare, {free} MB free', {need: rest[0] ?? '?', free: rest[1] ?? '?'});
     case 'skipped_failed':
-      return tr("Not updated: this version didn't start before, it waits for the next one.");
+      return tr("this version didn't start before, it waits for the next one");
     case 'rolled_back':
-      return tr("The new version didn't start, it went back to the one before.");
+      return tr("the new version didn't start, it went back to the one before");
     case 'error':
-      return tr('Failed ({why}), see the log.', {why: rest.join(' ') || '?'});
+      return rest[0] === 'planner_needs_edge'
+        ? tr('stays on edge, the MowBite Planner needs it')
+        : tr('failed ({why}), see the log', {why: rest.join(' ') || '?'});
     default:
       return null;
   }
 }
 
-// OpenMower's image, "<image> newer" when there's a newer one
-export function openMowerNews(s: UpdateState): string | null {
-  const [image, what] = (s.status.openmower ?? '').split(' ');
-  return what === 'newer' ? image : null;
+// the whole run
+export function runResult(s: UpdateState): string | null {
+  return s.status.result === 'waiting' ? tr("The last run waited: the mower wasn't idle in the dock. It tries again every 10 minutes for 3 hours.") : null;
 }
+
+export const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
