@@ -922,7 +922,7 @@ const de: Record<string, string> = {
   "Open Dockge on the mower:": "Dockge auf dem Mäher öffnen:",
   "Pick the stack \"mowbite\" and tap \"Edit\".": "Den Stack „mowbite“ wählen und auf „Bearbeiten“ tippen.",
   "In compose.yaml, at the very end there's \"volumes:\" with \"settings:\" under it. Paste the lines below just above that \"volumes:\" line, as they are: they start with two spaces, like \"mowbite:\" further up.": "In der compose.yaml steht ganz unten „volumes:“ und darunter „settings:“. Die Zeilen unten genau über dieser „volumes:“-Zeile einfügen, so wie sie sind: Sie fangen mit zwei Leerzeichen an, wie „mowbite:“ weiter oben.",
-  "Tap \"Save\", then \"Update\" (or \"Deploy\").": "Auf „Speichern“ tippen, dann auf „Aktualisieren“ (oder „Deploy“).",
+  "Tap \"Save\", then \"Update\": that also gets the newest MowBite, which these updates need.": "Auf „Speichern“ tippen, dann auf „Aktualisieren“: Das holt auch das neueste MowBite, das diese Updates brauchen.",
   "If your stacks aren't in /opt/stacks (Dockge's folder), change both sides of the line \"/opt/stacks:/opt/stacks\" to yours.": "Liegen deine Stacks nicht in /opt/stacks (dem Ordner von Dockge), beide Seiten der Zeile „/opt/stacks:/opt/stacks“ auf deinen Ordner ändern.",
   "After about a minute the updates show up here.": "Nach etwa einer Minute erscheinen hier die Updates.",
   "Automatically at night": "Automatisch nachts",

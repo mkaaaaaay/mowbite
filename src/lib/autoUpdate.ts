@@ -1,9 +1,9 @@
 import {fmt, tr} from './i18n';
 import {apiBase, mowerFetch} from './mowers';
 
-// the updater next to MowBite on the mower (docker/updater.sh), through the container's cgi-bin/update: the channel of
-// each part and whether it updates by itself, what runs and whether there's something new, updating a part now, and
-// what it did. without the updater the container answers {}
+// the MowBite Updater on the mower (github.com/mkaaaaaay/mowbite-updater), through the container's cgi-bin/update: the
+// channel of each part and whether it updates by itself, what runs and whether there's something new, updating a part
+// now, and what it did. without the updater the container answers {}
 
 // a part it looks after, by its id: openmower, mowbite, planner, xtechapp, openmowerapp or c_<container> for a labelled app
 export type Part = string;

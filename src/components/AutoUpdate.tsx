@@ -133,7 +133,7 @@ function AddUpdater() {
             'In compose.yaml, at the very end there\'s "volumes:" with "settings:" under it. Paste the lines below just above that "volumes:" line, as they are: they start with two spaces, like "mowbite:" further up.',
           )}
         </li>
-        <li>{tr('Tap "Save", then "Update" (or "Deploy").')}</li>
+        <li>{tr('Tap "Save", then "Update": that also gets the newest MowBite, which these updates need.')}</li>
         <li>{tr('After about a minute the updates show up here.')}</li>
       </ol>
       <pre className={local.code}>{UPDATER_YAML}</pre>
