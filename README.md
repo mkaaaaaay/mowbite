@@ -157,8 +157,10 @@ Optional, under `environment` in `compose.yaml`:
 - `MOWBITE_SCHEDULER`: `off` on a second copy (e.g. on a PC), so only the one on the mower starts it by schedule.
 - `UPDATER_URL`: where the updater runs, e.g. `http://openmower:8083`. Only needed when MowBite doesn't run on the mower
   and `MOWER_MQTT_HOST` isn't the mower.
-- `MOWBITE_ORIGINS`: addresses that may start updates besides MowBite itself, comma separated. For MowBite's files on a
-  web server of your own (`MowBite-web.zip` in the releases) or behind a proxy with another name.
+- `MOWBITE_ORIGINS`: other addresses MowBite is opened from, comma separated. The container only answers MowBite
+  itself (its own page, the app, MowBite on another mower in your network: private addresses, `.local`, `.lan`,
+  `.fritz.box`, names without a dot) and these. For MowBite's files on a web server of your own (`MowBite-web.zip` in the
+  releases) or behind a proxy with another name.
 
 The settings shared by all devices, the map backups and the recorded sensor values live in the `settings` volume. Other
 apps can use the updates through MowBite (`/cgi-bin/update` on port 8082) or the updater directly (port 8083).

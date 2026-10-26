@@ -34,7 +34,8 @@ services:
     #   MOWER_MQTT_PORT: "1883"
     #   MOWER_MQTT_USER: ""
     #   MOWER_MQTT_PASSWORD: ""
-    #   # updates from MowBite's files on a web server of your own (or behind a proxy with another name), comma separated
+    #   # MowBite opened from elsewhere too: its files on a web server of your own (or behind a proxy with another name),
+    #   # comma separated
     #   MOWBITE_ORIGINS: https://mowbite.example.com
     #   # the MowBite Updater, when MowBite doesn't run on the mower (else it finds it by itself)
     #   UPDATER_URL: http://openmower:8083
