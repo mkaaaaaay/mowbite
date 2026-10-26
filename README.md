@@ -1,73 +1,56 @@
 # MowBite
 
-A web app for [OpenMower](https://github.com/ClemensElflein/OpenMower) robot mowers. It runs on the
-mower itself as a small container (about 5 MB) and talks to OpenMower over MQTT, no cloud involved.
-Works on phones and desktops, and there's an Android app too.
+A web app for [OpenMower](https://github.com/ClemensElflein/OpenMower) robot mowers. It runs on the mower as a small
+container and talks to OpenMower over MQTT, no cloud involved. Open it in the browser on a phone or computer, or use the
+Android app.
 
 MowBite is a community project and not affiliated with the OpenMower project.
 
 ## What it does
 
-- **Dashboard**: what the mower is doing in plain words, battery, the important sensor values,
-  controls, today's runs, and a map that follows the mower while it drives (or always, if you like).
-- **Map editor**: zoom and pan, move, add and delete outline points (with a loupe on touch screens),
-  reduce the points of recorded outlines, split and merge areas, rename areas and change their type,
-  undo. Changes are only sent to the mower when you save. A layer menu hides obstacles, navigation
-  areas, numbers and tracks.
-- **Map backups**: made automatically before every save, and by hand whenever you like. Preview
-  one on the map, restore it, download it or load a map from a file.
-- **Record areas by driving**: a thumb stick drives the mower around a new area, its obstacles and
-  the docking station, with a live preview of what's being recorded. The mower stops as soon as
-  the stick is let go, the app is left or the connection drops.
-- **Mowing settings per area**: outline passes, overlap, offset and mow angle, with a preview of the
-  mowing plan: the outline passes around the area and its obstacles and the stripes inside, worked
-  out like OpenMower's planner does it (including `mow_angle_offset`). It's an approximation, the
-  order the mower drives the pieces in isn't shown.
-- **Mowing order** of the areas.
-- **Tracks**: the trail of the current mow and of past mows, read from the mower's own history.
-  Driving without blades is drawn dashed.
-- **Activity**: every day's runs from the mower's event history, with the result, the areas, the
-  mowing time and a timeline. Problems come with an explanation, the circumstances and the raw
-  entry from the history file, and can be shown on the map where they happened.
-- **Aerial imagery** under the map, optional: the official open orthophotos of Germany (every state
-  except Saarland), Austria, Switzerland, the Netherlands, Belgium, Luxembourg, France, Spain,
-  Czechia, Finland and the USA, Esri World Imagery everywhere with an ArcGIS key of your own, and an
-  XYZ or WMS source you add in the settings.
-- **Sensors** with lowest and highest values of the last 24 hours. The container records them, so
-  it doesn't matter whether a browser was open.
-- **Mowing schedule**: days, start times and which areas, the container starts the mower by itself.
-  Optionally not when the rain sensor is wet or rain is forecast for the next one to three hours
-  ([Open-Meteo](https://open-meteo.com)), and it waits for the battery. A start time between 6 pm
-  and 6 am has to be confirmed, hedgehogs and other animals are out then.
-- **Colors, icons and icon sizes** of the map, shared between all your devices.
-- **More than one mower**: add your other mowers in the settings and switch between them at the
-  top of the page.
-- **Weather** for the garden on the dashboard, optional: temperature, sky and whether rain is
-  coming in the next hours, from [Open-Meteo](https://open-meteo.com).
-- **Update check**, off by default: once a day it asks GitHub for a new release. The Android app
-  then downloads the new version, for the mower it shows the command to update.
-- **English and German**, following the browser or picked per device in the settings.
-- **Light and dark design**, following the device or picked in the settings.
+- **Dashboard**: what the mower is doing in plain words, battery, sensors and weather, the mowing plan with progress and
+  time left, and the buttons to start, pause and send it home.
+- **Map editor**: move, add and delete points, split and merge areas, snap to other areas, undo and redo, mow angle and
+  mowing order, with a preview of the mowing plan. Every save makes a backup first, maps also load and save as GeoJSON.
+- **Recording** new areas by driving the mower with a thumb stick, or with the phone held sideways as a remote.
+- **Aerial imagery** under the map: the official open photos of Germany (not Saarland), Austria, Switzerland, the
+  Netherlands, Belgium, Luxembourg, France, Spain, Czechia, Finland and the USA, Esri with an ArcGIS key of your own, or
+  a source you add.
+- **Garden style** for the map: lawn stripes along the mow angle, trees, beds, a pool and lots more pictures.
+- **Activity**: every run with its result and track, problems explained in plain words, mowing hours, reminders for new
+  blades and cleaning, and a diagnosis file per run to post when something goes wrong.
+- **Push messages** through [ntfy](https://ntfy.sh) when the mower needs you: emergency stop, docking given up, standing
+  still, done, rain, maintenance. The container sends them, so no app has to be open, the mower just needs internet.
+- **Schedule**: days and start times with their areas. Skips rain and cold if you like, waits for the battery, and
+  doesn't start in the dark unless you confirm it, hedgehogs are out then.
+- **Sensors** over the last 24 hours, the battery over the weeks, GPS and Wi-Fi coverage on the map.
+- **OpenMower's settings** in the app: lanes, outline passes, GPS, docking, rain and more.
+- **Updates from the app** for MowBite, OpenMower and the MowBite Planner, with the
+  [MowBite Updater](https://github.com/mkaaaaaay/mowbite-updater).
+- **[MowBite Planner](https://github.com/mkaaaaaay/mowbite-planner)**: its menus show up when it runs on the mower.
+- **[Home Assistant](https://github.com/mkaaaaaay/mowbite-ha)**: an integration with MowBite's card and map.
+- More than one mower, a demo mower to look around, guides with moving pictures, several designs in light and dark,
+  English and German.
 
-Works with OpenMower v1 and v2 hardware. On phones the pages sit in a tab bar at the bottom, and
-if you switch it on in the settings you can swipe between them.
+Works with OpenMower v1 and v2. Some things need a newer OpenMower: MowBite asks the mower what it can do and leaves out
+what yours doesn't have yet.
 
-## Planned
+Ideas, wishes and translations are welcome as [issues](https://github.com/mkaaaaaay/mowbite/issues).
 
-Roughly in this order, nothing promised:
+## Install
 
-- **Mow angle that changes per area after every mow**, so the stripes don't always run the same
-  way.
-- **Blades on while recording an area**, behind an extra confirmation.
-- **More languages**, send a translation if you like.
+You need OpenMower running on the mower, with its MQTT websocket on port 9001 (the default).
 
-Ideas and wishes are welcome as [issues](https://github.com/mkaaaaaay/mowbite/issues).
+In Dockge on the mower (OpenMowerOS has it on port 5001):
 
-## Install on the mower
+1. "+ Compose", name it `mowbite`
+2. paste [compose.yaml](compose.yaml)
+3. "Deploy"
 
-You need a running OpenMower with the MQTT websocket on port 9001, which is the default. Easiest is
-Dockge on the mower (OpenMowerOS has it on port 5001): "+ Compose", name it `mowbite`, paste
-[compose.yaml](compose.yaml), "Deploy". Or in a terminal on the mower:
+Then open `http://<your-mower>:8082`. The MowBite Updater comes with it, its page is on port 8083.
+
+<details>
+<summary>Or in a terminal on the mower</summary>
 
 ```bash
 mkdir -p /opt/stacks/mowbite && cd /opt/stacks/mowbite
@@ -76,11 +59,43 @@ docker compose pull
 docker compose up -d
 ```
 
-Either way it lands in Dockge's folder `/opt/stacks`, so Dockge shows it and the updater (below) can update it.
+</details>
 
-Then open `http://<your-mower>:8082`. Port 8082 is used because OpenMower already uses 3000 and
-8080; change it in `compose.yaml` if you like. The image is about 5 MB and exists for arm64 (the
-mower) and amd64.
+### MowBite in a folder of its own
+
+Older versions of this readme had you start MowBite in a folder of its own (`mkdir mowbite`). Dockge can't manage it
+there and the updater doesn't find it. To move it over:
+
+1. in a terminal on the mower: `cd ~/mowbite && docker compose down` (your settings stay)
+2. in Dockge: "+ Compose" with the same name as that folder (`mowbite`), paste [compose.yaml](compose.yaml), "Deploy"
+3. "Update" once, that gets the newest version
+
+Changed something in the old `compose.yaml` (port, environment)? Do the same in the new one.
+
+### Update
+
+In the app under Settings, Updates, or in Dockge with "Update". Your settings stay. Reload the page afterwards, phones
+like to keep the old version for a while.
+
+Installed before 1.4.0-beta.12? Then the updater is still missing: in Dockge tap "Update" once, then the app shows the
+lines to add under Settings, Updates, with a button to copy them.
+
+<details>
+<summary>Or in a terminal on the mower</summary>
+
+```bash
+cd /opt/stacks/mowbite
+docker compose pull
+docker compose up -d
+```
+
+</details>
+
+### Versions
+
+`latest` is always the newest version, betas included. Every version also has a tag of its own, e.g. `1.3.0` or
+`1.4.0-beta.12`: put it in the image line of `compose.yaml` to stay on it. The settings page shows which version you
+have. The images are for arm64 (the mower) and amd64.
 
 ### Build it yourself
 
@@ -90,110 +105,63 @@ cd mowbite
 docker compose up -d --build
 ```
 
-Building on the mower needs about 1 GB of free space for a while. If yours is short on space, build
-on a PC and copy the image over:
+Building on the mower needs about 1 GB of free space for a while. Short on space? Build it on a PC and copy it over:
 
 ```bash
 docker buildx build --platform linux/arm64 -t ghcr.io/mkaaaaaay/mowbite:latest --load .
 docker save ghcr.io/mkaaaaaay/mowbite:latest | ssh openmower@<your-mower> docker load
 ```
 
-### Versions
-
-`latest` is the newest release, `dev` follows the dev branch and might be broken. Every release also
-gets its own tags, e.g. `1.0.0` and `1.0`, if you'd rather stay on one version: change the image in
-`compose.yaml` to `ghcr.io/mkaaaaaay/mowbite:1.0`. The settings page shows which version you have.
-
-### Update
-
-In the app under Settings, Updates (with the updater, below), in Dockge with "Update", or in a terminal:
-
-```bash
-cd /opt/stacks/mowbite
-docker compose pull
-docker compose up -d
-```
-
-(or `git pull` and `docker compose up -d --build` if you build it yourself)
-
-Your settings stay, they live in the `settings` volume. Reload the page afterwards, phones like to
-keep the old version for a while.
-
-### Updates from the app
-
-`compose.yaml` comes with a second service, the [MowBite Updater](https://github.com/mkaaaaaay/mowbite-updater). With
-it you update MowBite, OpenMower and the MowBite Planner from the app (Settings, Updates) or on its own page
-(`http://<your-mower>:8083`): for each you see what runs and whether there's something new, pick its version and update
-it, by hand or automatically at night, always only with the mower idle in the dock. Nothing updates by itself until you
-set it. A new version that doesn't come up goes back to the one before, and old images are cleared away afterwards.
-Other apps on the mower can be added to it with a label, see its readme. Don't want it: leave the service out.
-
-It needs the stacks' folder at the same path inside, `/opt/stacks` (Dockge's) by default: change both sides of that
-line in `compose.yaml` if your stacks live elsewhere. Other apps (Home Assistant, ...) can use it through MowBite
-(`/cgi-bin/update` on port 8082) or directly on port 8083, the same way the app does.
-
 ### Remove
 
 ```bash
-cd mowbite
-docker compose down -v
+cd /opt/stacks/mowbite
+docker compose down
 ```
 
-`-v` also deletes the saved settings and the map backups, leave it out to keep them. Nothing else on the mower is
-touched, MowBite doesn't change any OpenMower files.
+That removes MowBite and the updater. With `-v` the saved settings and map backups go too. MowBite doesn't change
+OpenMower's files, the updater only writes the version you pick (`VERSION` in OpenMower's `.env`, the image line of an
+app's `compose.yaml`).
 
 ### Troubleshooting
 
-- **"waiting for map..." forever**: the browser can't reach MQTT. Check that
-  `ws://<your-mower>:9001` is reachable from the device you're using, and set `MOWER_MQTT_WS_URL`
-  if the app isn't running on the mower.
-- **No data but the connection works**: your OpenMower may use a topic prefix, set
-  `MOWER_MQTT_PREFIX`.
-- **Saving the map fails**: OpenMower needs to be running (the map is saved through its RPC), and
-  it's best to save while the mower is docked.
-- **Colors and icons aren't shared between devices**: that only works when the app is served by the
-  container, not with `npm run dev`.
+- **"waiting for map..." forever**: the browser can't reach MQTT. Check that `ws://<your-mower>:9001` is reachable from
+  your device, and set `MOWER_MQTT_WS_URL` if MowBite doesn't run on the mower.
+- **No data but the connection works**: your OpenMower may use a topic prefix, set `MOWER_MQTT_PREFIX`.
+- **Saving the map fails**: OpenMower has to be running, the map is saved through it.
+- **The updater doesn't list MowBite or OpenMower**: their stacks have to be in `/opt/stacks`, Dockge's folder (see
+  above).
 
 ## Android app
 
-The same app as an APK, handy on a phone without typing an address into the browser:
+The same app for your phone, no address to type each time: `MowBite.apk` comes with every
+[release](https://github.com/mkaaaaaay/mowbite/releases), the newest is at the top.
 
-- [MowBite.apk](https://github.com/mkaaaaaay/mowbite/releases/latest/download/MowBite.apk), the latest
-  [release](https://github.com/mkaaaaaay/mowbite/releases)
-- [MowBite-dev.apk](https://github.com/mkaaaaaay/mowbite/releases/download/app-dev/MowBite-dev.apk),
-  built from the dev branch, might be broken
-
-Android asks once whether it may install apps from your browser. On the first start the app asks
-for your mower's address. MowBite has to run on the mower as described above, the app talks to it
-over your home network. Newer versions install over the old one and keep your settings.
+Android asks once whether it may install apps from your browser. On the first start the app asks for your mower's
+address. MowBite has to run on the mower too, the app talks to it over your home network. New versions install over the
+old one and keep your settings.
 
 ## Configuration
 
-The port you open in the browser is the first number under `ports` in `compose.yaml` (`8082`).
-Change only that one, the `8080` behind it is the port inside the container.
+The port you open is the first number under `ports` in `compose.yaml` (`8082`), change only that one. Then change
+`openmower.ui.port` too: with the [OpenMower start page](https://github.com/xtech/web-openmower-entrypoint), MowBite
+shows up there by itself.
 
-Optional settings go under `environment` in `compose.yaml`:
+Optional, under `environment` in `compose.yaml`:
 
-- `MOWER_MQTT_WS_URL`: where the browser finds OpenMower's MQTT websocket. Without it the app uses
-  `ws://<host the app is opened from>:9001`, which is right when it runs on the mower.
+- `MOWER_MQTT_WS_URL`: where the browser finds OpenMower's MQTT websocket. Without it the app takes
+  `ws://<host it's opened from>:9001`, which is right when it runs on the mower.
 - `MOWER_MQTT_PREFIX`: topic prefix, only if your OpenMower uses one.
-- `MOWER_MQTT_HOST`, `MOWER_MQTT_PORT` (default 1883), `MOWER_MQTT_USER`, `MOWER_MQTT_PASSWORD`:
-  the broker the sensor recorder listens to. On the mower it finds it by itself, set these only if
-  the broker runs somewhere else or needs a login.
-- `MOWBITE_SCHEDULER`: set it to `off` on a second copy of the app (e.g. on a PC), so only the one
-  on the mower starts it by schedule.
-- `UPDATER_URL`: where the [MowBite Updater](https://github.com/mkaaaaaay/mowbite-updater) runs, e.g.
-  `http://openmower:8083`. Only needed when MowBite doesn't run on the mower and `MOWER_MQTT_HOST` isn't the mower.
-- `MOWBITE_ORIGINS`: addresses that may start updates besides MowBite itself, comma separated, e.g.
-  `https://mowbite.example.com`. For MowBite's files on a web server of your own, or behind a proxy that changes
-  the name. Other pages a browser has open can't start updates or delete anything.
+- `MOWER_MQTT_HOST`, `MOWER_MQTT_PORT` (1883), `MOWER_MQTT_USER`, `MOWER_MQTT_PASSWORD`: the broker the container
+  listens to. On the mower it finds it by itself, set these only for a broker somewhere else or with a login.
+- `MOWBITE_SCHEDULER`: `off` on a second copy (e.g. on a PC), so only the one on the mower starts it by schedule.
+- `UPDATER_URL`: where the updater runs, e.g. `http://openmower:8083`. Only needed when MowBite doesn't run on the mower
+  and `MOWER_MQTT_HOST` isn't the mower.
+- `MOWBITE_ORIGINS`: addresses that may start updates besides MowBite itself, comma separated. For MowBite's files on a
+  web server of your own (`MowBite-web.zip` in the releases) or behind a proxy with another name.
 
-Settings made in the app (colors, icons) and the recorded sensor values are stored in the
-`settings` volume.
-
-If you run the [OpenMower start page](https://github.com/xtech/web-openmower-entrypoint), MowBite
-shows up there by itself (labels in `compose.yaml`). Change `openmower.ui.port` too if you change
-the port.
+The settings shared by all devices, the map backups and the recorded sensor values live in the `settings` volume. Other
+apps can use the updates through MowBite (`/cgi-bin/update` on port 8082) or the updater directly (port 8083).
 
 ## Development
 
