@@ -412,7 +412,7 @@ export function AutoUpdate() {
     const conf: UpdateConf = {...st.conf, ...patch};
     setS({...st, conf});
     setError(null);
-    saveUpdateConf(conf).catch(() => setError(tr('Not saved, the mower did not answer.')));
+    saveUpdateConf(patch).catch(() => setError(tr('Not saved, the mower did not answer.')));
   };
   const ask = (go: () => Promise<void>) => {
     setAsked(true);

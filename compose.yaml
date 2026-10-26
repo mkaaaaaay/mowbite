@@ -29,6 +29,10 @@ services:
     #   MOWER_MQTT_PORT: "1883"
     #   MOWER_MQTT_USER: ""
     #   MOWER_MQTT_PASSWORD: ""
+    #   # updates from MowBite's files on a web server of your own (or behind a proxy with another name), comma separated
+    #   MOWBITE_ORIGINS: https://mowbite.example.com
+    #   # the MowBite Updater, when MowBite doesn't run on the mower (else it finds it by itself)
+    #   UPDATER_URL: http://openmower:8083
 
   # the MowBite Updater (github.com/mkaaaaaay/mowbite-updater): updates MowBite, OpenMower and the MowBite Planner from
   # the app (Settings, Updates) or its own page (port 8083), by hand or at night, only with the mower idle in the dock.

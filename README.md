@@ -182,6 +182,11 @@ Optional settings go under `environment` in `compose.yaml`:
   the broker runs somewhere else or needs a login.
 - `MOWBITE_SCHEDULER`: set it to `off` on a second copy of the app (e.g. on a PC), so only the one
   on the mower starts it by schedule.
+- `UPDATER_URL`: where the [MowBite Updater](https://github.com/mkaaaaaay/mowbite-updater) runs, e.g.
+  `http://openmower:8083`. Only needed when MowBite doesn't run on the mower and `MOWER_MQTT_HOST` isn't the mower.
+- `MOWBITE_ORIGINS`: addresses that may start updates besides MowBite itself, comma separated, e.g.
+  `https://mowbite.example.com`. For MowBite's files on a web server of your own, or behind a proxy that changes
+  the name. Other pages a browser has open can't start updates or delete anything.
 
 Settings made in the app (colors, icons) and the recorded sensor values are stored in the
 `settings` volume.

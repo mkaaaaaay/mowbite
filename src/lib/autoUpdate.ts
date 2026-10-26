@@ -64,10 +64,11 @@ async function post(query: string, body = ''): Promise<void> {
   if (!res.ok || (await res.text()).trim() !== 'ok') throw new Error(tr('failed'));
 }
 
-export const saveUpdateConf = (c: UpdateConf) =>
+// only what changed: a value shown but never set (OpenMower's channel from its .env) stays unset
+export const saveUpdateConf = (patch: Record<string, string | number>) =>
   post(
     'conf',
-    Object.entries(c)
+    Object.entries(patch)
       .map(([k, v]) => `${k} ${k.endsWith('_auto') ? (v ? 1 : 0) : v}`)
       .join('\n') + '\n',
   );
