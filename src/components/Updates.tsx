@@ -24,7 +24,7 @@ import {useMowerActions} from '@/hooks/useMowerActions';
 import {ACTION, RPC} from '@/lib/openmower';
 import {rpcMethods} from '@/lib/rpc';
 import styles from './Updates.module.css';
-import {AutoUpdate} from './AutoUpdate';
+import {DockgeUpdateGuide} from './AutoUpdate';
 import {CreditsTrigger} from './Credits';
 
 // the newest version, then the old image goes (and any other no container uses and no name points to)
@@ -97,12 +97,15 @@ export function CopyCommand({command}: {command: string}) {
   );
 }
 
-// how MowBite on the mower gets the newest version, to copy
+// how MowBite on the mower gets the newest version: in dockge, or the command for a terminal
 export function UpdateCommand() {
   return (
     <>
-      <span className={styles.versions}>{tr('To update, run this on the mower in the mowbite folder. It clears away the old image too:')}</span>
-      <CopyCommand command={UPDATE_COMMAND} />
+      <DockgeUpdateGuide />
+      <details>
+        <summary className={styles.versions}>{tr('Or in a terminal on the mower, in the mowbite folder:')}</summary>
+        <CopyCommand command={UPDATE_COMMAND} />
+      </details>
     </>
   );
 }
@@ -122,20 +125,10 @@ export function UpdateSettings({cardClass, checkClass}: {cardClass: string; chec
 
   return (
     <section className={cardClass} id="updates">
-      <h2>{tr('Updates')}</h2>
+      <h2>{tr('This app')}</h2>
       <CreditsTrigger className={styles.versions}>
         {app ? `${tr('App')} ${APP_VERSION} · ${tr('Mower')} ${mower ?? (u.level === 0 ? tr('older version') : '?')}` : `MowBite ${APP_VERSION}`}
       </CreditsTrigger>
-      <a className={styles.versions} href={PRIVACY_URL} target="_blank" rel="noreferrer">
-        {tr('Privacy policy')}
-      </a>
-      {/* copyright and license, versions passed on with changes keep showing them */}
-      <span className={[styles.versions, styles.legal].join(' ')}>
-        © 2026 mkay · {tr('Free software under the GPL-3.0: you may pass it on and change it under its terms. It comes without any warranty.')}{' '}
-        <a href={LICENSE_URL} target="_blank" rel="noreferrer">
-          {tr('License and source code')}
-        </a>
-      </span>
       <NewerOpenMower />
       <label className={checkClass}>
         <input type="checkbox" checked={u.enabled} onChange={(e) => setUpdateCheck(e.target.checked)} />
@@ -148,7 +141,7 @@ export function UpdateSettings({cardClass, checkClass}: {cardClass: string; chec
         </label>
       )}
       <div className={styles.status}>
-        <button className={styles.button} onClick={() => void checkNow()} disabled={u.checking}>
+        <button className={[styles.button, styles.even].join(' ')} onClick={() => void checkNow()} disabled={u.checking}>
           {u.checking ? tr('checking…') : tr('Check now')}
         </button>
         <span className={styles.versions}>
@@ -165,8 +158,6 @@ export function UpdateSettings({cardClass, checkClass}: {cardClass: string; chec
               : ''}
         </span>
       </div>
-
-      <AutoUpdate checkClass={checkClass} />
 
       {u.latest && appOld && (
         <div className={styles.news}>
@@ -236,5 +227,22 @@ export function UpdateBanner() {
         ×
       </button>
     </div>
+  );
+}
+
+// privacy and license, small at the foot of the settings
+export function LegalFooter({className}: {className?: string}) {
+  return (
+    <footer className={[styles.versions, styles.legal, className].join(' ')}>
+      <a href={PRIVACY_URL} target="_blank" rel="noreferrer">
+        {tr('Privacy policy')}
+      </a>
+      <span>
+        © 2026 mkay · {tr('Free software under the GPL-3.0: you may pass it on and change it under its terms. It comes without any warranty.')}{' '}
+        <a href={LICENSE_URL} target="_blank" rel="noreferrer">
+          {tr('License and source code')}
+        </a>
+      </span>
+    </footer>
   );
 }

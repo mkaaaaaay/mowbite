@@ -114,33 +114,46 @@ docker compose up -d
 Your settings stay, they live in the `settings` volume. Reload the page afterwards, phones like to
 keep the old version for a while.
 
-### Automatic updates
+### Updates from the app
 
-`compose.yaml` has a second, optional service: `updater`. With it MowBite, OpenMower and the MowBite Planner update
-themselves at night, only with the mower idle in the dock. Under Settings, Updates you pick for each part:
+`compose.yaml` has a second, optional service: `updater`. With it you update MowBite, OpenMower and the MowBite Planner
+from the app, under Settings, Updates: for each you see what runs and whether there's something new, pick its version
+and update it, by hand or automatically at night (time and days are yours to set), always only with the mower idle in
+the dock.
 
-- MowBite: off, beta (`latest`) or stable (the newest release without "beta")
-- OpenMower: off, only tell when there's a newer image, edge or release (its `latest`; with the MowBite Planner only
-  edge, the planner needs it)
-- the MowBite Planner: off or newest (built again on the mower from GitHub; a planner built from a local copy is left
-  alone)
+- MowBite: beta (`latest`) or stable (the newest release without "beta")
+- OpenMower: edge, its release (`latest`) or the version in its `.env`. The release doesn't work with the MowBite
+  Planner yet, the app says so
+- the MowBite Planner: built again on the mower when its GitHub branch moved; a planner built from a local copy is left
+  alone
 
-and the time and the days. If a new version doesn't come up, it goes back to the one before and leaves that version
-out. OpenMower only when there's room for its old and new image at once, the planner is built again on the new
-OpenMower right after. Afterwards old images and the build cache are cleared away.
+While it updates, the part's card shows each step on a bar: the download in percent, unpacking, the planner's build
+steps, the restart and the wait until it answers. If a new version doesn't come up, it goes back to the one before and
+leaves that version out; MowBite can also go back to the version before by hand. OpenMower only when there's room for
+its old and new image at once, the planner is built again on the new OpenMower right after. A run stopped halfway
+(power gone) is put back at the next start. Afterwards its old rollback images and the build cache are cleared away,
+and under "Make room" you see what else nothing needs and delete it if you like.
 
 It's the only container here with access to docker (`/var/run/docker.sock`) and changes the stacks only through their
-own compose files, so dockge shows the same. It needs the stacks' folder at the same path inside, `/opt/stacks`
-(dockge's) by default: change both sides of that line in `compose.yaml` if your stacks live elsewhere. Leave the
-service out to update by hand.
+own compose files, so Dockge shows the same. It keeps its settings and log in its own stack folder (`.updater`), MowBite
+asks it over the stack's network, nothing is reachable from outside. It needs the stacks' folder at the same path
+inside, `/opt/stacks` (Dockge's) by default: change both sides of that line in `compose.yaml` if your stacks live
+elsewhere. Leave the service out to update by hand in Dockge (the stack, then "Update").
 
-Other apps (Home Assistant, another app) can use it through MowBite on port 8082, the same as the app does:
+Other apps (Home Assistant, another app) can use it through MowBite on port 8082, the same way the app does:
 
-- `GET /cgi-bin/update`: the settings, what it did last and its log, as JSON (`conf`, `status`, `log`)
-- `POST /cgi-bin/update?conf` with lines like `mowbite beta`, `openmower check`, `planner off`, `at 03:00`,
-  `days daily` (or `days 1,3,5`, monday is 1): sets them, lines left out stay as they are
-- `POST /cgi-bin/update?now`: run within the next minute (it still waits for the mower to be idle in the dock)
+- `GET /cgi-bin/update`: settings, status and log as JSON (`conf`, `status`, `log`)
+- `POST /cgi-bin/update?conf` with lines like `mowbite beta`, `mowbite_auto 1`, `openmower edge`, `openmower_auto 0`,
+  `planner_auto 0`, `at 03:00`, `days daily` (or `days 1,3,5`, monday is 1): sets them, lines left out stay
+- `POST /cgi-bin/update?now` (all parts) or `?now=mowbite`, `?now=openmower`, `?now=planner`: within the next minute
+- `POST /cgi-bin/update?check`: look for something new within the next minute
+- `POST /cgi-bin/update?back=mowbite`: MowBite back to the version before
+- `POST /cgi-bin/update?room`, `?free=img:<id>`, `?free=cache`, `?free=all`: list what nothing needs (`room` in the
+  JSON), delete one image of that list, the build cache or the whole list
 - `GET /cgi-bin/update?docked`: `1` when the mower is idle in the dock, else `0` and its state
+
+While it updates, `status.progress` says what it does: `<part> <step> <percent or -> <since> [<done> <of>]`, steps
+`prepare`, `download`, `extract`, `build`, `restart`, `wait`, `back`.
 
 ### Remove
 

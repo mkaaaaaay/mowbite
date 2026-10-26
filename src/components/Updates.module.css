@@ -12,6 +12,17 @@
   -webkit-user-select: text;
 }
 
+.legal {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 24px 16px 8px;
+  text-align: center;
+  font-size: 11px;
+  opacity: 0.8;
+}
+
 .legal a {
   text-decoration: underline;
 }
@@ -59,6 +70,12 @@
   font-size: 13px;
   cursor: pointer;
   box-shadow: var(--btn-3d);
+}
+
+.even {
+  /* as wide as the buttons in the updater's cards (their padding and border, the gap between two) */
+  width: calc((100% - 34px) / 2);
+  height: 38px;
 }
 
 .button:disabled {

@@ -1,0 +1,232 @@
+/* the updates on the mower: nothing to select but the log */
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.part {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--card-border);
+  background: color-mix(in srgb, var(--card) 60%, transparent);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.name {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.badge {
+  flex-shrink: 0;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--card-border);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.badgeNew {
+  border-color: color-mix(in srgb, var(--success) 70%, transparent);
+  background: color-mix(in srgb, var(--success) 25%, transparent);
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+.dim {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.warn {
+  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--warning, #e0a030) 60%, transparent);
+  background: color-mix(in srgb, var(--warning, #e0a030) 12%, transparent);
+}
+
+/* two equal columns: every button and pick box the same size */
+.row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.control {
+  width: 100%;
+  height: 38px;
+  box-sizing: border-box;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 13px;
+  box-shadow: var(--btn-3d);
+}
+
+button.control {
+  cursor: pointer;
+}
+
+.control:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.primary {
+  font-weight: 600;
+  border-color: color-mix(in srgb, var(--success) 70%, transparent);
+  background: color-mix(in srgb, var(--success) 35%, transparent);
+}
+
+.danger {
+  font-weight: 600;
+  border-color: color-mix(in srgb, var(--error) 70%, transparent);
+  background: color-mix(in srgb, var(--error) 30%, transparent);
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--card-border);
+}
+
+.itemName {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+
+.days .control {
+  padding: 0;
+}
+
+/* the only part to select and copy, nothing sticks out of the card */
+.log {
+  max-height: 260px;
+  overflow: auto;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--well);
+  font-size: 11px;
+  line-height: 1.45;
+  /* long lines broken, on a phone too: it only scrolls down */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.steps {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.steps a {
+  color: var(--accent);
+}
+
+.code {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--well);
+  font-size: 12px;
+  white-space: pre;
+  overflow-x: auto;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* what it does with a part right now */
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.progressHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.track {
+  position: relative;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--well);
+  overflow: hidden;
+}
+
+.fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--success);
+  transition: width 0.6s ease;
+}
+
+/* no telling how far: a piece of the bar runs along */
+.moving {
+  position: absolute;
+  top: 0;
+  left: -35%;
+  width: 35%;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--success);
+  animation: moving 1.4s ease-in-out infinite;
+}
+
+@keyframes moving {
+  to {
+    left: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fill {
+    transition: none;
+  }
+
+  .moving {
+    left: 0;
+    width: 100%;
+    opacity: 0.5;
+    animation: none;
+  }
+}

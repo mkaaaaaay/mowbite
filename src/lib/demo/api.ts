@@ -160,6 +160,87 @@ const SYSTEM = [
   'net_ip 192.168.178.42',
 ].join('\n');
 
+// the updater next to MowBite (lib/autoUpdate), made up: MowBite has something new, OpenMower is up to date, the planner
+// from github in an unknown state
+let room = [
+  {id: '5d97bb5f3d94', bytes: 1_116_000, refs: 'mowbite_planner:before-0888dd0', kind: 'planner'},
+  {id: '274873b1639d', bytes: 10_630_000, refs: 'ghcr.io/mkaaaaaay/mowbite:rb-1792840000-274873b1', kind: 'rollback'},
+  {id: 'a1b2c3d4e5f6', bytes: 2_336_000_000, refs: '-', kind: 'dangling'},
+];
+let cache = 1_262_000_000;
+let updateConf = 'mowbite beta\nmowbite_auto 1\nopenmower edge\nopenmower_auto 0\nplanner_auto 0\nat 03:00\ndays daily\n';
+// an update asked for: each part goes through its steps within seconds, the way the bar shows a real one. a step:
+// its name, its seconds and of unpacking or building how many
+type DemoStep = [step: string, secs: number, of?: number];
+const DEMO_STEPS: Record<string, DemoStep[]> = {
+  openmower: [['prepare', 2]],
+  planner: [['prepare', 2], ['build', 12, 9], ['restart', 3], ['wait', 5]],
+  mowbite: [['prepare', 2], ['download', 8], ['extract', 3, 4], ['restart', 3], ['wait', 4]],
+  back: [['back', 3], ['restart', 3], ['wait', 4]],
+};
+let demoRun: {t: number; parts: string[]} | null = null;
+const demoDone: Record<string, number> = {};
+function demoProgress(status: Record<string, string>, now: number) {
+  if (!demoRun) return;
+  const part = (p: string) => (p === 'back' ? 'mowbite' : p);
+  let t = now - demoRun.t;
+  for (const p of demoRun.parts) {
+    for (const [step, secs, of] of DEMO_STEPS[p]) {
+      if (t < secs) {
+        const pct = step === 'download' || of ? Math.floor((100 * t) / secs) : '-';
+        status.progress = [part(p), step, pct, Math.round(now - t), ...(of ? [Math.floor((of * t) / secs), of] : [])].join(' ');
+        status.run_parts = demoRun.parts.map(part).join(' ');
+        status.result = 'running';
+        return;
+      }
+      t -= secs;
+    }
+  }
+  for (const p of demoRun.parts) demoDone[p] = Math.round(now);
+  demoRun = null;
+}
+
+function demoUpdate(): Record<string, unknown> {
+  const c = Object.fromEntries(updateConf.trim().split('\n').map((l) => [l.slice(0, l.indexOf(' ')), l.slice(l.indexOf(' ') + 1)]));
+  const now = Math.round(Date.now() / 1000);
+  const day = (d: number) => new Date(Date.now() - d * 86400_000).toISOString().slice(0, 10);
+  const version = process.env.APP_VERSION ?? '0.0.0';
+  const status: Record<string, string> = {
+    alive: String(now),
+    checked: String(now - 1800),
+    mowbite_running: `${version} ${day(3)}`,
+    mowbite_available: 'yes ghcr.io/mkaaaaaay/mowbite:latest',
+    mowbite: `updated ${now - 3 * 86400} ${version}`,
+    mowbite_back: 'yes',
+    openmower_running: `edge ${day(11)}`,
+    openmower_env: 'edge',
+    openmower_available: 'no ghcr.io/clemenselflein/open_mower_ros:edge',
+    planner_running: `? ${day(1)}`,
+    planner_source: 'github',
+    planner_available: 'unknown main',
+    disk_free: '2380',
+    result: 'done',
+  };
+  if (demoDone.mowbite) Object.assign(status, {mowbite: `updated ${demoDone.mowbite} ${version}`, mowbite_available: 'no ghcr.io/mkaaaaaay/mowbite:latest'});
+  if (demoDone.back) status.mowbite = `back ${demoDone.back} ${version}`;
+  if (demoDone.openmower) status.openmower = 'current';
+  if (demoDone.planner)
+    Object.assign(status, {planner: `updated ${demoDone.planner} 3f2a9c1`, planner_running: `3f2a9c1e5b7d ${day(0)}`, planner_available: 'no main'});
+  demoProgress(status, Date.now() / 1000);
+  return {
+    conf: {...c, mowbite_auto: Number(c.mowbite_auto), openmower_auto: Number(c.openmower_auto), planner_auto: Number(c.planner_auto)},
+    requested: false,
+    status,
+    room: {items: room, cache},
+    log: [
+      `${day(3)} 03:00:12 mowbite: kept the version before as ghcr.io/mkaaaaaay/mowbite:prev-1a2b3c4d`,
+      `${day(3)} 03:00:13 mowbite: ghcr.io/mkaaaaaay/mowbite:latest -> ghcr.io/mkaaaaaay/mowbite:latest`,
+      `${day(3)} 03:00:41 mowbite: updated to ${process.env.APP_VERSION ?? '0.0.0'}`,
+      `${day(3)} 03:00:44 tidied up: images 23.4MB, build cache 0B, 2380 MB free`,
+    ],
+  };
+}
+
 export async function demoFetch(url: string, init?: RequestInit): Promise<Response> {
   const {pathname, searchParams: q} = new URL(url, 'http://demo.invalid');
   const post = init?.method === 'POST';
@@ -217,6 +298,26 @@ export async function demoFetch(url: string, init?: RequestInit): Promise<Respon
       }
       return json(list.map((b) => ({id: b.id, t: b.t, name: b.name, areas: b.areas, auto: b.auto, size: b.size})));
     }
+    case '/cgi-bin/update':
+      if (post && q.has('conf')) {
+        // the lines sent replace the ones there were, the rest stays
+        const sent = new Map(body.trim().split('\n').map((l) => [l.slice(0, l.indexOf(' ')), l]));
+        updateConf = updateConf.trim().split('\n').map((l) => sent.get(l.slice(0, l.indexOf(' '))) ?? l).join('\n') + '\n';
+        return text('ok');
+      }
+      if (post && q.get('free')) {
+        const what = q.get('free')!;
+        if (what === 'cache') cache = 0;
+        else room = what === 'all' ? [] : room.filter((i) => `img:${i.id}` !== what);
+        return text('ok');
+      }
+      // an update or going back: played through in a few seconds. a check: the demo mower has nothing to look for
+      if (post && (q.has('now') || q.has('back')) && !demoRun) {
+        const one = q.get('now');
+        demoRun = {t: Date.now() / 1000, parts: q.has('back') ? ['back'] : one && one in DEMO_STEPS ? [one] : ['openmower', 'planner', 'mowbite']};
+      }
+      if (post) return text('ok');
+      return json(demoUpdate());
     case '/cgi-bin/sensors':
       return text(sensorHistory());
     case '/cgi-bin/battery':

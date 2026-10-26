@@ -1,26 +1,42 @@
-import {tr} from './i18n';
+import {fmt, tr} from './i18n';
 import {apiBase, mowerFetch} from './mowers';
 
-// the updater next to MowBite on the mower (docker/updater.sh), through the container's cgi-bin/update: which channel
-// each part follows, when, "now", and what it did. without the updater the container still answers, but nothing says
-// it's alive
+// the updater next to MowBite on the mower (docker/updater.sh), through the container's cgi-bin/update: the channel of
+// each part and whether it updates by itself, what runs and whether there's something new, updating a part now, and
+// what it did. without the updater the container answers {}
 
-export type AppChannel = 'off' | 'beta' | 'stable';
-export type OpenMowerChannel = 'off' | 'check' | 'edge' | 'release';
-export type PlannerChannel = 'off' | 'main';
+export type Part = 'mowbite' | 'openmower' | 'planner';
+export const PARTS: Part[] = ['mowbite', 'openmower', 'planner'];
+export const PART_NAMES: Record<Part, string> = {
+  mowbite: 'MowBite',
+  openmower: 'OpenMower',
+  planner: 'MowBite Planner',
+};
 
 export interface UpdateConf {
-  mowbite: AppChannel;
-  openmower: OpenMowerChannel;
-  planner: PlannerChannel;
+  mowbite: 'beta' | 'stable';
+  mowbite_auto: number;
+  openmower: string; // a tag of its image: edge, latest or what its .env has
+  openmower_auto: number;
+  planner_auto: number;
   at: string; // HH:MM, the mower's time
   days: string; // daily, or the weekdays 1-7 (monday 1) with commas
+}
+
+// what can go to make room: images nothing uses (with the room each frees for real) and the build cache
+export type RoomKind = 'rollback' | 'planner' | 'old' | 'dangling' | 'unused';
+export interface RoomItem {
+  id: string;
+  bytes: number;
+  refs: string; // its tags, comma separated, or - for an image without one
+  kind: RoomKind;
 }
 
 export interface UpdateState {
   conf: UpdateConf;
   requested: boolean;
   status: Record<string, string>;
+  room?: {items: RoomItem[]; cache: number};
   log: string[];
 }
 
@@ -33,45 +49,170 @@ export async function loadUpdate(): Promise<UpdateState | null> {
   return s?.conf ? s : null;
 }
 
-export async function saveUpdateConf(c: UpdateConf): Promise<void> {
-  const body = `mowbite ${c.mowbite}\nopenmower ${c.openmower}\nplanner ${c.planner}\nat ${c.at}\ndays ${c.days}\n`;
-  const res = await mowerFetch(endpoint() + '?conf', {method: 'POST', body});
+async function post(query: string, body = ''): Promise<void> {
+  const res = await mowerFetch(`${endpoint()}?${query}`, {method: 'POST', body});
   if (!res.ok || (await res.text()).trim() !== 'ok') throw new Error(tr('failed'));
 }
 
-export async function requestUpdate(): Promise<void> {
-  const res = await mowerFetch(endpoint() + '?now', {method: 'POST'});
-  if (!res.ok || (await res.text()).trim() !== 'ok') throw new Error(tr('failed'));
+export const saveUpdateConf = (c: UpdateConf) =>
+  post(
+    'conf',
+    [
+      `mowbite ${c.mowbite}`,
+      `mowbite_auto ${c.mowbite_auto ? 1 : 0}`,
+      `openmower ${c.openmower}`,
+      `openmower_auto ${c.openmower_auto ? 1 : 0}`,
+      `planner_auto ${c.planner_auto ? 1 : 0}`,
+      `at ${c.at}`,
+      `days ${c.days}`,
+    ].join('\n') + '\n',
+  );
+
+// one part, or all of them
+export const requestUpdate = (part?: Part) => post(part ? `now=${part}` : 'now');
+// MowBite back to the version that ran before the last update
+export const requestBack = () => post('back=mowbite');
+export const requestCheck = () => post('check');
+export const requestRoom = () => post('room');
+// one image from the list, all of them, or the build cache
+export const freeRoom = (what: {id: string} | 'all' | 'cache') => post(typeof what === 'string' ? `free=${what}` : `free=img:${what.id}`);
+
+// what an image in the list is, in words
+export const roomLabel = (item: RoomItem) => (item.refs === '-' ? tr('an image without a name') : item.refs.split(',').join(', '));
+export function roomNote(item: RoomItem): string {
+  switch (item.kind) {
+    case 'rollback':
+      return tr('the version before an update, kept to go back to');
+    case 'planner':
+      return tr('kept by the planner session to go back to');
+    case 'old':
+      return tr('an older version kept to go back to');
+    case 'dangling':
+      return tr('left over, nothing uses it');
+    default:
+      return tr('not used by any container');
+  }
+}
+export const roomTotal = (s: UpdateState) => (s.room?.items ?? []).reduce((n, i) => n + i.bytes, 0);
+export const size = (bytes: number) => (bytes >= 1e9 ? `${fmt(bytes / 1e9, 1)} GB` : bytes >= 1e6 ? `${Math.round(bytes / 1e6)} MB` : `${Math.max(0, Math.round(bytes / 1e3))} kB`);
+
+// it writes "alive" every minute and with each step of an update, a big download or a build can take a while longer
+export function updaterAlive(s: UpdateState | null, now = Date.now() / 1000): boolean {
+  if (!s) return false;
+  const since = now - Number(s.status.alive ?? 0);
+  return since < 300 || (s.status.result === 'running' && since < 3600);
 }
 
-// it writes "alive" every minute
-export const updaterAlive = (s: UpdateState | null, now = Date.now() / 1000) => !!s && now - Number(s.status.alive ?? 0) < 180;
+// what it does right now, for the bar: the part, the step, its percent (null: no telling, the bar moves without one),
+// since when, and of unpacking and building how many of how many. only while a run goes on
+export type Step = 'prepare' | 'download' | 'extract' | 'build' | 'restart' | 'wait' | 'back';
+const STEPS: Step[] = ['prepare', 'download', 'extract', 'build', 'restart', 'wait', 'back'];
+export interface Progress {
+  part: Part;
+  step: Step;
+  pct: number | null;
+  since: number;
+  done?: number;
+  of?: number;
+}
 
-const day = (t: string | undefined) =>
+export function progressOf(s: UpdateState): Progress | null {
+  if (s.status.result !== 'running') return null;
+  const [part, step, pct, since, done, of] = (s.status.progress ?? '').split(' ');
+  if (!PARTS.includes(part as Part) || !STEPS.includes(step as Step)) return null;
+  const n = (x: string | undefined) => (x && /^\d+$/.test(x) ? Number(x) : undefined);
+  const p = n(pct);
+  return {part: part as Part, step: step as Step, pct: p === undefined ? null : Math.min(100, p), since: n(since) ?? 0, done: n(done), of: n(of)};
+}
+
+// the parts of the run going on now, in their order
+export const runParts = (s: UpdateState): Part[] =>
+  s.status.result === 'running' ? (s.status.run_parts ?? '').split(' ').filter((p): p is Part => PARTS.includes(p as Part)) : [];
+
+export function stepLabel(p: Progress): string {
+  switch (p.step) {
+    case 'prepare':
+      return tr('Getting ready');
+    case 'download':
+      return tr('Downloading');
+    case 'extract':
+      return tr('Unpacking');
+    case 'build':
+      return tr('Building');
+    case 'restart':
+      return tr('Restarting');
+    case 'wait':
+      return p.part === 'openmower' ? tr('Waiting until OpenMower is idle again') : tr('Waiting until it answers');
+    case 'back':
+      return tr('Going back to the version before');
+  }
+}
+
+// on the bar's right: the percent, how many of how many, or how long the step has taken
+export function stepDetail(p: Progress, now = Date.now() / 1000): string {
+  if (p.step === 'extract' && p.of) return tr('{n} of {of} layers', {n: p.done ?? 0, of: p.of});
+  if (p.step === 'build' && p.of) return tr('step {n} of {of}', {n: Math.min(p.of, (p.done ?? 0) + 1), of: p.of});
+  if (p.pct !== null && p.step === 'download') return `${p.pct} %`;
+  const secs = Math.max(0, Math.round(now - p.since));
+  return `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
+}
+
+const date = (d: string | undefined) => (d && /^\d{4}-\d\d-\d\d$/.test(d) ? new Date(`${d}T12:00:00`).toLocaleDateString() : null);
+const when = (t: string | undefined) =>
   t ? new Date(Number(t) * 1000).toLocaleString([], {dateStyle: 'short', timeStyle: 'short'}) : '?';
 
+export type Availability = 'yes' | 'no' | 'switch' | 'failed' | 'unknown' | 'local';
+
+export interface PartInfo {
+  // what runs on the mower, in words, or null when the part isn't there
+  running: string | null;
+  available: Availability | null;
+  // the planner: built from github, from a local copy, or not there
+  source?: 'github' | 'local' | 'none';
+}
+
+export function partInfo(s: UpdateState, part: Part): PartInfo {
+  const [what, day] = (s.status[`${part}_running`] ?? '').split(' ');
+  const built = date(day);
+  const avail = (s.status[`${part}_available`] ?? '').split(' ')[0] as Availability;
+  const available = ['yes', 'no', 'switch', 'failed', 'unknown', 'local'].includes(avail) ? avail : null;
+  if (part === 'planner') {
+    const source = (s.status.planner_source || 'none') as PartInfo['source'];
+    if (source === 'none') return {running: null, available: null, source};
+    const commit = what && what !== '?' ? what.slice(0, 7) : null;
+    const running = [commit ? tr('commit {c}', {c: commit}) : tr('state unknown'), built && tr('built {d}', {d: built})].filter(Boolean).join(' · ');
+    return {running, available, source};
+  }
+  if (!what || what === 'none') return {running: null, available: null};
+  const running = part === 'openmower' ? [what, built && tr('built {d}', {d: built})].filter(Boolean).join(' · ') : [what, built].filter(Boolean).join(' · ');
+  return {running, available};
+}
+
 // what it did last with a part, in words: "<state> <values>" as updater.sh writes them
-export function partResult(s: UpdateState, part: 'mowbite' | 'openmower' | 'planner'): string | null {
+export function partResult(s: UpdateState, part: Part): string | null {
   const [state, ...rest] = (s.status[part] ?? '').split(' ');
   switch (state) {
     case 'current':
-      return tr('up to date');
-    case 'newer':
-      return tr('a newer version is out ({image})', {image: rest[0] ?? '?'});
+      return tr('was up to date');
     case 'updated':
-      return tr('updated {when}', {when: day(rest[0])}) + (rest[1] ? ` (${rest[1].length === 40 ? rest[1].slice(0, 7) : rest[1]})` : '');
+      return tr('updated {when}', {when: when(rest[0])}) + (rest[1] ? ` (${rest[1]})` : '');
     case 'local':
-      return tr('built from a local copy, not updated from GitHub');
+      return part === 'planner' ? tr('built from a local copy, not updated from GitHub') : tr('runs an image built here, updated only when asked');
     case 'nospace':
       return tr('not enough room on the mower: needs about {need} MB and 1 GB to spare, {free} MB free', {need: rest[0] ?? '?', free: rest[1] ?? '?'});
     case 'skipped_failed':
       return tr("this version didn't start before, it waits for the next one");
     case 'rolled_back':
       return tr("the new version didn't start, it went back to the one before");
+    case 'back':
+      return tr('back to the version before {when}', {when: when(rest[0])}) + (rest[1] ? ` (${rest[1]})` : '');
+    case 'unconfirmed':
+      return tr("not confirmed yet: the new version didn't answer as it should while the mower wasn't idle, nothing was restarted. The next run looks again");
     case 'error':
-      return rest[0] === 'planner_needs_edge'
-        ? tr('stays on edge, the MowBite Planner needs it')
-        : tr('failed ({why}), see the log', {why: rest.join(' ') || '?'});
+      if (rest[0] === 'base_missing') return tr("not built: the OpenMower image it's built on isn't on the mower");
+      if (rest[0] === 'not_docked') return tr("not done: the mower wasn't idle in the dock");
+      if (rest[0] === 'no_back') return tr('there is no version before to go back to');
+      return tr('failed ({why}), see the log', {why: rest.join(' ') || '?'});
     default:
       return null;
   }
@@ -79,7 +220,24 @@ export function partResult(s: UpdateState, part: 'mowbite' | 'openmower' | 'plan
 
 // the whole run
 export function runResult(s: UpdateState): string | null {
-  return s.status.result === 'waiting' ? tr("The last run waited: the mower wasn't idle in the dock. It tries again every 10 minutes for 3 hours.") : null;
+  if (s.status.result === 'waiting') return tr("The last run waited: the mower wasn't idle in the dock.");
+  if (s.status.result === 'interrupted') return tr('The last run was stopped halfway (the mower or the updater restarted), what had not started yet was put back.');
+  if (s.status.result === 'running') {
+    const parts = runParts(s);
+    const now = progressOf(s)?.part;
+    if (!now || !parts.includes(now)) return tr('Updating right now…');
+    return tr('Updating {name} ({n} of {of})…', {name: PART_NAMES[now], n: parts.indexOf(now) + 1, of: parts.length});
+  }
+  return null;
+}
+
+export const lastChecked = (s: UpdateState) => (s.status.checked ? when(s.status.checked) : null);
+export const freeMb = (s: UpdateState) => (s.status.disk_free && /^\d+$/.test(s.status.disk_free) ? Number(s.status.disk_free) : null);
+
+// OpenMower's tags to pick: edge, its release, and what its .env has when that's another one
+export function openMowerChoices(s: UpdateState): string[] {
+  const own = [s.conf.openmower, s.status.openmower_env].filter((t): t is string => !!t && t !== 'edge' && t !== 'latest');
+  return ['edge', 'latest', ...new Set(own)];
 }
 
 export const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];

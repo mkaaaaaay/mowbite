@@ -12,7 +12,8 @@ import {appMowers, DEMO_ID, isDemo, saveAppMowers, selectMower} from '@/lib/mowe
 import {isApp} from '@/lib/native';
 import {setSwipeEnabled, useSwipeEnabled} from '@/lib/swipe';
 import {OpenMowerSettings} from '@/components/MowerParamSettings';
-import {UpdateSettings} from '@/components/Updates';
+import {AutoUpdate, DockgeUpdateGuide} from '@/components/AutoUpdate';
+import {LegalFooter, UpdateSettings} from '@/components/Updates';
 import {loadPlannerSettings, savePlannerSettings, slic3rPlans, usePlannerSettings} from '@/lib/mowerBody';
 import Link from 'next/link';
 import {MowerBodySettings} from '@/components/MowerBodySettings';
@@ -434,7 +435,12 @@ export default function SettingsPage() {
 
         <OpenMowerSettings styles={styles} />
 
-        <Group id="update" title={tr('Updates')} hint={tr('Versions, automatic updates, privacy, license')} anchors={['updates']}>
+        <Group id="update" title={tr('Updates')} hint={tr('MowBite, OpenMower and the planner on the mower, the app')} anchors={['updates']}>
+          <section className={styles.card}>
+            <h2>{tr('On the mower')}</h2>
+            <AutoUpdate />
+            <DockgeUpdateGuide />
+          </section>
           <UpdateSettings cardClass={styles.card} checkClass={styles.check} />
         </Group>
 
@@ -453,6 +459,8 @@ export default function SettingsPage() {
           </section>
           <MowersSection settings={settings} />
         </Group>
+
+        <LegalFooter />
       </main>
     </div>
   );

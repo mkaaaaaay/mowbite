@@ -1,32 +1,80 @@
 import {describe, expect, it} from 'vitest';
-import {partResult, runResult, updaterAlive, type UpdateState} from './autoUpdate';
+import {freeMb, openMowerChoices, partInfo, partResult, progressOf, runResult, stepDetail, stepLabel, updaterAlive, type UpdateState} from './autoUpdate';
 
-const state = (status: Record<string, string>): UpdateState => ({
-  conf: {mowbite: 'beta', openmower: 'check', planner: 'off', at: '03:00', days: 'daily'},
+const state = (status: Record<string, string>, openmower = 'edge'): UpdateState => ({
+  conf: {mowbite: 'beta', mowbite_auto: 0, openmower, openmower_auto: 0, planner_auto: 0, at: '03:00', days: 'daily'},
   requested: false,
   status,
   log: [],
 });
 
 describe('the updater on the mower', () => {
-  it('counts as there while it wrote alive in the last three minutes', () => {
+  it('counts as there while it wrote alive lately, longer while it updates', () => {
     expect(updaterAlive(state({alive: '1000'}), 1100)).toBe(true);
-    expect(updaterAlive(state({alive: '1000'}), 1200)).toBe(false);
+    expect(updaterAlive(state({alive: '1000'}), 1400)).toBe(false);
+    expect(updaterAlive(state({alive: '1000', result: 'running'}), 2000)).toBe(true);
     expect(updaterAlive(state({}), 1100)).toBe(false);
     expect(updaterAlive(null)).toBe(false);
   });
 
-  it('says what it did with each part', () => {
-    expect(partResult(state({mowbite: 'updated 1792831337 1.4.0-beta.12'}), 'mowbite')).toContain('1.4.0-beta.12');
-    expect(partResult(state({openmower: 'newer ghcr.io/clemenselflein/open_mower_ros:edge'}), 'openmower')).toContain(':edge');
-    expect(partResult(state({openmower: 'nospace 2400 1300'}), 'openmower')).toContain('2400');
-    expect(partResult(state({openmower: 'error planner_needs_edge'}), 'openmower')).toContain('edge');
-    expect(partResult(state({planner: 'updated 1792831337 68c8f91aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'}), 'planner')).toContain('(68c8f91)');
-    expect(partResult(state({}), 'planner')).toBeNull();
+  it('tells what runs and whether there is something new, for each part', () => {
+    const s = state({
+      mowbite_running: '1.4.0-beta.11 2026-10-24',
+      mowbite_available: 'yes ghcr.io/mkaaaaaay/mowbite:latest',
+      openmower_running: 'edge 2026-10-13',
+      openmower_available: 'no ghcr.io/clemenselflein/open_mower_ros:edge',
+      planner_running: 'b187b88852a005ef1335dbdf8a09ba71ae35fb9d 2026-10-24',
+      planner_available: 'unknown main',
+      planner_source: 'github',
+    });
+    expect(partInfo(s, 'mowbite')).toMatchObject({available: 'yes'});
+    expect(partInfo(s, 'mowbite').running).toContain('1.4.0-beta.11');
+    expect(partInfo(s, 'openmower').running).toContain('edge');
+    expect(partInfo(s, 'planner')).toMatchObject({available: 'unknown', source: 'github'});
+    expect(partInfo(s, 'planner').running).toContain('b187b88');
+    expect(partInfo(state({planner_source: 'none'}), 'planner').running).toBeNull();
+    expect(partInfo(state({}), 'openmower').running).toBeNull();
   });
 
-  it('tells when the last run waited for the dock', () => {
+  it('says what it did with each part', () => {
+    expect(partResult(state({mowbite: 'updated 1792831337 1.4.0-beta.12'}), 'mowbite')).toContain('1.4.0-beta.12');
+    expect(partResult(state({openmower: 'nospace 2400 1300'}), 'openmower')).toContain('2400');
+    expect(partResult(state({planner: 'error base_missing'}), 'planner')).toContain('OpenMower');
+    expect(partResult(state({}), 'planner')).toBeNull();
     expect(runResult(state({result: 'waiting'}))).toContain('dock');
     expect(runResult(state({result: 'done'}))).toBeNull();
   });
+
+  it("offers OpenMower's tags: edge, its release and its own one from the .env", () => {
+    expect(openMowerChoices(state({openmower_env: 'edge'}))).toEqual(['edge', 'latest']);
+    expect(openMowerChoices(state({openmower_env: 'pr-363'}, 'pr-363'))).toEqual(['edge', 'latest', 'pr-363']);
+    expect(freeMb(state({disk_free: '1536'}))).toBe(1536);
+    expect(freeMb(state({disk_free: 'x'}))).toBeNull();
+  });
+
+  it('shows the step it is on while a run goes on, with its percent, how many of how many or the time', () => {
+    const run = (progress: string, run_parts = 'openmower planner mowbite') => state({result: 'running', run_parts, progress});
+    const download = progressOf(run('openmower download 37 1000'))!;
+    expect(download).toMatchObject({part: 'openmower', step: 'download', pct: 37, since: 1000});
+    expect(stepDetail(download)).toBe('37 %');
+    expect(stepDetail(progressOf(run('openmower extract 50 1000 3 12'))!)).toBe('3 of 12 layers');
+    expect(stepDetail(progressOf(run('planner build 44 1000 4 9'))!)).toBe('step 5 of 9');
+    // no telling how far: the time it has taken
+    const wait = progressOf(run('openmower wait - 1000'))!;
+    expect(wait.pct).toBeNull();
+    expect(stepLabel(wait)).toContain('OpenMower');
+    expect(stepDetail(wait, 1075)).toBe('1:15');
+    expect(runResult(run('planner build 44 1000 4 9'))).toBe('Updating MowBite Planner (2 of 3)…');
+    // only while it runs, and only what it knows
+    expect(progressOf(state({result: 'done', progress: 'mowbite download 37 1000'}))).toBeNull();
+    expect(progressOf(run('mowbite explode 37 1000'))).toBeNull();
+    expect(progressOf(run('mowbite download 250 1000'))!.pct).toBe(100);
+  });
+
+  it('says when it went back, or could not', () => {
+    expect(partResult(state({mowbite: 'back 1792831337 1.4.0-beta.11'}), 'mowbite')).toContain('1.4.0-beta.11');
+    expect(partResult(state({mowbite: 'error not_docked'}), 'mowbite')).toContain('dock');
+    expect(runResult(state({result: 'interrupted'}))).toContain('halfway');
+  });
 });
+
