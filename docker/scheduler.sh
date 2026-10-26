@@ -82,7 +82,9 @@ skip_others() {
 # today's sunrise and sunset at the garden as minutes after local midnight, the NOAA formulas like
 # src/lib/sun.ts. nothing without a position or when the sun doesn't rise or set
 sun_today() {
+  # shellcheck disable=SC2046
   set -- $(conf pos)
+  # shellcheck disable=SC2086
   [ -n "$2" ] || set -- $where
   [ -n "$2" ] || return 1
   noon=$(date -u -d "$(TZ="$tz" date +%F) 12:00:00" +%s 2>/dev/null) || return 1
@@ -116,6 +118,7 @@ minutes() { TZ="$tz" date +%H:%M | awk -F: '{ print $1 * 60 + $2 }'; }
 
 # dark at this minute of the day: between sunset and sunrise, or 6 pm to 6 am without the sun times
 is_dark() {
+  # shellcheck disable=SC2046
   set -- "$1" $(sun_today) 360 1080
   [ "$1" -ge "$3" ] || [ "$1" -lt "$2" ]
 }
@@ -137,6 +140,7 @@ stop_time() {
   fi
   endmin=$([ "$1" != - ] && echo "$1" | awk -F: '{ print $1 * 60 + $2 }')
   if [ "$2" = 1 ] || { [ "$3" != 1 ] && [ -n "$endmin" ] && is_dark "$endmin"; }; then
+    # shellcheck disable=SC2046
     set -- $(sun_today) 360 1080
     dusk=$((midnight + $2 * 60))
     if [ "$dusk" -gt "$now" ] && { [ -z "$stop" ] || [ "$dusk" -lt "$stop" ]; }; then
@@ -147,11 +151,14 @@ stop_time() {
   [ -n "$stop" ] && echo "$stop $why"
 }
 
-# a run this script started: send it home at the stop time. a job that's still open (it was charging)
-# carries on by itself once the battery is full, so for 12 hours it's sent home again whenever it starts
-# mowing, until someone starts it by hand or the job is done. a start before the stop time ends it too, that's
-# another run then (the next plan, or by hand after this one was sent home) with its own end
+# a run this script started: send it home at the stop time, and set OpenMower's own pause like going home does in its
+# semi-automatic mode (manual_pause_mowing, params.set): a job still open (charging at the stop time, or in automatic
+# mode) doesn't carry on by itself once the battery is full. the next start, by hand or by schedule, takes the pause
+# off again. an OpenMower without params.set: for 12 hours it's sent home again whenever it starts mowing, until
+# someone starts it by hand or the job is done. a start before the stop time ends it too, that's another run then (the
+# next plan, or by hand after this one was sent home) with its own end
 send_home_at() {
+  echo "$1" > "$STOP"
   topics="-t ${MOWER_MQTT_PREFIX}$TOPIC_EVENTS -t ${MOWER_MQTT_PREFIX}$TOPIC_ACTION"
   while [ "$(date +%s)" -lt "$1" ]; do
     # waits for a message until the stop time at most, so it goes home on time. a broker that isn't there
@@ -167,6 +174,16 @@ send_home_at() {
     case "$(field "$e" type)" in JOB_COMPLETE | SHUTDOWN) return ;; esac
   done
   logged=""
+  # shellcheck disable=SC2086
+  s=$(mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -C 1 -W 10 2>/dev/null)
+  if [ "$(field "$s" current_state)" = MOWING ]; then
+    # shellcheck disable=SC2086
+    mosquitto_pub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTION" -m "$ACTION_HOME" && log "stopped_$2" && logged=1
+  fi
+  if rpc_call "$RPC_SET_PARAMS" '{"params":{"/mower_logic/manual_pause_mowing":true}}' 10 | grep -q '"result"'; then
+    [ -n "$logged" ] || log "stopped_$2"
+    return
+  fi
   while [ "$(date +%s)" -lt "$(($1 + 43200))" ]; do
     # shellcheck disable=SC2086
     s=$(mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -C 1 -W 10 2>/dev/null)
@@ -215,6 +232,7 @@ area_left() {
 # rain right now or in the next hour(s) at the garden (open-meteo, position rounded to ~1 km).
 # no answer counts as no rain
 rain_forecast() {
+  # shellcheck disable=SC2046
   set -- $(conf pos)
   [ -n "$2" ] || return 1
   hours=$(conf forecasthours)
@@ -231,6 +249,7 @@ rain_forecast() {
 # colder at the garden right now than mintemp (open-meteo, like the rain): says the temperature. no answer counts as warm
 # enough
 too_cold() {
+  # shellcheck disable=SC2046
   set -- $(conf pos)
   [ -n "$2" ] || return 1
   w=$(wget -q -T 15 -O- "https://api.open-meteo.com/v1/forecast?latitude=$1&longitude=$2&current=temperature_2m" 2>/dev/null)
@@ -249,8 +268,10 @@ leftovers_conf() { grep -o '"leftovers":{[^}]*}' /data/settings.json 2>/dev/null
 
 # after a finished mow ($1: its job id): what its real track left unmowed, by the MowBite Planner on the mower
 # (planner.leftovers), and when that's at least the m² set, the planner is armed and the mower started again once
-# it's back in the dock: it drives only the passes over the leftovers then. not in the dark, the rain or with an
-# emergency stop, like a start by schedule. the run for the leftovers doesn't get looked at itself
+# it's back in the dock and its battery full again (the schedule's least battery when set, else 90 %, at most 6 hours
+# later): it drives only the passes over the leftovers then. not in the dark, the rain or the cold, with an emergency
+# stop, on a day paused or after the end time of the run, like a start by schedule. the run for the leftovers doesn't
+# get looked at itself
 leftovers_after() {
   c=$(leftovers_conf)
   [ "$(field "$c" auto)" = true ] || return
@@ -285,6 +306,34 @@ leftovers_after() {
   # m² left over all areas, from each area's stats.leftovers
   left=$(printf '%s' "$r" | grep -o '"leftovers": *{[^}]*}' | grep -o '"left_m2": *[0-9.eE+-]*' | cut -d: -f2 | awk '{ s += $1 } END { printf "%.2f", s }')
   if [ "$(echo "${left:-0} ${min:-0.5}" | awk '{ print ($1 >= $2 && $1 > 0) ? 1 : 0 }')" != 1 ]; then log leftovers_little "$left"; return; fi
+  # a start by hand doesn't wait for the battery in OpenMower: waited for here, still in the dock and without anyone
+  # starting it meanwhile
+  need=$(conf minbattery)
+  case "$need" in '' | 0 | *[!0-9]*) need=90 ;; esac
+  t=$(($(date +%s) + 21600))
+  waited=""
+  while :; do
+    # shellcheck disable=SC2086
+    s=$(mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -C 1 -W 10 2>/dev/null)
+    if [ "$(field "$s" current_state)" != IDLE ]; then log leftovers_skip "$(field "$s" current_state)"; return; fi
+    bat=$(battery "$s")
+    [ "${bat:-0}" -ge "$need" ] && break
+    if [ "$(date +%s)" -ge "$t" ]; then log leftovers_skip battery "$bat"; return; fi
+    [ -n "$waited" ] || { log leftovers_waiting_battery "$bat"; waited=1; }
+    sleep 60
+  done
+  # what counts for a start by schedule, now that it would start
+  if [ "$(field "$s" emergency)" != 0 ]; then log leftovers_skip emergency; return; fi
+  if [ "$(conf skiprain)" = 1 ] && [ "$(field "$s" rain_detected)" != 0 ]; then log leftovers_skip rain; return; fi
+  if is_dark "$(minutes)"; then log leftovers_skip dark; return; fi
+  stop=$(cat "$STOP" 2>/dev/null)
+  if [ -n "$stop" ] && [ "$(date +%s)" -ge "$stop" ] && [ "$(($(date +%s) - stop))" -lt 43200 ]; then log leftovers_skip end; return; fi
+  if [ -f "$F" ] && [ "$(awk -v day="$(TZ="$tz" date +%F)" '$1 == "pause" && day <= $2 { print $3; exit }' "$F")" = all ]; then
+    log leftovers_skip paused
+    return
+  fi
+  if [ "$(conf skipforecast)" = 1 ] && rain_forecast; then log leftovers_skip forecast; return; fi
+  if [ "$(conf skipcold)" = 1 ] && cold=$(too_cold); then log leftovers_skip cold "$cold"; return; fi
   r=$(rpc_call planner.leftovers "{\"job_id\":\"$1\",\"arm\":true}" 240)
   if [ "$(echo "$(field "$r" armed)" | awk '{ print ($1 > 0) ? 1 : 0 }')" != 1 ]; then log leftovers_failed; return; fi
   # shellcheck disable=SC2086
@@ -312,6 +361,8 @@ leftovers_watch() {
   done
 }
 LEFT=/tmp/leftovers.started
+# the stop time of the run this script started last (send_home_at), for the leftovers after it
+STOP=/tmp/run.stop
 leftovers_watch &
 
 last=""
@@ -329,6 +380,7 @@ while :; do
   if [ -f "$F" ] && [ "$(conf enabled)" = 1 ]; then
     tz=$(conf tz)
     now=$(TZ="$tz" date '+%u %H:%M %F')
+    # shellcheck disable=SC2086
     set -- $now
     # plan <days> <HH:MM> [areas] [end=HH:MM] [dark=1] [sunset=1] [fresh=1] [angle=<deg>]: areas, end time, dark,
     # sunset, fresh and the angle, - when not set
@@ -345,6 +397,7 @@ while :; do
       last="$3 $2"
       until=$(($(date +%s) + WAIT))
       waited=""
+      # shellcheck disable=SC2086
       set -- $due
       areas=$1 end=$2 dark=$3 sunset=$4 fresh=$5 angle=$6
       # when this start ends: its end time today, or tomorrow when that's not after the start
