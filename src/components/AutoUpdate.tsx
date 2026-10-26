@@ -8,8 +8,7 @@ import {
   openMowerChoices,
   partInfo,
   partResult,
-  PART_NAMES,
-  PARTS,
+  partsOf,
   progressOf,
   requestBack,
   requestCheck,
@@ -30,6 +29,7 @@ import {
   type Part,
   type Progress,
   type UpdateConf,
+  type UpdatePart,
   type UpdateState,
 } from '@/lib/autoUpdate';
 import {copyText} from '@/lib/clipboard';
@@ -174,7 +174,7 @@ const BADGE: Record<string, string> = {
 };
 
 function PartCard({
-  part,
+  p,
   s,
   busy,
   now,
@@ -182,22 +182,27 @@ function PartCard({
   onUpdate,
   onBack,
 }: {
-  part: Part;
+  p: UpdatePart;
   s: UpdateState;
   busy: boolean;
   now: number;
-  onConf: (patch: Partial<UpdateConf>) => void;
+  onConf: (patch: Record<string, string | number>) => void;
   onUpdate: () => void;
   onBack: () => void;
 }) {
   const {sure, confirm} = useSure();
+  const part = p.id;
   const info = partInfo(s, part);
   if (!info.running) return null;
   const result = partResult(s, part);
   const isNew = info.available === 'yes' || info.available === 'switch';
-  const plannerHere = partInfo(s, 'planner').source !== 'none';
+  const plannerHere = partsOf(s).some((x) => x.id === 'planner' && partInfo(s, 'planner').running);
   const auto = !!s.conf[`${part}_auto`];
-  const fromCopy = info.source === 'local';
+  // built from a copy here, or coming with the os: nothing to update from here
+  const fixed = p.kind === 'local' || p.kind === 'os';
+  const channel = String(s.conf[part] ?? 'beta');
+  // an image with releases (MowBite's own): beta or stable
+  const releases = p.kind === 'image' && !!s.status[`${part}_stable`];
   // in the run going on: this part now, after the one now, or done with already
   const progress = progressOf(s);
   const parts = runParts(s);
@@ -207,81 +212,81 @@ function PartCard({
   return (
     <div className={local.part}>
       <div className={local.head}>
-        <span className={local.name}>{PART_NAMES[part]}</span>
-        {info.available && !fromCopy && <span className={[local.badge, isNew ? local.badgeNew : ''].join(' ')}>{tr(BADGE[info.available])}</span>}
+        <span className={local.name}>{p.name}</span>
+        {info.available && !fixed && <span className={[local.badge, isNew ? local.badgeNew : ''].join(' ')}>{tr(BADGE[info.available])}</span>}
       </div>
       <span className={local.dim}>{tr('Runs: {what}', {what: info.running})}</span>
 
       {mine && <ProgressBar p={mine} now={now} />}
       {queued && <span className={local.dim}>{tr('Next in line, after the one updating now.')}</span>}
 
-      <div className={local.row}>
-        {part === 'mowbite' && (
-          <select
-            className={local.control}
-            aria-label={tr('Version')}
-            value={s.conf.mowbite}
-            onChange={(e) => onConf({mowbite: e.target.value as 'beta' | 'stable'})}
-          >
-            <option value="beta">{tr('Beta')}</option>
-            {/* only MowBite's own image has releases without "beta" */}
-            {(s.status.mowbite_stable !== 'no' || s.conf.mowbite === 'stable') && <option value="stable">{tr('Stable')}</option>}
-          </select>
-        )}
-        {part === 'openmower' && (
-          <select className={local.control} aria-label={tr('Version')} value={s.conf.openmower} onChange={(e) => onConf({openmower: e.target.value})}>
-            {openMowerChoices(s).map((t) => (
-              <option key={t} value={t}>
-                {t === 'edge' ? tr('Edge (newest)') : t === 'latest' ? tr('Release') : t}
+      {p.kind !== 'os' && (
+        <div className={local.row}>
+          {releases ? (
+            <select className={local.control} aria-label={tr('Version')} value={channel} onChange={(e) => onConf({[part]: e.target.value})}>
+              <option value="beta">{tr('Beta')}</option>
+              {/* only an image with releases without "beta" */}
+              {(s.status[`${part}_stable`] !== 'no' || channel === 'stable') && <option value="stable">{tr('Stable')}</option>}
+            </select>
+          ) : p.kind === 'openmower' ? (
+            <select className={local.control} aria-label={tr('Version')} value={String(s.conf.openmower ?? 'edge')} onChange={(e) => onConf({openmower: e.target.value})}>
+              {openMowerChoices(s).map((t) => (
+                <option key={t} value={t}>
+                  {t === 'edge' ? tr('Edge (newest)') : t === 'latest' ? tr('Release') : t}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <select className={local.control} aria-label={tr('Version')} disabled value="this">
+              <option value="this">
+                {p.kind === 'local' ? tr('Local copy') : p.kind === 'build' ? tr('Newest version') : imageTag(s, part)}
               </option>
-            ))}
-          </select>
-        )}
-        {part === 'planner' && (
-          <select className={local.control} aria-label={tr('Version')} disabled value="main">
-            <option value="main">{fromCopy ? tr('Local copy') : tr('Newest version')}</option>
-          </select>
-        )}
-        <button className={[local.control, isNew ? local.primary : ''].join(' ')} disabled={busy || fromCopy} onClick={onUpdate}>
-          {tr('Update')}
-        </button>
-      </div>
+            </select>
+          )}
+          <button className={[local.control, isNew ? local.primary : ''].join(' ')} disabled={busy || fixed} onClick={onUpdate}>
+            {tr('Update')}
+          </button>
+        </div>
+      )}
 
-      {!fromCopy && (
+      {!fixed && (
         <label className={local.check}>
           <input type="checkbox" checked={auto} onChange={(e) => onConf({[`${part}_auto`]: e.target.checked ? 1 : 0})} />
           {tr('Automatically at night')}
         </label>
       )}
 
-      {part === 'mowbite' && info.available === 'local' && (
+      {p.kind === 'image' && info.available === 'local' && (
         <span className={local.dim}>
-          {tr('This is a version built on its own, not one from GitHub. "Update" swaps it for the {channel} from GitHub.', {
-            channel: s.conf.mowbite === 'stable' ? tr('Stable') : tr('Beta'),
-          })}
+          {part === 'mowbite'
+            ? tr('This is a version built on its own, not one from GitHub. "Update" swaps it for the {channel} from GitHub.', {
+                channel: channel === 'stable' ? tr('Stable') : tr('Beta'),
+              })
+            : tr('This is a version built on its own, not one from its registry. "Update" swaps it for the one from there.')}
         </span>
       )}
-      {part === 'mowbite' && s.conf.mowbite === 'stable' && (
+      {releases && channel === 'stable' && (
         <span className={local.dim}>
           {tr('Stable is the newest release without "beta". It can be older than the beta that runs now, going there leaves out what came since.')}
         </span>
       )}
-      {part === 'openmower' && s.conf.openmower !== 'edge' && plannerHere && (
+      {p.kind === 'openmower' && s.conf.openmower !== 'edge' && plannerHere && (
         <span className={local.warn}>
           {tr(
             "With this version the MowBite Planner doesn't work: it needs two changes that are only in edge so far (OM_PLANNER=external and keeping the planner's settings per area). MowBite also loses the mowing plan from the mower, OpenMower's settings, the ROS log, dropping an interrupted job and areas set to not mow.",
           )}
         </span>
       )}
-      {part === 'openmower' && auto && (
+      {p.kind === 'openmower' && auto && (
         <span className={local.dim}>
           {tr("Edge changes often, an update at night can bring a new fault. Only when there's room for the old and the new image at once.")}
         </span>
       )}
-      {fromCopy && <span className={local.dim}>{tr('Built from a local copy, it is left as it is.')}</span>}
+      {p.kind === 'local' && <span className={local.dim}>{tr('Built from a local copy, it is left as it is.')}</span>}
+      {p.gate === 'none' && <span className={local.dim}>{tr('Updates also with the mower out of the dock.')}</span>}
       {result && <span className={local.dim}>{tr('Last time: {what}', {what: result})}</span>}
 
-      {part === 'mowbite' && s.status.mowbite_back === 'yes' && (
+      {p.kind === 'image' && s.status[`${part}_back`] === 'yes' && (
         <div className={local.row}>
           <span className={local.dim}>{tr('Something wrong since the last update?')}</span>
           <button className={[local.control, sure === 'back' ? local.danger : ''].join(' ')} disabled={busy} onClick={() => confirm('back', onBack)}>
@@ -292,6 +297,9 @@ function PartCard({
     </div>
   );
 }
+
+// the tag of an image that has no releases to pick from: the one it pulls again
+const imageTag = (s: UpdateState, part: Part) => (s.status[`${part}_available`] ?? '').split(' ')[1]?.split(':').pop() || '–';
 
 // what can go to make room on the mower, deleted only when asked and confirmed: each image, all of them, the build cache
 function Room({s, busy, onAsk}: {s: UpdateState; busy: boolean; onAsk: (go: () => Promise<void>) => void}) {
@@ -400,8 +408,8 @@ export function AutoUpdate() {
 
   const st = s!;
   const busy = asked || st.requested || running;
-  const set = (patch: Partial<UpdateConf>) => {
-    const conf = {...st.conf, ...patch};
+  const set = (patch: Record<string, string | number>) => {
+    const conf: UpdateConf = {...st.conf, ...patch};
     setS({...st, conf});
     setError(null);
     saveUpdateConf(conf).catch(() => setError(tr('Not saved, the mower did not answer.')));
@@ -415,7 +423,7 @@ export function AutoUpdate() {
       setError(tr('The mower did not answer.'));
     });
   };
-  const anyAuto = st.conf.mowbite_auto || st.conf.openmower_auto || st.conf.planner_auto;
+  const anyAuto = partsOf(st).some((p) => st.conf[`${p.id}_auto`] === 1);
   const days = st.conf.days === 'daily' ? [] : st.conf.days.split(',').map(Number);
   const toggleDay = (d: number) => {
     const next = days.includes(d) ? days.filter((x) => x !== d) : [...days, d].sort();
@@ -425,8 +433,6 @@ export function AutoUpdate() {
   const checked = lastChecked(st);
   const run = runResult(st);
   const log = [...st.log].reverse().join('\n');
-  // what else it looks after (apps labelled for it): those only on its own page
-  const more = (st.parts ?? []).filter((p) => !PARTS.includes(p.id as Part)).map((p) => p.name);
   // MowBite on the mower is another version than this page: after its update, the page needs loading again
   const onMower = (st.status.mowbite_running ?? '').split(' ')[0];
   const reload = !isApp() && !isDemo() && !running && !!onMower && onMower !== APP_VERSION;
@@ -450,16 +456,16 @@ export function AutoUpdate() {
         </div>
       )}
 
-      {PARTS.map((p) => (
+      {partsOf(st).map((p) => (
         <PartCard
-          key={p}
-          part={p}
+          key={p.id}
+          p={p}
           s={st}
           busy={busy}
           now={now}
           onConf={set}
-          onUpdate={() => ask(() => requestUpdate(p))}
-          onBack={() => ask(requestBack)}
+          onUpdate={() => ask(() => requestUpdate(p.id))}
+          onBack={() => ask(() => requestBack(p.id))}
         />
       ))}
 
@@ -519,7 +525,7 @@ export function AutoUpdate() {
         {error && <span className={local.warn}>{error}</span>}
         {page && !isDemo() && (
           <span className={local.dim}>
-            {more.length ? tr('More apps it looks after ({names}) are on its own page:', {names: more.join(', ')}) : tr('Its own page:')}{' '}
+            {tr('Its own page:')}{' '}
             <a href={page} target="_blank" rel="noreferrer">
               {page}
             </a>

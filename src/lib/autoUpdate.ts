@@ -5,22 +5,22 @@ import {apiBase, mowerFetch} from './mowers';
 // each part and whether it updates by itself, what runs and whether there's something new, updating a part now, and
 // what it did. without the updater the container answers {}
 
-export type Part = 'mowbite' | 'openmower' | 'planner';
+// a part it looks after, by its id: openmower, mowbite, planner, xtechapp, openmowerapp or c_<container> for a labelled app
+export type Part = string;
+// the parts of an updater that doesn't list them (and the demo)
 export const PARTS: Part[] = ['mowbite', 'openmower', 'planner'];
-export const PART_NAMES: Record<Part, string> = {
+export const PART_NAMES: Record<string, string> = {
   mowbite: 'MowBite',
   openmower: 'OpenMower',
   planner: 'MowBite Planner',
 };
 
+// each part's channel (<id>: beta or stable, OpenMower's tag: edge, latest or what its .env has) and whether it updates
+// by itself (<id>_auto: 1 or 0), and when
 export interface UpdateConf {
-  mowbite: 'beta' | 'stable';
-  mowbite_auto: number;
-  openmower: string; // a tag of its image: edge, latest or what its .env has
-  openmower_auto: number;
-  planner_auto: number;
   at: string; // HH:MM, the mower's time
   days: string; // daily, or the weekdays 1-7 (monday 1) with commas
+  [key: string]: string | number;
 }
 
 // what can go to make room: images nothing uses (with the room each frees for real) and the build cache
@@ -67,21 +67,15 @@ async function post(query: string, body = ''): Promise<void> {
 export const saveUpdateConf = (c: UpdateConf) =>
   post(
     'conf',
-    [
-      `mowbite ${c.mowbite}`,
-      `mowbite_auto ${c.mowbite_auto ? 1 : 0}`,
-      `openmower ${c.openmower}`,
-      `openmower_auto ${c.openmower_auto ? 1 : 0}`,
-      `planner_auto ${c.planner_auto ? 1 : 0}`,
-      `at ${c.at}`,
-      `days ${c.days}`,
-    ].join('\n') + '\n',
+    Object.entries(c)
+      .map(([k, v]) => `${k} ${k.endsWith('_auto') ? (v ? 1 : 0) : v}`)
+      .join('\n') + '\n',
   );
 
 // one part, or all of them
 export const requestUpdate = (part?: Part) => post(part ? `now=${part}` : 'now');
-// MowBite back to the version that ran before the last update
-export const requestBack = () => post('back=mowbite');
+// an app back to the version that ran before its last update
+export const requestBack = (part: Part = 'mowbite') => post(`back=${part}`);
 export const requestCheck = () => post('check');
 export const requestRoom = () => post('room');
 // one image from the list, all of them, or the build cache
@@ -129,15 +123,14 @@ export interface Progress {
 export function progressOf(s: UpdateState): Progress | null {
   if (s.status.result !== 'running') return null;
   const [part, step, pct, since, done, of] = (s.status.progress ?? '').split(' ');
-  if (!PARTS.includes(part as Part) || !STEPS.includes(step as Step)) return null;
+  if (!/^[a-z][a-z0-9_]*$/.test(part ?? '') || !STEPS.includes(step as Step)) return null;
   const n = (x: string | undefined) => (x && /^\d+$/.test(x) ? Number(x) : undefined);
   const p = n(pct);
   return {part: part as Part, step: step as Step, pct: p === undefined ? null : Math.min(100, p), since: n(since) ?? 0, done: n(done), of: n(of)};
 }
 
 // the parts of the run going on now, in their order
-export const runParts = (s: UpdateState): Part[] =>
-  s.status.result === 'running' ? (s.status.run_parts ?? '').split(' ').filter((p): p is Part => PARTS.includes(p as Part)) : [];
+export const runParts = (s: UpdateState): Part[] => (s.status.result === 'running' ? (s.status.run_parts ?? '').split(' ').filter(Boolean) : []);
 
 export function stepLabel(p: Progress): string {
   switch (p.step) {
@@ -173,6 +166,20 @@ const when = (t: string | undefined) =>
 
 export type Availability = 'yes' | 'no' | 'switch' | 'failed' | 'unknown' | 'local';
 
+// what it looks after, in its order: as the updater lists them, else the three (an older updater, the demo)
+export function partsOf(s: UpdateState): UpdatePart[] {
+  if (s.parts?.length) return s.parts;
+  return PARTS.map((id) => ({id, name: PART_NAMES[id], kind: kindOf(s, id), container: id, gate: 'mower'}));
+}
+// openmower, image (from a registry), build (from github), local (built from a copy here) or os (comes with the os)
+export function kindOf(s: UpdateState, part: Part): string {
+  const p = s.parts?.find((x) => x.id === part);
+  if (p) return p.kind;
+  if (part === 'openmower') return 'openmower';
+  if (part === 'planner') return s.status.planner_source === 'local' ? 'local' : 'build';
+  return 'image';
+}
+
 export interface PartInfo {
   // what runs on the mower, in words, or null when the part isn't there
   running: string | null;
@@ -186,15 +193,18 @@ export function partInfo(s: UpdateState, part: Part): PartInfo {
   const built = date(day);
   const avail = (s.status[`${part}_available`] ?? '').split(' ')[0] as Availability;
   const available = ['yes', 'no', 'switch', 'failed', 'unknown', 'local'].includes(avail) ? avail : null;
-  if (part === 'planner') {
-    const source = (s.status.planner_source || 'none') as PartInfo['source'];
-    if (source === 'none') return {running: null, available: null, source};
+  const kind = kindOf(s, part);
+  if (kind === 'os') return {running: tr('comes with OpenMowerOS itself (openmower update-os)'), available: null};
+  if (kind === 'build' || kind === 'local') {
+    // (an updater that doesn't list its parts says none when there's no planner)
+    if (!s.parts && (s.status.planner_source || 'none') === 'none') return {running: null, available: null, source: 'none'};
+    const source = (kind === 'local' ? 'local' : s.status[`${part}_source`] || 'github') as PartInfo['source'];
     const commit = what && what !== '?' ? what.slice(0, 7) : null;
     const running = [commit ? tr('commit {c}', {c: commit}) : tr('state unknown'), built && tr('built {d}', {d: built})].filter(Boolean).join(' · ');
     return {running, available, source};
   }
   if (!what || what === 'none') return {running: null, available: null};
-  const running = part === 'openmower' ? [what, built && tr('built {d}', {d: built})].filter(Boolean).join(' · ') : [what, built].filter(Boolean).join(' · ');
+  const running = kind === 'openmower' ? [what, built && tr('built {d}', {d: built})].filter(Boolean).join(' · ') : [what, built].filter(Boolean).join(' · ');
   return {running, available};
 }
 
@@ -207,7 +217,7 @@ export function partResult(s: UpdateState, part: Part): string | null {
     case 'updated':
       return tr('updated {when}', {when: when(rest[0])}) + (rest[1] ? ` (${rest[1]})` : '');
     case 'local':
-      return part === 'planner' ? tr('built from a local copy, not updated from GitHub') : tr('runs an image built here, updated only when asked');
+      return kindOf(s, part) === 'local' ? null : tr('runs an image built here, updated only when asked');
     case 'nospace':
       return tr('not enough room on the mower: needs about {need} MB and 1 GB to spare, {free} MB free', {need: rest[0] ?? '?', free: rest[1] ?? '?'});
     case 'skipped_failed':
@@ -236,7 +246,8 @@ export function runResult(s: UpdateState): string | null {
     const parts = runParts(s);
     const now = progressOf(s)?.part;
     if (!now || !parts.includes(now)) return tr('Updating right now…');
-    return tr('Updating {name} ({n} of {of})…', {name: PART_NAMES[now], n: parts.indexOf(now) + 1, of: parts.length});
+    const name = partsOf(s).find((p) => p.id === now)?.name ?? PART_NAMES[now] ?? now;
+    return tr('Updating {name} ({n} of {of})…', {name, n: parts.indexOf(now) + 1, of: parts.length});
   }
   return null;
 }
@@ -246,7 +257,7 @@ export const freeMb = (s: UpdateState) => (s.status.disk_free && /^\d+$/.test(s.
 
 // OpenMower's tags to pick: edge, its release, and what its .env has when that's another one
 export function openMowerChoices(s: UpdateState): string[] {
-  const own = [s.conf.openmower, s.status.openmower_env].filter((t): t is string => !!t && t !== 'edge' && t !== 'latest');
+  const own = [String(s.conf.openmower ?? ''), s.status.openmower_env].filter((t): t is string => !!t && t !== 'edge' && t !== 'latest');
   return ['edge', 'latest', ...new Set(own)];
 }
 

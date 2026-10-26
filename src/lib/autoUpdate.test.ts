@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {freeMb, openMowerChoices, partInfo, partResult, progressOf, runResult, stepDetail, stepLabel, updaterAlive, type UpdateState} from './autoUpdate';
+import {freeMb, kindOf, openMowerChoices, partInfo, partResult, partsOf, progressOf, runResult, stepDetail, stepLabel, updaterAlive, type UpdateState} from './autoUpdate';
 
 const state = (status: Record<string, string>, openmower = 'edge'): UpdateState => ({
   conf: {mowbite: 'beta', mowbite_auto: 0, openmower, openmower_auto: 0, planner_auto: 0, at: '03:00', days: 'daily'},
@@ -76,5 +76,18 @@ describe('the updater on the mower', () => {
     expect(partResult(state({mowbite: 'error not_docked'}), 'mowbite')).toContain('dock');
     expect(runResult(state({result: 'interrupted'}))).toContain('halfway');
   });
-});
 
+  it('shows every part the updater lists, OpenMower\'s apps too, and the three of an older one', () => {
+    const s = state({xtechapp_running: 'edge 2026-10-20', xtechapp_available: 'yes ghcr.io/xtech/openmower-app:edge', openmower_running: 'os'});
+    s.parts = [
+      {id: 'openmower', name: 'OpenMower', kind: 'os', container: '-', gate: 'mower'},
+      {id: 'xtechapp', name: 'OpenMower App (xtech)', kind: 'image', container: 'app', gate: 'mower'},
+    ];
+    expect(partsOf(s).map((p) => p.id)).toEqual(['openmower', 'xtechapp']);
+    expect(partInfo(s, 'xtechapp')).toMatchObject({available: 'yes'});
+    expect(partInfo(s, 'openmower').running).toContain('OpenMowerOS');
+    expect(partsOf(state({})).map((p) => p.id)).toEqual(['mowbite', 'openmower', 'planner']);
+    expect(kindOf(state({planner_source: 'local'}), 'planner')).toBe('local');
+    expect(runResult({...s, status: {...s.status, result: 'running', run_parts: 'xtechapp', progress: 'xtechapp download 5 1000'}})).toContain('OpenMower App (xtech)');
+  });
+});
