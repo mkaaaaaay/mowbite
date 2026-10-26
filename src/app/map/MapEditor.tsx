@@ -26,7 +26,7 @@ import {Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, useSync
 import styles from './page.module.css';
 import {fmt, tr, useLang} from '@/lib/i18n';
 import MapBackups, {backupLabel} from '@/components/MapBackups';
-import {deleteBackup, listBackups, loadBackup, saveBackup, type BackupInfo} from '@/lib/backups';
+import {deleteBackup, loadBackup, saveBackup} from '@/lib/backups';
 import AreaCard from './AreaCard';
 import DecorPanel, {showUnderMap} from './DecorPanel';
 import {decorRedo, decorUndo, goneLooks, onlyPinsChanged, pinSquare, pinsFrom, type UpdateArea, NEW_AREA_SETTINGS} from './editing';
@@ -38,13 +38,11 @@ import {PARAM} from '@/lib/openmower';
 import {RpcError} from '@/lib/rpc';
 import {rpcErrorText} from '@/lib/rpcText';
 import {sameContent} from '@/lib/sameMap';
-import {closedRings} from '@/lib/rings';
-import {saveFile} from '@/lib/saveFile';
-import {mapToGeoJson} from '@/lib/geojson';
 import {savePlanCase} from '@/lib/planCase';
 import {useAreaProperties} from '@/lib/areaProps';
 import {useMowPlan} from './useMowPlan';
 import {useMapEdits} from './useMapEdits';
+import {useMapBackups} from './useMapBackups';
 import {checkMap} from '@/lib/mapCheck';
 import {narrowPassages} from '@/lib/narrowPassages';
 import Problems, {problemText} from './Problems';
@@ -619,54 +617,12 @@ function MapEditor() {
   };
 
   // backups of the map kept in the container, and one shown instead of the editor
-  const [backups, setBackups] = useState<BackupInfo[] | null | undefined>(undefined);
-  const [preview, setPreview] = useState<{map: MowerMap; label: string} | null>(null);
-  const [confirmRestore, setConfirmRestore] = useState(false);
-  const [restoring, setRestoring] = useState(false);
-  const [restoreError, setRestoreError] = useState<string | null>(null);
-  const refreshBackups = () => listBackups().then(setBackups);
-  useEffect(() => {
-    void listBackups().then(setBackups);
-  }, []);
-  const closePreview = () => {
-    setPreview(null);
-    setConfirmRestore(false);
-    setRestoreError(null);
-  };
-  const restore = async () => {
-    if (!preview) return;
-    setRestoring(true);
-    setRestoreError(null);
-    try {
-      if (backups && liveMap) await saveBackup(liveMap, 'before restoring', true);
-      await saveMap(preview.map);
+  const datum = datumFromParams(params);
+  const {backups, preview, setPreview, confirmRestore, setConfirmRestore, restoring, restoreError, setRestoreError, refreshBackups, closePreview, restore, download, downloadGeo} =
+    useMapBackups(liveMap, datum, () => {
       dropEdits();
       setSelectedAreaId(null);
-      closePreview();
-      void refreshBackups();
-    } catch (e) {
-      setRestoreError(rpcErrorText(e));
-    } finally {
-      setRestoring(false);
-      setConfirmRestore(false);
-    }
-  };
-  // a backup, or the map as it is on the mower right now, as a file
-  const fileName = (t: Date, ext: string) => {
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `mowbite-map-${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}-${pad(t.getHours())}${pad(t.getMinutes())}.${ext}`;
-  };
-  const download = async (b: BackupInfo | null) => {
-    const m = b ? await loadBackup(b.id) : liveMap;
-    if (!m) return;
-    await saveFile(fileName(new Date((b ? b.t : Date.now() / 1000) * 1000), 'json'), JSON.stringify(closedRings(m), null, 2));
-  };
-  // the mower's map in longitude and latitude, for other map apps
-  const datum = datumFromParams(params);
-  const downloadGeo = async () => {
-    if (!liveMap || !datum) return;
-    await saveFile(fileName(new Date(), 'geojson'), JSON.stringify(mapToGeoJson(liveMap, datum), null, 2), 'application/geo+json');
-  };
+    });
 
   // an openmower that doesn't know the newer area settings drops them when saving, noticed once its map comes back
   const [newSaved, setNewSaved] = useState<{areas: MowerMap['areas']; before: MowerMap | null} | null>(null);
