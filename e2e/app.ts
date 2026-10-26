@@ -25,6 +25,30 @@ export const test = base.extend<{errors: string[]}>({
 });
 export {expect};
 
+// the demo mower as the app reaches it (lib/demo/client): what it has on a topic now, and a call to it like another phone
+// would make one
+type DemoMower = {retained(topic: string): [string, string][]; published(topic: string, message: string): void; ahead(seconds: number): void};
+export const demoHas = async <T>(page: Page, topic: string): Promise<T> => {
+  await page.waitForFunction(() => 'mowbiteDemo' in window);
+  return page.evaluate((t) => JSON.parse((window as unknown as {mowbiteDemo: DemoMower}).mowbiteDemo.retained(t)[0][1]), topic);
+};
+// it's out mowing when the demo opens: sent home, and the way there driven at once
+export async function demoDocked(page: Page) {
+  await page.waitForFunction(() => 'mowbiteDemo' in window);
+  await page.evaluate(() => {
+    const demo = (window as unknown as {mowbiteDemo: DemoMower}).mowbiteDemo;
+    demo.published('action', 'mower_logic:mowing/abort_mowing');
+    demo.ahead(1800);
+  });
+  await expect.poll(async () => (await demoHas<{current_state: string}>(page, 'robot_state/json')).current_state).toBe('IDLE');
+}
+export const demoCall = (page: Page, method: string, params: unknown) =>
+  page.evaluate(
+    ([method, params]) =>
+      (window as unknown as {mowbiteDemo: DemoMower}).mowbiteDemo.published('rpc/request', JSON.stringify({jsonrpc: '2.0', method, params, id: 'another-phone'})),
+    [method, params] as const,
+  );
+
 // the map on the page that's shown (the editor is kept hidden while other pages are open)
 export const visibleAreas = (page: Page) => page.locator('polygon[data-area]:visible');
 

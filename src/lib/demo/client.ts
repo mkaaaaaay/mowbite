@@ -72,6 +72,8 @@ export function demoClient(): MqttClient {
 
   void import('./world').then(({createWorld}) => {
     world = createWorld(deliver);
+    // the click tests (e2e/) reach the demo mower with this, like another phone would
+    if (typeof window !== 'undefined') (window as {mowbiteDemo?: World}).mowbiteDemo = world;
     client.connected = true;
     emit('connect');
   });

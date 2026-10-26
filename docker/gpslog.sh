@@ -29,6 +29,8 @@ if [ "$1" = tidy ]; then
   keep=$(ls -1 "$S"/map-*.json.gz 2>/dev/null | sort | tail -n1)
   find "$S" -type f -mtime +14 ! -path "$keep" ! -name .mapsum -exec rm -f {} + 2>/dev/null
   while [ "$(du -sk "$S" | cut -f1)" -gt 10240 ]; do
+    # (its own snapshot names only)
+    # shellcheck disable=SC2010
     old=$(ls -1 "$S" | grep -v "^${keep##*/}$" | sed 's/^[a-z]*-\([0-9]*\)-.*/\1 &/' | sort -n | head -n1 | cut -d' ' -f2)
     [ -n "$old" ] || break
     rm -f "${S:?}/$old"

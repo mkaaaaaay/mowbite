@@ -47,8 +47,8 @@ describe('push message settings', () => {
   });
 });
 
-// docker/notify.awk with the awk of this machine, the container's busybox one reads it the same
-describe('what the container sends', () => {
+// docker/notify.awk with the awk on the path, in the CI the container's busybox one (several times slower than mawk)
+describe('what the container sends', {timeout: 30_000}, () => {
   // what it puts out for the topic (ntfy) or for the phones signed up in the app (push)
   const lines = (input: string, conf: string, snooze?: number, to: 'ntfy' | 'push' = 'ntfy') => {
     const dir = mkdtempSync(join(tmpdir(), 'notify-'));

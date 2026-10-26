@@ -335,6 +335,8 @@ export interface World {
   // the stick's commands (teleop) come as bytes, everything else as text
   published(topic: string, message: string | Uint8Array): void;
   tick(now?: number): void;
+  // seconds driven at once, as if they had passed already (for the click tests, e2e/)
+  ahead(seconds: number): void;
   stop(): void;
 }
 
@@ -901,6 +903,14 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
       else if (topic === TOPIC.rpcRequest) rpc(text);
     },
     tick,
+    ahead(seconds) {
+      // a minute at a time like a tick at most, the clock where it was afterwards
+      for (let left = seconds; left > 0; left -= 60) {
+        const dt = Math.min(60, left);
+        last -= dt * 1000;
+        tick(last + dt * 1000);
+      }
+    },
     stop() {
       if (timer) clearInterval(timer);
     },

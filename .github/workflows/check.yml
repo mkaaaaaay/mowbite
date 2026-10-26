@@ -24,7 +24,26 @@ jobs:
       # the route types (LayoutProps etc.) are generated, a fresh checkout doesn't have them yet
       - run: npx next typegen
       - run: npx tsc --noEmit
+      # the tests of the awk scripts with the container's busybox awk on the path, not the runner's mawk
+      - run: |
+          docker create --name busybox "$(sed -n 's/^FROM \(busybox:[^ ]*\).*/\1/p' Dockerfile)" > /dev/null
+          mkdir -p "$RUNNER_TEMP/busybox"
+          docker cp busybox:/bin/busybox "$RUNNER_TEMP/busybox/busybox"
+          docker rm busybox > /dev/null
+          ln -s busybox "$RUNNER_TEMP/busybox/awk"
+          echo "$RUNNER_TEMP/busybox" >> "$GITHUB_PATH"
       - run: npm test
+
+  # the container's scripts: shellcheck, and the scheduler and the cgis in the built image with a pretend mower
+  scripts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: |
+          sc="docker run --rm -v $PWD:/mnt:ro -w /mnt koalaman/shellcheck:v0.11.0 -S warning"
+          $sc -s sh -e SC1091,SC2034 docker/*.sh docker/*.cgi test/case.sh
+          $sc test/run.sh
+      - run: test/run.sh
 
   # the click tests (e2e/) on a phone and a desktop, against the built app with the demo mower
   e2e:

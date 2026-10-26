@@ -22,8 +22,10 @@ describe('battery', () => {
   });
 });
 
-// docker/battery.awk with the awk of this machine, the container's busybox one reads it the same
-describe('what the container writes', () => {
+// docker/battery.awk with the awk on the path: the CI puts the container's busybox one there, several times slower than
+// mawk, hence the longer time these tests may take
+const AWK = {timeout: 30_000};
+describe('what the container writes', AWK, () => {
   const run = (input: string) => {
     const out = join(mkdtempSync(join(tmpdir(), 'battery-')), 'battery.log');
     spawnSync('awk', ['-f', 'docker/battery.awk'], {input, env: {...process.env, LC_ALL: 'C', OUT: out, STATE: ''}});
@@ -45,7 +47,7 @@ describe('what the container writes', () => {
 });
 
 // what the battery's capacity is read from: HEALTH, STATE across a restart and the traces of the charges
-describe('battery health', () => {
+describe('battery health', AWK, () => {
   const dir = () => mkdtempSync(join(tmpdir(), 'battery-'));
   const awk = (d: string, input: string, env: Record<string, string> = {}) =>
     spawnSync('awk', ['-f', 'docker/battery.awk'], {
@@ -240,7 +242,7 @@ describe('battery health', () => {
 });
 
 // how full the battery is (LEVEL), against the drive on 15.10. OpenMower's percentage fell from 100 to about 88 there
-describe('battery level', () => {
+describe('battery level', AWK, () => {
   const infos = `0 sensor_infos/json [{"sensor_id":"om_v_charge","has_min_max":1,"min_value":0,"max_value":32},{"sensor_id":"om_v_battery","sensor_name":"V Battery","has_min_max":1,"min_value":24.5,"max_value":28.2}]\n`;
   const line = (t: number, id: string, v: string | number) => `${t} sensors/${id}/data ${v}\n`;
   // a second in the order the mower sends it: charger, battery, dock, then blade and robot state

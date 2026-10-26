@@ -1,4 +1,5 @@
-import {expect, handles, lawnPoint, openMap, pickedOutline, tab, test, touchDrag, visibleAreas} from './app';
+import type {MowerMap} from '@/hooks/useMowerMap';
+import {demoCall, demoDocked, demoHas, expect, handles, lawnPoint, openMap, pickedOutline, tab, test, touchDrag, visibleAreas} from './app';
 
 test('an area picked stays picked while another page is open', async ({page}) => {
   await openMap(page);
@@ -64,4 +65,31 @@ test('decorating from the map settings: a picture set, moved and taken back', as
   await page.getByRole('button', {name: 'Discard changes?'}).click();
   await expect(page.locator('[class*="decorTiles"]')).toHaveCount(0);
   await expect(tab(page, '/map')).not.toContainText('Unsaved changes');
+});
+
+test('saving over a map that was changed on another phone asks first', async ({page}) => {
+  await openMap(page);
+  // in the dock: saving while it mows asks something else first
+  await demoDocked(page);
+  const at = await lawnPoint(page);
+  await page.mouse.click(at.x, at.y);
+  const name = page.getByRole('textbox').first();
+  await expect(name).not.toHaveValue('');
+  const picked = await name.inputValue();
+  await name.fill('Changed here');
+  // meanwhile another phone saves the map with a new name for another area
+  const names = async () => (await demoHas<MowerMap>(page, 'map/json')).areas.map((a) => a.properties.name);
+  const other = await demoHas<MowerMap>(page, 'map/json');
+  other.areas.find((a) => a.properties.type === 'mow' && a.properties.name !== picked)!.properties.name = 'Changed elsewhere';
+  await demoCall(page, 'map.replace', other);
+  await expect(page.getByText('The map on the mower was changed since you started editing here')).toBeVisible();
+  // the first tap only shows that, the second one saves this version
+  const save = page.locator('button:visible', {hasText: 'Save anyway'}).first();
+  await save.click();
+  await expect(page.locator('[class*="warningArmed"]')).toBeVisible();
+  await page.waitForTimeout(500);
+  expect(await names()).toContain('Changed elsewhere');
+  await save.click();
+  await expect.poll(names).toContain('Changed here');
+  await expect(page.getByText('The map on the mower was changed since you started editing here')).toHaveCount(0);
 });

@@ -57,8 +57,8 @@ describe('stats', () => {
   });
 });
 
-// docker/stats.awk with the awk of this machine, the container's busybox one reads it the same
-describe('what the container counts', () => {
+// docker/stats.awk with the awk on the path, in the CI the container's busybox one (several times slower than mawk)
+describe('what the container counts', {timeout: 30_000}, () => {
   const run = (input: string, state = '') => {
     const dir = mkdtempSync(join(tmpdir(), 'stats-'));
     const env = {...process.env, LC_ALL: 'C', HOURS: join(dir, 'hours'), STATE: join(dir, 'state')};
