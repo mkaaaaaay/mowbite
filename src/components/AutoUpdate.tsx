@@ -463,6 +463,7 @@ export function AutoUpdate() {
   const theme = useThemeChoice();
   const fast = useRef(false);
   const restartingRef = useRef(false);
+  const embeddedRef = useRef(false);
   // where the updater's page is: from MowBite's container, else next to MowBite
   const [where, setWhere] = useState<string | null>(null);
   useEffect(() => {
@@ -486,6 +487,7 @@ export function AutoUpdate() {
             setLost(false);
             restartingRef.current = !!x && !!selfInfo(x)?.restarting;
             fast.current = !!x && (x.requested || x.status.result === 'running' || restartingRef.current);
+            embeddedRef.current = x?.status.embed === '1' && !isDemo();
             if (x && !x.requested && x.status.result !== 'running') setAsked(false);
           },
           () => {
@@ -494,9 +496,10 @@ export function AutoUpdate() {
             setS((last) => (last === undefined ? null : last));
           },
         )
-        // what it does shows up while the page is open, every 2 seconds while it updates
+        // what it does shows up while the page is open, every 2 seconds while it updates. with its own page in here,
+        // that one asks, this only looks every half minute whether it's still there and which MowBite runs
         .finally(() => {
-          if (!stop) timer = setTimeout(load, fast.current ? 2000 : 5000);
+          if (!stop) timer = setTimeout(load, embeddedRef.current ? 30000 : fast.current ? 2000 : 5000);
         });
     void load();
     return () => {

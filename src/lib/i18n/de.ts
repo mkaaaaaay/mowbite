@@ -917,6 +917,7 @@ const de: Record<string, string> = {
   "They need a second, small container next to MowBite, the MowBite Updater. It's added once, then everything is set here or on its own page.": "Dafür braucht es einen zweiten, kleinen Container neben MowBite, den MowBite Updater. Er wird einmal eingetragen, danach wird alles hier oder auf seiner eigenen Seite eingestellt.",
   "Its own page:": "Seine eigene Seite:",
   "Out of reach for the updater": "Für den Updater nicht erreichbar",
+  "stable {v} is older than what runs, it stays until a newer stable is out": "Stabil {v} ist älter als die laufende Version, sie bleibt, bis es eine neuere stabile gibt",
   "\"{name}\" is in {dir}. The updater only sees {reach}. Move it there, or add this line to the updater's \"volumes:\":": "„{name}“ liegt in {dir}. Der Updater sieht nur {reach}. Dorthin verschieben oder diese Zeile bei den „volumes:“ des Updaters einfügen:",
   "\"{name}\" runs without a compose file, the updater can't update it.": "„{name}“ läuft ohne compose-Datei, das kann der Updater nicht aktualisieren.",
   "The updater doesn't see its own folder {dir}: it forgets its settings and can't update itself. Add this line to its \"volumes:\":": "Der Updater sieht seinen eigenen Ordner {dir} nicht: Er vergisst seine Einstellungen und kann sich nicht selbst aktualisieren. Diese Zeile bei seinen „volumes:“ einfügen:",

@@ -239,6 +239,8 @@ export function partResult(s: UpdateState, part: Part): string | null {
       return tr('not enough room on the mower: needs about {need} MB and 1 GB to spare, {free} MB free', {need: rest[0] ?? '?', free: rest[1] ?? '?'});
     case 'skipped_failed':
       return tr("this version didn't start before, it waits for the next one");
+    case 'stable_older':
+      return tr('stable {v} is older than what runs, it stays until a newer stable is out', {v: rest[0] ?? '?'});
     case 'rolled_back':
       return tr("the new version didn't start, it went back to the one before");
     case 'back':
