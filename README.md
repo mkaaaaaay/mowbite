@@ -25,7 +25,7 @@ MowBite is a community project and not affiliated with the OpenMower project.
   doesn't start in the dark unless you confirm it, hedgehogs are out then.
 - **Sensors** over the last 24 hours, the battery over the weeks, GPS and Wi-Fi coverage on the map.
 - **OpenMower's settings** in the app: lanes, outline passes, GPS, docking, rain and more.
-- **Updates from the app** for MowBite, OpenMower and the MowBite Planner, with the
+- **Updates from the app** for MowBite, OpenMower, the MowBite Planner and the updater itself, with the
   [MowBite Updater](https://github.com/mkaaaaaay/mowbite-updater).
 - **[MowBite Planner](https://github.com/mkaaaaaay/mowbite-planner)**: its menus show up when it runs on the mower.
 - **[Home Assistant](https://github.com/mkaaaaaay/mowbite-ha)**: an integration with MowBite's card and map.

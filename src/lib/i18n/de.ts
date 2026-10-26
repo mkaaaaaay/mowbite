@@ -916,6 +916,8 @@ const de: Record<string, string> = {
   "not set up yet, how to:": "noch nicht eingerichtet, so geht es:",
   "They need a second, small container next to MowBite, the MowBite Updater. It's added once, then everything is set here or on its own page.": "Dafür braucht es einen zweiten, kleinen Container neben MowBite, den MowBite Updater. Er wird einmal eingetragen, danach wird alles hier oder auf seiner eigenen Seite eingestellt.",
   "Its own page:": "Seine eigene Seite:",
+  "Restarting the updater, this comes back by itself": "Der Updater startet neu, das hier kommt von selbst wieder",
+  "It updates itself too, after the automatic updates at night.": "Er aktualisiert sich auch selbst, nach den automatischen Updates in der Nacht.",
   "This is a version built on its own, not one from its registry. \"Update\" swaps it for the one from there.": "Das ist eine eigens gebaute Version, keine aus der Registry. „Aktualisieren“ ersetzt sie durch die von dort.",
   "Updates also with the mower out of the dock.": "Wird auch aktualisiert, wenn der Mäher nicht im Dock ist.",
   "comes with OpenMowerOS itself (openmower update-os)": "kommt mit OpenMowerOS selbst (openmower update-os)",

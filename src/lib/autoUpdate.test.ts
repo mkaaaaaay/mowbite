@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {freeMb, kindOf, openMowerChoices, partInfo, partResult, partsOf, progressOf, runResult, stepDetail, stepLabel, updaterAlive, type UpdateState} from './autoUpdate';
+import {freeMb, kindOf, openMowerChoices, partInfo, partResult, partsOf, progressOf, runResult, selfInfo, stepDetail, stepLabel, updaterAlive, type UpdateState} from './autoUpdate';
 
 const state = (status: Record<string, string>, openmower = 'edge'): UpdateState => ({
   conf: {mowbite: 'beta', mowbite_auto: 0, openmower, openmower_auto: 0, planner_auto: 0, at: '03:00', days: 'daily'},
@@ -89,5 +89,20 @@ describe('the updater on the mower', () => {
     expect(partsOf(state({})).map((p) => p.id)).toEqual(['mowbite', 'openmower', 'planner']);
     expect(kindOf(state({planner_source: 'local'}), 'planner')).toBe('local');
     expect(runResult({...s, status: {...s.status, result: 'running', run_parts: 'xtechapp', progress: 'xtechapp download 5 1000'}})).toContain('OpenMower App (xtech)');
+  });
+
+  it('shows the updater itself: what it runs, something new, its restart and what came of it', () => {
+    expect(selfInfo(state({}))).toBeNull();
+    const s = state({updater_running: '70cb346 2026-10-26', updater_available: 'yes ghcr.io/mkaaaaaay/mowbite-updater:latest'});
+    expect(selfInfo(s)).toMatchObject({available: 'yes', tag: 'latest', result: null, restarting: null});
+    expect(selfInfo(s)!.running).toContain('70cb346');
+    expect(selfInfo(state({updater_running: '? 2026-10-26'}))!.running).toContain('state unknown');
+    // restarting on the new version: since when, for a few minutes at most
+    expect(selfInfo(state({updater_running: '70cb346 2026-10-26', updater: 'restarting 1000'}), 1100)!.restarting).toBe(1000);
+    expect(selfInfo(state({updater_running: '70cb346 2026-10-26', updater: 'restarting 1000'}), 1400)!.restarting).toBeNull();
+    expect(selfInfo(state({updater_running: '70cb346 2026-10-26', updater: 'updated 1792831337 70cb346'}))!.result).toContain('70cb346');
+    expect(selfInfo(state({updater_running: '70cb346 2026-10-26', updater: 'rolled_back 1792831337'}))!.result).toContain("didn't start");
+    const run = state({result: 'running', run_parts: 'updater', progress: 'updater download 40 1000'});
+    expect(runResult(run)).toBe('Updating MowBite Updater (1 of 1)…');
   });
 });

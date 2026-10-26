@@ -47,7 +47,7 @@ case "$REQUEST_METHOD $QUERY_STRING" in
   [ "$len" -gt 0 ] && [ "$len" -le 4000 ] || plain bad
   plain "$(post conf "$(head -c "$len")")"
   ;;
-"POST now" | "POST check" | "POST room" | "POST free=cache" | "POST free=all")
+"POST now" | "POST check" | "POST room" | "POST free=cache" | "POST free=all" | "POST self")
   plain "$(post "$QUERY_STRING" "")"
   ;;
 "POST now="* | "POST back="*)

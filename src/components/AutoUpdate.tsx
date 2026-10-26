@@ -13,6 +13,7 @@ import {
   requestBack,
   requestCheck,
   requestRoom,
+  requestSelf,
   freeRoom,
   roomLabel,
   roomNote,
@@ -24,6 +25,7 @@ import {
   requestUpdate,
   runResult,
   saveUpdateConf,
+  selfInfo,
   updaterAlive,
   WEEKDAYS,
   type Part,
@@ -33,7 +35,7 @@ import {
   type UpdateState,
 } from '@/lib/autoUpdate';
 import {copyText} from '@/lib/clipboard';
-import {useDockgeUrl, useUpdaterPageUrl} from '@/lib/dockge';
+import {useDockgeUrl, useUpdaterPageLink, useUpdaterPageUrl} from '@/lib/dockge';
 import {fmt, tr} from '@/lib/i18n';
 import {isDemo} from '@/lib/mowers';
 import {isApp} from '@/lib/native';
@@ -298,6 +300,41 @@ function PartCard({
   );
 }
 
+// the updater itself: the commit it runs, whether there's a newer one and updating it, the bar while it downloads and
+// while it restarts on the new version
+function UpdaterCard({s, busy, now, anyAuto, onUpdate}: {s: UpdateState; busy: boolean; now: number; anyAuto: boolean; onUpdate: () => void}) {
+  const info = selfInfo(s, now);
+  if (!info) return null;
+  const isNew = info.available === 'yes';
+  const progress = progressOf(s);
+  const mine = progress?.part === 'updater' ? progress : null;
+  return (
+    <div className={local.part}>
+      <div className={local.head}>
+        <span className={local.name}>MowBite Updater</span>
+        {info.available && <span className={[local.badge, isNew ? local.badgeNew : ''].join(' ')}>{tr(BADGE[info.available])}</span>}
+      </div>
+      <span className={local.dim}>{tr('Runs: {what}', {what: info.running})}</span>
+      {mine && <ProgressBar p={mine} now={now} />}
+      {info.restarting && <ProgressBar p={{part: 'updater', step: 'restart', pct: null, since: info.restarting}} now={now} />}
+      {info.restarting && <span className={local.dim}>{tr('Restarting the updater, this comes back by itself')}</span>}
+      <div className={local.row}>
+        <select className={local.control} aria-label={tr('Version')} disabled value="this">
+          <option value="this">{info.tag}</option>
+        </select>
+        <button className={[local.control, isNew ? local.primary : ''].join(' ')} disabled={busy} onClick={onUpdate}>
+          {tr('Update')}
+        </button>
+      </div>
+      {info.available === 'local' && (
+        <span className={local.dim}>{tr('This is a version built on its own, not one from its registry. "Update" swaps it for the one from there.')}</span>
+      )}
+      {anyAuto && <span className={local.dim}>{tr('It updates itself too, after the automatic updates at night.')}</span>}
+      {info.result && <span className={local.dim}>{tr('Last time: {what}', {what: info.result})}</span>}
+    </div>
+  );
+}
+
 // the tag of an image that has no releases to pick from: the one it pulls again
 const imageTag = (s: UpdateState, part: Part) => (s.status[`${part}_available`] ?? '').split(' ')[1]?.split(':').pop() || '–';
 
@@ -363,7 +400,9 @@ export function AutoUpdate() {
   const [lost, setLost] = useState(false);
   const [now, setNow] = useState(() => Date.now() / 1000);
   const page = useUpdaterPageUrl();
+  const pageLink = useUpdaterPageLink();
   const fast = useRef(false);
+  const restartingRef = useRef(false);
 
   useEffect(() => {
     let stop = false;
@@ -373,9 +412,15 @@ export function AutoUpdate() {
         .then(
           (x) => {
             if (stop) return;
+            // the updater restarting on its new version answers nothing for a moment: what came last stays
+            if (!x && restartingRef.current) {
+              setLost(true);
+              return;
+            }
             setS(x);
             setLost(false);
-            fast.current = !!x && (x.requested || x.status.result === 'running');
+            restartingRef.current = !!x && !!selfInfo(x)?.restarting;
+            fast.current = !!x && (x.requested || x.status.result === 'running' || restartingRef.current);
             if (x && !x.requested && x.status.result !== 'running') setAsked(false);
           },
           () => {
@@ -396,18 +441,19 @@ export function AutoUpdate() {
   }, []);
 
   const running = s?.status.result === 'running';
-  // the time on the bar, by the second while it updates
+  const restarting = !!s && !!selfInfo(s, now)?.restarting;
+  // the time on the bar, by the second while it updates or restarts itself
   useEffect(() => {
-    if (!running) return;
+    if (!running && !restarting) return;
     const tick = setInterval(() => setNow(Date.now() / 1000), 1000);
     return () => clearInterval(tick);
-  }, [running]);
+  }, [running, restarting]);
 
   if (s === undefined) return null;
   if (!updaterAlive(s)) return isDemo() ? null : <AddUpdater />;
 
   const st = s!;
-  const busy = asked || st.requested || running;
+  const busy = asked || st.requested || running || restarting;
   const set = (patch: Record<string, string | number>) => {
     const conf: UpdateConf = {...st.conf, ...patch};
     setS({...st, conf});
@@ -469,6 +515,8 @@ export function AutoUpdate() {
         />
       ))}
 
+      <UpdaterCard s={st} busy={busy} now={now} anyAuto={anyAuto} onUpdate={() => ask(requestSelf)} />
+
       {anyAuto ? (
         <div className={local.part}>
           <span className={local.name}>{tr('When it updates by itself')}</span>
@@ -526,7 +574,7 @@ export function AutoUpdate() {
         {page && !isDemo() && (
           <span className={local.dim}>
             {tr('Its own page:')}{' '}
-            <a href={page} target="_blank" rel="noreferrer">
+            <a href={pageLink} target="_blank" rel="noreferrer">
               {page}
             </a>
           </span>

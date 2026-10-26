@@ -177,6 +177,8 @@ const DEMO_STEPS: Record<string, DemoStep[]> = {
   planner: [['prepare', 2], ['build', 12, 9], ['restart', 3], ['wait', 5]],
   mowbite: [['prepare', 2], ['download', 8], ['extract', 3, 4], ['restart', 3], ['wait', 4]],
   back: [['back', 3], ['restart', 3], ['wait', 4]],
+  // the updater itself: its download, then it restarts on the new version (a few seconds without an answer)
+  updater: [['prepare', 2], ['download', 5]],
 };
 let demoRun: {t: number; parts: string[]} | null = null;
 const demoDone: Record<string, number> = {};
@@ -218,12 +220,19 @@ function demoUpdate(): Record<string, unknown> {
     planner_running: `? ${day(1)}`,
     planner_source: 'github',
     planner_available: 'unknown main',
+    updater_running: `7cce417 ${day(2)}`,
+    updater_available: 'yes ghcr.io/mkaaaaaay/mowbite-updater:latest',
     disk_free: '2380',
     result: 'done',
   };
   if (demoDone.mowbite) Object.assign(status, {mowbite: `updated ${demoDone.mowbite} ${version}`, mowbite_available: 'no ghcr.io/mkaaaaaay/mowbite:latest'});
   if (demoDone.back) status.mowbite = `back ${demoDone.back} ${version}`;
   if (demoDone.openmower) status.openmower = 'current';
+  if (demoDone.updater) {
+    const back = demoDone.updater + 6;
+    if (now < back) status.updater = `restarting ${demoDone.updater}`;
+    else Object.assign(status, {updater: `updated ${back} 70cb346`, updater_running: `70cb346 ${day(0)}`, updater_available: 'no ghcr.io/mkaaaaaay/mowbite-updater:latest'});
+  }
   if (demoDone.planner)
     Object.assign(status, {planner: `updated ${demoDone.planner} 3f2a9c1`, planner_running: `3f2a9c1e5b7d ${day(0)}`, planner_available: 'no main'});
   demoProgress(status, Date.now() / 1000);
@@ -312,9 +321,12 @@ export async function demoFetch(url: string, init?: RequestInit): Promise<Respon
         return text('ok');
       }
       // an update or going back: played through in a few seconds. a check: the demo mower has nothing to look for
-      if (post && (q.has('now') || q.has('back')) && !demoRun) {
+      if (post && (q.has('now') || q.has('back') || q.has('self')) && !demoRun) {
         const one = q.get('now');
-        demoRun = {t: Date.now() / 1000, parts: q.has('back') ? ['back'] : one && one in DEMO_STEPS ? [one] : ['openmower', 'planner', 'mowbite']};
+        demoRun = {
+          t: Date.now() / 1000,
+          parts: q.has('back') ? ['back'] : q.has('self') ? ['updater'] : one && one in DEMO_STEPS ? [one] : ['openmower', 'planner', 'mowbite'],
+        };
       }
       if (post) return text('ok');
       return json(demoUpdate());

@@ -17,6 +17,8 @@ function read(): ThemeChoice {
 }
 
 let choice: ThemeChoice | null = null;
+// the design picked on this device (the updater's page takes it over with its link)
+export const themeChoice = () => (choice ??= read());
 
 export function setThemeChoice(c: ThemeChoice) {
   choice = c;

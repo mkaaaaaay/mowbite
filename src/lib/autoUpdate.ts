@@ -13,6 +13,7 @@ export const PART_NAMES: Record<string, string> = {
   mowbite: 'MowBite',
   openmower: 'OpenMower',
   planner: 'MowBite Planner',
+  updater: 'MowBite Updater',
 };
 
 // each part's channel (<id>: beta or stable, OpenMower's tag: edge, latest or what its .env has) and whether it updates
@@ -78,6 +79,8 @@ export const requestUpdate = (part?: Part) => post(part ? `now=${part}` : 'now')
 // an app back to the version that ran before its last update
 export const requestBack = (part: Part = 'mowbite') => post(`back=${part}`);
 export const requestCheck = () => post('check');
+// the updater itself, to its newest version
+export const requestSelf = () => post('self');
 export const requestRoom = () => post('room');
 // one image from the list, all of them, or the build cache
 export const freeRoom = (what: {id: string} | 'all' | 'cache') => post(typeof what === 'string' ? `free=${what}` : `free=img:${what.id}`);
@@ -251,6 +254,34 @@ export function runResult(s: UpdateState): string | null {
     return tr('Updating {name} ({n} of {of})…', {name, n: parts.indexOf(now) + 1, of: parts.length});
   }
   return null;
+}
+
+// the updater itself (one that knows how to update itself says what it runs): the commit and its day, whether its
+// registry has a newer one, what it did last and since when it restarts on a new version (for a few minutes at most)
+export interface SelfInfo {
+  running: string;
+  available: Availability | null;
+  tag: string;
+  result: string | null;
+  restarting: number | null;
+}
+export function selfInfo(s: UpdateState, now = Date.now() / 1000): SelfInfo | null {
+  const run = s.status.updater_running;
+  if (!run) return null;
+  const [what, day] = run.split(' ');
+  const built = date(day);
+  const commit = what && what !== '?' ? tr('commit {c}', {c: what.slice(0, 7)}) : tr('state unknown');
+  const [avail, ref] = (s.status.updater_available ?? '').split(' ');
+  const available = ['yes', 'no', 'failed', 'unknown', 'local'].includes(avail) ? (avail as Availability) : null;
+  const [state, t] = (s.status.updater ?? '').split(' ');
+  const restarting = state === 'restarting' && /^\d+$/.test(t ?? '') && now - Number(t) < 300 ? Number(t) : null;
+  return {
+    running: [commit, built].filter(Boolean).join(' · '),
+    available,
+    tag: ref?.split(':').pop() || '–',
+    result: restarting ? null : partResult(s, 'updater'),
+    restarting,
+  };
 }
 
 export const lastChecked = (s: UpdateState) => (s.status.checked ? when(s.status.checked) : null);
