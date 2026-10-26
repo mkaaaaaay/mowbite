@@ -53,6 +53,19 @@ export interface UpdateState {
 
 const endpoint = () => apiBase() + '/cgi-bin/update';
 
+// where the browser finds the updater's page: as MowBite's container says (UPDATER_URL, the mower it talks mqtt to),
+// else on the same host as MowBite (it runs on the mower)
+export async function updaterWhere(): Promise<string | null> {
+  try {
+    const res = await mowerFetch(`${endpoint()}?where`, {cache: 'no-store'});
+    if (!res.ok) return null;
+    const url = (await res.text()).trim().replace(/\/+$/, '');
+    return /^https?:\/\/[^\s"'<>]+$/.test(url) ? url : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function loadUpdate(): Promise<UpdateState | null> {
   const res = await mowerFetch(endpoint(), {cache: 'no-store'});
   if (!res.ok) return null;
@@ -283,6 +296,26 @@ export function selfInfo(s: UpdateState, now = Date.now() / 1000): SelfInfo | nu
     restarting,
   };
 }
+
+// what the updater can't reach: containers it would look after whose stack is in a folder it doesn't have (dir: where
+// that stack is, '-' for one not started from a compose file), its own compose file out of its reach, and the folders
+// it has (by default /opt/stacks)
+export interface OutOfReach {
+  far: {name: string; dir: string}[];
+  self: string | null;
+  reach: string;
+}
+export function outOfReach(s: UpdateState): OutOfReach | null {
+  const far = (s.status.unreachable ?? '')
+    .split(' ')
+    .filter((x) => x.includes('@'))
+    .map((x) => ({name: x.slice(0, x.lastIndexOf('@')), dir: x.slice(x.lastIndexOf('@') + 1)}));
+  const self = s.status.updater_away && s.status.updater_away !== '-' ? s.status.updater_away : null;
+  if (!far.length && !self) return null;
+  return {far, self, reach: (s.status.reach ?? '').trim().split(' ').filter(Boolean).join(', ') || '/opt/stacks'};
+}
+// the line that gives the updater a folder, under "volumes:" of its service
+export const reachLine = (dir: string) => `      - ${dir}:${dir}`;
 
 export const lastChecked = (s: UpdateState) => (s.status.checked ? when(s.status.checked) : null);
 export const freeMb = (s: UpdateState) => (s.status.disk_free && /^\d+$/.test(s.status.disk_free) ? Number(s.status.disk_free) : null);

@@ -230,3 +230,11 @@ button.control {
     animation: none;
   }
 }
+
+/* the updater's own page in here: no frame of its own, it says how tall it is */
+.frame {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
+}

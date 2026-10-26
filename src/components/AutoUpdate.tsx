@@ -6,6 +6,8 @@ import {
   lastChecked,
   loadUpdate,
   openMowerChoices,
+  outOfReach,
+  reachLine,
   partInfo,
   partResult,
   partsOf,
@@ -27,6 +29,7 @@ import {
   saveUpdateConf,
   selfInfo,
   updaterAlive,
+  updaterWhere,
   WEEKDAYS,
   type Part,
   type Progress,
@@ -36,9 +39,10 @@ import {
 } from '@/lib/autoUpdate';
 import {copyText} from '@/lib/clipboard';
 import {useDockgeUrl, useUpdaterPageLink, useUpdaterPageUrl} from '@/lib/dockge';
-import {fmt, tr} from '@/lib/i18n';
+import {fmt, tr, useLang} from '@/lib/i18n';
 import {isDemo} from '@/lib/mowers';
 import {isApp} from '@/lib/native';
+import {useThemeChoice} from '@/lib/theme';
 import {APP_VERSION} from '@/lib/updates';
 import local from './AutoUpdate.module.css';
 
@@ -335,6 +339,61 @@ function UpdaterCard({s, busy, now, anyAuto, onUpdate}: {s: UpdateState; busy: b
   );
 }
 
+// what the updater can't reach and why, with the line that gives it the folder
+function OutOfReachNote({s}: {s: UpdateState}) {
+  const away = outOfReach(s);
+  if (!away) return null;
+  return (
+    <div className={local.part}>
+      <span className={local.name}>{tr('Out of reach for the updater')}</span>
+      {away.self && (
+        <>
+          <span className={local.dim}>
+            {tr('The updater doesn\'t see its own folder {dir}: it forgets its settings and can\'t update itself. Add this line to its "volumes:":', {dir: away.self})}
+          </span>
+          <pre className={local.code}>{reachLine(away.self)}</pre>
+        </>
+      )}
+      {away.far.map((f) =>
+        f.dir === '-' ? (
+          <span key={f.name} className={local.dim}>
+            {tr('"{name}" runs without a compose file, the updater can\'t update it.', {name: f.name})}
+          </span>
+        ) : (
+          <div key={f.name} className={local.item}>
+            <span className={local.dim}>
+              {tr(
+                '"{name}" is in {dir}. The updater only sees {reach}. Move it there, or add this line to the updater\'s "volumes:":',
+                {name: f.name, dir: f.dir, reach: away.reach},
+              )}
+            </span>
+            <pre className={local.code}>{reachLine(f.dir)}</pre>
+          </div>
+        ),
+      )}
+    </div>
+  );
+}
+
+// the updater's own page in here, in this design and language, its height given by it: what it shows and does comes
+// from it, so a newer updater brings its new parts along without a new MowBite
+function UpdaterFrame({base}: {base: string}) {
+  const theme = useThemeChoice();
+  const lang = useLang();
+  const src = `${base}/?embed=1&theme=${theme}&lang=${lang}`;
+  const [height, setHeight] = useState(480);
+  useEffect(() => {
+    const origin = new URL(src).origin;
+    const onMessage = (e: MessageEvent) => {
+      const h = e.origin === origin && e.data?.mowbiteUpdater === 'height' ? Number(e.data.height) : NaN;
+      if (Number.isFinite(h)) setHeight(Math.max(120, Math.min(20000, Math.ceil(h))));
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [src]);
+  return <iframe className={local.frame} src={src} title="MowBite Updater" style={{height}} />;
+}
+
 // the tag of an image that has no releases to pick from: the one it pulls again
 const imageTag = (s: UpdateState, part: Part) => (s.status[`${part}_available`] ?? '').split(' ')[1]?.split(':').pop() || '–';
 
@@ -401,8 +460,14 @@ export function AutoUpdate() {
   const [now, setNow] = useState(() => Date.now() / 1000);
   const page = useUpdaterPageUrl();
   const pageLink = useUpdaterPageLink();
+  const theme = useThemeChoice();
   const fast = useRef(false);
   const restartingRef = useRef(false);
+  // where the updater's page is: from MowBite's container, else next to MowBite
+  const [where, setWhere] = useState<string | null>(null);
+  useEffect(() => {
+    if (!isDemo()) void updaterWhere().then(setWhere);
+  }, []);
 
   useEffect(() => {
     let stop = false;
@@ -482,6 +547,33 @@ export function AutoUpdate() {
   // MowBite on the mower is another version than this page: after its update, the page needs loading again
   const onMower = (st.status.mowbite_running ?? '').split(' ')[0];
   const reload = !isApp() && !isDemo() && !running && !!onMower && onMower !== APP_VERSION;
+  const reloadNote = reload && (
+    <div className={local.warn}>
+      <div className={local.row}>
+        <span>{tr('MowBite {v} runs on the mower now, this page is still {page}.', {v: onMower, page: APP_VERSION})}</span>
+        <button className={local.control} onClick={() => window.location.reload()}>
+          {tr('Load again')}
+        </button>
+      </div>
+    </div>
+  );
+
+  // an updater that brings its own page for in here (embed): that one, with all it can do
+  if (st.status.embed === '1' && !isDemo() && (where || page)) {
+    const base = where || page;
+    return (
+      <div className={local.panel}>
+        {reloadNote}
+        <UpdaterFrame base={base} />
+        <span className={local.dim}>
+          {tr('Its own page:')}{' '}
+          <a href={`${base}/?theme=${theme}`} target="_blank" rel="noreferrer">
+            {base}
+          </a>
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div className={local.panel}>
@@ -491,16 +583,9 @@ export function AutoUpdate() {
         )}
       </span>
 
-      {reload && (
-        <div className={local.warn}>
-          <div className={local.row}>
-            <span>{tr('MowBite {v} runs on the mower now, this page is still {page}.', {v: onMower, page: APP_VERSION})}</span>
-            <button className={local.control} onClick={() => window.location.reload()}>
-              {tr('Load again')}
-            </button>
-          </div>
-        </div>
-      )}
+      {reloadNote}
+
+      <OutOfReachNote s={st} />
 
       {partsOf(st).map((p) => (
         <PartCard

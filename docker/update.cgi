@@ -1,7 +1,8 @@
 #!/bin/sh
 # the MowBite Updater (github.com/mkaaaaaay/mowbite-updater, on the mower's own network, port 8083): the app's questions
 # passed on to it (it keeps its settings and status itself), and whether the mower is idle in the dock (?docked: "1",
-# else "0 <state>"). without the updater: {} for the status, the app shows how to add it
+# else "0 <state>"), and where the browser finds its page (?where: UPDATER_URL, the mower's address for mqtt, or nothing:
+# the same host as MowBite). without the updater: {} for the status, the app shows how to add it
 . /broker.sh
 . /openmower.sh
 cors() { printf 'Access-Control-Allow-Origin: *\r\n'; }
@@ -24,6 +25,11 @@ from_mowbite() {
 
 [ "$REQUEST_METHOD" = POST ] && ! from_mowbite && plain denied
 case "$REQUEST_METHOD $QUERY_STRING" in
+"GET where")
+  cors
+  printf 'Content-Type: text/plain\r\nCache-Control: no-store\r\n\r\n'
+  echo "${UPDATER_URL:-${MOWER_MQTT_HOST:+http://$MOWER_MQTT_HOST:8083}}"
+  ;;
 "GET docked")
   cors
   printf 'Content-Type: text/plain\r\nCache-Control: no-store\r\n\r\n'

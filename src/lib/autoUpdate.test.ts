@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {freeMb, kindOf, openMowerChoices, partInfo, partResult, partsOf, progressOf, runResult, selfInfo, stepDetail, stepLabel, updaterAlive, type UpdateState} from './autoUpdate';
+import {freeMb, kindOf, openMowerChoices, outOfReach, reachLine, partInfo, partResult, partsOf, progressOf, runResult, selfInfo, stepDetail, stepLabel, updaterAlive, type UpdateState} from './autoUpdate';
 
 const state = (status: Record<string, string>, openmower = 'edge'): UpdateState => ({
   conf: {mowbite: 'beta', mowbite_auto: 0, openmower, openmower_auto: 0, planner_auto: 0, at: '03:00', days: 'daily'},
@@ -104,5 +104,14 @@ describe('the updater on the mower', () => {
     expect(selfInfo(state({updater_running: '70cb346 2026-10-26', updater: 'rolled_back 1792831337'}))!.result).toContain("didn't start");
     const run = state({result: 'running', run_parts: 'updater', progress: 'updater download 40 1000'});
     expect(runResult(run)).toBe('Updating MowBite Updater (1 of 1)…');
+  });
+
+  it("says what the updater can't reach, with the line that gives it the folder", () => {
+    expect(outOfReach(state({}))).toBeNull();
+    const s = state({unreachable: 'mowbite@/home/openmower/mowbite app2@-', reach: '/opt/stacks '});
+    expect(outOfReach(s)).toEqual({far: [{name: 'mowbite', dir: '/home/openmower/mowbite'}, {name: 'app2', dir: '-'}], self: null, reach: '/opt/stacks'});
+    expect(outOfReach(state({updater_away: '/home/openmower/mowbite'}))!.self).toBe('/home/openmower/mowbite');
+    expect(outOfReach(state({updater_away: '-'}))).toBeNull();
+    expect(reachLine('/home/openmower/mowbite')).toBe('      - /home/openmower/mowbite:/home/openmower/mowbite');
   });
 });

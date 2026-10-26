@@ -25,8 +25,8 @@ MowBite is a community project and not affiliated with the OpenMower project.
   doesn't start in the dark unless you confirm it, hedgehogs are out then.
 - **Sensors** over the last 24 hours, the battery over the weeks, GPS and Wi-Fi coverage on the map.
 - **OpenMower's settings** in the app: lanes, outline passes, GPS, docking, rain and more.
-- **Updates from the app** for MowBite, OpenMower, the MowBite Planner and the updater itself, with the
-  [MowBite Updater](https://github.com/mkaaaaaay/mowbite-updater).
+- **Updates from the app** for MowBite, OpenMower, the MowBite Planner, the updater itself and any other app of your
+  stacks you add, with the [MowBite Updater](https://github.com/mkaaaaaay/mowbite-updater).
 - **[MowBite Planner](https://github.com/mkaaaaaay/mowbite-planner)**: its menus show up when it runs on the mower.
 - **[Home Assistant](https://github.com/mkaaaaaay/mowbite-ha)**: an integration with MowBite's card and map.
 - More than one mower, a demo mower to look around, guides with moving pictures, several designs in light and dark,
@@ -129,8 +129,8 @@ app's `compose.yaml`).
   your device, and set `MOWER_MQTT_WS_URL` if MowBite doesn't run on the mower.
 - **No data but the connection works**: your OpenMower may use a topic prefix, set `MOWER_MQTT_PREFIX`.
 - **Saving the map fails**: OpenMower has to be running, the map is saved through it.
-- **The updater doesn't list MowBite or OpenMower**: their stacks have to be in `/opt/stacks`, Dockge's folder (see
-  above).
+- **The updater doesn't list an app**: its stack has to be in `/opt/stacks`, Dockge's folder (see above). The updater
+  says which ones it can't reach, with the line that gives it their folder.
 
 ## Android app
 
