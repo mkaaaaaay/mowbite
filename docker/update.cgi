@@ -1,12 +1,13 @@
 #!/bin/sh
-# the updater (a container of its own next to the app, docker/updater.sh): passes the app's questions on to it, on the
-# stack's network (it keeps its settings and status itself), and tells it whether the mower is idle in the dock
-# (?docked: "1", else "0 <state>"). without the updater: {} for the status, the app shows how to add it
+# the MowBite Updater (github.com/mkaaaaaay/mowbite-updater, on the mower's own network, port 8083): the app's questions
+# passed on to it (it keeps its settings and status itself), and whether the mower is idle in the dock (?docked: "1",
+# else "0 <state>"). without the updater: {} for the status, the app shows how to add it
 . /broker.sh
 . /openmower.sh
 cors() { printf 'Access-Control-Allow-Origin: *\r\n'; }
 plain() { cors; printf 'Content-Type: text/plain\r\nCache-Control: no-store\r\n\r\n%s\n' "$1"; exit 0; }
-U=${UPDATER_URL:-http://mowbite-updater:8081}/cgi-bin/updater
+# (it runs on the mower's own network, reached through this container's gateway: the mower)
+U=${UPDATER_URL:-http://$(ip route 2>/dev/null | awk '/^default/ {print $3; exit}'):8083}/cgi-bin/updater
 post() { wget -q -T 10 -O - --post-data "$2" "$U?$1" 2>/dev/null || echo failed; }
 
 case "$REQUEST_METHOD $QUERY_STRING" in
@@ -30,10 +31,14 @@ case "$REQUEST_METHOD $QUERY_STRING" in
   ;;
 "POST conf")
   len=${CONTENT_LENGTH:-0}
-  [ "$len" -gt 0 ] && [ "$len" -le 400 ] || plain bad
+  [ "$len" -gt 0 ] && [ "$len" -le 4000 ] || plain bad
   plain "$(post conf "$(head -c "$len")")"
   ;;
-"POST now" | "POST now=mowbite" | "POST now=openmower" | "POST now=planner" | "POST back=mowbite" | "POST check" | "POST room" | "POST free=cache" | "POST free=all")
+"POST now" | "POST check" | "POST room" | "POST free=cache" | "POST free=all")
+  plain "$(post "$QUERY_STRING" "")"
+  ;;
+"POST now="* | "POST back="*)
+  printf '%s' "${QUERY_STRING#*=}" | grep -Eqx '[a-z][a-z0-9_]{0,40}' || plain bad
   plain "$(post "$QUERY_STRING" "")"
   ;;
 "POST free=img:"*)

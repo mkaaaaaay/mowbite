@@ -33,7 +33,7 @@ import {
   type UpdateState,
 } from '@/lib/autoUpdate';
 import {copyText} from '@/lib/clipboard';
-import {useDockgeUrl} from '@/lib/dockge';
+import {useDockgeUrl, useUpdaterPageUrl} from '@/lib/dockge';
 import {fmt, tr} from '@/lib/i18n';
 import {isDemo} from '@/lib/mowers';
 import {isApp} from '@/lib/native';
@@ -45,10 +45,16 @@ const UPDATER_YAML = `  updater:
     image: ghcr.io/mkaaaaaay/mowbite-updater:latest
     container_name: mowbite-updater
     restart: unless-stopped
+    network_mode: host
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /opt/stacks:/opt/stacks
       - /etc/localtime:/etc/localtime:ro
+      - /etc/os-release:/host/os-release:ro
+    labels:
+      openmower.ui: "true"
+      openmower.ui.name: MowBite Updater
+      openmower.ui.port: "8083"
 `;
 
 function CopyButton({text}: {text: string}) {
@@ -111,7 +117,9 @@ function AddUpdater() {
       <summary>
         <span className={local.name}>{tr('Updates from the app')}</span> <span className={local.dim}>{tr('not set up yet, how to:')}</span>
       </summary>
-      <span className={local.dim}>{tr("They need a second, small container next to MowBite, the updater. It's added once, then everything is set here.")}</span>
+      <span className={local.dim}>
+        {tr("They need a second, small container next to MowBite, the MowBite Updater. It's added once, then everything is set here or on its own page.")}
+      </span>
       <ol className={local.steps}>
         <li>
           {tr('Open Dockge on the mower:')}{' '}
@@ -346,6 +354,7 @@ export function AutoUpdate() {
   // the container doesn't answer for a moment (MowBite restarting after its update): what came last stays
   const [lost, setLost] = useState(false);
   const [now, setNow] = useState(() => Date.now() / 1000);
+  const page = useUpdaterPageUrl();
   const fast = useRef(false);
 
   useEffect(() => {
@@ -416,6 +425,8 @@ export function AutoUpdate() {
   const checked = lastChecked(st);
   const run = runResult(st);
   const log = [...st.log].reverse().join('\n');
+  // what else it looks after (apps labelled for it): those only on its own page
+  const more = (st.parts ?? []).filter((p) => !PARTS.includes(p.id as Part)).map((p) => p.name);
   // MowBite on the mower is another version than this page: after its update, the page needs loading again
   const onMower = (st.status.mowbite_running ?? '').split(' ')[0];
   const reload = !isApp() && !isDemo() && !running && !!onMower && onMower !== APP_VERSION;
@@ -506,6 +517,14 @@ export function AutoUpdate() {
             .join(' ')}
         </span>
         {error && <span className={local.warn}>{error}</span>}
+        {page && !isDemo() && (
+          <span className={local.dim}>
+            {more.length ? tr('More apps it looks after ({names}) are on its own page:', {names: more.join(', ')}) : tr('Its own page:')}{' '}
+            <a href={page} target="_blank" rel="noreferrer">
+              {page}
+            </a>
+          </span>
+        )}
         {log && (
           <details>
             <summary className={local.dim}>{tr('Log')}</summary>

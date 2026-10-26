@@ -30,18 +30,27 @@ services:
     #   MOWER_MQTT_USER: ""
     #   MOWER_MQTT_PASSWORD: ""
 
-  # optional: updates MowBite, OpenMower and the MowBite Planner (set in the app: Settings, Updates), by hand or at
-  # night with the mower idle in the dock. the only container here with docker: it goes through the stacks' own compose
-  # files, goes back when a new version doesn't start and clears away old images. it needs the stacks' folder at the
-  # same path inside: /opt/stacks is dockge's, change both sides if yours is elsewhere
+  # the MowBite Updater (github.com/mkaaaaaay/mowbite-updater): updates MowBite, OpenMower and the MowBite Planner from
+  # the app (Settings, Updates) or its own page (port 8083), by hand or at night, only with the mower idle in the dock.
+  # nothing updates by itself until it's set. the only container here with docker: it goes through the stacks' own
+  # compose files, goes back when a new version doesn't start and clears away old images. it needs the stacks' folder
+  # at the same path inside: /opt/stacks is dockge's, change both sides if yours is elsewhere. not wanted: leave it out
   updater:
     image: ghcr.io/mkaaaaaay/mowbite-updater:latest
     container_name: mowbite-updater
     restart: unless-stopped
+    network_mode: host
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /opt/stacks:/opt/stacks
       - /etc/localtime:/etc/localtime:ro
+      - /etc/os-release:/host/os-release:ro
+    labels:
+      openmower.ui: "true"
+      openmower.ui.name: MowBite Updater
+      openmower.ui.port: "8083"
+      openmower.ui.icon: SystemUpdateAlt
+      openmower.ui.description: Updates OpenMower, MowBite, the planner and other apps, with the mower idle in the dock
 
 volumes:
   settings:

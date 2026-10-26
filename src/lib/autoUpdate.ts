@@ -32,8 +32,18 @@ export interface RoomItem {
   kind: RoomKind;
 }
 
+// what it looks after: MowBite, OpenMower, the planner and any app labelled mowbite.update=on
+export interface UpdatePart {
+  id: string;
+  name: string;
+  kind: string;
+  container: string;
+  gate: string;
+}
+
 export interface UpdateState {
   conf: UpdateConf;
+  parts?: UpdatePart[];
   requested: boolean;
   status: Record<string, string>;
   room?: {items: RoomItem[]; cache: number};

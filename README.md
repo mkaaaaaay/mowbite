@@ -65,15 +65,18 @@ Ideas and wishes are welcome as [issues](https://github.com/mkaaaaaay/mowbite/is
 
 ## Install on the mower
 
-You need a running OpenMower with the MQTT websocket on port 9001, which is the default. On the
-mower:
+You need a running OpenMower with the MQTT websocket on port 9001, which is the default. Easiest is
+Dockge on the mower (OpenMowerOS has it on port 5001): "+ Compose", name it `mowbite`, paste
+[compose.yaml](compose.yaml), "Deploy". Or in a terminal on the mower:
 
 ```bash
-mkdir mowbite && cd mowbite
+mkdir -p /opt/stacks/mowbite && cd /opt/stacks/mowbite
 curl -O https://raw.githubusercontent.com/mkaaaaaay/mowbite/main/compose.yaml
 docker compose pull
 docker compose up -d
 ```
+
+Either way it lands in Dockge's folder `/opt/stacks`, so Dockge shows it and the updater (below) can update it.
 
 Then open `http://<your-mower>:8082`. Port 8082 is used because OpenMower already uses 3000 and
 8080; change it in `compose.yaml` if you like. The image is about 5 MB and exists for arm64 (the
@@ -103,8 +106,10 @@ gets its own tags, e.g. `1.0.0` and `1.0`, if you'd rather stay on one version: 
 
 ### Update
 
+In the app under Settings, Updates (with the updater, below), in Dockge with "Update", or in a terminal:
+
 ```bash
-cd mowbite
+cd /opt/stacks/mowbite
 docker compose pull
 docker compose up -d
 ```
@@ -116,44 +121,16 @@ keep the old version for a while.
 
 ### Updates from the app
 
-`compose.yaml` has a second, optional service: `updater`. With it you update MowBite, OpenMower and the MowBite Planner
-from the app, under Settings, Updates: for each you see what runs and whether there's something new, pick its version
-and update it, by hand or automatically at night (time and days are yours to set), always only with the mower idle in
-the dock.
+`compose.yaml` comes with a second service, the [MowBite Updater](https://github.com/mkaaaaaay/mowbite-updater). With
+it you update MowBite, OpenMower and the MowBite Planner from the app (Settings, Updates) or on its own page
+(`http://<your-mower>:8083`): for each you see what runs and whether there's something new, pick its version and update
+it, by hand or automatically at night, always only with the mower idle in the dock. Nothing updates by itself until you
+set it. A new version that doesn't come up goes back to the one before, and old images are cleared away afterwards.
+Other apps on the mower can be added to it with a label, see its readme. Don't want it: leave the service out.
 
-- MowBite: beta (`latest`) or stable (the newest release without "beta")
-- OpenMower: edge, its release (`latest`) or the version in its `.env`. The release doesn't work with the MowBite
-  Planner yet, the app says so
-- the MowBite Planner: built again on the mower when its GitHub branch moved; a planner built from a local copy is left
-  alone
-
-While it updates, the part's card shows each step on a bar: the download in percent, unpacking, the planner's build
-steps, the restart and the wait until it answers. If a new version doesn't come up, it goes back to the one before and
-leaves that version out; MowBite can also go back to the version before by hand. OpenMower only when there's room for
-its old and new image at once, the planner is built again on the new OpenMower right after. A run stopped halfway
-(power gone) is put back at the next start. Afterwards its old rollback images and the build cache are cleared away,
-and under "Make room" you see what else nothing needs and delete it if you like.
-
-It's the only container here with access to docker (`/var/run/docker.sock`) and changes the stacks only through their
-own compose files, so Dockge shows the same. It keeps its settings and log in its own stack folder (`.updater`), MowBite
-asks it over the stack's network, nothing is reachable from outside. It needs the stacks' folder at the same path
-inside, `/opt/stacks` (Dockge's) by default: change both sides of that line in `compose.yaml` if your stacks live
-elsewhere. Leave the service out to update by hand in Dockge (the stack, then "Update").
-
-Other apps (Home Assistant, another app) can use it through MowBite on port 8082, the same way the app does:
-
-- `GET /cgi-bin/update`: settings, status and log as JSON (`conf`, `status`, `log`)
-- `POST /cgi-bin/update?conf` with lines like `mowbite beta`, `mowbite_auto 1`, `openmower edge`, `openmower_auto 0`,
-  `planner_auto 0`, `at 03:00`, `days daily` (or `days 1,3,5`, monday is 1): sets them, lines left out stay
-- `POST /cgi-bin/update?now` (all parts) or `?now=mowbite`, `?now=openmower`, `?now=planner`: within the next minute
-- `POST /cgi-bin/update?check`: look for something new within the next minute
-- `POST /cgi-bin/update?back=mowbite`: MowBite back to the version before
-- `POST /cgi-bin/update?room`, `?free=img:<id>`, `?free=cache`, `?free=all`: list what nothing needs (`room` in the
-  JSON), delete one image of that list, the build cache or the whole list
-- `GET /cgi-bin/update?docked`: `1` when the mower is idle in the dock, else `0` and its state
-
-While it updates, `status.progress` says what it does: `<part> <step> <percent or -> <since> [<done> <of>]`, steps
-`prepare`, `download`, `extract`, `build`, `restart`, `wait`, `back`.
+It needs the stacks' folder at the same path inside, `/opt/stacks` (Dockge's) by default: change both sides of that
+line in `compose.yaml` if your stacks live elsewhere. Other apps (Home Assistant, ...) can use it through MowBite
+(`/cgi-bin/update` on port 8082) or directly on port 8083, the same way the app does.
 
 ### Remove
 
