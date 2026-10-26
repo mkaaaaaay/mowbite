@@ -51,8 +51,15 @@ digests() { docker image inspect -f '{{join .RepoDigests " "}}' "$1" 2>/dev/null
 # the digests the registry knows the image of a container by: its repo digests, and its id (with containerd's image
 # store that is the registry's digest itself, and an image replaced under its tag has no repo digests any more)
 known_as() { printf '%s @%s' "$(digests "$1")" "$1"; }
-# an image built here: there, but never pulled or pushed. it can't be downloaded again
-built_here() { docker image inspect "$1" > /dev/null 2>&1 && [ -z "$(digests "$1")" ]; }
+# an image built or loaded here, one its registry doesn't have: it can't be downloaded again. (with containerd's image
+# store a build here has a repo digest too, its own id.) no answer from the registry counts the same: not touched
+built_here() {
+  case $(docker image inspect -f '{{len .RepoDigests}}' "$1" 2>/dev/null) in "") return 1 ;; 0) return 0 ;; esac
+  for d in $(digests "$1"); do
+    timeout $T_REGISTRY docker buildx imagetools inspect "$d" --format '{{.Manifest.Digest}}' > /dev/null 2>&1 && return 1
+  done
+  return 0
+}
 # a registry's digest of image:tag, empty when it can't be had
 remote_digest() { timeout $T_REGISTRY docker buildx imagetools inspect "$1" --format '{{.Manifest.Digest}}' 2>/dev/null; }
 # a text as a sed pattern
@@ -742,7 +749,7 @@ compose_refs() {
   for f in "$(stacks_root)"/*/compose.yaml "$(stacks_root)"/*/compose.yml "$(stacks_root)"/*/docker-compose.yaml "$(stacks_root)"/*/docker-compose.yml; do
     [ -f "$f" ] || continue
     {
-      tr -d '\r' < "$(dirname "$f")/.env" 2>/dev/null
+      [ -f "$(dirname "$f")/.env" ] && tr -d '\r' < "$(dirname "$f")/.env"
       echo '@@images'
       # the images, and the ones a build starts from (OPENMOWER_IMAGE: ... for the planner)
       sed -n 's/^[[:space:]]*image:[[:space:]]*//p; s/^[[:space:]]*[A-Za-z_]*IMAGE[A-Za-z_]*:[[:space:]]*//p' "$f"
@@ -780,7 +787,11 @@ check_room() {
   named=" $(compose_refs | tr '\n' ' ') "
   out=$(mktemp)
   timeout $T_UP docker system df -v --format '{{json .Images}}' 2>/dev/null | sed 's/^\[//; s/\]$//; s/},{/}\n{/g' | awk -v used="$used" -v named="$named" "$bytes_awk"'
-    function field(k) { return match($0, "\"" k "\":\"[^\"]*\"") ? substr($0, RSTART + length(k) + 4, RLENGTH - length(k) - 5) : "" }
+    function field(k,    v) {
+      if (!match($0, "\"" k "\":\"[^\"]*\"")) return ""
+      v = substr($0, RSTART + length(k) + 4, RLENGTH - length(k) - 5); gsub(/\\u003c/, "<", v); gsub(/\\u003e/, ">", v)
+      return v
+    }
     {
       id = field("ID"); repo = field("Repository"); tag = field("Tag"); ref = repo ":" tag
       if (id == "") next
