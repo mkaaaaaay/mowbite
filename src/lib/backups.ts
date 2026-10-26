@@ -1,5 +1,6 @@
 import type {MowerMap} from '@/hooks/useMowerMap';
 import {forget, fresh} from './fresh';
+import {tr} from './i18n';
 import {isPin} from './mowerBody';
 import {apiBase, mowerFetch} from './mowers';
 import {closedRings, openRings} from './rings';
@@ -40,6 +41,7 @@ export async function saveBackup(map: MowerMap, name: string, auto: boolean): Pr
   const q = new URLSearchParams({name, areas: String(map.areas.filter((a) => !isPin(a)).length), auto: auto ? '1' : '0'});
   const res = await mowerFetch(`${endpoint()}?${q}`, {method: 'POST', body: JSON.stringify(closedRings(map))});
   forget('backups');
+  if (res.status === 409) throw new Error(tr('{n} backups made by hand are kept at most. Delete one you no longer need first.', {n: 50}));
   if (!res.ok) throw new Error(`backup ${res.status}`);
 }
 

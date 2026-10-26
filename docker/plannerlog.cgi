@@ -1,7 +1,7 @@
 #!/bin/sh
 # the MowBite Planner's lines logkeeper.sh kept: ?from=<unix time>&to=<unix time>, at most a day at a time
 # 404 when nothing is kept (no planner, or an older container)
-cors() { printf 'Access-Control-Allow-Origin: *\r\n'; }
+. /origin.sh
 D=/data/plannerlog
 if [ ! -f "$D/.last" ]; then
   printf 'Status: 404 Not Found\r\n'

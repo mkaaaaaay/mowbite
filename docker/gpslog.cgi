@@ -1,7 +1,7 @@
 #!/bin/sh
 # the positions and gps accuracy gpslog.sh kept: ?from=<unix time>&to=<unix time>, at most a day at a time.
 # ?oldest: the time of the first line kept. 404 when nothing is kept (older container)
-cors() { printf 'Access-Control-Allow-Origin: *\r\n'; }
+. /origin.sh
 D=/data/gpslog
 f=$(ls "$D"/*.log 2>/dev/null | head -n1)
 if [ -z "$f" ]; then

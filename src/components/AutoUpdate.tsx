@@ -52,6 +52,10 @@ const UPDATER_YAML = `  updater:
     container_name: mowbite-updater
     restart: unless-stopped
     network_mode: host
+    logging:
+      options:
+        max-size: 1m
+        max-file: "2"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /opt/stacks:/opt/stacks

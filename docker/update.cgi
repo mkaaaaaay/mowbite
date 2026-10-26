@@ -3,27 +3,15 @@
 # passed on to it (it keeps its settings and status itself), and whether the mower is idle in the dock (?docked: "1",
 # else "0 <state>"), and where the browser finds its page (?where: UPDATER_URL, the mower's address for mqtt, or nothing:
 # the same host as MowBite). without the updater: {} for the status, the app shows how to add it
+. /origin.sh
 . /broker.sh
 . /openmower.sh
-cors() { printf 'Access-Control-Allow-Origin: *\r\n'; }
 plain() { cors; printf 'Content-Type: text/plain\r\nCache-Control: no-store\r\n\r\n%s\n' "$1"; exit 0; }
 # (it runs on the mower's own network: on the mower, the gateway of this container. MowBite somewhere else: the mower's
 # address it has for mqtt, or UPDATER_URL)
 U=${UPDATER_URL:-http://${MOWER_MQTT_HOST:-$(ip route 2>/dev/null | awk '/^default/ {print $3; exit}')}:8083}/cgi-bin/updater
 # (as json: the updater takes changes only from programs and its own page)
 post() { wget -q -T 10 -O - --header 'Content-Type: application/json' --post-data "$2" "$U?$1" 2>/dev/null || echo failed; }
-# a change only from MowBite itself: its own page (also on another docker), the app on a phone, a program without a
-# browser, and the addresses in MOWBITE_ORIGINS (its files on a web server of their own, a proxy). not from any page a
-# browser in the network has open
-from_mowbite() {
-  case ${HTTP_ORIGIN:-} in
-  "" | "http://$HTTP_HOST" | "https://$HTTP_HOST" | http://localhost | http://localhost:* | https://localhost | capacitor://localhost) return 0 ;;
-  esac
-  for o in $(echo "${MOWBITE_ORIGINS:-}" | tr ',' ' '); do [ "$HTTP_ORIGIN" = "${o%/}" ] && return 0; done
-  return 1
-}
-
-[ "$REQUEST_METHOD" = POST ] && ! from_mowbite && plain denied
 case "$REQUEST_METHOD $QUERY_STRING" in
 "GET where")
   cors

@@ -2,7 +2,7 @@
 # the ros warnings and errors logkeeper.sh kept, around a moment: ?t=<unix time>&before=<s>&after=<s>
 # 404 when nothing is kept (older container, or OpenMower without logs.recent)
 # the app on another mower may ask too, after a Status line: busybox httpd only reads that when it comes first
-cors() { printf 'Access-Control-Allow-Origin: *\r\n'; }
+. /origin.sh
 D=/data/roslog
 if [ ! -f "$D/.last" ]; then
   printf 'Status: 404 Not Found\r\n'

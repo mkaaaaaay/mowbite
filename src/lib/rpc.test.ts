@@ -111,4 +111,20 @@ describe('calls while offline', () => {
     client.online();
     expect(client.published).toEqual([]);
   });
+
+  it("doesn't take the answer to another phone's or tab's call as its own", async () => {
+    const {rpcMethods} = await load();
+    client.online();
+    const methods = rpcMethods();
+    const id = client.published[0].id;
+    // another copy of the app, counting the same: only its own name differs
+    client.emit('message', 'rpc/response', Buffer.from(JSON.stringify({id: `other-${id.split('-').pop()}`, result: ['nothing']})));
+    client.emit('message', 'rpc/response', Buffer.from(JSON.stringify({id: '1', result: ['nothing']})));
+    client.emit('message', 'rpc/response', Buffer.from(JSON.stringify({id, result: ['map.replace']})));
+    expect(await methods).toEqual(new Set(['map.replace']));
+    // and a fresh copy has another name
+    const other = await load();
+    void other.rpcMethods();
+    expect(client.published[1].id.split('-')[0]).not.toBe(id.split('-')[0]);
+  });
 });

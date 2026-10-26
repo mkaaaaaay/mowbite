@@ -243,6 +243,15 @@ export default function Home() {
     return () => clearTimeout(t);
   }, [skip, publishAction]);
   const toggleSkip = (id: string) => setSkip(skip?.id === id ? null : {id, left: SKIP_DELAY});
+  // pause turns into continue (and back) right under the finger: for a second after a tap on it a second tap isn't
+  // taken as the other one
+  const [swapUntil, setSwapUntil] = useState(0);
+  useEffect(() => {
+    if (!swapUntil) return;
+    const t = setTimeout(() => setSwapUntil(0), Math.max(0, swapUntil - Date.now()));
+    return () => clearTimeout(t);
+  }, [swapUntil]);
+  const SWAPS: string[] = [ACTION.pause, ACTION.resume];
 
   const current = state?.current_state ?? '';
   const driving = DRIVING.has(current);
@@ -426,8 +435,12 @@ export default function Home() {
                   key={a.id}
                   className={a.main ? styles.main : undefined}
                   // the mower still offers start while the emergency stop is active, it has to be reset first
-                  disabled={!live || !hasAction(a.id) || !!state.emergency}
-                  onClick={() => (a.id === ACTION.skipArea ? toggleSkip(a.id) : publishAction(a.id))}
+                  disabled={!live || !hasAction(a.id) || !!state.emergency || (!!swapUntil && SWAPS.includes(a.id))}
+                  onClick={() => {
+                    if (a.id === ACTION.skipArea) return toggleSkip(a.id);
+                    if (SWAPS.includes(a.id)) setSwapUntil(Date.now() + 1000);
+                    publishAction(a.id);
+                  }}
                 >
                   <a.Icon size={20} />
                   {skip?.id === a.id ? tr('Undo ({n} s)', {n: skip.left}) : tr(a.label)}

@@ -3,7 +3,7 @@
 # mower restarts): "enabled 0|1" and "<full name> <value>" a line. only lines of these shapes are kept
 # the app on another mower may ask too (several mowers in one app)
 # after a Status line, busybox httpd only reads that when it comes first
-cors() { printf 'Access-Control-Allow-Origin: *\r\n'; }
+. /origin.sh
 F=/data/params.txt
 if [ "$REQUEST_METHOD" = "POST" ]; then
   len=${CONTENT_LENGTH:-0}

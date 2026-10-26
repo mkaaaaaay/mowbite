@@ -5,6 +5,11 @@ services:
     build: .
     container_name: mowbite
     restart: unless-stopped
+    # what it writes to docker's log kept small, the mower's disk is
+    logging:
+      options:
+        max-size: 1m
+        max-file: "2"
     ports:
       - "8082:8080"
     volumes:
@@ -44,6 +49,10 @@ services:
     container_name: mowbite-updater
     restart: unless-stopped
     network_mode: host
+    logging:
+      options:
+        max-size: 1m
+        max-file: "2"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /opt/stacks:/opt/stacks

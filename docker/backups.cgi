@@ -3,9 +3,11 @@
 # name, number of areas and whether it was made automatically before a save
 # the app on another mower may ask too (several mowers in one app)
 # after a Status line, busybox httpd only reads that when it comes first
-cors() { printf 'Access-Control-Allow-Origin: *\r\n'; }
+. /origin.sh
 D=/data/backups
 KEEP_AUTO=30
+# the ones made by hand stay until deleted, so there's a most of them: a new one past that is turned down (409)
+KEEP_HAND=50
 mkdir -p "$D"
 
 param() { printf '%s' "$QUERY_STRING" | tr '&' '\n' | sed -n "s/^$1=//p" | head -n1; }
@@ -32,6 +34,10 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
   name=$(httpd -d "$(param name)" | tr -d '\000-\037' | cut -c1-60)
   areas=$(param areas | tr -cd '0-9')
   auto=$(param auto | tr -cd '01')
+  if [ "${auto:-0}" != 1 ] && ls "$D"/*.meta > /dev/null 2>&1 &&
+    [ "$(awk 'FNR == 3 && $0 != "1" { n++ } END { print n + 0 }' "$D"/*.meta)" -ge $KEEP_HAND ]; then
+    fail 409 "at most $KEEP_HAND backups made by hand"
+  fi
   head -c "$len" | gzip -9 > "$D/$new.json.gz"
   printf '%s\n%s\n%s\n' "$name" "${areas:-0}" "${auto:-0}" > "$D/$new.meta"
   # only the automatic ones are thinned out, the ones made by hand stay

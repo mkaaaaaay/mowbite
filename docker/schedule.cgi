@@ -2,7 +2,7 @@
 # the mowing schedule (read by scheduler.sh) and its log. only lines of the known shapes are kept
 # the app on another mower may ask too (several mowers in one app)
 # after a Status line, busybox httpd only reads that when it comes first
-cors() { printf 'Access-Control-Allow-Origin: *\r\n'; }
+. /origin.sh
 F=/data/schedule.txt
 if [ "$REQUEST_METHOD" = "POST" ]; then
   len=${CONTENT_LENGTH:-0}

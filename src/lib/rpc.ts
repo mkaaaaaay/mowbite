@@ -3,11 +3,12 @@ import {RPC, TOPIC} from './openmower';
 
 // json-rpc 2.0 over mqtt: rpc/request -> rpc/response, matched by id
 
-// code: the json-rpc error code, 'timeout' when the mower didn't answer
+// code: the json-rpc error code, 'timeout' when the mower didn't answer, 'too_large' for a call too big to send (the
+// message then says how many bytes)
 export class RpcError extends Error {
   constructor(
     public method: string,
-    public code: number | 'timeout',
+    public code: number | 'timeout' | 'too_large',
     message: string,
   ) {
     super(message);
@@ -17,6 +18,9 @@ export class RpcError extends Error {
 // a call the mower doesn't know, e.g. another OpenMower version
 export const isMissingMethod = (e: unknown) => e instanceof RpcError && e.code === -32601;
 
+// each copy of the app counts its calls after a random name of its own: two phones, two tabs, a page and the app all
+// hear the same answers, and another one's answer must not count for a call of this one (a map saved by nobody)
+const instance = Math.random().toString(36).slice(2, 10);
 let nextId = 1;
 const pending = new Map<string, {method: string; resolve: (v: unknown) => void; reject: (e: Error) => void}>();
 let listening = false;
@@ -76,13 +80,21 @@ export async function callRpc<T = unknown>(method: string, params: unknown[] | o
   return send<T>(method, params, timeoutMs);
 }
 
+// mosquitto drops a message of about 2 MB without a word (a map with very many points): such a call fails at once
+// instead of after its time
+export const MAX_RPC_BYTES = 1_900_000;
+
 function send<T>(method: string, params: unknown[] | object, timeoutMs: number): Promise<T> {
   ensureListening();
-  const id = String(nextId++);
+  const id = `${instance}-${nextId++}`;
   const c = getMqttClient();
+  const body = JSON.stringify({jsonrpc: '2.0', method, params, id});
+  // (counted in bytes only where it could matter, a short one can't be too big)
+  const bytes = body.length > MAX_RPC_BYTES / 3 ? new TextEncoder().encode(body).length : body.length;
+  if (bytes > MAX_RPC_BYTES) return Promise.reject(new RpcError(method, 'too_large', String(bytes)));
 
   return new Promise<T>((resolve, reject) => {
-    const publish = () => c.publish(withPrefix(TOPIC.rpcRequest), JSON.stringify({jsonrpc: '2.0', method, params, id}));
+    const publish = () => c.publish(withPrefix(TOPIC.rpcRequest), body);
     // offline the call waits for the connection and is dropped when it times out, so a map save the app
     // reported as failed can't happen later after all. subscribed again first, the answer could beat the
     // subscription right after a reconnect

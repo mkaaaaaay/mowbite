@@ -46,6 +46,7 @@ COPY --chmod=755 docker/notify.sh /
 COPY --chmod=755 docker/params.cgi /www/cgi-bin/params
 COPY --chmod=755 docker/params.sh /
 COPY docker/notify.awk /notify.awk
+COPY docker/origin.sh /origin.sh
 COPY docker/broker.sh /broker.sh
 COPY docker/openmower.sh /openmower.sh
 COPY docker/recorder.awk /recorder.awk

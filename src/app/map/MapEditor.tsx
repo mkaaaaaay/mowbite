@@ -183,6 +183,14 @@ function MapEditor() {
   const pastJobs = useMowHistory(!!selectedAreaId);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  // a newer map on the mower (another device, a recording): the first tap on save shows what saving does then, the
+  // second one saves over it
+  // (for the mower's map then: a newer one again asks again)
+  const [armedFor, setArmedFor] = useState<MowerMap | null>(null);
+  const conflictRef = useRef<HTMLDivElement>(null);
+  // the backup before saving failed: said once, the next tap saves without one
+  const [withoutBackup, setWithoutBackup] = useState(false);
+  const conflictArmed = !!armedFor && armedFor === liveMap;
   const [saveWarning, setSaveWarning] = useState(false);
   const [editMode, setMode] = useState<'idle' | 'split' | 'draw' | 'merge' | 'subtract' | 'snap'>('idle');
   const [decor, setDecor] = useKeptState<Decor | null>('map:decor', null);
@@ -687,6 +695,11 @@ function MapEditor() {
       setSaveWarning(true);
       return false;
     }
+    if (external && dirty && !anyway && !conflictArmed) {
+      setArmedFor(liveMap);
+      requestAnimationFrame(() => showUnderMap(conflictRef.current));
+      return false;
+    }
     setSaveWarning(false);
     setSaving(true);
     setSaveError(null);
@@ -695,11 +708,25 @@ function MapEditor() {
     const pins = [...((base ?? liveMap)?.areas.filter(isPin).map((a) => a.id) ?? []), ...Object.keys(decor?.kept ?? {})];
     const gone = [...new Set(pins)].filter((id) => !next.areas.some((a) => a.id === id));
     try {
-      // the version on the mower goes into the backups first, so every save can be undone
-      if (backups && liveMap) await saveBackup(liveMap, 'before saving', true).catch(() => {});
+      // the version on the mower goes into the backups first, so every save can be undone. without that only when asked
+      if (backups && liveMap && !withoutBackup) {
+        try {
+          await saveBackup(liveMap, 'before saving', true);
+        } catch (e) {
+          setWithoutBackup(true);
+          setSaveError(
+            tr("The map on the mower couldn't be backed up first ({why}). Tap save again to save without that backup.", {
+              why: e instanceof Error ? e.message : tr('failed'),
+            }),
+          );
+          return false;
+        }
+      }
       lateSave.current = {map: next, gone, before: liveMap};
       await saveMap(next);
       lateSave.current = null;
+      setArmedFor(null);
+      setWithoutBackup(false);
       saved(next, gone, liveMap);
       return true;
     } catch (e) {
@@ -986,7 +1013,7 @@ function MapEditor() {
                   </button>
                 )}
                 <button className={[styles.pillButton, styles.saveButton, styles.unsaved].join(' ')} onClick={() => void handleSave()} disabled={saving}>
-                  {saving ? tr('saving…') : tr('Save map')}
+                  {saving ? tr('saving…') : (external && dirty) || (saveWarning && !idle) ? tr('Save anyway') : tr('Save map')}
                 </button>
               </div>
             )}
@@ -1197,7 +1224,7 @@ function MapEditor() {
 
               {/* (finishing decorating puts both together by itself) */}
               {external && dirty && mode !== 'decor' && (
-                <div className={styles.warning}>
+                <div ref={conflictRef} className={[styles.warning, conflictArmed ? styles.warningArmed : ''].join(' ')}>
                   <p>
                     {tr(
                       'The map on the mower was changed since you started editing here (another app or device, or a recording). Saving puts your version in its place.',

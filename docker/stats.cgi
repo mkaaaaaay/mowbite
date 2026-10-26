@@ -6,13 +6,13 @@
 #   maint <part> <due after blade h> <blade s when last done> <time last done, 0: not yet>
 # POST ?done=<part>: seen to now. POST ?due=<part>&h=<hours>: how many blade hours until it's due again
 # the app on another mower may ask too, after a Status line: busybox httpd only reads that when it comes first
-cors() { printf 'Access-Control-Allow-Origin: *\r\n'; }
+. /origin.sh
 D=/data/stats
 M=$D/maint
 arg() { printf '%s' "$QUERY_STRING" | tr '&' '\n' | sed -n "s/^$1=\([a-z0-9]*\)$/\1/p" | head -n1; }
 
 if [ "$REQUEST_METHOD" = POST ]; then
-  part=$(arg done)
+  part=$(arg 'done')
   [ -n "$part" ] || part=$(arg due)
   if ! grep -q "^$part " "$M" 2>/dev/null; then
     printf 'Status: 400 Bad Request\r\n'
@@ -20,7 +20,7 @@ if [ "$REQUEST_METHOD" = POST ]; then
     printf 'Content-Type: text/plain\r\n\r\nunknown part\n'
     exit 0
   fi
-  if [ -n "$(arg done)" ]; then
+  if [ -n "$(arg 'done')" ]; then
     blade=$(cut -d' ' -f2 "$D/state" 2>/dev/null)
     awk -v p="$part" -v b="${blade:-0}" -v t="$(date +%s)" '$1 == p { $3 = b; $4 = t } { print }' "$M" > "$M.tmp" && mv "$M.tmp" "$M"
   else

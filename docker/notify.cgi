@@ -5,7 +5,7 @@
 # as the body), a save of the settings keeps them
 # the app on another mower may ask too (several mowers in one app)
 # after a Status line, busybox httpd only reads that when it comes first
-cors() { printf 'Access-Control-Allow-Origin: *\r\n'; }
+. /origin.sh
 text() { printf 'Content-Type: text/plain\r\nCache-Control: no-store\r\n\r\n'; }
 C=/data/notify.conf
 S=/data/notify.snooze
