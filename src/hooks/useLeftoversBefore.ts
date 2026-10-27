@@ -7,10 +7,28 @@ import {useEffect, useState} from 'react';
 
 export type BeforeTrack = {points: Point[]; blades: boolean}[];
 
-// The mow whose leftovers the mower drives now: the newest one before it, the one the container and the MowBite
-// Planner take them of. Kept on this device with the job of the leftovers, so it's still known once that run is over
-// and its trail is the one shown
+// The mow whose leftovers the mower drives now: the one armed from this device, else the newest one before it, the one
+// the container takes them of. Kept on this device with the job of the leftovers, so it's still known once that run is
+// over and its trail is the one shown
 const KEY = 'leftoversOf';
+const ARMED = 'leftoversArmed';
+
+// the job whose leftovers were armed here (the card), for the run that drives them
+export function rememberArmed(source: string) {
+  try {
+    localStorage.setItem(ARMED, JSON.stringify({source, at: Date.now() / 1000}));
+  } catch {}
+}
+
+// armed within the last 6 hours (the container's leftovers start at most that late)
+function armedSource(): string | null {
+  try {
+    const v = JSON.parse(localStorage.getItem(ARMED) ?? 'null');
+    return v && typeof v.source === 'string' && typeof v.at === 'number' && Date.now() / 1000 - v.at < 21600 ? v.source : null;
+  } catch {
+    return null;
+  }
+}
 
 function remembered(): {job: string; before: string} | null {
   try {
@@ -31,9 +49,10 @@ export function useLeftoversSource(leftovers: boolean): string | null {
     void (async () => {
       let of = remembered();
       if (leftovers && of?.job !== job) {
-        const prev = (await loadJobList()).find((j) => j.job_id !== job);
+        const armed = armedSource();
+        const prev = armed && armed !== job ? armed : (await loadJobList()).find((j) => j.job_id !== job)?.job_id;
         if (!prev) return;
-        of = {job, before: prev.job_id};
+        of = {job, before: prev};
         try {
           localStorage.setItem(KEY, JSON.stringify(of));
         } catch {}

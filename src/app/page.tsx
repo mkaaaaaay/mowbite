@@ -48,6 +48,7 @@ import {
   type Schedule,
 } from '@/lib/schedule';
 import {LeftoversCard} from '@/components/Leftovers';
+import {useLeftoverRun} from '@/hooks/useLeftoverRun';
 import MowerSwitch from '@/components/MowerSwitch';
 import {UpdateBanner} from '@/components/Updates';
 import {ACTION, PARAM} from '@/lib/openmower';
@@ -193,8 +194,13 @@ export default function Home() {
   // the map page's map worked out while this one idles
   useMapAhead(map);
   const recent = useRecentRuns(state?.current_state);
-  // the last finished mow, for what it left
-  const leftoverJob = recent?.latest.find((r) => r.outcome === 'done' && r.areas.length > 0 && r.jobId)?.jobId;
+  // the last finished mow, for what it left. one that drove the leftovers of the one before left nothing to look at
+  const leftoverRun = recent?.latest.find((r) => r.outcome === 'done' && r.areas.length > 0 && r.jobId);
+  const leftoverJob = leftoverRun?.jobId;
+  const wasLeftovers = useLeftoverRun(
+    leftoverRun?.events.find((e) => e.type === 'AREA' && e.area_id)?.area_id,
+    leftoverRun?.events,
+  );
   const progress = usePlanProgress(state ?? null, map, recent?.today);
   // driving the leftovers of the last mow: that mow's track, faded on the map
   const before = useLeftoversBefore(!!progress?.leftovers);
@@ -536,7 +542,7 @@ export default function Home() {
                   </button>
                 ))}
               {/* idle in the dock: what the last mow left, and mowing just that */}
-              {live && hasAction(ACTION.startMowing) && !state.emergency && (
+              {live && hasAction(ACTION.startMowing) && !state.emergency && !wasLeftovers && (
                 <LeftoversCard
                   key={leftoverJob ?? ''}
                   jobId={leftoverJob}

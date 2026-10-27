@@ -190,7 +190,8 @@ export function SimulationView({model, locked, wait, error, result, shown, canCa
         <>
           <span>
             {tr('{all} min ({mow} min of it mowing)', {all: minutes(r.minutes.all), mow: minutes(r.minutes.mow)})}
-            {r.minutes.plan !== undefined && `, ${tr('the plan says {min} min', {min: minutes(r.minutes.plan)})}`}
+            {/* the planner's model, the time above the plan has the finished mows on top */}
+            {r.minutes.plan !== undefined && `, ${tr('the plan says {min} min before the finished mows correct it', {min: minutes(r.minutes.plan)})}`}
           </span>
           {r.left.length > 0 ? (
             <span className={styles.warningText}>

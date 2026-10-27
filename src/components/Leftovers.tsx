@@ -1,8 +1,10 @@
 'use client';
 
+import {rememberArmed} from '@/hooks/useLeftoversBefore';
 import type {MowerMap} from '@/hooks/useMowerMap';
 import {fmt, tr} from '@/lib/i18n';
 import {askLeftovers, type Leftovers} from '@/lib/leftovers';
+import {loadPlannerSettings, slic3rPlans, usePlannerSettings} from '@/lib/mowerBody';
 import {RPC} from '@/lib/openmower';
 import {RpcError, rpcMethods} from '@/lib/rpc';
 import {useEffect, useState} from 'react';
@@ -31,10 +33,15 @@ export function LeftoversCard({
 }) {
   const [known, setKnown] = useState(false);
   const [state, setState] = useState<{busy?: boolean; found?: Leftovers; error?: string; started?: boolean}>({});
+  const planner = usePlannerSettings();
   useEffect(() => {
     void rpcMethods().then((m) => setKnown(!!m?.has(RPC.plannerLeftovers)));
   }, []);
-  if (!known) return null;
+  useEffect(() => {
+    if (known && planner === undefined) loadPlannerSettings().catch(() => {});
+  }, [known, planner]);
+  // OpenMower's slic3r planner plans no leftovers
+  if (!known || slic3rPlans(planner)) return null;
 
   const name = (id: string) => map?.areas.find((a) => a.id === id)?.properties.name || tr('unnamed');
   const fail = (e: unknown) => setState({error: e instanceof RpcError && e.code !== 'timeout' ? e.message : tr('The mower did not answer.')});
@@ -52,6 +59,7 @@ export function LeftoversCard({
     try {
       const armed = await askLeftovers({jobId, arm: true});
       if (!armed || armed.armed <= 0) return setState({error: tr("The planner didn't take it.")});
+      if (jobId) rememberArmed(jobId);
       onStart();
       setState({found: armed, started: true});
     } catch (e) {
@@ -89,7 +97,10 @@ export function LeftoversCard({
               })}
             </small>
           )}
-          {other.length > 0 && <small>{other.map((a) => `${name(a.id)}: ${a.message}`).join(' · ')}</small>}
+          {/* (the planner's own words why, in English) */}
+          {other.length > 0 && (
+            <small>{other.map((a) => tr('{area}: the planner found no passes ({why})', {area: name(a.id), why: a.message ?? ''})).join(' · ')}</small>
+          )}
           {left.length > 0 && interrupted && !state.started && (
             <small>{tr('An interrupted job is still open, a start goes on with it. Drop it first to mow just the leftovers.')}</small>
           )}

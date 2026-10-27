@@ -5,7 +5,7 @@ import {useAreaProperties} from '@/lib/areaProps';
 import {slic3rPlans, usePlannerSettings} from '@/lib/mowerBody';
 import {FIELDS} from '@/lib/plannerFields';
 import simple from '@/components/PlannerSimple.module.css';
-import {tr} from '@/lib/i18n';
+import {dec, tr} from '@/lib/i18n';
 import {useState} from 'react';
 import {duration} from '@/lib/dates';
 import {savedRate} from '@/lib/planProgress';
@@ -364,7 +364,7 @@ export function AreaPlanInfo({
           <span>
             {tr('show mowing plan')}
             {planChosen
-              ? ` (${tr('{n} cm apart', {n: Math.round(planChosen.lane_spacing * 1000) / 10})}${
+              ? ` (${tr('{n} cm apart', {n: dec(Math.round(planChosen.lane_spacing * 1000) / 10)})}${
                   planChosen.mode === 'auto' ? `, ${tr('picked by the planner')}` : ''
                 }, ${tr('{n} outline passes', {n: planChosen.perimeter_passes})}${
                   planChosen.fill_pattern === 'concentric' ? `, ${tr('rings')}` : ''
@@ -394,8 +394,8 @@ export function AreaPlanInfo({
           <InfoTip>
             {planDuration
               ? planDuration.runs > 0
-                ? tr("Length of all passes and stripes. The time is the planner's, corrected by the last {n} finished mows of this area.", {n: planDuration.runs})
-                : tr("Length of all passes and stripes. The time is the planner's estimate, it gets corrected by the finished mows of this area.")
+                ? tr("Length of all passes and stripes. The time is the planner's, corrected by the last {n} finished mows of all areas.", {n: planDuration.runs})
+                : tr("Length of all passes and stripes. The time is the planner's estimate, it gets corrected by the finished mows.")
               : tr('Length of all passes and stripes. The time is based on the last run you watched on the dashboard.')}
           </InfoTip>
         </p>

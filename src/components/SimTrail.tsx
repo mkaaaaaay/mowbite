@@ -59,11 +59,11 @@ export function SimTrail({frames, clock, fit, body, swath, transit}: {
       cancelAnimationFrame(frame);
     };
   }, [clock]);
-  // the pieces that are done, for the fit and the blade they were worked out with
-  const done = useRef<{key: string; pieces: Map<number, SimPiece>}>({key: '', pieces: new Map()});
+  // the pieces that are done, for the run, the fit and the blade they were worked out with
+  const done = useRef<{key: string; frames: readonly SimFrame[] | null; pieces: Map<number, SimPiece>}>({key: '', frames: null, pieces: new Map()});
   const key = `${fit.minX},${fit.minY},${fit.m},${fit.padX},${fit.padY},${body?.blade},${body?.bladeAhead},${body?.bladeOffset}`;
   // eslint-disable-next-line react-hooks/refs -- a cache of strings worked out from props, nothing drawn depends on when
-  if (done.current.key !== key || done.current.pieces.size * SIM_PIECE > frames.length) done.current = {key, pieces: new Map()};
+  if (done.current.key !== key || done.current.frames !== frames) done.current = {key, frames, pieces: new Map()};
   const t = clock.time();
   const n = framesUntil(frames, t);
   const pieces: SimPiece[] = [];

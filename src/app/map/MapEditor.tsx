@@ -179,10 +179,11 @@ function MapEditor() {
     if (!loadingJob) return;
     void loadJobTrack(loadingJob).then((segments) => setLoaded({id: loadingJob, segments}));
   }, [loadingJob]);
-  // extra rotation for the preview when the mower drives differently than calculated
-  const [previewCorrection, setPreviewCorrection] = useState(0);
+  // extra rotation for the preview when the mower drives differently than calculated, for the area it was set for
+  const [correction, setCorrection] = useState<{id: string | null; deg: number}>({id: null, deg: 0});
 
   const [selectedAreaId, setSelectedAreaId] = useState<string | null>(null);
+  const previewCorrection = correction.id === selectedAreaId ? correction.deg : 0;
   // only the angle check of a picked area needs them
   const pastJobs = useMowHistory(!!selectedAreaId);
   const [saving, setSaving] = useState(false);
@@ -908,7 +909,7 @@ function MapEditor() {
           byPlanner: !!plannerSettings,
           planAngle: realPlan?.angle,
           planLength: shownArea?.properties.mowable === false || shownArea?.properties.active === false ? 0 : planLength,
-          onPreviewCorrection: setPreviewCorrection,
+          onPreviewCorrection: (deg: number) => setCorrection({id: selectedAreaId, deg}),
           angle: {offset: angleOffset, offsetIsAbsolute, increment: angleIncrement},
           onSaveCase: planRequest
             ? () =>

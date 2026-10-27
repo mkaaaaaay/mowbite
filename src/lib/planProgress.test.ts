@@ -1,6 +1,10 @@
-import {describe, expect, it} from 'vitest';
+import {describe, expect, it, vi} from 'vitest';
 import type {MowerEvent} from './events';
-import {bladeSeconds, splitPlan, type PlanPath} from './planProgress';
+import {bladeSeconds, saveRate, savedRate, splitPlan, type PlanPath} from './planProgress';
+
+const store = new Map<string, string>();
+vi.stubGlobal('window', {});
+vi.stubGlobal('localStorage', {getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => store.set(k, v), removeItem: (k: string) => store.delete(k)});
 
 const line = (y: number, n: number): PlanPath => ({
   outline: false,
@@ -60,5 +64,18 @@ describe('bladeSeconds', () => {
     ];
     expect(bladeSeconds(events, 'a', 300)).toBe(100);
     expect(bladeSeconds(events, 'c', 300)).toBe(0);
+  });
+});
+
+describe('savedRate', () => {
+  it("is the mower's own, the demo's isn't kept", () => {
+    saveRate(0.3);
+    expect(savedRate()).toBe(0.3);
+    localStorage.setItem('mower', 'demo');
+    expect(savedRate()).toBeNull();
+    saveRate(0.45);
+    localStorage.removeItem('mower');
+    expect(savedRate()).toBe(0.3);
+    expect([...store.keys()]).toEqual(['mowRate']);
   });
 });

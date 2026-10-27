@@ -41,7 +41,7 @@ const DEG = Math.PI / 180;
 // degrees to a tenth, for a step
 const degrees = (rad: number) => Math.round((rad / DEG) * 10) / 10;
 const cm = (m: unknown) => (typeof m === 'number' ? dec(Math.round(m * 1000) / 10) : '');
-const meters = (m: unknown) => (typeof m === 'number' ? String(Math.round(m * 100) / 100) : '');
+const meters = (m: unknown) => (typeof m === 'number' ? dec(Math.round(m * 100) / 100) : '');
 
 const PATTERNS = ['lanes', 'concentric', 'crosshatch'];
 const PATTERN_LABELS: Record<string, string> = {lanes: 'Lanes', concentric: 'Rings', crosshatch: 'Crosshatch'};
@@ -395,7 +395,7 @@ export function PlannerSimple({
       : [
         styleNow ? tr(STYLE_LABELS[styleNow]) : null,
         tr(PATTERN_LABELS[String(global('fill_pattern'))] ?? String(global('fill_pattern') ?? '')),
-        auto ? tr('spacing automatic') : spacingCm !== null ? tr('{cm} cm apart', {cm: Math.round(spacingCm * 10) / 10}) : null,
+        auto ? tr('spacing automatic') : spacingCm !== null ? tr('{cm} cm apart', {cm: dec(Math.round(spacingCm * 10) / 10)}) : null,
         typeof passes === 'number' ? (passesAuto ? tr('outline passes automatic') : tr('{n} outline passes', {n: passes})) : null,
         has('edge_margin') ? tr('{cm} cm off the edge', {cm: cm(global('edge_margin'))}) : null,
         has('body_fit')
@@ -533,7 +533,7 @@ export function PlannerSimple({
           {/* the angle of the second lanes, for all areas */}
           {!area && has('crosshatch_angle') && effective('fill_pattern') === 'crosshatch' && (
             <Row label={tr('Crosshatch angle')} help={tr(FIELDS.crosshatch_angle.help)} note={tr('The second lanes run this far turned to the first.')}>
-              {numberField('crosshatch', degrees((global('crosshatch_angle') as number) ?? 0).toString(), '90', '°', (text) => {
+              {numberField('crosshatch', dec(degrees((global('crosshatch_angle') as number) ?? 0)), '90', '°', (text) => {
                 const d = parse(text);
                 void save('crosshatch_angle', d === null ? undefined : Math.min(90, Math.max(10, d)) * DEG);
               })}
@@ -568,8 +568,8 @@ export function PlannerSimple({
                   has('overlap') &&
                   numberField(
                     'spacing',
-                    area && area.own.overlap === undefined ? '' : spacingCm !== null ? String(Math.round(spacingCm * 10) / 10) : '',
-                    spacingCm !== null ? String(Math.round(spacingCm * 10) / 10) : '',
+                    area && area.own.overlap === undefined ? '' : spacingCm !== null ? dec(Math.round(spacingCm * 10) / 10) : '',
+                    spacingCm !== null ? dec(Math.round(spacingCm * 10) / 10) : '',
                     'cm',
                     (text) => {
                       const v = parse(text);
@@ -615,13 +615,13 @@ export function PlannerSimple({
                     !step
                       ? tr('Off: the lanes run the same way every time.')
                       : steps > 0
-                        ? tr('So far {steps} times, {deg}° in all.', {steps, deg: degrees(steps * step)})
+                        ? tr('So far {steps} times, {deg}° in all.', {steps, deg: dec(degrees(steps * step))})
                         : tr('Not turned yet.')
                   }
                   source={others('angle_increment')}
                 >
                   <div className={local.inline}>
-                    {numberField('turn', String(degrees(step)), '0', '°', (text) => {
+                    {numberField('turn', dec(degrees(step)), '0', '°', (text) => {
                       const d = parse(text);
                       void save('angle_increment', d === null ? 0 : Math.min(180, Math.max(0, d)) * DEG);
                     })}

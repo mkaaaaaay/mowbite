@@ -13,6 +13,7 @@ import {angleInRange, autoMowAngle} from '@/lib/mowStripes';
 import {PARAM} from '@/lib/openmower';
 import {savePlanDuration} from '@/lib/planDurations';
 import {length} from '@/lib/planProgress';
+import {locale} from '@/lib/i18n';
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {DEG} from './editing';
 import type {AngleMismatch} from './MowSettings';
@@ -143,7 +144,7 @@ export function useMowPlan({
           measured: m.angleDeg,
           planned,
           diff,
-          date: new Date(job.timestamp * 1000).toLocaleDateString(),
+          date: new Date(job.timestamp * 1000).toLocaleDateString(locale()),
           since: job.timestamp,
         };
       }
@@ -369,6 +370,12 @@ export function useMowPlan({
     const byPlanner = ownAngle !== null || typeof own.angle_strategy === 'string' || (!!planner.own_angle && p.angle === undefined);
     const globalAngle = typeof ps.angle?.value === 'number' ? (ps.angle.value as number) : null;
     const offset = sent('perimeter_offset', p.outline_offset, 'outline_offset');
+    // like the planner: the area's own, its range in the map (both ends set), then the one for all areas
+    const mapRange = typeof p.angle_min === 'number' && typeof p.angle_max === 'number';
+    const rangeEnd = (key: 'angle_min' | 'angle_max') => {
+      const v = typeof own[key] === 'number' ? own[key] : mapRange ? p[key] : ps[key]?.value;
+      return typeof v === 'number' ? v : p[key];
+    };
     const width = num('robot_width', 0);
     const front = num('robot_front', 0);
     const rear = num('robot_rear', 0);
@@ -410,8 +417,8 @@ export function useMowPlan({
         : askedAngle(shownArea) + (mismatch ? previewCorrection : 0) * DEG,
       strategy: str('angle_strategy', 'longest_edge'),
       angleOffset: num('angle_offset', 0) + (planner.angle_steps ?? 0) * turnStep(shownArea),
-      angleMin: typeof value('angle_min') === 'number' ? (value('angle_min') as number) : p.angle_min,
-      angleMax: typeof value('angle_max') === 'number' ? (value('angle_max') as number) : p.angle_max,
+      angleMin: rangeEnd('angle_min'),
+      angleMax: rangeEnd('angle_max'),
       angleStep: num('angle_step', (5 * Math.PI) / 180),
       // auto: what the planner took last time for this area, lanes until it planned it once
       fillPattern: str('fill_pattern', 'lanes'),
