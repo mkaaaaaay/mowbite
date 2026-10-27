@@ -1,5 +1,5 @@
 import {scrub} from './gardenExport';
-import {describe, explain, noteworthy, OUTCOMES, withState, type MowerEvent, type Run} from './events';
+import {describe, explain, noteworthy, OUTCOMES, rawLine, withState, type MowerEvent, type Run} from './events';
 import {gpsBefore, gpsOffOnPurpose, type GpsSample} from './gpslog';
 import {leftoverAreas} from './leftovers';
 import {containsPoint, polygonArea} from './geometry';
@@ -664,7 +664,8 @@ export function buildDiagnosis(d: DiagnosisInput): string {
   h('Raw: ROS warnings and errors');
   out.push(...d.ros.filter((l) => l.t >= from && l.t <= to).map((l) => `${stamp(l.t)}  ${l.level.padEnd(5)} ${l.text}`));
   h('Raw: OpenMower events (event_history)');
-  out.push(...run.events.map((e: MowerEvent) => JSON.stringify(e)));
+  // as OpenMower has them, without what the app works out (sentHome)
+  out.push(...run.events.map((e: MowerEvent) => rawLine(e)));
   if (d.gps?.length) {
     h('Raw: GPS once a second (time, state, x, y, accuracy m, Wi-Fi dBm, charge V, charge A, heading, area, path, index, battery V, mow A, mow rpm, esc left °C, esc right °C; * = accuracy left over)');
     out.push(

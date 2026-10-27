@@ -19,10 +19,10 @@ const kept = (t: number, before: number, after: number) =>
   `${apiBase()}/cgi-bin/roslog?t=${Math.round(t)}&before=${Math.ceil(before)}&after=${Math.ceil(after)}`;
 
 // the time of the oldest log line there is, kept by the container or still in the mower's memory. null when there's
-// no log at all. asked once per page
+// no log at all. asked once per page, again when nothing came (no connection at the time)
 let since: Promise<number | null> | null = null;
 export function rosLogSince(): Promise<number | null> {
-  since ??= (async () => {
+  const asking = (since ??= (async () => {
     const [stored, live] = await Promise.all([
       mowerFetch(`${apiBase()}/cgi-bin/roslog?oldest`, {cache: 'no-store'})
         .then(async (res) => (res.ok ? Number((await res.text()).trim()) || null : null))
@@ -37,8 +37,9 @@ export function rosLogSince(): Promise<number | null> {
     ]);
     const times = [stored, live].filter((t): t is number => t !== null);
     return times.length ? Math.min(...times) : null;
-  })();
-  return since;
+  })());
+  void asking.then((t) => t === null && since === asking && (since = null));
+  return asking;
 }
 
 // "<unix time> <LEVEL> <node>: <message>" per line, as logkeeper.sh writes them
@@ -72,9 +73,12 @@ export async function rosLogAround(t: number, before = 120, after = 60): Promise
     mowerFetch(kept(t, before, after), {cache: 'no-store'})
       .then((res) => (res.ok ? res.text().then(readKeptLog) : []))
       .catch(() => []),
-    rpcMethods().then((m) =>
-      m?.has(RPC.logs) ? callRpc(RPC.logs, {since: t - before, limit: CAPACITY}).then((a) => readRpcLog(a, t - before, t + after)) : [],
-    ),
+    // (the kept lines also when the mower doesn't answer in time)
+    rpcMethods()
+      .then((m) =>
+        m?.has(RPC.logs) ? callRpc(RPC.logs, {since: t - before, limit: CAPACITY}).then((a) => readRpcLog(a, t - before, t + after)) : [],
+      )
+      .catch((): RosLogLine[] => []),
   ]);
   // the newest minute isn't kept yet, older ones may be in both
   const seen = new Set<string>();

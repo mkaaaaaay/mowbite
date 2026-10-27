@@ -76,10 +76,38 @@ function sensorValue(id: string, t: number): number | null {
   }
 }
 
+// the machine's own values as the recorder keeps them (system.sh): memory in use %, the cpu's temperature and load, the
+// wifi and the free disk in GB, warmer and the wifi weaker while it's out mowing
+function systemValue(id: string, t: number): number | null {
+  const p = phase(t);
+  const w = Math.sin(t / 900 + id.length);
+  switch (id) {
+    case 'sys_mem':
+      return 39 + 2 * w + (p.mowing ? 3 : 0);
+    case 'sys_cpu_temp':
+      return (p.mowing ? 54 : 47) + 2 * w;
+    case 'sys_load':
+      return (p.mowing ? 0.9 : 0.35) + 0.15 * w;
+    case 'sys_wifi':
+      return Math.round((p.mowing ? -66 : -58) + 3 * w);
+    case 'sys_disk_free':
+      return 5.26 - 0.002 * ((t / 3600) % 24);
+    default:
+      return null;
+  }
+}
+const SYSTEM_IDS = ['sys_mem', 'sys_cpu_temp', 'sys_load', 'sys_wifi', 'sys_disk_free'];
+
 // the last 24 h in the recorder's 5 minute buckets: "id t lo hi value", tabs between
 function sensorHistory(): string {
   const now = Math.floor(Date.now() / 1000 / 300) * 300;
   const lines: string[] = [];
+  for (const id of SYSTEM_IDS) {
+    for (let t = now - 86400; t < now; t += 300) {
+      const around = [systemValue(id, t)!, systemValue(id, t + 150)!, systemValue(id, t + 299)!];
+      lines.push([id, t, Math.min(...around).toFixed(3), Math.max(...around).toFixed(3), around[1].toFixed(3)].join('\t'));
+    }
+  }
   for (const {sensor_id: id} of DEMO_SENSORS) {
     for (let t = now - 86400; t < now; t += 300) {
       const v = sensorValue(id, t + 150);

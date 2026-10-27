@@ -9,6 +9,10 @@
   height: 32px;
 }
 
+.svg circle {
+  fill: var(--accent, #64b5f6);
+}
+
 .svg polyline {
   fill: none;
   stroke: var(--accent, #64b5f6);

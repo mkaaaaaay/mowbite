@@ -80,6 +80,24 @@ describe('groupRuns', () => {
     expect(runs[0]).toMatchObject({start: 100, end: 860, outcome: 'done'});
   });
 
+  it('makes mowing by hand in recording mode a run of its own', () => {
+    const entries = groupRuns(
+      [
+        ev(0, 'STATE', {state: 'AREA_RECORDING'}),
+        ev(100, 'BLADES', {enabled: true}),
+        ev(400, 'BLADES', {enabled: false}),
+        ev(500, 'BLADES', {enabled: true}),
+        ev(600, 'STATE', {state: 'IDLE'}),
+      ],
+      false,
+    );
+    const runs = entries.flatMap((e) => (e.kind === 'run' ? [e.run] : []));
+    expect(runs.map((r) => [r.start, r.end, r.bladeSeconds, r.outcome])).toEqual([
+      [100, 400, 300, 'manual'],
+      [500, 600, 100, 'manual'],
+    ]);
+  });
+
   it('recognises a failed undock', () => {
     const entries = groupRuns(
       [ev(0, 'STATE', {state: 'UNDOCKING'}), ev(10, 'UNDOCKING_FAILED'), ev(20, 'STATE', {state: 'IDLE'})],

@@ -26,7 +26,7 @@ import {usePlanProgress} from '@/hooks/usePlanProgress';
 import {useRecentRuns} from '@/hooks/useRecentRuns';
 import TopWeather from '@/components/TopWeather';
 import {clock, dayKey, dayLabel, duration} from '@/lib/dates';
-import {emergencyText, OUTCOMES, type MowerEvent, type Run} from '@/lib/events';
+import {describe, emergencyText, groupRuns, noteworthy, OUTCOMES, type MowerEvent, type Run} from '@/lib/events';
 import {settingsStore} from '@/lib/settings';
 import {PARTS, useDueParts} from '@/lib/stats';
 import {containerHas, useUpdates} from '@/lib/updates';
@@ -360,7 +360,13 @@ export default function Home() {
   const runs = recent?.runs ?? [];
   const finished = (recent?.latest ?? []).filter((r) => r.outcome !== 'running');
   const mowed = runs.reduce((s, r) => s + r.bladeSeconds, 0);
-  const problems = runs.reduce((s, r) => s + r.problems, 0);
+  // with the problems outside of runs (an emergency stop in the dock), like the activity counts them
+  const today = recent?.today;
+  const loose = useMemo(
+    () => (today ? groupRuns(today, true).filter((e) => e.kind === 'event' && noteworthy(e.event) && describe(e.event).severity !== 'info').length : 0),
+    [today],
+  );
+  const problems = runs.reduce((s, r) => s + r.problems, 0) + loose;
 
   return (
     <div className={styles.page}>

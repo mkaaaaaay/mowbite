@@ -42,6 +42,8 @@ BEGIN {
   if (h != ht) {
     if (ht >= 0) flush()
     ht = h
+    # the hour gone into hours goes out of state right away: else it's counted twice, or once more after a restart
+    save()
   }
   if ($2 ~ /om_mow_motor_rpm\/data$/) {
     # blade time between two readings, gaps of the stream don't count. backwards (randomize_mow_motor_direction) too

@@ -273,7 +273,8 @@ export default function ActivityPage() {
   const where = loaded?.where ?? new Map<string, {file: string; line: number}>();
   const runs = entries.flatMap((e) => (e.kind === 'run' ? [e.run] : []));
   const mowed = runs.reduce((s, r) => s + r.bladeSeconds, 0);
-  const problems = runs.reduce((s, r) => s + r.problems, 0);
+  // with the problems outside of runs (an emergency stop in the dock)
+  const problems = runs.reduce((s, r) => s + r.problems, 0) + entries.filter((e) => e.kind === 'event' && describe(e.event).severity !== 'info').length;
   const visible = entries.filter((e) =>
     filter === 'all'
       ? true
@@ -371,7 +372,7 @@ export default function ActivityPage() {
               />
             ) : (
               <div key={b.events[0].id} className={styles.looseGroup}>
-                {[...b.events].reverse().map((ev) => (
+                {b.events.map((ev) => (
                   <div key={ev.id} className={[styles.loose, styles[describe(ev).severity]].join(' ')}>
                     <span className={styles.time}>{clock(ev.t)}</span>
                     {describe(ev).text}

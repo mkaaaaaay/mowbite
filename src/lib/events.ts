@@ -234,8 +234,8 @@ export function explain(e: MowerEvent, state?: string, gpsTimeout?: number): str
       if (e.available || state !== 'MOWING') return undefined;
       return gpsTimeout !== undefined
         ? tr(
-            'The RTK fix had been gone for {n} s, that long it keeps driving on wheel odometry (mower_logic/gps_timeout). Then it stops with the blade off and waits until the fix is back.',
-            {n: Math.round(gpsTimeout)},
+            'The RTK fix had been gone for about {n} s: xbot_positioning still takes a lost fix as good for 10 s, after that the mower keeps driving on wheel odometry for {timeout} s (mower_logic/gps_timeout). Then it stops with the blade off and waits until the fix is back.',
+            {n: Math.round(gpsTimeout) + 10, timeout: Math.round(gpsTimeout)},
           )
         : tr(
             'The RTK fix had been gone for longer than the mower allows (mower_logic/gps_timeout), so it stopped with the blade off and waits until the fix is back.',
@@ -296,6 +296,7 @@ export type Outcome =
   | 'dock_failed'
   | 'emergency'
   | 'interrupted'
+  | 'manual'
   | 'returned'
   | 'running';
 
@@ -342,14 +343,26 @@ export function groupRuns(events: MowerEvent[], live: boolean, now = Date.now() 
   const out: Entry[] = [];
   let run: MowerEvent[] | null = null;
 
-  // cut: OpenMower started again while it ran (a restart, the power was gone)
+  // cut: OpenMower started again while it ran (a restart, the power was gone). hand: the blade on in recording mode,
+  // mowing by hand (the mowing hours count it too)
+  let hand = false;
   const close = (finished: boolean, cut = false) => {
-    if (run?.length) out.push({kind: 'run', run: summarize(run, finished || !live, now, cut)});
+    if (run?.length) out.push({kind: 'run', run: summarize(run, finished || !live, now, cut, hand)});
     run = null;
+    hand = false;
   };
+  // the state the mower is in, from its state events
+  let state: string | undefined;
 
   for (const e of sorted) {
     const starts = e.type === 'STATE' && (e.state === 'UNDOCKING' || e.state === 'MOWING');
+    // (a run going out straight from mowing by hand is a run of its own)
+    if (run && hand && starts) close(true);
+    if (!run && e.type === 'BLADES' && e.enabled && state === 'AREA_RECORDING') {
+      run = [];
+      hand = true;
+    }
+    if (e.type === 'STATE') state = e.state;
     if (run && e.type === 'BOOTED') close(true, true);
     // leaving the dock always starts a new run, also when the last one never got back (put in the dock by hand). not the
     // way out again of a docking that's tried once more
@@ -362,6 +375,8 @@ export function groupRuns(events: MowerEvent[], live: boolean, now = Date.now() 
     }
     run.push(e);
     const ends =
+      // by hand: the blade off, or recording mode left with it still on
+      (hand && ((e.type === 'BLADES' && !e.enabled) || (e.type === 'STATE' && e.state !== 'AREA_RECORDING'))) ||
       e.type === 'DOCKED' ||
       e.type === 'SHUTDOWN' ||
       (e.type === 'STATE' && e.state === 'IDLE' && run.some((r) => r.type === 'UNDOCKING_FAILED' || r.type === 'DOCKING_FAILED'));
@@ -372,7 +387,7 @@ export function groupRuns(events: MowerEvent[], live: boolean, now = Date.now() 
 }
 
 // a run still going counts until now: its blade time and its end grow between the events
-function summarize(events: MowerEvent[], finished: boolean, now: number, cut: boolean): Run {
+function summarize(events: MowerEvent[], finished: boolean, now: number, cut: boolean, hand: boolean): Run {
   const areas: string[] = [];
   let bladeSeconds = 0;
   let bladesSince: number | null = null;
@@ -397,6 +412,7 @@ function summarize(events: MowerEvent[], finished: boolean, now: number, cut: bo
   const has = (type: string) => events.some((e) => e.type === type);
   let outcome: Outcome = 'returned';
   if (!finished) outcome = 'running';
+  else if (hand) outcome = 'manual';
   else if (has('JOB_COMPLETE')) outcome = 'done';
   else if (events.some((e) => e.type === 'EMERGENCY' && e.emergency)) outcome = 'emergency';
   else if (has('DOCKING_FAILED')) outcome = 'dock_failed';
@@ -432,5 +448,6 @@ export const OUTCOMES: Record<Outcome, {label: string; tone: 'good' | 'neutral' 
   dock_failed: {label: 'Docking failed', tone: 'bad'},
   emergency: {label: 'Emergency stop', tone: 'bad'},
   interrupted: {label: 'Interrupted', tone: 'bad'},
+  manual: {label: 'Mowed by hand', tone: 'neutral'},
   running: {label: 'Running', tone: 'live'},
 };

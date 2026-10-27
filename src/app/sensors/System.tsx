@@ -43,9 +43,10 @@ export default function System({history}: {history: Record<string, Sample[] | un
   const memUsed = sys.memTotal - (sys.memAvailable ?? 0);
   // the data volume only when it's a disk of its own
   const disks = [
-    {label: tr('Storage'), total: sys.diskTotal, free: sys.diskFree, history: history.sys_disk_free},
+    // (the recorder keeps a history of the first one only)
+    {label: tr('Storage'), total: sys.diskTotal, free: sys.diskFree, kept: true, history: history.sys_disk_free},
     ...(sys.dataTotal !== undefined && sys.dataTotal !== sys.diskTotal
-      ? [{label: tr('Data volume'), total: sys.dataTotal, free: sys.dataFree, history: undefined}]
+      ? [{label: tr('Data volume'), total: sys.dataTotal, free: sys.dataFree, kept: false, history: undefined}]
       : []),
   ];
 
@@ -69,7 +70,7 @@ export default function System({history}: {history: Record<string, Sample[] | un
                 <strong className={[styles.big, d.free < 1e9 ? styles.error : ''].join(' ')}>{tr('{free} free', {free: gb(d.free)})}</strong>
                 <Bar used={1 - d.free / d.total} warn={d.free < 1e9} />
                 <span className={styles.dim}>{tr('of {total}', {total: gb(d.total)})}</span>
-                {d.history && <Sparkline samples={d.history} digits={1} unit="GB" minSpan={1} />}
+                {d.kept && <Sparkline samples={d.history} digits={1} unit="GB" minSpan={1} />}
               </div>
             ),
         )}
