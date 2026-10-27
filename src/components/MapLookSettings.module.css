@@ -211,7 +211,7 @@
   width: 34px;
   height: 34px;
   padding: 0;
-  border: 1px solid var(--card-border);
+  border: 1px solid var(--field-border);
   border-radius: 8px;
   background: transparent;
   cursor: pointer;
@@ -279,7 +279,7 @@
 .field input {
   padding: 8px 10px;
   border-radius: 8px;
-  border: 1px solid var(--card-border);
+  border: 1px solid var(--field-border);
   background: transparent;
   color: var(--foreground);
   font-size: 14px;

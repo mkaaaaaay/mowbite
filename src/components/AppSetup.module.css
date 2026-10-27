@@ -45,7 +45,7 @@
 .box input {
   padding: 11px 12px;
   border-radius: 10px;
-  border: 1px solid var(--card-border);
+  border: 1px solid var(--field-border);
   background: var(--card);
   color: var(--foreground);
   font-size: 16px;

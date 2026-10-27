@@ -550,7 +550,7 @@
 }
 
 .run-good .badge {
-  color: var(--success);
+  color: var(--soft-good);
   background: color-mix(in srgb, var(--success) 16%, transparent);
 }
 
@@ -559,7 +559,7 @@
 }
 
 .run-bad .badge {
-  color: var(--error);
+  color: var(--soft-bad);
   background: color-mix(in srgb, var(--error) 16%, transparent);
 }
 
