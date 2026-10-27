@@ -33,15 +33,15 @@ const STEPS: GuideStep[] = [
   },
   {
     title: 'Merge',
-    text: 'Tap Merge and then the second area. The two have to touch or overlap. The new area keeps the name, type and settings of the one picked first.',
+    text: 'Tap Merge and then the second area, then Apply merge under the map. The two have to touch or overlap. The new area keeps the name, type and settings of the one picked first.',
   },
   {
     title: 'Take out',
-    text: 'If an area lies over another one, e.g. a path over the lawn, pick the lawn, tap Take out and then the path. The part under the path drops out of the lawn, the path stays as it is. If it lies fully inside, the rest is split in two through it.',
+    text: 'If an area lies over another one, e.g. a path over the lawn, pick the lawn, tap Take out, then the path and Take out under the map. The part under the path drops out of the lawn, the path stays as it is. If it lies fully inside, the rest is split in two through it.',
   },
   {
     title: 'Lay against',
-    text: 'For a whole edge at once: pick e.g. a bed, tap Lay against and then the lawn next to it. Its corners close to the lawn move onto the lawn\'s edge, the slider sets how far they may be off. A mowing area stays as it is, unless both are.',
+    text: 'For a whole edge at once: pick e.g. a bed, tap Lay against, then the lawn next to it and Lay against under the map. Its corners close to the lawn move onto the lawn\'s edge, the slider sets how far they may be off. A mowing area stays as it is, unless both are.',
   },
   {
     title: 'Reduce points',

@@ -24,7 +24,7 @@ import {useMapOverlay} from '@/hooks/useMapOverlay';
 import {useMedia} from '@/hooks/useMedia';
 import {useMowerActions} from '@/hooks/useMowerActions';
 import {useMowerMap} from '@/hooks/useMowerMap';
-import {datumFromParams, useMowerParams} from '@/hooks/useMowerParams';
+import {datumFromParams, numParam, useMowerParams} from '@/hooks/useMowerParams';
 import {useMowerPosition} from '@/hooks/useMowerPosition';
 import {isLive, useMowerState} from '@/hooks/useMowerState';
 import {sendDrive} from '@/lib/teleop';
@@ -34,7 +34,9 @@ import {useEffect, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
 import styles from './page.module.css';
 import {fmt, tr, useLang} from '@/lib/i18n';
-import {ACTION} from '@/lib/openmower';
+import {ACTION, PARAM} from '@/lib/openmower';
+import {rpcMethods} from '@/lib/rpc';
+import {GPS_QUALITY_LABEL, gpsQuality} from '@/lib/status';
 import {eventsOfDay, fileDay, forgetToday, historyDays} from '@/lib/history';
 import {backAtStart} from '@/lib/geometry';
 import {tick} from '@/lib/haptics';
@@ -92,6 +94,8 @@ export default function RecordPage() {
   const [bounced, setBounced] = useState(false);
   const startedAt = useRef(0);
   const wasRecording = useRef(false);
+  // recording mode started or driven in from this page
+  const mine = useRef(false);
 
   const recordingMode = state?.current_state === 'AREA_RECORDING';
   const recordingRef = useRef(recordingMode);
@@ -100,12 +104,12 @@ export default function RecordPage() {
     if (recordingMode) wasRecording.current = true;
     else if (wasRecording.current) {
       wasRecording.current = false;
-      if (Date.now() - startedAt.current < 8000) setBounced(true);
+      if (startedAt.current && Date.now() - startedAt.current < 8000) setBounced(true);
     }
   }, [recordingMode]);
   // the state is published once a second, a bounce is usually over before that: the event history has it
   const checkBounce = async () => {
-    if (recordingRef.current) return;
+    if (recordingRef.current || !startedAt.current) return;
     forgetToday();
     const {events} = await eventsOfDay(await historyDays(), fileDay(new Date()));
     const since = startedAt.current / 1000 - 5;
@@ -125,6 +129,15 @@ export default function RecordPage() {
   // no fresh state also stops it: the wifi can be gone a while before the connection counts as lost
   const canDrive = recordingMode && live && !state?.emergency;
   const why = useEmergencyReasons(!!state?.emergency);
+  // what the outline is recorded with: without an rtk fix the edge ends up off (OpenMower records without one too)
+  const acc = state?.pose.pos_accuracy;
+  const gpsQ = gpsQuality(acc, numParam(params, PARAM.maxPositionAccuracy));
+  const gpsText = `GPS · ${gpsQ === 'none' ? tr('no fix') : `${fmt(acc! * 100, 1)} cm · ${tr(GPS_QUALITY_LABEL[gpsQ])}`}`;
+  // an OpenMower with rpcs has mowing by hand too, its actions are only told once recording mode was on
+  const [newer, setNewer] = useState(false);
+  useEffect(() => {
+    void rpcMethods().then((m) => setNewer(!!m));
+  }, []);
 
   // held sideways on a phone: a remote control over the whole screen, a pad for forward and back on the left and one
   // for steering on the right. turned: the same drawn a quarter turn for a phone whose page doesn't turn
@@ -142,7 +155,9 @@ export default function RecordPage() {
       localStorage.setItem(TURNED_KEY, on ? '1' : '0');
     } catch {}
   };
-  const turned = turnedOn && !sideways;
+  // (a tablet held sideways is wide enough for the layout as it is)
+  const portrait = useMedia('(orientation: portrait)');
+  const turned = turnedOn && !sideways && portrait;
   const remote = recordingMode && (sideways || turned);
   const [span, setSpan] = useState(2);
   const remoteRef = useRef<HTMLDivElement>(null);
@@ -175,6 +190,7 @@ export default function RecordPage() {
   };
   const onStick = (x: number, y: number) => {
     stick.current = {x, y};
+    mine.current = true;
     if (x === 0 && y === 0) return stop();
     if (!timer.current) {
       send();
@@ -275,25 +291,30 @@ export default function RecordPage() {
     return () => {
       open--;
       const {recordingMode, phase, canExit, ended} = away.current;
-      if (!recordingMode || ended || phase !== 'empty' || !canExit) return;
+      // only a mode started or driven in from here: another phone may be recording with it
+      if (!recordingMode || ended || phase !== 'empty' || !canExit || !mine.current) return;
       setTimeout(() => open || publishAction(A('exit_recording_mode')), 300);
     };
   }, [publishAction]);
+  // ended from here: no hint that it dropped out by itself
+  const exitMode = () => {
+    startedAt.current = 0;
+    stop();
+    act('exit_recording_mode');
+  };
   const leave = (end: boolean) => {
     const to = leaving;
     setLeaving(null);
     if (end && canExit) {
       away.current.ended = true;
-      stop();
-      act('exit_recording_mode');
+      exitMode();
     }
     if (to) router.push(to);
   };
   // the cross of the sideways layout ends recording mode, it asks first when something isn't saved yet
   const endRecording = () => {
     if (phase !== 'empty' || !canExit) return setLeaving('');
-    stop();
-    act('exit_recording_mode');
+    exitMode();
   };
 
   // round once and back where the line started: it closes by itself after a few seconds, like stop does
@@ -311,8 +332,9 @@ export default function RecordPage() {
   const line = overlay.find((l) => !l.closed)?.points ?? [];
   const fromStart = line.length && position ? Math.hypot(position.x - line[0].x, position.y - line[0].y) : null;
   if (held && (phase !== 'recording' || (fromStart ?? 0) > 1)) setHeld(false);
-  if (closing === null && phase === 'recording' && autoClose && !held && position && backAtStart(line, position)) setClosing(CLOSE_SECONDS);
-  if (closing !== null && (phase !== 'recording' || !autoClose || (fromStart ?? 0) > 0.6)) setClosing(null);
+  // (not without a connection: the stop wouldn't get out, and it wouldn't be tried again)
+  if (closing === null && live && phase === 'recording' && autoClose && !held && position && backAtStart(line, position)) setClosing(CLOSE_SECONDS);
+  if (closing !== null && (!live || phase !== 'recording' || !autoClose || (fromStart ?? 0) > 0.6)) setClosing(null);
   useEffect(() => {
     if (closing === null) return;
     const t = setTimeout(() => {
@@ -352,7 +374,10 @@ export default function RecordPage() {
     buttons = [
       button('start_recording', 'Record outline', 'main', () => setSaved(null)),
       button('record_dock', 'Record docking station'),
-      !remote && button('exit_recording_mode', 'Leave recording mode', undefined, stop),
+      !remote && button('exit_recording_mode', 'Leave recording mode', undefined, () => {
+        startedAt.current = 0;
+        stop();
+      }),
     ];
   } else if (phase === 'recording') {
     text = autoClose
@@ -430,7 +455,7 @@ export default function RecordPage() {
             <p className={styles.dim}>
               {tr('Keep the mower in sight. It stops as soon as you let go of the stick, switch apps or lose the connection.')}
             </p>
-            {knowsAction(A('start_manual_mowing')) && (
+            {(knowsAction(A('start_manual_mowing')) || newer) && (
               <p className={styles.dim}>
                 {tr('Recording mode is also for mowing by hand: switch the blade on and drive with the stick, without recording anything.')}
               </p>
@@ -440,6 +465,7 @@ export default function RecordPage() {
               disabled={!live || !hasAction(START)}
               onClick={() => {
                 startedAt.current = Date.now();
+                mine.current = true;
                 setBounced(false);
                 setSaved(null);
                 publishAction(START);
@@ -486,6 +512,9 @@ export default function RecordPage() {
             </section>
 
             <section className={styles.card}>
+              <p className={gpsQ === 'fix' ? styles.dim : styles.warn}>
+                {gpsQ === 'fix' ? gpsText : `${gpsText}. ${tr('Without an RTK fix the edge ends up off.')}`}
+              </p>
               <p>{text}</p>
               {closing !== null && (
                 <div className={styles.closing}>
@@ -576,6 +605,7 @@ export default function RecordPage() {
               <i />
               {status}
             </span>
+            {gpsQ !== 'fix' && <span className={styles.gpsWarn}>{gpsText}</span>}
             <span className={styles.grow} />
             <div className={styles.chips}>
               <button aria-label={tr('Zoom out')} disabled={span === SPANS.length - 1} onClick={() => setSpan(span + 1)}>
@@ -667,7 +697,9 @@ export default function RecordPage() {
             >
               <h2>{tr('End recording mode?')}</h2>
               <p>
-                {phase === 'dock'
+                {phase === 'dock' && !leaving
+                  ? tr("The docking station isn't saved yet, recording mode can only end after that.")
+                  : phase === 'dock'
                   ? tr("The docking station isn't saved yet, recording mode can only end after that. If you leave anyway, it stays on.")
                   : phase === 'recording' || phase === 'outlined'
                     ? tr("The area isn't saved yet and is lost when recording mode ends.")
@@ -675,13 +707,14 @@ export default function RecordPage() {
               </p>
               <div className={styles.buttons}>
                 {canExit ? (
-                  <button className={phase === 'empty' ? styles.primary : styles.danger} onClick={() => leave(true)}>
+                  // (it wouldn't get out without a connection)
+                  <button className={phase === 'empty' ? styles.primary : styles.danger} disabled={!live} onClick={() => leave(true)}>
                     {tr(phase === 'empty' ? 'End recording mode' : 'Discard and end')}
                   </button>
-                ) : (
+                ) : leaving ? (
                   <button onClick={() => leave(false)}>{tr('Leave anyway')}</button>
-                )}
-                <button onClick={() => setLeaving(null)}>{tr('Stay')}</button>
+                ) : null}
+                <button onClick={() => setLeaving(null)}>{tr(canExit || leaving ? 'Stay' : 'OK')}</button>
               </div>
             </section>
           </div>,

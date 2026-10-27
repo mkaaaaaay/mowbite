@@ -352,6 +352,17 @@
   gap: 8px;
 }
 
+/* without an rtk fix, next to the step */
+.gpsWarn {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(10, 10, 10, 0.6);
+  color: #ff8a96;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .grow {
   flex: 1;
 }
