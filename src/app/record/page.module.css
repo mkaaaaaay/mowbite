@@ -105,6 +105,40 @@
   font-size: 13px;
 }
 
+/* the emergency stop where the stick was, with its reset */
+.stick .alarm {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  max-width: 300px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(10, 10, 10, 0.75);
+  color: var(--error);
+  font-size: 13px;
+}
+
+.alarm button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 2px;
+  padding: 9px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--error);
+  background: color-mix(in srgb, var(--error) 18%, transparent);
+  color: var(--error);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.alarm button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 @media (max-width: 899px) {
   .hideOnPhone {
     display: none;
@@ -442,6 +476,30 @@
   background: rgba(10, 10, 10, 0.75);
   color: #ff8a96;
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.remoteWarn button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 2px;
+  padding: 8px 13px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 107, 122, 0.55);
+  background: rgba(255, 107, 122, 0.16);
+  color: #ff8a96;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.remoteWarn button:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 /* the two pads, in the middle of each side clear of the bars */

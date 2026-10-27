@@ -287,7 +287,6 @@ const de: Record<string, string> = {
   "mow motor too fast": "Mähmotor zu schnell",
   "firmware doesn't fit OpenMower": "Firmware passt nicht zu OpenMower",
   "OpenMower stopped the mower itself, for example because the position, the wheel data or a motor controller stopped coming. The ROS log from that moment says why. It has to be reset before it drives again.": "OpenMower hat den Mäher selbst gestoppt, zum Beispiel weil Position, Raddaten oder ein Motorregler ausblieben. Das ROS-Log aus diesem Moment sagt, warum. Vor dem Weiterfahren muss er zurückgesetzt werden.",
-  "Emergency stop is active, reset it on the dashboard before driving.": "Notaus ist aktiv. Setze ihn auf der Übersicht zurück, bevor du fährst.",
   "failed": "fehlgeschlagen",
   "Finish": "Fertig",
   "Align…": "Ausrichten …",
@@ -1873,6 +1872,9 @@ const de: Record<string, string> = {
   "Discard and end": "Verwerfen und beenden",
   "Leave anyway": "Trotzdem verlassen",
   "Stay": "Hierbleiben",
+  "Stop already?": "Schon stoppen?",
+  "No point of this obstacle is recorded yet. Stopping now makes OpenMower drop the whole area, the outline and the obstacles with it. Better drive on to the obstacle and around it: the way there ends up in its line, the map editor can take it out afterwards.":
+    "Von diesem Hindernis ist noch kein Punkt aufgenommen. Ein Stopp jetzt lässt OpenMower die ganze Fläche verwerfen, samt Rand und Hindernissen. Fahre besser weiter zum Hindernis und darum herum: Der Weg dorthin landet mit in seiner Linie, im Karteneditor kannst du ihn danach herausnehmen.",
   "Recording mode, in the dock": "Aufnahmemodus, im Dock",
   "Recording · {m} m": "Aufnahme · {m} m",
   "Outline done": "Rand fertig",

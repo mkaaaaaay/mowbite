@@ -337,6 +337,8 @@ export interface World {
   tick(now?: number): void;
   // seconds driven at once, as if they had passed already (for the click tests, e2e/)
   ahead(seconds: number): void;
+  // the emergency stop latched like a bumper or the lift does it, until it's reset (for the click tests)
+  emergency(): void;
   stop(): void;
 }
 
@@ -365,6 +367,8 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
   let detour: {id: string; session: string; run: Run; then: 'idle' | 'resume'} | null = null;
   let parked = true;
   let paused = false;
+  // the emergency stop: the wheels and the blade stand until it's reset
+  let latched = false;
   let battery = 1;
   let pose = {x: 0, y: 0, heading: 0};
   const temps = {esc: 30, motor: 24};
@@ -431,7 +435,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     if (paused) return 'PAUSED';
     return activeLeg()?.state ?? 'IDLE';
   };
-  const blades = () => !!rec?.blade || (!rec && !parked && !paused && !!activeLeg()?.blades);
+  const blades = () => !latched && (!!rec?.blade || (!rec && !parked && !paused && !!activeLeg()?.blades));
 
   function place() {
     // the stick drives it
@@ -566,7 +570,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
       current_area: onPath ? l.area : -1,
       current_path: onPath ? l.path : -1,
       current_path_index: onPath ? (l.approach ? 0 : Math.round(run!.d * 100)) : -1,
-      emergency: 0,
+      emergency: latched ? 1 : 0,
       is_charging: onContacts() && battery < 0.999 ? 1 : 0,
       rain_detected: 0,
       pose: {...pose, pos_accuracy: accuracy(), heading_accuracy: 0.01, heading_valid: 1},
@@ -691,7 +695,8 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     else if (id === ACTION.resetJob && s === 'IDLE' && job) {
       note(t, pose, {type: 'JOB_RESET'});
       job = null;
-    } else if (id === ACTION.startRecording && s === 'IDLE') {
+    } else if (id === ACTION.resetEmergency) latched = false;
+    else if (id === ACTION.startRecording && s === 'IDLE') {
       rec = {outline: null, obstacles: [], line: null, dockFrom: null, auto: true, blade: false};
       parked = false;
       paused = false;
@@ -705,10 +710,15 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
   function record(step: string, t: number): boolean {
     const r = rec!;
     const here = {x: pose.x, y: pose.y};
-    // the line stopped: the outline, or once there is one an obstacle in it. too short a line is dropped
+    // the line stopped: the outline, or once there is one an obstacle in it. too short a line is dropped, one without a
+    // second point drops the whole area like on OpenMower
     const close = () => {
       const line = r.line;
       r.line = null;
+      if (line && line.length < 2) {
+        r.outline = null;
+        r.obstacles = [];
+      }
       if (!line || line.length < 3) return;
       if (r.outline) r.obstacles.push(line);
       else r.outline = line;
@@ -858,8 +868,10 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     // a tab asleep for hours doesn't mow them all at once on waking: the demo goes on where it was
     const dt = Math.min(60, Math.max(0, (now - last) / 1000));
     const was = state();
-    step(SPEED * dt, last / 1000);
-    drive(last, now);
+    if (!latched) {
+      step(SPEED * dt, last / 1000);
+      drive(last, now);
+    }
     last = now;
     const s = state();
     battery = Math.min(1, Math.max(0.05, battery + (onContacts() ? CHARGE : -DRAIN) * dt));
@@ -910,6 +922,11 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
         last -= dt * 1000;
         tick(last + dt * 1000);
       }
+    },
+    emergency() {
+      latched = true;
+      stick = {vx: 0, vz: 0, at: -Infinity};
+      changed();
     },
     stop() {
       if (timer) clearInterval(timer);

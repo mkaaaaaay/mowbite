@@ -27,7 +27,12 @@ export {expect};
 
 // the demo mower as the app reaches it (lib/demo/client): what it has on a topic now, and a call to it like another phone
 // would make one
-type DemoMower = {retained(topic: string): [string, string][]; published(topic: string, message: string): void; ahead(seconds: number): void};
+type DemoMower = {
+  retained(topic: string): [string, string][];
+  published(topic: string, message: string): void;
+  ahead(seconds: number): void;
+  emergency(): void;
+};
 export const demoHas = async <T>(page: Page, topic: string): Promise<T> => {
   await page.waitForFunction(() => 'mowbiteDemo' in window);
   return page.evaluate((t) => JSON.parse((window as unknown as {mowbiteDemo: DemoMower}).mowbiteDemo.retained(t)[0][1]), topic);
@@ -42,6 +47,8 @@ export async function demoDocked(page: Page) {
   });
   await expect.poll(async () => (await demoHas<{current_state: string}>(page, 'robot_state/json')).current_state).toBe('IDLE');
 }
+// the emergency stop as a bumper or the lift sets it
+export const demoEmergency = (page: Page) => page.evaluate(() => (window as unknown as {mowbiteDemo: DemoMower}).mowbiteDemo.emergency());
 export const demoCall = (page: Page, method: string, params: unknown) =>
   page.evaluate(
     ([method, params]) =>

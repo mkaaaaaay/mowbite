@@ -14,10 +14,12 @@ import {
   RouteIcon,
   SpeedIcon,
   TrashIcon,
+  WarningIcon,
 } from '@/components/icons';
 import Joystick from '@/components/Joystick';
 import {TitleMark} from '@/components/Logo';
 import MapView from '@/components/MapView';
+import {useEmergencyReasons} from '@/hooks/useEmergencyReasons';
 import {useMapOverlay} from '@/hooks/useMapOverlay';
 import {useMedia} from '@/hooks/useMedia';
 import {useMowerActions} from '@/hooks/useMowerActions';
@@ -36,6 +38,7 @@ import {ACTION} from '@/lib/openmower';
 import {eventsOfDay, fileDay, forgetToday, historyDays} from '@/lib/history';
 import {backAtStart} from '@/lib/geometry';
 import {tick} from '@/lib/haptics';
+import {emergencyText} from '@/lib/events';
 
 const START = ACTION.startRecording;
 const A = ACTION.recording;
@@ -120,6 +123,7 @@ export default function RecordPage() {
   const hasOutline = overlay.some((l) => l.closed && l.color === 'green');
   // no fresh state also stops it: the wifi can be gone a while before the connection counts as lost
   const canDrive = recordingMode && live && !state?.emergency;
+  const why = useEmergencyReasons(!!state?.emergency);
 
   // held sideways on a phone: a remote control over the whole screen, a pad for forward and back on the left and one
   // for steering on the right. turned: the same drawn a quarter turn for a phone whose page doesn't turn
@@ -177,14 +181,15 @@ export default function RecordPage() {
     }
   };
 
-  // emergency, lost connection or the mode ending stop it as well
+  // emergency, lost connection or the mode ending stop it as well. so does a switch between upright, sideways and turned:
+  // the stick or pad under the finger is gone then without having been let go
   useEffect(() => {
-    if (canDrive || !timer.current) return;
+    if (!timer.current) return;
     clearInterval(timer.current);
     timer.current = null;
     stick.current = {x: 0, y: 0};
     sendDrive(0, 0);
-  }, [canDrive]);
+  }, [canDrive, remote, turned]);
 
   // leaving the page or putting the phone away stops the mower, and the blade
   useEffect(() => {
@@ -212,6 +217,10 @@ export default function RecordPage() {
   // (the phone's back button) can't ask, it ends the mode only when nothing is being recorded
   const router = useRouter();
   const [leaving, setLeaving] = useState<string | null>(null);
+  // stop on a line without a second point yet (the mower hasn't moved 10 cm since it started, or no point set with auto
+  // points off): OpenMower then drops the whole area, so with an outline to lose it asks first
+  const [early, setEarly] = useState(false);
+  if (early && phase !== 'recording') setEarly(false);
   const canExit = hasAction(A('exit_recording_mode'));
   const away = useRef({recordingMode, phase, canExit, ended: false});
   away.current = {...away.current, recordingMode, phase, canExit};
@@ -234,11 +243,15 @@ export default function RecordPage() {
     return () => document.removeEventListener('click', onClick, true);
   }, [recordingMode]);
   useEffect(() => {
-    if (leaving === null) return;
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setLeaving(null);
+    if (leaving === null && !early) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      setLeaving(null);
+      setEarly(false);
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [leaving]);
+  }, [leaving, early]);
   useEffect(() => {
     open++;
     return () => {
@@ -293,16 +306,19 @@ export default function RecordPage() {
     }, 1000);
     return () => clearTimeout(t);
   }, [closing]);
-  const button = (id: string, label: string, kind?: 'main' | 'danger', after?: () => void) =>
+  const button = (id: string, label: string, kind?: 'main' | 'danger', after?: () => void, ask?: () => void) =>
     hasAction(A(id)) && (
       <button
         key={id}
         className={kind === 'main' ? styles.primary : kind ? styles[kind] : undefined}
         disabled={!live}
-        onClick={() => {
-          act(id);
-          after?.();
-        }}
+        onClick={
+          ask ??
+          (() => {
+            act(id);
+            after?.();
+          })
+        }
       >
         {ICONS[id]}
         {tr(label)}
@@ -329,7 +345,7 @@ export default function RecordPage() {
         ? tr('Drive around the obstacle, close to it all the way: the line is the middle of the mower. Then stop, it closes by itself.')
         : tr('Drive along the edge, close to it all the way: the line is the middle of the mower. Back at the start, stop: the outline closes by itself.');
     buttons = [
-      button('stop_recording', 'Stop', 'main'),
+      button('stop_recording', 'Stop', 'main', undefined, hasOutline && line.length < 2 ? () => setEarly(true) : undefined),
       button('collect_point', 'Set point here'),
       button('auto_point_collecting_disable', 'Auto points: on'),
       button('auto_point_collecting_enable', 'Auto points: off'),
@@ -347,6 +363,19 @@ export default function RecordPage() {
     text = tr('Now drive straight into the docking station until it sits on the contacts, then save. The way from the first point to here becomes the docking direction.');
     buttons = [button('record_dock', 'Save docking position', 'main', () => setSaved('Docking station'))];
   }
+
+  // the emergency stop is reset right here, recording goes on where it stopped
+  const reason = why ? emergencyText(why) : '';
+  const alarm = !!state?.emergency && (
+    <>
+      <strong>{reason ? tr('Emergency stop: {reason}', {reason}) : tr('Emergency stop')}</strong>
+      <span>{tr('Release the mower, then reset the emergency to drive again.')}</span>
+      <button disabled={!live} onClick={() => publishAction(ACTION.resetEmergency)}>
+        <WarningIcon size={18} />
+        {tr('Reset emergency')}
+      </button>
+    </>
+  );
 
   // the green pill of the sideways layout: the step, while recording with the length of the line so far
   const lineLength = line.reduce((sum, p, i) => (i ? sum + Math.hypot(p.x - line[i - 1].x, p.y - line[i - 1].y) : 0), 0);
@@ -428,8 +457,8 @@ export default function RecordPage() {
               )}
               {/* on the map, so map, stick and buttons fit on one phone screen */}
               <div className={styles.stick}>
-                {state?.emergency ? (
-                  <p className={styles.warn}>{tr('Emergency stop is active, reset it on the dashboard before driving.')}</p>
+                {alarm ? (
+                  <div className={styles.alarm}>{alarm}</div>
                 ) : !live ? (
                   <p className={styles.warn}>{tr('No connection to the mower, it stops by itself. Driving works again once the connection is back.')}</p>
                 ) : (
@@ -578,12 +607,10 @@ export default function RecordPage() {
           ) : (
             text && <p className={styles.remoteNote}>{text}</p>
           )}
-          {(state?.emergency || !live) && (
-            <p className={styles.remoteWarn}>
-              {state?.emergency
-                ? tr('Emergency stop is active, reset it on the dashboard before driving.')
-                : tr('No connection to the mower, it stops by itself. Driving works again once the connection is back.')}
-            </p>
+          {alarm ? (
+            <div className={styles.remoteWarn}>{alarm}</div>
+          ) : (
+            !live && <p className={styles.remoteWarn}>{tr('No connection to the mower, it stops by itself. Driving works again once the connection is back.')}</p>
           )}
 
           <div className={[styles.pad, styles.padLeft].join(' ')}>
@@ -643,6 +670,41 @@ export default function RecordPage() {
         // over the sideways layout, turned with it
         remoteRef.current ?? document.body,
       )}
+
+      {early &&
+        createPortal(
+          <div className={styles.backdrop} onClick={() => setEarly(false)}>
+            <section
+              className={[styles.card, styles.dialog].join(' ')}
+              role="alertdialog"
+              aria-modal="true"
+              aria-label={tr('Stop already?')}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2>{tr('Stop already?')}</h2>
+              <p>
+                {tr(
+                  'No point of this obstacle is recorded yet. Stopping now makes OpenMower drop the whole area, the outline and the obstacles with it. Better drive on to the obstacle and around it: the way there ends up in its line, the map editor can take it out afterwards.',
+                )}
+              </p>
+              <div className={styles.buttons}>
+                <button className={styles.primary} onClick={() => setEarly(false)}>
+                  {tr('Keep recording')}
+                </button>
+                <button
+                  className={styles.danger}
+                  onClick={() => {
+                    setEarly(false);
+                    act('finish_discard');
+                  }}
+                >
+                  {tr('Discard area')}
+                </button>
+              </div>
+            </section>
+          </div>,
+          remoteRef.current ?? document.body,
+        )}
     </div>
   );
 }
