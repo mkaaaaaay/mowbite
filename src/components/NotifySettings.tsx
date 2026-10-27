@@ -1,6 +1,6 @@
 'use client';
 
-import {clock} from '@/lib/dates';
+import {clock, dayLabel} from '@/lib/dates';
 import {deviceLang, tr, useLang} from '@/lib/i18n';
 import {apiBase, isDemo} from '@/lib/mowers';
 import {isApp} from '@/lib/native';
@@ -140,7 +140,13 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
     setState({busy: true});
     try {
       const r = await testNotify();
-      setState(r === 'sent' ? {done: tr('Sent. It should be on the phone in a moment.')} : {error: tr("The mower couldn't reach the ntfy server. Is the address right, and does the mower get on the internet?")});
+      setState(
+        r === 'sent'
+          ? {done: tr('Sent. It should be on the phone in a moment.')}
+          : r === 'no topic'
+            ? {error: tr('No topic and no phone set up, there is nowhere to send it.')}
+            : {error: tr("The mower couldn't reach the ntfy server. Is the address right, and does the mower get on the internet?")},
+      );
       void notifyLog().then(setLog);
     } catch {
       setState({error: tr('The mower did not answer.')});
@@ -262,7 +268,7 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
 
       {form.events.includes('emergency') && (
         <>
-          <h3 className={local.sub}>{tr('Tell about an emergency stop')}</h3>
+          <h3 className={local.sub}>{tr('Report an emergency stop')}</h3>
           <div className={styles.segment}>
             {EMERGENCY_WAIT.map((s) => (
               <button key={s} className={form.emergencyWait === s ? styles.segmentOn : undefined} onClick={() => instant({emergencyWait: s})}>
@@ -328,7 +334,7 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
         <ul className={local.log}>
           {log.slice(0, 5).map((l, i) => (
             <li key={i} className={l.sent ? undefined : styles.error}>
-              <span>{clock(l.t)}</span> {l.sent ? tr('sent') : tr('failed')} · {l.title}
+              <span>{`${dayLabel(new Date(l.t * 1000))}, ${clock(l.t)}`}</span> {l.sent ? tr('sent') : tr('failed')} · {l.title}
             </li>
           ))}
         </ul>

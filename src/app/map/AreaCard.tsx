@@ -225,13 +225,13 @@ export default function AreaCard({
               {tr('Cuts the area in two along a line, or cuts a shape out of it. All parts keep type and settings.')}
               <br />
               <b>{tr('Merge')}:</b>{' '}
-              {tr('Joins this area with another one you click. They need to overlap or touch.')}
+              {tr('Joins this area with another one you tap. They need to overlap or touch.')}
               <br />
               <b>{tr('Take out')}:</b>{' '}
-              {tr('Cuts another area you click out of this one, e.g. a path lying over the lawn. The other one stays as it is.')}
+              {tr('Cuts another area you tap out of this one, e.g. a path lying over the lawn. The other one stays as it is.')}
               <br />
               <b>{tr('Lay against')}:</b>{' '}
-              {tr('Moves the corners of this area that lie close to another one you click onto its edge, so the two meet without a gap. A mowing area stays as it is, unless both are.')}
+              {tr('Moves the corners of this area that lie close to another one you tap onto its edge, so the two meet without a gap. A mowing area stays as it is, unless both are.')}
               <br />
               <b>{tr('Reduce points')}:</b>{' '}
               {tr('Recorded outlines have a point every few cm. This removes the ones that barely change the shape, the slider sets how far the outline may move.')}

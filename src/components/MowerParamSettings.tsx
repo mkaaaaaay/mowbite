@@ -203,13 +203,13 @@ function summary(group: ParamGroup, params: Record<string, unknown>): string {
   const n = (key: string) => showParam(paramField(key)!, v(key) as number);
   switch (group) {
     case 'mowing':
-      return [tr('{n} outline passes', {n: n('outline_count')}), tr('lanes {n} cm apart', {n: n('tool_width')}), tr('turned by {n}°', {n: n('mow_angle_offset')})].join(' · ');
+      return [v('outline_count') === 1 ? tr('1 outline pass') : tr('{n} outline passes', {n: n('outline_count')}), tr('lanes {n} cm apart', {n: n('tool_width')}), tr('turned by {n}°', {n: n('mow_angle_offset')})].join(' · ');
     case 'auto':
       return [tr(paramField('rain_mode')!.choices![v('rain_mode') as number] ?? ''), tr(AUTOMATIC_SHORT[v('automatic_mode') as number] ?? '')].join(' · ');
     case 'gps':
       return [tr('{n} s without a fix', {n: n('gps_timeout')}), tr('better than {n} cm', {n: n('max_position_accuracy')})].join(' · ');
     case 'docking':
-      return [tr('approach from {n} m', {n: n('docking_approach_distance')}), tr('{n} tries', {n: n('docking_retry_count')})].join(' · ');
+      return [tr('approach from {n} m', {n: n('docking_approach_distance')}), v('docking_retry_count') === 1 ? tr('1 retry') : tr('{n} retries', {n: n('docking_retry_count')})].join(' · ');
     case 'motor':
       return tr('pauses at {hot} °C, on again at {cold} °C', {hot: n('motor_hot_temperature'), cold: n('motor_cold_temperature')});
   }

@@ -446,7 +446,7 @@ function AreaCard({a}: {a: MapArea}) {
   );
 }
 
-const Hint = () => <p className={mapPage.dim}>{tr('Click an area to edit it.')}</p>;
+const Hint = () => <p className={mapPage.dim}>{tr('Tap an area to edit it.')}</p>;
 const SPOT = pt(9.5, 3);
 
 // 1: tap an area: it's picked, its points show up and its card under the map

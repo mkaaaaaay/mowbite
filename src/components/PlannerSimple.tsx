@@ -396,7 +396,7 @@ export function PlannerSimple({
         styleNow ? tr(STYLE_LABELS[styleNow]) : null,
         tr(PATTERN_LABELS[String(global('fill_pattern'))] ?? String(global('fill_pattern') ?? '')),
         auto ? tr('spacing automatic') : spacingCm !== null ? tr('{cm} cm apart', {cm: dec(Math.round(spacingCm * 10) / 10)}) : null,
-        typeof passes === 'number' ? (passesAuto ? tr('outline passes automatic') : tr('{n} outline passes', {n: passes})) : null,
+        typeof passes === 'number' ? (passesAuto ? tr('outline passes automatic') : passes === 1 ? tr('1 outline pass') : tr('{n} outline passes', {n: passes})) : null,
         has('edge_margin') ? tr('{cm} cm off the edge', {cm: cm(global('edge_margin'))}) : null,
         has('body_fit')
           ? global('body_fit')
@@ -416,7 +416,7 @@ export function PlannerSimple({
       {bladeDefault && !area && (
         <p className={local.note}>
           {tr("The blade is not set in the planner, it plans with {a} cm. Lanes are spaced by it: set your mower's blade in the settings under Mower sizes.", {
-            a: Math.round(blade * 1000) / 10,
+            a: cm(blade),
           })}
         </p>
       )}
@@ -545,11 +545,11 @@ export function PlannerSimple({
               help={tr(
                 'How far apart the lanes are. The blade mows a little wider, so neighbouring lanes overlap. Automatic: the widest spacing that still leaves nothing standing, fewer lanes and turns.',
               )}
-              note={auto ? tr('As wide as nothing stays standing.') : tr('Smaller overlaps more and takes longer. Empty: the spacing set in OpenMower.')}
+              note={auto ? tr('As wide as possible without leaving grass standing.') : tr('Smaller overlaps more and takes longer. Empty: the spacing set in OpenMower.')}
               source={
                 others('lane_spacing_mode') ||
                 (area && area.own.overlap !== undefined && allSpacingCm !== null
-                  ? ownLine('overlap', tr('{cm} cm apart', {cm: Math.round(allSpacingCm * 10) / 10}))
+                  ? ownLine('overlap', tr('{cm} cm apart', {cm: dec(Math.round(allSpacingCm * 10) / 10)}))
                   : null)
               }
             >
@@ -928,7 +928,7 @@ export function PlannerSimple({
                     note={
                       effective('narrow_parts') === 'loops'
                         ? tr('Where lanes have no room to turn, the outline passes go on further in until it is mowed.')
-                        : tr('Lanes also where they have hardly room to turn.')
+                        : tr('Lanes even where they hardly have room to turn.')
                     }
                     source={others('narrow_parts')}
                   >

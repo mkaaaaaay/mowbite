@@ -135,7 +135,7 @@ function tell(phase, why,   m) {
     } else {
       m = tx(who() " has been standing still for " minutes(t - since) " min and isn't charging.", who() " steht seit " minutes(t - since) " min still und lädt nicht.")
       if (still_why == "PAUSED") m = m " " tx("Paused, waiting for GPS.", "Pausiert, weil GPS fehlt.")
-      else if (still_why == "IDLE") m = m " " tx("Waiting on the lawn, or in the dock and that has no power.", "Wartet auf dem Rasen, oder steht in der Station und die hat keinen Strom.")
+      else if (still_why == "IDLE") m = m " " tx("Waiting on the lawn, or in the dock and that has no power.", "Wartet auf dem Rasen, oder steht im Dock und das hat keinen Strom.")
       else m = m " " tx("Not getting on, maybe stuck.", "Kommt nicht weiter, steckt vielleicht fest.")
       send(problem, phase, tx("Standing still", "Steht still"), m, 4, "warning")
     }
@@ -270,11 +270,11 @@ BEGIN {
       spinup_t = t
       # with the emergency stop it's in that message
       if (!on("emergency")) info("spinup", tx("Mow motor didn't start", "Mähmotor lief nicht an"), tx(who() " couldn't start the blade and stopped.", who() " konnte das Messer nicht starten und hat angehalten."), "warning")
-    } else if (type == "JOB_COMPLETE") info("done", tx("Done mowing", "Fertig gemäht"), tx(who() " has finished the job.", who() " hat den Mähauftrag abgeschlossen."), "seedling")
+    } else if (type == "JOB_COMPLETE") info("done", tx("Done mowing", "Fertig gemäht"), tx(who() " has finished the job.", who() " hat den Mähvorgang abgeschlossen."), "seedling")
     else if (type == "DOCKING") {
       why = field(json, "reason")
       if (why ~ /[Rr]ain/) info("rain", tx("Rain", "Regen"), tx(who() " is going home, it's raining.", who() " fährt wegen Regen nach Hause."), "cloud_with_rain")
-      else if (why ~ /[Bb]attery/) info("battery", tx("Battery low", "Akku leer"), tx(who() " is going home to charge.", who() " fährt zum Laden nach Hause."), "battery")
+      else if (why ~ /[Bb]attery/) info("battery", tx("Battery low", "Akku niedrig"), tx(who() " is going home to charge.", who() " fährt zum Laden nach Hause."), "battery")
     } else if (type == "STATE") {
       st = field(json, "state")
       if (st == "DOCKING" && nav_t && t - nav_t <= NAV_WAIT) nav_t = 0

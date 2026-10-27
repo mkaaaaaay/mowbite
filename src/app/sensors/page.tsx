@@ -192,7 +192,7 @@ export default function SensorsPage() {
                   <span className={styles[`text-${batteryTone}`]}>
                     <BatteryIcon size={26} />
                   </span>
-                  <strong className={[styles.big, styles[`text-${batteryTone}`]].join(' ')}>{battery ?? '–'}%</strong>
+                  <strong className={[styles.big, styles[`text-${batteryTone}`]].join(' ')}>{`${battery ?? '–'}\u202f%`}</strong>
                   {values['om_charge_state'] && docked && <span className={styles.pill}>{tr(values['om_charge_state'])}</span>}
                 </div>
                 <div className={styles.details}>

@@ -173,7 +173,7 @@ export const FIELDS: Record<string, Field> = {
   },
   perimeter_order: {
     label: 'Outline passes first or last',
-    help: 'Before the lanes, or after them: last mows over the marks the turns leave at the edge.',
+    help: 'Before the lanes, or after them: last, they mow over the marks the turns leave at the edge.',
     group: 'edge',
     choices: {first: 'First', last: 'Last'},
     area: true,

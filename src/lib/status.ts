@@ -48,7 +48,8 @@ export function statusText(
 ): string {
   if (!state) return '';
   if (state.emergency) return tr('Emergency');
-  if (docked) return charged ? tr('Docked · charged') : tr('Docked · charging');
+  // (as the dashboard says it)
+  if (docked) return charged ? tr('Charged, in the dock') : tr('Charging in the dock');
   const names: Record<string, string> = {
     // not in the dock (that's above), as the dashboard says it
     IDLE: 'Waiting on the lawn',

@@ -34,7 +34,7 @@ export default function Sparkline({
   const pieces: Sample[][] = [];
   samples.forEach((s, i) => (i && s.t - samples[i - 1].t <= gap ? pieces[pieces.length - 1].push(s) : pieces.push([s])));
   const minutes = Math.max(1, Math.round((t1 - t0) / 60000));
-  const range = minutes < 90 ? `${minutes} min` : minutes < 2880 ? `${Math.round(minutes / 60)} h` : `${Math.round(minutes / 1440)} d`;
+  const range = minutes < 90 ? `${minutes} min` : minutes < 2880 ? `${Math.round(minutes / 60)} h` : `${Math.round(minutes / 1440)} ${tr('d')}`;
   // when the data ends: a gap up to now isn't drawn either
   const until = ` · ${tr('until {time}', {time: clock(t1 / 1000)})}`;
 

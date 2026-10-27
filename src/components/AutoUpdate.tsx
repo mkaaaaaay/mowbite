@@ -440,7 +440,7 @@ function Room({s, busy, onAsk}: {s: UpdateState; busy: boolean; onAsk: (go: () =
           <span className={local.dim}>{tr('The next build of the planner then takes 1–2 minutes longer and needs the internet (shapely is loaded again).')}</span>
           <div className={local.row}>
             <span className={local.dim}>{size(cache)}</span>
-            {button('cache', tr('Clear'), () => freeRoom('cache'))}
+            {button('cache', tr('Empty it'), () => freeRoom('cache'))}
           </div>
         </div>
       )}

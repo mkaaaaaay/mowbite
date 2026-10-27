@@ -209,7 +209,7 @@ export default function MapControls({
             className={follow.on ? '' : styles.off}
             onClick={follow.onToggle}
             aria-label={tr('Follow the mower')}
-            title={follow.on ? tr('Following the mower, click to move the map freely') : tr('Follow the mower again')}
+            title={follow.on ? tr('Following the mower, tap to move the map freely') : tr('Follow the mower again')}
           >
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
               <circle cx="12" cy="12" r="6" />

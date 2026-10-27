@@ -366,7 +366,7 @@ export function AreaPlanInfo({
             {planChosen
               ? ` (${tr('{n} cm apart', {n: dec(Math.round(planChosen.lane_spacing * 1000) / 10)})}${
                   planChosen.mode === 'auto' ? `, ${tr('picked by the planner')}` : ''
-                }, ${tr('{n} outline passes', {n: planChosen.perimeter_passes})}${
+                }, ${planChosen.perimeter_passes === 1 ? tr('1 outline pass') : tr('{n} outline passes', {n: planChosen.perimeter_passes})}${
                   planChosen.fill_pattern === 'concentric' ? `, ${tr('rings')}` : ''
                 }${planZones ? `, ${tr('{n} parts with their own direction', {n: planZones})}` : ''})`
               : toolWidth

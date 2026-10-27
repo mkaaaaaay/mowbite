@@ -64,7 +64,7 @@ function SizeSlider({value, onChange}: {value: number; onChange: (v: number) => 
     <label className={styles.size}>
       {tr('Size')}
       <input type="range" min={0.5} max={3} step={0.1} value={value} onChange={(e) => onChange(+e.target.value)} />
-      <span>{Math.round(value * 100)}%</span>
+      <span>{`${Math.round(value * 100)}\u202f%`}</span>
       {value !== 1 && (
         <button className={styles.linkButton} onClick={() => onChange(1)}>
           {tr('default')}

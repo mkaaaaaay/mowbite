@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="push_channel_problems">Probleme</string>
-    <string name="push_channel_problems_about">Notaus, Andocken oder Abdocken aufgegeben, Navigationsfehler, Mähmotor lief nicht an, Tests</string>
+    <string name="push_channel_problems_about">Notaus, Andocken oder Abdocken aufgegeben, Navigationsfehler, Mähmotor lief nicht an, Stillstand, Tests</string>
     <string name="push_channel_reminders">Erinnerungen</string>
     <string name="push_channel_reminders_about">Immer wieder, solange der Mäher nicht von selbst weiterkommt, und wenn Messer oder Reinigung fällig sind</string>
     <string name="push_channel_info">Info</string>

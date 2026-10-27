@@ -1240,7 +1240,7 @@ function MapEditor() {
                 <>
                   {map.areas.length ? (
                     <p className={styles.dim}>
-                      {tr('Click an area to edit it.')}{' '}
+                      {tr('Tap an area to edit it.')}{' '}
                       {/* the pictures standing by themselves take no taps here */}
                       {garden && map.areas.some(isPin) && `${tr("Set and change pictures: the map's gear, Decorate.")} `}
                       <Link href="/guide/editor" className={styles.guideLink}>

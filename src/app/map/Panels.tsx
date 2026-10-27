@@ -35,8 +35,8 @@ export function SplitPanel({
       </label>
       <p className={styles.dim}>
         {cutShape
-          ? tr("Click the corners of a shape inside the area. It becomes its own area, the rest is split in two through it (areas can't have holes).")
-          : tr('Click points for a cut line across the area, start and end outside. Drag points to move them.')}
+          ? tr("Tap the corners of a shape inside the area. It becomes its own area, the rest is split in two through it (areas can't have holes).")
+          : tr('Tap points for a cut line across the area, start and end outside. Drag points to move them.')}
       </p>
       {preview ? (
         <p>
@@ -87,7 +87,7 @@ export function MergePanel({
   return (
     <div className={styles.splitBox}>
       <p className={styles.dim}>
-        {tr("Click the area to merge into {name}. The result keeps its name, type and settings.", {name: area.properties.name || tr('this one')})}
+        {tr("Tap the area to merge into {name}. The result keeps its name, type and settings.", {name: area.properties.name || tr('this one')})}
       </p>
       {other && merged && (
         <p>
@@ -132,7 +132,7 @@ export function SubtractPanel({
   const inside = other?.properties.type === 'obstacle' && !!result?.cut;
   return (
     <div className={styles.splitBox}>
-      <p className={styles.dim}>{tr('Click the area to take out of {name}. That one stays as it is.', {name})}</p>
+      <p className={styles.dim}>{tr('Tap the area to take out of {name}. That one stays as it is.', {name})}</p>
       {other && result && result.pieces.length > 0 && !inside && (
         <p>
           {area.properties.name || tr('unnamed')} − {otherName} ={' '}
@@ -183,7 +183,7 @@ export function DrawPanel({
 }) {
   return (
     <div className={styles.inlineRow}>
-      <span className={styles.dim}>{tr('Click points to draw the outline ({n} so far), drag them to move', {n: points})}</span>
+      <span className={styles.dim}>{tr('Tap points to draw the outline ({n} so far), drag them to move', {n: points})}</span>
       <button className={styles.pillButton} onClick={onFinish} disabled={points < 3}>
         {tr('Finish')}
       </button>
@@ -223,7 +223,7 @@ export function SnapPanel({
   return (
     <div className={styles.splitBox}>
       <p className={styles.dim}>
-        {tr('Click the area to lay {name} against. Its corners close to the edge move onto it, between them it takes over that edge. A mowing area stays as it is, unless both are.', {name: nameOf(area)})}
+        {tr('Tap the area to lay {name} against. Its corners close to the edge move onto it, between them it takes over that edge. A mowing area stays as it is, unless both are.', {name: nameOf(area)})}
       </p>
       <div className={styles.inlineRow}>
         <input type="range" min={5} max={150} step={5} value={cm} onChange={(e) => onCm(Number(e.target.value))} aria-label={tr('Reach')} />
@@ -311,7 +311,7 @@ export function RestorePanel({
 }) {
   return (
     <div className={styles.splitBox}>
-      <p>{tr('{n} areas', {n: areas})}</p>
+      <p>{areas === 1 ? tr('1 area') : tr('{n} areas', {n: areas})}</p>
       <p className={styles.dim}>
         {backedUp
           ? tr('Restoring replaces the map on the mower with this one. The current map is backed up first, so this can be undone.')

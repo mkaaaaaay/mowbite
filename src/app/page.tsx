@@ -151,7 +151,7 @@ function BatteryRing({percent}: {percent: number}) {
         <circle cx="40" cy="40" r={r} className={styles.ringFill} strokeDasharray={`${(c * percent) / 100} ${c}`} />
       </svg>
       <div>
-        <strong>{percent}%</strong>
+        <strong>{`${percent}\u202f%`}</strong>
       </div>
     </div>
   );

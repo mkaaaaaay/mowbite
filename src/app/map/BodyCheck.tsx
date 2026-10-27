@@ -53,7 +53,7 @@ export function BodyCheck({request, onSpots}: {request: PlanRequest | null; onSp
       {current?.result &&
         (places.length ? (
           <span className={styles.warningText}>
-            {tr('{n} spots where the body would stick out', {n: places.length})}
+            {places.length === 1 ? tr('1 spot where the body would stick out') : tr('{n} spots where the body would stick out', {n: places.length})}
             {kinds.length > 0 && `: ${kinds.join(', ')}`}
           </span>
         ) : (

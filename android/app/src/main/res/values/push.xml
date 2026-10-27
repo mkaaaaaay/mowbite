@@ -3,7 +3,7 @@
     <!-- the logo's green, for the icon in the notification -->
     <color name="push_accent">#35A64F</color>
     <string name="push_channel_problems">Problems</string>
-    <string name="push_channel_problems_about">Emergency stop, docking or undocking given up, navigation error, mow motor didn\'t start, tests</string>
+    <string name="push_channel_problems_about">Emergency stop, docking or undocking given up, navigation error, mow motor didn\'t start, standing still, tests</string>
     <string name="push_channel_reminders">Reminders</string>
     <string name="push_channel_reminders_about">Again and again while the mower can\'t get on by itself, and when blades or cleaning are due</string>
     <string name="push_channel_info">Info</string>

@@ -79,7 +79,7 @@ export default function MapBackups({
                 <div>
                   <span>{backupLabel(b)}</span>
                   <span className={styles.dim}>
-                    {tr('{n} areas', {n: b.areas})}
+                    {b.areas === 1 ? tr('1 area') : tr('{n} areas', {n: b.areas})}
                   </span>
                 </div>
                 <div className={styles.actions}>
