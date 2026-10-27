@@ -144,6 +144,8 @@ export interface LogEntry {
   t: number;
   what: string;
   detail?: string;
+  // a second detail: the battery or the temperature behind leftovers_skip's reason
+  more?: string;
 }
 
 // what the scheduler writes to its log, in words (translated where it's shown)
@@ -171,13 +173,19 @@ export const SCHEDULE_LOG_TEXT: Record<string, string> = {
   leftovers_started: 'Started again for the leftovers ({detail} m²)',
   leftovers_little: 'Leftovers too small to go out again ({detail} m²)',
   leftovers_failed: "Leftovers not mowed, the planner didn't answer",
+  leftovers_waiting_battery: 'Leftovers: waiting for the battery ({detail} %)',
 };
 
-// leftovers_skip says why in its detail: dark, rain, emergency or the state the mower was in
+// leftovers_skip says why in its detail (battery and cold with their value after it), else the state the mower was in
 const LEFTOVERS_SKIP: Record<string, string> = {
   dark: "Leftovers not mowed, it's dark",
   rain: "Leftovers not mowed, it's raining",
   emergency: 'Leftovers not mowed, emergency stop',
+  battery: 'Leftovers not mowed, battery only at {more} % after six hours',
+  end: "Leftovers not mowed, the run's end time had come",
+  paused: 'Leftovers not mowed, paused for today',
+  forecast: 'Leftovers not mowed, rain was forecast',
+  cold: 'Leftovers not mowed, too cold ({more} °C)',
 };
 
 // a log line in words (english, translated where it's shown)
@@ -189,9 +197,11 @@ export function scheduleLogText(l: LogEntry): string {
 // a log line as shown, translated. a number with decimals in its detail (a temperature, m²) keeps them, with the
 // language's decimal comma
 export function scheduleLogLine(l: LogEntry): string {
-  const detail = l.detail ?? '';
-  const decimals = /^-?\d+\.(\d+)$/.exec(detail)?.[1].length;
-  return tr(scheduleLogText(l), {detail: decimals ? fmt(Number(detail), decimals) : detail});
+  const local = (v = '') => {
+    const decimals = /^-?\d+\.(\d+)$/.exec(v)?.[1].length;
+    return decimals ? fmt(Number(v), decimals) : v;
+  };
+  return tr(scheduleLogText(l), {detail: local(l.detail), more: local(l.more)});
 }
 
 // how a start the schedule tried ended: started, or why not
@@ -231,8 +241,8 @@ async function loadLog(): Promise<LogEntry[]> {
       .split('\n')
       .filter(Boolean)
       .map((l) => {
-        const [t, what, detail] = l.split(' ');
-        return {t: Number(t), what, detail};
+        const [t, what, detail, more] = l.split(' ');
+        return {t: Number(t), what, detail, ...(more ? {more} : {})};
       })
       .reverse());
   } catch {

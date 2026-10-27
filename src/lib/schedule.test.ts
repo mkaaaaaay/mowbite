@@ -201,3 +201,13 @@ describe('scheduleLogLine', () => {
     }
   });
 });
+
+describe('the leftovers in the log', () => {
+  it('says why they weren\'t mowed, with the value behind the reason', () => {
+    expect(scheduleLogLine({t: 0, what: 'leftovers_skip', detail: 'battery', more: '62'})).toBe('Leftovers not mowed, battery only at 62 % after six hours');
+    expect(scheduleLogLine({t: 0, what: 'leftovers_skip', detail: 'cold', more: '3.5'})).toBe('Leftovers not mowed, too cold (3.5 °C)');
+    expect(scheduleLogLine({t: 0, what: 'leftovers_skip', detail: 'end'})).toBe("Leftovers not mowed, the run's end time had come");
+    expect(scheduleLogLine({t: 0, what: 'leftovers_skip', detail: 'MOWING'})).toBe("Leftovers not mowed, the mower wasn't ready");
+    expect(scheduleLogLine({t: 0, what: 'leftovers_waiting_battery', detail: '40'})).toBe('Leftovers: waiting for the battery (40 %)');
+  });
+});
