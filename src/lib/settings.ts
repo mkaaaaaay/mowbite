@@ -87,8 +87,12 @@ export interface Settings {
 }
 
 const STORAGE_KEY = 'appSettings';
-// the settings of the mower the app is looking at (in the android app that's always another one)
-const settingsUrl = () => (isApp() ? apiBase() : '') + '/cgi-bin/settings';
+const PATH = '/cgi-bin/settings';
+// where the settings are kept: with the mower looked at in the android app (it has no mower of its own), with the one
+// the page comes from in a browser. a browser looking at another mower keeps that one's own settings (MOWER_KEYS)
+// there, ownUrl, the app's (design, colors, the list of mowers) stay home
+const homeUrl = () => (isApp() ? apiBase() : '') + PATH;
+const ownUrl = () => (!isApp() && apiBase() ? apiBase() + PATH : null);
 
 const NONE: Settings = {};
 let current: Settings | null = null;
@@ -137,11 +141,17 @@ export function sharedSettings() {
   return shared;
 }
 
-// the settings as the container has them, and its version of them (null from an older container). a save says
-// which version it started from, when another device saved in between the container answers 409 with its
-// settings and the change made here goes on top of those (docker/settings.cgi)
-let server: Settings = {};
-let version: string | null = null;
+// the settings as a container has them, and its version of them (null from an older container). a save says which
+// version it started from, when another device saved in between the container answers 409 with its settings and the
+// change made here goes on top of those (docker/settings.cgi)
+interface Kept {
+  server: Settings;
+  version: string | null;
+}
+const home: Kept = {server: {}, version: null};
+// the mower looked at, in a browser when it's another one than the page's: reached once its settings came
+const own: Kept = {server: {}, version: null};
+let ownShared = false;
 
 // asked once, everyone asking waits for the same answer. a mower that couldn't be reached (or its container failed) is
 // asked again a while later, and what was changed here meanwhile goes on top of what it has
@@ -153,25 +163,43 @@ const again = () =>
     syncing = null;
     void syncSettings();
   }, 30000);
+// a container's settings and their version, null when none answers there (the page isn't served by one)
+async function fetchKept(url: string): Promise<Kept | null> {
+  const res = await mowerFetch(url, {cache: 'no-store'});
+  if (!res.ok || !res.headers.get('content-type')?.includes('json')) {
+    // (no container behind it answers that way for good)
+    if (res.status >= 500) throw new Error(`settings ${res.status}`);
+    return null;
+  }
+  const data = await res.json();
+  return {server: data && typeof data === 'object' ? data : {}, version: res.headers.get('X-Settings-Version') || null};
+}
 export function syncSettings(): Promise<void> {
   before ??= load();
   syncing ??= (async () => {
     try {
-      const res = await mowerFetch(settingsUrl(), {cache: 'no-store'});
-      if (!res.ok || !res.headers.get('content-type')?.includes('json')) {
-        // (no container behind it answers that way for good)
-        if (res.status >= 500) again();
-        return;
-      }
-      const data = await res.json();
+      const got = await fetchKept(homeUrl());
+      if (!got) return;
+      Object.assign(home, got);
       shared = true;
-      server = data && typeof data === 'object' ? data : {};
-      version = res.headers.get('X-Settings-Version') || null;
+      const o = ownUrl();
+      const gotOwn = o ? await fetchKept(o).catch(() => null) : null;
+      if (gotOwn) {
+        Object.assign(own, gotOwn);
+        ownShared = true;
+      }
+      // the other mower's own settings as kept here while it can't be reached, it's asked again a while later
+      if (o && !gotOwn) again();
+      const server = o ? join(home.server, gotOwn ? own.server : load()) : home.server;
       const mine = load();
-      if (mine === before) return setLocal(server);
-      const next = mergeChanges(server, before ?? {}, mine);
-      setLocal(next);
-      saving = saving.then(() => push(next)).catch(() => {});
+      if (mine === before) setLocal(server);
+      else {
+        const next = mergeChanges(server, before ?? {}, mine);
+        setLocal(next);
+        saving = saving.then(() => pushAll(next)).catch(() => {});
+      }
+      // what's changed from now on is this device's
+      before = load();
     } catch {
       // not reached: kept here for now
       again();
@@ -180,21 +208,33 @@ export function syncSettings(): Promise<void> {
   return syncing;
 }
 
-async function push(next: Settings) {
+// what a save sends where: everything home, or with another mower looked at in a browser the app's settings home and
+// that mower's own to it. a part that didn't change isn't sent
+async function pushAll(next: Settings) {
+  const o = ownUrl();
+  if (!o) return push(home, homeUrl(), next, (merged) => merged);
+  const homeNext = join(next, home.server);
+  if (JSON.stringify(homeNext) !== JSON.stringify(home.server)) await push(home, homeUrl(), homeNext, (merged) => join(merged, current ?? {}));
+  const ownNext = join(own.server, next);
+  if (ownShared && JSON.stringify(ownNext) !== JSON.stringify(own.server)) await push(own, o, ownNext, (merged) => join(current ?? {}, merged));
+}
+
+// shown: the settings here once another device's save got put together with this one
+async function push(k: Kept, url: string, next: Settings, shown: (merged: Settings) => Settings) {
   for (let tries = 0; tries < 3; tries++) {
-    const res = await mowerFetch(settingsUrl() + (version ? `?v=${encodeURIComponent(version)}` : ''), {
+    const res = await mowerFetch(url + (k.version ? `?v=${encodeURIComponent(k.version)}` : ''), {
       method: 'POST',
       body: JSON.stringify(next),
     });
     const v = res.headers.get('X-Settings-Version') || null;
     if (res.status !== 409) {
-      if (res.ok) [server, version] = [next, v];
+      if (res.ok) [k.server, k.version] = [next, v];
       return;
     }
     const theirs: Settings = await res.json();
-    next = mergeChanges(theirs, server, next);
-    [server, version] = [theirs, v];
-    setLocal(next);
+    next = mergeChanges(theirs, k.server, next);
+    [k.server, k.version] = [theirs, v];
+    setLocal(shown(next));
   }
 }
 
@@ -206,13 +246,31 @@ export function saveSettings(next: Settings) {
   if (!shared) return;
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    saving = saving.then(() => push(current ?? next)).catch(() => {});
+    saving = saving.then(() => pushAll(current ?? next)).catch(() => {});
   }, 400);
 }
 
 // what's kept for an area's picture by its id: which one, its color, size, direction, folded up and the ground under it
 export const LOOK_KEYS = ['looks', 'lookVariants', 'lookSizes', 'lookTurns', 'lookClosed', 'lookGrounds'] as const;
 export type LookKey = (typeof LOOK_KEYS)[number];
+
+// what belongs to one mower and its map: its sizes, the pictures of its areas, its leftovers (its container reads them)
+// and where its aerial imagery is moved to (imagery's offsets, the rest of imagery is the app's)
+export const MOWER_KEYS = ['mower', 'keepRectangle', 'autoOutline', 'leftovers', ...LOOK_KEYS] as const;
+
+// the settings of the app from a, the ones of a mower from b
+export function join(a: Settings, b: Settings): Settings {
+  const out: Record<string, unknown> = {...a};
+  for (const k of MOWER_KEYS) {
+    if (b[k] !== undefined) out[k] = b[k];
+    else delete out[k];
+  }
+  const imagery = {...a.imagery, ...(b.imagery?.offsets ? {offsets: b.imagery.offsets} : {})};
+  if (!b.imagery?.offsets) delete imagery.offsets;
+  if (Object.keys(imagery).length) out.imagery = imagery;
+  else delete out.imagery;
+  return out as Settings;
+}
 // what's kept for some areas' pictures, by area id, a setting not there when there's none
 export type KeptLooks = Record<string, {[K in LookKey]?: NonNullable<Settings[K]>[string]}>;
 
