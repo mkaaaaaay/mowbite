@@ -2,7 +2,7 @@
 
 import {onTopic} from '@/lib/mqttClient';
 import {useSyncExternalStore} from 'react';
-import {PARAM_DEFAULTS, TOPIC} from '@/lib/openmower';
+import {PARAM, PARAM_DEFAULTS, TOPIC} from '@/lib/openmower';
 
 export type MowerParams = Record<string, unknown>;
 
@@ -41,6 +41,11 @@ export function useMowerParams(): MowerParams {
 
 // a number param, or mower_logic's default when the mower's list came without it (see PARAM_DEFAULTS). nothing
 // before the list arrived, a default shown then could be wrong
+// mower_logic's mow_angle_offset in rad, and whether it takes the place of each area's direction
+export function angleOffsetOf(params: MowerParams): {angleOffset: number; angleAbsolute: boolean} {
+  return {angleOffset: ((numParam(params, PARAM.mowAngleOffset) ?? 0) * Math.PI) / 180, angleAbsolute: params[PARAM.mowAngleOffsetIsAbsolute] === true};
+}
+
 export function numParam(params: MowerParams, key: string): number | undefined {
   const v = params[key];
   if (typeof v === 'number') return v;

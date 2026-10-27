@@ -150,6 +150,9 @@ export function MapLookSettings({onDecorate}: {onDecorate?: () => void}) {
                 {tr(label)}
               </label>
             ))}
+            {life.season && !settings.weather && (
+              <p className={styles.dim}>{tr('Snow and rain on the lawn come with the weather: switch on "Show the weather for the garden" in the settings.')}</p>
+            )}
           </div>
         )}
       </section>
@@ -188,7 +191,11 @@ export function MapLookSettings({onDecorate}: {onDecorate?: () => void}) {
             {tr('Reset all')}
           </button>
         </div>
-        <p className={styles.dim}>{tr('Used on every map in the app.')}</p>
+        <p className={styles.dim}>
+          {settings.mapStyle === 'garden'
+            ? tr("In the garden style only the mower, the docking station, the mower's outline and the cut width take them, the rest has the garden's colors.")
+            : tr('Used on every map in the app.')}
+        </p>
         <div className={styles.colors}>
           {COLORS.map((c) => {
             const value = colors[c.key] ?? c.value;
@@ -268,7 +275,12 @@ export function MapLookSettings({onDecorate}: {onDecorate?: () => void}) {
 // tap next to it closes them
 export function MapLookPanel({onClose, onDecorate}: {onClose: () => void; onDecorate?: () => void}) {
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      // a field typed into saves when it's left: left before the panel goes, its value would be lost with it
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+      onClose();
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);

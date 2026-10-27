@@ -26,6 +26,7 @@ import {fillOf, GardenDefs, gardenThings, pinTapped} from './gardenLook';
 import {biggest, coversOf, edgePaths, GardenThing, lifeOf, lifeScene} from './gardenLife';
 import {PICTURES} from './gardenPictures';
 import {useMowHistory} from '@/hooks/useMowHistory';
+import {angleOffsetOf, useMowerParams} from '@/hooks/useMowerParams';
 import {useLastRun} from '@/hooks/useMowerTrack';
 import {useWeather} from '@/hooks/useWeather';
 import {useMowerStateValue} from '@/hooks/useMowerState';
@@ -345,12 +346,18 @@ function MapView({
   const updates = useUpdates();
   // gps or wifi where the mower drove, asked for once the coverage is switched on. the square tapped shows its numbers
   const [coverage, setCoverage] = useState<CoverageCell[] | null>(null);
+  // asked for and nothing there yet (a new container, or nothing driven for two weeks): the switch says so
+  const [coverNone, setCoverNone] = useState(false);
   const [coverCell, setCoverCell] = useState<CoverageCell | null>(null);
   const wantCoverage = coverMode !== 'off';
   // with the coverage shown the map is for looking: a tap shows a square's numbers, nothing is picked or moved
   const editing = coverMode === 'off';
   useEffect(() => {
-    if (wantCoverage) void loadCoverage().then(setCoverage);
+    if (wantCoverage)
+      void loadCoverage().then((c) => {
+        setCoverage(c);
+        setCoverNone(!c?.length);
+      });
   }, [wantCoverage]);
   const pointers = useRef(new Map<number, {x: number; y: number}>());
   // a pinch: how far apart the fingers were and their middle (client px) at the last move
@@ -555,6 +562,8 @@ function MapView({
   // its outline) and cut to it should it still stick out
   const garden = mapStyle ? mapStyle === 'garden' : settings.mapStyle === 'garden';
   const uid = 'g' + useId().replace(/[^a-zA-Z0-9]/g, '');
+  // the stripes go the way the mower mows: its mow_angle_offset too
+  const {angleOffset, angleAbsolute} = angleOffsetOf(useMowerParams());
   const gardenLook = useMemo(() => {
     if (!garden) return null;
     const g = gardenThings(shapeMap.areas, settings.looks, body ?? null, {minX, minY, m: scale, padX, padY}, {
@@ -563,9 +572,11 @@ function MapView({
       turns: settings.lookTurns,
       closed: settings.lookClosed,
       grounds: settings.lookGrounds,
+      angleOffset,
+      angleAbsolute,
     });
     return {...g, defs: <GardenDefs uid={uid} m={scale} lawns={g.angles} clips={g.clips} />};
-  }, [garden, shapeMap, settings.looks, settings.lookVariants, settings.lookSizes, settings.lookTurns, settings.lookClosed, settings.lookGrounds, uid, scale, minX, minY, padX, padY, body]);
+  }, [garden, shapeMap, settings.looks, settings.lookVariants, settings.lookSizes, settings.lookTurns, settings.lookClosed, settings.lookGrounds, uid, scale, minX, minY, padX, padY, body, angleOffset, angleAbsolute]);
   // the garden's life (gardenLife): light after the sun, the season and the weather on the lawn, a mowing edge and
   // the lawn growing back since it was last cut. the time moves on every five minutes, the layers are worked out below
   const life = garden && !sample ? lifeOf(settings.garden) : null;
@@ -646,9 +657,11 @@ function MapView({
             track: cutTrack,
             edgeLine: edges?.lawnLine ?? null,
             hidden,
+            angleOffset,
+            angleAbsolute,
           })
         : null,
-    [garden, sample, shapeMap, settings.garden, settings.looks, settings.lookVariants, settings.lookSizes, settings.lookTurns, settings.lookClosed, settings.lookGrounds, body, minX, minY, scale, padX, padY, uid, lifeNow, datum, weather, rainSensor, nightMower, history, cutTrack, edges, hidden],
+    [garden, sample, shapeMap, settings.garden, settings.looks, settings.lookVariants, settings.lookSizes, settings.lookTurns, settings.lookClosed, settings.lookGrounds, body, minX, minY, scale, padX, padY, uid, lifeNow, datum, weather, rainSensor, nightMower, history, cutTrack, edges, hidden, angleOffset, angleAbsolute],
   );
   const gardenFill = (a: MapArea): React.CSSProperties | undefined => {
     if (!gardenLook) return undefined;
@@ -1687,7 +1700,8 @@ function MapView({
                         if (failedTiles.current.key !== esriKey) failedTiles.current = {key: esriKey, hrefs: new Set()};
                         const {hrefs} = failedTiles.current;
                         hrefs.add(t.href);
-                        if (hrefs.size < 2) return;
+                        // (without internet it's not the key)
+                        if (hrefs.size < 2 || !navigator.onLine) return;
                         setRejectedKey(esriKey);
                         setImageryHint(true);
                       }
@@ -2268,6 +2282,7 @@ function MapView({
             zoomable && updates.level !== null && !decor
               ? {
                   wifi: !coverage || coverage.some((c) => c.wifi !== null),
+                  none: coverNone,
                   value: coverMode,
                   // the editor's map: says that editing waits while the coverage is shown
                   paused: !editing && !!onSelectArea,
@@ -2359,7 +2374,7 @@ function MapView({
           {areaHint.text}
         </div>
       )}
-      {imageryHint && imageryRejected && <div className={styles.hintToast}>{tr('Esri key rejected or expired')}</div>}
+      {imageryHint && imageryRejected && <div className={styles.hintToast}>{tr("Esri's tiles don't load: the key was rejected or expired, or there's no internet")}</div>}
       {deletedAt !== null && onUndo && (
         <div className={styles.undoToast}>
           {tr('Point deleted')}

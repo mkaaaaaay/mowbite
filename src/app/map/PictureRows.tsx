@@ -179,7 +179,8 @@ export default function PictureRows({id, look, autoSize, autoDeg, grounded, size
             </button>
             <Stepper
               label={pic.turn ? tr('Direction') : tr('Rotation')}
-              text={pic.turn ? tr(compass(ownTurn ?? autoTurn)) : `${ownTurn ?? autoTurn}°`}
+              // the way it faces, with the degrees: a tap moves it 5°
+              text={pic.turn ? `${tr(compass(ownTurn ?? autoTurn))} · ${ownTurn ?? autoTurn}°` : `${ownTurn ?? autoTurn}°`}
               dim={ownTurn === undefined}
               onStep={stepTurn}
             />

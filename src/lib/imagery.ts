@@ -243,7 +243,8 @@ export interface CustomImagery {
 
 const esriKey = (custom?: CustomImagery) => custom?.esriKey?.trim() || '';
 
-// xyz tiles with the three placeholders, or a wms in EPSG:3857 with {bbox}. http(s) only
+// xyz tiles with the three placeholders, or a wms in EPSG:3857 with {bbox}. http(s) only. {s}, a subdomain of the
+// provider's, is the first one, a
 export function isTileUrl(url: string | undefined): url is string {
   return !!url && /^https?:\/\//.test(url) && (url.includes('{bbox}') || ['{z}', '{x}', '{y}'].every((p) => url.includes(p)));
 }
@@ -393,6 +394,7 @@ function xyzTiles(template: string, datum: Datum, v: View): ImageryTile[] {
     for (let y = y0; y <= y1; y++) {
       tiles.push({
         href: template
+          .replace('{s}', 'a')
           .replace('{z}', String(z))
           .replace('{x}', String(x))
           .replace('{y}', String(y))

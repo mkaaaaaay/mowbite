@@ -280,8 +280,13 @@ export function LifeDefs({uid, m}: {uid: string; m: number}) {
 
 // ---- the garden's life as MapView draws it, the same for the app and the home assistant card (mowbite-art.js)
 
-// where the sun is worked out from when the mower has no position on earth: the middle of germany
-const SOMEWHERE = {lat: 51, lon: 10};
+// where the sun is worked out from when the mower has no position on earth: 51° north, at the longitude of the device's
+// time zone (its offset without summer time, 15° an hour)
+const somewhere = () => {
+  const y = new Date().getFullYear();
+  const west = Math.max(new Date(y, 0, 1).getTimezoneOffset(), new Date(y, 6, 1).getTimezoneOffset());
+  return {lat: 51, lon: -west / 4};
+};
 
 // a point in the square of 400 as svg path text
 export function svgAt(fit: Fit) {
@@ -315,13 +320,13 @@ const pieceCache = new WeakMap<object, {key: string; value: {there: string; back
 
 // the lawns as they're cut (active, mowed), what lies in them, all areas biggest first like MapView draws them, and the
 // stripes' way of the biggest lawn: a cut along it looks lighter, against it darker
-function lawnsOf(areas: MapArea[]): Lawns {
-  return cached(lawnsCache, areas, '', () => {
+function lawnsOf(areas: MapArea[], angleOffset = 0, angleAbsolute = false): Lawns {
+  return cached(lawnsCache, areas, `${angleOffset}|${angleAbsolute}`, () => {
     const lawns = areas.filter((a) => a.properties.type === 'mow' && a.properties.active !== false && a.properties.mowable !== false && a.outline.length > 2);
     const obstacles = areas.filter((a) => standing(a) && a.outline.length > 2);
     const bySize = [...areas].sort((a, b) => polygonArea(b.outline) - polygonArea(a.outline));
     const biggest = bySize.find((a) => lawns.includes(a));
-    const angle = biggest ? (biggest.properties.angle ?? autoMowAngle(biggest.outline)) : 0;
+    const angle = angleAbsolute ? angleOffset : (biggest ? (biggest.properties.angle ?? autoMowAngle(biggest.outline)) : 0) + angleOffset;
     return {lawns, obstacles, bySize, along: {x: Math.cos(angle), y: Math.sin(angle)}};
   });
 }
@@ -545,6 +550,9 @@ export interface LifeInput {
   track?: readonly {x: number; y: number; b?: boolean}[][] | null;
   edgeLine?: string | null;
   hidden?: Iterable<string> | null;
+  // the mower's mow_angle_offset (rad), absolute or on top of each area's direction (the stripes' way)
+  angleOffset?: number;
+  angleAbsolute?: boolean;
 }
 
 export interface LifeScene {
@@ -577,12 +585,12 @@ export function lifeScene(s: LifeInput): LifeScene | null {
   const at = svgAt(fit);
   const square = inSquare(fit);
   const hidden = new Set(s.hidden ?? []);
-  const {lawns, obstacles, bySize, along} = lawnsOf(s.areas);
+  const {lawns, obstacles, bySize, along} = lawnsOf(s.areas, s.angleOffset, s.angleAbsolute);
   const key = `${fitKey(fit)}|${along.x},${along.y}`;
   // the lawns without what lies in them, one path to cut the cuts and the season to (even-odd)
   const lawnD = cached(lawnDCache, s.areas, fitKey(fit), () => rings([...lawns, ...obstacles], at));
   const season = seasonOf(s.datum?.lat, new Date(now));
-  const place = s.datum ?? SOMEWHERE;
+  const place = s.datum ?? somewhere();
   const sun = parts.sun ? sunPosition(place.lat, place.lon, new Date(now)) : null;
 
   // the last runs cut into the lawn, oldest first, fading as the grass grows back, and the live trail cut fresh
@@ -623,10 +631,10 @@ export function lifeScene(s: LifeInput): LifeScene | null {
   }
 
   // the season on the lawn with the weather: frost in winter unless it's warmer than 3°, snow while it snows (wmo codes),
-  // wet in the rain
+  // wet in the rain. without the weather a winter's frost only while the sun is low or down
   const weather = s.weather;
   const snowing = !!weather && ((weather.code >= 71 && weather.code <= 77) || weather.code === 85 || weather.code === 86);
-  const frosty = season === 'winter' && (!weather || weather.temp <= 3);
+  const frosty = season === 'winter' && (weather ? weather.temp <= 3 : (sun ?? sunPosition(place.lat, place.lon, new Date(now))).elevation < 12);
   const wet = parts.season && (!!s.rain || !!weather?.raining);
   const lawnSprinkles = parts.season ? cached(sprinkleCache, s.areas, season, () => sprinkles(lawns, obstacles, season)) : [];
   const light = sun ? lightOf(sun.elevation) : null;
@@ -652,6 +660,8 @@ export function lifeScene(s: LifeInput): LifeScene | null {
     turns: s.lookTurns,
     closed: s.lookClosed,
     grounds: s.lookGrounds,
+    angleOffset: s.angleOffset,
+    angleAbsolute: s.angleAbsolute,
   });
   // the things reaching over the others and the mower, of the areas shown
   const shown = bySize
@@ -742,7 +752,10 @@ export function lifeScene(s: LifeInput): LifeScene | null {
 
 // ---- the garden without its life as MapView draws it, for the home assistant card (mowbite-art.js gardenAreas)
 
-export type GardenInput = Pick<LifeInput, 'areas' | 'looks' | 'lookVariants' | 'lookSizes' | 'lookTurns' | 'lookClosed' | 'lookGrounds' | 'body' | 'fit' | 'uid'>;
+export type GardenInput = Pick<
+  LifeInput,
+  'areas' | 'looks' | 'lookVariants' | 'lookSizes' | 'lookTurns' | 'lookClosed' | 'lookGrounds' | 'body' | 'fit' | 'uid' | 'angleOffset' | 'angleAbsolute'
+>;
 
 export interface GardenScene {
   // GardenDefs and the beds' tiles, everything the rest refers to
@@ -766,6 +779,8 @@ export function gardenScene(s: GardenInput): GardenScene {
     turns: s.lookTurns,
     closed: s.lookClosed,
     grounds: s.lookGrounds,
+    angleOffset: s.angleOffset,
+    angleAbsolute: s.angleAbsolute,
   });
   const fills: Record<string, Look> = {};
   const things: Record<string, ReactNode> = {};

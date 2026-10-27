@@ -3,6 +3,7 @@
 // while the page idles, the map opens without most of that work then
 import {useEffect, useSyncExternalStore} from 'react';
 import type {MowerMap} from '@/hooks/useMowerMap';
+import {angleOffsetOf, useMowerParams} from '@/hooks/useMowerParams';
 import {realEdges, realInsides, useMowerBody} from '@/lib/mowerBody';
 import {settingsStore} from '@/lib/settings';
 import {layerOn} from './MapControls';
@@ -13,6 +14,7 @@ import {edgePaths} from './gardenLife';
 
 export function useMapAhead(map: MowerMap | null) {
   const body = useMowerBody();
+  const params = useMowerParams();
   const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
   useEffect(() => {
     const bounds = map && boundsOf(map);
@@ -22,7 +24,14 @@ export function useMapAhead(map: MowerMap | null) {
     const garden = settings.mapStyle === 'garden';
     const hidden = hiddenLayers();
     const edgesOn = !!body && layerOn(hidden, 'edges');
-    const own = {variants: settings.lookVariants, sizes: settings.lookSizes, turns: settings.lookTurns, closed: settings.lookClosed, grounds: settings.lookGrounds};
+    const own = {
+      variants: settings.lookVariants,
+      sizes: settings.lookSizes,
+      turns: settings.lookTurns,
+      closed: settings.lookClosed,
+      grounds: settings.lookGrounds,
+      ...angleOffsetOf(params),
+    };
     const steps = [
       () => edgesOn && body && realEdges(map.areas, body),
       () => garden && body && realInsides(map.areas, body),
@@ -40,5 +49,5 @@ export function useMapAhead(map: MowerMap | null) {
     return () => {
       stop = true;
     };
-  }, [map, body, settings]);
+  }, [map, body, settings, params]);
 }

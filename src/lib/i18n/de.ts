@@ -559,7 +559,7 @@ const de: Record<string, string> = {
   "Own source": "Eigene Quelle",
   "Esri World Imagery covers the whole world, but only with an API key of your own from the ArcGIS Location Platform (free up to a monthly number of map tiles). It then shows up as a choice on the map, after the official orthophotos where there are any. The key is kept with the other settings on the mower, where every device in your home network and any web page opened on one of them can read it. So in the ArcGIS dashboard give it only the privilege Basemaps and limit it to the addresses you open this app at (HTTP referrer), for the Android app that's http://localhost.": "Esri World Imagery deckt die ganze Welt ab, aber nur mit einem eigenen API-Schlüssel der ArcGIS Location Platform (kostenlos bis zu einer monatlichen Zahl an Kartenkacheln). Esri erscheint dann als Auswahl auf der Karte, nach den amtlichen Luftbildern, wo es welche gibt. Der Schlüssel wird mit den anderen Einstellungen auf dem Mäher gespeichert, wo ihn jedes Gerät in deinem Heimnetz und jede dort geöffnete Webseite lesen kann. Gib ihm deshalb im ArcGIS-Dashboard nur das Recht „Basemaps“ und beschränke ihn auf die Adressen, unter denen du diese App öffnest (HTTP-Referrer), für die Android-App ist das http://localhost.",
   "Esri API key": "Esri-API-Schlüssel",
-  "Esri key rejected or expired": "Esri-Schlüssel abgelehnt oder abgelaufen",
+  "Esri's tiles don't load: the key was rejected or expired, or there's no internet": "Die Kacheln von Esri laden nicht: Der Schlüssel wurde abgelehnt oder ist abgelaufen, oder es gibt kein Internet",
   "Partly cloudy": "Teils bewölkt",
   "Pause": "Pause",
   "Paused": "Pausiert",
@@ -594,6 +594,11 @@ const de: Record<string, string> = {
   "Reset all": "Alle zurücksetzen",
   "Reset emergency": "Notaus zurücksetzen",
   "Stop undocking": "Ausdocken abbrechen",
+  "Nothing kept yet, the squares fill up while the mower drives": "Noch nichts gespeichert, die Quadrate füllen sich, während der Mäher fährt",
+  "Snow and rain on the lawn come with the weather: switch on \"Show the weather for the garden\" in the settings.":
+    "Schnee und Regen auf dem Rasen kommen mit dem Wetter: Schalte in den Einstellungen „Wetter für den Garten anzeigen“ ein.",
+  "In the garden style only the mower, the docking station, the mower's outline and the cut width take them, the rest has the garden's colors.":
+    "Im Gartenstil gelten sie nur für Mäher, Dock, den Umriss des Mähers und die Schnittbreite, der Rest hat die Farben des Gartens.",
   "The backup couldn't be loaded.": "Das Backup ließ sich nicht laden.",
   "The mower's backups didn't come (yet). Files still work.": "Die Backups vom Mäher sind (noch) nicht da. Dateien gehen trotzdem.",
   "Deleted here, changed on the other side: {names}. They stay deleted.": "Hier gelöscht, auf der anderen Seite geändert: {names}. Sie bleiben gelöscht.",

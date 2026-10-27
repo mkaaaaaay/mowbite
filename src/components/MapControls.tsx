@@ -99,7 +99,8 @@ export default function MapControls({
   // the three way switch on the map (wifi, off, gps), when MowBite's container keeps the gps log. wifi false: no signal
   // in it
   // paused: the map can be edited, but not while the coverage is shown
-  coverage?: {wifi: boolean; value: Coverage; paused?: boolean; onChange: (c: Coverage) => void};
+  // none: nothing kept yet to show
+  coverage?: {wifi: boolean; none?: boolean; value: Coverage; paused?: boolean; onChange: (c: Coverage) => void};
   // shown when zoomed or panned, follow: the view follows the mower
   reset: {follow: boolean; onReset: () => void} | null;
   // only while the view can follow the mower
@@ -139,7 +140,10 @@ export default function MapControls({
               </button>
             ))}
           </div>
-          {coverage.value !== 'off' && (
+          {coverage.value !== 'off' && coverage.none && (
+            <span className={styles.coverLegend}>{tr('Nothing kept yet, the squares fill up while the mower drives')}</span>
+          )}
+          {coverage.value !== 'off' && !coverage.none && (
             <span className={styles.coverLegend} title={tr('Paler: little data there. Tap a square for its numbers.')}>
               <i className={styles.good} /> {coverage.value === 'gps' ? '≤ 5 cm' : tr('strong')}
               <i className={styles.ok} /> {tr(coverage.value === 'gps' ? 'at times worse' : 'medium')}

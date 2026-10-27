@@ -399,6 +399,9 @@ export interface ThingsOwn {
   turns?: Record<string, number>;
   closed?: Record<string, boolean>;
   grounds?: Record<string, string>;
+  // the mower's mow_angle_offset (rad), on top of each area's direction or in place of it (absolute), like mower_logic
+  angleOffset?: number;
+  angleAbsolute?: boolean;
 }
 
 const thingsCache = new WeakMap<object, {looks?: object; own: ThingsOwn; body: object | null; key: string; out: GardenThings}>();
@@ -436,10 +439,17 @@ export function gardenThings(
   fit: Fit,
   own: ThingsOwn = {},
 ): GardenThings {
-  const {variants, sizes, turns, closed, grounds} = own;
+  const {variants, sizes, turns, closed, grounds, angleOffset = 0, angleAbsolute = false} = own;
   const key = fitKey(fit);
   const hit = thingsCache.get(areas);
-  const same = (o: ThingsOwn) => o.variants === variants && o.sizes === sizes && o.turns === turns && o.closed === closed && o.grounds === grounds;
+  const same = (o: ThingsOwn) =>
+    o.variants === variants &&
+    o.sizes === sizes &&
+    o.turns === turns &&
+    o.closed === closed &&
+    o.grounds === grounds &&
+    (o.angleOffset ?? 0) === angleOffset &&
+    !!o.angleAbsolute === angleAbsolute;
   if (hit && hit.looks === looks && same(hit.own) && hit.body === body && hit.key === key) return hit.out;
   const at = inSquare(fit);
   const insides = body ? realInsides(areas, body) : null;
@@ -460,7 +470,7 @@ export function gardenThings(
     const type = a.properties.type;
     if (type === 'mow') {
       out.lawns.set(a.id, out.angles.length);
-      out.angles.push(a.properties.angle ?? autoMowAngle(a.outline));
+      out.angles.push(angleAbsolute ? angleOffset : (a.properties.angle ?? autoMowAngle(a.outline)) + angleOffset);
     } else if (isPin(a)) {
       // a pin: its picture once round where it stands, as big and turned as picked (else its usual size, towards what it
       // faces or not turned), not cut to anything and without a ground of its own
