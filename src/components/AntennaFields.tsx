@@ -2,14 +2,14 @@
 
 import {numParam, useMowerParams} from '@/hooks/useMowerParams';
 import {copyText} from '@/lib/clipboard';
-import {tr} from '@/lib/i18n';
+import {dec, tr} from '@/lib/i18n';
 import {PARAM} from '@/lib/openmower';
 import {useState} from 'react';
 import local from './MowerSizesSettings.module.css';
 
 type Styles = Record<string, string>;
 
-const cm = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? String(Math.round(v * 1000) / 10) : '');
+const cm = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? dec(Math.round(v * 1000) / 10) : '');
 const metres = (text: string) => {
   const v = parseFloat(text.replace(',', '.'));
   return text.trim() && Number.isFinite(v) ? v / 100 : null;

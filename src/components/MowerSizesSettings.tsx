@@ -1,7 +1,7 @@
 'use client';
 
 import {numParam, useMowerParams} from '@/hooks/useMowerParams';
-import {tr} from '@/lib/i18n';
+import {dec, tr} from '@/lib/i18n';
 import {autoOutlineModel, MAX_BLADE, modelOf, MOWER_MODELS, outlineOf, sizesBody, withModelOutline, type MowerSizes, type Outline} from '@/lib/mowerBody';
 import {PARAM} from '@/lib/openmower';
 import {saveSettings, settingsStore, type Settings} from '@/lib/settings';
@@ -26,7 +26,7 @@ type Form = Record<Field, string>;
 
 type Styles = Record<string, string>;
 
-const cm = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? String(Math.round(v * 1000) / 10) : '');
+const cm = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? dec(Math.round(v * 1000) / 10) : '');
 
 function formFrom(s: MowerSizes | undefined): Form {
   return Object.fromEntries(FIELDS.map(([key]) => [key, cm(s?.[key])])) as Form;
@@ -101,7 +101,9 @@ export function MowerSizesSettings({settings, styles}: {settings: Settings; styl
     }
     if (!sizesBody(next)) return setState({error: tr('Width and the lengths to the front and back are needed.')});
     if (o) next.outline = o;
-    if (next.blade !== undefined && (next.blade <= 0 || next.blade > MAX_BLADE))
+    if (next.blade !== undefined && next.blade <= 0)
+      return setState({error: tr('The blade diameter has to be more than 0, or leave it empty.')});
+    if (next.blade !== undefined && next.blade > MAX_BLADE)
       return setState({error: tr('The blade diameter can be at most {n} cm.', {n: MAX_BLADE * 100})});
     // the rectangle saved for a model's sizes is kept, an outline saved with them ends a kept one
     store(next, {keepRectangle: o ? undefined : autoOutlineModel(next) ? true : keep});

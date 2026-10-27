@@ -13,7 +13,8 @@ from_mowbite() {
   esac
   if [ -n "${MOWBITE_ORIGINS:-}" ]; then
     old=$IFS
-    IFS=,
+    # (a space after the comma too)
+    IFS=', '
     set -f
     for x in $MOWBITE_ORIGINS; do [ "$o" = "${x%/}" ] && IFS=$old && set +f && return 0; done
     IFS=$old

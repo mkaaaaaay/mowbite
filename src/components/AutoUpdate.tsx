@@ -40,7 +40,7 @@ import {
 import {copyText} from '@/lib/clipboard';
 import {useDockgeUrl, useUpdaterPageLink, useUpdaterPageUrl} from '@/lib/dockge';
 import {fmt, tr, useLang} from '@/lib/i18n';
-import {isDemo} from '@/lib/mowers';
+import {apiBase, isDemo} from '@/lib/mowers';
 import {isApp} from '@/lib/native';
 import {useThemeChoice} from '@/lib/theme';
 import {APP_VERSION} from '@/lib/updates';
@@ -65,6 +65,8 @@ const UPDATER_YAML = `  updater:
       openmower.ui: "true"
       openmower.ui.name: MowBite Updater
       openmower.ui.port: "8083"
+      openmower.ui.icon: SystemUpdateAlt
+      openmower.ui.description: Updates OpenMower, MowBite, the planner and other apps, with the mower idle in the dock
 `;
 
 function CopyButton({text}: {text: string}) {
@@ -467,6 +469,8 @@ export function AutoUpdate() {
   const theme = useThemeChoice();
   const fast = useRef(false);
   const restartingRef = useRef(false);
+  // an updater answered on this page already
+  const seenRef = useRef(false);
   const embeddedRef = useRef(false);
   // where the updater's page is: from MowBite's container, else next to MowBite
   const [where, setWhere] = useState<string | null>(null);
@@ -482,13 +486,15 @@ export function AutoUpdate() {
         .then(
           (x) => {
             if (stop) return;
-            // the updater restarting on its new version answers nothing for a moment: what came last stays
-            if (!x && restartingRef.current) {
+            // the updater restarting on its new version answers nothing for a moment, one that answered before and
+            // doesn't now (10 s and no answer) is out of reach: what came last stays, it isn't one never set up
+            if (!x && (restartingRef.current || seenRef.current)) {
               setLost(true);
               return;
             }
             setS(x);
             setLost(false);
+            if (x) seenRef.current = true;
             restartingRef.current = !!x && !!selfInfo(x)?.restarting;
             fast.current = !!x && (x.requested || x.status.result === 'running' || restartingRef.current);
             embeddedRef.current = x?.status.embed === '1' && !isDemo();
@@ -545,7 +551,9 @@ export function AutoUpdate() {
   const days = st.conf.days === 'daily' ? [] : st.conf.days.split(',').map(Number);
   const toggleDay = (d: number) => {
     const next = days.includes(d) ? days.filter((x) => x !== d) : [...days, d].sort();
-    set({days: next.length && next.length < 7 ? next.join(',') : 'daily'});
+    // the last day taken away would be every night: that day stays, off is the switch of each app
+    if (!next.length) return;
+    set({days: next.length < 7 ? next.join(',') : 'daily'});
   };
   const free = freeMb(st);
   const checked = lastChecked(st);
@@ -553,7 +561,8 @@ export function AutoUpdate() {
   const log = [...st.log].reverse().join('\n');
   // MowBite on the mower is another version than this page: after its update, the page needs loading again
   const onMower = (st.status.mowbite_running ?? '').split(' ')[0];
-  const reload = !isApp() && !isDemo() && !running && !!onMower && onMower !== APP_VERSION;
+  // (only the mower this page comes from: another one picked can run another version for good)
+  const reload = !isApp() && !isDemo() && !apiBase() && !running && /^\d/.test(onMower) && onMower !== APP_VERSION;
   const reloadNote = reload && (
     <div className={local.warn}>
       <div className={local.row}>

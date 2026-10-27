@@ -99,6 +99,9 @@ export const locale = () => (active === 'de' ? 'de-DE' : 'en-GB');
 // a number with a fixed count of decimals, decimal comma in german
 // one formatter per language and number of digits, making one is what's slow (the dashboard formats every sensor value)
 const numberFormats = new Map<string, Intl.NumberFormat>();
+// a number as it is, with the language's decimal separator: for fields that take it back (they take both)
+export const dec = (v: number) => (active === 'de' ? String(v).replace('.', ',') : String(v));
+
 export const fmt = (v: number, digits = 0) => {
   const key = `${locale()} ${digits}`;
   let f = numberFormats.get(key);

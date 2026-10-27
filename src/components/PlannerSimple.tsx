@@ -1,7 +1,7 @@
 'use client';
 
 import type {MowerMap, Point} from '@/hooks/useMowerMap';
-import {tr} from '@/lib/i18n';
+import {dec, tr} from '@/lib/i18n';
 import {outlineOf, resetPlannerAngle, savePlannerSettings, slic3rPlans, usePlannerSettings, type PlannerSetting} from '@/lib/mowerBody';
 import {ANGLE_FOR_ALL, FIELDS, STYLE_LABELS, STYLE_NOTES, STYLES, styleOf} from '@/lib/plannerFields';
 import {areasWith, areasWithDirection, ownMargins, ownSettings, shown, type AreaValue, type OpenMowerOwn} from '@/lib/plannerOwn';
@@ -40,7 +40,7 @@ type Area = {
 const DEG = Math.PI / 180;
 // degrees to a tenth, for a step
 const degrees = (rad: number) => Math.round((rad / DEG) * 10) / 10;
-const cm = (m: unknown) => (typeof m === 'number' ? String(Math.round(m * 1000) / 10) : '');
+const cm = (m: unknown) => (typeof m === 'number' ? dec(Math.round(m * 1000) / 10) : '');
 const meters = (m: unknown) => (typeof m === 'number' ? String(Math.round(m * 100) / 100) : '');
 
 const PATTERNS = ['lanes', 'concentric', 'crosshatch'];

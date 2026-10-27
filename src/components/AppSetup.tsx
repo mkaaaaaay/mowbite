@@ -22,9 +22,14 @@ export default function AppSetup() {
   if (!app || hasMower) return null;
 
   const clean = () => host.trim().replace(/^https?:\/\//, '').replace(/[/:].*$/, '').toLowerCase();
+  // MowBite on another port than 8082, typed after the host
+  const port = () => {
+    const p = Number(/^(?:https?:\/\/)?[^/:]+:(\d{2,5})/.exec(host.trim())?.[1]);
+    return p > 0 && p < 65536 ? p : 8082;
+  };
   const save = () => {
     const id = Math.random().toString(36).slice(2, 10);
-    saveAppMowers([{id, name: name.trim(), host: clean(), appPort: 8082, wsPort: 9001}]);
+    saveAppMowers([{id, name: name.trim(), host: clean(), appPort: port(), wsPort: 9001}]);
     selectMower(id);
   };
   const connect = async () => {
@@ -32,7 +37,7 @@ export default function AppSetup() {
     setFailed(false);
     try {
       // only whether something answers there, older MowBite versions don't allow reading from the app
-      await fetch(`http://${clean()}:8082/manifest.json`, {mode: 'no-cors', signal: AbortSignal.timeout(6000)});
+      await fetch(`http://${clean()}:${port()}/manifest.json`, {mode: 'no-cors', signal: AbortSignal.timeout(6000)});
       save();
     } catch {
       setFailed(true);

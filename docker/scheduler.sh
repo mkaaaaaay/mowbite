@@ -289,8 +289,8 @@ leftovers_after() {
   c=$(leftovers_conf)
   [ "$(field "$c" auto)" = true ] || return
   min=$(field "$c" min)
-  # a planner that sends the mower out for the leftovers itself (its setting leftovers_auto): not twice
-  case "$(rpc_call planner.settings '{}' 20)" in *'"leftovers_auto"'*) return ;; esac
+  # a planner that sends the mower out for the leftovers itself (its setting leftovers_auto on): not twice
+  printf '%s' "$(rpc_call planner.settings '{}' 20)" | grep -o '"leftovers_auto": *{[^}]*}' | grep -q '"value": *true' && return
   if [ -f "$LEFT" ]; then
     # the run that just finished was the one for the leftovers (a flag older than 6 h is a leftover itself)
     age=$(($(date +%s) - $(cat "$LEFT")))
@@ -383,6 +383,9 @@ RUN=/data/run.state
 WAITING=/data/run.wait
 leftovers_watch &
 
+# the mowing direction the app keeps for the mower (params.sh), while keeping is on
+kept_angle() { grep -q '^enabled 1' /data/params.txt 2>/dev/null && sed -n "s|^$PARAM_MOW_ANGLE_OFFSET ||p" /data/params.txt | head -n1; }
+
 # a job still open: the mower out (or charging in the middle of it), or idle with one left unfinished
 run_open() {
   # shellcheck disable=SC2086
@@ -424,7 +427,7 @@ angle_back() {
   angle_tried=$(date +%s)
   host=$(find_broker)
   [ -n "$host" ] && ! run_open || return
-  turn=$(sed -n "s|^$PARAM_MOW_ANGLE_OFFSET ||p" /data/params.txt 2>/dev/null | head -n1)
+  turn=$(kept_angle)
   turn=${turn:-$(cat "$NORMAL" 2>/dev/null)}
   rpc_call "$RPC_SET_PARAMS" "{\"params\":{\"$PARAM_MOW_ANGLE_OFFSET\":${turn:-0}}}" 10 | grep -q '"result"' && rm -f "$NORMAL"
 }
@@ -547,7 +550,7 @@ while :; do
           [ -n "$now" ] && echo "$now" > "$NORMAL"
         fi
       elif [ -f "$NORMAL" ]; then
-        turn=$(sed -n "s|^$PARAM_MOW_ANGLE_OFFSET ||p" /data/params.txt 2>/dev/null | head -n1)
+        turn=$(kept_angle)
         turn=${turn:-$(cat "$NORMAL" 2>/dev/null)}
         turn=${turn:-0}
         rm -f "$NORMAL"

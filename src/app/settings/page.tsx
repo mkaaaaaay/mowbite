@@ -6,7 +6,7 @@ import {TitleRow} from '@/components/TopWeather';
 import {saveSettings, settingsStore, sharedSettings, type OtherMower, type Settings} from '@/lib/settings';
 import {useEffect, useState, useSyncExternalStore} from 'react';
 import styles from './page.module.css';
-import {setLangChoice, tr, useLang, useLangChoice} from '@/lib/i18n';
+import {dec, setLangChoice, tr, useLang, useLangChoice} from '@/lib/i18n';
 import {setThemeChoice, useThemeChoice} from '@/lib/theme';
 import {appMowers, DEMO_ID, isDemo, saveAppMowers, selectMower} from '@/lib/mowers';
 import {isApp} from '@/lib/native';
@@ -50,7 +50,8 @@ function Group({
     () => [id, ...anchors].some((a) => window.location.hash === '#' + a),
     () => false,
   );
-  const [toggled, setToggled] = useState<boolean | null>(() => opened.get(id) ?? null);
+  // a link to it opens it, also when it was folded by hand before
+  const [toggled, setToggled] = useState<boolean | null>(() => (linked ? null : (opened.get(id) ?? null)));
   const open = toggled ?? linked;
   useEffect(() => {
     if (linked) document.getElementById(window.location.hash.slice(1))?.scrollIntoView({block: 'start'});
@@ -125,12 +126,16 @@ function MowersSection({settings}: {settings: Settings}) {
     <section className={styles.card}>
       <h2>{tr('Mowers')}</h2>
       <p className={styles.dim}>
-        {tr(
-          'More than one mower with MowBite? Add the others here and switch between them at the top of the dashboard (on a computer in the sidebar). Colors, icons and the language stay the same for all.',
-        )}
+        {app
+          ? tr("More than one mower with MowBite? Add the others here and switch between them at the top of the dashboard. Colors and icons are each mower's own, the language is the app's.")
+          : tr(
+              'More than one mower with MowBite? Add the others here and switch between them at the top of the dashboard (on a computer in the sidebar). Colors, icons and the language stay the same for all.',
+            )}
       </p>
+      {/* (in a browser the list is kept in the settings, the demo's are gone once it's left) */}
+      {demo && !app && <p className={styles.dim}>{tr('Not in the demo: leave it to add your mowers.')}</p>}
 
-      {!app && (
+      {!app && !demo && (
         <label className={styles.field}>
           {tr('This mower (the one this app runs on)')}
           <input
@@ -160,41 +165,43 @@ function MowersSection({settings}: {settings: Settings}) {
         </div>
       ))}
 
-      <div className={styles.mowerAdd}>
-        <span className={styles.subTitle}>{tr('Add another mower')}</span>
-        <label className={styles.field}>
-          {tr('Name')}
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder={tr('e.g. Front garden')} />
-        </label>
-        <label className={styles.field}>
-          {tr("Address of the other mower (IP or name in your network)")}
-          <input
-            value={host}
-            onChange={(e) => {
-              setHost(e.target.value);
-              setError(null);
-            }}
-            placeholder="192.168.2.170"
-            autoCapitalize="off"
-            autoCorrect="off"
-          />
-        </label>
-        <details className={styles.ports}>
-          <summary>{tr('Ports (only if you changed them)')}</summary>
+      {!(demo && !app) && (
+        <div className={styles.mowerAdd}>
+          <span className={styles.subTitle}>{tr('Add another mower')}</span>
           <label className={styles.field}>
-            {tr('MowBite port')}
-            <input value={appPort} onChange={(e) => setAppPort(e.target.value)} inputMode="numeric" />
+            {tr('Name')}
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder={tr('e.g. Front garden')} />
           </label>
           <label className={styles.field}>
-            {tr('MQTT websocket port')}
-            <input value={wsPort} onChange={(e) => setWsPort(e.target.value)} inputMode="numeric" />
+            {tr("Address of the other mower (IP or name in your network)")}
+            <input
+              value={host}
+              onChange={(e) => {
+                setHost(e.target.value);
+                setError(null);
+              }}
+              placeholder="192.168.2.170"
+              autoCapitalize="off"
+              autoCorrect="off"
+            />
           </label>
-        </details>
-        {error && <span className={styles.error}>{error}</span>}
-        <button className={styles.pillButton} onClick={add} disabled={!host.trim()}>
-          {tr('Add mower')}
-        </button>
-      </div>
+          <details className={styles.ports}>
+            <summary>{tr('Ports (only if you changed them)')}</summary>
+            <label className={styles.field}>
+              {tr('MowBite port')}
+              <input value={appPort} onChange={(e) => setAppPort(e.target.value)} inputMode="numeric" />
+            </label>
+            <label className={styles.field}>
+              {tr('MQTT websocket port')}
+              <input value={wsPort} onChange={(e) => setWsPort(e.target.value)} inputMode="numeric" />
+            </label>
+          </details>
+          {error && <span className={styles.error}>{error}</span>}
+          <button className={styles.pillButton} onClick={add} disabled={!host.trim()}>
+            {tr('Add mower')}
+          </button>
+        </div>
+      )}
       {!demo && (
         <button className={styles.linkButton} onClick={() => selectMower(DEMO_ID)}>
           {tr('Look around with a demo mower')}
@@ -230,6 +237,7 @@ export default function SettingsPage() {
   useEffect(() => {
     if (planner === undefined) loadPlannerSettings().catch(() => setUnanswered(true));
   }, [planner]);
+  const demo = useSyncExternalStore(noop, isDemo, () => false);
 
   return (
     <div className={styles.page}>
@@ -241,7 +249,7 @@ export default function SettingsPage() {
           </h1>
         </TitleRow>
         <p className={styles.dim}>
-          {shared ? tr('Saved on the mower, the same on all your devices.') : tr('Saved on this device only.')}
+          {demo ? tr("The demo's: they last until it's left.") : shared ? tr('Saved on the mower, the same on all your devices.') : tr('Saved on this device only.')}
         </p>
 
         {(planner !== undefined || unanswered) && (
@@ -273,11 +281,12 @@ export default function SettingsPage() {
               </p>
               {planner.settings.leftovers_auto ? (
                 <>
-                  {/* a planner that sends the mower out for the leftovers itself: its switch, the container's own stays off */}
+                  {/* a planner that sends the mower out for the leftovers itself: its switch, the container's own stays off.
+                      one switched on before the planner could stays on until this one is used */}
                   <label className={styles.check}>
                     <input
                       type="checkbox"
-                      checked={planner.settings.leftovers_auto.value === true}
+                      checked={planner.settings.leftovers_auto.value === true || !!settings.leftovers?.auto}
                       disabled={slic3rPlans(planner)}
                       onChange={(e) => {
                         const cur = settingsStore.snapshot();
@@ -291,6 +300,13 @@ export default function SettingsPage() {
                     {tr('Mow the leftovers automatically')}
                   </label>
                   {leftoversFailed && <p className={styles.error}>{leftoversFailed}</p>}
+                  {planner.settings.leftovers_auto.value !== true && settings.leftovers?.auto && (
+                    <p className={styles.dim}>
+                      {tr('Still done by MowBite on the mower as set before, from {m} m² and after charging. Switch it off and on to let the planner do it.', {
+                        m: dec(settings.leftovers.min ?? 0.5),
+                      })}
+                    </p>
+                  )}
                   <p className={styles.dim}>
                     {slic3rPlans(planner)
                       ? tr("Not with OpenMower's slic3r planner, it plans no leftovers.")

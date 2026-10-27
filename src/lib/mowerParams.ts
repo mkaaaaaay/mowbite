@@ -1,3 +1,4 @@
+import {dec} from './i18n';
 import {mowerFetch, apiBase} from './mowers';
 import {PARAM, RPC} from './openmower';
 import {callRpc} from './rpc';
@@ -83,7 +84,7 @@ export function parseParam(f: ParamField, text: string): number | null {
 
 export function showParam(f: ParamField, value: number): string {
   const shown = value * (f.scale ?? 1);
-  return String(Math.round(shown * 1000) / 1000);
+  return dec(Math.round(shown * 1000) / 1000);
 }
 
 // the mower answers with what its node took, a value out of range comes back clamped

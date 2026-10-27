@@ -1,5 +1,6 @@
 'use client';
 
+import {loadUpdate, updaterAlive} from '@/lib/autoUpdate';
 import {copyText} from '@/lib/clipboard';
 import {tr} from '@/lib/i18n';
 import {isDemo} from '@/lib/mowers';
@@ -97,8 +98,22 @@ export function CopyCommand({command}: {command: string}) {
   );
 }
 
-// how MowBite on the mower gets the newest version: in dockge, or the command for a terminal
-export function UpdateCommand() {
+// how MowBite on the mower gets the newest version: with the MowBite Updater one tap in the settings (here: on the
+// settings page, below the updater), else in dockge or with the command for a terminal
+export function UpdateCommand({here}: {here?: boolean}) {
+  const [updater, setUpdater] = useState(false);
+  useEffect(() => {
+    void loadUpdate()
+      .then((s) => setUpdater(updaterAlive(s)))
+      .catch(() => {});
+  }, []);
+  if (updater && here) return <span className={styles.versions}>{tr('Update it above, under "On the mower"')}</span>;
+  if (updater)
+    return (
+      <Link href="/settings#updates" className={styles.versions}>
+        {tr('Update it in the settings under "Updates"')}
+      </Link>
+    );
   return (
     <>
       <DockgeUpdateGuide />
@@ -190,7 +205,7 @@ export function UpdateSettings({cardClass, checkClass}: {cardClass: string; chec
             </span>
           )}
           {missing.length > 0 && <span>{behindText(mower, missing)}</span>}
-          <UpdateCommand />
+          <UpdateCommand here />
         </div>
       )}
     </section>

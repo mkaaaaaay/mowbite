@@ -1,6 +1,6 @@
 'use client';
 
-import {tr} from '@/lib/i18n';
+import {dec, tr} from '@/lib/i18n';
 import {
   autoOutlineModel,
   BODY_SETTINGS,
@@ -45,7 +45,7 @@ const LABELS: Record<BodySetting, string> = {
 type Styles = Record<string, string>;
 type Form = Record<BodySetting, string>;
 
-const cm = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? String(Math.round(v * 1000) / 10) : '');
+const cm = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? dec(Math.round(v * 1000) / 10) : '');
 
 function formFrom(settings: Record<string, {value: unknown}> | undefined): Form {
   const f = {} as Form;

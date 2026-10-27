@@ -7,6 +7,7 @@ import {
   PARAM_FIELDS,
   PARAM_GROUPS,
   paramField,
+  paramName,
   paramValue,
   parseParam,
   saveKept,
@@ -282,7 +283,15 @@ export function OpenMowerSettings({styles}: {styles: Styles}) {
               checked={k.enabled}
               onChange={(e) => {
                 const on = e.target.checked;
-                storeKept((k) => ({...k, enabled: on})).catch(() => {});
+                // switched on again: the values the mower has now, not the ones kept from before (changed meanwhile)
+                const now = (k: KeptParams) =>
+                  Object.fromEntries(
+                    Object.entries(k.values).map(([key, v]) => {
+                      const m = params[paramName(key)];
+                      return [key, typeof m === 'number' || typeof m === 'boolean' ? m : v];
+                    }),
+                  );
+                storeKept((k) => ({...k, enabled: on, ...(on ? {values: now(k)} : {})})).catch(() => {});
               }}
             />
             {tr('MowBite sets what you change here again after a restart')}

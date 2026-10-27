@@ -171,7 +171,8 @@ async function fetchKept(url: string): Promise<Kept | null> {
     if (res.status >= 500) throw new Error(`settings ${res.status}`);
     return null;
   }
-  const data = await res.json();
+  // a file that isn't json any more (two saves at once in an older container) counts as empty, the next save mends it
+  const data = await res.json().catch(() => ({}));
   return {server: data && typeof data === 'object' ? data : {}, version: res.headers.get('X-Settings-Version') || null};
 }
 export function syncSettings(): Promise<void> {
@@ -212,15 +213,17 @@ export function syncSettings(): Promise<void> {
 // that mower's own to it. a part that didn't change isn't sent
 async function pushAll(next: Settings) {
   const o = ownUrl();
-  if (!o) return push(home, homeUrl(), next, (merged) => merged);
-  const homeNext = join(next, home.server);
-  if (JSON.stringify(homeNext) !== JSON.stringify(home.server)) await push(home, homeUrl(), homeNext, (merged) => join(merged, current ?? {}));
-  const ownNext = join(own.server, next);
-  if (ownShared && JSON.stringify(ownNext) !== JSON.stringify(own.server)) await push(own, o, ownNext, (merged) => join(current ?? {}, merged));
+  if (!o) return push(home, homeUrl(), () => current ?? next, (merged) => merged);
+  const homeOf = () => join(current ?? next, home.server);
+  if (JSON.stringify(homeOf()) !== JSON.stringify(home.server)) await push(home, homeUrl(), homeOf, (merged) => join(merged, current ?? {}));
+  const ownOf = () => join(own.server, current ?? next);
+  if (ownShared && JSON.stringify(ownOf()) !== JSON.stringify(own.server)) await push(own, o, ownOf, (merged) => join(current ?? {}, merged));
 }
 
-// shown: the settings here once another device's save got put together with this one
-async function push(k: Kept, url: string, next: Settings, shown: (merged: Settings) => Settings) {
+// body: what goes there as the settings here are now, a change made while a save was on its way included. shown: the
+// settings here once another device's save got put together with these
+async function push(k: Kept, url: string, body: () => Settings, shown: (merged: Settings) => Settings) {
+  let next = body();
   for (let tries = 0; tries < 3; tries++) {
     const res = await mowerFetch(url + (k.version ? `?v=${encodeURIComponent(k.version)}` : ''), {
       method: 'POST',
@@ -232,7 +235,7 @@ async function push(k: Kept, url: string, next: Settings, shown: (merged: Settin
       return;
     }
     const theirs: Settings = await res.json();
-    next = mergeChanges(theirs, k.server, next);
+    next = mergeChanges(theirs, k.server, body());
     [k.server, k.version] = [theirs, v];
     setLocal(shown(next));
   }
