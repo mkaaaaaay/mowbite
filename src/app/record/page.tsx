@@ -18,6 +18,7 @@ import {
 } from '@/components/icons';
 import Joystick from '@/components/Joystick';
 import {TitleMark} from '@/components/Logo';
+import {TitleRow} from '@/components/TopWeather';
 import MapView from '@/components/MapView';
 import {useEmergencyReasons} from '@/hooks/useEmergencyReasons';
 import {useMapOverlay} from '@/hooks/useMapOverlay';
@@ -434,10 +435,12 @@ export default function RecordPage() {
   return (
     <div className={styles.page}>
       <main className={styles.main}>
-        <h1 className={recordingMode ? styles.hideOnPhone : undefined}>
-          <TitleMark />
-          {tr('Record')}
-        </h1>
+        <TitleRow className={recordingMode ? styles.hideOnPhone : undefined}>
+          <h1>
+            <TitleMark />
+            {tr('Record')}
+          </h1>
+        </TitleRow>
 
         {!state && <p className={styles.dim}>{connected ? tr('waiting for the mower…') : tr('connecting…')}</p>}
 

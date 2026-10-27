@@ -105,7 +105,7 @@ export function roomNote(item: RoomItem): string {
     case 'rollback':
       return tr('the version before an update, kept to go back to');
     case 'planner':
-      return tr('kept by the planner session to go back to');
+      return tr('an older version of the planner, kept to go back to');
     case 'old':
       return tr('an older version kept to go back to');
     case 'dangling':

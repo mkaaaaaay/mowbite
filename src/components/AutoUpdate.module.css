@@ -82,6 +82,17 @@ button.control {
   cursor: pointer;
 }
 
+/* room for the version's name beside the arrow on a phone */
+select.control {
+  padding: 0 6px 0 10px;
+}
+
+@media (max-width: 380px) {
+  select.control {
+    font-size: 12px;
+  }
+}
+
 .control:disabled {
   opacity: 0.5;
   cursor: default;

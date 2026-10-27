@@ -12,11 +12,12 @@
   gap: 16px;
   width: 100%;
   max-width: 720px;
-  padding: 24px 16px 60px;
+  padding: 20px 16px 60px;
 }
 
 .main h1 {
-  font-size: 26px;
+  margin: 0;
+  font-size: 28px;
 }
 
 .card {
@@ -53,10 +54,20 @@
   cursor: pointer;
 }
 
+/* on a phone a choice in the sentence goes on a line of its own under it, the sentence keeps its width */
+@media (max-width: 600px) {
+  .check:has(.hours) {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+
+  .check .hours {
+    margin-left: 26px;
+  }
+}
+
 .switch input,
 .check input {
-  width: 18px;
-  height: 18px;
   accent-color: var(--accent);
 }
 
@@ -73,14 +84,18 @@
   border-bottom: 1px solid var(--card-border);
 }
 
+/* on a small phone the days get narrower, the × stays beside them */
 .days {
   display: flex;
+  flex: 0 1 auto;
+  min-width: 0;
   gap: 4px;
 }
 
 .days button {
-  min-width: 38px;
-  padding: 7px 6px;
+  flex: 0 1 38px;
+  min-width: 28px;
+  padding: 7px 4px;
   border-radius: 8px;
   border: 1px solid var(--card-border);
   background: transparent;
@@ -132,7 +147,8 @@
 }
 
 .plan input[type='time'],
-.plan input[type='number'] {
+.plan input[type='number'],
+.until input[type='date'] {
   padding: 6px 8px;
   border-radius: 8px;
   border: 1px solid var(--field-border);
@@ -204,7 +220,7 @@
   margin-left: -2px;
   padding: 2px 6px;
   border-radius: 6px;
-  border: 1px solid var(--card-border);
+  border: 1px solid var(--field-border);
   background: transparent;
   color: var(--foreground);
   font-size: inherit;

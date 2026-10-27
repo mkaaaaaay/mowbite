@@ -120,7 +120,7 @@ export default function MapControls({
     <>
       {/* where gps or wifi were good or bad: wifi left, off in the middle, gps right, the knob slides */}
       {coverage && (
-        <div className={styles.coverSwitchWrap}>
+        <div className={styles.coverSwitchWrap} data-cover-switch>
           <div className={styles.coverSwitch} role="radiogroup" aria-label={tr('Coverage')}>
             <span
               className={[styles.coverKnob, coverage.value === 'off' ? styles.coverKnobOff : ''].filter(Boolean).join(' ')}

@@ -182,6 +182,13 @@ export default function Home() {
   useLang();
   const link = useMowerState();
   const {state, connected} = link;
+  // no first connection after a while: the mower is off, elsewhere or the address is wrong
+  const [unreachable, setUnreachable] = useState(false);
+  useEffect(() => {
+    if (state || connected) return;
+    const t = setTimeout(() => setUnreachable(true), 12000);
+    return () => clearTimeout(t);
+  }, [state, connected]);
   // offline or no fresh state: what's shown is old and commands wouldn't arrive, so the buttons are off
   const live = isLive(link);
   const {hasAction, publishAction} = useMowerActions();
@@ -397,7 +404,18 @@ export default function Home() {
               <LogicHint className={styles.logicHint} />
             </div>
           ) : (
-            <p className={styles.dim}>{connected ? tr('waiting for the mower…') : tr('connecting…')}</p>
+            <p className={styles.dim}>
+              {connected ? (
+                tr('waiting for the mower…')
+              ) : unreachable ? (
+                <>
+                  <span className={styles.offline}>{tr("Can't reach the mower. Is it switched on and in this network?")}</span>{' '}
+                  <Link href="/settings#app">{tr('Mowers and their addresses are in the settings.')}</Link>
+                </>
+              ) : (
+                tr('connecting…')
+              )}
+            </p>
           ))}
 
         {state && head && (

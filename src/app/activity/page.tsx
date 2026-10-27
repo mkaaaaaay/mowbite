@@ -178,7 +178,8 @@ function RunCard({run, next, where, progress}: {run: Run; next?: Run; where: Whe
           <strong>
             {clock(run.start)} – {clock(run.end)}
           </strong>
-          <span className={styles.dim}>{duration(run.end - run.start)}</span>
+          {/* the minutes between the two times shown, not rounded on its own */}
+          <span className={styles.dim}>{duration(Math.floor(run.end / 60) * 60 - Math.floor(run.start / 60) * 60)}</span>
         </div>
         <span className={styles.badge}>{tr(outcome.label)}</span>
       </header>

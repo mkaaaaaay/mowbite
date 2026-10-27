@@ -13,7 +13,7 @@
   gap: 16px;
   width: 100%;
   max-width: var(--content-max-width);
-  padding: 24px 16px 60px;
+  padding: 20px 16px 60px;
 }
 
 .brand {
@@ -438,11 +438,20 @@
     flex-direction: column;
     justify-content: flex-start;
     gap: 4px;
-    padding: 10px 4px;
+    padding: 10px 2px;
     font-size: 11px;
+    letter-spacing: -0.2px;
     /* a long word is split rather than sticking out */
     hyphens: auto;
     overflow-wrap: break-word;
+  }
+}
+
+/* a narrow phone: "überspringen" still in one line */
+@container controls (max-width: 310px) {
+  .controls button:not(.reset):not(.skipPathButton):not(.leftoversButton):not(.recordingEnd) {
+    font-size: 10px;
+    letter-spacing: -0.3px;
   }
 }
 

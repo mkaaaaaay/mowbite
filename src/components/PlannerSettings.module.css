@@ -76,5 +76,5 @@
 .withAuto button.autoOn {
   background: var(--accent);
   border-color: var(--accent);
-  color: var(--accent-foreground, #fff);
+  color: var(--accent-foreground);
 }

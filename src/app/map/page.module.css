@@ -3,7 +3,6 @@
   flex: 1;
   flex-direction: column;
   align-items: center;
-  font-family: var(--font-geist-sans);
   min-height: 100vh;
 }
 
@@ -13,12 +12,12 @@
   width: 100%;
   max-width: var(--content-max-width);
   flex-direction: column;
-  padding: 24px 16px 60px;
+  padding: 20px 16px 60px;
   gap: 4px;
 }
 
 .main h1 {
-  font-size: 26px;
+  font-size: 28px;
   font-weight: 700;
 }
 
@@ -29,6 +28,7 @@
 
 .dim {
   color: var(--text-secondary);
+  font-size: 13px;
 }
 
 .dim a {
@@ -531,8 +531,14 @@
   justify-content: center;
   font-size: 12px;
   font-weight: 600;
-  background: #4caf50;
+  /* like the numbers on the map: the mowing colour, cream in the garden style */
+  background: var(--c-mow);
   color: #0b0b0b;
+}
+
+.page:has([data-garden]) .orderNum {
+  background: #f3ead3;
+  color: #2f4f23;
 }
 
 .warning a {
@@ -793,6 +799,11 @@
     font-size: 13px;
     backdrop-filter: var(--card-blur, blur(18px));
   }
+
+  /* the coverage switch moves below them while they're there */
+  .mapCol:has(.mapSave) [data-cover-switch] {
+    top: 54px;
+  }
 }
 
 /* on a wide screen the toolbar is always in view */
@@ -927,9 +938,11 @@
 }
 
 /* to the guide with the drawings */
-.guideLink {
+/* the guide, a link like the one on the record page */
+.dim .guideLink {
   color: var(--accent);
   font-weight: 600;
+  text-decoration: none;
   white-space: nowrap;
 }
 

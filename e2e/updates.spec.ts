@@ -34,7 +34,7 @@ test('making room asks before it deletes', async ({page}) => {
     .filter({has: page.getByRole('button', {name: 'Look again'})})
     .last();
   await expect(room.getByText('mowbite_planner:before-0888dd0')).toBeVisible();
-  await expect(room.getByText('kept by the planner session to go back to')).toBeVisible();
+  await expect(room.getByText('an older version of the planner, kept to go back to')).toBeVisible();
   const item = room.locator('div', {has: page.getByText('an image without a name')}).last();
   await item.getByRole('button', {name: 'Delete'}).click();
   // the first tap only asks

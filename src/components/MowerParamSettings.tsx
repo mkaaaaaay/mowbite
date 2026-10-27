@@ -156,7 +156,7 @@ export function ParamRow({field: f}: {field: ParamField}) {
               onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
               aria-label={tr(f.label)}
             />
-            {f.unit && <span>{f.unit}</span>}
+            <span className={local.unit}>{f.unit ?? ''}</span>
           </span>
         )}
       </div>

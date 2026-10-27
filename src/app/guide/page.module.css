@@ -82,6 +82,15 @@
   position: relative;
 }
 
+/* on a computer the map is as wide as the column and square: narrower on a low window, so the map and the area's card
+   under it fit on the screen (about 500 px for the title, the words and the card) */
+@media (min-width: 900px) {
+  .stageFrame {
+    max-width: max(360px, calc(100vh - 500px));
+    margin-inline: auto;
+  }
+}
+
 .stageMover {
   transition: transform 80ms linear;
 }

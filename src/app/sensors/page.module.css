@@ -3,7 +3,6 @@
   flex: 1;
   flex-direction: column;
   align-items: center;
-  font-family: var(--font-geist-sans);
   min-height: 100vh;
 }
 
@@ -55,7 +54,7 @@
 
 .chip-accent {
   background: var(--accent);
-  color: #fff;
+  color: var(--accent-foreground);
 }
 
 .text-success {

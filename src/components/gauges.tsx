@@ -153,12 +153,13 @@ export function TempGauge({value, info, limits}: {value: number; info?: SensorIn
   return (
     <div style={{width: '100%', marginTop: 6}}>
       <svg viewBox="0 0 100 10" preserveAspectRatio="none" width="100%" height={10} style={{display: 'block'}}>
-        <rect x={0} y={1.5} width={100} height={7} rx={3.5} fill="rgba(255,255,255,0.08)" />
+        {/* the track and the ticks in the theme's colours, visible on light cards too */}
+        <rect x={0} y={1.5} width={100} height={7} rx={3.5} style={{fill: 'color-mix(in srgb, var(--text-secondary) 22%, transparent)'}} />
         <rect x={0} y={1.5} width={Math.max(2, x(value))} height={7} rx={3.5} fill={color} />
         {warn !== undefined && <rect x={x(warn) - 0.4} y={0} width={0.8} height={10} fill={YELLOW} />}
         {crit !== undefined && <rect x={x(crit) - 0.4} y={0} width={0.8} height={10} fill={RED} />}
       </svg>
-      <div style={{position: 'relative', height: 14, fontSize: 10, color: '#888'}}>
+      <div style={{position: 'relative', height: 14, fontSize: 10, color: 'var(--text-secondary)'}}>
         {ticks.map((t) => (
           <span
             key={t}

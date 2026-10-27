@@ -62,8 +62,12 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 6px 12px;
   min-height: 34px;
+}
+
+.line:has(.select) {
+  flex-wrap: wrap;
 }
 
 .label {
@@ -82,6 +86,11 @@
   font-size: 13px;
 }
 
+/* the same room for every unit, the fields stand in a column */
+.unit {
+  min-width: 2.2em;
+}
+
 .number input {
   width: 72px;
   padding: 7px 8px;
@@ -93,8 +102,10 @@
   text-align: right;
 }
 
+/* a choice too long beside the name goes on a line of its own under it, readable in full */
 .select {
-  max-width: 55%;
+  max-width: 100%;
+  margin-left: auto;
   padding: 7px 8px;
   border-radius: 8px;
   border: 1px solid var(--field-border);

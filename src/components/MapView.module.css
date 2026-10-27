@@ -585,7 +585,8 @@
   left: 10px;
   bottom: 10px;
   font-size: 11px;
-  color: var(--text-secondary);
+  /* straight on the dark map in every theme, like the attribution */
+  color: rgba(255, 255, 255, 0.6);
   pointer-events: none;
 }
 
@@ -1323,8 +1324,8 @@
   padding: 2px;
   border-radius: 999px;
   border: 1px solid color-mix(in srgb, var(--card-border) 70%, transparent);
-  /* no blur over the map, like the buttons */
-  background: color-mix(in srgb, var(--background) 55%, transparent);
+  /* no blur over the map, as solid as the buttons: its words stay readable on the dark map in a light theme too */
+  background: color-mix(in srgb, var(--background) 82%, transparent);
 }
 
 .coverSwitch button {
@@ -1334,7 +1335,7 @@
   padding: 0;
   border: none;
   background: none;
-  color: color-mix(in srgb, var(--text-secondary) 80%, transparent);
+  color: var(--text-secondary);
   font: inherit;
   font-size: 11px;
   font-weight: 500;
@@ -1378,7 +1379,7 @@
 .coverSwitchWrap .coverLegend {
   padding: 2px 9px 2px 4px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--background) 55%, transparent);
+  background: color-mix(in srgb, var(--background) 82%, transparent);
   font-size: 11px;
   color: var(--text-secondary);
 }
