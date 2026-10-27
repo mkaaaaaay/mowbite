@@ -1150,8 +1150,8 @@ function Style() {
       hand={{
         moves: [
           [0, 'off'],
-          [0.12, {aria: 'map settings'}],
-          [0.2, {aria: 'map settings'}],
+          [0.12, {aria: tr('Map settings')}],
+          [0.2, {aria: tr('Map settings')}],
           [0.38, {button: tr('Garden')}],
           [0.8, {button: tr('Garden')}],
         ],

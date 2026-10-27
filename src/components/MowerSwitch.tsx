@@ -1,7 +1,7 @@
 'use client';
 
 import {tr, useLang} from '@/lib/i18n';
-import {mowerList, selectedMower, selectMower} from '@/lib/mowers';
+import {DEMO_ID, mowerList, selectedMower, selectMower} from '@/lib/mowers';
 import {isApp} from '@/lib/native';
 import {settingsStore} from '@/lib/settings';
 import {useSyncExternalStore} from 'react';
@@ -21,11 +21,13 @@ export default function MowerSwitch({className}: {className?: string}) {
   return (
     <select
       className={[styles.select, className].filter(Boolean).join(' ')}
-      value={others.some((m) => m.id === current) ? current : ''}
+      value={current === DEMO_ID || others.some((m) => m.id === current) ? current : ''}
       onChange={(e) => selectMower(e.target.value)}
       aria-label={tr('Mower')}
     >
       {!app && <option value="">{settings.thisName || tr('This mower')}</option>}
+      {/* looking at the demo mower: it's the one picked, the others switch away from it */}
+      {current === DEMO_ID && <option value={DEMO_ID}>{tr('Demo')}</option>}
       {others.map((m) => (
         <option key={m.id} value={m.id}>
           {m.name || m.host}

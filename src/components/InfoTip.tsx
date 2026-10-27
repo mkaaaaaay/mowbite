@@ -2,6 +2,7 @@
 
 import {useEffect, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
+import {tr} from '@/lib/i18n';
 import styles from './InfoTip.module.css';
 
 // wide enough for a few sentences, narrower on small phones
@@ -39,7 +40,7 @@ export default function InfoTip({children}: {children: React.ReactNode}) {
         ref={ref}
         type="button"
         className={styles.icon}
-        aria-label="more info"
+        aria-label={tr('More info')}
         onPointerEnter={(e) => e.pointerType === 'mouse' && show()}
         onPointerLeave={(e) => e.pointerType === 'mouse' && setPos(null)}
         onClick={(e) => {

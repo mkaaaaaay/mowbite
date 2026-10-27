@@ -233,6 +233,13 @@ const START_OUTCOMES = new Set([
 // The last start the schedule tried, when it didn't come off and it's less than 12 hours ago. A pause for the day
 // was asked for, busy means it was out already and a start time changed while it waited was changed on purpose, none
 // of them is worth a word.
+// the start the schedule tried last when it still waits for the battery (less than two hours, nothing came of it yet)
+export function waitingStart(log: LogEntry[], now = Date.now() / 1000): LogEntry | null {
+  let last: LogEntry | null = null;
+  for (const l of log) if ((START_OUTCOMES.has(l.what) || l.what === 'waiting_battery') && (!last || l.t > last.t)) last = l;
+  return last?.what === 'waiting_battery' && now - last.t < 7200 ? last : null;
+}
+
 export function missedStart(log: LogEntry[], now = Date.now() / 1000): LogEntry | null {
   let last: LogEntry | null = null;
   for (const l of log) if (START_OUTCOMES.has(l.what) && (!last || l.t > last.t)) last = l;
@@ -278,12 +285,13 @@ export function planAreas(p: Plan, mowable: readonly string[], pause: Pause | un
 }
 
 // the next start as a date, looking a week ahead from now. days paused for all areas don't count, and with the
-// sun times neither do starts in the dark that the scheduler leaves out (not marked dark). with the mowable areas
-// (ids) neither does a start with none of its areas left to mow, the scheduler leaves that one out too
+// sun times neither do starts in the dark that the scheduler leaves out (not marked dark): the same for every day, or
+// each day's own. with the mowable areas (ids) neither does a start with none of its areas left to mow, the scheduler
+// leaves that one out too
 export function nextStart(
   s: Schedule,
   from = new Date(),
-  sun?: {rise: string; set: string} | null,
+  sun?: {rise: string; set: string} | null | ((day: Date) => {rise: string; set: string} | null),
   mowable?: readonly string[],
 ): Date | null {
   if (!s.enabled) return null;
@@ -295,7 +303,7 @@ export function nextStart(
     if (s.pause?.areas === 'all' && localDay(day) <= s.pause.until) continue;
     for (const p of s.plans) {
       if (!p.days.includes(dow)) continue;
-      if (sun !== undefined && !p.dark && isNightTime(p.time, sun)) continue;
+      if (sun !== undefined && !p.dark && isNightTime(p.time, typeof sun === 'function' ? sun(day) : sun)) continue;
       if (mowable?.length && !planAreas(p, mowable, s.pause, localDay(day)).length) continue;
       const [h, m] = p.time.split(':').map(Number);
       const at = new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, m);

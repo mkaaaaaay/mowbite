@@ -150,16 +150,16 @@ export default function MapControls({
         </div>
       )}
       <div className={styles.zoomButtons}>
-        <button onClick={() => onZoom(1 / 1.5)} aria-label="zoom in" title={tr('Zoom in (or mouse wheel / pinch)')}>
+        <button onClick={() => onZoom(1 / 1.5)} aria-label={tr('Zoom in')} title={tr('Zoom in (or mouse wheel / pinch)')}>
           +
         </button>
-        <button onClick={() => onZoom(1.5)} aria-label="zoom out" title={tr('Zoom out')}>
+        <button onClick={() => onZoom(1.5)} aria-label={tr('Zoom out')} title={tr('Zoom out')}>
           −
         </button>
         <button
           className={showGrid ? '' : styles.off}
           onClick={onToggleGrid}
-          aria-label="toggle grid"
+          aria-label={tr('Grid')}
           title={tr('Show or hide the meter grid')}
         >
           #
@@ -168,7 +168,7 @@ export default function MapControls({
           <button
             className={source ? '' : styles.off}
             onClick={() => onSource(source ? null : lastSource && sources.includes(lastSource) ? lastSource : sources[0])}
-            aria-label="toggle aerial imagery"
+            aria-label={tr('Aerial imagery')}
             title={tr('Aerial imagery (loads images of this area from the selected provider)')}
           >
             ◩
@@ -177,7 +177,7 @@ export default function MapControls({
         <button
           className={hidden.size ? styles.partly : ''}
           onClick={() => onLayersOpen(!layersOpen)}
-          aria-label="layers"
+          aria-label={tr('Layers')}
           title={tr('Show or hide obstacles, numbers, track and more')}
         >
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round">
@@ -186,7 +186,7 @@ export default function MapControls({
             <path d="m3 16 9 5 9-5" />
           </svg>
         </button>
-        <button onClick={() => setLookOpen(true)} aria-label="map settings" title={tr('Map colors, icons and aerial imagery')}>
+        <button onClick={() => setLookOpen(true)} aria-label={tr('Map settings')} title={tr('Map colors, icons and aerial imagery')}>
           ⚙
         </button>
         {snap && (
@@ -204,7 +204,7 @@ export default function MapControls({
           <button
             className={follow.on ? '' : styles.off}
             onClick={follow.onToggle}
-            aria-label="follow mower"
+            aria-label={tr('Follow the mower')}
             title={follow.on ? tr('Following the mower, click to move the map freely') : tr('Follow the mower again')}
           >
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
@@ -218,7 +218,7 @@ export default function MapControls({
           <button
             className={[styles.pin, pin.on ? '' : styles.off].filter(Boolean).join(' ')}
             onClick={pin.onToggle}
-            aria-label="pin map"
+            aria-label={tr('Pin the map')}
             title={pin.on ? tr('The map stays at the top, tap to let it scroll away') : tr('Keep the map at the top while scrolling')}
           >
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round">
@@ -230,7 +230,7 @@ export default function MapControls({
         {reset && (
           <button
             onClick={reset.onReset}
-            aria-label="reset zoom"
+            aria-label={tr('Reset zoom')}
             title={reset.follow ? tr('Back to the default zoom') : tr('Fit the whole map')}
           >
             ⤢

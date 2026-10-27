@@ -92,7 +92,7 @@ export default function SchedulePage() {
   const next = nextStart(
     s,
     undefined,
-    sun,
+    datum ? (d) => sunTimes(datum.lat, datum.lon, d) : null,
     mowAreas.map((a) => a.id),
   );
   // saved from a phone in another time zone: the times are the schedule's, not this phone's

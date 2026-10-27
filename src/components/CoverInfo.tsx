@@ -51,7 +51,7 @@ export function CoverInfo({cell, mode, raised, at, onClose}: {cell: CoverageCell
         <span key={l}>{l}</span>
       ))}
       <span className={styles.coverInfoDim}>{tr('{time} of data in this square', {time: cell.seconds < 60 ? `${cell.seconds} s` : duration(cell.seconds)})}</span>
-      <button onClick={onClose} aria-label="close">
+      <button onClick={onClose} aria-label={tr('Close')}>
         ×
       </button>
     </div>

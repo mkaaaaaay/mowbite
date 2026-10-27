@@ -18,9 +18,9 @@ export function usePlanProgress(
   map: MowerMap | null,
   events: MowerEvent[] | undefined,
 ): (PlanProgress & {areaId: string; secondsLeft: number | null; leftovers?: true}) | null {
-  // current_area counts the mowing areas in map order, inactive ones included
+  // current_area counts the mowing areas in map order, inactive ones included. paused it keeps the area and the path
   const areaId =
-    state?.current_state === 'MOWING' && map && (state.current_area ?? -1) >= 0
+    (state?.current_state === 'MOWING' || state?.current_state === 'PAUSED') && map && (state.current_area ?? -1) >= 0
       ? map.areas.filter((a) => a.properties.type === 'mow')[state.current_area!]?.id
       : undefined;
   const leftovers = useLeftoverRun(areaId, events);

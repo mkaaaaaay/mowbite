@@ -36,7 +36,7 @@ export default function OrderBox({
             className={styles.pillButton}
             onClick={() => onMove(a.id, -1)}
             disabled={i === 0 || !idle}
-            aria-label="earlier"
+            aria-label={tr('Earlier')}
           >
             ↑
           </button>
@@ -44,7 +44,7 @@ export default function OrderBox({
             className={styles.pillButton}
             onClick={() => onMove(a.id, 1)}
             disabled={i === areas.length - 1 || !idle}
-            aria-label="later"
+            aria-label={tr('Later')}
           >
             ↓
           </button>

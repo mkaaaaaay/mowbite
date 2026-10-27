@@ -212,7 +212,7 @@ export function UpdateBanner() {
             {tr("Don't show again")}
           </label>
         </div>
-        <button onClick={() => dismissBehind(behindKey(mower))} aria-label="close">
+        <button onClick={() => dismissBehind(behindKey(mower))} aria-label={tr('Close')}>
           ×
         </button>
       </div>
@@ -223,7 +223,7 @@ export function UpdateBanner() {
   return (
     <div className={styles.banner}>
       <Link href="/settings#updates">{tr('MowBite {v} is out, see the settings', {v})}</Link>
-      <button onClick={() => dismissUpdate(v)} aria-label="close">
+      <button onClick={() => dismissUpdate(v)} aria-label={tr('Close')}>
         ×
       </button>
     </div>

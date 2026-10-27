@@ -1,7 +1,7 @@
 'use client';
 
 import {usePathname, useRouter} from 'next/navigation';
-import {lazy, Suspense, useEffect, useLayoutEffect, useRef, useState} from 'react';
+import {Component, lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, type ReactNode} from 'react';
 import {createPortal} from 'react-dom';
 import layout from '@/app/layout.module.css';
 import {holdMessages} from '@/lib/mqttClient';
@@ -40,6 +40,17 @@ let entering = false;
 
 // optional (settings, per device): swipe left/right between the pages on a phone.
 // the page follows the finger with the next one right beside it, like turning pages
+// a page beside this one that fails while it's peeked at shows nothing, the page shown goes on
+class Quiet extends Component<{children: ReactNode}, {failed: boolean}> {
+  state = {failed: false};
+  static getDerivedStateFromError() {
+    return {failed: true};
+  }
+  render() {
+    return this.state.failed ? null : this.props.children;
+  }
+}
+
 export default function SwipeNav() {
   const router = useRouter();
   const path = usePathname().replace(/(.)\/$/, '$1');
@@ -101,6 +112,8 @@ export default function SwipeNav() {
       null;
     let dx = 0;
     const w = () => window.innerWidth;
+    // the peek taken away after it settled back, called off when a new drag comes within that time
+    let gone: ReturnType<typeof setTimeout> | undefined;
 
     // back to where it was
     const settle = (el: HTMLElement | null, side: number) => {
@@ -115,7 +128,7 @@ export default function SwipeNav() {
         b.style.transition = t;
         b.style.translate = `${side * w()}px 0`;
       }
-      setTimeout(() => setPeek(null), 320);
+      gone = setTimeout(() => setPeek(null), 320);
     };
 
     const down = (e: TouchEvent) => {
@@ -137,7 +150,11 @@ export default function SwipeNav() {
       if (!drag.axis) {
         if (Math.max(Math.abs(dx), Math.abs(dy)) < 10) return;
         drag.axis = Math.abs(dx) > Math.abs(dy) * 1.5 ? 'x' : 'y';
-        if (drag.axis === 'x') ORDER.forEach((p, n) => Math.abs(n - i) === 1 && router.prefetch(p));
+        if (drag.axis === 'x') {
+          ORDER.forEach((p, n) => Math.abs(n - i) === 1 && router.prefetch(p));
+          // the peek of the drag before stays for this one
+          clearTimeout(gone);
+        }
       }
       if (drag.axis !== 'x') return;
       e.preventDefault();
@@ -233,9 +250,11 @@ export default function SwipeNav() {
       }}
     >
       <div className={layout.content}>
-        <Suspense fallback={null}>
-          <Peek />
-        </Suspense>
+        <Quiet>
+          <Suspense fallback={null}>
+            <Peek />
+          </Suspense>
+        </Quiet>
       </div>
     </div>,
     document.body,

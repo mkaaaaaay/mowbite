@@ -41,6 +41,7 @@ import {
   loadSchedule,
   loadScheduleLog,
   missedStart,
+  waitingStart,
   nextStart,
   scheduleLogLine,
   type LogEntry,
@@ -227,7 +228,9 @@ export default function Home() {
   const missedAny = schedule?.enabled ? missedStart(scheduleLog) : null;
   const missed = missedAny && missedAny.t !== missedSeen ? missedAny : null;
   const mowable = map?.areas.filter((a) => a.properties.type === 'mow' && a.properties.active !== false && a.properties.mowable !== false).map((a) => a.id);
-  const planned = schedule ? nextStart(schedule, undefined, datum ? sunTimes(datum.lat, datum.lon) : null, mowable) : null;
+  const planned = schedule ? nextStart(schedule, undefined, datum ? (d) => sunTimes(datum.lat, datum.lon, d) : null, mowable) : null;
+  // a start of the schedule that waits for the battery comes before the next one
+  const batteryWait = schedule?.enabled ? waitingStart(scheduleLog) : null;
   const [confirmReset, setConfirmReset] = useState(false);
   // three more runs unfolded under the last three
   const [moreRuns, setMoreRuns] = useState(false);
@@ -282,6 +285,8 @@ export default function Home() {
       (skip.id === ACTION.skipPath && state?.current_path !== skip.path))
   )
     setSkip(null);
+  // the question about dropping the interrupted job goes once there's none to drop (started meanwhile) or no connection
+  if (confirmReset && (!live || !hasAction(ACTION.resetJob))) setConfirmReset(false);
   const showMap = !!map && (driving || settings.dashboard?.map === 'always');
   const docked = isDocked(state, values['om_v_charge']);
   const battery = level ?? (state ? Math.round(state.battery_percentage * 100) : 0);
@@ -294,7 +299,9 @@ export default function Home() {
   // only when the newest state change is this state, older mowers don't record every one (a pause, say)
   const lastState = lastOf((e) => e.type === 'STATE');
   const since = lastState?.state === current ? lastState.t : undefined;
-  const area = current === 'MOWING' ? lastOf((e) => e.type === 'AREA')?.area_name : undefined;
+  // by current_area and the map like the progress (the history comes up to 30 s later), else by the last area event
+  const onArea = current === 'MOWING' && (state?.current_area ?? -1) >= 0 ? map?.areas.filter((a) => a.properties.type === 'mow')[state!.current_area!] : undefined;
+  const area = current === 'MOWING' ? onArea?.properties.name || lastOf((e) => e.type === 'AREA')?.area_name : undefined;
   const head = state ? headline(state, docked, onCharger(state, values['om_v_charge']), docked && !charging, area) : null;
 
   // dressed up: a towel at 42 %, an umbrella while it sits out the rain, a witch's hat on halloween
@@ -562,7 +569,7 @@ export default function Home() {
           </section>
         )}
 
-        {(recent || planned || missed || due.length > 0) && (
+        {(recent || planned || batteryWait || missed || due.length > 0) && (
           <section className={styles.today}>
             <div className={styles.todayHead}>
               <h2>{tr('Today')}</h2>
@@ -621,6 +628,11 @@ export default function Home() {
                 <span>{problems === 1 ? tr('problem') : tr('problems')}</span>
               </div>
             </div>
+            )}
+            {batteryWait && (
+              <Link href="/schedule" className={styles.nextRun}>
+                {tr('A start of the schedule waits for the battery ({detail} %)', {detail: batteryWait.detail ?? ''})}
+              </Link>
             )}
             {planned && (
               <Link href="/schedule" className={styles.nextRun}>

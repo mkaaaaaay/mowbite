@@ -114,7 +114,7 @@ function MapEditor() {
   const params = useMowerParams();
   // while it mows: how far it got with the area's plan, like on the overview (the state only then, it changes every
   // second)
-  const mowingState = useMowerStateValue((l) => (l.state?.current_state === 'MOWING' ? l.state : null));
+  const mowingState = useMowerStateValue((l) => (l.state?.current_state === 'MOWING' || l.state?.current_state === 'PAUSED' ? l.state : null));
   // (driving the leftover passes of the last mow: along those, nothing to draw when the planner can't work them out again)
   const planProgress = usePlanProgress(mowingState, liveMap, undefined);
   const progress = planProgress?.leftovers && !planProgress.todoLength && !planProgress.doneLength ? null : planProgress;
@@ -996,7 +996,7 @@ function MapEditor() {
             {pickedProblem && shownMap && (
               <div className={styles.previewBar}>
                 <span>{problemText(pickedProblem, shownMap)}</span>
-                <button onClick={() => setProblemPick(null)} aria-label="close">
+                <button onClick={() => setProblemPick(null)} aria-label={tr('Close')}>
                   ×
                 </button>
               </div>
@@ -1004,7 +1004,7 @@ function MapEditor() {
             {pickedText && (
               <div className={styles.previewBar}>
                 <span>{pickedText}</span>
-                <button onClick={() => setFitPick(null)} aria-label="close">
+                <button onClick={() => setFitPick(null)} aria-label={tr('Close')}>
                   ×
                 </button>
               </div>
@@ -1012,7 +1012,7 @@ function MapEditor() {
             {spot && (
               <div className={styles.spot}>
                 <span>{spot.msg || tr('Marked spot')}</span>
-                <button onClick={() => setSpotClosed(search.get('at'))} aria-label="close">
+                <button onClick={() => setSpotClosed(search.get('at'))} aria-label={tr('Close')}>
                   ×
                 </button>
               </div>
@@ -1020,7 +1020,7 @@ function MapEditor() {
             {preview && (
               <div className={styles.previewBar}>
                 <span>{tr('Preview: {what}', {what: preview.label})}</span>
-                <button onClick={closePreview} aria-label="close">
+                <button onClick={closePreview} aria-label={tr('Close')}>
                   ×
                 </button>
               </div>
