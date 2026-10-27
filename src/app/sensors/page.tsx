@@ -13,7 +13,7 @@ import {useMowerState} from '@/hooks/useMowerState';
 import {useSensorHistory, type Sample} from '@/hooks/useSensorHistory';
 import {useState, useSyncExternalStore} from 'react';
 import {sharedSettings} from '@/lib/settings';
-import {batteryColor, GPS_QUALITY_LABEL, gpsQuality, isDocked, stateColor, statusText} from '@/lib/status';
+import {batteryColor, chargeDone, GPS_QUALITY_LABEL, gpsQuality, isDocked, stateColor, statusText} from '@/lib/status';
 import {numParam, useMowerParams} from '@/hooks/useMowerParams';
 import {PARAM} from '@/lib/openmower';
 import styles from './page.module.css';
@@ -148,7 +148,7 @@ export default function SensorsPage() {
             </h1>
             {state && (
               <span className={[styles.chip, styles[`chip-${state.emergency ? 'error' : docked ? 'success' : stateColor(currentState)}`]].join(' ')}>
-                {statusText(state, docked, values['om_charge_state'])}
+                {statusText(state, docked, chargeDone(values['om_charge_state'], num('om_charge_current'), battery))}
                 {state.emergency && why ? `: ${emergencyText(why)}` : ''}
               </span>
             )}

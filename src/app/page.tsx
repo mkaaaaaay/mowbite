@@ -30,9 +30,9 @@ import {emergencyText, OUTCOMES, type MowerEvent, type Run} from '@/lib/events';
 import {settingsStore} from '@/lib/settings';
 import {PARTS, useDueParts} from '@/lib/stats';
 import {containerHas, useUpdates} from '@/lib/updates';
-import {batteryColor, GPS_QUALITY_LABEL, gpsQuality, isDocked, onCharger, WIFI_LEVEL_LABEL} from '@/lib/status';
+import {batteryColor, chargeDone, GPS_QUALITY_LABEL, gpsQuality, isDocked, onCharger, WIFI_LEVEL_LABEL} from '@/lib/status';
 import Link from 'next/link';
-import {memo, useEffect, useMemo, useState, useSyncExternalStore} from 'react';
+import {memo, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import styles from './page.module.css';
 import {fmt, tr, useLang} from '@/lib/i18n';
 import {
@@ -118,11 +118,11 @@ function FactValue({value}: {value: string}) {
   );
 }
 
-function headline(state: MowerState, docked: boolean, charger: boolean, chargeState: string | undefined, area: string | undefined) {
+function headline(state: MowerState, docked: boolean, charger: boolean, charged: boolean, area: string | undefined) {
   if (state.emergency) return {title: tr('Emergency stop'), tone: 'error'};
   // left on in the dock it says so, it's why the map shows. docked is idle only, so it's the station's contacts here
   if (state.current_state === 'AREA_RECORDING') return {title: charger ? tr('Recording mode, in the dock') : tr('Recording an area'), tone: 'live'};
-  if (docked) return chargeState === 'Done' ? {title: tr('Charged, in the dock'), tone: 'good'} : {title: tr('Charging in the dock'), tone: 'good'};
+  if (docked) return charged ? {title: tr('Charged, in the dock'), tone: 'good'} : {title: tr('Charging in the dock'), tone: 'good'};
   switch (state.current_state) {
     case 'MOWING':
       return {title: area ? tr('Mowing {area}', {area}) : tr('Mowing'), tone: 'live'};
@@ -232,8 +232,9 @@ export default function Home() {
   const [moreRuns, setMoreRuns] = useState(false);
   // the two mowers meet in the title row, the weather makes room for them
   const [loveRun, setLoveRun] = useState(false);
-  // a tapped skip (area or path) and the seconds until it goes out, null when none is waiting
-  const [skip, setSkip] = useState<{id: string; left: number} | null>(null);
+  // a tapped skip (area or path) and the seconds until it goes out, null when none is waiting. with the area and path it
+  // was meant for, once the mower is on another one it's dropped
+  const [skip, setSkip] = useState<{id: string; left: number; area?: number; path?: number} | null>(null);
   useEffect(() => {
     if (skip === null) return;
     const t = setTimeout(() => {
@@ -243,7 +244,20 @@ export default function Home() {
     }, 1000);
     return () => clearTimeout(t);
   }, [skip, publishAction]);
-  const toggleSkip = (id: string) => setSkip(skip?.id === id ? null : {id, left: SKIP_DELAY});
+  const toggleSkip = (id: string) =>
+    setSkip(skip?.id === id ? null : {id, left: SKIP_DELAY, area: state?.current_area, path: state?.current_path});
+  // leaving the page doesn't take a waiting skip back: it goes out right away
+  const waiting = useRef({skip, publishAction});
+  useEffect(() => {
+    waiting.current = {skip, publishAction};
+  });
+  useEffect(
+    () => () => {
+      const {skip, publishAction} = waiting.current;
+      if (skip) publishAction(skip.id);
+    },
+    [],
+  );
   // pause turns into continue (and back) right under the finger: for a second after a tap on it a second tap isn't
   // taken as the other one
   const [swapUntil, setSwapUntil] = useState(0);
@@ -256,13 +270,22 @@ export default function Home() {
 
   const current = state?.current_state ?? '';
   const driving = DRIVING.has(current);
-  // a waiting skip is dropped when there's nothing to skip anymore or the connection went
-  if (skip !== null && (!live || current !== 'MOWING' || !hasAction(skip.id))) setSkip(null);
+  // a waiting skip is dropped when there's nothing to skip anymore, the mower is on another area or path or the connection
+  // went. paused it still goes out, OpenMower skips once it goes on
+  if (
+    skip !== null &&
+    (!live ||
+      (current !== 'MOWING' && current !== 'PAUSED') ||
+      !hasAction(skip.id) ||
+      state?.current_area !== skip.area ||
+      (skip.id === ACTION.skipPath && state?.current_path !== skip.path))
+  )
+    setSkip(null);
   const showMap = !!map && (driving || settings.dashboard?.map === 'always');
   const docked = isDocked(state, values['om_v_charge']);
   const battery = level ?? (state ? Math.round(state.battery_percentage * 100) : 0);
-  const chargeState = values['om_charge_state'];
-  const charging = docked && chargeState !== 'Done';
+  const num = (id: string) => (values[id] !== undefined ? Number(values[id]) : undefined);
+  const charging = docked && !chargeDone(values['om_charge_state'], num('om_charge_current'), battery);
 
   // what the event history knows: since when this state holds and which area is being mowed
   const events = recent?.today ?? [];
@@ -271,7 +294,7 @@ export default function Home() {
   const lastState = lastOf((e) => e.type === 'STATE');
   const since = lastState?.state === current ? lastState.t : undefined;
   const area = current === 'MOWING' ? lastOf((e) => e.type === 'AREA')?.area_name : undefined;
-  const head = state ? headline(state, docked, onCharger(state, values['om_v_charge']), chargeState, area) : null;
+  const head = state ? headline(state, docked, onCharger(state, values['om_v_charge']), docked && !charging, area) : null;
 
   // dressed up: a towel at 42 %, an umbrella while it sits out the rain, a witch's hat on halloween
   const halloween = useHalloween();
@@ -284,7 +307,6 @@ export default function Home() {
 
   const acc = state?.pose.pos_accuracy;
   const gpsQ = gpsQuality(acc, numParam(params, PARAM.maxPositionAccuracy));
-  const num = (id: string) => (values[id] !== undefined ? Number(values[id]) : undefined);
   const temps = state ? temperatures(infos, values) : [];
   // wide: gets a whole row, its value is longer
   const facts: {label: string; value: string; warn?: boolean; wide?: boolean; extra?: React.ReactNode}[] = [];
@@ -427,10 +449,12 @@ export default function Home() {
               )}
               {ACTIONS.map((a) =>
                 // paused: the pause button turns into continue. only by the state, the mower also offers continue
-                // while mowing until it was paused once
+                // while mowing until it was paused once. leaving the dock home can't be asked for, stopping can
                 a.id === ACTION.pause && state.current_state === 'PAUSED' && hasAction(ACTION.resume)
                   ? {...a, id: ACTION.resume, Icon: PlayIcon, label: 'Continue'}
-                  : a,
+                  : a.id === ACTION.goHome && state.current_state === 'UNDOCKING' && hasAction(ACTION.abortUndocking)
+                    ? {...a, id: ACTION.abortUndocking, Icon: CloseIcon, label: 'Stop undocking'}
+                    : a,
               ).map((a) => (
                 <button
                   key={a.id}
@@ -465,7 +489,7 @@ export default function Home() {
                     )}
                 </div>
               )}
-              {live && current === 'MOWING' && hasAction(ACTION.skipPath) && !state.emergency && (
+              {live && (current === 'MOWING' || current === 'PAUSED') && hasAction(ACTION.skipPath) && !state.emergency && (
                 <button
                   className={styles.skipPathButton}
                   title={tr('The mower leaves the rest of the outline pass or lanes it is on and goes on with the next ones.')}

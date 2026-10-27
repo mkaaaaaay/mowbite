@@ -593,6 +593,7 @@ const de: Record<string, string> = {
   "Remove last point": "Letzten Punkt entfernen",
   "Reset all": "Alle zurücksetzen",
   "Reset emergency": "Notaus zurücksetzen",
+  "Stop undocking": "Ausdocken abbrechen",
   "Rest of the plan": "Rest des Plans",
   "Drop the interrupted job": "Unterbrochenen Mähvorgang verwerfen",
   "Drop the interrupted job? The next start mows from the beginning.": "Unterbrochenen Mähvorgang verwerfen? Beim nächsten Start mäht er von vorne.",

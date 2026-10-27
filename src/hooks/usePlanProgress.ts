@@ -24,6 +24,8 @@ export function usePlanProgress(
       ? map.areas.filter((a) => a.properties.type === 'mow')[state.current_area!]?.id
       : undefined;
   const leftovers = useLeftoverRun(areaId, events);
+  // when it started on the area: its plan is from then
+  const since = areaId ? events?.filter((e) => e.type === 'AREA' && e.area_id === areaId).pop()?.t : undefined;
   // the mow they're the leftovers of
   const source = useLeftoversSource(leftovers);
   const [plan, setPlan] = useState<{areaId: string; paths: PlanPath[]; leftovers: boolean} | null>(null);
@@ -31,14 +33,14 @@ export function usePlanProgress(
   useEffect(() => {
     if (!areaId || !map || (leftovers && !source)) return;
     let gone = false;
-    (leftovers ? leftoverPaths(source!, areaId) : mowerPaths(areaId, map))
+    (leftovers ? leftoverPaths(source!, areaId) : mowerPaths(areaId, map, since))
       .then((paths) => !gone && setPlan(paths ? {areaId, paths, leftovers} : null))
       .catch(() => !gone && setPlan(null));
     return () => {
       gone = true;
     };
     // again when the map changes, the plan might have too
-  }, [areaId, map, leftovers, source]);
+  }, [areaId, map, leftovers, source, since]);
 
   const path = state?.current_path ?? -1;
   const pose = state?.current_path_index ?? 0;

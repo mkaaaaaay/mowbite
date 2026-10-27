@@ -367,6 +367,8 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
   let detour: {id: string; session: string; run: Run; then: 'idle' | 'resume'} | null = null;
   let parked = true;
   let paused = false;
+  // a skip asked for while paused, done once it goes on: true the whole area, false the path
+  let skipLater: boolean | null = null;
   // the emergency stop: the wheels and the blade stand until it's reset
   let latched = false;
   let battery = 1;
@@ -518,7 +520,8 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     const s = state();
     const a = (id: string, name: string, on: boolean) => ({action_id: id, action_name: name, enabled: on ? 1 : 0});
     const idle = s === 'IDLE';
-    const mowing = s === 'MOWING' && !detour;
+    // like MowingBehavior: the skips also while paused, they're done once it goes on
+    const mowing = (s === 'MOWING' || s === 'PAUSED') && !detour;
     return [
       a(ACTION.resetEmergency, 'Reset Emergency', true),
       a(ACTION.startMowing, 'Start Mowing', idle),
@@ -526,7 +529,8 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
       a(ACTION.resetJob, 'Reset Job', idle && !!job),
       a(ACTION.pause, 'Pause', s === 'MOWING'),
       a(ACTION.resume, 'Continue', s === 'PAUSED'),
-      a(ACTION.goHome, 'Stop Mowing', !idle && s !== 'DOCKING' && !rec),
+      a(ACTION.goHome, 'Stop Mowing', !idle && s !== 'DOCKING' && s !== 'UNDOCKING' && !rec),
+      a(ACTION.abortUndocking, 'Stop Undocking', s === 'UNDOCKING'),
       a(ACTION.skipArea, 'Skip Area', mowing),
       a(ACTION.skipPath, 'Skip Path', mowing),
       ...recordingActions(),
@@ -632,6 +636,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
   function sendHome(reason?: string, always = false) {
     if (parked || !job || (!always && activeLeg()?.state === 'DOCKING')) return;
     paused = false;
+    skipLater = null;
     const events: EventPart[] = [...(reason ? [{type: 'DOCKING', reason}] : []), {type: 'STATE', state: 'DOCKING'}, {type: 'BLADES', enabled: false}];
     detour = {id: job.id, session: job.session, run: {legs: homeLegs(pose, map, events), at: 0, d: 0}, then: 'idle'};
   }
@@ -689,7 +694,12 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
       paused = false;
       note(t, pose, {type: 'STATE', state: 'MOWING'});
       if (activeLeg()?.blades) note(t, pose, {type: 'BLADES', enabled: true});
-    } else if (id === ACTION.goHome) sendHome('Manual pause');
+      if (skipLater !== null) skip(skipLater);
+      skipLater = null;
+    } else if (id === ACTION.goHome && s !== 'UNDOCKING') sendHome('Manual pause');
+    // (OpenMower leaves it idle in front of the station, the demo drives it back in)
+    else if (id === ACTION.abortUndocking && s === 'UNDOCKING') sendHome();
+    else if ((id === ACTION.skipArea || id === ACTION.skipPath) && s === 'PAUSED') skipLater = id === ACTION.skipArea || !!skipLater;
     else if (id === ACTION.skipArea && s === 'MOWING') skip(true);
     else if (id === ACTION.skipPath && s === 'MOWING') skip(false);
     else if (id === ACTION.resetJob && s === 'IDLE' && job) {

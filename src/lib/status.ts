@@ -34,14 +34,21 @@ export function isDocked(state: {current_state: string; is_charging: number} | n
   return state?.current_state === 'IDLE' && onCharger(state, vCharge);
 }
 
+// done charging in the station. the v1 mainboard has no charger state (N/A): there the current tells it, or the battery
+export function chargeDone(chargeState: string | undefined, current?: number, battery?: number): boolean {
+  if (chargeState === 'Done') return true;
+  if (chargeState && chargeState !== 'N/A') return false;
+  return (current !== undefined && Number.isFinite(current) && Math.abs(current) < 0.1) || (battery !== undefined && battery >= 99);
+}
+
 export function statusText(
   state: {current_state: string; emergency: number; is_charging: number} | null | undefined,
   docked: boolean,
-  chargeState?: string,
+  charged: boolean,
 ): string {
   if (!state) return '';
   if (state.emergency) return tr('Emergency');
-  if (docked) return chargeState === 'Done' ? tr('Docked · charged') : tr('Docked · charging');
+  if (docked) return charged ? tr('Docked · charged') : tr('Docked · charging');
   const names: Record<string, string> = {
     // not in the dock (that's above), as the dashboard says it
     IDLE: 'Waiting on the lawn',

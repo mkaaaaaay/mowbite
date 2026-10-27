@@ -202,15 +202,17 @@ export async function mowerPlanAnswer(req: PlanRequest): Promise<{method: string
 
 // the plan in the order it's driven, for showing the progress of a run (planner.plan or mowing.plan, see
 // mowerPlanAnswer). asked once per area as it is: the dashboard and the map ask at the same time, and the map comes
-// again after every reconnect. a failed answer is asked again next time
-const asked = new Map<string, Promise<PlanPath[] | null>>();
-export function mowerPaths(areaId: string, map: MowerMap): Promise<PlanPath[] | null> {
+// again after every reconnect. since: when the mower started on the area (unix s), a plan asked for before that is of
+// an earlier run (another mowing direction, other settings, obstacles). no answer and a failed one are asked again
+const asked = new Map<string, {at: number; paths: Promise<PlanPath[] | null>}>();
+export function mowerPaths(areaId: string, map: MowerMap, since?: number): Promise<PlanPath[] | null> {
   const key = `${areaId} ${JSON.stringify(map.areas.find((a) => a.id === areaId) ?? null)}`;
-  let p = asked.get(key);
-  if (!p) {
-    p = mowerPlanAnswer({area_id: areaId}).then((a) => (a ? readPaths(a.answer as PlanAnswer) : null));
-    asked.set(key, p);
-    p.catch(() => asked.delete(key));
+  let got = asked.get(key);
+  if (!got || (since !== undefined && got.at < since)) {
+    const entry = {at: Date.now() / 1000, paths: mowerPlanAnswer({area_id: areaId}).then((a) => (a ? readPaths(a.answer as PlanAnswer) : null))};
+    const drop = () => asked.get(key) === entry && asked.delete(key);
+    entry.paths.then((paths) => paths === null && drop(), drop);
+    asked.set(key, (got = entry));
   }
-  return p;
+  return got.paths;
 }

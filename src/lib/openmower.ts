@@ -60,6 +60,8 @@ export const ACTION = {
   pause: 'mower_logic:mowing/pause',
   resume: 'mower_logic:mowing/continue',
   goHome: 'mower_logic:mowing/abort_mowing',
+  // while leaving the dock (and waiting for gps after it): stops there, the mower stays idle where it is
+  abortUndocking: 'mower_logic:undocking/abort_undocking',
   skipArea: 'mower_logic:mowing/skip_area',
   // the rest of the outline pass or block of lanes being mowed, the mower goes on with the next one
   skipPath: 'mower_logic:mowing/skip_path',

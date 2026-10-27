@@ -153,3 +153,20 @@ test('a reload while the blade turns in recording mode asks first', async ({page
   expect(await asked).toBe('beforeunload');
   await expect(page.getByText('The blade is turning, also while the mower stands still.').first()).toBeVisible();
 });
+
+// paused OpenMower takes a skip and does it once it goes on: the countdown runs and it goes out
+test('skip area while paused goes out and is done on continue', async ({page}) => {
+  await page.goto('/');
+  await expect.poll(() => state(page)).toBe('MOWING');
+  const area = async () => (await demoHas<{current_area: number}>(page, 'robot_state/json')).current_area;
+  await expect.poll(area).toBeGreaterThanOrEqual(0);
+  const before = await area();
+  await page.getByRole('button', {name: 'Pause', exact: true}).click();
+  await expect.poll(() => state(page)).toBe('PAUSED');
+  await page.getByRole('button', {name: 'Skip area'}).click();
+  const undo = page.getByRole('button', {name: /^Undo \(\d s\)$/});
+  await expect(undo).toBeVisible();
+  await expect(undo).toBeHidden({timeout: 8000});
+  await page.getByRole('button', {name: 'Continue', exact: true}).click();
+  await expect.poll(area).not.toBe(before);
+});
