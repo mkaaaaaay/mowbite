@@ -2,9 +2,10 @@
 // second time, e.g. when a page is rendered next to the current one while swiping and then opened.
 const store = new Map<string, {at: number; p: Promise<unknown>}>();
 
-export function fresh<T>(key: string, load: () => Promise<T>, maxAge = 15000): Promise<T> {
+// maxAge: how long an answer is kept (ms), or worked out from when it was asked for
+export function fresh<T>(key: string, load: () => Promise<T>, maxAge: number | ((at: number) => number) = 15000): Promise<T> {
   const hit = store.get(key);
-  if (hit && Date.now() - hit.at < maxAge) return hit.p as Promise<T>;
+  if (hit && Date.now() - hit.at < (typeof maxAge === 'number' ? maxAge : maxAge(hit.at))) return hit.p as Promise<T>;
   const p = load();
   store.set(key, {at: Date.now(), p});
   // a failed answer isn't kept

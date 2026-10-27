@@ -240,14 +240,22 @@ export default function ActivityPage() {
   useEffect(() => {
     if (!shown) return;
     let alive = true;
-    const load = () =>
-      eventsOfDay(cachedFiles, shown).then(
+    const load = async () => {
+      // today: a new file day can begin meanwhile (a new day in UTC), its chip and its events come with it
+      if (isToday) {
+        const files = await historyDays().catch(() => cachedFiles);
+        const next = localDays(files);
+        cachedFiles = files;
+        if (alive && next.join() !== cachedDays?.join()) setDays((cachedDays = next));
+      }
+      return eventsOfDay(cachedFiles, shown).then(
         (e) => {
           cachedEvents.set(shown, e);
           if (alive) setEvents(e);
         },
         () => alive && setFailed(true),
       );
+    };
     void load();
     // today keeps growing, the mower has no live event topic, so ask again now and then
     const timer = isToday ? setInterval(load, 30000) : undefined;

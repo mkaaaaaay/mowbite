@@ -14,6 +14,12 @@ describe('event history days', () => {
     expect(localDays([fileDay(y), '20260901'])).toEqual([today, fileDay(y), '20260901']);
     expect(localDays(['20260901'])).toEqual(['20260901']);
   });
+  it("leaves out tomorrow's file, west of utc it's there in the evening already", () => {
+    const today = fileDay(new Date());
+    const t = new Date();
+    t.setDate(t.getDate() + 1);
+    expect(localDays([fileDay(t), today])).toEqual([today]);
+  });
   it('takes the early hours of a day from the previous file (east of utc)', async () => {
     const files: Record<string, MowerEvent[]> = {
       // utc day 28 holds 02:00 local of the 28th up to 01:59 local of the 29th

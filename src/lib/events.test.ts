@@ -47,6 +47,39 @@ describe('groupRuns', () => {
     expect(run?.kind === 'run' && run.run.bladeSeconds).toBe(0);
   });
 
+  it('counts a run still going up to now, its blade time too', () => {
+    const entries = groupRuns(day.slice(0, 6), true, 1000);
+    const run = entries.find((e) => e.kind === 'run');
+    expect(run?.kind === 'run' && run.run).toMatchObject({end: 1000, bladeSeconds: 860, outcome: 'running'});
+  });
+
+  it('ends a run where OpenMower started again, as interrupted', () => {
+    const entries = groupRuns([...day.slice(1, 6), ev(500, 'BOOTED'), ev(600, 'STATE', {state: 'IDLE'})], true, 2000);
+    const runs = entries.flatMap((e) => (e.kind === 'run' ? [e.run] : []));
+    expect(runs).toHaveLength(1);
+    expect(runs[0]).toMatchObject({end: 140, bladeSeconds: 0, outcome: 'interrupted'});
+    expect(groupRuns([...day.slice(1, 6), ev(500, 'SHUTDOWN')], false).find((e) => e.kind === 'run')).toMatchObject({
+      run: {outcome: 'interrupted'},
+    });
+  });
+
+  it('keeps a docking tried again in its run', () => {
+    const entries = groupRuns(
+      [
+        ...day.slice(1, 8),
+        ev(760, 'STATE', {state: 'DOCKING'}),
+        ev(800, 'DOCKING_RETRY'),
+        ev(801, 'STATE', {state: 'UNDOCKING'}),
+        ev(820, 'STATE', {state: 'DOCKING'}),
+        ev(860, 'DOCKED'),
+      ],
+      false,
+    );
+    const runs = entries.flatMap((e) => (e.kind === 'run' ? [e.run] : []));
+    expect(runs).toHaveLength(1);
+    expect(runs[0]).toMatchObject({start: 100, end: 860, outcome: 'done'});
+  });
+
   it('recognises a failed undock', () => {
     const entries = groupRuns(
       [ev(0, 'STATE', {state: 'UNDOCKING'}), ev(10, 'UNDOCKING_FAILED'), ev(20, 'STATE', {state: 'IDLE'})],

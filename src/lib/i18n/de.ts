@@ -621,6 +621,7 @@ const de: Record<string, string> = {
   "Hide ROS log": "ROS-Log ausblenden",
   "run": "Fahrt",
   "Running": "Läuft",
+  "Interrupted": "Unterbrochen",
   "runs": "Fahrten",
   "Same size at every zoom": "Immer gleich groß",
   "Save anyway": "Trotzdem speichern",

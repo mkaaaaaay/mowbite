@@ -14,8 +14,9 @@ export interface RosLogLine {
 // the mower keeps this many in memory, all of them are asked for and cut to the moment here
 const CAPACITY = 1000;
 
+// (whole seconds: the cgi takes nothing else, and event times have decimals)
 const kept = (t: number, before: number, after: number) =>
-  `${apiBase()}/cgi-bin/roslog?t=${Math.round(t)}&before=${before}&after=${after}`;
+  `${apiBase()}/cgi-bin/roslog?t=${Math.round(t)}&before=${Math.ceil(before)}&after=${Math.ceil(after)}`;
 
 // the time of the oldest log line there is, kept by the container or still in the mower's memory. null when there's
 // no log at all. asked once per page

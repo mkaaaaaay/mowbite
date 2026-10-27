@@ -286,7 +286,18 @@ export function rawLine(e: MowerEvent): string {
   return JSON.stringify({id, t, type, ...rest, x, y, job_id, session_id});
 }
 
-export type Outcome = 'done' | 'paused' | 'battery' | 'rain' | 'hot' | 'undock_failed' | 'dock_failed' | 'emergency' | 'returned' | 'running';
+export type Outcome =
+  | 'done'
+  | 'paused'
+  | 'battery'
+  | 'rain'
+  | 'hot'
+  | 'undock_failed'
+  | 'dock_failed'
+  | 'emergency'
+  | 'interrupted'
+  | 'returned'
+  | 'running';
 
 export interface Run {
   start: number;
@@ -326,20 +337,24 @@ export function markSentHome(sorted: MowerEvent[]): MowerEvent[] {
   });
 }
 
-export function groupRuns(events: MowerEvent[], live: boolean): Entry[] {
+export function groupRuns(events: MowerEvent[], live: boolean, now = Date.now() / 1000): Entry[] {
   const sorted = markSentHome([...events].sort((a, b) => a.t - b.t));
   const out: Entry[] = [];
   let run: MowerEvent[] | null = null;
 
-  const close = (finished: boolean) => {
-    if (run?.length) out.push({kind: 'run', run: summarize(run, finished || !live)});
+  // cut: OpenMower started again while it ran (a restart, the power was gone)
+  const close = (finished: boolean, cut = false) => {
+    if (run?.length) out.push({kind: 'run', run: summarize(run, finished || !live, now, cut)});
     run = null;
   };
 
   for (const e of sorted) {
     const starts = e.type === 'STATE' && (e.state === 'UNDOCKING' || e.state === 'MOWING');
-    // leaving the dock always starts a new run, also when the last one never got back (put in the dock by hand)
-    if (run && e.type === 'STATE' && e.state === 'UNDOCKING') close(true);
+    if (run && e.type === 'BOOTED') close(true, true);
+    // leaving the dock always starts a new run, also when the last one never got back (put in the dock by hand). not the
+    // way out again of a docking that's tried once more
+    const before = run ? (run as MowerEvent[]).filter((r) => r.type === 'STATE').pop()?.state : undefined;
+    if (run && e.type === 'STATE' && e.state === 'UNDOCKING' && before !== 'DOCKING') close(true);
     if (!run && starts) run = [];
     if (!run) {
       out.push({kind: 'event', event: e});
@@ -356,7 +371,8 @@ export function groupRuns(events: MowerEvent[], live: boolean): Entry[] {
   return out;
 }
 
-function summarize(events: MowerEvent[], finished: boolean): Run {
+// a run still going counts until now: its blade time and its end grow between the events
+function summarize(events: MowerEvent[], finished: boolean, now: number, cut: boolean): Run {
   const areas: string[] = [];
   let bladeSeconds = 0;
   let bladesSince: number | null = null;
@@ -372,7 +388,10 @@ function summarize(events: MowerEvent[], finished: boolean): Run {
     }
     if (describe(e, state).severity !== 'info') problems++;
   }
-  const end = events[events.length - 1].t;
+  const last = events[events.length - 1];
+  // (standing idle, put in the dock by hand say, it isn't going on)
+  const going = !finished && events.filter((e) => e.type === 'STATE').pop()?.state !== 'IDLE';
+  const end = going ? Math.max(last.t, now) : last.t;
   if (bladesSince !== null) bladeSeconds += end - bladesSince;
 
   const has = (type: string) => events.some((e) => e.type === type);
@@ -382,6 +401,7 @@ function summarize(events: MowerEvent[], finished: boolean): Run {
   else if (events.some((e) => e.type === 'EMERGENCY' && e.emergency)) outcome = 'emergency';
   else if (has('DOCKING_FAILED')) outcome = 'dock_failed';
   else if (has('UNDOCKING_FAILED') && !has('UNDOCKED')) outcome = 'undock_failed';
+  else if (cut || last.type === 'SHUTDOWN') outcome = 'interrupted';
   else {
     // why it went home, the last time it did
     const home = events.filter((e) => e.type === 'DOCKING' && homeReason(e.reason)).pop();
@@ -411,5 +431,6 @@ export const OUTCOMES: Record<Outcome, {label: string; tone: 'good' | 'neutral' 
   undock_failed: {label: 'Undocking failed', tone: 'bad'},
   dock_failed: {label: 'Docking failed', tone: 'bad'},
   emergency: {label: 'Emergency stop', tone: 'bad'},
+  interrupted: {label: 'Interrupted', tone: 'bad'},
   running: {label: 'Running', tone: 'live'},
 };
