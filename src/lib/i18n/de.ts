@@ -1340,7 +1340,13 @@ const de: Record<string, string> = {
   "{m2} m² left in {n} passes: {areas}.": "{m2} m² übrig in {n} Bahnen: {areas}.",
   "Mow just the leftovers": "Nur die Reste mähen",
   "Nothing worth another pass is left from the last mow.": "Vom letzten Mähvorgang ist nichts übrig, was eine Bahn lohnt.",
-  "Started. The mower drives only those passes and skips the areas with nothing left.": "Gestartet. Der Mäher fährt nur diese Bahnen und überspringt Flächen ohne Reste.",
+  "Started. The mower drives only those passes and skips the other areas.": "Gestartet. Der Mäher fährt nur diese Bahnen und überspringt die übrigen Flächen.",
+  "Started. The mower drives those passes, {areas} it mows completely.": "Gestartet. Der Mäher fährt diese Bahnen, {areas} mäht er komplett.",
+  "Left out, hardly mowed last time: {areas}. A normal start mows them.": "Ausgelassen, beim letzten Mal kaum gemäht: {areas}. Ein normaler Start mäht sie.",
+  "Hardly mowed last time: {areas}. This MowBite Planner mows them completely along with the leftovers, a newer one leaves them out.":
+    "Beim letzten Mal kaum gemäht: {areas}. Dieser MowBite-Planer mäht sie mit den Resten komplett, ein neuerer lässt sie aus.",
+  "An interrupted job is still open, a start goes on with it. Drop it first to mow just the leftovers.":
+    "Ein unterbrochener Mähvorgang ist noch offen, ein Start setzt ihn fort. Verwirf ihn zuerst, um nur die Reste zu mähen.",
   "Starting…": "Starte…",
   "The planner didn't take it.": "Der Planer hat es nicht angenommen.",
   "Style": "Stil",

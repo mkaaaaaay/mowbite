@@ -32,6 +32,22 @@ describe('readLeftovers', () => {
     ]);
   });
 
+  it('takes the reason an area is left out, and the planner from before that mows such an area whole', () => {
+    const r = readLeftovers({
+      areas: {
+        a: {paths: [], left_m2: 48.2, reason: 'most_left', message: 'most of the area is left (48.2 of 50.1 m2): left out, mow it on its own'},
+        b: {paths: [], left_m2: 0.01, reason: 'nothing_left', message: 'nothing left to mow where the mower gets to (0.01 m2 left)'},
+        c: {paths: [], left_m2: 48.2, message: 'most of the area is left (48.2 of 50.1 m2): a mow of its own, not leftovers'},
+      },
+    });
+    expect(r.areas.map((a) => [a.id, a.reason, a.whole])).toEqual([
+      ['a', 'most_left', undefined],
+      ['b', 'nothing_left', undefined],
+      ['c', undefined, true],
+    ]);
+    expect(r.m2).toBe(0);
+  });
+
   it('takes an answer with nothing in it', () => {
     expect(readLeftovers({})).toEqual({areas: [], m2: 0, passes: 0, armed: 0});
   });

@@ -16,6 +16,10 @@ export interface AreaLeftovers {
   passes: number;
   // why there's nothing to drive, when the planner says
   message?: string;
+  // most_left: hardly mowed by that mow, left out of the leftovers. nothing_left: nothing the mower gets to
+  reason?: string;
+  // hardly mowed, and a planner from before reason mows it whole along with the leftovers
+  whole?: boolean;
 }
 
 export interface Leftovers {
@@ -31,7 +35,10 @@ export interface Leftovers {
 type Answer = {
   file?: unknown;
   armed?: unknown;
-  areas?: Record<string, {paths?: unknown; left_m2?: unknown; message?: unknown; stats?: {leftovers?: {left_m2?: unknown; pieces?: unknown; passes?: unknown}} | null}>;
+  areas?: Record<
+    string,
+    {paths?: unknown; left_m2?: unknown; message?: unknown; reason?: unknown; stats?: {leftovers?: {left_m2?: unknown; pieces?: unknown; passes?: unknown}} | null}
+  >;
 };
 
 const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
@@ -40,12 +47,16 @@ export function readLeftovers(answer: Answer): Leftovers {
   const areas = Object.entries(answer.areas ?? {}).map(([id, a]): AreaLeftovers => {
     const st = a?.stats?.leftovers ?? null;
     const paths = Array.isArray(a?.paths) ? a.paths.length : 0;
+    const message = typeof a?.message === 'string' && a.message ? a.message : undefined;
+    const reason = typeof a?.reason === 'string' && a.reason ? a.reason : undefined;
     return {
       id,
       m2: num(st?.left_m2 ?? a?.left_m2),
       pieces: num(st?.pieces),
       passes: num(st?.passes) || paths,
-      ...(typeof a?.message === 'string' && a.message ? {message: a.message} : {}),
+      ...(message ? {message} : {}),
+      ...(reason ? {reason} : {}),
+      ...(!reason && message?.startsWith('most of the area is left') ? {whole: true} : {}),
     };
   });
   return {

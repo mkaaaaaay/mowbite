@@ -15,6 +15,7 @@ export function LeftoversCard({
   jobId,
   map,
   live,
+  interrupted,
   onStart,
   styles,
 }: {
@@ -22,6 +23,8 @@ export function LeftoversCard({
   jobId?: string;
   map: MowerMap | null;
   live: boolean;
+  // a job still open: a start goes on with it from its area on, and gets the leftovers there in place of its plans
+  interrupted?: boolean;
   // starts mowing (the usual action)
   onStart: () => void;
   styles: Record<string, string>;
@@ -58,6 +61,10 @@ export function LeftoversCard({
 
   const found = state.found;
   const left = found?.areas.filter((a) => a.passes > 0) ?? [];
+  const names = (areas: {id: string}[]) => areas.map((a) => name(a.id)).join(', ');
+  const leftOut = found?.areas.filter((a) => a.reason === 'most_left') ?? [];
+  const whole = found?.areas.filter((a) => a.whole) ?? [];
+  const other = found?.areas.filter((a) => a.passes === 0 && a.message && !a.reason && !a.whole) ?? [];
   return (
     <div className={styles.leftovers}>
       {!found && (
@@ -74,17 +81,32 @@ export function LeftoversCard({
                 n: found.passes,
                 areas: left.map((a) => `${name(a.id)} (${fmt(a.m2, a.m2 < 1 ? 2 : 1)} m²)`).join(', '),
               })}
-          {found.areas.some((a) => a.passes === 0 && a.message) && (
-            <small>{found.areas.filter((a) => a.passes === 0 && a.message).map((a) => `${name(a.id)}: ${a.message}`).join(' · ')}</small>
+          {leftOut.length > 0 && <small>{tr('Left out, hardly mowed last time: {areas}. A normal start mows them.', {areas: names(leftOut)})}</small>}
+          {whole.length > 0 && (
+            <small className={styles.error}>
+              {tr('Hardly mowed last time: {areas}. This MowBite Planner mows them completely along with the leftovers, a newer one leaves them out.', {
+                areas: names(whole),
+              })}
+            </small>
+          )}
+          {other.length > 0 && <small>{other.map((a) => `${name(a.id)}: ${a.message}`).join(' · ')}</small>}
+          {left.length > 0 && interrupted && !state.started && (
+            <small>{tr('An interrupted job is still open, a start goes on with it. Drop it first to mow just the leftovers.')}</small>
           )}
         </span>
       )}
-      {found && left.length > 0 && !state.started && (
+      {found && left.length > 0 && !interrupted && !state.started && (
         <button className={styles.leftoversButton} disabled={!live || state.busy} onClick={() => void mow()}>
           {state.busy ? tr('Starting…') : tr('Mow just the leftovers')}
         </button>
       )}
-      {state.started && <small>{tr('Started. The mower drives only those passes and skips the areas with nothing left.')}</small>}
+      {state.started && (
+        <small>
+          {whole.length > 0
+            ? tr('Started. The mower drives those passes, {areas} it mows completely.', {areas: names(whole)})
+            : tr('Started. The mower drives only those passes and skips the other areas.')}
+        </small>
+      )}
       {found && !state.started && (
         <button className={styles.leftoversButton} disabled={state.busy} onClick={() => setState({})}>
           {tr('Close')}

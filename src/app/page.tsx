@@ -486,6 +486,7 @@ export default function Home() {
                   jobId={leftoverJob}
                   map={map}
                   live={live}
+                  interrupted={hasAction(ACTION.resetJob)}
                   onStart={() => publishAction(ACTION.startMowing)}
                   styles={styles}
                 />
