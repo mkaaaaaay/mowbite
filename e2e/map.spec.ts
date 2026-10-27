@@ -93,3 +93,29 @@ test('saving over a map that was changed on another phone asks first', async ({p
   await expect.poll(names).toContain('Changed here');
   await expect(page.getByText('The map on the mower was changed since you started editing here')).toHaveCount(0);
 });
+
+// drawing a new area: the view stays where it is with every point, undo takes back only the last point
+test('drawing keeps the view still, undo takes back the last point', async ({page}) => {
+  await openMap(page);
+  await page.getByRole('button', {name: 'Draw'}).first().click();
+  const svg = visibleAreas(page).first().locator('xpath=ancestor::*[local-name()="svg"][last()]');
+  // (the svg reaches past the frame it's shown in)
+  const box = (await page.locator('[class*="MapView-module"][class*="__frame"]:visible').first().boundingBox())!;
+  const view = () => svg.getAttribute('viewBox');
+  const before = await view();
+  for (const [dx, dy] of [
+    [0.06, 0.45],
+    [0.3, 0.3],
+    [0.45, 0.55],
+  ]) {
+    await page.mouse.click(box.x + box.width * dx, box.y + box.height * dy);
+    // (not a double click)
+    await page.waitForTimeout(400);
+  }
+  await expect(page.getByText(/\(3 so far\)/)).toBeVisible();
+  expect(await view()).toBe(before);
+  await page.getByRole('button', {name: 'Undo'}).first().click();
+  await expect(page.getByText(/\(2 so far\)/)).toBeVisible();
+  await page.getByRole('button', {name: 'Remove last point'}).click();
+  await expect(page.getByText(/\(1 so far\)/)).toBeVisible();
+});

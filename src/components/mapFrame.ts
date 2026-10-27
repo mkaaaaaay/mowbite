@@ -15,8 +15,8 @@ export interface Bounds {
 }
 
 // the bounds of the areas' outlines and the points of a line being drawn, null for none
-export function boundsOf(map: MowerMap, pendingPoints?: Point[]): Bounds | null {
-  const points = [...map.areas.flatMap((a) => a.outline), ...(pendingPoints ?? [])];
+export function boundsOf(map: MowerMap): Bounds | null {
+  const points = map.areas.flatMap((a) => a.outline);
   if (!points.length) return null;
   const xs = points.map((p) => p.x);
   const ys = points.map((p) => p.y);

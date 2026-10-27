@@ -170,12 +170,25 @@ export function SubtractPanel({
   );
 }
 
-export function DrawPanel({points, onFinish, onCancel}: {points: number; onFinish: () => void; onCancel: () => void}) {
+export function DrawPanel({
+  points,
+  onFinish,
+  onRemoveLast,
+  onCancel,
+}: {
+  points: number;
+  onFinish: () => void;
+  onRemoveLast: () => void;
+  onCancel: () => void;
+}) {
   return (
     <div className={styles.inlineRow}>
       <span className={styles.dim}>{tr('Click points to draw the outline ({n} so far), drag them to move', {n: points})}</span>
       <button className={styles.pillButton} onClick={onFinish} disabled={points < 3}>
         {tr('Finish')}
+      </button>
+      <button className={styles.pillButton} onClick={onRemoveLast} disabled={!points}>
+        {tr('Remove last point')}
       </button>
       <button className={styles.pillButton} onClick={onCancel}>
         {tr('Cancel')}

@@ -407,8 +407,8 @@ function MapView({
   const plannerSettings = usePlannerSettings();
 
   // fitted to the map only, so the geometry doesn't change while the mower moves. follow mode
-  // moves the view instead
-  const fit = useMemo(() => boundsOf(map, pendingPoints), [map, pendingPoints]);
+  // moves the view instead. not to the points being set: the view would jump and zoom with every one
+  const fit = useMemo(() => boundsOf(map), [map]);
   // what's drawn of the map (the areas, the garden, the real edges): while a point of an area is dragged the map as it
   // was when it was picked up, the area being dragged goes along as its outline and points over it. worked out again
   // once it's let go, not for every move
@@ -1550,7 +1550,8 @@ function MapView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dragging, scale, minX, minY]);
 
-  if (map.areas.length === 0 && !mower && !pendingPoints?.length) return null;
+  // an empty map is drawn while points are set on it: a frame round 0,0 without a mower to put it round
+  if (map.areas.length === 0 && !mower && !pickingPoints) return null;
 
 
   const sources = datum ? availableSources(datum, settings.imagery) : [];

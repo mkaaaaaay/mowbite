@@ -349,11 +349,14 @@ function MapEditor() {
     setSimplifyCm(null);
   };
 
-  // decorating stays on: undo goes back no further than where it started, redo only brings pins back
-  const canUndo = mode === 'decor' ? !!map && decorUndo(map, decor?.start ?? null, history) : history.length > 0;
+  // decorating stays on: undo goes back no further than where it started, redo only brings pins back. drawing or cutting
+  // it takes the last point set back first
+  const placing = (mode === 'draw' || mode === 'split') && pendingPoints.length > 0;
+  const canUndo = mode === 'decor' ? !!map && decorUndo(map, decor?.start ?? null, history) : placing || history.length > 0;
   const canRedo = mode === 'decor' ? !!map && decorRedo(map, future) : future.length > 0;
 
   const undo = () => {
+    if (placing) return setPendingPoints(pendingPoints.slice(0, -1));
     if (!canUndo || !undoStep()) return;
     setSimplifyCm(null);
     setMode('idle');
@@ -680,10 +683,16 @@ function MapEditor() {
       }
       lateSave.current = {map: next, gone, before: liveMap};
       await saveMap(next);
+      // the mower's map can come back before its answer, then that took it already (below)
+      const taken = lateSave.current === null;
       lateSave.current = null;
       setArmedFor(null);
       setWithoutBackup(false);
-      saved(next, gone, liveMap);
+      // edits made while it saved stay and go on from the saved map
+      if (!taken) {
+        if (latest.current === next) saved(next, gone, liveMap);
+        else rebase(next);
+      }
       return true;
     } catch (e) {
       // no answer: it may still get there, then it's saved after all (below)
@@ -707,6 +716,11 @@ function MapEditor() {
   // a save the mower didn't answer in time: once its map comes back from there it's saved after all, not a change from
   // somewhere else. edits made meanwhile stay and go on from it
   const lateSave = useRef<{map: MowerMap; gone: string[]; before: MowerMap | null} | null>(null);
+  // the map as edited now, for a save that answers after more edits
+  const latest = useRef(map);
+  useEffect(() => {
+    latest.current = map;
+  });
   useEffect(() => {
     const late = lateSave.current;
     if (!late || !liveMap || !sameContent(liveMap, late.map)) return;
@@ -1104,8 +1118,8 @@ function MapEditor() {
               {map && mode !== 'decor' && (
                 <EditorToolbar
                   idle={mode === 'idle'}
-                  canUndo={history.length > 0}
-                  canRedo={future.length > 0}
+                  canUndo={canUndo}
+                  canRedo={canRedo}
                   unsaved={dirty}
                   saving={saving}
                   saveLabel={
@@ -1328,7 +1342,14 @@ function MapEditor() {
                 <SnapPanel area={selectedArea} other={other} moving={moving} laid={laid} cm={snapCm} onCm={setSnapCm} onApply={applySnap} onCancel={cancelPicking} />
               )}
 
-              {mode === 'draw' && <DrawPanel points={pendingPoints.length} onFinish={finishDraw} onCancel={cancelPicking} />}
+              {mode === 'draw' && (
+                <DrawPanel
+                  points={pendingPoints.length}
+                  onFinish={finishDraw}
+                  onRemoveLast={() => setPendingPoints(pendingPoints.slice(0, -1))}
+                  onCancel={cancelPicking}
+                />
+              )}
 
               {map && selectedArea && mode === 'idle' && (
                 <AreaCard
