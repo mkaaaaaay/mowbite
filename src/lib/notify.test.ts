@@ -109,6 +109,16 @@ describe('what the container sends', {timeout: 30_000}, () => {
     expect(run(bumped, conf.replace('emergency,', '')).map((m) => m.title)).toEqual(['Docking failed', 'Back in the dock']);
   });
 
+  it("doesn't remind of an undocking that failed while the mower charges in the dock, says when it has no gps outside", () => {
+    const undock = conf.replace('spinup', 'spinup,undock_failed');
+    const inDock = event(100, '{"type":"UNDOCKING_FAILED","reason":"path_failed"}') + state(110, 0, 1) + state(200, 0, 1) + state(400, 0, 1);
+    expect(run(inDock, undock).map((m) => m.title)).toEqual(['Undocking failed']);
+    const outside = event(100, '{"type":"UNDOCKING_FAILED","reason":"no_gps"}') + state(110, 0) + state(200, 0);
+    const out = run(outside, undock);
+    expect(out.map((m) => m.title)).toEqual(['No GPS after undocking', 'No GPS after undocking']);
+    expect(out[0].message).toBe('Steve got out of the dock but has no GPS, it stands in front of the dock.');
+  });
+
   it('sends only what was picked, nothing without a topic', () => {
     const input = event(100, '{"type":"JOB_COMPLETE"}') + event(200, '{"type":"DOCKING","reason":"Rain detected"}');
     expect(run(input, conf)).toEqual([]);

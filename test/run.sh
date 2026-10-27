@@ -113,6 +113,14 @@ start pausedarea "$(state)" "$(base "$DAY")"$'\n'"plan $D $M"$'\n'"pause $(day "
 start pausedareas "$(state)" "$(base "$DAY")"$'\n'"plan $D $M front"$'\n'"pause $(day "$DAY") front" "MAP=$AREAS"
 start endtime "$(state)" "$(base "$DAY")"$'\n'"plan $D $M end=$(hm "$DAY" 1)"
 start endlate "$(state IDLE 0 0 0.5)" "$(MINBAT=80 base "$DAY")"$'\n'"plan $D $M end=$(hm "$DAY" 1)"
+start noarea "$(state)" "$(base "$DAY")"$'\n'"plan $D $M gone" "MAP=$AREAS"
+start gone "$(state IDLE 0 0 0.5)" "$(MINBAT=80 base "$DAY")"$'\n'"plan $D $M"
+# from before a restart of the container: a run of a plan for the front, a start waiting for the battery (its plan an
+# hour ago), the mowing direction of a plan that has none any more
+start restored "$(state MOWING)" "$(base "$DAY")" "MAP=$AREAS" "RUN_STATE=$(date +%s) - - front" AREA_SOON=back
+start waited "$(state)" "$(base "$DAY")"$'\n'"plan $(dow "$DAY" -60) $(hm "$DAY" -60)" \
+  "WAITING=$(($(date +%s) + 600)) $(dow "$DAY" -60) $(hm "$DAY" -60) $(day "$DAY") -"
+start angleback "$(state)" "$(base "$DAY")"$'\n'"plan $((D % 7 + 1)) $M" ANGLE_NORMAL=7
 
 logs "scheduler: starts at the time of a plan" start '^started 90$'
 gets start '^action mower_logic:idle/start_mowing$' && ok "scheduler: the mower got the start" ||
@@ -155,6 +163,15 @@ slog endlate | grep -q '^started' && bad "scheduler: still no start once it's ch
   ok "scheduler: still no start once it's charged"
 slog start | grep -q '^start_failed' && bad "scheduler: a mower that drives off isn't taken for one that didn't" "$(slog start)" ||
   ok "scheduler: a mower that drives off isn't taken for one that didn't"
+logs "scheduler: no start when none of the plan's areas is in the map" noarea '^skip_no_area$'
+logs "scheduler: waits for the battery (start time taken out next)" gone '^waiting_battery 50$'
+docker exec mbt-gone sh -c "grep -v '^plan' /data/schedule.txt > /tmp/s && cat /tmp/s > /data/schedule.txt"
+logs "scheduler: a start time taken out while it waits isn't started" gone '^skip_gone$' 40
+logs "scheduler: a run from before a restart still skips the areas it doesn't pick" restored '^skipped_area back$' 60
+logs "scheduler: a start waiting for the battery goes on after a restart" waited '^started' 40
+gets angleback '^rpc/request .*"params":\{"/mower_logic/mow_angle_offset":7\}' 40 &&
+  ok "scheduler: the usual direction back once no plan has one of its own" ||
+  bad "scheduler: the usual direction back once no plan has one of its own" "$(sent angleback)"
 
 # --- the cgis, through busybox httpd as in the container ---
 

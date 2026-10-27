@@ -15,6 +15,7 @@ const schedule = (plans: Schedule['plans'], enabled = true): Schedule => ({
   skipCold: false,
   minTemp: 5,
   plans,
+  tz: posixTz(),
 });
 
 describe('parse / serialize', () => {
@@ -155,6 +156,24 @@ describe('nextStart and a pause', () => {
   it('still starts when only some areas are paused', () => {
     const s = {...schedule([plan([1], '10:00')]), pause: {until: '2026-09-29', areas: ['a']}};
     expect(nextStart(s, monday8)).toEqual(new Date(2026, 8, 28, 10, 0));
+  });
+  it('leaves out a start whose areas are all paused, like the scheduler', () => {
+    const s = {...schedule([plan([1, 2], '10:00', ['a'])]), pause: {until: '2026-09-28', areas: ['a']}};
+    expect(nextStart(s, monday8, undefined, ['a', 'b'])).toEqual(new Date(2026, 8, 29, 10, 0));
+    // without the areas it can't tell
+    expect(nextStart(s, monday8)).toEqual(new Date(2026, 8, 28, 10, 0));
+  });
+  it('leaves out a start that picks only areas not mowed any more', () => {
+    expect(nextStart(schedule([plan([1], '10:00', ['gone'])]), monday8, undefined, ['a', 'b'])).toBeNull();
+  });
+});
+
+describe('the time zone', () => {
+  it("keeps the one it was saved in, a phone elsewhere doesn't change it", () => {
+    const s = parseSchedule('enabled 1\ntz <+08>-8\nplan 1 10:00\n');
+    expect(s.tz).toBe('<+08>-8');
+    expect(serializeSchedule(s)).toContain('tz <+08>-8\n');
+    expect(serializeSchedule({...s, tz: undefined})).toContain(`tz ${posixTz()}\n`);
   });
 });
 

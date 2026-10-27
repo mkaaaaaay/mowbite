@@ -226,7 +226,8 @@ export default function Home() {
   });
   const missedAny = schedule?.enabled ? missedStart(scheduleLog) : null;
   const missed = missedAny && missedAny.t !== missedSeen ? missedAny : null;
-  const planned = schedule ? nextStart(schedule, undefined, datum ? sunTimes(datum.lat, datum.lon) : null) : null;
+  const mowable = map?.areas.filter((a) => a.properties.type === 'mow' && a.properties.active !== false && a.properties.mowable !== false).map((a) => a.id);
+  const planned = schedule ? nextStart(schedule, undefined, datum ? sunTimes(datum.lat, datum.lon) : null, mowable) : null;
   const [confirmReset, setConfirmReset] = useState(false);
   // three more runs unfolded under the last three
   const [moreRuns, setMoreRuns] = useState(false);

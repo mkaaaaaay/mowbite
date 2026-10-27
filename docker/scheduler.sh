@@ -39,10 +39,13 @@ map_areas() {
     -e 's/"properties":(/"properties":{/g' | grep -o '"id":"[^"]*","properties":{[^}]*}'
 }
 
+# the pause of today as the file has it now: all, a list of area ids or nothing
+paused_today() { awk -v day="$(TZ="$tz" date +%F)" '$1 == "pause" && day <= $2 { print $3; exit }' "$F" 2>/dev/null; }
+
 # during a run this script started: skip every area the plan doesn't pick ($1: all or a list) and the ones
-# paused for today ($2), until the job is done (also across breaks for charging) or the next start. a run sent
-# home at its end time keeps its job open, without stopping at the next start this would go on skipping the
-# areas of the next plan or of a start by hand
+# paused for today (read again at every area, a pause set while it runs counts too), until the job is done (also
+# across breaks for charging) or the next start. a run sent home at its end time keeps its job open, without
+# stopping at the next start this would go on skipping the areas of the next plan or of a start by hand
 skip_others() {
   # shellcheck disable=SC2086
   timeout 86400 mosquitto_sub -h "$host" -p "$PORT" $AUTH -v -t "${MOWER_MQTT_PREFIX}$TOPIC_EVENTS" \
@@ -51,9 +54,14 @@ skip_others() {
     type=$(field "$e" type)
     case "$type" in
       # not on DOCKED: a run that docks to charge carries on afterwards, and it's still this run
-      JOB_COMPLETE | JOB_RESET | SHUTDOWN) break ;;
+      JOB_COMPLETE | JOB_RESET)
+        rm -f "$RUN"
+        break
+        ;;
+      SHUTDOWN) break ;;
       AREA)
         a=$(field "$e" area_id)
+        p=$(paused_today)
         # the map as the mower has it now (retained), only its areas are skipped. a job resumed from
         # before a map change can name an area that isn't in it any more, that one is left alone.
         # inactive ones too (and ones it doesn't mow), the mower passes them by itself, and a skip
@@ -64,7 +72,7 @@ skip_others() {
         # skipped when the plan doesn't pick it (all or a list) or it's paused for today
         keep=1
         case ",$1," in ,all, | *",$a,"*) ;; *) keep=0 ;; esac
-        case ",$2," in *",$a,"*) keep=0 ;; esac
+        case ",$p," in ,all, | *",$a,"*) keep=0 ;; esac
         [ "$keep" = 1 ] && continue
         if [ -z "$props" ]; then
           log unknown_area "$a"
@@ -73,7 +81,7 @@ skip_others() {
         case "$props" in *'"active":false'* | *'"mowable":false'*) continue ;; esac
         # shellcheck disable=SC2086
         mosquitto_pub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTION" -m "$ACTION_SKIP_AREA"
-        case ",$2," in *",$a,"*) log paused_area "$a" ;; *) log skipped_area "$a" ;; esac
+        case ",$p," in ,all, | *",$a,"*) log paused_area "$a" ;; *) log skipped_area "$a" ;; esac
         ;;
     esac
   done
@@ -363,12 +371,79 @@ leftovers_watch() {
 LEFT=/tmp/leftovers.started
 # the stop time of the run this script started last (send_home_at), for the leftovers after it
 STOP=/tmp/run.stop
+# kept over a restart of the container (an update while the mower charges in the middle of a run): the run this script
+# started ("<started> <stop>|- <why>|- <areas>"), and a start waiting for the battery ("<until> <day> <HH:MM> <date>
+# <end>|-"). both go when they're over
+RUN=/data/run.state
+WAITING=/data/run.wait
 leftovers_watch &
+
+# a job still open: the mower out (or charging in the middle of it), or idle with one left unfinished
+run_open() {
+  # shellcheck disable=SC2086
+  s=$(mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -C 1 -W 10 2>/dev/null)
+  [ -n "$s" ] || return 1
+  [ "$(field "$s" current_state)" != IDLE ] && return 0
+  # shellcheck disable=SC2086
+  a=$(mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTIONS" -C 1 -W 5 2>/dev/null | tr -d ' \n' |
+    tr '}' '\n' | grep "\"$ACTION_RESET_JOB\"")
+  case "$a" in *'"enabled":1'* | *'"enabled":true'*) return 0 ;; esac
+  return 1
+}
+
+# the run of before a restart: its areas skipped again and sent home at its time, while its job is still open
+restore_run() {
+  # shellcheck disable=SC2034
+  read -r at stop why areas < "$RUN" || return
+  [ $(($(date +%s) - ${at:-0})) -lt 86400 ] || { rm -f "$RUN"; return; }
+  tz=$(conf tz)
+  for _ in $(seq 30); do
+    host=$(find_broker)
+    [ -n "$host" ] && break
+    sleep 10
+  done
+  if [ -z "$host" ] || ! run_open; then
+    rm -f "$RUN"
+    return
+  fi
+  skip_others "$areas" &
+  [ "$stop" != - ] && [ "$stop" -gt "$(date +%s)" ] && send_home_at "$stop" "$why" &
+}
+[ -f "$RUN" ] && restore_run &
+
+# a mowing direction of its own taken out of every plan, or the schedule switched off: the usual one back once the
+# mower is idle without a job open, not only at the next start. tried every ten minutes
+angle_tried=0
+angle_back() {
+  [ $(($(date +%s) - angle_tried)) -ge 600 ] || return
+  angle_tried=$(date +%s)
+  host=$(find_broker)
+  [ -n "$host" ] && ! run_open || return
+  turn=$(sed -n "s|^$PARAM_MOW_ANGLE_OFFSET ||p" /data/params.txt 2>/dev/null | head -n1)
+  turn=${turn:-$(cat "$NORMAL" 2>/dev/null)}
+  rpc_call "$RPC_SET_PARAMS" "{\"params\":{\"$PARAM_MOW_ANGLE_OFFSET\":${turn:-0}}}" 10 | grep -q '"result"' && rm -f "$NORMAL"
+}
+
+# the plan of a start (day 1-7, HH:MM) as the file has it: "areas end dark sunset fresh angle", - for what's not set.
+# nothing when there's none then. plan <days> <HH:MM> [areas] [end=HH:MM] [dark=1] [sunset=1] [fresh=1] [angle=<deg>]
+plan_at() {
+  awk -v d="$1" -v t="$2" '$1 == "plan" && $3 == t {
+    n = split($2, a, ","); for (i = 1; i <= n; i++) if (a[i] == d) {
+      ar = "all"; en = "-"; dk = "-"; ss = "-"; fr = "-"; an = "-"
+      for (j = 4; j <= NF; j++) {
+        if ($j ~ /^end=/) en = substr($j, 5); else if ($j == "dark=1") dk = 1
+        else if ($j == "sunset=1") ss = 1; else if ($j == "fresh=1") fr = 1
+        else if ($j ~ /^angle=/) an = substr($j, 7); else ar = $j
+      }
+      print ar, en, dk, ss, fr, an; exit } }' "$F"
+}
 
 last=""
 until=0
 endat=""
 waited=""
+dday=""
+dtime=""
 areas=all
 end=-
 dark=-
@@ -376,54 +451,63 @@ sunset=-
 fresh=-
 angle=-
 paused=""
+# a start that was waiting for the battery when the container restarted waits on
+if [ -f "$WAITING" ]; then
+  read -r u dday dtime ddate e < "$WAITING"
+  if [ "${u:-0}" -gt "$(date +%s)" ]; then
+    until=$u last="$ddate $dtime" waited=1
+    [ "$e" = - ] || endat=$e
+  else
+    rm -f "$WAITING"
+  fi
+fi
 while :; do
   if [ -f "$F" ] && [ "$(conf enabled)" = 1 ]; then
     tz=$(conf tz)
     now=$(TZ="$tz" date '+%u %H:%M %F')
     # shellcheck disable=SC2086
     set -- $now
-    # plan <days> <HH:MM> [areas] [end=HH:MM] [dark=1] [sunset=1] [fresh=1] [angle=<deg>]: areas, end time, dark,
-    # sunset, fresh and the angle, - when not set
-    due=$(awk -v d="$1" -v t="$2" '$1 == "plan" && $3 == t {
-      n = split($2, a, ","); for (i = 1; i <= n; i++) if (a[i] == d) {
-        ar = "all"; en = "-"; dk = "-"; ss = "-"; fr = "-"; an = "-"
-        for (j = 4; j <= NF; j++) {
-          if ($j ~ /^end=/) en = substr($j, 5); else if ($j == "dark=1") dk = 1
-          else if ($j == "sunset=1") ss = 1; else if ($j == "fresh=1") fr = 1
-          else if ($j ~ /^angle=/) an = substr($j, 7); else ar = $j
-        }
-        print ar, en, dk, ss, fr, an; exit } }' "$F")
+    due=$(plan_at "$1" "$2")
     if [ -n "$due" ] && [ "$3 $2" != "$last" ]; then
       last="$3 $2"
       until=$(($(date +%s) + WAIT))
       waited=""
+      dday=$1 dtime=$2
       # shellcheck disable=SC2086
       set -- $due
-      areas=$1 end=$2 dark=$3 sunset=$4 fresh=$5 angle=$6
       # when this start ends: its end time today, or tomorrow when that's not after the start
       endat=""
-      if [ "$end" != - ]; then
-        endat=$(stop_time "$end" - 1 | cut -d' ' -f1)
+      if [ "$2" != - ]; then
+        endat=$(stop_time "$2" - 1 | cut -d' ' -f1)
       fi
-      # pause <YYYY-MM-DD> all|<area ids>: off up to and including that day, or those areas skipped
-      paused=$(awk -v day="$(TZ="$tz" date +%F)" '$1 == "pause" && day <= $2 { print $3; exit }' "$F")
+      echo "$until $dday $dtime $3 ${endat:--}" > "$WAITING"
     fi
   else
     until=0
   fi
 
   if [ "$until" -gt 0 ]; then
+    # the plan and the pause as they are now, changed while it waits for the battery: a start time taken out or
+    # moved isn't started any more
+    cur=$(plan_at "$dday" "$dtime")
+    # shellcheck disable=SC2086
+    [ -n "$cur" ] && set -- $cur && areas=$1 end=$2 dark=$3 sunset=$4 fresh=$5 angle=$6
+    paused=$(paused_today)
     host=$(find_broker)
     # shellcheck disable=SC2086
     s=$([ -n "$host" ] && mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -C 1 -W 10 2>/dev/null)
     bat=$(battery "$s")
     minbat=$(conf minbattery)
-    if [ -n "$endat" ] && [ "$(date +%s)" -ge "$endat" ]; then
+    if [ -z "$cur" ]; then
+      log skip_gone; until=0
+    elif [ -n "$endat" ] && [ "$(date +%s)" -ge "$endat" ]; then
       log skip_end; until=0
     elif [ "$paused" = all ]; then
       log skip_paused; until=0
-    elif [ -n "$paused" ] && host=$(find_broker) && [ -n "$host" ] && ! area_left "$areas" "$paused"; then
-      log skip_paused; until=0
+    # a plan for some areas: one of them still has to be in the map, mowed and not paused
+    elif { [ -n "$paused" ] || [ "$areas" != all ]; } && [ -n "$host" ] && ! area_left "$areas" "$paused"; then
+      if [ -n "$paused" ] && area_left "$areas" ""; then log skip_paused; else log skip_no_area; fi
+      until=0
     elif [ -z "$s" ]; then
       [ "$(date +%s)" -gt "$until" ] && { log skip_offline; until=0; }
     elif [ "$(field "$s" emergency)" != 0 ]; then
@@ -446,8 +530,8 @@ while :; do
     elif [ "$(conf skipcold)" = 1 ] && cold=$(too_cold); then
       log skip_cold "$cold"; until=0
     else
-      # the mowing direction of this start. one without its own gets the usual one back when other start times
-      # have theirs: what the app keeps for the mower (params.sh), else what the mower had before a start turned it
+      # the mowing direction of this start. one without its own gets the usual one back after one with its own: what
+      # the app keeps for the mower (params.sh), else what the mower had before a start turned it
       turn=""
       if [ "$angle" != - ]; then
         turn=$angle
@@ -457,7 +541,7 @@ while :; do
           now=$(field "$now" "$PARAM_MOW_ANGLE_OFFSET")
           [ -n "$now" ] && echo "$now" > "$NORMAL"
         fi
-      elif grep -q '^plan .* angle=' "$F"; then
+      elif [ -f "$NORMAL" ]; then
         turn=$(sed -n "s|^$PARAM_MOW_ANGLE_OFFSET ||p" /data/params.txt 2>/dev/null | head -n1)
         turn=${turn:-$(cat "$NORMAL" 2>/dev/null)}
         turn=${turn:-0}
@@ -476,15 +560,21 @@ while :; do
       if mosquitto_pub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTION" -m "$ACTION_START_MOWING"; then
         log started "$bat"
         check_started &
-        if [ "$areas" != all ] || [ -n "$paused" ]; then skip_others "$areas" "$paused" & fi
         # the end time of the start, not the next one from now (it may have waited for the battery)
         stop=$(stop_time "$end" "$sunset" "$dark" "$endat")
+        echo "$(date +%s) ${stop:-- -} $areas" > "$RUN"
+        # always: a pause set while it runs counts too
+        skip_others "$areas" &
+        # shellcheck disable=SC2086
         [ -n "$stop" ] && send_home_at $stop &
       else
         log skip_offline
       fi
       until=0
     fi
+    [ "$until" -gt 0 ] || rm -f "$WAITING"
+  elif [ -f "$NORMAL" ] && ! { [ -f "$F" ] && [ "$(conf enabled)" = 1 ] && grep -q '^plan .* angle=' "$F"; }; then
+    angle_back
   fi
   sleep 20
 done

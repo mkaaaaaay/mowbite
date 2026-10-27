@@ -673,6 +673,8 @@ const de: Record<string, string> = {
   "Leftovers not mowed, rain was forecast": "Reste nicht gemäht, Regen war angesagt",
   "Leftovers not mowed, too cold ({more} °C)": "Reste nicht gemäht, zu kalt ({more} °C)",
   "Leftovers: waiting for the battery ({detail} %)": "Reste: wartet auf den Akku ({detail} %)",
+  "Not started, the start time was changed or taken out while it waited": "Nicht gestartet, die Startzeit wurde während des Wartens geändert oder entfernt",
+  "Not started, none of the areas it picks is mowed any more": "Nicht gestartet, keine der gewählten Flächen wird noch gemäht",
   "Leftovers not mowed, it's raining": "Reste nicht gemäht, es regnet",
   "Leftovers not mowed, it's dark": "Reste nicht gemäht, es ist dunkel",
   "Not started, the mower was busy": "Nicht gestartet, der Mäher war beschäftigt",
@@ -1891,6 +1893,11 @@ const de: Record<string, string> = {
   "Discard and end": "Verwerfen und beenden",
   "Leave anyway": "Trotzdem verlassen",
   "Stay": "Hierbleiben",
+  "This phone is in another time zone than the schedule. The times are the schedule's, the mower starts by those.":
+    "Dieses Handy ist in einer anderen Zeitzone als der Zeitplan. Die Zeiten sind die des Zeitplans, nach ihnen startet der Mäher.",
+  "Use this phone's time zone": "Zeitzone dieses Handys nehmen",
+  "None of the areas it picks is mowed any more, it leaves the start out. Pick areas again or All areas.":
+    "Keine der gewählten Flächen wird noch gemäht, der Start fällt aus. Wähle Flächen neu oder „Alle Flächen“.",
   "Stop already?": "Schon stoppen?",
   "No point of this obstacle is recorded yet. Stopping now makes OpenMower drop the whole area, the outline and the obstacles with it. Better drive on to the obstacle and around it: the way there ends up in its line, the map editor can take it out afterwards.":
     "Von diesem Hindernis ist noch kein Punkt aufgenommen. Ein Stopp jetzt lässt OpenMower die ganze Fläche verwerfen, samt Rand und Hindernissen. Fahre besser weiter zum Hindernis und darum herum: Der Weg dorthin landet mit in seiner Linie, im Karteneditor kannst du ihn danach herausnehmen.",

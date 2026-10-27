@@ -23,12 +23,13 @@ import {
   loadSchedule,
   loadScheduleLog,
   nextStart,
+  posixTz,
   saveSchedule,
   type LogEntry,
   type Schedule,
   scheduleLogLine,
 } from '@/lib/schedule';
-import {useEffect, useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
 import styles from './page.module.css';
 import {useMowerMap} from '@/hooks/useMowerMap';
 
@@ -56,15 +57,29 @@ export default function SchedulePage() {
   const {knowsAction} = useMowerActions();
   const canTurn = useCanSetParams();
 
+  // a change made here wins over an answer still on its way. back from the background the page asks again, another
+  // phone may have changed it meanwhile
+  const touched = useRef(false);
   useEffect(() => {
-    void loadSchedule().then(setSchedule);
+    const load = (again = false) => void loadSchedule(again).then((s) => touched.current || setSchedule(s));
+    load();
     void loadScheduleLog().then(setLog);
     const timer = setInterval(() => void loadScheduleLog().then(setLog), 60000);
-    return () => clearInterval(timer);
+    const back = () => {
+      if (document.visibilityState !== 'visible') return;
+      touched.current = false;
+      load(true);
+    };
+    document.addEventListener('visibilitychange', back);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', back);
+    };
   }, []);
 
   // every change is saved right away
   const update = (next: Schedule) => {
+    touched.current = true;
     setSchedule(next);
     setError(null);
     // the position also gives the scheduler the sun times
@@ -74,7 +89,14 @@ export default function SchedulePage() {
   };
 
   const s = schedule ?? EMPTY_SCHEDULE;
-  const next = nextStart(s, undefined, sun);
+  const next = nextStart(
+    s,
+    undefined,
+    sun,
+    mowAreas.map((a) => a.id),
+  );
+  // saved from a phone in another time zone: the times are the schedule's, not this phone's
+  const otherZone = !!s.tz && s.tz !== posixTz();
 
   return (
     <div className={styles.page}>
@@ -107,6 +129,17 @@ export default function SchedulePage() {
             </section>
 
             {error && <p className={styles.error}>{error}</p>}
+
+            {otherZone && (
+              <section className={styles.card}>
+                <p className={styles.dim}>
+                  {tr("This phone is in another time zone than the schedule. The times are the schedule's, the mower starts by those.")}
+                </p>
+                <button className={styles.add} onClick={() => update({...s, tz: posixTz()})}>
+                  {tr("Use this phone's time zone")}
+                </button>
+              </section>
+            )}
 
             <section className={styles.card}>
               <h2>{tr('Start times')}</h2>

@@ -92,6 +92,10 @@ export default function PlanRow({
         </p>
       )}
 
+      {/* the areas it picks were deleted, recorded anew or aren't mowed any more: it doesn't start */}
+      {mowAreas.length > 0 && plan.areas.length > 0 && !plan.areas.some((id) => mowAreas.some((a) => a.id === id)) && (
+        <p className={styles.error}>{tr('None of the areas it picks is mowed any more, it leaves the start out. Pick areas again or All areas.')}</p>
+      )}
       {mowAreas.length > 1 && (
         <div className={styles.areas}>
           <button className={plan.areas.length === 0 ? styles.on : undefined} onClick={() => set({areas: []})}>

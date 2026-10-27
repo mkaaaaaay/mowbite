@@ -215,12 +215,12 @@ export default function SettingsPage() {
   // opened
   const planner = usePlannerSettings();
   const datum = datumFromParams(useMowerParams());
-  // the leftovers setting with this device's time zone and the mower's place: the container needs them for "not in the
-  // dark" when no schedule is saved
+  // the leftovers setting with a time zone (the one set first, like the schedule's) and the mower's place: the container
+  // needs them for "not in the dark" when no schedule is saved
   const leftovers = (change: Partial<NonNullable<Settings['leftovers']>>): Settings['leftovers'] => ({
     ...settingsStore.snapshot().leftovers,
     ...change,
-    tz: posixTz(),
+    tz: settingsStore.snapshot().leftovers?.tz ?? posixTz(),
     ...(datum ? {pos: `${datum.lat.toFixed(2)} ${datum.lon.toFixed(2)}`} : {}),
   });
   // no answer (OpenMower restarting, a slow connection): the sizes as without the planner, so they can be set

@@ -2,7 +2,10 @@
 # one case of test/run.sh, in a MowBite container: the schedule ($SCHED), what the mower has retained (robot state, its
 # params and map: $STATE, $PARAMS, $MAP), a pretend mower and then the scheduler as in the container.
 # the pretend mower notes what's sent to it (actions, rpc calls) in /tmp/sent, answers the calls and leaves IDLE when
-# it's told to mow, unless $MOWER is "stays". $AREA: the area it says it gets to a few seconds after that
+# it's told to mow, unless $MOWER is "stays". $AREA: the area it says it gets to a few seconds after that, $AREA_SOON:
+# one it gets to a little after the start of the case without being told. from before a restart of the container:
+# $RUN_STATE (a run the scheduler started), $WAITING (a start waiting for the battery), $ANGLE_NORMAL (the usual
+# mowing direction before a plan turned it)
 pub() {
   t=$1
   shift
@@ -10,6 +13,9 @@ pub() {
 }
 
 printf '%s\n' "$SCHED" > /data/schedule.txt
+[ -z "$RUN_STATE" ] || echo "$RUN_STATE" > /data/run.state
+[ -z "$WAITING" ] || echo "$WAITING" > /data/run.wait
+[ -z "$ANGLE_NORMAL" ] || echo "$ANGLE_NORMAL" > /data/angle.normal
 [ -z "$PARAMS" ] || pub params/json -r -m "$PARAMS"
 [ -z "$MAP" ] || pub map/json -r -m "$MAP"
 pub robot_state/json -r -m "$STATE"
@@ -28,6 +34,8 @@ mosquitto_sub -h "$MOWER_MQTT_HOST" -v -t "${MOWER_MQTT_PREFIX}action" -t "${MOW
       ;;
   esac
 done &
+
+[ -z "$AREA_SOON" ] || { sleep 12 && pub events/json -m "{\"type\":\"AREA\",\"area_id\":\"$AREA_SOON\"}"; } &
 
 sleep 1
 exec /scheduler.sh

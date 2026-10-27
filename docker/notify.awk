@@ -141,6 +141,8 @@ function tell(phase, why,   m) {
     }
   } else if (problem == "undock_failed") {
     if (phase == "clear") send(problem, phase, tx("On its way again", "Wieder unterwegs"), tx(who() " got out of the dock.", who() " ist aus dem Dock gekommen."), 2, "white_check_mark")
+    # out of the dock already, it got no gps there
+    else if (undock_why == "no_gps") send(problem, phase, tx("No GPS after undocking", "Kein GPS nach dem Abdocken"), phase == "new" ? tx(who() " got out of the dock but has no GPS, it stands in front of the dock.", who() " ist aus dem Dock gekommen, hat aber kein GPS und steht vor dem Dock.") : tx(who() " still stands in front of the dock without GPS (for " minutes(t - since) " min).", who() " steht immer noch ohne GPS vor dem Dock (seit " minutes(t - since) " min)."), 4, "warning")
     else send(problem, phase, tx("Undocking failed", "Abdocken fehlgeschlagen"), phase == "new" ? tx(who() " didn't get out of the dock and stopped.", who() " ist nicht aus dem Dock gekommen und hat angehalten.") : tx(who() " still hasn't got out of the dock (for " minutes(t - since) " min).", who() " ist immer noch nicht aus dem Dock gekommen (seit " minutes(t - since) " min)."), 4, "warning")
   }
 }
@@ -240,6 +242,8 @@ BEGIN {
     }
     charging = field(json, "is_charging")
     if (problem == "dock_failed" && (charging == "1" || charging == "true")) close_problem(1)
+    # not out of the dock and charging there: told once, no reminders all night
+    if (problem == "undock_failed" && undock_why != "no_gps" && (charging == "1" || charging == "true")) close_problem(0)
     standstill(field(json, "current_state"), field(json, "x") + 0, field(json, "y") + 0, charging == "1" || charging == "true" || v_charge > 20)
   } else if (topic_in ~ /sensors\/om_v_charge\/data$/) {
     v_charge = json + 0
@@ -255,7 +259,10 @@ BEGIN {
   } else if (topic_in ~ /events\/json$/) {
     type = field(json, "type")
     if (type == "DOCKING_FAILED") open("dock_failed")
-    else if (type == "UNDOCKING_FAILED") open("undock_failed")
+    else if (type == "UNDOCKING_FAILED") {
+      undock_why = field(json, "reason")
+      open("undock_failed")
+    }
     else if (type == "DOCKED" && problem == "dock_failed") close_problem(1)
     else if (type == "UNDOCKED" && problem == "undock_failed") close_problem(1)
     else if (type == "NAVIGATION_ERROR") nav_t = t

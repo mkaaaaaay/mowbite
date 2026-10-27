@@ -43,6 +43,9 @@ export interface Schedule {
   minTemp: number;
   plans: Plan[];
   pause?: Pause;
+  // the time zone the scheduler counts in (POSIX TZ, see posixTz): the one of the device that saved it first, kept
+  // after that so a save from a phone abroad doesn't shift every start
+  tz?: string;
 }
 
 export const FORECAST_HOURS = [1, 2, 3];
@@ -73,6 +76,7 @@ export function parseSchedule(text: string): Schedule {
     if (key === 'skipcold') s.skipCold = a === '1';
     if (key === 'mintemp' && COLD_TEMPS.includes(Number(a))) s.minTemp = Number(a);
     if (key === 'pause' && a && b) s.pause = {until: a, areas: b === 'all' ? 'all' : b.split(',')};
+    if (key === 'tz' && a) s.tz = a;
     if (key === 'plan' && a && b) {
       const plan: Plan = {days: a.split(',').map(Number), time: b, areas: []};
       for (const r of rest) {
@@ -100,7 +104,7 @@ export function serializeSchedule(s: Schedule, pos?: {lat: number; lon: number})
     `skipcold ${s.skipCold ? 1 : 0}`,
     `mintemp ${s.minTemp}`,
     ...(pos ? [`pos ${pos.lat.toFixed(2)} ${pos.lon.toFixed(2)}`] : []),
-    `tz ${posixTz()}`,
+    `tz ${s.tz ?? posixTz()}`,
     ...s.plans
       .filter((p) => p.days.length)
       .map(
@@ -121,7 +125,9 @@ export const cachedSchedule = () => lastSchedule;
 export const cachedScheduleLog = () => lastLog;
 
 // null: not served by the container, no scheduler then
-export function loadSchedule(): Promise<Schedule | null> {
+// again: not the answer from a moment ago (the page back from the background)
+export function loadSchedule(again = false): Promise<Schedule | null> {
+  if (again) forget('schedule');
   return fresh('schedule', async () => {
     try {
       const res = await mowerFetch(endpoint(), {cache: 'no-store'});
@@ -167,6 +173,8 @@ export const SCHEDULE_LOG_TEXT: Record<string, string> = {
   stopped_again: 'Sent home again, it carried on by itself after charging',
   skip_paused: 'Not started, paused for today',
   skip_end: 'Not started, the end time came before the battery was charged',
+  skip_gone: 'Not started, the start time was changed or taken out while it waited',
+  skip_no_area: 'Not started, none of the areas it picks is mowed any more',
   paused_area: 'Skipped an area paused for today',
   skipped_area: "Skipped an area that wasn't picked",
   unknown_area: "An area the map doesn't have (an older job?), left it alone",
@@ -218,15 +226,18 @@ const START_OUTCOMES = new Set([
   'skip_dark',
   'skip_paused',
   'skip_end',
+  'skip_gone',
+  'skip_no_area',
 ]);
 
 // The last start the schedule tried, when it didn't come off and it's less than 12 hours ago. A pause for the day
-// was asked for, and busy means it was out already, neither is worth a word.
+// was asked for, busy means it was out already and a start time changed while it waited was changed on purpose, none
+// of them is worth a word.
 export function missedStart(log: LogEntry[], now = Date.now() / 1000): LogEntry | null {
   let last: LogEntry | null = null;
   for (const l of log) if (START_OUTCOMES.has(l.what) && (!last || l.t > last.t)) last = l;
   if (!last || now - last.t > 12 * 3600) return null;
-  return ['started', 'skip_paused', 'skip_busy'].includes(last.what) ? null : last;
+  return ['started', 'skip_paused', 'skip_busy', 'skip_gone'].includes(last.what) ? null : last;
 }
 
 export function loadScheduleLog(): Promise<LogEntry[]> {
@@ -258,9 +269,23 @@ export const NIGHT_TO = '06:00';
 export const isNightTime = (time: string, sun?: {rise: string; set: string} | null) =>
   sun ? time >= sun.set || time < sun.rise : time >= NIGHT_FROM || time < NIGHT_TO;
 
+// the areas a plan mows on a day: the ones it picks (none picked: all) of those mowed, without the ones paused then.
+// mowable: the ids of the mowing areas the mower mows
+export function planAreas(p: Plan, mowable: readonly string[], pause: Pause | undefined, day: string): string[] {
+  const picked = p.areas.length ? mowable.filter((id) => p.areas.includes(id)) : [...mowable];
+  if (!pause || day > pause.until) return picked;
+  return pause.areas === 'all' ? [] : picked.filter((id) => !pause.areas.includes(id));
+}
+
 // the next start as a date, looking a week ahead from now. days paused for all areas don't count, and with the
-// sun times neither do starts in the dark that the scheduler leaves out (not marked dark)
-export function nextStart(s: Schedule, from = new Date(), sun?: {rise: string; set: string} | null): Date | null {
+// sun times neither do starts in the dark that the scheduler leaves out (not marked dark). with the mowable areas
+// (ids) neither does a start with none of its areas left to mow, the scheduler leaves that one out too
+export function nextStart(
+  s: Schedule,
+  from = new Date(),
+  sun?: {rise: string; set: string} | null,
+  mowable?: readonly string[],
+): Date | null {
   if (!s.enabled) return null;
   let best: Date | null = null;
   for (let add = 0; add <= 7; add++) {
@@ -271,6 +296,7 @@ export function nextStart(s: Schedule, from = new Date(), sun?: {rise: string; s
     for (const p of s.plans) {
       if (!p.days.includes(dow)) continue;
       if (sun !== undefined && !p.dark && isNightTime(p.time, sun)) continue;
+      if (mowable?.length && !planAreas(p, mowable, s.pause, localDay(day)).length) continue;
       const [h, m] = p.time.split(':').map(Number);
       const at = new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, m);
       if (at > from && (!best || at < best)) best = at;
