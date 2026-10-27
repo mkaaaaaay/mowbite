@@ -121,8 +121,14 @@ export function useMowPlan({
   const savedArea = liveMap?.areas.find((a) => a.id === selectedAreaId);
   // turning further on purpose, the last mow went another way than the next one does
   const turning = !!planner && ((planner.angle_steps ?? 0) > 0 || turnStep(savedArea ?? null) !== 0);
+  // the MowBite Planner picks the direction itself (an angle or a strategy of the area's, or the one for all areas when
+  // the area has no angle of its own): OpenMower's angle isn't the one to compare with then
+  const ownSaved = savedArea?.properties.planner;
+  const plannerPicks =
+    !!planner &&
+    (typeof ownSaved?.angle === 'number' || typeof ownSaved?.angle_strategy === 'string' || (!!planner.own_angle && savedArea?.properties.angle === undefined));
   let mismatch: AngleMismatch | null = null;
-  if (savedArea?.properties.type === 'mow' && pastJobs && !turning) {
+  if (savedArea?.properties.type === 'mow' && pastJobs && !turning && !plannerPicks) {
     const passes = savedArea.properties.outline_count ?? numParam(params, PARAM.outlineCount) ?? 0;
     const margin = passes * (toolWidth ?? 0.2) + 0.2;
     // newest mowing stretch first, a job that got interrupted can resume with different settings
@@ -217,9 +223,15 @@ export function useMowPlan({
     return requestFor(shownArea, shownMap, unchanged);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stripesOn, planned, shownArea, shownMap, areaProps, planner, unchanged, liveMap]);
-  // what else a plan depends on: the planner's settings, the mower's mowing settings, the saved map
+  // what else a plan depends on: the planner's settings and how far it turned the lanes after finished mows, the mower's
+  // mowing settings, the saved map
   const contextKey = useMemo(
-    () => JSON.stringify([planner ? Object.entries(planner.settings).map(([k, v]) => [k, v.value]) : null, params, mapVersion(liveMap)]),
+    () =>
+      JSON.stringify([
+        planner ? [Object.entries(planner.settings).map(([k, v]) => [k, v.value]), planner.angle_steps, planner.finished_mows] : null,
+        params,
+        mapVersion(liveMap),
+      ]),
     [planner, params, liveMap],
   );
   const planKey = useMemo(() => (planRequest ? JSON.stringify(planRequest) : ''), [planRequest]);
@@ -303,8 +315,9 @@ export function useMowPlan({
   // the mower's plan for exactly this, or the estimate (worked out like its planner does) until it's there
   const answered = fromMower?.areaId === selectedAreaId && fromMower.cacheKey === cacheKey ? fromMower : null;
   const realPlan = (cacheKey ? PLANS.get(cacheKey) : undefined) ?? answered?.plan ?? null;
-  // the mower's own plan has the angle it really mows at, a leftover increment included, nothing to warn about then
-  if (realPlan) mismatch = null;
+  // OpenMower's own plan (mowing.plan) has the angle it really mows at, a leftover increment included, nothing to warn
+  // about then. the MowBite Planner's (planner.plan) leaves that increment out, mower_logic adds it while mowing
+  if (realPlan && !planner) mismatch = null;
 
   // otherwise where the mower will drive, worked out like its planner does (lib/mowPlan)
   const wantPlan = !!(shownMap && shownArea && planned && stripesOn && toolWidth);

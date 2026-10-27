@@ -70,6 +70,8 @@ export interface PlannerSettings {
   angle_steps?: number;
   angle_mows?: number;
   angle_turned?: number;
+  // all finished mows (perimeter_direction random draws the way round anew from it)
+  finished_mows?: number;
 }
 
 // the settings the app shows as the mower's sizes, in this order

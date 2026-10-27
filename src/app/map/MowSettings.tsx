@@ -376,9 +376,11 @@ export function AreaPlanInfo({
             {planFromMower ? (slic3r ? tr('from the mower, slic3r') : tr('from the mower')) : tr('estimate')}
             {planFromMower && planAngle !== undefined && `, ${Math.round((((planAngle * 180) / Math.PI) % 180 + 180) % 180)}°`}
             <InfoTip>
-              {planFromMower
-                ? tr('The plan as the mower calculates it, unsaved changes included, at the angle it really mows.')
-                : tr('Estimate of where the mower drives: edge rounds first, then stripes one mower width apart. Can differ from the real plan on unusual shapes.')}
+              {planFromMower && plannerSettings && !slic3r
+                ? tr("The plan as the MowBite Planner works it out on the mower, unsaved changes included. A turn OpenMower still has left over in checkpoint.bag isn't in it.")
+                : planFromMower
+                  ? tr('The plan as the mower calculates it, unsaved changes included, at the angle it really mows.')
+                  : tr('Estimate of where the mower drives: edge rounds first, then stripes one mower width apart. Can differ from the real plan on unusual shapes.')}
             </InfoTip>
           </span>
         </label>

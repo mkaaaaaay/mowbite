@@ -50,7 +50,7 @@ import {BodyCheck, PlanChecks} from './BodyCheck';
 import {PlanSimulation, SimPlayer, type ShownSim} from './PlanSimulation';
 import {createSimClock} from '@/lib/simulate';
 import {Fold} from './Fold';
-import {bodyFrom, isPin, slic3rPlans, standing, useMowerBody, usePlannerSettings, type BodySpot} from '@/lib/mowerBody';
+import {bodyFrom, isPin, loadPlannerSettings, slic3rPlans, standing, useMowerBody, usePlannerSettings, type BodySpot} from '@/lib/mowerBody';
 import {OpenMowerMowing, useCanSetParams} from '@/components/MowerParamSettings';
 import {PlannerSettings} from '@/components/PlannerSettings';
 import {PlannerSimple} from '@/components/PlannerSimple';
@@ -101,6 +101,12 @@ function MapEditor() {
   const emergency = useMowerStateValue((l) => !!l.state?.emergency);
   // no job a map change could break off
   const idle = useIdle();
+  // a finished mow turns the planner's lanes further (angle_steps): its settings asked again once the mower is done
+  const wasIdle = useRef(idle);
+  useEffect(() => {
+    if (idle && !wasIdle.current) void loadPlannerSettings(true).catch(() => {});
+    wasIdle.current = idle;
+  }, [idle]);
   const track = useMowerTrack();
   const lastRun = useLastRun();
   const lastRunJob = useLastRunJob();
@@ -1092,7 +1098,7 @@ function MapEditor() {
             )}
 
             {!preview && selectedArea && mode === 'idle' && simplifyCm === null && selectedArea.properties.type === 'mow' && !simClock && (
-              <AngleOnMap area={selectedArea} autoAngle={autoAngle} remember={remember} update={updateProperties} onEdit={touchAngle} />
+              <AngleOnMap area={selectedArea} autoAngle={autoAngle} remember={remember} update={updateDirection} onEdit={touchAngle} />
             )}
             {!preview && simClock && <SimPlayer clock={simClock} onClose={() => setSim((s) => (s ? {...s, shown: false} : s))} />}
 
@@ -1433,7 +1439,8 @@ function MapEditor() {
                     ) : (
                       <BodyCheck request={planRequest} onSpots={setBodySpots} />
                     ))}
-                  {selectedArea.properties.type === 'mow' && (
+                  {/* (slic3r plans by itself, the simulation would drive a plan of the MowBite Planner) */}
+                  {selectedArea.properties.type === 'mow' && !slic3r && (
                     <PlanSimulation request={planRequest} sim={simNow} onResult={setSim} onShow={(shown) => setSim((s) => (s ? {...s, shown} : s))} />
                   )}
                 </Fold>

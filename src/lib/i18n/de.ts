@@ -692,6 +692,8 @@ const de: Record<string, string> = {
   "Estimate of where the mower drives: edge rounds first, then stripes one mower width apart. Can differ from the real plan on unusual shapes.": "Schätzung, wo der Mäher fährt: erst Randrunden, dann Streifen im Abstand einer Mäherbreite. Kann bei ungewöhnlichen Formen vom echten Plan abweichen.",
   "Length of all passes and stripes. The time is based on the last run you watched on the dashboard.": "Länge aller Runden und Streifen. Die Zeit stammt von der letzten Fahrt, die du auf der Übersicht verfolgt hast.",
   "The plan as the mower calculates it, unsaved changes included, at the angle it really mows.": "Der Plan, wie ihn der Mäher selbst berechnet, auch mit ungespeicherten Änderungen, im Winkel, in dem er wirklich mäht.",
+  "The plan as the MowBite Planner works it out on the mower, unsaved changes included. A turn OpenMower still has left over in checkpoint.bag isn't in it.":
+    "Der Plan, wie ihn der MowBite-Planer auf dem Mäher berechnet, auch mit ungespeicherten Änderungen. Eine Drehung, die OpenMower noch in checkpoint.bag übrig hat, ist darin nicht enthalten.",
   "from the mower": "vom Mäher",
   "estimate": "Schätzung",
   "Swipe left and right between the pages (on this device)": "Zwischen den Seiten nach links und rechts wischen (auf diesem Gerät)",
