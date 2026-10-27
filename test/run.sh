@@ -122,17 +122,17 @@ start waited "$(state)" "$(base "$DAY")"$'\n'"plan $(dow "$DAY" -60) $(hm "$DAY"
   "WAITING=$(($(date +%s) + 600)) $(dow "$DAY" -60) $(hm "$DAY" -60) $(day "$DAY") -"
 start angleback "$(state)" "$(base "$DAY")"$'\n'"plan $((D % 7 + 1)) $M" ANGLE_NORMAL=7
 
-logs "scheduler: starts at the time of a plan" start '^started 90$'
+logs "scheduler: starts at the time of a plan" start '^started 90( at=[0-9:]+)?$'
 gets start '^action mower_logic:idle/start_mowing$' && ok "scheduler: the mower got the start" ||
   bad "scheduler: the mower got the start" "$(sent start)"
-logs "scheduler: not in the dark" dark '^skip_dark$'
+logs "scheduler: not in the dark" dark '^skip_dark( at=[0-9:]+)?$'
 logs "scheduler: in the dark with dark=1" darkok '^started'
-logs "scheduler: not with the emergency stop" emergency '^skip_emergency$'
-logs "scheduler: not with the rain sensor wet" rain '^skip_rain$'
-logs "scheduler: not while the mower is busy" busy '^skip_busy MOWING$'
-logs "scheduler: not on a day paused" paused '^skip_paused$'
+logs "scheduler: not with the emergency stop" emergency '^skip_emergency( at=[0-9:]+)?$'
+logs "scheduler: not with the rain sensor wet" rain '^skip_rain( at=[0-9:]+)?$'
+logs "scheduler: not while the mower is busy" busy '^skip_busy MOWING( at=[0-9:]+)?$'
+logs "scheduler: not on a day paused" paused '^skip_paused( at=[0-9:]+)?$'
 logs "scheduler: a pause that's over" pausedbefore '^started'
-logs "scheduler: not when all the plan's areas are paused" pausedareas '^skip_paused$'
+logs "scheduler: not when all the plan's areas are paused" pausedareas '^skip_paused( at=[0-9:]+)?$'
 logs "scheduler: an interrupted job dropped first with fresh=1" fresh '^started'
 gets fresh 'start_mowing$'
 expect "scheduler: the job dropped before the start" "$(sent fresh | cut -d' ' -f2)" \
@@ -145,9 +145,9 @@ logs "scheduler: the areas the plan doesn't pick are skipped" areas '^skipped_ar
 gets areas '^action mower_logic:mowing/skip_area$' && ok "scheduler: the mower told to skip it" ||
   bad "scheduler: the mower told to skip it" "$(sent areas)"
 logs "scheduler: an area paused today is skipped" pausedarea '^paused_area back$'
-logs "scheduler: waits for the battery" battery '^waiting_battery 50$'
+logs "scheduler: waits for the battery" battery '^waiting_battery 50( at=[0-9:]+)?$'
 docker exec mbt-battery mosquitto_pub -h mbt-mq -r -t battery/robot_state/json -m "$(state IDLE 0 0 0.95)"
-logs "scheduler: starts once it's charged" battery '^started 95$' 40
+logs "scheduler: starts once it's charged" battery '^started 95( at=[0-9:]+)?$' 40
 expect "scheduler: nothing while switched off" "$(slog disabled)" ""
 expect "scheduler: nothing on another day" "$(slog otherday)" ""
 logs "scheduler: sends the run home at its end time" endtime '^stopped_end$' 90
@@ -155,18 +155,18 @@ gets endtime '^action mower_logic:mowing/abort_mowing$' && ok "scheduler: the mo
   bad "scheduler: the mower got sent home" "$(sent endtime)"
 gets endtime '^rpc/request .*"/mower_logic/manual_pause_mowing":true' &&
   ok "scheduler: and doesn't carry on by itself after charging" || bad "scheduler: and doesn't carry on by itself after charging" "$(sent endtime)"
-logs "scheduler: a mower that doesn't move is noticed" stays '^start_failed$' 90
-logs "scheduler: no start after the end time while waiting for the battery" endlate '^skip_end$' 90
+logs "scheduler: a mower that doesn't move is noticed" stays '^start_failed( at=[0-9:]+)?$' 90
+logs "scheduler: no start after the end time while waiting for the battery" endlate '^skip_end( at=[0-9:]+)?$' 90
 docker exec mbt-endlate mosquitto_pub -h mbt-mq -r -t endlate/robot_state/json -m "$(state IDLE 0 0 0.95)"
 sleep 25
 slog endlate | grep -q '^started' && bad "scheduler: still no start once it's charged" "$(slog endlate)" ||
   ok "scheduler: still no start once it's charged"
 slog start | grep -q '^start_failed' && bad "scheduler: a mower that drives off isn't taken for one that didn't" "$(slog start)" ||
   ok "scheduler: a mower that drives off isn't taken for one that didn't"
-logs "scheduler: no start when none of the plan's areas is in the map" noarea '^skip_no_area$'
-logs "scheduler: waits for the battery (start time taken out next)" gone '^waiting_battery 50$'
+logs "scheduler: no start when none of the plan's areas is in the map" noarea '^skip_no_area( at=[0-9:]+)?$'
+logs "scheduler: waits for the battery (start time taken out next)" gone '^waiting_battery 50( at=[0-9:]+)?$'
 docker exec mbt-gone sh -c "grep -v '^plan' /data/schedule.txt > /tmp/s && cat /tmp/s > /data/schedule.txt"
-logs "scheduler: a start time taken out while it waits isn't started" gone '^skip_gone$' 40
+logs "scheduler: a start time taken out while it waits isn't started" gone '^skip_gone( at=[0-9:]+)?$' 40
 logs "scheduler: a run from before a restart still skips the areas it doesn't pick" restored '^skipped_area back$' 60
 logs "scheduler: a start waiting for the battery goes on after a restart" waited '^started' 40
 gets angleback '^rpc/request .*"params":\{"/mower_logic/mow_angle_offset":7\}' 40 &&

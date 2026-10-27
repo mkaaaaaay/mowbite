@@ -46,6 +46,8 @@ export interface Schedule {
   // the time zone the scheduler counts in (POSIX TZ, see posixTz): the one of the device that saved it first, kept
   // after that so a save from a phone abroad doesn't shift every start
   tz?: string;
+  // "<lat> <lon>" for the forecast and the sun times, kept when a save doesn't know the mower's position
+  pos?: string;
 }
 
 export const FORECAST_HOURS = [1, 2, 3];
@@ -77,6 +79,7 @@ export function parseSchedule(text: string): Schedule {
     if (key === 'mintemp' && COLD_TEMPS.includes(Number(a))) s.minTemp = Number(a);
     if (key === 'pause' && a && b) s.pause = {until: a, areas: b === 'all' ? 'all' : b.split(',')};
     if (key === 'tz' && a) s.tz = a;
+    if (key === 'pos' && a && b) s.pos = `${a} ${b}`;
     if (key === 'plan' && a && b) {
       const plan: Plan = {days: a.split(',').map(Number), time: b, areas: []};
       for (const r of rest) {
@@ -103,7 +106,7 @@ export function serializeSchedule(s: Schedule, pos?: {lat: number; lon: number})
     `forecasthours ${s.forecastHours}`,
     `skipcold ${s.skipCold ? 1 : 0}`,
     `mintemp ${s.minTemp}`,
-    ...(pos ? [`pos ${pos.lat.toFixed(2)} ${pos.lon.toFixed(2)}`] : []),
+    ...(pos ? [`pos ${pos.lat.toFixed(2)} ${pos.lon.toFixed(2)}`] : s.pos ? [`pos ${s.pos}`] : []),
     `tz ${s.tz ?? posixTz()}`,
     ...s.plans
       .filter((p) => p.days.length)
@@ -125,25 +128,41 @@ export const cachedSchedule = () => lastSchedule;
 export const cachedScheduleLog = () => lastLog;
 
 // null: not served by the container, no scheduler then
-// again: not the answer from a moment ago (the page back from the background)
-export function loadSchedule(again = false): Promise<Schedule | null> {
+// again: not the answer from a moment ago (the page back from the background). undefined: the mower didn't answer and
+// nothing came before
+export function loadSchedule(again = false): Promise<Schedule | null | undefined> {
   if (again) forget('schedule');
   return fresh('schedule', async () => {
+    let res: Response;
     try {
-      const res = await mowerFetch(endpoint(), {cache: 'no-store'});
-      if (!res.ok || !res.headers.get('content-type')?.includes('text/plain')) return (lastSchedule = null);
-      return (lastSchedule = parseSchedule(await res.text()));
+      res = await mowerFetch(endpoint(), {cache: 'no-store'});
     } catch {
-      return lastSchedule ?? null;
+      return lastSchedule ?? undefined;
     }
+    if (res.status >= 500) return lastSchedule ?? undefined;
+    if (!res.ok || !res.headers.get('content-type')?.includes('text/plain')) return (lastSchedule = null);
+    return (lastSchedule = parseSchedule(await res.text()));
   });
 }
 
-export async function saveSchedule(s: Schedule, pos?: {lat: number; lon: number}): Promise<void> {
+// saved one after another, of a slider's many steps only the last one still waiting goes out
+let sending: Promise<void> = Promise.resolve();
+let waiting: {s: Schedule; pos?: {lat: number; lon: number}} | null = null;
+export function saveSchedule(s: Schedule, pos?: {lat: number; lon: number}): Promise<void> {
   lastSchedule = s;
   forget('schedule');
-  const res = await mowerFetch(endpoint(), {method: 'POST', body: serializeSchedule(s, pos)});
-  if (!res.ok) throw new Error(`schedule ${res.status}`);
+  const queued = waiting !== null;
+  waiting = {s, pos};
+  if (queued) return sending;
+  sending = sending
+    .catch(() => {})
+    .then(async () => {
+      const w = waiting!;
+      waiting = null;
+      const res = await mowerFetch(endpoint(), {method: 'POST', body: serializeSchedule(w.s, w.pos)});
+      if (!res.ok) throw new Error(`schedule ${res.status}`);
+    });
+  return sending;
 }
 
 export interface LogEntry {
@@ -152,6 +171,8 @@ export interface LogEntry {
   detail?: string;
   // a second detail: the battery or the temperature behind leftovers_skip's reason
   more?: string;
+  // HH:MM, the time of the plan a start's outcome is about (it's logged later after a wait for the battery, say)
+  at?: string;
 }
 
 // what the scheduler writes to its log, in words (translated where it's shown)
@@ -195,6 +216,26 @@ const LEFTOVERS_SKIP: Record<string, string> = {
   forecast: 'Leftovers not mowed, rain was forecast',
   cold: 'Leftovers not mowed, too cold ({more} °C)',
 };
+
+// how a log line is marked: a start that went out, one left out for a reason worth a look (not a pause asked for, an
+// area skipped as planned or a start time changed meanwhile), or neither
+const BAD = new Set([
+  'start_failed',
+  'angle_failed',
+  'skip_battery',
+  'skip_rain',
+  'skip_forecast',
+  'skip_cold',
+  'skip_emergency',
+  'skip_offline',
+  'skip_dark',
+  'skip_end',
+  'skip_no_area',
+  'unknown_area',
+  'leftovers_failed',
+]);
+export const logTone = (what: string): 'good' | 'bad' | null =>
+  what === 'started' || what === 'leftovers_started' ? 'good' : BAD.has(what) ? 'bad' : null;
 
 // a log line in words (english, translated where it's shown)
 export function scheduleLogText(l: LogEntry): string {
@@ -259,8 +300,10 @@ async function loadLog(): Promise<LogEntry[]> {
       .split('\n')
       .filter(Boolean)
       .map((l) => {
-        const [t, what, detail, more] = l.split(' ');
-        return {t: Number(t), what, detail, ...(more ? {more} : {})};
+        const words = l.split(' ');
+        const at = words.find((w) => w.startsWith('at='))?.slice(3);
+        const [t, what, detail, more] = words.filter((w) => !w.startsWith('at='));
+        return {t: Number(t), what, detail, ...(more ? {more} : {}), ...(at ? {at} : {})};
       })
       .reverse());
   } catch {

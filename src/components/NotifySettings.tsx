@@ -47,6 +47,8 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
   // switches save one after another
   const queue = useRef<Promise<void>>(Promise.resolve());
   const [state, setState] = useState<{busy?: boolean; error?: string; done?: string}>({});
+  // the mower didn't answer when the page asked: not the same as no container
+  const [unreachable, setUnreachable] = useState(false);
   const [log, setLog] = useState<NotifyLog[]>([]);
   const [now, setNow] = useState(() => Date.now() / 1000);
   const u = useUpdates();
@@ -56,6 +58,7 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
     const url = isApp() ? apiBase() : window.location.origin;
     const fallback = defaultNotify(deviceLang(), url, settings.thisName ?? '');
     void loadNotify(fallback).then((c) => {
+      if (c === undefined) return setUnreachable(true);
       setForm(c);
       setSaved(c);
     });
@@ -67,7 +70,12 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  if (form === undefined) return null;
+  if (form === undefined)
+    return unreachable ? (
+      <section className={styles.card}>
+        <p className={styles.dim}>{tr("The mower can't be reached right now.")}</p>
+      </section>
+    ) : null;
   if (form === null) {
     return (
       <section className={styles.card}>
@@ -90,8 +98,13 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
     setState({});
     queue.current = queue.current.then(async () => {
       try {
-        const c = await saveNotify(next);
-        if (savedRef.current) setSaved({...savedRef.current, pushes: c.pushes, stored: c.stored, hasToken: c.hasToken});
+        // on top of what the mower has now: another phone may have changed something since the page was opened
+        const there = await loadNotify(next);
+        const c = await saveNotify({...(there ?? next), ...patch});
+        // what came back, the fields being typed in stay as they are
+        const {enabled, events, remind, emergencyWait, lang, pushes, stored, hasToken} = c;
+        if (savedRef.current) setSaved({...savedRef.current, enabled, events, remind, emergencyWait, lang, pushes, stored, hasToken});
+        setForm((f) => (f ? {...f, enabled, events, remind, emergencyWait, lang, pushes, stored, hasToken} : f));
         setState({done: tr('Saved.')});
       } catch {
         setState({error: tr('The mower did not answer.')});
@@ -233,7 +246,7 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
       )}
       <label className={styles.field}>
         {tr('Name in the messages')}
-        <input value={form.name} onChange={(e) => set({name: e.target.value})} placeholder={tr('The mower')} />
+        <input value={form.name} maxLength={40} onChange={(e) => set({name: e.target.value})} placeholder={tr('The mower')} />
       </label>
 
       <h3 className={local.sub}>{tr('Tell me about')}</h3>

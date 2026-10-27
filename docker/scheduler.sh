@@ -208,16 +208,21 @@ send_home_at() {
   done
 }
 
-# a start that went out only says the broker took it. the mower answers by leaving IDLE (undocking), when it
-# doesn't within a minute that's logged, the page would say started otherwise
+# what happened to the start that's due, with its time from the plan (at=HH:MM): logged later than that, after the
+# wait for the battery say
+slog() { log "$@" "at=$dtime"; }
+
+# a start that went out only says the broker took it ($1: its time from the plan, none for the leftovers'). the mower
+# answers by leaving IDLE (undocking), when it doesn't within a minute that's logged, the page would say started otherwise
 check_started() {
+  at=$1
   t=$(($(date +%s) + 60))
   while [ "$(date +%s)" -lt "$t" ]; do
     # shellcheck disable=SC2086
     s=$(mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -C 1 -W 10 2>/dev/null)
     case "$(field "$s" current_state)" in '' | IDLE) sleep 2 ;; *) return ;; esac
   done
-  log start_failed
+  log start_failed ${at:+"at=$at"}
 }
 
 # does the run have an area left: mowed ones in the map (retained) the plan picks ($1: all or a list) and
@@ -499,36 +504,36 @@ while :; do
     bat=$(battery "$s")
     minbat=$(conf minbattery)
     if [ -z "$cur" ]; then
-      log skip_gone; until=0
+      slog skip_gone; until=0
     elif [ -n "$endat" ] && [ "$(date +%s)" -ge "$endat" ]; then
-      log skip_end; until=0
+      slog skip_end; until=0
     elif [ "$paused" = all ]; then
-      log skip_paused; until=0
+      slog skip_paused; until=0
     # a plan for some areas: one of them still has to be in the map, mowed and not paused
     elif { [ -n "$paused" ] || [ "$areas" != all ]; } && [ -n "$host" ] && ! area_left "$areas" "$paused"; then
-      if [ -n "$paused" ] && area_left "$areas" ""; then log skip_paused; else log skip_no_area; fi
+      if [ -n "$paused" ] && area_left "$areas" ""; then slog skip_paused; else slog skip_no_area; fi
       until=0
     elif [ -z "$s" ]; then
-      [ "$(date +%s)" -gt "$until" ] && { log skip_offline; until=0; }
+      [ "$(date +%s)" -gt "$until" ] && { slog skip_offline; until=0; }
     elif [ "$(field "$s" emergency)" != 0 ]; then
-      log skip_emergency; until=0
+      slog skip_emergency; until=0
     elif [ "$(conf skiprain)" = 1 ] && [ "$(field "$s" rain_detected)" != 0 ]; then
-      log skip_rain; until=0
+      slog skip_rain; until=0
     elif [ "$dark" != 1 ] && is_dark "$(minutes)"; then
-      log skip_dark; until=0
+      slog skip_dark; until=0
     elif [ "$(field "$s" current_state)" != IDLE ]; then
-      log skip_busy "$(field "$s" current_state)"; until=0
+      slog skip_busy "$(field "$s" current_state)"; until=0
     elif [ "${bat:-0}" -lt "${minbat:-0}" ]; then
       if [ "$(date +%s)" -gt "$until" ]; then
-        log skip_battery "$bat"; until=0
+        slog skip_battery "$bat"; until=0
       elif [ -z "$waited" ]; then
-        log waiting_battery "$bat"; waited=1
+        slog waiting_battery "$bat"; waited=1
       fi
     # the forecast and the temperature for when it really starts: asked for once, when the battery is enough
     elif [ "$(conf skipforecast)" = 1 ] && rain_forecast; then
-      log skip_forecast; until=0
+      slog skip_forecast; until=0
     elif [ "$(conf skipcold)" = 1 ] && cold=$(too_cold); then
-      log skip_cold "$cold"; until=0
+      slog skip_cold "$cold"; until=0
     else
       # the mowing direction of this start. one without its own gets the usual one back after one with its own: what
       # the app keeps for the mower (params.sh), else what the mower had before a start turned it
@@ -548,7 +553,7 @@ while :; do
         rm -f "$NORMAL"
       fi
       if [ -n "$turn" ]; then
-        rpc_call "$RPC_SET_PARAMS" "{\"params\":{\"$PARAM_MOW_ANGLE_OFFSET\":$turn}}" 10 | grep -q '"result"' || log angle_failed "$turn"
+        rpc_call "$RPC_SET_PARAMS" "{\"params\":{\"$PARAM_MOW_ANGLE_OFFSET\":$turn}}" 10 | grep -q '"result"' || slog angle_failed "$turn"
       fi
       # an interrupted job is dropped first, so it begins with the first area. the mower only takes it while it
       # has one, otherwise nothing happens
@@ -558,8 +563,8 @@ while :; do
       fi
       # shellcheck disable=SC2086
       if mosquitto_pub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTION" -m "$ACTION_START_MOWING"; then
-        log started "$bat"
-        check_started &
+        slog started "$bat"
+        check_started "$dtime" &
         # the end time of the start, not the next one from now (it may have waited for the battery)
         stop=$(stop_time "$end" "$sunset" "$dark" "$endat")
         echo "$(date +%s) ${stop:-- -} $areas" > "$RUN"
@@ -568,7 +573,7 @@ while :; do
         # shellcheck disable=SC2086
         [ -n "$stop" ] && send_home_at $stop &
       else
-        log skip_offline
+        slog skip_offline
       fi
       until=0
     fi

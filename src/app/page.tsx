@@ -211,7 +211,7 @@ export default function Home() {
   // the scheduler's log, for a start it left out (rain, battery, ...). again every minute while the page is open
   const [scheduleLog, setScheduleLog] = useState<LogEntry[]>(() => cachedScheduleLog() ?? []);
   useEffect(() => {
-    void loadSchedule().then(setSchedule);
+    void loadSchedule().then((s) => s !== undefined && setSchedule(s));
     const loadLog = () => void loadScheduleLog().then(setScheduleLog);
     loadLog();
     const timer = setInterval(loadLog, 60000);
@@ -580,9 +580,10 @@ export default function Home() {
                 <WarningIcon size={16} />
                 <Link href="/schedule">
                   <strong>
+                    {/* the plan's time, older logs only have when it was logged */}
                     {dayKey(new Date(missed.t * 1000)) === dayKey(new Date())
-                      ? tr('Scheduled start at {time}', {time: clock(missed.t)})
-                      : tr('Scheduled start yesterday at {time}', {time: clock(missed.t)})}
+                      ? tr('Scheduled start at {time}', {time: missed.at ?? clock(missed.t)})
+                      : tr('Scheduled start yesterday at {time}', {time: missed.at ?? clock(missed.t)})}
                   </strong>
                   <span>{scheduleLogLine(missed)}</span>
                 </Link>

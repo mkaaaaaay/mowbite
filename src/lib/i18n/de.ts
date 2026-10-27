@@ -594,6 +594,7 @@ const de: Record<string, string> = {
   "Reset all": "Alle zurücksetzen",
   "Reset emergency": "Notaus zurücksetzen",
   "Stop undocking": "Ausdocken abbrechen",
+  "The mower can't be reached right now.": "Der Mäher ist gerade nicht erreichbar.",
   "Without an RTK fix the edge ends up off.": "Ohne RTK-Fix landet der Rand daneben.",
   "The docking station isn't saved yet, recording mode can only end after that.": "Das Dock ist noch nicht gespeichert, erst danach lässt sich der Aufnahmemodus beenden.",
   "Nothing kept yet, the squares fill up while the mower drives": "Noch nichts gespeichert, die Quadrate füllen sich, während der Mäher fährt",

@@ -92,7 +92,7 @@ export function parseNotify(text: string, fallback: NotifyConfig): NotifyConfig 
   return c;
 }
 
-// what notify.cgi takes: it drops anything that doesn't fit, quotes and backslashes in the name too
+// what notify.cgi takes: it drops anything that doesn't fit, quotes and backslashes in the name too. none picked is "-"
 export function serializeNotify(c: NotifyConfig): string {
   const name = c.name.replace(/["\\\n\r]/g, '').trim().slice(0, 40);
   return [
@@ -103,7 +103,7 @@ export function serializeNotify(c: NotifyConfig): string {
     `lang ${c.lang}`,
     name && `name ${name}`,
     c.url && `url ${c.url.trim().replace(/\/+$/, '')}`,
-    `events ${c.events.join(',')}`,
+    `events ${c.events.join(',') || '-'}`,
     `remind ${Math.max(0, Math.round(c.remind))}`,
     `emergency_wait ${Math.max(0, Math.round(c.emergencyWait))}`,
   ]
@@ -123,15 +123,18 @@ export const validServer = (s: string) => /^https?:\/\/[A-Za-z0-9.:/_-]{1,200}$/
 
 const endpoint = () => apiBase() + '/cgi-bin/notify';
 
-// null: not served by the container (the dev server, an older container), no push messages then
-export async function loadNotify(fallback: NotifyConfig): Promise<NotifyConfig | null> {
+// null: not served by the container (the dev server, an older container), no push messages then. undefined: the mower
+// didn't answer
+export async function loadNotify(fallback: NotifyConfig): Promise<NotifyConfig | null | undefined> {
+  let res: Response;
   try {
-    const res = await mowerFetch(endpoint(), {cache: 'no-store'});
-    if (!res.ok || !res.headers.get('content-type')?.includes('text/plain')) return null;
-    return parseNotify(await res.text(), fallback);
+    res = await mowerFetch(endpoint(), {cache: 'no-store'});
   } catch {
-    return null;
+    return undefined;
   }
+  if (res.status >= 500) return undefined;
+  if (!res.ok || !res.headers.get('content-type')?.includes('text/plain')) return null;
+  return parseNotify(await res.text(), fallback);
 }
 
 export async function saveNotify(c: NotifyConfig): Promise<NotifyConfig> {

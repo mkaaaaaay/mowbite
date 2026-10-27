@@ -23,6 +23,7 @@ import {
   loadSchedule,
   loadScheduleLog,
   nextStart,
+  logTone,
   posixTz,
   saveSchedule,
   type LogEntry,
@@ -60,8 +61,14 @@ export default function SchedulePage() {
   // a change made here wins over an answer still on its way. back from the background the page asks again, another
   // phone may have changed it meanwhile
   const touched = useRef(false);
+  // the mower didn't answer and nothing came before: not the same as no container
+  const [unreachable, setUnreachable] = useState(false);
   useEffect(() => {
-    const load = (again = false) => void loadSchedule(again).then((s) => touched.current || setSchedule(s));
+    const load = (again = false) =>
+      void loadSchedule(again).then((s) => {
+        setUnreachable(s === undefined);
+        if (s !== undefined && !touched.current) setSchedule(s);
+      });
     load();
     void loadScheduleLog().then(setLog);
     const timer = setInterval(() => void loadScheduleLog().then(setLog), 60000);
@@ -111,6 +118,7 @@ export default function SchedulePage() {
         {schedule === null && (
           <p className={styles.dim}>{tr('The schedule needs MowBite running as its container on the mower.')}</p>
         )}
+        {schedule === undefined && unreachable && <p className={styles.dim}>{tr("The mower can't be reached right now.")}</p>}
 
         {schedule && (
           <>
@@ -247,7 +255,7 @@ export default function SchedulePage() {
               {log.length === 0 && <p className={styles.dim}>{tr('Nothing yet.')}</p>}
               <ul className={styles.log}>
                 {log.slice(0, 20).map((l, i) => (
-                  <li key={i} className={l.what === 'started' ? styles.good : l.what.startsWith('skip') || l.what === 'start_failed' ? styles.bad : undefined}>
+                  <li key={i} className={logTone(l.what) === 'good' ? styles.good : logTone(l.what) === 'bad' ? styles.bad : undefined}>
                     <span className={styles.dim}>
                       {dayLabel(new Date(l.t * 1000))}, {clock(l.t)}
                     </span>

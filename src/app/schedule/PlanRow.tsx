@@ -31,12 +31,16 @@ export default function PlanRow({
   onChange: (p: Plan) => void;
   onRemove: () => void;
 }) {
-  // a start or end moved into the dark waits for a yes before it's saved
-  const [pending, setPending] = useState<{field: 'time' | 'end'; value: string} | null>(null);
+  // a start or end moved into the dark waits for a yes before it's saved. it's this plan's: another one coming into its
+  // place (one above taken out) doesn't take the question over
+  const [pending, setPending] = useState<{field: 'time' | 'end'; value: string; of: Plan} | null>(null);
+  if (pending && pending.of !== plan) setPending(null);
+  // the turn as typed: a lone minus or an empty field isn't a number yet, it's saved once it is
+  const [angleDraft, setAngleDraft] = useState<string | null>(null);
   const set = (patch: Partial<Plan>) => onChange({...plan, ...patch});
 
   const setTime = (field: 'time' | 'end', value: string) => {
-    if (value && isNightTime(value, sun) && !plan.dark) return setPending({field, value});
+    if (value && isNightTime(value, sun) && !plan.dark) return setPending({field, value, of: plan});
     setPending(null);
     set(field === 'time' ? {time: value} : {end: value || undefined});
   };
@@ -167,8 +171,13 @@ export default function PlanRow({
                 min={-180}
                 max={180}
                 step={5}
-                value={plan.angle}
-                onChange={(e) => set({angle: Math.max(-180, Math.min(180, Math.round(Number(e.target.value) || 0)))})}
+                value={angleDraft ?? plan.angle}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setAngleDraft(v);
+                  if (v.trim() !== '' && Number.isFinite(Number(v))) set({angle: Math.max(-180, Math.min(180, Math.round(Number(v))))});
+                }}
+                onBlur={() => setAngleDraft(null)}
               />
               °
             </label>

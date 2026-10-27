@@ -77,8 +77,8 @@ function send(kind, phase, title, msg, prio, tags,   json, acts) {
   if (url) {
     json = json ",\"click\":\"" jesc(url) "/activity/\""
     acts = "{\"action\":\"view\",\"label\":\"" jesc(tx("Open MowBite", "MowBite öffnen")) "\",\"url\":\"" jesc(url) "/\"}"
-    # only reaches the mower from the home network
-    if (phase != "clear" && reminds(kind))
+    # only reaches the mower from the home network. only on a problem it reminds of, like push below
+    if (phase != "clear" && reminds(kind) && kind ~ /^(emergency|dock_failed|undock_failed|nav_error|spinup|standstill)$/)
       acts = acts ",{\"action\":\"http\",\"label\":\"" jesc(tx("Snooze 1 h", "1 h schlummern")) "\",\"url\":\"" jesc(url) \
         "/cgi-bin/notify?snooze=3600\",\"method\":\"POST\",\"clear\":true}"
     json = json ",\"actions\":[" acts "]"
