@@ -367,6 +367,35 @@
   flex: 1 1 100%;
 }
 
+/* left in recording mode: back to its page, or out of it */
+.controls .recording {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.controls .recording > * {
+  flex: 1 1 0;
+}
+
+.controls .recording a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 10px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 70%, transparent);
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+  box-shadow: var(--btn-3d);
+  color: var(--foreground);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
 .controls .leftovers {
   grid-column: 1 / -1;
   display: flex;
@@ -405,7 +434,7 @@
 /* by the width of the card, not the screen: four buttons side by side need about 600px for a label next to its icon */
 @container controls (max-width: 640px) {
   /* the icons in one line, also when a label takes two */
-  .controls button:not(.reset):not(.skipPathButton):not(.leftoversButton) {
+  .controls button:not(.reset):not(.skipPathButton):not(.leftoversButton):not(.recordingEnd) {
     flex-direction: column;
     justify-content: flex-start;
     gap: 4px;

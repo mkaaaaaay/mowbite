@@ -1,3 +1,4 @@
+import {leaveFirst} from './leaving';
 import {isApp} from './native';
 import {settingsStore, type OtherMower} from './settings';
 
@@ -48,11 +49,16 @@ export function selectedMower(): OtherMower | null {
 }
 
 export function selectMower(id: string) {
-  try {
-    if (id) localStorage.setItem(KEY, id);
-    else localStorage.removeItem(KEY);
-  } catch {}
-  window.location.reload();
+  // something unsaved asks first, and only then the choice is written: until the reload everything still talks to this one
+  const wait = leaveFirst();
+  if (wait === false) return;
+  setTimeout(() => {
+    try {
+      if (id) localStorage.setItem(KEY, id);
+      else localStorage.removeItem(KEY);
+    } catch {}
+    window.location.reload();
+  }, wait);
 }
 
 // where the selected mower's MowBite answers (sensor history, backups, schedule)

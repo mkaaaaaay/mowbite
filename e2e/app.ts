@@ -47,6 +47,9 @@ export async function demoDocked(page: Page) {
   });
   await expect.poll(async () => (await demoHas<{current_state: string}>(page, 'robot_state/json')).current_state).toBe('IDLE');
 }
+// an action as another phone would send it
+export const demoAction = (page: Page, action: string) =>
+  page.evaluate((a) => (window as unknown as {mowbiteDemo: DemoMower}).mowbiteDemo.published('action', a), action);
 // the emergency stop as a bumper or the lift sets it
 export const demoEmergency = (page: Page) => page.evaluate(() => (window as unknown as {mowbiteDemo: DemoMower}).mowbiteDemo.emergency());
 export const demoCall = (page: Page, method: string, params: unknown) =>

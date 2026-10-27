@@ -1,4 +1,4 @@
-import {demoDocked, demoEmergency, demoHas, expect, test} from './app';
+import {demoAction, demoDocked, demoEmergency, demoHas, expect, test} from './app';
 import type {Page} from '@playwright/test';
 
 const state = async (page: Page) => (await demoHas<{current_state: string}>(page, 'robot_state/json')).current_state;
@@ -112,4 +112,44 @@ test('stop right after record obstacle asks before the area is lost', async ({pa
   await button('Stop').click();
   await ask.getByRole('button', {name: 'Discard area'}).click();
   await expect(button('Record outline')).toBeVisible();
+});
+
+// recording mode left on without its page (another phone, the back button): the overview leads back to it, and out of
+// it while nothing would be lost
+test('the overview in recording mode leads back to recording and out of it', async ({page}) => {
+  await page.goto('/');
+  await demoDocked(page);
+  await demoAction(page, 'mower_logic:idle/start_area_recording');
+  const back = page.getByRole('link', {name: 'Back to recording'});
+  const end = page.getByRole('button', {name: 'Leave recording mode'});
+  await expect(back).toBeVisible();
+  await end.click();
+  await expect.poll(() => state(page)).not.toBe('AREA_RECORDING');
+  await expect(back).toBeHidden();
+  await demoAction(page, 'mower_logic:idle/start_area_recording');
+  // an outline being recorded: ending would lose it, only the way back is offered
+  await demoAction(page, 'mower_logic:area_recording/start_recording');
+  await expect(back).toBeVisible();
+  await expect(end).toBeHidden();
+  await back.click();
+  await expect(page).toHaveURL(/\/record\/?$/);
+  await expect(page.locator('button:visible', {hasText: 'Discard area'}).first()).toBeVisible();
+});
+
+// with the blade turning a reload asks first: what the page sends while it unloads doesn't get out
+test('a reload while the blade turns in recording mode asks first', async ({page}) => {
+  await page.goto('/record/');
+  await demoDocked(page);
+  await page.getByRole('button', {name: 'Start recording mode'}).click();
+  await page.locator('button:visible', {hasText: 'Blade on'}).click();
+  await expect(page.getByText('The blade is turning, also while the mower stands still.').first()).toBeVisible();
+  const asked = new Promise<string>((done) =>
+    page.once('dialog', (d) => {
+      done(d.type());
+      void d.dismiss();
+    }),
+  );
+  void page.reload().catch(() => {});
+  expect(await asked).toBe('beforeunload');
+  await expect(page.getByText('The blade is turning, also while the mower stands still.').first()).toBeVisible();
 });

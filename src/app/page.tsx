@@ -7,7 +7,7 @@ import LogicHint from '@/components/LogicHint';
 import LoveMower from '@/components/LoveMower';
 import MapView from '@/components/MapView';
 import {useMapAhead} from '@/components/useMapAhead';
-import {HomeIcon, PauseIcon, PlayIcon, SkipIcon, WarningIcon} from '@/components/icons';
+import {CloseIcon, HomeIcon, PauseIcon, PlayIcon, RecordIcon, SkipIcon, WarningIcon} from '@/components/icons';
 import {useComputedSpeed} from '@/hooks/useComputedSpeed';
 import {useEmergencyReasons} from '@/hooks/useEmergencyReasons';
 import {useLeftoversBefore} from '@/hooks/useLeftoversBefore';
@@ -447,6 +447,24 @@ export default function Home() {
                   {skip?.id === a.id ? tr('Undo ({n} s)', {n: skip.left}) : tr(a.label)}
                 </button>
               ))}
+              {/* recording mode on without its page (the back button, another phone): back to it, and out of it while
+                  nothing recorded would be lost with it */}
+              {current === 'AREA_RECORDING' && (
+                <div className={styles.recording}>
+                  <Link href="/record">
+                    <RecordIcon size={20} />
+                    {tr('Back to recording')}
+                  </Link>
+                  {hasAction(ACTION.recording('exit_recording_mode')) &&
+                    !hasAction(ACTION.recording('stop_recording')) &&
+                    !hasAction(ACTION.recording('finish_mowing_area')) && (
+                      <button className={styles.recordingEnd} disabled={!live} onClick={() => publishAction(ACTION.recording('exit_recording_mode'))}>
+                        <CloseIcon size={20} />
+                        {tr('Leave recording mode')}
+                      </button>
+                    )}
+                </div>
+              )}
               {live && current === 'MOWING' && hasAction(ACTION.skipPath) && !state.emergency && (
                 <button
                   className={styles.skipPathButton}

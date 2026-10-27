@@ -1577,7 +1577,11 @@ const de: Record<string, string> = {
   "Recording mode is also for mowing by hand: switch the blade on and drive with the stick, without recording anything.": "Im Aufnahmemodus kannst du auch von Hand mähen: Messer an und mit dem Joystick fahren, ohne etwas aufzunehmen.",
   "Blade on": "Messer an",
   "Blade off": "Messer aus",
-  "The blade is turning, also while the mower stands still. It goes off when you switch it off, leave this page or the app. If the connection drops, it keeps turning: then press the stop button on the mower.": "Das Messer dreht sich, auch wenn der Mäher steht. Es geht aus, wenn du es ausschaltest oder diese Seite oder die App verlässt. Bricht die Verbindung ab, dreht es weiter: Dann am Mäher die Stopptaste drücken.",
+  "The blade is turning, also while the mower stands still. It goes off when you switch it off, leave this page or the app. If the connection drops or the page reloads or closes, it keeps turning: then press the stop button on the mower.":
+    "Das Messer dreht sich, auch wenn der Mäher steht. Es geht aus, wenn du es ausschaltest oder diese Seite oder die App verlässt. Bricht die Verbindung ab oder wird die Seite neu geladen oder geschlossen, dreht es weiter: Dann am Mäher die Stopptaste drücken.",
+  "Switching mowers loses what isn't saved of the recording. The mower stops and the blade goes off first.":
+    "Beim Wechsel des Mähers geht verloren, was von der Aufnahme noch nicht gespeichert ist. Der Mäher hält vorher an, das Messer geht aus.",
+  "Switching mowers loses the map changes that aren't saved yet.": "Beim Wechsel des Mähers gehen die noch nicht gespeicherten Kartenänderungen verloren.",
   "Map your garden": "Karte anlegen",
   "The mower mows by a map: the areas it mows, the obstacles it drives around and its docking station. You record them once by driving it around them with the joystick, the app draws along. To start, tap Record under the map on the Map tab.": "Der Mäher mäht nach einer Karte: die Flächen, die er mäht, die Hindernisse, um die er herumfährt, und sein Dock. Du nimmst sie einmal auf, indem du ihn mit dem Joystick drumherum fährst, die App zeichnet mit. Dazu tippst du im Reiter „Karte“ unter der Karte auf „Aufnehmen“.",
   "If the mower is in the dock, back it out about a meter, it then faces the station. Tap Record docking station, drive straight in until it sits on the contacts and tap Save docking position. That way in becomes its docking direction.": "Steht der Mäher im Dock, fahr ihn etwa einen Meter rückwärts heraus, dann schaut er zum Dock. Tippe „Dock aufnehmen“, fahr gerade hinein, bis er auf den Kontakten steht, und tippe „Andockposition speichern“. Diese Strecke wird seine Andockrichtung.",
@@ -1875,6 +1879,7 @@ const de: Record<string, string> = {
   "The area isn't saved yet and is lost when recording mode ends.": "Die Fläche ist noch nicht gespeichert und geht verloren, wenn der Aufnahmemodus endet.",
   "The docking station isn't saved yet, recording mode can only end after that. If you leave anyway, it stays on.": "Das Dock ist noch nicht gespeichert, erst danach lässt sich der Aufnahmemodus beenden. Verlässt du die Seite trotzdem, bleibt er an.",
   "End recording mode": "Aufnahmemodus beenden",
+  "Back to recording": "Zurück zur Aufnahme",
   "Discard and end": "Verwerfen und beenden",
   "Leave anyway": "Trotzdem verlassen",
   "Stay": "Hierbleiben",

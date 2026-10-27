@@ -85,10 +85,13 @@
   border: 1px solid var(--card-border);
 }
 
+/* in the middle at the bottom: the map's buttons run down its right edge, a tap meant for them mustn't drive */
 .stick {
   position: absolute;
-  right: 12px;
+  left: 50%;
   bottom: 12px;
+  transform: translateX(-50%);
+  width: max-content;
   max-width: calc(100% - 24px);
 }
 

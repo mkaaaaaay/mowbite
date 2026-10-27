@@ -38,6 +38,7 @@ import {ACTION} from '@/lib/openmower';
 import {eventsOfDay, fileDay, forgetToday, historyDays} from '@/lib/history';
 import {backAtStart} from '@/lib/geometry';
 import {tick} from '@/lib/haptics';
+import {guardLeaving} from '@/lib/leaving';
 import {emergencyText} from '@/lib/events';
 
 const START = ACTION.startRecording;
@@ -212,6 +213,23 @@ export default function RecordPage() {
   const act = (id: string) => publishAction(A(id));
   const actRef = useRef(act);
   actRef.current = act;
+
+  // reloading, closing or switching mowers asks first while something isn't saved yet or the blade turns: what's sent
+  // from a page that unloads doesn't get out any more. a switch of mowers sends the stop and the blade's off before
+  const guarded = recordingMode && (phase !== 'empty' || bladeOn);
+  const halt = useRef(() => {});
+  halt.current = () => {
+    stop();
+    if (blade.current.on) blade.current.off();
+  };
+  useEffect(() => {
+    if (!guarded) return;
+    guardLeaving('record', {
+      text: () => tr("Switching mowers loses what isn't saved of the recording. The mower stops and the blade goes off first."),
+      before: () => halt.current(),
+    });
+    return () => guardLeaving('record', null);
+  }, [guarded]);
 
   // leaving the page ends recording mode: a link or a tab asks first, what isn't saved yet is lost with it. the way back
   // (the phone's back button) can't ask, it ends the mode only when nothing is being recorded
@@ -492,7 +510,7 @@ export default function RecordPage() {
               {bladeOn && (
                 <p className={styles.warn}>
                   {tr(
-                    'The blade is turning, also while the mower stands still. It goes off when you switch it off, leave this page or the app. If the connection drops, it keeps turning: then press the stop button on the mower.',
+                    'The blade is turning, also while the mower stands still. It goes off when you switch it off, leave this page or the app. If the connection drops or the page reloads or closes, it keeps turning: then press the stop button on the mower.',
                   )}
                 </p>
               )}
@@ -624,7 +642,7 @@ export default function RecordPage() {
             {bladeOn && (
               <p className={styles.remoteBlade}>
                 {tr(
-                  'The blade is turning, also while the mower stands still. It goes off when you switch it off, leave this page or the app. If the connection drops, it keeps turning: then press the stop button on the mower.',
+                  'The blade is turning, also while the mower stands still. It goes off when you switch it off, leave this page or the app. If the connection drops or the page reloads or closes, it keeps turning: then press the stop button on the mower.',
                 )}
               </p>
             )}

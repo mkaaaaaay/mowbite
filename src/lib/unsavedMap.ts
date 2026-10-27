@@ -1,21 +1,16 @@
 import {useSyncExternalStore} from 'react';
+import {tr} from './i18n';
+import {guardLeaving} from './leaving';
 
 // unsaved changes in the map editor. they're kept while the app runs, so another tab and back loses
 // nothing: the map tab shows a dot, and reloading, closing or switching mowers asks first
 let unsaved = false;
 const listeners = new Set<() => void>();
 
-const ask = (e: BeforeUnloadEvent) => {
-  e.preventDefault();
-  // older browsers only ask with this set
-  e.returnValue = '';
-};
-
 export function setUnsavedMap(v: boolean) {
   if (v === unsaved) return;
   unsaved = v;
-  if (v) window.addEventListener('beforeunload', ask);
-  else window.removeEventListener('beforeunload', ask);
+  guardLeaving('map', v ? {text: () => tr("Switching mowers loses the map changes that aren't saved yet.")} : null);
   listeners.forEach((l) => l());
 }
 
