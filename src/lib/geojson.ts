@@ -133,8 +133,13 @@ export function mapFromGeoJson(json: unknown, datum: Datum, base: MowerMap | nul
     if (typeof out.type === 'string' && !TYPES.includes(out.type)) delete out.type;
     return out as MapArea['properties'];
   };
+  // the ids an area of the file took already: another feature with the same one (a polygon split in QGIS takes its
+  // attributes along) becomes an area of its own, like the further parts of a multipolygon
+  const taken = new Set<string>();
   const put = (id: string | null, properties: MapArea['properties'], outline: Point[]) => {
     found++;
+    if (id && taken.has(id)) id = null;
+    if (id) taken.add(id);
     const i = id ? areas.findIndex((a) => a.id === id) : -1;
     if (i >= 0) {
       const was = areas[i];

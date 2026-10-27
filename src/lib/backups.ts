@@ -18,15 +18,18 @@ export interface BackupInfo {
 const PATH = '/cgi-bin/backups';
 const endpoint = () => apiBase() + PATH;
 
-export function listBackups(): Promise<BackupInfo[] | null> {
+// null: not served, no container keeps backups. undefined: it didn't answer, a save still tries to make one
+export function listBackups(): Promise<BackupInfo[] | null | undefined> {
   return fresh('backups', async () => {
+    let res: Response;
     try {
-      const res = await mowerFetch(endpoint(), {cache: 'no-store'});
-      if (!res.ok || !res.headers.get('content-type')?.includes('json')) return null;
-      return await res.json();
+      res = await mowerFetch(endpoint(), {cache: 'no-store'});
     } catch {
-      return null;
+      return undefined;
     }
+    if (res.status >= 500) return undefined;
+    if (!res.ok || !res.headers.get('content-type')?.includes('json')) return null;
+    return await res.json();
   });
 }
 
@@ -63,10 +66,14 @@ export async function angleChangedSince(areaId: string, since: number, angle: nu
   return false;
 }
 
-// a file picked by the user: at least has to look like a map
+// a file picked by the user: at least has to look like a map. what a map can do without is filled in
 export function parseMapFile(text: string): MowerMap {
   const m = JSON.parse(text);
   if (!m || !Array.isArray(m.areas) || !m.areas.every((a: {outline?: unknown}) => Array.isArray(a.outline)))
     throw new Error('not a map');
-  return openRings(m);
+  return openRings({
+    ...m,
+    docking_stations: Array.isArray(m.docking_stations) ? m.docking_stations : [],
+    areas: m.areas.map((a: {properties?: unknown}) => ({...a, properties: a.properties && typeof a.properties === 'object' ? a.properties : {}})),
+  });
 }

@@ -789,14 +789,17 @@ function MapView({
   const glidingPin = dragging && onMoveVertex ? map.areas.find((a) => a.id === dragging.areaId && isPin(a)) : undefined;
 
   // deleting the tapped point: its button next to it, the Delete key (Backspace on keyboards without one), and for a
-  // moment a way back
-  const [deletedAt, setDeletedAt] = useState<number | null>(null);
+  // moment a way back. the map before and after it: once something else changed undo wouldn't take back the deleting
+  const [deleted, setDeleted] = useState<{at: number; from: MowerMap; to: MowerMap | null} | null>(null);
+  if (deleted && !deleted.to && map !== deleted.from) setDeleted({...deleted, to: map});
+  if (deleted?.to && map !== deleted.to) setDeleted(null);
+  const deletedAt = deleted?.at ?? null;
   const deletable = !!selectedArea && activeIndex !== null && !!onDeleteVertex && selectedArea.outline.length > 3;
   const deletePoint = () => {
     if (!deletable) return;
     onDeleteVertex!(selectedArea!.id, activeIndex!);
     setActive(null);
-    if (onUndo) setDeletedAt(Date.now());
+    if (onUndo) setDeleted({at: Date.now(), from: map, to: null});
   };
   useEffect(() => {
     if (!deletable) return;
@@ -812,7 +815,7 @@ function MapView({
   });
   useEffect(() => {
     if (deletedAt === null) return;
-    const t = setTimeout(() => setDeletedAt(null), 5000);
+    const t = setTimeout(() => setDeleted(null), 5000);
     return () => clearTimeout(t);
   }, [deletedAt]);
   const [holdHint, setHoldHint] = useState(false);
@@ -2363,7 +2366,7 @@ function MapView({
           <button
             onClick={() => {
               onUndo();
-              setDeletedAt(null);
+              setDeleted(null);
             }}
           >
             {tr('Undo')}

@@ -126,7 +126,7 @@ function MapEditor() {
   const towelNow = towel || (!!progress && !progress.leftovers && Math.round(progress.fraction * 100) === 42);
   // the same object while nothing changes, the map is drawn again only when it does
   const costume = useMemo(() => ({towel: towelNow, umbrella}), [towelNow, umbrella]);
-  const {map, edited, base, setMap, history, future, remember, undoStep, redoStep, originalOf, keepOriginal, dirty, external, dropEdits, rebase, mergeNote, mergeExternal} =
+  const {map, edited, base, setMap, history, undoable, future, remember, undoStep, redoStep, originalOf, keepOriginal, dirty, external, dropEdits, rebase, mergeNote, mergeExternal} =
     useMapEdits(liveMap);
   const [showStripes, setShowStripes] = useState(true);
   // on a phone the map stays at the top while the settings under it scroll, unless it was unpinned on this device
@@ -358,7 +358,7 @@ function MapEditor() {
   // decorating stays on: undo goes back no further than where it started, redo only brings pins back. drawing or cutting
   // it takes the last point set back first
   const placing = (mode === 'draw' || mode === 'split') && pendingPoints.length > 0;
-  const canUndo = mode === 'decor' ? !!map && decorUndo(map, decor?.start ?? null, history) : placing || history.length > 0;
+  const canUndo = mode === 'decor' ? !!map && decorUndo(map, decor?.start ?? null, history) : placing || undoable;
   const canRedo = mode === 'decor' ? !!map && decorRedo(map, future) : future.length > 0;
 
   const undo = () => {
@@ -627,8 +627,8 @@ function MapEditor() {
 
   // backups of the map kept in the container, and one shown instead of the editor
   const datum = datumFromParams(params);
-  const {backups, preview, setPreview, confirmRestore, setConfirmRestore, restoring, restoreError, setRestoreError, refreshBackups, closePreview, restore, download, downloadGeo} =
-    useMapBackups(liveMap, datum, () => {
+  const {backups, preview, setPreview, confirmRestore, setConfirmRestore, restoring, restoreError, refreshBackups, closePreview, restore, download, downloadGeo} =
+    useMapBackups(liveMap, map, datum, () => {
       dropEdits();
       setSelectedAreaId(null);
     });
@@ -674,7 +674,8 @@ function MapEditor() {
     const gone = [...new Set(pins)].filter((id) => !next.areas.some((a) => a.id === id));
     try {
       // the version on the mower goes into the backups first, so every save can be undone. without that only when asked
-      if (backups && liveMap && !withoutBackup) {
+      // (also when the list didn't come: it may well take one now, the question below when not)
+      if (backups !== null && liveMap && !withoutBackup) {
         try {
           await saveBackup(liveMap, 'before saving', true);
         } catch (e) {
@@ -931,6 +932,8 @@ function MapEditor() {
     }
     updateProperties(patch, undoable);
   };
+  // the same on the bar and on the map
+  const saveLabel = saving ? tr('saving…') : (external && dirty) || warnings || (saveWarning && !idle) ? tr('Save anyway') : tr('Save map');
 
   return (
     <div className={styles.page} data-map-editor>
@@ -989,7 +992,7 @@ function MapEditor() {
                   </button>
                 )}
                 <button className={[styles.pillButton, styles.saveButton, styles.unsaved].join(' ')} onClick={() => void handleSave()} disabled={saving}>
-                  {saving ? tr('saving…') : (external && dirty) || (saveWarning && !idle) ? tr('Save anyway') : tr('Save map')}
+                  {saveLabel}
                 </button>
               </div>
             )}
@@ -1128,9 +1131,7 @@ function MapEditor() {
                   canRedo={canRedo}
                   unsaved={dirty}
                   saving={saving}
-                  saveLabel={
-                    saving ? tr('saving…') : (external && dirty) || warnings || (saveWarning && !idle) ? tr('Save anyway') : tr('Save map')
-                  }
+                  saveLabel={saveLabel}
                   saveError={saveError ?? droppedNote}
                   onDraw={startDraw}
                   onUndo={undo}
@@ -1160,7 +1161,12 @@ function MapEditor() {
                     {!idle && ` ${tr('The mower is busy. Saving now can interrupt it.')}`}
                   </p>
                   <div className={styles.inlineRow}>
-                    <button className={styles.pillButton} onClick={() => void handleSave(true).then((ok) => setDecorNext(ok))} disabled={saving}>
+                    <button
+                      className={styles.pillButton}
+                      // (a change on the mower meanwhile put together with these first, like finishing does)
+                      onClick={() => void handleSave(true, external ? (mergeExternal() ?? map) : map).then((ok) => setDecorNext(ok))}
+                      disabled={saving}
+                    >
                       {saving ? tr('saving…') : idle ? tr('Save map') : tr('Save anyway')}
                     </button>
                     <button className={styles.pillButton} onClick={() => setDecorAsk(null)}>
@@ -1291,18 +1297,13 @@ function MapEditor() {
                   )}
 
                   <MapBackups
-                    backups={backups ?? null}
+                    backups={backups}
                     onCreate={async (name) => {
                       if (!liveMap) return;
                       await saveBackup(liveMap, name, false);
                       await refreshBackups();
                     }}
-                    onPreview={(b) =>
-                      void loadBackup(b.id).then(
-                        (m) => setPreview({map: m, label: backupLabel(b)}),
-                        () => setRestoreError(tr('failed')),
-                      )
-                    }
+                    onPreview={async (b) => setPreview({map: await loadBackup(b.id), label: backupLabel(b)})}
                     onDelete={(b) => void deleteBackup(b.id).then(refreshBackups)}
                     onDownload={(b) => void download(b)}
                     onDownloadGeo={() => void downloadGeo()}

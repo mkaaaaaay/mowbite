@@ -23,10 +23,10 @@ export default function MapBackups({
   onFile,
   geo,
 }: {
-  // null: not served by the container, no backups on the mower then
-  backups: BackupInfo[] | null;
+  // null: not served by the container, no backups on the mower then. undefined: not there yet, or no answer
+  backups: BackupInfo[] | null | undefined;
   onCreate: (name: string) => Promise<void>;
-  onPreview: (b: BackupInfo) => void;
+  onPreview: (b: BackupInfo) => Promise<void>;
   onDelete: (b: BackupInfo) => void;
   onDownload: (b: BackupInfo | null) => void;
   onDownloadGeo: () => void;
@@ -83,7 +83,13 @@ export default function MapBackups({
                   </span>
                 </div>
                 <div className={styles.actions}>
-                  <button className={styles.link} onClick={() => onPreview(b)}>
+                  <button
+                    className={styles.link}
+                    onClick={() => {
+                      setError(null);
+                      onPreview(b).catch(() => setError(tr("The backup couldn't be loaded.")));
+                    }}
+                  >
                     {tr('Preview')}
                   </button>
                   <button className={styles.link} onClick={() => onDownload(b)}>
@@ -101,8 +107,10 @@ export default function MapBackups({
             ))}
           </ul>
         </>
-      ) : (
+      ) : backups === null ? (
         <p className={styles.dim}>{tr('Backups on the mower need MowBite running as its container. Files still work.')}</p>
+      ) : (
+        <p className={styles.dim}>{tr("The mower's backups didn't come (yet). Files still work.")}</p>
       )}
 
       <div className={styles.row}>

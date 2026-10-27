@@ -48,6 +48,8 @@ export function useMapEdits(liveMap: MowerMap | null) {
   // back to the mower's map. keep: the outlines from before reducing points stay (only after a save, they
   // still match then)
   const dropEdits = (keep?: 'originals') => {
+    // (also while the editor is hidden behind another page, its effects don't run then: a save that ends there)
+    setUnsavedMap(false);
     setEdited(null);
     setBase(null);
     setHistory([]);
@@ -61,15 +63,25 @@ export function useMapEdits(liveMap: MowerMap | null) {
   const mergeExternal = () => {
     if (!edited || !base || !liveMap) return null;
     const {map: merged, conflicts} = mergeMaps(base, edited, liveMap);
-    remember();
+    // the steps before were on the old map: undone they'd put back what the other side changed, without a warning
+    setHistory([]);
     setEdited(merged);
     setFuture([]);
     setBase(liveMap);
+    // (one deleted here isn't in the map put together)
+    const maps = [merged, liveMap, base];
     const name = (id: string) =>
-      merged.docking_stations.some((d) => d.id === id)
+      maps.some((m) => m.docking_stations.some((d) => d.id === id))
         ? tr('Docking station')
-        : merged.areas.find((a) => a.id === id)?.properties.name || tr('unnamed');
-    setMergeNote(conflicts.length ? tr('Changed on both sides: {names}. Your version is kept there.', {names: conflicts.map(name).join(', ')}) : null);
+        : maps.map((m) => m.areas.find((a) => a.id === id)).find(Boolean)?.properties.name || tr('unnamed');
+    const here = (id: string) => merged.areas.some((a) => a.id === id) || merged.docking_stations.some((d) => d.id === id);
+    const changed = conflicts.filter(here);
+    const deleted = conflicts.filter((id) => !here(id));
+    const note = [
+      changed.length ? tr('Changed on both sides: {names}. Your version is kept there.', {names: changed.map(name).join(', ')}) : '',
+      deleted.length ? tr('Deleted here, changed on the other side: {names}. They stay deleted.', {names: deleted.map(name).join(', ')}) : '',
+    ].filter(Boolean);
+    setMergeNote(note.length ? note.join(' ') : null);
     return merged;
   };
   // the mower's map is now this one (a save of ours that answered late): the edits made since go on from it
@@ -93,13 +105,21 @@ export function useMapEdits(liveMap: MowerMap | null) {
   // one step back, false when there's none. redoable: it can be redone (not a drag that was called off, that one
   // leaves what could be redone before it)
   const undoStep = (redoable = true) => {
-    if (!history.length) return false;
+    // a step that changed nothing (a field that only got focus) isn't one
+    let h = history;
+    while (h.length && h[h.length - 1] === map) h = h.slice(0, -1);
+    if (!h.length) {
+      if (h !== history) setHistory(h);
+      return false;
+    }
     if (!redoable) setFuture(futureThen.current);
     else if (map) setFuture((f) => [...f.slice(-49), map]);
-    put(history[history.length - 1]);
-    setHistory((h) => h.slice(0, -1));
+    put(h[h.length - 1]);
+    setHistory(h.slice(0, -1));
     return true;
   };
+  // there's a step back that changes something
+  const undoable = history.some((h) => h !== map);
 
   // the last step undone done again, false when there's none
   const redoStep = () => {
@@ -116,6 +136,7 @@ export function useMapEdits(liveMap: MowerMap | null) {
     base,
     setMap,
     history,
+    undoable,
     future,
     remember,
     undoStep,

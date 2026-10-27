@@ -654,6 +654,21 @@
     display: none;
   }
 
+  /* and leaves the map's buttons free on its right, a bit smaller so all of them fit above it on a small phone */
+  .mapCol .angleOnMap {
+    right: 50px;
+  }
+
+  .mapCol:has(.angleOnMap) [data-map-tools] {
+    gap: 4px;
+  }
+
+  .mapCol:has(.angleOnMap) [data-map-tools] button {
+    width: 30px;
+    height: 30px;
+    font-size: 16px;
+  }
+
   .angleOnMap .compass {
     width: 40px;
     height: 40px;

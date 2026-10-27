@@ -149,7 +149,7 @@ export default function MapControls({
           {coverage.value !== 'off' && coverage.paused && <span className={styles.coverPaused}>{tr('Editing is off while the coverage is shown')}</span>}
         </div>
       )}
-      <div className={styles.zoomButtons}>
+      <div className={styles.zoomButtons} data-map-tools>
         <button onClick={() => onZoom(1 / 1.5)} aria-label={tr('Zoom in')} title={tr('Zoom in (or mouse wheel / pinch)')}>
           +
         </button>

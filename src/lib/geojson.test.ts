@@ -35,6 +35,16 @@ describe('the map as geojson', () => {
     expect(Math.abs(map.docking_stations[0].position.x + 1.25)).toBeLessThan(0.001);
   });
 
+  it('makes a second feature with the same id (a polygon split in qgis) an area of its own', () => {
+    const json = mapToGeoJson(MAP, datum) as unknown as Json;
+    const half = JSON.parse(JSON.stringify(json.features[0]));
+    (half.geometry.coordinates as number[][][])[0][1][0] -= 0.0001;
+    const {map, changed, added} = mapFromGeoJson({type: 'FeatureCollection', features: [json.features[0], half]}, datum, MAP);
+    expect([changed, added]).toEqual([0, 1]);
+    expect(map.areas.filter((a) => a.properties.name === 'Lawn')).toHaveLength(2);
+    expect(map.areas.find((a) => a.id === 'lawn')?.outline).toEqual(MAP.areas[0].outline);
+  });
+
   it('keeps a pin a pin there and back', () => {
     const pinned: MowerMap = {
       ...MAP,
