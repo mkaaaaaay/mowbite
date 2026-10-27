@@ -244,7 +244,7 @@ export function MapLookSettings({onDecorate}: {onDecorate?: () => void}) {
         </label>
         <p className={styles.dim}>
           {tr(
-            'Esri World Imagery covers the whole world, but only with an API key of your own from the ArcGIS Location Platform (free up to a monthly number of map tiles). It then shows up as a choice on the map, after the official orthophotos where there are any. The key is kept with the other settings on the mower, where every device in your home network and any web page opened on one of them can read it. So in the ArcGIS dashboard give it only the privilege Basemaps and limit it to the address you open this app at (HTTP referrer).',
+            "Esri World Imagery covers the whole world, but only with an API key of your own from the ArcGIS Location Platform (free up to a monthly number of map tiles). It then shows up as a choice on the map, after the official orthophotos where there are any. The key is kept with the other settings on the mower, where every device in your home network and any web page opened on one of them can read it. So in the ArcGIS dashboard give it only the privilege Basemaps and limit it to the addresses you open this app at (HTTP referrer), for the Android app that's http://localhost.",
           )}
         </p>
         <label className={styles.field}>

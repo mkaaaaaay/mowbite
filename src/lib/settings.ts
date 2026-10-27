@@ -143,20 +143,38 @@ export function sharedSettings() {
 let server: Settings = {};
 let version: string | null = null;
 
-// asked once, everyone asking waits for the same answer
+// asked once, everyone asking waits for the same answer. a mower that couldn't be reached (or its container failed) is
+// asked again a while later, and what was changed here meanwhile goes on top of what it has
 let syncing: Promise<void> | null = null;
+// the settings here when it was first asked: what differs from them later was changed on this device
+let before: Settings | null = null;
+const again = () =>
+  setTimeout(() => {
+    syncing = null;
+    void syncSettings();
+  }, 30000);
 export function syncSettings(): Promise<void> {
+  before ??= load();
   syncing ??= (async () => {
     try {
       const res = await mowerFetch(settingsUrl(), {cache: 'no-store'});
-      if (!res.ok || !res.headers.get('content-type')?.includes('json')) return;
+      if (!res.ok || !res.headers.get('content-type')?.includes('json')) {
+        // (no container behind it answers that way for good)
+        if (res.status >= 500) again();
+        return;
+      }
       const data = await res.json();
       shared = true;
       server = data && typeof data === 'object' ? data : {};
       version = res.headers.get('X-Settings-Version') || null;
-      setLocal(server);
+      const mine = load();
+      if (mine === before) return setLocal(server);
+      const next = mergeChanges(server, before ?? {}, mine);
+      setLocal(next);
+      saving = saving.then(() => push(next)).catch(() => {});
     } catch {
-      // not served by the container, keep it local
+      // not reached: kept here for now
+      again();
     }
   })();
   return syncing;

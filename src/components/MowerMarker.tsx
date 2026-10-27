@@ -83,10 +83,14 @@ export function MowerMarker({
   const base = icons?.mowerRealSize ? Math.max(realSize, 7 * k) : 8 * k;
   const size = base * (real ? 1 : (icons?.mowerSize ?? 1));
   const icon = mowerIcon(icons?.mower);
-  // a real mower on its body, exactly as long and wide as set
-  const fitted = showIcon && icon.fit && !!body && !!shape;
-  // where the icon sits: the body's middle at real size or fitted to the body, else the mower's position
-  const [mx, my] = shape && (fitted || real) ? local(shape.middle) : [0, 0];
+  // a real mower at its real size: on the body, exactly as long and wide as set (a few pixels at least). at the same size
+  // on screen it's drawn like the other icons
+  const fitted = showIcon && icon.fit && !!body && !!real;
+  const long = body ? (body.front + body.rear) / 2 : 1;
+  const fitX = fitted ? Math.max(long * scale, 7 * k) : 0;
+  const fitY = body ? (fitX * body.width) / 2 / long : 0;
+  // where the icon sits: the body's middle at real size, else the mower's position
+  const [mx, my] = shape && real ? local(shape.middle) : [0, 0];
   // a side view heading left would stand on its head, mirrored it keeps its feet on the ground. a figure
   // isn't turned with the heading at all, it only looks left or right. css, so it turns around instead of
   // flipping over at once
@@ -162,7 +166,7 @@ export function MowerMarker({
   // icon's drawn round its shape (a pixel and a bit wide at any zoom)
   const hidden = covers && covers.length > 0 && coverId;
   const iconOutline = showIcon && !shape;
-  const [ox, oy] = fitted ? [((body.front + body.rear) / 2) * scale, (body.width / 2) * scale] : [size, size];
+  const [ox, oy] = fitted ? [fitX, fitY] : [size, size];
   const silhouette = (
     <filter id={coverId + 'o'} x="-30%" y="-30%" width="160%" height="160%">
       <feMorphology in="SourceAlpha" operator="dilate" radius={`${(1.4 * k) / ox} ${(1.4 * k) / oy}`} result="grown" />
@@ -179,7 +183,7 @@ export function MowerMarker({
           {fitted ? (
             <g
               className={styles.mower}
-              transform={`translate(${mx} ${my}) scale(${((body.front + body.rear) / 2) * scale} ${(body.width / 2) * scale})`}
+              transform={`translate(${mx} ${my}) scale(${fitX} ${fitY})`}
             >
               {icon.draw({speed, emergency, blades})}
             </g>
@@ -232,7 +236,7 @@ export function MowerMarker({
         {showIcon && (costume?.hat || costume?.towel || costume?.umbrella) && (
           // upright over any icon, also one seen from above, at the size it's drawn
           <g ref={(el) => void (uprightRefs.current[1] = el)}>
-            <g transform={`scale(${fitted ? ((body.front + body.rear) / 2) * scale : size})`} className={styles.costume}>
+            <g transform={`scale(${fitted ? fitX : size})`} className={styles.costume}>
               <MapCostume hat={costume.hat} towel={costume.towel} umbrella={costume.umbrella} high={!!icon.side} />
             </g>
           </g>

@@ -5,7 +5,7 @@ import InfoTip from '@/components/InfoTip';
 import {polygonArea} from '@/lib/geometry';
 import {fmt, tr} from '@/lib/i18n';
 import {useAreaProperties} from '@/lib/areaProps';
-import {usePlannerSettings} from '@/lib/mowerBody';
+import {realInsides, useMowerBody, usePlannerSettings} from '@/lib/mowerBody';
 import {settingsStore} from '@/lib/settings';
 import {useMemo, useState, useSyncExternalStore} from 'react';
 import {AREA_TYPES, type Area, type UpdateArea} from './editing';
@@ -67,7 +67,10 @@ export default function AreaCard({
   // how big a picture standing in the area is drawn without a size of its own: by the area and its usual size
   const pic = PICTURES[shown];
   const sizable = pictured && !!pic?.thing && !pic.fill;
-  const fitted = useMemo(() => (sizable && area.outline.length > 2 ? placeThing(shown, area.outline) : null), [sizable, shown, area.outline]);
+  // where the map places it: in the real edge once the mower's sizes are known (gardenThings)
+  const body = useMowerBody();
+  const inside = useMemo(() => (sizable && body ? realInsides(areas, body).get(area.id) : null) ?? area.outline, [sizable, body, areas, area]);
+  const fitted = useMemo(() => (sizable && inside.length > 2 ? placeThing(shown, inside) : null), [sizable, shown, inside]);
   const autoSize = (() => {
     if (!fitted) return 1;
     const [lo, hi] = pic.size ?? [fitted.w, fitted.w];

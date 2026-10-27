@@ -14,9 +14,11 @@ printf 'window.__MOWER_CONFIG__ = {mqttUrl: "%s", mqttPrefix: "%s"};\n' \
 /stats.sh &
 # push messages, only once a topic is set on the settings page
 /notify.sh &
-# sets what the app changed on the mower again after the mower restarts
-/params.sh &
-# a second copy (e.g. a dev container next to the one on the mower) shouldn't start the mower too
-[ "$MOWBITE_SCHEDULER" = off ] || /scheduler.sh &
+# a second copy (e.g. a dev container next to the one on the mower) shouldn't start the mower too, nor set its
+# settings again after the mower restarts (two copies would take turns setting theirs)
+if [ "$MOWBITE_SCHEDULER" != off ]; then
+  /params.sh &
+  /scheduler.sh &
+fi
 
 exec httpd -f -v -p "${PORT:-8080}" -h /www

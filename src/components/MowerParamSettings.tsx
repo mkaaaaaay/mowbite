@@ -63,12 +63,17 @@ const useKept = () =>
     () => undefined,
   );
 
-// shown at once, back as it was when the container didn't take it
-async function storeKept(next: KeptParams) {
+// one change to what the container keeps as it has it now (another device may have kept more since it was asked
+// for), shown at once and back as it was when the container didn't take it
+async function storeKept(change: (k: KeptParams) => KeptParams) {
   const before = kept ?? null;
-  setKept(next);
+  if (before) setKept(change(before));
   try {
+    const now = (await loadKept()) ?? before;
+    if (!now) throw new Error('nothing kept');
+    const next = change(now);
     await saveKept(next);
+    setKept(next);
   } catch (e) {
     setKept(before);
     throw e;
@@ -82,7 +87,7 @@ async function apply(f: ParamField, value: number | boolean) {
   const applied = await setParams({[f.key]: value});
   const took = applied[f.key] ?? value;
   if (kept?.enabled)
-    await storeKept({...kept, values: {...kept.values, [f.key]: took}}).catch(() => {
+    await storeKept((k) => ({...k, values: {...k.values, [f.key]: took}})).catch(() => {
       throw new NotKept(tr("Set on the mower, but MowBite couldn't keep it for after a restart."));
     });
 }
@@ -158,11 +163,13 @@ export function ParamRow({field: f}: {field: ParamField}) {
         <span className={local.kept}>
           {tr('set again after a restart')}
           <button
-            onClick={() => {
-              const values = {...k!.values};
-              delete values[f.key];
-              storeKept({...k!, values}).catch(() => {});
-            }}
+            onClick={() =>
+              storeKept((k) => {
+                const values = {...k.values};
+                delete values[f.key];
+                return {...k, values};
+              }).catch(() => {})
+            }
           >
             {tr('no longer')}
           </button>
@@ -216,7 +223,7 @@ export function OpenMowerMowing({styles}: {styles: Styles}) {
       <p className={styles.dim}>{tr("OpenMower's own values from mower_params.yaml, for every area without its own. A change counts right away.")}</p>
       {k && !k.enabled && (
         <label className={styles.check}>
-          <input type="checkbox" checked={false} onChange={() => storeKept({...k, enabled: true}).catch(() => {})} />
+          <input type="checkbox" checked={false} onChange={() => storeKept((k) => ({...k, enabled: true})).catch(() => {})} />
           {tr('MowBite sets what you change here again after a restart')}
         </label>
       )}
@@ -270,7 +277,14 @@ export function OpenMowerSettings({styles}: {styles: Styles}) {
         </p>
         {k && (
           <label className={styles.check}>
-            <input type="checkbox" checked={k.enabled} onChange={(e) => storeKept({...k, enabled: e.target.checked}).catch(() => {})} />
+            <input
+              type="checkbox"
+              checked={k.enabled}
+              onChange={(e) => {
+                const on = e.target.checked;
+                storeKept((k) => ({...k, enabled: on})).catch(() => {});
+              }}
+            />
             {tr('MowBite sets what you change here again after a restart')}
           </label>
         )}

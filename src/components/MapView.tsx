@@ -26,6 +26,7 @@ import {fillOf, GardenDefs, gardenThings, pinTapped} from './gardenLook';
 import {biggest, coversOf, edgePaths, GardenThing, lifeOf, lifeScene} from './gardenLife';
 import {PICTURES} from './gardenPictures';
 import {useMowHistory} from '@/hooks/useMowHistory';
+import {useLastRun} from '@/hooks/useMowerTrack';
 import {useWeather} from '@/hooks/useWeather';
 import {useMowerStateValue} from '@/hooks/useMowerState';
 import type {SimClock, SimFrame} from '@/lib/simulate';
@@ -618,7 +619,9 @@ function MapView({
   // the mower only for the light round it at night, the trail only for the cuts: a position that came doesn't work the
   // life out again otherwise
   const nightMower = life?.sun ? mower : undefined;
-  const cutTrack = life?.growth ? track : undefined;
+  // the trail of a run going on, not the last run's shown while idle: that one comes from the history, fading
+  const lastRun = useLastRun();
+  const cutTrack = life?.growth && lastRun === null ? track : undefined;
   const scene = useMemo(
     () =>
       garden && !sample

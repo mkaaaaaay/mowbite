@@ -154,7 +154,8 @@ Optional, under `environment` in `compose.yaml`:
 - `MOWER_MQTT_PREFIX`: topic prefix, only if your OpenMower uses one.
 - `MOWER_MQTT_HOST`, `MOWER_MQTT_PORT` (1883), `MOWER_MQTT_USER`, `MOWER_MQTT_PASSWORD`: the broker the container
   listens to. On the mower it finds it by itself, set these only for a broker somewhere else or with a login.
-- `MOWBITE_SCHEDULER`: `off` on a second copy (e.g. on a PC), so only the one on the mower starts it by schedule.
+- `MOWBITE_SCHEDULER`: `off` on a second copy (e.g. on a PC), so only the one on the mower starts it by schedule and
+  sets OpenMower's settings again after a restart.
 - `UPDATER_URL`: where the updater runs, e.g. `http://openmower:8083`. Only needed when MowBite doesn't run on the mower
   and `MOWER_MQTT_HOST` isn't the mower.
 - `MOWBITE_ORIGINS`: other addresses MowBite is opened from, comma separated. The container only answers MowBite
