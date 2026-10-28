@@ -185,8 +185,10 @@ function wantHoldHint() {
   return true;
 }
 
-// the svg while it glides along the mower: twice the frame, slid along by a transform
-const GLIDING: React.CSSProperties = {position: 'absolute', left: 0, top: 0, width: '200%', height: '200%', transformOrigin: '0 0'};
+// the svg while it glides along the mower: GLIDE frames wide, slid along by a transform. a new anchor draws all of it
+// again, on a phone that's a stutter: the gpu only rasters what's near the frame, a wider one costs little and comes seldom
+const GLIDE = 4;
+const GLIDING: React.CSSProperties = {position: 'absolute', left: 0, top: 0, width: `${GLIDE * 100}%`, height: `${GLIDE * 100}%`, transformOrigin: '0 0'};
 // the svg of a map that can be moved: twice the frame with the view in its middle, a pan or pinch slides it under the
 // frame and finds the map already drawn round the edges
 const SPAN = 3;
@@ -477,7 +479,7 @@ function MapView({
     const size = followSpanMeters * followZoom * scale;
     shown = {x: sx - size / 2, y: sy - size / 2, size};
   }
-  // following with the geometry fitted to the map: the map is drawn once for twice the window around an anchor and
+  // following with the geometry fitted to the map: the map is drawn once for GLIDE windows around an anchor and
   // only slid along under its frame every frame (a css transform, the phone's gpu moves it without drawing anything
   // again). Drawn again with a new anchor once the mower got too far from it. Each new viewBox drew the whole map again
   // and stuttered on phones. also without zoom, the record page's remote follows the mower like that
@@ -494,7 +496,7 @@ function MapView({
   const svgBox = zoomable && !glides ? {x: framed.x - (framed.size * (SPAN - 1)) / 2, y: framed.y - (framed.size * (SPAN - 1)) / 2, size: SPAN * framed.size} : framed;
   // what the svg draws: while it glides all of it round the anchor, the frame moves on over it with the mower. the grid
   // and the imagery cover that, lines or tiles coming and going with the frame would draw the whole ground again each time
-  const drawnBox = glides ? {x: gx - glideSize, y: gy - glideSize, size: 2 * glideSize} : svgBox;
+  const drawnBox = glides ? {x: gx - (GLIDE / 2) * glideSize, y: gy - (GLIDE / 2) * glideSize, size: GLIDE * glideSize} : svgBox;
   const frameRef = useRef<HTMLDivElement | null>(null);
   // what moves under the frame: both layers of the map
   const sheetRef = useRef<HTMLDivElement | null>(null);
@@ -515,8 +517,8 @@ function MapView({
       const sy = HEIGHT - ((p.y - f.minY) * f.scale + f.padY);
       const width = frame.clientWidth || 1;
       const unit = width / g.size;
-      const tx = width / 2 - (sx - (g.x - g.size)) * unit;
-      const ty = width / 2 - (sy - (g.y - g.size)) * unit;
+      const tx = width / 2 - (sx - (g.x - (GLIDE / 2) * g.size)) * unit;
+      const ty = width / 2 - (sy - (g.y - (GLIDE / 2) * g.size)) * unit;
       const last = lastSlide.current;
       if (!last || Math.abs(tx - last[0]) > 0.02 || Math.abs(ty - last[1]) > 0.02) {
         svg.style.transform = `translate3d(${tx}px, ${ty}px, 0)`;
@@ -526,7 +528,7 @@ function MapView({
       if (!g.asked && !g.fixed) {
         g.asked = true;
         setAnchor({x: g.x, y: g.y, size: g.size});
-      } else if (!g.asked && (Math.abs(sx - g.x) > 0.35 * g.size || Math.abs(sy - g.y) > 0.35 * g.size)) {
+      } else if (!g.asked && Math.max(Math.abs(sx - g.x), Math.abs(sy - g.y)) > (GLIDE / 2 - 0.65) * g.size) {
         g.asked = true;
         setAnchor({x: sx, y: sy, size: g.size});
       }
