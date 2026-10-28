@@ -1,0 +1,28 @@
+name: codeql
+
+# github's code scanning on the app's code and the workflows, results under Security, Code scanning. only on the public
+# repo, a private one of an account has no code scanning
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '23 4 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    if: ${{ !github.event.repository.private }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: javascript-typescript, actions
+      - uses: github/codeql-action/analyze@v4
