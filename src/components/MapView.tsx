@@ -492,6 +492,9 @@ function MapView({
   // what the frame shows, and what the svg draws: that, twice as big round its middle when the map can be moved (OVERSCAN)
   const framed = shown ?? {x: 0, y: 0, size: WIDTH};
   const svgBox = zoomable && !glides ? {x: framed.x - (framed.size * (SPAN - 1)) / 2, y: framed.y - (framed.size * (SPAN - 1)) / 2, size: SPAN * framed.size} : framed;
+  // what the svg draws: while it glides all of it round the anchor, the frame moves on over it with the mower. the grid
+  // and the imagery cover that, lines or tiles coming and going with the frame would draw the whole ground again each time
+  const drawnBox = glides ? {x: gx - glideSize, y: gy - glideSize, size: 2 * glideSize} : svgBox;
   const frameRef = useRef<HTMLDivElement | null>(null);
   // what moves under the frame: both layers of the map
   const sheetRef = useRef<HTMLDivElement | null>(null);
@@ -1583,7 +1586,7 @@ function MapView({
   const imageryRejected = esriKey !== null && rejectedKey === esriKey && loadedKey !== esriKey;
   let tiles: ReturnType<typeof imageryTiles> = [];
   if (zoomable && datum && source && svgPx > 0) {
-    const v = svgBox;
+    const v = drawnBox;
     const [left, bottom] = toLocal(v.x, v.y + v.size);
     const [right, top] = toLocal(v.x + v.size, v.y);
     const metersPerPixel = 1 / ((pxPerMeter * svgPx) / WIDTH);
@@ -1601,7 +1604,7 @@ function MapView({
 
   let grid: ReturnType<typeof meterGrid> | null = null;
   if (zoomable && showGrid) {
-    const v = svgBox;
+    const v = drawnBox;
     const [left, bottom] = toLocal(v.x, v.y + v.size);
     const [right, top] = toLocal(v.x + v.size, v.y);
     grid = meterGrid({left, right, bottom, top}, pxPerMeter);
@@ -2193,7 +2196,7 @@ function MapView({
       data-garden={garden || undefined}
       // (gliding along the mower: twice the window around the anchor, slid along under the frame above; a map that can be
       // moved: twice the view round its middle)
-      viewBox={glides ? `${gx - glideSize} ${gy - glideSize} ${2 * glideSize} ${2 * glideSize}` : `${svgBox.x} ${svgBox.y} ${svgBox.size} ${svgBox.size}`}
+      viewBox={`${drawnBox.x} ${drawnBox.y} ${drawnBox.size} ${drawnBox.size}`}
       style={layered ? LAYER : undefined}
       {...(layered ? {} : events)}
     >
