@@ -1,4 +1,5 @@
-import {describe, expect, it} from 'vitest';
+import {describe, expect, it, vi} from 'vitest';
+import {setLangChoice} from './i18n';
 import {
   describe as describeEvent,
   emergencyFlags,
@@ -7,7 +8,9 @@ import {
   groupRuns,
   homeReason,
   noteworthy,
+  parseEvent,
   rawLine,
+  refusalReason,
   type MowerEvent,
 } from './events';
 
@@ -245,5 +248,78 @@ describe('emergency stop reasons', () => {
     expect(describeEvent(ev(1, 'EMERGENCY', {emergency: true, reason: '65536'})).text).toBe('Emergency stop (code 65536)');
     expect(explain(ev(1, 'EMERGENCY', {emergency: true, reason: '1024'}))).toContain('mower_spinup_timeout');
     expect(explain(ev(1, 'EMERGENCY', {emergency: true, reason: '128'}))).toContain('ROS log');
+  });
+});
+
+describe('recording an area (MowBite OS)', () => {
+  const refused = (action: string, reason: string) => ev(0, 'RECORDING_REFUSED', {action, reason, x: 1, y: 2});
+
+  it('says which step was refused and why, as a warning', () => {
+    expect(describeEvent(refused('stop_recording', 'Cannot close the ring: the line crosses itself'))).toEqual({
+      text: 'Line not closed: the line crosses itself',
+      severity: 'warning',
+    });
+    expect(describeEvent(refused('finish_mowing_area', 'Cannot close the ring: a ring needs at least 3 points, it has 2')).text).toBe(
+      "Mowing area not saved: the line can't be closed: a line needs at least 3 points, it has 2",
+    );
+    expect(describeEvent(refused('point', 'Position accuracy 0.30 m, points need 0.10 m or better')).text).toBe(
+      'No points recorded: position accurate to 0.30 m, points need 0.10 m or better',
+    );
+    expect(explain(refused('point', 'x'))).toMatch(/no points/);
+    expect(explain(refused('record_dock', 'x'))).toMatch(/stays open/);
+  });
+
+  it('keeps a reason or step it does not know as it came', () => {
+    expect(describeEvent(refused('start_area_recording', 'Map server not answering')).text).toBe("Recording mode didn't start: Map server not answering");
+    expect(describeEvent(refused('something_new', '')).text).toBe('Recording step refused');
+    expect(describeEvent(ev(0, 'RECORDING_REFUSED')).text).toBe('Recording step refused');
+  });
+
+  it('puts the reasons and numbers in german', () => {
+    vi.stubGlobal('document', {documentElement: {lang: 'en'}});
+    setLangChoice('de');
+    try {
+      expect(describeEvent(refused('stop_recording', 'Cannot close the ring: it encloses only 0.03 m², at least 0.05 needed')).text).toBe(
+        'Linie nicht geschlossen: sie umschließt nur 0,03 m², mindestens 0,05 m² nötig',
+      );
+      expect(refusalReason('Position accuracy 0.30 m, the docking station needs 0.10 m or better')).toBe(
+        'Position auf 0,30 m genau, die Ladestation braucht 0,10 m oder besser',
+      );
+      expect(refusalReason('Position accuracy nan m, points need 0.10 m or better')).toBe('Position auf ? m genau, Punkte brauchen 0,10 m oder besser');
+      expect(refusalReason('Only 0.12 m from the first point, at least 0.30 m needed for the heading')).toBe(
+        'nur 0,12 m vom ersten Punkt, für die Richtung sind mindestens 0,30 m nötig',
+      );
+      expect(refusalReason('The map does not fit the datum in use')).toBe('die Karte passt nicht zum verwendeten Bezugspunkt');
+      expect(describeEvent(ev(0, 'AREA_RECORDED', {area_type: 'mow', area_m2: 123.4, obstacles: 2, points: 80})).text).toBe(
+        'Mähfläche aufgenommen (123 m², 2 Hindernisse)',
+      );
+    } finally {
+      setLangChoice('en');
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('tells what was recorded', () => {
+    expect(describeEvent(ev(0, 'AREA_RECORDED', {area_type: 'nav', area_m2: 4.25, obstacles: 0})).text).toBe('Navigation area recorded (4.3 m²)');
+    expect(describeEvent(ev(0, 'AREA_RECORDED', {area_type: 'mow', area_m2: 50, obstacles: 1})).text).toBe('Mowing area recorded (50 m², 1 obstacle)');
+    expect(describeEvent(ev(0, 'AREA_RECORDED')).text).toBe('Mowing area recorded');
+    expect(describeEvent(ev(0, 'DOCK_RECORDED', {dock_id: 'd1', heading: 1.2}))).toEqual({text: 'Docking station recorded', severity: 'info'});
+  });
+
+  it('leaves them out of runs, recording mode is no run', () => {
+    const day = [ev(10, 'STATE', {state: 'AREA_RECORDING'}), refused('stop_recording', 'x'), ev(20, 'AREA_RECORDED', {area_m2: 10}), ev(30, 'STATE', {state: 'IDLE'})];
+    expect(groupRuns(day, false).map((e) => e.kind)).toEqual(['event', 'event', 'event', 'event']);
+    expect(noteworthy(refused('point', 'x'))).toBe(true);
+  });
+
+  it('reads an event as it comes live', () => {
+    expect(parseEvent('{"id":"a","t":5,"type":"RECORDING_REFUSED","action":"collect_point","reason":"No position"}')).toMatchObject({
+      id: 'a',
+      t: 5,
+      action: 'collect_point',
+    });
+    expect(parseEvent('not json')).toBeNull();
+    expect(parseEvent('{"t":5}')).toBeNull();
+    expect(parseEvent('null')).toBeNull();
   });
 });

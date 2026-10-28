@@ -7,6 +7,8 @@ export const TOPIC = {
   position: 'position/json',
   map: 'map/json',
   mapOverlay: 'map_overlay/json',
+  // each event as it happens, the same as in the event history
+  events: 'events/json',
   sensorInfos: 'sensor_infos/json',
   sensorData: 'sensors/+/data',
   params: 'params/json',

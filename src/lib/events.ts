@@ -20,6 +20,14 @@ export interface MowerEvent {
   attempts?: number;
   emergency?: boolean;
   battery_voltage?: number;
+  // recording an area, MowBite OS only (OpenMower doesn't send these): the step refused, what was saved
+  action?: string;
+  area_type?: string;
+  obstacles?: number;
+  points?: number;
+  area_m2?: number;
+  dock_id?: string;
+  heading?: number;
   // worked out here, not from OpenMower: a navigation error that only came because it was sent home (see markSentHome)
   sentHome?: boolean;
 }
@@ -135,6 +143,77 @@ export function emergencyText(flags: readonly string[]): string {
     .join(', ');
 }
 
+// a step of recording an area the mower turned down (RECORDING_REFUSED, MowBite OS only), the recording stays open
+const REFUSED_STEPS: Record<string, string> = {
+  start_area_recording: "Recording mode didn't start",
+  start_recording: 'Line not started',
+  stop_recording: 'Line not closed',
+  finish_mowing_area: 'Mowing area not saved',
+  finish_navigation_area: 'Navigation area not saved',
+  record_dock: 'Docking station not recorded',
+  collect_point: 'Point not set',
+  // the position got too inaccurate while recording, sent once until it's good again
+  point: 'No points recorded',
+};
+
+// the reasons MowBite OS gives (area_recorder.cpp, logic_core.cpp), their numbers are metres with two decimals
+const REFUSALS: [RegExp, string, string[]][] = [
+  [/^a ring needs at least (\d+) points, it has (\d+)$/, 'a line needs at least {min} points, it has {n}', ['min', 'n']],
+  [/^the line crosses itself$/, 'the line crosses itself', []],
+  [/^it encloses only ([\d.]+) m², at least ([\d.]+) needed$/, 'it encloses only {a} m², at least {min} m² needed', ['a', 'min']],
+  [/^Position accuracy ([\d.]+|nan) m, points need ([\d.]+) m or better$/i, 'position accurate to {acc} m, points need {max} m or better', ['acc', 'max']],
+  [
+    /^Position accuracy ([\d.]+|nan) m, the docking station needs ([\d.]+) m or better$/i,
+    'position accurate to {acc} m, the docking station needs {max} m or better',
+    ['acc', 'max'],
+  ],
+  [/^Only ([\d.]+) m from the first point, at least ([\d.]+) m needed for the heading$/, 'only {d} m from the first point, the direction needs at least {min} m', ['d', 'min']],
+  [/^Only ([\d.]+) m from the last point, more than ([\d.]+) m needed$/, 'only {d} m from the last point, more than {min} m needed', ['d', 'min']],
+  [/^The recording has reached (\d+) points, close the ring$/, 'the line has {n} points, the most there can be: close it', ['n']],
+  [/^The last change of the map is still being saved$/, 'the last change of the map is still being saved', []],
+  [/^No position$/, 'no position', []],
+  [/^No outline recorded$/, 'no outline recorded yet', []],
+  [/^The map does not fit the datum in use$/, "the map doesn't fit the reference point in use", []],
+];
+const RING = 'Cannot close the ring: ';
+
+// the reason in words of the app's language, one it doesn't know as it came
+export function refusalReason(r?: string, action?: string): string {
+  if (!r) return '';
+  const ring = r.startsWith(RING);
+  const rest = ring ? r.slice(RING.length) : r;
+  let text = rest;
+  for (const [re, key, names] of REFUSALS) {
+    const m = rest.match(re);
+    if (!m) continue;
+    const vars: Record<string, string> = {};
+    names.forEach((name, i) => {
+      const v = m[i + 1];
+      vars[name] = /^nan$/i.test(v) ? '?' : v.includes('.') ? fmt(Number(v), 2) : v;
+    });
+    text = tr(key, vars);
+    break;
+  }
+  // "line not closed" says it already
+  return ring && action !== 'stop_recording' ? tr("the line can't be closed: {problem}", {problem: text}) : text;
+}
+
+export function refusalText(e: MowerEvent): string {
+  const head = tr(REFUSED_STEPS[e.action ?? ''] ?? 'Recording step refused');
+  const why = refusalReason(e.reason, e.action);
+  return why ? `${head}: ${why}` : head;
+}
+
+// an area or the docking station saved from recording mode (AREA_RECORDED, DOCK_RECORDED, MowBite OS only)
+function recordedText(e: MowerEvent): string {
+  const what = e.area_type === 'nav' ? tr('Navigation area recorded') : tr('Mowing area recorded');
+  const parts: string[] = [];
+  if (typeof e.area_m2 === 'number') parts.push(`${fmt(e.area_m2, e.area_m2 < 10 ? 1 : 0)} m²`);
+  if (e.obstacles === 1) parts.push(tr('1 obstacle'));
+  else if (typeof e.obstacles === 'number' && e.obstacles > 1) parts.push(tr('{n} obstacles', {n: e.obstacles}));
+  return parts.length ? `${what} (${parts.join(', ')})` : what;
+}
+
 // state is what the mower was doing when the event happened, gps is switched off on purpose outside
 // of mowing, so losing it only counts as a problem while mowing
 export function describe(e: MowerEvent, state?: string): {text: string; severity: Severity} {
@@ -195,6 +274,12 @@ export function describe(e: MowerEvent, state?: string): {text: string; severity
       return info(tr('OpenMower started'));
     case 'SHUTDOWN':
       return info(tr('OpenMower stopped'));
+    case 'RECORDING_REFUSED':
+      return {text: refusalText(e), severity: 'warning'};
+    case 'AREA_RECORDED':
+      return info(recordedText(e));
+    case 'DOCK_RECORDED':
+      return info(tr('Docking station recorded'));
     default:
       return info(e.type.replace(/_/g, ' ').toLowerCase());
   }
@@ -252,6 +337,12 @@ export function explain(e: MowerEvent, state?: string, gpsTimeout?: number): str
     }
     case 'MOW_MOTOR_SPINUP_FAILED':
       return spinupFailed();
+    case 'RECORDING_REFUSED':
+      return e.action === 'point'
+        ? tr(
+            'While the position is that inaccurate the mower records no points. Once it is good again the line goes on, straight from the last good point.',
+          )
+        : tr('The recording stays open, nothing recorded so far is lost. Once the reason is gone, try the step again.');
     case 'DOCKING':
       return homeReason(e.reason) === 'hot'
         ? tr("The mow motor reached mower_logic/motor_hot_temperature. Once it's down to motor_cold_temperature it mows on by itself in semi-automatic or automatic mode, otherwise it waits for a start.")
@@ -276,6 +367,16 @@ export function eventSource(e: MowerEvent): {file: string; url: string; log?: st
     case 'EMERGENCY':
     case 'GPS':
       return src('mower_logic.cpp');
+  }
+}
+
+// one event as it comes live on events/json, null for anything that isn't one
+export function parseEvent(payload: string): MowerEvent | null {
+  try {
+    const e = JSON.parse(payload);
+    return e && typeof e === 'object' && typeof e.type === 'string' ? {...e, id: String(e.id ?? ''), t: Number(e.t) || Date.now() / 1000} : null;
+  } catch {
+    return null;
   }
 }
 

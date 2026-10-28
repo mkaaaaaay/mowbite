@@ -35,14 +35,15 @@ import {useEffect, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
 import styles from './page.module.css';
 import {fmt, tr, useLang} from '@/lib/i18n';
-import {ACTION, PARAM} from '@/lib/openmower';
+import {ACTION, PARAM, TOPIC} from '@/lib/openmower';
 import {rpcMethods} from '@/lib/rpc';
 import {GPS_QUALITY_LABEL, gpsQuality} from '@/lib/status';
 import {eventsOfDay, fileDay, forgetToday, historyDays} from '@/lib/history';
 import {backAtStart} from '@/lib/geometry';
 import {tick} from '@/lib/haptics';
 import {guardLeaving} from '@/lib/leaving';
-import {emergencyText} from '@/lib/events';
+import {emergencyText, parseEvent, refusalText, type MowerEvent} from '@/lib/events';
+import {onTopic} from '@/lib/mqttClient';
 
 const START = ACTION.startRecording;
 const A = ACTION.recording;
@@ -227,7 +228,24 @@ export default function RecordPage() {
     };
   }, []);
 
-  const act = (id: string) => publishAction(A(id));
+  // a step the mower turned down, with why: MowBite OS sends it, OpenMower doesn't (then nothing shows). gone with the next
+  // step, another phase, or for a point once the line goes on
+  const [refused, setRefused] = useState<MowerEvent | null>(null);
+  useEffect(
+    () =>
+      onTopic(TOPIC.events, (payload) => {
+        const e = parseEvent(payload.toString());
+        if (e?.type !== 'RECORDING_REFUSED') return;
+        setRefused(e);
+        // saving it didn't work after all
+        if (e.action?.startsWith('finish_') || e.action === 'record_dock') setSaved(null);
+      }),
+    [],
+  );
+  const act = (id: string) => {
+    setRefused(null);
+    publishAction(A(id));
+  };
   const actRef = useRef(act);
   actRef.current = act;
 
@@ -331,6 +349,10 @@ export default function RecordPage() {
   // the user went on, or it was just sent: not again until the mower was away from the start
   const [held, setHeld] = useState(false);
   const line = overlay.find((l) => !l.closed)?.points ?? [];
+  const [refusedAt, setRefusedAt] = useState({phase, points: line.length});
+  if (refused && (refusedAt.phase !== phase || (refusedAt.points < line.length && (refused.action === 'point' || refused.action === 'collect_point'))))
+    setRefused(null);
+  if (refusedAt.phase !== phase || refusedAt.points !== line.length) setRefusedAt({phase, points: line.length});
   const fromStart = line.length && position ? Math.hypot(position.x - line[0].x, position.y - line[0].y) : null;
   if (held && (phase !== 'recording' || (fromStart ?? 0) > 1)) setHeld(false);
   // (not without a connection: the stop wouldn't get out, and it wouldn't be tried again)
@@ -471,6 +493,7 @@ export default function RecordPage() {
                 mine.current = true;
                 setBounced(false);
                 setSaved(null);
+                setRefused(null);
                 publishAction(START);
                 setTimeout(() => void checkBounce().catch(() => {}), 4000);
               }}
@@ -486,6 +509,7 @@ export default function RecordPage() {
                 {tr('Send it home first')}
               </button>
             )}
+            {refused && <p className={styles.warn}>{refusalText(refused)}</p>}
             {bounced && (
               <p className={styles.warn}>
                 {tr(
@@ -518,6 +542,7 @@ export default function RecordPage() {
               <p className={gpsQ === 'fix' ? styles.dim : styles.warn}>
                 {gpsQ === 'fix' ? gpsText : `${gpsText}. ${tr('Without an RTK fix the edge ends up off.')}`}
               </p>
+              {refused && <p className={styles.warn}>{refusalText(refused)}</p>}
               <p>{text}</p>
               {closing !== null && (
                 <div className={styles.closing}>
@@ -661,7 +686,11 @@ export default function RecordPage() {
           {alarm ? (
             <div className={styles.remoteWarn}>{alarm}</div>
           ) : (
-            !live && <p className={styles.remoteWarn}>{tr('No connection to the mower, it stops by itself. Driving works again once the connection is back.')}</p>
+            (!live || refused) && (
+              <p className={styles.remoteWarn}>
+                {!live ? tr('No connection to the mower, it stops by itself. Driving works again once the connection is back.') : refusalText(refused!)}
+              </p>
+            )
           )}
 
           <div className={[styles.pad, styles.padLeft].join(' ')}>
