@@ -560,8 +560,8 @@ const onStalk = (x: number, y: number, a: number, l: number, bend: number, t: nu
 };
 // a bed's plants about step apart in rows moved on by half, shaken so no rows show, each with random numbers of its own
 // (from seed and where it is in the rows). tile: the box repeats itself, rows and columns fit it exactly and a plant near
-// an edge comes once more past the other edge (as far as twice step, a plant reaches that far), the same plant
-function spots(b: Box, step: number, seed: string, tile = false, most = 320): {x: number; y: number; r: () => number}[] {
+// an edge comes once more past the other edge (as far as reach steps, as far as its plants reach), the same plant
+function spots(b: Box, step: number, seed: string, tile = false, most = 320, reach = 2): {x: number; y: number; r: () => number}[] {
   let cols = Math.max(1, Math.round(b.w / step));
   let rows = Math.max(2, Math.round(b.h / (step * 0.87)));
   if (tile) rows += rows % 2;
@@ -581,7 +581,8 @@ function spots(b: Box, step: number, seed: string, tile = false, most = 320): {x
         for (const dy of tile ? [-b.h, 0, b.h] : [0]) {
           const [qx, qy] = [x + dx, y + dy];
           if (!dx && !dy) out.push({x, y, r: random(id + 'p')});
-          else if (qx > b.x - 2 * step && qx < b.x + b.w + 2 * step && qy > b.y - 2 * step && qy < b.y + b.h + 2 * step) out.push({x: qx, y: qy, r: random(id + 'p')});
+          else if (qx > b.x - reach * step && qx < b.x + b.w + reach * step && qy > b.y - reach * step && qy < b.y + b.h + reach * step)
+            out.push({x: qx, y: qy, r: random(id + 'p')});
         }
       }
     }
@@ -591,8 +592,8 @@ function spots(b: Box, step: number, seed: string, tile = false, most = 320): {x
 
 // a small leafy mound from above, as dots in three tones (lit up left, shaded down right): for the many plants of a bed
 const mound = (x: number, y: number, s: number, rnd: () => number): Dot[][] => {
-  const lobes = Array.from({length: 5}, (_, k): Dot => {
-    const a = (k / 5) * 2 * PI + rnd();
+  const lobes = Array.from({length: 4}, (_, k): Dot => {
+    const a = (k / 4) * 2 * PI + rnd();
     return [x + Math.cos(a) * s * 0.42, y + Math.sin(a) * s * 0.42, s * (0.4 + rnd() * 0.12)];
   });
   return [
@@ -2368,22 +2369,22 @@ export const PICTURES: Record<string, Picture> = {
         }
         lit(leaves, mound(x, y, s, rnd), kind === 'spike' ? '#3f7d3a' : kind === 'heads' ? '#5a9440' : '#4a8a3a');
         if (kind === 'daisy') {
-          for (let k = 0; k < 3; k++) {
+          for (let k = 0; k < 2; k++) {
             const [a, r] = [rnd() * 2 * PI, s * 0.6 * Math.sqrt(rnd())];
             const [fx, fy, fs] = [x + Math.cos(a) * r, y + Math.sin(a) * r, s * 0.24];
             for (let q = 0; q < 6; q++) flowers.push([[fx + Math.cos(q * 1.047 + fx) * fs * 0.6, fy + Math.sin(q * 1.047 + fx) * fs * 0.6, fs * 0.38], d.c]);
             hearts.push([[fx, fy, fs * 0.3], d.c === '#f2c230' || d.c === '#e8762a' ? '#5a3418' : '#f2c230']);
           }
         } else if (kind === 'spike') {
-          for (let k = 0; k < 5; k++) {
+          for (let k = 0; k < 3; k++) {
             const a = rnd() * 2 * PI;
             for (let q = 0; q < 3; q++) flowers.push([[x + Math.cos(a) * s * (0.4 + q * 0.2), y + Math.sin(a) * s * (0.4 + q * 0.2), s * (0.09 - q * 0.015)], d.c]);
           }
         } else {
-          for (let k = 0; k < 3; k++) {
+          for (let k = 0; k < 2; k++) {
             const [a, r] = [rnd() * 2 * PI, s * 0.5 * Math.sqrt(rnd())];
             const [fx, fy] = [x + Math.cos(a) * r, y + Math.sin(a) * r];
-            for (let q = 0; q < 5; q++) flowers.push([[fx + (rnd() - 0.5) * s * 0.32, fy + (rnd() - 0.5) * s * 0.32, s * 0.07], d.c]);
+            for (let q = 0; q < 4; q++) flowers.push([[fx + (rnd() - 0.5) * s * 0.32, fy + (rnd() - 0.5) * s * 0.32, s * 0.07], d.c]);
           }
         }
       }
@@ -2425,22 +2426,22 @@ export const PICTURES: Record<string, Picture> = {
         }
         mound(x, y, s, rnd).forEach((d, i) => leaves[i].push(...d));
         if (what < 0.45) {
-          for (let k = 0; k < 3; k++) {
+          for (let k = 0; k < 2; k++) {
             const [a, d] = [rnd() * 2 * PI, s * 0.6 * Math.sqrt(rnd())];
             const [fx, fy, fs] = [x + Math.cos(a) * d, y + Math.sin(a) * d, s * 0.24];
             for (let q = 0; q < 6; q++) flowers.push([[fx + Math.cos(q * 1.047 + fx) * fs * 0.6, fy + Math.sin(q * 1.047 + fx) * fs * 0.6, fs * 0.38], c]);
             hearts.push([[fx, fy, fs * 0.3], c === '#f2c230' || c === '#e8762a' ? '#5a3418' : '#f2c230']);
           }
         } else if (what < 0.75) {
-          for (let k = 0; k < 5; k++) {
+          for (let k = 0; k < 3; k++) {
             const a = rnd() * 2 * PI;
             for (let q = 0; q < 3; q++) flowers.push([[x + Math.cos(a) * s * (0.4 + q * 0.2), y + Math.sin(a) * s * (0.4 + q * 0.2), s * (0.09 - q * 0.015)], c]);
           }
         } else {
-          for (let k = 0; k < 3; k++) {
+          for (let k = 0; k < 2; k++) {
             const [a, d] = [rnd() * 2 * PI, s * 0.5 * Math.sqrt(rnd())];
             const [fx, fy] = [x + Math.cos(a) * d, y + Math.sin(a) * d];
-            for (let q = 0; q < 5; q++) flowers.push([[fx + (rnd() - 0.5) * s * 0.32, fy + (rnd() - 0.5) * s * 0.32, s * 0.07], c]);
+            for (let q = 0; q < 4; q++) flowers.push([[fx + (rnd() - 0.5) * s * 0.32, fy + (rnd() - 0.5) * s * 0.32, s * 0.07], c]);
           }
         }
       }
@@ -2470,10 +2471,10 @@ export const PICTURES: Record<string, Picture> = {
       // rose bushes about half a meter apart on bark, dark leaves with open roses on them
       const leaves: Dot[][] = [[], [], []];
       const blooms: Dot[] = [];
-      for (const {x, y, r: rnd} of spots(b, 0.36 * m, o.seed + 'rosebed', o.tile, 240)) {
+      for (const {x, y, r: rnd} of spots(b, 0.36 * m, o.seed + 'rosebed', o.tile, 240, 1)) {
         const s = (0.26 + rnd() * 0.06) * m;
         mound(x, y, s, rnd).forEach((d, i) => leaves[i].push(...d));
-        for (let k = 0; k < 4; k++) {
+        for (let k = 0; k < 3; k++) {
           const [a, d] = [rnd() * 2 * PI, s * 0.55 * Math.sqrt(rnd())];
           blooms.push([x + Math.cos(a) * d, y + Math.sin(a) * d, s * (0.16 + rnd() * 0.05)]);
         }
@@ -2542,10 +2543,10 @@ export const PICTURES: Record<string, Picture> = {
       // a dense carpet of low leaves covered in flowers of every color
       const leaves: Dot[][] = [[], [], []];
       const flowers: [number, number, number, string][] = [];
-      for (const {x, y, r: rnd} of spots(b, 0.2 * m, o.seed + 'summer', o.tile, 340)) {
+      for (const {x, y, r: rnd} of spots(b, 0.2 * m, o.seed + 'summer', o.tile, 340, 1)) {
         const s = (0.14 + rnd() * 0.03) * m;
         mound(x, y, s, rnd).forEach((d, i) => leaves[i].push(...d));
-        for (let k = 0; k < 3; k++) {
+        for (let k = 0; k < 2; k++) {
           const [a, d] = [rnd() * 2 * PI, s * 0.6 * Math.sqrt(rnd())];
           flowers.push([x + Math.cos(a) * d, y + Math.sin(a) * d, s * (0.32 + rnd() * 0.1), colors[Math.floor(rnd() * colors.length)]]);
         }
