@@ -2,6 +2,7 @@
 
 import {useEffect, useRef, useState} from 'react';
 import {
+  frameTakesTaps,
   freeMb,
   lastChecked,
   loadUpdate,
@@ -28,17 +29,19 @@ import {
   runResult,
   saveUpdateConf,
   selfInfo,
+  silentSince,
   updaterAlive,
   updaterWhere,
   WEEKDAYS,
   type Part,
+  type PartResult,
   type Progress,
   type UpdateConf,
   type UpdatePart,
   type UpdateState,
 } from '@/lib/autoUpdate';
 import {copyText} from '@/lib/clipboard';
-import {useDockgeUrl, useUpdaterPageLink, useUpdaterPageUrl} from '@/lib/dockge';
+import {useDockgeUrl, useUpdaterPageUrl} from '@/lib/dockge';
 import {fmt, tr, useLang} from '@/lib/i18n';
 import {apiBase, isDemo} from '@/lib/mowers';
 import {isApp} from '@/lib/native';
@@ -85,19 +88,29 @@ function CopyButton({text}: {text: string}) {
   );
 }
 
-// a delete or a step back takes two taps: the first asks, for a few seconds
+// a delete or a step back takes two taps: the first asks, for a few seconds. a double tap by mistake doesn't answer
+// the question it brings up at the same spot
 function useSure() {
   const [sure, setSure] = useState<string | null>(null);
+  const asked = useRef(0);
   const confirm = (key: string, go: () => void) => {
     if (sure !== key) {
       setSure(key);
+      asked.current = Date.now();
       setTimeout(() => setSure((k) => (k === key ? null : k)), 4000);
       return;
     }
+    if (Date.now() - asked.current < 600) return;
     setSure(null);
     go();
   };
   return {sure, confirm};
+}
+
+// what it did last with a part: in passing, or in a box when it's something to know or went wrong
+function LastTime({r}: {r: PartResult}) {
+  const text = r.at ? tr('Last time ({when}): {what}', {when: r.at, what: r.text}) : tr('Last time: {what}', {what: r.text});
+  return <span className={r.level === 'error' ? local.error : r.level === 'warn' ? local.warn : local.dim}>{text}</span>;
 }
 
 // MowBite updated by hand in dockge, step by step
@@ -180,10 +193,24 @@ const BADGE: Record<string, string> = {
   yes: 'Update available',
   switch: 'Switch to the version picked',
   no: 'Up to date',
-  failed: "Left out (didn't start)",
+  failed: 'Skipped',
   unknown: 'Not known yet',
   local: 'Built here',
 };
+
+// whether there's something new, in short: something new in green, a version that didn't start in yellow (why: under
+// the mouse)
+function Badge({available, isNew}: {available: string; isNew: boolean}) {
+  const failed = available === 'failed';
+  return (
+    <span
+      className={[local.badge, isNew ? local.badgeNew : failed ? local.badgeBad : ''].join(' ')}
+      title={failed ? tr("This version didn't start, it's left out until a newer one comes") : undefined}
+    >
+      {tr(BADGE[available])}
+    </span>
+  );
+}
 
 function PartCard({
   p,
@@ -225,7 +252,7 @@ function PartCard({
     <div className={local.part}>
       <div className={local.head}>
         <span className={local.name}>{p.name}</span>
-        {info.available && !fixed && <span className={[local.badge, isNew ? local.badgeNew : ''].join(' ')}>{tr(BADGE[info.available])}</span>}
+        {info.available && !fixed && <Badge available={info.available} isNew={isNew} />}
       </div>
       <span className={local.dim}>{tr('Runs: {what}', {what: info.running})}</span>
 
@@ -296,7 +323,7 @@ function PartCard({
       )}
       {p.kind === 'local' && <span className={local.dim}>{tr('Built from a local copy, it is left as it is.')}</span>}
       {p.gate === 'none' && <span className={local.dim}>{tr('Updates also with the mower out of the dock.')}</span>}
-      {result && <span className={local.dim}>{tr('Last time: {what}', {what: result})}</span>}
+      {result && <LastTime r={result} />}
 
       {p.kind === 'image' && s.status[`${part}_back`] === 'yes' && (
         <div className={local.row}>
@@ -322,7 +349,7 @@ function UpdaterCard({s, busy, now, anyAuto, onUpdate}: {s: UpdateState; busy: b
     <div className={local.part}>
       <div className={local.head}>
         <span className={local.name}>MowBite Updater</span>
-        {info.available && <span className={[local.badge, isNew ? local.badgeNew : ''].join(' ')}>{tr(BADGE[info.available])}</span>}
+        {info.available && <Badge available={info.available} isNew={isNew} />}
       </div>
       <span className={local.dim}>{tr('Runs: {what}', {what: info.running})}</span>
       {mine && <ProgressBar p={mine} now={now} />}
@@ -340,7 +367,23 @@ function UpdaterCard({s, busy, now, anyAuto, onUpdate}: {s: UpdateState; busy: b
         <span className={local.dim}>{tr('This is a version built on its own, not one from its registry. "Update" swaps it for the one from there.')}</span>
       )}
       {anyAuto && <span className={local.dim}>{tr('It updates itself too, after the automatic updates at night.')}</span>}
-      {info.result && <span className={local.dim}>{tr('Last time: {what}', {what: info.result})}</span>}
+      {info.result && <LastTime r={info.result} />}
+    </div>
+  );
+}
+
+// an updater from before it could update itself: it stays as it is until it's updated once by hand
+function OldUpdater() {
+  const dockge = useDockgeUrl();
+  return (
+    <div className={local.part}>
+      <span className={local.name}>MowBite Updater</span>
+      <span className={local.dim}>
+        {tr('This updater is an older one and can\'t update itself from here. Once by hand: in Dockge pick the stack "mowbite" (or the one it runs in) and tap "Update", after that it works from here.')}{' '}
+        <a href={dockge} target="_blank" rel="noreferrer">
+          {dockge}
+        </a>
+      </span>
     </div>
   );
 }
@@ -465,13 +508,13 @@ export function AutoUpdate() {
   const [lost, setLost] = useState(false);
   const [now, setNow] = useState(() => Date.now() / 1000);
   const page = useUpdaterPageUrl();
-  const pageLink = useUpdaterPageLink();
   const theme = useThemeChoice();
   const fast = useRef(false);
   const restartingRef = useRef(false);
   // an updater answered on this page already
   const seenRef = useRef(false);
-  const embeddedRef = useRef(false);
+  // its own page shown in here (see below)
+  const framedRef = useRef(false);
   // where the updater's page is: from MowBite's container, else next to MowBite
   const [where, setWhere] = useState<string | null>(null);
   useEffect(() => {
@@ -497,7 +540,6 @@ export function AutoUpdate() {
             if (x) seenRef.current = true;
             restartingRef.current = !!x && !!selfInfo(x)?.restarting;
             fast.current = !!x && (x.requested || x.status.result === 'running' || restartingRef.current);
-            embeddedRef.current = x?.status.embed === '1' && !isDemo();
             if (x && !x.requested && x.status.result !== 'running') setAsked(false);
           },
           () => {
@@ -509,7 +551,7 @@ export function AutoUpdate() {
         // what it does shows up while the page is open, every 2 seconds while it updates. with its own page in here,
         // that one asks, this only looks every half minute whether it's still there and which MowBite runs
         .finally(() => {
-          if (!stop) timer = setTimeout(load, embeddedRef.current ? 30000 : fast.current ? 2000 : 5000);
+          if (!stop) timer = setTimeout(load, framedRef.current ? 30000 : fast.current ? 2000 : 5000);
         });
     void load();
     return () => {
@@ -520,6 +562,13 @@ export function AutoUpdate() {
 
   const running = s?.status.result === 'running';
   const restarting = !!s && !!selfInfo(s, now)?.restarting;
+  // its page: where MowBite's container says, else next to MowBite. an updater that brings its own page for in here
+  // (embed) shows that one, with all it can do, only where it takes taps: else MowBite's own cards, which ask often
+  const base = where || page;
+  const framed = !!s && s.status.embed === '1' && !isDemo() && !!base && frameTakesTaps(base, window.location, isApp());
+  useEffect(() => {
+    framedRef.current = framed;
+  }, [framed]);
   // the time on the bar, by the second while it updates or restarts itself
   useEffect(() => {
     if (!running && !restarting) return;
@@ -528,9 +577,9 @@ export function AutoUpdate() {
   }, [running, restarting]);
 
   if (s === undefined) return null;
-  if (!updaterAlive(s)) return isDemo() ? null : <AddUpdater />;
+  if (!s) return isDemo() ? null : <AddUpdater />;
 
-  const st = s!;
+  const st = s;
   const busy = asked || st.requested || running || restarting;
   const set = (patch: Record<string, string | number>) => {
     const conf: UpdateConf = {...st.conf, ...patch};
@@ -574,19 +623,31 @@ export function AutoUpdate() {
     </div>
   );
 
-  // an updater that brings its own page for in here (embed): that one, with all it can do
-  if (st.status.embed === '1' && !isDemo() && (where || page)) {
-    const base = where || page;
+  // it answers, but its loop hasn't said it's there for a while: what it said last stays, it isn't one never set up
+  const since = silentSince(st);
+  const silentNote = !updaterAlive(st) && !isDemo() && (
+    <span className={local.warn}>
+      {since
+        ? tr("The updater hasn't given a sign of life since {t}, it may hang or be restarting. Shown is what it said last.", {t: since})
+        : tr("The updater doesn't give a sign of life, it may hang or be restarting.")}
+    </span>
+  );
+  const own = base && !isDemo() && (
+    <span className={local.dim}>
+      {tr('Its own page:')}{' '}
+      <a href={`${base}/?theme=${theme}`} target="_blank" rel="noreferrer">
+        {base}
+      </a>
+    </span>
+  );
+
+  if (framed && base) {
     return (
       <div className={local.panel}>
         {reloadNote}
+        {silentNote}
         <UpdaterFrame base={base} />
-        <span className={local.dim}>
-          {tr('Its own page:')}{' '}
-          <a href={`${base}/?theme=${theme}`} target="_blank" rel="noreferrer">
-            {base}
-          </a>
-        </span>
+        {own}
       </div>
     );
   }
@@ -600,6 +661,7 @@ export function AutoUpdate() {
       </span>
 
       {reloadNote}
+      {silentNote}
 
       <OutOfReachNote s={st} />
 
@@ -616,7 +678,11 @@ export function AutoUpdate() {
         />
       ))}
 
-      <UpdaterCard s={st} busy={busy} now={now} anyAuto={anyAuto} onUpdate={() => ask(requestSelf)} />
+      {st.status.updater_running ? (
+        <UpdaterCard s={st} busy={busy} now={now} anyAuto={anyAuto} onUpdate={() => ask(requestSelf)} />
+      ) : (
+        updaterAlive(st) && <OldUpdater />
+      )}
 
       {anyAuto ? (
         <div className={local.part}>
@@ -672,14 +738,7 @@ export function AutoUpdate() {
             .join(' ')}
         </span>
         {error && <span className={local.warn}>{error}</span>}
-        {page && !isDemo() && (
-          <span className={local.dim}>
-            {tr('Its own page:')}{' '}
-            <a href={pageLink} target="_blank" rel="noreferrer">
-              {page}
-            </a>
-          </span>
-        )}
+        {own}
         {log && (
           <details>
             <summary className={local.dim}>{tr('Log')}</summary>

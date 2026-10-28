@@ -1,5 +1,23 @@
 import {describe, expect, it} from 'vitest';
-import {freeMb, kindOf, openMowerChoices, outOfReach, reachLine, partInfo, partResult, partsOf, progressOf, runResult, selfInfo, stepDetail, stepLabel, updaterAlive, type UpdateState} from './autoUpdate';
+import {
+  frameTakesTaps,
+  freeMb,
+  kindOf,
+  openMowerChoices,
+  outOfReach,
+  reachLine,
+  partInfo,
+  partResult,
+  partsOf,
+  progressOf,
+  runResult,
+  selfInfo,
+  silentSince,
+  stepDetail,
+  stepLabel,
+  updaterAlive,
+  type UpdateState,
+} from './autoUpdate';
 
 const state = (status: Record<string, string>, openmower = 'edge'): UpdateState => ({
   conf: {mowbite: 'beta', mowbite_auto: 0, openmower, openmower_auto: 0, planner_auto: 0, at: '03:00', days: 'daily'},
@@ -15,6 +33,30 @@ describe('the updater on the mower', () => {
     expect(updaterAlive(state({alive: '1000', result: 'running'}), 2000)).toBe(true);
     expect(updaterAlive(state({}), 1100)).toBe(false);
     expect(updaterAlive(null)).toBe(false);
+    // a look for updates or a request it took can take longer than a few minutes
+    expect(updaterAlive(state({alive: '1000', looking: '1100'}), 2000)).toBe(true);
+    expect(updaterAlive(state({alive: '1000', taken: '1100 now:all'}), 2000)).toBe(true);
+    expect(updaterAlive(state({alive: '1000', looking: '1100'}), 5000)).toBe(false);
+    expect(updaterAlive(state({alive: '1000', looking: ''}), 2000)).toBe(false);
+    expect(silentSince(state({alive: '1792831337'}))).toBeTruthy();
+    expect(silentSince(state({}))).toBeNull();
+  });
+
+  it("embeds its page only where it takes taps: MowBite from the updater's host, this computer or the app", () => {
+    const at = (url: string) => {
+      const u = new URL(url);
+      return {protocol: u.protocol, hostname: u.hostname};
+    };
+    expect(frameTakesTaps('http://openmower:8083', at('http://openmower:8082/settings/'), false)).toBe(true);
+    expect(frameTakesTaps('http://192.168.1.10:8083', at('http://192.168.1.10:8082/'), false)).toBe(true);
+    expect(frameTakesTaps('http://openmower:8083', at('http://localhost:3000/'), false)).toBe(true);
+    expect(frameTakesTaps('http://openmower:8083', at('http://localhost/'), true)).toBe(true);
+    // MowBite on another computer, or another mower picked: its page there only shows
+    expect(frameTakesTaps('http://openmower:8083', at('http://nas:8082/'), false)).toBe(false);
+    expect(frameTakesTaps('http://192.168.1.11:8083', at('http://192.168.1.10:8082/'), false)).toBe(false);
+    // a page from https can't hold one from http
+    expect(frameTakesTaps('http://mower.example:8083', at('https://mower.example/'), false)).toBe(false);
+    expect(frameTakesTaps('not a url', at('http://openmower:8082/'), false)).toBe(false);
   });
 
   it('tells what runs and whether there is something new, for each part', () => {
@@ -37,10 +79,13 @@ describe('the updater on the mower', () => {
   });
 
   it('says what it did with each part', () => {
-    expect(partResult(state({mowbite: 'updated 1792831337 1.4.0-beta.12'}), 'mowbite')).toContain('1.4.0-beta.12');
-    expect(partResult(state({openmower: 'nospace 2400 1300'}), 'openmower')).toContain('2400');
-    expect(partResult(state({planner: 'error base_missing'}), 'planner')).toContain('OpenMower');
+    expect(partResult(state({mowbite: 'updated 1792831337 1.4.0-beta.12'}), 'mowbite')).toMatchObject({level: 'ok', at: null});
+    expect(partResult(state({mowbite: 'updated 1792831337 1.4.0-beta.12'}), 'mowbite')!.text).toContain('1.4.0-beta.12');
+    expect(partResult(state({openmower: 'nospace 2400 1300'}), 'openmower')).toMatchObject({level: 'warn', text: expect.stringContaining('1 GB to spare')});
+    expect(partResult(state({planner: 'error base_missing'}), 'planner')).toMatchObject({level: 'error', text: expect.stringContaining('OpenMower')});
     expect(partResult(state({}), 'planner')).toBeNull();
+    // up to date: the badge says it already
+    expect(partResult(state({openmower: 'current'}), 'openmower')).toBeNull();
     expect(runResult(state({result: 'waiting'}))).toContain('dock');
     expect(runResult(state({result: 'done'}))).toBeNull();
   });
@@ -72,9 +117,40 @@ describe('the updater on the mower', () => {
   });
 
   it('says when it went back, or could not', () => {
-    expect(partResult(state({mowbite: 'back 1792831337 1.4.0-beta.11'}), 'mowbite')).toContain('1.4.0-beta.11');
-    expect(partResult(state({mowbite: 'error not_docked'}), 'mowbite')).toContain('dock');
+    expect(partResult(state({mowbite: 'back 1792831337 1.4.0-beta.11'}), 'mowbite')!.text).toContain('1.4.0-beta.11');
+    expect(partResult(state({mowbite: 'error not_docked'}), 'mowbite')).toMatchObject({level: 'warn', text: expect.stringContaining('dock')});
+    // after "update all" with the mower out: the run's line says it once, each part only in passing
+    expect(partResult(state({mowbite: 'error not_docked', result: 'waiting'}), 'mowbite')!.level).toBe('ok');
+    // went back by itself, the one before runs: something to know. couldn't go back: something wrong
+    expect(partResult(state({mowbite: 'rolled_back'}), 'mowbite')!.level).toBe('warn');
+    expect(partResult(state({mowbite: 'error back'}), 'mowbite')!.level).toBe('warn');
+    expect(partResult(state({mowbite: 'error rollback'}), 'mowbite')!.level).toBe('error');
     expect(runResult(state({result: 'interrupted'}))).toContain('halfway');
+  });
+
+  it('says what went wrong in words, with when it was when the updater writes that', () => {
+    const r = (status: Record<string, string>, part = 'mowbite') => partResult(state(status), part)!;
+    expect(r({mowbite: 'error pull'})).toMatchObject({level: 'error', text: expect.stringContaining('internet'), at: null});
+    expect(r({mowbite: 'error pull', mowbite_at: '1792831337'}).at).toBeTruthy();
+    expect(r({mowbite: 'error pull', mowbite_at: 'x'}).at).toBeNull();
+    expect(r({planner: 'error github'}, 'planner').text).toContain('GitHub');
+    expect(r({openmower: 'error registry'}, 'openmower').text).toContain('internet');
+    expect(r({mowbite: 'error compose'}).text).toContain('compose file');
+    expect(r({updater: 'error compose'}, 'updater').text).toContain("can't update itself");
+    expect(r({mowbite: 'stopped'})).toMatchObject({level: 'warn', text: expect.stringContaining('stopped')});
+    // the planner made anew on OpenMower's new version while stopped: as it should. one stopped when its own update came
+    // was left out
+    expect(r({planner: 'stopped', planner_available: 'no main', planner_source: 'github'}, 'planner')).toMatchObject({level: 'ok', text: 'stopped, it stays stopped as it was'});
+    expect(r({planner: 'stopped', planner_available: 'yes main', planner_source: 'github'}, 'planner').level).toBe('warn');
+    // a build changes no compose file
+    expect(r({planner: 'error compose', planner_source: 'github'}, 'planner').text).toContain('built anew');
+    // one it doesn't know: its code, and the log
+    expect(r({mowbite: 'error weird 42'}).text).toBe('failed (weird 42), see the log');
+    // the room it needs: OpenMower with 1 GB to spare, an app with some, a build counts it in
+    expect(r({mowbite: 'nospace 120 400'}).text).toContain('some to spare');
+    expect(r({planner: 'nospace 800 700', planner_source: 'github'}, 'planner').text).toBe('not enough room on the mower: needs about 800 MB, 700 MB free');
+    // the updater's own step back has its time along
+    expect(r({updater: 'rolled_back 1792831337'}, 'updater').at).toBeTruthy();
   });
 
   it('shows every part the updater lists, OpenMower\'s apps too, and the three of an older one', () => {
@@ -100,8 +176,8 @@ describe('the updater on the mower', () => {
     // restarting on the new version: since when, for a few minutes at most
     expect(selfInfo(state({updater_running: '70cb346 2026-10-26', updater: 'restarting 1000'}), 1100)!.restarting).toBe(1000);
     expect(selfInfo(state({updater_running: '70cb346 2026-10-26', updater: 'restarting 1000'}), 1400)!.restarting).toBeNull();
-    expect(selfInfo(state({updater_running: '70cb346 2026-10-26', updater: 'updated 1792831337 70cb346'}))!.result).toContain('70cb346');
-    expect(selfInfo(state({updater_running: '70cb346 2026-10-26', updater: 'rolled_back 1792831337'}))!.result).toContain("didn't start");
+    expect(selfInfo(state({updater_running: '70cb346 2026-10-26', updater: 'updated 1792831337 70cb346'}))!.result!.text).toContain('70cb346');
+    expect(selfInfo(state({updater_running: '70cb346 2026-10-26', updater: 'rolled_back 1792831337'}))!.result!.text).toContain("didn't start");
     const run = state({result: 'running', run_parts: 'updater', progress: 'updater download 40 1000'});
     expect(runResult(run)).toBe('Updating MowBite Updater (1 of 1)…');
   });

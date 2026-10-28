@@ -1,4 +1,5 @@
-import {expect, test} from './app';
+import type {Page} from '@playwright/test';
+import {expect, SIM, test} from './app';
 
 // the updates on the mower (the demo mower has a made-up updater): each part with what runs, its version and
 // updating it, OpenMower's release with the warning for the planner, only the log to select, the buttons alike
@@ -24,7 +25,7 @@ test('the updates on the mower: the parts, a warning for the release, the log', 
   expect(sizes).toHaveLength(1);
 });
 
-// making room: what nothing needs with the room it frees, a delete only with a second tap
+// making room: what nothing needs with the room it frees, a delete only with a second tap a moment later
 test('making room asks before it deletes', async ({page}) => {
   await page.goto('/settings/#updates');
   // the card: the innermost box with its name and its own button
@@ -36,9 +37,11 @@ test('making room asks before it deletes', async ({page}) => {
   await expect(room.getByText('mowbite_planner:before-0888dd0')).toBeVisible();
   await expect(room.getByText('an older version of the planner, kept to go back to')).toBeVisible();
   const item = room.locator('div', {has: page.getByText('an image without a name')}).last();
-  await item.getByRole('button', {name: 'Delete'}).click();
-  // the first tap only asks
+  // the first tap only asks, a double tap doesn't answer the question it brings up
+  await item.getByRole('button', {name: 'Delete'}).dblclick();
+  await expect(item.getByRole('button', {name: 'Really delete?'})).toBeVisible();
   await expect(room.getByText('an image without a name')).toBeVisible();
+  await page.waitForTimeout(700);
   await item.getByRole('button', {name: 'Really delete?'}).click();
   await expect(room.getByText('an image without a name')).toHaveCount(0, {timeout: 15_000});
 });
@@ -74,4 +77,62 @@ test('the updater updates itself', async ({page}) => {
   await expect(card.getByText('Up to date')).toBeVisible({timeout: 20_000});
   await expect(card.getByText('commit 70cb346', {exact: false})).toBeVisible();
   await expect(card.getByRole('progressbar')).toHaveCount(0);
+});
+
+// the updater's own page in here: only where it takes taps (MowBite from the updater's host), else MowBite's own cards.
+// made up: MowBite at mowbite.test from the built app, its scripts and the updater's page stand-ins, no mower anywhere
+test.describe("the updater's page in here", () => {
+  test.skip(SIM, 'made up, not for a mower');
+  const now = () => Math.round(Date.now() / 1000);
+  const UPDATER_PAGE = "<p>the updater's page</p><script>parent.postMessage({mowbiteUpdater: 'height', height: 300}, '*')</script>";
+  const CONFIG = "window.__MOWER_CONFIG__ = {mqttUrl: 'ws://mowbite.test:9001'};";
+  const conf = {at: '03:00', days: 'daily', mowbite: 'beta', mowbite_auto: 0, openmower: 'edge', openmower_auto: 0, planner_auto: 0};
+  async function madeUp(page: Page, app: string, where: string, status: Record<string, string>) {
+    await page.addInitScript(() => localStorage.removeItem('mower'));
+    // (mqtt goes nowhere: nothing answers it)
+    await page.routeWebSocket(/.*/, () => {});
+    await page.route(/./, async (route) => {
+      const url = new URL(route.request().url());
+      if (url.port === '8083') return route.fulfill({contentType: 'text/html', body: UPDATER_PAGE});
+      if (url.hostname !== 'mowbite.test') return route.fulfill({status: 404, body: ''});
+      if (url.pathname === '/config.js') return route.fulfill({contentType: 'text/javascript', body: CONFIG});
+      if (url.pathname === '/cgi-bin/update' && url.search === '?where') return route.fulfill({contentType: 'text/plain', body: where});
+      if (url.pathname === '/cgi-bin/update') {
+        const all = {embed: '1', mowbite_running: '1.4.0 2026-10-24', mowbite_available: 'no ghcr.io/mkaaaaaay/mowbite:latest', ...status};
+        return route.fulfill({json: {conf, requested: false, status: all, log: []}});
+      }
+      if (url.pathname.startsWith('/cgi-bin/')) return route.fulfill({contentType: 'text/plain', body: ''});
+      // the built app, as the container hands it out
+      return route.fulfill({response: await route.fetch({url: new URL(url.pathname + url.search, app).href})});
+    });
+    await page.goto('http://mowbite.test:8082/settings/#updates');
+  }
+
+  test('embedded from the same host', async ({page, baseURL}) => {
+    await madeUp(page, baseURL!, '', {alive: String(now()), updater_running: '70cb346 2026-10-26'});
+    const frame = page.locator('#update iframe[title="MowBite Updater"]');
+    await expect(frame).toHaveAttribute('src', /^http:\/\/mowbite\.test:8083\/\?embed=1/);
+    await expect(page.frameLocator('#update iframe').getByText("the updater's page")).toBeVisible();
+    await expect(frame).toHaveCSS('height', '300px');
+    await expect(page.locator('#update').getByRole('button', {name: 'Check for updates'})).toHaveCount(0);
+  });
+
+  test("its page on another host only shows, MowBite's own cards instead", async ({page, baseURL}) => {
+    // (an older updater that can't update itself)
+    await madeUp(page, baseURL!, 'http://openmower.test:8083', {alive: String(now())});
+    const updates = page.locator('#update');
+    await expect(updates.getByRole('button', {name: 'Check for updates'})).toBeVisible();
+    await expect(updates.locator('iframe')).toHaveCount(0);
+    const own = updates.getByRole('link', {name: 'http://openmower.test:8083'});
+    await expect(own).toHaveAttribute('href', /^http:\/\/openmower\.test:8083\/\?theme=/);
+    await expect(updates.getByText("This updater is an older one and can't update itself from here", {exact: false})).toBeVisible();
+  });
+
+  test("one that's quiet for a while is still there, not one to set up", async ({page, baseURL}) => {
+    await madeUp(page, baseURL!, '', {alive: String(now() - 900), updater_running: '70cb346 2026-10-26'});
+    const updates = page.locator('#update');
+    await expect(updates.getByText("The updater hasn't given a sign of life since", {exact: false})).toBeVisible();
+    await expect(updates.locator('iframe')).toHaveCount(1);
+    await expect(updates.getByText('not set up yet', {exact: false})).toHaveCount(0);
+  });
 });

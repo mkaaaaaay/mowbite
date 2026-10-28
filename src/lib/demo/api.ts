@@ -219,7 +219,8 @@ function demoProgress(status: Record<string, string>, now: number) {
       if (t < secs) {
         const pct = step === 'download' || of ? Math.floor((100 * t) / secs) : '-';
         status.progress = [part(p), step, pct, Math.round(now - t), ...(of ? [Math.floor((of * t) / secs), of] : [])].join(' ');
-        status.run_parts = demoRun.parts.map(part).join(' ');
+        // (the updater updates itself after the others, on a bar of its own)
+        status.run_parts = p === 'updater' ? p : demoRun.parts.filter((x) => x !== 'updater').map(part).join(' ');
         status.result = 'running';
         return;
       }
@@ -240,6 +241,7 @@ function demoUpdate(): Record<string, unknown> {
     checked: String(now - 1800),
     mowbite_running: `${version} ${day(3)}`,
     mowbite_available: 'yes ghcr.io/mkaaaaaay/mowbite:latest',
+    mowbite_stable: 'yes',
     mowbite: `updated ${now - 3 * 86400} ${version}`,
     mowbite_back: 'yes',
     openmower_running: `edge ${day(11)}`,
@@ -348,12 +350,13 @@ export async function demoFetch(url: string, init?: RequestInit): Promise<Respon
         else room = what === 'all' ? [] : room.filter((i) => `img:${i.id}` !== what);
         return text('ok');
       }
-      // an update or going back: played through in a few seconds. a check: the demo mower has nothing to look for
+      // an update or going back: played through in a few seconds, all of them with the updater itself last. a check: the
+      // demo mower has nothing to look for
       if (post && (q.has('now') || q.has('back') || q.has('self')) && !demoRun) {
         const one = q.get('now');
         demoRun = {
           t: Date.now() / 1000,
-          parts: q.has('back') ? ['back'] : q.has('self') ? ['updater'] : one && one in DEMO_STEPS ? [one] : ['openmower', 'planner', 'mowbite'],
+          parts: q.has('back') ? ['back'] : q.has('self') ? ['updater'] : one && one in DEMO_STEPS ? [one] : ['openmower', 'planner', 'mowbite', 'updater'],
         };
       }
       if (post) return text('ok');

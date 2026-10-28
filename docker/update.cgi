@@ -1,40 +1,36 @@
 #!/bin/sh
 # the MowBite Updater (github.com/mkaaaaaay/mowbite-updater, on the mower's own network, port 8083): the app's questions
-# passed on to it (it keeps its settings and status itself), and whether the mower is idle in the dock (?docked: "1",
-# else "0 <state>"), and where the browser finds its page (?where: UPDATER_URL, the mower's address for mqtt, or nothing:
-# the same host as MowBite). without the updater: {} for the status, the app shows how to add it
+# passed on to it (it keeps its settings and status itself), and where the browser finds its page (?where: UPDATER_URL,
+# the mower's address for mqtt, or nothing: the same host as MowBite). without the updater: {} for the status, the app
+# shows how to add it
 . /origin.sh
-. /broker.sh
-. /openmower.sh
 plain() { cors; printf 'Content-Type: text/plain\r\nCache-Control: no-store\r\n\r\n%s\n' "$1"; exit 0; }
-# (it runs on the mower's own network: on the mower, the gateway of this container. MowBite somewhere else: the mower's
-# address it has for mqtt, or UPDATER_URL)
-U=${UPDATER_URL:-http://${MOWER_MQTT_HOST:-$(ip route 2>/dev/null | awk '/^default/ {print $3; exit}')}:8083}/cgi-bin/updater
-# (as json: the updater takes changes only from programs and its own page)
-post() { wget -q -T 10 -O - --header 'Content-Type: application/json' --post-data "$2" "$U?$1" 2>/dev/null || echo failed; }
+# where the updater answers: UPDATER_URL, else on the mower's own network. MowBite on the mower: here with host
+# networking, else the host behind this container's gateway. MowBite somewhere else: the mower it has for mqtt
+updater() {
+  [ -n "${UPDATER_URL:-}" ] && echo "$UPDATER_URL" && return
+  case ${MOWER_MQTT_HOST:-localhost} in
+  localhost | 127.* | ::1 | host.docker.internal) ;;
+  *) echo "http://$MOWER_MQTT_HOST:8083" && return ;;
+  esac
+  gw=$(ip route 2>/dev/null | awk '/^default/ {print $3; exit}')
+  for h in 127.0.0.1 $gw host.docker.internal; do
+    nc -z -w 2 "$h" 8083 2>/dev/null && echo "http://$h:8083" && return
+  done
+  echo "http://$gw:8083"
+}
+# (as json, the way the updater takes changes from programs. what MowBite's other scripts take from a browser, it
+# passes on too: origin.sh)
+post() { wget -q -T 10 -O - --header 'Content-Type: application/json' --post-data "$2" "$(updater)/cgi-bin/updater?$1" 2>/dev/null || echo failed; }
 case "$REQUEST_METHOD $QUERY_STRING" in
 "GET where")
   cors
   printf 'Content-Type: text/plain\r\nCache-Control: no-store\r\n\r\n'
-  echo "${UPDATER_URL:-${MOWER_MQTT_HOST:+http://$MOWER_MQTT_HOST:8083}}"
-  ;;
-"GET docked")
-  cors
-  printf 'Content-Type: text/plain\r\nCache-Control: no-store\r\n\r\n'
-  host=$(find_broker)
-  # only what OpenMower says now (-R: nothing kept by the broker from before a restart)
-  # shellcheck disable=SC2086
-  s=$([ -n "$host" ] && mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -R -C 1 -W 6 2>/dev/null)
-  state=$(printf '%s' "$s" | sed -n 's/.*"current_state": *"\([A-Z_]*\)".*/\1/p')
-  charging=$(printf '%s' "$s" | sed -n 's/.*"is_charging": *\([a-z0-9]*\).*/\1/p')
-  # a full battery stops charging, the contacts' voltage still says it's in the dock
-  # shellcheck disable=SC2086
-  volt=$([ -n "$host" ] && [ "$state" = IDLE ] && mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_CHARGE_VOLTAGE" -R -C 1 -W 6 2>/dev/null)
-  if [ "$state" = IDLE ] && { [ "$charging" = 1 ] || [ "$charging" = true ] || awk -v v="$volt" 'BEGIN {exit !(v + 0 >= 20)}'; }; then
-    echo 1
-  else
-    echo "0 ${state:-unknown}"
-  fi
+  # (an address of this host means nothing to the browser: then nothing, it takes MowBite's host)
+  case ${MOWER_MQTT_HOST:-} in
+  localhost | 127.* | ::1 | host.docker.internal) echo "${UPDATER_URL:-}" ;;
+  *) echo "${UPDATER_URL:-${MOWER_MQTT_HOST:+http://$MOWER_MQTT_HOST:8083}}" ;;
+  esac
   ;;
 "POST conf")
   len=${CONTENT_LENGTH:-0}
@@ -55,6 +51,6 @@ case "$REQUEST_METHOD $QUERY_STRING" in
 *)
   cors
   printf 'Content-Type: application/json\r\nCache-Control: no-store\r\n\r\n'
-  wget -q -T 10 -O - "$U" 2>/dev/null || echo '{}'
+  wget -q -T 10 -O - "$(updater)/cgi-bin/updater" 2>/dev/null || echo '{}'
   ;;
 esac

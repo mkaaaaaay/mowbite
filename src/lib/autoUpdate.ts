@@ -117,11 +117,31 @@ export function roomNote(item: RoomItem): string {
 export const roomTotal = (s: UpdateState) => (s.room?.items ?? []).reduce((n, i) => n + i.bytes, 0);
 export const size = (bytes: number) => (bytes >= 1e9 ? `${fmt(bytes / 1e9, 1)} GB` : bytes >= 1e6 ? `${Math.round(bytes / 1e6)} MB` : `${Math.max(0, Math.round(bytes / 1e3))} kB`);
 
-// it writes "alive" every minute and with each step of an update, a big download or a build can take a while longer
+// it writes "alive" every minute and with each step of an update, a big download or a build can take a while longer,
+// so can a look for updates or a request it took (looking, taken: since when)
 export function updaterAlive(s: UpdateState | null, now = Date.now() / 1000): boolean {
   if (!s) return false;
   const since = now - Number(s.status.alive ?? 0);
-  return since < 300 || (s.status.result === 'running' && since < 3600);
+  const lately = (key: string) => {
+    const t = Number((s.status[key] ?? '').split(' ')[0]);
+    return t > 0 && now - t < 3600;
+  };
+  return since < 300 || ((s.status.result === 'running' || lately('looking') || lately('taken')) && since < 3600);
+}
+// since when it hasn't given a sign of life, null when it never did
+export const silentSince = (s: UpdateState) => (/^\d+$/.test(s.status.alive ?? '') ? when(s.status.alive) : null);
+
+// whether the updater's page (at base) takes taps in a frame on this page: it does for MowBite from its own host, from
+// this computer and in the app, else it only shows. a page from https can't hold one from http at all
+export function frameTakesTaps(base: string, here: {protocol: string; hostname: string}, app: boolean): boolean {
+  let host: string;
+  try {
+    host = new URL(base).hostname;
+  } catch {
+    return false;
+  }
+  if (here.protocol === 'https:' && base.startsWith('http:')) return false;
+  return app || host === here.hostname || here.hostname === 'localhost' || here.hostname === '127.0.0.1';
 }
 
 // what it does right now, for the bar: the part, the step, its percent (null: no telling, the bar moves without one),
@@ -225,35 +245,101 @@ export function partInfo(s: UpdateState, part: Part): PartInfo {
   return {running, available};
 }
 
-// what it did last with a part, in words: "<state> <values>" as updater.sh writes them
-export function partResult(s: UpdateState, part: Part): string | null {
+// what it did last with a part: in passing (ok), something to know (warn) or something that went wrong (error)
+export type ResultLevel = 'ok' | 'warn' | 'error';
+export interface PartResult {
+  text: string;
+  level: ResultLevel;
+  // when, for a result whose words don't say it: from <part>_at, which an older updater doesn't write
+  at: string | null;
+}
+
+// what it did last with a part, in words: "<state> <values>" as updater.sh writes them. up to date isn't said again,
+// the badge says it
+export function partResult(s: UpdateState, part: Part): PartResult | null {
   const [state, ...rest] = (s.status[part] ?? '').split(' ');
+  const t = s.status[`${part}_at`];
+  const at = t && /^\d+$/.test(t) ? when(t) : null;
+  const say = (text: string | null, level: ResultLevel, time = at): PartResult | null => (text ? {text, level, at: time} : null);
+  const version = rest[1] ? ` (${rest[1]})` : '';
   switch (state) {
-    case 'current':
-      return tr('was up to date');
     case 'updated':
-      return tr('updated {when}', {when: when(rest[0])}) + (rest[1] ? ` (${rest[1]})` : '');
-    case 'local':
-      return kindOf(s, part) === 'local' ? null : tr('runs an image built here, updated only when asked');
-    case 'nospace':
-      return tr('not enough room on the mower: needs about {need} MB and 1 GB to spare, {free} MB free', {need: rest[0] ?? '?', free: rest[1] ?? '?'});
-    case 'skipped_failed':
-      return tr("this version didn't start before, it waits for the next one");
-    case 'stable_older':
-      return tr('stable {v} is older than what runs, it stays until a newer stable is out', {v: rest[0] ?? '?'});
-    case 'rolled_back':
-      return tr("the new version didn't start, it went back to the one before");
+      return say(tr('updated {when}', {when: when(rest[0])}) + version, 'ok', null);
     case 'back':
-      return tr('back to the version before {when}', {when: when(rest[0])}) + (rest[1] ? ` (${rest[1]})` : '');
+      return say(tr('back to the version before {when}', {when: when(rest[0])}) + version, 'ok', null);
+    case 'local':
+      return say(kindOf(s, part) === 'local' ? null : tr('runs an image built here, updated only when asked'), 'ok');
+    case 'nospace': {
+      const values = {need: rest[0] ?? '?', free: rest[1] ?? '?'};
+      // (OpenMower keeps 1 GB to spare, an app a little, a build counts it in)
+      const kind = kindOf(s, part);
+      if (kind === 'openmower') return say(tr('not enough room on the mower: needs about {need} MB and 1 GB to spare, {free} MB free', values), 'warn');
+      if (kind === 'build') return say(tr('not enough room on the mower: needs about {need} MB, {free} MB free', values), 'warn');
+      return say(tr('not enough room on the mower: needs about {need} MB and some to spare, {free} MB free', values), 'warn');
+    }
+    case 'skipped_failed':
+      return say(tr("this version didn't start before, it waits for the next one"), 'warn');
+    case 'stable_older':
+      return say(tr('stable {v} is older than what runs, it stays until a newer stable is out', {v: rest[0] ?? '?'}), 'warn');
+    case 'stopped':
+      // (a build made anew on OpenMower's new version while stopped stays so, there's nothing newer then. one stopped
+      // when its own update came was left as it is)
+      return kindOf(s, part) === 'build' && (s.status[`${part}_available`] ?? '').split(' ')[0] === 'no'
+        ? say(tr('stopped, it stays stopped as it was'), 'ok')
+        : say(tr('not updated: the app is stopped right now'), 'warn');
+    case 'rolled_back':
+      // (the updater itself writes its time along)
+      return say(
+        tr("The new version didn't start, it went back to the one before by itself. That version is left out, only the next one is tried again."),
+        'warn',
+        at ?? (/^\d+$/.test(rest[0] ?? '') ? when(rest[0]) : null),
+      );
     case 'unconfirmed':
-      return tr("not confirmed yet: the new version didn't answer as it should while the mower wasn't idle, nothing was restarted. The next run looks again");
+      return say(tr("not confirmed yet: the new version didn't answer as it should while the mower wasn't idle, nothing was restarted. The next run looks again"), 'warn');
     case 'error':
-      if (rest[0] === 'base_missing') return tr("not built: the OpenMower image it's built on isn't on the mower");
-      if (rest[0] === 'not_docked') return tr("not done: the mower wasn't idle in the dock");
-      if (rest[0] === 'no_back') return tr('there is no version before to go back to');
-      return tr('failed ({why}), see the log', {why: rest.join(' ') || '?'});
+      return failure(s, part, rest, at);
     default:
       return null;
+  }
+}
+
+function failure(s: UpdateState, part: Part, [why, ...more]: string[], at: string | null): PartResult {
+  const warn = (text: string) => ({text, level: 'warn' as const, at});
+  const error = (text: string) => ({text, level: 'error' as const, at});
+  switch (why) {
+    case 'not_docked':
+      // (after "update all" each part says so, the run's line below says it once)
+      return {text: tr("not done: the mower wasn't idle in the dock"), level: s.status.result === 'waiting' ? 'ok' : 'warn', at};
+    case 'no_back':
+      return warn(tr('there is no version before to go back to'));
+    case 'back':
+      return warn(tr("The version before didn't start, the one from before runs again."));
+    case 'rollback':
+      return error(tr('going back failed, the app may not be running'));
+    case 'base_missing':
+      return error(tr("not built: the OpenMower image it's built on isn't on the mower"));
+    case 'pull':
+    case 'registry':
+      return error(tr('Download not possible. Does the mower have internet?'));
+    case 'github':
+      return error(tr("GitHub can't be reached. Does the mower have internet?"));
+    case 'build':
+      return error(tr('building failed, see the log'));
+    case 'compose':
+      if (part === 'updater') return error(tr("The updater doesn't run from a compose file and can't update itself."));
+      // (a build changes no compose file: the stopped one couldn't be made anew on it)
+      if (kindOf(s, part) === 'build') return error(tr("built anew, but it couldn't be set up on the new build, the one before stays"));
+      return error(tr("the compose file couldn't be changed, nothing changed"));
+    case 'keep':
+      return error(tr("nothing changed: the version before couldn't be kept"));
+    case 'env':
+      return error(tr("OpenMower's .env can't be read or changed, nothing changed"));
+    case 'helper':
+      return error(tr("the update of itself didn't start, the updater stays as it is"));
+    case 'no_stable':
+      return error(tr('no stable release found'));
+    default:
+      return error(tr('failed ({why}), see the log', {why: [why, ...more].filter(Boolean).join(' ') || '?'}));
   }
 }
 
@@ -277,7 +363,7 @@ export interface SelfInfo {
   running: string;
   available: Availability | null;
   tag: string;
-  result: string | null;
+  result: PartResult | null;
   restarting: number | null;
 }
 export function selfInfo(s: UpdateState, now = Date.now() / 1000): SelfInfo | null {

@@ -5,6 +5,30 @@
   gap: 12px;
   user-select: none;
   -webkit-user-select: none;
+  /* the fill of the yellow and red boxes, as on the updater's page: light under dark text, deep under light text, fuller
+     in aurora and sunny (through a thin one the sky turns both into the same light grey) */
+  --warn-fill: color-mix(in srgb, var(--warning) 22%, #fff);
+  --error-fill: color-mix(in srgb, var(--error) 18%, #fff);
+}
+
+@media (prefers-color-scheme: dark) {
+  :global(:root:not([data-theme='light'])) .panel {
+    --warn-fill: rgba(80, 54, 0, 0.55);
+    --error-fill: rgba(100, 14, 30, 0.55);
+  }
+}
+
+:global(:root[data-theme='dark']) .panel,
+:global(:root[data-theme='frost']) .panel,
+:global(:root[data-theme='openmower']) .panel {
+  --warn-fill: rgba(80, 54, 0, 0.55);
+  --error-fill: rgba(100, 14, 30, 0.55);
+}
+
+:global(:root[data-theme='aurora']) .panel,
+:global(:root[data-theme='sunny']) .panel {
+  --warn-fill: rgba(135, 92, 0, 0.75);
+  --error-fill: rgba(150, 20, 40, 0.75);
 }
 
 .part {
@@ -45,17 +69,33 @@
   font-weight: 600;
 }
 
+.badgeBad {
+  border-color: color-mix(in srgb, var(--warning) 70%, transparent);
+  background: color-mix(in srgb, var(--warning) 22%, transparent);
+  color: var(--foreground);
+  font-weight: 600;
+}
+
 .dim {
   font-size: 13px;
   color: var(--text-secondary);
 }
 
+/* something to know (yellow) and something that went wrong (red), told apart by their fill too */
 .warn {
   font-size: 13px;
   padding: 8px 10px;
   border-radius: 8px;
-  border: 1px solid color-mix(in srgb, var(--warning, #e0a030) 60%, transparent);
-  background: color-mix(in srgb, var(--warning, #e0a030) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning) 80%, transparent);
+  background: var(--warn-fill);
+}
+
+.error {
+  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--error) 80%, transparent);
+  background: var(--error-fill);
 }
 
 /* two equal columns: every button and pick box the same size */
@@ -80,6 +120,8 @@
 
 button.control {
   cursor: pointer;
+  /* two quick taps are two taps, not a zoom */
+  touch-action: manipulation;
 }
 
 /* room for the version's name beside the arrow on a phone */
@@ -98,10 +140,12 @@ select.control {
   cursor: default;
 }
 
+/* the one to tap, in the accent like the updater's page and MowBite's switches (a picked day too) */
 .primary {
   font-weight: 600;
-  border-color: color-mix(in srgb, var(--success) 70%, transparent);
-  background: color-mix(in srgb, var(--success) 35%, transparent);
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-foreground);
 }
 
 .danger {

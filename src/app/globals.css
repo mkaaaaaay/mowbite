@@ -313,6 +313,14 @@ textarea {
   -webkit-user-select: text;
 }
 
+/* buttons and fields in the page's font too, not the browser's own. only the family, their sizes are their modules' */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
 
 /* map colors, overridden from the settings page */
 :root {
