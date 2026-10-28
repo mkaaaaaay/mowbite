@@ -48,9 +48,11 @@ test('the blade in recording mode goes off with its button and when the phone is
 });
 
 const pose = async (page: Page) => (await demoHas<{pose: {x: number; y: number}}>(page, 'robot_state/json')).pose;
+// the stick's pad (a module's class names end in its own name, the rest is a hash)
+const stick = (page: Page) => page.locator('[class*="_pad"]:has([class*="_knob"])');
 // the stick of the upright layout held forward
 async function holdStick(page: Page) {
-  const box = (await page.locator('[class*="Joystick-module"][class*="__pad"]').boundingBox())!;
+  const box = (await stick(page).boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
   await page.mouse.move(box.x + box.width / 2, box.y + 8, {steps: 4});
@@ -86,7 +88,7 @@ test('an emergency stop while recording is reset on the record page', async ({pa
   await expect(page.getByText('Release the mower, then reset the emergency to drive again.')).toBeVisible();
   await reset.click();
   await expect(reset).toBeHidden();
-  await expect(page.locator('[class*="Joystick-module"][class*="__pad"]')).toBeVisible();
+  await expect(stick(page)).toBeVisible();
   expect(await state(page)).toBe('AREA_RECORDING');
 });
 

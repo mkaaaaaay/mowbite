@@ -100,7 +100,7 @@ test('drawing keeps the view still, undo takes back the last point', async ({pag
   await page.getByRole('button', {name: 'Draw'}).first().click();
   const svg = visibleAreas(page).first().locator('xpath=ancestor::*[local-name()="svg"][last()]');
   // (the svg reaches past the frame it's shown in)
-  const box = (await page.locator('[class*="MapView-module"][class*="__frame"]:visible').first().boundingBox())!;
+  const box = (await page.locator('[class*="_frame"]:has(svg):visible').first().boundingBox())!;
   const view = () => svg.getAttribute('viewBox');
   const before = await view();
   for (const [dx, dy] of [
