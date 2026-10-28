@@ -1,6 +1,6 @@
 'use client';
 
-import {memo, type ReactNode} from 'react';
+import {memo, useEffect, useRef, useSyncExternalStore, type ReactNode} from 'react';
 import type {MapArea, Point} from '@/hooks/useMowerMap';
 import {containsPoint, polygonArea} from '@/lib/geometry';
 import {joinedOutlines, realEdges, standing, type MowerBody} from '@/lib/mowerBody';
@@ -429,19 +429,110 @@ const drawnWith = (thing: Thing, pl: Place) => ({
 // the tiles drawn by what they're drawn from: a bed whose edge moved keeps its tile. a few hundred at most
 const tiles = new Map<string, ReactNode>();
 
-// a bed's place k as a pattern of one tile 2.4 m across (or its span), the browser draws it once and repeats it
+// the tiles painted once as pictures, by the same key (null: it has something a picture isn't painted from, it stays
+// drawn). the gpu repeats a picture cheaply, a tile of thousands of circles it rastered again for every part of the
+// map coming into view: zoomed in while it follows the mower that stuttered for seconds
+const pictures = new Map<string, string | null>();
+const told = new Set<() => void>();
+const listen = (f: () => void) => {
+  told.add(f);
+  return () => void told.delete(f);
+};
+// waiting to be painted, one at a time while the phone has nothing else to do
+const queue = new Map<string, {pattern: SVGPatternElement; t: number; px: number}>();
+let painting = false;
+
+// the tile's rects and paths painted into px by px, nothing for anything else
+async function paintTile(pattern: SVGPatternElement, t: number, px: number): Promise<string | null> {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = px;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  ctx.scale(px / t, px / t);
+  for (const el of pattern.children) {
+    const a = (name: string) => el.getAttribute(name);
+    const fill = a('fill') ?? '#000';
+    if (fill.startsWith('url(')) return null;
+    ctx.globalAlpha = Number(a('opacity') ?? 1);
+    if (el.tagName === 'rect') {
+      ctx.fillStyle = fill;
+      ctx.fillRect(Number(a('x') ?? 0), Number(a('y') ?? 0), Number(a('width') ?? 0), Number(a('height') ?? 0));
+    } else if (el.tagName === 'path') {
+      const path = new Path2D(a('d') ?? '');
+      if (fill !== 'none') {
+        ctx.fillStyle = fill;
+        ctx.fill(path);
+      }
+      const stroke = a('stroke');
+      if (stroke && stroke !== 'none') {
+        ctx.strokeStyle = stroke;
+        ctx.lineWidth = Number(a('stroke-width') ?? 1);
+        ctx.lineCap = (a('stroke-linecap') ?? 'butt') as CanvasLineCap;
+        ctx.stroke(path);
+      }
+    } else return null;
+  }
+  const blob = await new Promise<Blob | null>((done) => canvas.toBlob(done, 'image/png'));
+  if (!blob) return null;
+  const url = URL.createObjectURL(blob);
+  // decoded before it's shown, the bed doesn't flash empty
+  const img = new Image();
+  img.src = url;
+  await img.decode().catch(() => {});
+  return url;
+}
+
+function paintNext() {
+  const next = queue.entries().next();
+  if (next.done) return void (painting = false);
+  painting = true;
+  const [key, {pattern, t, px}] = next.value;
+  queue.delete(key);
+  const later = () => ('requestIdleCallback' in window ? requestIdleCallback(paintNext, {timeout: 1000}) : setTimeout(paintNext, 50));
+  if (!pattern.isConnected) return void later();
+  void paintTile(pattern, t, px).then((url) => {
+    if (pictures.size >= 300) {
+      for (const u of pictures.values()) if (u) URL.revokeObjectURL(u);
+      pictures.clear();
+    }
+    pictures.set(key, url);
+    for (const f of told) f();
+    later();
+  });
+}
+
+// a bed's tile as a pattern: drawn until its picture is painted, then the picture
+function BedTile({id, tileKey, t, px, children}: {id: string; tileKey: string; t: number; px: number; children: ReactNode}) {
+  const url = useSyncExternalStore(listen, () => pictures.get(tileKey), () => undefined);
+  const ref = useRef<SVGPatternElement>(null);
+  useEffect(() => {
+    // (one mounted again before it was painted is painted from the new one)
+    if (url !== undefined || !ref.current) return;
+    queue.set(tileKey, {pattern: ref.current, t, px});
+    if (!painting) paintNext();
+  }, [url, tileKey, t, px]);
+  return (
+    <pattern ref={ref} id={id} patternUnits="userSpaceOnUse" width={t} height={t}>
+      {url ? <image href={url} width={t} height={t} preserveAspectRatio="none" /> : children}
+    </pattern>
+  );
+}
+
+// a bed's place k as a pattern of one tile 2.4 m across (or its span), the browser draws it once and repeats it. its
+// picture at 260 pixels a meter, sharp at the closest zoom on a phone
 function bedTile(uid: string, thing: Thing, pl: Place, k: number) {
   const p = placeId(uid, thing, k);
-  const t = Math.max(1, (PICTURES[thing.look]?.span ?? 2.4) * thing.m);
+  const span = PICTURES[thing.look]?.span ?? 2.4;
+  const t = Math.max(1, span * thing.m);
   const o = drawnWith(thing, pl);
   const key = [p, thing.look, t, o.seed, o.variant, o.m, o.closed, o.bare, o.foot?.deg, o.foot?.s].join('|');
   let tile = tiles.get(key);
   if (!tile) {
     if (tiles.size >= 300) tiles.clear();
     tile = (
-      <pattern key={p} id={p + 'tile'} patternUnits="userSpaceOnUse" width={t} height={t}>
+      <BedTile key={p} id={p + 'tile'} tileKey={key} t={t} px={Math.min(1024, Math.round(span * 260))}>
         {drawThing(thing.look, {x: 0, y: 0, w: t, h: t}, p + 'x', {...o, tile: true})}
-      </pattern>
+      </BedTile>
     );
     tiles.set(key, tile);
   }

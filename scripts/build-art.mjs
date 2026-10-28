@@ -32,7 +32,9 @@ const MODULES = {
 
 // what they import that only the app's pages use
 const STUBS = {
-  react: 'module.exports = {useId, useEffect() {}, useMemo: (f) => f(), useState: (v) => [v, () => {}], memo: (f) => f};',
+  react:
+    'module.exports = {useId, useEffect() {}, useMemo: (f) => f(), useState: (v) => [v, () => {}], useRef: (v) => ({current: v}), ' +
+    'useSyncExternalStore: (s, get, server) => (server ?? get)(), memo: (f) => f};',
   'react-dom': 'module.exports = {createPortal: () => null};',
   '@/lib/i18n': 'module.exports = {tr: (s) => s};',
   '@/hooks/useMowerMap': 'module.exports = {};',
