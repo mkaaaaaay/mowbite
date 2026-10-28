@@ -332,6 +332,9 @@ function MapView({
   const [restore, setRestore] = useState(() => (viewKey && !focus ? (savedViews.get(viewKey) ?? null) : null));
   // in follow mode zooming changes how many meters around the mower are shown
   const [followZoom, setFollowZoom] = useState(1);
+  // the zoom a pinch asks for while the map glides along the mower: shown by scaling what's drawn (slide) until it's
+  // drawn at that zoom, every move of the fingers drawn again stuttered for seconds
+  const pinchZoom = useRef<number | null>(null);
   // follow mode switched off by hand, back on with the next drive
   const [free, setFree] = useState(false);
   if (free && !follow) setFree(false);
@@ -489,7 +492,7 @@ function MapView({
   const [gx, gy] =
     anchor && anchor.size === glideSize ? [anchor.x, anchor.y] : followed ? toScreen(followed.x, followed.y) : [0, 0];
   // what the svg shows while gliding, for the frame loop: the anchor in svg units and the window's size
-  const glideRef = useRef<{x: number; y: number; size: number; fixed: boolean; asked: boolean} | null>(null);
+  const glideRef = useRef<{x: number; y: number; size: number; zoom: number; fixed: boolean; asked: boolean} | null>(null);
   const anchored = !!anchor && anchor.size === glideSize;
   // what the frame shows, and what the svg draws: that, twice as big round its middle when the map can be moved (OVERSCAN)
   const framed = shown ?? {x: 0, y: 0, size: WIDTH};
@@ -500,7 +503,7 @@ function MapView({
   const frameRef = useRef<HTMLDivElement | null>(null);
   // what moves under the frame: both layers of the map
   const sheetRef = useRef<HTMLDivElement | null>(null);
-  const lastSlide = useRef<[number, number] | null>(null);
+  const lastSlide = useRef<[number, number, number] | null>(null);
   // the time of the frame being shown, slid again at that time after a render (see MowerMarker)
   const slidAt = useRef<number | null>(null);
   // slides the map so the eased mower is in the middle of the frame, asks for a new anchor when it gets near the edge
@@ -516,19 +519,21 @@ function MapView({
       const sx = (p.x - f.minX) * f.scale + f.padX;
       const sy = HEIGHT - ((p.y - f.minY) * f.scale + f.padY);
       const width = frame.clientWidth || 1;
-      const unit = width / g.size;
+      // a pinch not drawn yet: what's drawn scaled to it round the mower
+      const z = pinchZoom.current === null ? 1 : pinchZoom.current / g.zoom;
+      const unit = width / (g.size * z);
       const tx = width / 2 - (sx - (g.x - (GLIDE / 2) * g.size)) * unit;
       const ty = width / 2 - (sy - (g.y - (GLIDE / 2) * g.size)) * unit;
       const last = lastSlide.current;
-      if (!last || Math.abs(tx - last[0]) > 0.02 || Math.abs(ty - last[1]) > 0.02) {
-        svg.style.transform = `translate3d(${tx}px, ${ty}px, 0)`;
-        lastSlide.current = [tx, ty];
+      if (!last || Math.abs(tx - last[0]) > 0.02 || Math.abs(ty - last[1]) > 0.02 || z !== last[2]) {
+        svg.style.transform = `translate3d(${tx}px, ${ty}px, 0)${z === 1 ? '' : ` scale(${1 / z})`}`;
+        lastSlide.current = [tx, ty, z];
       }
       // (no anchor of its own yet it goes with the mower's position: kept where it is now)
       if (!g.asked && !g.fixed) {
         g.asked = true;
         setAnchor({x: g.x, y: g.y, size: g.size});
-      } else if (!g.asked && Math.max(Math.abs(sx - g.x), Math.abs(sy - g.y)) > (GLIDE / 2 - 0.65) * g.size) {
+      } else if (!g.asked && Math.max(Math.abs(sx - g.x), Math.abs(sy - g.y)) > (GLIDE / 2 - z / 2 - 0.15) * g.size) {
         g.asked = true;
         setAnchor({x: sx, y: sy, size: g.size});
       }
@@ -537,11 +542,13 @@ function MapView({
   );
   // the anchor drawn and the slide that goes with it in the same frame, the map doesn't jump when it's drawn again
   useLayoutEffect(() => {
-    glideRef.current = glides ? {x: gx, y: gy, size: glideSize, fixed: anchored, asked: false} : null;
+    glideRef.current = glides ? {x: gx, y: gy, size: glideSize, zoom: followZoom, fixed: anchored, asked: false} : null;
+    // drawn at the zoom the pinch asked for (or it doesn't glide any more): no scaling left
+    if (!glides || pinchZoom.current === followZoom) pinchZoom.current = null;
     lastSlide.current = null;
     if (glides) slide();
     else if (sheetRef.current) sheetRef.current.style.transform = '';
-  }, [glides, gx, gy, glideSize, anchored, slide]);
+  }, [glides, gx, gy, glideSize, followZoom, anchored, slide]);
   useEffect(() => {
     if (!glides) return;
     let frame = 0;
@@ -1039,6 +1046,16 @@ function MapView({
     });
   };
 
+  // a pinch while the map glides along the mower: the zoom asked for, drawn at it once the fingers are off or the scaled
+  // map would show its edges or get blurred
+  const pinchFollow = (factor: number) => {
+    moving();
+    const to = Math.min(8, Math.max(0.25, (pinchZoom.current ?? followZoom) * factor));
+    pinchZoom.current = to;
+    const drawn = glideRef.current?.zoom ?? followZoom;
+    if (to / drawn > 1.5 || to / drawn < 1 / 3) setFollowZoom(to);
+  };
+
   const zoomCenter = (factor: number) => {
     const frame = frameRef.current;
     if (zoomable && !following && !glides && frame) return zoomShift(factor, frame.clientWidth / 2, frame.clientWidth / 2, true);
@@ -1393,7 +1410,8 @@ function MapView({
       const mid = clientToSvg(mx, my);
       const box = frameRef.current?.getBoundingClientRect();
       const last = gesture.current.pinchMid ?? [mx, my];
-      if (gesture.current.pinchDist && following && mid) zoomAt(gesture.current.pinchDist / dist, mid[0], mid[1]);
+      if (gesture.current.pinchDist && following && glides) pinchFollow(gesture.current.pinchDist / dist);
+      else if (gesture.current.pinchDist && following && mid) zoomAt(gesture.current.pinchDist / dist, mid[0], mid[1]);
       else if (gesture.current.pinchDist && box && !glides) {
         moving();
         // scaled round where the fingers' middle was and moved along with it: what's under the fingers stays there
@@ -1426,6 +1444,11 @@ function MapView({
   const onPointerEnd = (e: {pointerId: number; type: string}) => {
     pointers.current.delete(e.pointerId);
     if (pointers.current.size < 2) gesture.current = {...gesture.current, pinchDist: null, pinchMid: undefined};
+    // a pinch while it glides drawn at its zoom once the fingers are off
+    if (pointers.current.size < 2 && pinchZoom.current !== null) {
+      if (pinchZoom.current === followZoom) pinchZoom.current = null;
+      else setFollowZoom(pinchZoom.current);
+    }
     if (pointers.current.size === 0) commitShift();
     const h = hold.current;
     if (h && h.press.pointerId === e.pointerId) {
