@@ -610,9 +610,9 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
   const overlay = () => ({
     polygons: rec
       ? [
-          ...(rec.outline ? [{polygon: {points: rec.outline}, color: 'green', closed: true}] : []),
-          ...rec.obstacles.map((o) => ({polygon: {points: o}, color: 'red', closed: true})),
-          ...(rec.line ? [{polygon: {points: rec.line}, color: 'blue', closed: false}] : []),
+          ...(rec.outline ? [{poly: rec.outline, is_closed: 1, line_width: 0.1, color: 'green'}] : []),
+          ...rec.obstacles.map((o) => ({poly: o, is_closed: 1, line_width: 0.1, color: 'red'})),
+          ...(rec.line ? [{poly: rec.line, is_closed: 0, line_width: 0.1, color: 'blue'}] : []),
         ]
       : [],
   });

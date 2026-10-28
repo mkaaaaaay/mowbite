@@ -290,11 +290,11 @@ describe('the demo mower recording', () => {
       d.drive(0.4, 0, 8);
       d.drive(0, Math.PI / 4, 2);
     }
-    expect(d.overlay()[0]).toMatchObject({color: 'blue', closed: false});
+    expect(d.overlay()[0]).toMatchObject({color: 'blue', is_closed: 0});
     d.act(R('stop_recording'));
     const [outline] = d.overlay();
-    expect(outline).toMatchObject({color: 'green', closed: true});
-    expect(outline.polygon.points.length).toBeGreaterThan(60);
+    expect(outline).toMatchObject({color: 'green', is_closed: 1});
+    expect(outline.poly.length).toBeGreaterThan(60);
     d.act(R('finish_mowing_area'));
     const map = JSON.parse(d.w.retained(TOPIC.map)[0][1]);
     expect(map.areas).toHaveLength(demoMap().areas.length + 1);

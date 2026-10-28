@@ -13,10 +13,13 @@ export interface OverlayLine {
   closed: boolean;
 }
 
-const store = topicStore<OverlayLine[]>(TOPIC.mapOverlay, [], (payload) => {
-  const m: {polygons?: {polygon?: {points?: Point[]}; color?: string; closed?: boolean}[]} = JSON.parse(payload.toString());
-  return (m.polygons ?? []).map((p) => ({points: p.polygon?.points ?? [], color: p.color ?? 'blue', closed: !!p.closed}));
-});
+// as xbot_monitoring sends them: {polygons: [{poly: [{x, y}], is_closed: 0|1, line_width, color}]}, null when there are none
+export function parseOverlay(text: string): OverlayLine[] {
+  const m: {polygons?: {poly?: Point[]; color?: string; is_closed?: number | boolean}[] | null} = JSON.parse(text);
+  return (m.polygons ?? []).map((p) => ({points: p.poly ?? [], color: p.color ?? 'blue', closed: !!p.is_closed}));
+}
+
+const store = topicStore<OverlayLine[]>(TOPIC.mapOverlay, [], (payload) => parseOverlay(payload.toString()));
 
 export function useMapOverlay(): OverlayLine[] {
   return useSyncExternalStore(store.subscribe, store.get, store.initial);
