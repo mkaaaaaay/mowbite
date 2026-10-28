@@ -188,6 +188,8 @@ function wantHoldHint() {
 // the svg while it glides along the mower: GLIDE frames wide, slid along by a transform. a new anchor draws all of it
 // again, on a phone that's a stutter: the gpu only rasters what's near the frame, a wider one costs little and comes seldom
 const GLIDE = 4;
+// points in a piece of what's left of the plan (todoPieces)
+const TODO_PIECE = 40;
 const GLIDING: React.CSSProperties = {position: 'absolute', left: 0, top: 0, width: `${GLIDE * 100}%`, height: `${GLIDE * 100}%`, transformOrigin: '0 0'};
 // the svg of a map that can be moved: twice the frame with the view in its middle, a pan or pinch slides it under the
 // frame and finds the map already drawn round the edges
@@ -705,10 +707,18 @@ function MapView({
     () => (!piecePaths && loops?.length ? pathOf(loops, {minX, minY, scale, padX, padY}, !openLoops) : ''),
     [piecePaths, loops, openLoops, minX, minY, scale, padX, padY],
   );
-  const todoPath = useMemo(
-    () => (progress ? pathOf(progress.todo, {minX, minY, scale, padX, padY}) : null),
-    [progress, minX, minY, scale, padX, padY],
-  );
+  // what's left of the plan in pieces of TODO_PIECE points, counted from the end of each of its paths (and the paths from
+  // the last): while the mower drives only the piece it's on changes, one path of all of it was rastered again every pose
+  const todoPieces = useMemo(() => {
+    if (!progress) return null;
+    const f = {minX, minY, scale, padX, padY};
+    const out: {key: string; d: string}[] = [];
+    progress.todo.forEach((pts, i) => {
+      for (let m = 0, end = pts.length; end > 1; m++, end -= TODO_PIECE)
+        out.push({key: `${progress.todo.length - i}:${m}`, d: pathOf([pts.slice(Math.max(0, end - TODO_PIECE - 1), end)], f)});
+    });
+    return out;
+  }, [progress, minX, minY, scale, padX, padY]);
   const strips = (st: Strips) =>
     st.groups.length > 0 && body ? (
       <g className={styles.swath} strokeWidth={body.blade * scale}>
@@ -1685,7 +1695,7 @@ function MapView({
   const settledLines = settledOf(!!scene?.stones);
   const liveLines = (
     <>
-      {todoPath && !hidden.has('stripes') && <path className={[styles.planTodo, styles[planStyle]].join(' ')} d={todoPath} />}
+      {todoPieces && !hidden.has('stripes') && todoPieces.map((p) => <path key={p.key} className={[styles.planTodo, styles[planStyle]].join(' ')} d={p.d} />)}
       {swathShown && swathLive}
       {trackLive}
       {sim && !hidden.has('track') && (
