@@ -2,114 +2,40 @@
 
 import type {SensorInfo} from '@/hooks/useMowerSensors';
 import {bladeSeconds} from '@/lib/mowerBody';
-
-export interface GaugeZone {
-  from: number;
-  to: number;
-  color: string;
-}
-
-export interface GaugeScale {
-  domainMin: number;
-  domainMax: number;
-  zones: GaugeZone[];
-}
+import {along, sensorDial, type Tone} from '@/lib/sensorLimits';
 
 const RED = '#e53935';
 const YELLOW = '#fbc02d';
 const GREEN = '#43a047';
+const TONE: Record<Tone, string> = {ok: GREEN, warn: YELLOW, crit: RED};
+const NEEDLE = '#616161';
+// the dial is three quarters of a circle, open at the bottom
+const DIAL_ANGLE = 1.5 * Math.PI;
 
-const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
-
-// -1 means unset in the firmware but has_critical_* can still be true, so ignore negative thresholds
-export function computeGaugeScale(info: SensorInfo): GaugeScale | null {
-  const hasCriticalLow = !!info.has_critical_low && info.lower_critical_value >= 0;
-  const hasCriticalHigh = !!info.has_critical_high && info.upper_critical_value >= 0;
-  const hasMinMax = !!info.has_min_max && info.min_value >= 0 && info.max_value >= 0;
-  if (!hasMinMax && !hasCriticalLow && !hasCriticalHigh) return null;
-
-  const lowBound = hasCriticalLow ? info.lower_critical_value : hasMinMax ? info.min_value : 0;
-  const highBound = hasCriticalHigh ? info.upper_critical_value : hasMinMax ? info.max_value : lowBound + 1;
-
-  const span = highBound - lowBound || 1;
-  const pad = span * 0.15;
-  const domainMin = Math.max(0, lowBound - pad);
-  const domainMax = highBound + pad;
-
-  const zones: GaugeZone[] = [];
-  if (hasCriticalLow) {
-    zones.push({from: domainMin, to: info.lower_critical_value, color: RED});
-  }
-  if (hasMinMax) {
-    const yellowLowStart = hasCriticalLow ? info.lower_critical_value : domainMin;
-    if (yellowLowStart < info.min_value) zones.push({from: yellowLowStart, to: info.min_value, color: YELLOW});
-    zones.push({from: info.min_value, to: info.max_value, color: GREEN});
-    const yellowHighEnd = hasCriticalHigh ? info.upper_critical_value : domainMax;
-    if (info.max_value < yellowHighEnd) zones.push({from: info.max_value, to: yellowHighEnd, color: YELLOW});
-  } else {
-    const midStart = hasCriticalLow ? info.lower_critical_value : domainMin;
-    const midEnd = hasCriticalHigh ? info.upper_critical_value : domainMax;
-    if (midEnd > midStart) zones.push({from: midStart, to: midEnd, color: GREEN});
-  }
-  if (hasCriticalHigh) {
-    zones.push({from: info.upper_critical_value, to: domainMax, color: RED});
-  }
-
-  return {domainMin, domainMax, zones};
-}
-
-export function fallbackGaugeScale(value: number): GaugeScale {
-  const domainMax = value > 0 ? value * 1.5 : 1;
-  return {domainMin: 0, domainMax, zones: [{from: 0, to: domainMax, color: GREEN}]};
-}
-
-const fractionOf = (value: number, scale: GaugeScale) => {
-  const span = scale.domainMax - scale.domainMin || 1;
-  return clamp((value - scale.domainMin) / span, 0, 1);
-};
-
-// spin: rpm of what the gauge shows, a blade turns in the middle that way round (negative: the other way), at a speed
-// the eye can follow
-export function RadialGauge({value, scale, size = 120, spin}: {value: number; scale: GaugeScale; size?: number; spin?: number}) {
-  const cx = size / 2;
-  const cy = size / 2;
-  const r = size / 2 - 16;
-  const startAngle = 135; // deg, 0 = east, clockwise
-  const sweep = 270;
-
-  const angleFor = (frac: number) => (startAngle + frac * sweep) * (Math.PI / 180);
-  const point = (frac: number): [number, number] => {
-    const a = angleFor(frac);
-    return [cx + r * Math.cos(a), cy + r * Math.sin(a)];
+// a sensor's value on the dial its limits make (lib/sensorLimits). spin: rpm of what the gauge shows, a blade turns in
+// the middle that way round (negative: the other way), at a speed the eye can follow
+export function RadialGauge({value, info, size = 120, spin}: {value: number; info: SensorInfo; size?: number; spin?: number}) {
+  const dial = sensorDial(info, value);
+  const c = size / 2;
+  const r = c - 16;
+  // the point d from the middle at f of the way along the dial. its angle goes clockwise from 12 o'clock (svg's y
+  // points down), -135° at the dial's start and 135° at its end
+  const at = (f: number, d: number) => {
+    const a = (f - 0.5) * DIAL_ANGLE;
+    return [c + d * Math.sin(a), c - d * Math.cos(a)];
   };
-
-  const arcPath = (fromFrac: number, toFrac: number) => {
-    const [x1, y1] = point(fromFrac);
-    const [x2, y2] = point(toFrac);
-    const large = (toFrac - fromFrac) * sweep > 180 ? 1 : 0;
-    return `M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}`;
-  };
-
-  const frac = fractionOf(value, scale);
-  const needleAngle = angleFor(frac);
-  const needleLen = r - 4;
-  const needleX = cx + needleLen * Math.cos(needleAngle);
-  const needleY = cy + needleLen * Math.sin(needleAngle);
+  // clockwise from f to t, over more than half the circle beyond 2/3 of the dial
+  const arc = (f: number, t: number) => `M ${at(f, r).join(' ')} A ${r} ${r} 0 ${t - f > 2 / 3 ? 1 : 0} 1 ${at(t, r).join(' ')}`;
+  const [x, y] = at(along(dial, value), r - 4);
 
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-      {scale.zones.map((zone, i) => (
-        <path
-          key={i}
-          d={arcPath(fractionOf(zone.from, scale), fractionOf(zone.to, scale))}
-          stroke={zone.color}
-          strokeWidth={10}
-          fill="none"
-        />
+    <svg width={size} height={size} viewBox={[0, 0, size, size].join(' ')}>
+      {dial.bands.map((b, i) => (
+        <path key={i} d={arc(along(dial, b.start), along(dial, b.end))} stroke={TONE[b.tone]} strokeWidth={10} fill="none" />
       ))}
-      {spin !== undefined && <Blade cx={cx} cy={cy} r={r * 0.55} rpm={spin} />}
-      <line x1={cx} y1={cy} x2={needleX} y2={needleY} stroke="#616161" strokeWidth={2} />
-      <circle cx={cx} cy={cy} r={4} fill="#616161" />
+      {spin !== undefined && <Blade cx={c} cy={c} r={r * 0.55} rpm={spin} />}
+      <line x1={c} y1={c} x2={x} y2={y} stroke={NEEDLE} strokeWidth={2} />
+      <circle cx={c} cy={c} r={4} fill={NEEDLE} />
     </svg>
   );
 }
@@ -147,7 +73,7 @@ export function TempGauge({value, info, limits}: {value: number; info?: SensorIn
   const crit = info ? (info.has_critical_high && info.upper_critical_value >= 0 ? info.upper_critical_value : undefined) : limits?.crit;
   const max = Math.max(90, (crit ?? 0) + 10);
   const color = crit !== undefined && value >= crit ? RED : warn !== undefined && value >= warn ? YELLOW : GREEN;
-  const x = (v: number) => (clamp(v, 0, max) / max) * 100;
+  const x = (v: number) => (Math.min(Math.max(v, 0), max) / max) * 100;
   const ticks = [0, 30, 60, 90].filter((t) => t <= max);
 
   return (

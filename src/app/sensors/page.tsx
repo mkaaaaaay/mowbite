@@ -2,7 +2,7 @@
 
 import {TitleMark} from '@/components/Logo';
 import {TitleRow} from '@/components/TopWeather';
-import {computeGaugeScale, fallbackGaugeScale, RadialGauge, TempGauge} from '@/components/gauges';
+import {RadialGauge, TempGauge} from '@/components/gauges';
 import {BatteryIcon, TurnIcon} from '@/components/icons';
 import InfoTip from '@/components/InfoTip';
 import Sparkline from '@/components/Sparkline';
@@ -12,6 +12,7 @@ import {useMowerSensors, type SensorInfo} from '@/hooks/useMowerSensors';
 import {useMowerState} from '@/hooks/useMowerState';
 import {useSensorHistory, type Sample} from '@/hooks/useSensorHistory';
 import {useState, useSyncExternalStore} from 'react';
+import {outOfRange} from '@/lib/sensorLimits';
 import {sharedSettings} from '@/lib/settings';
 import {batteryColor, chargeDone, GPS_QUALITY_LABEL, gpsQuality, isDocked, stateColor, statusText} from '@/lib/status';
 import {numParam, useMowerParams} from '@/hooks/useMowerParams';
@@ -44,18 +45,6 @@ function digitsOf(info: SensorInfo) {
     default:
       return 2;
   }
-}
-
-function isCritical(info: SensorInfo | undefined, raw: string | undefined, currentState: string | undefined): boolean {
-  if (!info || raw === undefined || info.value_type !== 'DOUBLE') return false;
-  if (info.value_description === 'REVOLUTIONS' && currentState !== 'MOWING') return false;
-  // a mow motor turning the other way round reports negative rpm, it's as fast either way
-  const value = info.value_description === 'REVOLUTIONS' ? Math.abs(Number(raw)) : Number(raw);
-  if (Number.isNaN(value)) return false;
-  // -1 = unset
-  if (info.has_critical_low && info.lower_critical_value >= 0 && value <= info.lower_critical_value) return true;
-  if (info.has_critical_high && info.upper_critical_value >= 0 && value >= info.upper_critical_value) return true;
-  return false;
 }
 
 function Card({title, children}: {title: React.ReactNode; children: React.ReactNode}) {
@@ -105,10 +94,10 @@ export default function SensorsPage() {
   const docked = isDocked(state, values['om_v_charge']);
   const mowing = currentState === 'MOWING';
   const battery = level ?? (state ? Math.round(state.battery_percentage * 100) : undefined);
-  const criticalCount = infos.filter((i) => isCritical(i, values[i.sensor_id], currentState)).length;
+  const criticalCount = infos.filter((i) => outOfRange(i, values[i.sensor_id], currentState)).length;
 
   const batteryCritical = ['om_v_battery', 'om_v_charge', 'om_charge_current'].some((id) =>
-    isCritical(info(id), values[id], currentState),
+    outOfRange(info(id), values[id], currentState),
   );
   const batteryTone = batteryCritical ? 'error' : batteryColor(battery ?? 0);
 
@@ -221,16 +210,14 @@ export default function SensorsPage() {
               <Card title={tr('Mow motor')}>
                 {mowing && rpm !== undefined ? (
                   <>
-                    <strong className={[styles.big, isCritical(rpmInfo, values['om_mow_motor_rpm'], currentState) ? styles.error : ''].join(' ')}>
+                    <strong className={[styles.big, outOfRange(rpmInfo, values['om_mow_motor_rpm'], currentState) ? styles.error : ''].join(' ')}>
                       {Math.abs(rpm).toFixed(0)} {tr('rpm')} <TurnIcon reverse={rpm < 0} />
                     </strong>
                     <span className={styles.dim}>
                       {rpm < 0 ? tr('turning the other way round') : tr('turning the normal way round')}
                       {params[PARAM.mowerLogic('randomize_mow_motor_direction')] === true && ` · ${tr('changes with every start')}`}
                     </span>
-                    {rpmInfo && (
-                      <RadialGauge value={Math.abs(rpm)} scale={computeGaugeScale(rpmInfo) ?? fallbackGaugeScale(Math.abs(rpm))} spin={rpm} />
-                    )}
+                    {rpmInfo && <RadialGauge value={Math.abs(rpm)} info={rpmInfo} spin={rpm} />}
                     {motorCurrent !== undefined && <span className={styles.dim}>{fmt(motorCurrent, 2)} A</span>}
                   </>
                 ) : (
@@ -278,7 +265,7 @@ export default function SensorsPage() {
                     const v = num(t.sensor_id);
                     return (
                       <Card key={t.sensor_id} title={tr(t.sensor_name)}>
-                        <strong className={[styles.big, isCritical(t, values[t.sensor_id], currentState) ? styles.error : ''].join(' ')}>
+                        <strong className={[styles.big, outOfRange(t, values[t.sensor_id], currentState) ? styles.error : ''].join(' ')}>
                           {v !== undefined ? `${fmt(v, 1)} °C` : '–'}
                         </strong>
                         {v !== undefined && <TempGauge value={v} info={t} />}
@@ -299,7 +286,7 @@ export default function SensorsPage() {
                     const numeric = o.value_type === 'DOUBLE' && v !== undefined && !Number.isNaN(v);
                     return (
                       <Card key={o.sensor_id} title={tr(o.sensor_name)}>
-                        <strong className={[styles.big, isCritical(o, values[o.sensor_id], currentState) ? styles.error : ''].join(' ')}>
+                        <strong className={[styles.big, outOfRange(o, values[o.sensor_id], currentState) ? styles.error : ''].join(' ')}>
                           {numeric ? `${fmt(v, digitsOf(o))} ${unitOf(o)}` : (values[o.sensor_id] ?? '–')}
                         </strong>
                         {numeric && <Sparkline samples={history[o.sensor_id]} digits={digitsOf(o)} unit={unitOf(o)} />}
