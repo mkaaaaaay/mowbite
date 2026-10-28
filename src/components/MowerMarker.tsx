@@ -7,7 +7,7 @@ import {stillPreferred} from '@/lib/eggs';
 import {bladeSeconds, bodyShape, type MowerBody} from '@/lib/mowerBody';
 import {createEaser, type Easer, type Pose} from '@/lib/poseEaser';
 import type {Settings} from '@/lib/settings';
-import {useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode} from 'react';
+import {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react';
 import {MapCostume} from './Costumes';
 import type {Cover} from './gardenLife';
 import {MapGhost} from './Halloween';
@@ -20,7 +20,7 @@ type Glide = Pick<Easer, 'at' | 'still' | 'listen'>;
 
 // the mower. It glides between the poses that come in and moves itself every frame for that without drawing again:
 // its parts are drawn once around its position and the frame loop only moves and turns the groups they sit in. The rest
-// of the map stays as it is meanwhile
+// of the map stays as it is meanwhile. With under it's only its outline where crowns hide it, for the layer over them
 export function MowerMarker({
   mower,
   poses,
@@ -34,7 +34,7 @@ export function MowerMarker({
   blades,
   ghost,
   costume,
-  cover,
+  under,
   covers,
   coverId,
 }: {
@@ -53,9 +53,9 @@ export function MowerMarker({
   // halloween night: a little ghost follows a moment behind while it drives
   ghost?: boolean;
   costume?: {hat?: boolean; towel?: boolean; umbrella?: boolean};
-  // the crowns and parasols over it, where they hide it (circles in svg units) it shows as its outline. coverId starts
-  // the ids for that
-  cover?: ReactNode;
+  // only its outline where the crowns and parasols over it (circles in svg units) hide it, while it's near one: drawn in
+  // the layer over them, the one under them is drawn again every frame without them. coverId starts the ids for that
+  under?: boolean;
   covers?: Cover[];
   coverId?: string;
 }) {
@@ -164,7 +164,15 @@ export function MowerMarker({
   );
   // its outline where a crown or a parasol hides it: the body's (a real model's contour with its sizes), without sizes the
   // icon's drawn round its shape (a pixel and a bit wide at any zoom)
-  const hidden = covers && covers.length > 0 && coverId;
+  // (near one: within its length and a meter of where it is, it's eased a little behind that)
+  const [px, py] = [(mower.x - fit.minX) * scale + fit.padX, HEIGHT - ((mower.y - fit.minY) * scale + fit.padY)];
+  const reach = Math.max(size, fitX, long * scale, (body?.width ?? 0) * scale) + scale;
+  const near = (c: Cover) => {
+    if (!c.pts) return Math.hypot(c.cx - px, c.cy - py) < c.r + reach;
+    const [xs, ys] = [c.pts.map((q) => q[0]), c.pts.map((q) => q[1])];
+    return px > Math.min(...xs) - reach && px < Math.max(...xs) + reach && py > Math.min(...ys) - reach && py < Math.max(...ys) + reach;
+  };
+  const hidden = under && covers && coverId && covers.some(near);
   const iconOutline = showIcon && !shape;
   const [ox, oy] = fitted ? [fitX, fitY] : [size, size];
   const silhouette = (
@@ -175,6 +183,45 @@ export function MowerMarker({
       <feComposite in2="ring" operator="in" />
     </filter>
   );
+  if (under)
+    return hidden ? (
+      <>
+        <defs>
+          <mask id={coverId} maskUnits="userSpaceOnUse" x={-10 * WIDTH} y={-10 * HEIGHT} width={21 * WIDTH} height={21 * HEIGHT}>
+            {covers.map((c, i) =>
+              c.pts ? <polygon key={i} points={c.pts.map((p) => p.join(',')).join(' ')} fill="#fff" /> : <circle key={i} cx={c.cx} cy={c.cy} r={c.r} fill="#fff" />,
+            )}
+          </mask>
+          {iconOutline && silhouette}
+        </defs>
+        <g mask={`url(#${coverId})`} className={styles.mowerUnder}>
+          <g ref={(el) => void (moveRefs.current[1] = el)}>
+            <g ref={(el) => void (turnRefs.current[2] = el)}>
+              {shape && <polygon className={styles.mowerUnderBody} points={points(shape.corners)} />}
+              {iconOutline &&
+                (fitted ? (
+                  <g transform={`translate(${mx} ${my}) scale(${ox} ${oy})`} filter={`url(#${coverId}o)`}>
+                    {icon.draw({speed, emergency, blades})}
+                  </g>
+                ) : (
+                  !icon.upright && (
+                    <g transform={`translate(${mx} ${my}) scale(${size})`} filter={`url(#${coverId}o)`}>
+                      {drawIcon}
+                    </g>
+                  )
+                ))}
+            </g>
+            {iconOutline && !fitted && icon.upright && (
+              <g ref={(el) => void (uprightRefs.current[2] = el)}>
+                <g transform={`scale(${size})`} filter={`url(#${coverId}o)`}>
+                  {drawIcon}
+                </g>
+              </g>
+            )}
+          </g>
+        </g>
+      </>
+    ) : null;
   return (
     <>
       <g ref={(el) => void (moveRefs.current[0] = el)}>
@@ -243,45 +290,6 @@ export function MowerMarker({
         )}
       </g>
       {ghost && <MarkerGhost mower={mower} on={speed > 0.05} fit={fit} size={size} />}
-      {cover}
-      {hidden && (
-        <>
-          <defs>
-            <mask id={coverId} maskUnits="userSpaceOnUse" x={-10 * WIDTH} y={-10 * HEIGHT} width={21 * WIDTH} height={21 * HEIGHT}>
-              {covers.map((c, i) =>
-                c.pts ? <polygon key={i} points={c.pts.map((p) => p.join(',')).join(' ')} fill="#fff" /> : <circle key={i} cx={c.cx} cy={c.cy} r={c.r} fill="#fff" />,
-              )}
-            </mask>
-            {iconOutline && silhouette}
-          </defs>
-          <g mask={`url(#${coverId})`} className={styles.mowerUnder}>
-            <g ref={(el) => void (moveRefs.current[1] = el)}>
-              <g ref={(el) => void (turnRefs.current[2] = el)}>
-                {shape && <polygon className={styles.mowerUnderBody} points={points(shape.corners)} />}
-                {iconOutline &&
-                  (fitted ? (
-                    <g transform={`translate(${mx} ${my}) scale(${ox} ${oy})`} filter={`url(#${coverId}o)`}>
-                      {icon.draw({speed, emergency, blades})}
-                    </g>
-                  ) : (
-                    !icon.upright && (
-                      <g transform={`translate(${mx} ${my}) scale(${size})`} filter={`url(#${coverId}o)`}>
-                        {drawIcon}
-                      </g>
-                    )
-                  ))}
-              </g>
-              {iconOutline && !fitted && icon.upright && (
-                <g ref={(el) => void (uprightRefs.current[2] = el)}>
-                  <g transform={`scale(${size})`} filter={`url(#${coverId}o)`}>
-                    {drawIcon}
-                  </g>
-                </g>
-              )}
-            </g>
-          </g>
-        </>
-      )}
     </>
   );
 }

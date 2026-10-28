@@ -213,7 +213,7 @@ const Ground = memo(
 const withoutKey = (nodes: ReactNode, key: string) => (Array.isArray(nodes) ? nodes.filter((n) => !(isValidElement(n) && n.key === key)) : nodes);
 
 // what's drawn of the map in one svg (see renderContent)
-type Part = 'all' | 'ground' | 'settled' | 'live' | 'over' | 'loupe';
+type Part = 'all' | 'ground' | 'settled' | 'live' | 'mower' | 'over' | 'loupe';
 const drawsPart = (part: Part, p: Part) => part === 'all' || part === 'loupe' || part === p;
 
 // a point of an outline or of a line being drawn, or the middle of an edge (a new point there)
@@ -1799,9 +1799,28 @@ function MapView({
       )}
       {drawsPart(part, 'settled') && (part === 'loupe' ? settledOf(false) : settledLines)}
       {drawsPart(part, 'live') && liveLines}
+      {/* the mower in a layer of its own under the crowns: it's drawn again every frame, the crowns aren't */}
+      {drawsPart(part, 'mower') && markerMower && (
+        <MowerMarker
+          mower={markerMower}
+          poses={sim ? sim.clock : livePoses}
+          fit={drawn}
+          k={k}
+          icons={settings.icons}
+          body={body}
+          // without the icon the outline shows where the mower is
+          outline={!!body && (layerOn(hidden, 'body') || !layerOn(hidden, 'mowerIcon'))}
+          showIcon={!body || layerOn(hidden, 'mowerIcon')}
+          emergency={emergency}
+          blades={!sim && track?.at(-1)?.at(-1)?.b === true}
+          ghost={halloween.night}
+          costume={{hat: halloween.day, towel: costume?.towel, umbrella: costume?.umbrella}}
+        />
+      )}
       {drawsPart(part, 'over') && (
         <>
-        {markerMower && (
+        {part !== 'loupe' && canopies}
+        {part !== 'loupe' && markerMower && covers.length > 0 && (
           <MowerMarker
             mower={markerMower}
             poses={sim ? sim.clock : livePoses}
@@ -1809,19 +1828,15 @@ function MapView({
             k={k}
             icons={settings.icons}
             body={body}
-            // without the icon the outline shows where the mower is
             outline={!!body && (layerOn(hidden, 'body') || !layerOn(hidden, 'mowerIcon'))}
             showIcon={!body || layerOn(hidden, 'mowerIcon')}
             emergency={emergency}
             blades={!sim && track?.at(-1)?.at(-1)?.b === true}
-            ghost={halloween.night}
-            costume={{hat: halloween.day, towel: costume?.towel, umbrella: costume?.umbrella}}
-            cover={part === 'loupe' ? undefined : canopies}
-            covers={part === 'loupe' ? undefined : covers}
+            under
+            covers={covers}
             coverId={uid + 'under'}
           />
         )}
-        {part !== 'loupe' && !markerMower && canopies}
         {/* the plan, the real edges and the track over the crowns too, only where they are (else they'd be twice) */}
         {part !== 'loupe' && covers.length > 0 && (
           <>
@@ -2213,7 +2228,7 @@ function MapView({
       <div ref={frameRef} className={[styles.frame, glides ? styles.frameGliding : ''].filter(Boolean).join(' ')}>
         <div ref={sheetRef} style={glides ? GLIDING : OVERSCAN} {...events}>
           {svg}
-          {(['settled', 'live'] as const).map((part) => (
+          {(['settled', 'live', 'mower'] as const).map((part) => (
             <svg key={part} className={[styles.svg, zoomable ? styles.zoomable : '', garden ? styles.garden : ''].filter(Boolean).join(' ')} viewBox={svg.props.viewBox} style={OVER}>
               {renderContent(k, part)}
             </svg>
