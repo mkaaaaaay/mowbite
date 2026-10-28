@@ -213,7 +213,7 @@ const Ground = memo(
 const withoutKey = (nodes: ReactNode, key: string) => (Array.isArray(nodes) ? nodes.filter((n) => !(isValidElement(n) && n.key === key)) : nodes);
 
 // what's drawn of the map in one svg (see renderContent)
-type Part = 'all' | 'ground' | 'settled' | 'live' | 'mower' | 'over' | 'loupe';
+type Part = 'all' | 'ground' | 'settled' | 'live' | 'mower' | 'crowns' | 'over' | 'loupe';
 const drawsPart = (part: Part, p: Part) => part === 'all' || part === 'loupe' || part === p;
 
 // a point of an outline or of a line being drawn, or the middle of an edge (a new point there)
@@ -1665,12 +1665,6 @@ function MapView({
       )}
     </>
   );
-  const lateLines = (
-    <>
-      {settledLines}
-      {liveLines}
-    </>
-  );
   // part: the map on the ground, the lines that grow while the mower drives (the strip the blade cut, the track, what's
   // left to mow), or what's over it and changes often (the mower, the crowns over it, the picked area and its points),
   // drawn as layers on a map that can move: a mower driving along doesn't draw all the garden again. loupe: all but the
@@ -1817,9 +1811,30 @@ function MapView({
           costume={{hat: halloween.day, towel: costume?.towel, umbrella: costume?.umbrella}}
         />
       )}
+      {/* the crowns in one of their own too, with the plan and the real edges over them, only where they are (else they'd
+          be twice): the track over them changes with every pose, it's in the layer over this one */}
+      {drawsPart(part, 'crowns') && part !== 'loupe' && (
+        <>
+          {canopies}
+          {covers.length > 0 && (
+            <>
+              <defs>
+                <mask id={uid + 'rim'} maskUnits="userSpaceOnUse" x={-10 * WIDTH} y={-10 * HEIGHT} width={21 * WIDTH} height={21 * HEIGHT}>
+                  {covers.map((c, i) =>
+                    c.pts ? <polygon key={i} points={c.pts.map((p) => p.join(',')).join(' ')} fill="#fff" /> : <circle key={i} cx={c.cx} cy={c.cy} r={c.rim} fill="#fff" />,
+                  )}
+                </mask>
+              </defs>
+              <g mask={`url(#${uid}rim)`}>
+                {planLines}
+                {settledLines}
+              </g>
+            </>
+          )}
+        </>
+      )}
       {drawsPart(part, 'over') && (
         <>
-        {part !== 'loupe' && canopies}
         {part !== 'loupe' && markerMower && covers.length > 0 && (
           <MowerMarker
             mower={markerMower}
@@ -1837,22 +1852,8 @@ function MapView({
             coverId={uid + 'under'}
           />
         )}
-        {/* the plan, the real edges and the track over the crowns too, only where they are (else they'd be twice) */}
-        {part !== 'loupe' && covers.length > 0 && (
-          <>
-            <defs>
-              <mask id={uid + 'rim'} maskUnits="userSpaceOnUse" x={-10 * WIDTH} y={-10 * HEIGHT} width={21 * WIDTH} height={21 * HEIGHT}>
-                {covers.map((c, i) =>
-                  c.pts ? <polygon key={i} points={c.pts.map((p) => p.join(',')).join(' ')} fill="#fff" /> : <circle key={i} cx={c.cx} cy={c.cy} r={c.rim} fill="#fff" />,
-                )}
-              </mask>
-            </defs>
-            <g mask={`url(#${uid}rim)`}>
-              {planLines}
-              {lateLines}
-            </g>
-          </>
-        )}
+        {/* the track over the crowns, through the crowns' mask */}
+        {part !== 'loupe' && covers.length > 0 && <g mask={`url(#${uid}rim)`}>{liveLines}</g>}
 
         {/* decorating: a ring round each pin's middle, the picked one has its frame */}
         {decor &&
@@ -2228,7 +2229,7 @@ function MapView({
       <div ref={frameRef} className={[styles.frame, glides ? styles.frameGliding : ''].filter(Boolean).join(' ')}>
         <div ref={sheetRef} style={glides ? GLIDING : OVERSCAN} {...events}>
           {svg}
-          {(['settled', 'live', 'mower'] as const).map((part) => (
+          {(['settled', 'live', 'mower', 'crowns'] as const).map((part) => (
             <svg key={part} className={[styles.svg, zoomable ? styles.zoomable : '', garden ? styles.garden : ''].filter(Boolean).join(' ')} viewBox={svg.props.viewBox} style={OVER}>
               {renderContent(k, part)}
             </svg>
