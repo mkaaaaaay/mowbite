@@ -132,10 +132,3 @@
   gap: 8px;
 }
 
-.never {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: var(--text-secondary);
-}

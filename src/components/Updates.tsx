@@ -15,8 +15,6 @@ import {
   dismissUpdate,
   isNewer,
   missingOnMower,
-  setBehindNote,
-  setUpdateCheck,
   useUpdates,
 } from '@/lib/updates';
 import Link from 'next/link';
@@ -135,7 +133,7 @@ const behindText = (mower: string | null, missing: string[]) =>
     list: missing.map((m) => tr(m)).join(', '),
   });
 
-export function UpdateSettings({cardClass, checkClass}: {cardClass: string; checkClass: string}) {
+export function UpdateSettings({cardClass}: {cardClass: string}) {
   const {u, app, mower, missing, appOld, mowerOld, storeOld} = useOutdated();
 
   return (
@@ -145,16 +143,6 @@ export function UpdateSettings({cardClass, checkClass}: {cardClass: string; chec
         {app ? `${tr('App')} ${APP_VERSION} · ${tr('Mower')} ${mower ?? (u.level === 0 ? tr('older version') : '?')}` : `MowBite ${APP_VERSION}`}
       </CreditsTrigger>
       <NewerOpenMower />
-      <label className={checkClass}>
-        <input type="checkbox" checked={u.enabled} onChange={(e) => setUpdateCheck(e.target.checked)} />
-        {tr('Look for updates once a day (asks GitHub, which sees your IP address)')}
-      </label>
-      {app && (
-        <label className={checkClass}>
-          <input type="checkbox" checked={!u.behindNever} onChange={(e) => setBehindNote(e.target.checked)} />
-          {tr('A note on the dashboard when MowBite on the mower is too old for something in the app')}
-        </label>
-      )}
       <div className={styles.status}>
         <button className={[styles.button, styles.even].join(' ')} onClick={() => void checkNow()} disabled={u.checking}>
           {u.checking ? tr('checking…') : tr('Check now')}
@@ -216,16 +204,12 @@ export function UpdateSettings({cardClass, checkClass}: {cardClass: string; chec
 // waved away
 export function UpdateBanner() {
   const {u, mower, missing, appOld, mowerOld} = useOutdated();
-  if (missing.length > 0 && !u.behindNever && u.behindDismissed !== behindKey(mower)) {
+  if (missing.length > 0 && u.behindDismissed !== behindKey(mower)) {
     return (
       <div className={[styles.banner, styles.behind].join(' ')}>
         <div>
           <span>{behindText(mower, missing)}</span>
           <UpdateCommand />
-          <label className={styles.never}>
-            <input type="checkbox" onChange={(e) => e.target.checked && setBehindNote(false)} />
-            {tr("Don't show again")}
-          </label>
         </div>
         <button onClick={() => dismissBehind(behindKey(mower))} aria-label={tr('Close')}>
           ×

@@ -457,7 +457,7 @@ export default function SettingsPage() {
             <AutoUpdate />
             <DockgeUpdateGuide />
           </section>
-          <UpdateSettings cardClass={styles.card} checkClass={styles.check} />
+          <UpdateSettings cardClass={styles.card} />
         </Group>
 
         <Group id="app" title={tr('App')} hint={tr('Guides, mowers')} anchors={['guides']}>

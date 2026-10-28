@@ -6,12 +6,9 @@ import {apiBase, mowerFetch} from './mowers';
 // device in the settings, then once a day. "check now" works either way.
 
 const REPO = 'mkaaaaaay/mowbite';
-const ENABLED_KEY = 'updateCheck';
 const INFO_KEY = 'updateInfo';
 const DISMISSED_KEY = 'updateDismissed';
 const BEHIND_KEY = 'mowerBehindDismissed';
-const BEHIND_NEVER_KEY = 'mowerBehindNever';
-const DAY = 24 * 3600e3;
 
 export const APP_VERSION = process.env.APP_VERSION ?? '0.0.0';
 // built for google play (STORE=play): the store updates the app there, no word about a newer apk
@@ -74,7 +71,6 @@ function write(key: string, value: unknown) {
 }
 
 interface State {
-  enabled: boolean;
   latest: Release | null;
   checkedAt: number | null;
   checking: boolean;
@@ -86,12 +82,9 @@ interface State {
   level: number | null;
   // the dashboard's note about an older container was waved away: its version and the level the app knew
   behindDismissed: string | null;
-  // or isn't wanted at all on this device
-  behindNever: boolean;
 }
 
 const EMPTY: State = {
-  enabled: false,
   latest: null,
   checkedAt: null,
   checking: false,
@@ -100,7 +93,6 @@ const EMPTY: State = {
   mower: null,
   level: null,
   behindDismissed: null,
-  behindNever: false,
 };
 let state: State | null = null;
 const listeners = new Set<() => void>();
@@ -110,12 +102,10 @@ function current(): State {
     const info = read<{latest: Release; at: number}>(INFO_KEY);
     state = {
       ...EMPTY,
-      enabled: read<boolean>(ENABLED_KEY) === true,
       latest: info?.latest ?? null,
       checkedAt: info?.at ?? null,
       dismissed: read<string>(DISMISSED_KEY),
       behindDismissed: read<string>(BEHIND_KEY),
-      behindNever: read<boolean>(BEHIND_NEVER_KEY) === true,
     };
   }
   return state;
@@ -145,12 +135,6 @@ export async function checkNow(): Promise<void> {
   }
 }
 
-export function setUpdateCheck(on: boolean) {
-  write(ENABLED_KEY, on || null);
-  set({enabled: on});
-  if (on) void checkNow();
-}
-
 export function dismissUpdate(version: string) {
   write(DISMISSED_KEY, version);
   set({dismissed: version});
@@ -162,11 +146,6 @@ export const behindKey = (mower: string | null) => `${mower} ${CONTAINER_LEVEL}`
 export function dismissBehind(key: string) {
   write(BEHIND_KEY, key);
   set({behindDismissed: key});
-}
-
-export function setBehindNote(on: boolean) {
-  write(BEHIND_NEVER_KEY, on ? null : true);
-  set({behindNever: !on});
 }
 
 type Version = {version?: string; level?: number};
@@ -201,9 +180,7 @@ export async function mowerHas(key: string): Promise<boolean> {
   return containerHas(current().level, key);
 }
 
-let started = false;
-
-// the update state, starts the daily check (if switched on) and asks the mower for its version
+// the update state, asks the mower for its version. GitHub only when "Check now" is tapped
 export function useUpdates(): State {
   const s = useSyncExternalStore(
     (l) => {
@@ -215,10 +192,6 @@ export function useUpdates(): State {
   );
   useEffect(() => {
     void askMower();
-    if (started) return;
-    started = true;
-    const c = current();
-    if (c.enabled && (!c.checkedAt || Date.now() - c.checkedAt > DAY)) void checkNow();
   }, []);
   return s;
 }
