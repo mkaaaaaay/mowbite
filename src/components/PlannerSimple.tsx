@@ -5,6 +5,7 @@ import {dec, tr} from '@/lib/i18n';
 import {outlineOf, resetPlannerAngle, savePlannerSettings, slic3rPlans, usePlannerSettings, type PlannerSetting} from '@/lib/mowerBody';
 import {ANGLE_FOR_ALL, FIELDS, STYLE_LABELS, STYLE_NOTES, STYLES, styleOf} from '@/lib/plannerFields';
 import {areasWith, areasWithDirection, ownMargins, ownSettings, shown, type AreaValue, type OpenMowerOwn} from '@/lib/plannerOwn';
+import {useMowbiteOs} from '@/lib/mowerOs';
 import {RpcError} from '@/lib/rpc';
 import {useEffect, useState} from 'react';
 import InfoTip from './InfoTip';
@@ -154,6 +155,8 @@ export function PlannerSimple({
   expert?: React.ReactNode;
 }) {
   const planner = usePlannerSettings();
+  // MowBite OS: no lane spacing of OpenMower's, the planner's overlap counts also when it isn't set
+  const os = useMowbiteOs();
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [state, setState] = useState<{busy?: boolean; error?: string; saved?: number}>({});
   // "saved" shows for a moment
@@ -281,7 +284,7 @@ export function PlannerSimple({
         ))}
       </p>
     );
-  const others = (key: string) => (area ? null : areaList(tr('Own value in:'), areasWith(map, key, all)));
+  const others = (key: string) => (area ? null : areaList(tr('Own value in:'), areasWith(map, key, all, os)));
   // for an area: its own value with the way back to the one for all areas, where the field alone doesn't show it
   const ownLine = (key: string, allText?: string) =>
     area &&
@@ -315,10 +318,10 @@ export function PlannerSimple({
   const blade = typeof global('mower_width') === 'number' ? (global('mower_width') as number) : 0.18;
   // the lane spacing: worked out by the planner, or fixed (from the overlap with the blade, else OpenMower's)
   const auto = effective('lane_spacing_mode') === 'auto';
-  const overlap = area?.own.overlap ?? (all.overlap?.stored ? all.overlap.value : undefined);
+  const overlap = area?.own.overlap ?? (all.overlap?.stored || os ? all.overlap?.value : undefined);
   const spacingCm = typeof overlap === 'number' ? blade * (1 - overlap) * 100 : toolWidth !== undefined ? toolWidth * 100 : null;
   // the fixed spacing for all areas, for an area with its own
-  const allOverlap = all.overlap?.stored ? all.overlap.value : undefined;
+  const allOverlap = all.overlap?.stored || os ? all.overlap?.value : undefined;
   const allSpacingCm = typeof allOverlap === 'number' ? blade * (1 - allOverlap) * 100 : toolWidth !== undefined ? toolWidth * 100 : null;
   const passes = effective('perimeter_passes');
   const autoPasses = all.perimeter_passes?.auto_value;
@@ -545,7 +548,13 @@ export function PlannerSimple({
               help={tr(
                 'How far apart the lanes are. The blade mows a little wider, so neighbouring lanes overlap. Automatic: the widest spacing that still leaves nothing standing, fewer lanes and turns.',
               )}
-              note={auto ? tr('As wide as possible without leaving grass standing.') : tr('Smaller overlaps more and takes longer. Empty: the spacing set in OpenMower.')}
+              note={
+                auto
+                  ? tr('As wide as possible without leaving grass standing.')
+                  : os
+                    ? tr("Smaller overlaps more and takes longer. Empty: the planner's overlap for all areas.")
+                    : tr('Smaller overlaps more and takes longer. Empty: the spacing set in OpenMower.')
+              }
               source={
                 others('lane_spacing_mode') ||
                 (area && area.own.overlap !== undefined && allSpacingCm !== null
@@ -592,7 +601,7 @@ export function PlannerSimple({
                   label={tr('Automatic direction')}
                   help={tr(FIELDS.angle_strategy.help)}
                   note={`${tr('For areas without a mow angle of their own:')} ${tr(STRATEGY_NOTES[all.angle_strategy.stored ? String(global('angle_strategy')) : 'openmower'] ?? '')}`}
-                  source={areaList(tr('Own direction:'), areasWithDirection(map, all))}
+                  source={areaList(tr('Own direction:'), areasWithDirection(map, all, os))}
                 >
                   <Choice
                     options={[
@@ -640,7 +649,7 @@ export function PlannerSimple({
                       </button>
                     )}
                   </div>
-                  {!!omIncrement && (
+                  {!!omIncrement && !os && (
                     <span className={local.error}>
                       {tr('OpenMower turns the angle further as well ({deg}° after every whole mow), the two add up.', {deg: omIncrement})}{' '}
                       <button disabled={state.busy} onClick={() => void zeroOmIncrement()}>

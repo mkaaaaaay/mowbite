@@ -8,6 +8,8 @@ export type Group = 'pattern' | 'angle' | 'edge' | 'obstacles' | 'turns' | 'rout
 export interface Field {
   label: string;
   help: string;
+  // on MowBite OS, where mower_logic has no lane spacing
+  helpOs?: string;
   group: Group;
   // how it's typed in: degrees for an angle the planner takes in rad
   unit?: 'm' | 'deg';
@@ -36,6 +38,7 @@ export const FIELDS: Record<string, Field> = {
   lane_spacing_mode: {
     label: 'Lane spacing',
     help: "Fixed: OpenMower's lane spacing (tool_width), or the overlap set here. Picked by the planner: the widest spacing between the two below that leaves nothing unmowed, fewer lanes and turns.",
+    helpOs: 'Fixed: the blade width less the overlap. Picked by the planner: the widest spacing between the two below that leaves nothing unmowed, fewer lanes and turns.',
     group: 'pattern',
     choices: {fixed: 'Fixed', auto: 'Picked by the planner'},
     area: true,
@@ -59,6 +62,7 @@ export const FIELDS: Record<string, Field> = {
   overlap: {
     label: 'Overlap',
     help: "How much of the blade's width the lanes overlap (0.2 = 20 %), with a fixed spacing. Empty: from OpenMower's lane spacing (tool_width).",
+    helpOs: "How much of the blade's width the lanes overlap (0.2 = 20 %), with a fixed spacing. Empty: the planner's default.",
     group: 'pattern',
     step: 0.05,
     advanced: true,

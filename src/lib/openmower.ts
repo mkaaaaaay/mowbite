@@ -22,6 +22,8 @@ export const TOPIC = {
 export const RPC = {
   // what this mower answers, newer OpenMower versions only
   methods: 'rpc.methods',
+  // what runs on the mower, MowBite OS only (lib/mowerOs)
+  systemInfo: 'system.info',
   replaceMap: 'map.replace',
   eventDays: 'events.history.list',
   events: 'events.history',

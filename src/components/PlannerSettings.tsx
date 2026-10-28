@@ -3,6 +3,7 @@
 import {tr} from '@/lib/i18n';
 import {loadPlannerSettings, savePlannerSettings, usePlannerSettings, type PlannerSetting} from '@/lib/mowerBody';
 import {ANGLE_FOR_ALL, BODY_KEYS, COUNTED, DROPPED, DROPPED_CHOICES, FIELDS, fromInput, GROUPS, RETIRED, SIMPLE, toInput, type Field, type Group} from '@/lib/plannerFields';
+import {useMowbiteOs} from '@/lib/mowerOs';
 import {RpcError} from '@/lib/rpc';
 import {useEffect, useState} from 'react';
 import InfoTip from './InfoTip';
@@ -60,11 +61,13 @@ export function PlannerField({
   warning?: string | null;
 }) {
   const field: Field | undefined = FIELDS[name];
+  const os = useMowbiteOs();
+  const help = os && field?.helpOs ? field.helpOs : field?.help;
   const label = (
     <span className={local.label}>
       {tr(field?.label ?? name)}
       {field?.unit === 'deg' ? ' (°)' : field?.unit === 'm' ? ' (m)' : ''}
-      {field?.help && <InfoTip>{tr(field.help)}</InfoTip>}
+      {help && <InfoTip>{tr(help)}</InfoTip>}
     </span>
   );
   const choices = (setting.choices ?? []).filter((c) => !DROPPED_CHOICES[name]?.includes(c));

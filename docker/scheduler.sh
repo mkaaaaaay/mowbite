@@ -541,14 +541,18 @@ while :; do
       # the mowing direction of this start. one without its own gets the usual one back after one with its own: what
       # the app keeps for the mower (params.sh), else what the mower had before a start turned it
       turn=""
-      if [ "$angle" != - ]; then
+      mower_params=""
+      if [ "$angle" != - ] || [ -f "$NORMAL" ]; then
+        # shellcheck disable=SC2086
+        mower_params=$(mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_PARAMS" -C 1 -W 10 2>/dev/null)
+      fi
+      usual=$(field "$mower_params" "$PARAM_MOW_ANGLE_OFFSET")
+      if [ -n "$mower_params" ] && [ -z "$usual" ]; then
+        # a mower without mower_logic's mowing direction (MowBite OS, its planner turns the lanes): nothing to turn
+        rm -f "$NORMAL"
+      elif [ "$angle" != - ]; then
         turn=$angle
-        if [ ! -f "$NORMAL" ]; then
-          # shellcheck disable=SC2086
-          now=$(mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_PARAMS" -C 1 -W 10 2>/dev/null)
-          now=$(field "$now" "$PARAM_MOW_ANGLE_OFFSET")
-          [ -n "$now" ] && echo "$now" > "$NORMAL"
-        fi
+        [ ! -f "$NORMAL" ] && [ -n "$usual" ] && echo "$usual" > "$NORMAL"
       elif [ -f "$NORMAL" ]; then
         turn=$(kept_angle)
         turn=${turn:-$(cat "$NORMAL" 2>/dev/null)}

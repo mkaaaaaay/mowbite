@@ -52,6 +52,8 @@ import {createSimClock} from '@/lib/simulate';
 import {Fold} from './Fold';
 import {bodyFrom, isPin, loadPlannerSettings, slic3rPlans, standing, useMowerBody, usePlannerSettings, type BodySpot} from '@/lib/mowerBody';
 import {OpenMowerMowing, useCanSetParams} from '@/components/MowerParamSettings';
+import {useMowbiteOs} from '@/lib/mowerOs';
+import {osOwn, osSet, osTidy} from '@/lib/plannerOwn';
 import {PlannerSettings} from '@/components/PlannerSettings';
 import {PlannerSimple} from '@/components/PlannerSimple';
 import settingsStyles from '../settings/page.module.css';
@@ -260,6 +262,8 @@ function MapEditor() {
   const slic3r = slic3rPlans(plannerSettings);
   // OpenMower's own mowing values can be changed here (params.set)
   const canSetParams = useCanSetParams();
+  // MowBite OS: the planner is the one place for the mowing values, an area's own are in OpenMower's keys of the map
+  const os = useMowbiteOs();
   const margins = useMemo(() => {
     if (slic3rPlans(plannerSettings)) return null;
     const value = (k: string) => plannerSettings?.settings[k]?.value;
@@ -419,9 +423,10 @@ function MapEditor() {
     if (!map || !selectedArea) return;
     // typing on in a field that kept focus through a save: the first change still gets its undo step
     if (undoable || !edited) remember();
+    const change = os ? osTidy(selectedArea.properties, patch) : patch;
     setMap({
       ...map,
-      areas: map.areas.map((a) => (a.id === selectedArea.id ? {...a, properties: {...a.properties, ...patch}} : a)),
+      areas: map.areas.map((a) => (a.id === selectedArea.id ? {...a, properties: {...a.properties, ...change}} : a)),
     });
   };
 
@@ -1270,7 +1275,7 @@ function MapEditor() {
                   )}
 
                   {/* without the planner (or with OpenMower's slic3r planning) OpenMower's own values for all areas */}
-                  {(!plannerSettings || slic3r) && canSetParams && (
+                  {(!plannerSettings || slic3r) && canSetParams && !os && (
                     <Fold id="mowingAll" title={tr('Mowing for all areas')}>
                       <div className={styles.foldCards}>
                         <section className={settingsStyles.card}>
@@ -1404,12 +1409,15 @@ function MapEditor() {
                     direction={<AreaDirection {...mowProps} update={updateDirection} />}
                     openmower={<OpenMowerArea {...mowProps} inMenu />}
                     area={{
-                      own: selectedArea.properties.planner ?? {},
-                      openmower: {
-                        outline_count: selectedArea.properties.outline_count,
-                        outline_overlap_count: selectedArea.properties.outline_overlap_count,
-                        outline_offset: selectedArea.properties.outline_offset,
-                      },
+                      own: os ? osOwn(selectedArea.properties) : (selectedArea.properties.planner ?? {}),
+                      // (on MowBite OS they're the area's own values above)
+                      openmower: os
+                        ? {}
+                        : {
+                            outline_count: selectedArea.properties.outline_count,
+                            outline_overlap_count: selectedArea.properties.outline_overlap_count,
+                            outline_offset: selectedArea.properties.outline_offset,
+                          },
                       dropOpenMower: (key) => updateProperties({[key]: undefined}),
                       // OpenMower's values go too, they'd count over the ones for all areas
                       clear: () =>
@@ -1417,12 +1425,14 @@ function MapEditor() {
                       planned: plan?.chosen?.perimeter_passes,
                       outline: selectedArea.outline,
                       set: (key, value) => {
+                        if (os) return updateProperties(osSet(selectedArea.properties, {[key]: value}));
                         const own = {...(selectedArea.properties.planner ?? {})};
                         if (value === undefined || value === null) delete own[key];
                         else own[key] = value;
                         updateProperties({planner: Object.keys(own).length ? own : undefined});
                       },
                       setMany: (values) => {
+                        if (os) return updateProperties(osSet(selectedArea.properties, values));
                         const own = {...(selectedArea.properties.planner ?? {})};
                         for (const [key, value] of Object.entries(values)) {
                           if (value === undefined || value === null) delete own[key];

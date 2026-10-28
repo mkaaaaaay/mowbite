@@ -25,6 +25,58 @@ const OPENMOWER: [keyof OpenMowerOwn, string][] = [
   ['outline_offset', 'perimeter_offset'],
 ];
 
+type Props = MowerMap['areas'][number]['properties'];
+
+// an OpenMower count below 0 is "the one for all areas", an offset can be below 0
+const counts = (prop: keyof OpenMowerOwn, v: unknown): v is number => typeof v === 'number' && (prop === 'outline_offset' || v >= 0);
+
+// On MowBite OS an area's outline passes, overlapping passes and offset have one place, OpenMower's keys of map.json,
+// and they count before the planner property (that only keeps "the planner works it out", perimeter_passes -1). The
+// area's planner settings as the planner reads them there
+export function osOwn(p: Props): Record<string, unknown> {
+  const own: Record<string, unknown> = {...(p.planner ?? {})};
+  for (const [prop, key] of OPENMOWER) if (counts(prop, p[prop])) own[key] = p[prop];
+  return own;
+}
+
+// what setting the area's planner settings does to its properties on MowBite OS (undefined: back to the one for all
+// areas): an outline value goes into OpenMower's key and out of the planner property, "the planner works it out"
+// (below 0) the other way round, a way of working the direction out takes the area's angle away
+export function osSet(p: Props, values: Record<string, unknown>): Partial<Props> {
+  const planner: Record<string, unknown> = {...(p.planner ?? {})};
+  const patch: Partial<Props> = {};
+  for (const [key, v] of Object.entries(values)) {
+    const prop = OPENMOWER.find(([, k]) => k === key)?.[0];
+    const off = v === undefined || v === null;
+    if (prop) {
+      const auto = key === 'perimeter_passes' && typeof v === 'number' && v < 0;
+      patch[prop] = off || auto ? undefined : (v as number);
+      if (auto) planner[key] = v;
+      else delete planner[key];
+      continue;
+    }
+    if (off) delete planner[key];
+    else planner[key] = v;
+    if (key === 'angle_strategy' && !off) patch.angle = undefined;
+  }
+  return {...patch, planner: Object.keys(planner).length ? planner : undefined};
+}
+
+// any change of an area on MowBite OS: an outline count or an angle set takes what stands for it in the planner
+// property away, a way of working the direction out set there the angle. else a value nobody reads would stay
+export function osTidy(p: Props, patch: Partial<Props>): Partial<Props> {
+  const before = 'planner' in patch ? patch.planner : p.planner;
+  const planner: Record<string, unknown> = {...(before ?? {})};
+  const out = {...patch};
+  if (counts('outline_count', patch.outline_count)) delete planner.perimeter_passes;
+  if (typeof patch.angle === 'number') {
+    delete planner.angle_strategy;
+    delete planner.angle;
+  } else if (typeof planner.angle_strategy === 'string' && planner.angle_strategy !== p.planner?.angle_strategy) out.angle = undefined;
+  if (Object.keys(planner).length !== Object.keys(before ?? {}).length) out.planner = Object.keys(planner).length ? planner : undefined;
+  return out;
+}
+
 const short = (v: number) => fmt(v, Math.abs(v - Math.round(v)) < 0.05 ? 0 : 1);
 
 // a setting's value in words, as the menu shows it
@@ -80,13 +132,14 @@ const nameOf = (a: MowerMap['areas'][number]) => a.properties.name || tr(a.prope
 const mowed = (a: MowerMap['areas'][number]) => a.properties.type === 'mow' && a.properties.active !== false && a.properties.mowable !== false;
 
 // the mowing areas setting a planner setting themselves, or with OpenMower's own value of the area standing for it
-// (outline_count and co.), for the line under the setting for all areas. Only the ones mowed
-export function areasWith(map: MowerMap | null | undefined, key: string, settings: Record<string, PlannerSetting>): AreaValue[] {
+// (outline_count and co.), for the line under the setting for all areas. Only the ones mowed. os: MowBite OS, where
+// OpenMower's key is the area's own value
+export function areasWith(map: MowerMap | null | undefined, key: string, settings: Record<string, PlannerSetting>, os = false): AreaValue[] {
   const om = OPENMOWER.find(([, k]) => k === key)?.[0];
   const out: AreaValue[] = [];
   for (const a of map?.areas ?? []) {
     if (!mowed(a)) continue;
-    const own = a.properties.planner?.[key];
+    const own = os ? osOwn(a.properties)[key] : a.properties.planner?.[key];
     if (own !== undefined && own !== null) {
       out.push({id: a.id, name: nameOf(a), value: shown(key, own, settings[key])});
       continue;
@@ -100,13 +153,13 @@ export function areasWith(map: MowerMap | null | undefined, key: string, setting
 }
 
 // the mowing areas going their own way: an angle of their own, or their own way of working the direction out (which
-// wins over the angle with the planner)
-export function areasWithDirection(map: MowerMap | null | undefined, settings: Record<string, PlannerSetting>): AreaValue[] {
+// wins over the angle with the planner, on MowBite OS the angle wins)
+export function areasWithDirection(map: MowerMap | null | undefined, settings: Record<string, PlannerSetting>, os = false): AreaValue[] {
   const out: AreaValue[] = [];
   for (const a of map?.areas ?? []) {
     if (!mowed(a)) continue;
-    const strategy = a.properties.planner?.angle_strategy;
     const angle = a.properties.angle;
+    const strategy = os && typeof angle === 'number' ? undefined : a.properties.planner?.angle_strategy;
     if (typeof strategy === 'string') out.push({id: a.id, name: nameOf(a), value: shown('angle_strategy', strategy, settings.angle_strategy)});
     else if (typeof angle === 'number') out.push({id: a.id, name: nameOf(a), value: `${(((Math.round((angle * 180) / Math.PI)) % 360) + 360) % 360}°`});
   }
