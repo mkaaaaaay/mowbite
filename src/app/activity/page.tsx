@@ -7,6 +7,7 @@ import {ParamFix} from '@/components/MowerParamSettings';
 import {describe, eventSource, explain, groupRuns, noteworthy, rawLine, OUTCOMES, withState, type Entry, type MowerEvent, type Run} from '@/lib/events';
 import {useDragScroll} from '@/hooks/useDragScroll';
 import {eventsOfDay, historyDays, localDays, type DayEvents} from '@/lib/history';
+import {useMowbiteOs} from '@/lib/mowerOs';
 import {RosLogAround} from '@/components/RosLog';
 import {GpsAround} from '@/components/GpsLog';
 import {DiagnosisDownload} from '@/components/Diagnosis';
@@ -237,6 +238,8 @@ export default function ActivityPage() {
 
   const shown = day ?? days?.[0] ?? null;
   const isToday = !!shown && dayKey(parseDay(shown)) === dayKey(new Date());
+  // MowBite OS doesn't dock yet, a run ends idle on the lawn
+  const os = useMowbiteOs();
 
   useEffect(() => {
     if (!shown) return;
@@ -267,7 +270,7 @@ export default function ActivityPage() {
   }, [shown, isToday]);
 
   // outside of runs only start/shutdown and real problems are interesting, not gps toggling in the dock
-  const entries: Entry[] = (events ? groupRuns(events, isToday).reverse() : []).filter(
+  const entries: Entry[] = (events ? groupRuns(events, isToday, undefined, os).reverse() : []).filter(
     (e) => e.kind === 'run' || ['BOOTED', 'SHUTDOWN'].includes(e.event.type) || noteworthy(e.event),
   );
   // which file and line an entry came from, the day's early or late hours sit in the neighbouring file

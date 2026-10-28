@@ -323,3 +323,50 @@ describe('recording an area (MowBite OS)', () => {
     expect(parseEvent('null')).toBeNull();
   });
 });
+
+describe('runs on MowBite OS', () => {
+  // it doesn't dock yet: mowing, then idle where it stands
+  const day = [
+    ev(100, 'STATE', {state: 'MOWING'}),
+    ev(110, 'AREA', {area_name: 'Front'}),
+    ev(120, 'BLADES', {enabled: true}),
+    ev(700, 'BLADES', {enabled: false}),
+    ev(710, 'STATE', {state: 'IDLE'}),
+    ev(900, 'GPS', {available: false}),
+  ];
+  const runs = (events: MowerEvent[], os: boolean) => groupRuns(events, true, 2000, os).flatMap((e) => (e.kind === 'run' ? [e.run] : []));
+
+  it('ends a run idle on the lawn, what comes after stays loose', () => {
+    const entries = groupRuns(day, true, 2000, true);
+    expect(entries.map((e) => e.kind)).toEqual(['run', 'event']);
+    expect(runs(day, true)[0]).toMatchObject({start: 100, end: 710, bladeSeconds: 580, outcome: 'stopped', areas: ['Front']});
+  });
+
+  it('says finished when the job was done', () => {
+    const done = [...day.slice(0, 4), ev(705, 'JOB_COMPLETE'), day[4]];
+    expect(runs(done, true)[0].outcome).toBe('done');
+  });
+
+  it('leaves the next start a run of its own', () => {
+    expect(runs([...day, ev(1000, 'STATE', {state: 'MOWING'}), ev(1100, 'STATE', {state: 'IDLE'})], true).map((r) => [r.start, r.end])).toEqual([
+      [100, 710],
+      [1000, 1100],
+    ]);
+  });
+
+  it('ends it the usual way once it docks', () => {
+    const docking = [
+      ev(100, 'STATE', {state: 'UNDOCKING'}),
+      ev(110, 'STATE', {state: 'MOWING'}),
+      ev(400, 'STATE', {state: 'IDLE'}),
+      ev(500, 'STATE', {state: 'DOCKING'}),
+      ev(600, 'DOCKED'),
+    ];
+    expect(runs(docking, true).map((r) => [r.start, r.end, r.outcome])).toEqual([[100, 600, 'returned']]);
+  });
+
+  it('keeps OpenMower as it was: idle in the middle goes on until docked', () => {
+    expect(runs(day, false)).toHaveLength(1);
+    expect(runs(day, false)[0]).toMatchObject({end: 900, outcome: 'running'});
+  });
+});

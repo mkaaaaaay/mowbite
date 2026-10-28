@@ -1991,6 +1991,7 @@ const de: Record<string, string> = {
   "Fixed: the blade width less the overlap. Picked by the planner: the widest spacing between the two below that leaves nothing unmowed, fewer lanes and turns.": "Fest: die Messerbreite abzüglich der Überlappung. Wählt der Planer: der weiteste Abstand zwischen den beiden Grenzen unten, der nichts ungemäht lässt, also weniger Bahnen und Wenden.",
   "How much of the blade's width the lanes overlap (0.2 = 20 %), with a fixed spacing. Empty: the planner's default.": "Wie viel der Messerbreite sich die Bahnen überlappen (0,2 = 20 %), bei festem Abstand. Leer: die Vorgabe des Planers.",
   "MowBite OS doesn't turn the direction per start time yet, set the direction in the planner": "MowBite OS dreht die Richtung noch nicht je Startzeit, stell die Richtung im Planer ein",
+  "Stopped on the lawn": "Auf dem Rasen angehalten",
 };
 
 export default de;

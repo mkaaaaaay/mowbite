@@ -27,6 +27,7 @@ import {useRecentRuns} from '@/hooks/useRecentRuns';
 import TopWeather from '@/components/TopWeather';
 import {clock, dayKey, dayLabel, duration} from '@/lib/dates';
 import {describe, emergencyText, groupRuns, noteworthy, OUTCOMES, type MowerEvent, type Run} from '@/lib/events';
+import {useMowbiteOs} from '@/lib/mowerOs';
 import {settingsStore} from '@/lib/settings';
 import {PARTS, useDueParts} from '@/lib/stats';
 import {containerHas, useUpdates} from '@/lib/updates';
@@ -201,6 +202,7 @@ export default function Home() {
   // the map page's map worked out while this one idles
   useMapAhead(map);
   const recent = useRecentRuns(state?.current_state);
+  const os = useMowbiteOs();
   // the last finished mow, for what it left. one that drove the leftovers of the one before left nothing to look at
   const leftoverRun = recent?.latest.find((r) => r.outcome === 'done' && r.areas.length > 0 && r.jobId);
   const leftoverJob = leftoverRun?.jobId;
@@ -376,8 +378,8 @@ export default function Home() {
   // with the problems outside of runs (an emergency stop in the dock), like the activity counts them
   const today = recent?.today;
   const loose = useMemo(
-    () => (today ? groupRuns(today, true).filter((e) => e.kind === 'event' && noteworthy(e.event) && describe(e.event).severity !== 'info').length : 0),
-    [today],
+    () => (today ? groupRuns(today, true, undefined, os).filter((e) => e.kind === 'event' && noteworthy(e.event) && describe(e.event).severity !== 'info').length : 0),
+    [today, os],
   );
   const problems = runs.reduce((s, r) => s + r.problems, 0) + loose;
 

@@ -399,6 +399,7 @@ export type Outcome =
   | 'interrupted'
   | 'manual'
   | 'returned'
+  | 'stopped'
   | 'running';
 
 export interface Run {
@@ -439,7 +440,9 @@ export function markSentHome(sorted: MowerEvent[]): MowerEvent[] {
   });
 }
 
-export function groupRuns(events: MowerEvent[], live: boolean, now = Date.now() / 1000): Entry[] {
+// os: the mower runs MowBite OS, it doesn't dock yet (until its stage 4): idle after mowing ends the run there, no DOCKED
+// comes. on OpenMower idle in the middle of a run (an emergency, put in the dock by hand) goes on until it's docked
+export function groupRuns(events: MowerEvent[], live: boolean, now = Date.now() / 1000, os = false): Entry[] {
   const sorted = markSentHome([...events].sort((a, b) => a.t - b.t));
   const out: Entry[] = [];
   let run: MowerEvent[] | null = null;
@@ -447,8 +450,8 @@ export function groupRuns(events: MowerEvent[], live: boolean, now = Date.now() 
   // cut: OpenMower started again while it ran (a restart, the power was gone). hand: the blade on in recording mode,
   // mowing by hand (the mowing hours count it too)
   let hand = false;
-  const close = (finished: boolean, cut = false) => {
-    if (run?.length) out.push({kind: 'run', run: summarize(run, finished || !live, now, cut, hand)});
+  const close = (finished: boolean, cut = false, parked = false) => {
+    if (run?.length) out.push({kind: 'run', run: summarize(run, finished || !live, now, cut, hand, parked)});
     run = null;
     hand = false;
   };
@@ -481,14 +484,22 @@ export function groupRuns(events: MowerEvent[], live: boolean, now = Date.now() 
       e.type === 'DOCKED' ||
       e.type === 'SHUTDOWN' ||
       (e.type === 'STATE' && e.state === 'IDLE' && run.some((r) => r.type === 'UNDOCKING_FAILED' || r.type === 'DOCKING_FAILED'));
-    if (ends) close(true);
+    // (a docking, from stage 4 on, ends it the usual way)
+    const parked =
+      os &&
+      !hand &&
+      e.type === 'STATE' &&
+      e.state === 'IDLE' &&
+      !run.some((r) => (r.type === 'STATE' && (r.state === 'DOCKING' || r.state === 'UNDOCKING')) || r.type === 'DOCKED' || r.type === 'UNDOCKED');
+    if (ends || parked) close(true, false, parked && !ends);
   }
   close(false);
   return out;
 }
 
 // a run still going counts until now: its blade time and its end grow between the events
-function summarize(events: MowerEvent[], finished: boolean, now: number, cut: boolean, hand: boolean): Run {
+// parked: ended idle out on the lawn (MowBite OS)
+function summarize(events: MowerEvent[], finished: boolean, now: number, cut: boolean, hand: boolean, parked: boolean): Run {
   const areas: string[] = [];
   let bladeSeconds = 0;
   let bladesSince: number | null = null;
@@ -519,6 +530,7 @@ function summarize(events: MowerEvent[], finished: boolean, now: number, cut: bo
   else if (has('DOCKING_FAILED')) outcome = 'dock_failed';
   else if (has('UNDOCKING_FAILED') && !has('UNDOCKED')) outcome = 'undock_failed';
   else if (cut || last.type === 'SHUTDOWN') outcome = 'interrupted';
+  else if (parked) outcome = 'stopped';
   else {
     // why it went home, the last time it did
     const home = events.filter((e) => e.type === 'DOCKING' && homeReason(e.reason)).pop();
@@ -545,6 +557,7 @@ export const OUTCOMES: Record<Outcome, {label: string; tone: 'good' | 'neutral' 
   rain: {label: 'Stopped for rain', tone: 'neutral'},
   hot: {label: 'Mow motor too hot', tone: 'bad'},
   returned: {label: 'Back in the dock', tone: 'neutral'},
+  stopped: {label: 'Stopped on the lawn', tone: 'neutral'},
   undock_failed: {label: 'Undocking failed', tone: 'bad'},
   dock_failed: {label: 'Docking failed', tone: 'bad'},
   emergency: {label: 'Emergency stop', tone: 'bad'},
