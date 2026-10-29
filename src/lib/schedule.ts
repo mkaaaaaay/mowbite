@@ -1,3 +1,4 @@
+import {reasonText} from './events';
 import {forget, fresh} from './fresh';
 import {fmt, tr} from './i18n';
 import {apiBase, mowerFetch} from './mowers';
@@ -179,6 +180,7 @@ export interface LogEntry {
 export const SCHEDULE_LOG_TEXT: Record<string, string> = {
   started: 'Started',
   start_failed: "The mower didn't react to the start, still idle a minute later",
+  start_refused: 'Not started, the mower turned it down',
   angle_failed: "The mower didn't take the mowing direction ({detail}°), it mows the way it was set",
   waiting_battery: 'Waiting for the battery ({detail} %)',
   skip_battery: 'Not started, battery only at {detail} % after two hours',
@@ -221,6 +223,7 @@ const LEFTOVERS_SKIP: Record<string, string> = {
 // area skipped as planned or a start time changed meanwhile), or neither
 const BAD = new Set([
   'start_failed',
+  'start_refused',
   'angle_failed',
   'skip_battery',
   'skip_rain',
@@ -246,6 +249,12 @@ export function scheduleLogText(l: LogEntry): string {
 // a log line as shown, translated. a number with decimals in its detail (a temperature, m²) keeps them, with the
 // language's decimal comma
 export function scheduleLogLine(l: LogEntry): string {
+  // MowBite OS says why: its reason and the value it's about (the battery, the position's accuracy, what it was busy with)
+  if (l.what === 'start_refused' && l.detail) {
+    const n = l.more !== undefined && l.more !== '' && Number.isFinite(Number(l.more)) ? Number(l.more) : undefined;
+    const e = {id: '', t: l.t, type: 'MOWING_REFUSED', reason: l.detail, battery_voltage: n, accuracy: n, state: l.more};
+    return `${tr(SCHEDULE_LOG_TEXT.start_refused)}: ${reasonText(e)}`;
+  }
   const local = (v = '') => {
     const decimals = /^-?\d+\.(\d+)$/.exec(v)?.[1].length;
     return decimals ? fmt(Number(v), decimals) : v;
@@ -257,6 +266,7 @@ export function scheduleLogLine(l: LogEntry): string {
 const START_OUTCOMES = new Set([
   'started',
   'start_failed',
+  'start_refused',
   'skip_battery',
   'skip_rain',
   'skip_forecast',
@@ -285,6 +295,7 @@ export function missedStart(log: LogEntry[], now = Date.now() / 1000): LogEntry 
   let last: LogEntry | null = null;
   for (const l of log) if (START_OUTCOMES.has(l.what) && (!last || l.t > last.t)) last = l;
   if (!last || now - last.t > 12 * 3600) return null;
+  if (last.what === 'start_refused' && last.detail === 'BUSY') return null;
   return ['started', 'skip_paused', 'skip_busy', 'skip_gone'].includes(last.what) ? null : last;
 }
 

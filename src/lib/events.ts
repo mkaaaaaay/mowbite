@@ -214,9 +214,11 @@ const CODES: Record<string, (e: MowerEvent) => string> = {
   ON_DOCK: () => tr('on the docking station, drive it off by remote control first'),
   RAIN: () => tr('rain'),
   BATTERY_LOW: (e) =>
-    typeof e.battery_voltage === 'number'
-      ? tr('battery low ({v} V, at least {min} V needed)', {v: n1(e.battery_voltage), min: n1(e.limit)})
-      : tr('battery low'),
+    typeof e.battery_voltage !== 'number'
+      ? tr('battery low')
+      : typeof e.limit === 'number'
+        ? tr('battery low ({v} V, at least {min} V needed)', {v: n1(e.battery_voltage), min: n1(e.limit)})
+        : tr('battery low ({v} V)', {v: n1(e.battery_voltage)}),
   NO_POSITION: () => tr('no position'),
   POSE_LOST: () => tr('position lost'),
   POSITION_ACCURACY: (e) =>
@@ -224,9 +226,11 @@ const CODES: Record<string, (e: MowerEvent) => string> = {
       ? tr('position accurate to {acc} m, points need {max} m or better', {acc: n2(e.accuracy), max: n2(e.limit)})
       : e.action === 'record_dock'
         ? tr('position accurate to {acc} m, the docking station needs {max} m or better', {acc: n2(e.accuracy), max: n2(e.limit)})
-        : e.accuracy !== undefined
-          ? tr('position accurate to {acc} m, {max} m or better needed', {acc: n2(e.accuracy), max: n2(e.limit)})
-          : tr('position not accurate enough'),
+        : e.accuracy === undefined
+          ? tr('position not accurate enough')
+          : typeof e.limit === 'number'
+            ? tr('position accurate to {acc} m, {max} m or better needed', {acc: n2(e.accuracy), max: n2(e.limit)})
+            : tr('position accurate to {acc} m', {acc: n2(e.accuracy)}),
   NO_HEADING: () => tr("heading not known yet, drive a few metres by remote control"),
   HEADING: () => tr('heading not good enough'),
   MAP_MISMATCH: (e) => (e.datum_state === 'unbound' ? tr('the map has no reference point recorded') : tr("the map doesn't fit the reference point in use")),

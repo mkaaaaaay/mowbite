@@ -202,18 +202,38 @@ describe('missedStart', () => {
   it('a start the mower ignored counts', () => {
     expect(missedStart([{t: now - 60, what: 'start_failed'}], now)?.what).toBe('start_failed');
   });
+  it('a start MowBite OS turned down counts, unless it was out already', () => {
+    expect(missedStart([{t: now - 60, what: 'start_refused', detail: 'RAIN'}], now)?.what).toBe('start_refused');
+    expect(missedStart([{t: now - 60, what: 'start_refused', detail: 'BUSY', more: 'MOWING'}], now)).toBeNull();
+  });
 });
 
 describe('scheduleLogLine', () => {
   it('puts the detail in, a number with its decimals the way the language writes it', () => {
     expect(scheduleLogLine({t: 0, what: 'skip_cold', detail: '4.2'})).toBe('Not started, too cold (4.2 °C)');
     expect(scheduleLogLine({t: 0, what: 'waiting_battery', detail: '45'})).toBe('Waiting for the battery (45 %)');
+    // MowBite OS: why it turned the start down, with the value it's about
+    expect(scheduleLogLine({t: 0, what: 'start_refused', detail: 'BATTERY_LOW', more: '22.4'})).toBe(
+      'Not started, the mower turned it down: battery low (22.4 V)',
+    );
+    expect(scheduleLogLine({t: 0, what: 'start_refused', detail: 'POSITION_ACCURACY', more: '0.351'})).toBe(
+      'Not started, the mower turned it down: position accurate to 0.35 m',
+    );
+    expect(scheduleLogLine({t: 0, what: 'start_refused', detail: 'ON_DOCK'})).toBe(
+      'Not started, the mower turned it down: on the docking station, drive it off by remote control first',
+    );
+    expect(scheduleLogLine({t: 0, what: 'start_refused', detail: 'BUSY', more: 'driving'})).toBe('Not started, the mower turned it down: busy: driving');
+    expect(scheduleLogLine({t: 0, what: 'start_refused', detail: 'SOMETHING_NEW'})).toBe('Not started, the mower turned it down: something new');
+    expect(scheduleLogLine({t: 0, what: 'start_refused'})).toBe('Not started, the mower turned it down');
     // tr() follows the language set, that marks the page with it
     vi.stubGlobal('document', {documentElement: {lang: 'en'}});
     setLangChoice('de');
     try {
       expect(scheduleLogLine({t: 0, what: 'skip_cold', detail: '-0.5'})).toBe('Nicht gestartet, zu kalt (-0,5 °C)');
       expect(scheduleLogLine({t: 0, what: 'waiting_battery', detail: '45'})).toBe('Wartet auf den Akku (45 %)');
+      expect(scheduleLogLine({t: 0, what: 'start_refused', detail: 'BATTERY_LOW', more: '22.4'})).toBe(
+        'Nicht gestartet, der Mäher hat abgelehnt: Akku niedrig (22,4 V)',
+      );
     } finally {
       setLangChoice('en');
       vi.unstubAllGlobals();
