@@ -70,9 +70,10 @@ export function useMowPlan({
   // the MowBite Planner's settings, when the mower has it: the estimate then follows its rules. With OpenMower's slic3r
   // planner switched on in it they don't count, the plan is OpenMower's then
   const plannerSettings = usePlannerSettings();
-  // MowBite OS has no tool_width, the planner's blade and overlap make the spacing
+  // MowBite OS has no tool_width, the planner's blade and overlap make the spacing (numParam would give mower_logic's
+  // default for the missing one)
   const os = useMowbiteOs();
-  const toolWidth = numParam(params, PARAM.toolWidth) ?? (os ? osSpacing(plannerSettings?.settings) : undefined);
+  const toolWidth = (os ? osSpacing(plannerSettings?.settings) : undefined) ?? numParam(params, PARAM.toolWidth);
   const planner = slic3rPlans(plannerSettings) ? null : plannerSettings;
   // a planner setting for the area: its own (planner property), else the one for all areas
   const plannerValue = (area: MapArea | null, key: string): unknown => {
@@ -133,7 +134,9 @@ export function useMowPlan({
     (typeof ownSaved?.angle === 'number' || typeof ownSaved?.angle_strategy === 'string' || (!!planner.own_angle && savedArea?.properties.angle === undefined));
   let mismatch: AngleMismatch | null = null;
   if (savedArea?.properties.type === 'mow' && pastJobs && !turning && !plannerPicks) {
-    const passes = savedArea.properties.outline_count ?? numParam(params, PARAM.outlineCount) ?? 0;
+    // (MowBite OS: the planner's passes for all areas, mower_logic has none)
+    const all = os ? plannerValue(null, 'perimeter_passes') : undefined;
+    const passes = savedArea.properties.outline_count ?? (typeof all === 'number' && all >= 0 ? all : numParam(params, PARAM.outlineCount)) ?? 0;
     const margin = passes * (toolWidth ?? 0.2) + 0.2;
     // newest mowing stretch first, a job that got interrupted can resume with different settings
     const stretches = pastJobs.flatMap((job) => [...job.segments].reverse().map((seg) => ({job, seg})));
