@@ -1,0 +1,1091 @@
+{
+ "schema": 1,
+ "langs": [
+  "en",
+  "de"
+ ],
+ "events": {
+  "STATE": {
+   "severity": "info",
+   "variants": [
+    {
+     "when": {
+      "state": "PAUSED",
+      "reason": "MANUAL"
+     },
+     "en": "Paused",
+     "with_reason": false,
+     "de": "Pausiert"
+    },
+    {
+     "when": {
+      "state": "PAUSED",
+      "reason": {
+       "present": true
+      }
+     },
+     "en": "Paused",
+     "severity": "warning",
+     "de": "Pausiert"
+    },
+    {
+     "when": {
+      "state": "IDLE"
+     },
+     "en": "Idle",
+     "with_reason": false,
+     "de": "Bereit"
+    },
+    {
+     "when": {
+      "state": "MOWING"
+     },
+     "en": "Mowing",
+     "with_reason": false,
+     "de": "Mäht"
+    },
+    {
+     "when": {
+      "state": "DOCKING"
+     },
+     "en": "Heading home",
+     "with_reason": false,
+     "de": "Fährt nach Hause"
+    },
+    {
+     "when": {
+      "state": "UNDOCKING"
+     },
+     "en": "Leaving the dock",
+     "with_reason": false,
+     "de": "Verlässt das Dock"
+    },
+    {
+     "when": {
+      "state": "PAUSED"
+     },
+     "en": "Paused",
+     "with_reason": false,
+     "de": "Pausiert"
+    },
+    {
+     "when": {
+      "state": "AREA_RECORDING"
+     },
+     "en": "Recording an area",
+     "with_reason": false,
+     "de": "Nimmt eine Fläche auf"
+    },
+    {
+     "when": {
+      "state": {
+       "present": true
+      }
+     },
+     "en": "{state}",
+     "with_reason": false
+    },
+    {
+     "en": "State changed",
+     "de": "Zustand geändert"
+    }
+   ]
+  },
+  "GPS": {
+   "severity": "info",
+   "reader_logic": true,
+   "state_dependent": true,
+   "variants": [
+    {
+     "when": {
+      "available": true
+     },
+     "en": "GPS fix",
+     "de": "GPS-Fix"
+    },
+    {
+     "en": "GPS lost",
+     "severity": "warning",
+     "de": "GPS verloren"
+    },
+    {
+     "en": "GPS off",
+     "de": "GPS aus"
+    }
+   ]
+  },
+  "BLADES": {
+   "severity": "info",
+   "variants": [
+    {
+     "when": {
+      "enabled": true
+     },
+     "en": "Blades on",
+     "de": "Messer an"
+    },
+    {
+     "en": "Blades off",
+     "de": "Messer aus"
+    }
+   ]
+  },
+  "AREA": {
+   "severity": "info",
+   "variants": [
+    {
+     "when": {
+      "area_name": {
+       "present": true
+      }
+     },
+     "en": "Mowing \"{area_name}\"",
+     "de": "Mäht „{area_name}“"
+    },
+    {
+     "en": "Mowing \"unnamed\"",
+     "de": "Mäht „ohne Namen“"
+    }
+   ]
+  },
+  "AREA_SKIPPED": {
+   "severity": "info",
+   "variants": [
+    {
+     "en": "Area skipped",
+     "with_reason": false,
+     "de": "Fläche übersprungen"
+    }
+   ]
+  },
+  "UNDOCKED": {
+   "severity": "info",
+   "variants": [
+    {
+     "en": "Left the dock",
+     "de": "Dock verlassen"
+    }
+   ]
+  },
+  "UNDOCKING_FAILED": {
+   "severity": "error",
+   "join": {
+    "en": "{head} ({reason})"
+   },
+   "variants": [
+    {
+     "en": "Leaving the dock failed",
+     "de": "Abdocken fehlgeschlagen"
+    }
+   ]
+  },
+  "DOCKING": {
+   "severity": "info",
+   "reader_logic": true,
+   "variants": [
+    {
+     "en": "Heading home",
+     "de": "Fährt nach Hause"
+    }
+   ]
+  },
+  "DOCKING_RETRY": {
+   "severity": "warning",
+   "join": {
+    "en": "{head} ({reason})"
+   },
+   "variants": [
+    {
+     "when": {
+      "attempts": {
+       "present": true
+      }
+     },
+     "en": "Docking retry {attempts}",
+     "de": "Andock-Versuch {attempts}"
+    },
+    {
+     "en": "Docking retry",
+     "de": "Andock-Versuch"
+    }
+   ]
+  },
+  "DOCKING_FAILED": {
+   "severity": "error",
+   "join": {
+    "en": "{head} ({reason})"
+   },
+   "variants": [
+    {
+     "en": "Docking failed after {attempts} tries",
+     "de": "Andocken nach {attempts} Versuchen fehlgeschlagen"
+    }
+   ]
+  },
+  "DOCKED": {
+   "severity": "info",
+   "variants": [
+    {
+     "en": "Docked",
+     "de": "Angedockt"
+    }
+   ]
+  },
+  "JOB_COMPLETE": {
+   "severity": "info",
+   "variants": [
+    {
+     "en": "All areas done",
+     "de": "Alle Flächen fertig"
+    }
+   ]
+  },
+  "JOB_RESET": {
+   "severity": "info",
+   "variants": [
+    {
+     "en": "Interrupted job dropped, the next start mows from the beginning",
+     "de": "Unterbrochener Mähvorgang verworfen, der nächste Start mäht von vorn"
+    }
+   ]
+  },
+  "EMERGENCY": {
+   "severity": "error",
+   "variants": [
+    {
+     "when": {
+      "emergency": false
+     },
+     "en": "Emergency cleared",
+     "severity": "info",
+     "with_reason": false,
+     "de": "Notaus aufgehoben"
+    },
+    {
+     "en": "Emergency stop",
+     "reason_is": "emergency_bits",
+     "de": "Notaus"
+    }
+   ]
+  },
+  "NAVIGATION_ERROR": {
+   "severity": "error",
+   "reader_logic": true,
+   "variants": [
+    {
+     "when": {
+      "sentHome": true
+     },
+     "en": "Path stopped, sent home",
+     "severity": "info",
+     "de": "Bahn abgebrochen, nach Hause geschickt"
+    },
+    {
+     "en": "Navigation error",
+     "de": "Navigationsfehler"
+    }
+   ]
+  },
+  "MOW_MOTOR_SPINUP_FAILED": {
+   "severity": "error",
+   "variants": [
+    {
+     "en": "Mow motor didn't start",
+     "de": "Mähmotor lief nicht an"
+    }
+   ]
+  },
+  "FULLY_CHARGED": {
+   "severity": "info",
+   "variants": [
+    {
+     "when": {
+      "battery_voltage": {
+       "present": true
+      }
+     },
+     "en": "Fully charged ({battery_voltage:1} V)",
+     "de": "Voll geladen ({battery_voltage:1} V)"
+    },
+    {
+     "en": "Fully charged",
+     "de": "Voll geladen"
+    }
+   ]
+  },
+  "BOOTED": {
+   "severity": "info",
+   "variants": [
+    {
+     "en": "OpenMower started",
+     "de": "OpenMower gestartet"
+    }
+   ]
+  },
+  "SHUTDOWN": {
+   "severity": "info",
+   "variants": [
+    {
+     "en": "OpenMower stopped",
+     "de": "OpenMower beendet"
+    }
+   ]
+  },
+  "MOWING_REFUSED": {
+   "severity": "warning",
+   "variants": [
+    {
+     "en": "Mowing not started",
+     "de": "Mähen nicht gestartet"
+    }
+   ]
+  },
+  "DRIVE_REFUSED": {
+   "severity": "warning",
+   "variants": [
+    {
+     "en": "Drive not started",
+     "de": "Fahrt nicht gestartet"
+    }
+   ]
+  },
+  "DRIVE": {
+   "severity": "warning",
+   "variants": [
+    {
+     "unless": {
+      "phase": "end"
+     },
+     "en": "Driving to a point",
+     "severity": "info",
+     "with_reason": false,
+     "de": "Fährt zu einem Punkt"
+    },
+    {
+     "when": {
+      "reason": "ALREADY_THERE"
+     },
+     "en": "Already there",
+     "severity": "info",
+     "with_reason": false,
+     "de": "Schon da"
+    },
+    {
+     "when": {
+      "arrived": true
+     },
+     "en": "Arrived",
+     "severity": "info",
+     "with_reason": false,
+     "de": "Angekommen"
+    },
+    {
+     "when": {
+      "reason": "DONE"
+     },
+     "en": "Arrived",
+     "severity": "info",
+     "with_reason": false,
+     "de": "Angekommen"
+    },
+    {
+     "when": {
+      "reason": "CANCELED"
+     },
+     "en": "Drive ended",
+     "severity": "info",
+     "de": "Fahrt beendet"
+    },
+    {
+     "when": {
+      "reason": "STOPPED"
+     },
+     "en": "Drive ended",
+     "severity": "info",
+     "de": "Fahrt beendet"
+    },
+    {
+     "en": "Drive ended",
+     "de": "Fahrt beendet"
+    }
+   ]
+  },
+  "POSITION_JUMP": {
+   "severity": "warning",
+   "variants": [
+    {
+     "when": {
+      "distance": {
+       "present": true
+      }
+     },
+     "en": "Position jumped {distance:2} m",
+     "de": "Position um {distance:2} m gesprungen"
+    },
+    {
+     "en": "Position jumped",
+     "de": "Position gesprungen"
+    }
+   ]
+  },
+  "BATTERY_LOW": {
+   "severity": "warning",
+   "variants": [
+    {
+     "when": {
+      "battery_voltage": {
+       "present": true
+      }
+     },
+     "en": "Battery low ({battery_voltage:1} V)",
+     "with_reason": false,
+     "de": "Akku niedrig ({battery_voltage:1} V)"
+    },
+    {
+     "en": "Battery low",
+     "with_reason": false,
+     "de": "Akku niedrig"
+    }
+   ]
+  },
+  "MAP_DATUM": {
+   "severity": "error",
+   "variants": [
+    {
+     "en": "No mowing",
+     "de": "Kein Mähen"
+    }
+   ]
+  },
+  "RECORDING_REFUSED": {
+   "severity": "warning",
+   "variants": [
+    {
+     "when": {
+      "action": "start_area_recording"
+     },
+     "en": "Recording mode didn't start",
+     "de": "Aufnahmemodus nicht gestartet"
+    },
+    {
+     "when": {
+      "action": "start_recording"
+     },
+     "en": "Line not started",
+     "de": "Linie nicht begonnen"
+    },
+    {
+     "when": {
+      "action": "stop_recording"
+     },
+     "en": "Line not closed",
+     "de": "Linie nicht geschlossen"
+    },
+    {
+     "when": {
+      "action": "finish_mowing_area"
+     },
+     "en": "Mowing area not saved",
+     "de": "Mähfläche nicht gespeichert"
+    },
+    {
+     "when": {
+      "action": "finish_navigation_area"
+     },
+     "en": "Navigation area not saved",
+     "de": "Navigationsfläche nicht gespeichert"
+    },
+    {
+     "when": {
+      "action": "record_dock"
+     },
+     "en": "Docking station not recorded",
+     "de": "Ladestation nicht aufgenommen"
+    },
+    {
+     "when": {
+      "action": "collect_point"
+     },
+     "en": "Point not set",
+     "de": "Punkt nicht gesetzt"
+    },
+    {
+     "when": {
+      "action": "point"
+     },
+     "en": "No points recorded",
+     "de": "Keine Punkte aufgenommen"
+    },
+    {
+     "en": "Recording step refused",
+     "de": "Aufnahmeschritt abgelehnt"
+    }
+   ]
+  },
+  "AREA_RECORDED": {
+   "severity": "info",
+   "reader_logic": true,
+   "variants": [
+    {
+     "when": {
+      "area_type": "nav"
+     },
+     "en": "Navigation area recorded",
+     "de": "Navigationsfläche aufgenommen"
+    },
+    {
+     "en": "Mowing area recorded",
+     "de": "Mähfläche aufgenommen"
+    }
+   ]
+  },
+  "DOCK_RECORDED": {
+   "severity": "info",
+   "variants": [
+    {
+     "en": "Docking station recorded",
+     "de": "Ladestation aufgenommen"
+    }
+   ]
+  }
+ },
+ "reasons": {
+  "path_failed": [
+   {
+    "en": "couldn't follow the path",
+    "de": "konnte dem Weg nicht folgen"
+   }
+  ],
+  "approach_failed": [
+   {
+    "en": "approach failed",
+    "de": "Anfahrt fehlgeschlagen"
+   }
+  ],
+  "dock_failed": [
+   {
+    "en": "no contact with the charger",
+    "de": "kein Ladekontakt"
+   }
+  ],
+  "no_gps": [
+   {
+    "en": "no GPS fix",
+    "de": "kein GPS-Fix"
+   }
+  ],
+  "BUSY": [
+   {
+    "en": "busy: Idle",
+    "when": {
+     "state": "IDLE"
+    },
+    "de": "beschäftigt: Bereit"
+   },
+   {
+    "en": "busy: Mowing",
+    "when": {
+     "state": "MOWING"
+    },
+    "de": "beschäftigt: Mäht"
+   },
+   {
+    "en": "busy: Recording an area",
+    "when": {
+     "state": "AREA_RECORDING"
+    },
+    "de": "beschäftigt: Nimmt eine Fläche auf"
+   },
+   {
+    "en": "busy: driving",
+    "when": {
+     "state": "driving"
+    },
+    "de": "beschäftigt: fährt"
+   },
+   {
+    "en": "busy: {state}",
+    "when": {
+     "state": {
+      "present": true
+     }
+    },
+    "de": "beschäftigt: {state}"
+   },
+   {
+    "en": "busy with something else",
+    "de": "mit etwas anderem beschäftigt"
+   }
+  ],
+  "STILL_STOPPING": [
+   {
+    "en": "the last job is still stopping, try again in a moment",
+    "de": "der letzte Auftrag hält noch an, gleich noch einmal versuchen"
+   }
+  ],
+  "STILL_SAVING": [
+   {
+    "en": "the last change of the map is still being saved",
+    "de": "die letzte Kartenänderung wird noch gespeichert"
+   }
+  ],
+  "EMERGENCY": [
+   {
+    "en": "emergency stop, reset it first",
+    "de": "Notaus, erst zurücksetzen"
+   }
+  ],
+  "NO_SAFETY_MEASUREMENT": [
+   {
+    "en": "no safety sensors on this platform, remote control only",
+    "de": "keine Sicherheitssensoren auf dieser Plattform, nur Fernsteuerung"
+   }
+  ],
+  "ON_DOCK": [
+   {
+    "en": "on the docking station, drive it off by remote control first",
+    "de": "steht auf der Ladestation, erst per Fernsteuerung herunterfahren"
+   }
+  ],
+  "RAIN": [
+   {
+    "en": "rain",
+    "de": "Regen"
+   }
+  ],
+  "BATTERY_LOW": [
+   {
+    "en": "battery low ({battery_voltage:1} V, at least {limit:1} V needed)",
+    "when": {
+     "battery_voltage": {
+      "present": true
+     },
+     "limit": {
+      "present": true
+     }
+    },
+    "de": "Akku niedrig ({battery_voltage:1} V, mindestens {limit:1} V nötig)"
+   },
+   {
+    "en": "battery low ({battery_voltage:1} V)",
+    "when": {
+     "battery_voltage": {
+      "present": true
+     }
+    },
+    "de": "Akku niedrig ({battery_voltage:1} V)"
+   },
+   {
+    "en": "battery low",
+    "de": "Akku niedrig"
+   }
+  ],
+  "NO_POSITION": [
+   {
+    "en": "no position",
+    "de": "keine Position"
+   }
+  ],
+  "POSE_LOST": [
+   {
+    "en": "position lost",
+    "de": "Position verloren"
+   }
+  ],
+  "POSITION_ACCURACY": [
+   {
+    "en": "position accurate to {accuracy:2} m, points need {limit:2} m or better",
+    "when": {
+     "action": "point"
+    },
+    "de": "Position auf {accuracy:2} m genau, Punkte brauchen {limit:2} m oder besser"
+   },
+   {
+    "en": "position accurate to {accuracy:2} m, points need {limit:2} m or better",
+    "when": {
+     "action": "collect_point"
+    },
+    "de": "Position auf {accuracy:2} m genau, Punkte brauchen {limit:2} m oder besser"
+   },
+   {
+    "en": "position accurate to {accuracy:2} m, the docking station needs {limit:2} m or better",
+    "when": {
+     "action": "record_dock"
+    },
+    "de": "Position auf {accuracy:2} m genau, die Ladestation braucht {limit:2} m oder besser"
+   },
+   {
+    "en": "position not accurate enough",
+    "unless": {
+     "accuracy": {
+      "present": true
+     }
+    },
+    "de": "Position nicht genau genug"
+   },
+   {
+    "en": "position accurate to {accuracy:2} m, {limit:2} m or better needed",
+    "when": {
+     "limit": {
+      "present": true
+     }
+    },
+    "de": "Position auf {accuracy:2} m genau, nötig sind {limit:2} m oder besser"
+   },
+   {
+    "en": "position accurate to {accuracy:2} m",
+    "de": "Position auf {accuracy:2} m genau"
+   }
+  ],
+  "NO_HEADING": [
+   {
+    "en": "heading not known yet, drive a few metres by remote control",
+    "de": "Fahrtrichtung noch unbekannt, ein paar Meter per Fernsteuerung fahren"
+   }
+  ],
+  "HEADING": [
+   {
+    "en": "heading not good enough",
+    "de": "Fahrtrichtung nicht genau genug"
+   }
+  ],
+  "MAP_MISMATCH": [
+   {
+    "en": "the map has no reference point recorded",
+    "when": {
+     "datum_state": "unbound"
+    },
+    "de": "die Karte hat keinen Bezugspunkt gespeichert"
+   },
+   {
+    "en": "the map doesn't fit the reference point in use",
+    "de": "die Karte passt nicht zum verwendeten Bezugspunkt"
+   }
+  ],
+  "MAP_UNREADABLE": [
+   {
+    "en": "the map can't be read",
+    "de": "die Karte lässt sich nicht lesen"
+   }
+  ],
+  "MAP_UNKNOWN": [
+   {
+    "en": "the GPS reference point isn't known yet",
+    "de": "der GPS-Bezugspunkt ist noch nicht bekannt"
+   }
+  ],
+  "NO_MOWING_AREA": [
+   {
+    "en": "no active mowing area on the map",
+    "de": "keine aktive Mähfläche auf der Karte"
+   }
+  ],
+  "PLANNER_MISSING": [
+   {
+    "en": "the planner is not running",
+    "de": "der Planer läuft nicht"
+   }
+  ],
+  "FOLLOWER_MISSING": [
+   {
+    "en": "the path follower is not running",
+    "de": "der Bahnfolger läuft nicht"
+   }
+  ],
+  "MANUAL": [
+   {
+    "en": "by hand",
+    "de": "von Hand"
+   }
+  ],
+  "CROSS_TRACK": [
+   {
+    "en": "too far off its path",
+    "de": "zu weit neben der Bahn"
+   }
+  ],
+  "OUTSIDE": [
+   {
+    "en": "outside the area it may drive in",
+    "de": "außerhalb des befahrbaren Bereichs"
+   }
+  ],
+  "TIMEOUT": [
+   {
+    "en": "not getting on, maybe stuck",
+    "de": "kommt nicht weiter, steckt vielleicht fest"
+   }
+  ],
+  "INVALID": [
+   {
+    "en": "the path is not valid",
+    "de": "die Bahn ist ungültig"
+   }
+  ],
+  "NOT_ALLOWED": [
+   {
+    "en": "driving not allowed",
+    "de": "Fahren nicht erlaubt"
+   }
+  ],
+  "PLANNING_FAILED": [
+   {
+    "en": "the planner couldn't make the plan",
+    "de": "der Planer konnte keinen Plan erstellen"
+   }
+  ],
+  "APPROACH_FAILED": [
+   {
+    "en": "couldn't get to the start of the lane",
+    "de": "kam nicht zum Anfang der Bahn"
+   }
+  ],
+  "BLADE_REFUSED": [
+   {
+    "en": "the blade didn't switch on",
+    "de": "das Messer ging nicht an"
+   }
+  ],
+  "BLADE_SPINUP_FAILED": [
+   {
+    "en": "the blade didn't reach its speed",
+    "de": "das Messer kam nicht auf Drehzahl"
+   }
+  ],
+  "DONE": [
+   {
+    "en": "arrived",
+    "de": "angekommen"
+   }
+  ],
+  "CANCELED": [
+   {
+    "en": "canceled",
+    "de": "abgebrochen"
+   }
+  ],
+  "STOPPED": [
+   {
+    "en": "stopped",
+    "de": "angehalten"
+   }
+  ],
+  "TRANSIT_FAILED": [
+   {
+    "en": "no way there could be planned",
+    "de": "kein Weg dorthin planbar"
+   }
+  ],
+  "FOLLOWER_REFUSED": [
+   {
+    "en": "the path follower didn't take the path",
+    "de": "der Bahnfolger hat die Bahn nicht angenommen"
+   }
+  ],
+  "ALREADY_THERE": [
+   {
+    "en": "already there",
+    "de": "schon da"
+   }
+  ],
+  "PLANNER_TIMEOUT": [
+   {
+    "en": "no answer from the planner",
+    "de": "keine Antwort vom Planer"
+   }
+  ],
+  "RING_FEW_POINTS": [
+   {
+    "en": "a line needs at least {limit} points, it has {points}",
+    "de": "eine Linie braucht mindestens {limit} Punkte, sie hat {points}"
+   }
+  ],
+  "RING_CROSSES_ITSELF": [
+   {
+    "en": "the line crosses itself",
+    "de": "die Linie kreuzt sich selbst"
+   }
+  ],
+  "RING_TOO_SMALL": [
+   {
+    "en": "it encloses only {area:2} m², at least {limit:2} m² needed",
+    "de": "sie umschließt nur {area:2} m², mindestens {limit:2} m² nötig"
+   }
+  ],
+  "NO_OUTLINE": [
+   {
+    "en": "no outline recorded yet",
+    "de": "noch kein Rand aufgenommen"
+   }
+  ],
+  "TOO_MANY_POINTS": [
+   {
+    "en": "the line has {limit} points, the most there can be: close it",
+    "de": "die Linie hat {limit} Punkte, mehr gehen nicht: schließe sie"
+   }
+  ],
+  "POINT_TOO_CLOSE": [
+   {
+    "en": "only {distance:2} m from the last point, more than {limit:2} m needed",
+    "de": "nur {distance:2} m vom letzten Punkt, mehr als {limit:2} m nötig"
+   }
+  ],
+  "DOCK_TOO_CLOSE": [
+   {
+    "en": "only {distance:2} m from the first point, the direction needs at least {limit:2} m",
+    "de": "nur {distance:2} m vom ersten Punkt, für die Richtung sind mindestens {limit:2} m nötig"
+   }
+  ],
+  "SAVE_FAILED": [
+   {
+    "en": "saving failed: the change is not a valid map",
+    "when": {
+     "code": "INVALID"
+    },
+    "de": "Speichern fehlgeschlagen: die Änderung ergibt keine gültige Karte"
+   },
+   {
+    "en": "saving failed: the map doesn't fit the reference point in use",
+    "when": {
+     "code": "DATUM"
+    },
+    "de": "Speichern fehlgeschlagen: die Karte passt nicht zum verwendeten Bezugspunkt"
+   },
+   {
+    "en": "saving failed: the map got too large",
+    "when": {
+     "code": "TOO_LARGE"
+    },
+    "de": "Speichern fehlgeschlagen: die Karte ist zu groß geworden"
+   },
+   {
+    "en": "saving failed: the map couldn't be written",
+    "when": {
+     "code": "STORAGE"
+    },
+    "de": "Speichern fehlgeschlagen: die Karte ließ sich nicht schreiben"
+   },
+   {
+    "en": "saving failed: no answer from the map service",
+    "when": {
+     "code": "NO_ANSWER"
+    },
+    "de": "Speichern fehlgeschlagen: keine Antwort vom Kartendienst"
+   },
+   {
+    "en": "saving failed",
+    "unless": {
+     "message": {
+      "present": true
+     }
+    },
+    "de": "Speichern fehlgeschlagen"
+   }
+  ],
+  "OUTLIERS": [
+   {
+    "en": "back on GPS after outliers",
+    "de": "wieder auf GPS nach Ausreißern"
+   }
+  ],
+  "GAP": [
+   {
+    "en": "back on GPS after a gap",
+    "de": "wieder auf GPS nach einer Lücke"
+   }
+  ]
+ },
+ "wrappers": {
+  "RING_": {
+   "unless": {
+    "action": "stop_recording"
+   },
+   "en": "the line can't be closed: {text}",
+   "de": "die Linie lässt sich nicht schließen: {text}"
+  }
+ },
+ "emergency_bits": {
+  "0": "LATCH",
+  "1": "TIMEOUT_INPUTS",
+  "2": "STOP",
+  "3": "LIFT",
+  "4": "LIFT_MULTIPLE",
+  "5": "COLLISION",
+  "6": "TIMEOUT_HIGH_LEVEL",
+  "7": "HIGH_LEVEL",
+  "8": "SERVICE_NOT_READY",
+  "9": "COLLISION_MULTIPLE",
+  "10": "MOWER_RPM_TIMEOUT",
+  "11": "MOWER_RPM_LIMIT",
+  "12": "FIRMWARE_INCOMPATIBLE"
+ },
+ "emergency_text": {
+  "STOP": {
+   "en": "stop button",
+   "de": "Stopptaste"
+  },
+  "LIFT": {
+   "en": "lifted",
+   "de": "angehoben"
+  },
+  "LIFT_MULTIPLE": {
+   "en": "lifted (several sensors)",
+   "de": "angehoben (mehrere Sensoren)"
+  },
+  "COLLISION": {
+   "en": "bumper",
+   "de": "Bumper"
+  },
+  "COLLISION_MULTIPLE": {
+   "en": "bumper (several at once)",
+   "de": "Bumper (mehrere gleichzeitig)"
+  },
+  "TIMEOUT_INPUTS": {
+   "en": "sensors not answering",
+   "de": "Sensoren antworten nicht"
+  },
+  "TIMEOUT_HIGH_LEVEL": {
+   "en": "no contact with OpenMower",
+   "de": "keine Verbindung zu OpenMower"
+  },
+  "HIGH_LEVEL": {
+   "en": "stopped by OpenMower",
+   "de": "von OpenMower ausgelöst"
+  },
+  "SERVICE_NOT_READY": {
+   "en": "firmware still starting",
+   "de": "Firmware startet noch"
+  },
+  "MOWER_RPM_TIMEOUT": {
+   "en": "mow motor didn't reach its speed",
+   "de": "Mähmotor kam nicht auf Drehzahl"
+  },
+  "MOWER_RPM_LIMIT": {
+   "en": "mow motor too fast",
+   "de": "Mähmotor zu schnell"
+  },
+  "FIRMWARE_INCOMPATIBLE": {
+   "en": "firmware doesn't fit OpenMower",
+   "de": "Firmware passt nicht zu OpenMower"
+  }
+ },
+ "emergency_hide": [
+  "LATCH"
+ ],
+ "emergency_hide_with": {
+  "LIFT": "LIFT_MULTIPLE",
+  "COLLISION": "COLLISION_MULTIPLE",
+  "HIGH_LEVEL": "MOWER_RPM_TIMEOUT"
+ },
+ "fallback": {
+  "unknown": "message",
+  "else": "name_readable",
+  "join": {
+   "en": "{head}: {reason}"
+  },
+  "emergency_code": {
+   "en": "Emergency stop (code {n})",
+   "de": "Notaus (Code {n})"
+  }
+ }
+}

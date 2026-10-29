@@ -1,0 +1,31 @@
+import {readFileSync, writeFileSync} from 'node:fs';
+import {join} from 'node:path';
+import {describe, expect, it} from 'vitest';
+import {EVENTS, REASONS, reasonsFile} from './reasonTexts';
+
+// src/lib/reasons.json is made from reasonTexts.ts and de.ts: npm run reasons writes it again
+const FILE = join(__dirname, 'reasons.json');
+
+describe('reasons.json for MowBite for Home Assistant', () => {
+  const made = JSON.stringify(reasonsFile(), null, 1) + '\n';
+
+  it('is what the app says', () => {
+    if (process.env.UPDATE_REASONS === '1') writeFileSync(FILE, made);
+    expect(readFileSync(FILE, 'utf8'), 'src/lib/reasons.json is out of date: npm run reasons').toBe(made);
+  });
+
+  it('has english for every variant and german where de.ts has it', () => {
+    const file = JSON.parse(made);
+    for (const t of Object.values(file.events) as {variants: {en: string; de?: string}[]}[]) for (const v of t.variants) expect(v.en).toBeTruthy();
+    expect(file.reasons.BATTERY_LOW[0].de).toBe('Akku niedrig ({battery_voltage:1} V, mindestens {limit:1} V nötig)');
+    expect(file.events.MOWING_REFUSED.variants[0]).toEqual({en: 'Mowing not started', de: 'Mähen nicht gestartet'});
+    expect(file.emergency_bits['2']).toBe('STOP');
+    expect(file.emergency_hide_with.LIFT).toBe('LIFT_MULTIPLE');
+  });
+
+  it('ends every list with a variant that always fits, the reasons that only fit with a field excepted', () => {
+    for (const [type, t] of Object.entries(EVENTS)) expect(t.variants.at(-1)?.when, type).toBeUndefined();
+    // SAVE_FAILED with an unknown code says the mower's text
+    for (const [name, list] of Object.entries(REASONS)) if (name !== 'SAVE_FAILED') expect(list.at(-1)?.when, name).toBeUndefined();
+  });
+});
