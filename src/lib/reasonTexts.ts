@@ -142,10 +142,10 @@ export const EVENTS: Record<string, EventText> = {
   DOCK_RECORDED: one('Docking station recorded'),
   // after robot.geometry.set, the sizes it's about the app names itself (changed, below_default)
   GEOMETRY_CHANGED: {severity: 'info', variants: [{when: {reason: 'BELOW_DEFAULT'}, en: 'Sizes changed', severity: 'warning'}, {en: 'Sizes changed'}]},
-  // the planner sends the mower out for the leftovers of a finished mow
+  // the planner has the leftovers of a finished mow ready, whether they're mowed the schedule decides (leftovers_skip)
   LEFTOVERS_ARMED: {
     severity: 'info',
-    variants: [{when: {area_m2: {present: true}}, en: 'Leftovers to be mowed ({area_m2:0} m²)'}, {en: 'Leftovers to be mowed'}],
+    variants: [{when: {area_m2: {present: true}}, en: 'Leftovers ready to mow ({area_m2:0} m²)'}, {en: 'Leftovers ready to mow'}],
   },
 };
 

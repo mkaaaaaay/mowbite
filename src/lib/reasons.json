@@ -574,12 +574,12 @@
        "present": true
       }
      },
-     "en": "Leftovers to be mowed ({area_m2:0} m²)",
-     "de": "Reste werden gemäht ({area_m2:0} m²)"
+     "en": "Leftovers ready to mow ({area_m2:0} m²)",
+     "de": "Reste bereit zum Mähen ({area_m2:0} m²)"
     },
     {
-     "en": "Leftovers to be mowed",
-     "de": "Reste werden gemäht"
+     "en": "Leftovers ready to mow",
+     "de": "Reste bereit zum Mähen"
     }
    ]
   }
