@@ -1,11 +1,10 @@
 name: check
 
-# lint, types, the tests and the click tests on every push
+# lint, types, the tests and the click tests on a pull request, and for a push before anything goes out (release.yml)
 
 on:
-  push:
-    branches: [main, dev]
   pull_request:
+  workflow_call:
 
 permissions:
   contents: read
@@ -43,6 +42,8 @@ jobs:
           sc="docker run --rm -v $PWD:/mnt:ro -w /mnt koalaman/shellcheck:v0.11.0 -S warning"
           $sc -s sh -e SC1091,SC2034 docker/*.sh docker/*.cgi test/case.sh
           $sc test/run.sh
+      # both ways of installing take compose.yaml from main
+      - run: docker compose -f compose.yaml config -q
       - run: test/run.sh
 
   # the click tests (e2e/) on a phone and a desktop, against the built app with the demo mower
