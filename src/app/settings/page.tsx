@@ -282,12 +282,15 @@ export default function SettingsPage() {
               {planner.settings.leftovers_auto ? (
                 <>
                   {/* a planner that sends the mower out for the leftovers itself: its switch, the container's own stays off.
-                      one switched on before the planner could stays on until this one is used */}
+                      one switched on before the planner could stays on until this one is used. one the planner doesn't let be
+                      set (MowBite OS decides it) only shows how it is */}
                   <label className={styles.check}>
                     <input
                       type="checkbox"
-                      checked={planner.settings.leftovers_auto.value === true || !!settings.leftovers?.auto}
-                      disabled={slic3rPlans(planner)}
+                      checked={
+                        planner.settings.leftovers_auto.value === true || (planner.settings.leftovers_auto.settable !== false && !!settings.leftovers?.auto)
+                      }
+                      disabled={slic3rPlans(planner) || planner.settings.leftovers_auto.settable === false}
                       onChange={(e) => {
                         const cur = settingsStore.snapshot();
                         if (cur.leftovers?.auto) saveSettings({...cur, leftovers: {...cur.leftovers, auto: false}});
@@ -300,7 +303,8 @@ export default function SettingsPage() {
                     {tr('Mow the leftovers automatically')}
                   </label>
                   {leftoversFailed && <p className={styles.error}>{leftoversFailed}</p>}
-                  {planner.settings.leftovers_auto.value !== true && settings.leftovers?.auto && (
+                  {planner.settings.leftovers_auto.settable === false && <p className={styles.dim}>{tr("Set by the mower, it can't be changed here.")}</p>}
+                  {planner.settings.leftovers_auto.value !== true && planner.settings.leftovers_auto.settable !== false && settings.leftovers?.auto && (
                     <p className={styles.dim}>
                       {tr('Still done by MowBite on the mower as set before, from {m} m² and after charging. Switch it off and on to let the planner do it.', {
                         m: dec(settings.leftovers.min ?? 0.5),
