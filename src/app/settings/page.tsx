@@ -455,7 +455,7 @@ export default function SettingsPage() {
 
         <OpenMowerSettings styles={styles} />
 
-        <Group id="update" title={tr('Updates')} hint={tr('MowBite, OpenMower and the planner on the mower, the app')} anchors={['updates']}>
+        <Group id="update" title={tr('Updates')} hint="MowBite Updater" anchors={['updates']}>
           <section className={styles.card}>
             <h2>{tr('On the mower')}</h2>
             <AutoUpdate />

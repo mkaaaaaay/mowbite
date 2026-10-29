@@ -998,7 +998,6 @@ const de: Record<string, string> = {
   "If the mower isn't idle in the dock then, it tries again every 10 minutes for 3 hours.": "Steht der Mäher dann nicht bereit im Dock, versucht er es 3 Stunden lang alle 10 Minuten wieder.",
   "Last time: {what}": "Zuletzt: {what}",
   "Local copy": "Lokale Kopie",
-  "MowBite, OpenMower and the planner on the mower, the app": "MowBite, OpenMower und Planer auf dem Mäher, die App",
   "Not known yet": "Noch unbekannt",
   "Skipped": "Ausgelassen",
   "This version didn't start, it's left out until a newer one comes": "Diese Version startete nicht, sie wird ausgelassen, bis eine neuere kommt",
