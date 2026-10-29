@@ -234,8 +234,6 @@ export const REASONS: Record<string, Variant[]> = {
 
 // put round the finished reason, by the start of its name (the longest that fits, at most one)
 export const WRAPPERS: Record<string, {unless?: Cond; when?: Cond; en: string}> = {
-  // "line not closed" says it already
-  RING_: {unless: {action: 'stop_recording'}, en: "the line can't be closed: {text}"},
 };
 
 // the emergency stop's reasons, one bit each (EmergencyReason in open_mower_ros services/emergency_service.json). MowBite

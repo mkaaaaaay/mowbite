@@ -261,7 +261,7 @@ describe('recording an area (MowBite OS)', () => {
       severity: 'warning',
     });
     expect(describeEvent(refused('finish_mowing_area', 'Cannot close the ring: a ring needs at least 3 points, it has 2')).text).toBe(
-      "Mowing area not saved: the line can't be closed: a line needs at least 3 points, it has 2",
+      "Mowing area not saved: a line needs at least 3 points, it has 2",
     );
     expect(describeEvent(refused('point', 'Position accuracy 0.30 m, points need 0.10 m or better')).text).toBe(
       'No points recorded: position accurate to 0.30 m, points need 0.10 m or better',
@@ -434,7 +434,7 @@ describe('reasons as fixed names (MowBite OS)', () => {
   it('refusals while recording as before, with the names', () => {
     const refused = (action: string, extra: Partial<MowerEvent>) => describeEvent(os('RECORDING_REFUSED', {action, ...extra})).text;
     expect(refused('finish_mowing_area', {reason: 'RING_FEW_POINTS', points: 2, limit: 3})).toBe(
-      "Mowing area not saved: the line can't be closed: a line needs at least 3 points, it has 2",
+      "Mowing area not saved: a line needs at least 3 points, it has 2",
     );
     expect(refused('stop_recording', {reason: 'RING_CROSSES_ITSELF'})).toBe('Line not closed: the line crosses itself');
     expect(refused('point', {reason: 'POSITION_ACCURACY', accuracy: null, limit: 0.1})).toBe(

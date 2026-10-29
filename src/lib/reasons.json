@@ -1036,15 +1036,7 @@
    }
   ]
  },
- "wrappers": {
-  "RING_": {
-   "unless": {
-    "action": "stop_recording"
-   },
-   "en": "the line can't be closed: {text}",
-   "de": "die Linie lässt sich nicht schließen: {text}"
-  }
- },
+ "wrappers": {},
  "emergency_bits": {
   "0": "LATCH",
   "1": "TIMEOUT_INPUTS",

@@ -164,8 +164,7 @@ export function reasonText(e: MowerEvent): string {
 export function refusalReason(r?: string, action?: string, e?: MowerEvent): string {
   if (!r) return '';
   if (isReasonCode(r)) return reasonText({...(e ?? {id: '', t: 0, type: 'RECORDING_REFUSED'}), reason: r, action});
-  const ring = r.startsWith(RING);
-  const rest = ring ? r.slice(RING.length) : r;
+  const rest = r.startsWith(RING) ? r.slice(RING.length) : r;
   let text = rest;
   for (const [re, key, names] of REFUSALS) {
     const m = rest.match(re);
@@ -178,8 +177,7 @@ export function refusalReason(r?: string, action?: string, e?: MowerEvent): stri
     text = tr(key, vars);
     break;
   }
-  // "line not closed" says it already
-  return ring && action !== 'stop_recording' ? tr("the line can't be closed: {problem}", {problem: text}) : text;
+  return text;
 }
 
 export const refusalText = (e: MowerEvent): string => worded(e)?.text ?? '';
