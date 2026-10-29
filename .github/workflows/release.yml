@@ -21,6 +21,11 @@ jobs:
   check:
     uses: ./.github/workflows/check.yml
 
+  commits:
+    uses: ./.github/workflows/commits.yml
+    secrets:
+      COMMIT_RULES: ${{ secrets.COMMIT_RULES }}
+
   # a version tag only on a commit of main, with the version of its package.json
   ref:
     runs-on: ubuntu-latest
@@ -41,7 +46,7 @@ jobs:
 
   # amd64 + arm64. the app is compiled once natively, the arm image only gets files copied in, so no qemu needed
   image:
-    needs: [check, ref]
+    needs: [check, commits, ref]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -83,7 +88,7 @@ jobs:
   # the app and the web app's static files as a zip, for a web server of your own. the apk only with the signing key in
   # the repo secrets, so a new version installs over the old one. nothing here writes to the repo
   apk:
-    needs: [check, ref, image]
+    needs: [check, commits, ref, image]
     if: github.ref_type == 'tag' || github.ref == 'refs/heads/dev' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     env:
