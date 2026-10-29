@@ -2069,6 +2069,12 @@ const de: Record<string, string> = {
   "the line can't be closed: {text}": "die Linie lässt sich nicht schließen: {text}",
   "Emergency stop (code {n})": "Notaus (Code {n})",
   "Set by the mower, it can't be changed here.": "Vom Mäher vorgegeben, hier nicht änderbar.",
+  "Sizes changed": "Maße geändert",
+  "Leftovers to be mowed ({area_m2:0} m²)": "Reste werden gemäht ({area_m2:0} m²)",
+  "Leftovers to be mowed": "Reste werden gemäht",
+  "smaller than from the factory, the planner's body check works with the smaller outline": "kleiner als ab Werk, die Körperprüfung des Planers rechnet mit dem kleineren Umriss",
+  "Set smaller than from the factory: {sizes}.": "Kleiner als ab Werk eingetragen: {sizes}.",
+  "Outline of the body": "Umriss des Körpers",
 };
 
 export default de;

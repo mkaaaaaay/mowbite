@@ -447,6 +447,21 @@ describe('reasons as fixed names (MowBite OS)', () => {
     expect(refused('finish_navigation_area', {reason: 'SAVE_FAILED', code: 'WHATEVER', message: 'disk on fire'})).toBe('Navigation area not saved: disk on fire');
   });
 
+  it('tells sizes set and leftovers to be mowed (MowBite OS)', () => {
+    const small = os('GEOMETRY_CHANGED', {reason: 'BELOW_DEFAULT', severity: 'warning', changed: ['robot_width', 'robot_front'], below_default: ['robot_width']});
+    expect(describeEvent(small)).toEqual({
+      text: "Sizes changed: smaller than from the factory, the planner's body check works with the smaller outline",
+      severity: 'warning',
+    });
+    expect(explain(small)).toBe('Set smaller than from the factory: Width.');
+    expect(describeEvent(ev(0, 'GEOMETRY_CHANGED', {changed: ['mower_width'], below_default: [], severity: 'info'}), undefined, true)).toEqual({
+      text: 'Sizes changed',
+      severity: 'info',
+    });
+    expect(explain(ev(0, 'GEOMETRY_CHANGED', {below_default: []}))).toBeUndefined();
+    expect(describeEvent(ev(0, 'LEFTOVERS_ARMED', {area_m2: 3.4, job_id: 'j'})).text).toBe('Leftovers to be mowed (3 m²)');
+  });
+
   it('in german', () => {
     vi.stubGlobal('document', {documentElement: {lang: 'en'}});
     setLangChoice('de');

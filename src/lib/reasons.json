@@ -547,6 +547,41 @@
      "de": "Ladestation aufgenommen"
     }
    ]
+  },
+  "GEOMETRY_CHANGED": {
+   "severity": "info",
+   "variants": [
+    {
+     "when": {
+      "reason": "BELOW_DEFAULT"
+     },
+     "en": "Sizes changed",
+     "severity": "warning",
+     "de": "Maße geändert"
+    },
+    {
+     "en": "Sizes changed",
+     "de": "Maße geändert"
+    }
+   ]
+  },
+  "LEFTOVERS_ARMED": {
+   "severity": "info",
+   "variants": [
+    {
+     "when": {
+      "area_m2": {
+       "present": true
+      }
+     },
+     "en": "Leftovers to be mowed ({area_m2:0} m²)",
+     "de": "Reste werden gemäht ({area_m2:0} m²)"
+    },
+    {
+     "en": "Leftovers to be mowed",
+     "de": "Reste werden gemäht"
+    }
+   ]
   }
  },
  "reasons": {
@@ -980,6 +1015,12 @@
      }
     },
     "de": "Speichern fehlgeschlagen"
+   }
+  ],
+  "BELOW_DEFAULT": [
+   {
+    "en": "smaller than from the factory, the planner's body check works with the smaller outline",
+    "de": "kleiner als ab Werk, die Körperprüfung des Planers rechnet mit dem kleineren Umriss"
    }
   ],
   "OUTLIERS": [

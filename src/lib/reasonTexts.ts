@@ -140,6 +140,13 @@ export const EVENTS: Record<string, EventText> = {
     variants: [{when: {area_type: 'nav'}, en: 'Navigation area recorded'}, {en: 'Mowing area recorded'}],
   },
   DOCK_RECORDED: one('Docking station recorded'),
+  // after robot.geometry.set, the sizes it's about the app names itself (changed, below_default)
+  GEOMETRY_CHANGED: {severity: 'info', variants: [{when: {reason: 'BELOW_DEFAULT'}, en: 'Sizes changed', severity: 'warning'}, {en: 'Sizes changed'}]},
+  // the planner sends the mower out for the leftovers of a finished mow
+  LEFTOVERS_ARMED: {
+    severity: 'info',
+    variants: [{when: {area_m2: {present: true}}, en: 'Leftovers to be mowed ({area_m2:0} m²)'}, {en: 'Leftovers to be mowed'}],
+  },
 };
 
 const r = (en: string, extra: Omit<Variant, 'en'> = {}): Variant => ({en, ...extra});
@@ -220,6 +227,7 @@ export const REASONS: Record<string, Variant[]> = {
     r('saving failed: no answer from the map service', {when: {code: 'NO_ANSWER'}}),
     r('saving failed', {unless: {message: {present: true}}}),
   ],
+  BELOW_DEFAULT: [r("smaller than from the factory, the planner's body check works with the smaller outline")],
   OUTLIERS: [r('back on GPS after outliers')],
   GAP: [r('back on GPS after a gap')],
 };

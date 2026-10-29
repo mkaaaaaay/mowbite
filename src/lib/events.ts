@@ -55,6 +55,9 @@ export interface MowerEvent {
   datum_state?: string;
   phase?: string;
   arrived?: boolean;
+  // GEOMETRY_CHANGED: the sizes set, those set smaller than from the factory
+  changed?: string[];
+  below_default?: string[];
   // worked out here, not from OpenMower: a navigation error that only came because it was sent home (see markSentHome)
   sentHome?: boolean;
 }
@@ -235,6 +238,14 @@ function describeOwn(e: MowerEvent, state?: string): {text: string; severity: Se
   return {text: why ? fill(FALLBACK.join, {head: what, reason: why}) : what, severity: 'info'};
 }
 
+// the sizes as the sizes card calls them
+const SIZE_NAMES: Record<string, string> = {
+  robot_width: 'Width',
+  robot_front: 'Rear axle to the front',
+  robot_rear: 'Rear axle to the back',
+  robot_outline: 'Outline of the body',
+};
+
 const spinupFailed = () =>
   tr(
     "The mow motor didn't reach its speed in time (mower_logic/mower_spinup_timeout), so the mower stopped with an emergency. Often grass is wound round the blade or the blade is blocked, or the motor or its controller is faulty.",
@@ -254,6 +265,10 @@ export function explain(e: MowerEvent, state?: string, gpsTimeout?: number, os =
           : undefined;
     case 'MOWING_REFUSED':
       return tr('The mower stays where it is. Once the reason is gone, start it again.');
+    case 'GEOMETRY_CHANGED': {
+      const small = (e.below_default ?? []).map((k) => tr(SIZE_NAMES[k] ?? readable(k)));
+      return small.length ? tr('Set smaller than from the factory: {sizes}.', {sizes: small.join(', ')}) : undefined;
+    }
     case 'UNDOCKING_FAILED':
       if (e.reason === 'no_gps')
         return tr(
