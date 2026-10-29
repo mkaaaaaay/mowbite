@@ -235,7 +235,7 @@ describe('what the container sends', {timeout: 30_000}, () => {
     );
     expect(out.map((m) => [m.title, m.message])).toEqual([
       ['Mowing not started', "Steve didn't start mowing: battery low (22.4 V)."],
-      ['Mowing not started', "Steve didn't start mowing: position accurate to 0.35 m."],
+      ['Mowing not started', "Steve didn't start mowing: position accurate to 0.35 m, 0.10 m or better needed."],
       ['Paused, waiting', 'Steve paused: too far off its path. It waits until you continue it.'],
       ["Mow motor didn't start", "Steve paused: the blade didn't switch on. It waits until you continue it."],
       ["Map doesn't fit", "Steve won't mow: the map has no reference point recorded."],
@@ -245,6 +245,13 @@ describe('what the container sends', {timeout: 30_000}, () => {
     expect(run(event(100, '{"type":"MOWING_REFUSED","reason":"RAIN"}'), os.replace('lang en', 'lang de'))[0].message).toBe(
       'Steve hat nicht mit dem Mähen begonnen: Regen.',
     );
+    expect(
+      run(event(100, '{"type":"MOWING_REFUSED","reason":"POSITION_ACCURACY","accuracy":0.124,"limit":0.1}'), os.replace('lang en', 'lang de'))[0].message,
+    ).toBe('Steve hat nicht mit dem Mähen begonnen: Position auf 0,12 m genau, nötig sind 0,10 m oder besser.');
+    expect(run(event(100, '{"type":"MOWING_REFUSED","reason":"POSITION_ACCURACY","accuracy":0.124}'), os)[0].message).toBe(
+      "Steve didn't start mowing: position accurate to 0.12 m.",
+    );
+    expect(run(event(100, '{"type":"MOWING_REFUSED","reason":"NO_HEADING"}'), os)[0].message).toBe("Steve didn't start mowing: heading not known yet.");
   });
 
   it("leaves out what goes on by itself, what was asked for and MowBite OS's free text from before", () => {

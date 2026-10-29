@@ -383,6 +383,11 @@ describe('reasons as fixed names (MowBite OS)', () => {
     expect(describeEvent(os('MOWING_REFUSED', {reason: 'POSITION_ACCURACY', accuracy: 0.351, limit: 0.2})).text).toBe(
       'Mowing not started: position accurate to 0.35 m, 0.20 m or better needed',
     );
+    expect(describeEvent(os('STATE', {state: 'PAUSED', reason: 'POSITION_ACCURACY', accuracy: 0.124, limit: 0.1})).text).toBe(
+      'Paused: position accurate to 0.12 m, 0.10 m or better needed',
+    );
+    expect(describeEvent(os('STATE', {state: 'PAUSED', reason: 'POSITION_ACCURACY'})).text).toBe('Paused: position not accurate enough');
+    expect(describeEvent(os('MOWING_REFUSED', {reason: 'NO_HEADING'})).text).toBe('Mowing not started: heading not known yet');
     expect(describeEvent(os('MOWING_REFUSED', {reason: 'BUSY', state: 'MOWING'})).text).toBe('Mowing not started: busy: Mowing');
     expect(describeEvent(os('DRIVE_REFUSED', {reason: 'MAP_MISMATCH', datum_state: 'unbound'})).text).toBe(
       'Drive not started: the map has no reference point recorded',
@@ -470,6 +475,10 @@ describe('reasons as fixed names (MowBite OS)', () => {
         'Mähen nicht gestartet: Akku niedrig (22,1 V, mindestens 23,0 V nötig)',
       );
       expect(describeEvent(os('STATE', {state: 'PAUSED', reason: 'OUTSIDE'})).text).toBe('Pausiert: außerhalb des befahrbaren Bereichs');
+      expect(describeEvent(os('STATE', {state: 'PAUSED', reason: 'POSITION_ACCURACY', accuracy: 0.124, limit: 0.1})).text).toBe(
+        'Pausiert: Position auf 0,12 m genau, nötig sind 0,10 m oder besser',
+      );
+      expect(describeEvent(os('DRIVE_REFUSED', {reason: 'NO_HEADING'})).text).toBe('Fahrt nicht gestartet: Fahrtrichtung noch unbekannt');
       expect(describeEvent(os('MOWING_REFUSED', {reason: 'SOMETHING_NEW'})).text).toBe('Mähen nicht gestartet: english text');
     } finally {
       setLangChoice('en');

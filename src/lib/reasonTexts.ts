@@ -186,7 +186,7 @@ export const REASONS: Record<string, Variant[]> = {
     r('position accurate to {accuracy:2} m, {limit:2} m or better needed', {when: {limit: {present: true}}}),
     r('position accurate to {accuracy:2} m'),
   ],
-  NO_HEADING: [r('heading not known yet, drive a few metres by remote control')],
+  NO_HEADING: [r('heading not known yet')],
   HEADING: [r('heading not good enough')],
   MAP_MISMATCH: [r('the map has no reference point recorded', {when: {datum_state: 'unbound'}}), r("the map doesn't fit the reference point in use")],
   MAP_UNREADABLE: [r("the map can't be read")],

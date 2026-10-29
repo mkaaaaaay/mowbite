@@ -95,9 +95,10 @@ function reason(j,   r, m) {
   if (r == "POSITION_ACCURACY") {
     m = field(j, "accuracy")
     if (m == "" || m == "null") return tx("position not accurate enough", "Position nicht genau genug")
-    return tx("position accurate to ", "Position auf ") num(m, 2) tx(" m", " m genau")
+    if (field(j, "limit") == "" || field(j, "limit") == "null") return tx("position accurate to ", "Position auf ") num(m, 2) tx(" m", " m genau")
+    return tx("position accurate to ", "Position auf ") num(m, 2) tx(" m, ", " m genau, nötig sind ") num(field(j, "limit"), 2) tx(" m or better needed", " m oder besser")
   }
-  if (r == "NO_HEADING") return tx("heading not known yet, drive a few metres by remote control", "Fahrtrichtung noch unbekannt, ein paar Meter per Fernsteuerung fahren")
+  if (r == "NO_HEADING") return tx("heading not known yet", "Fahrtrichtung noch unbekannt")
   if (r == "HEADING") return tx("heading not good enough", "Fahrtrichtung nicht genau genug")
   if (r == "MAP_MISMATCH") return field(j, "datum_state") == "unbound" ? tx("the map has no reference point recorded", "die Karte hat keinen Bezugspunkt gespeichert") : tx("the map doesn't fit the reference point in use", "die Karte passt nicht zum verwendeten Bezugspunkt")
   if (r == "MAP_UNREADABLE") return tx("the map can't be read", "die Karte lässt sich nicht lesen")

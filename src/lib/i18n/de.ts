@@ -1995,7 +1995,7 @@ const de: Record<string, string> = {
   "battery low": "Akku niedrig",
   "position lost": "Position verloren",
   "position not accurate enough": "Position nicht genau genug",
-  "heading not known yet, drive a few metres by remote control": "Fahrtrichtung noch unbekannt, ein paar Meter per Fernsteuerung fahren",
+  "heading not known yet": "Fahrtrichtung noch unbekannt",
   "heading not good enough": "Fahrtrichtung nicht genau genug",
   "the map has no reference point recorded": "die Karte hat keinen Bezugspunkt gespeichert",
   "the map can't be read": "die Karte lässt sich nicht lesen",
