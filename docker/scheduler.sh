@@ -6,7 +6,8 @@
 # 6 pm to 6 am without a position) unless the plan says so. a run it started goes home at the plan's end time,
 # and at sunset if the plan wants that. a plan can drop an interrupted job first so it begins with the first area,
 # and it can be paused for some days, for all areas or some. a plan can have its own mowing direction (angle=<deg>),
-# set on the mower before the start. what happened goes to /data/schedule.log for the page
+# set on the mower before the start. no start while the MowBite Updater restarts OpenMower (its hold, retained), and it
+# tells the updater when it may start next. what happened goes to /data/schedule.log for the page
 . /broker.sh
 . /openmower.sh
 F=/data/schedule.txt
@@ -276,6 +277,56 @@ too_cold() {
 # one
 rpc_call() { mower_rpc "$host" "$1" "$2" "$3" | tr -d '\n'; }
 
+# whether the MowBite Updater holds the starts right now (it's about to restart OpenMower): its hold's end is still to
+# come and at most 30 minutes away, a later one is none of its own. its hold ends by itself when the updater stops
+held() {
+  [ -n "$host" ] || return 1
+  # shellcheck disable=SC2086
+  hold=$(mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_HOLD" -C 1 -W 2 2>/dev/null |
+    grep -o '"until": *[0-9]*' | grep -o '[0-9]*$')
+  [ -n "$hold" ] && [ "$hold" -gt "$(date +%s)" ] && [ "$hold" -le "$(($(date +%s) + 1800))" ]
+}
+
+# the next start of the schedule from now as unix time, by day and time only (a start in this minute is the one
+# after it): the rest is only known when it's due
+next_start() {
+  # shellcheck disable=SC2046
+  set -- $(TZ="$tz" date '+%u %H %M %S %s')
+  awk -v now="$((($1 - 1) * 1440 + ${2#0} * 60 + ${3#0}))" -v at="$(($5 - ${4#0}))" '$1 == "plan" {
+    split($3, hm, ":"); n = split($2, d, ",")
+    for (i = 1; i <= n; i++) {
+      m = ((d[i] - 1) * 1440 + hm[1] * 60 + hm[2] - now + 10080) % 10080
+      if (m == 0) m = 10080
+      if (best == "" || m < best) best = m
+    }
+  } END { if (best != "") print at + best * 60 }' "$F"
+}
+# when the schedule may start next, for the MowBite Updater (no OpenMower update in the 30 minutes before): a start
+# waiting for the battery from when it was due until its wait is over, else the next start time. nothing without a
+# schedule on. sent when it changed, and every 10 minutes for a broker started anew
+told=""
+told_at=0
+tell_next() {
+  if [ "$until" -gt 0 ]; then
+    n="{\"from\":$due_at,\"to\":$until}"
+  elif [ -f "$F" ] && [ "$(conf enabled)" = 1 ] && t=$(next_start) && [ -n "$t" ]; then
+    n="{\"from\":$t,\"to\":$t}"
+  else
+    n=""
+  fi
+  [ "$n" = "$told" ] && [ $(($(date +%s) - told_at)) -lt 600 ] && return
+  host=$(find_broker)
+  [ -n "$host" ] || return
+  if [ -n "$n" ]; then
+    # shellcheck disable=SC2086
+    mosquitto_pub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_SCHEDULE_NEXT" -r -m "$n" 2>/dev/null || return
+  else
+    # shellcheck disable=SC2086
+    mosquitto_pub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_SCHEDULE_NEXT" -r -n 2>/dev/null || return
+  fi
+  told=$n told_at=$(date +%s)
+}
+
 # the leftovers setting from the app's settings (settings.cgi): "leftovers":{"auto":true,"min":0.5}
 leftovers_conf() { grep -o '"leftovers":{[^}]*}' /data/settings.json 2>/dev/null | head -n1; }
 
@@ -347,8 +398,11 @@ leftovers_after() {
   fi
   if [ "$(conf skipforecast)" = 1 ] && rain_forecast; then log leftovers_skip forecast; return; fi
   if [ "$(conf skipcold)" = 1 ] && cold=$(too_cold); then log leftovers_skip cold "$cold"; return; fi
+  if held; then log leftovers_skip hold; return; fi
   r=$(rpc_call planner.leftovers "{\"job_id\":\"$1\",\"arm\":true}" 240)
   if [ "$(echo "$(field "$r" armed)" | awk '{ print ($1 > 0) ? 1 : 0 }')" != 1 ]; then log leftovers_failed; return; fi
+  # (the updater's hold once more after the planner's answer, which may take minutes. what's armed runs out by itself)
+  if held; then log leftovers_skip hold; return; fi
   # shellcheck disable=SC2086
   if mosquitto_pub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTION" -m "$ACTION_START_MOWING"; then
     date +%s > "$LEFT"
@@ -448,8 +502,10 @@ plan_at() {
 
 last=""
 until=0
+due_at=0
 endat=""
 waited=""
+hwaited=""
 dday=""
 dtime=""
 areas=all
@@ -463,7 +519,7 @@ paused=""
 if [ -f "$WAITING" ]; then
   read -r u dday dtime ddate e < "$WAITING"
   if [ "${u:-0}" -gt "$(date +%s)" ]; then
-    until=$u last="$ddate $dtime" waited=1
+    until=$u last="$ddate $dtime" waited=1 due_at=$(date +%s)
     [ "$e" = - ] || endat=$e
   else
     rm -f "$WAITING"
@@ -478,8 +534,10 @@ while :; do
     due=$(plan_at "$1" "$2")
     if [ -n "$due" ] && [ "$3 $2" != "$last" ]; then
       last="$3 $2"
-      until=$(($(date +%s) + WAIT))
+      due_at=$(date +%s)
+      until=$((due_at + WAIT))
       waited=""
+      hwaited=""
       dday=$1 dtime=$2
       # shellcheck disable=SC2086
       set -- $due
@@ -532,6 +590,13 @@ while :; do
       elif [ -z "$waited" ]; then
         slog waiting_battery "$bat"; waited=1
       fi
+    # the MowBite Updater restarts OpenMower right now: started once it's done, within the wait for the battery
+    elif held; then
+      if [ "$(date +%s)" -gt "$until" ]; then
+        slog skip_hold; until=0
+      elif [ -z "$hwaited" ]; then
+        slog waiting_hold; hwaited=1
+      fi
     # the forecast and the temperature for when it really starts: asked for once, when the battery is enough
     elif [ "$(conf skipforecast)" = 1 ] && rain_forecast; then
       slog skip_forecast; until=0
@@ -564,8 +629,11 @@ while :; do
         # shellcheck disable=SC2086
         mosquitto_pub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTION" -m "$ACTION_RESET_JOB" && sleep 3
       fi
+      # the updater's hold asked for once more right before (the mowing direction took a while): looked at again in 20 s
       # shellcheck disable=SC2086
-      if mosquitto_pub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTION" -m "$ACTION_START_MOWING"; then
+      if held; then
+        [ -n "$hwaited" ] || { slog waiting_hold; hwaited=1; }
+      elif mosquitto_pub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTION" -m "$ACTION_START_MOWING"; then
         slog started "$bat"
         check_started "$dtime" &
         # the end time of the start, not the next one from now (it may have waited for the battery)
@@ -575,14 +643,16 @@ while :; do
         skip_others "$areas" &
         # shellcheck disable=SC2086
         [ -n "$stop" ] && send_home_at $stop &
+        until=0
       else
         slog skip_offline
+        until=0
       fi
-      until=0
     fi
     [ "$until" -gt 0 ] || rm -f "$WAITING"
   elif [ -f "$NORMAL" ] && ! { [ -f "$F" ] && [ "$(conf enabled)" = 1 ] && grep -q '^plan .* angle=' "$F"; }; then
     angle_back
   fi
+  tell_next
   sleep 20
 done

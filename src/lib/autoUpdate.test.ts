@@ -121,6 +121,10 @@ describe('the updater on the mower', () => {
     expect(partResult(state({mowbite: 'error not_docked'}), 'mowbite')).toMatchObject({level: 'warn', text: expect.stringContaining('dock')});
     // after "update all" with the mower out: the run's line says it once, each part only in passing
     expect(partResult(state({mowbite: 'error not_docked', result: 'waiting'}), 'mowbite')!.level).toBe('ok');
+    // OpenMower left alone before a start of the schedule: said with its time, the run waited for it
+    expect(partResult(state({openmower: 'error schedule 1792831337'}), 'openmower')).toMatchObject({level: 'ok', text: expect.stringContaining('schedule')});
+    expect(runResult(state({openmower: 'error schedule 1792831337', result: 'waiting'}))).toContain('schedule');
+    expect(runResult(state({openmower: 'error schedule 1792831337', mowbite: 'error not_docked', result: 'waiting'}))).toContain('dock');
     // went back by itself, the one before runs: something to know. couldn't go back: something wrong
     expect(partResult(state({mowbite: 'rolled_back'}), 'mowbite')!.level).toBe('warn');
     expect(partResult(state({mowbite: 'error back'}), 'mowbite')!.level).toBe('warn');

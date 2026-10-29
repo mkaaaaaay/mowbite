@@ -181,6 +181,8 @@ export const SCHEDULE_LOG_TEXT: Record<string, string> = {
   start_failed: "The mower didn't react to the start, still idle a minute later",
   angle_failed: "The mower didn't take the mowing direction ({detail}°), it mows the way it was set",
   waiting_battery: 'Waiting for the battery ({detail} %)',
+  waiting_hold: 'Waiting, the MowBite Updater is updating OpenMower',
+  skip_hold: 'Not started, the MowBite Updater was still updating OpenMower after two hours',
   skip_battery: 'Not started, battery only at {detail} % after two hours',
   skip_rain: "Not started, the mower's rain sensor was wet",
   skip_forecast: 'Not started, rain was forecast',
@@ -215,6 +217,7 @@ const LEFTOVERS_SKIP: Record<string, string> = {
   paused: 'Leftovers not mowed, paused for today',
   forecast: 'Leftovers not mowed, rain was forecast',
   cold: 'Leftovers not mowed, too cold ({more} °C)',
+  hold: 'Leftovers not mowed, the MowBite Updater was updating OpenMower',
 };
 
 // how a log line is marked: a start that went out, one left out for a reason worth a look (not a pause asked for, an
@@ -231,6 +234,7 @@ const BAD = new Set([
   'skip_dark',
   'skip_end',
   'skip_no_area',
+  'skip_hold',
   'unknown_area',
   'leftovers_failed',
 ]);
@@ -269,6 +273,7 @@ const START_OUTCOMES = new Set([
   'skip_end',
   'skip_gone',
   'skip_no_area',
+  'skip_hold',
 ]);
 
 // The last start the schedule tried, when it didn't come off and it's less than 12 hours ago. A pause for the day

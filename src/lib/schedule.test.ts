@@ -1,6 +1,6 @@
 import {describe, expect, it, vi} from 'vitest';
 import {setLangChoice} from './i18n';
-import {isNightTime, missedStart, nextStart, parseSchedule, posixTz, scheduleLogLine, serializeSchedule, type Schedule} from './schedule';
+import {isNightTime, logTone, missedStart, nextStart, parseSchedule, posixTz, scheduleLogLine, serializeSchedule, type Schedule} from './schedule';
 
 // the dates below are local times, so the same zone everywhere (github runs in UTC)
 process.env.TZ = 'Europe/Berlin';
@@ -228,5 +228,15 @@ describe('the leftovers in the log', () => {
     expect(scheduleLogLine({t: 0, what: 'leftovers_skip', detail: 'end'})).toBe("Leftovers not mowed, the run's end time had come");
     expect(scheduleLogLine({t: 0, what: 'leftovers_skip', detail: 'MOWING'})).toBe("Leftovers not mowed, the mower wasn't ready");
     expect(scheduleLogLine({t: 0, what: 'leftovers_waiting_battery', detail: '40'})).toBe('Leftovers: waiting for the battery (40 %)');
+    expect(scheduleLogLine({t: 0, what: 'leftovers_skip', detail: 'hold'})).toBe('Leftovers not mowed, the MowBite Updater was updating OpenMower');
+  });
+});
+
+describe("the updater's hold in the log", () => {
+  it('waits while it holds, a start it held for two hours is one that went wrong', () => {
+    expect(scheduleLogLine({t: 0, what: 'waiting_hold'})).toBe('Waiting, the MowBite Updater is updating OpenMower');
+    expect(logTone('waiting_hold')).toBeNull();
+    expect(logTone('skip_hold')).toBe('bad');
+    expect(missedStart([{t: 1_790_890_000 - 60, what: 'skip_hold'}], 1_790_890_000)?.what).toBe('skip_hold');
   });
 });

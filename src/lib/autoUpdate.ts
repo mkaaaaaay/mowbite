@@ -310,6 +310,9 @@ function failure(s: UpdateState, part: Part, [why, ...more]: string[], at: strin
     case 'not_docked':
       // (after "update all" each part says so, the run's line below says it once)
       return {text: tr("not done: the mower wasn't idle in the dock"), level: s.status.result === 'waiting' ? 'ok' : 'warn', at};
+    case 'schedule':
+      // (OpenMower only: not in the 30 minutes before the schedule may start the mower)
+      return {text: tr('not done: the schedule starts the mower at {when}, OpenMower is left alone until then', {when: when(more[0])}), level: 'ok', at};
     case 'no_back':
       return warn(tr('there is no version before to go back to'));
     case 'back':
@@ -338,6 +341,8 @@ function failure(s: UpdateState, part: Part, [why, ...more]: string[], at: strin
       return error(tr("the update of itself didn't start, the updater stays as it is"));
     case 'no_stable':
       return error(tr('no stable release found'));
+    case 'hold':
+      return error(tr("nothing restarted: MowBite's schedule couldn't be held (mqtt)"));
     default:
       return error(tr('failed ({why}), see the log', {why: [why, ...more].filter(Boolean).join(' ') || '?'}));
   }
@@ -345,6 +350,8 @@ function failure(s: UpdateState, part: Part, [why, ...more]: string[], at: strin
 
 // the whole run
 export function runResult(s: UpdateState): string | null {
+  if (s.status.result === 'waiting' && s.status.openmower?.startsWith('error schedule') && !Object.values(s.status).includes('error not_docked'))
+    return tr('The last run waited: the schedule starts the mower soon.');
   if (s.status.result === 'waiting') return tr("The last run waited: the mower wasn't idle in the dock.");
   if (s.status.result === 'interrupted') return tr('The last run was stopped halfway (the mower or the updater restarted), what had not started yet was put back.');
   if (s.status.result === 'running') {

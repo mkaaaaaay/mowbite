@@ -29,3 +29,8 @@ RPC_PLANNER_LOG=planner.log
 # the plan of an area: the MowBite Planner's (with the planner only) and OpenMower's own
 RPC_PLANNER_PLAN=planner.plan
 RPC_AREA_PLAN=mowing.plan
+# MowBite's own, retained: the MowBite Updater holds the schedule's starts while it updates OpenMower
+# ({"until":<unix s>}, gone when it's done), and the schedule says when it may start next ({"from":<unix s>,"to":<unix s>},
+# gone without a schedule), so the updater leaves OpenMower alone in the 30 minutes before
+TOPIC_HOLD=mowbite/hold
+TOPIC_SCHEDULE_NEXT=mowbite/schedule/next

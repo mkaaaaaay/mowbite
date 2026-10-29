@@ -121,6 +121,10 @@ start restored "$(state MOWING)" "$(base "$DAY")" "MAP=$AREAS" "RUN_STATE=$(date
 start waited "$(state)" "$(base "$DAY")"$'\n'"plan $(dow "$DAY" -60) $(hm "$DAY" -60)" \
   "WAITING=$(($(date +%s) + 600)) $(dow "$DAY" -60) $(hm "$DAY" -60) $(day "$DAY") -"
 start angleback "$(state)" "$(base "$DAY")"$'\n'"plan $((D % 7 + 1)) $M" ANGLE_NORMAL=7
+# the MowBite Updater's hold: one that ends soon, one too far ahead to be its own
+start held "$(state)" "$(base "$DAY")"$'\n'"plan $D $M" "HOLD={\"until\":$(($(date +%s) + 600))}"
+start heldfar "$(state)" "$(base "$DAY")"$'\n'"plan $D $M" "HOLD={\"until\":$(($(date +%s) + 7200))}"
+start waitnext "$(state IDLE 0 0 0.5)" "$(MINBAT=80 base "$DAY")"$'\n'"plan $D $M"
 
 logs "scheduler: starts at the time of a plan" start '^started 90( at=[0-9:]+)?$'
 gets start '^action mower_logic:idle/start_mowing$' && ok "scheduler: the mower got the start" ||
@@ -172,6 +176,21 @@ logs "scheduler: a start waiting for the battery goes on after a restart" waited
 gets angleback '^rpc/request .*"params":\{"/mower_logic/mow_angle_offset":7\}' 40 &&
   ok "scheduler: the usual direction back once no plan has one of its own" ||
   bad "scheduler: the usual direction back once no plan has one of its own" "$(sent angleback)"
+logs "scheduler: no start while the updater holds it" held '^waiting_hold( at=[0-9:]+)?$'
+sleep 3
+sent held | grep -q 'start_mowing$' && bad "scheduler: the mower got no start while held" "$(sent held)" ||
+  ok "scheduler: the mower got no start while held"
+docker exec mbt-held mosquitto_pub -h mbt-mq -r -n -t held/mowbite/hold
+logs "scheduler: starts once the hold is gone" held '^started' 40
+logs "scheduler: a hold far ahead isn't the updater's" heldfar '^started'
+# when it may start next, retained for the updater
+next() { docker exec mbt-mq mosquitto_sub -h localhost -t "$1/mowbite/schedule/next" -C 1 -W 3 2> /dev/null; }
+at=$(TZ=$DAY date -d "$(day "$DAY" tomorrow) $M" +%s)
+expect "scheduler: tells the next start" "$(next otherday)" "{\"from\":$at,\"to\":$at}"
+w=$(next waitnext)
+expect "scheduler: a start waiting for the battery may come within its two hours" \
+  "$(($(sed 's/.*"to":\([0-9]*\).*/\1/' <<< "$w") - $(sed 's/.*"from":\([0-9]*\).*/\1/' <<< "$w")))" 7200
+expect "scheduler: nothing to tell while switched off" "$(next disabled)" ""
 
 # --- the cgis, through busybox httpd as in the container ---
 
