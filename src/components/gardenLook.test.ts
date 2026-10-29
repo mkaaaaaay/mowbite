@@ -3,8 +3,10 @@ import type {MapArea} from '@/hooks/useMowerMap';
 import {demoMap} from '@/lib/demo/garden';
 import de from '@/lib/i18n/de';
 import {isPin, pinAt} from '@/lib/mowerBody';
+import {createElement, Fragment} from 'react';
+import {renderToStaticMarkup} from 'react-dom/server';
 import {describe, expect, it} from 'vitest';
-import {coversOf} from './gardenLife';
+import {coversOf, lifeScene} from './gardenLife';
 import {areaLook, drawThing, facing, fillOf, gardenThings, groundOf, inSquare, isThing, PIN_KEYS, pinSize, pinTapped, placeThing, placeThings} from './gardenLook';
 import {PICTURE_KEYS, PICTURES} from './gardenPictures';
 
@@ -509,5 +511,24 @@ describe('pins', () => {
     const pins = demoMap().areas.filter(isPin);
     expect(pins.map((a) => areaLook(a)).sort()).toEqual(['bench', 'gnome', 'lamp', 'lamp']);
     for (const a of pins) expect(a.outline).toEqual(pinSquare(pinAt(a).x, pinAt(a).y).map((q) => ({x: expect.closeTo(q.x, 9), y: expect.closeTo(q.y, 9)})));
+  });
+});
+
+describe('lifeScene', () => {
+  const lawn: MapArea = {id: 'l', properties: {name: 'Lawn', type: 'mow'}, outline: [{x: 0, y: 0}, {x: 10, y: 0}, {x: 10, y: 10}, {x: 0, y: 10}]};
+  const fit = {minX: 0, minY: 0, m: 40, padX: 0, padY: 0};
+  const cuts = (track: {x: number; y: number}[][]) => {
+    const scene = lifeScene({areas: [lawn], garden: {growth: true}, fit, uid: 'u', track});
+    return [...renderToStaticMarkup(createElement(Fragment, null, scene?.lawn)).matchAll(/<g><path[^>]*><\/path><path[^>]*><\/path><\/g>/g)].map((m) => m[0]);
+  };
+
+  it("cuts the live trail in a path pair each piece, a new position only changes the last piece's", () => {
+    const done = [{x: 1, y: 1}, {x: 5, y: 1}, {x: 5, y: 2}, {x: 1, y: 2}];
+    const before = cuts([done, [{x: 1, y: 2}, {x: 1, y: 3}]]);
+    const after = cuts([done, [{x: 1, y: 2}, {x: 1, y: 3}, {x: 4, y: 3}]]);
+    expect(before).toHaveLength(2);
+    expect(after).toHaveLength(2);
+    expect(after[0]).toBe(before[0]);
+    expect(after[1]).not.toBe(before[1]);
   });
 });

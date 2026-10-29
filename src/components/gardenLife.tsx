@@ -317,6 +317,14 @@ const lawnLineCache = new WeakMap<object, {key: string; value: string}>();
 const sprinkleCache = new WeakMap<object, {key: string; value: Sprinkle[]}>();
 const jobCache = new WeakMap<object, {key: string; value: {there: string; back: string} | null}>();
 const pieceCache = new WeakMap<object, {key: string; value: {there: string; back: string}}>();
+// a piece of the trail keeps its number while it's drawn, the oldest going doesn't draw the others again
+const pieceIds = new WeakMap<object, number>();
+let lastPieceId = 0;
+const pieceId = (piece: object) => {
+  let id = pieceIds.get(piece);
+  if (!id) pieceIds.set(piece, (id = ++lastPieceId));
+  return id;
+};
 
 // the lawns as they're cut (active, mowed), what lies in them, all areas biggest first like MapView draws them, and the
 // stripes' way of the biggest lawn: a cut along it looks lighter, against it darker
@@ -697,10 +705,9 @@ export function lifeScene(s: LifeInput): LifeScene | null {
         })
         .filter((r) => r !== null)
     : [];
-  let live: {there: string; back: string} | null = null;
+  // a path pair each piece: a new position only changes the last one, so only its stretch is painted again
+  const live: {id: number; there: string; back: string}[] = [];
   if (parts.growth && s.track?.length) {
-    let there = '';
-    let back = '';
     for (const piece of s.track) {
       const cut = cached(pieceCache, piece, key, () => {
         const stretches: Point[][] = [];
@@ -715,10 +722,8 @@ export function lifeScene(s: LifeInput): LifeScene | null {
         if (run.length > 1) stretches.push(run);
         return cutPaths(stretches, along, at);
       });
-      there += cut.there;
-      back += cut.back;
+      if (cut.there || cut.back) live.push({id: pieceId(piece), ...cut});
     }
-    if (there || back) live = {there, back};
   }
 
   // the season on the lawn with the weather: frost in winter unless it's warmer than 3°, snow while it snows (wmo codes),
@@ -774,7 +779,7 @@ export function lifeScene(s: LifeInput): LifeScene | null {
     lawn: (
       <g className={styles.gardenLife} clipPath={`url(#${uid}lawnClip)`}>
         {/* where the mower cut lately, fading as it grows back, and where it cuts now */}
-        {(past.length > 0 || live) && (
+        {(past.length > 0 || live.length > 0) && (
           <g className={styles.cuts} strokeWidth={(s.body?.blade || 0.18) * m}>
             {past.map((c) => (
               <g key={c.id} opacity={c.opacity}>
@@ -782,12 +787,12 @@ export function lifeScene(s: LifeInput): LifeScene | null {
                 <path className={styles.cutBack} d={c.back} />
               </g>
             ))}
-            {live && (
-              <>
-                <path className={styles.cutThere} d={live.there} />
-                <path className={styles.cutBack} d={live.back} />
-              </>
-            )}
+            {live.map((c) => (
+              <g key={'live' + c.id}>
+                <path className={styles.cutThere} d={c.there} />
+                <path className={styles.cutBack} d={c.back} />
+              </g>
+            ))}
           </g>
         )}
         {parts.season && (frosty || snowing) && <path d={lawnD} fillRule="evenodd" fill={`url(#${uid}frost)`} />}
