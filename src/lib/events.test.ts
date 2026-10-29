@@ -10,6 +10,7 @@ import {
   noteworthy,
   parseEvent,
   rawLine,
+  reasonText,
   refusalReason,
   type MowerEvent,
 } from './events';
@@ -368,5 +369,96 @@ describe('runs on MowBite OS', () => {
   it('keeps OpenMower as it was: idle in the middle goes on until docked', () => {
     expect(runs(day, false)).toHaveLength(1);
     expect(runs(day, false)[0]).toMatchObject({end: 900, outcome: 'running'});
+  });
+});
+
+describe('reasons as fixed names (MowBite OS)', () => {
+  const os = (type: string, extra: Partial<MowerEvent>) => ev(0, type, {severity: 'error', resume: 'user', message: 'english text', ...extra});
+
+  it('says them in words with their numbers, the english text only for a name it does not know', () => {
+    expect(describeEvent(os('MOWING_REFUSED', {reason: 'BATTERY_LOW', battery_voltage: 22.14, limit: 23}), undefined, true)).toEqual({
+      text: 'Mowing not started: battery low (22.1 V, at least 23.0 V needed)',
+      severity: 'error',
+    });
+    expect(describeEvent(os('MOWING_REFUSED', {reason: 'POSITION_ACCURACY', accuracy: 0.351, limit: 0.2})).text).toBe(
+      'Mowing not started: position accurate to 0.35 m, 0.20 m or better needed',
+    );
+    expect(describeEvent(os('MOWING_REFUSED', {reason: 'BUSY', state: 'MOWING'})).text).toBe('Mowing not started: busy: Mowing');
+    expect(describeEvent(os('DRIVE_REFUSED', {reason: 'MAP_MISMATCH', datum_state: 'unbound'})).text).toBe(
+      'Drive not started: the map has no reference point recorded',
+    );
+    expect(describeEvent(os('MOWING_REFUSED', {reason: 'SOMETHING_NEW'})).text).toBe('Mowing not started: english text');
+    expect(describeEvent(ev(0, 'MOWING_REFUSED', {reason: 'SOMETHING_NEW'})).text).toBe('Mowing not started: something new');
+    expect(reasonText(os('X', {reason: 'NO_POSITION'}))).toBe('no position');
+    // free text from before stays as it came
+    expect(describeEvent(ev(0, 'MOWING_REFUSED', {reason: 'No position from the localization'})).text).toBe(
+      'Mowing not started: No position from the localization',
+    );
+  });
+
+  it('takes how bad it is from the event on MowBite OS only', () => {
+    const paused = os('STATE', {state: 'PAUSED', reason: 'POSE_LOST', severity: 'warning', resume: 'auto'});
+    expect(describeEvent(paused, 'MOWING', true)).toEqual({text: 'Paused: position lost', severity: 'warning'});
+    expect(describeEvent(os('STATE', {state: 'PAUSED', reason: 'CROSS_TRACK'}), 'MOWING', true).severity).toBe('error');
+    // without system.info saying so, or without the field, its own
+    expect(describeEvent(os('STATE', {state: 'PAUSED', reason: 'CROSS_TRACK'}), 'MOWING').severity).toBe('warning');
+    expect(describeEvent(ev(0, 'STATE', {state: 'PAUSED', reason: 'MANUAL'}), 'MOWING', true)).toEqual({text: 'Paused', severity: 'info'});
+    expect(describeEvent(os('EMERGENCY', {emergency: false, reason: '0', severity: 'info'}), undefined, true).severity).toBe('info');
+    expect(describeEvent(os('AREA_SKIPPED', {reason: 'MANUAL', severity: 'bogus'}), undefined, true).severity).toBe('info');
+    expect(noteworthy(os('STATE', {state: 'PAUSED', reason: 'MANUAL', severity: 'info'}), 'MOWING', true)).toBe(false);
+  });
+
+  it('says whether it goes on by itself', () => {
+    expect(explain(os('STATE', {state: 'PAUSED', reason: 'HEADING', resume: 'auto'}), 'MOWING', undefined, true)).toMatch(/by itself/);
+    expect(explain(os('STATE', {state: 'PAUSED', reason: 'TIMEOUT', resume: 'user'}), 'MOWING', undefined, true)).toMatch(/until you continue/);
+    expect(explain(os('STATE', {state: 'PAUSED', reason: 'MANUAL', resume: 'user'}), 'MOWING', undefined, true)).toBeUndefined();
+    expect(explain(os('STATE', {state: 'PAUSED', reason: 'TIMEOUT', resume: 'user'}), 'MOWING')).toBeUndefined();
+  });
+
+  it('tells drives, jumps and the map', () => {
+    expect(describeEvent(os('DRIVE', {phase: 'start', severity: 'info'})).text).toBe('Driving to a point');
+    expect(describeEvent(os('DRIVE', {phase: 'end', arrived: true, reason: 'DONE', severity: 'info'}))).toEqual({text: 'Arrived', severity: 'info'});
+    expect(describeEvent(os('DRIVE', {phase: 'end', arrived: true, reason: 'ALREADY_THERE'})).text).toBe('Already there');
+    expect(describeEvent(os('DRIVE', {phase: 'end', arrived: false, reason: 'STOPPED'}))).toEqual({text: 'Drive ended: stopped', severity: 'info'});
+    expect(describeEvent(os('DRIVE', {phase: 'end', arrived: false, reason: 'TRANSIT_FAILED'}), undefined, true)).toEqual({
+      text: 'Drive ended: no way there could be planned',
+      severity: 'error',
+    });
+    expect(describeEvent(os('POSITION_JUMP', {reason: 'GAP', distance: 0.4})).text).toBe('Position jumped 0.40 m: back on GPS after a gap');
+    expect(describeEvent(os('MAP_DATUM', {state: 'mismatch', reason: 'MAP_MISMATCH'}))).toEqual({
+      text: "No mowing: the map doesn't fit the reference point in use",
+      severity: 'error',
+    });
+  });
+
+  it('refusals while recording as before, with the names', () => {
+    const refused = (action: string, extra: Partial<MowerEvent>) => describeEvent(os('RECORDING_REFUSED', {action, ...extra})).text;
+    expect(refused('finish_mowing_area', {reason: 'RING_FEW_POINTS', points: 2, limit: 3})).toBe(
+      "Mowing area not saved: the line can't be closed: a line needs at least 3 points, it has 2",
+    );
+    expect(refused('stop_recording', {reason: 'RING_CROSSES_ITSELF'})).toBe('Line not closed: the line crosses itself');
+    expect(refused('point', {reason: 'POSITION_ACCURACY', accuracy: null, limit: 0.1})).toBe(
+      'No points recorded: position accurate to ? m, points need 0.10 m or better',
+    );
+    expect(refused('record_dock', {reason: 'DOCK_TOO_CLOSE', distance: 0.123, limit: 0.3})).toBe(
+      'Docking station not recorded: only 0.12 m from the first point, the direction needs at least 0.30 m',
+    );
+    expect(refused('finish_navigation_area', {reason: 'SAVE_FAILED', code: 'TOO_LARGE'})).toBe('Navigation area not saved: saving failed: the map got too large');
+    expect(refused('finish_navigation_area', {reason: 'SAVE_FAILED', code: 'WHATEVER', message: 'disk on fire'})).toBe('Navigation area not saved: disk on fire');
+  });
+
+  it('in german', () => {
+    vi.stubGlobal('document', {documentElement: {lang: 'en'}});
+    setLangChoice('de');
+    try {
+      expect(describeEvent(os('MOWING_REFUSED', {reason: 'BATTERY_LOW', battery_voltage: 22.14, limit: 23})).text).toBe(
+        'Mähen nicht gestartet: Akku niedrig (22,1 V, mindestens 23,0 V nötig)',
+      );
+      expect(describeEvent(os('STATE', {state: 'PAUSED', reason: 'OUTSIDE'})).text).toBe('Pausiert: außerhalb des befahrbaren Bereichs');
+      expect(describeEvent(os('MOWING_REFUSED', {reason: 'SOMETHING_NEW'})).text).toBe('Mähen nicht gestartet: english text');
+    } finally {
+      setLangChoice('en');
+      vi.unstubAllGlobals();
+    }
   });
 });

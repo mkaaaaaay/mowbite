@@ -28,6 +28,19 @@ export interface MowerEvent {
   area_m2?: number;
   dock_id?: string;
   heading?: number;
+  // MowBite OS: a reason with a fixed name carries an english text, how bad it is and whether it goes on by itself
+  // (masterplan 3.1a), and the numbers it's about. limit is in the unit of the value it goes with
+  message?: string;
+  severity?: string;
+  resume?: string;
+  limit?: number;
+  accuracy?: number | null;
+  distance?: number;
+  area?: number;
+  code?: string;
+  datum_state?: string;
+  phase?: string;
+  arrived?: boolean;
   // worked out here, not from OpenMower: a navigation error that only came because it was sent home (see markSentHome)
   sentHome?: boolean;
 }
@@ -80,8 +93,8 @@ function homeText(r?: string): string {
 }
 
 // worth showing in a run's summary and the day's list though it isn't a problem: why it went home (not a pause)
-export function noteworthy(e: MowerEvent, state?: string): boolean {
-  if (describe(e, state).severity !== 'info') return true;
+export function noteworthy(e: MowerEvent, state?: string, os = false): boolean {
+  if (describe(e, state, os).severity !== 'info') return true;
   const why = e.type === 'DOCKING' ? homeReason(e.reason) : null;
   return why !== null && why !== 'paused';
 }
@@ -177,9 +190,96 @@ const REFUSALS: [RegExp, string, string[]][] = [
 ];
 const RING = 'Cannot close the ring: ';
 
+// the reason as a fixed name, MowBite OS from E6 on (masterplan 3.1a). OpenMower's own are lower case or free text
+export const isReasonCode = (r?: string): boolean => !!r && /^[A-Z][A-Z0-9_]*$/.test(r);
+
+const n2 = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? fmt(v, 2) : '?');
+const n1 = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? fmt(v, 1) : '?');
+const busy = (s?: string) => (s === 'driving' ? tr('driving') : STATES[s ?? ''] ? tr(STATES[s ?? '']) : (s ?? ''));
+const SAVE_FAILED: Record<string, string> = {
+  INVALID: 'the change is not a valid map',
+  DATUM: "the map doesn't fit the reference point in use",
+  TOO_LARGE: 'the map got too large',
+  STORAGE: "the map couldn't be written",
+  NO_ANSWER: 'no answer from the map service',
+};
+
+// the fixed names in words, the numbers from the event's own fields
+const CODES: Record<string, (e: MowerEvent) => string> = {
+  BUSY: (e) => (e.state ? tr('busy: {state}', {state: busy(e.state)}) : tr('busy with something else')),
+  STILL_STOPPING: () => tr('the last job is still stopping, try again in a moment'),
+  STILL_SAVING: () => tr('the last change of the map is still being saved'),
+  EMERGENCY: () => tr('emergency stop, reset it first'),
+  NO_SAFETY_MEASUREMENT: () => tr('no safety sensors on this platform, remote control only'),
+  ON_DOCK: () => tr('on the docking station, drive it off by remote control first'),
+  RAIN: () => tr('rain'),
+  BATTERY_LOW: (e) =>
+    typeof e.battery_voltage === 'number'
+      ? tr('battery low ({v} V, at least {min} V needed)', {v: n1(e.battery_voltage), min: n1(e.limit)})
+      : tr('battery low'),
+  NO_POSITION: () => tr('no position'),
+  POSE_LOST: () => tr('position lost'),
+  POSITION_ACCURACY: (e) =>
+    e.action === 'point' || e.action === 'collect_point'
+      ? tr('position accurate to {acc} m, points need {max} m or better', {acc: n2(e.accuracy), max: n2(e.limit)})
+      : e.action === 'record_dock'
+        ? tr('position accurate to {acc} m, the docking station needs {max} m or better', {acc: n2(e.accuracy), max: n2(e.limit)})
+        : e.accuracy !== undefined
+          ? tr('position accurate to {acc} m, {max} m or better needed', {acc: n2(e.accuracy), max: n2(e.limit)})
+          : tr('position not accurate enough'),
+  NO_HEADING: () => tr("heading not known yet, drive a few metres by remote control"),
+  HEADING: () => tr('heading not good enough'),
+  MAP_MISMATCH: (e) => (e.datum_state === 'unbound' ? tr('the map has no reference point recorded') : tr("the map doesn't fit the reference point in use")),
+  MAP_UNREADABLE: () => tr("the map can't be read"),
+  MAP_UNKNOWN: () => tr("the GPS reference point isn't known yet"),
+  NO_MOWING_AREA: () => tr('no active mowing area on the map'),
+  PLANNER_MISSING: () => tr('the planner is not running'),
+  FOLLOWER_MISSING: () => tr('the path follower is not running'),
+  MANUAL: () => tr('by hand'),
+  CROSS_TRACK: () => tr('too far off its path'),
+  OUTSIDE: () => tr('outside the area it may drive in'),
+  TIMEOUT: () => tr('not getting on, maybe stuck'),
+  INVALID: () => tr('the path is not valid'),
+  NOT_ALLOWED: () => tr('driving not allowed'),
+  PLANNING_FAILED: () => tr("the planner couldn't make the plan"),
+  APPROACH_FAILED: () => tr("couldn't get to the start of the lane"),
+  BLADE_REFUSED: () => tr("the blade didn't switch on"),
+  BLADE_SPINUP_FAILED: () => tr("the blade didn't reach its speed"),
+  DONE: () => tr('arrived'),
+  CANCELED: () => tr('canceled'),
+  STOPPED: () => tr('stopped'),
+  TRANSIT_FAILED: () => tr('no way there could be planned'),
+  FOLLOWER_REFUSED: () => tr("the path follower didn't take the path"),
+  ALREADY_THERE: () => tr('already there'),
+  PLANNER_TIMEOUT: () => tr('no answer from the planner'),
+  RING_FEW_POINTS: (e) => tr('a line needs at least {min} points, it has {n}', {min: e.limit ?? '?', n: e.points ?? '?'}),
+  RING_CROSSES_ITSELF: () => tr('the line crosses itself'),
+  RING_TOO_SMALL: (e) => tr('it encloses only {a} m², at least {min} m² needed', {a: n2(e.area), min: n2(e.limit)}),
+  NO_OUTLINE: () => tr('no outline recorded yet'),
+  TOO_MANY_POINTS: (e) => tr('the line has {n} points, the most there can be: close it', {n: e.limit ?? '?'}),
+  POINT_TOO_CLOSE: (e) => tr('only {d} m from the last point, more than {min} m needed', {d: n2(e.distance), min: n2(e.limit)}),
+  DOCK_TOO_CLOSE: (e) => tr('only {d} m from the first point, the direction needs at least {min} m', {d: n2(e.distance), min: n2(e.limit)}),
+  SAVE_FAILED: (e) =>
+    SAVE_FAILED[e.code ?? ''] ? tr('saving failed: {why}', {why: tr(SAVE_FAILED[e.code ?? ''])}) : e.message || tr('saving failed'),
+  OUTLIERS: () => tr('back on GPS after outliers'),
+  GAP: () => tr('back on GPS after a gap'),
+};
+
+// a fixed name in words: one the app knows from its list, one it doesn't by the mower's english text, else the name
+// itself readable. free text (OpenMower, MowBite OS before E6) stays as it came
+export function reasonText(e: MowerEvent): string {
+  const r = e.reason;
+  if (!r || !isReasonCode(r)) return r ?? '';
+  return CODES[r] ? CODES[r](e) : e.message || r.replace(/_/g, ' ').toLowerCase();
+}
+
 // the reason in words of the app's language, one it doesn't know as it came
-export function refusalReason(r?: string, action?: string): string {
+export function refusalReason(r?: string, action?: string, e?: MowerEvent): string {
   if (!r) return '';
+  if (isReasonCode(r)) {
+    const text = reasonText({...(e ?? {id: '', t: 0, type: 'RECORDING_REFUSED'}), reason: r, action});
+    return r.startsWith('RING_') && action !== 'stop_recording' ? tr("the line can't be closed: {problem}", {problem: text}) : text;
+  }
   const ring = r.startsWith(RING);
   const rest = ring ? r.slice(RING.length) : r;
   let text = rest;
@@ -200,7 +300,7 @@ export function refusalReason(r?: string, action?: string): string {
 
 export function refusalText(e: MowerEvent): string {
   const head = tr(REFUSED_STEPS[e.action ?? ''] ?? 'Recording step refused');
-  const why = refusalReason(e.reason, e.action);
+  const why = refusalReason(e.reason, e.action, e);
   return why ? `${head}: ${why}` : head;
 }
 
@@ -214,13 +314,42 @@ function recordedText(e: MowerEvent): string {
   return parts.length ? `${what} (${parts.join(', ')})` : what;
 }
 
+const SEVERITIES = new Set<string>(['error', 'warning', 'info']);
+const said = (head: string, why: string) => (why ? `${head}: ${why}` : head);
+
 // state is what the mower was doing when the event happened, gps is switched off on purpose outside
-// of mowing, so losing it only counts as a problem while mowing
-export function describe(e: MowerEvent, state?: string): {text: string; severity: Severity} {
+// of mowing, so losing it only counts as a problem while mowing. os: the mower runs MowBite OS, how bad it is comes
+// with the event there, from OpenMower (and MowBite OS before E6) it's worked out here
+export function describe(e: MowerEvent, state?: string, os = false): {text: string; severity: Severity} {
+  const own = describeOwn(e, state);
+  return os && SEVERITIES.has(e.severity ?? '') ? {text: own.text, severity: e.severity as Severity} : own;
+}
+
+function describeOwn(e: MowerEvent, state?: string): {text: string; severity: Severity} {
   const info = (text: string) => ({text, severity: 'info' as Severity});
+  const warning = (text: string) => ({text, severity: 'warning' as Severity});
   switch (e.type) {
     case 'STATE':
+      // MowBite OS says why it paused
+      if (e.state === 'PAUSED' && e.reason)
+        return e.reason === 'MANUAL' ? info(tr('Paused')) : warning(said(tr('Paused'), reasonText(e)));
       return info(STATES[e.state ?? ''] ? tr(STATES[e.state ?? '']) : (e.state ?? tr('State changed')));
+    // from here to MAP_DATUM MowBite OS only
+    case 'MOWING_REFUSED':
+      return warning(said(tr('Mowing not started'), reasonText(e)));
+    case 'DRIVE_REFUSED':
+      return warning(said(tr('Drive not started'), reasonText(e)));
+    case 'DRIVE':
+      if (e.phase !== 'end') return info(tr('Driving to a point'));
+      if (e.reason === 'ALREADY_THERE') return info(tr('Already there'));
+      if (e.arrived || e.reason === 'DONE') return info(tr('Arrived'));
+      return ['CANCELED', 'STOPPED'].includes(e.reason ?? '') ? info(said(tr('Drive ended'), reasonText(e))) : warning(said(tr('Drive ended'), reasonText(e)));
+    case 'POSITION_JUMP':
+      return warning(said(typeof e.distance === 'number' ? tr('Position jumped {d} m', {d: n2(e.distance)}) : tr('Position jumped'), reasonText(e)));
+    case 'BATTERY_LOW':
+      return warning(typeof e.battery_voltage === 'number' ? tr('Battery low ({v} V)', {v: n1(e.battery_voltage)}) : tr('Battery low'));
+    case 'MAP_DATUM':
+      return {text: said(tr('No mowing'), reasonText(e)), severity: 'error'};
     case 'GPS':
       if (e.available) return info(tr('GPS fix'));
       return state === 'MOWING' ? {text: tr('GPS lost'), severity: 'warning'} : info(tr('GPS off'));
@@ -281,7 +410,7 @@ export function describe(e: MowerEvent, state?: string): {text: string; severity
     case 'DOCK_RECORDED':
       return info(tr('Docking station recorded'));
     default:
-      return info(e.type.replace(/_/g, ' ').toLowerCase());
+      return info(said(e.type.replace(/_/g, ' ').toLowerCase(), reasonText(e)));
   }
 }
 
@@ -292,8 +421,18 @@ const spinupFailed = () =>
 
 // what the mower's code does when it logs these, the event itself carries nothing more
 // gpsTimeout: the mower's mower_logic/gps_timeout in seconds, if known
-export function explain(e: MowerEvent, state?: string, gpsTimeout?: number): string | undefined {
+export function explain(e: MowerEvent, state?: string, gpsTimeout?: number, os = false): string | undefined {
   switch (e.type) {
+    case 'STATE':
+      // MowBite OS says whether it goes on by itself
+      if (e.state !== 'PAUSED' || !e.reason || !os) return undefined;
+      return e.resume === 'auto'
+        ? tr('It goes on by itself once the position has been good for a moment.')
+        : e.resume === 'user' && e.reason !== 'MANUAL'
+          ? tr('It waits where it is until you continue it.')
+          : undefined;
+    case 'MOWING_REFUSED':
+      return tr('The mower stays where it is. Once the reason is gone, start it again.');
     case 'UNDOCKING_FAILED':
       if (e.reason === 'no_gps')
         return tr(
@@ -451,7 +590,7 @@ export function groupRuns(events: MowerEvent[], live: boolean, now = Date.now() 
   // mowing by hand (the mowing hours count it too)
   let hand = false;
   const close = (finished: boolean, cut = false, parked = false) => {
-    if (run?.length) out.push({kind: 'run', run: summarize(run, finished || !live, now, cut, hand, parked)});
+    if (run?.length) out.push({kind: 'run', run: summarize(run, finished || !live, now, cut, hand, parked, os)});
     run = null;
     hand = false;
   };
@@ -498,8 +637,8 @@ export function groupRuns(events: MowerEvent[], live: boolean, now = Date.now() 
 }
 
 // a run still going counts until now: its blade time and its end grow between the events
-// parked: ended idle out on the lawn (MowBite OS)
-function summarize(events: MowerEvent[], finished: boolean, now: number, cut: boolean, hand: boolean, parked: boolean): Run {
+// parked: ended idle out on the lawn (MowBite OS), os: how bad an event is comes with it
+function summarize(events: MowerEvent[], finished: boolean, now: number, cut: boolean, hand: boolean, parked: boolean, os: boolean): Run {
   const areas: string[] = [];
   let bladeSeconds = 0;
   let bladesSince: number | null = null;
@@ -513,7 +652,7 @@ function summarize(events: MowerEvent[], finished: boolean, now: number, cut: bo
         bladesSince = null;
       }
     }
-    if (describe(e, state).severity !== 'info') problems++;
+    if (describe(e, state, os).severity !== 'info') problems++;
   }
   const last = events[events.length - 1];
   // (standing idle, put in the dock by hand say, it isn't going on)

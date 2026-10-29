@@ -378,7 +378,7 @@ export default function Home() {
   // with the problems outside of runs (an emergency stop in the dock), like the activity counts them
   const today = recent?.today;
   const loose = useMemo(
-    () => (today ? groupRuns(today, true, undefined, os).filter((e) => e.kind === 'event' && noteworthy(e.event) && describe(e.event).severity !== 'info').length : 0),
+    () => (today ? groupRuns(today, true, undefined, os).filter((e) => e.kind === 'event' && noteworthy(e.event, undefined, os) && describe(e.event, undefined, os).severity !== 'info').length : 0),
     [today, os],
   );
   const problems = runs.reduce((s, r) => s + r.problems, 0) + loose;
