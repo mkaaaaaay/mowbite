@@ -168,7 +168,7 @@ export const REASONS: Record<string, Variant[]> = {
   STILL_STOPPING: [r('the last job is still stopping, try again in a moment')],
   STILL_SAVING: [r('the last change of the map is still being saved')],
   EMERGENCY: [r('emergency stop, reset it first')],
-  NO_SAFETY_MEASUREMENT: [r('no safety sensors on this platform, remote control only')],
+  NO_SAFETY_MEASUREMENT: [r('no safety sensors on this platform, mowing and driving are blocked')],
   ON_DOCK: [r('on the docking station, drive it off by remote control first')],
   RAIN: [r('rain')],
   BATTERY_LOW: [

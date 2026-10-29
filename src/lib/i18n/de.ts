@@ -1989,7 +1989,7 @@ const de: Record<string, string> = {
   "busy with something else": "mit etwas anderem beschäftigt",
   "the last job is still stopping, try again in a moment": "der letzte Auftrag hält noch an, gleich noch einmal versuchen",
   "emergency stop, reset it first": "Notaus, erst zurücksetzen",
-  "no safety sensors on this platform, remote control only": "keine Sicherheitssensoren auf dieser Plattform, nur Fernsteuerung",
+  "no safety sensors on this platform, mowing and driving are blocked": "keine Sicherheitssensoren auf dieser Plattform, Mähen und Fahren sind gesperrt",
   "on the docking station, drive it off by remote control first": "steht auf der Ladestation, erst per Fernsteuerung herunterfahren",
   "rain": "Regen",
   "battery low": "Akku niedrig",

@@ -388,6 +388,9 @@ describe('reasons as fixed names (MowBite OS)', () => {
     );
     expect(describeEvent(os('STATE', {state: 'PAUSED', reason: 'POSITION_ACCURACY'})).text).toBe('Paused: position not accurate enough');
     expect(describeEvent(os('MOWING_REFUSED', {reason: 'NO_HEADING'})).text).toBe('Mowing not started: heading not known yet');
+    expect(describeEvent(os('DRIVE_REFUSED', {reason: 'NO_SAFETY_MEASUREMENT'})).text).toBe(
+      'Drive not started: no safety sensors on this platform, mowing and driving are blocked',
+    );
     expect(describeEvent(os('MOWING_REFUSED', {reason: 'BUSY', state: 'MOWING'})).text).toBe('Mowing not started: busy: Mowing');
     expect(describeEvent(os('DRIVE_REFUSED', {reason: 'MAP_MISMATCH', datum_state: 'unbound'})).text).toBe(
       'Drive not started: the map has no reference point recorded',
@@ -479,6 +482,9 @@ describe('reasons as fixed names (MowBite OS)', () => {
         'Pausiert: Position auf 0,12 m genau, nötig sind 0,10 m oder besser',
       );
       expect(describeEvent(os('DRIVE_REFUSED', {reason: 'NO_HEADING'})).text).toBe('Fahrt nicht gestartet: Fahrtrichtung noch unbekannt');
+      expect(describeEvent(os('MOWING_REFUSED', {reason: 'NO_SAFETY_MEASUREMENT'})).text).toBe(
+        'Mähen nicht gestartet: keine Sicherheitssensoren auf dieser Plattform, Mähen und Fahren sind gesperrt',
+      );
       expect(describeEvent(os('MOWING_REFUSED', {reason: 'SOMETHING_NEW'})).text).toBe('Mähen nicht gestartet: english text');
     } finally {
       setLangChoice('en');

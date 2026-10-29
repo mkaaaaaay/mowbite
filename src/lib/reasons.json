@@ -672,8 +672,8 @@
   ],
   "NO_SAFETY_MEASUREMENT": [
    {
-    "en": "no safety sensors on this platform, remote control only",
-    "de": "keine Sicherheitssensoren auf dieser Plattform, nur Fernsteuerung"
+    "en": "no safety sensors on this platform, mowing and driving are blocked",
+    "de": "keine Sicherheitssensoren auf dieser Plattform, Mähen und Fahren sind gesperrt"
    }
   ],
   "ON_DOCK": [
