@@ -672,8 +672,8 @@
   ],
   "NO_SAFETY_MEASUREMENT": [
    {
-    "en": "no safety sensors on this platform, mowing and driving are blocked",
-    "de": "keine Sicherheitssensoren auf dieser Plattform, Mähen und Fahren sind gesperrt"
+    "en": "safety not yet verified on this platform, mowing and driving are blocked",
+    "de": "Sicherheit auf dieser Plattform noch nicht nachgemessen, Mähen und Fahren sind gesperrt"
    }
   ],
   "ON_DOCK": [

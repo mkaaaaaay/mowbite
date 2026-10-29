@@ -253,7 +253,7 @@ describe('what the container sends', {timeout: 30_000}, () => {
     );
     expect(run(event(100, '{"type":"MOWING_REFUSED","reason":"NO_HEADING"}'), os)[0].message).toBe("Steve didn't start mowing: heading not known yet.");
     expect(run(event(100, '{"type":"MOWING_REFUSED","reason":"NO_SAFETY_MEASUREMENT"}'), os)[0].message).toBe(
-      "Steve didn't start mowing: no safety sensors on this platform, mowing and driving are blocked.",
+      "Steve didn't start mowing: safety not yet verified on this platform, mowing and driving are blocked.",
     );
   });
 
