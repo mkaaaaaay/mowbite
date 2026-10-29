@@ -7,6 +7,8 @@ const fake = vi.hoisted(() => ({
   sent: [] as Record<string, unknown>[],
   app: {} as Record<string, unknown>,
   synced: false,
+  // what runs on the mower: OpenMower, MowBite OS (system.info) or not known yet (no answer to rpc.methods)
+  os: 'openmower' as 'openmower' | 'mowbite-os' | 'unknown',
 }));
 const answer = (): PlannerSettings => ({
   settings: Object.fromEntries(
@@ -15,6 +17,7 @@ const answer = (): PlannerSettings => ({
 });
 vi.mock('./rpc', () => ({
   callRpc: async (method: string, params: Record<string, unknown>) => {
+    if (method === 'system.info') return {name: 'mowbite-os', version: '0.1'};
     if (method === 'planner.settings.set') {
       fake.sent.push(params);
       Object.assign(fake.planner, params);
@@ -22,7 +25,8 @@ vi.mock('./rpc', () => ({
     return answer();
   },
   isMissingMethod: () => false,
-  rpcMethods: async () => new Set(),
+  methodsUnknown: () => fake.os === 'unknown',
+  rpcMethods: async () => (fake.os === 'unknown' ? null : new Set(fake.os === 'mowbite-os' ? ['system.info'] : [])),
 }));
 vi.mock('./settings', () => ({
   settingsStore: {subscribe: () => () => {}, snapshot: () => fake.app, serverSnapshot: () => ({})},
@@ -51,6 +55,25 @@ describe('the outline given to the planner on its own', () => {
     fake.sent = [];
     fake.app = {};
     fake.synced = false;
+    fake.os = 'openmower';
+  });
+
+  it('gives none on MowBite OS, it holds the sizes itself', async () => {
+    fake.os = 'mowbite-os';
+    await start();
+    expect(fake.sent).toEqual([]);
+    expect(fake.app.autoOutline).toBeUndefined();
+  });
+
+  it('waits until it is known what runs on the mower', async () => {
+    fake.os = 'unknown';
+    const body = await start();
+    expect(fake.sent).toEqual([]);
+    // the answer came meanwhile: OpenMower
+    fake.os = 'openmower';
+    await body.loadPlannerSettings(true);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(fake.sent).toHaveLength(1);
   });
 
   it("sends the model's outline 1 cm larger once the shared settings are in, and notes the model", async () => {

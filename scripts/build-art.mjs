@@ -41,7 +41,8 @@ const STUBS = {
   // what mowerBody needs only for asking the planner and keeping the app's settings
   '@/lib/mowers': 'module.exports = {apiBase: () => ""};',
   '@/lib/openmower': 'module.exports = {RPC: {}};',
-  '@/lib/rpc': 'module.exports = {callRpc: async () => null, isMissingMethod: () => true, rpcMethods: async () => []};',
+  '@/lib/rpc': 'module.exports = {callRpc: async () => null, isMissingMethod: () => true, methodsUnknown: () => true, rpcMethods: async () => []};',
+  '@/lib/mowerOs': 'module.exports = {isMowbiteOs: () => false, systemInfo: async () => null};',
   '@/lib/settings': 'module.exports = {saveSettings() {}, syncSettings() {}, settingsStore: {get: () => ({}), subscribe: () => () => {}}};',
   '@/lib/areaPlan': 'module.exports = {};',
   // a css module's class names as they are (import styles from: its default)
