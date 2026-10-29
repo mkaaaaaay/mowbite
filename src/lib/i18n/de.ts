@@ -2038,6 +2038,7 @@ const de: Record<string, string> = {
   "back on GPS after outliers": "wieder auf GPS nach Ausreißern",
   "back on GPS after a gap": "wieder auf GPS nach einer Lücke",
   "Mowing not started": "Mähen nicht gestartet",
+  "Mowing turned down, the map doesn't fit": "Mähen abgelehnt, Karte passt nicht",
   "battery low ({v} V)": "Akku niedrig ({v} V)",
   "position accurate to {acc} m": "Position auf {acc} m genau",
   "Not started, the mower turned it down": "Nicht gestartet, der Mäher hat abgelehnt",
