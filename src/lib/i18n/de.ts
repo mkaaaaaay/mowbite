@@ -2068,6 +2068,7 @@ const de: Record<string, string> = {
   "saving failed: no answer from the map service": "Speichern fehlgeschlagen: keine Antwort vom Kartendienst",
   "the line can't be closed: {text}": "die Linie lässt sich nicht schließen: {text}",
   "Emergency stop (code {n})": "Notaus (Code {n})",
+  "Set by the mower, it can't be changed here.": "Vom Mäher vorgegeben, hier nicht änderbar.",
 };
 
 export default de;
