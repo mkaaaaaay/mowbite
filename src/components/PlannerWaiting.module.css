@@ -1,31 +1,16 @@
-.box {
+/* right under the map, no box: a line in the accent with a piece running along it, a short text under it */
+.strip {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 14px 16px;
-  border-radius: 14px;
-  border: 1px solid var(--card-border);
-  background: var(--card);
-}
-
-.head {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  font-size: 14px;
-}
-
-.dim {
-  margin: 0;
-  font-size: 13px;
-  color: var(--text-secondary);
+  gap: 4px;
+  height: 24px;
 }
 
 .track {
   position: relative;
-  height: 8px;
+  height: 4px;
   border-radius: 999px;
-  background: var(--well);
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
   overflow: hidden;
 }
 
@@ -54,4 +39,26 @@
     opacity: 0.5;
     animation: none;
   }
+}
+
+.line {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 2px;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--foreground);
+  white-space: nowrap;
+}
+
+.text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.time {
+  flex: none;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
 }

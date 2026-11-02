@@ -607,6 +607,16 @@
   position: relative;
 }
 
+/* the planner's waiting bar under the map (24px): the angle slider and the sim player stay on the map */
+.underMap:not(:empty) {
+  padding-top: 6px;
+}
+
+.mapCol:has(> .underMap:not(:empty)) .angleOnMap,
+.mapCol:has(> .underMap:not(:empty)) .simPlayer {
+  bottom: 40px;
+}
+
 /* angle slider on top of the map, phones only */
 .angleOnMap {
   display: none;

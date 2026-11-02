@@ -1965,8 +1965,8 @@ const de: Record<string, string> = {
   "With the gear on the map you pick the map style: Plain shows colored areas, Garden draws the garden from above (off until you pick it). There ways, obstacles and decoration get a picture by their name. With one picked you change it under the map at Picture on the map, and its color, size, direction and the ground under it. Light and shadows, the season, the lawn growing back and a mowing edge can be switched on one by one.": "Über das Zahnrad an der Karte wählst du den Kartenstil: „Schlicht“ zeigt farbige Flächen, „Garten“ zeichnet den Garten von oben (aus, bis du ihn wählst). Dort bekommen Wege, Hindernisse und Deko ein Bild nach ihrem Namen. Ist eins gewählt, änderst du es unter der Karte bei „Bild auf der Karte“, dazu Farbe, Größe, Richtung und den Untergrund. Licht und Schatten, Jahreszeit, nachwachsender Rasen und eine Mähkante schaltest du einzeln dazu.",
   "Set by the mower, it can't be changed here.": "Vom Mäher vorgegeben, hier nicht änderbar.",
   "Waiting for the planner": "Warte auf den Planer",
-  "It answers once it has finished planning, a long plan can take a few minutes. Its settings show up here then.":
-    "Er antwortet, sobald er fertig geplant hat, ein langer Plan kann ein paar Minuten dauern. Seine Einstellungen erscheinen dann hier.",
+  "The change waits for the planner": "Die Änderung wartet auf den Planer",
+  "Shows up once the planner answers.": "Erscheint, sobald der Planer antwortet.",
   "No answer for a long while: is the planner's container running?": "Schon lange keine Antwort: Läuft der Container des Planers?",
 };
 

@@ -237,7 +237,7 @@ export default function SettingsPage() {
   const [leftoversFailed, setLeftoversFailed] = useState<string | null>(null);
   useAskPlanner(() => setUnanswered(true));
   // the planner there but busy: it's waited for, not the sizes as without it
-  const waiting = usePlannerWaiting() !== null;
+  const waiting = usePlannerWaiting()?.what === 'load';
   const demo = useSyncExternalStore(noop, isDemo, () => false);
 
   return (

@@ -93,15 +93,34 @@ let askedAt: number | null = null;
 let listed = false;
 // counts the changes saved, an answer to a load asked before one is older than what the save brought
 let saves = 0;
+// the changes sent to the planner it hasn't answered yet, each with when it was sent
+const sent = new Map<object, number>();
 const listeners = new Set<() => void>();
+
+// what the app waits for from the planner and since when: its settings (the planner there but busy) or a change sent
+export interface PlannerWait {
+  since: number;
+  what: 'load' | 'save';
+}
+let wait: PlannerWait | null = null;
+
+// the listeners told, with what's waited for worked out anew (the same object while it's the same)
+function notify() {
+  const load = current === undefined && (listed || plannerSeen()) ? askedAt : null;
+  const save = sent.size ? Math.min(...sent.values()) : null;
+  const next: PlannerWait | null =
+    save !== null ? {since: Math.min(save, load ?? save), what: 'save'} : load !== null ? {since: load, what: 'load'} : null;
+  if (next?.since !== wait?.since || next?.what !== wait?.what) wait = next;
+  listeners.forEach((l) => l());
+}
 
 // the same settings again keep the object, so what's worked out from them isn't worked out again
 function set(s: PlannerSettings | null) {
   if (s) rememberPlanner();
   askedAt = null;
-  if (s && current && JSON.stringify(s) === JSON.stringify(current)) return;
+  if (s && current && JSON.stringify(s) === JSON.stringify(current)) return notify();
   current = s;
-  listeners.forEach((l) => l());
+  notify();
 }
 
 // the mowers whose MowBite Planner answered here once (per device, by where their MowBite answers): when mower_logic
@@ -135,9 +154,30 @@ export function plannerSettings(): PlannerSettings | null | undefined {
 // asked again each minute: the newest question is answered right after the old ones, a lost one costs a minute at most
 const PLANNER_WAIT = 60_000;
 
-// since when the app waits for the planner's settings, null when they're known or it has no planner
-export function plannerWaiting(): number | null {
-  return current === undefined && (listed || plannerSeen()) ? askedAt : null;
+// what the app waits for from the planner, null when nothing (or it has no planner)
+export function plannerWaiting(): PlannerWait | null {
+  return wait;
+}
+
+// a change for the planner, waited for as long as it plans: sent again each minute without an answer (the same values,
+// nothing changes twice), for ten minutes at most
+async function change<T>(method: string, params: object): Promise<T> {
+  const key = {};
+  const until = Date.now() + 600_000;
+  sent.set(key, Date.now());
+  notify();
+  try {
+    for (;;) {
+      try {
+        return await callRpc<T>(method, params, PLANNER_WAIT);
+      } catch (e) {
+        if (!(e instanceof RpcError && e.code === 'timeout') || Date.now() >= until) throw e;
+      }
+    }
+  } finally {
+    sent.delete(key);
+    notify();
+  }
 }
 
 // asked once per page load, again with force (the settings page); one asked already is waited for, forced or not. A
@@ -149,11 +189,11 @@ export function loadPlannerSettings(force = false): Promise<PlannerSettings | nu
   const before = saves;
   if (current === undefined && askedAt === null) {
     askedAt = Date.now();
-    listeners.forEach((l) => l());
+    notify();
     void rpcMethods().then((m) => {
       if (!m?.has(RPC.plannerSettings) || listed) return;
       listed = true;
-      listeners.forEach((l) => l());
+      notify();
     });
   }
   asking = callRpc<PlannerSettings>(RPC.plannerSettings, {}, PLANNER_WAIT).then(
@@ -175,7 +215,7 @@ export function loadPlannerSettings(force = false): Promise<PlannerSettings | nu
 // changes some settings (null: back to the default), the planner checks them as a whole and answers like
 // planner.settings
 export async function savePlannerSettings(values: Record<string, unknown>): Promise<PlannerSettings> {
-  const s = await callRpc<PlannerSettings>(RPC.plannerSettingsSet, values, 15000);
+  const s = await change<PlannerSettings>(RPC.plannerSettingsSet, values);
   saves++;
   set(s);
   return s;
@@ -198,7 +238,7 @@ export async function giveOutline() {
 
 // the angle turned further back to 0 (planner.angle.reset), the next finished mow counts from there
 export async function resetPlannerAngle(): Promise<PlannerSettings> {
-  const s = await callRpc<PlannerSettings>(RPC.plannerAngleReset, {}, 15000);
+  const s = await change<PlannerSettings>(RPC.plannerAngleReset, {});
   saves++;
   set(s);
   return s;
@@ -276,7 +316,7 @@ export function usePlannerSettings(): PlannerSettings | null | undefined {
   return useSyncExternalStore(subscribe, plannerSettings, () => undefined);
 }
 
-export function usePlannerWaiting(): number | null {
+export function usePlannerWaiting(): PlannerWait | null {
   return useSyncExternalStore(subscribe, plannerWaiting, () => null);
 }
 

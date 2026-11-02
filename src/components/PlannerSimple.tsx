@@ -155,7 +155,8 @@ export function PlannerSimple({
 }) {
   const planner = usePlannerSettings();
   const [drafts, setDrafts] = useState<Record<string, string>>({});
-  const [state, setState] = useState<{busy?: boolean; error?: string; saved?: number}>({});
+  // want: what's being saved, shown already while the planner hasn't answered (it may be planning for minutes)
+  const [state, setState] = useState<{busy?: boolean; error?: string; saved?: number; want?: Record<string, unknown>}>({});
   // "saved" shows for a moment
   useEffect(() => {
     if (!state.saved) return;
@@ -165,7 +166,7 @@ export function PlannerSimple({
   if (!planner) return null;
   const all: Record<string, PlannerSetting> = planner.settings;
   const has = (k: string) => !!all[k]?.settable;
-  const global = (k: string) => all[k]?.value;
+  const global = (k: string) => (state.want && k in state.want ? (state.want[k] ?? all[k]?.default) : all[k]?.value);
   // what's set: the area's own (undefined: like all areas), or the one for all areas
   const value = (k: string) => (area ? area.own[k] : global(k));
   const effective = (k: string) => (area && area.own[k] !== undefined ? area.own[k] : global(k));
@@ -173,7 +174,7 @@ export function PlannerSimple({
   // with the body's outline a planner that knows random drives the outermost pass of auto and random the way the edge was recorded
   const recordedFirst = !!outlineOf(all.robot_outline?.value) && !!all.perimeter_direction?.choices?.includes('random');
   const store = async (values: Record<string, unknown>) => {
-    setState({busy: true});
+    setState({busy: true, want: values});
     try {
       await savePlannerSettings(values);
       setState((s) => ({saved: (s.saved ?? 0) + 1}));

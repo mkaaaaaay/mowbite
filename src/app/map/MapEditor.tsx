@@ -268,7 +268,7 @@ function MapEditor() {
   const approachDistance = numParam(params, PARAM.dockingApproachDistance);
   const plannerSettings = usePlannerSettings();
   // the planner there but busy: its menus wait for it instead of OpenMower's showing
-  const plannerBusy = usePlannerWaiting() !== null;
+  const plannerBusy = usePlannerWaiting() !== null && plannerSettings === undefined;
   // OpenMower's slic3r planner switched on in the MowBite Planner: no distances kept, no collision check
   const slic3r = slic3rPlans(plannerSettings);
   // OpenMower's own mowing values can be changed here (params.set)
@@ -1120,6 +1120,10 @@ function MapEditor() {
             {!preview && simClock && <SimPlayer clock={simClock} onClose={() => setSim((s) => (s ? {...s, shown: false} : s))} />}
 
 
+            {/* waiting for the planner right under the map, what sits on the map's bottom edge moves up with it */}
+            <div className={styles.underMap}>
+              <PlannerWaiting />
+            </div>
             {!map && <p className={styles.dim}>{tr('waiting for map…')}</p>}
           </div>
 
@@ -1285,7 +1289,7 @@ function MapEditor() {
                   {/* without the planner (or with OpenMower's slic3r planning) OpenMower's own values for all areas */}
                   {plannerBusy && (
                     <Fold id="plannerAll" title={tr('Planner for all areas')}>
-                      <PlannerWaiting />
+                      <p className={styles.dim}>{tr('Shows up once the planner answers.')}</p>
                     </Fold>
                   )}
                   {(!plannerSettings || slic3r) && !plannerBusy && canSetParams && (
@@ -1407,7 +1411,7 @@ function MapEditor() {
               {/* without the planner: OpenMower's own settings of the area, its angle and its plan */}
               {mowProps && plannerBusy && (
                 <Fold id="area" title={tr('This area')}>
-                  <PlannerWaiting />
+                  <p className={styles.dim}>{tr('Shows up once the planner answers.')}</p>
                 </Fold>
               )}
               {mowProps && !plannerSettings && !plannerBusy && (
