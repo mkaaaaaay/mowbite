@@ -62,7 +62,8 @@
   cursor: pointer;
 }
 
-.switch input {
+/* as specific as the global checkbox size, which would make it a dot */
+.switch input[type='checkbox'] {
   appearance: none;
   position: relative;
   width: 38px;
