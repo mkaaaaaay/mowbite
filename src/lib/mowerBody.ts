@@ -4,7 +4,7 @@ import {useEffect, useMemo, useSyncExternalStore} from 'react';
 import type {PlanRequest} from './areaPlan';
 import {apiBase} from './mowers';
 import {RPC} from './openmower';
-import {callRpc, isMissingMethod, rpcMethods} from './rpc';
+import {callRpc, isMissingMethod, RpcError, rpcMethods} from './rpc';
 import {saveSettings, settingsStore, syncSettings, type Settings} from './settings';
 
 // The mower's body and blade as the MowBite Planner on the mower knows them (planner.settings): a rectangle around
@@ -88,6 +88,9 @@ export type BodySetting = (typeof BODY_SETTINGS)[number];
 // undefined: not asked yet, null: no MowBite Planner on this mower
 let current: PlannerSettings | null | undefined;
 let asking: Promise<PlannerSettings | null> | null = null;
+// while unknown: when it was first asked, and whether the mower says it has the method (the planner is there, just busy)
+let askedAt: number | null = null;
+let listed = false;
 // counts the changes saved, an answer to a load asked before one is older than what the save brought
 let saves = 0;
 const listeners = new Set<() => void>();
@@ -95,6 +98,7 @@ const listeners = new Set<() => void>();
 // the same settings again keep the object, so what's worked out from them isn't worked out again
 function set(s: PlannerSettings | null) {
   if (s) rememberPlanner();
+  askedAt = null;
   if (s && current && JSON.stringify(s) === JSON.stringify(current)) return;
   current = s;
   listeners.forEach((l) => l());
@@ -127,6 +131,15 @@ export function plannerSettings(): PlannerSettings | null | undefined {
   return current;
 }
 
+// the planner answers its requests one after another, behind a plan that takes minutes. Waited for as long as it takes,
+// asked again each minute: the newest question is answered right after the old ones, a lost one costs a minute at most
+const PLANNER_WAIT = 60_000;
+
+// since when the app waits for the planner's settings, null when they're known or it has no planner
+export function plannerWaiting(): number | null {
+  return current === undefined && (listed || plannerSeen()) ? askedAt : null;
+}
+
 // asked once per page load, again with force (the settings page); one asked already is waited for, forced or not. A
 // mower without the MowBite Planner doesn't have the method, that's null; no answer leaves it unknown so it's asked
 // again next time
@@ -134,7 +147,16 @@ export function loadPlannerSettings(force = false): Promise<PlannerSettings | nu
   if (!force && current !== undefined) return Promise.resolve(current);
   if (asking) return asking;
   const before = saves;
-  asking = callRpc<PlannerSettings>(RPC.plannerSettings, {}, 10000).then(
+  if (current === undefined && askedAt === null) {
+    askedAt = Date.now();
+    listeners.forEach((l) => l());
+    void rpcMethods().then((m) => {
+      if (!m?.has(RPC.plannerSettings) || listed) return;
+      listed = true;
+      listeners.forEach((l) => l());
+    });
+  }
+  asking = callRpc<PlannerSettings>(RPC.plannerSettings, {}, PLANNER_WAIT).then(
     (s) => {
       asking = null;
       if (before === saves) set(s && typeof s === 'object' && s.settings ? s : null);
@@ -216,19 +238,18 @@ export function steadyBody(b: MowerBody | null): MowerBody | null {
   return b && (steadyLast = b);
 }
 
-// the mower's body for drawing it, null until known (or when there's none)
-export function useMowerBody(): MowerBody | null {
-  const s = useSyncExternalStore(subscribe, plannerSettings, () => undefined);
-  const app = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
-  // no answer (a phone waking up can take a while to connect): asked again, the map plans only once it's known
+// the planner's settings asked until it answers (a phone waking up can take a while to connect, a planner busy planning
+// answers when it's done): again at once after no answer, 15 s after an error; onFail for each time it didn't
+export function useAskPlanner(onFail?: () => void) {
   useEffect(() => {
     let alive = true;
-    let tries = 0;
     let t: ReturnType<typeof setTimeout> | undefined;
     const ask = () => {
       if (current !== undefined) return;
-      loadPlannerSettings().catch(() => {
-        if (alive && ++tries < 5) t = setTimeout(ask, 15000);
+      loadPlannerSettings().catch((e) => {
+        if (!alive) return;
+        onFail?.();
+        t = setTimeout(ask, e instanceof RpcError && e.code === 'timeout' ? 0 : 15000);
       });
     };
     ask();
@@ -236,7 +257,16 @@ export function useMowerBody(): MowerBody | null {
       alive = false;
       clearTimeout(t);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- asked once per page, onFail only tells
   }, []);
+}
+
+// the mower's body for drawing it, null until known (or when there's none)
+export function useMowerBody(): MowerBody | null {
+  const s = useSyncExternalStore(subscribe, plannerSettings, () => undefined);
+  const app = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
+  // the map plans only once it's known
+  useAskPlanner();
   const own = app.mower;
   const keep = app.keepRectangle;
   return useMemo(() => steadyBody(bodyFrom(s) ?? sizesBody(withModelOutline(own, keep))), [s, own, keep]);
@@ -244,6 +274,10 @@ export function useMowerBody(): MowerBody | null {
 
 export function usePlannerSettings(): PlannerSettings | null | undefined {
   return useSyncExternalStore(subscribe, plannerSettings, () => undefined);
+}
+
+export function usePlannerWaiting(): number | null {
+  return useSyncExternalStore(subscribe, plannerWaiting, () => null);
 }
 
 // OpenMower's own slic3r planner switched on in the MowBite Planner (its setting planner): the plans come from it, the

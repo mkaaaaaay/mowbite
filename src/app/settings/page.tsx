@@ -14,7 +14,8 @@ import {setSwipeEnabled, useSwipeEnabled} from '@/lib/swipe';
 import {OpenMowerSettings} from '@/components/MowerParamSettings';
 import {AutoUpdate, DockgeUpdateGuide} from '@/components/AutoUpdate';
 import {LegalFooter, UpdateSettings} from '@/components/Updates';
-import {loadPlannerSettings, savePlannerSettings, slic3rPlans, usePlannerSettings} from '@/lib/mowerBody';
+import {savePlannerSettings, slic3rPlans, useAskPlanner, usePlannerSettings, usePlannerWaiting} from '@/lib/mowerBody';
+import PlannerWaiting from '@/components/PlannerWaiting';
 import Link from 'next/link';
 import {MowerBodySettings} from '@/components/MowerBodySettings';
 import {MowerSizesSettings} from '@/components/MowerSizesSettings';
@@ -234,9 +235,9 @@ export default function SettingsPage() {
   const [unanswered, setUnanswered] = useState(false);
   // why the planner's switch for the leftovers didn't change, it stays as the planner says
   const [leftoversFailed, setLeftoversFailed] = useState<string | null>(null);
-  useEffect(() => {
-    if (planner === undefined) loadPlannerSettings().catch(() => setUnanswered(true));
-  }, [planner]);
+  useAskPlanner(() => setUnanswered(true));
+  // the planner there but busy: it's waited for, not the sizes as without it
+  const waiting = usePlannerWaiting() !== null;
   const demo = useSyncExternalStore(noop, isDemo, () => false);
 
   return (
@@ -252,7 +253,7 @@ export default function SettingsPage() {
           {demo ? tr("The demo's: they last until it's left.") : shared ? tr('Saved on the mower, the same on all your devices.') : tr('Saved on this device only.')}
         </p>
 
-        {(planner !== undefined || unanswered) && (
+        {(planner !== undefined || unanswered || waiting) && (
           <Group
             id="mower"
             title={tr('Your mower')}
@@ -269,7 +270,13 @@ export default function SettingsPage() {
           >
             {/* set once: with the MowBite Planner kept by it, without it in the app */}
             <div id="sizes">
-              {planner ? <MowerBodySettings styles={styles} /> : <MowerSizesSettings settings={settings} styles={styles} />}
+              {planner ? (
+                <MowerBodySettings styles={styles} />
+              ) : waiting ? (
+                <PlannerWaiting />
+              ) : (
+                <MowerSizesSettings settings={settings} styles={styles} />
+              )}
             </div>
             {planner && (
             <section className={styles.card}>

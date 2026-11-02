@@ -50,10 +50,21 @@ import {BodyCheck, PlanChecks} from './BodyCheck';
 import {PlanSimulation, SimPlayer, type ShownSim} from './PlanSimulation';
 import {createSimClock} from '@/lib/simulate';
 import {Fold} from './Fold';
-import {bodyFrom, isPin, loadPlannerSettings, slic3rPlans, standing, useMowerBody, usePlannerSettings, type BodySpot} from '@/lib/mowerBody';
+import {
+  bodyFrom,
+  isPin,
+  loadPlannerSettings,
+  slic3rPlans,
+  standing,
+  useMowerBody,
+  usePlannerSettings,
+  usePlannerWaiting,
+  type BodySpot,
+} from '@/lib/mowerBody';
 import {OpenMowerMowing, useCanSetParams} from '@/components/MowerParamSettings';
 import {PlannerSettings} from '@/components/PlannerSettings';
 import {PlannerSimple} from '@/components/PlannerSimple';
+import PlannerWaiting from '@/components/PlannerWaiting';
 import settingsStyles from '../settings/page.module.css';
 import {areaLook, pinSize, type Look} from '@/components/gardenLook';
 import {PICTURES} from '@/components/gardenPictures';
@@ -256,6 +267,8 @@ function MapEditor() {
   // planner that keeps the mower's body off the edges and obstacles: where it doesn't get through between them
   const approachDistance = numParam(params, PARAM.dockingApproachDistance);
   const plannerSettings = usePlannerSettings();
+  // the planner there but busy: its menus wait for it instead of OpenMower's showing
+  const plannerBusy = usePlannerWaiting() !== null;
   // OpenMower's slic3r planner switched on in the MowBite Planner: no distances kept, no collision check
   const slic3r = slic3rPlans(plannerSettings);
   // OpenMower's own mowing values can be changed here (params.set)
@@ -1270,7 +1283,12 @@ function MapEditor() {
                   )}
 
                   {/* without the planner (or with OpenMower's slic3r planning) OpenMower's own values for all areas */}
-                  {(!plannerSettings || slic3r) && canSetParams && (
+                  {plannerBusy && (
+                    <Fold id="plannerAll" title={tr('Planner for all areas')}>
+                      <PlannerWaiting />
+                    </Fold>
+                  )}
+                  {(!plannerSettings || slic3r) && !plannerBusy && canSetParams && (
                     <Fold id="mowingAll" title={tr('Mowing for all areas')}>
                       <div className={styles.foldCards}>
                         <section className={settingsStyles.card}>
@@ -1387,7 +1405,12 @@ function MapEditor() {
               )}
 
               {/* without the planner: OpenMower's own settings of the area, its angle and its plan */}
-              {mowProps && !plannerSettings && (
+              {mowProps && plannerBusy && (
+                <Fold id="area" title={tr('This area')}>
+                  <PlannerWaiting />
+                </Fold>
+              )}
+              {mowProps && !plannerSettings && !plannerBusy && (
                 <Fold id="mow" title={tr('Mowing settings')}>
                   <MowSettings {...mowProps} />
                 </Fold>
