@@ -1,8 +1,9 @@
 name: release
 
 # what goes out, only after the checks passed on this very commit: the container for pc and mower (main -> :latest for
-# everyone, dev -> :dev for testing, a version tag -> its version) and the app on a release (a version tag v1.2.3 gets
-# its own, dev keeps rebuilding the "app-dev" pre-release). one run a ref at a time, an older one never overtakes a newer
+# everyone, dev -> :dev for testing, a version tag -> its version; main's and a tag's once it ran on arm) and the app on a
+# release (a version tag v1.2.3 gets its own, dev keeps rebuilding the "app-dev" pre-release). one run a ref at a time,
+# an older one never overtakes a newer
 
 on:
   push:
@@ -44,16 +45,98 @@ jobs:
             exit 1
           fi
 
-  # amd64 + arm64. the app is compiled once natively, the arm image only gets files copied in, so no qemu needed
-  image:
+  # amd64 + arm64, pushed as sha-<commit> only, nothing pulls that. the app is compiled once natively, the arm image only
+  # gets files copied in, so no qemu needed
+  build:
     needs: [check, commits, ref]
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
+    outputs:
+      image: ghcr.io/${{ github.repository }}@${{ steps.push.outputs.digest }}
     steps:
       - uses: actions/checkout@v7
 
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # (the labels as the image gets its names after the arm test)
+      - id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=raw,value=dev,enable=${{ github.ref == 'refs/heads/dev' }}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,format=short
+
+      - id: sha
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/${{ github.repository }}
+          flavor: latest=false
+          tags: type=sha,format=short
+
+      - id: push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.sha.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION_SUFFIX=${{ github.ref == 'refs/heads/dev' && format('dev.{0}', github.run_number) || '' }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # the image from build on an arm machine like the mowers, before any of them pulls it: the container's scripts and cgis
+  # with a pretend mower (test/run.sh, check.yml runs it on amd64). for main and a version tag, what goes to everyone,
+  # and by hand; dev's builds for testing go without (free in the public repo, minutes off the quota in the private one)
+  arm64:
+    needs: build
+    if: github.ref == 'refs/heads/main' || github.ref_type == 'tag' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - env:
+          IMAGE: ${{ needs.build.outputs.image }}
+        run: |
+          machine=$(docker run --rm --entrypoint uname "$IMAGE" -m)
+          if [ "$machine" != aarch64 ]; then
+            echo "::error::the image ran as $machine, not as arm64"
+            exit 1
+          fi
+          test/run.sh "$IMAGE"
+
+  # its names once the arm test went through (or had nothing to do on dev), the image from build and not built again:
+  # main -> :latest, dev -> :dev, a version tag -> its version
+  image:
+    needs: [build, arm64]
+    if: ${{ !cancelled() && needs.build.result == 'success' && contains(fromJSON('["success", "skipped"]'), needs.arm64.result) }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
       - uses: docker/setup-buildx-action@v4
 
       - uses: docker/login-action@v4
@@ -71,25 +154,21 @@ jobs:
             type=raw,value=dev,enable=${{ github.ref == 'refs/heads/dev' }}
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=sha,format=short
 
-      - uses: docker/build-push-action@v7
-        with:
-          context: .
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            VERSION_SUFFIX=${{ github.ref == 'refs/heads/dev' && format('dev.{0}', github.run_number) || '' }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      - env:
+          IMAGE: ${{ needs.build.outputs.image }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          args=()
+          while read -r tag; do [ -z "$tag" ] || args+=(-t "$tag"); done <<< "$TAGS"
+          [ ${#args[@]} = 0 ] || docker buildx imagetools create "${args[@]}" "$IMAGE"
 
   # the app and the web app's static files as a zip, for a web server of your own. the apk only with the signing key in
   # the repo secrets, so a new version installs over the old one. nothing here writes to the repo
   apk:
     needs: [check, commits, ref, image]
-    if: github.ref_type == 'tag' || github.ref == 'refs/heads/dev' || github.event_name == 'workflow_dispatch'
+    # (with the arm test skipped on dev a plain if would skip this too)
+    if: ${{ !cancelled() && needs.image.result == 'success' && (github.ref_type == 'tag' || github.ref == 'refs/heads/dev' || github.event_name == 'workflow_dispatch') }}
     runs-on: ubuntu-latest
     env:
       VERSION_SUFFIX: ${{ github.ref_type != 'tag' && format('dev.{0}', github.run_number) || '' }}
