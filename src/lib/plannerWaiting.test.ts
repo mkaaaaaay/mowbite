@@ -64,7 +64,7 @@ describe('waiting for a busy planner', () => {
     expect(m.plannerWaiting()).toBeNull();
   });
 
-  it('waits for a change through the minutes the planner plans, sent again when a minute brought no answer', async () => {
+  it('waits for a change as long as the planner plans, sent once', async () => {
     const m = await fresh();
     const load = m.loadPlannerSettings();
     fake.calls[0].resolve(settings);
@@ -74,12 +74,13 @@ describe('waiting for a busy planner', () => {
     const saving = m.savePlannerSettings({body_fit: true});
     expect(m.plannerWaiting()).toEqual({since: expect.any(Number), what: 'save'});
     fake.calls[1].reject(new m.RpcError('planner.settings.set', 'timeout', 'timed out'));
-    await new Promise((r) => setTimeout(r, 0));
-    expect(fake.calls.map((c) => c.method)).toEqual(['planner.settings', 'planner.settings.set', 'planner.settings.set']);
-    expect(m.plannerWaiting()?.what).toBe('save');
+    await expect(saving).rejects.toThrow('timed out');
+    expect(fake.calls.map((c) => c.method)).toEqual(['planner.settings', 'planner.settings.set']);
+    expect(m.plannerWaiting()).toBeNull();
 
+    const again = m.savePlannerSettings({body_fit: true});
     fake.calls[2].resolve(settings);
-    await saving;
+    await again;
     expect(m.plannerWaiting()).toBeNull();
   });
 

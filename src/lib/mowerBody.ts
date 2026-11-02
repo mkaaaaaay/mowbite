@@ -159,21 +159,14 @@ export function plannerWaiting(): PlannerWait | null {
   return wait;
 }
 
-// a change for the planner, waited for as long as it plans: sent again each minute without an answer (the same values,
-// nothing changes twice), for ten minutes at most
+// a change for the planner, waited for as long as it plans (ten minutes at most). Sent once: a planner answering one
+// request after another would make it again for each one sent while it planned
 async function change<T>(method: string, params: object): Promise<T> {
   const key = {};
-  const until = Date.now() + 600_000;
   sent.set(key, Date.now());
   notify();
   try {
-    for (;;) {
-      try {
-        return await callRpc<T>(method, params, PLANNER_WAIT);
-      } catch (e) {
-        if (!(e instanceof RpcError && e.code === 'timeout') || Date.now() >= until) throw e;
-      }
-    }
+    return await callRpc<T>(method, params, 600_000);
   } finally {
     sent.delete(key);
     notify();
