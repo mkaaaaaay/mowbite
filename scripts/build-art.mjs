@@ -41,9 +41,11 @@ const STUBS = {
   // what mowerBody needs only for asking the planner and keeping the app's settings
   '@/lib/mowers': 'module.exports = {apiBase: () => ""};',
   '@/lib/openmower': 'module.exports = {RPC: {}};',
-  '@/lib/rpc': 'module.exports = {callRpc: async () => null, isMissingMethod: () => true, rpcMethods: async () => []};',
+  '@/lib/rpc':
+    'module.exports = {callRpc: async () => null, isMissingMethod: () => true, rpcMethods: async () => [], RpcError: class extends Error {}};',
   '@/lib/settings': 'module.exports = {saveSettings() {}, syncSettings() {}, settingsStore: {get: () => ({}), subscribe: () => () => {}}};',
   '@/lib/areaPlan': 'module.exports = {};',
+  '@/lib/plannerProgress': 'module.exports = {askPlan: async () => null};',
   // a css module's class names as they are (import styles from: its default)
   css: 'const names = new Proxy({}, {get: (_, k) => (k === "default" ? names : String(k))}); module.exports = names;',
 };
