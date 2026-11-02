@@ -263,7 +263,7 @@ export function useMowPlan({
       return;
     }
     asking.current = true;
-    void mowerPlan(JSON.parse(job.key))
+    void mowerPlan(JSON.parse(job.key), background)
       .then(
         (plan) => {
           remember(job.cacheKey, plan);

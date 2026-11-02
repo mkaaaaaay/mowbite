@@ -4,6 +4,7 @@ import {useEffect, useMemo, useSyncExternalStore} from 'react';
 import type {PlanRequest} from './areaPlan';
 import {apiBase} from './mowers';
 import {RPC} from './openmower';
+import {askPlan} from './plannerProgress';
 import {callRpc, isMissingMethod, RpcError, rpcMethods} from './rpc';
 import {saveSettings, settingsStore, syncSettings, type Settings} from './settings';
 
@@ -350,11 +351,7 @@ export function spotPlaces(spots: BodySpot[]): {spot: BodySpot; kinds: string[]}
 export async function checkBody(req: PlanRequest): Promise<BodyCheck | null> {
   const known = await rpcMethods();
   if (known && !known.has(RPC.plannerPlan)) return null;
-  const answer = await callRpc<{report?: {body_out?: unknown; hard?: unknown; soft?: unknown}}>(
-    RPC.plannerPlan,
-    {...req, report: true},
-    90000,
-  );
+  const answer = await askPlan<{report?: {body_out?: unknown; hard?: unknown; soft?: unknown}}>({...req, report: true});
   const r = answer?.report ?? {};
   const list = (v: unknown) => (Array.isArray(v) ? v.filter((s): s is string => typeof s === 'string') : []);
   const spots = (Array.isArray(r.body_out) ? r.body_out : []).flatMap((s: Partial<BodySpot>) =>

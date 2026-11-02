@@ -15,6 +15,8 @@ export const TOPIC = {
   teleop: 'teleop',
   rpcRequest: 'rpc/request',
   rpcResponse: 'rpc/response',
+  // how far the MowBite Planner got with the planning it's at (retained, see lib/plannerProgress)
+  plannerProgress: 'mowbite/planner/progress',
 } as const;
 
 export const RPC = {

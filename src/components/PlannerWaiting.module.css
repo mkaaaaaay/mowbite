@@ -14,6 +14,14 @@
   overflow: hidden;
 }
 
+/* how far the planning got */
+.fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width 0.6s ease;
+}
+
 /* no telling how far: a piece of the bar runs along */
 .moving {
   position: absolute;
@@ -33,6 +41,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .fill {
+    transition: none;
+  }
+
   .moving {
     left: 0;
     width: 100%;

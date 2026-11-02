@@ -3,6 +3,7 @@ import type {MowPlan, PlanChecks, PlanChosen, PlanDuration, PlanPiece, PlanZone}
 import {planPieces, type PlanPath, type PlanSegment, type SegmentType} from './planProgress';
 import {loadPlannerSettings, slic3rPlans} from './mowerBody';
 import {RPC} from './openmower';
+import {askPlan} from './plannerProgress';
 import {callRpc, rpcMethods} from './rpc';
 
 // The real plan for an area, once the mower offers it (RPC.areaPlan). Read like the planner answers
@@ -179,8 +180,8 @@ export type PlanRequest = ({area_id: string} & PlanProps) | ({outline: Point[]; 
 // mower it plans the area directly (planner.plan, the same settings mower_logic's plans get): it takes the area's
 // planner settings as edited and says what it planned with (the lane spacing it picked). mowing.plan only knows
 // OpenMower's area settings
-export async function mowerPlan(req: PlanRequest): Promise<MowPlan | null> {
-  const asked = await mowerPlanAnswer(req);
+export async function mowerPlan(req: PlanRequest, background = false): Promise<MowPlan | null> {
+  const asked = await mowerPlanAnswer(req, !background);
   return asked ? readPlan(asked.answer as PlanAnswer) : null;
 }
 
@@ -188,11 +189,11 @@ export async function mowerPlan(req: PlanRequest): Promise<MowPlan | null> {
 // mowing.plan goes through the service mower_logic gets its plans from, the planner takes a call there for the mower's
 // own (the run isn't timed, armed leftovers go to the caller). With the planner handing the plans to OpenMower's slic3r
 // it only passes mowing.plan on, that's exactly mower_logic's plan (planner.plan rebuilds it a little differently)
-export async function mowerPlanAnswer(req: PlanRequest): Promise<{method: string; answer: unknown} | null> {
+export async function mowerPlanAnswer(req: PlanRequest, shown = true): Promise<{method: string; answer: unknown} | null> {
   const known = await rpcMethods();
   if (known?.has(RPC.plannerPlan) && (req.settings || !slic3rPlans(await loadPlannerSettings().catch(() => null)))) {
-    // with the body checked a plan takes the mower 10 to 20 s, more for a whole new one
-    return {method: RPC.plannerPlan, answer: await callRpc(RPC.plannerPlan, req, 90000)};
+    // with the body checked a plan takes the mower 10 to 20 s, a big area minutes (waited for while it moves on)
+    return {method: RPC.plannerPlan, answer: await askPlan(req, shown)};
   }
   if (!known?.has(RPC.areaPlan)) return null;
   // mowing.plan doesn't take planner settings
@@ -209,7 +210,7 @@ export function mowerPaths(areaId: string, map: MowerMap, since?: number): Promi
   const key = `${areaId} ${JSON.stringify(map.areas.find((a) => a.id === areaId) ?? null)}`;
   let got = asked.get(key);
   if (!got || (since !== undefined && got.at < since)) {
-    const entry = {at: Date.now() / 1000, paths: mowerPlanAnswer({area_id: areaId}).then((a) => (a ? readPaths(a.answer as PlanAnswer) : null))};
+    const entry = {at: Date.now() / 1000, paths: mowerPlanAnswer({area_id: areaId}, false).then((a) => (a ? readPaths(a.answer as PlanAnswer) : null))};
     const drop = () => asked.get(key) === entry && asked.delete(key);
     entry.paths.then((paths) => paths === null && drop(), drop);
     asked.set(key, (got = entry));

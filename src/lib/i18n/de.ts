@@ -1967,6 +1967,12 @@ const de: Record<string, string> = {
   "Waiting for the planner": "Warte auf den Planer",
   "The change waits for the planner": "Die Änderung wartet auf den Planer",
   "Shows up once the planner answers.": "Erscheint, sobald der Planer antwortet.",
+  "The planner plans": "Der Planer rechnet",
+  angle: "Winkel",
+  "lane spacing": "Bahnabstand",
+  route: "Route",
+  gaps: "Lücken",
+  "{t} left": "noch {t}",
   "No answer for a long while: is the planner's container running?": "Schon lange keine Antwort: Läuft der Container des Planers?",
 };
 
