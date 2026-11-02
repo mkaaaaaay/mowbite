@@ -52,6 +52,7 @@ COPY docker/openmower.sh /openmower.sh
 COPY docker/recorder.awk /recorder.awk
 COPY docker/battery.awk /battery.awk
 COPY docker/stats.awk /stats.awk
+COPY docker/logkeeper.awk /logkeeper.awk
 COPY docker/httpd.conf /etc/httpd.conf
 COPY docker/entrypoint.sh /entrypoint.sh
 # empty, writable settings dir. no RUN in this stage, so building for arm on a pc needs no emulation

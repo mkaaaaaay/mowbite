@@ -440,15 +440,20 @@ leftovers_watch &
 # the mowing direction the app keeps for the mower (params.sh), while keeping is on
 kept_angle() { grep -q '^enabled 1' /data/params.txt 2>/dev/null && sed -n "s|^$PARAM_MOW_ANGLE_OFFSET ||p" /data/params.txt | head -n1; }
 
-# a job still open: the mower out (or charging in the middle of it), or idle with one left unfinished
+# a job still open: the mower out (or charging in the middle of it), or idle with one left unfinished. after a start
+# the actions come group by group (from []), the list is read again until it has the idle ones, a few seconds at most
 run_open() {
   # shellcheck disable=SC2086
   s=$(mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -C 1 -W 10 2>/dev/null)
   [ -n "$s" ] || return 1
   [ "$(field "$s" current_state)" != IDLE ] && return 0
-  # shellcheck disable=SC2086
-  a=$(mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTIONS" -C 1 -W 5 2>/dev/null | tr -d ' \n' |
-    tr '}' '\n' | grep "\"$ACTION_RESET_JOB\"")
+  for _ in 1 2 3 4 5; do
+    # shellcheck disable=SC2086
+    a=$(mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTIONS" -C 1 -W 5 2>/dev/null | tr -d ' \n')
+    case "$a" in '' | *"\"${ACTION_RESET_JOB%/*}/"*) break ;; esac
+    sleep 1
+  done
+  a=$(printf '%s' "$a" | tr '}' '\n' | grep "\"$ACTION_RESET_JOB\"")
   case "$a" in *'"enabled":1'* | *'"enabled":true'*) return 0 ;; esac
   return 1
 }

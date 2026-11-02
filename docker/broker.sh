@@ -10,8 +10,9 @@ find_broker() {
 }
 
 # a json-rpc call to the mower: mower_rpc <host> <method> <params json> [seconds]. prints the answer with our id,
-# nothing when none came. needs the topics from openmower.sh. answers come pretty printed over several lines on a
-# topic others answer on too, so the one with our id is picked out
+# nothing when none came. needs the topics from openmower.sh. answers come on a topic others answer on too, pretty
+# printed over several lines (OpenMower) or all on one (MowBite OS), so the one with our id is picked out: a message
+# ends where its brackets close, the ones in strings don't count
 mower_rpc() {
   # a subshell has the same $$: a random part, two calls in the same second don't take each other's answer
   _id="mowbite-$$-$(date +%s)-$(od -An -N4 -tx4 /dev/urandom | tr -d ' ')"
@@ -32,8 +33,17 @@ mower_rpc() {
   kill "$_sub" 2>/dev/null
   wait "$_sub" 2>/dev/null
   awk -v id="\"$_id\"" '
-    /^\{/ { block = "" }
-    { block = block $0 "\n" }
-    /^\}/ || /^\{.*\}$/ { if (index(block, id)) printf "%s", block; block = "" }' "$_out" 2>/dev/null
+    {
+      line[++k] = $0
+      if (index($0, id)) ours = 1
+      s = $0
+      gsub(/\\\\|\\"/, "", s)
+      n = split(s, p, "\"")
+      for (i = 1; i <= n; i += 2) depth += gsub(/[[{]/, "", p[i]) - gsub(/[]}]/, "", p[i])
+    }
+    depth <= 0 {
+      if (ours) for (i = 1; i <= k; i++) print line[i]
+      k = ours = depth = 0
+    }' "$_out" 2>/dev/null
   rm -f "$_out"
 }

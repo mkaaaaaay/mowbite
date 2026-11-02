@@ -9,65 +9,16 @@
 D=/data/roslog
 P=/data/plannerlog
 mkdir -p "$D" "$P"
-TMP=/tmp/logkeeper.out
 
 while :; do
   host=$(find_broker)
   if [ -n "$host" ]; then
     last=$(cat "$D/.last" 2>/dev/null)
-    id="mowbite-logs-$(date +%s)"
-    # the answer comes on the shared response topic, listen first and pick ours by its id
-    # shellcheck disable=SC2086
-    mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_RPC_RESPONSE" -t "${MOWER_MQTT_PREFIX}$TOPIC_RPC_ERROR" -W 20 > "$TMP" 2>/dev/null &
-    sub=$!
-    sleep 1
-    # shellcheck disable=SC2086
-    mosquitto_pub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_RPC_REQUEST" \
-      -m "{\"jsonrpc\":\"2.0\",\"method\":\"$RPC_LOGS\",\"params\":{\"since\":${last:-0},\"limit\":1000},\"id\":\"$id\"}" 2>/dev/null
-    for _ in 1 2 3 4 5 6 7 8 9 10; do
-      grep -q "\"$id\"" "$TMP" 2>/dev/null && break
-      sleep 1
-    done
-    kill "$sub" 2>/dev/null
-    wait "$sub" 2>/dev/null
-    # the answer is pretty printed, keys sorted: an entry is level, msg, node, t on lines of their own, the id
-    # comes last. others may answer something else at the same time, only the message with our id is kept
-    new=$(awk -v id="\"$id\"" -v dir="$D" '
-      function val(s) {
-        sub(/^[^"]*"[a-z]+": /, "", s); sub(/,$/, "", s)
-        if (s ~ /^".*"$/) { s = substr(s, 2, length(s) - 2); gsub(/\\"/, "\"", s); gsub(/\\n|\\t/, " ", s); gsub(/\\\\/, "\\", s) }
-        return s
-      }
-      /^\{/ { n = 0; ours = 0 }
-      /^    \{/ { lvl = msg = node = t = "" }
-      /^      "level": / { lvl = val($0) }
-      /^      "msg": / { msg = val($0) }
-      /^      "node": / { node = val($0) }
-      /^      "t": / { t = val($0) }
-      /^    \}/ && t != "" { n++; ts[n] = t; line[n] = t " " lvl " " node ": " msg }
-      index($0, "\"id\": " id) { ours = 1 }
-      /^\}/ && ours {
-        for (i = 1; i <= n; i++) {
-          print line[i] >> (dir "/" strftime("%Y%m%d", int(ts[i])) ".log")
-          if (ts[i] + 0 > max + 0) max = ts[i]
-        }
-      }
-      END { if (max != "") print max }' "$TMP")
+    new=$(mower_rpc "$host" "$RPC_LOGS" "{\"since\":${last:-0},\"limit\":1000}" | DIR=$D ROS=1 awk -f /logkeeper.awk)
     [ -n "$new" ] && echo "$new" > "$D/.last"
-    rm -f "$TMP"
-    # the planner's lines since the last one kept. its answer is pretty printed: t, level, msg on lines of their own
+    # the planner's lines since the last one kept
     plast=$(cat "$P/.last" 2>/dev/null)
-    pnew=$(mower_rpc "$host" "$RPC_PLANNER_LOG" "{\"since\":${plast:-0}}" 15 | awk -v dir="$P" '
-      function val(s) { sub(/^[^:]*: /, "", s); sub(/,$/, "", s); return s }
-      /^        "t": / { t = val($0) }
-      /^        "level": / { lvl = val($0); gsub(/"/, "", lvl) }
-      /^        "msg": / { msg = val($0); sub(/^"/, "", msg); sub(/"$/, "", msg) }
-      /^      \}/ && t != "" {
-        print t " " lvl " " msg >> (dir "/" strftime("%Y%m%d", int(t)) ".log")
-        if (t + 0 > max + 0) max = t
-        t = ""
-      }
-      END { if (max != "") print max }')
+    pnew=$(mower_rpc "$host" "$RPC_PLANNER_LOG" "{\"since\":${plast:-0}}" 15 | DIR=$P awk -f /logkeeper.awk)
     [ -n "$pnew" ] && echo "$pnew" > "$P/.last"
     ls -1 "$P"/*.log 2>/dev/null | sort -r | tail -n +15 | while read -r f; do rm -f "$f"; done
     while [ "$(du -sk "$P" | cut -f1)" -gt 5120 ] && [ "$(ls -1 "$P"/*.log 2>/dev/null | wc -l)" -gt 1 ]; do

@@ -125,6 +125,12 @@ start angleback "$(state)" "$(base "$DAY")"$'\n'"plan $((D % 7 + 1)) $M" ANGLE_N
 start held "$(state)" "$(base "$DAY")"$'\n'"plan $D $M" "HOLD={\"until\":$(($(date +%s) + 600))}"
 start heldfar "$(state)" "$(base "$DAY")"$'\n'"plan $D $M" "HOLD={\"until\":$(($(date +%s) + 7200))}"
 start waitnext "$(state IDLE 0 0 0.5)" "$(MINBAT=80 base "$DAY")"$'\n'"plan $D $M"
+# idle with the job of the run from before the restart still open, while actions/json grows the way OpenMower and
+# MowBite OS send it after a start: empty, then mower_logic's own group, the idle one last
+ROOT='{"action_id":"mower_logic/reset_emergency","action_name":"Reset Emergency","enabled":0}'
+IDLE='{"action_id":"mower_logic:idle/start_mowing","action_name":"Start Mowing","enabled":1},{"action_id":"mower_logic:idle/reset_job","action_name":"Reset Job","enabled":1}'
+start growing "$(state)" "$(base "$DAY")" "MAP=$AREAS" "RUN_STATE=$(date +%s) - - front" AREA_SOON=back \
+  "ACTIONS=[]"$'\n'"[]"$'\n'"[$ROOT]"$'\n'"[$ROOT,$IDLE]"
 
 logs "scheduler: starts at the time of a plan" start '^started 90( at=[0-9:]+)?$'
 gets start '^action mower_logic:idle/start_mowing$' && ok "scheduler: the mower got the start" ||
@@ -172,6 +178,7 @@ logs "scheduler: waits for the battery (start time taken out next)" gone '^waiti
 docker exec mbt-gone sh -c "grep -v '^plan' /data/schedule.txt > /tmp/s && cat /tmp/s > /data/schedule.txt"
 logs "scheduler: a start time taken out while it waits isn't started" gone '^skip_gone( at=[0-9:]+)?$' 40
 logs "scheduler: a run from before a restart still skips the areas it doesn't pick" restored '^skipped_area back$' 60
+logs "scheduler: its job seen open once the actions have the idle ones, not by the first lists" growing '^skipped_area back$' 60
 logs "scheduler: a start waiting for the battery goes on after a restart" waited '^started' 40
 gets angleback '^rpc/request .*"params":\{"/mower_logic/mow_angle_offset":7\}' 40 &&
   ok "scheduler: the usual direction back once no plan has one of its own" ||
@@ -191,6 +198,79 @@ w=$(next waitnext)
 expect "scheduler: a start waiting for the battery may come within its two hours" \
   "$(($(sed 's/.*"to":\([0-9]*\).*/\1/' <<< "$w") - $(sed 's/.*"from":\([0-9]*\).*/\1/' <<< "$w")))" 7200
 expect "scheduler: nothing to tell while switched off" "$(next disabled)" ""
+
+# --- the log keeper ---
+
+# logs.recent and planner.log answered the way OpenMower does (pretty printed) and MowBite OS does (all on one line),
+# someone else's answer on the same topic before each
+LOGS_PRETTY=$(cat << 'EOF'
+{
+  "jsonrpc": "2.0",
+  "result": [
+    {
+      "level": "WARN",
+      "msg": "a \"quoted\" {brace} [x], and: colon\nline",
+      "node": "/mower_logic",
+      "t": 1793643491.3263488
+    }
+  ],
+  "id": "@ID@"
+}
+EOF
+)
+PLANNER_PRETTY=$(cat << 'EOF'
+{
+  "jsonrpc": "2.0",
+  "result": {
+    "lines": [
+      {
+        "t": 1793644779.7615213,
+        "level": "INFO",
+        "msg": "line one\nline \"two\""
+      }
+    ]
+  },
+  "id": "@ID@"
+}
+EOF
+)
+OTHER_PRETTY=$(cat << 'EOF'
+{
+  "jsonrpc": "2.0",
+  "result": [
+    {
+      "level": "ERROR",
+      "msg": "not ours",
+      "node": "/x",
+      "t": 1793643000
+    }
+  ],
+  "id": "someone"
+}
+EOF
+)
+start pretty "$(state)" "" RUN=/logkeeper.sh "LOGS=$LOGS_PRETTY" "PLANNER_LOG=$PLANNER_PRETTY" "OTHER=$OTHER_PRETTY"
+start compact "$(state)" "" RUN=/logkeeper.sh \
+  'LOGS={"id":"@ID@","jsonrpc":"2.0","result":[{"level":"WARN","msg":"a \"quoted\" {brace} [x], and: colon\nline","node":"/mower_logic","t":1793643491.3263488}]}' \
+  'PLANNER_LOG={"id":"@ID@","jsonrpc":"2.0","result":{"lines":[{"level":"INFO","msg":"line one\nline \"two\"","t":1793644779.7615213}]}}' \
+  'OTHER={"id":"someone","jsonrpc":"2.0","result":[{"level":"ERROR","msg":"not ours","node":"/x","t":1793643000}]}'
+# what case $1 kept in /data/$2 once it went through its first round
+kept() {
+  local i
+  for ((i = 0; i < 30; i++)); do
+    docker exec "mbt-$1" test -f "/data/$2/.last" && break
+    sleep 1
+  done
+  docker exec "mbt-$1" sh -c "cat /data/$2/*.log" 2> /dev/null
+}
+for c in pretty compact; do
+  expect "logkeeper: ros's lines from a $c answer" "$(kept "$c" roslog)" \
+    '1793643491.3263488 WARN /mower_logic: a "quoted" {brace} [x], and: colon line'
+  expect "logkeeper: the planner's lines from a $c answer" "$(kept "$c" plannerlog)" \
+    '1793644779.7615213 INFO line one\nline \"two\"'
+  expect "logkeeper: goes on after the newest kept ($c)" \
+    "$(docker exec "mbt-$c" cat /data/roslog/.last /data/plannerlog/.last 2> /dev/null)" $'1793643491.3263488\n1793644779.7615213'
+done
 
 # --- the cgis, through busybox httpd as in the container ---
 

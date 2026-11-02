@@ -1,4 +1,9 @@
+import {spawnSync} from 'node:child_process';
+import {mkdtempSync, readdirSync, readFileSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
 import {describe, expect, it} from 'vitest';
+import {readKeptPlanner} from './diagnosis';
 import {emergencyReasons, readKeptLog, readRpcLog} from './roslog';
 
 describe('readRpcLog', () => {
@@ -33,6 +38,63 @@ describe('readKeptLog', () => {
       {level: 'WARN', t: 1790709655.04, text: 'mower_comms_v2: Firmware version unknown'},
       {level: 'ERROR', t: 1790709700, text: 'move_base_flex: a: b'},
     ]);
+  });
+});
+
+// docker/logkeeper.awk with the awk on the path (the CI puts the container's busybox one there): what it keeps of an
+// answer, pretty printed as OpenMower sends it or on one line as MowBite OS does
+describe('what logkeeper keeps', {timeout: 30_000}, () => {
+  const keep = (answer: string, ros: boolean) => {
+    const dir = mkdtempSync(join(tmpdir(), 'logkeeper-'));
+    const run = spawnSync('awk', ['-f', 'docker/logkeeper.awk'], {
+      input: answer,
+      env: {...process.env, LC_ALL: 'C', TZ: 'UTC', DIR: dir, ROS: ros ? '1' : ''},
+    });
+    const files = readdirSync(dir).sort();
+    return {newest: run.stdout.toString().trim(), files, text: files.map((f) => readFileSync(join(dir, f), 'utf8')).join('')};
+  };
+  const answer = (result: unknown, indent?: number | string) => JSON.stringify({jsonrpc: '2.0', result, id: 'mowbite-1'}, null, indent);
+
+  it('keeps ros lines the same whatever the layout', () => {
+    const entries = [
+      {level: 'WARN', msg: 'a "quoted" {brace} [x], and: colon\nline\tend', node: '/mower_logic', t: 1793643491.3263488},
+      {level: 'ERROR', msg: 'ends with a backslash \\', node: '', t: 1793645686.5},
+      {level: 'WARN', msg: 'the next day', node: '/mower_comms_v2', t: 1793664000},
+    ];
+    const pretty = keep(answer(entries, 2), true);
+    expect(pretty.newest).toBe('1793664000');
+    expect(pretty.files).toEqual(['20261102.log', '20261103.log']);
+    expect(pretty.text).toBe(
+      '1793643491.3263488 WARN /mower_logic: a "quoted" {brace} [x], and: colon line end\n' +
+        '1793645686.5 ERROR : ends with a backslash \\\n1793664000 WARN /mower_comms_v2: the next day\n',
+    );
+    expect(keep(answer(entries), true)).toEqual(pretty);
+    expect(keep(answer(entries, '\t'), true)).toEqual(pretty);
+    expect(readKeptLog(pretty.text).map((l) => l.text)).toEqual([
+      'mower_logic: a "quoted" {brace} [x], and: colon line end',
+      'ends with a backslash \\',
+      'mower_comms_v2: the next day',
+    ]);
+  });
+
+  it('keeps the planner\'s lines as in json, read back as they were', () => {
+    const lines = [
+      {t: 1793644779.7615213, level: 'INFO', msg: 'line one\nline "two" \\n not a break'},
+      {t: 1793644780, level: 'ERROR', msg: 'failed: {"area": [1, 2]}'},
+    ];
+    const pretty = keep(answer({lines}, 2), false);
+    expect(pretty.newest).toBe('1793644780');
+    expect(keep(answer({lines}), false)).toEqual(pretty);
+    expect(readKeptPlanner(pretty.text)).toEqual(lines);
+  });
+
+  it('keeps nothing of an error or a result without entries', () => {
+    expect(keep(JSON.stringify({jsonrpc: '2.0', error: {code: -32601, message: 'Method not found'}, id: 'x'}), true)).toEqual({
+      newest: '',
+      files: [],
+      text: '',
+    });
+    expect(keep(answer([], 2), true).files).toEqual([]);
   });
 });
 
