@@ -56,7 +56,10 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # the calibration isn't in releases yet, the click tests go through it
       - run: npm run build
+        env:
+          CALIBRATION: '1'
       - run: npx playwright install --with-deps chromium
       - run: npm run e2e
       # what went wrong: the report with the screenshots and traces of the failed tests

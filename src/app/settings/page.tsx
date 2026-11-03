@@ -20,6 +20,7 @@ import Link from 'next/link';
 import {MowerBodySettings} from '@/components/MowerBodySettings';
 import {MowerSizesSettings} from '@/components/MowerSizesSettings';
 import {CalibrationLink} from '@/components/CalibrationLink';
+import {CALIB_SHOWN} from '@/lib/calibration';
 import {NotifySettings} from '@/components/NotifySettings';
 import {datumFromParams, useMowerParams} from '@/hooks/useMowerParams';
 import {posixTz} from '@/lib/schedule';
@@ -484,9 +485,11 @@ export default function SettingsPage() {
               <Link href="/guide/editor" className={styles.pillButton}>
                 {tr('Edit the map')}
               </Link>
-              <Link href="/guide/calibration" className={styles.pillButton}>
-                {tr('Calibrating')}
-              </Link>
+              {CALIB_SHOWN && (
+                <Link href="/guide/calibration" className={styles.pillButton}>
+                  {tr('Calibrating')}
+                </Link>
+              )}
             </div>
           </section>
           <MowersSection settings={settings} />

@@ -54,6 +54,9 @@ export interface CalibProgress {
   error: string | null;
 }
 
+// only in dev and test builds: before planner v0.4.1 a v2 mower's turns aren't counted (the firmware's turn rate is off)
+export const CALIB_SHOWN = process.env.APP_CALIBRATION === '1';
+
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 const str = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null);
 

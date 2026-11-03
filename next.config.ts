@@ -14,6 +14,8 @@ const nextConfig: NextConfig = {
     APP_VERSION: suffix ? `${version}-${suffix}` : version,
     // "play" for the build that goes to google play
     APP_STORE: process.env.STORE ?? "",
+    // the calibration: in dev and test builds (with a suffix) or with CALIBRATION=1, not yet in releases
+    APP_CALIBRATION: process.env.CALIBRATION ?? (suffix ? "1" : ""),
   },
 };
 
