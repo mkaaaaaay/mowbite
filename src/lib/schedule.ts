@@ -149,7 +149,6 @@ export function loadSchedule(again = false): Promise<Schedule | null | undefined
 let sending: Promise<void> = Promise.resolve();
 let waiting: {s: Schedule; pos?: {lat: number; lon: number}} | null = null;
 export function saveSchedule(s: Schedule, pos?: {lat: number; lon: number}): Promise<void> {
-  lastSchedule = s;
   forget('schedule');
   const queued = waiting !== null;
   waiting = {s, pos};
@@ -161,6 +160,8 @@ export function saveSchedule(s: Schedule, pos?: {lat: number; lon: number}): Pro
       waiting = null;
       const res = await mowerFetch(endpoint(), {method: 'POST', body: serializeSchedule(w.s, w.pos)});
       if (!res.ok) throw new Error(`schedule ${res.status}`);
+      // (only once it's on the mower: a page opened while it couldn't be saved shows what the mower has)
+      lastSchedule = w.s;
     });
   return sending;
 }
