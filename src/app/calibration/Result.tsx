@@ -72,6 +72,8 @@ export function ResultView({
   const [error, setError] = useState<string | null>(null);
   const n = result.values.filter((v) => v.ok && chosen.has(v.name)).length;
   const speed = typeof result.info.speed_ratio === 'number' ? result.info.speed_ratio : null;
+  // each wheel's ticks a metre against RTK (from the wheels' own counters): one value for both is all OpenMower has
+  const sides = typeof result.info.ticks_per_m_left === 'number' && typeof result.info.ticks_per_m_right === 'number' ? [result.info.ticks_per_m_left, result.info.ticks_per_m_right] : null;
   const take = async () => {
     const {lines, byHand} = calibLines(result.values, chosen, paths);
     setBusy(true);
@@ -153,13 +155,14 @@ export function ResultView({
         );
       })}
 
-      {(result.warnings.length > 0 || speed !== null) && (
+      {(result.warnings.length > 0 || speed !== null || sides) && (
         <section className={[styles.card, styles.info].join(' ')}>
           <b>{tr('Just for your information')}</b>
           {result.warnings.map((w) => (
             <p key={w}>{calibText(w)}</p>
           ))}
           {speed !== null && <p>{tr('It drives at {p} % of the speed asked for.', {p: fmt(speed * 100, 0)})}</p>}
+          {sides && <p>{tr('Each wheel on its own: left {l}, right {r} ticks/m ({d} % apart).', {l: fmt(sides[0], 0), r: fmt(sides[1], 0), d: fmt(Math.abs(sides[0] / sides[1] - 1) * 100, 1)})}</p>}
         </section>
       )}
 

@@ -119,6 +119,10 @@ describe('a calibration', () => {
     ).toBe('Left and right: the right wheel is in effect 2.4 % smaller (tyre, wear, dirt), the mower pulls to the right. OpenMower has one value for both, nothing to set for it.');
     expect(calibText('large change from 0.3556: 6.2 %')).toBe('Big change from 0.3556: 6.2 %.');
     expect(calibText('RTK fixed, but 0.081 m accuracy (0.05 m at most)')).toBe('RTK fix, but only accurate to 0.081 m (0.05 m at most).');
+    expect(calibText('left/right: the left wheel is in effect 2.1 % smaller (diameter, wear, dirt): 1846 and 1808 ticks/m left and right; OpenMower has one ticks_per_m for both')).toBe(
+      'Left and right: the left wheel is in effect 2.1 % smaller (tyre, wear, dirt), the mower pulls to the left. OpenMower has one value for both, nothing to set for it.',
+    );
+    expect(calibText('no wheel ticks recorded: the wheel distance comes only from them')).toBe('No wheel ticks recorded: the wheel distance comes only from them.');
     expect(calibText('something new')).toBe('something new');
   });
 });

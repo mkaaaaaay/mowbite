@@ -69,6 +69,9 @@ test('calibrating by hand: driven, worked out, two values applied and set back',
   await expect(page.getByText('Distance per wheel turn')).toBeVisible();
   await expect(page.getByText(/Unchanged: the difference is smaller than the measuring accuracy/).first()).toBeVisible();
   await expect(page.getByText('The IMU sits tilted: 0.3° to the side, 4.5° forward. Just a note, OpenMower has no setting for it.')).toBeVisible();
+  // left and right on their own (the planner's info), the warning from 2 % apart
+  await expect(page.getByText(/^Each wheel on its own: left 2007, right 2056 ticks\/m \(2\.4 % apart\)\.$/)).toBeVisible();
+  await expect(page.getByText(/^Left and right: the right wheel is in effect 2\.4 % smaller/)).toBeVisible();
   // recording mode ended away from the station: asked once more
   await page.getByRole('button', {name: 'End recording mode'}).click();
   await expect(page.getByText("It isn't on the station yet, after this the stick doesn't drive it any more.")).toBeVisible();

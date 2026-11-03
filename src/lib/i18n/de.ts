@@ -2192,6 +2192,8 @@ const de: Record<string, string> = {
   "It counts once there is one.": "Gezählt wird ab dem Fix.",
   "Not possible right now": "Gerade nicht möglich",
   "RTK fix, but only accurate to {a} m ({b} m at most).": "RTK-Fix, aber nur auf {a} m genau (höchstens {b} m).",
+  "No wheel ticks recorded: the wheel distance comes only from them.": "Keine Radzähler aufgezeichnet: Den Radabstand gibt es nur aus ihnen.",
+  "Each wheel on its own: left {l}, right {r} ticks/m ({d} % apart).": "Jedes Rad für sich: links {l}, rechts {r} Ticks/m ({d} % Unterschied).",
   "Checked as it starts: while idle OpenMower leaves the GPS out of its position.": "Wird beim Start geprüft: Im Leerlauf rechnet OpenMower das GPS nicht in die Position ein.",
   "Now {m} m straight on": "Jetzt {m} m geradeaus",
   "The planner works the values out from the recording. That can take a few minutes, after driving by hand mostly under a minute.": "Der Planer rechnet die Werte aus der Aufzeichnung aus. Das kann ein paar Minuten dauern, bei einer Joystick-Fahrt meist unter einer Minute.",

@@ -145,9 +145,9 @@ export function calibResultOf(p: Record<string, number>, need: Record<string, nu
     based_on: {m: has('m'), turns: has('turns'), runs: has('runs')},
     warnings: [
       'the IMU sits tilted: roll 0.3 deg, pitch 4.5 deg (OpenMower has no setting for it)',
-      'left/right: the right wheel is in effect 2.4 % smaller (diameter, wear, dirt), straight on the odometry it turns right; OpenMower has one ticks_per_m for both',
+      'left/right: the right wheel is in effect 2.4 % smaller (diameter, wear, dirt): 2007 and 2056 ticks/m left and right; OpenMower has one ticks_per_m for both',
     ],
-    info: {speed_ratio: 0.47, turn_ratio: 0.52},
+    info: {speed_ratio: 0.47, turn_ratio: 0.52, ticks_per_m_left: 2007.3, ticks_per_m_right: 2056.1},
     values,
   };
 }
