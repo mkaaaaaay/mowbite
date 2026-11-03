@@ -315,6 +315,7 @@ export default function ActivityPage() {
                 key={d}
                 className={d === shown ? styles.on : undefined}
                 onClick={() => {
+                  if (d === shown) return;
                   setEvents(null);
                   setFailed(false);
                   setDay(d);
