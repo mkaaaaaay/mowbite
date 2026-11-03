@@ -59,7 +59,7 @@ export default function CalibrationGuidePage() {
         </Link>
         <h1>{tr('Calibrating')}</h1>
         <p className={styles.lead}>
-          {tr("Driving it yourself takes about 5 minutes. You drive four things with the joystick, in any order. The page shows you what's still missing.")}
+          {tr("Driving it yourself takes about 5 minutes: at the start stand still for 10 s, then a whole round on the spot and after it at least 5 m straight on, three times each way. The page shows you what's still missing.")}
         </p>
 
         <section className={styles.card}>
@@ -197,13 +197,13 @@ export default function CalibrationGuidePage() {
             <span className={styles.num}>3</span>
             {tr('Turning on the spot')}
           </h2>
-          <Art w={340} h={170} label={tr('A whole round on the spot, then 2 meters straight on, three times to each side')}>
+          <Art w={340} h={170} label={tr('A whole round on the spot, then 5 meters straight on, three times to each side')}>
             {(arrow) => (
               <>
                 <Turn x={70} y={72} left arrow={arrow()} />
                 <path className={styles.pathSoft} d="M120 72 H170" markerEnd={arrow()} />
                 <text className={styles.small} x={145} y={62} textAnchor="middle">
-                  2 m
+                  5 m
                 </text>
                 <text className={styles.label} x={110} y={150} textAnchor="middle">
                   {tr('3× left round')}
@@ -218,7 +218,7 @@ export default function CalibrationGuidePage() {
           </Art>
           <p>
             {tr(
-              'Stick fully to the side, without forward or back, slowly. A whole round, then on straight for at least 2 m: a turn only counts once a straight piece follows it. That three times to the left and three times to the right, in any order.',
+              'Stick to the side only, without forward or back, and hold it steady, at a low speed (0.15 or 0.25). A whole round, then at least 5 m straight on: a turn only counts once a run follows it, and the runs measure the distance per wheel turn. That three times to the left and three times to the right.',
             )}
           </p>
           <p className={styles.dim}>{tr('Turns on the spot measure the antenna, all turns between runs the wheel distance.')}</p>

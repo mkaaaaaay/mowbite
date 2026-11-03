@@ -39,9 +39,6 @@ export function CalibrationLink({styles}: {styles: Record<string, string>}) {
             ? tr('Last {date} · 1 value applied', {date})
             : tr('Last {date} · {n} values applied', {date, n: last.values.length})}
       </p>
-      <p className={styles.dim}>
-        {tr('Measures how far the mower goes per turn of the wheels, how far apart the wheels are and where the antenna sits. Better values: straighter lanes, cleaner docking.')}
-      </p>
       <Link href="/calibration" className={styles.pillButton}>
         {tr('To the calibration')}
       </Link>

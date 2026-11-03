@@ -154,11 +154,25 @@ export default function Drive({
   const all = list.length > 0 && list.every(lackDone);
   const current = nowPart(list, motion);
   const runM = progress?.need.run_m ?? 5;
+  // back to the station: how far it is, the map wide enough to show both; on its contacts recording mode ends
+  const pose = motion.pose ?? position ?? null;
+  const dock = map?.docking_stations[0]?.position;
+  const toDock = home && dock && pose ? Math.hypot(dock.x - pose.x, dock.y - pose.y) : null;
+  const span = toDock !== null ? Math.max(16, Math.ceil(2 * toDock + 4)) : 16;
+  const charging = !!state?.is_charging;
+  const [sure, setSure] = useState(false);
 
   // what to do now, on the map: what's driven, else what's missing next
   let say: React.ReactNode;
   if (home) {
-    say = <b>{tr('Back onto the docking station')}</b>;
+    say =
+      toDock !== null && toDock > 0.5 && !charging ? (
+        <>
+          <b>{tr('Back onto the docking station')}</b> · {tr('{m} m to go', {m: fmt(toDock, 1)})}
+        </>
+      ) : (
+        <b>{tr(charging ? 'On the station. Now end recording mode.' : 'Back onto the docking station')}</b>
+      );
   } else if (all) {
     say = (
       <>
@@ -197,14 +211,13 @@ export default function Drive({
         </>
       ) : (
         <>
-          <b>{tr('Now 2 m straight on.')}</b> {tr('A turn counts once a straight piece follows it.')}
+          <b>{tr('Now {m} m straight on', {m: fmt(runM, 0)})}</b> · {tr('then the round counts')}
         </>
       );
   }
 
   // the lane of the run (from where it started, or ahead of the mower when a run is next), the turn round the mower,
   // the ring filling while it stands
-  const pose = motion.pose ?? position ?? null;
   const draw = ({toScreen, scale, k}: {toScreen: (x: number, y: number) => [number, number]; scale: number; k: number}) => {
     if (!pose || !current) return null;
     if (current.part === 'straight') {
@@ -277,7 +290,7 @@ export default function Drive({
             mower={position ?? undefined}
             emergency={!!state?.emergency}
             follow
-            followSpanMeters={16}
+            followSpanMeters={span}
             zoomable
             datum={datumFromParams(params)}
             draw={draw}
@@ -350,9 +363,17 @@ export default function Drive({
         )}
         <div className={styles.buttons}>
           {home ? (
-            <button className={styles.primary} onClick={() => (stop(), onDone())}>
+            // on the station at once, elsewhere asked once more: the stick doesn't drive it any more after
+            <button
+              className={charging || sure ? styles.primary : undefined}
+              onClick={() => {
+                if (!charging && !sure) return setSure(true);
+                stop();
+                onDone();
+              }}
+            >
               <CheckIcon size={18} />
-              {tr('End recording mode')}
+              {sure && !charging ? tr("End it, it's not on the station") : tr('End recording mode')}
             </button>
           ) : (
             <button className={styles.danger} onClick={() => (stop(), onStop())}>
@@ -382,7 +403,7 @@ export default function Drive({
           ))}
         </div>
         {!home && <p className={styles.dim}>
-          <RotateIcon size={14} /> {tr('Straight: stick forward and hold it steady, half to full, don\'t steer. Turning: stick fully to one side, a whole round, then 2 m straight.')}
+          <RotateIcon size={14} /> {tr("Straight: stick forward and hold it steady, half to full, don't steer. Turning: stick to the side only at a low speed, a whole round, then {m} m straight on.", {m: fmt(runM, 0)})}
         </p>}
       </section>
     </div>

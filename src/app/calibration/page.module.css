@@ -70,7 +70,11 @@
   margin: 0;
 }
 
-.main button,
+.main > button,
+.card button,
+.buttons button,
+.resetLine button,
+.alarm button,
 .sheet button,
 .pill {
   display: inline-flex;
@@ -88,7 +92,10 @@
   cursor: pointer;
 }
 
-.main button:disabled {
+.main > button:disabled,
+.card button:disabled,
+.buttons button:disabled,
+.alarm button:disabled {
   opacity: 0.4;
   cursor: default;
 }
@@ -203,11 +210,19 @@
   border-bottom: none;
 }
 
+.row > span {
+  min-width: 0;
+}
+
 .row small,
 .row code {
   display: block;
   color: var(--text-secondary);
   font-size: 12px;
+}
+
+.row code {
+  overflow-wrap: anywhere;
 }
 
 .row b {

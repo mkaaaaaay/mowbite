@@ -198,6 +198,8 @@ export default function CalibrationPage() {
   const paths = readPaths(status?.calib_paths);
 
   const recordingMode = state?.current_state === 'AREA_RECORDING';
+  // where the updater writes: idle on the station
+  const docked = state?.current_state === 'IDLE' && !!state?.is_charging;
   // a recording started or seen on this page (its start for the clock)
   const [since, setSince] = useState<number | null>(null);
   const phase = progress?.phase ?? null;
@@ -256,7 +258,7 @@ export default function CalibrationPage() {
     }
     const t = setTimeout(() => {
       setStarting(false);
-      setError(tr("The mower didn't go into recording mode. Is it idle?"));
+      setError(tr("The mower didn't go into recording mode. Is it busy right now?"));
     }, 10000);
     return () => clearTimeout(t);
   }, [starting]);
@@ -376,7 +378,7 @@ export default function CalibrationPage() {
     body = (
       <section className={styles.card}>
         <span className={styles.live}>{tr('Works it out')}</span>
-        <p className={styles.dim}>{tr('The planner works the values out from the recording, that can take a few minutes.')}</p>
+        <p className={styles.dim}>{tr('The planner works the values out from the recording. That can take a few minutes, after driving by hand mostly under a minute.')}</p>
       </section>
     );
   } else if (show && result) {
@@ -394,7 +396,7 @@ export default function CalibrationPage() {
   } else if (sent) {
     body = (
       <>
-        <Sent sent={sent} status={status} onBack={back} />
+        <Sent sent={sent} status={status} docked={docked} onBack={back} />
         <button onClick={() => setSent(null)}>{tr('Close')}</button>
       </>
     );
@@ -402,7 +404,7 @@ export default function CalibrationPage() {
     body = (
       <>
         <p className={styles.lead}>
-          {tr('Measures how far the mower goes per turn of the wheels, how far apart the wheels are and where the antenna sits. Better values: straighter lanes, cleaner docking.')}
+          {tr('Measures the distance per wheel turn, the wheel distance and where the antenna sits. Then it drives straighter lanes and docks more cleanly.')}
         </p>
         {phase === 'done' && failed && !cancelled && <p className={styles.warn}>{tr('The last recording gave no result: {why}', {why: calibText(failed)})}</p>}
         <section className={styles.card}>
@@ -436,7 +438,7 @@ export default function CalibrationPage() {
             {tr('Show the result of the last recording')}
           </button>
         )}
-        <LastCalibration status={status} asked={asked} onBack={back} />
+        <LastCalibration status={status} asked={asked} docked={docked} onBack={back} />
       </>
     );
   }

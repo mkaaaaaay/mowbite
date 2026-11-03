@@ -65,14 +65,18 @@ test('calibrating by hand: driven, worked out, two values applied and set back',
   await expect(page.getByText(/Unchanged: the difference is smaller than the measuring accuracy/).first()).toBeVisible();
   await expect(page.getByText('The IMU sits tilted: 0.3° to the side, 4.5° forward. Just a note, OpenMower has no setting for it.')).toBeVisible();
   // driven back onto the station meanwhile, recording mode ended there
+  // not on the station: asked once more
   await page.getByRole('button', {name: 'End recording mode'}).click();
+  await page.getByRole('button', {name: "End it, it's not on the station"}).click();
   // (the demo mower drives home from there by itself, OpenMower stays idle where it is)
   await expect.poll(async () => (await demoHas<{current_state: string}>(page, 'robot_state/json')).current_state).not.toBe('AREA_RECORDING');
 
   await page.getByRole('button', {name: 'Apply 2 values'}).click();
-  await expect(page.getByText('2 values applied')).toBeVisible();
+  await expect(page.getByText('Applying 2 values')).toBeVisible();
   await expect(page.getByText('ll/services/diff_drive/ticks_per_m')).toBeVisible();
+  // written by the updater in the dock: then they're in effect
   await expect(page.getByText(/Restarted, in effect since/)).toBeVisible({timeout: 20_000});
+  await expect(page.getByText('2 values applied')).toBeVisible();
 
   // the last calibration on the page, set back to the copy before
   await page.getByRole('button', {name: 'Close'}).click();

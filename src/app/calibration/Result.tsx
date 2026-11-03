@@ -159,7 +159,7 @@ export function ResultView({
           {result.warnings.map((w) => (
             <p key={w}>{calibText(w)}</p>
           ))}
-          {speed !== null && <p>{tr('It drives at {f} × the speed asked for.', {f: fmt(speed, 2)})}</p>}
+          {speed !== null && <p>{tr('It drives at {p} % of the speed asked for.', {p: fmt(speed * 100, 0)})}</p>}
         </section>
       )}
 
@@ -203,25 +203,39 @@ export function ByHand({values}: {values: {name: string; value: number}[]}) {
 }
 
 // what the updater says about the last request, a line
-function stateLine(state: ReturnType<typeof readState>, asked: number | null): {chip: string; text: string; tone: 'fair' | 'good' | 'poor'} | null {
+function stateLine(
+  state: ReturnType<typeof readState>,
+  asked: number | null,
+  docked: boolean,
+): {what: string; chip: string; text: string; tone: 'fair' | 'good' | 'poor'} | null {
   const fresh = state && (asked === null || state.at >= asked - 5) ? state : null;
   const time = fresh ? new Date(fresh.at * 1000).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}) : '';
-  if (!fresh) return asked !== null ? {chip: tr('asked'), text: tr('The updater takes it within a minute.'), tone: 'fair'} : null;
+  if (!fresh)
+    return asked !== null
+      ? {
+          what: 'asked',
+          chip: tr('asked'),
+          text: docked ? tr('The updater takes it within a minute.') : tr('The updater writes them once the mower stands quietly in the dock.'),
+          tone: 'fair',
+        }
+      : null;
   switch (fresh.what) {
     case 'waiting':
       return {
+        what: fresh.what,
         chip: tr('waiting'),
         text: tr('Takes effect after a restart of OpenMower. The updater restarts it by itself once the mower stands quietly in the dock.'),
         tone: 'fair',
       };
     case 'written':
-      return {chip: tr('in effect'), text: tr('Restarted, in effect since {time}.', {time}), tone: 'good'};
+      return {what: fresh.what, chip: tr('in effect'), text: tr('Restarted, in effect since {time}.', {time}), tone: 'good'};
     case 'back':
-      return {chip: tr('in effect'), text: tr('Set back, OpenMower restarted at {time}.', {time}), tone: 'good'};
+      return {what: fresh.what, chip: tr('in effect'), text: tr('Set back, OpenMower restarted at {time}.', {time}), tone: 'good'};
     case 'refused':
-      return {chip: tr('not written'), text: tr('The updater wrote nothing: {why}', {why: (fresh.why ?? '').replace(/_/g, ' ')}), tone: 'poor'};
+      return {what: fresh.what, chip: tr('not written'), text: tr('The updater wrote nothing: {why}', {why: (fresh.why ?? '').replace(/_/g, ' ')}), tone: 'poor'};
     default:
       return {
+        what: fresh.what,
         chip: tr('not written'),
         text:
           fresh.why === 'not_docked'
@@ -238,14 +252,17 @@ function stateLine(state: ReturnType<typeof readState>, asked: number | null): {
 export function Sent({
   sent,
   status,
+  docked,
   onBack,
 }: {
   sent: {at: number; values: CalibValue[]; byHand: CalibValue[]};
   status: Record<string, string> | null;
+  docked: boolean;
   onBack: () => Promise<void>;
 }) {
   const asked = sent.values.filter((v) => !sent.byHand.includes(v));
-  const line = stateLine(readState(status?.calib), sent.at);
+  const line = stateLine(readState(status?.calib), sent.at, docked);
+  const written = line?.what === 'written';
   const moved = stationAgain(asked);
   const paths = readPaths(status?.calib_paths);
   return (
@@ -253,12 +270,24 @@ export function Sent({
       {asked.length > 0 && (
         <section className={styles.card}>
           <div className={styles.sheetHead}>
-            <span className={[styles.badge, styles.good].join(' ')}>
-              <CheckIcon size={22} />
-            </span>
+            {written && (
+              <span className={[styles.badge, styles.good].join(' ')}>
+                <CheckIcon size={22} />
+              </span>
+            )}
             <div>
-              <h2>{asked.length === 1 ? tr('1 value applied') : tr('{n} values applied', {n: asked.length})}</h2>
-              <p className={styles.dim}>{tr('in mower_params.yaml, the old ones are kept')}</p>
+              <h2>
+                {written
+                  ? asked.length === 1
+                    ? tr('1 value applied')
+                    : tr('{n} values applied', {n: asked.length})
+                  : line?.tone === 'poor'
+                    ? tr('Not applied')
+                    : asked.length === 1
+                      ? tr('Applying 1 value')
+                      : tr('Applying {n} values', {n: asked.length})}
+              </h2>
+              {written && <p className={styles.dim}>{tr('in mower_params.yaml, the old ones are kept')}</p>}
             </div>
           </div>
           <div className={styles.rows}>
@@ -297,7 +326,7 @@ export function Sent({
         </section>
       )}
       {sent.byHand.length > 0 && <ByHand values={sent.byHand.map((v) => ({name: v.name, value: v.value!}))} />}
-      {asked.length > 0 && <SetBack status={status} onBack={onBack} text={tr('Changed your mind? Everything back to how it was.')} />}
+      {written && <SetBack status={status} onBack={onBack} text={tr('Changed your mind? Everything back to how it was.')} />}
     </>
   );
 }
@@ -326,11 +355,21 @@ function SetBack({status, onBack, text}: {status: Record<string, string> | null;
 }
 
 // the last calibration the updater wrote: when, each value before and after, set back
-export function LastCalibration({status, asked, onBack}: {status: Record<string, string> | null; asked: number | null; onBack: () => Promise<void>}) {
+export function LastCalibration({
+  status,
+  asked,
+  docked,
+  onBack,
+}: {
+  status: Record<string, string> | null;
+  asked: number | null;
+  docked: boolean;
+  onBack: () => Promise<void>;
+}) {
   const last = readLast(status?.calib_last);
   const paths = readPaths(status?.calib_paths);
   const state = readState(status?.calib);
-  const line = asked !== null ? stateLine(state, asked) : null;
+  const line = asked !== null ? stateLine(state, asked, docked) : null;
   // set back since: the values before apply again (the copy stays, setting back again changes nothing)
   const reverted = !!last && state?.what === 'back' && state.at >= last.at;
   const when = (t: number) => new Date(t * 1000).toLocaleString([], {day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'});
