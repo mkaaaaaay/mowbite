@@ -357,22 +357,6 @@ function UpdaterCard({s, busy, now, anyAuto, onUpdate}: {s: UpdateState; busy: b
   );
 }
 
-// an updater from before it could update itself: it stays as it is until it's updated once by hand
-function OldUpdater() {
-  const dockge = useDockgeUrl();
-  return (
-    <div className={local.part}>
-      <span className={local.name}>MowBite Updater</span>
-      <span className={local.dim}>
-        {tr('This updater is an older one and can\'t update itself from here. Once by hand: in Dockge pick the stack "mowbite" (or the one it runs in) and tap "Update", after that it works from here.')}{' '}
-        <a href={dockge} target="_blank" rel="noreferrer">
-          {dockge}
-        </a>
-      </span>
-    </div>
-  );
-}
-
 // what the updater can't reach and why, with the line that gives it the folder
 function OutOfReachNote({s}: {s: UpdateState}) {
   const away = outOfReach(s);
@@ -669,11 +653,7 @@ export function AutoUpdate() {
         />
       ))}
 
-      {st.status.updater_running ? (
-        <UpdaterCard s={st} busy={busy} now={now} anyAuto={anyAuto} onUpdate={() => ask(requestSelf)} />
-      ) : (
-        updaterAlive(st) && <OldUpdater />
-      )}
+      {st.status.updater_running && <UpdaterCard s={st} busy={busy} now={now} anyAuto={anyAuto} onUpdate={() => ask(requestSelf)} />}
 
       {anyAuto ? (
         <div className={local.part}>

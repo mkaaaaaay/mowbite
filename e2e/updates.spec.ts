@@ -118,14 +118,12 @@ test.describe("the updater's page in here", () => {
   });
 
   test("its page on another host only shows, MowBite's own cards instead", async ({page, baseURL}) => {
-    // (an older updater that can't update itself)
-    await madeUp(page, baseURL!, 'http://openmower.test:8083', {alive: String(now())});
+    await madeUp(page, baseURL!, 'http://openmower.test:8083', {alive: String(now()), updater_running: '70cb346 2026-10-26'});
     const updates = page.locator('#update');
     await expect(updates.getByRole('button', {name: 'Check for updates'})).toBeVisible();
     await expect(updates.locator('iframe')).toHaveCount(0);
     const own = updates.getByRole('link', {name: 'http://openmower.test:8083'});
     await expect(own).toHaveAttribute('href', /^http:\/\/openmower\.test:8083\/\?theme=/);
-    await expect(updates.getByText("This updater is an older one and can't update itself from here", {exact: false})).toBeVisible();
   });
 
   test("one that's quiet for a while is still there, not one to set up", async ({page, baseURL}) => {

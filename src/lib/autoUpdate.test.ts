@@ -24,6 +24,11 @@ import {
 
 const state = (status: Record<string, string>, openmower = 'edge'): UpdateState => ({
   conf: {mowbite: 'beta', mowbite_auto: 0, openmower, openmower_auto: 0, planner_auto: 0, at: '03:00', days: 'daily'},
+  parts: [
+    {id: 'openmower', name: 'OpenMower', kind: 'openmower', container: 'open_mower_ros', gate: 'mower'},
+    {id: 'mowbite', name: 'MowBite', kind: 'image', container: 'mowbite', gate: 'mower'},
+    {id: 'planner', name: 'MowBite Planner', kind: 'build', container: 'mowbite_planner', gate: 'mower'},
+  ],
   requested: false,
   status,
   log: [],
@@ -87,7 +92,6 @@ describe('the updater on the mower', () => {
     expect(partInfo(s, 'openmower').running).toContain('edge');
     expect(partInfo(s, 'planner')).toMatchObject({available: 'unknown', source: 'github'});
     expect(partInfo(s, 'planner').running).toContain('b187b88');
-    expect(partInfo(state({planner_source: 'none'}), 'planner').running).toBeNull();
     expect(partInfo(state({}), 'openmower').running).toBeNull();
   });
 
@@ -170,7 +174,7 @@ describe('the updater on the mower', () => {
     expect(r({updater: 'rolled_back 1792831337'}, 'updater').at).toBeTruthy();
   });
 
-  it('shows every part the updater lists, OpenMower\'s apps too, and the three of an older one', () => {
+  it('shows every part the updater lists, OpenMower\'s apps too', () => {
     const s = state({xtechapp_running: 'edge 2026-10-20', xtechapp_available: 'yes ghcr.io/xtech/openmower-app:edge', openmower_running: 'os'});
     s.parts = [
       {id: 'openmower', name: 'OpenMower', kind: 'os', container: '-', gate: 'mower'},
@@ -179,8 +183,8 @@ describe('the updater on the mower', () => {
     expect(partsOf(s).map((p) => p.id)).toEqual(['openmower', 'xtechapp']);
     expect(partInfo(s, 'xtechapp')).toMatchObject({available: 'yes'});
     expect(partInfo(s, 'openmower').running).toContain('OpenMowerOS');
-    expect(partsOf(state({})).map((p) => p.id)).toEqual(['mowbite', 'openmower', 'planner']);
-    expect(kindOf(state({planner_source: 'local'}), 'planner')).toBe('local');
+    expect(partsOf({...s, parts: undefined})).toEqual([]);
+    expect(kindOf(s, 'xtechapp')).toBe('image');
     expect(runResult({...s, status: {...s.status, result: 'running', run_parts: 'xtechapp', progress: 'xtechapp download 5 1000'}})).toContain('OpenMower App (xtech)');
   });
 

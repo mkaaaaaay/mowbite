@@ -971,7 +971,6 @@ const de: Record<string, string> = {
   "Last time ({when}): {what}": "Zuletzt ({when}): {what}",
   "The updater hasn't given a sign of life since {t}, it may hang or be restarting. Shown is what it said last.": "Der Updater meldet sich seit {t} nicht, vielleicht hängt er oder startet neu. Angezeigt ist sein letzter Stand.",
   "The updater doesn't give a sign of life, it may hang or be restarting.": "Der Updater meldet sich nicht, vielleicht hängt er oder startet neu.",
-  "This updater is an older one and can't update itself from here. Once by hand: in Dockge pick the stack \"mowbite\" (or the one it runs in) and tap \"Update\", after that it works from here.": "Dieser Updater ist älter und kann sich von hier nicht selbst aktualisieren. Einmal von Hand: in Dockge den Stack „mowbite“ (oder den, in dem er läuft) wählen und auf „Aktualisieren“ tippen, danach geht es von hier.",
   "Guides, mowers": "Anleitungen, Mäher",
   "not set up yet, how to:": "noch nicht eingerichtet, so geht es:",
   "They need a second, small container next to MowBite, the MowBite Updater. It's added once, then everything is set here or on its own page.": "Dafür braucht es einen zweiten, kleinen Container neben MowBite, den MowBite Updater. Er wird einmal eingetragen, danach wird alles hier oder auf seiner eigenen Seite eingestellt.",

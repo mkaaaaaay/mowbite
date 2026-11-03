@@ -7,8 +7,6 @@ import {apiBase, mowerFetch} from './mowers';
 
 // a part it looks after, by its id: openmower, mowbite, planner, xtechapp, openmowerapp or c_<container> for a labelled app
 export type Part = string;
-// the parts of an updater that doesn't list them (and the demo)
-export const PARTS: Part[] = ['mowbite', 'openmower', 'planner'];
 export const PART_NAMES: Record<string, string> = {
   mowbite: 'MowBite',
   openmower: 'OpenMower',
@@ -211,19 +209,10 @@ const when = (t: string | undefined) =>
 
 export type Availability = 'yes' | 'no' | 'switch' | 'failed' | 'unknown' | 'local';
 
-// what it looks after, in its order: as the updater lists them, else the three (an older updater, the demo)
-export function partsOf(s: UpdateState): UpdatePart[] {
-  if (s.parts?.length) return s.parts;
-  return PARTS.map((id) => ({id, name: PART_NAMES[id], kind: kindOf(s, id), container: id, gate: 'mower'}));
-}
+// what it looks after, in its order, as the updater lists them
+export const partsOf = (s: UpdateState): UpdatePart[] => s.parts ?? [];
 // openmower, image (from a registry), build (from github), local (built from a copy here) or os (comes with the os)
-export function kindOf(s: UpdateState, part: Part): string {
-  const p = s.parts?.find((x) => x.id === part);
-  if (p) return p.kind;
-  if (part === 'openmower') return 'openmower';
-  if (part === 'planner') return s.status.planner_source === 'local' ? 'local' : 'build';
-  return 'image';
-}
+export const kindOf = (s: UpdateState, part: Part): string => s.parts?.find((x) => x.id === part)?.kind ?? 'image';
 
 export interface PartInfo {
   // what runs on the mower, in words, or null when the part isn't there
@@ -241,8 +230,6 @@ export function partInfo(s: UpdateState, part: Part): PartInfo {
   const kind = kindOf(s, part);
   if (kind === 'os') return {running: tr('comes with OpenMowerOS itself (openmower update-os)'), available: null};
   if (kind === 'build' || kind === 'local') {
-    // (an updater that doesn't list its parts says none when there's no planner)
-    if (!s.parts && (s.status.planner_source || 'none') === 'none') return {running: null, available: null, source: 'none'};
     const source = (kind === 'local' ? 'local' : s.status[`${part}_source`] || 'github') as PartInfo['source'];
     const commit = what && what !== '?' ? what.slice(0, 7) : null;
     const running = [commit ? tr('commit {c}', {c: commit}) : tr('state unknown'), built && tr('built {d}', {d: built})].filter(Boolean).join(' · ');

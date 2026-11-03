@@ -300,6 +300,11 @@ function demoUpdate(): Record<string, unknown> {
   demoCalib(status, now);
   return {
     conf: {...c, mowbite_auto: Number(c.mowbite_auto), openmower_auto: Number(c.openmower_auto), planner_auto: Number(c.planner_auto)},
+    parts: [
+      {id: 'mowbite', name: 'MowBite', kind: 'image', container: 'mowbite', gate: 'mower'},
+      {id: 'openmower', name: 'OpenMower', kind: 'openmower', container: 'open_mower_ros', gate: 'mower'},
+      {id: 'planner', name: 'MowBite Planner', kind: 'build', container: 'mowbite_planner', gate: 'mower'},
+    ],
     requested: false,
     status,
     room: {items: room, cache},
