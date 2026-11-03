@@ -1,7 +1,7 @@
 import {imageryInfo, type CustomImagery, type ImagerySource} from '@/lib/imagery';
 import {fmt, tr} from '@/lib/i18n';
 import {useRef, useState} from 'react';
-import {MagnetIcon, MoveIcon} from './icons';
+import {ChevronIcon, CloseIcon, FitIcon, FollowIcon, LayersIcon, MagnetIcon, MinusIcon, MoveIcon, PlusIcon, PushPinIcon} from './icons';
 import {MapLookPanel} from './MapLookSettings';
 import styles from './MapView.module.css';
 
@@ -38,14 +38,15 @@ export const layerOn = (hidden: Set<Layer>, l: Layer) => !hidden.has(l);
 // where gps or wifi were good or bad over the last 14 days, one of them at a time
 export type Coverage = 'off' | 'gps' | 'wifi';
 
-const COVER_ORDER: Coverage[] = ['wifi', 'off', 'gps'];
+// in the layers, off first
+const COVER_CHOICES: Coverage[] = ['off', 'wifi', 'gps'];
 const COVER_TITLES: Record<Coverage, string> = {
   wifi: 'Wi-Fi signal where the mower drove',
   off: 'No coverage on the map',
   gps: 'GPS accuracy where the mower drove',
 };
 
-// the buttons along the right edge of the map, the switch for the coverage, the layer menu and the imagery bar
+// the buttons along the right edge of the map, the layers with the coverage, the coverage's legend and the imagery bar
 export default function MapControls({
   onZoom,
   showGrid,
@@ -116,128 +117,88 @@ export default function MapControls({
   const [lookOpen, setLookOpen] = useState(false);
   // done with the arrows: the button that opened them gets the focus back
   const refocusAlign = useRef(false);
+  // the coverage shown on the map: its legend at the top, picked in the layers
+  const coverShown = coverage && coverage.value !== 'off' ? coverage : null;
+  const tool = (on: boolean) => (on ? undefined : styles.off);
   return (
     <>
-      {/* where gps or wifi were good or bad: wifi left, off in the middle, gps right, the knob slides */}
-      {coverage && (
+      {/* what the coverage shows and how to switch it off again, at the top of the map while it's on */}
+      {coverShown && (
         <div className={styles.coverSwitchWrap} data-cover-switch>
-          <div className={styles.coverSwitch} role="radiogroup" aria-label={tr('Coverage')}>
-            <span
-              className={[styles.coverKnob, coverage.value === 'off' ? styles.coverKnobOff : ''].filter(Boolean).join(' ')}
-              style={{transform: `translateX(${COVER_ORDER.indexOf(coverage.value) * 100}%)`}}
-            />
-            {COVER_ORDER.map((c) => (
-              <button
-                key={c}
-                role="radio"
-                aria-checked={coverage.value === c}
-                className={coverage.value === c ? styles.coverOn : undefined}
-                disabled={c === 'wifi' && !coverage.wifi}
-                title={tr(COVER_TITLES[c])}
-                onClick={() => coverage.onChange(c)}
-              >
-                {c === 'gps' ? 'GPS' : tr(c === 'wifi' ? 'Wi-Fi' : 'Off')}
-              </button>
-            ))}
+          <div className={styles.coverChip}>
+            <b>{coverShown.value === 'gps' ? tr('GPS accuracy') : tr('Wi-Fi signal')}</b>
+            <button onClick={() => coverShown.onChange('off')} aria-label={tr('Hide the coverage')}>
+              <CloseIcon size={16} />
+            </button>
+            {coverShown.none ? (
+              <span className={styles.coverLegend}>{tr('Nothing kept yet, the squares fill up while the mower drives')}</span>
+            ) : (
+              <span className={styles.coverLegend} title={tr('Paler: little data there. Tap a square for its numbers.')}>
+                <i className={styles.good} /> {coverShown.value === 'gps' ? '≤ 5 cm' : tr('strong')}
+                <i className={styles.ok} /> {tr(coverShown.value === 'gps' ? 'at times worse' : 'medium')}
+                <i className={styles.bad} /> {tr(coverShown.value === 'gps' ? 'often worse' : 'weak')}
+              </span>
+            )}
           </div>
-          {coverage.value !== 'off' && coverage.none && (
-            <span className={styles.coverLegend}>{tr('Nothing kept yet, the squares fill up while the mower drives')}</span>
-          )}
-          {coverage.value !== 'off' && !coverage.none && (
-            <span className={styles.coverLegend} title={tr('Paler: little data there. Tap a square for its numbers.')}>
-              <i className={styles.good} /> {coverage.value === 'gps' ? '≤ 5 cm' : tr('strong')}
-              <i className={styles.ok} /> {tr(coverage.value === 'gps' ? 'at times worse' : 'medium')}
-              <i className={styles.bad} /> {tr(coverage.value === 'gps' ? 'often worse' : 'weak')}
-            </span>
-          )}
-          {coverage.value !== 'off' && coverage.paused && <span className={styles.coverPaused}>{tr('Editing is off while the coverage is shown')}</span>}
+          {coverShown.paused && <span className={styles.coverPaused}>{tr('Editing is off while the coverage is shown')}</span>}
         </div>
       )}
+      {/* along the right edge only what's used while looking: zoom, the layers, follow, the whole map; the editor adds
+          snapping and keeping the map at the top. the rest is in the layers */}
       <div className={styles.zoomButtons} data-map-tools>
-        <button onClick={() => onZoom(1 / 1.5)} aria-label={tr('Zoom in')} title={tr('Zoom in (or mouse wheel / pinch)')}>
-          +
-        </button>
-        <button onClick={() => onZoom(1.5)} aria-label={tr('Zoom out')} title={tr('Zoom out')}>
-          −
-        </button>
-        <button
-          className={showGrid ? '' : styles.off}
-          onClick={onToggleGrid}
-          aria-label={tr('Grid')}
-          title={tr('Show or hide the meter grid')}
-        >
-          #
-        </button>
-        {sources.length > 0 && (
-          <button
-            className={source ? '' : styles.off}
-            onClick={() => onSource(source ? null : lastSource && sources.includes(lastSource) ? lastSource : sources[0])}
-            aria-label={tr('Aerial imagery')}
-            title={tr('Aerial imagery (loads images of this area from the selected provider)')}
-          >
-            ◩
+        <div className={styles.zoomPair}>
+          <button onClick={() => onZoom(1 / 1.5)} aria-label={tr('Zoom in')} title={tr('Zoom in (or mouse wheel / pinch)')}>
+            <PlusIcon />
           </button>
-        )}
+          <button onClick={() => onZoom(1.5)} aria-label={tr('Zoom out')} title={tr('Zoom out')}>
+            <MinusIcon />
+          </button>
+        </div>
         <button
-          className={hidden.size ? styles.partly : ''}
+          className={[layersOpen ? styles.toolOpen : '', hidden.size ? styles.partly : ''].filter(Boolean).join(' ') || undefined}
           onClick={() => onLayersOpen(!layersOpen)}
           aria-label={tr('Layers')}
-          title={tr('Show or hide obstacles, numbers, track and more')}
+          aria-expanded={layersOpen}
+          title={tr('What the map shows: grid, aerial imagery, coverage, obstacles, track and more')}
         >
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round">
-            <path d="M12 3 3 8l9 5 9-5-9-5Z" />
-            <path d="m3 12 9 5 9-5" />
-            <path d="m3 16 9 5 9-5" />
-          </svg>
+          <LayersIcon />
         </button>
-        <button onClick={() => setLookOpen(true)} aria-label={tr('Map settings')} title={tr('Map colors, icons and aerial imagery')}>
-          ⚙
-        </button>
+        {follow && (
+          <button
+            className={tool(follow.on)}
+            onClick={follow.onToggle}
+            aria-label={tr('Follow the mower')}
+            aria-pressed={follow.on}
+            title={follow.on ? tr('Following the mower, tap to move the map freely') : tr('Follow the mower again')}
+          >
+            <FollowIcon />
+          </button>
+        )}
+        {reset && (
+          <button onClick={reset.onReset} aria-label={tr('Reset zoom')} title={reset.follow ? tr('Back to the default zoom') : tr('Fit the whole map')}>
+            <FitIcon />
+          </button>
+        )}
         {snap && (
           <button
-            className={snap.on ? '' : styles.off}
+            className={tool(snap.on)}
             onClick={snap.onToggle}
             aria-label={tr('Snap')}
             aria-pressed={snap.on}
             title={snap.on ? tr('Points snap onto the corners and edges of other areas (hold Alt to place one freely), tap to switch it off') : tr('Let points snap onto the corners and edges of other areas')}
           >
-            <MagnetIcon size={18} />
-          </button>
-        )}
-        {follow && (
-          <button
-            className={follow.on ? '' : styles.off}
-            onClick={follow.onToggle}
-            aria-label={tr('Follow the mower')}
-            title={follow.on ? tr('Following the mower, tap to move the map freely') : tr('Follow the mower again')}
-          >
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-              <circle cx="12" cy="12" r="6" />
-              <circle cx="12" cy="12" r="1.5" fill="currentColor" />
-              <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
-            </svg>
+            <MagnetIcon />
           </button>
         )}
         {pin && (
           <button
-            className={[styles.pin, pin.on ? '' : styles.off].filter(Boolean).join(' ')}
+            className={[styles.pin, tool(pin.on)].filter(Boolean).join(' ')}
             onClick={pin.onToggle}
             aria-label={tr('Pin the map')}
+            aria-pressed={pin.on}
             title={pin.on ? tr('The map stays at the top, tap to let it scroll away') : tr('Keep the map at the top while scrolling')}
           >
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round">
-              <path d="M9 3h6l-1 6 4 3v2H6v-2l4-3-1-6Z" />
-              <path d="M12 14v7" />
-            </svg>
-          </button>
-        )}
-        {reset && (
-          <button
-            onClick={reset.onReset}
-            aria-label={tr('Reset zoom')}
-            title={reset.follow ? tr('Back to the default zoom') : tr('Fit the whole map')}
-          >
-            ⤢
+            <PushPinIcon />
           </button>
         )}
       </div>
@@ -254,7 +215,27 @@ export default function MapControls({
         />
       )}
       {layersOpen && (
-        <div className={styles.layers}>
+        <div className={styles.layers} role="group" aria-label={tr('Layers')}>
+          <div className={styles.layersHead}>
+            <b>{tr('Layers')}</b>
+            <button onClick={() => onLayersOpen(false)} aria-label={tr('Close')}>
+              <CloseIcon size={18} />
+            </button>
+          </div>
+          <label>
+            <input type="checkbox" checked={showGrid} onChange={onToggleGrid} />
+            {tr('Grid')}
+          </label>
+          {sources.length > 0 && (
+            <label>
+              <input
+                type="checkbox"
+                checked={!!source}
+                onChange={() => onSource(source ? null : lastSource && sources.includes(lastSource) ? lastSource : sources[0])}
+              />
+              {tr('Aerial imagery')}
+            </label>
+          )}
           {/* the mower's own layers only with its sizes */}
           {LAYERS.filter(
             (l) =>
@@ -280,6 +261,42 @@ export default function MapControls({
               </select>
             </label>
           )}
+          {/* where gps or wifi were good or bad, one of them at a time */}
+          {coverage && (
+            <div className={styles.layersCover}>
+              <span>
+                {tr('Coverage')}
+                <small>{tr('How good GPS or Wi-Fi were where the mower drove')}</small>
+              </span>
+              <div className={styles.layersSeg} role="radiogroup" aria-label={tr('Coverage')}>
+                {COVER_CHOICES.map((c) => (
+                  <button
+                    key={c}
+                    role="radio"
+                    aria-checked={coverage.value === c}
+                    disabled={c === 'wifi' && !coverage.wifi}
+                    title={tr(COVER_TITLES[c])}
+                    onClick={() => coverage.onChange(c)}
+                  >
+                    {c === 'gps' ? 'GPS' : tr(c === 'wifi' ? 'Wi-Fi' : 'Off')}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          <button
+            className={styles.layersMore}
+            onClick={() => {
+              onLayersOpen(false);
+              setLookOpen(true);
+            }}
+          >
+            <span>
+              {tr('Map settings')}
+              <small>{tr(decorate ? 'Colors, icons, aerial imagery, pictures' : 'Colors, icons, aerial imagery')}</small>
+            </span>
+            <ChevronIcon size={18} />
+          </button>
         </div>
       )}
       {source && !align?.shift && (

@@ -58,6 +58,8 @@ test('a point dragged moves the area, undo takes it back', async ({page, isMobil
 
 test('decorating from the map settings: a picture set, moved and taken back', async ({page, isMobile}) => {
   await openMap(page);
+  // in the layers of the map
+  await page.getByRole('button', {name: 'Layers'}).first().click();
   await page.getByRole('button', {name: 'map settings'}).click();
   const garden = page.getByRole('button', {name: 'Garden', exact: true});
   await garden.click();

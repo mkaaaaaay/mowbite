@@ -1,23 +1,20 @@
-import {CheckIcon, PencilIcon, RedoIcon, RouteIcon, UndoIcon} from '@/components/icons';
+import {CheckIcon, RedoIcon, UndoIcon} from '@/components/icons';
 import {tr} from '@/lib/i18n';
-import Link from 'next/link';
 import styles from './page.module.css';
 
-// new area (only while nothing else is going on), undo, redo and save
+// undo, redo and save in a bar at the bottom while there's something to take back or to save, it stays in view while
+// the page scrolls. new areas are made from the list of the areas
 export default function EditorToolbar({
-  idle,
   canUndo,
   canRedo,
   unsaved,
   saving,
   saveLabel,
   saveError,
-  onDraw,
   onUndo,
   onRedo,
   onSave,
 }: {
-  idle: boolean;
   canUndo: boolean;
   canRedo: boolean;
   // changed from the mower's map
@@ -25,53 +22,27 @@ export default function EditorToolbar({
   saving: boolean;
   saveLabel: string;
   saveError: string | null;
-  onDraw: () => void;
   onUndo: () => void;
   onRedo: () => void;
   onSave: () => void;
 }) {
-  const tool = [styles.pillButton, styles.tool].join(' ');
   return (
-    <div className={styles.toolbar}>
-      {idle && (
-        <>
-          <span className={styles.toolLabel}>{tr('New area')}</span>
-          <button className={tool} onClick={onDraw}>
-            <PencilIcon size={16} />
-            {tr('Draw')}
-          </button>
-          {/* recording adds the area on the mower, unsaved edits here would overwrite it */}
-          {unsaved ? (
-            <span className={[tool, styles.disabledLink].join(' ')} title={tr('Save or undo your changes first')}>
-              <RouteIcon size={16} />
-              {tr('Record')}
-            </span>
-          ) : (
-            <Link href="/record" className={tool}>
-              <RouteIcon size={16} />
-              {tr('Record')}
-            </Link>
-          )}
-          <span className={styles.toolLabel}>{tr('Changes')}</span>
-        </>
+    <div className={styles.changesBar}>
+      <button className={styles.barIcon} onClick={onUndo} disabled={!canUndo} aria-label={tr('Undo')} title={tr('Undo')}>
+        <UndoIcon size={20} />
+      </button>
+      <button className={styles.barIcon} onClick={onRedo} disabled={!canRedo} aria-label={tr('Redo')} title={tr('Redo')}>
+        <RedoIcon size={20} />
+      </button>
+      {unsaved || saving ? (
+        <button className={[styles.pillButton, styles.saveButton, styles.unsaved].join(' ')} onClick={onSave} disabled={saving}>
+          <CheckIcon size={18} />
+          {saveLabel}
+        </button>
+      ) : (
+        <span className={styles.barNote}>{tr('Everything saved')}</span>
       )}
-      <button className={tool} onClick={onUndo} disabled={!canUndo}>
-        <UndoIcon size={16} />
-        {tr('Undo')}
-      </button>
-      <button className={tool} onClick={onRedo} disabled={!canRedo}>
-        <RedoIcon size={16} />
-        {tr('Redo')}
-      </button>
-      <button
-        className={[tool, styles.toolWide, styles.saveButton, unsaved ? styles.unsaved : ''].join(' ')}
-        onClick={onSave}
-        disabled={saving || !unsaved}
-      >
-        <CheckIcon size={16} />
-        {saveLabel}
-      </button>
-      {saveError && <span className={[styles.error, styles.toolWide].join(' ')}>{saveError}</span>}
+      {saveError && <span className={[styles.error, styles.barError].join(' ')}>{saveError}</span>}
     </div>
   );
 }

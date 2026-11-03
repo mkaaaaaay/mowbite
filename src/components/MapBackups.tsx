@@ -59,9 +59,15 @@ export default function MapBackups({
   return (
     <details className={styles.box}>
       <summary>
-        {tr('Backups')}
-        {backups && backups.length > 0 && <span className={styles.count}>{backups.length}</span>}
+        <span className={styles.title}>
+          <span>
+            {tr('Backups')}
+            {backups && backups.length > 0 && <span className={styles.count}>{backups.length}</span>}
+          </span>
+          <small>{tr('Back the map up, bring an older one back, save it as a file')}</small>
+        </span>
       </summary>
+      <div className={styles.body}>
 
       {backups ? (
         <>
@@ -166,6 +172,7 @@ export default function MapBackups({
       )}
       {loaded && loaded.map === geo?.base && !error && <p className={styles.dim}>{loaded.note}</p>}
       {error && <p className={styles.error}>{error}</p>}
+      </div>
     </details>
   );
 }

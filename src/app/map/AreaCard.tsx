@@ -1,6 +1,6 @@
 import {areaLook, facing, LookPicker, LookSwatch, placeThing, type Look} from '@/components/gardenLook';
 import {PICTURES} from '@/components/gardenPictures';
-import {MagnetIcon, MergeIcon, ScissorsIcon, SimplifyIcon, SubtractIcon, TrashIcon} from '@/components/icons';
+import {BackIcon, MagnetIcon, MergeIcon, ScissorsIcon, SimplifyIcon, SubtractIcon, TrashIcon} from '@/components/icons';
 import InfoTip from '@/components/InfoTip';
 import {polygonArea} from '@/lib/geometry';
 import {fmt, tr} from '@/lib/i18n';
@@ -12,39 +12,23 @@ import {AREA_TYPES, type Area, type UpdateArea} from './editing';
 import PictureRows, {keepLook} from './PictureRows';
 import styles from './page.module.css';
 
-// name, type and active switch of the selected area, and what can be done with it. areas: the map's as edited
+// name, type and active switch of the selected area, the way back to all of them. areas: the map's as edited
 export default function AreaCard({
   area,
   areas,
-  showTools,
-  confirmDelete,
   remember,
   update,
-  onSplit,
-  onMerge,
-  onSubtract,
-  onSnap,
-  onSimplify,
-  onDelete,
-  onDeleteBlur,
+  onBack,
 }: {
   area: Area;
   areas: Area[];
-  showTools: boolean;
-  confirmDelete: boolean;
   remember: () => void;
   update: UpdateArea;
-  onSplit: () => void;
-  onMerge: () => void;
-  onSubtract: () => void;
-  onSnap: () => void;
-  onSimplify: () => void;
-  onDelete: () => void;
-  onDeleteBlur: () => void;
+  // back to the list of all areas, the area let go
+  onBack: () => void;
 }) {
   const type = area.properties.type ?? 'draft';
   const supported = useAreaProperties();
-  const tool = [styles.pillButton, styles.tool].join(' ');
   // how far the body keeps off it, with a planner that checks the mower's body (obstacle_margin): for an obstacle, an
   // area not mowed or an inactive one. The mower keeps it as a property of the area it doesn't know (not in
   // map.area_properties), the planner takes it once the map is saved
@@ -96,6 +80,10 @@ export default function AreaCard({
   };
   return (
     <div className={styles.areaEditor}>
+      <button className={styles.backButton} onClick={onBack}>
+        <BackIcon size={18} />
+        {tr('All areas')}
+      </button>
       <div className={styles.areaHead}>
         <input
           className={styles.nameInput}
@@ -216,53 +204,77 @@ export default function AreaCard({
           onClose={() => setPicking(false)}
         />
       )}
-      {showTools && (
-        <div className={styles.toolbar}>
-          <span className={styles.toolLabel}>
-            {tr('Edit')}
-            <InfoTip>
-              <b>{tr('Split area')}:</b>{' '}
-              {tr('Cuts the area in two along a line, or cuts a shape out of it. All parts keep type and settings.')}
-              <br />
-              <b>{tr('Merge')}:</b>{' '}
-              {tr('Joins this area with another one you tap. They need to overlap or touch.')}
-              <br />
-              <b>{tr('Take out')}:</b>{' '}
-              {tr('Cuts another area you tap out of this one, e.g. a path lying over the lawn. The other one stays as it is.')}
-              <br />
-              <b>{tr('Lay against')}:</b>{' '}
-              {tr('Moves the corners of this area that lie close to another one you tap onto its edge, so the two meet without a gap. A mowing area stays as it is, unless both are.')}
-              <br />
-              <b>{tr('Reduce points')}:</b>{' '}
-              {tr('Recorded outlines have a point every few cm. This removes the ones that barely change the shape, the slider sets how far the outline may move.')}
-            </InfoTip>
-          </span>
-          <button className={tool} onClick={onSplit}>
-            <ScissorsIcon size={16} />
-            {tr('Split area')}
-          </button>
-          <button className={tool} onClick={onMerge}>
-            <MergeIcon size={16} />
-            {tr('Merge')}
-          </button>
-          <button className={tool} onClick={onSubtract}>
-            <SubtractIcon size={16} />
-            {tr('Take out')}
-          </button>
-          <button className={tool} onClick={onSnap}>
-            <MagnetIcon size={16} />
-            {tr('Lay against')}
-          </button>
-          <button className={tool} onClick={onSimplify}>
-            <SimplifyIcon size={16} />
-            {tr('Reduce points')}
-          </button>
-          <button className={[tool, styles.danger].join(' ')} onClick={onDelete} onBlur={onDeleteBlur}>
-            <TrashIcon size={16} />
-            {confirmDelete ? tr('Really delete?') : tr('Delete area')}
-          </button>
-        </div>
-      )}
     </div>
+  );
+}
+
+// what can be done with the shape of the selected area, deleting it last
+export function AreaTools({
+  confirmDelete,
+  onSplit,
+  onMerge,
+  onSubtract,
+  onSnap,
+  onSimplify,
+  onDelete,
+  onDeleteBlur,
+}: {
+  confirmDelete: boolean;
+  onSplit: () => void;
+  onMerge: () => void;
+  onSubtract: () => void;
+  onSnap: () => void;
+  onSimplify: () => void;
+  onDelete: () => void;
+  onDeleteBlur: () => void;
+}) {
+  const tool = [styles.pillButton, styles.tool].join(' ');
+  return (
+    <section className={styles.areaTools}>
+      <h2>
+        {tr('Change the shape')}
+        <InfoTip>
+          <b>{tr('Split area')}:</b>{' '}
+          {tr('Cuts the area in two along a line, or cuts a shape out of it. All parts keep type and settings.')}
+          <br />
+          <b>{tr('Merge')}:</b> {tr('Joins this area with another one you tap. They need to overlap or touch.')}
+          <br />
+          <b>{tr('Take out')}:</b>{' '}
+          {tr('Cuts another area you tap out of this one, e.g. a path lying over the lawn. The other one stays as it is.')}
+          <br />
+          <b>{tr('Lay against')}:</b>{' '}
+          {tr('Moves the corners of this area that lie close to another one you tap onto its edge, so the two meet without a gap. A mowing area stays as it is, unless both are.')}
+          <br />
+          <b>{tr('Reduce points')}:</b>{' '}
+          {tr('Recorded outlines have a point every few cm. This removes the ones that barely change the shape, the slider sets how far the outline may move.')}
+        </InfoTip>
+      </h2>
+      <div className={styles.toolbar}>
+        <button className={tool} onClick={onSplit}>
+          <ScissorsIcon size={16} />
+          {tr('Split area')}
+        </button>
+        <button className={tool} onClick={onMerge}>
+          <MergeIcon size={16} />
+          {tr('Merge')}
+        </button>
+        <button className={tool} onClick={onSubtract}>
+          <SubtractIcon size={16} />
+          {tr('Take out')}
+        </button>
+        <button className={tool} onClick={onSnap}>
+          <MagnetIcon size={16} />
+          {tr('Lay against')}
+        </button>
+        <button className={[tool, styles.toolWide].join(' ')} onClick={onSimplify}>
+          <SimplifyIcon size={16} />
+          {tr('Reduce points')}
+        </button>
+        <button className={[tool, styles.toolWide, styles.danger].join(' ')} onClick={onDelete} onBlur={onDeleteBlur}>
+          <TrashIcon size={16} />
+          {confirmDelete ? tr('Really delete?') : tr('Delete area')}
+        </button>
+      </div>
+    </section>
   );
 }

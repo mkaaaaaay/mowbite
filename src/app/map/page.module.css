@@ -76,24 +76,311 @@
   color: var(--foreground);
 }
 
-/* the editor's buttons: two even columns, a small heading over each pair */
+/* the tool buttons: two even columns */
 .toolbar {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
-  margin-top: 12px;
 }
 
-.toolLabel {
-  grid-column: 1 / -1;
-  margin: 4px 0 -2px 4px;
-  font-size: 12px;
+/* the cards under the map, like the ones of the settings: a title, a line what it is, then what's in it */
+.areasCard,
+.areaTools {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 14px 16px 16px;
+  border-radius: 14px;
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  box-shadow: var(--card-shadow, none);
+  backdrop-filter: var(--card-blur, none);
+}
+
+.cardHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.cardHead h2,
+.areaTools h2 {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.cardHead .guideLink {
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: right;
+  text-decoration: none;
+}
+
+.areasCard > .dim {
+  margin-top: -4px;
+}
+
+/* a row per area: a tap on it picks it, the mowing ones with their number like on the map and arrows for the order */
+.areaRows {
+  display: flex;
+  flex-direction: column;
+  margin: 0 -8px;
+  padding: 0;
+  list-style: none;
+}
+
+.areaRows li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.areaRows li + li {
+  border-top: 1px solid color-mix(in srgb, var(--foreground) 8%, transparent);
+}
+
+.areaPick {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  min-height: 52px;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 10px;
+  background: none;
+  color: var(--foreground);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.areaPick:hover {
+  background: var(--well);
+}
+
+.areaPick > svg {
+  flex: none;
   color: var(--text-secondary);
 }
 
-.toolLabel {
+.areaText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.areaText strong {
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.areaText small {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+/* earlier or later in the order */
+.orderMove {
+  display: flex;
+  flex: none;
+  gap: 4px;
+  padding-right: 8px;
+}
+
+.orderMove button {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 16px;
+  cursor: pointer;
+  box-shadow: var(--btn-3d);
+}
+
+.orderMove button:disabled {
+  opacity: 0.35;
+  cursor: default;
+  box-shadow: none;
+}
+
+/* paths, obstacles and the rest, folded under the mowing areas */
+.otherAreas > summary {
   display: flex;
   align-items: center;
+  gap: 8px;
+  min-height: var(--tap);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+
+.otherAreas > summary::-webkit-details-marker {
+  display: none;
+}
+
+.otherAreas > summary::after {
+  content: '▾';
+  margin-left: auto;
+  color: var(--text-secondary);
+  transition: transform 0.2s ease;
+}
+
+.otherAreas[open] > summary::after {
+  transform: rotate(180deg);
+}
+
+.count {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--well);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* the color of its kind, like on the map */
+.typeDot {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin: 0 4px;
+  border-radius: 4px;
+  background: var(--text-secondary);
+}
+
+.dot-nav {
+  background: var(--c-nav, #5b9df0);
+}
+
+.dot-obstacle {
+  background: var(--c-obstacle, #e57373);
+}
+
+.dot-decor {
+  background: var(--c-decor, #c39bd3);
+}
+
+.dot-draft {
+  background: transparent;
+  border: 1.5px dashed var(--text-secondary);
+}
+
+/* drawn on the map or driven round with the mower */
+.newArea {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid color-mix(in srgb, var(--foreground) 8%, transparent);
+}
+
+.newArea > span {
+  grid-column: 1 / -1;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+/* back from an area to all of them */
+.backButton {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: 2px;
+  min-height: 36px;
+  margin: -6px 0 -2px -8px;
+  padding: 0 10px 0 4px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* undo, redo and save: a bar at the bottom while there's something to do. on a phone above the tab bar */
+.changesBar {
+  position: sticky;
+  bottom: 12px;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 8px;
+  border-radius: 16px;
+  border: 1px solid var(--card-border);
+  background: var(--nav-bg);
+  backdrop-filter: var(--card-blur, blur(18px));
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+}
+
+@media (max-width: 899px) {
+  .changesBar {
+    bottom: calc(72px + env(safe-area-inset-bottom));
+  }
+}
+
+.barIcon {
+  display: grid;
+  place-items: center;
+  width: var(--tap);
+  height: var(--tap);
+  border-radius: 12px;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  color: var(--foreground);
+  cursor: pointer;
+  box-shadow: var(--btn-3d);
+}
+
+.barIcon:disabled {
+  opacity: 0.35;
+  cursor: default;
+  box-shadow: none;
+}
+
+.changesBar .saveButton {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: var(--tap);
+  border-radius: 12px;
+  font-size: 15px;
+}
+
+.barNote {
+  flex: 1;
+  padding: 0 6px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  text-align: right;
+}
+
+.barError {
+  flex: 1 1 100%;
+  padding: 0 6px;
+  font-size: 13px;
 }
 
 /* the picture a way or an obstacle is drawn as in the garden map style, a tap opens all of them */
@@ -208,8 +495,8 @@
   flex-direction: column;
   gap: 10px;
   margin-top: 12px;
-  padding: 12px 14px;
-  border-radius: 12px;
+  padding: 14px 16px 16px;
+  border-radius: 14px;
   background: var(--card);
   border: 1px solid var(--card-border);
   box-shadow: var(--card-shadow, none);
@@ -229,16 +516,6 @@
   justify-content: space-between;
   gap: 4px 12px;
   font-size: 13px;
-}
-
-.areaEditor .toolbar {
-  margin-top: 0;
-}
-
-.cardTitle {
-  grid-column: 1 / -1;
-  font-size: 13px;
-  font-weight: 600;
 }
 
 .allAreas {
@@ -489,47 +766,15 @@
   color: var(--error, #ff5252);
 }
 
-.orderBox {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 8px;
-  padding: 12px 14px;
-  border-radius: 12px;
-  background: var(--card);
-  border: 1px solid var(--card-border);
-  box-shadow: var(--card-shadow, none);
-  backdrop-filter: var(--card-blur, none);
-}
-
-.orderTitle {
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.orderRow {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.orderRow a {
-  flex: 1;
-  cursor: pointer;
-}
-
-.orderRow .pillButton {
-  padding: 4px 10px;
-}
-
 .orderNum {
-  width: 22px;
-  height: 22px;
+  flex: none;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   /* like the numbers on the map: the mowing colour, cream in the garden style */
   background: var(--c-mow);
@@ -711,10 +956,10 @@
   color: var(--soft-warn);
 }
 
-/* the mowing and planner settings of the selected area, folding away */
+/* the mowing and planner settings, folding away like the groups of the settings */
 .fold {
   margin-top: 12px;
-  border-radius: 12px;
+  border-radius: 14px;
   background: var(--card);
   border: 1px solid var(--card-border);
   box-shadow: var(--card-shadow, none);
@@ -725,12 +970,28 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 11px 14px;
-  font-size: 13px;
+  gap: 10px;
+  min-height: 56px;
+  padding: 10px 16px;
+  font-size: 15px;
   font-weight: 600;
   cursor: pointer;
   list-style: none;
   user-select: none;
+}
+
+/* the title and in a line under it what's inside */
+.foldTitle {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.foldTitle small {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 400;
 }
 
 .fold > summary::-webkit-details-marker {
@@ -761,16 +1022,7 @@
   padding: 0 14px 12px;
 }
 
-/* phones: right under the map, the map stays in view while one is open */
 @media (max-width: 899px) {
-  .fold {
-    order: -1;
-  }
-
-  .fold + .fold {
-    margin-top: 6px;
-  }
-
   /* the map stays at the top while the settings under it scroll, unless it's unpinned */
   .pinned .mapCol {
     position: sticky;

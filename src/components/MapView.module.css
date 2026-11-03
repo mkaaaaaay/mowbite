@@ -372,21 +372,64 @@
   right: 10px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 
 .zoomButtons button {
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: var(--radius-m);
   border: 1px solid var(--card-border);
   /* no blur over the map, it would be worked out again with every frame the map moves */
-  background: color-mix(in srgb, var(--background) 82%, transparent);
+  background: color-mix(in srgb, var(--background) 88%, transparent);
   color: var(--foreground);
-  font-size: 18px;
   line-height: 1;
   cursor: pointer;
-  box-shadow: var(--card-shadow, none);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+/* a finger's room around each, they don't overlap in the gap */
+.zoomButtons button::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+}
+
+/* plus and minus in one piece */
+.zoomPair {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-m);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+.zoomPair button {
+  box-shadow: none;
+}
+
+.zoomPair button:first-child {
+  border-bottom-color: color-mix(in srgb, var(--foreground) 12%, transparent);
+  border-radius: var(--radius-m) var(--radius-m) 0 0;
+}
+
+.zoomPair button:last-child {
+  border-top: none;
+  border-radius: 0 0 var(--radius-m) var(--radius-m);
+}
+
+.zoomPair button::after {
+  inset: 0 -3px;
+}
+
+/* the layers open */
+.zoomButtons button.toolOpen {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-foreground);
 }
 
 .mowerUnder {
@@ -590,8 +633,9 @@
   pointer-events: none;
 }
 
+/* switched off: still readable, only paler */
 .zoomButtons button.off {
-  opacity: 0.45;
+  color: color-mix(in srgb, var(--foreground) 55%, transparent);
 }
 
 /* only a phone has the settings under the map */
@@ -603,52 +647,176 @@
 
 .zoomButtons button svg {
   display: block;
-  margin: auto;
 }
 
-/* some layers switched off */
-.zoomButtons button.partly {
-  border-color: var(--accent);
+/* some layers switched off: a dot on the button */
+.zoomButtons button.partly::before {
+  content: '';
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
 }
 
+.zoomButtons button.toolOpen.partly::before {
+  background: var(--accent-foreground);
+}
+
+/* what the map shows, next to its button. no blur over the map */
 .layers {
   position: absolute;
   top: 10px;
-  right: 54px;
+  right: 58px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 10px 12px;
-  border-radius: 12px;
+  width: 260px;
+  padding: 4px 6px 6px 12px;
+  border-radius: var(--radius-l);
   border: 1px solid var(--card-border);
-  background: rgba(20, 20, 22, 0.92);
-  font-size: 13px;
+  background: var(--bubble);
+  color: var(--foreground);
+  font-size: var(--text-m);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
   z-index: 2;
   /* on a small map it scrolls instead of being cut off, and stays inside it */
   max-height: calc(100% - 20px);
-  max-width: calc(100% - 64px);
+  max-width: calc(100% - 68px);
   overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.layersHead {
+  position: sticky;
+  top: -4px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: -4px -6px 0 -12px;
+  padding: 4px 4px 0 12px;
+  background: var(--bubble);
+  font-size: var(--text-l);
+}
+
+.layersHead button {
+  display: grid;
+  place-items: center;
+  width: var(--tap);
+  height: var(--tap);
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  cursor: pointer;
 }
 
 .layers label {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  min-height: 40px;
   cursor: pointer;
 }
 
 .layers input {
+  flex: none;
+  width: 18px;
+  height: 18px;
   accent-color: var(--accent);
 }
 
 .layers select {
   margin-left: auto;
-  padding: 2px 4px;
-  border-radius: 6px;
-  border: 1px solid var(--card-border);
+  min-height: 34px;
+  padding: 2px 6px;
+  border-radius: var(--radius-s);
+  border: 1px solid var(--field-border);
   background: transparent;
   color: inherit;
   font: inherit;
+}
+
+.layers select option {
+  background: var(--bubble);
+}
+
+/* off, wifi or gps, with a line what it is */
+.layersCover {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 10px 6px 4px 0;
+  border-top: 1px solid var(--card-border);
+}
+
+.layersCover > span,
+.layersMore > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.layersCover small,
+.layersMore small {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+
+.layersSeg {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-pill);
+  background: var(--well);
+}
+
+.layersSeg button {
+  min-height: 36px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-s);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.layersSeg button[aria-checked='true'] {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
+.layersSeg button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* colors, icons and the rest of how the map looks, over the page */
+.layersMore {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 52px;
+  margin-top: 6px;
+  padding: 6px 6px 6px 0;
+  border: none;
+  border-top: 1px solid var(--card-border);
+  background: none;
+  color: var(--foreground);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.layersMore svg {
+  flex: none;
+  color: var(--text-secondary);
 }
 
 .loupe {
@@ -1303,102 +1471,63 @@
   }
 }
 
-/* gps or wifi coverage: a quiet three way switch at the top of the map, the legend under it while it's on.
-   Centred on the map left of the buttons along the right edge */
+/* gps or wifi coverage while it's on: what it is, its legend and a way to switch it off, at the top left of the map
+   next to the buttons along the right edge. Picked in the layers */
 .coverSwitchWrap {
   position: absolute;
   top: 10px;
-  left: calc(50% - 28px);
-  transform: translateX(-50%);
+  left: 10px;
+  right: 60px;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 3px;
+  align-items: flex-start;
+  gap: 4px;
   z-index: 1;
 }
 
-.coverSwitch {
-  position: relative;
+.coverChip {
   display: grid;
-  grid-template-columns: repeat(3, 40px);
-  padding: 2px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--card-border) 70%, transparent);
-  /* no blur over the map, as solid as the buttons: its words stay readable on the dark map in a light theme too */
-  background: color-mix(in srgb, var(--background) 82%, transparent);
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 0 4px;
+  max-width: 100%;
+  padding: 4px 2px 6px 10px;
+  border-radius: var(--radius-m);
+  border: 1px solid var(--card-border);
+  /* as solid as the buttons: readable on the dark map in a light theme too */
+  background: color-mix(in srgb, var(--background) 88%, transparent);
+  color: var(--foreground);
+  font-size: var(--text-s);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
 }
 
-.coverSwitch button {
-  position: relative;
-  z-index: 1;
-  height: 22px;
-  padding: 0;
+.coverChip button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
   border: none;
   background: none;
   color: var(--text-secondary);
-  font: inherit;
-  font-size: 11px;
-  font-weight: 500;
   cursor: pointer;
 }
 
-/* a little more room for the finger than it shows */
-.coverSwitch button::after {
-  content: '';
-  position: absolute;
-  inset: -6px -1px;
-}
-
-.coverSwitch button.coverOn {
-  color: var(--foreground);
-}
-
-.coverSwitch button:disabled {
-  opacity: 0.35;
-  cursor: default;
-}
-
-/* under the choice taken, it slides */
-.coverKnob {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 40px;
-  height: 22px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
-  background: color-mix(in srgb, var(--accent) 22%, transparent);
-  transition: transform 0.18s ease;
-}
-
-.coverKnobOff {
-  border-color: transparent;
-  background: rgba(128, 128, 128, 0.16);
-}
-
-.coverSwitchWrap .coverLegend {
-  padding: 2px 9px 2px 4px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--background) 82%, transparent);
-  font-size: 11px;
+.coverChip .coverLegend {
+  grid-column: 1 / -1;
+  flex-wrap: wrap;
+  font-size: var(--text-xs);
   color: var(--text-secondary);
+  white-space: normal;
 }
 
-.coverSwitchWrap .coverLegend i {
+.coverChip .coverLegend i {
   width: 9px;
   height: 9px;
-  margin-left: 5px;
+  margin-left: 6px;
 }
 
-/* small phones: the gps legend in German would reach past the map's left edge */
-@media (max-width: 380px) {
-  .coverSwitchWrap .coverLegend {
-    font-size: 10px;
-  }
-
-  .coverSwitchWrap .coverLegend i {
-    margin-left: 4px;
-  }
+.coverChip .coverLegend i:first-child {
+  margin-left: 0;
 }
 
 /* under the legend on the editor's map: editing waits while the coverage is shown */
@@ -1406,7 +1535,6 @@
   padding: 3px 10px;
   border-radius: 999px;
   background: rgba(20, 20, 22, 0.85);
-  color: rgba(255, 255, 255, 0.75);
-  font-size: 11px;
-  white-space: nowrap;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: var(--text-xs);
 }

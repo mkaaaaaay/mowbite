@@ -28,6 +28,17 @@
   --well: rgba(30, 36, 70, 0.05);
   --nav-bg: rgba(255, 255, 255, 0.7);
   --content-max-width: 500px;
+  /* the scale things are laid out on: corners, type, a finger's target, motion. the same in every theme */
+  --radius-s: 8px;
+  --radius-m: 12px;
+  --radius-l: 18px;
+  --radius-pill: 999px;
+  --text-xs: 12px;
+  --text-s: 13px;
+  --text-m: 14px;
+  --text-l: 16px;
+  --tap: 44px;
+  --dur-fast: 0.12s;
 }
 
 @media (min-width: 900px) {
