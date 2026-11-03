@@ -1084,7 +1084,12 @@ function Simulate() {
       extra={() => (done ? <SimPlayer clock={clock} onClose={noop} /> : null)}
       under={
         <details className={mapPage.fold} open>
-          <summary>{tr('This area')}</summary>
+          <summary>
+            <span className={mapPage.foldTitle}>
+              {tr('Mowing settings')}
+              <small>{tr('Direction, plan and more for this area')}</small>
+            </span>
+          </summary>
           <div className={mapPage.foldBody}>
             <SimulationView
               model="realistic"
@@ -1117,7 +1122,7 @@ function Simulate() {
   );
 }
 
-// 12: the map's style: the gear on the map, then Garden, the lawn in stripes, ways and obstacles as pictures. what can
+// 12: the map's style: the layers on the map, then Garden, the lawn in stripes, ways and obstacles as pictures. what can
 // come alive in the garden is switched on under it, each on its own
 function StyleSettings({garden}: {garden: boolean}) {
   return (
@@ -1159,8 +1164,8 @@ function Style() {
       hand={{
         moves: [
           [0, 'off'],
-          [0.12, {aria: tr('Map settings')}],
-          [0.2, {aria: tr('Map settings')}],
+          [0.12, {aria: tr('Layers')}],
+          [0.2, {aria: tr('Layers')}],
           [0.38, {button: tr('Garden')}],
           [0.8, {button: tr('Garden')}],
         ],

@@ -881,7 +881,7 @@ function MapEditor() {
     setDecorBusy(false);
     setSelectedAreaId(null);
     setRemoved(null);
-    setDecorNote(tr("Kept in the app. Later: the map's gear, Decorate, then Finish."));
+    setDecorNote(tr("Kept in the app. Later: the map's layers, Map settings, Decorate, then Finish."));
   };
   // a round left for after mowing whose changes are gone meanwhile (dropped, a backup restored): over, the pictures of its
   // pins no longer on the map as they were
