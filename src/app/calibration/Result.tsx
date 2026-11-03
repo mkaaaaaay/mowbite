@@ -3,7 +3,8 @@
 import {CheckIcon, HomeIcon, UndoIcon} from '@/components/icons';
 import {calibLines, calibText, changeOf, preselected, readLast, readPaths, readState, type CalibPath, type CalibResult, type CalibValue} from '@/lib/calibration';
 import {copyText} from '@/lib/clipboard';
-import {fmt, tr} from '@/lib/i18n';
+import {clock} from '@/lib/dates';
+import {fmt, locale, tr} from '@/lib/i18n';
 import Link from 'next/link';
 import {useState} from 'react';
 import styles from './page.module.css';
@@ -212,7 +213,7 @@ function stateLine(
   docked: boolean,
 ): {what: string; chip: string; text: string; tone: 'fair' | 'good' | 'poor'} | null {
   const fresh = state && (asked === null || state.at >= asked - 5) ? state : null;
-  const time = fresh ? new Date(fresh.at * 1000).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}) : '';
+  const time = fresh ? clock(fresh.at) : '';
   if (!fresh)
     return asked !== null
       ? {
@@ -284,11 +285,13 @@ export function Sent({
                   ? asked.length === 1
                     ? tr('1 value applied')
                     : tr('{n} values applied', {n: asked.length})
-                  : line?.tone === 'poor'
-                    ? tr('Not applied')
-                    : asked.length === 1
-                      ? tr('Applying 1 value')
-                      : tr('Applying {n} values', {n: asked.length})}
+                  : line?.what === 'back'
+                    ? tr('Values set back')
+                    : line?.tone === 'poor'
+                      ? tr('Not applied')
+                      : asked.length === 1
+                        ? tr('Applying 1 value')
+                        : tr('Applying {n} values', {n: asked.length})}
               </h2>
               {written && <p className={styles.dim}>{tr('in mower_params.yaml, the old ones are kept')}</p>}
             </div>
@@ -312,7 +315,7 @@ export function Sent({
           )}
         </section>
       )}
-      {moved !== null && (
+      {moved !== null && line?.what !== 'back' && (
         <section className={[styles.card, styles.warnCard].join(' ')}>
           <b>
             <HomeIcon size={18} /> {tr('Record the docking station again')}
@@ -375,7 +378,7 @@ export function LastCalibration({
   const line = asked !== null ? stateLine(state, asked, docked) : null;
   // set back since: the values before apply again (the copy stays, setting back again changes nothing)
   const reverted = !!last && state?.what === 'back' && state.at >= last.at;
-  const when = (t: number) => new Date(t * 1000).toLocaleString([], {day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'});
+  const when = (t: number) => new Date(t * 1000).toLocaleString(locale(), {day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'});
   return (
     <section className={styles.card}>
       <h2>{tr('Last calibration')}</h2>

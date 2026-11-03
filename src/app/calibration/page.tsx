@@ -19,16 +19,18 @@ import {
   lackDone,
   lacks,
   readPaths,
+  readState,
   takeCalib,
   type CalibCheck,
   type CalibMode,
   type CalibResult,
   type CalibValue,
 } from '@/lib/calibration';
+import {clock} from '@/lib/dates';
 import {fmt, tr, useLang} from '@/lib/i18n';
 import {ACTION, PARAM, RPC} from '@/lib/openmower';
 import {rpcMethods} from '@/lib/rpc';
-import {gpsQuality} from '@/lib/status';
+import {gpsQuality, isDocked} from '@/lib/status';
 import Link from 'next/link';
 import {useEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {createPortal} from 'react-dom';
@@ -44,9 +46,12 @@ const LOW_BATTERY = 0.3;
 const nowMs = () => Date.now();
 
 // the updater's status, again every few seconds while the page is open (more often while it's asked something)
-function useUpdater(fast: boolean) {
+function useUpdater(asked: number | null) {
   const [status, setStatus] = useState<Record<string, string> | null>(null);
   const [tick, setTick] = useState(0);
+  // more often while a request of this page has no answer yet (waiting counts as none)
+  const answer = readState(status?.calib);
+  const fast = asked !== null && !(answer && answer.at >= asked - 5 && answer.what !== 'waiting');
   useEffect(() => {
     let stop = false;
     const t = setTimeout(
@@ -177,9 +182,7 @@ function Ready({mode, status, onGo, onClose}: {mode: CalibMode; status: Record<s
             {tr("It records from now on and ends by itself after the next mow, after 2 hours at the latest: start a mow soon. The blade runs as always, nothing else changes.")}
           </p>
         )}
-        {bad ? (
-          <p className={styles.dim}>{gpsQ !== 'fix' ? tr('Once the mower has an RTK fix, this turns green by itself.') : ''}</p>
-        ) : missing.length === 1 ? (
+        {bad ? null : missing.length === 1 ? (
           <p className={styles.dim}>{tr('Tick “{what}” too, then it starts.', {what: missing[0] as string})}</p>
         ) : missing.length === 2 ? (
           <p className={styles.dim}>{tr('Tick both points above, then it starts.')}</p>
@@ -225,12 +228,12 @@ export default function CalibrationPage() {
   const [sent, setSent] = useState<{at: number; values: CalibValue[]; byHand: CalibValue[]} | null>(null);
   // a request of this page to the updater (taking values, setting back): when, to tell its answer from older ones
   const [asked, setAsked] = useState<number | null>(null);
-  const {status, again} = useUpdater(asked !== null);
+  const {status, again} = useUpdater(asked);
   const paths = readPaths(status?.calib_paths);
 
   const recordingMode = state?.current_state === 'AREA_RECORDING';
   // where the updater writes: idle on the station
-  const docked = state?.current_state === 'IDLE' && !!state?.is_charging;
+  const docked = isDocked(state, useSensorValue('om_v_charge', (v) => v));
   // a recording started or seen on this page (its start for the clock)
   const [since, setSince] = useState<number | null>(null);
   const phase = progress?.phase ?? null;
@@ -384,7 +387,7 @@ export default function CalibrationPage() {
       <>
         <section className={styles.card}>
           <span className={styles.live}>
-            {since ? tr('Measures while mowing · since {time}', {time: new Date(since).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}) : tr('Measures while mowing')}
+            {since ? tr('Measures while mowing · since {time}', {time: clock(since / 1000)}) : tr('Measures while mowing')}
           </span>
           <p className={styles.now}>{tr("It mows and measures along. You don't need to do anything.")}</p>
           <p className={styles.dim}>{tr('Ends by itself once there\'s enough, after {n} hours at the latest.', {n: 2})}</p>

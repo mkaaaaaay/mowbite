@@ -18,7 +18,7 @@ import {emergencyText} from '@/lib/events';
 import {fmt, tr} from '@/lib/i18n';
 import {onTopic} from '@/lib/mqttClient';
 import {ACTION, PARAM, TOPIC} from '@/lib/openmower';
-import {GPS_QUALITY_LABEL, gpsQuality} from '@/lib/status';
+import {GPS_QUALITY_LABEL, gpsQuality, onCharger} from '@/lib/status';
 import {sendDrive} from '@/lib/teleop';
 import {useEffect, useRef, useState} from 'react';
 import rec from '../record/page.module.css';
@@ -254,7 +254,7 @@ export default function Drive({
       ? Math.max((Math.abs(dock.x - pose.x) + 1) / (dock.x > pose.x ? FREE.right : FREE.left), (Math.abs(dock.y - pose.y) + 1) / (dock.y > pose.y ? FREE.up : FREE.down))
       : 0;
   const span = SPANS.find((s) => s >= reach) ?? SPANS[SPANS.length - 1];
-  const charging = !!state?.is_charging;
+  const charging = onCharger(state, useSensorValue('om_v_charge', (v) => v));
   const [sure, setSure] = useState(false);
   // cancel takes two taps: the first asks for a few seconds (the cross sits next to the speeds)
   const [askCancel, setAskCancel] = useState(false);
