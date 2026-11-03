@@ -1,4 +1,6 @@
 :root {
+  /* the map's ground where nothing is drawn, in every design: a grey the areas and the white lines stand out on */
+  --map-ground: #30343a;
   /* light: like frost, glass cards over soft patches of colour, only bright */
   --background: #eef0f6;
   --foreground: #16181d;

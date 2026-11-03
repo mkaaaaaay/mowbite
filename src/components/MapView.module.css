@@ -5,7 +5,7 @@
   width: 100%;
   height: auto;
   aspect-ratio: 1;
-  background: #0a0a0a;
+  background: var(--map-ground);
   border-radius: 8px;
   overflow: hidden;
   /* a layer of its own: redrawing the map while it moves doesn't redo the blur of the frosted cards around it */
@@ -358,7 +358,7 @@
 }
 
 .frameGliding {
-  background: #0a0a0a;
+  background: var(--map-ground);
 }
 
 .zoomable {
