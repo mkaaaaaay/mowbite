@@ -335,6 +335,16 @@ curl -s -o /dev/null --data-binary $'server https://ntfy.invalid\ntopic mbt-test
 expect "notify: a save without the token keeps it" "$(docker exec mbt-web sed -n 's/^token //p' /data/notify.conf)" secret-token-1
 curl -s -o /dev/null --data-binary $'topic mbt-test\ntoken -' "$N"
 expect "notify: token - drops it" "$(docker exec mbt-web grep -c '^token' /data/notify.conf)" 0
+docker exec mbt-web sh -c 'echo "push https://ntfy.invalid/upA?up=1" > /data/notify.conf'
+expect "notify: a phone that's the only line goes" \
+  "$(curl -s --data-binary 'https://ntfy.invalid/upA?up=1' "$N?push-remove") $(docker exec mbt-web cat /data/notify.conf | wc -l)" "ok 0"
+
+docker exec mbt-web sh -c 'mkdir -p /data/gpslog && echo "1793644779.0 MOWING 1.200 3.400 0.020 -60" > /data/gpslog/20261103.log'
+expect "gpslog: a cell of 0 cm is taken as 10" "$(curl -s "$W/gpslog?cells=0" | head -n1 | cut -d' ' -f1-3)" "12 34 1"
+
+t0=$(date +%s)
+docker stop mbt-web > /dev/null
+expect "it stops right away, not after docker's 10 s" "$(($(date +%s) - t0 < 5))" 1
 
 echo "$pass passed, $fail failed"
 [ "$fail" = 0 ]

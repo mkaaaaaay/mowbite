@@ -6,3 +6,7 @@ node_modules
 test-results
 playwright-report
 .updater
+android
+out
+*.md
+compose.override.yaml
