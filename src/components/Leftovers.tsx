@@ -71,8 +71,7 @@ export function LeftoversCard({
   const left = found?.areas.filter((a) => a.passes > 0) ?? [];
   const names = (areas: {id: string}[]) => areas.map((a) => name(a.id)).join(', ');
   const leftOut = found?.areas.filter((a) => a.reason === 'most_left') ?? [];
-  const whole = found?.areas.filter((a) => a.whole) ?? [];
-  const other = found?.areas.filter((a) => a.passes === 0 && a.message && !a.reason && !a.whole) ?? [];
+  const other = found?.areas.filter((a) => a.passes === 0 && a.message && !a.reason) ?? [];
   return (
     <div className={styles.leftovers}>
       {!found && (
@@ -90,13 +89,6 @@ export function LeftoversCard({
                 areas: left.map((a) => `${name(a.id)} (${fmt(a.m2, a.m2 < 1 ? 2 : 1)} m²)`).join(', '),
               })}
           {leftOut.length > 0 && <small>{tr('Left out, hardly mowed last time: {areas}. A normal start mows them.', {areas: names(leftOut)})}</small>}
-          {whole.length > 0 && (
-            <small className={styles.error}>
-              {tr('Hardly mowed last time: {areas}. This MowBite Planner mows them completely along with the leftovers, a newer one leaves them out.', {
-                areas: names(whole),
-              })}
-            </small>
-          )}
           {/* (the planner's own words why, in English) */}
           {other.length > 0 && (
             <small>{other.map((a) => tr('{area}: the planner found no passes ({why})', {area: name(a.id), why: a.message ?? ''})).join(' · ')}</small>
@@ -111,13 +103,7 @@ export function LeftoversCard({
           {state.busy ? tr('Starting…') : tr('Mow just the leftovers')}
         </button>
       )}
-      {state.started && (
-        <small>
-          {whole.length > 0
-            ? tr('Started. The mower drives those passes, {areas} it mows completely.', {areas: names(whole)})
-            : tr('Started. The mower drives only those passes and skips the other areas.')}
-        </small>
-      )}
+      {state.started && <small>{tr('Started. The mower drives only those passes and skips the other areas.')}</small>}
       {found && !state.started && (
         <button className={styles.leftoversButton} disabled={state.busy} onClick={() => setState({})}>
           {tr('Close')}

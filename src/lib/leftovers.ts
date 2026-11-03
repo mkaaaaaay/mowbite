@@ -18,8 +18,6 @@ export interface AreaLeftovers {
   message?: string;
   // most_left: hardly mowed by that mow, left out of the leftovers. nothing_left: nothing the mower gets to
   reason?: string;
-  // hardly mowed, and a planner from before reason mows it whole along with the leftovers
-  whole?: boolean;
 }
 
 export interface Leftovers {
@@ -56,7 +54,6 @@ export function readLeftovers(answer: Answer): Leftovers {
       passes: num(st?.passes) || paths,
       ...(message ? {message} : {}),
       ...(reason ? {reason} : {}),
-      ...(!reason && message?.startsWith('most of the area is left') ? {whole: true} : {}),
     };
   });
   return {
