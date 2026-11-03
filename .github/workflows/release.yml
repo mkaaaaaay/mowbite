@@ -167,8 +167,8 @@ jobs:
   # the repo secrets, so a new version installs over the old one. nothing here writes to the repo
   apk:
     needs: [check, commits, ref, image]
-    # (with the arm test skipped on dev a plain if would skip this too)
-    if: ${{ !cancelled() && needs.image.result == 'success' && (github.ref_type == 'tag' || github.ref == 'refs/heads/dev' || github.event_name == 'workflow_dispatch') }}
+    # (with the arm test skipped on dev a plain if would skip this too. by hand on main there's no app: "app-dev" isn't main's)
+    if: ${{ !cancelled() && needs.image.result == 'success' && (github.ref_type == 'tag' || github.ref == 'refs/heads/dev' || (github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main')) }}
     runs-on: ubuntu-latest
     env:
       VERSION_SUFFIX: ${{ github.ref_type != 'tag' && format('dev.{0}', github.run_number) || '' }}
