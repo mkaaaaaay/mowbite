@@ -64,10 +64,10 @@ test('calibrating by hand: driven, worked out, two values applied and set back',
   await expect(page.getByText('Distance per wheel turn')).toBeVisible();
   await expect(page.getByText(/Unchanged: the difference is smaller than the measuring accuracy/).first()).toBeVisible();
   await expect(page.getByText('The IMU sits tilted: 0.3° to the side, 4.5° forward. Just a note, OpenMower has no setting for it.')).toBeVisible();
-  // driven back onto the station meanwhile, recording mode ended there
-  // not on the station: asked once more
+  // recording mode ended away from the station: asked once more
   await page.getByRole('button', {name: 'End recording mode'}).click();
-  await page.getByRole('button', {name: "End it, it's not on the station"}).click();
+  await expect(page.getByText("It isn't on the station yet, after this the stick doesn't drive it any more.")).toBeVisible();
+  await page.getByRole('button', {name: 'End it anyway'}).click();
   // (the demo mower drives home from there by itself, OpenMower stays idle where it is)
   await expect.poll(async () => (await demoHas<{current_state: string}>(page, 'robot_state/json')).current_state).not.toBe('AREA_RECORDING');
 

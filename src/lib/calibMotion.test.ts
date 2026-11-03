@@ -22,6 +22,19 @@ describe("what the mower does while it's calibrated", () => {
     m = drive(track, 13, 6, (t) => ({...end, heading: 0.5 + 0.8 * t}));
     expect(m.doing).toBe('turn');
     expect(m.turned).toBeGreaterThan(4);
+    // a stop in the middle of a turn: what it turned stays, it goes on from there
+    const turned = m.turned;
+    const at = m.pose!;
+    m = drive(track, 19, 2, () => at);
+    expect(m.doing).toBe('still');
+    expect(m.turned).toBeCloseTo(turned, 1);
+    m = drive(track, 21, 2, (t) => ({...at, heading: at.heading + 0.8 * t}));
+    expect(m.turned).toBeGreaterThan(turned + 1.4);
+    // the next run starts it again
+    const back = m.pose!;
+    m = drive(track, 23, 4, (t) => ({x: back.x + Math.cos(back.heading) * 0.3 * t, y: back.y + Math.sin(back.heading) * 0.3 * t, heading: back.heading}));
+    expect(m.doing).toBe('straight');
+    expect(m.turned).toBe(0);
   });
 
   it('counts a wide curve as straight, a tight one not', () => {

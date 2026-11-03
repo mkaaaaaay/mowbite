@@ -13,7 +13,7 @@ export interface Motion {
   // where the straight run being driven started, how far it got (m)
   from: Pose | null;
   run: number;
-  // the turn going on, rad, + is left (counterclockwise)
+  // turned since the last run ended (like the planner counts a turn: between two runs, stops in it too), rad, + is left
   turned: number;
   // s it stood so far
   stood: number;
@@ -59,14 +59,14 @@ export function motionTracker() {
             ? 'turn'
             : 'moving';
     const step = t - prev.t;
+    // (from the first turn seen after a run: the window's turning before it counts too)
+    const sinceRun = was === 'straight' ? (doing === 'turn' ? turned : 0) : m.turned + wrap(p.heading - prev.p.heading);
     if (doing === 'straight') {
       const from = was === 'straight' && m.from ? m.from : first.p;
       m = {doing, from, run: Math.hypot(p.x - from.x, p.y - from.y), turned: 0, stood: 0, pose: p};
-    } else if (doing === 'turn') {
-      m = {doing, from: null, run: 0, turned: was === 'turn' ? m.turned + wrap(p.heading - prev.p.heading) : turned, stood: 0, pose: p};
     } else if (doing === 'still') {
-      m = {doing, from: null, run: 0, turned: 0, stood: (was === 'still' ? m.stood : 0) + step, pose: p};
-    } else m = {doing, from: null, run: 0, turned: 0, stood: 0, pose: p};
+      m = {doing, from: null, run: 0, turned: sinceRun, stood: (was === 'still' ? m.stood : 0) + step, pose: p};
+    } else m = {doing, from: null, run: 0, turned: sinceRun, stood: 0, pose: p};
     return m;
   };
 }

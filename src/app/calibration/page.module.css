@@ -107,6 +107,12 @@
   box-shadow: var(--btn-3d);
 }
 
+.main .warnButton {
+  border-color: color-mix(in srgb, var(--warning) 60%, transparent);
+  background: color-mix(in srgb, var(--warning) 22%, transparent);
+  color: var(--soft-warn);
+}
+
 .main .danger {
   border-color: color-mix(in srgb, var(--error) 50%, transparent);
   color: var(--error);
@@ -709,7 +715,7 @@
   background: color-mix(in srgb, var(--accent) 20%, transparent);
 }
 
-/* drawn on the map: the lane of a run, the ring while it stands, the arrow of a turn */
+/* drawn on the map: the lane of a run, the ring while it stands, the arrow of a turn with its ring filling up */
 .lane,
 .laneDone {
   --c: var(--accent);
@@ -763,10 +769,6 @@
   stroke-linecap: round;
 }
 
-.turnArrow circle {
-  stroke: none;
-  fill: var(--success);
-}
 
 @media (max-width: 899px) {
   .hideOnPhone {

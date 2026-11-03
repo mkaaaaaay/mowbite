@@ -71,6 +71,8 @@ interface MapViewProps {
   // without the buttons on the map, the page has its own (recording on a phone held sideways)
   bare?: boolean;
   followSpanMeters?: number;
+  // following: the mower that much of the view above the middle (a page with something over the lower part)
+  followShift?: number;
   // oldest first
   // the live trail in pieces (see useMowerTrack), finished pieces keep their identity
   track?: readonly (Point & {b?: boolean})[][];
@@ -251,6 +253,7 @@ function MapView({
   snap,
   bare = false,
   followSpanMeters = 6,
+  followShift = 0,
   track,
   pastTrack,
   beforeTrack,
@@ -486,7 +489,7 @@ function MapView({
   if (following && followed) {
     const [sx, sy] = toScreen(followed.x, followed.y);
     const size = followSpanMeters * followZoom * scale;
-    shown = {x: sx - size / 2, y: sy - size / 2, size};
+    shown = {x: sx - size / 2, y: sy - size / 2 + followShift * size, size};
   }
   // following with the geometry fitted to the map: the map is drawn once for GLIDE windows around an anchor and
   // only slid along under its frame every frame (a css transform, the phone's gpu moves it without drawing anything
@@ -499,6 +502,11 @@ function MapView({
     anchor && anchor.size === glideSize ? [anchor.x, anchor.y] : followed ? toScreen(followed.x, followed.y) : [0, 0];
   // what the svg shows while gliding, for the frame loop: the anchor in svg units and the window's size
   const glideRef = useRef<{x: number; y: number; size: number; zoom: number; fixed: boolean; asked: boolean} | null>(null);
+  // (read by the frame loop)
+  const shiftRef = useRef(followShift);
+  useEffect(() => {
+    shiftRef.current = followShift;
+  }, [followShift]);
   const anchored = !!anchor && anchor.size === glideSize;
   // what the frame shows, and what the svg draws: that, twice as big round its middle when the map can be moved (OVERSCAN)
   const framed = shown ?? {x: 0, y: 0, size: WIDTH};
@@ -529,7 +537,7 @@ function MapView({
       const z = pinchZoom.current === null ? 1 : pinchZoom.current / g.zoom;
       const unit = width / (g.size * z);
       const tx = width / 2 - (sx - (g.x - (GLIDE / 2) * g.size)) * unit;
-      const ty = width / 2 - (sy - (g.y - (GLIDE / 2) * g.size)) * unit;
+      const ty = width / 2 - shiftRef.current * width - (sy - (g.y - (GLIDE / 2) * g.size)) * unit;
       const last = lastSlide.current;
       if (!last || Math.abs(tx - last[0]) > 0.02 || Math.abs(ty - last[1]) > 0.02 || z !== last[2]) {
         svg.style.transform = `translate3d(${tx}px, ${ty}px, 0)${z === 1 ? '' : ` scale(${1 / z})`}`;

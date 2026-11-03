@@ -128,7 +128,7 @@ function Ready({mode, status, onGo, onClose}: {mode: CalibMode; status: Record<s
                 <input type="checkbox" checked={room} onChange={(e) => setRoom(e.target.checked)} />
                 <div>
                   {tr('Room to drive')}
-                  <small>{tr('{m} × {m} m of level lawn, no beds, edges or toys', {m: 5})}</small>
+                  <small>{tr('A level lane of about 7 × 3 m, no beds, edges or toys')}</small>
                 </div>
               </label>
               <label className={styles.check}>

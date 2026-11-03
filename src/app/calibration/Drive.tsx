@@ -25,6 +25,19 @@ const SPEEDS = [0.15, 0.25, 0.35, 0.5];
 const TURN_PER_SPEED = 3;
 // how wide the lane on the map is, about a mower
 const LANE_W = 0.5;
+// a turn of one and a half rounds on the spot: it looks back after it, the runs go to and fro on one lane
+const TURN_ROUNDS = 1.5;
+// the mower that much of the map's width above its middle, in the part the pill, the buttons and the stick leave free;
+// how far from it that part reaches each way (in parts of the width), the spans the way back to the station picks from
+const SHIFT = 0.14;
+const FREE = {up: 0.22, down: 0.2, left: 0.44, right: 0.3};
+const SPANS = [16, 24, 32, 48, 64, 96, 128];
+
+// rounds as a reader takes them: quarters, ¼ ½ ¾
+const quarters = (r: number) => {
+  const q = Math.max(1, Math.ceil(r * 4 - 0.01));
+  return `${Math.floor(q / 4) || ''}${['', '¼', '½', '¾'][q % 4]}`;
+};
 
 // what the mower does right now, from its poses as they come (only to show)
 function useMotion(): Motion {
@@ -51,10 +64,11 @@ function useMotion(): Motion {
   return motion;
 }
 
-// the tile of what's being driven, else the first one still missing
+// the tile of what's being driven (a turn since the last run, stops in it too), else the first one still missing
 function nowPart(list: Lack[], motion: Motion): Lack | null {
+  const turning = motion.doing !== 'straight' && Math.abs(motion.turned) >= 0.5;
   const doing =
-    motion.doing === 'still' ? 'still' : motion.doing === 'straight' ? 'straight' : motion.doing === 'turn' ? (motion.turned > 0 ? 'left' : 'right') : null;
+    motion.doing === 'straight' ? 'straight' : turning ? (motion.turned > 0 ? 'left' : 'right') : motion.doing === 'still' ? 'still' : null;
   const open = list.filter((l) => !lackDone(l));
   return open.find((l) => l.part === doing) ?? open[0] ?? null;
 }
@@ -158,7 +172,12 @@ export default function Drive({
   const pose = motion.pose ?? position ?? null;
   const dock = map?.docking_stations[0]?.position;
   const toDock = home && dock && pose ? Math.hypot(dock.x - pose.x, dock.y - pose.y) : null;
-  const span = toDock !== null ? Math.max(16, Math.ceil(2 * toDock + 4)) : 16;
+  // (a step of SPANS: the map isn't drawn again for every move; a metre more for the station itself)
+  const reach =
+    home && dock && pose
+      ? Math.max((Math.abs(dock.x - pose.x) + 1) / (dock.x > pose.x ? FREE.right : FREE.left), (Math.abs(dock.y - pose.y) + 1) / (dock.y > pose.y ? FREE.up : FREE.down))
+      : 0;
+  const span = SPANS.find((s) => s >= reach) ?? SPANS[SPANS.length - 1];
   const charging = !!state?.is_charging;
   const [sure, setSure] = useState(false);
 
@@ -200,18 +219,23 @@ export default function Drive({
         </>
       );
   } else {
+    // one turn at a time: up to one and a half rounds, then a run (only with it the planner counts the turn)
     const left = current.part === 'left';
-    const turning = motion.doing === 'turn' && motion.turned > 0 === left;
-    const rounds = Math.ceil(Math.max(0, current.more - (turning ? Math.abs(motion.turned) / (2 * Math.PI) : 0)));
+    const thisWay = motion.doing !== 'straight' && motion.turned !== 0 && motion.turned > 0 === left;
+    const togo = TURN_ROUNDS - (thisWay ? Math.abs(motion.turned) / (2 * Math.PI) : 0);
     say =
-      rounds > 0 || !turning ? (
+      togo > 0.1 ? (
         <>
           <b>{tr(left ? 'Turn left round' : 'Turn right round')}</b> ·{' '}
-          {rounds > 1 ? tr('{n} more rounds', {n: rounds}) : rounds === 1 ? tr('1 more round') : tr('{n} more', {n: current.left})}
+          {togo >= TURN_ROUNDS
+            ? tr('one and a half rounds, until it looks back')
+            : togo > 1
+              ? tr('{r} rounds to go', {r: quarters(togo)})
+              : tr('{r} round to go', {r: quarters(togo)})}
         </>
       ) : (
         <>
-          <b>{tr('Now {m} m straight on', {m: fmt(runM, 0)})}</b> · {tr('then the round counts')}
+          <b>{tr('Now {m} m straight on', {m: fmt(runM, 0)})}</b> · {tr('then the turn counts')}
         </>
       );
   }
@@ -252,26 +276,41 @@ export default function Drive({
         </g>
       );
     }
-    // round the mower in the way to turn, a dot a round turned so far
+    // round the mower in the way to turn, inside it a ring filling up to one and a half rounds
     const left = current.part === 'left';
-    const turned = motion.doing === 'turn' && motion.turned > 0 === left ? Math.abs(motion.turned) : 0;
+    const turned = motion.doing !== 'straight' && motion.turned !== 0 && motion.turned > 0 === left ? Math.abs(motion.turned) : 0;
+    const share = Math.min(1, turned / (2 * Math.PI * TURN_ROUNDS));
+    // (the arrow outside it, clear of the mower's icon)
+    const ri = r;
+    const ci = 2 * Math.PI * ri;
+    const ra = r * 1.4;
     const a0 = -Math.PI / 2;
     const a1 = a0 + (left ? -1 : 1) * 1.7 * Math.PI;
-    const p0 = [cx + r * Math.cos(a0), cy + r * Math.sin(a0)];
-    const p1 = [cx + r * Math.cos(a1), cy + r * Math.sin(a1)];
+    const p0 = [cx + ra * Math.cos(a0), cy + ra * Math.sin(a0)];
+    const p1 = [cx + ra * Math.cos(a1), cy + ra * Math.sin(a1)];
     const tip = a1;
-    const head = (d: number) => [cx + (r + d) * Math.cos(tip), cy + (r + d) * Math.sin(tip)];
+    const head = (d: number) => [cx + (ra + d) * Math.cos(tip), cy + (ra + d) * Math.sin(tip)];
     const along = [-Math.sin(tip) * (left ? -1 : 1), Math.cos(tip) * (left ? -1 : 1)];
     const a = head(7 * k);
     const b = head(-7 * k);
     const t = [p1[0] + along[0] * 10 * k, p1[1] + along[1] * 10 * k];
     return (
       <g className={styles.turnArrow}>
-        <path d={`M ${p0[0]} ${p0[1]} A ${r} ${r} 0 1 ${left ? 0 : 1} ${p1[0]} ${p1[1]}`} fill="none" strokeWidth={3 * k} />
+        <path d={`M ${p0[0]} ${p0[1]} A ${ra} ${ra} 0 1 ${left ? 0 : 1} ${p1[0]} ${p1[1]}`} fill="none" strokeWidth={3 * k} />
         <polygon points={`${a.join(',')} ${b.join(',')} ${t.join(',')}`} />
-        {Array.from({length: Math.min(6, Math.floor(turned / (2 * Math.PI)))}, (_, i) => (
-          <circle key={i} cx={cx + (i - 2.5) * 9 * k} cy={cy + r + 12 * k} r={3 * k} />
-        ))}
+        <circle cx={cx} cy={cy} r={ri} className={styles.ringAll} strokeWidth={3 * k} />
+        {share > 0 && (
+          <circle
+            cx={cx}
+            cy={cy}
+            r={ri}
+            className={styles.ringGot}
+            strokeWidth={3 * k}
+            strokeDasharray={`${ci * share} ${ci}`}
+            // (from the top, the way it turns: a left turn mirrored)
+            transform={left ? `translate(${2 * cx} 0) scale(-1 1) rotate(-90 ${cx} ${cy})` : `rotate(-90 ${cx} ${cy})`}
+          />
+        )}
       </g>
     );
   };
@@ -291,6 +330,7 @@ export default function Drive({
             emergency={!!state?.emergency}
             follow
             followSpanMeters={span}
+            followShift={SHIFT}
             zoomable
             datum={datumFromParams(params)}
             draw={draw}
@@ -331,6 +371,7 @@ export default function Drive({
           <span className={gpsQ === 'fix' ? undefined : styles.warn}>{gpsText}</span>
           {!home && <span>{tr('Calibration · {time}', {time: clock})}</span>}
         </div>
+        {home && sure && !charging && <p className={styles.warn}>{tr("It isn't on the station yet, after this the stick doesn't drive it any more.")}</p>}
         {home ? null : list.length ? (
           <div className={styles.tally}>
             {list.map((l) => {
@@ -364,17 +405,29 @@ export default function Drive({
         <div className={styles.buttons}>
           {home ? (
             // on the station at once, elsewhere asked once more: the stick doesn't drive it any more after
-            <button
-              className={charging || sure ? styles.primary : undefined}
-              onClick={() => {
-                if (!charging && !sure) return setSure(true);
-                stop();
-                onDone();
-              }}
-            >
-              <CheckIcon size={18} />
-              {sure && !charging ? tr("End it, it's not on the station") : tr('End recording mode')}
-            </button>
+            charging || !sure ? (
+              <button
+                className={charging ? styles.primary : undefined}
+                onClick={() => {
+                  if (!charging) return setSure(true);
+                  stop();
+                  onDone();
+                }}
+              >
+                {charging && <CheckIcon size={18} />}
+                {tr('End recording mode')}
+              </button>
+            ) : (
+              <button
+                className={styles.warnButton}
+                onClick={() => {
+                  stop();
+                  onDone();
+                }}
+              >
+                {tr('End it anyway')}
+              </button>
+            )
           ) : (
             <button className={styles.danger} onClick={() => (stop(), onStop())}>
               {tr('Cancel')}
@@ -403,7 +456,7 @@ export default function Drive({
           ))}
         </div>
         {!home && <p className={styles.dim}>
-          <RotateIcon size={14} /> {tr("Straight: stick forward and hold it steady, half to full, don't steer. Turning: stick to the side only at a low speed, a whole round, then {m} m straight on.", {m: fmt(runM, 0)})}
+          <RotateIcon size={14} /> {tr("Straight: stick forward and hold it steady, half to full, don't steer. Turning: stick to the side only at speed 0.25, one and a half rounds until it looks back, then {m} m straight on.", {m: fmt(runM, 0)})}
         </p>}
       </section>
     </div>
