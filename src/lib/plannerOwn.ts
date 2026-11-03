@@ -2,7 +2,7 @@ import type {MowerMap} from '@/hooks/useMowerMap';
 import {shareInside} from './geometry';
 import {fmt, tr} from './i18n';
 import type {PlannerSetting} from './mowerBody';
-import {FIELDS, RETIRED} from './plannerFields';
+import {FIELDS, hidden, RETIRED} from './plannerFields';
 
 // What an area sets for the planner itself, at a glance: its planner settings (the planner property) and OpenMower's
 // own per area values the planner takes too (outline_count and co., the app doesn't offer them with the planner). In
@@ -50,7 +50,7 @@ export function ownSettings(
 ): Own[] {
   const out: Own[] = [];
   for (const [key, v] of Object.entries(own)) {
-    if (v === undefined || v === null || RETIRED.includes(key)) continue;
+    if (v === undefined || v === null || RETIRED.includes(key) || hidden(key, settings[key])) continue;
     const idle = !settings[key]
       ? tr("the planner doesn't know it")
       : key === 'edges' && collision

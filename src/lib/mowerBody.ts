@@ -60,6 +60,8 @@ export interface PlannerSetting {
   nullable?: boolean;
   // the value for "the planner works it out" (perimeter_passes -1)
   auto_value?: number;
+  // why the planner goes without it (it changes nothing), the app leaves it out then
+  ignored?: string;
 }
 
 export interface PlannerSettings {

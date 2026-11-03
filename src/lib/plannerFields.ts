@@ -343,6 +343,10 @@ export const DROPPED_CHOICES: Record<string, string[]> = {fill_pattern: ['auto']
 // counted by the planner itself, not in the lists: the angle turned further (shown with it in the simple menu), the
 // finished mows the random way round goes by
 export const COUNTED = ['angle_steps', 'finished_mows'];
+// left out everywhere: the drive (slope and reverse drive backwards, set only with the app's warning once it has one)
+export const HIDDEN = ['drive'];
+// a setting left out of every menu and list: one of HIDDEN, or one the planner says it goes without (ignored)
+export const hidden = (key: string, s: {ignored?: unknown} | undefined) => HIDDEN.includes(key) || !!s?.ignored;
 // in the planner menu at the map (PlannerSimple), the lists for experts leave them out
 export const SIMPLE = [
   'planner',

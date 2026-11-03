@@ -41,6 +41,16 @@ describe('ownSettings', () => {
     ]);
   });
 
+  it('leaves out the drive and what the planner goes without', () => {
+    const planner2 = {
+      ...all,
+      drive: setting('forward', {choices: ['forward', 'slope', 'reverse'], settable: false}),
+      bend_max_gap: setting(0.5, {ignored: 'rows split by an obstacle are cells of their own'}),
+    };
+    const own = ownSettings({drive: 'slope', bend_max_gap: 1, obstacle_margin: 0.03}, {}, planner2, false);
+    expect(own.map((o) => o.key)).toEqual(['obstacle_margin']);
+  });
+
   it("counts OpenMower's own values while the area has no planner setting for them", () => {
     const own = ownSettings({}, {outline_count: 3, outline_offset: 0.2}, all, false);
     expect(own.map((o) => [o.label, o.value, o.idle])).toEqual([

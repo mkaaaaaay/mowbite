@@ -3,7 +3,7 @@
 import type {MowerMap, Point} from '@/hooks/useMowerMap';
 import {dec, tr} from '@/lib/i18n';
 import {outlineOf, resetPlannerAngle, savePlannerSettings, slic3rPlans, usePlannerSettings, type PlannerSetting} from '@/lib/mowerBody';
-import {ANGLE_FOR_ALL, FIELDS, STYLE_LABELS, STYLE_NOTES, STYLES, styleOf} from '@/lib/plannerFields';
+import {ANGLE_FOR_ALL, FIELDS, hidden, STYLE_LABELS, STYLE_NOTES, STYLES, styleOf} from '@/lib/plannerFields';
 import {areasWith, areasWithDirection, ownMargins, ownSettings, shown, type AreaValue, type OpenMowerOwn} from '@/lib/plannerOwn';
 import {RpcError} from '@/lib/rpc';
 import {useEffect, useState} from 'react';
@@ -165,7 +165,7 @@ export function PlannerSimple({
   }, [state.saved]);
   if (!planner) return null;
   const all: Record<string, PlannerSetting> = planner.settings;
-  const has = (k: string) => !!all[k]?.settable;
+  const has = (k: string) => !!all[k]?.settable && !hidden(k, all[k]);
   const global = (k: string) => (state.want && k in state.want ? (state.want[k] ?? all[k]?.default) : all[k]?.value);
   // what's set: the area's own (undefined: like all areas), or the one for all areas
   const value = (k: string) => (area ? area.own[k] : global(k));

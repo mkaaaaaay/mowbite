@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {FIELDS, fromInput, toInput, STYLES, styleOf} from './plannerFields';
+import {FIELDS, fromInput, hidden, toInput, STYLES, styleOf} from './plannerFields';
 
 describe('planner fields', () => {
   it('shows angles in degrees and meters as they are', () => {
@@ -40,6 +40,15 @@ describe('planner fields', () => {
       'route_order',
       'bend_max_gap',
     ]);
+  });
+});
+
+describe('settings left out', () => {
+  it('leaves out the drive and what the planner says it goes without', () => {
+    expect(hidden('drive', {})).toBe(true);
+    expect(hidden('bend_max_gap', {ignored: 'rows split by an obstacle are cells of their own'})).toBe(true);
+    expect(hidden('bend_max_gap', {})).toBe(false);
+    expect(hidden('overlap', undefined)).toBe(false);
   });
 });
 

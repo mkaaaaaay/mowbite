@@ -2,7 +2,7 @@
 
 import {tr} from '@/lib/i18n';
 import {loadPlannerSettings, savePlannerSettings, usePlannerSettings, type PlannerSetting} from '@/lib/mowerBody';
-import {ANGLE_FOR_ALL, BODY_KEYS, COUNTED, DROPPED, DROPPED_CHOICES, FIELDS, fromInput, GROUPS, RETIRED, SIMPLE, toInput, type Field, type Group} from '@/lib/plannerFields';
+import {ANGLE_FOR_ALL, BODY_KEYS, COUNTED, DROPPED, DROPPED_CHOICES, FIELDS, fromInput, GROUPS, hidden, RETIRED, SIMPLE, toInput, type Field, type Group} from '@/lib/plannerFields';
 import {RpcError} from '@/lib/rpc';
 import {useEffect, useState} from 'react';
 import InfoTip from './InfoTip';
@@ -172,9 +172,10 @@ export function PlannerSettings({styles}: {styles: Styles}) {
   const shown = {...formFrom(all), ...form};
   // the ones the planner menu above doesn't have (a direction for all areas: each area has its own)
   const keys = Object.keys(all).filter(
-    (k) => !BODY_KEYS.includes(k) && !DROPPED.includes(k) && !RETIRED.includes(k) && !SIMPLE.includes(k) && !ANGLE_FOR_ALL.includes(k) && all[k].settable,
+    (k) =>
+      !BODY_KEYS.includes(k) && !DROPPED.includes(k) && !RETIRED.includes(k) && !SIMPLE.includes(k) && !ANGLE_FOR_ALL.includes(k) && all[k].settable && !hidden(k, all[k]),
   );
-  const fixed = Object.keys(all).filter((k) => !all[k].settable && !COUNTED.includes(k));
+  const fixed = Object.keys(all).filter((k) => !all[k].settable && !COUNTED.includes(k) && !hidden(k, all[k]));
   const group = (k: string): Group => FIELDS[k]?.group ?? 'fine';
   const advanced = (k: string) => !FIELDS[k] || !!FIELDS[k].advanced;
   const typed = (k: string) => !['list', 'string', 'boolean'].includes(all[k].type);
