@@ -13,7 +13,7 @@ import {useSensorValue} from '@/hooks/useMowerSensors';
 import {isLive, useMowerState} from '@/hooks/useMowerState';
 import {useMowerActions} from '@/hooks/useMowerActions';
 import {lackDone, lacks, type CalibProgress, type Lack} from '@/lib/calibration';
-import {motionTracker, NO_MOTION, type Motion} from '@/lib/calibMotion';
+import {missWatch, motionTracker, NO_MOTION, type Missed, type Motion} from '@/lib/calibMotion';
 import {emergencyText} from '@/lib/events';
 import {fmt, tr} from '@/lib/i18n';
 import {onTopic} from '@/lib/mqttClient';
@@ -34,6 +34,8 @@ const TURN_PER_SPEED = 3;
 const LANE_W = 0.5;
 // a turn of one and a half rounds on the spot: it looks back after it, the runs go to and fro on one lane
 const TURN_ROUNDS = 1.5;
+// the run shown a fifth longer than the planner needs: it measures by the wheels, off by as much as the calibration finds
+const RUN_SPARE = 1.2;
 // the mower that much of the map's width above its middle, in the part the pill, the buttons and the stick leave free;
 // how far from it that part reaches each way (in parts of the width), the spans the way back to the station picks from
 const SHIFT = 0.14;
@@ -46,12 +48,18 @@ const quarters = (r: number) => {
   return `${Math.floor(q / 4) || ''}${['', '¼', '½', '¾'][q % 4]}`;
 };
 
-// what the mower does right now, from its poses as they come (only to show)
-function useMotion(): Motion {
-  const [motion, setMotion] = useState<Motion>(NO_MOTION);
+// what the mower does right now, from its poses as they come (only to show), and a run or turn the planner didn't count
+function useMotion(progress: CalibProgress | null): {motion: Motion; missed: Missed | null} {
+  const [seen, setSeen] = useState<{motion: Motion; missed: Missed | null}>({motion: NO_MOTION, missed: null});
+  const counts = useRef(progress);
+  useEffect(() => {
+    counts.current = progress;
+  }, [progress]);
   useEffect(() => {
     const track = motionTracker();
+    const watch = missWatch();
     let shown = 0;
+    let told: Missed | null = null;
     return onTopic(TOPIC.position, (payload) => {
       let p: {x: number; y: number; heading: number};
       try {
@@ -63,12 +71,15 @@ function useMotion(): Motion {
       }
       const now = performance.now();
       const m = track(now / 1000, p);
-      if (now - shown < 250) return;
+      const c = counts.current;
+      const missed = c ? watch(now / 1000, m, c.has, c.need.run_m) : null;
+      if (now - shown < 250 && missed === told) return;
       shown = now;
-      setMotion(m);
+      told = missed;
+      setSeen({motion: m, missed});
     });
   }, []);
-  return motion;
+  return seen;
 }
 
 // the tile of what's being driven (a turn since the last run, stops in it too), else the first one still missing. a run
@@ -137,7 +148,7 @@ export default function Drive({
   const map = useMowerMap();
   const params = useMowerParams();
   const position = useMowerPosition() ?? state?.pose;
-  const motion = useMotion();
+  const {motion, missed} = useMotion(home || placing ? null : progress);
   const why = useEmergencyReasons(!!state?.emergency);
   const canDrive = state?.current_state === 'AREA_RECORDING' && live && !state?.emergency;
 
@@ -226,7 +237,8 @@ export default function Drive({
   const list = home || placing || !progress ? [] : lacks(progress);
   const all = list.length > 0 && list.every(lackDone);
   const current = nowPart(list, motion);
-  const runM = progress?.need.run_m ?? 5;
+  const runNeed = progress?.need.run_m ?? 5;
+  const runM = Math.ceil(runNeed * RUN_SPARE * 2) / 2;
   // back to the station: how far it is, the map wide enough to show both; on its contacts recording mode ends
   const pose = motion.pose ?? position ?? null;
   const dock = map?.docking_stations[0]?.position;
@@ -239,6 +251,19 @@ export default function Drive({
   const span = SPANS.find((s) => s >= reach) ?? SPANS[SPANS.length - 1];
   const charging = !!state?.is_charging;
   const [sure, setSure] = useState(false);
+  // cancel takes two taps: the first asks for a few seconds (the cross sits next to the speeds)
+  const [askCancel, setAskCancel] = useState(false);
+  useEffect(() => {
+    if (!askCancel) return;
+    const t = setTimeout(() => setAskCancel(false), 4000);
+    return () => clearTimeout(t);
+  }, [askCancel]);
+  const cancelTap = () => {
+    if (!askCancel) return setAskCancel(true);
+    setAskCancel(false);
+    stop();
+    onStop();
+  };
 
   // a turn of this way: how much of it is left; done, the run that makes it count is next
   const turnPart = current?.part === 'left' || current?.part === 'right';
@@ -308,6 +333,14 @@ export default function Drive({
         </>
       );
   }
+
+  const missedText = missed && (
+    <em className={styles.missed}>
+      {missed.part === 'straight'
+        ? tr('Run not counted: by the wheels under {m} m. Drive the next one a bit longer.', {m: fmt(runNeed, 0)})
+        : tr('Turn not counted: by the wheels it turned too little.')}
+    </em>
+  );
 
   // the bar under it: the run in m, the turn in rounds, the stand in s
   let bar: {share: number; label: string} | null = null;
@@ -448,7 +481,7 @@ export default function Drive({
 
   if (remote)
     return (
-      <div className={[rec.remote, turned ? rec.turned : ''].join(' ')}>
+      <div className={[rec.remote, turned ? rec.turned : ''].join(' ')} data-no-swipe>
         <div className={rec.remoteMap}>
           {map && (
             <MapView
@@ -500,13 +533,20 @@ export default function Drive({
             </button>
           )}
           {!home && (
-            <button className={rec.square} aria-label={tr('Cancel')} title={tr('Cancel')} onClick={() => (stop(), onStop())}>
+            <button className={[rec.square, askCancel ? styles.squareAsk : ''].join(' ')} aria-label={tr('Cancel')} title={tr('Cancel')} onClick={cancelTap}>
               <CloseIcon size={20} />
             </button>
           )}
         </div>
         <p className={[rec.remoteNote, bar ? styles.noteWide : ''].join(' ')}>
-          {home && sure && !charging ? tr("It isn't on the station yet, after this the stick doesn't drive it any more.") : <span>{say}</span>}
+          {askCancel ? (
+            <b>{tr('Tap the cross again to cancel.')}</b>
+          ) : home && sure && !charging ? (
+            tr("It isn't on the station yet, after this the stick doesn't drive it any more.")
+          ) : (
+            <span>{say}</span>
+          )}
+          {!askCancel && missedText}
           {bar && <Meter {...bar} />}
         </p>
         {state?.emergency ? (
@@ -570,6 +610,7 @@ export default function Drive({
           <i />
           <div className={styles.sayBody}>
             <span>{say}</span>
+            {missedText}
             {bar && <Meter {...bar} />}
           </div>
         </div>
@@ -638,8 +679,8 @@ export default function Drive({
           {home ? (
             endButton(styles.primary, styles.warnButton)
           ) : (
-            <button className={styles.danger} onClick={() => (stop(), onStop())}>
-              {tr('Cancel')}
+            <button className={styles.danger} onClick={cancelTap}>
+              {askCancel ? tr('Really cancel?') : tr('Cancel')}
             </button>
           )}
           {all && (

@@ -586,6 +586,14 @@
   min-width: 0;
 }
 
+/* a run or turn the planner didn't count, on its own line */
+.missed {
+  flex-basis: 100%;
+  font-style: normal;
+  font-weight: 600;
+  color: #ffd479;
+}
+
 /* the bar: green filling up, a soft glow, ✓ and brighter once there */
 .meter {
   display: flex;
@@ -847,6 +855,11 @@
 
 .countDone {
   color: #9be3b0;
+}
+
+/* the cross asking before it cancels */
+.squareAsk {
+  background: color-mix(in srgb, var(--error) 70%, rgba(15, 18, 30, 0.82)) !important;
 }
 
 .turnArrow {

@@ -70,3 +70,54 @@ export function motionTracker() {
     return m;
   };
 }
+
+// a run or a turn seen done here that the planner didn't count (it counts by the wheels): its count not up WAIT s after.
+// a run as it ends, long enough by the poses; a turn between two runs once the run after it got RUN_SEEN m, the
+// planner's metre with room to spare. shown SHOW s, gone sooner when the count comes up after all
+export interface Missed {
+  part: 'straight' | 'left' | 'right';
+  t: number;
+}
+type Key = 'runs' | 'turns_left' | 'turns_right';
+const WAIT = 4;
+const SHOW = 15;
+const RUN_SEEN = 1.5;
+const TURN_SEEN = 0.3 * 2 * Math.PI;
+
+export function missWatch() {
+  let was: Motion = NO_MOTION;
+  // the counts as the run started, the turn before it, whether a run came before that
+  let at: Partial<Record<Key, number>> = {};
+  let turnBefore = 0;
+  let hadRun = false;
+  let turnLooked = false;
+  let due: {part: Missed['part']; key: Key; had: number; t: number}[] = [];
+  let missed: (Missed & {key: Key; had: number}) | null = null;
+  // t in s; has the planner's counts, run_m the run it needs (none: it doesn't tell)
+  return (t: number, m: Motion, has: Partial<Record<string, number>>, runM?: number): Missed | null => {
+    const look = (part: Missed['part'], key: Key) => {
+      const had = at[key];
+      if (had !== undefined) due.push({part, key, had, t: t + WAIT});
+    };
+    if (m.doing === 'straight' && was.doing !== 'straight') {
+      at = {runs: has.runs, turns_left: has.turns_left, turns_right: has.turns_right};
+      turnBefore = was.turned;
+      turnLooked = false;
+    }
+    if (m.doing === 'straight' && !turnLooked && m.run >= RUN_SEEN) {
+      turnLooked = true;
+      if (hadRun && Math.abs(turnBefore) >= TURN_SEEN) look(turnBefore > 0 ? 'left' : 'right', turnBefore > 0 ? 'turns_left' : 'turns_right');
+    }
+    if (m.doing !== 'straight' && was.doing === 'straight') {
+      if (runM !== undefined && was.run >= runM) look('straight', 'runs');
+      if (was.run >= RUN_SEEN) hadRun = true;
+    }
+    was = m;
+    for (const d of due.filter((d) => t >= d.t)) {
+      if ((has[d.key] ?? 0) <= d.had) missed = {part: d.part, t, key: d.key, had: d.had};
+    }
+    due = due.filter((d) => t < d.t);
+    if (missed && (t - missed.t > SHOW || (has[missed.key] ?? 0) > missed.had)) missed = null;
+    return missed;
+  };
+}
