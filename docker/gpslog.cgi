@@ -67,6 +67,8 @@ cellsum() {
     END { for (k in n) print k, n[k], over[k] + none[k], none[k] + 0, worst[k] + 0, wn[k] + 0, ws[k] + 0, (k in wmin) ? wmin[k] : 0 }'
 }
 cells=$(num cells)
+# (10 to 999 cm: smaller cells only cost the mower memory, 0 would divide by it)
+case $cells in "") ;; ? | 0*) cells=10 ;; ????*) cells=999 ;; esac
 if [ -n "$cells" ]; then
   # a finished day is summed up once and kept in cells/ as long as its log (a day takes the mower seconds), only the
   # newest one each time
