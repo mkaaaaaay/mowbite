@@ -10,12 +10,15 @@ import {
   partResult,
   partsOf,
   progressOf,
+  roomLoose,
+  roomTotal,
   runResult,
   selfInfo,
   silentSince,
   stepDetail,
   stepLabel,
   updaterAlive,
+  type RoomItem,
   type UpdateState,
 } from './autoUpdate';
 
@@ -27,6 +30,16 @@ const state = (status: Record<string, string>, openmower = 'edge'): UpdateState 
 });
 
 describe('the updater on the mower', () => {
+  it('deletes all of what nothing needs but the ways back, those one at a time', () => {
+    const item = (id: string, kind: RoomItem['kind'], bytes: number): RoomItem => ({id, kind, bytes, refs: `x:${id}`});
+    const s = {
+      ...state({}),
+      room: {items: [item('a', 'rollback', 10), item('b', 'planner', 20), item('c', 'unused', 30), item('d', 'dangling', 40), item('e', 'old', 50)], cache: 0},
+    };
+    expect(roomLoose(s).map((i) => i.id)).toEqual(['c', 'd', 'e']);
+    expect(roomTotal(roomLoose(s))).toBe(120);
+  });
+
   it('counts as there while it wrote alive lately, longer while it updates', () => {
     expect(updaterAlive(state({alive: '1000'}), 1100)).toBe(true);
     expect(updaterAlive(state({alive: '1000'}), 1400)).toBe(false);

@@ -118,7 +118,11 @@ export function roomNote(item: RoomItem): string {
       return tr('not used by any container');
   }
 }
-export const roomTotal = (s: UpdateState) => (s.room?.items ?? []).reduce((n, i) => n + i.bytes, 0);
+// kept to go back to (the updater's rb-, previous, keep-, the planner's before-): deleted one at a time, never with the rest
+const WAY_BACK = ['rollback', 'planner'];
+// what "delete all" takes: the rest
+export const roomLoose = (s: UpdateState) => (s.room?.items ?? []).filter((i) => !WAY_BACK.includes(i.kind));
+export const roomTotal = (items: RoomItem[]) => items.reduce((n, i) => n + i.bytes, 0);
 export const size = (bytes: number) => (bytes >= 1e9 ? `${fmt(bytes / 1e9, 1)} GB` : bytes >= 1e6 ? `${Math.round(bytes / 1e6)} MB` : `${Math.max(0, Math.round(bytes / 1e3))} kB`);
 
 // it writes "alive" every minute and with each step of an update, a big download or a build can take a while longer,

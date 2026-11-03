@@ -20,6 +20,7 @@ import {
   freeRoom,
   roomLabel,
   roomNote,
+  roomLoose,
   roomTotal,
   runParts,
   size,
@@ -465,7 +466,7 @@ function Room({s, busy, onAsk}: {s: UpdateState; busy: boolean; onAsk: (go: () =
         {free !== null && <span className={local.badge}>{tr('{gb} GB free', {gb: fmt(free / 1024, 1)})}</span>}
       </div>
       <span className={local.dim}>
-        {tr("What's on the mower that nothing needs: images no container uses and the build cache. Shown is the room each really frees. Nothing goes by itself.")}
+        {tr("What's on the mower that nothing needs: images no container uses and the build cache. Shown is the room each really frees. Nothing goes by itself, versions kept to go back to only one at a time.")}
       </span>
       {items.map((i) => (
         <div key={i.id} className={local.item}>
@@ -492,7 +493,7 @@ function Room({s, busy, onAsk}: {s: UpdateState; busy: boolean; onAsk: (go: () =
         <button className={local.control} disabled={busy} onClick={() => onAsk(requestRoom)}>
           {tr('Look again')}
         </button>
-        {items.length > 1 ? button('all', tr('Delete all ({size})', {size: size(roomTotal(s))}), () => freeRoom('all')) : <span />}
+        {roomLoose(s).length > 1 ? button('all', tr('Delete all but the ways back ({size})', {size: size(roomTotal(roomLoose(s)))}), () => freeRoom('all')) : <span />}
       </div>
     </div>
   );
