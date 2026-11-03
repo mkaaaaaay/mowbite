@@ -1227,7 +1227,7 @@ function MapEditor() {
                 </div>
               )}
 
-              {/* nothing picked: the settings for all areas first, a new area, then the areas, the track and the backups */}
+              {/* nothing picked: the settings for all areas first, a new area, the track, then the areas and the backups */}
               {map && !selectedArea && mode === 'idle' && (
                 <>
                   {/* without the planner (or with OpenMower's slic3r planning) OpenMower's own values for all areas */}
@@ -1264,15 +1264,6 @@ function MapEditor() {
                   )}
 
                   <NewArea empty={noAreas} unsaved={dirty} onDraw={startDraw} />
-                  {!noAreas && (
-                    <OrderBox
-                      areas={map.areas}
-                      idle={idle}
-                      pictures={garden && map.areas.some(isPin)}
-                      onSelect={selectArea}
-                      onMove={moveInOrder}
-                    />
-                  )}
                   {jobList && jobList.length > 0 && (
                     <TrackPicker
                       jobs={jobList}
@@ -1281,6 +1272,15 @@ function MapEditor() {
                       onSelect={(id) => showJob(id ?? '')}
                       onClearLive={trackPoints(track) > 1 ? () => void clearTrack() : undefined}
                       lastRun={trackPoints(track) > 1 ? lastRun : null}
+                    />
+                  )}
+                  {!noAreas && (
+                    <OrderBox
+                      areas={map.areas}
+                      idle={idle}
+                      pictures={garden && map.areas.some(isPin)}
+                      onSelect={selectArea}
+                      onMove={moveInOrder}
                     />
                   )}
 
