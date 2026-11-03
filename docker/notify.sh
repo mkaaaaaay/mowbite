@@ -42,7 +42,7 @@ send_push() {
       r=0
     else
       case "$err" in
-      *" 404"* | *" 410"*) grep -vxF "push $ep" "$C" > "$C.tmp" && mv "$C.tmp" "$C" ;;
+      *" 404"* | *" 410"*) { grep -vxF "push $ep" "$C" || :; } > "$C.tmp" && mv "$C.tmp" "$C" ;;
       esac
     fi
   done

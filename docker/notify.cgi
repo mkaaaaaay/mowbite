@@ -72,7 +72,8 @@ case "$REQUEST_METHOD $QUERY_STRING" in
   ;;
 "POST push-remove")
   a=$(address "$(body)")
-  [ -n "$a" ] && grep -vxF "push $a" "$C" > "$C.tmp" && mv "$C.tmp" "$C"
+  # (grep finds nothing to keep when it was the only line)
+  [ -n "$a" ] && [ -f "$C" ] && { grep -vxF "push $a" "$C" || :; } > "$C.tmp" && mv "$C.tmp" "$C"
   done_ ok
   ;;
 "POST push-test")
