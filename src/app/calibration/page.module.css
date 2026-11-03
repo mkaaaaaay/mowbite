@@ -510,10 +510,10 @@
   border: 1px solid var(--card-border);
 }
 
-/* under the map's coverage switch at the top */
+/* at the top, under the map's coverage switch while it's there */
 .say {
   position: absolute;
-  top: 54px;
+  top: 10px;
   left: 10px;
   max-width: calc(100% - 76px);
   display: flex;
@@ -540,6 +540,10 @@
   border-radius: 50%;
   background: #22a88f;
   box-shadow: 0 0 0 3px rgba(34, 168, 143, 0.35);
+}
+
+.map:has([data-cover-switch]) .say {
+  top: 54px;
 }
 
 .sayDone {
