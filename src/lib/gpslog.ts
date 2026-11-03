@@ -36,8 +36,8 @@ export function readGpsLog(text: string): GpsSample[] {
   const out: GpsSample[] = [];
   for (const line of text.split('\n')) {
     const p = line.trim().split(' ');
-    // more columns since more is kept: the wifi signal, then the charging contacts
-    if (p.length < 5 || p.length > 17) continue;
+    // more columns since more is kept: the wifi signal, then the charging contacts. ones a newer container adds are left out
+    if (p.length < 5) continue;
     const [t, x, y, acc] = [Number(p[0]), Number(p[2]), Number(p[3]), Number(p[4])];
     if (![t, x, y, acc].every(Number.isFinite)) continue;
     const col = (i: number) => (p[i] !== undefined && p[i] !== '-' && Number.isFinite(Number(p[i])) ? Number(p[i]) : null);
