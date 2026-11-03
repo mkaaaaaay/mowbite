@@ -130,6 +130,12 @@
   backdrop-filter: var(--card-blur, none);
 }
 
+/* the run picked on the dashboard: framed, a little room above it when scrolled to */
+.linked {
+  scroll-margin-top: 16px;
+  box-shadow: 0 0 0 2px var(--accent), var(--card-shadow, 0 0 0 transparent);
+}
+
 .run header {
   display: flex;
   align-items: center;
