@@ -7,6 +7,7 @@ import {useEmergencyReasons} from '@/hooks/useEmergencyReasons';
 import {useMowerMap} from '@/hooks/useMowerMap';
 import {datumFromParams, numParam, useMowerParams} from '@/hooks/useMowerParams';
 import {useMowerPosition} from '@/hooks/useMowerPosition';
+import {useSensorValue} from '@/hooks/useMowerSensors';
 import {isLive, useMowerState} from '@/hooks/useMowerState';
 import {useMowerActions} from '@/hooks/useMowerActions';
 import {lackDone, lacks, type CalibProgress, type Lack} from '@/lib/calibration';
@@ -333,7 +334,9 @@ export default function Drive({
     );
   };
 
-  const acc = state?.pose.pos_accuracy;
+  // (the gps's own accuracy, as on the check before it started)
+  const gpsAcc = useSensorValue('om_gps_accuracy', (v) => (v !== undefined && Number.isFinite(parseFloat(v)) ? parseFloat(v) : null));
+  const acc = gpsAcc ?? state?.pose.pos_accuracy;
   const gpsQ = gpsQuality(acc, numParam(params, PARAM.maxPositionAccuracy));
   const gpsText = `GPS · ${gpsQ === 'none' ? tr('no fix') : `${fmt(acc! * 100, 1)} cm · ${tr(GPS_QUALITY_LABEL[gpsQ])}`}`;
   const reason = why ? emergencyText(why) : '';

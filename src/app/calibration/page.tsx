@@ -4,6 +4,7 @@ import {TitleMark} from '@/components/Logo';
 import {TitleRow} from '@/components/TopWeather';
 import {CheckIcon, CloseIcon, PlayIcon} from '@/components/icons';
 import {numParam, useMowerParams} from '@/hooks/useMowerParams';
+import {useSensorValue} from '@/hooks/useMowerSensors';
 import {useMowerActions} from '@/hooks/useMowerActions';
 import {isLive, useMowerState} from '@/hooks/useMowerState';
 import {loadUpdate} from '@/lib/autoUpdate';
@@ -70,7 +71,9 @@ function Ready({mode, status, onGo, onClose}: {mode: CalibMode; status: Record<s
   const {hasAction} = useMowerActions();
   const [room, setRoom] = useState(false);
   const [stay, setStay] = useState(false);
-  const acc = state?.pose.pos_accuracy;
+  // the gps's own accuracy (OpenMower leaves it out of the pose while idle: 999 there), else the pose's
+  const gpsAcc = useSensorValue('om_gps_accuracy', (v) => (v !== undefined && Number.isFinite(parseFloat(v)) ? parseFloat(v) : null));
+  const acc = gpsAcc ?? state?.pose.pos_accuracy;
   const gpsQ = gpsQuality(acc, numParam(params, PARAM.maxPositionAccuracy));
   const battery = state?.battery_percentage;
   const free = /^\d+$/.test(status?.disk_free ?? '') ? Number(status!.disk_free) : null;
