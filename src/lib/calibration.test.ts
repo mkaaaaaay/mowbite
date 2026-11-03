@@ -4,7 +4,7 @@ vi.mock('./mqttClient', () => ({topicStore: () => ({subscribe: () => () => {}, g
 vi.mock('./rpc', () => ({callRpc: async () => ({})}));
 vi.mock('./autoUpdate', () => ({requestCalib: async () => {}, requestCalibBack: async () => {}}));
 
-const {calibLines, changeOf, missing, preselected, readLast, readPaths, readProgress, readResult, readState} = await import('./calibration');
+const {calibLines, calibText, changeOf, lackDone, lacks, preselected, readLast, readPaths, readProgress, readResult, readState} = await import('./calibration');
 
 // an answer of planner.calib.result as the planner gives it (mowbite-calib/1)
 const answer = {
@@ -82,15 +82,33 @@ describe('a calibration', () => {
     expect(readLast('')).toBeNull();
   });
 
-  it('says what a recording still lacks, each way when the planner counts them so', () => {
-    const p = readProgress(JSON.stringify({phase: 'recording', m: 12.4, turns: {left: 3, right: 1}, runs: 2, ready: false}))!;
-    expect(missing(p, 'joystick')).toEqual([
-      {what: 'm', left: 8},
-      {what: 'runs', left: 2},
-      {what: 'right', left: 2},
+  it('says what a recording still lacks, by what the planner says its mode needs', () => {
+    const need = {m: 20, runs: 4, run_m: 5, still_s: 10, turns_left: 3, turns_right: 3, rotation_left: 2.5, rotation_right: 2.5, tight_left: 2, tight_right: 2};
+    const has = {m: 12.4, turns: 3.1, runs: 2, still_s: 10.4, turns_left: 3, turns_right: 1, rotation_left: 2.6, rotation_right: 0.5, tight_left: 1.5, tight_right: 0.5};
+    const p = readProgress(JSON.stringify({phase: 'recording', ...has, need, ready: false, error: null}))!;
+    expect(p.phase).toBe('recording');
+    expect(p.turns).toBe(3.1);
+    expect(lacks(p).map((l) => [l.part, l.has, l.need, l.left, +l.more.toFixed(2), lackDone(l)])).toEqual([
+      ['still', 10.4, 10, 0, 0, true],
+      ['straight', 2, 4, 2, 7.6, false],
+      // three turns left, but not enough of them on the spot
+      ['left', 3, 3, 0, 0.5, false],
+      ['right', 1, 3, 2, 2, false],
     ]);
-    expect(missing({...p, m: 20, runs: 4, turns: {left: 3, right: 3}}, 'joystick')).toEqual([]);
-    expect(missing({...p, m: 60, runs: 9, turns: 30}, 'mow')).toEqual([{what: 'turns', left: 10}]);
+    // a planner that doesn't tell what it needs: nothing to show as missing
+    expect(lacks(readProgress(JSON.stringify({phase: 'recording', m: 3, turns: 1, runs: 0}))!)).toEqual([]);
     expect(readProgress('no json')).toBeNull();
+  });
+
+  it("puts the planner's words into a text to translate, the numbers in the reader's format", () => {
+    expect(calibText('too few straight runs: 2 of 4 (5 m at least), 12.4 of 20 m')).toBe('Too few straight runs: 2 of 4 (each 5 m at least), 12.4 of 20 m.');
+    expect(calibText('the IMU sits tilted: roll 0.3 deg, pitch 4.5 deg (OpenMower has no setting for it)')).toBe(
+      'The IMU sits tilted: 0.3° to the side, 4.5° forward. Just a note, OpenMower has no setting for it.',
+    );
+    expect(
+      calibText('left/right: the right wheel is in effect 2.4 % smaller (diameter, wear, dirt), straight on the odometry it turns right; OpenMower has one ticks_per_m for both'),
+    ).toBe('Left and right: the right wheel is in effect 2.4 % smaller (tyre, wear, dirt), the mower pulls to the right. OpenMower has one value for both, nothing to set for it.');
+    expect(calibText('large change from 0.3556: 6.2 %')).toBe('Big change from 0.3556: 6.2 %.');
+    expect(calibText('something new')).toBe('something new');
   });
 });

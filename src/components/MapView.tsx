@@ -148,6 +148,9 @@ interface MapViewProps {
   // what that drive left unmowed, and where the controller would have given up (a cross each)
   leftPieces?: Point[][];
   navErrors?: Point[];
+  // a layer of the page's own over the map and under the mower, in the map's meters (the calibration's lane and turns):
+  // toScreen the point on the svg, scale its units per meter, k one unit at the zoom shown
+  draw?: (at: {toScreen: (x: number, y: number) => [number, number]; scale: number; k: number}) => React.ReactNode;
 }
 
 const MAX_ZOOM = 40;
@@ -263,6 +266,7 @@ function MapView({
   sim,
   leftPieces,
   navErrors,
+  draw,
   markers,
   onMarkerPick,
   bodySpots,
@@ -2238,6 +2242,7 @@ function MapView({
       {gardenLook?.defs}
       {scene?.defs}
       <Ground draw={() => renderContent(k, layered ? 'ground' : 'all')} held={held} view={`${k} ${svgBox.x} ${svgBox.y} ${svgBox.size} ${layered}`} />
+      {!layered && draw?.({toScreen, scale, k})}
       {!layered && after}
     </svg>
   );
@@ -2270,6 +2275,7 @@ function MapView({
           {(['settled', 'live', 'mower', 'crowns'] as const).map((part) => (
             <svg key={part} className={[styles.svg, zoomable ? styles.zoomable : '', garden ? styles.garden : ''].filter(Boolean).join(' ')} viewBox={svg.props.viewBox} style={OVER}>
               {renderContent(k, part)}
+              {part === 'live' && draw?.({toScreen, scale, k})}
             </svg>
           ))}
           <svg

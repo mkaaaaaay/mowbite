@@ -3,6 +3,7 @@ import {tr} from '../i18n';
 import {isPin} from '../mowerBody';
 import {CONTAINER_LEVEL} from '../updates';
 import {closedRings} from '../rings';
+import {CALIB_LIST, demoYaml} from './calib';
 import {demoMap, DEMO_SENSORS} from './garden';
 import {demoMows} from './world';
 
@@ -231,6 +232,36 @@ function demoProgress(status: Record<string, string>, now: number) {
   demoRun = null;
 }
 
+// a calibration's values asked to be written (?calib, or back to the copy before): done 4 s later like the updater does
+// it in the dock, the copy kept, what was written told
+let calibAsk: {t: number; pairs: [string, number][] | 'back'} | null = null;
+let calibCopy: {at: number; values: Record<string, number>} | null = null;
+const calibStatus: Record<string, string> = {};
+function demoCalib(status: Record<string, string>, now: number) {
+  if (calibAsk && now - calibAsk.t >= 4) {
+    if (calibAsk.pairs === 'back') {
+      if (calibCopy) Object.assign(demoYaml, calibCopy.values);
+      calibCopy = null;
+      calibStatus.calib = `back ${now}`;
+    } else {
+      calibCopy = {at: now, values: {...demoYaml}};
+      const wrote: string[] = [];
+      for (const [path, v] of calibAsk.pairs) {
+        const name = CALIB_LIST.find((c) => c[1] === path)![0];
+        wrote.push(`${path} ${demoYaml[name]} ${v}`);
+        demoYaml[name] = v;
+      }
+      calibStatus.calib_last = `${now} ${wrote.join(' ')}`;
+      calibStatus.calib = `written ${now}`;
+    }
+    calibAsk = null;
+  }
+  Object.assign(status, calibStatus, {
+    calib_paths: CALIB_LIST.map(([name, path, unit, lo, hi]) => `${name}:${path}:${unit}:${lo}:${hi}:${demoYaml[name]}`).join(' '),
+    ...(calibCopy ? {calib_backup: String(calibCopy.at)} : {}),
+  });
+}
+
 function demoUpdate(): Record<string, unknown> {
   const c = Object.fromEntries(updateConf.trim().split('\n').map((l) => [l.slice(0, l.indexOf(' ')), l.slice(l.indexOf(' ') + 1)]));
   const now = Math.round(Date.now() / 1000);
@@ -266,6 +297,7 @@ function demoUpdate(): Record<string, unknown> {
   if (demoDone.planner)
     Object.assign(status, {planner: `updated ${demoDone.planner} 3f2a9c1`, planner_running: `3f2a9c1e5b7d ${day(0)}`, planner_available: 'no main'});
   demoProgress(status, Date.now() / 1000);
+  demoCalib(status, now);
   return {
     conf: {...c, mowbite_auto: Number(c.mowbite_auto), openmower_auto: Number(c.openmower_auto), planner_auto: Number(c.planner_auto)},
     requested: false,
@@ -342,6 +374,23 @@ export async function demoFetch(url: string, init?: RequestInit): Promise<Respon
         // the lines sent replace the ones there were, the rest stays
         const sent = new Map(body.trim().split('\n').map((l) => [l.slice(0, l.indexOf(' ')), l]));
         updateConf = updateConf.trim().split('\n').map((l) => sent.get(l.slice(0, l.indexOf(' '))) ?? l).join('\n') + '\n';
+        return text('ok');
+      }
+      // lines "<path> <value>" from the list and within its bounds, like the updater checks them
+      if (post && q.has('calib')) {
+        if (q.get('calib') === 'back') {
+          if (!calibCopy) return text('bad');
+          calibAsk = {t: Math.round(Date.now() / 1000), pairs: 'back'};
+          return text('ok');
+        }
+        const pairs = body
+          .trim()
+          .split('\n')
+          .map((l) => l.split(' '))
+          .map(([path, v]) => [path, Number(v)] as [string, number]);
+        const fits = ([path, v]: [string, number]) => CALIB_LIST.some((c) => c[1] === path && v >= c[3] && v <= c[4]);
+        if (!pairs.length || !pairs.every(fits)) return text('bad');
+        calibAsk = {t: Math.round(Date.now() / 1000), pairs};
         return text('ok');
       }
       if (post && q.get('free')) {

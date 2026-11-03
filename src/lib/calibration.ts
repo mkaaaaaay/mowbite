@@ -1,4 +1,5 @@
 import {requestCalib, requestCalibBack} from './autoUpdate';
+import {fmt, tr} from './i18n';
 import {topicStore} from './mqttClient';
 import {RPC, TOPIC} from './openmower';
 import {callRpc} from './rpc';
@@ -34,14 +35,21 @@ export interface CalibResult {
   values: CalibValue[];
 }
 
-// turns counted each way, or all of them (a planner that doesn't tell the way)
-export type Turns = {left: number; right: number} | number;
+// what a recording has so far (as the planner counts it while recording) and what its mode needs of each (need), by
+// the planner's names: m and runs of straight runs (run_m long at least), still_s stood, and each way the turns between
+// runs (turns_), their full turns (rotation_) and those of the tight ones on the spot (tight_, for the antenna)
+export const COUNTS = ['m', 'runs', 'still_s', 'turns_left', 'turns_right', 'rotation_left', 'rotation_right', 'tight_left', 'tight_right'] as const;
+export type Count = (typeof COUNTS)[number];
 
 export interface CalibProgress {
-  phase: string | null;
-  m: number;
-  turns: Turns;
-  runs: number;
+  phase: 'recording' | 'evaluating' | 'done' | null;
+  // from a planner that tells it
+  mode: CalibMode | null;
+  // full turns of all of it
+  turns: number;
+  has: Partial<Record<Count, number>>;
+  // what the mode needs, empty from a planner that doesn't tell
+  need: Partial<Record<Count | 'run_m', number>>;
   ready: boolean;
   error: string | null;
 }
@@ -75,9 +83,14 @@ export function readProgress(payload: string): CalibProgress | null {
     return null;
   }
   if (!p || typeof p !== 'object') return null;
-  const t = p.turns as Record<string, unknown> | number | undefined;
-  const turns: Turns = t && typeof t === 'object' ? {left: num(t.left) ?? 0, right: num(t.right) ?? 0} : (num(t) ?? 0);
-  return {phase: str(p.phase), m: num(p.m) ?? 0, turns, runs: num(p.runs) ?? 0, ready: p.ready === true, error: str(p.error)};
+  const has: CalibProgress['has'] = {};
+  for (const k of COUNTS) if (num(p[k]) !== null) has[k] = num(p[k])!;
+  const need: CalibProgress['need'] = {};
+  const n = p.need && typeof p.need === 'object' ? (p.need as Record<string, unknown>) : {};
+  for (const k of [...COUNTS, 'run_m'] as const) if (num(n[k]) !== null) need[k] = num(n[k])!;
+  const phase = p.phase === 'recording' || p.phase === 'evaluating' || p.phase === 'done' ? p.phase : null;
+  const mode = p.mode === 'joystick' || p.mode === 'mow' ? p.mode : null;
+  return {phase, mode, turns: num(p.turns) ?? 0, has, need, ready: p.ready === true, error: str(p.error)};
 }
 
 // what the updater may write, by name: "<name>:<path>:<unit>:<min>:<max>:<value>" each (calib_paths)
@@ -160,24 +173,101 @@ export function calibLines(values: CalibValue[], chosen: Set<string>, paths: Rec
   return {lines: lines.length ? lines.join('\n') + '\n' : '', byHand};
 }
 
-// what a recording still lacks for the values (as the planner counts): by hand at least 20 m in 4 runs and 3 turns on
-// the spot each way, a mow 50 m in 8 runs and 20 turns each way
-const NEEDS: Record<CalibMode, {m: number; runs: number; turns: number}> = {
-  joystick: {m: 20, runs: 4, turns: 3},
-  mow: {m: 50, runs: 8, turns: 20},
-};
-export function missing(p: CalibProgress, mode: CalibMode): {what: 'm' | 'runs' | 'left' | 'right' | 'turns'; left: number}[] {
-  const need = NEEDS[mode];
-  const out: {what: 'm' | 'runs' | 'left' | 'right' | 'turns'; left: number}[] = [];
-  if (p.m < need.m) out.push({what: 'm', left: Math.ceil(need.m - p.m)});
-  if (p.runs < need.runs) out.push({what: 'runs', left: need.runs - p.runs});
-  if (typeof p.turns === 'number') {
-    if (p.turns < 2 * need.turns) out.push({what: 'turns', left: 2 * need.turns - p.turns});
-  } else {
-    if (p.turns.left < need.turns) out.push({what: 'left', left: need.turns - p.turns.left});
-    if (p.turns.right < need.turns) out.push({what: 'right', left: need.turns - p.turns.right});
+// what a recording still lacks, as the tiles show it: standing, straight runs (and their meters), the turns each way
+// (how many, and their full turns: all, and on the spot). need minus what it has, nothing without need
+export type Part = 'still' | 'straight' | 'left' | 'right';
+export interface Lack {
+  part: Part;
+  // how many of how many, of the count the tile shows (s, runs, turns)
+  has: number;
+  need: number;
+  // what's left of it, the count shown first, then the others: m of the runs, full turns of the turns
+  left: number;
+  more: number;
+}
+export function lacks(p: CalibProgress): Lack[] {
+  const has = (k: Count) => p.has[k] ?? 0;
+  const left = (k: Count) => Math.max(0, (p.need[k] ?? 0) - has(k));
+  const out: Lack[] = [];
+  if (p.need.still_s !== undefined) out.push({part: 'still', has: has('still_s'), need: p.need.still_s, left: left('still_s'), more: 0});
+  if (p.need.runs !== undefined) out.push({part: 'straight', has: has('runs'), need: p.need.runs, left: left('runs'), more: left('m')});
+  for (const side of ['left', 'right'] as const) {
+    const turns = `turns_${side}` as const;
+    if (p.need[turns] === undefined) continue;
+    out.push({part: side, has: has(turns), need: p.need[turns]!, left: left(turns), more: Math.max(left(`rotation_${side}`), left(`tight_${side}`))});
   }
   return out;
+}
+export const lackDone = (l: Lack) => l.left === 0 && l.more <= 0;
+
+// what the planner says (English with numbers in it) as a text to translate, its numbers in the reader's format. what
+// isn't known stays as it came
+const N = String.raw`(-?[\d.]+)`;
+const re = (s: string) => new RegExp(`^${s}$`);
+// a number as it came, with as many digits after the point, in the reader's format
+const local = (s: string) => fmt(+s, (s.split('.')[1] ?? '').length);
+const ONE_VALUE = 'OpenMower has one value for both, nothing to set for it.';
+const SAYS: [RegExp, (n: string[], m: RegExpMatchArray) => string][] = [
+  [/^no estimate$/, () => tr('Not enough data for it.')],
+  [re(`too uncertain: ${N} \\+- ${N} (\\S*), needs \\+- ${N}`), ([a, b, , c], m) => tr('Too inaccurate: {a} ± {b} {u}, ± {c} needed.', {a, b, c, u: m[3]})],
+  [re(`out of range: ${N} (\\S*), plausible ${N} to ${N}`), ([a, , b, c], m) => tr('Not plausible: {a} {u}, it should be between {b} and {c}.', {a, b, c, u: m[2]})],
+  [re(`large change from ${N}: ${N} (%|\\S+)`), ([a, b], m) => tr('Big change from {a}: {b} {u}.', {a, b, u: m[3]})],
+  [
+    re(`too few straight runs: ${N} of ${N} \\(${N} m at least\\), ${N} of ${N} m`),
+    ([a, b, c, d, e]) => tr('Too few straight runs: {a} of {b} (each {c} m at least), {d} of {e} m.', {a, b, c, d, e}),
+  ],
+  [re(`too few turns between runs: ${N} left, ${N} right, of ${N} each way`), ([a, b, c]) => tr('Too few turns between the runs: {a} left, {b} right, {c} needed each way.', {a, b, c})],
+  [
+    re(`too few tight turns: ${N} left, ${N} right \\(full turns, ${N} each way and two turns at least\\)`),
+    ([a, b, c]) => tr('Too few turns on the spot: {a} rounds left, {b} right, {c} needed each way (in two turns at least).', {a, b, c}),
+  ],
+  [re(`too little standing: ${N} of ${N} s`), ([a, b]) => tr('Too little standing still: {a} of {b} s.', {a, b})],
+  [re(`no place stood on in two headings \\(${N} stands with a heading\\)`), ([a]) => tr('It never stood on the same spot facing two ways ({a} stands).', {a})],
+  [/^IMU data not in base_link \((.*)\)$/, (_, m) => tr("The IMU's data isn't in base_link ({x}).", {x: m[1]})],
+  [
+    re(`the IMU sits tilted: roll ${N} deg, pitch ${N} deg \\(OpenMower has no setting for it\\)`),
+    ([a, b]) => tr('The IMU sits tilted: {a}° to the side, {b}° forward. Just a note, OpenMower has no setting for it.', {a, b}),
+  ],
+  [/^the recording stops in the middle \(no end line\): evaluated up to there$/, () => tr('The recording stops in the middle, worked out up to there.')],
+  [/^the recording ended with an error: (.*)$/, (_, m) => tr('The recording ended with an error: {x}', {x: m[1]})],
+  [/^the recording ended with an error$/, () => tr('The recording ended with an error.')],
+  [/^the recording ended at its time limit$/, () => tr('The recording ended at its time limit.')],
+  [/^the recording ended at its size limit$/, () => tr('The recording ended at its size limit.')],
+  [re(`no RTK fixed positions \\(${N}\\)`), () => tr('No positions with an RTK fix.')],
+  [
+    re(`left/right: the (left|right) wheel is in effect ${N} % smaller \\(diameter, wear, dirt\\), straight on the odometry it turns (?:left|right); OpenMower has one ticks_per_m for both`),
+    ([, b], m) =>
+      tr(m[1] === 'left' ? 'Left and right: the left wheel is in effect {b} % smaller (tyre, wear, dirt), the mower pulls to the left.' : 'Left and right: the right wheel is in effect {b} % smaller (tyre, wear, dirt), the mower pulls to the right.', {b}) +
+      ' ' +
+      tr(ONE_VALUE),
+  ],
+  [
+    re(`left/right: the (left|right) wheel turns ${N} % faster than asked \\(motor, gearbox, control\\)`),
+    ([, b], m) =>
+      tr(m[1] === 'left' ? 'Left and right: the left wheel turns {b} % faster than asked (motor, gearbox, control).' : 'Left and right: the right wheel turns {b} % faster than asked (motor, gearbox, control).', {b}) + ' ' + tr(ONE_VALUE),
+  ],
+  [
+    re(`only ${N} % of the driving was straight \\(a radius of 3 m or more\\): the mower pulls to one side or was steered`),
+    ([a]) => tr('Only {a} % of the driving was straight (a radius of 3 m or more): the mower pulls to one side or was steered.', {a}),
+  ],
+  [re(`RTK fixed only ${N} % of the time moving`), ([a]) => tr('RTK fix only {a} % of the time it moved.', {a})],
+  [re(`wheel distance on the spot ${N} m, in arcs ${N} m \\(${N} % apart\\), proposed: .*`), ([a, b, c]) => tr('Wheel distance turning on the spot {a} m, in curves {b} m ({c} % apart).', {a, b, c})],
+  [/^no RTK fixed$/, () => tr('No RTK fix: the recording only starts with one.')],
+  [/^nothing on (.*)$/, (_, m) => tr('Nothing comes on {x}: is OpenMower running?', {x: m[1]})],
+  [/^OpenMower's parameter (.*) isn't set$/, (_, m) => tr("OpenMower's parameter {x} isn't set.", {x: m[1]})],
+  [re(`only ${N} MB free on the mower, ${N} MB needed`), ([a, b]) => tr('Only {a} MB free on the mower, {b} MB needed for the recording.', {a, b})],
+  [/^a calibration is recorded already/, () => tr('A calibration is being recorded already.')],
+  [/^the last calibration is being evaluated$/, () => tr('The last calibration is still being worked out.')],
+  [/^the calibration is still recorded$/, () => tr('The calibration is still being recorded.')],
+  [/^the calibration is being evaluated$/, () => tr('The calibration is being worked out.')],
+  [/^no calibration (is )?recorded$/, () => tr('No calibration recorded.')],
+];
+export function calibText(said: string): string {
+  for (const [pattern, say] of SAYS) {
+    const m = said.match(pattern);
+    if (m) return say(m.slice(1).map((v) => (v !== undefined && /^-?[\d.]+$/.test(v) ? local(v) : v)), m);
+  }
+  return said;
 }
 
 export const calibStart = (mode: CalibMode) => callRpc(RPC.plannerCalibStart, {mode}, 20000);

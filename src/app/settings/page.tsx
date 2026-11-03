@@ -19,6 +19,7 @@ import PlannerWaiting from '@/components/PlannerWaiting';
 import Link from 'next/link';
 import {MowerBodySettings} from '@/components/MowerBodySettings';
 import {MowerSizesSettings} from '@/components/MowerSizesSettings';
+import {CalibrationLink} from '@/components/CalibrationLink';
 import {NotifySettings} from '@/components/NotifySettings';
 import {datumFromParams, useMowerParams} from '@/hooks/useMowerParams';
 import {posixTz} from '@/lib/schedule';
@@ -278,6 +279,7 @@ export default function SettingsPage() {
                 <MowerSizesSettings settings={settings} styles={styles} />
               )}
             </div>
+            <CalibrationLink styles={styles} />
             {planner && (
             <section className={styles.card}>
               <h2>{tr('Mow the leftovers')}</h2>
@@ -481,6 +483,9 @@ export default function SettingsPage() {
               </Link>
               <Link href="/guide/editor" className={styles.pillButton}>
                 {tr('Edit the map')}
+              </Link>
+              <Link href="/guide/calibration" className={styles.pillButton}>
+                {tr('Calibrating')}
               </Link>
             </div>
           </section>

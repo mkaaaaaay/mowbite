@@ -2,6 +2,7 @@ import type {MapArea, MowerMap, Point} from '@/hooks/useMowerMap';
 import {linkStripes, mowPlan} from '../mowPlan';
 import {ACTION, PARAM, RPC, TOPIC} from '../openmower';
 import {closedRings, openRing, openRings} from '../rings';
+import {CALIB_NEED, calibCounts, calibResultOf} from './calib';
 import {DEMO_PARAMS, DEMO_SENSORS, demoMap} from './garden';
 
 // The demo mower: what OpenMower would send and answer, made up here so the app can be looked at without a mower.
@@ -385,6 +386,11 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
   // the stick's last command and when it came: the wheels stop a second after the last one, like on the xcore
   let stick = {vx: 0, vz: 0, at: -Infinity};
   let recorded = 0;
+  // a calibration recorded like the MowBite Planner does it (planner.calib.*): counted from how the mower moves, worked
+  // out a few seconds after it ends. job: a mow ran while recording (its end ends a recording of a mow)
+  let calib: {mode: 'joystick' | 'mow'; counts: ReturnType<typeof calibCounts>; phase: 'recording' | 'evaluating' | 'done'; at: number; job: boolean} | null = null;
+  let calibResult: ReturnType<typeof calibResultOf> | null = null;
+  let calibSaid: string | null = null;
 
   const dock = () => dockOf(map);
   // on the station's contacts: parked there, or recording before it has driven off
@@ -622,6 +628,18 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     actions: () => deliver(TOPIC.actions, JSON.stringify(actions())),
     state: () => deliver(TOPIC.robotState, JSON.stringify(robotState())),
     position: () => deliver(TOPIC.position, JSON.stringify(position())),
+    calib: () => {
+      if (!calib) return;
+      calibSaid = JSON.stringify({
+        ...calib.counts.progress(),
+        ...(calibResult?.based_on ?? {}),
+        phase: calib.phase,
+        ready: !!calibResult?.ready,
+        error: null,
+        need: CALIB_NEED[calib.mode],
+      });
+      deliver(TOPIC.plannerCalib, calibSaid);
+    },
     sensors: () => Object.entries(sensors()).forEach(([id, v]) => deliver(`sensors/${id}/data`, v)),
   };
   // after anything that changes what the mower does
@@ -837,6 +855,27 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
       return answer(areaPaths({outline: openRing(outline), properties}, (obstacles ?? []).map(openRing), ros), plannedAngle(properties.angle, ros));
     },
     [RPC.logs]: () => [],
+    [RPC.plannerCalibStart]: (params) => {
+      const mode = (params as {mode?: string})?.mode;
+      if (mode !== 'joystick' && mode !== 'mow') throw new Error('mode must be one of joystick, mow');
+      if (calib?.phase === 'evaluating') throw new Error('the last calibration is being evaluated');
+      if (calib?.phase === 'recording') throw new Error('a calibration is recorded already');
+      calib = {mode, counts: calibCounts(CALIB_NEED[mode]), phase: 'recording', at: last, job: false};
+      calibResult = null;
+      send.calib();
+      return {ok: true};
+    },
+    [RPC.plannerCalibStop]: () => {
+      if (calib?.phase !== 'recording') throw new Error('no calibration is recorded');
+      calibEnd();
+      return {ok: true};
+    },
+    [RPC.plannerCalibResult]: () => {
+      if (calib?.phase === 'recording') throw new Error('the calibration is still recorded');
+      if (calib?.phase === 'evaluating') throw new Error('the calibration is being evaluated');
+      if (!calibResult) throw new Error('no calibration recorded');
+      return calibResult;
+    },
     // any of mower_logic's numbers and switches, kept until the demo is opened again. the next plan uses them
     [RPC.setParams]: (request) => {
       const wanted = (request as {params?: Record<string, unknown>})?.params;
@@ -874,10 +913,35 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     }
   }
 
+  function calibEnd() {
+    if (!calib) return;
+    calib.phase = 'evaluating';
+    calib.at = last;
+    send.calib();
+  }
+  // counted from the way the mower moved since the last tick; worked out 3 s after it ended
+  function calibStep(dt: number, from: {x: number; y: number; heading: number}) {
+    if (!calib) return;
+    if (calib.phase === 'recording') {
+      if (dt > 0) {
+        const turned = Math.atan2(Math.sin(pose.heading - from.heading), Math.cos(pose.heading - from.heading));
+        const h = from.heading + turned / 2;
+        calib.counts.add(dt, ((pose.x - from.x) * Math.cos(h) + (pose.y - from.y) * Math.sin(h)) / dt, turned / dt);
+      }
+      if (job) calib.job = true;
+      if (calib.counts.enough() || (calib.mode === 'mow' && calib.job && !job)) calibEnd();
+    } else if (calib.phase === 'evaluating' && last - calib.at >= 3000) {
+      calib.phase = 'done';
+      calibResult = calibResultOf(calib.counts.progress(), CALIB_NEED[calib.mode]);
+      send.calib();
+    }
+  }
+
   function tick(now = Date.now()) {
     // a tab asleep for hours doesn't mow them all at once on waking: the demo goes on where it was
     const dt = Math.min(60, Math.max(0, (now - last) / 1000));
     const was = state();
+    const from = {...pose};
     if (!latched) {
       step(SPEED * dt, last / 1000);
       drive(last, now);
@@ -892,11 +956,13 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     const open = mows[mows.length - 1];
     if (open && open.end === Infinity && (parked || !job)) open.end = now / 1000;
     place();
+    calibStep(dt, from);
     if (s !== was) send.actions();
     send.position();
     if (ticks++ % Math.round(1000 / TICK_MS) === 0 || s !== was) {
       send.state();
       send.sensors();
+      if (calib?.phase === 'recording') send.calib();
     }
   }
 
@@ -911,6 +977,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
       if (topic === TOPIC.robotState) return [[topic, JSON.stringify(robotState())]];
       if (topic === TOPIC.position) return [[topic, JSON.stringify(position())]];
       if (topic === TOPIC.mapOverlay) return [[topic, JSON.stringify(overlay())]];
+      if (topic === TOPIC.plannerCalib) return calibSaid ? [[topic, calibSaid]] : [];
       if (topic === TOPIC.sensorData) return Object.entries(sensors()).map(([id, v]) => [`sensors/${id}/data`, v]);
       return [];
     },

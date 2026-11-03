@@ -1,0 +1,471 @@
+'use client';
+
+import {TitleMark} from '@/components/Logo';
+import {TitleRow} from '@/components/TopWeather';
+import {CheckIcon, CloseIcon, PlayIcon} from '@/components/icons';
+import {numParam, useMowerParams} from '@/hooks/useMowerParams';
+import {useMowerActions} from '@/hooks/useMowerActions';
+import {isLive, useMowerState} from '@/hooks/useMowerState';
+import {loadUpdate} from '@/lib/autoUpdate';
+import {
+  calibBack,
+  calibProgress,
+  calibResult,
+  calibStart,
+  calibStop,
+  calibText,
+  lackDone,
+  lacks,
+  readPaths,
+  takeCalib,
+  type CalibMode,
+  type CalibResult,
+  type CalibValue,
+} from '@/lib/calibration';
+import {fmt, tr, useLang} from '@/lib/i18n';
+import {ACTION, PARAM, RPC} from '@/lib/openmower';
+import {rpcMethods} from '@/lib/rpc';
+import {GPS_QUALITY_LABEL, gpsQuality} from '@/lib/status';
+import Link from 'next/link';
+import {useEffect, useRef, useState, useSyncExternalStore} from 'react';
+import {createPortal} from 'react-dom';
+import Drive from './Drive';
+import {LastCalibration, ResultView, Sent} from './Result';
+import styles from './page.module.css';
+
+const A = ACTION.recording;
+// what the planner needs free for a recording, MB; the battery below which it's better charged first
+const FREE_MB = 500;
+const LOW_BATTERY = 0.3;
+// the time of a tap (out here: what the page hands to a child, the compiler takes for something run while drawing)
+const nowMs = () => Date.now();
+
+// the updater's status, again every few seconds while the page is open (more often while it's asked something)
+function useUpdater(fast: boolean) {
+  const [status, setStatus] = useState<Record<string, string> | null>(null);
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    let stop = false;
+    const t = setTimeout(
+      () =>
+        void loadUpdate()
+          .then((s) => !stop && setStatus(s?.status ?? null))
+          .catch(() => {})
+          .finally(() => !stop && setTick((n) => n + 1)),
+      tick ? (fast ? 3000 : 10000) : 0,
+    );
+    return () => {
+      stop = true;
+      clearTimeout(t);
+    };
+  }, [tick, fast]);
+  return {status, again: () => setTick((n) => n + 1)};
+}
+
+// before it starts: what MowBite checks, what the user confirms (driving by hand only)
+function Ready({mode, status, onGo, onClose}: {mode: CalibMode; status: Record<string, string> | null; onGo: () => void; onClose: () => void}) {
+  const link = useMowerState();
+  const {state} = link;
+  const params = useMowerParams();
+  const {hasAction} = useMowerActions();
+  const [room, setRoom] = useState(false);
+  const [stay, setStay] = useState(false);
+  const acc = state?.pose.pos_accuracy;
+  const gpsQ = gpsQuality(acc, numParam(params, PARAM.maxPositionAccuracy));
+  const battery = state?.battery_percentage;
+  const free = /^\d+$/.test(status?.disk_free ?? '') ? Number(status!.disk_free) : null;
+  const byHand = mode === 'joystick';
+  const checks: {ok: boolean; title: string; text?: string; value?: string}[] = [
+    gpsQ === 'fix'
+      ? {ok: true, title: tr('RTK fix'), text: tr('Position accurate to a few centimeters'), value: `${fmt(acc! * 100, 1)} cm`}
+      : {
+          ok: false,
+          title: tr('No RTK fix yet'),
+          text: tr('Without a position accurate to the centimeter the values come out wrong. Under open sky it usually takes a minute or two.'),
+          value: gpsQ === 'none' ? tr(GPS_QUALITY_LABEL.none) : `${fmt(acc! * 100, 0)} cm`,
+        },
+    battery === undefined || battery >= LOW_BATTERY
+      ? {ok: true, title: tr('Battery'), value: battery === undefined ? '–' : `${Math.round(battery * 100)} %`}
+      : {ok: false, title: tr('Battery too low'), text: tr('Let it charge in the dock first.'), value: `${Math.round(battery * 100)} %`},
+    free === null || free >= FREE_MB
+      ? {ok: true, title: tr('Storage for the recording'), value: free === null ? '–' : tr('{size} free', {size: free >= 1000 ? `${fmt(free / 1000, 1)} GB` : `${free} MB`})}
+      : {ok: false, title: tr('Not enough storage'), text: tr('The recording needs at least {size} free.', {size: `${FREE_MB} MB`}), value: `${free} MB`},
+  ];
+  // driving by hand needs recording mode, only to be had while idle
+  if (byHand && state?.current_state !== 'AREA_RECORDING' && !hasAction(ACTION.startRecording))
+    checks.push({ok: false, title: tr('The mower is busy'), text: tr('Driving by hand only works while it is idle. Send it home or wait until it is.')});
+  const bad = checks.some((c) => !c.ok);
+  const missing = byHand ? [!room && tr('Room to drive'), !stay && tr('You stay with it')].filter(Boolean) : [];
+  return createPortal(
+    <div className={styles.backdrop} onClick={onClose}>
+      <section className={styles.sheet} role="dialog" aria-modal="true" aria-label={tr('Ready to calibrate?')} onClick={(e) => e.stopPropagation()}>
+        <div className={styles.sheetHead}>
+          <div>
+            <h2>{tr('Ready to calibrate?')}</h2>
+            <p className={styles.dim}>
+              {byHand ? tr('{way} · about {n} minutes', {way: tr('Drive it yourself'), n: 5}) : tr('On the next mowing run')}
+            </p>
+          </div>
+        </div>
+        <span className={styles.groupLabel}>{tr('MowBite checks')}</span>
+        <div className={styles.checks}>
+          {checks.map((c) => (
+            <div key={c.title} className={[styles.check, c.ok ? '' : styles.checkBad].join(' ')}>
+              <span className={[styles.mark, c.ok ? styles.markOk : styles.markBad].join(' ')}>{c.ok ? <CheckIcon size={14} /> : <CloseIcon size={14} />}</span>
+              <div>
+                {c.title}
+                {c.text && <small>{c.text}</small>}
+              </div>
+              {c.value && <span className={styles.value}>{c.value}</span>}
+            </div>
+          ))}
+        </div>
+        {byHand && !bad && (
+          <>
+            <span className={styles.groupLabel}>{tr('You confirm')}</span>
+            <div className={styles.checks}>
+              <label className={styles.check}>
+                <input type="checkbox" checked={room} onChange={(e) => setRoom(e.target.checked)} />
+                <div>
+                  {tr('Room to drive')}
+                  <small>{tr('{m} × {m} m of level lawn, no beds, edges or toys', {m: 5})}</small>
+                </div>
+              </label>
+              <label className={styles.check}>
+                <input type="checkbox" checked={stay} onChange={(e) => setStay(e.target.checked)} />
+                <div>
+                  {tr('You stay with it')}
+                  <small>{tr('and can stop it any time with Cancel or the stop button')}</small>
+                </div>
+              </label>
+            </div>
+          </>
+        )}
+        {!byHand && !bad && (
+          <p className={styles.dim}>
+            {tr("It records from now on and ends by itself after the next mow, after 2 hours at the latest: start a mow soon. The blade runs as always, nothing else changes.")}
+          </p>
+        )}
+        {bad ? (
+          <p className={styles.dim}>{gpsQ !== 'fix' ? tr('Once the mower has an RTK fix, this turns green by itself.') : ''}</p>
+        ) : missing.length === 1 ? (
+          <p className={styles.dim}>{tr('Tick “{what}” too, then it starts.', {what: missing[0] as string})}</p>
+        ) : missing.length === 2 ? (
+          <p className={styles.dim}>{tr('Tick both points above, then it starts.')}</p>
+        ) : (
+          <Link href="/guide/calibration" className={styles.link}>
+            {tr('Read the guide first (2 min)')}
+          </Link>
+        )}
+        <div className={styles.buttons}>
+          <button onClick={onClose}>{bad ? tr('Close') : tr('Cancel')}</button>
+          {!bad && !missing.length && (
+            <button className={styles.primary} onClick={onGo}>
+              <PlayIcon size={18} />
+              {tr("Let's go")}
+            </button>
+          )}
+        </div>
+      </section>
+    </div>,
+    document.body,
+  );
+}
+
+// the calibration of OpenMower's sizes from a drive: recorded and worked out by the MowBite Planner (planner.calib.*),
+// what's taken written into mower_params.yaml by the MowBite Updater (?calib), by hand without it
+export default function CalibrationPage() {
+  useLang();
+  const link = useMowerState();
+  const {state} = link;
+  const live = isLive(link);
+  const {hasAction, publishAction} = useMowerActions();
+  const progress = useSyncExternalStore(calibProgress.subscribe, calibProgress.get, calibProgress.initial);
+  const [methods, setMethods] = useState<Set<string> | null | undefined>(undefined);
+  useEffect(() => {
+    void rpcMethods().then(setMethods);
+  }, []);
+  const can = !!methods?.has(RPC.plannerCalibStart);
+
+  const [mode, setMode] = useState<CalibMode>('joystick');
+  const [asking, setAsking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<CalibResult | null>(null);
+  const [sent, setSent] = useState<{at: number; values: CalibValue[]; byHand: CalibValue[]} | null>(null);
+  // a request of this page to the updater (taking values, setting back): when, to tell its answer from older ones
+  const [asked, setAsked] = useState<number | null>(null);
+  const {status, again} = useUpdater(asked !== null);
+  const paths = readPaths(status?.calib_paths);
+
+  const recordingMode = state?.current_state === 'AREA_RECORDING';
+  // a recording started or seen on this page (its start for the clock)
+  const [since, setSince] = useState<number | null>(null);
+  const phase = progress?.phase ?? null;
+  // the result is shown once worked out while the page is open (not after cancel), or when asked for
+  const [show, setShow] = useState(false);
+  const [cancelled, setCancelled] = useState(false);
+  const [was, setWas] = useState(phase);
+  // the recording driven by hand from here ended: back to the dock in recording mode, then out of it
+  const [ended, setEnded] = useState(false);
+  if (phase !== was) {
+    setWas(phase);
+    if (was === 'recording') setEnded(true);
+    // (evaluating may come and go between two messages)
+    if ((was === 'evaluating' || was === 'recording') && phase === 'done' && !cancelled) {
+      setShow(true);
+      setSent(null);
+    }
+  }
+  const failed = progress?.error ?? null;
+  useEffect(() => {
+    if (!show || phase !== 'done' || failed) return;
+    let stop = false;
+    calibResult().then(
+      (r) => !stop && setResult(r),
+      (e) => !stop && setError(calibText(e instanceof Error ? e.message : String(e))),
+    );
+    return () => {
+      stop = true;
+    };
+  }, [show, phase, failed]);
+
+  // a joystick recording waiting for recording mode to start, then started (once: the planner says no to a second one)
+  const [starting, setStarting] = useState(false);
+  const called = useRef(false);
+  useEffect(() => {
+    if (!starting || !recordingMode || called.current) return;
+    called.current = true;
+    let stop = false;
+    calibStart('joystick').then(
+      () => !stop && setStarting(false),
+      (e) => {
+        if (stop) return;
+        setStarting(false);
+        setError(calibText(e instanceof Error ? e.message : String(e)));
+        publishAction(A('exit_recording_mode'));
+      },
+    );
+    return () => {
+      stop = true;
+    };
+  }, [starting, recordingMode, publishAction]);
+  useEffect(() => {
+    if (!starting) {
+      called.current = false;
+      return;
+    }
+    const t = setTimeout(() => {
+      setStarting(false);
+      setError(tr("The mower didn't go into recording mode. Is it idle?"));
+    }, 10000);
+    return () => clearTimeout(t);
+  }, [starting]);
+
+  const go = async () => {
+    setAsking(false);
+    setError(null);
+    setCancelled(false);
+    setEnded(false);
+    setTaken(false);
+    setShow(false);
+    setResult(null);
+    setSent(null);
+    setSince(nowMs());
+    if (mode === 'mow') {
+      try {
+        await calibStart('mow');
+      } catch (e) {
+        setError(calibText(e instanceof Error ? e.message : String(e)));
+      }
+      return;
+    }
+    if (!recordingMode) publishAction(ACTION.startRecording);
+    setStarting(true);
+  };
+  const stopRecording = async (cancel: boolean) => {
+    setCancelled(cancel);
+    try {
+      await calibStop();
+    } catch (e) {
+      setError(calibText(e instanceof Error ? e.message : String(e)));
+    }
+  };
+  const endRecordingMode = () => {
+    if (hasAction(A('exit_recording_mode'))) publishAction(A('exit_recording_mode'));
+  };
+  // the result taken: not offered again until the next recording
+  const [taken, setTaken] = useState(false);
+  const take = async (values: CalibValue[], lines: string, byHand: CalibValue[]) => {
+    const at = Math.floor(nowMs() / 1000);
+    if (lines) await takeCalib(lines);
+    setTaken(true);
+    setSent({at, values, byHand});
+    setAsked(lines ? at : null);
+    setShow(false);
+    setResult(null);
+    again();
+  };
+  const back = async () => {
+    const at = Math.floor(nowMs() / 1000);
+    await calibBack();
+    setAsked(at);
+    again();
+  };
+
+  const list = progress ? lacks(progress) : [];
+  // driven by hand: as the planner says, else while the mower is in recording mode
+  const drivingByHand = phase === 'recording' && (progress?.mode ? progress.mode === 'joystick' : recordingMode);
+  // driving it back to the dock after driving by hand, in recording mode still
+  const homeDrive = ended && phase !== 'recording' && recordingMode;
+
+  let body: React.ReactNode;
+  if (methods === undefined || !state) {
+    body = <p className={styles.dim}>{tr('connecting…')}</p>;
+  } else if (!can) {
+    body = (
+      <section className={styles.card}>
+        <p>{tr('Calibrating needs the MowBite Planner on the mower, from version 0.3.0.')}</p>
+      </section>
+    );
+  } else if (starting) {
+    body = <p className={styles.dim}>{tr('Starting recording mode…')}</p>;
+  } else if (drivingByHand) {
+    body = <Drive progress={progress!} since={since} onStop={() => void stopRecording(true)} onDone={() => void stopRecording(false)} />;
+  } else if (phase === 'recording') {
+    // the next mow: nothing to do but to start it
+    body = (
+      <>
+        <section className={styles.card}>
+          <span className={styles.live}>
+            {since ? tr('Measures while mowing · since {time}', {time: new Date(since).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}) : tr('Measures while mowing')}
+          </span>
+          <p className={styles.now}>{tr("It mows and measures along. You don't need to do anything.")}</p>
+          <p className={styles.dim}>{tr('Ends by itself once there\'s enough, after {n} hours at the latest.', {n: 2})}</p>
+          {hasAction(ACTION.startMowing) && (
+            <button className={styles.primary} disabled={!live} onClick={() => publishAction(ACTION.startMowing)}>
+              <PlayIcon size={18} />
+              {tr('Start mowing')}
+            </button>
+          )}
+        </section>
+        {list.length > 0 && (
+          <section className={styles.card}>
+            <h2>{tr('Still to measure')}</h2>
+            <div className={styles.rows}>
+              {list.map((l) => (
+                <div key={l.part} className={[styles.row, lackDone(l) ? styles.rowDone : ''].join(' ')}>
+                  <span>
+                    {tr({still: 'Stand {n} s', straight: 'Straight lanes', left: 'Turns left', right: 'Turns right'}[l.part], {n: fmt(l.need, 0)})}
+                    <small>{tr('{n} of {m}', {n: fmt(l.has, 0), m: fmt(l.need, 0)})}</small>
+                  </span>
+                  <b>{lackDone(l) ? <CheckIcon size={16} /> : l.left > 0 ? tr('{n} more', {n: fmt(Math.ceil(l.left), 0)}) : tr('{n} more rounds on the spot', {n: fmt(l.more, 1)})}</b>
+                </div>
+              ))}
+            </div>
+            {list.some((l) => (l.part === 'left' || l.part === 'right') && l.left === 0 && l.more > 0) && (
+              <p className={styles.dim}>{tr('The antenna needs turns on the spot, a mow seldom has them: then drive it yourself for the antenna.')}</p>
+            )}
+          </section>
+        )}
+        <button className={styles.danger} onClick={() => void stopRecording(true)}>
+          {tr('Cancel')}
+        </button>
+      </>
+    );
+  } else if (phase === 'evaluating') {
+    body = (
+      <section className={styles.card}>
+        <span className={styles.live}>{tr('Works it out')}</span>
+        <p className={styles.dim}>{tr('The planner works the values out from the recording, that can take a few minutes.')}</p>
+      </section>
+    );
+  } else if (show && result) {
+    body = (
+      <ResultView
+        result={result}
+        paths={paths}
+        onTake={take}
+        onDrop={() => {
+          setShow(false);
+          setResult(null);
+        }}
+      />
+    );
+  } else if (sent) {
+    body = (
+      <>
+        <Sent sent={sent} status={status} onBack={back} />
+        <button onClick={() => setSent(null)}>{tr('Close')}</button>
+      </>
+    );
+  } else {
+    body = (
+      <>
+        <p className={styles.lead}>
+          {tr('Measures how far the mower goes per turn of the wheels, how far apart the wheels are and where the antenna sits. Better values: straighter lanes, cleaner docking.')}
+        </p>
+        {phase === 'done' && failed && !cancelled && <p className={styles.warn}>{tr('The last recording gave no result: {why}', {why: calibText(failed)})}</p>}
+        <section className={styles.card}>
+          <h2>{tr('Calibrate again')}</h2>
+          <span className={styles.dim}>{tr('How should it measure?')}</span>
+          {(
+            [
+              ['joystick', 'Drive it yourself', 'You drive with the joystick following the guide: straight runs, turns, standing still.', tr('~{n} min', {n: 5})],
+              ['mow', 'On the next mowing run', 'It measures along while mowing. The antenna only when it also turns on the spot.', tr('up to {n} h', {n: 2})],
+            ] as const
+          ).map(([k, title, text, time]) => (
+            <label key={k} className={[styles.choice, mode === k ? styles.choiceOn : ''].join(' ')}>
+              <input type="radio" name="mode" checked={mode === k} onChange={() => setMode(k)} />
+              <div>
+                <b>{tr(title)}</b>
+                <span>{tr(text)}</span>
+              </div>
+              <span className={styles.chip}>{time}</span>
+            </label>
+          ))}
+          <button className={styles.primary} disabled={!live} onClick={() => setAsking(true)}>
+            <PlayIcon size={20} />
+            {tr('Start calibration')}
+          </button>
+          <Link href="/guide/calibration" className={styles.link}>
+            {tr('Guide: how to drive it right')}
+          </Link>
+        </section>
+        {phase === 'done' && !failed && !taken && (
+          <button onClick={() => setShow(true)}>
+            {tr('Show the result of the last recording')}
+          </button>
+        )}
+        <LastCalibration status={status} asked={asked} onBack={back} />
+      </>
+    );
+  }
+
+  return (
+    <div className={styles.page}>
+      <main className={styles.main}>
+        <TitleRow className={drivingByHand ? styles.hideOnPhone : undefined}>
+          <h1>
+            <TitleMark />
+            {show && result ? tr('Result') : tr('Calibration')}
+          </h1>
+        </TitleRow>
+        {!drivingByHand && (
+          <Link href="/settings#mower" className={styles.link}>
+            ← {tr('Settings')}
+          </Link>
+        )}
+        {error && <p className={styles.warn}>{error}</p>}
+        {/* first back to the dock (the updater writes only there), the result under it */}
+        {homeDrive && (
+          <>
+            <p className={styles.dim}>{tr('The recording is done. Drive the mower back onto the docking station, then leave recording mode.')}</p>
+            <Drive progress={progress} since={since} home onStop={endRecordingMode} onDone={endRecordingMode} />
+          </>
+        )}
+        {body}
+      </main>
+      {asking && <Ready mode={mode} status={status} onGo={() => void go()} onClose={() => setAsking(false)} />}
+    </div>
+  );
+}
