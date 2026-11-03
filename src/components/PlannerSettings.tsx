@@ -43,11 +43,12 @@ function change(key: string, s: PlannerSetting, value: Value): {value?: unknown;
   return typeof s.value === 'number' && Math.abs(s.value - v) < 1e-9 && s.stored ? {} : {value: v};
 }
 
-export function PlannerField({
+function PlannerField({
   name,
   setting,
   value,
   onChange,
+  onPick,
   styles,
   warning,
 }: {
@@ -55,6 +56,8 @@ export function PlannerField({
   setting: PlannerSetting;
   value: Value;
   onChange: (v: Value) => void;
+  // Auto tapped: saved right away, a tapped button isn't always focused (Safari), so no blur saves it
+  onPick?: (v: Value) => void;
   styles: Styles;
   // what's off about the value set, shown under it
   warning?: string | null;
@@ -138,7 +141,7 @@ export function PlannerField({
             className={isAuto ? local.autoOn : undefined}
             onClick={(e) => {
               e.preventDefault();
-              onChange(isAuto ? '' : auto);
+              (onPick ?? onChange)(isAuto ? '' : auto);
             }}
           >
             {tr('Auto')}
@@ -225,6 +228,7 @@ export function PlannerSettings({styles}: {styles: Styles}) {
           setForm({...form, [k]: v});
           setState({});
         }}
+        onPick={(v) => commit(k, v)}
       />
     </div>
   );
