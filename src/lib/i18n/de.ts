@@ -612,6 +612,7 @@ const de: Record<string, string> = {
   "Tap an area to edit it, here or on the map.": "Tippe auf eine Fläche, um sie zu bearbeiten, hier oder auf der Karte.",
   "Pictures: Layers on the map, Map settings, Decorate.": "Bilder: Ebenen an der Karte, Karteneinstellungen, Dekorieren.",
   "No area yet. Record the edge of the lawn with the mower, or draw it on the map.": "Noch keine Fläche. Fahr den Rand des Rasens mit dem Mäher ab oder zeichne ihn auf der Karte.",
+  "Draw it on the map or drive round it with the mower": "Auf der Karte zeichnen oder mit dem Mäher abfahren",
   "Paths, obstacles and more": "Wege, Hindernisse und mehr",
   "Change the shape": "Form ändern",
   "Everything saved": "Alles gespeichert",

@@ -31,7 +31,7 @@ import DecorPanel, {showUnderMap} from './DecorPanel';
 import {decorRedo, decorUndo, goneLooks, onlyPinsChanged, pinSquare, pinsFrom, type UpdateArea, NEW_AREA_SETTINGS} from './editing';
 import EditorToolbar from './EditorToolbar';
 import MowSettings, {AngleOnMap, AreaDirection, AreaPlanInfo, OpenMowerArea} from './MowSettings';
-import OrderBox from './OrderBox';
+import OrderBox, {NewArea} from './OrderBox';
 import {DrawPanel, MergePanel, RestorePanel, SimplifyPanel, SnapPanel, SplitPanel, SubtractPanel} from './Panels';
 import {PARAM} from '@/lib/openmower';
 import {RpcError} from '@/lib/rpc';
@@ -779,6 +779,8 @@ function MapEditor() {
   // a pin just taken away, for 5 s with the way back (map: the map then, after any other change the way back is gone)
   const [removed, setRemoved] = useState<{what: string; map: MowerMap} | null>(null);
   const garden = settings.mapStyle === 'garden';
+  // no area to list yet (pictures standing by themselves aren't any)
+  const noAreas = !map?.areas.some((a) => !isPin(a));
   // (against the map the edits started from: a change on the mower meanwhile isn't one of ours)
   const areasChanged = !!map && !!liveMap && !onlyPinsChanged(base ?? liveMap, map);
   const pickedPin = mode === 'decor' && selectedArea && isPin(selectedArea) ? selectedArea : null;
@@ -1225,28 +1227,10 @@ function MapEditor() {
                 </div>
               )}
 
-              {/* nothing picked: the areas first, then the track, the settings for all areas and the backups */}
+              {/* nothing picked: a new area first, the settings for all areas, then the areas, the track and the backups */}
               {map && !selectedArea && mode === 'idle' && (
                 <>
-                  <OrderBox
-                    areas={map.areas}
-                    idle={idle}
-                    unsaved={dirty}
-                    pictures={garden && map.areas.some(isPin)}
-                    onSelect={selectArea}
-                    onMove={moveInOrder}
-                    onDraw={startDraw}
-                  />
-                  {jobList && jobList.length > 0 && (
-                    <TrackPicker
-                      jobs={jobList}
-                      selected={viewJob?.id ?? null}
-                      segments={viewJob?.segments}
-                      onSelect={(id) => showJob(id ?? '')}
-                      onClearLive={trackPoints(track) > 1 ? () => void clearTrack() : undefined}
-                      lastRun={trackPoints(track) > 1 ? lastRun : null}
-                    />
-                  )}
+                  <NewArea empty={noAreas} unsaved={dirty} onDraw={startDraw} />
                   {/* without the planner (or with OpenMower's slic3r planning) OpenMower's own values for all areas */}
                   {plannerBusy && (
                     <Fold id="plannerAll" title={tr('Planner for all areas')} hint={tr('For every area without values of its own')}>
@@ -1278,6 +1262,26 @@ function MapEditor() {
                         }
                       />
                     </Fold>
+                  )}
+
+                  {!noAreas && (
+                    <OrderBox
+                      areas={map.areas}
+                      idle={idle}
+                      pictures={garden && map.areas.some(isPin)}
+                      onSelect={selectArea}
+                      onMove={moveInOrder}
+                    />
+                  )}
+                  {jobList && jobList.length > 0 && (
+                    <TrackPicker
+                      jobs={jobList}
+                      selected={viewJob?.id ?? null}
+                      segments={viewJob?.segments}
+                      onSelect={(id) => showJob(id ?? '')}
+                      onClearLive={trackPoints(track) > 1 ? () => void clearTrack() : undefined}
+                      lastRun={trackPoints(track) > 1 ? lastRun : null}
+                    />
                   )}
 
                   <MapBackups

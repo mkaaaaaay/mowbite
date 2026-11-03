@@ -6,7 +6,7 @@ import {MapLookSettings} from '@/components/MapLookSettings';
 import {settingsStore, type Settings} from '@/lib/settings';
 import DecorPanel from './DecorPanel';
 import EditorToolbar from './EditorToolbar';
-import OrderBox from './OrderBox';
+import OrderBox, {NewArea} from './OrderBox';
 import {pinSquare} from './editing';
 
 const noop = () => {};
@@ -126,8 +126,10 @@ describe('decorating, started from the map settings', () => {
     );
     expect(bar).toContain('Save map');
     expect(bar).not.toContain('Decorate');
-    const list = markup(createElement(OrderBox, {areas: [], idle: true, unsaved: false, pictures: false, onSelect: noop, onMove: noop, onDraw: noop}));
-    expect(list).toContain('Draw');
+    const list = markup(createElement(OrderBox, {areas: [], idle: true, pictures: false, onSelect: noop, onMove: noop}));
     expect(list).not.toContain('Decorate');
+    const add = markup(createElement(NewArea, {empty: true, unsaved: false, onDraw: noop}));
+    expect(add).toContain('Draw');
+    expect(add).not.toContain('Decorate');
   });
 });

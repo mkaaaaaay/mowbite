@@ -954,7 +954,7 @@ function Order() {
       map={GARDEN}
       selected={null}
       view={{orderLabels: labels}}
-      under={<OrderBox areas={order} idle unsaved={false} pictures={false} onSelect={noop} onMove={noop} onDraw={noop} />}
+      under={<OrderBox areas={order} idle pictures={false} onSelect={noop} onMove={noop} />}
       hand={{
         moves: [
           [0, 'off'],
