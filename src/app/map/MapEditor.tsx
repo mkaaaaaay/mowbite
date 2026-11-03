@@ -1227,10 +1227,9 @@ function MapEditor() {
                 </div>
               )}
 
-              {/* nothing picked: a new area first, the settings for all areas, then the areas, the track and the backups */}
+              {/* nothing picked: the settings for all areas first, a new area, then the areas, the track and the backups */}
               {map && !selectedArea && mode === 'idle' && (
                 <>
-                  <NewArea empty={noAreas} unsaved={dirty} onDraw={startDraw} />
                   {/* without the planner (or with OpenMower's slic3r planning) OpenMower's own values for all areas */}
                   {plannerBusy && (
                     <Fold id="plannerAll" title={tr('Planner for all areas')} hint={tr('For every area without values of its own')}>
@@ -1264,6 +1263,7 @@ function MapEditor() {
                     </Fold>
                   )}
 
+                  <NewArea empty={noAreas} unsaved={dirty} onDraw={startDraw} />
                   {!noAreas && (
                     <OrderBox
                       areas={map.areas}
