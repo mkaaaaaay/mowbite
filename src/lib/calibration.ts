@@ -52,6 +52,13 @@ export interface CalibProgress {
   need: Partial<Record<Count | 'run_m', number>>;
   ready: boolean;
   error: string | null;
+  // the receiver's fix while it's recorded, it counts only with it (planner v0.4.0 on); none from one that doesn't tell
+  rtk: Rtk | null;
+}
+// accuracy in m, none when nothing comes from the receiver
+export interface Rtk {
+  fixed: boolean;
+  accuracy: number | null;
 }
 
 // only in dev and test builds: before planner v0.4.1 a v2 mower's turns aren't counted (the firmware's turn rate is off)
@@ -59,6 +66,8 @@ export const CALIB_SHOWN = process.env.APP_CALIBRATION === '1';
 
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 const str = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null);
+const readRtk = (v: unknown): Rtk =>
+  v && typeof v === 'object' ? {fixed: (v as {fixed?: unknown}).fixed === true, accuracy: num((v as {accuracy?: unknown}).accuracy)} : {fixed: false, accuracy: null};
 
 export function readResult(answer: unknown): CalibResult | null {
   const r = answer as Record<string, unknown> | null;
@@ -93,7 +102,7 @@ export function readProgress(payload: string): CalibProgress | null {
   for (const k of [...COUNTS, 'run_m'] as const) if (num(n[k]) !== null) need[k] = num(n[k])!;
   const phase = p.phase === 'recording' || p.phase === 'evaluating' || p.phase === 'done' ? p.phase : null;
   const mode = p.mode === 'joystick' || p.mode === 'mow' ? p.mode : null;
-  return {phase, mode, turns: num(p.turns) ?? 0, has, need, ready: p.ready === true, error: str(p.error)};
+  return {phase, mode, turns: num(p.turns) ?? 0, has, need, ready: p.ready === true, error: str(p.error), rtk: 'rtk' in p ? readRtk(p.rtk) : null};
 }
 
 // what the updater may write, by name: "<name>:<path>:<unit>:<min>:<max>:<value>" each (calib_paths)
@@ -256,6 +265,7 @@ const SAYS: [RegExp, (n: string[], m: RegExpMatchArray) => string][] = [
   [re(`RTK fixed only ${N} % of the time moving`), ([a]) => tr('RTK fix only {a} % of the time it moved.', {a})],
   [re(`wheel distance on the spot ${N} m, in arcs ${N} m \\(${N} % apart\\), proposed: .*`), ([a, b, c]) => tr('Wheel distance turning on the spot {a} m, in curves {b} m ({c} % apart).', {a, b, c})],
   [/^no RTK fixed$/, () => tr('No RTK fix: the recording only starts with one.')],
+  [re(`RTK fixed, but ${N} m accuracy \\(${N} m at most\\)`), ([a, b]) => tr('RTK fix, but only accurate to {a} m ({b} m at most).', {a, b})],
   [/^nothing on (.*)$/, (_, m) => tr('Nothing comes on {x}: is OpenMower running?', {x: m[1]})],
   [/^OpenMower's parameter (.*) isn't set$/, (_, m) => tr("OpenMower's parameter {x} isn't set.", {x: m[1]})],
   [re(`only ${N} MB free on the mower, ${N} MB needed`), ([a, b]) => tr('Only {a} MB free on the mower, {b} MB needed for the recording.', {a, b})],
@@ -273,6 +283,21 @@ export function calibText(said: string): string {
   return said;
 }
 
+// whether one can be recorded (planner v0.4.0 on): what stands in the way ({reason, message}), the receiver's fix
+export interface CalibCheck {
+  ok: boolean;
+  problems: {reason: string; message: string}[];
+  rtk: Rtk | null;
+}
+export async function calibCheck(): Promise<CalibCheck | null> {
+  const a = await callRpc(RPC.plannerCalibCheck, {}, 30000);
+  if (!a || typeof a !== 'object') return null;
+  const c = a as Record<string, unknown>;
+  const problems = (Array.isArray(c.problems) ? c.problems : [])
+    .filter((x): x is Record<string, unknown> => !!x && typeof x === 'object')
+    .map((x) => ({reason: str(x.reason) ?? '', message: str(x.message) ?? ''}));
+  return {ok: c.ok === true, problems, rtk: c.rtk && typeof c.rtk === 'object' ? readRtk(c.rtk) : null};
+}
 export const calibStart = (mode: CalibMode) => callRpc(RPC.plannerCalibStart, {mode}, 20000);
 export const calibStop = () => callRpc(RPC.plannerCalibStop, {}, 20000);
 export const calibResult = async () => readResult(await callRpc(RPC.plannerCalibResult, {}, 60000));

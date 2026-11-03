@@ -10,6 +10,7 @@ import {isLive, useMowerState} from '@/hooks/useMowerState';
 import {loadUpdate} from '@/lib/autoUpdate';
 import {
   calibBack,
+  calibCheck,
   calibProgress,
   calibResult,
   calibStart,
@@ -19,6 +20,7 @@ import {
   lacks,
   readPaths,
   takeCalib,
+  type CalibCheck,
   type CalibMode,
   type CalibResult,
   type CalibValue,
@@ -71,6 +73,25 @@ function Ready({mode, status, onGo, onClose}: {mode: CalibMode; status: Record<s
   const {hasAction} = useMowerActions();
   const [room, setRoom] = useState(false);
   const [stay, setStay] = useState(false);
+  // the planner's own look (v0.4.0 on): the receiver's fix, what else stands in the way; again every 10 s while open
+  const [check, setCheck] = useState<CalibCheck | null>(null);
+  useEffect(() => {
+    let stop = false;
+    let t: ReturnType<typeof setTimeout> | undefined;
+    const look = async () => {
+      const m = await rpcMethods();
+      if (stop || !m?.has(RPC.plannerCalibCheck)) return;
+      const c = await calibCheck().catch(() => null);
+      if (stop) return;
+      setCheck(c);
+      t = setTimeout(() => void look(), 10000);
+    };
+    void look();
+    return () => {
+      stop = true;
+      clearTimeout(t);
+    };
+  }, []);
   // the gps's accuracy as OpenMower uses it: idle (in the dock too) it leaves the gps out, 999 then, though the receiver
   // has its fix. so only shown when good, never a reason not to start: the planner checks the receiver's fix as it starts
   const gpsAcc = useSensorValue('om_gps_accuracy', (v) => (v !== undefined && Number.isFinite(parseFloat(v)) ? parseFloat(v) : null));
@@ -79,10 +100,16 @@ function Ready({mode, status, onGo, onClose}: {mode: CalibMode; status: Record<s
   const battery = state?.battery_percentage;
   const free = /^\d+$/.test(status?.disk_free ?? '') ? Number(status!.disk_free) : null;
   const byHand = mode === 'joystick';
+  // (the receiver's fix as the planner sees it, else OpenMower's position: while idle without the gps)
+  const rtk = check?.rtk;
   const checks: {ok: boolean; open?: boolean; title: string; text?: string; value?: string}[] = [
-    gpsQ === 'fix'
-      ? {ok: true, title: tr('RTK fix'), text: tr('Position accurate to a few centimeters'), value: `${fmt(acc! * 100, 1)} cm`}
-      : {ok: true, open: true, title: tr('RTK fix'), text: tr('Checked as it starts: while idle OpenMower leaves the GPS out of its position.')},
+    rtk
+      ? rtk.fixed
+        ? {ok: true, title: tr('RTK fix'), text: tr('Position accurate to a few centimeters'), value: rtk.accuracy === null ? undefined : `${fmt(rtk.accuracy * 100, 1)} cm`}
+        : {ok: true, open: true, title: tr('No RTK fix yet'), text: tr(byHand ? 'Needed when the calibration starts.' : 'It counts once there is one.')}
+      : gpsQ === 'fix'
+        ? {ok: true, title: tr('RTK fix'), text: tr('Position accurate to a few centimeters'), value: `${fmt(acc! * 100, 1)} cm`}
+        : {ok: true, open: true, title: tr('RTK fix'), text: tr('Checked as it starts: while idle OpenMower leaves the GPS out of its position.')},
     battery === undefined || battery >= LOW_BATTERY
       ? {ok: true, title: tr('Battery'), value: battery === undefined ? '–' : `${Math.round(battery * 100)} %`}
       : {ok: false, title: tr('Battery too low'), text: tr('Let it charge in the dock first.'), value: `${Math.round(battery * 100)} %`},
@@ -90,6 +117,9 @@ function Ready({mode, status, onGo, onClose}: {mode: CalibMode; status: Record<s
       ? {ok: true, title: tr('Storage for the recording'), value: free === null ? '–' : tr('{size} free', {size: free >= 1000 ? `${fmt(free / 1000, 1)} GB` : `${free} MB`})}
       : {ok: false, title: tr('Not enough storage'), text: tr('The recording needs at least {size} free.', {size: `${FREE_MB} MB`}), value: `${free} MB`},
   ];
+  // what else the planner finds in the way (its fix and the storage are above)
+  for (const p of check?.problems ?? [])
+    if (!['NO_RTK', 'POSITION_ACCURACY', 'DISK_SPACE'].includes(p.reason)) checks.push({ok: false, title: tr('Not possible right now'), text: calibText(p.message)});
   // driving by hand needs recording mode, only to be had while idle
   if (byHand && state?.current_state !== 'AREA_RECORDING' && !hasAction(ACTION.startRecording))
     checks.push({ok: false, title: tr('The mower is busy'), text: tr('Driving by hand only works while it is idle. Send it home or wait until it is.')});
@@ -109,7 +139,7 @@ function Ready({mode, status, onGo, onClose}: {mode: CalibMode; status: Record<s
         <span className={styles.groupLabel}>{tr('MowBite checks')}</span>
         <div className={styles.checks}>
           {checks.map((c) => (
-            <div key={c.title} className={[styles.check, c.ok ? '' : styles.checkBad].join(' ')}>
+            <div key={`${c.title}|${c.text ?? ''}`} className={[styles.check, c.ok ? '' : styles.checkBad].join(' ')}>
               <span className={[styles.mark, c.open ? styles.markOpen : c.ok ? styles.markOk : styles.markBad].join(' ')}>
                 {c.open ? '?' : c.ok ? <CheckIcon size={14} /> : <CloseIcon size={14} />}
               </span>

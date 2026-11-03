@@ -50,6 +50,7 @@ export const RPC = {
   plannerLeftovers: 'planner.leftovers',
   // a calibration of the mower's sizes from a recording: driven by hand (joystick) or the next mow, stopped, and what
   // the planner worked out from it (lib/calibration)
+  plannerCalibCheck: 'planner.calib.check',
   plannerCalibStart: 'planner.calib.start',
   plannerCalibStop: 'planner.calib.stop',
   plannerCalibResult: 'planner.calib.result',

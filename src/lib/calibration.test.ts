@@ -100,6 +100,15 @@ describe('a calibration', () => {
     expect(readProgress('no json')).toBeNull();
   });
 
+  it("knows whether the receiver has its fix while it's recorded, a planner that doesn't tell says nothing", () => {
+    const rtk = (extra: object) => readProgress(JSON.stringify({phase: 'recording', m: 0, turns: 0, runs: 0, ...extra}))!.rtk;
+    expect(rtk({rtk: {fixed: true, accuracy: 0.021}})).toEqual({fixed: true, accuracy: 0.021});
+    expect(rtk({rtk: {fixed: false, accuracy: 0.31}})).toEqual({fixed: false, accuracy: 0.31});
+    // nothing from the receiver yet: no fix either
+    expect(rtk({rtk: null})).toEqual({fixed: false, accuracy: null});
+    expect(rtk({})).toBeNull();
+  });
+
   it("puts the planner's words into a text to translate, the numbers in the reader's format", () => {
     expect(calibText('too few straight runs: 2 of 4 (5 m at least), 12.4 of 20 m')).toBe('Too few straight runs: 2 of 4 (each 5 m at least), 12.4 of 20 m.');
     expect(calibText('the IMU sits tilted: roll 0.3 deg, pitch 4.5 deg (OpenMower has no setting for it)')).toBe(
@@ -109,6 +118,7 @@ describe('a calibration', () => {
       calibText('left/right: the right wheel is in effect 2.4 % smaller (diameter, wear, dirt), straight on the odometry it turns right; OpenMower has one ticks_per_m for both'),
     ).toBe('Left and right: the right wheel is in effect 2.4 % smaller (tyre, wear, dirt), the mower pulls to the right. OpenMower has one value for both, nothing to set for it.');
     expect(calibText('large change from 0.3556: 6.2 %')).toBe('Big change from 0.3556: 6.2 %.');
+    expect(calibText('RTK fixed, but 0.081 m accuracy (0.05 m at most)')).toBe('RTK fix, but only accurate to 0.081 m (0.05 m at most).');
     expect(calibText('something new')).toBe('something new');
   });
 });

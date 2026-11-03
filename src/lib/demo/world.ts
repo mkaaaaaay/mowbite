@@ -637,6 +637,8 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
         ready: !!calibResult?.ready,
         error: null,
         need: CALIB_NEED[calib.mode],
+        // (the demo's receiver always has its fix)
+        ...(calib.phase === 'recording' ? {rtk: {fixed: true, accuracy: 0.021}} : {}),
       });
       deliver(TOPIC.plannerCalib, calibSaid);
     },
@@ -855,6 +857,10 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
       return answer(areaPaths({outline: openRing(outline), properties}, (obstacles ?? []).map(openRing), ros), plannedAngle(properties.angle, ros));
     },
     [RPC.logs]: () => [],
+    [RPC.plannerCalibCheck]: () => {
+      const busy = calib?.phase === 'recording' ? 'a calibration is recorded already' : calib?.phase === 'evaluating' ? 'the last calibration is being evaluated' : null;
+      return {ok: !busy, problems: busy ? [{reason: 'BUSY', message: busy}] : [], rtk: {fixed: true, accuracy: 0.021}};
+    },
     [RPC.plannerCalibStart]: (params) => {
       const mode = (params as {mode?: string})?.mode;
       if (mode !== 'joystick' && mode !== 'mow') throw new Error('mode must be one of joystick, mow');

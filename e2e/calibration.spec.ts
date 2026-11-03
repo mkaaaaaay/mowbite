@@ -37,6 +37,8 @@ test('calibrating by hand: driven, worked out, two values applied and set back',
   const sheet = page.getByRole('dialog', {name: 'Ready to calibrate?'});
   await expect(sheet.getByText('Position accurate to a few centimeters')).toBeVisible();
   await expect(sheet.getByText('Tick both points above, then it starts.')).toBeVisible();
+  // the receiver's fix as the planner sees it (planner.calib.check)
+  await expect(sheet.getByText('2.1 cm')).toBeVisible();
   await sheet.getByRole('checkbox', {name: /Room to drive/}).check();
   await expect(sheet.getByText('Tick “You stay with it” too, then it starts.')).toBeVisible();
   await sheet.getByRole('checkbox', {name: /You stay with it/}).check();

@@ -57,7 +57,7 @@ function useMotion(progress: CalibProgress | null): {motion: Motion; missed: Mis
   }, [progress]);
   useEffect(() => {
     const track = motionTracker();
-    const watch = missWatch();
+    let watch = missWatch();
     let shown = 0;
     let told: Missed | null = null;
     return onTopic(TOPIC.position, (payload) => {
@@ -72,7 +72,10 @@ function useMotion(progress: CalibProgress | null): {motion: Motion; missed: Mis
       const now = performance.now();
       const m = track(now / 1000, p);
       const c = counts.current;
-      const missed = c ? watch(now / 1000, m, c.has, c.need.run_m) : null;
+      // (without a fix nothing counts, the planner drops the run and the turn going on: so does the watch)
+      const counting = c && (!c.rtk || c.rtk.fixed) ? c : null;
+      if (c && !counting) watch = missWatch();
+      const missed = counting ? watch(now / 1000, m, counting.has, counting.need.run_m) : null;
       if (now - shown < 250 && missed === told) return;
       shown = now;
       told = missed;
@@ -235,6 +238,8 @@ export default function Drive({
   const clock = `${Math.floor(took / 60)}:${String(took % 60).padStart(2, '0')}`;
 
   const list = home || placing || !progress ? [] : lacks(progress);
+  // recorded but no RTK fix: nothing counts till it's there (planner v0.4.0 on)
+  const waiting = !home && !placing && progress?.phase === 'recording' && !!progress.rtk && !progress.rtk.fixed;
   const all = list.length > 0 && list.every(lackDone);
   const current = nowPart(list, motion);
   const runNeed = progress?.need.run_m ?? 5;
@@ -288,6 +293,12 @@ export default function Drive({
       ) : (
         <b>{tr(charging ? 'On the station. Now end recording mode.' : 'Back onto the docking station')}</b>
       );
+  } else if (waiting) {
+    say = (
+      <>
+        <b>{tr('Waiting for an RTK fix')}</b> · {tr('nothing counts until then')}
+      </>
+    );
   } else if (all) {
     say = (
       <>
@@ -334,7 +345,7 @@ export default function Drive({
       );
   }
 
-  const missedText = missed && (
+  const missedText = missed && !waiting && (
     <em className={styles.missed}>
       {missed.part === 'straight'
         ? tr('Run not counted: by the wheels under {m} m. Drive the next one a bit longer.', {m: fmt(runNeed, 0)})
@@ -344,7 +355,7 @@ export default function Drive({
 
   // the bar under it: the run in m, the turn in rounds, the stand in s
   let bar: {share: number; label: string} | null = null;
-  if (!home && current) {
+  if (!home && current && !waiting) {
     if (current.part === 'still') {
       bar = {share: current.need ? current.has / current.need : 0, label: tr('{a} of {b} s', {a: fmt(Math.min(current.has, current.need), 0), b: fmt(current.need, 0)})};
     } else if (current.part === 'straight' || runNext) {
