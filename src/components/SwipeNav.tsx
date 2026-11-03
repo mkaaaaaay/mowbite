@@ -101,8 +101,8 @@ export default function SwipeNav() {
   }, [path]);
 
   useEffect(() => {
-    // not while recording, the stick is in use there, nor in the guide, a swipe turns its pages
-    if (path === '/record' || path.startsWith('/guide')) return;
+    // not while recording or calibrating, the stick is in use there, nor in the guide, a swipe turns its pages
+    if (path === '/record' || path === '/calibration' || path.startsWith('/guide')) return;
     const i = ORDER.indexOf(path);
     const neighbour = (dx: number) => {
       const n = i === -1 ? -1 : i + (dx < 0 ? 1 : -1);
@@ -133,6 +133,8 @@ export default function SwipeNav() {
 
     const down = (e: TouchEvent) => {
       const t = e.touches[0];
+      // a second finger ends a sideways drag: the page goes back, it mustn't stay shifted
+      if (drag?.axis === 'x') settle(drag.el, drag.side);
       drag = null;
       // the screen edges are android's back gesture
       if (!swipeEnabled() || e.touches.length > 1 || t.clientX < 24 || t.clientX > w() - 24) return;

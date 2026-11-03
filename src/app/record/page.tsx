@@ -587,7 +587,7 @@ export default function RecordPage() {
       </main>
 
       {remote && (
-        <div ref={remoteRef} className={[styles.remote, turned ? styles.turned : ''].join(' ')}>
+        <div ref={remoteRef} className={[styles.remote, turned ? styles.turned : ''].join(' ')} data-no-swipe>
           <div className={styles.remoteMap}>
             {map && (
               <MapView

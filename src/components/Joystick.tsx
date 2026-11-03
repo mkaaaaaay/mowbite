@@ -32,6 +32,7 @@ export default function Joystick({onMove, size = 200}: {onMove: (x: number, y: n
       ref={pad}
       className={[styles.pad, knob ? styles.active : ''].join(' ')}
       style={{width: size, height: size}}
+      data-no-swipe
       onPointerDown={(e) => {
         e.currentTarget.setPointerCapture(e.pointerId);
         move(e);

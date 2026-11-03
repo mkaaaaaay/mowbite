@@ -43,6 +43,7 @@ export default function DrivePad({
       ref={pad}
       className={[styles.pad, styles[axis], shift !== null ? styles.active : '', disabled ? styles.off : ''].join(' ')}
       style={{width: size, height: size}}
+      data-no-swipe
       onPointerDown={(e) => {
         if (disabled) return;
         e.currentTarget.setPointerCapture(e.pointerId);
