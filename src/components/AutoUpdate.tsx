@@ -512,6 +512,8 @@ export function AutoUpdate() {
   const theme = useThemeChoice();
   const fast = useRef(false);
   const restartingRef = useRef(false);
+  // counts taps that change something: an answer asked for before the last one is older than what's shown
+  const tapped = useRef(0);
   // an updater answered on this page already
   const seenRef = useRef(false);
   // its own page shown in here (see below)
@@ -525,11 +527,12 @@ export function AutoUpdate() {
   useEffect(() => {
     let stop = false;
     let timer: ReturnType<typeof setTimeout>;
-    const load = () =>
-      loadUpdate()
+    const load = () => {
+      const at = tapped.current;
+      return loadUpdate()
         .then(
           (x) => {
-            if (stop) return;
+            if (stop || at !== tapped.current) return;
             // the updater restarting on its new version answers nothing for a moment, one that answered before and
             // doesn't now (10 s and no answer) is out of reach: what came last stays, it isn't one never set up
             if (!x && (restartingRef.current || seenRef.current)) {
@@ -554,6 +557,7 @@ export function AutoUpdate() {
         .finally(() => {
           if (!stop) timer = setTimeout(load, framedRef.current ? 30000 : fast.current ? 2000 : 5000);
         });
+    };
     void load();
     return () => {
       stop = true;
@@ -584,12 +588,14 @@ export function AutoUpdate() {
   const busy = asked || st.requested || running || restarting;
   const set = (patch: Record<string, string | number>) => {
     const conf: UpdateConf = {...st.conf, ...patch};
+    tapped.current++;
     setS({...st, conf});
     setError(null);
     saveUpdateConf(patch).catch(() => setError(tr('Not saved, the mower did not answer.')));
   };
   const ask = (go: () => Promise<void>) => {
     setAsked(true);
+    tapped.current++;
     fast.current = true;
     setError(null);
     go().catch(() => {
