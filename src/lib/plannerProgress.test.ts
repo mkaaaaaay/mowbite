@@ -116,4 +116,18 @@ describe('planner progress', () => {
     fake.calls[0].resolve({});
     await plan;
   });
+
+  it('shows a plan waited for before it is asked like one asked for, from when the waiting began', async () => {
+    const m = await fresh();
+    const hide = m.showWait('a', now() - 30);
+    expect(m.planAsked()).toMatchObject({areaId: 'a'});
+    const plan = m.askPlan({area_id: 'a'});
+    // the older one counts
+    expect(m.planAsked()!.at).toBeLessThan(now() - 29);
+    hide();
+    expect(m.planAsked()!.at).toBeGreaterThan(now() - 2);
+    fake.calls[0].resolve({});
+    await plan;
+    expect(m.planAsked()).toBeNull();
+  });
 });

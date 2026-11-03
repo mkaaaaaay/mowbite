@@ -38,7 +38,8 @@ export function readProgress(payload: string): PlanningProgress | null {
 
 const progress = topicStore<PlanningProgress | null>(TOPIC.plannerProgress, null, (payload) => readProgress(payload.toString()));
 
-// the plans asked for and not answered yet: the area (none for an outline) and when (unix s, this device's clock)
+// the plans waited for under the map and not answered yet: the area (none for an outline) and since when (unix s, this
+// device's clock)
 export interface PlanAsked {
   areaId: string | null;
   at: number;
@@ -104,12 +105,8 @@ function planningEnds(): Promise<boolean> {
 // planning it was at has ended. A planner without progress fails after 90 s as before. shown: under the map while it
 // waits (not the plans worked out ahead)
 export async function askPlan<T>(req: PlanRequest & {report?: boolean}, shown = true): Promise<T> {
-  const key = {};
   listen();
-  if (shown) {
-    asks.set(key, {areaId: 'area_id' in req ? req.area_id : null, at: Date.now() / 1000});
-    notify();
-  }
+  const hide = shown ? showWait('area_id' in req ? req.area_id : null) : null;
   try {
     for (;;) {
       try {
@@ -119,8 +116,19 @@ export async function askPlan<T>(req: PlanRequest & {report?: boolean}, shown = 
       }
     }
   } finally {
-    if (asks.delete(key)) notify();
+    hide?.();
   }
+}
+
+// a plan waited for under the map like one asked for, from since (unix s) on until the function returned is called:
+// also one not asked yet or asked as one worked out ahead (see planAsker)
+export function showWait(areaId: string | null, since = Date.now() / 1000): () => void {
+  const key = {};
+  asks.set(key, {areaId, at: since});
+  notify();
+  return () => {
+    if (asks.delete(key)) notify();
+  };
 }
 
 const subscribe = (l: () => void) => {
@@ -128,7 +136,7 @@ const subscribe = (l: () => void) => {
   return () => listeners.delete(l);
 };
 
-// the oldest plan asked for that the planner hasn't answered yet, null when none
+// the oldest plan waited for that the planner hasn't answered yet, null when none
 export const planAsked = () => oldest;
 
 export function usePlanAsked(): PlanAsked | null {

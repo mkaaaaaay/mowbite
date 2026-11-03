@@ -1,5 +1,6 @@
 import {describe, expect, it} from 'vitest';
-import {readChecks, readPlan} from './areaPlan';
+import {planAsker, readChecks, readPlan} from './areaPlan';
+import type {MowPlan} from './mowPlan';
 
 describe('readPlan', () => {
   it('reads the planner answer as ROS gives it', () => {
@@ -115,5 +116,118 @@ describe('the MowBite Planner answer', () => {
     expect(plan.pieces).toBeUndefined();
     expect(plan.duration).toBeUndefined();
     expect(plan.zones).toBeUndefined();
+  });
+});
+
+describe('the plans the map asks for, one at a time', () => {
+  // the mower answering when the test says, what the map got and what it showed under it
+  function mower(known: Record<string, MowPlan | null> = {}) {
+    const asked: {key: string; answer: (plan: MowPlan | null) => void; fail: () => void}[] = [];
+    const got: [string, MowPlan | null][] = [];
+    const shown: {key: string; since: number; hidden: boolean}[] = [];
+    const asker = planAsker<{cacheKey: string}>({
+      known: (job) => known[job.cacheKey],
+      ask: (job) => new Promise((resolve, reject) => asked.push({key: job.cacheKey, answer: resolve, fail: () => reject(new Error('no plan'))})),
+      got: (job, plan) => got.push([job.cacheKey, plan]),
+      show: (job, since) => {
+        const s = {key: job.cacheKey, since, hidden: false};
+        shown.push(s);
+        return () => (s.hidden = true);
+      },
+    });
+    return {asker, asked, got, shown, keys: () => asked.map((a) => a.key)};
+  }
+  const job = (cacheKey: string) => ({cacheKey});
+  const plan = readPlan([{outline: true, points: [[0, 0], [2, 0], [2, 2]]}]);
+  const settle = () => new Promise((r) => setTimeout(r, 0));
+
+  it('shows the one the map wants while the same one is worked out ahead, and takes its answer', async () => {
+    const m = mower();
+    m.asker.prefetch([job('a'), job('b')]);
+    m.asker.want(job('a'));
+    expect(m.keys()).toEqual(['a']);
+    expect(m.shown).toMatchObject([{key: 'a', hidden: false}]);
+    m.asked[0].answer(plan);
+    await settle();
+    expect(m.got).toEqual([['a', plan]]);
+    expect(m.shown[0].hidden).toBe(true);
+    expect(m.keys()).toEqual(['a', 'b']);
+  });
+
+  it('asks for the one the map wants before the rest worked out ahead, shown while one asked before goes', async () => {
+    const m = mower();
+    m.asker.prefetch([job('a'), job('b')]);
+    m.asker.want(job('c'));
+    expect(m.keys()).toEqual(['a']);
+    expect(m.shown).toMatchObject([{key: 'c', hidden: false}]);
+    m.asked[0].answer(plan);
+    await settle();
+    expect(m.got).toEqual([]);
+    expect(m.keys()).toEqual(['a', 'c']);
+    m.asked[1].answer(plan);
+    await settle();
+    expect(m.got).toEqual([['c', plan]]);
+    expect(m.shown[0].hidden).toBe(true);
+    expect(m.keys()).toEqual(['a', 'c', 'b']);
+  });
+
+  it('asks only for the newest one wanted meanwhile, the waiting going on without a gap', async () => {
+    const m = mower();
+    m.asker.prefetch([job('a')]);
+    m.asker.want(job('c'));
+    m.asker.want(job('d'));
+    expect(m.shown).toMatchObject([
+      {key: 'c', hidden: true},
+      {key: 'd', hidden: false},
+    ]);
+    expect(m.shown[1].since).toBe(m.shown[0].since);
+    m.asked[0].answer(plan);
+    await settle();
+    expect(m.keys()).toEqual(['a', 'd']);
+  });
+
+  it('waits for the one being asked when the map wants it again', async () => {
+    const m = mower();
+    m.asker.want(job('a'));
+    m.asker.want(job('c'));
+    m.asker.want(job('a'));
+    m.asked[0].answer(plan);
+    await settle();
+    expect(m.got).toEqual([['a', plan]]);
+    expect(m.keys()).toEqual(['a']);
+    expect(m.shown.every((s) => s.hidden)).toBe(true);
+  });
+
+  it('ends the waiting with a plan the mower had none for', async () => {
+    const m = mower();
+    m.asker.want(job('a'));
+    m.asked[0].fail();
+    await settle();
+    expect(m.got).toEqual([['a', null]]);
+    expect(m.shown[0].hidden).toBe(true);
+  });
+
+  it('takes a plan known already without asking or showing anything', () => {
+    const m = mower({k: plan});
+    m.asker.want(job('k'));
+    expect(m.got).toEqual([['k', plan]]);
+    m.asker.prefetch([job('k'), job('b')]);
+    expect(m.keys()).toEqual(['b']);
+    expect(m.shown).toEqual([]);
+  });
+
+  it('shows nothing and leaves out the one waiting once the map wants none, asks for nothing more once left', async () => {
+    const m = mower();
+    m.asker.prefetch([job('a'), job('b'), job('x')]);
+    m.asker.want(job('c'));
+    m.asker.want(null);
+    expect(m.shown[0].hidden).toBe(true);
+    m.asked[0].answer(plan);
+    await settle();
+    expect(m.keys()).toEqual(['a', 'b']);
+    m.asker.stop();
+    m.asked[1].answer(plan);
+    await settle();
+    expect(m.keys()).toEqual(['a', 'b']);
   });
 });

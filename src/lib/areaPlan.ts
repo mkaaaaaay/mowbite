@@ -179,10 +179,90 @@ export type PlanRequest = ({area_id: string} & PlanProps) | ({outline: Point[]; 
 // null when this mower can't tell, then the editor works it out itself (lib/mowPlan). With the MowBite Planner on the
 // mower it plans the area directly (planner.plan, the same settings mower_logic's plans get): it takes the area's
 // planner settings as edited and says what it planned with (the lane spacing it picked). mowing.plan only knows
-// OpenMower's area settings
-export async function mowerPlan(req: PlanRequest, background = false): Promise<MowPlan | null> {
-  const asked = await mowerPlanAnswer(req, !background);
+// OpenMower's area settings. The map shows its waiting itself (planAsker)
+export async function mowerPlan(req: PlanRequest): Promise<MowPlan | null> {
+  const asked = await mowerPlanAnswer(req, false);
   return asked ? readPlan(asked.answer as PlanAnswer) : null;
+}
+
+// The plans the map editor asks the mower for, one at a time (an area takes it seconds, a big one with the body checked
+// minutes): the one the map wants goes first, the newest of the ones it wanted meanwhile next (the ones in between are
+// left out), then the areas worked out ahead one after the other. The one it wants shows under the map from then until
+// it's there, also while one asked before still goes or when it's the one being worked out ahead anyway
+export function planAsker<J extends {cacheKey: string}>({
+  known,
+  ask,
+  got,
+  show,
+}: {
+  // the plan known already, undefined when it has to be asked for
+  known: (job: J) => MowPlan | null | undefined;
+  ask: (job: J) => Promise<MowPlan | null>;
+  // the answer for the one the map wants, null for none
+  got: (job: J, plan: MowPlan | null) => void;
+  // shown under the map until the function returned is called, the map waiting since then (unix s)
+  show: (job: J, since: number) => () => void;
+}) {
+  let asking: J | null = null;
+  let next: J | null = null;
+  let ahead: J[] = [];
+  let wanted: {job: J; since: number; hide: () => void} | null = null;
+  const unwant = () => {
+    wanted?.hide();
+    wanted = null;
+  };
+  function go(job: J) {
+    asking = job;
+    void ask(job)
+      .catch(() => null)
+      .then((plan) => {
+        asking = null;
+        if (wanted?.job.cacheKey === job.cacheKey) {
+          const w = wanted.job;
+          unwant();
+          got(w, plan);
+        }
+        // the newest one wanted, else the next one ahead that isn't known by now (the one just asked for is often
+        // among them)
+        let later = next;
+        next = null;
+        while (!later && ahead.length) {
+          const j = ahead.shift()!;
+          if (known(j) === undefined) later = j;
+        }
+        if (later) go(later);
+      });
+  }
+  return {
+    // the plan the map wants now, null when it shows one known or none
+    want(job: J | null) {
+      const plan = job ? known(job) : undefined;
+      if (job && plan !== undefined) got(job, plan);
+      if (!job || plan !== undefined) {
+        next = null;
+        return unwant();
+      }
+      if (wanted?.job.cacheKey !== job.cacheKey) {
+        const since = wanted?.since ?? Date.now() / 1000;
+        unwant();
+        wanted = {job, since, hide: show(job, since)};
+      }
+      if (!asking) return go(job);
+      // the one being asked anyway: its answer is this one's
+      next = asking.cacheKey === job.cacheKey ? null : job;
+    },
+    // the plans worked out ahead, in place of the ones still waiting
+    prefetch(jobs: J[]) {
+      ahead = jobs.filter((j) => known(j) === undefined && j.cacheKey !== asking?.cacheKey);
+      if (!asking && ahead.length) go(ahead.shift()!);
+    },
+    // off the map: nothing more asked for, nothing shown
+    stop() {
+      ahead = [];
+      next = null;
+      unwant();
+    },
+  };
 }
 
 // the mower's answer as it comes, and the method that gave it. With the MowBite Planner planning: planner.plan.

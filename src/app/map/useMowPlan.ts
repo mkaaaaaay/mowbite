@@ -1,20 +1,22 @@
 import type {MapArea, MowerMap, Point} from '@/hooks/useMowerMap';
 import {numParam, type MowerParams} from '@/hooks/useMowerParams';
 import type {PastJob} from '@/hooks/useMowHistory';
-import {mowerPlan, type PlanRequest} from '@/lib/areaPlan';
+import {mowerPlan, planAsker, type PlanRequest} from '@/lib/areaPlan';
 import {angleChangedSince} from '@/lib/backups';
 import {measuredStripeAngle, stripeAngleDiff} from '@/lib/mowDirection';
 import {mowAroundHoles, nestedAreas} from '@/lib/mowAround';
 import {linkStripes, mowPlan, type MowPlan, type PlanChosen} from '@/lib/mowPlan';
 import {slic3rPlans, usePlannerSettings} from '@/lib/mowerBody';
 import type {PlannerEstimateInput} from '@/lib/plannerEstimate';
+import {showWait} from '@/lib/plannerProgress';
 import {usePlannerEstimate} from '@/lib/usePlannerEstimate';
 import {angleInRange, autoMowAngle} from '@/lib/mowStripes';
 import {PARAM} from '@/lib/openmower';
 import {savePlanDuration} from '@/lib/planDurations';
+import {RpcError} from '@/lib/rpc';
 import {length} from '@/lib/planProgress';
 import {locale} from '@/lib/i18n';
-import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import {useEffect, useMemo, useRef, useState} from 'react';
 import {DEG} from './editing';
 import type {AngleMismatch} from './MowSettings';
 
@@ -247,72 +249,61 @@ export function useMowPlan({
     : '';
   const cacheKey = planKey ? planKey + contextKey : '';
   const [fromMower, setFromMower] = useState<(PlanJob & {plan: MowPlan | null}) | null>(null);
-  // one plan at a time: planning takes the mower a few seconds, the newest of the ones asked for meanwhile goes next,
-  // the ones in between are left out. Then the areas worked out ahead, one after the other
-  const asking = useRef(false);
-  const next = useRef<PlanJob | null>(null);
-  const ahead = useRef<PlanJob[]>([]);
-  const send = useCallback(function send(job: PlanJob, background: boolean) {
-    if (PLANS.has(job.cacheKey)) {
-      if (!background) setFromMower({...job, plan: PLANS.get(job.cacheKey)!});
-      return;
-    }
-    if (asking.current) {
-      if (!background) next.current = job;
-      else if (!ahead.current.some((j) => j.cacheKey === job.cacheKey)) ahead.current.push(job);
-      return;
-    }
-    asking.current = true;
-    void mowerPlan(JSON.parse(job.key), background)
-      .then(
-        (plan) => {
-          remember(job.cacheKey, plan);
-          if (plan?.chosen && job.areaId) CHOSEN.set(job.areaId, plan.chosen);
-          // how long the area as saved takes, for the schedule
-          if (plan?.duration && job.areaId && 'area_id' in JSON.parse(job.key)) savePlanDuration(job.areaId, plan.duration.min, plan.duration.runs);
-          if (!background) setFromMower({...job, plan});
-        },
-        () => !background && setFromMower({...job, plan: null}),
-      )
-      .finally(() => {
-        asking.current = false;
-        const queued = next.current;
-        next.current = null;
-        if (queued && queued.cacheKey !== job.cacheKey) return send(queued, false);
-        // the next one ahead that isn't known by now (the one just asked for in front is often among them)
-        let later = ahead.current.shift();
-        while (later && PLANS.has(later.cacheKey)) later = ahead.current.shift();
-        if (later) send(later, true);
-      });
-  }, []);
-  // off the map nothing more is asked for
-  useEffect(
-    () => () => {
-      ahead.current = [];
-      next.current = null;
-    },
-    [],
+  const [asker] = useState(() =>
+    planAsker<PlanJob>({
+      known: (job) => (PLANS.has(job.cacheKey) ? PLANS.get(job.cacheKey)! : undefined),
+      ask: (job) =>
+        mowerPlan(JSON.parse(job.key)).then(
+          (plan) => {
+            remember(job.cacheKey, plan);
+            if (plan?.chosen && job.areaId) CHOSEN.set(job.areaId, plan.chosen);
+            // how long the area as saved takes, for the schedule
+            if (plan?.duration && job.areaId && 'area_id' in JSON.parse(job.key)) savePlanDuration(job.areaId, plan.duration.min, plan.duration.runs);
+            return plan;
+          },
+          (e: unknown) => {
+            // the planner's no for what's asked (invalid params, e.g. nothing to mow there, found after a minute of
+            // planning) isn't asked for again with the same area and settings. an internal error or no answer is
+            if (e instanceof RpcError && e.code === -32602) remember(job.cacheKey, null);
+            throw e;
+          },
+        ),
+      got: (job, plan) => setFromMower({...job, plan}),
+      // the planner's progress for an area asked for by its id
+      show: (job, since) => showWait('area_id' in JSON.parse(job.key) ? job.areaId : null, since),
+    }),
   );
+  // off the map nothing more is asked for or shown
+  useEffect(() => () => asker.stop(), [asker]);
   // not while a point is dragged or the angle is moving: every pause would queue up a plan on the mower
   useEffect(() => {
-    if (!planKey || draggingPoint || angleMoving || PLANS.has(cacheKey)) return;
+    // one known or none: nothing to wait for
+    if (!planKey || PLANS.has(cacheKey)) {
+      asker.want(null);
+      return;
+    }
+    if (draggingPoint || angleMoving) return;
     // while points are typed or clicked only once it settles, an area as saved at once
-    const t = setTimeout(() => send({areaId: selectedAreaId, key: planKey, cacheKey, angleKey}, false), unchanged ? 0 : 300);
+    const t = setTimeout(() => asker.want({areaId: selectedAreaId, key: planKey, cacheKey, angleKey}), unchanged ? 0 : 300);
     return () => clearTimeout(t);
-  }, [planKey, cacheKey, angleKey, selectedAreaId, draggingPoint, angleMoving, unchanged, send, planner]);
+  }, [planKey, cacheKey, angleKey, selectedAreaId, draggingPoint, angleMoving, unchanged, asker, planner]);
   // the saved mowing areas worked out ahead while the map is open, so picking one shows its plan at once
   useEffect(() => {
     // the ones still waiting are for settings or a map from before
-    ahead.current = [];
+    asker.prefetch([]);
     if (!showStripes || !liveMap || planner === undefined) return;
+    const jobs: PlanJob[] = [];
     for (const area of liveMap.areas) {
       const p = area.properties;
       if (p.type !== 'mow' || p.active === false || p.mowable === false || area.outline.length < 3) continue;
       const key = JSON.stringify(requestFor(area, liveMap, true));
-      send({areaId: area.id, key, cacheKey: key + contextKey, angleKey: ''}, true);
+      jobs.push({areaId: area.id, key, cacheKey: key + contextKey, angleKey: ''});
     }
+    // after the one the map wants, its timer is set first
+    const t = setTimeout(() => asker.prefetch(jobs), 0);
+    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showStripes, liveMap, planner, contextKey, send]);
+  }, [showStripes, liveMap, planner, contextKey, asker]);
   // the mower's plan for exactly this, or the estimate (worked out like its planner does) until it's there
   const answered = fromMower?.areaId === selectedAreaId && fromMower.cacheKey === cacheKey ? fromMower : null;
   const realPlan = (cacheKey ? PLANS.get(cacheKey) : undefined) ?? answered?.plan ?? null;
