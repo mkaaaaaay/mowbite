@@ -126,7 +126,8 @@ export default function MowingStats() {
   const [toggled, setToggled] = useState<boolean | null>(null);
   useEffect(() => {
     let alive = true;
-    const get = () => void loadStats().then((s) => alive && setStats(s));
+    // (a minute without an answer keeps what came before, a card open for a change stays)
+    const get = () => void loadStats().then((s) => alive && setStats((last) => s ?? last ?? null));
     get();
     const every = setInterval(get, 60000);
     return () => {

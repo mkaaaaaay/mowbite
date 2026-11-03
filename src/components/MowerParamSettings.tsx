@@ -52,7 +52,11 @@ const setKept = (k: KeptParams | null) => {
 function subscribe(l: () => void) {
   if (!asked) {
     asked = true;
-    void loadKept().then(setKept);
+    // (no answer, a container that's slow to come up included: asked again by the next page that wants it)
+    void loadKept().then((k) => {
+      if (!k) asked = false;
+      setKept(k);
+    });
   }
   listeners.add(l);
   return () => listeners.delete(l);
