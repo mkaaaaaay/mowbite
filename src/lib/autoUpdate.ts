@@ -95,6 +95,10 @@ export const requestCheck = () => post('check');
 // the updater itself, to its newest version
 export const requestSelf = () => post('self');
 export const requestRoom = () => post('room');
+// a calibration's values into OpenMower's mower_params.yaml, lines "<path> <value>" from its list (calib_paths), or the
+// file before the last one back
+export const requestCalib = (lines: string) => post('calib', lines);
+export const requestCalibBack = () => post('calib=back');
 // one image from the list, all of them, or the build cache
 export const freeRoom = (what: {id: string} | 'all' | 'cache') => post(typeof what === 'string' ? `free=${what}` : `free=img:${what.id}`);
 

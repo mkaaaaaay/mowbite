@@ -37,7 +37,13 @@ case "$REQUEST_METHOD $QUERY_STRING" in
   [ "$len" -gt 0 ] && [ "$len" -le 4000 ] || plain bad
   plain "$(post conf "$(head -c "$len")")"
   ;;
-"POST now" | "POST check" | "POST room" | "POST free=cache" | "POST free=all" | "POST self")
+# (a calibration's lines "<path> <value>", the updater checks them against its list)
+"POST calib")
+  len=${CONTENT_LENGTH:-0}
+  [ "$len" -gt 0 ] && [ "$len" -le 1000 ] || plain bad
+  plain "$(post calib "$(head -c "$len")")"
+  ;;
+"POST now" | "POST check" | "POST room" | "POST free=cache" | "POST free=all" | "POST self" | "POST calib=back")
   plain "$(post "$QUERY_STRING" "")"
   ;;
 "POST now="* | "POST back="*)

@@ -17,6 +17,8 @@ export const TOPIC = {
   rpcResponse: 'rpc/response',
   // how far the MowBite Planner got with the planning it's at (retained, see lib/plannerProgress)
   plannerProgress: 'mowbite/planner/progress',
+  // how far the MowBite Planner's recording for a calibration got (retained, see lib/calibration)
+  plannerCalib: 'mowbite/planner/calib',
 } as const;
 
 export const RPC = {
@@ -46,6 +48,11 @@ export const RPC = {
   plannerAngleReset: 'planner.angle.reset',
   // what a finished mow's real track left unmowed, as passes over it; armed, the mower drives those on the next start
   plannerLeftovers: 'planner.leftovers',
+  // a calibration of the mower's sizes from a recording: driven by hand (joystick) or the next mow, stopped, and what
+  // the planner worked out from it (lib/calibration)
+  plannerCalibStart: 'planner.calib.start',
+  plannerCalibStop: 'planner.calib.stop',
+  plannerCalibResult: 'planner.calib.result',
   // sets parameters of nodes with a dynamic_reconfigure server while they run, {params: {name: value}}. the values
   // aren't stored, a restart brings the yaml's back
   setParams: 'params.set',
