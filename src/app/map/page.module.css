@@ -852,27 +852,6 @@
   position: relative;
 }
 
-/* phones: the map from edge to edge, as big as the screen is wide */
-@media (max-width: 899px) {
-  .mapCol {
-    --map-radius: 0;
-    margin: 0 -16px;
-  }
-
-  /* what lies over and under it keeps the page's margins */
-  .mapCol > .underMap,
-  .mapCol > .dim {
-    padding-left: 16px;
-    padding-right: 16px;
-  }
-
-  .mapCol > .previewBar,
-  .mapCol > .spot {
-    margin-left: 16px;
-    margin-right: 16px;
-  }
-}
-
 /* the planner's waiting bar under the map (24px): the angle slider and the sim player stay on the map */
 .underMap:not(:empty) {
   padding-top: 6px;
