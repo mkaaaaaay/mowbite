@@ -181,6 +181,12 @@ export default function Drive({
   const charging = !!state?.is_charging;
   const [sure, setSure] = useState(false);
 
+  // a turn of this way: how much of it is left; done, the run that makes it count is next
+  const turnPart = current?.part === 'left' || current?.part === 'right';
+  const thisWay = turnPart && motion.doing !== 'straight' && motion.turned !== 0 && motion.turned > 0 === (current?.part === 'left');
+  const togo = TURN_ROUNDS - (thisWay ? Math.abs(motion.turned) / (2 * Math.PI) : 0);
+  const runNext = turnPart && togo <= 0.1;
+
   // what to do now, on the map: what's driven, else what's missing next
   let say: React.ReactNode;
   if (home) {
@@ -221,10 +227,8 @@ export default function Drive({
   } else {
     // one turn at a time: up to one and a half rounds, then a run (only with it the planner counts the turn)
     const left = current.part === 'left';
-    const thisWay = motion.doing !== 'straight' && motion.turned !== 0 && motion.turned > 0 === left;
-    const togo = TURN_ROUNDS - (thisWay ? Math.abs(motion.turned) / (2 * Math.PI) : 0);
     say =
-      togo > 0.1 ? (
+      !runNext ? (
         <>
           <b>{tr(left ? 'Turn left round' : 'Turn right round')}</b> ·{' '}
           {togo >= TURN_ROUNDS
@@ -243,8 +247,22 @@ export default function Drive({
   // the lane of the run (from where it started, or ahead of the mower when a run is next), the turn round the mower,
   // the ring filling while it stands
   const draw = ({toScreen, scale, k}: {toScreen: (x: number, y: number) => [number, number]; scale: number; k: number}) => {
+    // on the way back the station, small at this zoom, marked
+    if (home) {
+      if (!dock) return null;
+      const [sx, sy] = toScreen(dock.x, dock.y);
+      return (
+        <g className={styles.station}>
+          <circle cx={sx} cy={sy} r={14 * k} strokeWidth={3 * k} />
+          <text x={sx} y={sy - 22 * k} fontSize={12 * k} textAnchor="middle">
+            {tr('Docking station')}
+          </text>
+        </g>
+      );
+    }
     if (!pose || !current) return null;
-    if (current.part === 'straight') {
+    // a run being driven or next (also the one after a turn)
+    if (current.part === 'straight' || runNext) {
       const from = motion.doing === 'straight' && motion.from ? motion.from : pose;
       const h = motion.doing === 'straight' && motion.from ? Math.atan2(pose.y - from.y, pose.x - from.x) : pose.heading;
       const at = (along: number, side: number) => toScreen(from.x + Math.cos(h) * along - Math.sin(h) * side, from.y + Math.sin(h) * along + Math.cos(h) * side);

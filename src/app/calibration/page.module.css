@@ -759,6 +759,19 @@
   stroke-linecap: round;
 }
 
+.station circle {
+  fill: color-mix(in srgb, var(--accent) 18%, transparent);
+  stroke: var(--accent);
+}
+
+.station text {
+  fill: #fff;
+  font-weight: 700;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.6);
+  stroke-width: 3px;
+}
+
 .turnArrow {
   stroke: var(--accent);
   fill: var(--accent);
