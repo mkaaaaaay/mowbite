@@ -17,6 +17,21 @@ test('an area picked stays picked while another page is open', async ({page}) =>
   await expect(page.getByRole('textbox').first()).toHaveValue(picked);
 });
 
+test('the zoom buttons still work after another page was opened while a zoom eased', async ({page}) => {
+  await openMap(page);
+  const width = async () => (await visibleAreas(page).first().boundingBox())?.width ?? 0;
+  const zoomIn = page.getByRole('button', {name: 'Zoom in'}).first();
+  await zoomIn.click();
+  await tab(page, '/sensors').click();
+  await expect(visibleAreas(page)).toHaveCount(0);
+  await tab(page, '/map').click();
+  await expect(visibleAreas(page).first()).toBeVisible();
+  await page.waitForTimeout(500);
+  const before = await width();
+  await zoomIn.click();
+  await expect.poll(width).toBeGreaterThan(before * 1.2);
+});
+
 test('a point dragged moves the area, undo takes it back', async ({page, isMobile}) => {
   await openMap(page);
   const at = await lawnPoint(page);

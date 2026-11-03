@@ -1394,6 +1394,8 @@ function MapView({
     () => () => {
       if (settleTimer.current) clearTimeout(settleTimer.current);
       cancelAnimationFrame(easing.current.frame);
+      // (hidden by MapKeeper the ref stays: a frame left set would stop every later zoom)
+      Object.assign(easing.current, {frame: 0, left: 0});
     },
     [],
   );
