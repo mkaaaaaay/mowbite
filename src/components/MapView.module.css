@@ -6,7 +6,8 @@
   height: auto;
   aspect-ratio: 1;
   background: var(--map-ground);
-  border-radius: 8px;
+  /* a page can set its own corners, e.g. none for a map from edge to edge */
+  border-radius: var(--map-radius, 8px);
   overflow: hidden;
   /* a layer of its own: redrawing the map while it moves doesn't redo the blur of the frosted cards around it */
   will-change: transform;
@@ -352,7 +353,7 @@
 /* the map's frame: the svg is twice its size and slides under it, moved by a finger or gliding along the mower */
 .frame {
   position: relative;
-  border-radius: 8px;
+  border-radius: var(--map-radius, 8px);
   aspect-ratio: 1;
   overflow: hidden;
 }
