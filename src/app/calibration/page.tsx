@@ -26,7 +26,7 @@ import {
 import {fmt, tr, useLang} from '@/lib/i18n';
 import {ACTION, PARAM, RPC} from '@/lib/openmower';
 import {rpcMethods} from '@/lib/rpc';
-import {GPS_QUALITY_LABEL, gpsQuality} from '@/lib/status';
+import {gpsQuality} from '@/lib/status';
 import Link from 'next/link';
 import {useEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {createPortal} from 'react-dom';
@@ -71,22 +71,18 @@ function Ready({mode, status, onGo, onClose}: {mode: CalibMode; status: Record<s
   const {hasAction} = useMowerActions();
   const [room, setRoom] = useState(false);
   const [stay, setStay] = useState(false);
-  // the gps's own accuracy (OpenMower leaves it out of the pose while idle: 999 there), else the pose's
+  // the gps's accuracy as OpenMower uses it: idle (in the dock too) it leaves the gps out, 999 then, though the receiver
+  // has its fix. so only shown when good, never a reason not to start: the planner checks the receiver's fix as it starts
   const gpsAcc = useSensorValue('om_gps_accuracy', (v) => (v !== undefined && Number.isFinite(parseFloat(v)) ? parseFloat(v) : null));
   const acc = gpsAcc ?? state?.pose.pos_accuracy;
   const gpsQ = gpsQuality(acc, numParam(params, PARAM.maxPositionAccuracy));
   const battery = state?.battery_percentage;
   const free = /^\d+$/.test(status?.disk_free ?? '') ? Number(status!.disk_free) : null;
   const byHand = mode === 'joystick';
-  const checks: {ok: boolean; title: string; text?: string; value?: string}[] = [
+  const checks: {ok: boolean; open?: boolean; title: string; text?: string; value?: string}[] = [
     gpsQ === 'fix'
       ? {ok: true, title: tr('RTK fix'), text: tr('Position accurate to a few centimeters'), value: `${fmt(acc! * 100, 1)} cm`}
-      : {
-          ok: false,
-          title: tr('No RTK fix yet'),
-          text: tr('Without a position accurate to the centimeter the values come out wrong. Under open sky it usually takes a minute or two.'),
-          value: gpsQ === 'none' ? tr(GPS_QUALITY_LABEL.none) : `${fmt(acc! * 100, 0)} cm`,
-        },
+      : {ok: true, open: true, title: tr('RTK fix'), text: tr('Checked as it starts: while idle OpenMower leaves the GPS out of its position.')},
     battery === undefined || battery >= LOW_BATTERY
       ? {ok: true, title: tr('Battery'), value: battery === undefined ? '–' : `${Math.round(battery * 100)} %`}
       : {ok: false, title: tr('Battery too low'), text: tr('Let it charge in the dock first.'), value: `${Math.round(battery * 100)} %`},
@@ -114,7 +110,9 @@ function Ready({mode, status, onGo, onClose}: {mode: CalibMode; status: Record<s
         <div className={styles.checks}>
           {checks.map((c) => (
             <div key={c.title} className={[styles.check, c.ok ? '' : styles.checkBad].join(' ')}>
-              <span className={[styles.mark, c.ok ? styles.markOk : styles.markBad].join(' ')}>{c.ok ? <CheckIcon size={14} /> : <CloseIcon size={14} />}</span>
+              <span className={[styles.mark, c.open ? styles.markOpen : c.ok ? styles.markOk : styles.markBad].join(' ')}>
+                {c.open ? '?' : c.ok ? <CheckIcon size={14} /> : <CloseIcon size={14} />}
+              </span>
               <div>
                 {c.title}
                 {c.text && <small>{c.text}</small>}

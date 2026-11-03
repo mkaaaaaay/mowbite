@@ -2176,6 +2176,7 @@ const de: Record<string, string> = {
   "Not applied": "Nicht übernommen",
   "Applying 1 value": "1 Wert wird übernommen",
   "Applying {n} values": "{n} Werte werden übernommen",
+  "Checked as it starts: while idle OpenMower leaves the GPS out of its position.": "Wird beim Start geprüft: Im Leerlauf rechnet OpenMower das GPS nicht in die Position ein.",
   "Now {m} m straight on": "Jetzt {m} m geradeaus",
   "The planner works the values out from the recording. That can take a few minutes, after driving by hand mostly under a minute.": "Der Planer rechnet die Werte aus der Aufzeichnung aus. Das kann ein paar Minuten dauern, bei einer Joystick-Fahrt meist unter einer Minute.",
   "then the turn counts": "dann zählt die Drehung",

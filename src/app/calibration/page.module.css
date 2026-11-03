@@ -383,6 +383,12 @@
   color: var(--soft-good);
 }
 
+.markOpen {
+  background: rgba(128, 128, 128, 0.18);
+  color: var(--text-secondary);
+  font-weight: 700;
+}
+
 .markBad {
   background: color-mix(in srgb, var(--warning) 26%, transparent);
   color: var(--soft-warn);
