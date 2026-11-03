@@ -4,6 +4,9 @@ import {defineConfig, devices} from '@playwright/test';
 // mower. With E2E_URL they go to a MowBite that runs with a mower or a simulator, the ones that need that only then
 const url = process.env.E2E_URL;
 const ci = !!process.env.CI;
+// the port out/ is served on (E2E_PORT, one per working tree): a server another tree left running isn't reused, a run
+// next to it stops instead of testing that tree's build
+const port = Number(process.env.E2E_PORT ?? 3123);
 
 export default defineConfig({
   testDir: 'e2e',
@@ -13,7 +16,7 @@ export default defineConfig({
   workers: ci ? 2 : undefined,
   reporter: ci ? [['list'], ['html', {open: 'never'}]] : 'list',
   use: {
-    baseURL: url ?? 'http://localhost:3123',
+    baseURL: url ?? `http://localhost:${port}`,
     locale: 'en-US',
     timezoneId: 'Europe/Berlin',
     // the chrome on this computer, CI brings its own (playwright install chromium)
@@ -25,5 +28,5 @@ export default defineConfig({
     {name: 'phone', use: {...devices['Pixel 7']}},
     {name: 'desktop', use: {...devices['Desktop Chrome']}},
   ],
-  webServer: url ? undefined : {command: 'node e2e/serve.mjs', url: 'http://localhost:3123', reuseExistingServer: !ci},
+  webServer: url ? undefined : {command: 'node e2e/serve.mjs', env: {PORT: String(port)}, url: `http://localhost:${port}`, reuseExistingServer: false},
 });
