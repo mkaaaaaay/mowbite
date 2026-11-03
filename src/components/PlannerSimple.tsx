@@ -1,7 +1,7 @@
 'use client';
 
 import type {MowerMap, Point} from '@/hooks/useMowerMap';
-import {dec, tr} from '@/lib/i18n';
+import {cmText, dec, tr} from '@/lib/i18n';
 import {outlineOf, resetPlannerAngle, savePlannerSettings, slic3rPlans, usePlannerSettings, type PlannerSetting} from '@/lib/mowerBody';
 import {ANGLE_FOR_ALL, FIELDS, hidden, STYLE_LABELS, STYLE_NOTES, STYLES, styleOf} from '@/lib/plannerFields';
 import {areasWith, areasWithDirection, ownMargins, ownSettings, shown, type AreaValue, type OpenMowerOwn} from '@/lib/plannerOwn';
@@ -40,7 +40,6 @@ type Area = {
 const DEG = Math.PI / 180;
 // degrees to a tenth, for a step
 const degrees = (rad: number) => Math.round((rad / DEG) * 10) / 10;
-const cm = (m: unknown) => (typeof m === 'number' ? dec(Math.round(m * 1000) / 10) : '');
 const meters = (m: unknown) => (typeof m === 'number' ? dec(Math.round(m * 100) / 100) : '');
 
 const PATTERNS = ['lanes', 'concentric', 'crosshatch'];
@@ -218,7 +217,7 @@ export function PlannerSimple({
   );
   // a distance in cm for a setting in m, for an area empty is "as all areas"
   const cmField = (key: string, max = 100) =>
-    numberField(key, area && area.own[key] === undefined ? '' : cm(value(key)), cm(global(key)), 'cm', (text) => {
+    numberField(key, area && area.own[key] === undefined ? '' : cmText(value(key)), cmText(global(key)), 'cm', (text) => {
       const v = parse(text);
       void save(key, v === null ? undefined : Math.min(max, Math.max(0, v)) / 100);
     });
@@ -398,7 +397,7 @@ export function PlannerSimple({
         tr(PATTERN_LABELS[String(global('fill_pattern'))] ?? String(global('fill_pattern') ?? '')),
         auto ? tr('spacing automatic') : spacingCm !== null ? tr('{cm} cm apart', {cm: dec(Math.round(spacingCm * 10) / 10)}) : null,
         typeof passes === 'number' ? (passesAuto ? tr('outline passes automatic') : passes === 1 ? tr('1 outline pass') : tr('{n} outline passes', {n: passes})) : null,
-        has('edge_margin') ? tr('{cm} cm off the edge', {cm: cm(global('edge_margin'))}) : null,
+        has('edge_margin') ? tr('{cm} cm off the edge', {cm: cmText(global('edge_margin'))}) : null,
         has('body_fit')
           ? global('body_fit')
             ? sized || !has('robot_front')
@@ -417,7 +416,7 @@ export function PlannerSimple({
       {bladeDefault && !area && (
         <p className={local.note}>
           {tr("The blade is not set in the planner, it plans with {a} cm. Lanes are spaced by it: set your mower's blade in the settings under Mower sizes.", {
-            a: cm(blade),
+            a: cmText(blade),
           })}
         </p>
       )}
@@ -840,8 +839,8 @@ export function PlannerSimple({
                 note={
                   !sameMargins
                     ? tr('Edge {a} cm, obstacles {b} cm. A value here sets both, each on its own is under More settings.', {
-                        a: cm(num('edge_margin')),
-                        b: cm(num('obstacle_margin')),
+                        a: cmText(num('edge_margin')),
+                        b: cmText(num('obstacle_margin')),
                       })
                     : sized || !has('robot_front')
                       ? tr('The body keeps this far off edges and obstacles.')
@@ -852,7 +851,7 @@ export function PlannerSimple({
                     {area
                       ? marginOwn && (
                           <p className={local.source}>
-                            {tr('Own value for this area, all areas: {value}.', {value: `${cm(global('edge_margin'))} cm`})}{' '}
+                            {tr('Own value for this area, all areas: {value}.', {value: `${cmText(global('edge_margin'))} cm`})}{' '}
                             <button className={local.link} onClick={() => void saveMany({edge_margin: undefined, obstacle_margin: undefined})}>
                               {tr('like all areas')}
                             </button>
@@ -863,7 +862,7 @@ export function PlannerSimple({
                   </>
                 }
               >
-                {numberField('margin', !sameMargins || (area && !marginOwn) ? '' : cm(num('edge_margin')), sameMargins ? cm(global('edge_margin')) : '', 'cm', (text) => {
+                {numberField('margin', !sameMargins || (area && !marginOwn) ? '' : cmText(num('edge_margin')), sameMargins ? cmText(global('edge_margin')) : '', 'cm', (text) => {
                   const v = parse(text);
                   const m = v === null ? undefined : Math.min(100, Math.max(0, v)) / 100;
                   void saveMany({edge_margin: m, obstacle_margin: m});

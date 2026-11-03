@@ -1,7 +1,7 @@
 'use client';
 
 import {loadUpdate, updaterAlive} from '@/lib/autoUpdate';
-import {copyText} from '@/lib/clipboard';
+import {CopyButton} from '@/lib/clipboard';
 import {tr} from '@/lib/i18n';
 import {isDemo} from '@/lib/mowers';
 import {isApp} from '@/lib/native';
@@ -78,20 +78,10 @@ function NewerOpenMower() {
 
 // a command to run on the mower, with a button that copies it
 export function CopyCommand({command}: {command: string}) {
-  const [copied, setCopied] = useState(false);
   return (
     <div className={styles.command}>
       <code>{command}</code>
-      <button
-        className={styles.button}
-        onClick={() => {
-          copyText(command);
-          setCopied(true);
-          setTimeout(() => setCopied(false), 1500);
-        }}
-      >
-        {copied ? tr('copied') : tr('Copy')}
-      </button>
+      <CopyButton text={command} className={styles.button} />
     </div>
   );
 }

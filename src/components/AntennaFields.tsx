@@ -1,19 +1,14 @@
 'use client';
 
 import {numParam, useMowerParams} from '@/hooks/useMowerParams';
-import {copyText} from '@/lib/clipboard';
-import {dec, tr} from '@/lib/i18n';
+import {CopyButton} from '@/lib/clipboard';
+import {cmMetres, cmText, tr} from '@/lib/i18n';
 import {PARAM} from '@/lib/openmower';
 import {useState} from 'react';
 import local from './MowerSizesSettings.module.css';
 
 type Styles = Record<string, string>;
 
-const cm = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? dec(Math.round(v * 1000) / 10) : '');
-const metres = (text: string) => {
-  const v = parseFloat(text.replace(',', '.'));
-  return text.trim() && Number.isFinite(v) ? v / 100 : null;
-};
 
 // the GPS antenna under the mower's sizes (with the planner and without): where OpenMower has it, typed where it really
 // sits, for the sketch; nothing without the mower's value
@@ -24,16 +19,15 @@ export function useAntennaFields(styles: Styles): {antenna?: {x: number; y: numb
   // where the antenna really sits, typed here: OpenMower reads it from its yaml at the start only (no params.set), so
   // the app hands over the lines to put there. the fields follow the mower's values until something is typed
   const [antennaForm, setAntennaForm] = useState<{x: string; y: string} | null>(null);
-  const antennaText = antennaForm ?? {x: cm(mowerAntenna?.x), y: cm(mowerAntenna?.y)};
-  const typedX = metres(antennaText.x);
-  const typedY = metres(antennaText.y);
+  const antennaText = antennaForm ?? {x: cmText(mowerAntenna?.x), y: cmText(mowerAntenna?.y)};
+  const typedX = cmMetres(antennaText.x);
+  const typedY = cmMetres(antennaText.y);
   const antenna = typedX !== null ? {x: typedX, y: typedY ?? 0} : mowerAntenna;
   const antennaChanged =
     !!antennaForm && typedX !== null && (!mowerAntenna || Math.abs(typedX - mowerAntenna.x) > 0.0005 || Math.abs((typedY ?? 0) - mowerAntenna.y) > 0.0005);
   const yamlLines = antennaChanged
     ? `xbot_positioning:\n  antenna_offset_x: ${Math.round(typedX * 1000) / 1000}\n  antenna_offset_y: ${Math.round((typedY ?? 0) * 1000) / 1000}`
     : '';
-  const [copied, setCopied] = useState(false);
 
   const fields = (
     mowerAntenna && (
@@ -63,16 +57,7 @@ export function useAntennaFields(styles: Styles): {antenna?: {x: number; y: numb
             </p>
             <div className={local.command}>
               <code>{yamlLines}</code>
-              <button
-                className={styles.pillButton}
-                onClick={() => {
-                  copyText(yamlLines);
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 1500);
-                }}
-              >
-                {copied ? tr('copied') : tr('Copy')}
-              </button>
+              <CopyButton text={yamlLines} className={styles.pillButton} />
             </div>
           </>
         )}

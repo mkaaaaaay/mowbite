@@ -1,6 +1,6 @@
 'use client';
 
-import {dec, tr} from '@/lib/i18n';
+import {cmMetres, cmText, tr} from '@/lib/i18n';
 import {
   autoOutlineModel,
   BODY_SETTINGS,
@@ -45,11 +45,9 @@ const LABELS: Record<BodySetting, string> = {
 type Styles = Record<string, string>;
 type Form = Record<BodySetting, string>;
 
-const cm = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? dec(Math.round(v * 1000) / 10) : '');
-
 function formFrom(settings: Record<string, {value: unknown}> | undefined): Form {
   const f = {} as Form;
-  for (const key of BODY_SETTINGS) f[key] = cm(settings?.[key]?.value);
+  for (const key of BODY_SETTINGS) f[key] = cmText(settings?.[key]?.value);
   return f;
 }
 
@@ -160,10 +158,7 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
   const known = settings?.settings ?? {};
   const keys = BODY_SETTINGS;
   // what the form would make of it: the sketch follows the fields while typing
-  const metres = (key: BodySetting) => {
-    const v = parseFloat(form[key].replace(',', '.'));
-    return Number.isFinite(v) ? v / 100 : null;
-  };
+  const metres = (key: BodySetting) => cmMetres(form[key]);
   const rect = bodyFrom({
     settings: Object.fromEntries(BODY_SETTINGS.map((k) => [k, {value: metres(k)} as never])),
   });
@@ -265,7 +260,7 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
     setTurn(m?.turnRadius ?? null);
     if (!m) return;
     const next = {...form};
-    for (const [field, size] of MODEL_FIELDS) next[field] = cm(m.sizes[size]);
+    for (const [field, size] of MODEL_FIELDS) next[field] = cmText(m.sizes[size]);
     setForm(next);
     setOutline(m.outline ?? null);
     setState({picked: true});
@@ -332,7 +327,7 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
             <input
               inputMode="decimal"
               value={form[key]}
-              placeholder={known[key] ? cm(known[key].default) || tr('none') : ''}
+              placeholder={known[key] ? cmText(known[key].default) || tr('none') : ''}
               disabled={!usable(key)}
               onChange={(e) => set(key, e.target.value)}
             />

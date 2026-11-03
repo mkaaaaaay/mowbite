@@ -1,7 +1,7 @@
 'use client';
 
 import {numParam, useMowerParams} from '@/hooks/useMowerParams';
-import {dec, tr} from '@/lib/i18n';
+import {cmMetres, cmText, tr} from '@/lib/i18n';
 import {autoOutlineModel, MAX_BLADE, modelOf, MOWER_MODELS, outlineOf, sizesBody, withModelOutline, type MowerSizes, type Outline} from '@/lib/mowerBody';
 import {PARAM} from '@/lib/openmower';
 import {saveSettings, settingsStore, type Settings} from '@/lib/settings';
@@ -26,21 +26,14 @@ type Form = Record<Field, string>;
 
 type Styles = Record<string, string>;
 
-const cm = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? dec(Math.round(v * 1000) / 10) : '');
-
 function formFrom(s: MowerSizes | undefined): Form {
-  return Object.fromEntries(FIELDS.map(([key]) => [key, cm(s?.[key])])) as Form;
+  return Object.fromEntries(FIELDS.map(([key]) => [key, cmText(s?.[key])])) as Form;
 }
-
-const metres = (text: string) => {
-  const v = parseFloat(text.replace(',', '.'));
-  return text.trim() && Number.isFinite(v) ? v / 100 : null;
-};
 
 // the outline that goes with stored sizes: their own, or their model's on its own
 const outlineWith = (s: MowerSizes | undefined, keep?: boolean) => outlineOf(withModelOutline(s, keep)?.outline) ?? null;
 
-const sizesOf = (f: Form) => Object.fromEntries(FIELDS.map(([key]) => [key, metres(f[key]) ?? undefined])) as MowerSizes;
+const sizesOf = (f: Form) => Object.fromEntries(FIELDS.map(([key]) => [key, cmMetres(f[key]) ?? undefined])) as MowerSizes;
 
 export function MowerSizesSettings({settings, styles}: {settings: Settings; styles: Styles}) {
   const sizes = settings.mower;
@@ -91,7 +84,7 @@ export function MowerSizesSettings({settings, styles}: {settings: Settings; styl
     const next: MowerSizes = {};
     for (const [key, label] of FIELDS) {
       if (!form[key].trim()) continue;
-      const v = metres(form[key]);
+      const v = cmMetres(form[key]);
       if (v === null) return setState({error: tr('{what} is not a number.', {what: tr(label)})});
       next[key] = Math.round(v * 10000) / 10000;
     }

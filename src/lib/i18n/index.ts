@@ -101,6 +101,12 @@ export const locale = () => (active === 'de' ? 'de-DE' : 'en-GB');
 const numberFormats = new Map<string, Intl.NumberFormat>();
 // a number as it is, with the language's decimal separator: for fields that take it back (they take both)
 export const dec = (v: number) => (active === 'de' ? String(v).replace('.', ',') : String(v));
+// metres shown in cm to a millimetre for such a field, and what's typed there back in metres (null when it's no number)
+export const cmText = (m: unknown) => (typeof m === 'number' && Number.isFinite(m) ? dec(Math.round(m * 1000) / 10) : '');
+export const cmMetres = (text: string) => {
+  const v = parseFloat(text.replace(',', '.'));
+  return Number.isFinite(v) ? v / 100 : null;
+};
 
 export const fmt = (v: number, digits = 0) => {
   const key = `${locale()} ${digits}`;

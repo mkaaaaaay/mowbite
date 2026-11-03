@@ -41,7 +41,7 @@ import {
   type UpdatePart,
   type UpdateState,
 } from '@/lib/autoUpdate';
-import {copyText} from '@/lib/clipboard';
+import {CopyButton} from '@/lib/clipboard';
 import {useDockgeUrl, useUpdaterPageUrl} from '@/lib/dockge';
 import {fmt, tr, useLang} from '@/lib/i18n';
 import {apiBase, isDemo} from '@/lib/mowers';
@@ -72,22 +72,6 @@ const UPDATER_YAML = `  updater:
       openmower.ui.icon: SystemUpdateAlt
       openmower.ui.description: Updates OpenMower, MowBite, the planner and other apps, with the mower idle in the dock
 `;
-
-function CopyButton({text}: {text: string}) {
-  const [copied, setCopied] = useState(false);
-  return (
-    <button
-      className={local.control}
-      onClick={() => {
-        copyText(text);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1500);
-      }}
-    >
-      {copied ? tr('copied') : tr('Copy')}
-    </button>
-  );
-}
 
 // a delete or a step back takes two taps: the first asks, for a few seconds. a double tap by mistake doesn't answer
 // the question it brings up at the same spot
@@ -164,7 +148,7 @@ function AddUpdater() {
       </ol>
       <pre className={local.code}>{UPDATER_YAML}</pre>
       <div className={local.row}>
-        <CopyButton text={UPDATER_YAML} />
+        <CopyButton text={UPDATER_YAML} className={local.control} />
       </div>
       <span className={local.dim}>
         {tr('If your stacks aren\'t in /opt/stacks (Dockge\'s folder), change both sides of the line "/opt/stacks:/opt/stacks" to yours.')}
@@ -751,7 +735,7 @@ export function AutoUpdate() {
             <summary className={local.dim}>{tr('Log')}</summary>
             <div className={local.row}>
               <span className={local.dim}>{tr('newest at the top')}</span>
-              <CopyButton text={log} />
+              <CopyButton text={log} className={local.control} />
             </div>
             <pre className={local.log}>{log}</pre>
           </details>
