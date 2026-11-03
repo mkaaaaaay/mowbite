@@ -14,8 +14,7 @@ while :; do
   [ -f "$D/hours" ] && tail -n 10000 "$D/hours" > "$D/hours.tmp" && mv "$D/hours.tmp" "$D/hours"
   host=$(find_broker)
   if [ -n "$host" ]; then
-    # shellcheck disable=SC2086
-    mosquitto_sub -h "$host" -p "$PORT" $AUTH -F '%U %t %p' \
+    mosquitto_sub -h "$host" -p "$PORT" -F '%U %t %p' \
       -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -t "${MOWER_MQTT_PREFIX}sensors/om_mow_motor_rpm/data" |
       HOURS="$D/hours" STATE="$D/state" awk -f /stats.awk
   fi

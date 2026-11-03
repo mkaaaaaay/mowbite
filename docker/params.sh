@@ -11,8 +11,7 @@ S=/data/schedule.txt
 while :; do
   if [ -f "$F" ] && [ "$(sed -n 's/^enabled //p' "$F" | head -n1)" != 0 ] && grep -q '^/' "$F"; then
     host=$(find_broker)
-    # shellcheck disable=SC2086
-    now=$([ -n "$host" ] && mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_PARAMS" -C 1 -W 10 2>/dev/null)
+    now=$([ -n "$host" ] && mosquitto_sub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_PARAMS" -C 1 -W 10 2>/dev/null)
     if [ -n "$now" ]; then
       skip=""
       if [ "$(sed -n 's/^enabled //p' "$S" 2>/dev/null | head -n1)" = 1 ] && grep -q '^plan .* angle=' "$S"; then

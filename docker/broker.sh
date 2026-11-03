@@ -1,6 +1,18 @@
 # shared by recorder.sh and scheduler.sh: where the mqtt broker is and how to log in
 PORT=${MOWER_MQTT_PORT:-1883}
-AUTH="${MOWER_MQTT_USER:+-u $MOWER_MQTT_USER} ${MOWER_MQTT_PASSWORD:+-P $MOWER_MQTT_PASSWORD}"
+# the login goes to mosquitto_sub and mosquitto_pub through their options file (an option a line, its value the rest of
+# it): as an argument a password with a space or a * would come apart
+if [ -n "$MOWER_MQTT_USER$MOWER_MQTT_PASSWORD" ]; then
+  export XDG_CONFIG_HOME=/tmp/mqtt-login
+  (
+    umask 077
+    mkdir -p "$XDG_CONFIG_HOME"
+    for t in mosquitto_sub mosquitto_pub; do
+      { [ -z "$MOWER_MQTT_USER" ] || echo "-u $MOWER_MQTT_USER"; [ -z "$MOWER_MQTT_PASSWORD" ] || echo "-P $MOWER_MQTT_PASSWORD"; } > "$XDG_CONFIG_HOME/$t.$$" &&
+        mv "$XDG_CONFIG_HOME/$t.$$" "$XDG_CONFIG_HOME/$t"
+    done
+  )
+fi
 
 # the broker runs on the mower: localhost with host networking, otherwise the docker gateway
 find_broker() {
@@ -17,12 +29,10 @@ mower_rpc() {
   # a subshell has the same $$: a random part, two calls in the same second don't take each other's answer
   _id="mowbite-$$-$(date +%s)-$(od -An -N4 -tx4 /dev/urandom | tr -d ' ')"
   _out=$(mktemp)
-  # shellcheck disable=SC2086
-  mosquitto_sub -h "$1" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_RPC_RESPONSE" -t "${MOWER_MQTT_PREFIX}$TOPIC_RPC_ERROR" -W "${4:-15}" > "$_out" 2>/dev/null &
+  mosquitto_sub -h "$1" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_RPC_RESPONSE" -t "${MOWER_MQTT_PREFIX}$TOPIC_RPC_ERROR" -W "${4:-15}" > "$_out" 2>/dev/null &
   _sub=$!
   sleep 1
-  # shellcheck disable=SC2086
-  mosquitto_pub -h "$1" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_RPC_REQUEST" \
+  mosquitto_pub -h "$1" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_RPC_REQUEST" \
     -m "{\"jsonrpc\":\"2.0\",\"method\":\"$2\",\"params\":$3,\"id\":\"$_id\"}" 2>/dev/null
   _n=0
   while [ "$_n" -lt "${4:-15}" ]; do

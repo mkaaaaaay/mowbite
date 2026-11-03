@@ -47,8 +47,7 @@ while :; do
   [ -f "$H" ] && tail -n 4000 "$H" > "$H.tmp" && mv "$H.tmp" "$H"
   host=$(find_broker)
   if [ -n "$host" ]; then
-    # shellcheck disable=SC2086
-    mosquitto_sub -h "$host" -p "$PORT" $AUTH -F '%U %t %p' \
+    mosquitto_sub -h "$host" -p "$PORT" -F '%U %t %p' \
       -t "${MOWER_MQTT_PREFIX}sensors/om_v_battery/data" -t "${MOWER_MQTT_PREFIX}sensors/om_charge_current/data" \
       -t "${MOWER_MQTT_PREFIX}sensors/om_charge_state/data" -t "${MOWER_MQTT_PREFIX}sensors/om_mow_motor_rpm/data" \
       -t "${MOWER_MQTT_PREFIX}$TOPIC_CHARGE_VOLTAGE" -t "${MOWER_MQTT_PREFIX}sensors/om_mow_motor_temp/data" \

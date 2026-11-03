@@ -48,8 +48,7 @@ paused_today() { awk -v day="$(TZ="$tz" date +%F)" '$1 == "pause" && day <= $2 {
 # across breaks for charging) or the next start. a run sent home at its end time keeps its job open, without
 # stopping at the next start this would go on skipping the areas of the next plan or of a start by hand
 skip_others() {
-  # shellcheck disable=SC2086
-  timeout 86400 mosquitto_sub -h "$host" -p "$PORT" $AUTH -v -t "${MOWER_MQTT_PREFIX}$TOPIC_EVENTS" \
+  timeout 86400 mosquitto_sub -h "$host" -p "$PORT" -v -t "${MOWER_MQTT_PREFIX}$TOPIC_EVENTS" \
     -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTION" | while read -r e; do
     case "$e" in *" $ACTION_START_MOWING") break ;; esac
     type=$(field "$e" type)
@@ -67,8 +66,7 @@ skip_others() {
         # before a map change can name an area that isn't in it any more, that one is left alone.
         # inactive ones too (and ones it doesn't mow), the mower passes them by itself, and a skip
         # sent while it does would hit the next area instead
-        # shellcheck disable=SC2086
-        props=$(mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_MAP" -C 1 -W 5 2>/dev/null |
+        props=$(mosquitto_sub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_MAP" -C 1 -W 5 2>/dev/null |
           map_areas | grep "^\"id\":\"$a\"," | head -n1)
         # skipped when the plan doesn't pick it (all or a list) or it's paused for today
         keep=1
@@ -80,8 +78,7 @@ skip_others() {
           continue
         fi
         case "$props" in *'"active":false'* | *'"mowable":false'*) continue ;; esac
-        # shellcheck disable=SC2086
-        mosquitto_pub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTION" -m "$ACTION_SKIP_AREA"
+        mosquitto_pub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTION" -m "$ACTION_SKIP_AREA"
         case ",$p," in ,all, | *",$a,"*) log paused_area "$a" ;; *) log skipped_area "$a" ;; esac
         ;;
     esac
@@ -176,34 +173,28 @@ send_home_at() {
     [ "$w" -gt 60 ] && w=60
     [ "$w" -lt 1 ] && w=1
     t=$(date +%s)
-    # shellcheck disable=SC2086
-    e=$(mosquitto_sub -h "$host" -p "$PORT" $AUTH $topics -v -C 1 -W "$w" 2>/dev/null) ||
+    e=$(mosquitto_sub -h "$host" -p "$PORT" $topics -v -C 1 -W "$w" 2>/dev/null) ||
       { [ $(($(date +%s) - t)) -lt 1 ] && sleep 5; }
     case "$e" in *" $ACTION_START_MOWING") return ;; esac
     case "$(field "$e" type)" in JOB_COMPLETE | SHUTDOWN) return ;; esac
   done
   logged=""
-  # shellcheck disable=SC2086
-  s=$(mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -C 1 -W 10 2>/dev/null)
+  s=$(mosquitto_sub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -C 1 -W 10 2>/dev/null)
   if [ "$(field "$s" current_state)" = MOWING ]; then
-    # shellcheck disable=SC2086
-    mosquitto_pub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTION" -m "$ACTION_HOME" && log "stopped_$2" && logged=1
+    mosquitto_pub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTION" -m "$ACTION_HOME" && log "stopped_$2" && logged=1
   fi
   if rpc_call "$RPC_SET_PARAMS" '{"params":{"/mower_logic/manual_pause_mowing":true}}' 10 | grep -q '"result"'; then
     [ -n "$logged" ] || log "stopped_$2"
     return
   fi
   while [ "$(date +%s)" -lt "$(($1 + 43200))" ]; do
-    # shellcheck disable=SC2086
-    s=$(mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -C 1 -W 10 2>/dev/null)
+    s=$(mosquitto_sub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -C 1 -W 10 2>/dev/null)
     if [ "$(field "$s" current_state)" = MOWING ]; then
-      # shellcheck disable=SC2086
-      mosquitto_pub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTION" -m "$ACTION_HOME" &&
+      mosquitto_pub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTION" -m "$ACTION_HOME" &&
         log "$([ -z "$logged" ] && echo "stopped_$2" || echo stopped_again)"
       logged=1
     fi
-    # shellcheck disable=SC2086
-    m=$(mosquitto_sub -h "$host" -p "$PORT" $AUTH $topics -v -C 1 -W 30 2>/dev/null) || sleep 5
+    m=$(mosquitto_sub -h "$host" -p "$PORT" $topics -v -C 1 -W 30 2>/dev/null) || sleep 5
     case "$m" in *" $ACTION_START_MOWING") return ;; esac
     [ "$(field "$m" type)" = JOB_COMPLETE ] && return
   done
@@ -219,8 +210,7 @@ check_started() {
   at=$1
   t=$(($(date +%s) + 60))
   while [ "$(date +%s)" -lt "$t" ]; do
-    # shellcheck disable=SC2086
-    s=$(mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -C 1 -W 10 2>/dev/null)
+    s=$(mosquitto_sub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -C 1 -W 10 2>/dev/null)
     case "$(field "$s" current_state)" in '' | IDLE) sleep 2 ;; *) return ;; esac
   done
   log start_failed ${at:+"at=$at"}
@@ -229,8 +219,7 @@ check_started() {
 # does the run have an area left: mowed ones in the map (retained) the plan picks ($1: all or a list) and
 # that aren't paused ($2). when the map can't be read it's left to the run
 area_left() {
-  # shellcheck disable=SC2086
-  m=$(mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_MAP" -C 1 -W 5 2>/dev/null | tr -d ' \n')
+  m=$(mosquitto_sub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_MAP" -C 1 -W 5 2>/dev/null | tr -d ' \n')
   [ -n "$m" ] || return 0
   printf '%s' "$m" | map_areas | grep '"type":"mow"' |
     grep -v '"active":false' | grep -v '"mowable":false' | sed 's/^"id":"\([^"]*\)".*/\1/' | {
@@ -281,8 +270,7 @@ rpc_call() { mower_rpc "$host" "$1" "$2" "$3" | tr -d '\n'; }
 # come and at most 30 minutes away, a later one is none of its own. its hold ends by itself when the updater stops
 held() {
   [ -n "$host" ] || return 1
-  # shellcheck disable=SC2086
-  hold=$(mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_HOLD" -C 1 -W 2 2>/dev/null |
+  hold=$(mosquitto_sub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_HOLD" -C 1 -W 2 2>/dev/null |
     grep -o '"until": *[0-9]*' | grep -o '[0-9]*$')
   [ -n "$hold" ] && [ "$hold" -gt "$(date +%s)" ] && [ "$hold" -le "$(($(date +%s) + 1800))" ]
 }
@@ -318,11 +306,9 @@ tell_next() {
   host=$(find_broker)
   [ -n "$host" ] || return
   if [ -n "$n" ]; then
-    # shellcheck disable=SC2086
-    mosquitto_pub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_SCHEDULE_NEXT" -r -m "$n" 2>/dev/null || return
+    mosquitto_pub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_SCHEDULE_NEXT" -r -m "$n" 2>/dev/null || return
   else
-    # shellcheck disable=SC2086
-    mosquitto_pub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_SCHEDULE_NEXT" -r -n 2>/dev/null || return
+    mosquitto_pub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_SCHEDULE_NEXT" -r -n 2>/dev/null || return
   fi
   told=$n told_at=$(date +%s)
 }
@@ -356,8 +342,7 @@ leftovers_after() {
   t=$(($(date +%s) + 900))
   s=""
   while [ "$(date +%s)" -lt "$t" ]; do
-    # shellcheck disable=SC2086
-    s=$(mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -C 1 -W 10 2>/dev/null)
+    s=$(mosquitto_sub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -C 1 -W 10 2>/dev/null)
     [ "$(field "$s" current_state)" = IDLE ] && break
     sleep 10
   done
@@ -377,8 +362,7 @@ leftovers_after() {
   t=$(($(date +%s) + 21600))
   waited=""
   while :; do
-    # shellcheck disable=SC2086
-    s=$(mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -C 1 -W 10 2>/dev/null)
+    s=$(mosquitto_sub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -C 1 -W 10 2>/dev/null)
     if [ "$(field "$s" current_state)" != IDLE ]; then log leftovers_skip "$(field "$s" current_state)"; return; fi
     bat=$(battery "$s")
     [ "${bat:-0}" -ge "$need" ] && break
@@ -403,8 +387,7 @@ leftovers_after() {
   if [ "$(echo "$(field "$r" armed)" | awk '{ print ($1 > 0) ? 1 : 0 }')" != 1 ]; then log leftovers_failed; return; fi
   # (the updater's hold once more after the planner's answer, which may take minutes. what's armed runs out by itself)
   if held; then log leftovers_skip hold; return; fi
-  # shellcheck disable=SC2086
-  if mosquitto_pub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTION" -m "$ACTION_START_MOWING"; then
+  if mosquitto_pub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTION" -m "$ACTION_START_MOWING"; then
     date +%s > "$LEFT"
     log leftovers_started "$left"
     check_started &
@@ -418,8 +401,7 @@ leftovers_watch() {
   while :; do
     host=$(find_broker)
     if [ -n "$host" ] && [ "$(field "$(leftovers_conf)" auto)" = true ]; then
-      # shellcheck disable=SC2086
-      timeout 86400 mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_EVENTS" | while read -r e; do
+      timeout 86400 mosquitto_sub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_EVENTS" | while read -r e; do
         [ "$(field "$e" type)" = JOB_COMPLETE ] || continue
         leftovers_after "$(field "$e" job_id)"
       done
@@ -443,13 +425,11 @@ kept_angle() { grep -q '^enabled 1' /data/params.txt 2>/dev/null && sed -n "s|^$
 # a job still open: the mower out (or charging in the middle of it), or idle with one left unfinished. after a start
 # the actions come group by group (from []), the list is read again until it has the idle ones, a few seconds at most
 run_open() {
-  # shellcheck disable=SC2086
-  s=$(mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -C 1 -W 10 2>/dev/null)
+  s=$(mosquitto_sub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -C 1 -W 10 2>/dev/null)
   [ -n "$s" ] || return 1
   [ "$(field "$s" current_state)" != IDLE ] && return 0
   for _ in 1 2 3 4 5; do
-    # shellcheck disable=SC2086
-    a=$(mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTIONS" -C 1 -W 5 2>/dev/null | tr -d ' \n')
+    a=$(mosquitto_sub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTIONS" -C 1 -W 5 2>/dev/null | tr -d ' \n')
     case "$a" in '' | *"\"${ACTION_RESET_JOB%/*}/"*) break ;; esac
     sleep 1
   done
@@ -565,8 +545,7 @@ while :; do
     [ -n "$cur" ] && set -- $cur && areas=$1 end=$2 dark=$3 sunset=$4 fresh=$5 angle=$6
     paused=$(paused_today)
     host=$(find_broker)
-    # shellcheck disable=SC2086
-    s=$([ -n "$host" ] && mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -C 1 -W 10 2>/dev/null)
+    s=$([ -n "$host" ] && mosquitto_sub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -C 1 -W 10 2>/dev/null)
     bat=$(battery "$s")
     minbat=$(conf minbattery)
     if [ -z "$cur" ]; then
@@ -614,8 +593,7 @@ while :; do
       if [ "$angle" != - ]; then
         turn=$angle
         if [ ! -f "$NORMAL" ]; then
-          # shellcheck disable=SC2086
-          now=$(mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_PARAMS" -C 1 -W 10 2>/dev/null)
+          now=$(mosquitto_sub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_PARAMS" -C 1 -W 10 2>/dev/null)
           now=$(field "$now" "$PARAM_MOW_ANGLE_OFFSET")
           [ -n "$now" ] && echo "$now" > "$NORMAL"
         fi
@@ -631,14 +609,13 @@ while :; do
       # an interrupted job is dropped first, so it begins with the first area. the mower only takes it while it
       # has one, otherwise nothing happens
       if [ "$fresh" = 1 ]; then
-        # shellcheck disable=SC2086
-        mosquitto_pub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTION" -m "$ACTION_RESET_JOB" && sleep 3
+        mosquitto_pub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTION" -m "$ACTION_RESET_JOB" && sleep 3
       fi
       # the updater's hold asked for once more right before (the mowing direction took a while): looked at again in 20 s
       # shellcheck disable=SC2086
       if held; then
         [ -n "$hwaited" ] || { slog waiting_hold; hwaited=1; }
-      elif mosquitto_pub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTION" -m "$ACTION_START_MOWING"; then
+      elif mosquitto_pub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTION" -m "$ACTION_START_MOWING"; then
         slog started "$bat"
         check_started "$dtime" &
         # the end time of the start, not the next one from now (it may have waited for the battery)

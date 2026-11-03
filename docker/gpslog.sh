@@ -44,15 +44,13 @@ fi
 if [ "$1" = snapshot ]; then
   host=$(find_broker)
   [ -n "$host" ] || exit 0
-  # shellcheck disable=SC2086
-  mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_PARAMS" -C 1 -W 5 > "$S/snapshot-$2-params.json" 2>/dev/null
+  mosquitto_sub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_PARAMS" -C 1 -W 5 > "$S/snapshot-$2-params.json" 2>/dev/null
   [ -s "$S/snapshot-$2-params.json" ] || rm -f "$S/snapshot-$2-params.json"
   mower_rpc "$host" "$RPC_PLANNER_SETTINGS" '{}' 15 > "$S/snapshot-$2-planner.json"
   grep -q '"result"' "$S/snapshot-$2-planner.json" || rm -f "$S/snapshot-$2-planner.json"
   # the map only when it changed since the one kept last, that one is touched so it doesn't run out
   m=/tmp/gpslog.map.$$
-  # shellcheck disable=SC2086
-  mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_MAP" -C 1 -W 5 > "$m" 2>/dev/null
+  mosquitto_sub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_MAP" -C 1 -W 5 > "$m" 2>/dev/null
   if [ -s "$m" ]; then
     sum=$(md5sum < "$m" | cut -d' ' -f1)
     last=$(ls -1 "$S"/map-*.json.gz 2>/dev/null | sort | tail -n1)
@@ -85,8 +83,7 @@ fi
 while :; do
   host=$(find_broker)
   if [ -n "$host" ]; then
-    # shellcheck disable=SC2086
-    mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -t "${MOWER_MQTT_PREFIX}$TOPIC_EVENTS" \
+    mosquitto_sub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -t "${MOWER_MQTT_PREFIX}$TOPIC_EVENTS" \
       -t "${MOWER_MQTT_PREFIX}$TOPIC_SENSOR_DATA" -F '%U %t %p' 2>/dev/null |
       awk -v dir="$D" -v wf=/host-net/wireless '
         # the signal of the first wifi interface, some drivers count it from 0 instead of in dBm

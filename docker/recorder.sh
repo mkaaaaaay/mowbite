@@ -19,7 +19,7 @@ while :; do
         sleep 60
       done &
       sampler=$!
-      mosquitto_sub -h "$host" -p "$PORT" $AUTH -t "${MOWER_MQTT_PREFIX}$TOPIC_SENSOR_DATA" -F '%U %t %p'
+      mosquitto_sub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_SENSOR_DATA" -F '%U %t %p'
       kill "$sampler" 2>/dev/null
     } | OUT=/data/sensors.tsv awk -f /recorder.awk
   fi
