@@ -29,12 +29,11 @@ export const RPC = {
   events: 'events.history',
   jobs: 'position.history.list',
   jobTrack: 'position.history',
-  // the mowing plan for an area straight from the mower's planner. OpenMower doesn't offer it yet,
-  // the name is a guess until it does
+  // the mowing plan for an area straight from the mower's planner
   areaPlan: 'mowing.plan',
   // the area settings this mower keeps in map.json
   areaProperties: 'map.area_properties',
-  // the last warnings and errors ROS logged, kept in memory by the mower. OpenMower doesn't offer it yet
+  // the last warnings and errors ROS logged, kept in memory by the mower
   logs: 'logs.recent',
   // the MowBite Planner's settings (with OM_PLANNER=mowbite only): every setting with value, default and range,
   // and changing them (null: back to the default)

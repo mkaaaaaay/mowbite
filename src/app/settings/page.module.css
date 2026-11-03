@@ -277,12 +277,6 @@ a.pillButton {
 }
 
 /* buttons side by side in a card */
-.pillRow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
 /* the two guides */
 .guides {
   display: flex;

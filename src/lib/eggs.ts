@@ -12,9 +12,6 @@ import {useEffect, useState, useSyncExternalStore} from 'react';
 if (typeof window !== 'undefined') {
   const h = new URLSearchParams(window.location.hash.slice(1));
   try {
-    // kept for good before
-    localStorage.removeItem('eggForce');
-    localStorage.removeItem('eggNow');
     const eggs = h.get('eggs');
     const now = h.get('eggnow');
     if (eggs === 'off') {

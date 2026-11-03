@@ -103,9 +103,7 @@ function load(): Settings {
   if (current) return current;
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    // colors used to be stored on their own
-    const old = localStorage.getItem('mapColors');
-    current = raw ? JSON.parse(raw) : old ? {colors: JSON.parse(old)} : {};
+    current = raw ? JSON.parse(raw) : {};
   } catch {
     current = {};
   }
@@ -318,6 +316,6 @@ export function dropLooks(ids: readonly string[]) {
 }
 
 // inline in <head>: sets the color variables before anything is drawn, so saved colors don't flash
-export const COLOR_BOOT_SCRIPT = `try{var s=JSON.parse(localStorage.getItem('${STORAGE_KEY}')||'null'),c=(s&&s.colors)||JSON.parse(localStorage.getItem('mapColors')||'{}'),d=${JSON.stringify(
+export const COLOR_BOOT_SCRIPT = `try{var s=JSON.parse(localStorage.getItem('${STORAGE_KEY}')||'null'),c=(s&&s.colors)||{},d=${JSON.stringify(
   Object.fromEntries(COLORS.map((c) => [c.key, c.value])),
 )};for(var k in d)document.documentElement.style.setProperty('--c-'+k,c[k]||d[k])}catch(e){}`;
