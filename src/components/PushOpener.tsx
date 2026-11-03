@@ -12,6 +12,8 @@ import {useEffect} from 'react';
 // the page is kept for after). And when the delivering app gave another address while MowBite was closed, the mower
 // gets the new one, else its messages would go nowhere
 const PAGE_KEY = 'pushPage';
+// a page of the app's own, never another site
+const inApp = (path: string) => (/^\/(?![/\\])/.test(path) ? path : '/');
 
 export default function PushOpener() {
   const router = useRouter();
@@ -22,7 +24,7 @@ export default function PushOpener() {
       const page = sessionStorage.getItem(PAGE_KEY);
       if (page) {
         sessionStorage.removeItem(PAGE_KEY);
-        router.push(page);
+        router.push(inApp(page));
       }
     } catch {}
     let gone = false;
@@ -37,7 +39,7 @@ export default function PushOpener() {
           selectMower(mower.id);
           return;
         }
-        router.push(path);
+        router.push(inApp(path));
       });
       if (gone) return void h.remove();
       handle = h;
