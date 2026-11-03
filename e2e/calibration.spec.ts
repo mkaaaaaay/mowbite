@@ -41,6 +41,9 @@ test('calibrating by hand: driven, worked out, two values applied and set back',
   await expect(sheet.getByText('Tick “You stay with it” too, then it starts.')).toBeVisible();
   await sheet.getByRole('checkbox', {name: /You stay with it/}).check();
   await sheet.getByRole('button', {name: "Let's go"}).click();
+  // recording mode first: into position with the stick, then the recording started
+  await expect(page.getByText('Drive the mower into position with the joystick')).toBeVisible();
+  await page.getByRole('button', {name: 'Start calibration'}).click();
 
   // recording mode on, the planner recording: what's missing on the tiles
   await expect(page.getByText('Stand 10 s')).toBeVisible();

@@ -233,6 +233,9 @@ export default function CalibrationPage() {
   }, [show, phase, failed]);
 
   // a joystick recording waiting for recording mode to start, then started (once: the planner says no to a second one)
+  // driving by hand: recording mode first (OpenMower takes the gps in then), the mower driven into position with the
+  // stick, then the recording started from there (once: the planner says no to a second one)
+  const [placing, setPlacing] = useState(false);
   const [starting, setStarting] = useState(false);
   const called = useRef(false);
   useEffect(() => {
@@ -240,29 +243,33 @@ export default function CalibrationPage() {
     called.current = true;
     let stop = false;
     calibStart('joystick').then(
-      () => !stop && setStarting(false),
+      () => {
+        if (stop) return;
+        setStarting(false);
+        setPlacing(false);
+      },
       (e) => {
         if (stop) return;
         setStarting(false);
         setError(calibText(e instanceof Error ? e.message : String(e)));
-        publishAction(A('exit_recording_mode'));
       },
     );
     return () => {
       stop = true;
     };
-  }, [starting, recordingMode, publishAction]);
+  }, [starting, recordingMode]);
   useEffect(() => {
-    if (!starting) {
-      called.current = false;
-      return;
-    }
+    if (!starting) called.current = false;
+  }, [starting]);
+  // recording mode asked for and not there within 10 s
+  useEffect(() => {
+    if (!placing || recordingMode) return;
     const t = setTimeout(() => {
-      setStarting(false);
+      setPlacing(false);
       setError(tr("The mower didn't go into recording mode. Is it busy right now?"));
     }, 10000);
     return () => clearTimeout(t);
-  }, [starting]);
+  }, [placing, recordingMode]);
 
   const go = async () => {
     setAsking(false);
@@ -283,7 +290,7 @@ export default function CalibrationPage() {
       return;
     }
     if (!recordingMode) publishAction(ACTION.startRecording);
-    setStarting(true);
+    setPlacing(true);
   };
   const stopRecording = async (cancel: boolean) => {
     setCancelled(cancel);
@@ -295,6 +302,8 @@ export default function CalibrationPage() {
   };
   const endRecordingMode = () => {
     if (hasAction(A('exit_recording_mode'))) publishAction(A('exit_recording_mode'));
+    setPlacing(false);
+    setStarting(false);
   };
   // the result taken: not offered again until the next recording
   const [taken, setTaken] = useState(false);
@@ -330,8 +339,13 @@ export default function CalibrationPage() {
         <p>{tr('Calibrating needs the MowBite Planner on the mower, from version 0.3.0.')}</p>
       </section>
     );
-  } else if (starting) {
-    body = <p className={styles.dim}>{tr('Starting recording mode…')}</p>;
+  } else if (placing && phase !== 'recording') {
+    // into position with the stick first, then the recording started
+    body = recordingMode ? (
+      <Drive progress={null} since={null} placing starting={starting} onStart={() => setStarting(true)} onStop={endRecordingMode} onDone={endRecordingMode} />
+    ) : (
+      <p className={styles.dim}>{tr('Starting recording mode…')}</p>
+    );
   } else if (drivingByHand) {
     body = <Drive progress={progress!} since={since} onStop={() => void stopRecording(true)} onDone={() => void stopRecording(false)} />;
   } else if (phase === 'recording') {

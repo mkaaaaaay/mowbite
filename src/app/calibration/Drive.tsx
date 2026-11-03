@@ -1,9 +1,11 @@
 'use client';
 
-import {CheckIcon, RotateIcon, TurnIcon, WarningIcon} from '@/components/icons';
+import {CheckIcon, CloseIcon, RotateIcon, SpeedIcon, TurnIcon, WarningIcon} from '@/components/icons';
+import DrivePad from '@/components/DrivePad';
 import Joystick from '@/components/Joystick';
 import MapView from '@/components/MapView';
 import {useEmergencyReasons} from '@/hooks/useEmergencyReasons';
+import {useMedia} from '@/hooks/useMedia';
 import {useMowerMap} from '@/hooks/useMowerMap';
 import {datumFromParams, numParam, useMowerParams} from '@/hooks/useMowerParams';
 import {useMowerPosition} from '@/hooks/useMowerPosition';
@@ -19,10 +21,14 @@ import {ACTION, PARAM, TOPIC} from '@/lib/openmower';
 import {GPS_QUALITY_LABEL, gpsQuality} from '@/lib/status';
 import {sendDrive} from '@/lib/teleop';
 import {useEffect, useRef, useState} from 'react';
+import rec from '../record/page.module.css';
 import styles from './page.module.css';
 
 // m/s at full stick, the turn rate follows along (as in the recorder)
 const SPEEDS = [0.15, 0.25, 0.35, 0.5];
+// sideways like the recorder: its key for a phone whose page doesn't turn (one choice for both), the map's zoom steps
+const TURNED_KEY = 'recordTurned';
+const ZOOMS = [0.5, 0.75, 1, 1.5, 2, 3];
 const TURN_PER_SPEED = 3;
 // how wide the lane on the map is, about a mower
 const LANE_W = 0.5;
@@ -65,25 +71,52 @@ function useMotion(): Motion {
   return motion;
 }
 
-// the tile of what's being driven (a turn since the last run, stops in it too), else the first one still missing
+// the tile of what's being driven (a turn since the last run, stops in it too), else the first one still missing. a run
+// stays the one driven also once there are enough: after a turn it's the run that makes the turn count
 function nowPart(list: Lack[], motion: Motion): Lack | null {
-  const turning = motion.doing !== 'straight' && Math.abs(motion.turned) >= 0.5;
-  const doing =
-    motion.doing === 'straight' ? 'straight' : turning ? (motion.turned > 0 ? 'left' : 'right') : motion.doing === 'still' ? 'still' : null;
   const open = list.filter((l) => !lackDone(l));
-  return open.find((l) => l.part === doing) ?? open[0] ?? null;
+  if (!open.length) return null;
+  if (motion.doing === 'straight') return list.find((l) => l.part === 'straight') ?? open[0];
+  const turning = Math.abs(motion.turned) >= 0.5;
+  const doing = turning ? (motion.turned > 0 ? 'left' : 'right') : motion.doing === 'still' ? 'still' : null;
+  return open.find((l) => l.part === doing) ?? open[0];
 }
+
+// how far the part being driven got, big under what to do now: green, filling up, ✓ once there
+function Meter({share, label}: {share: number; label: string}) {
+  const full = share >= 1;
+  return (
+    <span className={[styles.meter, full ? styles.meterFull : ''].join(' ')}>
+      <span className={styles.meterTrack}>
+        <span className={styles.meterFill} style={{width: `${Math.round(Math.min(1, share) * 100)}%`}} />
+      </span>
+      <b>
+        {full ? '✓ ' : ''}
+        {label}
+      </b>
+    </span>
+  );
+}
+// rounds turned so far in quarters, rounded down
+const turnedText = (r: number) => {
+  const q = Math.floor(r * 4 + 0.01);
+  return q === 0 ? '0' : `${Math.floor(q / 4) || ''}${['', '¼', '½', '¾'][q % 4]}`;
+};
 
 const TILE_ICON = {still: <span className={styles.ring} />, straight: <span className={styles.bar} />, left: <TurnIcon size={16} />, right: <TurnIcon size={16} />};
 const TILE_NAME = {still: 'Stand {n} s', straight: 'Straight', left: 'Turn left', right: 'Turn right'};
 
 // driving by hand for the calibration, like the recorder: the map following the mower with the stick on it, under it
 // what's done and what's missing (the planner's counts), what to do now on the map
-// home: after the recording, back onto the docking station (no tiles, it ends recording mode)
+// home: after the recording, back onto the docking station (no tiles, it ends recording mode). placing: before it, the
+// mower driven into position, then started (onStart; starting while the planner is asked)
 export default function Drive({
   progress,
   since,
   home,
+  placing,
+  starting,
+  onStart,
   onStop,
   onDone,
 }: {
@@ -91,6 +124,9 @@ export default function Drive({
   // when it started, else since the page shows it
   since: number | null;
   home?: boolean;
+  placing?: boolean;
+  starting?: boolean;
+  onStart?: () => void;
   onStop: () => void;
   onDone: () => void;
 }) {
@@ -104,6 +140,27 @@ export default function Drive({
   const motion = useMotion();
   const why = useEmergencyReasons(!!state?.emergency);
   const canDrive = state?.current_state === 'AREA_RECORDING' && live && !state?.emergency;
+
+  // held sideways on a phone: the recorder's remote control over the whole screen, a pad for forward and back on the
+  // left and one for steering on the right. turned: the same drawn a quarter turn for a phone whose page doesn't turn
+  const sideways = useMedia('(orientation: landscape) and (max-height: 500px)');
+  const portrait = useMedia('(orientation: portrait)');
+  const [turnedOn, setTurnedOn] = useState(() => {
+    try {
+      return localStorage.getItem(TURNED_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
+  const turnSideways = (on: boolean) => {
+    setTurnedOn(on);
+    try {
+      localStorage.setItem(TURNED_KEY, on ? '1' : '0');
+    } catch {}
+  };
+  const turned = turnedOn && !sideways && portrait;
+  const remote = sideways || turned;
+  const [zoom, setZoom] = useState(2);
 
   const [speed, setSpeed] = useState(1);
   const speedRef = useRef(SPEEDS[1]);
@@ -129,14 +186,15 @@ export default function Drive({
       timer.current = setInterval(send, 100);
     }
   };
-  // emergency, a lost connection or the mode ending stop it as well
+  // emergency, a lost connection or the mode ending stop it as well. so does a switch between upright, sideways and
+  // turned: the stick or pad under the finger is gone then without having been let go
   useEffect(() => {
     if (!timer.current) return;
     clearInterval(timer.current);
     timer.current = null;
     stick.current = {x: 0, y: 0};
     sendDrive(0, 0);
-  }, [canDrive]);
+  }, [canDrive, remote, turned]);
   // leaving the page or putting the phone away stops the mower
   useEffect(() => {
     const hidden = () => {
@@ -165,7 +223,7 @@ export default function Drive({
   const took = Math.max(0, Math.floor((now - (since ?? shown)) / 1000));
   const clock = `${Math.floor(took / 60)}:${String(took % 60).padStart(2, '0')}`;
 
-  const list = home || !progress ? [] : lacks(progress);
+  const list = home || placing || !progress ? [] : lacks(progress);
   const all = list.length > 0 && list.every(lackDone);
   const current = nowPart(list, motion);
   const runM = progress?.need.run_m ?? 5;
@@ -190,7 +248,13 @@ export default function Drive({
 
   // what to do now, on the map: what's driven, else what's missing next
   let say: React.ReactNode;
-  if (home) {
+  if (placing) {
+    say = (
+      <>
+        <b>{tr('Drive the mower into position with the joystick')}</b> · {tr('then start the calibration')}
+      </>
+    );
+  } else if (home) {
     say =
       toDock !== null && toDock > 0.5 && !charging ? (
         <>
@@ -243,6 +307,20 @@ export default function Drive({
           <b>{tr('Now {m} m straight on', {m: fmt(runM, 0)})}</b> · {tr('then the turn counts')}
         </>
       );
+  }
+
+  // the bar under it: the run in m, the turn in rounds, the stand in s
+  let bar: {share: number; label: string} | null = null;
+  if (!home && current) {
+    if (current.part === 'still') {
+      bar = {share: current.need ? current.has / current.need : 0, label: tr('{a} of {b} s', {a: fmt(Math.min(current.has, current.need), 0), b: fmt(current.need, 0)})};
+    } else if (current.part === 'straight' || runNext) {
+      const got = motion.doing === 'straight' ? motion.run : 0;
+      bar = {share: got / runM, label: tr('{a} of {b} m', {a: fmt(Math.min(got, runM), 1), b: fmt(runM, 0)})};
+    } else {
+      const r = thisWay ? Math.abs(motion.turned) / (2 * Math.PI) : 0;
+      bar = {share: r / TURN_ROUNDS, label: tr('{a} of {b} rounds', {a: turnedText(Math.min(r, TURN_ROUNDS)), b: '1½'})};
+    }
   }
 
   // the lane of the run (from where it started, or ahead of the mower when a run is next), the turn round the mower,
@@ -340,6 +418,136 @@ export default function Drive({
   const gpsQ = gpsQuality(acc, numParam(params, PARAM.maxPositionAccuracy));
   const gpsText = `GPS · ${gpsQ === 'none' ? tr('no fix') : `${fmt(acc! * 100, 1)} cm · ${tr(GPS_QUALITY_LABEL[gpsQ])}`}`;
   const reason = why ? emergencyText(why) : '';
+  // back on the station recording mode ends at once, elsewhere asked once more: the stick doesn't drive it any more after
+  const endNow = () => {
+    stop();
+    onDone();
+  };
+  const endAsk = () => (charging ? endNow() : setSure(true));
+  const endButton = (main?: string, warn?: string) =>
+    charging || !sure ? (
+      <button className={charging ? main : undefined} onClick={endAsk}>
+        {charging && <CheckIcon size={18} />}
+        {tr('End recording mode')}
+      </button>
+    ) : (
+      <button className={warn} onClick={endNow}>
+        {tr('End it anyway')}
+      </button>
+    );
+  const alarm = (
+    <>
+      <strong>{reason ? tr('Emergency stop: {reason}', {reason}) : tr('Emergency stop')}</strong>
+      <span>{tr('Release the mower, then reset the emergency to drive again.')}</span>
+      <button disabled={!live} onClick={() => publishAction(ACTION.resetEmergency)}>
+        <WarningIcon size={18} />
+        {tr('Reset emergency')}
+      </button>
+    </>
+  );
+
+  if (remote)
+    return (
+      <div className={[rec.remote, turned ? rec.turned : ''].join(' ')}>
+        <div className={rec.remoteMap}>
+          {map && (
+            <MapView
+              map={map}
+              mower={position ?? undefined}
+              emergency={!!state?.emergency}
+              follow
+              followSpanMeters={span * ZOOMS[zoom]}
+              datum={datumFromParams(params)}
+              draw={draw}
+              mapStyle="plain"
+              bare
+            />
+          )}
+        </div>
+        <div className={rec.topBar}>
+          <span className={[rec.status, rec.live].join(' ')}>
+            <i />
+            {placing ? tr('Into position') : home ? tr('Back onto the docking station') : tr('Calibration · {time}', {time: clock})}
+          </span>
+          {gpsQ !== 'fix' && <span className={rec.gpsWarn}>{gpsText}</span>}
+          <span className={rec.grow} />
+          <div className={rec.chips}>
+            <button aria-label={tr('Zoom out')} disabled={zoom === ZOOMS.length - 1} onClick={() => setZoom(zoom + 1)}>
+              −
+            </button>
+            <button aria-label={tr('Zoom in')} disabled={zoom === 0} onClick={() => setZoom(zoom - 1)}>
+              +
+            </button>
+          </div>
+          <div className={rec.chips} title={tr('Speed m/s')}>
+            <SpeedIcon size={16} />
+            {SPEEDS.map((v, i) => (
+              <button
+                key={v}
+                className={i === speed ? rec.on : undefined}
+                onClick={() => {
+                  setSpeed(i);
+                  speedRef.current = v;
+                }}
+              >
+                {fmt(v, 2)}
+              </button>
+            ))}
+          </div>
+          {turned && (
+            <button className={rec.square} aria-label={tr('Upright')} title={tr('Upright')} onClick={() => turnSideways(false)}>
+              <RotateIcon size={20} />
+            </button>
+          )}
+          {!home && (
+            <button className={rec.square} aria-label={tr('Cancel')} title={tr('Cancel')} onClick={() => (stop(), onStop())}>
+              <CloseIcon size={20} />
+            </button>
+          )}
+        </div>
+        <p className={[rec.remoteNote, bar ? styles.noteWide : ''].join(' ')}>
+          {home && sure && !charging ? tr("It isn't on the station yet, after this the stick doesn't drive it any more.") : <span>{say}</span>}
+          {bar && <Meter {...bar} />}
+        </p>
+        {state?.emergency ? (
+          <div className={rec.remoteWarn}>{alarm}</div>
+        ) : (
+          !live && <p className={rec.remoteWarn}>{tr('No connection to the mower, it stops by itself. Driving works again once the connection is back.')}</p>
+        )}
+        <div className={[rec.pad, rec.padLeft].join(' ')}>
+          <DrivePad axis="y" turned={turned} disabled={!canDrive} onMove={(v) => canDrive && onStick(stick.current.x, v)} />
+        </div>
+        <div className={[rec.pad, rec.padRight].join(' ')}>
+          <DrivePad axis="x" turned={turned} disabled={!canDrive} onMove={(v) => canDrive && onStick(v, stick.current.y)} />
+        </div>
+        <div className={rec.bottomBar}>
+          {list.length > 0 && (
+            <div className={rec.chips}>
+              {list.map((l) => (
+                <span key={l.part} className={[styles.countChip, lackDone(l) ? styles.countDone : ''].join(' ')}>
+                  {tr(TILE_NAME[l.part], {n: fmt(l.need, 0)})} {lackDone(l) ? '✓' : l.part === 'still' ? `${fmt(l.has, 0)}/${fmt(l.need, 0)} s` : `${fmt(l.has, 0)}/${fmt(l.need, 0)}`}
+                </span>
+              ))}
+            </div>
+          )}
+          <div className={rec.remoteButtons}>
+            {placing && (
+              <button className={rec.primary} disabled={starting} onClick={() => (stop(), onStart?.())}>
+                <CheckIcon size={18} />
+                {tr('Start calibration')}
+              </button>
+            )}
+            {home && endButton(rec.primary, rec.danger)}
+            {all && (
+              <button className={rec.primary} onClick={() => (stop(), onDone())}>
+                <CheckIcon size={18} />
+                {tr('Done, work it out')}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
 
   return (
     <div className={styles.drive}>
@@ -355,22 +563,19 @@ export default function Drive({
             zoomable
             datum={datumFromParams(params)}
             draw={draw}
+            mapStyle="plain"
           />
         )}
-        <div className={[styles.say, all ? styles.sayDone : ''].join(' ')}>
+        <div className={[styles.say, all ? styles.sayDone : '', bar ? styles.sayWide : ''].join(' ')}>
           <i />
-          <span>{say}</span>
+          <div className={styles.sayBody}>
+            <span>{say}</span>
+            {bar && <Meter {...bar} />}
+          </div>
         </div>
         <div className={styles.stick}>
           {state?.emergency ? (
-            <div className={styles.alarm}>
-              <strong>{reason ? tr('Emergency stop: {reason}', {reason}) : tr('Emergency stop')}</strong>
-              <span>{tr('Release the mower, then reset the emergency to drive again.')}</span>
-              <button disabled={!live} onClick={() => publishAction(ACTION.resetEmergency)}>
-                <WarningIcon size={18} />
-                {tr('Reset emergency')}
-              </button>
-            </div>
+            <div className={styles.alarm}>{alarm}</div>
           ) : !live ? (
             <p className={styles.alarm}>{tr('No connection to the mower, it stops by itself. Driving works again once the connection is back.')}</p>
           ) : state?.current_state !== 'AREA_RECORDING' ? (
@@ -390,7 +595,7 @@ export default function Drive({
       <section className={[styles.card, styles.driveCard].join(' ')}>
         <div className={styles.line}>
           <span className={gpsQ === 'fix' ? undefined : styles.warn}>{gpsText}</span>
-          {!home && <span>{tr('Calibration · {time}', {time: clock})}</span>}
+          {!home && !placing && <span>{tr('Calibration · {time}', {time: clock})}</span>}
         </div>
         {home && sure && !charging && <p className={styles.warn}>{tr("It isn't on the station yet, after this the stick doesn't drive it any more.")}</p>}
         {home ? null : list.length ? (
@@ -424,31 +629,14 @@ export default function Drive({
           </p>
         )}
         <div className={styles.buttons}>
+          {placing && (
+            <button className={styles.primary} disabled={starting} onClick={() => (stop(), onStart?.())}>
+              <CheckIcon size={18} />
+              {tr('Start calibration')}
+            </button>
+          )}
           {home ? (
-            // on the station at once, elsewhere asked once more: the stick doesn't drive it any more after
-            charging || !sure ? (
-              <button
-                className={charging ? styles.primary : undefined}
-                onClick={() => {
-                  if (!charging) return setSure(true);
-                  stop();
-                  onDone();
-                }}
-              >
-                {charging && <CheckIcon size={18} />}
-                {tr('End recording mode')}
-              </button>
-            ) : (
-              <button
-                className={styles.warnButton}
-                onClick={() => {
-                  stop();
-                  onDone();
-                }}
-              >
-                {tr('End it anyway')}
-              </button>
-            )
+            endButton(styles.primary, styles.warnButton)
           ) : (
             <button className={styles.danger} onClick={() => (stop(), onStop())}>
               {tr('Cancel')}
@@ -475,6 +663,13 @@ export default function Drive({
               {fmt(v, 2)}
             </button>
           ))}
+        </div>
+        <div className={rec.phoneOnly}>
+          <button onClick={() => turnSideways(true)}>
+            <RotateIcon size={18} />
+            {tr('Sideways')}
+          </button>
+          <p className={styles.dim}>{tr('Two pads like a remote control car. Turning the phone switches by itself.')}</p>
         </div>
         {!home && <p className={styles.dim}>
           <RotateIcon size={14} /> {tr("Straight: stick forward and hold it steady, half to full, don't steer. Turning: stick to the side only at speed 0.25, one and a half rounds until it looks back, then {m} m straight on.", {m: fmt(runM, 0)})}

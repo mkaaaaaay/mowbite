@@ -560,7 +560,7 @@
   color: #fff;
 }
 
-.say i {
+.say > i {
   flex: none;
   width: 9px;
   height: 9px;
@@ -571,6 +571,65 @@
 
 .map:has([data-cover-switch]) .say {
   top: 54px;
+}
+
+/* with the bar under its words: as wide as the map leaves it */
+.sayWide {
+  width: calc(100% - 76px);
+}
+
+.sayBody {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  flex: 1;
+  min-width: 0;
+}
+
+/* the bar: green filling up, a soft glow, ✓ and brighter once there */
+.meter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  flex-basis: 100%;
+}
+
+.meterTrack {
+  flex: 1;
+  height: 12px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.16);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+.meterFill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #1b9a83, #3fd49a);
+  box-shadow: 0 0 10px rgba(63, 212, 154, 0.55);
+  transition: width 0.4s ease;
+}
+
+.meter b {
+  min-width: 4.5em;
+  color: #fff;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.meterFull .meterFill {
+  background: linear-gradient(90deg, #2fbf7a, #79eab0);
+  box-shadow: 0 0 14px rgba(121, 234, 176, 0.7);
+}
+
+/* the remote control's note with the bar: wide enough for it */
+.noteWide {
+  min-width: 40%;
 }
 
 .sayDone {
@@ -776,6 +835,18 @@
   paint-order: stroke;
   stroke: rgba(0, 0, 0, 0.6);
   stroke-width: 3px;
+}
+
+/* the counts on the remote control's bar, like the tiles */
+.countChip {
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.countDone {
+  color: #9be3b0;
 }
 
 .turnArrow {
