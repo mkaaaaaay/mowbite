@@ -543,7 +543,7 @@ while :; do
       until=$((due_at + WAIT))
       waited=""
       hwaited=""
-      dday=$1 dtime=$2
+      dday=$1 dtime=$2 ddate=$3
       # shellcheck disable=SC2086
       set -- $due
       # when this start ends: its end time today, or tomorrow when that's not after the start
@@ -551,7 +551,7 @@ while :; do
       if [ "$2" != - ]; then
         endat=$(stop_time "$2" - 1 | cut -d' ' -f1)
       fi
-      echo "$until $dday $dtime $3 ${endat:--}" > "$WAITING"
+      echo "$until $dday $dtime $ddate ${endat:--}" > "$WAITING"
     fi
   else
     until=0
