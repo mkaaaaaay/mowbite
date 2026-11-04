@@ -7,7 +7,7 @@ import LogicHint from '@/components/LogicHint';
 import LoveMower from '@/components/LoveMower';
 import MapView from '@/components/MapView';
 import {useMapAhead} from '@/components/useMapAhead';
-import {CloseIcon, HomeIcon, PauseIcon, PlayIcon, RecordIcon, SkipIcon, WarningIcon} from '@/components/icons';
+import {ChevronIcon, CloseIcon, HomeIcon, PauseIcon, PlayIcon, RecordIcon, SkipIcon, WarningIcon} from '@/components/icons';
 import {useComputedSpeed} from '@/hooks/useComputedSpeed';
 import {useEmergencyReasons} from '@/hooks/useEmergencyReasons';
 import {useLeftoversBefore} from '@/hooks/useLeftoversBefore';
@@ -26,6 +26,7 @@ import {usePlanProgress} from '@/hooks/usePlanProgress';
 import {useRecentRuns} from '@/hooks/useRecentRuns';
 import TopWeather from '@/components/TopWeather';
 import {clock, dayKey, dayLabel, duration} from '@/lib/dates';
+import {fileDay} from '@/lib/history';
 import {describe, emergencyText, groupRuns, noteworthy, OUTCOMES, type MowerEvent, type Run} from '@/lib/events';
 import {useMowbiteOs} from '@/lib/mowerOs';
 import {settingsStore} from '@/lib/settings';
@@ -64,10 +65,10 @@ const SKIP_DELAY = 4;
 // the left out start that was closed, by its time
 const MISSED_SEEN_KEY = 'scheduleMissedSeen';
 const ACTIONS = [
-  {id: ACTION.startMowing, Icon: PlayIcon, label: 'Start', main: true},
-  {id: ACTION.pause, Icon: PauseIcon, label: 'Pause'},
-  {id: ACTION.goHome, Icon: HomeIcon, label: 'Go home'},
-  {id: ACTION.skipArea, Icon: SkipIcon, label: 'Skip area'},
+  {id: ACTION.startMowing, Icon: PlayIcon, label: 'Start', tone: 'go'},
+  {id: ACTION.pause, Icon: PauseIcon, label: 'Pause', tone: 'pause'},
+  {id: ACTION.goHome, Icon: HomeIcon, label: 'Go home', tone: 'home'},
+  {id: ACTION.skipArea, Icon: SkipIcon, label: 'Skip area', tone: 'skip'},
 ];
 
 
@@ -158,12 +159,16 @@ function BatteryRing({percent}: {percent: number}) {
   );
 }
 
+// a tap opens the run on the activity page: its day, the run opened (by the id of its first event)
 const LastRun = memo(function LastRun({run}: {run: Run}) {
   const outcome = OUTCOMES[run.outcome];
   const day = new Date(run.start * 1000);
   const today = dayKey(day) === dayKey(new Date());
   return (
-    <div className={[styles.lastRun, styles[`run-${outcome.tone}`]].join(' ')}>
+    <Link
+      href={`/activity?day=${fileDay(day)}&run=${encodeURIComponent(run.events[0].id)}`}
+      className={[styles.lastRun, styles[`run-${outcome.tone}`]].join(' ')}
+    >
       <div>
         <strong>
           {!today && `${dayLabel(day)}, `}
@@ -175,7 +180,8 @@ const LastRun = memo(function LastRun({run}: {run: Run}) {
         </span>
       </div>
       <span className={styles.badge}>{tr(outcome.label)}</span>
-    </div>
+      <ChevronIcon size={16} />
+    </Link>
   );
 });
 
@@ -289,6 +295,16 @@ export default function Home() {
 
   const current = state?.current_state ?? '';
   const driving = DRIVING.has(current);
+  // the buttons for what the mower offers now, the others left out. paused: the pause button turns into continue. only
+  // by the state, the mower also offers continue while mowing until it was paused once. leaving the dock home can't be
+  // asked for, stopping can. the emergency stop locks all of them (it still offers start), its reset comes first
+  const actionsNow = ACTIONS.map((a) =>
+    a.id === ACTION.pause && current === 'PAUSED' && hasAction(ACTION.resume)
+      ? {...a, id: ACTION.resume, Icon: PlayIcon, label: 'Continue', tone: 'go'}
+      : a.id === ACTION.goHome && current === 'UNDOCKING' && hasAction(ACTION.abortUndocking)
+        ? {...a, id: ACTION.abortUndocking, Icon: CloseIcon, label: 'Stop undocking', tone: 'stop'}
+        : a,
+  ).filter((a) => hasAction(a.id) && !state?.emergency);
   // a waiting skip is dropped when there's nothing to skip anymore, the mower is on another area or path or the connection
   // went. paused it still goes out, OpenMower skips once it goes on
   if (
@@ -487,30 +503,27 @@ export default function Home() {
                   {tr('Reset emergency')}
                 </button>
               )}
-              {ACTIONS.map((a) =>
-                // paused: the pause button turns into continue. only by the state, the mower also offers continue
-                // while mowing until it was paused once. leaving the dock home can't be asked for, stopping can
-                a.id === ACTION.pause && state.current_state === 'PAUSED' && hasAction(ACTION.resume)
-                  ? {...a, id: ACTION.resume, Icon: PlayIcon, label: 'Continue'}
-                  : a.id === ACTION.goHome && state.current_state === 'UNDOCKING' && hasAction(ACTION.abortUndocking)
-                    ? {...a, id: ACTION.abortUndocking, Icon: CloseIcon, label: 'Stop undocking'}
-                    : a,
-              ).map((a) => (
-                <button
-                  key={a.id}
-                  className={a.main ? styles.main : undefined}
-                  // the mower still offers start while the emergency stop is active, it has to be reset first
-                  disabled={!live || !hasAction(a.id) || !!state.emergency || (!!swapUntil && SWAPS.includes(a.id))}
-                  onClick={() => {
-                    if (a.id === ACTION.skipArea) return toggleSkip(a.id);
-                    if (SWAPS.includes(a.id)) setSwapUntil(Date.now() + 1000);
-                    publishAction(a.id);
-                  }}
-                >
-                  <a.Icon size={20} />
-                  {skip?.id === a.id ? tr('Undo ({n} s)', {n: skip.left}) : tr(a.label)}
-                </button>
-              ))}
+              {/* as wide as the card together, one alone the whole width. without the connection, and for a second
+                  after a tap on pause or continue, they stay greyed out, the row doesn't jump */}
+              {actionsNow.length > 0 && (
+                <div className={styles.actions} data-count={actionsNow.length}>
+                  {actionsNow.map((a) => (
+                    <button
+                      key={a.id}
+                      className={styles[`act-${a.tone}`]}
+                      disabled={!live || (!!swapUntil && SWAPS.includes(a.id))}
+                      onClick={() => {
+                        if (a.id === ACTION.skipArea) return toggleSkip(a.id);
+                        if (SWAPS.includes(a.id)) setSwapUntil(Date.now() + 1000);
+                        publishAction(a.id);
+                      }}
+                    >
+                      <a.Icon size={20} />
+                      {skip?.id === a.id ? tr('Undo ({n} s)', {n: skip.left}) : tr(a.label)}
+                    </button>
+                  ))}
+                </div>
+              )}
               {/* recording mode on without its page (the back button, another phone): back to it, and out of it while
                   nothing recorded would be lost with it */}
               {current === 'AREA_RECORDING' && (

@@ -13,6 +13,8 @@
   /* buttons stand out a little: a light edge on top, a soft shadow below, a bit more when hovered */
   --btn-3d: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 1px 1px rgba(30, 36, 70, 0.08), 0 2px 6px rgba(30, 36, 70, 0.07);
   --btn-3d-hover: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 2px 2px rgba(30, 36, 70, 0.08), 0 6px 14px rgba(30, 36, 70, 0.11);
+  /* a button tinted in a color: a fine light edge on top like the cards, a faint shadow, in every design */
+  --btn-glass: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 2px 8px rgba(0, 0, 0, 0.12);
   --text-secondary: #5b6170;
   --accent: #2e6ad1;
   /* text on the accent */
@@ -20,6 +22,7 @@
   --warning: #a8780f;
   --error: #cf3a3f;
   --success: #2a8a47;
+  --violet: #7a55c9;
   --soft-good: #276b33;
   --soft-warn: #7d5600;
   --soft-bad: #a52a2a;
@@ -28,6 +31,17 @@
   --well: rgba(30, 36, 70, 0.05);
   --nav-bg: rgba(255, 255, 255, 0.7);
   --content-max-width: 500px;
+  /* the scale things are laid out on: corners, type, a finger's target, motion. the same in every theme */
+  --radius-s: 8px;
+  --radius-m: 12px;
+  --radius-l: 18px;
+  --radius-pill: 999px;
+  --text-xs: 12px;
+  --text-s: 13px;
+  --text-m: 14px;
+  --text-l: 16px;
+  --tap: 44px;
+  --dur-fast: 0.12s;
 }
 
 @media (min-width: 900px) {
@@ -54,6 +68,7 @@
     --warning: #d4ac4a;
     --error: #ff6669;
     --success: #4cbf72;
+    --violet: #ab92f2;
     --soft-good: #a5d6a7;
     --soft-warn: #ffcc80;
     --soft-bad: #ef9a9a;
@@ -85,6 +100,7 @@
   --warning: #d4ac4a;
   --error: #ff6669;
   --success: #4cbf72;
+  --violet: #ab92f2;
   --soft-good: #a5d6a7;
   --soft-warn: #ffcc80;
   --soft-bad: #ef9a9a;

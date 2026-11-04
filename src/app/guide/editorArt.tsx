@@ -8,7 +8,7 @@ import {SimPlayer, SimulationView} from '@/app/map/PlanSimulation';
 import {AREA_TYPES, DEG, pinSquare} from '@/app/map/editing';
 import {AngleCompass, AngleOnMap, AngleSlider, AngleStep} from '@/app/map/MowSettings';
 import mapPage from '@/app/map/page.module.css';
-import {MagnetIcon, MergeIcon, ScissorsIcon, SimplifyIcon, SubtractIcon, TrashIcon} from '@/components/icons';
+import {BackIcon, MagnetIcon, MergeIcon, ScissorsIcon, SimplifyIcon, SubtractIcon, TrashIcon} from '@/components/icons';
 import MapBackups from '@/components/MapBackups';
 import {LIFE} from '@/components/MapLookSettings';
 import look from '@/components/MapLookSettings.module.css';
@@ -375,13 +375,19 @@ function Stage({t, map, selected, picking, pending, preview, view, extra, under,
   );
 }
 
-// what the map page shows under the map for a picked area: name, type, its switches, what it is and its tools
+// what the map page shows under the map for a picked area: the way back, name, type, its switches, what it is, and
+// the tools for its shape
 function AreaCard({a}: {a: MapArea}) {
   const tool = [mapPage.pillButton, mapPage.tool].join(' ');
   const type = AREA_TYPES.find((x) => x.value === a.properties.type);
   const on = a.properties.active !== false;
   return (
+    <>
     <div className={mapPage.areaEditor}>
+      <span className={mapPage.backButton}>
+        <BackIcon size={18} />
+        {tr('All areas')}
+      </span>
       <div className={mapPage.areaHead}>
         <input className={mapPage.nameInput} value={a.properties.name ?? ''} readOnly tabIndex={-1} />
         <select className={mapPage.typeSelect} value={a.properties.type} onChange={noop} tabIndex={-1}>
@@ -415,8 +421,10 @@ function AreaCard({a}: {a: MapArea}) {
           {fmt(polygonArea(a.outline), 1)} m²
         </span>
       </div>
+    </div>
+    <section className={mapPage.areaTools}>
+      <h2>{tr('Change the shape')}</h2>
       <div className={mapPage.toolbar}>
-        <span className={mapPage.toolLabel}>{tr('Edit')}</span>
         <button className={tool} tabIndex={-1}>
           <ScissorsIcon size={16} />
           {tr('Split area')}
@@ -433,7 +441,7 @@ function AreaCard({a}: {a: MapArea}) {
           <MagnetIcon size={16} />
           {tr('Lay against')}
         </button>
-        <button className={tool} tabIndex={-1}>
+        <button className={[tool, mapPage.toolWide].join(' ')} tabIndex={-1}>
           <SimplifyIcon size={16} />
           {tr('Reduce points')}
         </button>
@@ -442,7 +450,8 @@ function AreaCard({a}: {a: MapArea}) {
           {tr('Delete area')}
         </button>
       </div>
-    </div>
+    </section>
+    </>
   );
 }
 
@@ -945,7 +954,7 @@ function Order() {
       map={GARDEN}
       selected={null}
       view={{orderLabels: labels}}
-      under={<OrderBox areas={order} idle onSelect={noop} onMove={noop} />}
+      under={<OrderBox areas={order} idle pictures={false} onSelect={noop} onMove={noop} />}
       hand={{
         moves: [
           [0, 'off'],
@@ -1075,7 +1084,12 @@ function Simulate() {
       extra={() => (done ? <SimPlayer clock={clock} onClose={noop} /> : null)}
       under={
         <details className={mapPage.fold} open>
-          <summary>{tr('This area')}</summary>
+          <summary>
+            <span className={mapPage.foldTitle}>
+              {tr('Mowing settings')}
+              <small>{tr('Direction, plan and more for this area')}</small>
+            </span>
+          </summary>
           <div className={mapPage.foldBody}>
             <SimulationView
               model="realistic"
@@ -1108,7 +1122,7 @@ function Simulate() {
   );
 }
 
-// 12: the map's style: the gear on the map, then Garden, the lawn in stripes, ways and obstacles as pictures. what can
+// 12: the map's style: the layers on the map, then Garden, the lawn in stripes, ways and obstacles as pictures. what can
 // come alive in the garden is switched on under it, each on its own
 function StyleSettings({garden}: {garden: boolean}) {
   return (
@@ -1150,8 +1164,8 @@ function Style() {
       hand={{
         moves: [
           [0, 'off'],
-          [0.12, {aria: tr('Map settings')}],
-          [0.2, {aria: tr('Map settings')}],
+          [0.12, {aria: tr('Layers')}],
+          [0.2, {aria: tr('Layers')}],
           [0.38, {button: tr('Garden')}],
           [0.8, {button: tr('Garden')}],
         ],
@@ -1271,14 +1285,12 @@ function Save() {
         ) : (
           <>
             <EditorToolbar
-              idle
               canUndo={!saved}
               canRedo={false}
               unsaved={!saved}
               saving={saving}
               saveLabel={saving ? tr('saving…') : tr('Save map')}
               saveError={null}
-              onDraw={noop}
               onUndo={noop}
               onRedo={noop}
               onSave={noop}

@@ -1,16 +1,57 @@
+/* folding away like the other cards under the map: a title, a line what it is */
 .box {
   margin-top: 12px;
-  padding: 10px 12px;
-  border-radius: 12px;
+  border-radius: 14px;
   border: 1px solid var(--card-border);
   background: var(--card);
+  box-shadow: var(--card-shadow, none);
+  backdrop-filter: var(--card-blur, none);
   font-size: 13px;
 }
 
-.box summary {
-  cursor: pointer;
+.box > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 56px;
+  padding: 10px 16px;
+  font-size: 15px;
   font-weight: 600;
-  font-size: 14px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.box > summary::-webkit-details-marker {
+  display: none;
+}
+
+.box > summary::after {
+  content: '▾';
+  color: var(--text-secondary);
+  transition: transform 0.2s ease;
+}
+
+.box[open] > summary::after {
+  transform: rotate(180deg);
+}
+
+.title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.title small {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.body {
+  padding: 0 16px 14px;
 }
 
 .count {
@@ -18,15 +59,14 @@
   padding: 1px 8px;
   border-radius: 999px;
   background: rgba(128, 128, 128, 0.18);
-  font-size: 11px;
-  font-weight: 400;
+  font-size: 12px;
+  font-weight: 500;
 }
 
 .row {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 10px;
 }
 
 .row input {

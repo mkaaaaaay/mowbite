@@ -6,6 +6,7 @@ import {MapLookSettings} from '@/components/MapLookSettings';
 import {settingsStore, type Settings} from '@/lib/settings';
 import DecorPanel from './DecorPanel';
 import EditorToolbar from './EditorToolbar';
+import OrderBox, {NewArea} from './OrderBox';
 import {pinSquare} from './editing';
 
 const noop = () => {};
@@ -109,23 +110,26 @@ describe('decorating, started from the map settings', () => {
     expect(look('garden')).not.toContain('Decorate');
   });
 
-  it("isn't in the editor bar any more", () => {
+  it("isn't in the editor bar or the list of the areas any more", () => {
     const bar = markup(
       createElement(EditorToolbar, {
-        idle: true,
-        canUndo: false,
+        canUndo: true,
         canRedo: false,
-        unsaved: false,
+        unsaved: true,
         saving: false,
         saveLabel: 'Save map',
         saveError: null,
-        onDraw: noop,
         onUndo: noop,
         onRedo: noop,
         onSave: noop,
       }),
     );
-    expect(bar).toContain('Draw');
+    expect(bar).toContain('Save map');
     expect(bar).not.toContain('Decorate');
+    const list = markup(createElement(OrderBox, {areas: [], idle: true, pictures: false, onSelect: noop, onMove: noop}));
+    expect(list).not.toContain('Decorate');
+    const add = markup(createElement(NewArea, {empty: true, unsaved: false, onDraw: noop}));
+    expect(add).toContain('Draw');
+    expect(add).not.toContain('Decorate');
   });
 });

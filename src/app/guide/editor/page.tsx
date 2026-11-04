@@ -49,11 +49,11 @@ const STEPS: GuideStep[] = [
   },
   {
     title: 'Mow angle',
-    text: 'The mow angle is the direction of the lanes. With a mowing area picked you set it with the slider (on a phone at the bottom of the map), − and + change it by 1°, the map shows the lanes meanwhile. You can type it in under Mowing settings (with the planner: This area).',
+    text: 'The mow angle is the direction of the lanes. With a mowing area picked you set it with the slider (on a phone at the bottom of the map), − and + change it by 1°, the map shows the lanes meanwhile. You can type it in under Mowing settings.',
   },
   {
     title: 'Mowing order',
-    text: 'With no area picked (tap next to the areas), the mowing order is under the map. With ↑ and ↓ an area comes earlier or later, the numbers on the map change along. This too only counts after Save map.',
+    text: 'With no area picked (tap next to the areas, or All areas), the list of the areas under the map is the mowing order. With ↑ and ↓ an area comes earlier or later, the numbers on the map change along. This too only counts after Save map.',
   },
   {
     title: 'Real edges',
@@ -61,15 +61,15 @@ const STEPS: GuideStep[] = [
   },
   {
     title: 'Simulate the drive',
-    text: "With the MowBite Planner on the mower, Simulate the drive under This area drives the area's plan the way your mower would: with OpenMower's controller and the errors of GPS, wheels and drive. On the map you see what's left unmowed (orange), where the body gets into the safety distance (red) and how long it takes. The bar at the bottom of the map plays the drive back, faster or slower. Change something on the area and the result is gone, simulate again then.",
+    text: "With the MowBite Planner on the mower, Simulate the drive under Mowing settings drives the area's plan the way your mower would: with OpenMower's controller and the errors of GPS, wheels and drive. On the map you see what's left unmowed (orange), where the body gets into the safety distance (red) and how long it takes. The bar at the bottom of the map plays the drive back, faster or slower. Change something on the area and the result is gone, simulate again then.",
   },
   {
     title: 'Map style',
-    text: 'With the gear on the map you pick the map style: Plain shows colored areas, Garden draws the garden from above (off until you pick it). There ways, obstacles and decoration get a picture by their name. With one picked you change it under the map at Picture on the map, and its color, size, direction and the ground under it. Light and shadows, the season, the lawn growing back and a mowing edge can be switched on one by one.',
+    text: 'In the layers on the map, Map settings, you pick the map style: Plain shows colored areas, Garden draws the garden from above (off until you pick it). There ways, obstacles and decoration get a picture by their name. With one picked you change it under the map at Picture on the map, and its color, size, direction and the ground under it. Light and shadows, the season, the lawn growing back and a mowing edge can be switched on one by one.',
   },
   {
     title: 'Decorate',
-    text: "In the garden style the gear on the map has Decorate. It sets pictures that stand by themselves, such as a gnome, a lamp or a bench: tap one in the row under the map, then the spot on the map. Tap a picture with a ring to change its color, size and rotation, hold it to move it. Finish saves them on the mower, Cancel takes it all back. To the mower they are only pictures, it doesn't drive round them.",
+    text: "In the garden style the map settings (layers on the map) have Decorate. It sets pictures that stand by themselves, such as a gnome, a lamp or a bench: tap one in the row under the map, then the spot on the map. Tap a picture with a ring to change its color, size and rotation, hold it to move it. Finish saves them on the mower, Cancel takes it all back. To the mower they are only pictures, it doesn't drive round them.",
   },
   {
     title: 'Save and backups',

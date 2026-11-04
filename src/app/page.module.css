@@ -330,12 +330,59 @@
   cursor: default;
 }
 
-.controls .main:not(:disabled) {
-  border-color: color-mix(in srgb, var(--accent) 70%, transparent);
-  background: color-mix(in srgb, var(--accent) 35%, transparent);
+/* only what the mower offers now, together as wide as the card */
+.controls .actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 8px;
+}
+
+.controls .actions button {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 52px;
+}
+
+/* one alone: a wide button with the word next to its icon */
+.controls .actions[data-count='1'] button {
+  min-height: 56px;
+  font-size: 16px;
+}
+
+/* each a glass in the color of what it leads to, edged only by the light like the cards: going on green, a pause
+   amber like paused, home blue like on the way home, skipping violet, stopping red */
+.act-go {
+  --act: var(--success);
+}
+
+.act-pause {
+  --act: var(--warning);
+}
+
+.act-home {
+  --act: var(--accent);
+}
+
+.act-skip {
+  --act: var(--violet);
+}
+
+.act-stop {
+  --act: var(--error);
+}
+
+.controls .actions button:not(:disabled) {
+  border-color: transparent;
+  background: linear-gradient(
+    color-mix(in srgb, var(--act) 40%, transparent),
+    color-mix(in srgb, var(--act) 28%, transparent)
+  );
   backdrop-filter: var(--card-blur, none);
-  box-shadow: var(--btn-3d);
-  color: var(--foreground);
+  box-shadow: var(--btn-glass);
+}
+
+.controls .actions button:not(:disabled) svg {
+  color: var(--act);
 }
 
 .controls .reset {
@@ -348,10 +395,20 @@
 .controls .resetJobButton,
 .controls .skipPathButton {
   grid-column: 1 / -1;
-  padding: 8px;
-  border-style: dashed;
-  font-size: 13px;
-  color: var(--text-secondary);
+}
+
+/* the smaller ones under them: lower and plainer, the same family */
+.controls .resetJobButton,
+.controls .skipPathButton,
+.controls .leftoversButton {
+  min-height: var(--tap);
+  padding: 8px 12px;
+  border-color: transparent;
+  background: color-mix(in srgb, var(--foreground) 7%, transparent);
+  box-shadow: none;
+  font-size: var(--text-s);
+  font-weight: 500;
+  color: var(--foreground);
 }
 
 .controls .resetJob {
@@ -421,37 +478,26 @@
 
 .controls .leftoversButton {
   flex: 1;
-  padding: 8px;
-  border-style: dashed;
-  font-size: 13px;
-  color: var(--text-secondary);
 }
 
 .controls .resetJob button {
   flex: 1;
 }
 
-/* by the width of the card, not the screen: four buttons side by side need about 600px for a label next to its icon */
+/* by the width of the card, not the screen: three or four buttons side by side need about 600px for a label next to its
+   icon. one or two keep it next to it */
 @container controls (max-width: 640px) {
   /* the icons in one line, also when a label takes two */
-  .controls button:not(.reset):not(.skipPathButton):not(.leftoversButton):not(.recordingEnd) {
+  .controls .actions:not([data-count='1']):not([data-count='2']) button {
     flex-direction: column;
     justify-content: flex-start;
     gap: 4px;
     padding: 10px 2px;
-    font-size: 11px;
+    font-size: 12px;
     letter-spacing: -0.2px;
     /* a long word is split rather than sticking out */
     hyphens: auto;
     overflow-wrap: break-word;
-  }
-}
-
-/* a narrow phone: "überspringen" still in one line */
-@container controls (max-width: 310px) {
-  .controls button:not(.reset):not(.skipPathButton):not(.leftoversButton):not(.recordingEnd) {
-    font-size: 10px;
-    letter-spacing: -0.3px;
   }
 }
 
@@ -527,14 +573,30 @@
   justify-content: space-between;
   align-items: center;
   gap: 10px;
-  padding: 10px 12px;
+  padding: 10px 8px 10px 12px;
   border-radius: 12px;
   border-left: 3px solid var(--card-border);
   background: rgba(128, 128, 128, 0.08);
+  color: inherit;
+  text-decoration: none;
+  transition: background var(--dur-fast) ease;
+}
+
+.lastRun:hover,
+.lastRun:active {
+  background: rgba(128, 128, 128, 0.16);
+}
+
+/* it opens the run on the activity page */
+.lastRun > svg {
+  flex: none;
+  margin-left: -4px;
+  color: var(--text-secondary);
 }
 
 .lastRun > div {
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: 2px;
   min-width: 0;

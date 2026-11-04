@@ -266,3 +266,74 @@ export function RotateIcon({size = 20}: IconProps) {
     </svg>
   );
 }
+
+// the map's own buttons: zoom, layers, follow the mower, the whole map, keep it at the top
+export function PlusIcon({size = 20}: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...line}>
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
+
+export function MinusIcon({size = 20}: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...line}>
+      <path d="M5 12h14" />
+    </svg>
+  );
+}
+
+export function LayersIcon({size = 20}: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...line}>
+      <path d="M12 3 3 8l9 5 9-5-9-5Z" />
+      <path d="m3 12 9 5 9-5" />
+      <path d="m3 16 9 5 9-5" />
+    </svg>
+  );
+}
+
+export function FollowIcon({size = 20}: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...line}>
+      <circle cx="12" cy="12" r="6" />
+      <circle cx="12" cy="12" r="1.5" fill="currentColor" />
+      <path d="M12 2v4M12 18v4M2 12h4M18 12h4" />
+    </svg>
+  );
+}
+
+export function FitIcon({size = 20}: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...line}>
+      <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+    </svg>
+  );
+}
+
+export function PushPinIcon({size = 20}: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...line}>
+      <path d="M9 3h6l-1 6 4 3v2H6v-2l4-3-1-6Z" />
+      <path d="M12 14v7" />
+    </svg>
+  );
+}
+
+// a little arrow to the right: a row that opens something
+export function ChevronIcon({size = 20}: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...line}>
+      <path d="m9 6 6 6-6 6" />
+    </svg>
+  );
+}
+
+export function BackIcon({size = 20}: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...line}>
+      <path d="m15 6-6 6 6 6" />
+    </svg>
+  );
+}

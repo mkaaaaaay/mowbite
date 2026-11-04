@@ -6,9 +6,8 @@ import styles from './page.module.css';
 // open or not while the app runs: every start they're folded again
 const opened = new Map<string, boolean>();
 
-// A part of the editor that folds away. On a phone it sits right under the map, so the map stays in view while it's
-// open (its content scrolls on its own).
-export function Fold({id, title, children}: {id: string; title: string; children: React.ReactNode}) {
+// A part of the editor that folds away, like the groups of the settings: its title and in a line under it what's inside
+export function Fold({id, title, hint, children}: {id: string; title: string; hint?: string; children: React.ReactNode}) {
   const [open, setOpen] = useState(() => opened.get(id) ?? false);
   return (
     <details
@@ -22,7 +21,12 @@ export function Fold({id, title, children}: {id: string; title: string; children
         opened.set(id, now);
       }}
     >
-      <summary>{title}</summary>
+      <summary>
+        <span className={styles.foldTitle}>
+          {title}
+          {hint && <small>{hint}</small>}
+        </span>
+      </summary>
       <div className={styles.foldBody}>{children}</div>
     </details>
   );

@@ -13,7 +13,8 @@ import {GpsAround} from '@/components/GpsLog';
 import {DiagnosisDownload} from '@/components/Diagnosis';
 import MowingStats from '@/components/MowingStats';
 import Link from 'next/link';
-import {useEffect, useState} from 'react';
+import {useSearchParams} from 'next/navigation';
+import {Suspense, useEffect, useRef, useState} from 'react';
 import styles from './page.module.css';
 import {fmt, tr, useLang} from '@/lib/i18n';
 import {PARAM, PATHS} from '@/lib/openmower';
@@ -172,11 +173,18 @@ function Problems({run, next, where}: {run: Run; next?: Run; where: Where}) {
 }
 
 // progress: the run's course right away instead of its problems
-function RunCard({run, next, where, progress}: {run: Run; next?: Run; where: Where; progress: boolean}) {
-  const [open, setOpen] = useState(false);
+// linked: picked on the dashboard, opened and scrolled to
+function RunCard({run, next, where, progress, linked}: {run: Run; next?: Run; where: Where; progress: boolean; linked: boolean}) {
+  const [open, setOpen] = useState(linked);
   const outcome = OUTCOMES[run.outcome];
+  const ref = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!linked) return;
+    const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    ref.current?.scrollIntoView({block: 'start', behavior: still ? 'auto' : 'smooth'});
+  }, [linked]);
   return (
-    <article className={[styles.run, styles[`tone-${outcome.tone}`]].join(' ')}>
+    <article ref={ref} className={[styles.run, styles[`tone-${outcome.tone}`], linked ? styles.linked : ''].join(' ')}>
       <header onClick={() => setOpen(!open)}>
         <div className={styles.runTime}>
           <strong>
@@ -215,8 +223,21 @@ let cachedFiles: string[] = [];
 let cachedDays: string[] | null = null;
 const cachedEvents = new Map<string, DayEvents>();
 
+// ?day=20261102&run=<id of its first event>: a run picked on the dashboard, its day shown and the run opened.
+// useSearchParams needs a suspense boundary in a static export
 export default function ActivityPage() {
+  return (
+    <Suspense>
+      <Activity />
+    </Suspense>
+  );
+}
+
+function Activity() {
   useLang();
+  const search = useSearchParams();
+  const linkedDay = search.get('day');
+  const linkedRun = search.get('run');
   const [days, setDays] = useState<string[] | null>(cachedDays);
   const [day, setDay] = useState<string | null>(null);
   const [loaded, setLoaded] = useState<DayEvents | null>(() => cachedEvents.get(cachedDays?.[0] ?? '') ?? null);
@@ -233,13 +254,15 @@ export default function ActivityPage() {
         cachedFiles = files;
         cachedDays = localDays(files);
         setDays(cachedDays);
-        setDay((d) => d ?? cachedDays?.[0] ?? null);
+        // the linked day, else the newest, kept while the page is open
+        setDay((d) => d ?? (linkedDay && cachedDays?.includes(linkedDay) ? linkedDay : cachedDays?.[0]) ?? null);
       },
       () => setFailed(true),
     );
-  }, []);
+  }, [linkedDay]);
 
-  const shown = day ?? days?.[0] ?? null;
+  // the linked day once the days are known (its file is found by them)
+  const shown = day ?? (linkedDay && days?.includes(linkedDay) ? linkedDay : days?.[0]) ?? null;
   const isToday = !!shown && dayKey(parseDay(shown)) === dayKey(new Date());
   // MowBite OS doesn't dock yet, a run ends idle on the lawn
   const os = useMowbiteOs();
@@ -377,6 +400,7 @@ export default function ActivityPage() {
                 next={runs[runs.indexOf(b.run) - 1]}
                 where={where}
                 progress={filter === 'progress'}
+                linked={shown === linkedDay && b.run.events[0].id === linkedRun}
               />
             ) : (
               <div key={b.events[0].id} className={styles.looseGroup}>

@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import {TitleMark} from '@/components/Logo';
 import {TitleRow} from '@/components/TopWeather';
 import MapView from '@/components/MapView';
@@ -27,12 +26,12 @@ import styles from './page.module.css';
 import {fmt, tr, useLang} from '@/lib/i18n';
 import MapBackups, {backupLabel} from '@/components/MapBackups';
 import {deleteBackup, loadBackup, saveBackup} from '@/lib/backups';
-import AreaCard from './AreaCard';
+import AreaCard, {AreaTools} from './AreaCard';
 import DecorPanel, {showUnderMap} from './DecorPanel';
 import {decorRedo, decorUndo, goneLooks, onlyPinsChanged, pinSquare, pinsFrom, type UpdateArea, NEW_AREA_SETTINGS} from './editing';
 import EditorToolbar from './EditorToolbar';
 import MowSettings, {AngleOnMap, AreaDirection, AreaPlanInfo, OpenMowerArea} from './MowSettings';
-import OrderBox from './OrderBox';
+import OrderBox, {NewArea} from './OrderBox';
 import {DrawPanel, MergePanel, RestorePanel, SimplifyPanel, SnapPanel, SplitPanel, SubtractPanel} from './Panels';
 import {PARAM} from '@/lib/openmower';
 import {RpcError} from '@/lib/rpc';
@@ -780,6 +779,8 @@ function MapEditor() {
   // a pin just taken away, for 5 s with the way back (map: the map then, after any other change the way back is gone)
   const [removed, setRemoved] = useState<{what: string; map: MowerMap} | null>(null);
   const garden = settings.mapStyle === 'garden';
+  // no area to list yet (pictures standing by themselves aren't any)
+  const noAreas = !map?.areas.some((a) => !isPin(a));
   // (against the map the edits started from: a change on the mower meanwhile isn't one of ours)
   const areasChanged = !!map && !!liveMap && !onlyPinsChanged(base ?? liveMap, map);
   const pickedPin = mode === 'decor' && selectedArea && isPin(selectedArea) ? selectedArea : null;
@@ -882,7 +883,7 @@ function MapEditor() {
     setDecorBusy(false);
     setSelectedAreaId(null);
     setRemoved(null);
-    setDecorNote(tr("Kept in the app. Later: the map's gear, Decorate, then Finish."));
+    setDecorNote(tr("Kept in the app. Later: the map's layers, Map settings, Decorate, then Finish."));
   };
   // a round left for after mowing whose changes are gone meanwhile (dropped, a backup restored): over, the pictures of its
   // pins no longer on the map as they were
@@ -999,22 +1000,6 @@ function MapEditor() {
               </p>
             )}
             {decorNote && <p className={[styles.mapToast, styles.mapToastLong].join(' ')}>{decorNote}</p>}
-            {/* phones: undo and save on the map while an area is edited, the toolbar is further down then */}
-            {selectedArea && mode === 'idle' && dirty && !preview && (
-              <div className={styles.mapSave}>
-                <button className={styles.pillButton} onClick={undo} disabled={history.length === 0} aria-label={tr('Undo')}>
-                  ↶
-                </button>
-                {future.length > 0 && (
-                  <button className={styles.pillButton} onClick={redo} aria-label={tr('Redo')}>
-                    ↷
-                  </button>
-                )}
-                <button className={[styles.pillButton, styles.saveButton, styles.unsaved].join(' ')} onClick={() => void handleSave()} disabled={saving}>
-                  {saveLabel}
-                </button>
-              </div>
-            )}
             {pickedProblem && shownMap && (
               <div className={styles.previewBar}>
                 <span>{problemText(pickedProblem, shownMap)}</span>
@@ -1147,22 +1132,6 @@ function MapEditor() {
               />
             ) : (
               <>
-              {map && mode !== 'decor' && (
-                <EditorToolbar
-                  idle={mode === 'idle'}
-                  canUndo={canUndo}
-                  canRedo={canRedo}
-                  unsaved={dirty}
-                  saving={saving}
-                  saveLabel={saveLabel}
-                  saveError={saveError ?? droppedNote}
-                  onDraw={startDraw}
-                  onUndo={undo}
-                  onRedo={redo}
-                  onSave={() => void handleSave()}
-                />
-              )}
-
               {decorAsk === 'style' && !garden && mode === 'idle' && (
                 <div ref={askRef} className={styles.warning}>
                   <p>{tr('Pictures are only drawn in the garden style.')}</p>
@@ -1258,47 +1227,17 @@ function MapEditor() {
                 </div>
               )}
 
+              {/* nothing picked: the settings for all areas first, a new area, the track, then the areas and the backups */}
               {map && !selectedArea && mode === 'idle' && (
                 <>
-                  {map.areas.length ? (
-                    <p className={styles.dim}>
-                      {tr('Tap an area to edit it.')}{' '}
-                      {/* the pictures standing by themselves take no taps here */}
-                      {garden && map.areas.some(isPin) && `${tr("Set and change pictures: the map's gear, Decorate.")} `}
-                      <Link href="/guide/editor" className={styles.guideLink}>
-                        {tr('How it works, step by step')}
-                      </Link>
-                    </p>
-                  ) : (
-                    <p className={styles.dim}>
-                      {tr('No area yet.')}{' '}
-                      <Link href="/guide" className={styles.guideLink}>
-                        {tr('How to record the map, step by step')}
-                      </Link>
-                    </p>
-                  )}
-                  {jobList && jobList.length > 0 && (
-                    <TrackPicker
-                      jobs={jobList}
-                      selected={viewJob?.id ?? null}
-                      segments={viewJob?.segments}
-                      onSelect={(id) => showJob(id ?? '')}
-                      onClearLive={trackPoints(track) > 1 ? () => void clearTrack() : undefined}
-                      lastRun={trackPoints(track) > 1 ? lastRun : null}
-                    />
-                  )}
-                  {mowAreas.length > 1 && (
-                    <OrderBox areas={mowAreas} idle={idle} onSelect={selectArea} onMove={moveInOrder} />
-                  )}
-
                   {/* without the planner (or with OpenMower's slic3r planning) OpenMower's own values for all areas */}
                   {plannerBusy && (
-                    <Fold id="plannerAll" title={tr('Planner for all areas')}>
+                    <Fold id="plannerAll" title={tr('Planner for all areas')} hint={tr('For every area without values of its own')}>
                       <p className={styles.dim}>{tr('Shows up once the planner answers.')}</p>
                     </Fold>
                   )}
                   {(!plannerSettings || slic3r) && !plannerBusy && canSetParams && !os && (
-                    <Fold id="mowingAll" title={tr('Mowing for all areas')}>
+                    <Fold id="mowingAll" title={tr('Mowing for all areas')} hint={tr('For every area without values of its own')}>
                       <div className={styles.foldCards}>
                         <section className={settingsStyles.card}>
                           <OpenMowerMowing styles={settingsStyles} />
@@ -1309,7 +1248,7 @@ function MapEditor() {
 
                   {/* everything for the planner is here at the map: for all areas, an area's own with the area */}
                   {plannerSettings && (
-                    <Fold id="plannerAll" title={tr('Planner for all areas')}>
+                    <Fold id="plannerAll" title={tr('Planner for all areas')} hint={tr('For every area without values of its own')}>
                       <PlannerSimple
                         toolWidth={toolWidth}
                         omIncrement={angleIncrement}
@@ -1322,6 +1261,27 @@ function MapEditor() {
                         }
                       />
                     </Fold>
+                  )}
+
+                  <NewArea empty={noAreas} unsaved={dirty} onDraw={startDraw} />
+                  {jobList && jobList.length > 0 && (
+                    <TrackPicker
+                      jobs={jobList}
+                      selected={viewJob?.id ?? null}
+                      segments={viewJob?.segments}
+                      onSelect={(id) => showJob(id ?? '')}
+                      onClearLive={trackPoints(track) > 1 ? () => void clearTrack() : undefined}
+                      lastRun={trackPoints(track) > 1 ? lastRun : null}
+                    />
+                  )}
+                  {!noAreas && (
+                    <OrderBox
+                      areas={map.areas}
+                      idle={idle}
+                      pictures={garden && map.areas.some(isPin)}
+                      onSelect={selectArea}
+                      onMove={moveInOrder}
+                    />
                   )}
 
                   <MapBackups
@@ -1386,47 +1346,25 @@ function MapEditor() {
                 />
               )}
 
+              {/* an area picked: its name and type with the way back to all of them, then its mowing, then its shape */}
               {map && selectedArea && mode === 'idle' && (
-                <AreaCard
-                  area={selectedArea}
-                  areas={map.areas}
-                  showTools={simplifyCm === null}
-                  confirmDelete={confirmDelete === selectedArea.id}
-                  remember={remember}
-                  update={updateProperties}
-                  onSplit={startSplit}
-                  onMerge={() => {
-                    setSimplifyCm(null);
-                    setMode('merge');
-                  }}
-                  onSubtract={() => {
-                    setSimplifyCm(null);
-                    setMode('subtract');
-                  }}
-                  onSnap={() => {
-                    setSimplifyCm(null);
-                    setMode('snap');
-                  }}
-                  onSimplify={() => setSimplifyCm(5)}
-                  onDelete={deleteArea}
-                  onDeleteBlur={() => setConfirmDelete(null)}
-                />
+                <AreaCard area={selectedArea} areas={map.areas} remember={remember} update={updateProperties} onBack={deselect} />
               )}
 
               {/* without the planner: OpenMower's own settings of the area, its angle and its plan */}
               {mowProps && plannerBusy && (
-                <Fold id="area" title={tr('This area')}>
+                <Fold id="area" title={tr('Mowing settings')} hint={tr('Direction, plan and more for this area')}>
                   <p className={styles.dim}>{tr('Shows up once the planner answers.')}</p>
                 </Fold>
               )}
               {mowProps && !plannerSettings && !plannerBusy && (
-                <Fold id="mow" title={tr('Mowing settings')}>
+                <Fold id="mow" title={tr('Mowing settings')} hint={tr('Direction, plan and more for this area')}>
                   <MowSettings {...mowProps} />
                 </Fold>
               )}
               {/* with the planner everything of the area in one place, in the sections of the planner menu */}
               {mowProps && selectedArea && plannerSettings && (
-                <Fold id="area" title={tr('This area')}>
+                <Fold id="area" title={tr('Mowing settings')} hint={tr('Direction, plan and more for this area')}>
                   <PlannerSimple
                     toolWidth={toolWidth}
                     omIncrement={angleIncrement}
@@ -1485,6 +1423,28 @@ function MapEditor() {
                 </Fold>
               )}
 
+              {map && selectedArea && mode === 'idle' && simplifyCm === null && (
+                <AreaTools
+                  confirmDelete={confirmDelete === selectedArea.id}
+                  onSplit={startSplit}
+                  onMerge={() => {
+                    setSimplifyCm(null);
+                    setMode('merge');
+                  }}
+                  onSubtract={() => {
+                    setSimplifyCm(null);
+                    setMode('subtract');
+                  }}
+                  onSnap={() => {
+                    setSimplifyCm(null);
+                    setMode('snap');
+                  }}
+                  onSimplify={() => setSimplifyCm(5)}
+                  onDelete={deleteArea}
+                  onDeleteBlur={() => setConfirmDelete(null)}
+                />
+              )}
+
               {selectedArea && simplified && simplifyCm !== null && (
                 <SimplifyPanel
                   cm={simplifyCm}
@@ -1493,6 +1453,21 @@ function MapEditor() {
                   onChange={setSimplifyCm}
                   onApply={applySimplify}
                   onCancel={() => setSimplifyCm(null)}
+                />
+              )}
+
+              {/* undo, redo and save at the bottom, in view while the page scrolls, as long as there's something to do */}
+              {map && mode !== 'decor' && (canUndo || canRedo || dirty || saving || !!(saveError ?? droppedNote)) && (
+                <EditorToolbar
+                  canUndo={canUndo}
+                  canRedo={canRedo}
+                  unsaved={dirty}
+                  saving={saving}
+                  saveLabel={saveLabel}
+                  saveError={saveError ?? droppedNote}
+                  onUndo={undo}
+                  onRedo={redo}
+                  onSave={() => void handleSave()}
                 />
               )}
 
