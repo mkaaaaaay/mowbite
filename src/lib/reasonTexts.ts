@@ -5,7 +5,9 @@ import de from './i18n/de';
 // here (lib/events.ts) and MowBite for Home Assistant gets the same as src/lib/reasons.json (masterplan 3.1a, "Texte der
 // OS-Events für HA"). A list of variants each, the first that fits is taken: when and unless compare the event's fields
 // (all of them, exactly, {present: true} for one that's there). {field} is put in as it is, {field:n} with n decimals,
-// "?" when it's missing. The severity is for events that don't bring their own (OpenMower, MowBite OS before E6).
+// "?" when it's missing. {X_clock} is a field X in unix s as the reader's own clock time (HH:MM), put in by the reader
+// itself: a variant with it has when X_clock and one without the time after it, for a reader that doesn't. The
+// severity is for events that don't bring their own (OpenMower, MowBite OS before E6).
 
 export type Severity = 'error' | 'warning' | 'info';
 type Value = string | number | boolean;
@@ -168,8 +170,7 @@ export const REASONS: Record<string, Variant[]> = {
   STILL_STOPPING: [r('the last job is still stopping, try again in a moment')],
   STILL_SAVING: [r('the last change of the map is still being saved')],
   // the MowBite Updater updates MowBite OS (system.hold), a start or a change of its data waits: in a *_REFUSED and in
-  // the data of an error -32004, with until (unix s). until_clock is until as the reader's clock time, put in by the
-  // reader itself, one without it takes the text without the time
+  // the data of an error -32004, with until (unix s)
   HOLD: [r('update running until {until_clock}', {when: {until_clock: {present: true}}}), r('update running')],
   EMERGENCY: [r('emergency stop, reset it first')],
   NO_SAFETY_MEASUREMENT: [r('safety not yet verified on this platform, mowing and driving are blocked')],
