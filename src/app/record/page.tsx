@@ -133,14 +133,13 @@ function Record() {
     const t = setTimeout(() => setGuide(false), 10000);
     return () => clearTimeout(t);
   }, [guide, guideSeen]);
-  // its steps that drive without steering; the station it saved, told on the page after it
-  const [straight, setStraight] = useState(false);
+  // the station it saved, told on the page after it
   const [station, setStation] = useState<{station: Station; before: DockingStation | null} | null>(null);
   const guiding = guide && recordingMode && phase === 'empty' && !os;
 
   // the stick, held sideways the two pads; the sideways layout for dialogs over it
   const remoteRef = useRef<HTMLDivElement>(null);
-  const drive = useDrive({show: recordingMode, straight: guiding && straight, onMove: () => (mine.current = true)});
+  const drive = useDrive({show: recordingMode, onMove: () => (mine.current = true)});
   // the heading running away while it stands: OpenMower's gyro got a wrong zero when it started
   const drift = useHeadingDrift(recordingMode, drive.movedAt);
   const driftLine = drift !== null && (
@@ -545,7 +544,6 @@ function Record() {
             drive={drive}
             drift={driftLine}
             remoteRef={remoteRef}
-            onStraight={setStraight}
             onSaved={setStation}
             onExit={() => {
               setGuide(false);

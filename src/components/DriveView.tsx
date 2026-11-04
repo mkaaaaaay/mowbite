@@ -52,13 +52,11 @@ export interface Driving {
   remote: boolean;
   turned: boolean;
   turnSideways: (on: boolean) => void;
-  // steering off, forward and back only
-  straight: boolean;
 }
 
 // driving by hand with the stick: what it sends a tenth of a second at a time until it's let go, the speed steps, the
-// sideways layout. show: the remote control only while the page drives. straight: steering off (a guide's step)
-export function useDrive({show = true, straight = false, onMove}: {show?: boolean; straight?: boolean; onMove?: () => void} = {}): Driving {
+// sideways layout. show: the remote control only while the page drives
+export function useDrive({show = true, onMove}: {show?: boolean; onMove?: () => void} = {}): Driving {
   const link = useMowerState();
   const {state} = link;
   // no fresh state also stops it: the wifi can be gone a while before the connection counts as lost
@@ -90,10 +88,8 @@ export function useDrive({show = true, straight = false, onMove}: {show?: boolea
     setSpeedAt(i);
     speedRef.current = SPEEDS[i];
   };
-  const straightRef = useRef(straight);
   const moveRef = useRef(onMove);
   useEffect(() => {
-    straightRef.current = straight;
     moveRef.current = onMove;
   });
   const movedAt = useRef(0);
@@ -105,7 +101,7 @@ export function useDrive({show = true, straight = false, onMove}: {show?: boolea
     const curve = (v: number) => Math.sign(v) * Math.abs(v) ** 1.6;
     const v = speedRef.current;
     movedAt.current = performance.now();
-    sendDrive(curve(y) * v, straightRef.current ? 0 : -curve(x) * v * TURN_PER_SPEED);
+    sendDrive(curve(y) * v, -curve(x) * v * TURN_PER_SPEED);
   };
   const stop = () => {
     if (timer.current) clearInterval(timer.current);
@@ -150,7 +146,7 @@ export function useDrive({show = true, straight = false, onMove}: {show?: boolea
       }
     };
   }, []);
-  return {canDrive, speed, setSpeed, onStick, onPad, stop, movedAt, remote, turned, turnSideways, straight};
+  return {canDrive, speed, setSpeed, onStick, onPad, stop, movedAt, remote, turned, turnSideways};
 }
 
 // how far the part being driven got, big under what to do now: green, filling up, ✓ once there
@@ -324,7 +320,7 @@ export default function DriveView({
           <DrivePad axis="y" turned={drive.turned} disabled={!drive.canDrive} onMove={(v) => drive.canDrive && drive.onPad('y', v)} />
         </div>
         <div className={[styles.pad, styles.padRight].join(' ')}>
-          <DrivePad axis="x" turned={drive.turned} disabled={!drive.canDrive || drive.straight} onMove={(v) => drive.canDrive && drive.onPad('x', v)} />
+          <DrivePad axis="x" turned={drive.turned} disabled={!drive.canDrive} onMove={(v) => drive.canDrive && drive.onPad('x', v)} />
         </div>
         <div className={styles.bottomBar}>{bottom}</div>
       </div>

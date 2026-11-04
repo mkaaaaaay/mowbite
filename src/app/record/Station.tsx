@@ -33,15 +33,15 @@ type Step = 'in' | 'dock' | 'out' | 'end' | 'ready' | 'home';
 // what the position says, a few times a second: the antenna, the pose, how long it has stood (after settling) and where
 type Seen = {at: Point | null; pose: Pose | null; still: boolean; stood: number; point: (Point & {used: number; of: number}) | null};
 
-// the docking station recorded with a guide, also without one in the map yet: a few seconds standing in it until it
-// charges, backed out straight with the steering off, a few seconds standing out there, then saved into the map
-// (map.replace like the editor, a backup before). OpenMower's record_dock takes the pose as it is, this goes by where the
-// antenna was (lib/dockGuide). straight: the steps the page has to drive without steering. recording mode stays on
+// the docking station recorded with a guide, also without one in the map yet or moved somewhere else: a few seconds
+// standing in it until it charges, backed out straight (steered where the ground pushes it aside), a few seconds standing
+// out there, then saved into the map (map.replace like the editor, a backup before). the station before plays no part,
+// it may stand elsewhere now. OpenMower's record_dock takes the pose as it is, this goes by where the antenna was
+// (lib/dockGuide). recording mode stays on
 export default function StationGuide({
   drive,
   drift,
   remoteRef,
-  onStraight,
   onSaved,
   onExit,
   onClose,
@@ -50,7 +50,6 @@ export default function StationGuide({
   // the heading running away while it stands, a line from the page
   drift?: React.ReactNode;
   remoteRef?: React.Ref<HTMLDivElement>;
-  onStraight: (on: boolean) => void;
   onSaved: (s: {station: Station; before: DockingStation | null}) => void;
   // end recording mode, close the guide in it
   onExit: () => void;
@@ -124,12 +123,6 @@ export default function StationGuide({
   useEffect(() => {
     if (saved && charging) tick();
   }, [saved, charging]);
-  // backing out and standing out there, steering off: straight out of the station like the way in
-  const straight = step === 'out' || step === 'end' || step === 'ready';
-  useEffect(() => {
-    onStraight(straight);
-  }, [straight, onStraight]);
-  useEffect(() => () => onStraight(false), [onStraight]);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -187,7 +180,6 @@ export default function StationGuide({
     say = (
       <>
         <b>{tr('Drive it into the docking station until it charges')}</b>
-        {before && pose && toTarget !== null && toTarget >= 0.3 && <> · {tr('{m} m to go', {m: fmt(toTarget, 1)})}</>}
       </>
     );
   } else if ((step === 'dock' || step === 'end') && !inUse) {
@@ -299,13 +291,14 @@ export default function StationGuide({
         </g>
       );
     }
+    // (it may stand elsewhere now)
     if (!before) return null;
     const [sx, sy] = toScreen(before.position.x, before.position.y);
     return (
       <g className={ds.station}>
         <circle cx={sx} cy={sy} r={14 * k} strokeWidth={3 * k} />
         <text x={sx} y={sy - 22 * k} fontSize={12 * k} textAnchor="middle">
-          {tr('Docking station')}
+          {tr('Station before')}
         </text>
       </g>
     );
@@ -384,7 +377,7 @@ export default function StationGuide({
           ? tr('First it stands in the station a few seconds, then you back it out straight 1 to 1½ m and it stands there a few seconds too. The way between becomes its docking direction.')
           : step === 'home'
             ? tr('Saved in the map, the map before is in the backups. Drive it back into the station and end recording mode, or record areas first.')
-            : tr('Forward and back only, the steering is off. Further out makes the direction more accurate.')}
+            : tr('Back it out straight, steer a little where the ground pushes it aside. Further out makes the direction more accurate.')}
       </p>
       <div className={styles.buttons}>{buttons(ds.primary, ds.warnButton, ds.danger)}</div>
     </DriveView>
