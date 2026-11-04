@@ -7,7 +7,7 @@ import {numParam, useMowerParams} from '@/hooks/useMowerParams';
 import {useSensorValue} from '@/hooks/useMowerSensors';
 import {isLive, useMowerState} from '@/hooks/useMowerState';
 import {saveBackup} from '@/lib/backups';
-import {antennaOf, OUT, OUT_MIN, SETTLE_S, STAND_S, standOn, standPoint, stationChange, stationFrom, type Point, type Pose, type Stand, type Station} from '@/lib/dockGuide';
+import {antennaOf, besideStep, OUT, OUT_MIN, SETTLE_S, STAND_S, standOn, standPoint, stationChange, stationFrom, wayCheck, type Point, type Pose, type Stand, type Station} from '@/lib/dockGuide';
 import {tick} from '@/lib/haptics';
 import {fmt, tr} from '@/lib/i18n';
 import {onTopic} from '@/lib/mqttClient';
@@ -26,12 +26,19 @@ const STILL_MS = 1500;
 const SPANS = [4, 6, 8, 12, 16, 24, 32];
 // fewer than this share of a stand's samples near its middle: the gps jumps there (multipath by a wall)
 const STEADY = 0.7;
+// saving: no answer this long, then it's said and can be tapped again (the same map written twice does no harm); the
+// backup before it given this long
+const SLOW_MS = 15000;
+const BACKUP_MS = 15000;
 
 const deg = (rad: number) => (Math.abs(rad) * 180) / Math.PI;
 
 type Step = 'in' | 'dock' | 'out' | 'end' | 'ready' | 'home';
 // what the position says, a few times a second: the antenna, the pose, how long it has stood (after settling) and where
-type Seen = {at: Point | null; pose: Pose | null; still: boolean; stood: number; point: (Point & {used: number; of: number}) | null};
+// side: how far beside the station's line the way out went so far (besideStep summed up since the stand in it)
+type Seen = {at: Point | null; pose: Pose | null; still: boolean; stood: number; point: (Point & {used: number; of: number; h?: number}) | null; side: number};
+// where the antenna stood, OpenMower's heading meanwhile
+type End = Point & {h?: number};
 
 // the docking station recorded with a guide, also without one in the map yet or moved somewhere else: a few seconds
 // standing in it until it charges, backed out straight (steered where the ground pushes it aside), a few seconds standing
@@ -70,7 +77,7 @@ export default function StationGuide({
   if (before === undefined && map) setBefore(map.docking_stations[0] ?? null);
 
   // the poses as they come: the antenna of each, a stand while the stick is let go and the gps is in
-  const [seen, setSeen] = useState<Seen>({at: null, pose: null, still: false, stood: 0, point: null});
+  const [seen, setSeen] = useState<Seen>({at: null, pose: null, still: false, stood: 0, point: null, side: 0});
   const offset = useRef(o);
   const gpsIn = useRef(inUse);
   useEffect(() => {
@@ -78,9 +85,14 @@ export default function StationGuide({
     gpsIn.current = inUse;
   });
   const {movedAt} = drive;
+  // where it stood in the station, for the way out summed up from there
+  const insideRef = useRef<End | null>(null);
   useEffect(() => {
     let stand: Stand | null = null;
     let shown = 0;
+    let side = 0;
+    let last: Point | null = null;
+    let from: End | null = null;
     return onTopic(TOPIC.position, (payload) => {
       let p: Pose;
       try {
@@ -93,23 +105,36 @@ export default function StationGuide({
       const now = performance.now();
       const t = now / 1000;
       const at = antennaOf(p, offset.current);
-      stand = !gpsIn.current || now - movedAt.current < STILL_MS ? null : standOn(stand, {...at, t});
+      stand = !gpsIn.current || now - movedAt.current < STILL_MS ? null : standOn(stand, {...at, t, h: p.heading});
+      const ins = insideRef.current;
+      if (ins !== from) {
+        from = ins;
+        side = 0;
+        last = null;
+      }
+      if (ins?.h !== undefined) {
+        if (last) side += besideStep(ins.h, last, {...at, h: p.heading});
+        last = at;
+      }
       if (now - shown < 250) return;
       shown = now;
       const stood = stand ? Math.max(0, t - stand.t0 - SETTLE_S) : 0;
-      setSeen({at, pose: p, still: !!stand, stood, point: stand && stood > 0 ? standPoint(stand.points, stand.t0 + SETTLE_S) : null});
+      setSeen({at, pose: p, still: !!stand, stood, point: stand && stood > 0 ? standPoint(stand.points, stand.t0 + SETTLE_S) : null, side});
     });
   }, [movedAt]);
 
   // the antenna standing in the station and out in front of it; said by the user: on the contacts without a charge
-  const [inside, setInside] = useState<Point | null>(null);
-  const [outside, setOutside] = useState<Point | null>(null);
+  const [inside, setInside] = useState<End | null>(null);
+  const [outside, setOutside] = useState<End | null>(null);
+  useEffect(() => {
+    insideRef.current = inside;
+  }, [inside]);
   const [contacts, setContacts] = useState(false);
   const [saved, setSaved] = useState<{station: Station; before: DockingStation | null} | null>(null);
   const out = inside && seen.at ? Math.hypot(seen.at.x - inside.x, seen.at.y - inside.y) : 0;
   const step: Step = saved ? 'home' : !inside ? (charging || contacts ? 'dock' : 'in') : !outside ? (out >= OUT_MIN && seen.still ? 'end' : 'out') : 'ready';
   // a stand long enough: taken. moved on after the one out there: that's measured again where it stops
-  const done = seen.point && seen.stood >= STAND_S ? {x: seen.point.x, y: seen.point.y} : null;
+  const done = seen.point && seen.stood >= STAND_S ? {x: seen.point.x, y: seen.point.y, h: seen.point.h} : null;
   if (step === 'dock' && done) setInside(done);
   if (step === 'end' && done) setOutside(done);
   if (step === 'ready' && !seen.still) setOutside(null);
@@ -124,19 +149,32 @@ export default function StationGuide({
     if (saved && charging) tick();
   }, [saved, charging]);
 
+  // saves under way (tapped again while one has no answer yet), whether that's long
   const [saving, setSaving] = useState(false);
+  const pending = useRef(0);
+  const [slow, setSlow] = useState(false);
+  if (slow && !saving) setSlow(false);
+  useEffect(() => {
+    if (!saving) return;
+    const t = setTimeout(() => setSlow(true), SLOW_MS);
+    return () => clearTimeout(t);
+  }, [saving]);
   const [error, setError] = useState<string | null>(null);
   // the backup before saving failed: the next tap saves without one
   const [withoutBackup, setWithoutBackup] = useState(false);
   const save = async () => {
     if (!map || !inside || !outside) return;
+    pending.current++;
     setSaving(true);
     setError(null);
     const station = stationFrom(inside, outside, o);
     try {
       if (!withoutBackup) {
         try {
-          await saveBackup(map, 'before recording the docking station', true);
+          await Promise.race([
+            saveBackup(map, 'before recording the docking station', true),
+            new Promise<never>((_, reject) => setTimeout(() => reject(new Error(tr('no answer'))), BACKUP_MS)),
+          ]);
         } catch (e) {
           setWithoutBackup(true);
           setError(
@@ -155,9 +193,11 @@ export default function StationGuide({
     } catch (e) {
       setError(rpcErrorText(e));
     } finally {
-      setSaving(false);
+      if (--pending.current === 0) setSaving(false);
     }
   };
+  // the way out bent (only while OpenMower had the heading right in the station), or its heading off there
+  const check = inside?.h !== undefined && outside ? wayCheck(inside as Point & {h: number}, outside, seen.side) : null;
   // ending recording mode away from the station asks once more: the stick doesn't drive it any more after
   const [sure, setSure] = useState(false);
   const end = () => {
@@ -232,11 +272,26 @@ export default function StationGuide({
       );
   }
   if (saving) say = <b>{tr('Saving the docking station…')}</b>;
+  if (step === 'ready' && check?.bent && !saving)
+    say = (
+      <>
+        <b>{tr('Not quite straight.')}</b> {tr('Better back in and out once more, or save it like this.')}
+      </>
+    );
   const jumps = seen.point && (step === 'dock' || step === 'end') && seen.point.used / seen.point.of < STEADY;
   const missed = (
     <>
       {error && <em className={ds.missed}>{error}</em>}
       {jumps && <em className={ds.missed}>{tr('The GPS jumps here, it leaves the jumps out.')}</em>}
+      {slow && <em className={ds.missed}>{tr('No answer from the mower yet. If nothing happens, tap save once more.')}</em>}
+      {step === 'ready' && check?.bent && (
+        <em className={ds.missed}>
+          {tr("It didn't stay quite on its line, about {cm} cm beside it at the end: the direction may be about {n}° off.", {
+            cm: fmt(Math.abs(seen.side) * 100, 0),
+            n: fmt(deg(check.err), 0),
+          })}
+        </em>
+      )}
       {drift}
     </>
   );
@@ -314,7 +369,7 @@ export default function StationGuide({
         </button>
       )}
       {(step === 'ready' || saving) && (
-        <button className={main} disabled={!live || saving} onClick={() => void save()}>
+        <button className={main} disabled={!live || (saving && !slow)} onClick={() => void save()}>
           <HomeIcon size={18} />
           {tr('Save docking station')}
         </button>
@@ -372,6 +427,14 @@ export default function StationGuide({
         </div>
       )}
       {step === 'home' && sure && !charging && <p className={ds.warn}>{tr("It isn't on the station yet, after this the stick doesn't drive it any more.")}</p>}
+      {/* OpenMower takes its heading from the station in the map when it docks: a wrong one shows the mower turned */}
+      {check && Math.abs(check.off) > (20 * Math.PI) / 180 && (step === 'ready' || step === 'home') && (
+        <p className={ds.dim}>
+          {tr("OpenMower's heading was {n}° off in the station, so the mower was shown turned until it drove a bit. It takes the heading from the station saved here when it docks next.", {
+            n: fmt(deg(check.off), 0),
+          })}
+        </p>
+      )}
       <p className={ds.dim}>
         {step === 'in' || step === 'dock'
           ? tr('First it stands in the station a few seconds, then you back it out straight 1 to 1½ m and it stands there a few seconds too. The way between becomes its docking direction.')

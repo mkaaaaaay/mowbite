@@ -53,13 +53,15 @@ export function stationFrom(inside: Point, outside: Point, o: Offset): Station {
   return {position: {x: inside.x - (c * o.x - s * o.y), y: inside.y - (s * o.x + c * o.y)}, heading};
 }
 
-// the samples since it last stood still. where it stood is the middle of the stand's first second: three in a row further
-// than MOVED from there start a new stand from them, one by itself is a jump of the gps
+// the samples since it last stood still (h: OpenMower's heading with it). where it stood is the middle of the stand's
+// first second: three in a row further than MOVED from there start a new stand from them, one by itself is a jump of the
+// gps
+export type Sample = Point & {t: number; h?: number};
 export interface Stand {
   t0: number;
-  points: (Point & {t: number})[];
+  points: Sample[];
 }
-export function standOn(stand: Stand | null, at: Point & {t: number}): Stand {
+export function standOn(stand: Stand | null, at: Sample): Stand {
   if (!stand) return {t0: at.t, points: [at]};
   const first = (p: {t: number}) => p.t <= stand.t0 + SETTLE_S;
   const stood = middle(stand.points.filter(first));
@@ -70,14 +72,45 @@ export function standOn(stand: Stand | null, at: Point & {t: number}): Stand {
 }
 
 // where it stood over the last seconds of a stand (the samples from `since` on): the middle of the ones that aren't a
-// jump, how many those were of all
-export function standPoint(points: (Point & {t: number})[], since: number): (Point & {used: number; of: number}) | null {
+// jump, how many those were of all, OpenMower's heading meanwhile (its mean round the circle)
+export function standPoint(points: Sample[], since: number): (Point & {used: number; of: number; h?: number}) | null {
   const recent = points.filter((p) => p.t >= since);
   if (!recent.length) return null;
   const mid = middle(recent);
   const near = recent.filter((p) => Math.hypot(p.x - mid.x, p.y - mid.y) <= JUMP);
   if (!near.length) return null;
-  return {x: near.reduce((s, p) => s + p.x, 0) / near.length, y: near.reduce((s, p) => s + p.y, 0) / near.length, used: near.length, of: recent.length};
+  const turned = near.filter((p) => p.h !== undefined) as (Sample & {h: number})[];
+  const h = turned.length ? Math.atan2(turned.reduce((s, p) => s + Math.sin(p.h), 0), turned.reduce((s, p) => s + Math.cos(p.h), 0)) : undefined;
+  return {
+    x: near.reduce((s, p) => s + p.x, 0) / near.length,
+    y: near.reduce((s, p) => s + p.y, 0) / near.length,
+    used: near.length,
+    of: recent.length,
+    ...(h === undefined ? {} : {h}),
+  };
+}
+
+// how far the antenna got beside the station's line on a bit of the way out (a to b), from OpenMower's heading on it
+// against its heading in the station (h0): only how it changed counts, not whether it was right. summed up over the way
+// out, a bend or steering to and fro leaves the end beside the line, and the way measured between the stands off by
+// about that over its length
+export function besideStep(h0: number, a: Point, b: Point & {h: number}): number {
+  const along = -(b.x - a.x) * Math.cos(h0) - (b.y - a.y) * Math.sin(h0);
+  return Math.sin(wrap(b.h - h0)) * along;
+}
+
+// the way measured against how it was driven (side: besideStep summed up): how far OpenMower's heading was off in the
+// station (rad, its heading less the way in), how far off the way is (rad), whether that's too far. OpenMower's heading
+// only tells while it was about right in the station, within TRUSTED of the way measured (it comes from the station in
+// the map, a wrong one or none leaves it off and it's set right while it drives, that would show as a bend). from BENT
+// off the way out wasn't straight enough
+export const TRUSTED = (10 * Math.PI) / 180;
+export const BENT = (3 * Math.PI) / 180;
+export function wayCheck(inside: Point & {h: number}, outside: Point, side: number): {off: number; err: number; bent: boolean} {
+  const way = Math.atan2(inside.y - outside.y, inside.x - outside.x);
+  const off = wrap(inside.h - way);
+  const err = Math.atan2(side, Math.hypot(inside.x - outside.x, inside.y - outside.y));
+  return {off, err, bent: Math.abs(off) <= TRUSTED && Math.abs(err) > BENT};
 }
 
 // x and y each the median: a jump doesn't pull it
