@@ -1,35 +1,5 @@
-import {demoDocked, demoHas, expect, SIM, test} from './app';
+import {demoDocked, demoDrive, demoHas, expect, recordStation, SIM, test} from './app';
 import type {Page} from '@playwright/test';
-
-// the demo mower driven with the stick at once, as if the seconds had passed: [m/s forward, rad/s left, seconds] each,
-// 0 and 0 the stick let go (else the last move goes on for a second once the clock gets there)
-const demoDrive = (page: Page, moves: [number, number, number][]) =>
-  page.evaluate((moves) => {
-    type Demo = {published(topic: string, message: Uint8Array): void; tick(now: number): void};
-    const demo = (window as unknown as {mowbiteDemo: Demo}).mowbiteDemo;
-    // the stick's command as bson {vx, vz}, like lib/teleop
-    const twist = (vx: number, vz: number) => {
-      const d = new DataView(new ArrayBuffer(29));
-      let o = 0;
-      d.setInt32(o, 29, true);
-      o += 4;
-      for (const [k, v] of [['vx', vx], ['vz', vz]] as const) {
-        d.setUint8(o++, 1);
-        for (const c of k + '\0') d.setUint8(o++, c.charCodeAt(0));
-        d.setFloat64(o, v, true);
-        o += 8;
-      }
-      return new Uint8Array(d.buffer);
-    };
-    // the demo's clock to now first: the first step as long as the others, not as long as since its last tick
-    let t = Date.now();
-    demo.tick(t);
-    for (const [vx, vz, s] of moves)
-      for (let i = 0; i < s * 5; i++) {
-        demo.published('teleop', twist(vx, vz));
-        demo.tick((t += 200));
-      }
-  }, moves);
 
 // from the start through the drive by hand until the result is worked out
 async function calibrateByHand(page: Page) {
@@ -103,8 +73,9 @@ test('calibrating by hand: driven, worked out, three values applied and set back
   await expect(page.getByText(/Set back, OpenMower restarted at/)).toBeVisible({timeout: 20_000});
 });
 
-// the antenna 3 cm further back than entered: the docking station lies off by that, recorded again with the guide
-test('the docking station recorded again after the antenna moved: out to the mark, the first point, in until it charges', async ({page}) => {
+// the antenna 3 cm further back than entered: the docking station lies off by that, recorded again with the record
+// page's guide
+test('the docking station recorded again after the antenna moved: on the record page, measured in and out, saved', async ({page}) => {
   test.skip(SIM, 'the demo mower only');
   await calibrateByHand(page);
   await page.getByRole('button', {name: 'End recording mode'}).click();
@@ -120,30 +91,9 @@ test('the docking station recorded again after the antenna moved: out to the mar
   await page.evaluate(() => (window as unknown as {mowbiteDemo: {ahead(s: number): void}}).mowbiteDemo.ahead(600));
   await expect(again).toBeEnabled({timeout: 20_000});
   await again.click();
-
-  // backed out of the station to the mark: the first point only there
-  await expect(page.getByText('Back it out straight')).toBeVisible();
-  const first = page.getByRole('button', {name: 'Set first point'});
-  await expect(first).toBeDisabled();
-  expect((await demoHas<{current_state: string}>(page, 'robot_state/json')).current_state).toBe('AREA_RECORDING');
-  await demoDrive(page, [[-0.25, 0, 4], [0, 0, 1]]);
-  await expect(page.getByText('Stands right.')).toBeVisible();
-  await first.click();
-
-  // straight in: saved once it charges
-  await expect(page.getByText('Straight in until it charges')).toBeVisible();
-  const save = page.getByRole('button', {name: 'Save docking station'});
-  await expect(save).toBeDisabled();
-  await demoDrive(page, [[0.25, 0, 4], [0, 0, 1]]);
-  await expect(page.getByText('It charges.')).toBeVisible();
-  await save.click();
-  // recording mode ended by itself, where the card was it's told
-  await expect(page.getByText('Docking station recorded again')).toBeVisible();
-  await expect(page.getByText('In the same place as before.')).toBeVisible();
-  await expect.poll(async () => (await demoHas<{current_state: string}>(page, 'robot_state/json')).current_state).toBe('IDLE');
-  const station = (await demoHas<{docking_stations: {position: {x: number; y: number}; heading: number}[]}>(page, 'map/json')).docking_stations[0];
-  // (the way in to -x like before: ±180°)
-  expect(Math.cos(station.heading)).toBeCloseTo(-1, 3);
+  // the guide on the record page, the address without ?station once it's taken (a reload doesn't start it again)
+  await expect(page).toHaveURL(/\/record\/?$/);
+  await recordStation(page, 'In the same place as before.');
 });
 
 // on a phone held upright the two pads held sideways are recommended, a tap turns it there

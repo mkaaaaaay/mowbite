@@ -73,76 +73,6 @@
   flex-direction: column;
 }
 
-.layout {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.map {
-  position: relative;
-  border-radius: 16px;
-  overflow: hidden;
-  border: 1px solid var(--card-border);
-}
-
-/* in the middle at the bottom: the map's buttons run down its right edge, a tap meant for them mustn't drive */
-.stick {
-  position: absolute;
-  left: 50%;
-  bottom: 12px;
-  transform: translateX(-50%);
-  width: max-content;
-  max-width: calc(100% - 24px);
-}
-
-/* see-through enough to still see the map under it */
-.stick > div {
-  background: rgba(10, 10, 10, 0.35);
-  backdrop-filter: blur(2px);
-}
-
-.stick .warn {
-  padding: 8px 12px;
-  border-radius: 10px;
-  background: rgba(10, 10, 10, 0.75);
-  font-size: 13px;
-}
-
-/* the emergency stop where the stick was, with its reset */
-.stick .alarm {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-  max-width: 300px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: rgba(10, 10, 10, 0.75);
-  color: var(--error);
-  font-size: 13px;
-}
-
-.alarm button {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  margin-top: 2px;
-  padding: 9px 14px;
-  border-radius: 12px;
-  border: 1px solid var(--error);
-  background: color-mix(in srgb, var(--error) 18%, transparent);
-  color: var(--error);
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.alarm button:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
 @media (max-width: 899px) {
   .hideOnPhone {
     display: none;
@@ -157,10 +87,6 @@
     padding-top: 12px;
   }
 
-  .layout {
-    gap: 10px;
-  }
-
   .card {
     padding: 12px;
     gap: 10px;
@@ -173,30 +99,18 @@
   }
 }
 
-@media (min-width: 900px) {
-  .layout {
-    flex-direction: row;
-    align-items: flex-start;
-  }
-
-  .map {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .layout > .card {
-    width: 380px;
-  }
-}
-
 .buttons {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
 
-.card button,
-.speeds button {
+/* the main step a row of its own (upright, in the card) */
+.buttons > .wide {
+  width: 100%;
+}
+
+.card button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -235,24 +149,6 @@
   color: var(--error);
 }
 
-.speeds {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-}
-
-.speeds button {
-  padding: 6px 10px;
-  font-size: 12px;
-  font-weight: 400;
-}
-
-.speeds .on {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 20%, transparent);
-}
-
 /* to the guide with the drawings */
 .guide {
   align-self: flex-start;
@@ -281,316 +177,22 @@
   font-size: 14px;
 }
 
-/* the button for the sideways layout, on a phone held upright */
-.phoneOnly {
-  display: none;
-}
-
-@media (max-width: 899px) {
-  .phoneOnly {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 6px;
-  }
-}
-
-.phoneOnly .dim {
+/* the docking station the guide saved: in its card, and on the page after it */
+.saved,
+.savedLine {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
   margin: 0;
-}
-
-/* recording on a phone held sideways: the map over the whole screen, a pad on each side like a remote control car,
-   the steps as buttons at the bottom */
-.remote {
-  position: fixed;
-  inset: 0;
-  z-index: 900;
-  overflow: hidden;
-  background: var(--background);
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--success) 16%, transparent);
   color: var(--foreground);
-  font-size: 13px;
-  user-select: none;
-  -webkit-user-select: none;
 }
 
-/* for a phone that doesn't turn the page: the same drawn a quarter turn, its top to the right edge of the upright
-   screen */
-.turned {
-  inset: auto;
-  top: 0;
-  left: 0;
-  width: 100vh;
-  width: 100dvh;
-  height: 100vw;
-  height: 100dvw;
-  transform-origin: top left;
-  transform: translateX(100vw) rotate(90deg);
-}
-
-/* the map is square: as wide as the screen and the band around the mower in the middle */
-.remoteMap {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-}
-
-.remoteMap > * {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
-}
-
-.topBar {
-  position: absolute;
-  top: 10px;
-  left: max(12px, env(safe-area-inset-left));
-  right: max(12px, env(safe-area-inset-right));
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-/* without an rtk fix, next to the step */
-.gpsWarn {
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: rgba(10, 10, 10, 0.6);
-  color: #ff8a96;
-  font-size: 12px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.grow {
-  flex: 1;
-}
-
-.status {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 13px;
-  border-radius: 999px;
-  background: #22a88f;
-  color: #fff;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.status i {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.3);
-}
-
-.live i {
-  animation: recording 1.2s ease-in-out infinite;
-}
-
-@keyframes recording {
-  50% {
-    opacity: 0.3;
-  }
-}
-
-.chips {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  padding: 3px 4px 3px 8px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background: rgba(20, 24, 60, 0.45);
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
-  color: #d5dbe0;
-}
-
-.chips button {
-  min-width: 34px;
-  padding: 5px 8px;
-  border: none;
-  border-radius: 999px;
-  background: none;
-  color: inherit;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.chips button:disabled {
-  opacity: 0.4;
-}
-
-.chips .on {
-  background: color-mix(in srgb, var(--accent) 40%, transparent);
-  color: #fff;
-}
-
-.square {
-  display: grid;
-  place-items: center;
-  width: 38px;
-  height: 38px;
-  border: none;
-  border-radius: 11px;
-  background: rgba(15, 18, 30, 0.82);
-  color: #fff;
-  cursor: pointer;
-}
-
-/* what to do now, or the outline closing by itself */
-.remoteNote {
-  position: absolute;
-  top: 58px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: max-content;
-  max-width: 46%;
-  margin: 0;
-  padding: 6px 12px;
-  border-radius: 12px;
-  background: rgba(20, 24, 60, 0.45);
-  -webkit-backdrop-filter: blur(10px);
-  backdrop-filter: blur(10px);
-  color: #e6ebef;
-  font-size: 12px;
-  line-height: 1.35;
-  text-align: center;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-}
-
-.remoteNote button {
-  padding: 5px 10px;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  background: rgba(255, 255, 255, 0.12);
-  color: #fff;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.remoteWarn {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  max-width: 40%;
-  margin: 0;
-  padding: 10px 14px;
-  border-radius: 12px;
-  background: rgba(10, 10, 10, 0.75);
-  color: #ff8a96;
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-}
-
-.remoteWarn button {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  margin-top: 2px;
-  padding: 8px 13px;
-  border-radius: 14px;
-  border: 1px solid rgba(255, 107, 122, 0.55);
-  background: rgba(255, 107, 122, 0.16);
-  color: #ff8a96;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.remoteWarn button:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
-/* the two pads, in the middle of each side clear of the bars */
-.pad {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-}
-
-.padLeft {
-  left: max(40px, calc(env(safe-area-inset-left) + 28px));
-}
-
-.padRight {
-  right: max(40px, calc(env(safe-area-inset-right) + 28px));
-}
-
-.bottomBar {
-  position: absolute;
-  bottom: 10px;
-  left: max(12px, env(safe-area-inset-left));
-  right: max(12px, env(safe-area-inset-right));
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  pointer-events: none;
-}
-
-.remoteBlade {
-  max-width: 60%;
-  margin: 0;
-  padding: 5px 10px;
-  border-radius: 10px;
-  background: rgba(10, 10, 10, 0.6);
-  color: #ff8a96;
-  font-size: 11px;
-  text-align: center;
-}
-
-.remoteButtons {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 8px;
-  pointer-events: auto;
-}
-
-.remoteButtons button {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  padding: 8px 13px;
-  border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background: rgba(20, 24, 60, 0.45);
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
-  color: #fff;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.remoteButtons button:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
-
-.remoteButtons .primary {
-  padding: 10px 18px;
-  border-color: color-mix(in srgb, var(--accent) 80%, transparent);
-  background: color-mix(in srgb, var(--accent) 45%, rgba(20, 24, 60, 0.45));
-  font-size: 14px;
-}
-
-.remoteButtons .danger {
-  border-color: rgba(255, 107, 122, 0.55);
-  color: #ff8a96;
+.saved svg,
+.savedLine svg {
+  flex: none;
+  margin-top: 1px;
+  color: var(--soft-good);
 }

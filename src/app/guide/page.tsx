@@ -15,7 +15,7 @@ const STEPS: GuideStep[] = [
   },
   {
     title: 'Docking station',
-    text: 'If the mower is in the dock, back it out about a meter, it then faces the station. Tap Record docking station, drive straight in until it sits on the contacts and tap Save docking position. That way in becomes its docking direction.',
+    text: 'Tap Record docking station, it guides you. The mower stands in the station until it charges, then you back it out straight 1 to 1½ m without steering and it stands there a moment. Tap Save docking station: the way between becomes its docking direction. Then drive it back in.',
   },
   {
     title: 'Mowing area',

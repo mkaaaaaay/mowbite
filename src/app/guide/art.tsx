@@ -323,7 +323,7 @@ function Docking({dock}: ArtProps) {
         <path d={`M204 ${front - 14} V${docked - 8}`} stroke="currentColor" strokeWidth={1.4} strokeDasharray="3 3" />
         <path d={`M198 ${front - 14} H210 M198 ${docked - 8} H210`} stroke="currentColor" strokeWidth={1.4} />
         <text x={214} y={(front + docked) / 2 - 6} fontSize={14} fontWeight={700} fill="currentColor">
-          1 m
+          1½ m
         </text>
       </g>
       <path d={`M160 ${front} V${docked + 12}`} stroke="var(--c-dock)" strokeWidth={3} strokeLinecap="round" opacity={0}>
@@ -334,7 +334,7 @@ function Docking({dock}: ArtProps) {
         <animateMotion dur={`${dur}s`} repeatCount="indefinite" rotate="auto" calcMode="linear" keyTimes="0;0.15;0.38;0.62;1" keyPoints="1;0;0;1;1" path={`M160 ${front} V${docked}`} />
         <MowerAt size={15} />
       </g>
-      {/* a tap on record docking station while it waits in front */}
+      {/* a tap on save while it stands out in front */}
       <circle cx={160} cy={front} r={10} fill="none" stroke="#fff" strokeWidth={2} opacity={0}>
         {anim('r', dur, [0, 0.22, 0.32, 1], [10, 10, 30, 30])}
         {anim('opacity', dur, [0, 0.22, 0.23, 0.32, 1], [0, 0, 0.9, 0, 0])}

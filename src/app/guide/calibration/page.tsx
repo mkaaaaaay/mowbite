@@ -85,7 +85,7 @@ export default function CalibrationGuidePage() {
             )}
           </Art>
           <p>
-            {tr("If the antenna's position changes by more than 2 cm, the station lies off on the map. MowBite tells you after applying and guides you through recording it again: back out of the station to a mark a meter in front of it, then straight in until it charges.")}
+            {tr("If the antenna's position changes by more than 2 cm, the station lies off on the map. MowBite tells you after applying, and the record page guides you through recording it again: it stands in the station, you back it out straight 1 to 1½ m, it stands there too and it's saved.")}
           </p>
           <p className={styles.dim}>
             {tr('Driving it yourself switches the mower into recording mode, nothing is recorded as an area. Drive it back onto the docking station afterwards.')}

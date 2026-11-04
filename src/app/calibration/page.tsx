@@ -3,7 +3,6 @@
 import {TitleMark} from '@/components/Logo';
 import {TitleRow} from '@/components/TopWeather';
 import {CheckIcon, CloseIcon, PlayIcon} from '@/components/icons';
-import type {DockingStation} from '@/hooks/useMowerMap';
 import {numParam, useMowerParams} from '@/hooks/useMowerParams';
 import {useSensorValue} from '@/hooks/useMowerSensors';
 import {useMowerActions} from '@/hooks/useMowerActions';
@@ -33,11 +32,11 @@ import {ACTION, PARAM, RPC} from '@/lib/openmower';
 import {rpcMethods} from '@/lib/rpc';
 import {gpsQuality, isDocked} from '@/lib/status';
 import Link from 'next/link';
+import {useRouter} from 'next/navigation';
 import {useEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {createPortal} from 'react-dom';
 import Drive from './Drive';
 import {LastCalibration, ResultView, Sent} from './Result';
-import Station, {StationSaved} from './Station';
 import styles from './page.module.css';
 
 const A = ACTION.recording;
@@ -306,33 +305,9 @@ export default function CalibrationPage() {
     return () => clearTimeout(t);
   }, [placing, recordingMode]);
 
-  // the docking station recorded again after the antenna moved (Sent's card), guided in recording mode. after the first
-  // point OpenMower offers nothing but the second one: the guide comes back to that too (a reload, another phone)
-  const [station, setStation] = useState(false);
-  const stationStep = recordingMode && hasAction(A('record_dock')) && !hasAction(A('start_recording'));
-  const guiding = station || stationStep;
-  // recorded again: the station before, for the confirmation (undefined while it isn't)
-  const [stationBefore, setStationBefore] = useState<DockingStation | null | undefined>(undefined);
-  // recording mode seen since: ended meanwhile (elsewhere), the guide ends with it
-  const [stationSeen, setStationSeen] = useState(false);
-  if (station && recordingMode && !stationSeen) setStationSeen(true);
-  if (!station && stationSeen) setStationSeen(false);
-  if (station && stationSeen && !recordingMode) setStation(false);
-  useEffect(() => {
-    if (!station || stationSeen) return;
-    const t = setTimeout(() => {
-      setStation(false);
-      setError(tr("The mower didn't go into recording mode. Is it busy right now?"));
-    }, 10000);
-    return () => clearTimeout(t);
-  }, [station, stationSeen]);
-  const startStation = () => {
-    setError(null);
-    setEnded(false);
-    setStationBefore(undefined);
-    if (!recordingMode) publishAction(ACTION.startRecording);
-    setStation(true);
-  };
+  // the docking station recorded again after the antenna moved (Sent's card): with the record page's guide
+  const router = useRouter();
+  const startStation = () => router.push('/record?station=1');
 
   const go = async () => {
     setAsking(false);
@@ -343,7 +318,6 @@ export default function CalibrationPage() {
     setShow(false);
     setResult(null);
     setSent(null);
-    setStationBefore(undefined);
     setSince(nowMs());
     if (mode === 'mow') {
       try {
@@ -392,7 +366,7 @@ export default function CalibrationPage() {
   // driven by hand: as the planner says, else while the mower is in recording mode
   const drivingByHand = phase === 'recording' && (progress?.mode ? progress.mode === 'joystick' : recordingMode);
   // driving it back to the dock after driving by hand, in recording mode still
-  const homeDrive = ended && phase !== 'recording' && recordingMode && !guiding;
+  const homeDrive = ended && phase !== 'recording' && recordingMode;
 
   let body: React.ReactNode;
   if (methods === undefined || !state) {
@@ -402,16 +376,6 @@ export default function CalibrationPage() {
       <section className={styles.card}>
         <p>{tr('Calibrating needs the MowBite Planner on the mower, from version 0.3.0.')}</p>
       </section>
-    );
-  } else if (guiding) {
-    body = (
-      <Station
-        onDone={(before) => {
-          setStation(false);
-          setStationBefore(before);
-        }}
-        onCancel={() => setStation(false)}
-      />
     );
   } else if (placing && phase !== 'recording') {
     // into position with the stick first, then the recording started
@@ -485,13 +449,8 @@ export default function CalibrationPage() {
   } else if (sent) {
     body = (
       <>
-        <Sent sent={sent} status={status} docked={docked} onBack={back} onStation={startStation} stationBefore={stationBefore} />
-        <button
-          onClick={() => {
-            setSent(null);
-            setStationBefore(undefined);
-          }}
-        >
+        <Sent sent={sent} status={status} docked={docked} onBack={back} onStation={startStation} />
+        <button onClick={() => setSent(null)}>
           {tr('Close')}
         </button>
       </>
@@ -542,20 +501,18 @@ export default function CalibrationPage() {
   return (
     <div className={styles.page}>
       <main className={styles.main}>
-        <TitleRow className={drivingByHand || guiding ? styles.hideOnPhone : undefined}>
+        <TitleRow className={drivingByHand ? styles.hideOnPhone : undefined}>
           <h1>
             <TitleMark />
-            {show && result ? tr('Result') : guiding ? tr('Record the docking station again') : tr('Calibration')}
+            {show && result ? tr('Result') : tr('Calibration')}
           </h1>
         </TitleRow>
-        {!drivingByHand && !guiding && (
+        {!drivingByHand && (
           <Link href="/settings#mower" className={styles.link}>
             ← {tr('Settings')}
           </Link>
         )}
         {error && <p className={styles.warn}>{error}</p>}
-        {/* recorded again where Sent isn't shown (the guide came back to it after a reload) */}
-        {stationBefore !== undefined && !sent && !guiding && <StationSaved before={stationBefore} />}
         {/* first back to the dock (the updater writes only there), the result under it */}
         {homeDrive && (
           <>

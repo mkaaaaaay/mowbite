@@ -1,4 +1,4 @@
-import {demoAction, demoDocked, demoEmergency, demoHas, demoRefuseReset, expect, test} from './app';
+import {demoAction, demoCall, demoDocked, demoEmergency, demoHas, demoRefuseReset, expect, recordStation, test} from './app';
 import type {Page} from '@playwright/test';
 
 const state = async (page: Page) => (await demoHas<{current_state: string}>(page, 'robot_state/json')).current_state;
@@ -67,7 +67,7 @@ test('the mower stops when the layout changes under a held stick', async ({page,
   await holdStick(page);
   const from = await pose(page);
   await expect.poll(async () => Math.hypot((await pose(page)).x - from.x, (await pose(page)).y - from.y)).toBeGreaterThan(0.05);
-  await page.getByRole('button', {name: 'Sideways'}).dispatchEvent('click');
+  await page.getByRole('button', {name: 'Sideways', exact: true}).dispatchEvent('click');
   await page.mouse.up();
   await expect(page.getByRole('button', {name: 'Upright'})).toBeVisible();
   // the wheels stop a second after the last command
@@ -189,4 +189,29 @@ test('skip area while paused goes out and is done on continue', async ({page}) =
   await expect(undo).toBeHidden({timeout: 8000});
   await page.getByRole('button', {name: 'Continue', exact: true}).click();
   await expect.poll(area).not.toBe(before);
+});
+
+// a new garden has no docking station yet: the guide measures where it charges and the way out of it
+test('the docking station recorded with the guide, also without one in the map', async ({page}) => {
+  await page.goto('/record/');
+  await demoDocked(page);
+  const map = await demoHas<{docking_stations: unknown[]}>(page, 'map/json');
+  await demoCall(page, 'map.replace', [{...map, docking_stations: []}]);
+  await page.getByRole('button', {name: 'Record docking station', exact: true}).click();
+  await recordStation(page, 'New in the map.');
+  const station = (await demoHas<{docking_stations: {position: {x: number; y: number}; heading: number}[]}>(page, 'map/json')).docking_stations[0];
+  // where the demo's station stands, its way in to -x
+  expect(station.position.x).toBeCloseTo(-1.1, 2);
+  expect(station.position.y).toBeCloseTo(3.5, 2);
+  expect(Math.cos(station.heading)).toBeCloseTo(-1, 3);
+});
+
+// recording: what to do now on the map, the steps in the card under it
+test('recording says what to do on the map', async ({page}) => {
+  await page.goto('/record/');
+  await demoDocked(page);
+  await page.getByRole('button', {name: 'Start recording mode'}).click();
+  await expect(page.getByText('Drive to the edge of the new area', {exact: true})).toBeVisible();
+  await page.locator('button:visible', {hasText: 'Record outline'}).first().click();
+  await expect(page.getByText('Along the edge', {exact: true})).toBeVisible();
 });

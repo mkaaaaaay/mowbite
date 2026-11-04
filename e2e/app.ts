@@ -146,3 +146,59 @@ export async function touchDrag(page: Page, from: {x: number; y: number}, to: {x
   await touch('touchEnd', []);
   await cdp.detach();
 }
+
+// the demo mower driven with the stick at once, as if the seconds had passed: [m/s forward, rad/s left, seconds] each,
+// 0 and 0 the stick let go (else the last move goes on for a second once the clock gets there)
+export const demoDrive = (page: Page, moves: [number, number, number][]) =>
+  page.evaluate((moves) => {
+    type Demo = {published(topic: string, message: Uint8Array): void; tick(now: number): void};
+    const demo = (window as unknown as {mowbiteDemo: Demo}).mowbiteDemo;
+    // the stick's command as bson {vx, vz}, like lib/teleop
+    const twist = (vx: number, vz: number) => {
+      const d = new DataView(new ArrayBuffer(29));
+      let o = 0;
+      d.setInt32(o, 29, true);
+      o += 4;
+      for (const [k, v] of [['vx', vx], ['vz', vz]] as const) {
+        d.setUint8(o++, 1);
+        for (const c of k + '\0') d.setUint8(o++, c.charCodeAt(0));
+        d.setFloat64(o, v, true);
+        o += 8;
+      }
+      return new Uint8Array(d.buffer);
+    };
+    // the demo's clock to now first: the first step as long as the others, not as long as since its last tick
+    let t = Date.now();
+    demo.tick(t);
+    for (const [vx, vz, s] of moves)
+      for (let i = 0; i < s * 5; i++) {
+        demo.published('teleop', twist(vx, vz));
+        demo.tick((t += 200));
+      }
+  }, moves);
+
+// the record page's guide for the docking station, from the mower standing in it: measured there, backed out 1.5 m and
+// measured there, saved (said: how it compares to the one before), driven in again and recording mode ended
+export async function recordStation(page: Page, said: string) {
+  await expect(page.getByText('it measures where it charges')).toBeVisible();
+  expect((await demoHas<{current_state: string}>(page, 'robot_state/json')).current_state).toBe('AREA_RECORDING');
+  await expect(page.getByText('Back it out straight', {exact: true})).toBeVisible({timeout: 15_000});
+  await demoDrive(page, [
+    [-0.25, 0, 6],
+    [0, 0, 1],
+  ]);
+  await expect(page.getByText('it measures the way out')).toBeVisible({timeout: 15_000});
+  const save = page.getByRole('button', {name: 'Save docking station'});
+  await expect(save).toBeVisible({timeout: 15_000});
+  await save.click();
+  await expect(page.getByText(said)).toBeVisible();
+  // straight in again until it charges, then out of recording mode: the page tells it once more
+  await demoDrive(page, [
+    [0.25, 0, 6],
+    [0, 0, 1],
+  ]);
+  await expect(page.getByText('On the station. Now end recording mode.')).toBeVisible();
+  await page.getByRole('button', {name: 'End recording mode'}).click();
+  await expect.poll(async () => (await demoHas<{current_state: string}>(page, 'robot_state/json')).current_state).toBe('IDLE');
+  await expect(page.getByText(said)).toBeVisible();
+}

@@ -74,7 +74,6 @@
 .card button,
 .buttons button,
 .resetLine button,
-.alarm button,
 .sheet button,
 .pill {
   display: inline-flex;
@@ -94,8 +93,7 @@
 
 .main > button:disabled,
 .card button:disabled,
-.buttons button:disabled,
-.alarm button:disabled {
+.buttons button:disabled {
   opacity: 0.4;
   cursor: default;
 }
@@ -523,202 +521,7 @@
   user-select: text;
 }
 
-/* driving by hand: the map following the mower with the stick on it, under it what's done and missing */
-.drive {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.map {
-  position: relative;
-  border-radius: 16px;
-  overflow: hidden;
-  border: 1px solid var(--card-border);
-}
-
-/* at the top, under the map's coverage switch while it's there */
-.say {
-  position: absolute;
-  top: 10px;
-  left: 10px;
-  max-width: calc(100% - 76px);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 12px;
-  border-radius: 12px;
-  background: rgba(20, 24, 60, 0.6);
-  backdrop-filter: blur(10px);
-  color: #e6ebef;
-  font-size: 13px;
-  line-height: 1.3;
-  pointer-events: none;
-}
-
-.say b {
-  color: #fff;
-}
-
-.say > i {
-  flex: none;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: #22a88f;
-  box-shadow: 0 0 0 3px rgba(34, 168, 143, 0.35);
-}
-
-.map:has([data-cover-switch]) .say {
-  top: 54px;
-}
-
-/* with the bar under its words: as wide as the map leaves it */
-.sayWide {
-  width: calc(100% - 76px);
-}
-
-.sayBody {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  flex: 1;
-  min-width: 0;
-}
-
-/* a run or turn the planner didn't count, on its own line */
-.missed {
-  flex-basis: 100%;
-  font-style: normal;
-  font-weight: 600;
-  color: #ffd479;
-}
-
-/* the bar: green filling up, a soft glow, ✓ and brighter once there */
-.meter {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  flex-basis: 100%;
-}
-
-.meterTrack {
-  flex: 1;
-  height: 12px;
-  border-radius: 999px;
-  overflow: hidden;
-  background: rgba(255, 255, 255, 0.16);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
-}
-
-.meterFill {
-  display: block;
-  height: 100%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, #1b9a83, #3fd49a);
-  box-shadow: 0 0 10px rgba(63, 212, 154, 0.55);
-  transition: width 0.4s ease;
-}
-
-.meter b {
-  min-width: 4.5em;
-  color: #fff;
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-  white-space: nowrap;
-}
-
-.meterFull .meterFill {
-  background: linear-gradient(90deg, #2fbf7a, #79eab0);
-  box-shadow: 0 0 14px rgba(121, 234, 176, 0.7);
-}
-
-/* the remote control's note with the bar: wide enough for it */
-.noteWide {
-  min-width: 40%;
-}
-
-.sayDone {
-  background: rgba(20, 70, 40, 0.72);
-}
-
-/* in the middle at the bottom: the map's buttons run down its right edge */
-.stick {
-  position: absolute;
-  left: 50%;
-  bottom: 12px;
-  transform: translateX(-50%);
-  width: max-content;
-  max-width: calc(100% - 24px);
-}
-
-/* over the stick on a phone held upright, like the words at the top */
-.sidewaysHint {
-  display: none;
-}
-
-@media (max-width: 899px) {
-  .sidewaysHint {
-    position: absolute;
-    left: 50%;
-    bottom: 164px;
-    transform: translateX(-50%);
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 12px;
-    border-radius: 999px;
-    border: 1px solid rgba(255, 255, 255, 0.16);
-    background: rgba(20, 24, 60, 0.6);
-    backdrop-filter: blur(10px);
-    color: #e6ebef;
-    font-size: 13px;
-    font-weight: 600;
-    white-space: nowrap;
-  }
-}
-
-.stick > div:not(.alarm) {
-  background: rgba(10, 10, 10, 0.35);
-  backdrop-filter: blur(2px);
-}
-
-.alarm {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-  max-width: 300px;
-  margin: 0;
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: rgba(10, 10, 10, 0.75);
-  color: var(--error);
-  font-size: 13px;
-}
-
-.alarm button {
-  border-color: var(--error);
-  background: color-mix(in srgb, var(--error) 18%, transparent);
-  color: var(--error);
-}
-
-.driveCard {
-  padding: 12px;
-  gap: 10px;
-  font-size: 13px;
-}
-
-.line {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  color: var(--text-secondary);
-  font-variant-numeric: tabular-nums;
-}
-
+/* driving by hand: what's done and missing as tiles under the map */
 .tally {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -796,81 +599,6 @@
   color: var(--accent);
 }
 
-.speeds {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-}
-
-.main .speeds button {
-  padding: 6px 10px;
-  font-size: 12px;
-  font-weight: 400;
-}
-
-.main .speeds .on {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 20%, transparent);
-}
-
-/* drawn on the map: the lane of a run, the ring while it stands, the arrow of a turn with its ring filling up */
-.lane,
-.laneDone {
-  --c: var(--accent);
-}
-
-.laneDone {
-  --c: var(--success);
-}
-
-.laneAll {
-  fill: color-mix(in srgb, var(--c) 14%, transparent);
-  stroke: var(--c);
-  stroke-dasharray: 4 3;
-}
-
-.laneGot {
-  fill: color-mix(in srgb, var(--c) 45%, transparent);
-}
-
-.laneEnd {
-  stroke: var(--c);
-  stroke-linecap: round;
-}
-
-.laneText {
-  fill: #fff;
-  font-weight: 700;
-  paint-order: stroke;
-  stroke: rgba(0, 0, 0, 0.6);
-  stroke-width: 3px;
-}
-
-.ringAll {
-  fill: none;
-  stroke: rgba(255, 255, 255, 0.25);
-}
-
-.ringGot {
-  fill: none;
-  stroke: var(--accent);
-  stroke-linecap: round;
-}
-
-.station circle {
-  fill: color-mix(in srgb, var(--accent) 18%, transparent);
-  stroke: var(--accent);
-}
-
-.station text {
-  fill: #fff;
-  font-weight: 700;
-  paint-order: stroke;
-  stroke: rgba(0, 0, 0, 0.6);
-  stroke-width: 3px;
-}
-
 /* the counts on the remote control's bar, like the tiles */
 .countChip {
   padding: 4px 8px;
@@ -883,42 +611,6 @@
   color: #9be3b0;
 }
 
-/* the cross asking before it cancels */
-.squareAsk {
-  background: color-mix(in srgb, var(--error) 70%, rgba(15, 18, 30, 0.82)) !important;
-}
-
-.turnArrow {
-  stroke: var(--accent);
-  fill: var(--accent);
-}
-
-.turnArrow path {
-  fill: none;
-  stroke-linecap: round;
-}
-
-/* the docking station recorded again: its line out to the stretch for the first point, then the way in */
-.axis {
-  stroke: color-mix(in srgb, var(--c) 70%, transparent);
-  stroke-dasharray: 5 4;
-}
-
-.wayIn {
-  stroke: var(--c);
-  stroke-linecap: round;
-}
-
-.wayInHead {
-  fill: var(--c);
-}
-
-/* the remote control's note once it stands right (the record page's own background otherwise) */
-.noteOk {
-  background: rgba(20, 70, 40, 0.72) !important;
-}
-
-
 @media (max-width: 899px) {
   .hideOnPhone {
     display: none;
@@ -926,21 +618,5 @@
 
   .main:has(> .hideOnPhone) {
     padding-top: 12px;
-  }
-}
-
-@media (min-width: 900px) {
-  .drive {
-    flex-direction: row;
-    align-items: flex-start;
-  }
-
-  .map {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .driveCard {
-    width: 380px;
   }
 }

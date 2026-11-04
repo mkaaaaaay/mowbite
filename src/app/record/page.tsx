@@ -1,49 +1,31 @@
 'use client';
 
-import DrivePad from '@/components/DrivePad';
-import {
-  AutoPointsIcon,
-  BladeIcon,
-  CheckIcon,
-  CloseIcon,
-  HomeIcon,
-  OutlineDoneIcon,
-  PinIcon,
-  RecordIcon,
-  RotateIcon,
-  RouteIcon,
-  SpeedIcon,
-  TrashIcon,
-  WarningIcon,
-} from '@/components/icons';
-import Joystick from '@/components/Joystick';
+import DriveView, {driveStyles as ds, useDrive} from '@/components/DriveView';
+import {AutoPointsIcon, BladeIcon, CheckIcon, CloseIcon, HomeIcon, OutlineDoneIcon, PinIcon, RecordIcon, RouteIcon, TrashIcon} from '@/components/icons';
 import {TitleMark} from '@/components/Logo';
 import {TitleRow} from '@/components/TopWeather';
-import MapView from '@/components/MapView';
-import {useEmergencyReasons} from '@/hooks/useEmergencyReasons';
-import {useEmergencyReset} from '@/hooks/useEmergencyReset';
+import {useHeadingDrift} from '@/hooks/useHeadingDrift';
 import {useMapOverlay} from '@/hooks/useMapOverlay';
-import {useMedia} from '@/hooks/useMedia';
 import {useMowerActions} from '@/hooks/useMowerActions';
-import {useMowerMap} from '@/hooks/useMowerMap';
-import {datumFromParams, numParam, useMowerParams} from '@/hooks/useMowerParams';
+import {useMowerMap, type DockingStation} from '@/hooks/useMowerMap';
 import {useMowerPosition} from '@/hooks/useMowerPosition';
 import {isLive, useMowerState} from '@/hooks/useMowerState';
-import {sendDrive} from '@/lib/teleop';
 import Link from 'next/link';
-import {useRouter} from 'next/navigation';
-import {useEffect, useRef, useState} from 'react';
+import {useRouter, useSearchParams} from 'next/navigation';
+import {Suspense, useEffect, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
+import StationGuide from './Station';
 import styles from './page.module.css';
+import {stationChange, type Station} from '@/lib/dockGuide';
 import {fmt, tr, useLang} from '@/lib/i18n';
-import {ACTION, PARAM, TOPIC} from '@/lib/openmower';
+import {ACTION, TOPIC} from '@/lib/openmower';
+import {useMowbiteOs} from '@/lib/mowerOs';
 import {rpcMethods} from '@/lib/rpc';
-import {GPS_QUALITY_LABEL, gpsQuality} from '@/lib/status';
 import {eventsOfDay, fileDay, forgetToday, historyDays} from '@/lib/history';
 import {backAtStart} from '@/lib/geometry';
 import {tick} from '@/lib/haptics';
 import {guardLeaving} from '@/lib/leaving';
-import {emergencyText, explain, parseEvent, refusalText, resetRefusedText, type MowerEvent} from '@/lib/events';
+import {parseEvent, refusalText, type MowerEvent} from '@/lib/events';
 import {onTopic} from '@/lib/mqttClient';
 
 const START = ACTION.startRecording;
@@ -51,19 +33,13 @@ const A = ACTION.recording;
 // the page is open: react mounts it twice while developing, leaving it is only when it stays closed
 let open = 0;
 
-// m/s at full stick, the turn rate follows along
-const SPEEDS = [0.15, 0.25, 0.35, 0.5];
-const TURN_PER_SPEED = 3;
-
 type Phase = 'off' | 'empty' | 'recording' | 'outlined' | 'dock';
 
 // back at the start of the line: closed after this many seconds unless the user goes on. on unless switched off
 const CLOSE_SECONDS = 3;
 const AUTO_CLOSE_KEY = 'recordAutoClose';
-// the sideways layout drawn turned, for a phone that doesn't turn the page itself
-const TURNED_KEY = 'recordTurned';
-// how many meters the map shows across around the mower in the sideways layout, the buttons step through them
-const SPANS = [8, 12, 16, 24, 32, 48];
+// how many metres the map shows across around the mower (sideways the zoom steps go from there)
+const SPAN = 16;
 
 // next to the text on the buttons, to tell them apart at a glance
 const ICONS: Record<string, React.ReactNode> = {
@@ -81,17 +57,27 @@ const ICONS: Record<string, React.ReactNode> = {
   stop_manual_mowing: <BladeIcon size={18} />,
 };
 
+// ?station: straight into the guide for the docking station (from the calibration's card).
+// useSearchParams needs a suspense boundary in a static export
 export default function RecordPage() {
+  return (
+    <Suspense>
+      <Record />
+    </Suspense>
+  );
+}
+
+function Record() {
   useLang();
   const link = useMowerState();
   const {state, connected} = link;
   const live = isLive(link);
   const {hasAction, knowsAction, publishAction} = useMowerActions();
   const map = useMowerMap();
-  const params = useMowerParams();
   const position = useMowerPosition() ?? state?.pose;
   const overlay = useMapOverlay();
-  const [speed, setSpeed] = useState(1);
+  // MowBite OS records the docking station its own way: there only OpenMower's two steps
+  const os = useMowbiteOs();
   const [saved, setSaved] = useState<string | null>(null);
   // the mower left recording mode within a moment of starting it (see the hint below)
   const [bounced, setBounced] = useState(false);
@@ -129,42 +115,38 @@ export default function RecordPage() {
           ? 'outlined'
           : 'empty';
   const hasOutline = overlay.some((l) => l.closed && l.color === 'green');
-  // no fresh state also stops it: the wifi can be gone a while before the connection counts as lost
-  const canDrive = recordingMode && live && !state?.emergency;
-  const why = useEmergencyReasons(!!state?.emergency);
-  const {refused: notReset, reset} = useEmergencyReset(!!state?.emergency, publishAction);
-  // what the outline is recorded with: without an rtk fix the edge ends up off (OpenMower records without one too)
-  const acc = state?.pose.pos_accuracy;
-  const gpsQ = gpsQuality(acc, numParam(params, PARAM.maxPositionAccuracy));
-  const gpsText = `GPS · ${gpsQ === 'none' ? tr('no fix') : `${fmt(acc! * 100, 1)} cm · ${tr(GPS_QUALITY_LABEL[gpsQ])}`}`;
   // an OpenMower with rpcs has mowing by hand too, its actions are only told once recording mode was on
   const [newer, setNewer] = useState(false);
   useEffect(() => {
     void rpcMethods().then((m) => setNewer(!!m));
   }, []);
 
-  // held sideways on a phone: a remote control over the whole screen, a pad for forward and back on the left and one
-  // for steering on the right. turned: the same drawn a quarter turn for a phone whose page doesn't turn
-  const sideways = useMedia('(orientation: landscape) and (max-height: 500px)');
-  const [turnedOn, setTurnedOn] = useState(() => {
-    try {
-      return localStorage.getItem(TURNED_KEY) === '1';
-    } catch {
-      return false;
-    }
-  });
-  const turnSideways = (on: boolean) => {
-    setTurnedOn(on);
-    try {
-      localStorage.setItem(TURNED_KEY, on ? '1' : '0');
-    } catch {}
-  };
-  // (a tablet held sideways is wide enough for the layout as it is)
-  const portrait = useMedia('(orientation: portrait)');
-  const turned = turnedOn && !sideways && portrait;
-  const remote = recordingMode && (sideways || turned);
-  const [span, setSpan] = useState(2);
+  // the docking station recorded with the guide (Station.tsx), in recording mode with nothing else recorded. asked for
+  // before recording mode is there: it comes once it is, ends when it ends or something else is recorded
+  const [guide, setGuide] = useState(false);
+  const [guideSeen, setGuideSeen] = useState(false);
+  if (guide && recordingMode && !guideSeen) setGuideSeen(true);
+  if (!guide && guideSeen) setGuideSeen(false);
+  if (guide && ((guideSeen && !recordingMode) || (recordingMode && phase !== 'empty'))) setGuide(false);
+  useEffect(() => {
+    if (!guide || guideSeen) return;
+    const t = setTimeout(() => setGuide(false), 10000);
+    return () => clearTimeout(t);
+  }, [guide, guideSeen]);
+  // its steps that drive without steering; the station it saved, told on the page after it
+  const [straight, setStraight] = useState(false);
+  const [station, setStation] = useState<{station: Station; before: DockingStation | null} | null>(null);
+  const guiding = guide && recordingMode && phase === 'empty' && !os;
+
+  // the stick, held sideways the two pads; the sideways layout for dialogs over it
   const remoteRef = useRef<HTMLDivElement>(null);
+  const drive = useDrive({show: recordingMode, straight: guiding && straight, onMove: () => (mine.current = true)});
+  // the heading running away while it stands: OpenMower's gyro got a wrong zero when it started
+  const drift = useHeadingDrift(recordingMode, drive.movedAt);
+  const driftLine = drift !== null && (
+    <em className={ds.missed}>{tr('The heading drifts {n}°/s while it stands: restart OpenMower before it mows', {n: fmt(Math.abs(drift) * (180 / Math.PI), 1)})}</em>
+  );
+
   // mowing by hand: in recording mode OpenMower runs the blade until it's switched off or the mode ends, also while the
   // mower stands still
   const bladeOn = recordingMode && hasAction(A('stop_manual_mowing'));
@@ -174,58 +156,14 @@ export default function RecordPage() {
   useEffect(() => {
     if (state?.emergency && bladeOn && live) blade.current.off();
   }, [state?.emergency, bladeOn, live]);
-
-  // stick position lives in a ref, the timer keeps sending it until the stick is let go
-  const stick = useRef({x: 0, y: 0});
-  const speedRef = useRef(SPEEDS[speed]);
-  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
-  const send = () => {
-    const {x, y} = stick.current;
-    // gentle near the middle, full speed only at the edge
-    const curve = (v: number) => Math.sign(v) * Math.abs(v) ** 1.6;
-    const v = speedRef.current;
-    sendDrive(curve(y) * v, -curve(x) * v * TURN_PER_SPEED);
-  };
-  const stop = () => {
-    if (timer.current) clearInterval(timer.current);
-    timer.current = null;
-    stick.current = {x: 0, y: 0};
-    sendDrive(0, 0);
-  };
-  const onStick = (x: number, y: number) => {
-    stick.current = {x, y};
-    mine.current = true;
-    if (x === 0 && y === 0) return stop();
-    if (!timer.current) {
-      send();
-      timer.current = setInterval(send, 100);
-    }
-  };
-
-  // emergency, lost connection or the mode ending stop it as well. so does a switch between upright, sideways and turned:
-  // the stick or pad under the finger is gone then without having been let go
-  useEffect(() => {
-    if (!timer.current) return;
-    clearInterval(timer.current);
-    timer.current = null;
-    stick.current = {x: 0, y: 0};
-    sendDrive(0, 0);
-  }, [canDrive, remote, turned]);
-
-  // leaving the page or putting the phone away stops the mower, and the blade
+  // leaving the page or putting the phone away switches the blade off (the stick stops by itself)
   useEffect(() => {
     const hidden = () => {
-      if (!document.hidden) return;
-      stop();
-      if (blade.current.on) blade.current.off();
+      if (document.hidden && blade.current.on) blade.current.off();
     };
     document.addEventListener('visibilitychange', hidden);
     return () => {
       document.removeEventListener('visibilitychange', hidden);
-      if (timer.current) {
-        clearInterval(timer.current);
-        sendDrive(0, 0);
-      }
       if (blade.current.on) blade.current.off();
     };
   }, []);
@@ -250,13 +188,41 @@ export default function RecordPage() {
   };
   const actRef = useRef(act);
   actRef.current = act;
+  const start = (withGuide: boolean) => {
+    startedAt.current = Date.now();
+    mine.current = true;
+    setBounced(false);
+    setSaved(null);
+    setRefused(null);
+    setStation(null);
+    setGuide(withGuide);
+    publishAction(START);
+    setTimeout(() => void checkBounce().catch(() => {}), 4000);
+  };
+  // the guide asked for in the address: started once the mower is known (recording mode on, or idle to start it)
+  const search = useSearchParams();
+  const [asked, setAsked] = useState(() => search.has('station'));
+  const fromLink = !asked || !state || os ? null : recordingMode ? (phase === 'empty' ? 'guide' : 'drop') : live && hasAction(START) ? 'start' : null;
+  const startRef = useRef(start);
+  const router = useRouter();
+  useEffect(() => {
+    startRef.current = start;
+  });
+  useEffect(() => {
+    if (!fromLink) return;
+    setAsked(false);
+    // (not again on a reload once it's done)
+    router.replace('/record');
+    if (fromLink === 'start') startRef.current(true);
+    else if (fromLink === 'guide') setGuide(true);
+  }, [fromLink, router]);
 
   // reloading, closing or switching mowers asks first while something isn't saved yet or the blade turns: what's sent
   // from a page that unloads doesn't get out any more. a switch of mowers sends the stop and the blade's off before
   const guarded = recordingMode && (phase !== 'empty' || bladeOn);
   const halt = useRef(() => {});
   halt.current = () => {
-    stop();
+    drive.stop();
     if (blade.current.on) blade.current.off();
   };
   useEffect(() => {
@@ -270,7 +236,6 @@ export default function RecordPage() {
 
   // leaving the page ends recording mode: a link or a tab asks first, what isn't saved yet is lost with it. the way back
   // (the phone's back button) can't ask, it ends the mode only when nothing is being recorded
-  const router = useRouter();
   const [leaving, setLeaving] = useState<string | null>(null);
   // stop on a line without a second point yet (the mower hasn't moved 10 cm since it started, or no point set with auto
   // points off): OpenMower then drops the whole area, so with an outline to lose it asks first
@@ -320,7 +285,7 @@ export default function RecordPage() {
   // ended from here: no hint that it dropped out by itself
   const exitMode = () => {
     startedAt.current = 0;
-    stop();
+    drive.stop();
     act('exit_recording_mode');
   };
   const leave = (end: boolean) => {
@@ -371,11 +336,16 @@ export default function RecordPage() {
     }, 1000);
     return () => clearTimeout(t);
   }, [closing]);
+  const keepRecording = () => {
+    setClosing(null);
+    setHeld(true);
+  };
+  // a step's button, upright in the card, sideways in the bar at the bottom (the main one a row of its own upright)
   const button = (id: string, label: string, kind?: 'main' | 'danger', after?: () => void, ask?: () => void) =>
     hasAction(A(id)) && (
       <button
         key={id}
-        className={kind === 'main' ? styles.primary : kind ? styles[kind] : undefined}
+        className={kind === 'main' ? [ds.primary, styles.wide].join(' ') : kind ? ds[kind] : undefined}
         disabled={!live}
         onClick={
           ask ??
@@ -389,22 +359,53 @@ export default function RecordPage() {
         {tr(label)}
       </button>
     );
+  // the docking station: with the guide on OpenMower, OpenMower's own two steps on MowBite OS
+  const stationButton = (again: boolean) =>
+    os ? (
+      button('record_dock', 'Record docking station')
+    ) : (
+      <button key="station" disabled={!live || !hasAction(A('record_dock'))} onClick={() => setGuide(true)}>
+        <HomeIcon size={18} />
+        {tr(again ? 'Record the docking station again' : 'Record docking station')}
+      </button>
+    );
+  const hasStation = !!map?.docking_stations.length;
 
+  // what to do now, short on the map; the longer why in the card under it
+  let say: React.ReactNode = null;
   let text: React.ReactNode = null;
   let buttons: React.ReactNode[] = [];
   if (phase === 'empty') {
+    say = saved ? (
+      <>
+        <b>{tr('{what} saved.', {what: tr(saved)})}</b> {tr('The next one, or leave recording mode.')}
+      </>
+    ) : (
+      <>
+        <b>{tr('Drive to the edge of the new area')}</b> · {tr('then record its outline')}
+      </>
+    );
     text = saved
       ? tr('{what} saved. Record the next one, or leave recording mode and fine tune it in the editor.', {what: tr(saved)})
-      : tr('Drive to the edge of the new area, then start recording and drive once around it. For the docking station, stop about a meter in front of it, facing it.');
+      : os
+        ? tr('Drive to the edge of the new area, then start recording and drive once around it. For the docking station, stop about a meter in front of it, facing it.')
+        : tr('Drive to the edge of the new area, then start recording and drive once around it. The docking station: its button guides you through it.');
     buttons = [
       button('start_recording', 'Record outline', 'main', () => setSaved(null)),
-      button('record_dock', 'Record docking station'),
-      !remote && button('exit_recording_mode', 'Leave recording mode', undefined, () => {
-        startedAt.current = 0;
-        stop();
-      }),
+      hasAction(A('record_dock')) && stationButton(hasStation),
+      !drive.remote &&
+        button('exit_recording_mode', 'Leave recording mode', undefined, () => {
+          startedAt.current = 0;
+          drive.stop();
+        }),
     ];
   } else if (phase === 'recording') {
+    const then = tr(autoClose ? 'it closes by itself back at the start' : 'then stop back at the start');
+    say = (
+      <>
+        <b>{tr(hasOutline ? 'Closely around the obstacle' : 'Along the edge')}</b> · {then}
+      </>
+    );
     text = autoClose
       ? hasOutline
         ? tr('Drive around the obstacle, close to it all the way: the line is the middle of the mower. Back at the start, it closes by itself.')
@@ -420,6 +421,11 @@ export default function RecordPage() {
       button('finish_discard', 'Discard area', 'danger'),
     ];
   } else if (phase === 'outlined') {
+    say = (
+      <>
+        <b>{tr('Outline done')}</b> · {tr('obstacles inside it, or save the area')}
+      </>
+    );
     text = tr('Outline done. Record obstacles inside it (beds, trees, the pond), or save the area.');
     buttons = [
       button('finish_mowing_area', 'Save as mowing area', 'main', () => setSaved('Mowing area')),
@@ -428,24 +434,21 @@ export default function RecordPage() {
       button('finish_discard', 'Discard area', 'danger'),
     ];
   } else if (phase === 'dock') {
+    say = (
+      <>
+        <b>{tr('Straight into the docking station')}</b> · {tr('then save')}
+      </>
+    );
     text = tr('Now drive straight into the docking station until it sits on the contacts, then save. The way from the first point to here becomes the docking direction.');
     buttons = [button('record_dock', 'Save docking position', 'main', () => setSaved('Docking station'))];
   }
-
-  // the emergency stop is reset right here, recording goes on where it stopped
-  const reason = why ? emergencyText(why) : '';
-  const alarm = !!state?.emergency && (
-    <>
-      <strong>{reason ? tr('Emergency stop: {reason}', {reason}) : tr('Emergency stop')}</strong>
-      <span>
-        {notReset ? `${resetRefusedText(notReset)}. ${explain(notReset)}` : tr('Release the mower, then reset the emergency to drive again.')}
-      </span>
-      <button disabled={!live} onClick={reset}>
-        <WarningIcon size={18} />
-        {tr('Reset emergency')}
-      </button>
-    </>
-  );
+  // back at the start: closing by itself unless the user goes on
+  if (closing !== null)
+    say = (
+      <>
+        <b>{tr('Back at the start')}</b> · {tr('closing it in {n} s', {n: closing})}
+      </>
+    );
 
   // the green pill of the sideways layout: the step, while recording with the length of the line so far
   const lineLength = line.reduce((sum, p, i) => (i ? sum + Math.hypot(p.x - line[i - 1].x, p.y - line[i - 1].y) : 0), 0);
@@ -457,6 +460,23 @@ export default function RecordPage() {
         : phase === 'dock'
           ? tr('Docking station')
           : tr('Recording mode');
+  const blades = knowsAction(A('start_manual_mowing'));
+  const bladeWarn = tr(
+    'The blade is turning, also while the mower stands still. It goes off when you switch it off, leave this page or the app. If the connection drops or the page reloads or closes, it keeps turning: then press the stop button on the mower.',
+  );
+  // the station the guide saved, how far from the one before
+  const change = station?.before ? stationChange(station.before, station.station) : null;
+  const stationLine = station && (
+    <p className={styles.savedLine}>
+      <CheckIcon size={16} /> {tr('Docking station saved')}
+      {' · '}
+      {!change
+        ? tr('New in the map.')
+        : change.moved < 0.005 && change.turned < 0.5 * (Math.PI / 180)
+          ? tr('In the same place as before.')
+          : tr('{cm} cm and {deg}° from the one before.', {cm: fmt(change.moved * 100, 0), deg: fmt(change.turned * (180 / Math.PI), 1)})}
+    </p>
+  );
 
   return (
     <div className={styles.page}>
@@ -464,14 +484,16 @@ export default function RecordPage() {
         <TitleRow className={recordingMode ? styles.hideOnPhone : undefined}>
           <h1>
             <TitleMark />
-            {tr('Record')}
+            {tr(guiding ? 'Record docking station' : 'Record')}
           </h1>
         </TitleRow>
 
         {!state && <p className={styles.dim}>{connected ? tr('waiting for the mower…') : tr('connecting…')}</p>}
 
-        {state && phase === 'off' && (
+        {state && phase === 'off' && guide && <p className={styles.dim}>{tr('Starting recording mode…')}</p>}
+        {state && phase === 'off' && !guide && (
           <section className={styles.card}>
+            {stationLine}
             <p>
               {tr(
                 'Record a new area by driving the mower around it with the joystick on this page. Obstacles inside the area and the docking station can be recorded the same way. Afterwards you can fine tune everything in the',
@@ -489,22 +511,16 @@ export default function RecordPage() {
                 {tr('Recording mode is also for mowing by hand: switch the blade on and drive with the stick, without recording anything.')}
               </p>
             )}
-            <button
-              className={styles.primary}
-              disabled={!live || !hasAction(START)}
-              onClick={() => {
-                startedAt.current = Date.now();
-                mine.current = true;
-                setBounced(false);
-                setSaved(null);
-                setRefused(null);
-                publishAction(START);
-                setTimeout(() => void checkBounce().catch(() => {}), 4000);
-              }}
-            >
+            <button className={styles.primary} disabled={!live || !hasAction(START)} onClick={() => start(false)}>
               <RecordIcon size={18} />
               {tr('Start recording mode')}
             </button>
+            {!os && (
+              <button disabled={!live || !hasAction(START)} onClick={() => start(true)}>
+                <HomeIcon size={18} />
+                {tr(hasStation ? 'Record the docking station again' : 'Record docking station')}
+              </button>
+            )}
             {!hasAction(START) && <p className={styles.dim}>{tr('Only possible while the mower is idle.')}</p>}
             {/* out mowing: home first, then recording mode can start */}
             {!hasAction(START) && hasAction(ACTION.goHome) && (
@@ -524,202 +540,95 @@ export default function RecordPage() {
           </section>
         )}
 
-        {recordingMode && !remote && (
-          <div className={styles.layout}>
-            <section className={styles.map}>
-              {map && (
-                <MapView map={map} mower={position} emergency={!!state?.emergency} follow followSpanMeters={16} zoomable overlay={overlay} datum={datumFromParams(params)} />
-              )}
-              {/* on the map, so map, stick and buttons fit on one phone screen */}
-              <div className={styles.stick}>
-                {alarm ? (
-                  <div className={styles.alarm}>{alarm}</div>
-                ) : !live ? (
-                  <p className={styles.warn}>{tr('No connection to the mower, it stops by itself. Driving works again once the connection is back.')}</p>
-                ) : (
-                  <Joystick size={140} onMove={(x, y) => canDrive && onStick(x, y)} />
-                )}
-              </div>
-            </section>
+        {guiding && (
+          <StationGuide
+            drive={drive}
+            drift={driftLine}
+            remoteRef={remoteRef}
+            onStraight={setStraight}
+            onSaved={setStation}
+            onExit={() => {
+              setGuide(false);
+              exitMode();
+            }}
+            onClose={() => setGuide(false)}
+          />
+        )}
 
-            <section className={styles.card}>
-              <p className={gpsQ === 'fix' ? styles.dim : styles.warn}>
-                {gpsQ === 'fix' ? gpsText : `${gpsText}. ${tr('Without an RTK fix the edge ends up off.')}`}
-              </p>
-              {refused && <p className={styles.warn}>{refusalText(refused)}</p>}
-              <p>{text}</p>
-              {closing !== null && (
-                <div className={styles.closing}>
+        {recordingMode && !guiding && (
+          <DriveView
+            drive={drive}
+            say={say}
+            missed={driftLine}
+            ok={closing !== null}
+            status={status}
+            live={phase === 'recording'}
+            span={SPAN}
+            overlay={overlay}
+            gpsHint={tr('Without an RTK fix the edge ends up off.')}
+            line={phase === 'recording' && <span>{tr('Recording · {m} m', {m: fmt(lineLength, 1)})}</span>}
+            note={
+              closing !== null ? (
+                <>
                   <span>{tr('Back at the start, closing it in {n} s.', {n: closing})}</span>
-                  <button
-                    onClick={() => {
-                      setClosing(null);
-                      setHeld(true);
-                    }}
-                  >
-                    {tr('Keep recording')}
-                  </button>
-                </div>
-              )}
-              <div className={styles.buttons}>{buttons}</div>
-              {knowsAction(A('start_manual_mowing')) && (
-                <div className={styles.buttons}>
+                  <button onClick={keepRecording}>{tr('Keep recording')}</button>
+                </>
+              ) : undefined
+            }
+            warn={refused && refusalText(refused)}
+            close={{label: tr('End recording mode'), onClick: endRecording}}
+            remoteRef={remoteRef}
+            bottom={
+              <>
+                {bladeOn && <p className={ds.remoteBlade}>{bladeWarn}</p>}
+                <div className={ds.remoteButtons}>
+                  {buttons}
                   {button('start_manual_mowing', 'Blade on')}
                   {button('stop_manual_mowing', 'Blade off', 'danger')}
                 </div>
-              )}
-              {bladeOn && (
-                <p className={styles.warn}>
-                  {tr(
-                    'The blade is turning, also while the mower stands still. It goes off when you switch it off, leave this page or the app. If the connection drops or the page reloads or closes, it keeps turning: then press the stop button on the mower.',
-                  )}
-                </p>
-              )}
-              <label className={styles.check}>
-                <input
-                  type="checkbox"
-                  checked={autoClose}
-                  onChange={(e) => {
-                    setAutoClose(e.target.checked);
-                    try {
-                      localStorage.setItem(AUTO_CLOSE_KEY, e.target.checked ? '1' : '0');
-                    } catch {}
-                  }}
-                />
-                {tr('Close by itself once back at the start')}
-              </label>
-              <div className={styles.speeds}>
-                <span className={styles.dim}>{tr('Speed m/s')}</span>
-                {SPEEDS.map((v, i) => (
-                  <button
-                    key={v}
-                    className={i === speed ? styles.on : undefined}
-                    onClick={() => {
-                      setSpeed(i);
-                      speedRef.current = v;
-                    }}
-                  >
-                    {fmt(v, 2)}
-                  </button>
-                ))}
-              </div>
-              <div className={styles.phoneOnly}>
-                <button onClick={() => turnSideways(true)}>
-                  <RotateIcon size={18} />
-                  {tr('Sideways')}
-                </button>
-                <p className={styles.dim}>{tr('Two pads like a remote control car. Turning the phone switches by itself.')}</p>
-              </div>
-            </section>
-          </div>
-        )}
-      </main>
-
-      {remote && (
-        <div ref={remoteRef} className={[styles.remote, turned ? styles.turned : ''].join(' ')} data-no-swipe>
-          <div className={styles.remoteMap}>
-            {map && (
-              <MapView
-                map={map}
-                mower={position}
-                emergency={!!state?.emergency}
-                follow
-                followSpanMeters={SPANS[span]}
-                overlay={overlay}
-                datum={datumFromParams(params)}
-                bare
-              />
-            )}
-          </div>
-
-          <div className={styles.topBar}>
-            <span className={[styles.status, phase === 'recording' ? styles.live : ''].join(' ')}>
-              <i />
-              {status}
-            </span>
-            {gpsQ !== 'fix' && <span className={styles.gpsWarn}>{gpsText}</span>}
-            <span className={styles.grow} />
-            <div className={styles.chips}>
-              <button aria-label={tr('Zoom out')} disabled={span === SPANS.length - 1} onClick={() => setSpan(span + 1)}>
-                −
-              </button>
-              <button aria-label={tr('Zoom in')} disabled={span === 0} onClick={() => setSpan(span - 1)}>
-                +
-              </button>
-            </div>
-            <div className={styles.chips} title={tr('Speed m/s')}>
-              <SpeedIcon size={16} />
-              {SPEEDS.map((v, i) => (
-                <button
-                  key={v}
-                  className={i === speed ? styles.on : undefined}
-                  onClick={() => {
-                    setSpeed(i);
-                    speedRef.current = v;
-                  }}
-                >
-                  {fmt(v, 2)}
-                </button>
-              ))}
-            </div>
-            {turned && (
-              <button className={styles.square} aria-label={tr('Upright')} title={tr('Upright')} onClick={() => turnSideways(false)}>
-                <RotateIcon size={20} />
-              </button>
-            )}
-            <button className={styles.square} aria-label={tr('End recording mode')} title={tr('End recording mode')} onClick={endRecording}>
-              <CloseIcon size={20} />
-            </button>
-          </div>
-
-          {closing !== null ? (
-            <div className={styles.remoteNote}>
-              <span>{tr('Back at the start, closing it in {n} s.', {n: closing})}</span>
-              <button
-                onClick={() => {
-                  setClosing(null);
-                  setHeld(true);
-                }}
-              >
-                {tr('Keep recording')}
-              </button>
-            </div>
-          ) : (
-            text && <p className={styles.remoteNote}>{text}</p>
-          )}
-          {alarm ? (
-            <div className={styles.remoteWarn}>{alarm}</div>
-          ) : (
-            (!live || refused) && (
-              <p className={styles.remoteWarn}>
-                {!live ? tr('No connection to the mower, it stops by itself. Driving works again once the connection is back.') : refusalText(refused!)}
-              </p>
-            )
-          )}
-
-          <div className={[styles.pad, styles.padLeft].join(' ')}>
-            <DrivePad axis="y" turned={turned} disabled={!canDrive} onMove={(v) => canDrive && onStick(stick.current.x, v)} />
-          </div>
-          <div className={[styles.pad, styles.padRight].join(' ')}>
-            <DrivePad axis="x" turned={turned} disabled={!canDrive} onMove={(v) => canDrive && onStick(v, stick.current.y)} />
-          </div>
-
-          <div className={styles.bottomBar}>
-            {bladeOn && (
-              <p className={styles.remoteBlade}>
+              </>
+            }
+          >
+            {phase === 'empty' && stationLine}
+            {refused && <p className={ds.warn}>{refusalText(refused)}</p>}
+            {drift !== null && (
+              <p className={ds.warn}>
                 {tr(
-                  'The blade is turning, also while the mower stands still. It goes off when you switch it off, leave this page or the app. If the connection drops or the page reloads or closes, it keeps turning: then press the stop button on the mower.',
+                  'OpenMower measures the gyro while it starts, the mower moved then: its heading turns by itself now and it would mow askew. Restart OpenMower (openmower restart) while the mower stands still.',
                 )}
               </p>
             )}
-            <div className={styles.remoteButtons}>
-              {buttons}
-              {button('start_manual_mowing', 'Blade on')}
-              {button('stop_manual_mowing', 'Blade off', 'danger')}
-            </div>
-          </div>
-        </div>
-      )}
+            <p className={ds.dim}>{text}</p>
+            {closing !== null && (
+              <div className={styles.closing}>
+                <span>{tr('Back at the start, closing it in {n} s.', {n: closing})}</span>
+                <button onClick={keepRecording}>{tr('Keep recording')}</button>
+              </div>
+            )}
+            <div className={styles.buttons}>{buttons}</div>
+            {blades && (
+              <div className={styles.buttons}>
+                {button('start_manual_mowing', 'Blade on')}
+                {button('stop_manual_mowing', 'Blade off', 'danger')}
+              </div>
+            )}
+            {bladeOn && <p className={ds.warn}>{bladeWarn}</p>}
+            <label className={styles.check}>
+              <input
+                type="checkbox"
+                checked={autoClose}
+                onChange={(e) => {
+                  setAutoClose(e.target.checked);
+                  try {
+                    localStorage.setItem(AUTO_CLOSE_KEY, e.target.checked ? '1' : '0');
+                  } catch {}
+                }}
+              />
+              {tr('Close by itself once back at the start')}
+            </label>
+          </DriveView>
+        )}
+      </main>
 
       {leaving !== null &&
         createPortal(
@@ -754,9 +663,9 @@ export default function RecordPage() {
               </div>
             </section>
           </div>,
-        // over the sideways layout, turned with it
-        remoteRef.current ?? document.body,
-      )}
+          // over the sideways layout, turned with it
+          remoteRef.current ?? document.body,
+        )}
 
       {early &&
         createPortal(

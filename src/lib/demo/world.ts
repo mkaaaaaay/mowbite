@@ -399,11 +399,10 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
   let calibSaid: string | null = null;
 
   const dock = () => dockOf(map);
-  // on the station's contacts: parked there, or recording before it has driven off
-  const onContacts = () => {
-    const d = dock();
-    return parked || (!!rec && !!d && Math.hypot(pose.x - d.at.x, pose.y - d.at.y) < 0.05);
-  };
+  // where the station really stands: in recording mode it charges there, also once the map's station is moved or gone
+  const seat = dockOf(demoMap())!.at;
+  // on the station's contacts: parked there, or recording on it
+  const onContacts = () => parked || (!!rec && Math.hypot(pose.x - seat.x, pose.y - seat.y) < 0.05);
   const mowAreas = () => map.areas.filter((a) => a.properties.type === 'mow');
   const pathsOf = (area: MapArea) => {
     let p = plans.get(area.id);
@@ -835,9 +834,9 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
       const m = next as MowerMap;
       map = openRings({...m, docking_stations: m.docking_stations ?? []});
       plans.clear();
-      // the plan it was driving is of the old map: home, and the job is gone
+      // the plan it was driving is of the old map: home, and the job is gone (recording, the stick drives it)
       if (job) {
-        sendHome(undefined, true);
+        if (!rec) sendHome(undefined, true);
         note(last / 1000, pose, {type: 'JOB_RESET'});
         job = null;
       }
