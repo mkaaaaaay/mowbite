@@ -338,8 +338,11 @@ export interface World {
   tick(now?: number): void;
   // seconds driven at once, as if they had passed already (for the click tests, e2e/)
   ahead(seconds: number): void;
-  // the emergency stop latched like a bumper or the lift does it, until it's reset (for the click tests)
-  emergency(): void;
+  // the emergency stop latched like a bumper or the lift does it, until it's reset (for the click tests). reasons: the
+  // names its line in the ros log gives, besides LATCH
+  emergency(reasons?: string[]): void;
+  // a reset turned down the way MowBite OS does it, EMERGENCY_RESET_REFUSED with these fields, until it's null again
+  refuseReset(why: Record<string, unknown> | null): void;
   stop(): void;
 }
 
@@ -370,8 +373,11 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
   let paused = false;
   // a skip asked for while paused, done once it goes on: true the whole area, false the path
   let skipLater: boolean | null = null;
-  // the emergency stop: the wheels and the blade stand until it's reset
+  // the emergency stop: the wheels and the blade stand until it's reset, unless that's turned down
   let latched = false;
+  let refusal: Record<string, unknown> | null = null;
+  // the ros warnings logs.recent hands out: why the emergency stop came
+  const rosLog: {t: number; level: string; node: string; msg: string}[] = [];
   let battery = 1;
   let pose = {x: 0, y: 0, heading: 0};
   const temps = {esc: 30, motor: 24};
@@ -725,8 +731,12 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     else if (id === ACTION.resetJob && s === 'IDLE' && job) {
       note(t, pose, {type: 'JOB_RESET'});
       job = null;
-    } else if (id === ACTION.resetEmergency) latched = false;
-    else if (id === ACTION.startRecording && s === 'IDLE') {
+    } else if (id === ACTION.resetEmergency) {
+      if (latched && refusal) {
+        note(t, pose, {type: 'EMERGENCY_RESET_REFUSED', ...refusal});
+        deliver(TOPIC.events, JSON.stringify(log[log.length - 1]));
+      } else latched = false;
+    } else if (id === ACTION.startRecording && s === 'IDLE') {
       rec = {outline: null, obstacles: [], line: null, dockFrom: null, auto: true, blade: false};
       parked = false;
       paused = false;
@@ -856,7 +866,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
       const {outline, obstacles, ...properties} = req;
       return answer(areaPaths({outline: openRing(outline), properties}, (obstacles ?? []).map(openRing), ros), plannedAngle(properties.angle, ros));
     },
-    [RPC.logs]: () => [],
+    [RPC.logs]: () => rosLog,
     [RPC.plannerCalibCheck]: () => {
       const busy = calib?.phase === 'recording' ? 'a calibration is recorded already' : calib?.phase === 'evaluating' ? 'the last calibration is being evaluated' : null;
       return {ok: !busy, problems: busy ? [{reason: 'BUSY', message: busy}] : [], rtk: {fixed: true, accuracy: 0.021}};
@@ -1006,10 +1016,15 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
         tick(last + dt * 1000);
       }
     },
-    emergency() {
+    emergency(reasons) {
       latched = true;
       stick = {vx: 0, vz: 0, at: -Infinity};
+      if (reasons?.length)
+        rosLog.push({t: last / 1000, level: 'WARN', node: '/mower_comms_v2', msg: `Emergency reason changed from: '' to: '${['LATCH', ...reasons].join(', ')}'`});
       changed();
+    },
+    refuseReset(why) {
+      refusal = why;
     },
     stop() {
       if (timer) clearInterval(timer);

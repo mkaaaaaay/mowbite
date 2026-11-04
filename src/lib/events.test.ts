@@ -13,6 +13,7 @@ import {
   rawLine,
   reasonText,
   refusalReason,
+  resetRefusedText,
   type MowerEvent,
 } from './events';
 
@@ -247,9 +248,116 @@ describe('emergency stop reasons', () => {
     expect(describeEvent(ev(1, 'EMERGENCY', {emergency: true, reason: '1024'})).text).toBe("Emergency stop: mow motor didn't reach its speed");
     expect(describeEvent(ev(1, 'EMERGENCY', {emergency: true, reason: '128'})).text).toBe('Emergency stop: stopped by OpenMower');
     expect(describeEvent(ev(1, 'EMERGENCY', {emergency: true, reason: '0'})).text).toBe('Emergency stop');
-    expect(describeEvent(ev(1, 'EMERGENCY', {emergency: true, reason: '65536'})).text).toBe('Emergency stop (code 65536)');
+    // only what holds it, no reason of its own
+    expect(describeEvent(ev(1, 'EMERGENCY', {emergency: true, reason: '1'})).text).toBe('Emergency stop (code 1)');
     expect(explain(ev(1, 'EMERGENCY', {emergency: true, reason: '1024'}))).toContain('mower_spinup_timeout');
     expect(explain(ev(1, 'EMERGENCY', {emergency: true, reason: '128'}))).toContain('ROS log');
+    expect(explain(ev(1, 'EMERGENCY', {emergency: true, reason: '33'}))).toBe('Stop button, lift, tilt or a bumper. It has to be released and reset before it drives again.');
+  });
+
+  it("reads MowBite OS's own bits, all 32 of them, one without a name as BIT_<n>", () => {
+    // as the YardForce's driver latches a wheel turning against the command
+    expect(emergencyFlags(262145)).toEqual(['LATCH', 'WHEEL_RUNAWAY']);
+    expect(emergencyFlags(2 ** 13 + 2 ** 14 + 2 ** 16 + 2 ** 17 + 2 ** 19 + 2 ** 20)).toEqual([
+      'TILT',
+      'FENCE',
+      'IMU_TIMEOUT',
+      'MOWER_NOT_STOPPED',
+      'FOREIGN_HOST',
+      'DRIVER_STALL',
+    ]);
+    // 15 STUCK no node sets yet
+    expect(emergencyFlags(2 ** 15 + 1)).toEqual(['LATCH', 'BIT_15']);
+    expect(emergencyFlags(2 ** 31 + 32)).toEqual(['COLLISION', 'BIT_31']);
+    expect(emergencyFlags(String(2 ** 32 - 1))).toHaveLength(32);
+  });
+
+  it('says a bit without a name next to the others, it never drops out', () => {
+    expect(emergencyText(['LATCH', 'COLLISION', 'BIT_21'])).toBe('bumper, bit 21');
+    expect(emergencyText(['LATCH', 'BIT_15'])).toBe('bit 15');
+    expect(emergencyText(['LATCH', 'WHEEL_RUNAWAY'])).toBe('wheel turning against the command');
+    // what MowBite OS's log line says for a bit it has no name for
+    expect(emergencyText(['UNKNOWN'])).toBe('unknown reason');
+    expect(describeEvent(ev(1, 'EMERGENCY', {emergency: true, reason: String(2 ** 21 + 32 + 1)})).text).toBe('Emergency stop: bumper, bit 21');
+    expect(describeEvent(ev(1, 'EMERGENCY', {emergency: true, reason: '65536'})).text).toBe('Emergency stop: no data from the IMU');
+  });
+
+  it("helps with MowBite OS's own reasons, not with the stop button's words", () => {
+    const stop = (reason: number, os = true) => explain(ev(1, 'EMERGENCY', {emergency: true, reason: String(reason)}), undefined, undefined, os);
+    expect(stop(2 ** 18 + 1)).toMatch(/^A wheel turned against the drive command/);
+    expect(stop(2 ** 16)).toMatch(/^The IMU's data stopped coming/);
+    expect(stop(2 ** 13 + 1)).toMatch(/below its release angle\.$/);
+    expect(stop(2 ** 19 + 1)).toMatch(/OpenMower still running next to MowBite OS/);
+    // a sentence or two each, the bits that came together
+    expect(stop(2 ** 20 + 2 ** 17 + 1)).toBe(
+      'The blade was switched off but kept turning faster than allowed. Let it run down, then check that the mow motor stops when told to. ' +
+        'The hardware driver hung for too long, so it stopped to be safe. Once can be a load peak, if it happens again the log from that moment says more.',
+    );
+    // set from above on MowBite OS, the driver's own reasons have bits of their own there
+    expect(stop(129)).toMatch(/^Something above the board latched it/);
+    expect(stop(129, false)).toMatch(/^OpenMower stopped the mower itself/);
+    expect(stop(2 ** 15 + 1)).toMatch(/^A reason MowBite doesn't know yet/);
+  });
+
+  it('in german', () => {
+    vi.stubGlobal('document', {documentElement: {lang: 'en'}});
+    setLangChoice('de');
+    try {
+      expect(describeEvent(ev(1, 'EMERGENCY', {emergency: true, reason: String(2 ** 18 + 2 ** 15 + 1)})).text).toBe('Notaus: Bit 15, Rad dreht gegen den Befehl');
+      expect(emergencyText(['LATCH', 'TILT', 'LIFT'])).toBe('zu stark geneigt, angehoben');
+    } finally {
+      setLangChoice('en');
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
+describe('a reset of the emergency stop MowBite OS turned down', () => {
+  const refused = (extra: Partial<MowerEvent>) => ev(1, 'EMERGENCY_RESET_REFUSED', {resume: 'user', message: 'english text', ...extra});
+
+  it('says why with its numbers, still tilted only a warning', () => {
+    expect(describeEvent(refused({reason: 'STILL_TILTED', angle: 34.4, limit: 26, severity: 'warning'}), undefined, true)).toEqual({
+      text: 'Emergency stop not reset: still tilted (34°, less than 26° needed)',
+      severity: 'warning',
+    });
+    expect(describeEvent(refused({reason: 'STILL_TILTED'})).severity).toBe('warning');
+    expect(describeEvent(refused({reason: 'TILT_UNKNOWN', seconds: 2.04, severity: 'error'}), undefined, true)).toEqual({
+      text: 'Emergency stop not reset: tilt unknown, no data from the IMU for 2.0 s',
+      severity: 'error',
+    });
+    expect(describeEvent(refused({reason: 'TILT_UNKNOWN'})).text).toBe('Emergency stop not reset: tilt unknown, no data from the IMU');
+    expect(describeEvent(refused({reason: 'FOREIGN_HOST'})).text).toBe('Emergency stop not reset: another computer is talking to the board');
+    expect(describeEvent(refused({reason: 'DRIVER_MISSING'})).text).toBe('Emergency stop not reset: the hardware driver is not running');
+    expect(describeEvent(refused({reason: 'SAFETY_MISSING'})).text).toBe('Emergency stop not reset: the safety filter is not running');
+    expect(describeEvent(refused({reason: 'NO_ANSWER'}))).toEqual({text: 'Emergency stop not reset: no answer in time', severity: 'error'});
+    // one it doesn't know yet by the mower's words
+    expect(describeEvent(refused({reason: 'SOMETHING_NEW'})).text).toBe('Emergency stop not reset: english text');
+    expect(noteworthy(refused({reason: 'STILL_TILTED', severity: 'warning'}), undefined, true)).toBe(true);
+  });
+
+  it('says what to do and, where it is reset, in a few words', () => {
+    expect(explain(refused({reason: 'STILL_TILTED', angle: 34, limit: 26}))).toBe('Stand it level, then reset it again.');
+    expect(explain(refused({reason: 'TILT_UNKNOWN'}))).toMatch(/check the IMU/);
+    expect(explain(refused({reason: 'FOREIGN_HOST'}))).toMatch(/^Stop the other computer or program first/);
+    expect(explain(refused({reason: 'NO_ANSWER'}))).toMatch(/^A part of MowBite OS didn't answer/);
+    expect(resetRefusedText(refused({reason: 'STILL_TILTED', angle: 34, limit: 26}))).toBe('Not reset: still tilted (34°, less than 26° needed)');
+    expect(resetRefusedText(refused({reason: ''}))).toBe('Not reset');
+  });
+
+  it('in german', () => {
+    vi.stubGlobal('document', {documentElement: {lang: 'en'}});
+    setLangChoice('de');
+    try {
+      expect(describeEvent(refused({reason: 'STILL_TILTED', angle: 34.4, limit: 26})).text).toBe('Notaus nicht zurückgesetzt: noch geneigt (34°, weniger als 26° nötig)');
+      expect(describeEvent(refused({reason: 'TILT_UNKNOWN', seconds: 2.04})).text).toBe(
+        'Notaus nicht zurückgesetzt: Neigung unbekannt, seit 2,0 s keine Daten von der IMU',
+      );
+      expect(resetRefusedText(refused({reason: 'FOREIGN_HOST'}))).toBe('Nicht zurückgesetzt: ein anderer Rechner spricht mit der Platine');
+      expect(explain(refused({reason: 'STILL_TILTED'}))).toBe('Gerade hinstellen, dann noch einmal zurücksetzen.');
+    } finally {
+      setLangChoice('en');
+      vi.unstubAllGlobals();
+    }
   });
 });
 

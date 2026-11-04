@@ -269,10 +269,14 @@ describe('what the container sends', {timeout: 30_000}, () => {
         event(130, '{"type":"MOWING_REFUSED","reason":"No position from the localization"}') +
         event(140, '{"type":"STATE","state":"PAUSED"}') +
         event(150, '{"type":"DRIVE","phase":"end","arrived":false,"reason":"TRANSIT_FAILED"}') +
-        event(160, '{"type":"RECORDING_REFUSED","action":"point","reason":"POSITION_ACCURACY"}'),
+        event(160, '{"type":"RECORDING_REFUSED","action":"point","reason":"POSITION_ACCURACY"}') +
+        event(170, '{"type":"EMERGENCY_RESET_REFUSED","reason":"STILL_TILTED","angle":34.4,"limit":26,"severity":"warning","resume":"user"}'),
       os,
     );
     expect(out).toEqual([]);
+    // a reset turned down: whoever reset it sees why in the app, the emergency stop's own message goes on
+    const stays = state(100, 1) + state(111, 1) + event(120, '{"type":"EMERGENCY_RESET_REFUSED","reason":"FOREIGN_HOST","severity":"error"}') + state(175, 1);
+    expect(run(stays, conf).map((m) => m.title)).toEqual(['Emergency stop', 'Emergency stop']);
     // not picked
     expect(run(event(100, '{"type":"MOWING_REFUSED","reason":"RAIN"}'), conf)).toEqual([]);
   });

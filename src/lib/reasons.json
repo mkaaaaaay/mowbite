@@ -349,6 +349,23 @@
     }
    ]
   },
+  "EMERGENCY_RESET_REFUSED": {
+   "severity": "error",
+   "variants": [
+    {
+     "when": {
+      "reason": "STILL_TILTED"
+     },
+     "en": "Emergency stop not reset",
+     "severity": "warning",
+     "de": "Notaus nicht zurückgesetzt"
+    },
+    {
+     "en": "Emergency stop not reset",
+     "de": "Notaus nicht zurückgesetzt"
+    }
+   ]
+  },
   "DRIVE": {
    "severity": "warning",
    "variants": [
@@ -1049,6 +1066,63 @@
     "en": "back on GPS after a gap",
     "de": "wieder auf GPS nach einer Lücke"
    }
+  ],
+  "STILL_TILTED": [
+   {
+    "en": "still tilted ({angle:0}°, less than {limit:0}° needed)",
+    "when": {
+     "angle": {
+      "present": true
+     },
+     "limit": {
+      "present": true
+     }
+    },
+    "de": "noch geneigt ({angle:0}°, weniger als {limit:0}° nötig)"
+   },
+   {
+    "en": "still tilted",
+    "de": "noch geneigt"
+   }
+  ],
+  "TILT_UNKNOWN": [
+   {
+    "en": "tilt unknown, no data from the IMU for {seconds:1} s",
+    "when": {
+     "seconds": {
+      "present": true
+     }
+    },
+    "de": "Neigung unbekannt, seit {seconds:1} s keine Daten von der IMU"
+   },
+   {
+    "en": "tilt unknown, no data from the IMU",
+    "de": "Neigung unbekannt, keine Daten von der IMU"
+   }
+  ],
+  "FOREIGN_HOST": [
+   {
+    "en": "another computer is talking to the board",
+    "de": "ein anderer Rechner spricht mit der Platine"
+   }
+  ],
+  "DRIVER_MISSING": [
+   {
+    "en": "the hardware driver is not running",
+    "de": "der Hardware-Treiber läuft nicht"
+   }
+  ],
+  "SAFETY_MISSING": [
+   {
+    "en": "the safety filter is not running",
+    "de": "der Sicherheitsfilter läuft nicht"
+   }
+  ],
+  "NO_ANSWER": [
+   {
+    "en": "no answer in time",
+    "de": "keine rechtzeitige Antwort"
+   }
   ]
  },
  "wrappers": {},
@@ -1065,7 +1139,14 @@
   "9": "COLLISION_MULTIPLE",
   "10": "MOWER_RPM_TIMEOUT",
   "11": "MOWER_RPM_LIMIT",
-  "12": "FIRMWARE_INCOMPATIBLE"
+  "12": "FIRMWARE_INCOMPATIBLE",
+  "13": "TILT",
+  "14": "FENCE",
+  "16": "IMU_TIMEOUT",
+  "17": "MOWER_NOT_STOPPED",
+  "18": "WHEEL_RUNAWAY",
+  "19": "FOREIGN_HOST",
+  "20": "DRIVER_STALL"
  },
  "emergency_text": {
   "STOP": {
@@ -1115,6 +1196,38 @@
   "FIRMWARE_INCOMPATIBLE": {
    "en": "firmware doesn't fit OpenMower",
    "de": "Firmware passt nicht zu OpenMower"
+  },
+  "TILT": {
+   "en": "tilted too far",
+   "de": "zu stark geneigt"
+  },
+  "FENCE": {
+   "en": "outside the area it may drive in",
+   "de": "außerhalb des befahrbaren Bereichs"
+  },
+  "IMU_TIMEOUT": {
+   "en": "no data from the IMU",
+   "de": "keine Daten von der IMU"
+  },
+  "MOWER_NOT_STOPPED": {
+   "en": "blade didn't stop",
+   "de": "Messer hielt nicht an"
+  },
+  "WHEEL_RUNAWAY": {
+   "en": "wheel turning against the command",
+   "de": "Rad dreht gegen den Befehl"
+  },
+  "FOREIGN_HOST": {
+   "en": "another computer is talking to the board",
+   "de": "ein anderer Rechner spricht mit der Platine"
+  },
+  "DRIVER_STALL": {
+   "en": "hardware driver hung",
+   "de": "Hardware-Treiber hing"
+  },
+  "UNKNOWN": {
+   "en": "unknown reason",
+   "de": "unbekannter Grund"
   }
  },
  "emergency_hide": [
@@ -1134,6 +1247,10 @@
   "emergency_code": {
    "en": "Emergency stop (code {n})",
    "de": "Notaus (Code {n})"
+  },
+  "emergency_bit": {
+   "en": "bit {n}",
+   "de": "Bit {n}"
   }
  }
 }

@@ -19,7 +19,8 @@
 # left waiting on the lawn, or in a dock without power. told once, a dock without power stays so all night
 # MowBite OS says why with a fixed name (masterplan 3.1a): a start it turns down or the map not fitting (refused), a
 # pause that waits for someone (nav_error, a blade that didn't switch on: spinup), the battery low. a name not known
-# here goes by the english text it comes with
+# here goes by the english text it comes with. a reset of the emergency stop it turns down isn't told, whoever reset it
+# sees why in the app
 
 function field(s, k,   v) {
   if (!match(s, "\"" k "\" *: *(\"[^\"]*\"|[^,}]*)")) return ""

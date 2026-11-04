@@ -5,6 +5,7 @@ import DrivePad from '@/components/DrivePad';
 import Joystick from '@/components/Joystick';
 import MapView from '@/components/MapView';
 import {useEmergencyReasons} from '@/hooks/useEmergencyReasons';
+import {useEmergencyReset} from '@/hooks/useEmergencyReset';
 import {useMedia} from '@/hooks/useMedia';
 import {useMowerMap} from '@/hooks/useMowerMap';
 import {datumFromParams, numParam, useMowerParams} from '@/hooks/useMowerParams';
@@ -14,7 +15,7 @@ import {isLive, useMowerState} from '@/hooks/useMowerState';
 import {useMowerActions} from '@/hooks/useMowerActions';
 import {lackDone, lacks, type CalibProgress, type Lack} from '@/lib/calibration';
 import {missWatch, motionTracker, NO_MOTION, type Missed, type Motion} from '@/lib/calibMotion';
-import {emergencyText} from '@/lib/events';
+import {emergencyText, explain, resetRefusedText} from '@/lib/events';
 import {fmt, tr} from '@/lib/i18n';
 import {onTopic} from '@/lib/mqttClient';
 import {ACTION, PARAM, TOPIC} from '@/lib/openmower';
@@ -153,6 +154,7 @@ export default function Drive({
   const position = useMowerPosition() ?? state?.pose;
   const {motion, missed} = useMotion(home || placing ? null : progress);
   const why = useEmergencyReasons(!!state?.emergency);
+  const {refused, reset} = useEmergencyReset(!!state?.emergency, publishAction);
   const canDrive = state?.current_state === 'AREA_RECORDING' && live && !state?.emergency;
 
   // held sideways on a phone: the recorder's remote control over the whole screen, a pad for forward and back on the
@@ -482,8 +484,10 @@ export default function Drive({
   const alarm = (
     <>
       <strong>{reason ? tr('Emergency stop: {reason}', {reason}) : tr('Emergency stop')}</strong>
-      <span>{tr('Release the mower, then reset the emergency to drive again.')}</span>
-      <button disabled={!live} onClick={() => publishAction(ACTION.resetEmergency)}>
+      <span>
+        {refused ? `${resetRefusedText(refused)}. ${explain(refused)}` : tr('Release the mower, then reset the emergency to drive again.')}
+      </span>
+      <button disabled={!live} onClick={reset}>
         <WarningIcon size={18} />
         {tr('Reset emergency')}
       </button>

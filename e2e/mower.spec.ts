@@ -1,4 +1,4 @@
-import {demoAction, demoDocked, demoEmergency, demoHas, expect, test} from './app';
+import {demoAction, demoDocked, demoEmergency, demoHas, demoRefuseReset, expect, test} from './app';
 import type {Page} from '@playwright/test';
 
 const state = async (page: Page) => (await demoHas<{current_state: string}>(page, 'robot_state/json')).current_state;
@@ -90,6 +90,24 @@ test('an emergency stop while recording is reset on the record page', async ({pa
   await expect(reset).toBeHidden();
   await expect(stick(page)).toBeVisible();
   expect(await state(page)).toBe('AREA_RECORDING');
+});
+
+// the overview says why the emergency stop came (the ros log), and why MowBite OS didn't let go of it when it was reset:
+// still tilted, until it stands level and the next reset goes through
+test('an emergency stop says why, a reset turned down says why not', async ({page}) => {
+  await page.goto('/');
+  await demoDocked(page);
+  await demoRefuseReset(page, {reason: 'STILL_TILTED', angle: 34.4, limit: 26, severity: 'warning', resume: 'user', message: 'still tilted by 34 deg'});
+  await demoEmergency(page, ['TILT']);
+  await expect(page.getByText('Tilted too far', {exact: true})).toBeVisible();
+  const reset = page.getByRole('button', {name: 'Reset emergency'});
+  await reset.click();
+  await expect(page.getByText('Not reset: still tilted (34°, less than 26° needed)')).toBeVisible();
+  await expect(page.getByText('Stand it level, then reset it again.')).toBeVisible();
+  await demoRefuseReset(page, null);
+  await reset.click();
+  await expect(reset).toBeHidden();
+  await expect(page.getByText(/^Not reset/)).toBeHidden();
 });
 
 // a line without its second point drops the whole area on OpenMower: stop right after Record obstacle asks first

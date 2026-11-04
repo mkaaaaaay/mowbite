@@ -148,6 +148,12 @@
   color: var(--tone);
 }
 
+/* a reset MowBite OS didn't let go for */
+.refused {
+  font-size: 14px;
+  color: var(--warning);
+}
+
 .ring {
   position: relative;
   flex: none;

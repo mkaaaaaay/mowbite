@@ -31,7 +31,8 @@ type DemoMower = {
   retained(topic: string): [string, string][];
   published(topic: string, message: string): void;
   ahead(seconds: number): void;
-  emergency(): void;
+  emergency(reasons?: string[]): void;
+  refuseReset(why: Record<string, unknown> | null): void;
 };
 export const demoHas = async <T>(page: Page, topic: string): Promise<T> => {
   await page.waitForFunction(() => 'mowbiteDemo' in window);
@@ -50,8 +51,12 @@ export async function demoDocked(page: Page) {
 // an action as another phone would send it
 export const demoAction = (page: Page, action: string) =>
   page.evaluate((a) => (window as unknown as {mowbiteDemo: DemoMower}).mowbiteDemo.published('action', a), action);
-// the emergency stop as a bumper or the lift sets it
-export const demoEmergency = (page: Page) => page.evaluate(() => (window as unknown as {mowbiteDemo: DemoMower}).mowbiteDemo.emergency());
+// the emergency stop as a bumper or the lift sets it, with the reasons its line in the ros log gives
+export const demoEmergency = (page: Page, reasons?: string[]) =>
+  page.evaluate((r) => (window as unknown as {mowbiteDemo: DemoMower}).mowbiteDemo.emergency(r), reasons);
+// a reset turned down the way MowBite OS does it (EMERGENCY_RESET_REFUSED with these fields), null lets it go again
+export const demoRefuseReset = (page: Page, why: Record<string, unknown> | null) =>
+  page.evaluate((w) => (window as unknown as {mowbiteDemo: DemoMower}).mowbiteDemo.refuseReset(w), why);
 export const demoCall = (page: Page, method: string, params: unknown) =>
   page.evaluate(
     ([method, params]) =>

@@ -10,6 +10,7 @@ import {useMapAhead} from '@/components/useMapAhead';
 import {ChevronIcon, CloseIcon, HomeIcon, PauseIcon, PlayIcon, RecordIcon, SkipIcon, WarningIcon} from '@/components/icons';
 import {useComputedSpeed} from '@/hooks/useComputedSpeed';
 import {useEmergencyReasons} from '@/hooks/useEmergencyReasons';
+import {useEmergencyReset} from '@/hooks/useEmergencyReset';
 import {useLeftoversBefore} from '@/hooks/useLeftoversBefore';
 import {useMowerActions} from '@/hooks/useMowerActions';
 import {useMowerMap} from '@/hooks/useMowerMap';
@@ -27,7 +28,7 @@ import {useRecentRuns} from '@/hooks/useRecentRuns';
 import TopWeather from '@/components/TopWeather';
 import {clock, dayKey, dayLabel, duration} from '@/lib/dates';
 import {fileDay} from '@/lib/history';
-import {describe, emergencyText, groupRuns, noteworthy, OUTCOMES, type MowerEvent, type Run} from '@/lib/events';
+import {describe, emergencyText, explain, groupRuns, noteworthy, OUTCOMES, resetRefusedText, type MowerEvent, type Run} from '@/lib/events';
 import {useMowbiteOs} from '@/lib/mowerOs';
 import {settingsStore} from '@/lib/settings';
 import {PARTS, useDueParts} from '@/lib/stats';
@@ -58,7 +59,6 @@ import {ACTION, PARAM} from '@/lib/openmower';
 // paused counts too, the mower is standing somewhere on the lawn then. recording drives with gps as well
 const DRIVING = new Set(['MOWING', 'PAUSED', 'DOCKING', 'UNDOCKING', 'AREA_RECORDING']);
 
-const ACTION_RESET_EMERGENCY = ACTION.resetEmergency;
 // skipping an area or a path drops what's left of it, so it goes out only after a few seconds and a second tap takes
 // it back
 const SKIP_DELAY = 4;
@@ -201,6 +201,7 @@ export default function Home() {
   const {hasAction, publishAction} = useMowerActions();
   const {infos, values} = useMowerSensors();
   const why = useEmergencyReasons(!!state?.emergency);
+  const {refused, reset} = useEmergencyReset(!!state?.emergency, publishAction);
   const position = useMowerPosition() ?? state?.pose;
   const speed = useComputedSpeed(position);
   const track = useMowerTrack();
@@ -443,10 +444,14 @@ export default function Home() {
               <div className={styles.headline}>
                 <h2>{head.title}</h2>
                 {!!state.emergency && why && <strong className={styles.reason}>{upperFirst(emergencyText(why))}</strong>}
+                {/* MowBite OS didn't let go when it was reset, why and what to do instead of the usual words */}
+                {!!state.emergency && refused && <strong className={styles.refused}>{resetRefusedText(refused)}</strong>}
                 {live ? (
                   <span className={styles.dim}>
                     {state.emergency
-                      ? tr('Release the mower, then reset the emergency to drive again.')
+                      ? refused
+                        ? explain(refused)
+                        : tr('Release the mower, then reset the emergency to drive again.')
                       : since
                         ? tr('since {time}', {time: clock(since)})
                         : ''}
@@ -498,7 +503,7 @@ export default function Home() {
             <div className={styles.controls}>
               {/* first, the buttons below are locked until it's reset */}
               {!!state.emergency && (
-                <button className={styles.reset} disabled={!live} onClick={() => publishAction(ACTION_RESET_EMERGENCY)}>
+                <button className={styles.reset} disabled={!live} onClick={reset}>
                   <WarningIcon size={20} />
                   {tr('Reset emergency')}
                 </button>

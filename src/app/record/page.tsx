@@ -21,6 +21,7 @@ import {TitleMark} from '@/components/Logo';
 import {TitleRow} from '@/components/TopWeather';
 import MapView from '@/components/MapView';
 import {useEmergencyReasons} from '@/hooks/useEmergencyReasons';
+import {useEmergencyReset} from '@/hooks/useEmergencyReset';
 import {useMapOverlay} from '@/hooks/useMapOverlay';
 import {useMedia} from '@/hooks/useMedia';
 import {useMowerActions} from '@/hooks/useMowerActions';
@@ -42,7 +43,7 @@ import {eventsOfDay, fileDay, forgetToday, historyDays} from '@/lib/history';
 import {backAtStart} from '@/lib/geometry';
 import {tick} from '@/lib/haptics';
 import {guardLeaving} from '@/lib/leaving';
-import {emergencyText, parseEvent, refusalText, type MowerEvent} from '@/lib/events';
+import {emergencyText, explain, parseEvent, refusalText, resetRefusedText, type MowerEvent} from '@/lib/events';
 import {onTopic} from '@/lib/mqttClient';
 
 const START = ACTION.startRecording;
@@ -131,6 +132,7 @@ export default function RecordPage() {
   // no fresh state also stops it: the wifi can be gone a while before the connection counts as lost
   const canDrive = recordingMode && live && !state?.emergency;
   const why = useEmergencyReasons(!!state?.emergency);
+  const {refused: notReset, reset} = useEmergencyReset(!!state?.emergency, publishAction);
   // what the outline is recorded with: without an rtk fix the edge ends up off (OpenMower records without one too)
   const acc = state?.pose.pos_accuracy;
   const gpsQ = gpsQuality(acc, numParam(params, PARAM.maxPositionAccuracy));
@@ -435,8 +437,10 @@ export default function RecordPage() {
   const alarm = !!state?.emergency && (
     <>
       <strong>{reason ? tr('Emergency stop: {reason}', {reason}) : tr('Emergency stop')}</strong>
-      <span>{tr('Release the mower, then reset the emergency to drive again.')}</span>
-      <button disabled={!live} onClick={() => publishAction(ACTION.resetEmergency)}>
+      <span>
+        {notReset ? `${resetRefusedText(notReset)}. ${explain(notReset)}` : tr('Release the mower, then reset the emergency to drive again.')}
+      </span>
+      <button disabled={!live} onClick={reset}>
         <WarningIcon size={18} />
         {tr('Reset emergency')}
       </button>

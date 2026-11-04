@@ -114,6 +114,12 @@ export const EVENTS: Record<string, EventText> = {
   // from here on MowBite OS only
   MOWING_REFUSED: one('Mowing not started', 'warning'),
   DRIVE_REFUSED: one('Drive not started', 'warning'),
+  // reset_emergency didn't let go, the emergency stop stays. one that does sends nothing of its own, the EMERGENCY with
+  // emergency false says it's over
+  EMERGENCY_RESET_REFUSED: {
+    severity: 'error',
+    variants: [{when: {reason: 'STILL_TILTED'}, en: 'Emergency stop not reset', severity: 'warning'}, {en: 'Emergency stop not reset'}],
+  },
   DRIVE: {
     severity: 'warning',
     variants: [
@@ -235,15 +241,27 @@ export const REASONS: Record<string, Variant[]> = {
   BELOW_DEFAULT: [r("smaller than from the factory, the planner's body check works with the smaller outline")],
   OUTLIERS: [r('back on GPS after outliers')],
   GAP: [r('back on GPS after a gap')],
+  // why reset_emergency didn't let go (EMERGENCY_RESET_REFUSED): angle and limit in degrees, seconds since the IMU's last
+  // data, when the driver knows them
+  STILL_TILTED: [
+    r('still tilted ({angle:0}°, less than {limit:0}° needed)', {when: {angle: {present: true}, limit: {present: true}}}),
+    r('still tilted'),
+  ],
+  TILT_UNKNOWN: [r('tilt unknown, no data from the IMU for {seconds:1} s', {when: {seconds: {present: true}}}), r('tilt unknown, no data from the IMU')],
+  FOREIGN_HOST: [r('another computer is talking to the board')],
+  DRIVER_MISSING: [r('the hardware driver is not running')],
+  SAFETY_MISSING: [r('the safety filter is not running')],
+  NO_ANSWER: [r('no answer in time')],
 };
 
 // put round the finished reason, by the start of its name (the longest that fits, at most one)
 export const WRAPPERS: Record<string, {unless?: Cond; when?: Cond; en: string}> = {
 };
 
-// the emergency stop's reasons, one bit each (EmergencyReason in open_mower_ros services/emergency_service.json). MowBite
-// OS's own from bit 13 on come once a node sets them
-export const EMERGENCY_BITS = [
+// the emergency stop's reasons, one bit each of 32 (EmergencyReason in open_mower_ros services/emergency_service.json),
+// MowBite OS's own from bit 13 on (HardwareStatus.msg). one gets its name here once a node sets it, a bit without one is
+// said as "bit N" next to the others, never left out (fallback.emergency_bit). 15 STUCK no node sets yet
+export const EMERGENCY_BITS: (string | null)[] = [
   'LATCH',
   'TIMEOUT_INPUTS',
   'STOP',
@@ -257,6 +275,14 @@ export const EMERGENCY_BITS = [
   'MOWER_RPM_TIMEOUT',
   'MOWER_RPM_LIMIT',
   'FIRMWARE_INCOMPATIBLE',
+  'TILT',
+  'FENCE',
+  null,
+  'IMU_TIMEOUT',
+  'MOWER_NOT_STOPPED',
+  'WHEEL_RUNAWAY',
+  'FOREIGN_HOST',
+  'DRIVER_STALL',
 ];
 
 // what the firmware means by them (fw-openmower-v2): a single lift sensor or bumper, or two and more at once. one not
@@ -274,6 +300,17 @@ export const EMERGENCY_TEXT: Record<string, string> = {
   MOWER_RPM_TIMEOUT: "mow motor didn't reach its speed",
   MOWER_RPM_LIMIT: 'mow motor too fast',
   FIRMWARE_INCOMPATIBLE: "firmware doesn't fit OpenMower",
+  // MowBite OS: tilted beyond its limit, a drive of its own out of the areas, the IMU's data not coming, the blade still
+  // turning after it was switched off, a wheel against the command, a second computer at the board, the driver hanging.
+  // UNKNOWN is what its log line says for a bit it has no name for
+  TILT: 'tilted too far',
+  FENCE: 'outside the area it may drive in',
+  IMU_TIMEOUT: 'no data from the IMU',
+  MOWER_NOT_STOPPED: "blade didn't stop",
+  WHEEL_RUNAWAY: 'wheel turning against the command',
+  FOREIGN_HOST: 'another computer is talking to the board',
+  DRIVER_STALL: 'hardware driver hung',
+  UNKNOWN: 'unknown reason',
 };
 // LATCH only holds it until it's reset, and of two that say the same the more telling one
 export const EMERGENCY_HIDE = ['LATCH'];
@@ -285,6 +322,8 @@ export const FALLBACK = {
   else: 'name_readable',
   join: '{head}: {reason}',
   emergency_code: 'Emergency stop (code {n})',
+  // a bit set without a name in emergency_bits, said with the others: "bumper, bit 15"
+  emergency_bit: 'bit {n}',
 } as const;
 
 // an event, read field by field
@@ -321,7 +360,7 @@ export function reasonsFile() {
     ),
     reasons: Object.fromEntries(Object.entries(REASONS).map(([k, list]) => [k, list.map(both)])),
     wrappers: Object.fromEntries(Object.entries(WRAPPERS).map(([k, w]) => [k, both(w)])),
-    emergency_bits: Object.fromEntries(EMERGENCY_BITS.map((b, i) => [String(i), b])),
+    emergency_bits: Object.fromEntries(EMERGENCY_BITS.flatMap((b, i) => (b ? [[String(i), b]] : []))),
     emergency_text: texts(EMERGENCY_TEXT),
     emergency_hide: EMERGENCY_HIDE,
     emergency_hide_with: EMERGENCY_HIDE_WITH,
@@ -330,6 +369,7 @@ export function reasonsFile() {
       else: FALLBACK.else,
       join: both({en: FALLBACK.join}),
       emergency_code: both({en: FALLBACK.emergency_code}),
+      emergency_bit: both({en: FALLBACK.emergency_bit}),
     },
   };
 }

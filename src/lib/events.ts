@@ -61,6 +61,9 @@ export interface MowerEvent {
   below_default?: string[];
   // HOLD: until when the MowBite Updater holds it (unix s)
   until?: number;
+  // EMERGENCY_RESET_REFUSED: the tilt and the limit for letting go in degrees, how old the IMU's last data is
+  angle?: number;
+  seconds?: number;
   // worked out here, not from OpenMower: a navigation error that only came because it was sent home (see markSentHome)
   sentHome?: boolean;
 }
@@ -105,19 +108,27 @@ export function noteworthy(e: MowerEvent, state?: string, os = false): boolean {
   return why !== null && why !== 'paused';
 }
 
-// the reasons in an EMERGENCY event, mower_logic sends them as the number of bits
+// the reasons in an EMERGENCY event, mower_logic sends them as the number of bits (32 on MowBite OS). a bit without a
+// name comes as BIT_<n>, none is left out
 export function emergencyFlags(code: unknown): string[] {
   const n = Number(code);
   if (!Number.isInteger(n) || n <= 0) return [];
-  return EMERGENCY_BITS.filter((_, i) => n & (1 << i));
+  const flags: string[] = [];
+  for (let i = 0; 2 ** i <= n; i++) if (Math.floor(n / 2 ** i) % 2) flags.push(EMERGENCY_BITS[i] ?? `BIT_${i}`);
+  return flags;
 }
+const BIT = /^BIT_(\d+)$/;
 
-// the reasons in words, the more telling one where two say the same (reasonTexts.ts)
+// the reasons in words, the more telling one where two say the same (reasonTexts.ts), a bit without a name as "bit N"
 export function emergencyText(flags: readonly string[]): string {
   const has = new Set(flags);
   return flags
     .filter((f) => !EMERGENCY_HIDE.includes(f) && !(EMERGENCY_HIDE_WITH[f] && has.has(EMERGENCY_HIDE_WITH[f])))
-    .map((f) => (EMERGENCY_TEXT[f] ? tr(EMERGENCY_TEXT[f]) : readable(f)))
+    .map((f) => {
+      const bit = f.match(BIT);
+      if (bit) return fill(tr(FALLBACK.emergency_bit), {n: Number(bit[1])});
+      return EMERGENCY_TEXT[f] ? tr(EMERGENCY_TEXT[f]) : readable(f);
+    })
     .join(', ');
 }
 
@@ -254,6 +265,26 @@ const spinupFailed = () =>
     "The mow motor didn't reach its speed in time (mower_logic/mower_spinup_timeout), so the mower stopped with an emergency. Often grass is wound round the blade or the blade is blocked, or the motor or its controller is faulty.",
   );
 
+// what MowBite OS's own reasons are about and what to do, a sentence or two each
+const EMERGENCY_HELP: Record<string, string> = {
+  TILT: 'It stood tilted further than allowed, on a slope or lifted on one side, so the wheels and the blade went off. Stand it level: a reset only goes through below its release angle.',
+  FENCE:
+    "A drive of its own took it too far out of the area it may drive in, or into an obstacle, and the path follower hadn't stopped it. Check the map and the GPS at that spot. The reset always goes through.",
+  IMU_TIMEOUT: "The IMU's data stopped coming, without it the tilt can't be watched. Once can be a hiccup, if it happens again check the IMU and its connection.",
+  MOWER_NOT_STOPPED: 'The blade was switched off but kept turning faster than allowed. Let it run down, then check that the mow motor stops when told to.',
+  WHEEL_RUNAWAY:
+    "A wheel turned against the drive command: on after a stop, faster than told or the wrong way. Usual causes: pushed, rolling down a slope, or a wheel's motor controller playing up. Which wheel and how fast is in the log from that moment.",
+  FOREIGN_HOST:
+    "Another computer or program is talking to the mower's board, OpenMower still running next to MowBite OS say. Stop it: a reset only goes through once MowBite OS alone talks to the board.",
+  DRIVER_STALL: 'The hardware driver hung for too long, so it stopped to be safe. Once can be a load peak, if it happens again the log from that moment says more.',
+};
+
+// a refused reset where it's reset, under the emergency stop and its reasons
+export function resetRefusedText(e: MowerEvent): string {
+  const why = reasonText(e);
+  return why ? tr('Not reset: {reason}', {reason: why}) : tr('Not reset');
+}
+
 // what the mower's code does when it logs these, the event itself carries nothing more
 // gpsTimeout: the mower's mower_logic/gps_timeout in seconds, if known
 export function explain(e: MowerEvent, state?: string, gpsTimeout?: number, os = false): string | undefined {
@@ -306,13 +337,30 @@ export function explain(e: MowerEvent, state?: string, gpsTimeout?: number, os =
     case 'EMERGENCY': {
       if (!e.emergency) return undefined;
       const flags = emergencyFlags(e.reason);
+      const own = flags.filter((f) => EMERGENCY_HELP[f]);
+      if (own.length) return own.map((f) => tr(EMERGENCY_HELP[f])).join(' ');
       if (flags.includes('MOWER_RPM_TIMEOUT')) return spinupFailed();
+      // on MowBite OS only a latch from above or one the board still held, what the driver stops for has its own bits
       if (flags.includes('HIGH_LEVEL'))
-        return tr(
-          'OpenMower stopped the mower itself, for example because the position, the wheel data or a motor controller stopped coming. The ROS log from that moment says why. It has to be reset before it drives again.',
-        );
+        return os
+          ? tr(
+              'Something above the board latched it, a part of MowBite OS or a tool, or the board still held it from before. The log from that moment says why. It has to be reset before it drives again.',
+            )
+          : tr(
+              'OpenMower stopped the mower itself, for example because the position, the wheel data or a motor controller stopped coming. The ROS log from that moment says why. It has to be reset before it drives again.',
+            );
+      if (flags.some((f) => BIT.test(f)))
+        return tr("A reason MowBite doesn't know yet, a newer version may. The log from that moment says more. It has to be reset before it drives again.");
       return tr('Stop button, lift, tilt or a bumper. It has to be released and reset before it drives again.');
     }
+    // the emergency stop stays as it was
+    case 'EMERGENCY_RESET_REFUSED':
+      if (e.reason === 'STILL_TILTED') return tr('Stand it level, then reset it again.');
+      if (e.reason === 'TILT_UNKNOWN')
+        return tr("Without fresh data from the IMU it can't tell whether it stands level. Try again in a moment, if it stays so check the IMU and its connection.");
+      if (e.reason === 'FOREIGN_HOST')
+        return tr('Stop the other computer or program first, OpenMower still running next to MowBite OS say, then reset it again.');
+      return tr("A part of MowBite OS didn't answer. Try again in a moment, the log from that moment says more.");
     case 'MOW_MOTOR_SPINUP_FAILED':
       return spinupFailed();
     case 'RECORDING_REFUSED':
