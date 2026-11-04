@@ -349,8 +349,8 @@
   font-size: 16px;
 }
 
-/* each a see-through glass in the color of what it leads to: going on green, a pause amber like paused, home blue
-   like on the way home, skipping violet, stopping red */
+/* each a glass in the color of what it leads to, edged only by the light like the cards: going on green, a pause
+   amber like paused, home blue like on the way home, skipping violet, stopping red */
 .act-go {
   --act: var(--success);
 }
@@ -372,15 +372,13 @@
 }
 
 .controls .actions button:not(:disabled) {
-  border-color: color-mix(in srgb, var(--act) 45%, transparent);
+  border-color: transparent;
   background: linear-gradient(
-    color-mix(in srgb, var(--act) 22%, transparent),
-    color-mix(in srgb, var(--act) 10%, transparent)
+    color-mix(in srgb, var(--act) 40%, transparent),
+    color-mix(in srgb, var(--act) 28%, transparent)
   );
   backdrop-filter: var(--card-blur, none);
-  box-shadow:
-    var(--btn-3d),
-    0 8px 20px -12px color-mix(in srgb, var(--act) 60%, transparent);
+  box-shadow: var(--btn-glass);
 }
 
 .controls .actions button:not(:disabled) svg {
