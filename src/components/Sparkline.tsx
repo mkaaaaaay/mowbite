@@ -4,17 +4,20 @@ import {clock} from '@/lib/dates';
 import {fmt, tr} from '@/lib/i18n';
 
 // small line of the history, lowest and highest value next to it
-// minSpan keeps sensor noise from looking like big swings on an otherwise flat line
+// minSpan keeps sensor noise from looking like big swings on an otherwise flat line. joined: one line through all of
+// them, for values that come one at a time (a charge each) and not as a stream
 export default function Sparkline({
   samples,
   digits = 1,
   unit = '',
   minSpan = 1,
+  joined = false,
 }: {
   samples?: Sample[];
   digits?: number;
   unit?: string;
   minSpan?: number;
+  joined?: boolean;
 }) {
   if (!samples || samples.length < 2) return <div className={styles.empty}>{tr('collecting history…')}</div>;
 
@@ -30,7 +33,7 @@ export default function Sparkline({
   // no line over the time without data (gps only comes while it mows): a new piece after a gap of three times the
   // usual step, ten minutes at least
   const steps = samples.slice(1).map((s, i) => s.t - samples[i].t).sort((a, b) => a - b);
-  const gap = Math.max(600000, 3 * (steps[Math.floor(steps.length / 2)] ?? 0));
+  const gap = joined ? Infinity : Math.max(600000, 3 * (steps[Math.floor(steps.length / 2)] ?? 0));
   const pieces: Sample[][] = [];
   samples.forEach((s, i) => (i && s.t - samples[i - 1].t <= gap ? pieces[pieces.length - 1].push(s) : pieces.push([s])));
   const minutes = Math.max(1, Math.round((t1 - t0) / 60000));

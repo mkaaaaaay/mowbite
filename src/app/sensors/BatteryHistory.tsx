@@ -23,7 +23,7 @@ export default function BatteryHistory() {
         <div className={styles.card}>
           <span className={styles.cardLabel}>{tr('Charging time')}</span>
           <strong className={styles.big}>{last ? `${fmt(last.minutes, 0)} min` : '–'}</strong>
-          <Sparkline samples={chargeSamples(cycles)} digits={0} unit="min" minSpan={10} />
+          <Sparkline samples={chargeSamples(cycles)} digits={0} unit="min" minSpan={10} joined />
           <span className={styles.dim}>
             {last
               ? tr('The last one from {v} V', {v: fmt(last.from, 1)})
