@@ -1,12 +1,16 @@
 'use client';
 
 import {CheckIcon, HomeIcon, UndoIcon} from '@/components/icons';
+import {useMowerActions} from '@/hooks/useMowerActions';
+import type {DockingStation} from '@/hooks/useMowerMap';
+import {isLive, useMowerState} from '@/hooks/useMowerState';
 import {calibLines, calibText, changeOf, preselected, readLast, readPaths, readState, type CalibPath, type CalibResult, type CalibValue} from '@/lib/calibration';
 import {copyText} from '@/lib/clipboard';
 import {clock} from '@/lib/dates';
 import {fmt, locale, tr} from '@/lib/i18n';
-import Link from 'next/link';
+import {ACTION} from '@/lib/openmower';
 import {useState} from 'react';
+import {StationSaved} from './Station';
 import styles from './page.module.css';
 
 // how the dialog names each value; the paths of the planner's table, for writing them in by hand when the updater has
@@ -252,23 +256,32 @@ function stateLine(
   }
 }
 
-// after taking them: what was asked to be written, what the updater did with it
+// after taking them: what was asked to be written, what the updater did with it. the antenna moved: the docking station
+// recorded again with the guide (onStation) once the values are in effect, recorded: the station before
 export function Sent({
   sent,
   status,
   docked,
   onBack,
+  onStation,
+  stationBefore,
 }: {
   sent: {at: number; values: CalibValue[]; byHand: CalibValue[]};
   status: Record<string, string> | null;
   docked: boolean;
   onBack: () => Promise<void>;
+  onStation: () => void;
+  stationBefore: DockingStation | null | undefined;
 }) {
+  const link = useMowerState();
+  const {hasAction} = useMowerActions();
   const asked = sent.values.filter((v) => !sent.byHand.includes(v));
   const line = stateLine(readState(status?.calib), sent.at, docked);
   const written = line?.what === 'written';
   const moved = stationAgain(asked);
   const paths = readPaths(status?.calib_paths);
+  // recording mode, only to be had while idle (or still on)
+  const idle = link.state?.current_state === 'AREA_RECORDING' || hasAction(ACTION.startRecording);
   return (
     <>
       {asked.length > 0 && (
@@ -315,22 +328,33 @@ export function Sent({
           )}
         </section>
       )}
-      {moved !== null && line?.what !== 'back' && (
-        <section className={[styles.card, styles.warnCard].join(' ')}>
-          <b>
-            <HomeIcon size={18} /> {tr('Record the docking station again')}
-          </b>
-          <p>
-            {tr(
-              'The antenna sits {cm} cm differently than assumed. So the docking station lies that far off on the map, and it docks askew. Record it once again after the restart.',
-              {cm: fmt(moved * 100, 0)},
+      {moved !== null &&
+        line?.what !== 'back' &&
+        (stationBefore !== undefined ? (
+          <StationSaved before={stationBefore} />
+        ) : (
+          <section className={[styles.card, styles.warnCard].join(' ')}>
+            <b>
+              <HomeIcon size={18} /> {tr('Record the docking station again')}
+            </b>
+            <p>
+              {tr(
+                'The antenna sits {cm} cm differently than assumed. So the docking station lies that far off on the map, and it docks askew. Record it once again after the restart, the map shows you where to drive.',
+                {cm: fmt(moved * 100, 0)},
+              )}
+            </p>
+            {/* (with the values before the station would be recorded just as far off again) */}
+            <button className={[styles.primary, styles.pill].join(' ')} disabled={!written || !idle || !isLive(link)} onClick={onStation}>
+              <HomeIcon size={18} />
+              {tr('Record it now')}
+            </button>
+            {!written ? (
+              <p className={styles.dim}>{tr('Possible once the new values are in effect.')}</p>
+            ) : (
+              !idle && <p className={styles.dim}>{tr('Only possible while the mower is idle.')}</p>
             )}
-          </p>
-          <Link href="/record" className={styles.pill}>
-            {tr('Record the docking station again')}
-          </Link>
-        </section>
-      )}
+          </section>
+        ))}
       {sent.byHand.length > 0 && <ByHand values={sent.byHand.map((v) => ({name: v.name, value: v.value!}))} />}
       {written && <SetBack status={status} onBack={onBack} text={tr('Changed your mind? Everything back to how it was.')} />}
     </>

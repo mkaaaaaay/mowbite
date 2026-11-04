@@ -42,6 +42,24 @@ const RUN_SPARE = 1.2;
 const SHIFT = 0.14;
 const FREE = {up: 0.22, down: 0.2, left: 0.44, right: 0.3};
 const SPANS = [16, 24, 32, 48, 64, 96, 128];
+// a guide at the station: closer in, half a metre round it
+const NEAR_SPANS = [4, 6, 8, 12, 16, 24, 32];
+
+type Draw = NonNullable<React.ComponentProps<typeof MapView>['draw']>;
+// a guide of a page's own in place of the calibration's counts (the docking station recorded again): what to do now, a
+// line under it, its bar and whether it's right, the sideways pill's word, what's drawn on the map, the buttons in the
+// layout's classes, a line over them, cancel offered (onStop)
+export interface DriveGuide {
+  say: React.ReactNode;
+  missed?: string | null;
+  ok?: boolean;
+  bar?: {share: number; label: string} | null;
+  status: string;
+  draw: Draw;
+  buttons: (c: {primary: string; warn: string}) => React.ReactNode;
+  note?: React.ReactNode;
+  cancel?: boolean;
+}
 
 // rounds as a reader takes them: quarters, ¼ ½ ¾
 const quarters = (r: number) => {
@@ -124,13 +142,14 @@ const TILE_NAME = {still: 'Stand {n} s', straight: 'Straight', left: 'Turn left'
 // driving by hand for the calibration, like the recorder: the map following the mower with the stick on it, under it
 // what's done and what's missing (the planner's counts), what to do now on the map
 // home: after the recording, back onto the docking station (no tiles, it ends recording mode). placing: before it, the
-// mower driven into position, then started (onStart; starting while the planner is asked)
+// mower driven into position, then started (onStart; starting while the planner is asked). guide: a page's own steps
 export default function Drive({
   progress,
   since,
   home,
   placing,
   starting,
+  guide,
   onStart,
   onStop,
   onDone,
@@ -141,6 +160,7 @@ export default function Drive({
   home?: boolean;
   placing?: boolean;
   starting?: boolean;
+  guide?: DriveGuide;
   onStart?: () => void;
   onStop: () => void;
   onDone: () => void;
@@ -152,7 +172,7 @@ export default function Drive({
   const map = useMowerMap();
   const params = useMowerParams();
   const position = useMowerPosition() ?? state?.pose;
-  const {motion, missed} = useMotion(home || placing ? null : progress);
+  const {motion, missed} = useMotion(home || placing || guide ? null : progress);
   const why = useEmergencyReasons(!!state?.emergency);
   const {refused, reset} = useEmergencyReset(!!state?.emergency, publishAction);
   const canDrive = state?.current_state === 'AREA_RECORDING' && live && !state?.emergency;
@@ -239,9 +259,9 @@ export default function Drive({
   const took = Math.max(0, Math.floor((now - (since ?? shown)) / 1000));
   const clock = `${Math.floor(took / 60)}:${String(took % 60).padStart(2, '0')}`;
 
-  const list = home || placing || !progress ? [] : lacks(progress);
+  const list = home || placing || guide || !progress ? [] : lacks(progress);
   // recorded but no RTK fix: nothing counts till it's there (planner v0.4.0 on)
-  const waiting = !home && !placing && progress?.phase === 'recording' && !!progress.rtk && !progress.rtk.fixed;
+  const waiting = !home && !placing && !guide && progress?.phase === 'recording' && !!progress.rtk && !progress.rtk.fixed;
   const all = list.length > 0 && list.every(lackDone);
   const current = nowPart(list, motion);
   const runNeed = progress?.need.run_m ?? 5;
@@ -251,11 +271,13 @@ export default function Drive({
   const dock = map?.docking_stations[0]?.position;
   const toDock = home && dock && pose ? Math.hypot(dock.x - pose.x, dock.y - pose.y) : null;
   // (a step of SPANS: the map isn't drawn again for every move; a metre more for the station itself)
+  const room = guide ? 0.5 : 1;
   const reach =
-    home && dock && pose
-      ? Math.max((Math.abs(dock.x - pose.x) + 1) / (dock.x > pose.x ? FREE.right : FREE.left), (Math.abs(dock.y - pose.y) + 1) / (dock.y > pose.y ? FREE.up : FREE.down))
+    (home || guide) && dock && pose
+      ? Math.max((Math.abs(dock.x - pose.x) + room) / (dock.x > pose.x ? FREE.right : FREE.left), (Math.abs(dock.y - pose.y) + room) / (dock.y > pose.y ? FREE.up : FREE.down))
       : 0;
-  const span = SPANS.find((s) => s >= reach) ?? SPANS[SPANS.length - 1];
+  const spans = guide ? NEAR_SPANS : SPANS;
+  const span = spans.find((s) => s >= reach) ?? spans[spans.length - 1];
   const charging = onCharger(state, useSensorValue('om_v_charge', (v) => v));
   const [sure, setSure] = useState(false);
   // cancel takes two taps: the first asks for a few seconds (the cross sits next to the speeds)
@@ -280,7 +302,9 @@ export default function Drive({
 
   // what to do now, on the map: what's driven, else what's missing next
   let say: React.ReactNode;
-  if (placing) {
+  if (guide) {
+    say = guide.say;
+  } else if (placing) {
     say = (
       <>
         <b>{tr('Drive the mower into position with the joystick')}</b> · {tr('then start the calibration')}
@@ -347,13 +371,17 @@ export default function Drive({
       );
   }
 
-  const missedText = missed && !waiting && (
-    <em className={styles.missed}>
-      {missed.part === 'straight'
-        ? tr('Run not counted: by the wheels under {m} m. Drive the next one a bit longer.', {m: fmt(runNeed, 0)})
-        : tr('Turn not counted: by the wheels it turned too little.')}
-    </em>
-  );
+  // (a guide's own line in its place)
+  const missedText = guide
+    ? guide.missed && <em className={styles.missed}>{guide.missed}</em>
+    : missed &&
+      !waiting && (
+        <em className={styles.missed}>
+          {missed.part === 'straight'
+            ? tr('Run not counted: by the wheels under {m} m. Drive the next one a bit longer.', {m: fmt(runNeed, 0)})
+            : tr('Turn not counted: by the wheels it turned too little.')}
+        </em>
+      );
 
   // the bar under it: the run in m, the turn in rounds, the stand in s
   let bar: {share: number; label: string} | null = null;
@@ -368,6 +396,7 @@ export default function Drive({
       bar = {share: r / TURN_ROUNDS, label: tr('{a} of {b} rounds', {a: turnedText(Math.min(r, TURN_ROUNDS)), b: '1½'})};
     }
   }
+  if (guide) bar = guide.bar ?? null;
 
   // the lane of the run (from where it started, or ahead of the mower when a run is next), the turn round the mower,
   // the ring filling while it stands
@@ -506,7 +535,7 @@ export default function Drive({
               follow
               followSpanMeters={span * ZOOMS[zoom]}
               datum={datumFromParams(params)}
-              draw={draw}
+              draw={guide?.draw ?? draw}
               mapStyle="plain"
               bare
             />
@@ -515,7 +544,7 @@ export default function Drive({
         <div className={rec.topBar}>
           <span className={[rec.status, rec.live].join(' ')}>
             <i />
-            {placing ? tr('Into position') : home ? tr('Back onto the docking station') : tr('Calibration · {time}', {time: clock})}
+            {guide ? guide.status : placing ? tr('Into position') : home ? tr('Back onto the docking station') : tr('Calibration · {time}', {time: clock})}
           </span>
           {gpsQ !== 'fix' && <span className={rec.gpsWarn}>{gpsText}</span>}
           <span className={rec.grow} />
@@ -547,13 +576,13 @@ export default function Drive({
               <RotateIcon size={20} />
             </button>
           )}
-          {!home && (
+          {(guide ? guide.cancel : !home) && (
             <button className={[rec.square, askCancel ? styles.squareAsk : ''].join(' ')} aria-label={tr('Cancel')} title={tr('Cancel')} onClick={cancelTap}>
               <CloseIcon size={20} />
             </button>
           )}
         </div>
-        <p className={[rec.remoteNote, bar ? styles.noteWide : ''].join(' ')}>
+        <p className={[rec.remoteNote, bar ? styles.noteWide : '', guide?.ok ? styles.noteOk : ''].join(' ')}>
           {askCancel ? (
             <b>{tr('Tap the cross again to cancel.')}</b>
           ) : home && sure && !charging ? (
@@ -586,6 +615,7 @@ export default function Drive({
             </div>
           )}
           <div className={rec.remoteButtons}>
+            {guide?.buttons({primary: rec.primary, warn: rec.danger})}
             {placing && (
               <button className={rec.primary} disabled={starting} onClick={() => (stop(), onStart?.())}>
                 <CheckIcon size={18} />
@@ -617,11 +647,11 @@ export default function Drive({
             followShift={SHIFT}
             zoomable
             datum={datumFromParams(params)}
-            draw={draw}
+            draw={guide?.draw ?? draw}
             mapStyle="plain"
           />
         )}
-        <div className={[styles.say, all ? styles.sayDone : '', bar ? styles.sayWide : ''].join(' ')}>
+        <div className={[styles.say, all || guide?.ok ? styles.sayDone : '', bar ? styles.sayWide : ''].join(' ')}>
           <i />
           <div className={styles.sayBody}>
             <span>{say}</span>
@@ -658,10 +688,10 @@ export default function Drive({
       <section className={[styles.card, styles.driveCard].join(' ')}>
         <div className={styles.line}>
           <span className={gpsQ === 'fix' ? undefined : styles.warn}>{gpsText}</span>
-          {!home && !placing && <span>{tr('Calibration · {time}', {time: clock})}</span>}
+          {!home && !placing && !guide && <span>{tr('Calibration · {time}', {time: clock})}</span>}
         </div>
         {home && sure && !charging && <p className={styles.warn}>{tr("It isn't on the station yet, after this the stick doesn't drive it any more.")}</p>}
-        {home ? null : list.length ? (
+        {guide ? guide.note : home ? null : list.length ? (
           <div className={styles.tally}>
             {list.map((l) => {
               const done = lackDone(l);
@@ -692,6 +722,7 @@ export default function Drive({
           </p>
         )}
         <div className={styles.buttons}>
+          {guide?.buttons({primary: styles.primary, warn: styles.warnButton})}
           {placing && (
             <button className={styles.primary} disabled={starting} onClick={() => (stop(), onStart?.())}>
               <CheckIcon size={18} />
@@ -701,9 +732,11 @@ export default function Drive({
           {home ? (
             endButton(styles.primary, styles.warnButton)
           ) : (
-            <button className={styles.danger} onClick={cancelTap}>
-              {askCancel ? tr('Really cancel?') : tr('Cancel')}
-            </button>
+            (!guide || guide.cancel) && (
+              <button className={styles.danger} onClick={cancelTap}>
+                {askCancel ? tr('Really cancel?') : tr('Cancel')}
+              </button>
+            )
           )}
           {all && (
             <button className={styles.primary} onClick={() => (stop(), onDone())}>
@@ -734,7 +767,7 @@ export default function Drive({
           </button>
           <p className={styles.dim}>{tr('Two pads like a remote control car. Turning the phone switches by itself.')}</p>
         </div>
-        {!home && <p className={styles.dim}>
+        {!home && !guide && <p className={styles.dim}>
           <RotateIcon size={14} /> {tr("Straight: stick forward and hold it steady, half to full, don't steer. Turning: stick to the side only at speed 0.25, one and a half rounds until it looks back, then {m} m straight on.", {m: fmt(runM, 0)})}
         </p>}
       </section>

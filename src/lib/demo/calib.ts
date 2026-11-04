@@ -16,9 +16,10 @@ export const CALIB_LIST: [string, string, string, number, number][] = [
   ['antenna_offset_x', 'xbot_positioning/antenna_offset_x', 'm', -0.6, 0.6],
   ['antenna_offset_y', 'xbot_positioning/antenna_offset_y', 'm', -0.3, 0.3],
 ];
-// what's in the demo's mower_params.yaml now, by name; what the demo mower really is (the values come out there)
+// what's in the demo's mower_params.yaml now, by name; what the demo mower really is (the values come out there). its
+// antenna sits 3 cm further back than entered: after taking that the docking station is to be recorded again
 export const demoYaml: Record<string, number> = {ticks_per_m: 2025, wheel_distance_m: 0.3556, antenna_offset_x: -0.1, antenna_offset_y: 0};
-const REAL: Record<string, number> = {ticks_per_m: 2031.5, wheel_distance_m: 0.3612, antenna_offset_x: -0.096, antenna_offset_y: 0.004};
+const REAL: Record<string, number> = {ticks_per_m: 2031.5, wheel_distance_m: 0.3612, antenna_offset_x: -0.13, antenna_offset_y: 0.004};
 const SIGMA: Record<string, number> = {ticks_per_m: 6, wheel_distance_m: 0.002, antenna_offset_x: 0.008, antenna_offset_y: 0.008};
 const QUALITY: Record<string, string> = {ticks_per_m: 'good', wheel_distance_m: 'fair', antenna_offset_x: 'good', antenna_offset_y: 'good'};
 const DIGITS: Record<string, number> = {ticks_per_m: 1, wheel_distance_m: 4, antenna_offset_x: 3, antenna_offset_y: 3};

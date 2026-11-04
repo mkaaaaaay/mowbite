@@ -898,6 +898,26 @@
   stroke-linecap: round;
 }
 
+/* the docking station recorded again: its line out to the stretch for the first point, then the way in */
+.axis {
+  stroke: color-mix(in srgb, var(--c) 70%, transparent);
+  stroke-dasharray: 5 4;
+}
+
+.wayIn {
+  stroke: var(--c);
+  stroke-linecap: round;
+}
+
+.wayInHead {
+  fill: var(--c);
+}
+
+/* the remote control's note once it stands right (the record page's own background otherwise) */
+.noteOk {
+  background: rgba(20, 70, 40, 0.72) !important;
+}
+
 
 @media (max-width: 899px) {
   .hideOnPhone {
