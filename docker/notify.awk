@@ -4,7 +4,7 @@
 # writes it), read again every half minute:
 #   topic, push (a phone's address, a line each), lang (de/en), name (of the mower), url (where MowBite is, for its
 #   button and a tap on the message),
-#   events (which of: emergency, dock_failed, undock_failed, nav_error, spinup, standstill, done, rain, battery,
+#   events (which of: emergency, dock_failed, undock_failed, nav_error, spinup, standstill, refused, done, rain, battery,
 #   maintenance),
 #   remind (minutes between reminders while the mower can't get on by itself, 0: none),
 #   emergency_wait (seconds an emergency stop has to last before it's told, 10 unless set), enabled (0: switched off)
@@ -17,6 +17,9 @@
 # standing still: not half a meter on in ten minutes and not charging (is_charging, or the charge voltage when the
 # battery is full), outside recording, an emergency stop and a pause by hand (actions/json). waiting for gps, stuck,
 # left waiting on the lawn, or in a dock without power. told once, a dock without power stays so all night
+# MowBite OS says why with a fixed name (masterplan 3.1a): a start it turns down or the map not fitting (refused), a
+# pause that waits for someone (nav_error, a blade that didn't switch on: spinup), the battery low. a name not known
+# here goes by the english text it comes with
 
 function field(s, k,   v) {
   if (!match(s, "\"" k "\" *: *(\"[^\"]*\"|[^,}]*)")) return ""
@@ -68,6 +71,59 @@ function who() { return name ? name : tx("The mower", "Der Mäher") }
 
 function minutes(s) { return int(s / 60 + 0.5) }
 
+function num(v, d,   s) {
+  s = sprintf("%." d "f", v)
+  if (lang == "de") sub(/\./, ",", s)
+  return s
+}
+
+# MowBite OS's reason in words, as the app has them (lib/events.ts)
+function reason(j,   r, m) {
+  r = field(j, "reason")
+  if (r == "BUSY") return tx("busy", "beschäftigt")
+  if (r == "STILL_STOPPING") return tx("the last job is still stopping", "der letzte Auftrag hält noch an")
+  if (r == "EMERGENCY") return tx("emergency stop, reset it first", "Notaus, erst zurücksetzen")
+  if (r == "NO_SAFETY_MEASUREMENT") return tx("safety not yet verified on this platform, mowing and driving are blocked", "Sicherheit auf dieser Plattform noch nicht nachgemessen, Mähen und Fahren sind gesperrt")
+  if (r == "ON_DOCK") return tx("on the docking station, drive it off by remote control first", "steht auf der Ladestation, erst per Fernsteuerung herunterfahren")
+  if (r == "RAIN") return tx("rain", "Regen")
+  if (r == "BATTERY_LOW") {
+    if (field(j, "battery_voltage") == "") return tx("battery low", "Akku niedrig")
+    return tx("battery low (", "Akku niedrig (") num(field(j, "battery_voltage"), 1) " V)"
+  }
+  if (r == "NO_POSITION") return tx("no position", "keine Position")
+  if (r == "POSE_LOST") return tx("position lost", "Position verloren")
+  if (r == "POSITION_ACCURACY") {
+    m = field(j, "accuracy")
+    if (m == "" || m == "null") return tx("position not accurate enough", "Position nicht genau genug")
+    if (field(j, "limit") == "" || field(j, "limit") == "null") return tx("position accurate to ", "Position auf ") num(m, 2) tx(" m", " m genau")
+    return tx("position accurate to ", "Position auf ") num(m, 2) tx(" m, ", " m genau, nötig sind ") num(field(j, "limit"), 2) tx(" m or better needed", " m oder besser")
+  }
+  if (r == "NO_HEADING") return tx("heading not known yet", "Fahrtrichtung noch unbekannt")
+  if (r == "HEADING") return tx("heading not good enough", "Fahrtrichtung nicht genau genug")
+  if (r == "MAP_MISMATCH") return field(j, "datum_state") == "unbound" ? tx("the map has no reference point recorded", "die Karte hat keinen Bezugspunkt gespeichert") : tx("the map doesn't fit the reference point in use", "die Karte passt nicht zum verwendeten Bezugspunkt")
+  if (r == "MAP_UNREADABLE") return tx("the map can't be read", "die Karte lässt sich nicht lesen")
+  if (r == "MAP_UNKNOWN") return tx("the GPS reference point isn't known yet", "der GPS-Bezugspunkt ist noch nicht bekannt")
+  if (r == "NO_MOWING_AREA") return tx("no active mowing area on the map", "keine aktive Mähfläche auf der Karte")
+  if (r == "PLANNER_MISSING") return tx("the planner is not running", "der Planer läuft nicht")
+  if (r == "FOLLOWER_MISSING") return tx("the path follower is not running", "der Bahnfolger läuft nicht")
+  if (r == "CROSS_TRACK") return tx("too far off its path", "zu weit neben der Bahn")
+  if (r == "OUTSIDE") return tx("outside the area it may drive in", "außerhalb des befahrbaren Bereichs")
+  if (r == "TIMEOUT") return tx("not getting on, maybe stuck", "kommt nicht weiter, steckt vielleicht fest")
+  if (r == "INVALID") return tx("the path is not valid", "die Bahn ist ungültig")
+  if (r == "NOT_ALLOWED") return tx("driving not allowed", "Fahren nicht erlaubt")
+  if (r == "PLANNING_FAILED") return tx("the planner couldn't make the plan", "der Planer konnte keinen Plan erstellen")
+  if (r == "APPROACH_FAILED") return tx("couldn't get to the start of the lane", "kam nicht zum Anfang der Bahn")
+  if (r == "BLADE_REFUSED") return tx("the blade didn't switch on", "das Messer ging nicht an")
+  if (r == "BLADE_SPINUP_FAILED") return tx("the blade didn't reach its speed", "das Messer kam nicht auf Drehzahl")
+  m = field(j, "message")
+  if (m != "") return m
+  gsub(/_/, " ", r)
+  return tolower(r)
+}
+
+# a fixed name, not the free text of OpenMower or MowBite OS before
+function coded(j) { return field(j, "reason") ~ /^[A-Z][A-Z0-9_]*$/ }
+
 # kind: emergency, done, ... (the events), phase: new, again or clear. prio: ntfy priority, tags: ntfy emoji tags
 function send(kind, phase, title, msg, prio, tags,   json, acts) {
   if (npush) push(kind, phase, title, msg, prio)
@@ -90,7 +146,7 @@ function send(kind, phase, title, msg, prio, tags,   json, acts) {
 # the same for MowBite's app: it sorts it into its channels (problems, reminders, info), a reminder and the all clear
 # take the place of the message about the problem, a tap opens the page, snooze has a button (from the home network)
 function push(kind, phase, title, msg, prio,   json, problem) {
-  problem = kind ~ /^(emergency|dock_failed|undock_failed|nav_error|spinup|standstill)$/
+  problem = kind ~ /^(emergency|dock_failed|undock_failed|nav_error|spinup|standstill|refused)$/
   json = "{\"title\":\"" jesc(title) "\",\"message\":\"" jesc(msg) "\",\"kind\":\"" kind "\",\"phase\":\"" phase "\""
   json = json ",\"problem\":" (problem ? "true" : "false")
   json = json ",\"prio\":" prio ",\"t\":" int(t) ",\"lang\":\"" lang "\",\"path\":\"/activity/\""
@@ -275,8 +331,21 @@ BEGIN {
       why = field(json, "reason")
       if (why ~ /[Rr]ain/) info("rain", tx("Rain", "Regen"), tx(who() " is going home, it's raining.", who() " fährt wegen Regen nach Hause."), "cloud_with_rain")
       else if (why ~ /[Bb]attery/) info("battery", tx("Battery low", "Akku niedrig"), tx(who() " is going home to charge.", who() " fährt zum Laden nach Hause."), "battery")
-    } else if (type == "STATE") {
+    } else if (type == "MOWING_REFUSED" && coded(json)) {
+      # busy and still stopping go by themselves, a start pressed again a moment later
+      why = field(json, "reason")
+      if (why != "BUSY" && why != "STILL_STOPPING") info("refused", tx("Mowing not started", "Mähen nicht gestartet"), tx(who() " didn't start mowing: ", who() " hat nicht mit dem Mähen begonnen: ") reason(json) ".", "warning")
+    } else if (type == "MAP_DATUM" && coded(json)) info("refused", tx("Map doesn't fit", "Karte passt nicht"), tx(who() " won't mow: ", who() " mäht nicht: ") reason(json) ".", "warning")
+    else if (type == "BATTERY_LOW") info("battery", tx("Battery low", "Akku niedrig"), tx(who() " is low on battery", who() " hat wenig Akku") (field(json, "battery_voltage") == "" ? "" : " (" num(field(json, "battery_voltage"), 1) " V)") ".", "battery")
+    else if (type == "STATE") {
       st = field(json, "state")
+      # MowBite OS paused and waits for someone (one waiting for the position goes on by itself). the blade not reaching
+      # its speed comes as MOW_MOTOR_SPINUP_FAILED too
+      why = field(json, "reason")
+      if (st == "PAUSED" && coded(json) && field(json, "resume") == "user" && why != "MANUAL" && why != "EMERGENCY" && why != "BLADE_SPINUP_FAILED") {
+        if (why == "BLADE_REFUSED") info("spinup", tx("Mow motor didn't start", "Mähmotor lief nicht an"), tx(who() " paused: ", who() " hat pausiert: ") reason(json) "." tx(" It waits until you continue it.", " Wartet, bis du fortsetzt."), "warning")
+        else info("nav_error", tx("Paused, waiting", "Pausiert, wartet"), tx(who() " paused: ", who() " hat pausiert: ") reason(json) "." tx(" It waits until you continue it.", " Wartet, bis du fortsetzt."), "warning")
+      }
       if (st == "DOCKING" && nav_t && t - nav_t <= NAV_WAIT) nav_t = 0
       # started again, also by hand: what was before is over
       if ((st == "UNDOCKING" || st == "MOWING") && (problem == "dock_failed")) close_problem(0)

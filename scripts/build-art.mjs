@@ -42,7 +42,8 @@ const STUBS = {
   '@/lib/mowers': 'module.exports = {apiBase: () => ""};',
   '@/lib/openmower': 'module.exports = {RPC: {}};',
   '@/lib/rpc':
-    'module.exports = {callRpc: async () => null, isMissingMethod: () => true, rpcMethods: async () => [], RpcError: class extends Error {}};',
+    'module.exports = {callRpc: async () => null, isMissingMethod: () => true, methodsUnknown: () => true, rpcMethods: async () => [], RpcError: class extends Error {}};',
+  '@/lib/mowerOs': 'module.exports = {isMowbiteOs: () => false, systemInfo: async () => null};',
   '@/lib/settings': 'module.exports = {saveSettings() {}, syncSettings() {}, settingsStore: {get: () => ({}), subscribe: () => () => {}}};',
   '@/lib/areaPlan': 'module.exports = {};',
   '@/lib/plannerProgress': 'module.exports = {askPlan: async () => null};',

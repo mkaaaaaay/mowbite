@@ -10,6 +10,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "reasons": "UPDATE_REASONS=1 VITE_CONFIG_NATIVE_IGNORE_WARNING=true vitest run src/lib/reasons.test.ts",
     "e2e": "playwright test"
   },
   "dependencies": {

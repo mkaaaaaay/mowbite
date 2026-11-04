@@ -8,6 +8,7 @@ import {clock, dayLabel} from '@/lib/dates';
 import {tr, useLang} from '@/lib/i18n';
 import {useMowerActions} from '@/hooks/useMowerActions';
 import {useCanSetParams} from '@/components/MowerParamSettings';
+import {useMowbiteOs} from '@/lib/mowerOs';
 import {paramField} from '@/lib/mowerParams';
 import {containerHas, useUpdates} from '@/lib/updates';
 import Link from 'next/link';
@@ -56,7 +57,10 @@ export default function SchedulePage() {
   const [log, setLog] = useState<LogEntry[]>(() => cachedScheduleLog() ?? []);
   const [error, setError] = useState<string | null>(null);
   const {knowsAction} = useMowerActions();
-  const canTurn = useCanSetParams();
+  const canSetParams = useCanSetParams();
+  // a start's own mowing direction turns mower_logic's mow_angle_offset, MowBite OS has none (its planner turns the lanes)
+  const os = useMowbiteOs();
+  const canTurn = canSetParams && !os;
 
   // a change made here wins over an answer still on its way. back from the background the page asks again, another
   // phone may have changed it meanwhile
@@ -160,6 +164,7 @@ export default function SchedulePage() {
                   mowAreas={mowAreas}
                   canReset={knowsAction(ACTION.resetJob)}
                   canTurn={canTurn}
+                  os={os}
                   onChange={(q) => update({...s, plans: s.plans.map((x, j) => (j === i ? q : x))})}
                   onRemove={() => update({...s, plans: s.plans.filter((_, j) => j !== i)})}
                 />
@@ -240,7 +245,7 @@ export default function SchedulePage() {
                   tr('The forecast comes from Open-Meteo, the mower asks for it with the position rounded to about a kilometer.')
                 )}
               </p>
-              {canTurn && (
+              {canSetParams && (
                 <p className={styles.dim}>
                   {tr('Rain while it mows is up to the mower: {mode}.', {
                     mode: tr(paramField('rain_mode')!.choices![Number(params['/mower_logic/rain_mode'] ?? 0)] ?? ''),

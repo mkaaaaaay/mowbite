@@ -11,6 +11,8 @@ export const NOTIFY_EVENTS = [
   {key: 'nav_error', label: 'Navigation error, waiting', problem: true},
   {key: 'spinup', label: "Mow motor didn't start", problem: true},
   {key: 'standstill', label: "Standing still for 10 min, not charging", problem: true},
+  // MowBite OS only: it says why it doesn't mow
+  {key: 'refused', label: "Mowing turned down, the map doesn't fit", problem: true},
   {key: 'done', label: 'Done mowing', problem: false},
   {key: 'rain', label: 'Going home for rain', problem: false},
   {key: 'battery', label: 'Going home to charge', problem: false},

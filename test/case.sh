@@ -2,13 +2,14 @@
 # one case of test/run.sh, in a MowBite container: the schedule ($SCHED), what the mower has retained (robot state, its
 # params and map: $STATE, $PARAMS, $MAP), a pretend mower and then the scheduler (or $RUN) as in the container.
 # the pretend mower notes what's sent to it (actions, rpc calls) in /tmp/sent, answers the calls and leaves IDLE when
-# it's told to mow, unless $MOWER is "stays". $AREA: the area it says it gets to a few seconds after that, $AREA_SOON:
-# one it gets to a little after the start of the case without being told. from before a restart of the container:
-# $RUN_STATE (a run the scheduler started), $WAITING (a start waiting for the battery), $ANGLE_NORMAL (the usual
-# mowing direction before a plan turned it). $HOLD: the MowBite Updater's hold on starts (retained). $ACTIONS: the
-# lists actions/json says one after the other (retained), a line each, a second apart. $LOGS, $PLANNER_LOG: what
-# logs.recent and planner.log answer (@ID@ for the call's id), $OTHER: someone else's answer sent before each one.
-# $METHODS, $INFO: rpc.methods and system.info (MowBite OS). $KEEP: the parameters the app keeps (/data/params.txt)
+# it's told to mow, unless $MOWER is "stays" (or "refuses": MOWING_REFUSED as MowBite OS sends it). $AREA: the area it
+# says it gets to a few seconds after that, $AREA_SOON: one it gets to a little after the start of the case without
+# being told. from before a restart of the container: $RUN_STATE (a run the scheduler started), $WAITING (a start
+# waiting for the battery), $ANGLE_NORMAL (the usual mowing direction before a plan turned it). $HOLD: the MowBite
+# Updater's hold on starts (retained). $ACTIONS: the lists actions/json says one after the other (retained), a line
+# each, a second apart. $LOGS, $PLANNER_LOG: what logs.recent and planner.log answer (@ID@ for the call's id), $OTHER:
+# someone else's answer sent before each one. $METHODS, $INFO: rpc.methods and system.info (MowBite OS). $KEEP: the
+# parameters the app keeps (/data/params.txt)
 pub() {
   t=$1
   shift
@@ -30,6 +31,8 @@ mosquitto_sub -h "$MOWER_MQTT_HOST" -v -t "${MOWER_MQTT_PREFIX}action" -t "${MOW
   case "$topic $msg" in
     *"action mower_logic:idle/start_mowing")
       [ "$MOWER" = stays ] && continue
+      # MowBite OS turning it down, with why
+      [ "$MOWER" = refuses ] && { pub events/json -m '{"type":"MOWING_REFUSED","reason":"BATTERY_LOW","battery_voltage":22.4,"limit":23,"severity":"warning","resume":"user","message":"Battery low"}'; continue; }
       pub robot_state/json -r -m "$(echo "$STATE" | sed 's/"current_state":"[A-Z]*"/"current_state":"MOWING"/')"
       [ -z "$AREA" ] || { sleep 3 && pub events/json -m "{\"type\":\"AREA\",\"area_id\":\"$AREA\"}"; } &
       ;;

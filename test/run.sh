@@ -108,6 +108,7 @@ start battery "$(state IDLE 0 0 0.5)" "$(MINBAT=80 base "$DAY")"$'\n'"plan $D $M
 start fresh "$(state)" "$(base "$DAY")"$'\n'"plan $D $M fresh=1"
 start angle "$(state)" "$(base "$DAY")"$'\n'"plan $D $M angle=30" 'PARAMS={"/mower_logic/mow_angle_offset":5}'
 start stays "$(state)" "$(base "$DAY")"$'\n'"plan $D $M" MOWER=stays
+start refused "$(state)" "$(base "$DAY")"$'\n'"plan $D $M" MOWER=refuses
 start areas "$(state)" "$(base "$DAY")"$'\n'"plan $D $M front" "MAP=$AREAS" AREA=back
 start pausedarea "$(state)" "$(base "$DAY")"$'\n'"plan $D $M"$'\n'"pause $(day "$DAY") back" "MAP=$AREAS" AREA=back
 start pausedareas "$(state)" "$(base "$DAY")"$'\n'"plan $D $M front"$'\n'"pause $(day "$DAY") front" "MAP=$AREAS"
@@ -170,6 +171,9 @@ gets endtime '^action mower_logic:mowing/abort_mowing$' && ok "scheduler: the mo
 gets endtime '^rpc/request .*"/mower_logic/manual_pause_mowing":true' &&
   ok "scheduler: and doesn't carry on by itself after charging" || bad "scheduler: and doesn't carry on by itself after charging" "$(sent endtime)"
 logs "scheduler: a mower that doesn't move is noticed" stays '^start_failed( at=[0-9:]+)?$' 90
+logs "scheduler: why MowBite OS turned the start down" refused '^start_refused BATTERY_LOW 22.4( at=[0-9:]+)?$' 30
+slog refused | grep -q '^start_failed' && bad "scheduler: a start turned down isn't one the mower didn't react to" "$(slog refused)" ||
+  ok "scheduler: a start turned down isn't one the mower didn't react to"
 logs "scheduler: no start after the end time while waiting for the battery" endlate '^skip_end( at=[0-9:]+)?$' 90
 docker exec mbt-endlate mosquitto_pub -h mbt-mq -r -t endlate/robot_state/json -m "$(state IDLE 0 0 0.95)"
 sleep 25

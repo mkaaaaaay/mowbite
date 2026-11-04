@@ -19,6 +19,7 @@ export default function PlanRow({
   mowAreas,
   canReset,
   canTurn,
+  os,
   onChange,
   onRemove,
 }: {
@@ -28,6 +29,8 @@ export default function PlanRow({
   canReset: boolean;
   // the mower takes params.set, so a start can have its own mowing direction
   canTurn: boolean;
+  // MowBite OS: no mowing direction per start time there (yet)
+  os?: boolean;
   onChange: (p: Plan) => void;
   onRemove: () => void;
 }) {
@@ -159,7 +162,9 @@ export default function PlanRow({
                   ? tr('mows the way the mower is set')
                   : canTurn
                     ? tr('before this start the direction of every area is turned by so much, e.g. crosswise to another start time')
-                    : tr("this mower can't do that yet, it needs a newer OpenMower")}
+                    : os
+                      ? tr("MowBite OS doesn't turn the direction per start time yet, set the direction in the planner")
+                      : tr("this mower can't do that yet, it needs a newer OpenMower")}
               </small>
             </span>
           </label>

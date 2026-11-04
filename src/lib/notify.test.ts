@@ -22,7 +22,7 @@ describe('push message settings', () => {
     expect(c.token).toBe('');
     expect(c.snooze).toBe(1700000000);
     // not saved yet: the problems and maintenance by default
-    expect(parseNotify('', fallback).events).toEqual(['emergency', 'dock_failed', 'undock_failed', 'nav_error', 'spinup', 'standstill', 'maintenance']);
+    expect(parseNotify('', fallback).events).toEqual(['emergency', 'dock_failed', 'undock_failed', 'nav_error', 'spinup', 'standstill', 'refused', 'maintenance']);
     // saved with none picked
     expect(parseNotify('topic t\n', fallback).events).toEqual([]);
   });
@@ -30,7 +30,7 @@ describe('push message settings', () => {
   it('writes lines the cgi keeps, a token only when one was typed or is to go', () => {
     const c = {...fallback, topic: 'mowbite-abc', name: 'Ste"ve\\', server: 'https://ntfy.example.org/'};
     expect(serializeNotify(c)).toBe(
-      'enabled 1\nserver https://ntfy.example.org\ntopic mowbite-abc\nlang de\nname Steve\nurl http://openmower:8082\nevents emergency,dock_failed,undock_failed,nav_error,spinup,standstill,maintenance\nremind 30\nemergency_wait 10',
+      'enabled 1\nserver https://ntfy.example.org\ntopic mowbite-abc\nlang de\nname Steve\nurl http://openmower:8082\nevents emergency,dock_failed,undock_failed,nav_error,spinup,standstill,refused,maintenance\nremind 30\nemergency_wait 10',
     );
     expect(serializeNotify({...c, token: 'tk_secret'})).toContain('\ntoken tk_secret\n');
     expect(serializeNotify({...c, token: '-'})).toContain('\ntoken -\n');
@@ -218,5 +218,59 @@ describe('what the container sends', {timeout: 30_000}, () => {
     expect(run(input, phones + 'topic t\n')).toHaveLength(4);
     expect(push(input, phones + 'topic t\n')).toHaveLength(4);
     expect(push(input, 'enabled 0\n' + phones)).toEqual([]);
+  });
+
+  // MowBite OS: the reason a fixed name with the english text, how bad it is and whether it goes on by itself
+  it('tells why MowBite OS turned a start down or paused, by the fixed name', () => {
+    const os = 'topic t\nlang en\nname Steve\nevents refused,nav_error,spinup,battery\n';
+    const out = run(
+      event(100, '{"type":"MOWING_REFUSED","reason":"BATTERY_LOW","battery_voltage":22.44,"limit":23,"severity":"warning","resume":"user","message":"Battery low"}') +
+        event(110, '{"type":"MOWING_REFUSED","reason":"POSITION_ACCURACY","accuracy":0.351,"limit":0.1}') +
+        event(120, '{"type":"STATE","state":"PAUSED","reason":"CROSS_TRACK","severity":"error","resume":"user"}') +
+        event(130, '{"type":"STATE","state":"PAUSED","reason":"BLADE_REFUSED","severity":"error","resume":"user"}') +
+        event(140, '{"type":"MAP_DATUM","state":"unbound","reason":"MAP_MISMATCH","datum_state":"unbound","severity":"error","resume":"user"}') +
+        event(150, '{"type":"MOWING_REFUSED","reason":"SOMETHING_NEW","message":"Something, new"}') +
+        event(160, '{"type":"BATTERY_LOW","battery_voltage":22.44,"limit":23}'),
+      os,
+    );
+    expect(out.map((m) => [m.title, m.message])).toEqual([
+      ['Mowing not started', "Steve didn't start mowing: battery low (22.4 V)."],
+      ['Mowing not started', "Steve didn't start mowing: position accurate to 0.35 m, 0.10 m or better needed."],
+      ['Paused, waiting', 'Steve paused: too far off its path. It waits until you continue it.'],
+      ["Mow motor didn't start", "Steve paused: the blade didn't switch on. It waits until you continue it."],
+      ["Map doesn't fit", "Steve won't mow: the map has no reference point recorded."],
+      ['Mowing not started', "Steve didn't start mowing: Something, new."],
+      ['Battery low', 'Steve is low on battery (22.4 V).'],
+    ]);
+    expect(run(event(100, '{"type":"MOWING_REFUSED","reason":"RAIN"}'), os.replace('lang en', 'lang de'))[0].message).toBe(
+      'Steve hat nicht mit dem Mähen begonnen: Regen.',
+    );
+    expect(
+      run(event(100, '{"type":"MOWING_REFUSED","reason":"POSITION_ACCURACY","accuracy":0.124,"limit":0.1}'), os.replace('lang en', 'lang de'))[0].message,
+    ).toBe('Steve hat nicht mit dem Mähen begonnen: Position auf 0,12 m genau, nötig sind 0,10 m oder besser.');
+    expect(run(event(100, '{"type":"MOWING_REFUSED","reason":"POSITION_ACCURACY","accuracy":0.124}'), os)[0].message).toBe(
+      "Steve didn't start mowing: position accurate to 0.12 m.",
+    );
+    expect(run(event(100, '{"type":"MOWING_REFUSED","reason":"NO_HEADING"}'), os)[0].message).toBe("Steve didn't start mowing: heading not known yet.");
+    expect(run(event(100, '{"type":"MOWING_REFUSED","reason":"NO_SAFETY_MEASUREMENT"}'), os)[0].message).toBe(
+      "Steve didn't start mowing: safety not yet verified on this platform, mowing and driving are blocked.",
+    );
+  });
+
+  it("leaves out what goes on by itself, what was asked for and MowBite OS's free text from before", () => {
+    const os = 'topic t\nlang en\nname Steve\nevents refused,nav_error,spinup,battery\n';
+    const out = run(
+      event(100, '{"type":"STATE","state":"PAUSED","reason":"POSE_LOST","severity":"warning","resume":"auto"}') +
+        event(110, '{"type":"STATE","state":"PAUSED","reason":"MANUAL","severity":"info","resume":"user"}') +
+        event(120, '{"type":"MOWING_REFUSED","reason":"BUSY","state":"MOWING"}') +
+        event(130, '{"type":"MOWING_REFUSED","reason":"No position from the localization"}') +
+        event(140, '{"type":"STATE","state":"PAUSED"}') +
+        event(150, '{"type":"DRIVE","phase":"end","arrived":false,"reason":"TRANSIT_FAILED"}') +
+        event(160, '{"type":"RECORDING_REFUSED","action":"point","reason":"POSITION_ACCURACY"}'),
+      os,
+    );
+    expect(out).toEqual([]);
+    // not picked
+    expect(run(event(100, '{"type":"MOWING_REFUSED","reason":"RAIN"}'), conf)).toEqual([]);
   });
 });

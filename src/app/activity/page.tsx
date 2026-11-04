@@ -7,6 +7,7 @@ import {ParamFix} from '@/components/MowerParamSettings';
 import {describe, eventSource, explain, groupRuns, noteworthy, rawLine, OUTCOMES, withState, type Entry, type MowerEvent, type Run} from '@/lib/events';
 import {useDragScroll} from '@/hooks/useDragScroll';
 import {eventsOfDay, historyDays, localDays, type DayEvents} from '@/lib/history';
+import {useMowbiteOs} from '@/lib/mowerOs';
 import {RosLogAround} from '@/components/RosLog';
 import {GpsAround} from '@/components/GpsLog';
 import {DiagnosisDownload} from '@/components/Diagnosis';
@@ -22,10 +23,11 @@ import {numParam, useMowerParams} from '@/hooks/useMowerParams';
 // newest first like the runs, the state each one came in is worked out in time order first. progress: only what
 // happened, without the problems
 function Timeline({events, progress = false}: {events: MowerEvent[]; progress?: boolean}) {
+  const os = useMowbiteOs();
   return (
     <ol className={styles.timeline}>
       {withState(events).reverse().map(({event, state}) => {
-        const {text, severity} = describe(event, state);
+        const {text, severity} = describe(event, state, os);
         if (progress && severity !== 'info') return null;
         return (
           <li key={event.id} className={styles[severity]}>
@@ -98,9 +100,10 @@ function ProblemItem({run, next, event, state, where}: {run: Run; next?: Run; ev
   const [raw, setRaw] = useState(false);
   // folded to its time and what happened, the rest on a tap
   const [open, setOpen] = useState(false);
-  const {text, severity} = describe(event, state);
+  const os = useMowbiteOs();
+  const {text, severity} = describe(event, state, os);
   const params = useMowerParams();
-  const hint = explain(event, state, numParam(params, PARAM.mowerLogic('gps_timeout')));
+  const hint = explain(event, state, numParam(params, PARAM.mowerLogic('gps_timeout')), os);
   return (
     <li className={styles[severity]}>
       <div className={styles.problemHead} onClick={() => setOpen(!open)} role="button" aria-expanded={open}>
@@ -147,8 +150,9 @@ function ProblemItem({run, next, event, state, where}: {run: Run; next?: Run; ev
 }
 
 function Problems({run, next, where}: {run: Run; next?: Run; where: Where}) {
+  const os = useMowbiteOs();
   const list = withState(run.events)
-    .filter(({event, state}) => noteworthy(event, state))
+    .filter(({event, state}) => noteworthy(event, state, os))
     .reverse();
   if (!list.length) return null;
   return (
@@ -237,6 +241,8 @@ export default function ActivityPage() {
 
   const shown = day ?? days?.[0] ?? null;
   const isToday = !!shown && dayKey(parseDay(shown)) === dayKey(new Date());
+  // MowBite OS doesn't dock yet, a run ends idle on the lawn
+  const os = useMowbiteOs();
 
   useEffect(() => {
     if (!shown) return;
@@ -267,21 +273,21 @@ export default function ActivityPage() {
   }, [shown, isToday]);
 
   // outside of runs only start/shutdown and real problems are interesting, not gps toggling in the dock
-  const entries: Entry[] = (events ? groupRuns(events, isToday).reverse() : []).filter(
-    (e) => e.kind === 'run' || ['BOOTED', 'SHUTDOWN'].includes(e.event.type) || noteworthy(e.event),
+  const entries: Entry[] = (events ? groupRuns(events, isToday, undefined, os).reverse() : []).filter(
+    (e) => e.kind === 'run' || ['BOOTED', 'SHUTDOWN'].includes(e.event.type) || noteworthy(e.event, undefined, os),
   );
   // which file and line an entry came from, the day's early or late hours sit in the neighbouring file
   const where = loaded?.where ?? new Map<string, {file: string; line: number}>();
   const runs = entries.flatMap((e) => (e.kind === 'run' ? [e.run] : []));
   const mowed = runs.reduce((s, r) => s + r.bladeSeconds, 0);
   // with the problems outside of runs (an emergency stop in the dock)
-  const problems = runs.reduce((s, r) => s + r.problems, 0) + entries.filter((e) => e.kind === 'event' && describe(e.event).severity !== 'info').length;
+  const problems = runs.reduce((s, r) => s + r.problems, 0) + entries.filter((e) => e.kind === 'event' && describe(e.event, undefined, os).severity !== 'info').length;
   const visible = entries.filter((e) =>
     filter === 'all'
       ? true
       : e.kind === 'run'
         ? filter === 'progress' || e.run.problems > 0
-        : (describe(e.event).severity !== 'info') === (filter === 'problems'),
+        : (describe(e.event, undefined, os).severity !== 'info') === (filter === 'problems'),
   );
   // messages between runs that follow each other share one card
   const blocks: ({kind: 'run'; run: Run} | {kind: 'loose'; events: MowerEvent[]})[] = [];
@@ -375,7 +381,7 @@ export default function ActivityPage() {
             ) : (
               <div key={b.events[0].id} className={styles.looseGroup}>
                 {b.events.map((ev) => (
-                  <div key={ev.id} className={[styles.loose, styles[describe(ev).severity]].join(' ')}>
+                  <div key={ev.id} className={[styles.loose, styles[describe(ev, undefined, os).severity]].join(' ')}>
                     <span className={styles.time}>{clock(ev.t)}</span>
                     {describe(ev).text}
                   </div>

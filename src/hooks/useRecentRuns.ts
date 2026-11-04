@@ -1,5 +1,6 @@
 import {groupRuns, type MowerEvent, type Run} from '@/lib/events';
 import {eventsOfDay, fileDay, forgetToday, historyDays, localDays} from '@/lib/history';
+import {isMowbiteOs, systemInfo} from '@/lib/mowerOs';
 import {useEffect, useRef, useState} from 'react';
 
 export interface RecentRuns {
@@ -36,11 +37,12 @@ export function useRecentRuns(bump?: string): RecentRuns | null {
       const files = await historyDays();
       const todayKey = fileDay(new Date());
       const today = (await eventsOfDay(files, todayKey)).events;
-      const runs = groupRuns(today, true).flatMap((e) => (e.kind === 'run' ? [e.run] : []));
+      const os = isMowbiteOs(await systemInfo());
+      const runs = groupRuns(today, true, undefined, os).flatMap((e) => (e.kind === 'run' ? [e.run] : []));
       const latest = [...runs].reverse();
       for (const d of localDays(files).filter((d) => d !== todayKey).slice(0, LATEST_DAYS)) {
         if (latest.length >= LATEST) break;
-        const old = groupRuns((await eventsOfDay(files, d)).events, false);
+        const old = groupRuns((await eventsOfDay(files, d)).events, false, undefined, os);
         latest.push(...old.flatMap((e) => (e.kind === 'run' ? [e.run] : [])).reverse());
       }
       cached = {today, runs, latest: latest.slice(0, LATEST)};

@@ -205,16 +205,42 @@ send_home_at() {
 # wait for the battery say
 slog() { log "$@" "at=$dtime"; }
 
+# MowBite OS says why it turns a start down (MOWING_REFUSED, its reason a fixed name), right away: listened for before
+# the start goes out
+REFUSED=/tmp/start.refused
+listen_refused() {
+  rm -f "$REFUSED"
+  mosquitto_sub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_EVENTS" -W 65 2>/dev/null | grep -m1 MOWING_REFUSED > "$REFUSED" &
+  sleep 1
+}
+
+# the reason and the value it's about in the log: the battery, the position's accuracy or what it was busy with ($1: the
+# start's time from the plan)
+log_refused() {
+  m=$(cat "$REFUSED" 2>/dev/null)
+  why=$(field "$m" reason)
+  case "$why" in '' | *[!A-Z0-9_]*) why="" ;; esac
+  case "$why" in
+    BATTERY_LOW) v=$(field "$m" battery_voltage) ;;
+    POSITION_ACCURACY) v=$(field "$m" accuracy) ;;
+    BUSY) v=$(field "$m" state) ;;
+    *) v="" ;;
+  esac
+  # shellcheck disable=SC2086
+  log start_refused $why $v ${1:+"at=$1"}
+}
+
 # a start that went out only says the broker took it ($1: its time from the plan, none for the leftovers'). the mower
 # answers by leaving IDLE (undocking), when it doesn't within a minute that's logged, the page would say started otherwise
 check_started() {
   at=$1
   t=$(($(date +%s) + 60))
   while [ "$(date +%s)" -lt "$t" ]; do
+    [ -s "$REFUSED" ] && { log_refused "$at"; return; }
     s=$(mosquitto_sub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -C 1 -W 10 2>/dev/null)
     case "$(field "$s" current_state)" in '' | IDLE) sleep 2 ;; *) return ;; esac
   done
-  log start_failed ${at:+"at=$at"}
+  if [ -s "$REFUSED" ]; then log_refused "$at"; else log start_failed ${at:+"at=$at"}; fi
 }
 
 # does the run have an area left: mowed ones in the map (retained) the plan picks ($1: all or a list) and
@@ -390,6 +416,7 @@ leftovers_after() {
   if [ "$(echo "$(field "$r" armed)" | awk '{ print ($1 > 0) ? 1 : 0 }')" != 1 ]; then log leftovers_failed; return; fi
   # (the updater's hold once more after the planner's answer, which may take minutes. what's armed runs out by itself)
   if held; then log leftovers_skip hold; return; fi
+  listen_refused
   if mosquitto_pub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTION" -m "$ACTION_START_MOWING"; then
     date +%s > "$LEFT"
     log leftovers_started "$left"
@@ -595,13 +622,17 @@ while :; do
       # the mowing direction of this start. one without its own gets the usual one back after one with its own: what
       # the app keeps for the mower (params.sh), else what the mower had before a start turned it
       turn=""
-      if [ "$angle" != - ]; then
+      mower_params=""
+      if [ "$angle" != - ] || [ -f "$NORMAL" ]; then
+        mower_params=$(mosquitto_sub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_PARAMS" -C 1 -W 10 2>/dev/null)
+      fi
+      usual=$(field "$mower_params" "$PARAM_MOW_ANGLE_OFFSET")
+      if [ -n "$mower_params" ] && [ -z "$usual" ]; then
+        # a mower without mower_logic's mowing direction (MowBite OS, its planner turns the lanes): nothing to turn
+        rm -f "$NORMAL"
+      elif [ "$angle" != - ]; then
         turn=$angle
-        if [ ! -f "$NORMAL" ]; then
-          now=$(mosquitto_sub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_PARAMS" -C 1 -W 10 2>/dev/null)
-          now=$(field "$now" "$PARAM_MOW_ANGLE_OFFSET")
-          [ -n "$now" ] && echo "$now" > "$NORMAL"
-        fi
+        [ ! -f "$NORMAL" ] && [ -n "$usual" ] && echo "$usual" > "$NORMAL"
       elif [ -f "$NORMAL" ]; then
         turn=$(kept_angle)
         turn=${turn:-$(cat "$NORMAL" 2>/dev/null)}
@@ -620,7 +651,7 @@ while :; do
       # shellcheck disable=SC2086
       if held; then
         [ -n "$hwaited" ] || { slog waiting_hold; hwaited=1; }
-      elif mosquitto_pub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTION" -m "$ACTION_START_MOWING"; then
+      elif listen_refused && mosquitto_pub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTION" -m "$ACTION_START_MOWING"; then
         slog started "$bat"
         check_started "$dtime" &
         # the end time of the start, not the next one from now (it may have waited for the battery)

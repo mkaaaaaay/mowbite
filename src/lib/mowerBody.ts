@@ -4,8 +4,9 @@ import {useEffect, useMemo, useSyncExternalStore} from 'react';
 import type {PlanRequest} from './areaPlan';
 import {apiBase} from './mowers';
 import {RPC} from './openmower';
+import {isMowbiteOs, systemInfo} from './mowerOs';
 import {askPlan} from './plannerProgress';
-import {callRpc, isMissingMethod, RpcError, rpcMethods} from './rpc';
+import {callRpc, isMissingMethod, methodsUnknown, RpcError, rpcMethods} from './rpc';
 import {saveSettings, settingsStore, syncSettings, type Settings} from './settings';
 
 // The mower's body and blade as the MowBite Planner on the mower knows them (planner.settings): a rectangle around
@@ -219,11 +220,15 @@ export async function savePlannerSettings(values: Record<string, unknown>): Prom
 
 // A planner that knows outlines but plans with the rectangle while its sizes are exactly a model's with a measured
 // outline gets that outline from the app by itself: once per start, after the shared settings are in (the rectangle
-// may be kept there), and the model is noted for the sizes card
+// may be kept there), and the model is noted for the sizes card. Not on MowBite OS: the mower holds its sizes itself
+// (robot.geometry), the planner only shows them. Until it's known what runs there it waits for the next time
 let outlineChecked = false;
 export async function giveOutline() {
   if (outlineChecked || !current?.settings.robot_outline?.settable) return;
   outlineChecked = true;
+  const info = await systemInfo();
+  if (methodsUnknown()) outlineChecked = false;
+  if (methodsUnknown() || isMowbiteOs(info)) return;
   await syncSettings();
   if (!current || outlineOf(current.settings.robot_outline?.value)) return;
   const m = autoOutlineModel(plannerSizes(current), settingsStore.snapshot().keepRectangle);

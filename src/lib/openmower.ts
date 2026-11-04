@@ -7,6 +7,8 @@ export const TOPIC = {
   position: 'position/json',
   map: 'map/json',
   mapOverlay: 'map_overlay/json',
+  // each event as it happens, the same as in the event history
+  events: 'events/json',
   sensorInfos: 'sensor_infos/json',
   sensorData: 'sensors/+/data',
   params: 'params/json',
@@ -24,6 +26,8 @@ export const TOPIC = {
 export const RPC = {
   // what this mower answers, newer OpenMower versions only
   methods: 'rpc.methods',
+  // what runs on the mower, MowBite OS only (lib/mowerOs)
+  systemInfo: 'system.info',
   replaceMap: 'map.replace',
   eventDays: 'events.history.list',
   events: 'events.history',

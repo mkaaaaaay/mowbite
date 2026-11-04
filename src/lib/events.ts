@@ -1,5 +1,19 @@
 import {fmt, tr} from './i18n';
 import {LOGIC_SOURCE} from './openmower';
+import {
+  EMERGENCY_BITS,
+  EMERGENCY_HIDE,
+  EMERGENCY_HIDE_WITH,
+  EMERGENCY_TEXT,
+  EVENTS,
+  FALLBACK,
+  REASONS,
+  WRAPPERS,
+  fill,
+  fits,
+  pick,
+  type Severity,
+} from './reasonTexts';
 
 // events from the mower's event history (events.history rpc), grouped into runs for the activity page
 
@@ -20,27 +34,37 @@ export interface MowerEvent {
   attempts?: number;
   emergency?: boolean;
   battery_voltage?: number;
+  // recording an area, MowBite OS only (OpenMower doesn't send these): the step refused, what was saved
+  action?: string;
+  area_type?: string;
+  obstacles?: number;
+  points?: number;
+  area_m2?: number;
+  dock_id?: string;
+  heading?: number;
+  // MowBite OS: a reason with a fixed name carries an english text, how bad it is and whether it goes on by itself
+  // (masterplan 3.1a), and the numbers it's about. limit is in the unit of the value it goes with
+  message?: string;
+  severity?: string;
+  resume?: string;
+  limit?: number;
+  accuracy?: number | null;
+  distance?: number;
+  area?: number;
+  code?: string;
+  datum_state?: string;
+  phase?: string;
+  arrived?: boolean;
+  // GEOMETRY_CHANGED: the sizes set, those set smaller than from the factory
+  changed?: string[];
+  below_default?: string[];
   // worked out here, not from OpenMower: a navigation error that only came because it was sent home (see markSentHome)
   sentHome?: boolean;
 }
 
-export type Severity = 'error' | 'warning' | 'info';
+export type {Severity};
 
-const STATES: Record<string, string> = {
-  IDLE: 'Idle',
-  MOWING: 'Mowing',
-  DOCKING: 'Heading home',
-  UNDOCKING: 'Leaving the dock',
-  PAUSED: 'Paused',
-  AREA_RECORDING: 'Recording an area',
-};
-
-const REASONS: Record<string, string> = {
-  path_failed: "couldn't follow the path",
-  approach_failed: 'approach failed',
-  dock_failed: "no contact with the charger",
-  no_gps: 'no GPS fix',
-};
+const readable = (r: string) => r.replace(/_/g, ' ').toLowerCase();
 
 // why it heads home, from the reason mower_logic gives (mower_logic.cpp): "Manual pause", "Battery voltage critical:
 // 23.1 V", "Battery average voltage low: 24.2 V", "Mow motor over temp: 71 °C", "Rain detected"
@@ -67,35 +91,16 @@ function homeText(r?: string): string {
     case 'rain':
       return tr('Heading home: rain');
     default:
-      return r ? tr('Heading home: {reason}', {reason: reason(r)}) : tr('Heading home');
+      return r ? tr('Heading home: {reason}', {reason: readable(r)}) : tr('Heading home');
   }
 }
 
 // worth showing in a run's summary and the day's list though it isn't a problem: why it went home (not a pause)
-export function noteworthy(e: MowerEvent, state?: string): boolean {
-  if (describe(e, state).severity !== 'info') return true;
+export function noteworthy(e: MowerEvent, state?: string, os = false): boolean {
+  if (describe(e, state, os).severity !== 'info') return true;
   const why = e.type === 'DOCKING' ? homeReason(e.reason) : null;
   return why !== null && why !== 'paused';
 }
-
-const reason = (r?: string) => (r ? (REASONS[r] ? tr(REASONS[r]) : r.replace(/_/g, ' ').toLowerCase()) : '');
-
-// the emergency stop's reasons, one bit each (EmergencyReason in open_mower_ros services/emergency_service.json)
-const EMERGENCY_BITS = [
-  'LATCH',
-  'TIMEOUT_INPUTS',
-  'STOP',
-  'LIFT',
-  'LIFT_MULTIPLE',
-  'COLLISION',
-  'TIMEOUT_HIGH_LEVEL',
-  'HIGH_LEVEL',
-  'SERVICE_NOT_READY',
-  'COLLISION_MULTIPLE',
-  'MOWER_RPM_TIMEOUT',
-  'MOWER_RPM_LIMIT',
-  'FIRMWARE_INCOMPATIBLE',
-];
 
 // the reasons in an EMERGENCY event, mower_logic sends them as the number of bits
 export function emergencyFlags(code: unknown): string[] {
@@ -104,101 +109,140 @@ export function emergencyFlags(code: unknown): string[] {
   return EMERGENCY_BITS.filter((_, i) => n & (1 << i));
 }
 
-// what the firmware means by them (fw-openmower-v2): a single lift sensor or bumper, or two and more at once
-const EMERGENCY_TEXT: Record<string, string> = {
-  STOP: 'stop button',
-  LIFT: 'lifted',
-  LIFT_MULTIPLE: 'lifted (several sensors)',
-  COLLISION: 'bumper',
-  COLLISION_MULTIPLE: 'bumper (several at once)',
-  TIMEOUT_INPUTS: 'sensors not answering',
-  TIMEOUT_HIGH_LEVEL: 'no contact with OpenMower',
-  HIGH_LEVEL: 'stopped by OpenMower',
-  SERVICE_NOT_READY: 'firmware still starting',
-  MOWER_RPM_TIMEOUT: "mow motor didn't reach its speed",
-  MOWER_RPM_LIMIT: 'mow motor too fast',
-  FIRMWARE_INCOMPATIBLE: "firmware doesn't fit OpenMower",
-};
-
-// the reasons in words, the more telling one where two say the same. LATCH only holds it until it's reset
+// the reasons in words, the more telling one where two say the same (reasonTexts.ts)
 export function emergencyText(flags: readonly string[]): string {
   const has = new Set(flags);
   return flags
-    .filter(
-      (f) =>
-        f !== 'LATCH' &&
-        !(f === 'LIFT' && has.has('LIFT_MULTIPLE')) &&
-        !(f === 'COLLISION' && has.has('COLLISION_MULTIPLE')) &&
-        !(f === 'HIGH_LEVEL' && has.has('MOWER_RPM_TIMEOUT')),
-    )
-    .map((f) => (EMERGENCY_TEXT[f] ? tr(EMERGENCY_TEXT[f]) : f.replace(/_/g, ' ').toLowerCase()))
+    .filter((f) => !EMERGENCY_HIDE.includes(f) && !(EMERGENCY_HIDE_WITH[f] && has.has(EMERGENCY_HIDE_WITH[f])))
+    .map((f) => (EMERGENCY_TEXT[f] ? tr(EMERGENCY_TEXT[f]) : readable(f)))
     .join(', ');
 }
 
-// state is what the mower was doing when the event happened, gps is switched off on purpose outside
-// of mowing, so losing it only counts as a problem while mowing
-export function describe(e: MowerEvent, state?: string): {text: string; severity: Severity} {
-  const info = (text: string) => ({text, severity: 'info' as Severity});
-  switch (e.type) {
-    case 'STATE':
-      return info(STATES[e.state ?? ''] ? tr(STATES[e.state ?? '']) : (e.state ?? tr('State changed')));
-    case 'GPS':
-      if (e.available) return info(tr('GPS fix'));
-      return state === 'MOWING' ? {text: tr('GPS lost'), severity: 'warning'} : info(tr('GPS off'));
-    case 'BLADES':
-      return info(e.enabled ? tr('Blades on') : tr('Blades off'));
-    case 'AREA':
-      return info(tr('Mowing "{area}"', {area: e.area_name || tr('unnamed')}));
-    case 'AREA_SKIPPED':
-      // only happens when someone presses skip
-      return info(tr('Area skipped'));
-    case 'UNDOCKED':
-      return info(tr('Left the dock'));
-    case 'UNDOCKING_FAILED':
-      return {
-        text: e.reason ? tr('Leaving the dock failed ({reason})', {reason: reason(e.reason)}) : tr('Leaving the dock failed'),
-        severity: 'error',
-      };
-    case 'DOCKING':
-      return info(homeText(e.reason));
-    case 'DOCKING_RETRY':
-      return {text: tr('Docking retry {n} ({reason})', {n: e.attempts ?? '', reason: reason(e.reason)}).replace('  ', ' '), severity: 'warning'};
-    case 'DOCKING_FAILED':
-      return {text: tr('Docking failed after {n} tries ({reason})', {n: e.attempts ?? '?', reason: reason(e.reason)}), severity: 'error'};
-    case 'DOCKED':
-      return info(tr('Docked'));
-    case 'JOB_COMPLETE':
-      return info(tr('All areas done'));
-    case 'JOB_RESET':
-      return info(tr('Interrupted job dropped, the next start mows from the beginning'));
-    case 'EMERGENCY': {
-      if (!e.emergency) return info(tr('Emergency cleared'));
-      const why = emergencyText(emergencyFlags(e.reason));
-      const code = Number(e.reason);
-      return {
-        text: why
-          ? tr('Emergency stop: {reason}', {reason: why})
-          : code > 0
-            ? tr('Emergency stop (code {code})', {code})
-            : tr('Emergency stop'),
-        severity: 'error',
-      };
-    }
-    case 'NAVIGATION_ERROR':
-      return e.sentHome ? info(tr('Path stopped, sent home')) : {text: tr('Navigation error'), severity: 'error'};
-    case 'MOW_MOTOR_SPINUP_FAILED':
-      return {text: tr("Mow motor didn't start"), severity: 'error'};
-    case 'FULLY_CHARGED':
-      return info(e.battery_voltage ? tr('Fully charged ({v} V)', {v: fmt(e.battery_voltage, 1)}) : tr('Fully charged'));
-    // ros on the mower started or ended (also a restart or an update), not the mower switched on or off
-    case 'BOOTED':
-      return info(tr('OpenMower started'));
-    case 'SHUTDOWN':
-      return info(tr('OpenMower stopped'));
-    default:
-      return info(e.type.replace(/_/g, ' ').toLowerCase());
-  }
+// the reasons MowBite OS gave as text before E6 (area_recorder.cpp, logic_core.cpp), their numbers are metres with two
+// decimals
+const REFUSALS: [RegExp, string, string[]][] = [
+  [/^a ring needs at least (\d+) points, it has (\d+)$/, 'a line needs at least {min} points, it has {n}', ['min', 'n']],
+  [/^the line crosses itself$/, 'the line crosses itself', []],
+  [/^it encloses only ([\d.]+) m², at least ([\d.]+) needed$/, 'it encloses only {a} m², at least {min} m² needed', ['a', 'min']],
+  [/^Position accuracy ([\d.]+|nan) m, points need ([\d.]+) m or better$/i, 'position accurate to {acc} m, points need {max} m or better', ['acc', 'max']],
+  [
+    /^Position accuracy ([\d.]+|nan) m, the docking station needs ([\d.]+) m or better$/i,
+    'position accurate to {acc} m, the docking station needs {max} m or better',
+    ['acc', 'max'],
+  ],
+  [/^Only ([\d.]+) m from the first point, at least ([\d.]+) m needed for the heading$/, 'only {d} m from the first point, the direction needs at least {min} m', ['d', 'min']],
+  [/^Only ([\d.]+) m from the last point, more than ([\d.]+) m needed$/, 'only {d} m from the last point, more than {min} m needed', ['d', 'min']],
+  [/^The recording has reached (\d+) points, close the ring$/, 'the line has {n} points, the most there can be: close it', ['n']],
+  [/^The last change of the map is still being saved$/, 'the last change of the map is still being saved', []],
+  [/^No position$/, 'no position', []],
+  [/^No outline recorded$/, 'no outline recorded yet', []],
+  [/^The map does not fit the datum in use$/, "the map doesn't fit the reference point in use", []],
+];
+const RING = 'Cannot close the ring: ';
+
+// the reason as a fixed name, MowBite OS from E6 on (masterplan 3.1a). OpenMower's own are lower case or free text
+export const isReasonCode = (r?: string): boolean => !!r && /^[A-Z][A-Z0-9_]*$/.test(r);
+
+// a reason in words (reasonTexts.ts): one in the list with the event's numbers, a fixed name it doesn't know by the
+// mower's english text, else the name itself readable. free text (OpenMower, MowBite OS before E6) stays as it came
+export function reasonText(e: MowerEvent): string {
+  const r = e.reason;
+  if (!r) return '';
+  const v = pick(REASONS[r], e);
+  let text: string;
+  if (v) text = fill(tr(v.en), e);
+  else if (isReasonCode(r)) text = e.message || readable(r);
+  else if (/^[a-z][a-z0-9_]*$/.test(r)) text = readable(r);
+  else return r;
+  const wrap = Object.keys(WRAPPERS)
+    .filter((k) => r.startsWith(k))
+    .sort((a, b) => b.length - a.length)[0];
+  return wrap && fits(WRAPPERS[wrap], e) ? fill(tr(WRAPPERS[wrap].en), {text}) : text;
 }
+
+// the reason in words of the app's language, one it doesn't know as it came
+export function refusalReason(r?: string, action?: string, e?: MowerEvent): string {
+  if (!r) return '';
+  if (isReasonCode(r)) return reasonText({...(e ?? {id: '', t: 0, type: 'RECORDING_REFUSED'}), reason: r, action});
+  const rest = r.startsWith(RING) ? r.slice(RING.length) : r;
+  let text = rest;
+  for (const [re, key, names] of REFUSALS) {
+    const m = rest.match(re);
+    if (!m) continue;
+    const vars: Record<string, string> = {};
+    names.forEach((name, i) => {
+      const v = m[i + 1];
+      vars[name] = /^nan$/i.test(v) ? '?' : v.includes('.') ? fmt(Number(v), 2) : v;
+    });
+    text = tr(key, vars);
+    break;
+  }
+  return text;
+}
+
+export const refusalText = (e: MowerEvent): string => worded(e)?.text ?? '';
+
+// an area or the docking station saved from recording mode (AREA_RECORDED, DOCK_RECORDED, MowBite OS only)
+function recordedText(e: MowerEvent): string {
+  const what = worded(e)?.text ?? '';
+  const parts: string[] = [];
+  if (typeof e.area_m2 === 'number') parts.push(`${fmt(e.area_m2, e.area_m2 < 10 ? 1 : 0)} m²`);
+  if (e.obstacles === 1) parts.push(tr('1 obstacle'));
+  else if (typeof e.obstacles === 'number' && e.obstacles > 1) parts.push(tr('{n} obstacles', {n: e.obstacles}));
+  return parts.length ? `${what} (${parts.join(', ')})` : what;
+}
+
+const SEVERITIES = new Set<string>(['error', 'warning', 'info']);
+
+// the event's words from its list in reasonTexts.ts: the head of the first variant that fits, the reason after it
+function worded(e: MowerEvent): {text: string; severity: Severity} | null {
+  const ev = EVENTS[e.type];
+  const v = pick(ev?.variants, e);
+  if (!ev || !v) return null;
+  const head = fill(tr(v.en), e);
+  let why = '';
+  if (v.with_reason !== false && e.reason !== undefined && e.reason !== '') {
+    if (v.reason_is === 'emergency_bits') {
+      why = emergencyText(emergencyFlags(e.reason));
+      const code = Number(e.reason);
+      if (!why && code > 0) return {text: fill(tr(FALLBACK.emergency_code), {n: code}), severity: v.severity ?? ev.severity};
+    } else why = e.type === 'RECORDING_REFUSED' ? refusalReason(e.reason, e.action, e) : reasonText(e);
+  }
+  return {text: why ? fill(tr(ev.join ?? FALLBACK.join), {head, reason: why}) : head, severity: v.severity ?? ev.severity};
+}
+
+// state is what the mower was doing when the event happened, gps is switched off on purpose outside
+// of mowing, so losing it only counts as a problem while mowing. os: the mower runs MowBite OS, how bad it is comes
+// with the event there, from OpenMower (and MowBite OS before E6) it's worked out here
+export function describe(e: MowerEvent, state?: string, os = false): {text: string; severity: Severity} {
+  const own = describeOwn(e, state);
+  return os && SEVERITIES.has(e.severity ?? '') ? {text: own.text, severity: e.severity as Severity} : own;
+}
+
+function describeOwn(e: MowerEvent, state?: string): {text: string; severity: Severity} {
+  switch (e.type) {
+    case 'GPS':
+      if (e.available) return {text: tr('GPS fix'), severity: 'info'};
+      return state === 'MOWING' ? {text: tr('GPS lost'), severity: 'warning'} : {text: tr('GPS off'), severity: 'info'};
+    case 'DOCKING':
+      return {text: homeText(e.reason), severity: 'info'};
+    case 'AREA_RECORDED':
+      return {text: recordedText(e), severity: 'info'};
+  }
+  const said = worded(e);
+  if (said) return said;
+  const what = readable(e.type);
+  const why = reasonText(e);
+  return {text: why ? fill(FALLBACK.join, {head: what, reason: why}) : what, severity: 'info'};
+}
+
+// the sizes as the sizes card calls them
+const SIZE_NAMES: Record<string, string> = {
+  robot_width: 'Width',
+  robot_front: 'Rear axle to the front',
+  robot_rear: 'Rear axle to the back',
+  robot_outline: 'Outline of the body',
+};
 
 const spinupFailed = () =>
   tr(
@@ -207,8 +251,22 @@ const spinupFailed = () =>
 
 // what the mower's code does when it logs these, the event itself carries nothing more
 // gpsTimeout: the mower's mower_logic/gps_timeout in seconds, if known
-export function explain(e: MowerEvent, state?: string, gpsTimeout?: number): string | undefined {
+export function explain(e: MowerEvent, state?: string, gpsTimeout?: number, os = false): string | undefined {
   switch (e.type) {
+    case 'STATE':
+      // MowBite OS says whether it goes on by itself
+      if (e.state !== 'PAUSED' || !e.reason || !os) return undefined;
+      return e.resume === 'auto'
+        ? tr('It goes on by itself once the position has been good for a moment.')
+        : e.resume === 'user' && e.reason !== 'MANUAL'
+          ? tr('It waits where it is until you continue it.')
+          : undefined;
+    case 'MOWING_REFUSED':
+      return tr('The mower stays where it is. Once the reason is gone, start it again.');
+    case 'GEOMETRY_CHANGED': {
+      const small = (e.below_default ?? []).map((k) => tr(SIZE_NAMES[k] ?? readable(k)));
+      return small.length ? tr('Set smaller than from the factory: {sizes}.', {sizes: small.join(', ')}) : undefined;
+    }
     case 'UNDOCKING_FAILED':
       if (e.reason === 'no_gps')
         return tr(
@@ -252,6 +310,12 @@ export function explain(e: MowerEvent, state?: string, gpsTimeout?: number): str
     }
     case 'MOW_MOTOR_SPINUP_FAILED':
       return spinupFailed();
+    case 'RECORDING_REFUSED':
+      return e.action === 'point'
+        ? tr(
+            'While the position is that inaccurate the mower records no points. Once it is good again the line goes on, straight from the last good point.',
+          )
+        : tr('The recording stays open, nothing recorded so far is lost. Once the reason is gone, try the step again.');
     case 'DOCKING':
       return homeReason(e.reason) === 'hot'
         ? tr("The mow motor reached mower_logic/motor_hot_temperature. Once it's down to motor_cold_temperature it mows on by itself in semi-automatic or automatic mode, otherwise it waits for a start.")
@@ -279,6 +343,16 @@ export function eventSource(e: MowerEvent): {file: string; url: string; log?: st
   }
 }
 
+// one event as it comes live on events/json, null for anything that isn't one
+export function parseEvent(payload: string): MowerEvent | null {
+  try {
+    const e = JSON.parse(payload);
+    return e && typeof e === 'object' && typeof e.type === 'string' ? {...e, id: String(e.id ?? ''), t: Number(e.t) || Date.now() / 1000} : null;
+  } catch {
+    return null;
+  }
+}
+
 // the line as it is in the file: id, t, type, the event's own fields, then position and ids
 export function rawLine(e: MowerEvent): string {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars -- worked out here, not in the file
@@ -298,6 +372,7 @@ export type Outcome =
   | 'interrupted'
   | 'manual'
   | 'returned'
+  | 'stopped'
   | 'running';
 
 export interface Run {
@@ -338,7 +413,9 @@ export function markSentHome(sorted: MowerEvent[]): MowerEvent[] {
   });
 }
 
-export function groupRuns(events: MowerEvent[], live: boolean, now = Date.now() / 1000): Entry[] {
+// os: the mower runs MowBite OS, it doesn't dock yet (until its stage 4): idle after mowing ends the run there, no DOCKED
+// comes. on OpenMower idle in the middle of a run (an emergency, put in the dock by hand) goes on until it's docked
+export function groupRuns(events: MowerEvent[], live: boolean, now = Date.now() / 1000, os = false): Entry[] {
   const sorted = markSentHome([...events].sort((a, b) => a.t - b.t));
   const out: Entry[] = [];
   let run: MowerEvent[] | null = null;
@@ -346,8 +423,8 @@ export function groupRuns(events: MowerEvent[], live: boolean, now = Date.now() 
   // cut: OpenMower started again while it ran (a restart, the power was gone). hand: the blade on in recording mode,
   // mowing by hand (the mowing hours count it too)
   let hand = false;
-  const close = (finished: boolean, cut = false) => {
-    if (run?.length) out.push({kind: 'run', run: summarize(run, finished || !live, now, cut, hand)});
+  const close = (finished: boolean, cut = false, parked = false) => {
+    if (run?.length) out.push({kind: 'run', run: summarize(run, finished || !live, now, cut, hand, parked, os)});
     run = null;
     hand = false;
   };
@@ -380,14 +457,22 @@ export function groupRuns(events: MowerEvent[], live: boolean, now = Date.now() 
       e.type === 'DOCKED' ||
       e.type === 'SHUTDOWN' ||
       (e.type === 'STATE' && e.state === 'IDLE' && run.some((r) => r.type === 'UNDOCKING_FAILED' || r.type === 'DOCKING_FAILED'));
-    if (ends) close(true);
+    // (a docking, from stage 4 on, ends it the usual way)
+    const parked =
+      os &&
+      !hand &&
+      e.type === 'STATE' &&
+      e.state === 'IDLE' &&
+      !run.some((r) => (r.type === 'STATE' && (r.state === 'DOCKING' || r.state === 'UNDOCKING')) || r.type === 'DOCKED' || r.type === 'UNDOCKED');
+    if (ends || parked) close(true, false, parked && !ends);
   }
   close(false);
   return out;
 }
 
 // a run still going counts until now: its blade time and its end grow between the events
-function summarize(events: MowerEvent[], finished: boolean, now: number, cut: boolean, hand: boolean): Run {
+// parked: ended idle out on the lawn (MowBite OS), os: how bad an event is comes with it
+function summarize(events: MowerEvent[], finished: boolean, now: number, cut: boolean, hand: boolean, parked: boolean, os: boolean): Run {
   const areas: string[] = [];
   let bladeSeconds = 0;
   let bladesSince: number | null = null;
@@ -401,7 +486,7 @@ function summarize(events: MowerEvent[], finished: boolean, now: number, cut: bo
         bladesSince = null;
       }
     }
-    if (describe(e, state).severity !== 'info') problems++;
+    if (describe(e, state, os).severity !== 'info') problems++;
   }
   const last = events[events.length - 1];
   // (standing idle, put in the dock by hand say, it isn't going on)
@@ -418,6 +503,7 @@ function summarize(events: MowerEvent[], finished: boolean, now: number, cut: bo
   else if (has('DOCKING_FAILED')) outcome = 'dock_failed';
   else if (has('UNDOCKING_FAILED') && !has('UNDOCKED')) outcome = 'undock_failed';
   else if (cut || last.type === 'SHUTDOWN') outcome = 'interrupted';
+  else if (parked) outcome = 'stopped';
   else {
     // why it went home, the last time it did
     const home = events.filter((e) => e.type === 'DOCKING' && homeReason(e.reason)).pop();
@@ -444,6 +530,7 @@ export const OUTCOMES: Record<Outcome, {label: string; tone: 'good' | 'neutral' 
   rain: {label: 'Stopped for rain', tone: 'neutral'},
   hot: {label: 'Mow motor too hot', tone: 'bad'},
   returned: {label: 'Back in the dock', tone: 'neutral'},
+  stopped: {label: 'Stopped on the lawn', tone: 'neutral'},
   undock_failed: {label: 'Undocking failed', tone: 'bad'},
   dock_failed: {label: 'Docking failed', tone: 'bad'},
   emergency: {label: 'Emergency stop', tone: 'bad'},
