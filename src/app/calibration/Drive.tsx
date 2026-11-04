@@ -263,6 +263,8 @@ export default function Drive({
   // recorded but no RTK fix: nothing counts till it's there (planner v0.4.0 on)
   const waiting = !home && !placing && !guide && progress?.phase === 'recording' && !!progress.rtk && !progress.rtk.fixed;
   const all = list.length > 0 && list.every(lackDone);
+  // the planner takes the wheel distance from separate turns: three each way are enough, four make it surer
+  const fourth = list.some((l) => (l.part === 'left' || l.part === 'right') && l.has < 4);
   const current = nowPart(list, motion);
   const runNeed = progress?.need.run_m ?? 5;
   const runM = Math.ceil(runNeed * RUN_SPARE * 2) / 2;
@@ -328,7 +330,8 @@ export default function Drive({
   } else if (all) {
     say = (
       <>
-        <b>{tr('Enough driven.')}</b> {tr('More makes it more accurate.')}
+        <b>{tr('Enough driven.')}</b>{' '}
+        {tr(fourth ? 'A fourth turn each way makes the wheel distance more accurate.' : 'More makes it more accurate.')}
       </>
     );
   } else if (!current) {
@@ -768,7 +771,7 @@ export default function Drive({
           <p className={styles.dim}>{tr('Two pads like a remote control car. Turning the phone switches by itself.')}</p>
         </div>
         {!home && !guide && <p className={styles.dim}>
-          <RotateIcon size={14} /> {tr("Straight: stick forward and hold it steady, half to full, don't steer. Turning: stick to the side only at speed 0.25, one and a half rounds until it looks back, then {m} m straight on.", {m: fmt(runM, 0)})}
+          <RotateIcon size={14} /> {tr("Straight: stick forward and hold it steady, half to full, don't steer. Turning: stick to the side only at speed 0.25, one and a half rounds until it looks back, then {m} m straight on. Rounds in a row count as one turn: at least 3 separate ones each way, 4 are better.", {m: fmt(runM, 0)})}
         </p>}
       </section>
     </div>

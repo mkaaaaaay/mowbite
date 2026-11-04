@@ -59,7 +59,7 @@ export default function CalibrationGuidePage() {
         </Link>
         <h1>{tr('Calibrating')}</h1>
         <p className={styles.lead}>
-          {tr("Driving it yourself takes about 5 minutes: at the start stand still for 10 s, then one and a half rounds on the spot and at least 5 m straight back, three times each way. It goes to and fro on a lane of about 7 × 3 m. The page shows you what's still missing.")}
+          {tr("Driving it yourself takes about 5 minutes: at the start stand still for 10 s, then one and a half rounds on the spot and at least 5 m straight back, at least three times each way, four are better. It goes to and fro on a lane of about 7 × 3 m. The page shows you what's still missing.")}
         </p>
 
         <section className={styles.card}>
@@ -197,7 +197,7 @@ export default function CalibrationGuidePage() {
             <span className={styles.num}>3</span>
             {tr('Turning on the spot')}
           </h2>
-          <Art w={340} h={170} label={tr('One and a half rounds on the spot, then 5 meters back along the lane, three times to each side')}>
+          <Art w={340} h={170} label={tr('One and a half rounds on the spot, then 5 meters back along the lane, three or better four times to each side')}>
             {(arrow) => (
               <>
                 <path className={styles.guide} d="M40 112 H300" />
@@ -216,7 +216,7 @@ export default function CalibrationGuidePage() {
           </Art>
           <p>
             {tr(
-              'Stick to the side only, without forward or back, and hold it steady at speed 0.25. One and a half rounds until it looks back, then at least 5 m straight back: so it goes to and fro on one lane. A turn only counts once a run follows it, the turn with its stops within a minute. That three times to the left and three times to the right.',
+              'Stick to the side only, without forward or back, and hold it steady at speed 0.25. One and a half rounds until it looks back, then at least 5 m straight back: so it goes to and fro on one lane. A turn only counts once a run follows it, the turn with its stops within a minute. Rounds in a row count as one turn, what counts are separate turns between straight pieces: at least three to the left and three to the right, four each are better for the wheel distance.',
             )}
           </p>
           <p className={styles.dim}>{tr('Turns on the spot measure the antenna, all turns between runs the wheel distance.')}</p>
