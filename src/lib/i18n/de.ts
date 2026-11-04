@@ -2208,6 +2208,7 @@ const de: Record<string, string> = {
   "Enter them in {file} and restart OpenMower ({cmd}).": "Trage sie in {file} ein und starte OpenMower neu ({cmd}).",
   "waiting": "wartet",
   "Takes effect after a restart of OpenMower. The updater restarts it by itself once the mower stands quietly in the dock.": "Gilt nach einem Neustart von OpenMower. Der Updater startet ihn von selbst neu, sobald der Mäher ruhig im Dock steht.",
+  "Don't touch the mower in the dock until OpenMower has restarted: it measures the gyro in its first seconds.": "Den Mäher im Dock nicht anfassen, bis OpenMower neu gestartet ist: In den ersten Sekunden misst OpenMower den Kreisel.",
   "Restarted, in effect since {time}.": "Neu gestartet, gilt seit {time}.",
   "1 value applied": "1 Wert übernommen",
   "{n} values applied": "{n} Werte übernommen",

@@ -216,12 +216,14 @@ function stateLine(
 ): {what: string; chip: string; text: string; tone: 'fair' | 'good' | 'poor'} | null {
   const fresh = state && (asked === null || state.at >= asked - 5) ? state : null;
   const time = fresh ? clock(fresh.at) : '';
+  // OpenMower takes the gyro's zero from its first seconds, moved then the mower turns by itself afterwards
+  const still = tr("Don't touch the mower in the dock until OpenMower has restarted: it measures the gyro in its first seconds.");
   if (!fresh)
     return asked !== null
       ? {
           what: 'asked',
           chip: tr('asked'),
-          text: docked ? tr('The updater takes it within a minute.') : tr('The updater writes them once the mower stands quietly in the dock.'),
+          text: `${docked ? tr('The updater takes it within a minute.') : tr('The updater writes them once the mower stands quietly in the dock.')} ${still}`,
           tone: 'fair',
         }
       : null;
@@ -230,7 +232,7 @@ function stateLine(
       return {
         what: fresh.what,
         chip: tr('waiting'),
-        text: tr('Takes effect after a restart of OpenMower. The updater restarts it by itself once the mower stands quietly in the dock.'),
+        text: `${tr('Takes effect after a restart of OpenMower. The updater restarts it by itself once the mower stands quietly in the dock.')} ${still}`,
         tone: 'fair',
       };
     case 'written':
