@@ -55,6 +55,10 @@ describe('calls while offline', () => {
       this.connected = true;
       this.emit('connect');
     }
+    offline() {
+      this.connected = false;
+      this.emit('close');
+    }
   }
 
   let client: FakeClient;
@@ -131,6 +135,47 @@ describe('calls while offline', () => {
     await vi.advanceTimersByTimeAsync(0);
     answer(2, {error: {code: -32602, message: 'bad', data: 'just text'}});
     await expect(odd).rejects.toMatchObject({code: -32602, data: undefined});
+  });
+
+  it('sends a map save again when the connection dropped before its answer, once, other calls not', async () => {
+    const {callRpc} = await load();
+    client.online();
+    const answer = (n: number, a: object) => client.emit('message', 'rpc/response', Buffer.from(JSON.stringify({id: client.published[n].id, ...a})));
+    const saved = callRpc('map.replace', [{}], 60000);
+    answer(0, {result: ['map.replace', 'planner.plan']});
+    await vi.advanceTimersByTimeAsync(0);
+    const plan = callRpc('planner.plan', [{}], 60000);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(client.published.map((m) => m.method)).toEqual(['rpc.methods', 'map.replace', 'planner.plan']);
+    // gone the same second, two tries to connect fail before one gets through
+    client.offline();
+    client.emit('close');
+    client.emit('close');
+    client.online();
+    expect(client.published.map((m) => m.method)).toEqual(['rpc.methods', 'map.replace', 'planner.plan', 'map.replace']);
+    expect(client.published[3].id).toBe(client.published[1].id);
+    answer(3, {result: 'saved'});
+    expect(await saved).toBe('saved');
+    // answered, a drop later on sends nothing more
+    client.offline();
+    client.online();
+    expect(client.published).toHaveLength(4);
+    answer(2, {result: 'plan'});
+    expect(await plan).toBe('plan');
+  });
+
+  it("doesn't send a save again that timed out while the connection was gone", async () => {
+    const {callRpc} = await load();
+    client.online();
+    const saved = callRpc('map.replace', [{}], 60000);
+    client.emit('message', 'rpc/response', Buffer.from(JSON.stringify({id: client.published[0].id, result: ['map.replace']})));
+    await vi.advanceTimersByTimeAsync(0);
+    client.offline();
+    const failed = expect(saved).rejects.toMatchObject({code: 'timeout'});
+    await vi.advanceTimersByTimeAsync(60000);
+    await failed;
+    client.online();
+    expect(client.published.map((m) => m.method)).toEqual(['rpc.methods', 'map.replace']);
   });
 
   it('never sends a call that timed out before the connection came back', async () => {

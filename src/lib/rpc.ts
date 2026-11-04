@@ -88,6 +88,11 @@ export async function callRpc<T = unknown>(method: string, params: unknown[] | o
 // instead of after its time
 export const MAX_RPC_BYTES = 1_900_000;
 
+// calls that set a whole state (the map, parameters, the planner's settings), sent twice they leave the same: the
+// connection dropping before their answer sends them again once it's back, the call or its answer may have gone with it
+// (a map save at the station over a weak wifi, the app reconnecting the same second). the others aren't sent twice
+const AGAIN = new Set<string>([RPC.replaceMap, RPC.setParams, RPC.plannerSettingsSet, RPC.plannerAngleReset]);
+
 function send<T>(method: string, params: unknown[] | object, timeoutMs: number): Promise<T> {
   ensureListening();
   const id = `${instance}-${nextId++}`;
@@ -103,13 +108,19 @@ function send<T>(method: string, params: unknown[] | object, timeoutMs: number):
     // reported as failed can't happen later after all. subscribed again first, the answer could beat the
     // subscription right after a reconnect
     const onConnect = () => c.subscribe(withPrefix(TOPIC.rpcResponse), () => pending.has(id) && publish());
+    // (every failed try to connect again closes once more, it still goes out once)
+    const onClose = () => {
+      c.off('connect', onConnect);
+      c.once('connect', onConnect);
+    };
     const done = () => {
       clearTimeout(timer);
       c.off('connect', onConnect);
+      c.off('close', onClose);
     };
     const timer = setTimeout(() => {
       pending.delete(id);
-      c.off('connect', onConnect);
+      done();
       reject(new RpcError(method, 'timeout', `${method} timed out`));
     }, timeoutMs);
 
@@ -125,6 +136,7 @@ function send<T>(method: string, params: unknown[] | object, timeoutMs: number):
       },
     });
 
+    if (AGAIN.has(method)) c.on('close', onClose);
     if (c.connected) publish();
     else c.once('connect', onConnect);
   });
