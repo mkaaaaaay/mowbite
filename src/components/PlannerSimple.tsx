@@ -6,7 +6,7 @@ import {outlineOf, resetPlannerAngle, savePlannerSettings, slic3rPlans, usePlann
 import {ANGLE_FOR_ALL, FIELDS, hidden, STYLE_LABELS, STYLE_NOTES, STYLES, styleOf} from '@/lib/plannerFields';
 import {areasWith, areasWithDirection, ownMargins, ownSettings, shown, type AreaValue, type OpenMowerOwn} from '@/lib/plannerOwn';
 import {useMowbiteOs} from '@/lib/mowerOs';
-import {RpcError} from '@/lib/rpc';
+import {answerError} from '@/lib/rpcText';
 import {useEffect, useState} from 'react';
 import InfoTip from './InfoTip';
 import {NoSizesWarning} from './MowerBodySettings';
@@ -181,7 +181,7 @@ export function PlannerSimple({
       await savePlannerSettings(values);
       setState((s) => ({saved: (s.saved ?? 0) + 1}));
     } catch (e) {
-      setState({error: e instanceof RpcError && e.code !== 'timeout' ? e.message : tr('The mower did not answer.')});
+      setState({error: answerError(e)});
     }
   };
   const save = async (k: string, v: unknown) => {
@@ -346,7 +346,7 @@ export function PlannerSimple({
       await resetPlannerAngle();
       setState({});
     } catch (e) {
-      setState({error: e instanceof RpcError && e.code !== 'timeout' ? e.message : tr('The mower did not answer.')});
+      setState({error: answerError(e)});
     }
   };
   // OpenMower's own turning further off, the planner's is the one to use (it's kept for after a restart like a change
@@ -357,7 +357,7 @@ export function PlannerSimple({
       await setOpenMowerParam('mow_angle_increment', 0);
       setState({});
     } catch (e) {
-      setState({error: e instanceof RpcError && e.code !== 'timeout' ? e.message : tr('The mower did not answer.')});
+      setState({error: answerError(e)});
     }
   };
   // a direction still stored for all areas, the menu doesn't offer it any more

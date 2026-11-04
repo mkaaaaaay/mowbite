@@ -167,6 +167,10 @@ export const REASONS: Record<string, Variant[]> = {
   ],
   STILL_STOPPING: [r('the last job is still stopping, try again in a moment')],
   STILL_SAVING: [r('the last change of the map is still being saved')],
+  // the MowBite Updater updates MowBite OS (system.hold), a start or a change of its data waits: in a *_REFUSED and in
+  // the data of an error -32004, with until (unix s). until_clock is until as the reader's clock time, put in by the
+  // reader itself, one without it takes the text without the time
+  HOLD: [r('update running until {until_clock}', {when: {until_clock: {present: true}}}), r('update running')],
   EMERGENCY: [r('emergency stop, reset it first')],
   NO_SAFETY_MEASUREMENT: [r('safety not yet verified on this platform, mowing and driving are blocked')],
   ON_DOCK: [r('on the docking station, drive it off by remote control first')],

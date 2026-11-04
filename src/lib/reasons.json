@@ -664,6 +664,21 @@
     "de": "die letzte Kartenänderung wird noch gespeichert"
    }
   ],
+  "HOLD": [
+   {
+    "en": "update running until {until_clock}",
+    "when": {
+     "until_clock": {
+      "present": true
+     }
+    },
+    "de": "Update läuft bis {until_clock}"
+   },
+   {
+    "en": "update running",
+    "de": "Update läuft"
+   }
+  ],
   "EMERGENCY": [
    {
     "en": "emergency stop, reset it first",

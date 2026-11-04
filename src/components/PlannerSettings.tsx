@@ -4,7 +4,7 @@ import {tr} from '@/lib/i18n';
 import {loadPlannerSettings, savePlannerSettings, usePlannerSettings, type PlannerSetting} from '@/lib/mowerBody';
 import {ANGLE_FOR_ALL, BODY_KEYS, COUNTED, DROPPED, DROPPED_CHOICES, FIELDS, fromInput, GROUPS, hidden, RETIRED, SIMPLE, toInput, type Field, type Group} from '@/lib/plannerFields';
 import {useMowbiteOs} from '@/lib/mowerOs';
-import {RpcError} from '@/lib/rpc';
+import {answerError} from '@/lib/rpcText';
 import {useEffect, useState} from 'react';
 import InfoTip from './InfoTip';
 import local from './PlannerSettings.module.css';
@@ -192,7 +192,7 @@ export function PlannerSettings({styles}: {styles: Styles}) {
       await savePlannerSettings(values);
       setState((s) => ({saved: (s.saved ?? 0) + 1}));
     } catch (e) {
-      setState({error: e instanceof RpcError && e.code !== 'timeout' ? e.message : tr('The mower did not answer.')});
+      setState({error: answerError(e)});
     }
   };
   // a choice right away, a number once its field is left

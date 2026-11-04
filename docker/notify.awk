@@ -82,6 +82,7 @@ function reason(j,   r, m) {
   r = field(j, "reason")
   if (r == "BUSY") return tx("busy", "beschäftigt")
   if (r == "STILL_STOPPING") return tx("the last job is still stopping", "der letzte Auftrag hält noch an")
+  if (r == "HOLD") return tx("update running", "Update läuft")
   if (r == "EMERGENCY") return tx("emergency stop, reset it first", "Notaus, erst zurücksetzen")
   if (r == "NO_SAFETY_MEASUREMENT") return tx("safety not yet verified on this platform, mowing and driving are blocked", "Sicherheit auf dieser Plattform noch nicht nachgemessen, Mähen und Fahren sind gesperrt")
   if (r == "ON_DOCK") return tx("on the docking station, drive it off by remote control first", "steht auf der Ladestation, erst per Fernsteuerung herunterfahren")

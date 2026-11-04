@@ -21,7 +21,7 @@ import {
   type MowerSizes,
   type Outline,
 } from '@/lib/mowerBody';
-import {RpcError} from '@/lib/rpc';
+import {answerError} from '@/lib/rpcText';
 import {useRouter} from 'next/navigation';
 import {saveSettings, settingsStore} from '@/lib/settings';
 import {useEffect, useState, useSyncExternalStore} from 'react';
@@ -93,7 +93,7 @@ export function NoSizesWarning() {
       await savePlannerSettings(changes);
       setState({});
     } catch (e) {
-      setState({error: e instanceof RpcError && e.code !== 'timeout' ? e.message : tr('The mower did not answer.')});
+      setState({error: answerError(e)});
     }
   };
 
@@ -229,7 +229,7 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
       setTurn(null);
       setState({saved: true});
     } catch (e) {
-      setState({error: e instanceof RpcError && e.code !== 'timeout' ? e.message : tr('The mower did not answer.')});
+      setState({error: answerError(e)});
     }
   };
 
@@ -242,7 +242,7 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
       setOutline(measuredOutline(outlineOf(s.settings.robot_outline?.value)) ?? null);
       setState({});
     } catch (e) {
-      setState({error: e instanceof RpcError && e.code !== 'timeout' ? e.message : tr('The mower did not answer.')});
+      setState({error: answerError(e)});
     }
   };
 

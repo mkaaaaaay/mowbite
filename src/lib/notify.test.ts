@@ -255,6 +255,9 @@ describe('what the container sends', {timeout: 30_000}, () => {
     expect(run(event(100, '{"type":"MOWING_REFUSED","reason":"NO_SAFETY_MEASUREMENT"}'), os)[0].message).toBe(
       "Steve didn't start mowing: safety not yet verified on this platform, mowing and driving are blocked.",
     );
+    const hold = event(100, '{"type":"MOWING_REFUSED","reason":"HOLD","until":1793754213,"severity":"info","resume":"user","message":"Updating"}');
+    expect(run(hold, os)[0].message).toBe("Steve didn't start mowing: update running.");
+    expect(run(hold, os.replace('lang en', 'lang de'))[0].message).toBe('Steve hat nicht mit dem Mähen begonnen: Update läuft.');
   });
 
   it("leaves out what goes on by itself, what was asked for and MowBite OS's free text from before", () => {

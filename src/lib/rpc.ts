@@ -4,12 +4,13 @@ import {RPC, TOPIC} from './openmower';
 // json-rpc 2.0 over mqtt: rpc/request -> rpc/response, matched by id
 
 // code: the json-rpc error code, 'timeout' when the mower didn't answer, 'too_large' for a call too big to send (the
-// message then says how many bytes)
+// message then says how many bytes). data: what the mower adds to its error, MowBite OS e.g. {reason, until}
 export class RpcError extends Error {
   constructor(
     public method: string,
     public code: number | 'timeout' | 'too_large',
     message: string,
+    public data?: Record<string, unknown>,
   ) {
     super(message);
   }
@@ -29,7 +30,7 @@ function ensureListening() {
   if (listening) return;
   listening = true;
   onTopic(TOPIC.rpcResponse, (payload) => {
-    let msg: {id?: string; result?: unknown; error?: {code?: number; message: string}};
+    let msg: {id?: string; result?: unknown; error?: {code?: number; message: string; data?: unknown}};
     try {
       msg = JSON.parse(payload.toString());
     } catch {
@@ -39,8 +40,11 @@ function ensureListening() {
     const waiting = pending.get(msg.id);
     if (!waiting) return;
     pending.delete(msg.id);
-    if (msg.error) waiting.reject(new RpcError(waiting.method, msg.error.code ?? 0, msg.error.message));
-    else waiting.resolve(msg.result);
+    if (msg.error) {
+      const data = msg.error.data;
+      const fields = data && typeof data === 'object' && !Array.isArray(data) ? (data as Record<string, unknown>) : undefined;
+      waiting.reject(new RpcError(waiting.method, msg.error.code ?? 0, msg.error.message, fields));
+    } else waiting.resolve(msg.result);
   });
 }
 

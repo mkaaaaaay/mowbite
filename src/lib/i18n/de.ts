@@ -1991,6 +1991,8 @@ const de: Record<string, string> = {
   "busy: {state}": "beschäftigt: {state}",
   "busy with something else": "mit etwas anderem beschäftigt",
   "the last job is still stopping, try again in a moment": "der letzte Auftrag hält noch an, gleich noch einmal versuchen",
+  "update running until {until_clock}": "Update läuft bis {until_clock}",
+  "update running": "Update läuft",
   "emergency stop, reset it first": "Notaus, erst zurücksetzen",
   "safety not yet verified on this platform, mowing and driving are blocked": "Sicherheit auf dieser Plattform noch nicht nachgemessen, Mähen und Fahren sind gesperrt",
   "on the docking station, drive it off by remote control first": "steht auf der Ladestation, erst per Fernsteuerung herunterfahren",

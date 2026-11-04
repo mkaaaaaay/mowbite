@@ -1,4 +1,5 @@
 import {describe, expect, it, vi} from 'vitest';
+import {clock} from './dates';
 import {setLangChoice} from './i18n';
 import {
   describe as describeEvent,
@@ -470,6 +471,19 @@ describe('reasons as fixed names (MowBite OS)', () => {
     expect(describeEvent(ev(0, 'LEFTOVERS_ARMED', {area_m2: 3.4, job_id: 'j'})).text).toBe('Leftovers ready to mow (3 m²)');
   });
 
+  it('says until when an update holds it (MowBite OS)', () => {
+    const until = 1793754213;
+    expect(describeEvent(os('MOWING_REFUSED', {reason: 'HOLD', until, severity: 'info'}), undefined, true)).toEqual({
+      text: `Mowing not started: update running until ${clock(until)}`,
+      severity: 'info',
+    });
+    expect(describeEvent(os('DRIVE_REFUSED', {reason: 'HOLD'})).text).toBe('Drive not started: update running');
+    expect(describeEvent(os('RECORDING_REFUSED', {action: 'start_area_recording', reason: 'HOLD', until})).text).toBe(
+      `Recording mode didn't start: update running until ${clock(until)}`,
+    );
+    expect(reasonText(os('X', {reason: 'HOLD', until: 0}))).toBe('update running');
+  });
+
   it('in german', () => {
     vi.stubGlobal('document', {documentElement: {lang: 'en'}});
     setLangChoice('de');
@@ -486,6 +500,9 @@ describe('reasons as fixed names (MowBite OS)', () => {
         'Mähen nicht gestartet: Sicherheit auf dieser Plattform noch nicht nachgemessen, Mähen und Fahren sind gesperrt',
       );
       expect(describeEvent(os('MOWING_REFUSED', {reason: 'SOMETHING_NEW'})).text).toBe('Mähen nicht gestartet: english text');
+      expect(describeEvent(os('MOWING_REFUSED', {reason: 'HOLD', until: 1793754213})).text).toBe(
+        `Mähen nicht gestartet: Update läuft bis ${clock(1793754213)}`,
+      );
     } finally {
       setLangChoice('en');
       vi.unstubAllGlobals();

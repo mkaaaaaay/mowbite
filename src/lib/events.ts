@@ -1,3 +1,4 @@
+import {clock} from './dates';
 import {fmt, tr} from './i18n';
 import {LOGIC_SOURCE} from './openmower';
 import {
@@ -58,6 +59,8 @@ export interface MowerEvent {
   // GEOMETRY_CHANGED: the sizes set, those set smaller than from the factory
   changed?: string[];
   below_default?: string[];
+  // HOLD: until when the MowBite Updater holds it (unix s)
+  until?: number;
   // worked out here, not from OpenMower: a navigation error that only came because it was sent home (see markSentHome)
   sentHome?: boolean;
 }
@@ -148,9 +151,11 @@ export const isReasonCode = (r?: string): boolean => !!r && /^[A-Z][A-Z0-9_]*$/.
 export function reasonText(e: MowerEvent): string {
   const r = e.reason;
   if (!r) return '';
-  const v = pick(REASONS[r], e);
+  // (the fields a reader puts in itself, reasonTexts.ts)
+  const f = typeof e.until === 'number' && e.until > 0 ? {...e, until_clock: clock(e.until)} : e;
+  const v = pick(REASONS[r], f);
   let text: string;
-  if (v) text = fill(tr(v.en), e);
+  if (v) text = fill(tr(v.en), f);
   else if (isReasonCode(r)) text = e.message || readable(r);
   else if (/^[a-z][a-z0-9_]*$/.test(r)) text = readable(r);
   else return r;

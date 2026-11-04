@@ -6,7 +6,8 @@ import {fmt, tr} from '@/lib/i18n';
 import {askLeftovers, type Leftovers} from '@/lib/leftovers';
 import {loadPlannerSettings, slic3rPlans, usePlannerSettings} from '@/lib/mowerBody';
 import {RPC} from '@/lib/openmower';
-import {RpcError, rpcMethods} from '@/lib/rpc';
+import {rpcMethods} from '@/lib/rpc';
+import {answerError} from '@/lib/rpcText';
 import {useEffect, useState} from 'react';
 
 // On the dashboard while the mower stands idle: what the last finished mow left unmowed (the MowBite Planner looks at
@@ -44,7 +45,7 @@ export function LeftoversCard({
   if (!known || slic3rPlans(planner)) return null;
 
   const name = (id: string) => map?.areas.find((a) => a.id === id)?.properties.name || tr('unnamed');
-  const fail = (e: unknown) => setState({error: e instanceof RpcError && e.code !== 'timeout' ? e.message : tr('The mower did not answer.')});
+  const fail = (e: unknown) => setState({error: answerError(e)});
   const check = async () => {
     setState({busy: true});
     try {

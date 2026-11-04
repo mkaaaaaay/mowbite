@@ -1,12 +1,27 @@
 import {EventEmitter} from 'node:events';
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
+import {clock} from './dates';
 import {isMissingMethod, RpcError, unavailable} from './rpc';
+import {answerError, holdText, rpcErrorText} from './rpcText';
 
 describe('isMissingMethod', () => {
   it('spots the json-rpc "method not found" error only', () => {
     expect(isMissingMethod(new RpcError('map.replace', -32601, 'Method not found'))).toBe(true);
     expect(isMissingMethod(new RpcError('map.replace', 'timeout', 'timed out'))).toBe(false);
     expect(isMissingMethod(new Error('Method not found'))).toBe(false);
+  });
+});
+
+describe('an update holding MowBite OS', () => {
+  it('says until when for a change it turned down, other errors as before', () => {
+    const until = 1793754213;
+    expect(holdText(new RpcError('params.set', -32004, 'held', {reason: 'HOLD', until}))).toBe(`Update running until ${clock(until)}.`);
+    expect(holdText(new RpcError('docking.start', -32600, 'held', {reason: 'HOLD'}))).toBe('Update running.');
+    expect(holdText(new RpcError('params.set', -32602, 'bad', {reason: 'OUT_OF_RANGE'}))).toBeNull();
+    expect(rpcErrorText(new RpcError('map.replace', -32004, 'held', {reason: 'HOLD', until}))).toBe(`Update running until ${clock(until)}.`);
+    expect(answerError(new RpcError('planner.settings.set', -32004, 'held', {reason: 'HOLD', until}))).toBe(`Update running until ${clock(until)}.`);
+    expect(answerError(new RpcError('planner.settings.set', -32602, 'robot_width out of range'))).toBe('robot_width out of range');
+    expect(answerError(new RpcError('planner.settings.set', 'timeout', 'timed out'))).toBe('The mower did not answer.');
   });
 });
 
@@ -101,6 +116,21 @@ describe('calls while offline', () => {
     await vi.advanceTimersByTimeAsync(60000);
     await rpcMethods();
     expect(client.published).toHaveLength(1);
+  });
+
+  it('keeps what the mower adds to its error', async () => {
+    const {callRpc} = await load();
+    client.online();
+    const answer = (n: number, a: object) => client.emit('message', 'rpc/response', Buffer.from(JSON.stringify({id: client.published[n].id, ...a})));
+    const held = callRpc('params.set', {params: {}});
+    answer(0, {result: ['params.set', 'map.replace']});
+    await vi.advanceTimersByTimeAsync(0);
+    answer(1, {error: {code: -32004, message: 'held', data: {reason: 'HOLD', until: 1793754213}}});
+    await expect(held).rejects.toMatchObject({code: -32004, data: {reason: 'HOLD', until: 1793754213}});
+    const odd = callRpc('map.replace', [{}]);
+    await vi.advanceTimersByTimeAsync(0);
+    answer(2, {error: {code: -32602, message: 'bad', data: 'just text'}});
+    await expect(odd).rejects.toMatchObject({code: -32602, data: undefined});
   });
 
   it('never sends a call that timed out before the connection came back', async () => {

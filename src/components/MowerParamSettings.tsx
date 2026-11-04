@@ -18,7 +18,8 @@ import {
   type ParamGroup,
 } from '@/lib/mowerParams';
 import {RPC} from '@/lib/openmower';
-import {RpcError, rpcMethods} from '@/lib/rpc';
+import {rpcMethods} from '@/lib/rpc';
+import {answerError} from '@/lib/rpcText';
 import Link from 'next/link';
 import {useEffect, useRef, useState, useSyncExternalStore} from 'react';
 import InfoTip from './InfoTip';
@@ -119,7 +120,7 @@ export function ParamRow({field: f}: {field: ParamField}) {
     try {
       await apply(f, v);
     } catch (e) {
-      setError(e instanceof NotKept || (e instanceof RpcError && e.code !== 'timeout') ? e.message : tr('The mower did not answer.'));
+      setError(e instanceof NotKept ? e.message : answerError(e));
     } finally {
       setBusy(false);
     }
