@@ -184,8 +184,8 @@ export const SCHEDULE_LOG_TEXT: Record<string, string> = {
   start_refused: 'Not started, the mower turned it down',
   angle_failed: "The mower didn't take the mowing direction ({detail}°), it mows the way it was set",
   waiting_battery: 'Waiting for the battery ({detail} %)',
-  waiting_hold: 'Waiting, the MowBite Updater is updating OpenMower',
-  skip_hold: 'Not started, the MowBite Updater was still updating OpenMower after two hours',
+  waiting_hold: 'Waiting, an update is running',
+  skip_hold: 'Not started, an update was still running after two hours',
   skip_battery: 'Not started, battery only at {detail} % after two hours',
   skip_rain: "Not started, the mower's rain sensor was wet",
   skip_forecast: 'Not started, rain was forecast',
@@ -220,7 +220,7 @@ const LEFTOVERS_SKIP: Record<string, string> = {
   paused: 'Leftovers not mowed, paused for today',
   forecast: 'Leftovers not mowed, rain was forecast',
   cold: 'Leftovers not mowed, too cold ({more} °C)',
-  hold: 'Leftovers not mowed, the MowBite Updater was updating OpenMower',
+  hold: 'Leftovers not mowed, an update was running',
 };
 
 // how a log line is marked: a start that went out, one left out for a reason worth a look (not a pause asked for, an
