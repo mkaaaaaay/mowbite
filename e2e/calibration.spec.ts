@@ -94,6 +94,23 @@ test('calibrating by hand: driven, worked out, two values applied and set back',
   await expect(page.getByText(/Set back, OpenMower restarted at/)).toBeVisible({timeout: 20_000});
 });
 
+// on a phone held upright the two pads held sideways are recommended, a tap turns it there
+test('driving for the calibration recommends sideways on a phone held upright', async ({page, isMobile}) => {
+  test.skip(SIM || !isMobile, 'the demo mower on a phone');
+  await page.goto('/calibration/');
+  await demoDocked(page);
+  await page.getByRole('button', {name: 'Start calibration'}).click();
+  const sheet = page.getByRole('dialog', {name: 'Ready to calibrate?'});
+  await sheet.getByRole('checkbox', {name: /Room to drive/}).check();
+  await sheet.getByRole('checkbox', {name: /You stay with it/}).check();
+  await sheet.getByRole('button', {name: "Let's go"}).click();
+  const hint = page.getByRole('button', {name: 'Sideways recommended'});
+  await expect(hint).toBeVisible();
+  await hint.click();
+  await expect(page.getByRole('button', {name: 'Upright'})).toBeVisible();
+  await expect(hint).toBeHidden();
+});
+
 test('the guide for calibrating opens from the settings', async ({page}) => {
   await page.goto('/settings/#guides');
   await page.getByRole('link', {name: 'Calibrating'}).click();

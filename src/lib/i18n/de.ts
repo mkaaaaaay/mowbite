@@ -1963,6 +1963,7 @@ const de: Record<string, string> = {
   "Upright": "Hochformat",
   "Sideways": "Querformat",
   "Two pads like a remote control car. Turning the phone switches by itself.": "Zwei Steuerfelder wie bei einem ferngesteuerten Auto. Drehst du das Handy, wechselt die Ansicht von selbst.",
+  "Sideways recommended": "Querformat empfohlen",
   "Light and shadows after the sun": "Licht und Schatten nach dem Sonnenstand",
   "Season and weather on the lawn": "Jahreszeit und Wetter auf dem Rasen",
   "Lawn growing back, cut where the mower goes": "Rasen wächst nach, frisch gemäht, wo der Mäher fährt",

@@ -654,6 +654,32 @@
   max-width: calc(100% - 24px);
 }
 
+/* over the stick on a phone held upright, like the words at the top */
+.sidewaysHint {
+  display: none;
+}
+
+@media (max-width: 899px) {
+  .sidewaysHint {
+    position: absolute;
+    left: 50%;
+    bottom: 164px;
+    transform: translateX(-50%);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(20, 24, 60, 0.6);
+    backdrop-filter: blur(10px);
+    color: #e6ebef;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+}
+
 .stick > div:not(.alarm) {
   background: rgba(10, 10, 10, 0.35);
   backdrop-filter: blur(2px);

@@ -629,6 +629,13 @@ export default function Drive({
             {bar && <Meter {...bar} />}
           </div>
         </div>
+        {/* on a phone held upright: the two pads held sideways drive straighter than the stick, a tap turns it there */}
+        {canDrive && (
+          <button className={styles.sidewaysHint} onClick={() => turnSideways(true)}>
+            <RotateIcon size={16} />
+            {tr('Sideways recommended')}
+          </button>
+        )}
         <div className={styles.stick}>
           {state?.emergency ? (
             <div className={styles.alarm}>{alarm}</div>
