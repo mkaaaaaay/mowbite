@@ -349,12 +349,42 @@
   font-size: 16px;
 }
 
-.controls .main:not(:disabled) {
-  border-color: color-mix(in srgb, var(--accent) 70%, transparent);
-  background: color-mix(in srgb, var(--accent) 35%, transparent);
+/* each a see-through glass in the color of what it leads to: going on green, a pause amber like paused, home blue
+   like on the way home, skipping violet, stopping red */
+.act-go {
+  --act: var(--success);
+}
+
+.act-pause {
+  --act: var(--warning);
+}
+
+.act-home {
+  --act: var(--accent);
+}
+
+.act-skip {
+  --act: var(--violet);
+}
+
+.act-stop {
+  --act: var(--error);
+}
+
+.controls .actions button:not(:disabled) {
+  border-color: color-mix(in srgb, var(--act) 45%, transparent);
+  background: linear-gradient(
+    color-mix(in srgb, var(--act) 22%, transparent),
+    color-mix(in srgb, var(--act) 10%, transparent)
+  );
   backdrop-filter: var(--card-blur, none);
-  box-shadow: var(--btn-3d);
-  color: var(--foreground);
+  box-shadow:
+    var(--btn-3d),
+    0 8px 20px -12px color-mix(in srgb, var(--act) 60%, transparent);
+}
+
+.controls .actions button:not(:disabled) svg {
+  color: var(--act);
 }
 
 .controls .reset {

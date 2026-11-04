@@ -65,10 +65,10 @@ const SKIP_DELAY = 4;
 // the left out start that was closed, by its time
 const MISSED_SEEN_KEY = 'scheduleMissedSeen';
 const ACTIONS = [
-  {id: ACTION.startMowing, Icon: PlayIcon, label: 'Start', main: true},
-  {id: ACTION.pause, Icon: PauseIcon, label: 'Pause'},
-  {id: ACTION.goHome, Icon: HomeIcon, label: 'Go home'},
-  {id: ACTION.skipArea, Icon: SkipIcon, label: 'Skip area'},
+  {id: ACTION.startMowing, Icon: PlayIcon, label: 'Start', tone: 'go'},
+  {id: ACTION.pause, Icon: PauseIcon, label: 'Pause', tone: 'pause'},
+  {id: ACTION.goHome, Icon: HomeIcon, label: 'Go home', tone: 'home'},
+  {id: ACTION.skipArea, Icon: SkipIcon, label: 'Skip area', tone: 'skip'},
 ];
 
 
@@ -300,9 +300,9 @@ export default function Home() {
   // asked for, stopping can. the emergency stop locks all of them (it still offers start), its reset comes first
   const actionsNow = ACTIONS.map((a) =>
     a.id === ACTION.pause && current === 'PAUSED' && hasAction(ACTION.resume)
-      ? {...a, id: ACTION.resume, Icon: PlayIcon, label: 'Continue'}
+      ? {...a, id: ACTION.resume, Icon: PlayIcon, label: 'Continue', tone: 'go'}
       : a.id === ACTION.goHome && current === 'UNDOCKING' && hasAction(ACTION.abortUndocking)
-        ? {...a, id: ACTION.abortUndocking, Icon: CloseIcon, label: 'Stop undocking'}
+        ? {...a, id: ACTION.abortUndocking, Icon: CloseIcon, label: 'Stop undocking', tone: 'stop'}
         : a,
   ).filter((a) => hasAction(a.id) && !state?.emergency);
   // a waiting skip is dropped when there's nothing to skip anymore, the mower is on another area or path or the connection
@@ -510,7 +510,7 @@ export default function Home() {
                   {actionsNow.map((a) => (
                     <button
                       key={a.id}
-                      className={a.main ? styles.main : undefined}
+                      className={styles[`act-${a.tone}`]}
                       disabled={!live || (!!swapUntil && SWAPS.includes(a.id))}
                       onClick={() => {
                         if (a.id === ACTION.skipArea) return toggleSkip(a.id);

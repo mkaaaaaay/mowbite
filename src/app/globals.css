@@ -20,6 +20,7 @@
   --warning: #a8780f;
   --error: #cf3a3f;
   --success: #2a8a47;
+  --violet: #7a55c9;
   --soft-good: #276b33;
   --soft-warn: #7d5600;
   --soft-bad: #a52a2a;
@@ -65,6 +66,7 @@
     --warning: #d4ac4a;
     --error: #ff6669;
     --success: #4cbf72;
+    --violet: #ab92f2;
     --soft-good: #a5d6a7;
     --soft-warn: #ffcc80;
     --soft-bad: #ef9a9a;
@@ -96,6 +98,7 @@
   --warning: #d4ac4a;
   --error: #ff6669;
   --success: #4cbf72;
+  --violet: #ab92f2;
   --soft-good: #a5d6a7;
   --soft-warn: #ffcc80;
   --soft-bad: #ef9a9a;
