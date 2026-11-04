@@ -115,6 +115,10 @@ start endtime "$(state)" "$(base "$DAY")"$'\n'"plan $D $M end=$(hm "$DAY" 1)"
 start endlate "$(state IDLE 0 0 0.5)" "$(MINBAT=80 base "$DAY")"$'\n'"plan $D $M end=$(hm "$DAY" 1)"
 start noarea "$(state)" "$(base "$DAY")"$'\n'"plan $D $M gone" "MAP=$AREAS"
 start gone "$(state IDLE 0 0 0.5)" "$(MINBAT=80 base "$DAY")"$'\n'"plan $D $M"
+# MowBite OS with its own schedule and its own store of the parameters
+OS_METHODS='{"jsonrpc":"2.0","result":["rpc.methods","system.info","schedule.get"],"id":"@ID@"}'
+OS_INFO='{"jsonrpc":"2.0","result":{"name":"mowbite-os","version":"0.1"},"id":"@ID@"}'
+start os "$(state)" "$(base "$DAY")"$'\n'"plan $D $M" "METHODS=$OS_METHODS" "INFO=$OS_INFO"
 # from before a restart of the container: a run of a plan for the front, a start waiting for the battery (its plan an
 # hour ago), the mowing direction of a plan that has none any more
 start restored "$(state MOWING)" "$(base "$DAY")" "MAP=$AREAS" "RUN_STATE=$(date +%s) - - front" AREA_SOON=back
@@ -145,7 +149,7 @@ logs "scheduler: a pause that's over" pausedbefore '^started'
 logs "scheduler: not when all the plan's areas are paused" pausedareas '^skip_paused( at=[0-9:]+)?$'
 logs "scheduler: an interrupted job dropped first with fresh=1" fresh '^started'
 gets fresh 'start_mowing$'
-expect "scheduler: the job dropped before the start" "$(sent fresh | cut -d' ' -f2)" \
+expect "scheduler: the job dropped before the start" "$(sent fresh | grep '^action' | cut -d' ' -f2)" \
   $'mower_logic:idle/reset_job\nmower_logic:idle/start_mowing'
 logs "scheduler: a plan with its own direction" angle '^started'
 gets angle '^rpc/request .*"params":\{"/mower_logic/mow_angle_offset":30\}' &&
@@ -198,6 +202,21 @@ w=$(next waitnext)
 expect "scheduler: a start waiting for the battery may come within its two hours" \
   "$(($(sed 's/.*"to":\([0-9]*\).*/\1/' <<< "$w") - $(sed 's/.*"from":\([0-9]*\).*/\1/' <<< "$w")))" 7200
 expect "scheduler: nothing to tell while switched off" "$(next disabled)" ""
+gets os '"method":"rpc.methods"' 30 && sleep 3
+if [ -n "$(sent os)" ] && ! sent os | grep -q '^action'; then ok "scheduler: rests on MowBite OS, which has a schedule of its own"; else
+  bad "scheduler: rests on MowBite OS, which has a schedule of its own" "$(sent os)"; fi
+expect "scheduler: and tells nothing there" "$(next os)$(slog os)" ""
+
+# --- the parameters kept by the app ---
+
+KEEP=$'enabled 1\n/mower_logic/mow_angle_offset 7'
+start keepom "$(state)" "" RUN=/params.sh 'PARAMS={"/mower_logic/mow_angle_offset":5}' "KEEP=$KEEP"
+start keepos "$(state)" "" RUN=/params.sh 'PARAMS={"/mower_logic/mow_angle_offset":5}' "KEEP=$KEEP" "METHODS=$OS_METHODS" "INFO=$OS_INFO"
+gets keepom '"params":\{"/mower_logic/mow_angle_offset":7\}' 30 && ok "params: what the mower lost set again" ||
+  bad "params: what the mower lost set again" "$(sent keepom)"
+gets keepos '"method":"system.info"' 30 && sleep 3
+sent keepos | grep -q 'params.set' && bad "params: not on MowBite OS, it keeps them itself" "$(sent keepos)" ||
+  ok "params: not on MowBite OS, it keeps them itself"
 
 # --- the log keeper ---
 

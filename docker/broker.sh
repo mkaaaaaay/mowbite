@@ -21,6 +21,29 @@ find_broker() {
   done
 }
 
+# what MowBite OS does itself, so the container's scripts leave it be: os_does <host> schedule (it has schedule.get) or
+# params (system.info names mowbite-os: it keeps its parameters). asked every 10 minutes at most, in /tmp/os for all of
+# the scripts. without an answer what was known stays, before the first one it's taken for OpenMower
+os_does() {
+  if [ -z "$(find /tmp/os -mmin -10 2>/dev/null)" ]; then
+    _m=$(mower_rpc "$1" "$RPC_METHODS" '[]' 10 | tr -d ' \t\n')
+    if [ -z "$_m" ]; then
+      if [ -f /tmp/os ]; then touch /tmp/os; else : > /tmp/os; fi
+    else
+      _t=$(mktemp /tmp/os.XXXXXX)
+      {
+        case $_m in *"\"$RPC_SCHEDULE_GET\""*) echo schedule ;; esac
+        case $_m in *"\"$RPC_SYSTEM_INFO\""*)
+          _i=$(mower_rpc "$1" "$RPC_SYSTEM_INFO" '{}' 10 | tr -d ' \t\n')
+          if [ -z "$_i" ]; then grep -x params /tmp/os 2>/dev/null; else case $_i in *'"name":"mowbite-os"'*) echo params ;; esac; fi
+          ;;
+        esac
+      } > "$_t" && mv "$_t" /tmp/os
+    fi
+  fi
+  grep -qx "$2" /tmp/os 2>/dev/null
+}
+
 # a json-rpc call to the mower: mower_rpc <host> <method> <params json> [seconds]. prints the answer with our id,
 # nothing when none came. needs the topics from openmower.sh. answers come on a topic others answer on too, pretty
 # printed over several lines (OpenMower) or all on one (MowBite OS), so the one with our id is picked out: a message

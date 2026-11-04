@@ -2,7 +2,7 @@
 # OpenMower doesn't store what an app sets with params.set, after its restart the values of its yaml are back. the
 # app hands what's set in it to params.cgi (/data/params.txt), and every minute the ones the mower has differently
 # are set again. the mowing direction is left alone while a start time of the schedule has its own, scheduler.sh
-# sets it then
+# sets it then. MowBite OS keeps what's set itself (and caps it): nothing set again there
 . /broker.sh
 . /openmower.sh
 F=/data/params.txt
@@ -12,7 +12,7 @@ while :; do
   if [ -f "$F" ] && [ "$(sed -n 's/^enabled //p' "$F" | head -n1)" != 0 ] && grep -q '^/' "$F"; then
     host=$(find_broker)
     now=$([ -n "$host" ] && mosquitto_sub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_PARAMS" -C 1 -W 10 2>/dev/null)
-    if [ -n "$now" ]; then
+    if [ -n "$now" ] && ! os_does "$host" params; then
       skip=""
       if [ "$(sed -n 's/^enabled //p' "$S" 2>/dev/null | head -n1)" = 1 ] && grep -q '^plan .* angle=' "$S"; then
         skip=$PARAM_MOW_ANGLE_OFFSET

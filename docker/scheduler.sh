@@ -7,7 +7,8 @@
 # and at sunset if the plan wants that. a plan can drop an interrupted job first so it begins with the first area,
 # and it can be paused for some days, for all areas or some. a plan can have its own mowing direction (angle=<deg>),
 # set on the mower before the start. no start while the MowBite Updater restarts OpenMower (its hold, retained), and it
-# tells the updater when it may start next. what happened goes to /data/schedule.log for the page
+# tells the updater when it may start next. what happened goes to /data/schedule.log for the page. on MowBite OS, which
+# has a schedule of its own, it rests with its leftovers: no start, nothing told
 . /broker.sh
 . /openmower.sh
 F=/data/schedule.txt
@@ -305,6 +306,7 @@ tell_next() {
   [ "$n" = "$told" ] && [ $(($(date +%s) - told_at)) -lt 600 ] && return
   host=$(find_broker)
   [ -n "$host" ] || return
+  os_does "$host" schedule && return
   if [ -n "$n" ]; then
     mosquitto_pub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_SCHEDULE_NEXT" -r -m "$n" 2>/dev/null || return
   else
@@ -325,6 +327,7 @@ leftovers_conf() { grep -o '"leftovers":{[^}]*}' /data/settings.json 2>/dev/null
 leftovers_after() {
   c=$(leftovers_conf)
   [ "$(field "$c" auto)" = true ] || return
+  os_does "$host" schedule && return
   min=$(field "$c" min)
   # a planner that sends the mower out for the leftovers itself (its setting leftovers_auto on): not twice
   printf '%s' "$(rpc_call planner.settings '{}' 20)" | grep -o '"leftovers_auto": *{[^}]*}' | grep -q '"value": *true' && return
@@ -548,7 +551,9 @@ while :; do
     s=$([ -n "$host" ] && mosquitto_sub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -C 1 -W 10 2>/dev/null)
     bat=$(battery "$s")
     minbat=$(conf minbattery)
-    if [ -z "$cur" ]; then
+    if [ -n "$host" ] && os_does "$host" schedule; then
+      until=0
+    elif [ -z "$cur" ]; then
       slog skip_gone; until=0
     elif [ -n "$endat" ] && [ "$(date +%s)" -ge "$endat" ]; then
       slog skip_end; until=0

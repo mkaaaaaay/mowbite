@@ -16,6 +16,10 @@ ACTION_RESET_JOB=mower_logic:idle/reset_job
 TOPIC_RPC_REQUEST=rpc/request
 TOPIC_RPC_RESPONSE=rpc/response
 TOPIC_RPC_ERROR=rpc/error
+# the methods the mower has. MowBite OS also has system.info (its name: mowbite-os) and its own schedule (schedule.get)
+RPC_METHODS=rpc.methods
+RPC_SYSTEM_INFO=system.info
+RPC_SCHEDULE_GET=schedule.get
 # the last ros warnings and errors, kept in memory by the monitoring node
 RPC_LOGS=logs.recent
 # the ros parameters as the mower has them, and setting some while it runs (newer OpenMower only, not stored there)

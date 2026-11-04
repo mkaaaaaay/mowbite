@@ -7,7 +7,8 @@
 # $RUN_STATE (a run the scheduler started), $WAITING (a start waiting for the battery), $ANGLE_NORMAL (the usual
 # mowing direction before a plan turned it). $HOLD: the MowBite Updater's hold on starts (retained). $ACTIONS: the
 # lists actions/json says one after the other (retained), a line each, a second apart. $LOGS, $PLANNER_LOG: what
-# logs.recent and planner.log answer (@ID@ for the call's id), $OTHER: someone else's answer sent before each one
+# logs.recent and planner.log answer (@ID@ for the call's id), $OTHER: someone else's answer sent before each one.
+# $METHODS, $INFO: rpc.methods and system.info (MowBite OS). $KEEP: the parameters the app keeps (/data/params.txt)
 pub() {
   t=$1
   shift
@@ -18,6 +19,7 @@ printf '%s\n' "$SCHED" > /data/schedule.txt
 [ -z "$RUN_STATE" ] || echo "$RUN_STATE" > /data/run.state
 [ -z "$WAITING" ] || echo "$WAITING" > /data/run.wait
 [ -z "$ANGLE_NORMAL" ] || echo "$ANGLE_NORMAL" > /data/angle.normal
+[ -z "$KEEP" ] || printf '%s\n' "$KEEP" > /data/params.txt
 [ -z "$PARAMS" ] || pub params/json -r -m "$PARAMS"
 [ -z "$MAP" ] || pub map/json -r -m "$MAP"
 [ -z "$HOLD" ] || pub mowbite/hold -r -m "$HOLD"
@@ -37,6 +39,8 @@ mosquitto_sub -h "$MOWER_MQTT_HOST" -v -t "${MOWER_MQTT_PREFIX}action" -t "${MOW
       case "$msg" in
         *'"method":"logs.recent"'*) [ -z "$LOGS" ] || a=$LOGS ;;
         *'"method":"planner.log"'*) [ -z "$PLANNER_LOG" ] || a=$PLANNER_LOG ;;
+        *'"method":"rpc.methods"'*) [ -z "$METHODS" ] || a=$METHODS ;;
+        *'"method":"system.info"'*) [ -z "$INFO" ] || a=$INFO ;;
       esac
       [ -z "$OTHER" ] || pub rpc/response -m "$OTHER"
       pub rpc/response -m "$(printf '%s' "$a" | sed "s/@ID@/$id/")"
