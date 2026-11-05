@@ -139,7 +139,8 @@ function headline(state: MowerState, docked: boolean, charger: boolean, charged:
     case 'UNDOCKING':
       return {title: tr('Leaving the dock'), tone: 'live'};
     case 'PAUSED':
-      return {title: tr('Paused'), tone: 'warn'};
+      // carried into the dock say, it only counts once it's ended there
+      return {title: charger ? tr('Paused, in the dock') : tr('Paused'), tone: 'warn'};
     case 'IDLE':
       return {title: tr('Waiting on the lawn'), tone: 'warn'};
     default:
@@ -303,13 +304,17 @@ export default function Home() {
 
   const current = state?.current_state ?? '';
   const driving = DRIVING.has(current);
+  // paused on the station's contacts: OpenMower only sees the dock when it's sent home, it's DOCKED then right away
+  const pausedInDock = current === 'PAUSED' && !state?.emergency && onCharger(state, values['om_v_charge']);
   // the buttons for what the mower offers now, the others left out. paused: the pause button turns into continue. only
   // by the state, the mower also offers continue while mowing until it was paused once. leaving the dock home can't be
   // asked for, stopping can. the emergency stop locks all of them (it still offers start), its reset comes first
   const actionsNow = ACTIONS.map((a) =>
     a.id === ACTION.pause && current === 'PAUSED' && hasAction(ACTION.resume)
       ? {...a, id: ACTION.resume, Icon: PlayIcon, label: 'Continue', tone: 'go'}
-      : a.id === ACTION.goHome && current === 'UNDOCKING' && hasAction(ACTION.abortUndocking)
+      : a.id === ACTION.goHome && pausedInDock
+        ? {...a, label: 'End here'}
+        : a.id === ACTION.goHome && current === 'UNDOCKING' && hasAction(ACTION.abortUndocking)
         ? {...a, id: ACTION.abortUndocking, Icon: CloseIcon, label: 'Stop undocking', tone: 'stop'}
         : a,
   ).filter((a) => hasAction(a.id) && !state?.emergency);
@@ -463,7 +468,9 @@ export default function Home() {
                       ? refused
                         ? explain(refused)
                         : tr('Release the mower, then reset the emergency to drive again.')
-                      : since
+                      : pausedInDock && hasAction(ACTION.goHome)
+                        ? tr('Put in the dock by hand? Tap End here, then it counts as docked and charges. The next start mows on where it stopped.')
+                        : since
                         ? tr('since {time}', {time: clock(since)})
                         : ''}
                   </span>

@@ -2478,6 +2478,9 @@ const de: Record<string, string> = {
   "Keep on": "Anlassen",
   "mows on after sunset": "mäht nach Sonnenuntergang weiter",
   "Going home at sunset is switched off: a run mows on into the night.": "Heimfahrt bei Sonnenuntergang ist ausgeschaltet: Ein Lauf mäht bis in die Nacht weiter.",
+  "Paused, in the dock": "Pausiert, im Dock",
+  "End here": "Hier beenden",
+  "Put in the dock by hand? Tap End here, then it counts as docked and charges. The next start mows on where it stopped.": "Von Hand ins Dock gestellt? Tippe auf Hier beenden, dann gilt er als angedockt und lädt. Der nächste Start mäht dort weiter, wo er aufgehört hat.",
 };
 
 export default de;
