@@ -12,7 +12,7 @@ import {useComputedSpeed} from '@/hooks/useComputedSpeed';
 import {useEmergencyReasons} from '@/hooks/useEmergencyReasons';
 import {useEmergencyReset} from '@/hooks/useEmergencyReset';
 import {useLeftoversBefore} from '@/hooks/useLeftoversBefore';
-import {useMowerActions} from '@/hooks/useMowerActions';
+import {useCommandNote, useMowerActions} from '@/hooks/useMowerActions';
 import {useMowerMap} from '@/hooks/useMowerMap';
 import {datumFromParams, numParam, useMowerParams} from '@/hooks/useMowerParams';
 import {sunTimes} from '@/lib/sun';
@@ -202,6 +202,8 @@ export default function Home() {
   const {infos, values} = useMowerSensors();
   const why = useEmergencyReasons(!!state?.emergency);
   const {refused, reset} = useEmergencyReset(!!state?.emergency, publishAction);
+  // a refused reset shows under the emergency stop already
+  const commandNote = useCommandNote(['EMERGENCY_RESET_REFUSED']);
   const position = useMowerPosition() ?? state?.pose;
   const speed = useComputedSpeed(position);
   const track = useMowerTrack();
@@ -266,7 +268,7 @@ export default function Home() {
     const t = setTimeout(() => {
       if (skip.left > 1) return setSkip({...skip, left: skip.left - 1});
       setSkip(null);
-      publishAction(skip.id);
+      publishAction(skip.id, skip);
     }, 1000);
     return () => clearTimeout(t);
   }, [skip, publishAction]);
@@ -280,7 +282,7 @@ export default function Home() {
   useEffect(
     () => () => {
       const {skip, publishAction} = waiting.current;
-      if (skip) publishAction(skip.id);
+      if (skip) publishAction(skip.id, skip);
     },
     [],
   );
@@ -501,6 +503,7 @@ export default function Home() {
             )}
 
             <div className={styles.controls}>
+              {commandNote && <p className={[styles.commandNote, commandNote.warn ? styles.warn : ''].join(' ')}>{commandNote.text}</p>}
               {/* first, the buttons below are locked until it's reset */}
               {!!state.emergency && (
                 <button className={styles.reset} disabled={!live} onClick={reset}>

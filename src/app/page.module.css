@@ -417,6 +417,18 @@
   color: var(--foreground);
 }
 
+/* what MowBite OS answered to the last command: why not, or no answer */
+.controls .commandNote {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.controls .commandNote.warn {
+  color: var(--warning);
+}
+
 .controls .resetJob {
   grid-column: 1 / -1;
   display: flex;

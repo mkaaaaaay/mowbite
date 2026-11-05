@@ -44,9 +44,13 @@ describe('calls while offline', () => {
   // stands in for the mqtt client: what gets published is kept, a subscribe is confirmed right away
   class FakeClient extends EventEmitter {
     connected = false;
-    published: {method: string; id: string}[] = [];
-    publish(_topic: string, payload: string) {
+    v5 = false;
+    published: {method: string; id: string; params?: unknown}[] = [];
+    // the response topic each request asked for, null without one
+    asked: (string | null)[] = [];
+    publish(_topic: string, payload: string, opts?: {properties?: {responseTopic?: string}}) {
       this.published.push(JSON.parse(payload));
+      this.asked.push(opts?.properties?.responseTopic ?? null);
     }
     subscribe(_topic: string, cb?: () => void) {
       cb?.();
@@ -68,6 +72,8 @@ describe('calls while offline', () => {
     vi.doMock('./mqttClient', () => ({
       getMqttClient: () => client,
       withPrefix: (t: string) => t,
+      mqtt5: () => client.v5,
+      responseTopic: () => 'rpc/response/me',
       onTopic: (topic: string, h: (p: Buffer, t: string) => void) => {
         client.on('message', (t: string, p: Buffer) => t === topic && h(p, t));
         return () => {};
@@ -201,5 +207,53 @@ describe('calls while offline', () => {
     const other = await load();
     void other.rpcMethods();
     expect(client.published[1].id.split('-')[0]).not.toBe(id.split('-')[0]);
+  });
+
+  it('sends a command only while connected, never again by itself, and still takes an answer that came late', async () => {
+    const {callCommand, LATE_MS} = await load();
+    await expect(callCommand('mowing.start', {client: 'app'}, 10000)).rejects.toMatchObject({code: 'timeout', message: 'offline'});
+    client.online();
+    expect(client.published).toEqual([]);
+    const late: unknown[] = [];
+    const start = callCommand('mowing.start', {client: 'app'}, 10000, (a) => late.push(a));
+    const failed = expect(start).rejects.toMatchObject({code: 'timeout'});
+    expect(client.published.map((m) => [m.method, m.params])).toEqual([['mowing.start', {client: 'app'}]]);
+    client.offline();
+    client.online();
+    await vi.advanceTimersByTimeAsync(10000);
+    await failed;
+    expect(client.published).toHaveLength(1);
+    client.emit('message', 'rpc/response', Buffer.from(JSON.stringify({id: client.published[0].id, result: {state: 'UNDOCKING'}})));
+    expect(late).toEqual([{state: 'UNDOCKING'}]);
+    // a refusal late as well, a minute after its time no more
+    const pause = callCommand('mowing.pause', {}, 10000, (a) => late.push(a));
+    pause.catch(() => {});
+    const skip = callCommand('mowing.skip_area', {}, 10000, (a) => late.push(a));
+    skip.catch(() => {});
+    await vi.advanceTimersByTimeAsync(10000);
+    const refusal = {error: {code: -32600, message: 'refused', data: {event: 'COMMAND_REFUSED', reason: 'WRONG_STATE'}}};
+    client.emit('message', 'rpc/response', Buffer.from(JSON.stringify({id: client.published[1].id, ...refusal})));
+    expect(late[1]).toMatchObject({code: -32600, data: {reason: 'WRONG_STATE'}});
+    await vi.advanceTimersByTimeAsync(LATE_MS);
+    client.emit('message', 'rpc/response', Buffer.from(JSON.stringify({id: client.published[2].id, result: {}})));
+    expect(late).toHaveLength(2);
+  });
+
+  it('with MQTT 5 asks for the answer on its own topic and takes it there, before on rpc/response', async () => {
+    const {callRpc, rpcMethods} = await load();
+    client.online();
+    const methods = rpcMethods();
+    expect(client.asked).toEqual([null]);
+    client.emit('message', 'rpc/response', Buffer.from(JSON.stringify({id: client.published[0].id, result: ['map.replace']})));
+    await methods;
+    // made while offline, sent once connected again with MQTT 5
+    client.offline();
+    const saved = callRpc('map.replace', [{}]);
+    await vi.advanceTimersByTimeAsync(0);
+    client.v5 = true;
+    client.online();
+    expect(client.asked).toEqual([null, 'rpc/response/me']);
+    client.emit('message', 'rpc/response/me', Buffer.from(JSON.stringify({id: client.published[1].id, result: 'saved'})));
+    expect(await saved).toBe('saved');
   });
 });

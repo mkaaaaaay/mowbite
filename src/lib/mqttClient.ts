@@ -49,15 +49,59 @@ export function getMqttClient(): MqttClient {
     client.on('message', (full, payload) => {
       const topic = unprefix(full);
       if (topic === null) return;
-      if (held && topic !== TOPIC.rpcResponse) held.list.push([topic, payload]);
+      if (held && !topic.startsWith(TOPIC.rpcResponse)) held.list.push([topic, payload]);
       else deliver(topic, payload);
     });
   }
   return client;
 }
 
+// MQTT 5 only on MowBite OS that said so in system.info (mqtt 5), from the next connection on, kept per mower; never on
+// OpenMower. then each answer comes to rpc/response/<the client id> alone instead of to everyone on rpc/response
+const mqtt5Key = () => `mowbite.mqtt5.${mqttUrl()}|${topicPrefix()}`;
+function mqtt5Stored(): boolean {
+  try {
+    return localStorage.getItem(mqtt5Key()) === '1';
+  } catch {
+    return false;
+  }
+}
+function storeMqtt5(on: boolean) {
+  try {
+    if (on) localStorage.setItem(mqtt5Key(), '1');
+    else localStorage.removeItem(mqtt5Key());
+  } catch {
+    // without storage it stays 3.1.1
+  }
+}
+
+// the version the connection there is made with, 5 or 4 (3.1.1), and the one the next try takes. mqtt.js reads it from
+// its options for every packet, changed only right before a try, never under a running connection
+let connectedVersion = 4;
+let nextVersion: 4 | 5 = 4;
+export const mqtt5 = () => connectedVersion === 5;
+// where this client's answers come with MQTT 5: its own client id, as MowBite OS takes it (1 to 64 of A-Za-z0-9._-).
+// null for the demo mower
+export function responseTopic(): string | null {
+  const id = getMqttClient().options?.clientId;
+  return id ? `${TOPIC.rpcResponse}/${id}` : null;
+}
+
+// what system.info told: the mower is OpenMower (no system.info) or MowBite OS with the MQTT version of its bridge.
+// OpenMower over MQTT 5 goes back to 3.1.1 at once, a change on MowBite OS counts from the next connection
+export function noteMqtt(said: 'openmower' | {mqtt?: number}) {
+  if (!client || isDemo()) return;
+  const five = said !== 'openmower' && said.mqtt === 5;
+  storeMqtt5(five);
+  nextVersion = five ? 5 : 4;
+  // (mqtt.js connects again a second later, with 3.1.1)
+  if (said === 'openmower' && connectedVersion === 5 && client.connected) client.stream.destroy();
+}
+
 function connect(): MqttClient {
+  nextVersion = mqtt5Stored() ? 5 : 4;
   const c = mqtt.connect(mqttUrl(), {
+    protocolVersion: nextVersion,
     // mqtt.js tries one connection after the other, the next only once the last is gone
     reconnectPeriod: 1000,
     // a dead wifi link shows up after ~15 s instead of ~90 s with the default of 60
@@ -74,6 +118,44 @@ function connect(): MqttClient {
   // mqtt.js's: two connections with the same client id threw each other out every 2 s (session taken over)
   let lastPacket = Date.now();
   c.on('packetreceive', () => (lastPacket = Date.now()));
+  // a broker that turns MQTT 5 down (CONNACK with an error) or closes twice in a row after the CONNECT before its
+  // CONNACK: 3.1.1 again, forgotten for this mower until system.info says 5 once more. a socket that didn't even open
+  // is the network, it doesn't count
+  let opened = false;
+  let acked = false;
+  let shut = 0;
+  // each try makes a new socket right after 'reconnect', the first one is there already
+  const watchSocket = () => {
+    const socket = (c.stream as unknown as {socket?: WebSocket} | undefined)?.socket;
+    opened = !socket || socket.readyState === WebSocket.OPEN;
+    socket?.addEventListener('open', () => (opened = true));
+  };
+  watchSocket();
+  c.on('reconnect', () => {
+    c.options.protocolVersion = nextVersion;
+    queueMicrotask(watchSocket);
+  });
+  const back = () => {
+    storeMqtt5(false);
+    nextVersion = 4;
+    shut = 0;
+  };
+  c.on('connect', () => {
+    connectedVersion = c.options.protocolVersion ?? 4;
+    acked = true;
+    shut = 0;
+  });
+  c.on('error', (e) => {
+    if (c.options.protocolVersion !== 5 || nextVersion !== 5 || acked || !('code' in e) || typeof e.code !== 'number' || e.code <= 0) return;
+    back();
+    // mqtt.js doesn't try again after a refused CONNACK by itself; once its socket is gone, a try while it closes would
+    // be followed by one more of mqtt.js's own
+    c.once('close', () => c.reconnect());
+  });
+  c.on('close', () => {
+    if (opened && !acked && c.options.protocolVersion === 5 && nextVersion === 5 && ++shut >= 2) back();
+    opened = acked = false;
+  });
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState !== 'visible' || !c.connected || Date.now() - lastPacket < 15000) return;
     lastPacket = Date.now();

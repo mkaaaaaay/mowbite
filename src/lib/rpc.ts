@@ -1,4 +1,4 @@
-import {getMqttClient, onTopic, withPrefix} from './mqttClient';
+import {getMqttClient, mqtt5, onTopic, responseTopic, withPrefix} from './mqttClient';
 import {RPC, TOPIC} from './openmower';
 
 // json-rpc 2.0 over mqtt: rpc/request -> rpc/response, matched by id
@@ -29,7 +29,7 @@ let listening = false;
 function ensureListening() {
   if (listening) return;
   listening = true;
-  onTopic(TOPIC.rpcResponse, (payload) => {
+  const answer = (payload: Buffer) => {
     let msg: {id?: string; result?: unknown; error?: {code?: number; message: string; data?: unknown}};
     try {
       msg = JSON.parse(payload.toString());
@@ -45,13 +45,19 @@ function ensureListening() {
       const fields = data && typeof data === 'object' && !Array.isArray(data) ? (data as Record<string, unknown>) : undefined;
       waiting.reject(new RpcError(waiting.method, msg.error.code ?? 0, msg.error.message, fields));
     } else waiting.resolve(msg.result);
-  });
+  };
+  // with MQTT 5 the answers come to this client's own topic, from an older MowBite OS (after going back) still to all
+  onTopic(TOPIC.rpcResponse, answer);
+  const own = responseTopic();
+  if (own) onTopic(own, answer);
 }
 
 // The mower tells which methods it has (rpc.methods), asked once per page load. Calls it doesn't have
 // fail right away instead of after the timeout. Older mowers can't tell, then nothing is checked.
 // meta.* is answered by another service (openmower-cli), so it's never on that list.
 let methods: Promise<Set<string> | null> | null = null;
+// the same once it came, undefined before
+let methodsNow: Set<string> | null | undefined;
 // no answer at all: the connection may just have taken longer (phone waking up), so it's asked again after this
 // instead of going without the newer features until a reload
 let askAgainAt = 0;
@@ -63,14 +69,18 @@ export function rpcMethods(): Promise<Set<string> | null> {
     askAgainAt = 0;
   }
   methods ??= send<string[]>(RPC.methods, [], 5000).then(
-    (list) => (Array.isArray(list) ? new Set(list) : null),
+    (list) => (methodsNow = Array.isArray(list) ? new Set(list) : null),
     (e) => {
       if (e instanceof RpcError && e.code === 'timeout') askAgainAt = Date.now() + ASK_AGAIN_MS;
+      else methodsNow = null;
       return null;
     },
   );
   return methods;
 }
+
+// what rpc.methods said, without waiting: undefined while it hasn't answered, null for a mower that can't tell
+export const knownMethods = () => methodsNow;
 
 // rpcMethods() had no answer and will ask again
 export const methodsUnknown = () => askAgainAt > 0;
@@ -93,7 +103,17 @@ export const MAX_RPC_BYTES = 1_900_000;
 // (a map save at the station over a weak wifi, the app reconnecting the same second). the others aren't sent twice
 const AGAIN = new Set<string>([RPC.replaceMap, RPC.setParams, RPC.plannerSettingsSet, RPC.plannerAngleReset]);
 
-function send<T>(method: string, params: unknown[] | object, timeoutMs: number): Promise<T> {
+// A command to the mower as a call (MowBite OS, masterplan App ↔ OS): never sent again by itself and never waiting for
+// the connection, a start that went out minutes later would drive off then. an answer after the time still comes to
+// late for a minute (accepted after all, or why not), the call has failed by then
+export const LATE_MS = 60000;
+
+export function callCommand<T = unknown>(method: string, params: object, timeoutMs: number, late?: (answer: T | RpcError) => void): Promise<T> {
+  if (!getMqttClient().connected) return Promise.reject(new RpcError(method, 'timeout', 'offline'));
+  return send<T>(method, params, timeoutMs, late);
+}
+
+function send<T>(method: string, params: unknown[] | object, timeoutMs: number, late?: (answer: T | RpcError) => void): Promise<T> {
   ensureListening();
   const id = `${instance}-${nextId++}`;
   const c = getMqttClient();
@@ -103,11 +123,16 @@ function send<T>(method: string, params: unknown[] | object, timeoutMs: number):
   if (bytes > MAX_RPC_BYTES) return Promise.reject(new RpcError(method, 'too_large', String(bytes)));
 
   return new Promise<T>((resolve, reject) => {
-    const publish = () => c.publish(withPrefix(TOPIC.rpcRequest), body);
+    // with MQTT 5 the answer is asked to this client's topic alone (the connection it goes out on counts)
+    const publish = () => {
+      const own = mqtt5() ? responseTopic() : null;
+      c.publish(withPrefix(TOPIC.rpcRequest), body, own ? {properties: {responseTopic: withPrefix(own)}} : {});
+    };
     // offline the call waits for the connection and is dropped when it times out, so a map save the app
     // reported as failed can't happen later after all. subscribed again first, the answer could beat the
     // subscription right after a reconnect
-    const onConnect = () => c.subscribe(withPrefix(TOPIC.rpcResponse), () => pending.has(id) && publish());
+    const topics = [TOPIC.rpcResponse, ...(responseTopic() ? [responseTopic()!] : [])].map(withPrefix);
+    const onConnect = () => c.subscribe(topics, () => pending.has(id) && publish());
     // (every failed try to connect again closes once more, it still goes out once)
     const onClose = () => {
       c.off('connect', onConnect);
@@ -122,6 +147,13 @@ function send<T>(method: string, params: unknown[] | object, timeoutMs: number):
       pending.delete(id);
       done();
       reject(new RpcError(method, 'timeout', `${method} timed out`));
+      if (!late) return;
+      const drop = setTimeout(() => pending.delete(id), LATE_MS);
+      const after = (a: T | RpcError) => {
+        clearTimeout(drop);
+        late(a);
+      };
+      pending.set(id, {method, resolve: (v) => after(v as T), reject: (e) => after(e as RpcError)});
     }, timeoutMs);
 
     pending.set(id, {

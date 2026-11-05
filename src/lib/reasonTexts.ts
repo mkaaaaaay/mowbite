@@ -114,6 +114,8 @@ export const EVENTS: Record<string, EventText> = {
   // from here on MowBite OS only
   MOWING_REFUSED: one('Mowing not started', 'warning'),
   DRIVE_REFUSED: one('Drive not started', 'warning'),
+  // a command the mower turned down without an event of its own, only in the answer to its call
+  COMMAND_REFUSED: one('Not done'),
   // reset_emergency didn't let go, the emergency stop stays. one that does sends nothing of its own, the EMERGENCY with
   // emergency false says it's over
   EMERGENCY_RESET_REFUSED: {
@@ -174,6 +176,14 @@ export const REASONS: Record<string, Variant[]> = {
     r('busy with something else'),
   ],
   STILL_STOPPING: [r('the last job is still stopping, try again in a moment')],
+  // COMMAND_REFUSED: the command doesn't fit the state (its action wouldn't be offered), no job to drop, the mower
+  // already on another area or path than the one seen when it was tapped
+  WRONG_STATE: [r("doesn't fit what the mower is doing now")],
+  NO_JOB: [r('there is no interrupted job')],
+  CHANGED: [
+    r('the mower was already on the next part, nothing was skipped', {when: {path: {present: true}}}),
+    r('the mower was already on the next area, nothing was skipped'),
+  ],
   STILL_SAVING: [r('the last change of the map is still being saved')],
   // the MowBite Updater updates MowBite OS (system.hold), a start or a change of its data waits: in a *_REFUSED and in
   // the data of an error -32004, with until (unix s)

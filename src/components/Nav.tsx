@@ -2,6 +2,7 @@
 
 import {startSensorHistory} from '@/hooks/useSensorHistory';
 import {loadPlannerSettings} from '@/lib/mowerBody';
+import {systemInfo} from '@/lib/mowerOs';
 import {holdMessages, passMessages} from '@/lib/mqttClient';
 import {syncSettings} from '@/lib/settings';
 import LogoMark from './Logo';
@@ -64,6 +65,8 @@ export default function Nav() {
   // before the map is opened, it's drawn with the mower's body from the start
   useEffect(() => {
     startSensorHistory();
+    // what runs on the mower, it also tells which MQTT version the next connection takes (lib/mqttClient)
+    void systemInfo();
     void syncSettings();
     loadPlannerSettings().catch(() => {});
   }, []);

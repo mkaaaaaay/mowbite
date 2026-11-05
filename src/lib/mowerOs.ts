@@ -1,11 +1,13 @@
 import {useEffect, useState} from 'react';
 import {RPC} from './openmower';
+import {noteMqtt} from './mqttClient';
 import {callRpc, methodsUnknown, rpcMethods} from './rpc';
 
 // What runs on the mower, from system.info. Only MowBite OS answers it, on OpenMower there's none. On MowBite OS the
 // planner is the one place for what makes the plan: the values for all areas in planner.settings, an area's own in
 // OpenMower's keys of map.json (outline_count and co.), mower_logic has no mowing parameters there.
-export type SystemInfo = {name: string; version?: string; platform?: string; schema?: number};
+// api: the version of the interface (system.api), mqtt: 5 when its bridge sends each answer to the asker's own topic
+export type SystemInfo = {name: string; version?: string; platform?: string; schema?: number; api?: number; mqtt?: number};
 
 const MOWBITE_OS = 'mowbite-os';
 let info: Promise<SystemInfo | null> | null = null;
@@ -16,10 +18,16 @@ export function systemInfo(): Promise<SystemInfo | null> {
     const methods = await rpcMethods();
     // no answer yet, the next one asking tries again
     if (methodsUnknown()) info = null;
-    if (!methods?.has(RPC.systemInfo)) return null;
+    if (!methods?.has(RPC.systemInfo)) {
+      // OpenMower: MQTT 3.1.1 there, always
+      if (!methodsUnknown()) noteMqtt('openmower');
+      return null;
+    }
     try {
       const i = await callRpc<SystemInfo>(RPC.systemInfo);
-      return i && typeof i === 'object' && typeof i.name === 'string' ? i : null;
+      const ok = i && typeof i === 'object' && typeof i.name === 'string' ? i : null;
+      if (isMowbiteOs(ok)) noteMqtt({mqtt: ok!.mqtt});
+      return ok;
     } catch {
       return null;
     }

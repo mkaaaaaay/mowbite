@@ -86,6 +86,32 @@ export const ACTION = {
   recording: (step: string) => `mower_logic:area_recording/${step}`,
 } as const;
 
+// MowBite OS takes each action also as a call that answers, accepted or why not (masterplan, App ↔ OS). the app calls
+// it where rpc.methods names it, otherwise it sends the action. params besides client, the same for every one
+export const COMMAND: Record<string, {method: string; params?: Record<string, unknown>}> = {
+  [ACTION.resetEmergency]: {method: 'emergency.reset'},
+  [ACTION.startMowing]: {method: 'mowing.start'},
+  [ACTION.resetJob]: {method: 'mowing.reset_job'},
+  [ACTION.pause]: {method: 'mowing.pause'},
+  [ACTION.resume]: {method: 'mowing.continue'},
+  [ACTION.goHome]: {method: 'mowing.abort'},
+  [ACTION.skipArea]: {method: 'mowing.skip_area'},
+  [ACTION.skipPath]: {method: 'mowing.skip_path'},
+  [ACTION.abortUndocking]: {method: 'undocking.abort'},
+  'mower_logic:docking/abort_docking': {method: 'docking.abort'},
+  [ACTION.startRecording]: {method: 'recording.start'},
+  [ACTION.recording('exit_recording_mode')]: {method: 'recording.exit'},
+  [ACTION.recording('start_recording')]: {method: 'recording.ring_start'},
+  [ACTION.recording('stop_recording')]: {method: 'recording.ring_stop'},
+  [ACTION.recording('finish_mowing_area')]: {method: 'recording.save', params: {type: 'mow'}},
+  [ACTION.recording('finish_navigation_area')]: {method: 'recording.save', params: {type: 'nav'}},
+  [ACTION.recording('finish_discard')]: {method: 'recording.discard'},
+  [ACTION.recording('record_dock')]: {method: 'recording.dock'},
+  [ACTION.recording('auto_point_collecting_enable')]: {method: 'recording.auto_points', params: {enabled: true}},
+  [ACTION.recording('auto_point_collecting_disable')]: {method: 'recording.auto_points', params: {enabled: false}},
+  [ACTION.recording('collect_point')]: {method: 'recording.point'},
+};
+
 // ros parameters, as they come in params/json
 export const PARAM = {
   mowerLogic: (key: string) => `/mower_logic/${key}`,

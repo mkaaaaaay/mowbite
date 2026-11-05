@@ -6,7 +6,7 @@ import {TitleMark} from '@/components/Logo';
 import {TitleRow} from '@/components/TopWeather';
 import {useHeadingDrift} from '@/hooks/useHeadingDrift';
 import {useMapOverlay} from '@/hooks/useMapOverlay';
-import {useMowerActions} from '@/hooks/useMowerActions';
+import {useCommandNote, useMowerActions} from '@/hooks/useMowerActions';
 import {useMowerMap, type DockingStation} from '@/hooks/useMowerMap';
 import {useMowerPosition} from '@/hooks/useMowerPosition';
 import {isLive, useMowerState} from '@/hooks/useMowerState';
@@ -181,6 +181,10 @@ function Record() {
       }),
     [],
   );
+  // what MowBite OS answered to a step sent as a call, when it isn't a RECORDING_REFUSED shown above (another state, no
+  // answer)
+  const commandNote = useCommandNote(['RECORDING_REFUSED']);
+  const refusedText = refused ? refusalText(refused) : (commandNote?.text ?? '');
   const act = (id: string) => {
     setRefused(null);
     publishAction(A(id));
@@ -528,7 +532,7 @@ function Record() {
                 {tr('Send it home first')}
               </button>
             )}
-            {refused && <p className={styles.warn}>{refusalText(refused)}</p>}
+            {refusedText && <p className={styles.warn}>{refusedText}</p>}
             {bounced && (
               <p className={styles.warn}>
                 {tr(
@@ -573,7 +577,7 @@ function Record() {
                 </>
               ) : undefined
             }
-            warn={refused && refusalText(refused)}
+            warn={refusedText}
             close={{label: tr('End recording mode'), onClick: endRecording}}
             remoteRef={remoteRef}
             bottom={
@@ -588,7 +592,7 @@ function Record() {
             }
           >
             {phase === 'empty' && stationLine}
-            {refused && <p className={ds.warn}>{refusalText(refused)}</p>}
+            {refusedText && <p className={ds.warn}>{refusedText}</p>}
             {drift !== null && (
               <p className={ds.warn}>
                 {tr(

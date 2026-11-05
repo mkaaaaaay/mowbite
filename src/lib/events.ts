@@ -52,6 +52,7 @@ export interface MowerEvent {
   accuracy?: number | null;
   distance?: number;
   area?: number;
+  path?: number;
   code?: string;
   datum_state?: string;
   phase?: string;

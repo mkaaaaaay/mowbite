@@ -349,6 +349,15 @@
     }
    ]
   },
+  "COMMAND_REFUSED": {
+   "severity": "info",
+   "variants": [
+    {
+     "en": "Not done",
+     "de": "Nicht ausgeführt"
+    }
+   ]
+  },
   "EMERGENCY_RESET_REFUSED": {
    "severity": "error",
    "variants": [
@@ -673,6 +682,33 @@
    {
     "en": "the last job is still stopping, try again in a moment",
     "de": "der letzte Auftrag hält noch an, gleich noch einmal versuchen"
+   }
+  ],
+  "WRONG_STATE": [
+   {
+    "en": "doesn't fit what the mower is doing now",
+    "de": "passt nicht zu dem, was der Mäher gerade tut"
+   }
+  ],
+  "NO_JOB": [
+   {
+    "en": "there is no interrupted job",
+    "de": "es gibt keinen unterbrochenen Mähvorgang"
+   }
+  ],
+  "CHANGED": [
+   {
+    "en": "the mower was already on the next part, nothing was skipped",
+    "when": {
+     "path": {
+      "present": true
+     }
+    },
+    "de": "der Mäher war schon im nächsten Abschnitt, nichts übersprungen"
+   },
+   {
+    "en": "the mower was already on the next area, nothing was skipped",
+    "de": "der Mäher war schon auf der nächsten Fläche, nichts übersprungen"
    }
   ],
   "STILL_SAVING": [
