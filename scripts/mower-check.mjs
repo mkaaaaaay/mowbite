@@ -301,6 +301,8 @@ else if (!sim) {
 async function commands() {
   const is = (st) => () => own.state?.current_state === st;
   const docked = () => own.state?.current_state === 'IDLE' && !own.state.emergency;
+  // home again: idle after docking, or after docking failed (a simulator's station may be off)
+  const home = (ms) => waitFor(docked, ms);
   if (!(await waitFor(docked, 5000))) return report('AS2 commands', 'skipped', `not idle: ${own.state?.current_state}, emergency ${own.state?.emergency}`);
   page = await newPage();
   await page.goto(appUrl);
@@ -360,17 +362,29 @@ async function commands() {
   await sleep(3000);
   await tap('Skip this path', 'mower_logic:mowing/skip_path', {delay: SKIP_DELAY_MS, seenParam: ['path', 'current_path']});
   await sleep(3000);
-  if (own.state?.current_state === 'MOWING') await tap('Skip area', 'mower_logic:mowing/skip_area', {delay: SKIP_DELAY_MS, seenParam: ['area', 'current_area']});
-  await sleep(3000);
   if (own.state?.current_state === 'MOWING') await tap('Go home', 'mower_logic:mowing/abort_mowing');
-  if (!(await waitFor(docked, 300000))) return report('AS2 commands', 'different', `not back home: ${own.state?.current_state}`);
+  else report('AS2 mowing.abort', 'skipped', `not mowing after the skip: ${own.state?.current_state}`);
+  if (!(await home(300000))) return report('AS2 commands', 'different', `not back home: ${own.state?.current_state}`);
 
-  // the emergency stop: set and cleared in the simulator, reset with the app's button
+  // started again for skipping the area, the job may end with it
+  await sleep(3000);
+  await tap('Start', 'mower_logic:idle/start_mowing');
+  if (await waitFor(is('MOWING'), 240000)) {
+    await sleep(3000);
+    await tap('Skip area', 'mower_logic:mowing/skip_area', {delay: SKIP_DELAY_MS, seenParam: ['area', 'current_area']});
+    await sleep(3000);
+    if (own.state?.current_state === 'MOWING') await call('mowing.abort', {client: 'check'}).then((r) => r.error && broker.publish('action', 'mower_logic:mowing/abort_mowing'));
+  } else report('AS2 mowing.skip_area', 'skipped', `not mowing after the second start: ${own.state?.current_state}`);
+  if (!(await home(300000))) return report('AS2 commands', 'different', `not back home: ${own.state?.current_state}`);
+
+  // the emergency stop set in the simulator, reset with the app's button. sim.emergency.set (OpenMower's simulator) lets
+  // go by itself once cleared, so the reset is tapped while it holds; sim.flags latches, cleared before the reset
   await (sim === 'flags' ? call('sim.flags', [{bumper: 1}]) : call('sim.emergency.set', {active: true}));
   await waitFor(() => own.state?.emergency, 10000);
-  await (sim === 'flags' ? call('sim.flags', [{}]) : call('sim.emergency.set', {active: false}));
+  if (sim === 'flags') await call('sim.flags', [{}]);
   await sleep(1500);
   await tap('Reset emergency', 'mower_logic/reset_emergency');
+  if (sim !== 'flags') await call('sim.emergency.set', {active: false});
   if (!(await waitFor(docked, 15000))) report('AS2 emergency released', 'different', `still: ${JSON.stringify(own.state?.emergency)}`);
 
   // held by the updater: start isn't offered meanwhile, it's let go again
@@ -401,6 +415,8 @@ if (opt.write && sim) {
   if (opt.target === 'mowbite-os' && methods?.has('system.hold')) await call('system.hold', {seconds: 0});
   if (sim === 'flags') await call('sim.flags', [{}]);
   if (own.state?.emergency) broker.publish('action', 'mower_logic/reset_emergency');
+  // OpenMower's simulator charges only within 2 cm of the station, its docking stops beside it: put it in again
+  if (methods?.has('sim.dock.move') && own.state?.current_state === 'IDLE' && !own.state.is_charging) await call('sim.dock.move');
 }
 await browser.close();
 server.close();
