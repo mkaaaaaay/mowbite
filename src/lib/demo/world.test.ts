@@ -544,8 +544,11 @@ describe('the mower around it, for a mock mower', () => {
 
   it('is pushed aside: back onto its way while mowing, off the contacts on the station', () => {
     const m = mower();
+    m.w.set({battery: 0.5});
     m.w.displace(0.5, 0);
     expect(m.w.inspect()).toMatchObject({away: true, charging: false});
+    m.w.displace(-0.5, 0);
+    expect(m.w.inspect()).toMatchObject({docked: true, charging: true});
     const n = mower();
     n.mowing();
     const at = n.state().pose;

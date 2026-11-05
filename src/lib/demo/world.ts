@@ -1281,9 +1281,10 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
       const l = run?.legs[run.at];
       const moved = {x: pose.x + dx, y: pose.y + dy};
       if (rec || !run || !l || parked) {
-        // off the station it's idle somewhere else
-        if (parked && !rec && Math.hypot(dx, dy) > 0.05) away = true;
         pose = {...pose, ...moved};
+        // off the station it's idle somewhere else, back on its contacts it's docked again
+        const d = dock();
+        if (parked && !rec) away = !d || Math.hypot(pose.x - d.at.x, pose.y - d.at.y) > 0.05;
       } else {
         // on its way: back to where it was, then on as before
         const here = pointAt(l, run.d).p;
