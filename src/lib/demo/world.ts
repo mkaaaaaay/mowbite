@@ -895,11 +895,11 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
         away = false;
       } else if (newJob(t)) mows.push({start: t, end: Infinity});
     } else if (id === ACTION.pause && s === 'MOWING') {
+      // the pause stays inside MowingBehavior: no STATE, only the blade
       paused = true;
-      note(t, pose, {type: 'STATE', state: 'PAUSED'}, {type: 'BLADES', enabled: false});
+      note(t, pose, {type: 'BLADES', enabled: false});
     } else if (id === ACTION.resume && s === 'PAUSED') {
       paused = false;
-      note(t, pose, {type: 'STATE', state: 'MOWING'});
       if (activeLeg()?.blades) note(t, pose, {type: 'BLADES', enabled: true});
       if (skipLater !== null) skip(skipLater);
       skipLater = null;
