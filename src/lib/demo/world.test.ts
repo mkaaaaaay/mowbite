@@ -528,6 +528,20 @@ describe('the mower around it, for a mock mower', () => {
     expect(m.state().current_state).toBe('MOWING');
   });
 
+  it('drives at the speed it is given and sends its state once a second however often it ticks', () => {
+    const states: number[] = [];
+    let now = NOW;
+    const w = createWorld((topic) => topic === TOPIC.robotState && states.push(now), {now, timer: false, start: 'docked', speed: 0.9});
+    w.published(TOPIC.action, ACTION.startMowing);
+    const from = JSON.parse(w.retained(TOPIC.position)[0][1]);
+    for (let i = 0; i < 70; i++) w.tick((now += 1000 / 7));
+    const to = JSON.parse(w.retained(TOPIC.position)[0][1]);
+    expect(Math.hypot(to.x - from.x, to.y - from.y)).toBeGreaterThan(5);
+    const steady = states.filter((t, i) => i && t - states[i - 1] < 900);
+    expect(states.length).toBeGreaterThanOrEqual(10);
+    expect(steady.length).toBeLessThanOrEqual(4);
+  });
+
   it('is pushed aside: back onto its way while mowing, off the contacts on the station', () => {
     const m = mower();
     m.w.displace(0.5, 0);

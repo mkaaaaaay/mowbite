@@ -58,6 +58,9 @@ export interface WorldOptions {
   start?: 'mowing' | 'docked';
   // every event also on events/json as it happens, like OpenMower (the demo only sends a refused reset there)
   liveEvents?: boolean;
+  // m/s along the plan, and how often its timer moves it on and sends the position (ms)
+  speed?: number;
+  tickMs?: number;
   map?: MowerMap;
   params?: Record<string, number | boolean>;
 }
@@ -332,13 +335,13 @@ interface Hooks {
 }
 
 // moves a run on by so many meters, true once it's through
-function advance(run: Run, meters: number, t: number, hooks: Hooks): boolean {
+function advance(run: Run, meters: number, t: number, hooks: Hooks, speed = SPEED): boolean {
   let left = meters;
   while (run.at < run.legs.length) {
     const l = run.legs[run.at];
     if (!run.entered) {
       run.entered = true;
-      hooks.enter(l, t + (meters - left) / SPEED);
+      hooks.enter(l, t + (meters - left) / speed);
       hooks.point(l.pts[0], l, false);
     }
     const to = Math.min(l.len, run.d + left);
@@ -428,6 +431,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
   const ros: Record<string, number | boolean> = {...DEMO_PARAMS, ...opts.params};
   let last = opts.now ?? Date.now();
   let around: Surroundings = {};
+  const speed = opts.speed ?? SPEED;
   let job: {id: string; session: string; run: Run} | null = null;
   // a way driven in between: home when sent there, back to where a job stopped
   let detour: {id: string; session: string; run: Run; then: 'idle' | 'resume'} | null = null;
@@ -466,7 +470,8 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
   const jobs: {job_id: string; timestamp: number}[] = [];
   const plans = new Map<string, Path[]>();
   let ids = 0;
-  let ticks = 0;
+  // when the state went out last: once a second, and when it changes
+  let stateSent = -Infinity;
   mows = [];
   let rec: Recording | null = null;
   // the stick's last command and when it came: the wheels stop a second after the last one, like on the xcore
@@ -655,7 +660,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     const l = run.legs[run.at];
     if (l?.state === 'UNDOCKING' && !gpsGood() && run.d + meters >= l.len) {
       const left = Math.max(0, l.len - run.d - 1e-6);
-      gpsWait += (meters - left) / SPEED;
+      gpsWait += (meters - left) / speed;
       meters = left;
       if (gpsWait >= param('gps_wait_time')) {
         gpsWait = 0;
@@ -666,9 +671,9 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
         return;
       }
     } else gpsWait = 0;
-    const through = advance(run, meters, t, hooksFor(who.id, who.session));
+    const through = advance(run, meters, t, hooksFor(who.id, who.session), speed);
     if (!through) return;
-    const end = t + meters / SPEED;
+    const end = t + meters / speed;
     const ended = run.legs[run.legs.length - 1];
     if (ended?.state === 'DOCKING' && dockFailed(end)) return;
     if (detour) {
@@ -694,13 +699,13 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     const length = newJob(t, `demo-job-${daysAgo}`);
     if (!length) continue;
     step(length + 1, t);
-    mows.push({start: t, end: t + length / SPEED});
+    mows.push({start: t, end: t + length / speed});
   }
   // and today's, on its way
   if (history) {
     const t = last / 1000 - STARTED_AGO;
     if (newJob(t)) {
-      step(SPEED * STARTED_AGO, t);
+      step(speed * STARTED_AGO, t);
       battery = 1 - STARTED_AGO * DRAIN;
       mows.push({start: t, end: Infinity});
       temps.esc = 41;
@@ -1192,7 +1197,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     const was = state();
     const from = {...pose};
     if (!latched) {
-      step(SPEED * dt, last / 1000);
+      step(speed * dt, last / 1000);
       drive(last, now);
     }
     last = now;
@@ -1212,14 +1217,15 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     calibStep(dt, from);
     if (s !== was) send.actions();
     send.position();
-    if (ticks++ % Math.round(1000 / TICK_MS) === 0 || s !== was) {
+    if (last - stateSent >= 1000 || s !== was) {
+      stateSent = last;
       send.state();
       send.sensors();
       if (calib?.phase === 'recording') send.calib();
     }
   }
 
-  const timer = opts.timer === false ? null : setInterval(() => tick(), TICK_MS);
+  const timer = opts.timer === false ? null : setInterval(() => tick(), opts.tickMs ?? TICK_MS);
 
   return {
     retained(topic) {
