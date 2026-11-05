@@ -1,5 +1,7 @@
 {
  "schema": 1,
+ "owner": "mowbite-app",
+ "source": "src/lib/reasonTexts.ts",
  "langs": [
   "en",
   "de"

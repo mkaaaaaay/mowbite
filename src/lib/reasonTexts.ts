@@ -521,6 +521,9 @@ export function reasonsFile() {
   const texts = (m: Record<string, string>) => Object.fromEntries(Object.entries(m).map(([k, en]) => [k, both({en})]));
   return {
     schema: SCHEMA,
+    // who makes this file and from what
+    owner: 'mowbite-app',
+    source: 'src/lib/reasonTexts.ts',
     langs: ['en', 'de'],
     events: Object.fromEntries(
       Object.entries(EVENTS).map(([k, t]) => [k, {...t, ...(t.join ? {join: both({en: t.join})} : {}), variants: t.variants.map(both)}]),
