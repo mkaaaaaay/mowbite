@@ -346,15 +346,15 @@ describe('emergency stop reasons', () => {
       'FOREIGN_HOST',
       'DRIVER_STALL',
     ]);
-    // 15 STUCK no node sets yet
-    expect(emergencyFlags(2 ** 15 + 1)).toEqual(['LATCH', 'BIT_15']);
+    expect(emergencyFlags(2 ** 15 + 1)).toEqual(['LATCH', 'STUCK']);
+    expect(emergencyFlags(2 ** 21 + 1)).toEqual(['LATCH', 'BIT_21']);
     expect(emergencyFlags(2 ** 31 + 32)).toEqual(['COLLISION', 'BIT_31']);
     expect(emergencyFlags(String(2 ** 32 - 1))).toHaveLength(32);
   });
 
   it('says a bit without a name next to the others, it never drops out', () => {
     expect(emergencyText(['LATCH', 'COLLISION', 'BIT_21'])).toBe('bumper, bit 21');
-    expect(emergencyText(['LATCH', 'BIT_15'])).toBe('bit 15');
+    expect(emergencyText(['LATCH', 'BIT_22'])).toBe('bit 22');
     expect(emergencyText(['LATCH', 'WHEEL_RUNAWAY'])).toBe('wheel turning against the command');
     // what MowBite OS's log line says for a bit it has no name for
     expect(emergencyText(['UNKNOWN'])).toBe('unknown reason');
@@ -376,14 +376,15 @@ describe('emergency stop reasons', () => {
     // set from above on MowBite OS, the driver's own reasons have bits of their own there
     expect(stop(129)).toMatch(/^Something above the board latched it/);
     expect(stop(129, false)).toMatch(/^OpenMower stopped the mower itself/);
-    expect(stop(2 ** 15 + 1)).toMatch(/^A reason MowBite doesn't know yet/);
+    expect(stop(2 ** 15 + 1)).toMatch(/^The wheels turned, but by the GPS/);
+    expect(stop(2 ** 21 + 1)).toMatch(/^A reason MowBite doesn't know yet/);
   });
 
   it('in german', () => {
     vi.stubGlobal('document', {documentElement: {lang: 'en'}});
     setLangChoice('de');
     try {
-      expect(describeEvent(ev(1, 'EMERGENCY', {emergency: true, reason: String(2 ** 18 + 2 ** 15 + 1)})).text).toBe('Notaus: Bit 15, Rad dreht gegen den Befehl');
+      expect(describeEvent(ev(1, 'EMERGENCY', {emergency: true, reason: String(2 ** 18 + 2 ** 21 + 1)})).text).toBe('Notaus: Rad dreht gegen den Befehl, Bit 21');
       expect(emergencyText(['LATCH', 'TILT', 'LIFT'])).toBe('zu stark geneigt, angehoben');
     } finally {
       setLangChoice('en');
@@ -587,6 +588,8 @@ describe('reasons as fixed names (MowBite OS)', () => {
     expect(describeEvent(os('MOWING_REFUSED', {reason: 'SOMETHING_NEW'})).text).toBe('Mowing not started: english text');
     expect(describeEvent(ev(0, 'MOWING_REFUSED', {reason: 'SOMETHING_NEW'})).text).toBe('Mowing not started: something new');
     expect(reasonText(os('X', {reason: 'NO_POSITION'}))).toBe('no position');
+    expect(reasonText(os('CALIBRATION_FAILED', {reason: 'TIMEOUT'}))).toBe('took too long');
+    expect(reasonText(ev(0, 'DOCKING_FAILED', {reason: 'TIMEOUT'}))).toBe('not getting on, maybe stuck');
     // free text from before stays as it came
     expect(describeEvent(ev(0, 'MOWING_REFUSED', {reason: 'No position from the localization'})).text).toBe(
       'Mowing not started: No position from the localization',
