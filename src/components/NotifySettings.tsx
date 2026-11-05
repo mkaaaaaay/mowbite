@@ -267,7 +267,8 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
         ).map((e) => (
           <label key={e.key} className={styles.check}>
             <input type="checkbox" checked={form.events.includes(e.key)} onChange={() => toggle(e.key)} />
-            {tr(e.label)}
+            {/* MowBite OS also tells with it when it's in the dock but not charging */}
+            {tr(e.key === 'dock_failed' && os ? 'Docking given up, not charging in the dock' : e.label)}
           </label>
         ))}
       </div>
