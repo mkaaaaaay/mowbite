@@ -1217,7 +1217,8 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     calibStep(dt, from);
     if (s !== was) send.actions();
     send.position();
-    if (last - stateSent >= 1000 || s !== was) {
+    // (also when its clock went back: driven ahead by the click tests, then the timer's own again)
+    if (last - stateSent >= 1000 || last < stateSent || s !== was) {
       stateSent = last;
       send.state();
       send.sensors();
