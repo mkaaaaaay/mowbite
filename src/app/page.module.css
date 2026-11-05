@@ -355,8 +355,7 @@
   font-size: 16px;
 }
 
-/* each a glass in the color of what it leads to, edged only by the light like the cards: going on green, a pause
-   amber like paused, home blue like on the way home, skipping violet, stopping red */
+/* each action tinted in the color of the state it leads to */
 .act-go {
   --act: var(--success);
 }
