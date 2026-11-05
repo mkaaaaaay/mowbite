@@ -307,6 +307,12 @@ async function commands() {
   page = await newPage();
   await page.goto(appUrl);
   await live(page);
+  // on the next connection, with MQTT 5 where MowBite OS has it
+  if (expect5) {
+    await sleep(3000);
+    await page.reload();
+    await live(page);
+  }
 
   // taps the button and checks what went out for the action, and what came back
   const tap = async (label, action, {delay = 0, seenParam} = {}) => {
@@ -388,7 +394,8 @@ async function commands() {
   if (!(await waitFor(docked, 15000))) report('AS2 emergency released', 'different', `still: ${JSON.stringify(own.state?.emergency)}`);
 
   // held by the updater: start isn't offered meanwhile, it's let go again
-  if (opt.target === 'mowbite-os' && methods?.has('system.hold')) {
+  // (a release from before 602b808 doesn't know the hold, MowBite OS turns its start down then)
+  if (opt.target === 'mowbite-os' && methods?.has('system.hold') && !opt.release) {
     const held = await call('system.hold', {seconds: 60});
     await sleep(2000);
     const start = await page.getByRole('button', {name: 'Start', exact: true}).count();
