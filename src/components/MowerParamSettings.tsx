@@ -1,6 +1,6 @@
 'use client';
 
-import {datumFromParams, useMowerParams} from '@/hooks/useMowerParams';
+import {useMowerParams} from '@/hooks/useMowerParams';
 import {tr} from '@/lib/i18n';
 import {
   loadKept,
@@ -8,7 +8,6 @@ import {
   PARAM_GROUPS,
   paramField,
   paramName,
-  paramShown,
   paramValue,
   parseParam,
   saveKept,
@@ -18,9 +17,7 @@ import {
   type ParamField,
   type ParamGroup,
 } from '@/lib/mowerParams';
-import {useOsApi} from '@/lib/mowerOs';
 import {RPC} from '@/lib/openmower';
-import {sunTimes} from '@/lib/sun';
 import {rpcMethods} from '@/lib/rpc';
 import {answerError} from '@/lib/rpcText';
 import Link from 'next/link';
@@ -115,14 +112,8 @@ export function ParamRow({field: f}: {field: ParamField}) {
   const [draft, setDraft] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // switching it off waits for a yes
-  const [asking, setAsking] = useState(false);
-  // the sun's times where the mower is, for going home at sunset
-  const datum = f.key === 'dock_at_sunset' ? datumFromParams(params) : undefined;
-  const sun = datum ? sunTimes(datum.lat, datum.lon) : null;
 
   const set = async (v: number | boolean) => {
-    setAsking(false);
     if (v === value) return;
     setBusy(true);
     setError(null);
@@ -150,13 +141,7 @@ export function ParamRow({field: f}: {field: ParamField}) {
           {f.help && <InfoTip>{tr(f.help)}</InfoTip>}
         </span>
         {f.type === 'bool' ? (
-          <input
-            type="checkbox"
-            className={local.check}
-            checked={(value as boolean) && !asking}
-            disabled={busy}
-            onChange={(e) => (!e.target.checked && f.confirmOff ? setAsking(true) : void set(e.target.checked))}
-          />
+          <input type="checkbox" className={local.check} checked={value as boolean} disabled={busy} onChange={(e) => void set(e.target.checked)} />
         ) : f.type === 'choice' ? (
           <select className={local.select} value={String(value)} disabled={busy} onChange={(e) => void set(Number(e.target.value))}>
             {f.choices!.map((c, i) => (
@@ -180,16 +165,6 @@ export function ParamRow({field: f}: {field: ParamField}) {
           </span>
         )}
       </div>
-      {sun && <span className={local.kept}>{value ? tr('today at {set}', {set: sun.set}) : tr('off: mows on after sunset (today {set})', {set: sun.set})}</span>}
-      {asking && (
-        <span className={local.ask}>
-          {tr(f.confirmOff!)}
-          <button className={local.askOff} onClick={() => void set(false)}>
-            {tr('Switch off')}
-          </button>
-          <button onClick={() => setAsking(false)}>{tr('Keep on')}</button>
-        </span>
-      )}
       {isKept && (
         <span className={local.kept}>
           {tr('set again after a restart')}
@@ -228,18 +203,14 @@ export function ParamFix({keys}: {keys: string[]}) {
 }
 
 // the values that matter most of a group, read in its folded line
-function summary(group: ParamGroup, params: Record<string, unknown>, api: number): string {
+function summary(group: ParamGroup, params: Record<string, unknown>): string {
   const v = (key: string) => paramValue(params, paramField(key)!);
   const n = (key: string) => showParam(paramField(key)!, v(key) as number);
   switch (group) {
     case 'mowing':
       return [v('outline_count') === 1 ? tr('1 outline pass') : tr('{n} outline passes', {n: n('outline_count')}), tr('lanes {n} cm apart', {n: n('tool_width')}), tr('turned by {n}°', {n: n('mow_angle_offset')})].join(' · ');
     case 'auto':
-      return [
-        tr(paramField('rain_mode')!.choices![v('rain_mode') as number] ?? ''),
-        ...(paramShown(paramField('dock_at_sunset')!, api) && !v('dock_at_sunset') ? [tr('mows on after sunset')] : []),
-        tr(AUTOMATIC_SHORT[v('automatic_mode') as number] ?? ''),
-      ].join(' · ');
+      return [tr(paramField('rain_mode')!.choices![v('rain_mode') as number] ?? ''), tr(AUTOMATIC_SHORT[v('automatic_mode') as number] ?? '')].join(' · ');
     case 'gps':
       return [tr('{n} s without a fix', {n: n('gps_timeout')}), tr('better than {n} cm', {n: n('max_position_accuracy')})].join(' · ');
     case 'docking':
@@ -273,7 +244,6 @@ export function OpenMowerMowing({styles}: {styles: Styles}) {
 export function OpenMowerSettings({styles}: {styles: Styles}) {
   const can = useCanSetParams();
   const params = useMowerParams();
-  const api = useOsApi();
   const k = useKept();
   // folded whenever the page opens, unless a link led here
   const linked = useSyncExternalStore(
@@ -341,11 +311,11 @@ export function OpenMowerSettings({styles}: {styles: Styles}) {
             <summary>
               <span className={local.title}>
                 {tr(g.title)}
-                <small>{summary(g.key, params, api)}</small>
+                <small>{summary(g.key, params)}</small>
               </span>
             </summary>
             <div className={local.rows}>
-              {PARAM_FIELDS.filter((f) => f.group === g.key && paramShown(f, api)).map((f) => (
+              {PARAM_FIELDS.filter((f) => f.group === g.key).map((f) => (
                 <ParamRow key={f.key} field={f} />
               ))}
             </div>

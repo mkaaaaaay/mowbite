@@ -285,7 +285,7 @@ describe('what the container sends', {timeout: 30_000}, () => {
   });
 
   it('tells why MowBite OS goes home, or stays out without a way home', () => {
-    const os = 'topic t\nlang en\nname Steve\nevents nav_error,rain,battery,dark\n';
+    const os = 'topic t\nlang en\nname Steve\nevents nav_error,rain,battery\n';
     const out = run(
       event(100, '{"type":"DOCKING","reason":"RAIN","severity":"info","resume":"user"}') +
         event(110, '{"type":"DOCKING","reason":"BATTERY_CRITICAL","battery_voltage":20.9,"limit":21,"severity":"warning","resume":"user"}') +
@@ -299,7 +299,6 @@ describe('what the container sends', {timeout: 30_000}, () => {
     expect(out.map((m) => [m.title, m.message])).toEqual([
       ['Rain', "Steve is going home, it's raining."],
       ['Battery low', 'Steve is going home to charge.'],
-      ['Sunset', 'Steve is going home, the sun has set.'],
       ['Rain', "Steve stopped for rain and waits where it is, it can't go home by itself."],
       ['Paused, waiting', 'Steve paused: battery too hot (57 °C). It waits until you continue it.'],
     ]);
