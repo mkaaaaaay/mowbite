@@ -364,3 +364,197 @@ describe("the demo mower's container", () => {
     expect(await (await demoFetch('/version.json')).json()).toHaveProperty('version');
   });
 });
+
+describe('the mower around it, for a mock mower', () => {
+  // in the station with nothing behind it, every event as it happens
+  function mower() {
+    const events: {type: string; [k: string]: unknown}[] = [];
+    let now = NOW;
+    const w = createWorld((topic, text) => topic === TOPIC.events && events.push(JSON.parse(text)), {now, timer: false, start: 'docked', liveEvents: true});
+    const state = () => JSON.parse(w.retained(TOPIC.robotState)[0][1]);
+    return {
+      w,
+      events,
+      state,
+      types: () => events.map((e) => e.type),
+      pass(seconds: number, step = 1) {
+        for (let s = 0; s < seconds; s += step) w.tick((now += step * 1000));
+      },
+      act: (id: string) => w.published(TOPIC.action, id),
+      // started and out on the lawn with the blade on
+      mowing() {
+        w.published(TOPIC.action, ACTION.startMowing);
+        for (let s = 0; s < 120 && !(state().current_state === 'MOWING' && w.inspect().state === 'MOWING' && events.some((e) => e.type === 'BLADES' && e.enabled)); s++)
+          w.tick((now += 1000));
+      },
+    };
+  }
+
+  it('starts in the station, full and with nothing behind it', () => {
+    const m = mower();
+    expect(m.state()).toMatchObject({current_state: 'IDLE', battery_percentage: 1, emergency: 0});
+    expect(m.w.inspect()).toMatchObject({docked: true, away: false, job: null, emergency: 0});
+    expect(m.events).toEqual([]);
+  });
+
+  it('sends its events as they happen', () => {
+    const m = mower();
+    m.mowing();
+    expect(m.types()).toEqual(expect.arrayContaining(['STATE', 'UNDOCKED', 'AREA', 'BLADES']));
+    expect(m.events[0]).toMatchObject({type: 'STATE', state: 'UNDOCKING'});
+  });
+
+  it('goes home with mower_logic’s reason when the battery runs low, and keeps the job', () => {
+    const m = mower();
+    m.mowing();
+    m.w.set({battery: -0.01});
+    // the highest voltage of a whole window of 20 s counts
+    m.pass(45);
+    const home = m.events.find((e) => e.type === 'DOCKING');
+    expect(home?.reason).toMatch(/^Battery average voltage low: 24\.4\d* V$/);
+    expect(m.state().current_state).toBe('DOCKING');
+    m.pass(300, 5);
+    expect(m.w.inspect()).toMatchObject({docked: true, charging: true});
+    expect(m.w.inspect().job).not.toBeNull();
+  });
+
+  it('goes home at once below the critical voltage', () => {
+    const m = mower();
+    m.mowing();
+    m.w.set({battery: -0.45});
+    m.pass(1);
+    expect(m.events.find((e) => e.type === 'DOCKING')?.reason).toMatch(/^Battery voltage critical: 22\.\d+ V$/);
+  });
+
+  it('goes home after rain all through rain_check_seconds', () => {
+    const m = mower();
+    m.mowing();
+    m.w.set({rain: true});
+    expect(m.state().rain_detected).toBe(1);
+    m.pass(10);
+    expect(m.types()).not.toContain('DOCKING');
+    m.pass(35);
+    expect(m.events.find((e) => e.type === 'DOCKING')?.reason).toBe('Rain detected');
+  });
+
+  it('goes home when the mow motor is hot', () => {
+    const m = mower();
+    m.mowing();
+    m.w.set({motorTemp: 75});
+    m.pass(1);
+    expect(m.events.find((e) => e.type === 'DOCKING')?.reason).toBe('Mow motor over temp: 75 °C');
+  });
+
+  it('stops without a fix after gps_timeout and goes on once it is back', () => {
+    const m = mower();
+    m.mowing();
+    m.w.set({accuracy: null});
+    m.pass(12);
+    expect(m.events.filter((e) => e.type === 'GPS')).toEqual([expect.objectContaining({available: false})]);
+    const at = m.state().pose;
+    m.pass(10);
+    expect(m.state()).toMatchObject({current_state: 'MOWING', gps_percentage: 0});
+    expect(m.state().pose).toMatchObject({x: at.x, y: at.y});
+    m.w.set({accuracy: 0.02});
+    m.pass(5);
+    expect(m.events.filter((e) => e.type === 'GPS').at(-1)).toMatchObject({available: true});
+    expect(m.state().pose.x === at.x && m.state().pose.y === at.y).toBe(false);
+  });
+
+  it('gives up undocking without a fix and starts mowing from where it stands', () => {
+    const m = mower();
+    m.w.set({accuracy: 0.5});
+    m.act(ACTION.startMowing);
+    m.pass(20);
+    expect(m.events.find((e) => e.type === 'UNDOCKING_FAILED')).toMatchObject({reason: 'no_gps'});
+    expect(m.state()).toMatchObject({current_state: 'IDLE', is_charging: 0});
+    expect(m.w.inspect()).toMatchObject({away: true, docked: false});
+    m.w.set({accuracy: 0.02});
+    const before = m.events.length;
+    m.act(ACTION.startMowing);
+    m.pass(3);
+    const next = m.events.slice(before).filter((e) => e.type !== 'GPS').map((e) => (e.type === 'STATE' ? e.state : e.type));
+    expect(next[0]).toBe('MOWING');
+    expect(next).not.toContain('UNDOCKING');
+  });
+
+  it('tries docking again and gives up after docking_retry_count', () => {
+    const twice = mower();
+    twice.mowing();
+    twice.w.set({dockFails: {count: 2, at: 'dock'}});
+    twice.act(ACTION.goHome);
+    twice.pass(200, 2);
+    expect(twice.events.filter((e) => e.type === 'DOCKING_RETRY').map((e) => e.attempts)).toEqual([1, 2]);
+    expect(twice.types()).toContain('DOCKED');
+    expect(twice.w.inspect().docked).toBe(true);
+
+    const never = mower();
+    never.mowing();
+    never.w.set({dockFails: {count: 9, at: 'approach'}});
+    never.act(ACTION.goHome);
+    never.pass(200, 2);
+    expect(never.events.find((e) => e.type === 'DOCKING_FAILED')).toMatchObject({reason: 'approach_failed', attempts: 5});
+    expect(never.types()).not.toContain('DOCKED');
+    expect(never.w.inspect()).toMatchObject({state: 'IDLE', away: true});
+  });
+
+  it('latches the stop when the blade does not spin up, and says so when it lets go', () => {
+    const m = mower();
+    m.w.set({spinupFails: true});
+    m.mowing();
+    m.pass(5);
+    expect(m.types()).toContain('MOW_MOTOR_SPINUP_FAILED');
+    expect(m.events.find((e) => e.type === 'EMERGENCY')).toMatchObject({emergency: true, reason: 1024});
+    expect(m.w.inspect().emergency).toBe(1 | 1024);
+    expect(m.state().emergency).toBe(1);
+    m.act(ACTION.resetEmergency);
+    expect(m.events.at(-1)).toMatchObject({type: 'EMERGENCY', emergency: false, reason: 0});
+    expect(m.w.inspect().emergency).toBe(0);
+  });
+
+  it('latches a bumper with its bits but without an event, like the firmware does', () => {
+    const m = mower();
+    m.w.emergency(['COLLISION']);
+    expect(m.w.inspect().emergency).toBe(1 | 32);
+    expect(m.types()).not.toContain('EMERGENCY');
+  });
+
+  it('pauses a moment after a navigation error and goes on by itself', () => {
+    const m = mower();
+    m.w.set({navError: true});
+    m.mowing();
+    expect(m.types()).toContain('NAVIGATION_ERROR');
+    m.pass(5);
+    expect(m.state().current_state).toBe('MOWING');
+  });
+
+  it('drives at the speed it is given and sends its state once a second however often it ticks', () => {
+    const states: number[] = [];
+    let now = NOW;
+    const w = createWorld((topic) => topic === TOPIC.robotState && states.push(now), {now, timer: false, start: 'docked', speed: 0.9});
+    w.published(TOPIC.action, ACTION.startMowing);
+    const from = JSON.parse(w.retained(TOPIC.position)[0][1]);
+    for (let i = 0; i < 70; i++) w.tick((now += 1000 / 7));
+    const to = JSON.parse(w.retained(TOPIC.position)[0][1]);
+    expect(Math.hypot(to.x - from.x, to.y - from.y)).toBeGreaterThan(5);
+    const steady = states.filter((t, i) => i && t - states[i - 1] < 900);
+    expect(states.length).toBeGreaterThanOrEqual(10);
+    expect(steady.length).toBeLessThanOrEqual(4);
+  });
+
+  it('is pushed aside: back onto its way while mowing, off the contacts on the station', () => {
+    const m = mower();
+    m.w.set({battery: 0.5});
+    m.w.displace(0.5, 0);
+    expect(m.w.inspect()).toMatchObject({away: true, charging: false});
+    m.w.displace(-0.5, 0);
+    expect(m.w.inspect()).toMatchObject({docked: true, charging: true});
+    const n = mower();
+    n.mowing();
+    const at = n.state().pose;
+    n.w.displace(0, 1);
+    expect(n.state().pose.y).toBeCloseTo(at.y + 1, 5);
+    n.pass(10);
+    expect(n.state().current_state).toBe('MOWING');
+  });
+});

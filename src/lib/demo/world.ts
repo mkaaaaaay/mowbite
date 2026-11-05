@@ -1,6 +1,7 @@
 import type {MapArea, MowerMap, Point} from '@/hooks/useMowerMap';
 import {linkStripes, mowPlan} from '../mowPlan';
 import {ACTION, PARAM, RPC, TOPIC} from '../openmower';
+import {EMERGENCY_BITS} from '../reasonTexts';
 import {closedRings, openRing, openRings} from '../rings';
 import {CALIB_NEED, calibCounts, calibResultOf} from './calib';
 import {DEMO_PARAMS, DEMO_SENSORS, demoMap} from './garden';
@@ -20,8 +21,49 @@ const STARTED_AGO = 9 * 60;
 // battery per second: about 100 min of mowing, an hour to charge
 const DRAIN = 1 / 6000;
 const CHARGE = 1 / 3600;
+// mower_logic's windows: the highest battery voltage over 20 s, the pause after a navigation error until it goes on
+const BATTERY_WINDOW = 20;
+const NAV_ERROR_PAUSE = 3;
+// the emergency stop's reasons as OpenMower's bits; the ones mower_logic latches itself it also tells as an event
+const bitOf = (name: string) => (EMERGENCY_BITS.indexOf(name) < 0 ? 0 : 1 << EMERGENCY_BITS.indexOf(name));
+const OWN_BITS = bitOf('HIGH_LEVEL') | bitOf('MOWER_RPM_TIMEOUT');
+// a number as mower_logic writes it into a reason (an ostream's six digits)
+const g = (v: number) => String(Number(v.toPrecision(6)));
 
 type State = 'IDLE' | 'UNDOCKING' | 'MOWING' | 'PAUSED' | 'DOCKING' | 'AREA_RECORDING';
+
+// what goes on around the mower. the demo leaves it as it is, a test sets it (World.set). undefined is the demo's own
+export interface Surroundings {
+  // the battery's charge 0..1, below 0 under battery_empty_voltage; per second while mowing and on the station
+  battery?: number;
+  drain?: number;
+  charge?: number;
+  rain?: boolean;
+  // the receiver's accuracy in m, null without a fix
+  accuracy?: number | null;
+  // the mow motor held at this temperature (°C)
+  motorTemp?: number | null;
+  // the next dockings that fail, in front of the station (approach) or on it (dock)
+  dockFails?: {count: number; at: 'approach' | 'dock'};
+  // the next start of the blade doesn't reach its rpm
+  spinupFails?: boolean;
+  // the next path can't be followed
+  navError?: boolean;
+}
+
+export interface WorldOptions {
+  now?: number;
+  timer?: boolean;
+  // in the middle of a mow with the days before in its history (the demo), or in the station with nothing behind it
+  start?: 'mowing' | 'docked';
+  // every event also on events/json as it happens, like OpenMower (the demo only sends a refused reset there)
+  liveEvents?: boolean;
+  // m/s along the plan, and how often its timer moves it on and sends the position (ms)
+  speed?: number;
+  tickMs?: number;
+  map?: MowerMap;
+  params?: Record<string, number | boolean>;
+}
 type EventPart = {type: string} & Record<string, unknown>;
 
 export interface Leg {
@@ -293,13 +335,13 @@ interface Hooks {
 }
 
 // moves a run on by so many meters, true once it's through
-function advance(run: Run, meters: number, t: number, hooks: Hooks): boolean {
+function advance(run: Run, meters: number, t: number, hooks: Hooks, speed = SPEED): boolean {
   let left = meters;
   while (run.at < run.legs.length) {
     const l = run.legs[run.at];
     if (!run.entered) {
       run.entered = true;
-      hooks.enter(l, t + (meters - left) / SPEED);
+      hooks.enter(l, t + (meters - left) / speed);
       hooks.point(l.pts[0], l, false);
     }
     const to = Math.min(l.len, run.d + left);
@@ -343,7 +385,29 @@ export interface World {
   emergency(reasons?: string[]): void;
   // a reset turned down the way MowBite OS does it, EMERGENCY_RESET_REFUSED with these fields, until it's null again
   refuseReset(why: Record<string, unknown> | null): void;
+  // what goes on around it from now on, merged into what was set before
+  set(change: Surroundings): void;
+  // pushed aside by so many meters, like a jump of the position or carried off the station
+  displace(dx: number, dy: number): void;
+  inspect(): Inspection;
   stop(): void;
+}
+
+// how the mower stands, for whatever speaks for it (a mock mower answering for MowBite OS)
+export interface Inspection {
+  state: State;
+  sub_state: string;
+  // idle on the station's contacts, idle somewhere else
+  docked: boolean;
+  away: boolean;
+  job: string | null;
+  // the emergency stop's reasons as OpenMower's bits, 0 when it isn't latched
+  emergency: number;
+  battery: number;
+  battery_voltage: number;
+  charging: boolean;
+  gps: boolean;
+  surroundings: Surroundings;
 }
 
 // when the mower was mowing, unix seconds, for the sensor history of the container (lib/demo/api)
@@ -361,21 +425,41 @@ const dayStart = (now: number, daysAgo: number, hour: number, minute = 0) => {
   return d.getTime() / 1000;
 };
 
-export function createWorld(deliver: (topic: string, text: string) => void, opts: {now?: number; timer?: boolean} = {}): World {
-  let map = demoMap();
+export function createWorld(deliver: (topic: string, text: string) => void, opts: WorldOptions = {}): World {
+  let map = opts.map ?? demoMap();
   // changed by params.set, like the ros params until the mower restarts
-  const ros: Record<string, number | boolean> = {...DEMO_PARAMS};
+  const ros: Record<string, number | boolean> = {...DEMO_PARAMS, ...opts.params};
   let last = opts.now ?? Date.now();
+  let around: Surroundings = {};
+  const speed = opts.speed ?? SPEED;
   let job: {id: string; session: string; run: Run} | null = null;
   // a way driven in between: home when sent there, back to where a job stopped
   let detour: {id: string; session: string; run: Run; then: 'idle' | 'resume'} | null = null;
   let parked = true;
+  // idle somewhere else than on the station: undocking or docking gave up, or carried off it
+  let away = false;
   let paused = false;
+  // a navigation error pauses it until then (ms), then it goes on by itself
+  let pausedUntil = 0;
   // a skip asked for while paused, done once it goes on: true the whole area, false the path
   let skipLater: boolean | null = null;
   // the emergency stop: the wheels and the blade stand until it's reset, unless that's turned down
   let latched = false;
+  // OpenMower's bits of why, LATCH and the ones named
+  let latchedBits = 0;
   let refusal: Record<string, unknown> | null = null;
+  // mower_logic's checks: the highest voltage of the window and when it began, rain seen all through the window, when
+  // the fix was last good and whether it's gone for longer than gps_timeout, the fully charged said once a stay
+  let maxVoltage = 0;
+  let voltageCheck = last;
+  let rainAll = true;
+  let rainCheck = last;
+  let lastGoodGps = last;
+  let gpsLost = false;
+  let fullSaid = true;
+  // undocking waits at its end this long for a fix (ms), the dockings that failed in a row
+  let gpsWait = 0;
+  let dockTries = 0;
   // the ros warnings logs.recent hands out: why the emergency stop came
   const rosLog: {t: number; level: string; node: string; msg: string}[] = [];
   let battery = 1;
@@ -386,7 +470,8 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
   const jobs: {job_id: string; timestamp: number}[] = [];
   const plans = new Map<string, Path[]>();
   let ids = 0;
-  let ticks = 0;
+  // when the state went out last: once a second, and when it changes
+  let stateSent = -Infinity;
   mows = [];
   let rec: Recording | null = null;
   // the stick's last command and when it came: the wheels stop a second after the last one, like on the xcore
@@ -400,9 +485,24 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
 
   const dock = () => dockOf(map);
   // where the station really stands: in recording mode it charges there, also once the map's station is moved or gone
-  const seat = dockOf(demoMap())!.at;
+  const seat = dockOf(map)?.at ?? {x: 0, y: 0};
   // on the station's contacts: parked there, or recording on it
-  const onContacts = () => parked || (!!rec && Math.hypot(pose.x - seat.x, pose.y - seat.y) < 0.05);
+  const onContacts = () => (parked && !away) || (!!rec && Math.hypot(pose.x - seat.x, pose.y - seat.y) < 0.05);
+  // the battery voltage the way mower_logic counts the charge: empty at battery_empty_voltage, full at
+  // battery_full_voltage. those are the limits of the battery's sensor (min, max, critical low), as OpenMower gives them
+  const vSensor = DEMO_SENSORS.find((s) => s.sensor_id === 'om_v_battery')!;
+  const voltageOf = (b: number) => vSensor.min_value + (vSensor.max_value - vSensor.min_value) * b;
+  const voltage = () => voltageOf(battery);
+  const lowest = (vSensor.lower_critical_value - 0.5 - vSensor.min_value) / (vSensor.max_value - vSensor.min_value);
+  const param = (name: string) => ros[`/mower_logic/${name}`] as number;
+  // a little unrest in the values, the same for the same moment
+  const wobble = (k: number) => Math.sin(last / 1000 / (3 + k) + k * 1.7) * 0.6 + Math.sin(last / 1000 / (0.7 + k / 5) + k) * 0.4;
+  const accuracy = () => 0.019 + 0.004 * wobble(1);
+  const accuracyNow = () => (around.accuracy === undefined ? accuracy() : around.accuracy);
+  const gpsGood = () => {
+    const a = accuracyNow();
+    return a !== null && a <= (ros[PARAM.maxPositionAccuracy] as number);
+  };
   const mowAreas = () => map.areas.filter((a) => a.properties.type === 'mow');
   const pathsOf = (area: MapArea) => {
     let p = plans.get(area.id);
@@ -410,9 +510,25 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     return p;
   };
 
+  // kept for the history, and sent on events/json as it happens where that's asked for
+  const logged = (e: DemoEvent) => {
+    log.push(e);
+    if (opts.liveEvents) deliver(TOPIC.events, JSON.stringify(e));
+  };
   const hooksFor = (id: string, session: string): Hooks => ({
     enter(l, t) {
-      for (const e of l.events ?? []) log.push({id: `demo${++ids}`, t, job_id: id, session_id: session, x: l.pts[0].x, y: l.pts[0].y, ...e});
+      for (const e of l.events ?? []) logged({id: `demo${++ids}`, t, job_id: id, session_id: session, x: l.pts[0].x, y: l.pts[0].y, ...e});
+      if (l.state !== 'MOWING' || l.approach || l.area < 0) return;
+      if (around.spinupFails && l.events?.some((e) => e.type === 'BLADES' && e.enabled)) {
+        around = {...around, spinupFails: false};
+        note(t, l.pts[0], {type: 'MOW_MOTOR_SPINUP_FAILED'});
+        latch(t, ['MOWER_RPM_TIMEOUT']);
+      } else if (around.navError) {
+        // MowingBehavior pauses after the recovery didn't help, and goes on once the fix is good
+        around = {...around, navError: false};
+        note(t, l.pts[0], {type: 'NAVIGATION_ERROR'});
+        pausedUntil = (t + NAV_ERROR_PAUSE) * 1000;
+      }
     },
     point(p, l, tip) {
       let segs = tracks.get(id);
@@ -434,7 +550,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     },
   });
   const note = (t: number, at: Point, ...events: EventPart[]) => {
-    for (const e of events) log.push({id: `demo${++ids}`, t, job_id: job?.id, session_id: job?.session, x: at.x, y: at.y, ...e});
+    for (const e of events) logged({id: `demo${++ids}`, t, job_id: job?.id, session_id: job?.session, x: at.x, y: at.y, ...e});
   };
 
   const activeRun = () => detour?.run ?? job?.run ?? null;
@@ -445,14 +561,16 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
   const state = (): State => {
     if (rec) return 'AREA_RECORDING';
     if (parked) return 'IDLE';
-    if (paused) return 'PAUSED';
+    if (paused || last < pausedUntil) return 'PAUSED';
     return activeLeg()?.state ?? 'IDLE';
   };
-  const blades = () => !latched && (!!rec?.blade || (!rec && !parked && !paused && !!activeLeg()?.blades));
+  // mower_logic stops the wheels and the blade while the fix is gone for longer than gps_timeout, the state stays
+  const halted = () => gpsLost && !rec && (state() === 'MOWING' || state() === 'DOCKING');
+  const blades = () => !latched && !halted() && (!!rec?.blade || (!rec && !parked && state() !== 'PAUSED' && !!activeLeg()?.blades));
 
   function place() {
-    // the stick drives it
-    if (rec) return;
+    // the stick drives it, or it stands where it gave up
+    if (rec || (parked && away)) return;
     const run = activeRun();
     const l = run?.legs[run.at];
     const d = dock();
@@ -464,12 +582,23 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     pose = {x: at.p.x, y: at.p.y, heading: at.heading};
   }
 
+  // started away from the station: no undocking, mowing from where it stands (OpenMower goes from idle straight to
+  // mowing when it isn't docked)
+  function fromHere(legs: Leg[]): Leg[] {
+    if (!away || legs[0]?.state !== 'UNDOCKING') return legs;
+    const [undock, next, ...rest] = legs;
+    const events = (next?.events ?? []).filter((e) => e.type !== 'UNDOCKED' && e.type !== 'STATE');
+    const out = leg([{x: pose.x, y: pose.y}, undock.pts[undock.pts.length - 1]], 'MOWING', false, -1, -1, {events: [{type: 'STATE', state: 'MOWING'}]});
+    return next ? [out, {...next, events}, ...rest] : [out];
+  }
+
   function newJob(t: number, id = `demo${Math.round(t).toString(36)}`): number {
-    const legs = buildRoute(map, ros);
+    const legs = fromHere(buildRoute(map, ros));
     if (!legs.length) return 0;
     job = {id, session: `${id}-s`, run: {legs, at: 0, d: 0}};
     jobs.unshift({job_id: id, timestamp: Math.round(t)});
     parked = false;
+    away = false;
     paused = false;
     return legs.reduce((s, l) => s + l.len, 0);
   }
@@ -478,17 +607,75 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     const d = dock();
     note(t, d?.at ?? pose, {type: 'DOCKED'}, {type: 'STATE', state: 'IDLE'});
     parked = true;
+    away = false;
     paused = false;
+    dockTries = 0;
+  }
+
+  // idle where it is: undocking or docking gave up
+  function gaveUp(t: number, ...events: EventPart[]) {
+    note(t, pose, ...events, {type: 'STATE', state: 'IDLE'});
+    detour = null;
+    parked = true;
+    away = true;
+    paused = false;
+    dockTries = 0;
+  }
+
+  // a docking that doesn't take, while dockFails says so: DockingBehavior tries again docking_retry_count times, from in
+  // front of the station after an approach that failed, backing out first after one on the station, then gives up
+  function dockFailed(t: number): boolean {
+    const fails = around.dockFails;
+    const d = dock();
+    if (!fails || fails.count <= 0 || !d) return false;
+    around = {...around, dockFails: {...fails, count: fails.count - 1}};
+    const reason = fails.at === 'approach' ? 'approach_failed' : 'dock_failed';
+    dockTries++;
+    if (fails.at === 'approach') pose = {x: d.out.x, y: d.out.y, heading: d.heading};
+    if (dockTries > param('docking_retry_count')) {
+      gaveUp(t, {type: 'DOCKING_FAILED', reason, attempts: dockTries});
+      return true;
+    }
+    note(t, pose, {type: 'DOCKING_RETRY', reason, attempts: dockTries});
+    const legs =
+      fails.at === 'approach'
+        ? [leg([d.out, d.at], 'DOCKING', false, -1, -1)]
+        : [
+            leg([d.at, d.out], 'UNDOCKING', false, -1, -1, {reverse: true, events: [{type: 'STATE', state: 'UNDOCKING'}]}),
+            leg([d.out, d.at], 'DOCKING', false, -1, -1, {events: [{type: 'UNDOCKED'}, {type: 'STATE', state: 'DOCKING'}]}),
+          ];
+    const who = detour ?? job;
+    detour = {id: who?.id ?? `demo-home-${Math.round(t)}`, session: who?.session ?? 'demo-home', run: {legs, at: 0, d: 0}, then: 'idle'};
+    if (job && job.run.at >= job.run.legs.length) job = null;
+    parked = false;
+    return true;
   }
 
   function step(meters: number, t: number) {
     const run = activeRun();
     const who = detour ?? job;
     // a job stopped for recording waits
-    if (rec || parked || paused || !run || !who) return;
-    const through = advance(run, meters, t, hooksFor(who.id, who.session));
+    if (rec || parked || state() === 'PAUSED' || halted() || !run || !who) return;
+    // undocking waits at its end for a fix, gps_wait_time long, then gives up
+    const l = run.legs[run.at];
+    if (l?.state === 'UNDOCKING' && !gpsGood() && run.d + meters >= l.len) {
+      const left = Math.max(0, l.len - run.d - 1e-6);
+      gpsWait += (meters - left) / speed;
+      meters = left;
+      if (gpsWait >= param('gps_wait_time')) {
+        gpsWait = 0;
+        pose = {...pose, ...pointAt(l, l.len).p};
+        // a job's own undocking: the job goes on from in front of the station
+        if (!detour && job) job.run = {legs: job.run.legs, at: run.at + 1, d: 0, entered: true};
+        gaveUp(t, {type: 'UNDOCKING_FAILED', reason: 'no_gps'});
+        return;
+      }
+    } else gpsWait = 0;
+    const through = advance(run, meters, t, hooksFor(who.id, who.session), speed);
     if (!through) return;
-    const end = t + meters / SPEED;
+    const end = t + meters / speed;
+    const ended = run.legs[run.legs.length - 1];
+    if (ended?.state === 'DOCKING' && dockFailed(end)) return;
     if (detour) {
       const then = detour.then;
       detour = null;
@@ -506,18 +693,19 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
   }
 
   // the mows of the last days, driven through in one go
-  for (const [daysAgo, hour, minute] of [[5, 14, 30], [3, 10, 0], [1, 10, 0]] as const) {
+  const history = (opts.start ?? 'mowing') === 'mowing';
+  for (const [daysAgo, hour, minute] of history ? ([[5, 14, 30], [3, 10, 0], [1, 10, 0]] as const) : []) {
     const t = dayStart(last, daysAgo, hour, minute);
     const length = newJob(t, `demo-job-${daysAgo}`);
     if (!length) continue;
     step(length + 1, t);
-    mows.push({start: t, end: t + length / SPEED});
+    mows.push({start: t, end: t + length / speed});
   }
   // and today's, on its way
-  {
+  if (history) {
     const t = last / 1000 - STARTED_AGO;
     if (newJob(t)) {
-      step(SPEED * STARTED_AGO, t);
+      step(speed * STARTED_AGO, t);
       battery = 1 - STARTED_AGO * DRAIN;
       mows.push({start: t, end: Infinity});
       temps.esc = 41;
@@ -576,39 +764,45 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     const run = !rec && !detour && job && !parked ? job.run : null;
     const l = run?.legs[run.at];
     const onPath = !!l && l.area >= 0;
+    const a = accuracyNow();
     return {
-      battery_percentage: battery,
-      gps_percentage: 0.92,
+      battery_percentage: Math.min(1, Math.max(0, battery)),
+      // like mower_logic: from the accuracy against max_position_accuracy, 0 once the fix is gone too long
+      gps_percentage: gpsLost ? 0 : around.accuracy === undefined ? 0.92 : a === null ? 0 : 1 - Math.min(1, a / (ros[PARAM.maxPositionAccuracy] as number)),
       current_action_progress: 0,
       current_state: s,
-      current_sub_state: '',
+      current_sub_state: subState(),
       current_area: onPath ? l.area : -1,
       current_path: onPath ? l.path : -1,
       current_path_index: onPath ? (l.approach ? 0 : Math.round(run!.d * 100)) : -1,
       emergency: latched ? 1 : 0,
       is_charging: onContacts() && battery < 0.999 ? 1 : 0,
-      rain_detected: 0,
-      pose: {...pose, pos_accuracy: accuracy(), heading_accuracy: 0.01, heading_valid: 1},
+      rain_detected: around.rain ? 1 : 0,
+      pose: {...pose, pos_accuracy: a ?? 99, heading_accuracy: 0.01, heading_valid: 1},
     };
   };
+  // like AreaRecordingBehavior's
+  const subState = () => {
+    if (!rec) return '';
+    if (rec.dockFrom) return 'RECORD_DOCKING_POSITION';
+    if (rec.line) return rec.outline ? 'RECORD_OBSTACLE' : 'RECORD_OUTLINE';
+    return '';
+  };
 
-  // a little unrest in the values, the same for the same moment
-  const wobble = (k: number) => Math.sin(last / 1000 / (3 + k) + k * 1.7) * 0.6 + Math.sin(last / 1000 / (0.7 + k / 5) + k) * 0.4;
-  const accuracy = () => 0.019 + 0.004 * wobble(1);
   const sensors = (): Record<string, string> => {
     const on = blades();
     const n = (v: number) => v.toFixed(6);
     return {
       om_charge_current: n(onContacts() && battery < 0.999 ? 1.25 + 0.03 * wobble(2) : 0),
       om_charge_state: onContacts() ? (battery < 0.9 ? 'CC' : battery < 0.999 ? 'CV' : 'Done') : 'Not Charging',
-      om_gps_accuracy: n(accuracy()),
+      om_gps_accuracy: n(accuracyNow() ?? 99),
       om_left_esc_temp: n(temps.esc + 0.4 * wobble(3)),
       om_mow_esc_temp: n(temps.esc + 2 + 0.4 * wobble(4)),
       om_mow_motor_current: n(on ? 1.1 + 0.25 * wobble(5) : 0),
       om_mow_motor_rpm: n(on ? 3050 + 45 * wobble(6) : 0),
       om_mow_motor_temp: n(temps.motor + 0.3 * wobble(7)),
       om_right_esc_temp: n(temps.esc + 0.8 + 0.4 * wobble(8)),
-      om_v_battery: n(24.7 + 3.5 * battery + (onContacts() && battery < 0.999 ? 0.5 : 0)),
+      om_v_battery: n(voltage() + (onContacts() && battery < 0.999 ? 0.5 : 0)),
       om_v_charge: n(onContacts() ? 32.1 + 0.02 * wobble(9) : 0),
     };
   };
@@ -695,29 +889,22 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
         // back to where the job stopped
         const l = job.run.legs[job.run.at];
         const to = l ? pointAt(l, job.run.d).p : d.out;
-        detour = {
-          id: job.id,
-          session: job.session,
-          run: {
-            legs: [
-              leg([d.at, d.out], 'UNDOCKING', false, -1, -1, {reverse: true, events: [{type: 'STATE', state: 'UNDOCKING'}]}),
-              leg(clear([d.out, ...via(d.out, to, map), to], obstaclesOf(map)), 'MOWING', false, -1, -1, {
-                events: [{type: 'UNDOCKED'}, {type: 'STATE', state: 'MOWING'}],
-              }),
-            ],
-            at: 0,
-            d: 0,
-          },
-          then: 'resume',
-        };
+        const legs = fromHere([
+          leg([d.at, d.out], 'UNDOCKING', false, -1, -1, {reverse: true, events: [{type: 'STATE', state: 'UNDOCKING'}]}),
+          leg(clear([d.out, ...via(d.out, to, map), to], obstaclesOf(map)), 'MOWING', false, -1, -1, {
+            events: [{type: 'UNDOCKED'}, {type: 'STATE', state: 'MOWING'}],
+          }),
+        ]);
+        detour = {id: job.id, session: job.session, run: {legs, at: 0, d: 0}, then: 'resume'};
         parked = false;
+        away = false;
       } else if (newJob(t)) mows.push({start: t, end: Infinity});
     } else if (id === ACTION.pause && s === 'MOWING') {
+      // the pause stays inside MowingBehavior: no STATE, only the blade
       paused = true;
-      note(t, pose, {type: 'STATE', state: 'PAUSED'}, {type: 'BLADES', enabled: false});
+      note(t, pose, {type: 'BLADES', enabled: false});
     } else if (id === ACTION.resume && s === 'PAUSED') {
       paused = false;
-      note(t, pose, {type: 'STATE', state: 'MOWING'});
       if (activeLeg()?.blades) note(t, pose, {type: 'BLADES', enabled: true});
       if (skipLater !== null) skip(skipLater);
       skipLater = null;
@@ -733,8 +920,13 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     } else if (id === ACTION.resetEmergency) {
       if (latched && refusal) {
         note(t, pose, {type: 'EMERGENCY_RESET_REFUSED', ...refusal});
-        deliver(TOPIC.events, JSON.stringify(log[log.length - 1]));
-      } else latched = false;
+        if (!opts.liveEvents) deliver(TOPIC.events, JSON.stringify(log[log.length - 1]));
+      } else {
+        // mower_logic says so when it lets go of a stop it latched itself
+        if (latchedBits & OWN_BITS) note(t, pose, {type: 'EMERGENCY', emergency: false, reason: 0});
+        latched = false;
+        latchedBits = 0;
+      }
     } else if (id === ACTION.startRecording && s === 'IDLE') {
       rec = {outline: null, obstacles: [], line: null, dockFrom: null, auto: true, blade: false};
       parked = false;
@@ -952,21 +1144,72 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     }
   }
 
+  // the stop latched, with OpenMower's reasons by name besides LATCH; the ones mower_logic latches itself come as an event
+  function latch(t: number, reasons: string[] = []) {
+    const own = reasons.reduce((b, r) => b | (bitOf(r) & OWN_BITS), 0);
+    latched = true;
+    latchedBits = reasons.reduce((b, r) => b | bitOf(r), latchedBits | bitOf('LATCH'));
+    stick = {vx: 0, vz: 0, at: -Infinity};
+    if (own) note(t, pose, {type: 'EMERGENCY', emergency: true, reason: own});
+  }
+
+  // what mower_logic checks every time round: the fix, then whether it has to go home, in its order
+  function checks(t: number) {
+    if (gpsGood()) lastGoodGps = last;
+    const lost = last - lastGoodGps > param('gps_timeout') * 1000;
+    if (lost !== gpsLost) {
+      gpsLost = lost;
+      note(t, pose, {type: 'GPS', available: !lost});
+    }
+    const v = voltage();
+    let why: string | null = null;
+    if (v < vSensor.lower_critical_value) why = `Battery voltage critical: ${g(v)} V`;
+    maxVoltage = Math.max(maxVoltage, v);
+    if (last - voltageCheck > BATTERY_WINDOW * 1000) {
+      if (!why && maxVoltage < vSensor.min_value) why = `Battery average voltage low: ${g(maxVoltage)} V`;
+      maxVoltage = 0;
+      voltageCheck = last;
+    }
+    if (!why && temps.motor >= param('motor_hot_temperature')) why = `Mow motor over temp: ${g(temps.motor)} °C`;
+    rainAll = rainAll && !!around.rain;
+    if (!param('rain_check_seconds') || last - rainCheck > param('rain_check_seconds') * 1000) {
+      if (!why && rainAll && param('rain_mode')) why = 'Rain detected';
+      rainCheck = last;
+      rainAll = true;
+    }
+    const s = state();
+    // not while recording here, nor on a way home already (docking, or backing out to try it again)
+    if (why && !rec && s !== 'IDLE' && s !== 'DOCKING' && detour?.then !== 'idle' && job) {
+      note(t, pose, {type: 'DOCKING', reason: why});
+      sendHome(undefined, true);
+    }
+    // charged up on the station once, after it was off it
+    if (!onContacts()) fullSaid = false;
+    else if (!fullSaid && v >= vSensor.max_value && temps.motor < param('motor_cold_temperature')) {
+      fullSaid = true;
+      note(t, pose, {type: 'FULLY_CHARGED', battery_voltage: Number(v.toFixed(2))});
+    }
+  }
+
   function tick(now = Date.now()) {
     // a tab asleep for hours doesn't mow them all at once on waking: the demo goes on where it was
     const dt = Math.min(60, Math.max(0, (now - last) / 1000));
     const was = state();
     const from = {...pose};
     if (!latched) {
-      step(SPEED * dt, last / 1000);
+      step(speed * dt, last / 1000);
       drive(last, now);
     }
     last = now;
     const s = state();
-    battery = Math.min(1, Math.max(0.05, battery + (onContacts() ? CHARGE : -DRAIN) * dt));
+    const rate = onContacts() ? (around.charge ?? CHARGE) : -(around.drain ?? DRAIN);
+    // the demo keeps a little, set from outside it runs down to below critical
+    const floor = around.battery === undefined && around.drain === undefined ? 0.05 : lowest;
+    battery = Math.min(1, Math.max(Math.min(battery, floor), battery + rate * dt));
     const k = Math.min(1, dt / 240);
     temps.esc += ((s === 'IDLE' || s === 'PAUSED' ? 31 : 42) - temps.esc) * k;
-    temps.motor += ((blades() ? 47 : 24) - temps.motor) * k;
+    temps.motor = around.motorTemp ?? temps.motor + ((blades() ? 47 : 24) - temps.motor) * k;
+    checks(now / 1000);
     if (!rec && !parked && !job && !detour) parked = true;
     const open = mows[mows.length - 1];
     if (open && open.end === Infinity && (parked || !job)) open.end = now / 1000;
@@ -974,14 +1217,16 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     calibStep(dt, from);
     if (s !== was) send.actions();
     send.position();
-    if (ticks++ % Math.round(1000 / TICK_MS) === 0 || s !== was) {
+    // (also when its clock went back: driven ahead by the click tests, then the timer's own again)
+    if (last - stateSent >= 1000 || last < stateSent || s !== was) {
+      stateSent = last;
       send.state();
       send.sensors();
       if (calib?.phase === 'recording') send.calib();
     }
   }
 
-  const timer = opts.timer === false ? null : setInterval(() => tick(), TICK_MS);
+  const timer = opts.timer === false ? null : setInterval(() => tick(), opts.tickMs ?? TICK_MS);
 
   return {
     retained(topic) {
@@ -1016,14 +1261,57 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
       }
     },
     emergency(reasons) {
-      latched = true;
-      stick = {vx: 0, vz: 0, at: -Infinity};
+      latch(last / 1000, reasons);
       if (reasons?.length)
         rosLog.push({t: last / 1000, level: 'WARN', node: '/mower_comms_v2', msg: `Emergency reason changed from: '' to: '${['LATCH', ...reasons].join(', ')}'`});
       changed();
     },
     refuseReset(why) {
       refusal = why;
+    },
+    set(change) {
+      around = {...around, ...change};
+      if (change.battery !== undefined) battery = Math.min(1, Math.max(lowest, change.battery));
+      if (change.motorTemp != null) temps.motor = change.motorTemp;
+      changed();
+      send.sensors();
+    },
+    displace(dx, dy) {
+      const run = activeRun();
+      const l = run?.legs[run.at];
+      const moved = {x: pose.x + dx, y: pose.y + dy};
+      if (rec || !run || !l || parked) {
+        pose = {...pose, ...moved};
+        // off the station it's idle somewhere else, back on its contacts it's docked again
+        const d = dock();
+        if (parked && !rec) away = !d || Math.hypot(pose.x - d.at.x, pose.y - d.at.y) > 0.05;
+      } else {
+        // on its way: back to where it was, then on as before
+        const here = pointAt(l, run.d).p;
+        const rest = [here, ...l.pts.filter((_, i) => l.cum[i] > run.d)];
+        run.legs.splice(run.at, 1, leg([moved, here], l.state, false, l.area, l.path, {approach: true, events: run.entered ? undefined : l.events}), {
+          ...leg(rest, l.state, l.blades, l.area, l.path, {approach: l.approach, reverse: l.reverse}),
+        });
+        run.d = 0;
+        run.entered = false;
+        pose = {...pose, ...moved};
+      }
+      changed();
+    },
+    inspect() {
+      return {
+        state: state(),
+        sub_state: subState(),
+        docked: parked && !away,
+        away: parked && away,
+        job: job?.id ?? null,
+        emergency: latched ? latchedBits : 0,
+        battery,
+        battery_voltage: voltage(),
+        charging: onContacts() && battery < 0.999,
+        gps: !gpsLost,
+        surroundings: {...around},
+      };
     },
     stop() {
       if (timer) clearInterval(timer);
