@@ -25,6 +25,7 @@ describe('reasons.json for MowBite for Home Assistant', () => {
         if (!/^\{\w+\}$/.test(v.en)) expect(v.de, type).toBeTruthy();
       }
     expect(file.events.MOWING_REFUSED.variants[0]).toEqual({en: 'Mowing not started', de: 'Mähen nicht gestartet'});
+    expect([file.schema, file.owner, file.source]).toEqual([1, 'mowbite-app', 'src/lib/reasonTexts.ts']);
     expect(file.emergency_bits['2']).toBe('STOP');
     expect(file.emergency_hide_with.LIFT).toBe('LIFT_MULTIPLE');
   });
