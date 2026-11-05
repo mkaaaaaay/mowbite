@@ -723,8 +723,8 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     const s = state();
     const a = (id: string, name: string, on: boolean) => ({action_id: id, action_name: name, enabled: on ? 1 : 0});
     const idle = s === 'IDLE';
-    // like MowingBehavior: the skips also while paused, they're done once it goes on
-    const mowing = (s === 'MOWING' || s === 'PAUSED') && !detour;
+    // like MowingBehavior: the skips also while paused, they're done once it goes on, and on the way back to the job
+    const mowing = (s === 'MOWING' || s === 'PAUSED') && detour?.then !== 'idle';
     return [
       a(ACTION.resetEmergency, 'Reset Emergency', true),
       a(ACTION.startMowing, 'Start Mowing', idle),
@@ -866,7 +866,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
 
   // on to the next leg that's the way to another path (or another area, or home)
   function skip(wholeArea: boolean) {
-    if (!job || detour || parked) return;
+    if (!job || (detour && detour.then !== 'resume') || parked) return;
     const run = job.run;
     const here = run.legs[run.at];
     if (!here || here.area < 0) return;
@@ -874,6 +874,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
       (l, i) => i > run.at && (l.approach || l.state === 'DOCKING') && (l.area !== here.area || (!wholeArea && l.path !== here.path)),
     );
     if (next < 0) return;
+    detour = null;
     const l = run.legs[next];
     const target = l.pts[l.pts.length - 1];
     const way = clear([pose, ...via(pose, target, map), target], obstaclesOf(map));

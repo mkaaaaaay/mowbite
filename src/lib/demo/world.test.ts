@@ -185,6 +185,19 @@ describe('the demo mower', () => {
     expect(await d.rpc<unknown[]>(RPC.jobs)).toHaveLength(5);
   });
 
+  it('skips the area on the way back to where the job stopped', () => {
+    const d = world();
+    const stopped = d.state();
+    d.act(ACTION.goHome);
+    d.pass(120);
+    d.act(ACTION.startMowing);
+    while (d.state().current_state === 'UNDOCKING') d.pass(1);
+    expect(d.actions()[ACTION.skipArea]).toBe(1);
+    d.act(ACTION.skipArea);
+    d.pass(60);
+    expect(d.state()).toMatchObject({current_state: 'MOWING', current_area: stopped.current_area + 1});
+  });
+
   it('mows a whole job through', () => {
     const d = world();
     d.pass(3600, 20);
