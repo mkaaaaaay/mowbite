@@ -14,10 +14,16 @@ describe('reasons.json for MowBite for Home Assistant', () => {
     expect(readFileSync(FILE, 'utf8'), 'src/lib/reasons.json is out of date: npm run reasons').toBe(made);
   });
 
-  it('has english for every variant and german where de.ts has it', () => {
+  it('has english and german for every variant', () => {
     const file = JSON.parse(made);
-    for (const t of Object.values(file.events) as {variants: {en: string; de?: string}[]}[]) for (const v of t.variants) expect(v.en).toBeTruthy();
     expect(file.reasons.BATTERY_LOW[1].de).toBe('Akku niedrig ({battery_voltage:1} V, mindestens {limit:1} V nötig)');
+    // all in german but a field put in as it is ({state})
+    for (const [name, list] of Object.entries(file.reasons) as [string, {de?: string}[]][]) for (const v of list) expect(v.de, name).toBeTruthy();
+    for (const [type, t] of Object.entries(file.events) as [string, {variants: {en: string; de?: string}[]}][])
+      for (const v of t.variants) {
+        expect(v.en, type).toBeTruthy();
+        if (!/^\{\w+\}$/.test(v.en)) expect(v.de, type).toBeTruthy();
+      }
     expect(file.events.MOWING_REFUSED.variants[0]).toEqual({en: 'Mowing not started', de: 'Mähen nicht gestartet'});
     expect(file.emergency_bits['2']).toBe('STOP');
     expect(file.emergency_hide_with.LIFT).toBe('LIFT_MULTIPLE');
@@ -30,8 +36,6 @@ describe('reasons.json for MowBite for Home Assistant', () => {
     expect(file.emergency_bits['21']).toBeUndefined();
     expect(file.fallback.emergency_bit).toEqual({en: 'bit {n}', de: 'Bit {n}'});
     for (const [name, t] of Object.entries(file.emergency_text) as [string, {de?: string}][]) expect(t.de, name).toBeTruthy();
-    for (const name of ['STILL_TILTED', 'TILT_UNKNOWN', 'FOREIGN_HOST', 'DRIVER_MISSING', 'SAFETY_MISSING', 'NO_ANSWER'])
-      for (const v of file.reasons[name]) expect(v.de, name).toBeTruthy();
   });
 
   it('ends every list with a variant that always fits, the reasons that only fit with a field excepted', () => {

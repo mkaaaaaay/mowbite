@@ -468,10 +468,7 @@ export const EMERGENCY_TEXT: Record<string, string> = {
   MOWER_RPM_TIMEOUT: "mow motor didn't reach its speed",
   MOWER_RPM_LIMIT: 'mow motor too fast',
   FIRMWARE_INCOMPATIBLE: "firmware doesn't fit OpenMower",
-  // MowBite OS: tilted beyond its limit, a drive of its own out of the areas, wheels against the GPS, the IMU's data not
-  // coming, the blade still turning after it was switched off, a wheel against the command, a second computer at the
-  // board, the driver hanging.
-  // UNKNOWN is what its log line says for a bit it has no name for
+  // MowBite OS's own bits. UNKNOWN is what its log line says for a bit it has no name for
   TILT: 'tilted too far',
   FENCE: 'outside the area it may drive in',
   STUCK: "wheels turning, but it doesn't move",
@@ -492,7 +489,7 @@ export const FALLBACK = {
   else: 'name_readable',
   join: '{head}: {reason}',
   emergency_code: 'Emergency stop (code {n})',
-  // a bit set without a name in emergency_bits, said with the others: "bumper, bit 15"
+  // a bit set without a name in emergency_bits, said with the others: "bumper, bit 21"
   emergency_bit: 'bit {n}',
 } as const;
 

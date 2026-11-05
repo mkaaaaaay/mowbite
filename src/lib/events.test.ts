@@ -588,6 +588,8 @@ describe('reasons as fixed names (MowBite OS)', () => {
     expect(describeEvent(os('MOWING_REFUSED', {reason: 'SOMETHING_NEW'})).text).toBe('Mowing not started: english text');
     expect(describeEvent(ev(0, 'MOWING_REFUSED', {reason: 'SOMETHING_NEW'})).text).toBe('Mowing not started: something new');
     expect(reasonText(os('X', {reason: 'NO_POSITION'}))).toBe('no position');
+    expect(reasonText(os('CALIBRATION_FAILED', {reason: 'TIMEOUT'}))).toBe('took too long');
+    expect(reasonText(ev(0, 'DOCKING_FAILED', {reason: 'TIMEOUT'}))).toBe('not getting on, maybe stuck');
     // free text from before stays as it came
     expect(describeEvent(ev(0, 'MOWING_REFUSED', {reason: 'No position from the localization'})).text).toBe(
       'Mowing not started: No position from the localization',
