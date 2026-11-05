@@ -406,6 +406,166 @@
     }
    ]
   },
+  "REQUEST_REFUSED": {
+   "severity": "error",
+   "variants": [
+    {
+     "en": "Request turned down",
+     "de": "Anfrage abgelehnt"
+    }
+   ]
+  },
+  "CALIBRATION_REFUSED": {
+   "severity": "warning",
+   "variants": [
+    {
+     "en": "Calibration not started",
+     "de": "Kalibrierung nicht gestartet"
+    }
+   ]
+  },
+  "CALIBRATION": {
+   "severity": "info",
+   "variants": [
+    {
+     "when": {
+      "phase": "start"
+     },
+     "en": "Calibration drive started",
+     "with_reason": false,
+     "de": "Kalibrierfahrt gestartet"
+    },
+    {
+     "when": {
+      "phase": "align"
+     },
+     "en": "Calibration: lining up",
+     "with_reason": false,
+     "de": "Kalibrierung: richtet sich aus"
+    },
+    {
+     "when": {
+      "phase": "stand"
+     },
+     "en": "Calibration: standing still",
+     "with_reason": false,
+     "de": "Kalibrierung: steht still"
+    },
+    {
+     "when": {
+      "phase": "line"
+     },
+     "en": "Calibration: driving straight",
+     "with_reason": false,
+     "de": "Kalibrierung: fährt geradeaus"
+    },
+    {
+     "when": {
+      "phase": "spin_left"
+     },
+     "en": "Calibration: turning left",
+     "with_reason": false,
+     "de": "Kalibrierung: dreht nach links"
+    },
+    {
+     "when": {
+      "phase": "spin_right"
+     },
+     "en": "Calibration: turning right",
+     "with_reason": false,
+     "de": "Kalibrierung: dreht nach rechts"
+    },
+    {
+     "when": {
+      "phase": "evaluate"
+     },
+     "en": "Calibration: evaluating",
+     "with_reason": false,
+     "de": "Kalibrierung: wertet aus"
+    },
+    {
+     "when": {
+      "phase": "end"
+     },
+     "en": "Calibration drive ended",
+     "with_reason": false,
+     "de": "Kalibrierfahrt beendet"
+    },
+    {
+     "en": "Calibration drive",
+     "with_reason": false,
+     "de": "Kalibrierfahrt"
+    }
+   ]
+  },
+  "CALIBRATED": {
+   "severity": "info",
+   "variants": [
+    {
+     "when": {
+      "status": "done"
+     },
+     "en": "Calibration done",
+     "de": "Kalibrierung fertig"
+    },
+    {
+     "when": {
+      "status": "not_evaluated"
+     },
+     "en": "Calibration drive done, not evaluated",
+     "severity": "warning",
+     "de": "Kalibrierfahrt fertig, nicht ausgewertet"
+    },
+    {
+     "en": "Calibration drive done, the evaluation failed",
+     "severity": "warning",
+     "de": "Kalibrierfahrt fertig, die Auswertung ist fehlgeschlagen"
+    }
+   ]
+  },
+  "CALIBRATION_FAILED": {
+   "severity": "error",
+   "variants": [
+    {
+     "when": {
+      "reason": "STOPPED"
+     },
+     "en": "Calibration stopped",
+     "severity": "info",
+     "with_reason": false,
+     "de": "Kalibrierung angehalten"
+    },
+    {
+     "en": "Calibration failed",
+     "de": "Kalibrierung fehlgeschlagen"
+    }
+   ]
+  },
+  "CORRECTIONS": {
+   "severity": "warning",
+   "variants": [
+    {
+     "when": {
+      "reason": "RESTORED"
+     },
+     "en": "RTK corrections",
+     "severity": "info",
+     "de": "RTK-Korrekturdaten"
+    },
+    {
+     "when": {
+      "reason": "REJECTED"
+     },
+     "en": "RTK corrections",
+     "severity": "error",
+     "de": "RTK-Korrekturdaten"
+    },
+    {
+     "en": "RTK corrections",
+     "de": "RTK-Korrekturdaten"
+    }
+   ]
+  },
   "EMERGENCY_RESET_REFUSED": {
    "severity": "error",
    "variants": [
@@ -973,6 +1133,36 @@
     "de": "auf den Kontakten, lädt aber nicht"
    }
   ],
+  "NO_DOCK": [
+   {
+    "en": "no docking station on the map",
+    "de": "keine Ladestation auf der Karte"
+   }
+  ],
+  "DOCK_UNREACHABLE": [
+   {
+    "en": "the docking station is outside the areas it may drive in",
+    "de": "die Ladestation liegt außerhalb des befahrbaren Bereichs"
+   }
+  ],
+  "REFERENCE_MISMATCH": [
+   {
+    "en": "the docking station is {distance:2} m from where the map has it, at most {limit:2} m allowed",
+    "when": {
+     "distance": {
+      "present": true
+     },
+     "limit": {
+      "present": true
+     }
+    },
+    "de": "die Ladestation steht {distance:2} m neben der Stelle auf der Karte, erlaubt sind höchstens {limit:2} m"
+   },
+   {
+    "en": "the docking station is not where the map has it",
+    "de": "die Ladestation steht nicht dort, wo die Karte sie hat"
+   }
+  ],
   "NO_DOCK_CONTACT": [
    {
     "en": "off the charging contacts",
@@ -1124,6 +1314,13 @@
    }
   ],
   "TIMEOUT": [
+   {
+    "en": "took too long",
+    "when": {
+     "type": "CALIBRATION_FAILED"
+    },
+    "de": "hat zu lange gedauert"
+   },
    {
     "en": "not getting on, maybe stuck",
     "de": "kommt nicht weiter, steckt vielleicht fest"
@@ -1369,6 +1566,207 @@
     "en": "no answer in time",
     "de": "keine rechtzeitige Antwort"
    }
+  ],
+  "NO_RTK": [
+   {
+    "en": "no RTK fix",
+    "de": "kein RTK-Fix"
+   }
+  ],
+  "NO_ROOM": [
+   {
+    "en": "not enough room here, the drive needs {length:1} m and has {free_length:1} m",
+    "when": {
+     "length": {
+      "present": true
+     },
+     "free_length": {
+      "present": true
+     }
+    },
+    "de": "hier ist zu wenig Platz, die Fahrt braucht {length:1} m und hat {free_length:1} m"
+   },
+   {
+    "en": "not enough room here for the calibration drive",
+    "de": "hier ist zu wenig Platz für die Kalibrierfahrt"
+   }
+  ],
+  "SLOPE": [
+   {
+    "en": "the ground is too steep ({slope:0}°, at most {limit:0}°)",
+    "when": {
+     "slope": {
+      "present": true
+     },
+     "limit": {
+      "present": true
+     }
+    },
+    "de": "der Boden ist zu steil ({slope:0}°, höchstens {limit:0}°)"
+   },
+   {
+    "en": "the ground is too steep",
+    "de": "der Boden ist zu steil"
+   }
+  ],
+  "GNSS_RATE": [
+   {
+    "en": "the GPS reports {rate:1} times a second, {limit:1} needed",
+    "when": {
+     "rate": {
+      "present": true
+     },
+     "limit": {
+      "present": true
+     }
+    },
+    "de": "das GPS meldet sich {rate:1}-mal pro Sekunde, nötig sind {limit:1}"
+   },
+   {
+    "en": "the GPS reports too seldom",
+    "de": "das GPS meldet sich zu selten"
+   }
+  ],
+  "SENSOR_MISSING": [
+   {
+    "en": "a sensor it needs reports {rate:1} times a second, {limit:1} needed",
+    "when": {
+     "rate": {
+      "present": true
+     },
+     "limit": {
+      "present": true
+     }
+    },
+    "de": "ein nötiger Sensor meldet sich {rate:1}-mal pro Sekunde, nötig sind {limit:1}"
+   },
+   {
+    "en": "a sensor it needs doesn't report",
+    "de": "ein nötiger Sensor meldet sich nicht"
+   }
+  ],
+  "CALIBRATION_MISSING": [
+   {
+    "en": "no sign from the calibration program for {seconds:0} s",
+    "when": {
+     "seconds": {
+      "present": true
+     }
+    },
+    "de": "seit {seconds:0} s kein Lebenszeichen vom Kalibrierprogramm"
+   },
+   {
+    "en": "the calibration program is not running",
+    "de": "das Kalibrierprogramm läuft nicht"
+   }
+  ],
+  "IMU_GRAVITY": [
+   {
+    "en": "the IMU measures {gravity:1} m/s² of gravity, that's not right",
+    "when": {
+     "gravity": {
+      "present": true
+     }
+    },
+    "de": "die IMU misst {gravity:1} m/s² Schwerkraft, das stimmt nicht"
+   },
+   {
+    "en": "the IMU doesn't measure gravity as it should",
+    "de": "die IMU misst die Schwerkraft nicht richtig"
+   }
+  ],
+  "GYRO_SIGN": [
+   {
+    "en": "the gyro turns the other way than the wheels",
+    "de": "der Kreisel dreht andersherum als die Räder"
+   }
+  ],
+  "NOT_MOVING": [
+   {
+    "en": "doesn't move",
+    "de": "bewegt sich nicht"
+   }
+  ],
+  "NOT_TURNING": [
+   {
+    "en": "doesn't turn",
+    "de": "dreht sich nicht"
+   }
+  ],
+  "OVERSPEED": [
+   {
+    "en": "drove faster than it should",
+    "de": "fuhr schneller als erlaubt"
+   }
+  ],
+  "LEFT_LANE": [
+   {
+    "en": "left its lane",
+    "de": "hat seine Spur verlassen"
+   }
+  ],
+  "LOST": [
+   {
+    "en": "none from the NTRIP caster for {limit:0} s",
+    "when": {
+     "limit": {
+      "present": true
+     }
+    },
+    "de": "seit {limit:0} s keine vom NTRIP-Caster"
+   },
+   {
+    "en": "none from the NTRIP caster",
+    "de": "keine vom NTRIP-Caster"
+   }
+  ],
+  "RESTORED": [
+   {
+    "en": "coming again",
+    "de": "kommen wieder"
+   }
+  ],
+  "REJECTED": [
+   {
+    "en": "the NTRIP caster turned the login down (HTTP {code})",
+    "when": {
+     "code": {
+      "present": true
+     }
+    },
+    "de": "der NTRIP-Caster hat die Anmeldung abgelehnt (HTTP {code})"
+   },
+   {
+    "en": "the NTRIP caster turned the login down",
+    "de": "der NTRIP-Caster hat die Anmeldung abgelehnt"
+   }
+  ],
+  "SOURCE_CHANGED": [
+   {
+    "en": "from another caster or mountpoint than before",
+    "de": "von einem anderen Caster oder Mountpoint als vorher"
+   }
+  ],
+  "CORRELATION_DATA": [
+   {
+    "en": "its correlation data is longer than {limit} bytes",
+    "when": {
+     "limit": {
+      "present": true
+     }
+    },
+    "de": "ihre Korrelationsdaten sind länger als {limit} Byte"
+   },
+   {
+    "en": "its correlation data is too long",
+    "de": "ihre Korrelationsdaten sind zu lang"
+   }
+  ],
+  "RESPONSE_TOPIC": [
+   {
+    "en": "its response topic is not rpc/response/ and a token",
+    "de": "ihr Antwort-Topic ist nicht rpc/response/ mit einem Token"
+   }
   ]
  },
  "wrappers": {},
@@ -1388,6 +1786,7 @@
   "12": "FIRMWARE_INCOMPATIBLE",
   "13": "TILT",
   "14": "FENCE",
+  "15": "STUCK",
   "16": "IMU_TIMEOUT",
   "17": "MOWER_NOT_STOPPED",
   "18": "WHEEL_RUNAWAY",
@@ -1450,6 +1849,10 @@
   "FENCE": {
    "en": "outside the area it may drive in",
    "de": "außerhalb des befahrbaren Bereichs"
+  },
+  "STUCK": {
+   "en": "wheels turning, but it doesn't move",
+   "de": "Räder drehen, aber er bewegt sich nicht"
   },
   "IMU_TIMEOUT": {
    "en": "no data from the IMU",

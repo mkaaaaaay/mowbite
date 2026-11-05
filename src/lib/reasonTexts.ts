@@ -58,6 +58,18 @@ export const REFUSED_STEPS: Record<string, string> = {
   point: 'No points recorded',
 };
 
+// the phases of the calibration drive (CALIBRATION, MowBite OS only)
+const CALIBRATION_PHASES: Record<string, string> = {
+  start: 'Calibration drive started',
+  align: 'Calibration: lining up',
+  stand: 'Calibration: standing still',
+  line: 'Calibration: driving straight',
+  spin_left: 'Calibration: turning left',
+  spin_right: 'Calibration: turning right',
+  evaluate: 'Calibration: evaluating',
+  end: 'Calibration drive ended',
+};
+
 const one = (en: string, severity?: Severity): EventText => ({severity: severity ?? 'info', variants: [{en}]});
 const alone = (v: Variant): Variant => ({...v, with_reason: false});
 
@@ -134,6 +146,34 @@ export const EVENTS: Record<string, EventText> = {
   DRIVE_REFUSED: one('Drive not started', 'warning'),
   // a command the mower turned down without an event of its own, only in the answer to its call
   COMMAND_REFUSED: one('Not done'),
+  // a request over MQTT 5 it couldn't answer (its response topic or correlation data), only in the answer
+  REQUEST_REFUSED: one('Request turned down', 'error'),
+  CALIBRATION_REFUSED: one('Calibration not started', 'warning'),
+  CALIBRATION: {
+    severity: 'info',
+    variants: [...Object.entries(CALIBRATION_PHASES).map(([phase, en]) => alone({when: {phase}, en})), alone({en: 'Calibration drive'})],
+  },
+  CALIBRATED: {
+    severity: 'info',
+    variants: [
+      {when: {status: 'done'}, en: 'Calibration done'},
+      {when: {status: 'not_evaluated'}, en: 'Calibration drive done, not evaluated', severity: 'warning'},
+      {en: 'Calibration drive done, the evaluation failed', severity: 'warning'},
+    ],
+  },
+  CALIBRATION_FAILED: {
+    severity: 'error',
+    variants: [alone({when: {reason: 'STOPPED'}, en: 'Calibration stopped', severity: 'info'}), {en: 'Calibration failed'}],
+  },
+  // the RTK corrections from the NTRIP caster: gone, back, turned down or from another source than before
+  CORRECTIONS: {
+    severity: 'warning',
+    variants: [
+      {when: {reason: 'RESTORED'}, en: 'RTK corrections', severity: 'info'},
+      {when: {reason: 'REJECTED'}, en: 'RTK corrections', severity: 'error'},
+      {en: 'RTK corrections'},
+    ],
+  },
   // reset_emergency didn't let go, the emergency stop stays. one that does sends nothing of its own, the EMERGENCY with
   // emergency false says it's over
   EMERGENCY_RESET_REFUSED: {
@@ -226,7 +266,10 @@ export const REASONS: Record<string, Variant[]> = {
     r('battery low ({battery_voltage:1} V)', {when: {battery_voltage: {present: true}}}),
     r('battery low'),
   ],
-  BATTERY_CRITICAL: [r('battery critically low ({battery_voltage:1} V)', {when: {battery_voltage: {present: true}}}), r('battery critically low')],
+  BATTERY_CRITICAL: [
+    r('battery critically low ({battery_voltage:1} V)', {when: {battery_voltage: {present: true}}}),
+    r('battery critically low'),
+  ],
   BATTERY_HOT: [
     r('battery too hot ({temperature:0} °C, the limit is {limit:0} °C)', {when: {temperature: {present: true}, limit: {present: true}}}),
     r('battery too hot ({temperature:0} °C)', {when: {temperature: {present: true}}}),
@@ -249,6 +292,14 @@ export const REASONS: Record<string, Variant[]> = {
     r('in the dock, but no charge current', {when: {type: 'CHARGING_LOST'}}),
     r('on the contacts but not charging'),
   ],
+  NO_DOCK: [r('no docking station on the map')],
+  DOCK_UNREACHABLE: [r('the docking station is outside the areas it may drive in')],
+  REFERENCE_MISMATCH: [
+    r('the docking station is {distance:2} m from where the map has it, at most {limit:2} m allowed', {
+      when: {distance: {present: true}, limit: {present: true}},
+    }),
+    r('the docking station is not where the map has it'),
+  ],
   NO_DOCK_CONTACT: [r('off the charging contacts', {when: {type: 'CHARGING_LOST'}}), r('no contact with the docking station')],
   NO_POSITION: [r('no position')],
   POSE_LOST: [r('position lost')],
@@ -263,7 +314,10 @@ export const REASONS: Record<string, Variant[]> = {
   ],
   NO_HEADING: [r('heading not known yet')],
   HEADING: [r('heading not good enough')],
-  MAP_MISMATCH: [r('the map has no reference point recorded', {when: {datum_state: 'unbound'}}), r("the map doesn't fit the reference point in use")],
+  MAP_MISMATCH: [
+    r('the map has no reference point recorded', {when: {datum_state: 'unbound'}}),
+    r("the map doesn't fit the reference point in use"),
+  ],
   MAP_UNREADABLE: [r("the map can't be read")],
   MAP_UNKNOWN: [r("the GPS reference point isn't known yet")],
   NO_MOWING_AREA: [r('no active mowing area on the map')],
@@ -272,7 +326,7 @@ export const REASONS: Record<string, Variant[]> = {
   MANUAL: [r('by hand')],
   CROSS_TRACK: [r('too far off its path')],
   OUTSIDE: [r('outside the area it may drive in')],
-  TIMEOUT: [r('not getting on, maybe stuck')],
+  TIMEOUT: [r('took too long', {when: {type: 'CALIBRATION_FAILED'}}), r('not getting on, maybe stuck')],
   INVALID: [r('the path is not valid')],
   NOT_ALLOWED: [r('driving not allowed')],
   PLANNING_FAILED: [r("the planner couldn't make the plan")],
@@ -311,11 +365,61 @@ export const REASONS: Record<string, Variant[]> = {
     r('still tilted ({angle:0}°, less than {limit:0}° needed)', {when: {angle: {present: true}, limit: {present: true}}}),
     r('still tilted'),
   ],
-  TILT_UNKNOWN: [r('tilt unknown, no data from the IMU for {seconds:1} s', {when: {seconds: {present: true}}}), r('tilt unknown, no data from the IMU')],
+  TILT_UNKNOWN: [
+    r('tilt unknown, no data from the IMU for {seconds:1} s', {when: {seconds: {present: true}}}),
+    r('tilt unknown, no data from the IMU'),
+  ],
   FOREIGN_HOST: [r('another computer is talking to the board')],
   DRIVER_MISSING: [r('the hardware driver is not running')],
   SAFETY_MISSING: [r('the safety filter is not running')],
   NO_ANSWER: [r('no answer in time')],
+  // the calibration drive (CALIBRATION_REFUSED, CALIBRATION_FAILED): rate and limit in reports a second
+  NO_RTK: [r('no RTK fix')],
+  NO_ROOM: [
+    r('not enough room here, the drive needs {length:1} m and has {free_length:1} m', {
+      when: {length: {present: true}, free_length: {present: true}},
+    }),
+    r('not enough room here for the calibration drive'),
+  ],
+  SLOPE: [
+    r('the ground is too steep ({slope:0}°, at most {limit:0}°)', {when: {slope: {present: true}, limit: {present: true}}}),
+    r('the ground is too steep'),
+  ],
+  GNSS_RATE: [
+    r('the GPS reports {rate:1} times a second, {limit:1} needed', {when: {rate: {present: true}, limit: {present: true}}}),
+    r('the GPS reports too seldom'),
+  ],
+  SENSOR_MISSING: [
+    r('a sensor it needs reports {rate:1} times a second, {limit:1} needed', {when: {rate: {present: true}, limit: {present: true}}}),
+    r("a sensor it needs doesn't report"),
+  ],
+  CALIBRATION_MISSING: [
+    r('no sign from the calibration program for {seconds:0} s', {when: {seconds: {present: true}}}),
+    r('the calibration program is not running'),
+  ],
+  IMU_GRAVITY: [
+    r("the IMU measures {gravity:1} m/s² of gravity, that's not right", {when: {gravity: {present: true}}}),
+    r("the IMU doesn't measure gravity as it should"),
+  ],
+  GYRO_SIGN: [r('the gyro turns the other way than the wheels')],
+  NOT_MOVING: [r("doesn't move")],
+  NOT_TURNING: [r("doesn't turn")],
+  OVERSPEED: [r('drove faster than it should')],
+  LEFT_LANE: [r('left its lane')],
+  // CORRECTIONS: limit in s, code the caster's HTTP status
+  LOST: [r('none from the NTRIP caster for {limit:0} s', {when: {limit: {present: true}}}), r('none from the NTRIP caster')],
+  RESTORED: [r('coming again')],
+  REJECTED: [
+    r('the NTRIP caster turned the login down (HTTP {code})', {when: {code: {present: true}}}),
+    r('the NTRIP caster turned the login down'),
+  ],
+  SOURCE_CHANGED: [r('from another caster or mountpoint than before')],
+  // REQUEST_REFUSED: limit in bytes
+  CORRELATION_DATA: [
+    r('its correlation data is longer than {limit} bytes', {when: {limit: {present: true}}}),
+    r('its correlation data is too long'),
+  ],
+  RESPONSE_TOPIC: [r('its response topic is not rpc/response/ and a token')],
 };
 
 // put round the finished reason, by the start of its name (the longest that fits, at most one)
@@ -324,7 +428,7 @@ export const WRAPPERS: Record<string, {unless?: Cond; when?: Cond; en: string}> 
 
 // the emergency stop's reasons, one bit each of 32 (EmergencyReason in open_mower_ros services/emergency_service.json),
 // MowBite OS's own from bit 13 on (HardwareStatus.msg). one gets its name here once a node sets it, a bit without one is
-// said as "bit N" next to the others, never left out (fallback.emergency_bit). 15 STUCK no node sets yet
+// said as "bit N" next to the others, never left out (fallback.emergency_bit)
 export const EMERGENCY_BITS: (string | null)[] = [
   'LATCH',
   'TIMEOUT_INPUTS',
@@ -341,7 +445,7 @@ export const EMERGENCY_BITS: (string | null)[] = [
   'FIRMWARE_INCOMPATIBLE',
   'TILT',
   'FENCE',
-  null,
+  'STUCK',
   'IMU_TIMEOUT',
   'MOWER_NOT_STOPPED',
   'WHEEL_RUNAWAY',
@@ -364,11 +468,13 @@ export const EMERGENCY_TEXT: Record<string, string> = {
   MOWER_RPM_TIMEOUT: "mow motor didn't reach its speed",
   MOWER_RPM_LIMIT: 'mow motor too fast',
   FIRMWARE_INCOMPATIBLE: "firmware doesn't fit OpenMower",
-  // MowBite OS: tilted beyond its limit, a drive of its own out of the areas, the IMU's data not coming, the blade still
-  // turning after it was switched off, a wheel against the command, a second computer at the board, the driver hanging.
+  // MowBite OS: tilted beyond its limit, a drive of its own out of the areas, wheels against the GPS, the IMU's data not
+  // coming, the blade still turning after it was switched off, a wheel against the command, a second computer at the
+  // board, the driver hanging.
   // UNKNOWN is what its log line says for a bit it has no name for
   TILT: 'tilted too far',
   FENCE: 'outside the area it may drive in',
+  STUCK: "wheels turning, but it doesn't move",
   IMU_TIMEOUT: 'no data from the IMU',
   MOWER_NOT_STOPPED: "blade didn't stop",
   WHEEL_RUNAWAY: 'wheel turning against the command',

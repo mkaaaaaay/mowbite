@@ -26,7 +26,8 @@ describe('reasons.json for MowBite for Home Assistant', () => {
   it("names MowBite OS's emergency bits once a node sets them, any other bit is said as bit N", () => {
     const file = JSON.parse(made);
     expect(file.emergency_bits['18']).toBe('WHEEL_RUNAWAY');
-    expect(file.emergency_bits['15']).toBeUndefined();
+    expect(file.emergency_bits['15']).toBe('STUCK');
+    expect(file.emergency_bits['21']).toBeUndefined();
     expect(file.fallback.emergency_bit).toEqual({en: 'bit {n}', de: 'Bit {n}'});
     for (const [name, t] of Object.entries(file.emergency_text) as [string, {de?: string}][]) expect(t.de, name).toBeTruthy();
     for (const name of ['STILL_TILTED', 'TILT_UNKNOWN', 'FOREIGN_HOST', 'DRIVER_MISSING', 'SAFETY_MISSING', 'NO_ANSWER'])

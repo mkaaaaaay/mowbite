@@ -296,6 +296,8 @@ const EMERGENCY_HELP: Record<string, string> = {
   TILT: 'It stood tilted further than allowed, on a slope or lifted on one side, so the wheels and the blade went off. Stand it level: a reset only goes through below its release angle.',
   FENCE:
     "A drive of its own took it too far out of the area it may drive in, or into an obstacle, and the path follower hadn't stopped it. Check the map and the GPS at that spot. The reset always goes through.",
+  STUCK:
+    "The wheels turned, but by the GPS the mower didn't move along with them: stuck, slipping on wet grass or caught on something. Free it and have a look at the spot, then reset it.",
   IMU_TIMEOUT: "The IMU's data stopped coming, without it the tilt can't be watched. Once can be a hiccup, if it happens again check the IMU and its connection.",
   MOWER_NOT_STOPPED: 'The blade was switched off but kept turning faster than allowed. Let it run down, then check that the mow motor stops when told to.',
   WHEEL_RUNAWAY:
