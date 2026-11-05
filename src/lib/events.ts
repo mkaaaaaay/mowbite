@@ -65,6 +65,11 @@ export interface MowerEvent {
   // EMERGENCY_RESET_REFUSED: the tilt and the limit for letting go in degrees, how old the IMU's last data is
   angle?: number;
   seconds?: number;
+  // MowBite OS: the charge current seen (A), the battery's temperature or the mow motor's (°C), the sun's height (°)
+  current?: number;
+  temperature?: number;
+  sun_elevation?: number;
+  battery_percentage?: number;
   // worked out here, not from OpenMower: a navigation error that only came because it was sent home (see markSentHome)
   sentHome?: boolean;
 }
@@ -74,10 +79,21 @@ export type {Severity};
 const readable = (r: string) => r.replace(/_/g, ' ').toLowerCase();
 
 // why it heads home, from the reason mower_logic gives (mower_logic.cpp): "Manual pause", "Battery voltage critical:
-// 23.1 V", "Battery average voltage low: 24.2 V", "Mow motor over temp: 71 °C", "Rain detected"
-export type HomeReason = 'paused' | 'battery' | 'hot' | 'rain';
+// 23.1 V", "Battery average voltage low: 24.2 V", "Mow motor over temp: 71 °C", "Rain detected". MowBite OS gives a
+// name (masterplan 3.1a)
+export type HomeReason = 'paused' | 'battery' | 'hot' | 'battery_hot' | 'rain' | 'dark';
+const HOME_CODES: Record<string, HomeReason> = {
+  MANUAL: 'paused',
+  BATTERY_CRITICAL: 'battery',
+  BATTERY_LOW: 'battery',
+  MOTOR_HOT: 'hot',
+  BATTERY_HOT: 'battery_hot',
+  RAIN: 'rain',
+  DARK: 'dark',
+};
 export function homeReason(r?: string): HomeReason | null {
   if (!r) return null;
+  if (isReasonCode(r)) return HOME_CODES[r] ?? null;
   if (r === 'Manual pause') return 'paused';
   if (r.startsWith('Battery')) return 'battery';
   if (r.startsWith('Mow motor over temp')) return 'hot';
@@ -119,6 +135,9 @@ export function emergencyFlags(code: unknown): string[] {
   return flags;
 }
 const BIT = /^BIT_(\d+)$/;
+
+// MowBite OS's pauses that go on once the position is good again
+const POSITION_PAUSE = ['NO_POSITION', 'POSE_LOST', 'POSITION_ACCURACY', 'HEADING', 'NO_HEADING'];
 
 // the reasons in words, the more telling one where two say the same (reasonTexts.ts), a bit without a name as "bit N"
 export function emergencyText(flags: readonly string[]): string {
@@ -164,7 +183,11 @@ export function reasonText(e: MowerEvent): string {
   const r = e.reason;
   if (!r) return '';
   // (the fields a reader puts in itself, reasonTexts.ts)
-  const f = typeof e.until === 'number' && e.until > 0 ? {...e, until_clock: clock(e.until)} : e;
+  const f = {
+    ...e,
+    ...(typeof e.until === 'number' && e.until > 0 ? {until_clock: clock(e.until)} : {}),
+    ...(typeof e.accuracy === 'number' && e.accuracy >= 999 ? {no_fix: true} : {}),
+  };
   const v = pick(REASONS[r], f);
   let text: string;
   if (v) text = fill(tr(v.en), f);
@@ -242,7 +265,9 @@ function describeOwn(e: MowerEvent, state?: string): {text: string; severity: Se
       if (e.available) return {text: tr('GPS fix'), severity: 'info'};
       return state === 'MOWING' ? {text: tr('GPS lost'), severity: 'warning'} : {text: tr('GPS off'), severity: 'info'};
     case 'DOCKING':
-      return {text: homeText(e.reason), severity: 'info'};
+      // (MowBite OS's names from the list)
+      if (!isReasonCode(e.reason)) return {text: homeText(e.reason), severity: 'info'};
+      break;
     case 'AREA_RECORDED':
       return {text: recordedText(e), severity: 'info'};
   }
@@ -293,11 +318,13 @@ export function explain(e: MowerEvent, state?: string, gpsTimeout?: number, os =
     case 'STATE':
       // MowBite OS says whether it goes on by itself
       if (e.state !== 'PAUSED' || !e.reason || !os) return undefined;
-      return e.resume === 'auto'
-        ? tr('It goes on by itself once the position has been good for a moment.')
-        : e.resume === 'user' && e.reason !== 'MANUAL'
-          ? tr('It waits where it is until you continue it.')
-          : undefined;
+      if (e.resume === 'auto')
+        return POSITION_PAUSE.includes(e.reason)
+          ? tr('It goes on by itself once the position has been good for a moment.')
+          : tr('It goes on by itself once that is over.');
+      // a reason to go home, but it has no way there (no docking station, no contacts at the back)
+      if (homeReason(e.reason) && e.reason !== 'MANUAL') return tr("It can't go home by itself from here, so it waits where it is until you continue it.");
+      return e.resume === 'user' && e.reason !== 'MANUAL' ? tr('It waits where it is until you continue it.') : undefined;
     case 'MOWING_REFUSED':
       return tr('The mower stays where it is. Once the reason is gone, start it again.');
     case 'GEOMETRY_CHANGED': {
@@ -314,6 +341,17 @@ export function explain(e: MowerEvent, state?: string, gpsTimeout?: number, os =
       );
     case 'DOCKING_RETRY':
     case 'DOCKING_FAILED':
+      if (e.reason === 'NO_CHARGE_CURRENT') {
+        const seen =
+          typeof e.current === 'number' && typeof e.limit === 'number'
+            ? tr('It got onto the charging contacts, but only {a} A came, at least {limit} A were expected.', {a: fmt(e.current, 2), limit: fmt(e.limit, 2)})
+            : tr('It got onto the charging contacts, but no charge current came.');
+        const then = e.type === 'DOCKING_FAILED' ? tr('It gave up and stays on the contacts.') : tr('It backs out and tries again.');
+        return `${seen} ${then} ${tr('Check that the docking station has power (socket, timer, power supply) and the contacts are clean.')}`;
+      }
+      // MowBite OS: it didn't set off for the dock
+      if (e.type === 'DOCKING_FAILED' && e.attempts === undefined && isReasonCode(e.reason))
+        return tr("Without a good enough position and heading it couldn't set off for the dock, so it waits where it is. Once the GPS is good again, send it home.");
       return e.reason === 'dock_failed'
         ? tr(
             "It was in front of the dock but didn't get charging contact, so it backed out to try again. Check the contacts and whether the dock position on the map is still right.",
@@ -370,7 +408,19 @@ export function explain(e: MowerEvent, state?: string, gpsTimeout?: number, os =
             'While the position is that inaccurate the mower records no points. Once it is good again the line goes on, straight from the last good point.',
           )
         : tr('The recording stays open, nothing recorded so far is lost. Once the reason is gone, try the step again.');
+    case 'CHARGING_LOST':
+      return e.reason === 'NO_DOCK_CONTACT'
+        ? tr("It lost the charging contacts for more than 10 s without driving itself: pushed, lifted, or the contacts don't touch well. It doesn't drive off by itself.")
+        : tr(
+            "It stands on the contacts, but no charge current comes. Check that the docking station has power (socket, timer, power supply) and the contacts are clean. Once it charges again, the activity says Docked.",
+          );
     case 'DOCKING':
+      if (isReasonCode(e.reason))
+        return e.reason === 'MANUAL'
+          ? undefined
+          : e.resume === 'auto'
+            ? tr('It mows on by itself once that is over.')
+            : tr('In the dock it waits until it is started again.');
       return homeReason(e.reason) === 'hot'
         ? tr("The mow motor reached mower_logic/motor_hot_temperature. Once it's down to motor_cold_temperature it mows on by itself in semi-automatic or automatic mode, otherwise it waits for a start.")
         : undefined;
@@ -379,6 +429,8 @@ export function explain(e: MowerEvent, state?: string, gpsTimeout?: number, os =
 
 // where open_mower_ros writes the event and the line it logs at the same moment
 export function eventSource(e: MowerEvent): {file: string; url: string; log?: string} | undefined {
+  // (MowBite OS's own names don't come from there)
+  if (isReasonCode(e.reason) && e.type !== 'EMERGENCY') return undefined;
   const src = (file: string, log?: string) => ({file, url: LOGIC_SOURCE + file, log});
   switch (e.type) {
     case 'UNDOCKING_FAILED':
@@ -420,6 +472,9 @@ export type Outcome =
   | 'battery'
   | 'rain'
   | 'hot'
+  | 'battery_hot'
+  | 'dark'
+  | 'no_charge'
   | 'undock_failed'
   | 'dock_failed'
   | 'emergency'
@@ -465,6 +520,21 @@ export function markSentHome(sorted: MowerEvent[]): MowerEvent[] {
     }
     return e;
   });
+}
+
+// MowBite OS from api 4 on: charging in the dock only once DOCKED says the current came, it's newer than what leaves it
+// unconfirmed: a start of MowBite OS, a docking or undocking given up, the charge lost, the mower off the contacts
+// (setting off, or seen off them since leftAt, unix s). null when the events have none of them
+const UNCONFIRMS = new Set(['BOOTED', 'CHARGING_LOST', 'DOCKING_FAILED', 'UNDOCKING_FAILED', 'UNDOCKED']);
+export function chargeConfirmed(events: readonly MowerEvent[], leftAt = 0): boolean | null {
+  const sorted = [...events].sort((a, b) => a.t - b.t);
+  for (let i = sorted.length - 1; i >= 0; i--) {
+    const e = sorted[i];
+    if (e.t < leftAt) return false;
+    if (e.type === 'DOCKED') return true;
+    if (UNCONFIRMS.has(e.type) || (e.type === 'STATE' && e.state !== 'IDLE' && e.state !== 'AREA_RECORDING')) return false;
+  }
+  return leftAt > 0 ? false : null;
 }
 
 // os: the mower runs MowBite OS, it doesn't dock yet (until its stage 4): idle after mowing ends the run there, no DOCKED
@@ -554,6 +624,7 @@ function summarize(events: MowerEvent[], finished: boolean, now: number, cut: bo
   else if (hand) outcome = 'manual';
   else if (has('JOB_COMPLETE')) outcome = 'done';
   else if (events.some((e) => e.type === 'EMERGENCY' && e.emergency)) outcome = 'emergency';
+  else if (events.some((e) => e.type === 'DOCKING_FAILED' && e.reason === 'NO_CHARGE_CURRENT')) outcome = 'no_charge';
   else if (has('DOCKING_FAILED')) outcome = 'dock_failed';
   else if (has('UNDOCKING_FAILED') && !has('UNDOCKED')) outcome = 'undock_failed';
   else if (cut || last.type === 'SHUTDOWN') outcome = 'interrupted';
@@ -583,6 +654,9 @@ export const OUTCOMES: Record<Outcome, {label: string; tone: 'good' | 'neutral' 
   battery: {label: 'Back to charge', tone: 'neutral'},
   rain: {label: 'Stopped for rain', tone: 'neutral'},
   hot: {label: 'Mow motor too hot', tone: 'bad'},
+  battery_hot: {label: 'Battery too hot', tone: 'bad'},
+  dark: {label: 'Back at sunset', tone: 'neutral'},
+  no_charge: {label: 'In the dock, not charging', tone: 'bad'},
   returned: {label: 'Back in the dock', tone: 'neutral'},
   stopped: {label: 'Stopped on the lawn', tone: 'neutral'},
   undock_failed: {label: 'Undocking failed', tone: 'bad'},

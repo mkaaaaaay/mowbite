@@ -2,6 +2,7 @@ import {describe, expect, it, vi} from 'vitest';
 import {clock} from './dates';
 import {setLangChoice} from './i18n';
 import {
+  chargeConfirmed,
   describe as describeEvent,
   emergencyFlags,
   emergencyText,
@@ -170,6 +171,85 @@ describe('groupRuns', () => {
     expect(outcome('Mow motor over temp: 71 °C')).toBe('hot');
     expect(outcome('Manual pause')).toBe('paused');
     expect(outcome('something new')).toBe('returned');
+    // MowBite OS's names
+    expect(outcome('BATTERY_CRITICAL')).toBe('battery');
+    expect(outcome('BATTERY_HOT')).toBe('battery_hot');
+    expect(outcome('DARK')).toBe('dark');
+    expect(outcome('MANUAL')).toBe('paused');
+  });
+
+  it("says when MowBite OS gave up docking because no current came, it stays on the contacts", () => {
+    const runs = groupRuns(
+      [
+        ev(0, 'STATE', {state: 'UNDOCKING'}),
+        ev(20, 'STATE', {state: 'MOWING'}),
+        ev(30, 'STATE', {state: 'DOCKING'}),
+        ev(40, 'DOCKING_FAILED', {reason: 'NO_CHARGE_CURRENT', attempts: 3, current: 0.01, limit: 0.3}),
+        ev(41, 'STATE', {state: 'IDLE'}),
+      ],
+      false,
+    );
+    expect(runs[0].kind === 'run' && runs[0].run.outcome).toBe('no_charge');
+  });
+});
+
+describe('heading home and charging on MowBite OS', () => {
+  const os = (type: string, extra: Partial<MowerEvent> = {}) => describeEvent(ev(0, type, extra), undefined, true).text;
+
+  it('says why it goes home with its numbers', () => {
+    expect(os('DOCKING', {reason: 'MANUAL'})).toBe('Sent home');
+    expect(os('DOCKING', {reason: 'BATTERY_LOW', battery_voltage: 24.13, limit: 24.5})).toBe('Heading home to charge: battery low (24.1 V)');
+    expect(os('DOCKING', {reason: 'BATTERY_CRITICAL', battery_voltage: 20.94, limit: 21})).toBe('Heading home to charge: battery critically low (20.9 V)');
+    expect(os('DOCKING', {reason: 'MOTOR_HOT', temperature: 71.2, limit: 70})).toBe('Heading home: mow motor too hot (71 °C, the limit is 70 °C)');
+    expect(os('DOCKING', {reason: 'BATTERY_HOT', temperature: 56, limit: 55})).toBe('Heading home: battery too hot (56 °C, the limit is 55 °C)');
+    expect(os('DOCKING', {reason: 'RAIN'})).toBe('Heading home: rain');
+    expect(os('DOCKING', {reason: 'DARK', sun_elevation: -1.1, limit: -0.833})).toBe('Heading home: the sun has set');
+    expect(noteworthy(ev(0, 'DOCKING', {reason: 'DARK', severity: 'info'}), undefined, true)).toBe(true);
+    expect(noteworthy(ev(0, 'DOCKING', {reason: 'MANUAL', severity: 'info'}), undefined, true)).toBe(false);
+  });
+
+  it('says why a start was turned down or it stayed out, without a way home', () => {
+    expect(os('MOWING_REFUSED', {reason: 'MOTOR_HOT', temperature: 52, limit: 40})).toBe(
+      'Mowing not started: mow motor still too hot (52 °C, it has to cool down to 40 °C)',
+    );
+    expect(os('BATTERY_LOW', {battery_voltage: 22.44, limit: 23})).toBe("Battery low (22.4 V), it can't go home and stays where it is");
+    const rain = ev(0, 'STATE', {state: 'PAUSED', reason: 'RAIN', severity: 'info', resume: 'user'});
+    expect(describeEvent(rain, undefined, true)).toEqual({text: 'Paused: rain', severity: 'info'});
+    expect(explain(rain, undefined, undefined, true)).toContain("can't go home by itself");
+    expect(explain(ev(0, 'STATE', {state: 'PAUSED', reason: 'RAIN', resume: 'auto'}), undefined, undefined, true)).toBe('It goes on by itself once that is over.');
+  });
+
+  it("doesn't count tries it never made, nor a position 999 m off", () => {
+    expect(os('DOCKING_FAILED', {reason: 'NO_HEADING'})).toBe('Docking failed (heading not known yet)');
+    expect(os('DOCKING_FAILED', {reason: 'POSITION_ACCURACY', accuracy: 999, limit: 0.1})).toBe('Docking failed (no position)');
+    expect(os('DOCKING_FAILED', {reason: 'approach_failed', attempts: 3})).toBe('Docking failed after 3 tries (approach failed)');
+  });
+
+  it('says in the dock without current "not charging"', () => {
+    expect(os('DOCKING_FAILED', {reason: 'NO_CHARGE_CURRENT', attempts: 3, current: 0.01, limit: 0.3})).toBe(
+      'Docking failed after 3 tries (on the contacts but not charging)',
+    );
+    const hint = explain(ev(0, 'DOCKING_FAILED', {reason: 'NO_CHARGE_CURRENT', attempts: 3, current: 0.01, limit: 0.3}), undefined, undefined, true)!;
+    expect(hint).toContain('only 0.01 A came, at least 0.30 A');
+    expect(hint).toContain('stays on the contacts');
+    expect(os('CHARGING_LOST', {reason: 'NO_CHARGE_CURRENT', battery_percentage: 64, current: 0, limit: 0.3})).toBe(
+      'Not charging (64 %): in the dock, but no charge current (0.00 A, at least 0.30 A expected)',
+    );
+    expect(os('CHARGING_LOST', {reason: 'NO_DOCK_CONTACT', battery_percentage: 64})).toBe('Not charging (64 %): off the charging contacts');
+  });
+
+  it('charges only once DOCKED is newer than what leaves it unconfirmed', () => {
+    expect(chargeConfirmed([])).toBeNull();
+    expect(chargeConfirmed([ev(10, 'DOCKED'), ev(5, 'BOOTED')])).toBe(true);
+    expect(chargeConfirmed([ev(5, 'DOCKED'), ev(10, 'BOOTED')])).toBe(false);
+    expect(chargeConfirmed([ev(5, 'DOCKED'), ev(10, 'STATE', {state: 'IDLE'}), ev(20, 'CHARGING_LOST', {reason: 'NO_CHARGE_CURRENT'})])).toBe(false);
+    expect(chargeConfirmed([ev(5, 'DOCKED'), ev(10, 'STATE', {state: 'UNDOCKING'})])).toBe(false);
+    expect(chargeConfirmed([ev(5, 'DOCKED'), ev(10, 'STATE', {state: 'AREA_RECORDING'}), ev(20, 'STATE', {state: 'IDLE'})])).toBe(true);
+    expect(chargeConfirmed([ev(5, 'DOCKING_FAILED', {reason: 'NO_CHARGE_CURRENT'}), ev(30, 'DOCKED')])).toBe(true);
+    // seen off the contacts after it
+    expect(chargeConfirmed([ev(5, 'DOCKED')], 8)).toBe(false);
+    expect(chargeConfirmed([ev(5, 'DOCKED')], 3)).toBe(true);
+    expect(chargeConfirmed([], 3)).toBe(false);
   });
 });
 

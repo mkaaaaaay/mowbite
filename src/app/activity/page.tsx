@@ -4,7 +4,7 @@ import {TitleMark} from '@/components/Logo';
 import {TitleRow} from '@/components/TopWeather';
 import {clock, dayKey, dayLabel, duration, parseDay} from '@/lib/dates';
 import {ParamFix} from '@/components/MowerParamSettings';
-import {describe, eventSource, explain, groupRuns, noteworthy, rawLine, OUTCOMES, withState, type Entry, type MowerEvent, type Run} from '@/lib/events';
+import {describe, eventSource, explain, groupRuns, isReasonCode, noteworthy, rawLine, OUTCOMES, withState, type Entry, type MowerEvent, type Run} from '@/lib/events';
 import {useDragScroll} from '@/hooks/useDragScroll';
 import {eventsOfDay, historyDays, localDays, type DayEvents} from '@/lib/history';
 import {useMowbiteOs} from '@/lib/mowerOs';
@@ -96,6 +96,8 @@ const FIXES: Record<string, string[]> = {
   DOCKING_FAILED: ['docking_approach_distance', 'docking_retry_count'],
   UNDOCKING_FAILED: ['undock_distance'],
 };
+// MowBite OS's own reasons in them (no charge current, no position) aren't helped by those
+const fixes = (e: MowerEvent) => (/^DOCKING_/.test(e.type) && isReasonCode(e.reason) ? [] : (FIXES[e.type] ?? []));
 
 function ProblemItem({run, next, event, state, where}: {run: Run; next?: Run; event: MowerEvent; state?: string; where: Where}) {
   const [raw, setRaw] = useState(false);
@@ -143,7 +145,7 @@ function ProblemItem({run, next, event, state, where}: {run: Run; next?: Run; ev
           </div>
           {raw && <RawEntry event={event} file={`${PATHS.eventHistory}${where.get(event.id)?.file ?? ''}`} line={where.get(event.id)?.line ?? 0} />}
           {/* when it keeps happening: the settings that help, last */}
-          <ParamFix keys={FIXES[event.type] ?? []} />
+          <ParamFix keys={fixes(event)} />
         </>
       )}
     </li>

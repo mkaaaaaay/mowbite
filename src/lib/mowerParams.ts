@@ -25,6 +25,10 @@ export interface ParamField {
   step?: number;
   // for a choice, by value 0, 1, 2 ...
   choices?: string[];
+  // only on MowBite OS from this api on
+  osApi?: number;
+  // switched off only after this question
+  confirmOff?: string;
 }
 
 export const PARAM_GROUPS: {key: ParamGroup; title: string}[] = [
@@ -47,6 +51,17 @@ export const PARAM_FIELDS: ParamField[] = [
   {key: 'rain_mode', group: 'auto', label: 'When the rain sensor is wet', type: 'choice', def: 0, choices: ['Keep mowing', 'Go home', 'Go home and wait until dry', 'Pause automatic mode']},
   {key: 'rain_delay_minutes', group: 'auto', label: 'Wait after the rain', help: 'With "wait until dry": how long it has to be dry before it mows on.', type: 'int', min: 30, max: 1440, def: 30, unit: 'min', step: 10},
   {key: 'rain_check_seconds', group: 'auto', label: 'Rain counts after', help: 'The sensor has to be wet for this long without a break.', type: 'int', min: 20, max: 300, def: 20, unit: 's', step: 10},
+  // off: it mows on after sunset, DOCKING DARK never comes (masterplan 3.1a, O11)
+  {
+    key: 'dock_at_sunset',
+    group: 'auto',
+    label: 'Go home at sunset',
+    help: 'When the sun sets while it mows, it goes home. Started or continued in the dark on purpose it mows on, and start times allowed in the dark never go home for it. A change counts from the next run.',
+    type: 'bool',
+    def: true,
+    osApi: 6,
+    confirmOff: 'Switch it off? It then mows on into the night, when hedgehogs and other animals are out.',
+  },
   {key: 'automatic_mode', group: 'auto', label: 'Starting by itself', help: "OpenMower's own automatic, apart from MowBite's schedule: with a schedule leave it on manual, or both start the mower.", type: 'choice', def: 0, choices: ['Manual: only when started', 'Semi-automatic: after a start it mows the whole map, charging in between', 'Automatic: mows whenever it can']},
 
   {key: 'gps_timeout', group: 'gps', label: 'Keeps driving without a fix for', help: 'On wheel odometry. After that it stops with the blade off and waits for the fix.', type: 'double', min: 0, max: 60, def: 10, unit: 's', step: 1},
@@ -63,6 +78,8 @@ export const PARAM_FIELDS: ParamField[] = [
 ];
 
 export const paramField = (key: string) => PARAM_FIELDS.find((f) => f.key === key);
+// the ones this mower has, api: MowBite OS's (0 on OpenMower)
+export const paramShown = (f: ParamField, api: number) => !f.osApi || api >= f.osApi;
 export const paramName = (key: string) => PARAM.mowerLogic(key);
 
 // the value the mower has, or its default while the list hasn't got it (see PARAM_DEFAULTS in lib/openmower)

@@ -184,6 +184,45 @@
    "reader_logic": true,
    "variants": [
     {
+     "when": {
+      "reason": "MANUAL"
+     },
+     "en": "Sent home",
+     "with_reason": false,
+     "de": "Heimgeschickt"
+    },
+    {
+     "when": {
+      "reason": "BATTERY_LOW"
+     },
+     "en": "Heading home to charge",
+     "de": "Heimfahrt zum Laden"
+    },
+    {
+     "when": {
+      "reason": "BATTERY_CRITICAL"
+     },
+     "en": "Heading home to charge",
+     "severity": "warning",
+     "de": "Heimfahrt zum Laden"
+    },
+    {
+     "when": {
+      "reason": "BATTERY_HOT"
+     },
+     "en": "Heading home",
+     "severity": "warning",
+     "de": "Fährt nach Hause"
+    },
+    {
+     "when": {
+      "reason": "MOTOR_HOT"
+     },
+     "en": "Heading home",
+     "severity": "warning",
+     "de": "Fährt nach Hause"
+    },
+    {
      "en": "Heading home",
      "de": "Fährt nach Hause"
     }
@@ -217,8 +256,17 @@
    },
    "variants": [
     {
+     "when": {
+      "attempts": {
+       "present": true
+      }
+     },
      "en": "Docking failed after {attempts} tries",
      "de": "Andocken nach {attempts} Versuchen fehlgeschlagen"
+    },
+    {
+     "en": "Docking failed",
+     "de": "Andocken fehlgeschlagen"
     }
    ]
   },
@@ -463,14 +511,32 @@
        "present": true
       }
      },
-     "en": "Battery low ({battery_voltage:1} V)",
+     "en": "Battery low ({battery_voltage:1} V), it can't go home and stays where it is",
      "with_reason": false,
-     "de": "Akku niedrig ({battery_voltage:1} V)"
+     "de": "Akku niedrig ({battery_voltage:1} V), er kann nicht heim und bleibt stehen"
     },
     {
-     "en": "Battery low",
+     "en": "Battery low, it can't go home and stays where it is",
      "with_reason": false,
-     "de": "Akku niedrig"
+     "de": "Akku niedrig, er kann nicht heim und bleibt stehen"
+    }
+   ]
+  },
+  "CHARGING_LOST": {
+   "severity": "warning",
+   "variants": [
+    {
+     "when": {
+      "battery_percentage": {
+       "present": true
+      }
+     },
+     "en": "Not charging ({battery_percentage} %)",
+     "de": "Lädt nicht ({battery_percentage} %)"
+    },
+    {
+     "en": "Not charging",
+     "de": "Lädt nicht"
     }
    ]
   },
@@ -756,7 +822,23 @@
     "de": "Regen"
    }
   ],
+  "DARK": [
+   {
+    "en": "the sun has set",
+    "de": "die Sonne ist untergegangen"
+   }
+  ],
   "BATTERY_LOW": [
+   {
+    "en": "battery low ({battery_voltage:1} V)",
+    "when": {
+     "type": "DOCKING",
+     "battery_voltage": {
+      "present": true
+     }
+    },
+    "de": "Akku niedrig ({battery_voltage:1} V)"
+   },
    {
     "en": "battery low ({battery_voltage:1} V, at least {limit:1} V needed)",
     "when": {
@@ -783,6 +865,127 @@
     "de": "Akku niedrig"
    }
   ],
+  "BATTERY_CRITICAL": [
+   {
+    "en": "battery critically low ({battery_voltage:1} V)",
+    "when": {
+     "battery_voltage": {
+      "present": true
+     }
+    },
+    "de": "Akku kritisch niedrig ({battery_voltage:1} V)"
+   },
+   {
+    "en": "battery critically low",
+    "de": "Akku kritisch niedrig"
+   }
+  ],
+  "BATTERY_HOT": [
+   {
+    "en": "battery too hot ({temperature:0} °C, the limit is {limit:0} °C)",
+    "when": {
+     "temperature": {
+      "present": true
+     },
+     "limit": {
+      "present": true
+     }
+    },
+    "de": "Akku zu heiß ({temperature:0} °C, Grenze {limit:0} °C)"
+   },
+   {
+    "en": "battery too hot ({temperature:0} °C)",
+    "when": {
+     "temperature": {
+      "present": true
+     }
+    },
+    "de": "Akku zu heiß ({temperature:0} °C)"
+   },
+   {
+    "en": "battery too hot",
+    "de": "Akku zu heiß"
+   }
+  ],
+  "MOTOR_HOT": [
+   {
+    "en": "mow motor still too hot ({temperature:0} °C, it has to cool down to {limit:0} °C)",
+    "when": {
+     "type": "MOWING_REFUSED",
+     "temperature": {
+      "present": true
+     },
+     "limit": {
+      "present": true
+     }
+    },
+    "de": "Mähmotor noch zu heiß ({temperature:0} °C, er muss auf {limit:0} °C abkühlen)"
+   },
+   {
+    "en": "mow motor too hot ({temperature:0} °C, the limit is {limit:0} °C)",
+    "when": {
+     "temperature": {
+      "present": true
+     },
+     "limit": {
+      "present": true
+     }
+    },
+    "de": "Mähmotor zu heiß ({temperature:0} °C, Grenze {limit:0} °C)"
+   },
+   {
+    "en": "mow motor too hot ({temperature:0} °C)",
+    "when": {
+     "temperature": {
+      "present": true
+     }
+    },
+    "de": "Mähmotor zu heiß ({temperature:0} °C)"
+   },
+   {
+    "en": "mow motor too hot",
+    "de": "Mähmotor zu heiß"
+   }
+  ],
+  "NO_CHARGE_CURRENT": [
+   {
+    "en": "in the dock, but no charge current ({current:2} A, at least {limit:2} A expected)",
+    "when": {
+     "type": "CHARGING_LOST",
+     "current": {
+      "present": true
+     },
+     "limit": {
+      "present": true
+     }
+    },
+    "de": "im Dock, aber kein Ladestrom ({current:2} A, erwartet mindestens {limit:2} A)"
+   },
+   {
+    "en": "in the dock, but no charge current",
+    "when": {
+     "type": "CHARGING_LOST"
+    },
+    "de": "im Dock, aber kein Ladestrom"
+   },
+   {
+    "en": "on the contacts but not charging",
+    "de": "auf den Kontakten, lädt aber nicht"
+   }
+  ],
+  "NO_DOCK_CONTACT": [
+   {
+    "en": "off the charging contacts",
+    "when": {
+     "type": "CHARGING_LOST"
+    },
+    "de": "nicht mehr auf den Ladekontakten"
+   },
+   {
+    "en": "no contact with the docking station",
+    "de": "kein Kontakt zur Ladestation"
+   }
+  ],
   "NO_POSITION": [
    {
     "en": "no position",
@@ -796,6 +999,13 @@
    }
   ],
   "POSITION_ACCURACY": [
+   {
+    "en": "no position",
+    "when": {
+     "no_fix": true
+    },
+    "de": "keine Position"
+   },
    {
     "en": "position accurate to {accuracy:2} m, points need {limit:2} m or better",
     "when": {

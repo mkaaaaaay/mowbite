@@ -6,7 +6,8 @@ import {apiBase, mowerFetch} from './mowers';
 
 export const NOTIFY_EVENTS = [
   {key: 'emergency', label: 'Emergency stop', problem: true},
-  {key: 'dock_failed', label: 'Docking given up', problem: true},
+  // MowBite OS also: in the dock but not charging
+  {key: 'dock_failed', label: 'Docking given up, not charging in the dock', problem: true},
   {key: 'undock_failed', label: "Didn't get out of the dock", problem: true},
   {key: 'nav_error', label: 'Navigation error, waiting', problem: true},
   {key: 'spinup', label: "Mow motor didn't start", problem: true},
@@ -16,6 +17,8 @@ export const NOTIFY_EVENTS = [
   {key: 'done', label: 'Done mowing', problem: false},
   {key: 'rain', label: 'Going home for rain', problem: false},
   {key: 'battery', label: 'Going home to charge', problem: false},
+  // MowBite OS only
+  {key: 'dark', label: 'Going home at sunset', problem: false},
   {key: 'maintenance', label: 'Maintenance due (blades, cleaning)', problem: false},
 ] as const;
 export type NotifyEvent = (typeof NOTIFY_EVENTS)[number]['key'];

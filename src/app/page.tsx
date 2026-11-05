@@ -29,7 +29,8 @@ import TopWeather from '@/components/TopWeather';
 import {clock, dayKey, dayLabel, duration} from '@/lib/dates';
 import {fileDay} from '@/lib/history';
 import {describe, emergencyText, explain, groupRuns, noteworthy, OUTCOMES, resetRefusedText, type MowerEvent, type Run} from '@/lib/events';
-import {useMowbiteOs} from '@/lib/mowerOs';
+import {useMowbiteOs, useOsApi} from '@/lib/mowerOs';
+import {useChargeConfirmed} from '@/hooks/useChargeConfirmed';
 import {settingsStore} from '@/lib/settings';
 import {PARTS, useDueParts} from '@/lib/stats';
 import {containerHas, useUpdates} from '@/lib/updates';
@@ -122,10 +123,13 @@ function FactValue({value}: {value: string}) {
   );
 }
 
-function headline(state: MowerState, docked: boolean, charger: boolean, charged: boolean, area: string | undefined) {
+// confirmed: MowBite OS said it charges (true) or not yet (false), null when it isn't known, undefined on OpenMower
+function headline(state: MowerState, docked: boolean, charger: boolean, charged: boolean, area: string | undefined, confirmed?: boolean | null) {
   if (state.emergency) return {title: tr('Emergency stop'), tone: 'error'};
   // left on in the dock it says so, it's why the map shows. docked is idle only, so it's the station's contacts here
   if (state.current_state === 'AREA_RECORDING') return {title: charger ? tr('Recording mode, in the dock') : tr('Recording an area'), tone: 'live'};
+  if (docked && confirmed === false) return {title: tr('In the dock, not charging'), tone: 'warn'};
+  if (docked && confirmed === null) return {title: tr('In the dock'), tone: 'good'};
   if (docked) return charged ? {title: tr('Charged, in the dock'), tone: 'good'} : {title: tr('Charging in the dock'), tone: 'good'};
   switch (state.current_state) {
     case 'MOWING':
@@ -212,6 +216,7 @@ export default function Home() {
   useMapAhead(map);
   const recent = useRecentRuns(state?.current_state);
   const os = useMowbiteOs();
+  const api = useOsApi();
   // the last finished mow, for what it left. one that drove the leftovers of the one before left nothing to look at
   const leftoverRun = recent?.latest.find((r) => r.outcome === 'done' && r.areas.length > 0 && r.jobId);
   const leftoverJob = leftoverRun?.jobId;
@@ -323,9 +328,11 @@ export default function Home() {
   if (confirmReset && (!live || !hasAction(ACTION.resetJob))) setConfirmReset(false);
   const showMap = !!map && (driving || settings.dashboard?.map === 'always');
   const docked = isDocked(state, values['om_v_charge']);
+  const charger = onCharger(state, values['om_v_charge']);
+  const confirmed = useChargeConfirmed(api, state ? charger : undefined, recent?.today, recent?.latest);
   const battery = level ?? (state ? Math.round(state.battery_percentage * 100) : 0);
   const num = (id: string) => (values[id] !== undefined ? Number(values[id]) : undefined);
-  const charging = docked && !chargeDone(values['om_charge_state'], num('om_charge_current'), battery);
+  const charging = docked && confirmed !== false && !chargeDone(values['om_charge_state'], num('om_charge_current'), battery);
 
   // what the event history knows: since when this state holds and which area is being mowed
   const events = recent?.today ?? [];
@@ -336,7 +343,7 @@ export default function Home() {
   // by current_area and the map like the progress (the history comes up to 30 s later), else by the last area event
   const onArea = current === 'MOWING' && (state?.current_area ?? -1) >= 0 ? map?.areas.filter((a) => a.properties.type === 'mow')[state!.current_area!] : undefined;
   const area = current === 'MOWING' ? onArea?.properties.name || lastOf((e) => e.type === 'AREA')?.area_name : undefined;
-  const head = state ? headline(state, docked, onCharger(state, values['om_v_charge']), docked && !charging, area) : null;
+  const head = state ? headline(state, docked, charger, docked && !charging, area, confirmed) : null;
 
   // dressed up: a towel at 42 %, an umbrella while it sits out the rain, a witch's hat on halloween
   const halloween = useHalloween();
@@ -379,6 +386,8 @@ export default function Home() {
       facts.push({label: tr('Progress'), value: `${pct} %${left}`, wide: true, extra: pct === 42 ? <DontPanic /> : undefined});
     }
     if (charging && num('om_charge_current') !== undefined) facts.push({label: tr('Charging'), value: `${fmt(num('om_charge_current')!, 1)} A`});
+    else if (docked && confirmed === false && num('om_charge_current') !== undefined)
+      facts.push({label: tr('Charge current'), value: `${fmt(num('om_charge_current')!, 2)} A`, warn: true});
     if (num('om_v_battery') !== undefined) facts.push({label: tr('Battery'), value: `${fmt(num('om_v_battery')!, 1)} V`});
     if (state.rain_detected) facts.push({label: tr('Rain'), value: tr('detected'), warn: true});
   }

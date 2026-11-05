@@ -6,8 +6,9 @@ import de from './i18n/de';
 // OS-Events für HA"). A list of variants each, the first that fits is taken: when and unless compare the event's fields
 // (all of them, exactly, {present: true} for one that's there). {field} is put in as it is, {field:n} with n decimals,
 // "?" when it's missing. {X_clock} is a field X in unix s as the reader's own clock time (HH:MM), put in by the reader
-// itself: a variant with it has when X_clock and one without the time after it, for a reader that doesn't. The
-// severity is for events that don't bring their own (OpenMower, MowBite OS before E6).
+// itself: a variant with it has when X_clock and one without the time after it, for a reader that doesn't. no_fix is
+// put in the same way, true for an accuracy of 999 m and more (no position at all, not 999 m off). The severity is for
+// events that don't bring their own (OpenMower, MowBite OS before E6).
 
 export type Severity = 'error' | 'warning' | 'info';
 type Value = string | number | boolean;
@@ -84,13 +85,30 @@ export const EVENTS: Record<string, EventText> = {
   AREA_SKIPPED: {severity: 'info', variants: [alone({en: 'Area skipped'})]},
   UNDOCKED: one('Left the dock'),
   UNDOCKING_FAILED: {severity: 'error', join: '{head} ({reason})', variants: [{en: 'Leaving the dock failed'}]},
-  DOCKING: {severity: 'info', reader_logic: true, variants: [{en: 'Heading home'}]},
+  // OpenMower's free text is the reader's, MowBite OS's names are here
+  DOCKING: {
+    severity: 'info',
+    reader_logic: true,
+    variants: [
+      alone({when: {reason: 'MANUAL'}, en: 'Sent home'}),
+      {when: {reason: 'BATTERY_LOW'}, en: 'Heading home to charge'},
+      {when: {reason: 'BATTERY_CRITICAL'}, en: 'Heading home to charge', severity: 'warning'},
+      {when: {reason: 'BATTERY_HOT'}, en: 'Heading home', severity: 'warning'},
+      {when: {reason: 'MOTOR_HOT'}, en: 'Heading home', severity: 'warning'},
+      {en: 'Heading home'},
+    ],
+  },
   DOCKING_RETRY: {
     severity: 'warning',
     join: '{head} ({reason})',
     variants: [{when: {attempts: {present: true}}, en: 'Docking retry {attempts}'}, {en: 'Docking retry'}],
   },
-  DOCKING_FAILED: {severity: 'error', join: '{head} ({reason})', variants: [{en: 'Docking failed after {attempts} tries'}]},
+  // MowBite OS: without attempts when it couldn't set off for the dock (no position, no heading)
+  DOCKING_FAILED: {
+    severity: 'error',
+    join: '{head} ({reason})',
+    variants: [{when: {attempts: {present: true}}, en: 'Docking failed after {attempts} tries'}, {en: 'Docking failed'}],
+  },
   DOCKED: one('Docked'),
   JOB_COMPLETE: one('All areas done'),
   JOB_RESET: one('Interrupted job dropped, the next start mows from the beginning'),
@@ -135,9 +153,18 @@ export const EVENTS: Record<string, EventText> = {
     ],
   },
   POSITION_JUMP: {severity: 'warning', variants: [{when: {distance: {present: true}}, en: 'Position jumped {distance:2} m'}, {en: 'Position jumped'}]},
+  // only when it can't go home (no docking station, no contacts at the back), else it's a DOCKING
   BATTERY_LOW: {
     severity: 'warning',
-    variants: [alone({when: {battery_voltage: {present: true}}, en: 'Battery low ({battery_voltage:1} V)'}), alone({en: 'Battery low'})],
+    variants: [
+      alone({when: {battery_voltage: {present: true}}, en: "Battery low ({battery_voltage:1} V), it can't go home and stays where it is"}),
+      alone({en: "Battery low, it can't go home and stays where it is"}),
+    ],
+  },
+  // charging stopped while it stood in the dock, it stays there
+  CHARGING_LOST: {
+    severity: 'warning',
+    variants: [{when: {battery_percentage: {present: true}}, en: 'Not charging ({battery_percentage} %)'}, {en: 'Not charging'}],
   },
   MAP_DATUM: one('No mowing', 'error'),
   RECORDING_REFUSED: {
@@ -192,14 +219,41 @@ export const REASONS: Record<string, Variant[]> = {
   NO_SAFETY_MEASUREMENT: [r('safety not yet verified on this platform, mowing and driving are blocked')],
   ON_DOCK: [r('on the docking station, drive it off by remote control first')],
   RAIN: [r('rain')],
+  DARK: [r('the sun has set')],
   BATTERY_LOW: [
+    r('battery low ({battery_voltage:1} V)', {when: {type: 'DOCKING', battery_voltage: {present: true}}}),
     r('battery low ({battery_voltage:1} V, at least {limit:1} V needed)', {when: {battery_voltage: {present: true}, limit: {present: true}}}),
     r('battery low ({battery_voltage:1} V)', {when: {battery_voltage: {present: true}}}),
     r('battery low'),
   ],
+  BATTERY_CRITICAL: [r('battery critically low ({battery_voltage:1} V)', {when: {battery_voltage: {present: true}}}), r('battery critically low')],
+  BATTERY_HOT: [
+    r('battery too hot ({temperature:0} °C, the limit is {limit:0} °C)', {when: {temperature: {present: true}, limit: {present: true}}}),
+    r('battery too hot ({temperature:0} °C)', {when: {temperature: {present: true}}}),
+    r('battery too hot'),
+  ],
+  // a start turned down: limit is motor_cold_temperature there
+  MOTOR_HOT: [
+    r('mow motor still too hot ({temperature:0} °C, it has to cool down to {limit:0} °C)', {
+      when: {type: 'MOWING_REFUSED', temperature: {present: true}, limit: {present: true}},
+    }),
+    r('mow motor too hot ({temperature:0} °C, the limit is {limit:0} °C)', {when: {temperature: {present: true}, limit: {present: true}}}),
+    r('mow motor too hot ({temperature:0} °C)', {when: {temperature: {present: true}}}),
+    r('mow motor too hot'),
+  ],
+  // in the dock: the contacts left for 10 s without a drive of its own, or no current coming. current and limit in A
+  NO_CHARGE_CURRENT: [
+    r('in the dock, but no charge current ({current:2} A, at least {limit:2} A expected)', {
+      when: {type: 'CHARGING_LOST', current: {present: true}, limit: {present: true}},
+    }),
+    r('in the dock, but no charge current', {when: {type: 'CHARGING_LOST'}}),
+    r('on the contacts but not charging'),
+  ],
+  NO_DOCK_CONTACT: [r('off the charging contacts', {when: {type: 'CHARGING_LOST'}}), r('no contact with the docking station')],
   NO_POSITION: [r('no position')],
   POSE_LOST: [r('position lost')],
   POSITION_ACCURACY: [
+    r('no position', {when: {no_fix: true}}),
     r('position accurate to {accuracy:2} m, points need {limit:2} m or better', {when: {action: 'point'}}),
     r('position accurate to {accuracy:2} m, points need {limit:2} m or better', {when: {action: 'collect_point'}}),
     r('position accurate to {accuracy:2} m, the docking station needs {limit:2} m or better', {when: {action: 'record_dock'}}),

@@ -12,6 +12,7 @@ export type SystemInfo = {name: string; version?: string; platform?: string; sch
 const MOWBITE_OS = 'mowbite-os';
 let info: Promise<SystemInfo | null> | null = null;
 let os: boolean | null = null;
+let api: number | null = null;
 
 export function systemInfo(): Promise<SystemInfo | null> {
   info ??= (async () => {
@@ -34,6 +35,7 @@ export function systemInfo(): Promise<SystemInfo | null> {
   })();
   return info.then((i) => {
     os = isMowbiteOs(i);
+    api = os ? (i!.api ?? 0) : 0;
     return i;
   });
 }
@@ -51,6 +53,19 @@ export function useMowbiteOs(): boolean {
     };
   }, []);
   return is;
+}
+
+// MowBite OS's api version, 0 on OpenMower and until it's known
+export function useOsApi(): number {
+  const [v, setV] = useState(() => api ?? 0);
+  useEffect(() => {
+    let alive = true;
+    void systemInfo().then((i) => alive && setV(isMowbiteOs(i) ? (i!.api ?? 0) : 0));
+    return () => {
+      alive = false;
+    };
+  }, []);
+  return v;
 }
 
 // the lane spacing for all areas on MowBite OS, where mower_logic has no tool_width: the blade width less the overlap,

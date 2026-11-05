@@ -240,7 +240,7 @@ describe('what the container sends', {timeout: 30_000}, () => {
       ["Mow motor didn't start", "Steve paused: the blade didn't switch on. It waits until you continue it."],
       ["Map doesn't fit", "Steve won't mow: the map has no reference point recorded."],
       ['Mowing not started', "Steve didn't start mowing: Something, new."],
-      ['Battery low', 'Steve is low on battery (22.4 V).'],
+      ['Battery low', "Steve is low on battery (22.4 V) and can't go home, it stays where it is."],
     ]);
     expect(run(event(100, '{"type":"MOWING_REFUSED","reason":"RAIN"}'), os.replace('lang en', 'lang de'))[0].message).toBe(
       'Steve hat nicht mit dem Mähen begonnen: Regen.',
@@ -258,6 +258,54 @@ describe('what the container sends', {timeout: 30_000}, () => {
     const hold = event(100, '{"type":"MOWING_REFUSED","reason":"HOLD","until":1793754213,"severity":"info","resume":"user","message":"Updating"}');
     expect(run(hold, os)[0].message).toBe("Steve didn't start mowing: update running.");
     expect(run(hold, os.replace('lang en', 'lang de'))[0].message).toBe('Steve hat nicht mit dem Mähen begonnen: Update läuft.');
+  });
+
+  // MowBite OS: is_charging is only the contacts there, DOCKED says it charges
+  it('tells when MowBite OS is in the dock without charging, once, until DOCKED', () => {
+    const failed = event(100, '{"type":"DOCKING_FAILED","reason":"NO_CHARGE_CURRENT","current":0.01,"limit":0.3,"attempts":3,"severity":"error","resume":"user"}');
+    const out = run(failed + state(110, 0, 1) + state(200, 0, 1) + state(400, 0, 1) + event(500, '{"type":"DOCKED"}'), conf);
+    expect(out.map((m) => [m.title, m.message])).toEqual([
+      ['Not charging', 'Steve is in the dock but not charging. Does the docking station have power?'],
+      ['Charging again', 'Steve is charging again.'],
+    ]);
+    // no snooze button, it isn't reminded of
+    expect(out[0].actions).toHaveLength(1);
+    const lost = (reason: string) => event(100, `{"type":"CHARGING_LOST","reason":"${reason}","battery_percentage":64,"severity":"warning","resume":"user"}`);
+    expect(run(lost('NO_CHARGE_CURRENT') + state(200, 0, 1) + state(400, 0, 1), conf).map((m) => m.message)).toEqual([
+      'Steve is in the dock but not charging (64 %). Does the docking station have power?',
+    ]);
+    const off = run(lost('NO_DOCK_CONTACT') + state(200, 0) + event(300, '{"type":"STATE","state":"UNDOCKING"}'), conf);
+    expect(off.map((m) => m.message)).toEqual(["Steve lost contact with the docking station and isn't charging (64 %)."]);
+    expect(run(lost('NO_DOCK_CONTACT'), conf.replace('lang en', 'lang de'))[0].message).toBe(
+      'Steve hat keinen Kontakt mehr zur Ladestation und lädt nicht (64 %).',
+    );
+    // it didn't set off for the dock, no tries
+    const out2 = run(event(100, '{"type":"DOCKING_FAILED","reason":"POSITION_ACCURACY","accuracy":999,"limit":0.1,"severity":"error","resume":"user"}'), conf);
+    expect(out2.map((m) => [m.title, m.message])).toEqual([["Can't go home", "Steve couldn't set off for the dock (no position) and is waiting outside."]]);
+  });
+
+  it('tells why MowBite OS goes home, or stays out without a way home', () => {
+    const os = 'topic t\nlang en\nname Steve\nevents nav_error,rain,battery,dark\n';
+    const out = run(
+      event(100, '{"type":"DOCKING","reason":"RAIN","severity":"info","resume":"user"}') +
+        event(110, '{"type":"DOCKING","reason":"BATTERY_CRITICAL","battery_voltage":20.9,"limit":21,"severity":"warning","resume":"user"}') +
+        event(120, '{"type":"DOCKING","reason":"DARK","sun_elevation":-1.2,"limit":-0.833,"severity":"info","resume":"user"}') +
+        event(130, '{"type":"DOCKING","reason":"MANUAL","severity":"info","resume":"user"}') +
+        event(140, '{"type":"DOCKING","reason":"MOTOR_HOT","temperature":71,"limit":70,"severity":"warning","resume":"user"}') +
+        event(150, '{"type":"STATE","state":"PAUSED","reason":"RAIN","severity":"info","resume":"user"}') +
+        event(160, '{"type":"STATE","state":"PAUSED","reason":"BATTERY_HOT","temperature":57,"limit":55,"severity":"warning","resume":"user"}'),
+      os,
+    );
+    expect(out.map((m) => [m.title, m.message])).toEqual([
+      ['Rain', "Steve is going home, it's raining."],
+      ['Battery low', 'Steve is going home to charge.'],
+      ['Sunset', 'Steve is going home, the sun has set.'],
+      ['Rain', "Steve stopped for rain and waits where it is, it can't go home by itself."],
+      ['Paused, waiting', 'Steve paused: battery too hot (57 °C). It waits until you continue it.'],
+    ]);
+    expect(run(event(100, '{"type":"MOWING_REFUSED","reason":"MOTOR_HOT","temperature":52,"limit":40}'), 'topic t\nlang de\nname Steve\nevents refused\n')[0].message).toBe(
+      'Steve hat nicht mit dem Mähen begonnen: Mähmotor noch zu heiß (52 °C).',
+    );
   });
 
   it("leaves out what goes on by itself, what was asked for and MowBite OS's free text from before", () => {

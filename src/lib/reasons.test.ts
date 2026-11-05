@@ -17,7 +17,7 @@ describe('reasons.json for MowBite for Home Assistant', () => {
   it('has english for every variant and german where de.ts has it', () => {
     const file = JSON.parse(made);
     for (const t of Object.values(file.events) as {variants: {en: string; de?: string}[]}[]) for (const v of t.variants) expect(v.en).toBeTruthy();
-    expect(file.reasons.BATTERY_LOW[0].de).toBe('Akku niedrig ({battery_voltage:1} V, mindestens {limit:1} V nötig)');
+    expect(file.reasons.BATTERY_LOW[1].de).toBe('Akku niedrig ({battery_voltage:1} V, mindestens {limit:1} V nötig)');
     expect(file.events.MOWING_REFUSED.variants[0]).toEqual({en: 'Mowing not started', de: 'Mähen nicht gestartet'});
     expect(file.emergency_bits['2']).toBe('STOP');
     expect(file.emergency_hide_with.LIFT).toBe('LIFT_MULTIPLE');

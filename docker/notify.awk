@@ -5,7 +5,7 @@
 #   topic, push (a phone's address, a line each), lang (de/en), name (of the mower), url (where MowBite is, for its
 #   button and a tap on the message),
 #   events (which of: emergency, dock_failed, undock_failed, nav_error, spinup, standstill, refused, done, rain, battery,
-#   maintenance),
+#   dark, maintenance),
 #   remind (minutes between reminders while the mower can't get on by itself, 0: none),
 #   emergency_wait (seconds an emergency stop has to last before it's told, 10 unless set), enabled (0: switched off)
 # and SNOOZE: until when (unix time) there are no reminders. STATS: where stats.sh counts the blade hours, a part
@@ -18,9 +18,10 @@
 # battery is full), outside recording, an emergency stop and a pause by hand (actions/json). waiting for gps, stuck,
 # left waiting on the lawn, or in a dock without power. told once, a dock without power stays so all night
 # MowBite OS says why with a fixed name (masterplan 3.1a): a start it turns down or the map not fitting (refused), a
-# pause that waits for someone (nav_error, a blade that didn't switch on: spinup), the battery low. a name not known
-# here goes by the english text it comes with. a reset of the emergency stop it turns down isn't told, whoever reset it
-# sees why in the app
+# pause that waits for someone (nav_error, a blade that didn't switch on: spinup), the battery low, why it goes home.
+# a name not known here goes by the english text it comes with. a reset of the emergency stop it turns down isn't told,
+# whoever reset it sees why in the app. there is_charging is only the contacts: a docking given up stays open until
+# DOCKED says it charges, and charging lost in the dock (CHARGING_LOST) is told with it, once, no reminders all night
 
 function field(s, k,   v) {
   if (!match(s, "\"" k "\" *: *(\"[^\"]*\"|[^,}]*)")) return ""
@@ -63,8 +64,8 @@ function readconf(   line, k) {
 
 function on(kind) { return index(events, "," kind ",") > 0 }
 
-# standing still is told once, the other problems are reminded of while they last
-function reminds(kind) { return remind && kind != "standstill" }
+# standing still and not charging in the dock are told once, the other problems are reminded of while they last
+function reminds(kind) { return remind && kind != "standstill" && !(kind == "dock_failed" && dock_why ~ /^(NO_CHARGE_CURRENT|lost)/) }
 
 function tx(en, de) { return lang == "de" ? de : en }
 
@@ -88,6 +89,17 @@ function reason(j,   r, m) {
   if (r == "NO_SAFETY_MEASUREMENT") return tx("safety not yet verified on this platform, mowing and driving are blocked", "Sicherheit auf dieser Plattform noch nicht nachgemessen, Mähen und Fahren sind gesperrt")
   if (r == "ON_DOCK") return tx("on the docking station, drive it off by remote control first", "steht auf der Ladestation, erst per Fernsteuerung herunterfahren")
   if (r == "RAIN") return tx("rain", "Regen")
+  if (r == "DARK") return tx("the sun has set", "die Sonne ist untergegangen")
+  if (r == "MANUAL") return tx("by hand", "von Hand")
+  if (r == "BATTERY_CRITICAL") return tx("battery critically low", "Akku kritisch niedrig") (field(j, "battery_voltage") == "" ? "" : " (" num(field(j, "battery_voltage"), 1) " V)")
+  if (r == "BATTERY_HOT") return tx("battery too hot", "Akku zu heiß") (field(j, "temperature") == "" ? "" : " (" num(field(j, "temperature"), 0) " °C)")
+  if (r == "MOTOR_HOT") {
+    m = field(j, "temperature") == "" ? "" : " (" num(field(j, "temperature"), 0) " °C)"
+    if (field(j, "type") == "MOWING_REFUSED") return tx("mow motor still too hot", "Mähmotor noch zu heiß") m
+    return tx("mow motor too hot", "Mähmotor zu heiß") m
+  }
+  if (r == "NO_CHARGE_CURRENT") return tx("on the contacts but not charging", "auf den Kontakten, lädt aber nicht")
+  if (r == "NO_DOCK_CONTACT") return tx("no contact with the docking station", "kein Kontakt zur Ladestation")
   if (r == "BATTERY_LOW") {
     if (field(j, "battery_voltage") == "") return tx("battery low", "Akku niedrig")
     return tx("battery low (", "Akku niedrig (") num(field(j, "battery_voltage"), 1) " V)"
@@ -97,6 +109,8 @@ function reason(j,   r, m) {
   if (r == "POSITION_ACCURACY") {
     m = field(j, "accuracy")
     if (m == "" || m == "null") return tx("position not accurate enough", "Position nicht genau genug")
+    # xbot_positioning's no fix
+    if (m + 0 >= 999) return tx("no position", "keine Position")
     if (field(j, "limit") == "" || field(j, "limit") == "null") return tx("position accurate to ", "Position auf ") num(m, 2) tx(" m", " m genau")
     return tx("position accurate to ", "Position auf ") num(m, 2) tx(" m, ", " m genau, nötig sind ") num(field(j, "limit"), 2) tx(" m or better needed", " m oder besser")
   }
@@ -184,7 +198,12 @@ function tell(phase, why,   m) {
       send(problem, phase, tx("Emergency stop", "Notaus"), m, phase == "new" ? 5 : 4, "rotating_light")
     }
   } else if (problem == "dock_failed") {
-    if (phase == "clear") send(problem, phase, tx("Back in the dock", "Wieder im Dock"), tx(who() " is charging again.", who() " lädt wieder."), 2, "white_check_mark")
+    if (phase == "clear") send(problem, phase, tx(dock_why ~ /^(NO_CHARGE_CURRENT|lost)/ ? "Charging again" : "Back in the dock", dock_why ~ /^(NO_CHARGE_CURRENT|lost)/ ? "Lädt wieder" : "Wieder im Dock"), tx(who() " is charging again.", who() " lädt wieder."), 2, "white_check_mark")
+    # MowBite OS: in the dock without current, docking given up for it or charging lost there (with the battery's charge)
+    else if (dock_why == "NO_CHARGE_CURRENT") send(problem, phase, tx("Not charging", "Lädt nicht"), tx(who() " is in the dock but not charging. Does the docking station have power?", who() " steht im Dock, lädt aber nicht. Hat die Ladestation Strom?"), 4, "warning")
+    else if (dock_why ~ /^lost/) send(problem, phase, tx("Not charging", "Lädt nicht"), (dock_why == "lost NO_DOCK_CONTACT" ? tx(who() " lost contact with the docking station and isn't charging", who() " hat keinen Kontakt mehr zur Ladestation und lädt nicht") : tx(who() " is in the dock but not charging", who() " steht im Dock, lädt aber nicht")) (dock_pct == "" ? "" : " (" dock_pct " %)") (dock_why == "lost NO_DOCK_CONTACT" ? "." : tx(". Does the docking station have power?", ". Hat die Ladestation Strom?")), 4, "warning")
+    # it didn't set off for the dock (no position, no heading), it waits out there
+    else if (dock_tries == "" && dock_os) send(problem, phase, tx("Can't go home", "Kann nicht heim"), phase == "new" ? tx(who() " couldn't set off for the dock (" dock_text ") and is waiting outside.", who() " konnte nicht zum Dock losfahren (" dock_text ") und wartet draußen.") : tx(who() " is still outside the dock (for " minutes(t - since) " min).", who() " steht immer noch außerhalb des Docks (seit " minutes(t - since) " min)."), 4, "warning")
     else send(problem, phase, tx("Docking failed", "Andocken fehlgeschlagen"), phase == "new" ? tx(who() " gave up docking after several tries and is standing outside the dock.", who() " hat das Andocken nach mehreren Versuchen aufgegeben und steht außerhalb des Docks.") : tx(who() " is still outside the dock (for " minutes(t - since) " min).", who() " steht immer noch außerhalb des Docks (seit " minutes(t - since) " min)."), 4, "warning")
   } else if (problem == "standstill") {
     if (phase == "clear") {
@@ -299,7 +318,8 @@ BEGIN {
       em_t = 0
     }
     charging = field(json, "is_charging")
-    if (problem == "dock_failed" && (charging == "1" || charging == "true")) close_problem(1)
+    # (on MowBite OS that's only the contacts, DOCKED tells)
+    if (problem == "dock_failed" && !dock_os && (charging == "1" || charging == "true")) close_problem(1)
     # not out of the dock and charging there: told once, no reminders all night
     if (problem == "undock_failed" && undock_why != "no_gps" && (charging == "1" || charging == "true")) close_problem(0)
     standstill(field(json, "current_state"), field(json, "x") + 0, field(json, "y") + 0, charging == "1" || charging == "true" || v_charge > 20)
@@ -316,7 +336,16 @@ BEGIN {
     }
   } else if (topic_in ~ /events\/json$/) {
     type = field(json, "type")
-    if (type == "DOCKING_FAILED") open("dock_failed")
+    if (type == "DOCKING_FAILED") {
+      # MowBite OS rates its events, OpenMower doesn't
+      dock_os = field(json, "severity") != ""
+      dock_why = field(json, "reason"); dock_tries = field(json, "attempts"); dock_text = reason(json)
+      open("dock_failed")
+    } else if (type == "CHARGING_LOST") {
+      dock_os = 1
+      dock_why = "lost " field(json, "reason"); dock_pct = field(json, "battery_percentage")
+      open("dock_failed")
+    }
     else if (type == "UNDOCKING_FAILED") {
       undock_why = field(json, "reason")
       open("undock_failed")
@@ -331,26 +360,34 @@ BEGIN {
     } else if (type == "JOB_COMPLETE") info("done", tx("Done mowing", "Fertig gemäht"), tx(who() " has finished the job.", who() " hat den Mähvorgang abgeschlossen."), "seedling")
     else if (type == "DOCKING") {
       why = field(json, "reason")
-      if (why ~ /[Rr]ain/) info("rain", tx("Rain", "Regen"), tx(who() " is going home, it's raining.", who() " fährt wegen Regen nach Hause."), "cloud_with_rain")
-      else if (why ~ /[Bb]attery/) info("battery", tx("Battery low", "Akku niedrig"), tx(who() " is going home to charge.", who() " fährt zum Laden nach Hause."), "battery")
+      if (why == "RAIN" || why ~ /^Rain/) info("rain", tx("Rain", "Regen"), tx(who() " is going home, it's raining.", who() " fährt wegen Regen nach Hause."), "cloud_with_rain")
+      else if (why == "BATTERY_LOW" || why == "BATTERY_CRITICAL" || why ~ /^Battery/) info("battery", tx("Battery low", "Akku niedrig"), tx(who() " is going home to charge.", who() " fährt zum Laden nach Hause."), "battery")
+      else if (why == "DARK") info("dark", tx("Sunset", "Sonnenuntergang"), tx(who() " is going home, the sun has set.", who() " fährt nach Hause, die Sonne ist untergegangen."), "city_sunset")
     } else if (type == "MOWING_REFUSED" && coded(json)) {
       # busy and still stopping go by themselves, a start pressed again a moment later
       why = field(json, "reason")
       if (why != "BUSY" && why != "STILL_STOPPING") info("refused", tx("Mowing not started", "Mähen nicht gestartet"), tx(who() " didn't start mowing: ", who() " hat nicht mit dem Mähen begonnen: ") reason(json) ".", "warning")
     } else if (type == "MAP_DATUM" && coded(json)) info("refused", tx("Map doesn't fit", "Karte passt nicht"), tx(who() " won't mow: ", who() " mäht nicht: ") reason(json) ".", "warning")
-    else if (type == "BATTERY_LOW") info("battery", tx("Battery low", "Akku niedrig"), tx(who() " is low on battery", who() " hat wenig Akku") (field(json, "battery_voltage") == "" ? "" : " (" num(field(json, "battery_voltage"), 1) " V)") ".", "battery")
+    # MowBite OS: it can't go home, else it'd be a DOCKING
+    else if (type == "BATTERY_LOW") info("battery", tx("Battery low", "Akku niedrig"), tx(who() " is low on battery", who() " hat wenig Akku") (field(json, "battery_voltage") == "" ? "" : " (" num(field(json, "battery_voltage"), 1) " V)") tx(" and can't go home, it stays where it is.", " und kann nicht heim, er bleibt stehen."), "battery")
     else if (type == "STATE") {
       st = field(json, "state")
       # MowBite OS paused and waits for someone (one waiting for the position goes on by itself). the blade not reaching
       # its speed comes as MOW_MOTOR_SPINUP_FAILED too
       why = field(json, "reason")
       if (st == "PAUSED" && coded(json) && field(json, "resume") == "user" && why != "MANUAL" && why != "EMERGENCY" && why != "BLADE_SPINUP_FAILED") {
-        if (why == "BLADE_REFUSED") info("spinup", tx("Mow motor didn't start", "Mähmotor lief nicht an"), tx(who() " paused: ", who() " hat pausiert: ") reason(json) "." tx(" It waits until you continue it.", " Wartet, bis du fortsetzt."), "warning")
+        # a reason to go home without a way there (no docking station, no contacts at the back): rain and the dark as
+        # those, too hot as a pause that waits
+        if (why == "RAIN") info("rain", tx("Rain", "Regen"), tx(who() " stopped for rain and waits where it is, it can't go home by itself.", who() " hat wegen Regen angehalten und wartet an Ort und Stelle, allein kann er nicht heim."), "cloud_with_rain")
+        else if (why == "DARK") info("dark", tx("Sunset", "Sonnenuntergang"), tx(who() " stopped, the sun has set. It waits where it is, it can't go home by itself.", who() " hat angehalten, die Sonne ist untergegangen. Er wartet an Ort und Stelle, allein kann er nicht heim."), "city_sunset")
+        else if (why == "BLADE_REFUSED") info("spinup", tx("Mow motor didn't start", "Mähmotor lief nicht an"), tx(who() " paused: ", who() " hat pausiert: ") reason(json) "." tx(" It waits until you continue it.", " Wartet, bis du fortsetzt."), "warning")
         else info("nav_error", tx("Paused, waiting", "Pausiert, wartet"), tx(who() " paused: ", who() " hat pausiert: ") reason(json) "." tx(" It waits until you continue it.", " Wartet, bis du fortsetzt."), "warning")
       }
       if (st == "DOCKING" && nav_t && t - nav_t <= NAV_WAIT) nav_t = 0
       # started again, also by hand: what was before is over
       if ((st == "UNDOCKING" || st == "MOWING") && (problem == "dock_failed")) close_problem(0)
+      # charging lost in the dock is over once it drives (by hand or set off), a new one comes with its own event
+      if (st != "IDLE" && problem == "dock_failed" && dock_why ~ /^lost/) close_problem(0)
       if (st == "MOWING" && problem == "undock_failed") close_problem(1)
     }
   }
