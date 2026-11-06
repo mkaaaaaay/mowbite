@@ -983,7 +983,7 @@ const de: Record<string, string> = {
   "its data couldn't be put back, see the log. The copies stay on the mower.": "Daten ließen sich nicht zurückspielen, siehe Protokoll. Die Sicherungen bleiben auf dem Mäher.",
   "this copy of its data is gone": "diese Sicherung gibt es nicht mehr",
   "its data from {when} put back, what it had before is kept": "Daten von {when} zurückgespielt, der Stand davor ist gesichert",
-  "The new version didn't start and had changed the format of its data: it went back to the one before by itself, with its data from before the update. What it had then is kept.": "Die neue Version ist nicht gestartet und hatte das Format ihrer Daten geändert: Er ist von selbst auf die vorige zurückgegangen, mit den Daten von vor dem Update. Der Stand danach ist gesichert.",
+  "It had changed the format of its data: that is back as before the update, what it had then is kept.": "Sie hatte das Format ihrer Daten geändert: Die Daten sind wieder auf dem Stand vor dem Update, der Stand danach ist gesichert.",
   "Putting its data back": "Spielt die Daten zurück",
   "OpenMower's .env can't be read or changed, nothing changed": "OpenMowers .env ließ sich nicht lesen oder ändern, nichts geändert",
   "the update of itself didn't start, the updater stays as it is": "Selbst-Update nicht gestartet, der Updater bleibt, wie er ist",

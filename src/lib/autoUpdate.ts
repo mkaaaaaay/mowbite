@@ -152,8 +152,8 @@ export function frameTakesTaps(base: string, here: {protocol: string; hostname: 
 
 // what it does right now, for the bar: the part, the step, its percent (null: no telling, the bar moves without one),
 // since when, and of unpacking and building how many of how many. only while a run goes on
-export type Step = 'prepare' | 'download' | 'extract' | 'build' | 'restart' | 'wait' | 'back' | 'data';
-const STEPS: Step[] = ['prepare', 'download', 'extract', 'build', 'restart', 'wait', 'back', 'data'];
+const STEPS = ['prepare', 'download', 'extract', 'build', 'restart', 'wait', 'back', 'data'] as const;
+export type Step = (typeof STEPS)[number];
 export interface Progress {
   part: Part;
   step: Step;
@@ -288,13 +288,10 @@ export function partResult(s: UpdateState, part: Part): PartResult | null {
         ? say(tr('stopped, it stays stopped as it was'), 'ok')
         : say(tr('not updated: the app is stopped right now'), 'warn');
     case 'rolled_back':
-      // (its data back too: the new version had changed its format)
-      if (rest.includes('data')) {
-        return say(tr("The new version didn't start and had changed the format of its data: it went back to the one before by itself, with its data from before the update. What it had then is kept."), 'warn');
-      }
       // (the updater itself writes its time along)
       return say(
-        tr("The new version didn't start, it went back to the one before by itself. That version is left out, only the next one is tried again."),
+        tr("The new version didn't start, it went back to the one before by itself. That version is left out, only the next one is tried again.") +
+          (rest.includes('data') ? ' ' + tr('It had changed the format of its data: that is back as before the update, what it had then is kept.') : ''),
         'warn',
         at ?? (/^\d+$/.test(rest[0] ?? '') ? when(rest[0]) : null),
       );
