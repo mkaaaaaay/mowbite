@@ -152,8 +152,8 @@ export function frameTakesTaps(base: string, here: {protocol: string; hostname: 
 
 // what it does right now, for the bar: the part, the step, its percent (null: no telling, the bar moves without one),
 // since when, and of unpacking and building how many of how many. only while a run goes on
-export type Step = 'prepare' | 'download' | 'extract' | 'build' | 'restart' | 'wait' | 'back';
-const STEPS: Step[] = ['prepare', 'download', 'extract', 'build', 'restart', 'wait', 'back'];
+const STEPS = ['prepare', 'download', 'extract', 'build', 'restart', 'wait', 'back', 'data'] as const;
+export type Step = (typeof STEPS)[number];
 export interface Progress {
   part: Part;
   step: Step;
@@ -191,6 +191,8 @@ export function stepLabel(p: Progress): string {
       return p.part === 'openmower' ? tr('Waiting until OpenMower is idle again') : tr('Waiting until it answers');
     case 'back':
       return tr('Going back to the version before');
+    case 'data':
+      return tr('Putting its data back');
   }
 }
 
@@ -262,6 +264,9 @@ export function partResult(s: UpdateState, part: Part): PartResult | null {
       return say(tr('updated {when}', {when: when(rest[0])}) + version, 'ok', null);
     case 'back':
       return say(tr('back to the version before {when}', {when: when(rest[0])}) + version, 'ok', null);
+    case 'data_back':
+      // (put back by hand on the updater's page: what it had before is kept there too)
+      return say(tr('its data from {when} put back, what it had before is kept', {when: when(rest[1])}), 'ok', null);
     case 'local':
       return say(kindOf(s, part) === 'local' ? null : tr('runs an image built here, updated only when asked'), 'ok');
     case 'nospace': {
@@ -285,7 +290,8 @@ export function partResult(s: UpdateState, part: Part): PartResult | null {
     case 'rolled_back':
       // (the updater itself writes its time along)
       return say(
-        tr("The new version didn't start, it went back to the one before by itself. That version is left out, only the next one is tried again."),
+        tr("The new version didn't start, it went back to the one before by itself. That version is left out, only the next one is tried again.") +
+          (rest.includes('data') ? ' ' + tr('It had changed the format of its data: that is back as before the update, what it had then is kept.') : ''),
         'warn',
         at ?? (/^\d+$/.test(rest[0] ?? '') ? when(rest[0]) : null),
       );
@@ -338,6 +344,12 @@ function failure(s: UpdateState, part: Part, [why, ...more]: string[], at: strin
       return error(tr('no stable release found'));
     case 'hold':
       return error(tr("nothing restarted: MowBite's schedule couldn't be held (mqtt)"));
+    case 'data':
+      return error(tr("nothing changed: its data couldn't be kept first"));
+    case 'data_put':
+      return error(tr("its data couldn't be put back, see the log. The copies stay on the mower."));
+    case 'no_data':
+      return warn(tr('this copy of its data is gone'));
     default:
       return error(tr('failed ({why}), see the log', {why: [why, ...more].filter(Boolean).join(' ') || '?'}));
   }

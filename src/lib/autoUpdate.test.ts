@@ -146,6 +146,11 @@ describe('the updater on the mower', () => {
     expect(partResult(state({mowbite: 'rolled_back'}), 'mowbite')!.level).toBe('warn');
     expect(partResult(state({mowbite: 'error back'}), 'mowbite')!.level).toBe('warn');
     expect(partResult(state({mowbite: 'error rollback'}), 'mowbite')!.level).toBe('error');
+    // rolled back with its data, data put back by hand
+    expect(partResult(state({mowbite: 'rolled_back data'}), 'mowbite')).toMatchObject({level: 'warn', text: expect.stringContaining('format of its data')});
+    expect(partResult(state({openmower: 'data_back 1792831337 1792800000'}), 'openmower')).toMatchObject({level: 'ok', text: expect.stringContaining('put back')});
+    expect(partResult(state({mowbite: 'error data'}), 'mowbite')!.text).toContain("couldn't be kept");
+    expect(partResult(state({mowbite: 'error data_put'}), 'mowbite')!.level).toBe('error');
     expect(runResult(state({result: 'interrupted'}))).toContain('halfway');
   });
 

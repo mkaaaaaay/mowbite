@@ -6,6 +6,9 @@ esc() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
 printf 'window.__MOWER_CONFIG__ = {mqttUrl: "%s", mqttPrefix: "%s"};\n' \
   "$(esc "$MOWER_MQTT_WS_URL")" "$(esc "$MOWER_MQTT_PREFIX")" > /www/config.js
 
+# (the format of /data, for the updater)
+/schema.sh || :
+
 /recorder.sh &
 /logkeeper.sh &
 /gpslog.sh &
