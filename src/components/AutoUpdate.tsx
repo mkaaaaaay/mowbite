@@ -351,7 +351,7 @@ function UpdaterCard({s, busy, now, anyAuto, onUpdate}: {s: UpdateState; busy: b
       {info.available === 'local' && (
         <span className={local.dim}>{tr('This is a version built on its own, not one from its registry. "Update" swaps it for the one from there.')}</span>
       )}
-      {anyAuto && <span className={local.dim}>{tr('It updates itself too, after the automatic updates at night.')}</span>}
+      {anyAuto && <span className={local.dim}>{tr('It updates itself too, at night with the automatic updates.')}</span>}
       {info.result && <LastTime r={info.result} />}
     </div>
   );
