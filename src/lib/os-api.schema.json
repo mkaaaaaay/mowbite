@@ -321,6 +321,9 @@
           "$ref": "#/$defs/event.EMERGENCY_RESET_REFUSED"
         },
         {
+          "$ref": "#/$defs/event.UNEXPECTED_RESTART"
+        },
+        {
           "$ref": "#/$defs/event.BLADES"
         },
         {
@@ -2281,7 +2284,8 @@
             "FOREIGN_HOST",
             "DRIVER_MISSING",
             "NO_ANSWER",
-            "SAFETY_MISSING"
+            "SAFETY_MISSING",
+            "RESTART_HOLD_STAYS"
           ],
           "type": "string"
         },
@@ -3379,6 +3383,132 @@
       "type": "object",
       "x-emitter": "logic"
     },
+    "event.UNEXPECTED_RESTART": {
+      "additionalProperties": false,
+      "description": "MowBite OS started after an end that was not its own stop, or after a kernel crash; hold tells whether the mower waits for emergency.reset (emergency bit UNEXPECTED_RESTART)",
+      "properties": {
+        "cause": {
+          "description": "What ended the OS before, the same as reason",
+          "enum": [
+            "KERNEL_CRASH",
+            "OS_CRASH",
+            "POWER_LOSS"
+          ],
+          "type": "string"
+        },
+        "client": {
+          "description": "Who sent the command (app, ha), for the log and the events of its step",
+          "pattern": "^[a-z][a-z0-9_-]{0,15}$",
+          "type": "string"
+        },
+        "crashed_at": {
+          "description": "When the kernel crashed, null when not known",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-unit": "unix s"
+        },
+        "detail": {
+          "description": "English text of what is known: the line of the kernel or what the OS found",
+          "type": "string"
+        },
+        "hold": {
+          "description": "The mower is held until a release, also by a hold from before",
+          "type": "boolean"
+        },
+        "id": {
+          "description": "Random id of the event, 32 letters and digits",
+          "type": "string"
+        },
+        "job_id": {
+          "description": "The job of mowing it belongs to",
+          "type": "string"
+        },
+        "job_id_before": {
+          "description": "The job of mowing then, null without one",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "message": {
+          "description": "English text for the log and for apps that do not know the reason",
+          "type": "string"
+        },
+        "reason": {
+          "description": "Why: a fixed name in capitals, rated in x-reasons",
+          "enum": [
+            "OS_CRASH",
+            "POWER_LOSS",
+            "KERNEL_CRASH"
+          ],
+          "type": "string"
+        },
+        "resume": {
+          "description": "auto when it goes on by itself, user when it waits for the user",
+          "enum": [
+            "auto",
+            "user"
+          ],
+          "type": "string"
+        },
+        "session_id": {
+          "description": "The session of the logic since its start",
+          "type": "string"
+        },
+        "severity": {
+          "description": "How bad it is",
+          "enum": [
+            "info",
+            "warning",
+            "error"
+          ],
+          "type": "string"
+        },
+        "state_before": {
+          "description": "The state before: current_state, DRIVING or CALIBRATING for IDLE with a drive; empty when not known",
+          "type": "string"
+        },
+        "t": {
+          "description": "When it happened",
+          "type": "number",
+          "x-unit": "unix s"
+        },
+        "type": {
+          "const": "UNEXPECTED_RESTART",
+          "description": "What happened; a type this version does not know carries only the envelope for sure"
+        },
+        "x": {
+          "description": "Where the mower was, east of the datum of the map",
+          "type": "number",
+          "x-unit": "m"
+        },
+        "y": {
+          "description": "Where the mower was, north of the datum of the map",
+          "type": "number",
+          "x-unit": "m"
+        }
+      },
+      "required": [
+        "id",
+        "t",
+        "type",
+        "x",
+        "y",
+        "cause",
+        "detail",
+        "crashed_at",
+        "state_before",
+        "job_id_before",
+        "hold",
+        "reason",
+        "severity",
+        "resume"
+      ],
+      "type": "object",
+      "x-emitter": "logic"
+    },
     "event.other": {
       "description": "An event of a type this version does not know, from the planner or a newer OS: only the envelope is fixed",
       "properties": {
@@ -3409,6 +3539,7 @@
               "POSITION_JUMP",
               "EMERGENCY",
               "EMERGENCY_RESET_REFUSED",
+              "UNEXPECTED_RESTART",
               "BLADES",
               "BATTERY_LOW",
               "AREA",
@@ -5113,11 +5244,11 @@
       "type": "object"
     }
   },
-  "$id": "urn:mowbite-os:api:6",
+  "$id": "urn:mowbite-os:api:7",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "description": "robot_state, actions, events and RPC methods of MowBite OS over MQTT, as system.api gives them; made from the code, objects sorted by key. x-reasons has severity and resume of every reason by event (COMMAND_REFUSED and REQUEST_REFUSED only in refusals), x-emergency-bits the bits of emergency, x-commands the commands with params, result, the event of their refusal and the actions that do the same, x-methods every RPC method of the OS with its node (planner.* are the planner's, sim.* only in the simulation), x-sensors the sensors by id, x-settings the settings of params.set with the ranges of the OS, x-geometry the keys of robot.geometry.",
+  "description": "robot_state, actions, events and RPC methods of MowBite OS over MQTT, as system.api gives them; made from the code, objects sorted by key. x-reasons has severity and resume of every reason by event (COMMAND_REFUSED and REQUEST_REFUSED only in refusals; when: another rating for these field values; texts: name, help and fix by language), x-emergency-bits the bits of emergency, x-commands the commands with params, result, the event of their refusal and the actions that do the same, x-methods every RPC method of the OS with its node (planner.* are the planner's, sim.* only in the simulation), x-sensors the sensors by id, x-settings the settings of params.set with the ranges of the OS, x-geometry the keys of robot.geometry.",
   "title": "MowBite OS app interface",
-  "x-api": 6,
+  "x-api": 7,
   "x-commands": {
     "docking.abort": {
       "action": "mower_logic:docking/abort_docking",
@@ -5512,6 +5643,23 @@
       "bit": 20,
       "description": "The input and output of the driver stalled",
       "name": "DRIVER_STALL"
+    },
+    {
+      "bit": 21,
+      "description": "The OS started after a kernel crash or after an end without its own stop while the mower worked; it holds until emergency.reset, also after power off and on",
+      "name": "UNEXPECTED_RESTART",
+      "texts": {
+        "de": {
+          "fix": "Mäher und Umgebung ansehen, dann den Notaus zurücksetzen. Das Ereignis UNEXPECTED_RESTART nennt die Ursache.",
+          "help": "MowBite OS wurde während der Arbeit nicht geordnet beendet oder der Kernel ist abgestürzt. Der Mäher wartet auf die Freigabe, auch nach Aus und Ein.",
+          "name": "Unerwarteter Neustart"
+        },
+        "en": {
+          "fix": "Look at the mower and around it, then reset the emergency. The event UNEXPECTED_RESTART tells the cause.",
+          "help": "MowBite OS did not end in order while the mower worked, or the kernel crashed. The mower waits for a release, also after power off and on.",
+          "name": "Unexpected restart"
+        }
+      }
     }
   ],
   "x-geometry": {
@@ -6793,6 +6941,12 @@
         "resume": "user",
         "severity": "error"
       },
+      "RESTART_HOLD_STAYS": {
+        "description": "The hold after an unexpected restart could not be removed from data_dir",
+        "fields": {},
+        "resume": "user",
+        "severity": "error"
+      },
       "SAFETY_MISSING": {
         "description": "The safety node does not answer",
         "fields": {},
@@ -7360,6 +7514,76 @@
         "fields": {},
         "resume": "user",
         "severity": "error"
+      }
+    },
+    "UNEXPECTED_RESTART": {
+      "KERNEL_CRASH": {
+        "description": "The kernel of the mower crashed; it holds the mower in every state",
+        "fields": {},
+        "resume": "user",
+        "severity": "error",
+        "texts": {
+          "de": {
+            "fix": "Mäher und Umgebung ansehen, dann den Notaus zurücksetzen. Kommt es öfter vor, die Protokolle für eine Meldung sichern.",
+            "help": "Das Betriebssystem des Mähers ist abgestürzt und neu gestartet. Der Mäher fährt und mäht nicht, bis er freigegeben wird, gleich was er vorher tat.",
+            "name": "Kernel-Absturz"
+          },
+          "en": {
+            "fix": "Look at the mower and around it, then reset the emergency. If it happens again, keep the logs for a report.",
+            "help": "The operating system of the mower crashed and started again. The mower does not drive or mow until it is released, whatever it did before.",
+            "name": "Kernel crash"
+          }
+        }
+      },
+      "OS_CRASH": {
+        "description": "MowBite OS ended without its own stop in this boot; it holds the mower after a state other than IDLE",
+        "fields": {},
+        "resume": "user",
+        "severity": "error",
+        "texts": {
+          "de": {
+            "fix": "Mäher und Umgebung ansehen, dann den Notaus zurücksetzen. Kommt es öfter vor, das Protokoll für eine Meldung sichern.",
+            "help": "MowBite OS wurde ohne eigenen Stopp beendet und neu gestartet (Absturz, beendet, Speicher voll). Lief gerade eine Arbeit, wartet der Mäher auf die Freigabe; im Leerlauf geht es von selbst weiter.",
+            "name": "MowBite OS abgestürzt"
+          },
+          "en": {
+            "fix": "Look at the mower and around it, then reset the emergency. If it happens again, keep the log for a report.",
+            "help": "MowBite OS ended without its own stop and started again (crash, killed, out of memory). If it was working, the mower waits for a release; in IDLE it goes on by itself.",
+            "name": "MowBite OS crashed"
+          }
+        },
+        "when": [
+          {
+            "hold": false,
+            "resume": "auto",
+            "severity": "warning"
+          }
+        ]
+      },
+      "POWER_LOSS": {
+        "description": "The mower started again while MowBite OS ran (power, reset, power key, hang); it holds the mower after a state other than IDLE",
+        "fields": {},
+        "resume": "user",
+        "severity": "error",
+        "texts": {
+          "de": {
+            "fix": "Mäher und Umgebung ansehen, dann den Notaus zurücksetzen. Im Leerlauf sperrt eine Unterbrechung nicht.",
+            "help": "Der Mäher ist neu gestartet, während MowBite OS lief: Strom weg, Akku raus, harter Reset, Ein-Taste gehalten oder ein Hänger. Jede solche Unterbrechung während der Arbeit sperrt den Mäher bis zur Freigabe. Das ist Absicht, kein Fehler.",
+            "name": "Unterbrechung während der Arbeit"
+          },
+          "en": {
+            "fix": "Look at the mower and around it, then reset the emergency. In IDLE an interruption holds nothing.",
+            "help": "The mower started again while MowBite OS ran: power cut, battery out, hard reset, power key held or a hang. Any such interruption during work holds the mower until it is released. This is on purpose, not a fault.",
+            "name": "Interrupted while working"
+          }
+        },
+        "when": [
+          {
+            "hold": false,
+            "resume": "auto",
+            "severity": "warning"
+          }
+        ]
       }
     }
   },

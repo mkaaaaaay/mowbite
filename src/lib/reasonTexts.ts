@@ -180,6 +180,12 @@ export const EVENTS: Record<string, EventText> = {
     severity: 'error',
     variants: [{when: {reason: 'STILL_TILTED'}, en: 'Emergency stop not reset', severity: 'warning'}, {en: 'Emergency stop not reset'}],
   },
+  // MowBite OS started again without its own stop before, or after a kernel crash. hold: it waits for reset_emergency
+  // (bit UNEXPECTED_RESTART), without one it was idle and goes on by itself
+  UNEXPECTED_RESTART: {
+    severity: 'error',
+    variants: [{when: {hold: false}, en: 'Restarted unexpectedly', severity: 'warning'}, {en: 'Held after an unexpected restart'}],
+  },
   DRIVE: {
     severity: 'warning',
     variants: [
@@ -373,6 +379,11 @@ export const REASONS: Record<string, Variant[]> = {
   DRIVER_MISSING: [r('the hardware driver is not running')],
   SAFETY_MISSING: [r('the safety filter is not running')],
   NO_ANSWER: [r('no answer in time')],
+  RESTART_HOLD_STAYS: [r("the hold after the unexpected restart couldn't be removed")],
+  // UNEXPECTED_RESTART: what ended MowBite OS before
+  KERNEL_CRASH: [r('the kernel crashed')],
+  OS_CRASH: [r('MowBite OS crashed')],
+  POWER_LOSS: [r('interrupted while working', {when: {hold: true}}), r('power cut or reset')],
   // the calibration drive (CALIBRATION_REFUSED, CALIBRATION_FAILED): rate and limit in reports a second
   NO_RTK: [r('no RTK fix')],
   NO_ROOM: [
@@ -451,6 +462,7 @@ export const EMERGENCY_BITS: (string | null)[] = [
   'WHEEL_RUNAWAY',
   'FOREIGN_HOST',
   'DRIVER_STALL',
+  'UNEXPECTED_RESTART',
 ];
 
 // what the firmware means by them (fw-openmower-v2): a single lift sensor or bumper, or two and more at once. one not
@@ -477,6 +489,7 @@ export const EMERGENCY_TEXT: Record<string, string> = {
   WHEEL_RUNAWAY: 'wheel turning against the command',
   FOREIGN_HOST: 'another computer is talking to the board',
   DRIVER_STALL: 'hardware driver hung',
+  UNEXPECTED_RESTART: 'unexpected restart',
   UNKNOWN: 'unknown reason',
 };
 // LATCH only holds it until it's reset, and of two that say the same the more telling one

@@ -10,13 +10,15 @@ import {EMERGENCY_BITS, EMERGENCY_HIDE, EMERGENCY_TEXT, EVENTS, REASONS, pick} f
 const PINNED = {
   repo: 'mkaaaaaay/mowbite-os',
   path: 'src/mowbite_api/api.schema.json',
-  commit: '40e9788f29fa3c43347fbba129d633a3274329b9',
-  sha256: '316dc7d05fc41b4e0fd61a81f70b88e17b63b01c1e1a173f8dc38ab58921466b',
+  commit: 'fd75343b14b1b723e4288004591b53692f76b414',
+  sha256: '079a00c2bcc513b74b93fb40aa759e03ca6b12faa525f486ec461a01ee2fddde',
 };
 const raw = readFileSync(join(__dirname, 'os-api.schema.json'));
+// a reason's rating, when: another one for these values of the event's fields
+type Rating = {severity: string; resume: string; when?: Record<string, string | number | boolean>[]};
 const api = JSON.parse(raw.toString()) as {
   'x-api': number;
-  'x-reasons': Record<string, Record<string, unknown>>;
+  'x-reasons': Record<string, Record<string, Rating>>;
   'x-emergency-bits': {bit: number; name: string}[];
   $defs: Record<string, unknown>;
 };
@@ -64,6 +66,21 @@ describe(`MowBite OS's interface (${PINNED.repo} ${PINNED.commit.slice(0, 7)}, a
       expect(EMERGENCY_TEXT[name], name).toBeDefined();
       expect(de[EMERGENCY_TEXT[name]], name).toBeDefined();
     }
+  });
+
+  it('has its own words where the OS rates field values apart', () => {
+    for (const [type, reasons] of Object.entries(groups))
+      for (const [reason, rating] of Object.entries(reasons))
+        for (const w of rating.when ?? []) {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars -- the rest are the fields
+          const {severity, resume, ...fields} = w;
+          const props = (api.$defs[`event.${type}`] as {properties?: Record<string, unknown>} | undefined)?.properties ?? {};
+          const e = {type, reason, ...fields};
+          for (const k of Object.keys(fields)) expect(props[k], `${type} ${reason} ${k}`).toBeDefined();
+          // the event's head or the reason is picked by those fields
+          const named = [pick(EVENTS[type]?.variants, e), pick(REASONS[reason], e)].some((v) => v?.when && Object.keys(fields).every((k) => k in v.when!));
+          expect(named, `${type} ${reason} ${JSON.stringify(fields)}`).toBe(true);
+        }
   });
 
   it("has no words for events, reasons or bits the OS doesn't know", () => {
