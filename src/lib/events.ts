@@ -319,8 +319,9 @@ const RESTART_CAUSE: Record<string, string> = {
   OS_CRASH: 'MowBite OS ended without its own stop and started again: crashed, killed or out of memory.',
   POWER_LOSS: 'The mower started again while MowBite OS ran: power cut, battery out, hard reset, power key held or a hang.',
 };
-function restartText(e: MowerEvent): string {
-  const said = [RESTART_CAUSE[e.reason ?? '']].filter(Boolean).map((t) => tr(t));
+function restartText(e: MowerEvent): string | undefined {
+  const cause = RESTART_CAUSE[e.reason ?? ''];
+  const said = cause ? [tr(cause)] : [];
   if (e.reason === 'KERNEL_CRASH' && e.detail) said.push(tr('The kernel said: "{detail}".', {detail: e.detail}));
   if (e.hold === false) said.push(tr('It was idle, so nothing is held and it goes on by itself.'));
   else if (e.hold) {
@@ -331,8 +332,16 @@ function restartText(e: MowerEvent): string {
     said.push(tr('Look at the mower and around it, then reset the emergency stop.'));
   }
   if (e.reason === 'KERNEL_CRASH' || e.reason === 'OS_CRASH') said.push(tr('If it happens again, keep the log for a report.'));
-  return said.join(' ');
+  return said.join(' ') || undefined;
 }
+
+// why reset_emergency didn't let go and what to do, a part of MowBite OS not answering for the others
+const RESET_REFUSED_HELP: Record<string, string> = {
+  STILL_TILTED: 'Stand it level, then reset it again.',
+  TILT_UNKNOWN: "Without fresh data from the IMU it can't tell whether it stands level. Try again in a moment, if it stays so check the IMU and its connection.",
+  FOREIGN_HOST: 'Stop the other computer or program first, OpenMower still running next to MowBite OS say, then reset it again.',
+  RESTART_HOLD_STAYS: "The mower couldn't delete its hold from its storage, so it stays. Try again in a moment, if it stays the log from that moment says more.",
+};
 
 // a refused reset where it's reset, under the emergency stop and its reasons
 export function resetRefusedText(e: MowerEvent): string {
@@ -423,16 +432,9 @@ export function explain(e: MowerEvent, state?: string, gpsTimeout?: number, os =
     }
     // the emergency stop stays as it was
     case 'EMERGENCY_RESET_REFUSED':
-      if (e.reason === 'STILL_TILTED') return tr('Stand it level, then reset it again.');
-      if (e.reason === 'TILT_UNKNOWN')
-        return tr("Without fresh data from the IMU it can't tell whether it stands level. Try again in a moment, if it stays so check the IMU and its connection.");
-      if (e.reason === 'FOREIGN_HOST')
-        return tr('Stop the other computer or program first, OpenMower still running next to MowBite OS say, then reset it again.');
-      if (e.reason === 'RESTART_HOLD_STAYS')
-        return tr("The mower couldn't delete its hold from its storage, so it stays. Try again in a moment, if it stays the log from that moment says more.");
-      return tr("A part of MowBite OS didn't answer. Try again in a moment, the log from that moment says more.");
+      return tr(RESET_REFUSED_HELP[e.reason ?? ''] ?? "A part of MowBite OS didn't answer. Try again in a moment, the log from that moment says more.");
     case 'UNEXPECTED_RESTART':
-      return restartText(e) || undefined;
+      return restartText(e);
     case 'MOW_MOTOR_SPINUP_FAILED':
       return spinupFailed();
     case 'RECORDING_REFUSED':

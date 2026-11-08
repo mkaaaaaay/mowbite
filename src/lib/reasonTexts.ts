@@ -180,8 +180,7 @@ export const EVENTS: Record<string, EventText> = {
     severity: 'error',
     variants: [{when: {reason: 'STILL_TILTED'}, en: 'Emergency stop not reset', severity: 'warning'}, {en: 'Emergency stop not reset'}],
   },
-  // MowBite OS started again without its own stop before, or after a kernel crash. hold: it waits for reset_emergency
-  // (bit UNEXPECTED_RESTART), without one it was idle and goes on by itself
+  // MowBite OS started again without its own stop; hold: it waits for reset_emergency, otherwise it goes on by itself
   UNEXPECTED_RESTART: {
     severity: 'error',
     variants: [{when: {hold: false}, en: 'Restarted unexpectedly', severity: 'warning'}, {en: 'Held after an unexpected restart'}],
