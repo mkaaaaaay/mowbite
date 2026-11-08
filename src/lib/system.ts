@@ -1,7 +1,10 @@
 import {apiBase, mowerFetch} from './mowers';
+import {RPC} from './openmower';
+import {callRpc, rpcMethods} from './rpc';
 
-// memory, storage, load and temperature of the machine the container runs on (docker/system.cgi).
-// remote: it doesn't run on the mower but on a pc or NAS, the numbers are that machine's then
+// memory, storage, load and temperature of the machine the container runs on (docker/system.cgi), on MowBite OS of
+// the mower itself (system.stats, the same keys). remote: it doesn't run on the mower but on a pc or NAS, the numbers
+// are that machine's then
 export interface SystemInfo {
   remote: boolean;
   memTotal?: number; // bytes
@@ -22,18 +25,15 @@ export interface SystemInfo {
   netIp?: string;
 }
 
-export function parseSystem(text: string): SystemInfo {
-  const v: Record<string, string[]> = {};
-  for (const line of text.split('\n')) {
-    const [key, ...rest] = line.trim().split(/\s+/);
-    if (key) v[key] = rest;
-  }
+// the values by key, as system.cgi or system.stats has them
+function fromValues(v: Record<string, unknown>): SystemInfo {
   const num = (key: string) => {
-    const n = Number(v[key]?.[0]);
-    return v[key] && Number.isFinite(n) ? n : undefined;
+    const n = typeof v[key] === 'number' || typeof v[key] === 'string' ? Number(v[key]) : NaN;
+    return v[key] !== '' && Number.isFinite(n) ? n : undefined;
   };
+  const str = (key: string) => (typeof v[key] === 'string' && v[key] ? (v[key] as string) : undefined);
   return {
-    remote: v.remote?.[0] === '1',
+    remote: String(v.remote) === '1',
     memTotal: num('mem_total'),
     memAvailable: num('mem_available'),
     diskTotal: num('disk_total'),
@@ -44,15 +44,31 @@ export function parseSystem(text: string): SystemInfo {
     cpus: num('cpus'),
     cpuTemp: num('cpu_temp'),
     uptime: num('uptime'),
-    wifiIface: v.wifi_iface?.[0],
+    wifiIface: str('wifi_iface'),
     wifiSignal: num('wifi_signal'),
-    netIface: v.net_iface?.[0],
-    netIp: v.net_ip?.[0],
+    netIface: str('net_iface'),
+    netIp: str('net_ip'),
   };
 }
 
-// null: not served, an older container or MowBite not running as one
-export async function loadSystem(): Promise<SystemInfo | null> {
+// system.cgi: a line each, the key and its values (load has three, the first counts)
+export function parseSystem(text: string): SystemInfo {
+  const v: Record<string, string> = {};
+  for (const line of text.split('\n')) {
+    const [key, first] = line.trim().split(/\s+/);
+    if (key && first !== undefined) v[key] = first;
+  }
+  return fromValues(v);
+}
+
+// system.stats: an object with the same keys, numbers as numbers
+export const parseStats = (stats: unknown): SystemInfo | null =>
+  stats && typeof stats === 'object' && !Array.isArray(stats) ? fromValues(stats as Record<string, unknown>) : null;
+
+// null: not served, an older container or MowBite not running as one. stats: ask MowBite OS itself where it has
+// system.stats, only while someone looks at it (masterplan 3.9)
+export async function loadSystem(stats = false): Promise<SystemInfo | null> {
+  if (stats && (await rpcMethods())?.has(RPC.systemStats)) return callRpc(RPC.systemStats).then(parseStats, () => null);
   try {
     const res = await mowerFetch(`${apiBase()}/cgi-bin/system`, {cache: 'no-store'});
     if (!res.ok || !res.headers.get('content-type')?.includes('text/plain')) return null;
