@@ -585,6 +585,23 @@
     }
    ]
   },
+  "UNEXPECTED_RESTART": {
+   "severity": "error",
+   "variants": [
+    {
+     "when": {
+      "hold": false
+     },
+     "en": "Restarted unexpectedly",
+     "severity": "warning",
+     "de": "Unerwartet neu gestartet"
+    },
+    {
+     "en": "Held after an unexpected restart",
+     "de": "Gesperrt nach unerwartetem Neustart"
+    }
+   ]
+  },
   "DRIVE": {
    "severity": "warning",
    "variants": [
@@ -1569,6 +1586,37 @@
     "de": "keine rechtzeitige Antwort"
    }
   ],
+  "RESTART_HOLD_STAYS": [
+   {
+    "en": "the hold after the unexpected restart couldn't be removed",
+    "de": "die Sperre nach dem unerwarteten Neustart ließ sich nicht aufheben"
+   }
+  ],
+  "KERNEL_CRASH": [
+   {
+    "en": "the kernel crashed",
+    "de": "der Kernel ist abgestürzt"
+   }
+  ],
+  "OS_CRASH": [
+   {
+    "en": "MowBite OS crashed",
+    "de": "MowBite OS abgestürzt"
+   }
+  ],
+  "POWER_LOSS": [
+   {
+    "en": "interrupted while working",
+    "when": {
+     "hold": true
+    },
+    "de": "Unterbrechung während der Arbeit"
+   },
+   {
+    "en": "power cut or reset",
+    "de": "Stromausfall oder Reset"
+   }
+  ],
   "NO_RTK": [
    {
     "en": "no RTK fix",
@@ -1793,7 +1841,8 @@
   "17": "MOWER_NOT_STOPPED",
   "18": "WHEEL_RUNAWAY",
   "19": "FOREIGN_HOST",
-  "20": "DRIVER_STALL"
+  "20": "DRIVER_STALL",
+  "21": "UNEXPECTED_RESTART"
  },
  "emergency_text": {
   "STOP": {
@@ -1875,6 +1924,10 @@
   "DRIVER_STALL": {
    "en": "hardware driver hung",
    "de": "Hardware-Treiber hing"
+  },
+  "UNEXPECTED_RESTART": {
+   "en": "unexpected restart",
+   "de": "unerwarteter Neustart"
   },
   "UNKNOWN": {
    "en": "unknown reason",

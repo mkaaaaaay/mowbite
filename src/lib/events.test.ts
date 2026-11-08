@@ -347,18 +347,18 @@ describe('emergency stop reasons', () => {
       'DRIVER_STALL',
     ]);
     expect(emergencyFlags(2 ** 15 + 1)).toEqual(['LATCH', 'STUCK']);
-    expect(emergencyFlags(2 ** 21 + 1)).toEqual(['LATCH', 'BIT_21']);
+    expect(emergencyFlags(2 ** 22 + 1)).toEqual(['LATCH', 'BIT_22']);
     expect(emergencyFlags(2 ** 31 + 32)).toEqual(['COLLISION', 'BIT_31']);
     expect(emergencyFlags(String(2 ** 32 - 1))).toHaveLength(32);
   });
 
   it('says a bit without a name next to the others, it never drops out', () => {
-    expect(emergencyText(['LATCH', 'COLLISION', 'BIT_21'])).toBe('bumper, bit 21');
+    expect(emergencyText(['LATCH', 'COLLISION', 'BIT_22'])).toBe('bumper, bit 22');
     expect(emergencyText(['LATCH', 'BIT_22'])).toBe('bit 22');
     expect(emergencyText(['LATCH', 'WHEEL_RUNAWAY'])).toBe('wheel turning against the command');
     // what MowBite OS's log line says for a bit it has no name for
     expect(emergencyText(['UNKNOWN'])).toBe('unknown reason');
-    expect(describeEvent(ev(1, 'EMERGENCY', {emergency: true, reason: String(2 ** 21 + 32 + 1)})).text).toBe('Emergency stop: bumper, bit 21');
+    expect(describeEvent(ev(1, 'EMERGENCY', {emergency: true, reason: String(2 ** 22 + 32 + 1)})).text).toBe('Emergency stop: bumper, bit 22');
     expect(describeEvent(ev(1, 'EMERGENCY', {emergency: true, reason: '65536'})).text).toBe('Emergency stop: no data from the IMU');
   });
 
@@ -377,14 +377,15 @@ describe('emergency stop reasons', () => {
     expect(stop(129)).toMatch(/^Something above the board latched it/);
     expect(stop(129, false)).toMatch(/^OpenMower stopped the mower itself/);
     expect(stop(2 ** 15 + 1)).toMatch(/^The wheels turned, but by the GPS/);
-    expect(stop(2 ** 21 + 1)).toMatch(/^A reason MowBite doesn't know yet/);
+    expect(stop(2 ** 22 + 1)).toMatch(/^A reason MowBite doesn't know yet/);
+    expect(stop(2 ** 21 + 1)).toMatch(/the activity says what happened\.$/);
   });
 
   it('in german', () => {
     vi.stubGlobal('document', {documentElement: {lang: 'en'}});
     setLangChoice('de');
     try {
-      expect(describeEvent(ev(1, 'EMERGENCY', {emergency: true, reason: String(2 ** 18 + 2 ** 21 + 1)})).text).toBe('Notaus: Rad dreht gegen den Befehl, Bit 21');
+      expect(describeEvent(ev(1, 'EMERGENCY', {emergency: true, reason: String(2 ** 18 + 2 ** 22 + 1)})).text).toBe('Notaus: Rad dreht gegen den Befehl, Bit 22');
       expect(emergencyText(['LATCH', 'TILT', 'LIFT'])).toBe('zu stark geneigt, angehoben');
     } finally {
       setLangChoice('en');
@@ -421,6 +422,7 @@ describe('a reset of the emergency stop MowBite OS turned down', () => {
     expect(explain(refused({reason: 'TILT_UNKNOWN'}))).toMatch(/check the IMU/);
     expect(explain(refused({reason: 'FOREIGN_HOST'}))).toMatch(/^Stop the other computer or program first/);
     expect(explain(refused({reason: 'NO_ANSWER'}))).toMatch(/^A part of MowBite OS didn't answer/);
+    expect(explain(refused({reason: 'RESTART_HOLD_STAYS'}))).toMatch(/^The mower couldn't delete its hold/);
     expect(resetRefusedText(refused({reason: 'STILL_TILTED', angle: 34, limit: 26}))).toBe('Not reset: still tilted (34°, less than 26° needed)');
     expect(resetRefusedText(refused({reason: ''}))).toBe('Not reset');
   });
@@ -694,6 +696,42 @@ describe('reasons as fixed names (MowBite OS)', () => {
       expect(describeEvent(os('MOWING_REFUSED', {reason: 'HOLD', until: 1793754213})).text).toBe(
         `Mähen nicht gestartet: Update läuft bis ${clock(1793754213)}`,
       );
+    } finally {
+      setLangChoice('en');
+      vi.unstubAllGlobals();
+    }
+  });
+});
+
+describe('MowBite OS started again without its own stop', () => {
+  const restart = (reason: string, hold: boolean, extra: Partial<MowerEvent> = {}) =>
+    ev(1, 'UNEXPECTED_RESTART', {reason, hold, state_before: hold ? 'MOWING' : 'IDLE', message: 'english text', ...extra});
+
+  it('says the cause and whether it holds', () => {
+    expect(describeEvent(restart('POWER_LOSS', true))).toEqual({text: 'Held after an unexpected restart: interrupted while working', severity: 'error'});
+    expect(describeEvent(restart('POWER_LOSS', false))).toEqual({text: 'Restarted unexpectedly: power cut or reset', severity: 'warning'});
+    expect(describeEvent(restart('OS_CRASH', false, {severity: 'warning'}), undefined, true).text).toBe('Restarted unexpectedly: MowBite OS crashed');
+    expect(describeEvent(restart('KERNEL_CRASH', true)).text).toBe('Held after an unexpected restart: the kernel crashed');
+    expect(emergencyText(emergencyFlags(2 ** 21 + 1))).toBe('unexpected restart');
+  });
+
+  it('says what to do, a cut while working held on purpose', () => {
+    expect(explain(restart('POWER_LOSS', true))).toMatch(/That's on purpose, not a fault\. Look at the mower and around it, then reset the emergency stop\.$/);
+    expect(explain(restart('POWER_LOSS', false))).toMatch(/It was idle, so nothing is held and it goes on by itself\.$/);
+    expect(explain(restart('OS_CRASH', true))).toMatch(/It was working, so it doesn't drive or mow until it's reset\./);
+    expect(explain(restart('KERNEL_CRASH', true, {detail: 'Kernel panic - not syncing: RCU Stall'}))).toMatch(
+      /The kernel said: "Kernel panic - not syncing: RCU Stall"\. It doesn't drive or mow until it's reset, whatever it did before\./,
+    );
+    // a hold from an earlier restart stays after a cut in idle
+    expect(explain(restart('POWER_LOSS', true, {state_before: 'IDLE'}))).toMatch(/It still waits for the reset after an earlier restart\./);
+  });
+
+  it('in german', () => {
+    vi.stubGlobal('document', {documentElement: {lang: 'en'}});
+    setLangChoice('de');
+    try {
+      expect(describeEvent(restart('POWER_LOSS', true)).text).toBe('Gesperrt nach unerwartetem Neustart: Unterbrechung während der Arbeit');
+      expect(explain(restart('POWER_LOSS', true))).toMatch(/Das ist Absicht, kein Fehler\./);
     } finally {
       setLangChoice('en');
       vi.unstubAllGlobals();
