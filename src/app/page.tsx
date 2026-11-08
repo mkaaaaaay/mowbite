@@ -428,8 +428,8 @@ export default function Home() {
             <LoveMower onRun={setLoveRun} />
           </h1>
           <TopWeather away={loveRun} />
+          <MowerSwitch className={styles.mowerSwitch} />
         </div>
-        <MowerSwitch className={styles.mowerSwitch} />
         <UpdateBanner />
 
         {!state &&
