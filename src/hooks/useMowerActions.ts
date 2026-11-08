@@ -1,12 +1,12 @@
 'use client';
 
-import {describe, type MowerEvent} from '@/lib/events';
+import {describe} from '@/lib/events';
 import {tr} from '@/lib/i18n';
 import {getMqttClient, topicStore, withPrefix} from '@/lib/mqttClient';
 import {useCallback, useEffect, useState, useSyncExternalStore} from 'react';
 import {COMMAND, TOPIC} from '@/lib/openmower';
 import {callCommand, knownMethods, RpcError} from '@/lib/rpc';
-import {rpcErrorText} from '@/lib/rpcText';
+import {refusalEvent, rpcErrorText} from '@/lib/rpcText';
 
 interface ActionInfo {
   action_id: string;
@@ -43,11 +43,10 @@ const COMMAND_MS = 10000;
 
 // the refusal in the words of its event (data.event, COMMAND_REFUSED for those that only come in the answer)
 function refusalNote(e: RpcError): CommandNote {
-  const d = e.data ?? {};
-  if (e.code !== -32600 || typeof d.event !== 'string') return {at: Date.now(), text: rpcErrorText(e), warn: true};
-  const ev = {...d, id: typeof d.event_id === 'string' ? d.event_id : '', t: Date.now() / 1000, type: d.event} as MowerEvent;
+  const ev = refusalEvent(e);
+  if (!ev) return {at: Date.now(), text: rpcErrorText(e), warn: true};
   const said = describe(ev, undefined, true);
-  return {at: Date.now(), text: said.text, warn: said.severity !== 'info', event: d.event, eventId: ev.id || undefined};
+  return {at: Date.now(), text: said.text, warn: said.severity !== 'info', event: ev.type, eventId: ev.id || undefined};
 }
 
 // sends what the action does: as its call where the mower names it in rpc.methods, else the action as ever (OpenMower,

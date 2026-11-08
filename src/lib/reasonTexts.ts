@@ -185,6 +185,8 @@ export const EVENTS: Record<string, EventText> = {
     severity: 'error',
     variants: [{when: {hold: false}, en: 'Restarted unexpectedly', severity: 'warning'}, {en: 'Held after an unexpected restart'}],
   },
+  // sound.play turned down, only in its answer
+  SOUND_REFUSED: one('Sound not played', 'warning'),
   DRIVE: {
     severity: 'warning',
     variants: [
@@ -378,6 +380,8 @@ export const REASONS: Record<string, Variant[]> = {
   DRIVER_MISSING: [r('the hardware driver is not running')],
   SAFETY_MISSING: [r('the safety filter is not running')],
   NO_ANSWER: [r('no answer in time')],
+  // SOUND_REFUSED: the situation has no sound file
+  NO_FILE: [r('there is no sound for it')],
   RESTART_HOLD_STAYS: [r("the hold after the unexpected restart couldn't be removed")],
   // UNEXPECTED_RESTART: what ended MowBite OS before
   KERNEL_CRASH: [r('the kernel crashed')],

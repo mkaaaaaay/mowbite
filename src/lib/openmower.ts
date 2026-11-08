@@ -35,6 +35,11 @@ export const RPC = {
   lightSet: 'light.set_profile',
   lightPreview: 'light.preview',
   lightReset: 'light.reset',
+  // the mower's sounds by situation, MowBite OS with a speaker only (lib/sound)
+  soundList: 'sound.list',
+  soundPlay: 'sound.play',
+  soundStop: 'sound.stop',
+  soundVolume: 'sound.volume',
   replaceMap: 'map.replace',
   eventDays: 'events.history.list',
   events: 'events.history',

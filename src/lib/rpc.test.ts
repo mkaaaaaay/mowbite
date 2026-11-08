@@ -22,6 +22,9 @@ describe('an update holding MowBite OS', () => {
     expect(answerError(new RpcError('planner.settings.set', -32004, 'held', {reason: 'HOLD', until}))).toBe(`Update running until ${clock(until)}.`);
     expect(answerError(new RpcError('planner.settings.set', -32602, 'robot_width out of range'))).toBe('robot_width out of range');
     expect(answerError(new RpcError('planner.settings.set', 'timeout', 'timed out'))).toBe('The mower did not answer.');
+    // a refusal with its event in the data, in that event's words
+    const noFile = {event: 'SOUND_REFUSED', reason: 'NO_FILE', message: 'english text', severity: 'warning'};
+    expect(answerError(new RpcError('sound.play', -32600, 'english text', noFile))).toBe('Sound not played: there is no sound for it');
   });
 });
 

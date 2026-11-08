@@ -17,7 +17,7 @@ import {
   type LightProfile,
   type Lights,
 } from '@/lib/light';
-import {RpcError} from '@/lib/rpc';
+import {answerError} from '@/lib/rpcText';
 import {useEffect, useState} from 'react';
 
 // the states and effects as the app calls them, one it doesn't know readable
@@ -41,7 +41,6 @@ const EFFECT_NAMES: Record<string, string> = {
   gradient: 'Colour gradient',
 };
 const named = (names: Record<string, string>, key: string) => (names[key] ? tr(names[key]) : key.replace(/_/g, ' ').toLowerCase());
-const failed = (e: unknown) => (e instanceof RpcError && e.code !== 'timeout' ? e.message : tr('The mower did not answer.'));
 // a preview shows this long, unless the mower allows less
 const PREVIEW_S = 5;
 
@@ -179,7 +178,7 @@ export function LightSettings({styles}: {styles: Record<string, string>}) {
       setDraft(profile);
       setNote({text: done});
     } catch (e) {
-      setNote({text: failed(e), error: true});
+      setNote({text: answerError(e), error: true});
     } finally {
       setBusy(false);
     }
@@ -193,7 +192,7 @@ export function LightSettings({styles}: {styles: Record<string, string>}) {
         text: r.emergency ? tr('An emergency stop shows over it right now.') : tr('Shows on the mower for {n} s.', {n: fmt(r.duration, 0)}),
       });
     } catch (e) {
-      setNote({state, text: failed(e), error: true});
+      setNote({state, text: answerError(e), error: true});
     }
   };
 
