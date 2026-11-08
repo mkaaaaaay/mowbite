@@ -30,6 +30,11 @@ export const RPC = {
   systemInfo: 'system.info',
   // memory, storage, load and network of the mower itself, MowBite OS only (lib/system)
   systemStats: 'system.stats',
+  // the lights on the mower by state, MowBite OS only (lib/light)
+  lightGet: 'light.get_profile',
+  lightSet: 'light.set_profile',
+  lightPreview: 'light.preview',
+  lightReset: 'light.reset',
   replaceMap: 'map.replace',
   eventDays: 'events.history.list',
   events: 'events.history',

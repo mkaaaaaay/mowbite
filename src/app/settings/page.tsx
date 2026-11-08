@@ -22,6 +22,8 @@ import {MowerSizesSettings} from '@/components/MowerSizesSettings';
 import {CalibrationLink} from '@/components/CalibrationLink';
 import {CALIB_SHOWN} from '@/lib/calibration';
 import {NotifySettings} from '@/components/NotifySettings';
+import {LightSettings} from '@/components/LightSettings';
+import {offersLights} from '@/lib/light';
 import {datumFromParams, useMowerParams} from '@/hooks/useMowerParams';
 import {posixTz} from '@/lib/schedule';
 import {RpcError} from '@/lib/rpc';
@@ -241,6 +243,15 @@ export default function SettingsPage() {
   // the planner there but busy: it's waited for, not the sizes as without it
   const waiting = usePlannerWaiting()?.what === 'load';
   const demo = useSyncExternalStore(noop, isDemo, () => false);
+  // the lights by state, on a mower that has them (MowBite OS)
+  const [lights, setLights] = useState(false);
+  useEffect(() => {
+    let stop = false;
+    void offersLights().then((has) => !stop && setLights(has));
+    return () => {
+      stop = true;
+    };
+  }, []);
 
   return (
     <div className={styles.page}>
@@ -369,6 +380,12 @@ export default function SettingsPage() {
               </p>
               <GardenDownload className={styles.pillButton} />
             </section>
+          </Group>
+        )}
+
+        {lights && (
+          <Group id="lights" title={tr('Lights')} hint={tr('Colour and effect by state')}>
+            <LightSettings styles={styles} />
           </Group>
         )}
 
