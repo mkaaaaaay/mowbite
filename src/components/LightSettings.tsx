@@ -1,7 +1,7 @@
 'use client';
 
 import {useSure} from '@/hooks/useSure';
-import {fmt, tr, useLang} from '@/lib/i18n';
+import {dec, fmt, tr, useLang} from '@/lib/i18n';
 import {
   colorsUsed,
   fitted,
@@ -19,6 +19,7 @@ import {
 } from '@/lib/light';
 import {answerError} from '@/lib/rpcText';
 import {useEffect, useState} from 'react';
+import local from './LightSettings.module.css';
 
 // the states and effects as the app calls them, one it doesn't know readable
 const STATE_NAMES: Record<string, string> = {
@@ -44,33 +45,46 @@ const named = (names: Record<string, string>, key: string) => (names[key] ? tr(n
 // a preview shows this long, unless the mower allows less
 const PREVIEW_S = 5;
 
-// the colours of an effect as dots, for a look at it without the mower
-function Swatch({e}: {e: LightEffect}) {
+// the colours of an effect as dots, next to its name
+function Dots({e}: {e: LightEffect}) {
   const colors = e.effect === 'off' ? [] : (e.colors ?? []);
   return (
-    <span aria-hidden style={{display: 'inline-flex', gap: 4, verticalAlign: 'middle', opacity: 0.25 + 0.75 * (e.brightness ?? 1)}}>
+    <span className={local.dots} aria-hidden style={{opacity: 0.35 + 0.65 * (e.brightness ?? 1)}}>
       {colors.map((c, i) => (
-        <span key={i} style={{width: 14, height: 14, borderRadius: 7, background: c, border: '1px solid var(--border, #8884)'}} />
+        <span key={i} className={local.dot} style={{background: c}} />
       ))}
     </span>
   );
 }
 
-function EffectFields({
-  value,
-  lights,
-  styles,
-  onChange,
-}: {
-  value: LightEffect;
-  lights: Lights;
-  styles: Record<string, string>;
-  onChange: (e: LightEffect) => void;
-}) {
+// the period as typed, taken when the field is left: a number in between doesn't jump to the limits
+function PeriodField({value, effect, lights, styles, onChange}: {value: number; effect: string; lights: Lights; styles: Record<string, string>; onChange: (p: number) => void}) {
+  const [text, setText] = useState<string | null>(null);
+  const take = () => {
+    const v = Number((text ?? '').replace(',', '.'));
+    if (text !== null && text.trim() !== '' && Number.isFinite(v)) onChange(v);
+    setText(null);
+  };
+  return (
+    <label className={styles.field}>
+      {effect === 'gradient' ? tr('One move along the lights in s, 0 stands still') : tr('One cycle in s')}
+      <input
+        inputMode="decimal"
+        value={text ?? dec(value)}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={take}
+        onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+      />
+      <small className={styles.dim}>{tr('{min} to {max} s', {min: dec(minPeriod(effect, lights.limits)), max: dec(lights.limits.max_period)})}</small>
+    </label>
+  );
+}
+
+function EffectFields({value, lights, styles, onChange}: {value: LightEffect; lights: Lights; styles: Record<string, string>; onChange: (e: LightEffect) => void}) {
   const most = colorsUsed(value.effect, lights.limits.colors);
-  const colors = (value.colors ?? []).slice(0, most);
-  if (most > 0 && !colors.length) colors.push('#ffffff');
-  const set = (patch: Partial<LightEffect>) => onChange({...value, colors, ...patch});
+  const colors = value.colors ?? [];
+  const set = (patch: Partial<LightEffect>) => onChange({...value, ...patch});
+  const brightness = Math.round((value.brightness ?? 1) * 100);
   return (
     <>
       <label className={styles.field}>
@@ -86,61 +100,44 @@ function EffectFields({
       {most > 0 && (
         <div className={styles.field}>
           {tr('Colours')}
-          <span style={{display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap'}}>
+          <div className={local.colors}>
             {colors.map((c, i) => (
-              <input
-                key={i}
-                type="color"
-                aria-label={tr('Colour {n}', {n: i + 1})}
-                value={c}
-                onChange={(e) => set({colors: colors.map((x, j) => (j === i ? e.target.value : x))})}
-              />
+              <label key={i} className={local.swatch} style={{background: c}} title={c}>
+                <input
+                  type="color"
+                  aria-label={tr('Colour {n}', {n: i + 1})}
+                  value={c}
+                  onChange={(e) => set({colors: colors.map((x, j) => (j === i ? e.target.value : x))})}
+                />
+              </label>
             ))}
             {colors.length < most && (
-              <button type="button" className={styles.linkButton} onClick={() => set({colors: [...colors, colors[colors.length - 1]]})}>
-                {tr('+ colour')}
+              <button type="button" className={local.roundButton} aria-label={tr('+ colour')} onClick={() => set({colors: [...colors, colors[colors.length - 1]]})}>
+                +
               </button>
             )}
             {colors.length > 1 && (
-              <button type="button" className={styles.linkButton} onClick={() => set({colors: colors.slice(0, -1)})}>
-                {tr('− colour')}
+              <button type="button" className={local.roundButton} aria-label={tr('− colour')} onClick={() => set({colors: colors.slice(0, -1)})}>
+                −
               </button>
             )}
-          </span>
+          </div>
           {most === 2 && <small className={styles.dim}>{tr('A second colour shows instead of dark.')}</small>}
         </div>
       )}
-      {moves(value.effect) && (
-        <label className={styles.field}>
-          {value.effect === 'gradient' ? tr('One move along the lights in s, 0 stands still') : tr('One cycle in s')}
-          <input
-            type="number"
-            inputMode="decimal"
-            min={minPeriod(value.effect, lights.limits)}
-            max={lights.limits.max_period}
-            step={0.1}
-            value={value.period ?? 1}
-            onChange={(e) => e.target.value !== '' && set({period: Number(e.target.value)})}
-          />
-        </label>
-      )}
+      {moves(value.effect) && <PeriodField value={value.period ?? 1} effect={value.effect} lights={lights} styles={styles} onChange={(period) => set({period})} />}
       {value.effect !== 'off' && (
         <label className={styles.field}>
-          {tr('Brightness {n} %', {n: Math.round((value.brightness ?? 1) * 100)})}
-          <input
-            type="range"
-            min={0}
-            max={100}
-            value={Math.round((value.brightness ?? 1) * 100)}
-            onChange={(e) => set({brightness: Number(e.target.value) / 100})}
-          />
+          {tr('Brightness {n} %', {n: brightness})}
+          <input className={local.range} type="range" min={0} max={100} value={brightness} onChange={(e) => set({brightness: Number(e.target.value) / 100})} />
         </label>
       )}
     </>
   );
 }
 
-// the lights of a mower with MowBite OS: an effect for each state, tried on the mower before it's saved
+// the lights of a mower with MowBite OS: each state folded to its name and colours, tried on the mower and saved by
+// itself
 export function LightSettings({styles}: {styles: Record<string, string>}) {
   useLang();
   // undefined: loading, null: it didn't answer
@@ -168,78 +165,96 @@ export function LightSettings({styles}: {styles: Record<string, string>}) {
 
   const states = statesOf(lights);
   const effectOf = (s: string) => fitted(draft[s] ?? lights.defaults[s] ?? {effect: 'off'}, lights.limits);
-  const changed = states.some((s) => !sameEffect(effectOf(s), lights.profile[s]));
-  const run = async (what: () => Promise<{profile: LightProfile}>, done: string) => {
+  const changed = (s: string) => !sameEffect(effectOf(s), lights.profile[s]);
+  // the mower keeps the whole profile: the one state saved, the others as they are on the mower
+  const save = async (s: string) => {
     setBusy(true);
     setNote(null);
     try {
-      const {profile} = await what();
+      const {profile} = await saveLights({...lights.profile, [s]: effectOf(s)});
+      setLights({...lights, profile});
+      setDraft({...draft, [s]: profile[s]});
+      setNote({state: s, text: tr('Saved on the mower.')});
+    } catch (e) {
+      setNote({state: s, text: answerError(e), error: true});
+    } finally {
+      setBusy(false);
+    }
+  };
+  const reset = async () => {
+    setBusy(true);
+    setNote(null);
+    try {
+      const {profile} = await resetLights();
       setLights({...lights, profile});
       setDraft(profile);
-      setNote({text: done});
+      setNote({text: tr('Back to the defaults.')});
     } catch (e) {
       setNote({text: answerError(e), error: true});
     } finally {
       setBusy(false);
     }
   };
-  const preview = async (state: string) => {
+  const preview = async (s: string) => {
     setNote(null);
     try {
-      const r = await previewLight(effectOf(state), Math.min(PREVIEW_S, lights.limits.max_preview));
-      setNote({
-        state,
-        text: r.emergency ? tr('An emergency stop shows over it right now.') : tr('Shows on the mower for {n} s.', {n: fmt(r.duration, 0)}),
-      });
+      const r = await previewLight(effectOf(s), Math.min(PREVIEW_S, lights.limits.max_preview));
+      setNote({state: s, text: r.emergency ? tr('An emergency stop shows over it right now.') : tr('Shows on the mower for {n} s.', {n: fmt(r.duration, 0)})});
     } catch (e) {
-      setNote({state, text: answerError(e), error: true});
+      setNote({state: s, text: answerError(e), error: true});
     }
   };
 
   return (
     <>
-      <p className={styles.dim}>
-        {tr('{n} LEDs on the mower. Each state shows its effect: try it on the mower, then save.', {n: lights.leds})}
-      </p>
+      <p className={styles.dim}>{tr('{n} LEDs on the mower. Open a state to change it, try it on the mower, then save it.', {n: lights.leds})}</p>
       {states.map((s) => {
         const e = effectOf(s);
         return (
-          <section key={s} className={styles.card} data-light={s}>
-            <h2>
-              {named(STATE_NAMES, s)} <Swatch e={e} />
-            </h2>
-            <EffectFields value={e} lights={lights} styles={styles} onChange={(v) => setDraft({...draft, [s]: v})} />
-            <button type="button" className={styles.pillButton} disabled={busy} onClick={() => void preview(s)}>
-              {tr('Show on the mower')}
-            </button>
-            {note?.state === s && <p className={note.error ? styles.error : styles.dim}>{note.text}</p>}
-          </section>
+          <details key={s} className={local.state} data-light={s}>
+            <summary>
+              {named(STATE_NAMES, s)}
+              <Dots e={e} />
+              <span className={local.effectName}>{named(EFFECT_NAMES, e.effect)}</span>
+              {changed(s) && <span className={local.changed}>{tr('changed')}</span>}
+            </summary>
+            <div className={local.body}>
+              <EffectFields value={e} lights={lights} styles={styles} onChange={(v) => setDraft({...draft, [s]: v})} />
+              <div className={local.actions}>
+                {changed(s) && (
+                  <button type="button" className={local.save} disabled={busy} onClick={() => void save(s)}>
+                    {tr('Save')}
+                  </button>
+                )}
+                <button type="button" className={styles.pillButton} disabled={busy} onClick={() => void preview(s)}>
+                  {tr('Show on the mower')}
+                </button>
+                {changed(s) && (
+                  <button type="button" className={styles.linkButton} disabled={busy} onClick={() => setDraft({...draft, [s]: lights.profile[s]})}>
+                    {tr('Discard')}
+                  </button>
+                )}
+              </div>
+              {note?.state === s && <p className={note.error ? styles.error : styles.dim}>{note.text}</p>}
+            </div>
+          </details>
         );
       })}
-      <section className={styles.card}>
-        <h2>
-          {tr('Emergency stop')} <Swatch e={lights.emergency} />
-        </h2>
-        <p className={styles.dim}>
-          {named(EFFECT_NAMES, lights.emergency.effect)}
-          {moves(lights.emergency.effect) && lights.emergency.period ? `, ${fmt(lights.emergency.period, 1)} s` : ''}.{' '}
-          {tr('The same on every mower, no setting changes it.')}
-        </p>
-      </section>
-      <section className={styles.card}>
-        <button type="button" className={styles.pillButton} disabled={busy || !changed} onClick={() => void run(() => saveLights(Object.fromEntries(states.map((s) => [s, effectOf(s)]))), tr('Saved on the mower.'))}>
-          {tr('Save')}
-        </button>{' '}
-        {changed && (
-          <button type="button" className={styles.linkButton} disabled={busy} onClick={() => setDraft(lights.profile)}>
-            {tr('Discard changes')}
-          </button>
-        )}{' '}
-        <button type="button" className={styles.linkButton} disabled={busy} onClick={() => confirm('reset', () => void run(resetLights, tr('Back to the defaults.')))}>
-          {sure === 'reset' ? tr('Really back to the defaults?') : tr('Back to the defaults')}
-        </button>
-        {note && !note.state && <p className={note.error ? styles.error : styles.dim}>{note.text}</p>}
-      </section>
+      <div className={local.state}>
+        <div className={local.body} style={{paddingTop: 12}}>
+          <strong>
+            {tr('Emergency stop')} <Dots e={lights.emergency} />
+          </strong>
+          <span className={styles.dim}>
+            {named(EFFECT_NAMES, lights.emergency.effect)}
+            {moves(lights.emergency.effect) && lights.emergency.period ? `, ${fmt(lights.emergency.period, 1)} s` : ''}. {tr('The same on every mower, no setting changes it.')}
+          </span>
+        </div>
+      </div>
+      <button type="button" className={styles.linkButton} disabled={busy} onClick={() => confirm('reset', () => void reset())}>
+        {sure === 'reset' ? tr('Really back to the defaults?') : tr('All back to the defaults')}
+      </button>
+      {note && !note.state && <p className={note.error ? styles.error : styles.dim}>{note.text}</p>}
     </>
   );
 }
