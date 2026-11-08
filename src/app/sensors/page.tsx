@@ -5,6 +5,7 @@ import {TitleRow} from '@/components/TopWeather';
 import {RadialGauge, TempGauge} from '@/components/gauges';
 import {BatteryIcon, TurnIcon} from '@/components/icons';
 import InfoTip from '@/components/InfoTip';
+import {useMowbiteOs} from '@/lib/mowerOs';
 import Sparkline from '@/components/Sparkline';
 import {useBatteryLevel} from '@/hooks/useBatteryLevel';
 import {useEmergencyReasons} from '@/hooks/useEmergencyReasons';
@@ -87,6 +88,7 @@ export default function SensorsPage() {
   const params = useMowerParams();
   const history = useSensorHistory();
   const level = useBatteryLevel();
+  const os = useMowbiteOs();
   const info = (id: string) => infos.find((i) => i.sensor_id === id);
   const num = (id: string) => (values[id] !== undefined ? Number(values[id]) : undefined);
 
@@ -166,7 +168,11 @@ export default function SensorsPage() {
                   <>
                     {tr('Battery')}
                     <InfoTip>
-                      {level !== undefined
+                      {os
+                        ? tr(
+                            "The percentage comes from the mower itself: MowBite OS takes what its battery or board reports, on the Airseekers Tron the battery's own management (BMS). The app doesn't work it out from the voltage here.",
+                          )
+                        : level !== undefined
                         ? tr(
                             "MowBite works out the percentage from the battery voltage as if only the electronics drew on it, so it stays put when the blade starts or the mower leaves the dock. It goes up only while charging and down only while not. 0 % is where OpenMower sends the mower home. In the dock it goes down slowly after a full charge until the charger tops it up.",
                           )

@@ -23,7 +23,9 @@ import {CalibrationLink} from '@/components/CalibrationLink';
 import {CALIB_SHOWN} from '@/lib/calibration';
 import {NotifySettings} from '@/components/NotifySettings';
 import {LightSettings} from '@/components/LightSettings';
+import {SoundSettings} from '@/components/SoundSettings';
 import {offersLights} from '@/lib/light';
+import {offersSounds} from '@/lib/sound';
 import {datumFromParams, useMowerParams} from '@/hooks/useMowerParams';
 import {posixTz} from '@/lib/schedule';
 import {RpcError} from '@/lib/rpc';
@@ -243,11 +245,13 @@ export default function SettingsPage() {
   // the planner there but busy: it's waited for, not the sizes as without it
   const waiting = usePlannerWaiting()?.what === 'load';
   const demo = useSyncExternalStore(noop, isDemo, () => false);
-  // the lights by state, on a mower that has them (MowBite OS)
+  // the lights by state and the sounds, on a mower that has them (MowBite OS)
   const [lights, setLights] = useState(false);
+  const [sounds, setSounds] = useState(false);
   useEffect(() => {
     let stop = false;
     void offersLights().then((has) => !stop && setLights(has));
+    void offersSounds().then((has) => !stop && setSounds(has));
     return () => {
       stop = true;
     };
@@ -386,6 +390,11 @@ export default function SettingsPage() {
         {lights && (
           <Group id="lights" title={tr('Lights')} hint={tr('Colour and effect by state')}>
             <LightSettings styles={styles} />
+          </Group>
+        )}
+        {sounds && (
+          <Group id="sounds" title={tr('Sounds')} hint={tr('Volume, each one to listen to')}>
+            <SoundSettings styles={styles} />
           </Group>
         )}
 

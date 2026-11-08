@@ -602,6 +602,15 @@
     }
    ]
   },
+  "SOUND_REFUSED": {
+   "severity": "info",
+   "variants": [
+    {
+     "en": "Sound not played",
+     "de": "Ton nicht abgespielt"
+    }
+   ]
+  },
   "DRIVE": {
    "severity": "warning",
    "variants": [
@@ -1584,6 +1593,12 @@
    {
     "en": "no answer in time",
     "de": "keine rechtzeitige Antwort"
+   }
+  ],
+  "NO_FILE": [
+   {
+    "en": "the mower has no sound for this situation",
+    "de": "für diese Situation hat der Mäher keinen Ton"
    }
   ],
   "RESTART_HOLD_STAYS": [

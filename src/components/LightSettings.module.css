@@ -1,0 +1,146 @@
+/* a state of the lights: folded to its name, its colours and its effect */
+.state {
+  border-radius: 10px;
+  background: rgba(128, 128, 128, 0.08);
+}
+
+.state > summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+
+.state > summary::-webkit-details-marker {
+  display: none;
+}
+
+.state > summary::after {
+  content: '▾';
+  margin-left: auto;
+  color: var(--text-secondary);
+  transition: transform 0.2s ease;
+}
+
+.state[open] > summary::after {
+  transform: rotate(180deg);
+}
+
+.effectName {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+
+.changed {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent, #4f8cff);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 14px 14px;
+}
+
+.dots {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid rgba(128, 128, 128, 0.5);
+}
+
+.colors {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+/* a colour to tap: shows the colour chosen, the picker lies over it unseen */
+.swatch {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid var(--field-border);
+  box-shadow: var(--btn-3d);
+  transition: transform 0.1s ease;
+}
+
+.swatch:active,
+.swatch:focus-within {
+  transform: scale(0.92);
+  outline: 2px solid var(--foreground);
+  outline-offset: 2px;
+}
+
+.swatch input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+}
+
+.roundButton {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: var(--btn-3d);
+  transition: transform 0.1s ease;
+}
+
+.roundButton:active {
+  transform: scale(0.9);
+}
+
+/* the slider goes to its ends: no padding of the other fields */
+.range {
+  width: 100%;
+  margin: 0;
+  padding: 0 !important;
+  border: none !important;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.save {
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: none;
+  background: var(--accent, #4f8cff);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.save:disabled {
+  opacity: 0.5;
+}

@@ -6,6 +6,7 @@ import {closedRings, openRing, openRings} from '../rings';
 import {CALIB_NEED, calibCounts, calibResultOf} from './calib';
 import {DEMO_PARAMS, DEMO_SENSORS, demoMap} from './garden';
 import {demoLights, demoLightsOn} from './light';
+import {demoSounds, demoSoundsOn} from './sound';
 
 // The demo mower: what OpenMower would send and answer, made up here so the app can be looked at without a mower.
 // It drives the plan of its garden at a mower's pace, takes the commands (start, pause, home, skip), keeps its
@@ -1102,6 +1103,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
       return wanted;
     },
     ...(demoLightsOn() ? demoLights() : {}),
+    ...(demoSoundsOn() ? demoSounds() : {}),
   };
   const answer = (paths: Path[], angle: number, id?: string) => ({
     ...(id ? {area_id: id} : {}),
@@ -1122,7 +1124,9 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     try {
       reply({result: method(req.params)});
     } catch (e) {
-      reply({error: {code: -32602, message: e instanceof Error ? e.message : String(e)}});
+      // a refusal of MowBite OS brings its own code and data, anything else is a bad param
+      const {code = -32602, data} = e as {code?: number; data?: object};
+      reply({error: {code, message: e instanceof Error ? e.message : String(e), ...(data ? {data} : {})}});
     }
   }
 

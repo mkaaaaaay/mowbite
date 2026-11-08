@@ -29,7 +29,7 @@
   font-weight: 700;
 }
 
-/* the title, and the weather now at the right end */
+/* the title, then the weather now and the mower switch at the right end */
 .top {
   display: flex;
   align-items: center;
@@ -699,9 +699,10 @@
   box-shadow: none;
 }
 
-/* on phones, the sidebar has its own */
+/* at the right end of the title row on phones, the sidebar has its own */
 .mowerSwitch {
-  justify-self: start;
+  flex: none;
+  max-width: 40%;
 }
 
 @media (min-width: 900px) {
