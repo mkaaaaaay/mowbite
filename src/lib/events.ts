@@ -70,6 +70,10 @@ export interface MowerEvent {
   temperature?: number;
   sun_elevation?: number;
   battery_percentage?: number;
+  // UNEXPECTED_RESTART: whether it waits for a reset, the state then, the kernel's line or what the OS found (english)
+  hold?: boolean;
+  state_before?: string;
+  detail?: string;
   // worked out here, not from OpenMower: a navigation error that only came because it was sent home (see markSentHome)
   sentHome?: boolean;
 }
@@ -305,6 +309,38 @@ const EMERGENCY_HELP: Record<string, string> = {
   FOREIGN_HOST:
     "Another computer or program is talking to the mower's board, OpenMower still running next to MowBite OS say. Stop it: a reset only goes through once MowBite OS alone talks to the board.",
   DRIVER_STALL: 'The hardware driver hung for too long, so it stopped to be safe. Once can be a load peak, if it happens again the log from that moment says more.',
+  UNEXPECTED_RESTART:
+    "MowBite OS didn't end in order while the mower was working, or the kernel crashed. It waits for a reset, also after switching it off and on. Look at the mower and around it, then reset it, the activity says what happened.",
+};
+
+// why MowBite OS started again (UNEXPECTED_RESTART), whether it holds and what to do
+const RESTART_CAUSE: Record<string, string> = {
+  KERNEL_CRASH: "The mower's operating system crashed and started again.",
+  OS_CRASH: 'MowBite OS ended without its own stop and started again: crashed, killed or out of memory.',
+  POWER_LOSS: 'The mower started again while MowBite OS ran: power cut, battery out, hard reset, power key held or a hang.',
+};
+function restartText(e: MowerEvent): string | undefined {
+  const cause = RESTART_CAUSE[e.reason ?? ''];
+  const said = cause ? [tr(cause)] : [];
+  if (e.reason === 'KERNEL_CRASH' && e.detail) said.push(tr('The kernel said: "{detail}".', {detail: e.detail}));
+  if (e.hold === false) said.push(tr('It was idle, so nothing is held and it goes on by itself.'));
+  else if (e.hold) {
+    if (e.reason === 'KERNEL_CRASH') said.push(tr("It doesn't drive or mow until it's reset, whatever it did before."));
+    else if (e.state_before === 'IDLE') said.push(tr('It still waits for the reset after an earlier restart.'));
+    else if (e.reason === 'POWER_LOSS') said.push(tr("Any such interruption while it works holds it until it's reset. That's on purpose, not a fault."));
+    else said.push(tr("It was working, so it doesn't drive or mow until it's reset."));
+    said.push(tr('Look at the mower and around it, then reset the emergency stop.'));
+  }
+  if (e.reason === 'KERNEL_CRASH' || e.reason === 'OS_CRASH') said.push(tr('If it happens again, keep the log for a report.'));
+  return said.join(' ') || undefined;
+}
+
+// why reset_emergency didn't let go and what to do, a part of MowBite OS not answering for the others
+const RESET_REFUSED_HELP: Record<string, string> = {
+  STILL_TILTED: 'Stand it level, then reset it again.',
+  TILT_UNKNOWN: "Without fresh data from the IMU it can't tell whether it stands level. Try again in a moment, if it stays so check the IMU and its connection.",
+  FOREIGN_HOST: 'Stop the other computer or program first, OpenMower still running next to MowBite OS say, then reset it again.',
+  RESTART_HOLD_STAYS: "The mower couldn't delete its hold from its storage, so it stays. Try again in a moment, if it stays the log from that moment says more.",
 };
 
 // a refused reset where it's reset, under the emergency stop and its reasons
@@ -396,12 +432,9 @@ export function explain(e: MowerEvent, state?: string, gpsTimeout?: number, os =
     }
     // the emergency stop stays as it was
     case 'EMERGENCY_RESET_REFUSED':
-      if (e.reason === 'STILL_TILTED') return tr('Stand it level, then reset it again.');
-      if (e.reason === 'TILT_UNKNOWN')
-        return tr("Without fresh data from the IMU it can't tell whether it stands level. Try again in a moment, if it stays so check the IMU and its connection.");
-      if (e.reason === 'FOREIGN_HOST')
-        return tr('Stop the other computer or program first, OpenMower still running next to MowBite OS say, then reset it again.');
-      return tr("A part of MowBite OS didn't answer. Try again in a moment, the log from that moment says more.");
+      return tr(RESET_REFUSED_HELP[e.reason ?? ''] ?? "A part of MowBite OS didn't answer. Try again in a moment, the log from that moment says more.");
+    case 'UNEXPECTED_RESTART':
+      return restartText(e);
     case 'MOW_MOTOR_SPINUP_FAILED':
       return spinupFailed();
     case 'RECORDING_REFUSED':
