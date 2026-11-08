@@ -3629,6 +3629,229 @@
       },
       "type": "array"
     },
+    "light.get_profile.params": {
+      "description": "The params of light.get_profile: None",
+      "type": "object"
+    },
+    "light.get_profile.result": {
+      "additionalProperties": false,
+      "description": "The result of light.get_profile: The lights now",
+      "properties": {
+        "defaults": {
+          "description": "The effect by state after light.reset",
+          "type": "object"
+        },
+        "effects": {
+          "description": "The effects there are",
+          "items": {
+            "description": "One item",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "emergency": {
+          "additionalProperties": false,
+          "description": "What every emergency shows; no profile changes it",
+          "properties": {
+            "brightness": {
+              "description": "0 to 1 of what the OS allows",
+              "type": "number"
+            },
+            "colors": {
+              "description": "1 to limits.colors texts #rrggbb; none for off",
+              "items": {
+                "description": "One item",
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "effect": {
+              "description": "One of the effects of light.get_profile",
+              "type": "string"
+            },
+            "period": {
+              "description": "Time of one blink, pulse, chase or move of the gradient; a gradient may be 0",
+              "type": "number",
+              "x-unit": "s"
+            }
+          },
+          "required": [
+            "effect"
+          ],
+          "type": "object"
+        },
+        "leds": {
+          "description": "LEDs on the mower",
+          "type": "integer"
+        },
+        "limits": {
+          "additionalProperties": false,
+          "description": "Bounds of an effect",
+          "properties": {
+            "colors": {
+              "description": "Most colours of an effect",
+              "type": "integer"
+            },
+            "max_period": {
+              "description": "Longest period",
+              "type": "number",
+              "x-unit": "s"
+            },
+            "max_preview": {
+              "description": "Longest light.preview",
+              "type": "number",
+              "x-unit": "s"
+            },
+            "min_period": {
+              "description": "Shortest period",
+              "type": "number",
+              "x-unit": "s"
+            }
+          },
+          "required": [
+            "colors",
+            "min_period",
+            "max_period",
+            "max_preview"
+          ],
+          "type": "object"
+        },
+        "profile": {
+          "description": "An effect by state",
+          "type": "object"
+        },
+        "states": {
+          "description": "The states of a profile in the order to show them",
+          "items": {
+            "description": "One item",
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "states",
+        "effects",
+        "profile",
+        "defaults",
+        "emergency",
+        "limits",
+        "leds"
+      ],
+      "type": "object"
+    },
+    "light.preview.params": {
+      "additionalProperties": false,
+      "description": "The params of light.preview: What to show",
+      "properties": {
+        "duration": {
+          "description": "How long, more than 0 and at most limits.max_preview; that without",
+          "type": "number",
+          "x-unit": "s"
+        },
+        "effect": {
+          "additionalProperties": false,
+          "description": "The effect",
+          "properties": {
+            "brightness": {
+              "description": "0 to 1 of what the OS allows",
+              "type": "number"
+            },
+            "colors": {
+              "description": "1 to limits.colors texts #rrggbb; none for off",
+              "items": {
+                "description": "One item",
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "effect": {
+              "description": "One of the effects of light.get_profile",
+              "type": "string"
+            },
+            "period": {
+              "description": "Time of one blink, pulse, chase or move of the gradient; a gradient may be 0",
+              "type": "number",
+              "x-unit": "s"
+            }
+          },
+          "required": [
+            "effect"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "effect"
+      ],
+      "type": "object"
+    },
+    "light.preview.result": {
+      "additionalProperties": false,
+      "description": "The result of light.preview: The preview",
+      "properties": {
+        "duration": {
+          "description": "How long it shows",
+          "type": "number",
+          "x-unit": "s"
+        },
+        "emergency": {
+          "description": "An emergency shows over it right now",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "duration",
+        "emergency"
+      ],
+      "type": "object"
+    },
+    "light.reset.params": {
+      "description": "The params of light.reset: None",
+      "type": "object"
+    },
+    "light.reset.result": {
+      "additionalProperties": false,
+      "description": "The result of light.reset: The profile now",
+      "properties": {
+        "profile": {
+          "description": "An effect by state of light.get_profile",
+          "type": "object"
+        }
+      },
+      "required": [
+        "profile"
+      ],
+      "type": "object"
+    },
+    "light.set_profile.params": {
+      "additionalProperties": false,
+      "description": "The params of light.set_profile: The profile",
+      "properties": {
+        "profile": {
+          "description": "An effect by state of light.get_profile",
+          "type": "object"
+        }
+      },
+      "required": [
+        "profile"
+      ],
+      "type": "object"
+    },
+    "light.set_profile.result": {
+      "additionalProperties": false,
+      "description": "The result of light.set_profile: The profile now",
+      "properties": {
+        "profile": {
+          "description": "An effect by state of light.get_profile",
+          "type": "object"
+        }
+      },
+      "required": [
+        "profile"
+      ],
+      "type": "object"
+    },
     "logs.recent.params": {
       "additionalProperties": false,
       "description": "The params of logs.recent: All optional",
@@ -5086,6 +5309,182 @@
       },
       "type": "array"
     },
+    "sound.list.params": {
+      "description": "The params of sound.list: None",
+      "type": "object"
+    },
+    "sound.list.result": {
+      "additionalProperties": false,
+      "description": "The result of sound.list: The sounds",
+      "properties": {
+        "situations": {
+          "description": "A situation, in the order to show them",
+          "items": {
+            "additionalProperties": false,
+            "description": "One item",
+            "properties": {
+              "event": {
+                "description": "What makes the OS play it, in English",
+                "type": "string"
+              },
+              "file": {
+                "additionalProperties": false,
+                "description": "Its sound, null without one",
+                "properties": {
+                  "seconds": {
+                    "description": "How long it plays",
+                    "type": "number",
+                    "x-unit": "s"
+                  },
+                  "sha256": {
+                    "description": "SHA-256 of the original",
+                    "type": "string"
+                  },
+                  "size": {
+                    "description": "Bytes of the original",
+                    "type": "integer"
+                  },
+                  "source": {
+                    "description": "vendor: of the maker of the mower; upload: of the user",
+                    "enum": [
+                      "vendor",
+                      "upload"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "source",
+                  "size",
+                  "sha256",
+                  "seconds"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "name": {
+                "description": "Name of the situation",
+                "enum": [
+                  "MOWING_START",
+                  "MOWING_COMPLETE",
+                  "DOCKING_START",
+                  "LOW_BATTERY",
+                  "RAIN_DETECTED",
+                  "MOWING_PAUSED",
+                  "AREA_RECORDING_MODE",
+                  "DOCKING_FAILED",
+                  "CHARGING_START",
+                  "CHARGING_DONE",
+                  "EMERGENCY",
+                  "LIFT_TRIGGERED"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "event",
+              "file"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "volume": {
+          "description": "0 to 100; 0 is silent",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "situations",
+        "volume"
+      ],
+      "type": "object"
+    },
+    "sound.play.params": {
+      "additionalProperties": false,
+      "description": "The params of sound.play: The situation",
+      "properties": {
+        "situation": {
+          "description": "A name of sound.list",
+          "enum": [
+            "MOWING_START",
+            "MOWING_COMPLETE",
+            "DOCKING_START",
+            "LOW_BATTERY",
+            "RAIN_DETECTED",
+            "MOWING_PAUSED",
+            "AREA_RECORDING_MODE",
+            "DOCKING_FAILED",
+            "CHARGING_START",
+            "CHARGING_DONE",
+            "EMERGENCY",
+            "LIFT_TRIGGERED"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "situation"
+      ],
+      "type": "object"
+    },
+    "sound.play.result": {
+      "additionalProperties": false,
+      "description": "The result of sound.play: What plays",
+      "properties": {
+        "seconds": {
+          "description": "How long it plays",
+          "type": "number",
+          "x-unit": "s"
+        },
+        "situation": {
+          "description": "The situation",
+          "type": "string"
+        }
+      },
+      "required": [
+        "situation",
+        "seconds"
+      ],
+      "type": "object"
+    },
+    "sound.stop.params": {
+      "description": "The params of sound.stop: None",
+      "type": "object"
+    },
+    "sound.stop.result": {
+      "description": "The result of sound.stop: Empty",
+      "type": "object"
+    },
+    "sound.volume.params": {
+      "additionalProperties": false,
+      "description": "The params of sound.volume: None to read",
+      "properties": {
+        "volume": {
+          "description": "0 to 100",
+          "type": "integer"
+        }
+      },
+      "required": [],
+      "type": "object"
+    },
+    "sound.volume.result": {
+      "additionalProperties": false,
+      "description": "The result of sound.volume: The volume now",
+      "properties": {
+        "volume": {
+          "description": "0 to 100",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "volume"
+      ],
+      "type": "object"
+    },
     "system.api.params": {
       "additionalProperties": false,
       "description": "The params of system.api",
@@ -5211,6 +5610,83 @@
       ],
       "type": "object"
     },
+    "system.stats.params": {
+      "description": "The params of system.stats: None",
+      "type": "object"
+    },
+    "system.stats.result": {
+      "additionalProperties": false,
+      "description": "The result of system.stats: The values that could be read",
+      "properties": {
+        "cpu_temp": {
+          "description": "Temperature of the CPU or SoC",
+          "type": "number",
+          "x-unit": "deg.C"
+        },
+        "cpus": {
+          "description": "Number of CPU cores",
+          "type": "integer"
+        },
+        "data_free": {
+          "description": "Space left on the disk of data_dir",
+          "type": "integer",
+          "x-unit": "B"
+        },
+        "data_total": {
+          "description": "Size of the disk of data_dir",
+          "type": "integer",
+          "x-unit": "B"
+        },
+        "disk_free": {
+          "description": "Space left on the system disk",
+          "type": "integer",
+          "x-unit": "B"
+        },
+        "disk_total": {
+          "description": "Size of the system disk",
+          "type": "integer",
+          "x-unit": "B"
+        },
+        "load": {
+          "description": "Load average over one minute",
+          "type": "number"
+        },
+        "mem_available": {
+          "description": "Memory free for new programs",
+          "type": "integer",
+          "x-unit": "B"
+        },
+        "mem_total": {
+          "description": "Memory of the machine",
+          "type": "integer",
+          "x-unit": "B"
+        },
+        "net_iface": {
+          "description": "The interface of the default route",
+          "type": "string"
+        },
+        "net_ip": {
+          "description": "Its IPv4 address",
+          "type": "string"
+        },
+        "uptime": {
+          "description": "Time since the machine started",
+          "type": "integer",
+          "x-unit": "s"
+        },
+        "wifi_iface": {
+          "description": "The first wifi interface",
+          "type": "string"
+        },
+        "wifi_signal": {
+          "description": "Signal of that wifi",
+          "type": "integer",
+          "x-unit": "dBm"
+        }
+      },
+      "required": [],
+      "type": "object"
+    },
     "undocking.abort.params": {
       "additionalProperties": false,
       "description": "The params of undocking.abort",
@@ -5244,11 +5720,11 @@
       "type": "object"
     }
   },
-  "$id": "urn:mowbite-os:api:7",
+  "$id": "urn:mowbite-os:api:9",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "robot_state, actions, events and RPC methods of MowBite OS over MQTT, as system.api gives them; made from the code, objects sorted by key. x-reasons has severity and resume of every reason by event (COMMAND_REFUSED and REQUEST_REFUSED only in refusals; when: another rating for these field values; texts: name, help and fix by language), x-emergency-bits the bits of emergency, x-commands the commands with params, result, the event of their refusal and the actions that do the same, x-methods every RPC method of the OS with its node (planner.* are the planner's, sim.* only in the simulation), x-sensors the sensors by id, x-settings the settings of params.set with the ranges of the OS, x-geometry the keys of robot.geometry.",
   "title": "MowBite OS app interface",
-  "x-api": 7,
+  "x-api": 9,
   "x-commands": {
     "docking.abort": {
       "action": "mower_logic:docking/abort_docking",
@@ -5867,6 +6343,34 @@
       "params": "#/$defs/events.history.list.params",
       "result": "#/$defs/events.history.list.result"
     },
+    "light.get_profile": {
+      "description": "The lights: the states and effects there are, the profile by state, its defaults, the fixed signal of an emergency and the limits",
+      "node": "mowbite_light",
+      "offered": "",
+      "params": "#/$defs/light.get_profile.params",
+      "result": "#/$defs/light.get_profile.result"
+    },
+    "light.preview": {
+      "description": "Shows an effect for a while, then the state again; an emergency shows over it",
+      "node": "mowbite_light",
+      "offered": "",
+      "params": "#/$defs/light.preview.params",
+      "result": "#/$defs/light.preview.result"
+    },
+    "light.reset": {
+      "description": "Back to the default profile; ends a preview",
+      "node": "mowbite_light",
+      "offered": "",
+      "params": "#/$defs/light.reset.params",
+      "result": "#/$defs/light.reset.result"
+    },
+    "light.set_profile": {
+      "description": "Stores the profile, all or nothing; a state left out gets its default",
+      "node": "mowbite_light",
+      "offered": "",
+      "params": "#/$defs/light.set_profile.params",
+      "result": "#/$defs/light.set_profile.result"
+    },
     "logs.recent": {
       "description": "The last log lines from WARN on, oldest first, logins hidden",
       "node": "mowbite_bridge",
@@ -6091,6 +6595,34 @@
       "params": "#/$defs/sensors.list.params",
       "result": "#/$defs/sensors.list.result"
     },
+    "sound.list": {
+      "description": "The situations the OS has a sound for, the sound of each and the volume",
+      "node": "mowbite_sound",
+      "offered": "with a speaker and at least one sound",
+      "params": "#/$defs/sound.list.params",
+      "result": "#/$defs/sound.list.result"
+    },
+    "sound.play": {
+      "description": "Plays the sound of a situation once, to listen to it; refused (SOUND_REFUSED) in an emergency and without a sound",
+      "node": "mowbite_sound",
+      "offered": "with a speaker and at least one sound",
+      "params": "#/$defs/sound.play.params",
+      "result": "#/$defs/sound.play.result"
+    },
+    "sound.stop": {
+      "description": "Ends the sound that plays; refused (SOUND_REFUSED) in an emergency",
+      "node": "mowbite_sound",
+      "offered": "with a speaker and at least one sound",
+      "params": "#/$defs/sound.stop.params",
+      "result": "#/$defs/sound.stop.result"
+    },
+    "sound.volume": {
+      "description": "Reads the volume, or sets it with volume; 0 is silent, also in an emergency. A change while an update holds the mower is refused with -32004",
+      "node": "mowbite_sound",
+      "offered": "with a speaker and at least one sound",
+      "params": "#/$defs/sound.volume.params",
+      "result": "#/$defs/sound.volume.result"
+    },
     "system.api": {
       "description": "This interface as JSON Schema with its version",
       "node": "mowbite_bridge",
@@ -6111,6 +6643,13 @@
       "offered": "",
       "params": "#/$defs/system.info.params",
       "result": "#/$defs/system.info.result"
+    },
+    "system.stats": {
+      "description": "Memory, disks, load, temperature, uptime and network of the machine the OS runs on, with the keys and units of system.cgi of the app; a value that cannot be read is left out",
+      "node": "mowbite_bridge",
+      "offered": "",
+      "params": "#/$defs/system.stats.params",
+      "result": "#/$defs/system.stats.result"
     },
     "undocking.abort": {
       "description": "Stops leaving the docking station",
@@ -7325,6 +7864,32 @@
         "fields": {},
         "resume": "user",
         "severity": "error"
+      }
+    },
+    "SOUND_REFUSED": {
+      "EMERGENCY": {
+        "description": "An emergency stops the mower",
+        "fields": {},
+        "resume": "user",
+        "severity": "info"
+      },
+      "NO_FILE": {
+        "description": "The situation has no sound",
+        "fields": {},
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Eine Situation mit Ton wählen.",
+            "help": "Für diese Situation hat der Mäher keinen Ton.",
+            "name": "Kein Ton"
+          },
+          "en": {
+            "fix": "Choose a situation that has a sound.",
+            "help": "The mower has no sound for this situation.",
+            "name": "No sound"
+          }
+        }
       }
     },
     "STATE": {

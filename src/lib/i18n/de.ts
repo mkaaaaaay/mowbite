@@ -2252,7 +2252,7 @@ const de: Record<string, string> = {
   "Discard": "Verwerfen",
   "All back to the defaults": "Alle auf die Vorgaben zurück",
   "Sound not played": "Ton nicht abgespielt",
-  "there is no sound for it": "dafür gibt es keinen Ton",
+  "the mower has no sound for this situation": "für diese Situation hat der Mäher keinen Ton",
   "Sounds": "Töne",
   "Volume, each one to listen to": "Lautstärke, jeder zum Anhören",
   "Mowing starts": "Mähen beginnt",

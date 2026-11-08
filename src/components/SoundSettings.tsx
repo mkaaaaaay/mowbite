@@ -3,7 +3,8 @@
 import {fmt, tr, useLang} from '@/lib/i18n';
 import {answerError} from '@/lib/rpcText';
 import {loadSounds, playSound, setVolume, stopSound, type Sounds} from '@/lib/sound';
-import {useEffect, useRef, useState} from 'react';
+import {useEffect, useState} from 'react';
+import local from './LightSettings.module.css';
 
 // the situations as the app calls them (open_mower_ros #347), one it doesn't know readable
 const SITUATION_NAMES: Record<string, string> = {
@@ -21,8 +22,6 @@ const SITUATION_NAMES: Record<string, string> = {
   LIFT_TRIGGERED: 'Lifted',
 };
 const named = (key: string) => (SITUATION_NAMES[key] ? tr(SITUATION_NAMES[key]) : key.replace(/_/g, ' ').toLowerCase());
-// the volume goes to the mower once the slider rests this long
-const VOLUME_MS = 400;
 
 // the sounds of a mower with MowBite OS: each situation to listen to, one volume for all
 export function SoundSettings({styles}: {styles: Record<string, string>}) {
@@ -31,7 +30,6 @@ export function SoundSettings({styles}: {styles: Record<string, string>}) {
   const [sounds, setSounds] = useState<Sounds | null>();
   const [volume, setVol] = useState(0);
   const [note, setNote] = useState<{situation?: string; text: string; error?: boolean} | null>(null);
-  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => {
     let stop = false;
     loadSounds().then(
@@ -44,28 +42,25 @@ export function SoundSettings({styles}: {styles: Record<string, string>}) {
     );
     return () => {
       stop = true;
-      clearTimeout(timer.current);
     };
   }, []);
   if (sounds === undefined) return <p className={styles.dim}>{tr('loading…')}</p>;
   if (sounds === null) return <p className={styles.error}>{tr('The mower did not answer.')}</p>;
 
-  const changeVolume = (v: number) => {
-    setVol(v);
-    clearTimeout(timer.current);
-    timer.current = setTimeout(() => {
-      setVolume(v).then(
-        (r) => {
-          setSounds((s) => (s ? {...s, volume: r.volume} : s));
-          setVol(r.volume);
-          setNote(null);
-        },
-        (e) => {
-          setVol(sounds.volume);
-          setNote({text: answerError(e), error: true});
-        },
-      );
-    }, VOLUME_MS);
+  // the mower writes each volume to its storage: sent once the slider is let go
+  const sendVolume = () => {
+    if (volume === sounds.volume) return;
+    setVolume(volume).then(
+      (r) => {
+        setSounds((s) => (s ? {...s, volume: r.volume} : s));
+        setVol(r.volume);
+        setNote(null);
+      },
+      (e) => {
+        setVol(sounds.volume);
+        setNote({text: answerError(e), error: true});
+      },
+    );
   };
   const play = (situation: string) =>
     playSound(situation).then(
@@ -78,7 +73,17 @@ export function SoundSettings({styles}: {styles: Record<string, string>}) {
       <section className={styles.card}>
         <label className={styles.field}>
           {tr('Volume {n} %', {n: volume})}
-          <input type="range" min={0} max={100} value={volume} onChange={(e) => changeVolume(Number(e.target.value))} />
+          <input
+            className={local.range}
+            type="range"
+            min={0}
+            max={100}
+            value={volume}
+            onChange={(e) => setVol(Number(e.target.value))}
+            onPointerUp={sendVolume}
+            onKeyUp={sendVolume}
+            onBlur={sendVolume}
+          />
         </label>
         {volume === 0 && <p className={styles.dim}>{tr('Silent: the mower plays nothing, not even for an emergency stop.')}</p>}
         <button type="button" className={styles.linkButton} onClick={() => stopSound().catch((e) => setNote({text: answerError(e), error: true}))}>
