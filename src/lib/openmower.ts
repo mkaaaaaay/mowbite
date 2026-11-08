@@ -28,6 +28,8 @@ export const RPC = {
   methods: 'rpc.methods',
   // what runs on the mower, MowBite OS only (lib/mowerOs)
   systemInfo: 'system.info',
+  // memory, storage, load and network of the mower itself, MowBite OS only (lib/system)
+  systemStats: 'system.stats',
   replaceMap: 'map.replace',
   eventDays: 'events.history.list',
   events: 'events.history',
