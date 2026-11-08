@@ -5,6 +5,7 @@ import {EMERGENCY_BITS} from '../reasonTexts';
 import {closedRings, openRing, openRings} from '../rings';
 import {CALIB_NEED, calibCounts, calibResultOf} from './calib';
 import {DEMO_PARAMS, DEMO_SENSORS, demoMap} from './garden';
+import {demoLights, demoLightsOn} from './light';
 
 // The demo mower: what OpenMower would send and answer, made up here so the app can be looked at without a mower.
 // It drives the plan of its garden at a mower's pace, takes the commands (start, pause, home, skip), keeps its
@@ -1100,6 +1101,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
       deliver(TOPIC.params, JSON.stringify(ros));
       return wanted;
     },
+    ...(demoLightsOn() ? demoLights() : {}),
   };
   const answer = (paths: Path[], angle: number, id?: string) => ({
     ...(id ? {area_id: id} : {}),
