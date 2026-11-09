@@ -26,13 +26,14 @@ import {
   loadScheduleLog,
   nextStart,
   logTone,
+  inOtherZone,
   posixTz,
   saveSchedule,
   type LogEntry,
   type Schedule,
   scheduleLogLine,
 } from '@/lib/schedule';
-import {useEffect, useRef, useState} from 'react';
+import {useEffect, useMemo, useRef, useState} from 'react';
 import styles from './page.module.css';
 import {useMowerMap} from '@/hooks/useMowerMap';
 
@@ -108,7 +109,7 @@ export default function SchedulePage() {
     mowAreas.map((a) => a.id),
   );
   // saved from a phone in another time zone: the times are the schedule's, not this phone's
-  const otherZone = !!s.tz && s.tz !== posixTz();
+  const otherZone = useMemo(() => inOtherZone(s.tz), [s.tz]);
 
   return (
     <div className={styles.page}>

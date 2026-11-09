@@ -15,7 +15,7 @@ import {useSensorHistory, type Sample} from '@/hooks/useSensorHistory';
 import {useState, useSyncExternalStore} from 'react';
 import {outOfRange} from '@/lib/sensorLimits';
 import {sharedSettings} from '@/lib/settings';
-import {batteryColor, chargeDone, chargeStateText, GPS_QUALITY_LABEL, gpsQuality, isDocked, onCharger, stateColor, statusText} from '@/lib/status';
+import {batteryColor, chargeDone, chargeStateText, dockText, GPS_QUALITY_LABEL, gpsQuality, isDocked, onCharger, stateColor, statusText} from '@/lib/status';
 import {useChargeConfirmed} from '@/hooks/useChargeConfirmed';
 import {useRecentRuns} from '@/hooks/useRecentRuns';
 import {useOsApi} from '@/lib/mowerOs';
@@ -94,11 +94,13 @@ export default function SensorsPage() {
 
   const currentState = state?.current_state;
   const docked = isDocked(state, values['om_v_charge']);
-  // MowBite OS tells whether it really charges, as on the dashboard
-  const recent = useRecentRuns(currentState);
-  const confirmed = useChargeConfirmed(useOsApi(), state ? onCharger(state, values['om_v_charge']) : undefined, recent?.today, recent?.latest);
+  // MowBite OS tells whether it really charges (from api 4 on, the runs are only asked for then), as on the dashboard
+  const api = useOsApi();
+  const recent = useRecentRuns(currentState, api >= 4);
+  const confirmed = useChargeConfirmed(api, state ? onCharger(state, values['om_v_charge']) : undefined, recent?.today, recent?.latest);
   const mowing = currentState === 'MOWING';
   const battery = level ?? (state ? Math.round(state.battery_percentage * 100) : undefined);
+  const charged = chargeDone(values['om_charge_state'], num('om_charge_current'), battery);
   const criticalCount = infos.filter((i) => outOfRange(i, values[i.sensor_id], currentState)).length;
 
   const batteryCritical = ['om_v_battery', 'om_v_charge', 'om_charge_current'].some((id) =>
@@ -137,9 +139,9 @@ export default function SensorsPage() {
             </h1>
             {state && (
               <span
-                className={[styles.chip, styles[`chip-${state.emergency ? 'error' : docked ? (confirmed === false ? 'warning' : 'success') : stateColor(currentState)}`]].join(' ')}
+                className={[styles.chip, styles[`chip-${state.emergency ? 'error' : docked ? (dockText(charged, confirmed).warn ? 'warning' : 'success') : stateColor(currentState)}`]].join(' ')}
               >
-                {statusText(state, docked, chargeDone(values['om_charge_state'], num('om_charge_current'), battery), confirmed)}
+                {statusText(state, docked, charged, confirmed)}
                 {state.emergency && why ? `: ${emergencyText(why)}` : ''}
               </span>
             )}

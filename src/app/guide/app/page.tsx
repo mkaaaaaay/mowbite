@@ -12,8 +12,11 @@ const text = {fill: 'var(--foreground)'};
 const dim = {fill: 'var(--text-secondary)'};
 const accent = {fill: 'var(--accent)'};
 
+// faded in at that fraction of the loop
+const appear = (at: number) => anim('opacity', DUR, [0, at, at + 0.05, 1], [0, 0, 1, 1]);
+
 // the top of the dashboard: the mower's name over its state, the round button with its first letter
-function Head({name, letter}: {name: string; letter: string}) {
+function Head({name}: {name: string}) {
   return (
     <>
       <text x={24} y={34} fontSize={11} style={dim}>
@@ -24,7 +27,7 @@ function Head({name, letter}: {name: string; letter: string}) {
       </text>
       <circle cx={290} cy={40} r={16} style={accent} />
       <text x={290} y={45} fontSize={14} fontWeight={700} textAnchor="middle" style={{fill: 'var(--accent-foreground)'}}>
-        {letter}
+        {name.charAt(0)}
       </text>
     </>
   );
@@ -34,7 +37,7 @@ function Head({name, letter}: {name: string; letter: string}) {
 function Row({y, label, value, from}: {y: number; label: string; value: string; from?: number}) {
   return (
     <g opacity={from === undefined ? 1 : 0}>
-      {from !== undefined && anim('opacity', DUR, [0, from, from + 0.05, 1], [0, 0, 1, 1])}
+      {from !== undefined && appear(from)}
       <text x={190} y={y} fontSize={11} style={dim}>
         {label}
       </text>
@@ -51,7 +54,7 @@ function Tick({y, label, at}: {y: number; label: string; at?: number}) {
     <>
       <rect x={26} y={y - 10} width={12} height={12} rx={3} style={{fill: 'none', stroke: 'var(--text-secondary)'}} />
       <path d={`M28 ${y - 4} l3 3 l5 -6`} fill="none" strokeWidth={2} strokeLinecap="round" style={{stroke: 'var(--accent)'}} opacity={at === undefined ? 1 : 0}>
-        {at !== undefined && anim('opacity', DUR, [0, at, at + 0.05, 1], [0, 0, 1, 1])}
+        {at !== undefined && appear(at)}
       </path>
       <text x={46} y={y} fontSize={11} style={text}>
         {label}
@@ -76,7 +79,7 @@ function ValuesArt() {
       <Row y={120} label={tr('Speed')} value={`${fmt(0.4, 1)} m/s`} />
       <Row y={144} label={tr('Mow motor')} value="41 °C" from={0.45} />
       <Row y={168} label={tr('Wi-Fi')} value="-61 dBm" />
-      <Head name={tr('Back lawn')} letter={tr('Back lawn').charAt(0)} />
+      <Head name={tr('Back lawn')} />
     </Scene>
   );
 }
@@ -95,7 +98,7 @@ function AddArt() {
         192.168.1.40
       </text>
       <g opacity={0}>
-        {anim('opacity', DUR, [0, 0.45, 0.5, 1], [0, 0, 1, 1])}
+        {appear(0.45)}
         <text x={36} y={100} fontSize={12} style={text}>
           {tr('Front lawn')}
         </text>
@@ -120,11 +123,11 @@ function SwitchArt() {
       <rect x={12} y={12} width={296} height={176} rx={12} style={card} />
       <g>
         {swap('first')}
-        <Head name={tr('Back lawn')} letter={tr('Back lawn').charAt(0)} />
+        <Head name={tr('Back lawn')} />
       </g>
       <g opacity={0}>
         {swap('second')}
-        <Head name={tr('Front lawn')} letter={tr('Front lawn').charAt(0)} />
+        <Head name={tr('Front lawn')} />
       </g>
       {/* the list the round button opens */}
       <g opacity={0}>

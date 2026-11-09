@@ -6,6 +6,7 @@ import {outlineOf, resetPlannerAngle, savePlannerSettings, slic3rPlans, usePlann
 import {ANGLE_FOR_ALL, FIELDS, hidden, STYLE_LABELS, STYLE_NOTES, STYLES, styleOf} from '@/lib/plannerFields';
 import {areasWith, areasWithDirection, ownMargins, ownSettings, shown, type AreaValue, type OpenMowerOwn} from '@/lib/plannerOwn';
 import {useMowbiteOs} from '@/lib/mowerOs';
+import {ownCount} from '@/lib/mowPlan';
 import {answerError} from '@/lib/rpcText';
 import {useEffect, useState} from 'react';
 import InfoTip from './InfoTip';
@@ -297,10 +298,7 @@ export function PlannerSimple({
       </p>
     );
   // OpenMower's own count of the area, saved in the map: it counts while the area has none for the planner
-  const omCount = (k: 'outline_count' | 'outline_overlap_count') => {
-    const v = area?.openmower?.[k];
-    return typeof v === 'number' && v >= 0 ? v : undefined;
-  };
+  const omCount = (k: 'outline_count' | 'outline_overlap_count') => ownCount(area?.openmower?.[k]);
   const omLine = (key: string, prop: 'outline_count' | 'outline_overlap_count') =>
     area && area.own[key] === undefined && omCount(prop) !== undefined ? (
       <p className={local.source}>

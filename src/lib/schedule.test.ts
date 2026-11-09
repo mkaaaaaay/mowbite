@@ -1,6 +1,6 @@
 import {describe, expect, it, vi} from 'vitest';
 import {setLangChoice} from './i18n';
-import {isNightTime, logTone, missedStart, nextStart, parseSchedule, posixTz, scheduleLogLine, serializeSchedule, type Schedule} from './schedule';
+import {inOtherZone, isNightTime, logTone, missedStart, nextStart, parseSchedule, posixTz, scheduleLogLine, serializeSchedule, type Schedule} from './schedule';
 
 // the dates below are local times, so the same zone everywhere (github runs in UTC)
 process.env.TZ = 'Europe/Berlin';
@@ -120,6 +120,14 @@ describe('posixTz', () => {
     } finally {
       process.env.TZ = 'Europe/Berlin';
     }
+  });
+});
+
+describe('inOtherZone', () => {
+  it('only when the schedule has a zone and it is not this one', () => {
+    expect(inOtherZone(undefined)).toBe(false);
+    expect(inOtherZone(posixTz())).toBe(false);
+    expect(inOtherZone('<+0900>-9')).toBe(true);
   });
 });
 

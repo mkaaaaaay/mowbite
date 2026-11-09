@@ -54,15 +54,15 @@ function recorded(corners: Point[], step: number, wobble: number, seed: number):
 const circle = (cx: number, cy: number, r: number, n = 18) =>
   Array.from({length: n}, (_, i) => pt(cx + r * Math.cos((i / n) * 2 * Math.PI), cy + r * Math.sin((i / n) * 2 * Math.PI)));
 
-// the names in the language shown, read when the map is drawn
-const area = (id: string, name: string, type: string, outline: Point[]): MapArea => ({
+// the names in the language shown, read when the map is drawn. more: the other properties
+const area = (id: string, name: string, type: string, outline: Point[], more: Partial<MapArea['properties']> = {active: true}): MapArea => ({
   id,
   properties: {
     get name() {
       return tr(name);
     },
     type,
-    active: true,
+    ...more,
   },
   outline,
 });
@@ -1190,17 +1190,7 @@ function Style() {
 
 // 13: decorating: a gnome picked in the row under the map and set with a tap on the map, picked right away (the lamps
 // by the path have their rings), then held a moment and taken to another spot
-const pinOf = (id: string, name: string, at: Point): MapArea => ({
-  id,
-  properties: {
-    get name() {
-      return tr(name);
-    },
-    type: 'decor',
-    pin: true,
-  },
-  outline: pinSquare(at.x, at.y),
-});
+const pinOf = (id: string, name: string, at: Point): MapArea => area(id, name, 'decor', pinSquare(at.x, at.y), {pin: true});
 const LAMPS = [pinOf('lampe1', 'Garden lamp', pt(7.4, 11)), pinOf('lampe2', 'Garden lamp', pt(10.6, 11))];
 const GNOME_AT = pt(12, 3.2);
 const GNOME_TO = pt(11.4, 7.2);

@@ -227,8 +227,11 @@ export async function giveOutline() {
   if (outlineChecked || !current?.settings.robot_outline?.settable) return;
   outlineChecked = true;
   const info = await systemInfo();
-  if (info === undefined) outlineChecked = false;
-  if (info === undefined || isMowbiteOs(info)) return;
+  if (info === undefined) {
+    outlineChecked = false;
+    return;
+  }
+  if (isMowbiteOs(info)) return;
   await syncSettings();
   if (!current || outlineOf(current.settings.robot_outline?.value)) return;
   const m = autoOutlineModel(plannerSizes(current), settingsStore.snapshot().keepRectangle);

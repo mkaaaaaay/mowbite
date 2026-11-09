@@ -412,6 +412,10 @@ export function posixTz(): string {
   return `${name(std)}${offset(std)}${name(dst)}${offset(dst)},${rule(toDst)},${rule(toStd)}`;
 }
 
+// a schedule saved in another time zone than this device's, its times are then the schedule's (posixTz is costly, not
+// for every render)
+export const inOtherZone = (tz: string | undefined) => !!tz && tz !== posixTz();
+
 // today as YYYY-MM-DD in local time, the scheduler compares it with its own date in the browser's time zone
 export function localDay(d = new Date()): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;

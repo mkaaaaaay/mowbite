@@ -21,12 +21,13 @@ export default function AppSetup() {
   const [failed, setFailed] = useState(false);
   if (!app || hasMower) return null;
 
-  const clean = () => parseAddress(host).host;
   // MowBite on another port than 8082, typed after the host
-  const port = () => parseAddress(host).port ?? 8082;
+  const typed = parseAddress(host);
+  const clean = typed.host;
+  const port = typed.port ?? 8082;
   const save = () => {
     const id = Math.random().toString(36).slice(2, 10);
-    saveAppMowers([{id, name: name.trim(), host: clean(), appPort: port(), wsPort: 9001}]);
+    saveAppMowers([{id, name: name.trim(), host: clean, appPort: port, wsPort: 9001}]);
     selectMower(id);
   };
   const connect = async () => {
@@ -34,7 +35,7 @@ export default function AppSetup() {
     setFailed(false);
     try {
       // only whether something answers there, older MowBite versions don't allow reading from the app
-      await fetch(`http://${clean()}:${port()}/manifest.json`, {mode: 'no-cors', signal: AbortSignal.timeout(6000)});
+      await fetch(`http://${clean}:${port}/manifest.json`, {mode: 'no-cors', signal: AbortSignal.timeout(6000)});
       save();
     } catch {
       setFailed(true);
@@ -66,7 +67,7 @@ export default function AppSetup() {
             </button>
           </p>
         )}
-        <button className={styles.connect} onClick={() => void connect()} disabled={!clean() || busy}>
+        <button className={styles.connect} onClick={() => void connect()} disabled={!clean || busy}>
           {busy ? tr('connecting…') : tr('Connect')}
         </button>
         <button className={styles.link} onClick={() => selectMower(DEMO_ID)}>

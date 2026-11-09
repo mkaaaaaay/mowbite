@@ -3,7 +3,8 @@
 import type {PlanRequest} from '@/lib/areaPlan';
 import {fmt, tr} from '@/lib/i18n';
 import {RPC} from '@/lib/openmower';
-import {RpcError, rpcMethods} from '@/lib/rpc';
+import {RpcError} from '@/lib/rpc';
+import {useRpcMethods} from '@/hooks/useRpcMethods';
 import {
   cancelSimulation,
   canCancelSimulation,
@@ -44,7 +45,7 @@ export function PlanSimulation({request, sim, onResult, onShow}: {
   onResult: (sim: ShownSim) => void;
   onShow: (shown: boolean) => void;
 }) {
-  const [known, setKnown] = useState(false);
+  const known = !!useRpcMethods()?.has(RPC.plannerSimulate);
   const [canCancel, setCanCancel] = useState(false);
   const [model, setModel] = useState<SimModel>('realistic');
   const [running, setRunning] = useState<{key: string; since: number} | null>(null);
@@ -58,7 +59,6 @@ export function PlanSimulation({request, sim, onResult, onShow}: {
 
   useEffect(() => {
     let alive = true;
-    void rpcMethods().then((m) => alive && setKnown(!!m?.has(RPC.plannerSimulate)));
     void canCancelSimulation().then((c) => alive && setCanCancel(c));
     return () => {
       alive = false;
