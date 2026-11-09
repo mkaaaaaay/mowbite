@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import {describe as eventText} from './events';
-import {MAX_SOUND_BYTES, MAX_SOUND_SECONDS, PART_BYTES, soundRefusal, splitParts, toBase64} from './sound';
+import {MAX_SOUND_BYTES, MAX_SOUND_SECONDS, MIN_SOUND_SECONDS, PART_BYTES, soundRefusal, splitParts, toBase64} from './sound';
 
 describe('an own sound', () => {
   it('goes in parts of at most 512 KB, at most 4 for the largest file', () => {
@@ -23,6 +23,8 @@ describe('an own sound', () => {
     expect(soundRefusal(MAX_SOUND_BYTES + 1, 2)).toEqual({reason: 'TOO_LARGE', limit: MAX_SOUND_BYTES});
     expect(soundRefusal(1000, MAX_SOUND_SECONDS)).toBeNull();
     expect(soundRefusal(1000, 31.4)).toEqual({reason: 'TOO_LONG', limit: MAX_SOUND_SECONDS, seconds: 31.4});
+    expect(soundRefusal(1000, 0.1)).toEqual({reason: 'TOO_SHORT', limit: MIN_SOUND_SECONDS, seconds: 0.1});
+    expect(soundRefusal(1000, 0.2)).toBeNull();
     expect(soundRefusal(1000, null)).toEqual({reason: 'NOT_MP3'});
     expect(soundRefusal(0)).toEqual({reason: 'NOT_MP3'});
     // without web audio the mower checks the length

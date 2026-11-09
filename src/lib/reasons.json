@@ -1700,6 +1700,24 @@
     "de": "der Ton ist zu lang"
    }
   ],
+  "TOO_SHORT": [
+   {
+    "en": "the sound is only {seconds:1} s long, at least {limit:1} s",
+    "when": {
+     "seconds": {
+      "present": true
+     },
+     "limit": {
+      "present": true
+     }
+    },
+    "de": "der Ton ist nur {seconds:1} s lang, mindestens {limit:1} s"
+   },
+   {
+    "en": "the sound is too short",
+    "de": "der Ton ist zu kurz"
+   }
+  ],
   "TOO_LARGE": [
    {
     "en": "the file is larger than 2 MB",

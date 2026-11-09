@@ -30,9 +30,10 @@ export const setVolume = (volume: number) => callRpc<{volume: number}>(RPC.sound
 export const deleteSound = (situation: string) =>
   callRpc<{situation: string; source: 'vendor' | null; file: SoundFile | null}>(RPC.soundDelete, {situation});
 
-// what MowBite OS takes for an own sound (sound.upload): an MP3 of at most 2 MB and 30 s, sent in parts of 512 KB
+// what MowBite OS takes for an own sound (sound.upload): an MP3 of at most 2 MB and 0.2 to 30 s, sent in parts of 512 KB
 export const MAX_SOUND_BYTES = 2 << 20;
 export const MAX_SOUND_SECONDS = 30;
+export const MIN_SOUND_SECONDS = 0.2;
 export const PART_BYTES = 512 << 10;
 // the answer to a part; the last one is checked and converted first, up to about 30 s
 const PART_MS = 30000;
@@ -53,6 +54,7 @@ export function soundRefusal(size: number, seconds?: number | null): {reason: st
   if (size > MAX_SOUND_BYTES) return {reason: 'TOO_LARGE', limit: MAX_SOUND_BYTES};
   if (seconds === null || size === 0) return {reason: 'NOT_MP3'};
   if (seconds !== undefined && seconds > MAX_SOUND_SECONDS) return {reason: 'TOO_LONG', limit: MAX_SOUND_SECONDS, seconds};
+  if (seconds !== undefined && seconds < MIN_SOUND_SECONDS) return {reason: 'TOO_SHORT', limit: MIN_SOUND_SECONDS, seconds};
   return null;
 }
 

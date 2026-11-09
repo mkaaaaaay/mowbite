@@ -2294,6 +2294,8 @@ const de: Record<string, string> = {
   "the sound is {seconds:1} s long, at most {limit} s": "der Ton ist {seconds:1} s lang, höchstens {limit} s",
   "the sound is longer than {limit} s": "der Ton ist länger als {limit} s",
   "the sound is too long": "der Ton ist zu lang",
+  "the sound is only {seconds:1} s long, at least {limit:1} s": "der Ton ist nur {seconds:1} s lang, mindestens {limit:1} s",
+  "the sound is too short": "der Ton ist zu kurz",
   "the file is larger than 2 MB": "die Datei ist größer als 2 MB",
   "the file is too large": "die Datei ist zu groß",
   "the file arrived damaged, upload it again": "die Datei kam beschädigt an, bitte noch einmal hochladen",

@@ -50,6 +50,9 @@ const NOT_OFFERED: Record<string, string> = {
 const appMethods = new Set([...Object.values(RPC), ...Object.values(COMMAND).map((c) => c.method)].filter((m) => !m.startsWith('planner.')));
 const osMethods = Object.keys(api['x-methods']);
 
+// reasons the phone gives already, decided for the next api (TOO_SHORT: a sound under 0.2 s)
+const AHEAD = ['TOO_SHORT'];
+
 // events only OpenMower or the planner send
 const NOT_OS = ['GPS', 'FULLY_CHARGED', 'NAVIGATION_ERROR', 'LEFTOVERS_ARMED'];
 
@@ -127,7 +130,7 @@ describe(`MowBite OS's interface (${PINNED.repo} ${PINNED.commit.slice(0, 7)}, a
   it("has no words for events, reasons or bits the OS doesn't know", () => {
     expect(Object.keys(EVENTS).filter((t) => !eventTypes.includes(t) && !NOT_OS.includes(t))).toEqual([]);
     const known = new Set(Object.values(groups).flatMap((r) => Object.keys(r)));
-    expect(Object.keys(REASONS).filter((r) => !known.has(r))).toEqual([]);
+    expect(Object.keys(REASONS).filter((r) => !known.has(r) && !AHEAD.includes(r))).toEqual([]);
     const bits = new Map(api['x-emergency-bits'].map((b) => [b.bit, b.name]));
     EMERGENCY_BITS.forEach((name, bit) => name && expect(bits.get(bit), name).toBe(name));
     // a variant for one event only names one that has this reason
