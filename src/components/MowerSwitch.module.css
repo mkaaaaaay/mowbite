@@ -9,3 +9,38 @@
   font-weight: 600;
   cursor: pointer;
 }
+
+/* the round one: the first letter shows, the list lies over it unseen and opens on a tap */
+.round {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--field-border);
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 17px;
+  font-weight: 700;
+  box-shadow: var(--btn-3d);
+  transition: transform 0.1s ease;
+}
+
+.round:active,
+.round:focus-within {
+  transform: scale(0.92);
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.over {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  font-size: 16px;
+}

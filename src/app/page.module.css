@@ -699,10 +699,21 @@
   box-shadow: none;
 }
 
+/* the mower's name over its state, with more than one to pick from */
+.mowerName {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* at the right end of the title row on phones, the sidebar has its own */
 .mowerSwitch {
   flex: none;
-  max-width: 40%;
 }
 
 @media (min-width: 900px) {

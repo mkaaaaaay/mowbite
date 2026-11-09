@@ -22,6 +22,7 @@ import {MowerSizesSettings} from '@/components/MowerSizesSettings';
 import {CalibrationLink} from '@/components/CalibrationLink';
 import {CALIB_SHOWN} from '@/lib/calibration';
 import {NotifySettings} from '@/components/NotifySettings';
+import {DashboardItems} from '@/components/DashboardItems';
 import {datumFromParams, useMowerParams} from '@/hooks/useMowerParams';
 import {posixTz} from '@/lib/schedule';
 import {RpcError} from '@/lib/rpc';
@@ -460,6 +461,11 @@ export default function SettingsPage() {
                 "Shows the current weather and whether rain is coming on the dashboard. The data comes from Open-Meteo, for that the garden's position is sent there, rounded to about a kilometer.",
               )}
             </p>
+          </section>
+
+          <section className={styles.card}>
+            <h2>{tr('Dashboard')}</h2>
+            <DashboardItems settings={settings} styles={styles} />
           </section>
         </Group>
 
