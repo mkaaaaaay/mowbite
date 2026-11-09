@@ -57,10 +57,9 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
   const u = useUpdates();
 
   useEffect(() => {
-    // where this mower's MowBite is for this device, the message's button opens it there. a browser looking at another
-    // mower than the page's takes its address and its name in the list
+    // this mower's MowBite as this device reaches it, the message's button opens it there
     const page = window.location.origin;
-    const url = isApp() ? apiBase() : apiBase() || page;
+    const url = apiBase() || (isApp() ? '' : page);
     const name = (!isApp() && selectedMower()?.name) || settings.thisName || '';
     const fallback = defaultNotify(deviceLang(), url, name);
     void loadNotify(fallback).then((loaded) => {

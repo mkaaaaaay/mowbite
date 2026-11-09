@@ -3,7 +3,7 @@
 import type {Point} from '@/hooks/useMowerMap';
 import {loadJobList, loadJobTrack} from '@/hooks/useMowHistory';
 import {useTrailJob} from '@/hooks/useMowerTrack';
-import {mowerKey} from '@/lib/mowers';
+import {readMower, writeMower} from '@/lib/mowers';
 import {useEffect, useState} from 'react';
 
 export type BeforeTrack = {points: Point[]; blades: boolean}[];
@@ -16,28 +16,18 @@ const ARMED = 'leftoversArmed';
 
 // the job whose leftovers were armed here (the card), for the run that drives them
 export function rememberArmed(source: string) {
-  try {
-    localStorage.setItem(mowerKey(ARMED), JSON.stringify({source, at: Date.now() / 1000}));
-  } catch {}
+  writeMower(ARMED, {source, at: Date.now() / 1000});
 }
 
 // armed within the last 6 hours (the container's leftovers start at most that late)
 function armedSource(): string | null {
-  try {
-    const v = JSON.parse(localStorage.getItem(mowerKey(ARMED)) ?? 'null');
-    return v && typeof v.source === 'string' && typeof v.at === 'number' && Date.now() / 1000 - v.at < 21600 ? v.source : null;
-  } catch {
-    return null;
-  }
+  const v = readMower<{source?: unknown; at?: unknown}>(ARMED);
+  return v && typeof v.source === 'string' && typeof v.at === 'number' && Date.now() / 1000 - v.at < 21600 ? v.source : null;
 }
 
 function remembered(): {job: string; before: string} | null {
-  try {
-    const v = JSON.parse(localStorage.getItem(mowerKey(KEY)) ?? 'null');
-    return v && typeof v.job === 'string' && typeof v.before === 'string' ? v : null;
-  } catch {
-    return null;
-  }
+  const v = readMower<{job?: unknown; before?: unknown}>(KEY);
+  return v && typeof v.job === 'string' && typeof v.before === 'string' ? {job: v.job, before: v.before} : null;
 }
 
 // the job whose leftovers the trail shown drives (leftovers: the run going on drives them, it's found then), else null
@@ -54,9 +44,7 @@ export function useLeftoversSource(leftovers: boolean): string | null {
         const prev = armed && armed !== job ? armed : (await loadJobList()).find((j) => j.job_id !== job)?.job_id;
         if (!prev) return;
         of = {job, before: prev};
-        try {
-          localStorage.setItem(mowerKey(KEY), JSON.stringify(of));
-        } catch {}
+        writeMower(KEY, of);
       }
       if (alive && of?.job === job) setFound(of);
     })().catch(() => {});

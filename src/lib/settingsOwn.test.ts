@@ -13,6 +13,7 @@ const net = vi.hoisted(() => ({
 vi.mock('./mowers', () => ({
   apiBase: () => (net.selected && !net.app ? 'http://t:8082' : ''),
   isDemo: () => false,
+  readStored: (k: string) => JSON.parse(localStorage.getItem(k) ?? 'null'),
   leaveRemoved: () => {},
   selectedMowerId: () => net.selected,
   selectedMower: () => (net.selected ? {id: net.selected, name: net.selected, host: net.selected} : null),

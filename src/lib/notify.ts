@@ -64,7 +64,8 @@ export const defaultNotify = (lang: 'de' | 'en', url: string, name = ''): Notify
   stored: false,
 });
 
-// with the mower's own address: one set up while looking at it from another mower's page took that page's
+// with the mower's own address, for settings saved before while looking at it from another mower's page (they took
+// that page's)
 export function withMowerUrl(c: NotifyConfig, url: string, page: string): NotifyConfig {
   return url !== page && c.url.replace(/\/+$/, '') === page ? {...c, url} : c;
 }

@@ -45,17 +45,21 @@ export default function PushOpener() {
       handle = h;
       const {endpoint} = await p.status();
       if (!endpoint) return;
-      // every mower in the list that was told an older one
-      for (const api of mowerList().map(mowerBase)) {
-        const sent = sentEndpoint(api);
-        // (an older container would take the address for its settings)
-        if (!sent || endpoint === sent || !(await mowerAtHas(api, 'phones'))) continue;
-        await removePush(sent, api).catch(() => {});
-        await addPush(endpoint, api).then(
-          () => rememberEndpoint(api, endpoint),
-          () => {},
-        );
-      }
+      // every mower in the list that was told an older one, all at once so one out of reach doesn't hold up the others
+      await Promise.all(
+        mowerList()
+          .map(mowerBase)
+          .map(async (api) => {
+            const sent = sentEndpoint(api);
+            // (an older container would take the address for its settings)
+            if (!sent || endpoint === sent || !(await mowerAtHas(api, 'phones'))) return;
+            await removePush(sent, api).catch(() => {});
+            await addPush(endpoint, api).then(
+              () => rememberEndpoint(api, endpoint),
+              () => {},
+            );
+          }),
+      );
     });
     return () => {
       gone = true;

@@ -8,6 +8,7 @@ const net = vi.hoisted(() => ({
 vi.mock('./mowers', () => ({
   apiBase: () => '',
   isDemo: () => false,
+  readStored: (k: string) => JSON.parse(localStorage.getItem(k) ?? 'null'),
   leaveRemoved: () => {},
   selectedMowerId: () => '',
   mowerFetch: async (_: string, init?: RequestInit) => {

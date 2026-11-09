@@ -33,6 +33,7 @@ const kept = vi.hoisted(() => ({
 vi.mock('./mowers', () => ({
   apiBase: () => kept.base,
   isDemo: () => false,
+  readStored: (k: string) => JSON.parse(localStorage.getItem(k) ?? 'null'),
   leaveRemoved: () => {},
   selectedMowerId: () => 'b',
   mowerFetch: async (url: string, init?: RequestInit) => {

@@ -1,6 +1,6 @@
 import {useEffect, useSyncExternalStore} from 'react';
 import FEATURES from './containerFeatures.json';
-import {apiBase, mowerFetch, mowerKey} from './mowers';
+import {apiBase, mowerFetch, readMower, readStored, writeMower, writeStored} from './mowers';
 
 // Looks on github for a newer release. Off by default (it tells github your ip), switched on per
 // device in the settings, then once a day. "check now" works either way.
@@ -54,22 +54,6 @@ export function containerHas(level: number | null, key: string): boolean {
 export const missingOnMower = (level: number | null): string[] =>
   level === null ? [] : FEATURES.filter((f) => f.level > level).map((f) => f.what);
 
-function read<T>(key: string): T | null {
-  try {
-    const v = localStorage.getItem(key);
-    return v ? (JSON.parse(v) as T) : null;
-  } catch {
-    return null;
-  }
-}
-
-function write(key: string, value: unknown) {
-  try {
-    if (value === null) localStorage.removeItem(key);
-    else localStorage.setItem(key, JSON.stringify(value));
-  } catch {}
-}
-
 interface State {
   latest: Release | null;
   checkedAt: number | null;
@@ -99,13 +83,13 @@ const listeners = new Set<() => void>();
 
 function current(): State {
   if (!state) {
-    const info = read<{latest: Release; at: number}>(INFO_KEY);
+    const info = readStored<{latest: Release; at: number}>(INFO_KEY);
     state = {
       ...EMPTY,
       latest: info?.latest ?? null,
       checkedAt: info?.at ?? null,
-      dismissed: read<string>(DISMISSED_KEY),
-      behindDismissed: read<string>(mowerKey(BEHIND_KEY)),
+      dismissed: readStored<string>(DISMISSED_KEY),
+      behindDismissed: readMower<string>(BEHIND_KEY),
     };
   }
   return state;
@@ -128,7 +112,7 @@ export async function checkNow(): Promise<void> {
       apk: r.assets?.find((a) => a.name.endsWith('.apk'))?.browser_download_url,
     };
     const at = Date.now();
-    write(INFO_KEY, {latest, at});
+    writeStored(INFO_KEY, {latest, at});
     set({latest, checkedAt: at, checking: false});
   } catch {
     set({checking: false, failed: true});
@@ -136,7 +120,7 @@ export async function checkNow(): Promise<void> {
 }
 
 export function dismissUpdate(version: string) {
-  write(DISMISSED_KEY, version);
+  writeStored(DISMISSED_KEY, version);
   set({dismissed: version});
 }
 
@@ -144,7 +128,7 @@ export function dismissUpdate(version: string) {
 export const behindKey = (mower: string | null) => `${mower} ${CONTAINER_LEVEL}`;
 
 export function dismissBehind(key: string) {
-  write(mowerKey(BEHIND_KEY), key);
+  writeMower(BEHIND_KEY, key);
   set({behindDismissed: key});
 }
 
@@ -159,14 +143,13 @@ const versionAt = (base: string) =>
     .catch(() => null);
 function askMower(): Promise<void> {
   const base = apiBase();
-  const version = () => versionAt(base);
   asked ??= (async () => {
-    let v = await version();
+    let v = await versionAt(base);
     if (!v) {
       const res = await mowerFetch(`${base}/cgi-bin/system`, {cache: 'no-store'});
       if (!res.ok) throw new Error(String(res.status));
       // once more, the first one may have got lost on the way
-      v = (await version()) ?? {};
+      v = (await versionAt(base)) ?? {};
     }
     set({mower: v.version ?? null, level: v.level ?? 0});
   })().catch(() => {
@@ -183,6 +166,7 @@ export async function mowerHas(key: string): Promise<boolean> {
 
 // whether the container of the mower at base has it, false when it can't tell (an older one, out of reach)
 export async function mowerAtHas(base: string, key: string): Promise<boolean> {
+  if (base === apiBase()) return mowerHas(key);
   const v = await versionAt(base);
   return containerHas(v ? (v.level ?? 0) : null, key);
 }

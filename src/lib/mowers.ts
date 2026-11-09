@@ -80,6 +80,28 @@ export function mowerKey(key: string): string {
   return id ? `${key} ${id}` : key;
 }
 
+// json kept in this device's storage, null when there's none or it can't be read
+export function readStored<T>(key: string): T | null {
+  try {
+    const v = localStorage.getItem(key);
+    return v ? (JSON.parse(v) as T) : null;
+  } catch {
+    return null;
+  }
+}
+
+// null takes it out
+export function writeStored(key: string, value: unknown) {
+  try {
+    if (value === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, JSON.stringify(value));
+  } catch {}
+}
+
+// the same for what's kept for the mower looked at (mowerKey)
+export const readMower = <T>(key: string) => readStored<T>(mowerKey(key));
+export const writeMower = (key: string, value: unknown) => writeStored(mowerKey(key), value);
+
 // where a mower's MowBite answers
 export const mowerBase = (m: OtherMower) => `http://${m.host}:${m.appPort ?? 8082}`;
 

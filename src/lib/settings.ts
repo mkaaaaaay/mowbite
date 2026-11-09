@@ -1,11 +1,10 @@
 // app settings (map colors, icons). shared through the mower when the app runs from the docker image
 // (docker/settings.cgi), otherwise per device. localStorage is also the cache so they're there
-// before the request comes back: the app's under STORAGE_KEY, each mower's own under its id (in a browser MOWER_KEYS,
-// in the android app all of them), so a mower without a container keeps its own on this device.
+// before the request comes back, and per mower under its id.
 
 import type {GardenLife} from '@/components/gardenLife';
 import {mergeChanges} from './mergeChanges';
-import {apiBase, isDemo, leaveRemoved, mowerFetch, selectedMower, selectedMowerId} from './mowers';
+import {apiBase, isDemo, leaveRemoved, mowerFetch, readStored, selectedMower, selectedMowerId} from './mowers';
 import {isApp} from './native';
 
 export const COLORS = [
@@ -105,28 +104,19 @@ let shared = false;
 const listeners = new Set<() => void>();
 
 // where this device keeps the own settings of the mower looked at, by its id ('' the one the page comes from), taken
-// once like the urls
+// once like the urls. not mowerKey: selectedMower reads the list of mowers from these settings
 let ownKey: string | null = null;
 const ownStorageKey = () => (ownKey ??= `${STORAGE_KEY}:${isApp() ? (selectedMower()?.id ?? '') : selectedMowerId()}`);
 
-function read(key: string): Settings | null {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
-
-// what of the settings is kept by the mower's id: in the app everything is the mower's
+// what of the settings is kept by the mower's id: in a browser MOWER_KEYS, in the app everything is the mower's
 const ownPart = (s: Settings) => (isApp() ? s : join({}, s));
 
 function load(): Settings {
   if (current) return current;
-  const app = read(STORAGE_KEY) ?? {};
+  const app = readStored<Settings>(STORAGE_KEY) ?? {};
   // a mower with nothing of its own kept yet starts from the app's, with what's the mower's there when it's from before
   // mowers had their own (the first one looked at after the update), else with the defaults for that
-  const own = read(ownStorageKey()) ?? app;
+  const own = readStored<Settings>(ownStorageKey()) ?? app;
   current = isApp() ? own : join(app, own);
   return current;
 }
