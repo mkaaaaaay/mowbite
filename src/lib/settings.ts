@@ -1,7 +1,7 @@
 // app settings (map colors, icons). shared through the mower when the app runs from the docker image
 // (docker/settings.cgi), otherwise per device. localStorage is also the cache so they're there
-// before the request comes back: the app's under STORAGE_KEY, each mower's own (MOWER_KEYS) under its id, so a mower
-// without a container keeps its own on this device.
+// before the request comes back: the app's under STORAGE_KEY, each mower's own under its id (in a browser MOWER_KEYS,
+// in the android app all of them), so a mower without a container keeps its own on this device.
 
 import type {GardenLife} from '@/components/gardenLife';
 import {mergeChanges} from './mergeChanges';
@@ -118,12 +118,16 @@ function read(key: string): Settings | null {
   }
 }
 
+// what of the settings is kept by the mower's id: in the app everything is the mower's
+const ownPart = (s: Settings) => (isApp() ? s : join({}, s));
+
 function load(): Settings {
   if (current) return current;
   const app = read(STORAGE_KEY) ?? {};
-  // a mower with nothing of its own kept yet takes what's there when it's from before mowers had their own (the first
-  // one looked at after the update), else the defaults
-  current = join(app, read(ownStorageKey()) ?? app);
+  // a mower with nothing of its own kept yet starts from the app's, with what's the mower's there when it's from before
+  // mowers had their own (the first one looked at after the update), else with the defaults for that
+  const own = read(ownStorageKey()) ?? app;
+  current = isApp() ? own : join(app, own);
   return current;
 }
 
@@ -138,7 +142,7 @@ function setLocal(next: Settings) {
   try {
     if (!isDemo()) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(join(next, {})));
-      localStorage.setItem(ownStorageKey(), JSON.stringify(join({}, next)));
+      localStorage.setItem(ownStorageKey(), JSON.stringify(ownPart(next)));
     }
   } catch {}
   applyColors(next.colors);

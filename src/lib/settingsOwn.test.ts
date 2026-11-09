@@ -64,22 +64,25 @@ describe('a mower without a container', () => {
     expect(net.posted.every((p) => JSON.stringify(p.icons) === JSON.stringify({mower: 'punisher'}))).toBe(true);
   });
 
-  it('in the app keeps its own too, the mower with a container takes its own from it', async () => {
+  it('in the app keeps all of its own, the mower with a container takes its own from it', async () => {
     vi.useFakeTimers();
     stored.clear();
     net.app = true;
+    net.a = {colors: {mower: '#111111'}, icons: {mower: 'punisher'}};
+    net.posted = [];
     let s = await open('a');
     expect(s.settingsStore.snapshot().icons).toEqual({mower: 'punisher'});
 
     s = await open('t');
     expect(s.settingsStore.snapshot().icons).toBeUndefined();
-    s.saveSettings({...s.settingsStore.snapshot(), icons: {mower: 'tron'}});
+    s.saveSettings({...s.settingsStore.snapshot(), icons: {mower: 'tron'}, colors: {mower: '#444444'}});
     await vi.advanceTimersByTimeAsync(1000);
 
     s = await open('a');
-    expect(s.settingsStore.snapshot().icons).toEqual({mower: 'punisher'});
+    expect(s.settingsStore.snapshot()).toMatchObject({icons: {mower: 'punisher'}, colors: {mower: '#111111'}});
     s = await open('t');
-    expect(s.settingsStore.snapshot().icons).toEqual({mower: 'tron'});
+    expect(s.settingsStore.snapshot()).toMatchObject({icons: {mower: 'tron'}, colors: {mower: '#444444'}});
+    expect(net.posted).toEqual([]);
     net.app = false;
   });
 
