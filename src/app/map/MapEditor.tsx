@@ -1305,9 +1305,12 @@ function MapEditor() {
                       await refreshBackups();
                     }}
                     onPreview={async (b) => setPreview({map: await loadBackup(b.id), label: backupLabel(b)})}
-                    onDelete={(b) => void deleteBackup(b.id).then(refreshBackups)}
-                    onDownload={(b) => void download(b)}
-                    onDownloadGeo={() => void downloadGeo()}
+                    onDelete={async (b) => {
+                      await deleteBackup(b.id);
+                      await refreshBackups();
+                    }}
+                    onDownload={download}
+                    onDownloadGeo={downloadGeo}
                     onFile={(m, name) => setPreview({map: m, label: name})}
                     // a geojson file goes into the map being edited, checked like any edit, undone or saved from here
                     geo={

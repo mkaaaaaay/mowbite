@@ -1251,7 +1251,7 @@ function OpenBackups() {
   });
   return (
     <div ref={box}>
-      <MapBackups backups={[BACKUP]} onCreate={async () => {}} onPreview={async () => {}} onDelete={noop} onDownload={noop} onDownloadGeo={noop} onFile={noop} geo={null} />
+      <MapBackups backups={[BACKUP]} onCreate={async () => {}} onPreview={async () => {}} onDelete={async () => {}} onDownload={async () => {}} onDownloadGeo={async () => {}} onFile={noop} geo={null} />
     </div>
   );
 }

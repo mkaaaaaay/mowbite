@@ -49,8 +49,9 @@ export async function saveBackup(map: MowerMap, name: string, auto: boolean): Pr
 }
 
 export async function deleteBackup(id: string): Promise<void> {
-  await mowerFetch(`${endpoint()}?action=delete&id=${encodeURIComponent(id)}`, {method: 'POST'});
+  const res = await mowerFetch(`${endpoint()}?action=delete&id=${encodeURIComponent(id)}`, {method: 'POST'});
   forget('backups');
+  if (!res.ok) throw new Error(`backup ${res.status}`);
 }
 
 // whether a backup made after `since` has another angle for the area than `angle`. backups are made before every save,
