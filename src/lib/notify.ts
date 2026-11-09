@@ -64,6 +64,11 @@ export const defaultNotify = (lang: 'de' | 'en', url: string, name = ''): Notify
   stored: false,
 });
 
+// with the mower's own address: one set up while looking at it from another mower's page took that page's
+export function withMowerUrl(c: NotifyConfig, url: string, page: string): NotifyConfig {
+  return url !== page && c.url.replace(/\/+$/, '') === page ? {...c, url} : c;
+}
+
 const KNOWN = new Set<string>(NOTIFY_EVENTS.map((e) => e.key));
 
 export function parseNotify(text: string, fallback: NotifyConfig): NotifyConfig {
