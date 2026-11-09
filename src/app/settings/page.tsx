@@ -3,12 +3,12 @@
 import {GardenDownload} from '@/components/Diagnosis';
 import {TitleMark} from '@/components/Logo';
 import {TitleRow} from '@/components/TopWeather';
-import {saveSettings, settingsStore, sharedSettings, type OtherMower, type Settings} from '@/lib/settings';
+import {flushSettings, saveSettings, settingsStore, sharedSettings, type OtherMower, type Settings} from '@/lib/settings';
 import {useEffect, useState, useSyncExternalStore} from 'react';
 import styles from './page.module.css';
 import {dec, setLangChoice, tr, useLang, useLangChoice} from '@/lib/i18n';
 import {setThemeChoice, useThemeChoice} from '@/lib/theme';
-import {appMowers, DEMO_ID, isDemo, saveAppMowers, selectMower} from '@/lib/mowers';
+import {appMowers, DEMO_ID, isDemo, saveAppMowers, selectedMower, selectMower} from '@/lib/mowers';
 import {isApp} from '@/lib/native';
 import {setSwipeEnabled, useSwipeEnabled} from '@/lib/swipe';
 import {OpenMowerSettings} from '@/components/MowerParamSettings';
@@ -103,6 +103,15 @@ function MowersSection({settings}: {settings: Settings}) {
       setPhoneList(list);
     } else saveSettings({...settingsStore.snapshot(), mowers: list});
   };
+  // the mower looked at taken out: its last save goes out, then the app switches (in a browser to the page's own mower)
+  const remove = async (id: string) => {
+    const viewed = selectedMower()?.id === id;
+    const rest = others.filter((x) => x.id !== id);
+    store(rest);
+    if (!viewed) return;
+    await Promise.race([flushSettings(), new Promise((r) => setTimeout(r, 3000))]);
+    selectMower(app ? (rest[0]?.id ?? '') : '');
+  };
   const add = () => {
     const h = host.trim().replace(/^https?:\/\//, '').replace(/[/:].*$/, '').toLowerCase();
     if (!h) return;
@@ -162,7 +171,7 @@ function MowersSection({settings}: {settings: Settings}) {
           </span>
           <button
             className={styles.linkButton}
-            onClick={() => store(others.filter((x) => x.id !== m.id))}
+            onClick={() => void remove(m.id)}
           >
             {tr('Remove')}
           </button>

@@ -61,6 +61,12 @@ export function selectMower(id: string) {
   }, wait);
 }
 
+// a browser whose mower was taken out of the list (on another device too) goes back to the one the page comes from
+export function leaveRemoved() {
+  const id = selectedMowerId();
+  if (!isApp() && id && id !== DEMO_ID && !mowerList().some((m) => m.id === id)) selectMower('');
+}
+
 // where the selected mower's MowBite answers (sensor history, backups, schedule)
 export function apiBase(): string {
   if (typeof window === 'undefined') return '';
