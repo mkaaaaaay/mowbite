@@ -1,11 +1,13 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 
-const rpc = vi.hoisted(() => ({methods: new Set<string>(), answer: null as unknown, asked: [] as string[]}));
-vi.mock('./rpc', () => ({
+const rpc = vi.hoisted(() => ({methods: new Set<string>() as Set<string> | null, unknown: false, answer: null as unknown, asked: [] as string[]}));
+vi.mock('./rpc', async (real) => ({
+  RpcError: (await real<typeof import('./rpc')>()).RpcError,
   rpcMethods: async () => rpc.methods,
-  methodsUnknown: () => false,
+  methodsUnknown: () => rpc.unknown,
   callRpc: async (method: string) => {
     rpc.asked.push(method);
+    if (rpc.answer instanceof Error) throw rpc.answer;
     return rpc.answer;
   },
 }));
@@ -18,6 +20,7 @@ const load = async () => {
 describe('systemInfo', () => {
   beforeEach(() => {
     rpc.asked = [];
+    rpc.unknown = false;
   });
 
   it('knows MowBite OS by its name', async () => {
@@ -46,6 +49,31 @@ describe('systemInfo', () => {
     const {systemInfo, isMowbiteOs} = await load();
     expect(await systemInfo()).toBeNull();
     expect(isMowbiteOs({name: 'openmower'})).toBe(false);
+  });
+});
+
+describe('systemInfo without an answer', () => {
+  it('is undecided after rpc.methods timed out and asks again', async () => {
+    rpc.methods = null;
+    rpc.unknown = true;
+    const {systemInfo} = await load();
+    expect(await systemInfo()).toBeUndefined();
+    rpc.methods = new Set(['system.info']);
+    rpc.unknown = false;
+    rpc.answer = {name: 'mowbite-os', api: 4};
+    expect(await systemInfo()).toEqual({name: 'mowbite-os', api: 4});
+  });
+
+  it('is undecided after system.info timed out, not OpenMower', async () => {
+    const {RpcError} = await import('./rpc');
+    rpc.asked = [];
+    rpc.methods = new Set(['system.info']);
+    rpc.answer = new RpcError('system.info', 'timeout', 'timed out');
+    const {systemInfo} = await load();
+    expect(await systemInfo()).toBeUndefined();
+    rpc.answer = {name: 'mowbite-os'};
+    expect(await systemInfo()).toEqual({name: 'mowbite-os'});
+    expect(rpc.asked).toEqual(['system.info', 'system.info']);
   });
 });
 

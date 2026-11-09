@@ -6,7 +6,7 @@ import {fmt, tr} from '@/lib/i18n';
 import {askLeftovers, type Leftovers} from '@/lib/leftovers';
 import {loadPlannerSettings, slic3rPlans, usePlannerSettings} from '@/lib/mowerBody';
 import {RPC} from '@/lib/openmower';
-import {rpcMethods} from '@/lib/rpc';
+import {useRpcMethods} from '@/hooks/useRpcMethods';
 import {answerError} from '@/lib/rpcText';
 import {useEffect, useState} from 'react';
 
@@ -32,12 +32,9 @@ export function LeftoversCard({
   onStart: () => void;
   styles: Record<string, string>;
 }) {
-  const [known, setKnown] = useState(false);
+  const known = !!useRpcMethods()?.has(RPC.plannerLeftovers);
   const [state, setState] = useState<{busy?: boolean; found?: Leftovers; error?: string; started?: boolean}>({});
   const planner = usePlannerSettings();
-  useEffect(() => {
-    void rpcMethods().then((m) => setKnown(!!m?.has(RPC.plannerLeftovers)));
-  }, []);
   useEffect(() => {
     if (known && planner === undefined) loadPlannerSettings().catch(() => {});
   }, [known, planner]);

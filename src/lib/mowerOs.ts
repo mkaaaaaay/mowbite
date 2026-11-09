@@ -1,7 +1,7 @@
 import {useEffect, useState} from 'react';
 import {RPC} from './openmower';
 import {noteMqtt} from './mqttClient';
-import {callRpc, methodsUnknown, rpcMethods} from './rpc';
+import {askUntilAnswered, callRpc, methodsUnknown, RpcError, rpcMethods} from './rpc';
 
 // What runs on the mower, from system.info. Only MowBite OS answers it, on OpenMower there's none. On MowBite OS the
 // planner is the one place for what makes the plan: the values for all areas in planner.settings, an area's own in
@@ -10,18 +10,21 @@ import {callRpc, methodsUnknown, rpcMethods} from './rpc';
 export type SystemInfo = {name: string; version?: string; platform?: string; schema?: number; api?: number; mqtt?: number};
 
 const MOWBITE_OS = 'mowbite-os';
-let info: Promise<SystemInfo | null> | null = null;
-let os: boolean | null = null;
-let api: number | null = null;
+let info: Promise<SystemInfo | null | undefined> | null = null;
+// the answer once it came, a page opened later has it right away
+let known: SystemInfo | null | undefined;
 
-export function systemInfo(): Promise<SystemInfo | null> {
+// undefined: no answer yet (rpc.methods or system.info timed out), the next one asking tries again
+export function systemInfo(): Promise<SystemInfo | null | undefined> {
   info ??= (async () => {
     const methods = await rpcMethods();
-    // no answer yet, the next one asking tries again
-    if (methodsUnknown()) info = null;
+    if (methodsUnknown()) {
+      info = null;
+      return undefined;
+    }
     if (!methods?.has(RPC.systemInfo)) {
       // OpenMower: MQTT 3.1.1 there, always
-      if (!methodsUnknown()) noteMqtt('openmower');
+      noteMqtt('openmower');
       return null;
     }
     try {
@@ -29,43 +32,34 @@ export function systemInfo(): Promise<SystemInfo | null> {
       const ok = i && typeof i === 'object' && typeof i.name === 'string' ? i : null;
       if (isMowbiteOs(ok)) noteMqtt({mqtt: ok!.mqtt});
       return ok;
-    } catch {
-      return null;
+    } catch (e) {
+      if (!(e instanceof RpcError && e.code === 'timeout')) return null;
+      info = null;
+      return undefined;
     }
   })();
   return info.then((i) => {
-    os = isMowbiteOs(i);
-    api = os ? (i!.api ?? 0) : 0;
+    if (i !== undefined) known = i;
     return i;
   });
 }
 
 export const isMowbiteOs = (i: SystemInfo | null | undefined) => i?.name === MOWBITE_OS;
 
-// false until it's known, a page opened later has it right away
-export function useMowbiteOs(): boolean {
-  const [is, setIs] = useState(() => os ?? false);
-  useEffect(() => {
-    let alive = true;
-    void systemInfo().then((i) => alive && setIs(isMowbiteOs(i)));
-    return () => {
-      alive = false;
-    };
-  }, []);
-  return is;
+// what system.info said, asked again until the mower answered
+function useSystemInfo(): SystemInfo | null | undefined {
+  const [i, setI] = useState(() => known);
+  useEffect(() => askUntilAnswered(systemInfo, setI, (i) => i === undefined), []);
+  return i;
 }
+
+// false until it's known
+export const useMowbiteOs = (): boolean => isMowbiteOs(useSystemInfo());
 
 // MowBite OS's api version, 0 on OpenMower and until it's known
 export function useOsApi(): number {
-  const [v, setV] = useState(() => api ?? 0);
-  useEffect(() => {
-    let alive = true;
-    void systemInfo().then((i) => alive && setV(isMowbiteOs(i) ? (i!.api ?? 0) : 0));
-    return () => {
-      alive = false;
-    };
-  }, []);
-  return v;
+  const i = useSystemInfo();
+  return isMowbiteOs(i) ? (i!.api ?? 0) : 0;
 }
 
 // the lane spacing for all areas on MowBite OS, where mower_logic has no tool_width: the blade width less the overlap,

@@ -18,7 +18,7 @@ import {
   type ParamGroup,
 } from '@/lib/mowerParams';
 import {RPC} from '@/lib/openmower';
-import {rpcMethods} from '@/lib/rpc';
+import {useRpcMethods} from '@/hooks/useRpcMethods';
 import {answerError} from '@/lib/rpcText';
 import Link from 'next/link';
 import {useEffect, useRef, useState, useSyncExternalStore} from 'react';
@@ -29,17 +29,7 @@ type Styles = Record<string, string>;
 const never = () => () => {};
 
 // whether this mower takes params.set (a newer OpenMower), false until it has told
-export function useCanSetParams(): boolean {
-  const [can, setCan] = useState(false);
-  useEffect(() => {
-    let alive = true;
-    void rpcMethods().then((m) => alive && setCan(!!m?.has(RPC.setParams)));
-    return () => {
-      alive = false;
-    };
-  }, []);
-  return can;
-}
+export const useCanSetParams = (): boolean => !!useRpcMethods()?.has(RPC.setParams);
 
 // what the container sets again after a restart of the mower, one copy for every page. undefined until asked, null
 // when there's no container that keeps it

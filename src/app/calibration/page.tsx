@@ -30,6 +30,7 @@ import {clock} from '@/lib/dates';
 import {fmt, tr, useLang} from '@/lib/i18n';
 import {ACTION, PARAM, RPC} from '@/lib/openmower';
 import {rpcMethods} from '@/lib/rpc';
+import {useRpcMethods} from '@/hooks/useRpcMethods';
 import {gpsQuality, isDocked} from '@/lib/status';
 import Link from 'next/link';
 import {useRouter} from 'next/navigation';
@@ -216,10 +217,7 @@ export default function CalibrationPage() {
   const live = isLive(link);
   const {hasAction, publishAction} = useMowerActions();
   const progress = useSyncExternalStore(calibProgress.subscribe, calibProgress.get, calibProgress.initial);
-  const [methods, setMethods] = useState<Set<string> | null | undefined>(undefined);
-  useEffect(() => {
-    void rpcMethods().then(setMethods);
-  }, []);
+  const methods = useRpcMethods();
   const can = !!methods?.has(RPC.plannerCalibStart);
 
   const [mode, setMode] = useState<CalibMode>('joystick');

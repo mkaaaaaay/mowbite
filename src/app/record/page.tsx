@@ -20,7 +20,7 @@ import {stationChange, type Station} from '@/lib/dockGuide';
 import {fmt, tr, useLang} from '@/lib/i18n';
 import {ACTION, TOPIC} from '@/lib/openmower';
 import {useMowbiteOs} from '@/lib/mowerOs';
-import {rpcMethods} from '@/lib/rpc';
+import {useRpcMethods} from '@/hooks/useRpcMethods';
 import {eventsOfDay, fileDay, forgetToday, historyDays} from '@/lib/history';
 import {backAtStart} from '@/lib/geometry';
 import {tick} from '@/lib/haptics';
@@ -116,10 +116,7 @@ function Record() {
           : 'empty';
   const hasOutline = overlay.some((l) => l.closed && l.color === 'green');
   // an OpenMower with rpcs has mowing by hand too, its actions are only told once recording mode was on
-  const [newer, setNewer] = useState(false);
-  useEffect(() => {
-    void rpcMethods().then((m) => setNewer(!!m));
-  }, []);
+  const newer = !!useRpcMethods();
 
   // the docking station recorded with the guide (Station.tsx), in recording mode with nothing else recorded. asked for
   // before recording mode is there: it comes once it is, ends when it ends or something else is recorded

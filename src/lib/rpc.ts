@@ -61,7 +61,7 @@ let methodsNow: Set<string> | null | undefined;
 // no answer at all: the connection may just have taken longer (phone waking up), so it's asked again after this
 // instead of going without the newer features until a reload
 let askAgainAt = 0;
-const ASK_AGAIN_MS = 15000;
+export const ASK_AGAIN_MS = 15000;
 
 export function rpcMethods(): Promise<Set<string> | null> {
   if (askAgainAt && Date.now() >= askAgainAt) {
@@ -84,6 +84,24 @@ export const knownMethods = () => methodsNow;
 
 // rpcMethods() had no answer and will ask again
 export const methodsUnknown = () => askAgainAt > 0;
+
+// asks until the mower has answered, after a timeout again once rpcMethods() asks again; got only hears a sure answer.
+// returns the stop for an effect's cleanup
+export function askUntilAnswered<T>(ask: () => Promise<T>, got: (v: T) => void, unsure: (v: T) => boolean = methodsUnknown): () => void {
+  let alive = true;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const go = () =>
+    void ask().then((v) => {
+      if (!alive) return;
+      if (unsure(v)) timer = setTimeout(go, ASK_AGAIN_MS);
+      else got(v);
+    });
+  go();
+  return () => {
+    alive = false;
+    clearTimeout(timer);
+  };
+}
 
 export const unavailable = (known: Set<string> | null, method: string) =>
   !!known && method !== RPC.methods && !method.startsWith('meta.') && !known.has(method);
