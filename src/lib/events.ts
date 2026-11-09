@@ -1,5 +1,6 @@
 import {clock} from './dates';
 import {fmt, tr} from './i18n';
+import type {StopRelease} from './mowerOs';
 import {LOGIC_SOURCE} from './openmower';
 import {
   EMERGENCY_BITS,
@@ -62,9 +63,13 @@ export interface MowerEvent {
   below_default?: string[];
   // HOLD: until when the MowBite Updater holds it (unix s)
   until?: number;
-  // EMERGENCY_RESET_REFUSED: the tilt and the limit for letting go in degrees, how old the IMU's last data is
+  // EMERGENCY_RESET_REFUSED: the tilt and the limit for letting go in degrees, how old the IMU's last data is, the
+  // emergency bits that still hold (STILL_ACTIVE, UNKNOWN for one without a name)
   angle?: number;
   seconds?: number;
+  bits?: string[];
+  // EMERGENCY and EMERGENCY_RESET_REFUSED on MowBite OS: rpc (the app, an action) or button (STOP at the mower)
+  source?: string;
   // MowBite OS: the charge current seen (A), the battery's temperature or the mow motor's (°C), the sun's height (°)
   current?: number;
   temperature?: number;
@@ -352,7 +357,27 @@ const RESET_REFUSED_HELP: Record<string, string> = {
   TILT_UNKNOWN: "Without fresh data from the IMU it can't tell whether it stands level. Try again in a moment, if it stays so check the IMU and its connection.",
   FOREIGN_HOST: 'Stop the other computer or program first (for example OpenMower still running next to MowBite OS), then reset it again.',
   RESTART_HOLD_STAYS: "The mower couldn't delete its hold from its storage, so it stays. Try again in a moment, if it stays the log from that moment says more.",
+  STILL_ACTIVE: 'It took the reset, but the emergency stop stayed on, for example because it is lifted or STOP is still pressed. Put it down, let go of STOP, then reset it again.',
+  LATCH_CHANGED: 'Another emergency reason came up after STOP was pressed, so the emergency stop stays. Check the mower, then reset it again.',
 };
+
+// what still holds the emergency after a reset was taken (STILL_ACTIVE), by the names of its bits
+function stillHolding(bits: unknown): string {
+  if (!Array.isArray(bits)) return '';
+  const named = emergencyText(bits.filter((b): b is string => typeof b === 'string' && b !== 'UNKNOWN'));
+  const unknown = bits.includes('UNKNOWN') ? tr('a reason without a name') : '';
+  return [named, unknown].filter(Boolean).join(', ');
+}
+
+// the gesture that releases the emergency with STOP at the mower, where it has one (system.info stop_release)
+export function stopReleaseText(r: StopRelease): string {
+  const s = (v: number) => fmt(v, Number.isInteger(v) ? 0 : 1);
+  return tr('Or reset it at the mower: leave STOP alone for {free} s, then hold it for at least {hold} s and let go before {max} s.', {
+    free: s(r.free_s),
+    hold: s(r.hold_s),
+    max: s(r.max_hold_s),
+  });
+}
 
 // a refused reset where it's reset, under the emergency stop and its reasons
 export function resetRefusedText(e: MowerEvent): string {
@@ -444,8 +469,11 @@ export function explain(e: MowerEvent, state?: string, gpsTimeout?: number, os =
       return undefined;
     }
     // the emergency stop stays as it was
-    case 'EMERGENCY_RESET_REFUSED':
+    case 'EMERGENCY_RESET_REFUSED': {
+      const holding = e.reason === 'STILL_ACTIVE' ? stillHolding(e.bits) : '';
+      if (holding) return tr('Still active: {what}. Clear that, let go of STOP, then reset it again.', {what: holding});
       return tr(RESET_REFUSED_HELP[e.reason ?? ''] ?? "A part of MowBite OS didn't answer. Try again in a moment, the log from that moment says more.");
+    }
     case 'UNEXPECTED_RESTART':
       return restartText(e);
     case 'MOW_MOTOR_SPINUP_FAILED':

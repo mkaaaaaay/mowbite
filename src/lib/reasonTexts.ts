@@ -126,7 +126,11 @@ export const EVENTS: Record<string, EventText> = {
   JOB_RESET: one('Interrupted job dropped, the next start mows from the beginning'),
   EMERGENCY: {
     severity: 'error',
-    variants: [alone({when: {emergency: false}, en: 'Emergency cleared', severity: 'info'}), {en: 'Emergency stop', reason_is: 'emergency_bits'}],
+    variants: [
+      alone({when: {emergency: false, source: 'button'}, en: 'Emergency cleared at the mower', severity: 'info'}),
+      alone({when: {emergency: false}, en: 'Emergency cleared', severity: 'info'}),
+      {en: 'Emergency stop', reason_is: 'emergency_bits'},
+    ],
   },
   NAVIGATION_ERROR: {
     severity: 'error',
@@ -178,7 +182,12 @@ export const EVENTS: Record<string, EventText> = {
   // emergency false says it's over
   EMERGENCY_RESET_REFUSED: {
     severity: 'error',
-    variants: [{when: {reason: 'STILL_TILTED'}, en: 'Emergency stop not reset', severity: 'warning'}, {en: 'Emergency stop not reset'}],
+    variants: [
+      {when: {reason: 'STILL_TILTED'}, en: 'Emergency stop not reset', severity: 'warning'},
+      {when: {reason: 'STILL_ACTIVE'}, en: 'Emergency stop not reset', severity: 'warning'},
+      {when: {reason: 'LATCH_CHANGED'}, en: 'Emergency stop not reset', severity: 'warning'},
+      {en: 'Emergency stop not reset'},
+    ],
   },
   // MowBite OS started again without its own stop; hold: it waits for reset_emergency, otherwise it goes on by itself
   UNEXPECTED_RESTART: {
@@ -376,6 +385,9 @@ export const REASONS: Record<string, Variant[]> = {
     r('tilt unknown, no data from the IMU for {seconds:1} s', {when: {seconds: {present: true}}}),
     r('tilt unknown, no data from the IMU'),
   ],
+  // taken, but the emergency didn't end within 2 s (bits: what still holds), or another reason latched since STOP
+  STILL_ACTIVE: [r('still active')],
+  LATCH_CHANGED: [r('a new emergency reason came up')],
   FOREIGN_HOST: [r('another computer is talking to the board')],
   DRIVER_MISSING: [r('the hardware driver is not running')],
   SAFETY_MISSING: [r('the safety filter is not running')],

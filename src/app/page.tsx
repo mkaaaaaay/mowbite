@@ -29,8 +29,8 @@ import {useRecentRuns} from '@/hooks/useRecentRuns';
 import TopWeather from '@/components/TopWeather';
 import {clock, dayKey, dayLabel, duration} from '@/lib/dates';
 import {fileDay} from '@/lib/history';
-import {describe, emergencyText, explain, groupRuns, noteworthy, OUTCOMES, resetRefusedText, type MowerEvent, type Run} from '@/lib/events';
-import {useMowbiteOs, useOsApi} from '@/lib/mowerOs';
+import {describe, emergencyText, explain, groupRuns, noteworthy, OUTCOMES, resetRefusedText, stopReleaseText, type MowerEvent, type Run} from '@/lib/events';
+import {useMowbiteOs, useOsApi, useStopRelease} from '@/lib/mowerOs';
 import {useChargeConfirmed} from '@/hooks/useChargeConfirmed';
 import {settingsStore} from '@/lib/settings';
 import {PARTS, useDueParts} from '@/lib/stats';
@@ -200,6 +200,8 @@ export default function Home() {
   const {infos, values} = useMowerSensors();
   const why = useEmergencyReasons(!!state?.emergency);
   const {refused, reset} = useEmergencyReset(!!state?.emergency, publishAction);
+  // the release with STOP at the mower, where it has one
+  const stopRelease = useStopRelease();
   // a refused reset shows under the emergency stop already
   const commandNote = useCommandNote(['EMERGENCY_RESET_REFUSED']);
   const position = useMowerPosition() ?? state?.pose;
@@ -467,9 +469,9 @@ export default function Home() {
                 {live ? (
                   <span className={styles.dim}>
                     {state.emergency
-                      ? refused
-                        ? explain(refused)
-                        : tr('Release the mower, then reset the emergency to drive again.')
+                      ? [refused ? explain(refused) : tr('Release the mower, then reset the emergency to drive again.'), stopRelease && stopReleaseText(stopRelease)]
+                          .filter(Boolean)
+                          .join(' ')
                       : pausedInDock && hasAction(ACTION.goHome)
                         ? tr('Put in the dock by hand? Tap End here, then it counts as docked and charges. The next start mows on where it stopped.')
                         : since

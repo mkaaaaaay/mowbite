@@ -304,6 +304,16 @@
    "variants": [
     {
      "when": {
+      "emergency": false,
+      "source": "button"
+     },
+     "en": "Emergency cleared at the mower",
+     "severity": "info",
+     "with_reason": false,
+     "de": "Notaus am Mäher aufgehoben"
+    },
+    {
+     "when": {
       "emergency": false
      },
      "en": "Emergency cleared",
@@ -574,6 +584,22 @@
     {
      "when": {
       "reason": "STILL_TILTED"
+     },
+     "en": "Emergency stop not reset",
+     "severity": "warning",
+     "de": "Notaus nicht zurückgesetzt"
+    },
+    {
+     "when": {
+      "reason": "STILL_ACTIVE"
+     },
+     "en": "Emergency stop not reset",
+     "severity": "warning",
+     "de": "Notaus nicht zurückgesetzt"
+    },
+    {
+     "when": {
+      "reason": "LATCH_CHANGED"
      },
      "en": "Emergency stop not reset",
      "severity": "warning",
@@ -1569,6 +1595,18 @@
    {
     "en": "tilt unknown, no data from the IMU",
     "de": "Neigung unbekannt, keine Daten von der IMU"
+   }
+  ],
+  "STILL_ACTIVE": [
+   {
+    "en": "still active",
+    "de": "besteht weiter"
+   }
+  ],
+  "LATCH_CHANGED": [
+   {
+    "en": "a new emergency reason came up",
+    "de": "ein neuer Notaus-Grund kam dazu"
    }
   ],
   "FOREIGN_HOST": [

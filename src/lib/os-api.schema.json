@@ -2254,6 +2254,10 @@
           "type": "number",
           "x-unit": "deg"
         },
+        "bits": {
+          "description": "Names of the emergency bits that stay (x-emergency-bits), UNKNOWN for one without a name",
+          "type": "array"
+        },
         "client": {
           "description": "Who sent the command (app, ha), for the log and the events of its step",
           "pattern": "^[a-z][a-z0-9_-]{0,15}$",
@@ -2279,6 +2283,8 @@
         "reason": {
           "description": "Why: a fixed name in capitals, rated in x-reasons",
           "enum": [
+            "STILL_ACTIVE",
+            "LATCH_CHANGED",
             "STILL_TILTED",
             "TILT_UNKNOWN",
             "FOREIGN_HOST",
@@ -2312,6 +2318,14 @@
             "info",
             "warning",
             "error"
+          ],
+          "type": "string"
+        },
+        "source": {
+          "description": "Who asked: rpc for a command over MQTT (action or RPC), button for STOP at the mower; none when not known",
+          "enum": [
+            "rpc",
+            "button"
           ],
           "type": "string"
         },
@@ -5595,6 +5609,36 @@
           "description": "Version of the data in data_dir",
           "type": "integer"
         },
+        "stop_release": {
+          "additionalProperties": false,
+          "description": "Releasing the emergency with STOP at the mower: free for free_s, held for hold_s, let go before max_hold_s; null or missing where the platform has no such release",
+          "properties": {
+            "free_s": {
+              "description": "STOP not pressed for this long before",
+              "type": "number",
+              "x-unit": "s"
+            },
+            "hold_s": {
+              "description": "Held at least this long",
+              "type": "number",
+              "x-unit": "s"
+            },
+            "max_hold_s": {
+              "description": "Let go before this",
+              "type": "number",
+              "x-unit": "s"
+            }
+          },
+          "required": [
+            "free_s",
+            "hold_s",
+            "max_hold_s"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
         "version": {
           "description": "Version of the OS image",
           "type": "string"
@@ -5720,11 +5764,11 @@
       "type": "object"
     }
   },
-  "$id": "urn:mowbite-os:api:9",
+  "$id": "urn:mowbite-os:api:10",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "robot_state, actions, events and RPC methods of MowBite OS over MQTT, as system.api gives them; made from the code, objects sorted by key. x-reasons has severity and resume of every reason by event (COMMAND_REFUSED and REQUEST_REFUSED only in refusals; when: another rating for these field values; texts: name, help and fix by language), x-emergency-bits the bits of emergency, x-commands the commands with params, result, the event of their refusal and the actions that do the same, x-methods every RPC method of the OS with its node (planner.* are the planner's, sim.* only in the simulation), x-sensors the sensors by id, x-settings the settings of params.set with the ranges of the OS, x-geometry the keys of robot.geometry.",
   "title": "MowBite OS app interface",
-  "x-api": 9,
+  "x-api": 10,
   "x-commands": {
     "docking.abort": {
       "action": "mower_logic:docking/abort_docking",
@@ -7474,6 +7518,24 @@
         "resume": "user",
         "severity": "error"
       },
+      "LATCH_CHANGED": {
+        "description": "Another reason latched after STOP was pressed: the driver kept the emergency",
+        "fields": {},
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Den Mäher prüfen und noch einmal lösen.",
+            "help": "Nach dem Drücken von STOP kam ein neuer Notaus-Grund dazu, der Notaus bleibt.",
+            "name": "Neuer Notaus-Grund"
+          },
+          "en": {
+            "fix": "Check the mower and release again.",
+            "help": "Another emergency reason came up after STOP was pressed, the emergency stays.",
+            "name": "New emergency reason"
+          }
+        }
+      },
       "NO_ANSWER": {
         "description": "No answer in time",
         "fields": {},
@@ -7491,6 +7553,26 @@
         "fields": {},
         "resume": "user",
         "severity": "error"
+      },
+      "STILL_ACTIVE": {
+        "description": "The release was taken, but the emergency did not end within 2 s",
+        "fields": {
+          "bits": ""
+        },
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Den Mäher abstellen, STOP loslassen und noch einmal lösen.",
+            "help": "Der Mäher hat das Lösen angenommen, aber der Notaus besteht weiter, etwa weil er angehoben ist oder STOP noch gedrückt ist.",
+            "name": "Notaus besteht weiter"
+          },
+          "en": {
+            "fix": "Put the mower down, let go of STOP and release again.",
+            "help": "The mower took the release, but the emergency stays, for example because it is lifted or STOP is still pressed.",
+            "name": "Emergency still active"
+          }
+        }
       },
       "STILL_TILTED": {
         "description": "The mower is still tilted",

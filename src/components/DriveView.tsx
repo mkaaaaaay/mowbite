@@ -14,7 +14,8 @@ import {datumFromParams, numParam, useMowerParams} from '@/hooks/useMowerParams'
 import {useMowerPosition} from '@/hooks/useMowerPosition';
 import {useSensorValue} from '@/hooks/useMowerSensors';
 import {isLive, useMowerState} from '@/hooks/useMowerState';
-import {emergencyText, explain, resetRefusedText} from '@/lib/events';
+import {emergencyText, explain, resetRefusedText, stopReleaseText} from '@/lib/events';
+import {useStopRelease} from '@/lib/mowerOs';
 import {fmt, tr} from '@/lib/i18n';
 import {ACTION, PARAM} from '@/lib/openmower';
 import {GPS_QUALITY_LABEL, gpsQuality} from '@/lib/status';
@@ -224,6 +225,7 @@ export default function DriveView({
   const position = useMowerPosition() ?? state?.pose;
   const why = useEmergencyReasons(!!state?.emergency);
   const {refused, reset} = useEmergencyReset(!!state?.emergency, publishAction);
+  const stopRelease = useStopRelease();
   const [zoom, setZoom] = useState(2);
 
   // the gps's own accuracy (OpenMower's idle leaves the gps out of its position)
@@ -236,7 +238,10 @@ export default function DriveView({
   const alarm = (
     <>
       <strong>{reason ? tr('Emergency stop: {reason}', {reason}) : tr('Emergency stop')}</strong>
-      <span>{refused ? `${resetRefusedText(refused)}. ${explain(refused)}` : tr('Release the mower, then reset the emergency to drive again.')}</span>
+      <span>
+        {refused ? `${resetRefusedText(refused)}. ${explain(refused)}` : tr('Release the mower, then reset the emergency to drive again.')}
+        {stopRelease && ` ${stopReleaseText(stopRelease)}`}
+      </span>
       <button disabled={!live} onClick={reset}>
         <WarningIcon size={18} />
         {tr('Reset emergency')}
