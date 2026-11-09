@@ -11,7 +11,7 @@ conf() { sed -n "s/^$1 //p" "$C" 2>/dev/null | head -n1; }
 
 log() {
   echo "$(date +%s) $1" >> "$LOG"
-  tail -n 50 "$LOG" > "$LOG.tmp" && mv "$LOG.tmp" "$LOG"
+  tail -n 50 "$LOG" > "$LOG.$$" && mv "$LOG.$$" "$LOG"
 }
 title() { printf '%s' "$1" | sed -n 's/.*"title":"\([^"]*\)".*/\1/p'; }
 
@@ -42,7 +42,11 @@ send_push() {
       r=0
     else
       case "$err" in
-      *" 404"* | *" 410"*) { grep -vxF "push $ep" "$C" || :; } > "$C.tmp" && mv "$C.tmp" "$C" ;;
+      # (one at a time with notify.cgi)
+      *" 404"* | *" 410"*) (
+        flock 9
+        { grep -vxF "push $ep" "$C" || :; } > "$C.$$" && mv "$C.$$" "$C"
+      ) 9> /tmp/notify.lock ;;
       esac
     fi
   done

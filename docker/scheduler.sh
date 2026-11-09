@@ -17,9 +17,13 @@ LOG=/data/schedule.log
 NORMAL=/data/angle.normal
 WAIT=7200
 
+# one line at a time, the runs in the background log too
 log() {
-  echo "$(date +%s) $*" >> "$LOG"
-  tail -n 100 "$LOG" > "$LOG.tmp" && mv "$LOG.tmp" "$LOG"
+  (
+    flock 9
+    echo "$(date +%s) $*" >> "$LOG"
+    tail -n 100 "$LOG" > "$LOG.tmp" && mv "$LOG.tmp" "$LOG"
+  ) 9> /tmp/schedule.lock
 }
 # a plain value from compact or spaced out json, e.g. field "$state" current_state
 field() { printf '%s' "$1" | grep -o "\"$2\" *: *[^,}]*" | head -n1 | sed 's/^[^:]*: *//' | tr -d '" '; }

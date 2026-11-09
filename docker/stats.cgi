@@ -22,7 +22,7 @@ if [ "$REQUEST_METHOD" = POST ]; then
   fi
   if [ -n "$(arg 'done')" ]; then
     blade=$(cut -d' ' -f2 "$D/state" 2>/dev/null)
-    awk -v p="$part" -v b="${blade:-0}" -v t="$(date +%s)" '$1 == p { $3 = b; $4 = t } { print }' "$M" > "$M.tmp" && mv "$M.tmp" "$M"
+    awk -v p="$part" -v b="${blade:-0}" -v t="$(date +%s)" '$1 == p { $3 = b; $4 = t } { print }' "$M" > "$M.$$" && mv "$M.$$" "$M"
   else
     h=$(arg h)
     case "$h" in '' | *[!0-9]*) h=0 ;; esac
@@ -32,7 +32,7 @@ if [ "$REQUEST_METHOD" = POST ]; then
       printf 'Content-Type: text/plain\r\n\r\nhours out of range\n'
       exit 0
     fi
-    awk -v p="$part" -v h="$h" '$1 == p { $2 = h } { print }' "$M" > "$M.tmp" && mv "$M.tmp" "$M"
+    awk -v p="$part" -v h="$h" '$1 == p { $2 = h } { print }' "$M" > "$M.$$" && mv "$M.$$" "$M"
   fi
 fi
 
