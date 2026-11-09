@@ -54,8 +54,9 @@ test.describe('lights', () => {
     await expect(page.getByRole('link', {name: 'Dashboard and mowers'})).toBeVisible();
     await expect(page.locator('a[href="/guide/lights"], a[href="/guide/lights/"]')).toHaveCount(0);
 
+    // (the same address again would only move to the anchor, a reload runs the init script)
     await page.addInitScript(() => ((window as {mowbiteDemoSounds?: boolean}).mowbiteDemoSounds = true));
-    await page.goto('/settings/#guides');
+    await page.reload();
     await page.getByRole('link', {name: 'Sounds', exact: true}).click();
     await expect(page.getByRole('heading', {name: 'Sounds'})).toBeVisible();
     await expect(page.getByText('1/1')).toBeVisible();
