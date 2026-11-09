@@ -522,6 +522,11 @@ export default function SettingsPage() {
               <Link href="/guide/app" className={styles.pillButton}>
                 {tr('Dashboard and mowers')}
               </Link>
+              {(lights || sounds) && (
+                <Link href="/guide/lights" className={styles.pillButton}>
+                  {lights ? tr('Lights and sounds') : tr('Sounds')}
+                </Link>
+              )}
               {CALIB_SHOWN && (
                 <Link href="/guide/calibration" className={styles.pillButton}>
                   {tr('Calibrating')}

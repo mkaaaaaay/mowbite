@@ -48,4 +48,22 @@ test.describe('lights', () => {
     await expect(group).toContainText('Back to the defaults.');
     await expect(mowing.locator('summary')).toContainText('Steady');
   });
+
+  test('the guide only on a mower with lights or sounds, with the steps it has', async ({page}) => {
+    await page.goto('/settings/#guides');
+    await expect(page.getByRole('link', {name: 'Dashboard and mowers'})).toBeVisible();
+    await expect(page.locator('a[href="/guide/lights"], a[href="/guide/lights/"]')).toHaveCount(0);
+
+    await page.addInitScript(() => ((window as {mowbiteDemoSounds?: boolean}).mowbiteDemoSounds = true));
+    await page.goto('/settings/#guides');
+    await page.getByRole('link', {name: 'Sounds', exact: true}).click();
+    await expect(page.getByRole('heading', {name: 'Sounds'})).toBeVisible();
+    await expect(page.getByText('1/1')).toBeVisible();
+
+    await page.addInitScript(() => ((window as {mowbiteDemoLights?: boolean}).mowbiteDemoLights = true));
+    await page.goto('/settings/#guides');
+    await page.getByRole('link', {name: 'Lights and sounds'}).click();
+    await expect(page.getByRole('heading', {name: 'Lights by state'})).toBeVisible();
+    await expect(page.getByText('1/3')).toBeVisible();
+  });
 });
