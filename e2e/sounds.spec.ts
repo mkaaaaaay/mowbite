@@ -20,6 +20,7 @@ test.describe('sounds', () => {
     const start = group.locator('[data-sound="MOWING_START"]');
     await expect(start).toContainText('Mowing starts');
     await expect(start).toContainText('from the manufacturer');
+    await expect(start).not.toContainText('STATE MOWING');
     await start.getByRole('button', {name: 'Listen'}).click();
     await expect(start).toContainText('Plays on the mower (2 s).');
 

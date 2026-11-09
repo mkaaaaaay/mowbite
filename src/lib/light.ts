@@ -1,5 +1,5 @@
 import {RPC} from './openmower';
-import {callRpc, rpcMethods} from './rpc';
+import {callRpc} from './rpc';
 
 // the lights of a mower with MowBite OS (light.*): an effect for each state, kept on the mower. what there is (states,
 // effects, limits) comes from it, an emergency's signal is fixed there
@@ -48,9 +48,6 @@ export function fitted(e: LightEffect, l: Lights['limits']): LightEffect {
 
 export const sameEffect = (a?: LightEffect, b?: LightEffect) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
-export async function offersLights(): Promise<boolean> {
-  return !!(await rpcMethods())?.has(RPC.lightGet);
-}
 export const loadLights = () => callRpc<Lights>(RPC.lightGet);
 export const saveLights = (profile: LightProfile) => callRpc<{profile: LightProfile}>(RPC.lightSet, {profile});
 export const resetLights = () => callRpc<{profile: LightProfile}>(RPC.lightReset);

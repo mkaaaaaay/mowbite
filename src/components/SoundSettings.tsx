@@ -3,7 +3,7 @@
 import {fmt, tr, useLang} from '@/lib/i18n';
 import {answerError} from '@/lib/rpcText';
 import {loadSounds, playSound, setVolume, stopSound, type Sounds} from '@/lib/sound';
-import {useEffect, useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
 import local from './LightSettings.module.css';
 
 // the situations as the app calls them (open_mower_ros #347), one it doesn't know readable
@@ -30,6 +30,8 @@ export function SoundSettings({styles}: {styles: Record<string, string>}) {
   const [sounds, setSounds] = useState<Sounds | null>();
   const [volume, setVol] = useState(0);
   const [note, setNote] = useState<{situation?: string; text: string; error?: boolean} | null>(null);
+  // the volume last sent or loaded: letting go and leaving the slider both send, the second one only if it changed
+  const sent = useRef<number | null>(null);
   useEffect(() => {
     let stop = false;
     loadSounds().then(
@@ -37,6 +39,7 @@ export function SoundSettings({styles}: {styles: Record<string, string>}) {
         if (stop) return;
         setSounds(s);
         setVol(s.volume);
+        sent.current = s.volume;
       },
       () => !stop && setSounds(null),
     );
@@ -49,15 +52,18 @@ export function SoundSettings({styles}: {styles: Record<string, string>}) {
 
   // the mower writes each volume to its storage: sent once the slider is let go
   const sendVolume = () => {
-    if (volume === sounds.volume) return;
+    if (volume === sent.current) return;
+    sent.current = volume;
     setVolume(volume).then(
       (r) => {
         setSounds((s) => (s ? {...s, volume: r.volume} : s));
         setVol(r.volume);
+        sent.current = r.volume;
         setNote(null);
       },
       (e) => {
         setVol(sounds.volume);
+        sent.current = sounds.volume;
         setNote({text: answerError(e), error: true});
       },
     );
@@ -98,7 +104,6 @@ export function SoundSettings({styles}: {styles: Record<string, string>}) {
             {s.file
               ? tr('{n} s, {from}', {n: fmt(s.file.seconds, 1), from: s.file.source === 'vendor' ? tr('from the manufacturer') : tr('your own')})
               : tr('No sound')}
-            {s.event && ` · ${s.event}`}
           </p>
           {s.file && (
             <button type="button" className={styles.pillButton} onClick={() => void play(s.name)}>

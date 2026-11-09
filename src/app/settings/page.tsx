@@ -24,8 +24,8 @@ import {CALIB_SHOWN} from '@/lib/calibration';
 import {NotifySettings} from '@/components/NotifySettings';
 import {LightSettings} from '@/components/LightSettings';
 import {SoundSettings} from '@/components/SoundSettings';
-import {offersLights} from '@/lib/light';
-import {offersSounds} from '@/lib/sound';
+import {useRpcMethods} from '@/hooks/useRpcMethods';
+import {RPC} from '@/lib/openmower';
 import {DashboardItems} from '@/components/DashboardItems';
 import {datumFromParams, useMowerParams} from '@/hooks/useMowerParams';
 import {posixTz} from '@/lib/schedule';
@@ -256,16 +256,9 @@ export default function SettingsPage() {
   const waiting = usePlannerWaiting()?.what === 'load';
   const demo = useSyncExternalStore(noop, isDemo, () => false);
   // the lights by state and the sounds, on a mower that has them (MowBite OS)
-  const [lights, setLights] = useState(false);
-  const [sounds, setSounds] = useState(false);
-  useEffect(() => {
-    let stop = false;
-    void offersLights().then((has) => !stop && setLights(has));
-    void offersSounds().then((has) => !stop && setSounds(has));
-    return () => {
-      stop = true;
-    };
-  }, []);
+  const methods = useRpcMethods();
+  const lights = !!methods?.has(RPC.lightGet);
+  const sounds = !!methods?.has(RPC.soundList);
 
   return (
     <div className={styles.page}>
