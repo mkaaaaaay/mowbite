@@ -1,5 +1,5 @@
 import type {MapArea, MowerMap, Point} from '@/hooks/useMowerMap';
-import {linkStripes, mowPlan} from '../mowPlan';
+import {linkStripes, mowPlan, ownCount} from '../mowPlan';
 import {ACTION, PARAM, RPC, TOPIC} from '../openmower';
 import {EMERGENCY_BITS} from '../reasonTexts';
 import {closedRings, openRing, openRings} from '../rings';
@@ -227,8 +227,8 @@ export function areaPaths(
     outline: area.outline,
     holes: obstacles,
     outlineOffset: p.outline_offset ?? (params['/mower_logic/outline_offset'] as number),
-    outlineCount: p.outline_count ?? (params[PARAM.outlineCount] as number),
-    overlapCount: p.outline_overlap_count ?? (params['/mower_logic/outline_overlap_count'] as number),
+    outlineCount: ownCount(p.outline_count) ?? (params[PARAM.outlineCount] as number),
+    overlapCount: ownCount(p.outline_overlap_count) ?? (params['/mower_logic/outline_overlap_count'] as number),
     toolWidth: tool,
     angle,
   });

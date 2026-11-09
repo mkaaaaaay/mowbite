@@ -7,6 +7,7 @@ import {listBackups, loadBackup, saveBackup, type BackupInfo} from '@/lib/backup
 import {mapToGeoJson} from '@/lib/geojson';
 import type {Datum} from '@/lib/imagery';
 import {closedRings} from '@/lib/rings';
+import {tr} from '@/lib/i18n';
 import {rpcErrorText} from '@/lib/rpcText';
 import {saveFile} from '@/lib/saveFile';
 
@@ -16,6 +17,8 @@ export function useMapBackups(liveMap: MowerMap | null, shown: MowerMap | null, 
   const [confirmRestore, setConfirmRestore] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [restoreError, setRestoreError] = useState<string | null>(null);
+  // the backup before it failed, the next try restores without one
+  const [withoutBackup, setWithoutBackup] = useState(false);
   const refreshBackups = () => listBackups().then(setBackups);
   useEffect(() => {
     void listBackups().then(setBackups);
@@ -24,13 +27,26 @@ export function useMapBackups(liveMap: MowerMap | null, shown: MowerMap | null, 
     setPreview(null);
     setConfirmRestore(false);
     setRestoreError(null);
+    setWithoutBackup(false);
   };
   const restore = async () => {
     if (!preview) return;
     setRestoring(true);
     setRestoreError(null);
     try {
-      if (backups !== null && liveMap) await saveBackup(liveMap, 'before restoring', true);
+      if (backups !== null && liveMap && !withoutBackup) {
+        try {
+          await saveBackup(liveMap, 'before restoring', true);
+        } catch (e) {
+          setWithoutBackup(true);
+          setRestoreError(
+            tr("The map on the mower couldn't be backed up first ({why}). Restore again to go on without that backup.", {
+              why: e instanceof Error ? e.message : tr('failed'),
+            }),
+          );
+          return;
+        }
+      }
       await saveMap(preview.map);
       restored();
       closePreview();
@@ -58,5 +74,19 @@ export function useMapBackups(liveMap: MowerMap | null, shown: MowerMap | null, 
     await saveFile(fileName(new Date(), 'geojson'), JSON.stringify(mapToGeoJson(shown, datum), null, 2), 'application/geo+json');
   };
 
-  return {backups, preview, setPreview, confirmRestore, setConfirmRestore, restoring, restoreError, refreshBackups, closePreview, restore, download, downloadGeo};
+  return {
+    backups,
+    restoreWithoutBackup: withoutBackup,
+    preview,
+    setPreview,
+    confirmRestore,
+    setConfirmRestore,
+    restoring,
+    restoreError,
+    refreshBackups,
+    closePreview,
+    restore,
+    download,
+    downloadGeo,
+  };
 }

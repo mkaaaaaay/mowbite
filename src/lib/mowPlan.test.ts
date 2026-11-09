@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import {polygonArea} from './geometry';
-import {fillStripes, linkStripes, mowPlan} from './mowPlan';
+import {fillStripes, linkStripes, mowPlan, ownCount} from './mowPlan';
 
 const square = (x: number, y: number, size: number) => [
   {x, y},
@@ -9,6 +9,12 @@ const square = (x: number, y: number, size: number) => [
   {x, y: y + size},
 ];
 const base = {holes: [], outlineOffset: 0, outlineCount: 2, overlapCount: 0, toolWidth: 1, angle: 0};
+const rect = (x0: number, y0: number, x1: number, y1: number) => [
+  {x: x0, y: y0},
+  {x: x1, y: y0},
+  {x: x1, y: y1},
+  {x: x0, y: y1},
+];
 
 describe('mowPlan', () => {
   it('shrinks the area by the offset first, then by a tool width per pass', () => {
@@ -34,6 +40,13 @@ describe('mowPlan', () => {
     expect(plan.loops).toHaveLength(2);
     const throughHole = plan.stripes.filter(([a]) => Math.abs(a.y - 10.5) < 1e-6);
     expect(throughHole).toHaveLength(2);
+  });
+
+  it('keeps stripes out of where two obstacles overlap, whichever way round they were recorded', () => {
+    const holes = [rect(3, 2, 6, 5), rect(5, 3, 8, 6).reverse()];
+    const plan = mowPlan({...base, outline: rect(0, 0, 10, 8), holes, outlineCount: 0, toolWidth: 0.2});
+    const overlap = plan.stripes.filter(([a, b]) => a.y > 3 && a.y < 5 && Math.min(a.x, b.x) < 5.9 && Math.max(a.x, b.x) > 5.1);
+    expect(overlap).toHaveLength(0);
   });
 
   it('ignores obstacles outside the area and cuts off ones over its edge', () => {
@@ -65,8 +78,28 @@ describe('linkStripes', () => {
     expect(chains[0][2].x).toBeCloseTo(5);
   });
 
+  it('keeps one zigzag when the outline lies on a multiple of the spacing', () => {
+    for (const [spacing, y] of [
+      [0.18, 0],
+      [0.2, 1],
+      [0.3, -3],
+    ]) {
+      const stripes = fillStripes([rect(0, y, 10, y + 20)], 0, spacing);
+      expect(linkStripes(stripes, 0, spacing)).toHaveLength(1);
+    }
+  });
+
   it('starts a new piece where an obstacle splits the stripes', () => {
     const stripes = fillStripes([square(0, 0, 10), square(4, 2, 2)], 0, 0.5);
     expect(linkStripes(stripes, 0, 0.5).length).toBeGreaterThan(1);
+  });
+});
+
+describe('ownCount', () => {
+  it('takes an area\'s own count, -1 or none leaves it to the global one', () => {
+    expect(ownCount(0)).toBe(0);
+    expect(ownCount(3)).toBe(3);
+    expect(ownCount(-1)).toBeUndefined();
+    expect(ownCount(undefined)).toBeUndefined();
   });
 });
