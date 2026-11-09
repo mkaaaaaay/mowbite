@@ -17,6 +17,7 @@ export interface BackupInfo {
 
 const PATH = '/cgi-bin/backups';
 const endpoint = () => apiBase() + PATH;
+const httpError = (status: number) => new Error(tr('The mower answered with error {status}. Is MowBite running as a container on the mower?', {status}));
 
 // null: not served, no container keeps backups. undefined: it didn't answer, a save still tries to make one
 export function listBackups(): Promise<BackupInfo[] | null | undefined> {
@@ -35,7 +36,7 @@ export function listBackups(): Promise<BackupInfo[] | null | undefined> {
 
 export async function loadBackup(id: string): Promise<MowerMap> {
   const res = await mowerFetch(`${endpoint()}?id=${encodeURIComponent(id)}`, {cache: 'no-store'});
-  if (!res.ok) throw new Error(`backup ${res.status}`);
+  if (!res.ok) throw httpError(res.status);
   return openRings(await res.json());
 }
 
@@ -45,13 +46,13 @@ export async function saveBackup(map: MowerMap, name: string, auto: boolean): Pr
   const res = await mowerFetch(`${endpoint()}?${q}`, {method: 'POST', body: JSON.stringify(closedRings(map))});
   forget('backups');
   if (res.status === 409) throw new Error(tr('{n} backups made by hand are kept at most. Delete one you no longer need first.', {n: 50}));
-  if (!res.ok) throw new Error(`backup ${res.status}`);
+  if (!res.ok) throw httpError(res.status);
 }
 
 export async function deleteBackup(id: string): Promise<void> {
   const res = await mowerFetch(`${endpoint()}?action=delete&id=${encodeURIComponent(id)}`, {method: 'POST'});
   forget('backups');
-  if (!res.ok) throw new Error(`backup ${res.status}`);
+  if (!res.ok) throw httpError(res.status);
 }
 
 // whether a backup made after `since` has another angle for the area than `angle`. backups are made before every save,

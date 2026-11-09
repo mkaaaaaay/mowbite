@@ -412,7 +412,7 @@
    "severity": "error",
    "variants": [
     {
-     "en": "Request turned down",
+     "en": "Request refused",
      "de": "Anfrage abgelehnt"
     }
    ]
@@ -1341,7 +1341,7 @@
     "de": "hat zu lange gedauert"
    },
    {
-    "en": "not getting on, maybe stuck",
+    "en": "not making progress, maybe stuck",
     "de": "kommt nicht weiter, steckt vielleicht fest"
    }
   ],
@@ -1449,7 +1449,7 @@
   ],
   "TOO_MANY_POINTS": [
    {
-    "en": "the line has {limit} points, the most there can be: close it",
+    "en": "the line has {limit} points, the maximum: close it",
     "de": "die Linie hat {limit} Punkte, mehr gehen nicht: schließe sie"
    }
   ],
@@ -1727,7 +1727,7 @@
   ],
   "GYRO_SIGN": [
    {
-    "en": "the gyro turns the other way than the wheels",
+    "en": "the gyro measures turning the other way than the wheels",
     "de": "das Gyroskop misst die Drehung andersherum als die Räder"
    }
   ],

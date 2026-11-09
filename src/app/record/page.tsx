@@ -386,7 +386,7 @@ function Record() {
       </>
     );
     text = saved
-      ? tr('{what} saved. Record the next one, or leave recording mode and fine tune it in the editor.', {what: tr(saved)})
+      ? tr('{what} saved. Record the next one, or leave recording mode and fine-tune it in the editor.', {what: tr(saved)})
       : os
         ? tr('Drive to the edge of the new area, then start recording and drive once around it. For the docking station, stop about a meter in front of it, facing it.')
         : tr('Drive to the edge of the new area, then start recording and drive once around it. The docking station: its button guides you through it.');
@@ -462,7 +462,7 @@ function Record() {
           : tr('Recording mode');
   const blades = knowsAction(A('start_manual_mowing'));
   const bladeWarn = tr(
-    'The blade is turning, also while the mower stands still. It goes off when you switch it off, leave this page or the app. If the connection drops or the page reloads or closes, it keeps turning: then press the stop button on the mower.',
+    'The blade is turning, also while the mower stands still. It goes off when you switch it off, leave this page or the app. If the connection drops or the page reloads or closes, it keeps turning: then press the emergency stop button on the mower.',
   );
   // the station the guide saved, how far from the one before
   const change = station?.before ? stationChange(station.before, station.station) : null;
@@ -496,7 +496,7 @@ function Record() {
             {stationLine}
             <p>
               {tr(
-                'Record a new area by driving the mower around it with the joystick on this page. Obstacles inside the area and the docking station can be recorded the same way. Afterwards you can fine tune everything in the',
+                'Record a new area by driving the mower around it with the joystick on this page. Obstacles inside the area and the docking station can be recorded the same way. Afterwards you can fine-tune everything in the',
               )}{' '}
               <Link href="/map">{tr('map editor')}</Link>.
             </p>

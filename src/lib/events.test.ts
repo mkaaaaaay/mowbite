@@ -383,7 +383,7 @@ describe('emergency stop reasons', () => {
         'The hardware driver hung for too long, so it stopped to be safe. Once can be a load peak, if it happens again the log from that moment says more.',
     );
     // set from above on MowBite OS, the driver's own reasons have bits of their own there
-    expect(stop(129)).toMatch(/^Something above the board latched it/);
+    expect(stop(129)).toMatch(/^Software above the board latched it/);
     expect(stop(129, false)).toMatch(/^OpenMower stopped the mower itself/);
     expect(stop(2 ** 15 + 1)).toMatch(/^The wheels turned, but by the GPS/);
     expect(stop(2 ** 22 + 1)).toMatch(/^A reason MowBite doesn't know yet/);
@@ -600,7 +600,7 @@ describe('reasons as fixed names (MowBite OS)', () => {
     expect(describeEvent(ev(0, 'MOWING_REFUSED', {reason: 'SOMETHING_NEW'})).text).toBe('Mowing not started: something new');
     expect(reasonText(os('X', {reason: 'NO_POSITION'}))).toBe('no position');
     expect(reasonText(os('CALIBRATION_FAILED', {reason: 'TIMEOUT'}))).toBe('took too long');
-    expect(reasonText(ev(0, 'DOCKING_FAILED', {reason: 'TIMEOUT'}))).toBe('not getting on, maybe stuck');
+    expect(reasonText(ev(0, 'DOCKING_FAILED', {reason: 'TIMEOUT'}))).toBe('not making progress, maybe stuck');
     // free text from before stays as it came
     expect(describeEvent(ev(0, 'MOWING_REFUSED', {reason: 'No position from the localization'})).text).toBe(
       'Mowing not started: No position from the localization',

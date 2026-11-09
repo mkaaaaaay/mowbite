@@ -3,7 +3,7 @@
 import {loadSystem} from '@/lib/system';
 import {useEffect, useState} from 'react';
 
-// the mower's wifi signal in dBm from the container (system.cgi), every 30 s while the page is open. undefined: not
+// the mower's Wi-Fi signal in dBm from the container (system.cgi), every 30 s while the page is open. undefined: not
 // known (an older container, MowBite not running on the mower, no wifi)
 export function useMowerWifi(): number | undefined {
   const [dbm, setDbm] = useState<number>();

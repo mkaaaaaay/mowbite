@@ -334,7 +334,7 @@ export default function SettingsPage() {
                   <p className={styles.dim}>
                     {slic3rPlans(planner)
                       ? tr("Not with OpenMower's slic3r planner, it plans no leftovers.")
-                      : tr("It goes out again by itself when more than 0.3 m² it can reach was left, within 15 minutes of the end or not at all. Not in the rain or with an emergency stop. It doesn't wait for daylight: after a mow that ended at dusk it goes out in the dark.")}
+                      : tr("It goes out again by itself if more than 0.3 m² it can reach was left, at most 15 minutes after the end, otherwise not at all. Not in the rain or with an emergency stop. It doesn't wait for daylight: after a mow that ended at dusk it goes out in the dark.")}
                   </p>
                 </>
               ) : (

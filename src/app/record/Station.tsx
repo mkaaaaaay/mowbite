@@ -187,7 +187,7 @@ export default function StationGuide({
           setWithoutBackup(true);
           setError(
             tr("The map on the mower couldn't be backed up first ({why}). Tap save again to save without that backup.", {
-              why: e instanceof Error ? e.message : tr('failed'),
+              why: rpcErrorText(e),
             }),
           );
           return;

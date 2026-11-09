@@ -535,7 +535,7 @@ export function PlannerSimple({
           )}
           {/* the angle of the second lanes, for all areas */}
           {!area && has('crosshatch_angle') && effective('fill_pattern') === 'crosshatch' && (
-            <Row label={tr('Crosshatch angle')} help={tr(FIELDS.crosshatch_angle.help)} note={tr('The second lanes run this far turned to the first.')}>
+            <Row label={tr('Crosshatch angle')} help={tr(FIELDS.crosshatch_angle.help)} note={tr('The second set of lanes is turned this far from the first.')}>
               {numberField('crosshatch', dec(degrees((global('crosshatch_angle') as number) ?? 0)), '90', '°', (text) => {
                 const d = parse(text);
                 void save('crosshatch_angle', d === null ? undefined : Math.min(90, Math.max(10, d)) * DEG);
@@ -752,7 +752,7 @@ export function PlannerSimple({
           {has('obstacle_passes') && (
             <Row
               label={tr('Passes around obstacles')}
-              help={tr('How many rounds the mower drives round each obstacle, on their own from the outline passes. Automatic: as many as along the outline. 0: none, the lanes go round the obstacle.')}
+              help={tr('How many rounds the mower drives round each obstacle, independent of the outline passes. Automatic: as many as along the outline. 0: none, the lanes go round the obstacle.')}
               note={
                 obstacleAuto
                   ? tr('As many as along the outline.')
@@ -795,8 +795,8 @@ export function PlannerSimple({
                   : effective('perimeter_direction') === 'random'
                     ? tr(
                         recordedFirst
-                          ? 'The outermost pass the way the edge was recorded, the others one or the other, anew after every finished mow.'
-                          : 'One or the other, anew after every finished mow.',
+                          ? 'The outermost pass the way the edge was recorded, the others either way, chosen again after every finished mow.'
+                          : 'Either way, chosen again after every finished mow.',
                       )
                     : tr('Always this way round.')
               }
@@ -889,7 +889,7 @@ export function PlannerSimple({
                 'After a finished mow the planner checks the real track for what was left and sends the mower out once more for it. The same switch is in the settings.',
               )}
               note={tr(
-                "It goes out again by itself when more than 0.3 m² it can reach was left, within 15 minutes of the end or not at all. Not in the rain or with an emergency stop. It doesn't wait for daylight: after a mow that ended at dusk it goes out in the dark.",
+                "It goes out again by itself if more than 0.3 m² it can reach was left, at most 15 minutes after the end, otherwise not at all. Not in the rain or with an emergency stop. It doesn't wait for daylight: after a mow that ended at dusk it goes out in the dark.",
               )}
             >
               {toggle('leftovers_auto')}
@@ -1026,7 +1026,7 @@ export function PlannerSimple({
                     help={tr(FIELDS.perimeter_order.help)}
                     note={
                       effective('perimeter_order') === 'last'
-                        ? tr('Last: they mow over the marks the turns leave at the edge.')
+                        ? tr('Last: the outline passes mow over the marks the turns leave at the edge.')
                         : tr('First: the lanes come after them.')
                     }
                     source={others('perimeter_order')}

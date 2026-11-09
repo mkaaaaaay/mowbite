@@ -168,7 +168,7 @@ export default function MapBackups({
       </div>
       {geo && (
         <p className={styles.dim}>
-          {tr('GeoJSON opens in QGIS, geojson.io and other map apps. Loaded back, an area from the file takes the place of the one with its id, others come in as new ones, drafts unless the file says what they are.')}{' '}
+          {tr('GeoJSON opens in QGIS, geojson.io and other map apps. When you load it back, an area from the file replaces the one with the same id. Other areas are added as new, as drafts unless the file gives their type.')}{' '}
           {tr("Coordinates are WGS84 longitude and latitude, angles in radians. An area deleted in the file isn't deleted on the map.")}
         </p>
       )}

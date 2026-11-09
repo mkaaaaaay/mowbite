@@ -31,7 +31,7 @@ export const GROUPS: {key: Group; label: string}[] = [
   {key: 'obstacles', label: 'Obstacles'},
   {key: 'turns', label: 'Turns'},
   {key: 'route', label: 'Drives between the parts'},
-  {key: 'fine', label: 'Fine tuning'},
+  {key: 'fine', label: 'Fine-tuning'},
 ];
 
 export const FIELDS: Record<string, Field> = {
@@ -113,7 +113,7 @@ export const FIELDS: Record<string, Field> = {
   },
   angle: {
     label: 'Fixed direction',
-    help: "Lanes always this way, wins over the areas' mow angle (but for areas with an angle of their own). Empty: worked out.",
+    help: "Lanes always run this way, instead of the areas' mow angle (except for areas with their own angle). Empty: worked out automatically.",
     group: 'angle',
     unit: 'deg',
     step: 1,
@@ -149,13 +149,13 @@ export const FIELDS: Record<string, Field> = {
   },
   lane_overlap_limit: {
     label: 'Turns stay within the overlap',
-    help: 'On: lanes and the turns between them go no further out than the overlapping passes say. Where no curve fits there the mower turns on the spot, and a lane starts later where the outline passes already mowed. Off: the turns take the room they need in the outline passes, which looks like more overlap than set. Costs more turns on the spot, least with 2 overlapping passes.',
+    help: 'On: lanes and the turns between them go no further out than the overlapping passes say. Where no curve fits there the mower turns on the spot, and a lane starts later where the outline passes already mowed. Off: the turns take the room they need in the outline passes, which looks like more overlap than set. This means more turning on the spot, the least with 2 overlapping passes.',
     group: 'edge',
     area: true,
   },
   obstacle_passes: {
     label: 'Passes around obstacles',
-    help: "How many passes go round each obstacle, on their own from the outline passes. Automatic: as many as along the outline. 0: none, the lanes go round them.",
+    help: "How many passes go round each obstacle, independent of the outline passes. Automatic: as many as along the outline. 0: none, the lanes go round them.",
     group: 'edge',
     step: 1,
     area: true,
@@ -177,14 +177,14 @@ export const FIELDS: Record<string, Field> = {
   },
   perimeter_order: {
     label: 'Outline passes first or last',
-    help: 'Before the lanes, or after them: last, they mow over the marks the turns leave at the edge.',
+    help: 'Before the lanes, or after them: if last, the outline passes mow over the marks the turns leave at the edge.',
     group: 'edge',
     choices: {first: 'First', last: 'Last'},
     area: true,
   },
   perimeter_direction: {
     label: 'Way round',
-    help: "Which way the outline passes go round. Automatic: the way the mower already faces. Random: one or the other, anew after every finished mow (only with a planner that knows it). With the mower's outline such a planner drives the outermost pass of both the way the edge was recorded.",
+    help: "Which way the outline passes go round. Automatic: the way the mower already faces. Random: either way, chosen again after every finished mow (only with a planner that supports it). With the mower's outline set, such a planner drives the outermost pass the way the edge was recorded in both cases.",
     group: 'edge',
     choices: {auto: 'Automatic', ccw: 'Counter-clockwise', cw: 'Clockwise', random: 'Random'},
   },
@@ -279,7 +279,7 @@ export const FIELDS: Record<string, Field> = {
   },
   route_order: {
     label: 'Order of the parts',
-    help: 'The closest part not mowed yet next, or the order with the shortest drives between them (takes a little longer to plan).',
+    help: 'Either the closest unmowed part comes next, or the order with the shortest drives between the parts (takes a little longer to plan).',
     group: 'route',
     choices: {nearest: 'Closest next', optimized: 'Shortest drives'},
     area: true,

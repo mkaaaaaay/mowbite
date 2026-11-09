@@ -11,7 +11,7 @@ const STEPS: GuideStep[] = [
   },
   {
     title: 'Driving',
-    text: "Tap Start recording mode, if it's out mowing tap Send it home first. Upright you drive with the joystick. Held sideways the phone becomes a remote control: the left pad drives forward and back, the right one steers, the steps are buttons at the bottom. A phone that doesn't turn gets it with Sideways.",
+    text: "Tap Start recording mode, if it's out mowing tap Send it home first. Upright you drive with the joystick. Held sideways the phone becomes a remote control: the left pad drives forward and back, the right one steers, the steps are buttons at the bottom. If your phone doesn't rotate, tap Sideways.",
   },
   {
     title: 'Docking station',
@@ -35,7 +35,7 @@ const STEPS: GuideStep[] = [
   },
   {
     title: 'What a map is made of',
-    text: 'A map has these parts. Afterwards you can fine tune everything in the map editor: move points, merge areas, reduce points. The guide Edit the map shows how.',
+    text: 'A map has these parts. Afterwards you can fine-tune everything in the map editor: move points, merge areas, reduce points. The guide Edit the map shows how.',
   },
 ].map((s, i) => ({...s, Art: ART[i]}));
 

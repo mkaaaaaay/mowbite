@@ -13,6 +13,7 @@ import {paramField} from '@/lib/mowerParams';
 import {containerHas, useUpdates} from '@/lib/updates';
 import Link from 'next/link';
 import {ACTION} from '@/lib/openmower';
+import {rpcErrorText} from '@/lib/rpcText';
 import PlanRow from './PlanRow';
 import PauseCard from './PauseCard';
 import {
@@ -95,7 +96,7 @@ export default function SchedulePage() {
     setError(null);
     // the position also gives the scheduler the sun times
     saveSchedule(next, datum ?? undefined).catch((e) =>
-      setError(e instanceof Error ? e.message : tr('failed')),
+      setError(tr("The schedule couldn't be saved on the mower ({why}). Check the connection and try again.", {why: rpcErrorText(e)})),
     );
   };
 
@@ -195,7 +196,7 @@ export default function SchedulePage() {
               </label>
               <p className={styles.dim}>
                 {tr("If the battery isn't that full at the start time, it waits up to two hours, then skips this start.")}
-                {hasLevel && ` ${tr('Charged in the dock it counts as full, even when it went down a little since.')}`}
+                {hasLevel && ` ${tr('Charged in the dock, it counts as full, even if it has dropped a little since.')}`}
               </p>
               <label className={styles.check}>
                 <input type="checkbox" checked={s.skipRain} onChange={(e) => update({...s, skipRain: e.target.checked})} />

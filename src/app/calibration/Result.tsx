@@ -8,6 +8,7 @@ import {copyText} from '@/lib/clipboard';
 import {clock} from '@/lib/dates';
 import {fmt, locale, tr} from '@/lib/i18n';
 import {ACTION} from '@/lib/openmower';
+import {rpcErrorText} from '@/lib/rpcText';
 import {useState} from 'react';
 import styles from './page.module.css';
 
@@ -88,7 +89,7 @@ export function ResultView({
         byHand,
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(rpcErrorText(e));
     } finally {
       setBusy(false);
     }
@@ -367,7 +368,7 @@ function SetBack({status, onBack, text}: {status: Record<string, string> | null;
         onClick={() => {
           if (!sure) return setSure(true);
           setSure(false);
-          onBack().catch((e) => setError(e instanceof Error ? e.message : String(e)));
+          onBack().catch((e) => setError(rpcErrorText(e)));
         }}
       >
         <UndoIcon size={16} />

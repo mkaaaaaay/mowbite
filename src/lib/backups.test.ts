@@ -17,6 +17,6 @@ describe('deleteBackup', () => {
 
   it('fails when the container refuses it', async () => {
     net.status = 500;
-    await expect(deleteBackup('a')).rejects.toThrow('backup 500');
+    await expect(deleteBackup('a')).rejects.toThrow('error 500');
   });
 });
