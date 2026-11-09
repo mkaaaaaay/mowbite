@@ -14,6 +14,8 @@ export interface ParamField {
   group: ParamGroup;
   label: string;
   help?: string;
+  // the help on MowBite OS where it differs
+  osHelp?: string;
   type: 'int' | 'double' | 'bool' | 'choice';
   // in the mower's unit
   min?: number;
@@ -47,7 +49,7 @@ export const PARAM_FIELDS: ParamField[] = [
   {key: 'rain_mode', group: 'auto', label: 'When the rain sensor is wet', type: 'choice', def: 0, choices: ['Keep mowing', 'Go home', 'Go home and wait until dry', 'Pause automatic mode']},
   {key: 'rain_delay_minutes', group: 'auto', label: 'Wait after the rain', help: 'With "wait until dry": how long it has to be dry before it mows on.', type: 'int', min: 30, max: 1440, def: 30, unit: 'min', step: 10},
   {key: 'rain_check_seconds', group: 'auto', label: 'Rain counts after', help: 'The sensor has to be wet for this long without a break.', type: 'int', min: 20, max: 300, def: 20, unit: 's', step: 10},
-  {key: 'automatic_mode', group: 'auto', label: 'Starting by itself', help: "OpenMower's own automatic, apart from MowBite's schedule: with a schedule leave it on manual, or both start the mower.", type: 'choice', def: 0, choices: ['Manual: only when started', 'Semi-automatic: after a start it mows the whole map, charging in between', 'Automatic: mows whenever it can']},
+  {key: 'automatic_mode', group: 'auto', label: 'Starting by itself', help: "OpenMower's own automatic, apart from MowBite's schedule: with a schedule leave it on manual, or both start the mower.", osHelp: "The mower's own automatic, apart from the schedule: with a schedule leave it on manual.", type: 'choice', def: 0, choices: ['Manual: only when started', 'Semi-automatic: after a start it mows the whole map, charging in between', 'Automatic: mows whenever it can']},
 
   {key: 'gps_timeout', group: 'gps', label: 'Keeps driving without a fix for', help: 'On wheel odometry. After that it stops with the blade off and waits for the fix.', type: 'double', min: 0, max: 60, def: 10, unit: 's', step: 1},
   {key: 'max_position_accuracy', group: 'gps', label: 'Required GPS accuracy', help: "OpenMower's max_position_accuracy: a position less accurate than this counts as no fix. An RTK fix is at a few cm.", type: 'double', min: 0.01, max: 1, def: 0.2, unit: 'cm', scale: 100, step: 1},
@@ -70,6 +72,15 @@ export function paramValue(params: Record<string, unknown>, f: ParamField): numb
   const v = params[paramName(f.key)];
   if (f.type === 'bool') return typeof v === 'boolean' ? v : (f.def as boolean);
   return typeof v === 'number' ? v : (f.def as number);
+}
+
+// a value that doesn't go with the others the mower has: the mow motor's "too hot" has to be above "cool again", or it
+// pauses and goes on in turns (MowBite OS turns that down itself, OpenMower takes it)
+export function paramConflict(params: Record<string, unknown>, key: string, value: number | boolean): string | null {
+  if (key !== 'motor_hot_temperature' && key !== 'motor_cold_temperature') return null;
+  const temp = (k: string) => (k === key ? (value as number) : (paramValue(params, paramField(k)!) as number));
+  if (temp('motor_hot_temperature') > temp('motor_cold_temperature')) return null;
+  return key === 'motor_hot_temperature' ? 'It has to be above "Cool enough again at".' : 'It has to be below "Too hot to mow from".';
 }
 
 // what's typed in a field (in the unit shown, a comma for the point allowed) as the mower's value, null when

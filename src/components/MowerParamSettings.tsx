@@ -7,6 +7,7 @@ import {
   PARAM_FIELDS,
   PARAM_GROUPS,
   paramField,
+  paramConflict,
   paramName,
   paramValue,
   parseParam,
@@ -17,6 +18,7 @@ import {
   type ParamField,
   type ParamGroup,
 } from '@/lib/mowerParams';
+import {isMowbiteOs, systemInfo, useMowbiteOs} from '@/lib/mowerOs';
 import {RPC} from '@/lib/openmower';
 import {useRpcMethods} from '@/hooks/useRpcMethods';
 import {answerError} from '@/lib/rpcText';
@@ -78,11 +80,11 @@ async function storeKept(change: (k: KeptParams) => KeptParams) {
 
 class NotKept extends Error {}
 
-// sets it on the mower, and has the container keep what the mower took
+// sets it on the mower, and has the container keep what the mower took (MowBite OS keeps it itself)
 async function apply(f: ParamField, value: number | boolean) {
   const applied = await setParams({[f.key]: value});
   const took = applied[f.key] ?? value;
-  if (kept?.enabled)
+  if (kept?.enabled && !isMowbiteOs(await systemInfo()))
     await storeKept((k) => ({...k, values: {...k.values, [f.key]: took}})).catch(() => {
       throw new NotKept(tr("Set on the mower, but MowBite couldn't keep it for after a restart."));
     });
@@ -98,6 +100,7 @@ export async function setOpenMowerParam(key: string, value: number | boolean) {
 export function ParamRow({field: f}: {field: ParamField}) {
   const params = useMowerParams();
   const k = useKept();
+  const os = useMowbiteOs();
   const value = paramValue(params, f);
   const [draft, setDraft] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -105,8 +108,10 @@ export function ParamRow({field: f}: {field: ParamField}) {
 
   const set = async (v: number | boolean) => {
     if (v === value) return;
+    const conflict = paramConflict(params, f.key, v);
+    setError(conflict && tr(conflict));
+    if (conflict) return;
     setBusy(true);
-    setError(null);
     try {
       await apply(f, v);
     } catch (e) {
@@ -121,14 +126,15 @@ export function ParamRow({field: f}: {field: ParamField}) {
     setDraft(null);
     if (v !== null) void set(v);
   };
-  const isKept = !!k?.enabled && f.key in k.values;
+  const isKept = !os && !!k?.enabled && f.key in k.values;
+  const help = (os && f.osHelp) || f.help;
 
   return (
     <div className={local.row}>
       <div className={local.line}>
         <span className={local.label}>
           {tr(f.label)}
-          {f.help && <InfoTip>{tr(f.help)}</InfoTip>}
+          {help && <InfoTip>{tr(help)}</InfoTip>}
         </span>
         {f.type === 'bool' ? (
           <input type="checkbox" className={local.check} checked={value as boolean} disabled={busy} onChange={(e) => void set(e.target.checked)} />
@@ -235,6 +241,7 @@ export function OpenMowerSettings({styles}: {styles: Styles}) {
   const can = useCanSetParams();
   const params = useMowerParams();
   const k = useKept();
+  const os = useMowbiteOs();
   // folded whenever the page opens, unless a link led here
   const linked = useSyncExternalStore(
     never,
@@ -261,17 +268,19 @@ export function OpenMowerSettings({styles}: {styles: Styles}) {
     >
       <summary>
         <span className={styles.groupTitle}>
-          {tr('OpenMower')}
-          <small>{tr('Its own settings from mower_params.yaml')}</small>
+          {os ? tr('Mower settings') : tr('OpenMower')}
+          <small>{os ? tr('Kept on the mower itself') : tr('Its own settings from mower_params.yaml')}</small>
         </span>
       </summary>
       <div className={styles.groupBody}>
         <p className={styles.dim}>
-          {tr(
-            "Settings of OpenMower itself, the ones from mower_params.yaml. A change counts right away, no restart. OpenMower doesn't store it: after its restart the file's values are back.",
-          )}
+          {os
+            ? tr('Settings of the mower itself, kept on it. A change counts right away, it takes one only while the mower is idle.')
+            : tr(
+                "Settings of OpenMower itself, the ones from mower_params.yaml. A change counts right away, no restart. OpenMower doesn't store it: after its restart the file's values are back.",
+              )}
         </p>
-        {k && (
+        {k && !os && (
           <label className={styles.check}>
             <input
               type="checkbox"
