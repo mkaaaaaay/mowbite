@@ -293,9 +293,10 @@ function MapEditor() {
   const warnings = problems.filter((p) => p.level === 'warn').length;
   const spotted = problems.flatMap((p) => ('at' in p ? [p] : []));
   const problemSpots = spotted.map((p) => p.at);
-  // a red spot tapped on the map: what it is, in words
-  const [problemPick, setProblemPick] = useState<number | null>(null);
-  const pickedProblem = problemPick !== null && shownMap ? spotted[problemPick] : undefined;
+  // a red spot tapped on the map: what it is, in words, while the problems are still the ones it was picked from
+  const [problemPick, setProblemPick] = useState<{problems: unknown; index: number} | null>(null);
+  const pickedIndex = problemPick?.problems === problems ? problemPick.index : null;
+  const pickedProblem = pickedIndex !== null && shownMap ? spotted[pickedIndex] : undefined;
 
   // the mower's body as the planner knows it, and where it would stick out in the selected area's plan
   const body = useMowerBody();
@@ -1103,7 +1104,7 @@ function MapEditor() {
                 // (the spot from the activity page has its message above the map already)
                 onMarkerPick={(i) => {
                   const n = i - (spot ? 1 : 0);
-                  if (n >= 0) setProblemPick(n === problemPick ? null : n);
+                  if (n >= 0) setProblemPick(n === pickedIndex ? null : {problems, index: n});
                 }}
                 bodySpots={bodySpots ?? undefined}
                 bodySpace={realPlan?.checks?.space}
