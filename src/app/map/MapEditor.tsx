@@ -645,11 +645,24 @@ function MapEditor() {
 
   // backups of the map kept in the container, and one shown instead of the editor
   const datum = datumFromParams(params);
-  const {backups, preview, setPreview, confirmRestore, setConfirmRestore, restoring, restoreError, refreshBackups, closePreview, restore, download, downloadGeo} =
-    useMapBackups(liveMap, map, datum, () => {
-      dropEdits();
-      setSelectedAreaId(null);
-    });
+  const {
+    backups,
+    restoreWithoutBackup,
+    preview,
+    setPreview,
+    confirmRestore,
+    setConfirmRestore,
+    restoring,
+    restoreError,
+    refreshBackups,
+    closePreview,
+    restore,
+    download,
+    downloadGeo,
+  } = useMapBackups(liveMap, map, datum, () => {
+    dropEdits();
+    setSelectedAreaId(null);
+  });
 
   // an openmower that doesn't know the newer area settings drops them when saving, noticed once its map comes back
   const [newSaved, setNewSaved] = useState<{areas: MowerMap['areas']; before: MowerMap | null} | null>(null);
@@ -1121,7 +1134,7 @@ function MapEditor() {
             {preview ? (
               <RestorePanel
                 areas={preview.map.areas.filter((a) => !isPin(a)).length}
-                backedUp={!!backups}
+                backedUp={!!backups && !restoreWithoutBackup}
                 idle={idle}
                 restoring={restoring}
                 confirm={confirmRestore}
