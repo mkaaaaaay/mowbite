@@ -2549,6 +2549,8 @@ const de: Record<string, string> = {
   "Paused, in the dock": "Pausiert, im Dock",
   "End here": "Hier beenden",
   "Put in the dock by hand? Tap End here, then it counts as docked and charges. The next start mows on where it stopped.": "Von Hand ins Dock gestellt? Tippe auf Hier beenden, dann gilt er als angedockt und lädt. Der nächste Start mäht dort weiter, wo er aufgehört hat.",
+  "Shown on the dashboard": "In der Übersicht anzeigen",
+  "One that's off still shows while it warns. Some only show while the mower drives or charges.": "Ein abgeschalteter Wert erscheint trotzdem, solange er warnt. Manche erscheinen nur, während der Mäher fährt oder lädt.",
 };
 
 export default de;

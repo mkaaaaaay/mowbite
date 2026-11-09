@@ -32,8 +32,11 @@ const valueStore = topicStore<Record<string, string>>(TOPIC.sensorData, {}, (pay
 // the sensors come from OpenMower's monitoring, also while mower_logic isn't running
 export const lastSensorAt = () => sensorsAt;
 
+// which sensors the mower has, without their values
+export const useSensorInfos = () => useSyncExternalStore(infoStore.subscribe, infoStore.get, infoStore.initial);
+
 export function useMowerSensors(): {infos: SensorInfo[]; values: Record<string, string>} {
-  const infos = useSyncExternalStore(infoStore.subscribe, infoStore.get, infoStore.initial);
+  const infos = useSensorInfos();
   const values = useSyncExternalStore(valueStore.subscribe, valueStore.get, valueStore.initial);
   return {infos, values};
 }

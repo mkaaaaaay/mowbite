@@ -23,6 +23,7 @@ import {useMowerTrack} from '@/hooks/useMowerTrack';
 import {useMowerWifi} from '@/hooks/useMowerWifi';
 import {useBatteryLevel} from '@/hooks/useBatteryLevel';
 import {wifiLevel} from '@/lib/coverage';
+import {shown, tempItems, type DashKey} from '@/lib/dashboard';
 import {usePlanProgress} from '@/hooks/usePlanProgress';
 import {useRecentRuns} from '@/hooks/useRecentRuns';
 import TopWeather from '@/components/TopWeather';
@@ -54,6 +55,7 @@ import {
 import {LeftoversCard} from '@/components/Leftovers';
 import {useLeftoverRun} from '@/hooks/useLeftoverRun';
 import MowerSwitch from '@/components/MowerSwitch';
+import {useMowerChoice} from '@/hooks/useMowerChoice';
 import {UpdateBanner} from '@/components/Updates';
 import {ACTION, PARAM} from '@/lib/openmower';
 
@@ -76,26 +78,14 @@ const ACTIONS = [
 // every temperature of the mower in a fixed order, the blade side first, then the wheels, unknown ones after them.
 // Hot from the limit OpenMower gives the sensor (max_pcb_temp of an ESC, the mow motor's motor_hot_temperature),
 // 70 °C without one. max_value counts on its own: OpenMower sets has_min_max only when there's a min as well
-const TEMP_ORDER: [string, string][] = [
-  ['om_mow_motor_temp', 'Mow motor'],
-  ['om_mow_esc_temp', 'Mow ESC'],
-  ['om_left_esc_temp', 'Left ESC'],
-  ['om_right_esc_temp', 'Right ESC'],
-];
 function temperatures(infos: SensorInfo[], values: Record<string, string>) {
-  const rank = (id: string) => {
-    const i = TEMP_ORDER.findIndex(([k]) => k === id);
-    return i < 0 ? TEMP_ORDER.length : i;
-  };
-  return infos
-    .filter((info) => info.value_description === 'TEMPERATURE' && Number.isFinite(Number(values[info.sensor_id])))
-    .map((info) => {
-      const value = Number(values[info.sensor_id]);
+  return tempItems(infos)
+    .filter(({key}) => Number.isFinite(Number(values[key])))
+    .map(({info, key, label}) => {
+      const value = Number(values[key]);
       const limit = info.max_value > 0 ? info.max_value : info.has_critical_high && info.upper_critical_value > 0 ? info.upper_critical_value : 70;
-      const name = TEMP_ORDER.find(([k]) => k === info.sensor_id)?.[1];
-      return {id: info.sensor_id, label: name ? tr(name) : info.sensor_name, value: `${Math.round(value)} °C`, warn: value >= limit};
-    })
-    .sort((a, b) => rank(a.id) - rank(b.id) || a.label.localeCompare(b.label));
+      return {key, label, value: `${Math.round(value)} °C`, warn: value >= limit};
+    });
 }
 
 const upperFirst = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -204,6 +194,7 @@ export default function Home() {
   // offline or no fresh state: what's shown is old and commands wouldn't arrive, so the buttons are off
   const live = isLive(link);
   const {hasAction, publishAction} = useMowerActions();
+  const choice = useMowerChoice();
   const {infos, values} = useMowerSensors();
   const why = useEmergencyReasons(!!state?.emergency);
   const {refused, reset} = useEmergencyReset(!!state?.emergency, publishAction);
@@ -361,24 +352,27 @@ export default function Home() {
 
   const acc = state?.pose.pos_accuracy;
   const gpsQ = gpsQuality(acc, numParam(params, PARAM.maxPositionAccuracy));
-  const temps = state ? temperatures(infos, values) : [];
-  // wide: gets a whole row, its value is longer
-  const facts: {label: string; value: string; warn?: boolean; wide?: boolean; extra?: React.ReactNode}[] = [];
+  const hidden = settings.dashboard?.hidden;
+  const temps = state ? temperatures(infos, values).filter((t) => shown(hidden, t.key, t.warn)) : [];
+  // key: as in DASH_FACTS, wide: gets a whole row, its value is longer
+  const facts: {key: DashKey; label: string; value: string; warn?: boolean; wide?: boolean; extra?: React.ReactNode}[] = [];
   // standing still the mower switches gps off, "off" there says nothing
   if (state && (driving || gpsQ !== 'none')) {
     facts.push({
+      key: 'gps',
       label: 'GPS',
       value:
         gpsQ === 'none' ? (driving ? tr('no fix') : tr('off')) : `${fmt(acc! * 100, 1)} cm · ${tr(GPS_QUALITY_LABEL[gpsQ])}`,
       // only an rtk fix is good while driving
       warn: driving && gpsQ !== 'fix',
     });
-    if (driving) facts.push({label: tr('Speed'), value: `${fmt(speed, 2)} m/s`});
+    if (driving) facts.push({key: 'speed', label: tr('Speed'), value: `${fmt(speed, 2)} m/s`});
     if (progress?.leftovers) {
       // along the leftover passes when the planner worked them out again
       const known = progress.doneLength + progress.todoLength > 0;
       const left = known && progress.secondsLeft !== null ? ` · ${tr('{time} left', {time: duration(progress.secondsLeft)})}` : '';
       facts.push({
+        key: 'progress',
         label: tr('Progress'),
         value: known ? tr('leftovers {pct} %', {pct: Math.round(progress.fraction * 100)}) + left : tr('leftovers of the last mow'),
         wide: true,
@@ -388,21 +382,22 @@ export default function Home() {
     else if (progress) {
       const left = progress.secondsLeft !== null ? ` · ${tr('{time} left', {time: duration(progress.secondsLeft)})}` : '';
       const pct = towelPreview ? 42 : Math.round(progress.fraction * 100);
-      facts.push({label: tr('Progress'), value: `${pct} %${left}`, wide: true, extra: pct === 42 ? <DontPanic /> : undefined});
+      facts.push({key: 'progress', label: tr('Progress'), value: `${pct} %${left}`, wide: true, extra: pct === 42 ? <DontPanic /> : undefined});
     }
-    if (charging && num('om_charge_current') !== undefined) facts.push({label: tr('Charging'), value: `${fmt(num('om_charge_current')!, 1)} A`});
+    if (charging && num('om_charge_current') !== undefined) facts.push({key: 'charging', label: tr('Charging'), value: `${fmt(num('om_charge_current')!, 1)} A`});
     else if (docked && confirmed === false && num('om_charge_current') !== undefined)
-      facts.push({label: tr('Charge current'), value: `${fmt(num('om_charge_current')!, 2)} A`, warn: true});
-    if (num('om_v_battery') !== undefined) facts.push({label: tr('Battery'), value: `${fmt(num('om_v_battery')!, 1)} V`});
-    if (state.rain_detected) facts.push({label: tr('Rain'), value: tr('detected'), warn: true});
+      facts.push({key: 'charging', label: tr('Charge current'), value: `${fmt(num('om_charge_current')!, 2)} A`, warn: true});
+    if (num('om_v_battery') !== undefined) facts.push({key: 'battery', label: tr('Battery'), value: `${fmt(num('om_v_battery')!, 1)} V`});
+    if (state.rain_detected) facts.push({key: 'rain', label: tr('Rain'), value: tr('detected'), warn: true});
   }
   // the app and the correction data for gps come over it
   if (state && wifi !== undefined) {
     const level = wifiLevel(wifi);
-    facts.push({label: tr('Wi-Fi'), value: `${wifi} dBm · ${tr(WIFI_LEVEL_LABEL[level])}`, warn: level === 'bad'});
+    facts.push({key: 'wifi', label: tr('Wi-Fi'), value: `${wifi} dBm · ${tr(WIFI_LEVEL_LABEL[level])}`, warn: level === 'bad'});
   }
 
-  const factRows = wholeRow(facts);
+  const factsShown = facts.filter((f) => shown(hidden, f.key, f.warn));
+  const factRows = wholeRow(factsShown);
   const tempRows = wholeRow(temps);
 
   const runs = recent?.runs ?? [];
@@ -428,7 +423,7 @@ export default function Home() {
             <LoveMower onRun={setLoveRun} />
           </h1>
           <TopWeather away={loveRun} />
-          <MowerSwitch className={styles.mowerSwitch} />
+          <MowerSwitch className={styles.mowerSwitch} round />
         </div>
         <UpdateBanner />
 
@@ -458,6 +453,8 @@ export default function Home() {
             <div className={styles.statusTop}>
               <BatteryRing percent={battery} />
               <div className={styles.headline}>
+                {/* which mower this is, with more than one to pick from */}
+                {choice.many && <span className={styles.mowerName}>{choice.name}</span>}
                 <h2>{head.title}</h2>
                 {!!state.emergency && why && <strong className={styles.reason}>{upperFirst(emergencyText(why))}</strong>}
                 {/* MowBite OS didn't let go when it was reset, why and what to do instead of the usual words */}
@@ -492,12 +489,12 @@ export default function Home() {
             </div>
             {connected && link.silent && <LogicHint className={[styles.dim, styles.logicHint].join(' ')} />}
 
-            {(facts.length > 0 || temps.length > 0) && (
+            {(factsShown.length > 0 || temps.length > 0) && (
               <div className={styles.factBlock}>
-                {facts.length > 0 && (
+                {factsShown.length > 0 && (
                   <div className={styles.facts}>
-                    {facts.map((f, i) => (
-                      <div key={f.label} className={[f.warn ? styles.warn : '', factRows[i] ? styles.whole : ''].join(' ')}>
+                    {factsShown.map((f, i) => (
+                      <div key={f.key} className={[f.warn ? styles.warn : '', factRows[i] ? styles.whole : ''].join(' ')}>
                         <span>{f.label}</span>
                         <FactValue value={f.value} />
                         {f.extra}
@@ -508,7 +505,7 @@ export default function Home() {
                 {temps.length > 0 && (
                   <div className={styles.facts}>
                     {temps.map((f, i) => (
-                      <div key={f.id} className={[f.warn ? styles.warn : '', tempRows[i] ? styles.whole : ''].join(' ')}>
+                      <div key={f.key} className={[f.warn ? styles.warn : '', tempRows[i] ? styles.whole : ''].join(' ')}>
                         <span>{f.label}</span>
                         <FactValue value={f.value} />
                       </div>
