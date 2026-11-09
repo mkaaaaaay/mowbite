@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {gpsQuality} from './status';
+import {gpsQuality, statusText} from './status';
 
 describe('gpsQuality', () => {
   it('tells fix, float and too inaccurate by the accuracy, against the mower limit', () => {
@@ -14,5 +14,16 @@ describe('gpsQuality', () => {
   it('knows no fix from the 999 the positioning sends, or nothing at all', () => {
     expect(gpsQuality(999)).toBe('none');
     expect(gpsQuality(undefined)).toBe('none');
+  });
+});
+
+describe('statusText', () => {
+  const docked = {current_state: 'IDLE', emergency: 0, is_charging: 0};
+  it("says in the dock as the dashboard does, with MowBite OS's word on charging", () => {
+    expect(statusText(docked, true, false)).toBe('Charging in the dock');
+    expect(statusText(docked, true, true)).toBe('Charged, in the dock');
+    expect(statusText(docked, true, false, false)).toBe('In the dock, not charging');
+    expect(statusText(docked, true, false, null)).toBe('In the dock');
+    expect(statusText(docked, true, false, true)).toBe('Charging in the dock');
   });
 });

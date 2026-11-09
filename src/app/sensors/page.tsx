@@ -5,7 +5,7 @@ import {TitleRow} from '@/components/TopWeather';
 import {RadialGauge, TempGauge} from '@/components/gauges';
 import {BatteryIcon, TurnIcon} from '@/components/icons';
 import InfoTip from '@/components/InfoTip';
-import {isTemperature, tempRank} from '@/lib/dashboard';
+import {isTemperature, tempItems} from '@/lib/dashboard';
 import Sparkline from '@/components/Sparkline';
 import {useBatteryLevel} from '@/hooks/useBatteryLevel';
 import {useEmergencyReasons} from '@/hooks/useEmergencyReasons';
@@ -15,7 +15,10 @@ import {useSensorHistory, type Sample} from '@/hooks/useSensorHistory';
 import {useState, useSyncExternalStore} from 'react';
 import {outOfRange} from '@/lib/sensorLimits';
 import {sharedSettings} from '@/lib/settings';
-import {batteryColor, chargeDone, GPS_QUALITY_LABEL, gpsQuality, isDocked, stateColor, statusText} from '@/lib/status';
+import {batteryColor, chargeDone, GPS_QUALITY_LABEL, gpsQuality, isDocked, onCharger, stateColor, statusText} from '@/lib/status';
+import {useChargeConfirmed} from '@/hooks/useChargeConfirmed';
+import {useRecentRuns} from '@/hooks/useRecentRuns';
+import {useOsApi} from '@/lib/mowerOs';
 import {numParam, useMowerParams} from '@/hooks/useMowerParams';
 import {PARAM} from '@/lib/openmower';
 import styles from './page.module.css';
@@ -91,6 +94,9 @@ export default function SensorsPage() {
 
   const currentState = state?.current_state;
   const docked = isDocked(state, values['om_v_charge']);
+  // MowBite OS tells whether it really charges, as on the dashboard
+  const recent = useRecentRuns(currentState);
+  const confirmed = useChargeConfirmed(useOsApi(), state ? onCharger(state, values['om_v_charge']) : undefined, recent?.today, recent?.latest);
   const mowing = currentState === 'MOWING';
   const battery = level ?? (state ? Math.round(state.battery_percentage * 100) : undefined);
   const criticalCount = infos.filter((i) => outOfRange(i, values[i.sensor_id], currentState)).length;
@@ -101,7 +107,7 @@ export default function SensorsPage() {
   const batteryTone = batteryCritical ? 'error' : batteryColor(battery ?? 0);
 
   // as on the dashboard: the blade side first, then the wheels, the rest as they come
-  const temps = infos.filter(isTemperature).sort((a, b) => tempRank(a.sensor_id) - tempRank(b.sensor_id));
+  const temps = tempItems(infos);
   const others = infos.filter(
     (i) =>
       !BATTERY_IDS.has(i.sensor_id) &&
@@ -130,8 +136,10 @@ export default function SensorsPage() {
               {tr('Sensors')}
             </h1>
             {state && (
-              <span className={[styles.chip, styles[`chip-${state.emergency ? 'error' : docked ? 'success' : stateColor(currentState)}`]].join(' ')}>
-                {statusText(state, docked, chargeDone(values['om_charge_state'], num('om_charge_current'), battery))}
+              <span
+                className={[styles.chip, styles[`chip-${state.emergency ? 'error' : docked ? (confirmed === false ? 'warning' : 'success') : stateColor(currentState)}`]].join(' ')}
+              >
+                {statusText(state, docked, chargeDone(values['om_charge_state'], num('om_charge_current'), battery), confirmed)}
                 {state.emergency && why ? `: ${emergencyText(why)}` : ''}
               </span>
             )}
@@ -255,15 +263,15 @@ export default function SensorsPage() {
               <>
                 <h2 className={styles.categoryTitle}>{tr('Temperatures')}</h2>
                 <div className={styles.grid}>
-                  {temps.map((t) => {
-                    const v = num(t.sensor_id);
+                  {temps.map(({info: t, key, label}) => {
+                    const v = num(key);
                     return (
-                      <Card key={t.sensor_id} title={tr(t.sensor_name)}>
-                        <strong className={[styles.big, outOfRange(t, values[t.sensor_id], currentState) ? styles.error : ''].join(' ')}>
+                      <Card key={key} title={label}>
+                        <strong className={[styles.big, outOfRange(t, values[key], currentState) ? styles.error : ''].join(' ')}>
                           {v !== undefined ? `${fmt(v, 1)} °C` : '–'}
                         </strong>
                         {v !== undefined && <TempGauge value={v} info={t} />}
-                        <Sparkline samples={history[t.sensor_id]} digits={1} unit="°C" minSpan={5} />
+                        <Sparkline samples={history[key]} digits={1} unit="°C" minSpan={5} />
                       </Card>
                     );
                   })}

@@ -41,15 +41,23 @@ export function chargeDone(chargeState: string | undefined, current?: number, ba
   return (current !== undefined && Number.isFinite(current) && Math.abs(current) < 0.1) || (battery !== undefined && battery >= 99);
 }
 
+// idle in the dock, the dashboard's words. confirmed: MowBite OS said it charges (true) or not yet (false), null when it
+// isn't known, undefined on OpenMower. warn: on the contacts without charging
+export function dockText(charged: boolean, confirmed?: boolean | null): {text: string; warn: boolean} {
+  if (confirmed === false) return {text: tr('In the dock, not charging'), warn: true};
+  if (confirmed === null) return {text: tr('In the dock'), warn: false};
+  return {text: charged ? tr('Charged, in the dock') : tr('Charging in the dock'), warn: false};
+}
+
 export function statusText(
   state: {current_state: string; emergency: number; is_charging: number} | null | undefined,
   docked: boolean,
   charged: boolean,
+  confirmed?: boolean | null,
 ): string {
   if (!state) return '';
   if (state.emergency) return tr('Emergency');
-  // (as the dashboard says it)
-  if (docked) return charged ? tr('Charged, in the dock') : tr('Charging in the dock');
+  if (docked) return dockText(charged, confirmed).text;
   const names: Record<string, string> = {
     // not in the dock (that's above), as the dashboard says it
     IDLE: 'Waiting on the lawn',

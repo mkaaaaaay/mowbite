@@ -35,7 +35,7 @@ import {useChargeConfirmed} from '@/hooks/useChargeConfirmed';
 import {settingsStore} from '@/lib/settings';
 import {PARTS, useDueParts} from '@/lib/stats';
 import {containerHas, useUpdates} from '@/lib/updates';
-import {batteryColor, chargeDone, GPS_QUALITY_LABEL, gpsQuality, isDocked, onCharger, WIFI_LEVEL_LABEL} from '@/lib/status';
+import {batteryColor, chargeDone, dockText, GPS_QUALITY_LABEL, gpsQuality, isDocked, onCharger, WIFI_LEVEL_LABEL} from '@/lib/status';
 import Link from 'next/link';
 import {memo, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import styles from './page.module.css';
@@ -118,9 +118,10 @@ function headline(state: MowerState, docked: boolean, charger: boolean, charged:
   if (state.emergency) return {title: tr('Emergency stop'), tone: 'error'};
   // left on in the dock it says so, it's why the map shows. docked is idle only, so it's the station's contacts here
   if (state.current_state === 'AREA_RECORDING') return {title: charger ? tr('Recording mode, in the dock') : tr('Recording an area'), tone: 'live'};
-  if (docked && confirmed === false) return {title: tr('In the dock, not charging'), tone: 'warn'};
-  if (docked && confirmed === null) return {title: tr('In the dock'), tone: 'good'};
-  if (docked) return charged ? {title: tr('Charged, in the dock'), tone: 'good'} : {title: tr('Charging in the dock'), tone: 'good'};
+  if (docked) {
+    const d = dockText(charged, confirmed);
+    return {title: d.text, tone: d.warn ? 'warn' : 'good'};
+  }
   switch (state.current_state) {
     case 'MOWING':
       return {title: area ? tr('Mowing {area}', {area}) : tr('Mowing'), tone: 'live'};
