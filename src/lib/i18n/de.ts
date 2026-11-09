@@ -2278,6 +2278,7 @@ const de: Record<string, string> = {
   "Still to measure": "Noch zu messen",
   "Works it out": "Wertet aus",
   "Calibrate again": "Neu kalibrieren",
+  "Calibrate": "Kalibrieren",
   "How should it measure?": "Wie soll gemessen werden?",
   "~{n} min": "~{n} min",
   "up to {n} h": "bis {n} h",

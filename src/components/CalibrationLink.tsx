@@ -2,7 +2,7 @@
 
 import {loadUpdate} from '@/lib/autoUpdate';
 import {CALIB_SHOWN, readLast} from '@/lib/calibration';
-import {locale, tr, useLang} from '@/lib/i18n';
+import {locale, monthStyle, tr, useLang} from '@/lib/i18n';
 import {RPC} from '@/lib/openmower';
 import Link from 'next/link';
 import {useRpcMethods} from '@/hooks/useRpcMethods';
@@ -26,7 +26,7 @@ export function CalibrationLink({styles}: {styles: Record<string, string>}) {
     };
   }, [can]);
   if (!can) return null;
-  const date = last ? new Date(last.at * 1000).toLocaleDateString(locale(), {day: 'numeric', month: 'numeric'}) : '';
+  const date = last ? new Date(last.at * 1000).toLocaleDateString(locale(), {day: 'numeric', month: monthStyle()}) : '';
   return (
     <section className={styles.card}>
       <h2>{tr('Calibration')}</h2>

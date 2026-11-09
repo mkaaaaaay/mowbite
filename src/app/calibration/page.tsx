@@ -18,6 +18,7 @@ import {
   calibText,
   lackDone,
   lacks,
+  readLast,
   readPaths,
   readState,
   takeCalib,
@@ -461,7 +462,7 @@ export default function CalibrationPage() {
         </p>
         {phase === 'done' && failed && !cancelled && <p className={styles.warn}>{tr('The last recording gave no result: {why}', {why: calibText(failed)})}</p>}
         <section className={styles.card}>
-          <h2>{tr('Calibrate again')}</h2>
+          <h2>{tr(readLast(status?.calib_last) ? 'Calibrate again' : 'Calibrate')}</h2>
           <span className={styles.dim}>{tr('How should it measure?')}</span>
           {(
             [
