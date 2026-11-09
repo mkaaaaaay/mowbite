@@ -19,14 +19,17 @@ function sensorLimits(info: SensorInfo): Limits {
   };
 }
 
-// a value at or past one of the sensor's critical limits. revolutions count only while mowing
+// below this the blade stands: switched off on the way to an area or out of the dock, not too slow
+const STANDING_RPM = 100;
+
+// a value at or past one of the sensor's critical limits. revolutions count only while mowing with the blade turning
 export function outOfRange(info: SensorInfo | undefined, raw: string | undefined, state: string | undefined): boolean {
   if (!info || raw === undefined || info.value_type !== 'DOUBLE') return false;
   const revolutions = info.value_description === 'REVOLUTIONS';
   if (revolutions && state !== 'MOWING') return false;
   // a mow motor turning the other way round reports negative rpm, it's as fast either way
   const v = revolutions ? Math.abs(Number(raw)) : Number(raw);
-  if (Number.isNaN(v)) return false;
+  if (Number.isNaN(v) || (revolutions && v < STANDING_RPM)) return false;
   const {low, high} = sensorLimits(info);
   return (low !== undefined && v <= low) || (high !== undefined && v >= high);
 }

@@ -65,7 +65,7 @@ const STEPS: GuideStep[] = [
   },
   {
     title: 'Map style',
-    text: 'In the layers on the map, Map settings, you pick the map style: Plain shows colored areas, Garden draws the garden from above (off until you pick it). There ways, obstacles and decoration get a picture by their name. With one picked you change it under the map at Picture on the map, and its color, size, direction and the ground under it. Light and shadows, the season, the lawn growing back and a mowing edge can be switched on one by one.',
+    text: 'Pick the map style under the map layers, Map settings: Plain shows colored areas, Garden draws the garden from above (off until you pick it). In Garden, paths, obstacles and decoration get a picture matching their name. Select one to change it below the map under Picture on the map, along with its color, size, direction and the ground under it. Light and shadows, the season, the lawn growing back and a mowing edge can be switched on one by one.',
   },
   {
     title: 'Decorate',
@@ -84,7 +84,7 @@ const ITEMS: GuideItem[] = [
   {key: 'record', title: 'Record', text: 'A new area by driving around it with the mower.', icon: () => tool(<RouteIcon size={20} />)},
   {key: 'undo', title: 'Undo', text: 'Takes the last change back, step by step up to the last save.', icon: () => tool(<UndoIcon size={20} />)},
   {key: 'redo', title: 'Redo', text: 'Brings back what Undo took back, until something else gets changed.', icon: () => tool(<RedoIcon size={20} />)},
-  {key: 'save', title: 'Save map', text: 'Sends the map to the mower, nothing changes there before.', icon: () => tool(<CheckIcon size={20} />, true)},
+  {key: 'save', title: 'Save map', text: 'Sends the map to the mower. Nothing changes on the mower until then.', icon: () => tool(<CheckIcon size={20} />, true)},
 ];
 
 export default function EditorGuidePage() {

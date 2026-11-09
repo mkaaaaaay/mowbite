@@ -21,7 +21,7 @@ import Link from 'next/link';
 import {useEffect, useState, useSyncExternalStore} from 'react';
 import {useMowerActions} from '@/hooks/useMowerActions';
 import {ACTION, RPC} from '@/lib/openmower';
-import {rpcMethods} from '@/lib/rpc';
+import {useRpcMethods} from '@/hooks/useRpcMethods';
 import styles from './Updates.module.css';
 import {DockgeUpdateGuide} from './AutoUpdate';
 import {CreditsTrigger} from './Credits';
@@ -60,10 +60,7 @@ function useOutdated() {
 // (rpc.methods) and its actions arrived, things only some forks have aren't mentioned
 function NewerOpenMower() {
   const {knowsAction} = useMowerActions();
-  const [methods, setMethods] = useState<Set<string> | null>(null);
-  useEffect(() => {
-    void rpcMethods().then(setMethods);
-  }, []);
+  const methods = useRpcMethods();
   if (!methods || !knowsAction(ACTION.resetEmergency)) return null;
   const missing = [
     ...(methods.has(RPC.areaPlan)

@@ -5,10 +5,11 @@ import type {MowerMap} from '@/hooks/useMowerMap';
 import {fmt, tr} from '@/lib/i18n';
 import {askLeftovers, type Leftovers} from '@/lib/leftovers';
 import {loadPlannerSettings, slic3rPlans, usePlannerSettings} from '@/lib/mowerBody';
+import {getMqttClient} from '@/lib/mqttClient';
 import {RPC} from '@/lib/openmower';
-import {rpcMethods} from '@/lib/rpc';
+import {useRpcMethods} from '@/hooks/useRpcMethods';
 import {answerError} from '@/lib/rpcText';
-import {useEffect, useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
 
 // On the dashboard while the mower stands idle: what the last finished mow left unmowed (the MowBite Planner looks at
 // its real track), and a button to mow just that. The planner is armed and the mower started the usual way, it drives
@@ -32,11 +33,16 @@ export function LeftoversCard({
   onStart: () => void;
   styles: Record<string, string>;
 }) {
-  const [known, setKnown] = useState(false);
+  const known = !!useRpcMethods()?.has(RPC.plannerLeftovers);
   const [state, setState] = useState<{busy?: boolean; found?: Leftovers; error?: string; started?: boolean}>({});
   const planner = usePlannerSettings();
+  // still shown: a start after the planner's answer goes out only then
+  const shownRef = useRef(true);
   useEffect(() => {
-    void rpcMethods().then((m) => setKnown(!!m?.has(RPC.plannerLeftovers)));
+    shownRef.current = true;
+    return () => {
+      shownRef.current = false;
+    };
   }, []);
   useEffect(() => {
     if (known && planner === undefined) loadPlannerSettings().catch(() => {});
@@ -61,6 +67,10 @@ export function LeftoversCard({
       const armed = await askLeftovers({jobId, arm: true});
       if (!armed || armed.armed <= 0) return setState({error: tr("The planner didn't take it.")});
       if (jobId) rememberArmed(jobId);
+      if (!shownRef.current) return;
+      // (offline the start would be dropped without a word, the planner keeps them ready for a while)
+      if (!getMqttClient().connected)
+        return setState({found: armed, error: tr('Not started, no connection to the mower. A start within {s} s mows just the leftovers.', {s: Math.round(armed.armed)})});
       onStart();
       setState({found: armed, started: true});
     } catch (e) {

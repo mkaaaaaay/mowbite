@@ -1,6 +1,6 @@
 import {useEffect, useState} from 'react';
 import {RPC} from './openmower';
-import {callRpc, methodsUnknown, rpcMethods} from './rpc';
+import {askUntilAnswered, callRpc, methodsUnknown, rpcMethods} from './rpc';
 
 // The area settings the mower keeps in its map (map.area_properties), newer ones are only offered when it does.
 // Mowers without that rpc can't tell: one with mowing.plan knows mowable too (merged the same night), older ones none
@@ -29,8 +29,7 @@ export function areaProperties(): Promise<Set<string>> {
 
 export function useAreaProperties(): Set<string> {
   const [props, setProps] = useState<Set<string>>(() => new Set());
-  useEffect(() => {
-    void areaProperties().then(setProps);
-  }, []);
+  // asked again while the mower hasn't said which methods it has, a page kept open would go without them otherwise
+  useEffect(() => askUntilAnswered(areaProperties, setProps), []);
   return props;
 }

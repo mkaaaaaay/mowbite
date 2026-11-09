@@ -173,7 +173,7 @@ export function MowerSizesSettings({settings, styles}: {settings: Settings; styl
       {outline && <p className={styles.dim}>{outlineModel ? tr('Outline of the {model}, measured on a photo from straight above. It counts for this model only.', {model: outlineModel.label}) : tr('A stored outline that is none of the models: pick the model again or enter the sizes.')}</p>}
       {taken && (
         <p className={styles.dim}>
-          {tr("Taken on its own: the sizes are exactly this model's.")}{' '}
+          {tr("Picked by itself: the sizes match this model exactly.")}{' '}
           <button className={styles.linkButton} onClick={toRectangle}>
             {tr('Keep the rectangle')}
           </button>

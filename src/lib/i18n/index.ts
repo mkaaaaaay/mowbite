@@ -95,6 +95,8 @@ export function inEnglish<T>(make: () => T): T {
 // for dates and numbers
 // en-GB for english: day before month and a 24 h clock, and not the browser's own language
 export const locale = () => (active === 'de' ? 'de-DE' : 'en-GB');
+// a date without the year: the month by name in english, 11/11 reads differently in the US, by number in german (11.11.)
+export const monthStyle = (): 'numeric' | 'short' => (active === 'de' ? 'numeric' : 'short');
 
 // a number with a fixed count of decimals, decimal comma in german
 // one formatter per language and number of digits, making one is what's slow (the dashboard formats every sensor value)

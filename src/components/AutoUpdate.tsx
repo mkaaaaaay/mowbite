@@ -283,7 +283,7 @@ function PartCard({
       {p.kind === 'image' && info.available === 'local' && (
         <span className={local.dim}>
           {part === 'mowbite'
-            ? tr('This is a version built on its own, not one from GitHub. "Update" swaps it for the {channel} from GitHub.', {
+            ? tr('This is a version built on its own, not one from GitHub. "Update" swaps it for the {channel} version from GitHub.', {
                 channel: channel === 'stable' ? tr('Stable') : tr('Beta'),
               })
             : tr('This is a version built on its own, not one from its registry. "Update" swaps it for the one from there.')}
@@ -434,7 +434,7 @@ function Room({s, busy, onAsk}: {s: UpdateState; busy: boolean; onAsk: (go: () =
         {free !== null && <span className={local.badge}>{tr('{gb} GB free', {gb: fmt(free / 1024, 1)})}</span>}
       </div>
       <span className={local.dim}>
-        {tr("What's on the mower that nothing needs: images no container uses and the build cache. Shown is the room each really frees. Nothing goes by itself, versions kept to go back to only one at a time.")}
+        {tr("What's on the mower that nothing needs: images no container uses and the build cache. Shown is the room each really frees. Nothing is deleted automatically, versions kept for going back only one at a time.")}
       </span>
       {items.map((i) => (
         <div key={i.id} className={local.item}>
@@ -566,10 +566,16 @@ export function AutoUpdate() {
     tapped.current++;
     fast.current = true;
     setError(null);
-    go().catch(() => {
-      setAsked(false);
-      setError(tr('The mower did not answer.'));
-    });
+    // (a look started before the request arrived still saw none, it doesn't free the buttons)
+    go().then(
+      () => {
+        tapped.current++;
+      },
+      () => {
+        setAsked(false);
+        setError(tr('The mower did not answer.'));
+      },
+    );
   };
   const anyAuto = partsOf(st).some((p) => st.conf[`${p.id}_auto`] === 1);
   const days = st.conf.days === 'daily' ? [] : st.conf.days.split(',').map(Number);

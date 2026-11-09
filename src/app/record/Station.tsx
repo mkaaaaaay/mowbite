@@ -6,7 +6,7 @@ import {saveMap, useMowerMap, type DockingStation} from '@/hooks/useMowerMap';
 import {numParam, useMowerParams} from '@/hooks/useMowerParams';
 import {useSensorValue} from '@/hooks/useMowerSensors';
 import {isLive, useMowerState} from '@/hooks/useMowerState';
-import {saveBackup} from '@/lib/backups';
+import {useBackupFirst} from '@/lib/backups';
 import {antennaOf, besideStep, OUT, OUT_MIN, SETTLE_S, STAND_S, standOn, standPoint, stationChange, stationFrom, wayCheck, type Point, type Pose, type Stand, type Station} from '@/lib/dockGuide';
 import {tick} from '@/lib/haptics';
 import {fmt, tr} from '@/lib/i18n';
@@ -161,7 +161,9 @@ export default function StationGuide({
   }, [saving]);
   const [error, setError] = useState<string | null>(null);
   // the backup before saving failed: the next tap saves without one
-  const [withoutBackup, setWithoutBackup] = useState(false);
+  const backupFirst = useBackupFirst(setError, 'save', BACKUP_MS);
+  // the map before went into the backups
+  const [backedUp, setBackedUp] = useState(false);
   const save = async () => {
     if (!map || !inside || !outside) return;
     pending.current++;
@@ -169,25 +171,12 @@ export default function StationGuide({
     setError(null);
     const station = stationFrom(inside, outside, o);
     try {
-      if (!withoutBackup) {
-        try {
-          await Promise.race([
-            saveBackup(map, 'before recording the docking station', true),
-            new Promise<never>((_, reject) => setTimeout(() => reject(new Error(tr('no answer'))), BACKUP_MS)),
-          ]);
-        } catch (e) {
-          setWithoutBackup(true);
-          setError(
-            tr("The map on the mower couldn't be backed up first ({why}). Tap save again to save without that backup.", {
-              why: e instanceof Error ? e.message : tr('failed'),
-            }),
-          );
-          return;
-        }
-      }
+      const backup = await backupFirst.first(map, 'before recording the docking station');
+      if (backup === 'failed') return;
       const was = map.docking_stations[0];
       await saveMap({...map, docking_stations: [{...was, id: was?.id ?? generateId(), position: station.position, heading: station.heading}, ...map.docking_stations.slice(1)]});
       const s = {station, before: before ?? null};
+      setBackedUp(backup === 'made');
       setSaved(s);
       onSaved(s);
     } catch (e) {
@@ -439,7 +428,9 @@ export default function StationGuide({
         {step === 'in' || step === 'dock'
           ? tr('First it stands in the station a few seconds, then you back it out straight 1 to 1½ m and it stands there a few seconds too. The way between becomes its docking direction.')
           : step === 'home'
-            ? tr('Saved in the map, the map before is in the backups. Drive it back into the station and end recording mode, or record areas first.')
+            ? backedUp
+              ? tr('Saved in the map, the map before is in the backups. Drive it back into the station and end recording mode, or record areas first.')
+              : tr('Saved in the map. Drive it back into the station and end recording mode, or record areas first.')
             : tr('Back it out straight, steer a little where the ground pushes it aside. Further out makes the direction more accurate.')}
       </p>
       <div className={styles.buttons}>{buttons(ds.primary, ds.warnButton, ds.danger)}</div>

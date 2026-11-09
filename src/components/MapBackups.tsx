@@ -27,9 +27,9 @@ export default function MapBackups({
   backups: BackupInfo[] | null | undefined;
   onCreate: (name: string) => Promise<void>;
   onPreview: (b: BackupInfo) => Promise<void>;
-  onDelete: (b: BackupInfo) => void;
-  onDownload: (b: BackupInfo | null) => void;
-  onDownloadGeo: () => void;
+  onDelete: (b: BackupInfo) => Promise<void>;
+  onDownload: (b: BackupInfo | null) => Promise<void>;
+  onDownloadGeo: () => Promise<void>;
   onFile: (map: MowerMap, name: string) => void;
   // the datum for geojson's longitude and latitude, the map a geojson file's areas go into (the one being edited), and
   // onLoad takes the map with them in
@@ -54,6 +54,11 @@ export default function MapBackups({
     } finally {
       setBusy(false);
     }
+  };
+  // a failed action says so under the list
+  const tryIt = (p: Promise<void>, failed: string) => {
+    setError(null);
+    p.catch(() => setError(failed));
   };
 
   return (
@@ -91,19 +96,16 @@ export default function MapBackups({
                 <div className={styles.actions}>
                   <button
                     className={styles.link}
-                    onClick={() => {
-                      setError(null);
-                      onPreview(b).catch(() => setError(tr("The backup couldn't be loaded.")));
-                    }}
+                    onClick={() => tryIt(onPreview(b), tr("The backup couldn't be loaded."))}
                   >
                     {tr('Preview')}
                   </button>
-                  <button className={styles.link} onClick={() => onDownload(b)}>
+                  <button className={styles.link} onClick={() => tryIt(onDownload(b), tr("The download didn't work."))}>
                     {tr('Download')}
                   </button>
                   <button
                     className={[styles.link, styles.danger].join(' ')}
-                    onClick={() => (confirmDelete === b.id ? onDelete(b) : setConfirmDelete(b.id))}
+                    onClick={() => (confirmDelete === b.id ? tryIt(onDelete(b), tr("The backup couldn't be deleted.")) : setConfirmDelete(b.id))}
                     onBlur={() => setConfirmDelete(null)}
                   >
                     {confirmDelete === b.id ? tr('Really delete?') : tr('Delete')}
@@ -120,11 +122,11 @@ export default function MapBackups({
       )}
 
       <div className={styles.row}>
-        <button className={styles.button} onClick={() => onDownload(null)}>
+        <button className={styles.button} onClick={() => tryIt(onDownload(null), tr("The download didn't work."))}>
           {tr('Download current map')}
         </button>
         {geo && (
-          <button className={styles.button} onClick={onDownloadGeo}>
+          <button className={styles.button} onClick={() => tryIt(onDownloadGeo(), tr("The download didn't work."))}>
             {tr('As GeoJSON')}
           </button>
         )}
@@ -166,7 +168,7 @@ export default function MapBackups({
       </div>
       {geo && (
         <p className={styles.dim}>
-          {tr('GeoJSON opens in QGIS, geojson.io and other map apps. Loaded back, an area from the file takes the place of the one with its id, others come in as new ones, drafts unless the file says what they are.')}{' '}
+          {tr('GeoJSON opens in QGIS, geojson.io and other map apps. When you load it back, an area from the file replaces the one with the same id. Other areas are added as new, as drafts unless the file gives their type.')}{' '}
           {tr("Coordinates are WGS84 longitude and latitude, angles in radians. An area deleted in the file isn't deleted on the map.")}
         </p>
       )}

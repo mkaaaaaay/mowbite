@@ -38,8 +38,11 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
     [ "$(awk 'FNR == 3 && $0 != "1" { n++ } END { print n + 0 }' "$D"/*.meta)" -ge $KEEP_HAND ]; then
     fail 409 "at most $KEEP_HAND backups made by hand"
   fi
-  head -c "$len" | gzip -9 > "$D/$new.json.gz"
-  printf '%s\n%s\n%s\n' "$name" "${areas:-0}" "${auto:-0}" > "$D/$new.meta"
+  # written aside and checked first, a power cut leaves no half backup in the list (its rest goes with the next one)
+  find "$D" -name '*.tmp' -mmin +10 -exec rm -f {} + 2>/dev/null
+  head -c "$len" | gzip -9 > "$D/$new.json.gz.tmp" && gzip -t "$D/$new.json.gz.tmp" && mv "$D/$new.json.gz.tmp" "$D/$new.json.gz" ||
+    { rm -f "$D/$new.json.gz.tmp"; fail 500 'not saved'; }
+  printf '%s\n%s\n%s\n' "$name" "${areas:-0}" "${auto:-0}" > "$D/$new.meta.tmp" && mv "$D/$new.meta.tmp" "$D/$new.meta"
   # only the automatic ones are thinned out, the ones made by hand stay
   ls "$D"/*.meta 2>/dev/null | sort -r | while read -r m; do
     [ "$(sed -n 3p "$m")" = 1 ] && echo "$m"

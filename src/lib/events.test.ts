@@ -333,6 +333,15 @@ describe('emergency stop reasons', () => {
     expect(explain(ev(1, 'EMERGENCY', {emergency: true, reason: '1024'}))).toContain('mower_spinup_timeout');
     expect(explain(ev(1, 'EMERGENCY', {emergency: true, reason: '128'}))).toContain('ROS log');
     expect(explain(ev(1, 'EMERGENCY', {emergency: true, reason: '33'}))).toBe('Stop button, lift, tilt or a bumper. It has to be released and reset before it drives again.');
+    // the board's own reasons each with their own help, the stop button's words only for what was set off at the mower
+    const help = (reason: number) => explain(ev(1, 'EMERGENCY', {emergency: true, reason: String(reason + 1)}));
+    expect(help(2)).toMatch(/^The board's inputs/);
+    expect(help(64)).toMatch(/^The board heard nothing from the mower's software/);
+    expect(help(256)).toMatch(/^A part of the board's firmware wasn't ready/);
+    expect(help(2048)).toMatch(/^The mow motor turned outside its allowed speed/);
+    expect(help(4096)).toMatch(/^The board's firmware doesn't fit/);
+    for (const bit of [2, 3, 4, 5, 9]) expect(help(2 ** bit)).toMatch(/^Stop button, lift, tilt or a bumper/);
+    expect(help(0)).toBeUndefined();
   });
 
   it("reads MowBite OS's own bits, all 32 of them, one without a name as BIT_<n>", () => {
@@ -374,7 +383,7 @@ describe('emergency stop reasons', () => {
         'The hardware driver hung for too long, so it stopped to be safe. Once can be a load peak, if it happens again the log from that moment says more.',
     );
     // set from above on MowBite OS, the driver's own reasons have bits of their own there
-    expect(stop(129)).toMatch(/^Something above the board latched it/);
+    expect(stop(129)).toMatch(/^Software above the board latched it/);
     expect(stop(129, false)).toMatch(/^OpenMower stopped the mower itself/);
     expect(stop(2 ** 15 + 1)).toMatch(/^The wheels turned, but by the GPS/);
     expect(stop(2 ** 22 + 1)).toMatch(/^A reason MowBite doesn't know yet/);
@@ -476,7 +485,7 @@ describe('recording an area (MowBite OS)', () => {
         'Linie nicht geschlossen: sie umschließt nur 0,03 m², mindestens 0,05 m² nötig',
       );
       expect(refusalReason('Position accuracy 0.30 m, the docking station needs 0.10 m or better')).toBe(
-        'Position auf 0,30 m genau, die Ladestation braucht 0,10 m oder besser',
+        'Position auf 0,30 m genau, das Dock braucht 0,10 m oder besser',
       );
       expect(refusalReason('Position accuracy nan m, points need 0.10 m or better')).toBe('Position auf ? m genau, Punkte brauchen 0,10 m oder besser');
       expect(refusalReason('Only 0.12 m from the first point, at least 0.30 m needed for the heading')).toBe(
@@ -591,7 +600,7 @@ describe('reasons as fixed names (MowBite OS)', () => {
     expect(describeEvent(ev(0, 'MOWING_REFUSED', {reason: 'SOMETHING_NEW'})).text).toBe('Mowing not started: something new');
     expect(reasonText(os('X', {reason: 'NO_POSITION'}))).toBe('no position');
     expect(reasonText(os('CALIBRATION_FAILED', {reason: 'TIMEOUT'}))).toBe('took too long');
-    expect(reasonText(ev(0, 'DOCKING_FAILED', {reason: 'TIMEOUT'}))).toBe('not getting on, maybe stuck');
+    expect(reasonText(ev(0, 'DOCKING_FAILED', {reason: 'TIMEOUT'}))).toBe('not making progress, maybe stuck');
     // free text from before stays as it came
     expect(describeEvent(ev(0, 'MOWING_REFUSED', {reason: 'No position from the localization'})).text).toBe(
       'Mowing not started: No position from the localization',
@@ -688,9 +697,9 @@ describe('reasons as fixed names (MowBite OS)', () => {
       expect(describeEvent(os('STATE', {state: 'PAUSED', reason: 'POSITION_ACCURACY', accuracy: 0.124, limit: 0.1})).text).toBe(
         'Pausiert: Position auf 0,12 m genau, nötig sind 0,10 m oder besser',
       );
-      expect(describeEvent(os('DRIVE_REFUSED', {reason: 'NO_HEADING'})).text).toBe('Fahrt nicht gestartet: Fahrtrichtung noch unbekannt');
+      expect(describeEvent(os('DRIVE_REFUSED', {reason: 'NO_HEADING'})).text).toBe('Fahrt nicht gestartet: Ausrichtung noch unbekannt');
       expect(describeEvent(os('MOWING_REFUSED', {reason: 'NO_SAFETY_MEASUREMENT'})).text).toBe(
-        'Mähen nicht gestartet: Sicherheit auf dieser Plattform noch nicht nachgemessen, Mähen und Fahren sind gesperrt',
+        'Mähen nicht gestartet: Sicherheit auf dieser Plattform noch nicht geprüft, Mähen und Fahren sind gesperrt',
       );
       expect(describeEvent(os('MOWING_REFUSED', {reason: 'SOMETHING_NEW'})).text).toBe('Mähen nicht gestartet: english text');
       expect(describeEvent(os('MOWING_REFUSED', {reason: 'HOLD', until: 1793754213})).text).toBe(

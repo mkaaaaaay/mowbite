@@ -393,7 +393,7 @@ export default function DriveView({
             <RotateIcon size={18} />
             {tr('Sideways')}
           </button>
-          <p className={styles.dim}>{tr('Two pads like a remote control car. Turning the phone switches by itself.')}</p>
+          <p className={styles.dim}>{tr('Two pads like a remote-controlled car. Turning the phone switches by itself.')}</p>
         </div>
         {foot}
       </section>

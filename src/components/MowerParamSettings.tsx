@@ -7,6 +7,7 @@ import {
   PARAM_FIELDS,
   PARAM_GROUPS,
   paramField,
+  paramConflict,
   paramName,
   paramValue,
   parseParam,
@@ -17,8 +18,9 @@ import {
   type ParamField,
   type ParamGroup,
 } from '@/lib/mowerParams';
+import {isMowbiteOs, systemInfo, useMowbiteOs} from '@/lib/mowerOs';
 import {RPC} from '@/lib/openmower';
-import {rpcMethods} from '@/lib/rpc';
+import {useRpcMethods} from '@/hooks/useRpcMethods';
 import {answerError} from '@/lib/rpcText';
 import Link from 'next/link';
 import {useEffect, useRef, useState, useSyncExternalStore} from 'react';
@@ -29,20 +31,10 @@ type Styles = Record<string, string>;
 const never = () => () => {};
 
 // whether this mower takes params.set (a newer OpenMower), false until it has told
-export function useCanSetParams(): boolean {
-  const [can, setCan] = useState(false);
-  useEffect(() => {
-    let alive = true;
-    void rpcMethods().then((m) => alive && setCan(!!m?.has(RPC.setParams)));
-    return () => {
-      alive = false;
-    };
-  }, []);
-  return can;
-}
+export const useCanSetParams = (): boolean => !!useRpcMethods()?.has(RPC.setParams);
 
 // what the container sets again after a restart of the mower, one copy for every page. undefined until asked, null
-// when there's no container that keeps it
+// when there's no container that keeps it and on MowBite OS (it keeps them itself)
 let kept: KeptParams | null | undefined;
 let asked = false;
 const listeners = new Set<() => void>();
@@ -53,9 +45,11 @@ const setKept = (k: KeptParams | null) => {
 function subscribe(l: () => void) {
   if (!asked) {
     asked = true;
-    // (no answer, a container that's slow to come up included: asked again by the next page that wants it)
-    void loadKept().then((k) => {
-      if (!k) asked = false;
+    // (no answer, a container that's slow to come up included: asked again by the next page that wants it, also while
+    // it isn't known yet what runs on the mower)
+    void systemInfo().then(async (i) => {
+      const k = isMowbiteOs(i) ? null : await loadKept();
+      if (!k || i === undefined) asked = false;
       setKept(k);
     });
   }
@@ -88,7 +82,7 @@ async function storeKept(change: (k: KeptParams) => KeptParams) {
 
 class NotKept extends Error {}
 
-// sets it on the mower, and has the container keep what the mower took
+// sets it on the mower, and has the container keep what the mower took (MowBite OS keeps it itself)
 async function apply(f: ParamField, value: number | boolean) {
   const applied = await setParams({[f.key]: value});
   const took = applied[f.key] ?? value;
@@ -104,8 +98,8 @@ export async function setOpenMowerParam(key: string, value: number | boolean) {
   if (f) await apply(f, value);
 }
 
-// one setting: its value on the mower, changed right there
-export function ParamRow({field: f}: {field: ParamField}) {
+// one setting: its value on the mower, changed right there. os: on MowBite OS
+export function ParamRow({field: f, os}: {field: ParamField; os: boolean}) {
   const params = useMowerParams();
   const k = useKept();
   const value = paramValue(params, f);
@@ -115,8 +109,10 @@ export function ParamRow({field: f}: {field: ParamField}) {
 
   const set = async (v: number | boolean) => {
     if (v === value) return;
+    const conflict = paramConflict(params, f.key, v);
+    setError(conflict && tr(conflict));
+    if (conflict) return;
     setBusy(true);
-    setError(null);
     try {
       await apply(f, v);
     } catch (e) {
@@ -132,13 +128,15 @@ export function ParamRow({field: f}: {field: ParamField}) {
     if (v !== null) void set(v);
   };
   const isKept = !!k?.enabled && f.key in k.values;
+  const label = tr((os && f.osLabel) || f.label);
+  const help = (os && f.osHelp) || f.help;
 
   return (
     <div className={local.row}>
       <div className={local.line}>
         <span className={local.label}>
-          {tr(f.label)}
-          {f.help && <InfoTip>{tr(f.help)}</InfoTip>}
+          {label}
+          {help && <InfoTip>{tr(help)}</InfoTip>}
         </span>
         {f.type === 'bool' ? (
           <input type="checkbox" className={local.check} checked={value as boolean} disabled={busy} onChange={(e) => void set(e.target.checked)} />
@@ -159,7 +157,7 @@ export function ParamRow({field: f}: {field: ParamField}) {
               onChange={(e) => setDraft(e.target.value)}
               onBlur={commit}
               onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-              aria-label={tr(f.label)}
+              aria-label={label}
             />
             <span className={local.unit}>{f.unit ?? ''}</span>
           </span>
@@ -189,6 +187,7 @@ export function ParamRow({field: f}: {field: ParamField}) {
 // a few of the settings next to a problem they help with (activity page)
 export function ParamFix({keys}: {keys: string[]}) {
   const can = useCanSetParams();
+  const os = useMowbiteOs();
   const fields = PARAM_FIELDS.filter((f) => keys.includes(f.key));
   if (!can || !fields.length) return null;
   // folded, under a problem it's only for when it keeps happening
@@ -196,7 +195,7 @@ export function ParamFix({keys}: {keys: string[]}) {
     <details className={local.fix}>
       <summary className={local.fixTitle}>{tr('Change on the mower')}</summary>
       {fields.map((f) => (
-        <ParamRow key={f.key} field={f} />
+        <ParamRow key={f.key} field={f} os={os} />
       ))}
     </details>
   );
@@ -224,6 +223,7 @@ const AUTOMATIC_SHORT = ['starts by hand', 'semi-automatic', 'automatic'];
 // OpenMower's own values for mowing every area (mower_params.yaml), with the map where an area can have its own
 export function OpenMowerMowing({styles}: {styles: Styles}) {
   const k = useKept();
+  const os = useMowbiteOs();
   return (
     <div className={local.rows}>
       <p className={styles.dim}>{tr("OpenMower's own values from mower_params.yaml, for every area without its own. A change counts right away.")}</p>
@@ -234,7 +234,7 @@ export function OpenMowerMowing({styles}: {styles: Styles}) {
         </label>
       )}
       {PARAM_FIELDS.filter((f) => f.group === 'mowing').map((f) => (
-        <ParamRow key={f.key} field={f} />
+        <ParamRow key={f.key} field={f} os={os} />
       ))}
     </div>
   );
@@ -245,6 +245,7 @@ export function OpenMowerSettings({styles}: {styles: Styles}) {
   const can = useCanSetParams();
   const params = useMowerParams();
   const k = useKept();
+  const os = useMowbiteOs();
   // folded whenever the page opens, unless a link led here
   const linked = useSyncExternalStore(
     never,
@@ -271,15 +272,17 @@ export function OpenMowerSettings({styles}: {styles: Styles}) {
     >
       <summary>
         <span className={styles.groupTitle}>
-          {tr('OpenMower')}
-          <small>{tr('Its own settings from mower_params.yaml')}</small>
+          {os ? tr('Mower settings') : tr('OpenMower')}
+          <small>{os ? tr('Kept on the mower itself') : tr('Its own settings from mower_params.yaml')}</small>
         </span>
       </summary>
       <div className={styles.groupBody}>
         <p className={styles.dim}>
-          {tr(
-            "Settings of OpenMower itself, the ones from mower_params.yaml. A change counts right away, no restart. OpenMower doesn't store it: after its restart the file's values are back.",
-          )}
+          {os
+            ? tr('Settings of the mower itself, kept on it. A change counts right away, it takes one only while the mower is idle.')
+            : tr(
+                "Settings of OpenMower itself, the ones from mower_params.yaml. A change counts right away, no restart. OpenMower doesn't store it: after its restart the file's values are back.",
+              )}
         </p>
         {k && (
           <label className={styles.check}>
@@ -316,7 +319,7 @@ export function OpenMowerSettings({styles}: {styles: Styles}) {
             </summary>
             <div className={local.rows}>
               {PARAM_FIELDS.filter((f) => f.group === g.key).map((f) => (
-                <ParamRow key={f.key} field={f} />
+                <ParamRow key={f.key} field={f} os={os} />
               ))}
             </div>
           </details>

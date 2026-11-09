@@ -104,6 +104,9 @@ function connect(): MqttClient {
     protocolVersion: nextVersion,
     // mqtt.js tries one connection after the other, the next only once the last is gone
     reconnectPeriod: 1000,
+    // a broker turning the connection down (CONNACK with an error, e.g. while it starts) is tried again like a lost one,
+    // mqtt.js gives up on it otherwise
+    reconnectOnConnackError: true,
     // a dead wifi link shows up after ~15 s instead of ~90 s with the default of 60
     keepalive: 10,
     // nothing sent while offline is kept for later: a start or go home tapped then would go out on the
@@ -147,10 +150,8 @@ function connect(): MqttClient {
   });
   c.on('error', (e) => {
     if (c.options.protocolVersion !== 5 || nextVersion !== 5 || acked || !('code' in e) || typeof e.code !== 'number' || e.code <= 0) return;
+    // (mqtt.js tries again a second later, with 3.1.1 then)
     back();
-    // mqtt.js doesn't try again after a refused CONNACK by itself; once its socket is gone, a try while it closes would
-    // be followed by one more of mqtt.js's own
-    c.once('close', () => c.reconnect());
   });
   c.on('close', () => {
     if (opened && !acked && c.options.protocolVersion === 5 && nextVersion === 5 && ++shut >= 2) back();

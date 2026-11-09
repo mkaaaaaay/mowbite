@@ -227,7 +227,7 @@ export default function Drive({
     say =
       !runNext ? (
         <>
-          <b>{tr(left ? 'Turn left round' : 'Turn right round')}</b> ·{' '}
+          <b>{tr(left ? 'Turn round to the left' : 'Turn round to the right')}</b> ·{' '}
           {togo >= TURN_ROUNDS
             ? tr('one and a half rounds, until it looks back')
             : togo > 1

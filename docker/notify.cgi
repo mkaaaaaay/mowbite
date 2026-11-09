@@ -10,6 +10,8 @@ text() { printf 'Content-Type: text/plain\r\nCache-Control: no-store\r\n\r\n'; }
 C=/data/notify.conf
 S=/data/notify.snooze
 conf() { sed -n "s/^$1 //p" "$C" 2>/dev/null | head -n1; }
+# notify.conf changed by one at a time (notify.sh drops phones too), held until the cgi ends
+lock() { exec 9> /tmp/notify.lock && flock 9; }
 # the body, one line
 body() {
   len=${CONTENT_LENGTH:-0}
@@ -64,16 +66,18 @@ case "$REQUEST_METHOD $QUERY_STRING" in
 "POST push-add")
   a=$(address "$(body)")
   [ -n "$a" ] || done_ "bad address"
+  lock
   grep -qxF "push $a" "$C" 2>/dev/null && done_ ok
   # a few phones per mower, the oldest goes
-  [ "$(grep -c '^push ' "$C" 2>/dev/null)" -ge 10 ] && { awk 'f || !/^push / { print; next } { f = 1 }' "$C" > "$C.tmp" && mv "$C.tmp" "$C"; }
+  [ "$(grep -c '^push ' "$C" 2>/dev/null)" -ge 10 ] && { awk 'f || !/^push / { print; next } { f = 1 }' "$C" > "$C.$$" && mv "$C.$$" "$C"; }
   echo "push $a" >> "$C"
   done_ ok
   ;;
 "POST push-remove")
   a=$(address "$(body)")
+  lock
   # (grep finds nothing to keep when it was the only line)
-  [ -n "$a" ] && [ -f "$C" ] && { grep -vxF "push $a" "$C" || :; } > "$C.tmp" && mv "$C.tmp" "$C"
+  [ -n "$a" ] && [ -f "$C" ] && { grep -vxF "push $a" "$C" || :; } > "$C.$$" && mv "$C.$$" "$C"
   done_ ok
   ;;
 "POST push-test")
@@ -103,6 +107,7 @@ POST*)
     printf 'Content-Type: text/plain\r\n\r\ntoo large\n'
     exit 0
   fi
+  lock
   old=$(conf token)
   body=$(head -c "$len" | tr -d '\r' | grep -E '^(server https?://[A-Za-z0-9.:/_-]{1,200}|topic [A-Za-z0-9_-]{1,64}|token [A-Za-z0-9_-]{1,200}|lang (de|en)|name [^"\\]{1,160}|url https?://[A-Za-z0-9.:/_-]{1,200}|events (-|[a-z_]{1,20}(,[a-z_]{1,20}){0,15})|remind [0-9]{1,3}|emergency_wait [0-9]{1,3}|enabled [01])$')
   new=$(printf '%s\n' "$body" | sed -n 's/^token //p' | head -n1)
@@ -115,7 +120,7 @@ POST*)
     elif [ -z "$new" ] && [ -n "$old" ]; then
       echo "token $old"
     fi
-  } > "$C.tmp" && mv "$C.tmp" "$C"
+  } > "$C.$$" && mv "$C.$$" "$C"
   ;;
 esac
 

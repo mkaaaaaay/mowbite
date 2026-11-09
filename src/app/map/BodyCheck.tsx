@@ -63,7 +63,7 @@ export function BodyCheck({request, onSpots}: {request: PlanRequest | null; onSp
       {recorded && places.some((p) => p.kinds.includes('loop')) && (
         <span className={styles.dim}>
           {tr(
-            'Corners of the outline passes on lines driven along the edge: the check takes the wall to be half the width beyond the line everywhere, the mower drove there itself when recording. An outline offset for the area moves the passes in.',
+            "Corners of the outline passes on lines driven along the edge: the check assumes a wall half the mower's width beyond the line everywhere, although the mower drove there itself when recording. An outline offset for the area moves the passes inward.",
           )}
         </span>
       )}

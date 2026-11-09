@@ -3,7 +3,8 @@
 import type {PlanRequest} from '@/lib/areaPlan';
 import {fmt, tr} from '@/lib/i18n';
 import {RPC} from '@/lib/openmower';
-import {RpcError, rpcMethods} from '@/lib/rpc';
+import {RpcError} from '@/lib/rpc';
+import {useRpcMethods} from '@/hooks/useRpcMethods';
 import {
   cancelSimulation,
   canCancelSimulation,
@@ -44,7 +45,7 @@ export function PlanSimulation({request, sim, onResult, onShow}: {
   onResult: (sim: ShownSim) => void;
   onShow: (shown: boolean) => void;
 }) {
-  const [known, setKnown] = useState(false);
+  const known = !!useRpcMethods()?.has(RPC.plannerSimulate);
   const [canCancel, setCanCancel] = useState(false);
   const [model, setModel] = useState<SimModel>('realistic');
   const [running, setRunning] = useState<{key: string; since: number} | null>(null);
@@ -58,7 +59,6 @@ export function PlanSimulation({request, sim, onResult, onShow}: {
 
   useEffect(() => {
     let alive = true;
-    void rpcMethods().then((m) => alive && setKnown(!!m?.has(RPC.plannerSimulate)));
     void canCancelSimulation().then((c) => alive && setCanCancel(c));
     return () => {
       alive = false;
@@ -191,7 +191,7 @@ export function SimulationView({model, locked, wait, error, result, shown, canCa
           <span>
             {tr('{all} min ({mow} min of it mowing)', {all: minutes(r.minutes.all), mow: minutes(r.minutes.mow)})}
             {/* the planner's model, the time above the plan has the finished mows on top */}
-            {r.minutes.plan !== undefined && `, ${tr('the plan says {min} min before the finished mows correct it', {min: minutes(r.minutes.plan)})}`}
+            {r.minutes.plan !== undefined && `, ${tr('{min} min by the plan alone, before correcting with past mows', {min: minutes(r.minutes.plan)})}`}
           </span>
           {r.left.length > 0 ? (
             <span className={styles.warningText}>
@@ -219,7 +219,7 @@ export function SimulationView({model, locked, wait, error, result, shown, canCa
           {r.aborted && <span className={styles.warningText}>{tr('OpenMower would give up the area.')}</span>}
           {r.offPlan && (
             <span className={styles.dim}>
-              {tr('Off the plan on the lanes: usually {usual} cm, at most {max} cm.', {usual: fmt(r.offPlan.usual * 100, 1), max: fmt(r.offPlan.max * 100, 0)})}
+              {tr('Deviation from the plan on the lanes: usually {usual} cm, at most {max} cm.', {usual: fmt(r.offPlan.usual * 100, 1), max: fmt(r.offPlan.max * 100, 0)})}
             </span>
           )}
           <button className={styles.simLink} onClick={() => onShow(!shown)}>

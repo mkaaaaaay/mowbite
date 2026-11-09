@@ -171,12 +171,12 @@ describe('MQTT 5 on MowBite OS', () => {
     stored.clear();
     let {m, c} = await load();
     m.noteMqtt({mqtt: 5});
-    // a CONNACK with an error: mqtt.js gives up, it's tried again with 3.1.1 once the socket is gone
+    // a CONNACK with an error: mqtt.js tries again by itself (reconnectOnConnackError), with 3.1.1
+    expect(c.options).toMatchObject({reconnectOnConnackError: true});
     await c.tryConnect(false);
     c.emit('error', Object.assign(new Error('Connection refused: Unsupported protocol version'), {code: 132}));
-    expect(c.reconnects).toBe(0);
     c.drop();
-    expect(c.reconnects).toBe(1);
+    expect(c.reconnects).toBe(0);
     await c.tryConnect(true);
     expect(c.options.protocolVersion).toBe(4);
     expect(stored.size).toBe(0);

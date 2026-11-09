@@ -13,6 +13,7 @@ import type {PlanChosen, PlanDuration} from '@/lib/mowPlan';
 import {DEG, normDeg, overrideError, type Area, type Override, type UpdateArea} from './editing';
 import styles from './page.module.css';
 import {PATHS} from '@/lib/openmower';
+import {rpcErrorText} from '@/lib/rpcText';
 
 export interface AngleMismatch {
   measured: number;
@@ -162,7 +163,7 @@ export function OpenMowerArea({area, globalValue, remember, update, inMenu}: Pro
       {number(
         'outline_overlap_count',
         'Overlapping passes',
-        'How many of the edge rounds the stripes reach into, so no uncut strip is left between the edge and the stripes.',
+        'How many edge passes the stripes overlap, so no uncut strip is left between the edge and the stripes.',
         1,
         0,
       )}
@@ -307,7 +308,7 @@ export function AreaDirection({area, autoAngle, remember, update, onAngleEdit, a
           </div>
           {p.angle !== undefined && ownStrategy !== undefined ? (
             <p className={styles.dirNote}>
-              {tr('This area has a mow angle and a way of working the direction out of its own, the planner takes the way of working it out.')}{' '}
+              {tr('This area has its own mow angle and its own automatic direction, the planner uses the automatic direction.')}{' '}
               <button className={simple.link} onClick={() => setStrategy(undefined)}>
                 {tr('take the mow angle')}
               </button>
@@ -322,7 +323,7 @@ export function AreaDirection({area, autoAngle, remember, update, onAngleEdit, a
           {angle.offsetIsAbsolute
             ? tr('mow_angle_offset_is_absolute is set on the mower, it always mows at {n}° and ignores this angle.', {n: angle.offset})
             : angle.offset !== 0
-              ? tr("On top comes mow_angle_offset from the mower's settings (mower_logic), {n}° here. It's added to every area, the preview includes it.", {n: angle.offset})
+              ? tr("mow_angle_offset from the mower's settings (mower_logic) comes on top, {n}° here. It's added to every area, the preview includes it.", {n: angle.offset})
               : ''}
           {angle.increment !== 0 &&
             ' ' + tr('It also turns by {n}° after every full mow, the preview shows the first one.', {n: angle.increment})}
@@ -443,7 +444,7 @@ function SaveCase({save, planner}: {save: () => Promise<void>; planner: boolean}
           setBusy(true);
           setError(null);
           save()
-            .catch((e: unknown) => setError(e instanceof Error ? e.message : tr('failed')))
+            .catch((e: unknown) => setError(rpcErrorText(e)))
             .finally(() => setBusy(false));
         }}
       >

@@ -107,6 +107,9 @@ describe('outOfRange', () => {
     expect(outOfRange(rpm, '-3000', 'MOWING')).toBe(false);
     expect(outOfRange(rpm, '0', 'IDLE')).toBe(false);
     expect(outOfRange(rpm, '0', undefined)).toBe(false);
+    // the blade switched off on the way to an area
+    expect(outOfRange(rpm, '0', 'MOWING')).toBe(false);
+    expect(outOfRange(rpm, '150', 'MOWING')).toBe(true);
     // other values don't count either way round
     expect(outOfRange(battery, '-25', 'IDLE')).toBe(true);
   });

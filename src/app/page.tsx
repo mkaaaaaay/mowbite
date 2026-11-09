@@ -35,7 +35,7 @@ import {useChargeConfirmed} from '@/hooks/useChargeConfirmed';
 import {settingsStore} from '@/lib/settings';
 import {PARTS, useDueParts} from '@/lib/stats';
 import {containerHas, useUpdates} from '@/lib/updates';
-import {batteryColor, chargeDone, GPS_QUALITY_LABEL, gpsQuality, isDocked, onCharger, WIFI_LEVEL_LABEL} from '@/lib/status';
+import {batteryColor, chargeDone, dockText, GPS_QUALITY_LABEL, gpsQuality, isDocked, onCharger, WIFI_LEVEL_LABEL} from '@/lib/status';
 import Link from 'next/link';
 import {memo, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import styles from './page.module.css';
@@ -48,6 +48,7 @@ import {
   missedStart,
   waitingStart,
   nextStart,
+  inOtherZone,
   scheduleLogLine,
   type LogEntry,
   type Schedule,
@@ -118,9 +119,10 @@ function headline(state: MowerState, docked: boolean, charger: boolean, charged:
   if (state.emergency) return {title: tr('Emergency stop'), tone: 'error'};
   // left on in the dock it says so, it's why the map shows. docked is idle only, so it's the station's contacts here
   if (state.current_state === 'AREA_RECORDING') return {title: charger ? tr('Recording mode, in the dock') : tr('Recording an area'), tone: 'live'};
-  if (docked && confirmed === false) return {title: tr('In the dock, not charging'), tone: 'warn'};
-  if (docked && confirmed === null) return {title: tr('In the dock'), tone: 'good'};
-  if (docked) return charged ? {title: tr('Charged, in the dock'), tone: 'good'} : {title: tr('Charging in the dock'), tone: 'good'};
+  if (docked) {
+    const d = dockText(charged, confirmed);
+    return {title: d.text, tone: d.warn ? 'warn' : 'good'};
+  }
   switch (state.current_state) {
     case 'MOWING':
       return {title: area ? tr('Mowing {area}', {area}) : tr('Mowing'), tone: 'live'};
@@ -250,6 +252,9 @@ export default function Home() {
   const missed = missedAny && missedAny.t !== missedSeen ? missedAny : null;
   const mowable = map?.areas.filter((a) => a.properties.type === 'mow' && a.properties.active !== false && a.properties.mowable !== false).map((a) => a.id);
   const planned = schedule ? nextStart(schedule, undefined, datum ? (d) => sunTimes(datum.lat, datum.lon, d) : null, mowable) : null;
+  // the phone in another time zone than the schedule: its times are the schedule's, as on the schedule page
+  const scheduleTz = schedule?.tz;
+  const otherZone = useMemo(() => inOtherZone(scheduleTz), [scheduleTz]);
   // a start of the schedule that waits for the battery comes before the next one
   const batteryWait = schedule?.enabled ? waitingStart(scheduleLog) : null;
   const [confirmReset, setConfirmReset] = useState(false);
@@ -703,7 +708,9 @@ export default function Home() {
             )}
             {planned && (
               <Link href="/schedule" className={styles.nextRun}>
-                {tr('Next start: {when}', {when: `${dayLabel(planned)}, ${clock(planned.getTime() / 1000)}`})}
+                {tr(otherZone ? "Next start: {when}, the schedule's time" : 'Next start: {when}', {
+                  when: `${dayLabel(planned)}, ${clock(planned.getTime() / 1000)}`,
+                })}
               </Link>
             )}
             {/* the one under way is the status above */}

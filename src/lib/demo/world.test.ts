@@ -104,6 +104,9 @@ describe('the demo mower', () => {
     const days = await d.rpc<string[]>(RPC.eventDays);
     expect(days[0]).toBe('20260615');
     expect(days).toHaveLength(4);
+    // the days before: the schedule's Monday, Wednesday and Friday at 10:00
+    expect(jobs.slice(1).map((j) => new Date(j.timestamp * 1000).toString().slice(0, 3))).toEqual(['Fri', 'Wed', 'Mon']);
+    expect(new Set(jobs.slice(1).map((j) => new Date(j.timestamp * 1000).getHours()))).toEqual(new Set([10]));
     const past = await d.rpc<{type: string}[]>(RPC.events, {date: days[1]});
     expect(past.map((e) => e.type)).toEqual(expect.arrayContaining(['UNDOCKED', 'AREA', 'BLADES', 'JOB_COMPLETE', 'DOCKED']));
     const track = await d.rpc<{segments: {attributes: {blades: boolean}; points: number[][]}[]}>(RPC.jobTrack, {job_id: jobs[0].job_id});

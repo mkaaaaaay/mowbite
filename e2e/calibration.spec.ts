@@ -34,7 +34,7 @@ async function calibrateByHand(page: Page) {
   // a turn counts once a straight piece follows it
   await expect(page.getByText('2 of 3')).toBeVisible({timeout: 30_000});
   await demoDrive(page, [run]);
-  await expect(page.getByText('Turn right round')).toBeVisible({timeout: 30_000});
+  await expect(page.getByText('Turn round to the right')).toBeVisible({timeout: 30_000});
   await demoDrive(page, [right, run, right, run, right, run, [0, 0, 5]]);
 
   // worked out by itself once it's enough

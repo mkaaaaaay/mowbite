@@ -208,7 +208,7 @@ export function PhonePushSettings({
               </div>
               <h3 className={local.sub}>{tr('Sound and importance')}</h3>
               <p className={styles.dim}>
-                {tr('Set in Android for each kind: sound, vibration, popping up, do not disturb. To begin with problems and reminders ring and vibrate, info stays silent.')}
+                {tr('Set in Android for each kind: sound, vibration, popping up, do not disturb. By default, problems and reminders ring and vibrate, info stays silent.')}
               </p>
               <div className={local.actions}>
                 {CHANNELS.map((c) => (

@@ -117,6 +117,21 @@ describe('calls while offline', () => {
     expect(await again).toEqual(new Set(['mowing.plan']));
   });
 
+  it('asks until the mower answered and tells only the sure answer', async () => {
+    const {askUntilAnswered, rpcMethods} = await load();
+    const got: (Set<string> | null)[] = [];
+    const stop = askUntilAnswered(rpcMethods, (m) => got.push(m));
+    await vi.advanceTimersByTimeAsync(6000);
+    expect(got).toEqual([]);
+    client.online();
+    await vi.advanceTimersByTimeAsync(15000);
+    expect(client.published.map((m) => m.method)).toEqual(['rpc.methods']);
+    client.emit('message', 'rpc/response', Buffer.from(JSON.stringify({id: client.published[0].id, result: ['params.set']})));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(got).toEqual([new Set(['params.set'])]);
+    stop();
+  });
+
   it('keeps a "method not found" from an older mower, that one is final', async () => {
     const {rpcMethods} = await load();
     client.online();

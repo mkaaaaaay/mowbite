@@ -15,18 +15,19 @@ const LATEST = 7;
 const LATEST_DAYS = 7;
 
 // today's events for the dashboard. `bump` changes (e.g. the mower's state) ask again right away,
-// otherwise every 30 s since there's no live event topic
+// otherwise every 30 s since there's no live event topic. enabled false: not asked at all
 // kept so the dashboard doesn't start empty every time it's opened again
 let cached: RecentRuns | null = null;
 
 // the newest run as last asked for, without asking again
 export const lastRun = (): Run | undefined => cached?.latest[0];
 
-export function useRecentRuns(bump?: string): RecentRuns | null {
+export function useRecentRuns(bump?: string, enabled = true): RecentRuns | null {
   const [data, setData] = useState<RecentRuns | null>(cached);
   const lastBump = useRef(bump);
 
   useEffect(() => {
+    if (!enabled) return;
     let alive = true;
     // the state changed, so there's something new in the history: don't reuse a recent answer
     if (bump !== lastBump.current) {
@@ -55,7 +56,7 @@ export function useRecentRuns(bump?: string): RecentRuns | null {
       alive = false;
       clearInterval(timer);
     };
-  }, [bump]);
+  }, [bump, enabled]);
 
   return data;
 }
