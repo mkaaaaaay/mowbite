@@ -4,6 +4,9 @@ import {afterEach, describe, expect, it, vi} from 'vitest';
 const net = vi.hoisted(() => ({
   selected: '',
   app: false,
+  // t: nothing listens there, or a web server without MowBite
+  t: 'down' as 'down' | 'other',
+  tAsked: 0,
   a: {colors: {mower: '#111111'}, mowers: [{id: 't', name: 'Tron', host: 't'}], icons: {mower: 'punisher'}} as Record<string, unknown>,
   posted: [] as Record<string, unknown>[],
 }));
@@ -14,6 +17,10 @@ vi.mock('./mowers', () => ({
   selectedMowerId: () => net.selected,
   selectedMower: () => (net.selected ? {id: net.selected, name: net.selected, host: net.selected} : null),
   mowerFetch: async (url: string, init?: RequestInit) => {
+    if (url.startsWith('http://t:8082')) {
+      net.tAsked++;
+      if (net.t === 'other') return new Response('not found', {status: 404});
+    }
     if (url.startsWith('http://t:8082') || (net.app && net.selected === 't')) throw new TypeError('Failed to fetch');
     if (init?.method === 'POST') {
       net.a = JSON.parse(String(init.body));
@@ -93,5 +100,21 @@ describe('a mower without a container', () => {
     net.selected = 't';
     const s = await import('./settings');
     expect(s.settingsStore.snapshot()).toEqual({colors: {mower: '#333333'}, icons: {mower: 'robot'}});
+  });
+
+  it('is asked less and less often while nothing answers there, not again once it answered without settings', async () => {
+    vi.useFakeTimers();
+    net.tAsked = 0;
+    await open('t');
+    await vi.advanceTimersByTimeAsync(600000);
+    // at the start, after 30 s, 1:30, 3:30 and 7:30
+    expect(net.tAsked).toBe(5);
+
+    net.t = 'other';
+    net.tAsked = 0;
+    await open('t');
+    await vi.advanceTimersByTimeAsync(600000);
+    expect(net.tAsked).toBe(1);
+    net.t = 'down';
   });
 });

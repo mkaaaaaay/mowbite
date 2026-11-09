@@ -180,11 +180,15 @@ let ownShared = false;
 let syncing: Promise<void> | null = null;
 // the settings here when it was first asked: what differs from them later was changed on this device
 let before: Settings | null = null;
-const again = () =>
+// first after 30 s, then each time twice as long up to half an hour
+let wait = 30000;
+const again = () => {
   setTimeout(() => {
     syncing = null;
     void syncSettings();
-  }, 30000);
+  }, wait);
+  wait = Math.min(wait * 2, 1800000);
+};
 // a container's settings and their version, null when none answers there (the page isn't served by one)
 async function fetchKept(url: string): Promise<Kept | null> {
   const res = await mowerFetch(url, {cache: 'no-store'});
@@ -206,13 +210,14 @@ export function syncSettings(): Promise<void> {
       Object.assign(home, got);
       shared = true;
       const o = ownUrl();
-      const gotOwn = o ? await fetchKept(o).catch(() => null) : null;
+      const gotOwn = o ? await fetchKept(o).catch(() => undefined) : null;
       if (gotOwn) {
         Object.assign(own, gotOwn);
         ownShared = true;
       }
-      // the other mower's own settings as kept here while it can't be reached, it's asked again a while later
-      if (o && !gotOwn) again();
+      // the other mower's own settings as kept here while it can't be reached, it's asked again a while later. one
+      // without a container (it answers, but not with settings) isn't
+      if (gotOwn === undefined) again();
       const server = o ? join(home.server, gotOwn ? own.server : load()) : home.server;
       const mine = load();
       if (mine === before) setLocal(server);
