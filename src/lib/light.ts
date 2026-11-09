@@ -22,7 +22,7 @@ export interface Lights {
   leds: number;
 }
 
-// how many colours an effect uses: blink and chase show the second instead of dark, a gradient spreads all of them
+// how many colors an effect uses: blink and chase show the second instead of dark, a gradient spreads all of them
 const USED: Record<string, number> = {off: 0, solid: 1, pulse: 1, blink: 2, chase: 2};
 export const colorsUsed = (effect: string, most: number) => Math.min(USED[effect] ?? most, most);
 // a period only where something moves, a gradient may stand still (0)
@@ -32,7 +32,7 @@ export const minPeriod = (effect: string, l: Lights['limits']) => (effect === 'g
 // the states in the mower's order, one only in the profile after them, none left out
 export const statesOf = (l: Lights) => [...l.states, ...Object.keys(l.profile).filter((s) => !l.states.includes(s))];
 
-// what the mower takes: the colours the effect uses (at least one where it shows any), the period within its limits
+// what the mower takes: the colors the effect uses (at least one where it shows any), the period within its limits
 // (the mower checks it for every effect)
 export function fitted(e: LightEffect, l: Lights['limits']): LightEffect {
   const n = colorsUsed(e.effect, l.colors);

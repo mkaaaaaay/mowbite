@@ -4,7 +4,7 @@ import {colorsUsed, fitted, statesOf, type Lights} from './light';
 const limits = {colors: 4, min_period: 0.2, max_period: 20, max_preview: 10};
 
 describe('the lights', () => {
-  it('give an effect the colours it uses, at least one where it shows any', () => {
+  it('give an effect the colors it uses, at least one where it shows any', () => {
     expect(colorsUsed('solid', 4)).toBe(1);
     expect(colorsUsed('blink', 4)).toBe(2);
     expect(colorsUsed('gradient', 4)).toBe(4);

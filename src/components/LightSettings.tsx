@@ -39,13 +39,13 @@ const EFFECT_NAMES: Record<string, string> = {
   blink: 'Blinking',
   pulse: 'Pulsing',
   chase: 'Running light',
-  gradient: 'Colour gradient',
+  gradient: 'Color gradient',
 };
 const named = (names: Record<string, string>, key: string) => (names[key] ? tr(names[key]) : key.replace(/_/g, ' ').toLowerCase());
 // a preview shows this long, unless the mower allows less
 const PREVIEW_S = 5;
 
-// the colours of an effect as dots, next to its name
+// the colors of an effect as dots, next to its name
 function Dots({e}: {e: LightEffect}) {
   const colors = e.effect === 'off' ? [] : (e.colors ?? []);
   return (
@@ -67,7 +67,7 @@ function PeriodField({value, effect, lights, styles, onChange}: {value: number; 
   };
   return (
     <label className={styles.field}>
-      {effect === 'gradient' ? tr('One move along the lights in s, 0 stands still') : tr('One cycle in s')}
+      {effect === 'gradient' ? tr('One pass along the lights in s (0: it stands still)') : tr('One cycle in s')}
       <input
         inputMode="decimal"
         value={text ?? dec(value)}
@@ -99,30 +99,30 @@ function EffectFields({value, lights, styles, onChange}: {value: LightEffect; li
       </label>
       {most > 0 && (
         <div className={styles.field}>
-          {tr('Colours')}
+          {tr('Colors')}
           <div className={local.colors}>
             {colors.map((c, i) => (
               <label key={i} className={local.swatch} style={{background: c}} title={c}>
                 <input
                   type="color"
-                  aria-label={tr('Colour {n}', {n: i + 1})}
+                  aria-label={tr('Color {n}', {n: i + 1})}
                   value={c}
                   onChange={(e) => set({colors: colors.map((x, j) => (j === i ? e.target.value : x))})}
                 />
               </label>
             ))}
             {colors.length < most && (
-              <button type="button" className={local.roundButton} aria-label={tr('+ colour')} onClick={() => set({colors: [...colors, colors[colors.length - 1]]})}>
+              <button type="button" className={local.roundButton} aria-label={tr('+ color')} onClick={() => set({colors: [...colors, colors[colors.length - 1]]})}>
                 +
               </button>
             )}
             {colors.length > 1 && (
-              <button type="button" className={local.roundButton} aria-label={tr('− colour')} onClick={() => set({colors: colors.slice(0, -1)})}>
+              <button type="button" className={local.roundButton} aria-label={tr('− color')} onClick={() => set({colors: colors.slice(0, -1)})}>
                 −
               </button>
             )}
           </div>
-          {most === 2 && <small className={styles.dim}>{tr('A second colour shows instead of dark.')}</small>}
+          {most === 2 && <small className={styles.dim}>{tr('The second color shows where it would be dark.')}</small>}
         </div>
       )}
       {moves(value.effect) && <PeriodField value={value.period ?? 1} effect={value.effect} lights={lights} styles={styles} onChange={(period) => set({period})} />}
@@ -136,7 +136,7 @@ function EffectFields({value, lights, styles, onChange}: {value: LightEffect; li
   );
 }
 
-// the lights of a mower with MowBite OS: each state folded to its name and colours, tried on the mower and saved by
+// the lights of a mower with MowBite OS: each state folded to its name and colors, tried on the mower and saved by
 // itself
 export function LightSettings({styles}: {styles: Record<string, string>}) {
   useLang();
@@ -199,7 +199,7 @@ export function LightSettings({styles}: {styles: Record<string, string>}) {
     setNote(null);
     try {
       const r = await previewLight(effectOf(s), Math.min(PREVIEW_S, lights.limits.max_preview));
-      setNote({state: s, text: r.emergency ? tr('An emergency stop shows over it right now.') : tr('Shows on the mower for {n} s.', {n: fmt(r.duration, 0)})});
+      setNote({state: s, text: r.emergency ? tr('Not visible right now: the lights show the emergency stop.') : tr('Shows on the mower for {n} s.', {n: fmt(r.duration, 0)})});
     } catch (e) {
       setNote({state: s, text: answerError(e), error: true});
     }

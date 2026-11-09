@@ -10,7 +10,7 @@ test.describe('lights', () => {
     await expect(page.locator('#lights')).toHaveCount(0);
   });
 
-  test('each state folded with its colours, changed, tried on the mower and saved in its own tile', async ({page}) => {
+  test('each state folded with its colors, changed, tried on the mower and saved in its own tile', async ({page}) => {
     await page.addInitScript(() => ((window as {mowbiteDemoLights?: boolean}).mowbiteDemoLights = true));
     await page.goto('/settings/');
     const group = page.locator('#lights');
@@ -25,7 +25,7 @@ test.describe('lights', () => {
     await expect(mowing.getByRole('button', {name: 'Save'})).toHaveCount(0);
     await mowing.locator('select').selectOption('blink');
     await expect(mowing.locator('summary')).toContainText('changed');
-    await mowing.getByRole('button', {name: '+ colour'}).click();
+    await mowing.getByRole('button', {name: '+ color'}).click();
     await expect(mowing.locator('summary [style*="background"]')).toHaveCount(2);
     await mowing.locator('input[type=color]').nth(1).fill('#ff00ff');
     await expect(mowing.locator('label[title="#ff00ff"]')).toHaveCount(1);

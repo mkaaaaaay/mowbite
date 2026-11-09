@@ -59,7 +59,7 @@ export const PARAM_FIELDS: ParamField[] = [
     key: 'dock_at_sunset',
     group: 'auto',
     label: 'Go home at sunset',
-    help: 'When the sun sets while it mows, it goes home. Started or continued in the dark on purpose it mows on, and start times allowed in the dark never go home for it. A change counts from the next run.',
+    help: 'When the sun sets while it mows, it goes home. Started or continued in the dark on purpose, or at a start time allowed in the dark, it mows on. A change counts from the next mow.',
     type: 'bool',
     def: true,
     osApi: 6,

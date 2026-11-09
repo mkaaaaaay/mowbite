@@ -145,7 +145,7 @@ export default function SchedulePage() {
               </p>
               {nightMowing && (
                 <p className={styles.dim}>
-                  <strong>{tr('Going home at sunset is switched off: a run mows on into the night.')}</strong>{' '}
+                  <strong>{tr('Going home at sunset is switched off: a mow goes on into the night.')}</strong>{' '}
                   <Link href="/settings#openmower">{tr('Change')}</Link>
                 </p>
               )}

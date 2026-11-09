@@ -249,14 +249,14 @@ const SAYS: [RegExp, (n: string[], m: RegExpMatchArray) => string][] = [
   [
     re(`left/right: the (left|right) wheel is in effect ${N} % smaller \\(diameter, wear, dirt\\), straight on the odometry it turns (?:left|right); OpenMower has one ticks_per_m for both`),
     ([, b], m) =>
-      tr(m[1] === 'left' ? 'Left and right: the left wheel is in effect {b} % smaller (tyre, wear, dirt), the mower pulls to the left.' : 'Left and right: the right wheel is in effect {b} % smaller (tyre, wear, dirt), the mower pulls to the right.', {b}) +
+      tr(m[1] === 'left' ? 'Left and right: the left wheel is in effect {b} % smaller (tire, wear, dirt), the mower pulls to the left.' : 'Left and right: the right wheel is in effect {b} % smaller (tire, wear, dirt), the mower pulls to the right.', {b}) +
       ' ' +
       tr(ONE_VALUE),
   ],
   [
     re(`left/right: the (left|right) wheel is in effect ${N} % smaller \\(diameter, wear, dirt\\): ${N} and ${N} ticks/m left and right; OpenMower has one ticks_per_m for both`),
     ([, b], m) =>
-      tr(m[1] === 'left' ? 'Left and right: the left wheel is in effect {b} % smaller (tyre, wear, dirt), the mower pulls to the left.' : 'Left and right: the right wheel is in effect {b} % smaller (tyre, wear, dirt), the mower pulls to the right.', {b}) +
+      tr(m[1] === 'left' ? 'Left and right: the left wheel is in effect {b} % smaller (tire, wear, dirt), the mower pulls to the left.' : 'Left and right: the right wheel is in effect {b} % smaller (tire, wear, dirt), the mower pulls to the right.', {b}) +
       ' ' +
       tr(ONE_VALUE),
   ],

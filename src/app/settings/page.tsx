@@ -391,12 +391,12 @@ export default function SettingsPage() {
         )}
 
         {lights && (
-          <Group id="lights" title={tr('Lights')} hint={tr('Colour and effect by state')}>
+          <Group id="lights" title={tr('Lights')} hint={tr('Color and effect by state')}>
             <LightSettings styles={styles} />
           </Group>
         )}
         {sounds && (
-          <Group id="sounds" title={tr('Sounds')} hint={tr('Volume, each one to listen to')}>
+          <Group id="sounds" title={tr('Sounds')} hint={tr('Volume, listen to each sound')}>
             <SoundSettings styles={styles} />
           </Group>
         )}

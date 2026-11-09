@@ -1,4 +1,5 @@
-import {describe, expect, it} from 'vitest';
+import {describe, expect, it, vi} from 'vitest';
+import {setLangChoice} from './i18n';
 import {chargeStateText, gpsQuality, statusText} from './status';
 
 describe('gpsQuality', () => {
@@ -34,5 +35,16 @@ describe('chargeStateText', () => {
     expect(chargeStateText('CC')).toBe('Fast Charge (CC)');
     expect(chargeStateText('Top Off')).toBe('Top Off');
     expect(chargeStateText('Something new')).toBe('Something new');
+  });
+
+  it("has MowBite OS's Fast Charge in german", () => {
+    vi.stubGlobal('document', {documentElement: {lang: 'en'}});
+    setLangChoice('de');
+    try {
+      expect(chargeStateText('Fast Charge')).toBe('Schnellladen');
+    } finally {
+      setLangChoice('en');
+      vi.unstubAllGlobals();
+    }
   });
 });
