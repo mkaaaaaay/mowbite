@@ -115,6 +115,9 @@ start pausedareas "$(state)" "$(base "$DAY")"$'\n'"plan $D $M front"$'\n'"pause 
 start endtime "$(state)" "$(base "$DAY")"$'\n'"plan $D $M end=$(hm "$DAY" 1)"
 start endlate "$(state IDLE 0 0 0.5)" "$(MINBAT=80 base "$DAY")"$'\n'"plan $D $M end=$(hm "$DAY" 1)"
 start noarea "$(state)" "$(base "$DAY")"$'\n'"plan $D $M gone" "MAP=$AREAS"
+# braces in the areas' names: the plan's area is found, an inactive one isn't skipped
+BRACES='{"areas":[{"id":"front","properties":{"name":"Beet }","type":"mow"},"outline":[]},{"id":"back","properties":{"name":"{Rand}","type":"mow","active":false},"outline":[]}]}'
+start braces "$(state)" "$(base "$DAY")"$'\n'"plan $D $M front" "MAP=$BRACES" AREA=back
 start gone "$(state IDLE 0 0 0.5)" "$(MINBAT=80 base "$DAY")"$'\n'"plan $D $M"
 # MowBite OS with its own schedule and its own store of the parameters
 OS_METHODS='{"jsonrpc":"2.0","result":["rpc.methods","system.info","schedule.get"],"id":"@ID@"}'
@@ -182,6 +185,10 @@ slog endlate | grep -q '^started' && bad "scheduler: still no start once it's ch
 slog start | grep -q '^start_failed' && bad "scheduler: a mower that drives off isn't taken for one that didn't" "$(slog start)" ||
   ok "scheduler: a mower that drives off isn't taken for one that didn't"
 logs "scheduler: no start when none of the plan's areas is in the map" noarea '^skip_no_area( at=[0-9:]+)?$'
+logs "scheduler: an area with a brace in its name is found" braces '^started'
+sleep 5
+slog braces | grep -q '^skipped_area' && bad "scheduler: an inactive area with a brace in its name isn't skipped" "$(slog braces)" ||
+  ok "scheduler: an inactive area with a brace in its name isn't skipped"
 logs "scheduler: waits for the battery (start time taken out next)" gone '^waiting_battery 50( at=[0-9:]+)?$'
 docker exec mbt-gone sh -c "grep -v '^plan' /data/schedule.txt > /tmp/s && cat /tmp/s > /data/schedule.txt"
 logs "scheduler: a start time taken out while it waits isn't started" gone '^skip_gone( at=[0-9:]+)?$' 40

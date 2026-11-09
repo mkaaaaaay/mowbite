@@ -35,10 +35,18 @@ battery() {
   field "$1" battery_percentage | awk '{printf "%d", $1 * 100}'
 }
 # the areas of a map/json, one "id":"...","properties":{...} a line. objects in the properties (an area's planner
-# settings) become null, so the properties end at their own brace
+# settings) become null, so the properties end at their own brace. braces in strings (a name) are put aside meanwhile
 map_areas() {
-  tr -d ' \n' | sed -e 's/"properties":[{]/"properties":(/g' -e ':a' -e 's/\("[^"]*":\)[{][^{}]*[}]/\1null/g' -e 'ta' \
-    -e 's/"properties":(/"properties":{/g' | grep -o '"id":"[^"]*","properties":{[^}]*}'
+  tr -d ' \n' | awk 'BEGIN { FS = OFS = "\"" } {
+    s = 0
+    for (i = 2; i <= NF; i++) {
+      # (a quote after an odd number of backslashes is part of the string)
+      if (!s || !match($(i - 1), /\\+$/) || RLENGTH % 2 == 0) s = !s
+      if (s && $i ~ /[{}]/) { gsub(/[{]/, "\001", $i); gsub(/[}]/, "\002", $i) }
+    }
+    print
+  }' | sed -e 's/"properties":[{]/"properties":(/g' -e ':a' -e 's/\("[^"]*":\)[{][^{}]*[}]/\1null/g' -e 'ta' \
+    -e 's/"properties":(/"properties":{/g' | grep -o '"id":"[^"]*","properties":{[^}]*}' | tr '\001\002' '{}'
 }
 
 # the pause of today as the file has it now: all, a list of area ids or nothing
