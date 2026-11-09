@@ -3,6 +3,7 @@ import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {describe, expect, it} from 'vitest';
 import de from './i18n/de';
+import {COMMAND, RPC} from './openmower';
 import {EMERGENCY_BITS, EMERGENCY_HIDE, EMERGENCY_TEXT, EVENTS, REASONS, pick} from './reasonTexts';
 
 // MowBite OS's interface (system.api) as its owner has it, copied from the commit below. a newer one: copy it from
@@ -20,8 +21,34 @@ const api = JSON.parse(raw.toString()) as {
   'x-api': number;
   'x-reasons': Record<string, Record<string, Rating>>;
   'x-emergency-bits': {bit: number; name: string}[];
+  'x-methods': Record<string, unknown>;
+  'x-sensors': Record<string, {name: string}>;
   $defs: Record<string, unknown>;
 };
+
+// the OS's methods the app doesn't offer (yet), each with why. a new method in the contract stays red until the app
+// calls it or it is put here
+const NOT_OFFERED: Record<string, string> = {
+  'calibration.start': "the calibration page records through the planner, the OS's own calibration has no page yet",
+  'calibration.check': 'as calibration.start',
+  'calibration.abort': 'as calibration.start',
+  'calibration.result': 'as calibration.start',
+  'docking.start': 'no button yet to send a mower home that stands idle away from the dock',
+  'events.history.delete': 'no deleting of the history in the app',
+  'position.history.delete': 'no deleting of the history in the app',
+  'ntrip.get': 'no NTRIP access in the app yet',
+  'ntrip.set': 'as ntrip.get',
+  'ntrip.delete': 'as ntrip.get',
+  'robot.geometry.get': "the mower's sizes are set through the planner's settings",
+  'robot.geometry.set': 'as robot.geometry.get',
+  'sensors.list': 'the sensors come over MQTT (sensor_infos/json)',
+  'rpc.ping': 'rpc.methods already tells whether it answers',
+  'system.api': "the app has its copy of the contract here and reads the api's number from system.info",
+  'system.hold': "the updater's, it holds restarts while it works",
+};
+// what the app calls on a mower; planner.* is the MowBite Planner's, not the OS's
+const appMethods = new Set([...Object.values(RPC), ...Object.values(COMMAND).map((c) => c.method)].filter((m) => !m.startsWith('planner.')));
+const osMethods = Object.keys(api['x-methods']);
 
 // events only OpenMower or the planner send
 const NOT_OS = ['GPS', 'FULLY_CHARGED', 'NAVIGATION_ERROR', 'LEFTOVERS_ARMED'];
@@ -81,6 +108,20 @@ describe(`MowBite OS's interface (${PINNED.repo} ${PINNED.commit.slice(0, 7)}, a
           const named = [pick(EVENTS[type]?.variants, e), pick(REASONS[reason], e)].some((v) => v?.when && Object.keys(fields).every((k) => k in v.when!));
           expect(named, `${type} ${reason} ${JSON.stringify(fields)}`).toBe(true);
         }
+  });
+
+  it('has every method the app calls', () => {
+    expect([...appMethods].filter((m) => !osMethods.includes(m))).toEqual([]);
+  });
+
+  it('either calls each of its methods or says why not', () => {
+    expect(osMethods.filter((m) => !appMethods.has(m) && !(m in NOT_OFFERED)), 'call them or add them to NOT_OFFERED').toEqual([]);
+    expect(Object.keys(NOT_OFFERED).filter((m) => appMethods.has(m) || !osMethods.includes(m)), 'used or gone, take them out of NOT_OFFERED').toEqual([]);
+  });
+
+  it('has every sensor name in german, a name without small letters (NTRIP) stays as it is', () => {
+    const names = Object.values(api['x-sensors']).map((s) => s.name);
+    expect(names.filter((n) => /[a-z]/.test(n) && !de[n])).toEqual([]);
   });
 
   it("has no words for events, reasons or bits the OS doesn't know", () => {
