@@ -74,11 +74,42 @@ export function leaveRemoved() {
   if (!isApp() && id && id !== DEMO_ID && !mowerList().some((m) => m.id === id)) selectMower('');
 }
 
+// a key in this device's storage for what's kept for the mower looked at, the key alone for the one the page comes from
+export function mowerKey(key: string): string {
+  const id = selectedMower()?.id;
+  return id ? `${key} ${id}` : key;
+}
+
+// json kept in this device's storage, null when there's none or it can't be read
+export function readStored<T>(key: string): T | null {
+  try {
+    const v = localStorage.getItem(key);
+    return v ? (JSON.parse(v) as T) : null;
+  } catch {
+    return null;
+  }
+}
+
+// null takes it out
+export function writeStored(key: string, value: unknown) {
+  try {
+    if (value === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, JSON.stringify(value));
+  } catch {}
+}
+
+// the same for what's kept for the mower looked at (mowerKey)
+export const readMower = <T>(key: string) => readStored<T>(mowerKey(key));
+export const writeMower = (key: string, value: unknown) => writeStored(mowerKey(key), value);
+
+// where a mower's MowBite answers
+export const mowerBase = (m: OtherMower) => `http://${m.host}:${m.appPort ?? 8082}`;
+
 // where the selected mower's MowBite answers (sensor history, backups, schedule)
 export function apiBase(): string {
   if (typeof window === 'undefined') return '';
   const m = selectedMower();
-  return m && m.id !== DEMO_ID ? `http://${m.host}:${m.appPort ?? 8082}` : '';
+  return m && m.id !== DEMO_ID ? mowerBase(m) : '';
 }
 
 // a request to the selected mower's MowBite, the demo mower answers it itself

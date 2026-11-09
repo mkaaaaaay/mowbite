@@ -3,7 +3,7 @@ import {mkdtempSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {describe, expect, it} from 'vitest';
-import {defaultNotify, parseNotify, randomTopic, serializeNotify, validServer, validTopic} from './notify';
+import {defaultNotify, parseNotify, randomTopic, serializeNotify, validServer, validTopic, withMowerUrl} from './notify';
 
 const fallback = defaultNotify('de', 'http://openmower:8082', 'Steve');
 
@@ -48,6 +48,16 @@ describe('push message settings', () => {
 });
 
 // docker/notify.awk with the awk on the path, in the CI the container's busybox one (several times slower than mawk)
+describe("a mower's address in its push message settings", () => {
+  it("takes the mower's own where the page's was saved, keeps any other", () => {
+    const page = 'http://openmower:8082';
+    const saved = defaultNotify('en', page + '/', 'B');
+    expect(withMowerUrl(saved, 'http://b:8082', page).url).toBe('http://b:8082');
+    expect(withMowerUrl({...saved, url: 'http://mower.example'}, 'http://b:8082', page).url).toBe('http://mower.example');
+    expect(withMowerUrl(saved, page, page)).toBe(saved);
+  });
+});
+
 describe('what the container sends', {timeout: 30_000}, () => {
   // what it puts out for the topic (ntfy) or for the phones signed up in the app (push)
   const lines = (input: string, conf: string, snooze?: number, to: 'ntfy' | 'push' = 'ntfy') => {

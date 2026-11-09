@@ -32,6 +32,7 @@ import {fileDay} from '@/lib/history';
 import {describe, emergencyText, explain, groupRuns, noteworthy, OUTCOMES, resetRefusedText, stopReleaseText, type MowerEvent, type Run} from '@/lib/events';
 import {useMowbiteOs, useOsApi, useStopRelease} from '@/lib/mowerOs';
 import {useChargeConfirmed} from '@/hooks/useChargeConfirmed';
+import {mowerKey} from '@/lib/mowers';
 import {settingsStore} from '@/lib/settings';
 import {PARTS, useDueParts} from '@/lib/stats';
 import {containerHas, useUpdates} from '@/lib/updates';
@@ -245,7 +246,7 @@ export default function Home() {
   // the left out start closed on this device, by its time
   const [missedSeen, setMissedSeen] = useState(() => {
     try {
-      return Number(localStorage.getItem(MISSED_SEEN_KEY)) || 0;
+      return Number(localStorage.getItem(mowerKey(MISSED_SEEN_KEY))) || 0;
     } catch {
       return 0;
     }
@@ -666,7 +667,7 @@ export default function Home() {
                   onClick={() => {
                     setMissedSeen(missed.t);
                     try {
-                      localStorage.setItem(MISSED_SEEN_KEY, String(missed.t));
+                      localStorage.setItem(mowerKey(MISSED_SEEN_KEY), String(missed.t));
                     } catch {}
                   }}
                 >
