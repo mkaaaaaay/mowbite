@@ -122,6 +122,38 @@ function SoundsArt() {
   );
 }
 
+function OwnSoundArt() {
+  // the own sound chosen, sent in parts, then it is the situation's
+  const bar = anim('width', DUR, [0, 0.3, 0.6, 1], [0, 0, 248, 248]);
+  return (
+    <Scene still={DUR} label={tr('Your own sounds')}>
+      <rect x={20} y={14} width={280} height={172} rx={12} style={card} />
+      <text x={36} y={42} fontSize={13} fontWeight={600} style={text}>
+        {tr('Mowing starts')}
+      </text>
+      <rect x={36} y={58} width={150} height={28} rx={14} style={{fill: 'var(--background)', stroke: 'var(--card-border)'}}>
+        {tap(0.2)}
+      </rect>
+      <text x={111} y={76} fontSize={12} textAnchor="middle" style={text}>
+        {tr('Choose your own sound')}
+      </text>
+      <rect x={36} y={104} width={248} height={6} rx={3} style={{fill: 'var(--well, rgba(0, 0, 0, 0.12))'}} />
+      <rect x={36} y={104} width={0} height={6} rx={3} style={accent}>
+        {bar}
+      </rect>
+      <g opacity={0}>
+        {appear(0.7)}
+        <text x={36} y={140} fontSize={12} style={dim}>
+          {tr('{n} s, {from}', {n: 4, from: tr('your own')})}
+        </text>
+        <text x={36} y={166} fontSize={12} textDecoration="underline" style={dim}>
+          {tr('Sound of the manufacturer')}
+        </text>
+      </g>
+    </Scene>
+  );
+}
+
 const LIGHTS: GuideStep[] = [
   {
     title: 'Lights by state',
@@ -139,12 +171,18 @@ const SOUNDS: GuideStep = {
   text: 'A mower with a speaker plays a sound in some situations, such as when mowing starts or the battery is low. Settings › Sounds lists them: tap Listen to hear one on the mower. One volume counts for all of them. At 0 it plays nothing at all, not even for an emergency stop.',
   Art: SoundsArt,
 };
+const OWN_SOUND: GuideStep = {
+  title: 'Your own sounds',
+  text: "Choose your own sound picks an MP3 on this device for a situation, at most 30 s long and 2 MB large. It goes to the mower in parts, the mower checks it, then plays it instead of the manufacturer's. Sound of the manufacturer deletes yours again, tap it twice.",
+  Art: OwnSoundArt,
+};
 
 export default function LightsGuidePage() {
   const methods = useRpcMethods();
   const lights = !!methods?.has(RPC.lightGet);
   const sounds = !!methods?.has(RPC.soundList);
-  // both while it isn't known (yet) what the mower has
-  const steps = lights || sounds ? [...(lights ? LIGHTS : []), ...(sounds ? [SOUNDS] : [])] : [...LIGHTS, SOUNDS];
+  const own = !!methods?.has(RPC.soundUpload);
+  // all while it isn't known (yet) what the mower has
+  const steps = lights || sounds ? [...(lights ? LIGHTS : []), ...(sounds ? [SOUNDS] : []), ...(own ? [OWN_SOUND] : [])] : [...LIGHTS, SOUNDS, OWN_SOUND];
   return <Guide steps={steps} done={{label: 'To the settings', href: lights || !sounds ? '/settings#lights' : '/settings#sounds'}} />;
 }

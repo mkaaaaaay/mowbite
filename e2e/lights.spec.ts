@@ -59,12 +59,12 @@ test.describe('lights', () => {
     await page.reload();
     await page.getByRole('link', {name: 'Sounds', exact: true}).click();
     await expect(page.getByRole('heading', {name: 'Sounds'})).toBeVisible();
-    await expect(page.getByText('1/1')).toBeVisible();
+    await expect(page.getByText('1/2')).toBeVisible();
 
     await page.addInitScript(() => ((window as {mowbiteDemoLights?: boolean}).mowbiteDemoLights = true));
     await page.goto('/settings/#guides');
     await page.getByRole('link', {name: 'Lights and sounds'}).click();
     await expect(page.getByRole('heading', {name: 'Lights by state'})).toBeVisible();
-    await expect(page.getByText('1/3')).toBeVisible();
+    await expect(page.getByText('1/4')).toBeVisible();
   });
 });
