@@ -30,7 +30,20 @@ export function areaProperties(): Promise<Set<string>> {
 export function useAreaProperties(): Set<string> {
   const [props, setProps] = useState<Set<string>>(() => new Set());
   useEffect(() => {
-    void areaProperties().then(setProps);
+    let alive = true;
+    let again: ReturnType<typeof setTimeout> | undefined;
+    // asked again while the mower hasn't said which methods it has, a page kept open would go without them otherwise
+    const ask = () =>
+      void areaProperties().then((p) => {
+        if (!alive) return;
+        setProps((old) => (old.size === p.size && [...p].every((k) => old.has(k)) ? old : p));
+        if (methodsUnknown()) again = setTimeout(ask, 5000);
+      });
+    ask();
+    return () => {
+      alive = false;
+      clearTimeout(again);
+    };
   }, []);
   return props;
 }
