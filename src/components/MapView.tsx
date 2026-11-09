@@ -339,6 +339,16 @@ function MapView({
   const [aligning, setAligning] = useState<[number, number] | null>(null);
   // the view from the last visit, until zoomed, panned or reset. a spot to show wins over it
   const [restore, setRestore] = useState(() => (viewKey && !focus ? (savedViews.get(viewKey) ?? null) : null));
+  // a new spot to show (a map kept open that gets another link) takes the view from what was zoomed to before
+  const focusKey = focus ? `${focus.x},${focus.y}` : null;
+  const [focused, setFocused] = useState(focusKey);
+  if (focusKey !== focused) {
+    setFocused(focusKey);
+    if (focusKey) {
+      setViewMeters(null);
+      setRestore(null);
+    }
+  }
   // in follow mode zooming changes how many meters around the mower are shown
   const [followZoom, setFollowZoom] = useState(1);
   // the zoom a pinch asks for while the map glides along the mower: shown by scaling what's drawn (slide) until it's
