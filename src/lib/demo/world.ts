@@ -1,5 +1,5 @@
 import type {MapArea, MowerMap, Point} from '@/hooks/useMowerMap';
-import {linkStripes, mowPlan} from '../mowPlan';
+import {linkStripes, mowPlan, ownCount} from '../mowPlan';
 import {ACTION, PARAM, RPC, TOPIC} from '../openmower';
 import {EMERGENCY_BITS} from '../reasonTexts';
 import {closedRings, openRing, openRings} from '../rings';
@@ -229,8 +229,8 @@ export function areaPaths(
     outline: area.outline,
     holes: obstacles,
     outlineOffset: p.outline_offset ?? (params['/mower_logic/outline_offset'] as number),
-    outlineCount: p.outline_count ?? (params[PARAM.outlineCount] as number),
-    overlapCount: p.outline_overlap_count ?? (params['/mower_logic/outline_overlap_count'] as number),
+    outlineCount: ownCount(p.outline_count) ?? (params[PARAM.outlineCount] as number),
+    overlapCount: ownCount(p.outline_overlap_count) ?? (params['/mower_logic/outline_overlap_count'] as number),
     toolWidth: tool,
     angle,
   });
@@ -421,6 +421,8 @@ export interface Inspection {
 export interface Mow {
   start: number;
   end: number;
+  // started by the schedule
+  planned?: boolean;
 }
 let mows: Mow[] = [];
 export const demoMows = () => mows;
@@ -431,6 +433,11 @@ const dayStart = (now: number, daysAgo: number, hour: number, minute = 0) => {
   d.setHours(hour, minute, 0, 0);
   return d.getTime() / 1000;
 };
+
+// the demo's schedule (lib/demo/api): its starts of the week before today are the mows in the history
+export const DEMO_PLAN = {days: [1, 3, 5], hour: 10, minute: 0};
+const plannedDaysAgo = (now: number) =>
+  [7, 6, 5, 4, 3, 2, 1].filter((ago) => DEMO_PLAN.days.includes(((new Date(dayStart(now, ago, 12) * 1000).getDay() + 6) % 7) + 1));
 
 export function createWorld(deliver: (topic: string, text: string) => void, opts: WorldOptions = {}): World {
   let map = opts.map ?? demoMap();
@@ -700,12 +707,12 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
 
   // the mows of the last days, driven through in one go
   const history = (opts.start ?? 'mowing') === 'mowing';
-  for (const [daysAgo, hour, minute] of history ? ([[5, 14, 30], [3, 10, 0], [1, 10, 0]] as const) : []) {
-    const t = dayStart(last, daysAgo, hour, minute);
+  for (const daysAgo of history ? plannedDaysAgo(last) : []) {
+    const t = dayStart(last, daysAgo, DEMO_PLAN.hour, DEMO_PLAN.minute);
     const length = newJob(t, `demo-job-${daysAgo}`);
     if (!length) continue;
     step(length + 1, t);
-    mows.push({start: t, end: t + length / speed});
+    mows.push({start: t, end: t + length / speed, planned: true});
   }
   // and today's, on its way
   if (history) {

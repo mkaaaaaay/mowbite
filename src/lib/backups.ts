@@ -1,9 +1,11 @@
+import {useState} from 'react';
 import type {MowerMap} from '@/hooks/useMowerMap';
 import {forget, fresh} from './fresh';
 import {tr} from './i18n';
 import {isPin} from './mowerBody';
 import {apiBase, mowerFetch} from './mowers';
 import {closedRings, openRings} from './rings';
+import {rpcErrorText} from './rpcText';
 
 // map backups kept by the container (docker/backups.cgi), so only there when served by it
 export interface BackupInfo {
@@ -17,6 +19,7 @@ export interface BackupInfo {
 
 const PATH = '/cgi-bin/backups';
 const endpoint = () => apiBase() + PATH;
+const httpError = (status: number) => new Error(tr('The mower answered with error {status}. Is MowBite running as a container on the mower?', {status}));
 
 // null: not served, no container keeps backups. undefined: it didn't answer, a save still tries to make one
 export function listBackups(): Promise<BackupInfo[] | null | undefined> {
@@ -35,7 +38,7 @@ export function listBackups(): Promise<BackupInfo[] | null | undefined> {
 
 export async function loadBackup(id: string): Promise<MowerMap> {
   const res = await mowerFetch(`${endpoint()}?id=${encodeURIComponent(id)}`, {cache: 'no-store'});
-  if (!res.ok) throw new Error(`backup ${res.status}`);
+  if (!res.ok) throw httpError(res.status);
   return openRings(await res.json());
 }
 
@@ -45,12 +48,45 @@ export async function saveBackup(map: MowerMap, name: string, auto: boolean): Pr
   const res = await mowerFetch(`${endpoint()}?${q}`, {method: 'POST', body: JSON.stringify(closedRings(map))});
   forget('backups');
   if (res.status === 409) throw new Error(tr('{n} backups made by hand are kept at most. Delete one you no longer need first.', {n: 50}));
-  if (!res.ok) throw new Error(`backup ${res.status}`);
+  if (!res.ok) throw httpError(res.status);
+}
+
+// the map on the mower into the backups before it gets replaced: false when no container keeps backups. throws when
+// that failed
+export async function backupFirst(map: MowerMap, name: string): Promise<boolean> {
+  if ((await listBackups().catch(() => undefined)) === null) return false;
+  await saveBackup(map, name, true);
+  return true;
+}
+
+// backupFirst for a save or restore: failed sets the error and the next try goes without a backup (until reset).
+// none: no map, no container for backups, or going without. timeoutMs: gives up after that long
+export function useBackupFirst(fail: (text: string) => void, again: 'save' | 'restore' = 'save', timeoutMs = 0) {
+  const [without, setWithout] = useState(false);
+  const first = async (map: MowerMap | null, name: string): Promise<'made' | 'none' | 'failed'> => {
+    if (!map || without) return 'none';
+    try {
+      const made = backupFirst(map, name);
+      const noAnswer = () => new Promise<never>((_, reject) => setTimeout(() => reject(new Error(tr('no answer'))), timeoutMs));
+      return (await (timeoutMs ? Promise.race([made, noAnswer()]) : made)) ? 'made' : 'none';
+    } catch (e) {
+      setWithout(true);
+      const why = rpcErrorText(e);
+      fail(
+        again === 'restore'
+          ? tr("The map on the mower couldn't be backed up first ({why}). Restore again to go on without that backup.", {why})
+          : tr("The map on the mower couldn't be backed up first ({why}). Tap save again to save without that backup.", {why}),
+      );
+      return 'failed';
+    }
+  };
+  return {first, without, reset: () => setWithout(false)};
 }
 
 export async function deleteBackup(id: string): Promise<void> {
-  await mowerFetch(`${endpoint()}?action=delete&id=${encodeURIComponent(id)}`, {method: 'POST'});
+  const res = await mowerFetch(`${endpoint()}?action=delete&id=${encodeURIComponent(id)}`, {method: 'POST'});
   forget('backups');
+  if (!res.ok) throw httpError(res.status);
 }
 
 // whether a backup made after `since` has another angle for the area than `angle`. backups are made before every save,

@@ -169,7 +169,7 @@ describe('the updater on the mower', () => {
     expect(r({planner: 'stopped', planner_available: 'no main', planner_source: 'github'}, 'planner')).toMatchObject({level: 'ok', text: 'stopped, it stays stopped as it was'});
     expect(r({planner: 'stopped', planner_available: 'yes main', planner_source: 'github'}, 'planner').level).toBe('warn');
     // a build changes no compose file
-    expect(r({planner: 'error compose', planner_source: 'github'}, 'planner').text).toContain('built anew');
+    expect(r({planner: 'error compose', planner_source: 'github'}, 'planner').text).toContain('rebuilt');
     // one it doesn't know: its code, and the log
     expect(r({mowbite: 'error weird 42'}).text).toBe('failed (weird 42), see the log');
     // the room it needs: OpenMower with 1 GB to spare, an app with some, a build counts it in

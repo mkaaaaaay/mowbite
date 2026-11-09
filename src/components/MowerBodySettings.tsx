@@ -294,7 +294,7 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
       )}
       {taken && (
         <p className={styles.dim}>
-          {tr("Taken on its own: the sizes are exactly this model's.")}{' '}
+          {tr("Picked by itself: the sizes match this model exactly.")}{' '}
           <button className={styles.linkButton} disabled={state.busy} onClick={() => void toRectangle()}>
             {tr('Keep the rectangle')}
           </button>
@@ -302,7 +302,7 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
       )}
       {offered && !known.robot_outline && (
         <p className={styles.dim}>
-          {tr('This model has a measured outline. The planner on the mower does not know outlines yet (newer image), it checks the rectangle until then.')}
+          {tr("This model has a measured outline. The planner on the mower doesn't support outlines yet (needs a newer image), until then it checks the rectangle.")}
         </p>
       )}
       {offered && known.robot_outline && (
@@ -350,7 +350,7 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
         {state.saved && (
           <span className={styles.dim}>
             {outline && !known.robot_outline
-              ? tr('Saved, without the outline: the planner on the mower does not know outlines yet.')
+              ? tr("Saved, without the outline: the planner on the mower doesn't support outlines yet.")
               : tr('Saved. It counts from the next plan, an interrupted area starts again.')}
           </span>
         )}

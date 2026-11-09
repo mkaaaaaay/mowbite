@@ -14,9 +14,10 @@
 }
 
 
+/* each as wide as its name and an equal share of the rest, so a long name keeps off the edge and its neighbours */
 .nav a {
   display: flex;
-  flex: 1;
+  flex: 1 1 auto;
   flex-direction: column;
   align-items: center;
   gap: 3px;

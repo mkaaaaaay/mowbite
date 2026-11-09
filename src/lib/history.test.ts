@@ -11,8 +11,11 @@ describe('event history days', () => {
     const today = fileDay(new Date());
     const y = new Date();
     y.setDate(y.getDate() - 1);
-    expect(localDays([fileDay(y), '20260901'])).toEqual([today, fileDay(y), '20260901']);
-    expect(localDays(['20260901'])).toEqual(['20260901']);
+    expect(localDays([fileDay(y), '20260901'])).toEqual([today, fileDay(y), '20260902', '20260901']);
+  });
+  it('has a chip for a day whose only hours are in the file before (east of utc)', () => {
+    // 00:30 on the 2nd in Berlin is in the file of the 1st, the 2nd has none of its own
+    expect(localDays(['20261001', '20261004'])).toEqual(['20261005', '20261004', '20261002', '20261001']);
   });
   it("leaves out tomorrow's file, west of utc it's there in the evening already", () => {
     const today = fileDay(new Date());

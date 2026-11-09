@@ -3,7 +3,7 @@
 // restored: what the editor drops once a backup is on the mower
 import {useEffect, useState} from 'react';
 import {saveMap, type MowerMap} from '@/hooks/useMowerMap';
-import {listBackups, loadBackup, saveBackup, type BackupInfo} from '@/lib/backups';
+import {listBackups, loadBackup, useBackupFirst, type BackupInfo} from '@/lib/backups';
 import {mapToGeoJson} from '@/lib/geojson';
 import type {Datum} from '@/lib/imagery';
 import {closedRings} from '@/lib/rings';
@@ -16,6 +16,8 @@ export function useMapBackups(liveMap: MowerMap | null, shown: MowerMap | null, 
   const [confirmRestore, setConfirmRestore] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [restoreError, setRestoreError] = useState<string | null>(null);
+  // the backup before it failed, the next try restores without one
+  const backupFirst = useBackupFirst(setRestoreError, 'restore');
   const refreshBackups = () => listBackups().then(setBackups);
   useEffect(() => {
     void listBackups().then(setBackups);
@@ -24,13 +26,14 @@ export function useMapBackups(liveMap: MowerMap | null, shown: MowerMap | null, 
     setPreview(null);
     setConfirmRestore(false);
     setRestoreError(null);
+    backupFirst.reset();
   };
   const restore = async () => {
     if (!preview) return;
     setRestoring(true);
     setRestoreError(null);
     try {
-      if (backups !== null && liveMap) await saveBackup(liveMap, 'before restoring', true);
+      if ((await backupFirst.first(liveMap, 'before restoring')) === 'failed') return;
       await saveMap(preview.map);
       restored();
       closePreview();
@@ -58,5 +61,19 @@ export function useMapBackups(liveMap: MowerMap | null, shown: MowerMap | null, 
     await saveFile(fileName(new Date(), 'geojson'), JSON.stringify(mapToGeoJson(shown, datum), null, 2), 'application/geo+json');
   };
 
-  return {backups, preview, setPreview, confirmRestore, setConfirmRestore, restoring, restoreError, refreshBackups, closePreview, restore, download, downloadGeo};
+  return {
+    backups,
+    restoreWithoutBackup: backupFirst.without,
+    preview,
+    setPreview,
+    confirmRestore,
+    setConfirmRestore,
+    restoring,
+    restoreError,
+    refreshBackups,
+    closePreview,
+    restore,
+    download,
+    downloadGeo,
+  };
 }

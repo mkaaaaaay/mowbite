@@ -147,7 +147,7 @@ export const EVENTS: Record<string, EventText> = {
   // a command the mower turned down without an event of its own, only in the answer to its call
   COMMAND_REFUSED: one('Not done'),
   // a request over MQTT 5 it couldn't answer (its response topic or correlation data), only in the answer
-  REQUEST_REFUSED: one('Request turned down', 'error'),
+  REQUEST_REFUSED: one('Request refused', 'error'),
   CALIBRATION_REFUSED: one('Calibration not started', 'warning'),
   CALIBRATION: {
     severity: 'info',
@@ -333,7 +333,7 @@ export const REASONS: Record<string, Variant[]> = {
   MANUAL: [r('by hand')],
   CROSS_TRACK: [r('too far off its path')],
   OUTSIDE: [r('outside the area it may drive in')],
-  TIMEOUT: [r('took too long', {when: {type: 'CALIBRATION_FAILED'}}), r('not getting on, maybe stuck')],
+  TIMEOUT: [r('took too long', {when: {type: 'CALIBRATION_FAILED'}}), r('not making progress, maybe stuck')],
   INVALID: [r('the path is not valid')],
   NOT_ALLOWED: [r('driving not allowed')],
   PLANNING_FAILED: [r("the planner couldn't make the plan")],
@@ -351,7 +351,7 @@ export const REASONS: Record<string, Variant[]> = {
   RING_CROSSES_ITSELF: [r('the line crosses itself')],
   RING_TOO_SMALL: [r('it encloses only {area:2} m², at least {limit:2} m² needed')],
   NO_OUTLINE: [r('no outline recorded yet')],
-  TOO_MANY_POINTS: [r('the line has {limit} points, the most there can be: close it')],
+  TOO_MANY_POINTS: [r('the line has {limit} points, the maximum: close it')],
   POINT_TOO_CLOSE: [r('only {distance:2} m from the last point, more than {limit:2} m needed')],
   DOCK_TOO_CLOSE: [r('only {distance:2} m from the first point, the direction needs at least {limit:2} m')],
   // one with a code not known here says the mower's text (fallback)
@@ -415,7 +415,7 @@ export const REASONS: Record<string, Variant[]> = {
     r("the IMU measures {gravity:1} m/s² of gravity, that's not right", {when: {gravity: {present: true}}}),
     r("the IMU doesn't measure gravity as it should"),
   ],
-  GYRO_SIGN: [r('the gyro turns the other way than the wheels')],
+  GYRO_SIGN: [r('the gyro measures turning the other way than the wheels')],
   NOT_MOVING: [r("doesn't move")],
   NOT_TURNING: [r("doesn't turn")],
   OVERSPEED: [r('drove faster than it should')],
@@ -481,7 +481,7 @@ export const EMERGENCY_TEXT: Record<string, string> = {
   HIGH_LEVEL: 'stopped by OpenMower',
   SERVICE_NOT_READY: 'firmware still starting',
   MOWER_RPM_TIMEOUT: "mow motor didn't reach its speed",
-  MOWER_RPM_LIMIT: 'mow motor too fast',
+  MOWER_RPM_LIMIT: 'mow motor outside its speed limits',
   FIRMWARE_INCOMPATIBLE: "firmware doesn't fit OpenMower",
   // MowBite OS's own bits. UNKNOWN is what its log line says for a bit it has no name for
   TILT: 'tilted too far',

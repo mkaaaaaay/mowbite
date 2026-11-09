@@ -4,7 +4,7 @@
 
 import type {GardenLife} from '@/components/gardenLife';
 import {mergeChanges} from './mergeChanges';
-import {apiBase, isDemo, mowerFetch} from './mowers';
+import {apiBase, isDemo, leaveRemoved, mowerFetch} from './mowers';
 import {isApp} from './native';
 
 export const COLORS = [
@@ -91,8 +91,12 @@ const PATH = '/cgi-bin/settings';
 // where the settings are kept: with the mower looked at in the android app (it has no mower of its own), with the one
 // the page comes from in a browser. a browser looking at another mower keeps that one's own settings (MOWER_KEYS)
 // there, ownUrl, the app's (design, colors, the list of mowers) stay home
-const homeUrl = () => (isApp() ? apiBase() : '') + PATH;
-const ownUrl = () => (!isApp() && apiBase() ? apiBase() + PATH : null);
+// both taken at the first sync and kept until the reload a mower switch makes, a mower taken out of the list meanwhile
+// doesn't move them
+let urls: {home: string; own: string | null} | null = null;
+const target = () => (urls ??= {home: (isApp() ? apiBase() : '') + PATH, own: !isApp() && apiBase() ? apiBase() + PATH : null});
+const homeUrl = () => target().home;
+const ownUrl = () => target().own;
 
 const NONE: Settings = {};
 let current: Settings | null = null;
@@ -199,6 +203,7 @@ export function syncSettings(): Promise<void> {
       }
       // what's changed from now on is this device's
       before = load();
+      void saving.then(leaveRemoved);
     } catch {
       // not reached: kept here for now
       again();
@@ -242,13 +247,24 @@ async function push(k: Kept, url: string, body: () => Settings, shown: (merged: 
 // sliders and color pickers fire on every move, only the last state goes to the mower. one save after another
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
 let saving: Promise<void> = Promise.resolve();
+const pushNow = () => {
+  saveTimer = undefined;
+  saving = saving.then(() => pushAll(load())).catch(() => {});
+};
 export function saveSettings(next: Settings) {
   setLocal(next);
   if (!shared) return;
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    saving = saving.then(() => pushAll(current ?? next)).catch(() => {});
-  }, 400);
+  saveTimer = setTimeout(pushNow, 400);
+}
+
+// a save still waiting goes out now, done once it's there (before a reload)
+export function flushSettings(): Promise<void> {
+  if (saveTimer !== undefined) {
+    clearTimeout(saveTimer);
+    pushNow();
+  }
+  return saving;
 }
 
 // what's kept for an area's picture by its id: which one, its color, size, direction, folded up and the ground under it

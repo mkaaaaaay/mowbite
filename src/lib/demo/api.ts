@@ -5,7 +5,7 @@ import {CONTAINER_LEVEL} from '../updates';
 import {closedRings} from '../rings';
 import {CALIB_LIST, demoYaml} from './calib';
 import {demoMap, DEMO_SENSORS} from './garden';
-import {demoMows} from './world';
+import {DEMO_PLAN, demoMows} from './world';
 
 // What the MowBite container on a mower answers (docker/*.cgi), for the demo mower: the schedule, the map backups,
 // the settings and the histories its recorders keep. Changes stay in memory until the app is closed.
@@ -15,7 +15,8 @@ const json = (body: unknown, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), {headers: {'content-type': 'application/json', ...headers}});
 const missing = () => new Response('', {status: 404});
 
-let schedule = ['enabled 1', 'minbattery 80', 'skiprain 1', 'skipforecast 0', 'forecasthours 1', 'plan 1,3,5 10:00', ''].join('\n');
+const planTime = `${String(DEMO_PLAN.hour).padStart(2, '0')}:${String(DEMO_PLAN.minute).padStart(2, '0')}`;
+let schedule = ['enabled 1', 'minbattery 80', 'skiprain 1', 'skipforecast 0', 'forecasthours 1', `plan ${DEMO_PLAN.days.join(',')} ${planTime}`, ''].join('\n');
 let notify = '';
 let params = 'enabled 1\n';
 let settings: unknown = {};
@@ -326,11 +327,7 @@ export async function demoFetch(url: string, init?: RequestInit): Promise<Respon
     case '/cgi-bin/version':
       return json({version: process.env.APP_VERSION ?? '0.0.0', level: CONTAINER_LEVEL});
     case '/cgi-bin/schedule':
-      if (q.has('log')) {
-        const day = 86400;
-        const at = (d: number) => Math.round(Date.now() / 1000 - d * day);
-        return text([`${at(5)} started`, `${at(3)} started`, `${at(1)} started`].join('\n'));
-      }
+      if (q.has('log')) return text(demoMows().flatMap((m) => (m.planned ? [`${Math.round(m.start)} started`] : [])).join('\n'));
       if (post) schedule = body;
       return text(schedule);
     case '/cgi-bin/notify':

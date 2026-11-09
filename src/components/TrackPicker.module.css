@@ -29,6 +29,13 @@
   padding-bottom: 2px;
 }
 
+/* the right end fades out, a chip cut off there shows there's more to scroll to */
+.days {
+  padding-right: 28px;
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+}
+
 .days::-webkit-scrollbar,
 .times::-webkit-scrollbar {
   display: none;

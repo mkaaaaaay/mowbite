@@ -173,6 +173,7 @@ jobs:
     env:
       VERSION_SUFFIX: ${{ github.ref_type != 'tag' && format('dev.{0}', github.run_number) || '' }}
     steps:
+      # (only whether there's one: the key itself is unpacked for gradle alone, after npm's install scripts)
       - id: key
         env:
           KEYSTORE: ${{ secrets.MOWBITE_KEYSTORE }}
@@ -180,8 +181,6 @@ jobs:
           if [ -z "$KEYSTORE" ]; then
             echo "::notice::no signing key in the repo secrets (MOWBITE_KEYSTORE), only the web app goes on the release"
             echo "skip=1" >> "$GITHUB_OUTPUT"
-          else
-            echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/release.jks"
           fi
 
       - uses: actions/checkout@v7
@@ -214,10 +213,13 @@ jobs:
       - if: steps.key.outputs.skip != '1'
         working-directory: android
         env:
+          KEYSTORE: ${{ secrets.MOWBITE_KEYSTORE }}
           MOWBITE_KEYSTORE: ${{ runner.temp }}/release.jks
           MOWBITE_KEYSTORE_PASSWORD: ${{ secrets.MOWBITE_KEYSTORE_PASSWORD }}
           MOWBITE_KEY_ALIAS: ${{ secrets.MOWBITE_KEY_ALIAS }}
         run: |
+          trap 'rm -f "$MOWBITE_KEYSTORE"' EXIT
+          echo "$KEYSTORE" | base64 -d > "$MOWBITE_KEYSTORE"
           ./gradlew assembleRelease --no-daemon -q
           cp app/build/outputs/apk/release/app-release.apk "$RUNNER_TEMP/app/app.apk"
 

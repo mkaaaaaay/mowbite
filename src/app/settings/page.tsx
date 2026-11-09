@@ -3,12 +3,12 @@
 import {GardenDownload} from '@/components/Diagnosis';
 import {TitleMark} from '@/components/Logo';
 import {TitleRow} from '@/components/TopWeather';
-import {saveSettings, settingsStore, sharedSettings, type OtherMower, type Settings} from '@/lib/settings';
+import {flushSettings, saveSettings, settingsStore, sharedSettings, type OtherMower, type Settings} from '@/lib/settings';
 import {useEffect, useState, useSyncExternalStore} from 'react';
 import styles from './page.module.css';
 import {dec, setLangChoice, tr, useLang, useLangChoice} from '@/lib/i18n';
 import {setThemeChoice, useThemeChoice} from '@/lib/theme';
-import {appMowers, DEMO_ID, isDemo, saveAppMowers, selectMower} from '@/lib/mowers';
+import {appMowers, DEMO_ID, isDemo, parseAddress, saveAppMowers, selectedMower, selectMower} from '@/lib/mowers';
 import {isApp} from '@/lib/native';
 import {setSwipeEnabled, useSwipeEnabled} from '@/lib/swipe';
 import {OpenMowerSettings} from '@/components/MowerParamSettings';
@@ -107,8 +107,17 @@ function MowersSection({settings}: {settings: Settings}) {
       setPhoneList(list);
     } else saveSettings({...settingsStore.snapshot(), mowers: list});
   };
+  // the mower looked at taken out: its last save goes out, then the app switches (in a browser to the page's own mower)
+  const remove = async (id: string) => {
+    const viewed = selectedMower()?.id === id;
+    const rest = others.filter((x) => x.id !== id);
+    store(rest);
+    if (!viewed) return;
+    await Promise.race([flushSettings(), new Promise((r) => setTimeout(r, 3000))]);
+    selectMower(app ? (rest[0]?.id ?? '') : '');
+  };
   const add = () => {
-    const h = host.trim().replace(/^https?:\/\//, '').replace(/[/:].*$/, '').toLowerCase();
+    const {host: h, port} = parseAddress(host);
     if (!h) return;
     if (!app && (h === window.location.hostname.toLowerCase() || h === 'localhost' || h === '127.0.0.1')) {
       setError(tr("That's this mower, it's already there. Enter the address of another one."));
@@ -122,7 +131,7 @@ function MowersSection({settings}: {settings: Settings}) {
       id: Math.random().toString(36).slice(2, 10),
       name: name.trim(),
       host: h,
-      appPort: Number(appPort) || 8082,
+      appPort: port ?? (Number(appPort) || 8082),
       wsPort: Number(wsPort) || 9001,
     };
     store([...others, mower]);
@@ -166,7 +175,7 @@ function MowersSection({settings}: {settings: Settings}) {
           </span>
           <button
             className={styles.linkButton}
-            onClick={() => store(others.filter((x) => x.id !== m.id))}
+            onClick={() => void remove(m.id)}
           >
             {tr('Remove')}
           </button>
@@ -268,7 +277,7 @@ export default function SettingsPage() {
           </h1>
         </TitleRow>
         <p className={styles.dim}>
-          {demo ? tr("The demo's: they last until it's left.") : shared ? tr('Saved on the mower, the same on all your devices.') : tr('Saved on this device only.')}
+          {demo ? tr("These are the demo's settings, they're gone once you leave it.") : shared ? tr('Saved on the mower, the same on all your devices.') : tr('Saved on this device only.')}
         </p>
 
         {(planner !== undefined || unanswered || waiting) && (
@@ -340,7 +349,7 @@ export default function SettingsPage() {
                   <p className={styles.dim}>
                     {slic3rPlans(planner)
                       ? tr("Not with OpenMower's slic3r planner, it plans no leftovers.")
-                      : tr("It goes out again by itself when more than 0.3 m² it can reach was left, within 15 minutes of the end or not at all. Not in the rain or with an emergency stop. It doesn't wait for daylight: after a mow that ended at dusk it goes out in the dark.")}
+                      : tr("It goes out again by itself if more than 0.3 m² it can reach was left, at most 15 minutes after the end, otherwise not at all. Not in the rain or with an emergency stop. It doesn't wait for daylight: after a mow that ended at dusk it goes out in the dark.")}
                   </p>
                 </>
               ) : (
@@ -516,6 +525,9 @@ export default function SettingsPage() {
               </Link>
               <Link href="/guide/editor" className={styles.pillButton}>
                 {tr('Edit the map')}
+              </Link>
+              <Link href="/guide/app" className={styles.pillButton}>
+                {tr('Dashboard and mowers')}
               </Link>
               {CALIB_SHOWN && (
                 <Link href="/guide/calibration" className={styles.pillButton}>

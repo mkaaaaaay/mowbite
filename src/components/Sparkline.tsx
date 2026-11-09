@@ -1,6 +1,6 @@
 import type {Sample} from '@/hooks/useSensorHistory';
 import styles from './Sparkline.module.css';
-import {clock} from '@/lib/dates';
+import {clock, dayDate, dayKey} from '@/lib/dates';
 import {fmt, tr} from '@/lib/i18n';
 
 // small line of the history, lowest and highest value next to it
@@ -38,8 +38,10 @@ export default function Sparkline({
   samples.forEach((s, i) => (i && s.t - samples[i - 1].t <= gap ? pieces[pieces.length - 1].push(s) : pieces.push([s])));
   const minutes = Math.max(1, Math.round((t1 - t0) / 60000));
   const range = minutes < 90 ? `${minutes} min` : minutes < 2880 ? `${Math.round(minutes / 60)} h` : `${Math.round(minutes / 1440)} ${tr('d')}`;
-  // when the data ends: a gap up to now isn't drawn either
-  const until = ` · ${tr('until {time}', {time: clock(t1 / 1000)})}`;
+  // when the data ends: a gap up to now isn't drawn either. the day too when that isn't today
+  const end = new Date(t1);
+  const time = dayKey(end) === dayKey(new Date()) ? clock(t1 / 1000) : `${dayDate(end)}, ${clock(t1 / 1000)}`;
+  const until = ` · ${tr('until {time}', {time})}`;
 
   return (
     <div className={styles.wrap}>

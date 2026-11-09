@@ -91,5 +91,11 @@ describe('a command to the mower', () => {
     expect(commandNote()?.text).toBe('The mower answered late: done after all.');
     mower.calls[2].late?.(new RpcError('mowing.reset_job', -32600, 'no job', {event: 'COMMAND_REFUSED', reason: 'NO_JOB', severity: 'info'}));
     expect(commandNote()?.text).toBe('Not done: there is no interrupted job');
+    // a newer command sent meanwhile: the earlier one's late answer doesn't speak for it
+    mower.answer = () => Promise.resolve({state: 'DOCKING', sub_state: ''});
+    sendCommand('mower_logic:mowing/pause');
+    await settle();
+    mower.calls[2].late?.({state: 'IDLE', sub_state: '', job_id: ''});
+    expect(commandNote()).toBeNull();
   });
 });

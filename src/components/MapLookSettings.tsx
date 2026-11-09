@@ -15,7 +15,7 @@ import styles from './MapLookSettings.module.css';
 
 // what can come alive in the garden style, each off unless switched on
 export const LIFE: [keyof GardenLife, string][] = [
-  ['sun', 'Light and shadows after the sun'],
+  ['sun', "Light and shadows by the sun's position"],
   ['season', 'Season and weather on the lawn'],
   ['growth', 'Lawn growing back, cut where the mower goes'],
   ['edge', 'A mowing edge of stones'],

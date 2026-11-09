@@ -13,8 +13,8 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
     printf 'Content-Type: text/plain\r\n\r\ntoo large\n'
     exit 0
   fi
-  head -c "$len" | tr -d '\r' | grep -E '^(enabled [01]|/mower_logic/[a-z0-9_]{1,60} (-?[0-9]{1,6}(\.[0-9]{1,6})?|true|false))$' > "$F.tmp"
-  mv "$F.tmp" "$F"
+  head -c "$len" | tr -d '\r' | grep -E '^(enabled [01]|/mower_logic/[a-z0-9_]{1,60} (-?[0-9]{1,6}(\.[0-9]{1,6})?|true|false))$' > "$F.$$"
+  mv "$F.$$" "$F"
 fi
 cors
 printf 'Content-Type: text/plain\r\nCache-Control: no-store\r\n\r\n'

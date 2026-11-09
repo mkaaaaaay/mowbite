@@ -14,7 +14,7 @@ function text(p: Shown, map: MowerMap): string {
       return tr("has fewer than 3 points, that's no area.");
     case 'dock':
       return tr(
-        "The point {m} m in front of the docking station, where the mower heads for before docking, lies outside every active mowing and navigation area (red on the map). It can't get there, docking fails.",
+        "The point {m} m in front of the docking station, which the mower heads for before docking, lies outside every active mowing and navigation area (red on the map). It can't get there, docking fails.",
         {m: fmt(p.distance, 1)},
       );
     case 'outside':

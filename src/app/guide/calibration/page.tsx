@@ -216,7 +216,7 @@ export default function CalibrationGuidePage() {
           </Art>
           <p>
             {tr(
-              'Stick to the side only, without forward or back, and hold it steady at speed 0.25. One and a half rounds until it looks back, then at least 5 m straight back: so it goes to and fro on one lane. A turn only counts once a run follows it, the turn with its stops within a minute. Rounds in a row count as one turn, what counts are separate turns between straight pieces: at least three to the left and three to the right, four each are better for the wheel distance.',
+              'Stick to the side only, without forward or back, and hold it steady at speed 0.25. One and a half rounds until it looks back, then at least 5 m straight back: so it goes to and fro on one lane. A turn only counts once a run follows it, and the turn including its stops must take less than a minute. Rounds in a row count as one turn, what counts are separate turns between straight pieces: at least three to the left and three to the right, four each are better for the wheel distance.',
             )}
           </p>
           <p className={styles.dim}>{tr('Turns on the spot measure the antenna, all turns between runs the wheel distance.')}</p>
@@ -245,7 +245,7 @@ export default function CalibrationGuidePage() {
             )}
           </p>
           <p className={styles.dim}>
-            {tr("Left and right wheel apart or a tilted IMU are only shown as a note: OpenMower has no setting for them.")}
+            {tr("A difference between the left and right wheel or a tilted IMU is only shown as a note: OpenMower has no setting for them.")}
           </p>
         </section>
 

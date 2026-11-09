@@ -20,10 +20,12 @@ const kept = vi.hoisted(() => ({
     >,
     posted: [] as Record<string, unknown>[],
   },
+  base: 'http://b:8082',
 }));
 vi.mock('./mowers', () => ({
-  apiBase: () => 'http://b:8082',
+  apiBase: () => kept.base,
   isDemo: () => false,
+  leaveRemoved: () => {},
   mowerFetch: async (url: string, init?: RequestInit) => {
     const at = url.startsWith('http://b:8082') ? kept.b : kept.a;
     if (init?.method === 'POST') {
@@ -69,6 +71,18 @@ describe('a browser looking at another mower than the one the page comes from', 
       looks: {a1: 'tree'},
       imagery: {esriKey: 'key', offsets: {esri: [1, 2]}},
     });
+    vi.useRealTimers();
+  });
+
+  it('saves b taken out of the list home with a\'s own settings, not b\'s', async () => {
+    vi.useFakeTimers();
+    // (the list without b: the selected mower is this one from now on)
+    kept.base = '';
+    saveSettings({...settingsStore.snapshot(), mowers: []});
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(kept.b.posted).toHaveLength(1);
+    expect(kept.a.posted.at(-1)).toMatchObject({mowers: [], mower: {width: 0.4}, looks: {a1: 'tree'}});
+    expect(kept.a.posted.at(-1)).not.toHaveProperty('leftovers');
     vi.useRealTimers();
   });
 });

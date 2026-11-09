@@ -298,7 +298,7 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
         ))}
       </div>
       <p className={styles.dim}>
-        {tr("Again and again while the mower can't get on by itself: in emergency stop, or outside the dock after it gave up. Snooze stops that for a while, also from the message (from the home network).")}
+        {tr("Again and again while the mower can't carry on by itself: in emergency stop, or outside the dock after it gave up. Snooze stops that for a while, also from the message (from the home network).")}
       </p>
 
       <h3 className={local.sub}>{tr('Language of the messages')}</h3>

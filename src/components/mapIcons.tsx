@@ -1391,7 +1391,7 @@ export const DOCK_ICONS: {key: string; label: string; real?: typeof YF_STATION; 
   {key: 'dot', label: 'Dot', draw: () => <circle r={0.65} fill="var(--c-dock)" />},
   {
     key: 'yardforce',
-    label: 'YardForce station',
+    label: 'YardForce dock',
     real: YF_STATION,
     draw: () =>
       yfStation(
@@ -1404,7 +1404,7 @@ export const DOCK_ICONS: {key: string; label: string; real?: typeof YF_STATION; 
   },
   {
     key: 'punisher',
-    label: 'Punisher station',
+    label: 'Punisher dock',
     real: YF_STATION,
     // the YardForce station with the cap painted black and the skull on it, like the NX60 Punisher's: in the cap's
     // recess, its top to the front
@@ -1438,7 +1438,7 @@ export const DOCK_ICONS: {key: string; label: string; real?: typeof YF_STATION; 
   },
   {
     key: 'tango',
-    label: 'Tango station',
+    label: 'Tango dock',
     real: TANGO_STATION,
     draw: () => (
       <>

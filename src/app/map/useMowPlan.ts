@@ -5,7 +5,7 @@ import {mowerPlan, planAsker, type PlanRequest} from '@/lib/areaPlan';
 import {angleChangedSince} from '@/lib/backups';
 import {measuredStripeAngle, stripeAngleDiff} from '@/lib/mowDirection';
 import {mowAroundHoles, nestedAreas} from '@/lib/mowAround';
-import {linkStripes, mowPlan, type MowPlan, type PlanChosen} from '@/lib/mowPlan';
+import {linkStripes, mowPlan, ownCount, type MowPlan, type PlanChosen} from '@/lib/mowPlan';
 import {slic3rPlans, usePlannerSettings} from '@/lib/mowerBody';
 import {osSpacing, useMowbiteOs} from '@/lib/mowerOs';
 import type {PlannerEstimateInput} from '@/lib/plannerEstimate';
@@ -138,7 +138,7 @@ export function useMowPlan({
   if (savedArea?.properties.type === 'mow' && pastJobs && !turning && !plannerPicks) {
     // (MowBite OS: the planner's passes for all areas, mower_logic has none)
     const all = os ? plannerValue(null, 'perimeter_passes') : undefined;
-    const passes = savedArea.properties.outline_count ?? (typeof all === 'number' && all >= 0 ? all : numParam(params, PARAM.outlineCount)) ?? 0;
+    const passes = ownCount(savedArea.properties.outline_count) ?? (typeof all === 'number' && all >= 0 ? all : numParam(params, PARAM.outlineCount)) ?? 0;
     const margin = passes * (toolWidth ?? 0.2) + 0.2;
     // newest mowing stretch first, a job that got interrupted can resume with different settings
     const stretches = pastJobs.flatMap((job) => [...job.segments].reverse().map((seg) => ({job, seg})));
@@ -345,7 +345,7 @@ export function useMowPlan({
     // (a planner from before that has them as not settable, with its own defaults: mower_logic's count then)
     const fromPlanner = (key: string) => (ps[key]?.settable && typeof ps[key].value === 'number' ? (ps[key].value as number) : undefined);
     const sent = (key: string, area: number | undefined, mowerLogic: string) =>
-      typeof own[key] === 'number' ? (own[key] as number) : (area ?? fromPlanner(key) ?? global(mowerLogic) ?? 0);
+      typeof own[key] === 'number' ? (own[key] as number) : (ownCount(area) ?? fromPlanner(key) ?? global(mowerLogic) ?? 0);
     // the lane spacing: auto, the one the planner picked last for this area (its widest to try until it planned it
     // once), else from overlap where that's set for the planner, else mower_logic's tool_width
     const blade = num('mower_width', toolWidth);
@@ -476,8 +476,8 @@ export function useMowPlan({
       outline: shownArea.outline,
       holes,
       outlineOffset: p.outline_offset ?? global('outline_offset') ?? 0,
-      outlineCount: p.outline_count ?? global('outline_count') ?? 0,
-      overlapCount: p.outline_overlap_count ?? global('outline_overlap_count') ?? 0,
+      outlineCount: ownCount(p.outline_count) ?? global('outline_count') ?? 0,
+      overlapCount: ownCount(p.outline_overlap_count) ?? global('outline_overlap_count') ?? 0,
       toolWidth,
       angle: effectiveAngle,
     });

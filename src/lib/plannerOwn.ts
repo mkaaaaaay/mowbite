@@ -2,6 +2,7 @@ import type {MowerMap} from '@/hooks/useMowerMap';
 import {shareInside} from './geometry';
 import {fmt, tr} from './i18n';
 import type {PlannerSetting} from './mowerBody';
+import {ownCount} from './mowPlan';
 import {FIELDS, hidden, RETIRED} from './plannerFields';
 
 // What an area sets for the planner itself, at a glance: its planner settings (the planner property) and OpenMower's
@@ -28,7 +29,7 @@ const OPENMOWER: [keyof OpenMowerOwn, string][] = [
 type Props = MowerMap['areas'][number]['properties'];
 
 // an OpenMower count below 0 is "the one for all areas", an offset can be below 0
-const counts = (prop: keyof OpenMowerOwn, v: unknown): v is number => typeof v === 'number' && (prop === 'outline_offset' || v >= 0);
+const counts = (prop: keyof OpenMowerOwn, v: unknown): v is number => (prop === 'outline_offset' ? typeof v === 'number' : ownCount(v) !== undefined);
 
 // On MowBite OS an area's outline passes, overlapping passes and offset have one place, OpenMower's keys of map.json,
 // and they count before the planner property (that only keeps "the planner works it out", perimeter_passes -1). The

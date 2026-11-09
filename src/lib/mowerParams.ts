@@ -14,6 +14,9 @@ export interface ParamField {
   group: ParamGroup;
   label: string;
   help?: string;
+  // the label and help on MowBite OS where they differ
+  osLabel?: string;
+  osHelp?: string;
   type: 'int' | 'double' | 'bool' | 'choice';
   // in the mower's unit
   min?: number;
@@ -62,9 +65,9 @@ export const PARAM_FIELDS: ParamField[] = [
     osApi: 6,
     confirmOff: 'Switch it off? It then mows on into the night, when hedgehogs and other animals are out.',
   },
-  {key: 'automatic_mode', group: 'auto', label: 'Starting by itself', help: "OpenMower's own automatic, apart from MowBite's schedule: with a schedule leave it on manual, or both start the mower.", type: 'choice', def: 0, choices: ['Manual: only when started', 'Semi-automatic: after a start it mows the whole map, charging in between', 'Automatic: mows whenever it can']},
+  {key: 'automatic_mode', group: 'auto', label: 'Starting by itself', help: "OpenMower's own automatic, apart from MowBite's schedule: with a schedule leave it on manual, or both start the mower.", osHelp: "The mower's own automatic, apart from the schedule: with a schedule leave it on manual.", type: 'choice', def: 0, choices: ['Manual: only when started', 'Semi-automatic: after a start it mows the whole map, charging in between', 'Automatic: mows whenever it can']},
 
-  {key: 'gps_timeout', group: 'gps', label: 'Keeps driving without a fix for', help: 'On wheel odometry. After that it stops with the blade off and waits for the fix.', type: 'double', min: 0, max: 60, def: 10, unit: 's', step: 1},
+  {key: 'gps_timeout', group: 'gps', label: 'Mows on without a fix for 10 s plus', help: "After the fix is lost, OpenMower still takes it as good for 10 s, then the mower drives on for this long on wheel odometry, the blade still on: with 10 s for about 20 s. Then it stops with the blade off and waits for the fix.", osLabel: 'Docking waits for a good position for', osHelp: 'Mowing pauses as soon as the position is bad. Docking waits this long for a good position, then it gives up.', type: 'double', min: 0, max: 60, def: 10, unit: 's', step: 1},
   {key: 'max_position_accuracy', group: 'gps', label: 'Required GPS accuracy', help: "OpenMower's max_position_accuracy: a position less accurate than this counts as no fix. An RTK fix is at a few cm.", type: 'double', min: 0.01, max: 1, def: 0.2, unit: 'cm', scale: 100, step: 1},
   {key: 'gps_wait_time', group: 'gps', label: 'Wait after the fix is back', type: 'double', min: 0, max: 60, def: 10, unit: 's', step: 1},
 
@@ -87,6 +90,15 @@ export function paramValue(params: Record<string, unknown>, f: ParamField): numb
   const v = params[paramName(f.key)];
   if (f.type === 'bool') return typeof v === 'boolean' ? v : (f.def as boolean);
   return typeof v === 'number' ? v : (f.def as number);
+}
+
+// a value that doesn't go with the others the mower has: the mow motor's "too hot" has to be above "cool again", or it
+// pauses and goes on in turns (MowBite OS turns that down itself, OpenMower takes it)
+export function paramConflict(params: Record<string, unknown>, key: string, value: number | boolean): string | null {
+  if (key !== 'motor_hot_temperature' && key !== 'motor_cold_temperature') return null;
+  const temp = (k: string) => (k === key ? (value as number) : (paramValue(params, paramField(k)!) as number));
+  if (temp('motor_hot_temperature') > temp('motor_cold_temperature')) return null;
+  return key === 'motor_hot_temperature' ? 'It has to be above "Cool enough again at".' : 'It has to be below "Too hot to mow from".';
 }
 
 // what's typed in a field (in the unit shown, a comma for the point allowed) as the mower's value, null when

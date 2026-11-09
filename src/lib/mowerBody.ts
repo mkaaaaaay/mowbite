@@ -6,7 +6,7 @@ import {apiBase} from './mowers';
 import {RPC} from './openmower';
 import {isMowbiteOs, systemInfo} from './mowerOs';
 import {askPlan} from './plannerProgress';
-import {callRpc, isMissingMethod, methodsUnknown, RpcError, rpcMethods} from './rpc';
+import {callRpc, isMissingMethod, RpcError, rpcMethods} from './rpc';
 import {saveSettings, settingsStore, syncSettings, type Settings} from './settings';
 
 // The mower's body and blade as the MowBite Planner on the mower knows them (planner.settings): a rectangle around
@@ -227,8 +227,11 @@ export async function giveOutline() {
   if (outlineChecked || !current?.settings.robot_outline?.settable) return;
   outlineChecked = true;
   const info = await systemInfo();
-  if (methodsUnknown()) outlineChecked = false;
-  if (methodsUnknown() || isMowbiteOs(info)) return;
+  if (info === undefined) {
+    outlineChecked = false;
+    return;
+  }
+  if (isMowbiteOs(info)) return;
   await syncSettings();
   if (!current || outlineOf(current.settings.robot_outline?.value)) return;
   const m = autoOutlineModel(plannerSizes(current), settingsStore.snapshot().keepRectangle);

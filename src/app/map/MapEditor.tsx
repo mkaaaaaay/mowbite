@@ -25,7 +25,7 @@ import {Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, useSync
 import styles from './page.module.css';
 import {fmt, tr, useLang} from '@/lib/i18n';
 import MapBackups, {backupLabel} from '@/components/MapBackups';
-import {deleteBackup, loadBackup, saveBackup} from '@/lib/backups';
+import {deleteBackup, loadBackup, saveBackup, useBackupFirst} from '@/lib/backups';
 import AreaCard, {AreaTools} from './AreaCard';
 import DecorPanel, {showUnderMap} from './DecorPanel';
 import {decorRedo, decorUndo, goneLooks, onlyPinsChanged, pinSquare, pinsFrom, type UpdateArea, NEW_AREA_SETTINGS} from './editing';
@@ -206,7 +206,7 @@ function MapEditor() {
   const [armedFor, setArmedFor] = useState<MowerMap | null>(null);
   const conflictRef = useRef<HTMLDivElement>(null);
   // the backup before saving failed: said once, the next tap saves without one
-  const [withoutBackup, setWithoutBackup] = useState(false);
+  const backupFirst = useBackupFirst(setSaveError);
   const conflictArmed = !!armedFor && armedFor === liveMap;
   const [saveWarning, setSaveWarning] = useState(false);
   const [editMode, setMode] = useState<'idle' | 'split' | 'draw' | 'merge' | 'subtract' | 'snap'>('idle');
@@ -293,9 +293,10 @@ function MapEditor() {
   const warnings = problems.filter((p) => p.level === 'warn').length;
   const spotted = problems.flatMap((p) => ('at' in p ? [p] : []));
   const problemSpots = spotted.map((p) => p.at);
-  // a red spot tapped on the map: what it is, in words
-  const [problemPick, setProblemPick] = useState<number | null>(null);
-  const pickedProblem = problemPick !== null && shownMap ? spotted[problemPick] : undefined;
+  // a red spot tapped on the map: what it is, in words, while the problems are still the ones it was picked from
+  const [problemPick, setProblemPick] = useState<{problems: unknown; index: number} | null>(null);
+  const pickedIndex = problemPick?.problems === problems ? problemPick.index : null;
+  const pickedProblem = pickedIndex !== null && shownMap ? spotted[pickedIndex] : undefined;
 
   // the mower's body as the planner knows it, and where it would stick out in the selected area's plan
   const body = useMowerBody();
@@ -645,11 +646,24 @@ function MapEditor() {
 
   // backups of the map kept in the container, and one shown instead of the editor
   const datum = datumFromParams(params);
-  const {backups, preview, setPreview, confirmRestore, setConfirmRestore, restoring, restoreError, refreshBackups, closePreview, restore, download, downloadGeo} =
-    useMapBackups(liveMap, map, datum, () => {
-      dropEdits();
-      setSelectedAreaId(null);
-    });
+  const {
+    backups,
+    restoreWithoutBackup,
+    preview,
+    setPreview,
+    confirmRestore,
+    setConfirmRestore,
+    restoring,
+    restoreError,
+    refreshBackups,
+    closePreview,
+    restore,
+    download,
+    downloadGeo,
+  } = useMapBackups(liveMap, map, datum, () => {
+    dropEdits();
+    setSelectedAreaId(null);
+  });
 
   // an openmower that doesn't know the newer area settings drops them when saving, noticed once its map comes back
   const [newSaved, setNewSaved] = useState<{areas: MowerMap['areas']; before: MowerMap | null} | null>(null);
@@ -692,27 +706,14 @@ function MapEditor() {
     const gone = [...new Set(pins)].filter((id) => !next.areas.some((a) => a.id === id));
     try {
       // the version on the mower goes into the backups first, so every save can be undone. without that only when asked
-      // (also when the list didn't come: it may well take one now, the question below when not)
-      if (backups !== null && liveMap && !withoutBackup) {
-        try {
-          await saveBackup(liveMap, 'before saving', true);
-        } catch (e) {
-          setWithoutBackup(true);
-          setSaveError(
-            tr("The map on the mower couldn't be backed up first ({why}). Tap save again to save without that backup.", {
-              why: e instanceof Error ? e.message : tr('failed'),
-            }),
-          );
-          return false;
-        }
-      }
+      if ((await backupFirst.first(liveMap, 'before saving')) === 'failed') return false;
       lateSave.current = {map: next, gone, before: liveMap};
       await saveMap(next);
       // the mower's map can come back before its answer, then that took it already (below)
       const taken = lateSave.current === null;
       lateSave.current = null;
       setArmedFor(null);
-      setWithoutBackup(false);
+      backupFirst.reset();
       // edits made while it saved stay and go on from the saved map
       if (!taken) {
         if (latest.current === next) saved(next, gone, liveMap);
@@ -1090,7 +1091,7 @@ function MapEditor() {
                 // (the spot from the activity page has its message above the map already)
                 onMarkerPick={(i) => {
                   const n = i - (spot ? 1 : 0);
-                  if (n >= 0) setProblemPick(n === problemPick ? null : n);
+                  if (n >= 0) setProblemPick(n === pickedIndex ? null : {problems, index: n});
                 }}
                 bodySpots={bodySpots ?? undefined}
                 bodySpace={realPlan?.checks?.space}
@@ -1121,7 +1122,7 @@ function MapEditor() {
             {preview ? (
               <RestorePanel
                 areas={preview.map.areas.filter((a) => !isPin(a)).length}
-                backedUp={!!backups}
+                backedUp={!!backups && !restoreWithoutBackup}
                 idle={idle}
                 restoring={restoring}
                 confirm={confirmRestore}
@@ -1292,9 +1293,12 @@ function MapEditor() {
                       await refreshBackups();
                     }}
                     onPreview={async (b) => setPreview({map: await loadBackup(b.id), label: backupLabel(b)})}
-                    onDelete={(b) => void deleteBackup(b.id).then(refreshBackups)}
-                    onDownload={(b) => void download(b)}
-                    onDownloadGeo={() => void downloadGeo()}
+                    onDelete={async (b) => {
+                      await deleteBackup(b.id);
+                      await refreshBackups();
+                    }}
+                    onDownload={download}
+                    onDownloadGeo={downloadGeo}
                     onFile={(m, name) => setPreview({map: m, label: name})}
                     // a geojson file goes into the map being edited, checked like any edit, undone or saved from here
                     geo={

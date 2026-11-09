@@ -18,6 +18,7 @@ import {
   calibText,
   lackDone,
   lacks,
+  readLast,
   readPaths,
   readState,
   takeCalib,
@@ -30,6 +31,7 @@ import {clock} from '@/lib/dates';
 import {fmt, tr, useLang} from '@/lib/i18n';
 import {ACTION, PARAM, RPC} from '@/lib/openmower';
 import {rpcMethods} from '@/lib/rpc';
+import {useRpcMethods} from '@/hooks/useRpcMethods';
 import {gpsQuality, isDocked} from '@/lib/status';
 import Link from 'next/link';
 import {useRouter} from 'next/navigation';
@@ -216,10 +218,7 @@ export default function CalibrationPage() {
   const live = isLive(link);
   const {hasAction, publishAction} = useMowerActions();
   const progress = useSyncExternalStore(calibProgress.subscribe, calibProgress.get, calibProgress.initial);
-  const [methods, setMethods] = useState<Set<string> | null | undefined>(undefined);
-  useEffect(() => {
-    void rpcMethods().then(setMethods);
-  }, []);
+  const methods = useRpcMethods();
   const can = !!methods?.has(RPC.plannerCalibStart);
 
   const [mode, setMode] = useState<CalibMode>('joystick');
@@ -463,7 +462,7 @@ export default function CalibrationPage() {
         </p>
         {phase === 'done' && failed && !cancelled && <p className={styles.warn}>{tr('The last recording gave no result: {why}', {why: calibText(failed)})}</p>}
         <section className={styles.card}>
-          <h2>{tr('Calibrate again')}</h2>
+          <h2>{tr(readLast(status?.calib_last) ? 'Calibrate again' : 'Calibrate')}</h2>
           <span className={styles.dim}>{tr('How should it measure?')}</span>
           {(
             [

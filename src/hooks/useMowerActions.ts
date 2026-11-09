@@ -49,10 +49,15 @@ function refusalNote(e: RpcError): CommandNote {
   return {at: Date.now(), text: said.text, warn: said.severity !== 'info', event: ev.type, eventId: ev.id || undefined};
 }
 
+// counts the commands sent: an answer only speaks while its command is the last one, a late one of an earlier command
+// would read like the answer to the newer
+let sent = 0;
+
 // sends what the action does: as its call where the mower names it in rpc.methods, else the action as ever (OpenMower,
 // MowBite OS before the calls, a list that hasn't come yet). seen: the area and path the tap was meant for, a skip
 // doesn't hit the next one then. never sent again by itself
 export function sendCommand(id: string, seen?: {area?: number; path?: number}) {
+  const mine = ++sent;
   const cmd = COMMAND[id];
   if (!cmd || !knownMethods()?.has(cmd.method)) {
     // plain text, not json
@@ -63,10 +68,11 @@ export function sendCommand(id: string, seen?: {area?: number; path?: number}) {
   if (cmd.method === 'mowing.skip_area' && typeof seen?.area === 'number') params.area = seen.area;
   if (cmd.method === 'mowing.skip_path' && typeof seen?.path === 'number') params.path = seen.path;
   setNote(null);
+  const say = (n: CommandNote) => mine === sent && setNote(n);
   const late = (a: unknown) =>
-    setNote(a instanceof RpcError ? refusalNote(a) : {at: Date.now(), text: tr('The mower answered late: done after all.'), warn: false});
+    say(a instanceof RpcError ? refusalNote(a) : {at: Date.now(), text: tr('The mower answered late: done after all.'), warn: false});
   callCommand(cmd.method, params, COMMAND_MS, late).catch((e) =>
-    setNote(
+    say(
       e instanceof RpcError && e.code === 'timeout'
         ? {at: Date.now(), text: e.message === 'offline' ? tr('Not sent, no connection to the mower.') : tr("The mower didn't answer (yet)."), warn: true}
         : e instanceof RpcError

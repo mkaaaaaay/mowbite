@@ -54,16 +54,27 @@ function recorded(corners: Point[], step: number, wobble: number, seed: number):
 const circle = (cx: number, cy: number, r: number, n = 18) =>
   Array.from({length: n}, (_, i) => pt(cx + r * Math.cos((i / n) * 2 * Math.PI), cy + r * Math.sin((i / n) * 2 * Math.PI)));
 
-const area = (id: string, name: string, type: string, outline: Point[]): MapArea => ({id, properties: {name, type, active: true}, outline});
+// the names in the language shown, read when the map is drawn. more: the other properties
+const area = (id: string, name: string, type: string, outline: Point[], more: Partial<MapArea['properties']> = {active: true}): MapArea => ({
+  id,
+  properties: {
+    get name() {
+      return tr(name);
+    },
+    type,
+    ...more,
+  },
+  outline,
+});
 
 const GARTEN_CORNERS = [pt(0, 0), pt(14, 0), pt(14, 9), pt(13, 10), pt(0, 10)];
-const GARTEN = area('garten', 'Garten', 'mow', recorded(GARTEN_CORNERS, 1.4, 0.04, 1));
-const TREE = area('baum', 'Baum', 'obstacle', circle(4.5, 6, 1.1));
-const VORGARTEN = area('vorgarten', 'Vorgarten', 'mow', recorded([pt(1, 13), pt(13, 13), pt(13, 20), pt(1, 20)], 1.4, 0.04, 2));
-const WEG = area('weg', 'Weg', 'nav', [pt(8, 9.6), pt(10, 9.6), pt(10, 13.4), pt(8, 13.4)]);
-const BED = area('beet', 'Beet', 'obstacle', [pt(8.5, 16), pt(11.5, 16), pt(11.5, 18), pt(8.5, 18)]);
+const GARTEN = area('garten', 'Garden', 'mow', recorded(GARTEN_CORNERS, 1.4, 0.04, 1));
+const TREE = area('baum', 'Tree', 'obstacle', circle(4.5, 6, 1.1));
+const VORGARTEN = area('vorgarten', 'Front lawn', 'mow', recorded([pt(1, 13), pt(13, 13), pt(13, 20), pt(1, 20)], 1.4, 0.04, 2));
+const WEG = area('weg', 'Path', 'nav', [pt(8, 9.6), pt(10, 9.6), pt(10, 13.4), pt(8, 13.4)]);
+const BED = area('beet', 'Bed', 'obstacle', [pt(8.5, 16), pt(11.5, 16), pt(11.5, 18), pt(8.5, 18)]);
 // a bed along the lawn, outside it: only a picture, a little off the lawn's edge
-const BORDER = area('staudenbeet', 'Staudenbeet', 'decor', [pt(-2.6, 1.5), pt(-0.45, 1.5), pt(-0.45, 10), pt(-2.6, 10)]);
+const BORDER = area('staudenbeet', 'Perennial bed', 'decor', [pt(-2.6, 1.5), pt(-0.45, 1.5), pt(-0.45, 10), pt(-2.6, 10)]);
 const DOCK = {id: 'dock', position: pt(2.2, -0.9), heading: Math.PI / 2};
 const mapOf = (...areas: MapArea[]): MowerMap => ({areas: [...areas, BORDER], docking_stations: [DOCK]});
 const GARDEN = mapOf(GARTEN, TREE, VORGARTEN, WEG, BED);
@@ -680,7 +691,7 @@ function Split() {
   const map = useMemo(
     () =>
       done && pieces
-        ? mapOf(area('garten', 'Garten', 'mow', pieces[0]), area('garten2', 'Garten', 'mow', pieces[1]), TREE, VORGARTEN, WEG, BED)
+        ? mapOf(area('garten', 'Garden', 'mow', pieces[0]), area('garten2', 'Garden', 'mow', pieces[1]), TREE, VORGARTEN, WEG, BED)
         : GARDEN,
     [done, pieces],
   );
@@ -722,7 +733,7 @@ function Split() {
 }
 
 // 6: merge: the button, then the other area, apply: one area from both
-const STRIP = area('streifen', 'Streifen', 'mow', recorded([pt(13.6, 2.5), pt(19, 2.5), pt(19, 7.5), pt(13.6, 7.5)], 1.4, 0.03, 3));
+const STRIP = area('streifen', 'Strip', 'mow', recorded([pt(13.6, 2.5), pt(19, 2.5), pt(19, 7.5), pt(13.6, 7.5)], 1.4, 0.03, 3));
 const BOTH = mapOf(GARTEN, STRIP, TREE, VORGARTEN, WEG, BED);
 
 function Merge() {
@@ -1179,8 +1190,8 @@ function Style() {
 
 // 13: decorating: a gnome picked in the row under the map and set with a tap on the map, picked right away (the lamps
 // by the path have their rings), then held a moment and taken to another spot
-const pinOf = (id: string, name: string, at: Point): MapArea => ({id, properties: {name, type: 'decor', pin: true}, outline: pinSquare(at.x, at.y)});
-const LAMPS = [pinOf('lampe1', 'Gartenlampe', pt(7.4, 11)), pinOf('lampe2', 'Gartenlampe', pt(10.6, 11))];
+const pinOf = (id: string, name: string, at: Point): MapArea => area(id, name, 'decor', pinSquare(at.x, at.y), {pin: true});
+const LAMPS = [pinOf('lampe1', 'Garden lamp', pt(7.4, 11)), pinOf('lampe2', 'Garden lamp', pt(10.6, 11))];
 const GNOME_AT = pt(12, 3.2);
 const GNOME_TO = pt(11.4, 7.2);
 
@@ -1190,7 +1201,7 @@ function Decorate() {
   const set = t >= 0.36;
   const at = mix(GNOME_AT, GNOME_TO, ease(t, 0.58, 0.74));
   const map = cached(`decor ${set} ${at.x.toFixed(2)},${at.y.toFixed(2)}`, () =>
-    mapOf(GARTEN, TREE, VORGARTEN, WEG, BED, ...LAMPS, ...(set ? [pinOf('zwerg', 'Gartenzwerg', at)] : [])),
+    mapOf(GARTEN, TREE, VORGARTEN, WEG, BED, ...LAMPS, ...(set ? [pinOf('zwerg', 'Garden gnome', at)] : [])),
   );
   return (
     <Stage
@@ -1251,7 +1262,7 @@ function OpenBackups() {
   });
   return (
     <div ref={box}>
-      <MapBackups backups={[BACKUP]} onCreate={async () => {}} onPreview={async () => {}} onDelete={noop} onDownload={noop} onDownloadGeo={noop} onFile={noop} geo={null} />
+      <MapBackups backups={[BACKUP]} onCreate={async () => {}} onPreview={async () => {}} onDelete={async () => {}} onDownload={async () => {}} onDownloadGeo={async () => {}} onFile={noop} geo={null} />
     </div>
   );
 }

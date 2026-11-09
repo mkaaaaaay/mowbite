@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {PARAM_FIELDS, paramField, paramValue, parseKept, parseParam, serializeKept, showParam} from './mowerParams';
+import {PARAM_FIELDS, paramConflict, paramField, paramValue, parseKept, parseParam, serializeKept, showParam} from './mowerParams';
 
 describe('the settings of the mower', () => {
   it('have a range, a default inside it and a label each', () => {
@@ -13,6 +13,22 @@ describe('the settings of the mower', () => {
       }
     }
     expect(new Set(PARAM_FIELDS.map((f) => f.key)).size).toBe(PARAM_FIELDS.length);
+  });
+
+  it("keep the mow motor's too hot above cool enough again", () => {
+    const params = {'/mower_logic/motor_hot_temperature': 70, '/mower_logic/motor_cold_temperature': 40};
+    expect(paramConflict(params, 'motor_hot_temperature', 40)).toBeTruthy();
+    expect(paramConflict(params, 'motor_cold_temperature', 75)).toBeTruthy();
+    expect(paramConflict(params, 'motor_hot_temperature', 60)).toBeNull();
+    expect(paramConflict(params, 'motor_cold_temperature', 50)).toBeNull();
+    expect(paramConflict(params, 'gps_timeout', 5)).toBeNull();
+  });
+
+  it("gps_timeout says the 10 s OpenMower still takes a lost fix as good, the blade running", () => {
+    const f = paramField('gps_timeout')!;
+    expect(f.label).toMatch(/10 s plus$/);
+    expect(f.help).toMatch(/blade still on/);
+    expect(f.osLabel).toMatch(/^Docking/);
   });
 
   it('are read from the list of the mower, the default without it', () => {

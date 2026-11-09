@@ -242,9 +242,12 @@ function Activity() {
   const linkedRun = search.get('run');
   const [days, setDays] = useState<string[] | null>(cachedDays);
   const [day, setDay] = useState<string | null>(null);
-  const [loaded, setLoaded] = useState<DayEvents | null>(() => cachedEvents.get(cachedDays?.[0] ?? '') ?? null);
-  const events = loaded?.events ?? null;
-  const setEvents = (d: DayEvents | null) => setLoaded(d);
+  // the events of a day as loaded, shown only for that day
+  const [kept, setKept] = useState<{day: string; data: DayEvents} | null>(() => {
+    const d = linkedDay ?? cachedDays?.[0];
+    const data = d ? cachedEvents.get(d) : undefined;
+    return d && data ? {day: d, data} : null;
+  });
   // all, only the problems, or only what happened (areas started and done) without them
   const [filter, setFilter] = useState<'all' | 'problems' | 'progress'>('all');
   const [failed, setFailed] = useState(false);
@@ -266,6 +269,8 @@ function Activity() {
   // the linked day once the days are known (its file is found by them)
   const shown = day ?? (linkedDay && days?.includes(linkedDay) ? linkedDay : days?.[0]) ?? null;
   const isToday = !!shown && dayKey(parseDay(shown)) === dayKey(new Date());
+  const loaded = kept && kept.day === shown ? kept.data : null;
+  const events = loaded?.events ?? null;
   // MowBite OS doesn't dock yet, a run ends idle on the lawn
   const os = useMowbiteOs();
 
@@ -283,7 +288,7 @@ function Activity() {
       return eventsOfDay(cachedFiles, shown).then(
         (e) => {
           cachedEvents.set(shown, e);
-          if (alive) setEvents(e);
+          if (alive) setKept({day: shown, data: e});
         },
         () => alive && setFailed(true),
       );
@@ -347,7 +352,6 @@ function Activity() {
                 className={d === shown ? styles.on : undefined}
                 onClick={() => {
                   if (d === shown) return;
-                  setEvents(null);
                   setFailed(false);
                   setDay(d);
                 }}

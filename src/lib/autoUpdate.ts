@@ -291,7 +291,7 @@ export function partResult(s: UpdateState, part: Part): PartResult | null {
       // (the updater itself writes its time along)
       return say(
         tr("The new version didn't start, it went back to the one before by itself. That version is left out, only the next one is tried again.") +
-          (rest.includes('data') ? ' ' + tr('It had changed the format of its data: that is back as before the update, what it had then is kept.') : ''),
+          (rest.includes('data') ? ' ' + tr('The new version had changed the format of its data: the data is back as before the update, the newer data is kept.') : ''),
         'warn',
         at ?? (/^\d+$/.test(rest[0] ?? '') ? when(rest[0]) : null),
       );
@@ -317,7 +317,7 @@ function failure(s: UpdateState, part: Part, [why, ...more]: string[], at: strin
     case 'no_back':
       return warn(tr('there is no version before to go back to'));
     case 'back':
-      return warn(tr("The version before didn't start, the one from before runs again."));
+      return warn(tr("The last update didn't start, the version from before it runs again."));
     case 'rollback':
       return error(tr('going back failed, the app may not be running'));
     case 'base_missing':
@@ -332,7 +332,7 @@ function failure(s: UpdateState, part: Part, [why, ...more]: string[], at: strin
     case 'compose':
       if (part === 'updater') return error(tr("The updater doesn't run from a compose file and can't update itself."));
       // (a build changes no compose file: the stopped one couldn't be made anew on it)
-      if (kindOf(s, part) === 'build') return error(tr("built anew, but it couldn't be set up on the new build, the one before stays"));
+      if (kindOf(s, part) === 'build') return error(tr("rebuilt, but the new build couldn't be started, the previous one stays"));
       return error(tr("the compose file couldn't be changed, nothing changed"));
     case 'keep':
       return error(tr("nothing changed: the version before couldn't be kept"));
