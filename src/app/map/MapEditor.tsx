@@ -25,7 +25,7 @@ import {Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, useSync
 import styles from './page.module.css';
 import {fmt, tr, useLang} from '@/lib/i18n';
 import MapBackups, {backupLabel} from '@/components/MapBackups';
-import {deleteBackup, loadBackup, saveBackup} from '@/lib/backups';
+import {deleteBackup, loadBackup, saveBackup, useBackupFirst} from '@/lib/backups';
 import AreaCard, {AreaTools} from './AreaCard';
 import DecorPanel, {showUnderMap} from './DecorPanel';
 import {decorRedo, decorUndo, goneLooks, onlyPinsChanged, pinSquare, pinsFrom, type UpdateArea, NEW_AREA_SETTINGS} from './editing';
@@ -206,7 +206,7 @@ function MapEditor() {
   const [armedFor, setArmedFor] = useState<MowerMap | null>(null);
   const conflictRef = useRef<HTMLDivElement>(null);
   // the backup before saving failed: said once, the next tap saves without one
-  const [withoutBackup, setWithoutBackup] = useState(false);
+  const backupFirst = useBackupFirst(setSaveError);
   const conflictArmed = !!armedFor && armedFor === liveMap;
   const [saveWarning, setSaveWarning] = useState(false);
   const [editMode, setMode] = useState<'idle' | 'split' | 'draw' | 'merge' | 'subtract' | 'snap'>('idle');
@@ -706,27 +706,14 @@ function MapEditor() {
     const gone = [...new Set(pins)].filter((id) => !next.areas.some((a) => a.id === id));
     try {
       // the version on the mower goes into the backups first, so every save can be undone. without that only when asked
-      // (also when the list didn't come: it may well take one now, the question below when not)
-      if (backups !== null && liveMap && !withoutBackup) {
-        try {
-          await saveBackup(liveMap, 'before saving', true);
-        } catch (e) {
-          setWithoutBackup(true);
-          setSaveError(
-            tr("The map on the mower couldn't be backed up first ({why}). Tap save again to save without that backup.", {
-              why: rpcErrorText(e),
-            }),
-          );
-          return false;
-        }
-      }
+      if ((await backupFirst.first(liveMap, 'before saving')) === 'failed') return false;
       lateSave.current = {map: next, gone, before: liveMap};
       await saveMap(next);
       // the mower's map can come back before its answer, then that took it already (below)
       const taken = lateSave.current === null;
       lateSave.current = null;
       setArmedFor(null);
-      setWithoutBackup(false);
+      backupFirst.reset();
       // edits made while it saved stay and go on from the saved map
       if (!taken) {
         if (latest.current === next) saved(next, gone, liveMap);
