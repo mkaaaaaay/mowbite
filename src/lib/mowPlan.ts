@@ -1,5 +1,6 @@
 import * as ClipperLib from 'clipper-lib';
 import type {Point} from '@/hooks/useMowerMap';
+import {ccw} from './plannerGeometry';
 
 // What slic3r_coverage_planner does with an area, so the editor can show where the mower will drive:
 // the first outline pass is the area shrunk by outline_offset, every further one by one tool width.
@@ -149,7 +150,8 @@ export function mowPlan(req: MowPlanInput): MowPlan {
   // otherwise shrinking gets confused by them
   const c = new ClipperLib.Clipper();
   c.AddPaths([toPath(req.outline)], ClipperLib.PolyType.ptSubject, true);
-  c.AddPaths(req.holes.filter((h) => h.length > 2).map(toPath), ClipperLib.PolyType.ptClip, true);
+  // all turned the same way, two overlapping ones recorded in opposite directions would cancel out where they overlap
+  c.AddPaths(req.holes.filter((h) => h.length > 2).map((h) => ccw(toPath(h))), ClipperLib.PolyType.ptClip, true);
   const area: Paths = [];
   c.Execute(ClipperLib.ClipType.ctDifference, area, ClipperLib.PolyFillType.pftNonZero, ClipperLib.PolyFillType.pftNonZero);
   if (!area.length) return {loops: [], stripes: []};
@@ -175,11 +177,14 @@ export function linkStripes(stripes: [Point, Point][], angle: number, spacing: n
   const sin = Math.sin(angle);
   const toLocal = (p: Point) => ({x: p.x * cos + p.y * sin, y: -p.x * sin + p.y * cos});
   type Seg = {x0: number; x1: number; row: number; a: Point; b: Point; used: boolean};
-  const segs: Seg[] = stripes.map(([p, q]) => {
-    const lp = toLocal(p);
-    const lq = toLocal(q);
+  const local = stripes.map(([p, q]) => [toLocal(p), toLocal(q)]);
+  // rows counted from the lowest stripe: whole spacings apart, an outline on a multiple of the spacing would put the
+  // stripes halfway between two numbers otherwise and rounding would mix up the rows
+  const y0 = Math.min(...local.map(([lp]) => lp.y));
+  const segs: Seg[] = stripes.map(([p, q], i) => {
+    const [lp, lq] = local[i];
     const [a, b, x0, x1] = lp.x <= lq.x ? [p, q, lp.x, lq.x] : [q, p, lq.x, lp.x];
-    return {x0, x1, row: Math.round(lp.y / spacing), a, b, used: false};
+    return {x0, x1, row: Math.round((lp.y - y0) / spacing), a, b, used: false};
   });
   const rows = new Map<number, Seg[]>();
   for (const s of segs) rows.set(s.row, [...(rows.get(s.row) ?? []), s]);
