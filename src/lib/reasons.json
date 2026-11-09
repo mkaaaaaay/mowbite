@@ -328,7 +328,7 @@
      },
      "en": "Path stopped, sent home",
      "severity": "info",
-     "de": "Bahn abgebrochen, nach Hause geschickt"
+     "de": "Fahrt abgebrochen, nach Hause geschickt"
     },
     {
      "en": "Navigation error",
@@ -771,7 +771,7 @@
       "action": "record_dock"
      },
      "en": "Docking station not recorded",
-     "de": "Ladestation nicht aufgenommen"
+     "de": "Dock nicht aufgenommen"
     },
     {
      "when": {
@@ -815,7 +815,7 @@
    "variants": [
     {
      "en": "Docking station recorded",
-     "de": "Ladestation aufgenommen"
+     "de": "Dock aufgenommen"
     }
    ]
   },
@@ -926,7 +926,7 @@
   "STILL_STOPPING": [
    {
     "en": "the last job is still stopping, try again in a moment",
-    "de": "der letzte Auftrag hält noch an, gleich noch einmal versuchen"
+    "de": "der letzte Auftrag wird noch beendet, gleich noch einmal versuchen"
    }
   ],
   "WRONG_STATE": [
@@ -986,13 +986,13 @@
   "NO_SAFETY_MEASUREMENT": [
    {
     "en": "safety not yet verified on this platform, mowing and driving are blocked",
-    "de": "Sicherheit auf dieser Plattform noch nicht nachgemessen, Mähen und Fahren sind gesperrt"
+    "de": "Sicherheit auf dieser Plattform noch nicht geprüft, Mähen und Fahren sind gesperrt"
    }
   ],
   "ON_DOCK": [
    {
     "en": "on the docking station, drive it off by remote control first",
-    "de": "steht auf der Ladestation, erst per Fernsteuerung herunterfahren"
+    "de": "steht im Dock, erst per Fernsteuerung herausfahren"
    }
   ],
   "RAIN": [
@@ -1155,13 +1155,13 @@
   "NO_DOCK": [
    {
     "en": "no docking station on the map",
-    "de": "keine Ladestation auf der Karte"
+    "de": "kein Dock auf der Karte"
    }
   ],
   "DOCK_UNREACHABLE": [
    {
     "en": "the docking station is outside the areas it may drive in",
-    "de": "die Ladestation liegt außerhalb des befahrbaren Bereichs"
+    "de": "das Dock liegt außerhalb des befahrbaren Bereichs"
    }
   ],
   "REFERENCE_MISMATCH": [
@@ -1175,11 +1175,11 @@
       "present": true
      }
     },
-    "de": "die Ladestation steht {distance:2} m neben der Stelle auf der Karte, erlaubt sind höchstens {limit:2} m"
+    "de": "das Dock steht {distance:2} m neben der Stelle auf der Karte, erlaubt sind höchstens {limit:2} m"
    },
    {
     "en": "the docking station is not where the map has it",
-    "de": "die Ladestation steht nicht dort, wo die Karte sie hat"
+    "de": "das Dock steht nicht dort, wo die Karte es hat"
    }
   ],
   "NO_DOCK_CONTACT": [
@@ -1192,7 +1192,7 @@
    },
    {
     "en": "no contact with the docking station",
-    "de": "kein Kontakt zur Ladestation"
+    "de": "kein Kontakt zum Dock"
    }
   ],
   "NO_POSITION": [
@@ -1234,7 +1234,7 @@
     "when": {
      "action": "record_dock"
     },
-    "de": "Position auf {accuracy:2} m genau, die Ladestation braucht {limit:2} m oder besser"
+    "de": "Position auf {accuracy:2} m genau, das Dock braucht {limit:2} m oder besser"
    },
    {
     "en": "position not accurate enough",
@@ -1262,13 +1262,13 @@
   "NO_HEADING": [
    {
     "en": "heading not known yet",
-    "de": "Fahrtrichtung noch unbekannt"
+    "de": "Ausrichtung noch unbekannt"
    }
   ],
   "HEADING": [
    {
     "en": "heading not good enough",
-    "de": "Fahrtrichtung nicht genau genug"
+    "de": "Ausrichtung nicht genau genug"
    }
   ],
   "MAP_MISMATCH": [
@@ -1728,7 +1728,7 @@
   "GYRO_SIGN": [
    {
     "en": "the gyro turns the other way than the wheels",
-    "de": "der Kreisel dreht andersherum als die Räder"
+    "de": "das Gyroskop misst die Drehung andersherum als die Räder"
    }
   ],
   "NOT_MOVING": [

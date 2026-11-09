@@ -485,7 +485,7 @@ describe('recording an area (MowBite OS)', () => {
         'Linie nicht geschlossen: sie umschließt nur 0,03 m², mindestens 0,05 m² nötig',
       );
       expect(refusalReason('Position accuracy 0.30 m, the docking station needs 0.10 m or better')).toBe(
-        'Position auf 0,30 m genau, die Ladestation braucht 0,10 m oder besser',
+        'Position auf 0,30 m genau, das Dock braucht 0,10 m oder besser',
       );
       expect(refusalReason('Position accuracy nan m, points need 0.10 m or better')).toBe('Position auf ? m genau, Punkte brauchen 0,10 m oder besser');
       expect(refusalReason('Only 0.12 m from the first point, at least 0.30 m needed for the heading')).toBe(
@@ -697,9 +697,9 @@ describe('reasons as fixed names (MowBite OS)', () => {
       expect(describeEvent(os('STATE', {state: 'PAUSED', reason: 'POSITION_ACCURACY', accuracy: 0.124, limit: 0.1})).text).toBe(
         'Pausiert: Position auf 0,12 m genau, nötig sind 0,10 m oder besser',
       );
-      expect(describeEvent(os('DRIVE_REFUSED', {reason: 'NO_HEADING'})).text).toBe('Fahrt nicht gestartet: Fahrtrichtung noch unbekannt');
+      expect(describeEvent(os('DRIVE_REFUSED', {reason: 'NO_HEADING'})).text).toBe('Fahrt nicht gestartet: Ausrichtung noch unbekannt');
       expect(describeEvent(os('MOWING_REFUSED', {reason: 'NO_SAFETY_MEASUREMENT'})).text).toBe(
-        'Mähen nicht gestartet: Sicherheit auf dieser Plattform noch nicht nachgemessen, Mähen und Fahren sind gesperrt',
+        'Mähen nicht gestartet: Sicherheit auf dieser Plattform noch nicht geprüft, Mähen und Fahren sind gesperrt',
       );
       expect(describeEvent(os('MOWING_REFUSED', {reason: 'SOMETHING_NEW'})).text).toBe('Mähen nicht gestartet: english text');
       expect(describeEvent(os('MOWING_REFUSED', {reason: 'HOLD', until: 1793754213})).text).toBe(

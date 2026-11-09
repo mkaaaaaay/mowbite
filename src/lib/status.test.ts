@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {gpsQuality, statusText} from './status';
+import {chargeStateText, gpsQuality, statusText} from './status';
 
 describe('gpsQuality', () => {
   it('tells fix, float and too inaccurate by the accuracy, against the mower limit', () => {
@@ -25,5 +25,14 @@ describe('statusText', () => {
     expect(statusText(docked, true, false, false)).toBe('In the dock, not charging');
     expect(statusText(docked, true, false, null)).toBe('In the dock');
     expect(statusText(docked, true, false, true)).toBe('Charging in the dock');
+  });
+});
+
+describe('chargeStateText', () => {
+  it("names the firmware's Done for what it is, the simulator's CC and CV like the firmware's, others as they come", () => {
+    expect(chargeStateText('Done')).toBe('Fully charged');
+    expect(chargeStateText('CC')).toBe('Fast Charge (CC)');
+    expect(chargeStateText('Top Off')).toBe('Top Off');
+    expect(chargeStateText('Something new')).toBe('Something new');
   });
 });

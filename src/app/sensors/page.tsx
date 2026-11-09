@@ -15,7 +15,7 @@ import {useSensorHistory, type Sample} from '@/hooks/useSensorHistory';
 import {useState, useSyncExternalStore} from 'react';
 import {outOfRange} from '@/lib/sensorLimits';
 import {sharedSettings} from '@/lib/settings';
-import {batteryColor, chargeDone, GPS_QUALITY_LABEL, gpsQuality, isDocked, onCharger, stateColor, statusText} from '@/lib/status';
+import {batteryColor, chargeDone, chargeStateText, GPS_QUALITY_LABEL, gpsQuality, isDocked, onCharger, stateColor, statusText} from '@/lib/status';
 import {useChargeConfirmed} from '@/hooks/useChargeConfirmed';
 import {useRecentRuns} from '@/hooks/useRecentRuns';
 import {useOsApi} from '@/lib/mowerOs';
@@ -184,7 +184,7 @@ export default function SensorsPage() {
                     <BatteryIcon size={26} />
                   </span>
                   <strong className={[styles.big, styles[`text-${batteryTone}`]].join(' ')}>{`${battery ?? '–'}\u202f%`}</strong>
-                  {values['om_charge_state'] && docked && <span className={styles.pill}>{tr(values['om_charge_state'])}</span>}
+                  {values['om_charge_state'] && docked && <span className={styles.pill}>{chargeStateText(values['om_charge_state'])}</span>}
                 </div>
                 <div className={styles.details}>
                   {num('om_v_battery') !== undefined && (

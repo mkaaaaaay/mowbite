@@ -34,6 +34,26 @@ export function isDocked(state: {current_state: string; is_charging: number} | n
   return state?.current_state === 'IDLE' && onCharger(state, vCharge);
 }
 
+// the charger's state as the firmware names it (om_charge_state; the simulator: CC, CV), in words
+const CHARGE_STATES: Record<string, string> = {
+  'Not Charging': 'Not Charging',
+  'Trickle Charge': 'Trickle Charge',
+  'Pre Charge': 'Pre Charge',
+  'Fast Charge (CC)': 'Fast Charge (CC)',
+  'Taper Charge (CV)': 'Taper Charge (CV)',
+  'Top Off': 'Top Off',
+  Done: 'Fully charged',
+  Fault: 'Fault',
+  'Comms Error': 'Comms Error',
+  Unknown: 'Unknown',
+  'Charger Not Found': 'Charger Not Found',
+  'Error (Fault)': 'Error (Fault)',
+  'Charger Comms Error': 'Charger Comms Error',
+  CC: 'Fast Charge (CC)',
+  CV: 'Taper Charge (CV)',
+};
+export const chargeStateText = (state: string) => tr(CHARGE_STATES[state] ?? state);
+
 // done charging in the station. the v1 mainboard has no charger state (N/A): there the current tells it, or the battery
 export function chargeDone(chargeState: string | undefined, current?: number, battery?: number): boolean {
   if (chargeState === 'Done') return true;
