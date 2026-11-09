@@ -142,7 +142,7 @@ function MowersSection({settings}: {settings: Settings}) {
         {app
           ? tr("More than one mower with MowBite? Add the others here and switch between them at the top of the dashboard. Colors and icons are each mower's own, the language is the app's.")
           : tr(
-              'More than one mower with MowBite? Add the others here and switch between them at the top of the dashboard (on a computer in the sidebar). Colors, icons and the language stay the same for all.',
+              'More than one mower with MowBite? Add the others here and switch between them at the top of the dashboard (on a computer in the sidebar). Colors and the language stay the same for all, each mower has its own icons, map style and pictures and the values its dashboard shows.',
             )}
       </p>
       {/* (in a browser the list is kept in the settings, the demo's are gone once it's left) */}

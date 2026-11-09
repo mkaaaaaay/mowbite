@@ -2,6 +2,7 @@
 
 import {forgetJobList, loadJobList} from '@/hooks/useMowHistory';
 import {getMqttClient, onTopic} from '@/lib/mqttClient';
+import {readMower, writeMower} from '@/lib/mowers';
 import {callRpc} from '@/lib/rpc';
 import {useSyncExternalStore} from 'react';
 import {RPC, TOPIC} from '@/lib/openmower';
@@ -149,15 +150,11 @@ async function recordedTrack(id: string): Promise<Point[]> {
 }
 
 // cleared by hand: the job and how many of its recorded points were there then, only later ones are shown.
-// per device, the recording on the mower stays as it is
+// per device and mower, the recording on the mower stays as it is
 const CLEARED_KEY = 'trackCleared';
 function clearedUpTo(id: string): number {
-  try {
-    const c = JSON.parse(localStorage.getItem(CLEARED_KEY) ?? 'null');
-    return c?.job === id && typeof c.points === 'number' ? c.points : 0;
-  } catch {
-    return 0;
-  }
+  const c = readMower<{job?: unknown; points?: unknown}>(CLEARED_KEY);
+  return c?.job === id && typeof c.points === 'number' ? c.points : 0;
 }
 
 async function seed(id: string) {
@@ -253,7 +250,7 @@ export async function clearTrack() {
   if (id) {
     try {
       const points = (await recordedTrack(id)).length;
-      localStorage.setItem(CLEARED_KEY, JSON.stringify({job: id, points}));
+      writeMower(CLEARED_KEY, {job: id, points});
     } catch {}
   }
   track = EMPTY;

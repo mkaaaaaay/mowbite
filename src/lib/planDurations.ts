@@ -1,6 +1,8 @@
 // How long the MowBite Planner says each saved area takes (planner.plan duration, corrected by the last finished
-// mows). Kept per device from the plans the map asked for, so the schedule can say whether a start fits its window
+// mows). Kept per device and mower from the plans the map asked for, so the schedule can say whether a start fits its window
 // without planning everything again (a plan takes the mower a while)
+
+import {readMower, writeMower} from './mowers';
 
 export interface AreaDuration {
   min: number;
@@ -12,22 +14,16 @@ const KEY = 'planDurations';
 const KEEP_DAYS = 60;
 
 export function planDurations(): Record<string, AreaDuration> {
-  try {
-    const v = JSON.parse(localStorage.getItem(KEY) ?? '{}');
-    return v && typeof v === 'object' ? v : {};
-  } catch {
-    return {};
-  }
+  const v = readMower<Record<string, AreaDuration>>(KEY);
+  return v && typeof v === 'object' ? v : {};
 }
 
 export function savePlanDuration(areaId: string, min: number, runs: number) {
-  try {
-    const all = planDurations();
-    const old = Date.now() / 1000 - KEEP_DAYS * 86400;
-    for (const [id, d] of Object.entries(all)) if (!d || typeof d.at !== 'number' || d.at < old) delete all[id];
-    all[areaId] = {min, runs, at: Math.round(Date.now() / 1000)};
-    localStorage.setItem(KEY, JSON.stringify(all));
-  } catch {}
+  const all = planDurations();
+  const old = Date.now() / 1000 - KEEP_DAYS * 86400;
+  for (const [id, d] of Object.entries(all)) if (!d || typeof d.at !== 'number' || d.at < old) delete all[id];
+  all[areaId] = {min, runs, at: Math.round(Date.now() / 1000)};
+  writeMower(KEY, all);
 }
 
 // the time the picked areas take together, and which of them have no plan yet

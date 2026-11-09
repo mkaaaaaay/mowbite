@@ -2,7 +2,7 @@
 
 import {clock, dayLabel} from '@/lib/dates';
 import {deviceLang, tr, useLang} from '@/lib/i18n';
-import {apiBase, isDemo} from '@/lib/mowers';
+import {apiBase, isDemo, selectedMower} from '@/lib/mowers';
 import {useMowbiteOs} from '@/lib/mowerOs';
 import {isApp} from '@/lib/native';
 import {
@@ -16,6 +16,7 @@ import {
   testNotify,
   validServer,
   validTopic,
+  withMowerUrl,
   type NotifyConfig,
   type NotifyEvent,
   type NotifyLog,
@@ -56,11 +57,14 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
   const u = useUpdates();
 
   useEffect(() => {
-    // where MowBite is for this device, the message's button opens it there
-    const url = isApp() ? apiBase() : window.location.origin;
-    const fallback = defaultNotify(deviceLang(), url, settings.thisName ?? '');
-    void loadNotify(fallback).then((c) => {
-      if (c === undefined) return setUnreachable(true);
+    // this mower's MowBite as this device reaches it, the message's button opens it there
+    const page = window.location.origin;
+    const url = apiBase() || (isApp() ? '' : page);
+    const name = (!isApp() && selectedMower()?.name) || settings.thisName || '';
+    const fallback = defaultNotify(deviceLang(), url, name);
+    void loadNotify(fallback).then((loaded) => {
+      if (loaded === undefined) return setUnreachable(true);
+      const c = loaded && withMowerUrl(loaded, url, page);
       setForm(c);
       setSaved(c);
     });

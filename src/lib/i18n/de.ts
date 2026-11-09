@@ -442,7 +442,7 @@ const de: Record<string, string> = {
   "Mowers": "Mäher",
   "More than one mower with MowBite? Add the others here and switch between them at the top of the dashboard. Colors and icons are each mower's own, the language is the app's.": "Mehr als ein Mäher mit MowBite? Trag die anderen hier ein und schalte oben auf der Übersicht zwischen ihnen um. Farben und Symbole hat jeder Mäher für sich, die Sprache gilt für die ganze App.",
   "Not in the demo: leave it to add your mowers.": "Nicht in der Demo: Verlass sie, um deine Mäher einzutragen.",
-  "More than one mower with MowBite? Add the others here and switch between them at the top of the dashboard (on a computer in the sidebar). Colors, icons and the language stay the same for all.": "Mehr als ein Mäher mit MowBite? Trag die anderen hier ein und schalte oben auf der Übersicht zwischen ihnen um (am Computer in der Seitenleiste). Farben, Symbole und Sprache bleiben für alle gleich.",
+  "More than one mower with MowBite? Add the others here and switch between them at the top of the dashboard (on a computer in the sidebar). Colors and the language stay the same for all, each mower has its own icons, map style and pictures and the values its dashboard shows.": "Mehr als ein Mäher mit MowBite? Trag die anderen hier ein und schalte oben auf der Übersicht zwischen ihnen um (am Computer in der Seitenleiste). Farben und Sprache bleiben für alle gleich, Symbole, Kartenstil, Bilder und die Werte in der Übersicht hat jeder Mäher für sich.",
   "Mowing": "Mäht",
   "Mowing area": "Mähfläche",
   "Mowing order": "Mähreihenfolge",
