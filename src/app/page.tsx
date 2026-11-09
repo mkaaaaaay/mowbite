@@ -23,7 +23,7 @@ import {useMowerTrack} from '@/hooks/useMowerTrack';
 import {useMowerWifi} from '@/hooks/useMowerWifi';
 import {useBatteryLevel} from '@/hooks/useBatteryLevel';
 import {wifiLevel} from '@/lib/coverage';
-import {isTemperature, shown, tempLabel, tempRank} from '@/lib/dashboard';
+import {shown, tempItems, type DashKey} from '@/lib/dashboard';
 import {usePlanProgress} from '@/hooks/usePlanProgress';
 import {useRecentRuns} from '@/hooks/useRecentRuns';
 import TopWeather from '@/components/TopWeather';
@@ -54,7 +54,8 @@ import {
 } from '@/lib/schedule';
 import {LeftoversCard} from '@/components/Leftovers';
 import {useLeftoverRun} from '@/hooks/useLeftoverRun';
-import MowerSwitch, {useMowerChoice} from '@/components/MowerSwitch';
+import MowerSwitch from '@/components/MowerSwitch';
+import {useMowerChoice} from '@/hooks/useMowerChoice';
 import {UpdateBanner} from '@/components/Updates';
 import {ACTION, PARAM} from '@/lib/openmower';
 
@@ -78,14 +79,13 @@ const ACTIONS = [
 // Hot from the limit OpenMower gives the sensor (max_pcb_temp of an ESC, the mow motor's motor_hot_temperature),
 // 70 °C without one. max_value counts on its own: OpenMower sets has_min_max only when there's a min as well
 function temperatures(infos: SensorInfo[], values: Record<string, string>) {
-  return infos
-    .filter((info) => isTemperature(info) && Number.isFinite(Number(values[info.sensor_id])))
-    .map((info) => {
-      const value = Number(values[info.sensor_id]);
+  return tempItems(infos)
+    .filter(({key}) => Number.isFinite(Number(values[key])))
+    .map(({info, key, label}) => {
+      const value = Number(values[key]);
       const limit = info.max_value > 0 ? info.max_value : info.has_critical_high && info.upper_critical_value > 0 ? info.upper_critical_value : 70;
-      return {key: info.sensor_id, label: tempLabel(info), value: `${Math.round(value)} °C`, warn: value >= limit};
-    })
-    .sort((a, b) => tempRank(a.key) - tempRank(b.key) || a.label.localeCompare(b.label));
+      return {key, label, value: `${Math.round(value)} °C`, warn: value >= limit};
+    });
 }
 
 const upperFirst = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -355,7 +355,7 @@ export default function Home() {
   const hidden = settings.dashboard?.hidden;
   const temps = state ? temperatures(infos, values).filter((t) => shown(hidden, t.key, t.warn)) : [];
   // key: as in DASH_FACTS, wide: gets a whole row, its value is longer
-  const facts: {key: string; label: string; value: string; warn?: boolean; wide?: boolean; extra?: React.ReactNode}[] = [];
+  const facts: {key: DashKey; label: string; value: string; warn?: boolean; wide?: boolean; extra?: React.ReactNode}[] = [];
   // standing still the mower switches gps off, "off" there says nothing
   if (state && (driving || gpsQ !== 'none')) {
     facts.push({
@@ -494,7 +494,7 @@ export default function Home() {
                 {factsShown.length > 0 && (
                   <div className={styles.facts}>
                     {factsShown.map((f, i) => (
-                      <div key={f.label} className={[f.warn ? styles.warn : '', factRows[i] ? styles.whole : ''].join(' ')}>
+                      <div key={f.key} className={[f.warn ? styles.warn : '', factRows[i] ? styles.whole : ''].join(' ')}>
                         <span>{f.label}</span>
                         <FactValue value={f.value} />
                         {f.extra}
