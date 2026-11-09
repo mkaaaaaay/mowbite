@@ -566,10 +566,16 @@ export function AutoUpdate() {
     tapped.current++;
     fast.current = true;
     setError(null);
-    go().catch(() => {
-      setAsked(false);
-      setError(tr('The mower did not answer.'));
-    });
+    // (a look started before the request arrived still saw none, it doesn't free the buttons)
+    go().then(
+      () => {
+        tapped.current++;
+      },
+      () => {
+        setAsked(false);
+        setError(tr('The mower did not answer.'));
+      },
+    );
   };
   const anyAuto = partsOf(st).some((p) => st.conf[`${p.id}_auto`] === 1);
   const days = st.conf.days === 'daily' ? [] : st.conf.days.split(',').map(Number);
