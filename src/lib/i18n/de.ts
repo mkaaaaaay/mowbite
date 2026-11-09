@@ -1497,8 +1497,10 @@ const de: Record<string, string> = {
   "Manual: only when started": "Manuell: nur nach einem Start",
   "Semi-automatic: after a start it mows the whole map, charging in between": "Halbautomatisch: nach einem Start mäht er die ganze Karte, mit Laden zwischendurch",
   "Automatic: mows whenever it can": "Automatisch: mäht, wann immer er kann",
-  "Keeps driving without a fix for": "Fährt ohne Fix weiter für",
-  "On wheel odometry. After that it stops with the blade off and waits for the fix.": "Mit der Rad-Odometrie. Danach hält er mit abgeschaltetem Messer und wartet auf den Fix.",
+  "Mows on without a fix for 10 s plus": "Mäht ohne Fix weiter: 10 s plus",
+  "After the fix is lost, OpenMower still takes it as good for 10 s, then the mower drives on for this long on wheel odometry, the blade still on: with 10 s for about 20 s. Then it stops with the blade off and waits for the fix.": "Nach dem Verlust des Fix hält OpenMower ihn noch 10 s für gut, dann fährt der Mäher so lange mit der Rad-Odometrie weiter, das Messer läuft dabei weiter: bei 10 s also etwa 20 s. Danach hält er mit abgeschaltetem Messer und wartet auf den Fix.",
+  "Docking waits for a good position for": "Andocken wartet auf eine gute Position",
+  "Mowing pauses as soon as the position is bad. Docking waits this long for a good position, then it gives up.": "Mähen pausiert, sobald die Position schlecht ist. Andocken wartet so lange auf eine gute Position, dann gibt es auf.",
   "Required GPS accuracy": "Nötige GPS-Genauigkeit",
   "OpenMower's max_position_accuracy: a position less accurate than this counts as no fix. An RTK fix is at a few cm.":
     "OpenMowers max_position_accuracy: Ist die Position ungenauer, zählt sie als kein Fix. Ein RTK-Fix liegt bei wenigen cm.",

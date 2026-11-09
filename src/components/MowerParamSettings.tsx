@@ -127,13 +127,14 @@ export function ParamRow({field: f}: {field: ParamField}) {
     if (v !== null) void set(v);
   };
   const isKept = !os && !!k?.enabled && f.key in k.values;
+  const label = tr((os && f.osLabel) || f.label);
   const help = (os && f.osHelp) || f.help;
 
   return (
     <div className={local.row}>
       <div className={local.line}>
         <span className={local.label}>
-          {tr(f.label)}
+          {label}
           {help && <InfoTip>{tr(help)}</InfoTip>}
         </span>
         {f.type === 'bool' ? (
@@ -155,7 +156,7 @@ export function ParamRow({field: f}: {field: ParamField}) {
               onChange={(e) => setDraft(e.target.value)}
               onBlur={commit}
               onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-              aria-label={tr(f.label)}
+              aria-label={label}
             />
             <span className={local.unit}>{f.unit ?? ''}</span>
           </span>

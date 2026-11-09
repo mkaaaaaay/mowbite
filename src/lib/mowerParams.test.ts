@@ -24,6 +24,13 @@ describe('the settings of the mower', () => {
     expect(paramConflict(params, 'gps_timeout', 5)).toBeNull();
   });
 
+  it("gps_timeout says the 10 s OpenMower still takes a lost fix as good, the blade running", () => {
+    const f = paramField('gps_timeout')!;
+    expect(f.label).toMatch(/10 s plus$/);
+    expect(f.help).toMatch(/blade still on/);
+    expect(f.osLabel).toMatch(/^Docking/);
+  });
+
   it('are read from the list of the mower, the default without it', () => {
     const f = paramField('gps_timeout')!;
     expect(paramValue({'/mower_logic/gps_timeout': 15}, f)).toBe(15);
