@@ -238,8 +238,9 @@ export function syncSettings(): Promise<void> {
 }
 
 // settings as text with their keys in order, the same for the same settings put together in another order (join)
-const sorted = (s: Settings) =>
-  JSON.stringify(s, (_, v) => (v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => (a < b ? -1 : 1))) : v));
+const inOrder = (v: unknown) =>
+  v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => (a < b ? -1 : 1))) : v;
+const sorted = (s: Settings) => JSON.stringify(s, (_, v) => inOrder(v));
 
 // what a save sends where: everything home, or with another mower looked at in a browser the app's settings home and
 // that mower's own to it. a part that didn't change isn't sent
