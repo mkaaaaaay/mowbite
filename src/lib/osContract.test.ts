@@ -41,8 +41,6 @@ const NOT_OFFERED: Record<string, string> = {
   'ntrip.delete': 'as ntrip.get',
   'robot.geometry.get': "to come: the sizes on MowBite OS (masterplan 8 (4)), the planner's are only readable there",
   'robot.geometry.set': 'as robot.geometry.get',
-  'sound.upload': 'to come: your own sound for a situation, in the settings',
-  'sound.delete': 'as sound.upload',
   'sensors.list': 'the sensors come over MQTT (sensor_infos/json)',
   'rpc.ping': 'rpc.methods already tells whether it answers',
   'system.api': "the app has its copy of the contract here and reads the api's number from system.info",

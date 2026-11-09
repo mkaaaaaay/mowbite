@@ -40,6 +40,8 @@ export const RPC = {
   soundPlay: 'sound.play',
   soundStop: 'sound.stop',
   soundVolume: 'sound.volume',
+  soundUpload: 'sound.upload',
+  soundDelete: 'sound.delete',
   replaceMap: 'map.replace',
   eventDays: 'events.history.list',
   events: 'events.history',

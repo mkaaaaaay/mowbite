@@ -1,10 +1,10 @@
 import {RPC} from '../openmower';
-import type {Situation} from '../sound';
+import type {Situation, SoundFile} from '../sound';
 
 // The sounds of a mower with MowBite OS and a speaker for the click tests (sound.*), like the Tron answers them. The
 // demo is an OpenMower and has none, a test switches them on before the page loads (window.mowbiteDemoSounds)
 
-const vendor = (seconds: number) => ({source: 'vendor', size: Math.round(seconds * 32000), sha256: '0'.repeat(64), seconds});
+const vendor = (seconds: number): SoundFile => ({source: 'vendor', size: Math.round(seconds * 32000), sha256: '0'.repeat(64), seconds});
 const SITUATIONS: Situation[] = [
   {name: 'MOWING_START', event: 'STATE MOWING, not after PAUSED', file: vendor(2.4)},
   {name: 'MOWING_COMPLETE', event: 'JOB_COMPLETE', file: vendor(3.1)},

@@ -409,7 +409,7 @@ export const REASONS: Record<string, Variant[]> = {
     r('the sound is longer than {limit} s', {when: {limit: {present: true}}}),
     r('the sound is too long'),
   ],
-  // limit in bytes
+  // limit in bytes, the whole file's is MAX_SOUND_BYTES (lib/sound)
   TOO_LARGE: [r('the file is larger than 2 MB', {when: {limit: 2 << 20}}), r('the file is too large')],
   CHECKSUM: [r('the file arrived damaged, upload it again')],
   NO_SPACE: [r('no space left on the mower, delete another sound of your own or choose a smaller file')],

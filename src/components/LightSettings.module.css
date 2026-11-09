@@ -144,3 +144,11 @@
 .save:disabled {
   opacity: 0.5;
 }
+
+/* a sound's buttons in a row, the reset to the vendor's at the end */
+.soundButtons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
