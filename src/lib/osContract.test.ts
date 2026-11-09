@@ -33,7 +33,7 @@ const NOT_OFFERED: Record<string, string> = {
   'calibration.check': 'as calibration.start',
   'calibration.abort': 'as calibration.start',
   'calibration.result': 'as calibration.start',
-  'docking.start': 'to come: home for a mower idle away from the dock, with the way home without planner (40 (1), api 11)',
+  'docking.start': 'to come: home for a mower idle away from the dock, with the way home without planner (40 (1), api 12)',
   'events.history.delete': 'as position.history.delete',
   'position.history.delete': 'to come: deleting the track (location data) and the events in the settings, low priority',
   'ntrip.get': 'to come: NTRIP set up without a terminal (masterplan 20, E1), the access never in logs or diagnosis files',
