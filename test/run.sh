@@ -355,6 +355,7 @@ docker exec mbt-web sh -c 'cd /data/backups && for i in $(seq 49); do printf "x\
 expect "backups: at most 50 made by hand" "$(curl -s -w ' %{http_code}' --data-binary '{"areas":[]}' "$B?name=more" | tr -d '\n')" \
   "at most 50 backups made by hand 409"
 expect "backups: the automatic ones still go" "$(code --data-binary '{"areas":[]}' "$B?name=auto&auto=1")" 200
+expect "backups: nothing left half written" "$(docker exec mbt-web sh -c 'ls /data/backups | grep -c tmp')" 0
 
 N=$W/notify
 curl -s -o /dev/null --data-binary $'server https://ntfy.invalid\ntopic mbt-test\ntoken secret-token-1\nenabled 1' "$N"
