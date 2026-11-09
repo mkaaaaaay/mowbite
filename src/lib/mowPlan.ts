@@ -144,6 +144,9 @@ export function fillStripes(rings: Point[][], angle: number, spacing: number): [
   return out;
 }
 
+// an area's own outline_count or outline_overlap_count, undefined for none: -1 means the global one in OpenMower
+export const ownCount = (v: number | undefined) => (v !== undefined && v >= 0 ? v : undefined);
+
 export function mowPlan(req: MowPlanInput): MowPlan {
   if (req.outline.length < 3 || req.toolWidth <= 0) return {loops: [], stripes: []};
   // the area minus its obstacles. obstacles outside of it drop out, ones over its edge get cut off,

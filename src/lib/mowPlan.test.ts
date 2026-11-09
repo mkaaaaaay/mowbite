@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import {polygonArea} from './geometry';
-import {fillStripes, linkStripes, mowPlan} from './mowPlan';
+import {fillStripes, linkStripes, mowPlan, ownCount} from './mowPlan';
 
 const square = (x: number, y: number, size: number) => [
   {x, y},
@@ -92,5 +92,14 @@ describe('linkStripes', () => {
   it('starts a new piece where an obstacle splits the stripes', () => {
     const stripes = fillStripes([square(0, 0, 10), square(4, 2, 2)], 0, 0.5);
     expect(linkStripes(stripes, 0, 0.5).length).toBeGreaterThan(1);
+  });
+});
+
+describe('ownCount', () => {
+  it('takes an area\'s own count, -1 or none leaves it to the global one', () => {
+    expect(ownCount(0)).toBe(0);
+    expect(ownCount(3)).toBe(3);
+    expect(ownCount(-1)).toBeUndefined();
+    expect(ownCount(undefined)).toBeUndefined();
   });
 });
