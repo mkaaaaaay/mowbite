@@ -42,8 +42,8 @@ export interface Settings {
   colors?: Partial<Record<ColorKey, string>>;
   // sizes are factors, 1 = default
   icons?: {mower?: string; dock?: string; mowerSize?: number; dockSize?: number; mowerRealSize?: boolean};
-  // map on the dashboard: only while driving (default) or always
-  dashboard?: {map?: 'auto' | 'always'};
+  // map on the dashboard: only while driving (default) or always; hidden: what the status card leaves out (lib/dashboard)
+  dashboard?: {map?: 'auto' | 'always'; hidden?: string[]};
   // weather on the dashboard from open-meteo, off unless switched on (it sends the rough position there)
   weather?: boolean;
   // the strip of grass along the bottom, on unless switched off

@@ -6,6 +6,7 @@ import {RadialGauge, TempGauge} from '@/components/gauges';
 import {BatteryIcon, TurnIcon} from '@/components/icons';
 import InfoTip from '@/components/InfoTip';
 import {useMowbiteOs} from '@/lib/mowerOs';
+import {isTemperature, tempRank} from '@/lib/dashboard';
 import Sparkline from '@/components/Sparkline';
 import {useBatteryLevel} from '@/hooks/useBatteryLevel';
 import {useEmergencyReasons} from '@/hooks/useEmergencyReasons';
@@ -30,8 +31,6 @@ const MOTOR_IDS = new Set(['om_mow_motor_current', 'om_mow_motor_rpm']);
 const GPS_ID = 'om_gps_accuracy';
 // xbot_positioning reports 999 when there's no fix
 const NO_FIX = 999;
-// as on the dashboard: the blade side first, then the wheels, the rest as they come
-const TEMP_ORDER = ['om_mow_motor_temp', 'om_mow_esc_temp', 'om_left_esc_temp', 'om_right_esc_temp'];
 
 function unitOf(info: SensorInfo) {
   return info.unit === 'deg.C' ? '°C' : info.unit;
@@ -103,19 +102,14 @@ export default function SensorsPage() {
   );
   const batteryTone = batteryCritical ? 'error' : batteryColor(battery ?? 0);
 
-  const temps = infos
-    .filter((i) => i.value_description === 'TEMPERATURE')
-    .sort((a, b) => {
-      const ai = TEMP_ORDER.indexOf(a.sensor_id);
-      const bi = TEMP_ORDER.indexOf(b.sensor_id);
-      return (ai === -1 ? TEMP_ORDER.length : ai) - (bi === -1 ? TEMP_ORDER.length : bi);
-    });
+  // as on the dashboard: the blade side first, then the wheels, the rest as they come
+  const temps = infos.filter(isTemperature).sort((a, b) => tempRank(a.sensor_id) - tempRank(b.sensor_id));
   const others = infos.filter(
     (i) =>
       !BATTERY_IDS.has(i.sensor_id) &&
       !MOTOR_IDS.has(i.sensor_id) &&
       i.sensor_id !== GPS_ID &&
-      i.value_description !== 'TEMPERATURE',
+      !isTemperature(i),
   );
 
   const gps = num(GPS_ID);
