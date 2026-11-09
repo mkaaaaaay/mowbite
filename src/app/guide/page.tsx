@@ -1,10 +1,11 @@
 'use client';
 
+import {useMowbiteOs} from '@/lib/mowerOs';
 import {ART, LegendIcon} from './art';
 import Guide, {type GuideItem, type GuideStep} from './Guide';
 
-// recording the map, step by step with a drawing for each
-const STEPS: GuideStep[] = [
+// recording the map, step by step with a drawing for each. osText: the step on MowBite OS where it differs
+const STEPS: (GuideStep & {osText?: string})[] = [
   {
     title: 'Map your garden',
     text: 'The mower mows by a map: the areas it mows, the obstacles it drives around and its docking station. You record them once by driving it around them with the joystick, the app draws along. To start, tap Record under the map on the Map tab.',
@@ -16,6 +17,8 @@ const STEPS: GuideStep[] = [
   {
     title: 'Docking station',
     text: 'Tap Record docking station, it guides you. The mower stands in the station until it charges, then you back it out straight 1 to 1½ m, steering only where the ground pushes it aside, and it stands there a moment. Tap Save docking station: the way between becomes its docking direction. Then drive it back in.',
+    osText:
+      'Stop about a meter in front of the docking station, facing it, and tap Record docking station. Then drive it straight in until it sits on the contacts and tap Save docking position: the way between becomes its docking direction.',
   },
   {
     title: 'Mowing area',
@@ -27,7 +30,7 @@ const STEPS: GuideStep[] = [
   },
   {
     title: 'Paths and the way to the dock',
-    text: "The mower only drives on mowing and navigation areas. If two lawns don't touch, record the path between them the same way and tap Save as navigation area. The spot about 1.5 m in front of the dock has to lie in one of them too: from there it drives straight in.",
+    text: "The mower only drives on mowing and navigation areas. If two lawns don't touch, record the path between them the same way and tap Save as navigation area. The spot in front of the dock where it lines up (Settings, Docking: Approach in a straight line from) has to lie in one of them too: from there it drives straight in.",
   },
   {
     title: 'Tips',
@@ -49,5 +52,7 @@ const ITEMS: GuideItem[] = (
 ).map((l) => ({key: l.kind, title: l.title, text: l.text, icon: (dock) => <LegendIcon kind={l.kind} dock={dock} />}));
 
 export default function GuidePage() {
-  return <Guide steps={STEPS} items={ITEMS} done={{label: 'Record now', href: '/record'}} />;
+  const os = useMowbiteOs();
+  const steps = os ? STEPS.map((s) => ({...s, text: s.osText ?? s.text})) : STEPS;
+  return <Guide steps={steps} items={ITEMS} done={{label: 'Record now', href: '/record'}} />;
 }

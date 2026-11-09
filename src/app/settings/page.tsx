@@ -500,6 +500,9 @@ export default function SettingsPage() {
               <Link href="/guide/editor" className={styles.pillButton}>
                 {tr('Edit the map')}
               </Link>
+              <Link href="/guide/app" className={styles.pillButton}>
+                {tr('Dashboard and mowers')}
+              </Link>
               {CALIB_SHOWN && (
                 <Link href="/guide/calibration" className={styles.pillButton}>
                   {tr('Calibrating')}

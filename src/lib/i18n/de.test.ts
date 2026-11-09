@@ -11,7 +11,7 @@ import de from './de';
 
 const SRC = join(__dirname, '..', '..');
 const DE = join(__dirname, 'de.ts');
-const UI_PROPS = new Set(['label', 'help', 'osLabel', 'osHelp', 'hint', 'title', 'placeholder', 'aria-label', 'alt', 'choices']);
+const UI_PROPS = new Set(['label', 'help', 'osLabel', 'osHelp', 'hint', 'title', 'text', 'osText', 'placeholder', 'aria-label', 'alt', 'choices']);
 // a name: two words or more, each with a capital, a digit or a dot ("John Deere Tango E5", "Österreich basemap.at")
 const isName = (s: string) => /\s/.test(s) && s.split(/\s+/).every((w) => !/\p{L}/u.test(w) || /^[\p{Lu}\d]|[.\d]/u.test(w));
 // a text has a word with small letters, an id, a url or a css value isn't one
