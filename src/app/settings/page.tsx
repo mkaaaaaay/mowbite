@@ -262,7 +262,7 @@ export default function SettingsPage() {
           </h1>
         </TitleRow>
         <p className={styles.dim}>
-          {demo ? tr("The demo's: they last until it's left.") : shared ? tr('Saved on the mower, the same on all your devices.') : tr('Saved on this device only.')}
+          {demo ? tr("These are the demo's settings, they're gone once you leave it.") : shared ? tr('Saved on the mower, the same on all your devices.') : tr('Saved on this device only.')}
         </p>
 
         {(planner !== undefined || unanswered || waiting) && (
