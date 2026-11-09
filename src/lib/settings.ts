@@ -295,9 +295,14 @@ export function flushSettings(): Promise<void> {
 export const LOOK_KEYS = ['looks', 'lookVariants', 'lookSizes', 'lookTurns', 'lookClosed', 'lookGrounds'] as const;
 export type LookKey = (typeof LOOK_KEYS)[number];
 
-// what belongs to one mower and its map: its sizes, its and its dock's icons, the pictures of its areas, its leftovers
-// (its container reads them) and where its aerial imagery is moved to (imagery's offsets, the rest of imagery is the app's)
-export const MOWER_KEYS = ['mower', 'icons', 'keepRectangle', 'autoOutline', 'leftovers', ...LOOK_KEYS] as const;
+// what belongs to one mower and its map: its sizes, its and its dock's icons, how its map is drawn and the pictures of
+// its areas, its leftovers (its container reads them)
+export const MOWER_KEYS = ['mower', 'icons', 'keepRectangle', 'autoOutline', 'leftovers', 'mapStyle', 'garden', ...LOOK_KEYS] as const;
+// a mower's part of an app's setting: where its aerial imagery is moved to and the values its dashboard leaves out
+const MOWER_PARTS = [
+  ['imagery', 'offsets'],
+  ['dashboard', 'hidden'],
+] as const;
 
 // the settings of the app from a, the ones of a mower from b
 export function join(a: Settings, b: Settings): Settings {
@@ -306,10 +311,14 @@ export function join(a: Settings, b: Settings): Settings {
     if (b[k] !== undefined) out[k] = b[k];
     else delete out[k];
   }
-  const imagery = {...a.imagery, ...(b.imagery?.offsets ? {offsets: b.imagery.offsets} : {})};
-  if (!b.imagery?.offsets) delete imagery.offsets;
-  if (Object.keys(imagery).length) out.imagery = imagery;
-  else delete out.imagery;
+  for (const [k, part] of MOWER_PARTS) {
+    const mine = (b[k] as Record<string, unknown> | undefined)?.[part];
+    const v: Record<string, unknown> = {...a[k]};
+    if (mine !== undefined) v[part] = mine;
+    else delete v[part];
+    if (Object.keys(v).length) out[k] = v;
+    else delete out[k];
+  }
   return out as Settings;
 }
 // what's kept for some areas' pictures, by area id, a setting not there when there's none

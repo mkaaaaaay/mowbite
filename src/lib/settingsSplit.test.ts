@@ -9,16 +9,23 @@ const kept = vi.hoisted(() => ({
       mowers: [{id: 'b', name: 'B', host: 'b'}],
       mower: {width: 0.4},
       icons: {mower: 'punisher'},
+      garden: {sun: true},
+      dashboard: {map: 'always', hidden: ['gps']},
       looks: {a1: 'tree'},
       imagery: {esriKey: 'key', offsets: {esri: [1, 2]}},
     } as Record<string, unknown>,
     posted: [] as Record<string, unknown>[],
   },
   b: {
-    data: {mapStyle: 'plain', mower: {width: 0.6}, looks: {b1: 'pond'}, imagery: {offsets: {esri: [3, 4]}}, leftovers: {auto: true}} as Record<
-      string,
-      unknown
-    >,
+    data: {
+      mapStyle: 'plain',
+      colors: {mower: '#999999'},
+      mower: {width: 0.6},
+      dashboard: {hidden: ['rain']},
+      looks: {b1: 'pond'},
+      imagery: {offsets: {esri: [3, 4]}},
+      leftovers: {auto: true},
+    } as Record<string, unknown>,
     posted: [] as Record<string, unknown>[],
   },
   base: 'http://b:8082',
@@ -48,20 +55,29 @@ describe('a browser looking at another mower than the one the page comes from', 
     vi.useFakeTimers();
     await syncSettings();
     expect(settingsStore.snapshot()).toEqual({
-      mapStyle: 'garden',
+      mapStyle: 'plain',
       colors: {mower: '#111111'},
       mowers: [{id: 'b', name: 'B', host: 'b'}],
       mower: {width: 0.6},
+      dashboard: {map: 'always', hidden: ['rain']},
       looks: {b1: 'pond'},
       imagery: {esriKey: 'key', offsets: {esri: [3, 4]}},
       leftovers: {auto: true},
     });
-    // b's sizes and icon: only to b, its own map style stays
-    saveSettings({...settingsStore.snapshot(), mower: {width: 0.7}, icons: {mower: 'tron'}});
+    // b's sizes, icon, map style and dashboard values: only to b, the colors it has from before stay
+    const now = settingsStore.snapshot();
+    saveSettings({...now, mower: {width: 0.7}, icons: {mower: 'tron'}, mapStyle: 'garden', dashboard: {...now.dashboard, hidden: []}});
     await vi.advanceTimersByTimeAsync(1000);
     expect(kept.a.posted).toEqual([]);
-    expect(kept.b.posted.at(-1)).toMatchObject({mapStyle: 'plain', mower: {width: 0.7}, icons: {mower: 'tron'}, looks: {b1: 'pond'}});
-    // a color: only home, a's own sizes and pictures stay
+    expect(kept.b.posted.at(-1)).toMatchObject({
+      mapStyle: 'garden',
+      colors: {mower: '#999999'},
+      mower: {width: 0.7},
+      icons: {mower: 'tron'},
+      dashboard: {hidden: []},
+      looks: {b1: 'pond'},
+    });
+    // a color: only home, a's own settings stay
     saveSettings({...settingsStore.snapshot(), colors: {mower: '#222222'}});
     await vi.advanceTimersByTimeAsync(1000);
     expect(kept.b.posted).toHaveLength(1);
@@ -71,6 +87,8 @@ describe('a browser looking at another mower than the one the page comes from', 
       mowers: [{id: 'b', name: 'B', host: 'b'}],
       mower: {width: 0.4},
       icons: {mower: 'punisher'},
+      garden: {sun: true},
+      dashboard: {map: 'always', hidden: ['gps']},
       looks: {a1: 'tree'},
       imagery: {esriKey: 'key', offsets: {esri: [1, 2]}},
     });
