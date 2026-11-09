@@ -74,6 +74,12 @@ export function leaveRemoved() {
   if (!isApp() && id && id !== DEMO_ID && !mowerList().some((m) => m.id === id)) selectMower('');
 }
 
+// a key in this device's storage for what's kept for the mower looked at, the key alone for the one the page comes from
+export function mowerKey(key: string): string {
+  const id = selectedMower()?.id;
+  return id ? `${key} ${id}` : key;
+}
+
 // where the selected mower's MowBite answers (sensor history, backups, schedule)
 export function apiBase(): string {
   if (typeof window === 'undefined') return '';

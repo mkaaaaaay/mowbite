@@ -1,6 +1,6 @@
 import {useEffect, useSyncExternalStore} from 'react';
 import FEATURES from './containerFeatures.json';
-import {apiBase, mowerFetch} from './mowers';
+import {apiBase, mowerFetch, mowerKey} from './mowers';
 
 // Looks on github for a newer release. Off by default (it tells github your ip), switched on per
 // device in the settings, then once a day. "check now" works either way.
@@ -105,7 +105,7 @@ function current(): State {
       latest: info?.latest ?? null,
       checkedAt: info?.at ?? null,
       dismissed: read<string>(DISMISSED_KEY),
-      behindDismissed: read<string>(BEHIND_KEY),
+      behindDismissed: read<string>(mowerKey(BEHIND_KEY)),
     };
   }
   return state;
@@ -144,7 +144,7 @@ export function dismissUpdate(version: string) {
 export const behindKey = (mower: string | null) => `${mower} ${CONTAINER_LEVEL}`;
 
 export function dismissBehind(key: string) {
-  write(BEHIND_KEY, key);
+  write(mowerKey(BEHIND_KEY), key);
   set({behindDismissed: key});
 }
 

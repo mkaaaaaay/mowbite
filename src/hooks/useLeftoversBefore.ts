@@ -3,27 +3,28 @@
 import type {Point} from '@/hooks/useMowerMap';
 import {loadJobList, loadJobTrack} from '@/hooks/useMowHistory';
 import {useTrailJob} from '@/hooks/useMowerTrack';
+import {mowerKey} from '@/lib/mowers';
 import {useEffect, useState} from 'react';
 
 export type BeforeTrack = {points: Point[]; blades: boolean}[];
 
 // The mow whose leftovers the mower drives now: the one armed from this device, else the newest one before it, the one
 // the container takes them of. Kept on this device with the job of the leftovers, so it's still known once that run is
-// over and its trail is the one shown
+// over and its trail is the one shown. both by mower
 const KEY = 'leftoversOf';
 const ARMED = 'leftoversArmed';
 
 // the job whose leftovers were armed here (the card), for the run that drives them
 export function rememberArmed(source: string) {
   try {
-    localStorage.setItem(ARMED, JSON.stringify({source, at: Date.now() / 1000}));
+    localStorage.setItem(mowerKey(ARMED), JSON.stringify({source, at: Date.now() / 1000}));
   } catch {}
 }
 
 // armed within the last 6 hours (the container's leftovers start at most that late)
 function armedSource(): string | null {
   try {
-    const v = JSON.parse(localStorage.getItem(ARMED) ?? 'null');
+    const v = JSON.parse(localStorage.getItem(mowerKey(ARMED)) ?? 'null');
     return v && typeof v.source === 'string' && typeof v.at === 'number' && Date.now() / 1000 - v.at < 21600 ? v.source : null;
   } catch {
     return null;
@@ -32,7 +33,7 @@ function armedSource(): string | null {
 
 function remembered(): {job: string; before: string} | null {
   try {
-    const v = JSON.parse(localStorage.getItem(KEY) ?? 'null');
+    const v = JSON.parse(localStorage.getItem(mowerKey(KEY)) ?? 'null');
     return v && typeof v.job === 'string' && typeof v.before === 'string' ? v : null;
   } catch {
     return null;
@@ -46,7 +47,7 @@ export function useLeftoversSource(leftovers: boolean): string | null {
   useEffect(() => {
     if (!job) return;
     let alive = true;
-    void (async () => {
+    (async () => {
       let of = remembered();
       if (leftovers && of?.job !== job) {
         const armed = armedSource();
@@ -54,11 +55,11 @@ export function useLeftoversSource(leftovers: boolean): string | null {
         if (!prev) return;
         of = {job, before: prev};
         try {
-          localStorage.setItem(KEY, JSON.stringify(of));
+          localStorage.setItem(mowerKey(KEY), JSON.stringify(of));
         } catch {}
       }
       if (alive && of?.job === job) setFound(of);
-    })();
+    })().catch(() => {});
     return () => {
       alive = false;
     };
@@ -73,10 +74,12 @@ export function useLeftoversBefore(leftovers: boolean): BeforeTrack | undefined 
   useEffect(() => {
     if (!source) return;
     let alive = true;
-    void loadJobTrack(source).then((segments) => {
-      if (!alive || !segments.length) return;
-      setBefore({source, track: segments.map((s) => ({points: s.points.map(([x, y]) => ({x, y})), blades: !!s.attributes.blades}))});
-    });
+    loadJobTrack(source)
+      .then((segments) => {
+        if (!alive || !segments.length) return;
+        setBefore({source, track: segments.map((s) => ({points: s.points.map(([x, y]) => ({x, y})), blades: !!s.attributes.blades}))});
+      })
+      .catch(() => {});
     return () => {
       alive = false;
     };

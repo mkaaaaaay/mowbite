@@ -1,6 +1,6 @@
 import type {Point} from '@/hooks/useMowerMap';
 import type {MowerEvent} from './events';
-import {isDemo, selectedMower} from './mowers';
+import {isDemo, mowerKey} from './mowers';
 
 // The mower's plan for an area (mowing.plan) split at where it is: the robot state has the path it's on and the
 // index of the pose in that path (current_path, current_path_index). The plan comes simplified, pose_index says which
@@ -107,10 +107,7 @@ export function bladeSeconds(events: MowerEvent[], areaId: string, now: number):
 
 // how fast the plan gets done (m of plan per second of blades running, turns included). the last one is kept on this
 // device for each mower (the demo's not), the editor uses it for how long an area takes
-const rateKey = () => {
-  const id = selectedMower()?.id;
-  return id ? `mowRate ${id}` : 'mowRate';
-};
+const rateKey = () => mowerKey('mowRate');
 
 export function savedRate(): number | null {
   if (isDemo()) return null;
