@@ -194,8 +194,16 @@ export const EVENTS: Record<string, EventText> = {
     severity: 'error',
     variants: [{when: {hold: false}, en: 'Restarted unexpectedly', severity: 'warning'}, {en: 'Held after an unexpected restart'}],
   },
-  // sound.play turned down, only in its answer
-  SOUND_REFUSED: one('Sound not played'),
+  // sound.* turned down, only in its answer: playing, uploading, or another upload busy
+  SOUND_REFUSED: {
+    severity: 'info',
+    variants: [
+      {when: {reason: 'EMERGENCY'}, en: 'Sound not played'},
+      {when: {reason: 'NO_FILE'}, en: 'Sound not played'},
+      {when: {reason: 'BUSY'}, en: 'Sound not changed'},
+      {en: 'Sound not uploaded'},
+    ],
+  },
   DRIVE: {
     severity: 'warning',
     variants: [
@@ -251,6 +259,7 @@ export const REASONS: Record<string, Variant[]> = {
   dock_failed: [r('no contact with the charger')],
   no_gps: [r('no GPS fix')],
   BUSY: [
+    r('another sound is being uploaded or checked', {when: {type: 'SOUND_REFUSED'}}),
     r('busy: Idle', {when: {state: 'IDLE'}}),
     r('busy: Mowing', {when: {state: 'MOWING'}}),
     r('busy: Recording an area', {when: {state: 'AREA_RECORDING'}}),
@@ -392,8 +401,19 @@ export const REASONS: Record<string, Variant[]> = {
   DRIVER_MISSING: [r('the hardware driver is not running')],
   SAFETY_MISSING: [r('the safety filter is not running')],
   NO_ANSWER: [r('no answer in time')],
-  // SOUND_REFUSED: the situation has no sound file
+  // SOUND_REFUSED: the situation has no sound file, or an upload (sound.upload) the mower didn't take
   NO_FILE: [r('the mower has no sound for this situation')],
+  NOT_MP3: [r('the file is not an MP3 the mower can play')],
+  TOO_LONG: [
+    r('the sound is {seconds:1} s long, at most {limit} s', {when: {seconds: {present: true}, limit: {present: true}}}),
+    r('the sound is longer than {limit} s', {when: {limit: {present: true}}}),
+    r('the sound is too long'),
+  ],
+  // limit in bytes
+  TOO_LARGE: [r('the file is larger than 2 MB', {when: {limit: 2 << 20}}), r('the file is too large')],
+  CHECKSUM: [r('the file arrived damaged, upload it again')],
+  NO_SPACE: [r('no space left on the mower, delete another sound of your own or choose a smaller file')],
+  PART_ORDER: [r('a part of the file arrived out of order, upload it again')],
   RESTART_HOLD_STAYS: [r("the hold after the unexpected restart couldn't be removed")],
   // UNEXPECTED_RESTART: what ended MowBite OS before
   KERNEL_CRASH: [r('the kernel crashed')],

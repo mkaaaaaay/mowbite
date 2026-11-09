@@ -11,8 +11,8 @@ import {EMERGENCY_BITS, EMERGENCY_HIDE, EMERGENCY_TEXT, EVENTS, REASONS, pick} f
 const PINNED = {
   repo: 'mkaaaaaay/mowbite-os',
   path: 'src/mowbite_api/api.schema.json',
-  commit: 'a5296f6f79f1d7f2d6cd3d297ffffe5499c3aeb4',
-  sha256: '177b2e4cdfae6a30f40895fbc73f4faa0c3637bfd8a5ecaa1a216ad5b9e077dd',
+  commit: 'b37124539152fbf90b827185b2f5d2afea957472',
+  sha256: '164785aab4332e46a6da48ecc46c88d84d6e0718b832534804f8f06a54d3938f',
 };
 const raw = readFileSync(join(__dirname, 'os-api.schema.json'));
 // a reason's rating, when: another one for these values of the event's fields
@@ -41,6 +41,8 @@ const NOT_OFFERED: Record<string, string> = {
   'ntrip.delete': 'as ntrip.get',
   'robot.geometry.get': "to come: the sizes on MowBite OS (masterplan 8 (4)), the planner's are only readable there",
   'robot.geometry.set': 'as robot.geometry.get',
+  'sound.upload': 'to come: your own sound for a situation, in the settings',
+  'sound.delete': 'as sound.upload',
   'sensors.list': 'the sensors come over MQTT (sensor_infos/json)',
   'rpc.ping': 'rpc.methods already tells whether it answers',
   'system.api': "the app has its copy of the contract here and reads the api's number from system.info",

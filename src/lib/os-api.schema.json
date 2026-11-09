@@ -5323,6 +5323,97 @@
       },
       "type": "array"
     },
+    "sound.delete.params": {
+      "additionalProperties": false,
+      "description": "The params of sound.delete: The situation",
+      "properties": {
+        "situation": {
+          "description": "A name of sound.list",
+          "enum": [
+            "MOWING_START",
+            "MOWING_COMPLETE",
+            "DOCKING_START",
+            "LOW_BATTERY",
+            "RAIN_DETECTED",
+            "MOWING_PAUSED",
+            "AREA_RECORDING_MODE",
+            "DOCKING_FAILED",
+            "CHARGING_START",
+            "CHARGING_DONE",
+            "EMERGENCY",
+            "LIFT_TRIGGERED"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "situation"
+      ],
+      "type": "object"
+    },
+    "sound.delete.result": {
+      "additionalProperties": false,
+      "description": "The result of sound.delete: The sound of the situation now, as sound.list has it",
+      "properties": {
+        "file": {
+          "additionalProperties": false,
+          "description": "Its sound, null without one",
+          "properties": {
+            "seconds": {
+              "description": "How long it plays",
+              "type": "number",
+              "x-unit": "s"
+            },
+            "sha256": {
+              "description": "SHA-256 of the original",
+              "type": "string"
+            },
+            "size": {
+              "description": "Bytes of the original",
+              "type": "integer"
+            },
+            "source": {
+              "description": "Always vendor",
+              "enum": [
+                "vendor"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "source",
+            "size",
+            "sha256",
+            "seconds"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "situation": {
+          "description": "The situation",
+          "type": "string"
+        },
+        "source": {
+          "description": "vendor, or null without a sound",
+          "enum": [
+            "vendor",
+            null
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "situation",
+        "source",
+        "file"
+      ],
+      "type": "object"
+    },
     "sound.list.params": {
       "description": "The params of sound.list: None",
       "type": "object"
@@ -5471,6 +5562,86 @@
     },
     "sound.stop.result": {
       "description": "The result of sound.stop: Empty",
+      "type": "object"
+    },
+    "sound.upload.params": {
+      "additionalProperties": false,
+      "description": "The params of sound.upload: A part",
+      "properties": {
+        "data": {
+          "description": "The bytes of this part in base64, at most 512 KB before base64",
+          "type": "string"
+        },
+        "part": {
+          "description": "Number of this part, from 0",
+          "type": "integer"
+        },
+        "parts": {
+          "description": "How many parts the file has",
+          "type": "integer"
+        },
+        "sha256": {
+          "description": "SHA-256 of the whole file in lower-case hex, the same in every part",
+          "type": "string"
+        },
+        "situation": {
+          "description": "A name of sound.list",
+          "enum": [
+            "MOWING_START",
+            "MOWING_COMPLETE",
+            "DOCKING_START",
+            "LOW_BATTERY",
+            "RAIN_DETECTED",
+            "MOWING_PAUSED",
+            "AREA_RECORDING_MODE",
+            "DOCKING_FAILED",
+            "CHARGING_START",
+            "CHARGING_DONE",
+            "EMERGENCY",
+            "LIFT_TRIGGERED"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "situation",
+        "part",
+        "parts",
+        "data",
+        "sha256"
+      ],
+      "type": "object"
+    },
+    "sound.upload.result": {
+      "additionalProperties": false,
+      "description": "The result of sound.upload: After a part before the last: received; after the last: the sound now",
+      "properties": {
+        "duration_s": {
+          "description": "How long it plays",
+          "type": "number",
+          "x-unit": "s"
+        },
+        "received": {
+          "description": "Number of the part taken",
+          "type": "integer"
+        },
+        "sha256": {
+          "description": "SHA-256 of the file",
+          "type": "string"
+        },
+        "situation": {
+          "description": "The situation",
+          "type": "string"
+        },
+        "source": {
+          "description": "Always upload",
+          "enum": [
+            "upload"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [],
       "type": "object"
     },
     "sound.volume.params": {
@@ -5764,11 +5935,11 @@
       "type": "object"
     }
   },
-  "$id": "urn:mowbite-os:api:10",
+  "$id": "urn:mowbite-os:api:11",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "robot_state, actions, events and RPC methods of MowBite OS over MQTT, as system.api gives them; made from the code, objects sorted by key. x-reasons has severity and resume of every reason by event (COMMAND_REFUSED and REQUEST_REFUSED only in refusals; when: another rating for these field values; texts: name, help and fix by language), x-emergency-bits the bits of emergency, x-commands the commands with params, result, the event of their refusal and the actions that do the same, x-methods every RPC method of the OS with its node (planner.* are the planner's, sim.* only in the simulation), x-sensors the sensors by id, x-settings the settings of params.set with the ranges of the OS, x-geometry the keys of robot.geometry.",
   "title": "MowBite OS app interface",
-  "x-api": 10,
+  "x-api": 11,
   "x-commands": {
     "docking.abort": {
       "action": "mower_logic:docking/abort_docking",
@@ -6639,6 +6810,13 @@
       "params": "#/$defs/sensors.list.params",
       "result": "#/$defs/sensors.list.result"
     },
+    "sound.delete": {
+      "description": "Deletes the upload of a situation, so that the vendor's sound plays again, or none without one; nothing to delete is no error. -32004 while an update holds the mower",
+      "node": "mowbite_sound",
+      "offered": "with a speaker and at least one sound",
+      "params": "#/$defs/sound.delete.params",
+      "result": "#/$defs/sound.delete.result"
+    },
     "sound.list": {
       "description": "The situations the OS has a sound for, the sound of each and the volume",
       "node": "mowbite_sound",
@@ -6647,7 +6825,7 @@
       "result": "#/$defs/sound.list.result"
     },
     "sound.play": {
-      "description": "Plays the sound of a situation once, to listen to it; refused (SOUND_REFUSED) in an emergency and without a sound",
+      "description": "Plays the sound of a situation once, to listen to it; refused (SOUND_REFUSED) in an emergency and without a sound (NO_FILE)",
       "node": "mowbite_sound",
       "offered": "with a speaker and at least one sound",
       "params": "#/$defs/sound.play.params",
@@ -6659,6 +6837,13 @@
       "offered": "with a speaker and at least one sound",
       "params": "#/$defs/sound.stop.params",
       "result": "#/$defs/sound.stop.result"
+    },
+    "sound.upload": {
+      "description": "Uploads an MP3 of at most 2 MB and 30 s for a situation in parts, one upload at a time, also in an emergency; part 0 starts it, the same file from part 0 starts it again. The OS checks it after the last part and only then plays it instead of the vendor's sound. Refused (SOUND_REFUSED) for a wrong file, order or size and while another upload runs; an unfinished upload is dropped 60 s after its last part; -32004 while an update holds the mower",
+      "node": "mowbite_sound",
+      "offered": "with a speaker and at least one sound",
+      "params": "#/$defs/sound.upload.params",
+      "result": "#/$defs/sound.upload.result"
     },
     "sound.volume": {
       "description": "Reads the volume, or sets it with volume; 0 is silent, also in an emergency. A change while an update holds the mower is refused with -32004",
@@ -7949,11 +8134,67 @@
       }
     },
     "SOUND_REFUSED": {
+      "BUSY": {
+        "description": "The mower is busy with something else",
+        "fields": {
+          "state": ""
+        },
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Kurz warten und noch einmal versuchen.",
+            "help": "Gerade wird schon ein anderer Ton hochgeladen oder geprüft.",
+            "name": "Upload läuft"
+          },
+          "en": {
+            "fix": "Wait a moment and try again.",
+            "help": "Another sound is being uploaded or checked right now.",
+            "name": "Upload in progress"
+          }
+        }
+      },
+      "CHECKSUM": {
+        "description": "The file that came has another sha256 than the one given",
+        "fields": {},
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Die Datei noch einmal hochladen.",
+            "help": "Die angekommene Datei passt nicht zu ihrer Prüfsumme, unterwegs ging etwas verloren.",
+            "name": "Prüfsumme falsch"
+          },
+          "en": {
+            "fix": "Upload the file again.",
+            "help": "The file that arrived does not match its checksum, something got lost on the way.",
+            "name": "Checksum mismatch"
+          }
+        }
+      },
       "EMERGENCY": {
         "description": "An emergency stops the mower",
         "fields": {},
         "resume": "user",
         "severity": "info"
+      },
+      "NOT_MP3": {
+        "description": "The file is no MP3 the mower can play",
+        "fields": {},
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Eine MP3-Datei wählen.",
+            "help": "Die Datei ist keine MP3, die der Mäher abspielen kann.",
+            "name": "Keine MP3"
+          },
+          "en": {
+            "fix": "Choose an MP3 file.",
+            "help": "The file is not an MP3 the mower can play.",
+            "name": "Not an MP3"
+          }
+        }
       },
       "NO_FILE": {
         "description": "The situation has no sound",
@@ -7970,6 +8211,85 @@
             "fix": "Choose a situation that has a sound.",
             "help": "The mower has no sound for this situation.",
             "name": "No sound"
+          }
+        }
+      },
+      "NO_SPACE": {
+        "description": "No room for the file: all sounds together have a limit, and the journal keeps its reserve free",
+        "fields": {},
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Einen anderen eigenen Ton löschen oder eine kleinere Datei wählen.",
+            "help": "Auf dem Mäher ist kein Platz mehr für diesen Ton.",
+            "name": "Kein Platz"
+          },
+          "en": {
+            "fix": "Delete another sound of your own or choose a smaller file.",
+            "help": "The mower has no space left for this sound.",
+            "name": "No space"
+          }
+        }
+      },
+      "PART_ORDER": {
+        "description": "A part of the upload came out of order",
+        "fields": {
+          "expected": ""
+        },
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Die Datei noch einmal hochladen.",
+            "help": "Ein Teil der Datei kam nicht in der richtigen Reihenfolge an.",
+            "name": "Teile durcheinander"
+          },
+          "en": {
+            "fix": "Upload the file again.",
+            "help": "A part of the file did not arrive in the right order.",
+            "name": "Parts out of order"
+          }
+        }
+      },
+      "TOO_LARGE": {
+        "description": "The file or a part of it is too large",
+        "fields": {
+          "limit": "bytes"
+        },
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Eine kleinere Datei wählen.",
+            "help": "Die Datei ist zu groß, erlaubt sind 2 MB.",
+            "name": "Datei zu groß"
+          },
+          "en": {
+            "fix": "Choose a smaller file.",
+            "help": "The file is too large, 2 MB are allowed.",
+            "name": "File too large"
+          }
+        }
+      },
+      "TOO_LONG": {
+        "description": "The sound is too long",
+        "fields": {
+          "limit": "s",
+          "seconds": "s"
+        },
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Einen kürzeren Ton wählen.",
+            "help": "Der Ton ist länger als 30 Sekunden.",
+            "name": "Ton zu lang"
+          },
+          "en": {
+            "fix": "Choose a shorter sound.",
+            "help": "The sound is longer than 30 seconds.",
+            "name": "Sound too long"
           }
         }
       }

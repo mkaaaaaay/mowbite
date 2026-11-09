@@ -632,8 +632,29 @@
    "severity": "info",
    "variants": [
     {
+     "when": {
+      "reason": "EMERGENCY"
+     },
      "en": "Sound not played",
      "de": "Ton nicht abgespielt"
+    },
+    {
+     "when": {
+      "reason": "NO_FILE"
+     },
+     "en": "Sound not played",
+     "de": "Ton nicht abgespielt"
+    },
+    {
+     "when": {
+      "reason": "BUSY"
+     },
+     "en": "Sound not changed",
+     "de": "Ton nicht geändert"
+    },
+    {
+     "en": "Sound not uploaded",
+     "de": "Ton nicht hochgeladen"
     }
    ]
   },
@@ -916,6 +937,13 @@
    }
   ],
   "BUSY": [
+   {
+    "en": "another sound is being uploaded or checked",
+    "when": {
+     "type": "SOUND_REFUSED"
+    },
+    "de": "gerade wird schon ein anderer Ton hochgeladen oder geprüft"
+   },
    {
     "en": "busy: Idle",
     "when": {
@@ -1637,6 +1665,70 @@
    {
     "en": "the mower has no sound for this situation",
     "de": "für diese Situation hat der Mäher keinen Ton"
+   }
+  ],
+  "NOT_MP3": [
+   {
+    "en": "the file is not an MP3 the mower can play",
+    "de": "die Datei ist keine MP3, die der Mäher abspielen kann"
+   }
+  ],
+  "TOO_LONG": [
+   {
+    "en": "the sound is {seconds:1} s long, at most {limit} s",
+    "when": {
+     "seconds": {
+      "present": true
+     },
+     "limit": {
+      "present": true
+     }
+    },
+    "de": "der Ton ist {seconds:1} s lang, höchstens {limit} s"
+   },
+   {
+    "en": "the sound is longer than {limit} s",
+    "when": {
+     "limit": {
+      "present": true
+     }
+    },
+    "de": "der Ton ist länger als {limit} s"
+   },
+   {
+    "en": "the sound is too long",
+    "de": "der Ton ist zu lang"
+   }
+  ],
+  "TOO_LARGE": [
+   {
+    "en": "the file is larger than 2 MB",
+    "when": {
+     "limit": 2097152
+    },
+    "de": "die Datei ist größer als 2 MB"
+   },
+   {
+    "en": "the file is too large",
+    "de": "die Datei ist zu groß"
+   }
+  ],
+  "CHECKSUM": [
+   {
+    "en": "the file arrived damaged, upload it again",
+    "de": "die Datei kam beschädigt an, bitte noch einmal hochladen"
+   }
+  ],
+  "NO_SPACE": [
+   {
+    "en": "no space left on the mower, delete another sound of your own or choose a smaller file",
+    "de": "kein Platz mehr auf dem Mäher, einen anderen eigenen Ton löschen oder eine kleinere Datei wählen"
+   }
+  ],
+  "PART_ORDER": [
+   {
+    "en": "a part of the file arrived out of order, upload it again",
+    "de": "ein Teil der Datei kam in falscher Reihenfolge an, bitte noch einmal hochladen"
    }
   ],
   "RESTART_HOLD_STAYS": [
