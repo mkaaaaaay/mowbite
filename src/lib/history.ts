@@ -43,11 +43,11 @@ const shift = (day: string, by: number) => {
 // +1 east of UTC (the early hours of a local day are in the previous file), -1 west of it
 const side = () => Math.sign(-new Date().getTimezoneOffset());
 
-// the local days worth showing, newest first: the file days, plus today when the newest file is
-// today's or yesterday's and today's own file isn't there yet. west of UTC tomorrow's file is there in the evening
-// already, it holds the rest of today
+// the local days worth showing, newest first: the file days and the local day next to each that holds some of its hours
+// (one without a file of its own included), plus today when the newest file is today's or yesterday's and today's own
+// file isn't there yet. west of UTC tomorrow's file is there in the evening already, it holds the rest of today
 export function localDays(files: string[]): string[] {
-  const days = new Set(files);
+  const days = new Set(side() ? files.flatMap((f) => [f, shift(f, side())]) : files);
   const today = fileDay(new Date());
   if (files.length && !days.has(today) && (files.includes(shift(today, -1)) || files.includes(shift(today, 1)))) days.add(today);
   return [...days].filter((d) => d <= today).sort().reverse();
