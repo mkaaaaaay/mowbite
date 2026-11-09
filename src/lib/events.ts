@@ -139,6 +139,8 @@ export function emergencyFlags(code: unknown): string[] {
   return flags;
 }
 const BIT = /^BIT_(\d+)$/;
+// what someone or something at the mower set off
+const PRESSED = ['STOP', 'LIFT', 'LIFT_MULTIPLE', 'COLLISION', 'COLLISION_MULTIPLE'];
 
 // MowBite OS's pauses that go on once the position is good again
 const POSITION_PAUSE = ['NO_POSITION', 'POSE_LOST', 'POSITION_ACCURACY', 'HEADING', 'NO_HEADING'];
@@ -295,8 +297,17 @@ const spinupFailed = () =>
     "The mow motor didn't reach its speed in time (mower_logic/mower_spinup_timeout), so the mower stopped with an emergency. Often grass is wound round the blade or the blade is blocked, or the motor or its controller is faulty.",
   );
 
-// what MowBite OS's own reasons are about and what to do, a sentence or two each
+// what a reason is about and what to do, a sentence or two each. stop button, lift and bumper share one (PRESSED)
 const EMERGENCY_HELP: Record<string, string> = {
+  TIMEOUT_INPUTS:
+    "The board's inputs (stop buttons, lift sensors and bumpers) didn't report in time, so it can't tell whether one was set off. Check the cables to them, then reset it.",
+  TIMEOUT_HIGH_LEVEL:
+    "The board heard nothing from the mower's software for too long: it was still starting, restarting or had crashed, or the connection to the board dropped. Once the software runs again, reset it.",
+  SERVICE_NOT_READY: "A part of the board's firmware wasn't ready yet, usually right after switching on. Wait a moment, then reset it.",
+  FIRMWARE_INCOMPATIBLE:
+    "The board's firmware doesn't fit the mower's software, so the motors stay off. Update the firmware or the software so they fit, a reset doesn't help before that.",
+  MOWER_RPM_LIMIT:
+    'The mow motor turned outside its allowed speed. Check the blade (grass wound round it, blocked or loose) and the mow motor, then reset it.',
   TILT: 'It stood tilted further than allowed, on a slope or lifted on one side, so the wheels and the blade went off. Stand it level: a reset only goes through below its release angle.',
   FENCE:
     "A drive of its own took it too far out of the area it may drive in, or into an obstacle, and the path follower hadn't stopped it. Check the map and the GPS at that spot. The reset always goes through.",
@@ -428,7 +439,9 @@ export function explain(e: MowerEvent, state?: string, gpsTimeout?: number, os =
             );
       if (flags.some((f) => BIT.test(f)))
         return tr("A reason MowBite doesn't know yet, a newer version may. The log from that moment says more. It has to be reset before it drives again.");
-      return tr('Stop button, lift, tilt or a bumper. It has to be released and reset before it drives again.');
+      if (flags.some((f) => PRESSED.includes(f)))
+        return tr('Stop button, lift, tilt or a bumper. It has to be released and reset before it drives again.');
+      return undefined;
     }
     // the emergency stop stays as it was
     case 'EMERGENCY_RESET_REFUSED':

@@ -333,6 +333,15 @@ describe('emergency stop reasons', () => {
     expect(explain(ev(1, 'EMERGENCY', {emergency: true, reason: '1024'}))).toContain('mower_spinup_timeout');
     expect(explain(ev(1, 'EMERGENCY', {emergency: true, reason: '128'}))).toContain('ROS log');
     expect(explain(ev(1, 'EMERGENCY', {emergency: true, reason: '33'}))).toBe('Stop button, lift, tilt or a bumper. It has to be released and reset before it drives again.');
+    // the board's own reasons each with their own help, the stop button's words only for what was set off at the mower
+    const help = (reason: number) => explain(ev(1, 'EMERGENCY', {emergency: true, reason: String(reason + 1)}));
+    expect(help(2)).toMatch(/^The board's inputs/);
+    expect(help(64)).toMatch(/^The board heard nothing from the mower's software/);
+    expect(help(256)).toMatch(/^A part of the board's firmware wasn't ready/);
+    expect(help(2048)).toMatch(/^The mow motor turned outside its allowed speed/);
+    expect(help(4096)).toMatch(/^The board's firmware doesn't fit/);
+    for (const bit of [2, 3, 4, 5, 9]) expect(help(2 ** bit)).toMatch(/^Stop button, lift, tilt or a bumper/);
+    expect(help(0)).toBeUndefined();
   });
 
   it("reads MowBite OS's own bits, all 32 of them, one without a name as BIT_<n>", () => {

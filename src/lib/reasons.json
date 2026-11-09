@@ -1886,8 +1886,8 @@
    "de": "Mähmotor kam nicht auf Drehzahl"
   },
   "MOWER_RPM_LIMIT": {
-   "en": "mow motor too fast",
-   "de": "Mähmotor zu schnell"
+   "en": "mow motor outside its speed limits",
+   "de": "Mähmotor außerhalb seiner Drehzahlgrenzen"
   },
   "FIRMWARE_INCOMPATIBLE": {
    "en": "firmware doesn't fit OpenMower",

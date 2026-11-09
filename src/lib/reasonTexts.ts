@@ -477,7 +477,7 @@ export const EMERGENCY_TEXT: Record<string, string> = {
   HIGH_LEVEL: 'stopped by OpenMower',
   SERVICE_NOT_READY: 'firmware still starting',
   MOWER_RPM_TIMEOUT: "mow motor didn't reach its speed",
-  MOWER_RPM_LIMIT: 'mow motor too fast',
+  MOWER_RPM_LIMIT: 'mow motor outside its speed limits',
   FIRMWARE_INCOMPATIBLE: "firmware doesn't fit OpenMower",
   // MowBite OS's own bits. UNKNOWN is what its log line says for a bit it has no name for
   TILT: 'tilted too far',
