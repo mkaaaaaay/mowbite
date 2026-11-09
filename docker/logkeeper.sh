@@ -15,11 +15,11 @@ while :; do
   if [ -n "$host" ]; then
     last=$(cat "$D/.last" 2>/dev/null)
     new=$(mower_rpc "$host" "$RPC_LOGS" "{\"since\":${last:-0},\"limit\":1000}" | DIR=$D ROS=1 awk -f /logkeeper.awk)
-    [ -n "$new" ] && echo "$new" > "$D/.last"
+    [ -n "$new" ] && echo "$new" > "$D/.last.tmp" && mv "$D/.last.tmp" "$D/.last"
     # the planner's lines since the last one kept
     plast=$(cat "$P/.last" 2>/dev/null)
     pnew=$(mower_rpc "$host" "$RPC_PLANNER_LOG" "{\"since\":${plast:-0}}" 15 | DIR=$P awk -f /logkeeper.awk)
-    [ -n "$pnew" ] && echo "$pnew" > "$P/.last"
+    [ -n "$pnew" ] && echo "$pnew" > "$P/.last.tmp" && mv "$P/.last.tmp" "$P/.last"
     ls -1 "$P"/*.log 2>/dev/null | sort -r | tail -n +15 | while read -r f; do rm -f "$f"; done
     while [ "$(du -sk "$P" | cut -f1)" -gt 5120 ] && [ "$(ls -1 "$P"/*.log 2>/dev/null | wc -l)" -gt 1 ]; do
       rm -f "$(ls -1 "$P"/*.log | sort | head -n1)"
