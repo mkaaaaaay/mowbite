@@ -48,7 +48,7 @@ interface MapViewProps {
   onDragStart?: () => void;
   // true while a point of an area is being dragged
   onDragging?: (on: boolean) => void;
-  // a point drag that turned into a pinch: undo what the drag changed
+  // a drag from an edge midpoint that turned into a pinch: undo the point it added
   onDragCancel?: () => void;
   onInsertVertex?: (areaId: string, vertexIndex: number, x: number, y: number) => void;
   onDeleteVertex?: (areaId: string, vertexIndex: number) => void;
@@ -1188,8 +1188,10 @@ function MapView({
       if (d.moved && was && withLooks(cur, was) !== cur) saveSettings(withLooks(cur, was));
       thingDrag.current = null;
     } else if (d.moved) {
-      if (dragging.areaId !== PENDING) onDragCancel?.();
-      else if (d.orig) onMovePending?.(dragging.index, d.orig.x, d.orig.y);
+      // a moved point only reaches the map when let go, an added one is in it already
+      if (dragging.areaId !== PENDING) {
+        if (d.insert) onDragCancel?.();
+      } else if (d.orig) onMovePending?.(dragging.index, d.orig.x, d.orig.y);
     }
     d.at = undefined;
     live.set(null);
