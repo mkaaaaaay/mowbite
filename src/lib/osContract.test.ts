@@ -29,17 +29,17 @@ const api = JSON.parse(raw.toString()) as {
 // the OS's methods the app doesn't offer (yet), each with why. a new method in the contract stays red until the app
 // calls it or it is put here
 const NOT_OFFERED: Record<string, string> = {
-  'calibration.start': "the calibration page records through the planner, the OS's own calibration has no page yet",
+  'calibration.start': "to come: the OS's calibration assistant (masterplan 40 (6), after the way home without planner)",
   'calibration.check': 'as calibration.start',
   'calibration.abort': 'as calibration.start',
   'calibration.result': 'as calibration.start',
-  'docking.start': 'no button yet to send a mower home that stands idle away from the dock',
-  'events.history.delete': 'no deleting of the history in the app',
-  'position.history.delete': 'no deleting of the history in the app',
-  'ntrip.get': 'no NTRIP access in the app yet',
+  'docking.start': 'to come: home for a mower idle away from the dock, with the way home without planner (40 (1), api 11)',
+  'events.history.delete': 'as position.history.delete',
+  'position.history.delete': 'to come: deleting the track (location data) and the events in the settings, low priority',
+  'ntrip.get': 'to come: NTRIP set up without a terminal (masterplan 20, E1), the access never in logs or diagnosis files',
   'ntrip.set': 'as ntrip.get',
   'ntrip.delete': 'as ntrip.get',
-  'robot.geometry.get': "the mower's sizes are set through the planner's settings",
+  'robot.geometry.get': "to come: the sizes on MowBite OS (masterplan 8 (4)), the planner's are only readable there",
   'robot.geometry.set': 'as robot.geometry.get',
   'sensors.list': 'the sensors come over MQTT (sensor_infos/json)',
   'rpc.ping': 'rpc.methods already tells whether it answers',
