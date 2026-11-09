@@ -48,6 +48,7 @@ import {
   missedStart,
   waitingStart,
   nextStart,
+  posixTz,
   scheduleLogLine,
   type LogEntry,
   type Schedule,
@@ -251,6 +252,8 @@ export default function Home() {
   const missed = missedAny && missedAny.t !== missedSeen ? missedAny : null;
   const mowable = map?.areas.filter((a) => a.properties.type === 'mow' && a.properties.active !== false && a.properties.mowable !== false).map((a) => a.id);
   const planned = schedule ? nextStart(schedule, undefined, datum ? (d) => sunTimes(datum.lat, datum.lon, d) : null, mowable) : null;
+  // the phone in another time zone than the schedule: its times are the schedule's, as on the schedule page
+  const otherZone = !!schedule?.tz && schedule.tz !== posixTz();
   // a start of the schedule that waits for the battery comes before the next one
   const batteryWait = schedule?.enabled ? waitingStart(scheduleLog) : null;
   const [confirmReset, setConfirmReset] = useState(false);
@@ -704,7 +707,9 @@ export default function Home() {
             )}
             {planned && (
               <Link href="/schedule" className={styles.nextRun}>
-                {tr('Next start: {when}', {when: `${dayLabel(planned)}, ${clock(planned.getTime() / 1000)}`})}
+                {otherZone
+                  ? tr("Next start: {when}, the schedule's time", {when: `${dayLabel(planned)}, ${clock(planned.getTime() / 1000)}`})
+                  : tr('Next start: {when}', {when: `${dayLabel(planned)}, ${clock(planned.getTime() / 1000)}`})}
               </Link>
             )}
             {/* the one under way is the status above */}
