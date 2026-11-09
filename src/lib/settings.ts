@@ -1,10 +1,11 @@
 // app settings (map colors, icons). shared through the mower when the app runs from the docker image
 // (docker/settings.cgi), otherwise per device. localStorage is also the cache so they're there
-// before the request comes back.
+// before the request comes back: the app's under STORAGE_KEY, each mower's own (MOWER_KEYS) under its id, so a mower
+// without a container keeps its own on this device.
 
 import type {GardenLife} from '@/components/gardenLife';
 import {mergeChanges} from './mergeChanges';
-import {apiBase, isDemo, leaveRemoved, mowerFetch} from './mowers';
+import {apiBase, isDemo, leaveRemoved, mowerFetch, selectedMower, selectedMowerId} from './mowers';
 import {isApp} from './native';
 
 export const COLORS = [
@@ -103,15 +104,27 @@ let current: Settings | null = null;
 let shared = false;
 const listeners = new Set<() => void>();
 
+// where this device keeps the own settings of the mower looked at, by its id ('' the one the page comes from), taken
+// once like the urls
+let ownKey: string | null = null;
+const ownStorageKey = () => (ownKey ??= `${STORAGE_KEY}:${isApp() ? (selectedMower()?.id ?? '') : selectedMowerId()}`);
+
+function read(key: string): Settings | null {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
 function load(): Settings {
   if (current) return current;
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    current = raw ? JSON.parse(raw) : {};
-  } catch {
-    current = {};
-  }
-  return current ?? NONE;
+  const app = read(STORAGE_KEY) ?? {};
+  // a mower with nothing of its own kept yet takes what's there when it's from before mowers had their own (the first
+  // one looked at after the update), else the defaults
+  current = join(app, read(ownStorageKey()) ?? app);
+  return current;
 }
 
 export function applyColors(colors: Settings['colors'] = {}) {
@@ -123,7 +136,10 @@ export function applyColors(colors: Settings['colors'] = {}) {
 function setLocal(next: Settings) {
   current = next;
   try {
-    if (!isDemo()) localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    if (!isDemo()) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(join(next, {})));
+      localStorage.setItem(ownStorageKey(), JSON.stringify(join({}, next)));
+    }
   } catch {}
   applyColors(next.colors);
   listeners.forEach((l) => l());
@@ -212,15 +228,19 @@ export function syncSettings(): Promise<void> {
   return syncing;
 }
 
+// settings as text with their keys in order, the same for the same settings put together in another order (join)
+const sorted = (s: Settings) =>
+  JSON.stringify(s, (_, v) => (v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => (a < b ? -1 : 1))) : v));
+
 // what a save sends where: everything home, or with another mower looked at in a browser the app's settings home and
 // that mower's own to it. a part that didn't change isn't sent
 async function pushAll(next: Settings) {
   const o = ownUrl();
   if (!o) return push(home, homeUrl(), () => current ?? next, (merged) => merged);
   const homeOf = () => join(current ?? next, home.server);
-  if (JSON.stringify(homeOf()) !== JSON.stringify(home.server)) await push(home, homeUrl(), homeOf, (merged) => join(merged, current ?? {}));
+  if (sorted(homeOf()) !== sorted(home.server)) await push(home, homeUrl(), homeOf, (merged) => join(merged, current ?? {}));
   const ownOf = () => join(own.server, current ?? next);
-  if (ownShared && JSON.stringify(ownOf()) !== JSON.stringify(own.server)) await push(own, o, ownOf, (merged) => join(current ?? {}, merged));
+  if (ownShared && sorted(ownOf()) !== sorted(own.server)) await push(own, o, ownOf, (merged) => join(current ?? {}, merged));
 }
 
 // body: what goes there as the settings here are now, a change made while a save was on its way included. shown: the
@@ -271,9 +291,9 @@ export function flushSettings(): Promise<void> {
 export const LOOK_KEYS = ['looks', 'lookVariants', 'lookSizes', 'lookTurns', 'lookClosed', 'lookGrounds'] as const;
 export type LookKey = (typeof LOOK_KEYS)[number];
 
-// what belongs to one mower and its map: its sizes, the pictures of its areas, its leftovers (its container reads them)
-// and where its aerial imagery is moved to (imagery's offsets, the rest of imagery is the app's)
-export const MOWER_KEYS = ['mower', 'keepRectangle', 'autoOutline', 'leftovers', ...LOOK_KEYS] as const;
+// what belongs to one mower and its map: its sizes, its and its dock's icons, the pictures of its areas, its leftovers
+// (its container reads them) and where its aerial imagery is moved to (imagery's offsets, the rest of imagery is the app's)
+export const MOWER_KEYS = ['mower', 'icons', 'keepRectangle', 'autoOutline', 'leftovers', ...LOOK_KEYS] as const;
 
 // the settings of the app from a, the ones of a mower from b
 export function join(a: Settings, b: Settings): Settings {

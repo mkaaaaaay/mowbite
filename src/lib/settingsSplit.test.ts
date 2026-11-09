@@ -8,6 +8,7 @@ const kept = vi.hoisted(() => ({
       colors: {mower: '#111111'},
       mowers: [{id: 'b', name: 'B', host: 'b'}],
       mower: {width: 0.4},
+      icons: {mower: 'punisher'},
       looks: {a1: 'tree'},
       imagery: {esriKey: 'key', offsets: {esri: [1, 2]}},
     } as Record<string, unknown>,
@@ -26,6 +27,7 @@ vi.mock('./mowers', () => ({
   apiBase: () => kept.base,
   isDemo: () => false,
   leaveRemoved: () => {},
+  selectedMowerId: () => 'b',
   mowerFetch: async (url: string, init?: RequestInit) => {
     const at = url.startsWith('http://b:8082') ? kept.b : kept.a;
     if (init?.method === 'POST') {
@@ -54,11 +56,11 @@ describe('a browser looking at another mower than the one the page comes from', 
       imagery: {esriKey: 'key', offsets: {esri: [3, 4]}},
       leftovers: {auto: true},
     });
-    // b's sizes: only to b, its own map style stays
-    saveSettings({...settingsStore.snapshot(), mower: {width: 0.7}});
+    // b's sizes and icon: only to b, its own map style stays
+    saveSettings({...settingsStore.snapshot(), mower: {width: 0.7}, icons: {mower: 'tron'}});
     await vi.advanceTimersByTimeAsync(1000);
     expect(kept.a.posted).toEqual([]);
-    expect(kept.b.posted.at(-1)).toMatchObject({mapStyle: 'plain', mower: {width: 0.7}, looks: {b1: 'pond'}});
+    expect(kept.b.posted.at(-1)).toMatchObject({mapStyle: 'plain', mower: {width: 0.7}, icons: {mower: 'tron'}, looks: {b1: 'pond'}});
     // a color: only home, a's own sizes and pictures stay
     saveSettings({...settingsStore.snapshot(), colors: {mower: '#222222'}});
     await vi.advanceTimersByTimeAsync(1000);
@@ -68,6 +70,7 @@ describe('a browser looking at another mower than the one the page comes from', 
       colors: {mower: '#222222'},
       mowers: [{id: 'b', name: 'B', host: 'b'}],
       mower: {width: 0.4},
+      icons: {mower: 'punisher'},
       looks: {a1: 'tree'},
       imagery: {esriKey: 'key', offsets: {esri: [1, 2]}},
     });
@@ -81,7 +84,7 @@ describe('a browser looking at another mower than the one the page comes from', 
     saveSettings({...settingsStore.snapshot(), mowers: []});
     await vi.advanceTimersByTimeAsync(1000);
     expect(kept.b.posted).toHaveLength(1);
-    expect(kept.a.posted.at(-1)).toMatchObject({mowers: [], mower: {width: 0.4}, looks: {a1: 'tree'}});
+    expect(kept.a.posted.at(-1)).toMatchObject({mowers: [], mower: {width: 0.4}, icons: {mower: 'punisher'}, looks: {a1: 'tree'}});
     expect(kept.a.posted.at(-1)).not.toHaveProperty('leftovers');
     vi.useRealTimers();
   });

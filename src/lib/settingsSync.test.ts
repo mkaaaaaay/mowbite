@@ -9,6 +9,7 @@ vi.mock('./mowers', () => ({
   apiBase: () => '',
   isDemo: () => false,
   leaveRemoved: () => {},
+  selectedMowerId: () => '',
   mowerFetch: async (_: string, init?: RequestInit) => {
     if (!net.up) throw new TypeError('Failed to fetch');
     if (init?.method === 'POST') {
