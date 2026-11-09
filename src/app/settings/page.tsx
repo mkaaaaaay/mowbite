@@ -8,7 +8,7 @@ import {useEffect, useState, useSyncExternalStore} from 'react';
 import styles from './page.module.css';
 import {dec, setLangChoice, tr, useLang, useLangChoice} from '@/lib/i18n';
 import {setThemeChoice, useThemeChoice} from '@/lib/theme';
-import {appMowers, DEMO_ID, isDemo, saveAppMowers, selectedMower, selectMower} from '@/lib/mowers';
+import {appMowers, DEMO_ID, isDemo, parseAddress, saveAppMowers, selectedMower, selectMower} from '@/lib/mowers';
 import {isApp} from '@/lib/native';
 import {setSwipeEnabled, useSwipeEnabled} from '@/lib/swipe';
 import {OpenMowerSettings} from '@/components/MowerParamSettings';
@@ -113,7 +113,7 @@ function MowersSection({settings}: {settings: Settings}) {
     selectMower(app ? (rest[0]?.id ?? '') : '');
   };
   const add = () => {
-    const h = host.trim().replace(/^https?:\/\//, '').replace(/[/:].*$/, '').toLowerCase();
+    const {host: h, port} = parseAddress(host);
     if (!h) return;
     if (!app && (h === window.location.hostname.toLowerCase() || h === 'localhost' || h === '127.0.0.1')) {
       setError(tr("That's this mower, it's already there. Enter the address of another one."));
@@ -127,7 +127,7 @@ function MowersSection({settings}: {settings: Settings}) {
       id: Math.random().toString(36).slice(2, 10),
       name: name.trim(),
       host: h,
-      appPort: Number(appPort) || 8082,
+      appPort: port ?? (Number(appPort) || 8082),
       wsPort: Number(wsPort) || 9001,
     };
     store([...others, mower]);

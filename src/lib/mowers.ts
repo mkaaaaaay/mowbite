@@ -12,6 +12,13 @@ export const DEMO_ID = 'demo';
 const DEMO: OtherMower = {id: DEMO_ID, name: 'Demo', host: ''};
 export const isDemo = () => typeof window !== 'undefined' && selectedMowerId() === DEMO_ID;
 
+// a mower's address as typed: the host, and MowBite's port when one is typed after it (http:// and a path left out)
+export function parseAddress(input: string): {host: string; port: number | null} {
+  const m = /^(?:https?:\/\/)?([^/:]*)(?::(\d{1,5}))?/i.exec(input.trim());
+  const port = Number(m?.[2]);
+  return {host: (m?.[1] ?? '').toLowerCase(), port: port > 0 && port < 65536 ? port : null};
+}
+
 export function appMowers(): OtherMower[] {
   try {
     return JSON.parse(localStorage.getItem(APP_KEY) ?? '[]');

@@ -1,7 +1,7 @@
 'use client';
 
 import {tr, useLang} from '@/lib/i18n';
-import {appMowers, DEMO_ID, isDemo, saveAppMowers, selectMower} from '@/lib/mowers';
+import {appMowers, DEMO_ID, isDemo, parseAddress, saveAppMowers, selectMower} from '@/lib/mowers';
 import {isApp} from '@/lib/native';
 import {useState, useSyncExternalStore} from 'react';
 import LogoMark from './Logo';
@@ -21,12 +21,9 @@ export default function AppSetup() {
   const [failed, setFailed] = useState(false);
   if (!app || hasMower) return null;
 
-  const clean = () => host.trim().replace(/^https?:\/\//, '').replace(/[/:].*$/, '').toLowerCase();
+  const clean = () => parseAddress(host).host;
   // MowBite on another port than 8082, typed after the host
-  const port = () => {
-    const p = Number(/^(?:https?:\/\/)?[^/:]+:(\d{2,5})/.exec(host.trim())?.[1]);
-    return p > 0 && p < 65536 ? p : 8082;
-  };
+  const port = () => parseAddress(host).port ?? 8082;
   const save = () => {
     const id = Math.random().toString(36).slice(2, 10);
     saveAppMowers([{id, name: name.trim(), host: clean(), appPort: port(), wsPort: 9001}]);
