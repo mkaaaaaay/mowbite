@@ -153,12 +153,13 @@ type Version = {version?: string; level?: number};
 // the mower's version once, asked again next time when it didn't answer. the app runs on another origin and can't read
 // version.json, the cgi allows it. a container from before that cgi still answers the system one: older, level 0
 let asked: Promise<void> | null = null;
+const versionAt = (base: string) =>
+  mowerFetch(`${base}/cgi-bin/version`, {cache: 'no-store'})
+    .then((res) => (res.ok ? (res.json() as Promise<Version>) : null))
+    .catch(() => null);
 function askMower(): Promise<void> {
   const base = apiBase();
-  const version = () =>
-    mowerFetch(`${base}/cgi-bin/version`, {cache: 'no-store'})
-      .then((res) => (res.ok ? (res.json() as Promise<Version>) : null))
-      .catch(() => null);
+  const version = () => versionAt(base);
   asked ??= (async () => {
     let v = await version();
     if (!v) {
@@ -178,6 +179,12 @@ function askMower(): Promise<void> {
 export async function mowerHas(key: string): Promise<boolean> {
   await askMower();
   return containerHas(current().level, key);
+}
+
+// whether the container of the mower at base has it, false when it can't tell (an older one, out of reach)
+export async function mowerAtHas(base: string, key: string): Promise<boolean> {
+  const v = await versionAt(base);
+  return containerHas(v ? (v.level ?? 0) : null, key);
 }
 
 // the update state, asks the mower for its version. GitHub only when "Check now" is tapped

@@ -80,11 +80,14 @@ export function mowerKey(key: string): string {
   return id ? `${key} ${id}` : key;
 }
 
+// where a mower's MowBite answers
+export const mowerBase = (m: OtherMower) => `http://${m.host}:${m.appPort ?? 8082}`;
+
 // where the selected mower's MowBite answers (sensor history, backups, schedule)
 export function apiBase(): string {
   if (typeof window === 'undefined') return '';
   const m = selectedMower();
-  return m && m.id !== DEMO_ID ? `http://${m.host}:${m.appPort ?? 8082}` : '';
+  return m && m.id !== DEMO_ID ? mowerBase(m) : '';
 }
 
 // a request to the selected mower's MowBite, the demo mower answers it itself

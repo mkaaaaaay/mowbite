@@ -128,7 +128,7 @@ export function randomTopic(): string {
 export const validTopic = (t: string) => /^[A-Za-z0-9_-]{1,64}$/.test(t);
 export const validServer = (s: string) => /^https?:\/\/[A-Za-z0-9.:/_-]{1,200}$/.test(s.trim());
 
-const endpoint = () => apiBase() + '/cgi-bin/notify';
+const endpoint = (base = apiBase()) => base + '/cgi-bin/notify';
 
 // null: not served by the container (the dev server, an older container), no push messages then. undefined: the mower
 // didn't answer
@@ -157,14 +157,15 @@ export async function testNotify(): Promise<string> {
 }
 
 // a phone's UnifiedPush address on the mower, it sends there too from now on (a few per mower, the oldest goes)
-export async function addPush(address: string): Promise<void> {
-  const res = await mowerFetch(`${endpoint()}?push-add`, {method: 'POST', body: address});
+// to the selected mower, or the one at base
+export async function addPush(address: string, base?: string): Promise<void> {
+  const res = await mowerFetch(`${endpoint(base)}?push-add`, {method: 'POST', body: address});
   const r = (await res.text()).trim();
   if (!res.ok || r !== 'ok') throw new Error(r || `notify ${res.status}`);
 }
 
-export async function removePush(address: string): Promise<void> {
-  await mowerFetch(`${endpoint()}?push-remove`, {method: 'POST', body: address});
+export async function removePush(address: string, base?: string): Promise<void> {
+  await mowerFetch(`${endpoint(base)}?push-remove`, {method: 'POST', body: address});
 }
 
 // a test to one phone signed up: 'sent', 'failed' or 'not signed up'

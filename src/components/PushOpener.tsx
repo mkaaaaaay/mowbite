@@ -1,16 +1,16 @@
 'use client';
 
-import {apiBase, mowerList, selectMower, selectedMower} from '@/lib/mowers';
+import {mowerBase, mowerList, selectMower, selectedMower} from '@/lib/mowers';
 import {addPush, removePush} from '@/lib/notify';
 import {pushPlugin, rememberEndpoint, sentEndpoint} from '@/lib/push';
-import {mowerHas} from '@/lib/updates';
+import {mowerAtHas} from '@/lib/updates';
 import type {PluginListenerHandle} from '@capacitor/core';
 import {useRouter} from 'next/navigation';
 import {useEffect} from 'react';
 
 // In the Android app: a tapped MowBite message opens its page, on the mower it's about (switching to it reloads the app,
-// the page is kept for after). And when the delivering app gave another address while MowBite was closed, the mower
-// gets the new one, else its messages would go nowhere
+// the page is kept for after). And when the delivering app gave another address while MowBite was closed, the mowers
+// get the new one, else their messages would go nowhere
 const PAGE_KEY = 'pushPage';
 // a page of the app's own, never another site
 const inApp = (path: string) => (/^\/(?![/\\])/.test(path) ? path : '/');
@@ -31,7 +31,7 @@ export default function PushOpener() {
     let handle: PluginListenerHandle | undefined;
     void native.then(async ({native: p}) => {
       const h = await p.addListener('opened', ({path, api}) => {
-        const mower = api ? mowerList().find((m) => `http://${m.host}:${m.appPort ?? 8082}` === api.replace(/\/+$/, '')) : undefined;
+        const mower = api ? mowerList().find((m) => mowerBase(m) === api.replace(/\/+$/, '')) : undefined;
         if (mower && mower.id !== selectedMower()?.id) {
           try {
             sessionStorage.setItem(PAGE_KEY, path);
@@ -43,16 +43,19 @@ export default function PushOpener() {
       });
       if (gone) return void h.remove();
       handle = h;
-      const api = apiBase();
-      const sent = api ? sentEndpoint(api) : null;
       const {endpoint} = await p.status();
-      // (an older container would take the address for its settings)
-      if (!sent || !endpoint || endpoint === sent || !(await mowerHas('phones'))) return;
-      await removePush(sent).catch(() => {});
-      await addPush(endpoint).then(
-        () => rememberEndpoint(api, endpoint),
-        () => {},
-      );
+      if (!endpoint) return;
+      // every mower in the list that was told an older one
+      for (const api of mowerList().map(mowerBase)) {
+        const sent = sentEndpoint(api);
+        // (an older container would take the address for its settings)
+        if (!sent || endpoint === sent || !(await mowerAtHas(api, 'phones'))) continue;
+        await removePush(sent, api).catch(() => {});
+        await addPush(endpoint, api).then(
+          () => rememberEndpoint(api, endpoint),
+          () => {},
+        );
+      }
     });
     return () => {
       gone = true;
