@@ -28,6 +28,7 @@ import {LightSettings} from '@/components/LightSettings';
 import {SoundSettings} from '@/components/SoundSettings';
 import {useRpcMethods} from '@/hooks/useRpcMethods';
 import {RPC} from '@/lib/openmower';
+import {useMowbiteOs} from '@/lib/mowerOs';
 import {DashboardItems} from '@/components/DashboardItems';
 import {datumFromParams, useMowerParams} from '@/hooks/useMowerParams';
 import {posixTz} from '@/lib/schedule';
@@ -275,6 +276,8 @@ export default function SettingsPage() {
   const methods = useRpcMethods();
   const lights = !!methods?.has(RPC.lightGet);
   const sounds = !!methods?.has(RPC.soundList);
+  // the calibration isn't there on MowBite OS, nor is the way to its guide
+  const os = useMowbiteOs();
 
   return (
     <div className={styles.page}>
@@ -543,7 +546,7 @@ export default function SettingsPage() {
                   {lights ? tr('Lights and sounds') : tr('Sounds')}
                 </Link>
               )}
-              {CALIB_SHOWN && (
+              {CALIB_SHOWN && !os && (
                 <Link href="/guide/calibration" className={styles.pillButton}>
                   {tr('Calibrating')}
                 </Link>
