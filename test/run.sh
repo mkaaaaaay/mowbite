@@ -142,9 +142,8 @@ start growing "$(state)" "$(base "$DAY")" "MAP=$AREAS" "RUN_STATE=$(date +%s) - 
   "ACTIONS=[]"$'\n'"[]"$'\n'"[$ROOT]"$'\n'"[$ROOT,$IDLE]"
 # a run whose stop time passed during the restart, still to come before it: out mowing, and idle with its job done
 past=$(($(date +%s) - 60))
-LATE="$((past - 600)) $past end front"$'\n'"$past"
-start restoredlate "$(state MOWING)" "$(base "$DAY")" "RUN_STATE=$LATE"
-start restoreddone "$(state)" "$(base "$DAY")" "RUN_STATE=$LATE"
+start restoredlate "$(state MOWING)" "$(base "$DAY")" "RUN_STATE=$((past - 600)) $past end front" "RUN_DUE=$past"
+start restoreddone "$(state)" "$(base "$DAY")" "RUN_STATE=$((past - 600)) $past end front" "RUN_DUE=$past"
 
 logs "scheduler: starts at the time of a plan" start '^started 90( at=[0-9:]+)?$'
 gets start '^action mower_logic:idle/start_mowing$' && ok "scheduler: the mower got the start" ||
@@ -179,10 +178,10 @@ gets endtime '^action mower_logic:mowing/abort_mowing$' && ok "scheduler: the mo
   bad "scheduler: the mower got sent home" "$(sent endtime)"
 gets endtime '^rpc/request .*"/mower_logic/manual_pause_mowing":true' &&
   ok "scheduler: and doesn't carry on by itself after charging" || bad "scheduler: and doesn't carry on by itself after charging" "$(sent endtime)"
-expect "scheduler: its stop time no longer to come in run.state then" "$(docker exec mbt-endtime sed -n 2p /data/run.state)" ""
+expect "scheduler: its stop time no longer to come then" "$(docker exec mbt-endtime cat /data/run.due 2> /dev/null)" ""
 logs "scheduler: a run with an end time ahead" endkept '^started'
-r=$(docker exec mbt-endkept cat /data/run.state 2> /dev/null)
-[ -n "$(sed -n 2p <<< "$r")" ] && [ "$(sed -n 2p <<< "$r")" = "$(head -n1 <<< "$r" | cut -d' ' -f2)" ] &&
+r=$(docker exec mbt-endkept cat /data/run.state /data/run.due 2> /dev/null)
+[ "$(wc -l <<< "$r")" = 2 ] && [ "$(sed -n 2p <<< "$r")" = "$(head -n1 <<< "$r" | cut -d' ' -f2)" ] &&
   ok "scheduler: its stop time kept as still to come for a restart" || bad "scheduler: its stop time kept as still to come for a restart" "$r"
 logs "scheduler: a mower that doesn't move is noticed" stays '^start_failed( at=[0-9:]+)?$' 90
 logs "scheduler: why MowBite OS turned the start down" refused '^start_refused BATTERY_LOW 22.4( at=[0-9:]+)?$' 30
@@ -209,7 +208,8 @@ logs "scheduler: a start waiting for the battery goes on after a restart" waited
 logs "scheduler: a stop time that passed during a restart is carried out after it" restoredlate '^stopped_end$' 30
 gets restoredlate '"/mower_logic/manual_pause_mowing":true' && sent restoredlate | grep -q 'abort_mowing$' &&
   ok "scheduler: sent home and paused then" || bad "scheduler: sent home and paused then" "$(sent restoredlate)"
-expect "scheduler: and no longer to come in run.state" "$(docker exec mbt-restoredlate sed -n 2p /data/run.state)" ""
+expect "scheduler: and no longer to come, its run kept" \
+  "$(docker exec mbt-restoredlate cat /data/run.due 2> /dev/null)$(docker exec mbt-restoredlate cut -d' ' -f2 /data/run.state)" "$past"
 docker exec -d mbt-restoredlate /scheduler.sh
 sleep 10
 expect "scheduler: not again after the next restart" \

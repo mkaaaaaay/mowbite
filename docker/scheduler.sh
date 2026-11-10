@@ -171,8 +171,8 @@ stop_time() {
   [ -n "$stop" ] && echo "$stop $why"
 }
 
-# the stop time $1 isn't to come any more (carried out, or a start ended the run): off run.state, a restart leaves it
-stop_done() { sed -i "/^$1\$/d" "$RUN" 2>/dev/null; }
+# the stop time $1 isn't to come any more (carried out, or a start ended the run): run.due goes while it's this one
+stop_done() { [ "$(cat "$DUE" 2>/dev/null)" = "$1" ] && rm -f "$DUE"; }
 
 # a run this script started: send it home at the stop time, and set OpenMower's own pause like going home does in its
 # semi-automatic mode (manual_pause_mowing, params.set): a job still open (charging at the stop time, or in automatic
@@ -460,10 +460,11 @@ LEFT=/tmp/leftovers.started
 # the stop time of the run this script started last (send_home_at), for the leftovers after it
 STOP=/tmp/run.stop
 # kept over a restart of the container (an update while the mower charges in the middle of a run): the run this script
-# started ("<started> <stop>|- <why>|- <areas>", the stop time on a line of its own as long as it's to come), and a
-# start waiting for the battery ("<until> <day> <HH:MM> <date> <end>|-"). both go when they're over
+# started ("<started> <stop>|- <why>|- <areas>"), and a start waiting for the battery ("<until> <day> <HH:MM> <date>
+# <end>|-"). both go when they're over. only the main loop writes them, and run.due: the run's stop time while it's to come
 RUN=/data/run.state
 WAITING=/data/run.wait
+DUE=/data/run.due
 leftovers_watch &
 
 # the mowing direction the app keeps for the mower (params.sh), while keeping is on
@@ -486,7 +487,7 @@ run_open() {
 }
 
 # the run of before a restart: its areas skipped again and sent home at its time, while its job is still open. a stop
-# time that passed meanwhile is carried out now, if run.state still has it to come
+# time that passed meanwhile is carried out now, if run.due still has it to come
 restore_run() {
   # shellcheck disable=SC2034
   read -r at stop why areas < "$RUN" || return
@@ -502,7 +503,7 @@ restore_run() {
     return
   fi
   skip_others "$areas" &
-  [ "$stop" != - ] && { [ "$stop" -gt "$(date +%s)" ] || [ "$(sed -n 2p "$RUN")" = "$stop" ]; } && send_home_at "$stop" "$why" &
+  [ "$stop" != - ] && { [ "$stop" -gt "$(date +%s)" ] || [ "$(cat "$DUE" 2>/dev/null)" = "$stop" ]; } && send_home_at "$stop" "$why" &
 }
 [ -f "$RUN" ] && restore_run &
 
@@ -675,7 +676,7 @@ while :; do
         # the end time of the start, not the next one from now (it may have waited for the battery)
         stop=$(stop_time "$end" "$sunset" "$dark" "$endat")
         echo "$(date +%s) ${stop:-- -} $areas" > "$RUN"
-        [ -n "$stop" ] && echo "${stop% *}" >> "$RUN"
+        [ -n "$stop" ] && echo "${stop% *}" > "$DUE"
         # always: a pause set while it runs counts too
         skip_others "$areas" &
         # shellcheck disable=SC2086

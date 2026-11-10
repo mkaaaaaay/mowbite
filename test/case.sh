@@ -9,7 +9,7 @@
 # Updater's hold on starts (retained). $ACTIONS: the lists actions/json says one after the other (retained), a line
 # each, a second apart. $LOGS, $PLANNER_LOG: what logs.recent and planner.log answer (@ID@ for the call's id), $OTHER:
 # someone else's answer sent before each one. $METHODS, $INFO: rpc.methods and system.info (MowBite OS). $KEEP: the
-# parameters the app keeps (/data/params.txt)
+# parameters the app keeps (/data/params.txt). $RUN_DUE: the stop time of $RUN_STATE's run still to come
 pub() {
   t=$1
   shift
@@ -18,6 +18,7 @@ pub() {
 
 printf '%s\n' "$SCHED" > /data/schedule.txt
 [ -z "$RUN_STATE" ] || echo "$RUN_STATE" > /data/run.state
+[ -z "$RUN_DUE" ] || echo "$RUN_DUE" > /data/run.due
 [ -z "$WAITING" ] || echo "$WAITING" > /data/run.wait
 [ -z "$ANGLE_NORMAL" ] || echo "$ANGLE_NORMAL" > /data/angle.normal
 [ -z "$KEEP" ] || printf '%s\n' "$KEEP" > /data/params.txt
