@@ -133,3 +133,25 @@ describe('decorating, started from the map settings', () => {
     expect(add).not.toContain('Decorate');
   });
 });
+
+describe('the editor bar', () => {
+  it('says everything is saved, not while points are set for a new area or a cut', () => {
+    const bar = (placing: boolean) =>
+      markup(
+        createElement(EditorToolbar, {
+          canUndo: true,
+          canRedo: false,
+          unsaved: false,
+          placing,
+          saving: false,
+          saveLabel: 'Save map',
+          saveError: null,
+          onUndo: noop,
+          onRedo: noop,
+          onSave: noop,
+        }),
+      );
+    expect(bar(false)).toContain('Everything saved');
+    expect(bar(true)).not.toContain('Everything saved');
+  });
+});

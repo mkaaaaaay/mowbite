@@ -1502,6 +1502,7 @@ function MapEditor() {
                   canUndo={canUndo}
                   canRedo={canRedo}
                   unsaved={dirty}
+                  placing={placing}
                   saving={saving}
                   saveLabel={saveLabel}
                   saveError={saveError ?? droppedNote}

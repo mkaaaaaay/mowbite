@@ -167,6 +167,8 @@ test('drawing keeps the view still, undo takes back the last point', async ({pag
     await page.waitForTimeout(400);
   }
   await expect(page.getByText(/\(3 so far\)/)).toBeVisible();
+  // the points aren't in the map yet
+  await expect(page.getByText('Everything saved')).toBeHidden();
   expect(await view()).toBe(before);
   await page.getByRole('button', {name: 'Undo'}).first().click();
   await expect(page.getByText(/\(2 so far\)/)).toBeVisible();
