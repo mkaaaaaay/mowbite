@@ -63,15 +63,23 @@ class Ring {
     const gx = Math.floor(p.x / CELL);
     const gy = Math.floor(p.y / CELL);
     let best: Closest = {i: -1, q: p, d: max};
-    // cells further out than ring n are at least n cells away
-    for (let n = 0; n <= Math.ceil(far / CELL) + 1; n++) {
-      for (let x = gx - n; x <= gx + n; x++) {
-        for (let y = gy - n; y <= gy + n; y++) {
-          if (Math.max(Math.abs(x - gx), Math.abs(y - gy)) !== n) continue;
-          for (const i of this.grid.get(cellKey(x, y)) ?? []) {
-            const c = onSegment(this.pts, i, p);
-            if (c.d < best.d) best = c;
-          }
+    const visit = (x: number, y: number) => {
+      for (const i of this.grid.get(cellKey(x, y)) ?? []) {
+        const c = onSegment(this.pts, i, p);
+        if (c.d < best.d) best = c;
+      }
+    };
+    // the cells with segments, the rings start at the first that reaches them
+    const [cx0, cy0, cx1, cy1] = [x0, y0, x1, y1].map((v) => Math.floor(v / CELL));
+    const first = Math.max(0, cx0 - gx, gx - cx1, cy0 - gy, gy - cy1);
+    // cells further out than ring n are at least n cells away; ring n's edges only, within the cells with segments
+    for (let n = first; n <= Math.ceil(far / CELL) + 1; n++) {
+      const [ya, yb] = [Math.max(gy - n, cy0), Math.min(gy + n, cy1)];
+      for (let x = Math.max(gx - n, cx0); x <= Math.min(gx + n, cx1); x++) {
+        if (x === gx - n || x === gx + n) for (let y = ya; y <= yb; y++) visit(x, y);
+        else {
+          if (gy - n >= cy0) visit(x, gy - n);
+          if (n > 0 && gy + n <= cy1) visit(x, gy + n);
         }
       }
       if (best.d <= n * CELL || n * CELL > max) break;

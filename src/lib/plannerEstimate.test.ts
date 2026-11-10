@@ -159,5 +159,14 @@ describe('estimate like the MowBite Planner', () => {
     // without the body: the turn's radius
     expect(autoPasses({...input, body: undefined}, 0.18)).toBe(3);
   });
+
+  it('a docking station far off the area: worked out at once, the same plan as from one close by', () => {
+    const plan = (x: number) => plannerEstimate({...base, turnRadius: 0.3, start: {x, y: 3, heading: 0}})!;
+    const near = plan(60);
+    const far = plan(3000);
+    expect(far.loops).toEqual(near.loops);
+    expect(far.stripes).toEqual(near.stripes);
+    expect(far.between).toBe(near.between);
+  });
 });
 
