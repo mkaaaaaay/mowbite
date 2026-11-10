@@ -34,23 +34,26 @@ export default function PlanRow({
   onChange: (p: Plan) => void;
   onRemove: () => void;
 }) {
-  // a start or end that makes the plan reach into the dark waits for a yes before it's saved. it's this plan's: another
-  // one coming into its place (one above taken out) doesn't take the question over
-  const [pending, setPending] = useState<{field: 'time' | 'end'; value: string; of: Plan} | null>(null);
+  // a start or end that makes the plan reach into the dark is saved after a yes, with the other one changed meanwhile.
+  // it's this plan's: one coming into its place (one above taken out) doesn't take it over, other changes keep it
+  const [pending, setPending] = useState<{times: Pick<Plan, 'time' | 'end'>; of: Plan} | null>(null);
   if (pending && pending.of !== plan) setPending(null);
   // the turn as typed: a lone minus or an empty field isn't a number yet, it's saved once it is
   const [angleDraft, setAngleDraft] = useState<string | null>(null);
-  const set = (patch: Partial<Plan>) => onChange({...plan, ...patch});
-
-  const setTime = (field: 'time' | 'end', value: string) => {
-    const patch = field === 'time' ? {time: value} : {end: value || undefined};
-    if (!plan.dark && reachesDark({...plan, ...patch}, sun) && !reachesDark(plan, sun)) return setPending({field, value, of: plan});
-    setPending(null);
-    set(patch);
+  const set = (patch: Partial<Plan>) => {
+    const next = {...plan, ...patch};
+    if (pending) setPending({...pending, of: next});
+    onChange(next);
   };
 
-  const time = pending?.field === 'time' ? pending.value : plan.time;
-  const end = pending?.field === 'end' ? pending.value : plan.end;
+  const {time, end} = pending?.times ?? plan;
+  const setTime = (field: 'time' | 'end', value: string) => {
+    const times = field === 'time' ? {time: value, end} : {time, end: value || undefined};
+    if (!plan.dark && reachesDark(times, sun) && !reachesDark(plan, sun)) return setPending({times, of: plan});
+    setPending(null);
+    onChange({...plan, ...times});
+  };
+
   const dark = reachesDark({time, end}, sun);
   // how long the areas picked take by the planner's reckoning (the map asked it), against the window
   const picked = plan.areas.length ? mowAreas.filter((a) => plan.areas.includes(a.id)) : mowAreas;
@@ -203,7 +206,7 @@ export default function PlanRow({
           <div className={styles.animalButtons}>
             <button
               onClick={() => {
-                set({...(pending ? (pending.field === 'time' ? {time: pending.value} : {end: pending.value}) : {}), dark: true});
+                onChange({...plan, ...pending?.times, dark: true});
                 setPending(null);
               }}
             >
