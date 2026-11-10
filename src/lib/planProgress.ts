@@ -84,6 +84,15 @@ export function splitPlan(paths: PlanPath[], path: number, pose: number): PlanPr
   return {done, todo, doneLength, todoLength, fraction: all > 0 ? doneLength / all : 0};
 }
 
+// the events of a job going on from the day before (past midnight, or again after a break): the running one's (the
+// newest job) of that day in front of the day's own
+export function withDayBefore(before: MowerEvent[], today: MowerEvent[]): MowerEvent[] {
+  const job = (today.filter((e) => e.job_id).pop() ?? before.filter((e) => e.job_id).pop())?.job_id;
+  const ids = new Set(today.map((e) => e.id));
+  const earlier = job ? before.filter((e) => e.job_id === job && !ids.has(e.id)) : [];
+  return earlier.length ? [...earlier, ...today] : today;
+}
+
 // how long the blades ran in the area during this job, from the event history, so every device comes to the same
 // time. a job resumed after a break has the earlier part in it too, like the done part of the plan has
 export function bladeSeconds(events: MowerEvent[], areaId: string, now: number): number {

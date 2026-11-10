@@ -1,6 +1,6 @@
 import {describe, expect, it, vi} from 'vitest';
 import type {MowerEvent} from './events';
-import {bladeSeconds, saveRate, savedRate, splitPlan, type PlanPath} from './planProgress';
+import {bladeSeconds, saveRate, savedRate, splitPlan, withDayBefore, type PlanPath} from './planProgress';
 
 const store = new Map<string, string>();
 vi.stubGlobal('window', {});
@@ -77,5 +77,30 @@ describe('savedRate', () => {
     localStorage.removeItem('mower');
     expect(savedRate()).toBe(0.3);
     expect([...store.keys()]).toEqual(['mowRate']);
+  });
+});
+
+describe('withDayBefore', () => {
+  const ev = (t: number, type: string, more: Partial<MowerEvent> = {}): MowerEvent => ({id: String(t), t, type, job_id: 'j', ...more});
+  const yesterday = [ev(0, 'AREA', {area_id: 'a', job_id: 'old'}), ev(5, 'BLADES', {enabled: false, job_id: 'old'}), ev(10, 'AREA', {area_id: 'a'}), ev(20, 'BLADES', {enabled: true}), ev(3620, 'BLADES', {enabled: false})];
+
+  it('puts the running job of the day before in front, its blade time counts whole', () => {
+    const today = [ev(50000, 'AREA', {area_id: 'a'}), ev(50010, 'BLADES', {enabled: true})];
+    const all = withDayBefore(yesterday, today);
+    expect(all.map((e) => e.t)).toEqual([10, 20, 3620, 50000, 50010]);
+    expect(bladeSeconds(all, 'a', 50610)).toBe(4200);
+  });
+
+  it('finds the area of a job mowing past midnight without an event since', () => {
+    const night = [...yesterday.slice(0, 4)];
+    const all = withDayBefore(night, []);
+    expect(all.filter((e) => e.type === 'AREA').pop()?.t).toBe(10);
+    expect(bladeSeconds(all, 'a', 600)).toBe(580);
+  });
+
+  it("leaves out another job, and what today's list has already", () => {
+    const today = [ev(50000, 'AREA', {area_id: 'a', job_id: 'new'})];
+    expect(withDayBefore(yesterday, today)).toBe(today);
+    expect(withDayBefore(yesterday, yesterday)).toBe(yesterday);
   });
 });
