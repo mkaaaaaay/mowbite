@@ -142,12 +142,20 @@
 }
 
 .link {
+  position: relative;
   padding: 0;
   border: none;
   background: none;
   color: var(--accent);
   font-size: 12px;
   cursor: pointer;
+}
+
+/* taller for a finger, the links side by side keep their own width */
+.link::after {
+  content: '';
+  position: absolute;
+  inset: -6px 0;
 }
 
 .danger {

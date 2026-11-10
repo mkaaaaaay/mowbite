@@ -102,6 +102,14 @@
   color: var(--text-secondary);
   font-size: 12px;
   cursor: pointer;
+  position: relative;
+}
+
+/* a finger's height, the days side by side keep their own width */
+.days button::after {
+  content: '';
+  position: absolute;
+  inset: -4px 0;
 }
 
 .days .on {
@@ -196,6 +204,7 @@
 }
 
 .remove {
+  position: relative;
   margin-left: auto;
   border: none;
   background: none;
@@ -203,6 +212,13 @@
   font-size: 20px;
   line-height: 1;
   cursor: pointer;
+}
+
+/* the small × with a finger's room around it */
+.remove::after {
+  content: '';
+  position: absolute;
+  inset: -10px -12px;
 }
 
 .add {
