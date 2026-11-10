@@ -203,7 +203,8 @@ export default function SensorsPage() {
                       {fmt(num('om_v_battery')!, 2)} V
                     </div>
                   )}
-                  {num('om_v_charge') !== undefined && docked && (
+                  {/* MowBite OS measures none, it tells its setting while on the contacts */}
+                  {num('om_v_charge') !== undefined && docked && !os && (
                     <div>
                       <span className={styles.dim}>{tr('Charge voltage')}</span>
                       {fmt(num('om_v_charge')!, 1)} V
