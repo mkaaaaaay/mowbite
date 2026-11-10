@@ -86,10 +86,10 @@ while :; do
     mosquitto_sub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -t "${MOWER_MQTT_PREFIX}$TOPIC_EVENTS" \
       -t "${MOWER_MQTT_PREFIX}$TOPIC_SENSOR_DATA" -F '%U %t %p' 2>/dev/null |
       awk -v dir="$D" -v wf=/host-net/wireless '
-        # the signal of the first wifi interface, some drivers count it from 0 instead of in dBm
-        function wifi(    l, a, w) {
+        # the signal of the first wifi interface, some drivers count it from 0 instead of in dBm, 0 is one not connected
+        function wifi(    l, a, w, seen) {
           w = "-"
-          while ((getline l < wf) > 0) if (w == "-" && l ~ /^ *[a-z0-9]+: /) { split(l, a, " "); w = a[4] + 0; if (w > 0) w -= 256 }
+          while ((getline l < wf) > 0) if (!seen && l ~ /^ *[a-z0-9]+: /) { seen = 1; split(l, a, " "); w = a[4] + 0; if (w > 0) w -= 256; if (!w) w = "-" }
           close(wf)
           return w
         }
