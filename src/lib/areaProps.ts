@@ -16,7 +16,10 @@ export function areaProperties(): Promise<Set<string>> {
       try {
         const list = await callRpc<string[]>(RPC.areaProperties);
         if (Array.isArray(list)) return new Set(list);
-      } catch {}
+      } catch {
+        // no answer this time, the next one asking tries again
+        known = null;
+      }
     }
     return new Set([
       ...(methods?.has(RPC.areaPlan) ? ['mowable'] : []),
