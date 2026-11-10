@@ -93,6 +93,10 @@ describe('what the container counts', {timeout: 30_000}, () => {
     expect(state.slice(5)).toEqual([7200, 0, 0, 0, 0]);
   });
 
+  it('reads spaced out json like compact', () => {
+    expect(run(day().replace(/":/g, '": '))).toEqual(run(day()));
+  });
+
   it("doesn't count a jump of the position", () => {
     const {state} = run(pose(100, 'IDLE', 0) + pose(101, 'MOWING', 0) + pose(102, 'MOWING', 30) + pose(103, 'MOWING', 30.5));
     expect(state.slice(1, 5)).toEqual([0, 0, 0.5, 1]);

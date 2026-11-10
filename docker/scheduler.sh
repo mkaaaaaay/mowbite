@@ -135,16 +135,20 @@ sun_today() {
 # minutes after local midnight, now
 minutes() { TZ="$tz" date +%H:%M | awk -F: '{ print $1 * 60 + $2 }'; }
 
-# dark at this minute of the day: between sunset and sunrise, or 6 pm to 6 am without the sun times
+# dark at this minute of the day: between sunset and sunrise, or 6 pm to 6 am without the sun times. a sunset after
+# midnight comes before sunrise by the clock, then it's dark only between the two
 is_dark() {
   # shellcheck disable=SC2046
   set -- "$1" $(sun_today) 360 1080
-  [ "$1" -ge "$3" ] || [ "$1" -lt "$2" ]
+  if [ "$3" -le "$2" ]; then [ "$1" -ge "$3" ] && [ "$1" -lt "$2" ]; else [ "$1" -ge "$3" ] || [ "$1" -lt "$2" ]; fi
 }
 
+# HH:MM ($2) on the day $1 (YYYY-MM-DD) in the schedule's time zone as a unix time, a switch of summer time counted
+local_time() { TZ="$tz" date -d "$1 $2" +%s; }
+
 # the time a run started now has to be home by, as a unix time: the plan's end time (next one coming
-# up, or $4 when it's known already), and sunset if the plan wants that, or if its end time lies in the dark
-# without mowing in the dark being allowed. empty when neither
+# up, or $4 when it's known already), or the first sunset after the start when that comes earlier and the plan
+# wants it, or has an end time without mowing in the dark being allowed. empty when neither
 stop_time() {
   now=$(date +%s)
   midnight=$((now - $(minutes) * 60 - $(date +%S | sed 's/^0//')))
@@ -153,15 +157,18 @@ stop_time() {
     stop=$4
     why=end
   elif [ "$1" != - ]; then
-    stop=$((midnight + $(echo "$1" | awk -F: '{ print $1 * 3600 + $2 * 60 }')))
-    [ "$stop" -gt "$now" ] || stop=$((stop + 86400))
+    # by date and clock, a switch of summer time before it counts (tomorrow: the date 36 hours after midnight)
+    stop=$(local_time "$(TZ="$tz" date +%F)" "$1")
+    [ "$stop" -gt "$now" ] || stop=$(local_time "$(TZ="$tz" date -d "@$((midnight + 129600))" +%F)" "$1")
     why=end
   fi
-  endmin=$([ "$1" != - ] && echo "$1" | awk -F: '{ print $1 * 60 + $2 }')
-  if [ "$2" = 1 ] || { [ "$3" != 1 ] && [ -n "$endmin" ] && is_dark "$endmin"; }; then
+  if [ "$2" = 1 ] || { [ "$3" != 1 ] && [ -n "$stop" ]; }; then
     # shellcheck disable=SC2046
     set -- $(sun_today) 360 1080
+    # (sun_today counts by the clock as it is now, like midnight: right also on the day of a switch)
     dusk=$((midnight + $2 * 60))
+    # a sunset after midnight (by the clock before sunrise) that's past: the next one is tomorrow's
+    [ "$dusk" -gt "$now" ] || [ "$2" -gt "$1" ] || dusk=$((dusk + 86400))
     if [ "$dusk" -gt "$now" ] && { [ -z "$stop" ] || [ "$dusk" -lt "$stop" ]; }; then
       stop=$dusk
       why=dark
@@ -169,6 +176,9 @@ stop_time() {
   fi
   [ -n "$stop" ] && echo "$stop $why"
 }
+
+# the stop time of the run started at $1 isn't to come any more (carried out, or a start ended the run)
+stop_done() { rm -f "$DUE.$1"; }
 
 # a run this script started: send it home at the stop time, and set OpenMower's own pause like going home does in its
 # semi-automatic mode (manual_pause_mowing, params.set): a job still open (charging at the stop time, or in automatic
@@ -188,15 +198,16 @@ send_home_at() {
     t=$(date +%s)
     e=$(mosquitto_sub -h "$host" -p "$PORT" $topics -v -C 1 -W "$w" 2>/dev/null) ||
       { [ $(($(date +%s) - t)) -lt 1 ] && sleep 5; }
-    case "$e" in *" $ACTION_START_MOWING") return ;; esac
+    case "$e" in *" $ACTION_START_MOWING") stop_done "$3"; return ;; esac
     case "$(field "$e" type)" in JOB_COMPLETE | SHUTDOWN) return ;; esac
   done
+  stop_done "$3"
   logged=""
   s=$(mosquitto_sub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -C 1 -W 10 2>/dev/null)
   if [ "$(field "$s" current_state)" = MOWING ]; then
     mosquitto_pub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTION" -m "$ACTION_HOME" && log "stopped_$2" && logged=1
   fi
-  if rpc_call "$RPC_SET_PARAMS" '{"params":{"/mower_logic/manual_pause_mowing":true}}' 10 | grep -q '"result"'; then
+  if rpc_call "$RPC_SET_PARAMS" "{\"params\":{\"$PARAM_MANUAL_PAUSE\":true}}" 10 | grep -q '"result"'; then
     [ -n "$logged" ] || log "stopped_$2"
     return
   fi
@@ -368,7 +379,7 @@ leftovers_after() {
   os_does "$host" schedule && return
   min=$(field "$c" min)
   # a planner that sends the mower out for the leftovers itself (its setting leftovers_auto on): not twice
-  printf '%s' "$(rpc_call planner.settings '{}' 20)" | grep -o '"leftovers_auto": *{[^}]*}' | grep -q '"value": *true' && return
+  printf '%s' "$(rpc_call "$RPC_PLANNER_SETTINGS" '{}' 20)" | grep -o '"leftovers_auto": *{[^}]*}' | grep -q '"value": *true' && return
   if [ -f "$LEFT" ]; then
     # the run that just finished was the one for the leftovers (a flag older than 6 h is a leftover itself)
     age=$(($(date +%s) - $(cat "$LEFT")))
@@ -391,7 +402,7 @@ leftovers_after() {
   if [ "$(field "$s" emergency)" != 0 ]; then log leftovers_skip emergency; return; fi
   if [ "$(conf skiprain)" = 1 ] && [ "$(field "$s" rain_detected)" != 0 ]; then log leftovers_skip rain; return; fi
   if is_dark "$(minutes)"; then log leftovers_skip dark; return; fi
-  r=$(rpc_call planner.leftovers "{\"job_id\":\"$1\"}" 240)
+  r=$(rpc_call "$RPC_PLANNER_LEFTOVERS" "{\"job_id\":\"$1\"}" 240)
   if [ -z "$r" ] || printf '%s' "$r" | grep -q '"error"'; then log leftovers_failed; return; fi
   # m² left over all areas, from each area's stats.leftovers
   left=$(printf '%s' "$r" | grep -o '"leftovers": *{[^}]*}' | grep -o '"left_m2": *[0-9.eE+-]*' | cut -d: -f2 | awk '{ s += $1 } END { printf "%.2f", s }')
@@ -424,7 +435,7 @@ leftovers_after() {
   if [ "$(conf skipforecast)" = 1 ] && rain_forecast; then log leftovers_skip forecast; return; fi
   if [ "$(conf skipcold)" = 1 ] && cold=$(too_cold); then log leftovers_skip cold "$cold"; return; fi
   if held; then log leftovers_skip hold; return; fi
-  r=$(rpc_call planner.leftovers "{\"job_id\":\"$1\",\"arm\":true}" 240)
+  r=$(rpc_call "$RPC_PLANNER_LEFTOVERS" "{\"job_id\":\"$1\",\"arm\":true}" 240)
   if [ "$(echo "$(field "$r" armed)" | awk '{ print ($1 > 0) ? 1 : 0 }')" != 1 ]; then log leftovers_failed; return; fi
   # (the updater's hold once more after the planner's answer, which may take minutes. what's armed runs out by itself)
   if held; then log leftovers_skip hold; return; fi
@@ -456,9 +467,11 @@ LEFT=/tmp/leftovers.started
 STOP=/tmp/run.stop
 # kept over a restart of the container (an update while the mower charges in the middle of a run): the run this script
 # started ("<started> <stop>|- <why>|- <areas>"), and a start waiting for the battery ("<until> <day> <HH:MM> <date>
-# <end>|-"). both go when they're over
+# <end>|-"). both go when they're over. only the main loop writes them, and run.due.<started> (empty): there while that
+# run's stop time is to come
 RUN=/data/run.state
 WAITING=/data/run.wait
+DUE=/data/run.due
 leftovers_watch &
 
 # the mowing direction the app keeps for the mower (params.sh), while keeping is on
@@ -480,23 +493,26 @@ run_open() {
   return 1
 }
 
-# the run of before a restart: its areas skipped again and sent home at its time, while its job is still open
+# the run of before a restart: its areas skipped again and sent home at its time, while its job is still open. a stop
+# time that passed meanwhile is carried out now, if its run.due is still there
 restore_run() {
   # shellcheck disable=SC2034
   read -r at stop why areas < "$RUN" || return
-  [ $(($(date +%s) - ${at:-0})) -lt 86400 ] || { rm -f "$RUN"; return; }
   tz=$(conf tz)
   for _ in $(seq 30); do
     host=$(find_broker)
     [ -n "$host" ] && break
     sleep 10
   done
-  if [ -z "$host" ] || ! run_open; then
+  # (a day old by the clock after the wait: a mower switched on after months may set its clock only meanwhile)
+  if [ -z "$host" ] || [ $(($(date +%s) - ${at:-0})) -ge 86400 ] || ! run_open; then
     rm -f "$RUN"
     return
   fi
+  # a start since then is another run, with its own
+  [ "$(cut -d' ' -f1 "$RUN" 2>/dev/null)" = "$at" ] || return
   skip_others "$areas" &
-  [ "$stop" != - ] && [ "$stop" -gt "$(date +%s)" ] && send_home_at "$stop" "$why" &
+  [ "$stop" != - ] && { [ "$stop" -gt "$(date +%s)" ] || [ -f "$DUE.$at" ]; } && send_home_at "$stop" "$why" "$at" &
 }
 [ -f "$RUN" ] && restore_run &
 
@@ -668,11 +684,14 @@ while :; do
         check_started "$dtime" &
         # the end time of the start, not the next one from now (it may have waited for the battery)
         stop=$(stop_time "$end" "$sunset" "$dark" "$endat")
-        echo "$(date +%s) ${stop:-- -} $areas" > "$RUN"
+        began=$(date +%s)
+        echo "$began ${stop:-- -} $areas" > "$RUN"
+        rm -f "$DUE".*
+        [ -n "$stop" ] && : > "$DUE.$began"
         # always: a pause set while it runs counts too
         skip_others "$areas" &
         # shellcheck disable=SC2086
-        [ -n "$stop" ] && send_home_at $stop &
+        [ -n "$stop" ] && send_home_at $stop "$began" &
         until=0
       else
         slog skip_offline

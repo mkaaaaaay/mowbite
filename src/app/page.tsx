@@ -15,7 +15,6 @@ import {useLeftoversBefore} from '@/hooks/useLeftoversBefore';
 import {useCommandNote, useMowerActions} from '@/hooks/useMowerActions';
 import {useMowerMap} from '@/hooks/useMowerMap';
 import {datumFromParams, numParam, useMowerParams} from '@/hooks/useMowerParams';
-import {sunTimes} from '@/lib/sun';
 import {useMowerSensors, type SensorInfo} from '@/hooks/useMowerSensors';
 import {useMowerPosition} from '@/hooks/useMowerPosition';
 import {isLive, useMowerState, type MowerState} from '@/hooks/useMowerState';
@@ -49,6 +48,7 @@ import {
   missedStart,
   waitingStart,
   nextStart,
+  daySun,
   inOtherZone,
   scheduleLogLine,
   type LogEntry,
@@ -252,7 +252,7 @@ export default function Home() {
   const missedAny = schedule?.enabled ? missedStart(scheduleLog) : null;
   const missed = missedAny && missedAny.t !== missedSeen ? missedAny : null;
   const mowable = map?.areas.filter((a) => a.properties.type === 'mow' && a.properties.active !== false && a.properties.mowable !== false).map((a) => a.id);
-  const planned = schedule ? nextStart(schedule, undefined, datum ? (d) => sunTimes(datum.lat, datum.lon, d) : null, mowable) : null;
+  const planned = schedule ? nextStart(schedule, undefined, datum ? daySun(schedule.tz, datum) : null, mowable) : null;
   // the phone in another time zone than the schedule: its times are the schedule's, as on the schedule page
   const scheduleTz = schedule?.tz;
   const otherZone = useMemo(() => inOtherZone(scheduleTz), [scheduleTz]);

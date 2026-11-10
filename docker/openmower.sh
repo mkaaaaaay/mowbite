@@ -26,8 +26,12 @@ RPC_LOGS=logs.recent
 TOPIC_PARAMS=params/json
 RPC_SET_PARAMS=params.set
 PARAM_MOW_ANGLE_OFFSET=/mower_logic/mow_angle_offset
+# semi-automatic mode's pause: a job still open doesn't carry on by itself
+PARAM_MANUAL_PAUSE=/mower_logic/manual_pause_mowing
 # the MowBite Planner's settings (with the planner only)
 RPC_PLANNER_SETTINGS=planner.settings
+# the leftovers of a job: asked for, and armed for the next start (with the planner only)
+RPC_PLANNER_LEFTOVERS=planner.leftovers
 # the MowBite Planner's own log lines, kept in memory since its start (with the planner only)
 RPC_PLANNER_LOG=planner.log
 # the plan of an area: the MowBite Planner's (with the planner only) and OpenMower's own
