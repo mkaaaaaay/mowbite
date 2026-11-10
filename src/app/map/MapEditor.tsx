@@ -141,7 +141,7 @@ function MapEditor() {
   const towelNow = towel || (!!progress && !progress.leftovers && Math.round(progress.fraction * 100) === 42);
   // the same object while nothing changes, the map is drawn again only when it does
   const costume = useMemo(() => ({towel: towelNow, umbrella}), [towelNow, umbrella]);
-  const {map, edited, base, setMap, history, undoable, future, remember, undoStep, redoStep, originalOf, keepOriginal, dirty, external, dropEdits, rebase, mergeNote, mergeExternal} =
+  const {map, edited, base, setMap, history, undoable, future, remember, undoStep, redoStep, originalOf, keepOriginal, dirty, external, dropEdits, rebase, took, mergeNote, mergeExternal} =
     useMapEdits(liveMap);
   const [showStripes, setShowStripes] = useState(true);
   // on a phone the map stays at the top while the settings under it scroll, unless it was unpinned on this device
@@ -677,6 +677,7 @@ function MapEditor() {
     downloadGeo,
   } = useMapBackups(liveMap, map, datum, (put) => {
     dropEdits();
+    took(put, liveMap);
     setSelectedAreaId(null);
     if (endsJob(interrupted, liveMap, put)) dropJob();
   });
@@ -733,6 +734,7 @@ function MapEditor() {
       backupFirst.reset();
       // edits made while it saved stay and go on from the saved map
       if (!taken) {
+        took(next, liveMap);
         if (latest.current === next) saved(next, gone, liveMap);
         else rebase(next);
         if (ends) dropJob();

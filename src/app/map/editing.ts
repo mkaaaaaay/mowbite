@@ -1,7 +1,7 @@
 import type {MowerMap, Point} from '@/hooks/useMowerMap';
 import {fmt, tr} from '@/lib/i18n';
 import {isPin, PIN_SIDE} from '@/lib/mowerBody';
-import {sameMap} from '@/lib/sameMap';
+import {sameContent, sameMap} from '@/lib/sameMap';
 import type {KeptLooks} from '@/lib/settings';
 
 export type Area = MowerMap['areas'][number];
@@ -29,6 +29,13 @@ export function onlyPinsChanged(base: MowerMap, map: MowerMap): boolean {
   const rest = (m: MowerMap) => ({...m, areas: m.areas.filter((a) => !isPin(a))});
   return sameMap(rest(base), rest(map));
 }
+
+// a map of ours the mower took in place of the one it had (over), until it comes back from there
+export type Sent = {map: MowerMap; over: MowerMap | null};
+// the mower's map the editor goes on from: the one sent while the mower's is still the one before, or back as the mower
+// wrote it. another one is a change from somewhere else
+export const mowerMap = (live: MowerMap | null, sent: Sent | null) =>
+  sent && (live === sent.over || (!!live && sameContent(live, sent.map))) ? sent.map : live;
 
 // a job the mower interrupted (offered: reset_job) keeps the lanes of the map it had: a replace with more than pins changed ends it
 export const endsJob = (offered: boolean, before: MowerMap | null, next: MowerMap) => offered && !(before && onlyPinsChanged(before, next));

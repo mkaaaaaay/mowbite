@@ -1,7 +1,7 @@
 import type {MapArea, MowerMap} from '@/hooks/useMowerMap';
 import {PIN_SIDE, pinAt} from '@/lib/mowerBody';
 import {describe, expect, it} from 'vitest';
-import {decorRedo, decorUndo, endsJob, goneLooks, jobLeft, onlyPinsChanged, overrideError, PIN_TILES, pinSquare, pinsFrom, pinTiles} from './editing';
+import {decorRedo, decorUndo, endsJob, goneLooks, jobLeft, mowerMap, onlyPinsChanged, overrideError, PIN_TILES, pinSquare, pinsFrom, pinTiles} from './editing';
 
 describe('overrideError', () => {
   it('takes empty (global value) and values within the mower limits', () => {
@@ -104,5 +104,27 @@ describe('pins', () => {
     expect(pinTiles(['lamp', 'statue', 'lamp', 'gnome', 'statue', 'lamp'])).toEqual(['lamp', 'statue', 'gnome', 'pot', 'bush', 'tree', 'bench', 'umbrella', 'grill']);
     // as often: the one set first
     expect(pinTiles(['rose', 'fern']).slice(0, 3)).toEqual(['rose', 'fern', 'gnome']);
+  });
+});
+
+describe('mowerMap', () => {
+  const lawn = (name: string): MowerMap => ({
+    areas: [{id: 'l', properties: {name, type: 'mow'}, outline: [{x: 0, y: 0}, {x: 10, y: 0}, {x: 10, y: 10}]}],
+    docking_stations: [],
+  });
+  const old = lawn('Old');
+  const sent = {map: lawn('New'), over: old};
+
+  it('is the map sent while the mower still has the one before, also once it came back as the mower wrote it', () => {
+    expect(mowerMap(old, null)).toBe(old);
+    expect(mowerMap(old, sent)).toBe(sent.map);
+    const back = lawn('New');
+    back.areas[0].properties.active = true;
+    expect(mowerMap(back, sent)).toBe(sent.map);
+  });
+
+  it('is the mower\'s own when another one came', () => {
+    const other = lawn('Other');
+    expect(mowerMap(other, sent)).toBe(other);
   });
 });
