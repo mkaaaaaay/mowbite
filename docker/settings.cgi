@@ -24,15 +24,18 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
   # a file of its own: two saves at once mustn't write into the same one
   T="$F.$$"
   head -c "$len" > "$T"
-  # only a json object, anything else would leave every device without settings
-  if [ "$(ends "$T" | tr -d '\n')" != "{}" ]; then
+  # only a json object, anything else would leave every device without settings. and all of it: a connection that broke
+  # off hands over less than it said
+  if [ "$(wc -c < "$T")" -ne "$len" ] || [ "$(ends "$T" | tr -d '\n')" != "{}" ]; then
     rm -f "$T"
     printf 'Status: 400 Bad Request\r\n'
     vcors
     printf 'Content-Type: text/plain\r\n\r\nnot a json object\n'
     exit 0
   fi
-  want=$(printf '%s' "$QUERY_STRING" | sed -n 's/^.*v=\([0-9-]*\).*$/\1/p')
+  want=$(printf '%s' "$QUERY_STRING" | tr '&' '\n' | sed -n 's/^v=\([0-9-]*\).*$/\1/p' | head -n1)
+  # the check and the save at once, and the answer what was saved: two devices saving together take turns
+  exec 9> /tmp/settings.lock && flock 9
   if [ -n "$want" ] && [ -f "$F" ] && [ "$want" != "$(version)" ]; then
     rm -f "$T"
     printf 'Status: 409 Conflict\r\n'

@@ -338,6 +338,12 @@ expect "settings: saved from an old version: 409 with what's stored" "$(curl -s 
 expect "settings: saved from the current version" "$(code --data-binary '{"a":2}' "$S?v=$v1")" 200
 expect "settings: no json object, 400" "$(code --data-binary '[1]' "$S")" 400
 expect "settings: what's stored stays" "$(curl -s "$S")" '{"a":2}'
+expect "settings: the version read from v= itself, not from another parameter's end" \
+  "$(code --data-binary '{"a":3}' "$S?v=$(ver)&x=v=1")" 200
+# three devices saving from the same version at once: one gets through, the others are told
+v=$(ver)
+expect "settings: of saves at once from one version only one gets through" \
+  "$(for i in 1 2 3; do (code --data-binary "{\"p\":$i}" "$S?v=$v" && echo) & done | sort | tr '\n' ' ')" '200 409 409 '
 expect "settings: its version readable from another origin" \
   "$(curl -s -D - -o /dev/null -H 'Origin: http://192.168.178.20:8082' "$S" | tr -d '\r' | sed -n 's/^access-control-expose-headers: //Ip')" \
   X-Settings-Version
@@ -358,6 +364,9 @@ kept=$'enabled 1\n/mower_logic/a_b 1.5\n/mower_logic/c true'
 expect "params: only lines of the known shapes are kept" "$(curl -s --data-binary "$body" "$P")" "$kept"
 broken "$P" 'enabled 0'
 expect "params: a body that broke off leaves them as they were" "$(curl -s "$P")" "$kept"
+s=$(curl -s "$S")
+broken "$S" '{"a":{"b":1}'
+expect "settings: a body that broke off leaves them as they were" "$(curl -s "$S")" "$s"
 
 B=$W/backups
 expect "backups: one made by hand" "$(code --data-binary '{"areas":[]}' "$B?name=mine&areas=0")" 200
