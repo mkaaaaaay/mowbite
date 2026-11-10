@@ -107,6 +107,8 @@ const ownStorageKey = () => ownKey(ownId());
 
 // what of the settings is kept by the mower's id: in a browser MOWER_KEYS, in the app everything is the mower's
 const ownPart = (s: Settings) => (isApp() ? s : join({}, s));
+// the app's part, kept under STORAGE_KEY whichever mower is looked at
+const appPart = (s: Settings) => join(s, {});
 
 function load(): Settings {
   if (current) return current;
@@ -133,7 +135,7 @@ function setLocal(next: Settings) {
   current = next;
   try {
     if (!isDemo()) {
-      keep(STORAGE_KEY, (s) => join(s, {}), was, next);
+      keep(STORAGE_KEY, appPart, was, next);
       keep(ownStorageKey(), ownPart, was, next);
       keepBefore();
     }
@@ -177,12 +179,30 @@ let syncing: Promise<void> | null = null;
 // what's kept from an earlier time stays then
 let before: Settings | null = null;
 const beforeKey = (id: string) => `${STORAGE_KEY}Before:${id}`;
+// in a browser the app's part goes to the page's container whichever mower is looked at, it's kept aside on its own
+const APP_BEFORE = `${STORAGE_KEY}Before`;
+// a part is kept aside while this device keeps it otherwise than the mowers have it, another tab's change too (not the demo)
 function keepBefore() {
-  if (!before) return;
-  try {
-    if (sorted(before) !== sorted(load())) localStorage.setItem(beforeKey(ownId()), JSON.stringify(before));
-    else localStorage.removeItem(beforeKey(ownId()));
-  } catch {}
+  const b = before;
+  if (!b || isDemo()) return;
+  // both as this device keeps them: as json, a part left empty taken out
+  const kept = (s: Settings, part: (s: Settings) => Settings) => sorted(part(JSON.parse(JSON.stringify(s))));
+  const aside = (key: string, keptAt: string, part: (s: Settings) => Settings) => {
+    try {
+      if (kept(b, part) !== kept(readStored<Settings>(keptAt) ?? {}, part)) localStorage.setItem(key, JSON.stringify(part(b)));
+      else localStorage.removeItem(key);
+    } catch {}
+  };
+  aside(beforeKey(ownId()), ownStorageKey(), ownPart);
+  if (!isApp()) aside(APP_BEFORE, STORAGE_KEY, appPart);
+}
+// what was kept aside for the mower looked at and in a browser for the app, null for none
+function keptBefore(): Settings | null {
+  if (isDemo()) return null;
+  const own = readStored<Settings>(beforeKey(ownId()));
+  if (isApp()) return own;
+  const app = readStored<Settings>(APP_BEFORE);
+  return app || own ? join(app ?? load(), own ?? load()) : null;
 }
 // the settings as the mowers have them now, the other mower's own part as before while it couldn't be saved there
 function agreed(): Settings {
@@ -229,7 +249,7 @@ async function fetchKept(k: Kept, url: string): Promise<boolean> {
 }
 export function syncSettings(): Promise<void> {
   syncing ??= (async () => {
-    before ??= readStored<Settings>(beforeKey(ownId())) ?? load();
+    before ??= keptBefore() ?? load();
     try {
       if (!(await fetchKept(home, homeUrl()))) {
         // where one answered before, something else does now (another network): asked again

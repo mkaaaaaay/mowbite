@@ -74,15 +74,15 @@ const useKept = () =>
     () => undefined,
   );
 
-// one change to what the container keeps as it has it now (another device may have kept more since it was asked
-// for), shown at once and back as it was when the container didn't take it. one after the other, each on the last
+// one change to what the container keeps as it has it now (another device may have changed it since it was asked for),
+// shown at once and back as it was when the container didn't answer or take it. one after the other, each on the last
 let storing: Promise<unknown> = Promise.resolve();
 function storeKept(change: (k: KeptParams) => KeptParams): Promise<void> {
   const run = storing.then(async () => {
     const before = kept ?? null;
     if (before) setKept(change(before));
     try {
-      const now = (await loadKept()) ?? before;
+      const now = await loadKept();
       if (!now) throw new Error('nothing kept');
       setKept(await saveKept(change(now)));
     } catch (e) {
@@ -92,6 +92,18 @@ function storeKept(change: (k: KeptParams) => KeptParams): Promise<void> {
   });
   storing = run.catch(() => {});
   return run;
+}
+
+// keeping switched off, or on again with the values the mower has now instead of older kept ones, one it hasn't told left out
+export function switchKeeping(on: boolean, params: Record<string, unknown>) {
+  const now = (k: KeptParams) =>
+    Object.fromEntries(
+      Object.keys(k.values).flatMap((key) => {
+        const m = params[paramName(key)];
+        return typeof m === 'number' || typeof m === 'boolean' ? [[key, m]] : [];
+      }),
+    );
+  return storeKept((k) => ({...k, enabled: on, ...(on ? {values: now(k)} : {})}));
 }
 
 class NotKept extends Error {}
@@ -245,6 +257,7 @@ const AUTOMATIC_SHORT = ['starts by hand', 'semi-automatic', 'automatic'];
 
 // OpenMower's own values for mowing every area (mower_params.yaml), with the map where an area can have its own
 export function OpenMowerMowing({styles}: {styles: Styles}) {
+  const params = useMowerParams();
   const k = useKept();
   const os = useMowbiteOs();
   return (
@@ -252,7 +265,7 @@ export function OpenMowerMowing({styles}: {styles: Styles}) {
       <p className={styles.dim}>{tr("OpenMower's own values from mower_params.yaml, for every area without its own. A change counts right away.")}</p>
       {k && !k.enabled && (
         <label className={styles.check}>
-          <input type="checkbox" checked={false} onChange={() => storeKept((k) => ({...k, enabled: true})).catch(() => {})} />
+          <input type="checkbox" checked={false} onChange={() => switchKeeping(true, params).catch(() => {})} />
           {tr('MowBite sets what you change here again after a restart')}
         </label>
       )}
@@ -309,22 +322,7 @@ export function OpenMowerSettings({styles}: {styles: Styles}) {
         </p>
         {k && (
           <label className={styles.check}>
-            <input
-              type="checkbox"
-              checked={k.enabled}
-              onChange={(e) => {
-                const on = e.target.checked;
-                // switched on again: the values the mower has now, not the ones kept from before (changed meanwhile)
-                const now = (k: KeptParams) =>
-                  Object.fromEntries(
-                    Object.entries(k.values).map(([key, v]) => {
-                      const m = params[paramName(key)];
-                      return [key, typeof m === 'number' || typeof m === 'boolean' ? m : v];
-                    }),
-                  );
-                storeKept((k) => ({...k, enabled: on, ...(on ? {values: now(k)} : {})})).catch(() => {});
-              }}
-            />
+            <input type="checkbox" checked={k.enabled} onChange={(e) => switchKeeping(e.target.checked, params).catch(() => {})} />
             {tr('MowBite sets what you change here again after a restart')}
           </label>
         )}
