@@ -1,11 +1,23 @@
 import {describe, expect, it, vi} from 'vitest';
 
-vi.mock('./mqttClient', () => ({topicStore: () => ({subscribe: () => () => {}, get: () => null, initial: () => null})}));
+// the planner's topic: a message handed to the store as the broker would
+const topic = vi.hoisted(() => ({send: (() => {}) as (message: string) => void}));
+vi.mock('./mqttClient', () => ({
+  topicStore: <T,>(_: string, initial: T, parse: (payload: Buffer, prev: T) => T) => {
+    let value = initial;
+    const heard = new Set<() => void>();
+    topic.send = (m) => {
+      value = parse(Buffer.from(m), value);
+      heard.forEach((l) => l());
+    };
+    return {subscribe: (l: () => void) => (heard.add(l), () => heard.delete(l)), get: () => value, initial: () => initial};
+  },
+}));
 vi.mock('./rpc', () => ({callRpc: async () => ({})}));
 vi.mock('./autoUpdate', () => ({requestCalib: async () => {}, requestCalibBack: async () => {}}));
 
 vi.stubEnv('APP_CALIBRATION', '1');
-const {answerTo, calibByHand, calibLines, calibMissing, calibText, canCalibrate, changeOf, lackDone, lacks, preselected, readLast, readPaths, readProgress, readResult, readState} = await import('./calibration');
+const {answerTo, calibByHand, calibLeftOver, calibLines, calibMissing, calibProgress, calibStart, calibText, canCalibrate, changeOf, lackDone, lacks, noneRecorded, preselected, readLast, readPaths, readProgress, readResult, readState} = await import('./calibration');
 
 // an answer of planner.calib.result as the planner gives it (mowbite-calib/1)
 const answer = {
@@ -117,6 +129,31 @@ describe('a calibration', () => {
     expect(canCalibrate(new Set(['planner.calib.start']))).toBe(true);
     expect([new Set(['planner.plan']), null, undefined].map(canCalibrate)).toEqual([false, false, false]);
     expect([new Set(['planner.calib.start']), new Set(['planner.plan']), null, undefined].map(calibMissing)).toEqual([null, 'planner', 'planner', 'connecting']);
+  });
+
+  it("takes a recording the planner doesn't have for none until it says something else", async () => {
+    const recording = JSON.stringify({phase: 'recording', mode: 'joystick', m: 0, turns: 0, runs: 0});
+    expect(['no calibration is recorded', 'no calibration recorded', 'the calibration is still recorded'].map(noneRecorded)).toEqual([true, true, false]);
+    let told = 0;
+    const off = calibProgress.subscribe(() => told++);
+    topic.send(recording);
+    const seen = calibProgress.get();
+    expect(seen?.phase).toBe('recording');
+    expect(calibProgress.get()).toBe(seen);
+    calibLeftOver();
+    expect(calibProgress.get()).toBeNull();
+    // the same retained one again after a reconnect
+    topic.send(recording);
+    expect(calibProgress.get()).toBeNull();
+    topic.send(JSON.stringify({phase: 'done', mode: 'joystick', m: 0, turns: 0, runs: 0}));
+    expect(calibProgress.get()?.phase).toBe('done');
+    // a new start of this app counts its first message, also the same text
+    topic.send(recording);
+    calibLeftOver();
+    await calibStart('joystick');
+    expect(calibProgress.get()?.phase).toBe('recording');
+    expect(told).toBe(7);
+    off();
   });
 
   it('is left to the builds that have it', async () => {

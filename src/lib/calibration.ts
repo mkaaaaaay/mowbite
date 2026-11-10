@@ -235,6 +235,9 @@ const re = (s: string) => new RegExp(`^${s}$`);
 // a number as it came, with as many digits after the point, in the reader's format
 const local = (s: string) => fmt(+s, (s.split('.')[1] ?? '').length);
 const ONE_VALUE = 'OpenMower has one value for both, nothing to set for it.';
+// the planner's answer to planner.calib.stop without a recording
+const NONE_RECORDED = /^no calibration (is )?recorded$/;
+export const noneRecorded = (message: string) => NONE_RECORDED.test(message);
 const SAYS: [RegExp, (n: string[], m: RegExpMatchArray) => string][] = [
   [/^no estimate$/, () => tr('Not enough data for it.')],
   [re(`too uncertain: ${N} \\+- ${N} (\\S*), needs \\+- ${N}`), ([a, b, , c], m) => tr('Too inaccurate: {a} ± {b} {u}, ± {c} needed.', {a, b, c, u: m[3]})],
@@ -297,7 +300,7 @@ const SAYS: [RegExp, (n: string[], m: RegExpMatchArray) => string][] = [
   [/^the last calibration is being evaluated$/, () => tr('The last calibration is still being worked out.')],
   [/^the calibration is still recorded$/, () => tr('The calibration is still being recorded.')],
   [/^the calibration is being evaluated$/, () => tr('The calibration is being worked out.')],
-  [/^no calibration (is )?recorded$/, () => tr('No calibration recorded.')],
+  [NONE_RECORDED, () => tr('No calibration recorded.')],
 ];
 export function calibText(said: string): string {
   for (const [pattern, say] of SAYS) {
@@ -322,10 +325,37 @@ export async function calibCheck(): Promise<CalibCheck | null> {
     .map((x) => ({reason: str(x.reason) ?? '', message: str(x.message) ?? ''}));
   return {ok: c.ok === true, problems, rtk: c.rtk && typeof c.rtk === 'object' ? readRtk(c.rtk) : null};
 }
-export const calibStart = (mode: CalibMode) => callRpc(RPC.plannerCalibStart, {mode}, 20000);
+export function calibStart(mode: CalibMode) {
+  // a new recording may start with the same message as the left over one
+  markLeftOver(null);
+  return callRpc(RPC.plannerCalibStart, {mode}, 20000);
+}
 export const calibStop = () => callRpc(RPC.plannerCalibStop, {}, 20000);
 export const calibResult = async () => readResult(await callRpc(RPC.plannerCalibResult, {}, 60000));
 export const takeCalib = (lines: string) => requestCalib(lines);
 export const calibBack = () => requestCalibBack();
 
-export const calibProgress = topicStore<CalibProgress | null>(TOPIC.plannerCalib, null, (payload) => readProgress(payload.toString()));
+// the planner's last message, and the one taken as left over (calibLeftOver): nothing until another one comes, also
+// when the same retained one comes again after a reconnect
+let said = '';
+let leftOver: string | null = null;
+const progress = topicStore<CalibProgress | null>(TOPIC.plannerCalib, null, (payload) => readProgress((said = payload.toString())));
+const leftOverHeard = new Set<() => void>();
+export const calibProgress = {
+  subscribe(listener: () => void) {
+    leftOverHeard.add(listener);
+    const off = progress.subscribe(listener);
+    return () => {
+      leftOverHeard.delete(listener);
+      off();
+    };
+  },
+  get: () => (said === leftOver ? null : progress.get()),
+  initial: progress.initial,
+};
+function markLeftOver(message: string | null) {
+  leftOver = message;
+  leftOverHeard.forEach((l) => l());
+}
+// a recording the topic still tells of, though the planner has none (it says so on stop)
+export const calibLeftOver = () => markLeftOver(said);

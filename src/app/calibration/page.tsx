@@ -12,6 +12,7 @@ import {
   answerTo,
   calibBack,
   calibCheck,
+  calibLeftOver,
   calibByHand,
   calibMissing,
   calibMissingText,
@@ -22,6 +23,7 @@ import {
   calibText,
   lackDone,
   lacks,
+  noneRecorded,
   readLast,
   readPaths,
   takeCalib,
@@ -367,7 +369,10 @@ function Calibration() {
     try {
       await calibStop();
     } catch (e) {
-      setError(calibText(e instanceof Error ? e.message : String(e)));
+      const message = e instanceof Error ? e.message : String(e);
+      // the planner has none: what its topic still says is left over
+      if (noneRecorded(message)) calibLeftOver();
+      setError(calibText(message));
     }
   };
   const endRecordingMode = () => {
