@@ -65,4 +65,18 @@ describe('the weather', () => {
     await vi.advanceTimersByTimeAsync(EVERY);
     expect(asked).toBe(2);
   });
+
+  it('is asked once for the watchers of a page, also when it is asked again after a failure', async () => {
+    online = false;
+    const seen: (Weather | null)[][] = [[], []];
+    const stops = seen.map((s) => watchWeather(52.3, 9.3, (w) => s.push(w)));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(asked).toBe(1);
+    expect(seen).toEqual([[null], [null]]);
+    online = true;
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(asked).toBe(2);
+    expect(seen.map((s) => s.at(-1)?.temp)).toEqual([18, 18]);
+    stops.forEach((stop) => stop());
+  });
 });

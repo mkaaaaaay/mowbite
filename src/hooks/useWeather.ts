@@ -20,6 +20,8 @@ export interface Weather {
 const EVERY_MS = 20 * 60 * 1000;
 const RETRY_MS = 60 * 1000;
 let cache: {key: string; at: number; data: Weather} | null = null;
+// the request that's on its way: the watchers of a page ask at the same moments and share it
+let pending: {key: string; p: Promise<Weather>} | null = null;
 
 // the weather at a place now and the next hours, asked with the position rounded to about a kilometer. no hook, the home
 // assistant card asks it the same way
@@ -66,7 +68,13 @@ export function watchWeather(lat: number, lon: number, set: (w: Weather | null) 
   const run = () => {
     clearTimeout(retry);
     if (cache?.key === key && Date.now() - cache.at < EVERY_MS) return set(cache.data);
-    loadWeather(lat, lon).then(
+    if (pending?.key !== key) {
+      const p = loadWeather(lat, lon).finally(() => {
+        if (pending?.p === p) pending = null;
+      });
+      pending = {key, p};
+    }
+    pending.p.then(
       (w) => {
         cache = {key, at: Date.now(), data: w};
         if (alive) set(w);
