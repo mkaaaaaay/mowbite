@@ -410,7 +410,7 @@ export type MowerSizes = NonNullable<Settings['mower']>;
 export const MAX_BLADE = 0.4; // m
 
 // what a mower's sizes can be (m): outside it the unit slipped, metres or millimetres typed as cm
-export const SIZE_LIMITS: {[K in keyof MowerSizes]?: readonly [number, number]} = {
+const SIZE_LIMITS: {[K in keyof MowerSizes]?: readonly [number, number]} = {
   width: [0.1, 1.5],
   front: [0.1, 1.5],
   rear: [0, 1.5],

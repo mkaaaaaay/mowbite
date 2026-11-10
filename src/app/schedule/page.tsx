@@ -101,9 +101,10 @@ export default function SchedulePage() {
   };
 
   const s = schedule ?? EMPTY_SCHEDULE;
+  const sunOn = datum ? daySun(s.tz, datum) : null;
   // today's sunrise and sunset by the schedule's clock, so the animal hint follows the real night
-  const sun = datum ? daySun(s.tz, datum)(scheduleNow(s.tz)) : null;
-  const next = nextStart(s, undefined, datum ? daySun(s.tz, datum) : null, mowAreas.map((a) => a.id));
+  const sun = sunOn?.(scheduleNow(s.tz)) ?? null;
+  const next = nextStart(s, undefined, sunOn, mowAreas.map((a) => a.id));
   // saved from a phone in another time zone: the times are the schedule's, not this phone's
   const otherZone = useMemo(() => inOtherZone(s.tz), [s.tz]);
 

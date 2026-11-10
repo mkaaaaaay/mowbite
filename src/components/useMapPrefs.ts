@@ -56,9 +56,6 @@ function set(change: Partial<MapPrefs>) {
   listeners.forEach((l) => l());
 }
 
-// the layers switched off in the map's menu on this device
-export const hiddenLayers = () => snapshot().hidden;
-
 const subscribe = (l: () => void) => {
   listeners.add(l);
   return () => listeners.delete(l);

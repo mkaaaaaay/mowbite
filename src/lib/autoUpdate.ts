@@ -1,4 +1,4 @@
-import {clock, dayDateYear} from './dates';
+import {dayClock, dayDateYear} from './dates';
 import {fmt, tr} from './i18n';
 import {apiBase, mowerFetch} from './mowers';
 
@@ -207,7 +207,7 @@ export function stepDetail(p: Progress, now = Date.now() / 1000): string {
 }
 
 const date = (d: string | undefined) => (d && /^\d{4}-\d\d-\d\d$/.test(d) ? dayDateYear(new Date(`${d}T12:00:00`)) : null);
-const when = (t: string | undefined) => (t ? `${dayDateYear(new Date(Number(t) * 1000))}, ${clock(Number(t))}` : '?');
+const when = (t: string | undefined) => (t ? dayClock(Number(t)) : '?');
 
 export type Availability = 'yes' | 'no' | 'switch' | 'failed' | 'unknown' | 'local';
 

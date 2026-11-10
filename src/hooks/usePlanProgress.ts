@@ -1,9 +1,8 @@
 'use client';
 
 import {mowerPaths} from '@/lib/areaPlan';
-import {parseDay} from '@/lib/dates';
 import type {MowerEvent} from '@/lib/events';
-import {eventsOfDay, fileDay, historyDays} from '@/lib/history';
+import {eventsOfDay, fileDay, historyDays, shift} from '@/lib/history';
 import {leftoverPaths} from '@/lib/leftovers';
 import {bladeSeconds, saveRate, savedRate, splitPlan, withDayBefore, type PlanPath, type PlanProgress} from '@/lib/planProgress';
 import {useEffect, useMemo, useState} from 'react';
@@ -40,10 +39,8 @@ export function usePlanProgress(
   useEffect(() => {
     if (!timed) return;
     let alive = true;
-    const d = parseDay(today);
-    d.setDate(d.getDate() - 1);
     historyDays()
-      .then((files) => eventsOfDay(files, fileDay(d)))
+      .then((files) => eventsOfDay(files, shift(today, -1)))
       .then(
         (r) => alive && setDayBefore({today, events: r.events}),
         () => alive && setDayBefore({today, events: []}),

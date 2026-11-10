@@ -13,7 +13,7 @@ export function useChargeConfirmed(api: number, on: boolean | undefined, today?:
   const newest = useRef(-Infinity);
   useEffect(() => {
     newest.current = Math.max(...(today ?? []).map((e) => e.t));
-  });
+  }, [today]);
   useEffect(() => {
     if (on !== false || api < 4) return;
     const off = newest.current;

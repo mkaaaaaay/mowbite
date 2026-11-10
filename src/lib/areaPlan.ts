@@ -176,7 +176,8 @@ interface PlanProps {
 }
 export type PlanRequest = ({area_id: string} & PlanProps) | ({outline: Point[]; obstacles: Point[][]} & PlanProps);
 
-const PLAN_PROPS = ['angle', 'outline_count', 'outline_overlap_count', 'outline_offset', 'angle_min', 'angle_max'] as const;
+const PLAN_SINGLE = ['angle', 'outline_count', 'outline_overlap_count', 'outline_offset'] as const;
+const PLAN_PROPS = [...PLAN_SINGLE, 'angle_min', 'angle_max'] as const;
 
 // What the mower is asked for an area as edited: by its id to the MowBite Planner (withPlanner) while it lies as saved
 // (byId), else as it is in the editor. The planner puts the saved area's own values under what's asked, so with one of
@@ -191,10 +192,7 @@ export function areaPlanRequest(
 ): PlanRequest {
   const p = area.properties;
   const props: PlanProps = {};
-  if (p.angle !== undefined) props.angle = p.angle;
-  if (p.outline_count !== undefined) props.outline_count = p.outline_count;
-  if (p.outline_overlap_count !== undefined) props.outline_overlap_count = p.outline_overlap_count;
-  if (p.outline_offset !== undefined) props.outline_offset = p.outline_offset;
+  for (const k of PLAN_SINGLE) if (p[k] !== undefined) props[k] = p[k];
   if (p.angle_min !== undefined && p.angle_max !== undefined) {
     props.angle_min = p.angle_min;
     props.angle_max = p.angle_max;

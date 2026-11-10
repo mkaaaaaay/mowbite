@@ -5,7 +5,7 @@ import {useMowerActions} from '@/hooks/useMowerActions';
 import {isLive, useMowerState} from '@/hooks/useMowerState';
 import {answerTo, calibLines, calibText, changeOf, preselected, readLast, readPaths, readState, type CalibPath, type CalibResult, type CalibValue} from '@/lib/calibration';
 import {copyText} from '@/lib/clipboard';
-import {clock, dayDateYear} from '@/lib/dates';
+import {clock, dayClock} from '@/lib/dates';
 import {fmt, tr} from '@/lib/i18n';
 import {ACTION} from '@/lib/openmower';
 import {rpcErrorText} from '@/lib/rpcText';
@@ -397,7 +397,6 @@ export function LastCalibration({
   const line = asked !== null ? stateLine(status?.calib, asked, docked) : null;
   // set back since: the values before apply again (the copy stays, setting back again changes nothing)
   const reverted = !!last && state?.what === 'back' && state.at >= last.at;
-  const when = (t: number) => `${dayDateYear(new Date(t * 1000))}, ${clock(t)}`;
   return (
     <section className={styles.card}>
       <h2>{tr('Last calibration')}</h2>
@@ -405,7 +404,7 @@ export function LastCalibration({
         <p className={styles.dim}>{tr('Never calibrated')}</p>
       ) : (
         <>
-          <p className={styles.dim}>{when(last.at)}</p>
+          <p className={styles.dim}>{dayClock(last.at)}</p>
           <div className={styles.rows}>
             {last.values.map((v) => {
               const name = nameByPath(v.path, paths);
@@ -427,7 +426,7 @@ export function LastCalibration({
           <span>{line.text}</span>
         </div>
       ) : (
-        reverted && <p className={styles.dim}>{tr('Set back on {date}, the values before apply again.', {date: when(state!.at)})}</p>
+        reverted && <p className={styles.dim}>{tr('Set back on {date}, the values before apply again.', {date: dayClock(state!.at)})}</p>
       )}
       {!reverted && <SetBack status={status} onBack={onBack} text={tr('Everything back to how it was before the last calibration.')} />}
     </section>

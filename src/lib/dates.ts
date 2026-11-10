@@ -46,6 +46,9 @@ export const clock = (t: number, seconds = false) => {
   return f.format(new Date(t * 1000));
 };
 
+// a moment with its day, "Di., 10.11., 07:15" (with the year when it's not this one)
+export const dayClock = (t: number) => `${dayDateYear(new Date(t * 1000))}, ${clock(t)}`;
+
 export function duration(seconds: number) {
   const m = Math.round(seconds / 60);
   if (m < 1) return '<1 min';

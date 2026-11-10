@@ -39,7 +39,7 @@ export function forgetToday() {
 export const fileDay = (d: Date) =>
   `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
 
-const shift = (day: string, by: number) => {
+export const shift = (day: string, by: number) => {
   const d = parseDay(day);
   d.setDate(d.getDate() + by);
   return fileDay(d);
