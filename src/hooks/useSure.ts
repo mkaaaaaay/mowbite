@@ -5,14 +5,17 @@ import {useRef, useState} from 'react';
 export function useSure() {
   const [sure, setSure] = useState<string | null>(null);
   const asked = useRef(0);
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const confirm = (key: string, go: () => void) => {
     if (sure !== key) {
       setSure(key);
       asked.current = Date.now();
-      setTimeout(() => setSure((k) => (k === key ? null : k)), 4000);
+      clearTimeout(timer.current);
+      timer.current = setTimeout(() => setSure((k) => (k === key ? null : k)), 4000);
       return;
     }
     if (Date.now() - asked.current < 600) return;
+    clearTimeout(timer.current);
     setSure(null);
     go();
   };
