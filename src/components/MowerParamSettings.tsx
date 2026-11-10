@@ -158,9 +158,9 @@ export function ParamRow({field: f, os}: {field: ParamField; os: boolean}) {
           {help && <InfoTip>{tr(help)}</InfoTip>}
         </span>
         {f.type === 'bool' ? (
-          <input type="checkbox" className={local.check} checked={value as boolean} disabled={busy} onChange={(e) => void set(e.target.checked)} />
+          <input type="checkbox" className={local.check} checked={value as boolean} disabled={busy} onChange={(e) => void set(e.target.checked)} aria-label={label} />
         ) : f.type === 'choice' ? (
-          <select className={local.select} value={String(value)} disabled={busy} onChange={(e) => void set(Number(e.target.value))}>
+          <select className={local.select} value={String(value)} disabled={busy} onChange={(e) => void set(Number(e.target.value))} aria-label={label}>
             {f.choices!.map((c, i) => (
               <option key={c} value={i}>
                 {tr(c)}

@@ -89,11 +89,12 @@ export default function AreaCard({
           className={styles.nameInput}
           value={area.properties.name ?? ''}
           placeholder={tr('unnamed')}
+          aria-label={tr('Name')}
           // one undo step per rename, not per keystroke
           onFocus={remember}
           onChange={(e) => update({name: e.target.value}, false)}
         />
-        <select className={styles.typeSelect} value={type} onChange={(e) => update({type: e.target.value})}>
+        <select className={styles.typeSelect} value={type} onChange={(e) => update({type: e.target.value})} aria-label={tr('Area type')}>
           {AREA_TYPES.map((t) => (
             <option key={t.value} value={t.value}>
               {tr(t.label)}

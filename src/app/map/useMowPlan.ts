@@ -16,7 +16,7 @@ import {PARAM} from '@/lib/openmower';
 import {savePlanDuration} from '@/lib/planDurations';
 import {RpcError} from '@/lib/rpc';
 import {length} from '@/lib/planProgress';
-import {locale} from '@/lib/i18n';
+import {dayDateYear} from '@/lib/dates';
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {DEG} from './editing';
 import type {AngleMismatch} from './MowSettings';
@@ -153,7 +153,7 @@ export function useMowPlan({
           measured: m.angleDeg,
           planned,
           diff,
-          date: new Date(job.timestamp * 1000).toLocaleDateString(locale()),
+          date: dayDateYear(new Date(job.timestamp * 1000)),
           since: job.timestamp,
         };
       }

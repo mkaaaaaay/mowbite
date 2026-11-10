@@ -5,8 +5,8 @@ import {useMowerActions} from '@/hooks/useMowerActions';
 import {isLive, useMowerState} from '@/hooks/useMowerState';
 import {answerTo, calibLines, calibText, changeOf, preselected, readLast, readPaths, readState, type CalibPath, type CalibResult, type CalibValue} from '@/lib/calibration';
 import {copyText} from '@/lib/clipboard';
-import {clock} from '@/lib/dates';
-import {fmt, locale, tr} from '@/lib/i18n';
+import {clock, dayDateYear} from '@/lib/dates';
+import {fmt, tr} from '@/lib/i18n';
 import {ACTION} from '@/lib/openmower';
 import {rpcErrorText} from '@/lib/rpcText';
 import {useState} from 'react';
@@ -397,7 +397,7 @@ export function LastCalibration({
   const line = asked !== null ? stateLine(status?.calib, asked, docked) : null;
   // set back since: the values before apply again (the copy stays, setting back again changes nothing)
   const reverted = !!last && state?.what === 'back' && state.at >= last.at;
-  const when = (t: number) => new Date(t * 1000).toLocaleString(locale(), {day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'});
+  const when = (t: number) => `${dayDateYear(new Date(t * 1000))}, ${clock(t)}`;
   return (
     <section className={styles.card}>
       <h2>{tr('Last calibration')}</h2>
