@@ -173,12 +173,14 @@ let ownShared = false;
 let syncing: Promise<void> | null = null;
 // the settings as the mowers had them when last asked or saved to: what differs from them was changed on this device and
 // hasn't got there yet. kept on this device while there is such a change (a save that failed, a mower out of reach), the
-// next time it's reached that goes on top of what it has then. null: no container to keep them on
+// next time it's reached that goes on top of what it has then. null: not asked yet or no container to keep them on,
+// what's kept from an earlier time stays then
 let before: Settings | null = null;
 const beforeKey = (id: string) => `${STORAGE_KEY}Before:${id}`;
 function keepBefore() {
+  if (!before) return;
   try {
-    if (before && sorted(before) !== sorted(load())) localStorage.setItem(beforeKey(ownId()), JSON.stringify(before));
+    if (sorted(before) !== sorted(load())) localStorage.setItem(beforeKey(ownId()), JSON.stringify(before));
     else localStorage.removeItem(beforeKey(ownId()));
   } catch {}
 }
@@ -209,40 +211,41 @@ const sent = (p: Promise<void>) =>
     before = agreed();
     keepBefore();
   }, again);
-// a container's settings and their version, null when none answers there (the page isn't served by one)
-async function fetchKept(url: string): Promise<Kept | null> {
+// a container's settings and their version asked for into k, false when none answers there (the page isn't served by
+// one). an answer that a save's answer overtook is dropped, that one is newer
+async function fetchKept(k: Kept, url: string): Promise<boolean> {
+  const was = k.server;
   const res = await mowerFetch(url, {cache: 'no-store'});
   if (!res.ok || !res.headers.get('content-type')?.includes('json')) {
     // (no container behind it answers that way for good)
     if (res.status >= 500) throw new Error(`settings ${res.status}`);
-    return null;
+    return false;
   }
   // a file that isn't json any more (two saves at once in an older container) counts as empty, the next save mends it
   const data = await res.json().catch(() => ({}));
-  return {server: data && typeof data === 'object' ? data : {}, version: res.headers.get('X-Settings-Version') || null};
+  const got: Kept = {server: data && typeof data === 'object' ? data : {}, version: res.headers.get('X-Settings-Version') || null};
+  if (k.server === was) Object.assign(k, got);
+  return true;
 }
 export function syncSettings(): Promise<void> {
   syncing ??= (async () => {
     before ??= readStored<Settings>(beforeKey(ownId())) ?? load();
     try {
-      const got = await fetchKept(homeUrl());
-      if (!got) {
-        before = null;
-        keepBefore();
+      if (!(await fetchKept(home, homeUrl()))) {
+        // where one answered before, something else does now (another network): asked again
+        if (shared) again();
+        else before = null;
         return;
       }
-      Object.assign(home, got);
       shared = true;
       const o = ownUrl();
-      const gotOwn = o ? await fetchKept(o).catch(() => undefined) : null;
-      if (gotOwn) {
-        Object.assign(own, gotOwn);
-        ownShared = true;
-      }
+      // undefined: not reached
+      const gotOwn = o ? await fetchKept(own, o).catch(() => undefined) : false;
+      if (gotOwn) ownShared = true;
       // the other mower's own settings as it had them while it can't be reached, it's asked again a while later. one
       // without a container (it answers, but not with settings) keeps them here
       if (gotOwn === undefined) again();
-      const server = o ? join(home.server, gotOwn ? own.server : gotOwn === null ? load() : (before ?? load())) : home.server;
+      const server = o ? join(home.server, gotOwn ? own.server : gotOwn === false ? load() : (before ?? load())) : home.server;
       const mine = load();
       const base = before ?? mine;
       const changed = sorted(mine) !== sorted(base);

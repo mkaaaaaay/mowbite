@@ -8,6 +8,8 @@ const net = vi.hoisted(() => ({
   asked: 0,
   theirs: {mapStyle: 'plain', weather: true} as Record<string, unknown>,
   posted: [] as unknown[],
+  // the settings asked for arrive only once this is over
+  late: undefined as Promise<void> | undefined,
 }));
 vi.mock('./mowers', () => ({
   apiBase: () => '',
@@ -25,7 +27,9 @@ vi.mock('./mowers', () => ({
       net.posted.push(net.theirs);
       return new Response('', {status: 200, headers: {'X-Settings-Version': '2'}});
     }
-    return new Response(JSON.stringify(net.theirs), {headers: {'content-type': 'application/json', 'X-Settings-Version': '1'}});
+    const answer = new Response(JSON.stringify(net.theirs), {headers: {'content-type': 'application/json', 'X-Settings-Version': '1'}});
+    await net.late;
+    return answer;
   },
 }));
 vi.mock('./native', () => ({isApp: () => false}));
@@ -145,5 +149,67 @@ describe('a change that did not get to the mower', () => {
     expect(keptAside()).toEqual([]);
     expect(net.asked).toBe(1);
     net.container = true;
+  });
+
+  it('stays kept while something else answers at the mower\'s address, and goes out once the mower does again', async () => {
+    vi.useFakeTimers();
+    kept.clear();
+    Object.assign(net, {up: true, saves: false, theirs: {grass: true, weather: true}, posted: []});
+    let s = await reload();
+    s.saveSettings({...s.settingsStore.snapshot(), grass: false});
+    await vi.advanceTimersByTimeAsync(1000);
+    // another network with a web server at that address, while the page is open and when it's loaded there
+    Object.assign(net, {container: false, saves: true});
+    await vi.advanceTimersByTimeAsync(31000);
+    expect(keptAside()).toEqual(['appSettingsBefore:']);
+    s = await reload();
+    expect(keptAside()).toEqual(['appSettingsBefore:']);
+    expect(s.settingsStore.snapshot()).toEqual({grass: false, weather: true});
+    // back home, another device switched the weather off meanwhile
+    Object.assign(net, {container: true, theirs: {grass: true, weather: false}});
+    s = await reload();
+    expect(s.settingsStore.snapshot()).toEqual({grass: false, weather: false});
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(net.posted).toEqual([{grass: false, weather: false}]);
+    expect(keptAside()).toEqual([]);
+  });
+
+  it('is sent again after something else answered at the mower\'s address in between', async () => {
+    vi.useFakeTimers();
+    kept.clear();
+    Object.assign(net, {up: true, saves: false, theirs: {grass: true}, posted: []});
+    const s = await reload();
+    s.saveSettings({...s.settingsStore.snapshot(), grass: false});
+    await vi.advanceTimersByTimeAsync(1000);
+    Object.assign(net, {container: false, saves: true});
+    await vi.advanceTimersByTimeAsync(31000);
+    net.container = true;
+    await vi.advanceTimersByTimeAsync(61000);
+    expect(net.posted).toEqual([{grass: false}]);
+    expect(keptAside()).toEqual([]);
+  });
+});
+
+describe('settings asked for before a save that arrive after it', () => {
+  it('do not bring back what the save replaced', async () => {
+    vi.useFakeTimers();
+    kept.clear();
+    Object.assign(net, {up: true, saves: false, theirs: {grass: true}, posted: []});
+    const s = await reload();
+    s.saveSettings({...s.settingsStore.snapshot(), grass: false});
+    await vi.advanceTimersByTimeAsync(1000);
+    // asked again, the answer takes its time and the next save gets there first
+    let arrive = () => {};
+    Object.assign(net, {saves: true, late: new Promise<void>((r) => (arrive = r))});
+    await vi.advanceTimersByTimeAsync(31000);
+    s.saveSettings({...s.settingsStore.snapshot(), weather: true});
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(net.posted).toEqual([{grass: false, weather: true}]);
+    net.late = undefined;
+    arrive();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(s.settingsStore.snapshot()).toEqual({grass: false, weather: true});
+    expect(net.posted).toEqual([{grass: false, weather: true}]);
+    expect(keptAside()).toEqual([]);
   });
 });
