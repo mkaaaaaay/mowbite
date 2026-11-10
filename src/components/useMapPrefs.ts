@@ -1,6 +1,7 @@
 'use client';
 
 import type {ImagerySource} from '@/lib/imagery';
+import {readMower, writeMower} from '@/lib/mowers';
 import {useState} from 'react';
 import type {Coverage, Layer, PlanStyle} from './MapControls';
 
@@ -19,6 +20,8 @@ function write(key: string, value: string | null) {
   } catch {}
 }
 
+const COVERAGE_KEY = 'mapCoverage';
+
 // the layers switched off in the map's menu on this device
 export const hiddenLayers = () => read('mapHidden', (v) => new Set<Layer>(JSON.parse(v ?? '[]')), new Set<Layer>());
 
@@ -34,12 +37,16 @@ export function useMapPrefs() {
   const [planStyle, setPlanStyleState] = useState(() =>
     read<PlanStyle>('planStyle', (v) => (v === 'solid' || v === 'dots' ? v : 'dashed'), 'dashed'),
   );
-  const [coverage, setCoverageState] = useState(() => read<Coverage>('mapCoverage', (v) => (v === 'gps' || v === 'wifi' ? v : 'off'), 'off'));
+  // each mower's own, its container keeps the gps log
+  const [coverage, setCoverageState] = useState(() => {
+    const v = readMower<Coverage>(COVERAGE_KEY);
+    return v === 'gps' || v === 'wifi' ? v : 'off';
+  });
   return {
     coverage,
     setCoverage: (c: Coverage) => {
       setCoverageState(c);
-      write('mapCoverage', c === 'off' ? null : c);
+      writeMower(COVERAGE_KEY, c === 'off' ? null : c);
     },
     imagery,
     lastImagery,
