@@ -51,7 +51,8 @@ function ask() {
     const os = isMowbiteOs(i);
     const k = os ? null : await loadKept();
     if (!k || i === undefined) asked = false;
-    setKept(k);
+    // (what's known stays when it doesn't answer this time: a change says then that it couldn't be kept)
+    if (k || !kept) setKept(k);
     if (k || os) askIn = 10000;
     else {
       setTimeout(() => {
