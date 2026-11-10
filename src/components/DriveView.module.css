@@ -12,9 +12,10 @@
   border: 1px solid var(--card-border);
 }
 
-/* a camera's picture in the map's place, as big as the map */
-.cameraBox {
-  aspect-ratio: 1;
+/* a camera's picture in the map's place: the stick under it instead of on it */
+.onCamera {
+  padding-bottom: 164px;
+  background: var(--camera-ground);
 }
 
 /* what to do now at the top, under the map's coverage switch while it's there */
@@ -135,6 +136,12 @@
   backdrop-filter: blur(2px);
 }
 
+.onCamera .stick > div:not(.alarm) {
+  border-color: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: none;
+}
+
 /* over the stick on a phone held upright, like the words at the top */
 .sidewaysHint {
   display: none;
@@ -158,6 +165,11 @@
     font-size: 13px;
     font-weight: 600;
     white-space: nowrap;
+  }
+
+  /* on the picture's lower edge, clear of the stick's place */
+  .onCamera .sidewaysHint {
+    bottom: 174px;
   }
 }
 
@@ -219,7 +231,8 @@
   align-items: center;
   justify-content: center;
   gap: 7px;
-  padding: 11px 14px;
+  min-height: var(--tap);
+  padding: 0 14px;
   border-radius: 12px;
   border: 1px solid var(--card-border);
   background: rgba(128, 128, 128, 0.1);
@@ -275,22 +288,17 @@
   color: var(--error);
 }
 
-.speeds {
+/* what to pick with its name before it, the name above it where both don't fit */
+.pick {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 6px 10px;
 }
 
-.card .speeds button {
-  padding: 6px 10px;
-  font-size: 12px;
-  font-weight: 400;
-}
-
-.card .speeds .on {
-  border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 20%, transparent);
+.pick > div {
+  flex: 1 1 250px;
+  min-width: 0;
 }
 
 /* the button for the sideways layout, on a phone held upright */
@@ -302,7 +310,6 @@
   .phoneOnly {
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
     gap: 6px;
   }
 }
@@ -391,11 +398,13 @@
   flex: 1;
 }
 
+/* the bar's parts all as high as its square buttons */
 .status {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 13px;
+  height: 38px;
+  padding: 0 13px;
   border-radius: 999px;
   background: #22a88f;
   color: #fff;
@@ -425,7 +434,9 @@
   display: flex;
   align-items: center;
   gap: 2px;
-  padding: 3px 4px 3px 8px;
+  box-sizing: border-box;
+  height: 38px;
+  padding: 0 4px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.22);
   background: rgba(20, 24, 60, 0.45);
@@ -434,9 +445,14 @@
   color: #d5dbe0;
 }
 
+.chips > svg {
+  margin: 0 2px 0 5px;
+}
+
 .chips button {
   min-width: 34px;
-  padding: 5px 8px;
+  height: 30px;
+  padding: 0 9px;
   border: none;
   border-radius: 999px;
   background: none;
@@ -612,7 +628,8 @@
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  padding: 8px 13px;
+  min-height: 40px;
+  padding: 0 14px;
   border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.22);
   background: rgba(20, 24, 60, 0.45);
@@ -630,10 +647,8 @@
 }
 
 .remoteButtons .primary {
-  padding: 10px 18px;
   border-color: color-mix(in srgb, var(--accent) 80%, transparent);
   background: color-mix(in srgb, var(--accent) 45%, rgba(20, 24, 60, 0.45));
-  font-size: 14px;
 }
 
 .remoteButtons .danger {

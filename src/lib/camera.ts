@@ -39,7 +39,7 @@ const POSITIONS: Record<CameraPosition, string> = {
   right: 'Right side camera',
   rear: 'Rear camera',
 };
-// the same in a few letters, for the bar over the remote control
+// the same in a few letters, for the buttons to switch between them
 const SHORT: Record<CameraPosition, string> = {front: 'Front', left: 'Left', right: 'Right', rear: 'Rear'};
 const ORDER = Object.keys(POSITIONS);
 const placed = (c: Camera): CameraPosition | null => (c.position && c.position in POSITIONS ? (c.position as CameraPosition) : null);
@@ -55,6 +55,16 @@ export const sortCameras = (list: readonly Camera[]) => [...list].sort((a, b) =>
 export function cameraLabel(c: Camera, all: readonly Camera[], short = false): string {
   const p = placed(c);
   return p && all.filter((o) => placed(o) === p).length === 1 ? tr((short ? SHORT : POSITIONS)[p]) : c.name || c.id;
+}
+
+// the cameras to switch between: short where each sits, the whole name for screen readers, one alone just the camera
+export const cameraParts = (list: readonly Camera[]) =>
+  list.map((c) => ({key: c.id, text: list.length > 1 ? cameraLabel(c, list, true) : tr('Camera'), name: cameraLabel(c, list)}));
+
+// width to height of the place for their pictures: the highest of them fits, so switching moves nothing
+export function pictureRatio(list: readonly Camera[]): number {
+  const ratios = list.filter((c) => c.width > 0 && c.height > 0).map((c) => c.width / c.height);
+  return ratios.length ? Math.max(1, Math.min(...ratios)) : 4 / 3;
 }
 
 // why it shows no picture, in words on their own line

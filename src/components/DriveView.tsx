@@ -5,6 +5,7 @@ import {CloseIcon, RotateIcon, SpeedIcon, WarningIcon} from '@/components/icons'
 import DrivePad from '@/components/DrivePad';
 import Joystick from '@/components/Joystick';
 import MapView from '@/components/MapView';
+import Segments, {type Segment} from '@/components/Segments';
 import {chooseCamera, useCameras} from '@/hooks/useCameras';
 import {useEmergencyReasons} from '@/hooks/useEmergencyReasons';
 import {useEmergencyReset, useJustReset} from '@/hooks/useEmergencyReset';
@@ -16,7 +17,7 @@ import {datumFromParams, numParam, useMowerParams} from '@/hooks/useMowerParams'
 import {useMowerPosition} from '@/hooks/useMowerPosition';
 import {useSensorValue} from '@/hooks/useMowerSensors';
 import {isLive, useMowerState} from '@/hooks/useMowerState';
-import {cameraLabel} from '@/lib/camera';
+import {cameraParts} from '@/lib/camera';
 import {emergencyText, explain, resetRefusedText, stopReleaseText} from '@/lib/events';
 import {useStopRelease} from '@/lib/mowerOs';
 import {fmt, tr} from '@/lib/i18n';
@@ -248,29 +249,17 @@ export default function DriveView({
   });
   const cameras = camera && cams.on && cams.list?.length ? cams.list : null;
   const onCamera = !!cameras && view === 'camera';
-  const show = (v: 'map' | 'camera', id?: string) => {
+  // the map first ('' for it), then each camera
+  const views: Segment<string>[] | null = cameras && [{key: '', text: tr('Map')}, ...cameraParts(cameras)];
+  const viewAt = onCamera ? (cams.camera?.id ?? '') : '';
+  const show = (id: string) => {
+    const v = id ? 'camera' : 'map';
     if (id) chooseCamera(id);
     setView(v);
     try {
       localStorage.setItem(VIEW_KEY, v);
     } catch {}
   };
-  const views = (on: string, short: boolean) =>
-    cameras && (
-      <>
-        <button className={onCamera ? undefined : on} aria-pressed={!onCamera} onClick={() => show('map')}>
-          {tr('Map')}
-        </button>
-        {cameras.map((c) => {
-          const at = onCamera && c.id === cams.camera?.id;
-          return (
-            <button key={c.id} className={at ? on : undefined} aria-pressed={at} onClick={() => show('camera', c.id)}>
-              {cameras.length > 1 ? cameraLabel(c, cameras, short) : tr('Camera')}
-            </button>
-          );
-        })}
-      </>
-    );
 
   // the gps's own accuracy (OpenMower's idle leaves the gps out of its position)
   const gpsAcc = useSensorValue('om_gps_accuracy', (v) => (v !== undefined && Number.isFinite(parseFloat(v)) ? parseFloat(v) : null));
@@ -293,19 +282,14 @@ export default function DriveView({
     </>
   );
   const offline = tr('No connection to the mower, it stops by itself. Once the connection is back, let go and press again to drive.');
-  const speeds = (on: string) =>
-    SPEEDS.map((v, i) => (
-      <button key={v} className={i === drive.speed ? on : undefined} onClick={() => drive.setSpeed(i)}>
-        {fmt(v, 2)}
-      </button>
-    ));
+  const speeds = SPEEDS.map((v, i) => ({key: i, text: fmt(v, 2)}));
 
   if (drive.remote)
     return (
       <div ref={remoteRef} className={[styles.remote, drive.turned ? styles.turned : ''].join(' ')} data-no-swipe>
         <div className={styles.remoteMap}>
           {onCamera ? (
-            <CameraView fill />
+            <CameraView plain fill />
           ) : map && (
             <MapView
               map={map}
@@ -328,11 +312,7 @@ export default function DriveView({
           </span>
           {gpsQ !== 'fix' && <span className={styles.gpsWarn}>{gpsText}</span>}
           <span className={styles.grow} />
-          {cameras && (
-            <div className={styles.chips} role="group" aria-label={tr('View')}>
-              {views(styles.on, true)}
-            </div>
-          )}
+          {/* (the zoom before the view: it goes with a camera, the view's buttons then stay where they were tapped) */}
           {!onCamera && (
             <div className={styles.chips}>
               <button aria-label={tr('Zoom out')} disabled={zoom === ZOOMS.length - 1} onClick={() => setZoom(zoom + 1)}>
@@ -343,9 +323,33 @@ export default function DriveView({
               </button>
             </div>
           )}
+          {views && (
+            <div className={styles.chips} role="group" aria-label={tr('View')}>
+              {views.map((v) => (
+                <button
+                  key={v.key}
+                  className={v.key === viewAt ? styles.on : undefined}
+                  aria-pressed={v.key === viewAt}
+                  aria-label={v.name}
+                  onClick={() => show(v.key)}
+                >
+                  {v.text}
+                </button>
+              ))}
+            </div>
+          )}
           <div className={styles.chips} title={tr('Speed m/s')}>
             <SpeedIcon size={16} />
-            {speeds(styles.on)}
+            {speeds.map((s) => (
+              <button
+                key={s.key}
+                className={s.key === drive.speed ? styles.on : undefined}
+                aria-pressed={s.key === drive.speed}
+                onClick={() => drive.setSpeed(s.key)}
+              >
+                {s.text}
+              </button>
+            ))}
           </div>
           {drive.turned && (
             <button className={styles.square} aria-label={tr('Upright')} title={tr('Upright')} onClick={() => drive.turnSideways(false)}>
@@ -386,11 +390,9 @@ export default function DriveView({
 
   return (
     <div className={styles.drive}>
-      <section className={styles.map}>
+      <section className={[styles.map, onCamera ? styles.onCamera : ''].join(' ')}>
         {onCamera ? (
-          <div className={styles.cameraBox}>
-            <CameraView fill />
-          </div>
+          <CameraView plain />
         ) : map && (
           <MapView
             map={map}
@@ -446,16 +448,16 @@ export default function DriveView({
           <span className={gpsQ === 'fix' ? undefined : styles.warn}>{gpsQ === 'fix' || !gpsHint ? gpsText : `${gpsText}. ${gpsHint}`}</span>
           {line}
         </div>
-        {cameras && (
-          <div className={styles.speeds} role="group" aria-label={tr('View')}>
+        {views && (
+          <div className={styles.pick}>
             <span className={styles.dim}>{tr('View')}</span>
-            {views(styles.on, false)}
+            <Segments label={tr('View')} options={views} value={viewAt} onPick={show} />
           </div>
         )}
         {children}
-        <div className={styles.speeds}>
+        <div className={styles.pick}>
           <span className={styles.dim}>{tr('Speed m/s')}</span>
-          {speeds(styles.on)}
+          <Segments label={tr('Speed m/s')} options={speeds} value={drive.speed} onPick={drive.setSpeed} />
         </div>
         <div className={styles.phoneOnly}>
           <button onClick={() => drive.turnSideways(true)}>

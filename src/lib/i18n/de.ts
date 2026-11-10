@@ -2736,7 +2736,14 @@ const de: Record<string, string> = {
   "The picture broke off": "Das Bild ist abgebrochen",
   "This camera sends {protocols}, MowBite can't show that yet.": "Diese Kamera sendet {protocols}, das kann MowBite noch nicht zeigen.",
   "This page is open over https, the browser doesn't load the camera's picture over plain http. Open MowBite over http or use the app.": "Diese Seite ist über https geöffnet, der Browser lädt das Kamerabild dann nicht über einfaches http. Öffne MowBite über http oder nimm die App.",
-  "A mower with MowBite OS and cameras can show their picture on the dashboard: tick Camera picture in Settings › Appearance › Dashboard. Under the picture you switch between the mower's cameras, such as front, side and rear. While recording an area, View picks the map or a camera, held sideways at the top. The mower only sends a picture while you look, to at most two at a time. While the blade runs there is no picture for now, the app says why.": "Ein Mäher mit MowBite OS und Kameras kann ihr Bild in der Übersicht zeigen: Hake unter Einstellungen › Darstellung › Übersicht das Kamerabild an. Unter dem Bild schaltest du zwischen den Kameras des Mähers um, etwa vorn, seitlich und hinten. Beim Aufnehmen einer Fläche wählst du unter Ansicht die Karte oder eine Kamera, quer gehalten oben. Der Mäher sendet nur, solange du zusiehst, an höchstens zwei gleichzeitig. Solange das Messer läuft, gibt es vorerst kein Bild, die App sagt dann, warum.",
+  "A mower with MowBite OS and cameras can show their picture on the dashboard: tap the camera at the top of the dashboard, or tick Camera picture in Settings › Appearance › Dashboard. On the picture you switch between the mower's cameras, such as front, side and rear, open it over the whole screen or take it off the dashboard again. A tap on the picture puts these buttons away and brings them back. While recording an area, View picks the map or a camera, held sideways at the top. The mower only sends a picture while you look, to at most two at a time. While the blade runs there is no picture for now, the app says why.": "Ein Mäher mit MowBite OS und Kameras kann ihr Bild in der Übersicht zeigen: Tippe oben in der Übersicht auf die Kamera oder hake unter Einstellungen › Darstellung › Übersicht das Kamerabild an. Auf dem Bild schaltest du zwischen den Kameras des Mähers um, etwa vorn, seitlich und hinten, öffnest es als Vollbild oder nimmst es wieder aus der Übersicht. Ein Tipp auf das Bild blendet diese Knöpfe aus und wieder ein. Beim Aufnehmen einer Fläche wählst du unter Ansicht die Karte oder eine Kamera, quer gehalten oben. Der Mäher sendet nur, solange du zusiehst, an höchstens zwei gleichzeitig. Solange das Messer läuft, gibt es vorerst kein Bild, die App sagt dann, warum.",
+  "Show the buttons": "Knöpfe einblenden",
+  "Hide the buttons": "Knöpfe ausblenden",
+  "Hide the camera picture": "Kamerabild ausblenden",
+  "Full screen": "Vollbild",
+  "Leave full screen": "Vollbild verlassen",
+  "Couldn't connect to the camera": "Keine Verbindung zur Kamera",
+  "The connection to the camera was lost.": "Die Verbindung zur Kamera ist abgerissen.",
 };
 
 export default de;

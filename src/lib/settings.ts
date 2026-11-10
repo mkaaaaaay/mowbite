@@ -329,6 +329,12 @@ const pushNow = () => {
   saveTimer = undefined;
   saving = sent(saving.then(() => pushAll(load())));
 };
+// the camera's picture on the dashboard on or off
+export function showDashCamera(on: boolean) {
+  const cur = settingsStore.snapshot();
+  saveSettings({...cur, dashboard: {...cur.dashboard, camera: on}});
+}
+
 export function saveSettings(next: Settings) {
   setLocal(next);
   if (!shared) return;

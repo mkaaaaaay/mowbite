@@ -433,7 +433,7 @@ export default function StationGuide({
               : tr('Saved in the map. Drive it back into the station and end recording mode, or record areas first.')
             : tr('Back it out straight, steer a little where the ground pushes it aside. Further out makes the direction more accurate.')}
       </p>
-      <div className={styles.buttons}>{buttons(ds.primary, ds.warnButton, ds.danger)}</div>
+      <div className={styles.steps}>{buttons(ds.primary, ds.warnButton, ds.danger)}</div>
     </DriveView>
   );
 }

@@ -150,7 +150,7 @@ function SwitchArt() {
   );
 }
 
-// a camera's picture with the cameras to switch to under it, the highlight going from front to the side to the back
+// a camera's picture with the cameras to switch to on it, the highlight going from front to the side to the back
 function CameraArt() {
   const chips: [string, number][] = [
     [tr('Front'), 0],
@@ -161,18 +161,17 @@ function CameraArt() {
     anim('opacity', DUR, [0, 0.33 * i, 0.33 * i + 0.02, 0.33 * (i + 1), Math.min(1, 0.33 * (i + 1) + 0.02), 1], i === 2 ? [0, 0, 1, 1, 1, 1] : [0, 0, 1, 1, 0, 0]);
   return (
     <Scene still={DUR} label={tr('Camera')}>
-      <rect x={60} y={14} width={200} height={136} rx={10} style={{fill: '#0b0d10'}} />
-      <rect x={60} y={14} width={200} height={58} rx={10} style={{fill: '#9cc9e8'}} />
-      <rect x={60} y={58} width={200} height={20} style={{fill: '#3d6b35'}} />
-      <path d="M60 78 H260 V140 a10 10 0 0 1 -10 10 H70 a10 10 0 0 1 -10 -10 Z" style={{fill: '#4f8a43'}} />
-      <path d="M150 78 L110 150 H140 Z M170 78 L190 150 H220 Z" style={{fill: '#5d9c50'}} />
+      <rect x={50} y={12} width={220} height={165} rx={12} style={{fill: '#9cc9e8'}} />
+      <rect x={50} y={66} width={220} height={24} style={{fill: '#3d6b35'}} />
+      <path d="M50 90 H270 V165 a12 12 0 0 1 -12 12 H62 a12 12 0 0 1 -12 -12 Z" style={{fill: '#4f8a43'}} />
+      <path d="M150 90 L104 177 H138 Z M170 90 L192 177 H226 Z" style={{fill: '#5d9c50'}} />
+      <rect x={75} y={143} width={170} height={26} rx={13} style={{fill: 'rgba(14, 18, 24, 0.6)'}} />
       {chips.map(([label, i]) => (
         <g key={label}>
-          <rect x={70 + i * 62} y={162} width={56} height={24} rx={12} style={{fill: 'none', stroke: 'var(--card-border)'}} />
-          <rect x={70 + i * 62} y={162} width={56} height={24} rx={12} style={{fill: 'var(--accent)'}} opacity={i === 0 ? 1 : 0}>
+          <rect x={79 + i * 55} y={146} width={52} height={20} rx={10} style={accent} opacity={i === 0 ? 1 : 0}>
             {at(i)}
           </rect>
-          <text x={98 + i * 62} y={178} fontSize={11} textAnchor="middle" style={text}>
+          <text x={105 + i * 55} y={160} fontSize={11} textAnchor="middle" style={{fill: '#fff'}}>
             {label}
           </text>
         </g>
@@ -183,7 +182,7 @@ function CameraArt() {
 
 const CAMERA_STEP: GuideStep = {
   title: 'Camera',
-  text: "A mower with MowBite OS and cameras can show their picture on the dashboard: tick Camera picture in Settings › Appearance › Dashboard. Under the picture you switch between the mower's cameras, such as front, side and rear. While recording an area, View picks the map or a camera, held sideways at the top. The mower only sends a picture while you look, to at most two at a time. While the blade runs there is no picture for now, the app says why.",
+  text: "A mower with MowBite OS and cameras can show their picture on the dashboard: tap the camera at the top of the dashboard, or tick Camera picture in Settings › Appearance › Dashboard. On the picture you switch between the mower's cameras, such as front, side and rear, open it over the whole screen or take it off the dashboard again. A tap on the picture puts these buttons away and brings them back. While recording an area, View picks the map or a camera, held sideways at the top. The mower only sends a picture while you look, to at most two at a time. While the blade runs there is no picture for now, the app says why.",
   Art: CameraArt,
 };
 

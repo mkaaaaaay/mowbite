@@ -105,9 +105,11 @@
   gap: 8px;
 }
 
-/* the main step a row of its own (upright, in the card) */
-.buttons > .wide {
-  width: 100%;
+/* the steps while driving by hand (upright, in the card): one under the other, all the same size */
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .card button {

@@ -8,7 +8,7 @@ import LoveMower from '@/components/LoveMower';
 import MapView from '@/components/MapView';
 import {useRecordingJob} from '@/components/RecordingWatch';
 import {useMapAhead} from '@/components/useMapAhead';
-import {ChevronIcon, CloseIcon, HomeIcon, PauseIcon, PlayIcon, RecordIcon, SkipIcon, WarningIcon} from '@/components/icons';
+import {CameraIcon, ChevronIcon, CloseIcon, HomeIcon, PauseIcon, PlayIcon, RecordIcon, SkipIcon, WarningIcon} from '@/components/icons';
 import {useCalibratingByHand} from '@/hooks/useCalibratingByHand';
 import {useComputedSpeed} from '@/hooks/useComputedSpeed';
 import {useEmergencyReasons} from '@/hooks/useEmergencyReasons';
@@ -38,7 +38,7 @@ import CameraView from '@/components/CameraView';
 import {useCameras} from '@/hooks/useCameras';
 import {useChargeConfirmed} from '@/hooks/useChargeConfirmed';
 import {mowerKey} from '@/lib/mowers';
-import {settingsStore} from '@/lib/settings';
+import {settingsStore, showDashCamera} from '@/lib/settings';
 import {PARTS, useDueParts} from '@/lib/stats';
 import {containerHas, useUpdates} from '@/lib/updates';
 import {batteryColor, chargeOf, dockText, GPS_QUALITY_LABEL, gpsQuality, isDocked, onCharger, staleText, WIFI_LEVEL_LABEL, type Charge} from '@/lib/status';
@@ -445,6 +445,17 @@ export default function Home() {
             <LoveMower onRun={setLoveRun} />
           </h1>
           <TopWeather away={loveRun} />
+          {cameras && (
+            <button
+              className={styles.cameraSwitch}
+              aria-pressed={!!settings.dashboard?.camera}
+              aria-label={tr('Camera picture')}
+              title={tr('Camera picture')}
+              onClick={() => showDashCamera(!settings.dashboard?.camera)}
+            >
+              <CameraIcon size={20} />
+            </button>
+          )}
           <MowerSwitch className={styles.mowerSwitch} round />
         </div>
         <UpdateBanner />
@@ -655,10 +666,10 @@ export default function Home() {
           </section>
         )}
 
-        {/* a camera's picture, switched on in the settings */}
+        {/* a camera's picture, switched on at the top or in the settings */}
         {settings.dashboard?.camera && cameras && (
           <section className={styles.cameraCard}>
-            <CameraView />
+            <CameraView onHide={() => showDashCamera(false)} />
           </section>
         )}
 

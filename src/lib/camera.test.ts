@@ -1,5 +1,5 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {afterClosed, blockedHere, cameraLabel, cameraReason, closed, pickProtocol, sortCameras, streamUrl, type Camera} from './camera';
+import {afterClosed, blockedHere, cameraLabel, cameraParts, cameraReason, closed, pickProtocol, pictureRatio, sortCameras, streamUrl, type Camera} from './camera';
 import {setLangChoice} from './i18n';
 
 const cam = (id: string, position: string | null, name = id): Camera => ({
@@ -33,6 +33,24 @@ describe('cameras', () => {
     setLangChoice('de');
     expect(cameraLabel(list[0], list)).toBe('Frontkamera');
     expect(cameraLabel(cam('r', 'rear'), [cam('r', 'rear')], true)).toBe('Hinten');
+  });
+
+  it('are switched between by short names with the whole one beside, one alone is just the camera', () => {
+    setLangChoice('en');
+    const list = [cam('f', 'front'), cam('x', 'roof', 'Arm')];
+    expect(cameraParts(list)).toEqual([
+      {key: 'f', text: 'Front', name: 'Front camera'},
+      {key: 'x', text: 'Arm', name: 'Arm'},
+    ]);
+    expect(cameraParts([list[0]])).toEqual([{key: 'f', text: 'Camera', name: 'Front camera'}]);
+  });
+
+  it('share a place as high as the highest picture needs, never higher than wide', () => {
+    expect(pictureRatio([cam('f', 'front'), {...cam('l', 'left'), height: 400}])).toBeCloseTo(4 / 3);
+    expect(pictureRatio([{...cam('l', 'left'), height: 400}])).toBeCloseTo(1.6);
+    expect(pictureRatio([{...cam('t', null), width: 480, height: 640}])).toBe(1);
+    expect(pictureRatio([{...cam('n', null), width: 0, height: 0}])).toBeCloseTo(4 / 3);
+    expect(pictureRatio([])).toBeCloseTo(4 / 3);
   });
 
   it('say why there is no picture, one the app does not know by the words of the mower', () => {

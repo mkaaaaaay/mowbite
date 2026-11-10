@@ -36,12 +36,34 @@ test.describe('cameras', () => {
     await expect(camera.locator('img')).toHaveCount(1);
     await expect(camera.locator('img')).toHaveAttribute('src', /Rear%20camera/);
 
+    // a tap on the picture puts the buttons on it away and brings them back
+    await camera.getByRole('button', {name: 'Hide the buttons'}).click();
+    await expect(front).toBeHidden();
+    await camera.getByRole('button', {name: 'Show the buttons'}).click();
+    await expect(front).toBeVisible();
+
+    // over the whole screen and back, the picture stays the same one
+    await camera.getByRole('button', {name: 'Full screen', exact: true}).click();
+    await expect(camera.getByRole('button', {name: 'Leave full screen'})).toBeVisible();
+    await expect(camera.getByRole('button', {name: 'Hide the camera picture'})).toHaveCount(0);
+    await camera.getByRole('button', {name: 'Leave full screen'}).click();
+    await expect(camera.getByRole('button', {name: 'Full screen', exact: true})).toBeVisible();
+    await expect(camera.locator('img')).toHaveAttribute('src', /Rear%20camera/);
+
     // turned down: the reason, and once more
     await page.evaluate(() => ((window as {mowbiteDemoCameraRefuse?: string}).mowbiteDemoCameraRefuse = 'CAMERA_BUSY'));
     await camera.getByRole('button', {name: 'Left side camera'}).click();
     await expect(camera).toContainText('Two are watching already, at most two at a time');
     await camera.getByRole('button', {name: 'Try again'}).click();
     await expect(camera.locator('img')).toHaveAttribute('src', /Obstacle%20camera%20left/);
+
+    // off on the picture itself, on again at the top of the dashboard
+    await camera.getByRole('button', {name: 'Hide the camera picture'}).click();
+    await expect(camera).toHaveCount(0);
+    const onOff = page.getByRole('button', {name: 'Camera picture', exact: true});
+    await expect(onOff).toHaveAttribute('aria-pressed', 'false');
+    await onOff.click();
+    await expect(camera.locator('img')).toBeVisible();
   });
 
   test('in recording mode the map or a camera', async ({page}) => {

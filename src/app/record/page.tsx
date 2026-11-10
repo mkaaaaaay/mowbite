@@ -391,7 +391,7 @@ function Record() {
     hasAction(A(id)) && (
       <button
         key={id}
-        className={kind === 'main' ? [ds.primary, styles.wide].join(' ') : kind ? ds[kind] : undefined}
+        className={kind === 'main' ? ds.primary : kind ? ds[kind] : undefined}
         disabled={!live}
         onClick={
           ask ??
@@ -670,13 +670,11 @@ function Record() {
                 <button onClick={keepRecording}>{tr('Keep recording')}</button>
               </div>
             )}
-            <div className={styles.buttons}>{buttons}</div>
-            {blades && (
-              <div className={styles.buttons}>
-                {button('start_manual_mowing', 'Blade on')}
-                {button('stop_manual_mowing', 'Blade off', 'danger')}
-              </div>
-            )}
+            <div className={styles.steps}>
+              {buttons}
+              {blades && button('start_manual_mowing', 'Blade on')}
+              {blades && button('stop_manual_mowing', 'Blade off', 'danger')}
+            </div>
             {bladeOn && <p className={ds.warn}>{bladeWarn}</p>}
             <label className={styles.check}>
               <input

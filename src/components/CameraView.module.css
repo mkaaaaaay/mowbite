@@ -1,4 +1,4 @@
-/* a camera's picture with its name and the others to switch to over it */
+/* a camera's picture with its name, the other cameras and its buttons over it */
 .camera {
   border-radius: inherit;
 }
@@ -6,10 +6,9 @@
 .picture {
   position: relative;
   width: 100%;
-  aspect-ratio: 4 / 3;
   overflow: hidden;
   border-radius: inherit;
-  background: #0b0d10;
+  background: var(--camera-ground);
   color: #e6ebef;
 }
 
@@ -20,8 +19,15 @@
 }
 
 .fill .picture {
-  aspect-ratio: auto;
   border-radius: 0;
+}
+
+/* over the whole screen where the browser has no full screen of its own */
+.full {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  touch-action: none;
 }
 
 .picture video,
@@ -38,39 +44,110 @@
   display: none;
 }
 
-/* why there's no picture, over the middle */
+/* what it waits for or why there's no picture, between the name and the cameras; a tap beside its button goes through */
 .note {
   position: absolute;
   inset: 0;
+  z-index: 2;
   margin: 0;
-  padding: 16px;
+  padding: 52px 16px 60px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 6px;
   text-align: center;
-  font-size: 14px;
+  font-size: var(--text-m);
   line-height: 1.4;
+  pointer-events: none;
 }
 
-/* driving by hand: under what to do now, above the stick */
-.fill .note {
-  justify-content: flex-start;
-  padding-top: 84px;
+/* driving by hand upright: under what to do now */
+.plain .note {
+  padding: 64px 16px 16px;
+}
+
+/* sideways: under the bar and the step, clear of the pads and the buttons at the bottom */
+.plain.fill .note {
+  padding: 96px 24% 64px;
 }
 
 .note span {
   color: #b9c2cc;
 }
 
-/* glass over the picture, like the map's buttons */
-.badge,
-.switcher {
+.note small {
+  color: #8b95a1;
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+}
+
+.note button {
+  min-height: 36px;
+  margin-top: 6px;
+  padding: 0 16px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: var(--text-s);
+  font-weight: 600;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.busy {
+  width: 22px;
+  height: 22px;
+  margin-bottom: 4px;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: turn 0.9s linear infinite;
+}
+
+@keyframes turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* a tap on the picture puts what lies over it away and brings it back */
+.tap {
   position: absolute;
+  inset: 0;
+  z-index: 1;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.over {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  transition:
+    opacity 0.2s,
+    visibility 0.2s;
+}
+
+.bare .over {
+  opacity: 0;
+  visibility: hidden;
+}
+
+/* glass over the picture, each as high as the others */
+.badge,
+.corner button,
+.switcher {
   display: flex;
   align-items: center;
+  box-sizing: border-box;
+  height: 36px;
   border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: var(--radius-pill);
   background: rgba(14, 18, 24, 0.55);
   -webkit-backdrop-filter: blur(10px);
   backdrop-filter: blur(10px);
@@ -79,14 +156,13 @@
 
 /* the camera's name, its dot red while the picture comes */
 .badge {
+  position: absolute;
   top: 10px;
   left: 10px;
   gap: 7px;
-  padding: 5px 11px 5px 9px;
-  border-radius: 999px;
-  font-size: 12px;
+  padding: 0 13px 0 11px;
+  font-size: var(--text-s);
   font-weight: 600;
-  pointer-events: none;
 }
 
 .badge i {
@@ -109,38 +185,84 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .live i {
+  .live i,
+  .busy {
     animation: none;
   }
 }
 
-/* the cameras to switch to, at the bottom in the middle */
+/* the whole screen and taking the picture off the page */
+.corner {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  gap: 8px;
+}
+
+.corner button {
+  position: relative;
+  justify-content: center;
+  width: 36px;
+  padding: 0;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+/* a finger's room around each */
+.corner button::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+}
+
+/* the cameras to switch to at the bottom in the middle, each as wide as the widest */
 .switcher {
+  position: absolute;
   bottom: 10px;
   left: 50%;
   transform: translateX(-50%);
-  max-width: calc(100% - 20px);
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
   gap: 2px;
+  max-width: calc(100% - 20px);
+  height: 40px;
   padding: 3px;
-  border-radius: 999px;
   overflow-x: auto;
   scrollbar-width: none;
+  pointer-events: auto;
 }
 
 .switcher button {
-  flex: none;
-  min-height: 32px;
-  padding: 5px 13px;
+  height: 100%;
+  padding: 0 12px;
   border: none;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: none;
   color: inherit;
-  font-size: 13px;
+  font-size: var(--text-s);
   font-weight: 600;
   white-space: nowrap;
+  cursor: pointer;
 }
 
 .switcher .on {
   background: #fff;
   color: #0b0d10;
+}
+
+/* over the whole screen: clear of the notch and the bars of the phone */
+.full .badge {
+  top: max(10px, env(safe-area-inset-top));
+  left: max(10px, env(safe-area-inset-left));
+}
+
+.full .corner {
+  top: max(10px, env(safe-area-inset-top));
+  right: max(10px, env(safe-area-inset-right));
+}
+
+.full .switcher {
+  bottom: max(10px, env(safe-area-inset-bottom));
 }

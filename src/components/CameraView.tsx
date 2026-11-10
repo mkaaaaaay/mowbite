@@ -1,68 +1,123 @@
 'use client';
 
+import {CameraIcon, FitIcon, ShrinkIcon} from '@/components/icons';
 import {chooseCamera, useCameras} from '@/hooks/useCameras';
-import {afterClosed, blockedHere, cameraLabel, cameraReason, closed, openStream, pickProtocol, playWhep, streamUrl, type Camera} from '@/lib/camera';
+import {
+  afterClosed,
+  blockedHere,
+  cameraLabel,
+  cameraParts,
+  cameraReason,
+  closed,
+  openStream,
+  pickProtocol,
+  pictureRatio,
+  playWhep,
+  streamUrl,
+  type Camera,
+} from '@/lib/camera';
 import {tr, useLang} from '@/lib/i18n';
 import {brokerHost} from '@/lib/mqttClient';
+import {isApp} from '@/lib/native';
 import {RpcError} from '@/lib/rpc';
 import {rpcErrorText} from '@/lib/rpcText';
 import {useEffect, useRef, useState, useSyncExternalStore} from 'react';
 import styles from './CameraView.module.css';
 
-// the picture of one of the mower's cameras with its name over it and the others to switch to at its bottom. it
-// streams only while it's shown and the page is in front; one that can't show a picture now says why and connects once
-// the mower says it can again. fill: as big as the place it's put in, without name and switch (driving by hand has them
-// in its own bars), else as wide as its card in the camera's proportions
-export default function CameraView({fill}: {fill?: boolean}) {
+// the picture of one of the mower's cameras, streamed only while it's shown and the page is in front; one without a
+// picture says why and connects once the mower says it can again. on the picture its name, the other cameras, the whole
+// screen and (onHide) taking it off the page: a tap on the picture puts them away and brings them back.
+// plain: the picture alone. fill: as big as the place it's put in, else as wide as it and as high as the cameras need
+export default function CameraView({plain, fill, onHide}: {plain?: boolean; fill?: boolean; onHide?: () => void}) {
   useLang();
   const {on, list, failed, camera, changes} = useCameras();
   const shown = usePageShown();
   const [live, setLive] = useState(false);
+  const [bare, setBare] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  const [full, setFull] = useWholeScreen(box);
   if (!on) return null;
   const playing = !!camera?.available && shown;
+  const whole = fill || full;
+  const wholeText = tr(full ? 'Leave full screen' : 'Full screen');
   return (
-    <div className={[styles.camera, fill ? styles.fill : ''].join(' ')} data-camera>
-      <div className={styles.picture} style={fill || !camera?.width || !camera.height ? undefined : {aspectRatio: `${camera.width} / ${camera.height}`}}>
+    <div
+      ref={box}
+      className={[styles.camera, plain ? styles.plain : '', whole ? styles.fill : '', full ? styles.full : '', bare ? styles.bare : ''].join(' ')}
+      data-camera
+      data-no-swipe={full || undefined}
+    >
+      <div className={styles.picture} style={whole ? undefined : {aspectRatio: pictureRatio(list ?? [])}}>
         {!list ? (
-          <p className={styles.note}>{failed ?? tr('Loading the cameras…')}</p>
+          failed ? (
+            <Note title={tr('No picture')} text={failed} />
+          ) : (
+            <Note busy text={tr('Loading the cameras…')} />
+          )
         ) : !camera ? (
-          <p className={styles.note}>{tr('The mower reports no camera.')}</p>
+          <Note text={tr('The mower reports no camera.')} />
         ) : !camera.available ? (
-          <p className={styles.note}>
-            <strong>{tr('No picture')}</strong>
-            <span>{cameraReason(camera.reason)}</span>
-            {camera.detail && <small>{camera.detail}</small>}
-          </p>
+          <Note title={tr('No picture')} text={cameraReason(camera.reason)} detail={camera.detail} />
         ) : (
           shown && <Player key={`${camera.id} ${changes[camera.id] ?? 0}`} camera={camera} onLive={setLive} />
         )}
-        {!fill && camera && list && (
-          <span className={[styles.badge, playing && live ? styles.live : ''].join(' ')}>
-            <i />
-            {cameraLabel(camera, list)}
-          </span>
-        )}
-        {!fill && list && list.length > 1 && (
-          <div className={styles.switcher} role="group" aria-label={tr('Camera')}>
-            {list.map((c) => (
-              <button
-                key={c.id}
-                className={c.id === camera?.id ? styles.on : undefined}
-                aria-pressed={c.id === camera?.id}
-                aria-label={cameraLabel(c, list)}
-                onClick={() => chooseCamera(c.id)}
-              >
-                {cameraLabel(c, list, true)}
-              </button>
-            ))}
-          </div>
+        {!plain && (
+          <>
+            <button className={styles.tap} aria-label={tr(bare ? 'Show the buttons' : 'Hide the buttons')} onClick={() => setBare(!bare)} />
+            <div className={styles.over}>
+              {camera && list && (
+                <span className={[styles.badge, playing && live ? styles.live : ''].join(' ')}>
+                  <i />
+                  {cameraLabel(camera, list)}
+                </span>
+              )}
+              <span className={styles.corner}>
+                {onHide && !full && (
+                  <button aria-label={tr('Hide the camera picture')} title={tr('Hide the camera picture')} onClick={onHide}>
+                    <CameraIcon size={18} off />
+                  </button>
+                )}
+                <button aria-label={wholeText} title={wholeText} onClick={() => setFull(!full)}>
+                  {full ? <ShrinkIcon size={18} /> : <FitIcon size={18} />}
+                </button>
+              </span>
+              {list && list.length > 1 && (
+                <div className={styles.switcher} role="group" aria-label={tr('Camera')}>
+                  {cameraParts(list).map((p) => (
+                    <button
+                      key={p.key}
+                      className={p.key === camera?.id ? styles.on : undefined}
+                      aria-pressed={p.key === camera?.id}
+                      aria-label={p.name}
+                      onClick={() => chooseCamera(p.key)}
+                    >
+                      {p.text}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
         )}
       </div>
     </div>
   );
 }
 
-type Shown = {phase: 'connecting' | 'playing' | 'ended'} | {phase: 'failed'; text: string};
+// in the picture's middle: what it waits for, or why there's none
+function Note({busy, title, text, detail, children}: {busy?: boolean; title?: string; text: string; detail?: string; children?: React.ReactNode}) {
+  return (
+    <div className={styles.note}>
+      {busy && <i className={styles.busy} />}
+      {title && <strong>{title}</strong>}
+      <span>{text}</span>
+      {detail && <small>{detail}</small>}
+      {children}
+    </div>
+  );
+}
+
+type Shown = {phase: 'connecting' | 'playing' | 'ended'} | {phase: 'failed'; text: string; detail?: string};
 
 // one connection to a camera, closed when it goes (another camera, the page left or put away)
 function Player({camera, onLive}: {camera: Camera; onLive: (live: boolean) => void}) {
@@ -78,7 +133,19 @@ function Player({camera, onLive}: {camera: Camera; onLive: (live: boolean) => vo
     if (!protocol) return;
     let alive = true;
     let close: (() => Promise<void>) | null = null;
-    const ended = () => alive && setShown({phase: 'ended'});
+    const shut = () => {
+      if (close) closed(close);
+      close = null;
+    };
+    // (some browsers tell it with every frame)
+    const playing = () => alive && setShown((s) => (s.phase === 'playing' ? s : {phase: 'playing'}));
+    // (its place on the mower is given back right away)
+    const ended = () => {
+      if (!alive) return;
+      shut();
+      setShown({phase: 'ended'});
+    };
+    const failed = (text: string, detail?: string) => void (alive && setShown({phase: 'failed', text, detail}));
     (async () => {
       // (the last one closed first, else switching could hold both places for a moment)
       await afterClosed();
@@ -86,17 +153,18 @@ function Player({camera, onLive}: {camera: Camera; onLive: (live: boolean) => vo
       const s = await openStream(camera.id, protocol);
       if (!alive) return;
       const url = streamUrl(s.url, brokerHost());
-      if (blockedHere(url)) throw new Error(tr("This page is open over https, the browser doesn't load the camera's picture over plain http. Open MowBite over http or use the app."));
+      if (blockedHere(url))
+        return failed(tr("This page is open over https, the browser doesn't load the camera's picture over plain http. Open MowBite over http or use the app."));
       if (s.protocol === 'webrtc') {
         setMjpeg(false);
         const v = video.current!;
-        v.onplaying = () => alive && setShown({phase: 'playing'});
+        v.onplaying = playing;
         close = await playWhep(url, v, ended);
       } else if (s.protocol === 'mjpeg') {
         setMjpeg(true);
         const img = new Image();
         img.alt = '';
-        img.onload = () => alive && setShown({phase: 'playing'});
+        img.onload = playing;
         img.onerror = ended;
         img.src = url;
         box.current?.appendChild(img);
@@ -106,23 +174,21 @@ function Player({camera, onLive}: {camera: Camera; onLive: (live: boolean) => vo
           img.src = '';
           img.remove();
         };
-      } else throw new Error(unknownProtocol(s.protocol));
-      if (!alive) closed(close);
+      } else return failed(unknownProtocol(s.protocol));
+      if (!alive) shut();
     })().catch((e) => {
-      if (!alive) return;
-      const refused = e instanceof RpcError && e.data?.event === 'CAMERA_REFUSED';
-      setShown({
-        phase: 'failed',
-        text: refused ? cameraReason(e.data!.reason as string | undefined, e.data!.message as string | undefined) : e instanceof RpcError ? rpcErrorText(e) : String(e?.message ?? e),
-      });
+      if (e instanceof RpcError && e.data?.event === 'CAMERA_REFUSED')
+        failed(cameraReason(e.data.reason as string | undefined, e.data.message as string | undefined));
+      else if (e instanceof RpcError) failed(rpcErrorText(e));
+      else failed(tr("Couldn't connect to the camera"), String(e?.message ?? e));
     });
     return () => {
       alive = false;
-      if (close) closed(close);
+      shut();
     };
   }, [camera.id, protocol, tries]);
 
-  if (!protocol) return <p className={styles.note}>{unknownProtocol(camera.protocols.join(', '))}</p>;
+  if (!protocol) return <Note text={unknownProtocol(camera.protocols.join(', '))} />;
   const again = (
     <button
       onClick={() => {
@@ -137,19 +203,16 @@ function Player({camera, onLive}: {camera: Camera; onLive: (live: boolean) => vo
     <>
       <video ref={video} className={mjpeg ? styles.gone : undefined} autoPlay muted playsInline />
       <div ref={box} className={styles.mjpeg} />
-      {shown.phase === 'connecting' && <p className={styles.note}>{tr('Connecting to the camera…')}</p>}
+      {shown.phase === 'connecting' && <Note busy text={tr('Connecting to the camera…')} />}
       {shown.phase === 'ended' && (
-        <p className={styles.note}>
-          <strong>{tr('The picture broke off')}</strong>
+        <Note title={tr('The picture broke off')} text={tr('The connection to the camera was lost.')}>
           {again}
-        </p>
+        </Note>
       )}
       {shown.phase === 'failed' && (
-        <p className={styles.note}>
-          <strong>{tr('No picture')}</strong>
-          <span>{shown.text}</span>
+        <Note title={tr('No picture')} text={shown.text} detail={shown.detail}>
           {again}
-        </p>
+        </Note>
       )}
     </>
   );
@@ -168,3 +231,27 @@ const usePageShown = () =>
     () => !document.hidden,
     () => false,
   );
+
+// over the whole screen and back: the browser's own full screen where it has one, else laid over the page (the app,
+// iPhones). Escape and the browser's own way out end it too
+function useWholeScreen(box: React.RefObject<HTMLDivElement | null>) {
+  const [full, setFull] = useState(false);
+  useEffect(() => {
+    if (!full) return;
+    const left = () => void (document.fullscreenElement || setFull(false));
+    const key = (e: KeyboardEvent) => void (e.key === 'Escape' && setFull(false));
+    document.addEventListener('fullscreenchange', left);
+    window.addEventListener('keydown', key);
+    return () => {
+      document.removeEventListener('fullscreenchange', left);
+      window.removeEventListener('keydown', key);
+      if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+    };
+  }, [full]);
+  const set = (on: boolean) => {
+    setFull(on);
+    // (asked for in the tap itself, browsers take it only from there)
+    if (on && !isApp()) void box.current?.requestFullscreen?.().catch(() => {});
+  };
+  return [full, set] as const;
+}
