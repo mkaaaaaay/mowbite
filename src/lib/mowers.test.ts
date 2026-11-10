@@ -25,9 +25,13 @@ vi.stubGlobal('window', win);
 vi.stubGlobal('document', {documentElement: {style: {setProperty: () => {}}}});
 // what goes out to a mower's MowBite, the demo answers itself
 const fetched: string[] = [];
+// what a host answers by the address asked, an Error is one out of reach. anything else answers empty
+const answers = new Map<string, Response | Error>();
 vi.stubGlobal('fetch', async (url: string) => {
   fetched.push(url);
-  return new Response('');
+  const a = answers.get(url);
+  if (a instanceof Error) throw a;
+  return a ?? new Response('');
 });
 
 // a page loaded with what's in this device's storage now
@@ -143,6 +147,25 @@ describe("MowBite's port on a mower", () => {
     m.noteOs(true);
     m.forgetMowerKeys('b');
     expect([...stored.keys()].sort()).toEqual(['appSettings', 'mower']);
+  });
+});
+
+describe('whether MowBite OS serves the app at a host', () => {
+  const says = async (answer: Response | Error) => {
+    answers.set('http://tron:80/app.json', answer);
+    const m = await open();
+    return m.osServesApp('tron');
+  };
+
+  it("is told by its app.json naming the app, nothing else there counts", async () => {
+    expect(await says(new Response(JSON.stringify({schema: 1, owner: 'mowbite-app', version: '1.5.0'})))).toBe(true);
+    expect(await says(new Response(JSON.stringify({owner: 'someone'})))).toBe(false);
+    expect(await says(new Response('null'))).toBe(false);
+    expect(await says(new Response('<html></html>'))).toBe(false);
+    expect(await says(new Response('', {status: 404}))).toBe(false);
+    // out of reach, or an answer another origin may not read
+    expect(await says(new TypeError('Failed to fetch'))).toBe(false);
+    answers.clear();
   });
 });
 

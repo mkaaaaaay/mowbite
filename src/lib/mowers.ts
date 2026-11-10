@@ -151,7 +151,7 @@ export const writeMower = (key: string, value: unknown) => writeStored(mowerKey(
 
 // MowBite's port on a mower: its container's on OpenMower, MowBite OS serves the app itself (masterplan 3.5)
 export const CONTAINER_PORT = 8082;
-const OS_PORT = 80;
+export const OS_PORT = 80;
 // this device found the mower to run MowBite OS, kept for it like mowerKey has it
 const OS_KEY = 'mowbiteOs';
 
@@ -159,6 +159,17 @@ const OS_KEY = 'mowbiteOs';
 export function noteOs(os: boolean) {
   const m = selectedMower();
   if (m && m.id !== DEMO_ID) writeMower(OS_KEY, os || null);
+}
+
+// whether MowBite OS serves the app at a host: its app.json there names the app (scripts/version.mjs writes it). only
+// an OS that lets another origin read it can tell
+export async function osServesApp(host: string): Promise<boolean> {
+  try {
+    const res = await fetch(`http://${host}:${OS_PORT}/app.json`, {cache: 'no-store', signal: AbortSignal.timeout(6000)});
+    return res.ok && ((await res.json()) as {owner?: unknown} | null)?.owner === 'mowbite-app';
+  } catch {
+    return false;
+  }
 }
 
 type Address = Pick<OtherMower, 'host' | 'appPort'> & {id?: string};
