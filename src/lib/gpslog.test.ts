@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {gpsBefore, readGpsLog} from './gpslog';
+import {gpsBefore, gpsOffNow, readGpsLog} from './gpslog';
 
 const log = (rows: [number, number | null][]) =>
   readGpsLog(rows.map(([t, acc]) => `${t} MOWING 1.000 2.000 ${acc === null ? '999.000' : acc}`).join('\n'));
@@ -49,6 +49,11 @@ describe('gps log', () => {
     expect(b.at).toBeUndefined();
     expect(b.noFix).toBe(0);
     expect(b.worst).toBe(0.02);
+  });
+
+  it('takes no fix for the gps off only where OpenMower switches it off', () => {
+    expect(['IDLE', 'DOCKING', 'UNDOCKING', 'MOWING', 'AREA_RECORDING', undefined].map((st) => gpsOffNow(st, false))).toEqual([true, true, true, false, false, false]);
+    expect(['IDLE', 'DOCKING', 'UNDOCKING'].map((st) => gpsOffNow(st, true))).toEqual([false, false, false]);
   });
 
   it('counts an accuracy repeated while mowing as no gps: OpenMower took no position any more', () => {

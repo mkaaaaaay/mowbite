@@ -25,6 +25,7 @@ import styles from './page.module.css';
 import System from './System';
 import BatteryHistory from './BatteryHistory';
 import {emergencyText} from '@/lib/events';
+import {gpsOffNow} from '@/lib/gpslog';
 import {fmt, tr, useLang} from '@/lib/i18n';
 
 // sensors that get their own card instead of the generic one
@@ -243,8 +244,9 @@ export default function SensorsPage() {
                     {tr('GPS accuracy')}
                     <InfoTip>
                       {tr(
-                        "How far off the position might be, as estimated by the receiver. With an RTK fix it's usually a few cm. The receiver doesn't report fix or float, so MowBite goes by the accuracy: up to 5 cm is an RTK fix, up to the mower's limit (max_position_accuracy) float, which is still usable. Above that the mower ignores the position. The mower switches GPS off while it's idle or docking.",
+                        "How far off the position might be, as estimated by the receiver. With an RTK fix it's usually a few cm. The receiver doesn't report fix or float, so MowBite goes by the accuracy: up to 5 cm is an RTK fix, up to the mower's limit (max_position_accuracy) float, which is still usable. Above that the mower ignores the position.",
                       )}
+                      {!os && ` ${tr("The mower switches GPS off while it's idle, docking or leaving the dock.")}`}
                     </InfoTip>
                   </>
                 }
@@ -253,7 +255,7 @@ export default function SensorsPage() {
                   {gps === undefined
                     ? '–'
                     : noFix
-                      ? currentState === 'IDLE' || currentState === 'DOCKING'
+                      ? gpsOffNow(currentState, os)
                         ? tr('GPS off')
                         : tr('No fix')
                       : `${fmt(gps * 100, 1)} cm`}

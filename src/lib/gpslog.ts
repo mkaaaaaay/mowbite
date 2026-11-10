@@ -114,6 +114,9 @@ export async function gpsLog(from: number, to: number): Promise<GpsSample[]> {
 // after it. a value repeated anywhere else is a position lost
 export const gpsOffOnPurpose = (s: GpsSample) =>
   s.state === 'DOCKING' || s.state === 'UNDOCKING' ? s.acc === null || !!s.stale : s.state === 'IDLE' && !!s.stale;
+// no fix now taken as the gps off: OpenMower switches it off while idle, docking and backing out of the dock, MowBite OS
+// never does
+export const gpsOffNow = (state: string | undefined, os: boolean) => !os && (state === 'IDLE' || state === 'DOCKING' || state === 'UNDOCKING');
 
 export interface GpsBefore {
   // in the dock approach and backing out of the dock OpenMower drives without gps on purpose, that's left out
