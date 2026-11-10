@@ -12,11 +12,20 @@ export const DEMO_ID = 'demo';
 const DEMO: OtherMower = {id: DEMO_ID, name: 'Demo', host: ''};
 export const isDemo = () => typeof window !== 'undefined' && selectedMowerId() === DEMO_ID;
 
-// a mower's address as typed: the host, and MowBite's port when one is typed after it (http:// and a path left out)
-export function parseAddress(input: string): {host: string; port: number | null} {
-  const m = /^(?:https?:\/\/)?([^/:]*)(?::(\d{1,5}))?/i.exec(input.trim());
+// a host as it can be typed: a name, an IPv4 address or an IPv6 one in brackets
+const HOST = /^(?:[a-z0-9_-]+(?:\.[a-z0-9_-]+)*|\[[0-9a-f.]*:[0-9a-f:.]*\])$/;
+const IPV4 = /^\d{1,3}(?:\.\d{1,3}){3}$/;
+
+// a mower's address as typed: the host, and MowBite's port when one is typed after it (http:// and a path left out).
+// null when it isn't an address
+export function parseAddress(input: string): {host: string; port: number | null} | null {
+  const m = /^(?:https?:\/\/)?(\[[^\]]*\]|[^/:]*)(?::(\d{1,5}))?/i.exec(input.trim());
+  const host = (m?.[1] ?? '').toLowerCase();
+  // (only digits and dots is an IPv4 address)
+  const ip = /^[\d.]+$/.test(host);
+  if (!HOST.test(host) || (ip && !(IPV4.test(host) && host.split('.').every((n) => Number(n) < 256)))) return null;
   const port = Number(m?.[2]);
-  return {host: (m?.[1] ?? '').toLowerCase(), port: port > 0 && port < 65536 ? port : null};
+  return {host, port: port > 0 && port < 65536 ? port : null};
 }
 
 export function appMowers(): OtherMower[] {
@@ -113,7 +122,10 @@ export const readMower = <T>(key: string) => readStored<T>(mowerKey(key));
 export const writeMower = (key: string, value: unknown) => writeStored(mowerKey(key), value);
 
 // where a mower's MowBite answers
-export const mowerBase = (m: OtherMower) => `http://${m.host}:${m.appPort ?? 8082}`;
+export const mowerBase = (m: Pick<OtherMower, 'host' | 'appPort'>) => `http://${m.host}:${m.appPort ?? 8082}`;
+// the same MowBite: the same host and port
+export const sameMowBite = (a: Pick<OtherMower, 'host' | 'appPort'>, b: Pick<OtherMower, 'host' | 'appPort'>) =>
+  mowerBase(a).toLowerCase() === mowerBase(b).toLowerCase();
 
 // where the selected mower's MowBite answers (sensor history, backups, schedule)
 export function apiBase(): string {

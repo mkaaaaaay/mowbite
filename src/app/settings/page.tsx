@@ -8,7 +8,7 @@ import {useEffect, useState, useSyncExternalStore} from 'react';
 import styles from './page.module.css';
 import {dec, setLangChoice, tr, useLang, useLangChoice} from '@/lib/i18n';
 import {setThemeChoice, useThemeChoice} from '@/lib/theme';
-import {appMowers, DEMO_ID, isDemo, parseAddress, saveAppMowers, selectedMower, selectMower} from '@/lib/mowers';
+import {appMowers, DEMO_ID, isDemo, parseAddress, sameMowBite, saveAppMowers, selectedMower, selectMower} from '@/lib/mowers';
 import {isApp} from '@/lib/native';
 import {setSwipeEnabled, useSwipeEnabled} from '@/lib/swipe';
 import {OpenMowerSettings} from '@/components/MowerParamSettings';
@@ -113,23 +113,28 @@ function MowersSection({settings}: {settings: Settings}) {
     selectMower(app ? (rest[0]?.id ?? '') : '');
   };
   const add = () => {
-    const {host: h, port} = parseAddress(host);
-    if (!h) return;
-    if (!app && (h === window.location.hostname.toLowerCase() || h === 'localhost' || h === '127.0.0.1')) {
-      setError(tr("That's this mower, it's already there. Enter the address of another one."));
-      return;
-    }
-    if (others.some((m) => m.host.toLowerCase() === h)) {
-      setError(tr('This mower is already in the list.'));
+    const typed = parseAddress(host);
+    if (!typed) {
+      setError(tr("That's not an address. Enter an IP or the mower's name in your network."));
       return;
     }
     const mower: OtherMower = {
       id: Math.random().toString(36).slice(2, 10),
       name: name.trim(),
-      host: h,
-      appPort: port ?? (Number(appPort) || 8082),
+      host: typed.host,
+      appPort: typed.port ?? (Number(appPort) || 8082),
       wsPort: Number(wsPort) || 9001,
     };
+    // (another MowBite on the same host answers on another port)
+    const port = Number(window.location.port) || 80;
+    if (!app && [window.location.hostname, 'localhost', '127.0.0.1'].some((h) => sameMowBite(mower, {host: h, appPort: port}))) {
+      setError(tr("That's this mower, it's already there. Enter the address of another one."));
+      return;
+    }
+    if (others.some((m) => sameMowBite(m, mower))) {
+      setError(tr('This mower is already in the list.'));
+      return;
+    }
     store([...others, mower]);
     setName('');
     setHost('');
@@ -189,6 +194,7 @@ function MowersSection({settings}: {settings: Settings}) {
             {tr("Address of the other mower (IP or name in your network)")}
             <input
               value={host}
+              aria-invalid={!!error}
               onChange={(e) => {
                 setHost(e.target.value);
                 setError(null);

@@ -738,6 +738,7 @@ const de: Record<string, string> = {
   "Temperatures": "Temperaturen",
   "That file doesn't look like a map.": "Diese Datei sieht nicht nach einer Karte aus.",
   "That's this mower, it's already there. Enter the address of another one.": "Das ist dieser Mäher, der ist schon dabei. Trag die Adresse eines anderen ein.",
+  "That's not an address. Enter an IP or the mower's name in your network.": "Das ist keine Adresse. Trag eine IP oder den Namen des Mähers im Heimnetz ein.",
   "The forecast and the temperature come from Open-Meteo, the mower asks for them with the position rounded to about a kilometer.": "Vorhersage und Temperatur kommen von Open-Meteo, der Mäher fragt sie mit der auf etwa einen Kilometer gerundeten Position ab.",
   "The forecast comes from Open-Meteo, the mower asks for it with the position rounded to about a kilometer.": "Die Vorhersage kommt von Open-Meteo, der Mäher fragt sie mit der auf etwa einen Kilometer gerundeten Position ab.",
   "Cold grass takes mowing badly, below about 5 °C it hardly grows anyway.": "Kaltes Gras verträgt das Mähen schlecht, unter etwa 5 °C wächst es ohnehin kaum.",

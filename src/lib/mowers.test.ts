@@ -1,5 +1,5 @@
 import {describe, expect, it, vi} from 'vitest';
-import {parseAddress} from './mowers';
+import {parseAddress, sameMowBite} from './mowers';
 
 const stored = new Map<string, string>();
 vi.stubGlobal('localStorage', {
@@ -45,6 +45,23 @@ describe('parseAddress', () => {
     expect(parseAddress('192.168.2.170')).toEqual({host: '192.168.2.170', port: null});
     expect(parseAddress('https://openmower/')).toEqual({host: 'openmower', port: null});
     expect(parseAddress('openmower:99999')).toEqual({host: 'openmower', port: null});
+  });
+
+  it('takes an IPv6 address in brackets', () => {
+    expect(parseAddress('http://[FE80::1]:8090')).toEqual({host: '[fe80::1]', port: 8090});
+    expect(parseAddress('[::1]')).toEqual({host: '[::1]', port: null});
+  });
+
+  it('turns down what is no address', () => {
+    for (const typed of ['a b c', '300.1.2.3', '192.168.2', '[::1', '[mower]', 'mower..local', 'http://', 'mäher']) expect(parseAddress(typed)).toBeNull();
+  });
+});
+
+describe('sameMowBite', () => {
+  it('is the same host and port, another port on the same host is another MowBite', () => {
+    expect(sameMowBite({host: 'Mower', appPort: 8082}, {host: 'mower'})).toBe(true);
+    expect(sameMowBite({host: 'localhost', appPort: 28082}, {host: 'localhost', appPort: 38082})).toBe(false);
+    expect(sameMowBite({host: 'a'}, {host: 'b'})).toBe(false);
   });
 });
 
