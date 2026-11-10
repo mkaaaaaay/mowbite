@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {appendPoint, chunked, keepsTrail, recordedPoints, thin, trackPoints, type Point, type TrackChunks} from './useMowerTrack';
+import {appendPoint, chunked, jobChange, keepsTrail, recordedPoints, thin, trackPoints, type Point, type TrackChunks} from './useMowerTrack';
 
 // a mowing pattern with turns, blade changes and jitter, so plenty of points survive the thinning
 function drive(n: number): Point[] {
@@ -117,5 +117,25 @@ describe('a recorded track', () => {
     expect(r.points[0]).toEqual({x: 0, y: 0, b: true});
     expect(r.points[6]).toEqual({x: 1, y: 4, b: false});
     expect(recordedPoints({}, true)).toEqual({points: [], written: 0});
+  });
+});
+
+describe('a job id with the position', () => {
+  const now = 1_000_000;
+  it('starts a trail for a job that is new, keeps it for the one running', () => {
+    expect(jobChange(null, 'a', null, 0, now)).toBe('new');
+    expect(jobChange('a', 'b', null, 0, now)).toBe('new');
+    expect(jobChange('a', 'a', null, 0, now)).toBeNull();
+  });
+
+  it('turns the trail of a job that is over into the last run', () => {
+    expect(jobChange('a', undefined, null, now, now)).toBe('ended');
+  });
+
+  it('asks for the last run while none runs, again a while after the list did not come', () => {
+    expect(jobChange(null, undefined, null, 0, now)).toBe('last');
+    expect(jobChange(null, undefined, null, now - 1000, now)).toBeNull();
+    expect(jobChange(null, undefined, null, now - 30000, now)).toBe('last');
+    expect(jobChange(null, undefined, 'a', 0, now)).toBeNull();
   });
 });

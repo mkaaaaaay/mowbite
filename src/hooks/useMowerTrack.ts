@@ -35,7 +35,9 @@ let jobId: string | null = null;
 // while no job runs (OpenMower drops the job id once it's done), the last one recorded: its trail stays until the
 // next job starts. at: when it started, unix seconds
 let lastJob: {id: string; at: number} | null = null;
-let askedLast = false;
+// when the last one was asked for (ms), again a while later when the list didn't come
+let askedLast = 0;
+const ASK_AGAIN_MS = 30000;
 // the job the trail is of
 const shownJob = () => jobId ?? lastJob?.id ?? null;
 let blades: boolean | undefined;
@@ -188,6 +190,14 @@ export function keepsTrail(shown: string | null, next: string): boolean {
   return shown === null || shown === next;
 }
 
+// what a position's job id means for the trail: 'new' a job started (or another one), 'ended' the one running is over,
+// its trail stays as the last run, 'last' none runs and the last one is to be asked for
+export function jobChange(running: string | null, id: string | undefined, last: string | null, askedAt: number, now: number) {
+  if (id) return id === running ? null : 'new';
+  if (running !== null) return 'ended';
+  return last === null && now - askedAt >= ASK_AGAIN_MS ? 'last' : null;
+}
+
 // the newest recorded job, shown while the mower is idle until the next one starts
 async function showLastJob() {
   const [last] = await loadJobList();
@@ -222,7 +232,8 @@ function start() {
       pose = name === TOPIC.position ? msg : msg.pose;
       const id = name === TOPIC.position ? msg.attributes?.job_id : undefined;
       if (name === TOPIC.position) blades = msg.attributes?.blades;
-      if (id && id !== jobId) {
+      const change = name === TOPIC.position ? jobChange(jobId, id, lastJob?.id ?? null, askedLast, Date.now()) : null;
+      if (change === 'new') {
         // new job, new trail
         if (!keepsTrail(shownJob(), id)) track = EMPTY;
         jobId = id;
@@ -230,8 +241,9 @@ function start() {
         // the list of recorded jobs has it now
         forgetJobList();
         void seed(id);
-      } else if (!id && name === TOPIC.position && jobId === null && !askedLast) {
-        askedLast = true;
+      } else if (change) {
+        if (change === 'ended') jobId = null;
+        askedLast = Date.now();
         void showLastJob();
       }
     } catch {
