@@ -31,7 +31,10 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
   len=${CONTENT_LENGTH:-0}
   if [ "$len" -le 0 ] || [ "$len" -gt 2000000 ]; then fail 413 'too large'; fi
   new="$(date +%s)-$$"
-  name=$(httpd -d "$(param name)" | tr -d '\000-\037' | cut -c1-60)
+  # the app's 60 characters in bytes (up to 4 each), without a character cut in half at the end
+  c=$(printf '\200-\277')
+  name=$(httpd -d "$(param name)" | tr -d '\000-\037' | cut -c1-240 |
+    sed "s/[$(printf '\300-\377')]\$//; s/[$(printf '\340-\377')][$c]\$//; s/[$(printf '\360-\377')][$c][$c]\$//")
   areas=$(param areas | tr -cd '0-9')
   auto=$(param auto | tr -cd '01')
   if [ "${auto:-0}" != 1 ] && ls "$D"/*.meta > /dev/null 2>&1 &&

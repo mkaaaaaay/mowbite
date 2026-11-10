@@ -365,6 +365,13 @@ id=$(curl -s --data-binary '{"areas":[1]}' "$B?name=load&auto=1" | bid)
 expect "backups: one loaded" "$(curl -s "$B?id=$id")" '{"areas":[1]}'
 curl -s -o /dev/null -X POST "$B?action=delete&id=$id"
 expect "backups: one deleted" "$(code "$B?id=$id")$(curl -s "$B" | grep -c '"name":"load"')" 4040
+# 60 characters of two bytes kept whole, a byte limit that falls into a character doesn't leave half of it
+meta() { docker exec mbt-web sed -n 1p "/data/backups/$1.meta"; }
+id=$(curl -s --data-binary '{"areas":[]}' "$B?name=$(printf '%%C3%%A4%.0s' $(seq 60))&auto=1" | bid)
+expect "backups: a name of 60 umlauts kept whole" "$(meta "$id")" "$(printf 'ä%.0s' $(seq 60))"
+long=$(printf 'a%.0s' $(seq 239))
+id=$(curl -s --data-binary '{"areas":[]}' "$B?name=$long%C3%A4&auto=1" | bid)
+expect "backups: a name cut without half a character at its end" "$(meta "$id")" "$long"
 # one more automatic than are kept, the others with later times (a clock gone back): the oldest goes, not the new one
 old=$(curl -s "$B" | grep -o '"id":"[0-9-]*","t":[0-9]*,"name":"auto"' | bid)
 docker exec mbt-web sh -c 'cd /data/backups && for i in $(seq 30); do printf "x\n0\n1\n" > $((2000000000 + i))-1.meta; echo | gzip > $((2000000000 + i))-1.json.gz; done'
