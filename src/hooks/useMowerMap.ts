@@ -5,6 +5,7 @@ import {callRpc} from '@/lib/rpc';
 import {useSyncExternalStore} from 'react';
 import {RPC, TOPIC} from '@/lib/openmower';
 import {closedRings, openRings} from '@/lib/rings';
+import {sameContent} from '@/lib/sameMap';
 
 export interface Point {
   x: number;
@@ -68,6 +69,25 @@ const store = topicStore<MowerMap | null>(TOPIC.map, null, (payload, prev) => {
 
 export function useMowerMap(): MowerMap | null {
   return useSyncExternalStore(store.subscribe, store.get, store.initial);
+}
+
+// f once the mower's map has the content of map, at once when it has it already. outside react, so also while the page
+// asking is hidden behind another one (its effects stop there). what it returns calls it off
+export function whenMowerHas(map: MowerMap, f: () => void): () => void {
+  const has = () => {
+    const now = store.get();
+    return !!now && sameContent(now, map);
+  };
+  if (has()) {
+    f();
+    return () => {};
+  }
+  const off = store.subscribe(() => {
+    if (!has()) return;
+    off();
+    f();
+  });
+  return off;
 }
 
 // map.replace takes the same shape as map/json, outlines closed like the mower records them. it can take the mower a

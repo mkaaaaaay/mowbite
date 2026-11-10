@@ -5,7 +5,7 @@ import {TitleRow} from '@/components/TopWeather';
 import MapView from '@/components/MapView';
 import TrackPicker from '@/components/TrackPicker';
 import {useMowerActions} from '@/hooks/useMowerActions';
-import {saveMap, useMowerMap, type MowerMap, type Point} from '@/hooks/useMowerMap';
+import {saveMap, useMowerMap, whenMowerHas, type MowerMap, type Point} from '@/hooks/useMowerMap';
 import {useMowerPosition} from '@/hooks/useMowerPosition';
 import {isLive, useIdle, useMowerStateValue} from '@/hooks/useMowerState';
 import {useEggForced, useUmbrella} from '@/lib/eggs';
@@ -676,14 +676,16 @@ function MapEditor() {
     restore,
     download,
     downloadGeo,
-  } = useMapBackups(liveMap, map, datum, (put, before, shown) => {
+  } = useMapBackups(liveMap, map, datum, (put, before, shown, jobDropped) => {
     if (shown) {
       dropEdits();
       took(put, before);
       setSelectedAreaId(null);
     }
-    if (endsJob(interrupted, before, put)) dropJob();
-  });
+    if (!jobDropped && endsJob(interrupted, before, put)) dropJob();
+  }, dropJob);
+  // restoring the backup shown ends the job the mower interrupted
+  const restoreEnds = !!preview && endsJob(interrupted, liveMap, preview.map);
 
   // an openmower that doesn't know the newer area settings drops them when saving, noticed once its map comes back
   const [newSaved, setNewSaved] = useState<{areas: MowerMap['areas']; before: MowerMap | null} | null>(null);
@@ -728,6 +730,7 @@ function MapEditor() {
     try {
       // the version on the mower goes into the backups first, so every save can be undone. without that only when asked
       if ((await backupFirst.first(liveMap, 'before saving')) === 'failed') return false;
+      offLateDrop.current();
       lateSave.current = {map: next, gone, before: liveMap, ends};
       await saveMap(next);
       // the mower's map can come back before its answer, then that took it already (below)
@@ -746,6 +749,7 @@ function MapEditor() {
     } catch (e) {
       // no answer: it may still get there, then it's saved after all (below)
       if (!(e instanceof RpcError && e.code === 'timeout')) lateSave.current = null;
+      else if (ends) offLateDrop.current = whenMowerHas(next, dropLateJob);
       setSaveError(rpcErrorText(e));
       return false;
     } finally {
@@ -765,6 +769,15 @@ function MapEditor() {
   // a save the mower didn't answer in time: once its map comes back from there it's saved after all, not a change from
   // somewhere else. edits made meanwhile stay and go on from it
   const lateSave = useRef<{map: MowerMap; gone: string[]; before: MowerMap | null; ends: boolean} | null>(null);
+  // the job it ends dropped once its map is on the mower, also while the editor is hidden. once: ends goes false here, the
+  // effect below takes the save away, whichever comes first. called off by the next save
+  const offLateDrop = useRef(() => {});
+  const dropLateJob = () => {
+    const late = lateSave.current;
+    if (!late?.ends) return;
+    late.ends = false;
+    dropJob();
+  };
   // the map as edited now, for a save that answers after more edits
   const latest = useRef(map);
   useEffect(() => {
@@ -1167,12 +1180,12 @@ function MapEditor() {
                 backedUp={!!backups && !restoreWithoutBackup}
                 idle={idle}
                 live={live}
-                ends={endsJob(interrupted, liveMap, preview.map)}
+                ends={restoreEnds}
                 unsaved={dirty}
                 restoring={restoring}
                 confirm={confirmRestore}
                 error={restoreError}
-                onRestore={() => (confirmRestore ? void restore() : setConfirmRestore(true))}
+                onRestore={() => (confirmRestore ? void restore(restoreEnds) : setConfirmRestore(true))}
                 onDisarm={() => setConfirmRestore(false)}
                 onClose={closePreview}
               />
