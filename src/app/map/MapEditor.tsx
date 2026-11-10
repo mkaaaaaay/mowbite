@@ -675,11 +675,13 @@ function MapEditor() {
     restore,
     download,
     downloadGeo,
-  } = useMapBackups(liveMap, map, datum, (put) => {
-    dropEdits();
-    took(put, liveMap);
-    setSelectedAreaId(null);
-    if (endsJob(interrupted, liveMap, put)) dropJob();
+  } = useMapBackups(liveMap, map, datum, (put, before, shown) => {
+    if (shown) {
+      dropEdits();
+      took(put, before);
+      setSelectedAreaId(null);
+    }
+    if (endsJob(interrupted, before, put)) dropJob();
   });
 
   // an openmower that doesn't know the newer area settings drops them when saving, noticed once its map comes back

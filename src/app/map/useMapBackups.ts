@@ -1,16 +1,24 @@
 // The map's backups kept in the container, one of them shown instead of the editor and put back on the mower, and the
 // map as a file: the one being edited (shown), so a file taken out and back in doesn't take back what isn't saved yet.
-// restored: what the editor drops once a backup is on the mower, with the map put there
-import {useEffect, useState} from 'react';
+// restored: what the editor drops once a backup is on the mower, with the map put there, the one before and whether it's
+// still shown (put back late after the preview got closed: the edits stay)
+import {useEffect, useRef, useState} from 'react';
 import {saveMap, type MowerMap} from '@/hooks/useMowerMap';
 import {listBackups, loadBackup, useBackupFirst, type BackupInfo} from '@/lib/backups';
 import {mapToGeoJson} from '@/lib/geojson';
 import type {Datum} from '@/lib/imagery';
 import {closedRings} from '@/lib/rings';
+import {RpcError} from '@/lib/rpc';
 import {rpcErrorText} from '@/lib/rpcText';
+import {sameContent} from '@/lib/sameMap';
 import {saveFile} from '@/lib/saveFile';
 
-export function useMapBackups(liveMap: MowerMap | null, shown: MowerMap | null, datum: Datum | undefined, restored: (put: MowerMap) => void) {
+export function useMapBackups(
+  liveMap: MowerMap | null,
+  shown: MowerMap | null,
+  datum: Datum | undefined,
+  restored: (put: MowerMap, before: MowerMap | null, shown: boolean) => void,
+) {
   const [backups, setBackups] = useState<BackupInfo[] | null | undefined>(undefined);
   const [preview, setPreview] = useState<{map: MowerMap; label: string} | null>(null);
   const [confirmRestore, setConfirmRestore] = useState(false);
@@ -28,17 +36,38 @@ export function useMapBackups(liveMap: MowerMap | null, shown: MowerMap | null, 
     setRestoreError(null);
     backupFirst.reset();
   };
+  // a restore the mower didn't answer in time: once its map comes back from there it's restored after all
+  const lateRestore = useRef<{map: MowerMap; before: MowerMap | null} | null>(null);
+  useEffect(() => {
+    const late = lateRestore.current;
+    if (!late || !liveMap || !sameContent(liveMap, late.map)) return;
+    lateRestore.current = null;
+    const open = preview?.map === late.map;
+    restored(late.map, late.before, open);
+    if (open) closePreview();
+    void refreshBackups();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only when the mower's map comes
+  }, [liveMap]);
+
   const restore = async () => {
     if (!preview) return;
     setRestoring(true);
     setRestoreError(null);
     try {
       if ((await backupFirst.first(liveMap, 'before restoring')) === 'failed') return;
+      lateRestore.current = {map: preview.map, before: liveMap};
       await saveMap(preview.map);
-      restored(preview.map);
-      closePreview();
-      void refreshBackups();
+      // the mower's map can come back before its answer, then that took it already (above)
+      const taken = lateRestore.current === null;
+      lateRestore.current = null;
+      if (!taken) {
+        restored(preview.map, liveMap, true);
+        closePreview();
+        void refreshBackups();
+      }
     } catch (e) {
+      // no answer: it may still get there, then it's restored after all (above)
+      if (!(e instanceof RpcError && e.code === 'timeout')) lateRestore.current = null;
       setRestoreError(rpcErrorText(e));
     } finally {
       setRestoring(false);
