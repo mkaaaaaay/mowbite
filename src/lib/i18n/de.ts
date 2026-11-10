@@ -849,11 +849,11 @@ const de: Record<string, string> = {
   "Try again": "Nochmal versuchen",
   "Reload the app": "App neu laden",
   "This model has a measured outline. The planner on the mower doesn't support outlines yet (needs a newer image), until then it checks the rectangle.":
-    "Für dieses Modell gibt es eine vermessene Kontur. Der Planer auf dem Mäher kennt noch keine Konturen (neueres Image), bis dahin prüft er das Rechteck.",
+    "Für dieses Modell gibt es einen vermessenen Umriss. Der Planer auf dem Mäher kennt noch keine Umrisse (neueres Image), bis dahin prüft er das Rechteck.",
   "Saved, without the outline: the planner on the mower doesn't support outlines yet.": "Gespeichert, ohne Umriss: Der Planer auf dem Mäher kennt noch keine Umrisse.",
   "Use it": "Übernehmen",
   "Outline of the {model}, measured on a photo from straight above. It counts for this model only, the planner on the mower checks the rectangle until it knows outlines (newer image).":
-    "Kontur des {model}, vermessen auf einem Foto von genau oben. Sie gilt nur für dieses Modell, der Planer auf dem Mäher prüft das Rechteck, bis er Konturen kennt (neueres Image).",
+    "Umriss des {model}, vermessen auf einem Foto von genau oben. Er gilt nur für dieses Modell, der Planer auf dem Mäher prüft das Rechteck, bis er Umrisse kennt (neueres Image).",
   "{what} is not a number.": "{what} ist keine Zahl.",
   "The mower did not answer.": "Der Mäher hat nicht geantwortet.",
   "Lines of the map": "Linien der Karte",
@@ -899,7 +899,7 @@ const de: Record<string, string> = {
   "Last": "Zuletzt",
   "Way round": "Umlaufrichtung",
   "Which way the outline passes go round. Automatic: the way the mower already faces. Random: either way, chosen again after every finished mow (only with a planner that supports it). With the mower's outline set, such a planner drives the outermost pass the way the edge was recorded in both cases.":
-    "In welche Richtung die Randrunden laufen. Automatisch: wie der Mäher gerade steht. Zufällig: mal so, mal so, nach jedem fertigen Mähvorgang neu (nur mit einem Planer, der das kennt). Mit Kontur fährt so ein Planer bei beiden die äußerste Runde in Aufnahmerichtung.",
+    "In welche Richtung die Randrunden laufen. Automatisch: wie der Mäher gerade steht. Zufällig: mal so, mal so, nach jedem fertigen Mähvorgang neu (nur mit einem Planer, der das kennt). Mit dem Umriss des Mähers fährt so ein Planer bei beiden die äußerste Runde in Aufnahmerichtung.",
   "Counter-clockwise": "Gegen den Uhrzeigersinn",
   "Clockwise": "Im Uhrzeigersinn",
   "Turn radius": "Wenderadius",
