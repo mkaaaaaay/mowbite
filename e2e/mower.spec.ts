@@ -276,6 +276,7 @@ const lineLength = async (page: Page) => {
 };
 
 // MowBite OS's back button, the demo has its recording.undo behind a switch: the end of the line goes, the mower stays
+// and auto points are off
 test('back takes the end of the line away while the mower stays', async ({page}) => {
   await page.addInitScript(() => ((window as {mowbiteDemoUndo?: boolean}).mowbiteDemoUndo = true));
   await page.goto('/record/');
@@ -288,11 +289,10 @@ test('back takes the end of the line away while the mower stays', async ({page})
   await page.mouse.up();
   // the wheels stop a second after the last command
   await page.waitForTimeout(1500);
-  // (with auto points the next one is set where the mower stands at once)
-  await button('Auto points: on').click();
-  await expect(button('Auto points: off')).toBeVisible();
   const [before, at] = [await lineLength(page), await pose(page)];
   await button('Back 1 m').click();
+  // auto points go off with it, the next one isn't set where the mower stands
+  await expect(button('Auto points: off')).toBeVisible();
   await expect.poll(() => lineLength(page)).toBeLessThan(before - 0.9);
   expect(await lineLength(page)).toBeGreaterThan(before - 1.2);
   const now = await pose(page);

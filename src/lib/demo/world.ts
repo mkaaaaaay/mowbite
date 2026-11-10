@@ -1122,7 +1122,8 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     ...(demoSoundsOn() ? demoSounds() : {}),
     ...cameras?.methods,
     ...(demoUndoOn() && {
-      // points off the end of the open line until that much of it is gone, the mower stays where it is
+      // points off the end of the open line until that much of it is gone. the mower stays where it is, auto points
+      // go off
       [RPC.recordingUndo]: (params: unknown) => {
         const meters = (params as {meters?: unknown})?.meters ?? 1;
         if (typeof meters !== 'number' || !(meters >= 0.1 && meters <= 50)) throw new Error('meters: 0.1 to 50');
@@ -1133,6 +1134,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
           const q = line[line.length - 1];
           gone += q ? dist(p, q) : meters;
         }
+        rec!.auto = false;
         send.overlay();
         changed();
         return {points: line.length};
