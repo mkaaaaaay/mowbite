@@ -1,5 +1,24 @@
-import {describe, expect, it} from 'vitest';
+import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {CONTAINER_LEVEL, compareVersions, containerHas, isNewer, missingOnMower} from './updates';
+
+const mower = vi.hoisted(() => ({base: '', os: false, app: false, answers: {} as Record<string, number>, asked: [] as string[]}));
+vi.mock('./mowers', () => ({
+  apiBase: () => mower.base,
+  pageFromMower: () => !mower.app && !mower.base,
+  mowerFetch: async (url: string) => {
+    mower.asked.push(url);
+    const status = mower.answers[url.slice(mower.base.length)] ?? 404;
+    return new Response(status === 200 ? '{"version":"1.4.0","level":4}' : '', {status});
+  },
+  readStored: () => null,
+  readMower: () => null,
+  writeStored: () => {},
+  writeMower: () => {},
+}));
+vi.mock('./mowerOs', () => ({
+  isMowbiteOs: (i: {name: string} | null) => i?.name === 'mowbite-os',
+  systemInfo: async () => (mower.os ? {name: 'mowbite-os'} : null),
+}));
 
 describe('compareVersions', () => {
   it('orders by major, minor, patch', () => {
@@ -44,5 +63,42 @@ describe('the container on the mower', () => {
     expect(missingOnMower(0)).toContain("messages on this phone with MowBite's icon");
     expect(missingOnMower(CONTAINER_LEVEL)).toEqual([]);
     expect(missingOnMower(null)).toEqual([]);
+  });
+});
+
+describe('no container on the mower', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    Object.assign(mower, {base: 'http://mower.test:80', os: false, app: false, answers: {}, asked: []});
+  });
+  // a fresh module, a poll that gets 404 and then the next one
+  const poll = async () => {
+    const u = await import('./updates');
+    await u.containerFetch(`${mower.base}/cgi-bin/battery?level`);
+    await u.mowerHas('level');
+    mower.asked = [];
+    return {res: await u.containerFetch(`${mower.base}/cgi-bin/battery?level`), asked: mower.asked};
+  };
+
+  it('is known for good from a 404 on MowBite OS, nothing asks after it', async () => {
+    mower.os = true;
+    expect(await poll()).toEqual({res: null, asked: []});
+  });
+
+  it('is known for good from a 404 of the server the page came from', async () => {
+    mower.base = '';
+    expect((await poll()).res).toBeNull();
+  });
+
+  it('stays unknown on OpenMower, asked again as before', async () => {
+    const {res, asked} = await poll();
+    expect(res?.status).toBe(404);
+    expect(asked).toEqual([`${mower.base}/cgi-bin/battery?level`]);
+  });
+
+  it('is there on MowBite OS when the container answers', async () => {
+    mower.os = true;
+    mower.answers = {'/cgi-bin/version': 200, '/cgi-bin/battery?level': 200};
+    expect((await poll()).res?.status).toBe(200);
   });
 });

@@ -36,13 +36,14 @@ export function isDocked(state: {current_state: string; is_charging: number} | n
   return state?.current_state === 'IDLE' && onCharger(state, vCharge);
 }
 
-// the charger's state as the firmware names it (om_charge_state; the simulator: CC, CV), in words. dock: what it means in
-// the dock, left out for the ones that charge
+// the charger's state as the firmware names it (om_charge_state; the simulator: CC, CV; MowBite OS: Fast Charge), in
+// words. dock: what it means in the dock, left out for the ones that charge
 const CHARGE_STATES: Record<string, {text: string; dock?: Charge}> = {
   'Not Charging': {text: 'Not Charging', dock: 'off'},
   'Trickle Charge': {text: 'Trickle Charge'},
   'Pre Charge': {text: 'Pre Charge'},
   'Fast Charge (CC)': {text: 'Fast Charge (CC)'},
+  'Fast Charge': {text: 'Fast Charge'},
   'Taper Charge (CV)': {text: 'Taper Charge (CV)'},
   'Top Off': {text: 'Top Off'},
   Done: {text: 'Fully charged', dock: 'done'},

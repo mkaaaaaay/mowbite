@@ -16,6 +16,8 @@ export const NOTIFY_EVENTS = [
   {key: 'done', label: 'Done mowing', problem: false},
   {key: 'rain', label: 'Going home for rain', problem: false},
   {key: 'battery', label: 'Going home to charge', problem: false},
+  // MowBite OS only
+  {key: 'dark', label: 'Going home at sunset', problem: false},
   {key: 'maintenance', label: 'Maintenance due (blades, cleaning)', problem: false},
 ] as const;
 export type NotifyEvent = (typeof NOTIFY_EVENTS)[number]['key'];

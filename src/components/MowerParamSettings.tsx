@@ -1,14 +1,17 @@
 'use client';
 
-import {useMowerParams} from '@/hooks/useMowerParams';
+import {datumFromParams, useMowerParams} from '@/hooks/useMowerParams';
 import {tr} from '@/lib/i18n';
 import {
   loadKept,
+  mowsIntoNight,
+  onOs,
   PARAM_FIELDS,
   PARAM_GROUPS,
   paramField,
   paramConflict,
   paramName,
+  paramShown,
   paramValue,
   parseParam,
   saveKept,
@@ -20,6 +23,7 @@ import {
 } from '@/lib/mowerParams';
 import {isMowbiteOs, systemInfo, useMowbiteOs} from '@/lib/mowerOs';
 import {RPC} from '@/lib/openmower';
+import {sunTimes} from '@/lib/sun';
 import {useRpcMethods} from '@/hooks/useRpcMethods';
 import {answerError} from '@/lib/rpcText';
 import Link from 'next/link';
@@ -130,15 +134,22 @@ export async function setOpenMowerParam(key: string, value: number | boolean) {
 }
 
 // one setting: its value on the mower, changed right there. os: on MowBite OS
-export function ParamRow({field: f, os}: {field: ParamField; os: boolean}) {
+export function ParamRow({field, os}: {field: ParamField; os: boolean}) {
+  const f = onOs(field, os);
   const params = useMowerParams();
   const k = useKept();
   const value = paramValue(params, f);
   const [draft, setDraft] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // switching it off waits for a yes
+  const [asking, setAsking] = useState(false);
+  // the sun's times where the mower is, for going home at sunset
+  const datum = f.key === 'dock_at_sunset' ? datumFromParams(params) : undefined;
+  const sun = datum ? sunTimes(datum.lat, datum.lon) : null;
 
   const set = async (v: number | boolean) => {
+    setAsking(false);
     if (v === value) return;
     const conflict = paramConflict(params, f.key, v);
     setError(conflict && tr(conflict));
@@ -170,7 +181,14 @@ export function ParamRow({field: f, os}: {field: ParamField; os: boolean}) {
           {help && <InfoTip>{tr(help)}</InfoTip>}
         </span>
         {f.type === 'bool' ? (
-          <input type="checkbox" className={local.check} checked={value as boolean} disabled={busy} onChange={(e) => void set(e.target.checked)} aria-label={label} />
+          <input
+            type="checkbox"
+            className={local.check}
+            checked={(value as boolean) && !asking}
+            disabled={busy}
+            onChange={(e) => (!e.target.checked && f.confirmOff ? setAsking(true) : void set(e.target.checked))}
+            aria-label={label}
+          />
         ) : f.type === 'choice' ? (
           <select className={local.select} value={String(value)} disabled={busy} onChange={(e) => void set(Number(e.target.value))} aria-label={label}>
             {f.choices!.map((c, i) => (
@@ -194,6 +212,16 @@ export function ParamRow({field: f, os}: {field: ParamField; os: boolean}) {
           </span>
         )}
       </div>
+      {sun && <span className={local.kept}>{value ? tr('today at {set}', {set: sun.set}) : tr('off: mows on after sunset (today {set})', {set: sun.set})}</span>}
+      {asking && (
+        <span className={local.ask}>
+          {tr(f.confirmOff!)}
+          <button className={local.askOff} onClick={() => void set(false)}>
+            {tr('Switch off')}
+          </button>
+          <button onClick={() => setAsking(false)}>{tr('Keep on')}</button>
+        </span>
+      )}
       {isKept && (
         <span className={local.kept}>
           {tr('set again after a restart')}
@@ -233,18 +261,21 @@ export function ParamFix({keys}: {keys: string[]}) {
 }
 
 // the values that matter most of a group, read in its folded line
-export function summary(group: ParamGroup, params: Record<string, unknown>): string {
-  const v = (key: string) => paramValue(params, paramField(key)!);
+export function summary(group: ParamGroup, params: Record<string, unknown>, os: boolean): string {
+  const v = (key: string) => paramValue(params, onOs(paramField(key)!, os));
   const n = (key: string) => showParam(paramField(key)!, v(key) as number);
   switch (group) {
     case 'mowing':
       return [v('outline_count') === 1 ? tr('1 outline pass') : tr('{n} outline passes', {n: n('outline_count')}), tr('lanes {n} cm apart', {n: n('tool_width')}), tr('turned by {n}°', {n: n('mow_angle_offset')})].join(' · ');
-    case 'auto':
+    case 'auto': {
       // a value it doesn't know (a newer OpenMower) is left out
-      return [paramField('rain_mode')!.choices![v('rain_mode') as number], AUTOMATIC_SHORT[v('automatic_mode') as number]]
-        .filter((t) => t !== undefined)
-        .map((t) => tr(t))
-        .join(' · ');
+      const known = (t: string | undefined) => (t === undefined ? [] : [tr(t)]);
+      return [
+        ...known(paramField('rain_mode')!.choices![v('rain_mode') as number]),
+        ...(mowsIntoNight(params) ? [tr('mows on after sunset')] : []),
+        ...known(AUTOMATIC_SHORT[v('automatic_mode') as number]),
+      ].join(' · ');
+    }
     case 'gps':
       return [tr('{n} s without a fix', {n: n('gps_timeout')}), tr('better than {n} cm', {n: n('max_position_accuracy')})].join(' · ');
     case 'docking':
@@ -335,11 +366,11 @@ export function OpenMowerSettings({styles}: {styles: Styles}) {
             <summary>
               <span className={local.title}>
                 {tr(g.title)}
-                <small>{summary(g.key, params)}</small>
+                <small>{summary(g.key, params, os)}</small>
               </span>
             </summary>
             <div className={local.rows}>
-              {PARAM_FIELDS.filter((f) => f.group === g.key).map((f) => (
+              {PARAM_FIELDS.filter((f) => f.group === g.key && paramShown(f, params)).map((f) => (
                 <ParamRow key={f.key} field={f} os={os} />
               ))}
             </div>

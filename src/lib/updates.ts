@@ -1,6 +1,7 @@
 import {useEffect, useSyncExternalStore} from 'react';
 import FEATURES from './containerFeatures.json';
-import {apiBase, mowerFetch, readMower, readStored, writeMower, writeStored} from './mowers';
+import {apiBase, mowerFetch, pageFromMower, readMower, readStored, writeMower, writeStored} from './mowers';
+import {isMowbiteOs, systemInfo} from './mowerOs';
 
 // Looks on github for a newer release, only when "Check now" is tapped (it tells github your ip).
 
@@ -67,6 +68,8 @@ interface State {
   level: number | null;
   // the dashboard's note about an older container was waved away: its version and the level the app knew
   behindDismissed: string | null;
+  // there's no MowBite container on this mower (askMower), nothing asks its cgi-bin then
+  none: boolean;
 }
 
 const EMPTY: State = {
@@ -77,6 +80,7 @@ const EMPTY: State = {
   mower: null,
   level: null,
   behindDismissed: null,
+  none: false,
 };
 let state: State | null = null;
 const listeners = new Set<() => void>();
@@ -133,19 +137,33 @@ export function dismissBehind(key: string) {
 type Version = {version?: string; level?: number};
 
 // the mower's version once, asked again next time when it didn't answer. the app runs on another origin and can't read
-// version.json, the cgi allows it. a container from before that cgi still answers the system one: older, level 0
+// version.json, the cgi allows it. a container from before that cgi still answers the system one: older, level 0.
+// 404 on both is no container for good where the mower runs MowBite OS or the page came from that server itself
+// (masterplan 3.5 (4)), on OpenMower otherwise it stays unknown and is asked again
 let asked: Promise<void> | null = null;
-const versionAt = (base: string) =>
+// 404 on both from another mower that runs OpenMower: another 404 doesn't tell more, containerFetch leaves it
+let openMower404 = false;
+const askVersion = (base: string) =>
   mowerFetch(`${base}/cgi-bin/version`, {cache: 'no-store'})
-    .then((res) => (res.ok ? (res.json() as Promise<Version>) : null))
-    .catch(() => null);
+    .then(async (res) => ({v: res.ok ? ((await res.json()) as Version) : null, status: res.status}))
+    .catch(() => ({v: null, status: 0}));
+const versionAt = (base: string) => askVersion(base).then((a) => a.v);
 function askMower(): Promise<void> {
   const base = apiBase();
   asked ??= (async () => {
-    let v = await versionAt(base);
+    const first = await askVersion(base);
+    let v = first.v;
     if (!v) {
       const res = await mowerFetch(`${base}/cgi-bin/system`, {cache: 'no-store'});
-      if (!res.ok) throw new Error(String(res.status));
+      if (!res.ok) {
+        if (first.status === 404 && res.status === 404) {
+          const own = pageFromMower();
+          const info = own ? null : await systemInfo();
+          if (own || isMowbiteOs(info)) return set({none: true});
+          openMower404 = info === null;
+        }
+        throw new Error(String(res.status));
+      }
       // once more, the first one may have got lost on the way
       v = (await versionAt(base)) ?? {};
     }
@@ -154,6 +172,15 @@ function askMower(): Promise<void> {
     asked = null;
   });
   return asked;
+}
+
+// a request to the container's cgi-bin, null once it's clear there's none (askMower): what asks every so often stops
+// then. a 404 has askMower clear that up
+export async function containerFetch(url: string, init?: RequestInit): Promise<Response | null> {
+  if (current().none) return null;
+  const res = await mowerFetch(url, init);
+  if (res.status === 404 && !openMower404) void askMower();
+  return res;
 }
 
 // whether the mower's container has it (containerFeatures.json), false when it can't tell

@@ -3,6 +3,7 @@ import {beforeEach, describe, expect, it, vi} from 'vitest';
 const rpc = vi.hoisted(() => ({methods: new Set<string>() as Set<string> | null, unknown: false, answer: null as unknown, asked: [] as string[]}));
 vi.mock('./rpc', async (real) => ({
   RpcError: (await real<typeof import('./rpc')>()).RpcError,
+  isMissingMethod: (await real<typeof import('./rpc')>()).isMissingMethod,
   rpcMethods: async () => rpc.methods,
   methodsUnknown: () => rpc.unknown,
   callRpc: async (method: string) => {
@@ -11,6 +12,10 @@ vi.mock('./rpc', async (real) => ({
     return rpc.answer;
   },
 }));
+
+// what's noted for the mower looked at (mowers' noteOs)
+const noted: boolean[] = [];
+vi.mock('./mowers', async (real) => ({...(await real<typeof import('./mowers')>()), noteOs: (os: boolean) => noted.push(os)}));
 
 const load = async () => {
   vi.resetModules();
@@ -52,6 +57,30 @@ describe('systemInfo', () => {
   });
 });
 
+describe('what the mower runs, noted for its port', () => {
+  beforeEach(() => {
+    noted.length = 0;
+    rpc.unknown = false;
+  });
+
+  it('is MowBite OS once it said so, OpenMower when it has no system.info', async () => {
+    rpc.methods = new Set(['system.info']);
+    rpc.answer = {name: 'mowbite-os'};
+    await (await load()).systemInfo();
+    expect(noted).toEqual([true]);
+    rpc.methods = new Set(['params.set']);
+    await (await load()).systemInfo();
+    expect(noted).toEqual([true, false]);
+  });
+
+  it('stays as it was while the mower gave no answer', async () => {
+    rpc.methods = null;
+    rpc.unknown = true;
+    await (await load()).systemInfo();
+    expect(noted).toEqual([]);
+  });
+});
+
 describe('systemInfo without an answer', () => {
   it('is undecided after rpc.methods timed out and asks again', async () => {
     rpc.methods = null;
@@ -74,6 +103,18 @@ describe('systemInfo without an answer', () => {
     rpc.answer = {name: 'mowbite-os'};
     expect(await systemInfo()).toEqual({name: 'mowbite-os'});
     expect(rpc.asked).toEqual(['system.info', 'system.info']);
+  });
+
+  it('is undecided after another error of system.info, OpenMower only when it has no such method', async () => {
+    const {RpcError} = await import('./rpc');
+    rpc.methods = new Set(['system.info']);
+    rpc.answer = new RpcError('system.info', -32603, 'internal error');
+    const {systemInfo} = await load();
+    expect(await systemInfo()).toBeUndefined();
+    rpc.answer = new Error('connection lost');
+    expect(await systemInfo()).toBeUndefined();
+    rpc.answer = new RpcError('system.info', -32601, 'method not found');
+    expect(await systemInfo()).toBeNull();
   });
 });
 

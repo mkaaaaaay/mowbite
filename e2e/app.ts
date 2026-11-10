@@ -25,6 +25,10 @@ export const test = base.extend<{errors: string[]}>({
 });
 export {expect};
 
+// MowBite OS's parts the demo has behind a switch (lib/demo/flags), switched on before the page loads
+export const demoWith = (page: Page, ...parts: ('Lights' | 'Sounds' | 'Cameras' | 'Undo')[]) =>
+  page.addInitScript((names) => names.forEach((n) => ((window as unknown as Record<string, boolean>)[`mowbiteDemo${n}`] = true)), parts);
+
 // the demo mower as the app reaches it (lib/demo/client): what it has on a topic now, and a call to it like another phone
 // would make one
 type DemoMower = {

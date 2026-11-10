@@ -1,5 +1,6 @@
 'use client';
 
+import {useSure} from '@/hooks/useSure';
 import {useEffect, useRef, useState} from 'react';
 import {
   frameTakesTaps,
@@ -44,7 +45,7 @@ import {
 import {CopyButton} from '@/lib/clipboard';
 import {useDockgeUrl, useUpdaterPageUrl} from '@/lib/dockge';
 import {fmt, tr, useLang} from '@/lib/i18n';
-import {apiBase, isDemo} from '@/lib/mowers';
+import {isDemo, pageFromMower} from '@/lib/mowers';
 import {isApp} from '@/lib/native';
 import {useThemeChoice} from '@/lib/theme';
 import {APP_VERSION, useUpdates} from '@/lib/updates';
@@ -72,25 +73,6 @@ const UPDATER_YAML = `  updater:
       openmower.ui.icon: SystemUpdateAlt
       openmower.ui.description: Updates OpenMower, MowBite, the planner and other apps, with the mower idle in the dock
 `;
-
-// a delete or a step back takes two taps: the first asks, for a few seconds. a double tap by mistake doesn't answer
-// the question it brings up at the same spot
-function useSure() {
-  const [sure, setSure] = useState<string | null>(null);
-  const asked = useRef(0);
-  const confirm = (key: string, go: () => void) => {
-    if (sure !== key) {
-      setSure(key);
-      asked.current = Date.now();
-      setTimeout(() => setSure((k) => (k === key ? null : k)), 4000);
-      return;
-    }
-    if (Date.now() - asked.current < 600) return;
-    setSure(null);
-    go();
-  };
-  return {sure, confirm};
-}
 
 // what it did last with a part: in passing, or in a box when it's something to know or went wrong
 function LastTime({r}: {r: PartResult}) {
@@ -602,7 +584,7 @@ export function AutoUpdate() {
   // MowBite on the mower is another version than this page: after its update, the page needs loading again
   const onMower = (st.status.mowbite_running ?? '').split(' ')[0];
   // (only the mower this page comes from: another one picked can run another version for good)
-  const reload = !isApp() && !isDemo() && !apiBase() && !running && /^\d/.test(onMower) && onMower !== APP_VERSION;
+  const reload = pageFromMower() && !isDemo() && !running && /^\d/.test(onMower) && onMower !== APP_VERSION;
   const reloadNote = reload && (
     <div className={local.warn}>
       <div className={local.row}>

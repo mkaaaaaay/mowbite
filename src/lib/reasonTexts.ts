@@ -54,6 +54,7 @@ export const REFUSED_STEPS: Record<string, string> = {
   finish_navigation_area: 'Navigation area not saved',
   record_dock: 'Docking station not recorded',
   collect_point: 'Point not set',
+  undo_points: 'Nothing taken back',
   // the position got too inaccurate while recording, sent once until it's good again
   point: 'No points recorded',
 };
@@ -126,7 +127,11 @@ export const EVENTS: Record<string, EventText> = {
   JOB_RESET: one('Interrupted job dropped, the next start mows from the beginning'),
   EMERGENCY: {
     severity: 'error',
-    variants: [alone({when: {emergency: false}, en: 'Emergency cleared', severity: 'info'}), {en: 'Emergency stop', reason_is: 'emergency_bits'}],
+    variants: [
+      alone({when: {emergency: false, source: 'button'}, en: 'Emergency cleared at the mower', severity: 'info'}),
+      alone({when: {emergency: false}, en: 'Emergency cleared', severity: 'info'}),
+      {en: 'Emergency stop', reason_is: 'emergency_bits'},
+    ],
   },
   NAVIGATION_ERROR: {
     severity: 'error',
@@ -178,13 +183,41 @@ export const EVENTS: Record<string, EventText> = {
   // emergency false says it's over
   EMERGENCY_RESET_REFUSED: {
     severity: 'error',
-    variants: [{when: {reason: 'STILL_TILTED'}, en: 'Emergency stop not reset', severity: 'warning'}, {en: 'Emergency stop not reset'}],
+    variants: [
+      {when: {reason: 'STILL_TILTED'}, en: 'Emergency stop not reset', severity: 'warning'},
+      {when: {reason: 'STILL_ACTIVE'}, en: 'Emergency stop not reset', severity: 'warning'},
+      {when: {reason: 'LATCH_CHANGED'}, en: 'Emergency stop not reset', severity: 'warning'},
+      {en: 'Emergency stop not reset'},
+    ],
   },
   // MowBite OS started again without its own stop; hold: it waits for reset_emergency, otherwise it goes on by itself
   UNEXPECTED_RESTART: {
     severity: 'error',
     variants: [{when: {hold: false}, en: 'Restarted unexpectedly', severity: 'warning'}, {en: 'Held after an unexpected restart'}],
   },
+  // a file of the mower's data can't be written, nothing starts until it can
+  STORAGE: one('Storage problem', 'error'),
+  // why MowBite OS stays down (mowbite/host/status), and its updates: why one waits or isn't installed (update.status),
+  // update.* turned down. no events, their reasons come in those answers
+  HOST_OS: one("MowBite OS doesn't start", 'error'),
+  UPDATE: one('Update on the mower'),
+  UPDATE_REFUSED: one('Update request refused', 'warning'),
+  // sound.* turned down, only in its answer: playing, uploading, or another upload busy
+  SOUND_REFUSED: {
+    severity: 'info',
+    variants: [
+      {when: {reason: 'EMERGENCY'}, en: 'Sound not played'},
+      {when: {reason: 'NO_FILE'}, en: 'Sound not played'},
+      {when: {reason: 'BUSY'}, en: 'Sound not changed'},
+      {en: 'Sound not uploaded'},
+    ],
+  },
+  // camera.stream turned down, only in its answer: the camera can't show a picture now, or two watch already
+  CAMERA_REFUSED: one('No camera picture'),
+  // a camera can show a picture again or no longer, camera.list then says why
+  CAMERA_CHANGED: {severity: 'info', variants: [alone({when: {available: true}, en: 'Camera picture available'}), {en: 'No camera picture'}]},
+  // the methods MowBite OS offers changed (a camera came up or its process ended), the app asks for them again
+  METHODS_CHANGED: one("The mower's functions changed"),
   DRIVE: {
     severity: 'warning',
     variants: [
@@ -240,6 +273,7 @@ export const REASONS: Record<string, Variant[]> = {
   dock_failed: [r('no contact with the charger')],
   no_gps: [r('no GPS fix')],
   BUSY: [
+    r('another sound is being uploaded or checked', {when: {type: 'SOUND_REFUSED'}}),
     r('busy: Idle', {when: {state: 'IDLE'}}),
     r('busy: Mowing', {when: {state: 'MOWING'}}),
     r('busy: Recording an area', {when: {state: 'AREA_RECORDING'}}),
@@ -332,7 +366,7 @@ export const REASONS: Record<string, Variant[]> = {
   CROSS_TRACK: [r('too far off its path')],
   OUTSIDE: [r('outside the area it may drive in')],
   TIMEOUT: [r('took too long', {when: {type: 'CALIBRATION_FAILED'}}), r('not making progress, maybe stuck')],
-  INVALID: [r('the path is not valid')],
+  INVALID: [r("the mower didn't accept this request", {when: {type: 'UPDATE_REFUSED'}}), r('the path is not valid')],
   NOT_ALLOWED: [r('driving not allowed')],
   PLANNING_FAILED: [r("the planner couldn't make the plan")],
   APPROACH_FAILED: [r("couldn't get to the start of the lane")],
@@ -374,15 +408,80 @@ export const REASONS: Record<string, Variant[]> = {
     r('tilt unknown, no data from the IMU for {seconds:1} s', {when: {seconds: {present: true}}}),
     r('tilt unknown, no data from the IMU'),
   ],
+  // taken, but the emergency didn't end within 2 s (bits: what still holds), or another reason latched since STOP
+  STILL_ACTIVE: [r('still active')],
+  LATCH_CHANGED: [r('a new emergency reason came up')],
   FOREIGN_HOST: [r('another computer is talking to the board')],
-  DRIVER_MISSING: [r('the hardware driver is not running')],
+  DRIVER_MISSING: [
+    r('the hardware driver is not reporting, the camera waits for it', {when: {type: 'CAMERA_REFUSED'}}),
+    r('the hardware driver is not running'),
+  ],
   SAFETY_MISSING: [r('the safety filter is not running')],
   NO_ANSWER: [r('no answer in time')],
+  // SOUND_REFUSED: the situation has no sound file, or an upload (sound.upload) the mower didn't take
+  NO_FILE: [r('the mower has no sound for this situation')],
+  NOT_MP3: [r('the file is not an MP3 the mower can play')],
+  TOO_LONG: [
+    r('the sound is {seconds:1} s long, at most {limit} s', {when: {seconds: {present: true}, limit: {present: true}}}),
+    r('the sound is longer than {limit} s', {when: {limit: {present: true}}}),
+    r('the sound is too long'),
+  ],
+  TOO_SHORT: [
+    r('the sound is only {seconds:1} s long, at least {limit:1} s', {when: {seconds: {present: true}, limit: {present: true}}}),
+    r('the sound is too short'),
+  ],
+  // limit in bytes, the whole file's is MAX_SOUND_BYTES (lib/soundLimits)
+  TOO_LARGE: [r('the file is larger than 2 MB', {when: {limit: 2 << 20}}), r('the file is too large')],
+  CHECKSUM: [r('the file arrived damaged, upload it again')],
+  NO_SPACE: [r('no space left on the mower, delete another sound of your own or choose a smaller file')],
+  PART_ORDER: [r('a part of the file arrived out of order, upload it again')],
   RESTART_HOLD_STAYS: [r("the hold after the unexpected restart couldn't be removed")],
+  // CAMERA_REFUSED and camera.list: why a camera shows no picture now (DRIVER_MISSING above)
+  CAMERA_BUSY: [r('two are watching already, at most two at a time')],
+  LOCKED_AFTER_CRASH: [r('the camera software crashed and is locked')],
+  NOT_SET_UP: [r('the camera is not set up on the mower')],
+  BLADE_RUNNING: [r('not while the blade is running')],
+  TOO_HOT: [r('the camera is too hot')],
+  NO_SIGNAL: [r('no signal from the camera')],
+  SELF_TEST: [r('the mower is still testing itself after starting')],
   // UNEXPECTED_RESTART: what ended MowBite OS before
   KERNEL_CRASH: [r('the kernel crashed')],
   OS_CRASH: [r('MowBite OS crashed')],
   POWER_LOSS: [r('interrupted while working', {when: {hold: true}}), r('power cut or reset')],
+  NODE_STALLED: [r('a part of MowBite OS stopped responding')],
+  STORAGE_NOT_WRITABLE: [r("the mower can't write to its storage, starting is blocked until it can")],
+  // why MowBite OS doesn't start (mowbite/host/status)
+  CRASH_LOOP: [r('it crashed {restarts} times and stays off', {when: {restarts: {present: true}}}), r('it crashed several times and stays off')],
+  DATA_DIR_LOCKED: [r("another MowBite OS holds the mower's data")],
+  DATA_ERROR: [r("it can't read or prepare its data")],
+  DATA_NO_SPACE: [r('no space on the mower to back up its data before starting')],
+  DDS_PROFILE: [r('the profile its parts talk by is missing or unreadable')],
+  SCHEMA_NEWER: [r("the mower's data is from a newer version of it")],
+  // MowBite OS's updates (update.status): why one waits, isn't installed or was taken back
+  APP_TOO_OLD: [r('this version of the app is too old for the MowBite OS on the mower')],
+  OS_TOO_OLD: [r('this version of the app needs a newer MowBite OS')],
+  PLANNER_INTERFACE: [r("this version of the planner doesn't speak the interface of the MowBite OS on the mower")],
+  PLANNER_DATA: [r('this version of the planner keeps its data another way than the MowBite OS on the mower reads it')],
+  JOB_OPEN: [r('waiting until the started mowing job is finished or reset')],
+  BAD_BUNDLE: [r('the update file is damaged')],
+  BAD_ORIGIN: [r("the update isn't from a source set up on the mower")],
+  BAD_SIGNATURE: [r("the update isn't signed with a known key")],
+  BASE_TOO_OLD: [r("needs a newer base system on the mower, it isn't installed by itself")],
+  BLOCKED: [r("skipped by the automatic update: it failed before, was taken back or doesn't fit this mower")],
+  INTERNAL: [r('an error in the updater of MowBite OS')],
+  INTERRUPTED: [r('the switch was interrupted twice, the mower is back on the version before')],
+  LIBRARY_MISSING: [r('a library it needs is missing on the mower')],
+  NO_HOLD: [r("MowBite OS couldn't hold the mower for the update")],
+  OLD_SERIAL: [r('not newer than the version running')],
+  ROLLED_BACK_BY_HAND: [r("taken back by hand, it isn't installed again by itself")],
+  UNFINISHED: [r("an earlier update didn't finish")],
+  UNHEALTHY: [r("MowBite OS didn't run properly after the update, the mower went back to the version before")],
+  UPDATE_NO_SPACE: [r('not enough space on the mower to unpack the update')],
+  // update.* turned down
+  NOT_UPDATING: [r('no update is running')],
+  NO_NEWER: [r('MowBite OS is up to date')],
+  NO_PREVIOUS: [r('there is no version before this one to go back to')],
+  UNKNOWN_REVISION: [r("the mower doesn't know this version")],
   // the calibration drive (CALIBRATION_REFUSED, CALIBRATION_FAILED): rate and limit in reports a second
   NO_RTK: [r('no RTK fix')],
   NO_ROOM: [

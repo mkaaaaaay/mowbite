@@ -8,7 +8,7 @@ import {useEffect, useState, useSyncExternalStore} from 'react';
 import styles from './page.module.css';
 import {dec, setLangChoice, tr, useLang, useLangChoice} from '@/lib/i18n';
 import {setThemeChoice, useThemeChoice} from '@/lib/theme';
-import {appMowers, DEMO_ID, forgetMowerKeys, isDemo, parseAddress, sameMowBite, saveAppMowers, selectedMower, selectMower} from '@/lib/mowers';
+import {appMowers, appPort, CONTAINER_PORT, DEMO_ID, forgetMowerKeys, isDemo, parseAddress, sameMowBite, saveAppMowers, selectedMower, selectMower, WS_PORT} from '@/lib/mowers';
 import {forgetMqtt5} from '@/lib/mqttClient';
 import {isApp} from '@/lib/native';
 import {leaveFirst} from '@/lib/leaving';
@@ -24,6 +24,11 @@ import {MowerSizesSettings} from '@/components/MowerSizesSettings';
 import {CalibrationLink} from '@/components/CalibrationLink';
 import {CALIB_SHOWN} from '@/lib/calibration';
 import {NotifySettings} from '@/components/NotifySettings';
+import {LightSettings} from '@/components/LightSettings';
+import {SoundSettings} from '@/components/SoundSettings';
+import {useRpcMethods} from '@/hooks/useRpcMethods';
+import {RPC} from '@/lib/openmower';
+import {useMowbiteOs} from '@/lib/mowerOs';
 import {DashboardItems} from '@/components/DashboardItems';
 import {datumFromParams, useMowerParams} from '@/hooks/useMowerParams';
 import {posixTz} from '@/lib/schedule';
@@ -91,8 +96,8 @@ function Group({
 function MowersSection({settings}: {settings: Settings}) {
   const [name, setName] = useState('');
   const [host, setHost] = useState('');
-  const [appPort, setAppPort] = useState('8082');
-  const [wsPort, setWsPort] = useState('9001');
+  const [typedPort, setTypedPort] = useState(String(CONTAINER_PORT));
+  const [wsPort, setWsPort] = useState(String(WS_PORT));
   const [error, setError] = useState<string | null>(null);
   // the android app keeps its list on the phone, a mower keeps it in its shared settings
   const app = useSyncExternalStore(noop, isApp, () => false);
@@ -131,8 +136,8 @@ function MowersSection({settings}: {settings: Settings}) {
       id: Math.random().toString(36).slice(2, 10),
       name: name.trim(),
       host: typed.host,
-      appPort: typed.port ?? (Number(appPort) || 8082),
-      wsPort: Number(wsPort) || 9001,
+      appPort: typed.port ?? (Number(typedPort) || CONTAINER_PORT),
+      wsPort: Number(wsPort) || WS_PORT,
     };
     // (another MowBite on the same host answers on another port)
     const port = Number(window.location.port) || 80;
@@ -180,7 +185,7 @@ function MowersSection({settings}: {settings: Settings}) {
           <span>
             <strong>{m.name || m.host}</strong>{' '}
             <span className={styles.dim}>
-              {m.host}:{m.appPort ?? 8082}
+              {m.host}:{appPort(m)}
             </span>
           </span>
           <button
@@ -218,7 +223,7 @@ function MowersSection({settings}: {settings: Settings}) {
             <summary>{tr('Ports (only if you changed them)')}</summary>
             <label className={styles.field}>
               {tr('MowBite port')}
-              <input value={appPort} onChange={(e) => setAppPort(e.target.value)} inputMode="numeric" />
+              <input value={typedPort} onChange={(e) => setTypedPort(e.target.value)} inputMode="numeric" />
             </label>
             <label className={styles.field}>
               {tr('MQTT websocket port')}
@@ -267,6 +272,12 @@ export default function SettingsPage() {
   // the planner there but busy: it's waited for, not the sizes as without it
   const waiting = usePlannerWaiting()?.what === 'load';
   const demo = useSyncExternalStore(noop, isDemo, () => false);
+  // the lights by state and the sounds, on a mower that has them (MowBite OS)
+  const methods = useRpcMethods();
+  const lights = !!methods?.has(RPC.lightGet);
+  const sounds = !!methods?.has(RPC.soundList);
+  // the calibration isn't there on MowBite OS, nor is the way to its guide
+  const os = useMowbiteOs();
 
   return (
     <div className={styles.page}>
@@ -398,6 +409,17 @@ export default function SettingsPage() {
           </Group>
         )}
 
+        {lights && (
+          <Group id="lights" title={tr('Lights')} hint={tr('Color and effect by state')}>
+            <LightSettings styles={styles} />
+          </Group>
+        )}
+        {sounds && (
+          <Group id="sounds" title={tr('Sounds')} hint={tr('Volume, listen to each sound')}>
+            <SoundSettings styles={styles} />
+          </Group>
+        )}
+
         <Group id="notify" title={tr('Push messages')} hint={tr('On the phone when the mower needs you')}>
           <NotifySettings settings={settings} styles={styles} />
         </Group>
@@ -519,7 +541,12 @@ export default function SettingsPage() {
               <Link href="/guide/app" className={styles.pillButton}>
                 {tr('Dashboard and mowers')}
               </Link>
-              {CALIB_SHOWN && (
+              {(lights || sounds) && (
+                <Link href="/guide/lights" className={styles.pillButton}>
+                  {lights ? tr('Lights and sounds') : tr('Sounds')}
+                </Link>
+              )}
+              {CALIB_SHOWN && !os && (
                 <Link href="/guide/calibration" className={styles.pillButton}>
                   {tr('Calibrating')}
                 </Link>

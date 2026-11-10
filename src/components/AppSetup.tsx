@@ -1,7 +1,7 @@
 'use client';
 
 import {tr, useLang} from '@/lib/i18n';
-import {appMowers, DEMO_ID, isDemo, parseAddress, saveAppMowers, selectMower} from '@/lib/mowers';
+import {appMowers, CONTAINER_PORT, DEMO_ID, isDemo, OS_PORT, osServesApp, parseAddress, PROBE_MS, saveAppMowers, selectMower, WS_PORT} from '@/lib/mowers';
 import {isApp} from '@/lib/native';
 import {useState, useSyncExternalStore} from 'react';
 import LogoMark from './Logo';
@@ -21,13 +21,13 @@ export default function AppSetup() {
   const [failed, setFailed] = useState(false);
   if (!app || hasMower) return null;
 
-  // MowBite on another port than 8082, typed after the host
+  // MowBite on another port than its container's, typed after the host
   const typed = parseAddress(host);
   const clean = typed?.host ?? '';
-  const port = typed?.port ?? 8082;
-  const save = () => {
+  const port = typed?.port ?? CONTAINER_PORT;
+  const save = (appPort = port) => {
     const id = Math.random().toString(36).slice(2, 10);
-    saveAppMowers([{id, name: name.trim(), host: clean, appPort: port, wsPort: 9001}]);
+    saveAppMowers([{id, name: name.trim(), host: clean, appPort, wsPort: WS_PORT}]);
     selectMower(id);
   };
   const connect = async () => {
@@ -35,9 +35,11 @@ export default function AppSetup() {
     setFailed(false);
     try {
       // only whether something answers there, older MowBite versions don't allow reading from the app
-      await fetch(`http://${clean}:${port}/manifest.json`, {mode: 'no-cors', signal: AbortSignal.timeout(6000)});
+      await fetch(`http://${clean}:${port}/manifest.json`, {mode: 'no-cors', signal: AbortSignal.timeout(PROBE_MS)});
       save();
     } catch {
+      // no container there and no port typed: MowBite OS serves the app itself
+      if (!typed?.port && (await osServesApp(clean))) return save(OS_PORT);
       setFailed(true);
       setBusy(false);
     }
@@ -62,7 +64,7 @@ export default function AppSetup() {
         {failed && (
           <p className={styles.error}>
             {tr("MowBite doesn't answer there. Check the address and that MowBite runs on the mower.")}{' '}
-            <button className={styles.link} onClick={save}>
+            <button className={styles.link} onClick={() => save()}>
               {tr('Use it anyway')}
             </button>
           </p>

@@ -139,6 +139,29 @@
   cursor: pointer;
 }
 
+.ask {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  font-size: 13px;
+}
+
+.ask button {
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--field-border);
+  background: transparent;
+  color: var(--foreground);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.ask .askOff {
+  border-color: var(--warning, #ffb300);
+  color: var(--warning, #ffb300);
+}
+
 .error {
   color: var(--error, #ff5252);
   font-size: 12px;

@@ -110,9 +110,9 @@ export function leaveRemoved() {
   if (!isApp() && id && id !== DEMO_ID && !mowerList().some((m) => m.id === id)) selectMower('');
 }
 
-// a key in this device's storage for what's kept for the mower looked at, the key alone for the one the page comes from
-export function mowerKey(key: string): string {
-  const id = selectedMower()?.id;
+// a key in this device's storage for what's kept for a mower (the one looked at unless named), the key alone for the one
+// the page comes from
+export function mowerKey(key: string, id = selectedMower()?.id): string {
   return id ? `${key} ${id}` : key;
 }
 
@@ -149,11 +149,42 @@ export function writeStored(key: string, value: unknown) {
 export const readMower = <T>(key: string) => readStored<T>(mowerKey(key));
 export const writeMower = (key: string, value: unknown) => writeStored(mowerKey(key), value);
 
+// MowBite's port on a mower: its container's on OpenMower, MowBite OS serves the app itself (masterplan 3.5)
+export const CONTAINER_PORT = 8082;
+export const OS_PORT = 80;
+// the mower's MQTT over websockets (mosquitto on OpenMower, the bridge on MowBite OS)
+export const WS_PORT = 9001;
+// how long a look for MowBite at an address waits
+export const PROBE_MS = 6000;
+// this device found the mower to run MowBite OS, kept for it like mowerKey has it
+const OS_KEY = 'mowbiteOs';
+
+// what system.info said about the mower looked at
+export function noteOs(os: boolean) {
+  const m = selectedMower();
+  if (m && m.id !== DEMO_ID) writeMower(OS_KEY, os || null);
+}
+
+// whether MowBite OS serves the app at a host: its app.json there names the app (scripts/version.mjs writes it). only
+// an OS that lets another origin read it can tell
+export async function osServesApp(host: string): Promise<boolean> {
+  try {
+    const res = await fetch(`http://${host}:${OS_PORT}/app.json`, {cache: 'no-store', signal: AbortSignal.timeout(PROBE_MS)});
+    return res.ok && ((await res.json()) as {owner?: unknown} | null)?.owner === 'mowbite-app';
+  } catch {
+    return false;
+  }
+}
+
+type Address = Pick<OtherMower, 'host' | 'appPort'> & {id?: string};
+// the port a mower's MowBite answers on: the one typed for it, else the container's, on MowBite OS the OS's (one kept
+// with the container's port is taken as not typed there)
+export const appPort = (m: Omit<Address, 'host'>): number =>
+  m.appPort && m.appPort !== CONTAINER_PORT ? m.appPort : m.id && readStored(mowerKey(OS_KEY, m.id)) ? OS_PORT : CONTAINER_PORT;
 // where a mower's MowBite answers
-export const mowerBase = (m: Pick<OtherMower, 'host' | 'appPort'>) => `http://${m.host}:${m.appPort ?? 8082}`;
+export const mowerBase = (m: Address) => `http://${m.host}:${appPort(m)}`;
 // the same MowBite: the same host and port
-export const sameMowBite = (a: Pick<OtherMower, 'host' | 'appPort'>, b: Pick<OtherMower, 'host' | 'appPort'>) =>
-  mowerBase(a).toLowerCase() === mowerBase(b).toLowerCase();
+export const sameMowBite = (a: Address, b: Address) => mowerBase(a).toLowerCase() === mowerBase(b).toLowerCase();
 
 // the mower a push message is about, by the address of its MowBite in the message (the one its settings were saved
 // from): the same host and port, else the only one in the list on that host. none when that doesn't tell them apart
@@ -166,7 +197,7 @@ export function mowerByAddress(api: string, list: OtherMower[]): OtherMower | un
   }
   const port = Number(url.port) || (url.protocol === 'https:' ? 443 : 80);
   const onHost = list.filter((m) => m.host.toLowerCase() === url.hostname);
-  return onHost.find((m) => (m.appPort ?? 8082) === port) ?? (onHost.length === 1 ? onHost[0] : undefined);
+  return onHost.find((m) => appPort(m) === port) ?? (onHost.length === 1 ? onHost[0] : undefined);
 }
 
 // where the selected mower's MowBite answers (sensor history, backups, schedule)
@@ -175,6 +206,9 @@ export function apiBase(): string {
   const m = selectedMower();
   return m && m.id !== DEMO_ID ? mowerBase(m) : '';
 }
+
+// the page came from the MowBite of the mower looked at: not the app, not another mower
+export const pageFromMower = () => !isApp() && !apiBase();
 
 // a request to the selected mower's MowBite, the demo mower answers it itself
 export async function mowerFetch(url: string, init?: RequestInit): Promise<Response> {

@@ -304,6 +304,16 @@
    "variants": [
     {
      "when": {
+      "emergency": false,
+      "source": "button"
+     },
+     "en": "Emergency cleared at the mower",
+     "severity": "info",
+     "with_reason": false,
+     "de": "Notaus am Mäher aufgehoben"
+    },
+    {
+     "when": {
       "emergency": false
      },
      "en": "Emergency cleared",
@@ -580,6 +590,22 @@
      "de": "Notaus nicht zurückgesetzt"
     },
     {
+     "when": {
+      "reason": "STILL_ACTIVE"
+     },
+     "en": "Emergency stop not reset",
+     "severity": "warning",
+     "de": "Notaus nicht zurückgesetzt"
+    },
+    {
+     "when": {
+      "reason": "LATCH_CHANGED"
+     },
+     "en": "Emergency stop not reset",
+     "severity": "warning",
+     "de": "Notaus nicht zurückgesetzt"
+    },
+    {
      "en": "Emergency stop not reset",
      "de": "Notaus nicht zurückgesetzt"
     }
@@ -599,6 +625,107 @@
     {
      "en": "Held after an unexpected restart",
      "de": "Gesperrt nach unerwartetem Neustart"
+    }
+   ]
+  },
+  "STORAGE": {
+   "severity": "error",
+   "variants": [
+    {
+     "en": "Storage problem",
+     "de": "Speicherproblem"
+    }
+   ]
+  },
+  "HOST_OS": {
+   "severity": "error",
+   "variants": [
+    {
+     "en": "MowBite OS doesn't start",
+     "de": "MowBite OS startet nicht"
+    }
+   ]
+  },
+  "UPDATE": {
+   "severity": "info",
+   "variants": [
+    {
+     "en": "Update on the mower",
+     "de": "Update auf dem Mäher"
+    }
+   ]
+  },
+  "UPDATE_REFUSED": {
+   "severity": "warning",
+   "variants": [
+    {
+     "en": "Update request refused",
+     "de": "Update-Anfrage abgelehnt"
+    }
+   ]
+  },
+  "SOUND_REFUSED": {
+   "severity": "info",
+   "variants": [
+    {
+     "when": {
+      "reason": "EMERGENCY"
+     },
+     "en": "Sound not played",
+     "de": "Ton nicht abgespielt"
+    },
+    {
+     "when": {
+      "reason": "NO_FILE"
+     },
+     "en": "Sound not played",
+     "de": "Ton nicht abgespielt"
+    },
+    {
+     "when": {
+      "reason": "BUSY"
+     },
+     "en": "Sound not changed",
+     "de": "Ton nicht geändert"
+    },
+    {
+     "en": "Sound not uploaded",
+     "de": "Ton nicht hochgeladen"
+    }
+   ]
+  },
+  "CAMERA_REFUSED": {
+   "severity": "info",
+   "variants": [
+    {
+     "en": "No camera picture",
+     "de": "Kein Kamerabild"
+    }
+   ]
+  },
+  "CAMERA_CHANGED": {
+   "severity": "info",
+   "variants": [
+    {
+     "when": {
+      "available": true
+     },
+     "en": "Camera picture available",
+     "with_reason": false,
+     "de": "Kamerabild verfügbar"
+    },
+    {
+     "en": "No camera picture",
+     "de": "Kein Kamerabild"
+    }
+   ]
+  },
+  "METHODS_CHANGED": {
+   "severity": "info",
+   "variants": [
+    {
+     "en": "The mower's functions changed",
+     "de": "Funktionen des Mähers geändert"
     }
    ]
   },
@@ -782,6 +909,13 @@
     },
     {
      "when": {
+      "action": "undo_points"
+     },
+     "en": "Nothing taken back",
+     "de": "Nichts zurückgenommen"
+    },
+    {
+     "when": {
       "action": "point"
      },
      "en": "No points recorded",
@@ -881,6 +1015,13 @@
    }
   ],
   "BUSY": [
+   {
+    "en": "another sound is being uploaded or checked",
+    "when": {
+     "type": "SOUND_REFUSED"
+    },
+    "de": "gerade wird schon ein anderer Ton hochgeladen oder geprüft"
+   },
    {
     "en": "busy: Idle",
     "when": {
@@ -1347,6 +1488,13 @@
   ],
   "INVALID": [
    {
+    "en": "the mower didn't accept this request",
+    "when": {
+     "type": "UPDATE_REFUSED"
+    },
+    "de": "der Mäher hat diese Anfrage nicht angenommen"
+   },
+   {
     "en": "the path is not valid",
     "de": "die Bahn ist ungültig"
    }
@@ -1562,6 +1710,18 @@
     "de": "Neigung unbekannt, keine Daten von der IMU"
    }
   ],
+  "STILL_ACTIVE": [
+   {
+    "en": "still active",
+    "de": "besteht weiter"
+   }
+  ],
+  "LATCH_CHANGED": [
+   {
+    "en": "a new emergency reason came up",
+    "de": "ein neuer Notaus-Grund kam dazu"
+   }
+  ],
   "FOREIGN_HOST": [
    {
     "en": "another computer is talking to the board",
@@ -1569,6 +1729,13 @@
    }
   ],
   "DRIVER_MISSING": [
+   {
+    "en": "the hardware driver is not reporting, the camera waits for it",
+    "when": {
+     "type": "CAMERA_REFUSED"
+    },
+    "de": "der Hardware-Treiber meldet sich nicht, die Kamera wartet auf ihn"
+   },
    {
     "en": "the hardware driver is not running",
     "de": "der Hardware-Treiber läuft nicht"
@@ -1586,10 +1753,140 @@
     "de": "keine rechtzeitige Antwort"
    }
   ],
+  "NO_FILE": [
+   {
+    "en": "the mower has no sound for this situation",
+    "de": "für diese Situation hat der Mäher keinen Ton"
+   }
+  ],
+  "NOT_MP3": [
+   {
+    "en": "the file is not an MP3 the mower can play",
+    "de": "die Datei ist keine MP3, die der Mäher abspielen kann"
+   }
+  ],
+  "TOO_LONG": [
+   {
+    "en": "the sound is {seconds:1} s long, at most {limit} s",
+    "when": {
+     "seconds": {
+      "present": true
+     },
+     "limit": {
+      "present": true
+     }
+    },
+    "de": "der Ton ist {seconds:1} s lang, höchstens {limit} s"
+   },
+   {
+    "en": "the sound is longer than {limit} s",
+    "when": {
+     "limit": {
+      "present": true
+     }
+    },
+    "de": "der Ton ist länger als {limit} s"
+   },
+   {
+    "en": "the sound is too long",
+    "de": "der Ton ist zu lang"
+   }
+  ],
+  "TOO_SHORT": [
+   {
+    "en": "the sound is only {seconds:1} s long, at least {limit:1} s",
+    "when": {
+     "seconds": {
+      "present": true
+     },
+     "limit": {
+      "present": true
+     }
+    },
+    "de": "der Ton ist nur {seconds:1} s lang, mindestens {limit:1} s"
+   },
+   {
+    "en": "the sound is too short",
+    "de": "der Ton ist zu kurz"
+   }
+  ],
+  "TOO_LARGE": [
+   {
+    "en": "the file is larger than 2 MB",
+    "when": {
+     "limit": 2097152
+    },
+    "de": "die Datei ist größer als 2 MB"
+   },
+   {
+    "en": "the file is too large",
+    "de": "die Datei ist zu groß"
+   }
+  ],
+  "CHECKSUM": [
+   {
+    "en": "the file arrived damaged, upload it again",
+    "de": "die Datei kam beschädigt an, bitte noch einmal hochladen"
+   }
+  ],
+  "NO_SPACE": [
+   {
+    "en": "no space left on the mower, delete another sound of your own or choose a smaller file",
+    "de": "kein Platz mehr auf dem Mäher, einen anderen eigenen Ton löschen oder eine kleinere Datei wählen"
+   }
+  ],
+  "PART_ORDER": [
+   {
+    "en": "a part of the file arrived out of order, upload it again",
+    "de": "ein Teil der Datei kam in falscher Reihenfolge an, bitte noch einmal hochladen"
+   }
+  ],
   "RESTART_HOLD_STAYS": [
    {
     "en": "the hold after the unexpected restart couldn't be removed",
     "de": "die Sperre nach dem unerwarteten Neustart ließ sich nicht aufheben"
+   }
+  ],
+  "CAMERA_BUSY": [
+   {
+    "en": "two are watching already, at most two at a time",
+    "de": "es sehen schon zwei zu, mehr als zwei gleichzeitig gehen nicht"
+   }
+  ],
+  "LOCKED_AFTER_CRASH": [
+   {
+    "en": "the camera software crashed and is locked",
+    "de": "die Kamera-Software ist abgestürzt und gesperrt"
+   }
+  ],
+  "NOT_SET_UP": [
+   {
+    "en": "the camera is not set up on the mower",
+    "de": "die Kamera ist auf dem Mäher nicht eingerichtet"
+   }
+  ],
+  "BLADE_RUNNING": [
+   {
+    "en": "not while the blade is running",
+    "de": "nicht, solange das Messer läuft"
+   }
+  ],
+  "TOO_HOT": [
+   {
+    "en": "the camera is too hot",
+    "de": "die Kamera ist zu heiß"
+   }
+  ],
+  "NO_SIGNAL": [
+   {
+    "en": "no signal from the camera",
+    "de": "kein Signal von der Kamera"
+   }
+  ],
+  "SELF_TEST": [
+   {
+    "en": "the mower is still testing itself after starting",
+    "de": "der Mäher prüft sich nach dem Start noch selbst"
    }
   ],
   "KERNEL_CRASH": [
@@ -1615,6 +1912,201 @@
    {
     "en": "power cut or reset",
     "de": "Stromausfall oder Reset"
+   }
+  ],
+  "NODE_STALLED": [
+   {
+    "en": "a part of MowBite OS stopped responding",
+    "de": "ein Teil von MowBite OS hat nicht mehr reagiert"
+   }
+  ],
+  "STORAGE_NOT_WRITABLE": [
+   {
+    "en": "the mower can't write to its storage, starting is blocked until it can",
+    "de": "der Mäher kann seinen Speicher nicht beschreiben, Starten ist gesperrt, bis es wieder geht"
+   }
+  ],
+  "CRASH_LOOP": [
+   {
+    "en": "it crashed {restarts} times and stays off",
+    "when": {
+     "restarts": {
+      "present": true
+     }
+    },
+    "de": "es ist {restarts}-mal abgestürzt und bleibt aus"
+   },
+   {
+    "en": "it crashed several times and stays off",
+    "de": "es ist mehrmals abgestürzt und bleibt aus"
+   }
+  ],
+  "DATA_DIR_LOCKED": [
+   {
+    "en": "another MowBite OS holds the mower's data",
+    "de": "ein anderes MowBite OS hält die Daten des Mähers"
+   }
+  ],
+  "DATA_ERROR": [
+   {
+    "en": "it can't read or prepare its data",
+    "de": "es kann seine Daten nicht lesen oder vorbereiten"
+   }
+  ],
+  "DATA_NO_SPACE": [
+   {
+    "en": "no space on the mower to back up its data before starting",
+    "de": "kein Platz auf dem Mäher, um die Daten vor dem Start zu sichern"
+   }
+  ],
+  "DDS_PROFILE": [
+   {
+    "en": "the profile its parts talk by is missing or unreadable",
+    "de": "das Profil, über das seine Teile miteinander sprechen, fehlt oder ist nicht lesbar"
+   }
+  ],
+  "SCHEMA_NEWER": [
+   {
+    "en": "the mower's data is from a newer version of it",
+    "de": "die Daten des Mähers stammen von einer neueren Version"
+   }
+  ],
+  "APP_TOO_OLD": [
+   {
+    "en": "this version of the app is too old for the MowBite OS on the mower",
+    "de": "diese Version der App ist zu alt für das MowBite OS auf dem Mäher"
+   }
+  ],
+  "OS_TOO_OLD": [
+   {
+    "en": "this version of the app needs a newer MowBite OS",
+    "de": "diese Version der App braucht ein neueres MowBite OS"
+   }
+  ],
+  "PLANNER_INTERFACE": [
+   {
+    "en": "this version of the planner doesn't speak the interface of the MowBite OS on the mower",
+    "de": "diese Version des Planers spricht nicht die Schnittstelle des MowBite OS auf dem Mäher"
+   }
+  ],
+  "PLANNER_DATA": [
+   {
+    "en": "this version of the planner keeps its data another way than the MowBite OS on the mower reads it",
+    "de": "diese Version des Planers speichert ihre Daten anders, als das MowBite OS auf dem Mäher sie liest"
+   }
+  ],
+  "JOB_OPEN": [
+   {
+    "en": "waiting until the started mowing job is finished or reset",
+    "de": "wartet, bis der begonnene Mähauftrag fertig oder zurückgesetzt ist"
+   }
+  ],
+  "BAD_BUNDLE": [
+   {
+    "en": "the update file is damaged",
+    "de": "die Update-Datei ist beschädigt"
+   }
+  ],
+  "BAD_ORIGIN": [
+   {
+    "en": "the update isn't from a source set up on the mower",
+    "de": "das Update kommt aus keiner auf dem Mäher eingerichteten Quelle"
+   }
+  ],
+  "BAD_SIGNATURE": [
+   {
+    "en": "the update isn't signed with a known key",
+    "de": "das Update ist mit keinem bekannten Schlüssel signiert"
+   }
+  ],
+  "BASE_TOO_OLD": [
+   {
+    "en": "needs a newer base system on the mower, it isn't installed by itself",
+    "de": "braucht ein neueres Grundsystem auf dem Mäher und wird nicht von selbst installiert"
+   }
+  ],
+  "BLOCKED": [
+   {
+    "en": "skipped by the automatic update: it failed before, was taken back or doesn't fit this mower",
+    "de": "von der Automatik übersprungen: vorher gescheitert, zurückgenommen oder unpassend für diesen Mäher"
+   }
+  ],
+  "INTERNAL": [
+   {
+    "en": "an error in the updater of MowBite OS",
+    "de": "ein Fehler im Updater von MowBite OS"
+   }
+  ],
+  "INTERRUPTED": [
+   {
+    "en": "the switch was interrupted twice, the mower is back on the version before",
+    "de": "das Umschalten wurde zweimal unterbrochen, der Mäher ist wieder bei der vorigen Version"
+   }
+  ],
+  "LIBRARY_MISSING": [
+   {
+    "en": "a library it needs is missing on the mower",
+    "de": "eine benötigte Bibliothek fehlt auf dem Mäher"
+   }
+  ],
+  "NO_HOLD": [
+   {
+    "en": "MowBite OS couldn't hold the mower for the update",
+    "de": "MowBite OS konnte den Mäher für das Update nicht anhalten"
+   }
+  ],
+  "OLD_SERIAL": [
+   {
+    "en": "not newer than the version running",
+    "de": "nicht neuer als die laufende Version"
+   }
+  ],
+  "ROLLED_BACK_BY_HAND": [
+   {
+    "en": "taken back by hand, it isn't installed again by itself",
+    "de": "von Hand zurückgenommen, wird nicht von selbst wieder installiert"
+   }
+  ],
+  "UNFINISHED": [
+   {
+    "en": "an earlier update didn't finish",
+    "de": "ein früheres Update wurde nicht beendet"
+   }
+  ],
+  "UNHEALTHY": [
+   {
+    "en": "MowBite OS didn't run properly after the update, the mower went back to the version before",
+    "de": "MowBite OS lief nach dem Update nicht richtig, der Mäher ist zur vorigen Version zurückgekehrt"
+   }
+  ],
+  "UPDATE_NO_SPACE": [
+   {
+    "en": "not enough space on the mower to unpack the update",
+    "de": "nicht genug Platz auf dem Mäher, um das Update zu entpacken"
+   }
+  ],
+  "NOT_UPDATING": [
+   {
+    "en": "no update is running",
+    "de": "es läuft kein Update"
+   }
+  ],
+  "NO_NEWER": [
+   {
+    "en": "MowBite OS is up to date",
+    "de": "MowBite OS ist aktuell"
+   }
+  ],
+  "NO_PREVIOUS": [
+   {
+    "en": "there is no version before this one to go back to",
+    "de": "es gibt keine vorige Version, zu der es zurückgehen könnte"
+   }
+  ],
+  "UNKNOWN_REVISION": [
+   {
+    "en": "the mower doesn't know this version",
+    "de": "der Mäher kennt diese Version nicht"
    }
   ],
   "NO_RTK": [

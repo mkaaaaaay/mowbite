@@ -5,7 +5,7 @@
 #   topic, push (a phone's address, a line each), lang (de/en), name (of the mower), url (where MowBite is, for its
 #   button and a tap on the message),
 #   events (which of: emergency, dock_failed, undock_failed, nav_error, spinup, standstill, refused, done, rain, battery,
-#   maintenance),
+#   dark, maintenance),
 #   remind (minutes between reminders while the mower can't get on by itself, 0: none),
 #   emergency_wait (seconds an emergency stop has to last before it's told, 10 unless set), enabled (0: switched off)
 # and SNOOZE: until when (unix time) there are no reminders. STATS: where stats.sh counts the blade hours, a part
@@ -368,6 +368,7 @@ BEGIN {
       why = field(json, "reason")
       if (why == "RAIN" || why ~ /^Rain/) info("rain", tx("Rain", "Regen"), tx(who() " is going home, it's raining.", who() " fährt wegen Regen nach Hause."), "cloud_with_rain")
       else if (why == "BATTERY_LOW" || why == "BATTERY_CRITICAL" || why ~ /^Battery/) info("battery", tx("Battery low", "Akku niedrig"), tx(who() " is going home to charge.", who() " fährt zum Laden nach Hause."), "battery")
+      else if (why == "DARK") info("dark", tx("Sunset", "Sonnenuntergang"), tx(who() " is going home, the sun has set.", who() " fährt nach Hause, die Sonne ist untergegangen."), "city_sunset")
     } else if (type == "MOWING_REFUSED" && coded(json)) {
       # busy and still stopping go by themselves, a start pressed again a moment later
       why = field(json, "reason")
@@ -381,9 +382,10 @@ BEGIN {
       # its speed comes as MOW_MOTOR_SPINUP_FAILED too
       why = field(json, "reason")
       if (st == "PAUSED" && coded(json) && field(json, "resume") == "user" && why != "MANUAL" && why != "EMERGENCY" && why != "BLADE_SPINUP_FAILED") {
-        # a reason to go home without a way there (no docking station, no contacts at the back): rain as that, the dark
-        # and too hot as a pause that waits
+        # a reason to go home without a way there (no docking station, no contacts at the back): rain and the dark as
+        # those, too hot as a pause that waits
         if (why == "RAIN") info("rain", tx("Rain", "Regen"), tx(who() " stopped for rain and waits where it is, it can't go home by itself.", who() " hat wegen Regen angehalten und wartet an Ort und Stelle, allein kann er nicht heim."), "cloud_with_rain")
+        else if (why == "DARK") info("dark", tx("Sunset", "Sonnenuntergang"), tx(who() " stopped, the sun has set. It waits where it is, it can't go home by itself.", who() " hat angehalten, die Sonne ist untergegangen. Er wartet an Ort und Stelle, allein kann er nicht heim."), "city_sunset")
         else if (why == "BLADE_REFUSED") info("spinup", tx("Mow motor didn't start", "Mähmotor lief nicht an"), tx(who() " paused: ", who() " hat pausiert: ") reason(json) "." tx(" It waits until you continue it.", " Wartet, bis du fortsetzt."), "warning")
         else info("nav_error", tx("Paused, waiting", "Pausiert, wartet"), tx(who() " paused: ", who() " hat pausiert: ") reason(json) "." tx(" It waits until you continue it.", " Wartet, bis du fortsetzt."), "warning")
       }

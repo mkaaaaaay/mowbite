@@ -1,11 +1,14 @@
 'use client';
 
+import {useRpcMethods} from '@/hooks/useRpcMethods';
 import {useMowbiteOs} from '@/lib/mowerOs';
+import {RPC} from '@/lib/openmower';
 import {ART, LegendIcon} from './art';
 import Guide, {type GuideItem, type GuideStep} from './Guide';
 
-// recording the map, step by step with a drawing for each. osText: the step on MowBite OS where it differs
-const STEPS: (GuideStep & {osText?: string})[] = [
+// recording the map, step by step with a drawing for each. osText: the step on MowBite OS where it differs, undoText
+// there with the back button
+const STEPS: (GuideStep & {osText?: string; undoText?: string})[] = [
   {
     title: 'Map your garden',
     text: 'The mower mows by a map: the areas it mows, the obstacles it drives around and its docking station. You record them once by driving it around them with the joystick, the app draws along. To start, tap Record under the map on the Map tab.',
@@ -35,6 +38,8 @@ const STEPS: (GuideStep & {osText?: string})[] = [
   {
     title: 'Tips',
     text: 'Only record with an RTK fix, otherwise the edge ends up off. Drive slowly along edges. For straight edges switch Auto points off and tap Set point here only at the corners, otherwise the mower sets a point every 10 cm. When you are done, tap Leave recording mode, held sideways the ✕. Leaving the page asks first and ends it as well.',
+    undoText:
+      'Only record with an RTK fix, otherwise the edge ends up off. Drive slowly along edges. For straight edges switch Auto points off and tap Set point here only at the corners, otherwise the mower sets a point every 10 cm. Gone wrong? The back button takes the end of the line away piece by piece. The mower stays where it is and Auto points go off: drive back to the end of the line and switch them on again. When you are done, tap Leave recording mode, held sideways the ✕. Leaving the page asks first and ends it as well.',
   },
   {
     title: 'What a map is made of',
@@ -53,6 +58,8 @@ const ITEMS: GuideItem[] = (
 
 export default function GuidePage() {
   const os = useMowbiteOs();
-  const steps = os ? STEPS.map((s) => ({...s, text: s.osText ?? s.text})) : STEPS;
+  // MowBite OS's own steps, the back button where it has recording.undo
+  const undo = !!useRpcMethods()?.has(RPC.recordingUndo);
+  const steps = os ? STEPS.map((s) => ({...s, text: (undo && s.undoText) || s.osText || s.text})) : STEPS;
   return <Guide steps={steps} items={ITEMS} done={{label: 'Record now', href: '/record'}} />;
 }
