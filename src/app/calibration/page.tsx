@@ -11,6 +11,7 @@ import {loadUpdate} from '@/lib/autoUpdate';
 import {
   calibBack,
   calibCheck,
+  calibByHand,
   calibProgress,
   calibResult,
   calibStart,
@@ -362,8 +363,7 @@ export default function CalibrationPage() {
   };
 
   const list = progress ? lacks(progress) : [];
-  // driven by hand: as the planner says, else while the mower is in recording mode
-  const drivingByHand = phase === 'recording' && (progress?.mode ? progress.mode === 'joystick' : recordingMode);
+  const drivingByHand = calibByHand(progress, recordingMode);
   // driving it back to the dock after driving by hand, in recording mode still
   const homeDrive = ended && phase !== 'recording' && recordingMode;
 

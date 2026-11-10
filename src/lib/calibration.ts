@@ -87,6 +87,10 @@ export function readResult(answer: unknown): CalibResult | null {
   };
 }
 
+// a recording driven by hand: as the planner says, else while the mower is in recording mode
+export const calibByHand = (p: CalibProgress | null, recordingMode: boolean) =>
+  p?.phase === 'recording' && (p.mode ? p.mode === 'joystick' : recordingMode);
+
 export function readProgress(payload: string): CalibProgress | null {
   let p: Record<string, unknown>;
   try {

@@ -1973,6 +1973,7 @@ const de: Record<string, string> = {
   "The docking station isn't saved yet, recording mode can only end after that. If you leave anyway, it stays on.": "Das Dock ist noch nicht gespeichert, erst danach lässt sich der Aufnahmemodus beenden. Verlässt du die Seite trotzdem, bleibt er an.",
   "End recording mode": "Aufnahmemodus beenden",
   "Back to recording": "Zurück zur Aufnahme",
+  "Back to calibration": "Zurück zur Kalibrierung",
   "Discard and end": "Verwerfen und beenden",
   "Leave anyway": "Trotzdem verlassen",
   "Stay": "Hierbleiben",

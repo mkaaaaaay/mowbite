@@ -12,7 +12,8 @@ import {useMowerPosition} from '@/hooks/useMowerPosition';
 import {isLive, useMowerState} from '@/hooks/useMowerState';
 import Link from 'next/link';
 import {useRouter, useSearchParams} from 'next/navigation';
-import {Suspense, useEffect, useRef, useState} from 'react';
+import {Suspense, useEffect, useRef, useState, useSyncExternalStore} from 'react';
+import {calibByHand, calibProgress} from '@/lib/calibration';
 import {createPortal} from 'react-dom';
 import StationGuide from './Station';
 import styles from './page.module.css';
@@ -205,6 +206,12 @@ function Record() {
   const fromLink = !asked || !state || os ? null : recordingMode ? (phase === 'empty' ? 'guide' : 'drop') : live && hasAction(START) ? 'start' : null;
   const startRef = useRef(start);
   const router = useRouter();
+  // a calibration drive by hand runs in recording mode: its own page, not this one
+  const calib = useSyncExternalStore(calibProgress.subscribe, calibProgress.get, calibProgress.initial);
+  const calibrating = recordingMode && calibByHand(calib, true);
+  useEffect(() => {
+    if (calibrating) router.replace('/calibration');
+  }, [calibrating, router]);
   useEffect(() => {
     startRef.current = start;
   });

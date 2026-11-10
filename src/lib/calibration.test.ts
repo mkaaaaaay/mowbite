@@ -4,7 +4,7 @@ vi.mock('./mqttClient', () => ({topicStore: () => ({subscribe: () => () => {}, g
 vi.mock('./rpc', () => ({callRpc: async () => ({})}));
 vi.mock('./autoUpdate', () => ({requestCalib: async () => {}, requestCalibBack: async () => {}}));
 
-const {calibLines, calibText, changeOf, lackDone, lacks, preselected, readLast, readPaths, readProgress, readResult, readState} = await import('./calibration');
+const {calibByHand, calibLines, calibText, changeOf, lackDone, lacks, preselected, readLast, readPaths, readProgress, readResult, readState} = await import('./calibration');
 
 // an answer of planner.calib.result as the planner gives it (mowbite-calib/1)
 const answer = {
@@ -98,6 +98,14 @@ describe('a calibration', () => {
     // a planner that doesn't tell what it needs: nothing to show as missing
     expect(lacks(readProgress(JSON.stringify({phase: 'recording', m: 3, turns: 1, runs: 0}))!)).toEqual([]);
     expect(readProgress('no json')).toBeNull();
+    // driven by hand: as the planner says, from one that doesn't by recording mode
+    const by = (p: object, recordingMode: boolean) => calibByHand(readProgress(JSON.stringify(p)), recordingMode);
+    expect(by({phase: 'recording', mode: 'joystick'}, false)).toBe(true);
+    expect(by({phase: 'recording', mode: 'mow'}, true)).toBe(false);
+    expect(by({phase: 'recording'}, true)).toBe(true);
+    expect(by({phase: 'recording'}, false)).toBe(false);
+    expect(by({phase: 'done', mode: 'joystick'}, true)).toBe(false);
+    expect(calibByHand(null, true)).toBe(false);
   });
 
   it("knows whether the receiver has its fix while it's recorded, a planner that doesn't tell says nothing", () => {

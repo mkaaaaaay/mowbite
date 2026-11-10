@@ -39,6 +39,7 @@ import {containerHas, useUpdates} from '@/lib/updates';
 import {batteryColor, chargeOf, dockText, GPS_QUALITY_LABEL, gpsQuality, isDocked, onCharger, staleText, WIFI_LEVEL_LABEL, type Charge} from '@/lib/status';
 import Link from 'next/link';
 import {memo, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
+import {calibByHand, calibProgress} from '@/lib/calibration';
 import styles from './page.module.css';
 import {fmt, tr, useLang} from '@/lib/i18n';
 import {
@@ -224,6 +225,7 @@ export default function Home() {
   const before = useLeftoversBefore(!!progress?.leftovers);
   const params = useMowerParams();
   const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
+  const calib = useSyncExternalStore(calibProgress.subscribe, calibProgress.get, calibProgress.initial);
   // the same object while params/json doesn't change: the map isn't drawn again for every sensor value
   const datum = useMemo(() => datumFromParams(params), [params]);
   // blades or cleaning due, counted by MowBite's container
@@ -299,6 +301,8 @@ export default function Home() {
 
   const current = state?.current_state ?? '';
   const driving = DRIVING.has(current);
+  // a calibration drive by hand runs in recording mode, its own page leads it and ends it
+  const calibrating = current === 'AREA_RECORDING' && calibByHand(calib, true);
   // paused on the station's contacts: OpenMower only sees the dock when it's sent home, it's DOCKED then right away
   const pausedInDock = current === 'PAUSED' && !state?.emergency && onCharger(state, values['om_v_charge']);
   // the buttons for what the mower offers now, the others left out. paused: the pause button turns into continue. only
@@ -547,11 +551,12 @@ export default function Home() {
                   nothing recorded would be lost with it */}
               {current === 'AREA_RECORDING' && (
                 <div className={styles.recording}>
-                  <Link href="/record">
+                  <Link href={calibrating ? '/calibration' : '/record'}>
                     <RecordIcon size={20} />
-                    {tr('Back to recording')}
+                    {tr(calibrating ? 'Back to calibration' : 'Back to recording')}
                   </Link>
-                  {hasAction(ACTION.recording('exit_recording_mode')) &&
+                  {!calibrating &&
+                    hasAction(ACTION.recording('exit_recording_mode')) &&
                     !hasAction(ACTION.recording('stop_recording')) &&
                     !hasAction(ACTION.recording('finish_mowing_area')) && (
                       <button className={styles.recordingEnd} disabled={!live} onClick={() => publishAction(ACTION.recording('exit_recording_mode'))}>
