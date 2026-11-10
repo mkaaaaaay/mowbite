@@ -2,9 +2,11 @@
 
 import {TempGauge} from '@/components/gauges';
 import Sparkline from '@/components/Sparkline';
+import {useRpcMethods} from '@/hooks/useRpcMethods';
 import type {Sample} from '@/hooks/useSensorHistory';
 import {fmt, tr} from '@/lib/i18n';
 import {wifiLevel} from '@/lib/coverage';
+import {RPC} from '@/lib/openmower';
 import {WIFI_LEVEL_LABEL} from '@/lib/status';
 import {loadSystem, type SystemInfo} from '@/lib/system';
 import {useEffect, useState} from 'react';
@@ -37,7 +39,9 @@ export default function System({history}: {history: Record<string, Sample[] | un
     const every = setInterval(get, 30000);
     return () => clearInterval(every);
   }, []);
-  if (sys === null) return <p className={styles.dim}>{tr('Only when MowBite runs as its container on the mower.')}</p>;
+  // on MowBite OS (system.stats) a call that failed is asked again, the container's sentence isn't said there
+  const stats = !!useRpcMethods()?.has(RPC.systemStats);
+  if (sys === null && !stats) return <p className={styles.dim}>{tr('Only when MowBite runs as its container on the mower.')}</p>;
   if (!sys || sys.memTotal === undefined) return <p className={styles.dim}>{tr('loading…')}</p>;
 
   const memUsed = sys.memTotal - (sys.memAvailable ?? 0);
