@@ -201,13 +201,16 @@ send_home_at() {
     case "$e" in *" $ACTION_START_MOWING") stop_done "$3"; return ;; esac
     case "$(field "$e" type)" in JOB_COMPLETE | SHUTDOWN) return ;; esac
   done
-  stop_done "$3"
   logged=""
   s=$(mosquitto_sub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -C 1 -W 10 2>/dev/null)
   if [ "$(field "$s" current_state)" = MOWING ]; then
     mosquitto_pub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTION" -m "$ACTION_HOME" && log "stopped_$2" && logged=1
   fi
-  if rpc_call "$RPC_SET_PARAMS" "{\"params\":{\"$PARAM_MANUAL_PAUSE\":true}}" 10 | grep -q '"result"'; then
+  pause_set=""
+  rpc_call "$RPC_SET_PARAMS" "{\"params\":{\"$PARAM_MANUAL_PAUSE\":true}}" 10 | grep -q '"result"' && pause_set=1
+  # carried out only now: a container that ends before this does it after its restart
+  stop_done "$3"
+  if [ -n "$pause_set" ]; then
     [ -n "$logged" ] || log "stopped_$2"
     return
   fi

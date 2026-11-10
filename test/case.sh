@@ -9,7 +9,8 @@
 # Updater's hold on starts (retained). $ACTIONS: the lists actions/json says one after the other (retained), a line
 # each, a second apart. $LOGS, $PLANNER_LOG: what logs.recent and planner.log answer (@ID@ for the call's id), $OTHER:
 # someone else's answer sent before each one. $METHODS, $INFO: rpc.methods and system.info (MowBite OS). $KEEP: the
-# parameters the app keeps (/data/params.txt). $RUN_DUE: set while the stop time of $RUN_STATE's run is still to come
+# parameters the app keeps (/data/params.txt). $RUN_DUE: set while the stop time of $RUN_STATE's run is still to come.
+# $SLOW: the seconds the pretend mower takes to answer a call that sets the pause
 pub() {
   t=$1
   shift
@@ -47,6 +48,7 @@ mosquitto_sub -h "$MOWER_MQTT_HOST" -v -t "${MOWER_MQTT_PREFIX}action" -t "${MOW
         *'"method":"system.info"'*) [ -z "$INFO" ] || a=$INFO ;;
       esac
       [ -z "$OTHER" ] || pub rpc/response -m "$OTHER"
+      case "$msg" in *manual_pause_mowing*) [ -z "$SLOW" ] || sleep "$SLOW" ;; esac
       pub rpc/response -m "$(printf '%s' "$a" | sed "s/@ID@/$id/")"
       ;;
   esac

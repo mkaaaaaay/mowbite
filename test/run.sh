@@ -66,6 +66,16 @@ start() {
 # what case $1's scheduler logged (without the times) and what its mower got
 slog() { docker exec "mbt-$1" cat /data/schedule.log 2> /dev/null | cut -d' ' -f2-; }
 sent() { docker exec "mbt-$1" cat /tmp/sent 2> /dev/null; }
+# the stop times case $1 keeps as still to come, and nodue <case> <seconds>: until it keeps none
+due() { docker exec "mbt-$1" sh -c 'ls /data/run.due.*' 2> /dev/null; }
+nodue() {
+  local i
+  for ((i = 0; i < $2; i++)); do
+    [ -z "$(due "$1")" ] && return 0
+    sleep 1
+  done
+  return 1
+}
 # waitlog <case> <regex> <seconds>: until the case's log has a line like that
 waitlog() {
   local i
@@ -178,7 +188,7 @@ gets endtime '^action mower_logic:mowing/abort_mowing$' && ok "scheduler: the mo
   bad "scheduler: the mower got sent home" "$(sent endtime)"
 gets endtime '^rpc/request .*"/mower_logic/manual_pause_mowing":true' &&
   ok "scheduler: and doesn't carry on by itself after charging" || bad "scheduler: and doesn't carry on by itself after charging" "$(sent endtime)"
-expect "scheduler: its stop time no longer to come then" "$(docker exec mbt-endtime sh -c 'ls /data/run.due.*' 2> /dev/null)" ""
+nodue endtime 5 && ok "scheduler: its stop time no longer to come then" || bad "scheduler: its stop time no longer to come then" "$(due endtime)"
 logs "scheduler: a run with an end time ahead" endkept '^started'
 r=$(docker exec mbt-endkept sh -c 'cat /data/run.state; ls /data/run.due.*' 2> /dev/null)
 [ "$(wc -l <<< "$r")" = 2 ] && [ "$(sed -n 2p <<< "$r")" = "/data/run.due.$(head -n1 <<< "$r" | cut -d' ' -f1)" ] &&
@@ -208,12 +218,20 @@ logs "scheduler: a start waiting for the battery goes on after a restart" waited
 logs "scheduler: a stop time that passed during a restart is carried out after it" restoredlate '^stopped_end$' 30
 gets restoredlate '"/mower_logic/manual_pause_mowing":true' && sent restoredlate | grep -q 'abort_mowing$' &&
   ok "scheduler: sent home and paused then" || bad "scheduler: sent home and paused then" "$(sent restoredlate)"
-expect "scheduler: and no longer to come, its run kept" \
-  "$(docker exec mbt-restoredlate sh -c 'ls /data/run.due.*' 2> /dev/null)$(docker exec mbt-restoredlate cut -d' ' -f2 /data/run.state)" "$past"
+nodue restoredlate 5
+expect "scheduler: and no longer to come, its run kept" "$(due restoredlate)$(docker exec mbt-restoredlate cut -d' ' -f2 /data/run.state)" "$past"
 docker exec -d mbt-restoredlate /scheduler.sh
 sleep 10
 expect "scheduler: not again after the next restart" \
   "$(slog restoredlate | grep -c '^stopped_end$') $(sent restoredlate | grep -c 'abort_mowing$')" "1 1"
+# a mower slow to answer the pause: the stop time stays to come until it's carried out, for a container ending meanwhile
+past=$(($(date +%s) - 60))
+start restoredslow "$(state MOWING)" "$(base "$DAY")" "RUN_STATE=$((past - 600)) $past end front" RUN_DUE=1 SLOW=8
+gets restoredslow 'abort_mowing$' 30 && [ -n "$(due restoredslow)" ] &&
+  ok "scheduler: a stop time still counts as to come while it's carried out" ||
+  bad "scheduler: a stop time still counts as to come while it's carried out" "$(sent restoredslow)"
+nodue restoredslow 20
+expect "scheduler: and no longer once the mower is sent home and paused" "$(due restoredslow) $(slog restoredslow | grep -c '^stopped_end$')" " 1"
 for _ in $(seq 30); do docker exec mbt-restoreddone test -f /data/run.state || break; sleep 1; done
 expect "scheduler: nothing for a run that's over by then" \
   "$(docker exec mbt-restoreddone ls /data/run.state 2> /dev/null)$(slog restoreddone)$(sent restoreddone | grep -c 'abort_mowing$\|manual_pause')" 0
