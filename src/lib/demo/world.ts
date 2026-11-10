@@ -818,9 +818,10 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     };
   };
 
+  // a job that waits (charging, where it gave up) keeps its id like mower_logic's, only the session ends there
   const position = () => ({
     ...pose,
-    attributes: {job_id: job && !parked && !rec ? job.id : '', session_id: job && !parked && !rec ? job.session : '', blades: blades()},
+    attributes: {job_id: job && !rec ? job.id : '', session_id: job && !parked && !rec ? job.session : '', blades: blades()},
   });
   // the lines of the recording on the map, like OpenMower's overlay: the outline green, obstacles red, the line blue
   const overlay = () => ({

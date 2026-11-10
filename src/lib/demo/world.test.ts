@@ -161,6 +161,8 @@ describe('the demo mower', () => {
     expect(d.state()).toMatchObject({current_state: 'IDLE', is_charging: 1, current_area: -1});
     expect(d.state().pose).toMatchObject(demoMap().docking_stations[0].position);
     expect(d.actions()).toMatchObject({[ACTION.startMowing]: 1, [ACTION.resetJob]: 1});
+    // the job waits, its id stays in the position
+    expect(JSON.parse(d.got[TOPIC.position]).attributes).toMatchObject({job_id: job.job_id, session_id: ''});
     d.act(ACTION.startMowing);
     expect(d.state().current_state).toBe('UNDOCKING');
     d.pass(120);
@@ -181,6 +183,7 @@ describe('the demo mower', () => {
     d.pass(180);
     expect(d.state()).toMatchObject({current_state: 'IDLE', is_charging: 1});
     expect(d.actions()[ACTION.resetJob]).toBe(0);
+    expect(JSON.parse(d.got[TOPIC.position]).attributes.job_id).toBe('');
     const today = await d.rpc<{type: string}[]>(RPC.events, {date: '20260615'});
     expect(today.map((e) => e.type).slice(-4)).toEqual(['JOB_COMPLETE', 'STATE', 'BLADES', 'DOCKED'].concat('STATE').slice(-4));
     d.act(ACTION.startMowing);
