@@ -12,7 +12,8 @@ import {
   calibBack,
   calibCheck,
   calibByHand,
-  canCalibrate,
+  calibMissing,
+  calibMissingText,
   calibProgress,
   calibResult,
   calibStart,
@@ -212,16 +213,42 @@ function Ready({mode, status, onGo, onClose}: {mode: CalibMode; status: Record<s
 }
 
 // the calibration of OpenMower's sizes from a drive: recorded and worked out by the MowBite Planner (planner.calib.*),
-// what's taken written into mower_params.yaml by the MowBite Updater (?calib), by hand without it
+// what's taken written into mower_params.yaml by the MowBite Updater (?calib), by hand without it. nothing of it runs
+// in a build without it or without a planner that offers it
 export default function CalibrationPage() {
   useLang();
+  const missing = calibMissing(useRpcMethods());
+  if (!missing) return <Calibration />;
+  return (
+    <div className={styles.page}>
+      <main className={styles.main}>
+        <TitleRow>
+          <h1>
+            <TitleMark />
+            {tr('Calibration')}
+          </h1>
+        </TitleRow>
+        <Link href="/settings#mower" className={styles.link}>
+          ← {tr('Settings')}
+        </Link>
+        {missing === 'connecting' ? (
+          <p className={styles.dim}>{tr('connecting…')}</p>
+        ) : (
+          <section className={styles.card}>
+            <p>{calibMissingText(missing)}</p>
+          </section>
+        )}
+      </main>
+    </div>
+  );
+}
+
+function Calibration() {
   const link = useMowerState();
   const {state} = link;
   const live = isLive(link);
   const {hasAction, publishAction} = useMowerActions();
   const progress = useSyncExternalStore(calibProgress.subscribe, calibProgress.get, calibProgress.initial);
-  const methods = useRpcMethods();
-  const can = canCalibrate(methods);
 
   const [mode, setMode] = useState<CalibMode>('joystick');
   const [asking, setAsking] = useState(false);
@@ -369,14 +396,8 @@ export default function CalibrationPage() {
   const homeDrive = ended && phase !== 'recording' && recordingMode;
 
   let body: React.ReactNode;
-  if (methods === undefined || !state) {
+  if (!state) {
     body = <p className={styles.dim}>{tr('connecting…')}</p>;
-  } else if (!can) {
-    body = (
-      <section className={styles.card}>
-        <p>{tr('Calibrating needs the MowBite Planner on the mower, from version 0.3.0.')}</p>
-      </section>
-    );
   } else if (placing && phase !== 'recording') {
     // into position with the stick first, then the recording started
     body = recordingMode ? (

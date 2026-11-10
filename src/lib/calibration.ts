@@ -94,6 +94,11 @@ export const calibByHand = (p: CalibProgress | null, recordingMode: boolean) =>
 // this build has the calibration and the planner on this mower offers it (rpc.methods). without that nothing leads to it,
 // what the planner's topic still says is left over then or another app's
 export const canCalibrate = (methods: Set<string> | null | undefined) => CALIB_SHOWN && !!methods?.has(RPC.plannerCalibStart);
+// what keeps the calibration page from offering it: not in this build, rpc.methods not answered yet, no planner for it
+export const calibMissing = (methods: Set<string> | null | undefined) =>
+  !CALIB_SHOWN ? 'build' : methods === undefined ? 'connecting' : canCalibrate(methods) ? null : 'planner';
+export const calibMissingText = (missing: 'build' | 'planner') =>
+  missing === 'build' ? tr("Calibrating isn't in this version of MowBite yet.") : tr('Calibrating needs the MowBite Planner on the mower, from version 0.3.0.');
 
 export function readProgress(payload: string): CalibProgress | null {
   let p: Record<string, unknown>;

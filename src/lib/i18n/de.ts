@@ -2416,6 +2416,7 @@ const de: Record<string, string> = {
   "Driving by hand only works while it is idle. Send it home or wait until it is.": "Selbst fahren geht nur, wenn er nichts tut. Schick ihn heim oder warte, bis er fertig ist.",
   "It records from now on and ends by itself after the next mow, after 2 hours at the latest: start a mow soon. The blade runs as always, nothing else changes.": "Er zeichnet ab jetzt auf und hört nach dem nächsten Mähvorgang von selbst auf, spätestens nach 2 Stunden: also bald einen Mähvorgang starten. Das Messer läuft wie immer, sonst ändert sich nichts.",
   "Calibrating needs the MowBite Planner on the mower, from version 0.3.0.": "Zum Kalibrieren braucht es den MowBite Planer auf dem Mäher, ab Version 0.3.0.",
+  "Calibrating isn't in this version of MowBite yet.": "Kalibrieren ist in dieser MowBite-Version noch nicht dabei.",
   "Starting recording mode…": "Aufnahmemodus startet…",
   "Measures while mowing": "Misst beim Mähen",
   "Start mowing": "Mähen starten",

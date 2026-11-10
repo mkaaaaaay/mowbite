@@ -5,7 +5,7 @@ vi.mock('./rpc', () => ({callRpc: async () => ({})}));
 vi.mock('./autoUpdate', () => ({requestCalib: async () => {}, requestCalibBack: async () => {}}));
 
 vi.stubEnv('APP_CALIBRATION', '1');
-const {calibByHand, calibLines, calibText, canCalibrate, changeOf, lackDone, lacks, preselected, readLast, readPaths, readProgress, readResult, readState} = await import('./calibration');
+const {calibByHand, calibLines, calibMissing, calibText, canCalibrate, changeOf, lackDone, lacks, preselected, readLast, readPaths, readProgress, readResult, readState} = await import('./calibration');
 
 // an answer of planner.calib.result as the planner gives it (mowbite-calib/1)
 const answer = {
@@ -110,6 +110,7 @@ describe('a calibration', () => {
     // only with a planner that offers it, what its topic says alone doesn't count
     expect(canCalibrate(new Set(['planner.calib.start']))).toBe(true);
     expect([new Set(['planner.plan']), null, undefined].map(canCalibrate)).toEqual([false, false, false]);
+    expect([new Set(['planner.calib.start']), new Set(['planner.plan']), null, undefined].map(calibMissing)).toEqual([null, 'planner', 'planner', 'connecting']);
   });
 
   it('is left to the builds that have it', async () => {
@@ -117,6 +118,7 @@ describe('a calibration', () => {
     vi.resetModules();
     const release = await import('./calibration');
     expect(release.canCalibrate(new Set(['planner.calib.start']))).toBe(false);
+    expect([new Set(['planner.calib.start']), undefined].map(release.calibMissing)).toEqual(['build', 'build']);
     vi.stubEnv('APP_CALIBRATION', '1');
   });
 
