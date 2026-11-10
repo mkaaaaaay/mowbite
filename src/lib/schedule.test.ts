@@ -1,6 +1,6 @@
 import {describe, expect, it, vi} from 'vitest';
 import {setLangChoice} from './i18n';
-import {inOtherZone, isNightTime, logTone, missedStart, nextStart, parseSchedule, posixTz, scheduleLogLine, serializeSchedule, type Schedule} from './schedule';
+import {inOtherZone, isNightTime, logTone, missedStart, nextStart, parseSchedule, posixTz, reachesDark, scheduleLogLine, serializeSchedule, type Schedule} from './schedule';
 
 // the dates below are local times, so the same zone everywhere (github runs in UTC)
 process.env.TZ = 'Europe/Berlin';
@@ -139,6 +139,31 @@ describe('isNightTime with sun times', () => {
   });
   it('falls back to the fixed hours without them', () => {
     expect(isNightTime('18:30', null)).toBe(true);
+  });
+});
+
+// the cases of the stop times in test/run.sh: the 21st of June at 52.37 9.73, without a position, and in Reykjavik
+describe('reachesDark', () => {
+  const june = {rise: '04:59', set: '21:47'};
+  const reaches = (time: string, end?: string, sun: {rise: string; set: string} | null = june) => reachesDark({time, end}, sun);
+  it('with a sunset between the start and an end the next morning', () => {
+    expect(reaches('20:00', '07:00')).toBe(true);
+    expect(reaches('17:00', '08:00')).toBe(true);
+  });
+  it('with the end in the dark, or the start before sunrise', () => {
+    expect(reaches('17:00', '23:00')).toBe(true);
+    expect(reaches('04:00', '08:00')).toBe(true);
+  });
+  it('not by day, nor without an end after a start by day', () => {
+    expect(reaches('10:00', '14:00')).toBe(false);
+    expect(reaches('10:00')).toBe(false);
+  });
+  it('without a position from 6 pm', () => {
+    expect(reaches('17:00', '08:00', null)).toBe(true);
+    expect(reaches('10:00', '14:00', null)).toBe(false);
+  });
+  it('with a sunset after midnight', () => {
+    expect(reaches('10:00', '03:00', {rise: '02:55', set: '00:04'})).toBe(true);
   });
 });
 

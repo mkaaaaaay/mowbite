@@ -218,6 +218,35 @@ if [ -n "$(sent os)" ] && ! sent os | grep -q '^action'; then ok "scheduler: res
   bad "scheduler: rests on MowBite OS, which has a schedule of its own" "$(sent os)"; fi
 expect "scheduler: and tells nothing there" "$(next os)$(slog os)" ""
 
+# when a run has to be home, for times of the year the test can't wait for: stop_time with the clock set to the start,
+# in the image (a start in the dark without dark=1 isn't one). <what>|<tz> <lat,lon|-> <day> <start> <end> <sunset>
+# <dark>|<home at> <why>
+BERLIN='<+0100>-1<+0200>-2,M3.5.0/2,M10.5.0/3'
+STOPS=(
+  "20:00 to 07:00 in june: at sunset|$BERLIN 52.37,9.73 2026-06-21 20:00 07:00 - -|2026-06-21 21:47 dark"
+  "17:00 to 08:00 in june: at sunset|$BERLIN 52.37,9.73 2026-06-21 17:00 08:00 - -|2026-06-21 21:47 dark"
+  "17:00 to 23:00: at sunset|$BERLIN 52.37,9.73 2026-06-21 17:00 23:00 - -|2026-06-21 21:47 dark"
+  "10:00 to 14:00: at its end|$BERLIN 52.37,9.73 2026-06-21 10:00 14:00 - -|2026-06-21 14:00 end"
+  "04:00 to 08:00, before sunrise: not started|$BERLIN 52.37,9.73 2026-06-21 04:00 08:00 - -|dark start"
+  "20:00 to 07:00 allowed in the dark: at its end|$BERLIN 52.37,9.73 2026-06-21 20:00 07:00 - 1|2026-06-22 07:00 end"
+  "17:00 to 08:00 without a position: at 6 pm|$BERLIN - 2026-06-21 17:00 08:00 - -|2026-06-21 18:00 dark"
+  "10:00 to 03:00 in reykjavik, home at sunset: after midnight|<+0000>0 64.15,-21.94 2026-06-21 10:00 03:00 1 1|2026-06-22 00:04 dark"
+)
+got=$(printf '%s\n' "${STOPS[@]}" | cut -d'|' -f2 | docker run -i --rm --entrypoint sh "$IMAGE" -c '
+  eval "$(sed -n "/^conf() /p; /^sun_today() {/,/^}/p; /^minutes() /p; /^is_dark() {/,/^}/p; /^stop_time() {/,/^}/p" /scheduler.sh)"
+  date() { case "$1" in -u) command date "$@" ;; +%s) echo "$at" ;; *) command date -d "@$at" "$@" ;; esac; }
+  F=/tmp/schedule.txt where=""
+  while read -r tz pos day start end sunset dark; do
+    { echo "tz $tz"; [ "$pos" = - ] || echo "pos ${pos%,*} ${pos#*,}"; } > "$F"
+    at=$(TZ="$tz" command date -d "$day $start" +%s)
+    if [ "$dark" != 1 ] && is_dark "$(minutes)"; then echo "dark start"; continue; fi
+    set -- $(stop_time "$end" "$sunset" "$dark")
+    echo "$(TZ="$tz" command date -d "@$1" "+%F %H:%M") $2"
+  done')
+for i in "${!STOPS[@]}"; do
+  expect "stop time: ${STOPS[$i]%%|*}" "$(sed -n "$((i + 1))p" <<< "$got")" "${STOPS[$i]##*|}"
+done
+
 # --- the parameters kept by the app ---
 
 KEEP=$'enabled 1\n/mower_logic/mow_angle_offset 7'

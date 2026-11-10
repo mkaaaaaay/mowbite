@@ -15,7 +15,8 @@ export interface Plan {
   areas: string[];
   // HH:MM, local: a run started by the plan is sent home then
   end?: string;
-  // may start and mow in the dark, otherwise it doesn't start then, and goes home at sunset when the end time is later
+  // may start and mow in the dark, otherwise it doesn't start then, and goes home at sunset when that comes before the
+  // end time
   dark?: boolean;
   // goes home at sunset at the latest
   sunset?: boolean;
@@ -335,6 +336,16 @@ export const NIGHT_FROM = '18:00';
 export const NIGHT_TO = '06:00';
 export const isNightTime = (time: string, sun?: {rise: string; set: string} | null) =>
   sun ? time >= sun.set || time < sun.rise : time >= NIGHT_FROM || time < NIGHT_TO;
+
+// A plan reaches into the dark with its start or its end in the dark, or a sunset in between (an end not after the
+// start is the next day's). Not allowed in the dark, the scheduler then doesn't start in the dark and sends the run
+// home at the first sunset (stop_time in docker/scheduler.sh).
+export function reachesDark({time, end}: Pick<Plan, 'time' | 'end'>, sun?: {rise: string; set: string} | null): boolean {
+  if (isNightTime(time, sun)) return true;
+  if (!end) return false;
+  const set = sun ? sun.set : NIGHT_FROM;
+  return isNightTime(end, sun) || (end > time ? time < set && set < end : time < set || set < end);
+}
 
 // the areas a plan mows on a day: the ones it picks (none picked: all) of those mowed, without the ones paused then.
 // mowable: the ids of the mowing areas the mower mows

@@ -143,8 +143,8 @@ is_dark() {
 }
 
 # the time a run started now has to be home by, as a unix time: the plan's end time (next one coming
-# up, or $4 when it's known already), and sunset if the plan wants that, or if its end time lies in the dark
-# without mowing in the dark being allowed. empty when neither
+# up, or $4 when it's known already), or the first sunset after the start when that comes earlier and the plan
+# wants it, or has an end time without mowing in the dark being allowed. empty when neither
 stop_time() {
   now=$(date +%s)
   midnight=$((now - $(minutes) * 60 - $(date +%S | sed 's/^0//')))
@@ -157,11 +157,12 @@ stop_time() {
     [ "$stop" -gt "$now" ] || stop=$((stop + 86400))
     why=end
   fi
-  endmin=$([ "$1" != - ] && echo "$1" | awk -F: '{ print $1 * 60 + $2 }')
-  if [ "$2" = 1 ] || { [ "$3" != 1 ] && [ -n "$endmin" ] && is_dark "$endmin"; }; then
+  if [ "$2" = 1 ] || { [ "$3" != 1 ] && [ -n "$stop" ]; }; then
     # shellcheck disable=SC2046
     set -- $(sun_today) 360 1080
     dusk=$((midnight + $2 * 60))
+    # a sunset after midnight (by the clock before sunrise) that's past: the next one is tomorrow's
+    [ "$dusk" -gt "$now" ] || [ "$2" -gt "$1" ] || dusk=$((dusk + 86400))
     if [ "$dusk" -gt "$now" ] && { [ -z "$stop" ] || [ "$dusk" -lt "$stop" ]; }; then
       stop=$dusk
       why=dark
