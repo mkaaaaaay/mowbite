@@ -64,8 +64,10 @@ function readconf(   line, k) {
 
 function on(kind) { return index(events, "," kind ",") > 0 }
 
-# standing still and not charging in the dock are told once, the other problems are reminded of while they last
-function reminds(kind) { return remind && kind != "standstill" && !(kind == "dock_failed" && dock_why ~ /^(NO_CHARGE_CURRENT|lost)/) }
+# the problems reminded of while they last (and snoozed); standing still and not charging in the dock are told once
+function reminds(kind) {
+  return remind && kind ~ /^(emergency|dock_failed|undock_failed)$/ && !(kind == "dock_failed" && dock_why ~ /^(NO_CHARGE_CURRENT|lost)/)
+}
 
 function tx(en, de) { return lang == "de" ? de : en }
 
@@ -150,7 +152,7 @@ function send(kind, phase, title, msg, prio, tags,   json, acts) {
     json = json ",\"click\":\"" jesc(url) "/activity/\""
     acts = "{\"action\":\"view\",\"label\":\"" jesc(tx("Open MowBite", "MowBite öffnen")) "\",\"url\":\"" jesc(url) "/\"}"
     # only reaches the mower from the home network. only on a problem it reminds of, like push below
-    if (phase != "clear" && reminds(kind) && kind ~ /^(emergency|dock_failed|undock_failed|nav_error|spinup|standstill)$/)
+    if (phase != "clear" && reminds(kind))
       acts = acts ",{\"action\":\"http\",\"label\":\"" jesc(tx("Snooze 1 h", "1 h schlummern")) "\",\"url\":\"" jesc(url) \
         "/cgi-bin/notify?snooze=3600\",\"method\":\"POST\",\"clear\":true}"
     json = json ",\"actions\":[" acts "]"
@@ -168,7 +170,7 @@ function push(kind, phase, title, msg, prio,   json, problem) {
   json = json ",\"prio\":" prio ",\"t\":" int(t) ",\"lang\":\"" lang "\",\"path\":\"/activity/\""
   if (url) {
     json = json ",\"api\":\"" jesc(url) "\""
-    if (problem && phase != "clear" && reminds(kind)) json = json ",\"snooze\":\"" jesc(tx("Snooze 1 h", "1 h schlummern")) "\""
+    if (phase != "clear" && reminds(kind)) json = json ",\"snooze\":\"" jesc(tx("Snooze 1 h", "1 h schlummern")) "\""
   }
   print "push " json "}"
   fflush()

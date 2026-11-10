@@ -94,6 +94,22 @@ describe('what the container sends', {timeout: 30_000}, () => {
     expect(out[0].actions).toHaveLength(2);
   });
 
+  it('offers snooze only on what it reminds of', () => {
+    const told = 'topic t\nlang en\nname Steve\nurl http://openmower:8082\nevents nav_error,spinup,refused\nremind 1\npush https://ntfy.sh/upAbc?up=1\n';
+    const input =
+      event(100, '{"type":"NAVIGATION_ERROR"}') + state(102, 0) + state(104, 0) + event(110, '{"type":"MOW_MOTOR_SPINUP_FAILED"}') +
+      event(120, '{"type":"MOWING_REFUSED","reason":"RAIN"}') + event(130, '{"type":"STATE","state":"PAUSED","reason":"CROSS_TRACK","resume":"user"}');
+    const out = run(input, told);
+    expect(out.map((m) => m.title)).toEqual(['Navigation error', "Mow motor didn't start", 'Mowing not started', 'Paused, waiting']);
+    expect(out.map((m) => m.actions)).toEqual(out.map(() => [expect.objectContaining({action: 'view'})]));
+    expect(push(input, told).map((m) => [m.kind, m.snooze])).toEqual([
+      ['nav_error', undefined],
+      ['spinup', undefined],
+      ['refused', undefined],
+      ['nav_error', undefined],
+    ]);
+  });
+
   it("doesn't tell about an emergency stop that clears itself within seconds, as long as set", () => {
     expect(run(state(100, 1) + state(104, 0) + state(130, 0), conf)).toEqual([]);
     // right away: told and cleared
