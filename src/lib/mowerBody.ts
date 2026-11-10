@@ -219,9 +219,10 @@ export async function savePlannerSettings(values: Record<string, unknown>): Prom
 }
 
 // A planner that knows outlines but plans with the rectangle while its sizes are exactly a model's with a measured
-// outline gets that outline from the app by itself: once per start, after the shared settings are in (the rectangle
-// may be kept there), and the model is noted for the sizes card. Not on MowBite OS: the mower holds its sizes itself
-// (robot.geometry), the planner only shows them. Until it's known what runs there it waits for the next time
+// outline gets that outline from the app by itself: once per start (until it went through), after the shared settings
+// are in (the rectangle may be kept there), and the model is noted for the sizes card. Not on MowBite OS: the mower
+// holds its sizes itself (robot.geometry), the planner only shows them. Until it's known what runs there it waits for
+// the next time
 let outlineChecked = false;
 export async function giveOutline() {
   if (outlineChecked || !current?.settings.robot_outline?.settable) return;
@@ -232,12 +233,18 @@ export async function giveOutline() {
     return;
   }
   if (isMowbiteOs(info)) return;
-  await syncSettings();
-  if (!current || outlineOf(current.settings.robot_outline?.value)) return;
-  const m = autoOutlineModel(plannerSizes(current), settingsStore.snapshot().keepRectangle);
-  if (!m?.outline) return;
-  await savePlannerSettings({robot_outline: grownOutline(m.outline, OUTLINE_LEEWAY)});
-  saveSettings({...settingsStore.snapshot(), autoOutline: m.key});
+  try {
+    await syncSettings();
+    if (!current || outlineOf(current.settings.robot_outline?.value)) return;
+    const m = autoOutlineModel(plannerSizes(current), settingsStore.snapshot().keepRectangle);
+    if (!m?.outline) return;
+    await savePlannerSettings({robot_outline: grownOutline(m.outline, OUTLINE_LEEWAY)});
+    saveSettings({...settingsStore.snapshot(), autoOutline: m.key});
+  } catch (e) {
+    // tried again with the planner's next answer
+    outlineChecked = false;
+    throw e;
+  }
 }
 
 // the angle turned further back to 0 (planner.angle.reset), the next finished mow counts from there

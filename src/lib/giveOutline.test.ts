@@ -7,6 +7,8 @@ const fake = vi.hoisted(() => ({
   sent: [] as Record<string, unknown>[],
   app: {} as Record<string, unknown>,
   synced: false,
+  // saves that time out before one goes through
+  failing: 0,
   // what runs on the mower: OpenMower, MowBite OS (system.info) or not known yet (no answer to rpc.methods)
   os: 'openmower' as 'openmower' | 'mowbite-os' | 'unknown',
 }));
@@ -19,6 +21,7 @@ vi.mock('./rpc', () => ({
   callRpc: async (method: string, params: Record<string, unknown>) => {
     if (method === 'system.info') return {name: 'mowbite-os', version: '0.1'};
     if (method === 'planner.settings.set') {
+      if (fake.failing > 0 && fake.failing--) throw new Error('timeout');
       fake.sent.push(params);
       Object.assign(fake.planner, params);
     }
@@ -55,6 +58,7 @@ describe('the outline given to the planner on its own', () => {
     fake.sent = [];
     fake.app = {};
     fake.synced = false;
+    fake.failing = 0;
     fake.os = 'openmower';
   });
 
@@ -86,6 +90,16 @@ describe('the outline given to the planner on its own', () => {
     await body.loadPlannerSettings(true);
     await new Promise((r) => setTimeout(r, 0));
     expect(fake.sent).toHaveLength(1);
+  });
+
+  it('tries again with the next answer when the save failed', async () => {
+    fake.failing = 1;
+    const body = await start();
+    expect(fake.sent).toEqual([]);
+    await body.loadPlannerSettings(true);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(fake.sent).toHaveLength(1);
+    expect(fake.app.autoOutline).toBe('yf-nx');
   });
 
   it('leaves the rectangle when it is kept', async () => {
