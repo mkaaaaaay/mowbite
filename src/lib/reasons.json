@@ -926,7 +926,7 @@
   "STILL_STOPPING": [
    {
     "en": "the last job is still stopping, try again in a moment",
-    "de": "der letzte Auftrag wird noch beendet, gleich noch einmal versuchen"
+    "de": "der letzte Mähvorgang wird noch beendet, gleich noch einmal versuchen"
    }
   ],
   "WRONG_STATE": [
