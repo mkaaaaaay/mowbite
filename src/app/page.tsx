@@ -306,7 +306,7 @@ export default function Home() {
   const current = state?.current_state ?? '';
   const driving = DRIVING.has(current);
   // a calibration drive by hand runs in recording mode, its own page leads it and ends it
-  const calibrating = current === 'AREA_RECORDING' && canCalibrate(methods) && calibByHand(calib, true);
+  const calibrating = current === 'AREA_RECORDING' && canCalibrate(methods, os) && calibByHand(calib, true);
   // paused on the station's contacts: OpenMower only sees the dock when it's sent home, it's DOCKED then right away
   const pausedInDock = current === 'PAUSED' && !state?.emergency && onCharger(state, values['om_v_charge']);
   // the buttons for what the mower offers now, the others left out. paused: the pause button turns into continue. only

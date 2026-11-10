@@ -126,9 +126,13 @@ describe('a calibration', () => {
     expect(by({phase: 'done', mode: 'joystick'}, true)).toBe(false);
     expect(calibByHand(null, true)).toBe(false);
     // only with a planner that offers it, what its topic says alone doesn't count
-    expect(canCalibrate(new Set(['planner.calib.start']))).toBe(true);
-    expect([new Set(['planner.plan']), null, undefined].map(canCalibrate)).toEqual([false, false, false]);
-    expect([new Set(['planner.calib.start']), new Set(['planner.plan']), null, undefined].map(calibMissing)).toEqual([null, 'planner', 'planner', 'connecting']);
+    const offered = new Set(['planner.calib.start']);
+    expect(canCalibrate(offered, false)).toBe(true);
+    expect([new Set(['planner.plan']), null, undefined].map((m) => canCalibrate(m, false))).toEqual([false, false, false]);
+    expect([offered, new Set(['planner.plan']), null, undefined].map((m) => calibMissing(m, false))).toEqual([null, 'planner', 'planner', 'connecting']);
+    // MowBite OS has its own drive, the planner's topic and methods don't count there
+    expect(canCalibrate(offered, true)).toBe(false);
+    expect([offered, undefined].map((m) => calibMissing(m, true))).toEqual(['build', 'build']);
   });
 
   it("takes a recording the planner doesn't have for none until it says something else", async () => {
@@ -160,8 +164,8 @@ describe('a calibration', () => {
     vi.stubEnv('APP_CALIBRATION', '');
     vi.resetModules();
     const release = await import('./calibration');
-    expect(release.canCalibrate(new Set(['planner.calib.start']))).toBe(false);
-    expect([new Set(['planner.calib.start']), undefined].map(release.calibMissing)).toEqual(['build', 'build']);
+    expect(release.canCalibrate(new Set(['planner.calib.start']), false)).toBe(false);
+    expect([new Set(['planner.calib.start']), undefined].map((m) => release.calibMissing(m, false))).toEqual(['build', 'build']);
     vi.stubEnv('APP_CALIBRATION', '1');
   });
 

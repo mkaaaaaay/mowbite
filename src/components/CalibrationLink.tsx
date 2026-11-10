@@ -3,15 +3,17 @@
 import {loadUpdate} from '@/lib/autoUpdate';
 import {canCalibrate, readLast} from '@/lib/calibration';
 import {locale, monthStyle, tr, useLang} from '@/lib/i18n';
+import {useMowbiteOs} from '@/lib/mowerOs';
 import Link from 'next/link';
 import {useRpcMethods} from '@/hooks/useRpcMethods';
 import {useEffect, useState} from 'react';
 
-// the way to the calibration, with a planner that offers it: when the updater wrote the last one, how many values
+// the way to the calibration, with a planner that offers it (not on MowBite OS): when the updater wrote the last one,
+// how many values
 export function CalibrationLink({styles}: {styles: Record<string, string>}) {
   useLang();
   const methods = useRpcMethods();
-  const can = canCalibrate(methods);
+  const can = canCalibrate(methods, useMowbiteOs());
   const [last, setLast] = useState<ReturnType<typeof readLast>>(null);
   useEffect(() => {
     let stop = false;

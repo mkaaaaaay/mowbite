@@ -232,7 +232,7 @@ function Record() {
   const router = useRouter();
   // a calibration drive by hand runs in recording mode: its own page, not this one
   const calib = useSyncExternalStore(calibProgress.subscribe, calibProgress.get, calibProgress.initial);
-  const calibrating = recordingMode && canCalibrate(methods) && calibByHand(calib, true);
+  const calibrating = recordingMode && canCalibrate(methods, os) && calibByHand(calib, true);
   useEffect(() => {
     if (calibrating) router.replace('/calibration');
   }, [calibrating, router]);

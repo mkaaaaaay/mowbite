@@ -92,11 +92,14 @@ export const calibByHand = (p: CalibProgress | null, recordingMode: boolean) =>
   p?.phase === 'recording' && (p.mode ? p.mode === 'joystick' : recordingMode);
 
 // this build has the calibration and the planner on this mower offers it (rpc.methods). without that nothing leads to it,
-// what the planner's topic still says is left over then or another app's
-export const canCalibrate = (methods: Set<string> | null | undefined) => CALIB_SHOWN && !!methods?.has(RPC.plannerCalibStart);
-// what keeps the calibration page from offering it: not in this build, rpc.methods not answered yet, no planner for it
-export const calibMissing = (methods: Set<string> | null | undefined) =>
-  !CALIB_SHOWN ? 'build' : methods === undefined ? 'connecting' : canCalibrate(methods) ? null : 'planner';
+// what the planner's topic still says is left over then or another app's. never on MowBite OS: it has a drive of its
+// own and nothing writes the topic there
+export const canCalibrate = (methods: Set<string> | null | undefined, os: boolean) =>
+  CALIB_SHOWN && !os && !!methods?.has(RPC.plannerCalibStart);
+// what keeps the calibration page from offering it: not in this build (MowBite OS's own drive neither), rpc.methods not
+// answered yet, no planner for it
+export const calibMissing = (methods: Set<string> | null | undefined, os: boolean) =>
+  !CALIB_SHOWN || os ? 'build' : methods === undefined ? 'connecting' : canCalibrate(methods, os) ? null : 'planner';
 export const calibMissingText = (missing: 'build' | 'planner') =>
   missing === 'build' ? tr("Calibrating isn't in this version of MowBite yet.") : tr('Calibrating needs the MowBite Planner on the mower, from version 0.3.0.');
 

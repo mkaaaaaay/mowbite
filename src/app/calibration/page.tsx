@@ -34,6 +34,7 @@ import {
 } from '@/lib/calibration';
 import {clock} from '@/lib/dates';
 import {fmt, tr, useLang} from '@/lib/i18n';
+import {useMowbiteOs} from '@/lib/mowerOs';
 import {ACTION, PARAM, RPC} from '@/lib/openmower';
 import {rpcMethods} from '@/lib/rpc';
 import {useRpcMethods} from '@/hooks/useRpcMethods';
@@ -216,10 +217,10 @@ function Ready({mode, status, onGo, onClose}: {mode: CalibMode; status: Record<s
 
 // the calibration of OpenMower's sizes from a drive: recorded and worked out by the MowBite Planner (planner.calib.*),
 // what's taken written into mower_params.yaml by the MowBite Updater (?calib), by hand without it. nothing of it runs
-// in a build without it or without a planner that offers it
+// in a build without it, without a planner that offers it or on MowBite OS
 export default function CalibrationPage() {
   useLang();
-  const missing = calibMissing(useRpcMethods());
+  const missing = calibMissing(useRpcMethods(), useMowbiteOs());
   if (!missing) return <Calibration />;
   return (
     <div className={styles.page}>
