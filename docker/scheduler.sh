@@ -508,12 +508,14 @@ restore_run() {
     sleep 10
   done
   # (a day old by the clock after the wait: a mower switched on after months may set its clock only meanwhile)
-  if [ -z "$host" ] || [ $(($(date +%s) - ${at:-0})) -ge 86400 ] || ! run_open; then
+  over=""
+  { [ -z "$host" ] || [ $(($(date +%s) - ${at:-0})) -ge 86400 ] || ! run_open; } && over=1
+  # a start since then is another run, with its own: its file stays
+  [ "$(cut -d' ' -f1 "$RUN" 2>/dev/null)" = "$at" ] || return
+  if [ -n "$over" ]; then
     rm -f "$RUN"
     return
   fi
-  # a start since then is another run, with its own
-  [ "$(cut -d' ' -f1 "$RUN" 2>/dev/null)" = "$at" ] || return
   skip_others "$areas" &
   [ "$stop" != - ] && { [ "$stop" -gt "$(date +%s)" ] || [ -f "$DUE.$at" ]; } && send_home_at "$stop" "$why" "$at" &
 }
