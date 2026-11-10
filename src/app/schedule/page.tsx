@@ -211,6 +211,7 @@ export default function SchedulePage() {
                   className={styles.hours}
                   value={s.forecastHours}
                   disabled={!datum}
+                  aria-label={tr('Not when it rains or rain is forecast for')}
                   onChange={(e) => update({...s, forecastHours: Number(e.target.value)})}
                 >
                   {FORECAST_HOURS.map((h) => (
@@ -224,7 +225,13 @@ export default function SchedulePage() {
               <label className={styles.check}>
                 <input type="checkbox" checked={s.skipCold} disabled={!datum} onChange={(e) => update({...s, skipCold: e.target.checked})} />
                 {tr('Not when it is colder than')}
-                <select className={styles.hours} value={s.minTemp} disabled={!datum} onChange={(e) => update({...s, minTemp: Number(e.target.value)})}>
+                <select
+                  className={styles.hours}
+                  value={s.minTemp}
+                  disabled={!datum}
+                  aria-label={tr('Not when it is colder than')}
+                  onChange={(e) => update({...s, minTemp: Number(e.target.value)})}
+                >
                   {COLD_TEMPS.map((c) => (
                     <option key={c} value={c}>
                       {c} °C

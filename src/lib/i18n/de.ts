@@ -166,6 +166,7 @@ const de: Record<string, string> = {
   "Download current map": "Aktuelle Karte herunterladen",
   "Draft": "Entwurf",
   "Decoration": "Deko",
+  "Area type": "Flächentyp",
   "Decorate": "Dekorieren",
   "planning": "plant",
   "driving": "fährt",

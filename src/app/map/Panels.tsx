@@ -272,7 +272,7 @@ export function SimplifyPanel({
 }) {
   return (
     <div className={styles.inlineRow}>
-      <input type="range" min={0} max={20} value={cm} onChange={(e) => onChange(Number(e.target.value))} />
+      <input type="range" min={0} max={20} value={cm} onChange={(e) => onChange(Number(e.target.value))} aria-label={tr('Reduce points')} />
       <span className={styles.dim}>
         {cm === 0 ? tr('all points') : tr('max. {n} cm off', {n: cm})} · {from} → {tr('{n} points', {n: to})}
       </span>
