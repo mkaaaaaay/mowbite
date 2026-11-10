@@ -290,6 +290,15 @@ describe('gardenThings', () => {
     expect(red?.variant).toBe('copper');
   });
 
+  it('keeps the garden for the same mowing angle offset, works it out again for another', () => {
+    const areas = [lawn(5), tree];
+    const turned = gardenThings(areas, undefined, null, fit, {angleOffset: 0.5});
+    expect(gardenThings(areas, undefined, null, fit, {angleOffset: 0.5})).toBe(turned);
+    expect(gardenThings(areas, undefined, null, fit).angles).toEqual([turned.angles[0] - 0.5]);
+    expect(gardenThings(areas, undefined, null, fit, {angleOffset: 1.2, angleAbsolute: true}).angles).toEqual([1.2]);
+    expect(gardenThings(areas, undefined, null, fit).angles).toEqual([turned.angles[0] - 0.5]);
+  });
+
   it('fills the area round a picture with the ground picked for it, a bed shows it between its plants', () => {
     const bed: MapArea = {id: 'b', properties: {type: 'obstacle', name: 'Beet'}, outline: square(5, 5, 1)};
     const g = gardenThings([lawn(5), tree, bed], undefined, null, fit, {grounds: {t: 'turf', b: 'soil'}});
