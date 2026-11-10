@@ -1,7 +1,7 @@
 import type {MapArea, MowerMap, Point} from '@/hooks/useMowerMap';
 import {numParam, type MowerParams} from '@/hooks/useMowerParams';
 import type {PastJob} from '@/hooks/useMowHistory';
-import {mowerPlan, planAsker, type PlanRequest} from '@/lib/areaPlan';
+import {areaPlanRequest, mowerPlan, planAsker, type PlanRequest} from '@/lib/areaPlan';
 import {angleChangedSince} from '@/lib/backups';
 import {measuredStripeAngle, stripeAngleDiff} from '@/lib/mowDirection';
 import {mowAroundHoles, nestedAreas} from '@/lib/mowAround';
@@ -196,36 +196,9 @@ export function useMowPlan({
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shownArea, shownMap, savedArea, liveMap, areaProps, planner]);
-  // what the mower is asked for an area: by its id to the MowBite Planner while it's as saved (with planner settings
-  // as edited, mowing.plan doesn't take those), else as it is in the editor
-  const requestFor = (area: MapArea, map: MowerMap, asSaved: boolean): PlanRequest => {
-    const p = area.properties;
-    const props: Omit<Extract<PlanRequest, {outline: Point[]}>, 'outline' | 'obstacles'> = {};
-    if (p.angle !== undefined) props.angle = p.angle;
-    if (p.outline_count !== undefined) props.outline_count = p.outline_count;
-    if (p.outline_overlap_count !== undefined) props.outline_overlap_count = p.outline_overlap_count;
-    if (p.outline_offset !== undefined) props.outline_offset = p.outline_offset;
-    if (p.angle_min !== undefined && p.angle_max !== undefined) {
-      props.angle_min = p.angle_min;
-      props.angle_max = p.angle_max;
-    }
-    // the area's planner settings as edited, only for the MowBite Planner (with OpenMower's slic3r planner the plan
-    // comes from mowing.plan like without MowBite, planner.plan would plan with them). The mower puts the saved
-    // area's under what's asked: one taken out here is asked for as it is for all areas, the plan would still have
-    // the saved one until the map is saved otherwise
-    const saved = liveMap?.areas.find((a) => a.id === area.id)?.properties;
-    const own = planner ? (p.planner ?? {}) : {};
-    const dropped = planner ? Object.keys(saved?.planner ?? {}).filter((k) => own[k] === undefined && (planner.settings[k]?.value ?? null) !== null) : [];
-    const settings = {...Object.fromEntries(dropped.map((k) => [k, planner!.settings[k].value])), ...own};
-    if (Object.keys(settings).length) props.settings = settings;
-    // the same with a range taken out: half a turn or more is any way at all
-    if (props.angle_min === undefined && saved?.angle_min !== undefined && saved.angle_max !== undefined) {
-      props.angle_min = 0;
-      props.angle_max = Math.PI;
-    }
-    if (asSaved && (planner || props.settings)) return {area_id: area.id, ...props};
-    return {outline: area.outline, obstacles: obstaclesFor(area, map), ...props};
-  };
+  // what the mower is asked for an area (lib/areaPlan): by its id while it's as saved, with its values as edited
+  const requestFor = (area: MapArea, map: MowerMap, asSaved: boolean): PlanRequest =>
+    areaPlanRequest(area, liveMap?.areas.find((a) => a.id === area.id)?.properties, asSaved, !!planner, () => obstaclesFor(area, map));
   const planRequest = useMemo((): PlanRequest | null => {
     // the planner's settings first (nested_areas changes the obstacles), not one plan before them and one after
     if (!stripesOn || !planned || !shownArea || !shownMap || planner === undefined) return null;
