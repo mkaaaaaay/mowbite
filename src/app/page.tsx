@@ -12,7 +12,7 @@ import {useComputedSpeed} from '@/hooks/useComputedSpeed';
 import {useEmergencyReasons} from '@/hooks/useEmergencyReasons';
 import {useEmergencyReset} from '@/hooks/useEmergencyReset';
 import {useLeftoversBefore} from '@/hooks/useLeftoversBefore';
-import {useCommandNote, useMowerActions} from '@/hooks/useMowerActions';
+import {lockedAfter, TAP_LOCK_MS, useCommandNote, useMowerActions} from '@/hooks/useMowerActions';
 import {useMowerMap} from '@/hooks/useMowerMap';
 import {datumFromParams, numParam, useMowerParams} from '@/hooks/useMowerParams';
 import {sunTimes} from '@/lib/sun';
@@ -289,15 +289,13 @@ export default function Home() {
     },
     [],
   );
-  // pause turns into continue (and back) right under the finger: for a second after a tap on it a second tap isn't
-  // taken as the other one
-  const [swapUntil, setSwapUntil] = useState(0);
+  // the command button tapped last, for a moment: a second tap doesn't send it again or set the mower off (lockedAfter)
+  const [tapped, setTapped] = useState<string | null>(null);
   useEffect(() => {
-    if (!swapUntil) return;
-    const t = setTimeout(() => setSwapUntil(0), Math.max(0, swapUntil - Date.now()));
+    if (!tapped) return;
+    const t = setTimeout(() => setTapped(null), TAP_LOCK_MS);
     return () => clearTimeout(t);
-  }, [swapUntil]);
-  const SWAPS: string[] = [ACTION.pause, ACTION.resume];
+  }, [tapped]);
 
   const current = state?.current_state ?? '';
   const driving = DRIVING.has(current);
@@ -522,18 +520,18 @@ export default function Home() {
                   {tr('Reset emergency')}
                 </button>
               )}
-              {/* as wide as the card together, one alone the whole width. without the connection, and for a second
-                  after a tap on pause or continue, they stay greyed out, the row doesn't jump */}
+              {/* as wide as the card together, one alone the whole width. without the connection, and those held back
+                  for a second after a tap, they stay greyed out, the row doesn't jump */}
               {actionsNow.length > 0 && (
                 <div className={styles.actions} data-count={actionsNow.length}>
                   {actionsNow.map((a) => (
                     <button
                       key={a.id}
                       className={styles[`act-${a.tone}`]}
-                      disabled={!live || (!!swapUntil && SWAPS.includes(a.id))}
+                      disabled={!live || (!!tapped && lockedAfter(tapped, a.id))}
                       onClick={() => {
                         if (a.id === ACTION.skipArea) return toggleSkip(a.id);
-                        if (SWAPS.includes(a.id)) setSwapUntil(Date.now() + 1000);
+                        setTapped(a.id);
                         publishAction(a.id);
                       }}
                     >

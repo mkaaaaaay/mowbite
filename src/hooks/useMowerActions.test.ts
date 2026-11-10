@@ -4,6 +4,7 @@ import {RpcError} from '@/lib/rpc';
 const mower = vi.hoisted(() => ({
   methods: undefined as Set<string> | null | undefined,
   actions: [] as string[],
+  connected: true,
   calls: [] as {method: string; params: object; late?: (a: unknown) => void}[],
   answer: (() => Promise.resolve({})) as () => Promise<unknown>,
 }));
@@ -16,18 +17,19 @@ vi.mock('@/lib/rpc', async (orig) => ({
   },
 }));
 vi.mock('@/lib/mqttClient', () => ({
-  getMqttClient: () => ({publish: (_t: string, id: string) => mower.actions.push(id)}),
+  getMqttClient: () => ({connected: mower.connected, publish: (_t: string, id: string) => mower.actions.push(id)}),
   withPrefix: (t: string) => t,
   topicStore: () => ({subscribe: () => () => {}, get: () => ({}), initial: () => ({})}),
 }));
 
-const {sendCommand, commandNote} = await import('./useMowerActions');
+const {sendCommand, commandNote, lockedAfter} = await import('./useMowerActions');
 const settle = () => new Promise((r) => setTimeout(r, 0));
 
 describe('a command to the mower', () => {
   beforeEach(() => {
     mower.actions = [];
     mower.calls = [];
+    mower.connected = true;
     mower.answer = () => Promise.resolve({state: 'MOWING', sub_state: ''});
   });
 
@@ -97,5 +99,55 @@ describe('a command to the mower', () => {
     await settle();
     mower.calls[2].late?.({state: 'IDLE', sub_state: '', job_id: ''});
     expect(commandNote()).toBeNull();
+  });
+
+  it('as the action takes the last answer away, and says when there is no connection', async () => {
+    mower.methods = new Set(['mowing.pause']);
+    mower.answer = () =>
+      Promise.reject(new RpcError('mowing.pause', -32600, 'wrong state', {event: 'COMMAND_REFUSED', reason: 'WRONG_STATE', severity: 'info'}));
+    sendCommand('mower_logic:mowing/pause');
+    await settle();
+    expect(commandNote()).not.toBeNull();
+    sendCommand('mower_logic:area_recording/start_manual_mowing');
+    expect(commandNote()).toBeNull();
+    mower.connected = false;
+    sendCommand('mower_logic:area_recording/start_manual_mowing');
+    expect(commandNote()).toMatchObject({text: 'Not sent, no connection to the mower.', warn: true});
+  });
+});
+
+describe('a tap on a command button', () => {
+  const start = 'mower_logic:idle/start_mowing';
+  const pause = 'mower_logic:mowing/pause';
+  const resume = 'mower_logic:mowing/continue';
+  const home = 'mower_logic:mowing/abort_mowing';
+  const abortUndocking = 'mower_logic:undocking/abort_undocking';
+  const record = 'mower_logic:idle/start_area_recording';
+
+  it('holds back the same button and what sets the mower off', () => {
+    for (const tapped of [start, pause, resume, home, abortUndocking]) {
+      expect(lockedAfter(tapped, tapped)).toBe(true);
+      expect(lockedAfter(tapped, start)).toBe(true);
+      expect(lockedAfter(tapped, resume)).toBe(true);
+      expect(lockedAfter(tapped, record)).toBe(true);
+    }
+  });
+
+  it('never holds back stopping, pausing or going home after a tap on another one', () => {
+    for (const [tapped, id] of [
+      [start, pause],
+      [start, home],
+      [start, abortUndocking],
+      [home, abortUndocking],
+      [abortUndocking, home],
+      [pause, home],
+      [resume, home],
+    ])
+      expect(lockedAfter(tapped, id)).toBe(false);
+  });
+
+  it('holds back pause and continue for each other, they swap under the finger', () => {
+    expect(lockedAfter(pause, resume)).toBe(true);
+    expect(lockedAfter(resume, pause)).toBe(true);
   });
 });
