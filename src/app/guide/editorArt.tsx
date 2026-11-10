@@ -1219,6 +1219,7 @@ function Decorate() {
           unsaved={set}
           saving={false}
           busy={false}
+          offline={false}
           error={null}
           changed={set}
           onArm={noop}
@@ -1286,6 +1287,7 @@ function Save() {
             areas={BACKUP.areas}
             backedUp
             idle
+            live
             ends={false}
             unsaved={false}
             restoring={false}
