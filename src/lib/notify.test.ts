@@ -63,13 +63,13 @@ describe("a mower's address in its push message settings", () => {
 
 describe('what the container sends', {timeout: 30_000}, () => {
   // what it puts out for the topic (ntfy) or for the phones signed up in the app (push)
-  const lines = (input: string, conf: string, snooze?: number, to: 'ntfy' | 'push' = 'ntfy') => {
+  const lines = (input: string, conf: string, snooze?: number, to: 'ntfy' | 'push' = 'ntfy', prefix = '') => {
     const dir = mkdtempSync(join(tmpdir(), 'notify-'));
     writeFileSync(join(dir, 'conf'), conf);
     if (snooze !== undefined) writeFileSync(join(dir, 'snooze'), `${snooze}\n`);
     const r = spawnSync('sh', AWK_SH, {
       input,
-      env: {...process.env, CONF: join(dir, 'conf'), SNOOZE: snooze === undefined ? '' : join(dir, 'snooze')},
+      env: {...process.env, CONF: join(dir, 'conf'), SNOOZE: snooze === undefined ? '' : join(dir, 'snooze'), MOWER_MQTT_PREFIX: prefix},
     });
     return r.stdout
       .toString()
@@ -95,6 +95,11 @@ describe('what the container sends', {timeout: 30_000}, () => {
     expect(out[0].message).toBe("Steve is in emergency stop. The mow motor didn't start.");
     expect(out[1].message).toBe('Steve is still in emergency stop (for 1 min).');
     expect(out[0].actions).toHaveLength(2);
+  });
+
+  it('knows its topics behind the prefix the mower was given', () => {
+    const input = (state(100, 0) + state(111, 1) + state(150, 1)).replace(/^(\S+) /gm, '$1 garden/');
+    expect(lines(input, conf, undefined, 'ntfy', 'garden/').map((m) => m.title)).toEqual(['Emergency stop']);
   });
 
   it("doesn't tell about an emergency stop that clears itself within seconds, as long as set", () => {

@@ -268,10 +268,10 @@ describe('battery level', AWK, () => {
   const limits = (empty: number, full: number) =>
     `0 sensor_infos/json [{"sensor_id":"om_v_battery","has_min_max":true,"min_value":${empty},"max_value":${full}}]\n`;
   const board = (b: string) => `0 params/json {"/ll/bind_ip":"0.0.0.0","/ll/board":"${b}","/ll/services/power/battery_full_voltage":28.2}\n`;
-  const level = (input: string, d = mkdtempSync(join(tmpdir(), 'battery-')), state = '') => {
+  const level = (input: string, d = mkdtempSync(join(tmpdir(), 'battery-')), state = '', prefix = '') => {
     spawnSync('sh', AWK_SH, {
       input,
-      env: {...process.env, LC_ALL: 'C', OUT: join(d, 'battery.log'), STATE: state, LEVEL: join(d, 'level')},
+      env: {...process.env, LC_ALL: 'C', OUT: join(d, 'battery.log'), STATE: state, LEVEL: join(d, 'level'), MOWER_MQTT_PREFIX: prefix},
     });
     try {
       const [t, pct, how] = readFileSync(join(d, 'level'), 'utf8').trim().split(' ');
@@ -291,6 +291,11 @@ describe('battery level', AWK, () => {
     const low = level(infos + span(1, 300, () => 27.51, docked))!;
     expect(low.pct).toBeGreaterThanOrEqual(77);
     expect(low.pct).toBeLessThanOrEqual(81);
+  });
+
+  it('knows its topics behind the prefix the mower was given', () => {
+    const input = (infos + span(1, 300, () => 28.06, docked)).replace(/^(\S+) /gm, '$1 garden/');
+    expect(level(input, undefined, '', 'garden/')).toMatchObject({pct: 100, how: 'full'});
   });
 
   it("doesn't jump when the mower drives off and the blade starts", () => {
