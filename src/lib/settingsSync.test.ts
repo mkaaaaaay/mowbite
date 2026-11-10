@@ -43,3 +43,23 @@ describe('settings with the mower out of reach at the start', () => {
     expect(net.posted.at(-1)).toMatchObject({mapStyle: 'garden', weather: true});
   });
 });
+
+describe('settings saved in two tabs of one browser', () => {
+  it('a page with an older copy keeps what the other tab saved meanwhile', async () => {
+    net.up = false;
+    kept.clear();
+    // (from before mowers had their own settings)
+    kept.set('appSettings', JSON.stringify({grass: true, icons: {mower: 'robot'}}));
+    vi.resetModules();
+    const s = await import('./settings');
+    s.saveSettings({...s.settingsStore.snapshot(), weather: true});
+    expect(JSON.parse(kept.get('appSettings')!)).toEqual({grass: true, weather: true});
+    // the other tab adds a mower and picks another icon
+    const zwei = {id: 'z', name: 'Zwei', host: 'zwei'};
+    kept.set('appSettings', JSON.stringify({grass: true, weather: true, mowers: [zwei]}));
+    kept.set('appSettings:', JSON.stringify({icons: {mower: 'tron'}}));
+    s.saveSettings({...s.settingsStore.snapshot(), grass: false, mapStyle: 'garden'});
+    expect(JSON.parse(kept.get('appSettings')!)).toEqual({grass: false, weather: true, mowers: [zwei]});
+    expect(JSON.parse(kept.get('appSettings:')!)).toEqual({icons: {mower: 'tron'}, mapStyle: 'garden'});
+  });
+});

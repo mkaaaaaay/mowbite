@@ -121,13 +121,18 @@ export function applyColors(colors: Settings['colors'] = {}) {
   for (const c of COLORS) root.setProperty(`--c-${c.key}`, colors[c.key] ?? c.value);
 }
 
+// what this page changed of a part goes on top of what's kept there now, another tab's save meanwhile stays
+const keep = (key: string, part: (s: Settings) => Settings, was: Settings, next: Settings) =>
+  localStorage.setItem(key, JSON.stringify(part(mergeChanges(readStored<Settings>(key) ?? part(was), part(was), part(next)))));
+
 // the demo's settings stay in memory, the ones of this device's mowers are kept as they were
 function setLocal(next: Settings) {
+  const was = load();
   current = next;
   try {
     if (!isDemo()) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(join(next, {})));
-      localStorage.setItem(ownStorageKey(), JSON.stringify(ownPart(next)));
+      keep(STORAGE_KEY, (s) => join(s, {}), was, next);
+      keep(ownStorageKey(), ownPart, was, next);
     }
   } catch {}
   applyColors(next.colors);
