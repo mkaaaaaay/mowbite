@@ -1,8 +1,8 @@
-import {spawnSync} from 'node:child_process';
+import {spawn, spawnSync} from 'node:child_process';
 import {mkdtempSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {describe, expect, it} from 'vitest';
+import {describe, expect, it, vi} from 'vitest';
 import {defaultNotify, parseNotify, randomTopic, serializeNotify, validServer, validTopic, withMowerUrl} from './notify';
 
 const fallback = defaultNotify('de', 'http://openmower:8082', 'Steve');
@@ -178,6 +178,26 @@ describe('what the container sends', {timeout: 30_000}, () => {
     writeFileSync(join(dir, 'off'), conf);
     expect(told('off')).toEqual([]);
     expect(told()).toEqual(['Steve has mowed 83 h since the blades were last changed.']);
+  });
+
+  it('tells again once due by hours changed while it runs (stats.cgi drops the part from reminded)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'notify-'));
+    writeFileSync(join(dir, 'conf'), conf.replace('spinup', 'spinup,maintenance'));
+    writeFileSync(join(dir, 'state'), '100 300000.0 1.0 1.0 3 0 0 0 0 0\n');
+    writeFileSync(join(dir, 'maint'), 'blade 80 0 0\nclean 200 0 0\n');
+    const awk = spawn('awk', ['-f', 'docker/notify.awk'], {env: {...process.env, CONF: join(dir, 'conf'), SNOOZE: '', STATS: dir}});
+    let out = '';
+    awk.stdout.on('data', (d) => (out += d));
+    const closed = new Promise((done) => awk.on('close', done));
+    awk.stdin.write(state(1000, 0));
+    await vi.waitFor(() => expect(out).toContain('blades'));
+    writeFileSync(join(dir, 'state'), '100 400000.0 1.0 1.0 3 0 0 0 0 0\n');
+    writeFileSync(join(dir, 'maint'), 'blade 100 0 0\nclean 200 0 0\n');
+    writeFileSync(join(dir, 'reminded'), '');
+    awk.stdin.end(state(1400, 0));
+    await closed;
+    const messages = out.split('\n').filter((l) => l.startsWith('ntfy ')).map((l) => JSON.parse(l.slice(5)).message);
+    expect(messages).toEqual(['Steve has mowed 83 h since the blades were last changed.', 'Steve has mowed 111 h since the blades were last changed.']);
   });
 
   it('tells once when it stands still for ten minutes and is not charging, until it moves or charges again', () => {

@@ -426,6 +426,11 @@ docker exec mbt-web sh -c 'echo "push https://ntfy.invalid/upA?up=1" > /data/not
 expect "notify: a phone that's the only line goes" \
   "$(curl -s --data-binary 'https://ntfy.invalid/upA?up=1' "$N?push-remove") $(docker exec mbt-web cat /data/notify.conf | wc -l)" "ok 0"
 
+docker exec mbt-web sh -c 'mkdir -p /data/stats && printf "blade 80 0 0\nclean 200 0 0\n" > /data/stats/maint &&
+  printf "blade 0\nclean 0\n" > /data/stats/reminded'
+expect "stats: a part given other hours is told about again once due by them" \
+  "$(code -X POST "$W/stats?due=blade&h=100") $(docker exec mbt-web cat /data/stats/reminded)" "200 clean 0"
+
 docker exec mbt-web sh -c 'mkdir -p /data/gpslog && echo "1793644779.0 MOWING 1.200 3.400 0.020 -60" > /data/gpslog/20261103.log'
 expect "gpslog: a cell of 0 cm is taken as 10" "$(curl -s "$W/gpslog?cells=0" | head -n1 | cut -d' ' -f1-3)" "12 34 1"
 

@@ -9,7 +9,7 @@
 #   remind (minutes between reminders while the mower can't get on by itself, 0: none),
 #   emergency_wait (seconds an emergency stop has to last before it's told, 10 unless set), enabled (0: switched off)
 # and SNOOZE: until when (unix time) there are no reminders. STATS: where stats.sh counts the blade hours, a part
-# whose maintenance is due is told once, until it's done again (STATS/reminded keeps which were told).
+# whose maintenance is due is told once, until it's done again or its hours change (STATS/reminded keeps which were told).
 # the emergency stop comes from robot_state, a stop button, lifting or a bumper don't come as events. it only counts once
 # it lasted emergency_wait seconds: a bumper touched while docking clears itself.
 # sent home in the middle of a path OpenMower also reports a navigation error, so one only counts when no docking
@@ -261,6 +261,13 @@ function maintenance(   line, p, total, h, k) {
   close(STATS "/state")
   split(line, p, " ")
   total = p[2] + 0
+  # read again each time, stats.cgi drops a part whose hours were changed
+  split("", reminded)
+  while ((getline line < (STATS "/reminded")) > 0) {
+    split(line, p, " ")
+    reminded[p[1]] = p[2]
+  }
+  close(STATS "/reminded")
   while ((getline line < (STATS "/maint")) > 0) {
     split(line, p, " ")
     if (p[2] + 0 <= 0 || total - p[3] < p[2] * 3600 || (p[1] in reminded && reminded[p[1]] == p[4])) continue
@@ -287,13 +294,6 @@ BEGIN {
   STILL_M = 0.5
   STILL_WAIT = 600
   STATS = ENVIRON["STATS"]
-  if (STATS) {
-    while ((getline line < (STATS "/reminded")) > 0) {
-      split(line, p, " ")
-      reminded[p[1]] = p[2]
-    }
-    close(STATS "/reminded")
-  }
 }
 
 {
