@@ -356,6 +356,21 @@ expect "backups: at most 50 made by hand" "$(curl -s -w ' %{http_code}' --data-b
   "at most 50 backups made by hand 409"
 expect "backups: the automatic ones still go" "$(code --data-binary '{"areas":[]}' "$B?name=auto&auto=1")" 200
 expect "backups: nothing left half written" "$(docker exec mbt-web sh -c 'ls /data/backups | grep -c tmp')" 0
+# a connection that breaks off: curl gives up waiting for the rest it said would come
+curl -s -o /dev/null -m 2 -H 'Content-Length: 1000' --data-binary '{"areas":[' "$B?name=cut&auto=1"
+sleep 1
+expect "backups: a body that broke off isn't kept" "$(curl -s "$B" | grep -c '"name":"cut"')" 0
+bid() { sed -n 's/.*"id":"\([0-9-]*\)".*/\1/p'; }
+id=$(curl -s --data-binary '{"areas":[1]}' "$B?name=load&auto=1" | bid)
+expect "backups: one loaded" "$(curl -s "$B?id=$id")" '{"areas":[1]}'
+curl -s -o /dev/null -X POST "$B?action=delete&id=$id"
+expect "backups: one deleted" "$(code "$B?id=$id")$(curl -s "$B" | grep -c '"name":"load"')" 4040
+# one more automatic than are kept, the others with later times (a clock gone back): the oldest goes, not the new one
+old=$(curl -s "$B" | grep -o '"id":"[0-9-]*","t":[0-9]*,"name":"auto"' | bid)
+docker exec mbt-web sh -c 'cd /data/backups && for i in $(seq 30); do printf "x\n0\n1\n" > $((2000000000 + i))-1.meta; echo | gzip > $((2000000000 + i))-1.json.gz; done'
+id=$(curl -s --data-binary '{"areas":[]}' "$B?name=new&auto=1" | bid)
+expect "backups: the one just made is kept" "$(code "$B?id=$id")" 200
+expect "backups: the oldest automatic one goes" "$(code "$B?id=$old")" 404
 
 N=$W/notify
 curl -s -o /dev/null --data-binary $'server https://ntfy.invalid\ntopic mbt-test\ntoken secret-token-1\nenabled 1' "$N"
