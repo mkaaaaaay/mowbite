@@ -47,7 +47,7 @@ import {fmt, tr, useLang} from '@/lib/i18n';
 import {apiBase, isDemo} from '@/lib/mowers';
 import {isApp} from '@/lib/native';
 import {useThemeChoice} from '@/lib/theme';
-import {APP_VERSION} from '@/lib/updates';
+import {APP_VERSION, useUpdates} from '@/lib/updates';
 import local from './AutoUpdate.module.css';
 
 // the updater's part of compose.yaml, as in the repository's
@@ -98,9 +98,15 @@ function LastTime({r}: {r: PartResult}) {
   return <span className={r.level === 'error' ? local.error : r.level === 'warn' ? local.warn : local.dim}>{text}</span>;
 }
 
+// MowBite runs as a container there (it told its version), the demo doesn't: else there's no stack to update in dockge
+function useContainer(): boolean {
+  return useUpdates().level !== null && !isDemo();
+}
+
 // MowBite updated by hand in dockge, step by step
 export function DockgeUpdateGuide() {
   const dockge = useDockgeUrl();
+  if (!useContainer()) return null;
   return (
     <details className={local.part}>
       <summary className={local.name}>{tr('Update MowBite in Dockge')}</summary>
@@ -478,6 +484,7 @@ export function AutoUpdate() {
   const [now, setNow] = useState(() => Date.now() / 1000);
   const page = useUpdaterPageUrl();
   const theme = useThemeChoice();
+  const container = useContainer();
   const fast = useRef(false);
   const restartingRef = useRef(false);
   // counts taps that change something: an answer asked for before the last one is older than what's shown
@@ -550,7 +557,10 @@ export function AutoUpdate() {
   }, [running, restarting]);
 
   if (s === undefined) return null;
-  if (!s) return isDemo() ? null : <AddUpdater />;
+  if (!s) {
+    if (isDemo()) return null;
+    return container ? <AddUpdater /> : <span className={local.dim}>{tr('Only when MowBite runs as its container on the mower.')}</span>;
+  }
 
   const st = s;
   const busy = asked || st.requested || running || restarting;
