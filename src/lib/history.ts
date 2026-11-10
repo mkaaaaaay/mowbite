@@ -48,14 +48,29 @@ const shift = (day: string, by: number) => {
 // +1 east of UTC (the early hours of a local day are in the previous file), -1 west of it
 const side = () => Math.sign(-new Date().getTimezoneOffset());
 
+// the local days each file loaded so far has events on
+const spans = new Map<string, Set<string>>();
+
 // the local days worth showing, newest first: the file days and the local day next to each that holds some of its hours
-// (one without a file of its own included), plus today when the newest file is today's or yesterday's and today's own
-// file isn't there yet. west of UTC tomorrow's file is there in the evening already, it holds the rest of today
-export function localDays(files: string[]): string[] {
-  const days = new Set(side() ? files.flatMap((f) => [f, shift(f, side())]) : files);
+// (one without a file of its own included, unless the file is known to have none of its hours), plus today when the
+// newest file is today's or yesterday's and today's own file isn't there yet. west of UTC tomorrow's file is there in the
+// evening already, it holds the rest of today
+export function localDays(files: string[], known = spans): string[] {
+  const days = new Set(files);
+  for (const f of side() ? files : []) {
+    const next = shift(f, side());
+    if (!known.has(f) || known.get(f)!.has(next)) days.add(next);
+  }
   const today = fileDay(new Date());
   if (files.length && !days.has(today) && (files.includes(shift(today, -1)) || files.includes(shift(today, 1)))) days.add(today);
   return [...days].filter((d) => d <= today).sort().reverse();
+}
+
+// the days before today to look through for runs, newest first: up to the count-th with a file of its own
+export function daysBefore(files: string[], today: string, count: number): string[] {
+  const days = localDays(files).filter((d) => d !== today);
+  const own = days.filter((d) => files.includes(d));
+  return own.length > count ? days.slice(0, days.indexOf(own[count - 1]) + 1) : days;
 }
 
 export interface DayEvents {
@@ -71,6 +86,7 @@ export async function eventsOfDay(files: string[], day: string, load = historyOf
   const where = new Map<string, {file: string; line: number}>();
   for (const f of from) {
     const list = await load(f);
+    spans.set(f, new Set(list.map((e) => fileDay(new Date(e.t * 1000)))));
     list.forEach((e, i) => {
       where.set(e.id, {file: `${f}.jsonl`, line: i + 1});
       if (dayKey(new Date(e.t * 1000)) === wanted) events.push(e);
