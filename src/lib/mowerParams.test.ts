@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {PARAM_FIELDS, paramConflict, paramField, paramShown, paramValue, parseKept, parseParam, serializeKept, showParam} from './mowerParams';
+import {onOs, PARAM_FIELDS, paramConflict, paramField, paramShown, paramValue, parseKept, parseParam, serializeKept, showParam} from './mowerParams';
 
 describe('the settings of the mower', () => {
   it('have a range, a default inside it and a label each', () => {
@@ -13,6 +13,15 @@ describe('the settings of the mower', () => {
       }
     }
     expect(new Set(PARAM_FIELDS.map((f) => f.key)).size).toBe(PARAM_FIELDS.length);
+  });
+
+  it("take MowBite OS's narrower range and default on it only", () => {
+    const f = paramField('max_position_accuracy')!;
+    expect(onOs(f, false)).toBe(f);
+    expect(parseParam(onOs(f, true), '50')).toBe(0.3);
+    expect(parseParam(f, '50')).toBe(0.5);
+    expect(paramValue({}, onOs(f, true))).toBe(0.1);
+    expect(parseParam(onOs(paramField('undock_distance')!, true), '0')).toBe(0.5);
   });
 
   it('show going home at sunset only on a mower that lists it', () => {

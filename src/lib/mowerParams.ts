@@ -22,6 +22,10 @@ export interface ParamField {
   min?: number;
   max?: number;
   def: number | boolean;
+  // the range and default on MowBite OS where they differ
+  osMin?: number;
+  osMax?: number;
+  osDef?: number;
   // shown in: the mower's value times scale, e.g. meters as cm
   unit?: string;
   scale?: number;
@@ -67,20 +71,22 @@ export const PARAM_FIELDS: ParamField[] = [
   },
   {key: 'automatic_mode', group: 'auto', label: 'Starting by itself', help: "OpenMower's own automatic, apart from MowBite's schedule: with a schedule leave it on manual, or both start the mower.", osHelp: "The mower's own automatic, apart from the schedule: with a schedule leave it on manual.", type: 'choice', def: 0, choices: ['Manual: only when started', 'Semi-automatic: after a start it mows the whole map, charging in between', 'Automatic: mows whenever it can']},
 
-  {key: 'gps_timeout', group: 'gps', label: 'Mows on without a fix for 10 s plus', help: "After the fix is lost, OpenMower still takes it as good for 10 s, then the mower drives on for this long on wheel odometry, the blade still on: with 10 s for about 20 s. Then it stops with the blade off and waits for the fix.", osLabel: 'Docking waits for a good position for', osHelp: 'Mowing pauses as soon as the position is bad. Docking waits this long for a good position, then it gives up.', type: 'double', min: 0, max: 60, def: 10, unit: 's', step: 1},
-  {key: 'max_position_accuracy', group: 'gps', label: 'Required GPS accuracy', help: "OpenMower's max_position_accuracy: a position less accurate than this counts as no fix. An RTK fix is at a few cm.", type: 'double', min: 0.01, max: 1, def: 0.2, unit: 'cm', scale: 100, step: 1},
+  {key: 'gps_timeout', group: 'gps', label: 'Mows on without a fix for 10 s plus', help: "After the fix is lost, OpenMower still takes it as good for 10 s, then the mower drives on for this long on wheel odometry, the blade still on: with 10 s for about 20 s. Then it stops with the blade off and waits for the fix.", osLabel: 'Docking waits for a good position for', osHelp: 'Mowing pauses as soon as the position is bad. Docking waits this long for a good position, then it gives up.', type: 'double', min: 0, max: 60, def: 10, osMin: 1, unit: 's', step: 1},
+  {key: 'max_position_accuracy', group: 'gps', label: 'Required GPS accuracy', help: "OpenMower's max_position_accuracy: a position less accurate than this counts as no fix. An RTK fix is at a few cm.", type: 'double', min: 0.01, max: 1, def: 0.2, osMax: 0.3, osDef: 0.1, unit: 'cm', scale: 100, step: 1},
   {key: 'gps_wait_time', group: 'gps', label: 'Wait after the fix is back', type: 'double', min: 0, max: 60, def: 10, unit: 's', step: 1},
 
-  {key: 'docking_approach_distance', group: 'docking', label: 'Approach in a straight line from', help: 'How far in front of the dock the mower lines up before it drives in.', type: 'double', min: 0, max: 5, def: 1.5, unit: 'm', step: 0.1},
+  {key: 'docking_approach_distance', group: 'docking', label: 'Approach in a straight line from', help: 'How far in front of the dock the mower lines up before it drives in.', type: 'double', min: 0, max: 5, def: 1.5, osMin: 0.5, osMax: 2, unit: 'm', step: 0.1},
   {key: 'docking_distance', group: 'docking', label: 'Drives in at most this far', help: 'How far it drives forward looking for the charging contacts.', type: 'double', min: 0, max: 100, def: 2, unit: 'm', step: 0.1},
-  {key: 'docking_retry_count', group: 'docking', label: 'Retries when docking', help: 'How often it backs out and tries again before it gives up.', type: 'int', min: 0, max: 50, def: 4},
-  {key: 'undock_distance', group: 'docking', label: 'Backs out of the dock by', type: 'double', min: 0, max: 100, def: 2, unit: 'm', step: 0.1},
+  {key: 'docking_retry_count', group: 'docking', label: 'Retries when docking', help: 'How often it backs out and tries again before it gives up.', type: 'int', min: 0, max: 50, def: 4, osMax: 5},
+  {key: 'undock_distance', group: 'docking', label: 'Backs out of the dock by', type: 'double', min: 0, max: 100, def: 2, osMin: 0.5, osMax: 2, unit: 'm', step: 0.1},
 
   {key: 'motor_hot_temperature', group: 'motor', label: 'Too hot to mow from', help: 'The mow motor pauses and the mower goes home.', type: 'double', min: 20, max: 150, def: 70, unit: '°C', step: 1},
   {key: 'motor_cold_temperature', group: 'motor', label: 'Cool enough again at', type: 'double', min: 20, max: 150, def: 40, unit: '°C', step: 1},
 ];
 
 export const paramField = (key: string) => PARAM_FIELDS.find((f) => f.key === key);
+// the field with MowBite OS's range and default on it
+export const onOs = (f: ParamField, os: boolean): ParamField => (os ? {...f, min: f.osMin ?? f.min, max: f.osMax ?? f.max, def: f.osDef ?? f.def} : f);
 // the ones this mower has, none of the reported ones before its params came
 export const paramShown = (f: ParamField, params: Record<string, unknown>) => !f.reported || paramName(f.key) in params;
 export const paramName = (key: string) => PARAM.mowerLogic(key);

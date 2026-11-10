@@ -4,6 +4,7 @@ import {datumFromParams, useMowerParams} from '@/hooks/useMowerParams';
 import {tr} from '@/lib/i18n';
 import {
   loadKept,
+  onOs,
   PARAM_FIELDS,
   PARAM_GROUPS,
   paramField,
@@ -101,7 +102,8 @@ export async function setOpenMowerParam(key: string, value: number | boolean) {
 }
 
 // one setting: its value on the mower, changed right there. os: on MowBite OS
-export function ParamRow({field: f, os}: {field: ParamField; os: boolean}) {
+export function ParamRow({field, os}: {field: ParamField; os: boolean}) {
+  const f = onOs(field, os);
   const params = useMowerParams();
   const k = useKept();
   const value = paramValue(params, f);
@@ -226,8 +228,8 @@ export function ParamFix({keys}: {keys: string[]}) {
 }
 
 // the values that matter most of a group, read in its folded line
-function summary(group: ParamGroup, params: Record<string, unknown>): string {
-  const v = (key: string) => paramValue(params, paramField(key)!);
+function summary(group: ParamGroup, params: Record<string, unknown>, os: boolean): string {
+  const v = (key: string) => paramValue(params, onOs(paramField(key)!, os));
   const n = (key: string) => showParam(paramField(key)!, v(key) as number);
   switch (group) {
     case 'mowing':
@@ -342,7 +344,7 @@ export function OpenMowerSettings({styles}: {styles: Styles}) {
             <summary>
               <span className={local.title}>
                 {tr(g.title)}
-                <small>{summary(g.key, params)}</small>
+                <small>{summary(g.key, params, os)}</small>
               </span>
             </summary>
             <div className={local.rows}>

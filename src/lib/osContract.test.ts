@@ -3,7 +3,7 @@ import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {describe, expect, it} from 'vitest';
 import de from './i18n/de';
-import {PARAM_FIELDS, paramField} from './mowerParams';
+import {onOs, PARAM_FIELDS, paramField} from './mowerParams';
 import {COMMAND, RPC} from './openmower';
 import {EMERGENCY_BITS, EMERGENCY_HIDE, EMERGENCY_TEXT, EVENTS, REASONS, pick} from './reasonTexts';
 
@@ -24,7 +24,7 @@ const api = JSON.parse(raw.toString()) as {
   'x-emergency-bits': {bit: number; name: string}[];
   'x-methods': Record<string, unknown>;
   'x-sensors': Record<string, {name: string}>;
-  'x-settings': Record<string, {default: number; min: number; max: number}>;
+  'x-settings': Record<string, {default: number; min: number; max: number; unit: string}>;
   $defs: Record<string, unknown>;
 };
 
@@ -130,6 +130,16 @@ describe(`MowBite OS's interface (${PINNED.repo} ${PINNED.commit.slice(0, 7)}, a
     const shown = PARAM_FIELDS.filter((f) => f.group !== 'mowing' && !f.reported).map((f) => f.key);
     expect(shown.filter((k) => !(k in settings))).toEqual([]);
     expect(Object.keys(settings).filter((k) => !paramField(k))).toEqual([]);
+  });
+
+  it('has the range and default of each setting as the app has them on it', () => {
+    // the app's unit is what it shows, the mower's value times scale
+    const osUnit = (unit = '', scale = 1) => (unit === 'cm' && scale === 100 ? 'm' : unit === '°C' ? 'deg.C' : unit);
+    for (const [key, s] of Object.entries(api['x-settings'])) {
+      const f = onOs(paramField(key)!, true);
+      const range = f.type === 'choice' ? {min: 0, max: f.choices!.length - 1} : {min: f.min, max: f.max};
+      expect({...range, def: Number(f.def), unit: osUnit(f.unit, f.scale)}, key).toEqual({min: s.min, max: s.max, def: s.default, unit: s.unit});
+    }
   });
 
   it('has every sensor name in german, a name without small letters (NTRIP) stays as it is', () => {
