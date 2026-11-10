@@ -251,6 +251,7 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
     setForm({...form, [key]: value});
     if (key === 'robot_width' || key === 'robot_front' || key === 'robot_rear') setOutline(null);
     setOther(false);
+    setTurn(null);
     setState({});
   };
 
