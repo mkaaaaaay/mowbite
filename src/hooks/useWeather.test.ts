@@ -11,15 +11,19 @@ const answer = {
 describe('the weather', () => {
   let online = true;
   let asked = 0;
+  // how long an answer takes (ms)
+  let slow = 0;
   const page = new EventTarget();
   const doc = Object.assign(new EventTarget(), {visibilityState: 'visible'});
   beforeEach(() => {
     vi.useFakeTimers();
     asked = 0;
+    slow = 0;
     vi.stubGlobal('window', page);
     vi.stubGlobal('document', doc);
     vi.stubGlobal('fetch', async () => {
       asked++;
+      if (slow) await new Promise((r) => setTimeout(r, slow));
       if (!online) throw new Error('offline');
       return {ok: true, json: async () => answer};
     });
@@ -78,5 +82,17 @@ describe('the weather', () => {
     expect(asked).toBe(2);
     expect(seen.map((s) => s.at(-1)?.temp)).toEqual([18, 18]);
     stops.forEach((stop) => stop());
+  });
+
+  it('is asked again with every round, the answer of the round before is not taken for a fresh one', async () => {
+    slow = 300;
+    const stop = watchWeather(52.4, 9.4, () => {});
+    await vi.advanceTimersByTimeAsync(slow);
+    expect(asked).toBe(1);
+    await vi.advanceTimersByTimeAsync(EVERY);
+    expect(asked).toBe(2);
+    await vi.advanceTimersByTimeAsync(EVERY);
+    expect(asked).toBe(3);
+    stop();
   });
 });
