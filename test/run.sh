@@ -428,7 +428,7 @@ t0=$(date +%s)
 docker stop mbt-web > /dev/null
 expect "it stops right away, not after docker's 10 s" "$(($(date +%s) - t0 < 5))" 1
 docker start mbt-web > /dev/null
-sleep 3
+sleep 5
 expect "the logs in /data kept to their size" \
   "$(docker exec mbt-web sh -c 'wc -l < /data/stats/hours; wc -l < /data/battery.log; wc -l < /data/battery-health.log' | tr '\n' ' ')" \
   '10000 2000 4000 '
