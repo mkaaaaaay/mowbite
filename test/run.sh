@@ -347,6 +347,17 @@ kept=$'enabled 1\npause 2026-01-01 all\ntz Europe/Berlin\nplan 1,2 07:30 a_b-c e
 expect "schedule: only lines of the known shapes are kept" "$(curl -s --data-binary "$body" "$W/schedule")" "$kept"
 expect "schedule: a page elsewhere can't change it" "$(code -H 'Origin: http://evil.example' --data-binary 'enabled 0' "$W/schedule")" 403
 expect "schedule: and it's as it was" "$(curl -s "$W/schedule")" "$kept"
+# a connection that breaks off: curl gives up waiting for the rest it said would come
+broken() { curl -s -o /dev/null -m 2 -H 'Content-Length: 1000' --data-binary "$2" "$1"; sleep 1; }
+broken "$W/schedule" 'enabled 0'
+expect "schedule: a body that broke off leaves it as it was" "$(curl -s "$W/schedule")" "$kept"
+
+P=$W/params
+body=$'enabled 1\n/mower_logic/a_b 1.5\n/mower_logic/c true\n/other/x 1\n/mower_logic/d 1e9\n/mower_logic/e $(id)'
+kept=$'enabled 1\n/mower_logic/a_b 1.5\n/mower_logic/c true'
+expect "params: only lines of the known shapes are kept" "$(curl -s --data-binary "$body" "$P")" "$kept"
+broken "$P" 'enabled 0'
+expect "params: a body that broke off leaves them as they were" "$(curl -s "$P")" "$kept"
 
 B=$W/backups
 expect "backups: one made by hand" "$(code --data-binary '{"areas":[]}' "$B?name=mine&areas=0")" 200
@@ -358,9 +369,7 @@ expect "backups: the automatic ones still go" "$(code --data-binary '{"areas":[]
 expect "backups: the list says how many are kept" "$(curl -s -D - -o /dev/null "$B" | tr -d '\r' | sed -n 's/^x-backups-keep: //Ip')" \
   'auto=30 hand=50'
 expect "backups: nothing left half written" "$(docker exec mbt-web sh -c 'ls /data/backups | grep -c tmp')" 0
-# a connection that breaks off: curl gives up waiting for the rest it said would come
-curl -s -o /dev/null -m 2 -H 'Content-Length: 1000' --data-binary '{"areas":[' "$B?name=cut&auto=1"
-sleep 1
+broken "$B?name=cut&auto=1" '{"areas":['
 expect "backups: a body that broke off isn't kept" "$(curl -s "$B" | grep -c '"name":"cut"')" 0
 bid() { sed -n 's/.*"id":"\([0-9-]*\)".*/\1/p'; }
 id=$(curl -s --data-binary '{"areas":[1]}' "$B?name=load&auto=1" | bid)
