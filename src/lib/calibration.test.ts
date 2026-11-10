@@ -4,7 +4,8 @@ vi.mock('./mqttClient', () => ({topicStore: () => ({subscribe: () => () => {}, g
 vi.mock('./rpc', () => ({callRpc: async () => ({})}));
 vi.mock('./autoUpdate', () => ({requestCalib: async () => {}, requestCalibBack: async () => {}}));
 
-const {calibByHand, calibLines, calibText, changeOf, lackDone, lacks, preselected, readLast, readPaths, readProgress, readResult, readState} = await import('./calibration');
+vi.stubEnv('APP_CALIBRATION', '1');
+const {calibByHand, calibLines, calibText, canCalibrate, changeOf, lackDone, lacks, preselected, readLast, readPaths, readProgress, readResult, readState} = await import('./calibration');
 
 // an answer of planner.calib.result as the planner gives it (mowbite-calib/1)
 const answer = {
@@ -106,6 +107,17 @@ describe('a calibration', () => {
     expect(by({phase: 'recording'}, false)).toBe(false);
     expect(by({phase: 'done', mode: 'joystick'}, true)).toBe(false);
     expect(calibByHand(null, true)).toBe(false);
+    // only with a planner that offers it, what its topic says alone doesn't count
+    expect(canCalibrate(new Set(['planner.calib.start']))).toBe(true);
+    expect([new Set(['planner.plan']), null, undefined].map(canCalibrate)).toEqual([false, false, false]);
+  });
+
+  it('is left to the builds that have it', async () => {
+    vi.stubEnv('APP_CALIBRATION', '');
+    vi.resetModules();
+    const release = await import('./calibration');
+    expect(release.canCalibrate(new Set(['planner.calib.start']))).toBe(false);
+    vi.stubEnv('APP_CALIBRATION', '1');
   });
 
   it("knows whether the receiver has its fix while it's recorded, a planner that doesn't tell says nothing", () => {

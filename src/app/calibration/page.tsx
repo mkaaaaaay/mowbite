@@ -12,6 +12,7 @@ import {
   calibBack,
   calibCheck,
   calibByHand,
+  canCalibrate,
   calibProgress,
   calibResult,
   calibStart,
@@ -220,7 +221,7 @@ export default function CalibrationPage() {
   const {hasAction, publishAction} = useMowerActions();
   const progress = useSyncExternalStore(calibProgress.subscribe, calibProgress.get, calibProgress.initial);
   const methods = useRpcMethods();
-  const can = !!methods?.has(RPC.plannerCalibStart);
+  const can = canCalibrate(methods);
 
   const [mode, setMode] = useState<CalibMode>('joystick');
   const [asking, setAsking] = useState(false);

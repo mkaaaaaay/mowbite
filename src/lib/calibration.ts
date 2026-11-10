@@ -91,6 +91,10 @@ export function readResult(answer: unknown): CalibResult | null {
 export const calibByHand = (p: CalibProgress | null, recordingMode: boolean) =>
   p?.phase === 'recording' && (p.mode ? p.mode === 'joystick' : recordingMode);
 
+// this build has the calibration and the planner on this mower offers it (rpc.methods). without that nothing leads to it,
+// what the planner's topic still says is left over then or another app's
+export const canCalibrate = (methods: Set<string> | null | undefined) => CALIB_SHOWN && !!methods?.has(RPC.plannerCalibStart);
+
 export function readProgress(payload: string): CalibProgress | null {
   let p: Record<string, unknown>;
   try {

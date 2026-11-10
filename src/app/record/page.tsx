@@ -14,7 +14,7 @@ import {isLive, useMowerState} from '@/hooks/useMowerState';
 import Link from 'next/link';
 import {useRouter, useSearchParams} from 'next/navigation';
 import {Suspense, useEffect, useRef, useState, useSyncExternalStore} from 'react';
-import {calibByHand, calibProgress} from '@/lib/calibration';
+import {calibByHand, calibProgress, canCalibrate} from '@/lib/calibration';
 import {createPortal} from 'react-dom';
 import StationGuide from './Station';
 import styles from './page.module.css';
@@ -136,7 +136,8 @@ function Record() {
           : 'empty';
   const hasOutline = overlay.some((l) => l.closed && l.color === 'green');
   // an OpenMower with rpcs has mowing by hand too, its actions are only told once recording mode was on
-  const newer = !!useRpcMethods();
+  const methods = useRpcMethods();
+  const newer = !!methods;
 
   // the docking station recorded with the guide (Station.tsx), in recording mode with nothing else recorded. asked for
   // before recording mode is there: it comes once it is, ends when it ends or something else is recorded
@@ -231,7 +232,7 @@ function Record() {
   const router = useRouter();
   // a calibration drive by hand runs in recording mode: its own page, not this one
   const calib = useSyncExternalStore(calibProgress.subscribe, calibProgress.get, calibProgress.initial);
-  const calibrating = recordingMode && calibByHand(calib, true);
+  const calibrating = recordingMode && canCalibrate(methods) && calibByHand(calib, true);
   useEffect(() => {
     if (calibrating) router.replace('/calibration');
   }, [calibrating, router]);

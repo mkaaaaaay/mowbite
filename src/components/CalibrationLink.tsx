@@ -1,9 +1,8 @@
 'use client';
 
 import {loadUpdate} from '@/lib/autoUpdate';
-import {CALIB_SHOWN, readLast} from '@/lib/calibration';
+import {canCalibrate, readLast} from '@/lib/calibration';
 import {locale, monthStyle, tr, useLang} from '@/lib/i18n';
-import {RPC} from '@/lib/openmower';
 import Link from 'next/link';
 import {useRpcMethods} from '@/hooks/useRpcMethods';
 import {useEffect, useState} from 'react';
@@ -12,7 +11,7 @@ import {useEffect, useState} from 'react';
 export function CalibrationLink({styles}: {styles: Record<string, string>}) {
   useLang();
   const methods = useRpcMethods();
-  const can = CALIB_SHOWN && !!methods?.has(RPC.plannerCalibStart);
+  const can = canCalibrate(methods);
   const [last, setLast] = useState<ReturnType<typeof readLast>>(null);
   useEffect(() => {
     let stop = false;
