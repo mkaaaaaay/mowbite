@@ -177,8 +177,8 @@ stop_time() {
   [ -n "$stop" ] && echo "$stop $why"
 }
 
-# the stop time $1 isn't to come any more (carried out, or a start ended the run): run.due goes while it's this one
-stop_done() { [ "$(cat "$DUE" 2>/dev/null)" = "$1" ] && rm -f "$DUE"; }
+# the stop time of the run started at $1 isn't to come any more (carried out, or a start ended the run)
+stop_done() { rm -f "$DUE.$1"; }
 
 # a run this script started: send it home at the stop time, and set OpenMower's own pause like going home does in its
 # semi-automatic mode (manual_pause_mowing, params.set): a job still open (charging at the stop time, or in automatic
@@ -198,10 +198,10 @@ send_home_at() {
     t=$(date +%s)
     e=$(mosquitto_sub -h "$host" -p "$PORT" $topics -v -C 1 -W "$w" 2>/dev/null) ||
       { [ $(($(date +%s) - t)) -lt 1 ] && sleep 5; }
-    case "$e" in *" $ACTION_START_MOWING") stop_done "$1"; return ;; esac
+    case "$e" in *" $ACTION_START_MOWING") stop_done "$3"; return ;; esac
     case "$(field "$e" type)" in JOB_COMPLETE | SHUTDOWN) return ;; esac
   done
-  stop_done "$1"
+  stop_done "$3"
   logged=""
   s=$(mosquitto_sub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -C 1 -W 10 2>/dev/null)
   if [ "$(field "$s" current_state)" = MOWING ]; then
@@ -467,7 +467,8 @@ LEFT=/tmp/leftovers.started
 STOP=/tmp/run.stop
 # kept over a restart of the container (an update while the mower charges in the middle of a run): the run this script
 # started ("<started> <stop>|- <why>|- <areas>"), and a start waiting for the battery ("<until> <day> <HH:MM> <date>
-# <end>|-"). both go when they're over. only the main loop writes them, and run.due: the run's stop time while it's to come
+# <end>|-"). both go when they're over. only the main loop writes them, and run.due.<started> (empty): there while that
+# run's stop time is to come
 RUN=/data/run.state
 WAITING=/data/run.wait
 DUE=/data/run.due
@@ -493,7 +494,7 @@ run_open() {
 }
 
 # the run of before a restart: its areas skipped again and sent home at its time, while its job is still open. a stop
-# time that passed meanwhile is carried out now, if run.due still has it to come
+# time that passed meanwhile is carried out now, if its run.due is still there
 restore_run() {
   # shellcheck disable=SC2034
   read -r at stop why areas < "$RUN" || return
@@ -508,8 +509,10 @@ restore_run() {
     rm -f "$RUN"
     return
   fi
+  # a start since then is another run, with its own
+  [ "$(cut -d' ' -f1 "$RUN" 2>/dev/null)" = "$at" ] || return
   skip_others "$areas" &
-  [ "$stop" != - ] && { [ "$stop" -gt "$(date +%s)" ] || [ "$(cat "$DUE" 2>/dev/null)" = "$stop" ]; } && send_home_at "$stop" "$why" &
+  [ "$stop" != - ] && { [ "$stop" -gt "$(date +%s)" ] || [ -f "$DUE.$at" ]; } && send_home_at "$stop" "$why" "$at" &
 }
 [ -f "$RUN" ] && restore_run &
 
@@ -681,12 +684,14 @@ while :; do
         check_started "$dtime" &
         # the end time of the start, not the next one from now (it may have waited for the battery)
         stop=$(stop_time "$end" "$sunset" "$dark" "$endat")
-        echo "$(date +%s) ${stop:-- -} $areas" > "$RUN"
-        [ -n "$stop" ] && echo "${stop% *}" > "$DUE"
+        began=$(date +%s)
+        echo "$began ${stop:-- -} $areas" > "$RUN"
+        rm -f "$DUE".*
+        [ -n "$stop" ] && : > "$DUE.$began"
         # always: a pause set while it runs counts too
         skip_others "$areas" &
         # shellcheck disable=SC2086
-        [ -n "$stop" ] && send_home_at $stop &
+        [ -n "$stop" ] && send_home_at $stop "$began" &
         until=0
       else
         slog skip_offline
