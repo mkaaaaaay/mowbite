@@ -145,7 +145,11 @@ export default function DecorPanel({
       </div>
       {busy && (
         <div ref={busyRef} className={styles.warning}>
-          <p>{offline ? tr("No connection to the mower right now. If it's out, saving can interrupt it.") : tr('The mower is busy. Saving now can interrupt it.')}</p>
+          <p>
+            {offline
+              ? tr("No connection to the mower right now, so it isn't known whether it's out. Better save once it can be reached again.")
+              : tr('The mower is busy (mowing, docking or recording). Better save once it is done.')}
+          </p>
           <div className={styles.inlineRow}>
             <button className={styles.pillButton} onClick={onSaveAnyway}>
               {tr('Save anyway')}

@@ -88,7 +88,7 @@ describe('decorating under the map', () => {
 
   it('asks before saving while the mower is out, says what went wrong', () => {
     const html = panel({busy: true, error: 'timeout'});
-    expect(html).toContain('The mower is busy. Saving now can interrupt it.');
+    expect(html).toContain('The mower is busy (mowing, docking or recording). Better save once it is done.');
     expect(html).toContain('Save anyway');
     expect(html).toContain('After mowing');
     expect(html).toContain('timeout');
@@ -96,7 +96,7 @@ describe('decorating under the map', () => {
 
   it('asks the same without a connection, the mower may be out', () => {
     const html = panel({busy: true, offline: true});
-    expect(html).toContain("No connection to the mower right now. If it's out, saving can interrupt it.");
+    expect(html).toContain("No connection to the mower right now, so it isn't known whether it's out. Better save once it can be reached again.");
     expect(html).toContain('Save anyway');
   });
 });
