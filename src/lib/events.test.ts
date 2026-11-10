@@ -250,6 +250,12 @@ describe('heading home and charging on MowBite OS', () => {
     expect(chargeConfirmed([ev(5, 'DOCKED')], 8)).toBe(false);
     expect(chargeConfirmed([ev(5, 'DOCKED')], 3)).toBe(true);
     expect(chargeConfirmed([], 3)).toBe(false);
+    // left: the newest event when it was seen off them, the DOCKED known then doesn't count, one after it does
+    expect(chargeConfirmed([ev(5, 'DOCKED')], 5)).toBe(false);
+    expect(chargeConfirmed([ev(5, 'DOCKED'), ev(9, 'DOCKED')], 5)).toBe(true);
+    // none known then: any DOCKED after it
+    expect(chargeConfirmed([], -Infinity)).toBe(false);
+    expect(chargeConfirmed([ev(2, 'DOCKED')], -Infinity)).toBe(true);
   });
 });
 
