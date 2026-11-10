@@ -83,6 +83,32 @@ describe('a setting of the mower kept by the container', () => {
   });
 });
 
+describe('keeping switched on again', () => {
+  beforeEach(() => {
+    cgi.file = 'enabled 0\n/mower_logic/gps_timeout 20\n/mower_logic/docking_approach_distance 1\n';
+    cgi.fail = false;
+  });
+
+  it("keeps the values the mower has now, not the ones from before, and none it hasn't told", async () => {
+    const {switchKeeping} = await load();
+    await switchKeeping(true, {'/mower_logic/gps_timeout': 15, '/mower_logic/tool_width': 0.2});
+    expect(cgi.file).toBe('enabled 1\n/mower_logic/gps_timeout 15\n');
+  });
+
+  it("keeps nothing from before while the mower's values haven't come", async () => {
+    const {switchKeeping} = await load();
+    await switchKeeping(true, {});
+    expect(cgi.file).toBe('enabled 1\n');
+  });
+
+  it('switched off leaves the values as they were', async () => {
+    const {switchKeeping} = await load();
+    cgi.file = 'enabled 1\n/mower_logic/gps_timeout 20\n';
+    await switchKeeping(false, {'/mower_logic/gps_timeout': 15});
+    expect(cgi.file).toBe('enabled 0\n/mower_logic/gps_timeout 20\n');
+  });
+});
+
 describe('the folded line of a group', () => {
   it("leaves out a value it doesn't know", async () => {
     const {summary} = await load();
