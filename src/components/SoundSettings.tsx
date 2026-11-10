@@ -84,15 +84,15 @@ export function SoundSettings({styles}: {styles: Record<string, string>}) {
   const upload = async (situation: string, file: File) => {
     setNote(null);
     setBusy({situation, text: ''});
-    let sent = false;
+    let partsOut = false;
     try {
       const r = await uploadSound(situation, file, (part, parts) => {
-        sent = true;
+        partsOut = true;
         setBusy({situation, text: part < parts - 1 ? tr('Uploading part {n} of {m}…', {n: part + 1, m: parts}) : tr('The mower checks the sound…')});
       });
       setNote({situation, text: tr('Uploaded, {n} s.', {n: fmt(r.duration_s, 1)})});
     } catch (e) {
-      if (sent && leftHeld(e)) held.current = Date.now() + HELD_MS;
+      if (partsOut && leftHeld(e)) held.current = Date.now() + HELD_MS;
       const wait = e instanceof RpcError && e.data?.reason === 'BUSY' && held.current > Date.now();
       const until = tr('The upload that broke off keeps the mower busy until {time} at the latest, the same file for the same situation goes right away.', {
         time: clock(held.current / 1000),
