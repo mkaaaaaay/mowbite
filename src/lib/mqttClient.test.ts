@@ -105,7 +105,7 @@ describe('MQTT 5 on MowBite OS', () => {
     vi.resetModules();
     let made: FakeMqtt | null = null;
     vi.doMock('mqtt', () => ({default: {connect: (_url: string, o: {protocolVersion: number}) => (made = new FakeMqtt({...o}))}}));
-    vi.doMock('./mowers', () => ({isDemo: () => false, selectedMower: () => null}));
+    vi.doMock('./mowers', () => ({isDemo: () => false, selectedMower: () => null, WS_PORT: 9001}));
     vi.stubGlobal('window', {location: {hostname: 'mower'}});
     vi.stubGlobal('document', {addEventListener() {}});
     vi.stubGlobal('localStorage', {
