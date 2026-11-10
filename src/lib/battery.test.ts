@@ -20,6 +20,11 @@ describe('battery', () => {
     expect(fullCharges(cycles).map((c) => c.from)).toEqual([24.1, 27.52, 21.9]);
     expect(chargeSamples(cycles)[0]).toEqual({t: 6000e3, v: 98.3});
   });
+  it('leaves out a charge off the charger before Done', () => {
+    const c = parseBattery('charge 100 2800 45.0 23.60 26.20 lost\ncharge 40000 44800 80.0 25.60 29.00 done\n');
+    expect(c.map((x) => x.ended)).toEqual(['lost', 'done']);
+    expect(fullCharges(c).map((x) => x.minutes)).toEqual([80]);
+  });
 });
 
 // docker/battery.awk with the awk on the path: the CI puts the container's busybox one there, several times slower than
@@ -38,6 +43,13 @@ describe('what the container writes', AWK, () => {
     for (let t = 200; t <= 1400; t += 10) input += line(t, 'om_mow_motor_rpm', rpm);
     return input + line(1500, 'om_v_battery', 25) + line(1501, 'om_charge_current', 1);
   };
+
+  it('tells how a charge ended', () => {
+    const charged = line(0, 'om_v_battery', 24) + line(1, 'om_charge_current', 1) + line(1500, 'om_v_battery', 28);
+    expect(run(charged + line(1501, 'om_charge_state', 'Done'))).toContain('charge 1 1501 25.0 24.00 28.00 done');
+    // off the charger: two minutes without current
+    expect(run(charged + line(1502, 'om_charge_current', 0) + line(1630, 'om_charge_current', 0))).toContain('charge 1 1502 25.0 24.00 28.00 lost');
+  });
 
   it('counts the blade time either way round', () => {
     expect(run(mow(2400))).toContain('run 100 1501 20.0 28.00 25.00');

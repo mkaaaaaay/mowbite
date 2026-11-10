@@ -1,5 +1,6 @@
 # input: "<unix time> <topic> <value>" from mosquitto_sub. output, appended to OUT:
-#   charge <start> <end> <minutes> <volts at start> <volts at the end>   from charging on until the charger says Done
+#   charge <start> <end> <minutes> <volts at start> <volts at the end> done|lost   from charging on until the charger says
+#     Done, or lost: off the charger before it (lines from before without it)
 #   run <start> <end> <blade minutes> <volts after charging> <volts when charging starts again>   between two charges
 # the state in between (a run since the last charge, a charge going on) is kept in STATE, so a restart of the container
 # doesn't lose the run it was in
@@ -406,7 +407,7 @@ BEGIN {
       # the run
       if (!no_current_t) no_current_t = t
       else if (t - no_current_t > 120) {
-        printf "charge %d %d %.1f %.2f %.2f\n", charge_t, no_current_t, (no_current_t - charge_t) / 60, charge_v, volts >> OUT
+        printf "charge %d %d %.1f %.2f %.2f lost\n", charge_t, no_current_t, (no_current_t - charge_t) / 60, charge_v, volts >> OUT
         close(OUT)
         charging = 0
         finish("lost", no_current_t)
@@ -429,7 +430,7 @@ BEGIN {
       if (st !~ /^(Trickle Charge|Pre Charge|Fast Charge|Taper Charge|Top Off)/) h["pst"] = sst
     }
     if (val == "Done" && charging) {
-      printf "charge %d %d %.1f %.2f %.2f\n", charge_t, t, (t - charge_t) / 60, charge_v, volts >> OUT
+      printf "charge %d %d %.1f %.2f %.2f done\n", charge_t, t, (t - charge_t) / 60, charge_v, volts >> OUT
       close(OUT)
       charging = 0
       finish("done", t)

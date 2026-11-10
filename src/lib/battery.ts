@@ -9,14 +9,16 @@ export interface Cycle {
   minutes: number; // charge: how long it took, run: blade minutes
   from: number; // volts
   to: number;
+  // a charge: ended with Done or off the charger before it, unknown from an older container
+  ended?: 'done' | 'lost';
 }
 
 export function parseBattery(text: string): Cycle[] {
   const out: Cycle[] = [];
   for (const line of text.split('\n')) {
-    const [kind, start, end, minutes, from, to] = line.trim().split(' ');
+    const [kind, start, end, minutes, from, to, ended] = line.trim().split(' ');
     if ((kind !== 'charge' && kind !== 'run') || !to) continue;
-    out.push({kind, start: +start, end: +end, minutes: +minutes, from: +from, to: +to});
+    out.push({kind, start: +start, end: +end, minutes: +minutes, from: +from, to: +to, ...(ended === 'done' || ended === 'lost' ? {ended} : {})});
   }
   return out;
 }
@@ -26,9 +28,9 @@ export function parseBattery(text: string): Cycle[] {
 const topUp = (c: Cycle, before?: Cycle) =>
   c.to - c.from < 0.25 * Math.round(c.to / 4.15) && !(before?.kind === 'run' && before.minutes >= 1);
 
-// full charges only, 20 minutes or more and no top up
+// full charges only, 20 minutes or more, no top up and not off the charger before Done
 export const fullCharges = (cycles: Cycle[]): Cycle[] =>
-  cycles.filter((c, i) => c.kind === 'charge' && c.minutes >= 20 && !topUp(c, cycles[i - 1]));
+  cycles.filter((c, i) => c.kind === 'charge' && c.ended !== 'lost' && c.minutes >= 20 && !topUp(c, cycles[i - 1]));
 
 export const chargeSamples = (cycles: Cycle[]): Sample[] => fullCharges(cycles).map((c) => ({t: c.end * 1000, v: c.minutes}));
 
