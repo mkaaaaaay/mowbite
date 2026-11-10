@@ -120,14 +120,27 @@ test('after an emergency reset on the record page the stick waits a moment', asy
   await page.goto('/record/');
   await demoDocked(page);
   await page.getByRole('button', {name: 'Start recording mode'}).click();
-  await demoEmergency(page);
-  await page.locator('button:visible', {hasText: 'Reset emergency'}).click();
-  await expect(stick(page)).toBeVisible();
-  const from = await pose(page);
-  await holdStick(page);
-  await page.waitForTimeout(400);
-  await page.mouse.up();
-  await page.waitForTimeout(600);
+  // when the reset was tapped and when the stick was pressed, by the page's clock
+  await page.evaluate(() => {
+    const at: Record<string, number> = ((window as unknown as {tapAt: Record<string, number>}).tapAt = {});
+    for (const type of ['click', 'pointerdown']) document.addEventListener(type, () => (at[type] = performance.now()), true);
+  });
+  let from = await pose(page);
+  // only a press within the second it waits tells: a busy pc can be late for it, then once more
+  for (let late = 0; ; late++) {
+    await demoEmergency(page);
+    await page.locator('button:visible', {hasText: 'Reset emergency'}).click();
+    const box = (await stick(page).boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + 8);
+    await page.mouse.down();
+    const at = await page.evaluate(() => (window as unknown as {tapAt: Record<string, number>}).tapAt);
+    await page.waitForTimeout(400);
+    await page.mouse.up();
+    await page.waitForTimeout(600);
+    if (at.pointerdown - at.click < 1000) break;
+    expect(late, 'the press came too late every time').toBeLessThan(2);
+    from = await pose(page);
+  }
   const still = await pose(page);
   expect(Math.hypot(still.x - from.x, still.y - from.y)).toBeLessThan(0.01);
   // a moment later it drives again
