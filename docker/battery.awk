@@ -308,6 +308,9 @@ BEGIN {
   TIDY = ENVIRON["TIDY"]
   CPUT = ENVIRON["CPUT"]
   LEVEL = ENVIRON["LEVEL"]
+  # the topics from openmower.sh, with the prefix mosquitto_sub puts before them
+  P = ENVIRON["MOWER_MQTT_PREFIX"]
+  T_STATE = P ENVIRON["TOPIC_ROBOT_STATE"]; T_INFOS = P ENVIRON["TOPIC_SENSOR_INFOS"]; T_PARAMS = P ENVIRON["TOPIC_PARAMS"]
   # the dock's voltage from which the mower is in it, as OpenMower takes it
   DOCK = 10
   LN = split("20.25 22 23 23.5 23.75 24 24.25 24.5 24.75 25 25.25 25.5 25.75 26 26.25 26.5 26.75 27 27.25 27.5 27.75 27.97", LV, " ")
@@ -336,13 +339,13 @@ BEGIN {
 
 {
   t = $1 + 0
-  if ($2 ~ /robot_state\/json$/) {
+  if ($2 == T_STATE) {
     if (match($0, /"current_state":"[A-Z_]*"/)) rstate = substr($0, RSTART + 17, RLENGTH - 18)
     next
   }
-  if ($2 ~ /sensor_infos\/json$/) { limits(); next }
+  if ($2 == T_INFOS) { limits(); next }
   # the board OpenMower was set up for (ll/board), the level isn't worked out on others. none on an older OpenMower
-  if ($2 ~ /params\/json$/) {
+  if ($2 == T_PARAMS) {
     x = match($0, /"\/ll\/board": *"[^"]*"/) ? substr($0, RSTART, RLENGTH) : ""
     sub(/.*: *"/, "", x); sub(/"$/, "", x)
     OTHER = x != "" && x != "YardForce" && x != "YardForce-V4"

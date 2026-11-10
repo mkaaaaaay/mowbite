@@ -15,7 +15,7 @@ while :; do
   host=$(find_broker)
   if [ -n "$host" ]; then
     mosquitto_sub -h "$host" -p "$PORT" -F '%U %t %p' \
-      -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -t "${MOWER_MQTT_PREFIX}sensors/om_mow_motor_rpm/data" |
+      -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -t "${MOWER_MQTT_PREFIX}$(sensor_topic om_mow_motor_rpm)" |
       HOURS="$D/hours" STATE="$D/state" awk -f /stats.awk
   fi
   sleep 30

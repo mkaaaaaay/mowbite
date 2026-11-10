@@ -4,6 +4,8 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {describe, expect, it} from 'vitest';
 import {chargeSamples, fullCharges, parseBattery, parseLevel} from './battery';
+// docker/battery.awk with the names from openmower.sh, as in the container
+const AWK_SH = ['-c', '. ./docker/openmower.sh && exec awk -f docker/battery.awk'];
 
 describe('battery', () => {
   const cycles = parseBattery(
@@ -28,7 +30,7 @@ const AWK = {timeout: 30_000};
 describe('what the container writes', AWK, () => {
   const run = (input: string) => {
     const out = join(mkdtempSync(join(tmpdir(), 'battery-')), 'battery.log');
-    spawnSync('awk', ['-f', 'docker/battery.awk'], {input, env: {...process.env, LC_ALL: 'C', OUT: out, STATE: ''}});
+    spawnSync('sh', AWK_SH, {input, env: {...process.env, LC_ALL: 'C', OUT: out, STATE: ''}});
     return readFileSync(out, 'utf8');
   };
   const line = (t: number, id: string, v: string | number) => `${t} sensors/${id}/data ${v}\n`;
@@ -50,7 +52,7 @@ describe('what the container writes', AWK, () => {
 describe('battery health', AWK, () => {
   const dir = () => mkdtempSync(join(tmpdir(), 'battery-'));
   const awk = (d: string, input: string, env: Record<string, string> = {}) =>
-    spawnSync('awk', ['-f', 'docker/battery.awk'], {
+    spawnSync('sh', AWK_SH, {
       input,
       env: {...process.env, LC_ALL: 'C', OUT: join(d, 'battery.log'), STATE: join(d, 'state'), HEALTH: join(d, 'health'), TRACES: d, ...env},
     });
@@ -267,7 +269,7 @@ describe('battery level', AWK, () => {
     `0 sensor_infos/json [{"sensor_id":"om_v_battery","has_min_max":true,"min_value":${empty},"max_value":${full}}]\n`;
   const board = (b: string) => `0 params/json {"/ll/bind_ip":"0.0.0.0","/ll/board":"${b}","/ll/services/power/battery_full_voltage":28.2}\n`;
   const level = (input: string, d = mkdtempSync(join(tmpdir(), 'battery-')), state = '') => {
-    spawnSync('awk', ['-f', 'docker/battery.awk'], {
+    spawnSync('sh', AWK_SH, {
       input,
       env: {...process.env, LC_ALL: 'C', OUT: join(d, 'battery.log'), STATE: state, LEVEL: join(d, 'level')},
     });
