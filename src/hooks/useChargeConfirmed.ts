@@ -1,5 +1,5 @@
 import {chargeConfirmed, type MowerEvent, type Run} from '@/lib/events';
-import {useEffect, useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
 
 // off the contacts this long counts as having left them, MowBite OS doesn't count a shorter one either (CHARGING_LOST)
 const LEFT_AFTER = 10000; // ms
@@ -8,16 +8,20 @@ const LEFT_AFTER = 10000; // ms
 // charging, false on the contacts without that, null when the events at hand don't tell. undefined elsewhere, there
 // the contacts are enough. on: on the contacts, undefined while the state isn't known
 export function useChargeConfirmed(api: number, on: boolean | undefined, today?: MowerEvent[], latest?: Run[]): boolean | null | undefined {
-  // when it was seen leaving the contacts (unix s)
-  const [leftAt, setLeftAt] = useState(0);
+  // seen leaving the contacts: the newest event then, by the mower's clock (the phone's may differ)
+  const [left, setLeft] = useState<number>();
+  const newest = useRef(-Infinity);
+  useEffect(() => {
+    newest.current = Math.max(...(today ?? []).map((e) => e.t));
+  }, [today]);
   useEffect(() => {
     if (on !== false || api < 4) return;
-    const off = Date.now() / 1000;
-    const t = setTimeout(() => setLeftAt(off), LEFT_AFTER);
+    const off = newest.current;
+    const t = setTimeout(() => setLeft(off), LEFT_AFTER);
     return () => clearTimeout(t);
   }, [on, api]);
   if (api < 4) return undefined;
-  const found = chargeConfirmed(today ?? [], leftAt);
+  const found = chargeConfirmed(today ?? [], left);
   if (found !== null) return found;
   for (const run of latest ?? []) {
     const r = chargeConfirmed(run.events);

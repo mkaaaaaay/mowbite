@@ -1,11 +1,14 @@
-import {spawnSync} from 'node:child_process';
+import {spawn, spawnSync} from 'node:child_process';
 import {mkdtempSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {describe, expect, it} from 'vitest';
+import {describe, expect, it, vi} from 'vitest';
 import {defaultNotify, parseNotify, randomTopic, serializeNotify, validServer, validTopic, withMowerUrl} from './notify';
 
 const fallback = defaultNotify('de', 'http://openmower:8082', 'Steve');
+
+// docker/notify.awk with the names from openmower.sh, as in the container
+const AWK_SH = ['-c', '. ./docker/openmower.sh && exec awk -f docker/notify.awk'];
 
 describe('push message settings', () => {
   it('reads what notify.cgi hands out, the token only as there or not', () => {
@@ -60,13 +63,13 @@ describe("a mower's address in its push message settings", () => {
 
 describe('what the container sends', {timeout: 30_000}, () => {
   // what it puts out for the topic (ntfy) or for the phones signed up in the app (push)
-  const lines = (input: string, conf: string, snooze?: number, to: 'ntfy' | 'push' = 'ntfy') => {
+  const lines = (input: string, conf: string, snooze?: number, to: 'ntfy' | 'push' = 'ntfy', prefix = '') => {
     const dir = mkdtempSync(join(tmpdir(), 'notify-'));
     writeFileSync(join(dir, 'conf'), conf);
     if (snooze !== undefined) writeFileSync(join(dir, 'snooze'), `${snooze}\n`);
-    const r = spawnSync('awk', ['-f', 'docker/notify.awk'], {
+    const r = spawnSync('sh', AWK_SH, {
       input,
-      env: {...process.env, CONF: join(dir, 'conf'), SNOOZE: snooze === undefined ? '' : join(dir, 'snooze')},
+      env: {...process.env, CONF: join(dir, 'conf'), SNOOZE: snooze === undefined ? '' : join(dir, 'snooze'), MOWER_MQTT_PREFIX: prefix},
     });
     return r.stdout
       .toString()
@@ -92,6 +95,27 @@ describe('what the container sends', {timeout: 30_000}, () => {
     expect(out[0].message).toBe("Steve is in emergency stop. The mow motor didn't start.");
     expect(out[1].message).toBe('Steve is still in emergency stop (for 1 min).');
     expect(out[0].actions).toHaveLength(2);
+  });
+
+  it('offers snooze only on what it reminds of', () => {
+    const told = 'topic t\nlang en\nname Steve\nurl http://openmower:8082\nevents nav_error,spinup,refused\nremind 1\npush https://ntfy.sh/upAbc?up=1\n';
+    const input =
+      event(100, '{"type":"NAVIGATION_ERROR"}') + state(102, 0) + state(104, 0) + event(110, '{"type":"MOW_MOTOR_SPINUP_FAILED"}') +
+      event(120, '{"type":"MOWING_REFUSED","reason":"RAIN"}') + event(130, '{"type":"STATE","state":"PAUSED","reason":"CROSS_TRACK","resume":"user"}');
+    const out = run(input, told);
+    expect(out.map((m) => m.title)).toEqual(['Navigation error', "Mow motor didn't start", 'Mowing not started', 'Paused, waiting']);
+    expect(out.map((m) => m.actions)).toEqual(out.map(() => [expect.objectContaining({action: 'view'})]));
+    expect(push(input, told).map((m) => [m.kind, m.snooze])).toEqual([
+      ['nav_error', undefined],
+      ['spinup', undefined],
+      ['refused', undefined],
+      ['nav_error', undefined],
+    ]);
+  });
+
+  it('knows its topics behind the prefix the mower was given', () => {
+    const input = (state(100, 0) + state(111, 1) + state(150, 1)).replace(/^(\S+) /gm, '$1 garden/');
+    expect(lines(input, conf, undefined, 'ntfy', 'garden/').map((m) => m.title)).toEqual(['Emergency stop']);
   });
 
   it("doesn't tell about an emergency stop that clears itself within seconds, as long as set", () => {
@@ -144,7 +168,7 @@ describe('what the container sends', {timeout: 30_000}, () => {
     writeFileSync(join(dir, 'state'), '100 300000.0 1.0 1.0 3 0 0 0 0 0\n');
     writeFileSync(join(dir, 'maint'), 'blade 80 0 0\nclean 200 0 0\n');
     const told = (c = 'conf') =>
-      spawnSync('awk', ['-f', 'docker/notify.awk'], {
+      spawnSync('sh', AWK_SH, {
         input: state(1000, 0) + state(1400, 0),
         env: {...process.env, CONF: join(dir, c), SNOOZE: '', STATS: dir},
       })
@@ -162,6 +186,26 @@ describe('what the container sends', {timeout: 30_000}, () => {
     writeFileSync(join(dir, 'off'), conf);
     expect(told('off')).toEqual([]);
     expect(told()).toEqual(['Steve has mowed 83 h since the blades were last changed.']);
+  });
+
+  it('tells again once due by hours changed while it runs (stats.cgi drops the part from reminded)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'notify-'));
+    writeFileSync(join(dir, 'conf'), conf.replace('spinup', 'spinup,maintenance'));
+    writeFileSync(join(dir, 'state'), '100 300000.0 1.0 1.0 3 0 0 0 0 0\n');
+    writeFileSync(join(dir, 'maint'), 'blade 80 0 0\nclean 200 0 0\n');
+    const awk = spawn('awk', ['-f', 'docker/notify.awk'], {env: {...process.env, CONF: join(dir, 'conf'), SNOOZE: '', STATS: dir}});
+    let out = '';
+    awk.stdout.on('data', (d) => (out += d));
+    const closed = new Promise((done) => awk.on('close', done));
+    awk.stdin.write(state(1000, 0));
+    await vi.waitFor(() => expect(out).toContain('blades'));
+    writeFileSync(join(dir, 'state'), '100 400000.0 1.0 1.0 3 0 0 0 0 0\n');
+    writeFileSync(join(dir, 'maint'), 'blade 100 0 0\nclean 200 0 0\n');
+    writeFileSync(join(dir, 'reminded'), '');
+    awk.stdin.end(state(1400, 0));
+    await closed;
+    const messages = out.split('\n').filter((l) => l.startsWith('ntfy ')).map((l) => JSON.parse(l.slice(5)).message);
+    expect(messages).toEqual(['Steve has mowed 83 h since the blades were last changed.', 'Steve has mowed 111 h since the blades were last changed.']);
   });
 
   it('tells once when it stands still for ten minutes and is not charging, until it moves or charges again', () => {

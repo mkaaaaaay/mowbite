@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import type {MowerEvent} from './events';
-import {eventsOfDay, fileDay, localDays} from './history';
+import {daysBefore, eventsOfDay, fileDay, localDays} from './history';
 
 process.env.TZ = 'Europe/Berlin';
 
@@ -16,6 +16,15 @@ describe('event history days', () => {
   it('has a chip for a day whose only hours are in the file before (east of utc)', () => {
     // 00:30 on the 2nd in Berlin is in the file of the 1st, the 2nd has none of its own
     expect(localDays(['20261001', '20261004'])).toEqual(['20261005', '20261004', '20261002', '20261001']);
+  });
+  it('leaves that day out once its file is known to have none of its hours', () => {
+    const known = new Map([['20261001', new Set(['20261001'])], ['20261004', new Set(['20261004', '20261005'])]]);
+    expect(localDays(['20261001', '20261004'], known)).toEqual(['20261005', '20261004', '20261001']);
+  });
+  it('looks through as many days with a file of their own, the days next to them on top', () => {
+    const files = ['20261001', '20261003', '20261005', '20261007'];
+    expect(daysBefore(files, '20261110', 2)).toEqual(['20261008', '20261007', '20261006', '20261005']);
+    expect(daysBefore(files, '20261110', 7)).toHaveLength(8);
   });
   it("leaves out tomorrow's file, west of utc it's there in the evening already", () => {
     const today = fileDay(new Date());
@@ -35,5 +44,7 @@ describe('event history days', () => {
     expect(day29.where.get('b')).toEqual({file: '20260928.jsonl', line: 2});
     const day28 = await eventsOfDay(Object.keys(files), '20260928', load);
     expect(day28.events.map((e) => e.id)).toEqual(['a']);
+    // once loaded: the 29th's file has nothing of the 30th
+    expect(localDays(Object.keys(files))).toEqual(['20260929', '20260928']);
   });
 });

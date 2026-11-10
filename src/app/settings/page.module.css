@@ -205,6 +205,10 @@ a.pillButton {
   font-size: 12px;
 }
 
+.field input[aria-invalid='true'] {
+  border-color: var(--error, #ff5252);
+}
+
 .segment {
   display: flex;
   flex-wrap: wrap;

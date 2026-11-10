@@ -2,7 +2,6 @@
 # map backups in the /data volume, gzipped. one <id>.json.gz per backup and <id>.meta with
 # name, number of areas and whether it was made automatically before a save
 # the app on another mower may ask too (several mowers in one app)
-# after a Status line, busybox httpd only reads that when it comes first
 . /origin.sh
 D=/data/backups
 KEEP_AUTO=30
@@ -11,7 +10,6 @@ KEEP_HAND=50
 mkdir -p "$D"
 
 param() { printf '%s' "$QUERY_STRING" | tr '&' '\n' | sed -n "s/^$1=//p" | head -n1; }
-fail() { printf 'Status: %s\r\n' "$1"; cors; printf 'Content-Type: text/plain\r\n\r\n%s\n' "$2"; exit 0; }
 json_str() { printf '%s' "$1" | tr -d '\000-\037' | sed 's/\\/\\\\/g; s/"/\\"/g'; }
 
 id=$(param id)
@@ -31,7 +29,10 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
   len=${CONTENT_LENGTH:-0}
   if [ "$len" -le 0 ] || [ "$len" -gt 2000000 ]; then fail 413 'too large'; fi
   new="$(date +%s)-$$"
-  name=$(httpd -d "$(param name)" | tr -d '\000-\037' | cut -c1-60)
+  # the app's 60 characters in bytes (up to 4 each), without a character cut in half at the end
+  c=$(printf '\200-\277')
+  name=$(httpd -d "$(param name)" | tr -d '\000-\037' | cut -c1-240 |
+    sed "s/[$(printf '\300-\377')]\$//; s/[$(printf '\340-\377')][$c]\$//; s/[$(printf '\360-\377')][$c][$c]\$//")
   areas=$(param areas | tr -cd '0-9')
   auto=$(param auto | tr -cd '01')
   if [ "${auto:-0}" != 1 ] && ls "$D"/*.meta > /dev/null 2>&1 &&
@@ -40,13 +41,21 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
   fi
   # written aside and checked first, a power cut leaves no half backup in the list (its rest goes with the next one)
   find "$D" -name '*.tmp' -mmin +10 -exec rm -f {} + 2>/dev/null
-  head -c "$len" | gzip -9 > "$D/$new.json.gz.tmp" && gzip -t "$D/$new.json.gz.tmp" && mv "$D/$new.json.gz.tmp" "$D/$new.json.gz" ||
+  head -c "$len" | gzip -9 > "$D/$new.json.gz.tmp" && gzip -t "$D/$new.json.gz.tmp" ||
     { rm -f "$D/$new.json.gz.tmp"; fail 500 'not saved'; }
-  printf '%s\n%s\n%s\n' "$name" "${areas:-0}" "${auto:-0}" > "$D/$new.meta.tmp" && mv "$D/$new.meta.tmp" "$D/$new.meta"
-  # only the automatic ones are thinned out, the ones made by hand stay
+  # a connection that broke off hands over less than it said
+  [ "$(zcat "$D/$new.json.gz.tmp" | wc -c)" -eq "$len" ] || { rm -f "$D/$new.json.gz.tmp"; fail 400 'incomplete'; }
+  mv "$D/$new.json.gz.tmp" "$D/$new.json.gz" || { rm -f "$D/$new.json.gz.tmp"; fail 500 'not saved'; }
+  # without its meta it wouldn't be listed nor thinned out
+  printf '%s\n%s\n%s\n' "$name" "${areas:-0}" "${auto:-0}" > "$D/$new.meta.tmp" && mv "$D/$new.meta.tmp" "$D/$new.meta" ||
+    { rm -f "$D/$new.meta.tmp" "$D/$new.json.gz"; fail 500 'not saved'; }
+  # only the automatic ones are thinned out, the ones made by hand stay. the one just made stays whatever its time (the
+  # clock may have gone back since the others) and is one of those kept
+  others=$KEEP_AUTO
+  [ "${auto:-0}" = 1 ] && others=$((KEEP_AUTO - 1))
   ls "$D"/*.meta 2>/dev/null | sort -r | while read -r m; do
-    [ "$(sed -n 3p "$m")" = 1 ] && echo "$m"
-  done | tail -n +$((KEEP_AUTO + 1)) | while read -r m; do
+    [ "$m" != "$D/$new.meta" ] && [ "$(sed -n 3p "$m")" = 1 ] && echo "$m"
+  done | tail -n +$((others + 1)) | while read -r m; do
     rm -f "$m" "${m%.meta}.json.gz"
   done
   cors
@@ -62,8 +71,9 @@ if [ -n "$id" ]; then
   exit 0
 fi
 
-cors
-printf 'Content-Type: application/json\r\nCache-Control: no-store\r\n\r\n['
+# how many are kept (automatic, by hand), for the app's texts, readable from another origin too
+cors && printf 'Access-Control-Expose-Headers: X-Backups-Keep\r\n'
+printf 'X-Backups-Keep: auto=%s hand=%s\r\nContent-Type: application/json\r\nCache-Control: no-store\r\n\r\n[' $KEEP_AUTO $KEEP_HAND
 first=1
 for m in $(ls "$D"/*.meta 2>/dev/null | sort -r); do
   b=$(basename "$m" .meta)

@@ -1,4 +1,4 @@
-import {demoDocked, demoDrive, demoHas, expect, recordStation, SIM, test} from './app';
+import {demoAction, demoDocked, demoDrive, demoHas, expect, recordStation, SIM, tab, test} from './app';
 import type {Page} from '@playwright/test';
 
 // from the start through the drive by hand until the result is worked out
@@ -111,6 +111,46 @@ test('driving for the calibration recommends sideways on a phone held upright', 
   await hint.click();
   await expect(page.getByRole('button', {name: 'Upright'})).toBeVisible();
   await expect(hint).toBeHidden();
+});
+
+// a drive by hand runs in recording mode: the dashboard leads back to it, it doesn't offer to leave recording mode
+test('while driving for the calibration the dashboard leads back to it', async ({page}) => {
+  test.skip(SIM, 'the demo mower only');
+  await page.goto('/calibration/');
+  await demoDocked(page);
+  await page.getByRole('button', {name: 'Start calibration'}).click();
+  const sheet = page.getByRole('dialog', {name: 'Ready to calibrate?'});
+  await expect(sheet.getByText('Tick both points above, then it starts.')).toBeVisible();
+  await sheet.getByRole('checkbox', {name: /Room to drive/}).check();
+  await sheet.getByRole('checkbox', {name: /You stay with it/}).check();
+  await sheet.getByRole('button', {name: "Let's go"}).click();
+  await page.getByRole('button', {name: 'Start calibration'}).click();
+  await expect(page.getByText('Stand 10 s')).toBeVisible();
+  await tab(page, '/').click();
+  await expect(page.getByRole('link', {name: 'Back to calibration'})).toBeVisible();
+  await expect(page.getByRole('button', {name: 'Leave recording mode'})).toBeHidden();
+  await page.getByRole('link', {name: 'Back to calibration'}).click();
+  await expect(page).toHaveURL(/\/calibration\/?$/);
+  await expect(page.getByText('Stand 10 s')).toBeVisible();
+});
+
+// one on the next mow isn't driven by hand: recording mode started meanwhile is the record page's, not the calibration's
+test('a calibration on the next mowing run leaves recording mode to the record page', async ({page}) => {
+  test.skip(SIM, 'the demo mower only');
+  await page.goto('/calibration/');
+  await demoDocked(page);
+  await page.getByText('On the next mowing run').click();
+  await page.getByRole('button', {name: 'Start calibration'}).click();
+  await page.getByRole('dialog', {name: 'Ready to calibrate?'}).getByRole('button', {name: "Let's go"}).click();
+  await expect(page.getByText("It mows and measures along. You don't need to do anything.")).toBeVisible();
+  await demoAction(page, 'mower_logic:idle/start_area_recording');
+  await tab(page, '/').click();
+  const back = page.getByRole('link', {name: 'Back to recording'});
+  await expect(back).toBeVisible();
+  await expect(page.getByRole('button', {name: 'Leave recording mode'})).toBeVisible();
+  await back.click();
+  await expect(page.locator('button:visible', {hasText: 'Record outline'}).first()).toBeVisible();
+  await expect(page).toHaveURL(/\/record\/?$/);
 });
 
 test('the guide for calibrating opens from the settings', async ({page}) => {

@@ -8,7 +8,7 @@ vi.mock('./rpc', () => ({
   },
 }));
 
-const {historyOf} = await import('./history');
+const {forgetToday, historyOf} = await import('./history');
 
 afterEach(() => vi.useRealTimers());
 
@@ -23,9 +23,53 @@ describe('a day file in the cache', () => {
     vi.setSystemTime(Date.UTC(2026, 9, 28, 9, 0));
     await historyOf('20261027');
     expect(rpc.asked).toBe(2);
-    // asked once the day was over, that answer stays
+    // a mower on a clock far west of UTC still wrote it then
+    vi.setSystemTime(Date.UTC(2026, 9, 28, 13, 0));
+    await historyOf('20261027');
+    expect(rpc.asked).toBe(3);
+    // asked once the day was over in every zone, that answer stays
     vi.setSystemTime(Date.UTC(2026, 9, 30, 9, 0));
     await historyOf('20261027');
-    expect(rpc.asked).toBe(2);
+    expect(rpc.asked).toBe(3);
+  });
+
+  it('is asked for again after something happened while a mower in any zone may write it', async () => {
+    vi.useFakeTimers();
+    // 23:30 UTC: the 29th far east of UTC, the 28th everywhere else
+    vi.setSystemTime(Date.UTC(2026, 9, 28, 23, 30));
+    const days = ['20261027', '20261028', '20261029'];
+    for (const d of days) await historyOf(d);
+    const before = rpc.asked;
+    forgetToday();
+    for (const d of days) await historyOf(d);
+    expect(rpc.asked - before).toBe(2);
+  });
+
+  it('is kept once the mower lists a later day, asked for once more for what came last', async () => {
+    vi.useFakeTimers();
+    // seven in the morning (UTC) on the 3rd: by the clock alone a mower far west may still write the file of the 2nd
+    vi.setSystemTime(Date.UTC(2026, 10, 3, 7, 0));
+    const before = rpc.asked;
+    await historyOf('20261102', ['20261101', '20261102']);
+    vi.setSystemTime(Date.UTC(2026, 10, 3, 7, 1));
+    await historyOf('20261102', ['20261101', '20261102']);
+    expect(rpc.asked - before).toBe(2);
+    // the mower went on to the file of the 3rd
+    vi.setSystemTime(Date.UTC(2026, 10, 3, 7, 2));
+    await historyOf('20261102', ['20261102', '20261103']);
+    expect(rpc.asked - before).toBe(3);
+    vi.setSystemTime(Date.UTC(2026, 10, 3, 9, 0));
+    await historyOf('20261102', ['20261102', '20261103']);
+    expect(rpc.asked - before).toBe(3);
+    // something happened: a file that may be today's somewhere is asked for again all the same, once
+    forgetToday();
+    await historyOf('20261102', ['20261102', '20261103']);
+    await historyOf('20261102', ['20261102', '20261103']);
+    expect(rpc.asked - before).toBe(4);
+    // a later file from a clock that was wrong ends none: no day is that far ahead anywhere
+    await historyOf('20261103', ['20261103', '20270101']);
+    vi.setSystemTime(Date.UTC(2026, 10, 3, 9, 1));
+    await historyOf('20261103', ['20261103', '20270101']);
+    expect(rpc.asked - before).toBe(6);
   });
 });

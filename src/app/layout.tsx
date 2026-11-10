@@ -7,7 +7,8 @@ import SwipeNav from "@/components/SwipeNav";
 import EdgeBounce from "@/components/EdgeBounce";
 import FreshPage from "@/components/FreshPage";
 import PushOpener from "@/components/PushOpener";
-import { COLOR_BOOT_SCRIPT } from "@/lib/settings";
+import RecordingWatch from "@/components/RecordingWatch";
+import { colorBootScript } from "@/lib/settings";
 import { THEME_BOOT_SCRIPT } from "@/lib/themeBoot";
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
@@ -46,7 +47,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <head>
         {/* eslint-disable-next-line @next/next/no-sync-scripts -- has to run before the app connects */}
         <script src="/config.js" />
-        <script dangerouslySetInnerHTML={{ __html: COLOR_BOOT_SCRIPT + THEME_BOOT_SCRIPT }} />
+        <script dangerouslySetInnerHTML={{ __html: colorBootScript() + THEME_BOOT_SCRIPT }} />
       </head>
       <body>
         <div className={styles.shell}>
@@ -63,6 +64,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <EdgeBounce />
           <FreshPage />
           <PushOpener />
+          <RecordingWatch />
         </div>
       </body>
     </html>

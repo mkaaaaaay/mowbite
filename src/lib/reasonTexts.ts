@@ -139,8 +139,8 @@ export const EVENTS: Record<string, EventText> = {
     variants: [{when: {battery_voltage: {present: true}}, en: 'Fully charged ({battery_voltage:1} V)'}, {en: 'Fully charged'}],
   },
   // ros on the mower started or ended (also a restart or an update), not the mower switched on or off
-  BOOTED: one('OpenMower started'),
-  SHUTDOWN: one('OpenMower stopped'),
+  BOOTED: one('Mower software started'),
+  SHUTDOWN: one('Mower software stopped'),
   // from here on MowBite OS only
   MOWING_REFUSED: one('Mowing not started', 'warning'),
   DRIVE_REFUSED: one('Drive not started', 'warning'),
@@ -473,12 +473,12 @@ export const EMERGENCY_TEXT: Record<string, string> = {
   COLLISION: 'bumper',
   COLLISION_MULTIPLE: 'bumper (several at once)',
   TIMEOUT_INPUTS: 'sensors not answering',
-  TIMEOUT_HIGH_LEVEL: 'no contact with OpenMower',
-  HIGH_LEVEL: 'stopped by OpenMower',
+  TIMEOUT_HIGH_LEVEL: "no contact with the mower's software",
+  HIGH_LEVEL: "stopped by the mower's software",
   SERVICE_NOT_READY: 'firmware still starting',
   MOWER_RPM_TIMEOUT: "mow motor didn't reach its speed",
   MOWER_RPM_LIMIT: 'mow motor outside its speed limits',
-  FIRMWARE_INCOMPATIBLE: "firmware doesn't fit OpenMower",
+  FIRMWARE_INCOMPATIBLE: "firmware doesn't fit the mower's software",
   // MowBite OS's own bits. UNKNOWN is what its log line says for a bit it has no name for
   TILT: 'tilted too far',
   FENCE: 'outside the area it may drive in',

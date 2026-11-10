@@ -30,6 +30,18 @@ function remembered(): {job: string; before: string} | null {
   return v && typeof v.job === 'string' && typeof v.before === 'string' ? {job: v.job, before: v.before} : null;
 }
 
+// the mow a run driving leftovers (job) drives them of, kept with the run: the one armed here (for this run only), else
+// the newest one before it
+export async function leftoversSourceOf(job: string): Promise<{job: string; before: string} | null> {
+  const armed = armedSource();
+  const prev = armed && armed !== job ? armed : (await loadJobList()).find((j) => j.job_id !== job)?.job_id;
+  if (!prev) return null;
+  const of = {job, before: prev};
+  writeMower(KEY, of);
+  if (prev === armed) writeMower(ARMED, null);
+  return of;
+}
+
 // the job whose leftovers the trail shown drives (leftovers: the run going on drives them, it's found then), else null
 export function useLeftoversSource(leftovers: boolean): string | null {
   const job = useTrailJob();
@@ -40,11 +52,8 @@ export function useLeftoversSource(leftovers: boolean): string | null {
     (async () => {
       let of = remembered();
       if (leftovers && of?.job !== job) {
-        const armed = armedSource();
-        const prev = armed && armed !== job ? armed : (await loadJobList()).find((j) => j.job_id !== job)?.job_id;
-        if (!prev) return;
-        of = {job, before: prev};
-        writeMower(KEY, of);
+        of = await leftoversSourceOf(job);
+        if (!of) return;
       }
       if (alive && of?.job === job) setFound(of);
     })().catch(() => {});

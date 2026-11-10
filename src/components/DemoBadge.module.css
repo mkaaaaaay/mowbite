@@ -21,4 +21,12 @@
   color: var(--foreground);
   font-size: 12px;
   cursor: pointer;
+  position: relative;
+}
+
+/* a finger's height */
+.badge button::after {
+  content: '';
+  position: absolute;
+  inset: -9px 0;
 }

@@ -1,6 +1,7 @@
 import {describe, expect, it, vi} from 'vitest';
 import {setLangChoice} from './i18n';
-import {inOtherZone, isNightTime, logTone, missedStart, nextStart, parseSchedule, posixTz, scheduleLogLine, serializeSchedule, type Schedule} from './schedule';
+import {daySun, inOtherZone, isNightTime, logTone, missedStart, nextStart, parseSchedule, posixTz, reachesDark, scheduleLogLine, scheduleNow, serializeSchedule, tzOffset, type Schedule} from './schedule';
+import {sunTimes} from './sun';
 
 // the dates below are local times, so the same zone everywhere (github runs in UTC)
 process.env.TZ = 'Europe/Berlin';
@@ -99,6 +100,12 @@ describe('nextStart', () => {
   it('is nothing while switched off', () => {
     expect(nextStart(schedule([plan([1], '09:00')], false), monday8)).toBeNull();
   });
+
+  it('leaves out a start in the hour skipped when summer time begins', () => {
+    const sunday1 = new Date(2026, 2, 29, 1, 0);
+    expect(nextStart(schedule([plan([7], '02:30')]), sunday1)).toEqual(new Date(2026, 3, 5, 2, 30));
+    expect(nextStart(schedule([plan([7], '03:30')]), sunday1)).toEqual(new Date(2026, 2, 29, 3, 30));
+  });
 });
 
 describe('isNightTime', () => {
@@ -123,6 +130,59 @@ describe('posixTz', () => {
   });
 });
 
+describe('tzOffset', () => {
+  // (on the hour: posixTz reads the switches hour by hour, a switch at half past comes out half an hour late)
+  it('reads the zones posixTz writes the way the browser counts them, all year', () => {
+    try {
+      for (const zone of ['Europe/Berlin', 'America/Los_Angeles', 'Australia/Sydney', 'Australia/Lord_Howe', 'Asia/Kolkata', 'America/St_Johns']) {
+        process.env.TZ = zone;
+        const tz = posixTz();
+        const wrong: string[] = [];
+        for (let t = Date.UTC(2026, 0, 1); t < Date.UTC(2027, 0, 1); t += 3600e3) {
+          if (tzOffset(tz, new Date(t)) !== -new Date(t).getTimezoneOffset()) wrong.push(new Date(t).toISOString());
+        }
+        expect(wrong, zone).toEqual([]);
+      }
+    } finally {
+      process.env.TZ = 'Europe/Berlin';
+    }
+  });
+  it("this device's for a zone it can't read", () => {
+    expect(tzOffset('Europe/Berlin', new Date(Date.UTC(2026, 0, 15)))).toBe(60);
+    expect(tzOffset(undefined, new Date(Date.UTC(2026, 6, 15)))).toBe(120);
+  });
+});
+
+describe('a phone in another time zone than the schedule', () => {
+  const berlin = '<+0100>-1<+0200>-2,M3.5.0/2,M10.5.0/3';
+  const garden = {lat: 52.37, lon: 9.73};
+  it("counts by the schedule's clock: its day, its time and its sun", () => {
+    const sun = sunTimes(garden.lat, garden.lon, new Date(2026, 8, 28, 12));
+    process.env.TZ = 'America/Los_Angeles';
+    try {
+      // monday 10:00 in Berlin, 01:00 in Los Angeles
+      const from = new Date(Date.UTC(2026, 8, 28, 8, 0));
+      const s = {...schedule([plan([1], '09:00'), plan([1], '11:00')]), tz: berlin};
+      expect(nextStart(s, from)).toEqual(new Date(2026, 8, 28, 11, 0));
+      expect(daySun(berlin, garden)(scheduleNow(berlin, from))).toEqual(sun);
+    } finally {
+      process.env.TZ = 'Europe/Berlin';
+    }
+  });
+  it("the sun times of the day the schedule's zone switches to summer time, on a phone far east or west", () => {
+    const day = () => new Date(2026, 2, 29);
+    const sun = daySun(berlin, garden)(day());
+    try {
+      for (const zone of ['Pacific/Auckland', 'America/Los_Angeles']) {
+        process.env.TZ = zone;
+        expect(daySun(berlin, garden)(day()), zone).toEqual(sun);
+      }
+    } finally {
+      process.env.TZ = 'Europe/Berlin';
+    }
+  });
+});
+
 describe('inOtherZone', () => {
   it('only when the schedule has a zone and it is not this one', () => {
     expect(inOtherZone(undefined)).toBe(false);
@@ -139,6 +199,38 @@ describe('isNightTime with sun times', () => {
   });
   it('falls back to the fixed hours without them', () => {
     expect(isNightTime('18:30', null)).toBe(true);
+  });
+  it('with a sunset after midnight only between it and sunrise', () => {
+    const sun = {rise: '02:55', set: '00:04'};
+    expect(['00:04', '01:00', '02:54'].map((t) => isNightTime(t, sun))).toEqual([true, true, true]);
+    expect(['00:03', '02:55', '10:00', '23:59'].map((t) => isNightTime(t, sun))).toEqual([false, false, false, false]);
+  });
+});
+
+// the cases of the stop times in test/run.sh: the 21st of June at 52.37 9.73, without a position, and in Reykjavik
+describe('reachesDark', () => {
+  const june = {rise: '04:59', set: '21:47'};
+  const reaches = (time: string, end?: string, sun: {rise: string; set: string} | null = june) => reachesDark({time, end}, sun);
+  it('with a sunset between the start and an end the next morning', () => {
+    expect(reaches('20:00', '07:00')).toBe(true);
+    expect(reaches('17:00', '08:00')).toBe(true);
+  });
+  it('with the end in the dark, or the start before sunrise', () => {
+    expect(reaches('17:00', '23:00')).toBe(true);
+    expect(reaches('04:00', '08:00')).toBe(true);
+  });
+  it('not by day, nor without an end after a start by day', () => {
+    expect(reaches('10:00', '14:00')).toBe(false);
+    expect(reaches('10:00')).toBe(false);
+  });
+  it('without a position from 6 pm', () => {
+    expect(reaches('17:00', '08:00', null)).toBe(true);
+    expect(reaches('10:00', '14:00', null)).toBe(false);
+  });
+  it('with a sunset after midnight', () => {
+    expect(reaches('10:00', '03:00', {rise: '02:55', set: '00:04'})).toBe(true);
+    expect(reaches('01:00', '03:00', {rise: '02:55', set: '00:04'})).toBe(true);
+    expect(reaches('03:00', '23:00', {rise: '02:55', set: '00:04'})).toBe(false);
   });
 });
 
@@ -161,6 +253,12 @@ describe('nextStart and a pause', () => {
     const s = {...schedule([plan([1, 2, 3], '10:00')]), pause: {until: '2026-09-29', areas: 'all' as const}};
     expect(nextStart(s, monday8)).toEqual(new Date(2026, 8, 30, 10, 0));
   });
+  it('looks past a pause longer than a week', () => {
+    const s = {...schedule([plan([1, 2, 3, 4, 5, 6, 7], '10:00')]), pause: {until: '2026-10-10', areas: 'all' as const}};
+    expect(nextStart(s, monday8)).toEqual(new Date(2026, 9, 11, 10, 0));
+    const some = {...schedule([plan([1], '10:00', ['a'])]), pause: {until: '2026-10-20', areas: ['a']}};
+    expect(nextStart(some, monday8, undefined, ['a', 'b'])).toEqual(new Date(2026, 9, 26, 10, 0));
+  });
   it('still starts when only some areas are paused', () => {
     const s = {...schedule([plan([1], '10:00')]), pause: {until: '2026-09-29', areas: ['a']}};
     expect(nextStart(s, monday8)).toEqual(new Date(2026, 8, 28, 10, 0));
@@ -169,6 +267,10 @@ describe('nextStart and a pause', () => {
     const s = {...schedule([plan([1, 2], '10:00', ['a'])]), pause: {until: '2026-09-28', areas: ['a']}};
     expect(nextStart(s, monday8, undefined, ['a', 'b'])).toEqual(new Date(2026, 8, 29, 10, 0));
     // without the areas it can't tell
+    expect(nextStart(s, monday8)).toEqual(new Date(2026, 8, 28, 10, 0));
+  });
+  it("still looks ahead with a pause whose date isn't one", () => {
+    const s = {...schedule([plan([1], '10:00')]), pause: {until: 'later', areas: ['a']}};
     expect(nextStart(s, monday8)).toEqual(new Date(2026, 8, 28, 10, 0));
   });
   it('leaves out a start that picks only areas not mowed any more', () => {

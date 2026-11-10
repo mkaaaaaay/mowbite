@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {appendPoint, chunked, keepsTrail, thin, trackPoints, type Point, type TrackChunks} from './useMowerTrack';
+import {appendPoint, chunked, jobChange, keepsTrail, recordedPoints, thin, trackPoints, type Point, type TrackChunks} from './useMowerTrack';
 
 // a mowing pattern with turns, blade changes and jitter, so plenty of points survive the thinning
 function drive(n: number): Point[] {
@@ -106,5 +106,36 @@ describe('whose trail it is', () => {
     expect(keepsTrail('a', 'a')).toBe(true);
     // a new job: the trail of the last one goes
     expect(keepsTrail('a', 'b')).toBe(false);
+  });
+});
+
+describe('a recorded track', () => {
+  it('counts only the points written for good, the buffer after them is thinned out later', () => {
+    const r = recordedPoints({segments: [{points: [[0, 0], [1, 0]], attributes: {blades: true}}, {points: [[1, 0], [1, 1]]}], buffer: [[1, 2], [1, 3], [1, 4]]}, false);
+    expect(r.written).toBe(4);
+    expect(r.points).toHaveLength(7);
+    expect(r.points[0]).toEqual({x: 0, y: 0, b: true});
+    expect(r.points[6]).toEqual({x: 1, y: 4, b: false});
+    expect(recordedPoints({}, true)).toEqual({points: [], written: 0});
+  });
+});
+
+describe('a job id with the position', () => {
+  const now = 1_000_000;
+  it('starts a trail for a job that is new, keeps it for the one running', () => {
+    expect(jobChange(null, 'a', null, 0, now)).toBe('new');
+    expect(jobChange('a', 'b', null, 0, now)).toBe('new');
+    expect(jobChange('a', 'a', null, 0, now)).toBeNull();
+  });
+
+  it('turns the trail of a job that is over into the last run', () => {
+    expect(jobChange('a', undefined, null, now, now)).toBe('ended');
+  });
+
+  it('asks for the last run while none runs, again a while after the list did not come', () => {
+    expect(jobChange(null, undefined, null, 0, now)).toBe('last');
+    expect(jobChange(null, undefined, null, now - 1000, now)).toBeNull();
+    expect(jobChange(null, undefined, null, now - 30000, now)).toBe('last');
+    expect(jobChange(null, undefined, 'a', 0, now)).toBeNull();
   });
 });

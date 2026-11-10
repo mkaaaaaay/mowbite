@@ -244,8 +244,11 @@ function Stage({t, map, selected, picking, pending, preview, view, extra, under,
     const m = mover.current;
     if (!f || !m) return;
     const nav = document.querySelector('nav')?.getBoundingClientRect();
-    const bottom = nav && nav.top > window.innerHeight / 2 ? nav.top : window.innerHeight;
-    const room = Math.max(300, Math.round(bottom - (f.getBoundingClientRect().top + window.scrollY) - 12));
+    // the guide's next button right under the drawing stays on screen above the tab bar too
+    const next = f.parentElement?.nextElementSibling;
+    const below = next instanceof HTMLButtonElement ? next.offsetHeight + (parseFloat(getComputedStyle(next.parentElement!).rowGap) || 0) : 0;
+    const bottom = (nav && nav.top > window.innerHeight / 2 ? nav.top : window.innerHeight) - below;
+    const room = Math.max(150, Math.round(bottom - (f.getBoundingClientRect().top + window.scrollY) - 12));
     const fits = height <= room;
     f.style.maxHeight = fits ? '' : `${room}px`;
     f.style.overflow = fits ? '' : 'hidden';
@@ -1219,6 +1222,7 @@ function Decorate() {
           unsaved={set}
           saving={false}
           busy={false}
+          offline={false}
           error={null}
           changed={set}
           onArm={noop}
@@ -1262,7 +1266,7 @@ function OpenBackups() {
   });
   return (
     <div ref={box}>
-      <MapBackups backups={[BACKUP]} onCreate={async () => {}} onPreview={async () => {}} onDelete={async () => {}} onDownload={async () => {}} onDownloadGeo={async () => {}} onFile={noop} geo={null} />
+      <MapBackups backups={{list: [BACKUP], keep: null}} onCreate={async () => {}} onPreview={async () => {}} onDelete={async () => {}} onDownload={async () => {}} onDownloadGeo={async () => {}} onFile={noop} geo={null} />
     </div>
   );
 }
@@ -1286,6 +1290,9 @@ function Save() {
             areas={BACKUP.areas}
             backedUp
             idle
+            live
+            ends={false}
+            unsaved={false}
             restoring={false}
             confirm={t >= 0.8}
             error={null}

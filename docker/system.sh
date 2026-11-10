@@ -22,11 +22,12 @@ for z in /sys/class/thermal/thermal_zone*; do
 done
 [ -n "$t" ] && awk '{ print "cpu_temp", $1 / 1000 }' "$t"
 # the mower's own network, from its /proc/net (/proc/1/net mounted at /host-net, compose.yaml): the signal of the first
-# wifi interface in dBm (some drivers count it from 0), the interface the default route goes out on and its address
+# wifi interface in dBm (some drivers count it from 0, 0 is one not connected), the interface the default route goes
+# out on and its address
 N=/host-net
 [ -r "$N/wireless" ] && awk 'NR > 2 && $1 ~ /:$/ {
   sub(/:$/, "", $1); w = $4 + 0; if (w > 0) w -= 256
-  print "wifi_iface", $1; print "wifi_signal", w; exit
+  print "wifi_iface", $1; if (w) print "wifi_signal", w; exit
 }' "$N/wireless"
 [ -r "$N/route" ] && [ -r "$N/fib_trie" ] && awk '
   function hex(s,    i, n) { for (i = 1; i <= length(s); i++) n = n * 16 + index("0123456789ABCDEF", toupper(substr(s, i, 1))) - 1; return n }

@@ -7,6 +7,7 @@ import {settingsStore, type Settings} from '@/lib/settings';
 import DecorPanel from './DecorPanel';
 import EditorToolbar from './EditorToolbar';
 import OrderBox, {NewArea} from './OrderBox';
+import {RestorePanel} from './Panels';
 import {pinSquare} from './editing';
 
 const noop = () => {};
@@ -26,6 +27,7 @@ const panel = (props: Partial<ComponentProps<typeof DecorPanel>>) =>
       unsaved: false,
       saving: false,
       busy: false,
+      offline: false,
       error: null,
       changed: false,
       onArm: noop,
@@ -86,10 +88,45 @@ describe('decorating under the map', () => {
 
   it('asks before saving while the mower is out, says what went wrong', () => {
     const html = panel({busy: true, error: 'timeout'});
-    expect(html).toContain('The mower is busy. Saving now can interrupt it.');
+    expect(html).toContain('The mower is busy (mowing, docking or recording). Better save once it is done.');
     expect(html).toContain('Save anyway');
     expect(html).toContain('After mowing');
     expect(html).toContain('timeout');
+  });
+
+  it('asks the same without a connection, the mower may be out', () => {
+    const html = panel({busy: true, offline: true});
+    expect(html).toContain("No connection to the mower right now, so it isn't known whether it's out. Better save once it can be reached again.");
+    expect(html).toContain('Save anyway');
+  });
+});
+
+describe('restoring a backup', () => {
+  const restore = (idle: boolean, live: boolean) =>
+    markup(
+      createElement(RestorePanel, {
+        areas: 2,
+        backedUp: true,
+        idle,
+        live,
+        ends: false,
+        unsaved: false,
+        restoring: false,
+        confirm: false,
+        error: null,
+        onRestore: noop,
+        onDisarm: noop,
+        onClose: noop,
+      }),
+    );
+
+  it('only goes with the mower connected and not out', () => {
+    expect(restore(true, true)).not.toMatch(/<button[^>]*disabled[^>]*>Restore/);
+    expect(restore(false, true)).toContain('Only possible while the mower is not busy');
+    expect(restore(false, true)).toMatch(/<button[^>]*disabled[^>]*>Restore/);
+    expect(restore(true, false)).toContain("The mower can't be reached right now.");
+    expect(restore(true, false)).not.toContain('Only possible while the mower is not busy');
+    expect(restore(true, false)).toMatch(/<button[^>]*disabled[^>]*>Restore/);
   });
 });
 
@@ -131,5 +168,27 @@ describe('decorating, started from the map settings', () => {
     const add = markup(createElement(NewArea, {empty: true, unsaved: false, onDraw: noop}));
     expect(add).toContain('Draw');
     expect(add).not.toContain('Decorate');
+  });
+});
+
+describe('the editor bar', () => {
+  it('says everything is saved, not while points are set for a new area or a cut', () => {
+    const bar = (placing: boolean) =>
+      markup(
+        createElement(EditorToolbar, {
+          canUndo: true,
+          canRedo: false,
+          unsaved: false,
+          placing,
+          saving: false,
+          saveLabel: 'Save map',
+          saveError: null,
+          onUndo: noop,
+          onRedo: noop,
+          onSave: noop,
+        }),
+      );
+    expect(bar(false)).toContain('Everything saved');
+    expect(bar(true)).not.toContain('Everything saved');
   });
 });

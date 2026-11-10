@@ -818,9 +818,10 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     };
   };
 
+  // a job that waits (charging, where it gave up) keeps its id like mower_logic's, only the session ends there
   const position = () => ({
     ...pose,
-    attributes: {job_id: job && !parked && !rec ? job.id : '', session_id: job && !parked && !rec ? job.session : '', blades: blades()},
+    attributes: {job_id: job && !rec ? job.id : '', session_id: job && !parked && !rec ? job.session : '', blades: blades()},
   });
   // the lines of the recording on the map, like OpenMower's overlay: the outline green, obstacles red, the line blue
   const overlay = () => ({
@@ -846,6 +847,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
         phase: calib.phase,
         ready: !!calibResult?.ready,
         error: null,
+        mode: calib.mode,
         need: CALIB_NEED[calib.mode],
         // (the demo's receiver always has its fix)
         ...(calib.phase === 'recording' ? {rtk: {fixed: true, accuracy: 0.021}} : {}),
@@ -910,6 +912,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
         detour = {id: job.id, session: job.session, run: {legs, at: 0, d: 0}, then: 'resume'};
         parked = false;
         away = false;
+        mows.push({start: t, end: Infinity});
       } else if (newJob(t)) mows.push({start: t, end: Infinity});
     } else if (id === ACTION.pause && s === 'MOWING') {
       // the pause stays inside MowingBehavior: no STATE, only the blade
@@ -1037,9 +1040,9 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
       const m = next as MowerMap;
       map = openRings({...m, docking_stations: m.docking_stations ?? []});
       plans.clear();
-      // the plan it was driving is of the old map: home, and the job is gone (recording, the stick drives it)
-      if (job) {
-        if (!rec) sendHome(undefined, true);
+      // the plan it's driving is of the old map: home, and the job is gone. one waiting (idle, recording) keeps it like mower_logic
+      if (job && !parked && !rec) {
+        sendHome(undefined, true);
         note(last / 1000, pose, {type: 'JOB_RESET'});
         job = null;
       }

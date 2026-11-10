@@ -56,6 +56,11 @@ export function stamp(t: number, date = false): string {
   return date ? `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${time}` : time;
 }
 const cm = (m: number) => `${(m * 100).toFixed(m < 0.1 ? 1 : 0)} cm`;
+// a zone's offset as +01:00, +05:30, -03:30, from Date's getTimezoneOffset (minutes, west of UTC positive)
+export function utcOffset(tzMinutes: number): string {
+  const a = Math.abs(tzMinutes);
+  return `${tzMinutes > 0 ? '-' : '+'}${String(Math.floor(a / 60)).padStart(2, '0')}:${String(a % 60).padStart(2, '0')}`;
+}
 const mins = (s: number) => (s < 120 ? `${Math.round(s)} s` : `${Math.round(s / 60)} min`);
 
 // ros lines that only repeat what the lines around them say: the timeline leaves them out, the raw ros log at the end
@@ -148,14 +153,14 @@ export function gpsChanges(samples: readonly GpsSample[], limit: number): Line[]
 export function gpsSummary(samples: readonly GpsSample[], limit: number): string[] {
   if (!samples.length) return ['GPS: nothing kept for this time (the container keeps it since this version, 14 days).'];
   const time: Record<Band, number> = {fix: 0, float: 0, poor: 0, none: 0, dock: 0, stale: 0};
-  let worst = 0;
+  let worst: number | null = null;
   let gap = {from: 0, to: 0};
   let gapStart: number | null = null;
   samples.forEach((s, i) => {
     const d = Math.min(2, (samples[i + 1]?.t ?? s.t + 1) - s.t);
     const b = band(s, limit);
     time[b] += d;
-    if (s.acc !== null && !s.stale && s.acc > worst) worst = s.acc;
+    if (s.acc !== null && !s.stale && (worst === null || s.acc > worst)) worst = s.acc;
     if (b !== 'fix' && b !== 'dock') {
       gapStart ??= s.t;
       if (s.t + d - gapStart > gap.to - gap.from) gap = {from: gapStart, to: s.t + d};
@@ -168,7 +173,7 @@ export function gpsSummary(samples: readonly GpsSample[], limit: number): string
     `GPS (by its accuracy): at most 5 cm ${pct(time.fix)} of the time, over 5 cm but taken ${mins(time.float)}, too inaccurate ${mins(time.poor)}, no GPS ${mins(time.none + time.stale)}` +
       (time.stale ? ` (${mins(time.stale)} of it with the last accuracy repeated)` : '') +
       (time.dock ? `, off in the dock approach ${mins(time.dock)}` : '') +
-      `. Worst accuracy ${cm(worst)}.`,
+      `. Worst accuracy ${worst === null ? '-' : cm(worst)}.`,
     gap.to > gap.from
       ? `Longest stretch over 5 cm or without GPS: ${mins(gap.to - gap.from)} from ${stamp(gap.from)}.`
       : 'Never over 5 cm or without GPS outside the dock approach.',
@@ -421,7 +426,7 @@ export function buildDiagnosis(d: DiagnosisInput): string {
   out.push('MowBite diagnosis', '=================');
   out.push(`Run: ${stamp(run.start, true)} to ${stamp(run.end)} (${mins(run.end - run.start)}), outcome: ${OUTCOMES[run.outcome].label}`);
   out.push(`Areas: ${run.areas.join(', ') || '-'}, blades on ${mins(run.bladeSeconds)}, job ${run.jobId ?? '-'}`);
-  out.push(`Created ${stamp(d.created, true)} with MowBite ${d.appVersion}, times are local (UTC${-new Date(run.start * 1000).getTimezoneOffset() / 60 >= 0 ? '+' : ''}${-new Date(run.start * 1000).getTimezoneOffset() / 60})`);
+  out.push(`Created ${stamp(d.created, true)} with MowBite ${d.appVersion}, times are local (UTC${utcOffset(new Date(run.start * 1000).getTimezoneOffset())})`);
 
   h('Summary');
   if (d.gps) out.push(...gpsSummary(d.gps.filter((s) => s.t >= run.start && s.t <= run.end), d.gpsLimit));

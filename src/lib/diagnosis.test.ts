@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {buildDiagnosis, collapse, driveLines, gpsChanges, gpsSummary, mergePlanner, noise, planSpot, readKeptPlan, readKeptPlanner, rosEmergencies, whereOnMap} from './diagnosis';
+import {buildDiagnosis, collapse, driveLines, gpsChanges, gpsSummary, mergePlanner, noise, planSpot, readKeptPlan, readKeptPlanner, rosEmergencies, utcOffset, whereOnMap} from './diagnosis';
 import {readGpsLog} from './gpslog';
 import type {Run} from './events';
 
@@ -22,6 +22,11 @@ describe('diagnosis', () => {
       'off in the dock approach (normal) at 1.00, 2.00, Wi-Fi -55 dBm',
     ]);
     expect(gpsSummary(s, 0.2)[0]).toContain('at most 5 cm 67 %');
+  });
+
+  it('no worst accuracy without one, the zone with its minutes', () => {
+    expect(gpsSummary(readGpsLog('1 MOWING 1 2 999 -50\n2 MOWING 1 2 999 -50'), 0.2)[0]).toContain('Worst accuracy -.');
+    expect([-60, -330, 210, 0].map(utcOffset)).toEqual(['+01:00', '+05:30', '-03:30', '+00:00']);
   });
 
   it('one bump is one stop, and one without latch is no stop', () => {

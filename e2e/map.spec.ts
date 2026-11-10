@@ -1,5 +1,5 @@
 import type {MowerMap} from '@/hooks/useMowerMap';
-import {demoCall, demoDocked, demoHas, expect, handles, lawnPoint, openMap, pickedOutline, tab, test, touchDrag, visibleAreas} from './app';
+import {demoAction, demoCall, demoDocked, demoHas, expect, handles, lawnPoint, openMap, pickedOutline, tab, test, touchDrag, visibleAreas} from './app';
 
 test('an area picked stays picked while another page is open', async ({page}) => {
   await openMap(page);
@@ -86,8 +86,9 @@ test('decorating from the map settings: a picture set, moved and taken back', as
 
 test('saving over a map that was changed on another phone asks first', async ({page}) => {
   await openMap(page);
-  // in the dock: saving while it mows asks something else first
+  // in the dock and without the job it was on: saving while it mows or with that job asks something else first
   await demoDocked(page);
+  await demoAction(page, 'mower_logic:idle/reset_job');
   const at = await lawnPoint(page);
   await page.mouse.click(at.x, at.y);
   const name = page.getByRole('textbox').first();
@@ -111,6 +112,42 @@ test('saving over a map that was changed on another phone asks first', async ({p
   await expect(page.getByText('The map on the mower was changed since you started editing here')).toHaveCount(0);
 });
 
+// a job the mower interrupted keeps the lanes of the old map: saving asks first and drops it, without one it doesn't ask
+test('saving with an interrupted job asks first and drops the job', async ({page}) => {
+  await openMap(page);
+  // sent home in the middle of its job
+  await demoDocked(page);
+  const offered = async () => {
+    const actions = await demoHas<{action_id: string; enabled: number}[]>(page, 'actions/json');
+    return actions.find((a) => a.action_id === 'mower_logic:idle/reset_job')?.enabled;
+  };
+  const names = async () => (await demoHas<MowerMap>(page, 'map/json')).areas.map((a) => a.properties.name);
+  expect(await offered()).toBe(1);
+  const at = await lawnPoint(page);
+  await page.mouse.click(at.x, at.y);
+  const name = page.getByRole('textbox').first();
+  await expect(name).not.toHaveValue('');
+  await name.fill('Changed here');
+  // (its label also says whether the map has warnings)
+  const save = page.locator('[class*="changesBar"] [class*="saveButton"]');
+  const ask = page.getByText('The interrupted job was planned on the old map, saving ends it.');
+  await save.click();
+  await expect(ask).toBeVisible();
+  await expect(save).toHaveText('Save anyway');
+  await page.waitForTimeout(500);
+  expect(await names()).not.toContain('Changed here');
+  expect(await offered()).toBe(1);
+  await save.click();
+  await expect.poll(names).toContain('Changed here');
+  await expect.poll(offered).toBe(0);
+  await expect(ask).toHaveCount(0);
+  // no job left: saved at once
+  await name.fill('Changed again');
+  await save.click();
+  await expect.poll(names).toContain('Changed again');
+  await expect(ask).toHaveCount(0);
+});
+
 // drawing a new area: the view stays where it is with every point, undo takes back only the last point
 test('drawing keeps the view still, undo takes back the last point', async ({page}) => {
   await openMap(page);
@@ -130,9 +167,42 @@ test('drawing keeps the view still, undo takes back the last point', async ({pag
     await page.waitForTimeout(400);
   }
   await expect(page.getByText(/\(3 so far\)/)).toBeVisible();
+  // the points aren't in the map yet
+  await expect(page.getByText('Everything saved')).toBeHidden();
   expect(await view()).toBe(before);
   await page.getByRole('button', {name: 'Undo'}).first().click();
   await expect(page.getByText(/\(2 so far\)/)).toBeVisible();
   await page.getByRole('button', {name: 'Remove last point'}).click();
   await expect(page.getByText(/\(1 so far\)/)).toBeVisible();
+});
+
+test('a point pulled out of a drawn line goes again when a second finger starts a pinch', async ({page, isMobile}) => {
+  test.skip(!isMobile, 'two fingers');
+  await openMap(page);
+  await page.getByRole('button', {name: 'Draw'}).first().click();
+  const box = (await page.locator('[class*="_frame"]:has(svg):visible').first().boundingBox())!;
+  const [a, b] = [0.2, 0.7].map((dx) => ({x: box.x + box.width * dx, y: box.y + box.height * 0.5}));
+  for (const p of [a, b]) {
+    await page.mouse.click(p.x, p.y);
+    await page.waitForTimeout(400);
+  }
+  await expect(page.getByText(/\(2 so far\)/)).toBeVisible();
+  // held on the middle of the line, pulled away, then the second finger
+  const mid = {x: (a.x + b.x) / 2, y: a.y};
+  const cdp = await page.context().newCDPSession(page);
+  const touch = (type: string, points: {x: number; y: number}[]) =>
+    cdp.send('Input.dispatchTouchEvent', {type: type as 'touchStart', touchPoints: points.map((p, id) => ({...p, id, radiusX: 4, radiusY: 4, force: 1}))});
+  await touch('touchStart', [mid]);
+  await page.waitForTimeout(450);
+  const pulled = {x: mid.x, y: mid.y + 40};
+  for (let i = 1; i <= 8; i++) {
+    await touch('touchMove', [{x: mid.x, y: mid.y + i * 5}]);
+    await page.waitForTimeout(30);
+  }
+  await expect(page.getByText(/\(3 so far\)/)).toBeVisible();
+  await touch('touchStart', [pulled, {x: pulled.x + 80, y: pulled.y + 60}]);
+  await page.waitForTimeout(100);
+  await touch('touchEnd', []);
+  await cdp.detach();
+  await expect(page.getByText(/\(2 so far\)/)).toBeVisible();
 });

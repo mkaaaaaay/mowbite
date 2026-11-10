@@ -6,7 +6,7 @@ import {apiBase} from './mowers';
 import {RPC} from './openmower';
 import {isMowbiteOs, systemInfo} from './mowerOs';
 import {askPlan} from './plannerProgress';
-import {callRpc, isMissingMethod, RpcError, rpcMethods} from './rpc';
+import {askUntilAnswered, callRpc, isMissingMethod, knownMethods, RpcError, rpcMethods} from './rpc';
 import {saveSettings, settingsStore, syncSettings, type Settings} from './settings';
 
 // The mower's body and blade as the MowBite Planner on the mower knows them (planner.settings): a rectangle around
@@ -219,9 +219,10 @@ export async function savePlannerSettings(values: Record<string, unknown>): Prom
 }
 
 // A planner that knows outlines but plans with the rectangle while its sizes are exactly a model's with a measured
-// outline gets that outline from the app by itself: once per start, after the shared settings are in (the rectangle
-// may be kept there), and the model is noted for the sizes card. Not on MowBite OS: the mower holds its sizes itself
-// (robot.geometry), the planner only shows them. Until it's known what runs there it waits for the next time
+// outline gets that outline from the app by itself: once per start (until it went through), after the shared settings
+// are in (the rectangle may be kept there), and the model is noted for the sizes card. Not on MowBite OS: the mower
+// holds its sizes itself (robot.geometry), the planner only shows them. Until it's known what runs there it waits for
+// the next time
 let outlineChecked = false;
 export async function giveOutline() {
   if (outlineChecked || !current?.settings.robot_outline?.settable) return;
@@ -232,12 +233,18 @@ export async function giveOutline() {
     return;
   }
   if (isMowbiteOs(info)) return;
-  await syncSettings();
-  if (!current || outlineOf(current.settings.robot_outline?.value)) return;
-  const m = autoOutlineModel(plannerSizes(current), settingsStore.snapshot().keepRectangle);
-  if (!m?.outline) return;
-  await savePlannerSettings({robot_outline: grownOutline(m.outline, OUTLINE_LEEWAY)});
-  saveSettings({...settingsStore.snapshot(), autoOutline: m.key});
+  try {
+    await syncSettings();
+    if (!current || outlineOf(current.settings.robot_outline?.value)) return;
+    const m = autoOutlineModel(plannerSizes(current), settingsStore.snapshot().keepRectangle);
+    if (!m?.outline) return;
+    await savePlannerSettings({robot_outline: grownOutline(m.outline, OUTLINE_LEEWAY)});
+    saveSettings({...settingsStore.snapshot(), autoOutline: m.key});
+  } catch (e) {
+    // tried again with the planner's next answer
+    outlineChecked = false;
+    throw e;
+  }
 }
 
 // the angle turned further back to 0 (planner.angle.reset), the next finished mow counts from there
@@ -283,26 +290,33 @@ export function steadyBody(b: MowerBody | null): MowerBody | null {
 }
 
 // the planner's settings asked until it answers (a phone waking up can take a while to connect, a planner busy planning
-// answers when it's done): again at once after no answer, 15 s after an error; onFail for each time it didn't
+// answers when it's done): again at once after no answer, 15 s after an error. a mower that hasn't answered any call
+// yet is asked again once it tells its methods, not every minute. onFail for each time it didn't, returns the stop
+export function askPlanner(onFail?: () => void): () => void {
+  let alive = true;
+  let t: ReturnType<typeof setTimeout> | undefined;
+  let stop: (() => void) | undefined;
+  const ask = () => {
+    if (current !== undefined) return;
+    loadPlannerSettings().catch((e) => {
+      if (!alive) return;
+      onFail?.();
+      const silent = e instanceof RpcError && e.code === 'timeout';
+      if (silent && knownMethods() === undefined) stop = askUntilAnswered(rpcMethods, ask);
+      else t = setTimeout(ask, silent ? 0 : 15000);
+    });
+  };
+  ask();
+  return () => {
+    alive = false;
+    clearTimeout(t);
+    stop?.();
+  };
+}
+
 export function useAskPlanner(onFail?: () => void) {
-  useEffect(() => {
-    let alive = true;
-    let t: ReturnType<typeof setTimeout> | undefined;
-    const ask = () => {
-      if (current !== undefined) return;
-      loadPlannerSettings().catch((e) => {
-        if (!alive) return;
-        onFail?.();
-        t = setTimeout(ask, e instanceof RpcError && e.code === 'timeout' ? 0 : 15000);
-      });
-    };
-    ask();
-    return () => {
-      alive = false;
-      clearTimeout(t);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- asked once per page, onFail only tells
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- asked once per page, onFail only tells
+  useEffect(() => askPlanner(onFail), []);
 }
 
 // the mower's body for drawing it, null until known (or when there's none)
@@ -394,6 +408,20 @@ export type MowerSizes = NonNullable<Settings['mower']>;
 
 // the widest blade the app takes, more than any mower running OpenMower cuts
 export const MAX_BLADE = 0.4; // m
+
+// what a mower's sizes can be (m): outside it the unit slipped, metres or millimetres typed as cm
+const SIZE_LIMITS: {[K in keyof MowerSizes]?: readonly [number, number]} = {
+  width: [0.1, 1.5],
+  front: [0.1, 1.5],
+  rear: [0, 1.5],
+  blade: [0.05, MAX_BLADE],
+};
+
+// the limits a size lies outside of, in cm as the fields show them
+export function outsideLimits(key: keyof MowerSizes, v: number): {min: number; max: number} | null {
+  const l = SIZE_LIMITS[key];
+  return l && (v < l[0] || v > l[1]) ? {min: Math.round(l[0] * 100), max: Math.round(l[1] * 100)} : null;
+}
 
 const metres = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
@@ -531,6 +559,12 @@ export function measuredOutline(o: Outline | undefined): Outline | undefined {
   const key = JSON.stringify(o);
   const m = MOWER_MODELS.find((x) => x.outline && (JSON.stringify(x.outline) === key || JSON.stringify(grownOutline(x.outline, OUTLINE_LEEWAY)) === key));
   return m?.outline ?? o;
+}
+
+// the outline as the planner gets it: a model's measured one with the leeway, any other as it was stored
+export function plannerOutline(o: Outline): Outline {
+  const key = JSON.stringify(o);
+  return MOWER_MODELS.some((x) => x.outline && JSON.stringify(x.outline) === key) ? grownOutline(o, OUTLINE_LEEWAY) : o;
 }
 
 // the model with these sizes, to the millimetre

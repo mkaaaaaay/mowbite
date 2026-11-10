@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import type {MowerMap} from '@/hooks/useMowerMap';
-import {sameContent, sameMap} from './sameMap';
+import {mapKey, recordedIn, sameContent, sameMap} from './sameMap';
 import {closedRings} from './rings';
 
 const map = (): MowerMap => ({
@@ -49,6 +49,23 @@ describe('sameContent', () => {
     expect(sameContent(sent, back)).toBe(true);
   });
 
+  it('takes what the mower leaves out or fills in as the same: active and mowable when true, an empty name, the type, other fields', () => {
+    const sent = map();
+    const outline = [{x: 3, y: 3}, {x: 4, y: 3}, {x: 4, y: 4}];
+    sent.areas.push({id: 'c', properties: {name: '', active: true, mowable: true, mow_around: false}, outline});
+    const back = {...map(), areas: [...map().areas, {id: 'c', properties: {type: 'draft', mow_around: false}, outline}]};
+    expect(sameContent({...sent, version: 2} as MowerMap, back)).toBe(true);
+  });
+
+  it('spots a setting the mower dropped or set otherwise', () => {
+    const sent = map();
+    sent.areas[0].properties.mow_around = false;
+    expect(sameContent(sent, map())).toBe(false);
+    const off = map();
+    off.areas[0].properties.active = false;
+    expect(sameContent(off, map())).toBe(false);
+  });
+
   it('still spots a real change', () => {
     const back = map();
     back.areas[0].outline[1] = {x: 1.01, y: 0};
@@ -56,5 +73,49 @@ describe('sameContent', () => {
     const setting = map();
     setting.areas[0].properties.angle = 0.5;
     expect(sameContent(map(), setting)).toBe(false);
+  });
+});
+
+describe('mapKey', () => {
+  it('stays the same when the mower sends the same map again: keys in another order, outlines closed, less than a mm off', () => {
+    const again = closedRings(map());
+    again.areas[0] = {outline: again.areas[0].outline, properties: {type: 'mow', name: 'Front'}, id: 'a'};
+    again.areas[1].outline[1] = {x: 0.4 + 3e-4, y: 0.2};
+    expect(mapKey(again)).toBe(mapKey(map()));
+  });
+
+  it('changes with an area more, a point moved by a cm or a setting', () => {
+    const added = map();
+    added.areas.push({id: 'c', properties: {type: 'nav'}, outline: [{x: 3, y: 3}, {x: 4, y: 3}, {x: 4, y: 4}]});
+    expect(mapKey(added)).not.toBe(mapKey(map()));
+    const moved = map();
+    moved.areas[1].outline[0] = {x: 0.21, y: 0.2};
+    expect(mapKey(moved)).not.toBe(mapKey(map()));
+    const named = map();
+    named.areas[0].properties.name = 'Back';
+    expect(mapKey(named)).not.toBe(mapKey(map()));
+  });
+});
+
+describe('recordedIn', () => {
+  const area = (id: string, type: string) => ({id, properties: {type}, outline: [{x: 0, y: 0}, {x: 1, y: 0}, {x: 1, y: 1}]});
+
+  it('sees a saved area once the map has one more of its type', () => {
+    const before = map();
+    expect(recordedIn('mow', before, before)).toBe(false);
+    expect(recordedIn('mow', before, {...before, areas: [...before.areas, area('c', 'nav')]})).toBe(false);
+    expect(recordedIn('nav', before, {...before, areas: [...before.areas, area('c', 'nav')]})).toBe(true);
+    expect(recordedIn('mow', before, {...before, areas: [...before.areas, area('c', 'mow'), area('e', 'obstacle')]})).toBe(true);
+    expect(recordedIn('mow', null, {...before, areas: [area('c', 'mow')]})).toBe(true);
+    // no map (yet): nothing came
+    expect(recordedIn('mow', before, null)).toBe(false);
+  });
+
+  it('sees the docking station once it is another one than before', () => {
+    const before = map();
+    expect(recordedIn('dock', before, map())).toBe(false);
+    expect(recordedIn('dock', before, {...before, docking_stations: [{id: 'd', position: {x: 2.1, y: 2}, heading: 1}]})).toBe(true);
+    expect(recordedIn('dock', {...before, docking_stations: []}, map())).toBe(true);
+    expect(recordedIn('dock', before, {...before, docking_stations: []})).toBe(false);
   });
 });

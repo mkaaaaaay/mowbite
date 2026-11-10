@@ -3,13 +3,14 @@
 import type {Area} from '@/app/map/editing';
 import {dayLabel, parseDay} from '@/lib/dates';
 import {tr} from '@/lib/i18n';
-import {localDay, type Schedule} from '@/lib/schedule';
+import {localDay, scheduleNow, type Schedule} from '@/lib/schedule';
 import {useState} from 'react';
 import styles from './page.module.css';
 
 // days off: the whole schedule or some areas, up to and including a day, afterwards it runs as usual again
 export default function PauseCard({schedule, mowAreas, update}: {schedule: Schedule; mowAreas: Area[]; update: (s: Schedule) => void}) {
-  const today = localDay();
+  // the schedule's today, on a phone in another time zone too
+  const today = localDay(scheduleNow(schedule.tz));
   const pause = schedule.pause && schedule.pause.until >= today ? schedule.pause : undefined;
   // what the next pause covers, all areas unless some are picked
   const [picked, setPicked] = useState<string[]>([]);

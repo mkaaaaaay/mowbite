@@ -203,10 +203,10 @@ export function SimulationView({model, locked, wait, error, result, shown, canCa
           )}
           {r.touches.length > 0 && (
             <span className={worst >= 0.05 ? styles.warningText : styles.dim}>
-              {tr('The body gets into the safety distance at {n} places, up to {cm} cm. From about 5 cm it touches the real edge.', {
-                n: r.touches.length,
-                cm: fmt(worst * 100, 1),
-              })}
+              {tr(
+                "The body gets into the safety distance at {n} places, up to {cm} cm. It touches the real edge only where that's more than the distance set.",
+                {n: r.touches.length, cm: fmt(worst * 100, 1)},
+              )}
             </span>
           )}
           {r.navErrors.length > 0 && (

@@ -12,6 +12,8 @@ import {
   OUTLINE_LEEWAY,
   grownOutline,
   outlineOf,
+  outsideLimits,
+  plannerOutline,
   savePlannerSettings,
   sizesBody,
   slic3rPlans,
@@ -61,13 +63,10 @@ const MODEL_FIELDS = [
   ['blade_offset', 'bladeOffset'],
 ] as const;
 
-const sizesOf = (f: Form): MowerSizes =>
-  Object.fromEntries(
-    MODEL_FIELDS.map(([key, size]) => {
-      const v = parseFloat(f[key].replace(',', '.'));
-      return [size, Number.isFinite(v) ? v / 100 : undefined];
-    }),
-  );
+// a planner setting's name among the sizes
+const SIZE_KEY = Object.fromEntries(MODEL_FIELDS) as Record<BodySetting, (typeof MODEL_FIELDS)[number][1]>;
+
+const sizesOf = (f: Form): MowerSizes => Object.fromEntries(MODEL_FIELDS.map(([key, size]) => [size, cmMetres(f[key]) ?? undefined]));
 
 // A planner that knows the body's sizes but has none: it plans without checking the body, whatever the collision check
 // and the distances say. Sizes set in this app before the planner came only draw the mower on the map, they are
@@ -207,10 +206,15 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
         setState({error: tr('{what} is not a number.', {what: tr(LABELS[key])})});
         return;
       }
+      const outside = outsideLimits(SIZE_KEY[key], v);
+      if (outside) {
+        setState({error: tr('{what} has to be between {min} and {max} cm.', {what: tr(LABELS[key]), ...outside})});
+        return;
+      }
       if (!s.stored || typeof s.value !== 'number' || Math.abs(s.value - v) > 1e-6) changes[key] = Math.round(v * 10000) / 10000;
     }
     // the contour only to a planner that knows it, null is the rectangle again
-    const send = o ? grownOutline(o, OUTLINE_LEEWAY) : null;
+    const send = o ? plannerOutline(o) : null;
     if (known.robot_outline && JSON.stringify(outlineOf(known.robot_outline.value) ?? null) !== JSON.stringify(send)) {
       changes.robot_outline = send;
     }
@@ -250,6 +254,7 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
     setForm({...form, [key]: value});
     if (key === 'robot_width' || key === 'robot_front' || key === 'robot_rear') setOutline(null);
     setOther(false);
+    setTurn(null);
     setState({});
   };
 

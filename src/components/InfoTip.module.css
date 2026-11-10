@@ -12,6 +12,14 @@
   margin-left: 5px;
   vertical-align: middle;
   flex: none;
+  position: relative;
+}
+
+/* a little more room for a finger, short of the label and the controls next to it */
+.icon::after {
+  content: '';
+  position: absolute;
+  inset: -5px -6px;
 }
 
 .bubble {

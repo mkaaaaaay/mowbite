@@ -52,3 +52,19 @@ describe('cutOut', () => {
     expect(cutOut(square(0, 0, 10), [{x: -1, y: 5}, {x: 11, y: 5}, {x: 5, y: 8}])).toBeNull();
   });
 });
+
+describe('splitByPath', () => {
+  it('refuses a cut line that loops over itself inside the area', () => {
+    const loop = [
+      {x: -1, y: 5},
+      {x: 8, y: 5},
+      {x: 8, y: 8},
+      {x: 4, y: 8},
+      {x: 4, y: 2},
+      {x: 11, y: 2},
+    ];
+    expect(splitByPath(square(0, 0, 10), loop)).toBeNull();
+    // the same bend without the loop
+    expect(splitByPath(square(0, 0, 10), [{x: -1, y: 5}, {x: 8, y: 5}, {x: 8, y: 11}])).not.toBeNull();
+  });
+});

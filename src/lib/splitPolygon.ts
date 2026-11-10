@@ -77,6 +77,12 @@ export function splitByPath(outline: Point[], path: Point[]): [Point[], Point[]]
       if (k > a.pathPos && k < b.pathPos) inner.push(path[k]);
     }
 
+    // a cut that runs over itself in there would give pieces crossing themselves
+    const cut = [a.point, ...inner, b.point];
+    for (let i = 0; i + 1 < cut.length; i++) {
+      for (let j = i + 2; j + 1 < cut.length; j++) if (segmentHit(cut[i], cut[i + 1], cut[j], cut[j + 1])) return null;
+    }
+
     const ringA = [a.point, ...inner, b.point, ...walk(outline, b, a)];
     const ringB = [b.point, ...[...inner].reverse(), a.point, ...walk(outline, a, b)];
     if (ringA.length < 3 || ringB.length < 3 || polygonArea(ringA) < 0.01 || polygonArea(ringB) < 0.01) return null;

@@ -5,6 +5,7 @@ import {mergeMaps} from '@/lib/mergeMap';
 import {sameMap} from '@/lib/sameMap';
 import {setUnsavedMap} from '@/lib/unsavedMap';
 import {useEffect, useMemo, useRef, useState} from 'react';
+import {mowerMap, type Sent} from './editing';
 
 // the same points, also when they came back from the mower after a save
 const sameOutline = (a: Point[], b: Point[]) => a === b || (a.length === b.length && a.every((p, i) => p.x === b[i].x && p.y === b[i].y));
@@ -16,10 +17,13 @@ export function useMapEdits(liveMap: MowerMap | null) {
   const [edited, setEdited] = useKeptState<MowerMap | null>('map:edited', null);
   // the mower's map the edits started from, to notice when it gets changed somewhere else meanwhile
   const [base, setBase] = useKeptState<MowerMap | null>('map:base', null);
-  const map = edited ?? liveMap;
+  // a map of ours the mower took, until it comes back from there: edits go on from it, not from the one before
+  const [sent, setSent] = useKeptState<Sent | null>('map:sent', null);
+  const mower = useMemo(() => mowerMap(liveMap, sent), [liveMap, sent]);
+  const map = edited ?? mower;
   const put = (next: MowerMap | null | ((m: MowerMap | null) => MowerMap | null)) => {
-    if (!edited) setBase(liveMap);
-    setEdited((prev) => (typeof next === 'function' ? next(prev ?? liveMap) : next));
+    if (!edited) setBase(mower);
+    setEdited((prev) => (typeof next === 'function' ? next(prev ?? mower) : next));
   };
   const [history, setHistory] = useKeptState<MowerMap[]>('map:history', []);
   // the steps undone, newest last, until something else gets changed
@@ -44,7 +48,7 @@ export function useMapEdits(liveMap: MowerMap | null) {
   const dirty = useMemo(() => !!edited && (!base || !sameMap(edited, base)), [edited, base]);
   // the map on the mower isn't the one the edits started from: another app, device or a recording changed it.
   // saving would put the edited copy in its place and that change would be gone
-  const external = useMemo(() => !!base && !!liveMap && !sameMap(base, liveMap), [base, liveMap]);
+  const external = useMemo(() => !!base && !!mower && !sameMap(base, mower), [base, mower]);
   // back to the mower's map. keep: the outlines from before reducing points stay (only after a save, they
   // still match then)
   const dropEdits = (keep?: 'originals') => {
@@ -61,15 +65,15 @@ export function useMapEdits(liveMap: MowerMap | null) {
   // version from here, the note names them. the map put together, null when there's nothing to
   const [mergeNote, setMergeNote] = useState<string | null>(null);
   const mergeExternal = () => {
-    if (!edited || !base || !liveMap) return null;
-    const {map: merged, conflicts} = mergeMaps(base, edited, liveMap);
+    if (!edited || !base || !mower) return null;
+    const {map: merged, conflicts} = mergeMaps(base, edited, mower);
     // the steps before were on the old map: undone they'd put back what the other side changed, without a warning
     setHistory([]);
     setEdited(merged);
     setFuture([]);
-    setBase(liveMap);
+    setBase(mower);
     // (one deleted here isn't in the map put together)
-    const maps = [merged, liveMap, base];
+    const maps = [merged, mower, base];
     const name = (id: string) =>
       maps.some((m) => m.docking_stations.some((d) => d.id === id))
         ? tr('Docking station')
@@ -86,6 +90,15 @@ export function useMapEdits(liveMap: MowerMap | null) {
   };
   // the mower's map is now this one (a save of ours that answered late): the edits made since go on from it
   const rebase = (m: MowerMap) => setBase(m);
+  // a map of ours the mower took in place of over: shown and gone on from until the mower's map comes
+  const took = (m: MowerMap, over: MowerMap | null) => setSent({map: m, over});
+  useEffect(() => {
+    if (!sent || liveMap === sent.over) return;
+    setSent(null);
+    // back as the mower wrote it, the edits made meanwhile go on from that
+    if (liveMap && base === sent.map && mower === sent.map) setBase(liveMap);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only when the mower's map comes or one got sent
+  }, [liveMap, sent]);
   useEffect(() => setUnsavedMap(dirty), [dirty]);
   // nothing of ours in the copy: follow the mower's map again
   useEffect(() => {
@@ -147,6 +160,7 @@ export function useMapEdits(liveMap: MowerMap | null) {
     external,
     dropEdits,
     rebase,
+    took,
     mergeNote,
     mergeExternal,
   };

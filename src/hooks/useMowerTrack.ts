@@ -35,7 +35,9 @@ let jobId: string | null = null;
 // while no job runs (OpenMower drops the job id once it's done), the last one recorded: its trail stays until the
 // next job starts. at: when it started, unix seconds
 let lastJob: {id: string; at: number} | null = null;
-let askedLast = false;
+// when the last one was asked for (ms), again a while later when the list didn't come
+let askedLast = 0;
+const ASK_AGAIN_MS = 30000;
 // the job the trail is of
 const shownJob = () => jobId ?? lastJob?.id ?? null;
 let blades: boolean | undefined;
@@ -137,19 +139,26 @@ function notifySoon() {
 // connection was gone (phone asleep, app in the background), the live trail misses that part
 let loading = false;
 
-async function recordedTrack(id: string): Promise<Point[]> {
-  const h = await callRpc<{
-    segments?: {points: [number, number][]; attributes?: {blades?: boolean}}[];
-    buffer?: [number, number][];
-  }>(RPC.jobTrack, {job_id: id}, 20000);
+type Recorded = {segments?: {points: [number, number][]; attributes?: {blades?: boolean}}[]; buffer?: [number, number][]};
+
+// the points of a recorded track, and how many of them the mower has written for good: those only grow, the buffer
+// after them is thinned out once it's written
+export function recordedPoints(h: Recorded, bladesNow: boolean | undefined): {points: Point[]; written: number} {
+  const done = (h.segments ?? []).flatMap((s) => s.points.map(([x, y]) => ({x, y, b: s.attributes?.blades})));
   // the buffer is the segment still being written, so it has the current blade state
-  return [
-    ...(h.segments ?? []).flatMap((s) => s.points.map(([x, y]) => ({x, y, b: s.attributes?.blades}))),
-    ...(h.buffer ?? []).map(([x, y]) => ({x, y, b: blades})),
-  ];
+  return {points: [...done, ...(h.buffer ?? []).map(([x, y]) => ({x, y, b: bladesNow}))], written: done.length};
 }
 
-// cleared by hand: the job and how many of its recorded points were there then, only later ones are shown.
+// of the job asked for last: how many of its points were written for good then
+let written: {job: string; points: number} | null = null;
+
+async function recordedTrack(id: string): Promise<Point[]> {
+  const r = recordedPoints(await callRpc<Recorded>(RPC.jobTrack, {job_id: id}, 20000), blades);
+  written = {job: id, points: r.written};
+  return r.points;
+}
+
+// cleared by hand: the job and how many of its recorded points were written for good then, only later ones are shown.
 // per device and mower, the recording on the mower stays as it is
 const CLEARED_KEY = 'trackCleared';
 function clearedUpTo(id: string): number {
@@ -179,6 +188,14 @@ const listeners = new Set<() => void>();
 // live points so far, the recorded track replaces them anyway
 export function keepsTrail(shown: string | null, next: string): boolean {
   return shown === null || shown === next;
+}
+
+// what a position's job id means for the trail: 'new' a job started (or another one), 'ended' the one running is over,
+// its trail stays as the last run, 'last' none runs and the last one is to be asked for
+export function jobChange(running: string | null, id: string | undefined, last: string | null, askedAt: number, now: number) {
+  if (id) return id === running ? null : 'new';
+  if (running !== null) return 'ended';
+  return last === null && now - askedAt >= ASK_AGAIN_MS ? 'last' : null;
 }
 
 // the newest recorded job, shown while the mower is idle until the next one starts
@@ -215,16 +232,22 @@ function start() {
       pose = name === TOPIC.position ? msg : msg.pose;
       const id = name === TOPIC.position ? msg.attributes?.job_id : undefined;
       if (name === TOPIC.position) blades = msg.attributes?.blades;
-      if (id && id !== jobId) {
+      const change = name === TOPIC.position ? jobChange(jobId, id, lastJob?.id ?? null, askedLast, Date.now()) : null;
+      if (change === 'new') {
         // new job, new trail
         if (!keepsTrail(shownJob(), id)) track = EMPTY;
         jobId = id;
         lastJob = null;
+        listeners.forEach((l) => l());
         // the list of recorded jobs has it now
         forgetJobList();
         void seed(id);
-      } else if (!id && name === TOPIC.position && jobId === null && !askedLast) {
-        askedLast = true;
+      } else if (change) {
+        if (change === 'ended') {
+          jobId = null;
+          listeners.forEach((l) => l());
+        }
+        askedLast = Date.now();
         void showLastJob();
       }
     } catch {
@@ -248,10 +271,9 @@ function subscribe(listener: () => void) {
 export async function clearTrack() {
   const id = shownJob();
   if (id) {
-    try {
-      const points = (await recordedTrack(id)).length;
-      writeMower(CLEARED_KEY, {job: id, points});
-    } catch {}
+    // the number seen last when the mower doesn't answer now
+    await recordedTrack(id).catch(() => null);
+    if (written?.job === id) writeMower(CLEARED_KEY, written);
   }
   track = EMPTY;
   whileLoading = [];
@@ -279,6 +301,15 @@ export function useLastRunJob(): string | null {
 // the job the trail shown is of: the one running, or the last one while none runs
 export function useTrailJob(): string | null {
   return useSyncExternalStore(subscribe, shownJob, () => null);
+}
+
+// the job the mower says it's on (waiting in the dock included), null with none or before it said
+export function useRunningJob(): string | null {
+  return useSyncExternalStore(
+    subscribe,
+    () => jobId,
+    () => null,
+  );
 }
 
 export function useMowerTrack(): TrackChunks {

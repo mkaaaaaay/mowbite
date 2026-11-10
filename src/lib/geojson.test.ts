@@ -109,4 +109,24 @@ describe('the map as geojson', () => {
     const feature = {type: 'Feature', properties: {type: 'mow'}, geometry: {type: 'Polygon', coordinates: [utm]}};
     expect(() => mapFromGeoJson(feature, datum, null)).toThrow(/longitude and latitude/);
   });
+
+  it('leaves an area without points out of the file', () => {
+    const json = mapToGeoJson({...MAP, areas: [...MAP.areas, {id: 'empty', properties: {type: 'draft'}, outline: []}]}, datum);
+    expect(json.features.map((f) => f.id)).toEqual(['lawn', 'bed', 'dock']);
+  });
+
+  it('takes the one docking station of a file as the map\'s one, its id and properties kept, also on its own', () => {
+    const json = mapToGeoJson(MAP, datum) as unknown as Json;
+    const dock = JSON.parse(JSON.stringify(json.features[2]));
+    delete dock.id;
+    dock.properties = {type: 'docking_station', heading: 0};
+    const named = {...MAP, docking_stations: [{...MAP.docking_stations[0], properties: {name: 'Garage'}}]};
+    const {map, changed, added} = mapFromGeoJson({type: 'FeatureCollection', features: [dock]}, datum, named);
+    expect([changed, added]).toEqual([1, 0]);
+    expect(map.docking_stations).toMatchObject([{id: 'dock', properties: {name: 'Garage'}, heading: 0}]);
+    expect(Math.abs(map.docking_stations[0].position.x + 1.25)).toBeLessThan(0.001);
+    // two in the file: one new
+    const two = mapFromGeoJson({type: 'FeatureCollection', features: [dock, dock]}, datum, MAP);
+    expect(two.map.docking_stations).toHaveLength(3);
+  });
 });

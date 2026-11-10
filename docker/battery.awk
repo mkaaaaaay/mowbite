@@ -1,5 +1,6 @@
 # input: "<unix time> <topic> <value>" from mosquitto_sub. output, appended to OUT:
-#   charge <start> <end> <minutes> <volts at start> <volts at the end>   from charging on until the charger says Done
+#   charge <start> <end> <minutes> <volts at start> <volts at the end> done|lost   from charging on until the charger says
+#     Done, or lost: off the charger before it (lines from before without it)
 #   run <start> <end> <blade minutes> <volts after charging> <volts when charging starts again>   between two charges
 # the state in between (a run since the last charge, a charge going on) is kept in STATE, so a restart of the container
 # doesn't lose the run it was in
@@ -36,6 +37,14 @@ function save(    k, line) {
   close(STATE)
   saved = t
   dirty = 0
+}
+
+# a charge's line, left out when the stream had a gap of over 10 minutes (the container away, the clock set) or it took
+# over a day: its minutes would be the gap's
+function charge_line(te, how) {
+  if (c["gmax"] <= 600 && te - c["it"] <= 600 && te - charge_t <= 86400)
+    printf "charge %d %d %.1f %.2f %.2f %s\n", charge_t, te, (te - charge_t) / 60, charge_v, volts, how >> OUT
+  close(OUT)
 }
 
 function start_charge(    x) {
@@ -308,6 +317,9 @@ BEGIN {
   TIDY = ENVIRON["TIDY"]
   CPUT = ENVIRON["CPUT"]
   LEVEL = ENVIRON["LEVEL"]
+  # the topics from openmower.sh, with the prefix mosquitto_sub puts before them
+  P = ENVIRON["MOWER_MQTT_PREFIX"]
+  T_STATE = P ENVIRON["TOPIC_ROBOT_STATE"]; T_INFOS = P ENVIRON["TOPIC_SENSOR_INFOS"]; T_PARAMS = P ENVIRON["TOPIC_PARAMS"]
   # the dock's voltage from which the mower is in it, as OpenMower takes it
   DOCK = 10
   LN = split("20.25 22 23 23.5 23.75 24 24.25 24.5 24.75 25 25.25 25.5 25.75 26 26.25 26.5 26.75 27 27.25 27.5 27.75 27.97", LV, " ")
@@ -336,13 +348,13 @@ BEGIN {
 
 {
   t = $1 + 0
-  if ($2 ~ /robot_state\/json$/) {
-    if (match($0, /"current_state":"[A-Z_]*"/)) rstate = substr($0, RSTART + 17, RLENGTH - 18)
+  if ($2 == T_STATE) {
+    if (match($0, /"current_state" *: *"[A-Z_]*"/)) { rstate = substr($0, RSTART, RLENGTH); sub(/^[^:]*: *"/, "", rstate); sub(/"$/, "", rstate) }
     next
   }
-  if ($2 ~ /sensor_infos\/json$/) { limits(); next }
+  if ($2 == T_INFOS) { limits(); next }
   # the board OpenMower was set up for (ll/board), the level isn't worked out on others. none on an older OpenMower
-  if ($2 ~ /params\/json$/) {
+  if ($2 == T_PARAMS) {
     x = match($0, /"\/ll\/board": *"[^"]*"/) ? substr($0, RSTART, RLENGTH) : ""
     sub(/.*: *"/, "", x); sub(/"$/, "", x)
     OTHER = x != "" && x != "YardForce" && x != "YardForce-V4"
@@ -406,8 +418,7 @@ BEGIN {
       # the run
       if (!no_current_t) no_current_t = t
       else if (t - no_current_t > 120) {
-        printf "charge %d %d %.1f %.2f %.2f\n", charge_t, no_current_t, (no_current_t - charge_t) / 60, charge_v, volts >> OUT
-        close(OUT)
+        charge_line(no_current_t, "lost")
         charging = 0
         finish("lost", no_current_t)
         run_t = no_current_t; run_v = volts; blade_s = 0
@@ -428,9 +439,9 @@ BEGIN {
       h["lst"] = sst
       if (st !~ /^(Trickle Charge|Pre Charge|Fast Charge|Taper Charge|Top Off)/) h["pst"] = sst
     }
-    if (val == "Done" && charging) {
-      printf "charge %d %d %.1f %.2f %.2f\n", charge_t, t, (t - charge_t) / 60, charge_v, volts >> OUT
-      close(OUT)
+    # (after a restart once the battery's voltage came again)
+    if (val == "Done" && charging && volts) {
+      charge_line(t, "done")
       charging = 0
       finish("done", t)
       run_t = t; run_v = volts; blade_s = 0

@@ -66,6 +66,16 @@ start() {
 # what case $1's scheduler logged (without the times) and what its mower got
 slog() { docker exec "mbt-$1" cat /data/schedule.log 2> /dev/null | cut -d' ' -f2-; }
 sent() { docker exec "mbt-$1" cat /tmp/sent 2> /dev/null; }
+# the stop times case $1 keeps as still to come, and nodue <case> <seconds>: until it keeps none
+due() { docker exec "mbt-$1" sh -c 'ls /data/run.due.*' 2> /dev/null; }
+nodue() {
+  local i
+  for ((i = 0; i < $2; i++)); do
+    [ -z "$(due "$1")" ] && return 0
+    sleep 1
+  done
+  return 1
+}
 # waitlog <case> <regex> <seconds>: until the case's log has a line like that
 waitlog() {
   local i
@@ -113,6 +123,7 @@ start areas "$(state)" "$(base "$DAY")"$'\n'"plan $D $M front" "MAP=$AREAS" AREA
 start pausedarea "$(state)" "$(base "$DAY")"$'\n'"plan $D $M"$'\n'"pause $(day "$DAY") back" "MAP=$AREAS" AREA=back
 start pausedareas "$(state)" "$(base "$DAY")"$'\n'"plan $D $M front"$'\n'"pause $(day "$DAY") front" "MAP=$AREAS"
 start endtime "$(state)" "$(base "$DAY")"$'\n'"plan $D $M end=$(hm "$DAY" 1)"
+start endkept "$(state)" "$(base "$DAY")"$'\n'"plan $D $M end=$(hm "$DAY" 10)"
 start endlate "$(state IDLE 0 0 0.5)" "$(MINBAT=80 base "$DAY")"$'\n'"plan $D $M end=$(hm "$DAY" 1)"
 start noarea "$(state)" "$(base "$DAY")"$'\n'"plan $D $M gone" "MAP=$AREAS"
 # braces in the areas' names: the plan's area is found, an inactive one isn't skipped
@@ -139,6 +150,10 @@ ROOT='{"action_id":"mower_logic/reset_emergency","action_name":"Reset Emergency"
 IDLE='{"action_id":"mower_logic:idle/start_mowing","action_name":"Start Mowing","enabled":1},{"action_id":"mower_logic:idle/reset_job","action_name":"Reset Job","enabled":1}'
 start growing "$(state)" "$(base "$DAY")" "MAP=$AREAS" "RUN_STATE=$(date +%s) - - front" AREA_SOON=back \
   "ACTIONS=[]"$'\n'"[]"$'\n'"[$ROOT]"$'\n'"[$ROOT,$IDLE]"
+# a run whose stop time passed during the restart, still to come before it: out mowing, and idle with its job done
+past=$(($(date +%s) - 60))
+start restoredlate "$(state MOWING)" "$(base "$DAY")" "RUN_STATE=$((past - 600)) $past end front" RUN_DUE=1
+start restoreddone "$(state)" "$(base "$DAY")" "RUN_STATE=$((past - 600)) $past end front" RUN_DUE=1
 
 logs "scheduler: starts at the time of a plan" start '^started 90( at=[0-9:]+)?$'
 gets start '^action mower_logic:idle/start_mowing$' && ok "scheduler: the mower got the start" ||
@@ -173,6 +188,11 @@ gets endtime '^action mower_logic:mowing/abort_mowing$' && ok "scheduler: the mo
   bad "scheduler: the mower got sent home" "$(sent endtime)"
 gets endtime '^rpc/request .*"/mower_logic/manual_pause_mowing":true' &&
   ok "scheduler: and doesn't carry on by itself after charging" || bad "scheduler: and doesn't carry on by itself after charging" "$(sent endtime)"
+nodue endtime 5 && ok "scheduler: its stop time no longer to come then" || bad "scheduler: its stop time no longer to come then" "$(due endtime)"
+logs "scheduler: a run with an end time ahead" endkept '^started'
+r=$(docker exec mbt-endkept sh -c 'cat /data/run.state; ls /data/run.due.*' 2> /dev/null)
+[ "$(wc -l <<< "$r")" = 2 ] && [ "$(sed -n 2p <<< "$r")" = "/data/run.due.$(head -n1 <<< "$r" | cut -d' ' -f1)" ] &&
+  ok "scheduler: its stop time kept as still to come for a restart" || bad "scheduler: its stop time kept as still to come for a restart" "$r"
 logs "scheduler: a mower that doesn't move is noticed" stays '^start_failed( at=[0-9:]+)?$' 90
 logs "scheduler: why MowBite OS turned the start down" refused '^start_refused BATTERY_LOW 22.4( at=[0-9:]+)?$' 30
 slog refused | grep -q '^start_failed' && bad "scheduler: a start turned down isn't one the mower didn't react to" "$(slog refused)" ||
@@ -195,6 +215,26 @@ logs "scheduler: a start time taken out while it waits isn't started" gone '^ski
 logs "scheduler: a run from before a restart still skips the areas it doesn't pick" restored '^skipped_area back$' 60
 logs "scheduler: its job seen open once the actions have the idle ones, not by the first lists" growing '^skipped_area back$' 60
 logs "scheduler: a start waiting for the battery goes on after a restart" waited '^started' 40
+logs "scheduler: a stop time that passed during a restart is carried out after it" restoredlate '^stopped_end$' 30
+gets restoredlate '"/mower_logic/manual_pause_mowing":true' && sent restoredlate | grep -q 'abort_mowing$' &&
+  ok "scheduler: sent home and paused then" || bad "scheduler: sent home and paused then" "$(sent restoredlate)"
+nodue restoredlate 5
+expect "scheduler: and no longer to come, its run kept" "$(due restoredlate)$(docker exec mbt-restoredlate cut -d' ' -f2 /data/run.state)" "$past"
+docker exec -d mbt-restoredlate /scheduler.sh
+sleep 10
+expect "scheduler: not again after the next restart" \
+  "$(slog restoredlate | grep -c '^stopped_end$') $(sent restoredlate | grep -c 'abort_mowing$')" "1 1"
+# a mower slow to answer the pause: the stop time stays to come until it's carried out, for a container ending meanwhile
+past=$(($(date +%s) - 60))
+start restoredslow "$(state MOWING)" "$(base "$DAY")" "RUN_STATE=$((past - 600)) $past end front" RUN_DUE=1 SLOW=8
+gets restoredslow 'abort_mowing$' 30 && [ -n "$(due restoredslow)" ] &&
+  ok "scheduler: a stop time still counts as to come while it's carried out" ||
+  bad "scheduler: a stop time still counts as to come while it's carried out" "$(sent restoredslow)"
+nodue restoredslow 20
+expect "scheduler: and no longer once the mower is sent home and paused" "$(due restoredslow) $(slog restoredslow | grep -c '^stopped_end$')" " 1"
+for _ in $(seq 30); do docker exec mbt-restoreddone test -f /data/run.state || break; sleep 1; done
+expect "scheduler: nothing for a run that's over by then" \
+  "$(docker exec mbt-restoreddone ls /data/run.state 2> /dev/null)$(slog restoreddone)$(sent restoreddone | grep -c 'abort_mowing$\|manual_pause')" 0
 gets angleback '^rpc/request .*"params":\{"/mower_logic/mow_angle_offset":7\}' 40 &&
   ok "scheduler: the usual direction back once no plan has one of its own" ||
   bad "scheduler: the usual direction back once no plan has one of its own" "$(sent angleback)"
@@ -217,6 +257,40 @@ gets os '"method":"rpc.methods"' 30 && sleep 3
 if [ -n "$(sent os)" ] && ! sent os | grep -q '^action'; then ok "scheduler: rests on MowBite OS, which has a schedule of its own"; else
   bad "scheduler: rests on MowBite OS, which has a schedule of its own" "$(sent os)"; fi
 expect "scheduler: and tells nothing there" "$(next os)$(slog os)" ""
+
+# when a run has to be home, for times of the year the test can't wait for: stop_time with the clock set to the start,
+# in the image (a start in the dark without dark=1 isn't one). <what>|<tz> <lat,lon|-> <day> <start> <end> <sunset>
+# <dark>|<home at> <why>
+BERLIN='<+0100>-1<+0200>-2,M3.5.0/2,M10.5.0/3'
+STOPS=(
+  "20:00 to 07:00 in june: at sunset|$BERLIN 52.37,9.73 2026-06-21 20:00 07:00 - -|2026-06-21 21:47 dark"
+  "17:00 to 08:00 in june: at sunset|$BERLIN 52.37,9.73 2026-06-21 17:00 08:00 - -|2026-06-21 21:47 dark"
+  "17:00 to 23:00: at sunset|$BERLIN 52.37,9.73 2026-06-21 17:00 23:00 - -|2026-06-21 21:47 dark"
+  "10:00 to 14:00: at its end|$BERLIN 52.37,9.73 2026-06-21 10:00 14:00 - -|2026-06-21 14:00 end"
+  "04:00 to 08:00, before sunrise: not started|$BERLIN 52.37,9.73 2026-06-21 04:00 08:00 - -|dark start"
+  "20:00 to 07:00 allowed in the dark: at its end|$BERLIN 52.37,9.73 2026-06-21 20:00 07:00 - 1|2026-06-22 07:00 end"
+  "22:00 to 06:00 over the switch in october: at 06:00 winter time|$BERLIN 52.37,9.73 2026-10-24 22:00 06:00 - 1|2026-10-25 06:00 end"
+  "22:00 to 06:00 over the switch in march: at 06:00 summer time|$BERLIN 52.37,9.73 2026-03-28 22:00 06:00 - 1|2026-03-29 06:00 end"
+  "01:00, home at sunset, before the switch that day: at sunset|$BERLIN 52.37,9.73 2026-10-25 01:00 - 1 1|2026-10-25 17:06 dark"
+  "17:00 to 08:00 without a position: at 6 pm|$BERLIN - 2026-06-21 17:00 08:00 - -|2026-06-21 18:00 dark"
+  "10:00 to 03:00 in reykjavik, home at sunset: after midnight|<+0000>0 64.15,-21.94 2026-06-21 10:00 03:00 1 1|2026-06-22 00:04 dark"
+  "10:00 to 03:00 in reykjavik: after midnight|<+0000>0 64.15,-21.94 2026-06-21 10:00 03:00 - -|2026-06-22 00:04 dark"
+  "01:00 to 03:00 in reykjavik, before sunrise: not started|<+0000>0 64.15,-21.94 2026-06-21 01:00 03:00 - -|dark start"
+)
+got=$(printf '%s\n' "${STOPS[@]}" | cut -d'|' -f2 | docker run -i --rm --entrypoint sh "$IMAGE" -c '
+  eval "$(sed -n "/^conf() /p; /^sun_today() {/,/^}/p; /^minutes() /p; /^is_dark() {/,/^}/p; /^local_time() /p; /^stop_time() {/,/^}/p" /scheduler.sh)"
+  date() { case "$1" in -u | -d) command date "$@" ;; +%s) echo "$at" ;; *) command date -d "@$at" "$@" ;; esac; }
+  F=/tmp/schedule.txt where=""
+  while read -r tz pos day start end sunset dark; do
+    { echo "tz $tz"; [ "$pos" = - ] || echo "pos ${pos%,*} ${pos#*,}"; } > "$F"
+    at=$(TZ="$tz" command date -d "$day $start" +%s)
+    if [ "$dark" != 1 ] && is_dark "$(minutes)"; then echo "dark start"; continue; fi
+    set -- $(stop_time "$end" "$sunset" "$dark")
+    echo "$(TZ="$tz" command date -d "@$1" "+%F %H:%M") $2"
+  done')
+for i in "${!STOPS[@]}"; do
+  expect "stop time: ${STOPS[$i]%%|*}" "$(sed -n "$((i + 1))p" <<< "$got")" "${STOPS[$i]##*|}"
+done
 
 # --- the parameters kept by the app ---
 
@@ -338,6 +412,12 @@ expect "settings: saved from an old version: 409 with what's stored" "$(curl -s 
 expect "settings: saved from the current version" "$(code --data-binary '{"a":2}' "$S?v=$v1")" 200
 expect "settings: no json object, 400" "$(code --data-binary '[1]' "$S")" 400
 expect "settings: what's stored stays" "$(curl -s "$S")" '{"a":2}'
+expect "settings: the version read from v= itself, not from another parameter's end" \
+  "$(code --data-binary '{"a":3}' "$S?v=$(ver)&x=v=1")" 200
+# three devices saving from the same version at once: one gets through, the others are told
+v=$(ver)
+expect "settings: of saves at once from one version only one gets through" \
+  "$(for i in 1 2 3; do (code --data-binary "{\"p\":$i}" "$S?v=$v" && echo) & done | sort | tr '\n' ' ')" '200 409 409 '
 expect "settings: its version readable from another origin" \
   "$(curl -s -D - -o /dev/null -H 'Origin: http://192.168.178.20:8082' "$S" | tr -d '\r' | sed -n 's/^access-control-expose-headers: //Ip')" \
   X-Settings-Version
@@ -347,6 +427,26 @@ kept=$'enabled 1\npause 2026-01-01 all\ntz Europe/Berlin\nplan 1,2 07:30 a_b-c e
 expect "schedule: only lines of the known shapes are kept" "$(curl -s --data-binary "$body" "$W/schedule")" "$kept"
 expect "schedule: a page elsewhere can't change it" "$(code -H 'Origin: http://evil.example' --data-binary 'enabled 0' "$W/schedule")" 403
 expect "schedule: and it's as it was" "$(curl -s "$W/schedule")" "$kept"
+# a connection that breaks off: curl gives up waiting for the rest it said would come
+broken() { curl -s -o /dev/null -m 2 -H 'Content-Length: 1000' --data-binary "$2" "$1"; sleep 1; }
+broken "$W/schedule" 'enabled 0'
+expect "schedule: a body that broke off leaves it as it was" "$(curl -s "$W/schedule")" "$kept"
+# each has its own size: 20000 bytes for the schedule, 10000 for the settings of the mower
+big() { head -c "$2" /dev/zero | tr '\0' x | code --data-binary @- "$1"; }
+expect "schedule: a body past its size is turned down" "$(big "$W/schedule" 20001) $(curl -s "$W/schedule")" "413 $kept"
+expect "schedule: one up to it is taken" \
+  "$(printf '%s\n%s' "$kept" "$(head -c 15000 /dev/zero | tr '\0' x)" | curl -s --data-binary @- "$W/schedule")" "$kept"
+
+P=$W/params
+body=$'enabled 1\n/mower_logic/a_b 1.5\n/mower_logic/c true\n/other/x 1\n/mower_logic/d 1e9\n/mower_logic/e $(id)'
+kept=$'enabled 1\n/mower_logic/a_b 1.5\n/mower_logic/c true'
+expect "params: only lines of the known shapes are kept" "$(curl -s --data-binary "$body" "$P")" "$kept"
+broken "$P" 'enabled 0'
+expect "params: a body that broke off leaves them as they were" "$(curl -s "$P")" "$kept"
+expect "params: a body past their size is turned down" "$(big "$P" 10001) $(curl -s "$P")" "413 $kept"
+s=$(curl -s "$S")
+broken "$S" '{"a":{"b":1}'
+expect "settings: a body that broke off leaves them as they were" "$(curl -s "$S")" "$s"
 
 B=$W/backups
 expect "backups: one made by hand" "$(code --data-binary '{"areas":[]}' "$B?name=mine&areas=0")" 200
@@ -355,7 +455,31 @@ docker exec mbt-web sh -c 'cd /data/backups && for i in $(seq 49); do printf "x\
 expect "backups: at most 50 made by hand" "$(curl -s -w ' %{http_code}' --data-binary '{"areas":[]}' "$B?name=more" | tr -d '\n')" \
   "at most 50 backups made by hand 409"
 expect "backups: the automatic ones still go" "$(code --data-binary '{"areas":[]}' "$B?name=auto&auto=1")" 200
+expect "backups: the list says how many are kept" "$(curl -s -D - -o /dev/null "$B" | tr -d '\r' | sed -n 's/^x-backups-keep: //Ip')" \
+  'auto=30 hand=50'
 expect "backups: nothing left half written" "$(docker exec mbt-web sh -c 'ls /data/backups | grep -c tmp')" 0
+broken "$B?name=cut&auto=1" '{"areas":['
+expect "backups: a body that broke off isn't kept" "$(curl -s "$B" | grep -c '"name":"cut"')" 0
+bid() { sed -n 's/.*"id":"\([0-9-]*\)".*/\1/p'; }
+id=$(curl -s --data-binary '{"areas":[1]}' "$B?name=load&auto=1" | bid)
+expect "backups: one loaded" "$(curl -s "$B?id=$id")" '{"areas":[1]}'
+curl -s -o /dev/null -X POST "$B?action=delete&id=$id"
+expect "backups: one deleted" "$(code "$B?id=$id")$(curl -s "$B" | grep -c '"name":"load"')" 4040
+# 60 characters of two bytes kept whole, a byte limit that falls into a character doesn't leave half of it
+meta() { docker exec mbt-web sed -n 1p "/data/backups/$1.meta"; }
+id=$(curl -s --data-binary '{"areas":[]}' "$B?name=$(printf '%%C3%%A4%.0s' $(seq 60))&auto=1" | bid)
+expect "backups: a name of 60 umlauts kept whole" "$(meta "$id")" "$(printf 'ä%.0s' $(seq 60))"
+long=$(printf 'a%.0s' $(seq 239))
+id=$(curl -s --data-binary '{"areas":[]}' "$B?name=$long%C3%A4&auto=1" | bid)
+expect "backups: a name cut without half a character at its end" "$(meta "$id")" "$long"
+# one more automatic than are kept, the others with later times (a clock gone back): the oldest goes, not the new one
+old=$(curl -s "$B" | grep -o '"id":"[0-9-]*","t":[0-9]*,"name":"auto"' | bid)
+docker exec mbt-web sh -c 'cd /data/backups && for i in $(seq 30); do printf "x\n0\n1\n" > $((2000000000 + i))-1.meta; echo | gzip > $((2000000000 + i))-1.json.gz; done'
+id=$(curl -s --data-binary '{"areas":[]}' "$B?name=new&auto=1" | bid)
+expect "backups: the one just made is kept" "$(code "$B?id=$id")" 200
+expect "backups: the oldest automatic one goes" "$(code "$B?id=$old")" 404
+expect "backups: as many automatic ones left as the list says" \
+  "$(docker exec mbt-web sh -c 'awk "FNR == 3 && \$0 == 1 { n++ } END { print n + 0 }" /data/backups/*.meta')" 30
 
 N=$W/notify
 curl -s -o /dev/null --data-binary $'server https://ntfy.invalid\ntopic mbt-test\ntoken secret-token-1\nenabled 1' "$N"
@@ -370,12 +494,30 @@ docker exec mbt-web sh -c 'echo "push https://ntfy.invalid/upA?up=1" > /data/not
 expect "notify: a phone that's the only line goes" \
   "$(curl -s --data-binary 'https://ntfy.invalid/upA?up=1' "$N?push-remove") $(docker exec mbt-web cat /data/notify.conf | wc -l)" "ok 0"
 
+docker exec mbt-web sh -c 'mkdir -p /data/stats && printf "blade 80 0 0\nclean 200 0 0\n" > /data/stats/maint &&
+  printf "blade 0\nclean 0\n" > /data/stats/reminded'
+expect "stats: a part given other hours is told about again once due by them" \
+  "$(code -X POST "$W/stats?due=blade&h=100") $(docker exec mbt-web cat /data/stats/reminded)" "200 clean 0"
+
 docker exec mbt-web sh -c 'mkdir -p /data/gpslog && echo "1793644779.0 MOWING 1.200 3.400 0.020 -60" > /data/gpslog/20261103.log'
 expect "gpslog: a cell of 0 cm is taken as 10" "$(curl -s "$W/gpslog?cells=0" | head -n1 | cut -d' ' -f1-3)" "12 34 1"
 
+# httpd killed starts again after a pause
+docker exec mbt-web pkill httpd
+sleep 2
+expect "httpd killed is gone first" "$(code "$W/version")" 000
+for _ in $(seq 30); do curl -sf "$W/version" > /dev/null && break; sleep 1; done
+expect "httpd killed is back after a pause" "$(code "$W/version")" 200
+
+# logs grown too long, cut to size by the next start
+docker exec mbt-web sh -c 'mkdir -p /data/stats && seq 10050 > /data/stats/hours && seq 2050 > /data/battery.log && seq 4050 > /data/battery-health.log'
 t0=$(date +%s)
 docker stop mbt-web > /dev/null
 expect "it stops right away, not after docker's 10 s" "$(($(date +%s) - t0 < 5))" 1
+docker start mbt-web > /dev/null
+sizes() { docker exec mbt-web sh -c 'wc -l < /data/stats/hours; wc -l < /data/battery.log; wc -l < /data/battery-health.log' | tr '\n' ' '; }
+for _ in $(seq 30); do [ "$(sizes)" = '10000 2000 4000 ' ] && break; sleep 1; done
+expect "the logs in /data kept to their size" "$(sizes)" '10000 2000 4000 '
 
 echo "$pass passed, $fail failed"
 [ "$fail" = 0 ]

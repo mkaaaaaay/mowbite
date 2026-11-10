@@ -1,10 +1,23 @@
 import {describe, expect, it, vi} from 'vitest';
 
-vi.mock('./mqttClient', () => ({topicStore: () => ({subscribe: () => () => {}, get: () => null, initial: () => null})}));
+// the planner's topic: a message handed to the store as the broker would
+const topic = vi.hoisted(() => ({send: (() => {}) as (message: string) => void}));
+vi.mock('./mqttClient', () => ({
+  topicStore: <T,>(_: string, initial: T, parse: (payload: Buffer, prev: T) => T) => {
+    let value = initial;
+    const heard = new Set<() => void>();
+    topic.send = (m) => {
+      value = parse(Buffer.from(m), value);
+      heard.forEach((l) => l());
+    };
+    return {subscribe: (l: () => void) => (heard.add(l), () => heard.delete(l)), get: () => value, initial: () => initial};
+  },
+}));
 vi.mock('./rpc', () => ({callRpc: async () => ({})}));
 vi.mock('./autoUpdate', () => ({requestCalib: async () => {}, requestCalibBack: async () => {}}));
 
-const {calibLines, calibText, changeOf, lackDone, lacks, preselected, readLast, readPaths, readProgress, readResult, readState} = await import('./calibration');
+vi.stubEnv('APP_CALIBRATION', '1');
+const {answerTo, calibByHand, calibLeftOver, calibLines, calibMissing, calibProgress, calibStart, calibText, canCalibrate, changeOf, lackDone, lacks, noneRecorded, preselected, readLast, readPaths, readProgress, readResult, readState} = await import('./calibration');
 
 // an answer of planner.calib.result as the planner gives it (mowbite-calib/1)
 const answer = {
@@ -72,6 +85,12 @@ describe('a calibration', () => {
     expect(readState('waiting 1793700000')).toEqual({what: 'waiting', at: 1793700000, why: null});
     expect(readState('refused 1793700000 anchors_ll/x')).toEqual({what: 'refused', at: 1793700000, why: 'anchors_ll/x'});
     expect(readState('done 1')).toBeNull();
+    // an answer is a change after the request, whatever its time says
+    expect(answerTo('written 1793700000', 'written 1793700000')).toBeNull();
+    expect(answerTo('waiting 1693700000', 'written 1793700000')).toEqual({what: 'waiting', at: 1693700000, why: null});
+    expect(answerTo('written 1793700000', '')).toEqual({what: 'written', at: 1793700000, why: null});
+    expect(answerTo(undefined, '')).toBeNull();
+    expect(answerTo('back 1793700000', null)).toEqual({what: 'back', at: 1793700000, why: null});
     expect(readLast('1793700000 ll/services/diff_drive/wheel_distance_m 0.3556 0.3612 xbot_positioning/antenna_offset_x -0.10 -0.12')).toEqual({
       at: 1793700000,
       values: [
@@ -98,6 +117,61 @@ describe('a calibration', () => {
     // a planner that doesn't tell what it needs: nothing to show as missing
     expect(lacks(readProgress(JSON.stringify({phase: 'recording', m: 3, turns: 1, runs: 0}))!)).toEqual([]);
     expect(readProgress('no json')).toBeNull();
+    // driven by hand: as the planner says. from one that doesn't say, what the caller takes it for: the calibration's
+    // page recording mode, the pages that hand over to it nothing (it may be one on the next mow)
+    const by = (p: object, unsaid?: boolean) => calibByHand(readProgress(JSON.stringify(p)), unsaid);
+    expect(by({phase: 'recording', mode: 'joystick'}, false)).toBe(true);
+    expect(by({phase: 'recording', mode: 'joystick'})).toBe(true);
+    expect(by({phase: 'recording', mode: 'mow'}, true)).toBe(false);
+    expect(by({phase: 'recording'}, true)).toBe(true);
+    expect(by({phase: 'recording'}, false)).toBe(false);
+    expect(by({phase: 'recording'})).toBe(false);
+    expect(by({phase: 'done', mode: 'joystick'}, true)).toBe(false);
+    expect(calibByHand(null, true)).toBe(false);
+    // only with a planner that offers it, what its topic says alone doesn't count
+    const offered = new Set(['planner.calib.start']);
+    expect(canCalibrate(offered, false)).toBe(true);
+    expect([new Set(['planner.plan']), null, undefined].map((m) => canCalibrate(m, false))).toEqual([false, false, false]);
+    expect([offered, new Set(['planner.plan']), null, undefined].map((m) => calibMissing(m, false))).toEqual([null, 'planner', 'planner', 'connecting']);
+    // MowBite OS has its own drive, the planner's topic and methods don't count there. it says so, not that the build
+    // lacks it
+    expect(canCalibrate(offered, true)).toBe(false);
+    expect([offered, undefined].map((m) => calibMissing(m, true))).toEqual(['os', 'os']);
+  });
+
+  it("takes a recording the planner doesn't have for none until it says something else", async () => {
+    const recording = JSON.stringify({phase: 'recording', mode: 'joystick', m: 0, turns: 0, runs: 0});
+    expect(['no calibration is recorded', 'no calibration recorded', 'the calibration is still recorded'].map(noneRecorded)).toEqual([true, true, false]);
+    let told = 0;
+    const off = calibProgress.subscribe(() => told++);
+    topic.send(recording);
+    const seen = calibProgress.get();
+    expect(seen?.phase).toBe('recording');
+    expect(calibProgress.get()).toBe(seen);
+    calibLeftOver();
+    expect(calibProgress.get()).toBeNull();
+    // the same retained one again after a reconnect
+    topic.send(recording);
+    expect(calibProgress.get()).toBeNull();
+    topic.send(JSON.stringify({phase: 'done', mode: 'joystick', m: 0, turns: 0, runs: 0}));
+    expect(calibProgress.get()?.phase).toBe('done');
+    // a new start of this app counts its first message, also the same text
+    topic.send(recording);
+    calibLeftOver();
+    await calibStart('joystick');
+    expect(calibProgress.get()?.phase).toBe('recording');
+    expect(told).toBe(7);
+    off();
+  });
+
+  it('is left to the builds that have it', async () => {
+    vi.stubEnv('APP_CALIBRATION', '');
+    vi.resetModules();
+    const release = await import('./calibration');
+    expect(release.canCalibrate(new Set(['planner.calib.start']), false)).toBe(false);
+    expect([new Set(['planner.calib.start']), undefined].map((m) => release.calibMissing(m, false))).toEqual(['build', 'build']);
+    expect(release.calibMissing(undefined, true)).toBe('os');
+    vi.stubEnv('APP_CALIBRATION', '1');
   });
 
   it("knows whether the receiver has its fix while it's recorded, a planner that doesn't tell says nothing", () => {

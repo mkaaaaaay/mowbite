@@ -16,7 +16,10 @@ export function areaProperties(): Promise<Set<string>> {
       try {
         const list = await callRpc<string[]>(RPC.areaProperties);
         if (Array.isArray(list)) return new Set(list);
-      } catch {}
+      } catch {
+        // no answer this time, the next one asking tries again
+        known = null;
+      }
     }
     return new Set([
       ...(methods?.has(RPC.areaPlan) ? ['mowable'] : []),
@@ -27,9 +30,11 @@ export function areaProperties(): Promise<Set<string>> {
   return known;
 }
 
+// asked again while the mower hasn't told its methods or didn't answer the call, a page kept open would go without them
+export const askAreaProperties = (got: (props: Set<string>) => void) => askUntilAnswered(areaProperties, got, () => known === null);
+
 export function useAreaProperties(): Set<string> {
   const [props, setProps] = useState<Set<string>>(() => new Set());
-  // asked again while the mower hasn't said which methods it has, a page kept open would go without them otherwise
-  useEffect(() => askUntilAnswered(areaProperties, setProps), []);
+  useEffect(() => askAreaProperties(setProps), []);
   return props;
 }

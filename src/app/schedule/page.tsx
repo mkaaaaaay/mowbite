@@ -3,7 +3,6 @@
 import {TitleMark} from '@/components/Logo';
 import {TitleRow} from '@/components/TopWeather';
 import {datumFromParams, useMowerParams} from '@/hooks/useMowerParams';
-import {sunTimes} from '@/lib/sun';
 import {clock, dayLabel} from '@/lib/dates';
 import {tr, useLang} from '@/lib/i18n';
 import {useMowerActions} from '@/hooks/useMowerActions';
@@ -19,6 +18,7 @@ import PauseCard from './PauseCard';
 import {
   cachedSchedule,
   cachedScheduleLog,
+  daySun,
   EMPTY_SCHEDULE,
   COLD_TEMPS,
   FORECAST_HOURS,
@@ -29,6 +29,7 @@ import {
   inOtherZone,
   posixTz,
   saveSchedule,
+  scheduleNow,
   type LogEntry,
   type Schedule,
   scheduleLogLine,
@@ -52,8 +53,6 @@ export default function SchedulePage() {
   const hasCold = updates.level === null || containerHas(updates.level, 'cold');
   // MowBite's own battery level, it goes down in the dock after Done
   const hasLevel = containerHas(updates.level, 'level');
-  // today's sunrise and sunset, so the animal hint follows the real night
-  const sun = datum ? sunTimes(datum.lat, datum.lon) : null;
   // undefined: loading, null: not served by the container
   const [schedule, setSchedule] = useState<Schedule | null | undefined>(cachedSchedule);
   const [log, setLog] = useState<LogEntry[]>(() => cachedScheduleLog() ?? []);
@@ -102,12 +101,10 @@ export default function SchedulePage() {
   };
 
   const s = schedule ?? EMPTY_SCHEDULE;
-  const next = nextStart(
-    s,
-    undefined,
-    datum ? (d) => sunTimes(datum.lat, datum.lon, d) : null,
-    mowAreas.map((a) => a.id),
-  );
+  const sunOn = datum ? daySun(s.tz, datum) : null;
+  // today's sunrise and sunset by the schedule's clock, so the animal hint follows the real night
+  const sun = sunOn?.(scheduleNow(s.tz)) ?? null;
+  const next = nextStart(s, undefined, sunOn, mowAreas.map((a) => a.id));
   // saved from a phone in another time zone: the times are the schedule's, not this phone's
   const otherZone = useMemo(() => inOtherZone(s.tz), [s.tz]);
 
@@ -215,6 +212,7 @@ export default function SchedulePage() {
                   className={styles.hours}
                   value={s.forecastHours}
                   disabled={!datum}
+                  aria-label={tr('Not when it rains or rain is forecast for')}
                   onChange={(e) => update({...s, forecastHours: Number(e.target.value)})}
                 >
                   {FORECAST_HOURS.map((h) => (
@@ -228,7 +226,13 @@ export default function SchedulePage() {
               <label className={styles.check}>
                 <input type="checkbox" checked={s.skipCold} disabled={!datum} onChange={(e) => update({...s, skipCold: e.target.checked})} />
                 {tr('Not when it is colder than')}
-                <select className={styles.hours} value={s.minTemp} disabled={!datum} onChange={(e) => update({...s, minTemp: Number(e.target.value)})}>
+                <select
+                  className={styles.hours}
+                  value={s.minTemp}
+                  disabled={!datum}
+                  aria-label={tr('Not when it is colder than')}
+                  onChange={(e) => update({...s, minTemp: Number(e.target.value)})}
+                >
                   {COLD_TEMPS.map((c) => (
                     <option key={c} value={c}>
                       {c} °C

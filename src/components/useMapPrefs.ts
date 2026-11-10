@@ -1,7 +1,8 @@
 'use client';
 
 import type {ImagerySource} from '@/lib/imagery';
-import {useState} from 'react';
+import {readMower, writeMower} from '@/lib/mowers';
+import {useSyncExternalStore} from 'react';
 import type {Coverage, Layer, PlanStyle} from './MapControls';
 
 function read<T>(key: string, parse: (v: string | null) => T, fallback: T): T {
@@ -19,55 +20,79 @@ function write(key: string, value: string | null) {
   } catch {}
 }
 
-// the layers switched off in the map's menu on this device
-export const hiddenLayers = () => read('mapHidden', (v) => new Set<Layer>(JSON.parse(v ?? '[]')), new Set<Layer>());
+const COVERAGE_KEY = 'mapCoverage';
 
-// How the map is shown on this device: aerial imagery, the grid, the layers switched off in the menu and the style
-// of what's left of a plan. Only used once the map arrived, client side, so localStorage is there.
-export function useMapPrefs() {
+interface MapPrefs {
   // off by default, it sends the map area to the imagery provider
-  const [imagery, setImageryState] = useState(() => read('mapImagery', (v) => (v as ImagerySource | null) || null, null));
+  imagery: ImagerySource | null;
   // the source picked last, kept while the imagery is off so switching it on brings it back
-  const [lastImagery, setLastImagery] = useState(() => read('mapImageryLast', (v) => (v as ImagerySource | null) || null, null) ?? imagery);
-  const [showGrid, setShowGrid] = useState(() => read('mapGrid', (v) => v !== 'off', true));
-  const [hidden, setHidden] = useState(hiddenLayers);
-  const [planStyle, setPlanStyleState] = useState(() =>
-    read<PlanStyle>('planStyle', (v) => (v === 'solid' || v === 'dots' ? v : 'dashed'), 'dashed'),
-  );
-  const [coverage, setCoverageState] = useState(() => read<Coverage>('mapCoverage', (v) => (v === 'gps' || v === 'wifi' ? v : 'off'), 'off'));
+  lastImagery: ImagerySource | null;
+  showGrid: boolean;
+  hidden: Set<Layer>;
+  planStyle: PlanStyle;
+  // each mower's own, its container keeps the gps log
+  coverage: Coverage;
+}
+
+function load(): MapPrefs {
+  const imagery = read('mapImagery', (v) => (v as ImagerySource | null) || null, null);
+  const coverage = readMower<Coverage>(COVERAGE_KEY);
   return {
-    coverage,
-    setCoverage: (c: Coverage) => {
-      setCoverageState(c);
-      write('mapCoverage', c === 'off' ? null : c);
-    },
     imagery,
-    lastImagery,
-    setImagery: (next: ImagerySource | null) => {
-      setImageryState(next);
-      write('mapImagery', next);
-      if (next) {
-        setLastImagery(next);
-        write('mapImageryLast', next);
-      }
-    },
-    showGrid,
-    toggleGrid: () => {
-      setShowGrid(!showGrid);
-      write('mapGrid', showGrid ? 'off' : 'on');
-    },
-    hidden,
-    toggleLayer: (l: Layer) => {
-      const next = new Set(hidden);
-      if (next.has(l)) next.delete(l);
-      else next.add(l);
-      setHidden(next);
-      write('mapHidden', JSON.stringify([...next]));
-    },
-    planStyle,
-    setPlanStyle: (st: PlanStyle) => {
-      setPlanStyleState(st);
-      write('planStyle', st);
-    },
+    lastImagery: read('mapImageryLast', (v) => (v as ImagerySource | null) || null, null) ?? imagery,
+    showGrid: read('mapGrid', (v) => v !== 'off', true),
+    hidden: read('mapHidden', (v) => new Set<Layer>(JSON.parse(v ?? '[]')), new Set<Layer>()),
+    planStyle: read<PlanStyle>('planStyle', (v) => (v === 'solid' || v === 'dots' ? v : 'dashed'), 'dashed'),
+    coverage: coverage === 'gps' || coverage === 'wifi' ? coverage : 'off',
   };
+}
+
+// one for every map of the page, what one switches the others show (the editor stays drawn behind the dashboard)
+let prefs: MapPrefs | null = null;
+const listeners = new Set<() => void>();
+const snapshot = () => (prefs ??= load());
+function set(change: Partial<MapPrefs>) {
+  prefs = {...snapshot(), ...change};
+  listeners.forEach((l) => l());
+}
+
+const subscribe = (l: () => void) => {
+  listeners.add(l);
+  return () => listeners.delete(l);
+};
+
+// How the map is shown on this device: aerial imagery, the grid, the layers switched off in the menu, the style of
+// what's left of a plan and the coverage. Each change goes on from what's there now and is kept at once.
+export const mapPrefs = snapshot;
+export const changeMapPrefs = {
+  setCoverage: (c: Coverage) => {
+    set({coverage: c});
+    writeMower(COVERAGE_KEY, c === 'off' ? null : c);
+  },
+  setImagery: (next: ImagerySource | null) => {
+    set(next ? {imagery: next, lastImagery: next} : {imagery: null});
+    write('mapImagery', next);
+    if (next) write('mapImageryLast', next);
+  },
+  toggleGrid: () => {
+    const showGrid = !snapshot().showGrid;
+    set({showGrid});
+    write('mapGrid', showGrid ? 'on' : 'off');
+  },
+  toggleLayer: (l: Layer) => {
+    const hidden = new Set(snapshot().hidden);
+    if (hidden.has(l)) hidden.delete(l);
+    else hidden.add(l);
+    set({hidden});
+    write('mapHidden', JSON.stringify([...hidden]));
+  },
+  setPlanStyle: (planStyle: PlanStyle) => {
+    set({planStyle});
+    write('planStyle', planStyle);
+  },
+};
+
+// only used once the map arrived, client side, so localStorage is there
+export function useMapPrefs() {
+  return {...useSyncExternalStore(subscribe, snapshot, snapshot), ...changeMapPrefs};
 }

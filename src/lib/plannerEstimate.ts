@@ -256,8 +256,14 @@ function prepareNow(input: PlannerEstimateInput): Prepared | null {
   };
 }
 
+// the planner's limits (PlannerConfig.validate): an area's own value outside them, it doesn't plan it
+const MIN_ANGLE_STEP = (0.5 * Math.PI) / 180; // rad
+const MAX_TURN_RADIUS = 10; // m
+const plannerRefuses = (input: PlannerEstimateInput) =>
+  !(input.angleStep >= MIN_ANGLE_STEP) || (input.turnRadius !== undefined && !(input.turnRadius >= 0 && input.turnRadius <= MAX_TURN_RADIUS));
+
 export function plannerEstimate(input: PlannerEstimateInput): PlannerEstimate | null {
-  if (input.outline.length < 3 || input.spacing <= 0) return null;
+  if (input.outline.length < 3 || input.spacing <= 0 || plannerRefuses(input)) return null;
   const prep = prepare(input);
   if (!prep) return null;
   const {region, target, roomRings, half} = prep;

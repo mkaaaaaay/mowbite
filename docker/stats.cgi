@@ -33,6 +33,8 @@ if [ "$REQUEST_METHOD" = POST ]; then
       exit 0
     fi
     awk -v p="$part" -v h="$h" '$1 == p { $2 = h } { print }' "$M" > "$M.$$" && mv "$M.$$" "$M"
+    # told again once due by the new hours (notify.awk)
+    [ -f "$D/reminded" ] && awk -v p="$part" '$1 != p' "$D/reminded" > "$D/reminded.$$" && mv "$D/reminded.$$" "$D/reminded"
   fi
 fi
 
