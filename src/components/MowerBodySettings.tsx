@@ -12,6 +12,7 @@ import {
   OUTLINE_LEEWAY,
   grownOutline,
   outlineOf,
+  plannerOutline,
   savePlannerSettings,
   sizesBody,
   slic3rPlans,
@@ -210,7 +211,7 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
       if (!s.stored || typeof s.value !== 'number' || Math.abs(s.value - v) > 1e-6) changes[key] = Math.round(v * 10000) / 10000;
     }
     // the contour only to a planner that knows it, null is the rectangle again
-    const send = o ? grownOutline(o, OUTLINE_LEEWAY) : null;
+    const send = o ? plannerOutline(o) : null;
     if (known.robot_outline && JSON.stringify(outlineOf(known.robot_outline.value) ?? null) !== JSON.stringify(send)) {
       changes.robot_outline = send;
     }

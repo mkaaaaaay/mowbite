@@ -533,6 +533,12 @@ export function measuredOutline(o: Outline | undefined): Outline | undefined {
   return m?.outline ?? o;
 }
 
+// the outline as the planner gets it: a model's measured one with the leeway, any other as it was stored
+export function plannerOutline(o: Outline): Outline {
+  const key = JSON.stringify(o);
+  return MOWER_MODELS.some((x) => x.outline && JSON.stringify(x.outline) === key) ? grownOutline(o, OUTLINE_LEEWAY) : o;
+}
+
 // the model with these sizes, to the millimetre
 export function modelOf(s: MowerSizes | undefined): string | null {
   const b = sizesBody(s);

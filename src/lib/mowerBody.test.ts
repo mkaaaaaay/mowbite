@@ -12,6 +12,7 @@ import {
   MOWER_MODELS,
   OUTLINE_LEEWAY,
   outlineOf,
+  plannerOutline,
   plannerSizes,
   insideEdge,
   isPin,
@@ -435,6 +436,22 @@ describe('real outline', () => {
       expect(measuredOutline(g)).toEqual(m.outline);
     }
     expect(measuredOutline(outline)).toEqual(outline);
+  });
+
+  it('keeps a stored outline as it is when saved again unchanged, a model one gets the leeway once', () => {
+    const nx = MOWER_MODELS.find((m) => m.key === 'yf-nx')!.outline!;
+    const other: [number, number][] = [
+      [0.3, 0.2],
+      [-0.1, 0.2],
+      [-0.1, -0.2],
+      [0.3, -0.2],
+    ];
+    const again = (o: [number, number][]) => plannerOutline(measuredOutline(o)!);
+    for (const stored of [other, grownOutline(nx, OUTLINE_LEEWAY)]) {
+      expect(again(again(again(stored)))).toEqual(stored);
+    }
+    expect(again(nx)).toEqual(grownOutline(nx, OUTLINE_LEEWAY));
+    expect(again(again(nx))).toEqual(grownOutline(nx, OUTLINE_LEEWAY));
   });
 
   it('fits the sizes of the models that have one', () => {
