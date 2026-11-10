@@ -49,6 +49,23 @@ describe('sameContent', () => {
     expect(sameContent(sent, back)).toBe(true);
   });
 
+  it('takes what the mower leaves out or fills in as the same: active and mowable when true, an empty name, the type, other fields', () => {
+    const sent = map();
+    const outline = [{x: 3, y: 3}, {x: 4, y: 3}, {x: 4, y: 4}];
+    sent.areas.push({id: 'c', properties: {name: '', active: true, mowable: true, mow_around: false}, outline});
+    const back = {...map(), areas: [...map().areas, {id: 'c', properties: {type: 'draft', mow_around: false}, outline}]};
+    expect(sameContent({...sent, version: 2} as MowerMap, back)).toBe(true);
+  });
+
+  it('spots a setting the mower dropped or set otherwise', () => {
+    const sent = map();
+    sent.areas[0].properties.mow_around = false;
+    expect(sameContent(sent, map())).toBe(false);
+    const off = map();
+    off.areas[0].properties.active = false;
+    expect(sameContent(off, map())).toBe(false);
+  });
+
   it('still spots a real change', () => {
     const back = map();
     back.areas[0].outline[1] = {x: 1.01, y: 0};

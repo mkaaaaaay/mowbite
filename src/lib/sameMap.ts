@@ -29,7 +29,25 @@ const canonical = (v: unknown): unknown =>
           )
         : v;
 
+// what openmower's mower_map keeps of a map and writes back (mower_map_service to_json): areas and docks only, an area's
+// name only when not empty, its type draft when missing, active and mowable only when false, of a point x and y
+const asKept = (m: MowerMap): MowerMap => ({
+  areas: m.areas.map(({id, properties: {name, type, active, mowable, ...rest}, outline}) => ({
+    id,
+    properties: {
+      ...rest,
+      ...(name ? {name} : {}),
+      type: type ?? 'draft',
+      ...(active === false ? {active} : {}),
+      ...(mowable === false ? {mowable} : {}),
+    },
+    outline: outline.map(({x, y}) => ({x, y})),
+  })),
+  docking_stations: m.docking_stations,
+});
+
 // the same map as one sent to the mower, after it came back from there (map.replace answering late)
 export function sameContent(a: MowerMap, b: MowerMap): boolean {
-  return a === b || JSON.stringify(canonical(openRings(a))) === JSON.stringify(canonical(openRings(b)));
+  const text = (m: MowerMap) => JSON.stringify(canonical(asKept(openRings(m))));
+  return a === b || text(a) === text(b);
 }
