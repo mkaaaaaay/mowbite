@@ -137,7 +137,7 @@ export function PhonePushSettings({
           ? {done: tr('Sent. It should be on the phone in a moment.')}
           : r === 'failed'
             ? {error: tr("The mower couldn't reach the delivering server. Does the mower get on the internet?")}
-            : {error: tr('This phone is no longer signed up with the mower. Switch it off and on again.')},
+            : {error: tr('This phone is no longer signed up with the mower. Switch the messages off and on again here.')},
       );
     } catch {
       setState({error: tr('The mower did not answer.')});
