@@ -42,14 +42,14 @@ export function systemInfo(): Promise<SystemInfo | null | undefined> {
       info = null;
       return undefined;
     }
-  })();
-  return info.then((i) => {
+  })().then((i) => {
     if (i !== undefined) {
       known = i;
       noteOs(isMowbiteOs(i));
     }
     return i;
   });
+  return info;
 }
 
 export const isMowbiteOs = (i: SystemInfo | null | undefined) => i?.name === MOWBITE_OS;

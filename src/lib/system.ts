@@ -63,13 +63,13 @@ export function parseSystem(text: string): SystemInfo {
 }
 
 // system.stats: an object with the same keys, numbers as numbers
-export const parseStats = (stats: unknown): SystemInfo | null =>
+export const parseSystemStats = (stats: unknown): SystemInfo | null =>
   stats && typeof stats === 'object' && !Array.isArray(stats) ? fromValues(stats as Record<string, unknown>) : null;
 
 // null: not served, an older container or MowBite not running as one. stats: ask MowBite OS itself where it has
 // system.stats, only while someone looks at it (masterplan 3.9)
 export async function loadSystem(stats = false): Promise<SystemInfo | null> {
-  if (stats && (await rpcMethods())?.has(RPC.systemStats)) return callRpc(RPC.systemStats).then(parseStats, () => null);
+  if (stats && (await rpcMethods())?.has(RPC.systemStats)) return callRpc(RPC.systemStats).then(parseSystemStats, () => null);
   try {
     const res = await containerFetch(`${apiBase()}/cgi-bin/system`, {cache: 'no-store'});
     if (!res?.ok || !res.headers.get('content-type')?.includes('text/plain')) return null;

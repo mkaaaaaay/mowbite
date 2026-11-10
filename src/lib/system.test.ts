@@ -1,5 +1,5 @@
 import {describe, expect, it, vi} from 'vitest';
-import {loadSystem, parseStats, parseSystem} from './system';
+import {loadSystem, parseSystemStats, parseSystem} from './system';
 
 const mower = vi.hoisted(() => ({methods: new Set<string>(), asked: [] as string[]}));
 vi.mock('./rpc', () => ({
@@ -33,9 +33,9 @@ describe('parseSystem', () => {
   });
 });
 
-describe('parseStats', () => {
+describe('parseSystemStats', () => {
   it("reads MowBite OS's system.stats, the same keys as system.cgi", () => {
-    const s = parseStats({
+    const s = parseSystemStats({
       mem_total: 8e9,
       mem_available: 6.5e9,
       disk_total: 2.9e10,
@@ -71,11 +71,11 @@ describe('parseStats', () => {
     });
   });
   it('leaves out what it lacks or gives wrong', () => {
-    const s = parseStats({mem_total: 8e9, cpu_temp: null, wifi_signal: '', net_ip: 7});
+    const s = parseSystemStats({mem_total: 8e9, cpu_temp: null, wifi_signal: '', net_ip: 7});
     expect(s).toMatchObject({remote: false, memTotal: 8e9});
     expect([s?.cpuTemp, s?.wifiSignal, s?.netIp]).toEqual([undefined, undefined, undefined]);
-    expect(parseStats(null)).toBeNull();
-    expect(parseStats([1])).toBeNull();
+    expect(parseSystemStats(null)).toBeNull();
+    expect(parseSystemStats([1])).toBeNull();
   });
 });
 

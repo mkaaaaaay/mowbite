@@ -4,6 +4,7 @@ import {CONTAINER_LEVEL, compareVersions, containerHas, isNewer, missingOnMower}
 const mower = vi.hoisted(() => ({base: '', os: false, app: false, answers: {} as Record<string, number>, asked: [] as string[]}));
 vi.mock('./mowers', () => ({
   apiBase: () => mower.base,
+  pageFromMower: () => !mower.app && !mower.base,
   mowerFetch: async (url: string) => {
     mower.asked.push(url);
     const status = mower.answers[url.slice(mower.base.length)] ?? 404;
@@ -18,7 +19,6 @@ vi.mock('./mowerOs', () => ({
   isMowbiteOs: (i: {name: string} | null) => i?.name === 'mowbite-os',
   systemInfo: async () => (mower.os ? {name: 'mowbite-os'} : null),
 }));
-vi.mock('./native', () => ({isApp: () => mower.app}));
 
 describe('compareVersions', () => {
   it('orders by major, minor, patch', () => {

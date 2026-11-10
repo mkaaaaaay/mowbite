@@ -45,7 +45,7 @@ import {
 import {CopyButton} from '@/lib/clipboard';
 import {useDockgeUrl, useUpdaterPageUrl} from '@/lib/dockge';
 import {fmt, tr, useLang} from '@/lib/i18n';
-import {apiBase, isDemo} from '@/lib/mowers';
+import {isDemo, pageFromMower} from '@/lib/mowers';
 import {isApp} from '@/lib/native';
 import {useThemeChoice} from '@/lib/theme';
 import {APP_VERSION, useUpdates} from '@/lib/updates';
@@ -584,7 +584,7 @@ export function AutoUpdate() {
   // MowBite on the mower is another version than this page: after its update, the page needs loading again
   const onMower = (st.status.mowbite_running ?? '').split(' ')[0];
   // (only the mower this page comes from: another one picked can run another version for good)
-  const reload = !isApp() && !isDemo() && !apiBase() && !running && /^\d/.test(onMower) && onMower !== APP_VERSION;
+  const reload = pageFromMower() && !isDemo() && !running && /^\d/.test(onMower) && onMower !== APP_VERSION;
   const reloadNote = reload && (
     <div className={local.warn}>
       <div className={local.row}>

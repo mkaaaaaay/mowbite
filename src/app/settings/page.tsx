@@ -8,7 +8,7 @@ import {useEffect, useState, useSyncExternalStore} from 'react';
 import styles from './page.module.css';
 import {dec, setLangChoice, tr, useLang, useLangChoice} from '@/lib/i18n';
 import {setThemeChoice, useThemeChoice} from '@/lib/theme';
-import {appMowers, appPort, CONTAINER_PORT, DEMO_ID, forgetMowerKeys, isDemo, parseAddress, sameMowBite, saveAppMowers, selectedMower, selectMower} from '@/lib/mowers';
+import {appMowers, appPort, CONTAINER_PORT, DEMO_ID, forgetMowerKeys, isDemo, parseAddress, sameMowBite, saveAppMowers, selectedMower, selectMower, WS_PORT} from '@/lib/mowers';
 import {forgetMqtt5} from '@/lib/mqttClient';
 import {isApp} from '@/lib/native';
 import {leaveFirst} from '@/lib/leaving';
@@ -97,7 +97,7 @@ function MowersSection({settings}: {settings: Settings}) {
   const [name, setName] = useState('');
   const [host, setHost] = useState('');
   const [typedPort, setTypedPort] = useState(String(CONTAINER_PORT));
-  const [wsPort, setWsPort] = useState('9001');
+  const [wsPort, setWsPort] = useState(String(WS_PORT));
   const [error, setError] = useState<string | null>(null);
   // the android app keeps its list on the phone, a mower keeps it in its shared settings
   const app = useSyncExternalStore(noop, isApp, () => false);
@@ -137,7 +137,7 @@ function MowersSection({settings}: {settings: Settings}) {
       name: name.trim(),
       host: typed.host,
       appPort: typed.port ?? (Number(typedPort) || CONTAINER_PORT),
-      wsPort: Number(wsPort) || 9001,
+      wsPort: Number(wsPort) || WS_PORT,
     };
     // (another MowBite on the same host answers on another port)
     const port = Number(window.location.port) || 80;

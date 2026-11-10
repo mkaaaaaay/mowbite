@@ -1,8 +1,7 @@
 import {useEffect, useSyncExternalStore} from 'react';
 import FEATURES from './containerFeatures.json';
-import {apiBase, mowerFetch, readMower, readStored, writeMower, writeStored} from './mowers';
+import {apiBase, mowerFetch, pageFromMower, readMower, readStored, writeMower, writeStored} from './mowers';
 import {isMowbiteOs, systemInfo} from './mowerOs';
-import {isApp} from './native';
 
 // Looks on github for a newer release, only when "Check now" is tapped (it tells github your ip).
 
@@ -158,7 +157,7 @@ function askMower(): Promise<void> {
       const res = await mowerFetch(`${base}/cgi-bin/system`, {cache: 'no-store'});
       if (!res.ok) {
         if (first.status === 404 && res.status === 404) {
-          const own = !base && !isApp();
+          const own = pageFromMower();
           const info = own ? null : await systemInfo();
           if (own || isMowbiteOs(info)) return set({none: true});
           openMower404 = info === null;

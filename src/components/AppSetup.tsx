@@ -1,7 +1,7 @@
 'use client';
 
 import {tr, useLang} from '@/lib/i18n';
-import {appMowers, CONTAINER_PORT, DEMO_ID, isDemo, OS_PORT, osServesApp, parseAddress, saveAppMowers, selectMower} from '@/lib/mowers';
+import {appMowers, CONTAINER_PORT, DEMO_ID, isDemo, OS_PORT, osServesApp, parseAddress, PROBE_MS, saveAppMowers, selectMower, WS_PORT} from '@/lib/mowers';
 import {isApp} from '@/lib/native';
 import {useState, useSyncExternalStore} from 'react';
 import LogoMark from './Logo';
@@ -27,7 +27,7 @@ export default function AppSetup() {
   const port = typed?.port ?? CONTAINER_PORT;
   const save = (appPort = port) => {
     const id = Math.random().toString(36).slice(2, 10);
-    saveAppMowers([{id, name: name.trim(), host: clean, appPort, wsPort: 9001}]);
+    saveAppMowers([{id, name: name.trim(), host: clean, appPort, wsPort: WS_PORT}]);
     selectMower(id);
   };
   const connect = async () => {
@@ -35,7 +35,7 @@ export default function AppSetup() {
     setFailed(false);
     try {
       // only whether something answers there, older MowBite versions don't allow reading from the app
-      await fetch(`http://${clean}:${port}/manifest.json`, {mode: 'no-cors', signal: AbortSignal.timeout(6000)});
+      await fetch(`http://${clean}:${port}/manifest.json`, {mode: 'no-cors', signal: AbortSignal.timeout(PROBE_MS)});
       save();
     } catch {
       // no container there and no port typed: MowBite OS serves the app itself

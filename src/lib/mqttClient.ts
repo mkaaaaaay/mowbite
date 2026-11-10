@@ -1,6 +1,6 @@
 import mqtt, {type MqttClient} from 'mqtt';
 import {demoClient} from './demo/client';
-import {isDemo, selectedMower, writeStored} from './mowers';
+import {isDemo, selectedMower, writeStored, WS_PORT} from './mowers';
 import type {OtherMower} from './settings';
 import {TOPIC} from './openmower';
 
@@ -17,11 +17,11 @@ function config() {
 
 // another mower picked in the app, or the one it runs on. that falls back to the host the app is
 // served from, which is the mower itself when installed there
-const brokerOf = (m: OtherMower) => `ws://${m.host}:${m.wsPort ?? 9001}`;
+const brokerOf = (m: OtherMower) => `ws://${m.host}:${m.wsPort ?? WS_PORT}`;
 function mqttUrl(): string {
   const other = selectedMower();
   if (other) return brokerOf(other);
-  return config().mqttUrl || process.env.NEXT_PUBLIC_MOWER_MQTT_WS_URL || `ws://${window.location.hostname}:9001`;
+  return config().mqttUrl || process.env.NEXT_PUBLIC_MOWER_MQTT_WS_URL || `ws://${window.location.hostname}:${WS_PORT}`;
 }
 
 // the host the app reaches the broker at, '' for none (the demo)
