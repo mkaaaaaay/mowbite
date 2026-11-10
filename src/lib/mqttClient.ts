@@ -24,6 +24,15 @@ function mqttUrl(): string {
   return config().mqttUrl || process.env.NEXT_PUBLIC_MOWER_MQTT_WS_URL || `ws://${window.location.hostname}:9001`;
 }
 
+// the host the app reaches the broker at, '' for none (the demo)
+export function brokerHost(): string {
+  try {
+    return new URL(mqttUrl()).hostname;
+  } catch {
+    return '';
+  }
+}
+
 function topicPrefix(): string {
   const other = typeof window === 'undefined' ? null : selectedMower();
   return other ? (other.prefix ?? '') : (config().mqttPrefix ?? '');

@@ -622,6 +622,7 @@ function Record() {
         {recordingMode && !guiding && (
           <DriveView
             drive={drive}
+            camera
             say={say}
             missed={driftLine}
             ok={closing !== null}

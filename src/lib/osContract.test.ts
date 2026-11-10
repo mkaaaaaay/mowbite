@@ -52,8 +52,15 @@ const NOT_OFFERED: Record<string, string> = {
 const appMethods = new Set([...Object.values(RPC), ...Object.values(COMMAND).map((c) => c.method)].filter((m) => !m.startsWith('planner.')));
 const osMethods = Object.keys(api['x-methods']);
 
-// reasons the phone gives already, decided for the next api (TOO_SHORT: a sound under 0.2 s)
-const AHEAD = ['TOO_SHORT'];
+// decided for a later api and in the app already, not in the pinned copy yet: TOO_SHORT (a sound under 0.2 s, the
+// phone says it), camera.* (masterplan 3.9, FP42). one the copy has is red until it's taken out here
+const AHEAD = {
+  reasons: ['TOO_SHORT', 'CAMERA_BUSY', 'LOCKED_AFTER_CRASH', 'NOT_SET_UP', 'BLADE_RUNNING', 'TOO_HOT', 'NO_SIGNAL', 'SELF_TEST'],
+  events: ['CAMERA_REFUSED', 'CAMERA_CHANGED', 'METHODS_CHANGED'],
+  methods: ['camera.list', 'camera.stream'],
+  // a reason's variant for one event, as 'EVENT REASON'
+  variants: ['CAMERA_REFUSED DRIVER_MISSING'],
+};
 
 // events only OpenMower or the planner send
 const NOT_OS = ['GPS', 'FULLY_CHARGED', 'NAVIGATION_ERROR', 'LEFTOVERS_ARMED'];
@@ -116,7 +123,7 @@ describe(`MowBite OS's interface (${PINNED.repo} ${PINNED.commit.slice(0, 7)}, a
   });
 
   it('has every method the app calls', () => {
-    expect([...appMethods].filter((m) => !osMethods.includes(m))).toEqual([]);
+    expect([...appMethods].filter((m) => !osMethods.includes(m) && !AHEAD.methods.includes(m))).toEqual([]);
   });
 
   it('either calls each of its methods or says why not', () => {
@@ -148,14 +155,23 @@ describe(`MowBite OS's interface (${PINNED.repo} ${PINNED.commit.slice(0, 7)}, a
   });
 
   it("has no words for events, reasons or bits the OS doesn't know", () => {
-    expect(Object.keys(EVENTS).filter((t) => !eventTypes.includes(t) && !NOT_OS.includes(t))).toEqual([]);
+    expect(Object.keys(EVENTS).filter((t) => !eventTypes.includes(t) && !NOT_OS.includes(t) && !AHEAD.events.includes(t))).toEqual([]);
     const known = new Set(Object.values(groups).flatMap((r) => Object.keys(r)));
-    expect(Object.keys(REASONS).filter((r) => !known.has(r) && !AHEAD.includes(r))).toEqual([]);
+    expect(Object.keys(REASONS).filter((r) => !known.has(r) && !AHEAD.reasons.includes(r))).toEqual([]);
     const bits = new Map(api['x-emergency-bits'].map((b) => [b.bit, b.name]));
     EMERGENCY_BITS.forEach((name, bit) => name && expect(bits.get(bit), name).toBe(name));
     // a variant for one event only names one that has this reason
     for (const [reason, list] of Object.entries(REASONS))
       for (const v of list)
-        if (typeof v.when?.type === 'string') expect(groups[v.when.type]?.[reason], `${v.when.type} ${reason}`).toBeDefined();
+        if (typeof v.when?.type === 'string' && !AHEAD.variants.includes(`${v.when.type} ${reason}`))
+          expect(groups[v.when.type]?.[reason], `${v.when.type} ${reason}`).toBeDefined();
+  });
+
+  it('has nothing ahead the pinned copy has by now', () => {
+    const known = new Set(Object.values(groups).flatMap((r) => Object.keys(r)));
+    expect(AHEAD.reasons.filter((r) => known.has(r)), 'take them out of AHEAD').toEqual([]);
+    expect(AHEAD.events.filter((t) => eventTypes.includes(t)), 'take them out of AHEAD').toEqual([]);
+    expect(AHEAD.methods.filter((m) => osMethods.includes(m)), 'take them out of AHEAD').toEqual([]);
+    expect(AHEAD.variants.filter((v) => groups[v.split(' ')[0]]?.[v.split(' ')[1]]), 'take them out of AHEAD').toEqual([]);
   });
 });

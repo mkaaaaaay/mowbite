@@ -42,6 +42,9 @@ export const RPC = {
   soundVolume: 'sound.volume',
   soundUpload: 'sound.upload',
   soundDelete: 'sound.delete',
+  // the mower's cameras and a stream of one for a single viewer, MowBite OS with cameras only (lib/camera)
+  cameraList: 'camera.list',
+  cameraStream: 'camera.stream',
   replaceMap: 'map.replace',
   eventDays: 'events.history.list',
   events: 'events.history',

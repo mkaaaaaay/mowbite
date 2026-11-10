@@ -658,6 +658,41 @@
     }
    ]
   },
+  "CAMERA_REFUSED": {
+   "severity": "info",
+   "variants": [
+    {
+     "en": "No camera picture",
+     "de": "Kein Kamerabild"
+    }
+   ]
+  },
+  "CAMERA_CHANGED": {
+   "severity": "info",
+   "variants": [
+    {
+     "when": {
+      "available": true
+     },
+     "en": "Camera picture available",
+     "with_reason": false,
+     "de": "Kamerabild verfügbar"
+    },
+    {
+     "en": "No camera picture",
+     "de": "Kein Kamerabild"
+    }
+   ]
+  },
+  "METHODS_CHANGED": {
+   "severity": "info",
+   "variants": [
+    {
+     "en": "The mower's functions changed",
+     "de": "Funktionen des Mähers geändert"
+    }
+   ]
+  },
   "DRIVE": {
    "severity": "warning",
    "variants": [
@@ -1645,6 +1680,13 @@
   ],
   "DRIVER_MISSING": [
    {
+    "en": "the hardware driver is not reporting, the camera waits for it",
+    "when": {
+     "type": "CAMERA_REFUSED"
+    },
+    "de": "der Hardware-Treiber meldet sich nicht, die Kamera wartet auf ihn"
+   },
+   {
     "en": "the hardware driver is not running",
     "de": "der Hardware-Treiber läuft nicht"
    }
@@ -1753,6 +1795,48 @@
    {
     "en": "the hold after the unexpected restart couldn't be removed",
     "de": "die Sperre nach dem unerwarteten Neustart ließ sich nicht aufheben"
+   }
+  ],
+  "CAMERA_BUSY": [
+   {
+    "en": "two are watching already, at most two at a time",
+    "de": "es sehen schon zwei zu, mehr als zwei gleichzeitig gehen nicht"
+   }
+  ],
+  "LOCKED_AFTER_CRASH": [
+   {
+    "en": "the camera software crashed and is locked",
+    "de": "die Kamera-Software ist abgestürzt und gesperrt"
+   }
+  ],
+  "NOT_SET_UP": [
+   {
+    "en": "the camera is not set up on the mower",
+    "de": "die Kamera ist auf dem Mäher nicht eingerichtet"
+   }
+  ],
+  "BLADE_RUNNING": [
+   {
+    "en": "not while the blade is running",
+    "de": "nicht, solange das Messer läuft"
+   }
+  ],
+  "TOO_HOT": [
+   {
+    "en": "the camera is too hot",
+    "de": "die Kamera ist zu heiß"
+   }
+  ],
+  "NO_SIGNAL": [
+   {
+    "en": "no signal from the camera",
+    "de": "kein Signal von der Kamera"
+   }
+  ],
+  "SELF_TEST": [
+   {
+    "en": "the mower is still testing itself after starting",
+    "de": "der Mäher prüft sich nach dem Start noch selbst"
    }
   ],
   "KERNEL_CRASH": [

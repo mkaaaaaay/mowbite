@@ -5,6 +5,7 @@ import {EMERGENCY_BITS} from '../reasonTexts';
 import {closedRings, openRing, openRings} from '../rings';
 import {CALIB_NEED, calibCounts, calibResultOf} from './calib';
 import {DEMO_PARAMS, DEMO_SENSORS, demoMap} from './garden';
+import {demoCameras, demoCamerasOn} from './camera';
 import {demoLights, demoLightsOn} from './light';
 import {demoSounds, demoSoundsOn} from './sound';
 
@@ -1034,6 +1035,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
   }
 
   const utcDay = (t: number) => new Date(t * 1000).toISOString().slice(0, 10).replace(/-/g, '');
+  const cameras = demoCamerasOn() ? demoCameras(deliver) : null;
   const methods: Record<string, (params: unknown) => unknown> = {
     [RPC.methods]: () => Object.keys(methods).sort(),
     [RPC.replaceMap]: (params) => {
@@ -1114,6 +1116,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     },
     ...(demoLightsOn() ? demoLights() : {}),
     ...(demoSoundsOn() ? demoSounds() : {}),
+    ...cameras?.methods,
   };
   const answer = (paths: Path[], angle: number, id?: string) => ({
     ...(id ? {area_id: id} : {}),
@@ -1235,6 +1238,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     if (open && open.end === Infinity && (parked || !job)) open.end = now / 1000;
     place();
     calibStep(dt, from);
+    cameras?.blade(blades());
     if (s !== was) send.actions();
     send.position();
     // (also when its clock went back: driven ahead by the click tests, then the timer's own again)

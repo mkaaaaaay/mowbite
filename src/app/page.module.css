@@ -53,6 +53,7 @@
 
   /* with the map: status and today on the left, map on the right */
   .withMap .status,
+  .withMap .cameraCard,
   .withMap .today {
     grid-column: 1;
   }
@@ -510,6 +511,13 @@
     hyphens: auto;
     overflow-wrap: break-word;
   }
+}
+
+.cameraCard {
+  overflow: hidden;
+  border-radius: 18px;
+  border: 1px solid var(--card-border);
+  background: #0b0d10;
 }
 
 .map {

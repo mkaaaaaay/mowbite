@@ -1,9 +1,11 @@
 'use client';
 
+import CameraView from '@/components/CameraView';
 import {CloseIcon, RotateIcon, SpeedIcon, WarningIcon} from '@/components/icons';
 import DrivePad from '@/components/DrivePad';
 import Joystick from '@/components/Joystick';
 import MapView from '@/components/MapView';
+import {chooseCamera, useCameras} from '@/hooks/useCameras';
 import {useEmergencyReasons} from '@/hooks/useEmergencyReasons';
 import {useEmergencyReset, useJustReset} from '@/hooks/useEmergencyReset';
 import type {OverlayLine} from '@/hooks/useMapOverlay';
@@ -14,6 +16,7 @@ import {datumFromParams, numParam, useMowerParams} from '@/hooks/useMowerParams'
 import {useMowerPosition} from '@/hooks/useMowerPosition';
 import {useSensorValue} from '@/hooks/useMowerSensors';
 import {isLive, useMowerState} from '@/hooks/useMowerState';
+import {cameraLabel} from '@/lib/camera';
 import {emergencyText, explain, resetRefusedText, stopReleaseText} from '@/lib/events';
 import {useStopRelease} from '@/lib/mowerOs';
 import {fmt, tr} from '@/lib/i18n';
@@ -35,6 +38,8 @@ const TURNED_KEY = 'recordTurned';
 const ZOOMS = [0.5, 0.75, 1, 1.5, 2, 3];
 // upright the mower that much of the map's width above its middle, in the part the pill and the stick leave free
 const SHIFT = 0.14;
+// the map or a camera's picture under the stick (one choice for every page that offers it)
+const VIEW_KEY = 'driveView';
 
 type Draw = NonNullable<React.ComponentProps<typeof MapView>['draw']>;
 
@@ -190,6 +195,7 @@ export default function DriveView({
   close,
   bottom,
   remoteRef,
+  camera,
 }: {
   drive: Driving;
   // what to do now: on the map at the top, sideways at the top in the middle. under it lines in amber (missed, the
@@ -217,6 +223,8 @@ export default function DriveView({
   bottom?: React.ReactNode;
   // the sideways layout, for dialogs to show over it turned with it
   remoteRef?: React.Ref<HTMLDivElement>;
+  // a camera's picture can take the map's place, on a mower with cameras
+  camera?: boolean;
 }) {
   const link = useMowerState();
   const {state} = link;
@@ -230,6 +238,39 @@ export default function DriveView({
   const stopRelease = useStopRelease();
   const justReset = useJustReset(!!state?.emergency);
   const [zoom, setZoom] = useState(2);
+  const cams = useCameras();
+  const [view, setView] = useState(() => {
+    try {
+      return localStorage.getItem(VIEW_KEY) ?? 'map';
+    } catch {
+      return 'map';
+    }
+  });
+  const cameras = camera && cams.on && cams.list?.length ? cams.list : null;
+  const onCamera = !!cameras && view === 'camera';
+  const show = (v: 'map' | 'camera', id?: string) => {
+    if (id) chooseCamera(id);
+    setView(v);
+    try {
+      localStorage.setItem(VIEW_KEY, v);
+    } catch {}
+  };
+  const views = (on: string, short: boolean) =>
+    cameras && (
+      <>
+        <button className={onCamera ? undefined : on} aria-pressed={!onCamera} onClick={() => show('map')}>
+          {tr('Map')}
+        </button>
+        {cameras.map((c) => {
+          const at = onCamera && c.id === cams.camera?.id;
+          return (
+            <button key={c.id} className={at ? on : undefined} aria-pressed={at} onClick={() => show('camera', c.id)}>
+              {cameras.length > 1 ? cameraLabel(c, cameras, short) : tr('Camera')}
+            </button>
+          );
+        })}
+      </>
+    );
 
   // the gps's own accuracy (OpenMower's idle leaves the gps out of its position)
   const gpsAcc = useSensorValue('om_gps_accuracy', (v) => (v !== undefined && Number.isFinite(parseFloat(v)) ? parseFloat(v) : null));
@@ -263,7 +304,9 @@ export default function DriveView({
     return (
       <div ref={remoteRef} className={[styles.remote, drive.turned ? styles.turned : ''].join(' ')} data-no-swipe>
         <div className={styles.remoteMap}>
-          {map && (
+          {onCamera ? (
+            <CameraView fill />
+          ) : map && (
             <MapView
               map={map}
               mower={position ?? undefined}
@@ -285,14 +328,21 @@ export default function DriveView({
           </span>
           {gpsQ !== 'fix' && <span className={styles.gpsWarn}>{gpsText}</span>}
           <span className={styles.grow} />
-          <div className={styles.chips}>
-            <button aria-label={tr('Zoom out')} disabled={zoom === ZOOMS.length - 1} onClick={() => setZoom(zoom + 1)}>
-              −
-            </button>
-            <button aria-label={tr('Zoom in')} disabled={zoom === 0} onClick={() => setZoom(zoom - 1)}>
-              +
-            </button>
-          </div>
+          {cameras && (
+            <div className={styles.chips} role="group" aria-label={tr('View')}>
+              {views(styles.on, true)}
+            </div>
+          )}
+          {!onCamera && (
+            <div className={styles.chips}>
+              <button aria-label={tr('Zoom out')} disabled={zoom === ZOOMS.length - 1} onClick={() => setZoom(zoom + 1)}>
+                −
+              </button>
+              <button aria-label={tr('Zoom in')} disabled={zoom === 0} onClick={() => setZoom(zoom - 1)}>
+                +
+              </button>
+            </div>
+          )}
           <div className={styles.chips} title={tr('Speed m/s')}>
             <SpeedIcon size={16} />
             {speeds(styles.on)}
@@ -337,7 +387,11 @@ export default function DriveView({
   return (
     <div className={styles.drive}>
       <section className={styles.map}>
-        {map && (
+        {onCamera ? (
+          <div className={styles.cameraBox}>
+            <CameraView fill />
+          </div>
+        ) : map && (
           <MapView
             map={map}
             mower={position ?? undefined}
@@ -392,6 +446,12 @@ export default function DriveView({
           <span className={gpsQ === 'fix' ? undefined : styles.warn}>{gpsQ === 'fix' || !gpsHint ? gpsText : `${gpsText}. ${gpsHint}`}</span>
           {line}
         </div>
+        {cameras && (
+          <div className={styles.speeds} role="group" aria-label={tr('View')}>
+            <span className={styles.dim}>{tr('View')}</span>
+            {views(styles.on, false)}
+          </div>
+        )}
         {children}
         <div className={styles.speeds}>
           <span className={styles.dim}>{tr('Speed m/s')}</span>

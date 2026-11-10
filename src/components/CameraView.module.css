@@ -1,0 +1,146 @@
+/* a camera's picture with its name and the others to switch to over it */
+.camera {
+  border-radius: inherit;
+}
+
+.picture {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border-radius: inherit;
+  background: #0b0d10;
+  color: #e6ebef;
+}
+
+/* as big as the place it's in, the picture whole in the middle */
+.fill,
+.fill .picture {
+  height: 100%;
+}
+
+.fill .picture {
+  aspect-ratio: auto;
+  border-radius: 0;
+}
+
+.picture video,
+.mjpeg,
+.mjpeg img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.gone {
+  display: none;
+}
+
+/* why there's no picture, over the middle */
+.note {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-align: center;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+/* driving by hand: under what to do now, above the stick */
+.fill .note {
+  justify-content: flex-start;
+  padding-top: 84px;
+}
+
+.note span {
+  color: #b9c2cc;
+}
+
+/* glass over the picture, like the map's buttons */
+.badge,
+.switcher {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(14, 18, 24, 0.55);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  color: #fff;
+}
+
+/* the camera's name, its dot red while the picture comes */
+.badge {
+  top: 10px;
+  left: 10px;
+  gap: 7px;
+  padding: 5px 11px 5px 9px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.badge i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #8b95a1;
+}
+
+.live i {
+  background: #ff4d5e;
+  box-shadow: 0 0 0 3px rgba(255, 77, 94, 0.3);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live i {
+    animation: none;
+  }
+}
+
+/* the cameras to switch to, at the bottom in the middle */
+.switcher {
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100% - 20px);
+  gap: 2px;
+  padding: 3px;
+  border-radius: 999px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.switcher button {
+  flex: none;
+  min-height: 32px;
+  padding: 5px 13px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.switcher .on {
+  background: #fff;
+  color: #0b0d10;
+}

@@ -42,8 +42,9 @@ export interface Settings {
   colors?: Partial<Record<ColorKey, string>>;
   // sizes are factors, 1 = default
   icons?: {mower?: string; dock?: string; mowerSize?: number; dockSize?: number; mowerRealSize?: boolean};
-  // map on the dashboard: only while driving (default) or always; hidden: what the status card leaves out (lib/dashboard)
-  dashboard?: {map?: 'auto' | 'always'; hidden?: string[]};
+  // map on the dashboard: only while driving (default) or always; hidden: what the status card leaves out (lib/dashboard);
+  // camera: a camera's picture on it, off unless switched on (it streams while the dashboard is open)
+  dashboard?: {map?: 'auto' | 'always'; hidden?: string[]; camera?: boolean};
   // weather on the dashboard from open-meteo, off unless switched on (it sends the rough position there)
   weather?: boolean;
   // the strip of grass along the bottom, on unless switched off
@@ -351,10 +352,12 @@ export type LookKey = (typeof LOOK_KEYS)[number];
 // what belongs to one mower and its map: its sizes, its and its dock's icons, how its map is drawn and the pictures of
 // its areas, its leftovers (its container reads them)
 export const MOWER_KEYS = ['mower', 'icons', 'keepRectangle', 'autoOutline', 'leftovers', 'mapStyle', 'garden', ...LOOK_KEYS] as const;
-// a mower's part of an app's setting: where its aerial imagery is moved to and the values its dashboard leaves out
+// a mower's part of an app's setting: where its aerial imagery is moved to, the values its dashboard leaves out and
+// whether it shows its camera
 const MOWER_PARTS = [
   ['imagery', 'offsets'],
   ['dashboard', 'hidden'],
+  ['dashboard', 'camera'],
 ] as const;
 
 // the settings of the app from a, the ones of a mower from b
@@ -366,7 +369,7 @@ export function join(a: Settings, b: Settings): Settings {
   }
   for (const [k, part] of MOWER_PARTS) {
     const mine = (b[k] as Record<string, unknown> | undefined)?.[part];
-    const v: Record<string, unknown> = {...a[k]};
+    const v: Record<string, unknown> = {...(out[k] as Record<string, unknown> | undefined)};
     if (mine !== undefined) v[part] = mine;
     else delete v[part];
     if (Object.keys(v).length) out[k] = v;

@@ -1,10 +1,11 @@
 'use client';
 
+import {useCameras} from '@/hooks/useCameras';
 import {fmt, tr} from '@/lib/i18n';
 import {anim, Scene} from '../art';
 import Guide, {type GuideStep} from '../Guide';
 
-// the dashboard's values and more than one mower, step by step with a drawing for each
+// the dashboard's values, the cameras of a mower that has them and more than one mower, step by step with a drawing for each
 
 const DUR = 6;
 const card = {fill: 'var(--card)', stroke: 'var(--card-border)'};
@@ -149,6 +150,43 @@ function SwitchArt() {
   );
 }
 
+// a camera's picture with the cameras to switch to under it, the highlight going from front to the side to the back
+function CameraArt() {
+  const chips: [string, number][] = [
+    [tr('Front'), 0],
+    [tr('Left'), 1],
+    [tr('Rear'), 2],
+  ];
+  const at = (i: number) =>
+    anim('opacity', DUR, [0, 0.33 * i, 0.33 * i + 0.02, 0.33 * (i + 1), Math.min(1, 0.33 * (i + 1) + 0.02), 1], i === 2 ? [0, 0, 1, 1, 1, 1] : [0, 0, 1, 1, 0, 0]);
+  return (
+    <Scene still={DUR} label={tr('Camera')}>
+      <rect x={60} y={14} width={200} height={136} rx={10} style={{fill: '#0b0d10'}} />
+      <rect x={60} y={14} width={200} height={58} rx={10} style={{fill: '#9cc9e8'}} />
+      <rect x={60} y={58} width={200} height={20} style={{fill: '#3d6b35'}} />
+      <path d="M60 78 H260 V140 a10 10 0 0 1 -10 10 H70 a10 10 0 0 1 -10 -10 Z" style={{fill: '#4f8a43'}} />
+      <path d="M150 78 L110 150 H140 Z M170 78 L190 150 H220 Z" style={{fill: '#5d9c50'}} />
+      {chips.map(([label, i]) => (
+        <g key={label}>
+          <rect x={70 + i * 62} y={162} width={56} height={24} rx={12} style={{fill: 'none', stroke: 'var(--card-border)'}} />
+          <rect x={70 + i * 62} y={162} width={56} height={24} rx={12} style={{fill: 'var(--accent)'}} opacity={i === 0 ? 1 : 0}>
+            {at(i)}
+          </rect>
+          <text x={98 + i * 62} y={178} fontSize={11} textAnchor="middle" style={text}>
+            {label}
+          </text>
+        </g>
+      ))}
+    </Scene>
+  );
+}
+
+const CAMERA_STEP: GuideStep = {
+  title: 'Camera',
+  text: "A mower with MowBite OS and cameras can show their picture on the dashboard: tick Camera picture in Settings › Appearance › Dashboard. Under the picture you switch between the mower's cameras, such as front, side and rear. While recording an area, View picks the map or a camera, held sideways at the top. The mower only sends a picture while you look, to at most two at a time. While the blade runs there is no picture for now, the app says why.",
+  Art: CameraArt,
+};
+
 const STEPS: GuideStep[] = [
   {
     title: 'Your dashboard',
@@ -168,5 +206,6 @@ const STEPS: GuideStep[] = [
 ];
 
 export default function AppGuidePage() {
-  return <Guide steps={STEPS} done={{label: 'To the dashboard', href: '/'}} />;
+  const cameras = useCameras().on;
+  return <Guide steps={cameras ? [...STEPS.slice(0, 1), CAMERA_STEP, ...STEPS.slice(1)] : STEPS} done={{label: 'To the dashboard', href: '/'}} />;
 }

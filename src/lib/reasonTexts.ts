@@ -204,6 +204,12 @@ export const EVENTS: Record<string, EventText> = {
       {en: 'Sound not uploaded'},
     ],
   },
+  // camera.stream turned down, only in its answer: the camera can't show a picture now, or two watch already
+  CAMERA_REFUSED: one('No camera picture'),
+  // a camera can show a picture again or no longer, camera.list then says why
+  CAMERA_CHANGED: {severity: 'info', variants: [alone({when: {available: true}, en: 'Camera picture available'}), {en: 'No camera picture'}]},
+  // the methods MowBite OS offers changed (a camera came up or its process ended), the app asks for them again
+  METHODS_CHANGED: one("The mower's functions changed"),
   DRIVE: {
     severity: 'warning',
     variants: [
@@ -398,7 +404,10 @@ export const REASONS: Record<string, Variant[]> = {
   STILL_ACTIVE: [r('still active')],
   LATCH_CHANGED: [r('a new emergency reason came up')],
   FOREIGN_HOST: [r('another computer is talking to the board')],
-  DRIVER_MISSING: [r('the hardware driver is not running')],
+  DRIVER_MISSING: [
+    r('the hardware driver is not reporting, the camera waits for it', {when: {type: 'CAMERA_REFUSED'}}),
+    r('the hardware driver is not running'),
+  ],
   SAFETY_MISSING: [r('the safety filter is not running')],
   NO_ANSWER: [r('no answer in time')],
   // SOUND_REFUSED: the situation has no sound file, or an upload (sound.upload) the mower didn't take
@@ -419,6 +428,14 @@ export const REASONS: Record<string, Variant[]> = {
   NO_SPACE: [r('no space left on the mower, delete another sound of your own or choose a smaller file')],
   PART_ORDER: [r('a part of the file arrived out of order, upload it again')],
   RESTART_HOLD_STAYS: [r("the hold after the unexpected restart couldn't be removed")],
+  // CAMERA_REFUSED and camera.list: why a camera shows no picture now (DRIVER_MISSING above)
+  CAMERA_BUSY: [r('two are watching already, at most two at a time')],
+  LOCKED_AFTER_CRASH: [r('the camera software crashed and is locked')],
+  NOT_SET_UP: [r('the camera is not set up on the mower')],
+  BLADE_RUNNING: [r('not while the blade is running')],
+  TOO_HOT: [r('the camera is too hot')],
+  NO_SIGNAL: [r('no signal from the camera')],
+  SELF_TEST: [r('the mower is still testing itself after starting')],
   // UNEXPECTED_RESTART: what ended MowBite OS before
   KERNEL_CRASH: [r('the kernel crashed')],
   OS_CRASH: [r('MowBite OS crashed')],

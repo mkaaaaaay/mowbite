@@ -12,6 +12,11 @@
   border: 1px solid var(--card-border);
 }
 
+/* a camera's picture in the map's place, as big as the map */
+.cameraBox {
+  aspect-ratio: 1;
+}
+
 /* what to do now at the top, under the map's coverage switch while it's there */
 .say {
   position: absolute;

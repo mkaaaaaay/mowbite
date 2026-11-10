@@ -34,6 +34,8 @@ import {gpsOffNow} from '@/lib/gpslog';
 import {fileDay} from '@/lib/history';
 import {describe, emergencyText, explain, groupRuns, noteworthy, OUTCOMES, resetRefusedText, stopReleaseText, type MowerEvent, type Run} from '@/lib/events';
 import {useMowbiteOs, useOsApi, useStopRelease} from '@/lib/mowerOs';
+import CameraView from '@/components/CameraView';
+import {useCameras} from '@/hooks/useCameras';
 import {useChargeConfirmed} from '@/hooks/useChargeConfirmed';
 import {mowerKey} from '@/lib/mowers';
 import {settingsStore} from '@/lib/settings';
@@ -234,6 +236,7 @@ export default function Home() {
   const before = useLeftoversBefore(!!progress?.leftovers);
   const params = useMowerParams();
   const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
+  const cameras = useCameras().on;
   // the same object while params/json doesn't change: the map isn't drawn again for every sensor value
   const datum = useMemo(() => datumFromParams(params), [params]);
   // blades or cleaning due, counted by MowBite's container
@@ -649,6 +652,13 @@ export default function Home() {
               zoomable
               datum={datum}
             />
+          </section>
+        )}
+
+        {/* a camera's picture, switched on in the settings */}
+        {settings.dashboard?.camera && cameras && (
+          <section className={styles.cameraCard}>
+            <CameraView />
           </section>
         )}
 
