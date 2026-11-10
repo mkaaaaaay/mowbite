@@ -373,7 +373,8 @@ export function nextStart(
   const now = scheduleNow(s.tz, from);
   // a pause on: a week after its last day
   const today = localDay(now);
-  const paused = s.pause && s.pause.until >= today ? Math.round((Date.parse(s.pause.until) - Date.parse(today)) / 864e5) + 1 : 0;
+  // (a date that isn't one: none)
+  const paused = (s.pause && s.pause.until >= today ? Math.round((Date.parse(s.pause.until) - Date.parse(today)) / 864e5) + 1 : 0) || 0;
   let best: Date | null = null;
   for (let add = 0; add <= 7 + paused; add++) {
     const day = new Date(now.getFullYear(), now.getMonth(), now.getDate() + add);

@@ -269,6 +269,10 @@ describe('nextStart and a pause', () => {
     // without the areas it can't tell
     expect(nextStart(s, monday8)).toEqual(new Date(2026, 8, 28, 10, 0));
   });
+  it("still looks ahead with a pause whose date isn't one", () => {
+    const s = {...schedule([plan([1], '10:00')]), pause: {until: 'later', areas: ['a']}};
+    expect(nextStart(s, monday8)).toEqual(new Date(2026, 8, 28, 10, 0));
+  });
   it('leaves out a start that picks only areas not mowed any more', () => {
     expect(nextStart(schedule([plan([1], '10:00', ['gone'])]), monday8, undefined, ['a', 'b'])).toBeNull();
   });
