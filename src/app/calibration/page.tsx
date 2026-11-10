@@ -9,6 +9,7 @@ import {useMowerActions} from '@/hooks/useMowerActions';
 import {isLive, useMowerState} from '@/hooks/useMowerState';
 import {loadUpdate} from '@/lib/autoUpdate';
 import {
+  answerTo,
   calibBack,
   calibCheck,
   calibByHand,
@@ -23,7 +24,6 @@ import {
   lacks,
   readLast,
   readPaths,
-  readState,
   takeCalib,
   type CalibCheck,
   type CalibMode,
@@ -52,12 +52,12 @@ const LOW_BATTERY = 0.3;
 const nowMs = () => Date.now();
 
 // the updater's status, again every few seconds while the page is open (more often while it's asked something)
-function useUpdater(asked: number | null) {
+function useUpdater(asked: string | null) {
   const [status, setStatus] = useState<Record<string, string> | null>(null);
   const [tick, setTick] = useState(0);
   // more often while a request of this page has no answer yet (waiting counts as none)
-  const answer = readState(status?.calib);
-  const fast = asked !== null && !(answer && answer.at >= asked - 5 && answer.what !== 'waiting');
+  const answer = answerTo(status?.calib, asked);
+  const fast = asked !== null && !(answer && answer.what !== 'waiting');
   useEffect(() => {
     let stop = false;
     const t = setTimeout(
@@ -254,9 +254,9 @@ function Calibration() {
   const [asking, setAsking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CalibResult | null>(null);
-  const [sent, setSent] = useState<{at: number; values: CalibValue[]; byHand: CalibValue[]} | null>(null);
-  // a request of this page to the updater (taking values, setting back): when, to tell its answer from older ones
-  const [asked, setAsked] = useState<number | null>(null);
+  const [sent, setSent] = useState<{before: string; values: CalibValue[]; byHand: CalibValue[]} | null>(null);
+  // a request of this page to the updater (taking values, setting back): its state before, to tell the answer from it
+  const [asked, setAsked] = useState<string | null>(null);
   const {status, again} = useUpdater(asked);
   const paths = readPaths(status?.calib_paths);
 
@@ -374,19 +374,19 @@ function Calibration() {
   // the result taken: not offered again until the next recording
   const [taken, setTaken] = useState(false);
   const take = async (values: CalibValue[], lines: string, byHand: CalibValue[]) => {
-    const at = Math.floor(nowMs() / 1000);
+    const before = status?.calib ?? '';
     if (lines) await takeCalib(lines);
     setTaken(true);
-    setSent({at, values, byHand});
-    setAsked(lines ? at : null);
+    setSent({before, values, byHand});
+    setAsked(lines ? before : null);
     setShow(false);
     setResult(null);
     again();
   };
   const back = async () => {
-    const at = Math.floor(nowMs() / 1000);
+    const before = status?.calib ?? '';
     await calibBack();
-    setAsked(at);
+    setAsked(before);
     again();
   };
 

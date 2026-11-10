@@ -147,6 +147,9 @@ export function readState(s: string | undefined): CalibState | null {
   if (!['written', 'back', 'refused', 'waiting', 'error'].includes(what) || !Number.isFinite(+at)) return null;
   return {what: what as CalibState['what'], at: +at, why: why || null};
 }
+// the updater's answer to a request: its state once it differs from the one before the request (before, null without
+// a request), not by the time (the phone's and the mower's clocks may differ)
+export const answerTo = (s: string | undefined, before: string | null) => (before === null || (s ?? '') !== before ? readState(s) : null);
 
 // what it wrote last (calib_last "<unix> <path> <old> <new> ..."), for "last calibration"
 export interface CalibLast {

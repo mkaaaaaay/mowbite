@@ -5,7 +5,7 @@ vi.mock('./rpc', () => ({callRpc: async () => ({})}));
 vi.mock('./autoUpdate', () => ({requestCalib: async () => {}, requestCalibBack: async () => {}}));
 
 vi.stubEnv('APP_CALIBRATION', '1');
-const {calibByHand, calibLines, calibMissing, calibText, canCalibrate, changeOf, lackDone, lacks, preselected, readLast, readPaths, readProgress, readResult, readState} = await import('./calibration');
+const {answerTo, calibByHand, calibLines, calibMissing, calibText, canCalibrate, changeOf, lackDone, lacks, preselected, readLast, readPaths, readProgress, readResult, readState} = await import('./calibration');
 
 // an answer of planner.calib.result as the planner gives it (mowbite-calib/1)
 const answer = {
@@ -73,6 +73,12 @@ describe('a calibration', () => {
     expect(readState('waiting 1793700000')).toEqual({what: 'waiting', at: 1793700000, why: null});
     expect(readState('refused 1793700000 anchors_ll/x')).toEqual({what: 'refused', at: 1793700000, why: 'anchors_ll/x'});
     expect(readState('done 1')).toBeNull();
+    // an answer is a change after the request, whatever its time says
+    expect(answerTo('written 1793700000', 'written 1793700000')).toBeNull();
+    expect(answerTo('waiting 1693700000', 'written 1793700000')).toEqual({what: 'waiting', at: 1693700000, why: null});
+    expect(answerTo('written 1793700000', '')).toEqual({what: 'written', at: 1793700000, why: null});
+    expect(answerTo(undefined, '')).toBeNull();
+    expect(answerTo('back 1793700000', null)).toEqual({what: 'back', at: 1793700000, why: null});
     expect(readLast('1793700000 ll/services/diff_drive/wheel_distance_m 0.3556 0.3612 xbot_positioning/antenna_offset_x -0.10 -0.12')).toEqual({
       at: 1793700000,
       values: [
