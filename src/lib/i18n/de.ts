@@ -1990,6 +1990,7 @@ const de: Record<string, string> = {
   "Drive to the edge of the new area": "Zum Rand der neuen Fläche fahren",
   "then record its outline": "dann den Rand aufnehmen",
   "{what} saved.": "{what} gespeichert.",
+  "{what} didn't arrive in the map. Look at the map, or record it again.": "{what} ist nicht in der Karte angekommen. Sieh in der Karte nach oder wiederhole die Aufnahme.",
   "The next one, or leave recording mode.": "Die nächste, oder Aufnahmemodus beenden.",
   "Drive to the edge of the new area, then start recording and drive once around it. The docking station: its button guides you through it.": "Fahre an den Rand der neuen Fläche, starte die Aufnahme und fahre einmal herum. Durchs Aufnehmen des Docks führt dich sein eigener Knopf.",
   "Along the edge": "Am Rand entlang",

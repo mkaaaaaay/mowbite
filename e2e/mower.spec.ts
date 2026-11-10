@@ -174,6 +174,24 @@ test('discard area takes a second tap', async ({page}) => {
   await expect(button('Record outline')).toBeVisible();
 });
 
+// saved is told once the map has the area
+test('a saved area is told saved once it is in the map', async ({page}) => {
+  await page.goto('/record/');
+  await demoDocked(page);
+  const areas = async () => (await demoHas<{areas: unknown[]}>(page, 'map/json')).areas.length;
+  const before = await areas();
+  await page.getByRole('button', {name: 'Start recording mode'}).click();
+  const button = (name: string) => page.locator('button:visible', {hasText: name}).first();
+  await button('Record outline').click();
+  await holdStick(page);
+  await page.waitForTimeout(1500);
+  await page.mouse.up();
+  await button('Stop').click();
+  await button('Save as mowing area').click();
+  await expect(page.getByText('Mowing area saved.').first()).toBeVisible();
+  expect(await areas()).toBe(before + 1);
+});
+
 // recording mode left on without its page (another phone, the back button): the overview leads back to it, and out of
 // it while nothing would be lost
 test('the overview in recording mode leads back to recording and out of it', async ({page}) => {

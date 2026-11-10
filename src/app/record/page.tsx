@@ -7,7 +7,8 @@ import {TitleRow} from '@/components/TopWeather';
 import {useHeadingDrift} from '@/hooks/useHeadingDrift';
 import {useMapOverlay} from '@/hooks/useMapOverlay';
 import {useCommandNote, useMowerActions} from '@/hooks/useMowerActions';
-import {useMowerMap, type DockingStation} from '@/hooks/useMowerMap';
+import {useMowerMap, type DockingStation, type MowerMap} from '@/hooks/useMowerMap';
+import {recordedIn} from '@/lib/sameMap';
 import {useMowerPosition} from '@/hooks/useMowerPosition';
 import {isLive, useMowerState} from '@/hooks/useMowerState';
 import Link from 'next/link';
@@ -38,6 +39,8 @@ type Phase = 'off' | 'empty' | 'recording' | 'outlined' | 'dock';
 
 // back at the start of the line: closed after this many seconds unless the user goes on. on unless switched off
 const CLOSE_SECONDS = 3;
+// a save not in the map after this long is told as not arrived
+const SAVE_WAIT_MS = 10000;
 const AUTO_CLOSE_KEY = 'recordAutoClose';
 // how many metres the map shows across around the mower (sideways the zoom steps go from there)
 const SPAN = 16;
@@ -80,6 +83,22 @@ function Record() {
   // MowBite OS records the docking station its own way: there only OpenMower's two steps
   const os = useMowbiteOs();
   const [saved, setSaved] = useState<string | null>(null);
+  // a save sent: saved once the map has it (OpenMower drops an area it can't use without a word), late when it hasn't
+  // come after SAVE_WAIT_MS
+  const [saving, setSaving] = useState<{what: string; kind: 'mow' | 'nav' | 'dock'; before: MowerMap | null; late: boolean} | null>(null);
+  if (saving && recordedIn(saving.kind, saving.before, map)) {
+    setSaving(null);
+    setSaved(saving.what);
+  }
+  useEffect(() => {
+    if (!saving || saving.late) return;
+    const t = setTimeout(() => setSaving((s) => s && {...s, late: true}), SAVE_WAIT_MS);
+    return () => clearTimeout(t);
+  }, [saving]);
+  const expectSaved = (what: string, kind: 'mow' | 'nav' | 'dock') => {
+    setSaved(null);
+    setSaving({what, kind, before: map, late: false});
+  };
   // the mower left recording mode within a moment of starting it (see the hint below)
   const [bounced, setBounced] = useState(false);
   const startedAt = useRef(0);
@@ -175,7 +194,10 @@ function Record() {
         if (e?.type !== 'RECORDING_REFUSED') return;
         setRefused(e);
         // saving it didn't work after all
-        if (e.action?.startsWith('finish_') || e.action === 'record_dock') setSaved(null);
+        if (e.action?.startsWith('finish_') || e.action === 'record_dock') {
+          setSaved(null);
+          setSaving(null);
+        }
       }),
     [],
   );
@@ -194,6 +216,7 @@ function Record() {
     mine.current = true;
     setBounced(false);
     setSaved(null);
+    setSaving(null);
     setRefused(null);
     setStation(null);
     setGuide(withGuide);
@@ -396,10 +419,13 @@ function Record() {
   let text: React.ReactNode = null;
   let buttons: React.ReactNode[] = [];
   if (phase === 'empty') {
+    const lost = saving?.late ? tr("{what} didn't arrive in the map. Look at the map, or record it again.", {what: tr(saving.what)}) : null;
     say = saved ? (
       <>
         <b>{tr('{what} saved.', {what: tr(saved)})}</b> {tr('The next one, or leave recording mode.')}
       </>
+    ) : lost ? (
+      <b>{lost}</b>
     ) : (
       <>
         <b>{tr('Drive to the edge of the new area')}</b> · {tr('then record its outline')}
@@ -407,11 +433,16 @@ function Record() {
     );
     text = saved
       ? tr('{what} saved. Record the next one, or leave recording mode and fine-tune it in the editor.', {what: tr(saved)})
-      : os
-        ? tr('Drive to the edge of the new area, then start recording and drive once around it. For the docking station, stop about a meter in front of it, facing it.')
-        : tr('Drive to the edge of the new area, then start recording and drive once around it. The docking station: its button guides you through it.');
+      : lost
+        ? lost
+        : os
+          ? tr('Drive to the edge of the new area, then start recording and drive once around it. For the docking station, stop about a meter in front of it, facing it.')
+          : tr('Drive to the edge of the new area, then start recording and drive once around it. The docking station: its button guides you through it.');
     buttons = [
-      button('start_recording', 'Record outline', 'main', () => setSaved(null)),
+      button('start_recording', 'Record outline', 'main', () => {
+        setSaved(null);
+        setSaving(null);
+      }),
       hasAction(A('record_dock')) && stationButton(hasStation),
       !drive.remote &&
         button('exit_recording_mode', 'Leave recording mode', undefined, () => {
@@ -448,9 +479,9 @@ function Record() {
     );
     text = tr('Outline done. Record obstacles inside it (beds, trees, the pond), or save the area.');
     buttons = [
-      button('finish_mowing_area', 'Save as mowing area', 'main', () => setSaved('Mowing area')),
+      button('finish_mowing_area', 'Save as mowing area', 'main', () => expectSaved('Mowing area', 'mow')),
       button('start_recording', 'Record obstacle'),
-      button('finish_navigation_area', 'Save as navigation area', undefined, () => setSaved('Navigation area')),
+      button('finish_navigation_area', 'Save as navigation area', undefined, () => expectSaved('Navigation area', 'nav')),
       discardButton,
     ];
   } else if (phase === 'dock') {
@@ -460,7 +491,7 @@ function Record() {
       </>
     );
     text = tr('Now drive straight into the docking station until it sits on the contacts, then save. The way from the first point to here becomes the docking direction.');
-    buttons = [button('record_dock', 'Save docking position', 'main', () => setSaved('Docking station'))];
+    buttons = [button('record_dock', 'Save docking position', 'main', () => expectSaved('Docking station', 'dock'))];
   }
   // back at the start: closing by itself unless the user goes on
   if (closing !== null)
