@@ -15,6 +15,15 @@ describe('compareVersions', () => {
     expect(compareVersions('1.1.0-dev.9', '1.1.0-dev.10')).toBe(-1);
   });
 
+  it("counts a dev build's suffix after a pre-release", () => {
+    expect(compareVersions('1.4.0-beta.19', '1.4.0-beta.19-dev.42')).toBe(-1);
+    expect(compareVersions('1.4.0-beta.19-dev.42', '1.4.0-beta.19-dev.43')).toBe(-1);
+    expect(compareVersions('1.4.0-beta.19-dev.42', '1.4.0-beta.19-dev.42')).toBe(0);
+    expect(compareVersions('1.4.0-beta.20', '1.4.0-beta.19-dev.42')).toBe(1);
+    expect(compareVersions('1.4.0-beta.19', '1.4.0-beta.2')).toBe(1);
+    expect(compareVersions('1.4.0', '1.4.0-beta.19-dev.42')).toBe(1);
+  });
+
   it('only calls a release newer when it really is', () => {
     expect(isNewer('1.1.0', '1.0.0')).toBe(true);
     expect(isNewer('1.0.0', '1.0.0')).toBe(false);

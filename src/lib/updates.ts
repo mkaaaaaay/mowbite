@@ -2,8 +2,7 @@ import {useEffect, useSyncExternalStore} from 'react';
 import FEATURES from './containerFeatures.json';
 import {apiBase, mowerFetch, readMower, readStored, writeMower, writeStored} from './mowers';
 
-// Looks on github for a newer release. Off by default (it tells github your ip), switched on per
-// device in the settings, then once a day. "check now" works either way.
+// Looks on github for a newer release, only when "Check now" is tapped (it tells github your ip).
 
 const REPO = 'mkaaaaaay/mowbite';
 const INFO_KEY = 'updateInfo';
@@ -23,8 +22,11 @@ export interface Release {
 // -1 when a is older than b. a pre-release (1.1.0-dev.3) comes before its release (1.1.0)
 export function compareVersions(a: string, b: string): number {
   const parse = (v: string) => {
-    const [core, pre] = v.replace(/^v/, '').split('-', 2);
-    return {nums: core.split('.').map((n) => Number(n) || 0), pre};
+    const s = v.replace(/^v/, '');
+    const dash = s.indexOf('-');
+    // all after the first dash, a dev build's suffix too (1.4.0-beta.19-dev.42)
+    const pre = dash < 0 ? undefined : s.slice(dash + 1);
+    return {nums: (dash < 0 ? s : s.slice(0, dash)).split('.').map((n) => Number(n) || 0), pre};
   };
   const x = parse(a);
   const y = parse(b);
@@ -56,7 +58,6 @@ export const missingOnMower = (level: number | null): string[] =>
 
 interface State {
   latest: Release | null;
-  checkedAt: number | null;
   checking: boolean;
   failed: boolean;
   dismissed: string | null;
@@ -70,7 +71,6 @@ interface State {
 
 const EMPTY: State = {
   latest: null,
-  checkedAt: null,
   checking: false,
   failed: false,
   dismissed: null,
@@ -83,11 +83,10 @@ const listeners = new Set<() => void>();
 
 function current(): State {
   if (!state) {
-    const info = readStored<{latest: Release; at: number}>(INFO_KEY);
+    const info = readStored<{latest: Release}>(INFO_KEY);
     state = {
       ...EMPTY,
       latest: info?.latest ?? null,
-      checkedAt: info?.at ?? null,
       dismissed: readStored<string>(DISMISSED_KEY),
       behindDismissed: readMower<string>(BEHIND_KEY),
     };
@@ -111,9 +110,8 @@ export async function checkNow(): Promise<void> {
       url: r.html_url,
       apk: r.assets?.find((a) => a.name.endsWith('.apk'))?.browser_download_url,
     };
-    const at = Date.now();
-    writeStored(INFO_KEY, {latest, at});
-    set({latest, checkedAt: at, checking: false});
+    writeStored(INFO_KEY, {latest});
+    set({latest, checking: false});
   } catch {
     set({checking: false, failed: true});
   }
