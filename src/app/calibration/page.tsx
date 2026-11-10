@@ -300,25 +300,29 @@ function Calibration() {
   const [placing, setPlacing] = useState(false);
   const [starting, setStarting] = useState(false);
   const called = useRef(false);
+  // the answer counts until the page is left, also when recording mode changed meanwhile
+  const gone = useRef(false);
+  useEffect(() => {
+    gone.current = false;
+    return () => {
+      gone.current = true;
+    };
+  }, []);
   useEffect(() => {
     if (!starting || !recordingMode || called.current) return;
     called.current = true;
-    let stop = false;
     calibStart('joystick').then(
       () => {
-        if (stop) return;
+        if (gone.current) return;
         setStarting(false);
         setPlacing(false);
       },
       (e) => {
-        if (stop) return;
+        if (gone.current) return;
         setStarting(false);
         setError(calibText(e instanceof Error ? e.message : String(e)));
       },
     );
-    return () => {
-      stop = true;
-    };
   }, [starting, recordingMode]);
   useEffect(() => {
     if (!starting) called.current = false;
