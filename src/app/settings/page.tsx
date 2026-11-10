@@ -3,12 +3,13 @@
 import {GardenDownload} from '@/components/Diagnosis';
 import {TitleMark} from '@/components/Logo';
 import {TitleRow} from '@/components/TopWeather';
-import {flushSettings, saveSettings, settingsStore, sharedSettings, type OtherMower, type Settings} from '@/lib/settings';
+import {flushSettings, forgetOwnSettings, saveSettings, settingsStore, sharedSettings, type OtherMower, type Settings} from '@/lib/settings';
 import {useEffect, useState, useSyncExternalStore} from 'react';
 import styles from './page.module.css';
 import {dec, setLangChoice, tr, useLang, useLangChoice} from '@/lib/i18n';
 import {setThemeChoice, useThemeChoice} from '@/lib/theme';
-import {appMowers, DEMO_ID, isDemo, parseAddress, sameMowBite, saveAppMowers, selectedMower, selectMower} from '@/lib/mowers';
+import {appMowers, DEMO_ID, forgetMowerKeys, isDemo, parseAddress, sameMowBite, saveAppMowers, selectedMower, selectMower} from '@/lib/mowers';
+import {forgetMqtt5} from '@/lib/mqttClient';
 import {isApp} from '@/lib/native';
 import {leaveFirst} from '@/lib/leaving';
 import {setSwipeEnabled, useSwipeEnabled} from '@/lib/swipe';
@@ -107,16 +108,18 @@ function MowersSection({settings}: {settings: Settings}) {
   // remove needs a second tap, id of the mower it's armed for
   const [sure, setSure] = useState<string | null>(null);
   // the mower looked at taken out: something unsaved asks before the list changes, its last save goes out, then the app
-  // switches (in a browser to the page's own mower)
-  const remove = async (id: string) => {
-    const viewed = selectedMower()?.id === id;
+  // switches (in a browser to the page's own mower). what this device kept for it goes
+  const remove = async (m: OtherMower) => {
+    const viewed = selectedMower()?.id === m.id;
     const wait = viewed ? leaveFirst() : 0;
     if (wait === false) return;
-    const rest = others.filter((x) => x.id !== id);
+    const rest = others.filter((x) => x.id !== m.id);
     store(rest);
-    if (!viewed) return;
-    await Promise.race([flushSettings(), new Promise((r) => setTimeout(r, 3000))]);
-    selectMower(app ? (rest[0]?.id ?? '') : '', wait);
+    if (viewed) await Promise.race([flushSettings(), new Promise((r) => setTimeout(r, 3000))]);
+    forgetMowerKeys(m.id);
+    forgetOwnSettings(m.id);
+    forgetMqtt5(m, rest);
+    if (viewed) selectMower(app ? (rest[0]?.id ?? '') : '', wait);
   };
   const add = () => {
     const typed = parseAddress(host);
@@ -182,7 +185,7 @@ function MowersSection({settings}: {settings: Settings}) {
           </span>
           <button
             className={styles.linkButton}
-            onClick={() => (sure === m.id ? void remove(m.id) : setSure(m.id))}
+            onClick={() => (sure === m.id ? void remove(m) : setSure(m.id))}
             onBlur={() => setSure(null)}
           >
             {sure === m.id ? tr('Really remove?') : tr('Remove')}

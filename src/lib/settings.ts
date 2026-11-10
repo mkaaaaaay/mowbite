@@ -4,7 +4,7 @@
 
 import type {GardenLife} from '@/components/gardenLife';
 import {mergeChanges} from './mergeChanges';
-import {apiBase, APP_MOWER_SCRIPT, isDemo, leaveRemoved, mowerFetch, readStored, selectedMower, selectedMowerId} from './mowers';
+import {apiBase, APP_MOWER_SCRIPT, isDemo, leaveRemoved, mowerFetch, readStored, selectedMower, selectedMowerId, writeStored} from './mowers';
 import {isApp} from './native';
 
 export const COLORS = [
@@ -185,6 +185,11 @@ function keepBefore() {
 // the settings as the mowers have them now, the other mower's own part as before while it couldn't be saved there
 function agreed(): Settings {
   return ownUrl() ? join(home.server, ownShared ? own.server : (before ?? {})) : home.server;
+}
+// a mower taken out of the list: its settings kept on this device go
+export function forgetOwnSettings(id: string) {
+  writeStored(ownKey(id), null);
+  writeStored(beforeKey(id), null);
 }
 // first after 30 s, then each time twice as long up to half an hour
 let wait = 30000;

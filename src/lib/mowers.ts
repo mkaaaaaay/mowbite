@@ -103,6 +103,17 @@ export function mowerKey(key: string): string {
   return id ? `${key} ${id}` : key;
 }
 
+// a mower taken out of the list: what this device kept for it by its id goes (mowerKey: the key, a space, the id), the
+// other mowers' and the device's own stay
+export function forgetMowerKeys(id: string) {
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k?.endsWith(` ${id}`)) localStorage.removeItem(k);
+    }
+  } catch {}
+}
+
 // json kept in this device's storage, null when there's none or it can't be read
 export function readStored<T>(key: string): T | null {
   try {

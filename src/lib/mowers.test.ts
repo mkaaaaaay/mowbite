@@ -6,6 +6,10 @@ vi.stubGlobal('localStorage', {
   getItem: (k: string) => stored.get(k) ?? null,
   setItem: (k: string, v: string) => stored.set(k, v),
   removeItem: (k: string) => stored.delete(k),
+  key: (i: number) => [...stored.keys()][i] ?? null,
+  get length() {
+    return stored.size;
+  },
 });
 let reloads = 0;
 // what's asked before something unsaved would be lost, and the answer
@@ -229,5 +233,27 @@ describe('the colors set before anything is drawn', () => {
     await colorOn('b', '#0000ff');
     const m = await colorOn('a');
     expect([boot(m), m.settingsStore.snapshot().colors?.mower]).toEqual(['#0000ff', '#0000ff']);
+  });
+});
+
+describe('a mower taken out of the list', () => {
+  it("takes what this device kept for it, not what it kept for one whose id starts the same nor the device's own", async () => {
+    const AB = {id: 'ab', name: 'AB', host: 'ab'};
+    stored.clear();
+    const of = (id: string) => [`mowRate ${id}`, `trackCleared ${id}`, `appSettings:${id}`, `appSettingsBefore:${id}`, `mowbite.mqtt5.ws://${id}:9001|`];
+    for (const k of [...of('a'), ...of('ab'), 'mowRate', 'appSettings', 'appSettings:', 'mower', 'mapGrid']) stored.set(k, '1');
+    const m = await open();
+    m.forgetMowerKeys('a');
+    m.forgetOwnSettings('a');
+    m.forgetMqtt5(A, [AB]);
+    expect([...stored.keys()].sort()).toEqual([...of('ab'), 'mowRate', 'appSettings', 'appSettings:', 'mower', 'mapGrid'].sort());
+  });
+
+  it("keeps what's kept for its broker when another one left in the list talks to the same", async () => {
+    stored.clear();
+    stored.set('mowbite.mqtt5.ws://a:9001|', '1');
+    const m = await open();
+    m.forgetMqtt5(A, [{...A, id: 'a2', appPort: 8090}]);
+    expect(stored.has('mowbite.mqtt5.ws://a:9001|')).toBe(true);
   });
 });
