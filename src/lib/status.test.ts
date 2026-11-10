@@ -60,6 +60,7 @@ describe('staleText', () => {
     const t = clock(1793754213, true);
     expect(staleText({...link, connected: false})).toBe(`Connection lost, last data at ${t}`);
     expect(staleText({...link, silent: true})).toBe(`mower_logic hasn't sent its state since ${t}, the rest of OpenMower answers`);
+    expect(staleText({...link, silent: true}, true)).toBe(`No state from the mower since ${t}, the rest answers`);
     expect(staleText(link)).toBe(`No data from the mower since ${t}`);
   });
 });

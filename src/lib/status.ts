@@ -99,13 +99,15 @@ export function statusText(
   return state.current_state.toLowerCase().replace(/_/g, ' ');
 }
 
-// why what's shown isn't live (isLive) and since when
-export function staleText(link: MowerLink): string {
+// why what's shown isn't live (isLive) and since when. os: MowBite OS, it has no mower_logic
+export function staleText(link: MowerLink, os = false): string {
   return tr(
     !link.connected
       ? 'Connection lost, last data at {time}'
       : link.silent
-        ? "mower_logic hasn't sent its state since {time}, the rest of OpenMower answers"
+        ? os
+          ? 'No state from the mower since {time}, the rest answers'
+          : "mower_logic hasn't sent its state since {time}, the rest of OpenMower answers"
         : 'No data from the mower since {time}',
     {time: clock(link.lastAt / 1000, true)},
   );

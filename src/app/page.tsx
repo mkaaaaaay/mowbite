@@ -435,7 +435,9 @@ export default function Home() {
         {!state &&
           (link.silent ? (
             <div className={styles.dim}>
-              <p className={styles.offline}>{tr("The rest of OpenMower answers, but mower_logic doesn't send its state.")}</p>
+              <p className={styles.offline}>
+                {os ? tr("The mower answers, but its state doesn't come.") : tr("The rest of OpenMower answers, but mower_logic doesn't send its state.")}
+              </p>
               <LogicHint className={styles.logicHint} />
             </div>
           ) : (
@@ -479,7 +481,7 @@ export default function Home() {
                 ) : link.resuming ? (
                   <span className={styles.dim}>{tr('connecting…')}</span>
                 ) : (
-                  <span className={styles.offline}>{staleText(link)}</span>
+                  <span className={styles.offline}>{staleText(link, os)}</span>
                 )}
               </div>
             </div>

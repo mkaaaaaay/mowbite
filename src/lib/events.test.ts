@@ -332,7 +332,7 @@ describe('emergency stop reasons', () => {
 
   it('names them in the activity instead of a code', () => {
     expect(describeEvent(ev(1, 'EMERGENCY', {emergency: true, reason: '1024'})).text).toBe("Emergency stop: mow motor didn't reach its speed");
-    expect(describeEvent(ev(1, 'EMERGENCY', {emergency: true, reason: '128'})).text).toBe('Emergency stop: stopped by OpenMower');
+    expect(describeEvent(ev(1, 'EMERGENCY', {emergency: true, reason: '128'})).text).toBe("Emergency stop: stopped by the mower's software");
     expect(describeEvent(ev(1, 'EMERGENCY', {emergency: true, reason: '0'})).text).toBe('Emergency stop');
     // only what holds it, no reason of its own
     expect(describeEvent(ev(1, 'EMERGENCY', {emergency: true, reason: '1'})).text).toBe('Emergency stop (code 1)');

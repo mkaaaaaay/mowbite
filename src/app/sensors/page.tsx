@@ -18,7 +18,7 @@ import {sharedSettings} from '@/lib/settings';
 import {batteryColor, chargeOf, chargeStateText, dockText, GPS_QUALITY_LABEL, gpsQuality, isDocked, onCharger, staleText, stateColor, statusText} from '@/lib/status';
 import {useChargeConfirmed} from '@/hooks/useChargeConfirmed';
 import {useRecentRuns} from '@/hooks/useRecentRuns';
-import {useOsApi} from '@/lib/mowerOs';
+import {useMowbiteOs, useOsApi} from '@/lib/mowerOs';
 import {numParam, useMowerParams} from '@/hooks/useMowerParams';
 import {PARAM} from '@/lib/openmower';
 import styles from './page.module.css';
@@ -100,6 +100,7 @@ export default function SensorsPage() {
   const docked = isDocked(state, values['om_v_charge']);
   // MowBite OS tells whether it really charges (from api 4 on, the runs are only asked for then), as on the dashboard
   const api = useOsApi();
+  const os = useMowbiteOs();
   const recent = useRecentRuns(currentState, api >= 4);
   const confirmed = useChargeConfirmed(api, state ? onCharger(state, values['om_v_charge']) : undefined, recent?.today, recent?.latest);
   const battery = level ?? (state ? Math.round(state.battery_percentage * 100) : undefined);
@@ -149,7 +150,7 @@ export default function SensorsPage() {
               </span>
             )}
             {state && !live && (
-              <span className={link.resuming ? styles.dim : styles['text-warning']}>{link.resuming ? tr('connecting…') : staleText(link)}</span>
+              <span className={link.resuming ? styles.dim : styles['text-warning']}>{link.resuming ? tr('connecting…') : staleText(link, os)}</span>
             )}
             {criticalCount > 0 && <span className={styles.error}>{tr('{n} out of range', {n: criticalCount})}</span>}
           </div>
