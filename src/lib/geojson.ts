@@ -66,7 +66,8 @@ export function mapToGeoJson(map: MowerMap, datum: Datum) {
   return {
     type: 'FeatureCollection',
     features: [
-      ...map.areas.map((a) => ({
+      // an area with fewer than 3 points is no polygon
+      ...map.areas.filter((a) => a.outline.length >= 3).map((a) => ({
         type: 'Feature',
         id: a.id,
         properties: {id: a.id, ...a.properties},
@@ -136,6 +137,9 @@ export function mapFromGeoJson(json: unknown, datum: Datum, base: MowerMap | nul
   // the ids an area of the file took already: another feature with the same one (a polygon split in QGIS takes its
   // attributes along) becomes an area of its own, like the further parts of a multipolygon
   const taken = new Set<string>();
+  // the one docking station of a file for a map with one is that one, also when another app didn't keep its id
+  const isDock = (f: Feature) => f.geometry?.type === 'Point' && f.properties?.type === 'docking_station';
+  const oneDock = docks.length === 1 && features.filter(isDock).length === 1;
   const put = (id: string | null, properties: MapArea['properties'], outline: Point[]) => {
     found++;
     if (id && taken.has(id)) id = null;
@@ -168,12 +172,14 @@ export function mapFromGeoJson(json: unknown, datum: Datum, base: MowerMap | nul
       const heading = typeof f.properties.heading === 'number' && Number.isFinite(f.properties.heading) ? f.properties.heading : 0;
       const dock: DockingStation = {id: id ?? generateId(), position: toLocal(lon, lat), heading};
       if (Math.hypot(dock.position.x, dock.position.y) > FAR) far++;
-      const i = docks.findIndex((d) => d.id === dock.id);
+      found++;
+      const i = oneDock ? 0 : docks.findIndex((d) => d.id === dock.id);
       if (i < 0) {
         docks.push(dock);
         added++;
       } else if (!near(dock.position, docks[i].position) || dock.heading !== docks[i].heading) {
-        docks[i] = dock;
+        // its id and what else it has stay
+        docks[i] = {...docks[i], position: dock.position, heading};
         changed++;
       }
       continue;
