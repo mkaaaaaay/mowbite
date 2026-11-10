@@ -18,6 +18,7 @@ export interface Weather {
 }
 
 const EVERY_MS = 20 * 60 * 1000;
+const RETRY_MS = 60 * 1000;
 let cache: {key: string; at: number; data: Weather} | null = null;
 
 // the weather at a place now and the next hours, asked with the position rounded to about a kilometer. no hook, the home
@@ -56,6 +57,42 @@ export async function loadWeather(lat: number, lon: number): Promise<Weather> {
   };
 }
 
+// asks for the weather now and every EVERY_MS, again a minute after a failure, coming back to the page or online: set
+// gets it, null while there's none. returns what ends it
+export function watchWeather(lat: number, lon: number, set: (w: Weather | null) => void): () => void {
+  const key = `${lat},${lon}`;
+  let alive = true;
+  let retry: ReturnType<typeof setTimeout> | undefined;
+  const run = () => {
+    clearTimeout(retry);
+    if (cache?.key === key && Date.now() - cache.at < EVERY_MS) return set(cache.data);
+    loadWeather(lat, lon).then(
+      (w) => {
+        cache = {key, at: Date.now(), data: w};
+        if (alive) set(w);
+      },
+      // no internet or the service is down: the weather isn't shown until it answers again
+      () => {
+        if (!alive) return;
+        set(null);
+        retry = setTimeout(run, RETRY_MS);
+      },
+    );
+  };
+  const back = () => document.visibilityState === 'visible' && run();
+  run();
+  const timer = setInterval(run, EVERY_MS);
+  window.addEventListener('online', run);
+  document.addEventListener('visibilitychange', back);
+  return () => {
+    alive = false;
+    clearInterval(timer);
+    clearTimeout(retry);
+    window.removeEventListener('online', run);
+    document.removeEventListener('visibilitychange', back);
+  };
+}
+
 export function useWeather(pos: {lat: number; lon: number} | undefined, enabled: boolean): Weather | null {
   const lat = pos ? Math.round(pos.lat * 100) / 100 : undefined;
   const lon = pos ? Math.round(pos.lon * 100) / 100 : undefined;
@@ -64,28 +101,8 @@ export function useWeather(pos: {lat: number; lon: number} | undefined, enabled:
 
   useEffect(() => {
     if (!enabled || lat === undefined || lon === undefined) return;
-    let alive = true;
-    const run = () => {
-      if (cache?.key === key && Date.now() - cache.at < EVERY_MS) {
-        setData(cache.data);
-        return;
-      }
-      loadWeather(lat, lon).then(
-        (w) => {
-          cache = {key, at: Date.now(), data: w};
-          if (alive) setData(w);
-        },
-        // no internet or the service is down: the weather just isn't shown
-        () => alive && setData(null),
-      );
-    };
-    run();
-    const timer = setInterval(run, EVERY_MS);
-    return () => {
-      alive = false;
-      clearInterval(timer);
-    };
-  }, [enabled, key, lat, lon]);
+    return watchWeather(lat, lon, setData);
+  }, [enabled, lat, lon]);
 
   return enabled ? data : null;
 }
