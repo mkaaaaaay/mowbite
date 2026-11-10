@@ -1,6 +1,6 @@
 import type {SensorInfo} from '@/hooks/useMowerSensors';
 import {describe, expect, it} from 'vitest';
-import {along, outOfRange, sensorDial, type Dial} from './sensorLimits';
+import {along, bladeSpin, outOfRange, sensorDial, type Dial} from './sensorLimits';
 
 // a sensor as OpenMower sends it, a limit left out is 0 with its has_* 0
 const sensor = (l: {min?: number; max?: number; low?: number; high?: number}, what = 'VOLTAGE'): SensorInfo => ({
@@ -124,5 +124,23 @@ describe('outOfRange', () => {
     expect(outOfRange(battery, undefined, 'IDLE')).toBe(false);
     expect(outOfRange({...battery, value_type: 'STRING'}, '0', 'IDLE')).toBe(false);
     expect(outOfRange(undefined, '0', 'IDLE')).toBe(false);
+  });
+});
+
+describe('bladeSpin', () => {
+  // the mow motor on the sensors page and the blade on the map by state and rpm: which way it turns (0 off), red or not
+  it('follows the rpm in every state, standing below 100, red only past a limit while mowing', () => {
+    const shown = (state: string, v: number) => [bladeSpin(v), outOfRange(rpm, String(v), state)];
+    expect(shown('MOWING', 3000)).toEqual([1, false]);
+    expect(shown('MOWING', -1900)).toEqual([-1, true]);
+    // stopped by an emergency, or on the way to an area
+    expect(shown('MOWING', 0)).toEqual([0, false]);
+    expect(shown('MOWING', 99)).toEqual([0, false]);
+    // mowing by hand in recording mode, running down on the way home
+    expect(shown('AREA_RECORDING', 3000)).toEqual([1, false]);
+    expect(shown('AREA_RECORDING', 1900)).toEqual([1, false]);
+    expect(shown('DOCKING', -2500)).toEqual([-1, false]);
+    expect(shown('IDLE', 100)).toEqual([1, false]);
+    expect(bladeSpin(NaN)).toBe(0);
   });
 });

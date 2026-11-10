@@ -13,7 +13,7 @@ import {useMowerSensors, type SensorInfo} from '@/hooks/useMowerSensors';
 import {isLive, useMowerState} from '@/hooks/useMowerState';
 import {useSensorHistory, type Sample} from '@/hooks/useSensorHistory';
 import {useState, useSyncExternalStore} from 'react';
-import {outOfRange} from '@/lib/sensorLimits';
+import {bladeSpin, outOfRange} from '@/lib/sensorLimits';
 import {sharedSettings} from '@/lib/settings';
 import {batteryColor, chargeOf, chargeStateText, dockText, GPS_QUALITY_LABEL, gpsQuality, isDocked, onCharger, staleText, stateColor, statusText} from '@/lib/status';
 import {useChargeConfirmed} from '@/hooks/useChargeConfirmed';
@@ -102,7 +102,6 @@ export default function SensorsPage() {
   const api = useOsApi();
   const recent = useRecentRuns(currentState, api >= 4);
   const confirmed = useChargeConfirmed(api, state ? onCharger(state, values['om_v_charge']) : undefined, recent?.today, recent?.latest);
-  const mowing = currentState === 'MOWING';
   const battery = level ?? (state ? Math.round(state.battery_percentage * 100) : undefined);
   const charge = chargeOf(values['om_charge_state'], num('om_charge_current'), battery);
   const criticalCount = infos.filter((i) => outOfRange(i, values[i.sensor_id], currentState)).length;
@@ -219,7 +218,7 @@ export default function SensorsPage() {
               </Card>
 
               <Card title={tr('Mow motor')}>
-                {mowing && rpm !== undefined ? (
+                {rpm !== undefined && bladeSpin(rpm) !== 0 ? (
                   <>
                     <strong className={[styles.big, outOfRange(rpmInfo, values['om_mow_motor_rpm'], currentState) ? styles.error : ''].join(' ')}>
                       {Math.abs(rpm).toFixed(0)} {tr('rpm')} <TurnIcon reverse={rpm < 0} />
