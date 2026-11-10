@@ -396,8 +396,13 @@ function Calibration() {
 
   const list = progress ? lacks(progress) : [];
   const drivingByHand = calibByHand(progress, recordingMode);
-  // driving it back to the dock after driving by hand, in recording mode still
-  const homeDrive = ended && phase !== 'recording' && recordingMode;
+  // driving it back to the dock after driving by hand, in recording mode still: ended here, or after a reload the
+  // planner's last recording was by hand and nothing else is being recorded
+  const homeDrive =
+    recordingMode &&
+    phase !== 'recording' &&
+    !placing &&
+    (ended || (progress?.mode === 'joystick' && !hasAction(A('stop_recording')) && !hasAction(A('finish_mowing_area'))));
 
   let body: React.ReactNode;
   if (!state) {
