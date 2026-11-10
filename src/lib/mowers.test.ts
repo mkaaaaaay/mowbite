@@ -1,5 +1,5 @@
 import {describe, expect, it, vi} from 'vitest';
-import {parseAddress, sameMowBite} from './mowers';
+import {mowerByAddress, parseAddress, sameMowBite} from './mowers';
 
 const stored = new Map<string, string>();
 vi.stubGlobal('localStorage', {
@@ -73,6 +73,31 @@ describe('sameMowBite', () => {
     expect(sameMowBite({host: 'Mower', appPort: 8082}, {host: 'mower'})).toBe(true);
     expect(sameMowBite({host: 'localhost', appPort: 28082}, {host: 'localhost', appPort: 38082})).toBe(false);
     expect(sameMowBite({host: 'a'}, {host: 'b'})).toBe(false);
+  });
+});
+
+describe('mowerByAddress', () => {
+  const home = {id: 'h', name: 'H', host: 'openmower'};
+  const ip = {id: 'i', name: 'I', host: '192.168.2.170'};
+  const sim = {id: 's1', name: 'S1', host: 'pc', appPort: 28082};
+  const sim2 = {id: 's2', name: 'S2', host: 'pc', appPort: 38082};
+  const list = [home, ip, sim, sim2];
+
+  it('finds the same host and port, written any way', () => {
+    expect(mowerByAddress('http://openmower:8082', list)).toBe(home);
+    expect(mowerByAddress('http://OpenMower:8082/', list)).toBe(home);
+    expect(mowerByAddress('http://pc:38082', list)).toBe(sim2);
+  });
+
+  it('takes the only one on that host when the port differs, never one of two', () => {
+    expect(mowerByAddress('https://openmower', list)).toBe(home);
+    expect(mowerByAddress('http://192.168.2.170:8090', list)).toBe(ip);
+    expect(mowerByAddress('http://pc:48082', list)).toBeUndefined();
+  });
+
+  it('finds none for another host or no address', () => {
+    expect(mowerByAddress('http://openmower.local:8082', list)).toBeUndefined();
+    expect(mowerByAddress('', list)).toBeUndefined();
   });
 });
 

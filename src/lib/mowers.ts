@@ -155,6 +155,20 @@ export const mowerBase = (m: Pick<OtherMower, 'host' | 'appPort'>) => `http://${
 export const sameMowBite = (a: Pick<OtherMower, 'host' | 'appPort'>, b: Pick<OtherMower, 'host' | 'appPort'>) =>
   mowerBase(a).toLowerCase() === mowerBase(b).toLowerCase();
 
+// the mower a push message is about, by the address of its MowBite in the message (the one its settings were saved
+// from): the same host and port, else the only one in the list on that host. none when that doesn't tell them apart
+export function mowerByAddress(api: string, list: OtherMower[]): OtherMower | undefined {
+  let url: URL;
+  try {
+    url = new URL(api);
+  } catch {
+    return undefined;
+  }
+  const port = Number(url.port) || (url.protocol === 'https:' ? 443 : 80);
+  const onHost = list.filter((m) => m.host.toLowerCase() === url.hostname);
+  return onHost.find((m) => (m.appPort ?? 8082) === port) ?? (onHost.length === 1 ? onHost[0] : undefined);
+}
+
 // where the selected mower's MowBite answers (sensor history, backups, schedule)
 export function apiBase(): string {
   if (typeof window === 'undefined') return '';

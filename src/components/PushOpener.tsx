@@ -1,7 +1,7 @@
 'use client';
 
 import {leaveFirst} from '@/lib/leaving';
-import {mowerBase, mowerList, selectMower, selectedMower} from '@/lib/mowers';
+import {mowerBase, mowerByAddress, mowerList, selectMower, selectedMower} from '@/lib/mowers';
 import {addPush, removePush} from '@/lib/notify';
 import {pushPlugin, rememberEndpoint, sentEndpoint} from '@/lib/push';
 import {mowerAtHas} from '@/lib/updates';
@@ -32,7 +32,7 @@ export default function PushOpener() {
     let handle: PluginListenerHandle | undefined;
     void native.then(async ({native: p}) => {
       const h = await p.addListener('opened', ({path, api}) => {
-        const mower = api ? mowerList().find((m) => mowerBase(m) === api.replace(/\/+$/, '')) : undefined;
+        const mower = api ? mowerByAddress(api, mowerList()) : undefined;
         if (mower && mower.id !== selectedMower()?.id) {
           // something unsaved asks first, the page is kept only for a switch that happens
           const wait = leaveFirst();
