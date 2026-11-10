@@ -207,7 +207,7 @@ send_home_at() {
   if [ "$(field "$s" current_state)" = MOWING ]; then
     mosquitto_pub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTION" -m "$ACTION_HOME" && log "stopped_$2" && logged=1
   fi
-  if rpc_call "$RPC_SET_PARAMS" '{"params":{"/mower_logic/manual_pause_mowing":true}}' 10 | grep -q '"result"'; then
+  if rpc_call "$RPC_SET_PARAMS" "{\"params\":{\"$PARAM_MANUAL_PAUSE\":true}}" 10 | grep -q '"result"'; then
     [ -n "$logged" ] || log "stopped_$2"
     return
   fi
@@ -379,7 +379,7 @@ leftovers_after() {
   os_does "$host" schedule && return
   min=$(field "$c" min)
   # a planner that sends the mower out for the leftovers itself (its setting leftovers_auto on): not twice
-  printf '%s' "$(rpc_call planner.settings '{}' 20)" | grep -o '"leftovers_auto": *{[^}]*}' | grep -q '"value": *true' && return
+  printf '%s' "$(rpc_call "$RPC_PLANNER_SETTINGS" '{}' 20)" | grep -o '"leftovers_auto": *{[^}]*}' | grep -q '"value": *true' && return
   if [ -f "$LEFT" ]; then
     # the run that just finished was the one for the leftovers (a flag older than 6 h is a leftover itself)
     age=$(($(date +%s) - $(cat "$LEFT")))
@@ -402,7 +402,7 @@ leftovers_after() {
   if [ "$(field "$s" emergency)" != 0 ]; then log leftovers_skip emergency; return; fi
   if [ "$(conf skiprain)" = 1 ] && [ "$(field "$s" rain_detected)" != 0 ]; then log leftovers_skip rain; return; fi
   if is_dark "$(minutes)"; then log leftovers_skip dark; return; fi
-  r=$(rpc_call planner.leftovers "{\"job_id\":\"$1\"}" 240)
+  r=$(rpc_call "$RPC_PLANNER_LEFTOVERS" "{\"job_id\":\"$1\"}" 240)
   if [ -z "$r" ] || printf '%s' "$r" | grep -q '"error"'; then log leftovers_failed; return; fi
   # m² left over all areas, from each area's stats.leftovers
   left=$(printf '%s' "$r" | grep -o '"leftovers": *{[^}]*}' | grep -o '"left_m2": *[0-9.eE+-]*' | cut -d: -f2 | awk '{ s += $1 } END { printf "%.2f", s }')
@@ -435,7 +435,7 @@ leftovers_after() {
   if [ "$(conf skipforecast)" = 1 ] && rain_forecast; then log leftovers_skip forecast; return; fi
   if [ "$(conf skipcold)" = 1 ] && cold=$(too_cold); then log leftovers_skip cold "$cold"; return; fi
   if held; then log leftovers_skip hold; return; fi
-  r=$(rpc_call planner.leftovers "{\"job_id\":\"$1\",\"arm\":true}" 240)
+  r=$(rpc_call "$RPC_PLANNER_LEFTOVERS" "{\"job_id\":\"$1\",\"arm\":true}" 240)
   if [ "$(echo "$(field "$r" armed)" | awk '{ print ($1 > 0) ? 1 : 0 }')" != 1 ]; then log leftovers_failed; return; fi
   # (the updater's hold once more after the planner's answer, which may take minutes. what's armed runs out by itself)
   if held; then log leftovers_skip hold; return; fi
