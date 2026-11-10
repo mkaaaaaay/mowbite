@@ -169,6 +169,18 @@ describe('a phone in another time zone than the schedule', () => {
       process.env.TZ = 'Europe/Berlin';
     }
   });
+  it("the sun times of the day the schedule's zone switches to summer time, on a phone far east or west", () => {
+    const day = () => new Date(2026, 2, 29);
+    const sun = daySun(berlin, garden)(day());
+    try {
+      for (const zone of ['Pacific/Auckland', 'America/Los_Angeles']) {
+        process.env.TZ = zone;
+        expect(daySun(berlin, garden)(day()), zone).toEqual(sun);
+      }
+    } finally {
+      process.env.TZ = 'Europe/Berlin';
+    }
+  });
 });
 
 describe('inOtherZone', () => {

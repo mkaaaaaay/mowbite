@@ -474,8 +474,11 @@ export const scheduleNow = (tz: string | undefined, at = new Date()) =>
   new Date(at.getTime() + (tzOffset(tz, at) + at.getTimezoneOffset()) * 60e3);
 
 // a day's sunrise and sunset at the garden by the schedule's clock, the day a date of scheduleNow's
-export const daySun = (tz: string | undefined, pos: {lat: number; lon: number}) => (day: Date) =>
-  sunTimes(pos.lat, pos.lon, day, tzOffset(tz, new Date(day.getFullYear(), day.getMonth(), day.getDate(), 12)));
+export const daySun = (tz: string | undefined, pos: {lat: number; lon: number}) => (day: Date) => {
+  // the offset at that day's noon by the schedule's clock, not the device's
+  const noon = Date.UTC(day.getFullYear(), day.getMonth(), day.getDate(), 12);
+  return sunTimes(pos.lat, pos.lon, day, tzOffset(tz, new Date(noon - tzOffset(tz, new Date(noon)) * 60e3)));
+};
 
 // today as YYYY-MM-DD in local time, the scheduler compares it with its own date in the browser's time zone
 export function localDay(d = new Date()): string {
