@@ -1287,6 +1287,7 @@ function Save() {
             backedUp
             idle
             ends={false}
+            unsaved={false}
             restoring={false}
             confirm={t >= 0.8}
             error={null}

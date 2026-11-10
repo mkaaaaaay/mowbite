@@ -1155,6 +1155,7 @@ function MapEditor() {
                 backedUp={!!backups && !restoreWithoutBackup}
                 idle={idle}
                 ends={endsJob(interrupted, liveMap, preview.map)}
+                unsaved={dirty}
                 restoring={restoring}
                 confirm={confirmRestore}
                 error={restoreError}

@@ -648,6 +648,7 @@ const de: Record<string, string> = {
   "pellets": "Pac-Man-Punkte",
   "Restore": "Wiederherstellen",
   "Restoring replaces the map on the mower with this one. The current map is backed up first, so this can be undone.": "Wiederherstellen ersetzt die Karte auf dem Mäher durch diese. Die aktuelle Karte wird vorher gesichert, das lässt sich also rückgängig machen.",
+  "Your unsaved changes are lost, they aren't in any backup.": "Deine ungespeicherten Änderungen gehen verloren, sie sind in keiner Sicherung.",
   "restoring…": "stelle wieder her…",
   "Right ESC Temp": "Fahrregler rechts",
   "Rocket": "Rakete",
