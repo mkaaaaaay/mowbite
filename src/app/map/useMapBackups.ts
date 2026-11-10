@@ -3,7 +3,7 @@
 // restored: what the editor drops once a backup is on the mower
 import {useEffect, useState} from 'react';
 import {saveMap, type MowerMap} from '@/hooks/useMowerMap';
-import {listBackups, loadBackup, useBackupFirst, type BackupInfo} from '@/lib/backups';
+import {listBackups, loadBackup, useBackupFirst, type BackupInfo, type Backups} from '@/lib/backups';
 import {mapToGeoJson} from '@/lib/geojson';
 import type {Datum} from '@/lib/imagery';
 import {closedRings} from '@/lib/rings';
@@ -11,7 +11,7 @@ import {rpcErrorText} from '@/lib/rpcText';
 import {saveFile} from '@/lib/saveFile';
 
 export function useMapBackups(liveMap: MowerMap | null, shown: MowerMap | null, datum: Datum | undefined, restored: () => void) {
-  const [backups, setBackups] = useState<BackupInfo[] | null | undefined>(undefined);
+  const [backups, setBackups] = useState<Backups | null | undefined>(undefined);
   const [preview, setPreview] = useState<{map: MowerMap; label: string} | null>(null);
   const [confirmRestore, setConfirmRestore] = useState(false);
   const [restoring, setRestoring] = useState(false);

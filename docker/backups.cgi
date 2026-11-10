@@ -71,8 +71,9 @@ if [ -n "$id" ]; then
   exit 0
 fi
 
-cors
-printf 'Content-Type: application/json\r\nCache-Control: no-store\r\n\r\n['
+# how many are kept (automatic, by hand), for the app's texts, readable from another origin too
+cors && printf 'Access-Control-Expose-Headers: X-Backups-Keep\r\n'
+printf 'X-Backups-Keep: auto=%s hand=%s\r\nContent-Type: application/json\r\nCache-Control: no-store\r\n\r\n[' $KEEP_AUTO $KEEP_HAND
 first=1
 for m in $(ls "$D"/*.meta 2>/dev/null | sort -r); do
   b=$(basename "$m" .meta)

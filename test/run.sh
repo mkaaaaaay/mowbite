@@ -355,6 +355,8 @@ docker exec mbt-web sh -c 'cd /data/backups && for i in $(seq 49); do printf "x\
 expect "backups: at most 50 made by hand" "$(curl -s -w ' %{http_code}' --data-binary '{"areas":[]}' "$B?name=more" | tr -d '\n')" \
   "at most 50 backups made by hand 409"
 expect "backups: the automatic ones still go" "$(code --data-binary '{"areas":[]}' "$B?name=auto&auto=1")" 200
+expect "backups: the list says how many are kept" "$(curl -s -D - -o /dev/null "$B" | tr -d '\r' | sed -n 's/^x-backups-keep: //Ip')" \
+  'auto=30 hand=50'
 expect "backups: nothing left half written" "$(docker exec mbt-web sh -c 'ls /data/backups | grep -c tmp')" 0
 # a connection that breaks off: curl gives up waiting for the rest it said would come
 curl -s -o /dev/null -m 2 -H 'Content-Length: 1000' --data-binary '{"areas":[' "$B?name=cut&auto=1"
