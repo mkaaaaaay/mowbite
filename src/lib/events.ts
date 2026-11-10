@@ -572,17 +572,18 @@ export function markSentHome(sorted: MowerEvent[]): MowerEvent[] {
 
 // MowBite OS from api 4 on: charging in the dock only once DOCKED says the current came, it's newer than what leaves it
 // unconfirmed: a start of MowBite OS, a docking or undocking given up, the charge lost, the mower off the contacts
-// (setting off, or seen off them since leftAt, unix s). null when the events have none of them
+// (setting off, or seen off them: left is the time of the newest event then, in the mower's clock, -Infinity for none).
+// null when the events have none of them
 const UNCONFIRMS = new Set(['BOOTED', 'CHARGING_LOST', 'DOCKING_FAILED', 'UNDOCKING_FAILED', 'UNDOCKED']);
-export function chargeConfirmed(events: readonly MowerEvent[], leftAt = 0): boolean | null {
+export function chargeConfirmed(events: readonly MowerEvent[], left?: number): boolean | null {
   const sorted = [...events].sort((a, b) => a.t - b.t);
   for (let i = sorted.length - 1; i >= 0; i--) {
     const e = sorted[i];
-    if (e.t < leftAt) return false;
+    if (left !== undefined && e.t <= left) return false;
     if (e.type === 'DOCKED') return true;
     if (UNCONFIRMS.has(e.type) || (e.type === 'STATE' && e.state !== 'IDLE' && e.state !== 'AREA_RECORDING')) return false;
   }
-  return leftAt > 0 ? false : null;
+  return left !== undefined ? false : null;
 }
 
 // os: the mower runs MowBite OS, it doesn't dock yet (until its stage 4): idle after mowing ends the run there, no DOCKED

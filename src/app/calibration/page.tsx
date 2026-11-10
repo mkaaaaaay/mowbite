@@ -9,8 +9,13 @@ import {useMowerActions} from '@/hooks/useMowerActions';
 import {isLive, useMowerState} from '@/hooks/useMowerState';
 import {loadUpdate} from '@/lib/autoUpdate';
 import {
+  answerTo,
   calibBack,
   calibCheck,
+  calibLeftOver,
+  calibByHand,
+  calibMissing,
+  calibMissingText,
   calibProgress,
   calibResult,
   calibStart,
@@ -18,9 +23,9 @@ import {
   calibText,
   lackDone,
   lacks,
+  noneRecorded,
   readLast,
   readPaths,
-  readState,
   takeCalib,
   type CalibCheck,
   type CalibMode,
@@ -29,6 +34,7 @@ import {
 } from '@/lib/calibration';
 import {clock} from '@/lib/dates';
 import {fmt, tr, useLang} from '@/lib/i18n';
+import {useMowbiteOs} from '@/lib/mowerOs';
 import {ACTION, PARAM, RPC} from '@/lib/openmower';
 import {rpcMethods} from '@/lib/rpc';
 import {useRpcMethods} from '@/hooks/useRpcMethods';
@@ -49,12 +55,12 @@ const LOW_BATTERY = 0.3;
 const nowMs = () => Date.now();
 
 // the updater's status, again every few seconds while the page is open (more often while it's asked something)
-function useUpdater(asked: number | null) {
+function useUpdater(asked: string | null) {
   const [status, setStatus] = useState<Record<string, string> | null>(null);
   const [tick, setTick] = useState(0);
   // more often while a request of this page has no answer yet (waiting counts as none)
-  const answer = readState(status?.calib);
-  const fast = asked !== null && !(answer && answer.at >= asked - 5 && answer.what !== 'waiting');
+  const answer = answerTo(status?.calib, asked);
+  const fast = asked !== null && !(answer && answer.what !== 'waiting');
   useEffect(() => {
     let stop = false;
     const t = setTimeout(
@@ -210,24 +216,50 @@ function Ready({mode, status, onGo, onClose}: {mode: CalibMode; status: Record<s
 }
 
 // the calibration of OpenMower's sizes from a drive: recorded and worked out by the MowBite Planner (planner.calib.*),
-// what's taken written into mower_params.yaml by the MowBite Updater (?calib), by hand without it
+// what's taken written into mower_params.yaml by the MowBite Updater (?calib), by hand without it. nothing of it runs
+// in a build without it, without a planner that offers it or on MowBite OS
 export default function CalibrationPage() {
   useLang();
+  const missing = calibMissing(useRpcMethods(), useMowbiteOs());
+  if (!missing) return <Calibration />;
+  return (
+    <div className={styles.page}>
+      <main className={styles.main}>
+        <TitleRow>
+          <h1>
+            <TitleMark />
+            {tr('Calibration')}
+          </h1>
+        </TitleRow>
+        <Link href="/settings#mower" className={styles.link}>
+          ← {tr('Settings')}
+        </Link>
+        {missing === 'connecting' ? (
+          <p className={styles.dim}>{tr('connecting…')}</p>
+        ) : (
+          <section className={styles.card}>
+            <p>{calibMissingText(missing)}</p>
+          </section>
+        )}
+      </main>
+    </div>
+  );
+}
+
+function Calibration() {
   const link = useMowerState();
   const {state} = link;
   const live = isLive(link);
   const {hasAction, publishAction} = useMowerActions();
   const progress = useSyncExternalStore(calibProgress.subscribe, calibProgress.get, calibProgress.initial);
-  const methods = useRpcMethods();
-  const can = !!methods?.has(RPC.plannerCalibStart);
 
   const [mode, setMode] = useState<CalibMode>('joystick');
   const [asking, setAsking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CalibResult | null>(null);
-  const [sent, setSent] = useState<{at: number; values: CalibValue[]; byHand: CalibValue[]} | null>(null);
-  // a request of this page to the updater (taking values, setting back): when, to tell its answer from older ones
-  const [asked, setAsked] = useState<number | null>(null);
+  const [sent, setSent] = useState<{before: string; values: CalibValue[]; byHand: CalibValue[]} | null>(null);
+  // a request of this page to the updater (taking values, setting back): its state before, to tell the answer from it
+  const [asked, setAsked] = useState<string | null>(null);
   const {status, again} = useUpdater(asked);
   const paths = readPaths(status?.calib_paths);
 
@@ -271,25 +303,29 @@ export default function CalibrationPage() {
   const [placing, setPlacing] = useState(false);
   const [starting, setStarting] = useState(false);
   const called = useRef(false);
+  // the answer counts until the page is left, also when recording mode changed meanwhile
+  const gone = useRef(false);
+  useEffect(() => {
+    gone.current = false;
+    return () => {
+      gone.current = true;
+    };
+  }, []);
   useEffect(() => {
     if (!starting || !recordingMode || called.current) return;
     called.current = true;
-    let stop = false;
     calibStart('joystick').then(
       () => {
-        if (stop) return;
+        if (gone.current) return;
         setStarting(false);
         setPlacing(false);
       },
       (e) => {
-        if (stop) return;
+        if (gone.current) return;
         setStarting(false);
         setError(calibText(e instanceof Error ? e.message : String(e)));
       },
     );
-    return () => {
-      stop = true;
-    };
   }, [starting, recordingMode]);
   useEffect(() => {
     if (!starting) called.current = false;
@@ -334,7 +370,10 @@ export default function CalibrationPage() {
     try {
       await calibStop();
     } catch (e) {
-      setError(calibText(e instanceof Error ? e.message : String(e)));
+      const message = e instanceof Error ? e.message : String(e);
+      // the planner has none: what its topic still says is left over
+      if (noneRecorded(message)) calibLeftOver();
+      setError(calibText(message));
     }
   };
   const endRecordingMode = () => {
@@ -345,37 +384,35 @@ export default function CalibrationPage() {
   // the result taken: not offered again until the next recording
   const [taken, setTaken] = useState(false);
   const take = async (values: CalibValue[], lines: string, byHand: CalibValue[]) => {
-    const at = Math.floor(nowMs() / 1000);
+    const before = status?.calib ?? '';
     if (lines) await takeCalib(lines);
     setTaken(true);
-    setSent({at, values, byHand});
-    setAsked(lines ? at : null);
+    setSent({before, values, byHand});
+    setAsked(lines ? before : null);
     setShow(false);
     setResult(null);
     again();
   };
   const back = async () => {
-    const at = Math.floor(nowMs() / 1000);
+    const before = status?.calib ?? '';
     await calibBack();
-    setAsked(at);
+    setAsked(before);
     again();
   };
 
   const list = progress ? lacks(progress) : [];
-  // driven by hand: as the planner says, else while the mower is in recording mode
-  const drivingByHand = phase === 'recording' && (progress?.mode ? progress.mode === 'joystick' : recordingMode);
-  // driving it back to the dock after driving by hand, in recording mode still
-  const homeDrive = ended && phase !== 'recording' && recordingMode;
+  const drivingByHand = calibByHand(progress, recordingMode);
+  // driving it back to the dock after driving by hand, in recording mode still: ended here, or after a reload the
+  // planner's last recording was by hand and nothing else is being recorded
+  const homeDrive =
+    recordingMode &&
+    phase !== 'recording' &&
+    !placing &&
+    (ended || (progress?.mode === 'joystick' && !hasAction(A('stop_recording')) && !hasAction(A('finish_mowing_area'))));
 
   let body: React.ReactNode;
-  if (methods === undefined || !state) {
+  if (!state) {
     body = <p className={styles.dim}>{tr('connecting…')}</p>;
-  } else if (!can) {
-    body = (
-      <section className={styles.card}>
-        <p>{tr('Calibrating needs the MowBite Planner on the mower, from version 0.3.0.')}</p>
-      </section>
-    );
   } else if (placing && phase !== 'recording') {
     // into position with the stick first, then the recording started
     body = recordingMode ? (

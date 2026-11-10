@@ -8,6 +8,7 @@ import {describe, eventSource, explain, groupRuns, isReasonCode, noteworthy, raw
 import {useDragScroll} from '@/hooks/useDragScroll';
 import {eventsOfDay, historyDays, localDays, type DayEvents} from '@/lib/history';
 import {useMowbiteOs} from '@/lib/mowerOs';
+import {useMowerStateValue} from '@/hooks/useMowerState';
 import {RosLogAround} from '@/components/RosLog';
 import {GpsAround} from '@/components/GpsLog';
 import {DiagnosisDownload} from '@/components/Diagnosis';
@@ -237,6 +238,7 @@ export default function ActivityPage() {
 
 function Activity() {
   useLang();
+  const connected = useMowerStateValue((l) => l.connected);
   const search = useSearchParams();
   const linkedDay = search.get('day');
   const linkedRun = search.get('run');
@@ -343,6 +345,7 @@ function Activity() {
         {failed && !events && (
           <p className={styles.dim}>{tr("No event history: the mower can't be reached, or its OpenMower doesn't keep one yet.")}</p>
         )}
+        {!days && !failed && <p className={styles.dim}>{connected ? tr('loading…') : tr('connecting…')}</p>}
 
         {days && (
           <div className={styles.days} ref={daysRef}>

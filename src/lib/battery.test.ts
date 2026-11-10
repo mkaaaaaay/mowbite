@@ -1,5 +1,5 @@
 import {spawnSync} from 'node:child_process';
-import {mkdtempSync, readFileSync, writeFileSync} from 'node:fs';
+import {existsSync, mkdtempSync, readFileSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {describe, expect, it} from 'vitest';
@@ -19,6 +19,12 @@ describe('battery', () => {
   it('leaves out top ups', () => {
     expect(fullCharges(cycles).map((c) => c.from)).toEqual([24.1, 27.52, 21.9]);
     expect(chargeSamples(cycles)[0]).toEqual({t: 6000e3, v: 98.3});
+    expect(chargeSamples(parseBattery('charge 5000 9000 66.7 24 29\ncharge 100 3000 48.3 24 29\n')).map((x) => x.t)).toEqual([3000e3, 9000e3]);
+  });
+  it('leaves out a charge off the charger before Done', () => {
+    const c = parseBattery('charge 100 2800 45.0 23.60 26.20 lost\ncharge 40000 44800 80.0 25.60 29.00 done\n');
+    expect(c.map((x) => x.ended)).toEqual(['lost', 'done']);
+    expect(fullCharges(c).map((x) => x.minutes)).toEqual([80]);
   });
 });
 
@@ -29,7 +35,7 @@ describe('what the container writes', AWK, () => {
   const run = (input: string) => {
     const out = join(mkdtempSync(join(tmpdir(), 'battery-')), 'battery.log');
     spawnSync('awk', ['-f', 'docker/battery.awk'], {input, env: {...process.env, LC_ALL: 'C', OUT: out, STATE: ''}});
-    return readFileSync(out, 'utf8');
+    return existsSync(out) ? readFileSync(out, 'utf8') : '';
   };
   const line = (t: number, id: string, v: string | number) => `${t} sensors/${id}/data ${v}\n`;
   // charged, then 20 min with the blade at the given rpm, then charging again
@@ -38,6 +44,27 @@ describe('what the container writes', AWK, () => {
     for (let t = 200; t <= 1400; t += 10) input += line(t, 'om_mow_motor_rpm', rpm);
     return input + line(1500, 'om_v_battery', 25) + line(1501, 'om_charge_current', 1);
   };
+
+  it('tells how a charge ended', () => {
+    let charged = line(0, 'om_v_battery', 24);
+    for (let t = 1; t < 1500; t += 10) charged += line(t, 'om_charge_current', 1);
+    charged += line(1500, 'om_v_battery', 28);
+    expect(run(charged + line(1501, 'om_charge_state', 'Done'))).toContain('charge 1 1501 25.0 24.00 28.00 done');
+    // off the charger: two minutes without current
+    expect(run(charged + line(1502, 'om_charge_current', 0) + line(1630, 'om_charge_current', 0))).toContain('charge 1 1502 25.0 24.00 28.00 lost');
+  });
+
+  it('leaves out a charge with a gap or the clock set on, and ends one after a restart once the voltage came', () => {
+    const start = line(1000, 'om_v_battery', 24.5) + line(1001, 'om_charge_current', 0.9);
+    const jump = 1001 + 3 * 86400;
+    expect(run(start + line(jump, 'om_charge_current', 0.9) + line(jump + 1, 'om_v_battery', 29) + line(jump + 2, 'om_charge_state', 'Done'))).not.toContain('charge');
+    // Done first, then the voltage: the next Done ends it
+    const d = mkdtempSync(join(tmpdir(), 'battery-'));
+    const env = {...process.env, LC_ALL: 'C', OUT: join(d, 'battery.log'), STATE: join(d, 'state')};
+    spawnSync('awk', ['-f', 'docker/battery.awk'], {input: start + line(1100, 'om_charge_current', 0.9), env});
+    spawnSync('awk', ['-f', 'docker/battery.awk'], {input: line(1200, 'om_charge_state', 'Done') + line(1201, 'om_v_battery', 29) + line(1202, 'om_charge_state', 'Done'), env});
+    expect(readFileSync(join(d, 'battery.log'), 'utf8')).toBe('charge 1001 1202 3.4 24.50 29.00 done\n');
+  });
 
   it('counts the blade time either way round', () => {
     expect(run(mow(2400))).toContain('run 100 1501 20.0 28.00 25.00');

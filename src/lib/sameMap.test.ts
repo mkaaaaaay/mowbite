@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import type {MowerMap} from '@/hooks/useMowerMap';
-import {sameContent, sameMap} from './sameMap';
+import {recordedIn, sameContent, sameMap} from './sameMap';
 import {closedRings} from './rings';
 
 const map = (): MowerMap => ({
@@ -73,5 +73,28 @@ describe('sameContent', () => {
     const setting = map();
     setting.areas[0].properties.angle = 0.5;
     expect(sameContent(map(), setting)).toBe(false);
+  });
+});
+
+describe('recordedIn', () => {
+  const area = (id: string, type: string) => ({id, properties: {type}, outline: [{x: 0, y: 0}, {x: 1, y: 0}, {x: 1, y: 1}]});
+
+  it('sees a saved area once the map has one more of its type', () => {
+    const before = map();
+    expect(recordedIn('mow', before, before)).toBe(false);
+    expect(recordedIn('mow', before, {...before, areas: [...before.areas, area('c', 'nav')]})).toBe(false);
+    expect(recordedIn('nav', before, {...before, areas: [...before.areas, area('c', 'nav')]})).toBe(true);
+    expect(recordedIn('mow', before, {...before, areas: [...before.areas, area('c', 'mow'), area('e', 'obstacle')]})).toBe(true);
+    expect(recordedIn('mow', null, {...before, areas: [area('c', 'mow')]})).toBe(true);
+    // no map (yet): nothing came
+    expect(recordedIn('mow', before, null)).toBe(false);
+  });
+
+  it('sees the docking station once it is another one than before', () => {
+    const before = map();
+    expect(recordedIn('dock', before, map())).toBe(false);
+    expect(recordedIn('dock', before, {...before, docking_stations: [{id: 'd', position: {x: 2.1, y: 2}, heading: 1}]})).toBe(true);
+    expect(recordedIn('dock', {...before, docking_stations: []}, map())).toBe(true);
+    expect(recordedIn('dock', before, {...before, docking_stations: []})).toBe(false);
   });
 });

@@ -12,7 +12,7 @@ import {useComputedSpeed} from '@/hooks/useComputedSpeed';
 import {useEmergencyReasons} from '@/hooks/useEmergencyReasons';
 import {useEmergencyReset} from '@/hooks/useEmergencyReset';
 import {useLeftoversBefore} from '@/hooks/useLeftoversBefore';
-import {useCommandNote, useMowerActions} from '@/hooks/useMowerActions';
+import {lockedAfter, TAP_LOCK_MS, useCommandNote, useMowerActions} from '@/hooks/useMowerActions';
 import {useMowerMap} from '@/hooks/useMowerMap';
 import {datumFromParams, numParam, useMowerParams} from '@/hooks/useMowerParams';
 import {useMowerSensors, type SensorInfo} from '@/hooks/useMowerSensors';
@@ -23,8 +23,10 @@ import {useMowerWifi} from '@/hooks/useMowerWifi';
 import {useBatteryLevel} from '@/hooks/useBatteryLevel';
 import {wifiLevel} from '@/lib/coverage';
 import {shown, tempItems, type DashKey} from '@/lib/dashboard';
+import {tempLimits} from '@/lib/sensorLimits';
 import {usePlanProgress} from '@/hooks/usePlanProgress';
 import {useRecentRuns} from '@/hooks/useRecentRuns';
+import {useRpcMethods} from '@/hooks/useRpcMethods';
 import TopWeather from '@/components/TopWeather';
 import {clock, dayKey, dayLabel, duration} from '@/lib/dates';
 import {fileDay} from '@/lib/history';
@@ -35,9 +37,10 @@ import {mowerKey} from '@/lib/mowers';
 import {settingsStore} from '@/lib/settings';
 import {PARTS, useDueParts} from '@/lib/stats';
 import {containerHas, useUpdates} from '@/lib/updates';
-import {batteryColor, chargeDone, dockText, GPS_QUALITY_LABEL, gpsQuality, isDocked, onCharger, WIFI_LEVEL_LABEL} from '@/lib/status';
+import {batteryColor, chargeOf, dockText, GPS_QUALITY_LABEL, gpsQuality, isDocked, onCharger, staleText, WIFI_LEVEL_LABEL, type Charge} from '@/lib/status';
 import Link from 'next/link';
 import {memo, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
+import {calibByHand, calibProgress, canCalibrate} from '@/lib/calibration';
 import styles from './page.module.css';
 import {fmt, tr, useLang} from '@/lib/i18n';
 import {
@@ -79,13 +82,14 @@ const ACTIONS = [
 
 // every temperature of the mower in a fixed order, the blade side first, then the wheels, unknown ones after them.
 // Hot from the limit OpenMower gives the sensor (max_pcb_temp of an ESC, the mow motor's motor_hot_temperature),
-// 70 °C without one. max_value counts on its own: OpenMower sets has_min_max only when there's a min as well
+// else its critical high, 70 °C without one
 function temperatures(infos: SensorInfo[], values: Record<string, string>) {
   return tempItems(infos)
     .filter(({key}) => Number.isFinite(Number(values[key])))
     .map(({info, key, label}) => {
       const value = Number(values[key]);
-      const limit = info.max_value > 0 ? info.max_value : info.has_critical_high && info.upper_critical_value > 0 ? info.upper_critical_value : 70;
+      const {warn, crit} = tempLimits(info);
+      const limit = warn ?? (crit || 70);
       return {key, label, value: `${Math.round(value)} °C`, warn: value >= limit};
     });
 }
@@ -116,12 +120,12 @@ function FactValue({value}: {value: string}) {
 }
 
 // confirmed: MowBite OS said it charges (true) or not yet (false), null when it isn't known, undefined on OpenMower
-function headline(state: MowerState, docked: boolean, charger: boolean, charged: boolean, area: string | undefined, confirmed?: boolean | null) {
+function headline(state: MowerState, docked: boolean, charger: boolean, charge: Charge, area: string | undefined, confirmed?: boolean | null) {
   if (state.emergency) return {title: tr('Emergency stop'), tone: 'error'};
   // left on in the dock it says so, it's why the map shows. docked is idle only, so it's the station's contacts here
   if (state.current_state === 'AREA_RECORDING') return {title: charger ? tr('Recording mode, in the dock') : tr('Recording an area'), tone: 'live'};
   if (docked) {
-    const d = dockText(charged, confirmed);
+    const d = dockText(charge, confirmed);
     return {title: d.text, tone: d.warn ? 'warn' : 'good'};
   }
   switch (state.current_state) {
@@ -224,6 +228,8 @@ export default function Home() {
   const before = useLeftoversBefore(!!progress?.leftovers);
   const params = useMowerParams();
   const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
+  const calib = useSyncExternalStore(calibProgress.subscribe, calibProgress.get, calibProgress.initial);
+  const methods = useRpcMethods();
   // the same object while params/json doesn't change: the map isn't drawn again for every sensor value
   const datum = useMemo(() => datumFromParams(params), [params]);
   // blades or cleaning due, counted by MowBite's container
@@ -289,18 +295,18 @@ export default function Home() {
     },
     [],
   );
-  // pause turns into continue (and back) right under the finger: for a second after a tap on it a second tap isn't
-  // taken as the other one
-  const [swapUntil, setSwapUntil] = useState(0);
+  // the command button tapped last, for a moment: a second tap doesn't send it again or set the mower off (lockedAfter)
+  const [tapped, setTapped] = useState<string | null>(null);
   useEffect(() => {
-    if (!swapUntil) return;
-    const t = setTimeout(() => setSwapUntil(0), Math.max(0, swapUntil - Date.now()));
+    if (!tapped) return;
+    const t = setTimeout(() => setTapped(null), TAP_LOCK_MS);
     return () => clearTimeout(t);
-  }, [swapUntil]);
-  const SWAPS: string[] = [ACTION.pause, ACTION.resume];
+  }, [tapped]);
 
   const current = state?.current_state ?? '';
   const driving = DRIVING.has(current);
+  // a calibration drive by hand runs in recording mode, its own page leads it and ends it
+  const calibrating = current === 'AREA_RECORDING' && canCalibrate(methods, os) && calibByHand(calib, true);
   // paused on the station's contacts: OpenMower only sees the dock when it's sent home, it's DOCKED then right away
   const pausedInDock = current === 'PAUSED' && !state?.emergency && onCharger(state, values['om_v_charge']);
   // the buttons for what the mower offers now, the others left out. paused: the pause button turns into continue. only
@@ -334,7 +340,8 @@ export default function Home() {
   const confirmed = useChargeConfirmed(api, state ? charger : undefined, recent?.today, recent?.latest);
   const battery = level ?? (state ? Math.round(state.battery_percentage * 100) : 0);
   const num = (id: string) => (values[id] !== undefined ? Number(values[id]) : undefined);
-  const charging = docked && confirmed !== false && !chargeDone(values['om_charge_state'], num('om_charge_current'), battery);
+  const charge = chargeOf(values['om_charge_state'], num('om_charge_current'), battery);
+  const charging = docked && confirmed !== false && charge === 'charging';
 
   // what the event history knows: since when this state holds and which area is being mowed
   const events = recent?.today ?? [];
@@ -345,7 +352,7 @@ export default function Home() {
   // by current_area and the map like the progress (the history comes up to 30 s later), else by the last area event
   const onArea = current === 'MOWING' && (state?.current_area ?? -1) >= 0 ? map?.areas.filter((a) => a.properties.type === 'mow')[state!.current_area!] : undefined;
   const area = current === 'MOWING' ? onArea?.properties.name || lastOf((e) => e.type === 'AREA')?.area_name : undefined;
-  const head = state ? headline(state, docked, charger, docked && !charging, area, confirmed) : null;
+  const head = state ? headline(state, docked, charger, charge, area, confirmed) : null;
 
   // dressed up: a towel at 42 %, an umbrella while it sits out the rain, a witch's hat on halloween
   const halloween = useHalloween();
@@ -436,7 +443,9 @@ export default function Home() {
         {!state &&
           (link.silent ? (
             <div className={styles.dim}>
-              <p className={styles.offline}>{tr("The rest of OpenMower answers, but mower_logic doesn't send its state.")}</p>
+              <p className={styles.offline}>
+                {os ? tr("The mower answers, but its state doesn't come.") : tr("The rest of OpenMower answers, but mower_logic doesn't send its state.")}
+              </p>
               <LogicHint className={styles.logicHint} />
             </div>
           ) : (
@@ -480,16 +489,7 @@ export default function Home() {
                 ) : link.resuming ? (
                   <span className={styles.dim}>{tr('connecting…')}</span>
                 ) : (
-                  <span className={styles.offline}>
-                    {tr(
-                      !connected
-                        ? 'Connection lost, last data at {time}'
-                        : link.silent
-                          ? "mower_logic hasn't sent its state since {time}, the rest of OpenMower answers"
-                          : 'No data from the mower since {time}',
-                      {time: clock(link.lastAt / 1000, true)},
-                    )}
-                  </span>
+                  <span className={styles.offline}>{staleText(link, os)}</span>
                 )}
               </div>
             </div>
@@ -530,18 +530,18 @@ export default function Home() {
                   {tr('Reset emergency')}
                 </button>
               )}
-              {/* as wide as the card together, one alone the whole width. without the connection, and for a second
-                  after a tap on pause or continue, they stay greyed out, the row doesn't jump */}
+              {/* as wide as the card together, one alone the whole width. without the connection, and those held back
+                  for a second after a tap, they stay greyed out, the row doesn't jump */}
               {actionsNow.length > 0 && (
                 <div className={styles.actions} data-count={actionsNow.length}>
                   {actionsNow.map((a) => (
                     <button
                       key={a.id}
                       className={styles[`act-${a.tone}`]}
-                      disabled={!live || (!!swapUntil && SWAPS.includes(a.id))}
+                      disabled={!live || (!!tapped && lockedAfter(tapped, a.id))}
                       onClick={() => {
                         if (a.id === ACTION.skipArea) return toggleSkip(a.id);
-                        if (SWAPS.includes(a.id)) setSwapUntil(Date.now() + 1000);
+                        setTapped(a.id);
                         publishAction(a.id);
                       }}
                     >
@@ -555,11 +555,12 @@ export default function Home() {
                   nothing recorded would be lost with it */}
               {current === 'AREA_RECORDING' && (
                 <div className={styles.recording}>
-                  <Link href="/record">
+                  <Link href={calibrating ? '/calibration' : '/record'}>
                     <RecordIcon size={20} />
-                    {tr('Back to recording')}
+                    {tr(calibrating ? 'Back to calibration' : 'Back to recording')}
                   </Link>
-                  {hasAction(ACTION.recording('exit_recording_mode')) &&
+                  {!calibrating &&
+                    hasAction(ACTION.recording('exit_recording_mode')) &&
                     !hasAction(ACTION.recording('stop_recording')) &&
                     !hasAction(ACTION.recording('finish_mowing_area')) && (
                       <button className={styles.recordingEnd} disabled={!live} onClick={() => publishAction(ACTION.recording('exit_recording_mode'))}>

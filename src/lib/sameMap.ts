@@ -51,3 +51,12 @@ export function sameContent(a: MowerMap, b: MowerMap): boolean {
   const text = (m: MowerMap) => JSON.stringify(canonical(asKept(openRings(m))));
   return a === b || text(a) === text(b);
 }
+
+// a recording saved in the record page has come in the map: one more area of its type (mow, nav), or for the docking
+// station another one than before
+export function recordedIn(kind: 'mow' | 'nav' | 'dock', before: MowerMap | null, now: MowerMap | null): boolean {
+  if (!now) return false;
+  if (kind === 'dock') return now.docking_stations.length > 0 && JSON.stringify(now.docking_stations) !== JSON.stringify(before?.docking_stations ?? []);
+  const count = (m: MowerMap | null) => m?.areas.filter((a) => a.properties.type === kind).length ?? 0;
+  return count(now) > count(before);
+}

@@ -78,6 +78,28 @@ test('the mower stops when the layout changes under a held stick', async ({page,
   expect(Math.hypot(later.x - stopped.x, later.y - stopped.y)).toBeLessThan(0.01);
 });
 
+// the same with a second finger on the docking station's guide, there and back: the first one is on a new stick then
+test('the mower stops when the docking station guide opens or closes under a held stick', async ({page}) => {
+  await page.goto('/record/');
+  await demoDocked(page);
+  await page.getByRole('button', {name: 'Start recording mode'}).click();
+  for (const name of ['Record the docking station again', 'Cancel']) {
+    await holdStick(page);
+    const from = await pose(page);
+    await expect.poll(async () => Math.hypot((await pose(page)).x - from.x, (await pose(page)).y - from.y)).toBeGreaterThan(0.05);
+    await page.getByRole('button', {name, exact: true}).dispatchEvent('click');
+    // still held and moved on the new stick, which doesn't take it: the wheels stop a second after the last command
+    const box = (await stick(page).boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + 16, {steps: 2});
+    await page.waitForTimeout(1500);
+    const stopped = await pose(page);
+    await page.waitForTimeout(1500);
+    const later = await pose(page);
+    expect(Math.hypot(later.x - stopped.x, later.y - stopped.y)).toBeLessThan(0.01);
+    await page.mouse.up();
+  }
+});
+
 // on OpenMower an emergency stop holds recording where it is: reset on the page, what's recorded stays
 test('an emergency stop while recording is reset on the record page', async ({page}) => {
   await page.goto('/record/');
@@ -132,6 +154,42 @@ test('stop right after record obstacle asks before the area is lost', async ({pa
   await button('Stop').click();
   await ask.getByRole('button', {name: 'Discard area'}).click();
   await expect(button('Record outline')).toBeVisible();
+});
+
+// discard area sits next to save: the first tap only asks
+test('discard area takes a second tap', async ({page}) => {
+  await page.goto('/record/');
+  await demoDocked(page);
+  await page.getByRole('button', {name: 'Start recording mode'}).click();
+  const button = (name: string) => page.locator('button:visible', {hasText: name}).first();
+  await button('Record outline').click();
+  await holdStick(page);
+  await page.waitForTimeout(1500);
+  await page.mouse.up();
+  await button('Stop').click();
+  await button('Discard area').click();
+  await expect(button('Really discard?')).toBeVisible();
+  await expect(button('Save as mowing area')).toBeVisible();
+  await button('Really discard?').click();
+  await expect(button('Record outline')).toBeVisible();
+});
+
+// saved is told once the map has the area
+test('a saved area is told saved once it is in the map', async ({page}) => {
+  await page.goto('/record/');
+  await demoDocked(page);
+  const areas = async () => (await demoHas<{areas: unknown[]}>(page, 'map/json')).areas.length;
+  const before = await areas();
+  await page.getByRole('button', {name: 'Start recording mode'}).click();
+  const button = (name: string) => page.locator('button:visible', {hasText: name}).first();
+  await button('Record outline').click();
+  await holdStick(page);
+  await page.waitForTimeout(1500);
+  await page.mouse.up();
+  await button('Stop').click();
+  await button('Save as mowing area').click();
+  await expect(page.getByText('Mowing area saved.').first()).toBeVisible();
+  expect(await areas()).toBe(before + 1);
 });
 
 // recording mode left on without its page (another phone, the back button): the overview leads back to it, and out of
