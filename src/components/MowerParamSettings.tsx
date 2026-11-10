@@ -4,6 +4,7 @@ import {datumFromParams, useMowerParams} from '@/hooks/useMowerParams';
 import {tr} from '@/lib/i18n';
 import {
   loadKept,
+  mowsIntoNight,
   onOs,
   PARAM_FIELDS,
   PARAM_GROUPS,
@@ -271,7 +272,7 @@ export function summary(group: ParamGroup, params: Record<string, unknown>, os: 
       const known = (t: string | undefined) => (t === undefined ? [] : [tr(t)]);
       return [
         ...known(paramField('rain_mode')!.choices![v('rain_mode') as number]),
-        ...(paramShown(paramField('dock_at_sunset')!, params) && !v('dock_at_sunset') ? [tr('mows on after sunset')] : []),
+        ...(mowsIntoNight(params) ? [tr('mows on after sunset')] : []),
         ...known(AUTOMATIC_SHORT[v('automatic_mode') as number]),
       ].join(' · ');
     }

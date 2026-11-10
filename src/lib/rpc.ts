@@ -109,7 +109,7 @@ const methodsHeard = new Set<(m: Set<string> | null) => void>();
 let watching = false;
 let stopAsking: (() => void) | undefined;
 
-export function askMethodsAgain() {
+function askMethodsAgain() {
   methods = null;
   askAgainAt = 0;
   stopAsking?.();

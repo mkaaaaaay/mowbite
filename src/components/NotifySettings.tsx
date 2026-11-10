@@ -5,7 +5,7 @@ import {clock, dayLabel} from '@/lib/dates';
 import {deviceLang, tr, useLang} from '@/lib/i18n';
 import {apiBase, isDemo, selectedMower} from '@/lib/mowers';
 import {useMowbiteOs} from '@/lib/mowerOs';
-import {paramField, paramShown} from '@/lib/mowerParams';
+import {hasSunsetSwitch} from '@/lib/mowerParams';
 import {isApp} from '@/lib/native';
 import {
   defaultNotify,
@@ -274,7 +274,7 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
           (e) =>
             (e.key !== 'standstill' || u.level === null || containerHas(u.level, 'standstill')) &&
             (e.key !== 'refused' || os) &&
-            (e.key !== 'dark' || paramShown(paramField('dock_at_sunset')!, params)),
+            (e.key !== 'dark' || hasSunsetSwitch(params)),
         ).map((e) => (
           <label key={e.key} className={styles.check}>
             <input type="checkbox" checked={form.events.includes(e.key)} onChange={() => toggle(e.key)} />

@@ -91,6 +91,9 @@ export const onOs = (f: ParamField, os: boolean): ParamField => (os ? {...f, min
 // the ones this mower has, none of the reported ones before its params came
 export const paramShown = (f: ParamField, params: Record<string, unknown>) => !f.reported || paramName(f.key) in params;
 export const paramName = (key: string) => PARAM.mowerLogic(key);
+// going home at sunset: whether the mower has the setting, whether it's switched off on purpose there
+export const hasSunsetSwitch = (params: Record<string, unknown>) => paramShown(paramField('dock_at_sunset')!, params);
+export const mowsIntoNight = (params: Record<string, unknown>) => params[paramName('dock_at_sunset')] === false;
 
 // the value the mower has, or its default while the list hasn't got it (see PARAM_DEFAULTS in lib/openmower)
 export function paramValue(params: Record<string, unknown>, f: ParamField): number | boolean {

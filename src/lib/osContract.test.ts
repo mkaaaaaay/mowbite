@@ -81,9 +81,7 @@ const eventTypes = [
     ...Object.keys(groups),
   ]),
 ];
-// the english texts without german, one that is only fields ({state}) needs none
-const german = (list: {en: string}[]) =>
-  list.filter((v) => !de[v.en] && /[a-z]/i.test(v.en.replace(/\{\w+(:\d)?\}/g, ''))).map((v) => v.en);
+const reasonNames = new Set(Object.values(groups).flatMap((r) => Object.keys(r)));
 
 describe(`MowBite OS's interface (${PINNED.repo} ${PINNED.commit.slice(0, 7)}, api ${api['x-api']})`, () => {
   it('is the pinned copy', () => {
@@ -96,28 +94,20 @@ describe(`MowBite OS's interface (${PINNED.repo} ${PINNED.commit.slice(0, 7)}, a
     expect(max).toBeGreaterThanOrEqual(api['x-api']);
   });
 
-  it('has words in english and german for every event', () => {
-    for (const type of eventTypes) {
-      expect(EVENTS[type], type).toBeDefined();
-      expect(german(EVENTS[type].variants), type).toEqual([]);
-    }
+  // (the german for all of them: reasons.test.ts)
+  it('has words for every event', () => {
+    for (const type of eventTypes) expect(EVENTS[type], type).toBeDefined();
   });
 
-  it('has words in english and german for every reason of every event', () => {
+  it('has words for every reason of every event', () => {
     for (const [type, reasons] of Object.entries(groups))
-      for (const reason of Object.keys(reasons)) {
-        expect(pick(REASONS[reason], {type, reason}), `${type} ${reason}`).toBeDefined();
-        expect(german(REASONS[reason]), reason).toEqual([]);
-      }
+      for (const reason of Object.keys(reasons)) expect(pick(REASONS[reason], {type, reason}), `${type} ${reason}`).toBeDefined();
   });
 
-  it('names every emergency bit as the OS does, with its words', () => {
-    for (const {bit, name} of api['x-emergency-bits']) {
-      expect(EMERGENCY_BITS[bit], `bit ${bit}`).toBe(name);
-      if (EMERGENCY_HIDE.includes(name)) continue;
-      expect(EMERGENCY_TEXT[name], name).toBeDefined();
-      expect(de[EMERGENCY_TEXT[name]], name).toBeDefined();
-    }
+  it('names the emergency bits as the OS does, each with its words', () => {
+    const bits = api['x-emergency-bits'];
+    expect(new Map(EMERGENCY_BITS.flatMap((name, bit) => (name ? [[bit, name]] : [])))).toEqual(new Map(bits.map((b) => [b.bit, b.name])));
+    for (const {name} of bits) if (!EMERGENCY_HIDE.includes(name)) expect(EMERGENCY_TEXT[name], name).toBeDefined();
   });
 
   it('has its own words where the OS rates field values apart', () => {
@@ -169,10 +159,7 @@ describe(`MowBite OS's interface (${PINNED.repo} ${PINNED.commit.slice(0, 7)}, a
 
   it("has no words for events, reasons or bits the OS doesn't know", () => {
     expect(Object.keys(EVENTS).filter((t) => !eventTypes.includes(t) && !NOT_OS.includes(t) && !AHEAD.events.includes(t))).toEqual([]);
-    const known = new Set(Object.values(groups).flatMap((r) => Object.keys(r)));
-    expect(Object.keys(REASONS).filter((r) => !known.has(r) && !AHEAD.reasons.includes(r))).toEqual([]);
-    const bits = new Map(api['x-emergency-bits'].map((b) => [b.bit, b.name]));
-    EMERGENCY_BITS.forEach((name, bit) => name && expect(bits.get(bit), name).toBe(name));
+    expect(Object.keys(REASONS).filter((r) => !reasonNames.has(r) && !AHEAD.reasons.includes(r))).toEqual([]);
     // a variant for one event only names one that has this reason
     for (const [reason, list] of Object.entries(REASONS))
       for (const v of list)
@@ -181,8 +168,7 @@ describe(`MowBite OS's interface (${PINNED.repo} ${PINNED.commit.slice(0, 7)}, a
   });
 
   it('has nothing ahead the pinned copy has by now', () => {
-    const known = new Set(Object.values(groups).flatMap((r) => Object.keys(r)));
-    expect(AHEAD.reasons.filter((r) => known.has(r)), 'take them out of AHEAD').toEqual([]);
+    expect(AHEAD.reasons.filter((r) => reasonNames.has(r)), 'take them out of AHEAD').toEqual([]);
     expect(AHEAD.events.filter((t) => eventTypes.includes(t)), 'take them out of AHEAD').toEqual([]);
     expect(AHEAD.methods.filter((m) => osMethods.includes(m)), 'take them out of AHEAD').toEqual([]);
     expect(AHEAD.variants.filter((v) => groups[v.split(' ')[0]]?.[v.split(' ')[1]]), 'take them out of AHEAD').toEqual([]);
