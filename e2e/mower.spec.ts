@@ -156,6 +156,44 @@ test('after an emergency reset on the record page the stick waits a moment', asy
   await page.mouse.up();
 });
 
+// a block ends a press: a pad held through an emergency stop and its reset doesn't drive on, only one pressed anew
+test('a pad held through an emergency stop drives again only once pressed anew', async ({page, isMobile}) => {
+  test.skip(!isMobile, 'Sideways is on phones');
+  await page.goto('/record/');
+  await demoDocked(page);
+  await page.getByRole('button', {name: 'Start recording mode'}).click();
+  await page.getByRole('button', {name: 'Sideways', exact: true}).click();
+  // forward and back, drawn turned: the finger to the right is forward
+  const box = (await page.locator('[class*="_pad"]:has([class*="_grip"])').first().boundingBox())!;
+  const hold = async () => {
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 + 30, box.y + box.height / 2, {steps: 4});
+  };
+  const moved = async (from: {x: number; y: number}) => {
+    const now = await pose(page);
+    return Math.hypot(now.x - from.x, now.y - from.y);
+  };
+  await hold();
+  let from = await pose(page);
+  await expect.poll(() => moved(from)).toBeGreaterThan(0.05);
+  await demoEmergency(page);
+  // reset with a second finger, the first one stays and moves on past the second it waits
+  await page.locator('button:visible', {hasText: 'Reset emergency'}).dispatchEvent('click');
+  await expect.poll(() => state(page)).toBe('AREA_RECORDING');
+  await page.waitForTimeout(1300);
+  await page.mouse.move(box.x + box.width / 2 + 40, box.y + box.height / 2, {steps: 2});
+  // the wheels stop a second after the last command
+  await page.waitForTimeout(1500);
+  from = await pose(page);
+  await page.waitForTimeout(1500);
+  expect(await moved(from)).toBeLessThan(0.01);
+  await page.mouse.up();
+  await hold();
+  await expect.poll(() => moved(from)).toBeGreaterThan(0.05);
+  await page.mouse.up();
+});
+
 // the same on the overview: start comes where the reset button was
 test('after an emergency reset start waits a moment', async ({page}) => {
   await page.goto('/');

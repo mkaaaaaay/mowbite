@@ -251,7 +251,7 @@ export default function DriveView({
       </button>
     </>
   );
-  const offline = tr('No connection to the mower, it stops by itself. Driving works again once the connection is back.');
+  const offline = tr('No connection to the mower, it stops by itself. Once the connection is back, let go and press again to drive.');
   const speeds = (on: string) =>
     SPEEDS.map((v, i) => (
       <button key={v} className={i === drive.speed ? on : undefined} onClick={() => drive.setSpeed(i)}>
