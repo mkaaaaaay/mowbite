@@ -680,7 +680,7 @@ const de: Record<string, string> = {
   "Save map": "Karte speichern",
   "Save or undo your changes first": "Erst speichern oder Änderungen rückgängig machen",
   "Saved on the mower, the same on all your devices.": "Auf dem Mäher gespeichert, auf all deinen Geräten gleich.",
-  "These are the demo's settings, they're gone once you leave it. The ones only for this device stay.": "Das sind die Einstellungen der Demo, sie sind weg, sobald du sie verlässt. Die nur für dieses Gerät bleiben.",
+  "These are the demo's settings, they're gone once you leave it. The ones only for this device stay.": "Das sind die Einstellungen der Demo, sie sind weg, sobald du sie verlässt. Die nur für dieses Gerät gelten, bleiben.",
   "Saved on this device only.": "Nur auf diesem Gerät gespeichert.",
   "saving…": "speichere…",
   "Schedule": "Zeitplan",
