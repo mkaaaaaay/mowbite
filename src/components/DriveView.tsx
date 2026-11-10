@@ -20,6 +20,7 @@ import {isLive, useMowerState} from '@/hooks/useMowerState';
 import {cameraParts} from '@/lib/camera';
 import {emergencyText, explain, resetRefusedText, stopReleaseText} from '@/lib/events';
 import {useStopRelease} from '@/lib/mowerOs';
+import {readStored, writeStored} from '@/lib/mowers';
 import {fmt, tr} from '@/lib/i18n';
 import {ACTION, PARAM} from '@/lib/openmower';
 import {GPS_QUALITY_LABEL, gpsQuality} from '@/lib/status';
@@ -240,13 +241,7 @@ export default function DriveView({
   const justReset = useJustReset(!!state?.emergency);
   const [zoom, setZoom] = useState(2);
   const cams = useCameras();
-  const [view, setView] = useState(() => {
-    try {
-      return localStorage.getItem(VIEW_KEY) ?? 'map';
-    } catch {
-      return 'map';
-    }
-  });
+  const [view, setView] = useState(() => readStored<string>(VIEW_KEY) ?? 'map');
   const cameras = camera && cams.on && cams.list?.length ? cams.list : null;
   const onCamera = !!cameras && view === 'camera';
   // the map first ('' for it), then each camera
@@ -256,9 +251,7 @@ export default function DriveView({
     const v = id ? 'camera' : 'map';
     if (id) chooseCamera(id);
     setView(v);
-    try {
-      localStorage.setItem(VIEW_KEY, v);
-    } catch {}
+    writeStored(VIEW_KEY, v);
   };
 
   // the gps's own accuracy (OpenMower's idle leaves the gps out of its position)

@@ -2,7 +2,7 @@
 
 import {useRpcMethods} from '@/hooks/useRpcMethods';
 import {loadCameras, sortCameras, type Camera} from '@/lib/camera';
-import {mowerKey} from '@/lib/mowers';
+import {readMower, writeMower} from '@/lib/mowers';
 import {onTopic} from '@/lib/mqttClient';
 import {RPC, TOPIC} from '@/lib/openmower';
 import {onMethodsChanged} from '@/lib/rpc';
@@ -45,9 +45,7 @@ let started = false;
 function start() {
   if (started) return;
   started = true;
-  try {
-    set({chosen: localStorage.getItem(mowerKey(CHOSEN_KEY)) ?? ''});
-  } catch {}
+  set({chosen: readMower<string>(CHOSEN_KEY) ?? ''});
   onTopic(TOPIC.events, (payload) => {
     const text = payload.toString();
     if (!text.includes('CAMERA_CHANGED')) return;
@@ -75,9 +73,7 @@ function start() {
 
 export function chooseCamera(id: string) {
   set({chosen: id});
-  try {
-    localStorage.setItem(mowerKey(CHOSEN_KEY), id);
-  } catch {}
+  writeMower(CHOSEN_KEY, id);
 }
 
 // on: the mower has cameras (camera.* in rpc.methods). camera: the one picked, else the first

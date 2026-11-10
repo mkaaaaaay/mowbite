@@ -7,7 +7,7 @@ import {callRpc} from './rpc';
 // now and why not, and a stream of one for a single connection. at most two watch at a time over all cameras, the
 // mower only streams while someone does
 
-export type CameraPosition = 'front' | 'rear' | 'left' | 'right';
+type CameraPosition = 'front' | 'rear' | 'left' | 'right';
 export interface Camera {
   id: string;
   name: string;
@@ -23,7 +23,7 @@ export interface Camera {
   reason?: string;
   detail?: string;
 }
-export interface Stream {
+interface Stream {
   url: string;
   protocol: string;
   // until when the url can be connected to (unix s), once connected it holds until the connection ends
@@ -40,7 +40,7 @@ const POSITIONS: Record<CameraPosition, string> = {
   rear: 'Rear camera',
 };
 // the same in a few letters, for the buttons to switch between them
-const SHORT: Record<CameraPosition, string> = {front: 'Front', left: 'Left', right: 'Right', rear: 'Rear'};
+export const SHORT: Record<CameraPosition, string> = {front: 'Front', left: 'Left', right: 'Right', rear: 'Rear'};
 const ORDER = Object.keys(POSITIONS);
 const placed = (c: Camera): CameraPosition | null => (c.position && c.position in POSITIONS ? (c.position as CameraPosition) : null);
 const rank = (c: Camera) => {
@@ -74,7 +74,7 @@ export function cameraReason(reason?: string, message?: string): string {
 }
 
 // the first the mower offers that this app plays: webrtc needs RTCPeerConnection (in browsers and the app's webview)
-export const PLAYS = ['webrtc', 'mjpeg'];
+const PLAYS = ['webrtc', 'mjpeg'];
 export function pickProtocol(protocols: readonly string[], webrtc = typeof RTCPeerConnection !== 'undefined'): string | null {
   return protocols.find((p) => PLAYS.includes(p) && (p !== 'webrtc' || webrtc)) ?? null;
 }

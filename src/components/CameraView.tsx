@@ -127,7 +127,8 @@ function Player({camera, onLive}: {camera: Camera; onLive: (live: boolean) => vo
   const video = useRef<HTMLVideoElement>(null);
   const box = useRef<HTMLDivElement>(null);
   const protocol = pickProtocol(camera.protocols);
-  const [mjpeg, setMjpeg] = useState(false);
+  // the mower answers with the one asked for
+  const mjpeg = protocol === 'mjpeg';
 
   useEffect(() => {
     if (!protocol) return;
@@ -156,12 +157,10 @@ function Player({camera, onLive}: {camera: Camera; onLive: (live: boolean) => vo
       if (blockedHere(url))
         return failed(tr("This page is open over https, the browser doesn't load the camera's picture over plain http. Open MowBite over http or use the app."));
       if (s.protocol === 'webrtc') {
-        setMjpeg(false);
         const v = video.current!;
         v.onplaying = playing;
         close = await playWhep(url, v, ended);
       } else if (s.protocol === 'mjpeg') {
-        setMjpeg(true);
         const img = new Image();
         img.alt = '';
         img.onload = playing;

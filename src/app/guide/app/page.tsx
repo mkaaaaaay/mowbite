@@ -1,6 +1,7 @@
 'use client';
 
 import {useCameras} from '@/hooks/useCameras';
+import {SHORT} from '@/lib/camera';
 import {fmt, tr} from '@/lib/i18n';
 import {anim, appear, PAINT, Scene, SCREEN_LOOP} from '../art';
 import Guide, {type GuideStep} from '../Guide';
@@ -146,11 +147,7 @@ function SwitchArt() {
 
 // a camera's picture with the cameras to switch to on it, the highlight going from front to the side to the back
 function CameraArt() {
-  const chips: [string, number][] = [
-    [tr('Front'), 0],
-    [tr('Left'), 1],
-    [tr('Rear'), 2],
-  ];
+  const chips = (['front', 'left', 'rear'] as const).map((p) => tr(SHORT[p]));
   const at = (i: number) =>
     anim('opacity', DUR, [0, 0.33 * i, 0.33 * i + 0.02, 0.33 * (i + 1), Math.min(1, 0.33 * (i + 1) + 0.02), 1], i === 2 ? [0, 0, 1, 1, 1, 1] : [0, 0, 1, 1, 0, 0]);
   return (
@@ -160,7 +157,7 @@ function CameraArt() {
       <path d="M50 90 H270 V165 a12 12 0 0 1 -12 12 H62 a12 12 0 0 1 -12 -12 Z" style={{fill: '#4f8a43'}} />
       <path d="M150 90 L104 177 H138 Z M170 90 L192 177 H226 Z" style={{fill: '#5d9c50'}} />
       <rect x={75} y={143} width={170} height={26} rx={13} style={{fill: 'rgba(14, 18, 24, 0.6)'}} />
-      {chips.map(([label, i]) => (
+      {chips.map((label, i) => (
         <g key={label}>
           <rect x={79 + i * 55} y={146} width={52} height={20} rx={10} style={accent} opacity={i === 0 ? 1 : 0}>
             {at(i)}
