@@ -7,7 +7,7 @@ import TrackPicker from '@/components/TrackPicker';
 import {useMowerActions} from '@/hooks/useMowerActions';
 import {saveMap, useMowerMap, type MowerMap, type Point} from '@/hooks/useMowerMap';
 import {useMowerPosition} from '@/hooks/useMowerPosition';
-import {useIdle, useMowerStateValue} from '@/hooks/useMowerState';
+import {isLive, useIdle, useMowerStateValue} from '@/hooks/useMowerState';
 import {useEggForced, useUmbrella} from '@/lib/eggs';
 import {lastRun as newestRun, useRecentRuns} from '@/hooks/useRecentRuns';
 import {clearTrack, trackPoints, useLastRun, useLastRunJob, useMowerTrack} from '@/hooks/useMowerTrack';
@@ -29,7 +29,7 @@ import MapBackups, {backupLabel} from '@/components/MapBackups';
 import {deleteBackup, loadBackup, saveBackup, useBackupFirst} from '@/lib/backups';
 import AreaCard, {AreaTools} from './AreaCard';
 import DecorPanel, {showUnderMap} from './DecorPanel';
-import {decorRedo, decorUndo, endsJob, goneLooks, jobLeft, onlyPinsChanged, pinSquare, pinsFrom, type UpdateArea, NEW_AREA_SETTINGS} from './editing';
+import {decorRedo, decorUndo, endsJob, goneLooks, jobLeft, onlyPinsChanged, pinSquare, pinsFrom, saveQuestion, type UpdateArea, NEW_AREA_SETTINGS} from './editing';
 import EditorToolbar from './EditorToolbar';
 import MowSettings, {AngleOnMap, AreaDirection, AreaPlanInfo, OpenMowerArea} from './MowSettings';
 import OrderBox, {NewArea} from './OrderBox';
@@ -114,8 +114,9 @@ function MapEditor() {
   useLang();
   // only what the page needs of the mower's state and sensors: it isn't drawn again for every message that comes in
   const emergency = useMowerStateValue((l) => !!l.state?.emergency);
-  // no job a map change could break off
+  // no job a map change could break off, known only while connected with a current state
   const idle = useIdle();
+  const live = useMowerStateValue(isLive);
   // a finished mow turns the planner's lanes further (angle_steps): its settings asked again once the mower is done
   const wasIdle = useRef(idle);
   useEffect(() => {
@@ -710,7 +711,7 @@ function MapEditor() {
     if (!next) return false;
     const ends = endsJob(interrupted, liveMap, next);
     // a job under way keeps the lanes of the old map, one interrupted ends with the save: asked first
-    if ((!idle || ends) && !saveWarning && !anyway) {
+    if (saveQuestion(idle, live, ends) && !saveWarning && !anyway) {
       setSaveWarning(true);
       return false;
     }
@@ -897,7 +898,7 @@ function MapEditor() {
       if (decor) restoreLooks(goneLooks(decor.kept, map));
       return closeDecor();
     }
-    if (!idle && !anyway) return setDecorBusy(true);
+    if ((!idle || !live) && !anyway) return setDecorBusy(true);
     setDecorBusy(false);
     if (!(await handleSave(true, external ? mergeExternal() : map))) return;
     closeDecor();
@@ -978,12 +979,18 @@ function MapEditor() {
     }
     updateProperties(patch, undoable);
   };
-  // what saving now does besides, asked first: the mower out, or a job it interrupted that ends
-  const saveAsk = !idle
-    ? tr('The mower is busy (mowing, docking or recording). A job under way keeps the lanes it planned on the old map, also through a new obstacle. Better save once it is done.')
-    : saveEnds
-      ? tr('The interrupted job was planned on the old map, saving ends it. The next start plans on the new one.')
-      : null;
+  // what saving now does besides, asked first: the mower out or not known to be in, or a job it interrupted that ends
+  const ask = saveQuestion(idle, live, saveEnds);
+  const saveAsk =
+    ask === 'offline'
+      ? tr(
+          "No connection to the mower right now, so it isn't known whether it's out. A job under way keeps the lanes it planned on the old map, also through a new obstacle. Better save once it can be reached again.",
+        )
+      : ask === 'busy'
+        ? tr('The mower is busy (mowing, docking or recording). A job under way keeps the lanes it planned on the old map, also through a new obstacle. Better save once it is done.')
+        : ask === 'ends'
+          ? tr('The interrupted job was planned on the old map, saving ends it. The next start plans on the new one.')
+          : null;
   // the same on the bar and on the map
   const saveLabel = saving ? tr('saving…') : (external && dirty) || warnings || (saveWarning && !!saveAsk) ? tr('Save anyway') : tr('Save map');
 
@@ -1161,6 +1168,7 @@ function MapEditor() {
                 areas={preview.map.areas.filter((a) => !isPin(a)).length}
                 backedUp={!!backups && !restoreWithoutBackup}
                 idle={idle}
+                live={live}
                 ends={endsJob(interrupted, liveMap, preview.map)}
                 unsaved={dirty}
                 restoring={restoring}
@@ -1217,7 +1225,8 @@ function MapEditor() {
                   canRedo={canRedo}
                   unsaved={dirty}
                   saving={saving}
-                  busy={decorBusy && !idle}
+                  busy={decorBusy && (!idle || !live)}
+                  offline={!live}
                   error={saveError}
                   changed={decorChanged}
                   onArm={armPin}

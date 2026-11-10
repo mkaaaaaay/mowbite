@@ -7,6 +7,7 @@ import {settingsStore, type Settings} from '@/lib/settings';
 import DecorPanel from './DecorPanel';
 import EditorToolbar from './EditorToolbar';
 import OrderBox, {NewArea} from './OrderBox';
+import {RestorePanel} from './Panels';
 import {pinSquare} from './editing';
 
 const noop = () => {};
@@ -26,6 +27,7 @@ const panel = (props: Partial<ComponentProps<typeof DecorPanel>>) =>
       unsaved: false,
       saving: false,
       busy: false,
+      offline: false,
       error: null,
       changed: false,
       onArm: noop,
@@ -90,6 +92,41 @@ describe('decorating under the map', () => {
     expect(html).toContain('Save anyway');
     expect(html).toContain('After mowing');
     expect(html).toContain('timeout');
+  });
+
+  it('asks the same without a connection, the mower may be out', () => {
+    const html = panel({busy: true, offline: true});
+    expect(html).toContain("No connection to the mower right now. If it's out, saving can interrupt it.");
+    expect(html).toContain('Save anyway');
+  });
+});
+
+describe('restoring a backup', () => {
+  const restore = (idle: boolean, live: boolean) =>
+    markup(
+      createElement(RestorePanel, {
+        areas: 2,
+        backedUp: true,
+        idle,
+        live,
+        ends: false,
+        unsaved: false,
+        restoring: false,
+        confirm: false,
+        error: null,
+        onRestore: noop,
+        onDisarm: noop,
+        onClose: noop,
+      }),
+    );
+
+  it('only goes with the mower connected and not out', () => {
+    expect(restore(true, true)).not.toMatch(/<button[^>]*disabled[^>]*>Restore/);
+    expect(restore(false, true)).toContain('Only possible while the mower is not busy');
+    expect(restore(false, true)).toMatch(/<button[^>]*disabled[^>]*>Restore/);
+    expect(restore(true, false)).toContain("The mower can't be reached right now.");
+    expect(restore(true, false)).not.toContain('Only possible while the mower is not busy');
+    expect(restore(true, false)).toMatch(/<button[^>]*disabled[^>]*>Restore/);
   });
 });
 

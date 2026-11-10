@@ -2,7 +2,7 @@ import type {MapArea, MowerMap} from '@/hooks/useMowerMap';
 import {PIN_SIDE, pinAt} from '@/lib/mowerBody';
 import {angleInRange} from '@/lib/mowStripes';
 import {describe, expect, it} from 'vitest';
-import {DEG, decorRedo, decorUndo, endsJob, goneLooks, jobLeft, mowerMap, normDeg, onlyPinsChanged, overrideError, PIN_TILES, pinSquare, pinsFrom, pinTiles} from './editing';
+import {DEG, decorRedo, decorUndo, endsJob, goneLooks, jobLeft, mowerMap, normDeg, onlyPinsChanged, saveQuestion, overrideError, PIN_TILES, pinSquare, pinsFrom, pinTiles} from './editing';
 
 describe('overrideError', () => {
   it('takes empty (global value) and values within the mower limits', () => {
@@ -139,5 +139,16 @@ describe('normDeg', () => {
     for (const [lo, hi] of [[0, 180], [-180, 0]]) {
       for (const a of [30, 90, 135]) expect(angleInRange(a * DEG, normDeg(lo) * DEG, normDeg(hi) * DEG)).toBeCloseTo(a * DEG);
     }
+  });
+});
+
+describe('saveQuestion', () => {
+  it('asks while the mower is out or not known to be in, then for an interrupted job', () => {
+    expect(saveQuestion(true, true, false)).toBeNull();
+    expect(saveQuestion(true, true, true)).toBe('ends');
+    expect(saveQuestion(false, true, false)).toBe('busy');
+    // the last state seen said idle, but the connection is gone
+    expect(saveQuestion(true, false, false)).toBe('offline');
+    expect(saveQuestion(false, false, true)).toBe('offline');
   });
 });

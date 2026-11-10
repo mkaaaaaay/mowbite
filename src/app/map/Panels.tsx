@@ -291,6 +291,7 @@ export function RestorePanel({
   areas,
   backedUp,
   idle,
+  live,
   ends,
   unsaved,
   restoring,
@@ -304,6 +305,8 @@ export function RestorePanel({
   // the mower's map is backed up before restoring (only when MowBite runs as its container)
   backedUp: boolean;
   idle: boolean;
+  // connected with a current state: only then is idle known
+  live: boolean;
   // restoring ends a job the mower interrupted, and drops the changes not saved yet
   ends: boolean;
   unsaved: boolean;
@@ -322,7 +325,11 @@ export function RestorePanel({
           ? tr('Restoring replaces the map on the mower with this one. The current map is backed up first, so this can be undone.')
           : tr("Restoring replaces the map on the mower with this one. Backups don't work here, download the current map first if you might want it back.")}
       </p>
-      {!idle && <p className={styles.error}>{tr('Only possible while the mower is not busy (mowing, docking, recording).')}</p>}
+      {!live ? (
+        <p className={styles.error}>{tr("The mower can't be reached right now.")}</p>
+      ) : (
+        !idle && <p className={styles.error}>{tr('Only possible while the mower is not busy (mowing, docking, recording).')}</p>
+      )}
       {confirm && unsaved && <p className={styles.error}>{tr("Your unsaved changes are lost, they aren't in any backup.")}</p>}
       {confirm && ends && (
         <p className={styles.error}>{tr('The interrupted job was planned on the old map, restoring ends it. The next start plans on the new one.')}</p>
@@ -330,7 +337,7 @@ export function RestorePanel({
       <div className={styles.inlineRow}>
         <button
           className={[styles.pillButton, styles.danger].join(' ')}
-          disabled={!idle || restoring}
+          disabled={!idle || !live || restoring}
           onClick={onRestore}
           onBlur={onDisarm}
         >

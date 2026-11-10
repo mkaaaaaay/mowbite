@@ -26,8 +26,8 @@ export function showUnderMap(el: Element | null) {
 // decorating, under the map: what the next tap on the map sets (a row of pictures, the ones the garden has first), the
 // pin picked with what can be changed of it, and the way out. on a wide screen undo, redo and finish too, a phone has
 // them on the map. areas: the map's as edited, pin: the one picked, armed: what the next tap sets (copy: the picked one
-// again), busy: finish was tapped while the mower is out, changed: cancel would throw something away, onSwap: another
-// picture put in the picked pin's place. what it asks or says shows under the map
+// again), busy: finish was tapped while the mower is out (offline: or not known to be in), changed: cancel would throw
+// something away, onSwap: another picture put in the picked pin's place. what it asks or says shows under the map
 export default function DecorPanel({
   areas,
   pin,
@@ -37,6 +37,7 @@ export default function DecorPanel({
   unsaved,
   saving,
   busy,
+  offline,
   error,
   changed,
   onArm,
@@ -58,6 +59,7 @@ export default function DecorPanel({
   unsaved: boolean;
   saving: boolean;
   busy: boolean;
+  offline: boolean;
   error: string | null;
   changed: boolean;
   onArm: (look: Look | null) => void;
@@ -143,7 +145,7 @@ export default function DecorPanel({
       </div>
       {busy && (
         <div ref={busyRef} className={styles.warning}>
-          <p>{tr('The mower is busy. Saving now can interrupt it.')}</p>
+          <p>{offline ? tr("No connection to the mower right now. If it's out, saving can interrupt it.") : tr('The mower is busy. Saving now can interrupt it.')}</p>
           <div className={styles.inlineRow}>
             <button className={styles.pillButton} onClick={onSaveAnyway}>
               {tr('Save anyway')}

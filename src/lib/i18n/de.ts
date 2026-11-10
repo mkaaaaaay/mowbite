@@ -209,6 +209,7 @@ const de: Record<string, string> = {
   "Only a picture, the mower doesn't drive round it.": "Nur ein Bild, der Mäher weicht nicht aus.",
   "{what} removed": "{what} entfernt",
   "The mower is busy. Saving now can interrupt it.": "Der Mäher ist gerade unterwegs. Speichern kann ihn jetzt unterbrechen.",
+  "No connection to the mower right now. If it's out, saving can interrupt it.": "Gerade keine Verbindung zum Mäher. Ist er unterwegs, kann Speichern ihn unterbrechen.",
   "After mowing": "Nach dem Mähen",
   "Decoration saved on the mower": "Deko auf dem Mäher gespeichert",
   "Kept in the app. Later: the map's layers, Map settings, Decorate, then Finish.": "Bleibt in der App. Später: Ebenen an der Karte, „Karteneinstellungen“, „Dekorieren“, dann „Fertig“.",
@@ -754,6 +755,8 @@ const de: Record<string, string> = {
   "mow_angle_offset from the mower's settings (mower_logic) comes on top, {n}° here. It's added to every area, the preview includes it.": "Dazu kommt mow_angle_offset aus den Einstellungen des Mähers (mower_logic), hier {n}°. Er gilt für jede Fläche, die Vorschau rechnet ihn mit ein.",
   "The mower is busy (mowing, docking or recording). A job under way keeps the lanes it planned on the old map, also through a new obstacle. Better save once it is done.":
     "Der Mäher ist gerade unterwegs (Mähen, Andocken oder Aufnehmen). Ein laufender Mähvorgang behält die Bahnen, die er auf der alten Karte geplant hat, auch quer durch ein neues Hindernis. Besser speichern, wenn er fertig ist.",
+  "No connection to the mower right now, so it isn't known whether it's out. A job under way keeps the lanes it planned on the old map, also through a new obstacle. Better save once it can be reached again.":
+    "Gerade keine Verbindung zum Mäher, daher ist nicht bekannt, ob er unterwegs ist. Ein laufender Mähvorgang behält die Bahnen, die er auf der alten Karte geplant hat, auch quer durch ein neues Hindernis. Besser speichern, wenn er wieder erreichbar ist.",
   "The mower's address (IP or name in your network)": "Adresse des Mähers (IP oder Name im Heimnetz)",
   "MowBite works out the percentage from the battery voltage as if only the electronics drew on it, so it stays put when the blade starts or the mower leaves the dock. It goes up only while charging and down only while not. 0 % is where OpenMower sends the mower home. In the dock it goes down slowly after a full charge until the charger tops it up.":
     "MowBite berechnet die Prozentzahl aus der Akkuspannung, als zöge nur die Elektronik am Akku. So bleibt sie stehen, wenn das Messer anläuft oder der Mäher losfährt. Sie steigt nur beim Laden und fällt nur, wenn er nicht lädt. 0 % ist dort, wo OpenMower den Mäher heimschickt. Im Dock sinkt sie nach dem Volladen langsam, bis das Ladegerät nachlädt.",
