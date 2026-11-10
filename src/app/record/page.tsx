@@ -13,8 +13,8 @@ import {useMowerPosition} from '@/hooks/useMowerPosition';
 import {isLive, useMowerState} from '@/hooks/useMowerState';
 import Link from 'next/link';
 import {useRouter, useSearchParams} from 'next/navigation';
-import {Suspense, useEffect, useRef, useState, useSyncExternalStore} from 'react';
-import {calibByHand, calibProgress, canCalibrate} from '@/lib/calibration';
+import {Suspense, useEffect, useRef, useState} from 'react';
+import {useCalibratingByHand} from '@/hooks/useCalibratingByHand';
 import {createPortal} from 'react-dom';
 import StationGuide from './Station';
 import styles from './page.module.css';
@@ -245,8 +245,7 @@ function Record() {
   const router = useRouter();
   // a calibration drive by hand runs in recording mode: its own page, not this one. only where the planner says so: one
   // on the next mow leaves this page free
-  const calib = useSyncExternalStore(calibProgress.subscribe, calibProgress.get, calibProgress.initial);
-  const calibrating = recordingMode && canCalibrate(methods, os) && calibByHand(calib);
+  const calibrating = useCalibratingByHand(recordingMode);
   useEffect(() => {
     if (calibrating) router.replace('/calibration');
   }, [calibrating, router]);

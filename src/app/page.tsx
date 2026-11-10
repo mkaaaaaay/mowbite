@@ -9,6 +9,7 @@ import MapView from '@/components/MapView';
 import {useRecordingJob} from '@/components/RecordingWatch';
 import {useMapAhead} from '@/components/useMapAhead';
 import {ChevronIcon, CloseIcon, HomeIcon, PauseIcon, PlayIcon, RecordIcon, SkipIcon, WarningIcon} from '@/components/icons';
+import {useCalibratingByHand} from '@/hooks/useCalibratingByHand';
 import {useComputedSpeed} from '@/hooks/useComputedSpeed';
 import {useEmergencyReasons} from '@/hooks/useEmergencyReasons';
 import {useEmergencyReset, useJustReset} from '@/hooks/useEmergencyReset';
@@ -27,7 +28,6 @@ import {shown, tempItems, type DashKey} from '@/lib/dashboard';
 import {tempLimits} from '@/lib/sensorLimits';
 import {usePlanProgress} from '@/hooks/usePlanProgress';
 import {useRecentRuns} from '@/hooks/useRecentRuns';
-import {useRpcMethods} from '@/hooks/useRpcMethods';
 import TopWeather from '@/components/TopWeather';
 import {clock, dayKey, dayLabel, duration} from '@/lib/dates';
 import {gpsOffNow} from '@/lib/gpslog';
@@ -42,7 +42,6 @@ import {containerHas, useUpdates} from '@/lib/updates';
 import {batteryColor, chargeOf, dockText, GPS_QUALITY_LABEL, gpsQuality, isDocked, onCharger, staleText, WIFI_LEVEL_LABEL, type Charge} from '@/lib/status';
 import Link from 'next/link';
 import {memo, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
-import {calibByHand, calibProgress, canCalibrate} from '@/lib/calibration';
 import styles from './page.module.css';
 import {fmt, tr, useLang} from '@/lib/i18n';
 import {
@@ -233,8 +232,6 @@ export default function Home() {
   const before = useLeftoversBefore(!!progress?.leftovers);
   const params = useMowerParams();
   const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
-  const calib = useSyncExternalStore(calibProgress.subscribe, calibProgress.get, calibProgress.initial);
-  const methods = useRpcMethods();
   // the same object while params/json doesn't change: the map isn't drawn again for every sensor value
   const datum = useMemo(() => datumFromParams(params), [params]);
   // blades or cleaning due, counted by MowBite's container
@@ -312,7 +309,7 @@ export default function Home() {
   const driving = DRIVING.has(current);
   // a calibration drive by hand runs in recording mode, its own page leads it and ends it. only where the planner says
   // so: one on the next mow leaves recording mode to the areas
-  const calibrating = current === 'AREA_RECORDING' && canCalibrate(methods, os) && calibByHand(calib);
+  const calibrating = useCalibratingByHand(current === 'AREA_RECORDING');
   // paused on the station's contacts: OpenMower only sees the dock when it's sent home, it's DOCKED then right away
   const pausedInDock = current === 'PAUSED' && !state?.emergency && onCharger(state, values['om_v_charge']);
   // the buttons for what the mower offers now, the others left out. paused: the pause button turns into continue. only
