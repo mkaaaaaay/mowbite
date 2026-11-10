@@ -10,6 +10,10 @@ describe('isMissingMethod', () => {
     expect(isMissingMethod(new RpcError('map.replace', 'timeout', 'timed out'))).toBe(false);
     expect(isMissingMethod(new Error('Method not found'))).toBe(false);
   });
+
+  it('says it without blaming one software, the planner or MowBite OS may be the one', () => {
+    expect(rpcErrorText(new RpcError('planner.settings', -32601, 'Method not found'))).toBe("Your mower's software doesn't offer this (planner.settings).");
+  });
 });
 
 describe('an update holding MowBite OS', () => {
