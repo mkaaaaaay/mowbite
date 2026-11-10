@@ -2309,6 +2309,7 @@ const de: Record<string, string> = {
   "Saved on the mower.": "Auf dem Mäher gespeichert.",
   "Back to the defaults.": "Auf die Vorgaben zurückgesetzt.",
   "The percentage comes from the mower itself: MowBite OS takes what its battery or board reports, on the Airseekers Tron the battery's own management (BMS). The app doesn't work it out from the voltage here.": "Die Prozentzahl kommt vom Mäher selbst: MowBite OS nimmt, was sein Akku oder seine Platine meldet, beim Airseekers Tron seine eigene Akkuverwaltung (BMS). Die App rechnet sie hier nicht aus der Spannung aus.",
+  "How far off the position might be. MowBite OS only takes RTK fixes within the mower's limit (max_position_accuracy), without one the number grows with the distance driven and the time since the last. MowBite goes by that number: up to 5 cm it says RTK fix, up to the limit float, which is still usable. Above that the mower doesn't drive by the position.": "Wie weit die Position danebenliegen kann. MowBite OS nimmt nur RTK-Fixe innerhalb der Grenze des Mähers (max_position_accuracy), ohne einen wächst die Zahl mit dem gefahrenen Weg und der Zeit seit dem letzten. MowBite richtet sich nach dieser Zahl: Bis 5 cm steht dort RTK-Fix, bis zur Grenze Float (noch nutzbar), darüber fährt der Mäher nicht nach der Position.",
   "Battery Temp": "Akkutemperatur",
   "Charge State (derived)": "Ladezustand (abgeleitet)",
   "V Charge (dock contact)": "Ladespannung (Kontakte)",

@@ -250,9 +250,13 @@ export default function SensorsPage() {
                   <>
                     {tr('GPS accuracy')}
                     <InfoTip>
-                      {tr(
-                        "How far off the position might be, as estimated by the receiver. With an RTK fix it's usually a few cm. The receiver doesn't report fix or float, so MowBite goes by the accuracy: up to 5 cm is an RTK fix, up to the mower's limit (max_position_accuracy) float, which is still usable. Above that the mower ignores the position.",
-                      )}
+                      {os
+                        ? tr(
+                            "How far off the position might be. MowBite OS only takes RTK fixes within the mower's limit (max_position_accuracy), without one the number grows with the distance driven and the time since the last. MowBite goes by that number: up to 5 cm it says RTK fix, up to the limit float, which is still usable. Above that the mower doesn't drive by the position.",
+                          )
+                        : tr(
+                            "How far off the position might be, as estimated by the receiver. With an RTK fix it's usually a few cm. The receiver doesn't report fix or float, so MowBite goes by the accuracy: up to 5 cm is an RTK fix, up to the mower's limit (max_position_accuracy) float, which is still usable. Above that the mower ignores the position.",
+                          )}
                       {!os && ` ${tr("The mower switches GPS off while it's idle, docking or leaving the dock.")}`}
                     </InfoTip>
                   </>
