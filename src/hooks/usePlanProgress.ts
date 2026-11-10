@@ -11,6 +11,7 @@ import {useLeftoversSource} from './useLeftoversBefore';
 import {useLeftoverRun} from './useLeftoverRun';
 import type {MowerMap} from './useMowerMap';
 import type {MowerState} from './useMowerState';
+import {useRunningJob} from './useMowerTrack';
 
 // how far the mower got with the area it's mowing, when it can hand out its plan (planner.plan or mowing.plan).
 // events: the day's, for the time left (without them none). leftovers: it drives the leftover passes of the last mow
@@ -52,7 +53,8 @@ export function usePlanProgress(
     };
   }, [timed, today]);
   const before = dayBefore?.today === today ? dayBefore.events : null;
-  const jobEvents = useMemo(() => (events && before ? withDayBefore(before, events) : events), [events, before]);
+  const running = useRunningJob();
+  const jobEvents = useMemo(() => events && withDayBefore(before ?? [], events, running), [events, before, running]);
   const leftovers = useLeftoverRun(areaId, jobEvents);
   // when it started on the area: its plan is from then
   const since = areaId ? jobEvents?.filter((e) => e.type === 'AREA' && e.area_id === areaId).pop()?.t : undefined;

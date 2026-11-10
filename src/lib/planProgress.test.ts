@@ -91,11 +91,23 @@ describe('withDayBefore', () => {
     expect(bladeSeconds(all, 'a', 50610)).toBe(4200);
   });
 
-  it('finds the area of a job mowing past midnight without an event since', () => {
+  it('finds the area of a job mowing past midnight without an event since, once the mower says which job it is on', () => {
     const night = [...yesterday.slice(0, 4)];
-    const all = withDayBefore(night, []);
+    const all = withDayBefore(night, [], 'j');
     expect(all.filter((e) => e.type === 'AREA').pop()?.t).toBe(10);
     expect(bladeSeconds(all, 'a', 600)).toBe(580);
+    expect(withDayBefore(night, [])).toEqual([]);
+  });
+
+  it("takes no earlier job for the one just started while the day's list is behind", () => {
+    // the first job of the day, nothing of it in the list yet
+    expect(withDayBefore(yesterday, [], 'new')).toEqual([]);
+    expect(withDayBefore(yesterday, [])).toEqual([]);
+    // a second job of the day, the list still ends with the first
+    const first = [ev(40000, 'AREA', {area_id: 'a'}), ev(40010, 'BLADES', {enabled: true}), ev(43000, 'BLADES', {enabled: false})];
+    expect(bladeSeconds(withDayBefore([], first, 'new'), 'a', 50000)).toBe(0);
+    const both = [...first, ev(50000, 'AREA', {area_id: 'a', job_id: 'new'}), ev(50010, 'BLADES', {enabled: true, job_id: 'new'})];
+    expect(bladeSeconds(withDayBefore([], both, 'new'), 'a', 50610)).toBe(600);
   });
 
   it("leaves out another job, and what today's list has already", () => {

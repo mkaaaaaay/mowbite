@@ -238,6 +238,7 @@ function start() {
         if (!keepsTrail(shownJob(), id)) track = EMPTY;
         jobId = id;
         lastJob = null;
+        listeners.forEach((l) => l());
         // the list of recorded jobs has it now
         forgetJobList();
         void seed(id);
@@ -300,6 +301,15 @@ export function useLastRunJob(): string | null {
 // the job the trail shown is of: the one running, or the last one while none runs
 export function useTrailJob(): string | null {
   return useSyncExternalStore(subscribe, shownJob, () => null);
+}
+
+// the job the mower says it's on (waiting in the dock included), null with none or before it said
+export function useRunningJob(): string | null {
+  return useSyncExternalStore(
+    subscribe,
+    () => jobId,
+    () => null,
+  );
 }
 
 export function useMowerTrack(): TrackChunks {

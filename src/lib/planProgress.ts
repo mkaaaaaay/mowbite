@@ -84,13 +84,15 @@ export function splitPlan(paths: PlanPath[], path: number, pose: number): PlanPr
   return {done, todo, doneLength, todoLength, fraction: all > 0 ? doneLength / all : 0};
 }
 
-// the events of a job going on from the day before (past midnight, or again after a break): the running one's (the
-// newest job) of that day in front of the day's own
-export function withDayBefore(before: MowerEvent[], today: MowerEvent[]): MowerEvent[] {
-  const job = (today.filter((e) => e.job_id).pop() ?? before.filter((e) => e.job_id).pop())?.job_id;
+// the events of the job going on: the day's own and, going on from the day before (past midnight, or again after a
+// break), that day's in front. running: the job the mower says it's on, only its events then (the day's list is behind
+// for a moment when a job has just started); not known, the newest job of the day's list
+export function withDayBefore(before: MowerEvent[], today: MowerEvent[], running?: string | null): MowerEvent[] {
+  const job = running || today.filter((e) => e.job_id).pop()?.job_id;
   const ids = new Set(today.map((e) => e.id));
   const earlier = job ? before.filter((e) => e.job_id === job && !ids.has(e.id)) : [];
-  return earlier.length ? [...earlier, ...today] : today;
+  const all = earlier.length ? [...earlier, ...today] : today;
+  return running ? all.filter((e) => e.job_id === running) : all;
 }
 
 // how long the blades ran in the area during this job, from the event history, so every device comes to the same
