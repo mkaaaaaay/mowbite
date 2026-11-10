@@ -7,6 +7,7 @@ import SwipeNav from "@/components/SwipeNav";
 import EdgeBounce from "@/components/EdgeBounce";
 import FreshPage from "@/components/FreshPage";
 import PushOpener from "@/components/PushOpener";
+import RecordingWatch from "@/components/RecordingWatch";
 import { colorBootScript } from "@/lib/settings";
 import { THEME_BOOT_SCRIPT } from "@/lib/themeBoot";
 import type { Metadata, Viewport } from "next";
@@ -63,6 +64,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <EdgeBounce />
           <FreshPage />
           <PushOpener />
+          <RecordingWatch />
         </div>
       </body>
     </html>

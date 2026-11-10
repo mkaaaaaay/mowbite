@@ -42,6 +42,8 @@ export const endsJob = (offered: boolean, before: MowerMap | null, next: MowerMa
 
 // a few seconds after that drop: still offered, or the mower out meanwhile (maybe on the job), it goes by the old map
 export const jobLeft = (offered: boolean, idle: boolean) => offered || !idle;
+// how long after the drop jobLeft is looked at
+export const JOB_CHECK_MS = 5000;
 
 // the map with the pins of another one in place of its own (decorating called off: the mower's), its areas as they are
 export const pinsFrom = (map: MowerMap, from: MowerMap): MowerMap => ({

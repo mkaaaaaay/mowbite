@@ -1,4 +1,4 @@
-import {demoAction, demoCall, demoDocked, demoEmergency, demoHas, demoRefuseReset, expect, recordStation, tab, test} from './app';
+import {demoAction, demoCall, demoDocked, demoDrive, demoEmergency, demoHas, demoRefuseReset, expect, recordStation, tab, test} from './app';
 import type {Page} from '@playwright/test';
 
 const state = async (page: Page) => (await demoHas<{current_state: string}>(page, 'robot_state/json')).current_state;
@@ -227,6 +227,76 @@ test('a saved area is told saved once it is in the map', async ({page}) => {
   await button('Save as mowing area').click();
   await expect(page.getByText('Mowing area saved.').first()).toBeVisible();
   expect(await areas()).toBe(before + 1);
+});
+
+// a job the mower interrupted keeps the lanes of the old map, recording mode doesn't end it: an area recorded ends it
+// once the mode is left, only switching the mode on and off leaves it
+const offered = async (page: Page) =>
+  (await demoHas<{action_id: string; enabled: number}[]>(page, 'actions/json')).find((a) => a.action_id === 'mower_logic:idle/reset_job')?.enabled;
+const WAITING = 'An interrupted job is waiting. Recording an area ends it, the next start plans on the new map.';
+
+// the page left by a tab ends recording mode
+async function leaveByTab(page: Page) {
+  await tab(page, '/').click();
+  await page.getByRole('alertdialog', {name: 'End recording mode?'}).getByRole('button', {name: 'End recording mode'}).click();
+  await expect(page).toHaveURL(/\/$/);
+  await expect.poll(() => state(page)).toBe('IDLE');
+}
+
+test('an area recorded ends the interrupted job once recording mode is left', async ({page}) => {
+  await page.goto('/record/');
+  // sent home in the middle of its job
+  await demoDocked(page);
+  expect(await offered(page)).toBe(1);
+  await expect(page.getByText(WAITING)).toBeVisible();
+  await page.getByRole('button', {name: 'Start recording mode'}).click();
+  const button = (name: string) => page.locator('button:visible', {hasText: name}).first();
+  // backwards out of the station, then an outline along two sides of a square
+  await demoDrive(page, [
+    [-0.4, 0, 3],
+    [0, 0, 1],
+  ]);
+  await button('Record outline').click();
+  await demoDrive(page, [
+    [-0.4, 0, 3],
+    [0, Math.PI / 4, 2],
+    [0.4, 0, 3],
+    [0, 0, 1],
+  ]);
+  await button('Stop').click();
+  await button('Save as mowing area').click();
+  await expect(page.getByText('Mowing area saved.').first()).toBeVisible();
+  // the same way back onto the station (from elsewhere the demo drives home by itself, OpenMower stays idle there)
+  await demoDrive(page, [
+    [-0.4, 0, 3],
+    [0, -Math.PI / 4, 2],
+    [0.4, 0, 6],
+    [0, 0, 1],
+  ]);
+  await leaveByTab(page);
+  await expect.poll(() => offered(page)).toBe(0);
+  await expect(page.getByRole('button', {name: 'Drop the interrupted job'})).toBeHidden();
+  // back on the record page (in the app, a reload would forget it): told until recording mode starts again
+  await page.goBack();
+  await expect(page).toHaveURL(/\/record\/?$/);
+  await expect(page.getByText('The interrupted job was planned on the old map, it ended with the recording. The next start plans on the new one.')).toBeVisible();
+  await expect(page.getByText(WAITING)).toBeHidden();
+});
+
+test('switching recording mode on and off leaves the interrupted job', async ({page}) => {
+  await page.goto('/record/');
+  await demoDocked(page);
+  expect(await offered(page)).toBe(1);
+  await page.getByRole('button', {name: 'Start recording mode'}).click();
+  await expect.poll(() => state(page)).toBe('AREA_RECORDING');
+  await leaveByTab(page);
+  // longer than a drop after the mode is waited for
+  await page.waitForTimeout(11_000);
+  expect(await offered(page)).toBe(1);
+  await expect(page.getByRole('button', {name: 'Drop the interrupted job'})).toBeVisible();
+  await page.goBack();
+  await expect(page).toHaveURL(/\/record\/?$/);
+  await expect(page.getByText(WAITING)).toBeVisible();
 });
 
 // recording mode left on without its page (another phone, the back button): the overview leads back to it, and out of

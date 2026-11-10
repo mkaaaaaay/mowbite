@@ -645,6 +645,12 @@ const de: Record<string, string> = {
     "Der unterbrochene Mähvorgang ist auf der alten Karte geplant, Wiederherstellen beendet ihn. Der nächste Start plant auf der neuen Karte.",
   "The map is on the mower, but the interrupted job still follows the old map. Drop it on the dashboard before the next start.":
     "Die Karte ist auf dem Mäher, aber der unterbrochene Mähvorgang fährt noch nach der alten Karte. Verwirf ihn vor dem nächsten Start auf der Übersicht.",
+  "An interrupted job is waiting. Recording an area ends it, the next start plans on the new map.":
+    "Ein unterbrochener Mähvorgang wartet. Nimmst du eine Fläche auf, endet er, der nächste Start plant auf der neuen Karte.",
+  "The interrupted job was planned on the old map, it ended with the recording. The next start plans on the new one.":
+    "Der unterbrochene Mähvorgang war auf der alten Karte geplant, er ist mit der Aufnahme beendet. Der nächste Start plant auf der neuen Karte.",
+  "The interrupted job still follows the old map. Drop it before the next start.":
+    "Der unterbrochene Mähvorgang fährt noch nach der alten Karte. Verwirf ihn vor dem nächsten Start.",
   "Drop it": "Verwerfen",
   "don't mow": "nicht mähen",
   "Not mowed, but the mower may drive across it (unlike inactive).": "Wird nicht gemäht, darf aber befahren werden (anders als inaktiv).",
@@ -2037,7 +2043,7 @@ const de: Record<string, string> = {
   "A mowing edge of stones": "Mähkante aus Steinen",
   "Send it home first": "Erst nach Hause schicken",
   "Driving": "Fahren",
-  "Tap Start recording mode, if it's out mowing tap Send it home first. Upright you drive with the joystick. Held sideways the phone becomes a remote control: the left pad drives forward and back, the right one steers, the steps are buttons at the bottom. If your phone doesn't rotate, tap Sideways.": "Tippe „Aufnahmemodus starten“, mäht der Mäher gerade, tippe vorher „Erst nach Hause schicken“. Im Hochformat fährst du mit dem Joystick. Hältst du das Handy quer, wird es zur Fernsteuerung: Das linke Feld fährt vor und zurück, das rechte lenkt, die Schritte sind Knöpfe unten. Dreht sich dein Handy nicht mit, tippe „Querformat“.",
+  "Tap Start recording mode, if it's out mowing tap Send it home first: the job it was on ends once you record an area, the next start plans on the new map. Upright you drive with the joystick. Held sideways the phone becomes a remote control: the left pad drives forward and back, the right one steers, the steps are buttons at the bottom. If your phone doesn't rotate, tap Sideways.": "Tippe „Aufnahmemodus starten“, mäht der Mäher gerade, tippe vorher „Erst nach Hause schicken“: Nimmst du dann eine Fläche auf, endet dieser Mähvorgang, der nächste Start plant auf der neuen Karte. Im Hochformat fährst du mit dem Joystick. Hältst du das Handy quer, wird es zur Fernsteuerung: Das linke Feld fährt vor und zurück, das rechte lenkt, die Schritte sind Knöpfe unten. Dreht sich dein Handy nicht mit, tippe „Querformat“.",
   "Pick the map style under the map layers, Map settings: Plain shows colored areas, Garden draws the garden from above (off until you pick it). In Garden, paths, obstacles and decoration get a picture matching their name. Select one to change it below the map under Picture on the map, along with its color, size, direction and the ground under it. Light and shadows, the season, the lawn growing back and a mowing edge can be switched on one by one.": "Unter den Kartenebenen, „Karteneinstellungen“, wählst du den Kartenstil: „Schlicht“ zeigt farbige Flächen, „Garten“ zeichnet den Garten von oben (aus, bis du ihn wählst). Im Gartenstil bekommen Wege, Hindernisse und Deko ein Bild nach ihrem Namen. Ist eins gewählt, änderst du es unter der Karte bei „Bild auf der Karte“, dazu Farbe, Größe, Richtung und den Untergrund. Licht und Schatten, Jahreszeit, nachwachsender Rasen und eine Mähkante schaltest du einzeln dazu.",
   "Recording mode didn't start": "Aufnahmemodus nicht gestartet",
   "Line not started": "Linie nicht begonnen",

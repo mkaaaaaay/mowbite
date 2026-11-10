@@ -6,6 +6,7 @@ import {useEggForced, useHalloween, useUmbrella} from '@/lib/eggs';
 import LogicHint from '@/components/LogicHint';
 import LoveMower from '@/components/LoveMower';
 import MapView from '@/components/MapView';
+import {useRecordingJob} from '@/components/RecordingWatch';
 import {useMapAhead} from '@/components/useMapAhead';
 import {ChevronIcon, CloseIcon, HomeIcon, PauseIcon, PlayIcon, RecordIcon, SkipIcon, WarningIcon} from '@/components/icons';
 import {useComputedSpeed} from '@/hooks/useComputedSpeed';
@@ -202,6 +203,8 @@ export default function Home() {
   // offline or no fresh state: what's shown is old and commands wouldn't arrive, so the buttons are off
   const live = isLive(link);
   const {hasAction, publishAction} = useMowerActions();
+  // an interrupted job still there after recording mode tried to drop it
+  const jobStays = useRecordingJob().drop === 'left';
   const choice = useMowerChoice();
   const {infos, values} = useMowerSensors();
   const why = useEmergencyReasons(!!state?.emergency);
@@ -584,6 +587,9 @@ export default function Home() {
                   <SkipIcon size={16} />
                   {skip?.id === ACTION.skipPath ? tr('Undo ({n} s)', {n: skip.left}) : tr('Skip this path')}
                 </button>
+              )}
+              {live && hasAction(ACTION.resetJob) && !state.emergency && jobStays && (
+                <p className={[styles.commandNote, styles.warn].join(' ')}>{tr('The interrupted job still follows the old map. Drop it before the next start.')}</p>
               )}
               {live &&
                 hasAction(ACTION.resetJob) &&

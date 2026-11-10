@@ -29,7 +29,7 @@ import MapBackups, {backupLabel} from '@/components/MapBackups';
 import {deleteBackup, loadBackup, saveBackup, useBackupFirst} from '@/lib/backups';
 import AreaCard, {AreaTools} from './AreaCard';
 import DecorPanel, {showUnderMap} from './DecorPanel';
-import {decorRedo, decorUndo, endsJob, goneLooks, jobLeft, onlyPinsChanged, pinSquare, pinsFrom, saveQuestion, type UpdateArea, NEW_AREA_SETTINGS} from './editing';
+import {decorRedo, decorUndo, endsJob, goneLooks, JOB_CHECK_MS, jobLeft, onlyPinsChanged, pinSquare, pinsFrom, saveQuestion, type UpdateArea, NEW_AREA_SETTINGS} from './editing';
 import EditorToolbar from './EditorToolbar';
 import MowSettings, {AngleOnMap, AreaDirection, AreaPlanInfo, OpenMowerArea} from './MowSettings';
 import OrderBox, {NewArea} from './OrderBox';
@@ -77,8 +77,6 @@ import {dropLooks, looksOf, restoreLooks, saveSettings, settingsStore, withLooks
 // '0' when the map was unpinned on this device
 const PINNED_KEY = 'mapPinned';
 const SNAP_KEY = 'mapSnap';
-// a job dropped after a save that the mower still offers to drop this long after: it didn't take
-const JOB_CHECK_MS = 5000;
 
 // decorating (mode 'decor'), kept while the app runs like the edits: on while it's open (off again after "after mowing",
 // what it kept stays for the next round), the picture the next tap sets (copy: the picked pin's color, size and direction

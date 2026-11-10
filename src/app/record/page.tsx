@@ -29,6 +29,8 @@ import {tick} from '@/lib/haptics';
 import {guardLeaving} from '@/lib/leaving';
 import {parseEvent, refusalText, type MowerEvent} from '@/lib/events';
 import {onTopic} from '@/lib/mqttClient';
+import {SAVE_WAIT_MS} from '@/lib/recordingJob';
+import {markRecording, useRecordingJob} from '@/components/RecordingWatch';
 
 const START = ACTION.startRecording;
 const A = ACTION.recording;
@@ -39,8 +41,6 @@ type Phase = 'off' | 'empty' | 'recording' | 'outlined' | 'dock';
 
 // back at the start of the line: closed after this many seconds unless the user goes on. on unless switched off
 const CLOSE_SECONDS = 3;
-// a save not in the map after this long is told as not arrived
-const SAVE_WAIT_MS = 10000;
 const AUTO_CLOSE_KEY = 'recordAutoClose';
 // how many metres the map shows across around the mower (sideways the zoom steps go from there)
 const SPAN = 16;
@@ -116,6 +116,18 @@ function Record() {
       if (startedAt.current && Date.now() - startedAt.current < 8000) setBounced(true);
     }
   }, [recordingMode]);
+  // the areas of the map when the mode began, for a job the mower interrupted (components/RecordingWatch): kept at a start
+  // from here, else once the mode is seen here (started elsewhere, a reload) and the map is there
+  const marked = useRef(false);
+  useEffect(() => {
+    if (!recordingMode) marked.current = false;
+    else if (map && !marked.current) {
+      marked.current = true;
+      markRecording(map, false);
+    }
+  }, [recordingMode, map]);
+  const interrupted = hasAction(ACTION.resetJob);
+  const {drop: jobDrop} = useRecordingJob();
   // the state is published once a second, a bounce is usually over before that: the event history has it
   const checkBounce = async () => {
     if (recordingRef.current || !startedAt.current) return;
@@ -221,6 +233,7 @@ function Record() {
     setRefused(null);
     setStation(null);
     setGuide(withGuide);
+    if (map) markRecording(map, true);
     publishAction(START);
     setTimeout(() => void checkBounce().catch(() => {}), 4000);
   };
@@ -562,6 +575,19 @@ function Record() {
             {(knowsAction(A('start_manual_mowing')) || newer) && (
               <p className={styles.dim}>
                 {tr('Recording mode is also for mowing by hand: switch the blade on and drive with the stick, without recording anything.')}
+              </p>
+            )}
+            {/* a job the mower interrupted goes by the old map: recording an area ends it once the mode is over */}
+            {jobDrop === 'gone' && (
+              <p className={styles.dim}>{tr('The interrupted job was planned on the old map, it ended with the recording. The next start plans on the new one.')}</p>
+            )}
+            {interrupted && (
+              <p className={jobDrop === 'left' ? styles.warn : styles.dim}>
+                {tr(
+                  jobDrop === 'left'
+                    ? 'The map is on the mower, but the interrupted job still follows the old map. Drop it on the dashboard before the next start.'
+                    : 'An interrupted job is waiting. Recording an area ends it, the next start plans on the new map.',
+                )}
               </p>
             )}
             <button className={styles.primary} disabled={!live || !hasAction(START)} onClick={() => start(false)}>
