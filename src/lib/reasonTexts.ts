@@ -54,6 +54,7 @@ export const REFUSED_STEPS: Record<string, string> = {
   finish_navigation_area: 'Navigation area not saved',
   record_dock: 'Docking station not recorded',
   collect_point: 'Point not set',
+  undo_points: 'Nothing taken back',
   // the position got too inaccurate while recording, sent once until it's good again
   point: 'No points recorded',
 };
@@ -194,6 +195,13 @@ export const EVENTS: Record<string, EventText> = {
     severity: 'error',
     variants: [{when: {hold: false}, en: 'Restarted unexpectedly', severity: 'warning'}, {en: 'Held after an unexpected restart'}],
   },
+  // a file of the mower's data can't be written, nothing starts until it can
+  STORAGE: one('Storage problem', 'error'),
+  // why MowBite OS stays down (mowbite/host/status), and its updates: why one waits or isn't installed (update.status),
+  // update.* turned down. no events, their reasons come in those answers
+  HOST_OS: one("MowBite OS doesn't start", 'error'),
+  UPDATE: one('Update on the mower'),
+  UPDATE_REFUSED: one('Update request refused', 'warning'),
   // sound.* turned down, only in its answer: playing, uploading, or another upload busy
   SOUND_REFUSED: {
     severity: 'info',
@@ -358,7 +366,7 @@ export const REASONS: Record<string, Variant[]> = {
   CROSS_TRACK: [r('too far off its path')],
   OUTSIDE: [r('outside the area it may drive in')],
   TIMEOUT: [r('took too long', {when: {type: 'CALIBRATION_FAILED'}}), r('not making progress, maybe stuck')],
-  INVALID: [r('the path is not valid')],
+  INVALID: [r("the mower didn't accept this request", {when: {type: 'UPDATE_REFUSED'}}), r('the path is not valid')],
   NOT_ALLOWED: [r('driving not allowed')],
   PLANNING_FAILED: [r("the planner couldn't make the plan")],
   APPROACH_FAILED: [r("couldn't get to the start of the lane")],
@@ -440,6 +448,40 @@ export const REASONS: Record<string, Variant[]> = {
   KERNEL_CRASH: [r('the kernel crashed')],
   OS_CRASH: [r('MowBite OS crashed')],
   POWER_LOSS: [r('interrupted while working', {when: {hold: true}}), r('power cut or reset')],
+  NODE_STALLED: [r('a part of MowBite OS stopped responding')],
+  STORAGE_NOT_WRITABLE: [r("the mower can't write to its storage, starting is blocked until it can")],
+  // why MowBite OS doesn't start (mowbite/host/status)
+  CRASH_LOOP: [r('it crashed {restarts} times and stays off', {when: {restarts: {present: true}}}), r('it crashed several times and stays off')],
+  DATA_DIR_LOCKED: [r("another MowBite OS holds the mower's data")],
+  DATA_ERROR: [r("it can't read or prepare its data")],
+  DATA_NO_SPACE: [r('no space on the mower to back up its data before starting')],
+  DDS_PROFILE: [r('the profile its parts talk by is missing or unreadable')],
+  SCHEMA_NEWER: [r("the mower's data is from a newer version of it")],
+  // MowBite OS's updates (update.status): why one waits, isn't installed or was taken back
+  APP_TOO_OLD: [r('this version of the app is too old for the MowBite OS on the mower')],
+  OS_TOO_OLD: [r('this version of the app needs a newer MowBite OS')],
+  PLANNER_INTERFACE: [r("this version of the planner doesn't speak the interface of the MowBite OS on the mower")],
+  PLANNER_DATA: [r('this version of the planner keeps its data another way than the MowBite OS on the mower reads it')],
+  JOB_OPEN: [r('waiting until the started mowing job is finished or reset')],
+  BAD_BUNDLE: [r('the update file is damaged')],
+  BAD_ORIGIN: [r("the update isn't from a source set up on the mower")],
+  BAD_SIGNATURE: [r("the update isn't signed with a known key")],
+  BASE_TOO_OLD: [r("needs a newer base system on the mower, it isn't installed by itself")],
+  BLOCKED: [r("skipped by the automatic update: it failed before, was taken back or doesn't fit this mower")],
+  INTERNAL: [r('an error in the updater of MowBite OS')],
+  INTERRUPTED: [r('the switch was interrupted twice, the mower is back on the version before')],
+  LIBRARY_MISSING: [r('a library it needs is missing on the mower')],
+  NO_HOLD: [r("MowBite OS couldn't hold the mower for the update")],
+  OLD_SERIAL: [r('not newer than the version running')],
+  ROLLED_BACK_BY_HAND: [r("taken back by hand, it isn't installed again by itself")],
+  UNFINISHED: [r("an earlier update didn't finish")],
+  UNHEALTHY: [r("MowBite OS didn't run properly after the update, the mower went back to the version before")],
+  UPDATE_NO_SPACE: [r('not enough space on the mower to unpack the update')],
+  // update.* turned down
+  NOT_UPDATING: [r('no update is running')],
+  NO_NEWER: [r('MowBite OS is up to date')],
+  NO_PREVIOUS: [r('there is no version before this one to go back to')],
+  UNKNOWN_REVISION: [r("the mower doesn't know this version")],
   // the calibration drive (CALIBRATION_REFUSED, CALIBRATION_FAILED): rate and limit in reports a second
   NO_RTK: [r('no RTK fix')],
   NO_ROOM: [

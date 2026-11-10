@@ -12,8 +12,8 @@ import {EMERGENCY_BITS, EMERGENCY_HIDE, EMERGENCY_TEXT, EVENTS, REASONS, pick} f
 const PINNED = {
   repo: 'mkaaaaaay/mowbite-os',
   path: 'src/mowbite_api/api.schema.json',
-  commit: 'b37124539152fbf90b827185b2f5d2afea957472',
-  sha256: '164785aab4332e46a6da48ecc46c88d84d6e0718b832534804f8f06a54d3938f',
+  commit: '405daaac6de7693c8ed526a83bbebfc24fec703e',
+  sha256: '7a271121d8b6f3dc807994735693448220b94e5a0f44ae0ae34ced049727ff97',
 };
 const raw = readFileSync(join(__dirname, 'os-api.schema.json'));
 // a reason's rating, when: another one for these values of the event's fields
@@ -36,6 +36,7 @@ const NOT_OFFERED: Record<string, string> = {
   'calibration.abort': 'as calibration.start',
   'calibration.result': 'as calibration.start',
   'docking.start': 'to come: home for a mower idle away from the dock, with the way home without planner (40 (1), api 12)',
+  'host.restart_os': "to come: MowBite OS's updates in the app (update.status, FP15)",
   'events.history.delete': 'as position.history.delete',
   'position.history.delete': 'to come: deleting the track (location data) and the events in the settings, low priority',
   'ntrip.get': 'to come: NTRIP set up without a terminal (masterplan 20, E1), the access never in logs or diagnosis files',
@@ -47,18 +48,23 @@ const NOT_OFFERED: Record<string, string> = {
   'rpc.ping': 'rpc.methods already tells whether it answers',
   'system.api': "the app has its copy of the contract here and reads the api's number from system.info",
   'system.hold': "the updater's, it holds restarts while it works",
+  'update.abort': 'as host.restart_os',
+  'update.check': 'as host.restart_os',
+  'update.rollback': 'as host.restart_os',
+  'update.set_auto': 'as host.restart_os',
+  'update.start': 'as host.restart_os',
+  'update.status': 'as host.restart_os',
 };
 // what the app calls on a mower; planner.* is the MowBite Planner's, not the OS's
 const appMethods = new Set([...Object.values(RPC), ...Object.values(COMMAND).map((c) => c.method)].filter((m) => !m.startsWith('planner.')));
 const osMethods = Object.keys(api['x-methods']);
 
 // decided for a later api and in the app already, not in the pinned copy yet: TOO_SHORT (a sound under 0.2 s, the
-// phone says it), camera.* (masterplan 3.9, FP42), recording.undo (masterplan 3.2, FP45). one the copy has is red until
-// it's taken out here
+// phone says it), camera.* (masterplan 3.9, FP42). one the copy has is red until it's taken out here
 const AHEAD = {
   reasons: ['TOO_SHORT', 'CAMERA_BUSY', 'LOCKED_AFTER_CRASH', 'NOT_SET_UP', 'BLADE_RUNNING', 'TOO_HOT', 'NO_SIGNAL', 'SELF_TEST'],
   events: ['CAMERA_REFUSED', 'CAMERA_CHANGED', 'METHODS_CHANGED'],
-  methods: ['camera.list', 'camera.stream', 'recording.undo'],
+  methods: ['camera.list', 'camera.stream'],
   // a reason's variant for one event, as 'EVENT REASON'
   variants: ['CAMERA_REFUSED DRIVER_MISSING'],
 };

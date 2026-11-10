@@ -209,7 +209,9 @@ function Record() {
   // what MowBite OS answered to a step sent as a call, when it isn't a RECORDING_REFUSED shown above (another state, no
   // answer)
   const commandNote = useCommandNote(['RECORDING_REFUSED']);
-  const refusedText = refused ? refusalText(refused) : (commandNote?.text ?? '');
+  // a line that crosses itself: the way out where the mower can take its end back
+  const wayOut = refused?.reason === 'RING_CROSSES_ITSELF' && methods?.has(RPC.recordingUndo) ? `. ${tr('Take its end back with the back button, then stop again.')}` : '';
+  const refusedText = refused ? refusalText(refused) + wayOut : (commandNote?.text ?? '');
   const act = (id: string) => {
     setRefused(null);
     publishAction(A(id));
