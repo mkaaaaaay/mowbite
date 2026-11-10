@@ -4,7 +4,7 @@
 
 import type {GardenLife} from '@/components/gardenLife';
 import {mergeChanges} from './mergeChanges';
-import {apiBase, isDemo, leaveRemoved, mowerFetch, readStored, selectedMower, selectedMowerId} from './mowers';
+import {apiBase, APP_MOWER_SCRIPT, isDemo, leaveRemoved, mowerFetch, readStored, selectedMower, selectedMowerId} from './mowers';
 import {isApp} from './native';
 
 export const COLORS = [
@@ -99,9 +99,10 @@ let current: Settings | null = null;
 let shared = false;
 const listeners = new Set<() => void>();
 
-// where this device keeps the own settings of the mower looked at, by its id ('' the one the page comes from). not
-// mowerKey: selectedMower reads the list of mowers from these settings
-const ownStorageKey = () => `${STORAGE_KEY}:${isApp() ? (selectedMower()?.id ?? '') : selectedMowerId()}`;
+// where this device keeps a mower's own settings, by its id ('' the one the page comes from), and the ones of the mower
+// looked at. not mowerKey: selectedMower reads the list of mowers from these settings
+const ownKey = (id: string) => `${STORAGE_KEY}:${id}`;
+const ownStorageKey = () => ownKey(isApp() ? (selectedMower()?.id ?? '') : selectedMowerId());
 
 // what of the settings is kept by the mower's id: in a browser MOWER_KEYS, in the app everything is the mower's
 const ownPart = (s: Settings) => (isApp() ? s : join({}, s));
@@ -360,7 +361,10 @@ export function dropLooks(ids: readonly string[]) {
   if (next !== now) saveSettings(next);
 }
 
-// inline in <head>: sets the color variables before anything is drawn, so saved colors don't flash
-export const COLOR_BOOT_SCRIPT = `try{var s=JSON.parse(localStorage.getItem('${STORAGE_KEY}')||'null'),c=(s&&s.colors)||{},d=${JSON.stringify(
+// inline in <head>: sets the color variables before anything is drawn, so saved colors don't flash. in the app they're the
+// mower's own (load), its bridge is there before this runs. (built when asked, mowers and settings import each other)
+export const colorBootScript = () => `try{var s=JSON.parse(localStorage.getItem('${STORAGE_KEY}')||'null');\
+if(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform()){${APP_MOWER_SCRIPT}\
+s=JSON.parse(localStorage.getItem('${ownKey('')}'+m)||'null')||s}var c=(s&&s.colors)||{},d=${JSON.stringify(
   Object.fromEntries(COLORS.map((c) => [c.key, c.value])),
 )};for(var k in d)document.documentElement.style.setProperty('--c-'+k,c[k]||d[k])}catch(e){}`;

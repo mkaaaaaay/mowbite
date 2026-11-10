@@ -192,3 +192,42 @@ describe('the mower a page looks at', () => {
     delete win.Capacitor;
   });
 });
+
+describe('the colors set before anything is drawn', () => {
+  // the color the inline script in <head> sets for the mower, before any of the app runs
+  const boot = (m: Page) => {
+    const set = new Map<string, string>();
+    const style = {setProperty: (k: string, v: string) => set.set(k, v)};
+    new Function('document', 'window', 'localStorage', m.colorBootScript())({documentElement: {style}}, win, localStorage);
+    return set.get('--c-mower');
+  };
+  const colorOn = async (id: string | null, color?: string) => {
+    if (id === null) stored.delete('mower');
+    else stored.set('mower', id);
+    const m = await open();
+    if (color) m.saveSettings({...m.settingsStore.snapshot(), colors: {mower: color}});
+    return m;
+  };
+
+  it("in the app are the ones of the mower looked at, not the last one's saved", async () => {
+    win.Capacitor = {isNativePlatform: () => true};
+    stored.clear();
+    stored.set('appMowers', JSON.stringify([A, B]));
+    await colorOn('b', '#0000ff');
+    await colorOn('a', '#ff0000');
+    let m = await colorOn('b');
+    expect([boot(m), m.settingsStore.snapshot().colors?.mower]).toEqual(['#0000ff', '#0000ff']);
+    // none picked: the first one
+    m = await colorOn(null);
+    expect([boot(m), m.settingsStore.snapshot().colors?.mower]).toEqual(['#ff0000', '#ff0000']);
+    delete win.Capacitor;
+  });
+
+  it("in a browser are the app's, the same for every mower", async () => {
+    stored.clear();
+    stored.set('appSettings', JSON.stringify({mowers: [A, B]}));
+    await colorOn('b', '#0000ff');
+    const m = await colorOn('a');
+    expect([boot(m), m.settingsStore.snapshot().colors?.mower]).toEqual(['#0000ff', '#0000ff']);
+  });
+});

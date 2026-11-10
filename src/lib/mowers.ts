@@ -74,6 +74,10 @@ function lookedAt(): OtherMower | null {
   return id ? (list.find((m) => m.id === id) ?? null) : null;
 }
 
+// inline before anything is drawn (settings' colorBootScript): m, the id of the mower the app looks at as lookedAt has it
+export const APP_MOWER_SCRIPT = `var m=localStorage.getItem('${KEY}')||'',l=JSON.parse(localStorage.getItem('${APP_KEY}')||'[]');\
+if(m!=='${DEMO_ID}'&&!l.some(function(x){return x.id===m}))m=(l[0]||{}).id||'';`;
+
 // something unsaved asks first (wait: what leaveFirst said, asked already), and only then the choice is written: until
 // the reload everything still talks to this one
 export function selectMower(id: string, wait = leaveFirst()) {
