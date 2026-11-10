@@ -10,15 +10,18 @@ const net = vi.hoisted(() => ({
   posted: [] as unknown[],
   // the settings asked for arrive only once this is over
   late: undefined as Promise<void> | undefined,
+  // the mower looked at, '' the page's own; t has no container that answers
+  id: '',
 }));
 vi.mock('./mowers', () => ({
-  apiBase: () => '',
+  apiBase: () => (net.id ? 'http://t:8082' : ''),
   isDemo: () => false,
   readStored: (k: string) => JSON.parse(localStorage.getItem(k) ?? 'null'),
+  writeStored: (k: string, v: unknown) => (v === null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v))),
   leaveRemoved: () => {},
-  selectedMowerId: () => '',
-  mowerFetch: async (_: string, init?: RequestInit) => {
-    if (!net.up) throw new TypeError('Failed to fetch');
+  selectedMowerId: () => net.id,
+  mowerFetch: async (url: string, init?: RequestInit) => {
+    if (!net.up || url.startsWith('http://t:8082')) throw new TypeError('Failed to fetch');
     if (init?.method !== 'POST') net.asked++;
     if (!net.container) return new Response('not found', {status: 404});
     if (init?.method === 'POST') {
@@ -99,7 +102,7 @@ describe('a change that did not get to the mower', () => {
     s.saveSettings({...s.settingsStore.snapshot(), grass: false});
     await vi.advanceTimersByTimeAsync(1000);
     expect(net.posted).toEqual([]);
-    expect(keptAside()).toEqual(['appSettingsBefore:']);
+    expect(keptAside()).toEqual(['appSettingsBefore']);
     // another device switches the weather off, then this one is loaded again
     net.theirs = {grass: true, weather: false};
     net.saves = true;
@@ -161,9 +164,9 @@ describe('a change that did not get to the mower', () => {
     // another network with a web server at that address, while the page is open and when it's loaded there
     Object.assign(net, {container: false, saves: true});
     await vi.advanceTimersByTimeAsync(31000);
-    expect(keptAside()).toEqual(['appSettingsBefore:']);
+    expect(keptAside()).toEqual(['appSettingsBefore']);
     s = await reload();
-    expect(keptAside()).toEqual(['appSettingsBefore:']);
+    expect(keptAside()).toEqual(['appSettingsBefore']);
     expect(s.settingsStore.snapshot()).toEqual({grass: false, weather: true});
     // back home, another device switched the weather off meanwhile
     Object.assign(net, {container: true, theirs: {grass: true, weather: false}});
@@ -186,6 +189,90 @@ describe('a change that did not get to the mower', () => {
     net.container = true;
     await vi.advanceTimersByTimeAsync(61000);
     expect(net.posted).toEqual([{grass: false}]);
+    expect(keptAside()).toEqual([]);
+  });
+});
+
+describe('a save that got there', () => {
+  it('leaves nothing aside, also with a part emptied, and the next load sends nothing again', async () => {
+    vi.useFakeTimers();
+    kept.clear();
+    Object.assign(net, {up: true, saves: true, theirs: {imagery: {url: 'x', offsets: {x: [1, 2]}}}, posted: []});
+    const s = await reload();
+    s.saveSettings({...s.settingsStore.snapshot(), imagery: {url: undefined, offsets: undefined}});
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(keptAside()).toEqual([]);
+    await reload();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect([net.posted.length, keptAside()]).toEqual([1, []]);
+  });
+});
+
+describe('a change kept aside in one tab', () => {
+  it('stays when another tab of the same mower gets through first with nothing of its own, and goes out with the next load', async () => {
+    vi.useFakeTimers();
+    kept.clear();
+    Object.assign(net, {up: true, saves: true, theirs: {grass: true}, posted: []});
+    await reload();
+    net.up = false;
+    // tab b opened while the mower is away asks again in 30 s, tab a opened later in 40 s
+    vi.resetModules();
+    const b = await import('./settings');
+    await b.syncSettings();
+    await vi.advanceTimersByTimeAsync(10000);
+    vi.resetModules();
+    const a = await import('./settings');
+    await a.syncSettings();
+    a.saveSettings({...a.settingsStore.snapshot(), grass: false});
+    Object.assign(net, {up: true, asked: 0});
+    await vi.advanceTimersByTimeAsync(21000);
+    expect([net.asked, b.settingsStore.snapshot()]).toEqual([1, {grass: true}]);
+    expect(keptAside()).toEqual(['appSettingsBefore']);
+    // a closed before it asked again
+    const s = await reload();
+    expect(s.settingsStore.snapshot()).toEqual({grass: false});
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(net.posted).toEqual([{grass: false}]);
+    expect(keptAside()).toEqual([]);
+  });
+});
+
+describe("a change to the app's settings while another mower is looked at", () => {
+  afterEach(() => (net.id = ''));
+
+  it('goes out from the next page when another mower is picked before it was sent', async () => {
+    vi.useFakeTimers();
+    kept.clear();
+    Object.assign(net, {up: true, saves: true, theirs: {grass: true}, posted: []});
+    net.id = 't';
+    let s = await reload();
+    s.saveSettings({...s.settingsStore.snapshot(), grass: false});
+    // picked within 400 ms, the page reloads on the mower it comes from
+    net.id = '';
+    s = await reload();
+    expect(s.settingsStore.snapshot()).toEqual({grass: false});
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(net.posted).toEqual([{grass: false}]);
+    expect(keptAside()).toEqual([]);
+  });
+
+  it("goes out once it can when that mower is taken out of the list and the list doesn't get there before the switch", async () => {
+    vi.useFakeTimers();
+    kept.clear();
+    const t = {id: 't', name: 'T', host: 't'};
+    Object.assign(net, {up: true, saves: true, theirs: {mowers: [t]}, posted: []});
+    net.id = 't';
+    let s = await reload();
+    net.saves = false;
+    s.saveSettings({...s.settingsStore.snapshot(), mowers: []});
+    await s.flushSettings();
+    s.forgetOwnSettings('t');
+    net.id = '';
+    s = await reload();
+    expect(s.settingsStore.snapshot()).toEqual({mowers: []});
+    net.saves = true;
+    await vi.advanceTimersByTimeAsync(31000);
+    expect(net.posted).toEqual([{mowers: []}]);
     expect(keptAside()).toEqual([]);
   });
 });
