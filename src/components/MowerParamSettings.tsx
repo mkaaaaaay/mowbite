@@ -74,15 +74,15 @@ const useKept = () =>
     () => undefined,
   );
 
-// one change to what the container keeps as it has it now (another device may have kept more since it was asked
-// for), shown at once and back as it was when the container didn't take it. one after the other, each on the last
+// one change to what the container keeps as it has it now (another device may have changed it since it was asked for),
+// shown at once and back as it was when the container didn't answer or take it. one after the other, each on the last
 let storing: Promise<unknown> = Promise.resolve();
 function storeKept(change: (k: KeptParams) => KeptParams): Promise<void> {
   const run = storing.then(async () => {
     const before = kept ?? null;
     if (before) setKept(change(before));
     try {
-      const now = (await loadKept()) ?? before;
+      const now = await loadKept();
       if (!now) throw new Error('nothing kept');
       setKept(await saveKept(change(now)));
     } catch (e) {

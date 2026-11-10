@@ -1,8 +1,10 @@
 import {readFileSync} from 'node:fs';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 
-// docker/params.cgi: the file as the container keeps it, only lines its filter takes
-const cgi = vi.hoisted(() => ({file: '', posts: 0, fail: false}));
+// docker/params.cgi: the file as the container keeps it, only lines its filter takes. getFail: it can't be read
+const cgi = vi.hoisted(() => ({file: '', posts: 0, fail: false, getFail: false}));
+// what was set on the mower
+const sets = vi.hoisted(() => [] as Record<string, number | boolean>[]);
 const FILTER = new RegExp(readFileSync(new URL('../../docker/params.cgi', import.meta.url), 'utf8').match(/grep -E '([^']+)'/)![1]);
 vi.mock('@/lib/mowers', async (real) => ({
   ...(await real<typeof import('@/lib/mowers')>()),
@@ -17,15 +19,17 @@ vi.mock('@/lib/mowers', async (real) => ({
         .filter((l) => FILTER.test(l))
         .map((l) => l + '\n')
         .join('');
-    }
+    } else if (cgi.getFail) return new Response('', {status: 500});
     return new Response(cgi.file, {headers: {'content-type': 'text/plain'}});
   },
 }));
 // the mower takes it as a float, like OpenMower's node
 vi.mock('@/lib/rpc', async (real) => ({
   ...(await real<typeof import('@/lib/rpc')>()),
-  callRpc: async (_method: string, p: {params: Record<string, number | boolean>}) =>
-    Object.fromEntries(Object.entries(p.params).map(([k, v]) => [k, typeof v === 'number' ? Math.fround(v) : v])),
+  callRpc: async (_method: string, p: {params: Record<string, number | boolean>}) => {
+    sets.push(p.params);
+    return Object.fromEntries(Object.entries(p.params).map(([k, v]) => [k, typeof v === 'number' ? Math.fround(v) : v]));
+  },
 }));
 vi.mock('@/lib/mowerOs', async (real) => ({...(await real<typeof import('@/lib/mowerOs')>()), systemInfo: async () => null}));
 
@@ -40,6 +44,7 @@ describe('a setting of the mower kept by the container', () => {
     cgi.file = 'enabled 1\n/mower_logic/docking_approach_distance 1\n';
     cgi.posts = 0;
     cgi.fail = false;
+    cgi.getFail = false;
   });
 
   it("is kept also when the container wasn't asked before, so it doesn't set the older one again", async () => {
@@ -81,12 +86,26 @@ describe('a setting of the mower kept by the container', () => {
     await setOpenMowerParam('tool_width', 0.18);
     expect(line('tool_width')).toBe('/mower_logic/tool_width 0.18');
   });
+
+  it("isn't kept when the container's file can't be read, what another device took out stays out; it's set on the mower all the same", async () => {
+    const {setOpenMowerParam} = await load();
+    await setOpenMowerParam('gps_timeout', 15);
+    // another device: docking_approach_distance no longer kept
+    cgi.file = 'enabled 1\n/mower_logic/gps_timeout 15\n';
+    cgi.getFail = true;
+    const posts = cgi.posts;
+    await expect(setOpenMowerParam('docking_retry_count', 6)).rejects.toThrow("Set on the mower, but MowBite couldn't keep it");
+    expect(cgi.posts).toBe(posts);
+    expect(cgi.file).toBe('enabled 1\n/mower_logic/gps_timeout 15\n');
+    expect(sets.at(-1)).toEqual({'/mower_logic/docking_retry_count': 6});
+  });
 });
 
 describe('keeping switched on again', () => {
   beforeEach(() => {
     cgi.file = 'enabled 0\n/mower_logic/gps_timeout 20\n/mower_logic/docking_approach_distance 1\n';
     cgi.fail = false;
+    cgi.getFail = false;
   });
 
   it("keeps the values the mower has now, not the ones from before, and none it hasn't told", async () => {
