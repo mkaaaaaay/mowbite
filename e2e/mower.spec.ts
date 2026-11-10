@@ -156,6 +156,24 @@ test('stop right after record obstacle asks before the area is lost', async ({pa
   await expect(button('Record outline')).toBeVisible();
 });
 
+// discard area sits next to save: the first tap only asks
+test('discard area takes a second tap', async ({page}) => {
+  await page.goto('/record/');
+  await demoDocked(page);
+  await page.getByRole('button', {name: 'Start recording mode'}).click();
+  const button = (name: string) => page.locator('button:visible', {hasText: name}).first();
+  await button('Record outline').click();
+  await holdStick(page);
+  await page.waitForTimeout(1500);
+  await page.mouse.up();
+  await button('Stop').click();
+  await button('Discard area').click();
+  await expect(button('Really discard?')).toBeVisible();
+  await expect(button('Save as mowing area')).toBeVisible();
+  await button('Really discard?').click();
+  await expect(button('Record outline')).toBeVisible();
+});
+
 // recording mode left on without its page (another phone, the back button): the overview leads back to it, and out of
 // it while nothing would be lost
 test('the overview in recording mode leads back to recording and out of it', async ({page}) => {

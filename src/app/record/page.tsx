@@ -340,6 +340,18 @@ function Record() {
     setClosing(null);
     setHeld(true);
   };
+  // discarding takes two taps: the first asks for a few seconds (it sits next to save)
+  const [askDiscard, setAskDiscard] = useState(false);
+  useEffect(() => {
+    if (!askDiscard) return;
+    const t = setTimeout(() => setAskDiscard(false), 4000);
+    return () => clearTimeout(t);
+  }, [askDiscard]);
+  const discardTap = () => {
+    if (!askDiscard) return setAskDiscard(true);
+    setAskDiscard(false);
+    act('finish_discard');
+  };
   // a step's button, upright in the card, sideways in the bar at the bottom (the main one a row of its own upright)
   const button = (id: string, label: string, kind?: 'main' | 'danger', after?: () => void, ask?: () => void) =>
     hasAction(A(id)) && (
@@ -359,6 +371,7 @@ function Record() {
         {tr(label)}
       </button>
     );
+  const discardButton = button('finish_discard', askDiscard ? 'Really discard?' : 'Discard area', 'danger', undefined, discardTap);
   // the docking station: with the guide on OpenMower, OpenMower's own two steps on MowBite OS
   const stationButton = (again: boolean) =>
     os ? (
@@ -418,7 +431,7 @@ function Record() {
       button('collect_point', 'Set point here'),
       button('auto_point_collecting_disable', 'Auto points: on'),
       button('auto_point_collecting_enable', 'Auto points: off'),
-      button('finish_discard', 'Discard area', 'danger'),
+      discardButton,
     ];
   } else if (phase === 'outlined') {
     say = (
@@ -431,7 +444,7 @@ function Record() {
       button('finish_mowing_area', 'Save as mowing area', 'main', () => setSaved('Mowing area')),
       button('start_recording', 'Record obstacle'),
       button('finish_navigation_area', 'Save as navigation area', undefined, () => setSaved('Navigation area')),
-      button('finish_discard', 'Discard area', 'danger'),
+      discardButton,
     ];
   } else if (phase === 'dock') {
     say = (

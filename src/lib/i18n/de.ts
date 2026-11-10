@@ -128,6 +128,7 @@ const de: Record<string, string> = {
   "detected": "erkannt",
   "Direction of the stripes, counted counter-clockwise like on a map: 0° = east, 90° = north, 180° = west, 270° (or -90°) = south. 0° and 180° give the same lanes, the mower only starts them from the other side. Empty = automatic: the direction from the outline's first point to the first one more than 2 m away, for a recorded area the way you set off.": "Richtung der Streifen, gezählt gegen den Uhrzeigersinn wie auf einer Karte: 0° = Ost, 90° = Nord, 180° = West, 270° (oder -90°) = Süd. 0° und 180° ergeben dieselben Bahnen, der Mäher beginnt sie nur auf der anderen Seite. Leer = automatisch: die Richtung vom ersten Randpunkt zum ersten Punkt, der mehr als 2 m entfernt liegt, bei einer aufgenommenen Fläche also die Richtung, in die du losgefahren bist.",
   "Discard area": "Fläche verwerfen",
+  "Really discard?": "Wirklich verwerfen?",
   "Display": "Anzeige",
   "Docked": "Angedockt",
   "Docking failed": "Andocken fehlgeschlagen",
