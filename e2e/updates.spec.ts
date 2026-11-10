@@ -148,7 +148,8 @@ test('a newer build reloads the page only while the mower waits', async ({page})
   await page.evaluate(() => ((window as unknown as {kept: boolean}).kept = true));
   newer = true;
   const shown = () => page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
-  const kept = () => page.evaluate(() => !!(window as unknown as {kept?: boolean}).kept);
+  // (a page that's just reloading has lost it)
+  const kept = () => page.evaluate(() => !!(window as unknown as {kept?: boolean}).kept).catch(() => false);
   await shown();
   await page.waitForTimeout(1500);
   expect(await kept()).toBe(true);
