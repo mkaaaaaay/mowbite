@@ -1,6 +1,7 @@
 import {describe, expect, it, vi} from 'vitest';
 import {setLangChoice} from './i18n';
-import {inOtherZone, isNightTime, logTone, missedStart, nextStart, parseSchedule, posixTz, reachesDark, scheduleLogLine, serializeSchedule, type Schedule} from './schedule';
+import {daySun, inOtherZone, isNightTime, logTone, missedStart, nextStart, parseSchedule, posixTz, reachesDark, scheduleLogLine, scheduleNow, serializeSchedule, tzOffset, type Schedule} from './schedule';
+import {sunTimes} from './sun';
 
 // the dates below are local times, so the same zone everywhere (github runs in UTC)
 process.env.TZ = 'Europe/Berlin';
@@ -123,6 +124,47 @@ describe('posixTz', () => {
     process.env.TZ = 'Asia/Tokyo';
     try {
       expect(posixTz()).toBe('<+0900>-9');
+    } finally {
+      process.env.TZ = 'Europe/Berlin';
+    }
+  });
+});
+
+describe('tzOffset', () => {
+  // (on the hour: posixTz reads the switches hour by hour, a switch at half past comes out half an hour late)
+  it('reads the zones posixTz writes the way the browser counts them, all year', () => {
+    try {
+      for (const zone of ['Europe/Berlin', 'America/Los_Angeles', 'Australia/Sydney', 'Australia/Lord_Howe', 'Asia/Kolkata', 'America/St_Johns']) {
+        process.env.TZ = zone;
+        const tz = posixTz();
+        const wrong: string[] = [];
+        for (let t = Date.UTC(2026, 0, 1); t < Date.UTC(2027, 0, 1); t += 3600e3) {
+          if (tzOffset(tz, new Date(t)) !== -new Date(t).getTimezoneOffset()) wrong.push(new Date(t).toISOString());
+        }
+        expect(wrong, zone).toEqual([]);
+      }
+    } finally {
+      process.env.TZ = 'Europe/Berlin';
+    }
+  });
+  it("this device's for a zone it can't read", () => {
+    expect(tzOffset('Europe/Berlin', new Date(Date.UTC(2026, 0, 15)))).toBe(60);
+    expect(tzOffset(undefined, new Date(Date.UTC(2026, 6, 15)))).toBe(120);
+  });
+});
+
+describe('a phone in another time zone than the schedule', () => {
+  const berlin = '<+0100>-1<+0200>-2,M3.5.0/2,M10.5.0/3';
+  const garden = {lat: 52.37, lon: 9.73};
+  it("counts by the schedule's clock: its day, its time and its sun", () => {
+    const sun = sunTimes(garden.lat, garden.lon, new Date(2026, 8, 28, 12));
+    process.env.TZ = 'America/Los_Angeles';
+    try {
+      // monday 10:00 in Berlin, 01:00 in Los Angeles
+      const from = new Date(Date.UTC(2026, 8, 28, 8, 0));
+      const s = {...schedule([plan([1], '09:00'), plan([1], '11:00')]), tz: berlin};
+      expect(nextStart(s, from)).toEqual(new Date(2026, 8, 28, 11, 0));
+      expect(daySun(berlin, garden)(scheduleNow(berlin, from))).toEqual(sun);
     } finally {
       process.env.TZ = 'Europe/Berlin';
     }

@@ -2,6 +2,7 @@ import {reasonText} from './events';
 import {forget, fresh} from './fresh';
 import {fmt, tr} from './i18n';
 import {apiBase, mowerFetch} from './mowers';
+import {sunTimes} from './sun';
 
 // the mowing schedule, kept by the container (docker/schedule.cgi) as simple lines the scheduler
 // script reads: enabled, minbattery, skiprain, skipforecast, skipcold, mintemp, tz, one "plan <days> <HH:MM> [areas] [end=HH:MM] [dark=1] [sunset=1]
@@ -361,7 +362,7 @@ export function planAreas(p: Plan, mowable: readonly string[], pause: Pause | un
 // the next start as a date, looking a week ahead from now. days paused for all areas don't count, and with the
 // sun times neither do starts in the dark that the scheduler leaves out (not marked dark): the same for every day, or
 // each day's own. with the mowable areas (ids) neither does a start with none of its areas left to mow, the scheduler
-// leaves that one out too
+// leaves that one out too. by the schedule's clock: the date's own fields read its time (scheduleNow)
 export function nextStart(
   s: Schedule,
   from = new Date(),
@@ -369,9 +370,10 @@ export function nextStart(
   mowable?: readonly string[],
 ): Date | null {
   if (!s.enabled) return null;
+  const now = scheduleNow(s.tz, from);
   let best: Date | null = null;
   for (let add = 0; add <= 7; add++) {
-    const day = new Date(from.getFullYear(), from.getMonth(), from.getDate() + add);
+    const day = new Date(now.getFullYear(), now.getMonth(), now.getDate() + add);
     const dow = ((day.getDay() + 6) % 7) + 1;
     // a pause of the whole schedule leaves those days out
     if (s.pause?.areas === 'all' && localDay(day) <= s.pause.until) continue;
@@ -383,7 +385,7 @@ export function nextStart(
       const at = new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, m);
       // the hour the clock skips when summer time begins: the scheduler doesn't start then
       if (at.getHours() !== h || at.getMinutes() !== m) continue;
-      if (at > from && (!best || at < best)) best = at;
+      if (at > now && (!best || at < best)) best = at;
     }
   }
   return best;
@@ -431,6 +433,44 @@ export function posixTz(): string {
 // a schedule saved in another time zone than this device's, its times are then the schedule's (posixTz is costly, not
 // for every render)
 export const inOtherZone = (tz: string | undefined) => !!tz && tz !== posixTz();
+
+// HH:MM, H or -H:MM as minutes
+const minutes = (t: string) => {
+  const [h, m = 0] = t.replace('-', '').split(':').map(Number);
+  return (t.startsWith('-') ? -1 : 1) * (h * 60 + m);
+};
+const POSIX_TZ = /^<[^>]*>(-?[\d:]+)(?:<[^>]*>(-?[\d:]+),M(\d+)\.(\d)\.(\d)\/([\d:]+),M(\d+)\.(\d)\.(\d)\/([\d:]+))?$/;
+
+// The offset of a time zone as posixTz writes it, in minutes east of UTC at that instant, this device's for anything else.
+export function tzOffset(tz: string | undefined, at = new Date()): number {
+  const z = tz ? POSIX_TZ.exec(tz) : null;
+  if (!z) return -at.getTimezoneOffset();
+  // posix counts west as positive
+  const std = -minutes(z[1]);
+  if (!z[2]) return std;
+  const dst = -minutes(z[2]);
+  const year = at.getUTCFullYear();
+  // the switch on the d-th weekday (0 sunday) of week w (5: the last) of month m, at that time by the clock until then
+  const switchAt = (m: string, w: string, d: string, time: string, before: number) => {
+    const first = new Date(Date.UTC(year, Number(m) - 1, 1)).getUTCDay();
+    let day = 1 + ((Number(d) - first + 7) % 7) + (Number(w) - 1) * 7;
+    if (day > new Date(Date.UTC(year, Number(m), 0)).getUTCDate()) day -= 7;
+    return Date.UTC(year, Number(m) - 1, day) + (minutes(time) - before) * 60e3;
+  };
+  const start = switchAt(z[3], z[4], z[5], z[6], std);
+  const end = switchAt(z[7], z[8], z[9], z[10], dst);
+  const t = at.getTime();
+  return (start < end ? start <= t && t < end : t < end || t >= start) ? dst : std;
+}
+
+// now (or at an instant) by the schedule's clock, as a date whose own fields read that time: on a phone in another
+// time zone too
+export const scheduleNow = (tz: string | undefined, at = new Date()) =>
+  new Date(at.getTime() + (tzOffset(tz, at) + at.getTimezoneOffset()) * 60e3);
+
+// a day's sunrise and sunset at the garden by the schedule's clock, the day a date of scheduleNow's
+export const daySun = (tz: string | undefined, pos: {lat: number; lon: number}) => (day: Date) =>
+  sunTimes(pos.lat, pos.lon, day, tzOffset(tz, new Date(day.getFullYear(), day.getMonth(), day.getDate(), 12)));
 
 // today as YYYY-MM-DD in local time, the scheduler compares it with its own date in the browser's time zone
 export function localDay(d = new Date()): string {
