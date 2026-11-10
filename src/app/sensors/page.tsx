@@ -30,6 +30,8 @@ import {fmt, tr, useLang} from '@/lib/i18n';
 
 // sensors that get their own card instead of the generic one
 const BATTERY_IDS = new Set(['om_v_battery', 'om_v_charge', 'om_charge_current', 'om_charge_state']);
+// what MowBite OS's text sensor os_ntrip_state says, translated; any other text as it comes
+const NTRIP_STATES = ['off', 'waiting', 'connecting', 'connected', 'rejected'];
 const MOTOR_IDS = new Set(['om_mow_motor_current', 'om_mow_motor_rpm']);
 const GPS_ID = 'om_gps_accuracy';
 // xbot_positioning reports 999 when there's no fix
@@ -301,7 +303,7 @@ export default function SensorsPage() {
                     return (
                       <Card key={o.sensor_id} title={tr(o.sensor_name)}>
                         <strong className={[styles.big, outOfRange(o, values[o.sensor_id], currentState) ? styles.error : ''].join(' ')}>
-                          {numeric ? `${fmt(v, digitsOf(o))} ${unitOf(o)}` : (values[o.sensor_id] ?? '–')}
+                          {numeric ? `${fmt(v, digitsOf(o))} ${unitOf(o)}` : NTRIP_STATES.includes(values[o.sensor_id]) ? tr(values[o.sensor_id]) : (values[o.sensor_id] ?? '–')}
                         </strong>
                         {numeric && <Sparkline samples={history[o.sensor_id]} digits={digitsOf(o)} unit={unitOf(o)} />}
                       </Card>
