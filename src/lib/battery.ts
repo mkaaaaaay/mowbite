@@ -32,7 +32,8 @@ const topUp = (c: Cycle, before?: Cycle) =>
 export const fullCharges = (cycles: Cycle[]): Cycle[] =>
   cycles.filter((c, i) => c.kind === 'charge' && c.ended !== 'lost' && c.minutes >= 20 && !topUp(c, cycles[i - 1]));
 
-export const chargeSamples = (cycles: Cycle[]): Sample[] => fullCharges(cycles).map((c) => ({t: c.end * 1000, v: c.minutes}));
+// by time: a clock set back leaves a line out of order
+export const chargeSamples = (cycles: Cycle[]): Sample[] => fullCharges(cycles).map((c) => ({t: c.end * 1000, v: c.minutes})).sort((a, b) => a.t - b.t);
 
 // how full the battery is in %, from the container (docker/battery.awk), and how many seconds ago it was worked out, when
 // that's at most two minutes ago. read as under the electronics alone, so the blade and the wheels starting don't make

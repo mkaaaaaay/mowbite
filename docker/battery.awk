@@ -39,6 +39,14 @@ function save(    k, line) {
   dirty = 0
 }
 
+# a charge's line, left out when the stream had a gap of over 10 minutes (the container away, the clock set) or it took
+# over a day: its minutes would be the gap's
+function charge_line(te, how) {
+  if (c["gmax"] <= 600 && te - c["it"] <= 600 && te - charge_t <= 86400)
+    printf "charge %d %d %.1f %.2f %.2f %s\n", charge_t, te, (te - charge_t) / 60, charge_v, volts, how >> OUT
+  close(OUT)
+}
+
 function start_charge(    x) {
   split("", c)
   split("", sw); split("", so); swn = 0
@@ -407,8 +415,7 @@ BEGIN {
       # the run
       if (!no_current_t) no_current_t = t
       else if (t - no_current_t > 120) {
-        printf "charge %d %d %.1f %.2f %.2f lost\n", charge_t, no_current_t, (no_current_t - charge_t) / 60, charge_v, volts >> OUT
-        close(OUT)
+        charge_line(no_current_t, "lost")
         charging = 0
         finish("lost", no_current_t)
         run_t = no_current_t; run_v = volts; blade_s = 0
@@ -429,9 +436,9 @@ BEGIN {
       h["lst"] = sst
       if (st !~ /^(Trickle Charge|Pre Charge|Fast Charge|Taper Charge|Top Off)/) h["pst"] = sst
     }
-    if (val == "Done" && charging) {
-      printf "charge %d %d %.1f %.2f %.2f done\n", charge_t, t, (t - charge_t) / 60, charge_v, volts >> OUT
-      close(OUT)
+    # (after a restart once the battery's voltage came again)
+    if (val == "Done" && charging && volts) {
+      charge_line(t, "done")
       charging = 0
       finish("done", t)
       run_t = t; run_v = volts; blade_s = 0
