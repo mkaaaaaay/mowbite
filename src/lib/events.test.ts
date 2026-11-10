@@ -332,6 +332,8 @@ describe('emergency stop reasons', () => {
     // only what holds it, no reason of its own
     expect(describeEvent(ev(1, 'EMERGENCY', {emergency: true, reason: '1'})).text).toBe('Emergency stop (code 1)');
     expect(explain(ev(1, 'EMERGENCY', {emergency: true, reason: '1024'}))).toContain('mower_spinup_timeout');
+    expect(explain(ev(1, 'MOW_MOTOR_SPINUP_FAILED'))).toContain('emergency stop');
+    expect(explain(ev(1, 'MOW_MOTOR_SPINUP_FAILED'), undefined, undefined, true)).toMatch(/^The mow motor didn't reach its speed in time, so mowing paused/);
     expect(explain(ev(1, 'EMERGENCY', {emergency: true, reason: '128'}))).toContain('ROS log');
     expect(explain(ev(1, 'EMERGENCY', {emergency: true, reason: '33'}))).toBe('Stop button, lift, tilt or a bumper. It has to be released and reset before it drives again.');
     // the board's own reasons each with their own help, the stop button's words only for what was set off at the mower

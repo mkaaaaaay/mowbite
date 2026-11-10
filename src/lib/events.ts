@@ -477,7 +477,12 @@ export function explain(e: MowerEvent, state?: string, gpsTimeout?: number, os =
     case 'UNEXPECTED_RESTART':
       return restartText(e);
     case 'MOW_MOTOR_SPINUP_FAILED':
-      return spinupFailed();
+      // MowBite OS pauses, OpenMower stops with an emergency
+      return os
+        ? tr(
+            "The mow motor didn't reach its speed in time, so mowing paused. Often grass is wound round the blade or the blade is blocked, or the motor or its controller is faulty.",
+          )
+        : spinupFailed();
     case 'RECORDING_REFUSED':
       return e.action === 'point'
         ? tr(

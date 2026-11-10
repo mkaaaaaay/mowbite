@@ -414,6 +414,8 @@ const de: Record<string, string> = {
   "OpenMower stopped": "OpenMower beendet",
   "OpenMower started": "OpenMower gestartet",
   "The mow motor didn't reach its speed in time (mower_logic/mower_spinup_timeout), so the mower triggered an emergency stop. Often grass is wound round the blade or the blade is blocked, or the motor or its controller is faulty.": "Der Mähmotor kam nicht rechtzeitig auf Drehzahl (mower_logic/mower_spinup_timeout), deshalb hat der Mäher mit Notaus angehalten. Oft hat sich Gras um das Messer gewickelt oder das Messer ist blockiert, oder Motor oder Regler sind defekt.",
+  "The mow motor didn't reach its speed in time, so mowing paused. Often grass is wound round the blade or the blade is blocked, or the motor or its controller is faulty.":
+    "Der Mähmotor kam nicht rechtzeitig auf Drehzahl, deshalb pausiert das Mähen. Oft hat sich Gras um das Messer gewickelt oder das Messer ist blockiert, oder Motor oder Regler sind defekt.",
   "Back to charge": "Zum Laden zurück",
   "Stopped for rain": "Wegen Regen zurück",
   "Mow motor too hot": "Mähmotor zu heiß",
