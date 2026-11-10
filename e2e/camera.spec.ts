@@ -1,4 +1,4 @@
-import {demoDocked, expect, SIM, tab, test} from './app';
+import {demoDocked, demoWith, expect, SIM, tab, test} from './app';
 
 // the cameras of a mower with MowBite OS: the demo is an OpenMower and has none until a test switches them on. it's out
 // mowing when it opens, the blade running: no picture until it's home
@@ -13,7 +13,7 @@ test.describe('cameras', () => {
   });
 
   test('on the dashboard once switched on: why there is none while the blade runs, then the picture, the cameras to switch', async ({page}) => {
-    await page.addInitScript(() => ((window as {mowbiteDemoCameras?: boolean}).mowbiteDemoCameras = true));
+    await demoWith(page, 'Cameras');
     await page.goto('/');
     await expect(page.locator('[data-camera]')).toHaveCount(0);
 
@@ -67,7 +67,7 @@ test.describe('cameras', () => {
   });
 
   test('in recording mode the map or a camera', async ({page}) => {
-    await page.addInitScript(() => ((window as {mowbiteDemoCameras?: boolean}).mowbiteDemoCameras = true));
+    await demoWith(page, 'Cameras');
     await page.goto('/record/');
     await demoDocked(page);
     await page.getByRole('button', {name: 'Start recording mode'}).click();
@@ -92,7 +92,7 @@ test.describe('cameras', () => {
 
   test('sideways the choice at the top', async ({page, isMobile}) => {
     test.skip(!isMobile, 'Sideways is on phones');
-    await page.addInitScript(() => ((window as {mowbiteDemoCameras?: boolean}).mowbiteDemoCameras = true));
+    await demoWith(page, 'Cameras');
     await page.goto('/record/');
     await demoDocked(page);
     await page.getByRole('button', {name: 'Start recording mode'}).click();

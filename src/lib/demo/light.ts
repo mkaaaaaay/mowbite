@@ -33,8 +33,6 @@ function checked(e: LightEffect): LightEffect {
   return {effect: e.effect, colors, period: p, brightness: b};
 }
 
-export const demoLightsOn = () => typeof window !== 'undefined' && !!(window as {mowbiteDemoLights?: boolean}).mowbiteDemoLights;
-
 export function demoLights(): Record<string, (params: unknown) => unknown> {
   let profile: LightProfile = {...DEFAULTS};
   const answer = () => ({profile});

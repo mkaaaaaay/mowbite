@@ -1,4 +1,4 @@
-import {demoAction, demoCall, demoDocked, demoDrive, demoEmergency, demoHas, demoRefuseReset, expect, recordStation, tab, test} from './app';
+import {demoAction, demoCall, demoDocked, demoDrive, demoEmergency, demoHas, demoRefuseReset, demoWith, expect, recordStation, tab, test} from './app';
 import type {Page} from '@playwright/test';
 import {length} from '@/lib/planProgress';
 
@@ -279,7 +279,7 @@ const lineLength = async (page: Page) => {
 // MowBite OS's back button, the demo has its recording.undo behind a switch: the end of the line goes, the mower stays
 // and auto points are off
 test('back takes the end of the line away while the mower stays', async ({page}) => {
-  await page.addInitScript(() => ((window as {mowbiteDemoUndo?: boolean}).mowbiteDemoUndo = true));
+  await demoWith(page, 'Undo');
   await page.goto('/record/');
   await demoDocked(page);
   await page.getByRole('button', {name: 'Start recording mode'}).click();

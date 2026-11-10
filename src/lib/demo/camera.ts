@@ -1,14 +1,11 @@
 import type {Camera} from '../camera';
 import {RPC, TOPIC} from '../openmower';
+import {demoFlags} from './flags';
 
 // The cameras of a mower with MowBite OS for the click tests (camera.*), like MowBite OS answers them: none shows a
 // picture while the blade runs. The demo is an OpenMower and has none, a test switches them on before the page loads
 // (window.mowbiteDemoCameras). Each picture is a drawing that moves a little, sent as mjpeg. A test sets
 // window.mowbiteDemoCameraRefuse to a reason to have the next stream turned down with it
-
-type Flags = {mowbiteDemoCameras?: boolean; mowbiteDemoCameraRefuse?: string};
-const flags = (): Flags => (typeof window === 'undefined' ? {} : (window as Flags));
-export const demoCamerasOn = () => !!flags().mowbiteDemoCameras;
 
 const CAMERAS: Camera[] = [
   {id: 'stereo', name: 'Stereo camera', kind: 'stereo', position: 'front', width: 640, height: 480, protocols: ['mjpeg'], available: true},
@@ -53,9 +50,10 @@ export function demoCameras(deliver: (topic: string, text: string) => void) {
         const c = cameras.find((x) => x.id === id);
         if (!c) throw new Error(`no camera ${id}`);
         if (protocol && !c.protocols.includes(protocol)) throw new Error(`${id} has no ${protocol}`);
-        const refuse = flags().mowbiteDemoCameraRefuse;
+        const flags = demoFlags();
+        const refuse = flags.mowbiteDemoCameraRefuse as string | undefined;
         if (refuse) {
-          delete flags().mowbiteDemoCameraRefuse;
+          delete flags.mowbiteDemoCameraRefuse;
           throw new Refused(refuse);
         }
         if (!c.available) throw new Refused(c.reason ?? 'NO_SIGNAL');

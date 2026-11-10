@@ -5,18 +5,16 @@ import {EMERGENCY_BITS} from '../reasonTexts';
 import {closedRings, openRing, openRings} from '../rings';
 import {CALIB_NEED, calibCounts, calibResultOf} from './calib';
 import {DEMO_PARAMS, DEMO_SENSORS, demoMap} from './garden';
-import {demoCameras, demoCamerasOn} from './camera';
-import {demoLights, demoLightsOn} from './light';
-import {demoSounds, demoSoundsOn} from './sound';
+import {demoCameras} from './camera';
+import {demoOn} from './flags';
+import {demoLights} from './light';
+import {demoSounds} from './sound';
 
 // The demo mower: what OpenMower would send and answer, made up here so the app can be looked at without a mower.
 // It drives the plan of its garden at a mower's pace, takes the commands (start, pause, home, skip), keeps its
 // events and tracks like the real history does and takes a map saved in the editor. In recording mode it drives with
 // the stick and records areas, obstacles and its station like OpenMower's area recording. Nothing leaves the device and
 // nothing is kept, a reload starts it again in the middle of a mow.
-
-// MowBite OS's recording.undo for the click tests, switched on before the page loads (window.mowbiteDemoUndo)
-const demoUndoOn = () => typeof window !== 'undefined' && !!(window as {mowbiteDemoUndo?: boolean}).mowbiteDemoUndo;
 
 const SPEED = 0.45; // m/s
 const TICK_MS = 200;
@@ -445,6 +443,8 @@ const plannedDaysAgo = (now: number) =>
 
 export function createWorld(deliver: (topic: string, text: string) => void, opts: WorldOptions = {}): World {
   let map = opts.map ?? demoMap();
+  // MowBite OS's recording.undo for the click tests, switched on before the page loads (window.mowbiteDemoUndo)
+  const undoOn = demoOn('Undo');
   // changed by params.set, like the ros params until the mower restarts
   const ros: Record<string, number | boolean> = {...DEMO_PARAMS, ...opts.params};
   let last = opts.now ?? Date.now();
@@ -771,7 +771,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
       a('auto_point_collecting_enable', 'Enable Auto Points', line && !r!.auto),
       a('auto_point_collecting_disable', 'Disable Auto Points', line && r!.auto),
       a('collect_point', 'Collect Point', line && !r!.auto),
-      ...(demoUndoOn() ? [a('undo_points', 'Undo Points', !!r?.line?.length)] : []),
+      ...(undoOn ? [a('undo_points', 'Undo Points', !!r?.line?.length)] : []),
       a('start_manual_mowing', 'Start Manual Mowing', !!r && !r.blade),
       a('stop_manual_mowing', 'Stop Manual Mowing', !!r && r.blade),
     ];
@@ -1039,7 +1039,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
   }
 
   const utcDay = (t: number) => new Date(t * 1000).toISOString().slice(0, 10).replace(/-/g, '');
-  const cameras = demoCamerasOn() ? demoCameras(deliver) : null;
+  const cameras = demoOn('Cameras') ? demoCameras(deliver) : null;
   const methods: Record<string, (params: unknown) => unknown> = {
     [RPC.methods]: () => Object.keys(methods).sort(),
     [RPC.replaceMap]: (params) => {
@@ -1118,10 +1118,10 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
       deliver(TOPIC.params, JSON.stringify(ros));
       return wanted;
     },
-    ...(demoLightsOn() ? demoLights() : {}),
-    ...(demoSoundsOn() ? demoSounds() : {}),
+    ...(demoOn('Lights') && demoLights()),
+    ...(demoOn('Sounds') && demoSounds()),
     ...cameras?.methods,
-    ...(demoUndoOn() && {
+    ...(undoOn && {
       // points off the end of the open line until that much of it is gone. the mower stays where it is, auto points
       // go off
       [RPC.recordingUndo]: (params: unknown) => {

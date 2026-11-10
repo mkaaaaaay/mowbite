@@ -1,4 +1,4 @@
-import {expect, SIM, test} from './app';
+import {demoWith, expect, SIM, test} from './app';
 
 // the lights by state on a mower with MowBite OS: the demo is an OpenMower and has none until a test switches them on
 test.describe('lights', () => {
@@ -11,7 +11,7 @@ test.describe('lights', () => {
   });
 
   test('each state folded with its colors, changed, tried on the mower and saved in its own tile', async ({page}) => {
-    await page.addInitScript(() => ((window as {mowbiteDemoLights?: boolean}).mowbiteDemoLights = true));
+    await demoWith(page, 'Lights');
     await page.goto('/settings/');
     const group = page.locator('#lights');
     await group.locator('summary').first().click();
@@ -55,13 +55,13 @@ test.describe('lights', () => {
     await expect(page.locator('a[href="/guide/lights"], a[href="/guide/lights/"]')).toHaveCount(0);
 
     // (the same address again would only move to the anchor, a reload runs the init script)
-    await page.addInitScript(() => ((window as {mowbiteDemoSounds?: boolean}).mowbiteDemoSounds = true));
+    await demoWith(page, 'Sounds');
     await page.reload();
     await page.getByRole('link', {name: 'Sounds', exact: true}).click();
     await expect(page.getByRole('heading', {name: 'Sounds'})).toBeVisible();
     await expect(page.getByText('1/2')).toBeVisible();
 
-    await page.addInitScript(() => ((window as {mowbiteDemoLights?: boolean}).mowbiteDemoLights = true));
+    await demoWith(page, 'Lights');
     await page.goto('/settings/#guides');
     await page.getByRole('link', {name: 'Lights and sounds'}).click();
     await expect(page.getByRole('heading', {name: 'Lights by state'})).toBeVisible();

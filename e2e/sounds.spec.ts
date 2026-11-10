@@ -1,5 +1,5 @@
 import {join} from 'node:path';
-import {expect, SIM, test} from './app';
+import {demoWith, expect, SIM, test} from './app';
 
 const BEEP = join(__dirname, 'fixtures', 'beep.mp3');
 
@@ -14,7 +14,7 @@ test.describe('sounds', () => {
   });
 
   test('each situation to listen to, one without a sound, the volume', async ({page}) => {
-    await page.addInitScript(() => ((window as {mowbiteDemoSounds?: boolean}).mowbiteDemoSounds = true));
+    await demoWith(page, 'Sounds');
     await page.goto('/settings/');
     const group = page.locator('#sounds');
     await group.locator('summary').click();
@@ -38,7 +38,7 @@ test.describe('sounds', () => {
   });
 
   test('an own sound uploaded and the manufacturer\'s back, one too large and one the mower turns down', async ({page}) => {
-    await page.addInitScript(() => ((window as {mowbiteDemoSounds?: boolean}).mowbiteDemoSounds = true));
+    await demoWith(page, 'Sounds');
     await page.goto('/settings/');
     const group = page.locator('#sounds');
     await group.locator('summary').click();

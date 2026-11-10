@@ -1,4 +1,5 @@
 import {RPC} from '../openmower';
+import {demoFlags} from './flags';
 import {sha256Js} from '../sha256';
 import type {Situation, SoundFile} from '../sound';
 import {MAX_SOUND_BYTES, PART_BYTES} from '../soundLimits';
@@ -14,10 +15,6 @@ const SITUATIONS: Situation[] = [
   {name: 'DOCKING_START', event: 'STATE DOCKING', file: null},
   {name: 'EMERGENCY', event: 'EMERGENCY', file: vendor(1.8)},
 ];
-
-type Flags = {mowbiteDemoSounds?: boolean; mowbiteDemoSoundRefuse?: string};
-const flags = (): Flags => (typeof window === 'undefined' ? {} : (window as Flags));
-export const demoSoundsOn = () => !!flags().mowbiteDemoSounds;
 
 // a refusal as the mower sends it: -32600 with the event in its data
 class Refused extends Error {
@@ -79,7 +76,7 @@ export function demoSounds(): Record<string, (params: unknown) => unknown> {
         at += b.length;
       }
       upload = null;
-      const refuse = flags().mowbiteDemoSoundRefuse;
+      const refuse = demoFlags().mowbiteDemoSoundRefuse as string | undefined;
       if (refuse) throw new Refused(refuse, `Refused: ${refuse}`);
       if (sha256Js(file) !== sha256) throw new Refused('CHECKSUM', 'The file that came has another sha256 than the one given');
       // as long as at 128 kbit/s, the demo doesn't decode it
