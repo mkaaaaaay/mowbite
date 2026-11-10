@@ -7,11 +7,15 @@ import {RPC} from './openmower';
 // the mower's event history, shared by the dashboard and the activity page
 export const historyDays = () => fresh('events:list', () => callRpc<string[]>(RPC.eventDays));
 
-// the mower's file day of a moment (UTC). A file of a day that's over doesn't change any more
+// The mower names its files by the day on its own clock: OpenMower's container mostly UTC, MowBite OS its time zone
+// (Europe/Berlin unless set). Not known here, so a file day may begin as early as UTC+14 and end as late as UTC-12
+const EAST = 14 * 3600e3;
+const WEST = 12 * 3600e3;
+
 const utcDay = (ms: number) => new Date(ms).toISOString().slice(0, 10).replace(/-/g, '');
 
-// when a file day is over and its file doesn't change any more (ms, ten minutes after its end in UTC)
-const dayOver = (date: string) => Date.UTC(+date.slice(0, 4), +date.slice(4, 6) - 1, +date.slice(6, 8) + 1) + 600000;
+// when a file day is over in every zone and its file doesn't change any more (ms, ten minutes after its end in UTC-12)
+const dayOver = (date: string) => Date.UTC(+date.slice(0, 4), +date.slice(4, 6) - 1, +date.slice(6, 8) + 1) + WEST + 600000;
 
 // an answer asked for once the day was over is kept, one from while it was still written isn't
 export const historyOf = (date: string) =>
@@ -24,12 +28,13 @@ export const historyOf = (date: string) =>
 // something happened: the list and the file still being written are asked for again, older files are kept
 export function forgetToday() {
   forget('events:list');
-  forget(`events:${utcDay(Date.now())}`);
-  forget(`events:${utcDay(Date.now() - 600000)}`);
+  // the file days of now in any zone, the one before ended ten minutes ago at most
+  const now = Date.now();
+  for (const d of new Set([utcDay(now - WEST - 600000), utcDay(now), utcDay(now + EAST)])) forget(`events:${d}`);
 }
 
-// The mower names its files by the day in UTC, the app shows local days. So the first or last hours
-// of a local day sit in the file next to it, depending on which side of UTC the time zone is.
+// The app shows local days. With a mower in UTC the first or last hours of a local day sit in the file next to it,
+// depending on which side of UTC the time zone is.
 
 export const fileDay = (d: Date) =>
   `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
