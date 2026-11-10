@@ -43,6 +43,18 @@ export function Scene({children, still, label}: {children: React.ReactNode; stil
 export const anim = (attr: string, dur: number, times: number[], values: (number | string)[]) => (
   <animate attributeName={attr} dur={`${dur}s`} repeatCount="indefinite" keyTimes={times.join(';')} values={values.join(';')} />
 );
+// the drawings of the app's screens: one loop in seconds, a part faded in at that fraction of it, the app's own colors
+export const SCREEN_LOOP = 6;
+export const appear = (at: number) => anim('opacity', SCREEN_LOOP, [0, at, at + 0.05, 1], [0, 0, 1, 1]);
+export const PAINT = {
+  card: {fill: 'var(--card)', stroke: 'var(--card-border)'},
+  field: {fill: 'var(--background)', stroke: 'var(--card-border)'},
+  well: {fill: 'var(--well, rgba(0, 0, 0, 0.12))'},
+  text: {fill: 'var(--foreground)'},
+  dim: {fill: 'var(--text-secondary)'},
+  accent: {fill: 'var(--accent)'},
+  onAccent: {fill: 'var(--accent-foreground)'},
+};
 
 // a line that is drawn along while it plays: from t0 to t1 of the loop
 function Drawn({d, color, dur, t0, t1, fill, f0, f1, dash}: {d: string; color: string; dur: number; t0: number; t1: number; fill?: boolean; f0?: number; f1?: number; dash?: boolean}) {

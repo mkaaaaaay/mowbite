@@ -2,19 +2,13 @@
 
 import {useCameras} from '@/hooks/useCameras';
 import {fmt, tr} from '@/lib/i18n';
-import {anim, Scene} from '../art';
+import {anim, appear, PAINT, Scene, SCREEN_LOOP} from '../art';
 import Guide, {type GuideStep} from '../Guide';
 
 // the dashboard's values, the cameras of a mower that has them and more than one mower, step by step with a drawing for each
 
-const DUR = 6;
-const card = {fill: 'var(--card)', stroke: 'var(--card-border)'};
-const text = {fill: 'var(--foreground)'};
-const dim = {fill: 'var(--text-secondary)'};
-const accent = {fill: 'var(--accent)'};
-
-// faded in at that fraction of the loop
-const appear = (at: number) => anim('opacity', DUR, [0, at, at + 0.05, 1], [0, 0, 1, 1]);
+const DUR = SCREEN_LOOP;
+const {card, field, well, text, dim, accent, onAccent} = PAINT;
 
 // the top of the dashboard: the mower's name over its state, the round button with its first letter
 function Head({name}: {name: string}) {
@@ -27,7 +21,7 @@ function Head({name}: {name: string}) {
         {tr('Mowing')}
       </text>
       <circle cx={290} cy={40} r={16} style={accent} />
-      <text x={290} y={45} fontSize={14} fontWeight={700} textAnchor="middle" style={{fill: 'var(--accent-foreground)'}}>
+      <text x={290} y={45} fontSize={14} fontWeight={700} textAnchor="middle" style={onAccent}>
         {name.charAt(0)}
       </text>
     </>
@@ -110,7 +104,7 @@ function AddArt() {
       <rect x={36} y={136} width={124} height={30} rx={15} style={accent}>
         {anim('opacity', DUR, [0, 0.3, 0.35, 0.4, 1], [1, 1, 0.5, 1, 1])}
       </rect>
-      <text x={98} y={155} fontSize={12} textAnchor="middle" style={{fill: 'var(--accent-foreground)'}}>
+      <text x={98} y={155} fontSize={12} textAnchor="middle" style={onAccent}>
         {tr('Add mower')}
       </text>
     </Scene>
@@ -133,7 +127,7 @@ function SwitchArt() {
       {/* the list the round button opens */}
       <g opacity={0}>
         {anim('opacity', DUR, [0, 0.25, 0.3, 0.6, 0.62, 1], [0, 0, 1, 1, 0, 0])}
-        <rect x={168} y={62} width={130} height={58} rx={8} style={{fill: 'var(--background)', stroke: 'var(--card-border)'}} />
+        <rect x={168} y={62} width={130} height={58} rx={8} style={field} />
         <text x={180} y={84} fontSize={12} style={text}>
           {tr('Back lawn')}
         </text>
@@ -144,7 +138,7 @@ function SwitchArt() {
           {tr('Front lawn')}
         </text>
       </g>
-      <rect x={24} y={140} width={272} height={8} rx={4} style={{fill: 'var(--well, rgba(0, 0, 0, 0.12))'}} />
+      <rect x={24} y={140} width={272} height={8} rx={4} style={well} />
       <rect x={24} y={140} width={190} height={8} rx={4} style={{fill: 'var(--success)'}} />
     </Scene>
   );

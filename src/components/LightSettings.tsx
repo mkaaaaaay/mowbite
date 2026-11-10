@@ -166,35 +166,24 @@ export function LightSettings({styles}: {styles: Record<string, string>}) {
   const states = statesOf(lights);
   const effectOf = (s: string) => fitted(draft[s] ?? lights.defaults[s] ?? {effect: 'off'}, lights.limits);
   const changed = (s: string) => !sameEffect(effectOf(s), lights.profile[s]);
+  // the profile the mower keeps after a save or a reset, the drafts of that state or of all with it
+  const apply = async (call: () => Promise<{profile: LightProfile}>, done: string, state?: string) => {
+    setBusy(true);
+    setNote(null);
+    try {
+      const {profile} = await call();
+      setLights({...lights, profile});
+      setDraft(state ? {...draft, [state]: profile[state]} : profile);
+      setNote({state, text: done});
+    } catch (e) {
+      setNote({state, text: answerError(e), error: true});
+    } finally {
+      setBusy(false);
+    }
+  };
   // the mower keeps the whole profile: the one state saved, the others as they are on the mower
-  const save = async (s: string) => {
-    setBusy(true);
-    setNote(null);
-    try {
-      const {profile} = await saveLights({...lights.profile, [s]: effectOf(s)});
-      setLights({...lights, profile});
-      setDraft({...draft, [s]: profile[s]});
-      setNote({state: s, text: tr('Saved on the mower.')});
-    } catch (e) {
-      setNote({state: s, text: answerError(e), error: true});
-    } finally {
-      setBusy(false);
-    }
-  };
-  const reset = async () => {
-    setBusy(true);
-    setNote(null);
-    try {
-      const {profile} = await resetLights();
-      setLights({...lights, profile});
-      setDraft(profile);
-      setNote({text: tr('Back to the defaults.')});
-    } catch (e) {
-      setNote({text: answerError(e), error: true});
-    } finally {
-      setBusy(false);
-    }
-  };
+  const save = (s: string) => apply(() => saveLights({...lights.profile, [s]: effectOf(s)}), tr('Saved on the mower.'), s);
+  const reset = () => apply(resetLights, tr('Back to the defaults.'));
   const preview = async (s: string) => {
     setNote(null);
     try {

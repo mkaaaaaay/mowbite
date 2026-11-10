@@ -3,20 +3,14 @@
 import {useRpcMethods} from '@/hooks/useRpcMethods';
 import {tr} from '@/lib/i18n';
 import {RPC} from '@/lib/openmower';
-import {anim, Scene} from '../art';
+import {anim, appear, PAINT, Scene, SCREEN_LOOP} from '../art';
 import Guide, {type GuideStep} from '../Guide';
 
 // the lights and sounds of a mower with MowBite OS, step by step with a drawing for each
 
-const DUR = 6;
-const card = {fill: 'var(--card)', stroke: 'var(--card-border)'};
-const text = {fill: 'var(--foreground)'};
-const dim = {fill: 'var(--text-secondary)'};
-const accent = {fill: 'var(--accent)'};
-const onAccent = {fill: 'var(--accent-foreground)'};
+const DUR = SCREEN_LOOP;
+const {card, field, well, text, dim, accent, onAccent} = PAINT;
 
-// faded in at that fraction of the loop
-const appear = (at: number) => anim('opacity', DUR, [0, at, at + 0.05, 1], [0, 0, 1, 1]);
 // a button tapped at that fraction of the loop
 const tap = (at: number) => anim('opacity', DUR, [0, at, at + 0.04, at + 0.08, 1], [1, 1, 0.5, 1, 1]);
 
@@ -44,7 +38,7 @@ function LightsArt() {
       {/* the state opened: its effect and a second color added */}
       <g opacity={0}>
         {appear(0.3)}
-        <rect x={30} y={102} width={260} height={74} rx={8} style={{fill: 'var(--background)', stroke: 'var(--card-border)'}} />
+        <rect x={30} y={102} width={260} height={74} rx={8} style={field} />
         <text x={42} y={124} fontSize={11} style={dim}>
           {tr('Effect')}
         </text>
@@ -115,7 +109,7 @@ function SoundsArt() {
       <text x={36} y={150} fontSize={12} style={text}>
         {tr('Volume {n} %', {n: 60})}
       </text>
-      <rect x={36} y={164} width={248} height={6} rx={3} style={{fill: 'var(--well, rgba(0, 0, 0, 0.12))'}} />
+      <rect x={36} y={164} width={248} height={6} rx={3} style={well} />
       <rect x={36} y={164} width={149} height={6} rx={3} style={accent} />
       <circle cx={185} cy={167} r={8} style={accent} />
     </Scene>
@@ -131,13 +125,13 @@ function OwnSoundArt() {
       <text x={36} y={42} fontSize={13} fontWeight={600} style={text}>
         {tr('Mowing starts')}
       </text>
-      <rect x={36} y={58} width={150} height={28} rx={14} style={{fill: 'var(--background)', stroke: 'var(--card-border)'}}>
+      <rect x={36} y={58} width={150} height={28} rx={14} style={field}>
         {tap(0.2)}
       </rect>
       <text x={111} y={76} fontSize={12} textAnchor="middle" style={text}>
         {tr('Choose your own sound')}
       </text>
-      <rect x={36} y={104} width={248} height={6} rx={3} style={{fill: 'var(--well, rgba(0, 0, 0, 0.12))'}} />
+      <rect x={36} y={104} width={248} height={6} rx={3} style={well} />
       <rect x={36} y={104} width={0} height={6} rx={3} style={accent}>
         {bar}
       </rect>
