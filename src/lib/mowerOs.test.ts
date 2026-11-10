@@ -3,6 +3,7 @@ import {beforeEach, describe, expect, it, vi} from 'vitest';
 const rpc = vi.hoisted(() => ({methods: new Set<string>() as Set<string> | null, unknown: false, answer: null as unknown, asked: [] as string[]}));
 vi.mock('./rpc', async (real) => ({
   RpcError: (await real<typeof import('./rpc')>()).RpcError,
+  isMissingMethod: (await real<typeof import('./rpc')>()).isMissingMethod,
   rpcMethods: async () => rpc.methods,
   methodsUnknown: () => rpc.unknown,
   callRpc: async (method: string) => {
@@ -74,6 +75,18 @@ describe('systemInfo without an answer', () => {
     rpc.answer = {name: 'mowbite-os'};
     expect(await systemInfo()).toEqual({name: 'mowbite-os'});
     expect(rpc.asked).toEqual(['system.info', 'system.info']);
+  });
+
+  it('is undecided after another error of system.info, OpenMower only when it has no such method', async () => {
+    const {RpcError} = await import('./rpc');
+    rpc.methods = new Set(['system.info']);
+    rpc.answer = new RpcError('system.info', -32603, 'internal error');
+    const {systemInfo} = await load();
+    expect(await systemInfo()).toBeUndefined();
+    rpc.answer = new Error('connection lost');
+    expect(await systemInfo()).toBeUndefined();
+    rpc.answer = new RpcError('system.info', -32601, 'method not found');
+    expect(await systemInfo()).toBeNull();
   });
 });
 

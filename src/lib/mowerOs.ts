@@ -1,7 +1,7 @@
 import {useEffect, useState} from 'react';
 import {RPC} from './openmower';
 import {noteMqtt} from './mqttClient';
-import {askUntilAnswered, callRpc, methodsUnknown, RpcError, rpcMethods} from './rpc';
+import {askUntilAnswered, callRpc, isMissingMethod, methodsUnknown, rpcMethods} from './rpc';
 
 // What runs on the mower, from system.info. Only MowBite OS answers it, on OpenMower there's none. On MowBite OS the
 // planner is the one place for what makes the plan: the values for all areas in planner.settings, an area's own in
@@ -18,7 +18,7 @@ let info: Promise<SystemInfo | null | undefined> | null = null;
 // the answer once it came, a page opened later has it right away
 let known: SystemInfo | null | undefined;
 
-// undefined: no answer yet (rpc.methods or system.info timed out), the next one asking tries again
+// undefined: no answer yet (rpc.methods timed out, system.info failed), the next one asking tries again
 export function systemInfo(): Promise<SystemInfo | null | undefined> {
   info ??= (async () => {
     const methods = await rpcMethods();
@@ -37,7 +37,7 @@ export function systemInfo(): Promise<SystemInfo | null | undefined> {
       if (isMowbiteOs(ok)) noteMqtt({mqtt: ok!.mqtt});
       return ok;
     } catch (e) {
-      if (!(e instanceof RpcError && e.code === 'timeout')) return null;
+      if (isMissingMethod(e)) return null;
       info = null;
       return undefined;
     }
