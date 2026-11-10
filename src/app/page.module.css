@@ -286,16 +286,10 @@
   text-align: center;
 }
 
-/* small phones: a little tighter, so label and value still fit on one line */
-@container facts (max-width: 330px) {
+/* small phones and a narrow column on a computer: one to a row, so label and value fit on one line */
+@container facts (max-width: 339px) {
   .facts > div {
-    padding: 5px 7px;
-    column-gap: 5px;
-    font-size: 12.5px;
-  }
-
-  .facts span {
-    font-size: 11.5px;
+    grid-column: 1 / -1;
   }
 }
 
