@@ -20,6 +20,12 @@ describe('selfCrossing', () => {
     expect(selfCrossing(pts(0, 0, 10, 0, 10, 10, 5, 0, 0, 10))).toEqual({x: 5, y: 0});
   });
 
+  it('takes a point twice in a row as one, also the first one again at the end', () => {
+    expect(selfCrossing(pts(0, 0, 5, 0, 5, 0, 10, 0, 10, 10, 0, 10))).toBeNull();
+    expect(selfCrossing([...square(0, 0, 10), {x: 0, y: 0}])).toBeNull();
+    expect(selfCrossing(pts(0, 0, 10, 0, 10, 10, 10, 10, 5, 0, 0, 10))).toEqual({x: 5, y: 0});
+  });
+
   it('stays quick for a recorded outline with many points', () => {
     const circle = Array.from({length: 5000}, (_, i) => ({x: Math.cos((i / 5000) * 2 * Math.PI) * 20, y: Math.sin((i / 5000) * 2 * Math.PI) * 20}));
     const t = performance.now();
