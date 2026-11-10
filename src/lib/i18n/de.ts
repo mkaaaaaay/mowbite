@@ -188,7 +188,7 @@ const de: Record<string, string> = {
   "{m2} m² left unmowed in {n} places (orange on the map)": "{m2} m² ungemäht an {n} Stellen (orange auf der Karte)",
   "the plan alone leaves {m2} m²": "der Plan allein lässt {m2} m² übrig",
   "Nothing worth mentioning left unmowed.": "Nichts Nennenswertes bleibt ungemäht.",
-  "The body gets into the safety distance at {n} places, up to {cm} cm. From about 5 cm it touches the real edge.": "Der Körper kommt an {n} Stellen in den Sicherheitsabstand, bis {cm} cm. Ab etwa 5 cm berührt er die echte Kante.",
+  "The body gets into the safety distance at {n} places, up to {cm} cm. It touches the real edge only where that's more than the distance set.": "Der Körper kommt an {n} Stellen in den Sicherheitsabstand, bis {cm} cm. Die echte Kante berührt er erst, wo das mehr ist als der eingestellte Abstand.",
   "1 place where the controller would give up (cross on the map)": "1 Stelle, an der die Steuerung aufgeben würde (Kreuz auf der Karte)",
   "{n} places where the controller would give up (crosses on the map)": "{n} Stellen, an denen die Steuerung aufgeben würde (Kreuze auf der Karte)",
   "OpenMower would give up the area.": "OpenMower würde die Fläche abbrechen.",
