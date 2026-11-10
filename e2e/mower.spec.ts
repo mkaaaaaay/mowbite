@@ -78,6 +78,28 @@ test('the mower stops when the layout changes under a held stick', async ({page,
   expect(Math.hypot(later.x - stopped.x, later.y - stopped.y)).toBeLessThan(0.01);
 });
 
+// the same with a second finger on the docking station's guide, there and back: the first one is on a new stick then
+test('the mower stops when the docking station guide opens or closes under a held stick', async ({page}) => {
+  await page.goto('/record/');
+  await demoDocked(page);
+  await page.getByRole('button', {name: 'Start recording mode'}).click();
+  for (const name of ['Record the docking station again', 'Cancel']) {
+    await holdStick(page);
+    const from = await pose(page);
+    await expect.poll(async () => Math.hypot((await pose(page)).x - from.x, (await pose(page)).y - from.y)).toBeGreaterThan(0.05);
+    await page.getByRole('button', {name, exact: true}).dispatchEvent('click');
+    // still held and moved on the new stick, which doesn't take it: the wheels stop a second after the last command
+    const box = (await stick(page).boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + 16, {steps: 2});
+    await page.waitForTimeout(1500);
+    const stopped = await pose(page);
+    await page.waitForTimeout(1500);
+    const later = await pose(page);
+    expect(Math.hypot(later.x - stopped.x, later.y - stopped.y)).toBeLessThan(0.01);
+    await page.mouse.up();
+  }
+});
+
 // on OpenMower an emergency stop holds recording where it is: reset on the page, what's recorded stays
 test('an emergency stop while recording is reset on the record page', async ({page}) => {
   await page.goto('/record/');

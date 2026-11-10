@@ -1,6 +1,6 @@
 'use client';
 
-import {useRef, useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
 import styles from './DrivePad.module.css';
 
 // one of the two pads of a remote control car: a round pad with a grip that moves one way only, 'y' up and down (up is
@@ -22,6 +22,12 @@ export default function DrivePad({
   const [shift, setShift] = useState<number | null>(null);
   const pad = useRef<HTMLDivElement>(null);
   const max = size / 2 - 22;
+  // taken away while held (the page shows another view or layout): let go all the same
+  const letGo = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    letGo.current = shift !== null ? () => onMove(0) : null;
+  });
+  useEffect(() => () => letGo.current?.(), []);
 
   const move = (e: React.PointerEvent) => {
     const r = pad.current!.getBoundingClientRect();
