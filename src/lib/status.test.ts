@@ -12,6 +12,11 @@ describe('gpsQuality', () => {
     expect(gpsQuality(0.35, 0.5)).toBe('float');
   });
 
+  it('says too inaccurate above a limit set below the few cm of a fix', () => {
+    expect(gpsQuality(0.04, 0.03)).toBe('poor');
+    expect(gpsQuality(0.03, 0.03)).toBe('fix');
+  });
+
   it('knows no fix from the 999 the positioning sends, or nothing at all', () => {
     expect(gpsQuality(999)).toBe('none');
     expect(gpsQuality(undefined)).toBe('none');

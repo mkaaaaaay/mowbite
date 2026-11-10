@@ -119,8 +119,8 @@ export function staleText(link: MowerLink, os = false): string {
 export type GpsQuality = 'none' | 'fix' | 'float' | 'poor';
 export function gpsQuality(accuracy: number | undefined, limit = 0.2): GpsQuality {
   if (accuracy === undefined || accuracy >= 999) return 'none';
-  if (accuracy <= 0.05) return 'fix';
-  return accuracy <= limit ? 'float' : 'poor';
+  if (accuracy > limit) return 'poor';
+  return accuracy <= 0.05 ? 'fix' : 'float';
 }
 
 export const GPS_QUALITY_LABEL: Record<GpsQuality, string> = {none: 'no fix', fix: 'RTK fix', float: 'float', poor: 'too inaccurate'};
