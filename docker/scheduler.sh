@@ -171,6 +171,9 @@ stop_time() {
   [ -n "$stop" ] && echo "$stop $why"
 }
 
+# the stop time $1 isn't to come any more (carried out, or a start ended the run): off run.state, a restart leaves it
+stop_done() { sed -i "/^$1\$/d" "$RUN" 2>/dev/null; }
+
 # a run this script started: send it home at the stop time, and set OpenMower's own pause like going home does in its
 # semi-automatic mode (manual_pause_mowing, params.set): a job still open (charging at the stop time, or in automatic
 # mode) doesn't carry on by itself once the battery is full. the next start, by hand or by schedule, takes the pause
@@ -189,9 +192,10 @@ send_home_at() {
     t=$(date +%s)
     e=$(mosquitto_sub -h "$host" -p "$PORT" $topics -v -C 1 -W "$w" 2>/dev/null) ||
       { [ $(($(date +%s) - t)) -lt 1 ] && sleep 5; }
-    case "$e" in *" $ACTION_START_MOWING") return ;; esac
+    case "$e" in *" $ACTION_START_MOWING") stop_done "$1"; return ;; esac
     case "$(field "$e" type)" in JOB_COMPLETE | SHUTDOWN) return ;; esac
   done
+  stop_done "$1"
   logged=""
   s=$(mosquitto_sub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -C 1 -W 10 2>/dev/null)
   if [ "$(field "$s" current_state)" = MOWING ]; then
@@ -456,8 +460,8 @@ LEFT=/tmp/leftovers.started
 # the stop time of the run this script started last (send_home_at), for the leftovers after it
 STOP=/tmp/run.stop
 # kept over a restart of the container (an update while the mower charges in the middle of a run): the run this script
-# started ("<started> <stop>|- <why>|- <areas>"), and a start waiting for the battery ("<until> <day> <HH:MM> <date>
-# <end>|-"). both go when they're over
+# started ("<started> <stop>|- <why>|- <areas>", the stop time on a line of its own as long as it's to come), and a
+# start waiting for the battery ("<until> <day> <HH:MM> <date> <end>|-"). both go when they're over
 RUN=/data/run.state
 WAITING=/data/run.wait
 leftovers_watch &
@@ -481,23 +485,24 @@ run_open() {
   return 1
 }
 
-# the run of before a restart: its areas skipped again and sent home at its time, while its job is still open
+# the run of before a restart: its areas skipped again and sent home at its time, while its job is still open. a stop
+# time that passed meanwhile is carried out now, if run.state still has it to come
 restore_run() {
   # shellcheck disable=SC2034
   read -r at stop why areas < "$RUN" || return
-  [ $(($(date +%s) - ${at:-0})) -lt 86400 ] || { rm -f "$RUN"; return; }
   tz=$(conf tz)
   for _ in $(seq 30); do
     host=$(find_broker)
     [ -n "$host" ] && break
     sleep 10
   done
-  if [ -z "$host" ] || ! run_open; then
+  # (a day old by the clock after the wait: a mower switched on after months may set its clock only meanwhile)
+  if [ -z "$host" ] || [ $(($(date +%s) - ${at:-0})) -ge 86400 ] || ! run_open; then
     rm -f "$RUN"
     return
   fi
   skip_others "$areas" &
-  [ "$stop" != - ] && [ "$stop" -gt "$(date +%s)" ] && send_home_at "$stop" "$why" &
+  [ "$stop" != - ] && { [ "$stop" -gt "$(date +%s)" ] || [ "$(sed -n 2p "$RUN")" = "$stop" ]; } && send_home_at "$stop" "$why" &
 }
 [ -f "$RUN" ] && restore_run &
 
@@ -670,6 +675,7 @@ while :; do
         # the end time of the start, not the next one from now (it may have waited for the battery)
         stop=$(stop_time "$end" "$sunset" "$dark" "$endat")
         echo "$(date +%s) ${stop:-- -} $areas" > "$RUN"
+        [ -n "$stop" ] && echo "${stop% *}" >> "$RUN"
         # always: a pause set while it runs counts too
         skip_others "$areas" &
         # shellcheck disable=SC2086

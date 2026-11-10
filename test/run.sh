@@ -113,6 +113,7 @@ start areas "$(state)" "$(base "$DAY")"$'\n'"plan $D $M front" "MAP=$AREAS" AREA
 start pausedarea "$(state)" "$(base "$DAY")"$'\n'"plan $D $M"$'\n'"pause $(day "$DAY") back" "MAP=$AREAS" AREA=back
 start pausedareas "$(state)" "$(base "$DAY")"$'\n'"plan $D $M front"$'\n'"pause $(day "$DAY") front" "MAP=$AREAS"
 start endtime "$(state)" "$(base "$DAY")"$'\n'"plan $D $M end=$(hm "$DAY" 1)"
+start endkept "$(state)" "$(base "$DAY")"$'\n'"plan $D $M end=$(hm "$DAY" 10)"
 start endlate "$(state IDLE 0 0 0.5)" "$(MINBAT=80 base "$DAY")"$'\n'"plan $D $M end=$(hm "$DAY" 1)"
 start noarea "$(state)" "$(base "$DAY")"$'\n'"plan $D $M gone" "MAP=$AREAS"
 # braces in the areas' names: the plan's area is found, an inactive one isn't skipped
@@ -139,6 +140,11 @@ ROOT='{"action_id":"mower_logic/reset_emergency","action_name":"Reset Emergency"
 IDLE='{"action_id":"mower_logic:idle/start_mowing","action_name":"Start Mowing","enabled":1},{"action_id":"mower_logic:idle/reset_job","action_name":"Reset Job","enabled":1}'
 start growing "$(state)" "$(base "$DAY")" "MAP=$AREAS" "RUN_STATE=$(date +%s) - - front" AREA_SOON=back \
   "ACTIONS=[]"$'\n'"[]"$'\n'"[$ROOT]"$'\n'"[$ROOT,$IDLE]"
+# a run whose stop time passed during the restart, still to come before it: out mowing, and idle with its job done
+past=$(($(date +%s) - 60))
+LATE="$((past - 600)) $past end front"$'\n'"$past"
+start restoredlate "$(state MOWING)" "$(base "$DAY")" "RUN_STATE=$LATE"
+start restoreddone "$(state)" "$(base "$DAY")" "RUN_STATE=$LATE"
 
 logs "scheduler: starts at the time of a plan" start '^started 90( at=[0-9:]+)?$'
 gets start '^action mower_logic:idle/start_mowing$' && ok "scheduler: the mower got the start" ||
@@ -173,6 +179,11 @@ gets endtime '^action mower_logic:mowing/abort_mowing$' && ok "scheduler: the mo
   bad "scheduler: the mower got sent home" "$(sent endtime)"
 gets endtime '^rpc/request .*"/mower_logic/manual_pause_mowing":true' &&
   ok "scheduler: and doesn't carry on by itself after charging" || bad "scheduler: and doesn't carry on by itself after charging" "$(sent endtime)"
+expect "scheduler: its stop time no longer to come in run.state then" "$(docker exec mbt-endtime sed -n 2p /data/run.state)" ""
+logs "scheduler: a run with an end time ahead" endkept '^started'
+r=$(docker exec mbt-endkept cat /data/run.state 2> /dev/null)
+[ -n "$(sed -n 2p <<< "$r")" ] && [ "$(sed -n 2p <<< "$r")" = "$(head -n1 <<< "$r" | cut -d' ' -f2)" ] &&
+  ok "scheduler: its stop time kept as still to come for a restart" || bad "scheduler: its stop time kept as still to come for a restart" "$r"
 logs "scheduler: a mower that doesn't move is noticed" stays '^start_failed( at=[0-9:]+)?$' 90
 logs "scheduler: why MowBite OS turned the start down" refused '^start_refused BATTERY_LOW 22.4( at=[0-9:]+)?$' 30
 slog refused | grep -q '^start_failed' && bad "scheduler: a start turned down isn't one the mower didn't react to" "$(slog refused)" ||
@@ -195,6 +206,17 @@ logs "scheduler: a start time taken out while it waits isn't started" gone '^ski
 logs "scheduler: a run from before a restart still skips the areas it doesn't pick" restored '^skipped_area back$' 60
 logs "scheduler: its job seen open once the actions have the idle ones, not by the first lists" growing '^skipped_area back$' 60
 logs "scheduler: a start waiting for the battery goes on after a restart" waited '^started' 40
+logs "scheduler: a stop time that passed during a restart is carried out after it" restoredlate '^stopped_end$' 30
+gets restoredlate '"/mower_logic/manual_pause_mowing":true' && sent restoredlate | grep -q 'abort_mowing$' &&
+  ok "scheduler: sent home and paused then" || bad "scheduler: sent home and paused then" "$(sent restoredlate)"
+expect "scheduler: and no longer to come in run.state" "$(docker exec mbt-restoredlate sed -n 2p /data/run.state)" ""
+docker exec -d mbt-restoredlate /scheduler.sh
+sleep 10
+expect "scheduler: not again after the next restart" \
+  "$(slog restoredlate | grep -c '^stopped_end$') $(sent restoredlate | grep -c 'abort_mowing$')" "1 1"
+for _ in $(seq 30); do docker exec mbt-restoreddone test -f /data/run.state || break; sleep 1; done
+expect "scheduler: nothing for a run that's over by then" \
+  "$(docker exec mbt-restoreddone ls /data/run.state 2> /dev/null)$(slog restoreddone)$(sent restoreddone | grep -c 'abort_mowing$\|manual_pause')" 0
 gets angleback '^rpc/request .*"params":\{"/mower_logic/mow_angle_offset":7\}' 40 &&
   ok "scheduler: the usual direction back once no plan has one of its own" ||
   bad "scheduler: the usual direction back once no plan has one of its own" "$(sent angleback)"
