@@ -1,6 +1,7 @@
 import type {MapArea} from '@/hooks/useMowerMap';
 import {describe, expect, it} from 'vitest';
 import {containsPoint} from './geometry';
+import {cmMetres} from './i18n';
 import {
   autoOutlineModel,
   bladeSeconds,
@@ -436,6 +437,14 @@ describe('real outline', () => {
       expect(measuredOutline(g)).toEqual(m.outline);
     }
     expect(measuredOutline(outline)).toEqual(outline);
+  });
+
+  it('takes a size typed in cm only when it is all one number', () => {
+    expect(cmMetres('41')).toBe(0.41);
+    expect(cmMetres(' 18,5 ')).toBe(0.185);
+    expect(cmMetres('-3')).toBe(-0.03);
+    expect(cmMetres('.5')).toBe(0.005);
+    for (const t of ['', '4 1', '41abc', '1e3', '41,5,5', '-', 'abc']) expect(cmMetres(t)).toBeNull();
   });
 
   it('keeps a stored outline as it is when saved again unchanged, a model one gets the leeway once', () => {

@@ -103,11 +103,12 @@ export const monthStyle = (): 'numeric' | 'short' => (active === 'de' ? 'numeric
 const numberFormats = new Map<string, Intl.NumberFormat>();
 // a number as it is, with the language's decimal separator: for fields that take it back (they take both)
 export const dec = (v: number) => (active === 'de' ? String(v).replace('.', ',') : String(v));
-// metres shown in cm to a millimetre for such a field, and what's typed there back in metres (null when it's no number)
+// metres shown in cm to a millimetre for such a field, and what's typed there back in metres (null when it's not all
+// one number)
 export const cmText = (m: unknown) => (typeof m === 'number' && Number.isFinite(m) ? dec(Math.round(m * 1000) / 10) : '');
 export const cmMetres = (text: string) => {
-  const v = parseFloat(text.replace(',', '.'));
-  return Number.isFinite(v) ? v / 100 : null;
+  const t = text.trim().replace(',', '.');
+  return /^-?(\d+\.?\d*|\.\d+)$/.test(t) ? Number(t) / 100 : null;
 };
 
 export const fmt = (v: number, digits = 0) => {

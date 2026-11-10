@@ -62,13 +62,7 @@ const MODEL_FIELDS = [
   ['blade_offset', 'bladeOffset'],
 ] as const;
 
-const sizesOf = (f: Form): MowerSizes =>
-  Object.fromEntries(
-    MODEL_FIELDS.map(([key, size]) => {
-      const v = parseFloat(f[key].replace(',', '.'));
-      return [size, Number.isFinite(v) ? v / 100 : undefined];
-    }),
-  );
+const sizesOf = (f: Form): MowerSizes => Object.fromEntries(MODEL_FIELDS.map(([key, size]) => [size, cmMetres(f[key]) ?? undefined]));
 
 // A planner that knows the body's sizes but has none: it plans without checking the body, whatever the collision check
 // and the distances say. Sizes set in this app before the planner came only draw the mower on the map, they are
