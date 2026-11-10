@@ -17,13 +17,19 @@ const utcDay = (ms: number) => new Date(ms).toISOString().slice(0, 10).replace(/
 // when a file day is over in every zone and its file doesn't change any more (ms, ten minutes after its end in UTC-12)
 const dayOver = (date: string) => Date.UTC(+date.slice(0, 4), +date.slice(4, 6) - 1, +date.slice(6, 8) + 1) + WEST + 600000;
 
-// an answer asked for once the day was over is kept, one from while it was still written isn't
-export const historyOf = (date: string) =>
-  fresh(
-    `events:${date}`,
+// an answer asked for once the file was done is kept, one from while it was still written isn't. done it is once its day
+// is over, or once the mower lists a later day (files): it writes the newest one only
+export const historyOf = (date: string, files: string[] = []) => {
+  // a later day that can't be today anywhere comes from a clock that was wrong once
+  const closed = files.some((f) => f > date && f <= utcDay(Date.now() + EAST));
+  // the answer from while it was written isn't asked for any more
+  if (closed) forget(`events:${date}:open`);
+  return fresh(
+    `events:${date}:${closed ? 'closed' : 'open'}`,
     () => callRpc<MowerEvent[]>(RPC.events, {date}, 20000),
-    (at) => (at >= dayOver(date) ? Infinity : 15000),
+    (at) => (closed || at >= dayOver(date) ? Infinity : 15000),
   );
+};
 
 // something happened: the list and the file still being written are asked for again, older files are kept
 export function forgetToday() {
@@ -85,7 +91,7 @@ export async function eventsOfDay(files: string[], day: string, load = historyOf
   const events: MowerEvent[] = [];
   const where = new Map<string, {file: string; line: number}>();
   for (const f of from) {
-    const list = await load(f);
+    const list = await load(f, files);
     spans.set(f, new Set(list.map((e) => fileDay(new Date(e.t * 1000)))));
     list.forEach((e, i) => {
       where.set(e.id, {file: `${f}.jsonl`, line: i + 1});
