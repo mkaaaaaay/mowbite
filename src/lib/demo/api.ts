@@ -38,9 +38,10 @@ function backupList() {
   return backups;
 }
 
-// what the mower did at a moment (unix seconds): mowing, charging for an hour after it, or full in the dock
+// what the mower did at a moment (unix seconds): mowing, charging for an hour after it, or full in the dock. the latest
+// mow first, one taken up again is mowing while the one before would still be charging
 function phase(t: number): {mowing: boolean; charging: boolean; battery: number} {
-  for (const m of demoMows()) {
+  for (const m of [...demoMows()].reverse()) {
     if (t >= m.start && t < m.end) return {mowing: true, charging: false, battery: Math.max(0.05, 1 - (t - m.start) / 6000)};
     const low = Math.max(0.05, 1 - (m.end - m.start) / 6000);
     const charged = (t - m.end) / 3600;
