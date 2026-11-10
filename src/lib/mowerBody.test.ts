@@ -1,6 +1,7 @@
 import type {MapArea} from '@/hooks/useMowerMap';
 import {describe, expect, it} from 'vitest';
 import {containsPoint} from './geometry';
+import {cmMetres} from './i18n';
 import {
   autoOutlineModel,
   bladeSeconds,
@@ -12,6 +13,8 @@ import {
   MOWER_MODELS,
   OUTLINE_LEEWAY,
   outlineOf,
+  outsideLimits,
+  plannerOutline,
   plannerSizes,
   insideEdge,
   isPin,
@@ -435,6 +438,45 @@ describe('real outline', () => {
       expect(measuredOutline(g)).toEqual(m.outline);
     }
     expect(measuredOutline(outline)).toEqual(outline);
+  });
+
+  it('takes a size typed in cm only when it is all one number', () => {
+    expect(cmMetres('41')).toBe(0.41);
+    expect(cmMetres(' 18,5 ')).toBe(0.185);
+    expect(cmMetres('-3')).toBe(-0.03);
+    expect(cmMetres('.5')).toBe(0.005);
+    for (const t of ['', '4 1', '41abc', '1e3', '41,5,5', '-', 'abc']) expect(cmMetres(t)).toBeNull();
+  });
+
+  it('keeps a stored outline as it is when saved again unchanged, a model one gets the leeway once', () => {
+    const nx = MOWER_MODELS.find((m) => m.key === 'yf-nx')!.outline!;
+    const other: [number, number][] = [
+      [0.3, 0.2],
+      [-0.1, 0.2],
+      [-0.1, -0.2],
+      [0.3, -0.2],
+    ];
+    const again = (o: [number, number][]) => plannerOutline(measuredOutline(o)!);
+    for (const stored of [other, grownOutline(nx, OUTLINE_LEEWAY)]) {
+      expect(again(again(again(stored)))).toEqual(stored);
+    }
+    expect(again(nx)).toEqual(grownOutline(nx, OUTLINE_LEEWAY));
+    expect(again(again(nx))).toEqual(grownOutline(nx, OUTLINE_LEEWAY));
+  });
+
+  it('takes every model within the limits of the sizes, a slipped unit is outside', () => {
+    for (const m of MOWER_MODELS) {
+      for (const key of ['width', 'front', 'rear', 'blade'] as const) {
+        if (m.sizes[key] !== undefined) expect([m.key, key, outsideLimits(key, m.sizes[key]!)]).toEqual([m.key, key, null]);
+      }
+    }
+    // 0.18 typed for 18 cm, 180 for 18 cm
+    expect(outsideLimits('blade', 0.0018)).toEqual({min: 5, max: 40});
+    expect(outsideLimits('blade', 1.8)).toEqual({min: 5, max: 40});
+    expect(outsideLimits('width', 0.0041)).toEqual({min: 10, max: 150});
+    expect(outsideLimits('rear', 0)).toBeNull();
+    expect(outsideLimits('rear', -0.01)).toEqual({min: 0, max: 150});
+    expect(outsideLimits('bladeAhead', -5)).toBeNull();
   });
 
   it('fits the sizes of the models that have one', () => {

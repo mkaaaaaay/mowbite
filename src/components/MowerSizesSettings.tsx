@@ -2,7 +2,18 @@
 
 import {numParam, useMowerParams} from '@/hooks/useMowerParams';
 import {cmMetres, cmText, tr} from '@/lib/i18n';
-import {autoOutlineModel, MAX_BLADE, modelOf, MOWER_MODELS, outlineOf, sizesBody, withModelOutline, type MowerSizes, type Outline} from '@/lib/mowerBody';
+import {
+  autoOutlineModel,
+  MAX_BLADE,
+  modelOf,
+  MOWER_MODELS,
+  outlineOf,
+  outsideLimits,
+  sizesBody,
+  withModelOutline,
+  type MowerSizes,
+  type Outline,
+} from '@/lib/mowerBody';
 import {PARAM} from '@/lib/openmower';
 import {saveSettings, settingsStore, type Settings} from '@/lib/settings';
 import {useState} from 'react';
@@ -86,6 +97,8 @@ export function MowerSizesSettings({settings, styles}: {settings: Settings; styl
       if (!form[key].trim()) continue;
       const v = cmMetres(form[key]);
       if (v === null) return setState({error: tr('{what} is not a number.', {what: tr(label)})});
+      const outside = outsideLimits(key, v);
+      if (outside) return setState({error: tr('{what} has to be between {min} and {max} cm.', {what: tr(label), ...outside})});
       next[key] = Math.round(v * 10000) / 10000;
     }
     if (!Object.keys(next).length) {
@@ -94,10 +107,6 @@ export function MowerSizesSettings({settings, styles}: {settings: Settings; styl
     }
     if (!sizesBody(next)) return setState({error: tr('Width and the lengths to the front and back are needed.')});
     if (o) next.outline = o;
-    if (next.blade !== undefined && next.blade <= 0)
-      return setState({error: tr('The blade diameter has to be more than 0, or leave it empty.')});
-    if (next.blade !== undefined && next.blade > MAX_BLADE)
-      return setState({error: tr('The blade diameter can be at most {n} cm.', {n: MAX_BLADE * 100})});
     // the rectangle saved for a model's sizes is kept, an outline saved with them ends a kept one
     store(next, {keepRectangle: o ? undefined : autoOutlineModel(next) ? true : keep});
     setState({saved: true});

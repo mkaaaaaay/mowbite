@@ -4,7 +4,7 @@
 // still shown (put back late after the preview got closed: the edits stay)
 import {useEffect, useRef, useState} from 'react';
 import {saveMap, type MowerMap} from '@/hooks/useMowerMap';
-import {listBackups, loadBackup, useBackupFirst, type BackupInfo} from '@/lib/backups';
+import {listBackups, loadBackup, useBackupFirst, type BackupInfo, type Backups} from '@/lib/backups';
 import {mapToGeoJson} from '@/lib/geojson';
 import type {Datum} from '@/lib/imagery';
 import {closedRings} from '@/lib/rings';
@@ -19,7 +19,7 @@ export function useMapBackups(
   datum: Datum | undefined,
   restored: (put: MowerMap, before: MowerMap | null, shown: boolean) => void,
 ) {
-  const [backups, setBackups] = useState<BackupInfo[] | null | undefined>(undefined);
+  const [backups, setBackups] = useState<Backups | null | undefined>(undefined);
   const [preview, setPreview] = useState<{map: MowerMap; label: string} | null>(null);
   const [confirmRestore, setConfirmRestore] = useState(false);
   const [restoring, setRestoring] = useState(false);

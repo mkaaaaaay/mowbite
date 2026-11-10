@@ -286,6 +286,10 @@ function maintenance(   line, p, total, h, k) {
 BEGIN {
   CONF = ENVIRON["CONF"]
   SNOOZE = ENVIRON["SNOOZE"]
+  # the topics and the action from openmower.sh, the topics with the prefix mosquitto_sub puts before them
+  P = ENVIRON["MOWER_MQTT_PREFIX"]
+  T_STATE = P ENVIRON["TOPIC_ROBOT_STATE"]; T_EVENTS = P ENVIRON["TOPIC_EVENTS"]; T_ACTIONS = P ENVIRON["TOPIC_ACTIONS"]
+  T_CHARGE = P ENVIRON["TOPIC_CHARGE_VOLTAGE"]; CONTINUE = ENVIRON["ACTION_CONTINUE"]
   # how long a docking may take to follow a navigation error that only came because it was sent home
   NAV_WAIT = 3
   # the emergency stop a failed mow motor start puts it in
@@ -304,7 +308,7 @@ BEGIN {
   if (!conf_t || t - conf_t >= 30) readconf()
   if (t - maint_t >= 300) maintenance()
 
-  if (topic_in ~ /robot_state\/json$/) {
+  if (topic_in == T_STATE) {
     e = field(json, "emergency")
     e = e == "1" || e == "true"
     if (e && !emergency) em_t = t
@@ -325,18 +329,18 @@ BEGIN {
     # not out of the dock and charging there: told once, no reminders all night
     if (problem == "undock_failed" && undock_why != "no_gps" && (charging == "1" || charging == "true")) close_problem(0)
     standstill(field(json, "current_state"), field(json, "x") + 0, field(json, "y") + 0, charging == "1" || charging == "true" || v_charge > 20)
-  } else if (topic_in ~ /sensors\/om_v_charge\/data$/) {
+  } else if (topic_in == T_CHARGE) {
     v_charge = json + 0
     have_v = 1
-  } else if (topic_in ~ /actions\/json$/) {
+  } else if (topic_in == T_ACTIONS) {
     # mowing's continue is offered only while it's paused by hand, waiting for gps it isn't. v1's start button continues
     # without new actions, a pause ended by it while gps is missing isn't told as standing still
     manual = 0
-    if (match(json, /[{][^{}]*"mower_logic:mowing\/continue"[^{}]*[}]/)) {
+    if (match(json, "[{][^{}]*\"" CONTINUE "\"[^{}]*[}]")) {
       a = field(substr(json, RSTART, RLENGTH), "enabled")
       manual = a == "1" || a == "true"
     }
-  } else if (topic_in ~ /events\/json$/) {
+  } else if (topic_in == T_EVENTS) {
     type = field(json, "type")
     if (type == "DOCKING_FAILED") {
       # MowBite OS rates its events, OpenMower doesn't

@@ -17,12 +17,28 @@ export interface BackupInfo {
   size: number;
 }
 
+// how many the container keeps of the automatic ones and of those made by hand, null from one that doesn't say
+export interface BackupKeep {
+  auto: number;
+  hand: number;
+}
+export interface Backups {
+  list: BackupInfo[];
+  keep: BackupKeep | null;
+}
+
+export function keepOf(header: string | null): BackupKeep | null {
+  const auto = header?.match(/\bauto=(\d+)/);
+  const hand = header?.match(/\bhand=(\d+)/);
+  return auto && hand ? {auto: Number(auto[1]), hand: Number(hand[1])} : null;
+}
+
 const PATH = '/cgi-bin/backups';
 const endpoint = () => apiBase() + PATH;
 const httpError = (status: number) => new Error(tr('The mower answered with error {status}. Is MowBite running as a container on the mower?', {status}));
 
 // null: not served, no container keeps backups. undefined: it didn't answer, a save still tries to make one
-export function listBackups(): Promise<BackupInfo[] | null | undefined> {
+export function listBackups(): Promise<Backups | null | undefined> {
   return fresh('backups', async () => {
     let res: Response;
     try {
@@ -32,7 +48,7 @@ export function listBackups(): Promise<BackupInfo[] | null | undefined> {
     }
     if (res.status >= 500) return undefined;
     if (!res.ok || !res.headers.get('content-type')?.includes('json')) return null;
-    return await res.json();
+    return {list: await res.json(), keep: keepOf(res.headers.get('X-Backups-Keep'))};
   });
 }
 
@@ -47,7 +63,14 @@ export async function saveBackup(map: MowerMap, name: string, auto: boolean): Pr
   const q = new URLSearchParams({name, areas: String(map.areas.filter((a) => !isPin(a)).length), auto: auto ? '1' : '0'});
   const res = await mowerFetch(`${endpoint()}?${q}`, {method: 'POST', body: JSON.stringify(closedRings(map))});
   forget('backups');
-  if (res.status === 409) throw new Error(tr('{n} backups made by hand are kept at most. Delete one you no longer need first.', {n: 50}));
+  if (res.status === 409) {
+    const n = (await listBackups().catch(() => undefined))?.keep?.hand;
+    throw new Error(
+      n
+        ? tr('{n} backups made by hand are kept at most. Delete one you no longer need first.', {n})
+        : tr('The mower keeps no more backups made by hand. Delete one you no longer need first.'),
+    );
+  }
   if (!res.ok) throw httpError(res.status);
 }
 
@@ -92,7 +115,7 @@ export async function deleteBackup(id: string): Promise<void> {
 // whether a backup made after `since` has another angle for the area than `angle`. backups are made before every save,
 // so then the angle got changed on purpose after that time. only looks at the newest few
 export async function angleChangedSince(areaId: string, since: number, angle: number | undefined): Promise<boolean> {
-  const after = ((await listBackups()) ?? []).filter((b) => b.t > since).sort((a, b) => b.t - a.t);
+  const after = ((await listBackups())?.list ?? []).filter((b) => b.t > since).sort((a, b) => b.t - a.t);
   for (const b of after.slice(0, 10)) {
     try {
       const area = (await loadBackup(b.id)).areas.find((a) => a.id === areaId);

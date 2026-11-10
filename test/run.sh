@@ -394,6 +394,12 @@ expect "settings: saved from an old version: 409 with what's stored" "$(curl -s 
 expect "settings: saved from the current version" "$(code --data-binary '{"a":2}' "$S?v=$v1")" 200
 expect "settings: no json object, 400" "$(code --data-binary '[1]' "$S")" 400
 expect "settings: what's stored stays" "$(curl -s "$S")" '{"a":2}'
+expect "settings: the version read from v= itself, not from another parameter's end" \
+  "$(code --data-binary '{"a":3}' "$S?v=$(ver)&x=v=1")" 200
+# three devices saving from the same version at once: one gets through, the others are told
+v=$(ver)
+expect "settings: of saves at once from one version only one gets through" \
+  "$(for i in 1 2 3; do (code --data-binary "{\"p\":$i}" "$S?v=$v" && echo) & done | sort | tr '\n' ' ')" '200 409 409 '
 expect "settings: its version readable from another origin" \
   "$(curl -s -D - -o /dev/null -H 'Origin: http://192.168.178.20:8082' "$S" | tr -d '\r' | sed -n 's/^access-control-expose-headers: //Ip')" \
   X-Settings-Version
@@ -403,6 +409,20 @@ kept=$'enabled 1\npause 2026-01-01 all\ntz Europe/Berlin\nplan 1,2 07:30 a_b-c e
 expect "schedule: only lines of the known shapes are kept" "$(curl -s --data-binary "$body" "$W/schedule")" "$kept"
 expect "schedule: a page elsewhere can't change it" "$(code -H 'Origin: http://evil.example' --data-binary 'enabled 0' "$W/schedule")" 403
 expect "schedule: and it's as it was" "$(curl -s "$W/schedule")" "$kept"
+# a connection that breaks off: curl gives up waiting for the rest it said would come
+broken() { curl -s -o /dev/null -m 2 -H 'Content-Length: 1000' --data-binary "$2" "$1"; sleep 1; }
+broken "$W/schedule" 'enabled 0'
+expect "schedule: a body that broke off leaves it as it was" "$(curl -s "$W/schedule")" "$kept"
+
+P=$W/params
+body=$'enabled 1\n/mower_logic/a_b 1.5\n/mower_logic/c true\n/other/x 1\n/mower_logic/d 1e9\n/mower_logic/e $(id)'
+kept=$'enabled 1\n/mower_logic/a_b 1.5\n/mower_logic/c true'
+expect "params: only lines of the known shapes are kept" "$(curl -s --data-binary "$body" "$P")" "$kept"
+broken "$P" 'enabled 0'
+expect "params: a body that broke off leaves them as they were" "$(curl -s "$P")" "$kept"
+s=$(curl -s "$S")
+broken "$S" '{"a":{"b":1}'
+expect "settings: a body that broke off leaves them as they were" "$(curl -s "$S")" "$s"
 
 B=$W/backups
 expect "backups: one made by hand" "$(code --data-binary '{"areas":[]}' "$B?name=mine&areas=0")" 200
@@ -411,7 +431,31 @@ docker exec mbt-web sh -c 'cd /data/backups && for i in $(seq 49); do printf "x\
 expect "backups: at most 50 made by hand" "$(curl -s -w ' %{http_code}' --data-binary '{"areas":[]}' "$B?name=more" | tr -d '\n')" \
   "at most 50 backups made by hand 409"
 expect "backups: the automatic ones still go" "$(code --data-binary '{"areas":[]}' "$B?name=auto&auto=1")" 200
+expect "backups: the list says how many are kept" "$(curl -s -D - -o /dev/null "$B" | tr -d '\r' | sed -n 's/^x-backups-keep: //Ip')" \
+  'auto=30 hand=50'
 expect "backups: nothing left half written" "$(docker exec mbt-web sh -c 'ls /data/backups | grep -c tmp')" 0
+broken "$B?name=cut&auto=1" '{"areas":['
+expect "backups: a body that broke off isn't kept" "$(curl -s "$B" | grep -c '"name":"cut"')" 0
+bid() { sed -n 's/.*"id":"\([0-9-]*\)".*/\1/p'; }
+id=$(curl -s --data-binary '{"areas":[1]}' "$B?name=load&auto=1" | bid)
+expect "backups: one loaded" "$(curl -s "$B?id=$id")" '{"areas":[1]}'
+curl -s -o /dev/null -X POST "$B?action=delete&id=$id"
+expect "backups: one deleted" "$(code "$B?id=$id")$(curl -s "$B" | grep -c '"name":"load"')" 4040
+# 60 characters of two bytes kept whole, a byte limit that falls into a character doesn't leave half of it
+meta() { docker exec mbt-web sed -n 1p "/data/backups/$1.meta"; }
+id=$(curl -s --data-binary '{"areas":[]}' "$B?name=$(printf '%%C3%%A4%.0s' $(seq 60))&auto=1" | bid)
+expect "backups: a name of 60 umlauts kept whole" "$(meta "$id")" "$(printf 'ä%.0s' $(seq 60))"
+long=$(printf 'a%.0s' $(seq 239))
+id=$(curl -s --data-binary '{"areas":[]}' "$B?name=$long%C3%A4&auto=1" | bid)
+expect "backups: a name cut without half a character at its end" "$(meta "$id")" "$long"
+# one more automatic than are kept, the others with later times (a clock gone back): the oldest goes, not the new one
+old=$(curl -s "$B" | grep -o '"id":"[0-9-]*","t":[0-9]*,"name":"auto"' | bid)
+docker exec mbt-web sh -c 'cd /data/backups && for i in $(seq 30); do printf "x\n0\n1\n" > $((2000000000 + i))-1.meta; echo | gzip > $((2000000000 + i))-1.json.gz; done'
+id=$(curl -s --data-binary '{"areas":[]}' "$B?name=new&auto=1" | bid)
+expect "backups: the one just made is kept" "$(code "$B?id=$id")" 200
+expect "backups: the oldest automatic one goes" "$(code "$B?id=$old")" 404
+expect "backups: as many automatic ones left as the list says" \
+  "$(docker exec mbt-web sh -c 'awk "FNR == 3 && \$0 == 1 { n++ } END { print n + 0 }" /data/backups/*.meta')" 30
 
 N=$W/notify
 curl -s -o /dev/null --data-binary $'server https://ntfy.invalid\ntopic mbt-test\ntoken secret-token-1\nenabled 1' "$N"
@@ -434,9 +478,22 @@ expect "stats: a part given other hours is told about again once due by them" \
 docker exec mbt-web sh -c 'mkdir -p /data/gpslog && echo "1793644779.0 MOWING 1.200 3.400 0.020 -60" > /data/gpslog/20261103.log'
 expect "gpslog: a cell of 0 cm is taken as 10" "$(curl -s "$W/gpslog?cells=0" | head -n1 | cut -d' ' -f1-3)" "12 34 1"
 
+# httpd killed starts again after a pause
+docker exec mbt-web pkill httpd
+sleep 2
+expect "httpd killed is gone first" "$(code "$W/version")" 000
+for _ in $(seq 30); do curl -sf "$W/version" > /dev/null && break; sleep 1; done
+expect "httpd killed is back after a pause" "$(code "$W/version")" 200
+
+# logs grown too long, cut to size by the next start
+docker exec mbt-web sh -c 'mkdir -p /data/stats && seq 10050 > /data/stats/hours && seq 2050 > /data/battery.log && seq 4050 > /data/battery-health.log'
 t0=$(date +%s)
 docker stop mbt-web > /dev/null
 expect "it stops right away, not after docker's 10 s" "$(($(date +%s) - t0 < 5))" 1
+docker start mbt-web > /dev/null
+sizes() { docker exec mbt-web sh -c 'wc -l < /data/stats/hours; wc -l < /data/battery.log; wc -l < /data/battery-health.log' | tr '\n' ' '; }
+for _ in $(seq 30); do [ "$(sizes)" = '10000 2000 4000 ' ] && break; sleep 1; done
+expect "the logs in /data kept to their size" "$(sizes)" '10000 2000 4000 '
 
 echo "$pass passed, $fail failed"
 [ "$fail" = 0 ]

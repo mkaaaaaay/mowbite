@@ -48,11 +48,11 @@ while :; do
   host=$(find_broker)
   if [ -n "$host" ]; then
     mosquitto_sub -h "$host" -p "$PORT" -F '%U %t %p' \
-      -t "${MOWER_MQTT_PREFIX}sensors/om_v_battery/data" -t "${MOWER_MQTT_PREFIX}sensors/om_charge_current/data" \
-      -t "${MOWER_MQTT_PREFIX}sensors/om_charge_state/data" -t "${MOWER_MQTT_PREFIX}sensors/om_mow_motor_rpm/data" \
-      -t "${MOWER_MQTT_PREFIX}$TOPIC_CHARGE_VOLTAGE" -t "${MOWER_MQTT_PREFIX}sensors/om_mow_motor_temp/data" \
-      -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -t "${MOWER_MQTT_PREFIX}sensor_infos/json" \
-      -t "${MOWER_MQTT_PREFIX}sensors/om_mow_motor_current/data" -t "${MOWER_MQTT_PREFIX}$TOPIC_PARAMS" |
+      -t "${MOWER_MQTT_PREFIX}$(sensor_topic om_v_battery)" -t "${MOWER_MQTT_PREFIX}$(sensor_topic om_charge_current)" \
+      -t "${MOWER_MQTT_PREFIX}$(sensor_topic om_charge_state)" -t "${MOWER_MQTT_PREFIX}$(sensor_topic om_mow_motor_rpm)" \
+      -t "${MOWER_MQTT_PREFIX}$TOPIC_CHARGE_VOLTAGE" -t "${MOWER_MQTT_PREFIX}$(sensor_topic om_mow_motor_temp)" \
+      -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -t "${MOWER_MQTT_PREFIX}$TOPIC_SENSOR_INFOS" \
+      -t "${MOWER_MQTT_PREFIX}$(sensor_topic om_mow_motor_current)" -t "${MOWER_MQTT_PREFIX}$TOPIC_PARAMS" |
       OUT="$F" STATE=/data/battery.state HEALTH="$H" TRACES="$C" TIDY="/battery.sh tidy" CPUT="$T" LEVEL="$L" \
         awk -f /battery.awk
   fi

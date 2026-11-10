@@ -7,6 +7,9 @@ import {defaultNotify, parseNotify, randomTopic, serializeNotify, validServer, v
 
 const fallback = defaultNotify('de', 'http://openmower:8082', 'Steve');
 
+// docker/notify.awk with the names from openmower.sh, as in the container
+const AWK_SH = ['-c', '. ./docker/openmower.sh && exec awk -f docker/notify.awk'];
+
 describe('push message settings', () => {
   it('reads what notify.cgi hands out, the token only as there or not', () => {
     const c = parseNotify('server https://ntfy.sh\ntopic mowbite-abc\nlang en\nevents emergency,done,bogus\nremind 15\nemergency_wait 30\ntoken set\nsnooze 1700000000\n', fallback);
@@ -60,13 +63,13 @@ describe("a mower's address in its push message settings", () => {
 
 describe('what the container sends', {timeout: 30_000}, () => {
   // what it puts out for the topic (ntfy) or for the phones signed up in the app (push)
-  const lines = (input: string, conf: string, snooze?: number, to: 'ntfy' | 'push' = 'ntfy') => {
+  const lines = (input: string, conf: string, snooze?: number, to: 'ntfy' | 'push' = 'ntfy', prefix = '') => {
     const dir = mkdtempSync(join(tmpdir(), 'notify-'));
     writeFileSync(join(dir, 'conf'), conf);
     if (snooze !== undefined) writeFileSync(join(dir, 'snooze'), `${snooze}\n`);
-    const r = spawnSync('awk', ['-f', 'docker/notify.awk'], {
+    const r = spawnSync('sh', AWK_SH, {
       input,
-      env: {...process.env, CONF: join(dir, 'conf'), SNOOZE: snooze === undefined ? '' : join(dir, 'snooze')},
+      env: {...process.env, CONF: join(dir, 'conf'), SNOOZE: snooze === undefined ? '' : join(dir, 'snooze'), MOWER_MQTT_PREFIX: prefix},
     });
     return r.stdout
       .toString()
@@ -108,6 +111,11 @@ describe('what the container sends', {timeout: 30_000}, () => {
       ['refused', undefined],
       ['nav_error', undefined],
     ]);
+  });
+
+  it('knows its topics behind the prefix the mower was given', () => {
+    const input = (state(100, 0) + state(111, 1) + state(150, 1)).replace(/^(\S+) /gm, '$1 garden/');
+    expect(lines(input, conf, undefined, 'ntfy', 'garden/').map((m) => m.title)).toEqual(['Emergency stop']);
   });
 
   it("doesn't tell about an emergency stop that clears itself within seconds, as long as set", () => {
@@ -160,7 +168,7 @@ describe('what the container sends', {timeout: 30_000}, () => {
     writeFileSync(join(dir, 'state'), '100 300000.0 1.0 1.0 3 0 0 0 0 0\n');
     writeFileSync(join(dir, 'maint'), 'blade 80 0 0\nclean 200 0 0\n');
     const told = (c = 'conf') =>
-      spawnSync('awk', ['-f', 'docker/notify.awk'], {
+      spawnSync('sh', AWK_SH, {
         input: state(1000, 0) + state(1400, 0),
         env: {...process.env, CONF: join(dir, c), SNOOZE: '', STATS: dir},
       })

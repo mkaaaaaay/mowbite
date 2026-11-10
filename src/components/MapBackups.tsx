@@ -1,6 +1,6 @@
 'use client';
 
-import {parseMapFile, type BackupInfo} from '@/lib/backups';
+import {parseMapFile, type BackupInfo, type Backups} from '@/lib/backups';
 import {GeoJsonError, isGeoJson, mapFromGeoJson} from '@/lib/geojson';
 import type {Datum} from '@/lib/imagery';
 import type {MowerMap} from '@/hooks/useMowerMap';
@@ -24,7 +24,7 @@ export default function MapBackups({
   geo,
 }: {
   // null: not served by the container, no backups on the mower then. undefined: not there yet, or no answer
-  backups: BackupInfo[] | null | undefined;
+  backups: Backups | null | undefined;
   onCreate: (name: string) => Promise<void>;
   onPreview: (b: BackupInfo) => Promise<void>;
   onDelete: (b: BackupInfo) => Promise<void>;
@@ -67,7 +67,7 @@ export default function MapBackups({
         <span className={styles.title}>
           <span>
             {tr('Backups')}
-            {backups && backups.length > 0 && <span className={styles.count}>{backups.length}</span>}
+            {backups && backups.list.length > 0 && <span className={styles.count}>{backups.list.length}</span>}
           </span>
           <small>{tr('Back the map up, bring an older one back, save it as a file')}</small>
         </span>
@@ -82,10 +82,14 @@ export default function MapBackups({
               {tr('Create backup')}
             </button>
           </div>
-          <p className={styles.dim}>{tr('Before every save the current map is backed up by itself, the last 30 of those are kept.')}</p>
-          {backups.length === 0 && <p className={styles.dim}>{tr('No backups yet.')}</p>}
+          <p className={styles.dim}>
+            {backups.keep
+              ? tr('Before every save the current map is backed up by itself, the last {n} of those are kept.', {n: backups.keep.auto})
+              : tr('Before every save the current map is backed up by itself, only the newest of those are kept.')}
+          </p>
+          {backups.list.length === 0 && <p className={styles.dim}>{tr('No backups yet.')}</p>}
           <ul className={styles.list}>
-            {backups.map((b) => (
+            {backups.list.map((b) => (
               <li key={b.id}>
                 <div>
                   <span>{backupLabel(b)}</span>

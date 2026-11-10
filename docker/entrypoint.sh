@@ -24,7 +24,8 @@ if [ "$MOWBITE_SCHEDULER" != off ]; then
   /scheduler.sh &
 fi
 
-# httpd as pid 1 would ignore docker's stop: 10 s and then killed. the shell passes it on to all of them instead
-httpd -f -v -p "${PORT:-8080}" -h /www &
+# httpd as pid 1 would ignore docker's stop: 10 s and then killed. the shell passes it on to all of them instead.
+# killed (out of memory) or without its port it starts again after a pause
+until httpd -f -v -p "${PORT:-8080}" -h /www; do sleep 10; done &
 trap 'trap - TERM INT; kill 0; exit 0' TERM INT
 wait
