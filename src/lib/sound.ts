@@ -1,6 +1,7 @@
 import {RPC} from './openmower';
 import {callRpc, RpcError} from './rpc';
 import {sha256Hex} from './sha256';
+import {MAX_SOUND_BYTES, MAX_SOUND_SECONDS, MIN_SOUND_SECONDS, PART_BYTES} from './soundLimits';
 
 // the sounds of a mower with MowBite OS and a speaker (sound.*): one file for each situation or none, one volume for
 // all of them. the situations and their files come from the mower
@@ -30,11 +31,6 @@ export const setVolume = (volume: number) => callRpc<{volume: number}>(RPC.sound
 export const deleteSound = (situation: string) =>
   callRpc<{situation: string; source: 'vendor' | null; file: SoundFile | null}>(RPC.soundDelete, {situation});
 
-// what MowBite OS takes for an own sound (sound.upload): an MP3 of at most 2 MB and 0.2 to 30 s, sent in parts of 512 KB
-export const MAX_SOUND_BYTES = 2 << 20;
-export const MAX_SOUND_SECONDS = 30;
-export const MIN_SOUND_SECONDS = 0.2;
-export const PART_BYTES = 512 << 10;
 // the answer to a part; the last one is checked and converted first, up to about 30 s
 const PART_MS = 30000;
 const CHECK_MS = 60000;

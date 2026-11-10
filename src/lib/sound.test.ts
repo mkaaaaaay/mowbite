@@ -1,6 +1,7 @@
 import {describe, expect, it} from 'vitest';
 import {describe as eventText} from './events';
-import {MAX_SOUND_BYTES, MAX_SOUND_SECONDS, MIN_SOUND_SECONDS, PART_BYTES, soundRefusal, splitParts, toBase64} from './sound';
+import {soundRefusal, splitParts, toBase64} from './sound';
+import {MAX_SOUND_BYTES, MAX_SOUND_SECONDS, MIN_SOUND_SECONDS, PART_BYTES} from './soundLimits';
 
 describe('an own sound', () => {
   it('goes in parts of at most 512 KB, at most 4 for the largest file', () => {

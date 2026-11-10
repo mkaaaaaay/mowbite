@@ -1,6 +1,7 @@
 import {RPC} from '../openmower';
 import {sha256Js} from '../sha256';
-import {MAX_SOUND_BYTES, PART_BYTES, type Situation, type SoundFile} from '../sound';
+import type {Situation, SoundFile} from '../sound';
+import {MAX_SOUND_BYTES, PART_BYTES} from '../soundLimits';
 
 // The sounds of a mower with MowBite OS and a speaker for the click tests (sound.*), like the Tron answers them. The
 // demo is an OpenMower and has none, a test switches them on before the page loads (window.mowbiteDemoSounds). A test
