@@ -160,6 +160,14 @@ describe('estimate like the MowBite Planner', () => {
     expect(autoPasses({...input, body: undefined}, 0.18)).toBe(3);
   });
 
+  it('no estimate for an area whose own values the planner turns down, at once', () => {
+    const optimal = {...base, angle: null, strategy: 'optimal'};
+    expect(plannerEstimate({...optimal, angleStep: (0.5 * Math.PI) / 180})).not.toBeNull();
+    for (const angleStep of [0, 1e-4, -1, NaN]) expect(plannerEstimate({...optimal, angleStep})).toBeNull();
+    expect(plannerEstimate({...base, turnRadius: 0})).not.toBeNull();
+    for (const turnRadius of [-0.3, 10.5, NaN]) expect(plannerEstimate({...base, turnRadius})).toBeNull();
+  });
+
   it('a docking station far off the area: worked out at once, the same plan as from one close by', () => {
     const plan = (x: number) => plannerEstimate({...base, turnRadius: 0.3, start: {x, y: 3, heading: 0}})!;
     const near = plan(60);
