@@ -121,7 +121,9 @@ export default function SchedulePage() {
         </TitleRow>
 
         {schedule === null && (
-          <p className={styles.dim}>{tr('The schedule needs MowBite running as its container on the mower.')}</p>
+          <p className={styles.dim}>
+            {tr(os ? "MowBite OS doesn't have the schedule yet." : 'The schedule needs MowBite running as its container on the mower.')}
+          </p>
         )}
         {schedule === undefined && unreachable && <p className={styles.dim}>{tr("The mower can't be reached right now.")}</p>}
 

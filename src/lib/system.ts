@@ -1,6 +1,7 @@
-import {apiBase, mowerFetch} from './mowers';
+import {apiBase} from './mowers';
 import {RPC} from './openmower';
 import {callRpc, rpcMethods} from './rpc';
+import {containerFetch} from './updates';
 
 // memory, storage, load and temperature of the machine the container runs on (docker/system.cgi), on MowBite OS of
 // the mower itself (system.stats, the same keys). remote: it doesn't run on the mower but on a pc or NAS, the numbers
@@ -70,8 +71,8 @@ export const parseStats = (stats: unknown): SystemInfo | null =>
 export async function loadSystem(stats = false): Promise<SystemInfo | null> {
   if (stats && (await rpcMethods())?.has(RPC.systemStats)) return callRpc(RPC.systemStats).then(parseStats, () => null);
   try {
-    const res = await mowerFetch(`${apiBase()}/cgi-bin/system`, {cache: 'no-store'});
-    if (!res.ok || !res.headers.get('content-type')?.includes('text/plain')) return null;
+    const res = await containerFetch(`${apiBase()}/cgi-bin/system`, {cache: 'no-store'});
+    if (!res?.ok || !res.headers.get('content-type')?.includes('text/plain')) return null;
     return parseSystem(await res.text());
   } catch {
     return null;

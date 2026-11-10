@@ -1,5 +1,6 @@
 import type {Sample} from '@/hooks/useSensorHistory';
 import {apiBase, mowerFetch} from './mowers';
+import {containerFetch} from './updates';
 
 // the battery over weeks, from what docker/battery.sh keeps: a line per charge and per stretch between charges
 export interface Cycle {
@@ -48,7 +49,8 @@ export function parseLevel(text: string): {pct: number; age: number} | null {
 // null: the container has none (another board, not worked out yet, an older container), undefined: couldn't ask
 export async function loadLevel(): Promise<{pct: number; age: number} | null | undefined> {
   try {
-    const res = await mowerFetch(`${apiBase()}/cgi-bin/battery?level`, {cache: 'no-store'});
+    const res = await containerFetch(`${apiBase()}/cgi-bin/battery?level`, {cache: 'no-store'});
+    if (!res) return null;
     if (!res.ok) return undefined;
     if (!res.headers.get('content-type')?.includes('text/plain')) return null;
     return parseLevel(await res.text());

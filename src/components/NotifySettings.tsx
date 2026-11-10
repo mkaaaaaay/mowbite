@@ -89,7 +89,9 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
     return (
       <section className={styles.card}>
         <p className={styles.dim}>
-          {tr('Only with the MowBite container on the mower: it watches the mower and sends the messages, also when no app is open.')}
+          {os
+            ? tr("MowBite OS doesn't send push messages yet.")
+            : tr('Only with the MowBite container on the mower: it watches the mower and sends the messages, also when no app is open.')}
         </p>
       </section>
     );

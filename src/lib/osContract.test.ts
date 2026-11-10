@@ -83,6 +83,12 @@ describe(`MowBite OS's interface (${PINNED.repo} ${PINNED.commit.slice(0, 7)}, a
     expect(createHash('sha256').update(raw).digest('hex')).toBe(PINNED.sha256);
   });
 
+  it('lies in the api range public/app.json gives (osApi in package.json)', () => {
+    const {min, max} = JSON.parse(readFileSync(join(__dirname, '../../package.json'), 'utf8')).osApi;
+    expect(min).toBeLessThanOrEqual(api['x-api']);
+    expect(max).toBeGreaterThanOrEqual(api['x-api']);
+  });
+
   it('has words in english and german for every event', () => {
     for (const type of eventTypes) {
       expect(EVENTS[type], type).toBeDefined();

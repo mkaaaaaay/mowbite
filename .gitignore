@@ -24,6 +24,7 @@
 /build
 # written by scripts/version.mjs
 /public/version.json
+/public/app.json
 
 # misc
 .DS_Store

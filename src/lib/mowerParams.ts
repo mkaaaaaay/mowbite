@@ -2,6 +2,7 @@ import {dec} from './i18n';
 import {mowerFetch, apiBase} from './mowers';
 import {PARAM, RPC} from './openmower';
 import {callRpc} from './rpc';
+import {containerFetch} from './updates';
 
 // mower_logic's settings an app can change while the mower runs (params.set, newer OpenMower only). Which ones,
 // their ranges and defaults are from MowerLogic.cfg, OpenMower doesn't tell. The ones that could hurt (the
@@ -161,8 +162,8 @@ const endpoint = () => apiBase() + '/cgi-bin/params';
 // null: not served, an older container or MowBite not running as one, nothing is kept then
 export async function loadKept(): Promise<KeptParams | null> {
   try {
-    const res = await mowerFetch(endpoint(), {cache: 'no-store'});
-    if (!res.ok || !res.headers.get('content-type')?.includes('text/plain')) return null;
+    const res = await containerFetch(endpoint(), {cache: 'no-store'});
+    if (!res?.ok || !res.headers.get('content-type')?.includes('text/plain')) return null;
     return parseKept(await res.text());
   } catch {
     return null;

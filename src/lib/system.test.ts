@@ -9,9 +9,9 @@ vi.mock('./rpc', () => ({
     return {mem_total: 8e9, cpus: 8};
   },
 }));
-vi.mock('./mowers', () => ({
-  apiBase: () => 'http://m:8082',
-  mowerFetch: async (url: string) => {
+vi.mock('./mowers', () => ({apiBase: () => 'http://m:8082'}));
+vi.mock('./updates', () => ({
+  containerFetch: async (url: string) => {
     mower.asked.push(url);
     return new Response('remote 0\nmem_total 4000000000\n', {headers: {'content-type': 'text/plain'}});
   },

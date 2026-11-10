@@ -1,5 +1,5 @@
 import type {Page} from '@playwright/test';
-import {expect, SIM, test} from './app';
+import {demoDocked, demoHas, expect, SIM, test} from './app';
 
 // the updates on the mower (the demo mower has a made-up updater): each part with what runs, its version and
 // updating it, OpenMower's release with the warning for the planner, only the log to select, the buttons alike
@@ -135,6 +135,28 @@ test.describe("the updater's page in here", () => {
   });
 });
 
+// a newer build on the server reloads the page, not while the mower is out or something unsaved would be lost: then
+// the next time the page is shown
+test('a newer build reloads the page only while the mower waits', async ({page}) => {
+  test.skip(SIM, 'the demo mower');
+  let newer = false;
+  await page.route('**/version.json', async (route) =>
+    newer ? route.fulfill({json: {version: '99.0.0', level: 99}}) : route.fulfill({response: await route.fetch()}),
+  );
+  await page.goto('/');
+  await expect.poll(async () => (await demoHas<{current_state: string}>(page, 'robot_state/json')).current_state).toBe('MOWING');
+  await page.evaluate(() => ((window as unknown as {kept: boolean}).kept = true));
+  newer = true;
+  const shown = () => page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+  const kept = () => page.evaluate(() => !!(window as unknown as {kept?: boolean}).kept);
+  await shown();
+  await page.waitForTimeout(1500);
+  expect(await kept()).toBe(true);
+  await demoDocked(page);
+  await shown();
+  await expect.poll(kept).toBe(false);
+});
+
 // made up like above, out of the demo on a page of its own: requests that find nothing fail in the console there
 test.describe('MowBite on another mower or without a container', () => {
   test.skip(SIM, 'made up, not for a mower');
@@ -156,6 +178,11 @@ test.describe('MowBite on another mower or without a container', () => {
     await expect(updates.getByText('Only when MowBite runs as its container on the mower.')).toBeVisible();
     await expect(updates.getByText('Update MowBite in Dockge')).toHaveCount(0);
     await expect(updates.getByText('not set up yet', {exact: false})).toHaveCount(0);
+    // a 404 from the server the page came from is no container for good: what asks every few seconds stops
+    const asked: string[] = [];
+    page.on('request', (r) => r.url().includes('/cgi-bin/') && asked.push(r.url()));
+    await page.waitForTimeout(6000);
+    expect(asked).toEqual([]);
     await page.close();
   });
 

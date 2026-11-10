@@ -1,6 +1,7 @@
 {
   "name": "mowbite",
   "version": "1.4.0",
+  "osApi": {"min": 11, "max": 14},
   "private": true,
   "license": "GPL-3.0-only",
   "scripts": {
