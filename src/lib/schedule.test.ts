@@ -241,6 +241,12 @@ describe('nextStart and a pause', () => {
     const s = {...schedule([plan([1, 2, 3], '10:00')]), pause: {until: '2026-09-29', areas: 'all' as const}};
     expect(nextStart(s, monday8)).toEqual(new Date(2026, 8, 30, 10, 0));
   });
+  it('looks past a pause longer than a week', () => {
+    const s = {...schedule([plan([1, 2, 3, 4, 5, 6, 7], '10:00')]), pause: {until: '2026-10-10', areas: 'all' as const}};
+    expect(nextStart(s, monday8)).toEqual(new Date(2026, 9, 11, 10, 0));
+    const some = {...schedule([plan([1], '10:00', ['a'])]), pause: {until: '2026-10-20', areas: ['a']}};
+    expect(nextStart(some, monday8, undefined, ['a', 'b'])).toEqual(new Date(2026, 9, 26, 10, 0));
+  });
   it('still starts when only some areas are paused', () => {
     const s = {...schedule([plan([1], '10:00')]), pause: {until: '2026-09-29', areas: ['a']}};
     expect(nextStart(s, monday8)).toEqual(new Date(2026, 8, 28, 10, 0));

@@ -371,8 +371,11 @@ export function nextStart(
 ): Date | null {
   if (!s.enabled) return null;
   const now = scheduleNow(s.tz, from);
+  // a pause on: a week after its last day
+  const today = localDay(now);
+  const paused = s.pause && s.pause.until >= today ? Math.round((Date.parse(s.pause.until) - Date.parse(today)) / 864e5) + 1 : 0;
   let best: Date | null = null;
-  for (let add = 0; add <= 7; add++) {
+  for (let add = 0; add <= 7 + paused; add++) {
     const day = new Date(now.getFullYear(), now.getMonth(), now.getDate() + add);
     const dow = ((day.getDay() + 6) % 7) + 1;
     // a pause of the whole schedule leaves those days out
@@ -387,6 +390,8 @@ export function nextStart(
       if (at.getHours() !== h || at.getMinutes() !== m) continue;
       if (at > now && (!best || at < best)) best = at;
     }
+    // (day by day: the first one with a start has the next)
+    if (best) return best;
   }
   return best;
 }
