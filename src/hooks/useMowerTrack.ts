@@ -242,7 +242,10 @@ function start() {
         forgetJobList();
         void seed(id);
       } else if (change) {
-        if (change === 'ended') jobId = null;
+        if (change === 'ended') {
+          jobId = null;
+          listeners.forEach((l) => l());
+        }
         askedLast = Date.now();
         void showLastJob();
       }
