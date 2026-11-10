@@ -19,7 +19,7 @@ import {
   type ParamField,
   type ParamGroup,
 } from '@/lib/mowerParams';
-import {isMowbiteOs, systemInfo, useMowbiteOs, useOsApi} from '@/lib/mowerOs';
+import {isMowbiteOs, systemInfo, useMowbiteOs} from '@/lib/mowerOs';
 import {RPC} from '@/lib/openmower';
 import {sunTimes} from '@/lib/sun';
 import {useRpcMethods} from '@/hooks/useRpcMethods';
@@ -226,7 +226,7 @@ export function ParamFix({keys}: {keys: string[]}) {
 }
 
 // the values that matter most of a group, read in its folded line
-function summary(group: ParamGroup, params: Record<string, unknown>, api: number): string {
+function summary(group: ParamGroup, params: Record<string, unknown>): string {
   const v = (key: string) => paramValue(params, paramField(key)!);
   const n = (key: string) => showParam(paramField(key)!, v(key) as number);
   switch (group) {
@@ -235,7 +235,7 @@ function summary(group: ParamGroup, params: Record<string, unknown>, api: number
     case 'auto':
       return [
         tr(paramField('rain_mode')!.choices![v('rain_mode') as number] ?? ''),
-        ...(paramShown(paramField('dock_at_sunset')!, api) && !v('dock_at_sunset') ? [tr('mows on after sunset')] : []),
+        ...(paramShown(paramField('dock_at_sunset')!, params) && !v('dock_at_sunset') ? [tr('mows on after sunset')] : []),
         tr(AUTOMATIC_SHORT[v('automatic_mode') as number] ?? ''),
       ].join(' · ');
     case 'gps':
@@ -272,7 +272,6 @@ export function OpenMowerMowing({styles}: {styles: Styles}) {
 export function OpenMowerSettings({styles}: {styles: Styles}) {
   const can = useCanSetParams();
   const params = useMowerParams();
-  const api = useOsApi();
   const k = useKept();
   const os = useMowbiteOs();
   // folded whenever the page opens, unless a link led here
@@ -343,11 +342,11 @@ export function OpenMowerSettings({styles}: {styles: Styles}) {
             <summary>
               <span className={local.title}>
                 {tr(g.title)}
-                <small>{summary(g.key, params, api)}</small>
+                <small>{summary(g.key, params)}</small>
               </span>
             </summary>
             <div className={local.rows}>
-              {PARAM_FIELDS.filter((f) => f.group === g.key && paramShown(f, api)).map((f) => (
+              {PARAM_FIELDS.filter((f) => f.group === g.key && paramShown(f, params)).map((f) => (
                 <ParamRow key={f.key} field={f} os={os} />
               ))}
             </div>

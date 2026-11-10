@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {PARAM_FIELDS, paramConflict, paramField, paramValue, parseKept, parseParam, serializeKept, showParam} from './mowerParams';
+import {PARAM_FIELDS, paramConflict, paramField, paramShown, paramValue, parseKept, parseParam, serializeKept, showParam} from './mowerParams';
 
 describe('the settings of the mower', () => {
   it('have a range, a default inside it and a label each', () => {
@@ -13,6 +13,14 @@ describe('the settings of the mower', () => {
       }
     }
     expect(new Set(PARAM_FIELDS.map((f) => f.key)).size).toBe(PARAM_FIELDS.length);
+  });
+
+  it('show going home at sunset only on a mower that lists it', () => {
+    const sunset = paramField('dock_at_sunset')!;
+    expect(paramShown(sunset, {})).toBe(false);
+    expect(paramShown(sunset, {'/mower_logic/gps_timeout': 10})).toBe(false);
+    expect(paramShown(sunset, {'/mower_logic/dock_at_sunset': false})).toBe(true);
+    expect(paramShown(paramField('gps_timeout')!, {})).toBe(true);
   });
 
   it("keep the mow motor's too hot above cool enough again", () => {

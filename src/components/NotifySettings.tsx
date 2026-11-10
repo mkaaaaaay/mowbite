@@ -1,9 +1,11 @@
 'use client';
 
+import {useMowerParams} from '@/hooks/useMowerParams';
 import {clock, dayLabel} from '@/lib/dates';
 import {deviceLang, tr, useLang} from '@/lib/i18n';
 import {apiBase, isDemo, selectedMower} from '@/lib/mowers';
-import {useMowbiteOs, useOsApi} from '@/lib/mowerOs';
+import {useMowbiteOs} from '@/lib/mowerOs';
+import {paramField, paramShown} from '@/lib/mowerParams';
 import {isApp} from '@/lib/native';
 import {
   defaultNotify,
@@ -38,7 +40,7 @@ const EMERGENCY_WAIT = [0, 10, 30, 60];
 export function NotifySettings({settings, styles}: {settings: Settings; styles: Styles}) {
   useLang();
   const os = useMowbiteOs();
-  const api = useOsApi();
+  const params = useMowerParams();
   // undefined while asking, null without the container
   const [form, setForm] = useState<NotifyConfig | null | undefined>(undefined);
   const [saved, setSavedState] = useState<NotifyConfig | null>(null);
@@ -265,9 +267,12 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
       <h3 className={local.sub}>{tr('Tell me about')}</h3>
       <div className={local.events}>
         {/* standing still is told by a newer container only, shown while that can't be told. a start turned down only
-            MowBite OS says, going home at sunset from its api 6 on */}
+            MowBite OS says, going home at sunset only a mower with that setting */}
         {NOTIFY_EVENTS.filter(
-          (e) => (e.key !== 'standstill' || u.level === null || containerHas(u.level, 'standstill')) && (e.key !== 'refused' || os) && (e.key !== 'dark' || api >= 6),
+          (e) =>
+            (e.key !== 'standstill' || u.level === null || containerHas(u.level, 'standstill')) &&
+            (e.key !== 'refused' || os) &&
+            (e.key !== 'dark' || paramShown(paramField('dock_at_sunset')!, params)),
         ).map((e) => (
           <label key={e.key} className={styles.check}>
             <input type="checkbox" checked={form.events.includes(e.key)} onChange={() => toggle(e.key)} />

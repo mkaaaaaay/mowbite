@@ -28,8 +28,8 @@ export interface ParamField {
   step?: number;
   // for a choice, by value 0, 1, 2 ...
   choices?: string[];
-  // only on MowBite OS from this api on
-  osApi?: number;
+  // only when the mower lists it in its params, not every mower has it
+  reported?: boolean;
   // switched off only after this question
   confirmOff?: string;
 }
@@ -62,7 +62,7 @@ export const PARAM_FIELDS: ParamField[] = [
     help: 'When the sun sets while it mows, it goes home. Started or continued in the dark on purpose, or at a start time allowed in the dark, it mows on. A change counts from the next mow.',
     type: 'bool',
     def: true,
-    osApi: 6,
+    reported: true,
     confirmOff: 'Switch it off? It then mows on into the night, when hedgehogs and other animals are out.',
   },
   {key: 'automatic_mode', group: 'auto', label: 'Starting by itself', help: "OpenMower's own automatic, apart from MowBite's schedule: with a schedule leave it on manual, or both start the mower.", osHelp: "The mower's own automatic, apart from the schedule: with a schedule leave it on manual.", type: 'choice', def: 0, choices: ['Manual: only when started', 'Semi-automatic: after a start it mows the whole map, charging in between', 'Automatic: mows whenever it can']},
@@ -81,8 +81,8 @@ export const PARAM_FIELDS: ParamField[] = [
 ];
 
 export const paramField = (key: string) => PARAM_FIELDS.find((f) => f.key === key);
-// the ones this mower has, api: MowBite OS's (0 on OpenMower)
-export const paramShown = (f: ParamField, api: number) => !f.osApi || api >= f.osApi;
+// the ones this mower has, none of the reported ones before its params came
+export const paramShown = (f: ParamField, params: Record<string, unknown>) => !f.reported || paramName(f.key) in params;
 export const paramName = (key: string) => PARAM.mowerLogic(key);
 
 // the value the mower has, or its default while the list hasn't got it (see PARAM_DEFAULTS in lib/openmower)

@@ -8,8 +8,8 @@ import {clock, dayLabel} from '@/lib/dates';
 import {tr, useLang} from '@/lib/i18n';
 import {useMowerActions} from '@/hooks/useMowerActions';
 import {useCanSetParams} from '@/components/MowerParamSettings';
-import {useMowbiteOs, useOsApi} from '@/lib/mowerOs';
-import {paramField, paramShown} from '@/lib/mowerParams';
+import {useMowbiteOs} from '@/lib/mowerOs';
+import {paramField} from '@/lib/mowerParams';
 import {containerHas, useUpdates} from '@/lib/updates';
 import Link from 'next/link';
 import {ACTION} from '@/lib/openmower';
@@ -63,9 +63,8 @@ export default function SchedulePage() {
   // a start's own mowing direction turns mower_logic's mow_angle_offset, MowBite OS has none (its planner turns the lanes)
   const os = useMowbiteOs();
   const canTurn = canSetParams && !os;
-  // MowBite OS: going home at sunset switched off on purpose, said where the runs are planned
-  const api = useOsApi();
-  const nightMowing = paramShown(paramField('dock_at_sunset')!, api) && params['/mower_logic/dock_at_sunset'] === false;
+  // going home at sunset switched off on purpose on a mower that has it, said where the runs are planned
+  const nightMowing = params['/mower_logic/dock_at_sunset'] === false;
 
   // a change made here wins over an answer still on its way. back from the background the page asks again, another
   // phone may have changed it meanwhile

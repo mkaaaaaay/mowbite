@@ -3,6 +3,7 @@ import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {describe, expect, it} from 'vitest';
 import de from './i18n/de';
+import {PARAM_FIELDS, paramField} from './mowerParams';
 import {COMMAND, RPC} from './openmower';
 import {EMERGENCY_BITS, EMERGENCY_HIDE, EMERGENCY_TEXT, EVENTS, REASONS, pick} from './reasonTexts';
 
@@ -23,6 +24,7 @@ const api = JSON.parse(raw.toString()) as {
   'x-emergency-bits': {bit: number; name: string}[];
   'x-methods': Record<string, unknown>;
   'x-sensors': Record<string, {name: string}>;
+  'x-settings': Record<string, {default: number; min: number; max: number}>;
   $defs: Record<string, unknown>;
 };
 
@@ -120,6 +122,14 @@ describe(`MowBite OS's interface (${PINNED.repo} ${PINNED.commit.slice(0, 7)}, a
   it('either calls each of its methods or says why not', () => {
     expect(osMethods.filter((m) => !appMethods.has(m) && !(m in NOT_OFFERED)), 'call them or add them to NOT_OFFERED').toEqual([]);
     expect(Object.keys(NOT_OFFERED).filter((m) => appMethods.has(m) || !osMethods.includes(m)), 'used or gone, take them out of NOT_OFFERED').toEqual([]);
+  });
+
+  it("has every setting the app shows on it without asking the mower's list, and a field for each", () => {
+    const settings = api['x-settings'];
+    // the mowing group isn't shown on MowBite OS, its planner has the lanes
+    const shown = PARAM_FIELDS.filter((f) => f.group !== 'mowing' && !f.reported).map((f) => f.key);
+    expect(shown.filter((k) => !(k in settings))).toEqual([]);
+    expect(Object.keys(settings).filter((k) => !paramField(k))).toEqual([]);
   });
 
   it('has every sensor name in german, a name without small letters (NTRIP) stays as it is', () => {
