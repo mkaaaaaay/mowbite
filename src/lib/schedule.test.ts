@@ -140,6 +140,11 @@ describe('isNightTime with sun times', () => {
   it('falls back to the fixed hours without them', () => {
     expect(isNightTime('18:30', null)).toBe(true);
   });
+  it('with a sunset after midnight only between it and sunrise', () => {
+    const sun = {rise: '02:55', set: '00:04'};
+    expect(['00:04', '01:00', '02:54'].map((t) => isNightTime(t, sun))).toEqual([true, true, true]);
+    expect(['00:03', '02:55', '10:00', '23:59'].map((t) => isNightTime(t, sun))).toEqual([false, false, false, false]);
+  });
 });
 
 // the cases of the stop times in test/run.sh: the 21st of June at 52.37 9.73, without a position, and in Reykjavik
@@ -164,6 +169,8 @@ describe('reachesDark', () => {
   });
   it('with a sunset after midnight', () => {
     expect(reaches('10:00', '03:00', {rise: '02:55', set: '00:04'})).toBe(true);
+    expect(reaches('01:00', '03:00', {rise: '02:55', set: '00:04'})).toBe(true);
+    expect(reaches('03:00', '23:00', {rise: '02:55', set: '00:04'})).toBe(false);
   });
 });
 

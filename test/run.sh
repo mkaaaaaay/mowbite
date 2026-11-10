@@ -253,6 +253,8 @@ STOPS=(
   "20:00 to 07:00 allowed in the dark: at its end|$BERLIN 52.37,9.73 2026-06-21 20:00 07:00 - 1|2026-06-22 07:00 end"
   "17:00 to 08:00 without a position: at 6 pm|$BERLIN - 2026-06-21 17:00 08:00 - -|2026-06-21 18:00 dark"
   "10:00 to 03:00 in reykjavik, home at sunset: after midnight|<+0000>0 64.15,-21.94 2026-06-21 10:00 03:00 1 1|2026-06-22 00:04 dark"
+  "10:00 to 03:00 in reykjavik: after midnight|<+0000>0 64.15,-21.94 2026-06-21 10:00 03:00 - -|2026-06-22 00:04 dark"
+  "01:00 to 03:00 in reykjavik, before sunrise: not started|<+0000>0 64.15,-21.94 2026-06-21 01:00 03:00 - -|dark start"
 )
 got=$(printf '%s\n' "${STOPS[@]}" | cut -d'|' -f2 | docker run -i --rm --entrypoint sh "$IMAGE" -c '
   eval "$(sed -n "/^conf() /p; /^sun_today() {/,/^}/p; /^minutes() /p; /^is_dark() {/,/^}/p; /^stop_time() {/,/^}/p" /scheduler.sh)"

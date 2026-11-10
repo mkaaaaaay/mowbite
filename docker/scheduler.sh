@@ -135,11 +135,12 @@ sun_today() {
 # minutes after local midnight, now
 minutes() { TZ="$tz" date +%H:%M | awk -F: '{ print $1 * 60 + $2 }'; }
 
-# dark at this minute of the day: between sunset and sunrise, or 6 pm to 6 am without the sun times
+# dark at this minute of the day: between sunset and sunrise, or 6 pm to 6 am without the sun times. a sunset after
+# midnight comes before sunrise by the clock, then it's dark only between the two
 is_dark() {
   # shellcheck disable=SC2046
   set -- "$1" $(sun_today) 360 1080
-  [ "$1" -ge "$3" ] || [ "$1" -lt "$2" ]
+  if [ "$3" -le "$2" ]; then [ "$1" -ge "$3" ] && [ "$1" -lt "$2" ]; else [ "$1" -ge "$3" ] || [ "$1" -lt "$2" ]; fi
 }
 
 # the time a run started now has to be home by, as a unix time: the plan's end time (next one coming

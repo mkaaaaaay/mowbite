@@ -334,8 +334,11 @@ async function loadLog(): Promise<LogEntry[]> {
 // night, without them 6 pm to 6 am.
 export const NIGHT_FROM = '18:00';
 export const NIGHT_TO = '06:00';
-export const isNightTime = (time: string, sun?: {rise: string; set: string} | null) =>
-  sun ? time >= sun.set || time < sun.rise : time >= NIGHT_FROM || time < NIGHT_TO;
+// A sunset after midnight comes before sunrise by the clock, then it's dark only between the two.
+export function isNightTime(time: string, sun?: {rise: string; set: string} | null): boolean {
+  const [from, to] = sun ? [sun.set, sun.rise] : [NIGHT_FROM, NIGHT_TO];
+  return from <= to ? from <= time && time < to : time >= from || time < to;
+}
 
 // A plan reaches into the dark with its start or its end in the dark, or a sunset in between (an end not after the
 // start is the next day's). Not allowed in the dark, the scheduler then doesn't start in the dark and sends the run
