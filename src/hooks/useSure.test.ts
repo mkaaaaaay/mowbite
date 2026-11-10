@@ -17,6 +17,7 @@ vi.mock('react', () => ({
 }));
 const render = () => {
   hooks.at = 0;
+  // eslint-disable-next-line react-hooks/rules-of-hooks -- react is replaced above, each call is one render
   return useSure();
 };
 
