@@ -415,9 +415,23 @@ expect "notify: a phone that's the only line goes" \
 docker exec mbt-web sh -c 'mkdir -p /data/gpslog && echo "1793644779.0 MOWING 1.200 3.400 0.020 -60" > /data/gpslog/20261103.log'
 expect "gpslog: a cell of 0 cm is taken as 10" "$(curl -s "$W/gpslog?cells=0" | head -n1 | cut -d' ' -f1-3)" "12 34 1"
 
+# httpd killed starts again after a pause
+docker exec mbt-web pkill httpd
+sleep 2
+expect "httpd killed is gone first" "$(code "$W/version")" 000
+for _ in $(seq 30); do curl -sf "$W/version" > /dev/null && break; sleep 1; done
+expect "httpd killed is back after a pause" "$(code "$W/version")" 200
+
+# logs grown too long, cut to size by the next start
+docker exec mbt-web sh -c 'mkdir -p /data/stats && seq 10050 > /data/stats/hours && seq 2050 > /data/battery.log && seq 4050 > /data/battery-health.log'
 t0=$(date +%s)
 docker stop mbt-web > /dev/null
 expect "it stops right away, not after docker's 10 s" "$(($(date +%s) - t0 < 5))" 1
+docker start mbt-web > /dev/null
+sleep 3
+expect "the logs in /data kept to their size" \
+  "$(docker exec mbt-web sh -c 'wc -l < /data/stats/hours; wc -l < /data/battery.log; wc -l < /data/battery-health.log' | tr '\n' ' ')" \
+  '10000 2000 4000 '
 
 echo "$pass passed, $fail failed"
 [ "$fail" = 0 ]
