@@ -3,8 +3,8 @@
 import {useEffect, useRef, useState} from 'react';
 import styles from './Joystick.module.css';
 
-// thumb stick, reports x/y in -1..1 (y up is positive) while held and 0/0 when let go. a press that starts while it's
-// disabled stays without effect until it's let go, also once it's enabled again
+// thumb stick, reports x/y in -1..1 (y up is positive) while held and 0/0 when let go. disabled ends a press and takes
+// none: only a new press once it's enabled again moves it
 export default function Joystick({
   onMove,
   disabled = false,
@@ -15,6 +15,11 @@ export default function Joystick({
   size?: number;
 }) {
   const [knob, setKnob] = useState<{x: number; y: number} | null>(null);
+  const [was, setWas] = useState(disabled);
+  if (was !== disabled) {
+    setWas(disabled);
+    if (disabled) setKnob(null);
+  }
   const pad = useRef<HTMLDivElement>(null);
   const radius = size / 2;
   // taken away while held (the page shows another view or layout): let go all the same
