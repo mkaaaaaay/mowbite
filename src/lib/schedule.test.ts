@@ -99,6 +99,12 @@ describe('nextStart', () => {
   it('is nothing while switched off', () => {
     expect(nextStart(schedule([plan([1], '09:00')], false), monday8)).toBeNull();
   });
+
+  it('leaves out a start in the hour skipped when summer time begins', () => {
+    const sunday1 = new Date(2026, 2, 29, 1, 0);
+    expect(nextStart(schedule([plan([7], '02:30')]), sunday1)).toEqual(new Date(2026, 3, 5, 2, 30));
+    expect(nextStart(schedule([plan([7], '03:30')]), sunday1)).toEqual(new Date(2026, 2, 29, 3, 30));
+  });
 });
 
 describe('isNightTime', () => {

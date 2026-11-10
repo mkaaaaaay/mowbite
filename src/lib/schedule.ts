@@ -381,6 +381,8 @@ export function nextStart(
       if (mowable?.length && !planAreas(p, mowable, s.pause, localDay(day)).length) continue;
       const [h, m] = p.time.split(':').map(Number);
       const at = new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, m);
+      // the hour the clock skips when summer time begins: the scheduler doesn't start then
+      if (at.getHours() !== h || at.getMinutes() !== m) continue;
       if (at > from && (!best || at < best)) best = at;
     }
   }

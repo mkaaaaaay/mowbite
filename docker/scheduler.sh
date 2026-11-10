@@ -143,6 +143,9 @@ is_dark() {
   if [ "$3" -le "$2" ]; then [ "$1" -ge "$3" ] && [ "$1" -lt "$2" ]; else [ "$1" -ge "$3" ] || [ "$1" -lt "$2" ]; fi
 }
 
+# HH:MM ($2) on the day $1 (YYYY-MM-DD) in the schedule's time zone as a unix time, a switch of summer time counted
+local_time() { TZ="$tz" date -d "$1 $2" +%s; }
+
 # the time a run started now has to be home by, as a unix time: the plan's end time (next one coming
 # up, or $4 when it's known already), or the first sunset after the start when that comes earlier and the plan
 # wants it, or has an end time without mowing in the dark being allowed. empty when neither
@@ -154,13 +157,15 @@ stop_time() {
     stop=$4
     why=end
   elif [ "$1" != - ]; then
-    stop=$((midnight + $(echo "$1" | awk -F: '{ print $1 * 3600 + $2 * 60 }')))
-    [ "$stop" -gt "$now" ] || stop=$((stop + 86400))
+    # by date and clock, a switch of summer time before it counts (tomorrow: the date 36 hours after midnight)
+    stop=$(local_time "$(TZ="$tz" date +%F)" "$1")
+    [ "$stop" -gt "$now" ] || stop=$(local_time "$(TZ="$tz" date -d "@$((midnight + 129600))" +%F)" "$1")
     why=end
   fi
   if [ "$2" = 1 ] || { [ "$3" != 1 ] && [ -n "$stop" ]; }; then
     # shellcheck disable=SC2046
     set -- $(sun_today) 360 1080
+    # (sun_today counts by the clock as it is now, like midnight: right also on the day of a switch)
     dusk=$((midnight + $2 * 60))
     # a sunset after midnight (by the clock before sunrise) that's past: the next one is tomorrow's
     [ "$dusk" -gt "$now" ] || [ "$2" -gt "$1" ] || dusk=$((dusk + 86400))
