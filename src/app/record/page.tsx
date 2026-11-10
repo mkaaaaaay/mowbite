@@ -82,23 +82,17 @@ function Record() {
   const overlay = useMapOverlay();
   // MowBite OS records the docking station its own way: there only OpenMower's two steps
   const os = useMowbiteOs();
-  const [saved, setSaved] = useState<string | null>(null);
   // a save sent: saved once the map has it (OpenMower drops an area it can't use without a word), late when it hasn't
   // come after SAVE_WAIT_MS
-  const [saving, setSaving] = useState<{what: string; kind: 'mow' | 'nav' | 'dock'; before: MowerMap | null; late: boolean} | null>(null);
-  if (saving && recordedIn(saving.kind, saving.before, map)) {
-    setSaving(null);
-    setSaved(saving.what);
-  }
+  const [save, setSave] = useState<{what: string; kind: 'mow' | 'nav' | 'dock'; before: MowerMap | null; at: 'sent' | 'late' | 'saved'} | null>(null);
+  if (save && save.at !== 'saved' && recordedIn(save.kind, save.before, map)) setSave({...save, at: 'saved'});
   useEffect(() => {
-    if (!saving || saving.late) return;
-    const t = setTimeout(() => setSaving((s) => s && {...s, late: true}), SAVE_WAIT_MS);
+    if (save?.at !== 'sent') return;
+    const t = setTimeout(() => setSave((s) => (s?.at === 'sent' ? {...s, at: 'late'} : s)), SAVE_WAIT_MS);
     return () => clearTimeout(t);
-  }, [saving]);
-  const expectSaved = (what: string, kind: 'mow' | 'nav' | 'dock') => {
-    setSaved(null);
-    setSaving({what, kind, before: map, late: false});
-  };
+  }, [save]);
+  const saved = save?.at === 'saved' ? save.what : null;
+  const expectSaved = (what: string, kind: 'mow' | 'nav' | 'dock') => setSave({what, kind, before: map, at: 'sent'});
   // the mower left recording mode within a moment of starting it (see the hint below)
   const [bounced, setBounced] = useState(false);
   const startedAt = useRef(0);
@@ -207,10 +201,7 @@ function Record() {
         if (e?.type !== 'RECORDING_REFUSED') return;
         setRefused(e);
         // saving it didn't work after all
-        if (e.action?.startsWith('finish_') || e.action === 'record_dock') {
-          setSaved(null);
-          setSaving(null);
-        }
+        if (e.action?.startsWith('finish_') || e.action === 'record_dock') setSave(null);
       }),
     [],
   );
@@ -228,8 +219,7 @@ function Record() {
     startedAt.current = Date.now();
     mine.current = true;
     setBounced(false);
-    setSaved(null);
-    setSaving(null);
+    setSave(null);
     setRefused(null);
     setStation(null);
     setGuide(withGuide);
@@ -433,7 +423,7 @@ function Record() {
   let text: React.ReactNode = null;
   let buttons: React.ReactNode[] = [];
   if (phase === 'empty') {
-    const lost = saving?.late ? tr("{what} didn't arrive in the map. Look at the map, or record it again.", {what: tr(saving.what)}) : null;
+    const lost = save?.at === 'late' ? tr("{what} didn't arrive in the map. Look at the map, or record it again.", {what: tr(save.what)}) : null;
     say = saved ? (
       <>
         <b>{tr('{what} saved.', {what: tr(saved)})}</b> {tr('The next one, or leave recording mode.')}
@@ -453,10 +443,7 @@ function Record() {
           ? tr('Drive to the edge of the new area, then start recording and drive once around it. For the docking station, stop about a meter in front of it, facing it.')
           : tr('Drive to the edge of the new area, then start recording and drive once around it. The docking station: its button guides you through it.');
     buttons = [
-      button('start_recording', 'Record outline', 'main', () => {
-        setSaved(null);
-        setSaving(null);
-      }),
+      button('start_recording', 'Record outline', 'main', () => setSave(null)),
       hasAction(A('record_dock')) && stationButton(hasStation),
       !drive.remote &&
         button('exit_recording_mode', 'Leave recording mode', undefined, () => {
