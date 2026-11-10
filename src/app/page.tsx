@@ -24,6 +24,7 @@ import {useMowerWifi} from '@/hooks/useMowerWifi';
 import {useBatteryLevel} from '@/hooks/useBatteryLevel';
 import {wifiLevel} from '@/lib/coverage';
 import {shown, tempItems, type DashKey} from '@/lib/dashboard';
+import {tempLimits} from '@/lib/sensorLimits';
 import {usePlanProgress} from '@/hooks/usePlanProgress';
 import {useRecentRuns} from '@/hooks/useRecentRuns';
 import {useRpcMethods} from '@/hooks/useRpcMethods';
@@ -81,13 +82,14 @@ const ACTIONS = [
 
 // every temperature of the mower in a fixed order, the blade side first, then the wheels, unknown ones after them.
 // Hot from the limit OpenMower gives the sensor (max_pcb_temp of an ESC, the mow motor's motor_hot_temperature),
-// 70 °C without one. max_value counts on its own: OpenMower sets has_min_max only when there's a min as well
+// else its critical high, 70 °C without one
 function temperatures(infos: SensorInfo[], values: Record<string, string>) {
   return tempItems(infos)
     .filter(({key}) => Number.isFinite(Number(values[key])))
     .map(({info, key, label}) => {
       const value = Number(values[key]);
-      const limit = info.max_value > 0 ? info.max_value : info.has_critical_high && info.upper_critical_value > 0 ? info.upper_critical_value : 70;
+      const {warn, crit} = tempLimits(info);
+      const limit = warn ?? (crit || 70);
       return {key, label, value: `${Math.round(value)} °C`, warn: value >= limit};
     });
 }

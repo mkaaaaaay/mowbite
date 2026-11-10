@@ -26,6 +26,13 @@ const STANDING_RPM = 100;
 // way, -1 the other way round, 0 standing
 export const bladeSpin = (rpm: number) => (Math.abs(rpm) >= STANDING_RPM ? Math.sign(rpm) : 0);
 
+// a temperature's marks: yellow from max_value (on its own, OpenMower sets has_min_max only with a min: max_pcb_temp of
+// an ESC), red from the critical high. a max at or above that is the end of the range (MowBite OS), no warning of its own
+export function tempLimits(info: SensorInfo): {warn?: number; crit?: number} {
+  const crit = info.has_critical_high && info.upper_critical_value >= 0 ? info.upper_critical_value : undefined;
+  return {warn: info.max_value > 0 && (crit === undefined || info.max_value < crit) ? info.max_value : undefined, crit};
+}
+
 // a value at or past one of the sensor's critical limits. revolutions count only while mowing with the blade turning
 export function outOfRange(info: SensorInfo | undefined, raw: string | undefined, state: string | undefined): boolean {
   if (!info || raw === undefined || info.value_type !== 'DOUBLE') return false;

@@ -1,6 +1,6 @@
 import type {SensorInfo} from '@/hooks/useMowerSensors';
 import {describe, expect, it} from 'vitest';
-import {along, bladeSpin, outOfRange, sensorDial, type Dial} from './sensorLimits';
+import {along, bladeSpin, outOfRange, sensorDial, tempLimits, type Dial} from './sensorLimits';
 
 // a sensor as OpenMower sends it, a limit left out is 0 with its has_* 0
 const sensor = (l: {min?: number; max?: number; low?: number; high?: number}, what = 'VOLTAGE'): SensorInfo => ({
@@ -21,6 +21,16 @@ const rpm = sensor({min: 2300, max: 3800, low: 2000}, 'REVOLUTIONS');
 const battery = sensor({min: 24.5, max: 28.2, low: 23, high: 29.9});
 // the bands as [tone, start, end]
 const bands = (d: Dial) => d.bands.map((b) => [b.tone, b.start, b.end]);
+
+describe('tempLimits', () => {
+  it('warns from the max below the critical high, a max above it is the end of the range', () => {
+    // OpenMower: max_pcb_temp of an ESC on its own; MowBite OS: the range 0..100, critical from 80
+    expect(tempLimits({...sensor({max: 70}, 'TEMPERATURE'), has_min_max: 0})).toEqual({warn: 70, crit: undefined});
+    expect(tempLimits(sensor({min: 0, max: 100, high: 80}, 'TEMPERATURE'))).toEqual({warn: undefined, crit: 80});
+    expect(tempLimits(sensor({min: -10, max: 70, high: 55}, 'TEMPERATURE'))).toEqual({warn: undefined, crit: 55});
+    expect(tempLimits(sensor({max: 60, high: 80}, 'TEMPERATURE'))).toEqual({warn: 60, crit: 80});
+  });
+});
 
 describe('sensorDial', () => {
   it('reaches 15 % past the outer limits, red up to the critical low and yellow around the normal range', () => {
