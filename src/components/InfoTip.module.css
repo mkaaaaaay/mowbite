@@ -19,7 +19,7 @@
 .icon::after {
   content: '';
   position: absolute;
-  inset: -4px -5px;
+  inset: -5px -6px;
 }
 
 .bubble {

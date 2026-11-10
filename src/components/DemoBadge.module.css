@@ -28,5 +28,5 @@
 .badge button::after {
   content: '';
   position: absolute;
-  inset: -8px 0;
+  inset: -9px 0;
 }

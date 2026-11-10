@@ -109,7 +109,7 @@
 .days button::after {
   content: '';
   position: absolute;
-  inset: -4px 0;
+  inset: -5px 0;
 }
 
 .days .on {
