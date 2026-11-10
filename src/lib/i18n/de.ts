@@ -2561,6 +2561,7 @@ const de: Record<string, string> = {
   "Battery too hot": "Akku zu heiß",
   "Back at sunset": "Bei Sonnenuntergang zurück",
   "In the dock, not charging": "Im Dock, lädt nicht",
+  "In the dock, charging error": "Im Dock, Ladefehler",
   "In the dock": "Im Dock",
   "Docking given up, not charging in the dock": "Andocken aufgegeben, lädt nicht im Dock",
   "Paused, in the dock": "Pausiert, im Dock",

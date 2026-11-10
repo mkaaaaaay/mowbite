@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {chargeStateText, gpsQuality, statusText} from './status';
+import {chargeOf, chargeStateText, dockText, gpsQuality, statusText} from './status';
 
 describe('gpsQuality', () => {
   it('tells fix, float and too inaccurate by the accuracy, against the mower limit', () => {
@@ -20,11 +20,36 @@ describe('gpsQuality', () => {
 describe('statusText', () => {
   const docked = {current_state: 'IDLE', emergency: 0, is_charging: 0};
   it("says in the dock as the dashboard does, with MowBite OS's word on charging", () => {
-    expect(statusText(docked, true, false)).toBe('Charging in the dock');
-    expect(statusText(docked, true, true)).toBe('Charged, in the dock');
-    expect(statusText(docked, true, false, false)).toBe('In the dock, not charging');
-    expect(statusText(docked, true, false, null)).toBe('In the dock');
-    expect(statusText(docked, true, false, true)).toBe('Charging in the dock');
+    expect(statusText(docked, true, 'charging')).toBe('Charging in the dock');
+    expect(statusText(docked, true, 'done')).toBe('Charged, in the dock');
+    expect(statusText(docked, true, 'charging', false)).toBe('In the dock, not charging');
+    expect(statusText(docked, true, 'charging', null)).toBe('In the dock');
+    expect(statusText(docked, true, 'charging', true)).toBe('Charging in the dock');
+  });
+});
+
+describe('dockText by the charger', () => {
+  const dock = (state: string, confirmed?: boolean | null) => dockText(chargeOf(state, 0, 50), confirmed);
+  it('says a fault with a warning, not charging and unknown plainly, the other states of the firmware as charging', () => {
+    for (const s of ['Fault', 'Error (Fault)', 'Comms Error', 'Charger Not Found', 'Charger Comms Error'])
+      expect(dock(s)).toEqual({text: 'In the dock, charging error', warn: true});
+    expect(dock('Not Charging')).toEqual({text: 'In the dock, not charging', warn: false});
+    expect(dock('Unknown')).toEqual({text: 'In the dock', warn: false});
+    expect(dock('Done')).toEqual({text: 'Charged, in the dock', warn: false});
+    for (const s of ['Trickle Charge', 'Pre Charge', 'Fast Charge (CC)', 'Taper Charge (CV)', 'Top Off', 'CC', 'CV', 'Something new'])
+      expect(dock(s)).toEqual({text: 'Charging in the dock', warn: false});
+  });
+
+  it('without a charger state (the v1 mainboard) goes by the current, or the battery', () => {
+    expect(chargeOf('N/A', 0.05, 80)).toBe('done');
+    expect(chargeOf(undefined, 1.2, 99)).toBe('done');
+    expect(chargeOf('N/A', 1.2, 80)).toBe('charging');
+  });
+
+  it("on MowBite OS says a fault of the charger over its own word, no charge on the contacts with a warning", () => {
+    expect(dock('Fault', true)).toEqual({text: 'In the dock, charging error', warn: true});
+    expect(dock('Not Charging', false)).toEqual({text: 'In the dock, not charging', warn: true});
+    expect(dock('Fast Charge (CC)', null)).toEqual({text: 'In the dock', warn: false});
   });
 });
 

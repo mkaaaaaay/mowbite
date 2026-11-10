@@ -36,7 +36,7 @@ import {mowerKey} from '@/lib/mowers';
 import {settingsStore} from '@/lib/settings';
 import {PARTS, useDueParts} from '@/lib/stats';
 import {containerHas, useUpdates} from '@/lib/updates';
-import {batteryColor, chargeDone, dockText, GPS_QUALITY_LABEL, gpsQuality, isDocked, onCharger, WIFI_LEVEL_LABEL} from '@/lib/status';
+import {batteryColor, chargeOf, dockText, GPS_QUALITY_LABEL, gpsQuality, isDocked, onCharger, WIFI_LEVEL_LABEL, type Charge} from '@/lib/status';
 import Link from 'next/link';
 import {memo, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import styles from './page.module.css';
@@ -116,12 +116,12 @@ function FactValue({value}: {value: string}) {
 }
 
 // confirmed: MowBite OS said it charges (true) or not yet (false), null when it isn't known, undefined on OpenMower
-function headline(state: MowerState, docked: boolean, charger: boolean, charged: boolean, area: string | undefined, confirmed?: boolean | null) {
+function headline(state: MowerState, docked: boolean, charger: boolean, charge: Charge, area: string | undefined, confirmed?: boolean | null) {
   if (state.emergency) return {title: tr('Emergency stop'), tone: 'error'};
   // left on in the dock it says so, it's why the map shows. docked is idle only, so it's the station's contacts here
   if (state.current_state === 'AREA_RECORDING') return {title: charger ? tr('Recording mode, in the dock') : tr('Recording an area'), tone: 'live'};
   if (docked) {
-    const d = dockText(charged, confirmed);
+    const d = dockText(charge, confirmed);
     return {title: d.text, tone: d.warn ? 'warn' : 'good'};
   }
   switch (state.current_state) {
@@ -334,7 +334,8 @@ export default function Home() {
   const confirmed = useChargeConfirmed(api, state ? charger : undefined, recent?.today, recent?.latest);
   const battery = level ?? (state ? Math.round(state.battery_percentage * 100) : 0);
   const num = (id: string) => (values[id] !== undefined ? Number(values[id]) : undefined);
-  const charging = docked && confirmed !== false && !chargeDone(values['om_charge_state'], num('om_charge_current'), battery);
+  const charge = chargeOf(values['om_charge_state'], num('om_charge_current'), battery);
+  const charging = docked && confirmed !== false && charge === 'charging';
 
   // what the event history knows: since when this state holds and which area is being mowed
   const events = recent?.today ?? [];
@@ -345,7 +346,7 @@ export default function Home() {
   // by current_area and the map like the progress (the history comes up to 30 s later), else by the last area event
   const onArea = current === 'MOWING' && (state?.current_area ?? -1) >= 0 ? map?.areas.filter((a) => a.properties.type === 'mow')[state!.current_area!] : undefined;
   const area = current === 'MOWING' ? onArea?.properties.name || lastOf((e) => e.type === 'AREA')?.area_name : undefined;
-  const head = state ? headline(state, docked, charger, docked && !charging, area, confirmed) : null;
+  const head = state ? headline(state, docked, charger, charge, area, confirmed) : null;
 
   // dressed up: a towel at 42 %, an umbrella while it sits out the rain, a witch's hat on halloween
   const halloween = useHalloween();
