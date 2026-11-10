@@ -133,9 +133,10 @@ describe('a calibration', () => {
     expect(canCalibrate(offered, false)).toBe(true);
     expect([new Set(['planner.plan']), null, undefined].map((m) => canCalibrate(m, false))).toEqual([false, false, false]);
     expect([offered, new Set(['planner.plan']), null, undefined].map((m) => calibMissing(m, false))).toEqual([null, 'planner', 'planner', 'connecting']);
-    // MowBite OS has its own drive, the planner's topic and methods don't count there
+    // MowBite OS has its own drive, the planner's topic and methods don't count there. it says so, not that the build
+    // lacks it
     expect(canCalibrate(offered, true)).toBe(false);
-    expect([offered, undefined].map((m) => calibMissing(m, true))).toEqual(['build', 'build']);
+    expect([offered, undefined].map((m) => calibMissing(m, true))).toEqual(['os', 'os']);
   });
 
   it("takes a recording the planner doesn't have for none until it says something else", async () => {
@@ -169,6 +170,7 @@ describe('a calibration', () => {
     const release = await import('./calibration');
     expect(release.canCalibrate(new Set(['planner.calib.start']), false)).toBe(false);
     expect([new Set(['planner.calib.start']), undefined].map((m) => release.calibMissing(m, false))).toEqual(['build', 'build']);
+    expect(release.calibMissing(undefined, true)).toBe('os');
     vi.stubEnv('APP_CALIBRATION', '1');
   });
 

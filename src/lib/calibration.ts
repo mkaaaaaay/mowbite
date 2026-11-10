@@ -96,12 +96,16 @@ export const calibByHand = (p: CalibProgress | null, unsaid = false) =>
 // own and nothing writes the topic there
 export const canCalibrate = (methods: Set<string> | null | undefined, os: boolean) =>
   CALIB_SHOWN && !os && !!methods?.has(RPC.plannerCalibStart);
-// what keeps the calibration page from offering it: not in this build (MowBite OS's own drive neither), rpc.methods not
-// answered yet, no planner for it
+// what keeps the calibration page from offering it: MowBite OS (a drive of its own), not in this build, rpc.methods
+// not answered yet, no planner for it
 export const calibMissing = (methods: Set<string> | null | undefined, os: boolean) =>
-  !CALIB_SHOWN || os ? 'build' : methods === undefined ? 'connecting' : canCalibrate(methods, os) ? null : 'planner';
-export const calibMissingText = (missing: 'build' | 'planner') =>
-  missing === 'build' ? tr("Calibrating isn't in this version of MowBite yet.") : tr('Calibrating needs the MowBite Planner on the mower, from version 0.3.0.');
+  os ? 'os' : !CALIB_SHOWN ? 'build' : methods === undefined ? 'connecting' : canCalibrate(methods, os) ? null : 'planner';
+export const calibMissingText = (missing: 'os' | 'build' | 'planner') =>
+  missing === 'os'
+    ? tr("Calibrating isn't there for mowers with MowBite OS.")
+    : missing === 'build'
+      ? tr("Calibrating isn't in this version of MowBite yet.")
+      : tr('Calibrating needs the MowBite Planner on the mower, from version 0.3.0.');
 
 export function readProgress(payload: string): CalibProgress | null {
   let p: Record<string, unknown>;
