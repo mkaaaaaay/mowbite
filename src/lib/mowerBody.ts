@@ -6,7 +6,7 @@ import {apiBase} from './mowers';
 import {RPC} from './openmower';
 import {isMowbiteOs, systemInfo} from './mowerOs';
 import {askPlan} from './plannerProgress';
-import {ASK_AGAIN_MS, callRpc, isMissingMethod, methodsUnknown, RpcError, rpcMethods} from './rpc';
+import {askUntilAnswered, callRpc, isMissingMethod, knownMethods, RpcError, rpcMethods} from './rpc';
 import {saveSettings, settingsStore, syncSettings, type Settings} from './settings';
 
 // The mower's body and blade as the MowBite Planner on the mower knows them (planner.settings): a rectangle around
@@ -282,38 +282,34 @@ export function steadyBody(b: MowerBody | null): MowerBody | null {
   return b && (steadyLast = b);
 }
 
-// how long to wait before asking the planner again: at once after no answer (a planner busy planning answers when it's
-// done), 15 s after an error; from 15 s, doubling up to 10 min, while the mower didn't tell its methods either (quiet:
-// the times in a row), one that answers no call at all isn't asked every minute
-const QUIET_MAX_MS = 600_000;
-export function plannerAskIn(e: unknown, quiet: number): number {
-  if (!(e instanceof RpcError) || e.code !== 'timeout') return 15000;
-  return quiet > 0 ? Math.min(ASK_AGAIN_MS * 2 ** (quiet - 1), QUIET_MAX_MS) : 0;
+// the planner's settings asked until it answers (a phone waking up can take a while to connect, a planner busy planning
+// answers when it's done): again at once after no answer, 15 s after an error. a mower that hasn't answered any call
+// yet is asked again once it tells its methods, not every minute. onFail for each time it didn't, returns the stop
+export function askPlanner(onFail?: () => void): () => void {
+  let alive = true;
+  let t: ReturnType<typeof setTimeout> | undefined;
+  let stop: (() => void) | undefined;
+  const ask = () => {
+    if (current !== undefined) return;
+    loadPlannerSettings().catch((e) => {
+      if (!alive) return;
+      onFail?.();
+      const silent = e instanceof RpcError && e.code === 'timeout';
+      if (silent && knownMethods() === undefined) stop = askUntilAnswered(rpcMethods, ask);
+      else t = setTimeout(ask, silent ? 0 : 15000);
+    });
+  };
+  ask();
+  return () => {
+    alive = false;
+    clearTimeout(t);
+    stop?.();
+  };
 }
 
-// the planner's settings asked until it answers (a phone waking up can take a while to connect); onFail for each time
-// it didn't
 export function useAskPlanner(onFail?: () => void) {
-  useEffect(() => {
-    let alive = true;
-    let t: ReturnType<typeof setTimeout> | undefined;
-    let quiet = 0;
-    const ask = () => {
-      if (current !== undefined) return;
-      loadPlannerSettings().catch((e) => {
-        if (!alive) return;
-        onFail?.();
-        quiet = methodsUnknown() ? quiet + 1 : 0;
-        t = setTimeout(ask, plannerAskIn(e, quiet));
-      });
-    };
-    ask();
-    return () => {
-      alive = false;
-      clearTimeout(t);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- asked once per page, onFail only tells
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- asked once per page, onFail only tells
+  useEffect(() => askPlanner(onFail), []);
 }
 
 // the mower's body for drawing it, null until known (or when there's none)

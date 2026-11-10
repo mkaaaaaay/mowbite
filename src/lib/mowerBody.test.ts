@@ -17,7 +17,6 @@ import {
   isPin,
   PIN_SIDE,
   pinAt,
-  plannerAskIn,
   realEdges,
   realInsides,
   roundBends,
@@ -33,7 +32,6 @@ import {
   type MowerBody,
   type PlannerSettings,
 } from './mowerBody';
-import {RpcError} from './rpc';
 
 const settings = (values: Record<string, unknown>): PlannerSettings => ({
   settings: Object.fromEntries(
@@ -595,18 +593,5 @@ describe('round bends', () => {
       {x: 2, y: 0},
     ];
     expect(roundBends(straight)).toEqual(straight);
-  });
-});
-
-describe('plannerAskIn', () => {
-  const timeout = new RpcError('planner.settings', 'timeout', 'timed out');
-
-  it('asks again at once after no answer, 15 s after an error', () => {
-    expect(plannerAskIn(timeout, 0)).toBe(0);
-    expect(plannerAskIn(new RpcError('planner.settings', -32000, 'busy'), 0)).toBe(15000);
-  });
-
-  it('waits longer each time while the mower answers no call at all', () => {
-    expect([1, 2, 3, 4, 7, 20].map((quiet) => plannerAskIn(timeout, quiet))).toEqual([15000, 30000, 60000, 120000, 600000, 600000]);
   });
 });
