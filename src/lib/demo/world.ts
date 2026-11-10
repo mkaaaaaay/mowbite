@@ -962,8 +962,8 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
   function record(step: string, t: number): boolean {
     const r = rec!;
     const here = {x: pose.x, y: pose.y};
-    // the line stopped: the outline, or once there is one an obstacle in it. too short a line is dropped, one without a
-    // second point drops the whole area like on OpenMower
+    // the line stopped: the outline, or once there is one an obstacle in it. too short a line is dropped, one with only its
+    // first point drops the whole area like on OpenMower
     const close = () => {
       const line = r.line;
       r.line = null;
@@ -1132,7 +1132,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
         for (let gone = 0; line.length && gone < meters; ) {
           const p = line.pop()!;
           const q = line[line.length - 1];
-          gone += q ? dist(p, q) : meters;
+          if (q) gone += dist(p, q);
         }
         rec!.auto = false;
         send.overlay();

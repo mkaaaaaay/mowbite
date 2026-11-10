@@ -1,5 +1,6 @@
 import {demoAction, demoCall, demoDocked, demoDrive, demoEmergency, demoHas, demoRefuseReset, expect, recordStation, tab, test} from './app';
 import type {Page} from '@playwright/test';
+import {length} from '@/lib/planProgress';
 
 const state = async (page: Page) => (await demoHas<{current_state: string}>(page, 'robot_state/json')).current_state;
 
@@ -271,8 +272,8 @@ test('discard area takes a second tap', async ({page}) => {
 
 // the open line of the recording, its length in metres
 const lineLength = async (page: Page) => {
-  const line = (await demoHas<{polygons: {poly: {x: number; y: number}[]; is_closed: number}[]}>(page, 'map_overlay/json')).polygons.find((p) => !p.is_closed)?.poly ?? [];
-  return line.reduce((sum, p, i) => (i ? sum + Math.hypot(p.x - line[i - 1].x, p.y - line[i - 1].y) : 0), 0);
+  const overlay = await demoHas<{polygons: {poly: {x: number; y: number}[]; is_closed: number}[]}>(page, 'map_overlay/json');
+  return length(overlay.polygons.find((p) => !p.is_closed)?.poly ?? []);
 };
 
 // MowBite OS's back button, the demo has its recording.undo behind a switch: the end of the line goes, the mower stays
