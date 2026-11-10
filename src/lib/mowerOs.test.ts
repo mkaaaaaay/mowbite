@@ -13,6 +13,10 @@ vi.mock('./rpc', async (real) => ({
   },
 }));
 
+// what's noted for the mower looked at (mowers' noteOs)
+const noted: boolean[] = [];
+vi.mock('./mowers', async (real) => ({...(await real<typeof import('./mowers')>()), noteOs: (os: boolean) => noted.push(os)}));
+
 const load = async () => {
   vi.resetModules();
   return import('./mowerOs');
@@ -50,6 +54,30 @@ describe('systemInfo', () => {
     const {systemInfo, isMowbiteOs} = await load();
     expect(await systemInfo()).toBeNull();
     expect(isMowbiteOs({name: 'openmower'})).toBe(false);
+  });
+});
+
+describe('what the mower runs, noted for its port', () => {
+  beforeEach(() => {
+    noted.length = 0;
+    rpc.unknown = false;
+  });
+
+  it('is MowBite OS once it said so, OpenMower when it has no system.info', async () => {
+    rpc.methods = new Set(['system.info']);
+    rpc.answer = {name: 'mowbite-os'};
+    await (await load()).systemInfo();
+    expect(noted).toEqual([true]);
+    rpc.methods = new Set(['params.set']);
+    await (await load()).systemInfo();
+    expect(noted).toEqual([true, false]);
+  });
+
+  it('stays as it was while the mower gave no answer', async () => {
+    rpc.methods = null;
+    rpc.unknown = true;
+    await (await load()).systemInfo();
+    expect(noted).toEqual([]);
   });
 });
 

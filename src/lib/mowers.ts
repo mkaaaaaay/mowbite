@@ -149,11 +149,27 @@ export function writeStored(key: string, value: unknown) {
 export const readMower = <T>(key: string) => readStored<T>(mowerKey(key));
 export const writeMower = (key: string, value: unknown) => writeStored(mowerKey(key), value);
 
+// MowBite's port on a mower: its container's on OpenMower, MowBite OS serves the app itself (masterplan 3.5)
+export const CONTAINER_PORT = 8082;
+const OS_PORT = 80;
+// this device found the mower to run MowBite OS, kept for it like mowerKey has it
+const OS_KEY = 'mowbiteOs';
+
+// what system.info said about the mower looked at
+export function noteOs(os: boolean) {
+  const m = selectedMower();
+  if (m && m.id !== DEMO_ID) writeMower(OS_KEY, os || null);
+}
+
+type Address = Pick<OtherMower, 'host' | 'appPort'> & {id?: string};
+// the port a mower's MowBite answers on: the one typed for it, else the container's, on MowBite OS the OS's (one kept
+// with the container's port is taken as not typed there)
+export const appPort = (m: Omit<Address, 'host'>): number =>
+  m.appPort && m.appPort !== CONTAINER_PORT ? m.appPort : m.id && readStored(`${OS_KEY} ${m.id}`) ? OS_PORT : CONTAINER_PORT;
 // where a mower's MowBite answers
-export const mowerBase = (m: Pick<OtherMower, 'host' | 'appPort'>) => `http://${m.host}:${m.appPort ?? 8082}`;
+export const mowerBase = (m: Address) => `http://${m.host}:${appPort(m)}`;
 // the same MowBite: the same host and port
-export const sameMowBite = (a: Pick<OtherMower, 'host' | 'appPort'>, b: Pick<OtherMower, 'host' | 'appPort'>) =>
-  mowerBase(a).toLowerCase() === mowerBase(b).toLowerCase();
+export const sameMowBite = (a: Address, b: Address) => mowerBase(a).toLowerCase() === mowerBase(b).toLowerCase();
 
 // the mower a push message is about, by the address of its MowBite in the message (the one its settings were saved
 // from): the same host and port, else the only one in the list on that host. none when that doesn't tell them apart
@@ -166,7 +182,7 @@ export function mowerByAddress(api: string, list: OtherMower[]): OtherMower | un
   }
   const port = Number(url.port) || (url.protocol === 'https:' ? 443 : 80);
   const onHost = list.filter((m) => m.host.toLowerCase() === url.hostname);
-  return onHost.find((m) => (m.appPort ?? 8082) === port) ?? (onHost.length === 1 ? onHost[0] : undefined);
+  return onHost.find((m) => appPort(m) === port) ?? (onHost.length === 1 ? onHost[0] : undefined);
 }
 
 // where the selected mower's MowBite answers (sensor history, backups, schedule)

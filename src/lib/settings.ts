@@ -33,7 +33,7 @@ export interface OtherMower {
   id: string;
   name: string;
   host: string; // name or ip in the local network
-  appPort?: number; // MowBite, 8082
+  appPort?: number; // MowBite's, without one mowers' appPort has it
   wsPort?: number; // OpenMower's mqtt websocket, 9001
   prefix?: string;
 }

@@ -101,6 +101,51 @@ describe('mowerByAddress', () => {
   });
 });
 
+describe("MowBite's port on a mower", () => {
+  const C = {id: 'c', name: 'C', host: 'c', appPort: 8090};
+  const list = [A, {...B, appPort: 8082}, C];
+
+  it("is the container's on OpenMower and the OS's own once the mower said it runs MowBite OS", async () => {
+    stored.clear();
+    stored.set('appSettings', JSON.stringify({mowers: list}));
+    stored.set('mower', 'b');
+    const m = await open();
+    expect(m.apiBase()).toBe('http://b:8082');
+    m.noteOs(true);
+    expect(m.mowerList().map(m.mowerBase)).toEqual(['http://a:8082', 'http://b:80', 'http://c:8090']);
+    expect(m.mowerByAddress('http://b', m.mowerList())?.id).toBe('b');
+    // kept for the next page, until it runs OpenMower again
+    const next = await open();
+    expect(next.apiBase()).toBe('http://b:80');
+    next.noteOs(false);
+    expect(next.apiBase()).toBe('http://b:8082');
+    expect([...stored.keys()].sort()).toEqual(['appSettings', 'mower']);
+  });
+
+  it('stays the one typed for it on MowBite OS too', async () => {
+    stored.clear();
+    stored.set('appSettings', JSON.stringify({mowers: list}));
+    stored.set('mower', 'c');
+    const m = await open();
+    m.noteOs(true);
+    expect(m.apiBase()).toBe('http://c:8090');
+  });
+
+  it("keeps nothing for the mower the page comes from or the demo, and goes with a mower taken out", async () => {
+    stored.clear();
+    stored.set('appSettings', JSON.stringify({mowers: list}));
+    (await open()).noteOs(true);
+    stored.set('mower', 'demo');
+    (await open()).noteOs(true);
+    expect([...stored.keys()].sort()).toEqual(['appSettings', 'mower']);
+    stored.set('mower', 'b');
+    const m = await open();
+    m.noteOs(true);
+    m.forgetMowerKeys('b');
+    expect([...stored.keys()].sort()).toEqual(['appSettings', 'mower']);
+  });
+});
+
 describe('mowerKey', () => {
   it('keys what is kept by the mower looked at, the one the page comes from by the key alone', async () => {
     stored.clear();

@@ -1,6 +1,7 @@
 import {useEffect, useState} from 'react';
 import {RPC} from './openmower';
 import {noteMqtt} from './mqttClient';
+import {noteOs} from './mowers';
 import {askUntilAnswered, callRpc, isMissingMethod, methodsUnknown, rpcMethods} from './rpc';
 
 // What runs on the mower, from system.info. Only MowBite OS answers it, on OpenMower there's none. On MowBite OS the
@@ -43,7 +44,10 @@ export function systemInfo(): Promise<SystemInfo | null | undefined> {
     }
   })();
   return info.then((i) => {
-    if (i !== undefined) known = i;
+    if (i !== undefined) {
+      known = i;
+      noteOs(isMowbiteOs(i));
+    }
     return i;
   });
 }

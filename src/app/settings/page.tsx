@@ -8,7 +8,7 @@ import {useEffect, useState, useSyncExternalStore} from 'react';
 import styles from './page.module.css';
 import {dec, setLangChoice, tr, useLang, useLangChoice} from '@/lib/i18n';
 import {setThemeChoice, useThemeChoice} from '@/lib/theme';
-import {appMowers, DEMO_ID, forgetMowerKeys, isDemo, parseAddress, sameMowBite, saveAppMowers, selectedMower, selectMower} from '@/lib/mowers';
+import {appMowers, appPort, CONTAINER_PORT, DEMO_ID, forgetMowerKeys, isDemo, parseAddress, sameMowBite, saveAppMowers, selectedMower, selectMower} from '@/lib/mowers';
 import {forgetMqtt5} from '@/lib/mqttClient';
 import {isApp} from '@/lib/native';
 import {leaveFirst} from '@/lib/leaving';
@@ -96,7 +96,7 @@ function Group({
 function MowersSection({settings}: {settings: Settings}) {
   const [name, setName] = useState('');
   const [host, setHost] = useState('');
-  const [appPort, setAppPort] = useState('8082');
+  const [typedPort, setTypedPort] = useState(String(CONTAINER_PORT));
   const [wsPort, setWsPort] = useState('9001');
   const [error, setError] = useState<string | null>(null);
   // the android app keeps its list on the phone, a mower keeps it in its shared settings
@@ -136,7 +136,7 @@ function MowersSection({settings}: {settings: Settings}) {
       id: Math.random().toString(36).slice(2, 10),
       name: name.trim(),
       host: typed.host,
-      appPort: typed.port ?? (Number(appPort) || 8082),
+      appPort: typed.port ?? (Number(typedPort) || CONTAINER_PORT),
       wsPort: Number(wsPort) || 9001,
     };
     // (another MowBite on the same host answers on another port)
@@ -185,7 +185,7 @@ function MowersSection({settings}: {settings: Settings}) {
           <span>
             <strong>{m.name || m.host}</strong>{' '}
             <span className={styles.dim}>
-              {m.host}:{m.appPort ?? 8082}
+              {m.host}:{appPort(m)}
             </span>
           </span>
           <button
@@ -223,7 +223,7 @@ function MowersSection({settings}: {settings: Settings}) {
             <summary>{tr('Ports (only if you changed them)')}</summary>
             <label className={styles.field}>
               {tr('MowBite port')}
-              <input value={appPort} onChange={(e) => setAppPort(e.target.value)} inputMode="numeric" />
+              <input value={typedPort} onChange={(e) => setTypedPort(e.target.value)} inputMode="numeric" />
             </label>
             <label className={styles.field}>
               {tr('MQTT websocket port')}
