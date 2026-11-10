@@ -39,7 +39,8 @@ const mapVersion = (map: object | null) => {
   return mapVersions.get(map)!;
 };
 
-type PlanJob = {areaId: string | null; key: string; cacheKey: string; angleKey: string};
+// saved: asked for the area as saved, its plan says how long the area takes
+type PlanJob = {areaId: string | null; key: string; cacheKey: string; angleKey: string; saved: boolean};
 // what the planner last planned an area with (the lane spacing it picked), for the estimate until it's asked again
 const CHOSEN = new Map<string, PlanChosen>();
 
@@ -217,6 +218,12 @@ export function useMowPlan({
     [planner, params, liveMap],
   );
   const planKey = useMemo(() => (planRequest ? JSON.stringify(planRequest) : ''), [planRequest]);
+  // the same for the area as saved (only the MowBite Planner's plans say how long they take)
+  const savedKey = useMemo(
+    () => (planner && savedArea && liveMap ? JSON.stringify(requestFor(savedArea, liveMap, true)) : ''),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [planner, savedArea, liveMap],
+  );
   // the angle a plan is for: the mower's answer for another one has the stripes the wrong way
   const angleKey = planRequest
     ? JSON.stringify([
@@ -237,7 +244,7 @@ export function useMowPlan({
             remember(job.cacheKey, plan);
             if (plan?.chosen && job.areaId) CHOSEN.set(job.areaId, plan.chosen);
             // how long the area as saved takes, for the schedule
-            if (plan?.duration && job.areaId && 'area_id' in JSON.parse(job.key)) savePlanDuration(job.areaId, plan.duration.min, plan.duration.runs);
+            if (plan?.duration && job.areaId && job.saved) savePlanDuration(job.areaId, plan.duration.min, plan.duration.runs);
             return plan;
           },
           (e: unknown) => {
@@ -263,9 +270,9 @@ export function useMowPlan({
     }
     if (draggingPoint || angleMoving) return;
     // while points are typed or clicked only once it settles, an area as saved at once
-    const t = setTimeout(() => asker.want({areaId: selectedAreaId, key: planKey, cacheKey, angleKey}), unchanged ? 0 : 300);
+    const t = setTimeout(() => asker.want({areaId: selectedAreaId, key: planKey, cacheKey, angleKey, saved: planKey === savedKey}), unchanged ? 0 : 300);
     return () => clearTimeout(t);
-  }, [planKey, cacheKey, angleKey, selectedAreaId, draggingPoint, angleMoving, unchanged, asker, planner]);
+  }, [planKey, savedKey, cacheKey, angleKey, selectedAreaId, draggingPoint, angleMoving, unchanged, asker, planner]);
   // the saved mowing areas worked out ahead while the map is open, so picking one shows its plan at once
   useEffect(() => {
     // the ones still waiting are for settings or a map from before
@@ -276,7 +283,7 @@ export function useMowPlan({
       const p = area.properties;
       if (p.type !== 'mow' || p.active === false || p.mowable === false || area.outline.length < 3) continue;
       const key = JSON.stringify(requestFor(area, liveMap, true));
-      jobs.push({areaId: area.id, key, cacheKey: key + contextKey, angleKey: ''});
+      jobs.push({areaId: area.id, key, cacheKey: key + contextKey, angleKey: '', saved: true});
     }
     // after the one the map wants, its timer is set first
     const t = setTimeout(() => asker.prefetch(jobs), 0);

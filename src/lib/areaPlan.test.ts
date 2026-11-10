@@ -155,6 +155,12 @@ describe('areaPlanRequest', () => {
     });
   });
 
+  it("is the saved area's request only with its values as saved (the plan's duration counts then)", () => {
+    const saved = {outline_count: 2, planner: {fill_pattern: 'lanes'}};
+    expect(JSON.stringify(ask(saved, saved))).toBe(JSON.stringify(ask({...saved}, saved)));
+    expect(JSON.stringify(ask({...saved, outline_count: 6}, saved))).not.toBe(JSON.stringify(ask(saved, saved)));
+  });
+
   it('asks as it is when moved, and without the MowBite Planner with no planner settings', () => {
     expect(ask({angle: 1}, {angle: 1}, false)).toEqual({outline, obstacles: [hole], angle: 1});
     expect(ask({angle: 1, planner: {fill_pattern: 'spiral'}}, {angle: 1}, true, false)).toEqual({outline, obstacles: [hole], angle: 1});
