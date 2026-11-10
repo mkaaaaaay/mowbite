@@ -4,6 +4,7 @@ import {TitleMark} from '@/components/Logo';
 import {TitleRow} from '@/components/TopWeather';
 import MapView from '@/components/MapView';
 import TrackPicker from '@/components/TrackPicker';
+import {useMowerActions} from '@/hooks/useMowerActions';
 import {saveMap, useMowerMap, type MowerMap, type Point} from '@/hooks/useMowerMap';
 import {useMowerPosition} from '@/hooks/useMowerPosition';
 import {useIdle, useMowerStateValue} from '@/hooks/useMowerState';
@@ -28,12 +29,12 @@ import MapBackups, {backupLabel} from '@/components/MapBackups';
 import {deleteBackup, loadBackup, saveBackup, useBackupFirst} from '@/lib/backups';
 import AreaCard, {AreaTools} from './AreaCard';
 import DecorPanel, {showUnderMap} from './DecorPanel';
-import {decorRedo, decorUndo, goneLooks, onlyPinsChanged, pinSquare, pinsFrom, type UpdateArea, NEW_AREA_SETTINGS} from './editing';
+import {decorRedo, decorUndo, endsJob, goneLooks, jobLeft, onlyPinsChanged, pinSquare, pinsFrom, type UpdateArea, NEW_AREA_SETTINGS} from './editing';
 import EditorToolbar from './EditorToolbar';
 import MowSettings, {AngleOnMap, AreaDirection, AreaPlanInfo, OpenMowerArea} from './MowSettings';
 import OrderBox, {NewArea} from './OrderBox';
 import {DrawPanel, MergePanel, RestorePanel, SimplifyPanel, SnapPanel, SplitPanel, SubtractPanel} from './Panels';
-import {PARAM} from '@/lib/openmower';
+import {ACTION, PARAM} from '@/lib/openmower';
 import {RpcError} from '@/lib/rpc';
 import {rpcErrorText} from '@/lib/rpcText';
 import {sameContent} from '@/lib/sameMap';
@@ -76,6 +77,8 @@ import {dropLooks, looksOf, restoreLooks, saveSettings, settingsStore, withLooks
 // '0' when the map was unpinned on this device
 const PINNED_KEY = 'mapPinned';
 const SNAP_KEY = 'mapSnap';
+// a job dropped after a save that the mower still offers to drop this long after: it didn't take
+const JOB_CHECK_MS = 5000;
 
 // decorating (mode 'decor'), kept while the app runs like the edits: on while it's open (off again after "after mowing",
 // what it kept stays for the next round), the picture the next tap sets (copy: the picked pin's color, size and direction
@@ -209,6 +212,18 @@ function MapEditor() {
   const backupFirst = useBackupFirst(setSaveError);
   const conflictArmed = !!armedFor && armedFor === liveMap;
   const [saveWarning, setSaveWarning] = useState(false);
+  // a job the mower interrupted that a save or restore ends (editing endsJob): asked first, dropped after like on the dashboard
+  const {hasAction, publishAction} = useMowerActions();
+  const interrupted = hasAction(ACTION.resetJob);
+  const saveEnds = !!map && endsJob(interrupted, liveMap, map);
+  // looked at again a few seconds after the drop, said while it's still there
+  const [jobCheck, setJobCheck] = useState(false);
+  const jobStays = jobCheck && jobLeft(interrupted, idle);
+  if (jobCheck && !jobStays) setJobCheck(false);
+  const dropJob = () => {
+    publishAction(ACTION.resetJob);
+    setTimeout(() => setJobCheck(true), JOB_CHECK_MS);
+  };
   const [editMode, setMode] = useState<'idle' | 'split' | 'draw' | 'merge' | 'subtract' | 'snap'>('idle');
   const [decor, setDecor] = useKeptState<Decor | null>('map:decor', null);
   const mode = decor?.on ? 'decor' : editMode;
@@ -660,9 +675,10 @@ function MapEditor() {
     restore,
     download,
     downloadGeo,
-  } = useMapBackups(liveMap, map, datum, () => {
+  } = useMapBackups(liveMap, map, datum, (put) => {
     dropEdits();
     setSelectedAreaId(null);
+    if (endsJob(interrupted, liveMap, put)) dropJob();
   });
 
   // an openmower that doesn't know the newer area settings drops them when saving, noticed once its map comes back
@@ -687,8 +703,9 @@ function MapEditor() {
   // edited unless it was just put together with the mower's. true once it's on the mower
   const handleSave = async (anyway = false, next = map) => {
     if (!next) return false;
-    // saving while the mower is on a job can make it lose track of the area it's on, ask first
-    if (!idle && !saveWarning && !anyway) {
+    const ends = endsJob(interrupted, liveMap, next);
+    // a job under way keeps the lanes of the old map, one interrupted ends with the save: asked first
+    if ((!idle || ends) && !saveWarning && !anyway) {
       setSaveWarning(true);
       return false;
     }
@@ -707,7 +724,7 @@ function MapEditor() {
     try {
       // the version on the mower goes into the backups first, so every save can be undone. without that only when asked
       if ((await backupFirst.first(liveMap, 'before saving')) === 'failed') return false;
-      lateSave.current = {map: next, gone, before: liveMap};
+      lateSave.current = {map: next, gone, before: liveMap, ends};
       await saveMap(next);
       // the mower's map can come back before its answer, then that took it already (below)
       const taken = lateSave.current === null;
@@ -718,6 +735,7 @@ function MapEditor() {
       if (!taken) {
         if (latest.current === next) saved(next, gone, liveMap);
         else rebase(next);
+        if (ends) dropJob();
       }
       return true;
     } catch (e) {
@@ -741,7 +759,7 @@ function MapEditor() {
   };
   // a save the mower didn't answer in time: once its map comes back from there it's saved after all, not a change from
   // somewhere else. edits made meanwhile stay and go on from it
-  const lateSave = useRef<{map: MowerMap; gone: string[]; before: MowerMap | null} | null>(null);
+  const lateSave = useRef<{map: MowerMap; gone: string[]; before: MowerMap | null; ends: boolean} | null>(null);
   // the map as edited now, for a save that answers after more edits
   const latest = useRef(map);
   useEffect(() => {
@@ -752,6 +770,7 @@ function MapEditor() {
     if (!late || !liveMap || !sameContent(liveMap, late.map)) return;
     lateSave.current = null;
     setSaveError(null);
+    if (late.ends) dropJob();
     if (map === late.map) saved(late.map, late.gone, late.before);
     else rebase(liveMap);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only when the mower's map comes
@@ -953,8 +972,14 @@ function MapEditor() {
     }
     updateProperties(patch, undoable);
   };
+  // what saving now does besides, asked first: the mower out, or a job it interrupted that ends
+  const saveAsk = !idle
+    ? tr('The mower is busy (mowing, docking or recording). A job under way keeps the lanes it planned on the old map, also through a new obstacle. Better save once it is done.')
+    : saveEnds
+      ? tr('The interrupted job was planned on the old map, saving ends it. The next start plans on the new one.')
+      : null;
   // the same on the bar and on the map
-  const saveLabel = saving ? tr('saving…') : (external && dirty) || warnings || (saveWarning && !idle) ? tr('Save anyway') : tr('Save map');
+  const saveLabel = saving ? tr('saving…') : (external && dirty) || warnings || (saveWarning && !!saveAsk) ? tr('Save anyway') : tr('Save map');
 
   return (
     <div className={styles.page} data-map-editor>
@@ -1119,11 +1144,17 @@ function MapEditor() {
           </div>
 
           <div className={styles.panel}>
+            {jobStays && (
+              <p className={styles.warning}>
+                {tr('The map is on the mower, but the interrupted job still follows the old map. Drop it on the dashboard before the next start.')}
+              </p>
+            )}
             {preview ? (
               <RestorePanel
                 areas={preview.map.areas.filter((a) => !isPin(a)).length}
                 backedUp={!!backups && !restoreWithoutBackup}
                 idle={idle}
+                ends={endsJob(interrupted, liveMap, preview.map)}
                 restoring={restoring}
                 confirm={confirmRestore}
                 error={restoreError}
@@ -1148,10 +1179,10 @@ function MapEditor() {
               )}
               {decorAsk === 'save' && areasChanged && mode === 'idle' && (
                 <div ref={askRef} className={styles.warning}>
-                  {/* the mower out: asked here, not in the warning further down */}
+                  {/* the mower out or a job it interrupted: asked here, not in the warning further down */}
                   <p>
                     {tr('Save your map changes first.')}
-                    {!idle && ` ${tr('The mower is busy. Saving now can interrupt it.')}`}
+                    {saveAsk && ` ${saveAsk}`}
                   </p>
                   <div className={styles.inlineRow}>
                     <button
@@ -1160,7 +1191,7 @@ function MapEditor() {
                       onClick={() => void handleSave(true, external ? (mergeExternal() ?? map) : map).then((ok) => setDecorNext(ok))}
                       disabled={saving}
                     >
-                      {saving ? tr('saving…') : idle ? tr('Save map') : tr('Save anyway')}
+                      {saving ? tr('saving…') : saveAsk ? tr('Save anyway') : tr('Save map')}
                     </button>
                     <button className={styles.pillButton} onClick={() => setDecorAsk(null)}>
                       {tr('Cancel')}
@@ -1221,9 +1252,9 @@ function MapEditor() {
 
               {mergeNote && dirty && <p className={styles.warning}>{mergeNote}</p>}
 
-              {saveWarning && !idle && (
+              {saveWarning && saveAsk && (
                 <div className={styles.warning}>
-                  <p>{tr('The mower is busy (mowing, docking or recording). Changing the map now can break that off. Better save once it is done.')}</p>
+                  <p>{saveAsk}</p>
                   <a onClick={() => setSaveWarning(false)}>{tr("don't save for now")}</a>
                 </div>
               )}

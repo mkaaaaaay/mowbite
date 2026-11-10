@@ -1286,6 +1286,7 @@ function Save() {
             areas={BACKUP.areas}
             backedUp
             idle
+            ends={false}
             restoring={false}
             confirm={t >= 0.8}
             error={null}

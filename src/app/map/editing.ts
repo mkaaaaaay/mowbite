@@ -30,6 +30,12 @@ export function onlyPinsChanged(base: MowerMap, map: MowerMap): boolean {
   return sameMap(rest(base), rest(map));
 }
 
+// a job the mower interrupted (offered: reset_job) keeps the lanes of the map it had: a replace with more than pins changed ends it
+export const endsJob = (offered: boolean, before: MowerMap | null, next: MowerMap) => offered && !(before && onlyPinsChanged(before, next));
+
+// a few seconds after that drop: still offered, or the mower out meanwhile (maybe on the job), it goes by the old map
+export const jobLeft = (offered: boolean, idle: boolean) => offered || !idle;
+
 // the map with the pins of another one in place of its own (decorating called off: the mower's), its areas as they are
 export const pinsFrom = (map: MowerMap, from: MowerMap): MowerMap => ({
   ...map,

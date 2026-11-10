@@ -1,7 +1,7 @@
 import type {MapArea, MowerMap} from '@/hooks/useMowerMap';
 import {PIN_SIDE, pinAt} from '@/lib/mowerBody';
 import {describe, expect, it} from 'vitest';
-import {decorRedo, decorUndo, goneLooks, onlyPinsChanged, overrideError, PIN_TILES, pinSquare, pinsFrom, pinTiles} from './editing';
+import {decorRedo, decorUndo, endsJob, goneLooks, jobLeft, onlyPinsChanged, overrideError, PIN_TILES, pinSquare, pinsFrom, pinTiles} from './editing';
 
 describe('overrideError', () => {
   it('takes empty (global value) and values within the mower limits', () => {
@@ -49,6 +49,20 @@ describe('pins', () => {
     // decoration in a pin's place is an area of its own, one that lost pin keeps its square and stays one
     expect(onlyPinsChanged(base, map(lawn, {...pin('p', 1, 1), properties: {type: 'decor'}, outline: pinSquare(1, 1).slice(0, 3)}))).toBe(false);
     expect(onlyPinsChanged(base, map(lawn, {...pin('p', 1, 1), properties: {type: 'decor'}}))).toBe(true);
+  });
+
+  it('ends a job the mower interrupted with a change beyond pins, says so while it stays after the drop', () => {
+    const base = map(lawn, pin('p', 1, 1));
+    const named = map({...lawn, properties: {type: 'mow', name: 'Front'}}, pin('p', 1, 1));
+    expect(endsJob(true, base, named)).toBe(true);
+    expect(endsJob(true, null, base)).toBe(true);
+    // pictures only, nothing at all, or no job the mower offers to drop: as before
+    expect(endsJob(true, base, map(lawn, pin('p', 3, 2)))).toBe(false);
+    expect(endsJob(true, base, base)).toBe(false);
+    expect(endsJob(false, base, named)).toBe(false);
+    expect(jobLeft(true, true)).toBe(true);
+    expect(jobLeft(false, false)).toBe(true);
+    expect(jobLeft(false, true)).toBe(false);
   });
 
   it("takes the pins of the mower's map back, the areas stay as they are", () => {

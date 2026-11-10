@@ -1,5 +1,5 @@
 import type {MowerMap} from '@/hooks/useMowerMap';
-import {demoCall, demoDocked, demoHas, expect, handles, lawnPoint, openMap, pickedOutline, tab, test, touchDrag, visibleAreas} from './app';
+import {demoAction, demoCall, demoDocked, demoHas, expect, handles, lawnPoint, openMap, pickedOutline, tab, test, touchDrag, visibleAreas} from './app';
 
 test('an area picked stays picked while another page is open', async ({page}) => {
   await openMap(page);
@@ -86,8 +86,9 @@ test('decorating from the map settings: a picture set, moved and taken back', as
 
 test('saving over a map that was changed on another phone asks first', async ({page}) => {
   await openMap(page);
-  // in the dock: saving while it mows asks something else first
+  // in the dock and without the job it was on: saving while it mows or with that job asks something else first
   await demoDocked(page);
+  await demoAction(page, 'mower_logic:idle/reset_job');
   const at = await lawnPoint(page);
   await page.mouse.click(at.x, at.y);
   const name = page.getByRole('textbox').first();
@@ -109,6 +110,42 @@ test('saving over a map that was changed on another phone asks first', async ({p
   await save.click();
   await expect.poll(names).toContain('Changed here');
   await expect(page.getByText('The map on the mower was changed since you started editing here')).toHaveCount(0);
+});
+
+// a job the mower interrupted keeps the lanes of the old map: saving asks first and drops it, without one it doesn't ask
+test('saving with an interrupted job asks first and drops the job', async ({page}) => {
+  await openMap(page);
+  // sent home in the middle of its job
+  await demoDocked(page);
+  const offered = async () => {
+    const actions = await demoHas<{action_id: string; enabled: number}[]>(page, 'actions/json');
+    return actions.find((a) => a.action_id === 'mower_logic:idle/reset_job')?.enabled;
+  };
+  const names = async () => (await demoHas<MowerMap>(page, 'map/json')).areas.map((a) => a.properties.name);
+  expect(await offered()).toBe(1);
+  const at = await lawnPoint(page);
+  await page.mouse.click(at.x, at.y);
+  const name = page.getByRole('textbox').first();
+  await expect(name).not.toHaveValue('');
+  await name.fill('Changed here');
+  // (its label also says whether the map has warnings)
+  const save = page.locator('[class*="changesBar"] [class*="saveButton"]');
+  const ask = page.getByText('The interrupted job was planned on the old map, saving ends it.');
+  await save.click();
+  await expect(ask).toBeVisible();
+  await expect(save).toHaveText('Save anyway');
+  await page.waitForTimeout(500);
+  expect(await names()).not.toContain('Changed here');
+  expect(await offered()).toBe(1);
+  await save.click();
+  await expect.poll(names).toContain('Changed here');
+  await expect.poll(offered).toBe(0);
+  await expect(ask).toHaveCount(0);
+  // no job left: saved at once
+  await name.fill('Changed again');
+  await save.click();
+  await expect.poll(names).toContain('Changed again');
+  await expect(ask).toHaveCount(0);
 });
 
 // drawing a new area: the view stays where it is with every point, undo takes back only the last point

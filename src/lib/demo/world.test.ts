@@ -225,6 +225,17 @@ describe('the demo mower', () => {
     expect((await d.rpc<string[]>(RPC.methods)).includes(RPC.setParams)).toBe(true);
   });
 
+  it('keeps a job it stopped when a map is saved, like mower_logic, until it is dropped', async () => {
+    const d = world();
+    d.act(ACTION.goHome);
+    d.pass(120);
+    expect(d.actions()[ACTION.resetJob]).toBe(1);
+    await d.rpc(RPC.replaceMap, [demoMap()]);
+    expect(d.actions()[ACTION.resetJob]).toBe(1);
+    d.act(ACTION.resetJob);
+    expect(d.actions()[ACTION.resetJob]).toBe(0);
+  });
+
   it('takes a saved map: the job is gone, it comes home and plans the new one', async () => {
     const d = world();
     const map = demoMap();

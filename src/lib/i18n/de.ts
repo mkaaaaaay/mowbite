@@ -627,6 +627,12 @@ const de: Record<string, string> = {
   "Rest of the plan": "Rest des Plans",
   "Drop the interrupted job": "Unterbrochenen Mähvorgang verwerfen",
   "Drop the interrupted job? The next start mows from the beginning.": "Unterbrochenen Mähvorgang verwerfen? Beim nächsten Start mäht er von vorne.",
+  "The interrupted job was planned on the old map, saving ends it. The next start plans on the new one.":
+    "Der unterbrochene Mähvorgang ist auf der alten Karte geplant, Speichern beendet ihn. Der nächste Start plant auf der neuen Karte.",
+  "The interrupted job was planned on the old map, restoring ends it. The next start plans on the new one.":
+    "Der unterbrochene Mähvorgang ist auf der alten Karte geplant, Wiederherstellen beendet ihn. Der nächste Start plant auf der neuen Karte.",
+  "The map is on the mower, but the interrupted job still follows the old map. Drop it on the dashboard before the next start.":
+    "Die Karte ist auf dem Mäher, aber der unterbrochene Mähvorgang fährt noch nach der alten Karte. Verwirf ihn vor dem nächsten Start auf der Übersicht.",
   "Drop it": "Verwerfen",
   "don't mow": "nicht mähen",
   "Not mowed, but the mower may drive across it (unlike inactive).": "Wird nicht gemäht, darf aber befahren werden (anders als inaktiv).",
@@ -744,8 +750,8 @@ const de: Record<string, string> = {
   "The last mow here ({date}) ran at about {measured}°, but with the saved settings it should be {planned}° ({diff}°).": "Beim letzten Mähen hier ({date}) lief er mit etwa {measured}°, mit den gespeicherten Einstellungen müssten es aber {planned}° sein ({diff}°).",
   "The line doesn't cut through the area yet.": "Die Linie schneidet die Fläche noch nicht ganz durch.",
   "mow_angle_offset from the mower's settings (mower_logic) comes on top, {n}° here. It's added to every area, the preview includes it.": "Dazu kommt mow_angle_offset aus den Einstellungen des Mähers (mower_logic), hier {n}°. Er gilt für jede Fläche, die Vorschau rechnet ihn mit ein.",
-  "The mower is busy (mowing, docking or recording). Changing the map now can break that off. Better save once it is done.":
-    "Der Mäher ist gerade unterwegs (Mähen, Andocken oder Aufnehmen). Eine Kartenänderung kann das jetzt abbrechen. Besser speichern, wenn er fertig ist.",
+  "The mower is busy (mowing, docking or recording). A job under way keeps the lanes it planned on the old map, also through a new obstacle. Better save once it is done.":
+    "Der Mäher ist gerade unterwegs (Mähen, Andocken oder Aufnehmen). Ein laufender Mähvorgang behält die Bahnen, die er auf der alten Karte geplant hat, auch quer durch ein neues Hindernis. Besser speichern, wenn er fertig ist.",
   "The mower's address (IP or name in your network)": "Adresse des Mähers (IP oder Name im Heimnetz)",
   "MowBite works out the percentage from the battery voltage as if only the electronics drew on it, so it stays put when the blade starts or the mower leaves the dock. It goes up only while charging and down only while not. 0 % is where OpenMower sends the mower home. In the dock it goes down slowly after a full charge until the charger tops it up.":
     "MowBite berechnet die Prozentzahl aus der Akkuspannung, als zöge nur die Elektronik am Akku. So bleibt sie stehen, wenn das Messer anläuft oder der Mäher losfährt. Sie steigt nur beim Laden und fällt nur, wenn er nicht lädt. 0 % ist dort, wo OpenMower den Mäher heimschickt. Im Dock sinkt sie nach dem Volladen langsam, bis das Ladegerät nachlädt.",

@@ -1,6 +1,6 @@
 // The map's backups kept in the container, one of them shown instead of the editor and put back on the mower, and the
 // map as a file: the one being edited (shown), so a file taken out and back in doesn't take back what isn't saved yet.
-// restored: what the editor drops once a backup is on the mower
+// restored: what the editor drops once a backup is on the mower, with the map put there
 import {useEffect, useState} from 'react';
 import {saveMap, type MowerMap} from '@/hooks/useMowerMap';
 import {listBackups, loadBackup, useBackupFirst, type BackupInfo} from '@/lib/backups';
@@ -10,7 +10,7 @@ import {closedRings} from '@/lib/rings';
 import {rpcErrorText} from '@/lib/rpcText';
 import {saveFile} from '@/lib/saveFile';
 
-export function useMapBackups(liveMap: MowerMap | null, shown: MowerMap | null, datum: Datum | undefined, restored: () => void) {
+export function useMapBackups(liveMap: MowerMap | null, shown: MowerMap | null, datum: Datum | undefined, restored: (put: MowerMap) => void) {
   const [backups, setBackups] = useState<BackupInfo[] | null | undefined>(undefined);
   const [preview, setPreview] = useState<{map: MowerMap; label: string} | null>(null);
   const [confirmRestore, setConfirmRestore] = useState(false);
@@ -35,7 +35,7 @@ export function useMapBackups(liveMap: MowerMap | null, shown: MowerMap | null, 
     try {
       if ((await backupFirst.first(liveMap, 'before restoring')) === 'failed') return;
       await saveMap(preview.map);
-      restored();
+      restored(preview.map);
       closePreview();
       void refreshBackups();
     } catch (e) {

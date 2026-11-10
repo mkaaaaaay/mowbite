@@ -1037,9 +1037,9 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
       const m = next as MowerMap;
       map = openRings({...m, docking_stations: m.docking_stations ?? []});
       plans.clear();
-      // the plan it was driving is of the old map: home, and the job is gone (recording, the stick drives it)
-      if (job) {
-        if (!rec) sendHome(undefined, true);
+      // the plan it's driving is of the old map: home, and the job is gone. one waiting (idle, recording) keeps it like mower_logic
+      if (job && !parked && !rec) {
+        sendHome(undefined, true);
         note(last / 1000, pose, {type: 'JOB_RESET'});
         job = null;
       }

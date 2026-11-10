@@ -291,6 +291,7 @@ export function RestorePanel({
   areas,
   backedUp,
   idle,
+  ends,
   restoring,
   confirm,
   error,
@@ -302,6 +303,8 @@ export function RestorePanel({
   // the mower's map is backed up before restoring (only when MowBite runs as its container)
   backedUp: boolean;
   idle: boolean;
+  // restoring ends a job the mower interrupted
+  ends: boolean;
   restoring: boolean;
   confirm: boolean;
   error: string | null;
@@ -318,6 +321,9 @@ export function RestorePanel({
           : tr("Restoring replaces the map on the mower with this one. Backups don't work here, download the current map first if you might want it back.")}
       </p>
       {!idle && <p className={styles.error}>{tr('Only possible while the mower is not busy (mowing, docking, recording).')}</p>}
+      {confirm && ends && (
+        <p className={styles.error}>{tr('The interrupted job was planned on the old map, restoring ends it. The next start plans on the new one.')}</p>
+      )}
       <div className={styles.inlineRow}>
         <button
           className={[styles.pillButton, styles.danger].join(' ')}
