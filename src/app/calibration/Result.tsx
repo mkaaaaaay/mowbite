@@ -3,10 +3,10 @@
 import {CheckIcon, HomeIcon, UndoIcon} from '@/components/icons';
 import {useMowerActions} from '@/hooks/useMowerActions';
 import {isLive, useMowerState} from '@/hooks/useMowerState';
-import {calibLines, calibText, changeOf, preselected, readLast, readPaths, readState, type CalibPath, type CalibResult, type CalibValue} from '@/lib/calibration';
+import {answerTo, calibLines, calibText, changeOf, preselected, readLast, readPaths, readState, type CalibPath, type CalibResult, type CalibValue} from '@/lib/calibration';
 import {copyText} from '@/lib/clipboard';
-import {clock} from '@/lib/dates';
-import {fmt, locale, tr} from '@/lib/i18n';
+import {clock, dayClock} from '@/lib/dates';
+import {fmt, tr} from '@/lib/i18n';
 import {ACTION} from '@/lib/openmower';
 import {rpcErrorText} from '@/lib/rpcText';
 import {useState} from 'react';
@@ -211,11 +211,11 @@ export function ByHand({values}: {values: {name: string; value: number}[]}) {
 
 // what the updater says about the last request, a line
 function stateLine(
-  state: ReturnType<typeof readState>,
-  asked: number | null,
+  calib: string | undefined,
+  asked: string | null,
   docked: boolean,
 ): {what: string; chip: string; text: string; tone: 'fair' | 'good' | 'poor'} | null {
-  const fresh = state && (asked === null || state.at >= asked - 5) ? state : null;
+  const fresh = answerTo(calib, asked);
   const time = fresh ? clock(fresh.at) : '';
   // OpenMower takes the gyro's zero from its first seconds, moved then the mower turns by itself afterwards
   const still = tr("Don't touch the mower in the dock until OpenMower has restarted: it measures the gyro in its first seconds.");
@@ -266,7 +266,7 @@ export function Sent({
   onBack,
   onStation,
 }: {
-  sent: {at: number; values: CalibValue[]; byHand: CalibValue[]};
+  sent: {before: string; values: CalibValue[]; byHand: CalibValue[]};
   status: Record<string, string> | null;
   docked: boolean;
   onBack: () => Promise<void>;
@@ -275,7 +275,7 @@ export function Sent({
   const link = useMowerState();
   const {hasAction} = useMowerActions();
   const asked = sent.values.filter((v) => !sent.byHand.includes(v));
-  const line = stateLine(readState(status?.calib), sent.at, docked);
+  const line = stateLine(status?.calib, sent.before, docked);
   const written = line?.what === 'written';
   const moved = stationAgain(asked);
   const paths = readPaths(status?.calib_paths);
@@ -387,17 +387,16 @@ export function LastCalibration({
   onBack,
 }: {
   status: Record<string, string> | null;
-  asked: number | null;
+  asked: string | null;
   docked: boolean;
   onBack: () => Promise<void>;
 }) {
   const last = readLast(status?.calib_last);
   const paths = readPaths(status?.calib_paths);
   const state = readState(status?.calib);
-  const line = asked !== null ? stateLine(state, asked, docked) : null;
+  const line = asked !== null ? stateLine(status?.calib, asked, docked) : null;
   // set back since: the values before apply again (the copy stays, setting back again changes nothing)
   const reverted = !!last && state?.what === 'back' && state.at >= last.at;
-  const when = (t: number) => new Date(t * 1000).toLocaleString(locale(), {day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'});
   return (
     <section className={styles.card}>
       <h2>{tr('Last calibration')}</h2>
@@ -405,7 +404,7 @@ export function LastCalibration({
         <p className={styles.dim}>{tr('Never calibrated')}</p>
       ) : (
         <>
-          <p className={styles.dim}>{when(last.at)}</p>
+          <p className={styles.dim}>{dayClock(last.at)}</p>
           <div className={styles.rows}>
             {last.values.map((v) => {
               const name = nameByPath(v.path, paths);
@@ -427,7 +426,7 @@ export function LastCalibration({
           <span>{line.text}</span>
         </div>
       ) : (
-        reverted && <p className={styles.dim}>{tr('Set back on {date}, the values before apply again.', {date: when(state!.at)})}</p>
+        reverted && <p className={styles.dim}>{tr('Set back on {date}, the values before apply again.', {date: dayClock(state!.at)})}</p>
       )}
       {!reverted && <SetBack status={status} onBack={onBack} text={tr('Everything back to how it was before the last calibration.')} />}
     </section>

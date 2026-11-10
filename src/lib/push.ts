@@ -1,5 +1,8 @@
 import type {PluginListenerHandle} from '@capacitor/core';
+import {isDemo, mowerBase, mowerList} from './mowers';
 import {isApp} from './native';
+import {addPush, removePush} from './notify';
+import {mowerAtHas} from './updates';
 
 // MowBite's own push messages in the Android app (android/.../PushPlugin.java). The app signs up with a UnifiedPush
 // distributor, e.g. the ntfy app running unseen in the background, and gets an address. Each mower's container sends its
@@ -88,4 +91,24 @@ export function rememberEndpoint(api: string, endpoint: string | null) {
     else delete all[api];
     localStorage.setItem(SENT_KEY, JSON.stringify(all));
   } catch {}
+}
+
+// the distributor's address to every mower in the list that was told an older one, all at once so one out of reach
+// doesn't hold up the others. not from the demo, everything there goes to the demo mower (leaving it reloads the app)
+export async function renewEndpoint(endpoint: string) {
+  if (isDemo()) return;
+  await Promise.all(
+    mowerList()
+      .map(mowerBase)
+      .map(async (api) => {
+        const sent = sentEndpoint(api);
+        // (an older container would take the address for its settings)
+        if (!sent || endpoint === sent || !(await mowerAtHas(api, 'phones'))) return;
+        await removePush(sent, api).catch(() => {});
+        await addPush(endpoint, api).then(
+          () => rememberEndpoint(api, endpoint),
+          () => {},
+        );
+      }),
+  );
 }

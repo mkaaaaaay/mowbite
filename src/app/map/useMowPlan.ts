@@ -1,7 +1,7 @@
 import type {MapArea, MowerMap, Point} from '@/hooks/useMowerMap';
 import {numParam, type MowerParams} from '@/hooks/useMowerParams';
 import type {PastJob} from '@/hooks/useMowHistory';
-import {mowerPlan, planAsker, type PlanRequest} from '@/lib/areaPlan';
+import {areaPlanRequest, mowerPlan, planAsker, type PlanRequest} from '@/lib/areaPlan';
 import {angleChangedSince} from '@/lib/backups';
 import {measuredStripeAngle, stripeAngleDiff} from '@/lib/mowDirection';
 import {mowAroundHoles, nestedAreas} from '@/lib/mowAround';
@@ -16,7 +16,7 @@ import {PARAM} from '@/lib/openmower';
 import {savePlanDuration} from '@/lib/planDurations';
 import {RpcError} from '@/lib/rpc';
 import {length} from '@/lib/planProgress';
-import {locale} from '@/lib/i18n';
+import {dayDateYear} from '@/lib/dates';
 import {useEffect, useMemo, useRef, useState} from 'react';
 import {DEG} from './editing';
 import type {AngleMismatch} from './MowSettings';
@@ -39,7 +39,8 @@ const mapVersion = (map: object | null) => {
   return mapVersions.get(map)!;
 };
 
-type PlanJob = {areaId: string | null; key: string; cacheKey: string; angleKey: string};
+// saved: asked for the area as saved, its plan says how long the area takes
+type PlanJob = {areaId: string | null; key: string; cacheKey: string; angleKey: string; saved: boolean};
 // what the planner last planned an area with (the lane spacing it picked), for the estimate until it's asked again
 const CHOSEN = new Map<string, PlanChosen>();
 
@@ -152,7 +153,7 @@ export function useMowPlan({
           measured: m.angleDeg,
           planned,
           diff,
-          date: new Date(job.timestamp * 1000).toLocaleDateString(locale()),
+          date: dayDateYear(new Date(job.timestamp * 1000)),
           since: job.timestamp,
         };
       }
@@ -196,36 +197,9 @@ export function useMowPlan({
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shownArea, shownMap, savedArea, liveMap, areaProps, planner]);
-  // what the mower is asked for an area: by its id to the MowBite Planner while it's as saved (with planner settings
-  // as edited, mowing.plan doesn't take those), else as it is in the editor
-  const requestFor = (area: MapArea, map: MowerMap, asSaved: boolean): PlanRequest => {
-    const p = area.properties;
-    const props: Omit<Extract<PlanRequest, {outline: Point[]}>, 'outline' | 'obstacles'> = {};
-    if (p.angle !== undefined) props.angle = p.angle;
-    if (p.outline_count !== undefined) props.outline_count = p.outline_count;
-    if (p.outline_overlap_count !== undefined) props.outline_overlap_count = p.outline_overlap_count;
-    if (p.outline_offset !== undefined) props.outline_offset = p.outline_offset;
-    if (p.angle_min !== undefined && p.angle_max !== undefined) {
-      props.angle_min = p.angle_min;
-      props.angle_max = p.angle_max;
-    }
-    // the area's planner settings as edited, only for the MowBite Planner (with OpenMower's slic3r planner the plan
-    // comes from mowing.plan like without MowBite, planner.plan would plan with them). The mower puts the saved
-    // area's under what's asked: one taken out here is asked for as it is for all areas, the plan would still have
-    // the saved one until the map is saved otherwise
-    const saved = liveMap?.areas.find((a) => a.id === area.id)?.properties;
-    const own = planner ? (p.planner ?? {}) : {};
-    const dropped = planner ? Object.keys(saved?.planner ?? {}).filter((k) => own[k] === undefined && (planner.settings[k]?.value ?? null) !== null) : [];
-    const settings = {...Object.fromEntries(dropped.map((k) => [k, planner!.settings[k].value])), ...own};
-    if (Object.keys(settings).length) props.settings = settings;
-    // the same with a range taken out: half a turn or more is any way at all
-    if (props.angle_min === undefined && saved?.angle_min !== undefined && saved.angle_max !== undefined) {
-      props.angle_min = 0;
-      props.angle_max = Math.PI;
-    }
-    if (asSaved && (planner || props.settings)) return {area_id: area.id, ...props};
-    return {outline: area.outline, obstacles: obstaclesFor(area, map), ...props};
-  };
+  // what the mower is asked for an area (lib/areaPlan): by its id while it's as saved, with its values as edited
+  const requestFor = (area: MapArea, map: MowerMap, asSaved: boolean): PlanRequest =>
+    areaPlanRequest(area, liveMap?.areas.find((a) => a.id === area.id)?.properties, asSaved, !!planner, () => obstaclesFor(area, map));
   const planRequest = useMemo((): PlanRequest | null => {
     // the planner's settings first (nested_areas changes the obstacles), not one plan before them and one after
     if (!stripesOn || !planned || !shownArea || !shownMap || planner === undefined) return null;
@@ -244,6 +218,12 @@ export function useMowPlan({
     [planner, params, liveMap],
   );
   const planKey = useMemo(() => (planRequest ? JSON.stringify(planRequest) : ''), [planRequest]);
+  // the same for the area as saved (only the MowBite Planner's plans say how long they take)
+  const savedKey = useMemo(
+    () => (planner && savedArea && liveMap ? JSON.stringify(requestFor(savedArea, liveMap, true)) : ''),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [planner, savedArea, liveMap],
+  );
   // the angle a plan is for: the mower's answer for another one has the stripes the wrong way
   const angleKey = planRequest
     ? JSON.stringify([
@@ -264,7 +244,7 @@ export function useMowPlan({
             remember(job.cacheKey, plan);
             if (plan?.chosen && job.areaId) CHOSEN.set(job.areaId, plan.chosen);
             // how long the area as saved takes, for the schedule
-            if (plan?.duration && job.areaId && 'area_id' in JSON.parse(job.key)) savePlanDuration(job.areaId, plan.duration.min, plan.duration.runs);
+            if (plan?.duration && job.areaId && job.saved) savePlanDuration(job.areaId, plan.duration.min, plan.duration.runs);
             return plan;
           },
           (e: unknown) => {
@@ -290,9 +270,9 @@ export function useMowPlan({
     }
     if (draggingPoint || angleMoving) return;
     // while points are typed or clicked only once it settles, an area as saved at once
-    const t = setTimeout(() => asker.want({areaId: selectedAreaId, key: planKey, cacheKey, angleKey}), unchanged ? 0 : 300);
+    const t = setTimeout(() => asker.want({areaId: selectedAreaId, key: planKey, cacheKey, angleKey, saved: planKey === savedKey}), unchanged ? 0 : 300);
     return () => clearTimeout(t);
-  }, [planKey, cacheKey, angleKey, selectedAreaId, draggingPoint, angleMoving, unchanged, asker, planner]);
+  }, [planKey, savedKey, cacheKey, angleKey, selectedAreaId, draggingPoint, angleMoving, unchanged, asker, planner]);
   // the saved mowing areas worked out ahead while the map is open, so picking one shows its plan at once
   useEffect(() => {
     // the ones still waiting are for settings or a map from before
@@ -303,7 +283,7 @@ export function useMowPlan({
       const p = area.properties;
       if (p.type !== 'mow' || p.active === false || p.mowable === false || area.outline.length < 3) continue;
       const key = JSON.stringify(requestFor(area, liveMap, true));
-      jobs.push({areaId: area.id, key, cacheKey: key + contextKey, angleKey: ''});
+      jobs.push({areaId: area.id, key, cacheKey: key + contextKey, angleKey: '', saved: true});
     }
     // after the one the map wants, its timer is set first
     const t = setTimeout(() => asker.prefetch(jobs), 0);

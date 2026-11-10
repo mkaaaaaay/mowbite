@@ -150,8 +150,11 @@ export function parseKept(text: string): KeptParams {
   return kept;
 }
 
+// a number with at most 6 decimals, the container takes no more (and no exponent)
+const keptValue = (v: number | boolean) => (typeof v === 'number' ? Math.round(v * 1e6) / 1e6 : v);
+
 export const serializeKept = (k: KeptParams) =>
-  [`enabled ${k.enabled ? 1 : 0}`, ...Object.entries(k.values).map(([key, v]) => `${paramName(key)} ${v}`), ''].join('\n');
+  [`enabled ${k.enabled ? 1 : 0}`, ...Object.entries(k.values).map(([key, v]) => `${paramName(key)} ${keptValue(v)}`), ''].join('\n');
 
 const endpoint = () => apiBase() + '/cgi-bin/params';
 
@@ -166,7 +169,10 @@ export async function loadKept(): Promise<KeptParams | null> {
   }
 }
 
-export async function saveKept(k: KeptParams): Promise<void> {
+// what the container keeps then, it answers with its file (a line it doesn't take is left out). one that answers
+// otherwise: what was sent
+export async function saveKept(k: KeptParams): Promise<KeptParams> {
   const res = await mowerFetch(endpoint(), {method: 'POST', body: serializeKept(k)});
   if (!res.ok) throw new Error(`params ${res.status}`);
+  return res.headers.get('content-type')?.includes('text/plain') ? parseKept(await res.text()) : k;
 }

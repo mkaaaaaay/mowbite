@@ -251,6 +251,12 @@ describe('heading home and charging on MowBite OS', () => {
     expect(chargeConfirmed([ev(5, 'DOCKED')], 8)).toBe(false);
     expect(chargeConfirmed([ev(5, 'DOCKED')], 3)).toBe(true);
     expect(chargeConfirmed([], 3)).toBe(false);
+    // left: the newest event when it was seen off them, the DOCKED known then doesn't count, one after it does
+    expect(chargeConfirmed([ev(5, 'DOCKED')], 5)).toBe(false);
+    expect(chargeConfirmed([ev(5, 'DOCKED'), ev(9, 'DOCKED')], 5)).toBe(true);
+    // none known then: any DOCKED after it
+    expect(chargeConfirmed([], -Infinity)).toBe(false);
+    expect(chargeConfirmed([ev(2, 'DOCKED')], -Infinity)).toBe(true);
   });
 });
 
@@ -327,7 +333,7 @@ describe('emergency stop reasons', () => {
 
   it('names them in the activity instead of a code', () => {
     expect(describeEvent(ev(1, 'EMERGENCY', {emergency: true, reason: '1024'})).text).toBe("Emergency stop: mow motor didn't reach its speed");
-    expect(describeEvent(ev(1, 'EMERGENCY', {emergency: true, reason: '128'})).text).toBe('Emergency stop: stopped by OpenMower');
+    expect(describeEvent(ev(1, 'EMERGENCY', {emergency: true, reason: '128'})).text).toBe("Emergency stop: stopped by the mower's software");
     expect(describeEvent(ev(1, 'EMERGENCY', {emergency: true, reason: '0'})).text).toBe('Emergency stop');
     // only what holds it, no reason of its own
     expect(describeEvent(ev(1, 'EMERGENCY', {emergency: true, reason: '1'})).text).toBe('Emergency stop (code 1)');

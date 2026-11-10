@@ -40,22 +40,33 @@ export const useCanSetParams = (): boolean => !!useRpcMethods()?.has(RPC.setPara
 // when there's no container that keeps it and on MowBite OS (it keeps them itself)
 let kept: KeptParams | null | undefined;
 let asked = false;
+let askIn = 10000;
 const listeners = new Set<() => void>();
 const setKept = (k: KeptParams | null) => {
   kept = k;
   listeners.forEach((l) => l());
 };
+function ask() {
+  asked = true;
+  // (no answer, a container that's slow to come up included: asked again by the next page that wants it and, while one
+  // shows it, less and less often; also while it isn't known yet what runs on the mower)
+  void systemInfo().then(async (i) => {
+    const os = isMowbiteOs(i);
+    const k = os ? null : await loadKept();
+    if (!k || i === undefined) asked = false;
+    // (what's known stays when it doesn't answer this time: a change says then that it couldn't be kept)
+    if (k || !kept) setKept(k);
+    if (k || os) askIn = 10000;
+    else {
+      setTimeout(() => {
+        if (!asked && listeners.size) ask();
+      }, askIn);
+      askIn = Math.min(askIn * 2, 300000);
+    }
+  });
+}
 function subscribe(l: () => void) {
-  if (!asked) {
-    asked = true;
-    // (no answer, a container that's slow to come up included: asked again by the next page that wants it, also while
-    // it isn't known yet what runs on the mower)
-    void systemInfo().then(async (i) => {
-      const k = isMowbiteOs(i) ? null : await loadKept();
-      if (!k || i === undefined) asked = false;
-      setKept(k);
-    });
-  }
+  if (!asked) ask();
   listeners.add(l);
   return () => listeners.delete(l);
 }
@@ -66,21 +77,36 @@ const useKept = () =>
     () => undefined,
   );
 
-// one change to what the container keeps as it has it now (another device may have kept more since it was asked
-// for), shown at once and back as it was when the container didn't take it
-async function storeKept(change: (k: KeptParams) => KeptParams) {
-  const before = kept ?? null;
-  if (before) setKept(change(before));
-  try {
-    const now = (await loadKept()) ?? before;
-    if (!now) throw new Error('nothing kept');
-    const next = change(now);
-    await saveKept(next);
-    setKept(next);
-  } catch (e) {
-    setKept(before);
-    throw e;
-  }
+// one change to what the container keeps as it has it now (another device may have changed it since it was asked for),
+// shown at once and back as it was when the container didn't answer or take it. one after the other, each on the last
+let storing: Promise<unknown> = Promise.resolve();
+function storeKept(change: (k: KeptParams) => KeptParams): Promise<void> {
+  const run = storing.then(async () => {
+    const before = kept ?? null;
+    if (before) setKept(change(before));
+    try {
+      const now = await loadKept();
+      if (!now) throw new Error('nothing kept');
+      setKept(await saveKept(change(now)));
+    } catch (e) {
+      setKept(before);
+      throw e;
+    }
+  });
+  storing = run.catch(() => {});
+  return run;
+}
+
+// keeping switched off, or on again with the values the mower has now instead of older kept ones, one it hasn't told left out
+export function switchKeeping(on: boolean, params: Record<string, unknown>) {
+  const now = (k: KeptParams) =>
+    Object.fromEntries(
+      Object.keys(k.values).flatMap((key) => {
+        const m = params[paramName(key)];
+        return typeof m === 'number' || typeof m === 'boolean' ? [[key, m]] : [];
+      }),
+    );
+  return storeKept((k) => ({...k, enabled: on, ...(on ? {values: now(k)} : {})}));
 }
 
 class NotKept extends Error {}
@@ -89,6 +115,11 @@ class NotKept extends Error {}
 async function apply(f: ParamField, value: number | boolean) {
   const applied = await setParams({[f.key]: value});
   const took = applied[f.key] ?? value;
+  // not known (yet): asked now, a container that keeps an older value of it would set that one again
+  if (kept == null && !isMowbiteOs(await systemInfo())) {
+    const now = await loadKept();
+    if (now) setKept(now);
+  }
   if (kept?.enabled)
     await storeKept((k) => ({...k, values: {...k.values, [f.key]: took}})).catch(() => {
       throw new NotKept(tr("Set on the mower, but MowBite couldn't keep it for after a restart."));
@@ -155,9 +186,10 @@ export function ParamRow({field, os}: {field: ParamField; os: boolean}) {
             checked={(value as boolean) && !asking}
             disabled={busy}
             onChange={(e) => (!e.target.checked && f.confirmOff ? setAsking(true) : void set(e.target.checked))}
+            aria-label={label}
           />
         ) : f.type === 'choice' ? (
-          <select className={local.select} value={String(value)} disabled={busy} onChange={(e) => void set(Number(e.target.value))}>
+          <select className={local.select} value={String(value)} disabled={busy} onChange={(e) => void set(Number(e.target.value))} aria-label={label}>
             {f.choices!.map((c, i) => (
               <option key={c} value={i}>
                 {tr(c)}
@@ -228,18 +260,21 @@ export function ParamFix({keys}: {keys: string[]}) {
 }
 
 // the values that matter most of a group, read in its folded line
-function summary(group: ParamGroup, params: Record<string, unknown>, os: boolean): string {
+export function summary(group: ParamGroup, params: Record<string, unknown>, os: boolean): string {
   const v = (key: string) => paramValue(params, onOs(paramField(key)!, os));
   const n = (key: string) => showParam(paramField(key)!, v(key) as number);
   switch (group) {
     case 'mowing':
       return [v('outline_count') === 1 ? tr('1 outline pass') : tr('{n} outline passes', {n: n('outline_count')}), tr('lanes {n} cm apart', {n: n('tool_width')}), tr('turned by {n}°', {n: n('mow_angle_offset')})].join(' · ');
-    case 'auto':
+    case 'auto': {
+      // a value it doesn't know (a newer OpenMower) is left out
+      const known = (t: string | undefined) => (t === undefined ? [] : [tr(t)]);
       return [
-        tr(paramField('rain_mode')!.choices![v('rain_mode') as number] ?? ''),
+        ...known(paramField('rain_mode')!.choices![v('rain_mode') as number]),
         ...(paramShown(paramField('dock_at_sunset')!, params) && !v('dock_at_sunset') ? [tr('mows on after sunset')] : []),
-        tr(AUTOMATIC_SHORT[v('automatic_mode') as number] ?? ''),
+        ...known(AUTOMATIC_SHORT[v('automatic_mode') as number]),
       ].join(' · ');
+    }
     case 'gps':
       return [tr('{n} s without a fix', {n: n('gps_timeout')}), tr('better than {n} cm', {n: n('max_position_accuracy')})].join(' · ');
     case 'docking':
@@ -252,6 +287,7 @@ const AUTOMATIC_SHORT = ['starts by hand', 'semi-automatic', 'automatic'];
 
 // OpenMower's own values for mowing every area (mower_params.yaml), with the map where an area can have its own
 export function OpenMowerMowing({styles}: {styles: Styles}) {
+  const params = useMowerParams();
   const k = useKept();
   const os = useMowbiteOs();
   return (
@@ -259,7 +295,7 @@ export function OpenMowerMowing({styles}: {styles: Styles}) {
       <p className={styles.dim}>{tr("OpenMower's own values from mower_params.yaml, for every area without its own. A change counts right away.")}</p>
       {k && !k.enabled && (
         <label className={styles.check}>
-          <input type="checkbox" checked={false} onChange={() => storeKept((k) => ({...k, enabled: true})).catch(() => {})} />
+          <input type="checkbox" checked={false} onChange={() => switchKeeping(true, params).catch(() => {})} />
           {tr('MowBite sets what you change here again after a restart')}
         </label>
       )}
@@ -316,22 +352,7 @@ export function OpenMowerSettings({styles}: {styles: Styles}) {
         </p>
         {k && (
           <label className={styles.check}>
-            <input
-              type="checkbox"
-              checked={k.enabled}
-              onChange={(e) => {
-                const on = e.target.checked;
-                // switched on again: the values the mower has now, not the ones kept from before (changed meanwhile)
-                const now = (k: KeptParams) =>
-                  Object.fromEntries(
-                    Object.entries(k.values).map(([key, v]) => {
-                      const m = params[paramName(key)];
-                      return [key, typeof m === 'number' || typeof m === 'boolean' ? m : v];
-                    }),
-                  );
-                storeKept((k) => ({...k, enabled: on, ...(on ? {values: now(k)} : {})})).catch(() => {});
-              }}
-            />
+            <input type="checkbox" checked={k.enabled} onChange={(e) => switchKeeping(e.target.checked, params).catch(() => {})} />
             {tr('MowBite sets what you change here again after a restart')}
           </label>
         )}

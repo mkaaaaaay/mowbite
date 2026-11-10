@@ -339,6 +339,11 @@ textarea {
   font-family: inherit;
 }
 
+/* the value that applies when a field is left empty, readable in every theme */
+::placeholder {
+  color: var(--text-secondary);
+  opacity: 1;
+}
 
 /* map colors, overridden from the settings page */
 :root {

@@ -5,31 +5,33 @@ import {TitleRow} from '@/components/TopWeather';
 import {RadialGauge, TempGauge} from '@/components/gauges';
 import {BatteryIcon, TurnIcon} from '@/components/icons';
 import InfoTip from '@/components/InfoTip';
-import {useMowbiteOs} from '@/lib/mowerOs';
 import {isTemperature, tempItems} from '@/lib/dashboard';
 import Sparkline from '@/components/Sparkline';
 import {useBatteryLevel} from '@/hooks/useBatteryLevel';
 import {useEmergencyReasons} from '@/hooks/useEmergencyReasons';
 import {useMowerSensors, type SensorInfo} from '@/hooks/useMowerSensors';
-import {useMowerState} from '@/hooks/useMowerState';
+import {isLive, useMowerState} from '@/hooks/useMowerState';
 import {useSensorHistory, type Sample} from '@/hooks/useSensorHistory';
 import {useState, useSyncExternalStore} from 'react';
-import {outOfRange} from '@/lib/sensorLimits';
+import {bladeSpin, outOfRange} from '@/lib/sensorLimits';
 import {sharedSettings} from '@/lib/settings';
-import {batteryColor, chargeDone, chargeStateText, dockText, GPS_QUALITY_LABEL, gpsQuality, isDocked, onCharger, stateColor, statusText} from '@/lib/status';
+import {batteryColor, chargeOf, chargeStateText, dockText, GPS_QUALITY_LABEL, gpsQuality, isDocked, onCharger, staleText, stateColor, statusText} from '@/lib/status';
 import {useChargeConfirmed} from '@/hooks/useChargeConfirmed';
 import {useRecentRuns} from '@/hooks/useRecentRuns';
-import {useOsApi} from '@/lib/mowerOs';
+import {useMowbiteOs, useOsApi} from '@/lib/mowerOs';
 import {numParam, useMowerParams} from '@/hooks/useMowerParams';
 import {PARAM} from '@/lib/openmower';
 import styles from './page.module.css';
 import System from './System';
 import BatteryHistory from './BatteryHistory';
 import {emergencyText} from '@/lib/events';
+import {gpsOffNow} from '@/lib/gpslog';
 import {fmt, tr, useLang} from '@/lib/i18n';
 
 // sensors that get their own card instead of the generic one
 const BATTERY_IDS = new Set(['om_v_battery', 'om_v_charge', 'om_charge_current', 'om_charge_state']);
+// what MowBite OS's text sensor os_ntrip_state says, translated; any other text as it comes
+const NTRIP_STATES = ['off', 'waiting', 'connecting', 'connected', 'rejected'];
 const MOTOR_IDS = new Set(['om_mow_motor_current', 'om_mow_motor_rpm']);
 const GPS_ID = 'om_gps_accuracy';
 // xbot_positioning reports 999 when there's no fix
@@ -85,7 +87,11 @@ export default function SensorsPage() {
     } catch {}
   };
   const {infos, values} = useMowerSensors();
-  const {state} = useMowerState();
+  const link = useMowerState();
+  const {state} = link;
+  // no connection or no fresh state: what's shown is old, greyed out as on the dashboard
+  const live = isLive(link);
+  const old = live ? '' : styles.stale;
   const why = useEmergencyReasons(!!state?.emergency);
   const params = useMowerParams();
   const history = useSensorHistory();
@@ -100,9 +106,8 @@ export default function SensorsPage() {
   const api = useOsApi();
   const recent = useRecentRuns(currentState, api >= 4);
   const confirmed = useChargeConfirmed(api, state ? onCharger(state, values['om_v_charge']) : undefined, recent?.today, recent?.latest);
-  const mowing = currentState === 'MOWING';
   const battery = level ?? (state ? Math.round(state.battery_percentage * 100) : undefined);
-  const charged = chargeDone(values['om_charge_state'], num('om_charge_current'), battery);
+  const charge = chargeOf(values['om_charge_state'], num('om_charge_current'), battery);
   const criticalCount = infos.filter((i) => outOfRange(i, values[i.sensor_id], currentState)).length;
 
   const batteryCritical = ['om_v_battery', 'om_v_charge', 'om_charge_current'].some((id) =>
@@ -141,11 +146,14 @@ export default function SensorsPage() {
             </h1>
             {state && (
               <span
-                className={[styles.chip, styles[`chip-${state.emergency ? 'error' : docked ? (dockText(charged, confirmed).warn ? 'warning' : 'success') : stateColor(currentState)}`]].join(' ')}
+                className={[styles.chip, styles[`chip-${state.emergency ? 'error' : docked ? (dockText(charge, confirmed).warn ? 'warning' : 'success') : stateColor(currentState)}`], old].join(' ')}
               >
-                {statusText(state, docked, charged, confirmed)}
+                {statusText(state, docked, charge, confirmed)}
                 {state.emergency && why ? `: ${emergencyText(why)}` : ''}
               </span>
+            )}
+            {state && !live && (
+              <span className={link.resuming ? styles.dim : styles['text-warning']}>{link.resuming ? tr('connecting…') : staleText(link, os)}</span>
             )}
             {criticalCount > 0 && <span className={styles.error}>{tr('{n} out of range', {n: criticalCount})}</span>}
           </div>
@@ -166,7 +174,7 @@ export default function SensorsPage() {
           <p className={styles.dim}>{tr('Waiting for sensor data…')}</p>
         ) : (
           <>
-            <div className={styles.grid}>
+            <div className={[styles.grid, old].join(' ')}>
               <Card
                 title={
                   <>
@@ -201,7 +209,8 @@ export default function SensorsPage() {
                       {fmt(num('om_v_battery')!, 2)} V
                     </div>
                   )}
-                  {num('om_v_charge') !== undefined && docked && (
+                  {/* MowBite OS measures none, it tells its setting while on the contacts */}
+                  {num('om_v_charge') !== undefined && docked && !os && (
                     <div>
                       <span className={styles.dim}>{tr('Charge voltage')}</span>
                       {fmt(num('om_v_charge')!, 1)} V
@@ -218,7 +227,7 @@ export default function SensorsPage() {
               </Card>
 
               <Card title={tr('Mow motor')}>
-                {mowing && rpm !== undefined ? (
+                {rpm !== undefined && bladeSpin(rpm) !== 0 ? (
                   <>
                     <strong className={[styles.big, outOfRange(rpmInfo, values['om_mow_motor_rpm'], currentState) ? styles.error : ''].join(' ')}>
                       {Math.abs(rpm).toFixed(0)} {tr('rpm')} <TurnIcon reverse={rpm < 0} />
@@ -242,8 +251,9 @@ export default function SensorsPage() {
                     {tr('GPS accuracy')}
                     <InfoTip>
                       {tr(
-                        "How far off the position might be, as estimated by the receiver. With an RTK fix it's usually a few cm. The receiver doesn't report fix or float, so MowBite goes by the accuracy: up to 5 cm is an RTK fix, up to the mower's limit (max_position_accuracy) float, which is still usable. Above that the mower ignores the position. The mower switches GPS off while it's idle or docking.",
+                        "How far off the position might be, as estimated by the receiver. With an RTK fix it's usually a few cm. The receiver doesn't report fix or float, so MowBite goes by the accuracy: up to 5 cm is an RTK fix, up to the mower's limit (max_position_accuracy) float, which is still usable. Above that the mower ignores the position.",
                       )}
+                      {!os && ` ${tr("The mower switches GPS off while it's idle, docking or leaving the dock.")}`}
                     </InfoTip>
                   </>
                 }
@@ -252,7 +262,7 @@ export default function SensorsPage() {
                   {gps === undefined
                     ? '–'
                     : noFix
-                      ? currentState === 'IDLE' || currentState === 'DOCKING'
+                      ? gpsOffNow(currentState, os)
                         ? tr('GPS off')
                         : tr('No fix')
                       : `${fmt(gps * 100, 1)} cm`}
@@ -270,7 +280,7 @@ export default function SensorsPage() {
             {temps.length > 0 && (
               <>
                 <h2 className={styles.categoryTitle}>{tr('Temperatures')}</h2>
-                <div className={styles.grid}>
+                <div className={[styles.grid, old].join(' ')}>
                   {temps.map(({info: t, key, label}) => {
                     const v = num(key);
                     return (
@@ -290,14 +300,14 @@ export default function SensorsPage() {
             {others.length > 0 && (
               <>
                 <h2 className={styles.categoryTitle}>{tr('Other')}</h2>
-                <div className={styles.grid}>
+                <div className={[styles.grid, old].join(' ')}>
                   {others.map((o) => {
                     const v = num(o.sensor_id);
                     const numeric = o.value_type === 'DOUBLE' && v !== undefined && !Number.isNaN(v);
                     return (
                       <Card key={o.sensor_id} title={tr(o.sensor_name)}>
                         <strong className={[styles.big, outOfRange(o, values[o.sensor_id], currentState) ? styles.error : ''].join(' ')}>
-                          {numeric ? `${fmt(v, digitsOf(o))} ${unitOf(o)}` : (values[o.sensor_id] ?? '–')}
+                          {numeric ? `${fmt(v, digitsOf(o))} ${unitOf(o)}` : NTRIP_STATES.includes(values[o.sensor_id]) ? tr(values[o.sensor_id]) : (values[o.sensor_id] ?? '–')}
                         </strong>
                         {numeric && <Sparkline samples={history[o.sensor_id]} digits={digitsOf(o)} unit={unitOf(o)} />}
                       </Card>

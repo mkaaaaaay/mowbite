@@ -52,7 +52,7 @@ export function SplitPanel({
           <p className={styles.dim}>
             {cutShape
               ? tr("The shape has to lie fully inside the area and mustn't cross itself.")
-              : tr("The line doesn't cut through the area yet.")}
+              : tr("The line doesn't cut through the area yet or crosses itself.")}
           </p>
         )
       )}
@@ -272,7 +272,7 @@ export function SimplifyPanel({
 }) {
   return (
     <div className={styles.inlineRow}>
-      <input type="range" min={0} max={20} value={cm} onChange={(e) => onChange(Number(e.target.value))} />
+      <input type="range" min={0} max={20} value={cm} onChange={(e) => onChange(Number(e.target.value))} aria-label={tr('Reduce points')} />
       <span className={styles.dim}>
         {cm === 0 ? tr('all points') : tr('max. {n} cm off', {n: cm})} · {from} → {tr('{n} points', {n: to})}
       </span>
@@ -291,6 +291,9 @@ export function RestorePanel({
   areas,
   backedUp,
   idle,
+  live,
+  ends,
+  unsaved,
   restoring,
   confirm,
   error,
@@ -302,6 +305,11 @@ export function RestorePanel({
   // the mower's map is backed up before restoring (only when MowBite runs as its container)
   backedUp: boolean;
   idle: boolean;
+  // connected with a current state: only then is idle known
+  live: boolean;
+  // restoring ends a job the mower interrupted, and drops the changes not saved yet
+  ends: boolean;
+  unsaved: boolean;
   restoring: boolean;
   confirm: boolean;
   error: string | null;
@@ -317,11 +325,19 @@ export function RestorePanel({
           ? tr('Restoring replaces the map on the mower with this one. The current map is backed up first, so this can be undone.')
           : tr("Restoring replaces the map on the mower with this one. Backups don't work here, download the current map first if you might want it back.")}
       </p>
-      {!idle && <p className={styles.error}>{tr('Only possible while the mower is not busy (mowing, docking, recording).')}</p>}
+      {!live ? (
+        <p className={styles.error}>{tr("The mower can't be reached right now.")}</p>
+      ) : (
+        !idle && <p className={styles.error}>{tr('Only possible while the mower is not busy (mowing, docking, recording).')}</p>
+      )}
+      {confirm && unsaved && <p className={styles.error}>{tr("Your unsaved changes are lost, they aren't in any backup.")}</p>}
+      {confirm && ends && (
+        <p className={styles.error}>{tr('The interrupted job was planned on the old map, restoring ends it. The next start plans on the new one.')}</p>
+      )}
       <div className={styles.inlineRow}>
         <button
           className={[styles.pillButton, styles.danger].join(' ')}
-          disabled={!idle || restoring}
+          disabled={!idle || !live || restoring}
           onClick={onRestore}
           onBlur={onDisarm}
         >

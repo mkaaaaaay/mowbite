@@ -1,4 +1,4 @@
-import type {MowerMap, Point} from '@/hooks/useMowerMap';
+import type {MapArea, MowerMap, Point} from '@/hooks/useMowerMap';
 import type {MowPlan, PlanChecks, PlanChosen, PlanDuration, PlanPiece, PlanZone} from './mowPlan';
 import {planPieces, type PlanPath, type PlanSegment, type SegmentType} from './planProgress';
 import {loadPlannerSettings, slic3rPlans} from './mowerBody';
@@ -175,6 +175,35 @@ interface PlanProps {
   settings?: Record<string, unknown>;
 }
 export type PlanRequest = ({area_id: string} & PlanProps) | ({outline: Point[]; obstacles: Point[][]} & PlanProps);
+
+const PLAN_SINGLE = ['angle', 'outline_count', 'outline_overlap_count', 'outline_offset'] as const;
+const PLAN_PROPS = [...PLAN_SINGLE, 'angle_min', 'angle_max'] as const;
+
+// What the mower is asked for an area as edited: by its id to the MowBite Planner (withPlanner) while it lies as saved
+// (byId), else as it is in the editor. The planner puts the saved area's own values under what's asked, so with one of
+// them taken out it's asked as it is too. Its planner settings only go to the MowBite Planner (with OpenMower's slic3r
+// planner the plan comes from mowing.plan like without MowBite, planner.plan would plan with them)
+export function areaPlanRequest(
+  area: MapArea,
+  saved: MapArea['properties'] | undefined,
+  byId: boolean,
+  withPlanner: boolean,
+  obstacles: () => Point[][],
+): PlanRequest {
+  const p = area.properties;
+  const props: PlanProps = {};
+  for (const k of PLAN_SINGLE) if (p[k] !== undefined) props[k] = p[k];
+  if (p.angle_min !== undefined && p.angle_max !== undefined) {
+    props.angle_min = p.angle_min;
+    props.angle_max = p.angle_max;
+  }
+  const own = withPlanner ? (p.planner ?? {}) : {};
+  if (Object.keys(own).length) props.settings = own;
+  const takenOut =
+    !!saved && (PLAN_PROPS.some((k) => saved[k] !== undefined && p[k] === undefined) || Object.keys(saved.planner ?? {}).some((k) => own[k] === undefined));
+  if (byId && withPlanner && !takenOut) return {area_id: area.id, ...props};
+  return {outline: area.outline, obstacles: obstacles(), ...props};
+}
 
 // null when this mower can't tell, then the editor works it out itself (lib/mowPlan). With the MowBite Planner on the
 // mower it plans the area directly (planner.plan, the same settings mower_logic's plans get): it takes the area's

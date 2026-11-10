@@ -60,6 +60,8 @@ interface MapViewProps {
   onCanvasClick?: (x: number, y: number) => void;
   onMovePending?: (index: number, x: number, y: number) => void;
   onInsertPending?: (index: number, x: number, y: number) => void;
+  // a drag from the middle of the line's edge that turned into a pinch: the point it added goes again
+  onRemovePending?: (index: number) => void;
   // fixed window around the mower instead of fitting the whole map, a button lets the map move freely
   follow?: boolean;
   // a button that keeps the map at the top of the page on a phone (MapControls)
@@ -248,6 +250,7 @@ function MapView({
   onCanvasClick,
   onMovePending,
   onInsertPending,
+  onRemovePending,
   follow = false,
   pin,
   snap,
@@ -361,13 +364,16 @@ function MapView({
   const prefs = useMapPrefs();
   const {imagery, lastImagery, setImagery, showGrid, toggleGrid, toggleLayer, planStyle, setPlanStyle, coverage: coverPref, setCoverage: setCoverMode} =
     prefs;
-  // decorating the map is for that, the coverage waits (its switch is gone meanwhile)
-  const coverMode = decor ? 'off' : coverPref;
+  // MowBite's container on the mower: it keeps the gps log the coverage comes from
+  const updates = useUpdates();
+  // the coverage's switch: on the maps to look around in, with MowBite's container. not while decorating, undo, redo and
+  // finish are there
+  const coverOffered = zoomable && updates.level !== null && !decor;
+  // shown only where it can be switched off again, a made-up map shows none of the real garden's
+  const coverMode = coverOffered && !sample ? coverPref : 'off';
   const hidden = allLayers ? NO_LAYERS_HIDDEN : prefs.hidden;
   const [svgPx, setSvgPx] = useState(0);
   const [layersOpen, setLayersOpen] = useState(false);
-  // MowBite's container on the mower: it keeps the gps log the coverage comes from
-  const updates = useUpdates();
   // gps or wifi where the mower drove, asked for once the coverage is switched on. the square tapped shows its numbers
   const [coverage, setCoverage] = useState<CoverageCell[] | null>(null);
   // asked for and nothing there yet (a new container, or nothing driven for two weeks): the switch says so
@@ -1201,7 +1207,8 @@ function MapView({
       // a moved point only reaches the map when let go, an added one is in it already
       if (dragging.areaId !== PENDING) {
         if (d.insert) onDragCancel?.();
-      } else if (d.orig) onMovePending?.(dragging.index, d.orig.x, d.orig.y);
+      } else if (d.insert) onRemovePending?.(dragging.index);
+      else if (d.orig) onMovePending?.(dragging.index, d.orig.x, d.orig.y);
     }
     d.at = undefined;
     live.set(null);
@@ -2359,9 +2366,8 @@ function MapView({
           planParts={!!pieces?.length}
           planner={!!plannerSettings}
           coverage={
-            // on the maps to look around in, with MowBite's container (it keeps the gps log). wifi off once the log has none.
-            // not while decorating, undo, redo and finish are there
-            zoomable && updates.level !== null && !decor
+            // wifi off once the log has none
+            coverOffered
               ? {
                   wifi: !coverage || coverage.some((c) => c.wifi !== null),
                   none: coverNone,

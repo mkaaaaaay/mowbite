@@ -134,3 +134,47 @@ test.describe("the updater's page in here", () => {
     await expect(updates.getByText('not set up yet', {exact: false})).toHaveCount(0);
   });
 });
+
+// made up like above, out of the demo on a page of its own: requests that find nothing fail in the console there
+test.describe('MowBite on another mower or without a container', () => {
+  test.skip(SIM, 'made up, not for a mower');
+  const CONFIG = "window.__MOWER_CONFIG__ = {mqttUrl: 'ws://mowbite.test:9001'};";
+  const CORS = {'access-control-allow-origin': '*'};
+
+  test('without a container: no steps in dockge for a stack that isn\'t there', async ({context, baseURL}) => {
+    await context.routeWebSocket(/.*/, () => {});
+    const page = await context.newPage();
+    await page.route(/./, async (route) => {
+      const url = new URL(route.request().url());
+      if (url.hostname !== 'mowbite.test' || url.pathname.startsWith('/cgi-bin/')) return route.fulfill({status: 404, body: ''});
+      if (url.pathname === '/config.js') return route.fulfill({contentType: 'text/javascript', body: CONFIG});
+      // the built app on a web server of its own
+      return route.fulfill({response: await route.fetch({url: new URL(url.pathname + url.search, baseURL).href})});
+    });
+    await page.goto('http://mowbite.test:8082/settings/#updates');
+    const updates = page.locator('#update');
+    await expect(updates.getByText('Only when MowBite runs as its container on the mower.')).toBeVisible();
+    await expect(updates.getByText('Update MowBite in Dockge')).toHaveCount(0);
+    await expect(updates.getByText('not set up yet', {exact: false})).toHaveCount(0);
+    await page.close();
+  });
+
+  test("another mower picked: its older container is told, not the page's version", async ({context, baseURL}) => {
+    await context.routeWebSocket(/.*/, () => {});
+    const page = await context.newPage();
+    await page.addInitScript(() => {
+      localStorage.setItem('appSettings', JSON.stringify({mowers: [{id: 'b', name: 'B', host: 'mower2.test'}]}));
+      localStorage.setItem('mower', 'b');
+    });
+    await page.route(/./, async (route) => {
+      const url = new URL(route.request().url());
+      if (url.hostname === 'mower2.test' && url.pathname === '/cgi-bin/version') return route.fulfill({headers: CORS, json: {version: '1.0.0', level: 0}});
+      if (url.hostname !== 'mowbite.test' || url.pathname.startsWith('/cgi-bin/')) return route.fulfill({status: 404, headers: CORS, body: ''});
+      if (url.pathname === '/config.js') return route.fulfill({contentType: 'text/javascript', body: CONFIG});
+      return route.fulfill({response: await route.fetch({url: new URL(url.pathname + url.search, baseURL).href})});
+    });
+    await page.goto('http://mowbite.test:8082/settings/#updates');
+    await expect(page.locator('#update').getByText('MowBite on the mower (1.0.0) is older than this app.', {exact: false})).toBeVisible();
+    await page.close();
+  });
+});

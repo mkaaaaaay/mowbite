@@ -32,9 +32,13 @@ function meet(a: Point, b: Point, c: Point, d: Point): Point | null {
   return null;
 }
 
-// the first place where a closed outline crosses or touches itself, null if it doesn't. sorted by x and only
-// compared while the x ranges overlap, so outlines recorded with many points stay quick
-export function selfCrossing(o: Point[]): Point | null {
+// the first place where a closed outline crosses or touches itself, null if it doesn't. a point twice in a row is one.
+// sorted by x and only compared while the x ranges overlap, so outlines recorded with many points stay quick
+export function selfCrossing(outline: Point[]): Point | null {
+  const o = outline.filter((p, i) => {
+    const q = outline[(i + 1) % outline.length];
+    return Math.abs(p.x - q.x) > EPS || Math.abs(p.y - q.y) > EPS;
+  });
   const n = o.length;
   if (n < 4) return null;
   const segs = o.map((a, i) => {

@@ -6,6 +6,7 @@ import {useTrailingPose} from '@/hooks/useTrailingPose';
 import {stillPreferred} from '@/lib/eggs';
 import {bladeSeconds, bodyShape, type MowerBody} from '@/lib/mowerBody';
 import {createEaser, type Easer, type Pose} from '@/lib/poseEaser';
+import {bladeSpin} from '@/lib/sensorLimits';
 import type {Settings} from '@/lib/settings';
 import {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react';
 import {MapCostume} from './Costumes';
@@ -100,7 +101,7 @@ export function MowerMarker({
   const r = body ? (body.blade / 2) * scale : 0;
   // OpenMower's rpm is negative when the motor turns the other way round (randomize_mow_motor_direction), forwards is
   // drawn clockwise
-  const spin = Math.sign(rpm);
+  const spin = bladeSpin(rpm);
   const still = stillPreferred();
 
   // moved to the eased pose: all of it, the parts that turn with the heading (under the icon and over it), and the

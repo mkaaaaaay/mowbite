@@ -3,13 +3,15 @@
 import {GardenDownload} from '@/components/Diagnosis';
 import {TitleMark} from '@/components/Logo';
 import {TitleRow} from '@/components/TopWeather';
-import {flushSettings, saveSettings, settingsStore, sharedSettings, type OtherMower, type Settings} from '@/lib/settings';
+import {flushSettings, forgetOwnSettings, saveSettings, settingsStore, sharedSettings, type OtherMower, type Settings} from '@/lib/settings';
 import {useEffect, useState, useSyncExternalStore} from 'react';
 import styles from './page.module.css';
 import {dec, setLangChoice, tr, useLang, useLangChoice} from '@/lib/i18n';
 import {setThemeChoice, useThemeChoice} from '@/lib/theme';
-import {appMowers, DEMO_ID, isDemo, parseAddress, saveAppMowers, selectedMower, selectMower} from '@/lib/mowers';
+import {appMowers, DEMO_ID, forgetMowerKeys, isDemo, parseAddress, sameMowBite, saveAppMowers, selectedMower, selectMower} from '@/lib/mowers';
+import {forgetMqtt5} from '@/lib/mqttClient';
 import {isApp} from '@/lib/native';
+import {leaveFirst} from '@/lib/leaving';
 import {setSwipeEnabled, useSwipeEnabled} from '@/lib/swipe';
 import {OpenMowerSettings} from '@/components/MowerParamSettings';
 import {AutoUpdate, DockgeUpdateGuide} from '@/components/AutoUpdate';
@@ -107,33 +109,45 @@ function MowersSection({settings}: {settings: Settings}) {
       setPhoneList(list);
     } else saveSettings({...settingsStore.snapshot(), mowers: list});
   };
-  // the mower looked at taken out: its last save goes out, then the app switches (in a browser to the page's own mower)
-  const remove = async (id: string) => {
-    const viewed = selectedMower()?.id === id;
-    const rest = others.filter((x) => x.id !== id);
+  // remove needs a second tap, id of the mower it's armed for
+  const [sure, setSure] = useState<string | null>(null);
+  // the mower looked at taken out: something unsaved asks before the list changes, its last save goes out, then the app
+  // switches (in a browser to the page's own mower). what this device kept for it goes
+  const remove = async (m: OtherMower) => {
+    const viewed = selectedMower()?.id === m.id;
+    const wait = viewed ? leaveFirst() : 0;
+    if (wait === false) return;
+    const rest = others.filter((x) => x.id !== m.id);
     store(rest);
-    if (!viewed) return;
-    await Promise.race([flushSettings(), new Promise((r) => setTimeout(r, 3000))]);
-    selectMower(app ? (rest[0]?.id ?? '') : '');
+    if (viewed) await Promise.race([flushSettings(), new Promise((r) => setTimeout(r, 3000))]);
+    forgetMowerKeys(m.id);
+    forgetOwnSettings(m.id);
+    forgetMqtt5(m, rest);
+    if (viewed) selectMower(app ? (rest[0]?.id ?? '') : '', wait);
   };
   const add = () => {
-    const {host: h, port} = parseAddress(host);
-    if (!h) return;
-    if (!app && (h === window.location.hostname.toLowerCase() || h === 'localhost' || h === '127.0.0.1')) {
-      setError(tr("That's this mower, it's already there. Enter the address of another one."));
-      return;
-    }
-    if (others.some((m) => m.host.toLowerCase() === h)) {
-      setError(tr('This mower is already in the list.'));
+    const typed = parseAddress(host);
+    if (!typed) {
+      setError(tr("That's not an address. Enter an IP or the mower's name in your network."));
       return;
     }
     const mower: OtherMower = {
       id: Math.random().toString(36).slice(2, 10),
       name: name.trim(),
-      host: h,
-      appPort: port ?? (Number(appPort) || 8082),
+      host: typed.host,
+      appPort: typed.port ?? (Number(appPort) || 8082),
       wsPort: Number(wsPort) || 9001,
     };
+    // (another MowBite on the same host answers on another port)
+    const port = Number(window.location.port) || 80;
+    if (!app && [window.location.hostname, 'localhost', '127.0.0.1'].some((h) => sameMowBite(mower, {host: h, appPort: port}))) {
+      setError(tr("That's this mower, it's already there. Enter the address of another one."));
+      return;
+    }
+    if (others.some((m) => sameMowBite(m, mower))) {
+      setError(tr('This mower is already in the list.'));
+      return;
+    }
     store([...others, mower]);
     setName('');
     setHost('');
@@ -175,9 +189,10 @@ function MowersSection({settings}: {settings: Settings}) {
           </span>
           <button
             className={styles.linkButton}
-            onClick={() => void remove(m.id)}
+            onClick={() => (sure === m.id ? void remove(m) : setSure(m.id))}
+            onBlur={() => setSure(null)}
           >
-            {tr('Remove')}
+            {sure === m.id ? tr('Really remove?') : tr('Remove')}
           </button>
         </div>
       ))}
@@ -193,6 +208,7 @@ function MowersSection({settings}: {settings: Settings}) {
             {tr("Address of the other mower (IP or name in your network)")}
             <input
               value={host}
+              aria-invalid={!!error}
               onChange={(e) => {
                 setHost(e.target.value);
                 setError(null);
@@ -270,7 +286,7 @@ export default function SettingsPage() {
           </h1>
         </TitleRow>
         <p className={styles.dim}>
-          {demo ? tr("These are the demo's settings, they're gone once you leave it.") : shared ? tr('Saved on the mower, the same on all your devices.') : tr('Saved on this device only.')}
+          {demo ? tr("These are the demo's settings, they're gone once you leave it. The ones only for this device stay.") : shared ? tr('Saved on the mower, the same on all your devices.') : tr('Saved on this device only.')}
         </p>
 
         {(planner !== undefined || unanswered || waiting) && (

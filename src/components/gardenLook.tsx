@@ -513,7 +513,7 @@ export function gardenThings(
       handOut(a, look, placed);
     }
   }
-  thingsCache.set(areas, {looks, own: {variants, sizes, turns, closed, grounds}, body, key, out});
+  thingsCache.set(areas, {looks, own: {variants, sizes, turns, closed, grounds, angleOffset, angleAbsolute}, body, key, out});
   return out;
 }
 

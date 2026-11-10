@@ -1,7 +1,7 @@
 import type {MowerMap, Point} from '@/hooks/useMowerMap';
 import {fmt, tr} from '@/lib/i18n';
 import {isPin, PIN_SIDE} from '@/lib/mowerBody';
-import {sameMap} from '@/lib/sameMap';
+import {sameContent, sameMap} from '@/lib/sameMap';
 import type {KeptLooks} from '@/lib/settings';
 
 export type Area = MowerMap['areas'][number];
@@ -29,6 +29,21 @@ export function onlyPinsChanged(base: MowerMap, map: MowerMap): boolean {
   const rest = (m: MowerMap) => ({...m, areas: m.areas.filter((a) => !isPin(a))});
   return sameMap(rest(base), rest(map));
 }
+
+// a map of ours the mower took in place of the one it had (over), until it comes back from there
+export type Sent = {map: MowerMap; over: MowerMap | null};
+// the mower's map the editor goes on from: the one sent while the mower's is still the one before, or back as the mower
+// wrote it. another one is a change from somewhere else
+export const mowerMap = (live: MowerMap | null, sent: Sent | null) =>
+  sent && (live === sent.over || (!!live && sameContent(live, sent.map))) ? sent.map : live;
+
+// a job the mower interrupted (offered: reset_job) keeps the lanes of the map it had: a replace with more than pins changed ends it
+export const endsJob = (offered: boolean, before: MowerMap | null, next: MowerMap) => offered && !(before && onlyPinsChanged(before, next));
+
+// a few seconds after that drop: still offered, or the mower out meanwhile (maybe on the job), it goes by the old map
+export const jobLeft = (offered: boolean, idle: boolean) => offered || !idle;
+// how long after the drop jobLeft is looked at
+export const JOB_CHECK_MS = 5000;
 
 // the map with the pins of another one in place of its own (decorating called off: the mower's), its areas as they are
 export const pinsFrom = (map: MowerMap, from: MowerMap): MowerMap => ({
@@ -66,9 +81,15 @@ export const AREA_TYPES = [
 
 export const DEG = Math.PI / 180;
 
-// wraps into -180..180
+// what saving or finishing decorating asks first: without a connection or a current state it isn't known whether the
+// mower is out (offline), the mower out (busy), a job it interrupted that the save ends (ends), else nothing
+export function saveQuestion(idle: boolean, live: boolean, ends: boolean): 'offline' | 'busy' | 'ends' | null {
+  return !live ? 'offline' : !idle ? 'busy' : ends ? 'ends' : null;
+}
+
+// a range end into -180..180: 180 stays (0 to 180 is half a turn, any way at all), beyond that it wraps round
 export function normDeg(d: number) {
-  return ((((d + 180) % 360) + 360) % 360) - 180;
+  return d >= -180 && d <= 180 ? d : ((((d + 180) % 360) + 360) % 360) - 180;
 }
 
 export type Override = 'outline_count' | 'outline_overlap_count' | 'outline_offset';

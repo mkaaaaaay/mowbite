@@ -162,7 +162,7 @@ export const FIELDS: Record<string, Field> = {
   },
   perimeter_offset: {
     label: 'Outline offset',
-    help: "How far inside the lines of the map the first outline pass runs. Empty: OpenMower's (outline_offset). With the mower sizes the safety distance to the edge counts instead.",
+    help: "How far inside the lines of the map the first outline pass runs. Empty: OpenMower's (outline_offset). With the mower sizes the first pass also keeps the safety distance to the edge, the larger of the two counts.",
     group: 'edge',
     unit: 'm',
     step: 0.05,

@@ -74,4 +74,9 @@ describe('the settings of the mower', () => {
     expect(parseKept('enabled 0\n/other/thing 1\n/mower_logic/x abc\n')).toEqual({enabled: false, values: {}});
     expect(parseKept('')).toEqual({enabled: true, values: {}});
   });
+
+  it('are kept with at most 6 decimals and no exponent, the container takes no more', () => {
+    const kept = {enabled: true, values: {tool_width: 0.30000001192092896, outline_offset: 1e-7, motor_hot_temperature: 28.000000000000004}};
+    expect(serializeKept(kept)).toBe('enabled 1\n/mower_logic/tool_width 0.3\n/mower_logic/outline_offset 0\n/mower_logic/motor_hot_temperature 28\n');
+  });
 });

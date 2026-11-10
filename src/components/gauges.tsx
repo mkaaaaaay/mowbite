@@ -2,7 +2,7 @@
 
 import type {SensorInfo} from '@/hooks/useMowerSensors';
 import {bladeSeconds} from '@/lib/mowerBody';
-import {along, sensorDial, type Tone} from '@/lib/sensorLimits';
+import {along, sensorDial, tempLimits, type Tone} from '@/lib/sensorLimits';
 
 const RED = '#e53935';
 const YELLOW = '#fbc02d';
@@ -68,9 +68,7 @@ function Blade({cx, cy, r, rpm}: {cx: number; cy: number; r: number; rpm: number
 // Sensors without limits just get a neutral bar.
 // the limits from the sensor's info, or given directly (warn: yellow mark, crit: red one)
 export function TempGauge({value, info, limits}: {value: number; info?: SensorInfo; limits?: {warn?: number; crit?: number}}) {
-  // a max on its own counts, OpenMower only sets has_min_max when there's a min as well (max_pcb_temp of an ESC)
-  const warn = info ? (info.max_value > 0 ? info.max_value : undefined) : limits?.warn;
-  const crit = info ? (info.has_critical_high && info.upper_critical_value >= 0 ? info.upper_critical_value : undefined) : limits?.crit;
+  const {warn, crit} = info ? tempLimits(info) : (limits ?? {});
   const max = Math.max(90, (crit ?? 0) + 10);
   const color = crit !== undefined && value >= crit ? RED : warn !== undefined && value >= warn ? YELLOW : GREEN;
   const x = (v: number) => (Math.min(Math.max(v, 0), max) / max) * 100;

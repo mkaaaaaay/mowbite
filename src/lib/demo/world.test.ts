@@ -5,7 +5,7 @@ import {parseKept} from '../mowerParams';
 import {parseSchedule} from '../schedule';
 import {demoFetch} from './api';
 import {demoMap} from './garden';
-import {areaPaths, buildRoute, createWorld, poseIndex, twistOf} from './world';
+import {areaPaths, buildRoute, createWorld, demoMows, poseIndex, twistOf} from './world';
 
 const NOW = Date.UTC(2026, 5, 15, 12, 0, 0);
 
@@ -161,9 +161,17 @@ describe('the demo mower', () => {
     expect(d.state()).toMatchObject({current_state: 'IDLE', is_charging: 1, current_area: -1});
     expect(d.state().pose).toMatchObject(demoMap().docking_stations[0].position);
     expect(d.actions()).toMatchObject({[ACTION.startMowing]: 1, [ACTION.resetJob]: 1});
+    // the job waits, its id stays in the position
+    expect(JSON.parse(d.got[TOPIC.position]).attributes).toMatchObject({job_id: job.job_id, session_id: ''});
+    const home = demoMows().at(-1)!;
+    expect(home.end).toBeLessThan(Infinity);
     d.act(ACTION.startMowing);
     expect(d.state().current_state).toBe('UNDOCKING');
     d.pass(120);
+    // the history counts it mowing again, not in the station
+    const again = demoMows().at(-1)!;
+    expect(again.start).toBeGreaterThanOrEqual(home.end);
+    expect(again.end).toBe(Infinity);
     const back = d.state();
     expect(back).toMatchObject({current_state: 'MOWING', current_area: stopped.current_area});
     expect(back.current_path).toBeGreaterThanOrEqual(stopped.current_path);
@@ -181,6 +189,7 @@ describe('the demo mower', () => {
     d.pass(180);
     expect(d.state()).toMatchObject({current_state: 'IDLE', is_charging: 1});
     expect(d.actions()[ACTION.resetJob]).toBe(0);
+    expect(JSON.parse(d.got[TOPIC.position]).attributes.job_id).toBe('');
     const today = await d.rpc<{type: string}[]>(RPC.events, {date: '20260615'});
     expect(today.map((e) => e.type).slice(-4)).toEqual(['JOB_COMPLETE', 'STATE', 'BLADES', 'DOCKED'].concat('STATE').slice(-4));
     d.act(ACTION.startMowing);
@@ -223,6 +232,17 @@ describe('the demo mower', () => {
     await expect(d.rpc(RPC.setParams, {params: {'/other/x': 1}})).rejects.toThrow('No dynamic_reconfigure server');
     await expect(d.rpc(RPC.setParams, {})).rejects.toThrow('Expected');
     expect((await d.rpc<string[]>(RPC.methods)).includes(RPC.setParams)).toBe(true);
+  });
+
+  it('keeps a job it stopped when a map is saved, like mower_logic, until it is dropped', async () => {
+    const d = world();
+    d.act(ACTION.goHome);
+    d.pass(120);
+    expect(d.actions()[ACTION.resetJob]).toBe(1);
+    await d.rpc(RPC.replaceMap, [demoMap()]);
+    expect(d.actions()[ACTION.resetJob]).toBe(1);
+    d.act(ACTION.resetJob);
+    expect(d.actions()[ACTION.resetJob]).toBe(0);
   });
 
   it('takes a saved map: the job is gone, it comes home and plans the new one', async () => {
@@ -378,6 +398,24 @@ describe("the demo mower's container", () => {
     await demoFetch('/cgi-bin/params', {method: 'POST', body: 'enabled 1\n/mower_logic/gps_timeout 20\n'});
     expect(parseKept(await (await demoFetch('/cgi-bin/params')).text())).toEqual({enabled: true, values: {gps_timeout: 20}});
     expect(await (await demoFetch('/version.json')).json()).toHaveProperty('version');
+  });
+});
+
+describe('a mow taken up again', () => {
+  it('is mowing in the histories, not charging after the part before', async () => {
+    let now = Date.now() - 3600_000;
+    const w = createWorld(() => {}, {now, timer: false});
+    // long enough that it would still be charging after it
+    for (let s = 0; s < 1200; s += 5) w.tick((now += 5000));
+    w.published(TOPIC.action, ACTION.goHome);
+    for (let s = 0; s < 120; s += 5) w.tick((now += 5000));
+    w.published(TOPIC.action, ACTION.startMowing);
+    w.tick((now += 5000));
+    const again = demoMows().at(-1)!.start;
+    const lines = (await (await demoFetch('/cgi-bin/sensors')).text()).split('\n').map((l) => l.split('\t'));
+    const rpm = lines.filter((l) => l[0] === 'om_mow_motor_rpm' && Number(l[1]) > again);
+    expect(rpm.length).toBeGreaterThan(5);
+    expect(rpm.every((l) => Number(l[4]) > 2000)).toBe(true);
   });
 });
 
@@ -572,5 +610,15 @@ describe('the mower around it, for a mock mower', () => {
     expect(n.state().pose.y).toBeCloseTo(at.y + 1, 5);
     n.pass(10);
     expect(n.state().current_state).toBe('MOWING');
+  });
+});
+
+describe("the demo mower's calibration", () => {
+  it('says which way it records, like the planner from 0.4.0', async () => {
+    for (const mode of ['joystick', 'mow']) {
+      const d = world();
+      await d.rpc(RPC.plannerCalibStart, {mode});
+      expect(JSON.parse(d.got[TOPIC.plannerCalib])).toMatchObject({phase: 'recording', mode});
+    }
   });
 });

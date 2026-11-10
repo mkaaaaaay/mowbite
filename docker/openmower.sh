@@ -1,10 +1,15 @@
 # what the scripts in the container expect from OpenMower, like src/lib/openmower.ts for the app.
-# OpenMower is being restructured (OSv3), when names change it should be here
+# OpenMower is being restructured (OSv3), when names change it should be here. the names go to the awk scripts too
+set -a
 TOPIC_ROBOT_STATE=robot_state/json
 TOPIC_EVENTS=events/json
-TOPIC_SENSOR_DATA='sensors/+/data'
+# one sensor's readings by its id, + for all of them
+sensor_topic() { echo "sensors/$1/data"; }
+TOPIC_SENSOR_DATA=$(sensor_topic +)
 # the charge contacts' voltage, there also when the battery is full and is_charging is off
-TOPIC_CHARGE_VOLTAGE=sensors/om_v_charge/data
+TOPIC_CHARGE_VOLTAGE=$(sensor_topic om_v_charge)
+# the sensors' names and limits (retained)
+TOPIC_SENSOR_INFOS=sensor_infos/json
 TOPIC_ACTION=action
 # the actions the mower knows, with enabled 1/0 for what it takes right now (retained)
 TOPIC_ACTIONS=actions/json
@@ -13,6 +18,8 @@ ACTION_START_MOWING=mower_logic:idle/start_mowing
 ACTION_SKIP_AREA=mower_logic:mowing/skip_area
 ACTION_HOME=mower_logic:mowing/abort_mowing
 ACTION_RESET_JOB=mower_logic:idle/reset_job
+# offered only while the mowing is paused by hand
+ACTION_CONTINUE=mower_logic:mowing/continue
 TOPIC_RPC_REQUEST=rpc/request
 TOPIC_RPC_RESPONSE=rpc/response
 TOPIC_RPC_ERROR=rpc/error
@@ -26,8 +33,12 @@ RPC_LOGS=logs.recent
 TOPIC_PARAMS=params/json
 RPC_SET_PARAMS=params.set
 PARAM_MOW_ANGLE_OFFSET=/mower_logic/mow_angle_offset
+# semi-automatic mode's pause: a job still open doesn't carry on by itself
+PARAM_MANUAL_PAUSE=/mower_logic/manual_pause_mowing
 # the MowBite Planner's settings (with the planner only)
 RPC_PLANNER_SETTINGS=planner.settings
+# the leftovers of a job: asked for, and armed for the next start (with the planner only)
+RPC_PLANNER_LEFTOVERS=planner.leftovers
 # the MowBite Planner's own log lines, kept in memory since its start (with the planner only)
 RPC_PLANNER_LOG=planner.log
 # the plan of an area: the MowBite Planner's (with the planner only) and OpenMower's own
@@ -38,3 +49,4 @@ RPC_AREA_PLAN=mowing.plan
 # gone without a schedule), so the updater leaves OpenMower alone in the 30 minutes before
 TOPIC_HOLD=mowbite/hold
 TOPIC_SCHEDULE_NEXT=mowbite/schedule/next
+set +a

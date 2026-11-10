@@ -377,8 +377,8 @@
    "severity": "info",
    "variants": [
     {
-     "en": "OpenMower started",
-     "de": "OpenMower gestartet"
+     "en": "Mower software started",
+     "de": "Software des Mähers gestartet"
     }
    ]
   },
@@ -386,8 +386,8 @@
    "severity": "info",
    "variants": [
     {
-     "en": "OpenMower stopped",
-     "de": "OpenMower beendet"
+     "en": "Mower software stopped",
+     "de": "Software des Mähers beendet"
     }
    ]
   },
@@ -989,7 +989,7 @@
   "STILL_STOPPING": [
    {
     "en": "the last job is still stopping, try again in a moment",
-    "de": "der letzte Auftrag wird noch beendet, gleich noch einmal versuchen"
+    "de": "der letzte Mähvorgang wird noch beendet, gleich noch einmal versuchen"
    }
   ],
   "WRONG_STATE": [
@@ -2033,12 +2033,12 @@
    "de": "Sensoren antworten nicht"
   },
   "TIMEOUT_HIGH_LEVEL": {
-   "en": "no contact with OpenMower",
-   "de": "keine Verbindung zu OpenMower"
+   "en": "no contact with the mower's software",
+   "de": "keine Verbindung zur Software des Mähers"
   },
   "HIGH_LEVEL": {
-   "en": "stopped by OpenMower",
-   "de": "von OpenMower ausgelöst"
+   "en": "stopped by the mower's software",
+   "de": "von der Software des Mähers ausgelöst"
   },
   "SERVICE_NOT_READY": {
    "en": "firmware still starting",
@@ -2053,8 +2053,8 @@
    "de": "Mähmotor außerhalb seiner Drehzahlgrenzen"
   },
   "FIRMWARE_INCOMPATIBLE": {
-   "en": "firmware doesn't fit OpenMower",
-   "de": "Firmware passt nicht zu OpenMower"
+   "en": "firmware doesn't fit the mower's software",
+   "de": "Firmware passt nicht zur Software des Mähers"
   },
   "TILT": {
    "en": "tilted too far",

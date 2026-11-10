@@ -4,7 +4,7 @@ import {describe} from '@/lib/events';
 import {tr} from '@/lib/i18n';
 import {getMqttClient, topicStore, withPrefix} from '@/lib/mqttClient';
 import {useCallback, useEffect, useState, useSyncExternalStore} from 'react';
-import {COMMAND, TOPIC} from '@/lib/openmower';
+import {ACTION, COMMAND, TOPIC} from '@/lib/openmower';
 import {callCommand, knownMethods, RpcError} from '@/lib/rpc';
 import {refusalEvent, rpcErrorText} from '@/lib/rpcText';
 
@@ -49,6 +49,15 @@ function refusalNote(e: RpcError): CommandNote {
   return {at: Date.now(), text: said.text, warn: said.severity !== 'info', event: ev.type, eventId: ev.id || undefined};
 }
 
+// a tap on a command button holds back for a while the same button, pause and continue for each other (they swap under
+// the finger) and what sets the mower off. stopping, pausing and going home are never held back by a tap on another
+export const TAP_LOCK_MS = 1000;
+const SWAPS: string[] = [ACTION.pause, ACTION.resume];
+const SETS_OFF: string[] = [ACTION.startMowing, ACTION.resume, ACTION.startRecording];
+export const setsOff = (id: string) => SETS_OFF.includes(id);
+export const lockedAfter = (tapped: string, id: string) =>
+  id === tapped || setsOff(id) || (SWAPS.includes(tapped) && SWAPS.includes(id));
+
 // counts the commands sent: an answer only speaks while its command is the last one, a late one of an earlier command
 // would read like the answer to the newer
 let sent = 0;
@@ -59,15 +68,16 @@ let sent = 0;
 export function sendCommand(id: string, seen?: {area?: number; path?: number}) {
   const mine = ++sent;
   const cmd = COMMAND[id];
+  setNote(null);
   if (!cmd || !knownMethods()?.has(cmd.method)) {
-    // plain text, not json
+    // plain text, not json. offline it's dropped, not kept for later
+    if (!getMqttClient().connected) setNote({at: Date.now(), text: tr('Not sent, no connection to the mower.'), warn: true});
     getMqttClient().publish(withPrefix(TOPIC.action), id);
     return;
   }
   const params: Record<string, unknown> = {client: 'app', ...cmd.params};
   if (cmd.method === 'mowing.skip_area' && typeof seen?.area === 'number') params.area = seen.area;
   if (cmd.method === 'mowing.skip_path' && typeof seen?.path === 'number') params.path = seen.path;
-  setNote(null);
   const say = (n: CommandNote) => mine === sent && setNote(n);
   const late = (a: unknown) =>
     say(a instanceof RpcError ? refusalNote(a) : {at: Date.now(), text: tr('The mower answered late: done after all.'), warn: false});

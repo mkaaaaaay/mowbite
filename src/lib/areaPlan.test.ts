@@ -1,5 +1,6 @@
 import {describe, expect, it} from 'vitest';
-import {planAsker, readChecks, readPlan} from './areaPlan';
+import type {MapArea} from '@/hooks/useMowerMap';
+import {areaPlanRequest, planAsker, readChecks, readPlan} from './areaPlan';
 import type {MowPlan} from './mowPlan';
 
 describe('readPlan', () => {
@@ -116,6 +117,53 @@ describe('the MowBite Planner answer', () => {
     expect(plan.pieces).toBeUndefined();
     expect(plan.duration).toBeUndefined();
     expect(plan.zones).toBeUndefined();
+  });
+});
+
+describe('areaPlanRequest', () => {
+  const outline = [{x: 0, y: 0}, {x: 10, y: 0}, {x: 10, y: 5}];
+  const hole = [{x: 1, y: 1}, {x: 2, y: 1}, {x: 2, y: 2}];
+  const area = (properties: MapArea['properties']): MapArea => ({id: 'a', properties: {type: 'mow', ...properties}, outline});
+  const ask = (edited: MapArea['properties'], saved: MapArea['properties'] | undefined, byId = true, planner = true) =>
+    areaPlanRequest(area(edited), saved && {type: 'mow', ...saved}, byId, planner, () => [hole]);
+
+  it('asks the MowBite Planner by id with the values as edited on top of the saved ones', () => {
+    expect(ask({angle: 1, outline_count: 4, planner: {fill_pattern: 'spiral'}}, {angle: 0.5, planner: {fill_pattern: 'lanes'}})).toEqual({
+      area_id: 'a',
+      angle: 1,
+      outline_count: 4,
+      settings: {fill_pattern: 'spiral'},
+    });
+  });
+
+  it('asks as it is when a saved value was taken out, the planner would keep that one', () => {
+    for (const k of ['angle', 'outline_count', 'outline_overlap_count', 'outline_offset'] as const) {
+      expect(ask({}, {[k]: 2})).toEqual({outline, obstacles: [hole]});
+    }
+    expect(ask({}, {angle_min: 0, angle_max: 1})).toEqual({outline, obstacles: [hole]});
+    expect(ask({angle_min: 0}, {angle_min: 0, angle_max: 1})).toEqual({outline, obstacles: [hole]});
+  });
+
+  it("asks as it is without a strategy taken out for an angle, the strategy for all areas doesn't go along", () => {
+    expect(ask({angle: 0.3}, {planner: {angle_strategy: 'optimal'}})).toEqual({outline, obstacles: [hole], angle: 0.3});
+    // MowBite OS: a count of its own in place of the planner's
+    expect(ask({outline_count: 3, planner: {fill_pattern: 'lanes'}}, {planner: {perimeter_passes: -1, fill_pattern: 'lanes'}})).toEqual({
+      outline,
+      obstacles: [hole],
+      outline_count: 3,
+      settings: {fill_pattern: 'lanes'},
+    });
+  });
+
+  it("is the saved area's request only with its values as saved (the plan's duration counts then)", () => {
+    const saved = {outline_count: 2, planner: {fill_pattern: 'lanes'}};
+    expect(JSON.stringify(ask(saved, saved))).toBe(JSON.stringify(ask({...saved}, saved)));
+    expect(JSON.stringify(ask({...saved, outline_count: 6}, saved))).not.toBe(JSON.stringify(ask(saved, saved)));
+  });
+
+  it('asks as it is when moved, and without the MowBite Planner with no planner settings', () => {
+    expect(ask({angle: 1}, {angle: 1}, false)).toEqual({outline, obstacles: [hole], angle: 1});
+    expect(ask({angle: 1, planner: {fill_pattern: 'spiral'}}, {angle: 1}, true, false)).toEqual({outline, obstacles: [hole], angle: 1});
   });
 });
 

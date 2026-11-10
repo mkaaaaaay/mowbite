@@ -2,8 +2,12 @@ import {pinSquare} from '@/app/map/editing';
 import type {MowerMap} from '@/hooks/useMowerMap';
 import {createElement, type ComponentProps} from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
-import {describe, expect, it} from 'vitest';
+import {describe, expect, it, vi} from 'vitest';
 import MapView from './MapView';
+
+// the coverage switched on for the mower looked at, before anything is drawn
+const stored = new Map([['mapCoverage', JSON.stringify('gps')]]);
+vi.stubGlobal('localStorage', {getItem: (k: string) => stored.get(k) ?? null, setItem: (k: string, v: string) => stored.set(k, v), removeItem: (k: string) => stored.delete(k)});
 
 const map: MowerMap = {
   areas: [
@@ -37,5 +41,11 @@ describe('the map while decorating', () => {
     expect(count(html, 'pinRing')).toBe(0);
     expect(lawn(html)).toHaveLength(1);
     expect(lawn(html)[0]).not.toContain('pointer-events:none');
+  });
+});
+
+describe('the coverage', () => {
+  it('kept switched on stays off while its switch is not offered (no container answered), editing goes on', () => {
+    expect(draw({snap: {on: true, onToggle: () => {}}})).toContain('aria-label="Snap"');
   });
 });

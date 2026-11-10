@@ -1,7 +1,7 @@
 'use client';
 
 import {tr, useLang} from '@/lib/i18n';
-import {isDemo, selectMower} from '@/lib/mowers';
+import {isDemo, leaveDemo} from '@/lib/mowers';
 import {useSyncExternalStore} from 'react';
 import styles from './DemoBadge.module.css';
 
@@ -15,7 +15,7 @@ export default function DemoBadge() {
   return (
     <div className={styles.badge}>
       <span>{tr('Demo: a made-up mower, nothing is saved')}</span>
-      <button onClick={() => selectMower('')}>{tr('Leave')}</button>
+      <button onClick={leaveDemo}>{tr('Leave')}</button>
     </div>
   );
 }

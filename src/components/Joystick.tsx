@@ -1,6 +1,6 @@
 'use client';
 
-import {useRef, useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
 import styles from './Joystick.module.css';
 
 // thumb stick, reports x/y in -1..1 (y up is positive) while held and 0/0 when let go
@@ -8,6 +8,12 @@ export default function Joystick({onMove, size = 200}: {onMove: (x: number, y: n
   const [knob, setKnob] = useState<{x: number; y: number} | null>(null);
   const pad = useRef<HTMLDivElement>(null);
   const radius = size / 2;
+  // taken away while held (the page shows another view or layout): let go all the same
+  const letGo = useRef<(() => void) | null>(null);
+  useEffect(() => {
+    letGo.current = knob ? () => onMove(0, 0) : null;
+  });
+  useEffect(() => () => letGo.current?.(), []);
 
   const move = (e: React.PointerEvent) => {
     const r = pad.current!.getBoundingClientRect();

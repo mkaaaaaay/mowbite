@@ -1,6 +1,7 @@
 import mqtt, {type MqttClient} from 'mqtt';
 import {demoClient} from './demo/client';
-import {isDemo, selectedMower} from './mowers';
+import {isDemo, selectedMower, writeStored} from './mowers';
+import type {OtherMower} from './settings';
 import {TOPIC} from './openmower';
 
 declare global {
@@ -16,9 +17,10 @@ function config() {
 
 // another mower picked in the app, or the one it runs on. that falls back to the host the app is
 // served from, which is the mower itself when installed there
+const brokerOf = (m: OtherMower) => `ws://${m.host}:${m.wsPort ?? 9001}`;
 function mqttUrl(): string {
   const other = selectedMower();
-  if (other) return `ws://${other.host}:${other.wsPort ?? 9001}`;
+  if (other) return brokerOf(other);
   return config().mqttUrl || process.env.NEXT_PUBLIC_MOWER_MQTT_WS_URL || `ws://${window.location.hostname}:9001`;
 }
 
@@ -58,7 +60,13 @@ export function getMqttClient(): MqttClient {
 
 // MQTT 5 only on MowBite OS that said so in system.info (mqtt 5), from the next connection on, kept per mower; never on
 // OpenMower. then each answer comes to rpc/response/<the client id> alone instead of to everyone on rpc/response
-const mqtt5Key = () => `mowbite.mqtt5.${mqttUrl()}|${topicPrefix()}`;
+const mqtt5KeyOf = (url: string, prefix: string) => `mowbite.mqtt5.${url}|${prefix}`;
+const mqtt5Key = () => mqtt5KeyOf(mqttUrl(), topicPrefix());
+// a mower taken out of the list (rest: the ones left): what's kept for its broker goes, unless one left talks to it too
+export function forgetMqtt5(m: OtherMower, rest: OtherMower[]) {
+  const key = (o: OtherMower) => mqtt5KeyOf(brokerOf(o), o.prefix ?? '');
+  if (!rest.some((o) => key(o) === key(m))) writeStored(key(m), null);
+}
 function mqtt5Stored(): boolean {
   try {
     return localStorage.getItem(mqtt5Key()) === '1';

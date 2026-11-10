@@ -57,6 +57,11 @@
   color: var(--accent-foreground);
 }
 
+/* no connection or no fresh state: the state and the values are old (as on the dashboard) */
+.stale {
+  opacity: 0.45;
+}
+
 .text-success {
   color: var(--success);
 }

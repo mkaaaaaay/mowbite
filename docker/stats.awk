@@ -17,9 +17,10 @@ function flush() {
   }
   hb = 0; hm = 0; hd = 0; hn = 0
 }
+# compact or spaced out json
 function num(key,    s) {
-  if (!match($0, "\"" key "\":-?[0-9.eE+-]+")) return "-"
-  s = substr($0, RSTART, RLENGTH); sub(/^[^:]*:/, "", s); return s + 0
+  if (!match($0, "\"" key "\" *: *-?[0-9.eE+-]+")) return "-"
+  s = substr($0, RSTART, RLENGTH); sub(/^[^:]*: */, "", s); return s + 0
 }
 BEGIN {
   HOURS = ENVIRON["HOURS"]
@@ -52,7 +53,7 @@ BEGIN {
     rpm_t = t
   } else {
     st = ""
-    if (match($0, /"current_state":"[A-Z_]*"/)) st = substr($0, RSTART + 17, RLENGTH - 18)
+    if (match($0, /"current_state" *: *"[A-Z_]*"/)) { st = substr($0, RSTART, RLENGTH); sub(/^[^:]*: *"/, "", st); sub(/"$/, "", st) }
     if (st != "" && last_st == "IDLE" && (st == "UNDOCKING" || st == "MOWING")) { tn++; hn++ }
     x = num("x"); y = num("y")
     if (x != "-" && y != "-") {

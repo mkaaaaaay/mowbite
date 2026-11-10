@@ -8,6 +8,7 @@ export default function EditorToolbar({
   canUndo,
   canRedo,
   unsaved,
+  placing,
   saving,
   saveLabel,
   saveError,
@@ -19,6 +20,8 @@ export default function EditorToolbar({
   canRedo: boolean;
   // changed from the mower's map
   unsaved: boolean;
+  // points set for a new area or a cut, not in the map yet
+  placing?: boolean;
   saving: boolean;
   saveLabel: string;
   saveError: string | null;
@@ -40,7 +43,7 @@ export default function EditorToolbar({
           {saveLabel}
         </button>
       ) : (
-        <span className={styles.barNote}>{tr('Everything saved')}</span>
+        !placing && <span className={styles.barNote}>{tr('Everything saved')}</span>
       )}
       {saveError && <span className={[styles.error, styles.barError].join(' ')}>{saveError}</span>}
     </div>

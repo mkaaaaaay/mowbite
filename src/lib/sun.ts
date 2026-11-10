@@ -12,8 +12,9 @@ const clock = (minutes: number) => {
   return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 };
 
-// null when the sun doesn't rise or set that day (polar regions)
-export function sunTimes(lat: number, lon: number, date = new Date()): SunTimes | null {
+// null when the sun doesn't rise or set that day (polar regions). offset: minutes east of UTC of the clock the times are
+// for, this device's by default
+export function sunTimes(lat: number, lon: number, date = new Date(), offset = -date.getTimezoneOffset()): SunTimes | null {
   const noonUtc = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 12);
   const julianDay = noonUtc / 86400000 + 2440587.5;
   const t = (julianDay - 2451545) / 36525;
@@ -51,7 +52,6 @@ export function sunTimes(lat: number, lon: number, date = new Date()): SunTimes 
   const hourAngle = deg(Math.acos(cosHa));
 
   const noon = 720 - 4 * lon - eqTime;
-  const offset = -date.getTimezoneOffset();
   return {rise: clock(noon - 4 * hourAngle + offset), set: clock(noon + 4 * hourAngle + offset)};
 }
 

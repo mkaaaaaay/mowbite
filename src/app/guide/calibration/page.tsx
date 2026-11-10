@@ -1,5 +1,6 @@
 'use client';
 
+import {CALIB_SHOWN, calibMissingText} from '@/lib/calibration';
 import {tr, useLang} from '@/lib/i18n';
 import Link from 'next/link';
 import {useId} from 'react';
@@ -51,6 +52,17 @@ function Turn({x, y, left, arrow}: {x: number; y: number; left: boolean; arrow: 
 // how to calibrate, in cards with a drawing each: before, standing, straight runs, turns, while mowing, the result
 export default function CalibrationGuidePage() {
   useLang();
+  if (!CALIB_SHOWN)
+    return (
+      <div className={styles.page}>
+        <main className={styles.main}>
+          <h1>{tr('Calibrating')}</h1>
+          <section className={styles.card}>
+            <p>{calibMissingText('build')}</p>
+          </section>
+        </main>
+      </div>
+    );
   return (
     <div className={styles.page}>
       <main className={styles.main}>

@@ -235,7 +235,7 @@
   cursor: pointer;
 }
 
-/* at the end of the page under a tall drawing or the legend: kept at the bottom of the screen it would cover them */
+/* at the end of the page under the legend: kept at the bottom of the screen it would cover it */
 .nextEnd {
   position: static;
 }

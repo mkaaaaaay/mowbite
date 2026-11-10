@@ -1,7 +1,8 @@
 import type {MapArea, MowerMap} from '@/hooks/useMowerMap';
 import {PIN_SIDE, pinAt} from '@/lib/mowerBody';
+import {angleInRange} from '@/lib/mowStripes';
 import {describe, expect, it} from 'vitest';
-import {decorRedo, decorUndo, goneLooks, onlyPinsChanged, overrideError, PIN_TILES, pinSquare, pinsFrom, pinTiles} from './editing';
+import {DEG, decorRedo, decorUndo, endsJob, goneLooks, jobLeft, mowerMap, normDeg, onlyPinsChanged, saveQuestion, overrideError, PIN_TILES, pinSquare, pinsFrom, pinTiles} from './editing';
 
 describe('overrideError', () => {
   it('takes empty (global value) and values within the mower limits', () => {
@@ -51,6 +52,20 @@ describe('pins', () => {
     expect(onlyPinsChanged(base, map(lawn, {...pin('p', 1, 1), properties: {type: 'decor'}}))).toBe(true);
   });
 
+  it('ends a job the mower interrupted with a change beyond pins, says so while it stays after the drop', () => {
+    const base = map(lawn, pin('p', 1, 1));
+    const named = map({...lawn, properties: {type: 'mow', name: 'Front'}}, pin('p', 1, 1));
+    expect(endsJob(true, base, named)).toBe(true);
+    expect(endsJob(true, null, base)).toBe(true);
+    // pictures only, nothing at all, or no job the mower offers to drop: as before
+    expect(endsJob(true, base, map(lawn, pin('p', 3, 2)))).toBe(false);
+    expect(endsJob(true, base, base)).toBe(false);
+    expect(endsJob(false, base, named)).toBe(false);
+    expect(jobLeft(true, true)).toBe(true);
+    expect(jobLeft(false, false)).toBe(true);
+    expect(jobLeft(false, true)).toBe(false);
+  });
+
   it("takes the pins of the mower's map back, the areas stay as they are", () => {
     const live = map(lawn, pin('p', 1, 1), pin('q', 2, 2));
     const edited = map({...lawn, properties: {type: 'mow', name: 'Front'}}, pin('p', 3, 3), pin('n', 4, 4));
@@ -90,5 +105,50 @@ describe('pins', () => {
     expect(pinTiles(['lamp', 'statue', 'lamp', 'gnome', 'statue', 'lamp'])).toEqual(['lamp', 'statue', 'gnome', 'pot', 'bush', 'tree', 'bench', 'umbrella', 'grill']);
     // as often: the one set first
     expect(pinTiles(['rose', 'fern']).slice(0, 3)).toEqual(['rose', 'fern', 'gnome']);
+  });
+});
+
+describe('mowerMap', () => {
+  const lawn = (name: string): MowerMap => ({
+    areas: [{id: 'l', properties: {name, type: 'mow'}, outline: [{x: 0, y: 0}, {x: 10, y: 0}, {x: 10, y: 10}]}],
+    docking_stations: [],
+  });
+  const old = lawn('Old');
+  const sent = {map: lawn('New'), over: old};
+
+  it('is the map sent while the mower still has the one before, also once it came back as the mower wrote it', () => {
+    expect(mowerMap(old, null)).toBe(old);
+    expect(mowerMap(old, sent)).toBe(sent.map);
+    const back = lawn('New');
+    back.areas[0].properties.active = true;
+    expect(mowerMap(back, sent)).toBe(sent.map);
+  });
+
+  it('is the mower\'s own when another one came', () => {
+    const other = lawn('Other');
+    expect(mowerMap(other, sent)).toBe(other);
+  });
+});
+
+describe('normDeg', () => {
+  it('keeps a range end within -180..180 as typed and wraps the rest', () => {
+    expect([0, 180, -180, 360, 540, -190].map(normDeg)).toEqual([0, 180, -180, 0, -180, 170]);
+  });
+
+  it('makes 0 to 180 and -180 to 0 any way at all, not a fixed 0', () => {
+    for (const [lo, hi] of [[0, 180], [-180, 0]]) {
+      for (const a of [30, 90, 135]) expect(angleInRange(a * DEG, normDeg(lo) * DEG, normDeg(hi) * DEG)).toBeCloseTo(a * DEG);
+    }
+  });
+});
+
+describe('saveQuestion', () => {
+  it('asks while the mower is out or not known to be in, then for an interrupted job', () => {
+    expect(saveQuestion(true, true, false)).toBeNull();
+    expect(saveQuestion(true, true, true)).toBe('ends');
+    expect(saveQuestion(false, true, false)).toBe('busy');
+    // the last state seen said idle, but the connection is gone
+    expect(saveQuestion(true, false, false)).toBe('offline');
+    expect(saveQuestion(false, false, true)).toBe('offline');
   });
 });

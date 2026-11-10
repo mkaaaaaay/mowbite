@@ -9,7 +9,7 @@
 #   remind (minutes between reminders while the mower can't get on by itself, 0: none),
 #   emergency_wait (seconds an emergency stop has to last before it's told, 10 unless set), enabled (0: switched off)
 # and SNOOZE: until when (unix time) there are no reminders. STATS: where stats.sh counts the blade hours, a part
-# whose maintenance is due is told once, until it's done again (STATS/reminded keeps which were told).
+# whose maintenance is due is told once, until it's done again or its hours change (STATS/reminded keeps which were told).
 # the emergency stop comes from robot_state, a stop button, lifting or a bumper don't come as events. it only counts once
 # it lasted emergency_wait seconds: a bumper touched while docking clears itself.
 # sent home in the middle of a path OpenMower also reports a navigation error, so one only counts when no docking
@@ -64,8 +64,10 @@ function readconf(   line, k) {
 
 function on(kind) { return index(events, "," kind ",") > 0 }
 
-# standing still and not charging in the dock are told once, the other problems are reminded of while they last
-function reminds(kind) { return remind && kind != "standstill" && !(kind == "dock_failed" && dock_why ~ /^(NO_CHARGE_CURRENT|lost)/) }
+# the problems reminded of while they last (and snoozed); standing still and not charging in the dock are told once
+function reminds(kind) {
+  return remind && kind ~ /^(emergency|dock_failed|undock_failed)$/ && !(kind == "dock_failed" && dock_why ~ /^(NO_CHARGE_CURRENT|lost)/)
+}
 
 function tx(en, de) { return lang == "de" ? de : en }
 
@@ -150,7 +152,7 @@ function send(kind, phase, title, msg, prio, tags,   json, acts) {
     json = json ",\"click\":\"" jesc(url) "/activity/\""
     acts = "{\"action\":\"view\",\"label\":\"" jesc(tx("Open MowBite", "MowBite öffnen")) "\",\"url\":\"" jesc(url) "/\"}"
     # only reaches the mower from the home network. only on a problem it reminds of, like push below
-    if (phase != "clear" && reminds(kind) && kind ~ /^(emergency|dock_failed|undock_failed|nav_error|spinup|standstill)$/)
+    if (phase != "clear" && reminds(kind))
       acts = acts ",{\"action\":\"http\",\"label\":\"" jesc(tx("Snooze 1 h", "1 h schlummern")) "\",\"url\":\"" jesc(url) \
         "/cgi-bin/notify?snooze=3600\",\"method\":\"POST\",\"clear\":true}"
     json = json ",\"actions\":[" acts "]"
@@ -168,7 +170,7 @@ function push(kind, phase, title, msg, prio,   json, problem) {
   json = json ",\"prio\":" prio ",\"t\":" int(t) ",\"lang\":\"" lang "\",\"path\":\"/activity/\""
   if (url) {
     json = json ",\"api\":\"" jesc(url) "\""
-    if (problem && phase != "clear" && reminds(kind)) json = json ",\"snooze\":\"" jesc(tx("Snooze 1 h", "1 h schlummern")) "\""
+    if (phase != "clear" && reminds(kind)) json = json ",\"snooze\":\"" jesc(tx("Snooze 1 h", "1 h schlummern")) "\""
   }
   print "push " json "}"
   fflush()
@@ -259,6 +261,13 @@ function maintenance(   line, p, total, h, k) {
   close(STATS "/state")
   split(line, p, " ")
   total = p[2] + 0
+  # read again each time, stats.cgi drops a part whose hours were changed
+  split("", reminded)
+  while ((getline line < (STATS "/reminded")) > 0) {
+    split(line, p, " ")
+    reminded[p[1]] = p[2]
+  }
+  close(STATS "/reminded")
   while ((getline line < (STATS "/maint")) > 0) {
     split(line, p, " ")
     if (p[2] + 0 <= 0 || total - p[3] < p[2] * 3600 || (p[1] in reminded && reminded[p[1]] == p[4])) continue
@@ -277,6 +286,10 @@ function maintenance(   line, p, total, h, k) {
 BEGIN {
   CONF = ENVIRON["CONF"]
   SNOOZE = ENVIRON["SNOOZE"]
+  # the topics and the action from openmower.sh, the topics with the prefix mosquitto_sub puts before them
+  P = ENVIRON["MOWER_MQTT_PREFIX"]
+  T_STATE = P ENVIRON["TOPIC_ROBOT_STATE"]; T_EVENTS = P ENVIRON["TOPIC_EVENTS"]; T_ACTIONS = P ENVIRON["TOPIC_ACTIONS"]
+  T_CHARGE = P ENVIRON["TOPIC_CHARGE_VOLTAGE"]; CONTINUE = ENVIRON["ACTION_CONTINUE"]
   # how long a docking may take to follow a navigation error that only came because it was sent home
   NAV_WAIT = 3
   # the emergency stop a failed mow motor start puts it in
@@ -285,13 +298,6 @@ BEGIN {
   STILL_M = 0.5
   STILL_WAIT = 600
   STATS = ENVIRON["STATS"]
-  if (STATS) {
-    while ((getline line < (STATS "/reminded")) > 0) {
-      split(line, p, " ")
-      reminded[p[1]] = p[2]
-    }
-    close(STATS "/reminded")
-  }
 }
 
 {
@@ -302,7 +308,7 @@ BEGIN {
   if (!conf_t || t - conf_t >= 30) readconf()
   if (t - maint_t >= 300) maintenance()
 
-  if (topic_in ~ /robot_state\/json$/) {
+  if (topic_in == T_STATE) {
     e = field(json, "emergency")
     e = e == "1" || e == "true"
     if (e && !emergency) em_t = t
@@ -323,18 +329,18 @@ BEGIN {
     # not out of the dock and charging there: told once, no reminders all night
     if (problem == "undock_failed" && undock_why != "no_gps" && (charging == "1" || charging == "true")) close_problem(0)
     standstill(field(json, "current_state"), field(json, "x") + 0, field(json, "y") + 0, charging == "1" || charging == "true" || v_charge > 20)
-  } else if (topic_in ~ /sensors\/om_v_charge\/data$/) {
+  } else if (topic_in == T_CHARGE) {
     v_charge = json + 0
     have_v = 1
-  } else if (topic_in ~ /actions\/json$/) {
+  } else if (topic_in == T_ACTIONS) {
     # mowing's continue is offered only while it's paused by hand, waiting for gps it isn't. v1's start button continues
     # without new actions, a pause ended by it while gps is missing isn't told as standing still
     manual = 0
-    if (match(json, /[{][^{}]*"mower_logic:mowing\/continue"[^{}]*[}]/)) {
+    if (match(json, "[{][^{}]*\"" CONTINUE "\"[^{}]*[}]")) {
       a = field(substr(json, RSTART, RLENGTH), "enabled")
       manual = a == "1" || a == "true"
     }
-  } else if (topic_in ~ /events\/json$/) {
+  } else if (topic_in == T_EVENTS) {
     type = field(json, "type")
     if (type == "DOCKING_FAILED") {
       # MowBite OS rates its events, OpenMower doesn't

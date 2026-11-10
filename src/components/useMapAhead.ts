@@ -7,7 +7,7 @@ import {angleOffsetOf, useMowerParams} from '@/hooks/useMowerParams';
 import {realEdges, realInsides, useMowerBody} from '@/lib/mowerBody';
 import {settingsStore} from '@/lib/settings';
 import {layerOn} from './MapControls';
-import {hiddenLayers} from './useMapPrefs';
+import {mapPrefs} from './useMapPrefs';
 import {boundsOf, fitIn} from './mapFrame';
 import {gardenThings} from './gardenLook';
 import {edgePaths} from './gardenLife';
@@ -22,7 +22,7 @@ export function useMapAhead(map: MowerMap | null) {
     const {scale, padX, padY} = fitIn(bounds);
     const fit = {minX: bounds.minX, minY: bounds.minY, m: scale, padX, padY};
     const garden = settings.mapStyle === 'garden';
-    const hidden = hiddenLayers();
+    const {hidden} = mapPrefs();
     const edgesOn = !!body && layerOn(hidden, 'edges');
     const own = {
       variants: settings.lookVariants,

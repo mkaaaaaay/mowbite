@@ -1,5 +1,5 @@
 import {groupRuns, type MowerEvent, type Run} from '@/lib/events';
-import {eventsOfDay, fileDay, forgetToday, historyDays, localDays} from '@/lib/history';
+import {daysBefore, eventsOfDay, fileDay, forgetToday, historyDays} from '@/lib/history';
 import {isMowbiteOs, systemInfo} from '@/lib/mowerOs';
 import {useEffect, useRef, useState} from 'react';
 
@@ -9,8 +9,8 @@ export interface RecentRuns {
   latest: Run[]; // the newest ones, newest first, from today and the days before
 }
 
-// how many runs the dashboard can show (six finished and one under way), and how many earlier days are looked
-// through for them
+// how many runs the dashboard can show (six finished and one under way), and how many earlier days with a file of
+// their own are looked through for them
 const LATEST = 7;
 const LATEST_DAYS = 7;
 
@@ -41,7 +41,7 @@ export function useRecentRuns(bump?: string, enabled = true): RecentRuns | null 
       const os = isMowbiteOs(await systemInfo());
       const runs = groupRuns(today, true, undefined, os).flatMap((e) => (e.kind === 'run' ? [e.run] : []));
       const latest = [...runs].reverse();
-      for (const d of localDays(files).filter((d) => d !== todayKey).slice(0, LATEST_DAYS)) {
+      for (const d of daysBefore(files, todayKey, LATEST_DAYS)) {
         if (latest.length >= LATEST) break;
         const old = groupRuns((await eventsOfDay(files, d)).events, false, undefined, os);
         latest.push(...old.flatMap((e) => (e.kind === 'run' ? [e.run] : [])).reverse());
