@@ -115,15 +115,17 @@ test('an emergency stop while recording is reset on the record page', async ({pa
 });
 
 // the stick takes the reset button's place once the emergency stop is let go: a second tap meant for the reset mustn't
-// drive
+// drive, also not when it's held on
 test('after an emergency reset on the record page the stick waits a moment', async ({page}) => {
   await page.goto('/record/');
   await demoDocked(page);
   await page.getByRole('button', {name: 'Start recording mode'}).click();
-  // when the reset was tapped and when the stick was pressed, by the page's clock
+  // when the reset was tapped and when the stick was pressed, by the page's clock, and whether it showed as off then
   await page.evaluate(() => {
     const at: Record<string, number> = ((window as unknown as {tapAt: Record<string, number>}).tapAt = {});
     for (const type of ['click', 'pointerdown']) document.addEventListener(type, () => (at[type] = performance.now()), true);
+    const off = (e: Event) => ((e.target as Element).closest('[class*="_pad"]')?.matches('[class*="_off"]') ? 1 : 0);
+    document.addEventListener('pointerdown', (e) => (at.off = off(e)), true);
   });
   let from = await pose(page);
   // only a press within the second it waits tells: a busy pc can be late for it, then once more
@@ -134,10 +136,15 @@ test('after an emergency reset on the record page the stick waits a moment', asy
     await page.mouse.move(box.x + box.width / 2, box.y + 8);
     await page.mouse.down();
     const at = await page.evaluate(() => (window as unknown as {tapAt: Record<string, number>}).tapAt);
-    await page.waitForTimeout(400);
-    await page.mouse.up();
+    // held past the second and moved on
+    await page.waitForTimeout(1300);
+    await page.mouse.move(box.x + box.width / 2, box.y + 16, {steps: 2});
     await page.waitForTimeout(600);
-    if (at.pointerdown - at.click < 1000) break;
+    await page.mouse.up();
+    if (at.pointerdown - at.click < 1000) {
+      expect(at.off, 'the stick shows as off while it waits').toBe(1);
+      break;
+    }
     expect(late, 'the press came too late every time').toBeLessThan(2);
     from = await pose(page);
   }

@@ -377,7 +377,7 @@ export default function DriveView({
               </button>
             </div>
           ) : (
-            <Joystick size={140} onMove={(x, y) => drive.canDrive && drive.onStick(x, y)} />
+            <Joystick size={140} disabled={!drive.canDrive} onMove={(x, y) => drive.canDrive && drive.onStick(x, y)} />
           )}
         </div>
       </section>
