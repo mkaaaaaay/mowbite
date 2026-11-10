@@ -56,9 +56,8 @@ export function demoClient(): MqttClient {
       for (const t of Array.isArray(topics) ? topics : [topics]) {
         if (subscribed.has(t)) continue;
         subscribed.add(t);
-        // like retained messages, right after subscribing
-        const now = world?.retained(t) ?? [];
-        if (now.length) setTimeout(() => now.forEach(([topic, text]) => deliver(topic, text)), 0);
+        // like retained messages, right after subscribing. as the mower is by then, so none comes after a newer one
+        setTimeout(() => (world?.retained(t) ?? []).forEach(([topic, text]) => deliver(topic, text)), 0);
       }
       if (typeof done === 'function') setTimeout(() => done(null), 0);
       return client;
