@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import type {MowerMap} from '@/hooks/useMowerMap';
-import {recordedIn, sameContent, sameMap} from './sameMap';
+import {mapKey, recordedIn, sameContent, sameMap} from './sameMap';
 import {closedRings} from './rings';
 
 const map = (): MowerMap => ({
@@ -73,6 +73,27 @@ describe('sameContent', () => {
     const setting = map();
     setting.areas[0].properties.angle = 0.5;
     expect(sameContent(map(), setting)).toBe(false);
+  });
+});
+
+describe('mapKey', () => {
+  it('stays the same when the mower sends the same map again: keys in another order, outlines closed, less than a mm off', () => {
+    const again = closedRings(map());
+    again.areas[0] = {outline: again.areas[0].outline, properties: {type: 'mow', name: 'Front'}, id: 'a'};
+    again.areas[1].outline[1] = {x: 0.4 + 3e-4, y: 0.2};
+    expect(mapKey(again)).toBe(mapKey(map()));
+  });
+
+  it('changes with an area more, a point moved by a cm or a setting', () => {
+    const added = map();
+    added.areas.push({id: 'c', properties: {type: 'nav'}, outline: [{x: 3, y: 3}, {x: 4, y: 3}, {x: 4, y: 4}]});
+    expect(mapKey(added)).not.toBe(mapKey(map()));
+    const moved = map();
+    moved.areas[1].outline[0] = {x: 0.21, y: 0.2};
+    expect(mapKey(moved)).not.toBe(mapKey(map()));
+    const named = map();
+    named.areas[0].properties.name = 'Back';
+    expect(mapKey(named)).not.toBe(mapKey(map()));
   });
 });
 

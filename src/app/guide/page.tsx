@@ -12,7 +12,7 @@ const STEPS: (GuideStep & {osText?: string})[] = [
   },
   {
     title: 'Driving',
-    text: "Tap Start recording mode, if it's out mowing tap Send it home first. Upright you drive with the joystick. Held sideways the phone becomes a remote control: the left pad drives forward and back, the right one steers, the steps are buttons at the bottom. If your phone doesn't rotate, tap Sideways.",
+    text: "Tap Start recording mode, if it's out mowing tap Send it home first: the job it was on ends once you record an area, the next start plans on the new map. Upright you drive with the joystick. Held sideways the phone becomes a remote control: the left pad drives forward and back, the right one steers, the steps are buttons at the bottom. If your phone doesn't rotate, tap Sideways.",
   },
   {
     title: 'Docking station',
