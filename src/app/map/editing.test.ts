@@ -1,7 +1,8 @@
 import type {MapArea, MowerMap} from '@/hooks/useMowerMap';
 import {PIN_SIDE, pinAt} from '@/lib/mowerBody';
+import {angleInRange} from '@/lib/mowStripes';
 import {describe, expect, it} from 'vitest';
-import {decorRedo, decorUndo, endsJob, goneLooks, jobLeft, mowerMap, onlyPinsChanged, overrideError, PIN_TILES, pinSquare, pinsFrom, pinTiles} from './editing';
+import {DEG, decorRedo, decorUndo, endsJob, goneLooks, jobLeft, mowerMap, normDeg, onlyPinsChanged, overrideError, PIN_TILES, pinSquare, pinsFrom, pinTiles} from './editing';
 
 describe('overrideError', () => {
   it('takes empty (global value) and values within the mower limits', () => {
@@ -126,5 +127,17 @@ describe('mowerMap', () => {
   it('is the mower\'s own when another one came', () => {
     const other = lawn('Other');
     expect(mowerMap(other, sent)).toBe(other);
+  });
+});
+
+describe('normDeg', () => {
+  it('keeps a range end within -180..180 as typed and wraps the rest', () => {
+    expect([0, 180, -180, 360, 540, -190].map(normDeg)).toEqual([0, 180, -180, 0, -180, 170]);
+  });
+
+  it('makes 0 to 180 and -180 to 0 any way at all, not a fixed 0', () => {
+    for (const [lo, hi] of [[0, 180], [-180, 0]]) {
+      for (const a of [30, 90, 135]) expect(angleInRange(a * DEG, normDeg(lo) * DEG, normDeg(hi) * DEG)).toBeCloseTo(a * DEG);
+    }
   });
 });

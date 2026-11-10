@@ -79,9 +79,9 @@ export const AREA_TYPES = [
 
 export const DEG = Math.PI / 180;
 
-// wraps into -180..180
+// a range end into -180..180: 180 stays (0 to 180 is half a turn, any way at all), beyond that it wraps round
 export function normDeg(d: number) {
-  return ((((d + 180) % 360) + 360) % 360) - 180;
+  return d >= -180 && d <= 180 ? d : ((((d + 180) % 360) + 360) % 360) - 180;
 }
 
 export type Override = 'outline_count' | 'outline_overlap_count' | 'outline_offset';
