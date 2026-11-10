@@ -349,7 +349,7 @@ BEGIN {
 {
   t = $1 + 0
   if ($2 == T_STATE) {
-    if (match($0, /"current_state":"[A-Z_]*"/)) rstate = substr($0, RSTART + 17, RLENGTH - 18)
+    if (match($0, /"current_state" *: *"[A-Z_]*"/)) { rstate = substr($0, RSTART, RLENGTH); sub(/^[^:]*: *"/, "", rstate); sub(/"$/, "", rstate) }
     next
   }
   if ($2 == T_INFOS) { limits(); next }

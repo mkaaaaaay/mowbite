@@ -325,6 +325,11 @@ describe('battery level', AWK, () => {
     expect(level(input, undefined, '', 'garden/')).toMatchObject({pct: 100, how: 'full'});
   });
 
+  it('reads the state from spaced out json too', () => {
+    const input = (infos + span(1, 300, () => 28.06, docked)).replace(/"current_state":"/g, '"current_state": "');
+    expect(level(input)).toMatchObject({pct: 100, how: 'full'});
+  });
+
   it("doesn't jump when the mower drives off and the blade starts", () => {
     let input = infos + span(1, 300, () => 28.06, docked);
     input += span(300, 330, () => 27.88, {robot: 'UNDOCKING'});

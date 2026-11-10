@@ -86,6 +86,8 @@ while :; do
     mosquitto_sub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -t "${MOWER_MQTT_PREFIX}$TOPIC_EVENTS" \
       -t "${MOWER_MQTT_PREFIX}$TOPIC_SENSOR_DATA" -F '%U %t %p' 2>/dev/null |
       awk -v dir="$D" -v wf=/host-net/wireless '
+        # the topics from openmower.sh, with the prefix mosquitto_sub puts before them
+        BEGIN { P = ENVIRON["MOWER_MQTT_PREFIX"]; T_STATE = P ENVIRON["TOPIC_ROBOT_STATE"]; T_EVENTS = P ENVIRON["TOPIC_EVENTS"] }
         # the signal of the first wifi interface, some drivers count it from 0 instead of in dBm, 0 is one not connected
         function wifi(    l, a, w, seen) {
           w = "-"
@@ -93,9 +95,10 @@ while :; do
           close(wf)
           return w
         }
+        # compact or spaced out json
         function num(key,    s) {
-          if (!match($0, "\"" key "\":-?[0-9.eE+-]+")) return "-"
-          s = substr($0, RSTART, RLENGTH); sub(/^[^:]*:/, "", s); return s + 0
+          if (!match($0, "\"" key "\" *: *-?[0-9.eE+-]+")) return "-"
+          s = substr($0, RSTART, RLENGTH); sub(/^[^:]*: */, "", s); return s + 0
         }
         function val(id) { return (id in sensor) ? sensor[id] : "-" }
         function write(t,    f, line) {
@@ -109,7 +112,7 @@ while :; do
           close(f)
           written = t
         }
-        $2 ~ /sensors\/[a-z0-9_]+\/data$/ {
+        $2 != T_STATE && $2 != T_EVENTS {
           id = $2; sub(/.*sensors\//, "", id); sub(/\/data$/, "", id)
           if ($3 !~ /^-?[0-9.]+$/) next
           old = val(id)
@@ -119,7 +122,7 @@ while :; do
           next
         }
         # an area started: its plan as the mower got it
-        $2 ~ /events\/json$/ {
+        $2 == T_EVENTS {
           if ($0 ~ /"type": *"AREA"/ && match($0, /"area_id": *"[A-Za-z0-9_-]+"/)) {
             a = substr($0, RSTART, RLENGTH); sub(/.*"area_id": *"/, "", a); sub(/"$/, "", a)
             system("/gpslog.sh plan " int($1) " " a " &")
@@ -129,13 +132,14 @@ while :; do
         {
           t = $1 + 0
           state = ""
-          if (match($0, /"current_state":"[A-Z_]*"/)) { state = substr($0, RSTART + 17, RLENGTH - 18) }
+          if (match($0, /"current_state" *: *"[A-Z_]*"/)) { state = substr($0, RSTART, RLENGTH); sub(/^[^:]*: *"/, "", state); sub(/"$/, "", state) }
           # standing in the dock says nothing, but the moment it got there does
           home = state == "IDLE" && num("is_charging") == 1
           if (home && was_home) next
           if (state == last_state && t - written < 0.9) next
+          # (the last position stays for a line the charge voltage writes)
+          if (num("x") == "-" || num("y") == "-" || num("pos_accuracy") == "-") next
           x = num("x"); y = num("y"); acc = num("pos_accuracy"); h = num("heading")
-          if (x == "-" || y == "-" || acc == "-") next
           # idle out of the dock (no power at the dock, the contacts dropping out) says little more: once a minute
           # unless it moves
           if (state == "IDLE" && last_state == "IDLE" && t - written < 60 && (x - lx) * (x - lx) + (y - ly) * (y - ly) < 0.0025) next
