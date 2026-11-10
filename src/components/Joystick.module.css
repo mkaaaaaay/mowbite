@@ -18,6 +18,11 @@
   cursor: grabbing;
 }
 
+.off {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .cross::before,
 .cross::after {
   content: '';

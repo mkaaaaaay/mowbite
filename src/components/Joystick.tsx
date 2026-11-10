@@ -3,8 +3,17 @@
 import {useEffect, useRef, useState} from 'react';
 import styles from './Joystick.module.css';
 
-// thumb stick, reports x/y in -1..1 (y up is positive) while held and 0/0 when let go
-export default function Joystick({onMove, size = 200}: {onMove: (x: number, y: number) => void; size?: number}) {
+// thumb stick, reports x/y in -1..1 (y up is positive) while held and 0/0 when let go. a press that starts while it's
+// disabled stays without effect until it's let go, also once it's enabled again
+export default function Joystick({
+  onMove,
+  disabled = false,
+  size = 200,
+}: {
+  onMove: (x: number, y: number) => void;
+  disabled?: boolean;
+  size?: number;
+}) {
   const [knob, setKnob] = useState<{x: number; y: number} | null>(null);
   const pad = useRef<HTMLDivElement>(null);
   const radius = size / 2;
@@ -36,10 +45,11 @@ export default function Joystick({onMove, size = 200}: {onMove: (x: number, y: n
   return (
     <div
       ref={pad}
-      className={[styles.pad, knob ? styles.active : ''].join(' ')}
+      className={[styles.pad, knob ? styles.active : '', disabled ? styles.off : ''].join(' ')}
       style={{width: size, height: size}}
       data-no-swipe
       onPointerDown={(e) => {
+        if (disabled) return;
         e.currentTarget.setPointerCapture(e.pointerId);
         move(e);
       }}
