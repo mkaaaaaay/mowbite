@@ -1108,6 +1108,7 @@ function MapEditor() {
                 onCanvasClick={handleCanvasClick}
                 onMovePending={(i, x, y) => setPendingPoints((prev) => prev.map((p, j) => (j === i ? {x, y} : p)))}
                 onInsertPending={(i, x, y) => setPendingPoints((prev) => prev.toSpliced(i, 0, {x, y}))}
+                onRemovePending={(i) => setPendingPoints((prev) => prev.toSpliced(i, 1))}
                 // the area being mowed shows how far the mower got instead of its plan
                 stripes={progress && progress.areaId === selectedAreaId ? undefined : stripes}
                 loops={progress && progress.areaId === selectedAreaId ? undefined : plan?.loops}

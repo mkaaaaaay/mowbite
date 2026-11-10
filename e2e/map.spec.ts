@@ -175,3 +175,34 @@ test('drawing keeps the view still, undo takes back the last point', async ({pag
   await page.getByRole('button', {name: 'Remove last point'}).click();
   await expect(page.getByText(/\(1 so far\)/)).toBeVisible();
 });
+
+test('a point pulled out of a drawn line goes again when a second finger starts a pinch', async ({page, isMobile}) => {
+  test.skip(!isMobile, 'two fingers');
+  await openMap(page);
+  await page.getByRole('button', {name: 'Draw'}).first().click();
+  const box = (await page.locator('[class*="_frame"]:has(svg):visible').first().boundingBox())!;
+  const [a, b] = [0.2, 0.7].map((dx) => ({x: box.x + box.width * dx, y: box.y + box.height * 0.5}));
+  for (const p of [a, b]) {
+    await page.mouse.click(p.x, p.y);
+    await page.waitForTimeout(400);
+  }
+  await expect(page.getByText(/\(2 so far\)/)).toBeVisible();
+  // held on the middle of the line, pulled away, then the second finger
+  const mid = {x: (a.x + b.x) / 2, y: a.y};
+  const cdp = await page.context().newCDPSession(page);
+  const touch = (type: string, points: {x: number; y: number}[]) =>
+    cdp.send('Input.dispatchTouchEvent', {type: type as 'touchStart', touchPoints: points.map((p, id) => ({...p, id, radiusX: 4, radiusY: 4, force: 1}))});
+  await touch('touchStart', [mid]);
+  await page.waitForTimeout(450);
+  const pulled = {x: mid.x, y: mid.y + 40};
+  for (let i = 1; i <= 8; i++) {
+    await touch('touchMove', [{x: mid.x, y: mid.y + i * 5}]);
+    await page.waitForTimeout(30);
+  }
+  await expect(page.getByText(/\(3 so far\)/)).toBeVisible();
+  await touch('touchStart', [pulled, {x: pulled.x + 80, y: pulled.y + 60}]);
+  await page.waitForTimeout(100);
+  await touch('touchEnd', []);
+  await cdp.detach();
+  await expect(page.getByText(/\(2 so far\)/)).toBeVisible();
+});
