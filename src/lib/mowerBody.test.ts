@@ -13,6 +13,7 @@ import {
   MOWER_MODELS,
   OUTLINE_LEEWAY,
   outlineOf,
+  outsideLimits,
   plannerOutline,
   plannerSizes,
   insideEdge,
@@ -461,6 +462,21 @@ describe('real outline', () => {
     }
     expect(again(nx)).toEqual(grownOutline(nx, OUTLINE_LEEWAY));
     expect(again(again(nx))).toEqual(grownOutline(nx, OUTLINE_LEEWAY));
+  });
+
+  it('takes every model within the limits of the sizes, a slipped unit is outside', () => {
+    for (const m of MOWER_MODELS) {
+      for (const key of ['width', 'front', 'rear', 'blade'] as const) {
+        if (m.sizes[key] !== undefined) expect([m.key, key, outsideLimits(key, m.sizes[key]!)]).toEqual([m.key, key, null]);
+      }
+    }
+    // 0.18 typed for 18 cm, 180 for 18 cm
+    expect(outsideLimits('blade', 0.0018)).toEqual({min: 5, max: 40});
+    expect(outsideLimits('blade', 1.8)).toEqual({min: 5, max: 40});
+    expect(outsideLimits('width', 0.0041)).toEqual({min: 10, max: 150});
+    expect(outsideLimits('rear', 0)).toBeNull();
+    expect(outsideLimits('rear', -0.01)).toEqual({min: 0, max: 150});
+    expect(outsideLimits('bladeAhead', -5)).toBeNull();
   });
 
   it('fits the sizes of the models that have one', () => {

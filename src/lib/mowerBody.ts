@@ -402,6 +402,20 @@ export type MowerSizes = NonNullable<Settings['mower']>;
 // the widest blade the app takes, more than any mower running OpenMower cuts
 export const MAX_BLADE = 0.4; // m
 
+// what a mower's sizes can be (m): outside it the unit slipped, metres or millimetres typed as cm
+export const SIZE_LIMITS: {[K in keyof MowerSizes]?: readonly [number, number]} = {
+  width: [0.1, 1.5],
+  front: [0.1, 1.5],
+  rear: [0, 1.5],
+  blade: [0.05, MAX_BLADE],
+};
+
+// the limits a size lies outside of, in cm as the fields show them
+export function outsideLimits(key: keyof MowerSizes, v: number): {min: number; max: number} | null {
+  const l = SIZE_LIMITS[key];
+  return l && (v < l[0] || v > l[1]) ? {min: Math.round(l[0] * 100), max: Math.round(l[1] * 100)} : null;
+}
+
 const metres = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
 // the sizes set in the app

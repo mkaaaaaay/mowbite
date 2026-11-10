@@ -12,6 +12,7 @@ import {
   OUTLINE_LEEWAY,
   grownOutline,
   outlineOf,
+  outsideLimits,
   plannerOutline,
   savePlannerSettings,
   sizesBody,
@@ -61,6 +62,9 @@ const MODEL_FIELDS = [
   ['blade_ahead', 'bladeAhead'],
   ['blade_offset', 'bladeOffset'],
 ] as const;
+
+// a planner setting's name among the sizes
+const SIZE_KEY = Object.fromEntries(MODEL_FIELDS) as Record<BodySetting, (typeof MODEL_FIELDS)[number][1]>;
 
 const sizesOf = (f: Form): MowerSizes => Object.fromEntries(MODEL_FIELDS.map(([key, size]) => [size, cmMetres(f[key]) ?? undefined]));
 
@@ -200,6 +204,11 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
       const v = metres(key);
       if (v === null) {
         setState({error: tr('{what} is not a number.', {what: tr(LABELS[key])})});
+        return;
+      }
+      const outside = outsideLimits(SIZE_KEY[key], v);
+      if (outside) {
+        setState({error: tr('{what} has to be between {min} and {max} cm.', {what: tr(LABELS[key]), ...outside})});
         return;
       }
       if (!s.stored || typeof s.value !== 'number' || Math.abs(s.value - v) > 1e-6) changes[key] = Math.round(v * 10000) / 10000;
