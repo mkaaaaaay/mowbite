@@ -911,6 +911,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
         detour = {id: job.id, session: job.session, run: {legs, at: 0, d: 0}, then: 'resume'};
         parked = false;
         away = false;
+        mows.push({start: t, end: Infinity});
       } else if (newJob(t)) mows.push({start: t, end: Infinity});
     } else if (id === ACTION.pause && s === 'MOWING') {
       // the pause stays inside MowingBehavior: no STATE, only the blade

@@ -16,7 +16,7 @@ export function rpcErrorText(e: unknown): string {
   const hold = holdText(e);
   if (hold) return hold;
   if (e instanceof RpcError) {
-    if (e.code === -32601) return tr("Your OpenMower version doesn't offer this ({method}).", {method: e.method});
+    if (e.code === -32601) return tr("Your mower's software doesn't offer this ({method}).", {method: e.method});
     if (e.code === 'timeout') return tr("The mower didn't answer.");
     if (e.code === 'too_large')
       return tr('Too big to send to the mower ({size} MB, at most {max} MB). For a map: reduce the points of big areas.', {

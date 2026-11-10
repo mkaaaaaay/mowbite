@@ -4,7 +4,7 @@
 
 import type {GardenLife} from '@/components/gardenLife';
 import {mergeChanges} from './mergeChanges';
-import {apiBase, isDemo, leaveRemoved, mowerFetch, readStored, selectedMower, selectedMowerId} from './mowers';
+import {apiBase, APP_MOWER_SCRIPT, isDemo, leaveRemoved, mowerFetch, readStored, selectedMower, selectedMowerId, writeStored} from './mowers';
 import {isApp} from './native';
 
 export const COLORS = [
@@ -91,22 +91,19 @@ const PATH = '/cgi-bin/settings';
 // where the settings are kept: with the mower looked at in the android app (it has no mower of its own), with the one
 // the page comes from in a browser. a browser looking at another mower keeps that one's own settings (MOWER_KEYS)
 // there, ownUrl, the app's (design, colors, the list of mowers) stay home
-// both taken at the first sync and kept until the reload a mower switch makes, a mower taken out of the list meanwhile
-// doesn't move them
-let urls: {home: string; own: string | null} | null = null;
-const target = () => (urls ??= {home: (isApp() ? apiBase() : '') + PATH, own: !isApp() && apiBase() ? apiBase() + PATH : null});
-const homeUrl = () => target().home;
-const ownUrl = () => target().own;
+const homeUrl = () => (isApp() ? apiBase() : '') + PATH;
+const ownUrl = () => (!isApp() && apiBase() ? apiBase() + PATH : null);
 
 const NONE: Settings = {};
 let current: Settings | null = null;
 let shared = false;
 const listeners = new Set<() => void>();
 
-// where this device keeps the own settings of the mower looked at, by its id ('' the one the page comes from), taken
-// once like the urls. not mowerKey: selectedMower reads the list of mowers from these settings
-let ownKey: string | null = null;
-const ownStorageKey = () => (ownKey ??= `${STORAGE_KEY}:${isApp() ? (selectedMower()?.id ?? '') : selectedMowerId()}`);
+// where this device keeps a mower's own settings, by its id ('' the one the page comes from), and the ones of the mower
+// looked at. not mowerKey: selectedMower reads the list of mowers from these settings
+const ownKey = (id: string) => `${STORAGE_KEY}:${id}`;
+const ownId = () => (isApp() ? (selectedMower()?.id ?? '') : selectedMowerId());
+const ownStorageKey = () => ownKey(ownId());
 
 // what of the settings is kept by the mower's id: in a browser MOWER_KEYS, in the app everything is the mower's
 const ownPart = (s: Settings) => (isApp() ? s : join({}, s));
@@ -126,13 +123,19 @@ export function applyColors(colors: Settings['colors'] = {}) {
   for (const c of COLORS) root.setProperty(`--c-${c.key}`, colors[c.key] ?? c.value);
 }
 
+// what this page changed of a part goes on top of what's kept there now, another tab's save meanwhile stays
+const keep = (key: string, part: (s: Settings) => Settings, was: Settings, next: Settings) =>
+  localStorage.setItem(key, JSON.stringify(part(mergeChanges(readStored<Settings>(key) ?? part(was), part(was), part(next)))));
+
 // the demo's settings stay in memory, the ones of this device's mowers are kept as they were
 function setLocal(next: Settings) {
+  const was = load();
   current = next;
   try {
     if (!isDemo()) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(join(next, {})));
-      localStorage.setItem(ownStorageKey(), JSON.stringify(ownPart(next)));
+      keep(STORAGE_KEY, (s) => join(s, {}), was, next);
+      keep(ownStorageKey(), ownPart, was, next);
+      keepBefore();
     }
   } catch {}
   applyColors(next.colors);
@@ -168,56 +171,88 @@ let ownShared = false;
 // asked once, everyone asking waits for the same answer. a mower that couldn't be reached (or its container failed) is
 // asked again a while later, and what was changed here meanwhile goes on top of what it has
 let syncing: Promise<void> | null = null;
-// the settings here when it was first asked: what differs from them later was changed on this device
+// the settings as the mowers had them when last asked or saved to: what differs from them was changed on this device and
+// hasn't got there yet. kept on this device while there is such a change (a save that failed, a mower out of reach), the
+// next time it's reached that goes on top of what it has then. null: not asked yet or no container to keep them on,
+// what's kept from an earlier time stays then
 let before: Settings | null = null;
+const beforeKey = (id: string) => `${STORAGE_KEY}Before:${id}`;
+function keepBefore() {
+  if (!before) return;
+  try {
+    if (sorted(before) !== sorted(load())) localStorage.setItem(beforeKey(ownId()), JSON.stringify(before));
+    else localStorage.removeItem(beforeKey(ownId()));
+  } catch {}
+}
+// the settings as the mowers have them now, the other mower's own part as before while it couldn't be saved there
+function agreed(): Settings {
+  return ownUrl() ? join(home.server, ownShared ? own.server : (before ?? {})) : home.server;
+}
+// a mower taken out of the list: its settings kept on this device go
+export function forgetOwnSettings(id: string) {
+  writeStored(ownKey(id), null);
+  writeStored(beforeKey(id), null);
+}
 // first after 30 s, then each time twice as long up to half an hour
 let wait = 30000;
+let retry: ReturnType<typeof setTimeout> | undefined;
 const again = () => {
-  setTimeout(() => {
+  if (retry) return;
+  retry = setTimeout(() => {
+    retry = undefined;
     syncing = null;
     void syncSettings();
   }, wait);
   wait = Math.min(wait * 2, 1800000);
 };
-// a container's settings and their version, null when none answers there (the page isn't served by one)
-async function fetchKept(url: string): Promise<Kept | null> {
+// a save that got there: what was sent is the mowers' now. one that didn't is sent again a while later
+const sent = (p: Promise<void>) =>
+  p.then(() => {
+    before = agreed();
+    keepBefore();
+  }, again);
+// a container's settings and their version asked for into k, false when none answers there (the page isn't served by
+// one). an answer that a save's answer overtook is dropped, that one is newer
+async function fetchKept(k: Kept, url: string): Promise<boolean> {
+  const was = k.server;
   const res = await mowerFetch(url, {cache: 'no-store'});
   if (!res.ok || !res.headers.get('content-type')?.includes('json')) {
     // (no container behind it answers that way for good)
     if (res.status >= 500) throw new Error(`settings ${res.status}`);
-    return null;
+    return false;
   }
   // a file that isn't json any more (two saves at once in an older container) counts as empty, the next save mends it
   const data = await res.json().catch(() => ({}));
-  return {server: data && typeof data === 'object' ? data : {}, version: res.headers.get('X-Settings-Version') || null};
+  const got: Kept = {server: data && typeof data === 'object' ? data : {}, version: res.headers.get('X-Settings-Version') || null};
+  if (k.server === was) Object.assign(k, got);
+  return true;
 }
 export function syncSettings(): Promise<void> {
-  before ??= load();
   syncing ??= (async () => {
+    before ??= readStored<Settings>(beforeKey(ownId())) ?? load();
     try {
-      const got = await fetchKept(homeUrl());
-      if (!got) return;
-      Object.assign(home, got);
+      if (!(await fetchKept(home, homeUrl()))) {
+        // where one answered before, something else does now (another network): asked again
+        if (shared) again();
+        else before = null;
+        return;
+      }
       shared = true;
       const o = ownUrl();
-      const gotOwn = o ? await fetchKept(o).catch(() => undefined) : null;
-      if (gotOwn) {
-        Object.assign(own, gotOwn);
-        ownShared = true;
-      }
-      // the other mower's own settings as kept here while it can't be reached, it's asked again a while later. one
-      // without a container (it answers, but not with settings) isn't
+      // undefined: not reached
+      const gotOwn = o ? await fetchKept(own, o).catch(() => undefined) : false;
+      if (gotOwn) ownShared = true;
+      // the other mower's own settings as it had them while it can't be reached, it's asked again a while later. one
+      // without a container (it answers, but not with settings) keeps them here
       if (gotOwn === undefined) again();
-      const server = o ? join(home.server, gotOwn ? own.server : load()) : home.server;
+      const server = o ? join(home.server, gotOwn ? own.server : gotOwn === false ? load() : (before ?? load())) : home.server;
       const mine = load();
-      if (mine === before) setLocal(server);
-      else {
-        const next = mergeChanges(server, before ?? {}, mine);
-        setLocal(next);
-        saving = saving.then(() => pushAll(next)).catch(() => {});
-      }
-      // what's changed from now on is this device's
-      before = load();
+      const base = before ?? mine;
+      const changed = sorted(mine) !== sorted(base);
+      const next = changed ? mergeChanges(server, base, mine) : server;
+      before = server;
+      setLocal(next);
+      if (changed) saving = sent(saving.then(() => pushAll(next)));
       void saving.then(leaveRemoved);
     } catch {
       // not reached: kept here for now
@@ -254,7 +289,8 @@ async function push(k: Kept, url: string, body: () => Settings, shown: (merged: 
     });
     const v = res.headers.get('X-Settings-Version') || null;
     if (res.status !== 409) {
-      if (res.ok) [k.server, k.version] = [next, v];
+      if (!res.ok) throw new Error(`settings ${res.status}`);
+      [k.server, k.version] = [next, v];
       return;
     }
     const theirs: Settings = await res.json();
@@ -262,6 +298,7 @@ async function push(k: Kept, url: string, body: () => Settings, shown: (merged: 
     [k.server, k.version] = [theirs, v];
     setLocal(shown(next));
   }
+  throw new Error('settings changed elsewhere meanwhile');
 }
 
 // sliders and color pickers fire on every move, only the last state goes to the mower. one save after another
@@ -269,7 +306,7 @@ let saveTimer: ReturnType<typeof setTimeout> | undefined;
 let saving: Promise<void> = Promise.resolve();
 const pushNow = () => {
   saveTimer = undefined;
-  saving = saving.then(() => pushAll(load())).catch(() => {});
+  saving = sent(saving.then(() => pushAll(load())));
 };
 export function saveSettings(next: Settings) {
   setLocal(next);
@@ -360,7 +397,10 @@ export function dropLooks(ids: readonly string[]) {
   if (next !== now) saveSettings(next);
 }
 
-// inline in <head>: sets the color variables before anything is drawn, so saved colors don't flash
-export const COLOR_BOOT_SCRIPT = `try{var s=JSON.parse(localStorage.getItem('${STORAGE_KEY}')||'null'),c=(s&&s.colors)||{},d=${JSON.stringify(
+// inline in <head>: sets the color variables before anything is drawn, so saved colors don't flash. in the app they're the
+// mower's own (load), its bridge is there before this runs. (built when asked, mowers and settings import each other)
+export const colorBootScript = () => `try{var s=JSON.parse(localStorage.getItem('${STORAGE_KEY}')||'null');\
+if(window.Capacitor&&window.Capacitor.isNativePlatform&&window.Capacitor.isNativePlatform()){${APP_MOWER_SCRIPT}\
+s=JSON.parse(localStorage.getItem('${ownKey('')}'+m)||'null')||s}var c=(s&&s.colors)||{},d=${JSON.stringify(
   Object.fromEntries(COLORS.map((c) => [c.key, c.value])),
 )};for(var k in d)document.documentElement.style.setProperty('--c-'+k,c[k]||d[k])}catch(e){}`;

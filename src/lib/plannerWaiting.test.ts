@@ -1,9 +1,12 @@
-import {beforeEach, describe, expect, it, vi} from 'vitest';
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 
 // a planner busy planning: its answer to planner.settings comes when the test says
 const fake = vi.hoisted(() => ({
   calls: [] as {method: string; resolve: (v: unknown) => void; reject: (e: unknown) => void}[],
   listed: true,
+  // what rpc.methods said so far (undefined: no answer yet), and who waits for its answer
+  known: null as Set<string> | null | undefined,
+  waiting: [] as (() => void)[],
 }));
 vi.mock('./rpc', () => {
   class RpcError extends Error {
@@ -20,6 +23,11 @@ vi.mock('./rpc', () => {
     callRpc: (method: string) => new Promise((resolve, reject) => fake.calls.push({method, resolve, reject})),
     isMissingMethod: (e: unknown) => e instanceof RpcError && e.code === -32601,
     rpcMethods: async () => new Set(fake.listed ? ['planner.settings'] : []),
+    knownMethods: () => fake.known,
+    askUntilAnswered: (_ask: unknown, got: () => void) => {
+      fake.waiting.push(got);
+      return () => void fake.waiting.splice(fake.waiting.indexOf(got), 1);
+    },
   };
 });
 vi.mock('./settings', () => ({
@@ -103,5 +111,68 @@ describe('waiting for a busy planner', () => {
     await Promise.resolve();
     await Promise.resolve();
     expect(m.plannerWaiting()).toBeNull();
+  });
+});
+
+describe('asking the planner until it answers', () => {
+  beforeEach(() => {
+    fake.listed = true;
+    fake.known = null;
+    fake.waiting = [];
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('asks again at once after no answer, 15 s after an error, no more once it answered', async () => {
+    const m = await fresh();
+    let failed = 0;
+    const stop = m.askPlanner(() => failed++);
+    expect(fake.calls).toHaveLength(1);
+    fake.calls[0].reject(new m.RpcError('planner.settings', 'timeout', 'timed out'));
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fake.calls).toHaveLength(2);
+    fake.calls[1].reject(new m.RpcError('planner.settings', -32000, 'busy'));
+    await vi.advanceTimersByTimeAsync(14000);
+    expect(fake.calls).toHaveLength(2);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(fake.calls).toHaveLength(3);
+    expect(failed).toBe(2);
+    fake.calls[2].resolve(settings);
+    await vi.advanceTimersByTimeAsync(600_000);
+    expect(fake.calls).toHaveLength(3);
+    stop();
+  });
+
+  it('asks a mower that answered no call at all again once it tells its methods, not every minute', async () => {
+    fake.known = undefined;
+    const m = await fresh();
+    const stop = m.askPlanner();
+    fake.calls[0].reject(new m.RpcError('planner.settings', 'timeout', 'timed out'));
+    await vi.advanceTimersByTimeAsync(600_000);
+    expect(fake.calls).toHaveLength(1);
+    expect(fake.waiting).toHaveLength(1);
+    fake.known = new Set(['planner.settings']);
+    fake.waiting[0]();
+    expect(fake.calls).toHaveLength(2);
+    stop();
+  });
+
+  it('stopped, it neither asks nor waits any more', async () => {
+    fake.known = undefined;
+    const m = await fresh();
+    const stop = m.askPlanner();
+    fake.calls[0].reject(new m.RpcError('planner.settings', 'timeout', 'timed out'));
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fake.waiting).toHaveLength(1);
+    stop();
+    expect(fake.waiting).toHaveLength(0);
+    const other = m.askPlanner();
+    fake.calls[1].reject(new m.RpcError('planner.settings', -32000, 'busy'));
+    await vi.advanceTimersByTimeAsync(1);
+    other();
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(fake.calls).toHaveLength(2);
   });
 });

@@ -68,14 +68,18 @@ describe('bladeSeconds', () => {
 });
 
 describe('savedRate', () => {
-  it("is the mower's own, the demo's isn't kept", () => {
+  it("is the mower's own, the demo's isn't kept", async () => {
     saveRate(0.3);
     expect(savedRate()).toBe(0.3);
+    // (the demo picked and left again: each time the page reloads)
     localStorage.setItem('mower', 'demo');
-    expect(savedRate()).toBeNull();
-    saveRate(0.45);
+    vi.resetModules();
+    const demo = await import('./planProgress');
+    expect(demo.savedRate()).toBeNull();
+    demo.saveRate(0.45);
     localStorage.removeItem('mower');
-    expect(savedRate()).toBe(0.3);
+    vi.resetModules();
+    expect((await import('./planProgress')).savedRate()).toBe(0.3);
     expect([...store.keys()]).toEqual(['mowRate']);
   });
 });

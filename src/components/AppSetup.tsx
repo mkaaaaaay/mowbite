@@ -23,8 +23,8 @@ export default function AppSetup() {
 
   // MowBite on another port than 8082, typed after the host
   const typed = parseAddress(host);
-  const clean = typed.host;
-  const port = typed.port ?? 8082;
+  const clean = typed?.host ?? '';
+  const port = typed?.port ?? 8082;
   const save = () => {
     const id = Math.random().toString(36).slice(2, 10);
     saveAppMowers([{id, name: name.trim(), host: clean, appPort: port, wsPort: 9001}]);

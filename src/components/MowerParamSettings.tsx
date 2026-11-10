@@ -37,22 +37,33 @@ export const useCanSetParams = (): boolean => !!useRpcMethods()?.has(RPC.setPara
 // when there's no container that keeps it and on MowBite OS (it keeps them itself)
 let kept: KeptParams | null | undefined;
 let asked = false;
+let askIn = 10000;
 const listeners = new Set<() => void>();
 const setKept = (k: KeptParams | null) => {
   kept = k;
   listeners.forEach((l) => l());
 };
+function ask() {
+  asked = true;
+  // (no answer, a container that's slow to come up included: asked again by the next page that wants it and, while one
+  // shows it, less and less often; also while it isn't known yet what runs on the mower)
+  void systemInfo().then(async (i) => {
+    const os = isMowbiteOs(i);
+    const k = os ? null : await loadKept();
+    if (!k || i === undefined) asked = false;
+    // (what's known stays when it doesn't answer this time: a change says then that it couldn't be kept)
+    if (k || !kept) setKept(k);
+    if (k || os) askIn = 10000;
+    else {
+      setTimeout(() => {
+        if (!asked && listeners.size) ask();
+      }, askIn);
+      askIn = Math.min(askIn * 2, 300000);
+    }
+  });
+}
 function subscribe(l: () => void) {
-  if (!asked) {
-    asked = true;
-    // (no answer, a container that's slow to come up included: asked again by the next page that wants it, also while
-    // it isn't known yet what runs on the mower)
-    void systemInfo().then(async (i) => {
-      const k = isMowbiteOs(i) ? null : await loadKept();
-      if (!k || i === undefined) asked = false;
-      setKept(k);
-    });
-  }
+  if (!asked) ask();
   listeners.add(l);
   return () => listeners.delete(l);
 }
@@ -64,20 +75,23 @@ const useKept = () =>
   );
 
 // one change to what the container keeps as it has it now (another device may have kept more since it was asked
-// for), shown at once and back as it was when the container didn't take it
-async function storeKept(change: (k: KeptParams) => KeptParams) {
-  const before = kept ?? null;
-  if (before) setKept(change(before));
-  try {
-    const now = (await loadKept()) ?? before;
-    if (!now) throw new Error('nothing kept');
-    const next = change(now);
-    await saveKept(next);
-    setKept(next);
-  } catch (e) {
-    setKept(before);
-    throw e;
-  }
+// for), shown at once and back as it was when the container didn't take it. one after the other, each on the last
+let storing: Promise<unknown> = Promise.resolve();
+function storeKept(change: (k: KeptParams) => KeptParams): Promise<void> {
+  const run = storing.then(async () => {
+    const before = kept ?? null;
+    if (before) setKept(change(before));
+    try {
+      const now = (await loadKept()) ?? before;
+      if (!now) throw new Error('nothing kept');
+      setKept(await saveKept(change(now)));
+    } catch (e) {
+      setKept(before);
+      throw e;
+    }
+  });
+  storing = run.catch(() => {});
+  return run;
 }
 
 class NotKept extends Error {}
@@ -86,6 +100,11 @@ class NotKept extends Error {}
 async function apply(f: ParamField, value: number | boolean) {
   const applied = await setParams({[f.key]: value});
   const took = applied[f.key] ?? value;
+  // not known (yet): asked now, a container that keeps an older value of it would set that one again
+  if (kept == null && !isMowbiteOs(await systemInfo())) {
+    const now = await loadKept();
+    if (now) setKept(now);
+  }
   if (kept?.enabled)
     await storeKept((k) => ({...k, values: {...k.values, [f.key]: took}})).catch(() => {
       throw new NotKept(tr("Set on the mower, but MowBite couldn't keep it for after a restart."));
@@ -202,14 +221,18 @@ export function ParamFix({keys}: {keys: string[]}) {
 }
 
 // the values that matter most of a group, read in its folded line
-function summary(group: ParamGroup, params: Record<string, unknown>): string {
+export function summary(group: ParamGroup, params: Record<string, unknown>): string {
   const v = (key: string) => paramValue(params, paramField(key)!);
   const n = (key: string) => showParam(paramField(key)!, v(key) as number);
   switch (group) {
     case 'mowing':
       return [v('outline_count') === 1 ? tr('1 outline pass') : tr('{n} outline passes', {n: n('outline_count')}), tr('lanes {n} cm apart', {n: n('tool_width')}), tr('turned by {n}°', {n: n('mow_angle_offset')})].join(' · ');
     case 'auto':
-      return [tr(paramField('rain_mode')!.choices![v('rain_mode') as number] ?? ''), tr(AUTOMATIC_SHORT[v('automatic_mode') as number] ?? '')].join(' · ');
+      // a value it doesn't know (a newer OpenMower) is left out
+      return [paramField('rain_mode')!.choices![v('rain_mode') as number], AUTOMATIC_SHORT[v('automatic_mode') as number]]
+        .filter((t) => t !== undefined)
+        .map((t) => tr(t))
+        .join(' · ');
     case 'gps':
       return [tr('{n} s without a fix', {n: n('gps_timeout')}), tr('better than {n} cm', {n: n('max_position_accuracy')})].join(' · ');
     case 'docking':
