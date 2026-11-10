@@ -9,7 +9,7 @@ import {saveMap, useMowerMap, type MowerMap, type Point} from '@/hooks/useMowerM
 import {useMowerPosition} from '@/hooks/useMowerPosition';
 import {useIdle, useMowerStateValue} from '@/hooks/useMowerState';
 import {useEggForced, useUmbrella} from '@/lib/eggs';
-import {lastRun as newestRun} from '@/hooks/useRecentRuns';
+import {lastRun as newestRun, useRecentRuns} from '@/hooks/useRecentRuns';
 import {clearTrack, trackPoints, useLastRun, useLastRunJob, useMowerTrack} from '@/hooks/useMowerTrack';
 import {useMarginPlaces} from '@/lib/marginCheck';
 import {useLeftoversBefore} from '@/hooks/useLeftoversBefore';
@@ -130,8 +130,10 @@ function MapEditor() {
   // while it mows: how far it got with the area's plan, like on the overview (the state only then, it changes every
   // second)
   const mowingState = useMowerStateValue((l) => (l.state?.current_state === 'MOWING' || l.state?.current_state === 'PAUSED' ? l.state : null));
-  // (driving the leftover passes of the last mow: along those, nothing to draw when the planner can't work them out again)
-  const planProgress = usePlanProgress(mowingState, liveMap, undefined);
+  // (driving the leftover passes of the last mow: along those, nothing to draw when the planner can't work them out again).
+  // with the day's events like the overview: the plan is the one of the run going on
+  const recent = useRecentRuns(mowingState?.current_state, !!mowingState);
+  const planProgress = usePlanProgress(mowingState, liveMap, recent?.today);
   const progress = planProgress?.leftovers && !planProgress.todoLength && !planProgress.doneLength ? null : planProgress;
   // and that mow's track, faded under the trail
   const before = useLeftoversBefore(!!planProgress?.leftovers);
