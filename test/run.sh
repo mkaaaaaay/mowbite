@@ -398,6 +398,8 @@ docker exec mbt-web sh -c 'cd /data/backups && for i in $(seq 30); do printf "x\
 id=$(curl -s --data-binary '{"areas":[]}' "$B?name=new&auto=1" | bid)
 expect "backups: the one just made is kept" "$(code "$B?id=$id")" 200
 expect "backups: the oldest automatic one goes" "$(code "$B?id=$old")" 404
+expect "backups: as many automatic ones left as the list says" \
+  "$(docker exec mbt-web sh -c 'awk "FNR == 3 && \$0 == 1 { n++ } END { print n + 0 }" /data/backups/*.meta')" 30
 
 N=$W/notify
 curl -s -o /dev/null --data-binary $'server https://ntfy.invalid\ntopic mbt-test\ntoken secret-token-1\nenabled 1' "$N"
@@ -428,10 +430,9 @@ t0=$(date +%s)
 docker stop mbt-web > /dev/null
 expect "it stops right away, not after docker's 10 s" "$(($(date +%s) - t0 < 5))" 1
 docker start mbt-web > /dev/null
-sleep 5
-expect "the logs in /data kept to their size" \
-  "$(docker exec mbt-web sh -c 'wc -l < /data/stats/hours; wc -l < /data/battery.log; wc -l < /data/battery-health.log' | tr '\n' ' ')" \
-  '10000 2000 4000 '
+sizes() { docker exec mbt-web sh -c 'wc -l < /data/stats/hours; wc -l < /data/battery.log; wc -l < /data/battery-health.log' | tr '\n' ' '; }
+for _ in $(seq 30); do [ "$(sizes)" = '10000 2000 4000 ' ] && break; sleep 1; done
+expect "the logs in /data kept to their size" "$(sizes)" '10000 2000 4000 '
 
 echo "$pass passed, $fail failed"
 [ "$fail" = 0 ]

@@ -51,11 +51,13 @@ if [ "$REQUEST_METHOD" = "POST" ]; then
   # without its meta it wouldn't be listed nor thinned out
   printf '%s\n%s\n%s\n' "$name" "${areas:-0}" "${auto:-0}" > "$D/$new.meta.tmp" && mv "$D/$new.meta.tmp" "$D/$new.meta" ||
     { rm -f "$D/$new.meta.tmp" "$D/$new.json.gz"; fail 500 'not saved'; }
-  # only the automatic ones are thinned out, the ones made by hand stay, and so does the one just made (the clock may
-  # have gone back since the others)
+  # only the automatic ones are thinned out, the ones made by hand stay. the one just made stays whatever its time (the
+  # clock may have gone back since the others) and is one of those kept
+  others=$KEEP_AUTO
+  [ "${auto:-0}" = 1 ] && others=$((KEEP_AUTO - 1))
   ls "$D"/*.meta 2>/dev/null | sort -r | while read -r m; do
     [ "$m" != "$D/$new.meta" ] && [ "$(sed -n 3p "$m")" = 1 ] && echo "$m"
-  done | tail -n +$((KEEP_AUTO + 1)) | while read -r m; do
+  done | tail -n +$((others + 1)) | while read -r m; do
     rm -f "$m" "${m%.meta}.json.gz"
   done
   cors
