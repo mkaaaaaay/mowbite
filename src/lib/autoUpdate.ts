@@ -1,4 +1,5 @@
-import {fmt, locale, tr} from './i18n';
+import {clock, dayDateYear} from './dates';
+import {fmt, tr} from './i18n';
 import {apiBase, mowerFetch} from './mowers';
 
 // the MowBite Updater on the mower (github.com/mkaaaaaay/mowbite-updater), through the container's cgi-bin/update: the
@@ -205,9 +206,8 @@ export function stepDetail(p: Progress, now = Date.now() / 1000): string {
   return `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
 }
 
-const date = (d: string | undefined) => (d && /^\d{4}-\d\d-\d\d$/.test(d) ? new Date(`${d}T12:00:00`).toLocaleDateString(locale()) : null);
-const when = (t: string | undefined) =>
-  t ? new Date(Number(t) * 1000).toLocaleString(locale(), {dateStyle: 'short', timeStyle: 'short'}) : '?';
+const date = (d: string | undefined) => (d && /^\d{4}-\d\d-\d\d$/.test(d) ? dayDateYear(new Date(`${d}T12:00:00`)) : null);
+const when = (t: string | undefined) => (t ? `${dayDateYear(new Date(Number(t) * 1000))}, ${clock(Number(t))}` : '?');
 
 export type Availability = 'yes' | 'no' | 'switch' | 'failed' | 'unknown' | 'local';
 
@@ -365,7 +365,7 @@ export function runResult(s: UpdateState): string | null {
     const parts = runParts(s);
     const now = progressOf(s)?.part;
     if (!now || !parts.includes(now)) return tr('Updating right now…');
-    const name = partsOf(s).find((p) => p.id === now)?.name ?? PART_NAMES[now] ?? now;
+    const name = tr(partsOf(s).find((p) => p.id === now)?.name ?? PART_NAMES[now] ?? now);
     return tr('Updating {name} ({n} of {of})…', {name, n: parts.indexOf(now) + 1, of: parts.length});
   }
   return null;

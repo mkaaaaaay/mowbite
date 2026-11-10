@@ -1,6 +1,6 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {setLangChoice} from './i18n';
-import {dayDate, dayLabel} from './dates';
+import {dayDate, dayDateYear, dayLabel} from './dates';
 
 describe('dayDate', () => {
   // the language marks the page with it
@@ -18,6 +18,15 @@ describe('dayDate', () => {
   it('keeps the number in german', () => {
     setLangChoice('de');
     expect(dayDate(new Date(2026, 10, 11, 10))).toBe('Mi., 11.11.');
+  });
+
+  it('adds the year only to a day of another year', () => {
+    setLangChoice('de');
+    expect(dayDateYear(new Date(2025, 10, 11, 10))).toBe('Di., 11.11.2025');
+    const d = new Date(new Date().getFullYear(), 0, 2, 10);
+    expect(dayDateYear(d)).toBe(dayDate(d));
+    setLangChoice('en');
+    expect(dayDateYear(new Date(2025, 10, 11, 10))).toBe('Tue, 11 Nov 2025');
   });
 
   it('is what dayLabel says for a day before yesterday', () => {

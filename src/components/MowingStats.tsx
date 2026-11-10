@@ -2,7 +2,8 @@
 
 import InfoTip from './InfoTip';
 import {UpdateCommand, versionNote} from './Updates';
-import {fmt, locale, tr} from '@/lib/i18n';
+import {dayDateYear} from '@/lib/dates';
+import {fmt, tr} from '@/lib/i18n';
 import {
   amountsOf,
   dueParts,
@@ -30,7 +31,7 @@ const PERIODS: {key: Period; label: string}[] = [
 
 const hours = (s: number) => (s < 3600 ? `${Math.round(s / 60)} min` : `${fmt(s / 3600, s < 360000 ? 1 : 0)} h`);
 const distance = (m: number) => (m < 1000 ? `${Math.round(m)} m` : `${fmt(m / 1000, 1)} km`);
-const date = (t: number) => new Date(t * 1000).toLocaleDateString(locale(), {day: 'numeric', month: 'numeric', year: 'numeric'});
+const date = (t: number) => dayDateYear(new Date(t * 1000));
 
 function PartRow({stats, part, onStats}: {stats: Stats; part: Part; onStats: (s: Stats) => void}) {
   const [asking, setAsking] = useState(false);

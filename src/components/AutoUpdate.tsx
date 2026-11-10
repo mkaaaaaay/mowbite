@@ -242,7 +242,7 @@ function PartCard({
   return (
     <div className={local.part}>
       <div className={local.head}>
-        <span className={local.name}>{p.name}</span>
+        <span className={local.name}>{tr(p.name)}</span>
         {info.available && !fixed && <Badge available={info.available} isNew={isNew} />}
       </div>
       <span className={local.dim}>{tr('Runs: {what}', {what: info.running})}</span>
