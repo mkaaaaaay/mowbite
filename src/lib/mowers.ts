@@ -38,15 +38,25 @@ export function mowerList(): OtherMower[] {
   return isApp() ? appMowers() : (settingsStore.snapshot().mowers ?? []);
 }
 
+// the mower this page looks at, taken at its first use and kept until the page reloads: another tab picking another one
+// or leaving the demo doesn't move it. its entry is taken on its own, it needs the list (in a browser from the settings)
+let viewedId: string | null = null;
+let viewed: OtherMower | null | undefined;
+
 export function selectedMowerId(): string {
   try {
-    return localStorage.getItem(KEY) ?? '';
+    return (viewedId ??= localStorage.getItem(KEY) ?? '');
   } catch {
     return '';
   }
 }
 
 export function selectedMower(): OtherMower | null {
+  if (viewed === undefined) viewed = lookedAt();
+  return viewed;
+}
+
+function lookedAt(): OtherMower | null {
   const id = selectedMowerId();
   if (id === DEMO_ID) return DEMO;
   const list = mowerList();

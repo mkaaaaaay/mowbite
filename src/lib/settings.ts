@@ -91,22 +91,17 @@ const PATH = '/cgi-bin/settings';
 // where the settings are kept: with the mower looked at in the android app (it has no mower of its own), with the one
 // the page comes from in a browser. a browser looking at another mower keeps that one's own settings (MOWER_KEYS)
 // there, ownUrl, the app's (design, colors, the list of mowers) stay home
-// both taken at the first sync and kept until the reload a mower switch makes, a mower taken out of the list meanwhile
-// doesn't move them
-let urls: {home: string; own: string | null} | null = null;
-const target = () => (urls ??= {home: (isApp() ? apiBase() : '') + PATH, own: !isApp() && apiBase() ? apiBase() + PATH : null});
-const homeUrl = () => target().home;
-const ownUrl = () => target().own;
+const homeUrl = () => (isApp() ? apiBase() : '') + PATH;
+const ownUrl = () => (!isApp() && apiBase() ? apiBase() + PATH : null);
 
 const NONE: Settings = {};
 let current: Settings | null = null;
 let shared = false;
 const listeners = new Set<() => void>();
 
-// where this device keeps the own settings of the mower looked at, by its id ('' the one the page comes from), taken
-// once like the urls. not mowerKey: selectedMower reads the list of mowers from these settings
-let ownKey: string | null = null;
-const ownStorageKey = () => (ownKey ??= `${STORAGE_KEY}:${isApp() ? (selectedMower()?.id ?? '') : selectedMowerId()}`);
+// where this device keeps the own settings of the mower looked at, by its id ('' the one the page comes from). not
+// mowerKey: selectedMower reads the list of mowers from these settings
+const ownStorageKey = () => `${STORAGE_KEY}:${isApp() ? (selectedMower()?.id ?? '') : selectedMowerId()}`;
 
 // what of the settings is kept by the mower's id: in a browser MOWER_KEYS, in the app everything is the mower's
 const ownPart = (s: Settings) => (isApp() ? s : join({}, s));

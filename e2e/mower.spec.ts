@@ -1,4 +1,4 @@
-import {demoAction, demoCall, demoDocked, demoEmergency, demoHas, demoRefuseReset, expect, recordStation, test} from './app';
+import {demoAction, demoCall, demoDocked, demoEmergency, demoHas, demoRefuseReset, expect, recordStation, tab, test} from './app';
 import type {Page} from '@playwright/test';
 
 const state = async (page: Page) => (await demoHas<{current_state: string}>(page, 'robot_state/json')).current_state;
@@ -214,4 +214,35 @@ test('recording says what to do on the map', async ({page}) => {
   await expect(page.getByText('Drive to the edge of the new area', {exact: true})).toBeVisible();
   await page.locator('button:visible', {hasText: 'Record outline'}).first().click();
   await expect(page.getByText('Along the edge', {exact: true})).toBeVisible();
+});
+
+// a page stays with the mower it was opened with: another tab leaving the demo doesn't take this one out of it
+test('a page in the demo stays in it while another tab leaves the demo', async ({page, context}) => {
+  // (mqtt goes nowhere: nothing answers it)
+  await context.routeWebSocket(/.*/, () => {});
+  const list = JSON.stringify({mowers: [{id: 'b', name: 'B', host: 'mower2.test'}]});
+  await page.addInitScript((l) => localStorage.setItem('appSettings', l), list);
+  await page.goto('/schedule/');
+  const schedule = page.getByRole('checkbox', {name: 'Mow by schedule'});
+  await expect(schedule).toBeChecked();
+  const sent: string[] = [];
+  page.on('request', (r) => {
+    if (r.url().includes('/cgi-bin/')) sent.push(`${r.method()} ${r.url()}`);
+  });
+  const other = await context.newPage();
+  await other.goto('/settings/');
+  await Promise.all([other.waitForEvent('load'), other.getByRole('button', {name: 'Leave', exact: true}).click()]);
+  expect(await page.evaluate(() => localStorage.getItem('mower'))).toBeNull();
+  const kept = await page.evaluate(() => localStorage.getItem('appSettings'));
+  await schedule.uncheck();
+  await expect(page.getByText('Switched off, the mower only mows when you start it.')).toBeVisible();
+  await tab(page, '/settings').click();
+  await page.locator('#look summary').click();
+  await page.getByRole('checkbox', {name: 'Grass along the bottom of the screen'}).uncheck();
+  // (a save goes out 0.4 s later)
+  await page.waitForTimeout(1000);
+  await expect(page.getByText('Demo: a made-up mower, nothing is saved')).toBeVisible();
+  expect(sent).toEqual([]);
+  expect(await page.evaluate(() => localStorage.getItem('appSettings'))).toBe(kept);
+  await other.close();
 });

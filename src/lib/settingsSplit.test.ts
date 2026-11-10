@@ -98,8 +98,6 @@ describe('a browser looking at another mower than the one the page comes from', 
 
   it('saves b taken out of the list home with a\'s own settings, not b\'s', async () => {
     vi.useFakeTimers();
-    // (the list without b: the selected mower is this one from now on)
-    kept.base = '';
     saveSettings({...settingsStore.snapshot(), mowers: []});
     await vi.advanceTimersByTimeAsync(1000);
     expect(kept.b.posted).toHaveLength(1);
