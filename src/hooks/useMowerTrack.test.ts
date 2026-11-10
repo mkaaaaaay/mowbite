@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {appendPoint, chunked, keepsTrail, thin, trackPoints, type Point, type TrackChunks} from './useMowerTrack';
+import {appendPoint, chunked, keepsTrail, recordedPoints, thin, trackPoints, type Point, type TrackChunks} from './useMowerTrack';
 
 // a mowing pattern with turns, blade changes and jitter, so plenty of points survive the thinning
 function drive(n: number): Point[] {
@@ -106,5 +106,16 @@ describe('whose trail it is', () => {
     expect(keepsTrail('a', 'a')).toBe(true);
     // a new job: the trail of the last one goes
     expect(keepsTrail('a', 'b')).toBe(false);
+  });
+});
+
+describe('a recorded track', () => {
+  it('counts only the points written for good, the buffer after them is thinned out later', () => {
+    const r = recordedPoints({segments: [{points: [[0, 0], [1, 0]], attributes: {blades: true}}, {points: [[1, 0], [1, 1]]}], buffer: [[1, 2], [1, 3], [1, 4]]}, false);
+    expect(r.written).toBe(4);
+    expect(r.points).toHaveLength(7);
+    expect(r.points[0]).toEqual({x: 0, y: 0, b: true});
+    expect(r.points[6]).toEqual({x: 1, y: 4, b: false});
+    expect(recordedPoints({}, true)).toEqual({points: [], written: 0});
   });
 });

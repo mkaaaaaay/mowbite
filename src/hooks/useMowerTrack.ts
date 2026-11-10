@@ -137,19 +137,26 @@ function notifySoon() {
 // connection was gone (phone asleep, app in the background), the live trail misses that part
 let loading = false;
 
-async function recordedTrack(id: string): Promise<Point[]> {
-  const h = await callRpc<{
-    segments?: {points: [number, number][]; attributes?: {blades?: boolean}}[];
-    buffer?: [number, number][];
-  }>(RPC.jobTrack, {job_id: id}, 20000);
+type Recorded = {segments?: {points: [number, number][]; attributes?: {blades?: boolean}}[]; buffer?: [number, number][]};
+
+// the points of a recorded track, and how many of them the mower has written for good: those only grow, the buffer
+// after them is thinned out once it's written
+export function recordedPoints(h: Recorded, bladesNow: boolean | undefined): {points: Point[]; written: number} {
+  const done = (h.segments ?? []).flatMap((s) => s.points.map(([x, y]) => ({x, y, b: s.attributes?.blades})));
   // the buffer is the segment still being written, so it has the current blade state
-  return [
-    ...(h.segments ?? []).flatMap((s) => s.points.map(([x, y]) => ({x, y, b: s.attributes?.blades}))),
-    ...(h.buffer ?? []).map(([x, y]) => ({x, y, b: blades})),
-  ];
+  return {points: [...done, ...(h.buffer ?? []).map(([x, y]) => ({x, y, b: bladesNow}))], written: done.length};
 }
 
-// cleared by hand: the job and how many of its recorded points were there then, only later ones are shown.
+// of the job asked for last: how many of its points were written for good then
+let written: {job: string; points: number} | null = null;
+
+async function recordedTrack(id: string): Promise<Point[]> {
+  const r = recordedPoints(await callRpc<Recorded>(RPC.jobTrack, {job_id: id}, 20000), blades);
+  written = {job: id, points: r.written};
+  return r.points;
+}
+
+// cleared by hand: the job and how many of its recorded points were written for good then, only later ones are shown.
 // per device and mower, the recording on the mower stays as it is
 const CLEARED_KEY = 'trackCleared';
 function clearedUpTo(id: string): number {
@@ -248,10 +255,9 @@ function subscribe(listener: () => void) {
 export async function clearTrack() {
   const id = shownJob();
   if (id) {
-    try {
-      const points = (await recordedTrack(id)).length;
-      writeMower(CLEARED_KEY, {job: id, points});
-    } catch {}
+    // the number seen last when the mower doesn't answer now
+    await recordedTrack(id).catch(() => null);
+    if (written?.job === id) writeMower(CLEARED_KEY, written);
   }
   track = EMPTY;
   whileLoading = [];
