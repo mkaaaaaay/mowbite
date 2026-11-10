@@ -246,3 +246,33 @@ test('a page in the demo stays in it while another tab leaves the demo', async (
   expect(await page.evaluate(() => localStorage.getItem('appSettings'))).toBe(kept);
   await other.close();
 });
+
+// a mower's address is checked before it's added, another port on the same host is another mower, remove asks once more
+test('mowers: an address that is none is turned down, removing one needs a second tap', async ({context}) => {
+  // (a page of its own, out of the demo: its requests to a container that isn't there fail in the console, mqtt goes
+  // nowhere)
+  await context.routeWebSocket(/.*/, () => {});
+  const page = await context.newPage();
+  await page.goto('/settings/');
+  await page.locator('#app > summary').click();
+  const address = page.getByLabel('Address of the other mower (IP or name in your network)');
+  const add = async (typed: string) => {
+    await address.fill(typed);
+    await page.getByRole('button', {name: 'Add mower'}).click();
+  };
+  await add('300.1.2.3');
+  await expect(page.getByText("That's not an address. Enter an IP or the mower's name in your network.")).toBeVisible();
+  await expect(address).toHaveAttribute('aria-invalid', 'true');
+  await add('mower2.test:8090');
+  await add('mower2.test');
+  await expect(page.getByText('mower2.test:8090')).toBeVisible();
+  await expect(page.getByText('mower2.test:8082')).toBeVisible();
+  await add('mower2.test:8090');
+  await expect(page.getByText('This mower is already in the list.')).toBeVisible();
+  await page.getByRole('button', {name: 'Remove', exact: true}).first().click();
+  await expect(page.getByText('mower2.test:8090')).toBeVisible();
+  await page.getByRole('button', {name: 'Really remove?'}).click();
+  await expect(page.getByText('mower2.test:8090')).toHaveCount(0);
+  await expect(page.getByText('mower2.test:8082')).toBeVisible();
+  await page.close();
+});
