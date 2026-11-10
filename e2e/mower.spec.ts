@@ -269,6 +269,50 @@ test('discard area takes a second tap', async ({page}) => {
   await expect(button('Record outline')).toBeVisible();
 });
 
+// the open line of the recording, its length in metres
+const lineLength = async (page: Page) => {
+  const line = (await demoHas<{polygons: {poly: {x: number; y: number}[]; is_closed: number}[]}>(page, 'map_overlay/json')).polygons.find((p) => !p.is_closed)?.poly ?? [];
+  return line.reduce((sum, p, i) => (i ? sum + Math.hypot(p.x - line[i - 1].x, p.y - line[i - 1].y) : 0), 0);
+};
+
+// MowBite OS's back button, the demo has its recording.undo behind a switch: the end of the line goes, the mower stays
+test('back takes the end of the line away while the mower stays', async ({page}) => {
+  await page.addInitScript(() => ((window as {mowbiteDemoUndo?: boolean}).mowbiteDemoUndo = true));
+  await page.goto('/record/');
+  await demoDocked(page);
+  await page.getByRole('button', {name: 'Start recording mode'}).click();
+  const button = (name: string) => page.locator('button:visible', {hasText: name}).first();
+  await button('Record outline').click();
+  await holdStick(page);
+  await expect.poll(() => lineLength(page), {timeout: 15000}).toBeGreaterThan(1.5);
+  await page.mouse.up();
+  // the wheels stop a second after the last command
+  await page.waitForTimeout(1500);
+  // (with auto points the next one is set where the mower stands at once)
+  await button('Auto points: on').click();
+  await expect(button('Auto points: off')).toBeVisible();
+  const [before, at] = [await lineLength(page), await pose(page)];
+  await button('Back 1 m').click();
+  await expect.poll(() => lineLength(page)).toBeLessThan(before - 0.9);
+  expect(await lineLength(page)).toBeGreaterThan(before - 1.2);
+  const now = await pose(page);
+  expect(Math.hypot(now.x - at.x, now.y - at.y)).toBeLessThan(0.01);
+  // no point left: nothing to take back
+  await button('Back 1 m').click();
+  await expect(button('Back 1 m')).toBeHidden();
+  await expect(button('Stop')).toBeVisible();
+});
+
+test('no back button on OpenMower', async ({page}) => {
+  await page.goto('/record/');
+  await demoDocked(page);
+  await page.getByRole('button', {name: 'Start recording mode'}).click();
+  const button = (name: string) => page.locator('button:visible', {hasText: name}).first();
+  await button('Record outline').click();
+  await expect(button('Set point here').or(button('Auto points: on'))).toBeVisible();
+  await expect(button('Back 1 m')).toBeHidden();
+});
+
 // saved is told once the map has the area
 test('a saved area is told saved once it is in the map', async ({page}) => {
   await page.goto('/record/');

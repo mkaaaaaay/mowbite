@@ -15,6 +15,9 @@ import {demoSounds, demoSoundsOn} from './sound';
 // the stick and records areas, obstacles and its station like OpenMower's area recording. Nothing leaves the device and
 // nothing is kept, a reload starts it again in the middle of a mow.
 
+// MowBite OS's recording.undo for the click tests, switched on before the page loads (window.mowbiteDemoUndo)
+const demoUndoOn = () => typeof window !== 'undefined' && !!(window as {mowbiteDemoUndo?: boolean}).mowbiteDemoUndo;
+
 const SPEED = 0.45; // m/s
 const TICK_MS = 200;
 // how far the mower backs out of the station
@@ -768,6 +771,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
       a('auto_point_collecting_enable', 'Enable Auto Points', line && !r!.auto),
       a('auto_point_collecting_disable', 'Disable Auto Points', line && r!.auto),
       a('collect_point', 'Collect Point', line && !r!.auto),
+      ...(demoUndoOn() ? [a('undo_points', 'Undo Points', !!r?.line?.length)] : []),
       a('start_manual_mowing', 'Start Manual Mowing', !!r && !r.blade),
       a('stop_manual_mowing', 'Stop Manual Mowing', !!r && r.blade),
     ];
@@ -963,7 +967,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     const close = () => {
       const line = r.line;
       r.line = null;
-      if (line && line.length < 2) {
+      if (line && line.length === 1) {
         r.outline = null;
         r.obstacles = [];
       }
@@ -1028,7 +1032,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     }
     const line = rec.line;
     const end = line?.[line.length - 1];
-    if (line && rec.auto && end && Math.hypot(pose.x - end.x, pose.y - end.y) >= 0.1) {
+    if (line && rec.auto && (!end || Math.hypot(pose.x - end.x, pose.y - end.y) >= 0.1)) {
       line.push({x: pose.x, y: pose.y});
       send.overlay();
     }
@@ -1117,6 +1121,23 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     ...(demoLightsOn() ? demoLights() : {}),
     ...(demoSoundsOn() ? demoSounds() : {}),
     ...cameras?.methods,
+    ...(demoUndoOn() && {
+      // points off the end of the open line until that much of it is gone, the mower stays where it is
+      [RPC.recordingUndo]: (params: unknown) => {
+        const meters = (params as {meters?: unknown})?.meters ?? 1;
+        if (typeof meters !== 'number' || !(meters >= 0.1 && meters <= 50)) throw new Error('meters: 0.1 to 50');
+        const line = rec?.line;
+        if (!line?.length) throw new Error('no open line with points');
+        for (let gone = 0; line.length && gone < meters; ) {
+          const p = line.pop()!;
+          const q = line[line.length - 1];
+          gone += q ? dist(p, q) : meters;
+        }
+        send.overlay();
+        changed();
+        return {points: line.length};
+      },
+    }),
   };
   const answer = (paths: Path[], angle: number, id?: string) => ({
     ...(id ? {area_id: id} : {}),

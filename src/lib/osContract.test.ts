@@ -53,11 +53,12 @@ const appMethods = new Set([...Object.values(RPC), ...Object.values(COMMAND).map
 const osMethods = Object.keys(api['x-methods']);
 
 // decided for a later api and in the app already, not in the pinned copy yet: TOO_SHORT (a sound under 0.2 s, the
-// phone says it), camera.* (masterplan 3.9, FP42). one the copy has is red until it's taken out here
+// phone says it), camera.* (masterplan 3.9, FP42), recording.undo (masterplan 3.2, FP45). one the copy has is red until
+// it's taken out here
 const AHEAD = {
   reasons: ['TOO_SHORT', 'CAMERA_BUSY', 'LOCKED_AFTER_CRASH', 'NOT_SET_UP', 'BLADE_RUNNING', 'TOO_HOT', 'NO_SIGNAL', 'SELF_TEST'],
   events: ['CAMERA_REFUSED', 'CAMERA_CHANGED', 'METHODS_CHANGED'],
-  methods: ['camera.list', 'camera.stream'],
+  methods: ['camera.list', 'camera.stream', 'recording.undo'],
   // a reason's variant for one event, as 'EVENT REASON'
   variants: ['CAMERA_REFUSED DRIVER_MISSING'],
 };

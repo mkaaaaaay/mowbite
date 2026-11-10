@@ -1,7 +1,7 @@
 'use client';
 
 import DriveView, {driveStyles as ds, useDrive} from '@/components/DriveView';
-import {AutoPointsIcon, BladeIcon, CheckIcon, CloseIcon, HomeIcon, OutlineDoneIcon, PinIcon, RecordIcon, RouteIcon, TrashIcon} from '@/components/icons';
+import {AutoPointsIcon, BladeIcon, CheckIcon, CloseIcon, HomeIcon, OutlineDoneIcon, PinIcon, RecordIcon, RouteIcon, TrashIcon, UndoIcon} from '@/components/icons';
 import {TitleMark} from '@/components/Logo';
 import {TitleRow} from '@/components/TopWeather';
 import {useHeadingDrift} from '@/hooks/useHeadingDrift';
@@ -20,7 +20,7 @@ import StationGuide from './Station';
 import styles from './page.module.css';
 import {stationChange, type Station} from '@/lib/dockGuide';
 import {fmt, tr, useLang} from '@/lib/i18n';
-import {ACTION, TOPIC} from '@/lib/openmower';
+import {ACTION, RPC, TOPIC, UNDO_METERS} from '@/lib/openmower';
 import {useMowbiteOs} from '@/lib/mowerOs';
 import {useRpcMethods} from '@/hooks/useRpcMethods';
 import {eventsOfDay, fileDay, forgetToday, historyDays} from '@/lib/history';
@@ -52,6 +52,7 @@ const ICONS: Record<string, React.ReactNode> = {
   exit_recording_mode: <CloseIcon size={18} />,
   stop_recording: <OutlineDoneIcon size={18} />,
   collect_point: <PinIcon size={18} />,
+  undo_points: <UndoIcon size={18} />,
   auto_point_collecting_enable: <AutoPointsIcon size={18} />,
   auto_point_collecting_disable: <AutoPointsIcon size={18} />,
   finish_discard: <TrashIcon size={18} />,
@@ -467,6 +468,8 @@ function Record() {
         : tr('Drive along the edge, close to it all the way: the line is the middle of the mower. Back at the start, stop: the outline closes by itself.');
     buttons = [
       button('stop_recording', 'Stop', 'main', undefined, hasOutline && line.length < 2 ? () => setEarly(true) : undefined),
+      // MowBite OS takes the end of the line back, the mower stays where it is
+      methods?.has(RPC.recordingUndo) && button('undo_points', tr('Back {m} m', {m: UNDO_METERS})),
       button('collect_point', 'Set point here'),
       button('auto_point_collecting_disable', 'Auto points: on'),
       button('auto_point_collecting_enable', 'Auto points: off'),
