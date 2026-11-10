@@ -82,3 +82,12 @@ describe('a setting of the mower kept by the container', () => {
     expect(line('tool_width')).toBe('/mower_logic/tool_width 0.18');
   });
 });
+
+describe('the folded line of a group', () => {
+  it("leaves out a value it doesn't know", async () => {
+    const {summary} = await load();
+    expect(summary('auto', {'/mower_logic/rain_mode': 4, '/mower_logic/automatic_mode': 0})).toBe('starts by hand');
+    expect(summary('auto', {'/mower_logic/rain_mode': 1, '/mower_logic/automatic_mode': 7})).toBe('Go home');
+    expect(summary('auto', {'/mower_logic/rain_mode': 1, '/mower_logic/automatic_mode': 2})).toBe('Go home · automatic');
+  });
+});

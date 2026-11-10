@@ -220,14 +220,18 @@ export function ParamFix({keys}: {keys: string[]}) {
 }
 
 // the values that matter most of a group, read in its folded line
-function summary(group: ParamGroup, params: Record<string, unknown>): string {
+export function summary(group: ParamGroup, params: Record<string, unknown>): string {
   const v = (key: string) => paramValue(params, paramField(key)!);
   const n = (key: string) => showParam(paramField(key)!, v(key) as number);
   switch (group) {
     case 'mowing':
       return [v('outline_count') === 1 ? tr('1 outline pass') : tr('{n} outline passes', {n: n('outline_count')}), tr('lanes {n} cm apart', {n: n('tool_width')}), tr('turned by {n}°', {n: n('mow_angle_offset')})].join(' · ');
     case 'auto':
-      return [tr(paramField('rain_mode')!.choices![v('rain_mode') as number] ?? ''), tr(AUTOMATIC_SHORT[v('automatic_mode') as number] ?? '')].join(' · ');
+      // a value it doesn't know (a newer OpenMower) is left out
+      return [paramField('rain_mode')!.choices![v('rain_mode') as number], AUTOMATIC_SHORT[v('automatic_mode') as number]]
+        .filter((t) => t !== undefined)
+        .map((t) => tr(t))
+        .join(' · ');
     case 'gps':
       return [tr('{n} s without a fix', {n: n('gps_timeout')}), tr('better than {n} cm', {n: n('max_position_accuracy')})].join(' · ');
     case 'docking':
