@@ -36,7 +36,7 @@ import {mowerKey} from '@/lib/mowers';
 import {settingsStore} from '@/lib/settings';
 import {PARTS, useDueParts} from '@/lib/stats';
 import {containerHas, useUpdates} from '@/lib/updates';
-import {batteryColor, chargeOf, dockText, GPS_QUALITY_LABEL, gpsQuality, isDocked, onCharger, WIFI_LEVEL_LABEL, type Charge} from '@/lib/status';
+import {batteryColor, chargeOf, dockText, GPS_QUALITY_LABEL, gpsQuality, isDocked, onCharger, staleText, WIFI_LEVEL_LABEL, type Charge} from '@/lib/status';
 import Link from 'next/link';
 import {memo, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import styles from './page.module.css';
@@ -481,16 +481,7 @@ export default function Home() {
                 ) : link.resuming ? (
                   <span className={styles.dim}>{tr('connecting…')}</span>
                 ) : (
-                  <span className={styles.offline}>
-                    {tr(
-                      !connected
-                        ? 'Connection lost, last data at {time}'
-                        : link.silent
-                          ? "mower_logic hasn't sent its state since {time}, the rest of OpenMower answers"
-                          : 'No data from the mower since {time}',
-                      {time: clock(link.lastAt / 1000, true)},
-                    )}
-                  </span>
+                  <span className={styles.offline}>{staleText(link)}</span>
                 )}
               </div>
             </div>

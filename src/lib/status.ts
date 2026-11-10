@@ -1,3 +1,5 @@
+import type {MowerLink} from '@/hooks/useMowerState';
+import {clock} from './dates';
 import {tr} from './i18n';
 
 export type StatusColor = 'success' | 'warning' | 'error' | 'accent';
@@ -95,6 +97,18 @@ export function statusText(
   const name = names[state.current_state];
   if (name) return tr(name);
   return state.current_state.toLowerCase().replace(/_/g, ' ');
+}
+
+// why what's shown isn't live (isLive) and since when
+export function staleText(link: MowerLink): string {
+  return tr(
+    !link.connected
+      ? 'Connection lost, last data at {time}'
+      : link.silent
+        ? "mower_logic hasn't sent its state since {time}, the rest of OpenMower answers"
+        : 'No data from the mower since {time}',
+    {time: clock(link.lastAt / 1000, true)},
+  );
 }
 
 // how good the gps position is. The receiver doesn't report fix or float, so it's told by its estimated accuracy (m):

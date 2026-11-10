@@ -10,12 +10,12 @@ import Sparkline from '@/components/Sparkline';
 import {useBatteryLevel} from '@/hooks/useBatteryLevel';
 import {useEmergencyReasons} from '@/hooks/useEmergencyReasons';
 import {useMowerSensors, type SensorInfo} from '@/hooks/useMowerSensors';
-import {useMowerState} from '@/hooks/useMowerState';
+import {isLive, useMowerState} from '@/hooks/useMowerState';
 import {useSensorHistory, type Sample} from '@/hooks/useSensorHistory';
 import {useState, useSyncExternalStore} from 'react';
 import {outOfRange} from '@/lib/sensorLimits';
 import {sharedSettings} from '@/lib/settings';
-import {batteryColor, chargeOf, chargeStateText, dockText, GPS_QUALITY_LABEL, gpsQuality, isDocked, onCharger, stateColor, statusText} from '@/lib/status';
+import {batteryColor, chargeOf, chargeStateText, dockText, GPS_QUALITY_LABEL, gpsQuality, isDocked, onCharger, staleText, stateColor, statusText} from '@/lib/status';
 import {useChargeConfirmed} from '@/hooks/useChargeConfirmed';
 import {useRecentRuns} from '@/hooks/useRecentRuns';
 import {useOsApi} from '@/lib/mowerOs';
@@ -84,7 +84,11 @@ export default function SensorsPage() {
     } catch {}
   };
   const {infos, values} = useMowerSensors();
-  const {state} = useMowerState();
+  const link = useMowerState();
+  const {state} = link;
+  // no connection or no fresh state: what's shown is old, greyed out as on the dashboard
+  const live = isLive(link);
+  const old = live ? '' : styles.stale;
   const why = useEmergencyReasons(!!state?.emergency);
   const params = useMowerParams();
   const history = useSensorHistory();
@@ -139,11 +143,14 @@ export default function SensorsPage() {
             </h1>
             {state && (
               <span
-                className={[styles.chip, styles[`chip-${state.emergency ? 'error' : docked ? (dockText(charge, confirmed).warn ? 'warning' : 'success') : stateColor(currentState)}`]].join(' ')}
+                className={[styles.chip, styles[`chip-${state.emergency ? 'error' : docked ? (dockText(charge, confirmed).warn ? 'warning' : 'success') : stateColor(currentState)}`], old].join(' ')}
               >
                 {statusText(state, docked, charge, confirmed)}
                 {state.emergency && why ? `: ${emergencyText(why)}` : ''}
               </span>
+            )}
+            {state && !live && (
+              <span className={link.resuming ? styles.dim : styles['text-warning']}>{link.resuming ? tr('connecting…') : staleText(link)}</span>
             )}
             {criticalCount > 0 && <span className={styles.error}>{tr('{n} out of range', {n: criticalCount})}</span>}
           </div>
@@ -164,7 +171,7 @@ export default function SensorsPage() {
           <p className={styles.dim}>{tr('Waiting for sensor data…')}</p>
         ) : (
           <>
-            <div className={styles.grid}>
+            <div className={[styles.grid, old].join(' ')}>
               <Card
                 title={
                   <>
@@ -264,7 +271,7 @@ export default function SensorsPage() {
             {temps.length > 0 && (
               <>
                 <h2 className={styles.categoryTitle}>{tr('Temperatures')}</h2>
-                <div className={styles.grid}>
+                <div className={[styles.grid, old].join(' ')}>
                   {temps.map(({info: t, key, label}) => {
                     const v = num(key);
                     return (
@@ -284,7 +291,7 @@ export default function SensorsPage() {
             {others.length > 0 && (
               <>
                 <h2 className={styles.categoryTitle}>{tr('Other')}</h2>
-                <div className={styles.grid}>
+                <div className={[styles.grid, old].join(' ')}>
                   {others.map((o) => {
                     const v = num(o.sensor_id);
                     const numeric = o.value_type === 'DOUBLE' && v !== undefined && !Number.isNaN(v);

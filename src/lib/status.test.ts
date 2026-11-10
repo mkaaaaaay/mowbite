@@ -1,5 +1,6 @@
 import {describe, expect, it} from 'vitest';
-import {chargeOf, chargeStateText, dockText, gpsQuality, statusText} from './status';
+import {clock} from './dates';
+import {chargeOf, chargeStateText, dockText, gpsQuality, staleText, statusText} from './status';
 
 describe('gpsQuality', () => {
   it('tells fix, float and too inaccurate by the accuracy, against the mower limit', () => {
@@ -50,6 +51,16 @@ describe('dockText by the charger', () => {
     expect(dock('Fault', true)).toEqual({text: 'In the dock, charging error', warn: true});
     expect(dock('Not Charging', false)).toEqual({text: 'In the dock, not charging', warn: true});
     expect(dock('Fast Charge (CC)', null)).toEqual({text: 'In the dock', warn: false});
+  });
+});
+
+describe('staleText', () => {
+  it('says why what is shown is old, with the time of the last state', () => {
+    const link = {state: null, connected: true, stale: true, lastAt: 1793754213000, resuming: false, silent: false};
+    const t = clock(1793754213, true);
+    expect(staleText({...link, connected: false})).toBe(`Connection lost, last data at ${t}`);
+    expect(staleText({...link, silent: true})).toBe(`mower_logic hasn't sent its state since ${t}, the rest of OpenMower answers`);
+    expect(staleText(link)).toBe(`No data from the mower since ${t}`);
   });
 });
 
