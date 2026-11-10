@@ -1,5 +1,5 @@
 import {useState} from 'react';
-import type {MowerMap} from '@/hooks/useMowerMap';
+import type {DockingStation, MapArea, MowerMap, Point} from '@/hooks/useMowerMap';
 import {forget, fresh} from './fresh';
 import {tr} from './i18n';
 import {isPin} from './mowerBody';
@@ -102,10 +102,14 @@ export async function angleChangedSince(areaId: string, since: number, angle: nu
   return false;
 }
 
-// a file picked by the user: at least has to look like a map. what a map can do without is filled in
+// a file picked by the user: at least has to look like a map, its points and docking stations numbers. what a map can
+// do without is filled in
 export function parseMapFile(text: string): MowerMap {
   const m = JSON.parse(text);
-  if (!m || !Array.isArray(m.areas) || !m.areas.every((a: {outline?: unknown}) => Array.isArray(a.outline)))
+  const isPoint = (p?: Point | null) => !!p && Number.isFinite(p.x) && Number.isFinite(p.y);
+  const isArea = (a: MapArea | null) => !!a && Array.isArray(a.outline) && a.outline.every(isPoint);
+  const isDock = (d: DockingStation | null) => !!d && isPoint(d.position) && Number.isFinite(d.heading);
+  if (!m || !Array.isArray(m.areas) || !m.areas.every(isArea) || (Array.isArray(m.docking_stations) && !m.docking_stations.every(isDock)))
     throw new Error('not a map');
   return openRings({
     ...m,
