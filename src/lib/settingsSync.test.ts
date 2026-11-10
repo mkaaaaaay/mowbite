@@ -2,6 +2,10 @@ import {afterEach, describe, expect, it, vi} from 'vitest';
 
 const net = vi.hoisted(() => ({
   up: false,
+  // the container takes no save (500), or there's none (a web server without MowBite)
+  saves: true,
+  container: true,
+  asked: 0,
   theirs: {mapStyle: 'plain', weather: true} as Record<string, unknown>,
   posted: [] as unknown[],
 }));
@@ -13,8 +17,12 @@ vi.mock('./mowers', () => ({
   selectedMowerId: () => '',
   mowerFetch: async (_: string, init?: RequestInit) => {
     if (!net.up) throw new TypeError('Failed to fetch');
+    if (init?.method !== 'POST') net.asked++;
+    if (!net.container) return new Response('not found', {status: 404});
     if (init?.method === 'POST') {
-      net.posted.push(JSON.parse(String(init.body)));
+      if (!net.saves) return new Response('', {status: 500});
+      net.theirs = JSON.parse(String(init.body));
+      net.posted.push(net.theirs);
       return new Response('', {status: 200, headers: {'X-Settings-Version': '2'}});
     }
     return new Response(JSON.stringify(net.theirs), {headers: {'content-type': 'application/json', 'X-Settings-Version': '1'}});
@@ -22,7 +30,11 @@ vi.mock('./mowers', () => ({
 }));
 vi.mock('./native', () => ({isApp: () => false}));
 const kept = new Map<string, string>();
-vi.stubGlobal('localStorage', {getItem: (k: string) => kept.get(k) ?? null, setItem: (k: string, v: string) => kept.set(k, v)});
+vi.stubGlobal('localStorage', {
+  getItem: (k: string) => kept.get(k) ?? null,
+  setItem: (k: string, v: string) => kept.set(k, v),
+  removeItem: (k: string) => kept.delete(k),
+});
 vi.stubGlobal('document', {documentElement: {style: {setProperty: () => {}}}});
 
 const {saveSettings, settingsStore, sharedSettings, syncSettings} = await import('./settings');
@@ -61,5 +73,77 @@ describe('settings saved in two tabs of one browser', () => {
     s.saveSettings({...s.settingsStore.snapshot(), grass: false, mapStyle: 'garden'});
     expect(JSON.parse(kept.get('appSettings')!)).toEqual({grass: false, weather: true, mowers: [zwei]});
     expect(JSON.parse(kept.get('appSettings:')!)).toEqual({icons: {mower: 'tron'}, mapStyle: 'garden'});
+  });
+});
+
+// the app loaded again with what's in this device's storage
+async function reload() {
+  vi.clearAllTimers();
+  vi.resetModules();
+  const s = await import('./settings');
+  await s.syncSettings();
+  return s;
+}
+const keptAside = () => [...kept.keys()].filter((k) => k.startsWith('appSettingsBefore'));
+
+describe('a change that did not get to the mower', () => {
+  it('stays over a reload and goes out then, on top of what another device saved meanwhile', async () => {
+    vi.useFakeTimers();
+    kept.clear();
+    Object.assign(net, {up: true, saves: false, theirs: {grass: true, weather: true}, posted: []});
+    let s = await reload();
+    s.saveSettings({...s.settingsStore.snapshot(), grass: false});
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(net.posted).toEqual([]);
+    expect(keptAside()).toEqual(['appSettingsBefore:']);
+    // another device switches the weather off, then this one is loaded again
+    net.theirs = {grass: true, weather: false};
+    net.saves = true;
+    s = await reload();
+    expect(s.settingsStore.snapshot()).toEqual({grass: false, weather: false});
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(net.posted).toEqual([{grass: false, weather: false}]);
+    expect(keptAside()).toEqual([]);
+  });
+
+  it('is sent again a while later while the page stays open', async () => {
+    vi.useFakeTimers();
+    kept.clear();
+    Object.assign(net, {up: true, saves: false, theirs: {grass: true}, posted: []});
+    const s = await reload();
+    s.saveSettings({...s.settingsStore.snapshot(), grass: false});
+    await vi.advanceTimersByTimeAsync(1000);
+    net.saves = true;
+    await vi.advanceTimersByTimeAsync(31000);
+    expect(net.posted).toEqual([{grass: false}]);
+    expect(keptAside()).toEqual([]);
+  });
+
+  it('made while the mower was out of reach stays over a reload and goes out once it answers', async () => {
+    vi.useFakeTimers();
+    kept.clear();
+    Object.assign(net, {up: true, saves: true, theirs: {grass: true}, posted: []});
+    await reload();
+    net.up = false;
+    let s = await reload();
+    s.saveSettings({...s.settingsStore.snapshot(), grass: false});
+    net.up = true;
+    s = await reload();
+    expect(s.settingsStore.snapshot()).toEqual({grass: false});
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(net.posted).toEqual([{grass: false}]);
+  });
+
+  it('without a container stays on this device, nothing is kept aside and it is not asked again', async () => {
+    vi.useFakeTimers();
+    kept.clear();
+    Object.assign(net, {up: true, container: false, asked: 0, posted: []});
+    const s = await reload();
+    s.saveSettings({...s.settingsStore.snapshot(), grass: false});
+    await vi.advanceTimersByTimeAsync(3600000);
+    expect(s.settingsStore.snapshot()).toEqual({grass: false});
+    expect(keptAside()).toEqual([]);
+    expect(net.asked).toBe(1);
+    net.container = true;
   });
 });
