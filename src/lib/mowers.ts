@@ -78,17 +78,30 @@ function lookedAt(): OtherMower | null {
 export const APP_MOWER_SCRIPT = `var m=localStorage.getItem('${KEY}')||'',l=JSON.parse(localStorage.getItem('${APP_KEY}')||'[]');\
 if(m!=='${DEMO_ID}'&&!l.some(function(x){return x.id===m}))m=(l[0]||{}).id||'';`;
 
+// the mower looked at before the demo, leaving it goes back there
+const BEFORE_DEMO_KEY = 'mowerBeforeDemo';
+
 // something unsaved asks first (wait: what leaveFirst said, asked already), and only then the choice is written: until
 // the reload everything still talks to this one
 export function selectMower(id: string, wait = leaveFirst()) {
   if (wait === false) return;
   setTimeout(() => {
     try {
+      if (id !== DEMO_ID) localStorage.removeItem(BEFORE_DEMO_KEY);
+      else if (!isDemo()) localStorage.setItem(BEFORE_DEMO_KEY, selectedMower()?.id ?? '');
       if (id) localStorage.setItem(KEY, id);
       else localStorage.removeItem(KEY);
     } catch {}
     window.location.reload();
   }, wait);
+}
+
+export function leaveDemo() {
+  let before = '';
+  try {
+    before = localStorage.getItem(BEFORE_DEMO_KEY) ?? '';
+  } catch {}
+  selectMower(before);
 }
 
 // a browser whose mower was taken out of the list (on another device too) goes back to the one the page comes from

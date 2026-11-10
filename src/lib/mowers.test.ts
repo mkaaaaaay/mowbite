@@ -142,6 +142,28 @@ describe('the mower a page looks at', () => {
     vi.useRealTimers();
   });
 
+  it('leaving the demo goes back to the mower looked at before it, in the app and in a browser', async () => {
+    vi.useFakeTimers();
+    for (const app of [true, false]) {
+      if (app) win.Capacitor = {isNativePlatform: () => true};
+      stored.clear();
+      stored.set(app ? 'appMowers' : 'appSettings', JSON.stringify(app ? [A, B] : {mowers: [A, B]}));
+      stored.set('mower', 'b');
+      let m = await open();
+      m.selectMower('demo');
+      await vi.runAllTimersAsync();
+      m = await open();
+      expect(at(m)).toEqual(DEMO);
+      m.leaveDemo();
+      await vi.runAllTimersAsync();
+      m = await open();
+      expect(at(m)).toEqual(ON_B);
+      expect(stored.has('mowerBeforeDemo')).toBe(false);
+      delete win.Capacitor;
+    }
+    vi.useRealTimers();
+  });
+
   it('with something unsaved asks before the switch is written, a no keeps everything, a yes asked before is not asked again', async () => {
     vi.useFakeTimers();
     stored.clear();
