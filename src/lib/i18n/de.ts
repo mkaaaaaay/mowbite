@@ -749,7 +749,7 @@ const de: Record<string, string> = {
   "The forecast comes from Open-Meteo, the mower asks for it with the position rounded to about a kilometer.": "Die Vorhersage kommt von Open-Meteo, der Mäher fragt sie mit der auf etwa einen Kilometer gerundeten Position ab.",
   "Cold grass takes mowing badly, below about 5 °C it hardly grows anyway.": "Kaltes Gras verträgt das Mähen schlecht, unter etwa 5 °C wächst es ohnehin kaum.",
   "The last mow here ({date}) ran at about {measured}°, but with the saved settings it should be {planned}° ({diff}°).": "Beim letzten Mähen hier ({date}) lief er mit etwa {measured}°, mit den gespeicherten Einstellungen müssten es aber {planned}° sein ({diff}°).",
-  "The line doesn't cut through the area yet.": "Die Linie schneidet die Fläche noch nicht ganz durch.",
+  "The line doesn't cut through the area yet or crosses itself.": "Die Linie schneidet die Fläche noch nicht ganz durch oder kreuzt sich selbst.",
   "mow_angle_offset from the mower's settings (mower_logic) comes on top, {n}° here. It's added to every area, the preview includes it.": "Dazu kommt mow_angle_offset aus den Einstellungen des Mähers (mower_logic), hier {n}°. Er gilt für jede Fläche, die Vorschau rechnet ihn mit ein.",
   "The mower is busy (mowing, docking or recording). A job under way keeps the lanes it planned on the old map, also through a new obstacle. Better save once it is done.":
     "Der Mäher ist gerade unterwegs (Mähen, Andocken oder Aufnehmen). Ein laufender Mähvorgang behält die Bahnen, die er auf der alten Karte geplant hat, auch quer durch ein neues Hindernis. Besser speichern, wenn er fertig ist.",

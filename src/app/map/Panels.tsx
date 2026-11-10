@@ -52,7 +52,7 @@ export function SplitPanel({
           <p className={styles.dim}>
             {cutShape
               ? tr("The shape has to lie fully inside the area and mustn't cross itself.")
-              : tr("The line doesn't cut through the area yet.")}
+              : tr("The line doesn't cut through the area yet or crosses itself.")}
           </p>
         )
       )}
