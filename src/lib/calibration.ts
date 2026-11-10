@@ -87,9 +87,9 @@ export function readResult(answer: unknown): CalibResult | null {
   };
 }
 
-// a recording driven by hand: as the planner says, else while the mower is in recording mode
-export const calibByHand = (p: CalibProgress | null, recordingMode: boolean) =>
-  p?.phase === 'recording' && (p.mode ? p.mode === 'joystick' : recordingMode);
+// a recording driven by hand: as the planner says. unsaid (a planner before 0.4.0): what the caller takes it for
+export const calibByHand = (p: CalibProgress | null, unsaid = false) =>
+  p?.phase === 'recording' && (p.mode ? p.mode === 'joystick' : unsaid);
 
 // this build has the calibration and the planner on this mower offers it (rpc.methods). without that nothing leads to it,
 // what the planner's topic still says is left over then or another app's. never on MowBite OS: it has a drive of its

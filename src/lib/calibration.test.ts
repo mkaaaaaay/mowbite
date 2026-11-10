@@ -117,12 +117,15 @@ describe('a calibration', () => {
     // a planner that doesn't tell what it needs: nothing to show as missing
     expect(lacks(readProgress(JSON.stringify({phase: 'recording', m: 3, turns: 1, runs: 0}))!)).toEqual([]);
     expect(readProgress('no json')).toBeNull();
-    // driven by hand: as the planner says, from one that doesn't by recording mode
-    const by = (p: object, recordingMode: boolean) => calibByHand(readProgress(JSON.stringify(p)), recordingMode);
+    // driven by hand: as the planner says. from one that doesn't say, what the caller takes it for: the calibration's
+    // page recording mode, the pages that hand over to it nothing (it may be one on the next mow)
+    const by = (p: object, unsaid?: boolean) => calibByHand(readProgress(JSON.stringify(p)), unsaid);
     expect(by({phase: 'recording', mode: 'joystick'}, false)).toBe(true);
+    expect(by({phase: 'recording', mode: 'joystick'})).toBe(true);
     expect(by({phase: 'recording', mode: 'mow'}, true)).toBe(false);
     expect(by({phase: 'recording'}, true)).toBe(true);
     expect(by({phase: 'recording'}, false)).toBe(false);
+    expect(by({phase: 'recording'})).toBe(false);
     expect(by({phase: 'done', mode: 'joystick'}, true)).toBe(false);
     expect(calibByHand(null, true)).toBe(false);
     // only with a planner that offers it, what its topic says alone doesn't count

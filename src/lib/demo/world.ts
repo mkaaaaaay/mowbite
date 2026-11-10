@@ -847,6 +847,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
         phase: calib.phase,
         ready: !!calibResult?.ready,
         error: null,
+        mode: calib.mode,
         need: CALIB_NEED[calib.mode],
         // (the demo's receiver always has its fix)
         ...(calib.phase === 'recording' ? {rtk: {fixed: true, accuracy: 0.021}} : {}),

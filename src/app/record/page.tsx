@@ -230,9 +230,10 @@ function Record() {
   const fromLink = !asked || !state || os ? null : recordingMode ? (phase === 'empty' ? 'guide' : 'drop') : live && hasAction(START) ? 'start' : null;
   const startRef = useRef(start);
   const router = useRouter();
-  // a calibration drive by hand runs in recording mode: its own page, not this one
+  // a calibration drive by hand runs in recording mode: its own page, not this one. only where the planner says so: one
+  // on the next mow leaves this page free
   const calib = useSyncExternalStore(calibProgress.subscribe, calibProgress.get, calibProgress.initial);
-  const calibrating = recordingMode && canCalibrate(methods, os) && calibByHand(calib, true);
+  const calibrating = recordingMode && canCalibrate(methods, os) && calibByHand(calib);
   useEffect(() => {
     if (calibrating) router.replace('/calibration');
   }, [calibrating, router]);

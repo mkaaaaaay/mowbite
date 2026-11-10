@@ -612,3 +612,13 @@ describe('the mower around it, for a mock mower', () => {
     expect(n.state().current_state).toBe('MOWING');
   });
 });
+
+describe("the demo mower's calibration", () => {
+  it('says which way it records, like the planner from 0.4.0', async () => {
+    for (const mode of ['joystick', 'mow']) {
+      const d = world();
+      await d.rpc(RPC.plannerCalibStart, {mode});
+      expect(JSON.parse(d.got[TOPIC.plannerCalib])).toMatchObject({phase: 'recording', mode});
+    }
+  });
+});
