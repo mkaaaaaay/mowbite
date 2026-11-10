@@ -5,7 +5,7 @@ import {beforeEach, describe, expect, it, vi} from 'vitest';
 const cgi = vi.hoisted(() => ({file: '', posts: 0, fail: false, getFail: false}));
 // what was set on the mower
 const sets = vi.hoisted(() => [] as Record<string, number | boolean>[]);
-const FILTER = new RegExp(readFileSync(new URL('../../docker/params.cgi', import.meta.url), 'utf8').match(/grep -E '([^']+)'/)![1]);
+const FILTER = new RegExp(readFileSync(new URL('../../docker/params.cgi', import.meta.url), 'utf8').match(/save_lines \S+ \d+ '([^']+)'/)![1]);
 vi.mock('@/lib/mowers', async (real) => ({
   ...(await real<typeof import('@/lib/mowers')>()),
   apiBase: () => '',

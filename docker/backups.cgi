@@ -2,7 +2,6 @@
 # map backups in the /data volume, gzipped. one <id>.json.gz per backup and <id>.meta with
 # name, number of areas and whether it was made automatically before a save
 # the app on another mower may ask too (several mowers in one app)
-# after a Status line, busybox httpd only reads that when it comes first
 . /origin.sh
 D=/data/backups
 KEEP_AUTO=30
@@ -11,7 +10,6 @@ KEEP_HAND=50
 mkdir -p "$D"
 
 param() { printf '%s' "$QUERY_STRING" | tr '&' '\n' | sed -n "s/^$1=//p" | head -n1; }
-fail() { printf 'Status: %s\r\n' "$1"; cors; printf 'Content-Type: text/plain\r\n\r\n%s\n' "$2"; exit 0; }
 json_str() { printf '%s' "$1" | tr -d '\000-\037' | sed 's/\\/\\\\/g; s/"/\\"/g'; }
 
 id=$(param id)

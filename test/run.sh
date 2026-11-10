@@ -431,6 +431,11 @@ expect "schedule: and it's as it was" "$(curl -s "$W/schedule")" "$kept"
 broken() { curl -s -o /dev/null -m 2 -H 'Content-Length: 1000' --data-binary "$2" "$1"; sleep 1; }
 broken "$W/schedule" 'enabled 0'
 expect "schedule: a body that broke off leaves it as it was" "$(curl -s "$W/schedule")" "$kept"
+# each has its own size: 20000 bytes for the schedule, 10000 for the settings of the mower
+big() { head -c "$2" /dev/zero | tr '\0' x | code --data-binary @- "$1"; }
+expect "schedule: a body past its size is turned down" "$(big "$W/schedule" 20001) $(curl -s "$W/schedule")" "413 $kept"
+expect "schedule: one up to it is taken" \
+  "$(printf '%s\n%s' "$kept" "$(head -c 15000 /dev/zero | tr '\0' x)" | curl -s --data-binary @- "$W/schedule")" "$kept"
 
 P=$W/params
 body=$'enabled 1\n/mower_logic/a_b 1.5\n/mower_logic/c true\n/other/x 1\n/mower_logic/d 1e9\n/mower_logic/e $(id)'
@@ -438,6 +443,7 @@ kept=$'enabled 1\n/mower_logic/a_b 1.5\n/mower_logic/c true'
 expect "params: only lines of the known shapes are kept" "$(curl -s --data-binary "$body" "$P")" "$kept"
 broken "$P" 'enabled 0'
 expect "params: a body that broke off leaves them as they were" "$(curl -s "$P")" "$kept"
+expect "params: a body past their size is turned down" "$(big "$P" 10001) $(curl -s "$P")" "413 $kept"
 s=$(curl -s "$S")
 broken "$S" '{"a":{"b":1}'
 expect "settings: a body that broke off leaves them as they were" "$(curl -s "$S")" "$s"
