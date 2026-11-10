@@ -10,9 +10,9 @@ import {useMapAhead} from '@/components/useMapAhead';
 import {ChevronIcon, CloseIcon, HomeIcon, PauseIcon, PlayIcon, RecordIcon, SkipIcon, WarningIcon} from '@/components/icons';
 import {useComputedSpeed} from '@/hooks/useComputedSpeed';
 import {useEmergencyReasons} from '@/hooks/useEmergencyReasons';
-import {useEmergencyReset} from '@/hooks/useEmergencyReset';
+import {useEmergencyReset, useJustReset} from '@/hooks/useEmergencyReset';
 import {useLeftoversBefore} from '@/hooks/useLeftoversBefore';
-import {lockedAfter, TAP_LOCK_MS, useCommandNote, useMowerActions} from '@/hooks/useMowerActions';
+import {lockedAfter, setsOff, TAP_LOCK_MS, useCommandNote, useMowerActions} from '@/hooks/useMowerActions';
 import {useMowerMap} from '@/hooks/useMowerMap';
 import {datumFromParams, numParam, useMowerParams} from '@/hooks/useMowerParams';
 import {useMowerSensors, type SensorInfo} from '@/hooks/useMowerSensors';
@@ -205,6 +205,7 @@ export default function Home() {
   const {infos, values} = useMowerSensors();
   const why = useEmergencyReasons(!!state?.emergency);
   const {refused, reset} = useEmergencyReset(!!state?.emergency, publishAction);
+  const justReset = useJustReset(!!state?.emergency);
   // a refused reset shows under the emergency stop already
   const commandNote = useCommandNote(['EMERGENCY_RESET_REFUSED']);
   const position = useMowerPosition() ?? state?.pose;
@@ -531,14 +532,15 @@ export default function Home() {
                 </button>
               )}
               {/* as wide as the card together, one alone the whole width. without the connection, and those held back
-                  for a second after a tap, they stay greyed out, the row doesn't jump */}
+                  for a second after a tap or after the emergency reset (the row takes its button's place), they stay
+                  greyed out, the row doesn't jump */}
               {actionsNow.length > 0 && (
                 <div className={styles.actions} data-count={actionsNow.length}>
                   {actionsNow.map((a) => (
                     <button
                       key={a.id}
                       className={styles[`act-${a.tone}`]}
-                      disabled={!live || (!!tapped && lockedAfter(tapped, a.id))}
+                      disabled={!live || (justReset && setsOff(a.id)) || (!!tapped && lockedAfter(tapped, a.id))}
                       onClick={() => {
                         if (a.id === ACTION.skipArea) return toggleSkip(a.id);
                         setTapped(a.id);

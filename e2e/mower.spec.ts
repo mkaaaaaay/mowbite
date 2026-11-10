@@ -114,6 +114,43 @@ test('an emergency stop while recording is reset on the record page', async ({pa
   expect(await state(page)).toBe('AREA_RECORDING');
 });
 
+// the stick takes the reset button's place once the emergency stop is let go: a second tap meant for the reset mustn't
+// drive
+test('after an emergency reset on the record page the stick waits a moment', async ({page}) => {
+  await page.goto('/record/');
+  await demoDocked(page);
+  await page.getByRole('button', {name: 'Start recording mode'}).click();
+  await demoEmergency(page);
+  await page.locator('button:visible', {hasText: 'Reset emergency'}).click();
+  await expect(stick(page)).toBeVisible();
+  const from = await pose(page);
+  await holdStick(page);
+  await page.waitForTimeout(400);
+  await page.mouse.up();
+  await page.waitForTimeout(600);
+  const still = await pose(page);
+  expect(Math.hypot(still.x - from.x, still.y - from.y)).toBeLessThan(0.01);
+  // a moment later it drives again
+  await holdStick(page);
+  await expect.poll(async () => Math.hypot((await pose(page)).x - from.x, (await pose(page)).y - from.y)).toBeGreaterThan(0.05);
+  await page.mouse.up();
+});
+
+// the same on the overview: start comes where the reset button was
+test('after an emergency reset start waits a moment', async ({page}) => {
+  await page.goto('/');
+  await demoDocked(page);
+  await demoEmergency(page);
+  const start = page.getByRole('button', {name: 'Start', exact: true});
+  await expect(start).toBeHidden();
+  await page.getByRole('button', {name: 'Reset emergency'}).click();
+  await expect(start).toBeVisible();
+  await expect(start).toBeDisabled();
+  expect(await state(page)).toBe('IDLE');
+  // a moment later it takes taps again
+  await expect(start).toBeEnabled();
+});
+
 // the overview says why the emergency stop came (the ros log), and why MowBite OS didn't let go of it when it was reset:
 // still tilted, until it stands level and the next reset goes through
 test('an emergency stop says why, a reset turned down says why not', async ({page}) => {

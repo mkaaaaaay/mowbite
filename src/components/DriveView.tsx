@@ -5,7 +5,7 @@ import DrivePad from '@/components/DrivePad';
 import Joystick from '@/components/Joystick';
 import MapView from '@/components/MapView';
 import {useEmergencyReasons} from '@/hooks/useEmergencyReasons';
-import {useEmergencyReset} from '@/hooks/useEmergencyReset';
+import {useEmergencyReset, useJustReset} from '@/hooks/useEmergencyReset';
 import type {OverlayLine} from '@/hooks/useMapOverlay';
 import {useMedia} from '@/hooks/useMedia';
 import {useMowerActions} from '@/hooks/useMowerActions';
@@ -38,7 +38,7 @@ const SHIFT = 0.14;
 type Draw = NonNullable<React.ComponentProps<typeof MapView>['draw']>;
 
 export interface Driving {
-  // in recording mode, connected and no emergency: only then the stick drives
+  // in recording mode, connected, no emergency and not right after its reset: only then the stick drives
   canDrive: boolean;
   speed: number;
   setSpeed: (i: number) => void;
@@ -59,8 +59,10 @@ export interface Driving {
 export function useDrive({show = true, onMove}: {show?: boolean; onMove?: () => void} = {}): Driving {
   const link = useMowerState();
   const {state} = link;
-  // no fresh state also stops it: the wifi can be gone a while before the connection counts as lost
-  const canDrive = state?.current_state === 'AREA_RECORDING' && isLive(link) && !state?.emergency;
+  // no fresh state also stops it: the wifi can be gone a while before the connection counts as lost. right after an
+  // emergency reset it waits a moment: the stick takes the reset button's place, a second tap there mustn't drive
+  const justReset = useJustReset(!!state?.emergency);
+  const canDrive = state?.current_state === 'AREA_RECORDING' && isLive(link) && !state?.emergency && !justReset;
 
   // held sideways on a phone: a pad for forward and back on the left and one for steering on the right. turned: the
   // same drawn a quarter turn for a phone whose page doesn't turn (a tablet held sideways is wide enough as it is)
@@ -224,6 +226,7 @@ export default function DriveView({
   const position = useMowerPosition() ?? state?.pose;
   const why = useEmergencyReasons(!!state?.emergency);
   const {refused, reset} = useEmergencyReset(!!state?.emergency, publishAction);
+  const justReset = useJustReset(!!state?.emergency);
   const [zoom, setZoom] = useState(2);
 
   // the gps's own accuracy (OpenMower's idle leaves the gps out of its position)
@@ -365,10 +368,11 @@ export default function DriveView({
           ) : !live ? (
             <p className={styles.alarm}>{offline}</p>
           ) : state?.current_state !== 'AREA_RECORDING' ? (
-            // (left elsewhere meanwhile: driving by hand needs it again)
+            // (left elsewhere meanwhile: driving by hand needs it again. held back right after an emergency reset like
+            // the stick, it's where the reset button was)
             <div className={styles.alarm}>
               <span>{tr('The mower is not in recording mode, the stick does nothing.')}</span>
-              <button disabled={!hasAction(ACTION.startRecording)} onClick={() => publishAction(ACTION.startRecording)}>
+              <button disabled={!hasAction(ACTION.startRecording) || justReset} onClick={() => publishAction(ACTION.startRecording)}>
                 {tr('Start recording mode')}
               </button>
             </div>

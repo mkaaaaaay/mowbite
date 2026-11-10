@@ -55,8 +55,9 @@ function refusalNote(e: RpcError): CommandNote {
 export const TAP_LOCK_MS = 1000;
 const SWAPS: string[] = [ACTION.pause, ACTION.resume];
 const SETS_OFF: string[] = [ACTION.startMowing, ACTION.resume, ACTION.startRecording];
+export const setsOff = (id: string) => SETS_OFF.includes(id);
 export const lockedAfter = (tapped: string, id: string) =>
-  id === tapped || SETS_OFF.includes(id) || (SWAPS.includes(tapped) && SWAPS.includes(id));
+  id === tapped || setsOff(id) || (SWAPS.includes(tapped) && SWAPS.includes(id));
 
 // counts the commands sent: an answer only speaks while its command is the last one, a late one of an earlier command
 // would read like the answer to the newer

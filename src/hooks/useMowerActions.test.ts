@@ -22,7 +22,7 @@ vi.mock('@/lib/mqttClient', () => ({
   topicStore: () => ({subscribe: () => () => {}, get: () => ({}), initial: () => ({})}),
 }));
 
-const {sendCommand, commandNote, lockedAfter} = await import('./useMowerActions');
+const {sendCommand, commandNote, lockedAfter, setsOff} = await import('./useMowerActions');
 const settle = () => new Promise((r) => setTimeout(r, 0));
 
 describe('a command to the mower', () => {
@@ -149,5 +149,11 @@ describe('a tap on a command button', () => {
   it('holds back pause and continue for each other, they swap under the finger', () => {
     expect(lockedAfter(pause, resume)).toBe(true);
     expect(lockedAfter(resume, pause)).toBe(true);
+  });
+
+  // (held back for a moment after an emergency reset too: they take the reset button's place)
+  it('knows what sets the mower off: starting, continuing and recording mode, nothing that stops it', () => {
+    for (const id of [start, resume, record]) expect(setsOff(id)).toBe(true);
+    for (const id of [pause, home, abortUndocking, 'mower_logic/reset_emergency', 'mower_logic:mowing/skip_area']) expect(setsOff(id)).toBe(false);
   });
 });
