@@ -10,3 +10,4 @@ android
 out
 *.md
 compose.override.yaml
+docs
