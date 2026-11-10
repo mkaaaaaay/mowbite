@@ -1,0 +1,235 @@
+'use client';
+
+import {loadUpdate, updaterAlive} from '@/lib/autoUpdate';
+import {CopyButton} from '@/lib/clipboard';
+import {tr} from '@/lib/i18n';
+import {apiBase, isDemo} from '@/lib/mowers';
+import {isApp} from '@/lib/native';
+import {
+  APP_VERSION,
+  FROM_STORE,
+  behindKey,
+  checkNow,
+  compareVersions,
+  dismissBehind,
+  dismissUpdate,
+  isNewer,
+  missingOnMower,
+  useUpdates,
+} from '@/lib/updates';
+import Link from 'next/link';
+import {useEffect, useState, useSyncExternalStore} from 'react';
+import {useMowerActions} from '@/hooks/useMowerActions';
+import {ACTION, RPC} from '@/lib/openmower';
+import {useRpcMethods} from '@/hooks/useRpcMethods';
+import styles from './Updates.module.css';
+import {DockgeUpdateGuide} from './AutoUpdate';
+import {CreditsTrigger} from './Credits';
+
+// the newest version, then the old image goes (and any other no container uses and no name points to)
+const UPDATE_COMMAND = 'docker compose pull && docker compose up -d && docker image prune -f';
+const PRIVACY_URL = 'https://github.com/mkaaaaaay/mowbite/blob/main/PRIVACY.md';
+const LICENSE_URL = 'https://github.com/mkaaaaaay/mowbite#license';
+
+const noop = () => () => {};
+
+// what's out of date: the android app itself, and the container on the mower
+function useOutdated() {
+  const u = useUpdates();
+  // (as the page was built ahead first, else the page put together in the app doesn't match it)
+  const app = useSyncExternalStore(noop, isApp, () => false);
+  // the page comes from the container of the mower looked at: in the browser, with no other mower picked
+  const own = useSyncExternalStore(noop, () => !isApp() && !apiBase(), () => true);
+  // then its version is the mower's, and it has what it needs
+  const mower = u.mower ?? (own ? APP_VERSION : null);
+  const latest = u.latest?.version;
+  const missing = !own && !isDemo() ? missingOnMower(u.level) : [];
+  return {
+    u,
+    app,
+    mower,
+    missing,
+    appOld: !FROM_STORE && !!latest && app && isNewer(latest, APP_VERSION),
+    // from the Play Store the store brings it, nothing to download here
+    storeOld: FROM_STORE && !!latest && app && isNewer(latest, APP_VERSION),
+    // the demo has no container to update
+    mowerOld: !isDemo() && !!latest && !!mower && isNewer(latest, mower),
+  };
+}
+
+// what the app leaves out because the mower's OpenMower doesn't have it yet. only when the mower can tell
+// (rpc.methods) and its actions arrived, things only some forks have aren't mentioned
+function NewerOpenMower() {
+  const {knowsAction} = useMowerActions();
+  const methods = useRpcMethods();
+  if (!methods || !knowsAction(ACTION.resetEmergency)) return null;
+  const missing = [
+    ...(methods.has(RPC.areaPlan)
+      ? []
+      : ['progress and time left while mowing', 'the mowing plan from the mower in the map editor', "areas set to don't mow"]),
+    ...(methods.has(RPC.logs) ? [] : ['the ROS log next to problems']),
+    ...(knowsAction(ACTION.resetJob) ? [] : ['dropping an interrupted job']),
+  ];
+  if (!missing.length) return null;
+  return <p className={styles.versions}>{tr('A newer OpenMower on the mower also brings: {list}.', {list: missing.map((m) => tr(m)).join(', ')})}</p>;
+}
+
+// a command to run on the mower, with a button that copies it
+export function CopyCommand({command}: {command: string}) {
+  return (
+    <div className={styles.command}>
+      <code>{command}</code>
+      <CopyButton text={command} className={styles.button} />
+    </div>
+  );
+}
+
+// how MowBite on the mower gets the newest version: with the MowBite Updater one tap in the settings (here: on the
+// settings page, below the updater), else in dockge or with the command for a terminal
+export function UpdateCommand({here}: {here?: boolean}) {
+  const [updater, setUpdater] = useState(false);
+  useEffect(() => {
+    void loadUpdate()
+      .then((s) => setUpdater(updaterAlive(s)))
+      .catch(() => {});
+  }, []);
+  if (updater && here) return <span className={styles.versions}>{tr('Update it above, under "On the mower"')}</span>;
+  if (updater)
+    return (
+      <Link href="/settings#updates" className={styles.versions}>
+        {tr('Update it in the settings under "Updates"')}
+      </Link>
+    );
+  return (
+    <>
+      <DockgeUpdateGuide />
+      <details>
+        <summary className={styles.versions}>{tr('Or in a terminal on the mower, in the mowbite folder:')}</summary>
+        <CopyCommand command={UPDATE_COMMAND} />
+      </details>
+    </>
+  );
+}
+
+// the version after a name, when the mower told it (one from before doesn't)
+export const versionNote = (v: string | null) => (v ? ` (${v})` : '');
+
+// the app is newer than MowBite on the mower, and some of it needs that one newer too
+const behindText = (mower: string | null, missing: string[]) =>
+  tr("MowBite on the mower{old} is older than this app. Until it's updated, this doesn't work yet: {list}.", {
+    old: versionNote(mower),
+    list: missing.map((m) => tr(m)).join(', '),
+  });
+
+export function UpdateSettings({cardClass}: {cardClass: string}) {
+  const {u, app, mower, missing, appOld, mowerOld, storeOld} = useOutdated();
+
+  return (
+    <section className={cardClass} id="updates">
+      <h2>{tr('This app')}</h2>
+      <CreditsTrigger className={styles.versions}>
+        {app ? `${tr('App')} ${APP_VERSION} · ${tr('Mower')} ${mower ?? (u.level === 0 ? tr('older version') : '?')}` : `MowBite ${APP_VERSION}`}
+      </CreditsTrigger>
+      <NewerOpenMower />
+      <div className={styles.status}>
+        <button className={[styles.button, styles.even].join(' ')} onClick={() => void checkNow()} disabled={u.checking}>
+          {u.checking ? tr('checking…') : tr('Check now')}
+        </button>
+        <span className={styles.versions}>
+          {u.failed
+            ? tr("Couldn't reach GitHub.")
+            : u.latest
+              ? appOld || mowerOld
+                ? ''
+                : storeOld
+                  ? tr('Version {v} is out, the app gets it from the Play Store.', {v: u.latest.version})
+                  : compareVersions(APP_VERSION, u.latest.version) > 0
+                  ? tr("You're on a pre-release, the newest published one is {v}.", {v: u.latest.version})
+                  : tr('Up to date, the newest release is {v}.', {v: u.latest.version})
+              : ''}
+        </span>
+      </div>
+
+      {u.latest && appOld && (
+        <div className={styles.news}>
+          <span>
+            {tr('Version {v} of the app is out.', {v: u.latest.version})}{' '}
+            <a href={u.latest.url} target="_blank" rel="noreferrer">
+              {tr("What's new")}
+            </a>
+          </span>
+          {u.latest.apk && (
+            <div>
+              <button className={[styles.button, styles.primary].join(' ')} // the app hands links to other sites to the phone's browser, which downloads the apk
+                onClick={() => (window.location.href = u.latest!.apk!)}>
+                {tr('Download and install')}
+              </button>
+            </div>
+          )}
+          <span className={styles.versions}>{tr('Android asks whether to install it, your settings stay.')}</span>
+        </div>
+      )}
+
+      {((u.latest && mowerOld) || missing.length > 0) && (
+        <div className={styles.news}>
+          {u.latest && mowerOld && (
+            <span>
+              {tr('The mower runs MowBite {old}, {v} is out.', {old: mower ?? '', v: u.latest.version})}{' '}
+              <a href={u.latest.url} target="_blank" rel="noreferrer">
+                {tr("What's new")}
+              </a>
+            </span>
+          )}
+          {missing.length > 0 && <span>{behindText(mower, missing)}</span>}
+          <UpdateCommand here />
+        </div>
+      )}
+    </section>
+  );
+}
+
+// on the dashboard, when MowBite on the mower is too old for some of the app or a check found something, and it wasn't
+// waved away
+export function UpdateBanner() {
+  const {u, mower, missing, appOld, mowerOld} = useOutdated();
+  if (missing.length > 0 && u.behindDismissed !== behindKey(mower)) {
+    return (
+      <div className={[styles.banner, styles.behind].join(' ')}>
+        <div>
+          <span>{behindText(mower, missing)}</span>
+          <UpdateCommand />
+        </div>
+        <button onClick={() => dismissBehind(behindKey(mower))} aria-label={tr('Close')}>
+          ×
+        </button>
+      </div>
+    );
+  }
+  if (!u.latest || !(appOld || mowerOld) || u.dismissed === u.latest.version) return null;
+  const v = u.latest.version;
+  return (
+    <div className={styles.banner}>
+      <Link href="/settings#updates">{tr('MowBite {v} is out, see the settings', {v})}</Link>
+      <button onClick={() => dismissUpdate(v)} aria-label={tr('Close')}>
+        ×
+      </button>
+    </div>
+  );
+}
+
+// privacy and license, small at the foot of the settings
+export function LegalFooter({className}: {className?: string}) {
+  return (
+    <footer className={[styles.versions, styles.legal, className].join(' ')}>
+      <a href={PRIVACY_URL} target="_blank" rel="noreferrer">
+        {tr('Privacy policy')}
+      </a>
+      <span>
+        © 2026 mkay · {tr('Free software under the GPL-3.0: you may pass it on and change it under its terms. It comes without any warranty.')}{' '}
+        <a href={LICENSE_URL} target="_blank" rel="noreferrer">
+          {tr('License and source code')}
+        </a>
+      </span>
+    </footer>
+  );
+}

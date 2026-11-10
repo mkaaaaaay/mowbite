@@ -1,0 +1,719 @@
+/* driving by hand: the map following the mower with the stick on it, the card under it */
+.drive {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.map {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--card-border);
+}
+
+/* what to do now at the top, under the map's coverage switch while it's there */
+.say {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  max-width: calc(100% - 76px);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-radius: 12px;
+  background: rgba(20, 24, 60, 0.6);
+  backdrop-filter: blur(10px);
+  color: #e6ebef;
+  font-size: 13px;
+  line-height: 1.3;
+  pointer-events: none;
+}
+
+.say b {
+  color: #fff;
+}
+
+.say > i {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #22a88f;
+  box-shadow: 0 0 0 3px rgba(34, 168, 143, 0.35);
+}
+
+.map:has([data-cover-switch]) .say {
+  top: 54px;
+}
+
+/* with the bar under its words: as wide as the map leaves it */
+.sayWide {
+  width: calc(100% - 76px);
+}
+
+.sayBody {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  flex: 1;
+  min-width: 0;
+}
+
+.sayDone {
+  background: rgba(20, 70, 40, 0.72);
+}
+
+/* a line under it on its own: a run not counted, a step turned down, the heading running away */
+.missed {
+  flex-basis: 100%;
+  font-style: normal;
+  font-weight: 600;
+  color: #ffd479;
+}
+
+/* the bar: green filling up, a soft glow, ✓ and brighter once there */
+.meter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  flex-basis: 100%;
+}
+
+.meterTrack {
+  flex: 1;
+  height: 12px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.16);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+.meterFill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #1b9a83, #3fd49a);
+  box-shadow: 0 0 10px rgba(63, 212, 154, 0.55);
+  transition: width 0.4s ease;
+}
+
+.meter b {
+  min-width: 4.5em;
+  color: #fff;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.meterFull .meterFill {
+  background: linear-gradient(90deg, #2fbf7a, #79eab0);
+  box-shadow: 0 0 14px rgba(121, 234, 176, 0.7);
+}
+
+/* in the middle at the bottom: the map's buttons run down its right edge, a tap meant for them mustn't drive */
+.stick {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: calc(100% - 24px);
+}
+
+/* see-through enough to still see the map under it */
+.stick > div:not(.alarm) {
+  background: rgba(10, 10, 10, 0.35);
+  backdrop-filter: blur(2px);
+}
+
+/* over the stick on a phone held upright, like the words at the top */
+.sidewaysHint {
+  display: none;
+}
+
+@media (max-width: 899px) {
+  .sidewaysHint {
+    position: absolute;
+    left: 50%;
+    bottom: 164px;
+    transform: translateX(-50%);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    background: rgba(20, 24, 60, 0.6);
+    backdrop-filter: blur(10px);
+    color: #e6ebef;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+}
+
+/* the emergency stop where the stick was, with its reset; no connection the same way */
+.alarm {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  max-width: 300px;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(10, 10, 10, 0.75);
+  color: var(--error);
+  font-size: 13px;
+}
+
+.alarm button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 2px;
+  padding: 9px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--error);
+  background: color-mix(in srgb, var(--error) 18%, transparent);
+  color: var(--error);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.alarm button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  box-shadow: var(--card-shadow, none);
+  backdrop-filter: var(--card-blur, none);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.card p {
+  margin: 0;
+}
+
+.card button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 11px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--card-border);
+  background: rgba(128, 128, 128, 0.1);
+  color: var(--foreground);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.card button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.card .primary {
+  border-color: color-mix(in srgb, var(--accent) 70%, transparent);
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+  backdrop-filter: var(--card-blur, none);
+  box-shadow: var(--btn-3d);
+  color: var(--foreground);
+}
+
+.card .warnButton {
+  border-color: color-mix(in srgb, var(--warning) 60%, transparent);
+  background: color-mix(in srgb, var(--warning) 22%, transparent);
+  color: var(--soft-warn);
+}
+
+.card .danger {
+  border-color: color-mix(in srgb, var(--error) 50%, transparent);
+  color: var(--error);
+  background: transparent;
+}
+
+/* the gps on one end, what the page counts on the other */
+.line {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.dim {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.warn {
+  margin: 0;
+  color: var(--error);
+}
+
+.speeds {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.card .speeds button {
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.card .speeds .on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+/* the button for the sideways layout, on a phone held upright */
+.phoneOnly {
+  display: none;
+}
+
+@media (max-width: 899px) {
+  .phoneOnly {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+}
+
+@media (min-width: 900px) {
+  .drive {
+    flex-direction: row;
+    align-items: flex-start;
+  }
+
+  .map {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .card {
+    width: 380px;
+  }
+}
+
+/* driving on a phone held sideways: the map over the whole screen, a pad on each side like a remote control car, the
+   steps as buttons at the bottom */
+.remote {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  overflow: hidden;
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 13px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* for a phone that doesn't turn the page: the same drawn a quarter turn, its top to the right edge of the upright
+   screen */
+.turned {
+  inset: auto;
+  top: 0;
+  left: 0;
+  width: 100vh;
+  width: 100dvh;
+  height: 100vw;
+  height: 100dvw;
+  transform-origin: top left;
+  transform: translateX(100vw) rotate(90deg);
+}
+
+/* the map is square: as wide as the screen and the band around the mower in the middle */
+.remoteMap {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.remoteMap > * {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.topBar {
+  position: absolute;
+  top: 10px;
+  left: max(12px, env(safe-area-inset-left));
+  right: max(12px, env(safe-area-inset-right));
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* without an rtk fix, next to the step */
+.gpsWarn {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(10, 10, 10, 0.6);
+  color: #ff8a96;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.grow {
+  flex: 1;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 13px;
+  border-radius: 999px;
+  background: #22a88f;
+  color: #fff;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.status i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.3);
+}
+
+.live i {
+  animation: recording 1.2s ease-in-out infinite;
+}
+
+@keyframes recording {
+  50% {
+    opacity: 0.3;
+  }
+}
+
+.chips {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 4px 3px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(20, 24, 60, 0.45);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  color: #d5dbe0;
+}
+
+.chips button {
+  min-width: 34px;
+  padding: 5px 8px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.chips button:disabled {
+  opacity: 0.4;
+}
+
+.chips .on {
+  background: color-mix(in srgb, var(--accent) 40%, transparent);
+  color: #fff;
+}
+
+.square {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border: none;
+  border-radius: 11px;
+  background: rgba(15, 18, 30, 0.82);
+  color: #fff;
+  cursor: pointer;
+}
+
+/* the cross asking before it cancels */
+.squareAsk {
+  background: color-mix(in srgb, var(--error) 70%, rgba(15, 18, 30, 0.82));
+}
+
+/* what to do now, or the outline closing by itself */
+.remoteNote {
+  position: absolute;
+  top: 58px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: 46%;
+  margin: 0;
+  padding: 6px 12px;
+  border-radius: 12px;
+  background: rgba(20, 24, 60, 0.45);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  color: #e6ebef;
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: center;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.remoteNote b {
+  color: #fff;
+}
+
+.remoteNote button {
+  padding: 5px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* with the bar: wide enough for it */
+.noteWide {
+  min-width: 40%;
+}
+
+/* once it's right */
+.noteOk {
+  background: rgba(20, 70, 40, 0.72);
+}
+
+.remoteWarn {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  max-width: 40%;
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(10, 10, 10, 0.75);
+  color: #ff8a96;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.remoteWarn button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 2px;
+  padding: 8px 13px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 107, 122, 0.55);
+  background: rgba(255, 107, 122, 0.16);
+  color: #ff8a96;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.remoteWarn button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* the two pads, in the middle of each side clear of the bars */
+.pad {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.padLeft {
+  left: max(40px, calc(env(safe-area-inset-left) + 28px));
+}
+
+.padRight {
+  right: max(40px, calc(env(safe-area-inset-right) + 28px));
+}
+
+.bottomBar {
+  position: absolute;
+  bottom: 10px;
+  left: max(12px, env(safe-area-inset-left));
+  right: max(12px, env(safe-area-inset-right));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.bottomBar > * {
+  pointer-events: auto;
+}
+
+.remoteBlade {
+  max-width: 60%;
+  margin: 0;
+  padding: 5px 10px;
+  border-radius: 10px;
+  background: rgba(10, 10, 10, 0.6);
+  color: #ff8a96;
+  font-size: 11px;
+  text-align: center;
+}
+
+.remoteButtons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.remoteButtons button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 13px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(20, 24, 60, 0.45);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.remoteButtons button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.remoteButtons .primary {
+  padding: 10px 18px;
+  border-color: color-mix(in srgb, var(--accent) 80%, transparent);
+  background: color-mix(in srgb, var(--accent) 45%, rgba(20, 24, 60, 0.45));
+  font-size: 14px;
+}
+
+.remoteButtons .danger {
+  border-color: rgba(255, 107, 122, 0.55);
+  color: #ff8a96;
+}
+
+.remoteButtons .warnButton {
+  border-color: color-mix(in srgb, var(--warning) 70%, transparent);
+  color: #ffd479;
+}
+
+/* drawn on the map: the lane of a run with its end, the ring while it stands, the arrow of a turn with its ring filling
+   up, the docking station and the way into it */
+.lane,
+.laneDone {
+  --c: var(--accent);
+}
+
+.laneDone {
+  --c: var(--success);
+}
+
+.laneAll {
+  fill: color-mix(in srgb, var(--c) 14%, transparent);
+  stroke: var(--c);
+  stroke-dasharray: 4 3;
+}
+
+.laneGot {
+  fill: color-mix(in srgb, var(--c) 45%, transparent);
+}
+
+.laneEnd {
+  stroke: var(--c);
+  stroke-linecap: round;
+}
+
+.laneText {
+  fill: #fff;
+  font-weight: 700;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.6);
+  stroke-width: 3px;
+}
+
+.ringAll {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.25);
+}
+
+.ringGot {
+  fill: none;
+  stroke: var(--accent);
+  stroke-linecap: round;
+}
+
+.station circle {
+  fill: color-mix(in srgb, var(--accent) 18%, transparent);
+  stroke: var(--accent);
+}
+
+.station text {
+  fill: #fff;
+  font-weight: 700;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.6);
+  stroke-width: 3px;
+}
+
+.turnArrow {
+  stroke: var(--accent);
+  fill: var(--accent);
+}
+
+.turnArrow path {
+  fill: none;
+  stroke-linecap: round;
+}
+
+.wayIn {
+  stroke: var(--c);
+  stroke-linecap: round;
+}
+
+.wayInHead {
+  fill: var(--c);
+}

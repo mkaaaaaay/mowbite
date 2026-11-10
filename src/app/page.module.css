@@ -1,0 +1,745 @@
+.page {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;
+}
+
+.main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: 16px;
+  width: 100%;
+  max-width: var(--content-max-width);
+  padding: 20px 16px 60px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 30px;
+  font-weight: 400;
+  letter-spacing: 0.3px;
+}
+
+.brand strong {
+  font-weight: 700;
+}
+
+/* the title, then the weather now and the mower switch at the right end */
+.top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.top .brand {
+  flex: 1;
+  min-width: 0;
+}
+
+@media (min-width: 900px) {
+  .main {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .main .top {
+    grid-column: 1 / -1;
+  }
+
+  /* with the map: status and today on the left, map on the right */
+  .withMap .status,
+  .withMap .today {
+    grid-column: 1;
+  }
+
+  .withMap .map {
+    grid-column: 2;
+    grid-row: 2 / span 3;
+    position: sticky;
+    top: 24px;
+  }
+}
+
+.dim {
+  color: var(--text-secondary);
+}
+
+.status,
+.today {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 18px;
+  border-radius: 18px;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  box-shadow: var(--card-shadow, none);
+  backdrop-filter: var(--card-blur, none);
+}
+
+/* a thin colored line on top says at a glance whether all is well */
+.status {
+  border-top: 3px solid var(--tone, var(--card-border));
+}
+
+.tone-good {
+  --tone: var(--success);
+}
+
+.tone-live {
+  --tone: var(--accent);
+}
+
+.tone-warn {
+  --tone: var(--warning);
+}
+
+.tone-error {
+  --tone: var(--error);
+}
+
+/* a state the app doesn't know */
+.tone-neutral {
+  --tone: var(--card-border);
+}
+
+/* offline or no fresh state: everything in the card is old, the line under the headline says since when */
+.stale .statusTop > :first-child,
+.stale .headline h2,
+.stale .facts {
+  opacity: 0.45;
+}
+
+.offline {
+  color: var(--warning);
+  font-weight: 600;
+}
+
+.statusTop {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.headline {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.headline h2 {
+  font-size: 22px;
+  line-height: 1.2;
+}
+
+.headline span {
+  font-size: 13px;
+}
+
+/* why the emergency stop is on */
+.reason {
+  font-size: 15px;
+  color: var(--tone);
+}
+
+/* a reset MowBite OS didn't let go for */
+.refused {
+  font-size: 14px;
+  color: var(--warning);
+}
+
+.ring {
+  position: relative;
+  flex: none;
+  width: 84px;
+  height: 84px;
+}
+
+.ring svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.ring circle {
+  fill: none;
+  stroke-width: 7;
+}
+
+.ringBg {
+  stroke: rgba(128, 128, 128, 0.2);
+}
+
+.ringFill {
+  stroke: var(--ring);
+  stroke-linecap: round;
+  transition: stroke-dasharray 0.6s;
+}
+
+.ring-success {
+  --ring: var(--success);
+}
+
+.ring-warning {
+  --ring: var(--warning);
+}
+
+.ring-error {
+  --ring: var(--error);
+}
+
+.ring > div {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.ring strong {
+  font-size: 19px;
+}
+
+.ring span {
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+.factBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* two to a row and both as wide, one alone gets the whole row */
+.facts {
+  container: facts / inline-size;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.facts > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: rgba(128, 128, 128, 0.1);
+  font-size: 13px;
+  /* the same line for label and value, so both sit at one height */
+  line-height: 17px;
+  white-space: nowrap;
+}
+
+/* every one on a single line: on a screen too small a label is cut short rather than the value wrapping */
+.facts span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+/* the value at the right end */
+.facts strong {
+  flex-shrink: 0;
+  max-width: 100%;
+  margin-left: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.facts strong small {
+  font-size: inherit;
+  font-weight: 500;
+  opacity: 0.75;
+}
+
+/* over the whole row the value is in the middle */
+.facts > .whole {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+}
+
+.facts > .whole strong {
+  grid-column: 2;
+  margin-left: 0;
+}
+
+.facts > .whole > button {
+  justify-self: start;
+}
+
+/* a note goes under the value */
+.facts > div > span ~ span {
+  grid-column: 1 / -1;
+  white-space: normal;
+  text-align: center;
+}
+
+/* small phones and a narrow column on a computer: one to a row, so label and value fit on one line */
+@container facts (max-width: 339px) {
+  .facts > div {
+    grid-column: 1 / -1;
+  }
+}
+
+.facts .warn {
+  background: color-mix(in srgb, var(--warning) 16%, transparent);
+  color: var(--warning);
+}
+
+.controls {
+  container: controls / inline-size;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.controls button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--card-border);
+  background: rgba(128, 128, 128, 0.08);
+  color: var(--foreground);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--btn-3d);
+}
+
+.controls button svg {
+  flex-shrink: 0;
+}
+
+.controls button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* only what the mower offers now, together as wide as the card */
+.controls .actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 8px;
+}
+
+.controls .actions button {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 52px;
+}
+
+/* one alone: a wide button with the word next to its icon */
+.controls .actions[data-count='1'] button {
+  min-height: 56px;
+  font-size: 16px;
+}
+
+/* each action tinted in the color of the state it leads to */
+.act-go {
+  --act: var(--success);
+}
+
+.act-pause {
+  --act: var(--warning);
+}
+
+.act-home {
+  --act: var(--accent);
+}
+
+.act-skip {
+  --act: var(--violet);
+}
+
+.act-stop {
+  --act: var(--error);
+}
+
+.controls .actions button:not(:disabled) {
+  border-color: transparent;
+  background: linear-gradient(
+    color-mix(in srgb, var(--act) 40%, transparent),
+    color-mix(in srgb, var(--act) 28%, transparent)
+  );
+  backdrop-filter: var(--card-blur, none);
+  box-shadow: var(--btn-glass);
+}
+
+.controls .actions button:not(:disabled) svg {
+  color: var(--act);
+}
+
+.controls .reset {
+  grid-column: 1 / -1;
+  border-color: var(--error);
+  background: color-mix(in srgb, var(--error) 18%, transparent);
+  color: var(--error);
+}
+
+.controls .resetJobButton,
+.controls .skipPathButton {
+  grid-column: 1 / -1;
+}
+
+/* the smaller ones under them: lower and plainer, the same family */
+.controls .resetJobButton,
+.controls .skipPathButton,
+.controls .leftoversButton {
+  min-height: var(--tap);
+  padding: 8px 12px;
+  border-color: transparent;
+  background: color-mix(in srgb, var(--foreground) 7%, transparent);
+  box-shadow: none;
+  font-size: var(--text-s);
+  font-weight: 500;
+  color: var(--foreground);
+}
+
+/* what MowBite OS answered to the last command: why not, or no answer */
+.controls .commandNote {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.controls .commandNote.warn {
+  color: var(--warning);
+}
+
+.controls .resetJob {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.controls .resetJob span {
+  flex: 1 1 100%;
+}
+
+/* left in recording mode: back to its page, or out of it */
+.controls .recording {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.controls .recording > * {
+  flex: 1 1 0;
+}
+
+.controls .recording a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 10px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 70%, transparent);
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+  box-shadow: var(--btn-3d);
+  color: var(--foreground);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.controls .leftovers {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.controls .leftovers span {
+  flex: 1 1 100%;
+}
+
+.controls .leftovers small {
+  display: block;
+  color: var(--text-secondary);
+}
+
+.controls .leftovers .error {
+  flex: 1 1 100%;
+  color: var(--error);
+}
+
+.controls .leftoversButton {
+  flex: 1;
+}
+
+.controls .resetJob button {
+  flex: 1;
+}
+
+/* by the width of the card, not the screen: three or four buttons side by side need about 600px for a label next to its
+   icon. one or two keep it next to it */
+@container controls (max-width: 640px) {
+  /* the icons in one line, also when a label takes two */
+  .controls .actions:not([data-count='1']):not([data-count='2']) button {
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 4px;
+    padding: 10px 2px;
+    font-size: 12px;
+    letter-spacing: -0.2px;
+    /* a long word is split rather than sticking out */
+    hyphens: auto;
+    overflow-wrap: break-word;
+  }
+}
+
+.map {
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid var(--card-border);
+}
+
+.todayHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.todayHead h2 {
+  font-size: 16px;
+}
+
+.todayHead a {
+  font-size: 13px;
+  color: var(--accent);
+}
+
+.todayNumbers {
+  display: flex;
+  gap: 28px;
+}
+
+.todayNumbers div {
+  display: flex;
+  flex-direction: column;
+}
+
+.todayNumbers strong {
+  font-size: 20px;
+}
+
+.todayNumbers span,
+.label {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.todayNumbers .bad strong {
+  color: var(--error);
+}
+
+.label {
+  margin-bottom: -10px;
+}
+
+/* the last three runs, and three more once unfolded */
+.runList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.moreRuns {
+  align-self: flex-start;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-size: 13px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.lastRun {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 8px 10px 12px;
+  border-radius: 12px;
+  border-left: 3px solid var(--card-border);
+  background: rgba(128, 128, 128, 0.08);
+  color: inherit;
+  text-decoration: none;
+  transition: background var(--dur-fast) ease;
+}
+
+.lastRun:hover,
+.lastRun:active {
+  background: rgba(128, 128, 128, 0.16);
+}
+
+/* it opens the run on the activity page */
+.lastRun > svg {
+  flex: none;
+  margin-left: -4px;
+  color: var(--text-secondary);
+}
+
+.lastRun > div {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.lastRun strong {
+  font-size: 14px;
+}
+
+.badge {
+  flex: none;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(144, 164, 174, 0.16);
+}
+
+.run-good {
+  border-left-color: var(--success);
+}
+
+.run-good .badge {
+  color: var(--soft-good);
+  background: color-mix(in srgb, var(--success) 16%, transparent);
+}
+
+.run-bad {
+  border-left-color: var(--error);
+}
+
+.run-bad .badge {
+  color: var(--soft-bad);
+  background: color-mix(in srgb, var(--error) 16%, transparent);
+}
+
+.run-live {
+  border-left-color: var(--accent);
+}
+
+.nextRun {
+  font-size: 13px;
+  color: var(--accent);
+}
+
+/* a start the schedule left out, with why, until it's closed */
+.missed {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
+  color: var(--warning);
+  font-size: 13px;
+}
+
+.missed svg {
+  flex: none;
+  margin-top: 1px;
+}
+
+.missed a {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--foreground);
+}
+
+.missed a span {
+  color: var(--text-secondary);
+}
+
+.missed button {
+  margin-left: auto;
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: none;
+}
+
+/* the mower's name over its state, with more than one to pick from */
+.mowerName {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* at the right end of the title row on phones, the sidebar has its own */
+.mowerSwitch {
+  flex: none;
+}
+
+@media (min-width: 900px) {
+  .mowerSwitch {
+    display: none;
+  }
+}
+
+/* what to look at on the mower when mower_logic sends nothing */
+.logicHint {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 13px;
+}
+
+/* no map yet: to the guide for recording one */
+.firstMap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--foreground);
+  font-size: 14px;
+}
+
+.firstMap span {
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+}

@@ -1,0 +1,228 @@
+.page {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  max-width: 640px;
+  padding: 20px 16px 60px;
+}
+
+.main h1 {
+  margin: 0;
+  font-size: 28px;
+}
+
+.back {
+  align-self: flex-start;
+  color: var(--accent);
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.lead {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+.dim {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  box-shadow: var(--card-shadow, none);
+  backdrop-filter: var(--card-blur, none);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.card h2 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.card p {
+  margin: 0;
+}
+
+.num {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 700;
+  vertical-align: 1px;
+}
+
+.two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.cap {
+  margin-top: 4px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-align: center;
+}
+
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.steps li {
+  display: flex;
+  gap: 10px;
+}
+
+.ok {
+  color: var(--success);
+  font-weight: 700;
+}
+
+.no {
+  color: var(--error);
+  font-weight: 700;
+}
+
+.next {
+  align-self: stretch;
+  padding: 13px 16px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 70%, transparent);
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+  color: var(--foreground);
+  font-size: 15px;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+}
+
+/* the drawings */
+.art {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 12px;
+  background: var(--well);
+}
+
+.grass {
+  fill: color-mix(in srgb, var(--success) 14%, transparent);
+}
+
+.body {
+  fill: var(--card);
+  stroke: var(--foreground);
+  stroke-width: 2;
+}
+
+.wheel {
+  fill: var(--foreground);
+}
+
+.blade {
+  fill: none;
+  stroke: var(--text-secondary);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 3;
+}
+
+.ant {
+  fill: var(--accent);
+}
+
+.nose {
+  fill: none;
+  stroke: var(--foreground);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.path,
+.pathSoft,
+.bad,
+.good {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.pathSoft {
+  stroke-dasharray: 2 7;
+}
+
+.bad {
+  stroke: var(--error);
+}
+
+.good {
+  stroke: var(--success);
+}
+
+.guide {
+  fill: none;
+  stroke: var(--text-secondary);
+  stroke-width: 1.2;
+  stroke-dasharray: 4 4;
+}
+
+.label {
+  fill: var(--foreground);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.small {
+  fill: var(--text-secondary);
+  font-size: 12px;
+}
+
+.accentFill {
+  fill: var(--accent);
+}
+
+.goodFill {
+  fill: var(--success);
+}
+
+.badFill {
+  fill: var(--error);
+}
+
+.ring {
+  fill: none;
+  stroke: var(--well);
+  stroke-width: 8;
+}

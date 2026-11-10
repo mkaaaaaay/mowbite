@@ -1,0 +1,216 @@
+/* in the grass strip, right of the middle */
+.patch {
+  position: absolute;
+  bottom: 2px;
+  left: calc(72% - 17px);
+  z-index: 1;
+  width: 34px;
+  height: 30px;
+}
+
+.pumpkin svg {
+  display: block;
+}
+
+.face {
+  fill: #3e1f00;
+}
+
+/* after dark a candle burns inside: the face glows and flickers, the grass around it is lit */
+.night .face {
+  fill: #ffd54f;
+  animation: pk-flicker 2.6s infinite;
+  filter: drop-shadow(0 0 2px #ffab00);
+}
+
+.glow {
+  position: absolute;
+  left: -26px;
+  bottom: -10px;
+  width: 86px;
+  height: 52px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(255, 171, 0, 0.32), transparent);
+  animation: pk-flicker 2.6s infinite;
+}
+
+@keyframes pk-flicker {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  8% {
+    opacity: 0.75;
+  }
+  11% {
+    opacity: 0.95;
+  }
+  40% {
+    opacity: 0.85;
+  }
+  43% {
+    opacity: 1;
+  }
+  71% {
+    opacity: 0.7;
+  }
+  74% {
+    opacity: 0.95;
+  }
+}
+
+/* tapped: it gives a little start */
+.jump {
+  transform-origin: bottom;
+  animation: pk-jump 0.5s ease-out;
+}
+
+@keyframes pk-jump {
+  0%,
+  100% {
+    transform: scale(1, 1);
+  }
+  30% {
+    transform: scale(1.12, 0.84);
+  }
+  60% {
+    transform: translateY(-5px) scale(0.94, 1.08);
+  }
+}
+
+/* over the page (in body), at the pumpkin's top: what comes out of it rises over the cards */
+.boo {
+  position: fixed;
+  z-index: 60;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+/* the ghost comes up out of the pumpkin, says boo, floats off swaying and fades */
+.ghost {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  animation: pk-rise 4s ease-out forwards;
+}
+
+.ghost svg {
+  display: block;
+  animation: pk-sway 1.2s ease-in-out infinite;
+}
+
+.ghost b {
+  position: absolute;
+  left: 24px;
+  top: -14px;
+  padding: 2px 7px;
+  border-radius: 9px;
+  background: #fafafa;
+  color: #263238;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+  opacity: 0;
+  animation: pk-boo 4s ease-out forwards;
+}
+
+@keyframes pk-rise {
+  0% {
+    transform: translate(0, 18px) scale(0.3);
+    opacity: 0;
+  }
+  15% {
+    transform: translate(0, -20px) scale(1);
+    opacity: 1;
+  }
+  65% {
+    transform: translate(-30px, -70px) scale(1);
+    opacity: 0.9;
+  }
+  100% {
+    transform: translate(-70px, -120px) scale(0.9);
+    opacity: 0;
+  }
+}
+
+@keyframes pk-sway {
+  0%,
+  100% {
+    transform: rotate(-6deg);
+  }
+  50% {
+    transform: rotate(6deg) translateY(-2px);
+  }
+}
+
+@keyframes pk-boo {
+  0%,
+  12% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  20%,
+  55% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  70%,
+  100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+}
+
+/* bats flutter off in all directions */
+.bat {
+  position: absolute;
+  left: 4px;
+  bottom: 0;
+  opacity: 0;
+  /* a pale rim, they'd be lost on a dark card */
+  filter: drop-shadow(0 0 1.5px rgba(225, 190, 231, 0.9));
+  animation: pk-bat 2.6s ease-in forwards;
+}
+
+.bat svg {
+  width: 30px;
+  height: 16px;
+}
+
+.wings {
+  transform-origin: 50% 40%;
+  animation: pk-flap 0.18s ease-in-out infinite alternate;
+}
+
+@keyframes pk-bat {
+  0% {
+    transform: translate(0, 0) scale(0.4);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--bx), var(--by)) scale(1);
+    opacity: 0;
+  }
+}
+
+@keyframes pk-flap {
+  from {
+    transform: scaleY(1);
+  }
+  to {
+    transform: scaleY(-0.6);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .night .face,
+  .glow,
+  .wings,
+  .ghost svg {
+    animation: none;
+  }
+}

@@ -1,0 +1,232 @@
+'use client';
+
+import type {Area} from '@/app/map/editing';
+import {locale, tr} from '@/lib/i18n';
+import {duration} from '@/lib/dates';
+import {scheduledDuration, windowMinutes} from '@/lib/planDurations';
+import {reachesDark, type Plan} from '@/lib/schedule';
+import type {SunTimes} from '@/lib/sun';
+import {useState} from 'react';
+import styles from './page.module.css';
+
+// monday first, labels from the browser so they come out in the app's language
+const weekday = (d: number) => new Date(2024, 0, d).toLocaleDateString(locale(), {weekday: 'short'});
+
+// one start time: days, from and until, areas, the two options, and the hedgehog note when it reaches into the dark
+export default function PlanRow({
+  plan,
+  sun,
+  mowAreas,
+  canReset,
+  canTurn,
+  os,
+  onChange,
+  onRemove,
+}: {
+  plan: Plan;
+  sun: SunTimes | null;
+  mowAreas: Area[];
+  canReset: boolean;
+  // the mower takes params.set, so a start can have its own mowing direction
+  canTurn: boolean;
+  // MowBite OS: no mowing direction per start time there (yet)
+  os?: boolean;
+  onChange: (p: Plan) => void;
+  onRemove: () => void;
+}) {
+  // a start or end that makes the plan reach into the dark is saved after a yes, with the other one changed meanwhile.
+  // it's this plan's: one coming into its place (one above taken out) doesn't take it over, other changes keep it
+  const [pending, setPending] = useState<{times: Pick<Plan, 'time' | 'end'>; of: Plan} | null>(null);
+  if (pending && pending.of !== plan) setPending(null);
+  // the turn as typed: a lone minus or an empty field isn't a number yet, it's saved once it is
+  const [angleDraft, setAngleDraft] = useState<string | null>(null);
+  const set = (patch: Partial<Plan>) => {
+    const next = {...plan, ...patch};
+    if (pending) setPending({...pending, of: next});
+    onChange(next);
+  };
+
+  const {time, end} = pending?.times ?? plan;
+  const setTime = (field: 'time' | 'end', value: string) => {
+    const times = field === 'time' ? {time: value, end} : {time, end: value || undefined};
+    if (!plan.dark && reachesDark(times, sun) && !reachesDark(plan, sun)) return setPending({times, of: plan});
+    setPending(null);
+    onChange({...plan, ...times});
+  };
+
+  const dark = reachesDark({time, end}, sun);
+  // how long the areas picked take by the planner's reckoning (the map asked it), against the window
+  const picked = plan.areas.length ? mowAreas.filter((a) => plan.areas.includes(a.id)) : mowAreas;
+  const took = scheduledDuration(picked.map((a) => a.id));
+  const window = end ? windowMinutes(time, end) : null;
+  const known = picked.length - took.unknown.length;
+
+  return (
+    <div className={styles.plan}>
+      <div className={styles.row}>
+        <div className={styles.days}>
+          {[1, 2, 3, 4, 5, 6, 7].map((d) => (
+            <button
+              key={d}
+              className={plan.days.includes(d) ? styles.on : undefined}
+              onClick={() => set({days: plan.days.includes(d) ? plan.days.filter((x) => x !== d) : [...plan.days, d]})}
+            >
+              {weekday(d)}
+            </button>
+          ))}
+        </div>
+        <button className={styles.remove} onClick={onRemove} aria-label={tr('remove')}>
+          ×
+        </button>
+      </div>
+
+      <div className={styles.row}>
+        <label className={styles.until}>
+          {tr('Start')}
+          <input type="time" value={time} onChange={(e) => e.target.value && setTime('time', e.target.value)} />
+        </label>
+        <label className={styles.until}>
+          {tr('until')}
+          <input type="time" value={end ?? ''} onChange={(e) => setTime('end', e.target.value)} />
+        </label>
+        {!end && <span className={styles.dimLine}>{tr('no end time, it mows until done or the battery is low')}</span>}
+      </div>
+      {known > 0 && (
+        <p className={window !== null && took.min > window && took.unknown.length === 0 ? styles.short : styles.dimLine}>
+          {took.unknown.length === 0
+            ? tr('about {time} by the planner', {time: duration(took.min * 60)})
+            : tr('about {time} by the planner for {n} of {m} areas, open the others in the map once', {time: duration(took.min * 60), n: known, m: picked.length})}
+          {window !== null &&
+            (took.min > window
+              ? ` · ${tr('longer than the {time} until the end time, it carries on next time', {time: duration(window * 60)})}`
+              : ` · ${tr('fits the {time} until the end time', {time: duration(window * 60)})}`)}
+        </p>
+      )}
+
+      {/* the areas it picks were deleted, recorded anew or aren't mowed any more: it doesn't start */}
+      {mowAreas.length > 0 && plan.areas.length > 0 && !plan.areas.some((id) => mowAreas.some((a) => a.id === id)) && (
+        <p className={styles.error}>{tr('None of the areas it picks is mowed anymore, so this start is skipped. Pick areas again or All areas.')}</p>
+      )}
+      {mowAreas.length > 1 && (
+        <div className={styles.areas}>
+          <button className={plan.areas.length === 0 ? styles.on : undefined} onClick={() => set({areas: []})}>
+            {tr('All areas')}
+          </button>
+          {mowAreas.map((a) => {
+            const on = plan.areas.includes(a.id);
+            return (
+              <button
+                key={a.id}
+                className={on ? styles.on : undefined}
+                onClick={() =>
+                  // stays as picked, also when that's every area. none picked is all active ones
+                  set({areas: on ? plan.areas.filter((x) => x !== a.id) : [...plan.areas.filter((x) => mowAreas.some((m) => m.id === x)), a.id]})
+                }
+              >
+                {a.properties.name || tr('unnamed')}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      <div className={styles.options}>
+        <label className={styles.option}>
+          <input type="checkbox" checked={!!plan.sunset} onChange={(e) => set({sunset: e.target.checked || undefined})} />
+          <span>
+            {tr('Home at sunset')}
+            <small>
+              {sun ? tr('goes home when the sun sets, today at {set}', {set: sun.set}) : tr('goes home at 6 pm (no position for the sun times)')}
+            </small>
+          </span>
+        </label>
+        {canReset && (
+          <label className={styles.option}>
+            <input type="checkbox" checked={!!plan.fresh} onChange={(e) => set({fresh: e.target.checked || undefined})} />
+            <span>
+              {tr('Start from the beginning')}
+              <small>
+                {plan.fresh
+                  ? tr('an interrupted mow is dropped, it starts again with the first area')
+                  : tr('an interrupted mow (rain, battery, sent home) carries on where it stopped')}
+              </small>
+            </span>
+          </label>
+        )}
+      </div>
+
+      {(canTurn || plan.angle !== undefined) && (
+        <div className={styles.options}>
+          <label className={styles.option}>
+            <input type="checkbox" checked={plan.angle !== undefined} onChange={(e) => set({angle: e.target.checked ? 90 : undefined})} />
+            <span>
+              {tr('Its own mowing direction')}
+              <small>
+                {plan.angle === undefined
+                  ? tr('mows the way the mower is set')
+                  : canTurn
+                    ? tr('before this start the direction of every area is turned by so much, e.g. crosswise to another start time')
+                    : os
+                      ? tr("MowBite OS doesn't turn the direction per start time yet, set the direction in the planner")
+                      : tr("this mower can't do that yet, it needs a newer OpenMower")}
+              </small>
+            </span>
+          </label>
+          {plan.angle !== undefined && (
+            <label className={styles.until}>
+              {tr('turned by')}
+              <input
+                type="number"
+                min={-180}
+                max={180}
+                step={5}
+                value={angleDraft ?? plan.angle}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setAngleDraft(v);
+                  if (v.trim() !== '' && Number.isFinite(Number(v))) set({angle: Math.max(-180, Math.min(180, Math.round(Number(v))))});
+                }}
+                onBlur={() => setAngleDraft(null)}
+              />
+              °
+            </label>
+          )}
+        </div>
+      )}
+
+      {pending || (dark && !plan.dark) ? (
+        <div className={styles.animals}>
+          <p>
+            🦔{' '}
+            {sun
+              ? tr('The sun sets at {set} and rises at {rise} today, so this mows in the dusk or the dark.', {set: sun.set, rise: sun.rise})
+              : tr('Between 6 pm and 6 am it is dusk or dark.')}{' '}
+            {tr("Hedgehogs and other animals are out then. They don't run from the mower, they curl up and can get badly hurt. Better mow during the day.")}
+          </p>
+          <div className={styles.animalButtons}>
+            <button
+              onClick={() => {
+                onChange({...plan, ...pending?.times, dark: true});
+                setPending(null);
+              }}
+            >
+              {tr('Mow anyway')}
+            </button>
+            {pending && <button onClick={() => setPending(null)}>{tr('Cancel')}</button>}
+          </div>
+          {!pending && <p className={styles.dimLine}>{tr("Until you confirm, it doesn't start in the dark and goes home at sunset.")}</p>}
+        </div>
+      ) : (
+        plan.dark &&
+        dark && (
+          <p className={styles.dimLine}>
+            🦔 {tr('Also mows in the dusk and dark.')}{' '}
+            <button className={styles.linkButton} onClick={() => set({dark: undefined})}>
+              {tr('Only by day')}
+            </button>
+          </p>
+        )
+      )}
+    </div>
+  );
+}

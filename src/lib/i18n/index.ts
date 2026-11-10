@@ -1,0 +1,122 @@
+import {useSyncExternalStore} from 'react';
+import de from './de';
+
+// The English text is the key, a language file maps it to its translation. Anything missing just
+// stays English. The language is per device, by default the browser's.
+
+export type Lang = 'en' | 'de';
+export type LangChoice = 'auto' | Lang;
+
+const DICTS: Record<Lang, Record<string, string>> = {en: {}, de};
+const KEY = 'lang';
+const listeners = new Set<() => void>();
+
+function readChoice(): LangChoice {
+  try {
+    const v = localStorage.getItem(KEY);
+    if (v === 'en' || v === 'de') return v;
+  } catch {}
+  return 'auto';
+}
+
+function detect(): Lang {
+  return typeof navigator !== 'undefined' && navigator.language?.toLowerCase().startsWith('de') ? 'de' : 'en';
+}
+
+let choice: LangChoice | null = null;
+// what tr() uses. It follows the snapshot react renders with, so the first render after the static
+// html (always english) matches it and the switch happens right after
+let active: Lang = 'en';
+
+export function langChoice(): LangChoice {
+  choice ??= readChoice();
+  return choice;
+}
+
+// the language this device shows, also before react switched from the prebuilt english page
+export function deviceLang(): Lang {
+  const c = langChoice();
+  return c === 'auto' ? detect() : c;
+}
+
+export function setLangChoice(c: LangChoice) {
+  choice = c;
+  try {
+    if (c === 'auto') localStorage.removeItem(KEY);
+    else localStorage.setItem(KEY, c);
+  } catch {}
+  snapshot();
+  listeners.forEach((l) => l());
+}
+
+function snapshot(): Lang {
+  const c = langChoice();
+  active = c === 'auto' ? detect() : c;
+  if (document.documentElement.lang !== active) document.documentElement.lang = active;
+  return active;
+}
+
+function serverSnapshot(): Lang {
+  active = 'en';
+  return 'en';
+}
+
+function subscribe(l: () => void) {
+  listeners.add(l);
+  return () => listeners.delete(l);
+}
+
+// components call this so they render again when the language changes
+export function useLang(): Lang {
+  return useSyncExternalStore(subscribe, snapshot, serverSnapshot);
+}
+
+// what's picked in the settings, auto included
+export function useLangChoice(): LangChoice {
+  return useSyncExternalStore(subscribe, langChoice, () => 'auto');
+}
+
+export function tr(text: string, vars?: Record<string, string | number>): string {
+  const s = DICTS[active][text] ?? text;
+  return vars ? s.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m)) : s;
+}
+
+// something worked out in english whatever the device shows, for files that go to github or discord
+export function inEnglish<T>(make: () => T): T {
+  const was = active;
+  active = 'en';
+  try {
+    return make();
+  } finally {
+    active = was;
+  }
+}
+
+// for dates and numbers
+// en-GB for english: day before month and a 24 h clock, and not the browser's own language
+export const locale = () => (active === 'de' ? 'de-DE' : 'en-GB');
+// a date without the year: the month by name in english, 11/11 reads differently in the US, by number in german (11.11.)
+export const monthStyle = (): 'numeric' | 'short' => (active === 'de' ? 'numeric' : 'short');
+
+// a number with a fixed count of decimals, decimal comma in german
+// one formatter per language and number of digits, making one is what's slow (the dashboard formats every sensor value)
+const numberFormats = new Map<string, Intl.NumberFormat>();
+// a number as it is, with the language's decimal separator: for fields that take it back (they take both)
+export const dec = (v: number) => (active === 'de' ? String(v).replace('.', ',') : String(v));
+// metres shown in cm to a millimetre for such a field, and what's typed there back in metres (null when it's not all
+// one number)
+export const cmText = (m: unknown) => (typeof m === 'number' && Number.isFinite(m) ? dec(Math.round(m * 1000) / 10) : '');
+export const cmMetres = (text: string) => {
+  const t = text.trim().replace(',', '.');
+  return /^-?(\d+\.?\d*|\.\d+)$/.test(t) ? Number(t) / 100 : null;
+};
+
+export const fmt = (v: number, digits = 0) => {
+  const key = `${locale()} ${digits}`;
+  let f = numberFormats.get(key);
+  if (!f) {
+    f = new Intl.NumberFormat(locale(), {minimumFractionDigits: digits, maximumFractionDigits: digits, useGrouping: false});
+    numberFormats.set(key, f);
+  }
+  return f.format(v);
+};

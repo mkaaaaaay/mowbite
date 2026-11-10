@@ -1,0 +1,253 @@
+import mqtt, {type MqttClient} from 'mqtt';
+import {demoClient} from './demo/client';
+import {isDemo, selectedMower, writeStored} from './mowers';
+import type {OtherMower} from './settings';
+import {TOPIC} from './openmower';
+
+declare global {
+  interface Window {
+    // from /config.js, written by the container on start
+    __MOWER_CONFIG__?: {mqttUrl?: string; mqttPrefix?: string};
+  }
+}
+
+function config() {
+  return typeof window === 'undefined' ? {} : (window.__MOWER_CONFIG__ ?? {});
+}
+
+// another mower picked in the app, or the one it runs on. that falls back to the host the app is
+// served from, which is the mower itself when installed there
+const brokerOf = (m: OtherMower) => `ws://${m.host}:${m.wsPort ?? 9001}`;
+function mqttUrl(): string {
+  const other = selectedMower();
+  if (other) return brokerOf(other);
+  return config().mqttUrl || process.env.NEXT_PUBLIC_MOWER_MQTT_WS_URL || `ws://${window.location.hostname}:9001`;
+}
+
+function topicPrefix(): string {
+  const other = typeof window === 'undefined' ? null : selectedMower();
+  return other ? (other.prefix ?? '') : (config().mqttPrefix ?? '');
+}
+
+export function withPrefix(topic: string): string {
+  return topicPrefix() + topic;
+}
+
+// topic without the prefix, null if it's not one of ours
+export function unprefix(topic: string): string | null {
+  const prefix = topicPrefix();
+  return topic.startsWith(prefix) ? topic.slice(prefix.length) : null;
+}
+
+// one shared connection for the whole app
+let client: MqttClient | null = null;
+
+export function getMqttClient(): MqttClient {
+  if (!client) {
+    client = isDemo() ? demoClient() : connect();
+    client.on('connect', () => {
+      if (handlers.size) client!.subscribe([...handlers.keys()].map(withPrefix));
+    });
+    client.on('message', (full, payload) => {
+      const topic = unprefix(full);
+      if (topic === null) return;
+      if (held && !topic.startsWith(TOPIC.rpcResponse)) held.list.push([topic, payload]);
+      else deliver(topic, payload);
+    });
+  }
+  return client;
+}
+
+// MQTT 5 only on MowBite OS that said so in system.info (mqtt 5), from the next connection on, kept per mower; never on
+// OpenMower. then each answer comes to rpc/response/<the client id> alone instead of to everyone on rpc/response
+const mqtt5KeyOf = (url: string, prefix: string) => `mowbite.mqtt5.${url}|${prefix}`;
+const mqtt5Key = () => mqtt5KeyOf(mqttUrl(), topicPrefix());
+// a mower taken out of the list (rest: the ones left): what's kept for its broker goes, unless one left talks to it too
+export function forgetMqtt5(m: OtherMower, rest: OtherMower[]) {
+  const key = (o: OtherMower) => mqtt5KeyOf(brokerOf(o), o.prefix ?? '');
+  if (!rest.some((o) => key(o) === key(m))) writeStored(key(m), null);
+}
+function mqtt5Stored(): boolean {
+  try {
+    return localStorage.getItem(mqtt5Key()) === '1';
+  } catch {
+    return false;
+  }
+}
+function storeMqtt5(on: boolean) {
+  try {
+    if (on) localStorage.setItem(mqtt5Key(), '1');
+    else localStorage.removeItem(mqtt5Key());
+  } catch {
+    // without storage it stays 3.1.1
+  }
+}
+
+// the version the connection there is made with, 5 or 4 (3.1.1), and the one the next try takes. mqtt.js reads it from
+// its options for every packet, changed only right before a try, never under a running connection
+let connectedVersion = 4;
+let nextVersion: 4 | 5 = 4;
+export const mqtt5 = () => connectedVersion === 5;
+// where this client's answers come with MQTT 5: its own client id, as MowBite OS takes it (1 to 64 of A-Za-z0-9._-).
+// null for the demo mower
+export function responseTopic(): string | null {
+  const id = getMqttClient().options?.clientId;
+  return id ? `${TOPIC.rpcResponse}/${id}` : null;
+}
+
+// what system.info told: the mower is OpenMower (no system.info) or MowBite OS with the MQTT version of its bridge.
+// OpenMower over MQTT 5 goes back to 3.1.1 at once, a change on MowBite OS counts from the next connection
+export function noteMqtt(said: 'openmower' | {mqtt?: number}) {
+  if (!client || isDemo()) return;
+  const five = said !== 'openmower' && said.mqtt === 5;
+  storeMqtt5(five);
+  nextVersion = five ? 5 : 4;
+  // (mqtt.js connects again a second later, with 3.1.1)
+  if (said === 'openmower' && connectedVersion === 5 && client.connected) client.stream.destroy();
+}
+
+function connect(): MqttClient {
+  nextVersion = mqtt5Stored() ? 5 : 4;
+  const c = mqtt.connect(mqttUrl(), {
+    protocolVersion: nextVersion,
+    // mqtt.js tries one connection after the other, the next only once the last is gone
+    reconnectPeriod: 1000,
+    // a broker turning the connection down (CONNACK with an error, e.g. while it starts) is tried again like a lost one,
+    // mqtt.js gives up on it otherwise
+    reconnectOnConnackError: true,
+    // a dead wifi link shows up after ~15 s instead of ~90 s with the default of 60
+    keepalive: 10,
+    // nothing sent while offline is kept for later: a start or go home tapped then would go out on the
+    // next reconnect, maybe minutes later. rpc waits for the connection itself (lib/rpc.ts)
+    queueQoSZero: false,
+    // the topics are subscribed again above, once each
+    resubscribe: false,
+  });
+  // back from the background (app minimised, phone asleep): a page that couldn't ping for 15 s (1.5 x keepalive) has
+  // been dropped by the broker, often without its socket saying so. when nothing came for that long the socket is
+  // closed, mqtt.js connects again a second later instead of after the keepalive. never a connect of its own next to
+  // mqtt.js's: two connections with the same client id threw each other out every 2 s (session taken over)
+  let lastPacket = Date.now();
+  c.on('packetreceive', () => (lastPacket = Date.now()));
+  // a broker that turns MQTT 5 down (CONNACK with an error) or closes twice in a row after the CONNECT before its
+  // CONNACK: 3.1.1 again, forgotten for this mower until system.info says 5 once more. a socket that didn't even open
+  // is the network, it doesn't count
+  let opened = false;
+  let acked = false;
+  let shut = 0;
+  // each try makes a new socket right after 'reconnect', the first one is there already
+  const watchSocket = () => {
+    const socket = (c.stream as unknown as {socket?: WebSocket} | undefined)?.socket;
+    opened = !socket || socket.readyState === WebSocket.OPEN;
+    socket?.addEventListener('open', () => (opened = true));
+  };
+  watchSocket();
+  c.on('reconnect', () => {
+    c.options.protocolVersion = nextVersion;
+    queueMicrotask(watchSocket);
+  });
+  const back = () => {
+    storeMqtt5(false);
+    nextVersion = 4;
+    shut = 0;
+  };
+  c.on('connect', () => {
+    connectedVersion = c.options.protocolVersion ?? 4;
+    acked = true;
+    shut = 0;
+  });
+  c.on('error', (e) => {
+    if (c.options.protocolVersion !== 5 || nextVersion !== 5 || acked || !('code' in e) || typeof e.code !== 'number' || e.code <= 0) return;
+    // (mqtt.js tries again a second later, with 3.1.1 then)
+    back();
+  });
+  c.on('close', () => {
+    if (opened && !acked && c.options.protocolVersion === 5 && nextVersion === 5 && ++shut >= 2) back();
+    opened = acked = false;
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible' || !c.connected || Date.now() - lastPacket < 15000) return;
+    lastPacket = Date.now();
+    c.stream.destroy();
+  });
+  return c;
+}
+
+// One listener for the whole app hands each message to whoever asked for its topic (without the prefix, + for one
+// level). Every topic is subscribed once, and again after a reconnect. The subscriptions stay when the last one
+// stops listening, retained topics like the map wouldn't come again otherwise.
+export type TopicHandler = (payload: Buffer, topic: string) => void;
+const handlers = new Map<string, Set<TopicHandler>>();
+
+function deliver(topic: string, payload: Buffer) {
+  for (const [t, set] of handlers) if (t === topic || matches(t, topic)) set.forEach((h) => h(payload, topic));
+}
+
+// While another page is being drawn the messages wait, at most ms, and come in one go once it's there (passMessages).
+// Each one draws what's open again at once, and react starts the new page over then: a page with the garden's map
+// would only be drawn once its time ran out. An rpc's answer doesn't wait, its call would time out meanwhile
+let held: {list: [string, Buffer][]; timer: ReturnType<typeof setTimeout>} | null = null;
+
+// the messages are waiting: none coming doesn't mean the mower went quiet
+export const messagesHeld = () => held !== null;
+
+export function holdMessages(ms = 10000) {
+  if (held) clearTimeout(held.timer);
+  held = {list: held?.list ?? [], timer: setTimeout(passMessages, ms)};
+}
+
+export function passMessages() {
+  const h = held;
+  if (!h) return;
+  clearTimeout(h.timer);
+  held = null;
+  for (const [topic, payload] of h.list) deliver(topic, payload);
+}
+
+const matches = (pattern: string, topic: string) => {
+  if (!pattern.includes('+')) return false;
+  const p = pattern.split('/');
+  const t = topic.split('/');
+  return p.length === t.length && p.every((part, i) => part === '+' || part === t[i]);
+};
+
+export function onTopic(topic: string, handler: TopicHandler): () => void {
+  const c = getMqttClient();
+  let set = handlers.get(topic);
+  if (!set) {
+    handlers.set(topic, (set = new Set()));
+    // offline the connect above does it
+    if (c.connected) c.subscribe(withPrefix(topic));
+  }
+  set.add(handler);
+  return () => set.delete(handler);
+}
+
+// A topic's latest value kept for the whole time the app runs, for useSyncExternalStore. Retained topics (map,
+// actions) only come once per subscription, so a page that opens later still needs what came before. parse gets
+// the previous value too, for topics with + that build one value from many messages
+export function topicStore<T>(topic: string, initial: T, parse: (payload: Buffer, prev: T, topic: string) => T) {
+  let value = initial;
+  let started = false;
+  const listeners = new Set<() => void>();
+  return {
+    subscribe(listener: () => void) {
+      if (!started) {
+        started = true;
+        onTopic(topic, (payload, t) => {
+          try {
+            value = parse(payload, value, t);
+          } catch {
+            return; // malformed payload
+          }
+          listeners.forEach((l) => l());
+        });
+      }
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    get: () => value,
+    initial: () => initial,
+  };
+}
+

@@ -1,0 +1,67 @@
+name: commits
+
+# the commits of a push and a tag's message, by the rules the repo's own git hooks keep to: who wrote them, their
+# messages, the files and the lines that came in. the rules are the repo secret COMMIT_RULES, not in here. what's
+# checked: the push's own commits (before..after), for a new branch or a tag those since the version tag before
+
+on:
+  workflow_call:
+    secrets:
+      COMMIT_RULES:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  commits:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # (without -e and pipefail: the rules take a grep without a match as an answer)
+      - shell: bash {0}
+        env:
+          RULES: ${{ secrets.COMMIT_RULES }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          if [ -z "$RULES" ]; then
+            echo "::error::no rules, the repo secret COMMIT_RULES isn't set"
+            exit 1
+          fi
+          rules=$RUNNER_TEMP/rules.sh
+          if ! printf '%s' "$RULES" | base64 -d > "$rules"; then
+            echo "::error::COMMIT_RULES can't be read"
+            exit 1
+          fi
+          # shellcheck source=/dev/null
+          . "$rules"
+          sha=$(git rev-parse HEAD)
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            since=$(git describe --tags --abbrev=0 --match 'v*' "$sha^" 2> /dev/null)
+          elif [ -n "$BEFORE" ] && [ "$BEFORE" != 0000000000000000000000000000000000000000 ] && git cat-file -e "$BEFORE^{commit}" 2> /dev/null; then
+            since=$(git rev-parse --short=12 "$BEFORE")
+          else
+            since=$(git describe --tags --abbrev=0 --match 'v*' "$sha" 2> /dev/null)
+          fi
+          fail=0
+          n=0
+          for c in $(git rev-list "$sha" ${since:+--not "$since"}); do
+            check_commit "$c" || fail=1
+            n=$((n + 1))
+          done
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            # (the checkout has the commit, not the annotated tag with its message)
+            git fetch -q --force origin "refs/tags/$GITHUB_REF_NAME:refs/tags/$GITHUB_REF_NAME"
+            if [ "$(git cat-file -t "refs/tags/$GITHUB_REF_NAME")" = tag ]; then
+              check_message "$(git cat-file tag "refs/tags/$GITHUB_REF_NAME" | sed '1,/^$/d; /^-----BEGIN [A-Z ]*SIGNATURE-----$/,$d')" push ||
+                { echo "in the message of tag $GITHUB_REF_NAME" >&2; fail=1; }
+            fi
+          fi
+          result=ok
+          [ $fail = 0 ] || result=failed
+          printf '%s commits %s (%s), rules %s\n' "$n" "${since:+$since..}${sha:0:12}" "$result" \
+            "$(sha256sum "$rules" | cut -c1-12)" | tee -a "$GITHUB_STEP_SUMMARY"
+          exit $fail

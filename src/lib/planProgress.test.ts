@@ -1,0 +1,122 @@
+import {describe, expect, it, vi} from 'vitest';
+import type {MowerEvent} from './events';
+import {bladeSeconds, saveRate, savedRate, splitPlan, withDayBefore, type PlanPath} from './planProgress';
+
+const store = new Map<string, string>();
+vi.stubGlobal('window', {});
+vi.stubGlobal('localStorage', {getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => store.set(k, v), removeItem: (k: string) => store.delete(k)});
+
+const line = (y: number, n: number): PlanPath => ({
+  outline: false,
+  // a straight line of n + 1 poses, simplified to its ends
+  points: [
+    {x: 0, y},
+    {x: n, y},
+  ],
+  index: [0, n],
+});
+
+describe('splitPlan', () => {
+  it('splits the current path at the pose the mower is at', () => {
+    const r = splitPlan([line(0, 10), line(1, 10), line(2, 10)], 1, 4);
+    expect(r).not.toBeNull();
+    if (!r) return;
+    expect(r.done).toHaveLength(2);
+    expect(r.todo).toHaveLength(2);
+    expect(r.done[1].at(-1)).toEqual({x: 4, y: 1});
+    expect(r.todo[0][0]).toEqual({x: 4, y: 1});
+    expect(r.fraction).toBeCloseTo(14 / 30);
+  });
+
+  it('is all to do before the first pose and all done after the last', () => {
+    expect(splitPlan([line(0, 10)], 0, 0)?.fraction).toBe(0);
+    expect(splitPlan([line(0, 10)], 0, 10)?.fraction).toBe(1);
+    expect(splitPlan([line(0, 10)], 1, 0)?.fraction).toBe(1);
+  });
+
+  it("can't tell without the pose index of the points", () => {
+    expect(splitPlan([{...line(0, 10), index: undefined}], 0, 5)).toBeNull();
+  });
+});
+
+describe('bladeSeconds', () => {
+  const ev = (t: number, type: string, more: Partial<MowerEvent> = {}): MowerEvent => ({id: String(t), t, type, job_id: 'j', ...more});
+
+  it('adds up the blade time in the area over the whole job, breaks left out', () => {
+    const events = [
+      ev(0, 'AREA', {area_id: 'a'}),
+      ev(10, 'BLADES', {enabled: true}),
+      ev(110, 'BLADES', {enabled: false}),
+      // docked to charge, resumed later
+      ev(500, 'AREA', {area_id: 'a'}),
+      ev(510, 'BLADES', {enabled: true}),
+    ];
+    expect(bladeSeconds(events, 'a', 560)).toBe(150);
+  });
+
+  it('only counts the area asked for and the job it is in', () => {
+    const events = [
+      ev(0, 'AREA', {area_id: 'old', job_id: 'x'}),
+      ev(5, 'BLADES', {enabled: true, job_id: 'x'}),
+      ev(100, 'AREA', {area_id: 'a'}),
+      ev(110, 'BLADES', {enabled: true}),
+      ev(210, 'AREA', {area_id: 'b'}),
+    ];
+    expect(bladeSeconds(events, 'a', 300)).toBe(100);
+    expect(bladeSeconds(events, 'c', 300)).toBe(0);
+  });
+});
+
+describe('savedRate', () => {
+  it("is the mower's own, the demo's isn't kept", async () => {
+    saveRate(0.3);
+    expect(savedRate()).toBe(0.3);
+    // (the demo picked and left again: each time the page reloads)
+    localStorage.setItem('mower', 'demo');
+    vi.resetModules();
+    const demo = await import('./planProgress');
+    expect(demo.savedRate()).toBeNull();
+    demo.saveRate(0.45);
+    localStorage.removeItem('mower');
+    vi.resetModules();
+    expect((await import('./planProgress')).savedRate()).toBe(0.3);
+    expect([...store.keys()]).toEqual(['mowRate']);
+  });
+});
+
+describe('withDayBefore', () => {
+  const ev = (t: number, type: string, more: Partial<MowerEvent> = {}): MowerEvent => ({id: String(t), t, type, job_id: 'j', ...more});
+  const yesterday = [ev(0, 'AREA', {area_id: 'a', job_id: 'old'}), ev(5, 'BLADES', {enabled: false, job_id: 'old'}), ev(10, 'AREA', {area_id: 'a'}), ev(20, 'BLADES', {enabled: true}), ev(3620, 'BLADES', {enabled: false})];
+
+  it('puts the running job of the day before in front, its blade time counts whole', () => {
+    const today = [ev(50000, 'AREA', {area_id: 'a'}), ev(50010, 'BLADES', {enabled: true})];
+    const all = withDayBefore(yesterday, today);
+    expect(all.map((e) => e.t)).toEqual([10, 20, 3620, 50000, 50010]);
+    expect(bladeSeconds(all, 'a', 50610)).toBe(4200);
+  });
+
+  it('finds the area of a job mowing past midnight without an event since, once the mower says which job it is on', () => {
+    const night = [...yesterday.slice(0, 4)];
+    const all = withDayBefore(night, [], 'j');
+    expect(all.filter((e) => e.type === 'AREA').pop()?.t).toBe(10);
+    expect(bladeSeconds(all, 'a', 600)).toBe(580);
+    expect(withDayBefore(night, [])).toEqual([]);
+  });
+
+  it("takes no earlier job for the one just started while the day's list is behind", () => {
+    // the first job of the day, nothing of it in the list yet
+    expect(withDayBefore(yesterday, [], 'new')).toEqual([]);
+    expect(withDayBefore(yesterday, [])).toEqual([]);
+    // a second job of the day, the list still ends with the first
+    const first = [ev(40000, 'AREA', {area_id: 'a'}), ev(40010, 'BLADES', {enabled: true}), ev(43000, 'BLADES', {enabled: false})];
+    expect(bladeSeconds(withDayBefore([], first, 'new'), 'a', 50000)).toBe(0);
+    const both = [...first, ev(50000, 'AREA', {area_id: 'a', job_id: 'new'}), ev(50010, 'BLADES', {enabled: true, job_id: 'new'})];
+    expect(bladeSeconds(withDayBefore([], both, 'new'), 'a', 50610)).toBe(600);
+  });
+
+  it("leaves out another job, and what today's list has already", () => {
+    const today = [ev(50000, 'AREA', {area_id: 'a', job_id: 'new'})];
+    expect(withDayBefore(yesterday, today)).toBe(today);
+    expect(withDayBefore(yesterday, yesterday)).toBe(yesterday);
+  });
+});

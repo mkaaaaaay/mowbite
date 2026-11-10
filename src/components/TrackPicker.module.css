@@ -1,0 +1,90 @@
+.picker {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 14px 16px 16px;
+  border-radius: 14px;
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  box-shadow: var(--card-shadow, none);
+  backdrop-filter: var(--card-blur, none);
+  min-width: 0;
+}
+
+/* like the titles of the other cards on the map page */
+.title {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.days,
+.times {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  user-select: none;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 2px;
+}
+
+/* the right end fades out, a chip cut off there shows there's more to scroll to */
+.days {
+  padding-right: 28px;
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+}
+
+.days::-webkit-scrollbar,
+.times::-webkit-scrollbar {
+  display: none;
+}
+
+.times {
+  flex-wrap: wrap;
+}
+
+.days button,
+.times button {
+  flex: none;
+  min-height: 40px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--card-border);
+  background: transparent;
+  color: var(--foreground);
+  font-size: 13px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.days .on,
+.times .on {
+  border-color: color-mix(in srgb, var(--accent) 70%, transparent);
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+  backdrop-filter: var(--card-blur, none);
+  box-shadow: var(--btn-3d);
+  color: var(--foreground);
+}
+
+.days .half {
+  border-color: var(--accent);
+}
+
+.info {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.clear {
+  align-self: flex-start;
+  min-height: 32px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}

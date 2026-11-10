@@ -1,0 +1,353 @@
+import type {Point} from '@/hooks/useMowerMap';
+import {polygonArea} from '@/lib/geometry';
+import type {Merged} from '@/lib/mergeAreas';
+import type {Laid} from '@/lib/snapAreas';
+import type {Subtracted} from '@/lib/subtractAreas';
+import {fmt, tr} from '@/lib/i18n';
+import type {Area} from './editing';
+import styles from './page.module.css';
+
+// the small panels for the steps that take over the editor for a moment
+
+export function SplitPanel({
+  preview,
+  cutShape,
+  onCutShape,
+  points,
+  onApply,
+  onRemoveLast,
+  onCancel,
+}: {
+  preview: Point[][] | null;
+  cutShape: boolean;
+  onCutShape: (on: boolean) => void;
+  points: number;
+  onApply: () => void;
+  onRemoveLast: () => void;
+  onCancel: () => void;
+}) {
+  const pieceClass = [styles.pieceA, styles.pieceB, styles.pieceC];
+  return (
+    <div className={styles.splitBox}>
+      <label className={styles.toggle}>
+        <input type="checkbox" checked={cutShape} onChange={(e) => onCutShape(e.target.checked)} />
+        {tr('Cut out a shape')}
+      </label>
+      <p className={styles.dim}>
+        {cutShape
+          ? tr("Tap the corners of a shape inside the area. It becomes its own area, the rest is split in two through it (areas can't have holes).")
+          : tr('Tap points for a cut line across the area, start and end outside. Drag points to move them.')}
+      </p>
+      {preview ? (
+        <p>
+          {preview.map((piece, i) => (
+            <span key={i}>
+              {i > 0 && (i === preview.length - 1 ? ` ${tr('and')} ` : ', ')}
+              <span className={pieceClass[i]}>{fmt(polygonArea(piece), 1)} m²</span>
+            </span>
+          ))}
+        </p>
+      ) : (
+        points >= (cutShape ? 3 : 2) && (
+          <p className={styles.dim}>
+            {cutShape
+              ? tr("The shape has to lie fully inside the area and mustn't cross itself.")
+              : tr("The line doesn't cut through the area yet or crosses itself.")}
+          </p>
+        )
+      )}
+      <div className={styles.inlineRow}>
+        <button className={styles.pillButton} onClick={onApply} disabled={!preview}>
+          {tr('Apply split')}
+        </button>
+        <button className={styles.pillButton} onClick={onRemoveLast} disabled={!points}>
+          {tr('Remove last point')}
+        </button>
+        <button className={styles.pillButton} onClick={onCancel}>
+          {tr('Cancel')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export function MergePanel({
+  area,
+  other,
+  merged,
+  onApply,
+  onCancel,
+}: {
+  area: Area;
+  other: Area | null;
+  merged: Merged | null;
+  onApply: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className={styles.splitBox}>
+      <p className={styles.dim}>
+        {tr("Tap the area to merge into {name}. The result keeps its name, type and settings.", {name: area.properties.name || tr('this one')})}
+      </p>
+      {other && merged && (
+        <p>
+          {area.properties.name || tr('unnamed')} + {other.properties.name || tr('unnamed')} ={' '}
+          <span className={styles.pieceA}>{fmt(polygonArea(merged.outline), 1)} m²</span>
+          {merged.holesFilled > 0 && tr(', the gap enclosed between them gets filled in')}
+          {merged.loopsJoined > 0 && tr(', where an outline crosses itself it gets tidied up')}
+          {other.properties.type !== area.properties.type &&
+            tr(', careful: {name} is a different type', {name: other.properties.name || tr('it')})}
+        </p>
+      )}
+      {other && !merged && <p className={styles.error}>{tr("These two don't touch, there'd be two separate pieces.")}</p>}
+      <div className={styles.inlineRow}>
+        <button className={styles.pillButton} onClick={onApply} disabled={!merged}>
+          {tr('Apply merge')}
+        </button>
+        <button className={styles.pillButton} onClick={onCancel}>
+          {tr('Cancel')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export function SubtractPanel({
+  area,
+  other,
+  result,
+  onApply,
+  onCancel,
+}: {
+  area: Area;
+  other: Area | null;
+  result: Subtracted | null;
+  onApply: () => void;
+  onCancel: () => void;
+}) {
+  const pieceClass = [styles.pieceA, styles.pieceB, styles.pieceC];
+  const name = area.properties.name || tr('this one');
+  const otherName = other?.properties.name || tr('unnamed');
+  // an obstacle inside the area isn't mowed anyway
+  const inside = other?.properties.type === 'obstacle' && !!result?.cut;
+  return (
+    <div className={styles.splitBox}>
+      <p className={styles.dim}>{tr('Tap the area to take out of {name}. That one stays as it is.', {name})}</p>
+      {other && result && result.pieces.length > 0 && !inside && (
+        <p>
+          {area.properties.name || tr('unnamed')} − {otherName} ={' '}
+          {result.pieces.map((piece, i) => (
+            <span key={i}>
+              {i > 0 && (i === result.pieces.length - 1 ? ` ${tr('and')} ` : ', ')}
+              <span className={pieceClass[i] ?? styles.pieceB}>{fmt(polygonArea(piece), 1)} m²</span>
+            </span>
+          ))}
+          {result.cut > 0 && tr(", it lies inside, so the rest is cut in two through it (areas can't have holes)")}
+        </p>
+      )}
+      {other && !!result?.dropped && !inside && (
+        <p className={styles.dim}>
+          {result.dropped === 1
+            ? tr('1 sliver left over is dropped (under 0.25 m² or narrower than 10 cm).')
+            : tr('{n} slivers left over are dropped (under 0.25 m² or narrower than 10 cm).', {n: result.dropped})}
+        </p>
+      )}
+      {other && !result && <p className={styles.error}>{tr("These two don't overlap, there's nothing to take out.")}</p>}
+      {other && result?.failed && (
+        <p className={styles.error}>{tr("These two outlines can't be worked out together, often because they share an edge exactly. Move a point of one of them a little and try again.")}</p>
+      )}
+      {other && result && !result.failed && !result.pieces.length && <p className={styles.error}>{tr('Nothing would be left of {name}.', {name})}</p>}
+      {inside && <p className={styles.error}>{tr("{name} is an obstacle inside it, the mower doesn't mow there anyway.", {name: otherName})}</p>}
+      <div className={styles.inlineRow}>
+        <button className={styles.pillButton} onClick={onApply} disabled={!result?.pieces.length || inside}>
+          {tr('Take out')}
+        </button>
+        <button className={styles.pillButton} onClick={onCancel}>
+          {tr('Cancel')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export function DrawPanel({
+  points,
+  onFinish,
+  onRemoveLast,
+  onCancel,
+}: {
+  points: number;
+  onFinish: () => void;
+  onRemoveLast: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className={styles.inlineRow}>
+      <span className={styles.dim}>{tr('Tap points to draw the outline ({n} so far), drag them to move', {n: points})}</span>
+      <button className={styles.pillButton} onClick={onFinish} disabled={points < 3}>
+        {tr('Finish')}
+      </button>
+      <button className={styles.pillButton} onClick={onRemoveLast} disabled={!points}>
+        {tr('Remove last point')}
+      </button>
+      <button className={styles.pillButton} onClick={onCancel}>
+        {tr('Cancel')}
+      </button>
+    </div>
+  );
+}
+
+// the reduce-points slider, cm is how far the new outline may be off
+// laying an area against another one: how far off its corners may be, which of the two moves and what it comes to
+export function SnapPanel({
+  area,
+  other,
+  moving,
+  laid,
+  cm,
+  onCm,
+  onApply,
+  onCancel,
+}: {
+  area: Area;
+  other: Area | null;
+  moving: Area | null;
+  laid: Laid | null;
+  cm: number;
+  onCm: (cm: number) => void;
+  onApply: () => void;
+  onCancel: () => void;
+}) {
+  const nameOf = (a: Area) => a.properties.name || tr('unnamed');
+  const fixed = moving && other ? (moving.id === area.id ? other : area) : null;
+  return (
+    <div className={styles.splitBox}>
+      <p className={styles.dim}>
+        {tr('Tap the area to lay {name} against. Its corners close to the edge move onto it, between them it takes over that edge. A mowing area stays as it is, unless both are.', {name: nameOf(area)})}
+      </p>
+      <div className={styles.inlineRow}>
+        <input type="range" min={5} max={150} step={5} value={cm} onChange={(e) => onCm(Number(e.target.value))} aria-label={tr('Reach')} />
+        <span className={styles.dim}>{tr('corners up to {n} cm away', {n: cm})}</span>
+      </div>
+      {moving && fixed && laid?.valid && (
+        <p>
+          {tr('{moving} is laid against {fixed}: {n} corners move onto its edge, {m} of its corners are taken over.', {
+            moving: nameOf(moving),
+            fixed: nameOf(fixed),
+            n: laid.moved,
+            m: laid.taken,
+          })}
+        </p>
+      )}
+      {moving && other && !laid && (
+        <p className={styles.error}>{tr('No corner of {name} is that close to the other area, or all of them are. Change the reach.', {name: nameOf(moving)})}</p>
+      )}
+      {laid && !laid.valid && <p className={styles.error}>{tr('Its outline would cross itself. Make the reach smaller.')}</p>}
+      <div className={styles.inlineRow}>
+        <button className={styles.pillButton} onClick={onApply} disabled={!laid?.valid}>
+          {tr('Lay against')}
+        </button>
+        <button className={styles.pillButton} onClick={onCancel}>
+          {tr('Cancel')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export function SimplifyPanel({
+  cm,
+  from,
+  to,
+  onChange,
+  onApply,
+  onCancel,
+}: {
+  cm: number;
+  from: number;
+  to: number;
+  onChange: (cm: number) => void;
+  onApply: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className={styles.inlineRow}>
+      <input type="range" min={0} max={20} value={cm} onChange={(e) => onChange(Number(e.target.value))} aria-label={tr('Reduce points')} />
+      <span className={styles.dim}>
+        {cm === 0 ? tr('all points') : tr('max. {n} cm off', {n: cm})} · {from} → {tr('{n} points', {n: to})}
+      </span>
+      <button className={styles.pillButton} onClick={onApply}>
+        {tr('Apply')}
+      </button>
+      <button className={styles.pillButton} onClick={onCancel}>
+        {tr('Cancel')}
+      </button>
+    </div>
+  );
+}
+
+// a backup (or a map from a file) shown instead of the editor
+export function RestorePanel({
+  areas,
+  backedUp,
+  idle,
+  live,
+  ends,
+  unsaved,
+  restoring,
+  confirm,
+  error,
+  onRestore,
+  onDisarm,
+  onClose,
+}: {
+  areas: number;
+  // the mower's map is backed up before restoring (only when MowBite runs as its container)
+  backedUp: boolean;
+  idle: boolean;
+  // connected with a current state: only then is idle known
+  live: boolean;
+  // restoring ends a job the mower interrupted, and drops the changes not saved yet
+  ends: boolean;
+  unsaved: boolean;
+  restoring: boolean;
+  confirm: boolean;
+  error: string | null;
+  onRestore: () => void;
+  onDisarm: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className={styles.splitBox}>
+      <p>{areas === 1 ? tr('1 area') : tr('{n} areas', {n: areas})}</p>
+      <p className={styles.dim}>
+        {backedUp
+          ? tr('Restoring replaces the map on the mower with this one. The current map is backed up first, so this can be undone.')
+          : tr("Restoring replaces the map on the mower with this one. Backups don't work here, download the current map first if you might want it back.")}
+      </p>
+      {!live ? (
+        <p className={styles.error}>{tr("The mower can't be reached right now.")}</p>
+      ) : (
+        !idle && <p className={styles.error}>{tr('Only possible while the mower is not busy (mowing, docking, recording).')}</p>
+      )}
+      {confirm && unsaved && <p className={styles.error}>{tr("Your unsaved changes are lost, they aren't in any backup.")}</p>}
+      {confirm && ends && (
+        <p className={styles.error}>{tr('The interrupted job was planned on the old map, restoring ends it. The next start plans on the new one.')}</p>
+      )}
+      <div className={styles.inlineRow}>
+        <button
+          className={[styles.pillButton, styles.danger].join(' ')}
+          disabled={!idle || !live || restoring}
+          onClick={onRestore}
+          onBlur={onDisarm}
+        >
+          {restoring ? tr('restoring…') : confirm ? tr('Really restore?') : tr('Restore')}
+        </button>
+        <button className={styles.pillButton} onClick={onClose}>
+          {tr('Close')}
+        </button>
+      </div>
+      {error && <p className={styles.error}>{error}</p>}
+    </div>
+  );
+}

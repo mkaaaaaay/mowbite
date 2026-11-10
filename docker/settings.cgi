@@ -1,0 +1,52 @@
+#!/bin/sh
+# app settings shared by every device, kept in the /data volume
+# the phone app reads and writes them too. X-Settings-Version is a checksum of what's stored: a save that says
+# which version it started from (?v=...) gets a 409 with the current settings when another device saved in
+# between, the app then puts its own change on top of those. a save without it just replaces them
+# the app on another mower may ask too, after a Status line: busybox httpd only reads that when it comes first
+. /origin.sh
+# (and its version, for MowBite's page on another origin to read)
+vcors() { cors && printf 'Access-Control-Expose-Headers: X-Settings-Version\r\n'; }
+F=/data/settings.json
+# 0 while nothing is stored yet, so two devices starting from nothing don't overwrite each other either
+version() { if [ -f "$F" ]; then cksum < "$F" | cut -d' ' -f1,2 | tr ' ' -; else echo 0; fi; }
+# first and last character that isn't white space
+ends() { tr -d ' \t\r\n' < "$1" | sed -n '1{s/^\(.\).*/\1/p;}'; tr -d ' \t\r\n' < "$1" | tail -c 1; }
+
+if [ "$REQUEST_METHOD" = "POST" ]; then
+  len=${CONTENT_LENGTH:-0}
+  if [ "$len" -le 0 ] || [ "$len" -gt 65536 ]; then
+    printf 'Status: 413 Too Large\r\n'
+    vcors
+    printf 'Content-Type: text/plain\r\n\r\ntoo large\n'
+    exit 0
+  fi
+  # a file of its own: two saves at once mustn't write into the same one
+  T="$F.$$"
+  head -c "$len" > "$T"
+  # only a json object, anything else would leave every device without settings. and all of it: a connection that broke
+  # off hands over less than it said
+  if [ "$(wc -c < "$T")" -ne "$len" ] || [ "$(ends "$T" | tr -d '\n')" != "{}" ]; then
+    rm -f "$T"
+    printf 'Status: 400 Bad Request\r\n'
+    vcors
+    printf 'Content-Type: text/plain\r\n\r\nnot a json object\n'
+    exit 0
+  fi
+  want=$(printf '%s' "$QUERY_STRING" | tr '&' '\n' | sed -n 's/^v=\([0-9-]*\).*$/\1/p' | head -n1)
+  # the check and the save at once, and the answer what was saved: two devices saving together take turns
+  exec 9> /tmp/settings.lock && flock 9
+  if [ -n "$want" ] && [ -f "$F" ] && [ "$want" != "$(version)" ]; then
+    rm -f "$T"
+    printf 'Status: 409 Conflict\r\n'
+    vcors
+    printf 'X-Settings-Version: %s\r\nContent-Type: application/json\r\nCache-Control: no-store\r\n\r\n' "$(version)"
+    cat "$F"
+    exit 0
+  fi
+  mv "$T" "$F"
+fi
+
+vcors
+printf 'X-Settings-Version: %s\r\nContent-Type: application/json\r\nCache-Control: no-store\r\n\r\n' "$(version)"
+cat "$F" 2>/dev/null || printf '{}'

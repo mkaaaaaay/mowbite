@@ -1,0 +1,354 @@
+'use client';
+
+import {clock, dayLabel} from '@/lib/dates';
+import {deviceLang, tr, useLang} from '@/lib/i18n';
+import {apiBase, isDemo, selectedMower} from '@/lib/mowers';
+import {useMowbiteOs} from '@/lib/mowerOs';
+import {isApp} from '@/lib/native';
+import {
+  defaultNotify,
+  loadNotify,
+  NOTIFY_EVENTS,
+  notifyLog,
+  randomTopic,
+  saveNotify,
+  snoozeNotify,
+  testNotify,
+  validServer,
+  validTopic,
+  withMowerUrl,
+  type NotifyConfig,
+  type NotifyEvent,
+  type NotifyLog,
+} from '@/lib/notify';
+import type {Settings} from '@/lib/settings';
+import {containerHas, useUpdates} from '@/lib/updates';
+import {useEffect, useRef, useState} from 'react';
+import local from './NotifySettings.module.css';
+import {PhonePushSettings} from './PhonePushSettings';
+
+// Push messages on the phone when the mower needs someone, sent by the container on the mower through ntfy, also when
+// no app is open and away from home. Kept on the mower for every device.
+
+type Styles = Record<string, string>;
+
+const REMIND = [0, 15, 30, 60];
+const EMERGENCY_WAIT = [0, 10, 30, 60];
+
+export function NotifySettings({settings, styles}: {settings: Settings; styles: Styles}) {
+  useLang();
+  const os = useMowbiteOs();
+  // undefined while asking, null without the container
+  const [form, setForm] = useState<NotifyConfig | null | undefined>(undefined);
+  const [saved, setSavedState] = useState<NotifyConfig | null>(null);
+  // what's on the mower, also between renders: a switch flipped right after another one builds on that
+  const savedRef = useRef<NotifyConfig | null>(null);
+  const setSaved = (c: NotifyConfig | null) => {
+    savedRef.current = c;
+    setSavedState(c);
+  };
+  // switches save one after another
+  const queue = useRef<Promise<void>>(Promise.resolve());
+  const [state, setState] = useState<{busy?: boolean; error?: string; done?: string}>({});
+  // the mower didn't answer when the page asked: not the same as no container
+  const [unreachable, setUnreachable] = useState(false);
+  const [log, setLog] = useState<NotifyLog[]>([]);
+  const [now, setNow] = useState(() => Date.now() / 1000);
+  const u = useUpdates();
+
+  useEffect(() => {
+    // this mower's MowBite as this device reaches it, the message's button opens it there
+    const page = window.location.origin;
+    const url = apiBase() || (isApp() ? '' : page);
+    const name = (!isApp() && selectedMower()?.name) || settings.thisName || '';
+    const fallback = defaultNotify(deviceLang(), url, name);
+    void loadNotify(fallback).then((loaded) => {
+      if (loaded === undefined) return setUnreachable(true);
+      const c = loaded && withMowerUrl(loaded, url, page);
+      setForm(c);
+      setSaved(c);
+    });
+    void notifyLog().then(setLog);
+    // the snooze runs out while the page is open
+    const timer = setInterval(() => setNow(Date.now() / 1000), 30000);
+    return () => clearInterval(timer);
+    // the defaults only matter until the mower answers
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (form === undefined)
+    return unreachable ? (
+      <section className={styles.card}>
+        <p className={styles.dim}>{tr("The mower can't be reached right now.")}</p>
+      </section>
+    ) : null;
+  if (form === null) {
+    return (
+      <section className={styles.card}>
+        <p className={styles.dim}>
+          {tr('Only with the MowBite container on the mower: it watches the mower and sends the messages, also when no app is open.')}
+        </p>
+      </section>
+    );
+  }
+
+  const set = (patch: Partial<NotifyConfig>) => {
+    setForm({...form, ...patch});
+    setState({});
+  };
+  // switches and choices save right away, on top of what's saved: what's typed in the fields waits for Save
+  const instant = (patch: Partial<NotifyConfig>) => {
+    const next = {...(savedRef.current ?? form), ...patch};
+    setSaved(next);
+    setForm((f) => (f ? {...f, ...patch} : f));
+    setState({});
+    queue.current = queue.current.then(async () => {
+      try {
+        // on top of what the mower has now: another phone may have changed something since the page was opened
+        const there = await loadNotify(next);
+        const c = await saveNotify({...(there ?? next), ...patch});
+        // what came back, the fields being typed in stay as they are
+        const {enabled, events, remind, emergencyWait, lang, pushes, stored, hasToken} = c;
+        if (savedRef.current) setSaved({...savedRef.current, enabled, events, remind, emergencyWait, lang, pushes, stored, hasToken});
+        setForm((f) => (f ? {...f, enabled, events, remind, emergencyWait, lang, pushes, stored, hasToken} : f));
+        setState({done: tr('Saved.')});
+      } catch {
+        setState({error: tr('The mower did not answer.')});
+        // back to what the mower has
+        const c = await loadNotify(next);
+        if (!c) return;
+        setSaved(c);
+        setForm((f) => (f ? {...f, enabled: c.enabled, events: c.events, remind: c.remind, emergencyWait: c.emergencyWait, lang: c.lang} : c));
+      }
+    });
+  };
+  const toggle = (e: NotifyEvent) =>
+    instant({events: form.events.includes(e) ? form.events.filter((x) => x !== e) : [...form.events, e]});
+
+  const save = async () => {
+    if (form.topic && !validTopic(form.topic.trim())) return setState({error: tr('The topic may only hold letters, digits, - and _.')});
+    if (!validServer(form.server)) return setState({error: tr('The server needs to be an address starting with http:// or https://.')});
+    setState({busy: true});
+    try {
+      const c = await saveNotify(form);
+      setForm(c);
+      setSaved(c);
+      setState({
+        done: !c.enabled ? tr('Saved. Switched off, nothing is sent.') : c.topic ? tr('Saved. Send a test to see it arrives.') : tr('Saved. No topic, no messages.'),
+      });
+    } catch {
+      setState({error: tr('The mower did not answer.')});
+    }
+  };
+
+  const test = async () => {
+    if (isDemo()) return setState({done: tr('The demo sends nothing, with your mower it comes to the phone.')});
+    setState({busy: true});
+    try {
+      const r = await testNotify();
+      setState(
+        r === 'sent'
+          ? {done: tr('Sent. It should be on the phone in a moment.')}
+          : r === 'no topic'
+            ? {error: tr('No topic and no phone set up, there is nowhere to send it.')}
+            : {error: tr("The mower couldn't reach the ntfy server. Is the address right, and does the mower get on the internet?")},
+      );
+      void notifyLog().then(setLog);
+    } catch {
+      setState({error: tr('The mower did not answer.')});
+    }
+  };
+
+  const snooze = async (seconds: number) => {
+    await snoozeNotify(seconds).catch(() => {});
+    const c = await loadNotify(form);
+    if (c) {
+      setForm({...form, snooze: c.snooze});
+      setSaved(c);
+    }
+    setNow(Date.now() / 1000);
+  };
+
+  // the phones signed up changed on the mower: kept, the rest of what's typed stays as it is
+  const reload = async () => {
+    const c = await loadNotify(saved ?? form);
+    if (!c) return;
+    setSaved(c);
+    setForm((f) => (f ? {...f, pushes: c.pushes, stored: c.stored} : c));
+  };
+
+  const phone = isApp() && !isDemo();
+  // MowBite's own messages on this phone, the topic is for other devices then
+  const own = phone && containerHas(u.level, 'phones');
+  const dirty = JSON.stringify({...form, snooze: 0}) !== JSON.stringify({...saved, snooze: 0});
+  const live = !!saved && saved.enabled && (!!saved.topic || saved.pushes.length > 0);
+  const subscribe = saved?.topic ? `${saved.server.replace(/\/+$/, '')}/${saved.topic}` : null;
+
+  // where the container sends through ntfy: the way in a browser and on other devices, in the app only for those
+  const topicFields = (
+    <>
+      <div className={local.grid}>
+        <label className={styles.field}>
+          {tr('ntfy server')}
+          <input value={form.server} onChange={(e) => set({server: e.target.value})} placeholder="https://ntfy.sh" />
+        </label>
+        <label className={styles.field}>
+          {tr('Topic')}
+          <span className={local.row}>
+            <input value={form.topic} onChange={(e) => set({topic: e.target.value})} placeholder={tr('empty: no messages')} />
+            <button className={styles.pillButton} onClick={() => set({topic: randomTopic()})}>
+              {tr('Random')}
+            </button>
+          </span>
+        </label>
+        <label className={styles.field}>
+          {tr('Access token (optional)')}
+          <input
+            type="password"
+            autoComplete="off"
+            value={form.token === '-' ? '' : form.token}
+            onChange={(e) => set({token: e.target.value})}
+            placeholder={form.hasToken ? tr('saved, empty keeps it') : tr('only for a server that needs one')}
+          />
+        </label>
+      </div>
+      {form.hasToken && (
+        <label className={styles.check}>
+          <input type="checkbox" checked={form.token === '-'} onChange={(e) => set({token: e.target.checked ? '-' : ''})} />
+          {tr('Remove the saved token')}
+        </label>
+      )}
+      <p className={styles.dim}>
+        {tr(
+          'On ntfy.sh anyone who knows the topic can read along: take a random one, or your own server with a token. The messages only say what the mower is doing.',
+        )}
+      </p>
+      {subscribe && (
+        <p className={styles.dim}>
+          {tr('Subscribe in the ntfy app to {topic} on {server}, or open it in the browser:', {topic: saved!.topic, server: saved!.server})}{' '}
+          <a href={subscribe} target="_blank" rel="noreferrer">
+            {subscribe}
+          </a>
+        </p>
+      )}
+    </>
+  );
+
+  return (
+    <section className={styles.card}>
+      <p className={styles.dim}>
+        {tr(
+          'A message on your phone when the mower needs you: an emergency stop, docking given up and the like. The container on the mower sends it through ntfy, also when no app is open and away from home.',
+        )}
+        {!own && ` ${tr('Install the ntfy app (Android or iOS) and subscribe to the topic below.')}`}
+      </p>
+      <label className={styles.check}>
+        <input type="checkbox" checked={form.enabled} onChange={(e) => instant({enabled: e.target.checked})} />
+        {tr('Send push messages')}
+      </label>
+      {phone && saved && <PhonePushSettings saved={saved} reload={reload} styles={styles} />}
+      {own ? (
+        <details className={local.more}>
+          <summary>{tr('Through an ntfy topic, for other devices')}</summary>
+          <p className={styles.dim}>{tr("An iPhone, a browser, a phone without MowBite: subscribe to the topic there in the ntfy app. This phone doesn't need it.")}</p>
+          {topicFields}
+        </details>
+      ) : (
+        topicFields
+      )}
+      <label className={styles.field}>
+        {tr('Name in the messages')}
+        <input value={form.name} maxLength={40} onChange={(e) => set({name: e.target.value})} placeholder={tr('The mower')} />
+      </label>
+
+      <h3 className={local.sub}>{tr('Tell me about')}</h3>
+      <div className={local.events}>
+        {/* standing still is told by a newer container only, shown while that can't be told. a start turned down only
+            MowBite OS says */}
+        {NOTIFY_EVENTS.filter(
+          (e) => (e.key !== 'standstill' || u.level === null || containerHas(u.level, 'standstill')) && (e.key !== 'refused' || os),
+        ).map((e) => (
+          <label key={e.key} className={styles.check}>
+            <input type="checkbox" checked={form.events.includes(e.key)} onChange={() => toggle(e.key)} />
+            {/* MowBite OS also tells with it when it's in the dock but not charging */}
+            {tr(e.key === 'dock_failed' && os ? 'Docking given up, not charging in the dock' : e.label)}
+          </label>
+        ))}
+      </div>
+
+      {form.events.includes('emergency') && (
+        <>
+          <h3 className={local.sub}>{tr('Report an emergency stop')}</h3>
+          <div className={styles.segment}>
+            {EMERGENCY_WAIT.map((s) => (
+              <button key={s} className={form.emergencyWait === s ? styles.segmentOn : undefined} onClick={() => instant({emergencyWait: s})}>
+                {s === 0 ? tr('right away') : s < 60 ? tr('after {n} s', {n: s}) : tr('after {n} min', {n: s / 60})}
+              </button>
+            ))}
+          </div>
+          <p className={styles.dim}>
+            {tr('Only once it lasted that long: a bumper touched while docking often clears itself within seconds.')}
+          </p>
+        </>
+      )}
+
+      <h3 className={local.sub}>{tr('Remind me')}</h3>
+      <div className={styles.segment}>
+        {REMIND.map((m) => (
+          <button key={m} className={form.remind === m ? styles.segmentOn : undefined} onClick={() => instant({remind: m})}>
+            {m ? tr('every {n} min', {n: m}) : tr('never')}
+          </button>
+        ))}
+      </div>
+      <p className={styles.dim}>
+        {tr("Again and again while the mower can't carry on by itself: in emergency stop, or outside the dock after it gave up. Snooze stops that for a while, also from the message (from the home network).")}
+      </p>
+
+      <h3 className={local.sub}>{tr('Language of the messages')}</h3>
+      <div className={styles.segment}>
+        {(
+          [
+            ['de', 'Deutsch'],
+            ['en', 'English'],
+          ] as const
+        ).map(([k, label]) => (
+          <button key={k} className={form.lang === k ? styles.segmentOn : undefined} onClick={() => instant({lang: k})}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <div className={local.actions}>
+        <button className={styles.pillButton} onClick={save} disabled={state.busy || !dirty}>
+          {tr('Save')}
+        </button>
+        <button className={styles.pillButton} onClick={test} disabled={state.busy || !live || dirty}>
+          {tr('Send a test')}
+        </button>
+        {live &&
+          saved?.remind !== 0 &&
+          (form.snooze > now ? (
+            <button className={styles.pillButton} onClick={() => void snooze(0)}>
+              {tr('Snoozed until {time}, wake up', {time: clock(form.snooze)})}
+            </button>
+          ) : (
+            <button className={styles.pillButton} onClick={() => void snooze(3600)}>
+              {tr('Snooze 1 h')}
+            </button>
+          ))}
+      </div>
+      {state.done && <p className={styles.dim}>{state.done}</p>}
+      {state.error && <p className={styles.error}>{state.error}</p>}
+      {!state.done && !state.error && <p className={styles.dim}>{tr('Switches and choices save right away, what you type with Save.')}</p>}
+      {log.length > 0 && (
+        <ul className={local.log}>
+          {log.slice(0, 5).map((l, i) => (
+            <li key={i} className={l.sent ? undefined : styles.error}>
+              <span>{`${dayLabel(new Date(l.t * 1000))}, ${clock(l.t)}`}</span> {l.sent ? tr('sent') : tr('failed')} · {l.title}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}

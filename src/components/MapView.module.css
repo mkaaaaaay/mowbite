@@ -1,0 +1,1551 @@
+.svg {
+  /* dragging the map shouldn't select the order numbers and labels */
+  user-select: none;
+  -webkit-user-select: none;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  background: var(--map-ground);
+  border-radius: 8px;
+  overflow: hidden;
+  /* a layer of its own: redrawing the map while it moves doesn't redo the blur of the frosted cards around it */
+  will-change: transform;
+  contain: paint;
+}
+
+.mowArea {
+  fill: var(--c-mow);
+  fill-opacity: 0.35;
+  stroke: var(--c-mow);
+  stroke-width: 1.5;
+  cursor: pointer;
+}
+
+.navArea {
+  fill: var(--c-nav);
+  fill-opacity: 0.2;
+  stroke: var(--c-nav);
+  stroke-width: 1.5;
+  cursor: pointer;
+}
+
+.obstacleArea {
+  fill: var(--c-obstacle);
+  fill-opacity: 0.25;
+  stroke: var(--c-obstacle);
+  stroke-width: 1;
+  cursor: pointer;
+}
+
+.decorArea {
+  fill: var(--c-decor);
+  fill-opacity: 0.25;
+  stroke: var(--c-decor);
+  stroke-width: 1;
+  cursor: pointer;
+}
+
+.draftArea {
+  fill: var(--c-draft);
+  fill-opacity: 0.12;
+  stroke: var(--c-draft);
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+  cursor: pointer;
+}
+
+.inactive {
+  fill-opacity: 0.08;
+  stroke-dasharray: 4 3;
+}
+
+/* the garden style (components/gardenLook): paving around the lawn, half see-through so the page shows a little, the
+   areas filled with their textures, an inactive one and its picture faded */
+.garden {
+  background: color-mix(in srgb, #8f8778 30%, transparent);
+}
+
+/* the loupe over the map stays solid, the map under it would show through */
+.loupe .garden {
+  background: #8f8778;
+}
+
+.garden .inactive,
+.gardenOff {
+  opacity: 0.45;
+}
+
+.gardenThing {
+  pointer-events: none;
+}
+
+/* the lawn up to the real edges, as the lawn */
+.garden .realGrass {
+  fill: #4e8d3e;
+  fill-opacity: 1;
+}
+
+/* the garden style's lines in the colors of a garden: the outlines soft and dark, the plan and the real edges like chalk,
+   the track a fresh light green. what's picked and its points stay plain to see, white with a dark rim */
+.garden .mowArea {
+  stroke: #24461c;
+  stroke-opacity: 0.55;
+  stroke-width: 1;
+}
+
+.garden .navArea,
+.garden .obstacleArea,
+.garden .decorArea {
+  stroke: #4a3a28;
+  stroke-opacity: 0.5;
+  stroke-width: 1;
+}
+
+.garden .draftArea {
+  stroke: #fff6e0;
+  stroke-opacity: 0.75;
+}
+
+.garden .skipMowing {
+  stroke: #eadfae;
+  stroke-opacity: 0.85;
+  stroke-width: 1.2;
+  stroke-dasharray: 5 3;
+}
+
+.garden .realEdge {
+  stroke: #f6eedb;
+  stroke-opacity: 0.7;
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+}
+
+.garden .stripes {
+  stroke: #fffaf0;
+  stroke-opacity: 0.38;
+  stroke-width: 0.8;
+}
+
+.garden .planTransit,
+.garden .planTodo:not(.dots) {
+  stroke: #fffaf0;
+  stroke-opacity: 0.35;
+}
+
+.garden .track,
+.garden .transit {
+  stroke: #e9f6c9;
+  stroke-opacity: 0.75;
+}
+
+.garden .transit {
+  stroke-opacity: 0.5;
+}
+
+.garden .trackBefore {
+  stroke: #e9f6c9;
+  stroke-opacity: 0.28;
+}
+
+.svg.garden .swath {
+  stroke: #e9f6c9;
+  stroke-opacity: 0.2;
+}
+
+.svg.garden .swath .swathEnd {
+  fill: #e9f6c9;
+  fill-opacity: 0.2;
+}
+
+.garden .selected {
+  stroke: #fff;
+  stroke-width: 2.5;
+}
+
+.selectedHalo {
+  display: none;
+}
+
+.garden .selectedHalo {
+  display: inline;
+  fill: none;
+  stroke: #0d140a;
+  stroke-opacity: 0.65;
+  stroke-width: 5.5;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.garden .vertex {
+  fill: #fff;
+  fill-opacity: 0.95;
+  stroke: #1e2a18;
+  stroke-opacity: 0.8;
+  stroke-width: 1;
+}
+
+.garden .midpoint {
+  fill: #fff;
+  fill-opacity: 0.55;
+  stroke: #1e2a18;
+  stroke-opacity: 0.6;
+}
+
+.garden .activeVertex {
+  fill: #ffd54f;
+  stroke: #1e2a18;
+}
+
+.garden .orderLabel circle {
+  fill: #f3ead3;
+  stroke: #7a5c3a;
+  stroke-width: 1.2;
+}
+
+.garden .orderLabel text {
+  fill: #2f4f23;
+}
+
+/* the garden's life (gardenLife): what lies on the lawn and the light over it take no taps, the areas under them do */
+.gardenLife,
+.gardenLight,
+.stones {
+  pointer-events: none;
+}
+
+/* the lawn cut along the mower's way, as wide as its blade: lighter going along the stripes, darker coming back */
+.svg .cuts path,
+.svg .stones path {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: none;
+}
+
+.cutThere {
+  stroke: #5aa046;
+}
+
+.cutBack {
+  stroke: #4a8a3b;
+}
+
+/* the mowing edge: stones a quarter meter long with narrow joints, a lighter top on a darker bed */
+.svg .stones path {
+  stroke: #8b8478;
+  stroke-linecap: butt;
+}
+
+.svg .stones .stoneTop {
+  stroke: #d3ccbc;
+}
+
+/* a thing's shadow after the sun: the thing once more, all dark and see-through */
+.thingShadow {
+  opacity: 0.22;
+  pointer-events: none;
+}
+
+.thingShadow [fill]:not([fill='none']),
+.thingShadow [style*='fill'] {
+  fill: #000 !important;
+}
+
+.thingShadow [stroke]:not([stroke='none']) {
+  stroke: #000 !important;
+}
+
+/* the soft shadow round a thing's foot isn't part of the shadow the sun casts */
+.thingShadow [data-halo] {
+  display: none;
+}
+
+/* drivable but not mowed: its own color, the edge stays solid */
+.skipMowing {
+  fill: var(--c-unmowed);
+  fill-opacity: 0.15;
+  stroke: var(--c-unmowed);
+}
+
+.selected {
+  fill: none;
+  stroke: var(--c-selected);
+  stroke-width: 2.5;
+  pointer-events: none;
+}
+
+.dock {
+  pointer-events: none;
+}
+
+.mower {
+  pointer-events: none;
+}
+
+.turn {
+  transition: transform 0.35s ease-in-out;
+}
+
+.track {
+  fill: none;
+  stroke: var(--c-track);
+  stroke-opacity: 0.55;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+/* the mow before, whose leftovers it drives now: faded under the trail */
+.trackBefore {
+  fill: none;
+  stroke: var(--c-track);
+  stroke-opacity: 0.22;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.vertex {
+  fill: var(--c-vertex);
+  fill-opacity: 0.6;
+  pointer-events: none;
+  stroke: #fff;
+  stroke-opacity: 0.35;
+  stroke-width: 0.5;
+  cursor: grab;
+  touch-action: none;
+}
+
+.splitPoint {
+  fill: #ffeb3b;
+  stroke: #000;
+  stroke-width: 1;
+}
+
+.splitLine {
+  fill: none;
+  stroke: #ffeb3b;
+  stroke-width: 2;
+  stroke-dasharray: 6 4;
+}
+
+.midpoint {
+  pointer-events: none;
+  fill: #444;
+  fill-opacity: 0.6;
+  stroke: #fff;
+  stroke-opacity: 0.4;
+  stroke-width: 0.75;
+  cursor: pointer;
+}
+
+.svg * {
+  vector-effect: non-scaling-stroke;
+}
+
+.wrap {
+  position: relative;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* the map's frame: the svg is twice its size and slides under it, moved by a finger or gliding along the mower */
+.frame {
+  position: relative;
+  border-radius: 8px;
+  aspect-ratio: 1;
+  overflow: hidden;
+}
+
+.frameGliding {
+  background: var(--map-ground);
+}
+
+.zoomable {
+  display: block;
+  touch-action: none;
+}
+
+.zoomButtons {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.zoomButtons button {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: var(--radius-m);
+  border: 1px solid var(--card-border);
+  /* no blur over the map, it would be worked out again with every frame the map moves */
+  background: color-mix(in srgb, var(--background) 88%, transparent);
+  color: var(--foreground);
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+/* a finger's room around each, they don't overlap in the gap */
+.zoomButtons button::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+}
+
+/* plus and minus in one piece */
+.zoomPair {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-m);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+.zoomPair button {
+  box-shadow: none;
+}
+
+.zoomPair button:first-child {
+  border-bottom-color: color-mix(in srgb, var(--foreground) 12%, transparent);
+  border-radius: var(--radius-m) var(--radius-m) 0 0;
+}
+
+.zoomPair button:last-child {
+  border-top: none;
+  border-radius: 0 0 var(--radius-m) var(--radius-m);
+}
+
+.zoomPair button::after {
+  inset: 0 -3px;
+}
+
+/* the layers open */
+.zoomButtons button.toolOpen {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
+.mowerUnder {
+  pointer-events: none;
+}
+
+.mowerUnderBody {
+  fill: none;
+  stroke: #fff;
+  stroke-opacity: 0.9;
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+/* the handles of the picture of the area being edited: turn it, make it bigger or smaller */
+.thingHandles {
+  pointer-events: none;
+}
+
+.thingFrame {
+  fill: none;
+  stroke: #fff;
+  stroke-opacity: 0.8;
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+}
+
+.thingHandle {
+  fill: #fff;
+  stroke: #1e2a18;
+  stroke-width: 1.2;
+}
+
+.thingIcon {
+  fill: none;
+  stroke: #1e2a18;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.thingLabel {
+  fill: #fff;
+  font-weight: 700;
+  text-anchor: middle;
+  paint-order: stroke;
+  stroke: #0d140a;
+  stroke-width: 3;
+}
+
+/* decorating: a picture standing by itself (a pin), it can be picked and moved */
+.pinRing {
+  fill: none;
+  pointer-events: none;
+}
+
+.pinRing circle:first-child {
+  stroke: #0d140a;
+  stroke-opacity: 0.55;
+  stroke-width: 3.5;
+}
+
+.pinRing circle:last-child {
+  stroke: #fff;
+  stroke-opacity: 0.95;
+  stroke-width: 1.5;
+}
+
+/* a point lying exactly on another area's corner or edge */
+.snapCorner,
+.snapEdge {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 2.5;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.snapEdge {
+  stroke-dasharray: 3 2;
+}
+
+.activeVertex {
+  fill: #fff;
+  stroke: var(--c-vertex);
+  stroke-width: 2;
+  pointer-events: none;
+}
+
+/* next to the tapped point (left/top set inline), round and big enough for a finger */
+.deletePoint {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  color: var(--error, #ff5252);
+  cursor: pointer;
+  box-shadow: var(--card-shadow, none);
+  backdrop-filter: var(--card-blur, none);
+}
+
+.deletePoint:active:not(:disabled) {
+  transform: translateY(1px) scale(0.96);
+}
+
+/* the point is out of sight: at the top of the map, clear of the angle bar at the bottom on a phone */
+.deletePointTop {
+  left: calc(50% - 20px);
+  top: 10px;
+}
+
+/* under the undo/save buttons the map page puts at the top on a phone */
+.undoToast {
+  position: absolute;
+  left: 50%;
+  top: 56px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 13px;
+  box-shadow: var(--card-shadow, none);
+  backdrop-filter: var(--card-blur, none);
+  white-space: nowrap;
+}
+
+/* the quiet one: no button, fades in and out */
+.hintToast {
+  position: absolute;
+  left: 50%;
+  top: 56px;
+  transform: translateX(-50%);
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--card) 85%, transparent);
+  backdrop-filter: var(--card-blur, blur(12px));
+  color: var(--text-secondary);
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: hint-fade 2.5s ease forwards;
+}
+
+/* one that says more, on more than a line, clear of the buttons down the right */
+.hintLong {
+  width: max-content;
+  max-width: calc(100% - 112px);
+  white-space: normal;
+  text-align: center;
+  animation-duration: 4s;
+}
+
+@keyframes hint-fade {
+  0% {
+    opacity: 0;
+  }
+  12%,
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.undoToast button {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--card-border);
+  background: transparent;
+  color: var(--accent);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.grid line {
+  stroke: #fff;
+  stroke-opacity: 0.08;
+  stroke-width: 1;
+  pointer-events: none;
+}
+
+.gridLabel {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  font-size: 11px;
+  /* straight on the dark map in every theme, like the attribution */
+  color: rgba(255, 255, 255, 0.6);
+  pointer-events: none;
+}
+
+/* switched off: still readable, only paler */
+.zoomButtons button.off {
+  color: color-mix(in srgb, var(--foreground) 55%, transparent);
+}
+
+/* only a phone has the settings under the map */
+@media (min-width: 900px) {
+  .zoomButtons button.pin {
+    display: none;
+  }
+}
+
+.zoomButtons button svg {
+  display: block;
+}
+
+/* some layers switched off: a dot on the button */
+.zoomButtons button.partly::before {
+  content: '';
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.zoomButtons button.toolOpen.partly::before {
+  background: var(--accent-foreground);
+}
+
+/* what the map shows, next to its button. no blur over the map */
+.layers {
+  position: absolute;
+  top: 10px;
+  right: 58px;
+  display: flex;
+  flex-direction: column;
+  width: 260px;
+  padding: 4px 6px 0 12px;
+  border-radius: var(--radius-l);
+  border: 1px solid var(--card-border);
+  background: var(--bubble);
+  color: var(--foreground);
+  font-size: var(--text-m);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+  z-index: 2;
+  /* on a small map it scrolls instead of being cut off, and stays inside it */
+  max-height: calc(100% - 20px);
+  max-width: calc(100% - 68px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* the end of the list: fades out what's still below while it scrolls */
+.layers::after {
+  content: '';
+  position: sticky;
+  bottom: 0;
+  flex: none;
+  height: 18px;
+  background: linear-gradient(transparent, var(--bubble));
+  pointer-events: none;
+}
+
+.layersHead {
+  position: sticky;
+  top: -4px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: -4px -6px 0 -12px;
+  padding: 4px 4px 0 12px;
+  background: var(--bubble);
+  font-size: var(--text-l);
+}
+
+.layersHead button {
+  display: grid;
+  place-items: center;
+  width: var(--tap);
+  height: var(--tap);
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.layers label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  cursor: pointer;
+}
+
+.layers input {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+
+.layers select {
+  margin-left: auto;
+  min-height: 34px;
+  padding: 2px 6px;
+  border-radius: var(--radius-s);
+  border: 1px solid var(--field-border);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+
+.layers select option {
+  background: var(--bubble);
+}
+
+/* off, wifi or gps, with a line what it is */
+.layersCover {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 10px 6px 4px 0;
+  border-top: 1px solid var(--card-border);
+}
+
+.layersCover > span,
+.layersMore > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.layersCover small,
+.layersMore small {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+
+.layersSeg {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-pill);
+  background: var(--well);
+}
+
+.layersSeg button {
+  min-height: 36px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: none;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: var(--text-s);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.layersSeg button[aria-checked='true'] {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
+.layersSeg button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* colors, icons and the rest of how the map looks, over the page */
+.layersMore {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 52px;
+  margin-top: 6px;
+  padding: 6px 6px 6px 0;
+  border: none;
+  border-top: 1px solid var(--card-border);
+  background: none;
+  color: var(--foreground);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.layersMore svg {
+  flex: none;
+  color: var(--text-secondary);
+}
+
+.loupe {
+  position: absolute;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+}
+
+.loupe .svg {
+  border-radius: 0;
+}
+
+.crosshair {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(#fff, #fff) center / 1px 24px no-repeat,
+    linear-gradient(#fff, #fff) center / 24px 1px no-repeat;
+  opacity: 0.7;
+}
+
+.stripes {
+  fill: none;
+  stroke: var(--c-stripes);
+  stroke-opacity: 0.55;
+  stroke-width: 1;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.pieceA,
+.pieceB,
+.pieceC {
+  fill-opacity: 0.35;
+  stroke-width: 2;
+  pointer-events: none;
+}
+
+.pieceA {
+  fill: #ffb74d;
+  stroke: #ffb74d;
+}
+
+.pieceB {
+  fill: #4dd0e1;
+  stroke: #4dd0e1;
+}
+
+.pieceC {
+  fill: #ce93d8;
+  stroke: #ce93d8;
+}
+
+.imagery {
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+/* kept clear of the grid label in the left corner, long credits wrap under the list and the button */
+.imageryBar {
+  position: absolute;
+  right: 10px;
+  bottom: 8px;
+  max-width: calc(100% - 100px);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px 8px;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.75);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+/* moving the aerial imagery by hand: how far, the arrows, the step, done, and the imagery's credits */
+.alignBar {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--card-border);
+  /* no blur over the map, like the zoom buttons */
+  background: color-mix(in srgb, var(--background) 82%, transparent);
+  color: var(--foreground);
+  font-size: 12px;
+  box-shadow: var(--card-shadow, none);
+}
+
+.alignBar div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.alignBar button {
+  min-width: 34px;
+  padding: 5px 9px;
+  border-radius: 8px;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 13px;
+  cursor: pointer;
+  box-shadow: var(--btn-3d);
+}
+
+.alignBar button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.alignBar .alignDone {
+  margin-left: auto;
+  font-weight: 600;
+  border-color: color-mix(in srgb, var(--success) 70%, transparent);
+}
+
+.alignCredit {
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
+/* opens the arrows: a small square next to the list of imagery sources, styled like it */
+.alignOpen {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 6px;
+  border: 1px solid var(--card-border);
+  background: rgba(20, 20, 22, 0.8);
+  color: #fff;
+  cursor: pointer;
+}
+
+.imageryBar select {
+  height: 22px;
+  font-size: 11px;
+  padding: 2px 4px;
+  border-radius: 6px;
+  border: 1px solid var(--card-border);
+  background: rgba(20, 20, 22, 0.8);
+  color: #fff;
+}
+
+.imageryBar span {
+  text-align: right;
+}
+
+.orderLabel {
+  pointer-events: none;
+}
+
+.orderLabel circle {
+  fill: var(--c-mow);
+  stroke: #0b0b0b;
+  stroke-width: 1;
+}
+
+.orderLabel text {
+  fill: #0b0b0b;
+  font-weight: 700;
+  text-anchor: middle;
+}
+
+/* the mower's plan for the area it's mowing: what's left, and what it has done */
+/* the drives between the parts of the plan, dashed like the track without blades */
+.planTransit {
+  fill: none;
+  stroke: var(--c-stripes);
+  stroke-opacity: 0.45;
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.planTodo {
+  fill: none;
+  stroke: var(--foreground);
+  stroke-opacity: 0.35;
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.planTodo.solid {
+  stroke-dasharray: none;
+}
+
+/* pac-man pellets: zero length dashes with round ends */
+.planTodo.dots {
+  stroke: #ffd54f;
+  stroke-opacity: 0.9;
+  stroke-width: 2.4;
+  stroke-dasharray: 0 7;
+  stroke-linecap: round;
+}
+
+.transit {
+  fill: none;
+  stroke: var(--c-transit);
+  stroke-opacity: 0.6;
+  stroke-width: 1.5;
+  stroke-dasharray: 4 4;
+}
+
+.overlayOutline,
+.overlayObstacle,
+.overlayLive {
+  fill: none;
+  stroke-width: 3;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+
+.overlayOutline {
+  stroke: var(--c-mow);
+  fill: color-mix(in srgb, var(--c-mow) 20%, transparent);
+}
+
+.overlayObstacle {
+  stroke: var(--c-obstacle);
+  fill: color-mix(in srgb, var(--c-obstacle) 25%, transparent);
+}
+
+.overlayLive {
+  stroke: var(--c-track);
+  stroke-dasharray: 6 4;
+}
+
+.marker {
+  pointer-events: none;
+}
+
+/* one that tells what it is when tapped */
+.marker.markerPick {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.marker circle {
+  fill: #ff3b3b;
+  stroke: #fff;
+  stroke-width: 2;
+}
+
+.marker .markerPulse {
+  fill: rgba(255, 59, 59, 0.35);
+  stroke: none;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: marker-pulse 1.6s ease-out infinite;
+}
+
+@keyframes marker-pulse {
+  0% {
+    transform: scale(0.4);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.4);
+    opacity: 0;
+  }
+}
+
+/* the mower at its real size (Mower sizes in the settings) */
+.mowerBody {
+  pointer-events: none;
+  fill: var(--c-body);
+  fill-opacity: 0.12;
+  stroke: var(--c-body);
+  stroke-opacity: 0.85;
+  stroke-width: 1.25;
+  stroke-linejoin: round;
+}
+
+.mowerBlade,
+.mowerBladeOn {
+  pointer-events: none;
+  fill: none;
+  stroke: var(--c-swath);
+  stroke-opacity: 0.85;
+  stroke-width: 1;
+  stroke-dasharray: 3 2;
+}
+
+.mowerBladeOn {
+  fill: var(--c-swath);
+  fill-opacity: 0.2;
+  stroke-dasharray: none;
+}
+
+.mowerBladeBar {
+  pointer-events: none;
+  fill: var(--c-swath);
+  fill-opacity: 0.6;
+}
+
+.mowerAxle {
+  pointer-events: none;
+  fill: var(--c-body);
+}
+
+.mowerArrow {
+  pointer-events: none;
+  fill: none;
+  stroke: var(--c-body);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* lawn too, between the lines (the middle of the mower) and the real edges, as green as the mowing areas */
+.realGrass {
+  pointer-events: none;
+  fill: var(--c-mow);
+  fill-opacity: 0.35;
+  fill-rule: evenodd;
+  stroke: none;
+}
+
+/* where the edges really are, the outlines being the middle of the mower */
+.realEdge {
+  pointer-events: none;
+  fill: none;
+  stroke: var(--c-edge);
+  stroke-opacity: 0.9;
+  stroke-width: 1.25;
+  stroke-dasharray: 5 3;
+  stroke-linejoin: round;
+}
+
+/* the strip the blade cut, as wide as the blade on the map: each lane on its own, so overlaps show darker */
+.swath {
+  pointer-events: none;
+  fill: none;
+  stroke: var(--c-swath);
+  stroke-opacity: 0.22;
+  stroke-linecap: butt;
+  stroke-linejoin: round;
+}
+
+.svg .swath .swathEnd {
+  fill: var(--c-swath);
+  fill-opacity: 0.22;
+  stroke: none;
+}
+
+.svg .swath path {
+  vector-effect: none;
+}
+
+/* where the planner found the body sticking out: the body there, in red */
+.bodyOut {
+  pointer-events: none;
+  fill: #ff5252;
+  fill-opacity: 0.18;
+  stroke: #ff5252;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+/* the planner's collision mode: where the body may go, faint */
+.bodySpace {
+  pointer-events: none;
+  fill: none;
+  stroke: var(--c-body);
+  stroke-opacity: 0.4;
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+}
+
+/* a place driven another way so the body fits, a dot where a piece is left out */
+/* after a run, where the body got into the safety distances: small, it's a hint */
+.marginPlace {
+  pointer-events: none;
+}
+
+.marginPlace circle {
+  fill: #ef5350;
+  fill-opacity: 0.8;
+}
+
+.marginPlace text {
+  fill: #ff8a80;
+  font-weight: 600;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.6);
+}
+
+.fitPlace,
+.fitSkip {
+  pointer-events: none;
+  stroke: #fbc02d;
+  stroke-opacity: 0.8;
+  stroke-width: 1;
+}
+
+.fitPlace {
+  fill: none;
+}
+
+.fitSkip {
+  fill: #fbc02d;
+  fill-opacity: 0.55;
+}
+
+/* a place that can be picked: the body where it would have stuck out shows */
+.fitPick {
+  pointer-events: all;
+  cursor: pointer;
+}
+
+.fitPicked {
+  stroke: #fff;
+  stroke-opacity: 1;
+  stroke-width: 2;
+}
+
+/* turning on the spot: the circle the farthest point of the body sweeps round the rear axle */
+.fitSweep {
+  pointer-events: none;
+  fill: #ff5252;
+  fill-opacity: 0.06;
+  stroke: #ff5252;
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+}
+
+.fitBody {
+  pointer-events: none;
+  fill: #ff5252;
+  fill-opacity: 0.22;
+  stroke: #ff5252;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+/* the path jumps there, OpenMower drives the way on its own */
+/* a simulated drive: what it left unmowed, and where the controller would have given up */
+.leftPiece {
+  pointer-events: none;
+  fill: #ff9800;
+  fill-opacity: 0.45;
+  stroke: #ffb74d;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+
+.navError {
+  pointer-events: none;
+  fill: none;
+  stroke: #ff3b3b;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
+.jumpPlace {
+  pointer-events: none;
+  fill: none;
+  stroke: #ff3b3b;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+/* clean stripes: a turn that still happens in the field of lanes */
+.turnPlace {
+  pointer-events: none;
+  fill: none;
+  stroke: var(--accent);
+  stroke-opacity: 0.8;
+  stroke-width: 1;
+}
+
+/* where gps or wifi were good, ok or bad, squares of half a metre under everything the mower drew */
+.cover rect {
+  stroke: none;
+}
+
+/* taps go through to the map and its areas, the square under a tap is looked up there */
+.coverQuiet {
+  pointer-events: none;
+}
+
+.coverFaded {
+  opacity: 0.3;
+}
+
+.cover .coverPicked {
+  stroke: #fff;
+  stroke-width: 2px;
+  opacity: 0.9;
+}
+
+/* the numbers of the square tapped, bottom left in the map */
+.coverInfo {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: calc(100% - 80px);
+  padding: 8px 28px 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--card-border);
+  background: rgba(20, 20, 22, 0.92);
+  color: #fff;
+  font-size: 12px;
+  z-index: 2;
+}
+
+@media (max-width: 899px) {
+  .coverInfoRaised {
+    bottom: 70px;
+  }
+}
+
+.coverInfo button {
+  position: absolute;
+  top: 2px;
+  right: 6px;
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.coverInfoDim {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.cover .good,
+.coverLegend .good {
+  fill: #43a047;
+  background: #43a047;
+}
+
+.cover .ok,
+.coverLegend .ok {
+  fill: #fdd835;
+  background: #fdd835;
+}
+
+.cover .bad,
+.coverLegend .bad {
+  fill: #e53935;
+  background: #e53935;
+}
+
+.coverLegend {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.coverLegend i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-left: 6px;
+  border-radius: 2px;
+}
+
+/* halloween night: the track glows, a ghost bobs along behind the mower */
+.spooky .track {
+  stroke: #b9f6ca;
+  filter: drop-shadow(0 0 2px #69f0ae);
+}
+
+.spooky .transit {
+  stroke: #a7ffeb;
+}
+
+.ghost {
+  pointer-events: none;
+  opacity: 0.9;
+}
+
+.ghostBob {
+  animation: map-ghost-bob 1.4s ease-in-out infinite;
+}
+
+@keyframes map-ghost-bob {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-5deg);
+  }
+  50% {
+    transform: translateY(-4px) rotate(5deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ghostBob {
+    animation: none;
+  }
+}
+
+/* the mower's icon dressed up: nothing of it takes a tap. drawn in the icon's units, its lines scale with it */
+.costume {
+  pointer-events: none;
+}
+
+.costume * {
+  vector-effect: none;
+}
+
+/* rain on the umbrella over the mower's icon: a drop falls and bursts on it (in the icon's units) */
+.drop {
+  stroke: #90caf9;
+  stroke-width: 0.07;
+  stroke-linecap: round;
+  opacity: 0;
+  /* it bursts round its own lower end, not the icon's middle */
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: map-drop 1.3s linear infinite;
+}
+
+@keyframes map-drop {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.9;
+  }
+  85% {
+    transform: translateY(var(--to));
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateY(var(--to)) scaleX(3);
+    opacity: 0;
+  }
+}
+
+/* gps or wifi coverage while it's on: what it is, its legend and a way to switch it off, at the top left of the map
+   next to the buttons along the right edge. Picked in the layers */
+.coverSwitchWrap {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  right: 60px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  z-index: 1;
+}
+
+.coverChip {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 0 4px;
+  max-width: 100%;
+  padding: 4px 2px 6px 10px;
+  border-radius: var(--radius-m);
+  border: 1px solid var(--card-border);
+  /* as solid as the buttons: readable on the dark map in a light theme too */
+  background: color-mix(in srgb, var(--background) 88%, transparent);
+  color: var(--foreground);
+  font-size: var(--text-s);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+.coverChip button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.coverChip .coverLegend {
+  grid-column: 1 / -1;
+  flex-wrap: wrap;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  white-space: normal;
+}
+
+.coverChip .coverLegend i {
+  width: 9px;
+  height: 9px;
+  margin-left: 6px;
+}
+
+.coverChip .coverLegend i:first-child {
+  margin-left: 0;
+}
+
+/* under the legend on the editor's map: editing waits while the coverage is shown */
+.coverPaused {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(20, 20, 22, 0.85);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: var(--text-xs);
+}

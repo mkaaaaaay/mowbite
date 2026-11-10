@@ -1,0 +1,62 @@
+import {groupRuns, type MowerEvent, type Run} from '@/lib/events';
+import {daysBefore, eventsOfDay, fileDay, forgetToday, historyDays} from '@/lib/history';
+import {isMowbiteOs, systemInfo} from '@/lib/mowerOs';
+import {useEffect, useRef, useState} from 'react';
+
+export interface RecentRuns {
+  today: MowerEvent[];
+  runs: Run[]; // today's, oldest first
+  latest: Run[]; // the newest ones, newest first, from today and the days before
+}
+
+// how many runs the dashboard can show (six finished and one under way), and how many earlier days with a file of
+// their own are looked through for them
+const LATEST = 7;
+const LATEST_DAYS = 7;
+
+// today's events for the dashboard. `bump` changes (e.g. the mower's state) ask again right away,
+// otherwise every 30 s since there's no live event topic. enabled false: not asked at all
+// kept so the dashboard doesn't start empty every time it's opened again
+let cached: RecentRuns | null = null;
+
+// the newest run as last asked for, without asking again
+export const lastRun = (): Run | undefined => cached?.latest[0];
+
+export function useRecentRuns(bump?: string, enabled = true): RecentRuns | null {
+  const [data, setData] = useState<RecentRuns | null>(cached);
+  const lastBump = useRef(bump);
+
+  useEffect(() => {
+    if (!enabled) return;
+    let alive = true;
+    // the state changed, so there's something new in the history: don't reuse a recent answer
+    if (bump !== lastBump.current) {
+      lastBump.current = bump;
+      forgetToday();
+    }
+    const load = async () => {
+      const files = await historyDays();
+      const todayKey = fileDay(new Date());
+      const today = (await eventsOfDay(files, todayKey)).events;
+      const os = isMowbiteOs(await systemInfo());
+      const runs = groupRuns(today, true, undefined, os).flatMap((e) => (e.kind === 'run' ? [e.run] : []));
+      const latest = [...runs].reverse();
+      for (const d of daysBefore(files, todayKey, LATEST_DAYS)) {
+        if (latest.length >= LATEST) break;
+        const old = groupRuns((await eventsOfDay(files, d)).events, false, undefined, os);
+        latest.push(...old.flatMap((e) => (e.kind === 'run' ? [e.run] : [])).reverse());
+      }
+      cached = {today, runs, latest: latest.slice(0, LATEST)};
+      if (alive) setData(cached);
+    };
+    const run = () => void load().catch(() => {});
+    run();
+    const timer = setInterval(run, 30000);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, [bump, enabled]);
+
+  return data;
+}

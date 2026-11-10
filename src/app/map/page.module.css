@@ -1,0 +1,1469 @@
+.page {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  min-height: 100vh;
+}
+
+.main {
+  display: flex;
+  flex: 1;
+  width: 100%;
+  max-width: var(--content-max-width);
+  flex-direction: column;
+  padding: 20px 16px 60px;
+  gap: 4px;
+}
+
+.main h1 {
+  font-size: 28px;
+  font-weight: 700;
+}
+
+/* the title and the weather */
+.titleRow {
+  margin-bottom: 16px;
+}
+
+.dim {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.dim a {
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.error {
+  color: var(--error);
+}
+
+.inlineRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+.pillButton {
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 13px;
+  cursor: pointer;
+  box-shadow: var(--btn-3d);
+  backdrop-filter: var(--card-blur, none);
+}
+
+/* easy to miss otherwise. green outline, filled once there's something to save */
+.saveButton {
+  border-color: var(--success);
+  color: var(--success);
+  font-weight: 600;
+}
+
+.saveButton.unsaved {
+  border-color: color-mix(in srgb, var(--success) 70%, transparent);
+  background: color-mix(in srgb, var(--success) 35%, transparent);
+  backdrop-filter: var(--card-blur, none);
+  box-shadow: var(--btn-3d);
+  color: var(--foreground);
+}
+
+/* the tool buttons: two even columns */
+.toolbar {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+/* the cards under the map, like the ones of the settings: a title, a line what it is, then what's in it */
+.areasCard,
+.areaTools {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 14px 16px 16px;
+  border-radius: 14px;
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  box-shadow: var(--card-shadow, none);
+  backdrop-filter: var(--card-blur, none);
+}
+
+.cardHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.cardHead h2,
+.areaTools h2 {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.cardHead .guideLink {
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: right;
+  text-decoration: none;
+}
+
+.areasCard > .dim {
+  margin-top: -4px;
+}
+
+/* a row per area: a tap on it picks it, the mowing ones with their number like on the map and arrows for the order */
+.areaRows {
+  display: flex;
+  flex-direction: column;
+  margin: 0 -8px;
+  padding: 0;
+  list-style: none;
+}
+
+.areaRows li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.areaRows li + li {
+  border-top: 1px solid color-mix(in srgb, var(--foreground) 8%, transparent);
+}
+
+.areaPick {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  min-height: 52px;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 10px;
+  background: none;
+  color: var(--foreground);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.areaPick:hover {
+  background: var(--well);
+}
+
+.areaPick > svg {
+  flex: none;
+  color: var(--text-secondary);
+}
+
+.areaText {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.areaText strong {
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.areaText small {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+/* earlier or later in the order */
+.orderMove {
+  display: flex;
+  flex: none;
+  gap: 4px;
+  padding-right: 8px;
+}
+
+.orderMove button {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 16px;
+  cursor: pointer;
+  box-shadow: var(--btn-3d);
+}
+
+.orderMove button:disabled {
+  opacity: 0.35;
+  cursor: default;
+  box-shadow: none;
+}
+
+/* paths, obstacles and the rest, folded under the mowing areas */
+.otherAreas > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--tap);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+
+.otherAreas > summary::-webkit-details-marker {
+  display: none;
+}
+
+.otherAreas > summary::after {
+  content: '▾';
+  margin-left: auto;
+  color: var(--text-secondary);
+  transition: transform 0.2s ease;
+}
+
+.otherAreas[open] > summary::after {
+  transform: rotate(180deg);
+}
+
+.count {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--well);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* the color of its kind, like on the map */
+.typeDot {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  margin: 0 4px;
+  border-radius: 4px;
+  background: var(--text-secondary);
+}
+
+.dot-nav {
+  background: var(--c-nav, #5b9df0);
+}
+
+.dot-obstacle {
+  background: var(--c-obstacle, #e57373);
+}
+
+.dot-decor {
+  background: var(--c-decor, #c39bd3);
+}
+
+.dot-draft {
+  background: transparent;
+  border: 1.5px dashed var(--text-secondary);
+}
+
+/* drawn on the map or driven round with the mower */
+.newArea {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+/* back from an area to all of them */
+.backButton {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  gap: 2px;
+  min-height: 36px;
+  margin: -6px 0 -2px -8px;
+  padding: 0 10px 0 4px;
+  border: none;
+  border-radius: 999px;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* undo, redo and save: a bar at the bottom while there's something to do. on a phone above the tab bar */
+.changesBar {
+  position: sticky;
+  bottom: 12px;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 8px;
+  border-radius: 16px;
+  border: 1px solid var(--card-border);
+  background: var(--nav-bg);
+  backdrop-filter: var(--card-blur, blur(18px));
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.18);
+}
+
+@media (max-width: 899px) {
+  .changesBar {
+    bottom: calc(72px + env(safe-area-inset-bottom));
+  }
+}
+
+.barIcon {
+  display: grid;
+  place-items: center;
+  width: var(--tap);
+  height: var(--tap);
+  border-radius: 12px;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  color: var(--foreground);
+  cursor: pointer;
+  box-shadow: var(--btn-3d);
+}
+
+.barIcon:disabled {
+  opacity: 0.35;
+  cursor: default;
+  box-shadow: none;
+}
+
+.changesBar .saveButton {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: var(--tap);
+  border-radius: 12px;
+  font-size: 15px;
+}
+
+.barNote {
+  flex: 1;
+  padding: 0 6px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  text-align: right;
+}
+
+.barError {
+  flex: 1 1 100%;
+  padding: 0 6px;
+  font-size: 13px;
+}
+
+/* the picture a way or an obstacle is drawn as in the garden map style, a tap opens all of them */
+.lookRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 13px;
+}
+
+.lookButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px 3px 3px;
+  border-radius: 10px;
+  border: 1px solid var(--card-border);
+  background: transparent;
+  color: var(--foreground);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+/* the colors a picture comes in, the one picked framed */
+.variantLabel {
+  align-self: flex-start;
+  line-height: 38px;
+}
+
+.variantList {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stepButton {
+  min-width: 34px;
+  justify-content: center;
+  font-size: 1.1em;
+  touch-action: manipulation;
+}
+
+.sizeValue {
+  align-self: center;
+  min-width: 46px;
+  font-variant-numeric: tabular-nums;
+}
+
+.variantButton {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 9px;
+  border: 2px solid transparent;
+  background: transparent;
+  cursor: pointer;
+}
+
+.variantText {
+  align-items: center;
+  height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--card-border);
+  color: var(--foreground);
+  font-size: 13px;
+}
+
+.variantOn {
+  border-color: var(--accent);
+}
+
+.variantText.variantOn {
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.toolLabel:first-child {
+  margin-top: 0;
+}
+
+.tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 8px 10px;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.toolWide {
+  grid-column: 1 / -1;
+}
+
+.pillButton:disabled {
+  color: var(--text-secondary);
+  cursor: default;
+  opacity: 0.5;
+}
+
+.areaEditor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 14px 16px 16px;
+  border-radius: 14px;
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  box-shadow: var(--card-shadow, none);
+  backdrop-filter: var(--card-blur, none);
+}
+
+.areaHead {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.areaMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+  font-size: 13px;
+}
+
+.allAreas {
+  margin-left: 10px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+/* a toggle with a long text: it wraps, the box stays next to the first line */
+.toggleLong {
+  align-items: flex-start;
+  white-space: normal;
+}
+
+.toggleLong input {
+  flex: none;
+  margin-top: 2px;
+}
+
+.toggleLong > span {
+  min-width: 0;
+}
+
+.nameInput,
+.typeSelect {
+  min-height: 40px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--card-border);
+  background: transparent;
+  color: var(--foreground);
+  font-size: 14px;
+}
+
+.nameInput {
+  min-width: 0;
+}
+
+.typeSelect option {
+  background: var(--bubble);
+}
+
+.mowSettings {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 14px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  box-shadow: var(--card-shadow, none);
+  backdrop-filter: var(--card-blur, none);
+}
+
+.mowSettings label:not(.toggle):not(.dirRow):not(.dirPairField) {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.mowSettings input[type='number'] {
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--field-border);
+  background: transparent;
+  color: var(--foreground);
+  font-size: 14px;
+}
+
+.mowSettings input.invalid {
+  border-color: var(--error);
+}
+
+.fieldError {
+  color: var(--error);
+  font-size: 11px;
+}
+
+/* what lib/mapCheck found, the area names select the area */
+.problems {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding-left: 16px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.problems a {
+  cursor: pointer;
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.mowSettings .toggle,
+.mowSettings p,
+.angleRow {
+  grid-column: 1 / -1;
+}
+
+.angleRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.angleRow input {
+  flex: 1;
+  min-width: 0;
+}
+
+.compass {
+  flex: none;
+  width: 52px;
+  height: 52px;
+}
+
+.compass circle {
+  fill: none;
+  stroke: var(--card-border);
+}
+
+.compass line {
+  stroke: var(--c-stripes);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
+.compass polygon {
+  fill: var(--c-stripes);
+}
+
+.compass text {
+  fill: var(--text-secondary);
+  font-size: 8.5px;
+  font-weight: 600;
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
+
+.warning {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 183, 77, 0.5);
+  background: rgba(255, 183, 77, 0.08);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+/* asked by a tap on save: that tap didn't save, the next one does */
+.warningArmed {
+  border-color: rgba(255, 183, 77, 0.95);
+  background: rgba(255, 183, 77, 0.16);
+}
+
+.warning code {
+  font-size: 12px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--well);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* side by side on desktop, the map fits the window height so nothing needs scrolling */
+@media (min-width: 900px) {
+  .main {
+    max-width: none;
+  }
+
+  .editor {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 380px;
+    gap: 20px;
+    align-items: start;
+  }
+
+  .mapCol > div {
+    width: min(100%, calc(100vh - 120px));
+    margin: 0 auto;
+  }
+
+  .panel {
+    position: sticky;
+    top: 16px;
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
+  }
+
+  .panel .areaEditor,
+  .panel .inlineRow:first-child,
+  .panel .toolbar:first-child {
+    margin-top: 0;
+  }
+}
+
+.splitBox {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.pieceA,
+.pieceB,
+.pieceC {
+  font-weight: 600;
+}
+
+.pieceA {
+  color: var(--soft-warn);
+}
+
+.pieceB {
+  color: #4dd0e1;
+}
+
+.pieceC {
+  color: #ce93d8;
+}
+
+.danger {
+  color: var(--error, #ff5252);
+}
+
+.orderNum {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  /* like the numbers on the map: the mowing colour, cream in the garden style */
+  background: var(--c-mow);
+  color: #0b0b0b;
+}
+
+.page:has([data-garden]) .orderNum {
+  background: #f3ead3;
+  color: #2f4f23;
+}
+
+.warning a {
+  cursor: pointer;
+  text-decoration: underline;
+  color: var(--text-secondary);
+}
+
+
+
+.disabledLink {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.spot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--error) 50%, transparent);
+  background: color-mix(in srgb, var(--error) 14%, transparent);
+  color: var(--soft-bad);
+  font-size: 13px;
+}
+
+.spot button {
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.previewBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  font-size: 13px;
+}
+
+.previewBar button {
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.tool svg {
+  flex-shrink: 0;
+}
+
+.mapCol {
+  position: relative;
+}
+
+/* the planner's waiting bar under the map (24px): the angle slider and the sim player stay on the map */
+.underMap:not(:empty) {
+  padding-top: 6px;
+}
+
+.mapCol:has(> .underMap:not(:empty)) .angleOnMap,
+.mapCol:has(> .underMap:not(:empty)) .simPlayer {
+  bottom: 40px;
+}
+
+/* angle slider on top of the map, phones only */
+.angleOnMap {
+  display: none;
+}
+
+/* one degree less or more, next to the angle slider */
+.angleStep {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: var(--btn-3d);
+}
+
+@media (max-width: 899px) {
+  /* turned on the map, not again in the settings below it (the field takes a typed one, empty is automatic) */
+  .angleRow {
+    display: none;
+  }
+
+  .angleOnMap {
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 12px;
+    border: 1px solid var(--card-border);
+    background: var(--nav-bg);
+    backdrop-filter: var(--card-blur, blur(18px));
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+
+  .angleOnMap input {
+    flex: 1;
+    min-width: 0;
+  }
+
+  /* the slider takes the corner of the grid label */
+  .mapCol:has(.angleOnMap) [data-grid-label] {
+    display: none;
+  }
+
+  /* and leaves the map's buttons free on its right, a bit smaller so all of them fit above it on a small phone */
+  .mapCol .angleOnMap {
+    right: 50px;
+  }
+
+  .mapCol:has(.angleOnMap) [data-map-tools] {
+    gap: 4px;
+  }
+
+  .mapCol:has(.angleOnMap) [data-map-tools] button {
+    width: 30px;
+    height: 30px;
+    font-size: 16px;
+  }
+
+  .angleOnMap .compass {
+    width: 40px;
+    height: 40px;
+  }
+
+  .angleOnMap strong {
+    min-width: 40px;
+    text-align: right;
+    font-size: 14px;
+    color: var(--foreground);
+  }
+}
+
+/* the plan checked against the mower's body (MowBite Planner) */
+.bodyCheck {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.warningText {
+  color: var(--soft-warn);
+}
+
+/* the mowing and planner settings, folding away like the groups of the settings */
+.fold {
+  margin-top: 12px;
+  border-radius: 14px;
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  box-shadow: var(--card-shadow, none);
+  backdrop-filter: var(--card-blur, none);
+}
+
+.fold > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 56px;
+  padding: 10px 16px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+/* the title and in a line under it what's inside */
+.foldTitle {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.foldTitle small {
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.fold > summary::-webkit-details-marker {
+  display: none;
+}
+
+.fold > summary::after {
+  content: '▾';
+  color: var(--text-secondary);
+  transition: transform 0.2s ease;
+}
+
+.fold[open] > summary::after {
+  transform: rotate(180deg);
+}
+
+/* the cards inside lose their own frame and title, the fold has them */
+.fold .mowSettings {
+  margin-top: 0;
+  padding-top: 2px;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.fold .bodyCheck {
+  padding: 0 14px 12px;
+}
+
+@media (max-width: 899px) {
+  /* the map stays at the top while the settings under it scroll, unless it's unpinned */
+  .pinned .mapCol {
+    position: sticky;
+    top: 0;
+    z-index: 4;
+    padding-top: 6px;
+    background: var(--background);
+  }
+
+  /* the garden map style's paving is see-through: the page shows behind the pinned map, what scrolls under it blurred.
+     the blur sits on a ::before, on the column itself chrome no longer blurs behind the angle slider and buttons in it */
+  .pinned .mapCol:has([data-garden]) {
+    background: transparent;
+  }
+
+  .pinned .mapCol:has([data-garden])::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+  }
+
+  .mapSave {
+    position: absolute;
+    top: 16px;
+    left: 10px;
+    z-index: 2;
+    display: flex;
+    gap: 6px;
+  }
+
+  .mapSave button {
+    padding: 6px 12px;
+    font-size: 13px;
+    backdrop-filter: var(--card-blur, blur(18px));
+  }
+
+  /* the coverage switch moves below them while they're there */
+  .mapCol:has(.mapSave) [data-cover-switch] {
+    top: 54px;
+  }
+}
+
+/* on a wide screen the toolbar is always in view */
+@media (min-width: 900px) {
+  .mapSave {
+    display: none;
+  }
+}
+
+/* the cards for all areas from the settings in a fold: without their own frame and title, the fold has them */
+.foldCards > section {
+  padding: 4px 14px 14px;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.foldCards > section > h2,
+.foldCards > section > div:first-child > h2 {
+  display: none;
+}
+
+/* an obstacle's own distance, in the area card */
+.marginInput {
+  width: 56px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--card-border);
+  background: transparent;
+  color: var(--foreground);
+  font-size: 13px;
+}
+
+/* an area's direction (MowSettings): in the planner menu like its other settings, without the planner in the card */
+.areaDirection {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dirRow {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.dirLabel {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.dirNote {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--text-secondary);
+}
+
+.dirPair {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.dirPairField {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* (label: wins over the menu's own narrower fields) */
+.areaDirection label input[type='number'] {
+  width: 110px;
+  min-height: 36px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--field-border);
+  background: transparent;
+  color: var(--foreground);
+  font-size: 14px;
+}
+
+/* an area's plan (MowSettings): shown or not, how long */
+.areaPlan {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* room for "like all areas: 2°" */
+.areaDirection label input.dirWide[type='number'] {
+  width: 190px;
+}
+
+/* OpenMower's own values of an area (MowSettings OpenMowerArea): in the card's grid, or on their own in the planner menu */
+.openMowerArea {
+  display: contents;
+}
+
+.openMowerMenu {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.openMowerMenu label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.openMowerMenu label input[type='number'] {
+  width: 140px;
+  min-height: 36px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--field-border);
+  background: transparent;
+  color: var(--foreground);
+  font-size: 14px;
+}
+
+/* to the guide with the drawings */
+/* the guide, a link like the one on the record page */
+.dim .guideLink {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+/* decorating: the panel under the map, a row of pictures that scrolls sideways and the pin picked */
+.decorPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.decorHint {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.decorTiles {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 2px 2px 6px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: thin;
+}
+
+.decorTile {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  /* as wide as its longest word, up to a point */
+  width: auto;
+  min-width: 68px;
+  max-width: 104px;
+  padding: 5px 3px;
+  border-radius: 12px;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 11px;
+  cursor: pointer;
+  box-shadow: var(--btn-3d);
+  backdrop-filter: var(--card-blur, none);
+}
+
+/* a long name on two lines, broken between its words, within a word only when it's longer than the widest tile */
+.decorTile > span:last-child {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  max-width: 100%;
+  min-height: 2.4em;
+  overflow: hidden;
+  font-size: 10px;
+  line-height: 1.2;
+  text-align: center;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
+.decorTileOn {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent), var(--btn-3d);
+}
+
+/* all the pictures, over the page */
+.decorMore {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 7px;
+  border: 1px dashed var(--card-border);
+  color: var(--text-secondary);
+  font-size: 18px;
+}
+
+.pinHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pinName {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.pinTools {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pinTools button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* on the map: a picture just removed with the way back, or the decoration saved */
+.mapToast {
+  position: absolute;
+  left: 50%;
+  top: 56px;
+  z-index: 3;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  color: var(--foreground);
+  font-size: 13px;
+  box-shadow: var(--card-shadow, none);
+  backdrop-filter: var(--card-blur, none);
+  white-space: nowrap;
+}
+
+/* one that says more, on more than a line, clear of the buttons down the right */
+.mapToastLong {
+  width: max-content;
+  max-width: calc(100% - 112px);
+  white-space: normal;
+  text-align: center;
+}
+
+.mapToast button {
+  margin-right: -6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--card-border);
+  background: transparent;
+  color: var(--accent);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+/* a phone has undo, redo and finish on the map */
+@media (max-width: 899px) {
+  .decorBar {
+    display: none;
+  }
+}
+
+/* the plan driven by the planner (MowBite Planner's simulation): the button, the mower to drive with, what came */
+.simulation {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 10px;
+  font-size: 13px;
+}
+
+.simulationRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.simModel {
+  display: inline-flex;
+  border: 1px solid var(--card-border);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.simModel button {
+  padding: 5px 12px;
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.simModel .simModelOn {
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+  color: var(--foreground);
+}
+
+.simLink {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-size: 13px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* the drive played back, at the bottom of the map */
+.simPlayer {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--card-border);
+  background: var(--nav-bg);
+  backdrop-filter: var(--card-blur, blur(18px));
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.simPlayer input {
+  flex: 1;
+  min-width: 0;
+}
+
+.simPlay,
+.simSpeed,
+.simClose {
+  flex: none;
+  height: 32px;
+  border: 1px solid var(--card-border);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--foreground);
+  cursor: pointer;
+  box-shadow: var(--btn-3d);
+}
+
+.simPlay {
+  width: 32px;
+  font-size: 13px;
+}
+
+.simSpeed {
+  padding: 0 10px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.simClose {
+  width: 32px;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.simTime {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  color: var(--foreground);
+}
+
+/* the player takes the corner of the grid label */
+.mapCol:has(.simPlayer) [data-grid-label] {
+  display: none;
+}

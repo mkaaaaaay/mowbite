@@ -1,0 +1,639 @@
+import type {MapArea} from '@/hooks/useMowerMap';
+import {describe, expect, it} from 'vitest';
+import {containsPoint} from './geometry';
+import {cmMetres} from './i18n';
+import {
+  autoOutlineModel,
+  bladeSeconds,
+  bodyFrom,
+  bodyShape,
+  grownOutline,
+  measuredOutline,
+  modelOf,
+  MOWER_MODELS,
+  OUTLINE_LEEWAY,
+  outlineOf,
+  outsideLimits,
+  plannerOutline,
+  plannerSizes,
+  insideEdge,
+  isPin,
+  PIN_SIDE,
+  pinAt,
+  realEdges,
+  realInsides,
+  roundBends,
+  sizesBody,
+  spotPlaces,
+  standing,
+  steadyBody,
+  swathAfter,
+  swathEnd,
+  swathGroups,
+  swathPieces,
+  withModelOutline,
+  type MowerBody,
+  type PlannerSettings,
+} from './mowerBody';
+
+const settings = (values: Record<string, unknown>): PlannerSettings => ({
+  settings: Object.fromEntries(
+    Object.entries(values).map(([k, value]) => [k, {value, default: null, stored: true, type: 'number', settable: true}]),
+  ),
+});
+
+describe('steadyBody', () => {
+  it('gives the same object for the same sizes', () => {
+    const a: MowerBody = {width: 0.41, front: 0.43, rear: 0.18, blade: 0.18, bladeAhead: 0.185, bladeOffset: 0};
+    expect(steadyBody(a)).toBe(a);
+    expect(steadyBody({...a})).toBe(a);
+    const b = {...a, width: 0.4};
+    expect(steadyBody(b)).toBe(b);
+    expect(steadyBody({...a})).not.toBe(a);
+    expect(steadyBody(null)).toBeNull();
+  });
+});
+
+describe('mower body', () => {
+  it('needs width, front and rear', () => {
+    expect(bodyFrom(null)).toBeNull();
+    expect(bodyFrom(settings({robot_width: 0.4, robot_front: 0.43}))).toBeNull();
+    expect(bodyFrom(settings({robot_width: 0.4, robot_front: 0.43, robot_rear: null}))).toBeNull();
+    expect(bodyFrom(settings({robot_width: 0, robot_front: 0.43, robot_rear: 0.14}))).toBeNull();
+    expect(bodyFrom(settings({robot_width: 0.4, robot_front: 0.43, robot_rear: 0.14, mower_width: 0.18, blade_ahead: 0.17}))).toEqual({
+      width: 0.4,
+      front: 0.43,
+      rear: 0.14,
+      blade: 0.18,
+      bladeAhead: 0.17,
+      bladeOffset: 0,
+    });
+  });
+
+  it('puts the body around the point the mower follows, turned with its heading', () => {
+    const b = {width: 0.4, front: 0.43, rear: 0.14, blade: 0.18, bladeAhead: 0.17, bladeOffset: 0.05};
+    const east = bodyShape(b, 1, 2, 0);
+    expect(east.corners.map((c) => [+c.x.toFixed(6), +c.y.toFixed(6)])).toEqual([
+      [1.43, 2.2],
+      [0.86, 2.2],
+      [0.86, 1.8],
+      [1.43, 1.8],
+    ]);
+    expect(east.blade.x).toBeCloseTo(1.17);
+    expect(east.blade.y).toBeCloseTo(2.05); // left of heading east is north
+    expect(east.middle.x).toBeCloseTo(1.145);
+    // facing north: ahead is +y, left is -x
+    const north = bodyShape(b, 0, 0, Math.PI / 2);
+    expect(north.blade.x).toBeCloseTo(-0.05);
+    expect(north.blade.y).toBeCloseTo(0.17);
+    expect(north.corners[0].x).toBeCloseTo(-0.2);
+    expect(north.corners[0].y).toBeCloseTo(0.43);
+  });
+});
+
+describe('body spots', () => {
+  it('draws one body per place', () => {
+    // a turn on the spot reported 30 times, a loop corner over half a metre of path, a drive between parts further away
+    const spin = Array.from({length: 30}, (_, i) => ({x: 1, y: 1, yaw: i * 0.2, kind: 'spin'}));
+    const corner = Array.from({length: 6}, (_, i) => ({x: 1.2 + i * 0.1, y: 1, yaw: 0, kind: 'loop'}));
+    const transit = [{x: 5, y: 5, yaw: 1, kind: 'transit'}];
+    const places = spotPlaces([...spin, ...corner, ...transit]);
+    expect(places).toHaveLength(2);
+    expect(places[0].kinds).toEqual(['spin', 'loop']);
+    expect(places[1]).toEqual({spot: transit[0], kinds: ['transit']});
+    expect(spotPlaces([])).toEqual([]);
+  });
+});
+
+const body = {width: 0.4, front: 0.43, rear: 0.14, blade: 0.18, bladeAhead: 0.17, bladeOffset: 0};
+
+describe('mower sizes in the app', () => {
+  it('takes the sizes set in the app, width, front and rear needed', () => {
+    expect(sizesBody(undefined)).toBeNull();
+    expect(sizesBody({width: 0.4, front: 0.43})).toBeNull();
+    expect(sizesBody({width: 0, front: 0.43, rear: 0.14})).toBeNull();
+    expect(sizesBody({width: 0.4, front: 0.43, rear: 0.14, blade: 0.18, bladeAhead: 0.17})).toEqual(body);
+    // a blade wider than 40 cm isn't taken
+    expect(sizesBody({width: 0.4, front: 0.43, rear: 0.14, blade: 0.5})?.blade).toBe(0);
+  });
+
+  it('turns a drawn blade slower than the real one', () => {
+    expect(bladeSeconds(2400)).toBe(2.5);
+    expect(bladeSeconds(2450)).toBe(2.5);
+    expect(bladeSeconds(100)).toBe(10);
+    expect(bladeSeconds(-30000)).toBe(1);
+  });
+});
+
+describe('cut strip', () => {
+  it('follows the blade ahead of the track, one piece per lane', () => {
+    // there and back on two lanes 0.15 m apart, a turn on the spot at each end
+    const track = [
+      {x: 0, y: 0},
+      {x: 5, y: 0},
+      {x: 5, y: 0.15},
+      {x: 0, y: 0.15},
+    ];
+    const pieces = swathPieces(track, body);
+    const first = pieces[0];
+    expect(first[0].x).toBeCloseTo(0.17);
+    expect(first[0].y).toBeCloseTo(0);
+    expect(first[1].x).toBeCloseTo(5.17);
+    // the lane back starts where the mower faces west, its blade 0.17 m to the west of the track
+    const back = pieces[pieces.length - 1];
+    expect(back[back.length - 1].x).toBeCloseTo(-0.17);
+    expect(back[back.length - 1].y).toBeCloseTo(0.15);
+    // the turns at the ends swing the blade round in their own pieces, so the lanes stay apart
+    expect(pieces.length).toBeGreaterThan(3);
+    for (const p of pieces.slice(1, -1)) {
+      const xs = p.map((q) => q.x);
+      expect(Math.min(...xs)).toBeGreaterThan(4.7);
+    }
+    // each piece goes on where the one before ended, on a straight bit, so their square ends meet without a step
+    for (let i = 1; i < pieces.length; i++) {
+      const before = pieces[i - 1];
+      const [at, next] = pieces[i];
+      const from = before[before.length - 2];
+      expect(at).toEqual(before[before.length - 1]);
+      expect((at.x - from.x) * (next.y - at.y) - (at.y - from.y) * (next.x - at.x)).toBeCloseTo(0, 9);
+    }
+  });
+
+  it('rounds the ends of a stretch like the blade', () => {
+    const half = swathEnd({x: 0, y: 0}, {x: 1, y: 0}, 0.09);
+    expect(half[0].x).toBeCloseTo(1);
+    expect(Math.abs(half[0].y)).toBeCloseTo(0.09);
+    expect(half[4].x).toBeCloseTo(1.09);
+    expect(half[4].y).toBeCloseTo(0);
+    expect(half[8].x).toBeCloseTo(1);
+  });
+
+  it('keeps a slightly bending lane in one piece and skips tiny steps', () => {
+    const track = [
+      {x: 0, y: 0},
+      {x: 0.005, y: 0},
+      {x: 2, y: 0.1},
+      {x: 4, y: 0.3},
+    ];
+    const pieces = swathPieces(track, {...body, bladeAhead: 0});
+    expect(pieces).toHaveLength(1);
+    expect(pieces[0][0]).toEqual({x: 0, y: 0});
+  });
+
+  it('has nothing for a mower standing still', () => {
+    expect(swathPieces([{x: 1, y: 1}], body)).toEqual([]);
+    expect(swathPieces([{x: 1, y: 1}, {x: 1.03, y: 1}], body)).toEqual([]);
+  });
+});
+
+describe('cut strip on a wobbly track', () => {
+  it('keeps the blade steady along a lane with gps wobble', () => {
+    // a lane east with 1 cm wobble every 6 cm
+    const track = Array.from({length: 60}, (_, i) => ({x: i * 0.06, y: i % 2 ? 0.01 : -0.01}));
+    const pieces = swathPieces(track, body);
+    expect(pieces).toHaveLength(1);
+    // the blade 17 cm ahead wobbles little more than the track itself
+    for (const p of pieces[0].slice(6)) expect(Math.abs(p.y)).toBeLessThan(0.025);
+  });
+});
+
+describe('real edges', () => {
+  const square = (id: string, type: string, x0: number, y0: number, size: number): MapArea =>
+    ({
+      id,
+      properties: {type},
+      outline: [
+        {x: x0, y: y0},
+        {x: x0 + size, y: y0},
+        {x: x0 + size, y: y0 + size},
+        {x: x0, y: y0 + size},
+      ],
+    }) as MapArea;
+  const box = (o: {x: number; y: number}[]) => {
+    const xs = o.map((p) => p.x);
+    const ys = o.map((p) => p.y);
+    return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)].map((v) => +v.toFixed(3));
+  };
+
+  // a rectangle 40 cm wide, 43 cm ahead of the rear axle and 18 cm behind it
+  const rect: MowerBody = {width: 0.4, front: 0.43, rear: 0.18, blade: 0.18, bladeAhead: 0.18, bladeOffset: 0};
+  const inside = (rings: {x: number; y: number}[][], x: number, y: number) => rings.filter((r) => containsPoint(r, x, y)).length % 2 === 1;
+
+  it('grows the lawn by half the width, round at the corners, areas side by side as one', () => {
+    const {lawn} = realEdges([square('a', 'mow', 0, 0, 4), square('b', 'mow', 4, 0, 4), square('n', 'nav', 9, 0, 2)], rect);
+    // the nav area not in it
+    expect(lawn).toHaveLength(1);
+    expect(inside(lawn, 2, -0.15)).toBe(true);
+    expect(inside(lawn, 2, -0.25)).toBe(false);
+    // a corner rounded by the 20 cm, the front reaches no further there
+    expect(inside(lawn, 8.1, -0.1)).toBe(true);
+    expect(inside(lawn, 8.17, -0.17)).toBe(false);
+    const [x0, y0, x1, y1] = box(lawn[0]);
+    for (const v of [x0, y0]) expect(v).toBeCloseTo(-0.2, 2);
+    expect(x1).toBeCloseTo(8.2, 2);
+    expect(y1).toBeCloseTo(4.2, 2);
+  });
+
+  it('takes the side off the obstacles it drove round', () => {
+    const {obstacles} = realEdges([square('o', 'obstacle', 1, 1, 1)], rect);
+    expect(obstacles).toHaveLength(1);
+    const [x0, y0, x1, y1] = box(obstacles[0]);
+    for (const v of [x0, y0]) expect(v).toBeCloseTo(1.2, 2);
+    for (const v of [x1, y1]) expect(v).toBeCloseTo(1.8, 2);
+  });
+
+  it("finds an obstacle's real edge, none for one tighter than the width", () => {
+    const [x0, y0, x1, y1] = box(insideEdge(square('o', 'obstacle', 1, 1, 1).outline, rect)!);
+    for (const v of [x0, y0]) expect(v).toBeCloseTo(1.2, 2);
+    for (const v of [x1, y1]) expect(v).toBeCloseTo(1.8, 2);
+    expect(insideEdge(square('o', 'obstacle', 0, 0, 0.3).outline, rect)).toBeNull();
+  });
+
+  it('leaves out an obstacle the mower drove round tighter than its width', () => {
+    expect(realEdges([square('o', 'obstacle', 0, 0, 0.3)], rect).obstacles).toEqual([]);
+  });
+
+  it('shrinks obstacles side by side together, no edge between them', () => {
+    const areas = [square('a', 'obstacle', 1, 1, 1), square('b', 'obstacle', 2, 1, 1), square('w', 'nav', 1, 2.02, 2)];
+    const {obstacles, grass} = realEdges(areas, rect);
+    expect(obstacles).toHaveLength(1);
+    expect(inside(obstacles, 2, 1.5)).toBe(true);
+    expect(inside(grass.obstacles, 2, 1.5)).toBe(false);
+    // the way 2 cm off is one with them too, the outside keeps its strip
+    expect(inside(grass.obstacles, 1.5, 1.95)).toBe(false);
+    expect(inside(grass.obstacles, 1.5, 1.1)).toBe(true);
+    const of = realInsides(areas, rect);
+    const [x0, , x1] = box(of.get('a')!);
+    expect(x0).toBeCloseTo(1.2, 2);
+    expect(x1).toBeCloseTo(2, 2);
+    expect(box(of.get('b')!)[0]).toBeCloseTo(2, 2);
+  });
+
+  it('shrinks an obstacle lying in a way all round, one beside the way together with it', () => {
+    // a tree in the middle of a terrace, a bed 2 cm off its side
+    const areas = [square('w', 'nav', 0, 0, 4), square('t', 'obstacle', 1.5, 1.5, 1), square('b', 'obstacle', 4.02, 1, 1)];
+    const of = realInsides(areas, rect);
+    for (const [v, want] of box(of.get('t')!).map((v, i) => [v, [1.7, 1.7, 2.3, 2.3][i]])) expect(v).toBeCloseTo(want, 2);
+    const [x0, , x1] = box(of.get('b')!);
+    expect(x0).toBeCloseTo(4.02, 2);
+    expect(x1).toBeCloseTo(4.82, 2);
+    const {obstacles, grass} = realEdges(areas, rect);
+    expect(inside(obstacles, 2, 2)).toBe(true);
+    expect(inside(obstacles, 1.6, 2)).toBe(false);
+    // the strip round the tree is the terrace, the bed's along the lawn is lawn
+    expect(inside(grass.obstacles, 1.6, 2)).toBe(false);
+    expect(inside(grass.obstacles, 4.1, 1.5)).toBe(false);
+    expect(inside(grass.obstacles, 4.9, 1.5)).toBe(true);
+  });
+
+  it('shrinks an obstacle all round across where two ways meet and beside another way it touches', () => {
+    // two terraces side by side, a tree across where they meet, a pot in the first against the second, one near the edge
+    const areas = [
+      square('w1', 'nav', 0, 0, 4),
+      square('w2', 'nav', 4, 0, 4),
+      square('t', 'obstacle', 3.5, 0.5, 1),
+      square('p', 'obstacle', 3, 2.5, 1),
+      square('e', 'obstacle', 0.1, 1.5, 1),
+    ];
+    const of = realInsides(areas, rect);
+    const all = (id: string, want: number[]) => box(of.get(id)!).forEach((v, i) => expect(v).toBeCloseTo(want[i], 2));
+    all('t', [3.7, 0.7, 4.3, 1.3]);
+    all('p', [3.2, 2.7, 3.8, 3.3]);
+    // none of their strips is lawn, the one by the terrace's edge neither
+    const {grass} = realEdges(areas, rect);
+    for (const [x, y] of [[3.6, 1], [4.4, 1], [3.9, 3], [0.15, 2]]) expect(inside(grass.obstacles, x, y)).toBe(false);
+  });
+
+  it('shrinks decoration like an obstacle, side by side together with one', () => {
+    const areas = [square('a', 'obstacle', 1, 1, 1), square('b', 'decor', 2, 1, 1)];
+    const as = [square('a', 'obstacle', 1, 1, 1), square('b', 'obstacle', 2, 1, 1)];
+    expect(box(realInsides(areas, rect).get('b')!)).toEqual(box(realInsides(as, rect).get('b')!));
+    expect(realEdges(areas, rect).obstacles).toHaveLength(1);
+  });
+
+  it('leaves pins out: they stand on the lawn, nothing goes round them', () => {
+    const pin = (id: string, x: number, y: number): MapArea => ({...square(id, 'decor', x - 0.05, y - 0.05, 0.1), properties: {type: 'decor', pin: true}});
+    const decor = square('d', 'decor', 1, 1, 1);
+    expect([isPin(pin('p', 1, 1)), standing(pin('p', 1, 1)), isPin(decor), standing(decor)]).toEqual([true, false, false, true]);
+    expect(isPin({...decor, properties: {type: 'obstacle', pin: true}})).toBe(false);
+    // an openmower that dropped pin: its square says it, kept as floats too. any other decoration doesn't
+    const lost = {...pin('p', 2.95, -7.3), properties: {type: 'decor'}};
+    expect(isPin(lost)).toBe(true);
+    expect(isPin({...lost, outline: lost.outline.map((p) => ({x: Math.fround(p.x), y: Math.fround(p.y)}))})).toBe(true);
+    expect(isPin({...lost, properties: {type: 'obstacle'}})).toBe(false);
+    expect(isPin(square('d', 'decor', 1, 1, PIN_SIDE * 2))).toBe(false);
+    expect(isPin({...lost, outline: [...lost.outline, lost.outline[0]]})).toBe(false);
+    // turned it isn't the square
+    const turned = lost.outline.map((p) => ({x: 2.95 + (p.x - 2.95 - (p.y + 7.3)) * Math.SQRT1_2, y: -7.3 + (p.x - 2.95 + (p.y + 7.3)) * Math.SQRT1_2}));
+    expect(isPin({...lost, outline: turned})).toBe(false);
+    expect(pinAt(pin('p', 1.5, 2))).toEqual({x: expect.closeTo(1.5, 9), y: expect.closeTo(2, 9)});
+    const areas = [square('a', 'mow', 0, 0, 4), square('o', 'obstacle', 1, 1, 1), square('w', 'nav', 3, 0, 1)];
+    // one on the lawn, one in the obstacle, one on the way
+    const pinned = [...areas, pin('p', 0.5, 3), pin('q', 1.5, 1.5), pin('r', 3.5, 0.5)];
+    expect(realEdges(pinned, rect)).toEqual(realEdges(areas, rect));
+    expect(realInsides(pinned, rect)).toEqual(realInsides(areas, rect));
+  });
+
+  it('keeps what the obstacles and ways give while only a lawn changes', () => {
+    const sides = [square('o', 'obstacle', 1, 1, 1), square('w', 'nav', 3, 0, 2)];
+    const before = realEdges([square('a', 'mow', 0, 0, 4), ...sides], rect);
+    const after = realEdges([square('a', 'mow', 0, 0, 5), ...sides], rect);
+    expect(after.obstacles).toBe(before.obstacles);
+    expect(after.lawn).not.toEqual(before.lawn);
+    expect(realInsides([square('a', 'mow', 0, 0, 5), ...sides], rect).get('o')).toBe(realInsides([...sides], rect).get('o'));
+  });
+
+  it("keeps an obstacle's real edge while one far off moves, works out the one moved and its neighbour again", () => {
+    const far = square('c', 'obstacle', 6, 6, 1);
+    const before = realInsides([square('a', 'obstacle', 1, 1, 1), square('b', 'obstacle', 2, 1, 1), far], rect);
+    // a moved half a meter off b: they aren't one any more
+    const a = square('a', 'obstacle', 1, 1, 1);
+    a.outline[1] = {x: 1.5, y: 1};
+    a.outline[2] = {x: 1.5, y: 2};
+    const after = realInsides([a, square('b', 'obstacle', 2, 1, 1), far], rect);
+    expect(after.get('c')).toBe(before.get('c'));
+    expect(box(before.get('b')!)[0]).toBeCloseTo(2, 2);
+    expect(box(after.get('b')!)[0]).toBeCloseTo(2.2, 2);
+    expect(box(after.get('a')!)[2]).toBeCloseTo(1.3, 2);
+  });
+
+  it("keeps the lawns' real edge while only an obstacle moves", () => {
+    const lawn = square('l', 'mow', 0, 0, 4);
+    const before = realEdges([lawn, square('o', 'obstacle', 1, 1, 1)], rect);
+    const after = realEdges([lawn, square('o', 'obstacle', 1.5, 1, 1)], rect);
+    expect(after.lawn).toBe(before.lawn);
+    expect(after.grass.outside).toBe(before.grass.outside);
+    expect(after.obstacles).not.toEqual(before.obstacles);
+  });
+
+  it('counts the strip between a line and its real edge as lawn, outside the area and inside an obstacle', () => {
+    const {grass} = realEdges([square('a', 'mow', 0, 0, 4), square('o', 'obstacle', 1, 1, 1)], rect);
+    expect(inside(grass.outside, 2, -0.1)).toBe(true);
+    expect(inside(grass.outside, 2, 0.1)).toBe(false);
+    expect(inside(grass.outside, 2, -0.3)).toBe(false);
+    expect(inside(grass.obstacles, 1.1, 1.5)).toBe(true);
+    expect(inside(grass.obstacles, 1.5, 1.5)).toBe(false);
+  });
+});
+
+describe('real outline', () => {
+  const outline: [number, number][] = [
+    [0.4, 0.1],
+    [0.3, 0.2],
+    [-0.1, 0.2],
+    [-0.1, -0.2],
+    [0.3, -0.2],
+    [0.4, -0.1],
+  ];
+
+  it('takes robot_outline when it is at least 3 points, the rectangle otherwise', () => {
+    const base = {robot_width: 0.4, robot_front: 0.4, robot_rear: 0.1};
+    expect(bodyFrom(settings({...base, robot_outline: outline}))?.outline).toEqual(outline);
+    expect(bodyFrom(settings({...base, robot_outline: null}))?.outline).toBeUndefined();
+    expect(bodyFrom(settings({...base, robot_outline: outline.slice(0, 2)}))?.outline).toBeUndefined();
+    expect(outlineOf([[0, 0], [1, NaN], [0, 1]])).toBeUndefined();
+    // in cm, around another point, or tiny: no outline
+    expect(outlineOf(outline.map(([a, l]) => [a * 100, l * 100]))).toBeUndefined();
+    expect(outlineOf(outline.map(([a, l]) => [a + 0.6, l]))).toBeUndefined();
+    expect(outlineOf(outline.map(([a, l]) => [a / 10, l / 10]))).toBeUndefined();
+    for (const m of MOWER_MODELS.filter((x) => x.outline)) expect(outlineOf(m.outline)).toEqual(m.outline);
+    expect(sizesBody({width: 0.4, front: 0.4, rear: 0.1, outline})?.outline).toEqual(outline);
+  });
+
+  it('draws the body along the outline, turned with the heading', () => {
+    const b = {width: 0.4, front: 0.4, rear: 0.1, blade: 0.18, bladeAhead: 0.17, bladeOffset: 0, outline};
+    const north = bodyShape(b, 1, 2, Math.PI / 2);
+    expect(north.corners).toHaveLength(6);
+    // ahead is +y, left is -x
+    expect(north.corners[0].x).toBeCloseTo(0.9);
+    expect(north.corners[0].y).toBeCloseTo(2.4);
+  });
+
+  it('grows an outline outwards with pointed corners, either way round', () => {
+    const square: [number, number][] = [
+      [0.1, 0.1],
+      [-0.1, 0.1],
+      [-0.1, -0.1],
+      [0.1, -0.1],
+    ];
+    expect(grownOutline(square, 0.01)).toEqual([
+      [0.11, 0.11],
+      [-0.11, 0.11],
+      [-0.11, -0.11],
+      [0.11, -0.11],
+    ]);
+    expect(grownOutline([...square].reverse(), 0.01)).toEqual([
+      [0.11, -0.11],
+      [-0.11, -0.11],
+      [-0.11, 0.11],
+      [0.11, 0.11],
+    ]);
+  });
+
+  it('finds the model of an outline grown for the planner', () => {
+    for (const m of MOWER_MODELS.filter((x) => x.outline)) {
+      const g = grownOutline(m.outline!, OUTLINE_LEEWAY);
+      expect(Math.max(...g.map(([a]) => a))).toBeCloseTo(m.sizes.front + OUTLINE_LEEWAY, 2);
+      expect(Math.min(...g.map(([a]) => a))).toBeCloseTo(-m.sizes.rear - OUTLINE_LEEWAY, 2);
+      expect(measuredOutline(g)).toEqual(m.outline);
+    }
+    expect(measuredOutline(outline)).toEqual(outline);
+  });
+
+  it('takes a size typed in cm only when it is all one number', () => {
+    expect(cmMetres('41')).toBe(0.41);
+    expect(cmMetres(' 18,5 ')).toBe(0.185);
+    expect(cmMetres('-3')).toBe(-0.03);
+    expect(cmMetres('.5')).toBe(0.005);
+    for (const t of ['', '4 1', '41abc', '1e3', '41,5,5', '-', 'abc']) expect(cmMetres(t)).toBeNull();
+  });
+
+  it('keeps a stored outline as it is when saved again unchanged, a model one gets the leeway once', () => {
+    const nx = MOWER_MODELS.find((m) => m.key === 'yf-nx')!.outline!;
+    const other: [number, number][] = [
+      [0.3, 0.2],
+      [-0.1, 0.2],
+      [-0.1, -0.2],
+      [0.3, -0.2],
+    ];
+    const again = (o: [number, number][]) => plannerOutline(measuredOutline(o)!);
+    for (const stored of [other, grownOutline(nx, OUTLINE_LEEWAY)]) {
+      expect(again(again(again(stored)))).toEqual(stored);
+    }
+    expect(again(nx)).toEqual(grownOutline(nx, OUTLINE_LEEWAY));
+    expect(again(again(nx))).toEqual(grownOutline(nx, OUTLINE_LEEWAY));
+  });
+
+  it('takes every model within the limits of the sizes, a slipped unit is outside', () => {
+    for (const m of MOWER_MODELS) {
+      for (const key of ['width', 'front', 'rear', 'blade'] as const) {
+        if (m.sizes[key] !== undefined) expect([m.key, key, outsideLimits(key, m.sizes[key]!)]).toEqual([m.key, key, null]);
+      }
+    }
+    // 0.18 typed for 18 cm, 180 for 18 cm
+    expect(outsideLimits('blade', 0.0018)).toEqual({min: 5, max: 40});
+    expect(outsideLimits('blade', 1.8)).toEqual({min: 5, max: 40});
+    expect(outsideLimits('width', 0.0041)).toEqual({min: 10, max: 150});
+    expect(outsideLimits('rear', 0)).toBeNull();
+    expect(outsideLimits('rear', -0.01)).toEqual({min: 0, max: 150});
+    expect(outsideLimits('bladeAhead', -5)).toBeNull();
+  });
+
+  it('fits the sizes of the models that have one', () => {
+    for (const m of MOWER_MODELS.filter((x) => x.outline)) {
+      const xs = m.outline!.map(([a]) => a);
+      const ys = m.outline!.map(([, l]) => Math.abs(l));
+      expect(Math.max(...xs)).toBeCloseTo(m.sizes.front, 3);
+      expect(Math.min(...xs)).toBeCloseTo(-m.sizes.rear, 3);
+      expect(Math.max(...ys)).toBeLessThanOrEqual(m.sizes.width / 2 + 0.001);
+      expect(modelOf({...m.sizes, outline: m.outline})).toBe(m.key);
+    }
+  });
+});
+
+describe('mower models', () => {
+  it('knows the sizes measured on a real one, to the millimetre', () => {
+    expect(modelOf(MOWER_MODELS[0].sizes)).toBe('yf-nx');
+    expect(modelOf({width: 0.425, front: 0.47, rear: 0.1, blade: 0.18, bladeAhead: 0.18})).toBe('yf-classic500');
+    expect(modelOf({width: 0.41, front: 0.43, rear: 0.18, blade: 0.18, bladeAhead: 0.185})).toBe('yf-nx');
+    expect(modelOf({width: 0.505, front: 0.6, rear: 0.21, blade: 0.3, bladeAhead: 0.225})).toBe('jd-tango-e5');
+    expect(modelOf({...MOWER_MODELS[0].sizes, width: 0.42})).toBeNull();
+    expect(modelOf(undefined)).toBeNull();
+  });
+});
+
+describe('outline on its own', () => {
+  const nx = MOWER_MODELS.find((m) => m.key === 'yf-nx')!;
+
+  it("goes with sizes that are exactly a model's, not with the rectangle kept or other sizes", () => {
+    expect(autoOutlineModel(nx.sizes)?.key).toBe('yf-nx');
+    expect(autoOutlineModel(nx.sizes, true)).toBeUndefined();
+    expect(autoOutlineModel({...nx.sizes, width: 0.42})).toBeUndefined();
+    expect(autoOutlineModel(undefined)).toBeUndefined();
+    expect(withModelOutline(nx.sizes)?.outline).toEqual(nx.outline);
+    expect(withModelOutline(nx.sizes, true)?.outline).toBeUndefined();
+    expect(sizesBody(withModelOutline(nx.sizes))?.outline).toEqual(nx.outline);
+    expect(withModelOutline(undefined)).toBeUndefined();
+  });
+
+  it('keeps an outline that is stored', () => {
+    const own: [number, number][] = [
+      [0.43, 0.1],
+      [-0.18, 0.1],
+      [-0.18, -0.1],
+      [0.43, -0.1],
+    ];
+    expect(withModelOutline({...nx.sizes, outline: own})?.outline).toEqual(own);
+  });
+
+  it("reads the planner's sizes as the app's", () => {
+    const s = settings({robot_width: 0.505, robot_front: 0.6, robot_rear: 0.21, mower_width: 0.3, blade_ahead: 0.225, blade_offset: 0});
+    expect(plannerSizes(s)).toEqual({width: 0.505, front: 0.6, rear: 0.21, blade: 0.3, bladeAhead: 0.225, bladeOffset: 0});
+    expect(autoOutlineModel(plannerSizes(s))?.key).toBe('jd-tango-e5');
+    expect(autoOutlineModel(plannerSizes(settings({robot_width: 0.505, robot_front: 0.6})))).toBeUndefined();
+  });
+});
+
+describe('strip without seams', () => {
+  const body = {width: 0.41, front: 0.43, rear: 0.18, blade: 0.18, bladeAhead: 0.185, bladeOffset: 0};
+
+  it('keeps a bend round an obstacle in one group, so it is drawn as one line', () => {
+    // three quarters round, a full circle overlaps itself where it closes and shows that darker
+    const bend = Array.from({length: 48}, (_, i) => ({x: Math.cos((i / 47) * 1.5 * Math.PI), y: Math.sin((i / 47) * 1.5 * Math.PI)}));
+    const pieces = swathPieces(bend, body);
+    expect(pieces.length).toBeGreaterThan(4);
+    expect(new Set(swathGroups(pieces, body.blade)).size).toBe(1);
+  });
+
+  it('goes on across the chunks of a trail as if it were one', () => {
+    // a lane bending left, cut in two in the bend, the second chunk starting with the last point of the first
+    const track = [
+      ...Array.from({length: 20}, (_, i) => ({x: i * 0.1, y: 0})),
+      ...Array.from({length: 20}, (_, i) => ({x: 1.9 + (i + 1) * 0.07, y: (i + 1) * 0.07})),
+    ];
+    const whole = swathPieces(track, body).flat();
+    const one = swathAfter(track.slice(0, 24), body, null);
+    const two = swathAfter(track.slice(23), body, one.state);
+    const last = one.pieces[one.pieces.length - 1];
+    expect(two.pieces[0][0]).toBe(last[last.length - 1]);
+    const joined = [...one.pieces, ...two.pieces].flat();
+    expect(joined[joined.length - 1].x).toBeCloseTo(whole[whole.length - 1].x, 9);
+    expect(joined[joined.length - 1].y).toBeCloseTo(whole[whole.length - 1].y, 9);
+  });
+
+  it('still puts the lane back after a turn into another group than the lane out', () => {
+    // out along y = 0, a turn on the spot round the end, back 14 cm further over
+    const track = [
+      ...Array.from({length: 31}, (_, i) => ({x: i * 0.1, y: 0})),
+      {x: 3, y: 0.14},
+      ...Array.from({length: 31}, (_, i) => ({x: 3 - i * 0.1, y: 0.14})),
+    ];
+    const pieces = swathPieces(track, body);
+    const g = swathGroups(pieces, body.blade);
+    expect(g[0]).not.toBe(g[g.length - 1]);
+  });
+});
+
+describe('strip in a few paths', () => {
+  const lane = (y: number) => [
+    {x: 0, y},
+    {x: 3, y},
+  ];
+
+  it('puts lanes that overlap into different groups, far apart ones may share', () => {
+    // back and forth 14 cm apart, an 18 cm blade overlaps the lane before
+    const lanes = [0, 1, 2, 3, 4, 5].map((i) => (i % 2 ? lane(i * 0.14).reverse() : lane(i * 0.14)));
+    const g = swathGroups(lanes, 0.18);
+    for (let i = 1; i < g.length; i++) expect(g[i]).not.toBe(g[i - 1]);
+    expect(Math.max(...g)).toBeLessThan(4);
+    // half a meter apart they don't touch
+    expect(swathGroups([lane(0), lane(0.5)], 0.18)).toEqual([0, 0]);
+  });
+
+  it('shares a group only where more pieces overlap than there are groups', () => {
+    const g = swathGroups(
+      Array.from({length: 6}, () => lane(0)),
+      0.18,
+    );
+    expect(g.slice(0, 4)).toEqual([0, 1, 2, 3]);
+    expect(g).toHaveLength(6);
+  });
+});
+
+describe('round bends', () => {
+  // a bend of radius 3 m with a point every 0.5 m, like a recorded track simplified to a centimetre
+  const arc = Array.from({length: 13}, (_, i) => ({x: 3 * Math.sin(i / 6), y: 3 - 3 * Math.cos(i / 6), b: true}));
+
+  it('draws a bend round through its points', () => {
+    const r = roundBends(arc);
+    for (const p of arc) expect(r).toContainEqual(p);
+    // on the real circle, where the 0.5 m straight pieces are up to 1 cm off it; at the two ends, where the track
+    // starts and stops mid bend, the curve leaves straight
+    const off = (p: {x: number; y: number}) => Math.abs(Math.hypot(p.x, p.y - 3) - 3);
+    const inner = r.filter((p) => Math.atan2(p.x, 3 - p.y) * 6 > 1 && Math.atan2(p.x, 3 - p.y) * 6 < 11);
+    for (const p of inner) expect(off(p)).toBeLessThan(0.0005);
+    for (const p of r) expect(off(p)).toBeLessThan(0.008);
+    const turns = r.slice(2).map((c, i) => {
+      const [a, b] = [r[i], r[i + 1]];
+      return Math.abs(Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(b.y - a.y, b.x - a.x));
+    });
+    expect(Math.max(...turns)).toBeLessThan((2 * Math.PI) / 180);
+    expect(r.every((p) => p.b)).toBe(true);
+  });
+
+  it('keeps the corners of a turn and straight lanes as they are', () => {
+    const lanes = [
+      {x: 0, y: 0},
+      {x: 5, y: 0},
+      {x: 5, y: 0.14},
+      {x: 0, y: 0.14},
+    ];
+    expect(roundBends(lanes)).toEqual(lanes);
+    const straight = [
+      {x: 0, y: 0},
+      {x: 1, y: 0},
+      {x: 2, y: 0},
+    ];
+    expect(roundBends(straight)).toEqual(straight);
+  });
+});

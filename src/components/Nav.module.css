@@ -1,0 +1,256 @@
+/* phones: tab bar at the bottom, in reach of the thumb. desktop: sidebar */
+.nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  justify-content: space-around;
+  padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+  background: var(--nav-bg);
+  backdrop-filter: var(--card-blur, blur(18px));
+  border-top: 1px solid var(--card-border);
+}
+
+
+/* each as wide as its name and an equal share of the rest, so a long name keeps off the edge and its neighbours */
+.nav a {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 0 6px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  text-decoration: none;
+}
+
+.nav svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.nav a > span {
+  position: relative;
+  padding-bottom: 4px;
+}
+
+/* the current page: glowing line under its name */
+.active {
+  color: var(--foreground) !important;
+}
+
+.active > span::after {
+  content: '';
+  position: absolute;
+  left: -2px;
+  right: -2px;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+  box-shadow:
+    0 0 6px var(--accent),
+    0 0 12px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+
+.active svg {
+  color: var(--accent);
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--accent) 70%, transparent));
+}
+
+/* pressing a tab: a soft pill grows behind its icon and the icon gives way; switching: the line grows from the middle
+   and the icon hops once */
+.nav a {
+  isolation: isolate;
+}
+
+.nav a::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  left: 50%;
+  width: 56px;
+  height: 30px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+  opacity: 0;
+  transform: translateX(-50%) scale(0.5);
+  transition:
+    opacity 0.35s ease,
+    transform 0.35s ease;
+}
+
+.nav a:active::before {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+  transition-duration: 0.12s;
+}
+
+.nav svg {
+  transition: transform 0.2s cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+
+.nav a:active svg {
+  transform: scale(0.86);
+  transition-duration: 0.08s;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .active > span::after {
+    animation: line-in 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+  }
+
+  .active svg {
+    animation: hop 0.4s cubic-bezier(0.3, 1.6, 0.5, 1);
+  }
+}
+
+@keyframes line-in {
+  from {
+    transform: scaleX(0);
+    opacity: 0;
+  }
+}
+
+@keyframes hop {
+  40% {
+    transform: translateY(-3px) scale(1.12);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav a::before,
+  .nav svg {
+    transition: none;
+  }
+}
+
+/* unsaved changes in the map editor */
+.nav a {
+  position: relative;
+}
+
+.unsaved {
+  position: absolute;
+  top: 3px;
+  left: calc(50% + 9px);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--warning);
+  box-shadow: 0 0 6px var(--warning);
+}
+
+.nav .logo,
+.mowerSwitch {
+  display: none;
+}
+
+.wordmark {
+  font-size: 18px;
+  letter-spacing: 0.2px;
+}
+
+@media (min-width: 900px) {
+  /* fixed, not sticky: body has overflow-x hidden, which breaks sticky */
+  .nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: auto;
+    bottom: auto;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 4px;
+    width: 220px;
+    height: 100vh;
+    flex-shrink: 0;
+    padding: 24px 12px;
+    background: var(--card);
+    border-top: none;
+    border-right: 1px solid var(--card-border);
+  }
+
+  .nav a {
+    flex: none;
+    flex-direction: row;
+    gap: 12px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 14px;
+  }
+
+  .nav a:hover {
+    color: var(--foreground);
+  }
+
+  .nav a::before {
+    inset: 0;
+    left: 0;
+    width: auto;
+    height: auto;
+    border-radius: 10px;
+    background: rgba(128, 128, 128, 0.14);
+    transform: none;
+  }
+
+  .nav a:active::before {
+    transform: none;
+  }
+
+  .nav svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .nav a > span {
+    padding-bottom: 3px;
+  }
+
+  .unsaved {
+    top: 50%;
+    left: auto;
+    right: 14px;
+    translate: 0 -50%;
+  }
+
+  .settings {
+    margin-top: auto;
+  }
+
+  .mowerSwitch {
+    display: block;
+    margin: -6px 6px 14px;
+  }
+
+  .nav .logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 16px;
+    padding: 0 6px;
+    color: var(--foreground);
+    font-size: inherit;
+  }
+
+  .nav .logo svg {
+    width: 28px;
+    height: 28px;
+    fill: initial;
+    stroke: none;
+  }
+}
+
+/* a hat on halloween sticks out over the top of the eater */
+.hatted {
+  overflow: visible;
+}

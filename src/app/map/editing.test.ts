@@ -1,0 +1,154 @@
+import type {MapArea, MowerMap} from '@/hooks/useMowerMap';
+import {PIN_SIDE, pinAt} from '@/lib/mowerBody';
+import {angleInRange} from '@/lib/mowStripes';
+import {describe, expect, it} from 'vitest';
+import {DEG, decorRedo, decorUndo, endsJob, goneLooks, jobLeft, mowerMap, normDeg, onlyPinsChanged, saveQuestion, overrideError, PIN_TILES, pinSquare, pinsFrom, pinTiles} from './editing';
+
+describe('overrideError', () => {
+  it('takes empty (global value) and values within the mower limits', () => {
+    expect(overrideError('outline_count', '')).toBeNull();
+    expect(overrideError('outline_count', '3')).toBeNull();
+    expect(overrideError('outline_overlap_count', '0')).toBeNull();
+    expect(overrideError('outline_offset', '-0.25')).toBeNull();
+    expect(overrideError('outline_offset', '1')).toBeNull();
+  });
+
+  it('turns down what the mower would ignore or misread', () => {
+    // -2 would count as "not set", 1.5 as 1
+    expect(overrideError('outline_count', '-2')).not.toBeNull();
+    expect(overrideError('outline_count', '1.5')).not.toBeNull();
+    expect(overrideError('outline_overlap_count', '300')).not.toBeNull();
+    expect(overrideError('outline_offset', '5')).not.toBeNull();
+    expect(overrideError('outline_offset', '-1.2')).not.toBeNull();
+  });
+});
+
+describe('pins', () => {
+  const pin = (id: string, x: number, y: number): MapArea => ({id, properties: {type: 'decor', pin: true}, outline: pinSquare(x, y)});
+  const lawn: MapArea = {id: 'l', properties: {type: 'mow'}, outline: pinSquare(0, 0).map((p) => ({x: p.x * 100, y: p.y * 100}))};
+  const map = (...areas: MapArea[]): MowerMap => ({areas, docking_stations: [{id: 'd', position: {x: 1, y: 1}, heading: 0}]});
+
+  it('stands in the middle of its square, moved it keeps its 4 points', () => {
+    const p = pin('p', 2.3, -1.7);
+    expect(p.outline).toHaveLength(4);
+    expect(pinAt(p)).toEqual({x: expect.closeTo(2.3, 9), y: expect.closeTo(-1.7, 9)});
+    const xs = p.outline.map((q) => q.x);
+    expect(Math.max(...xs) - Math.min(...xs)).toBeCloseTo(PIN_SIDE, 9);
+    const moved = {...p, outline: pinSquare(4, 5)};
+    expect(moved.outline).toHaveLength(4);
+    expect(pinAt(moved)).toEqual({x: expect.closeTo(4, 9), y: expect.closeTo(5, 9)});
+  });
+
+  it('notices when nothing but pins changed', () => {
+    const base = map(lawn, pin('p', 1, 1));
+    expect(onlyPinsChanged(base, base)).toBe(true);
+    expect(onlyPinsChanged(base, map(lawn))).toBe(true);
+    expect(onlyPinsChanged(base, map(lawn, pin('p', 2, 1), pin('q', 3, 3)))).toBe(true);
+    expect(onlyPinsChanged(base, map({...lawn, properties: {type: 'mow', name: 'Front'}}, pin('p', 1, 1)))).toBe(false);
+    expect(onlyPinsChanged(base, map(pin('p', 1, 1)))).toBe(false);
+    expect(onlyPinsChanged(base, {...base, docking_stations: [{id: 'd', position: {x: 1, y: 1}, heading: 1}]})).toBe(false);
+    // decoration in a pin's place is an area of its own, one that lost pin keeps its square and stays one
+    expect(onlyPinsChanged(base, map(lawn, {...pin('p', 1, 1), properties: {type: 'decor'}, outline: pinSquare(1, 1).slice(0, 3)}))).toBe(false);
+    expect(onlyPinsChanged(base, map(lawn, {...pin('p', 1, 1), properties: {type: 'decor'}}))).toBe(true);
+  });
+
+  it('ends a job the mower interrupted with a change beyond pins, says so while it stays after the drop', () => {
+    const base = map(lawn, pin('p', 1, 1));
+    const named = map({...lawn, properties: {type: 'mow', name: 'Front'}}, pin('p', 1, 1));
+    expect(endsJob(true, base, named)).toBe(true);
+    expect(endsJob(true, null, base)).toBe(true);
+    // pictures only, nothing at all, or no job the mower offers to drop: as before
+    expect(endsJob(true, base, map(lawn, pin('p', 3, 2)))).toBe(false);
+    expect(endsJob(true, base, base)).toBe(false);
+    expect(endsJob(false, base, named)).toBe(false);
+    expect(jobLeft(true, true)).toBe(true);
+    expect(jobLeft(false, false)).toBe(true);
+    expect(jobLeft(false, true)).toBe(false);
+  });
+
+  it("takes the pins of the mower's map back, the areas stay as they are", () => {
+    const live = map(lawn, pin('p', 1, 1), pin('q', 2, 2));
+    const edited = map({...lawn, properties: {type: 'mow', name: 'Front'}}, pin('p', 3, 3), pin('n', 4, 4));
+    const back = pinsFrom(edited, live);
+    expect(back.areas[0].properties.name).toBe('Front');
+    expect(back.areas.slice(1)).toEqual(live.areas.slice(1));
+    expect(onlyPinsChanged(edited, back)).toBe(true);
+    expect(back.docking_stations).toBe(edited.docking_stations);
+  });
+
+  it('undoes while decorating no further than where it started, redoes only pins', () => {
+    const start = map(lawn);
+    const one = map(lawn, pin('p', 1, 1));
+    const two = map(lawn, pin('p', 2, 1));
+    expect(decorUndo(start, start, [])).toBe(false);
+    // a step before it is there, but not for decorating
+    expect(decorUndo(start, start, [map()])).toBe(false);
+    expect(decorUndo(one, start, [start])).toBe(true);
+    expect(decorUndo(two, start, [start, one])).toBe(true);
+    // no start known: as long as there are steps
+    expect(decorUndo(start, null, [map()])).toBe(true);
+    expect(decorRedo(one, [two])).toBe(true);
+    expect(decorRedo(start, [])).toBe(false);
+    // undone before decorating: a change to an area, it stays undone
+    expect(decorRedo(start, [map({...lawn, properties: {type: 'mow', name: 'Front'}})])).toBe(false);
+  });
+
+  it('puts back the pictures of pins no longer on the map, the others stay as they are', () => {
+    const kept = {p: {looks: 'gnome', lookSizes: 0.4}, n: {}, q: {}};
+    expect(goneLooks(kept, map(lawn, pin('p', 1, 1)))).toEqual({n: {}, q: {}});
+    expect(goneLooks(kept, null)).toEqual(kept);
+    expect(goneLooks({}, map(lawn))).toEqual({});
+  });
+
+  it("offers the pins' pictures first, the most used in front, then the usual ones", () => {
+    expect(pinTiles([])).toEqual(PIN_TILES);
+    expect(pinTiles(['lamp', 'statue', 'lamp', 'gnome', 'statue', 'lamp'])).toEqual(['lamp', 'statue', 'gnome', 'pot', 'bush', 'tree', 'bench', 'umbrella', 'grill']);
+    // as often: the one set first
+    expect(pinTiles(['rose', 'fern']).slice(0, 3)).toEqual(['rose', 'fern', 'gnome']);
+  });
+});
+
+describe('mowerMap', () => {
+  const lawn = (name: string): MowerMap => ({
+    areas: [{id: 'l', properties: {name, type: 'mow'}, outline: [{x: 0, y: 0}, {x: 10, y: 0}, {x: 10, y: 10}]}],
+    docking_stations: [],
+  });
+  const old = lawn('Old');
+  const sent = {map: lawn('New'), over: old};
+
+  it('is the map sent while the mower still has the one before, also once it came back as the mower wrote it', () => {
+    expect(mowerMap(old, null)).toBe(old);
+    expect(mowerMap(old, sent)).toBe(sent.map);
+    const back = lawn('New');
+    back.areas[0].properties.active = true;
+    expect(mowerMap(back, sent)).toBe(sent.map);
+  });
+
+  it('is the mower\'s own when another one came', () => {
+    const other = lawn('Other');
+    expect(mowerMap(other, sent)).toBe(other);
+  });
+});
+
+describe('normDeg', () => {
+  it('keeps a range end within -180..180 as typed and wraps the rest', () => {
+    expect([0, 180, -180, 360, 540, -190].map(normDeg)).toEqual([0, 180, -180, 0, -180, 170]);
+  });
+
+  it('makes 0 to 180 and -180 to 0 any way at all, not a fixed 0', () => {
+    for (const [lo, hi] of [[0, 180], [-180, 0]]) {
+      for (const a of [30, 90, 135]) expect(angleInRange(a * DEG, normDeg(lo) * DEG, normDeg(hi) * DEG)).toBeCloseTo(a * DEG);
+    }
+  });
+});
+
+describe('saveQuestion', () => {
+  it('asks while the mower is out or not known to be in, then for an interrupted job', () => {
+    expect(saveQuestion(true, true, false)).toBeNull();
+    expect(saveQuestion(true, true, true)).toBe('ends');
+    expect(saveQuestion(false, true, false)).toBe('busy');
+    // the last state seen said idle, but the connection is gone
+    expect(saveQuestion(true, false, false)).toBe('offline');
+    expect(saveQuestion(false, false, true)).toBe('offline');
+  });
+});

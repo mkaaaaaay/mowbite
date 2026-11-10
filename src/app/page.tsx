@@ -1,0 +1,747 @@
+'use client';
+
+import {BrandMark} from '@/components/BrandMark';
+import {DontPanic} from '@/components/DontPanic';
+import {useEggForced, useHalloween, useUmbrella} from '@/lib/eggs';
+import LogicHint from '@/components/LogicHint';
+import LoveMower from '@/components/LoveMower';
+import MapView from '@/components/MapView';
+import {useRecordingJob} from '@/components/RecordingWatch';
+import {useMapAhead} from '@/components/useMapAhead';
+import {ChevronIcon, CloseIcon, HomeIcon, PauseIcon, PlayIcon, RecordIcon, SkipIcon, WarningIcon} from '@/components/icons';
+import {useCalibratingByHand} from '@/hooks/useCalibratingByHand';
+import {useComputedSpeed} from '@/hooks/useComputedSpeed';
+import {useEmergencyReasons} from '@/hooks/useEmergencyReasons';
+import {useEmergencyReset, useJustReset} from '@/hooks/useEmergencyReset';
+import {useLeftoversBefore} from '@/hooks/useLeftoversBefore';
+import {lockedAfter, setsOff, TAP_LOCK_MS, useCommandNote, useMowerActions} from '@/hooks/useMowerActions';
+import {useMowerMap} from '@/hooks/useMowerMap';
+import {datumFromParams, numParam, useMowerParams} from '@/hooks/useMowerParams';
+import {useMowerSensors, type SensorInfo} from '@/hooks/useMowerSensors';
+import {useMowerPosition} from '@/hooks/useMowerPosition';
+import {isLive, useMowerState, type MowerState} from '@/hooks/useMowerState';
+import {useMowerTrack} from '@/hooks/useMowerTrack';
+import {useMowerWifi} from '@/hooks/useMowerWifi';
+import {useBatteryLevel} from '@/hooks/useBatteryLevel';
+import {wifiLevel} from '@/lib/coverage';
+import {shown, tempItems, type DashKey} from '@/lib/dashboard';
+import {tempLimits} from '@/lib/sensorLimits';
+import {usePlanProgress} from '@/hooks/usePlanProgress';
+import {useRecentRuns} from '@/hooks/useRecentRuns';
+import TopWeather from '@/components/TopWeather';
+import {clock, dayKey, dayLabel, duration} from '@/lib/dates';
+import {gpsOffNow} from '@/lib/gpslog';
+import {fileDay} from '@/lib/history';
+import {describe, emergencyText, explain, groupRuns, noteworthy, OUTCOMES, resetRefusedText, type MowerEvent, type Run} from '@/lib/events';
+import {useMowbiteOs, useOsApi} from '@/lib/mowerOs';
+import {useChargeConfirmed} from '@/hooks/useChargeConfirmed';
+import {mowerKey} from '@/lib/mowers';
+import {settingsStore} from '@/lib/settings';
+import {PARTS, useDueParts} from '@/lib/stats';
+import {containerHas, useUpdates} from '@/lib/updates';
+import {batteryColor, chargeOf, dockText, GPS_QUALITY_LABEL, gpsQuality, isDocked, onCharger, staleText, WIFI_LEVEL_LABEL, type Charge} from '@/lib/status';
+import Link from 'next/link';
+import {memo, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
+import styles from './page.module.css';
+import {fmt, tr, useLang} from '@/lib/i18n';
+import {
+  cachedSchedule,
+  cachedScheduleLog,
+  loadSchedule,
+  loadScheduleLog,
+  missedStart,
+  waitingStart,
+  nextStart,
+  daySun,
+  inOtherZone,
+  scheduleLogLine,
+  type LogEntry,
+  type Schedule,
+} from '@/lib/schedule';
+import {LeftoversCard} from '@/components/Leftovers';
+import {useLeftoverRun} from '@/hooks/useLeftoverRun';
+import MowerSwitch from '@/components/MowerSwitch';
+import {useMowerChoice} from '@/hooks/useMowerChoice';
+import {UpdateBanner} from '@/components/Updates';
+import {ACTION, PARAM} from '@/lib/openmower';
+
+// paused counts too, the mower is standing somewhere on the lawn then. recording drives with gps as well
+const DRIVING = new Set(['MOWING', 'PAUSED', 'DOCKING', 'UNDOCKING', 'AREA_RECORDING']);
+
+// skipping an area or a path drops what's left of it, so it goes out only after a few seconds and a second tap takes
+// it back
+const SKIP_DELAY = 4;
+// the left out start that was closed, by its time
+const MISSED_SEEN_KEY = 'scheduleMissedSeen';
+const ACTIONS = [
+  {id: ACTION.startMowing, Icon: PlayIcon, label: 'Start', tone: 'go'},
+  {id: ACTION.pause, Icon: PauseIcon, label: 'Pause', tone: 'pause'},
+  {id: ACTION.goHome, Icon: HomeIcon, label: 'Go home', tone: 'home'},
+  {id: ACTION.skipArea, Icon: SkipIcon, label: 'Skip area', tone: 'skip'},
+];
+
+
+// every temperature of the mower in a fixed order, the blade side first, then the wheels, unknown ones after them.
+// Hot from the limit OpenMower gives the sensor (max_pcb_temp of an ESC, the mow motor's motor_hot_temperature),
+// else its critical high, 70 °C without one
+function temperatures(infos: SensorInfo[], values: Record<string, string>) {
+  return tempItems(infos)
+    .filter(({key}) => Number.isFinite(Number(values[key])))
+    .map(({info, key, label}) => {
+      const value = Number(values[key]);
+      const {warn, crit} = tempLimits(info);
+      const limit = warn ?? (crit || 70);
+      return {key, label, value: `${Math.round(value)} °C`, warn: value >= limit};
+    });
+}
+
+const upperFirst = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+// which ones get a whole row: the wide ones and one left without a partner, so every row is filled
+function wholeRow(items: {label: string; wide?: boolean}[]): boolean[] {
+  const whole = items.map((f) => !!f.wide);
+  let single = -1;
+  items.forEach((f, i) => {
+    if (f.wide && single >= 0) whole[single] = true;
+    single = f.wide || single >= 0 ? -1 : i;
+  });
+  if (single >= 0) whole[single] = true;
+  return whole;
+}
+
+// the first part of a value stands out, what follows after " · " (how good, time left) is plainer
+function FactValue({value}: {value: string}) {
+  const [main, ...rest] = value.split(' · ');
+  return (
+    <strong>
+      {main}
+      {rest.length > 0 && <small> · {rest.join(' · ')}</small>}
+    </strong>
+  );
+}
+
+// confirmed: MowBite OS said it charges (true) or not yet (false), null when it isn't known, undefined on OpenMower
+function headline(state: MowerState, docked: boolean, charger: boolean, charge: Charge, area: string | undefined, confirmed?: boolean | null) {
+  if (state.emergency) return {title: tr('Emergency stop'), tone: 'error'};
+  // left on in the dock it says so, it's why the map shows. docked is idle only, so it's the station's contacts here
+  if (state.current_state === 'AREA_RECORDING') return {title: charger ? tr('Recording mode, in the dock') : tr('Recording an area'), tone: 'live'};
+  if (docked) {
+    const d = dockText(charge, confirmed);
+    return {title: d.text, tone: d.warn ? 'warn' : 'good'};
+  }
+  switch (state.current_state) {
+    case 'MOWING':
+      return {title: area ? tr('Mowing {area}', {area}) : tr('Mowing'), tone: 'live'};
+    case 'DOCKING':
+      return {title: tr('Heading home'), tone: 'live'};
+    case 'UNDOCKING':
+      return {title: tr('Leaving the dock'), tone: 'live'};
+    case 'PAUSED':
+      // carried into the dock say, it only counts once it's ended there
+      return {title: charger ? tr('Paused, in the dock') : tr('Paused'), tone: 'warn'};
+    case 'IDLE':
+      return {title: tr('Waiting on the lawn'), tone: 'warn'};
+    default:
+      return {title: state.current_state.toLowerCase().replace(/_/g, ' '), tone: 'neutral'};
+  }
+}
+
+function BatteryRing({percent}: {percent: number}) {
+  const r = 34;
+  const c = 2 * Math.PI * r;
+  return (
+    <div className={[styles.ring, styles[`ring-${batteryColor(percent)}`]].join(' ')}>
+      <svg viewBox="0 0 80 80">
+        <circle cx="40" cy="40" r={r} className={styles.ringBg} />
+        <circle cx="40" cy="40" r={r} className={styles.ringFill} strokeDasharray={`${(c * percent) / 100} ${c}`} />
+      </svg>
+      <div>
+        <strong>{`${percent}\u202f%`}</strong>
+      </div>
+    </div>
+  );
+}
+
+// a tap opens the run on the activity page: its day, the run opened (by the id of its first event)
+const LastRun = memo(function LastRun({run}: {run: Run}) {
+  const outcome = OUTCOMES[run.outcome];
+  const day = new Date(run.start * 1000);
+  const today = dayKey(day) === dayKey(new Date());
+  return (
+    <Link
+      href={`/activity?day=${fileDay(day)}&run=${encodeURIComponent(run.events[0].id)}`}
+      className={[styles.lastRun, styles[`run-${outcome.tone}`]].join(' ')}
+    >
+      <div>
+        <strong>
+          {!today && `${dayLabel(day)}, `}
+          {clock(run.start)} – {clock(run.end)}
+        </strong>
+        <span className={styles.dim}>
+          {run.areas.join(', ') || tr('no area')}
+          {run.bladeSeconds > 0 && ` · ${tr('mowed {time}', {time: duration(run.bladeSeconds)})}`}
+        </span>
+      </div>
+      <span className={styles.badge}>{tr(outcome.label)}</span>
+      <ChevronIcon size={16} />
+    </Link>
+  );
+});
+
+export default function Home() {
+  useLang();
+  const link = useMowerState();
+  const {state, connected} = link;
+  // no first connection after a while: the mower is off, elsewhere or the address is wrong
+  const [unreachable, setUnreachable] = useState(false);
+  useEffect(() => {
+    if (state || connected) return;
+    const t = setTimeout(() => setUnreachable(true), 12000);
+    return () => clearTimeout(t);
+  }, [state, connected]);
+  // offline or no fresh state: what's shown is old and commands wouldn't arrive, so the buttons are off
+  const live = isLive(link);
+  const {hasAction, publishAction} = useMowerActions();
+  // an interrupted job still there after recording mode tried to drop it
+  const jobStays = useRecordingJob().drop === 'left';
+  const choice = useMowerChoice();
+  const {infos, values} = useMowerSensors();
+  const why = useEmergencyReasons(!!state?.emergency);
+  const {refused, reset} = useEmergencyReset(!!state?.emergency, publishAction);
+  const justReset = useJustReset(!!state?.emergency);
+  // a refused reset shows under the emergency stop already
+  const commandNote = useCommandNote(['EMERGENCY_RESET_REFUSED']);
+  const position = useMowerPosition() ?? state?.pose;
+  const speed = useComputedSpeed(position);
+  const track = useMowerTrack();
+  const map = useMowerMap();
+  // the map page's map worked out while this one idles
+  useMapAhead(map);
+  const recent = useRecentRuns(state?.current_state);
+  const os = useMowbiteOs();
+  const api = useOsApi();
+  // the last finished mow, for what it left. one that drove the leftovers of the one before left nothing to look at
+  const leftoverRun = recent?.latest.find((r) => r.outcome === 'done' && r.areas.length > 0 && r.jobId);
+  const leftoverJob = leftoverRun?.jobId;
+  const wasLeftovers = useLeftoverRun(
+    leftoverRun?.events.find((e) => e.type === 'AREA' && e.area_id)?.area_id,
+    leftoverRun?.events,
+  );
+  const progress = usePlanProgress(state ?? null, map, recent?.today);
+  // driving the leftovers of the last mow: that mow's track, faded on the map
+  const before = useLeftoversBefore(!!progress?.leftovers);
+  const params = useMowerParams();
+  const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
+  // the same object while params/json doesn't change: the map isn't drawn again for every sensor value
+  const datum = useMemo(() => datumFromParams(params), [params]);
+  // blades or cleaning due, counted by MowBite's container
+  const updates = useUpdates();
+  const due = useDueParts(updates.level !== null && containerHas(updates.level, 'stats'));
+  const wifi = useMowerWifi();
+  const level = useBatteryLevel();
+  const [schedule, setSchedule] = useState<Schedule | null>(() => cachedSchedule() ?? null);
+  // the scheduler's log, for a start it left out (rain, battery, ...). again every minute while the page is open
+  const [scheduleLog, setScheduleLog] = useState<LogEntry[]>(() => cachedScheduleLog() ?? []);
+  useEffect(() => {
+    void loadSchedule().then((s) => s !== undefined && setSchedule(s));
+    const loadLog = () => void loadScheduleLog().then(setScheduleLog);
+    loadLog();
+    const timer = setInterval(loadLog, 60000);
+    return () => clearInterval(timer);
+  }, []);
+  // the left out start closed on this device, by its time
+  const [missedSeen, setMissedSeen] = useState(() => {
+    try {
+      return Number(localStorage.getItem(mowerKey(MISSED_SEEN_KEY))) || 0;
+    } catch {
+      return 0;
+    }
+  });
+  const missedAny = schedule?.enabled ? missedStart(scheduleLog) : null;
+  const missed = missedAny && missedAny.t !== missedSeen ? missedAny : null;
+  const mowable = map?.areas.filter((a) => a.properties.type === 'mow' && a.properties.active !== false && a.properties.mowable !== false).map((a) => a.id);
+  const planned = schedule ? nextStart(schedule, undefined, datum ? daySun(schedule.tz, datum) : null, mowable) : null;
+  // the phone in another time zone than the schedule: its times are the schedule's, as on the schedule page
+  const scheduleTz = schedule?.tz;
+  const otherZone = useMemo(() => inOtherZone(scheduleTz), [scheduleTz]);
+  // a start of the schedule that waits for the battery comes before the next one
+  const batteryWait = schedule?.enabled ? waitingStart(scheduleLog) : null;
+  const [confirmReset, setConfirmReset] = useState(false);
+  // three more runs unfolded under the last three
+  const [moreRuns, setMoreRuns] = useState(false);
+  // the two mowers meet in the title row, the weather makes room for them
+  const [loveRun, setLoveRun] = useState(false);
+  // a tapped skip (area or path) and the seconds until it goes out, null when none is waiting. with the area and path it
+  // was meant for, once the mower is on another one it's dropped
+  const [skip, setSkip] = useState<{id: string; left: number; area?: number; path?: number} | null>(null);
+  useEffect(() => {
+    if (skip === null) return;
+    const t = setTimeout(() => {
+      if (skip.left > 1) return setSkip({...skip, left: skip.left - 1});
+      setSkip(null);
+      publishAction(skip.id, skip);
+    }, 1000);
+    return () => clearTimeout(t);
+  }, [skip, publishAction]);
+  const toggleSkip = (id: string) =>
+    setSkip(skip?.id === id ? null : {id, left: SKIP_DELAY, area: state?.current_area, path: state?.current_path});
+  // leaving the page doesn't take a waiting skip back: it goes out right away
+  const waiting = useRef({skip, publishAction});
+  useEffect(() => {
+    waiting.current = {skip, publishAction};
+  });
+  useEffect(
+    () => () => {
+      const {skip, publishAction} = waiting.current;
+      if (skip) publishAction(skip.id, skip);
+    },
+    [],
+  );
+  // the command button tapped last, for a moment: a second tap doesn't send it again or set the mower off (lockedAfter)
+  const [tapped, setTapped] = useState<string | null>(null);
+  useEffect(() => {
+    if (!tapped) return;
+    const t = setTimeout(() => setTapped(null), TAP_LOCK_MS);
+    return () => clearTimeout(t);
+  }, [tapped]);
+
+  const current = state?.current_state ?? '';
+  const driving = DRIVING.has(current);
+  // a calibration drive by hand runs in recording mode, its own page leads it and ends it. only where the planner says
+  // so: one on the next mow leaves recording mode to the areas
+  const calibrating = useCalibratingByHand(current === 'AREA_RECORDING');
+  // paused on the station's contacts: OpenMower only sees the dock when it's sent home, it's DOCKED then right away
+  const pausedInDock = current === 'PAUSED' && !state?.emergency && onCharger(state, values['om_v_charge']);
+  // the buttons for what the mower offers now, the others left out. paused: the pause button turns into continue. only
+  // by the state, the mower also offers continue while mowing until it was paused once. leaving the dock home can't be
+  // asked for, stopping can. the emergency stop locks all of them (it still offers start), its reset comes first
+  const actionsNow = ACTIONS.map((a) =>
+    a.id === ACTION.pause && current === 'PAUSED' && hasAction(ACTION.resume)
+      ? {...a, id: ACTION.resume, Icon: PlayIcon, label: 'Continue', tone: 'go'}
+      : a.id === ACTION.goHome && pausedInDock
+        ? {...a, label: 'End here'}
+        : a.id === ACTION.goHome && current === 'UNDOCKING' && hasAction(ACTION.abortUndocking)
+        ? {...a, id: ACTION.abortUndocking, Icon: CloseIcon, label: 'Stop undocking', tone: 'stop'}
+        : a,
+  ).filter((a) => hasAction(a.id) && !state?.emergency);
+  // a waiting skip is dropped when there's nothing to skip anymore, the mower is on another area or path or the connection
+  // went. paused it still goes out, OpenMower skips once it goes on
+  if (
+    skip !== null &&
+    (!live ||
+      (current !== 'MOWING' && current !== 'PAUSED') ||
+      !hasAction(skip.id) ||
+      state?.current_area !== skip.area ||
+      (skip.id === ACTION.skipPath && state?.current_path !== skip.path))
+  )
+    setSkip(null);
+  // the question about dropping the interrupted job goes once there's none to drop (started meanwhile) or no connection
+  if (confirmReset && (!live || !hasAction(ACTION.resetJob))) setConfirmReset(false);
+  const showMap = !!map && (driving || settings.dashboard?.map === 'always');
+  const docked = isDocked(state, values['om_v_charge']);
+  const charger = onCharger(state, values['om_v_charge']);
+  const confirmed = useChargeConfirmed(api, state ? charger : undefined, recent?.today, recent?.latest);
+  const battery = level ?? (state ? Math.round(state.battery_percentage * 100) : 0);
+  const num = (id: string) => (values[id] !== undefined ? Number(values[id]) : undefined);
+  const charge = chargeOf(values['om_charge_state'], num('om_charge_current'), battery);
+  const charging = docked && confirmed !== false && charge === 'charging';
+
+  // what the event history knows: since when this state holds and which area is being mowed
+  const events = recent?.today ?? [];
+  const lastOf = (f: (e: MowerEvent) => boolean) => events.filter(f).pop();
+  // only when the newest state change is this state, older mowers don't record every one (a pause, say)
+  const lastState = lastOf((e) => e.type === 'STATE');
+  const since = lastState?.state === current ? lastState.t : undefined;
+  // by current_area and the map like the progress (the history comes up to 30 s later), else by the last area event
+  const onArea = current === 'MOWING' && (state?.current_area ?? -1) >= 0 ? map?.areas.filter((a) => a.properties.type === 'mow')[state!.current_area!] : undefined;
+  const area = current === 'MOWING' ? onArea?.properties.name || lastOf((e) => e.type === 'AREA')?.area_name : undefined;
+  const head = state ? headline(state, docked, charger, charge, area, confirmed) : null;
+
+  // dressed up: a towel at 42 %, an umbrella while it sits out the rain, a witch's hat on halloween
+  const halloween = useHalloween();
+  const umbrella = useUmbrella(recent?.latest[0]);
+  // the preview ("eggForce" towel) shows the mow at 42 % too, so it's what one would see
+  const towelPreview = useEggForced('towel');
+  const towel = towelPreview || (!!progress && !progress.leftovers && Math.round(progress.fraction * 100) === 42);
+  // the same object while nothing changes: the map isn't drawn again for every sensor value
+  const costume = useMemo(() => ({towel, umbrella}), [towel, umbrella]);
+
+  const acc = state?.pose.pos_accuracy;
+  const gpsQ = gpsQuality(acc, numParam(params, PARAM.maxPositionAccuracy));
+  const hidden = settings.dashboard?.hidden;
+  const temps = state ? temperatures(infos, values).filter((t) => shown(hidden, t.key, t.warn)) : [];
+  // key: as in DASH_FACTS, wide: gets a whole row, its value is longer
+  const facts: {key: DashKey; label: string; value: string; warn?: boolean; wide?: boolean; extra?: React.ReactNode}[] = [];
+  // standing still the mower switches gps off, "off" there says nothing. into and out of the dock it's off on purpose
+  // too (OpenMower): said, but no warning
+  const gpsOff = gpsQ === 'none' && gpsOffNow(current, os);
+  if (state && (driving || gpsQ !== 'none')) {
+    facts.push({
+      key: 'gps',
+      label: 'GPS',
+      value: gpsQ === 'none' ? (gpsOff ? tr('off') : tr('no fix')) : `${fmt(acc! * 100, 1)} cm · ${tr(GPS_QUALITY_LABEL[gpsQ])}`,
+      // only an rtk fix is good while driving
+      warn: driving && gpsQ !== 'fix' && !gpsOff,
+    });
+    if (driving) facts.push({key: 'speed', label: tr('Speed'), value: `${fmt(speed, 2)} m/s`});
+    if (progress?.leftovers) {
+      // along the leftover passes when the planner worked them out again
+      const known = progress.doneLength + progress.todoLength > 0;
+      const left = known && progress.secondsLeft !== null ? ` · ${tr('{time} left', {time: duration(progress.secondsLeft)})}` : '';
+      facts.push({
+        key: 'progress',
+        label: tr('Progress'),
+        value: known ? tr('leftovers {pct} %', {pct: Math.round(progress.fraction * 100)}) + left : tr('leftovers of the last mow'),
+        wide: true,
+        extra: before ? <span>{tr('its track faded on the map')}</span> : undefined,
+      });
+    }
+    else if (progress) {
+      const left = progress.secondsLeft !== null ? ` · ${tr('{time} left', {time: duration(progress.secondsLeft)})}` : '';
+      const pct = towelPreview ? 42 : Math.round(progress.fraction * 100);
+      facts.push({key: 'progress', label: tr('Progress'), value: `${pct} %${left}`, wide: true, extra: pct === 42 ? <DontPanic /> : undefined});
+    }
+    if (charging && num('om_charge_current') !== undefined) facts.push({key: 'charging', label: tr('Charging'), value: `${fmt(num('om_charge_current')!, 1)} A`});
+    else if (docked && confirmed === false && num('om_charge_current') !== undefined)
+      facts.push({key: 'charging', label: tr('Charge current'), value: `${fmt(num('om_charge_current')!, 2)} A`, warn: true});
+    if (num('om_v_battery') !== undefined) facts.push({key: 'battery', label: tr('Battery'), value: `${fmt(num('om_v_battery')!, 1)} V`});
+    if (state.rain_detected) facts.push({key: 'rain', label: tr('Rain'), value: tr('detected'), warn: true});
+  }
+  // the app and the correction data for gps come over it
+  if (state && wifi !== undefined) {
+    const level = wifiLevel(wifi);
+    facts.push({key: 'wifi', label: tr('Wi-Fi'), value: `${wifi} dBm · ${tr(WIFI_LEVEL_LABEL[level])}`, warn: level === 'bad'});
+  }
+
+  const factsShown = facts.filter((f) => shown(hidden, f.key, f.warn));
+  const factRows = wholeRow(factsShown);
+  const tempRows = wholeRow(temps);
+
+  const runs = recent?.runs ?? [];
+  const finished = (recent?.latest ?? []).filter((r) => r.outcome !== 'running');
+  const mowed = runs.reduce((s, r) => s + r.bladeSeconds, 0);
+  // with the problems outside of runs (an emergency stop in the dock), like the activity counts them
+  const today = recent?.today;
+  const loose = useMemo(
+    () => (today ? groupRuns(today, true, undefined, os).filter((e) => e.kind === 'event' && noteworthy(e.event, undefined, os) && describe(e.event, undefined, os).severity !== 'info').length : 0),
+    [today, os],
+  );
+  const problems = runs.reduce((s, r) => s + r.problems, 0) + loose;
+
+  return (
+    <div className={styles.page}>
+      <main className={[styles.main, showMap ? styles.withMap : ''].join(' ')}>
+        <div className={styles.top}>
+          <h1 className={styles.brand}>
+            <BrandMark hat={halloween.day} towel={towel} umbrella={umbrella} />
+            <span>
+              <strong>mow</strong>bite
+            </span>
+            <LoveMower onRun={setLoveRun} />
+          </h1>
+          <TopWeather away={loveRun} />
+          <MowerSwitch className={styles.mowerSwitch} round />
+        </div>
+        <UpdateBanner />
+
+        {!state &&
+          (link.silent ? (
+            <div className={styles.dim}>
+              <p className={styles.offline}>
+                {os ? tr("The mower answers, but its state doesn't come.") : tr("The rest of OpenMower answers, but mower_logic doesn't send its state.")}
+              </p>
+              <LogicHint className={styles.logicHint} />
+            </div>
+          ) : (
+            <p className={styles.dim}>
+              {connected ? (
+                tr('waiting for the mower…')
+              ) : unreachable ? (
+                <>
+                  <span className={styles.offline}>{tr("Can't reach the mower. Is it switched on and in this network?")}</span>{' '}
+                  <Link href="/settings#app">{tr('Mowers and their addresses are in the settings.')}</Link>
+                </>
+              ) : (
+                tr('connecting…')
+              )}
+            </p>
+          ))}
+
+        {state && head && (
+          <section className={[styles.status, live ? styles[`tone-${head.tone}`] : styles.stale].join(' ')}>
+            <div className={styles.statusTop}>
+              <BatteryRing percent={battery} />
+              <div className={styles.headline}>
+                {/* which mower this is, with more than one to pick from */}
+                {choice.many && <span className={styles.mowerName}>{choice.name}</span>}
+                <h2>{head.title}</h2>
+                {!!state.emergency && why && <strong className={styles.reason}>{upperFirst(emergencyText(why))}</strong>}
+                {/* MowBite OS didn't let go when it was reset, why and what to do instead of the usual words */}
+                {!!state.emergency && refused && <strong className={styles.refused}>{resetRefusedText(refused)}</strong>}
+                {live ? (
+                  <span className={styles.dim}>
+                    {state.emergency
+                      ? refused
+                        ? explain(refused)
+                        : tr('Release the mower, then reset the emergency to drive again.')
+                      : pausedInDock && hasAction(ACTION.goHome)
+                        ? tr('Put in the dock by hand? Tap End here, then it counts as docked and charges. The next start mows on where it stopped.')
+                        : since
+                        ? tr('since {time}', {time: clock(since)})
+                        : ''}
+                  </span>
+                ) : link.resuming ? (
+                  <span className={styles.dim}>{tr('connecting…')}</span>
+                ) : (
+                  <span className={styles.offline}>{staleText(link, os)}</span>
+                )}
+              </div>
+            </div>
+            {connected && link.silent && <LogicHint className={[styles.dim, styles.logicHint].join(' ')} />}
+
+            {(factsShown.length > 0 || temps.length > 0) && (
+              <div className={styles.factBlock}>
+                {factsShown.length > 0 && (
+                  <div className={styles.facts}>
+                    {factsShown.map((f, i) => (
+                      <div key={f.key} className={[f.warn ? styles.warn : '', factRows[i] ? styles.whole : ''].join(' ')}>
+                        <span>{f.label}</span>
+                        <FactValue value={f.value} />
+                        {f.extra}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {temps.length > 0 && (
+                  <div className={styles.facts}>
+                    {temps.map((f, i) => (
+                      <div key={f.key} className={[f.warn ? styles.warn : '', tempRows[i] ? styles.whole : ''].join(' ')}>
+                        <span>{f.label}</span>
+                        <FactValue value={f.value} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className={styles.controls}>
+              {commandNote && <p className={[styles.commandNote, commandNote.warn ? styles.warn : ''].join(' ')}>{commandNote.text}</p>}
+              {/* first, the buttons below are locked until it's reset */}
+              {!!state.emergency && (
+                <button className={styles.reset} disabled={!live} onClick={reset}>
+                  <WarningIcon size={20} />
+                  {tr('Reset emergency')}
+                </button>
+              )}
+              {/* as wide as the card together, one alone the whole width. without the connection, and those held back
+                  for a second after a tap or after the emergency reset (the row takes its button's place), they stay
+                  greyed out, the row doesn't jump */}
+              {actionsNow.length > 0 && (
+                <div className={styles.actions} data-count={actionsNow.length}>
+                  {actionsNow.map((a) => (
+                    <button
+                      key={a.id}
+                      className={styles[`act-${a.tone}`]}
+                      disabled={!live || (justReset && setsOff(a.id)) || (!!tapped && lockedAfter(tapped, a.id))}
+                      onClick={() => {
+                        if (a.id === ACTION.skipArea) return toggleSkip(a.id);
+                        setTapped(a.id);
+                        publishAction(a.id);
+                      }}
+                    >
+                      <a.Icon size={20} />
+                      {skip?.id === a.id ? tr('Undo ({n} s)', {n: skip.left}) : tr(a.label)}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {/* recording mode on without its page (the back button, another phone): back to it, and out of it while
+                  nothing recorded would be lost with it */}
+              {current === 'AREA_RECORDING' && (
+                <div className={styles.recording}>
+                  <Link href={calibrating ? '/calibration' : '/record'}>
+                    <RecordIcon size={20} />
+                    {tr(calibrating ? 'Back to calibration' : 'Back to recording')}
+                  </Link>
+                  {!calibrating &&
+                    hasAction(ACTION.recording('exit_recording_mode')) &&
+                    !hasAction(ACTION.recording('stop_recording')) &&
+                    !hasAction(ACTION.recording('finish_mowing_area')) && (
+                      <button className={styles.recordingEnd} disabled={!live} onClick={() => publishAction(ACTION.recording('exit_recording_mode'))}>
+                        <CloseIcon size={20} />
+                        {tr('Leave recording mode')}
+                      </button>
+                    )}
+                </div>
+              )}
+              {live && (current === 'MOWING' || current === 'PAUSED') && hasAction(ACTION.skipPath) && !state.emergency && (
+                <button
+                  className={styles.skipPathButton}
+                  title={tr('The mower leaves the rest of the outline pass or lanes it is on and goes on with the next ones.')}
+                  onClick={() => toggleSkip(ACTION.skipPath)}
+                >
+                  <SkipIcon size={16} />
+                  {skip?.id === ACTION.skipPath ? tr('Undo ({n} s)', {n: skip.left}) : tr('Skip this path')}
+                </button>
+              )}
+              {live && hasAction(ACTION.resetJob) && !state.emergency && jobStays && (
+                <p className={[styles.commandNote, styles.warn].join(' ')}>{tr('The interrupted job still follows the old map. Drop it before the next start.')}</p>
+              )}
+              {live &&
+                hasAction(ACTION.resetJob) &&
+                !state.emergency &&
+                (confirmReset ? (
+                  <div className={styles.resetJob}>
+                    <span>{tr('Drop the interrupted job? The next start mows from the beginning.')}</span>
+                    <button
+                      className={styles.reset}
+                      onClick={() => {
+                        publishAction(ACTION.resetJob);
+                        setConfirmReset(false);
+                      }}
+                    >
+                      {tr('Drop it')}
+                    </button>
+                    <button onClick={() => setConfirmReset(false)}>{tr('Cancel')}</button>
+                  </div>
+                ) : (
+                  <button className={styles.resetJobButton} onClick={() => setConfirmReset(true)}>
+                    {tr('Drop the interrupted job')}
+                  </button>
+                ))}
+              {/* idle in the dock: what the last mow left, and mowing just that */}
+              {live && hasAction(ACTION.startMowing) && !state.emergency && !wasLeftovers && (
+                <LeftoversCard
+                  key={leftoverJob ?? ''}
+                  jobId={leftoverJob}
+                  map={map}
+                  live={live}
+                  interrupted={hasAction(ACTION.resetJob)}
+                  onStart={() => publishAction(ACTION.startMowing)}
+                  styles={styles}
+                />
+              )}
+            </div>
+            {/* a mower without a map yet: how to make one */}
+            {map && map.areas.length === 0 && (
+              <Link href="/guide" className={styles.firstMap}>
+                <strong>{tr('No map yet')}</strong>
+                <span>{tr('How to record it, step by step')}</span>
+              </Link>
+            )}
+          </section>
+        )}
+
+        {showMap && map && (
+          <section className={styles.map}>
+            <MapView
+              map={map}
+              mower={position}
+              emergency={!!state?.emergency}
+              track={track}
+              beforeTrack={before}
+              progress={progress ?? undefined}
+              costume={costume}
+              follow={driving}
+              zoomable
+              datum={datum}
+            />
+          </section>
+        )}
+
+        {(recent || planned || batteryWait || missed || due.length > 0) && (
+          <section className={styles.today}>
+            <div className={styles.todayHead}>
+              <h2>{tr('Today')}</h2>
+              <Link href="/activity">{tr('All runs')}</Link>
+            </div>
+            {missed && (
+              <div className={styles.missed}>
+                <WarningIcon size={16} />
+                <Link href="/schedule">
+                  <strong>
+                    {/* the plan's time, older logs only have when it was logged */}
+                    {dayKey(new Date(missed.t * 1000)) === dayKey(new Date())
+                      ? tr('Scheduled start at {time}', {time: missed.at ?? clock(missed.t)})
+                      : tr('Scheduled start yesterday at {time}', {time: missed.at ?? clock(missed.t)})}
+                  </strong>
+                  <span>{scheduleLogLine(missed)}</span>
+                </Link>
+                <button
+                  title={tr('Close')}
+                  aria-label={tr('Close')}
+                  onClick={() => {
+                    setMissedSeen(missed.t);
+                    try {
+                      localStorage.setItem(mowerKey(MISSED_SEEN_KEY), String(missed.t));
+                    } catch {}
+                  }}
+                >
+                  ×
+                </button>
+              </div>
+            )}
+            {due.length > 0 && (
+              <div className={styles.missed}>
+                <WarningIcon size={16} />
+                <Link href="/activity">
+                  <strong>{tr('Maintenance due')}</strong>
+                  <span>
+                    {due
+                      .map((d) => `${tr(PARTS[d.key].label)}: ${tr('{used} of {due} h', {used: fmt(d.used, d.used < 10 ? 1 : 0), due: d.due})}`)
+                      .join(' · ')}
+                  </span>
+                </Link>
+              </div>
+            )}
+            {recent && (
+            <div className={styles.todayNumbers}>
+              <div>
+                <strong>{mowed ? duration(mowed) : '0 min'}</strong>
+                <span>{tr('mowed')}</span>
+              </div>
+              <div>
+                <strong>{runs.length}</strong>
+                <span>{runs.length === 1 ? tr('run') : tr('runs')}</span>
+              </div>
+              <div className={problems ? styles.bad : undefined}>
+                <strong>{problems}</strong>
+                <span>{problems === 1 ? tr('problem') : tr('problems')}</span>
+              </div>
+            </div>
+            )}
+            {batteryWait && (
+              <Link href="/schedule" className={styles.nextRun}>
+                {tr('A start of the schedule waits for the battery ({detail} %)', {detail: batteryWait.detail ?? ''})}
+              </Link>
+            )}
+            {planned && (
+              <Link href="/schedule" className={styles.nextRun}>
+                {tr(otherZone ? "Next start: {when}, the schedule's time" : 'Next start: {when}', {
+                  when: `${dayLabel(planned)}, ${clock(planned.getTime() / 1000)}`,
+                })}
+              </Link>
+            )}
+            {/* the one under way is the status above */}
+            {finished.length > 0 && (
+              <>
+                <span className={styles.label}>{finished.length > 1 ? tr('Last runs') : tr('Last run')}</span>
+                <div className={styles.runList}>
+                  {finished.slice(0, moreRuns ? 6 : 3).map((r) => (
+                    <LastRun key={r.events[0].id} run={r} />
+                  ))}
+                  {finished.length > 3 && (
+                    <button className={styles.moreRuns} onClick={() => setMoreRuns(!moreRuns)}>
+                      {moreRuns ? tr('Show less') : tr('Show more')}
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </section>
+        )}
+      </main>
+    </div>
+  );
+}

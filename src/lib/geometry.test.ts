@@ -1,0 +1,127 @@
+import {describe, expect, it} from 'vitest';
+import {backAtStart, containsPoint, polygonArea} from './geometry';
+import {selfCrossing} from './mapCheck';
+import {mergeOutlines} from './mergeAreas';
+import {simplifyPolygon} from './simplifyPolygon';
+import {splitByPath} from './splitPolygon';
+
+const square = (x: number, y: number, size: number) => [
+  {x, y},
+  {x: x + size, y},
+  {x: x + size, y: y + size},
+  {x, y: y + size},
+];
+
+describe('polygonArea / containsPoint', () => {
+  it('measures and hit-tests a square either way round', () => {
+    expect(polygonArea(square(0, 0, 10))).toBe(100);
+    expect(polygonArea([...square(0, 0, 10)].reverse())).toBe(100);
+    expect(containsPoint(square(0, 0, 10), 5, 5)).toBe(true);
+    expect(containsPoint(square(0, 0, 10), 11, 5)).toBe(false);
+  });
+});
+
+describe('splitByPath', () => {
+  it('cuts a square in two halves along a straight line', () => {
+    const parts = splitByPath(square(0, 0, 10), [
+      {x: 5, y: -1},
+      {x: 5, y: 11},
+    ]);
+    expect(parts).not.toBeNull();
+    expect(parts!.map(polygonArea).sort()).toEqual([50, 50]);
+  });
+
+  it('follows a bend in the cut', () => {
+    const parts = splitByPath(square(0, 0, 10), [
+      {x: 2, y: -1},
+      {x: 2, y: 5},
+      {x: 8, y: 5},
+      {x: 8, y: 11},
+    ]);
+    expect(parts).not.toBeNull();
+    const [a, b] = parts!.map(polygonArea);
+    expect(a + b).toBeCloseTo(100);
+    expect(a).toBeCloseTo(50);
+  });
+
+  it('refuses a line that misses the area', () => {
+    expect(splitByPath(square(0, 0, 10), [{x: 20, y: -1}, {x: 20, y: 11}])).toBeNull();
+  });
+});
+
+describe('mergeOutlines', () => {
+  it('joins two overlapping squares', () => {
+    const merged = mergeOutlines(square(0, 0, 10), square(5, 0, 10));
+    expect(merged).not.toBeNull();
+    expect(polygonArea(merged!.outline)).toBeCloseTo(150);
+    expect(merged!.holesFilled).toBe(0);
+  });
+
+  it("won't join areas that don't touch", () => {
+    expect(mergeOutlines(square(0, 0, 10), square(20, 0, 10))).toBeNull();
+    // a corner on a corner isn't touching either
+    expect(mergeOutlines(square(0, 0, 10), square(10, 10, 10))).toBeNull();
+  });
+
+  // a recorded outline that crosses itself once: the loop comes back as a piece of its own, the two still touch
+  const twisted = [
+    [0, 0], [10, 0], [10, 10], [6, 10], [4, 10.6], [4.6, 11], [5.2, 9.6], [3, 10], [0, 10],
+  ].map(([x, y]) => ({x, y}));
+
+  it('joins an area whose outline crosses itself with one it overlaps', () => {
+    const merged = mergeOutlines(twisted, square(8, 2, 10));
+    expect(merged).not.toBeNull();
+    expect(merged!.loopsJoined).toBe(1);
+    expect(polygonArea(merged!.outline)).toBeCloseTo(184.01, 1);
+    expect(selfCrossing(merged!.outline)).toBeNull();
+  });
+
+  it("still won't join an area that crosses itself with one it doesn't touch", () => {
+    expect(mergeOutlines(twisted, square(20, 0, 10))).toBeNull();
+  });
+});
+
+describe('simplifyPolygon', () => {
+  it('drops points that sit on a straight edge', () => {
+    // a square with a point every 10 cm
+    const dense = [];
+    for (let i = 0; i < 100; i++) dense.push({x: i / 10, y: 0});
+    for (let i = 0; i < 100; i++) dense.push({x: 10, y: i / 10});
+    for (let i = 0; i < 100; i++) dense.push({x: 10 - i / 10, y: 10});
+    for (let i = 0; i < 100; i++) dense.push({x: 0, y: 10 - i / 10});
+    const simple = simplifyPolygon(dense, 0.05);
+    expect(simple.length).toBeLessThanOrEqual(5);
+    expect(polygonArea(simple)).toBeCloseTo(100);
+  });
+
+  it('keeps small shapes as they are', () => {
+    const s = square(0, 0, 1);
+    expect(simplifyPolygon(s, 1)).toBe(s);
+  });
+});
+
+describe('backAtStart', () => {
+  // round a 2 m square, a point every 0.5 m
+  const square = [
+    [0, 0], [0.5, 0], [1, 0], [1.5, 0], [2, 0], [2, 0.5], [2, 1], [2, 1.5], [2, 2], [1.5, 2], [1, 2], [0.5, 2], [0, 2], [0, 1.5], [0, 1], [0, 0.5],
+  ].map(([x, y]) => ({x, y}));
+
+  it('closes once round and back at the start', () => {
+    expect(backAtStart(square, {x: 0.1, y: 0.2})).toBe(true);
+  });
+
+  it('not while still away from the start', () => {
+    expect(backAtStart(square, {x: 0, y: 0.6})).toBe(false);
+  });
+
+  it('not right after starting, nor on a short way out and back', () => {
+    expect(backAtStart(square.slice(0, 2), {x: 0, y: 0})).toBe(false);
+    const outAndBack = [{x: 0, y: 0}, {x: 0.4, y: 0}, {x: 0.8, y: 0}, {x: 0.4, y: 0.05}];
+    expect(backAtStart(outAndBack, {x: 0.05, y: 0})).toBe(false);
+  });
+
+  it('closes small obstacles too', () => {
+    const tree = Array.from({length: 12}, (_, i) => ({x: 0.6 * Math.cos((i / 12) * 2 * Math.PI), y: 0.6 * Math.sin((i / 12) * 2 * Math.PI)}));
+    expect(backAtStart(tree, {x: 0.58, y: -0.1})).toBe(true);
+  });
+});

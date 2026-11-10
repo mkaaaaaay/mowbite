@@ -1,0 +1,13 @@
+.git
+.next
+node_modules
+.env*
+*.tsbuildinfo
+test-results
+playwright-report
+.updater
+android
+out
+*.md
+compose.override.yaml
+docs
