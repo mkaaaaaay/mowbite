@@ -74,9 +74,9 @@ function lookedAt(): OtherMower | null {
   return id ? (list.find((m) => m.id === id) ?? null) : null;
 }
 
-export function selectMower(id: string) {
-  // something unsaved asks first, and only then the choice is written: until the reload everything still talks to this one
-  const wait = leaveFirst();
+// something unsaved asks first (wait: what leaveFirst said, asked already), and only then the choice is written: until
+// the reload everything still talks to this one
+export function selectMower(id: string, wait = leaveFirst()) {
   if (wait === false) return;
   setTimeout(() => {
     try {

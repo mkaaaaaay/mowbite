@@ -1,5 +1,6 @@
 'use client';
 
+import {leaveFirst} from '@/lib/leaving';
 import {mowerBase, mowerList, selectMower, selectedMower} from '@/lib/mowers';
 import {addPush, removePush} from '@/lib/notify';
 import {pushPlugin, rememberEndpoint, sentEndpoint} from '@/lib/push';
@@ -33,10 +34,13 @@ export default function PushOpener() {
       const h = await p.addListener('opened', ({path, api}) => {
         const mower = api ? mowerList().find((m) => mowerBase(m) === api.replace(/\/+$/, '')) : undefined;
         if (mower && mower.id !== selectedMower()?.id) {
+          // something unsaved asks first, the page is kept only for a switch that happens
+          const wait = leaveFirst();
+          if (wait === false) return;
           try {
             sessionStorage.setItem(PAGE_KEY, path);
           } catch {}
-          selectMower(mower.id);
+          selectMower(mower.id, wait);
           return;
         }
         router.push(inApp(path));

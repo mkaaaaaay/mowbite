@@ -566,6 +566,7 @@ const de: Record<string, string> = {
   "Real size": "Echte Größe",
   "Really delete?": "Wirklich löschen?",
   "Really restore?": "Wirklich wiederherstellen?",
+  "Really remove?": "Wirklich entfernen?",
   "Record": "Aufnehmen",
   "Record a new area by driving the mower around it with the joystick on this page. Obstacles inside the area and the docking station can be recorded the same way. Afterwards you can fine-tune everything in the": "Nimm eine neue Fläche auf, indem du den Mäher mit dem Joystick auf dieser Seite einmal herumfährst. Hindernisse in der Fläche und das Dock nimmst du genauso auf. Den Feinschliff machst du danach im",
   "Record docking station": "Dock aufnehmen",

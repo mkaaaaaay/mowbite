@@ -10,6 +10,7 @@ import {dec, setLangChoice, tr, useLang, useLangChoice} from '@/lib/i18n';
 import {setThemeChoice, useThemeChoice} from '@/lib/theme';
 import {appMowers, DEMO_ID, isDemo, parseAddress, sameMowBite, saveAppMowers, selectedMower, selectMower} from '@/lib/mowers';
 import {isApp} from '@/lib/native';
+import {leaveFirst} from '@/lib/leaving';
 import {setSwipeEnabled, useSwipeEnabled} from '@/lib/swipe';
 import {OpenMowerSettings} from '@/components/MowerParamSettings';
 import {AutoUpdate, DockgeUpdateGuide} from '@/components/AutoUpdate';
@@ -103,14 +104,19 @@ function MowersSection({settings}: {settings: Settings}) {
       setPhoneList(list);
     } else saveSettings({...settingsStore.snapshot(), mowers: list});
   };
-  // the mower looked at taken out: its last save goes out, then the app switches (in a browser to the page's own mower)
+  // remove needs a second tap, id of the mower it's armed for
+  const [sure, setSure] = useState<string | null>(null);
+  // the mower looked at taken out: something unsaved asks before the list changes, its last save goes out, then the app
+  // switches (in a browser to the page's own mower)
   const remove = async (id: string) => {
     const viewed = selectedMower()?.id === id;
+    const wait = viewed ? leaveFirst() : 0;
+    if (wait === false) return;
     const rest = others.filter((x) => x.id !== id);
     store(rest);
     if (!viewed) return;
     await Promise.race([flushSettings(), new Promise((r) => setTimeout(r, 3000))]);
-    selectMower(app ? (rest[0]?.id ?? '') : '');
+    selectMower(app ? (rest[0]?.id ?? '') : '', wait);
   };
   const add = () => {
     const typed = parseAddress(host);
@@ -176,9 +182,10 @@ function MowersSection({settings}: {settings: Settings}) {
           </span>
           <button
             className={styles.linkButton}
-            onClick={() => void remove(m.id)}
+            onClick={() => (sure === m.id ? void remove(m.id) : setSure(m.id))}
+            onBlur={() => setSure(null)}
           >
-            {tr('Remove')}
+            {sure === m.id ? tr('Really remove?') : tr('Remove')}
           </button>
         </div>
       ))}

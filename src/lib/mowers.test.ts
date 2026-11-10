@@ -8,8 +8,15 @@ vi.stubGlobal('localStorage', {
   removeItem: (k: string) => stored.delete(k),
 });
 let reloads = 0;
+// what's asked before something unsaved would be lost, and the answer
+const asked = {times: 0, answer: true};
 // (Capacitor only in the android app)
-const win: {location: {reload: () => void}; Capacitor?: {isNativePlatform: () => boolean}} = {location: {reload: () => reloads++}};
+const win: {location: {reload: () => void}; Capacitor?: {isNativePlatform: () => boolean}; [k: string]: unknown} = {
+  location: {reload: () => reloads++},
+  addEventListener: () => {},
+  removeEventListener: () => {},
+  confirm: () => (asked.times++, asked.answer),
+};
 vi.stubGlobal('window', win);
 vi.stubGlobal('document', {documentElement: {style: {setProperty: () => {}}}});
 // what goes out to a mower's MowBite, the demo answers itself
@@ -128,6 +135,28 @@ describe('the mower a page looks at', () => {
       m = await open();
       expect(at(m)).toEqual(then);
     }
+    vi.useRealTimers();
+  });
+
+  it('with something unsaved asks before the switch is written, a no keeps everything, a yes asked before is not asked again', async () => {
+    vi.useFakeTimers();
+    stored.clear();
+    stored.set('appSettings', JSON.stringify({mowers: [A, B]}));
+    stored.set('mower', 'a');
+    const m = await open();
+    const {guardLeaving, leaveFirst} = await import('./leaving');
+    guardLeaving('map', {text: () => 'map'});
+    reloads = 0;
+    asked.times = 0;
+    asked.answer = false;
+    m.selectMower('b');
+    await vi.runAllTimersAsync();
+    expect([asked.times, reloads, stored.get('mower')]).toEqual([1, 0, 'a']);
+    asked.answer = true;
+    m.selectMower('b', leaveFirst());
+    await vi.runAllTimersAsync();
+    expect([asked.times, reloads, stored.get('mower')]).toEqual([2, 1, 'b']);
+    guardLeaving('map', null);
     vi.useRealTimers();
   });
 
