@@ -29,6 +29,7 @@ import {useRecentRuns} from '@/hooks/useRecentRuns';
 import {useRpcMethods} from '@/hooks/useRpcMethods';
 import TopWeather from '@/components/TopWeather';
 import {clock, dayKey, dayLabel, duration} from '@/lib/dates';
+import {gpsOffNow} from '@/lib/gpslog';
 import {fileDay} from '@/lib/history';
 import {describe, emergencyText, explain, groupRuns, noteworthy, OUTCOMES, resetRefusedText, type MowerEvent, type Run} from '@/lib/events';
 import {useMowbiteOs, useOsApi} from '@/lib/mowerOs';
@@ -371,15 +372,16 @@ export default function Home() {
   const temps = state ? temperatures(infos, values).filter((t) => shown(hidden, t.key, t.warn)) : [];
   // key: as in DASH_FACTS, wide: gets a whole row, its value is longer
   const facts: {key: DashKey; label: string; value: string; warn?: boolean; wide?: boolean; extra?: React.ReactNode}[] = [];
-  // standing still the mower switches gps off, "off" there says nothing
+  // standing still the mower switches gps off, "off" there says nothing. into and out of the dock it's off on purpose
+  // too (OpenMower): said, but no warning
+  const gpsOff = gpsQ === 'none' && gpsOffNow(current, os);
   if (state && (driving || gpsQ !== 'none')) {
     facts.push({
       key: 'gps',
       label: 'GPS',
-      value:
-        gpsQ === 'none' ? (driving ? tr('no fix') : tr('off')) : `${fmt(acc! * 100, 1)} cm · ${tr(GPS_QUALITY_LABEL[gpsQ])}`,
+      value: gpsQ === 'none' ? (gpsOff ? tr('off') : tr('no fix')) : `${fmt(acc! * 100, 1)} cm · ${tr(GPS_QUALITY_LABEL[gpsQ])}`,
       // only an rtk fix is good while driving
-      warn: driving && gpsQ !== 'fix',
+      warn: driving && gpsQ !== 'fix' && !gpsOff,
     });
     if (driving) facts.push({key: 'speed', label: tr('Speed'), value: `${fmt(speed, 2)} m/s`});
     if (progress?.leftovers) {
