@@ -2322,6 +2322,8 @@ const de: Record<string, string> = {
   "Uploading part {n} of {m}…": "Lade Teil {n} von {m} hoch…",
   "The mower checks the sound…": "Der Mäher prüft den Ton…",
   "Uploaded, {n} s.": "Hochgeladen, {n} s.",
+  "The upload that broke off keeps the mower busy until {time} at the latest, the same file for the same situation goes right away.":
+    "Der abgebrochene Upload hält den Mäher bis spätestens {time} beschäftigt, dieselbe Datei für dieselbe Situation geht sofort.",
   "Your own sounds": "Eigene Töne",
   "Choose your own sound picks an MP3 on this device for a situation, at most 30 s long and 2 MB large. It goes to the mower in parts, the mower checks it, then plays it instead of the manufacturer's. Sound of the manufacturer deletes yours again, tap it twice.": "Mit Eigenen Ton wählen kommt eine MP3 von diesem Gerät zu einer Situation, höchstens 30 s lang und 2 MB groß. Sie geht in Teilen an den Mäher, er prüft sie und spielt sie dann statt des Tons vom Hersteller. Ton des Herstellers löscht den eigenen wieder, dazu zweimal tippen.",
   "Listen": "Anhören",

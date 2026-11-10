@@ -1,6 +1,7 @@
 import {describe, expect, it} from 'vitest';
 import {describe as eventText} from './events';
-import {soundRefusal, splitParts, toBase64} from './sound';
+import {RpcError} from './rpc';
+import {leftHeld, soundRefusal, splitParts, toBase64} from './sound';
 import {MAX_SOUND_BYTES, MAX_SOUND_SECONDS, MIN_SOUND_SECONDS, PART_BYTES} from './soundLimits';
 
 describe('an own sound', () => {
@@ -37,5 +38,12 @@ describe('an own sound', () => {
     expect(say(MAX_SOUND_BYTES + 1)).toBe('Sound not uploaded: the file is larger than 2 MB');
     expect(say(1000, 31.44)).toBe('Sound not uploaded: the sound is 31.4 s long, at most 30 s');
     expect(say(1000, null)).toBe('Sound not uploaded: the file is not an MP3 the mower can play');
+  });
+
+  it('is left on the mower after no answer or no connection, not after a refusal', () => {
+    expect(leftHeld(new RpcError('sound.upload', 'timeout', 'timed out'))).toBe(true);
+    expect(leftHeld(new Error('connection lost'))).toBe(true);
+    expect(leftHeld(new RpcError('sound.upload', -32600, 'NO_SPACE', {event: 'SOUND_REFUSED', reason: 'NO_SPACE'}))).toBe(false);
+    expect(leftHeld(new RpcError('sound.upload', -32602, 'data is no base64'))).toBe(false);
   });
 });

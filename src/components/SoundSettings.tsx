@@ -2,10 +2,12 @@
 
 import {useRpcMethods} from '@/hooks/useRpcMethods';
 import {useSure} from '@/hooks/useSure';
+import {clock} from '@/lib/dates';
 import {fmt, tr, useLang} from '@/lib/i18n';
 import {RPC} from '@/lib/openmower';
+import {RpcError} from '@/lib/rpc';
 import {answerError} from '@/lib/rpcText';
-import {deleteSound, loadSounds, playSound, setVolume, stopSound, uploadSound, type Sounds} from '@/lib/sound';
+import {deleteSound, HELD_MS, leftHeld, loadSounds, playSound, setVolume, stopSound, uploadSound, type Sounds} from '@/lib/sound';
 import {useEffect, useRef, useState} from 'react';
 import local from './LightSettings.module.css';
 
@@ -41,6 +43,8 @@ export function SoundSettings({styles}: {styles: Record<string, string>}) {
   const [busy, setBusy] = useState<{situation: string; text: string} | null>(null);
   const picker = useRef<HTMLInputElement>(null);
   const target = useRef('');
+  // until when an own upload that broke off keeps the mower busy
+  const held = useRef(0);
   useEffect(() => {
     let stop = false;
     loadSounds().then(
@@ -80,15 +84,23 @@ export function SoundSettings({styles}: {styles: Record<string, string>}) {
   const upload = async (situation: string, file: File) => {
     setNote(null);
     setBusy({situation, text: ''});
+    let sent = false;
     try {
-      const r = await uploadSound(situation, file, (part, parts) =>
-        setBusy({situation, text: part < parts - 1 ? tr('Uploading part {n} of {m}…', {n: part + 1, m: parts}) : tr('The mower checks the sound…')}),
-      );
+      const r = await uploadSound(situation, file, (part, parts) => {
+        sent = true;
+        setBusy({situation, text: part < parts - 1 ? tr('Uploading part {n} of {m}…', {n: part + 1, m: parts}) : tr('The mower checks the sound…')});
+      });
       setNote({situation, text: tr('Uploaded, {n} s.', {n: fmt(r.duration_s, 1)})});
-      await loadSounds().then(setSounds, () => undefined);
     } catch (e) {
-      setNote({situation, text: answerError(e), error: true});
+      if (sent && leftHeld(e)) held.current = Date.now() + HELD_MS;
+      const wait = e instanceof RpcError && e.data?.reason === 'BUSY' && held.current > Date.now();
+      const until = tr('The upload that broke off keeps the mower busy until {time} at the latest, the same file for the same situation goes right away.', {
+        time: clock(held.current / 1000),
+      });
+      setNote({situation, text: wait ? `${answerError(e)} ${until}` : answerError(e), error: true});
     } finally {
+      // also after one that broke off, the mower may have taken it
+      await loadSounds().then(setSounds, () => undefined);
       setBusy(null);
     }
   };

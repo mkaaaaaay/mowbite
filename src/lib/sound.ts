@@ -34,6 +34,11 @@ export const deleteSound = (situation: string) =>
 // the answer to a part; the last one is checked and converted first, up to about 30 s
 const PART_MS = 30000;
 const CHECK_MS = 60000;
+// an upload that broke off stays on the mower up to a minute after its last part, another file is turned down meanwhile
+// (BUSY), the same one for the same situation starts anew
+export const HELD_MS = 60000;
+// whether an error after parts went out leaves it there: no answer or no connection, the mower drops one it turned down
+export const leftHeld = (e: unknown) => !(e instanceof RpcError) || e.code === 'timeout';
 
 export const splitParts = (bytes: Uint8Array, size = PART_BYTES): Uint8Array[] =>
   Array.from({length: Math.ceil(bytes.length / size)}, (_, i) => bytes.subarray(i * size, (i + 1) * size));
