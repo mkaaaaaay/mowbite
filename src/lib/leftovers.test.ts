@@ -1,5 +1,5 @@
 import {describe, expect, it, vi} from 'vitest';
-import {leftoverAreas, leftoverPaths, leftoversHandedOut, readLeftovers} from './leftovers';
+import {keepArmed, leftoverAreas, leftoverPaths, leftoversHandedOut, readLeftovers, stillArmed} from './leftovers';
 
 const rpc = vi.hoisted(() => ({lines: [] as {t: number; msg: string}[], asked: [] as unknown[], areas: {} as Record<string, unknown>}));
 vi.mock('./rpc', () => ({
@@ -84,5 +84,17 @@ describe('leftover passes', () => {
   it('gives none for an area without passes', async () => {
     rpc.areas = {b: {area_id: 'b', paths: [], message: 'most of the area is left'}};
     expect(await leftoverPaths('job1', 'b')).toBeNull();
+  });
+});
+
+describe('leftovers armed while the card was gone', () => {
+  it('are there for that mow until the planner lets them go, a start drops them', () => {
+    const found = readLeftovers({armed: 900, areas: {a: {paths: [{}], stats: {leftovers: {left_m2: 2, pieces: 1, passes: 1}}}}});
+    keepArmed('j', found, 1000);
+    expect(stillArmed('j', 1300)).toEqual({found, seconds: 600});
+    expect(stillArmed('other', 1300)).toBeNull();
+    expect(stillArmed('j', 1900)).toBeNull();
+    keepArmed('j', null);
+    expect(stillArmed('j', 1300)).toBeNull();
   });
 });

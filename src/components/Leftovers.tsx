@@ -3,7 +3,7 @@
 import {rememberArmed} from '@/hooks/useLeftoversBefore';
 import type {MowerMap} from '@/hooks/useMowerMap';
 import {fmt, tr} from '@/lib/i18n';
-import {askLeftovers, type Leftovers} from '@/lib/leftovers';
+import {askLeftovers, keepArmed, stillArmed, type Leftovers} from '@/lib/leftovers';
 import {loadPlannerSettings, slic3rPlans, usePlannerSettings} from '@/lib/mowerBody';
 import {getMqttClient} from '@/lib/mqttClient';
 import {RPC} from '@/lib/openmower';
@@ -34,7 +34,11 @@ export function LeftoversCard({
   styles: Record<string, string>;
 }) {
   const known = !!useRpcMethods()?.has(RPC.plannerLeftovers);
-  const [state, setState] = useState<{busy?: boolean; found?: Leftovers; error?: string; started?: boolean}>({});
+  // (armed while it was gone: said again)
+  const [state, setState] = useState<{busy?: boolean; found?: Leftovers; error?: string; started?: boolean}>(() => {
+    const away = stillArmed(jobId);
+    return away ? {found: away.found, error: tr('Ready but not started. A start within {s} s mows just the leftovers.', {s: Math.round(away.seconds)})} : {};
+  });
   const planner = usePlannerSettings();
   // still shown: a start after the planner's answer goes out only then
   const shownRef = useRef(true);
@@ -67,11 +71,12 @@ export function LeftoversCard({
       const armed = await askLeftovers({jobId, arm: true});
       if (!armed || armed.armed <= 0) return setState({error: tr("The planner didn't take it.")});
       if (jobId) rememberArmed(jobId);
-      if (!shownRef.current) return;
+      if (!shownRef.current) return keepArmed(jobId, armed);
       // (offline the start would be dropped without a word, the planner keeps them ready for a while)
       if (!getMqttClient().connected)
         return setState({found: armed, error: tr('Not started, no connection to the mower. A start within {s} s mows just the leftovers.', {s: Math.round(armed.armed)})});
       onStart();
+      keepArmed(jobId, null);
       setState({found: armed, started: true});
     } catch (e) {
       fail(e);

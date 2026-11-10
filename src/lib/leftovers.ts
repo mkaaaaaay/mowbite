@@ -66,6 +66,16 @@ export function readLeftovers(answer: Answer): Leftovers {
   };
 }
 
+// armed from the card while it was gone (the page left, the connection lost), not started: the card says so again until
+// the planner lets them go. per mow (jobId), null: nothing armed any more
+let armedAway: {jobId?: string; found: Leftovers; until: number} | null = null;
+export function keepArmed(jobId: string | undefined, found: Leftovers | null, now = Date.now() / 1000) {
+  armedAway = found ? {jobId, found, until: now + found.armed} : null;
+}
+export function stillArmed(jobId: string | undefined, now = Date.now() / 1000): {found: Leftovers; seconds: number} | null {
+  return armedAway && armedAway.jobId === jobId && armedAway.until > now ? {found: armedAway.found, seconds: armedAway.until - now} : null;
+}
+
 // null when the mower has no MowBite Planner that knows it. Planning every area takes the mower a while
 export async function askLeftovers(req: {jobId?: string; arm?: boolean} = {}): Promise<Leftovers | null> {
   const known = await rpcMethods();

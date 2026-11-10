@@ -716,6 +716,7 @@ const de: Record<string, string> = {
   "Leftovers not mowed, it's raining": "Reste nicht gemäht, es regnet",
   "Leftovers not mowed, it's dark": "Reste nicht gemäht, es ist dunkel",
   "Not started, no connection to the mower. A start within {s} s mows just the leftovers.": "Nicht gestartet, keine Verbindung zum Mäher. Ein Start innerhalb von {s} s mäht nur die Reste.",
+  "Ready but not started. A start within {s} s mows just the leftovers.": "Bereit, aber nicht gestartet. Ein Start innerhalb von {s} s mäht nur die Reste.",
   "Not started, the mower was busy": "Nicht gestartet, der Mäher war beschäftigt",
   "With only some areas picked, it starts as usual and skips the others when their turn comes.": "Sind nur einzelne Flächen gewählt, startet er normal und überspringt die anderen, wenn sie an der Reihe sind.",
   "the next {n} hours": "die nächsten {n} Stunden",
