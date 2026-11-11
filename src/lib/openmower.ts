@@ -28,6 +28,25 @@ export const RPC = {
   methods: 'rpc.methods',
   // what runs on the mower, MowBite OS only (lib/mowerOs)
   systemInfo: 'system.info',
+  // memory, storage, load and network of the mower itself, MowBite OS only (lib/system)
+  systemStats: 'system.stats',
+  // the lights on the mower by state, MowBite OS only (lib/light)
+  lightGet: 'light.get_profile',
+  lightSet: 'light.set_profile',
+  lightPreview: 'light.preview',
+  lightReset: 'light.reset',
+  // the mower's sounds by situation, MowBite OS with a speaker only (lib/sound)
+  soundList: 'sound.list',
+  soundPlay: 'sound.play',
+  soundStop: 'sound.stop',
+  soundVolume: 'sound.volume',
+  soundUpload: 'sound.upload',
+  soundDelete: 'sound.delete',
+  // the mower's cameras and a stream of one for a single viewer, MowBite OS with cameras only (lib/camera)
+  cameraList: 'camera.list',
+  cameraStream: 'camera.stream',
+  // points off the end of the line being recorded, MowBite OS only (masterplan 3.2)
+  recordingUndo: 'recording.undo',
   replaceMap: 'map.replace',
   eventDays: 'events.history.list',
   events: 'events.history',
@@ -86,6 +105,9 @@ export const ACTION = {
   recording: (step: string) => `mower_logic:area_recording/${step}`,
 } as const;
 
+// how much of the line the record page's back button takes back
+export const UNDO_METERS = 1;
+
 // MowBite OS takes each action also as a call that answers, accepted or why not (masterplan, App ↔ OS). the app calls
 // it where rpc.methods names it, otherwise it sends the action. params besides client, the same for every one
 export const COMMAND: Record<string, {method: string; params?: Record<string, unknown>}> = {
@@ -110,6 +132,7 @@ export const COMMAND: Record<string, {method: string; params?: Record<string, un
   [ACTION.recording('auto_point_collecting_enable')]: {method: 'recording.auto_points', params: {enabled: true}},
   [ACTION.recording('auto_point_collecting_disable')]: {method: 'recording.auto_points', params: {enabled: false}},
   [ACTION.recording('collect_point')]: {method: 'recording.point'},
+  [ACTION.recording('undo_points')]: {method: RPC.recordingUndo, params: {meters: UNDO_METERS}},
 };
 
 // ros parameters, as they come in params/json

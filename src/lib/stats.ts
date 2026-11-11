@@ -1,5 +1,6 @@
 import {useEffect, useState} from 'react';
-import {apiBase, mowerFetch} from './mowers';
+import {apiBase} from './mowers';
+import {containerFetch} from './updates';
 
 // mowing hours, distance and runs as docker/stats.sh counts them (a line per hour), and the maintenance of parts by
 // the blade hours since they were last seen to (docker/stats.cgi)
@@ -91,8 +92,8 @@ const endpoint = () => `${apiBase()}/cgi-bin/stats`;
 
 async function ask(query = '', post = false): Promise<Stats | null> {
   try {
-    const res = await mowerFetch(endpoint() + query, {method: post ? 'POST' : 'GET', cache: 'no-store'});
-    if (!res.ok || !res.headers.get('content-type')?.includes('text/plain')) return null;
+    const res = await containerFetch(endpoint() + query, {method: post ? 'POST' : 'GET', cache: 'no-store'});
+    if (!res?.ok || !res.headers.get('content-type')?.includes('text/plain')) return null;
     return parseStats(await res.text());
   } catch {
     return null;

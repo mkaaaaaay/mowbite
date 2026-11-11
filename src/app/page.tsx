@@ -8,7 +8,7 @@ import LoveMower from '@/components/LoveMower';
 import MapView from '@/components/MapView';
 import {useRecordingJob} from '@/components/RecordingWatch';
 import {useMapAhead} from '@/components/useMapAhead';
-import {ChevronIcon, CloseIcon, HomeIcon, PauseIcon, PlayIcon, RecordIcon, SkipIcon, WarningIcon} from '@/components/icons';
+import {CameraIcon, ChevronIcon, CloseIcon, HomeIcon, PauseIcon, PlayIcon, RecordIcon, SkipIcon, WarningIcon} from '@/components/icons';
 import {useCalibratingByHand} from '@/hooks/useCalibratingByHand';
 import {useComputedSpeed} from '@/hooks/useComputedSpeed';
 import {useEmergencyReasons} from '@/hooks/useEmergencyReasons';
@@ -32,11 +32,13 @@ import TopWeather from '@/components/TopWeather';
 import {clock, dayKey, dayLabel, duration} from '@/lib/dates';
 import {gpsOffNow} from '@/lib/gpslog';
 import {fileDay} from '@/lib/history';
-import {describe, emergencyText, explain, groupRuns, noteworthy, OUTCOMES, resetRefusedText, type MowerEvent, type Run} from '@/lib/events';
-import {useMowbiteOs, useOsApi} from '@/lib/mowerOs';
+import {describe, emergencyText, explain, groupRuns, noteworthy, OUTCOMES, resetRefusedText, stopReleaseText, type MowerEvent, type Run} from '@/lib/events';
+import {useMowbiteOs, useOsApi, useStopRelease} from '@/lib/mowerOs';
+import CameraView from '@/components/CameraView';
+import {useCameras} from '@/hooks/useCameras';
 import {useChargeConfirmed} from '@/hooks/useChargeConfirmed';
 import {mowerKey} from '@/lib/mowers';
-import {settingsStore} from '@/lib/settings';
+import {settingsStore, showDashCamera} from '@/lib/settings';
 import {PARTS, useDueParts} from '@/lib/stats';
 import {containerHas, useUpdates} from '@/lib/updates';
 import {batteryColor, chargeOf, dockText, GPS_QUALITY_LABEL, gpsQuality, isDocked, onCharger, staleText, WIFI_LEVEL_LABEL, type Charge} from '@/lib/status';
@@ -208,6 +210,8 @@ export default function Home() {
   const {infos, values} = useMowerSensors();
   const why = useEmergencyReasons(!!state?.emergency);
   const {refused, reset} = useEmergencyReset(!!state?.emergency, publishAction);
+  // the release with STOP at the mower, where it has one
+  const stopRelease = useStopRelease();
   const justReset = useJustReset(!!state?.emergency);
   // a refused reset shows under the emergency stop already
   const commandNote = useCommandNote(['EMERGENCY_RESET_REFUSED']);
@@ -232,6 +236,7 @@ export default function Home() {
   const before = useLeftoversBefore(!!progress?.leftovers);
   const params = useMowerParams();
   const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
+  const cameras = useCameras().on;
   // the same object while params/json doesn't change: the map isn't drawn again for every sensor value
   const datum = useMemo(() => datumFromParams(params), [params]);
   // blades or cleaning due, counted by MowBite's container
@@ -440,6 +445,17 @@ export default function Home() {
             <LoveMower onRun={setLoveRun} />
           </h1>
           <TopWeather away={loveRun} />
+          {cameras && (
+            <button
+              className={styles.cameraSwitch}
+              aria-pressed={!!settings.dashboard?.camera}
+              aria-label={tr('Camera picture')}
+              title={tr('Camera picture')}
+              onClick={() => showDashCamera(!settings.dashboard?.camera)}
+            >
+              <CameraIcon size={20} />
+            </button>
+          )}
           <MowerSwitch className={styles.mowerSwitch} round />
         </div>
         <UpdateBanner />
@@ -481,9 +497,9 @@ export default function Home() {
                 {live ? (
                   <span className={styles.dim}>
                     {state.emergency
-                      ? refused
-                        ? explain(refused)
-                        : tr('Release the mower, then reset the emergency to drive again.')
+                      ? [refused ? explain(refused) : tr('Release the mower, then reset the emergency to drive again.'), stopRelease && stopReleaseText(stopRelease)]
+                          .filter(Boolean)
+                          .join(' ')
                       : pausedInDock && hasAction(ACTION.goHome)
                         ? tr('Put in the dock by hand? Tap End here, then it counts as docked and charges. The next start mows on where it stopped.')
                         : since
@@ -647,6 +663,13 @@ export default function Home() {
               zoomable
               datum={datum}
             />
+          </section>
+        )}
+
+        {/* a camera's picture, switched on at the top or in the settings */}
+        {settings.dashboard?.camera && cameras && (
+          <section className={styles.cameraCard}>
+            <CameraView onHide={() => showDashCamera(false)} />
           </section>
         )}
 

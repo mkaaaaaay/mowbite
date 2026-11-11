@@ -5,6 +5,10 @@ import {EMERGENCY_BITS} from '../reasonTexts';
 import {closedRings, openRing, openRings} from '../rings';
 import {CALIB_NEED, calibCounts, calibResultOf} from './calib';
 import {DEMO_PARAMS, DEMO_SENSORS, demoMap} from './garden';
+import {demoCameras} from './camera';
+import {demoOn} from './flags';
+import {demoLights} from './light';
+import {demoSounds} from './sound';
 
 // The demo mower: what OpenMower would send and answer, made up here so the app can be looked at without a mower.
 // It drives the plan of its garden at a mower's pace, takes the commands (start, pause, home, skip), keeps its
@@ -390,6 +394,8 @@ export interface World {
   emergency(reasons?: string[]): void;
   // a reset turned down the way MowBite OS does it, EMERGENCY_RESET_REFUSED with these fields, until it's null again
   refuseReset(why: Record<string, unknown> | null): void;
+  // the cameras' process coming up or going while the mower runs, told like MowBite OS does (METHODS_CHANGED)
+  cameras(on: boolean): void;
   // what goes on around it from now on, merged into what was set before
   set(change: Surroundings): void;
   // pushed aside by so many meters, like a jump of the position or carried off the station
@@ -439,6 +445,8 @@ const plannedDaysAgo = (now: number) =>
 
 export function createWorld(deliver: (topic: string, text: string) => void, opts: WorldOptions = {}): World {
   let map = opts.map ?? demoMap();
+  // MowBite OS's recording.undo for the click tests, switched on before the page loads (window.mowbiteDemoUndo)
+  const undoOn = demoOn('Undo');
   // changed by params.set, like the ros params until the mower restarts
   const ros: Record<string, number | boolean> = {...DEMO_PARAMS, ...opts.params};
   let last = opts.now ?? Date.now();
@@ -765,6 +773,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
       a('auto_point_collecting_enable', 'Enable Auto Points', line && !r!.auto),
       a('auto_point_collecting_disable', 'Disable Auto Points', line && r!.auto),
       a('collect_point', 'Collect Point', line && !r!.auto),
+      ...(undoOn ? [a('undo_points', 'Undo Points', !!r?.line?.length)] : []),
       a('start_manual_mowing', 'Start Manual Mowing', !!r && !r.blade),
       a('stop_manual_mowing', 'Stop Manual Mowing', !!r && r.blade),
     ];
@@ -955,12 +964,12 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
   function record(step: string, t: number): boolean {
     const r = rec!;
     const here = {x: pose.x, y: pose.y};
-    // the line stopped: the outline, or once there is one an obstacle in it. too short a line is dropped, one without a
-    // second point drops the whole area like on OpenMower
+    // the line stopped: the outline, or once there is one an obstacle in it. too short a line is dropped, one with only its
+    // first point drops the whole area like on OpenMower
     const close = () => {
       const line = r.line;
       r.line = null;
-      if (line && line.length < 2) {
+      if (line && line.length === 1) {
         r.outline = null;
         r.obstacles = [];
       }
@@ -1025,13 +1034,14 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     }
     const line = rec.line;
     const end = line?.[line.length - 1];
-    if (line && rec.auto && end && Math.hypot(pose.x - end.x, pose.y - end.y) >= 0.1) {
+    if (line && rec.auto && (!end || Math.hypot(pose.x - end.x, pose.y - end.y) >= 0.1)) {
       line.push({x: pose.x, y: pose.y});
       send.overlay();
     }
   }
 
   const utcDay = (t: number) => new Date(t * 1000).toISOString().slice(0, 10).replace(/-/g, '');
+  let cameras = demoOn('Cameras') ? demoCameras(deliver) : null;
   const methods: Record<string, (params: unknown) => unknown> = {
     [RPC.methods]: () => Object.keys(methods).sort(),
     [RPC.replaceMap]: (params) => {
@@ -1110,6 +1120,28 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
       deliver(TOPIC.params, JSON.stringify(ros));
       return wanted;
     },
+    ...(demoOn('Lights') && demoLights()),
+    ...(demoOn('Sounds') && demoSounds()),
+    ...cameras?.methods,
+    ...(undoOn && {
+      // points off the end of the open line until that much of it is gone. the mower stays where it is, auto points
+      // go off
+      [RPC.recordingUndo]: (params: unknown) => {
+        const meters = (params as {meters?: unknown})?.meters ?? 1;
+        if (typeof meters !== 'number' || !(meters >= 0.1 && meters <= 50)) throw new Error('meters: 0.1 to 50');
+        const line = rec?.line;
+        if (!line?.length) throw new Error('no open line with points');
+        for (let gone = 0; line.length && gone < meters; ) {
+          const p = line.pop()!;
+          const q = line[line.length - 1];
+          if (q) gone += dist(p, q);
+        }
+        rec!.auto = false;
+        send.overlay();
+        changed();
+        return {points: line.length};
+      },
+    }),
   };
   const answer = (paths: Path[], angle: number, id?: string) => ({
     ...(id ? {area_id: id} : {}),
@@ -1130,7 +1162,9 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     try {
       reply({result: method(req.params)});
     } catch (e) {
-      reply({error: {code: -32602, message: e instanceof Error ? e.message : String(e)}});
+      // a refusal of MowBite OS brings its own code and data, anything else is a bad param
+      const {code = -32602, data} = e as {code?: number; data?: object};
+      reply({error: {code, message: e instanceof Error ? e.message : String(e), ...(data ? {data} : {})}});
     }
   }
 
@@ -1229,6 +1263,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     if (open && open.end === Infinity && (parked || !job)) open.end = now / 1000;
     place();
     calibStep(dt, from);
+    cameras?.blade(blades());
     if (s !== was) send.actions();
     send.position();
     // (also when its clock went back: driven ahead by the click tests, then the timer's own again)
@@ -1282,6 +1317,19 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     },
     refuseReset(why) {
       refusal = why;
+    },
+    cameras(on) {
+      if (on === !!cameras) return;
+      const theirs = cameras ?? demoCameras(deliver);
+      const names = Object.keys(theirs.methods);
+      if (on) Object.assign(methods, theirs.methods);
+      else {
+        names.forEach((m) => delete methods[m]);
+        theirs.stop();
+      }
+      cameras = on ? theirs : null;
+      const change = on ? {added: names, removed: []} : {added: [], removed: names};
+      deliver(TOPIC.events, JSON.stringify({id: `methods${Date.now()}`, t: last / 1000, type: 'METHODS_CHANGED', ...change, severity: 'info', resume: 'auto'}));
     },
     set(change) {
       around = {...around, ...change};

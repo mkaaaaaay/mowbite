@@ -4,9 +4,9 @@ import {useEffect, useMemo, useSyncExternalStore} from 'react';
 import type {PlanRequest} from './areaPlan';
 import {apiBase} from './mowers';
 import {RPC} from './openmower';
-import {isMowbiteOs, systemInfo} from './mowerOs';
+import {isMowbiteOs, providerGone, runsMowbiteOs, systemInfo} from './mowerOs';
 import {askPlan} from './plannerProgress';
-import {askUntilAnswered, callRpc, isMissingMethod, knownMethods, RpcError, rpcMethods} from './rpc';
+import {askUntilAnswered, callRpc, isMissingMethod, knownMethods, onMethodsChanged, RpcError, rpcMethods} from './rpc';
 import {saveSettings, settingsStore, syncSettings, type Settings} from './settings';
 
 // The mower's body and blade as the MowBite Planner on the mower knows them (planner.settings): a rectangle around
@@ -177,12 +177,26 @@ async function change<T>(method: string, params: object): Promise<T> {
   }
 }
 
+// MowBite OS lists its planner only a few seconds after its start, and again after it was gone: taken as not known
+// then and asked until it answers, not only after a reload
+let watching = false;
+function watchMethods() {
+  if (watching) return;
+  watching = true;
+  onMethodsChanged((m) => {
+    if (current !== null || !runsMowbiteOs() || !m?.has(RPC.plannerSettings)) return;
+    current = undefined;
+    askPlanner();
+  });
+}
+
 // asked once per page load, again with force (the settings page); one asked already is waited for, forced or not. A
 // mower without the MowBite Planner doesn't have the method, that's null; no answer leaves it unknown so it's asked
-// again next time
+// again next time, as does a planner of MowBite OS that's gone for now
 export function loadPlannerSettings(force = false): Promise<PlannerSettings | null> {
   if (!force && current !== undefined) return Promise.resolve(current);
   if (asking) return asking;
+  watchMethods();
   const before = saves;
   if (current === undefined && askedAt === null) {
     askedAt = Date.now();
@@ -202,7 +216,7 @@ export function loadPlannerSettings(force = false): Promise<PlannerSettings | nu
     },
     (e) => {
       asking = null;
-      if (isMissingMethod(e)) set(null);
+      if (isMissingMethod(e) && !providerGone(e)) set(null);
       throw e;
     },
   );

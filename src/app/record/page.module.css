@@ -69,10 +69,6 @@
   font-size: 18px;
 }
 
-.dialog .buttons {
-  flex-direction: column;
-}
-
 @media (max-width: 899px) {
   .hideOnPhone {
     display: none;
@@ -99,15 +95,11 @@
   }
 }
 
+/* the steps while driving by hand (upright, in the card) and a dialog's answers: one under the other, all the same size */
 .buttons {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 8px;
-}
-
-/* the main step a row of its own (upright, in the card) */
-.buttons > .wide {
-  width: 100%;
 }
 
 .card button {

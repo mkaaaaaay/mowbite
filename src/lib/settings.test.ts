@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {looksOf, withLooks, withoutLooks, type Settings} from './settings';
+import {join, looksOf, withLooks, withoutLooks, type Settings} from './settings';
 
 describe('what is kept for the pictures of some areas', () => {
   const settings: Settings = {
@@ -48,5 +48,15 @@ describe('what is kept for the pictures of some areas', () => {
     const copy = withLooks(settings, {d: looksOf(settings, ['b']).b});
     expect(looksOf(copy, ['d']).d).toEqual(looksOf(settings, ['b']).b);
     expect(copy.looks?.b).toBe('umbrella');
+  });
+});
+
+describe("an app's settings put together with a mower's", () => {
+  it("takes both of the dashboard's parts from the mower and keeps the app's own", () => {
+    const app: Settings = {dashboard: {map: 'always', hidden: ['gps'], camera: true}};
+    expect(join(app, {dashboard: {hidden: ['rain'], camera: false}}).dashboard).toEqual({map: 'always', hidden: ['rain'], camera: false});
+    expect(join(app, {dashboard: {hidden: ['rain']}}).dashboard).toEqual({map: 'always', hidden: ['rain']});
+    expect(join(app, {dashboard: {camera: true}}).dashboard).toEqual({map: 'always', camera: true});
+    expect(join({dashboard: {hidden: ['gps'], camera: true}}, {}).dashboard).toBeUndefined();
   });
 });

@@ -26,6 +26,9 @@ export function guardLeaving(key: string, guard: Guard | null) {
   if (had && !guards.size) window.removeEventListener('beforeunload', ask);
 }
 
+// something would be lost by a reload (FreshPage waits then)
+export const leavingLoses = () => guards.size > 0;
+
 // before the app reloads by itself: false when something would be lost and the user stays, else the ms to wait for
 // what had to go out first
 export function leaveFirst(): number | false {

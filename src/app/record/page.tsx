@@ -1,7 +1,7 @@
 'use client';
 
 import DriveView, {driveStyles as ds, useDrive} from '@/components/DriveView';
-import {AutoPointsIcon, BladeIcon, CheckIcon, CloseIcon, HomeIcon, OutlineDoneIcon, PinIcon, RecordIcon, RouteIcon, TrashIcon} from '@/components/icons';
+import {AutoPointsIcon, BladeIcon, CheckIcon, CloseIcon, HomeIcon, OutlineDoneIcon, PinIcon, RecordIcon, RouteIcon, TrashIcon, UndoIcon} from '@/components/icons';
 import {TitleMark} from '@/components/Logo';
 import {TitleRow} from '@/components/TopWeather';
 import {useHeadingDrift} from '@/hooks/useHeadingDrift';
@@ -20,7 +20,7 @@ import StationGuide from './Station';
 import styles from './page.module.css';
 import {stationChange, type Station} from '@/lib/dockGuide';
 import {fmt, tr, useLang} from '@/lib/i18n';
-import {ACTION, TOPIC} from '@/lib/openmower';
+import {ACTION, RPC, TOPIC, UNDO_METERS} from '@/lib/openmower';
 import {useMowbiteOs} from '@/lib/mowerOs';
 import {useRpcMethods} from '@/hooks/useRpcMethods';
 import {eventsOfDay, fileDay, forgetToday, historyDays} from '@/lib/history';
@@ -52,6 +52,7 @@ const ICONS: Record<string, React.ReactNode> = {
   exit_recording_mode: <CloseIcon size={18} />,
   stop_recording: <OutlineDoneIcon size={18} />,
   collect_point: <PinIcon size={18} />,
+  undo_points: <UndoIcon size={18} />,
   auto_point_collecting_enable: <AutoPointsIcon size={18} />,
   auto_point_collecting_disable: <AutoPointsIcon size={18} />,
   finish_discard: <TrashIcon size={18} />,
@@ -144,6 +145,8 @@ function Record() {
   // an OpenMower with rpcs has mowing by hand too, its actions are only told once recording mode was on
   const methods = useRpcMethods();
   const newer = !!methods;
+  // MowBite OS takes the end of the line back, the mower stays where it is
+  const undo = !!methods?.has(RPC.recordingUndo);
 
   // the docking station recorded with the guide (Station.tsx), in recording mode with nothing else recorded. asked for
   // before recording mode is there: it comes once it is, ends when it ends or something else is recorded
@@ -208,7 +211,9 @@ function Record() {
   // what MowBite OS answered to a step sent as a call, when it isn't a RECORDING_REFUSED shown above (another state, no
   // answer)
   const commandNote = useCommandNote(['RECORDING_REFUSED']);
-  const refusedText = refused ? refusalText(refused) : (commandNote?.text ?? '');
+  // a line that crosses itself: the way out where the mower can take its end back
+  const wayOut = refused?.reason === 'RING_CROSSES_ITSELF' && undo ? `. ${tr('Take its end back with the back button, then stop again.')}` : '';
+  const refusedText = refused ? refusalText(refused) + wayOut : (commandNote?.text ?? '');
   const act = (id: string) => {
     setRefused(null);
     publishAction(A(id));
@@ -386,12 +391,12 @@ function Record() {
     setAskDiscard(false);
     act('finish_discard');
   };
-  // a step's button, upright in the card, sideways in the bar at the bottom (the main one a row of its own upright)
-  const button = (id: string, label: string, kind?: 'main' | 'danger', after?: () => void, ask?: () => void) =>
+  // a step's button, upright in the card, sideways in the bar at the bottom
+  const button = (id: string, label: string, kind?: 'primary' | 'danger', after?: () => void, ask?: () => void) =>
     hasAction(A(id)) && (
       <button
         key={id}
-        className={kind === 'main' ? [ds.primary, styles.wide].join(' ') : kind ? ds[kind] : undefined}
+        className={kind && ds[kind]}
         disabled={!live}
         onClick={
           ask ??
@@ -443,7 +448,7 @@ function Record() {
           ? tr('Drive to the edge of the new area, then start recording and drive once around it. For the docking station, stop about a meter in front of it, facing it.')
           : tr('Drive to the edge of the new area, then start recording and drive once around it. The docking station: its button guides you through it.');
     buttons = [
-      button('start_recording', 'Record outline', 'main', () => setSave(null)),
+      button('start_recording', 'Record outline', 'primary', () => setSave(null)),
       hasAction(A('record_dock')) && stationButton(hasStation),
       !drive.remote &&
         button('exit_recording_mode', 'Leave recording mode', undefined, () => {
@@ -466,7 +471,8 @@ function Record() {
         ? tr('Drive around the obstacle, close to it all the way: the line is the middle of the mower. Then stop, it closes by itself.')
         : tr('Drive along the edge, close to it all the way: the line is the middle of the mower. Back at the start, stop: the outline closes by itself.');
     buttons = [
-      button('stop_recording', 'Stop', 'main', undefined, hasOutline && line.length < 2 ? () => setEarly(true) : undefined),
+      button('stop_recording', 'Stop', 'primary', undefined, hasOutline && line.length < 2 ? () => setEarly(true) : undefined),
+      undo && button('undo_points', tr('Back {m} m', {m: UNDO_METERS})),
       button('collect_point', 'Set point here'),
       button('auto_point_collecting_disable', 'Auto points: on'),
       button('auto_point_collecting_enable', 'Auto points: off'),
@@ -480,7 +486,7 @@ function Record() {
     );
     text = tr('Outline done. Record obstacles inside it (beds, trees, the pond), or save the area.');
     buttons = [
-      button('finish_mowing_area', 'Save as mowing area', 'main', () => expectSaved('Mowing area', 'mow')),
+      button('finish_mowing_area', 'Save as mowing area', 'primary', () => expectSaved('Mowing area', 'mow')),
       button('start_recording', 'Record obstacle'),
       button('finish_navigation_area', 'Save as navigation area', undefined, () => expectSaved('Navigation area', 'nav')),
       discardButton,
@@ -492,7 +498,7 @@ function Record() {
       </>
     );
     text = tr('Now drive straight into the docking station until it sits on the contacts, then save. The way from the first point to here becomes the docking direction.');
-    buttons = [button('record_dock', 'Save docking position', 'main', () => expectSaved('Docking station', 'dock'))];
+    buttons = [button('record_dock', 'Save docking position', 'primary', () => expectSaved('Docking station', 'dock'))];
   }
   // back at the start: closing by itself unless the user goes on
   if (closing !== null)
@@ -622,6 +628,7 @@ function Record() {
         {recordingMode && !guiding && (
           <DriveView
             drive={drive}
+            camera
             say={say}
             missed={driftLine}
             ok={closing !== null}
@@ -669,13 +676,11 @@ function Record() {
                 <button onClick={keepRecording}>{tr('Keep recording')}</button>
               </div>
             )}
-            <div className={styles.buttons}>{buttons}</div>
-            {blades && (
-              <div className={styles.buttons}>
-                {button('start_manual_mowing', 'Blade on')}
-                {button('stop_manual_mowing', 'Blade off', 'danger')}
-              </div>
-            )}
+            <div className={styles.buttons}>
+              {buttons}
+              {blades && button('start_manual_mowing', 'Blade on')}
+              {blades && button('stop_manual_mowing', 'Blade off', 'danger')}
+            </div>
             {bladeOn && <p className={ds.warn}>{bladeWarn}</p>}
             <label className={styles.check}>
               <input

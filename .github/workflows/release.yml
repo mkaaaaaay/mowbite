@@ -2,8 +2,9 @@ name: release
 
 # what goes out, only after the checks passed on this very commit: the container for pc and mower (main -> :latest for
 # everyone, dev -> :dev for testing, a version tag -> its version; main's and a tag's once it ran on arm) and the app on a
-# release (a version tag v1.2.3 gets its own, dev keeps rebuilding the "app-dev" pre-release). one run a ref at a time,
-# an older one never overtakes a newer
+# release (a version tag v1.2.3 gets its own, dev keeps rebuilding the "app-dev" pre-release, a preview tag v1.2.3-preview.1
+# gets the web app alone on a pre-release, without image and apk). one run a ref at a time, an older one never overtakes
+# a newer
 
 on:
   push:
@@ -27,28 +28,37 @@ jobs:
     secrets:
       COMMIT_RULES: ${{ secrets.COMMIT_RULES }}
 
-  # a version tag only on a commit of main, with the version of its package.json
+  # a version tag only on a commit of main, with the version of its package.json. a preview's commit stays under its tag
   ref:
     runs-on: ubuntu-latest
+    outputs:
+      preview: ${{ steps.tag.outputs.preview }}
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - if: github.ref_type == 'tag'
+      - id: tag
+        if: github.ref_type == 'tag'
         run: |
-          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
-            echo "::error::tag $GITHUB_REF_NAME isn't on main, push main first"
-            exit 1
-          fi
           if [ "${GITHUB_REF_NAME#v}" != "$(jq -r .version package.json)" ]; then
             echo "::error::tag $GITHUB_REF_NAME doesn't match the version in package.json"
             exit 1
           fi
+          case "$GITHUB_REF_NAME" in
+            *-preview.*) echo "preview=1" >> "$GITHUB_OUTPUT" ;;
+            *)
+              if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+                echo "::error::tag $GITHUB_REF_NAME isn't on main, push main first"
+                exit 1
+              fi
+              ;;
+          esac
 
   # amd64 + arm64, pushed as sha-<commit> only, nothing pulls that. the app is compiled once natively, the arm image only
-  # gets files copied in, so no qemu needed
+  # gets files copied in, so no qemu needed. none for a preview
   build:
     needs: [check, commits, ref]
+    if: needs.ref.outputs.preview != '1'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -167,18 +177,25 @@ jobs:
   # the repo secrets, so a new version installs over the old one. nothing here writes to the repo
   apk:
     needs: [check, commits, ref, image]
-    # (with the arm test skipped on dev a plain if would skip this too. by hand on main there's no app: "app-dev" isn't main's)
-    if: ${{ !cancelled() && needs.image.result == 'success' && (github.ref_type == 'tag' || github.ref == 'refs/heads/dev' || (github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main')) }}
+    # (with the arm test skipped on dev a plain if would skip this too. by hand on main there's no app: "app-dev" isn't main's.
+    # a preview has no image and waits for the checks alone)
+    if: >-
+      ${{ !cancelled() && ((needs.image.result == 'success' && (github.ref_type == 'tag' || github.ref == 'refs/heads/dev' || (github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main')))
+      || (needs.ref.outputs.preview == '1' && needs.check.result == 'success' && needs.commits.result == 'success' && needs.ref.result == 'success')) }}
     runs-on: ubuntu-latest
     env:
       VERSION_SUFFIX: ${{ github.ref_type != 'tag' && format('dev.{0}', github.run_number) || '' }}
     steps:
-      # (only whether there's one: the key itself is unpacked for gradle alone, after npm's install scripts)
+      # (only whether there's one: the key itself is unpacked for gradle alone, after npm's install scripts. a preview is
+      # the web app alone)
       - id: key
         env:
           KEYSTORE: ${{ secrets.MOWBITE_KEYSTORE }}
+          PREVIEW: ${{ needs.ref.outputs.preview }}
         run: |
-          if [ -z "$KEYSTORE" ]; then
+          if [ "$PREVIEW" = 1 ]; then
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+          elif [ -z "$KEYSTORE" ]; then
             echo "::notice::no signing key in the repo secrets (MOWBITE_KEYSTORE), only the web app goes on the release"
             echo "skip=1" >> "$GITHUB_OUTPUT"
           fi

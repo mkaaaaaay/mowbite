@@ -25,9 +25,13 @@ vi.stubGlobal('window', win);
 vi.stubGlobal('document', {documentElement: {style: {setProperty: () => {}}}});
 // what goes out to a mower's MowBite, the demo answers itself
 const fetched: string[] = [];
+// what a host answers by the address asked, an Error is one out of reach. anything else answers empty
+const answers = new Map<string, Response | Error>();
 vi.stubGlobal('fetch', async (url: string) => {
   fetched.push(url);
-  return new Response('');
+  const a = answers.get(url);
+  if (a instanceof Error) throw a;
+  return a ?? new Response('');
 });
 
 // a page loaded with what's in this device's storage now
@@ -98,6 +102,70 @@ describe('mowerByAddress', () => {
   it('finds none for another host or no address', () => {
     expect(mowerByAddress('http://openmower.local:8082', list)).toBeUndefined();
     expect(mowerByAddress('', list)).toBeUndefined();
+  });
+});
+
+describe("MowBite's port on a mower", () => {
+  const C = {id: 'c', name: 'C', host: 'c', appPort: 8090};
+  const list = [A, {...B, appPort: 8082}, C];
+
+  it("is the container's on OpenMower and the OS's own once the mower said it runs MowBite OS", async () => {
+    stored.clear();
+    stored.set('appSettings', JSON.stringify({mowers: list}));
+    stored.set('mower', 'b');
+    const m = await open();
+    expect(m.apiBase()).toBe('http://b:8082');
+    m.noteOs(true);
+    expect(m.mowerList().map(m.mowerBase)).toEqual(['http://a:8082', 'http://b:80', 'http://c:8090']);
+    expect(m.mowerByAddress('http://b', m.mowerList())?.id).toBe('b');
+    // kept for the next page, until it runs OpenMower again
+    const next = await open();
+    expect(next.apiBase()).toBe('http://b:80');
+    next.noteOs(false);
+    expect(next.apiBase()).toBe('http://b:8082');
+    expect([...stored.keys()].sort()).toEqual(['appSettings', 'mower']);
+  });
+
+  it('stays the one typed for it on MowBite OS too', async () => {
+    stored.clear();
+    stored.set('appSettings', JSON.stringify({mowers: list}));
+    stored.set('mower', 'c');
+    const m = await open();
+    m.noteOs(true);
+    expect(m.apiBase()).toBe('http://c:8090');
+  });
+
+  it("keeps nothing for the mower the page comes from or the demo, and goes with a mower taken out", async () => {
+    stored.clear();
+    stored.set('appSettings', JSON.stringify({mowers: list}));
+    (await open()).noteOs(true);
+    stored.set('mower', 'demo');
+    (await open()).noteOs(true);
+    expect([...stored.keys()].sort()).toEqual(['appSettings', 'mower']);
+    stored.set('mower', 'b');
+    const m = await open();
+    m.noteOs(true);
+    m.forgetMowerKeys('b');
+    expect([...stored.keys()].sort()).toEqual(['appSettings', 'mower']);
+  });
+});
+
+describe('whether MowBite OS serves the app at a host', () => {
+  const says = async (answer: Response | Error) => {
+    answers.set('http://tron:80/app.json', answer);
+    const m = await open();
+    return m.osServesApp('tron');
+  };
+
+  it("is told by its app.json naming the app, nothing else there counts", async () => {
+    expect(await says(new Response(JSON.stringify({schema: 1, owner: 'mowbite-app', version: '1.5.0'})))).toBe(true);
+    expect(await says(new Response(JSON.stringify({owner: 'someone'})))).toBe(false);
+    expect(await says(new Response('null'))).toBe(false);
+    expect(await says(new Response('<html></html>'))).toBe(false);
+    expect(await says(new Response('', {status: 404}))).toBe(false);
+    // out of reach, or an answer another origin may not read
+    expect(await says(new TypeError('Failed to fetch'))).toBe(false);
+    answers.clear();
   });
 });
 

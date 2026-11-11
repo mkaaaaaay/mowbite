@@ -1,6 +1,7 @@
 import {dayClock, dayDateYear} from './dates';
 import {fmt, tr} from './i18n';
 import {apiBase, mowerFetch} from './mowers';
+import {containerFetch} from './updates';
 
 // the MowBite Updater on the mower (github.com/mkaaaaaay/mowbite-updater), through the container's cgi-bin/update: the
 // channel of each part and whether it updates by itself, what runs and whether there's something new, updating a part
@@ -66,8 +67,8 @@ export async function updaterWhere(): Promise<string | null> {
 }
 
 export async function loadUpdate(): Promise<UpdateState | null> {
-  const res = await mowerFetch(endpoint(), {cache: 'no-store'});
-  if (!res.ok) return null;
+  const res = await containerFetch(endpoint(), {cache: 'no-store'});
+  if (!res?.ok) return null;
   const s = (await res.json()) as UpdateState;
   return s?.conf ? s : null;
 }

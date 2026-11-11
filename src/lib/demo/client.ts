@@ -73,8 +73,9 @@ export function demoClient(): MqttClient {
     world = createWorld(deliver);
     // the click tests (e2e/) reach the demo mower with this, like another phone would. what goes on around it stays
     // out, that's only for a mock mower
-    const {retained, published, tick, ahead, emergency, refuseReset} = world;
-    if (typeof window !== 'undefined') (window as {mowbiteDemo?: Partial<World>}).mowbiteDemo = {retained, published, tick, ahead, emergency, refuseReset};
+    const {retained, published, tick, ahead, emergency, refuseReset, cameras} = world;
+    if (typeof window !== 'undefined')
+      (window as {mowbiteDemo?: Partial<World>}).mowbiteDemo = {retained, published, tick, ahead, emergency, refuseReset, cameras};
     client.connected = true;
     emit('connect');
   });

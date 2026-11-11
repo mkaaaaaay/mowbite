@@ -1,9 +1,12 @@
 'use client';
 
+import CameraView from '@/components/CameraView';
 import {CloseIcon, RotateIcon, SpeedIcon, WarningIcon} from '@/components/icons';
 import DrivePad from '@/components/DrivePad';
 import Joystick from '@/components/Joystick';
 import MapView from '@/components/MapView';
+import Segments, {type Segment} from '@/components/Segments';
+import {chooseCamera, useCameras} from '@/hooks/useCameras';
 import {useEmergencyReasons} from '@/hooks/useEmergencyReasons';
 import {useEmergencyReset, useJustReset} from '@/hooks/useEmergencyReset';
 import type {OverlayLine} from '@/hooks/useMapOverlay';
@@ -14,7 +17,10 @@ import {datumFromParams, numParam, useMowerParams} from '@/hooks/useMowerParams'
 import {useMowerPosition} from '@/hooks/useMowerPosition';
 import {useSensorValue} from '@/hooks/useMowerSensors';
 import {isLive, useMowerState} from '@/hooks/useMowerState';
-import {emergencyText, explain, resetRefusedText} from '@/lib/events';
+import {cameraParts} from '@/lib/camera';
+import {emergencyText, explain, resetRefusedText, stopReleaseText} from '@/lib/events';
+import {useStopRelease} from '@/lib/mowerOs';
+import {readStored, writeStored} from '@/lib/mowers';
 import {fmt, tr} from '@/lib/i18n';
 import {ACTION, PARAM} from '@/lib/openmower';
 import {GPS_QUALITY_LABEL, gpsQuality} from '@/lib/status';
@@ -34,6 +40,8 @@ const TURNED_KEY = 'recordTurned';
 const ZOOMS = [0.5, 0.75, 1, 1.5, 2, 3];
 // upright the mower that much of the map's width above its middle, in the part the pill and the stick leave free
 const SHIFT = 0.14;
+// the map or a camera's picture under the stick (one choice for every page that offers it)
+const VIEW_KEY = 'driveView';
 
 type Draw = NonNullable<React.ComponentProps<typeof MapView>['draw']>;
 
@@ -189,6 +197,7 @@ export default function DriveView({
   close,
   bottom,
   remoteRef,
+  camera,
 }: {
   drive: Driving;
   // what to do now: on the map at the top, sideways at the top in the middle. under it lines in amber (missed, the
@@ -216,6 +225,8 @@ export default function DriveView({
   bottom?: React.ReactNode;
   // the sideways layout, for dialogs to show over it turned with it
   remoteRef?: React.Ref<HTMLDivElement>;
+  // a camera's picture can take the map's place, on a mower with cameras
+  camera?: boolean;
 }) {
   const link = useMowerState();
   const {state} = link;
@@ -226,8 +237,22 @@ export default function DriveView({
   const position = useMowerPosition() ?? state?.pose;
   const why = useEmergencyReasons(!!state?.emergency);
   const {refused, reset} = useEmergencyReset(!!state?.emergency, publishAction);
+  const stopRelease = useStopRelease();
   const justReset = useJustReset(!!state?.emergency);
   const [zoom, setZoom] = useState(2);
+  const cams = useCameras();
+  const [view, setView] = useState(() => readStored<string>(VIEW_KEY) ?? 'map');
+  const cameras = camera && cams.on && cams.list?.length ? cams.list : null;
+  const onCamera = !!cameras && view === 'camera';
+  // the map first ('' for it), then each camera
+  const views: Segment<string>[] | null = cameras && [{key: '', text: tr('Map')}, ...cameraParts(cameras)];
+  const viewAt = onCamera ? (cams.camera?.id ?? '') : '';
+  const show = (id: string) => {
+    const v = id ? 'camera' : 'map';
+    if (id) chooseCamera(id);
+    setView(v);
+    writeStored(VIEW_KEY, v);
+  };
 
   // the gps's own accuracy (OpenMower's idle leaves the gps out of its position)
   const gpsAcc = useSensorValue('om_gps_accuracy', (v) => (v !== undefined && Number.isFinite(parseFloat(v)) ? parseFloat(v) : null));
@@ -239,7 +264,10 @@ export default function DriveView({
   const alarm = (
     <>
       <strong>{reason ? tr('Emergency stop: {reason}', {reason}) : tr('Emergency stop')}</strong>
-      <span>{refused ? `${resetRefusedText(refused)}. ${explain(refused)}` : tr('Release the mower, then reset the emergency to drive again.')}</span>
+      <span>
+        {refused ? `${resetRefusedText(refused)}. ${explain(refused)}` : tr('Release the mower, then reset the emergency to drive again.')}
+        {stopRelease && ` ${stopReleaseText(stopRelease)}`}
+      </span>
       <button disabled={!live} onClick={reset}>
         <WarningIcon size={18} />
         {tr('Reset emergency')}
@@ -247,18 +275,15 @@ export default function DriveView({
     </>
   );
   const offline = tr('No connection to the mower, it stops by itself. Once the connection is back, let go and press again to drive.');
-  const speeds = (on: string) =>
-    SPEEDS.map((v, i) => (
-      <button key={v} className={i === drive.speed ? on : undefined} onClick={() => drive.setSpeed(i)}>
-        {fmt(v, 2)}
-      </button>
-    ));
+  const speeds = SPEEDS.map((v, i) => ({key: i, text: fmt(v, 2)}));
 
   if (drive.remote)
     return (
       <div ref={remoteRef} className={[styles.remote, drive.turned ? styles.turned : ''].join(' ')} data-no-swipe>
         <div className={styles.remoteMap}>
-          {map && (
+          {onCamera ? (
+            <CameraView plain fill />
+          ) : map && (
             <MapView
               map={map}
               mower={position ?? undefined}
@@ -280,17 +305,44 @@ export default function DriveView({
           </span>
           {gpsQ !== 'fix' && <span className={styles.gpsWarn}>{gpsText}</span>}
           <span className={styles.grow} />
-          <div className={styles.chips}>
-            <button aria-label={tr('Zoom out')} disabled={zoom === ZOOMS.length - 1} onClick={() => setZoom(zoom + 1)}>
-              −
-            </button>
-            <button aria-label={tr('Zoom in')} disabled={zoom === 0} onClick={() => setZoom(zoom - 1)}>
-              +
-            </button>
-          </div>
+          {/* (the zoom before the view: it goes with a camera, the view's buttons then stay where they were tapped) */}
+          {!onCamera && (
+            <div className={styles.chips}>
+              <button aria-label={tr('Zoom out')} disabled={zoom === ZOOMS.length - 1} onClick={() => setZoom(zoom + 1)}>
+                −
+              </button>
+              <button aria-label={tr('Zoom in')} disabled={zoom === 0} onClick={() => setZoom(zoom - 1)}>
+                +
+              </button>
+            </div>
+          )}
+          {views && (
+            <div className={styles.chips} role="group" aria-label={tr('View')}>
+              {views.map((v) => (
+                <button
+                  key={v.key}
+                  className={v.key === viewAt ? styles.on : undefined}
+                  aria-pressed={v.key === viewAt}
+                  aria-label={v.name}
+                  onClick={() => show(v.key)}
+                >
+                  {v.text}
+                </button>
+              ))}
+            </div>
+          )}
           <div className={styles.chips} title={tr('Speed m/s')}>
             <SpeedIcon size={16} />
-            {speeds(styles.on)}
+            {speeds.map((s) => (
+              <button
+                key={s.key}
+                className={s.key === drive.speed ? styles.on : undefined}
+                aria-pressed={s.key === drive.speed}
+                onClick={() => drive.setSpeed(s.key)}
+              >
+                {s.text}
+              </button>
+            ))}
           </div>
           {drive.turned && (
             <button className={styles.square} aria-label={tr('Upright')} title={tr('Upright')} onClick={() => drive.turnSideways(false)}>
@@ -331,8 +383,10 @@ export default function DriveView({
 
   return (
     <div className={styles.drive}>
-      <section className={styles.map}>
-        {map && (
+      <section className={[styles.map, onCamera ? styles.onCamera : ''].join(' ')}>
+        {onCamera ? (
+          <CameraView plain />
+        ) : map && (
           <MapView
             map={map}
             mower={position ?? undefined}
@@ -387,10 +441,16 @@ export default function DriveView({
           <span className={gpsQ === 'fix' ? undefined : styles.warn}>{gpsQ === 'fix' || !gpsHint ? gpsText : `${gpsText}. ${gpsHint}`}</span>
           {line}
         </div>
+        {views && (
+          <div className={styles.pick}>
+            <span className={styles.dim}>{tr('View')}</span>
+            <Segments label={tr('View')} options={views} value={viewAt} onPick={show} />
+          </div>
+        )}
         {children}
-        <div className={styles.speeds}>
+        <div className={styles.pick}>
           <span className={styles.dim}>{tr('Speed m/s')}</span>
-          {speeds(styles.on)}
+          <Segments label={tr('Speed m/s')} options={speeds} value={drive.speed} onPick={drive.setSpeed} />
         </div>
         <div className={styles.phoneOnly}>
           <button onClick={() => drive.turnSideways(true)}>

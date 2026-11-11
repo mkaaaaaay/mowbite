@@ -8,7 +8,7 @@ import {tr, useLang} from '@/lib/i18n';
 import {useMowerActions} from '@/hooks/useMowerActions';
 import {useCanSetParams} from '@/components/MowerParamSettings';
 import {useMowbiteOs} from '@/lib/mowerOs';
-import {paramField} from '@/lib/mowerParams';
+import {mowsIntoNight, paramField} from '@/lib/mowerParams';
 import {containerHas, useUpdates} from '@/lib/updates';
 import Link from 'next/link';
 import {ACTION} from '@/lib/openmower';
@@ -62,6 +62,8 @@ export default function SchedulePage() {
   // a start's own mowing direction turns mower_logic's mow_angle_offset, MowBite OS has none (its planner turns the lanes)
   const os = useMowbiteOs();
   const canTurn = canSetParams && !os;
+  // going home at sunset switched off on purpose on a mower that has it, said where the runs are planned
+  const nightMowing = mowsIntoNight(params);
 
   // a change made here wins over an answer still on its way. back from the background the page asks again, another
   // phone may have changed it meanwhile
@@ -119,7 +121,9 @@ export default function SchedulePage() {
         </TitleRow>
 
         {schedule === null && (
-          <p className={styles.dim}>{tr('The schedule needs MowBite running as its container on the mower.')}</p>
+          <p className={styles.dim}>
+            {tr(os ? "MowBite OS doesn't have the schedule yet." : 'The schedule needs MowBite running as its container on the mower.')}
+          </p>
         )}
         {schedule === undefined && unreachable && <p className={styles.dim}>{tr("The mower can't be reached right now.")}</p>}
 
@@ -137,6 +141,12 @@ export default function SchedulePage() {
                     ? tr('No start planned yet.')
                     : tr('Switched off, the mower only mows when you start it.')}
               </p>
+              {nightMowing && (
+                <p className={styles.dim}>
+                  <strong>{tr('Going home at sunset is switched off: a mow goes on into the night.')}</strong>{' '}
+                  <Link href="/settings#openmower">{tr('Change')}</Link>
+                </p>
+              )}
             </section>
 
             {error && <p className={styles.error}>{error}</p>}

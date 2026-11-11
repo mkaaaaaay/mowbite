@@ -28,6 +28,7 @@ vi.mock('./rpc', () => ({
     return answer();
   },
   isMissingMethod: () => false,
+  onMethodsChanged: () => () => {},
   methodsUnknown: () => fake.os === 'unknown',
   rpcMethods: async () => (fake.os === 'unknown' ? null : new Set(fake.os === 'mowbite-os' ? ['system.info'] : [])),
 }));

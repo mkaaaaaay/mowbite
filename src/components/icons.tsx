@@ -312,6 +312,26 @@ export function FitIcon({size = 20}: IconProps) {
   );
 }
 
+// back out of the whole screen
+export function ShrinkIcon({size = 20}: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...line}>
+      <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" />
+    </svg>
+  );
+}
+
+// a camera's picture, off: not shown
+export function CameraIcon({size = 20, off = false}: IconProps & {off?: boolean}) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...line}>
+      <rect x="3" y="7" width="12" height="10" rx="2" />
+      <path d="m15 11 6-3v8l-6-3" />
+      {off && <path d="M4 4l16 16" />}
+    </svg>
+  );
+}
+
 export function PushPinIcon({size = 20}: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" {...line}>

@@ -3,6 +3,7 @@ import {forget, fresh} from './fresh';
 import {fmt, tr} from './i18n';
 import {apiBase, mowerFetch} from './mowers';
 import {sunTimes} from './sun';
+import {containerFetch} from './updates';
 
 // the mowing schedule, kept by the container (docker/schedule.cgi) as simple lines the scheduler
 // script reads: enabled, minbattery, skiprain, skipforecast, skipcold, mintemp, tz, one "plan <days> <HH:MM> [areas] [end=HH:MM] [dark=1] [sunset=1]
@@ -313,7 +314,8 @@ export function loadScheduleLog(): Promise<LogEntry[]> {
 
 async function loadLog(): Promise<LogEntry[]> {
   try {
-    const res = await mowerFetch(`${endpoint()}?log`, {cache: 'no-store'});
+    const res = await containerFetch(`${endpoint()}?log`, {cache: 'no-store'});
+    if (!res) return [];
     if (!res.ok) return lastLog ?? [];
     return (lastLog = (await res.text())
       .split('\n')

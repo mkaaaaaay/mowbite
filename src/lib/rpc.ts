@@ -4,8 +4,10 @@ import {RPC, TOPIC} from './openmower';
 // json-rpc 2.0 over mqtt: rpc/request -> rpc/response, matched by id
 
 // code: the json-rpc error code, 'timeout' when the mower didn't answer, 'too_large' for a call too big to send (the
-// message then says how many bytes). data: what the mower adds to its error, MowBite OS e.g. {reason, until}
+// message then says how many bytes). data: what the mower adds to its error, MowBite OS e.g. {reason, until}.
+// listed: the mower said -32601 for a method its own list names
 export class RpcError extends Error {
+  listed = false;
   constructor(
     public method: string,
     public code: number | 'timeout' | 'too_large',
@@ -43,7 +45,9 @@ function ensureListening() {
     if (msg.error) {
       const data = msg.error.data;
       const fields = data && typeof data === 'object' && !Array.isArray(data) ? (data as Record<string, unknown>) : undefined;
-      waiting.reject(new RpcError(waiting.method, msg.error.code ?? 0, msg.error.message, fields));
+      const e = new RpcError(waiting.method, msg.error.code ?? 0, msg.error.message, fields);
+      e.listed = isMissingMethod(e) && !!methodsNow?.has(e.method);
+      waiting.reject(e);
     } else waiting.resolve(msg.result);
   };
   // with MQTT 5 the answers come to this client's own topic, from an older MowBite OS (after going back) still to all
@@ -103,13 +107,57 @@ export function askUntilAnswered<T>(ask: () => Promise<T>, got: (v: T) => void, 
   };
 }
 
+// MowBite OS's methods can change while it runs (a camera coming up or its process gone): asked again on its
+// METHODS_CHANGED, on each new connection and when one it listed is gone, then told to who listens
+const methodsHeard = new Set<(m: Set<string> | null) => void>();
+let watching = false;
+let stopAsking: (() => void) | undefined;
+
+function askMethodsAgain() {
+  methods = null;
+  askAgainAt = 0;
+  stopAsking?.();
+  stopAsking = askUntilAnswered(rpcMethods, (m) => methodsHeard.forEach((l) => l(m)));
+}
+
+export function onMethodsChanged(l: (m: Set<string> | null) => void): () => void {
+  if (!watching) {
+    watching = true;
+    onTopic(TOPIC.events, (payload) => {
+      const text = payload.toString();
+      if (!text.includes('METHODS_CHANGED')) return;
+      try {
+        if (JSON.parse(text).type === 'METHODS_CHANGED') askMethodsAgain();
+      } catch {}
+    });
+    const c = getMqttClient();
+    let before = c.connected;
+    c.on('connect', () => {
+      if (before) askMethodsAgain();
+      before = true;
+    });
+  }
+  methodsHeard.add(l);
+  return () => void methodsHeard.delete(l);
+}
+
 export const unavailable = (known: Set<string> | null, method: string) =>
   !!known && method !== RPC.methods && !method.startsWith('meta.') && !known.has(method);
+
+// (a mower that goes on listing a method and saying it has none doesn't get the list asked at every such answer)
+const REASK_MS = 5000;
+let reasked = 0;
 
 // params by position (array) or by name (object), json-rpc allows both
 export async function callRpc<T = unknown>(method: string, params: unknown[] | object = [], timeoutMs = 10000): Promise<T> {
   if (unavailable(await rpcMethods(), method)) throw new RpcError(method, -32601, 'Method not found');
-  return send<T>(method, params, timeoutMs);
+  return send<T>(method, params, timeoutMs).catch((e) => {
+    if (e instanceof RpcError && e.listed && Date.now() - reasked >= REASK_MS) {
+      reasked = Date.now();
+      askMethodsAgain();
+    }
+    throw e;
+  });
 }
 
 // mosquitto drops a message of about 2 MB without a word (a map with very many points): such a call fails at once

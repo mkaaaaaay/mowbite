@@ -1,19 +1,15 @@
 'use client';
 
+import {useCameras} from '@/hooks/useCameras';
+import {SHORT} from '@/lib/camera';
 import {fmt, tr} from '@/lib/i18n';
-import {anim, Scene} from '../art';
+import {anim, appear, PAINT, Scene, SCREEN_LOOP} from '../art';
 import Guide, {type GuideStep} from '../Guide';
 
-// the dashboard's values and more than one mower, step by step with a drawing for each
+// the dashboard's values, the cameras of a mower that has them and more than one mower, step by step with a drawing for each
 
-const DUR = 6;
-const card = {fill: 'var(--card)', stroke: 'var(--card-border)'};
-const text = {fill: 'var(--foreground)'};
-const dim = {fill: 'var(--text-secondary)'};
-const accent = {fill: 'var(--accent)'};
-
-// faded in at that fraction of the loop
-const appear = (at: number) => anim('opacity', DUR, [0, at, at + 0.05, 1], [0, 0, 1, 1]);
+const DUR = SCREEN_LOOP;
+const {card, field, well, text, dim, accent, onAccent} = PAINT;
 
 // the top of the dashboard: the mower's name over its state, the round button with its first letter
 function Head({name}: {name: string}) {
@@ -26,7 +22,7 @@ function Head({name}: {name: string}) {
         {tr('Mowing')}
       </text>
       <circle cx={290} cy={40} r={16} style={accent} />
-      <text x={290} y={45} fontSize={14} fontWeight={700} textAnchor="middle" style={{fill: 'var(--accent-foreground)'}}>
+      <text x={290} y={45} fontSize={14} fontWeight={700} textAnchor="middle" style={onAccent}>
         {name.charAt(0)}
       </text>
     </>
@@ -109,7 +105,7 @@ function AddArt() {
       <rect x={36} y={136} width={124} height={30} rx={15} style={accent}>
         {anim('opacity', DUR, [0, 0.3, 0.35, 0.4, 1], [1, 1, 0.5, 1, 1])}
       </rect>
-      <text x={98} y={155} fontSize={12} textAnchor="middle" style={{fill: 'var(--accent-foreground)'}}>
+      <text x={98} y={155} fontSize={12} textAnchor="middle" style={onAccent}>
         {tr('Add mower')}
       </text>
     </Scene>
@@ -132,7 +128,7 @@ function SwitchArt() {
       {/* the list the round button opens */}
       <g opacity={0}>
         {anim('opacity', DUR, [0, 0.25, 0.3, 0.6, 0.62, 1], [0, 0, 1, 1, 0, 0])}
-        <rect x={168} y={62} width={130} height={58} rx={8} style={{fill: 'var(--background)', stroke: 'var(--card-border)'}} />
+        <rect x={168} y={62} width={130} height={58} rx={8} style={field} />
         <text x={180} y={84} fontSize={12} style={text}>
           {tr('Back lawn')}
         </text>
@@ -143,11 +139,43 @@ function SwitchArt() {
           {tr('Front lawn')}
         </text>
       </g>
-      <rect x={24} y={140} width={272} height={8} rx={4} style={{fill: 'var(--well, rgba(0, 0, 0, 0.12))'}} />
+      <rect x={24} y={140} width={272} height={8} rx={4} style={well} />
       <rect x={24} y={140} width={190} height={8} rx={4} style={{fill: 'var(--success)'}} />
     </Scene>
   );
 }
+
+// a camera's picture with the cameras to switch to on it, the highlight going from front to the side to the back
+function CameraArt() {
+  const chips = (['front', 'left', 'rear'] as const).map((p) => tr(SHORT[p]));
+  const at = (i: number) =>
+    anim('opacity', DUR, [0, 0.33 * i, 0.33 * i + 0.02, 0.33 * (i + 1), Math.min(1, 0.33 * (i + 1) + 0.02), 1], i === 2 ? [0, 0, 1, 1, 1, 1] : [0, 0, 1, 1, 0, 0]);
+  return (
+    <Scene still={DUR} label={tr('Camera')}>
+      <rect x={50} y={12} width={220} height={165} rx={12} style={{fill: '#9cc9e8'}} />
+      <rect x={50} y={66} width={220} height={24} style={{fill: '#3d6b35'}} />
+      <path d="M50 90 H270 V165 a12 12 0 0 1 -12 12 H62 a12 12 0 0 1 -12 -12 Z" style={{fill: '#4f8a43'}} />
+      <path d="M150 90 L104 177 H138 Z M170 90 L192 177 H226 Z" style={{fill: '#5d9c50'}} />
+      <rect x={75} y={143} width={170} height={26} rx={13} style={{fill: 'rgba(14, 18, 24, 0.6)'}} />
+      {chips.map((label, i) => (
+        <g key={label}>
+          <rect x={79 + i * 55} y={146} width={52} height={20} rx={10} style={accent} opacity={i === 0 ? 1 : 0}>
+            {at(i)}
+          </rect>
+          <text x={105 + i * 55} y={160} fontSize={11} textAnchor="middle" style={{fill: '#fff'}}>
+            {label}
+          </text>
+        </g>
+      ))}
+    </Scene>
+  );
+}
+
+const CAMERA_STEP: GuideStep = {
+  title: 'Camera',
+  text: "A mower with MowBite OS and cameras can show their picture on the dashboard: tap the camera at the top of the dashboard, or tick Camera picture in Settings › Appearance › Dashboard. On the picture you switch between the mower's cameras, such as front, side and rear, open it over the whole screen or take it off the dashboard again. A tap on the picture puts these buttons away and brings them back. While recording an area, View picks the map or a camera, held sideways at the top. The mower only sends a picture while you look, to at most two at a time. While the blade runs there is no picture for now, the app says why.",
+  Art: CameraArt,
+};
 
 const STEPS: GuideStep[] = [
   {
@@ -168,5 +196,6 @@ const STEPS: GuideStep[] = [
 ];
 
 export default function AppGuidePage() {
-  return <Guide steps={STEPS} done={{label: 'To the dashboard', href: '/'}} />;
+  const cameras = useCameras().on;
+  return <Guide steps={cameras ? [...STEPS.slice(0, 1), CAMERA_STEP, ...STEPS.slice(1)] : STEPS} done={{label: 'To the dashboard', href: '/'}} />;
 }

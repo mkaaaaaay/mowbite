@@ -2,8 +2,9 @@
 
 import {onTopic} from '@/lib/mqttClient';
 import {useSyncExternalStore} from 'react';
-import {apiBase, mowerFetch} from '@/lib/mowers';
+import {apiBase} from '@/lib/mowers';
 import {TOPIC} from '@/lib/openmower';
+import {containerFetch} from '@/lib/updates';
 
 export interface Sample {
   t: number; // ms
@@ -38,8 +39,8 @@ function merge() {
 
 async function loadDay() {
   try {
-    const res = await mowerFetch(`${apiBase()}/cgi-bin/sensors`, {cache: 'no-store'});
-    if (!res.ok || !res.headers.get('content-type')?.includes('text/plain')) return;
+    const res = await containerFetch(`${apiBase()}/cgi-bin/sensors`, {cache: 'no-store'});
+    if (!res?.ok || !res.headers.get('content-type')?.includes('text/plain')) return;
     const next: Record<string, Sample[]> = {};
     for (const line of (await res.text()).split('\n')) {
       const [id, t, lo, hi, v] = line.split('\t');

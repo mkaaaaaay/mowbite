@@ -15,6 +15,7 @@ import {
   reasonText,
   refusalReason,
   resetRefusedText,
+  stopReleaseText,
   type MowerEvent,
 } from './events';
 
@@ -337,6 +338,8 @@ describe('emergency stop reasons', () => {
     // only what holds it, no reason of its own
     expect(describeEvent(ev(1, 'EMERGENCY', {emergency: true, reason: '1'})).text).toBe('Emergency stop (code 1)');
     expect(explain(ev(1, 'EMERGENCY', {emergency: true, reason: '1024'}))).toContain('mower_spinup_timeout');
+    expect(explain(ev(1, 'MOW_MOTOR_SPINUP_FAILED'))).toContain('emergency stop');
+    expect(explain(ev(1, 'MOW_MOTOR_SPINUP_FAILED'), undefined, undefined, true)).toMatch(/^The mow motor didn't reach its speed in time, so mowing paused/);
     expect(explain(ev(1, 'EMERGENCY', {emergency: true, reason: '128'}))).toContain('ROS log');
     expect(explain(ev(1, 'EMERGENCY', {emergency: true, reason: '33'}))).toBe('Stop button, lift, tilt or a bumper. It has to be released and reset before it drives again.');
     // the board's own reasons each with their own help, the stop button's words only for what was set off at the mower
@@ -442,6 +445,24 @@ describe('a reset of the emergency stop MowBite OS turned down', () => {
     expect(resetRefusedText(refused({reason: ''}))).toBe('Not reset');
   });
 
+  it('names what still holds after a taken reset (api 10), a new reason since STOP with its own words', () => {
+    const still = refused({reason: 'STILL_ACTIVE', bits: ['LIFT', 'STOP', 'UNKNOWN'], source: 'rpc', severity: 'warning'});
+    expect(describeEvent(still, undefined, true)).toEqual({text: 'Emergency stop not reset: still active', severity: 'warning'});
+    expect(describeEvent(refused({reason: 'LATCH_CHANGED'})).severity).toBe('warning');
+    expect(explain(still)).toBe('Still active: lifted, stop button, a reason without a name. Clear that, let go of STOP, then reset it again.');
+    expect(explain(refused({reason: 'STILL_ACTIVE', bits: ['LATCH']}))).toMatch(/^It took the reset, but the emergency stop stayed on/);
+    expect(explain(refused({reason: 'STILL_ACTIVE'}))).toMatch(/^It took the reset, but the emergency stop stayed on/);
+    expect(explain(refused({reason: 'LATCH_CHANGED', source: 'button'}))).toMatch(/^Another emergency reason came up after STOP was pressed/);
+    for (const reason of ['STILL_ACTIVE', 'LATCH_CHANGED']) expect(explain(refused({reason}))).not.toMatch(/didn't answer/);
+  });
+
+  it('tells how to reset it with STOP at the mower', () => {
+    expect(stopReleaseText({free_s: 2, hold_s: 3, max_hold_s: 10})).toBe(
+      'Or reset it at the mower: leave STOP alone for 2 s, then hold it for at least 3 s and let go before 10 s.',
+    );
+    expect(stopReleaseText({free_s: 1.5, hold_s: 3, max_hold_s: 10})).toMatch(/alone for 1.5 s/);
+  });
+
   it('in german', () => {
     vi.stubGlobal('document', {documentElement: {lang: 'en'}});
     setLangChoice('de');
@@ -452,10 +473,25 @@ describe('a reset of the emergency stop MowBite OS turned down', () => {
       );
       expect(resetRefusedText(refused({reason: 'FOREIGN_HOST'}))).toBe('Nicht zurückgesetzt: ein anderer Rechner spricht mit der Platine');
       expect(explain(refused({reason: 'STILL_TILTED'}))).toBe('Gerade hinstellen, dann noch einmal zurücksetzen.');
+      expect(explain(refused({reason: 'STILL_ACTIVE', bits: ['LIFT', 'UNKNOWN']}))).toBe(
+        'Noch aktiv: angehoben, ein Grund ohne Namen. Das beheben, STOP loslassen, dann noch einmal zurücksetzen.',
+      );
+      expect(describeEvent(ev(1, 'EMERGENCY', {emergency: false, reason: '0', source: 'button'})).text).toBe('Notaus am Mäher aufgehoben');
     } finally {
       setLangChoice('en');
       vi.unstubAllGlobals();
     }
+  });
+});
+
+describe('an emergency stop ended', () => {
+  it('says when it was reset at the mower, by STOP (api 10)', () => {
+    expect(describeEvent(ev(1, 'EMERGENCY', {emergency: false, reason: '0', source: 'button', severity: 'info'}), undefined, true)).toEqual({
+      text: 'Emergency cleared at the mower',
+      severity: 'info',
+    });
+    expect(describeEvent(ev(1, 'EMERGENCY', {emergency: false, reason: '0', source: 'rpc', client: 'app'} as Partial<MowerEvent>)).text).toBe('Emergency cleared');
+    expect(describeEvent(ev(1, 'EMERGENCY', {emergency: false, reason: '0'})).text).toBe('Emergency cleared');
   });
 });
 

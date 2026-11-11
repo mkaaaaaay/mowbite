@@ -3,7 +3,7 @@
 import {loadUpdate, updaterAlive} from '@/lib/autoUpdate';
 import {CopyButton} from '@/lib/clipboard';
 import {tr} from '@/lib/i18n';
-import {apiBase, isDemo} from '@/lib/mowers';
+import {isDemo, pageFromMower} from '@/lib/mowers';
 import {isApp} from '@/lib/native';
 import {
   APP_VERSION,
@@ -38,8 +38,9 @@ function useOutdated() {
   const u = useUpdates();
   // (as the page was built ahead first, else the page put together in the app doesn't match it)
   const app = useSyncExternalStore(noop, isApp, () => false);
-  // the page comes from the container of the mower looked at: in the browser, with no other mower picked
-  const own = useSyncExternalStore(noop, () => !isApp() && !apiBase(), () => true);
+  // the page comes from the container of the mower looked at: in the browser, with no other mower picked, and the
+  // server it came from has one
+  const own = useSyncExternalStore(noop, pageFromMower, () => true) && !u.none;
   // then its version is the mower's, and it has what it needs
   const mower = u.mower ?? (own ? APP_VERSION : null);
   const latest = u.latest?.version;

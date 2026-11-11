@@ -2,6 +2,7 @@ import {dec} from './i18n';
 import {mowerFetch, apiBase} from './mowers';
 import {PARAM, RPC} from './openmower';
 import {callRpc} from './rpc';
+import {containerFetch} from './updates';
 
 // mower_logic's settings an app can change while the mower runs (params.set, newer OpenMower only). Which ones,
 // their ranges and defaults are from MowerLogic.cfg, OpenMower doesn't tell. The ones that could hurt (the
@@ -22,12 +23,20 @@ export interface ParamField {
   min?: number;
   max?: number;
   def: number | boolean;
+  // the range and default on MowBite OS where they differ
+  osMin?: number;
+  osMax?: number;
+  osDef?: number;
   // shown in: the mower's value times scale, e.g. meters as cm
   unit?: string;
   scale?: number;
   step?: number;
   // for a choice, by value 0, 1, 2 ...
   choices?: string[];
+  // only when the mower lists it in its params, not every mower has it
+  reported?: boolean;
+  // switched off only after this question
+  confirmOff?: string;
 }
 
 export const PARAM_GROUPS: {key: ParamGroup; title: string}[] = [
@@ -50,23 +59,41 @@ export const PARAM_FIELDS: ParamField[] = [
   {key: 'rain_mode', group: 'auto', label: 'When the rain sensor is wet', type: 'choice', def: 0, choices: ['Keep mowing', 'Go home', 'Go home and wait until dry', 'Pause automatic mode']},
   {key: 'rain_delay_minutes', group: 'auto', label: 'Wait after the rain', help: 'With "wait until dry": how long it has to be dry before it mows on.', type: 'int', min: 30, max: 1440, def: 30, unit: 'min', step: 10},
   {key: 'rain_check_seconds', group: 'auto', label: 'Rain counts after', help: 'The sensor has to be wet for this long without a break.', type: 'int', min: 20, max: 300, def: 20, unit: 's', step: 10},
+  // off: it mows on after sunset, DOCKING DARK never comes (masterplan 3.1a, O11)
+  {
+    key: 'dock_at_sunset',
+    group: 'auto',
+    label: 'Go home at sunset',
+    help: 'When the sun sets while it mows, it goes home. Started or continued in the dark on purpose, or at a start time allowed in the dark, it mows on. A change counts from the next mow.',
+    type: 'bool',
+    def: true,
+    reported: true,
+    confirmOff: 'Switch it off? It then mows on into the night, when hedgehogs and other animals are out.',
+  },
   {key: 'automatic_mode', group: 'auto', label: 'Starting by itself', help: "OpenMower's own automatic, apart from MowBite's schedule: with a schedule leave it on manual, or both start the mower.", osHelp: "The mower's own automatic, apart from the schedule: with a schedule leave it on manual.", type: 'choice', def: 0, choices: ['Manual: only when started', 'Semi-automatic: after a start it mows the whole map, charging in between', 'Automatic: mows whenever it can']},
 
-  {key: 'gps_timeout', group: 'gps', label: 'Mows on without a fix for 10 s plus', help: "After the fix is lost, OpenMower still takes it as good for 10 s, then the mower drives on for this long on wheel odometry, the blade still on: with 10 s for about 20 s. Then it stops with the blade off and waits for the fix.", osLabel: 'Docking waits for a good position for', osHelp: 'Mowing pauses as soon as the position is bad. Docking waits this long for a good position, then it gives up.', type: 'double', min: 0, max: 60, def: 10, unit: 's', step: 1},
-  {key: 'max_position_accuracy', group: 'gps', label: 'Required GPS accuracy', help: "OpenMower's max_position_accuracy: a position less accurate than this counts as no fix. An RTK fix is at a few cm.", type: 'double', min: 0.01, max: 1, def: 0.2, unit: 'cm', scale: 100, step: 1},
+  {key: 'gps_timeout', group: 'gps', label: 'Mows on without a fix for 10 s plus', help: "After the fix is lost, OpenMower still takes it as good for 10 s, then the mower drives on for this long on wheel odometry, the blade still on: with 10 s for about 20 s. Then it stops with the blade off and waits for the fix.", osLabel: 'Docking waits for a good position for', osHelp: 'Mowing pauses as soon as the position is bad. Docking waits this long for a good position, then it gives up.', type: 'double', min: 0, max: 60, def: 10, osMin: 1, unit: 's', step: 1},
+  {key: 'max_position_accuracy', group: 'gps', label: 'Required GPS accuracy', help: "OpenMower's max_position_accuracy: a position less accurate than this counts as no fix. An RTK fix is at a few cm.", type: 'double', min: 0.01, max: 1, def: 0.2, osMax: 0.3, osDef: 0.1, unit: 'cm', scale: 100, step: 1},
   {key: 'gps_wait_time', group: 'gps', label: 'Wait after the fix is back', type: 'double', min: 0, max: 60, def: 10, unit: 's', step: 1},
 
-  {key: 'docking_approach_distance', group: 'docking', label: 'Approach in a straight line from', help: 'How far in front of the dock the mower lines up before it drives in.', type: 'double', min: 0, max: 5, def: 1.5, unit: 'm', step: 0.1},
+  {key: 'docking_approach_distance', group: 'docking', label: 'Approach in a straight line from', help: 'How far in front of the dock the mower lines up before it drives in.', type: 'double', min: 0, max: 5, def: 1.5, osMin: 0.5, osMax: 2, unit: 'm', step: 0.1},
   {key: 'docking_distance', group: 'docking', label: 'Drives in at most this far', help: 'How far it drives forward looking for the charging contacts.', type: 'double', min: 0, max: 100, def: 2, unit: 'm', step: 0.1},
-  {key: 'docking_retry_count', group: 'docking', label: 'Retries when docking', help: 'How often it backs out and tries again before it gives up.', type: 'int', min: 0, max: 50, def: 4},
-  {key: 'undock_distance', group: 'docking', label: 'Backs out of the dock by', type: 'double', min: 0, max: 100, def: 2, unit: 'm', step: 0.1},
+  {key: 'docking_retry_count', group: 'docking', label: 'Retries when docking', help: 'How often it backs out and tries again before it gives up.', type: 'int', min: 0, max: 50, def: 4, osMax: 5},
+  {key: 'undock_distance', group: 'docking', label: 'Backs out of the dock by', type: 'double', min: 0, max: 100, def: 2, osMin: 0.5, osMax: 2, unit: 'm', step: 0.1},
 
   {key: 'motor_hot_temperature', group: 'motor', label: 'Too hot to mow from', help: 'The mow motor pauses and the mower goes home.', type: 'double', min: 20, max: 150, def: 70, unit: '°C', step: 1},
   {key: 'motor_cold_temperature', group: 'motor', label: 'Cool enough again at', type: 'double', min: 20, max: 150, def: 40, unit: '°C', step: 1},
 ];
 
 export const paramField = (key: string) => PARAM_FIELDS.find((f) => f.key === key);
+// the field with MowBite OS's range and default on it
+export const onOs = (f: ParamField, os: boolean): ParamField => (os ? {...f, min: f.osMin ?? f.min, max: f.osMax ?? f.max, def: f.osDef ?? f.def} : f);
+// the ones this mower has, none of the reported ones before its params came
+export const paramShown = (f: ParamField, params: Record<string, unknown>) => !f.reported || paramName(f.key) in params;
 export const paramName = (key: string) => PARAM.mowerLogic(key);
+// going home at sunset: whether the mower has the setting, whether it's switched off on purpose there
+export const hasSunsetSwitch = (params: Record<string, unknown>) => paramShown(paramField('dock_at_sunset')!, params);
+export const mowsIntoNight = (params: Record<string, unknown>) => params[paramName('dock_at_sunset')] === false;
 
 // the value the mower has, or its default while the list hasn't got it (see PARAM_DEFAULTS in lib/openmower)
 export function paramValue(params: Record<string, unknown>, f: ParamField): number | boolean {
@@ -138,8 +165,8 @@ const endpoint = () => apiBase() + '/cgi-bin/params';
 // null: not served, an older container or MowBite not running as one, nothing is kept then
 export async function loadKept(): Promise<KeptParams | null> {
   try {
-    const res = await mowerFetch(endpoint(), {cache: 'no-store'});
-    if (!res.ok || !res.headers.get('content-type')?.includes('text/plain')) return null;
+    const res = await containerFetch(endpoint(), {cache: 'no-store'});
+    if (!res?.ok || !res.headers.get('content-type')?.includes('text/plain')) return null;
     return parseKept(await res.text());
   } catch {
     return null;

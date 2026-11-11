@@ -12,15 +12,15 @@ const kept = () => (last && Date.now() - last.at <= 120000 ? last.pct : undefine
 // how full the battery is in % from the container (battery.cgi?level), every 20 s while the page is open. undefined:
 // not known (an older container, MowBite not running as one, another board), OpenMower's percentage is shown then
 export function useBatteryLevel(): number | undefined {
-  const level = useUpdates().level;
+  const {level, none} = useUpdates();
   const enabled = containerHas(level, 'level');
   const [pct, setPct] = useState(kept);
   // the container's version not known yet (the mower wasn't there when the app came up): asked again
   useEffect(() => {
-    if (level !== null) return;
+    if (level !== null || none) return;
     const every = setInterval(() => void mowerHas('level'), 20000);
     return () => clearInterval(every);
-  }, [level]);
+  }, [level, none]);
   useEffect(() => {
     if (!enabled) return;
     let alive = true;

@@ -131,8 +131,8 @@ describe('keeping switched on again', () => {
 describe('the folded line of a group', () => {
   it("leaves out a value it doesn't know", async () => {
     const {summary} = await load();
-    expect(summary('auto', {'/mower_logic/rain_mode': 4, '/mower_logic/automatic_mode': 0})).toBe('starts by hand');
-    expect(summary('auto', {'/mower_logic/rain_mode': 1, '/mower_logic/automatic_mode': 7})).toBe('Go home');
-    expect(summary('auto', {'/mower_logic/rain_mode': 1, '/mower_logic/automatic_mode': 2})).toBe('Go home · automatic');
+    expect(summary('auto', {'/mower_logic/rain_mode': 4, '/mower_logic/automatic_mode': 0}, false)).toBe('starts by hand');
+    expect(summary('auto', {'/mower_logic/rain_mode': 1, '/mower_logic/automatic_mode': 7}, false)).toBe('Go home');
+    expect(summary('auto', {'/mower_logic/rain_mode': 1, '/mower_logic/automatic_mode': 2}, false)).toBe('Go home · automatic');
   });
 });

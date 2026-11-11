@@ -96,6 +96,7 @@ export default function SensorsPage() {
   const params = useMowerParams();
   const history = useSensorHistory();
   const level = useBatteryLevel();
+  const os = useMowbiteOs();
   const info = (id: string) => infos.find((i) => i.sensor_id === id);
   const num = (id: string) => (values[id] !== undefined ? Number(values[id]) : undefined);
 
@@ -103,7 +104,6 @@ export default function SensorsPage() {
   const docked = isDocked(state, values['om_v_charge']);
   // MowBite OS tells whether it really charges (from api 4 on, the runs are only asked for then), as on the dashboard
   const api = useOsApi();
-  const os = useMowbiteOs();
   const recent = useRecentRuns(currentState, api >= 4);
   const confirmed = useChargeConfirmed(api, state ? onCharger(state, values['om_v_charge']) : undefined, recent?.today, recent?.latest);
   const battery = level ?? (state ? Math.round(state.battery_percentage * 100) : undefined);
@@ -180,7 +180,11 @@ export default function SensorsPage() {
                   <>
                     {tr('Battery')}
                     <InfoTip>
-                      {level !== undefined
+                      {os
+                        ? tr(
+                            "The percentage comes from the mower itself: MowBite OS takes what its battery or board reports, on the Airseekers Tron the battery's own management (BMS). The app doesn't work it out from the voltage here.",
+                          )
+                        : level !== undefined
                         ? tr(
                             "MowBite works out the percentage from the battery voltage as if only the electronics drew on it, so it stays put when the blade starts or the mower leaves the dock. It goes up only while charging and down only while not. 0 % is where OpenMower sends the mower home. In the dock it goes down slowly after a full charge until the charger tops it up.",
                           )
@@ -246,9 +250,13 @@ export default function SensorsPage() {
                   <>
                     {tr('GPS accuracy')}
                     <InfoTip>
-                      {tr(
-                        "How far off the position might be, as estimated by the receiver. With an RTK fix it's usually a few cm. The receiver doesn't report fix or float, so MowBite goes by the accuracy: up to 5 cm is an RTK fix, up to the mower's limit (max_position_accuracy) float, which is still usable. Above that the mower ignores the position.",
-                      )}
+                      {os
+                        ? tr(
+                            "How far off the position might be. MowBite OS only takes RTK fixes within the mower's limit (max_position_accuracy), without one the number grows with the distance driven and the time since the last. MowBite goes by that number: up to 5 cm it says RTK fix, up to the limit float, which is still usable. Above that the mower doesn't drive by the position.",
+                          )
+                        : tr(
+                            "How far off the position might be, as estimated by the receiver. With an RTK fix it's usually a few cm. The receiver doesn't report fix or float, so MowBite goes by the accuracy: up to 5 cm is an RTK fix, up to the mower's limit (max_position_accuracy) float, which is still usable. Above that the mower ignores the position.",
+                          )}
                       {!os && ` ${tr("The mower switches GPS off while it's idle, docking or leaving the dock.")}`}
                     </InfoTip>
                   </>

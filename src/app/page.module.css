@@ -53,6 +53,7 @@
 
   /* with the map: status and today on the left, map on the right */
   .withMap .status,
+  .withMap .cameraCard,
   .withMap .today {
     grid-column: 1;
   }
@@ -512,6 +513,12 @@
   }
 }
 
+.cameraCard {
+  overflow: hidden;
+  border-radius: var(--radius-l);
+  border: 1px solid var(--card-border);
+}
+
 .map {
   border-radius: 18px;
   overflow: hidden;
@@ -708,6 +715,26 @@
 /* at the right end of the title row on phones, the sidebar has its own */
 .mowerSwitch {
   flex: none;
+}
+
+/* the camera's picture on or off, round like the mower switch beside it */
+.cameraSwitch {
+  composes: round from '../components/MowerSwitch.module.css';
+  flex: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+/* (it doesn't stay pressed in after a tap) */
+.cameraSwitch:focus-within:not(:active, :focus-visible) {
+  transform: none;
+  outline: none;
+}
+
+.cameraSwitch[aria-pressed='true'] {
+  border-color: color-mix(in srgb, var(--accent) 70%, transparent);
+  background: color-mix(in srgb, var(--accent) 24%, var(--card));
+  color: var(--accent);
 }
 
 @media (min-width: 900px) {
