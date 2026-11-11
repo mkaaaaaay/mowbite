@@ -57,6 +57,7 @@ const UPDATER_YAML = `  updater:
     restart: unless-stopped
     network_mode: host
     logging:
+      driver: json-file
       options:
         max-size: 1m
         max-file: "2"
