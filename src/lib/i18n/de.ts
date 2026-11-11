@@ -2755,12 +2755,12 @@ const de: Record<string, string> = {
   "The mower's functions changed": "Funktionen des Mähers geändert",
   "the hardware driver is not reporting, the camera waits for it": "der Hardware-Treiber meldet sich nicht, die Kamera wartet auf ihn",
   "two are watching already, at most two at a time": "es sehen schon zwei zu, mehr als zwei gleichzeitig gehen nicht",
-  "the camera software crashed and is locked": "die Kamera-Software ist abgestürzt und gesperrt",
+  "the mower's system crashed while this camera ran, it stays off until its lock on the mower is deleted": "das System des Mähers ist abgestürzt, während diese Kamera lief, sie bleibt aus, bis ihre Sperre auf dem Mäher gelöscht ist",
   "the camera is not set up on the mower": "die Kamera ist auf dem Mäher nicht eingerichtet",
   "not while the blade is running": "nicht, solange das Messer läuft",
-  "the camera is too hot": "die Kamera ist zu heiß",
-  "no signal from the camera": "kein Signal von der Kamera",
-  "the mower is still testing itself after starting": "der Mäher prüft sich nach dem Start noch selbst",
+  "the mower's computer is too hot, the camera pauses": "der Rechner des Mähers ist zu heiß, die Kamera macht Pause",
+  "the camera gives no picture right now": "die Kamera liefert gerade kein Bild",
+  "the camera is still testing itself after the start, for that the mower has to stand with the blade off": "die Kamera prüft sich nach dem Start noch selbst, dafür muss der Mäher stehen und das Messer aus sein",
   "Front camera": "Frontkamera",
   "Left side camera": "Seitenkamera links",
   "Right side camera": "Seitenkamera rechts",
@@ -2788,6 +2788,10 @@ const de: Record<string, string> = {
   "Leave full screen": "Vollbild verlassen",
   "Couldn't connect to the camera": "Keine Verbindung zur Kamera",
   "The connection to the camera was lost.": "Die Verbindung zur Kamera ist abgerissen.",
+  "The camera didn't answer in time.": "Die Kamera hat nicht rechtzeitig geantwortet.",
+  "Couldn't reach the camera at {address}.": "Die Kamera ist unter {address} nicht erreichbar.",
+  "The mower didn't accept the connection.": "Der Mäher hat die Verbindung nicht angenommen.",
+  "The camera gave no picture.": "Die Kamera hat kein Bild geliefert.",
 };
 
 export default de;

@@ -172,6 +172,141 @@
       ],
       "type": "object"
     },
+    "camera.list.params": {
+      "description": "The params of camera.list: None",
+      "type": "object"
+    },
+    "camera.list.result": {
+      "description": "The result of camera.list: A camera, in the order they first reported",
+      "items": {
+        "additionalProperties": false,
+        "description": "One item",
+        "properties": {
+          "available": {
+            "description": "Whether it can stream now",
+            "type": "boolean"
+          },
+          "detail": {
+            "description": "A few English words on the reason, for the log",
+            "type": "string"
+          },
+          "detections": {
+            "description": "The boxes of the camera AI are drawn into the picture",
+            "type": "boolean"
+          },
+          "height": {
+            "description": "Height of the picture in pixels",
+            "type": "integer"
+          },
+          "id": {
+            "description": "Its id for camera.stream",
+            "type": "string"
+          },
+          "kind": {
+            "description": "What it is for: obstacle, stereo, rear or another kind of the platform",
+            "type": "string"
+          },
+          "name": {
+            "description": "Its name to show",
+            "type": "string"
+          },
+          "position": {
+            "description": "Where it looks, null when unknown or not fixed",
+            "enum": [
+              "front",
+              "rear",
+              "left",
+              "right",
+              null
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "protocols": {
+            "description": "How it streams, mjpeg or webrtc; camera.stream takes the first without a protocol",
+            "items": {
+              "description": "One item",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "reason": {
+            "description": "Why not, only while it is not available: a reason of CAMERA_REFUSED in x-reasons",
+            "type": "string"
+          },
+          "width": {
+            "description": "Width of the picture in pixels",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "kind",
+          "position",
+          "width",
+          "height",
+          "detections",
+          "protocols",
+          "available"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "camera.stream.params": {
+      "additionalProperties": false,
+      "description": "The params of camera.stream: The camera",
+      "properties": {
+        "id": {
+          "description": "An id of camera.list",
+          "type": "string"
+        },
+        "protocol": {
+          "description": "One of its protocols; its first without",
+          "enum": [
+            "mjpeg",
+            "webrtc"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "camera.stream.result": {
+      "additionalProperties": false,
+      "description": "The result of camera.stream: The stream",
+      "properties": {
+        "expires": {
+          "description": "The connection has to begin before this",
+          "type": "integer",
+          "x-unit": "unix s"
+        },
+        "protocol": {
+          "description": "The protocol of url",
+          "enum": [
+            "mjpeg",
+            "webrtc"
+          ],
+          "type": "string"
+        },
+        "url": {
+          "description": "http address with the token of this connection; its host is the IPv4 of the mower in the network of its default route",
+          "type": "string"
+        }
+      },
+      "required": [
+        "url",
+        "protocol",
+        "expires"
+      ],
+      "type": "object"
+    },
     "docking.abort.params": {
       "additionalProperties": false,
       "description": "The params of docking.abort",
@@ -383,6 +518,12 @@
         },
         {
           "$ref": "#/$defs/event.CORRECTIONS"
+        },
+        {
+          "$ref": "#/$defs/event.CAMERA_CHANGED"
+        },
+        {
+          "$ref": "#/$defs/event.METHODS_CHANGED"
         },
         {
           "$ref": "#/$defs/event.other"
@@ -1267,6 +1408,75 @@
       ],
       "type": "object",
       "x-emitter": "logic"
+    },
+    "event.CAMERA_CHANGED": {
+      "additionalProperties": false,
+      "description": "A camera of camera.list can stream again, or no longer and why; viewers of a camera that no longer can were disconnected",
+      "properties": {
+        "available": {
+          "description": "Whether it can stream now",
+          "type": "boolean"
+        },
+        "camera_id": {
+          "description": "Its id in camera.list",
+          "type": "string"
+        },
+        "id": {
+          "description": "Random id of the event, 32 letters and digits",
+          "type": "string"
+        },
+        "message": {
+          "description": "English text for the log, only with a reason",
+          "type": "string"
+        },
+        "reason": {
+          "description": "Why not, only while it is not available (x-reasons)",
+          "enum": [
+            "LOCKED_AFTER_CRASH",
+            "NOT_SET_UP",
+            "BLADE_RUNNING",
+            "TOO_HOT",
+            "NO_SIGNAL",
+            "DRIVER_MISSING",
+            "SELF_TEST"
+          ],
+          "type": "string"
+        },
+        "resume": {
+          "description": "Always auto",
+          "enum": [
+            "auto"
+          ],
+          "type": "string"
+        },
+        "severity": {
+          "description": "Always info",
+          "enum": [
+            "info"
+          ],
+          "type": "string"
+        },
+        "t": {
+          "description": "When it happened",
+          "type": "number",
+          "x-unit": "unix s"
+        },
+        "type": {
+          "const": "CAMERA_CHANGED",
+          "description": "What happened; a type this version does not know carries only the envelope for sure"
+        }
+      },
+      "required": [
+        "id",
+        "t",
+        "type",
+        "camera_id",
+        "available",
+        "severity",
+        "resume"
+      ],
+      "type": "object",
+      "x-emitter": "camera"
     },
     "event.CHARGING_LOST": {
       "additionalProperties": false,
@@ -2644,6 +2854,66 @@
       "type": "object",
       "x-emitter": "map"
     },
+    "event.METHODS_CHANGED": {
+      "additionalProperties": false,
+      "description": "rpc.methods lists other methods than before: the changes of one second together, also those of the start",
+      "properties": {
+        "added": {
+          "description": "Methods offered now",
+          "items": {
+            "description": "One item",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "id": {
+          "description": "Random id of the event, 32 letters and digits",
+          "type": "string"
+        },
+        "removed": {
+          "description": "Methods no longer offered",
+          "items": {
+            "description": "One item",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "resume": {
+          "description": "Always auto",
+          "enum": [
+            "auto"
+          ],
+          "type": "string"
+        },
+        "severity": {
+          "description": "Always info",
+          "enum": [
+            "info"
+          ],
+          "type": "string"
+        },
+        "t": {
+          "description": "When it happened",
+          "type": "number",
+          "x-unit": "unix s"
+        },
+        "type": {
+          "const": "METHODS_CHANGED",
+          "description": "What happened; a type this version does not know carries only the envelope for sure"
+        }
+      },
+      "required": [
+        "id",
+        "t",
+        "type",
+        "added",
+        "removed",
+        "severity",
+        "resume"
+      ],
+      "type": "object",
+      "x-emitter": "bridge"
+    },
     "event.MOWING_REFUSED": {
       "additionalProperties": false,
       "description": "A start of mowing was refused",
@@ -3722,7 +3992,9 @@
               "GEOMETRY_CHANGED",
               "STORAGE",
               "MAP_DATUM",
-              "CORRECTIONS"
+              "CORRECTIONS",
+              "CAMERA_CHANGED",
+              "METHODS_CHANGED"
             ]
           },
           "type": "string"
@@ -6372,7 +6644,8 @@
                 "enum": [
                   "os",
                   "planner",
-                  "app"
+                  "app",
+                  "host"
                 ],
                 "type": "string"
               },
@@ -6737,7 +7010,8 @@
                 "enum": [
                   "os",
                   "planner",
-                  "app"
+                  "app",
+                  "host"
                 ],
                 "type": "string"
               },
@@ -6972,7 +7246,8 @@
           "enum": [
             "os",
             "planner",
-            "app"
+            "app",
+            "host"
           ],
           "type": "string"
         },
@@ -7117,7 +7392,8 @@
                 "enum": [
                   "os",
                   "planner",
-                  "app"
+                  "app",
+                  "host"
                 ],
                 "type": "string"
               },
@@ -7494,7 +7770,8 @@
                 "enum": [
                   "os",
                   "planner",
-                  "app"
+                  "app",
+                  "host"
                 ],
                 "type": "string"
               },
@@ -7729,7 +8006,8 @@
           "enum": [
             "os",
             "planner",
-            "app"
+            "app",
+            "host"
           ],
           "type": "string"
         },
@@ -7878,7 +8156,8 @@
                 "enum": [
                   "os",
                   "planner",
-                  "app"
+                  "app",
+                  "host"
                 ],
                 "type": "string"
               },
@@ -8243,7 +8522,8 @@
                 "enum": [
                   "os",
                   "planner",
-                  "app"
+                  "app",
+                  "host"
                 ],
                 "type": "string"
               },
@@ -8466,11 +8746,11 @@
       "type": "object"
     }
   },
-  "$id": "urn:mowbite-os:api:16",
+  "$id": "urn:mowbite-os:api:18",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "robot_state, actions, events and RPC methods of MowBite OS over MQTT, as system.api gives them; made from the code, objects sorted by key. x-reasons has severity and resume of every reason by event (COMMAND_REFUSED and REQUEST_REFUSED only in refusals; when: another rating for these field values; texts: name, help and fix by language), x-emergency-bits the bits of emergency, x-commands the commands with params, result, the event of their refusal and the actions that do the same, x-methods every RPC method of the OS with its node (planner.* are the planner's, sim.* only in the simulation), x-sensors the sensors by id, x-settings the settings of params.set with the ranges of the OS, x-geometry the keys of robot.geometry.",
   "title": "MowBite OS app interface",
-  "x-api": 16,
+  "x-api": 18,
   "x-commands": {
     "docking.abort": {
       "action": "mower_logic:docking/abort_docking",
@@ -9060,6 +9340,20 @@
       "params": "#/$defs/calibration.start.params",
       "result": "#/$defs/calibration.start.result"
     },
+    "camera.list": {
+      "description": "The cameras of the mower; CAMERA_CHANGED tells when one of them can stream again or no longer",
+      "node": "mowbite_camera",
+      "offered": "with at least one camera",
+      "params": "#/$defs/camera.list.params",
+      "result": "#/$defs/camera.list.result"
+    },
+    "camera.stream": {
+      "description": "Keeps a place for one viewer and gives the address to watch from: for one connection, which has to begin before expires; the place is free again when that connection ends, and every new connection needs a new call. At most two viewers at once over all cameras (CAMERA_BUSY). mjpeg: a GET of url gives multipart/x-mixed-replace with JPEG; webrtc: url is a WHEP endpoint (H.264). Refused (CAMERA_REFUSED) while the camera is not available; -32602 for an id or a protocol it does not have",
+      "node": "mowbite_camera",
+      "offered": "with at least one camera",
+      "params": "#/$defs/camera.stream.params",
+      "result": "#/$defs/camera.stream.result"
+    },
     "docking.abort": {
       "description": "Stops docking",
       "node": "mowbite_logic",
@@ -9460,7 +9754,7 @@
       "result": "#/$defs/update.check.result"
     },
     "update.rollback": {
-      "description": "Goes back to the previous installation through the same gate, planner and app without an own one before to the bundled one; that revision is then not installed by itself. NO_PREVIOUS on the bundled one",
+      "description": "Goes back to the previous installation through the same gate, planner and app without an own one before to the bundled one, the host to its seed in the rootfs; that revision is then not installed by itself. NO_PREVIOUS on the bundled one or the seed",
       "node": "mowbite_host",
       "offered": "while mowbite/host/status says online",
       "params": "#/$defs/update.rollback.params",
@@ -9474,7 +9768,7 @@
       "result": "#/$defs/update.set_auto.result"
     },
     "update.start": {
-      "description": "Installs the newest available revision of the component or the one given, one update at a time; os and planner wait for the gate (IDLE on the charging contacts, the hold granted) for up to 30 min, the planner also for the end of the mowing job, the app for none. Refused (UPDATE_REFUSED) when none is there or one runs",
+      "description": "Installs the newest available revision of the component or the one given, one update at a time; os and planner wait for the gate (IDLE on the charging contacts, the hold granted) for up to 30 min, the planner also for the end of the mowing job, the app and the host for none. The host starts itself anew and gives the result once the new one confirmed itself after 60 s, else it goes back. Refused (UPDATE_REFUSED) when none is there or one runs",
       "node": "mowbite_host",
       "offered": "while mowbite/host/status says online",
       "params": "#/$defs/update.start.params",
@@ -9815,6 +10109,280 @@
             "fix": "Restart the mower. If it stays, the storage is full or broken: keep the log for a report.",
             "help": "The storage of the mower cannot be written. Starting is blocked until writing works again.",
             "name": "Storage not writable"
+          }
+        }
+      }
+    },
+    "CAMERA_CHANGED": {
+      "BLADE_RUNNING": {
+        "description": "The blade runs, and this camera does not stream next to it",
+        "fields": {},
+        "resume": "auto",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Warten, bis das Messer steht.",
+            "help": "Diese Kamera zeigt kein Bild, solange das Messer läuft.",
+            "name": "Messer läuft"
+          },
+          "en": {
+            "fix": "Wait until the blade has stopped.",
+            "help": "This camera shows no picture while the blade runs.",
+            "name": "Blade running"
+          }
+        }
+      },
+      "DRIVER_MISSING": {
+        "description": "The driver of the platform does not answer or reports no status",
+        "fields": {},
+        "resume": "auto",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Kurz warten. Bleibt es dabei, MowBite OS neu starten.",
+            "help": "Die Kamera kennt den Zustand des Mähers nicht und zeigt deshalb kein Bild.",
+            "name": "Mäher meldet sich nicht"
+          },
+          "en": {
+            "fix": "Wait a moment. If it stays so, restart MowBite OS.",
+            "help": "The camera doesn't know the state of the mower and so shows no picture.",
+            "name": "Mower not reporting"
+          }
+        }
+      },
+      "LOCKED_AFTER_CRASH": {
+        "description": "The camera stays off after a kernel crash while it ran, until its lock on the mower is removed",
+        "fields": {},
+        "resume": "auto",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Das Protokoll für eine Meldung sichern. Die Sperre nur nach der Anleitung löschen.",
+            "help": "Das Betriebssystem des Mähers ist abgestürzt, während diese Kamera lief. Sie bleibt aus, bis die Sperre auf dem Mäher gelöscht ist.",
+            "name": "Kamera gesperrt"
+          },
+          "en": {
+            "fix": "Keep the log for a report. Delete the lock only as the guide says.",
+            "help": "The operating system of the mower crashed while this camera ran. It stays off until the lock on the mower is deleted.",
+            "name": "Camera locked"
+          }
+        }
+      },
+      "NOT_SET_UP": {
+        "description": "Something the camera needs is not set up on the mower: a model, an encoder or the stream server",
+        "fields": {},
+        "resume": "auto",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Die Kamera nach der Anleitung einrichten.",
+            "help": "Auf dem Mäher fehlt etwas, das diese Kamera braucht, zum Beispiel ein Modell oder der Dienst für das Livebild.",
+            "name": "Kamera nicht eingerichtet"
+          },
+          "en": {
+            "fix": "Set the camera up as the guide says.",
+            "help": "Something this camera needs is missing on the mower, for example a model or the service for the live picture.",
+            "name": "Camera not set up"
+          }
+        }
+      },
+      "NO_SIGNAL": {
+        "description": "The camera gives no picture, or its process ended",
+        "fields": {},
+        "resume": "auto",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Kurz warten. Bleibt es dabei, MowBite OS neu starten.",
+            "help": "Die Kamera liefert gerade kein Bild.",
+            "name": "Kein Bild"
+          },
+          "en": {
+            "fix": "Wait a moment. If it stays so, restart MowBite OS.",
+            "help": "The camera gives no picture right now.",
+            "name": "No picture"
+          }
+        }
+      },
+      "SELF_TEST": {
+        "description": "The test of the camera after the start is pending or running; it passes on its own",
+        "fields": {},
+        "resume": "auto",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Warten, bis der Test durch ist.",
+            "help": "Die Kamera prüft sich nach dem Start einmal selbst. Das geht nur, wenn der Mäher steht und das Messer aus ist.",
+            "name": "Selbsttest"
+          },
+          "en": {
+            "fix": "Wait until the test is done.",
+            "help": "The camera tests itself once after the start. That only works while the mower stands with the blade off.",
+            "name": "Self-test"
+          }
+        }
+      },
+      "TOO_HOT": {
+        "description": "The computer of the mower is too hot, the camera pauses",
+        "fields": {},
+        "resume": "auto",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Warten, bis er abgekühlt ist.",
+            "help": "Der Rechner des Mähers ist zu warm, die Kamera macht eine Pause.",
+            "name": "Zu warm"
+          },
+          "en": {
+            "fix": "Wait until it has cooled down.",
+            "help": "The computer of the mower is too hot, so the camera pauses.",
+            "name": "Too hot"
+          }
+        }
+      }
+    },
+    "CAMERA_REFUSED": {
+      "BLADE_RUNNING": {
+        "description": "The blade runs, and this camera does not stream next to it",
+        "fields": {},
+        "resume": "auto",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Warten, bis das Messer steht.",
+            "help": "Diese Kamera zeigt kein Bild, solange das Messer läuft.",
+            "name": "Messer läuft"
+          },
+          "en": {
+            "fix": "Wait until the blade has stopped.",
+            "help": "This camera shows no picture while the blade runs.",
+            "name": "Blade running"
+          }
+        }
+      },
+      "CAMERA_BUSY": {
+        "description": "Two viewers watch already, over all cameras together",
+        "fields": {},
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Das Bild auf einem anderen Gerät schließen und noch einmal versuchen.",
+            "help": "Es sehen schon zwei Geräte ein Kamerabild an, mehr geht nicht zugleich.",
+            "name": "Kamera belegt"
+          },
+          "en": {
+            "fix": "Close the picture on another device, then try again.",
+            "help": "Two devices are already watching a camera, more is not possible at once.",
+            "name": "Camera busy"
+          }
+        }
+      },
+      "DRIVER_MISSING": {
+        "description": "The driver of the platform does not answer or reports no status",
+        "fields": {},
+        "resume": "auto",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Kurz warten. Bleibt es dabei, MowBite OS neu starten.",
+            "help": "Die Kamera kennt den Zustand des Mähers nicht und zeigt deshalb kein Bild.",
+            "name": "Mäher meldet sich nicht"
+          },
+          "en": {
+            "fix": "Wait a moment. If it stays so, restart MowBite OS.",
+            "help": "The camera doesn't know the state of the mower and so shows no picture.",
+            "name": "Mower not reporting"
+          }
+        }
+      },
+      "LOCKED_AFTER_CRASH": {
+        "description": "The camera stays off after a kernel crash while it ran, until its lock on the mower is removed",
+        "fields": {},
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Das Protokoll für eine Meldung sichern. Die Sperre nur nach der Anleitung löschen.",
+            "help": "Das Betriebssystem des Mähers ist abgestürzt, während diese Kamera lief. Sie bleibt aus, bis die Sperre auf dem Mäher gelöscht ist.",
+            "name": "Kamera gesperrt"
+          },
+          "en": {
+            "fix": "Keep the log for a report. Delete the lock only as the guide says.",
+            "help": "The operating system of the mower crashed while this camera ran. It stays off until the lock on the mower is deleted.",
+            "name": "Camera locked"
+          }
+        }
+      },
+      "NOT_SET_UP": {
+        "description": "Something the camera needs is not set up on the mower: a model, an encoder or the stream server",
+        "fields": {},
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Die Kamera nach der Anleitung einrichten.",
+            "help": "Auf dem Mäher fehlt etwas, das diese Kamera braucht, zum Beispiel ein Modell oder der Dienst für das Livebild.",
+            "name": "Kamera nicht eingerichtet"
+          },
+          "en": {
+            "fix": "Set the camera up as the guide says.",
+            "help": "Something this camera needs is missing on the mower, for example a model or the service for the live picture.",
+            "name": "Camera not set up"
+          }
+        }
+      },
+      "NO_SIGNAL": {
+        "description": "The camera gives no picture, or its process ended",
+        "fields": {},
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Kurz warten. Bleibt es dabei, MowBite OS neu starten.",
+            "help": "Die Kamera liefert gerade kein Bild.",
+            "name": "Kein Bild"
+          },
+          "en": {
+            "fix": "Wait a moment. If it stays so, restart MowBite OS.",
+            "help": "The camera gives no picture right now.",
+            "name": "No picture"
+          }
+        }
+      },
+      "SELF_TEST": {
+        "description": "The test of the camera after the start is pending or running; it passes on its own",
+        "fields": {},
+        "resume": "auto",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Warten, bis der Test durch ist.",
+            "help": "Die Kamera prüft sich nach dem Start einmal selbst. Das geht nur, wenn der Mäher steht und das Messer aus ist.",
+            "name": "Selbsttest"
+          },
+          "en": {
+            "fix": "Wait until the test is done.",
+            "help": "The camera tests itself once after the start. That only works while the mower stands with the blade off.",
+            "name": "Self-test"
+          }
+        }
+      },
+      "TOO_HOT": {
+        "description": "The computer of the mower is too hot, the camera pauses",
+        "fields": {},
+        "resume": "auto",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Warten, bis er abgekühlt ist.",
+            "help": "Der Rechner des Mähers ist zu warm, die Kamera macht eine Pause.",
+            "name": "Zu warm"
+          },
+          "en": {
+            "fix": "Wait until it has cooled down.",
+            "help": "The computer of the mower is too hot, so the camera pauses.",
+            "name": "Too hot"
           }
         }
       }

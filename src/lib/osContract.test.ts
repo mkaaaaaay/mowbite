@@ -12,8 +12,8 @@ import {EMERGENCY_BITS, EMERGENCY_HIDE, EMERGENCY_TEXT, EVENTS, REASONS, pick} f
 const PINNED = {
   repo: 'mkaaaaaay/mowbite-os',
   path: 'src/mowbite_api/api.schema.json',
-  commit: '405daaac6de7693c8ed526a83bbebfc24fec703e',
-  sha256: '7a271121d8b6f3dc807994735693448220b94e5a0f44ae0ae34ced049727ff97',
+  commit: '18d4d816a2bf2dd01ed7463adc1fd8b76e76f1f2',
+  sha256: '8e2fabe31b56e37f69e3727f66798c4064e3a7f50827092e65f63fcbf3221c4e',
 };
 const raw = readFileSync(join(__dirname, 'os-api.schema.json'));
 // a reason's rating, when: another one for these values of the event's fields
@@ -60,13 +60,13 @@ const appMethods = new Set([...Object.values(RPC), ...Object.values(COMMAND).map
 const osMethods = Object.keys(api['x-methods']);
 
 // decided for a later api and in the app already, not in the pinned copy yet: TOO_SHORT (a sound under 0.2 s, the
-// phone says it), camera.* (masterplan 3.9, FP42). one the copy has is red until it's taken out here
-const AHEAD = {
-  reasons: ['TOO_SHORT', 'CAMERA_BUSY', 'LOCKED_AFTER_CRASH', 'NOT_SET_UP', 'BLADE_RUNNING', 'TOO_HOT', 'NO_SIGNAL', 'SELF_TEST'],
-  events: ['CAMERA_REFUSED', 'CAMERA_CHANGED', 'METHODS_CHANGED'],
-  methods: ['camera.list', 'camera.stream'],
+// phone says it). one the copy has is red until it's taken out here
+const AHEAD: Record<'reasons' | 'events' | 'methods' | 'variants', string[]> = {
+  reasons: ['TOO_SHORT'],
+  events: [],
+  methods: [],
   // a reason's variant for one event, as 'EVENT REASON'
-  variants: ['CAMERA_REFUSED DRIVER_MISSING'],
+  variants: [],
 };
 
 // events only OpenMower or the planner send

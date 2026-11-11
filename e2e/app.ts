@@ -37,6 +37,7 @@ type DemoMower = {
   ahead(seconds: number): void;
   emergency(reasons?: string[]): void;
   refuseReset(why: Record<string, unknown> | null): void;
+  cameras(on: boolean): void;
 };
 export const demoHas = async <T>(page: Page, topic: string): Promise<T> => {
   await page.waitForFunction(() => 'mowbiteDemo' in window);
@@ -61,6 +62,8 @@ export const demoEmergency = (page: Page, reasons?: string[]) =>
 // a reset turned down the way MowBite OS does it (EMERGENCY_RESET_REFUSED with these fields), null lets it go again
 export const demoRefuseReset = (page: Page, why: Record<string, unknown> | null) =>
   page.evaluate((w) => (window as unknown as {mowbiteDemo: DemoMower}).mowbiteDemo.refuseReset(w), why);
+// the cameras' process of MowBite OS coming up or going while the app is open
+export const demoCameras = (page: Page, on: boolean) => page.evaluate((o) => (window as unknown as {mowbiteDemo: DemoMower}).mowbiteDemo.cameras(o), on);
 export const demoCall = (page: Page, method: string, params: unknown) =>
   page.evaluate(
     ([method, params]) =>

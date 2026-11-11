@@ -1,5 +1,6 @@
 import {reasonText} from './events';
 import {tr} from './i18n';
+import {isDemo} from './mowers';
 import {RPC} from './openmower';
 import {callRpc} from './rpc';
 
@@ -22,6 +23,13 @@ export interface Camera {
   // why not, the names of CAMERA_REFUSED
   reason?: string;
   detail?: string;
+}
+// what a CAMERA_CHANGED tells about one of them. message: the mower's english words on the reason
+export interface CameraChange {
+  camera_id: string;
+  available: boolean;
+  reason?: string;
+  message?: string;
 }
 interface Stream {
   url: string;
@@ -67,6 +75,13 @@ export function pictureRatio(list: readonly Camera[]): number {
   return ratios.length ? Math.max(1, Math.min(...ratios)) : 4 / 3;
 }
 
+// the list with what a CAMERA_CHANGED says about its camera, null for one the list doesn't have
+export function withChange(list: readonly Camera[], e: CameraChange): Camera[] | null {
+  if (typeof e.available !== 'boolean' || !list.some((c) => c.id === e.camera_id)) return null;
+  const why = e.available ? {reason: undefined, detail: undefined} : {reason: e.reason, detail: e.message};
+  return list.map((c) => (c.id === e.camera_id ? {...c, available: e.available, ...why} : c));
+}
+
 // why it shows no picture, in words on their own line
 export function cameraReason(reason?: string, message?: string): string {
   const text = reasonText({id: '', t: 0, type: 'CAMERA_REFUSED', reason: reason || 'NO_SIGNAL', ...(message ? {message} : {})});
@@ -106,17 +121,95 @@ export function closed(close: () => Promise<void>) {
   closing = closing.then(close, close).catch(() => {});
 }
 
-// WebRTC over WHEP: an offer for video only to the url, its answer back, the session deleted at its address (the
-// Location header) when done. no ice servers: in the home network the mower's own candidates reach it
+// how long a stream's address may take to answer: MowBite OS's stream server holds a no back for up to 4 s and says
+// only after 10 s that the camera sends no picture
+export const ANSWER_MS = 15000;
+// the mower ends an mjpeg stream after 10 s without a picture, one silent for longer than this has broken off
+export const STALL_MS = 15000;
+// (the next stream waits for the last one's end, not longer than this)
+const CLOSE_MS = 3000;
+
+// a stream's address gave no picture: the HTTP status it answered, 'timeout' for none in time, 0 when it wasn't
+// reached. at: its host and port, said: the address's own words with its no
+export class StreamError extends Error {
+  constructor(
+    public status: number | 'timeout',
+    public at: string,
+    said = '',
+  ) {
+    super(typeof status === 'number' && status > 0 ? `HTTP ${status}${said && `: ${said}`}` : at);
+  }
+}
+
+// the same in words, with what the address answered for the small print. a place is for one connection and has to
+// be taken within half a minute (401 after that), trying again asks the mower for a new one. 400 is the stream
+// server's no for a camera that sends it no picture within 10 s, and for whatever else keeps it from starting
+export function streamFailure(e: StreamError): {text: string; detail?: string} {
+  if (e.status === 'timeout') return {text: tr("The camera didn't answer in time."), detail: e.at};
+  if (e.status === 0) return {text: tr("Couldn't reach the camera at {address}.", {address: e.at})};
+  return {
+    text: tr(e.status === 401 ? "The mower didn't accept the connection." : e.status === 400 ? 'The camera gave no picture.' : "Couldn't connect to the camera"),
+    detail: e.message,
+  };
+}
+
+// what an address says with its no, cut short: the stream server as json with the words in error, the mower's own
+// mjpeg address as a line of text
+async function words(res: Response): Promise<string> {
+  let said = (await res.text().catch(() => '')).trim();
+  try {
+    const error = (JSON.parse(said) as {error?: unknown} | null)?.error;
+    if (typeof error === 'string') said = error;
+  } catch {}
+  return said.split('\n')[0].slice(0, 120);
+}
+
+// a request to a stream's address (the demo mower answers for its own): its answer, anything but a success within
+// ANSWER_MS as a StreamError. stop ends the request and what's read of its answer later
+async function ask(url: string, init: RequestInit, stop = new AbortController()): Promise<Response> {
+  let at = '';
+  try {
+    at = new URL(url).host;
+  } catch {}
+  let late = false;
+  const timer = setTimeout(() => {
+    late = true;
+    stop.abort();
+  }, ANSWER_MS);
+  try {
+    // (without credentials: a 401 never brings up the browser's own question for a password)
+    const request: RequestInit = {...init, credentials: 'omit', signal: stop.signal};
+    const res = await (isDemo() ? (await import('./demo/camera')).demoStream(url, request) : fetch(url, request));
+    if (!res.ok) throw new StreamError(res.status, at, await words(res));
+    return res;
+  } catch (e) {
+    throw e instanceof StreamError ? e : new StreamError(late ? 'timeout' : 0, at);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// WebRTC over WHEP: an offer for video only to the url, its answer back, the session ended at its address (the
+// Location header) when done. no ice servers: in the home network the mower's own candidates reach it. ended: the
+// connection is over without having been closed from here
 export async function playWhep(url: string, video: HTMLVideoElement, ended: () => void): Promise<() => Promise<void>> {
   const pc = new RTCPeerConnection();
   let session: string | null = null;
+  let over = false;
+  // (the session first: the connection closed before it, its address has nothing left to end and says 404)
   const close = async () => {
+    over = true;
+    if (session) {
+      const at = new URL(session, url);
+      if (!at.search) at.search = new URL(url).search;
+      await fetch(at, {method: 'DELETE', credentials: 'omit', signal: AbortSignal.timeout(CLOSE_MS)}).catch(() => {});
+    }
     pc.close();
-    if (!session) return;
-    const at = new URL(session, url);
-    if (!at.search) at.search = new URL(url).search;
-    await fetch(at, {method: 'DELETE'}).catch(() => {});
+  };
+  const gone = () => {
+    if (over) return;
+    over = true;
+    ended();
   };
   try {
     pc.addTransceiver('video', {direction: 'recvonly'});
@@ -124,14 +217,20 @@ export async function playWhep(url: string, video: HTMLVideoElement, ended: () =
       video.srcObject = e.streams[0] ?? new MediaStream([e.track]);
     };
     pc.onconnectionstatechange = () => {
-      if (pc.connectionState === 'failed') ended();
+      if (pc.connectionState === 'failed') gone();
     };
     await pc.setLocalDescription(await pc.createOffer());
     await gathered(pc, 2000);
-    const res = await fetch(url, {method: 'POST', headers: {'Content-Type': 'application/sdp'}, body: pc.localDescription!.sdp});
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const res = await ask(url, {method: 'POST', headers: {'Content-Type': 'application/sdp'}, body: pc.localDescription!.sdp});
     session = res.headers.get('Location');
     await pc.setRemoteDescription({type: 'answer', sdp: await res.text()});
+    // the mower ending the session closes its side at once, the connection counts as failed only a quarter of a
+    // minute later
+    const secured = pc.getReceivers()[0]?.transport;
+    if (secured)
+      secured.onstatechange = () => {
+        if (secured.state === 'closed') gone();
+      };
   } catch (e) {
     await close();
     throw e;
@@ -150,4 +249,95 @@ function gathered(pc: RTCPeerConnection, ms: number): Promise<void> {
       done();
     };
   });
+}
+
+const HEAD_END = [13, 10, 13, 10];
+const MAX_HEAD = 4096;
+const MAX_PICTURE = 16 << 20;
+
+// the pictures of a multipart/x-mixed-replace stream as MowBite OS sends it, each part its headers with the picture's
+// length and then the picture. returns when the stream ends, throws on one that isn't such a stream
+export async function readPictures(body: ReadableStream<Uint8Array>, got: (picture: Blob) => void): Promise<void> {
+  const reader = body.getReader();
+  let buf = new Uint8Array(0);
+  const more = async () => {
+    const {done, value} = await reader.read();
+    if (done) return false;
+    const next = new Uint8Array(buf.length + value.length);
+    next.set(buf);
+    next.set(value, buf.length);
+    buf = next;
+    return true;
+  };
+  for (;;) {
+    let end: number;
+    while ((end = buf.findIndex((_, i) => HEAD_END.every((b, k) => buf[i + k] === b))) < 0) {
+      if (buf.length > MAX_HEAD) throw new Error('no part of a picture stream');
+      if (!(await more())) return;
+    }
+    const head = new TextDecoder().decode(buf.subarray(0, end));
+    const length = Number(/^content-length:\s*(\d+)\s*$/im.exec(head)?.[1]);
+    if (!(length > 0 && length <= MAX_PICTURE)) throw new Error('a part without its length');
+    const from = end + HEAD_END.length;
+    while (buf.length < from + length) if (!(await more())) return;
+    const type = /^content-type:\s*([^;\s]+)/im.exec(head)?.[1] ?? 'image/jpeg';
+    got(new Blob([buf.slice(from, from + length)], {type}));
+    buf = buf.subarray(from + length);
+  }
+}
+
+// mjpeg, read by the app itself: that way it knows what the address answered and when the pictures end. each picture
+// goes into img once the one before is drawn, the newest of those that came meanwhile (shown tells each one drawn).
+// ended once the stream is over or no picture could be drawn for STALL_MS
+export async function playMjpeg(url: string, img: HTMLImageElement, shown: () => void, ended: () => void): Promise<() => Promise<void>> {
+  const stop = new AbortController();
+  const res = await ask(url, {}, stop);
+  let drawn = '';
+  let next: Blob | null = null;
+  let drawing = false;
+  let over = false;
+  let stall: ReturnType<typeof setTimeout>;
+  const wait = () => {
+    clearTimeout(stall);
+    stall = setTimeout(() => stop.abort(), STALL_MS);
+  };
+  const draw = () => {
+    if (over || drawing || !next) return;
+    drawing = true;
+    const last = drawn;
+    img.src = drawn = URL.createObjectURL(next);
+    next = null;
+    if (last) URL.revokeObjectURL(last);
+  };
+  // (a part that is no picture counts for nothing, the next one is tried)
+  const done = (fine: boolean) => {
+    drawing = false;
+    if (over) return;
+    if (fine) {
+      wait();
+      shown();
+    }
+    draw();
+  };
+  img.onload = () => done(true);
+  img.onerror = () => done(false);
+  wait();
+  void (res.body
+    ? readPictures(res.body, (picture) => {
+        next = picture;
+        draw();
+      })
+    : Promise.resolve()
+  )
+    .catch(() => {})
+    .then(() => {
+      clearTimeout(stall);
+      if (!over) ended();
+    });
+  return async () => {
+    over = true;
+    clearTimeout(stall);
+    stop.abort();
+    if (drawn) URL.revokeObjectURL(drawn);
+  };
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import {useRpcMethods} from '@/hooks/useRpcMethods';
-import {loadCameras, sortCameras, type Camera} from '@/lib/camera';
+import {loadCameras, sortCameras, withChange, type Camera, type CameraChange} from '@/lib/camera';
 import {readMower, writeMower} from '@/lib/mowers';
 import {onTopic} from '@/lib/mqttClient';
 import {RPC, TOPIC} from '@/lib/openmower';
@@ -11,7 +11,8 @@ import {useEffect, useSyncExternalStore} from 'react';
 
 // the mower's cameras for all who show them: read once, again when one changes (CAMERA_CHANGED), when the methods
 // change or the connection was lost, never in a rhythm. changes counts the CAMERA_CHANGED of each camera, a stream
-// is opened anew after each
+// is opened anew after each. without camera.* in the methods (their process gone) the list goes, it's read again
+// once they're back
 interface Cameras {
   list?: Camera[];
   failed?: string;
@@ -35,6 +36,8 @@ const subscribe = (l: () => void) => {
 let reading = 0;
 function read() {
   const n = ++reading;
+  // (a failure from before isn't shown while it's read anew)
+  if (now.failed) set({failed: undefined});
   loadCameras().then(
     (list) => n === reading && set({list: sortCameras(Array.isArray(list) ? list : []), failed: undefined}),
     (e) => n === reading && set({failed: rpcErrorText(e)}),
@@ -49,25 +52,24 @@ function start() {
   onTopic(TOPIC.events, (payload) => {
     const text = payload.toString();
     if (!text.includes('CAMERA_CHANGED')) return;
-    let e: {type?: string; id?: string; camera_id?: string; camera?: string; available?: boolean; reason?: string};
+    let e: CameraChange & {type?: string};
     try {
       e = JSON.parse(text);
     } catch {
       return;
     }
     if (e.type !== 'CAMERA_CHANGED') return;
-    // which one: an event's id is its own on MowBite OS, so the camera's is taken from whichever field names one in the
-    // list. none: each is connected anew
-    const ids = new Set(now.list?.map((c) => c.id));
-    const id = [e.camera_id, e.camera, e.id].find((v) => typeof v === 'string' && ids.has(v));
-    const list = now.list?.map((c) => (c.id === id && typeof e.available === 'boolean' ? {...c, available: e.available, reason: e.reason} : c));
-    const changes = {...now.changes};
-    for (const c of now.list ?? []) if (!id || c.id === id) changes[c.id] = (changes[c.id] ?? 0) + 1;
-    // what it says right away, the whole list after it
-    set({list, changes});
+    // what it says about its camera right away, the whole list after it (one the list doesn't have yet comes with that)
+    const list = now.list && withChange(now.list, e);
+    if (list) set({list, changes: {...now.changes, [e.camera_id]: (now.changes[e.camera_id] ?? 0) + 1}});
     read();
   });
-  onMethodsChanged(read);
+  onMethodsChanged((m) => {
+    if (m && !m.has(RPC.cameraList)) {
+      reading++;
+      set({list: undefined, failed: undefined});
+    } else read();
+  });
   read();
 }
 
