@@ -27,13 +27,6 @@ async function onDashboard(page: Page) {
 test.describe('cameras', () => {
   test.skip(SIM, 'the demo mower only');
 
-  test('not on a mower without them', async ({page}) => {
-    await page.goto('/settings/');
-    await page.locator('#look summary').click();
-    await expect(page.getByRole('checkbox', {name: 'Mow motor', exact: true})).toBeVisible();
-    await expect(page.getByRole('checkbox', {name: 'Camera picture'})).toHaveCount(0);
-  });
-
   test('on the dashboard once switched on: why there is none while the blade runs, then the picture, the cameras to switch', async ({page}) => {
     await demoWith(page, 'Cameras');
     await page.goto('/');
@@ -100,7 +93,7 @@ test.describe('cameras', () => {
     await expect(camera).not.toContainText('No picture');
   });
 
-  test('cameras that come up while the app is open show without a reload, and leave when their process ends', async ({page}) => {
+  test('none on a mower without them, ones that come up while the app is open show without a reload and leave when their process ends', async ({page}) => {
     await page.goto('/settings/');
     await page.locator('#look summary').click();
     await expect(page.getByRole('checkbox', {name: 'Mow motor', exact: true})).toBeVisible();

@@ -14,7 +14,6 @@ import {
   pictureRatio,
   playMjpeg,
   playWhep,
-  StreamError,
   streamFailure,
   streamUrl,
   type Camera,
@@ -181,10 +180,10 @@ function Player({camera, onLive}: {camera: Camera; onLive: (live: boolean) => vo
       if (e instanceof RpcError && e.data?.event === 'CAMERA_REFUSED')
         failed(cameraReason(e.data.reason as string | undefined, e.data.message as string | undefined));
       else if (e instanceof RpcError) failed(rpcErrorText(e));
-      else if (e instanceof StreamError) {
+      else {
         const {text, detail} = streamFailure(e);
         failed(text, detail);
-      } else failed(tr("Couldn't connect to the camera"), String(e?.message ?? e));
+      }
     });
     return () => {
       alive = false;

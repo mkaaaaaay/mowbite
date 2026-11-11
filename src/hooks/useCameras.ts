@@ -1,7 +1,8 @@
 'use client';
 
 import {useRpcMethods} from '@/hooks/useRpcMethods';
-import {loadCameras, sortCameras, withChange, type Camera, type CameraChange} from '@/lib/camera';
+import {loadCameras, sortCameras, withChange, type Camera} from '@/lib/camera';
+import {parseEvent} from '@/lib/events';
 import {readMower, writeMower} from '@/lib/mowers';
 import {onTopic} from '@/lib/mqttClient';
 import {RPC, TOPIC} from '@/lib/openmower';
@@ -39,7 +40,7 @@ function read() {
   // (a failure from before isn't shown while it's read anew)
   if (now.failed) set({failed: undefined});
   loadCameras().then(
-    (list) => n === reading && set({list: sortCameras(Array.isArray(list) ? list : []), failed: undefined}),
+    (list) => n === reading && set({list: sortCameras(Array.isArray(list) ? list : [])}),
     (e) => n === reading && set({failed: rpcErrorText(e)}),
   );
 }
@@ -52,16 +53,11 @@ function start() {
   onTopic(TOPIC.events, (payload) => {
     const text = payload.toString();
     if (!text.includes('CAMERA_CHANGED')) return;
-    let e: CameraChange & {type?: string};
-    try {
-      e = JSON.parse(text);
-    } catch {
-      return;
-    }
-    if (e.type !== 'CAMERA_CHANGED') return;
+    const e = parseEvent(text);
+    if (e?.type !== 'CAMERA_CHANGED') return;
     // what it says about its camera right away, the whole list after it (one the list doesn't have yet comes with that)
     const list = now.list && withChange(now.list, e);
-    if (list) set({list, changes: {...now.changes, [e.camera_id]: (now.changes[e.camera_id] ?? 0) + 1}});
+    if (list) set({list, changes: {...now.changes, [e.camera_id!]: (now.changes[e.camera_id!] ?? 0) + 1}});
     read();
   });
   onMethodsChanged((m) => {

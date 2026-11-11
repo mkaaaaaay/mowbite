@@ -1,4 +1,4 @@
-import {reasonText} from './events';
+import {reasonText, type MowerEvent} from './events';
 import {tr} from './i18n';
 import {isDemo} from './mowers';
 import {RPC} from './openmower';
@@ -23,13 +23,6 @@ export interface Camera {
   // why not, the names of CAMERA_REFUSED
   reason?: string;
   detail?: string;
-}
-// what a CAMERA_CHANGED tells about one of them. message: the mower's english words on the reason
-export interface CameraChange {
-  camera_id: string;
-  available: boolean;
-  reason?: string;
-  message?: string;
 }
 interface Stream {
   url: string;
@@ -76,10 +69,11 @@ export function pictureRatio(list: readonly Camera[]): number {
 }
 
 // the list with what a CAMERA_CHANGED says about its camera, null for one the list doesn't have
-export function withChange(list: readonly Camera[], e: CameraChange): Camera[] | null {
-  if (typeof e.available !== 'boolean' || !list.some((c) => c.id === e.camera_id)) return null;
-  const why = e.available ? {reason: undefined, detail: undefined} : {reason: e.reason, detail: e.message};
-  return list.map((c) => (c.id === e.camera_id ? {...c, available: e.available, ...why} : c));
+export function withChange(list: readonly Camera[], e: Pick<MowerEvent, 'camera_id' | 'available' | 'reason' | 'message'>): Camera[] | null {
+  const {camera_id: id, available} = e;
+  if (typeof available !== 'boolean' || !list.some((c) => c.id === id)) return null;
+  const why = available ? {reason: undefined, detail: undefined} : {reason: e.reason, detail: e.message};
+  return list.map((c) => (c.id === id ? {...c, available, ...why} : c));
 }
 
 // why it shows no picture, in words on their own line
@@ -141,15 +135,16 @@ export class StreamError extends Error {
   }
 }
 
-// the same in words, with what the address answered for the small print. a place is for one connection and has to
-// be taken within half a minute (401 after that), trying again asks the mower for a new one. 400 is the stream
-// server's no for a camera that sends it no picture within 10 s, and for whatever else keeps it from starting
-export function streamFailure(e: StreamError): {text: string; detail?: string} {
-  if (e.status === 'timeout') return {text: tr("The camera didn't answer in time."), detail: e.at};
-  if (e.status === 0) return {text: tr("Couldn't reach the camera at {address}.", {address: e.at})};
+// a stream that failed in words, with what the address answered for the small print. a place is for one connection
+// and has to be taken within half a minute (401 after that), trying again asks the mower for a new one. 400 is the
+// stream server's no for a camera that sends it no picture within 10 s, and for whatever else keeps it from starting
+export function streamFailure(e: unknown): {text: string; detail?: string} {
+  const s = e instanceof StreamError ? e : null;
+  if (s?.status === 'timeout') return {text: tr("The camera didn't answer in time."), detail: s.at};
+  if (s?.status === 0) return {text: tr("Couldn't reach the camera at {address}.", {address: s.at})};
   return {
-    text: tr(e.status === 401 ? "The mower didn't accept the connection." : e.status === 400 ? 'The camera gave no picture.' : "Couldn't connect to the camera"),
-    detail: e.message,
+    text: tr(s?.status === 401 ? "The mower didn't accept the connection." : s?.status === 400 ? 'The camera gave no picture.' : "Couldn't connect to the camera"),
+    detail: String((e as Error | null)?.message ?? e),
   };
 }
 
@@ -319,21 +314,18 @@ export async function playMjpeg(url: string, img: HTMLImageElement, shown: () =>
     }
     draw();
   };
+  const got = (picture: Blob) => {
+    next = picture;
+    draw();
+  };
+  const end = () => {
+    clearTimeout(stall);
+    if (!over) ended();
+  };
   img.onload = () => done(true);
   img.onerror = () => done(false);
   wait();
-  void (res.body
-    ? readPictures(res.body, (picture) => {
-        next = picture;
-        draw();
-      })
-    : Promise.resolve()
-  )
-    .catch(() => {})
-    .then(() => {
-      clearTimeout(stall);
-      if (!over) ended();
-    });
+  void (res.body ? readPictures(res.body, got) : Promise.resolve()).then(end, end);
   return async () => {
     over = true;
     clearTimeout(stall);
