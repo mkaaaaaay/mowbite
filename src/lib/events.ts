@@ -29,6 +29,7 @@ export interface MowerEvent {
   y?: number;
   state?: string;
   available?: boolean;
+  camera_id?: string;
   enabled?: boolean;
   area_id?: string;
   area_name?: string;

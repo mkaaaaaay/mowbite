@@ -16,6 +16,27 @@ describe('isMissingMethod', () => {
   });
 });
 
+describe('a part of MowBite OS gone for now', () => {
+  afterEach(() => {
+    vi.doUnmock('./mowerOs');
+    vi.resetModules();
+  });
+
+  it('is said as that, in a settings card too, not as something the mower lacks', async () => {
+    vi.resetModules();
+    vi.doMock('./mowerOs', () => ({providerGone: (e: {listed?: boolean}) => !!e.listed}));
+    const {RpcError} = await import('./rpc');
+    const {answerError, rpcErrorText} = await import('./rpcText');
+    const gone = Object.assign(new RpcError('planner.settings.set', -32601, 'The node that answers "planner.settings.set" is gone'), {listed: true});
+    const text = "A part of MowBite OS isn't running right now (planner.settings.set). Try again in a moment.";
+    expect(rpcErrorText(gone)).toBe(text);
+    expect(answerError(gone)).toBe(text);
+    expect(rpcErrorText(new RpcError('planner.settings.set', -32601, 'Method not found'))).toBe(
+      "Your mower's software doesn't offer this (planner.settings.set).",
+    );
+  });
+});
+
 describe('an update holding MowBite OS', () => {
   it('says until when for a change it turned down, other errors as before', () => {
     const until = 1793754213;
@@ -148,6 +169,110 @@ describe('calls while offline', () => {
     await vi.advanceTimersByTimeAsync(60000);
     await rpcMethods();
     expect(client.published).toHaveLength(1);
+  });
+
+  it('notes "method not found" for a method the list names and asks the list again, a command too', async () => {
+    const {callCommand, callRpc} = await load();
+    client.online();
+    const answer = (n: number, a: object) => client.emit('message', 'rpc/response', Buffer.from(JSON.stringify({id: client.published[n].id, ...a})));
+    const gone = {error: {code: -32601, message: 'The node that answers it is gone'}};
+    const plan = callRpc('planner.plan', {});
+    answer(0, {result: ['planner.plan', 'mowing.start']});
+    await vi.advanceTimersByTimeAsync(0);
+    answer(1, gone);
+    await expect(plan).rejects.toMatchObject({code: -32601, listed: true});
+    expect(client.published.map((m) => m.method)).toEqual(['rpc.methods', 'planner.plan', 'rpc.methods']);
+    const start = callCommand('mowing.start', {}, 10000);
+    answer(3, gone);
+    await expect(start).rejects.toMatchObject({code: -32601, listed: true});
+    // the new list doesn't have it any more: stopped here like any method the mower doesn't list
+    answer(2, {result: ['mowing.start']});
+    await vi.advanceTimersByTimeAsync(0);
+    await expect(callRpc('planner.plan', {})).rejects.toMatchObject({code: -32601, listed: false});
+    expect(client.published).toHaveLength(4);
+  });
+
+  it('reads the list again on each METHODS_CHANGED and tells the last answer, the list counts and not what the event names', async () => {
+    const {knownMethods, onMethodsChanged, rpcMethods} = await load();
+    client.online();
+    const answer = (n: number, a: object) => client.emit('message', 'rpc/response', Buffer.from(JSON.stringify({id: client.published[n].id, ...a})));
+    const event = (e: object) => client.emit('message', 'events/json', Buffer.from(JSON.stringify(e)));
+    const heard: (Set<string> | null)[] = [];
+    onMethodsChanged((m) => heard.push(m));
+    const first = rpcMethods();
+    answer(0, {result: ['map.replace']});
+    await first;
+    // another event that only has the word in it
+    event({type: 'UPDATE', message: 'METHODS_CHANGED'});
+    expect(client.published).toHaveLength(1);
+    // MowBite OS starting: its planner and its cameras come up seconds apart
+    event({type: 'METHODS_CHANGED', added: ['planner.plan'], removed: []});
+    event({type: 'METHODS_CHANGED', added: ['camera.list', 'camera.stream'], removed: []});
+    expect(client.published.map((m) => m.method)).toEqual(['rpc.methods', 'rpc.methods', 'rpc.methods']);
+    answer(1, {result: ['map.replace', 'planner.plan']});
+    await vi.advanceTimersByTimeAsync(0);
+    expect(heard).toEqual([]);
+    answer(2, {result: ['map.replace', 'planner.plan', 'camera.list']});
+    await vi.advanceTimersByTimeAsync(0);
+    expect(heard).toEqual([new Set(['map.replace', 'planner.plan', 'camera.list'])]);
+    expect(knownMethods()).toEqual(heard[0]);
+  });
+
+  it('reads the list again once the connection is back, not when it first comes', async () => {
+    const {onMethodsChanged, rpcMethods} = await load();
+    const answer = (n: number, a: object) => client.emit('message', 'rpc/response', Buffer.from(JSON.stringify({id: client.published[n].id, ...a})));
+    const heard: (Set<string> | null)[] = [];
+    onMethodsChanged((m) => heard.push(m));
+    client.online();
+    expect(client.published).toEqual([]);
+    const first = rpcMethods();
+    answer(0, {result: ['map.replace', 'camera.list']});
+    await first;
+    client.offline();
+    client.online();
+    expect(client.published.map((m) => m.method)).toEqual(['rpc.methods', 'rpc.methods']);
+    answer(1, {result: ['map.replace']});
+    await vi.advanceTimersByTimeAsync(0);
+    expect(heard).toEqual([new Set(['map.replace'])]);
+  });
+
+  it("doesn't ask the list at every such answer of a mower that goes on listing the method", async () => {
+    const {callRpc} = await load();
+    client.online();
+    const answer = (n: number, a: object) => client.emit('message', 'rpc/response', Buffer.from(JSON.stringify({id: client.published[n].id, ...a})));
+    const gone = {error: {code: -32601, message: 'The node that answers it is gone'}};
+    const methods = () => client.published.map((m) => m.method);
+    const first = callRpc('camera.list');
+    answer(0, {result: ['camera.list']});
+    await vi.advanceTimersByTimeAsync(0);
+    answer(1, gone);
+    await expect(first).rejects.toMatchObject({listed: true});
+    expect(methods()).toEqual(['rpc.methods', 'camera.list', 'rpc.methods']);
+    answer(2, {result: ['camera.list']});
+    await vi.advanceTimersByTimeAsync(0);
+    const second = callRpc('camera.list');
+    await vi.advanceTimersByTimeAsync(0);
+    answer(3, gone);
+    await expect(second).rejects.toMatchObject({listed: true});
+    expect(methods()).toEqual(['rpc.methods', 'camera.list', 'rpc.methods', 'camera.list']);
+    await vi.advanceTimersByTimeAsync(5000);
+    const third = callRpc('camera.list');
+    await vi.advanceTimersByTimeAsync(0);
+    answer(4, gone);
+    await expect(third).rejects.toMatchObject({listed: true});
+    expect(methods()).toEqual(['rpc.methods', 'camera.list', 'rpc.methods', 'camera.list', 'camera.list', 'rpc.methods']);
+  });
+
+  it('takes "method not found" from a mower without a list as it comes', async () => {
+    const {callRpc} = await load();
+    client.online();
+    const answer = (n: number, a: object) => client.emit('message', 'rpc/response', Buffer.from(JSON.stringify({id: client.published[n].id, ...a})));
+    const saved = callRpc('map.replace', [{}]);
+    answer(0, {error: {code: -32601, message: 'Method not found'}});
+    await vi.advanceTimersByTimeAsync(0);
+    answer(1, {error: {code: -32601, message: 'Method not found'}});
+    await expect(saved).rejects.toMatchObject({code: -32601, listed: false});
+    expect(client.published).toHaveLength(2);
   });
 
   it('keeps what the mower adds to its error', async () => {

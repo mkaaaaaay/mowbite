@@ -1,3 +1,4 @@
+import type {World} from '@/lib/demo/world';
 import {expect, test as base, type Page} from '@playwright/test';
 
 // With E2E_URL the tests go to a MowBite with a mower or a simulator, else to the built app with the demo mower
@@ -31,13 +32,7 @@ export const demoWith = (page: Page, ...parts: ('Lights' | 'Sounds' | 'Cameras' 
 
 // the demo mower as the app reaches it (lib/demo/client): what it has on a topic now, and a call to it like another phone
 // would make one
-type DemoMower = {
-  retained(topic: string): [string, string][];
-  published(topic: string, message: string): void;
-  ahead(seconds: number): void;
-  emergency(reasons?: string[]): void;
-  refuseReset(why: Record<string, unknown> | null): void;
-};
+type DemoMower = Pick<World, 'retained' | 'published' | 'ahead' | 'emergency' | 'refuseReset' | 'cameras'>;
 export const demoHas = async <T>(page: Page, topic: string): Promise<T> => {
   await page.waitForFunction(() => 'mowbiteDemo' in window);
   return page.evaluate((t) => JSON.parse((window as unknown as {mowbiteDemo: DemoMower}).mowbiteDemo.retained(t)[0][1]), topic);
@@ -61,6 +56,8 @@ export const demoEmergency = (page: Page, reasons?: string[]) =>
 // a reset turned down the way MowBite OS does it (EMERGENCY_RESET_REFUSED with these fields), null lets it go again
 export const demoRefuseReset = (page: Page, why: Record<string, unknown> | null) =>
   page.evaluate((w) => (window as unknown as {mowbiteDemo: DemoMower}).mowbiteDemo.refuseReset(w), why);
+// the cameras' process of MowBite OS coming up or going while the app is open
+export const demoCameras = (page: Page, on: boolean) => page.evaluate((o) => (window as unknown as {mowbiteDemo: DemoMower}).mowbiteDemo.cameras(o), on);
 export const demoCall = (page: Page, method: string, params: unknown) =>
   page.evaluate(
     ([method, params]) =>

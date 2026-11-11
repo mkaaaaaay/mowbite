@@ -1737,6 +1737,13 @@
     "de": "der Hardware-Treiber meldet sich nicht, die Kamera wartet auf ihn"
    },
    {
+    "en": "the hardware driver is not reporting, the camera waits for it",
+    "when": {
+     "type": "CAMERA_CHANGED"
+    },
+    "de": "der Hardware-Treiber meldet sich nicht, die Kamera wartet auf ihn"
+   },
+   {
     "en": "the hardware driver is not running",
     "de": "der Hardware-Treiber läuft nicht"
    }
@@ -1855,8 +1862,8 @@
   ],
   "LOCKED_AFTER_CRASH": [
    {
-    "en": "the camera software crashed and is locked",
-    "de": "die Kamera-Software ist abgestürzt und gesperrt"
+    "en": "the mower's system crashed while this camera ran, it stays off until its lock on the mower is deleted",
+    "de": "das System des Mähers ist abgestürzt, während diese Kamera lief, sie bleibt aus, bis ihre Sperre auf dem Mäher gelöscht ist"
    }
   ],
   "NOT_SET_UP": [
@@ -1873,20 +1880,20 @@
   ],
   "TOO_HOT": [
    {
-    "en": "the camera is too hot",
-    "de": "die Kamera ist zu heiß"
+    "en": "the mower's computer is too hot, the camera pauses",
+    "de": "der Rechner des Mähers ist zu heiß, die Kamera macht Pause"
    }
   ],
   "NO_SIGNAL": [
    {
-    "en": "no signal from the camera",
-    "de": "kein Signal von der Kamera"
+    "en": "the camera gives no picture right now",
+    "de": "die Kamera liefert gerade kein Bild"
    }
   ],
   "SELF_TEST": [
    {
-    "en": "the mower is still testing itself after starting",
-    "de": "der Mäher prüft sich nach dem Start noch selbst"
+    "en": "the camera is still testing itself after the start, for that the mower has to stand with the blade off",
+    "de": "die Kamera prüft sich nach dem Start noch selbst, dafür muss der Mäher stehen und das Messer aus sein"
    }
   ],
   "KERNEL_CRASH": [

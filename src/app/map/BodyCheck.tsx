@@ -4,7 +4,7 @@ import type {PlanRequest} from '@/lib/areaPlan';
 import {fmt, tr} from '@/lib/i18n';
 import {checkBody, spotPlaces, usePlannerSettings, type BodyCheck as Result, type BodySpot} from '@/lib/mowerBody';
 import type {PlanChecks as Checks} from '@/lib/mowPlan';
-import {RpcError} from '@/lib/rpc';
+import {answerError} from '@/lib/rpcText';
 import {useEffect, useMemo, useState} from 'react';
 import styles from './page.module.css';
 
@@ -39,7 +39,7 @@ export function BodyCheck({request, onSpots}: {request: PlanRequest | null; onSp
     try {
       setState({key, result: await checkBody(request)});
     } catch (e) {
-      setState({key, error: e instanceof RpcError && e.code !== 'timeout' ? e.message : tr('The mower did not answer.')});
+      setState({key, error: answerError(e)});
     }
   };
 

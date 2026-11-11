@@ -1,28 +1,38 @@
-import {demoDocked, demoWith, expect, SIM, tab, test} from './app';
+import type {Page} from '@playwright/test';
+import {demoCameras, demoDocked, demoWith, expect, SIM, tab, test} from './app';
+
+// the picture the camera view shows right now, as text: the demo draws the camera's name into each one of its stream
+const picture = (page: Page) =>
+  page.evaluate(() => {
+    const img = document.querySelector<HTMLImageElement>('[data-camera] img');
+    return img?.src
+      ? fetch(img.src).then(
+          (r) => r.text(),
+          () => '',
+        )
+      : '';
+  });
+
+// the camera picture switched on for the dashboard, and back there
+async function onDashboard(page: Page) {
+  await tab(page, '/settings').click();
+  await page.locator('#look summary').click();
+  await page.getByRole('checkbox', {name: 'Camera picture'}).check();
+  await tab(page, '/').click();
+  return page.locator('[data-camera]');
+}
 
 // the cameras of a mower with MowBite OS: the demo is an OpenMower and has none until a test switches them on. it's out
 // mowing when it opens, the blade running: no picture until it's home
 test.describe('cameras', () => {
   test.skip(SIM, 'the demo mower only');
 
-  test('not on a mower without them', async ({page}) => {
-    await page.goto('/settings/');
-    await page.locator('#look summary').click();
-    await expect(page.getByRole('checkbox', {name: 'Mow motor', exact: true})).toBeVisible();
-    await expect(page.getByRole('checkbox', {name: 'Camera picture'})).toHaveCount(0);
-  });
-
   test('on the dashboard once switched on: why there is none while the blade runs, then the picture, the cameras to switch', async ({page}) => {
     await demoWith(page, 'Cameras');
     await page.goto('/');
     await expect(page.locator('[data-camera]')).toHaveCount(0);
 
-    await tab(page, '/settings').click();
-    await page.locator('#look summary').click();
-    await page.getByRole('checkbox', {name: 'Camera picture'}).check();
-    await tab(page, '/').click();
-
-    const camera = page.locator('[data-camera]');
+    const camera = await onDashboard(page);
     await expect(camera).toContainText('No picture');
     await expect(camera).toContainText('Not while the blade is running');
 
@@ -34,7 +44,7 @@ test.describe('cameras', () => {
     await camera.getByRole('button', {name: 'Rear camera'}).click();
     await expect(camera.getByRole('button', {name: 'Rear camera'})).toHaveAttribute('aria-pressed', 'true');
     await expect(camera.locator('img')).toHaveCount(1);
-    await expect(camera.locator('img')).toHaveAttribute('src', /Rear%20camera/);
+    await expect.poll(() => picture(page)).toContain('Rear camera');
 
     // a tap on the picture puts the buttons on it away and brings them back
     await camera.getByRole('button', {name: 'Hide the buttons'}).click();
@@ -48,14 +58,14 @@ test.describe('cameras', () => {
     await expect(camera.getByRole('button', {name: 'Hide the camera picture'})).toHaveCount(0);
     await camera.getByRole('button', {name: 'Leave full screen'}).click();
     await expect(camera.getByRole('button', {name: 'Full screen', exact: true})).toBeVisible();
-    await expect(camera.locator('img')).toHaveAttribute('src', /Rear%20camera/);
+    await expect.poll(() => picture(page)).toContain('Rear camera');
 
     // turned down: the reason, and once more
     await page.evaluate(() => ((window as {mowbiteDemoCameraRefuse?: string}).mowbiteDemoCameraRefuse = 'CAMERA_BUSY'));
     await camera.getByRole('button', {name: 'Left side camera'}).click();
     await expect(camera).toContainText('Two are watching already, at most two at a time');
     await camera.getByRole('button', {name: 'Try again'}).click();
-    await expect(camera.locator('img')).toHaveAttribute('src', /Obstacle%20camera%20left/);
+    await expect.poll(() => picture(page)).toContain('Obstacle camera left');
 
     // off on the picture itself, on again at the top of the dashboard
     await camera.getByRole('button', {name: 'Hide the camera picture'}).click();
@@ -64,6 +74,42 @@ test.describe('cameras', () => {
     await expect(onOff).toHaveAttribute('aria-pressed', 'false');
     await onOff.click();
     await expect(camera.locator('img')).toBeVisible();
+  });
+
+  test("a stream its address doesn't let in: why, and the next try with a new one from the mower", async ({page}) => {
+    await demoWith(page, 'Cameras');
+    await page.goto('/');
+    const camera = await onDashboard(page);
+    await demoDocked(page);
+    await expect.poll(() => picture(page)).toContain('Stereo camera');
+
+    await page.evaluate(() => ((window as {mowbiteDemoCameraStatus?: number}).mowbiteDemoCameraStatus = 401));
+    await camera.getByRole('button', {name: 'Rear camera'}).click();
+    await expect(camera).toContainText("The mower didn't accept the connection.");
+    await expect(camera).toContainText('HTTP 401');
+    await expect(camera.locator('img')).toHaveCount(0);
+    await camera.getByRole('button', {name: 'Try again'}).click();
+    await expect.poll(() => picture(page)).toContain('Rear camera');
+    await expect(camera).not.toContainText('No picture');
+  });
+
+  test('none on a mower without them, ones that come up while the app is open show without a reload and leave when their process ends', async ({page}) => {
+    await page.goto('/settings/');
+    await page.locator('#look summary').click();
+    await expect(page.getByRole('checkbox', {name: 'Mow motor', exact: true})).toBeVisible();
+    await expect(page.getByRole('checkbox', {name: 'Camera picture'})).toHaveCount(0);
+
+    await demoCameras(page, true);
+    await page.getByRole('checkbox', {name: 'Camera picture'}).check();
+    await tab(page, '/').click();
+    const camera = page.locator('[data-camera]');
+    await demoDocked(page);
+    await expect.poll(() => picture(page)).toContain('Stereo camera');
+
+    await demoCameras(page, false);
+    await expect(camera).toHaveCount(0);
+    await demoCameras(page, true);
+    await expect.poll(() => picture(page)).toContain('Stereo camera');
   });
 
   test('in recording mode the map or a camera', async ({page}) => {
@@ -76,7 +122,7 @@ test.describe('cameras', () => {
     await expect(page.locator('[data-camera]')).toHaveCount(0);
 
     await view.getByRole('button', {name: 'Rear camera'}).click();
-    await expect(page.locator('[data-camera] img')).toHaveAttribute('src', /Rear%20camera/);
+    await expect.poll(() => picture(page)).toContain('Rear camera');
     // the stick stays on the picture
     await expect(page.locator('[data-camera]')).toBeVisible();
 
@@ -100,7 +146,7 @@ test.describe('cameras', () => {
     await expect(page.getByRole('button', {name: 'Upright'})).toBeVisible();
     const view = page.getByRole('group', {name: 'View'});
     await view.getByRole('button', {name: 'Front'}).click();
-    await expect(page.locator('[data-camera] img')).toHaveAttribute('src', /Stereo%20camera/);
+    await expect.poll(() => picture(page)).toContain('Stereo camera');
     await expect(page.getByRole('button', {name: 'Zoom in'})).toHaveCount(0);
     await view.getByRole('button', {name: 'Map'}).click();
     await expect(page.getByRole('button', {name: 'Zoom in'})).toBeVisible();

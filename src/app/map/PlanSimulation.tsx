@@ -4,6 +4,7 @@ import type {PlanRequest} from '@/lib/areaPlan';
 import {fmt, tr} from '@/lib/i18n';
 import {RPC} from '@/lib/openmower';
 import {RpcError} from '@/lib/rpc';
+import {answerError} from '@/lib/rpcText';
 import {useRpcMethods} from '@/hooks/useRpcMethods';
 import {
   cancelSimulation,
@@ -94,11 +95,9 @@ export function PlanSimulation({request, sim, onResult, onShow}: {
         setError({
           key: asked,
           text:
-            e instanceof RpcError && e.code !== 'timeout'
-              ? e.message === 'a simulation is running'
-                ? tr('The planner is already driving another plan, try again in a moment.')
-                : e.message
-              : tr('The mower did not answer.'),
+            e instanceof RpcError && e.message === 'a simulation is running'
+              ? tr('The planner is already driving another plan, try again in a moment.')
+              : answerError(e),
         });
       }
     } finally {

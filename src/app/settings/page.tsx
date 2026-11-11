@@ -32,7 +32,7 @@ import {useMowbiteOs} from '@/lib/mowerOs';
 import {DashboardItems} from '@/components/DashboardItems';
 import {datumFromParams, useMowerParams} from '@/hooks/useMowerParams';
 import {posixTz} from '@/lib/schedule';
-import {RpcError} from '@/lib/rpc';
+import {answerError} from '@/lib/rpcText';
 
 const noop = () => () => {};
 
@@ -343,7 +343,7 @@ export default function SettingsPage() {
                         if (cur.leftovers?.auto) saveSettings({...cur, leftovers: {...cur.leftovers, auto: false}});
                         setLeftoversFailed(null);
                         savePlannerSettings({leftovers_auto: e.target.checked}).catch((err: unknown) =>
-                          setLeftoversFailed(err instanceof RpcError && err.code !== 'timeout' ? err.message : tr('The mower did not answer.')),
+                          setLeftoversFailed(answerError(err)),
                         );
                       }}
                     />

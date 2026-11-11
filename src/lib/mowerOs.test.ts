@@ -118,6 +118,28 @@ describe('systemInfo without an answer', () => {
   });
 });
 
+describe('"method not found" for a method the mower lists', () => {
+  it('means a part gone for now on MowBite OS only, and only once it is known what runs there', async () => {
+    rpc.methods = new Set(['system.info']);
+    rpc.answer = {name: 'mowbite-os'};
+    const os = await load();
+    const {RpcError} = await import('./rpc');
+    const listed = Object.assign(new RpcError('planner.plan', -32601, 'The node that answers "planner.plan" is gone'), {listed: true});
+    expect(os.providerGone(listed)).toBe(false);
+    await os.systemInfo();
+    expect(os.providerGone(listed)).toBe(true);
+    // one the app stopped itself, the list doesn't have it
+    expect(os.providerGone(new RpcError('planner.plan', -32601, 'Method not found'))).toBe(false);
+    expect(os.providerGone(new RpcError('planner.plan', 'timeout', 'timed out'))).toBe(false);
+    expect(os.providerGone(new Error('gone'))).toBe(false);
+
+    rpc.methods = new Set(['params.set']);
+    const openMower = await load();
+    await openMower.systemInfo();
+    expect(openMower.providerGone(listed)).toBe(false);
+  });
+});
+
 describe('osSpacing', () => {
   it('is the blade less the overlap, the planner values that count', async () => {
     const {osSpacing} = await load();

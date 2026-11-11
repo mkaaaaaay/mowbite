@@ -12,7 +12,9 @@ import {
   openStream,
   pickProtocol,
   pictureRatio,
+  playMjpeg,
   playWhep,
+  streamFailure,
   streamUrl,
   type Camera,
 } from '@/lib/camera';
@@ -119,7 +121,8 @@ function Note({busy, title, text, detail, children}: {busy?: boolean; title?: st
 
 type Shown = {phase: 'connecting' | 'playing' | 'ended'} | {phase: 'failed'; text: string; detail?: string};
 
-// one connection to a camera, closed when it goes (another camera, the page left or put away)
+// one connection to a camera, closed when it goes (another camera, the page left or put away). each try asks the
+// mower for a stream anew, its address is good for one connection
 function Player({camera, onLive}: {camera: Camera; onLive: (live: boolean) => void}) {
   const [shown, setShown] = useState<Shown>({phase: 'connecting'});
   useEffect(() => onLive(shown.phase === 'playing'), [shown.phase, onLive]);
@@ -140,9 +143,10 @@ function Player({camera, onLive}: {camera: Camera; onLive: (live: boolean) => vo
     };
     // (some browsers tell it with every frame)
     const playing = () => alive && setShown((s) => (s.phase === 'playing' ? s : {phase: 'playing'}));
-    // (its place on the mower is given back right away)
+    // (its place on the mower is given back right away, a picture still on its way doesn't count any more)
     const ended = () => {
       if (!alive) return;
+      alive = false;
       shut();
       setShown({phase: 'ended'});
     };
@@ -163,14 +167,11 @@ function Player({camera, onLive}: {camera: Camera; onLive: (live: boolean) => vo
       } else if (s.protocol === 'mjpeg') {
         const img = new Image();
         img.alt = '';
-        img.onload = playing;
-        img.onerror = ended;
-        img.src = url;
-        box.current?.appendChild(img);
-        // (an image keeps loading until its source goes)
+        const stop = await playMjpeg(url, img, playing, ended);
+        // (one given up while it connected never gets onto the page)
+        if (alive) box.current?.appendChild(img);
         close = async () => {
-          img.onerror = null;
-          img.src = '';
+          await stop();
           img.remove();
         };
       } else return failed(unknownProtocol(s.protocol));
@@ -179,7 +180,10 @@ function Player({camera, onLive}: {camera: Camera; onLive: (live: boolean) => vo
       if (e instanceof RpcError && e.data?.event === 'CAMERA_REFUSED')
         failed(cameraReason(e.data.reason as string | undefined, e.data.message as string | undefined));
       else if (e instanceof RpcError) failed(rpcErrorText(e));
-      else failed(tr("Couldn't connect to the camera"), String(e?.message ?? e));
+      else {
+        const {text, detail} = streamFailure(e);
+        failed(text, detail);
+      }
     });
     return () => {
       alive = false;

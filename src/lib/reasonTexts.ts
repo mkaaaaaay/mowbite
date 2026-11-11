@@ -413,7 +413,7 @@ export const REASONS: Record<string, Variant[]> = {
   LATCH_CHANGED: [r('a new emergency reason came up')],
   FOREIGN_HOST: [r('another computer is talking to the board')],
   DRIVER_MISSING: [
-    r('the hardware driver is not reporting, the camera waits for it', {when: {type: 'CAMERA_REFUSED'}}),
+    ...['CAMERA_REFUSED', 'CAMERA_CHANGED'].map((type) => r('the hardware driver is not reporting, the camera waits for it', {when: {type}})),
     r('the hardware driver is not running'),
   ],
   SAFETY_MISSING: [r('the safety filter is not running')],
@@ -436,14 +436,14 @@ export const REASONS: Record<string, Variant[]> = {
   NO_SPACE: [r('no space left on the mower, delete another sound of your own or choose a smaller file')],
   PART_ORDER: [r('a part of the file arrived out of order, upload it again')],
   RESTART_HOLD_STAYS: [r("the hold after the unexpected restart couldn't be removed")],
-  // CAMERA_REFUSED and camera.list: why a camera shows no picture now (DRIVER_MISSING above)
+  // CAMERA_REFUSED, CAMERA_CHANGED and camera.list: why a camera shows no picture now (DRIVER_MISSING above)
   CAMERA_BUSY: [r('two are watching already, at most two at a time')],
-  LOCKED_AFTER_CRASH: [r('the camera software crashed and is locked')],
+  LOCKED_AFTER_CRASH: [r("the mower's system crashed while this camera ran, it stays off until its lock on the mower is deleted")],
   NOT_SET_UP: [r('the camera is not set up on the mower')],
   BLADE_RUNNING: [r('not while the blade is running')],
-  TOO_HOT: [r('the camera is too hot')],
-  NO_SIGNAL: [r('no signal from the camera')],
-  SELF_TEST: [r('the mower is still testing itself after starting')],
+  TOO_HOT: [r("the mower's computer is too hot, the camera pauses")],
+  NO_SIGNAL: [r('the camera gives no picture right now')],
+  SELF_TEST: [r('the camera is still testing itself after the start, for that the mower has to stand with the blade off')],
   // UNEXPECTED_RESTART: what ended MowBite OS before
   KERNEL_CRASH: [r('the kernel crashed')],
   OS_CRASH: [r('MowBite OS crashed')],

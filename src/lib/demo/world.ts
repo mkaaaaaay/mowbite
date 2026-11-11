@@ -394,6 +394,8 @@ export interface World {
   emergency(reasons?: string[]): void;
   // a reset turned down the way MowBite OS does it, EMERGENCY_RESET_REFUSED with these fields, until it's null again
   refuseReset(why: Record<string, unknown> | null): void;
+  // the cameras' process coming up or going while the mower runs, told like MowBite OS does (METHODS_CHANGED)
+  cameras(on: boolean): void;
   // what goes on around it from now on, merged into what was set before
   set(change: Surroundings): void;
   // pushed aside by so many meters, like a jump of the position or carried off the station
@@ -1039,7 +1041,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
   }
 
   const utcDay = (t: number) => new Date(t * 1000).toISOString().slice(0, 10).replace(/-/g, '');
-  const cameras = demoOn('Cameras') ? demoCameras(deliver) : null;
+  let cameras = demoOn('Cameras') ? demoCameras(deliver) : null;
   const methods: Record<string, (params: unknown) => unknown> = {
     [RPC.methods]: () => Object.keys(methods).sort(),
     [RPC.replaceMap]: (params) => {
@@ -1315,6 +1317,19 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     },
     refuseReset(why) {
       refusal = why;
+    },
+    cameras(on) {
+      if (on === !!cameras) return;
+      const theirs = cameras ?? demoCameras(deliver);
+      const names = Object.keys(theirs.methods);
+      if (on) Object.assign(methods, theirs.methods);
+      else {
+        names.forEach((m) => delete methods[m]);
+        theirs.stop();
+      }
+      cameras = on ? theirs : null;
+      const change = on ? {added: names, removed: []} : {added: [], removed: names};
+      deliver(TOPIC.events, JSON.stringify({id: `methods${Date.now()}`, t: last / 1000, type: 'METHODS_CHANGED', ...change, severity: 'info', resume: 'auto'}));
     },
     set(change) {
       around = {...around, ...change};
