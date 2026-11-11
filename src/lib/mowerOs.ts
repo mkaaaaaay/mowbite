@@ -2,7 +2,7 @@ import {useEffect, useState} from 'react';
 import {RPC} from './openmower';
 import {noteMqtt} from './mqttClient';
 import {noteOs} from './mowers';
-import {askUntilAnswered, callRpc, isMissingMethod, methodsUnknown, rpcMethods} from './rpc';
+import {askUntilAnswered, callRpc, isMissingMethod, methodsUnknown, RpcError, rpcMethods} from './rpc';
 
 // What runs on the mower, from system.info. Only MowBite OS answers it, on OpenMower there's none. On MowBite OS the
 // planner is the one place for what makes the plan: the values for all areas in planner.settings, an area's own in
@@ -53,6 +53,14 @@ export function systemInfo(): Promise<SystemInfo | null | undefined> {
 }
 
 export const isMowbiteOs = (i: SystemInfo | null | undefined) => i?.name === MOWBITE_OS;
+
+// what system.info said, without waiting for it: false until it's known
+export const runsMowbiteOs = (): boolean => isMowbiteOs(known);
+
+// MowBite OS says -32601 too for a method it lists when the node that answers it is gone (the planner, the cameras'
+// process): away for now, not a method the mower doesn't have. OpenMower keeps what it listed, there the error stays
+// what it was
+export const providerGone = (e: unknown): boolean => runsMowbiteOs() && e instanceof RpcError && e.listed;
 
 // what system.info said, asked again until the mower answered
 function useSystemInfo(): SystemInfo | null | undefined {

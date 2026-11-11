@@ -7,6 +7,11 @@ const fake = vi.hoisted(() => ({
   // what rpc.methods said so far (undefined: no answer yet), and who waits for its answer
   known: null as Set<string> | null | undefined,
   waiting: [] as (() => void)[],
+  // who hears a new list of methods, whether MowBite OS runs on the mower and "method not found" means its planner
+  // is gone for now
+  heard: [] as ((m: Set<string> | null) => void)[],
+  os: false,
+  gone: false,
 }));
 vi.mock('./rpc', () => {
   class RpcError extends Error {
@@ -28,8 +33,17 @@ vi.mock('./rpc', () => {
       fake.waiting.push(got);
       return () => void fake.waiting.splice(fake.waiting.indexOf(got), 1);
     },
+    onMethodsChanged: (l: (m: Set<string> | null) => void) => {
+      fake.heard.push(l);
+      return () => {};
+    },
   };
 });
+vi.mock('./mowerOs', async (real) => ({
+  ...(await real<typeof import('./mowerOs')>()),
+  runsMowbiteOs: () => fake.os,
+  providerGone: (e: {code?: unknown}) => fake.gone && e.code === -32601,
+}));
 vi.mock('./settings', () => ({
   settingsStore: {subscribe: () => () => {}, snapshot: () => ({}), serverSnapshot: () => ({})},
   syncSettings: async () => {},
@@ -41,6 +55,7 @@ const settings = {settings: {mower_width: {value: 0.18, default: 0.18, stored: f
 async function fresh() {
   vi.resetModules();
   fake.calls = [];
+  fake.heard = [];
   const body = await import('./mowerBody');
   const {RpcError} = await import('./rpc');
   return {...body, RpcError};
@@ -119,6 +134,8 @@ describe('asking the planner until it answers', () => {
     fake.listed = true;
     fake.known = null;
     fake.waiting = [];
+    fake.os = false;
+    fake.gone = false;
     vi.useFakeTimers();
   });
   afterEach(() => {
@@ -156,6 +173,73 @@ describe('asking the planner until it answers', () => {
     fake.known = new Set(['planner.settings']);
     fake.waiting[0]();
     expect(fake.calls).toHaveLength(2);
+    stop();
+  });
+
+  it('takes a mower that has no such method as one without the planner and asks no more', async () => {
+    const m = await fresh();
+    const stop = m.askPlanner();
+    fake.calls[0].reject(new m.RpcError('planner.settings', -32601, 'Method not found'));
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(m.plannerSettings()).toBeNull();
+    expect(fake.calls).toHaveLength(1);
+    stop();
+  });
+
+  it("asks again when MowBite OS's planner is only gone for now", async () => {
+    fake.gone = true;
+    const m = await fresh();
+    const stop = m.askPlanner();
+    fake.calls[0].reject(new m.RpcError('planner.settings', -32601, 'The node that answers "planner.settings" is gone'));
+    await vi.advanceTimersByTimeAsync(14000);
+    expect(m.plannerSettings()).toBeUndefined();
+    expect(fake.calls).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(fake.calls).toHaveLength(2);
+    fake.calls[1].resolve(settings);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(m.plannerSettings()?.settings.mower_width.value).toBe(0.18);
+    stop();
+  });
+
+  it('asks a planner MowBite OS lists only later until it answers, without a reload', async () => {
+    fake.os = true;
+    const m = await fresh();
+    const stop = m.askPlanner();
+    fake.calls[0].reject(new m.RpcError('planner.settings', -32601, 'Method not found'));
+    await vi.advanceTimersByTimeAsync(1);
+    expect(m.plannerSettings()).toBeNull();
+    // other methods came: nothing to ask
+    fake.heard.forEach((l) => l(new Set(['camera.list'])));
+    expect(fake.calls).toHaveLength(1);
+    fake.heard.forEach((l) => l(new Set(['camera.list', 'planner.settings'])));
+    expect(fake.calls).toHaveLength(2);
+    expect(m.plannerSettings()).toBeUndefined();
+    // busy with its first plan: asked again like on a first load, another new list in between asks nothing more
+    fake.calls[1].reject(new m.RpcError('planner.settings', 'timeout', 'timed out'));
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fake.calls).toHaveLength(3);
+    fake.heard.forEach((l) => l(new Set(['planner.settings'])));
+    expect(fake.calls).toHaveLength(3);
+    fake.calls[2].resolve(settings);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(m.plannerSettings()?.settings.mower_width.value).toBe(0.18);
+    // one that's known is left alone
+    fake.heard.forEach((l) => l(new Set(['planner.settings'])));
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(fake.calls).toHaveLength(3);
+    stop();
+  });
+
+  it('leaves OpenMower as it was: no planner when the page loaded, none until it loads again', async () => {
+    const m = await fresh();
+    const stop = m.askPlanner();
+    fake.calls[0].reject(new m.RpcError('planner.settings', -32601, 'Method not found'));
+    await vi.advanceTimersByTimeAsync(1);
+    fake.heard.forEach((l) => l(new Set(['planner.settings'])));
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(fake.calls).toHaveLength(1);
+    expect(m.plannerSettings()).toBeNull();
     stop();
   });
 

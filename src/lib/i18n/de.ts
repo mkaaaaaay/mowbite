@@ -232,6 +232,7 @@ const de: Record<string, string> = {
   "Until you confirm, it doesn't start in the dark and goes home at sunset.": "Solange du nicht bestätigst, startet er im Dunkeln nicht und fährt bei Sonnenuntergang heim.",
   "until": "bis",
   "Your mower's software doesn't offer this ({method}).": "Die Software deines Mähers bietet das nicht an ({method}).",
+  "A part of MowBite OS isn't running right now ({method}). Try again in a moment.": "Ein Teil von MowBite OS läuft gerade nicht ({method}). Gleich noch einmal versuchen.",
   "The mower didn't answer.": "Der Mäher hat nicht geantwortet.",
   "The mower didn't answer (yet).": "Der Mäher hat (noch) nicht geantwortet.",
   "The mower answered late: done after all.": "Der Mäher hat spät geantwortet: doch ausgeführt.",
