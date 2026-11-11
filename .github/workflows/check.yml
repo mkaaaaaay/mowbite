@@ -60,7 +60,8 @@ jobs:
       - run: npm run build
         env:
           CALIBRATION: '1'
-      - run: npx playwright install --with-deps chromium
+      # without --with-deps: the image has chromium's libraries, the click tests need none of its extra fonts and no apt
+      - run: npx playwright install chromium
       - run: npm run e2e
       # what went wrong: the report with the screenshots and traces of the failed tests
       - if: failure()
