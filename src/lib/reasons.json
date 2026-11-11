@@ -225,8 +225,47 @@
      "de": "Fährt nach Hause"
     },
     {
+     "when": {
+      "reason": "PLANNER_TIMEOUT"
+     },
+     "en": "Heading home",
+     "severity": "warning",
+     "de": "Fährt nach Hause"
+    },
+    {
+     "when": {
+      "reason": "PLANNER_MISSING"
+     },
+     "en": "Heading home",
+     "severity": "warning",
+     "de": "Fährt nach Hause"
+    },
+    {
      "en": "Heading home",
      "de": "Fährt nach Hause"
+    }
+   ]
+  },
+  "DOCKING_DIRECT": {
+   "severity": "warning",
+   "variants": [
+    {
+     "when": {
+      "cause": "PLANNER_TIMEOUT"
+     },
+     "en": "Heading straight home, no answer from the planner",
+     "de": "Fährt auf geradem Weg nach Hause, keine Antwort vom Planer"
+    },
+    {
+     "when": {
+      "cause": "PLANNER_MISSING"
+     },
+     "en": "Heading straight home, the planner is not running",
+     "de": "Fährt auf geradem Weg nach Hause, der Planer läuft nicht"
+    },
+    {
+     "en": "Heading straight home",
+     "de": "Fährt auf geradem Weg nach Hause"
     }
    ]
   },

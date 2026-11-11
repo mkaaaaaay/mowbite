@@ -239,6 +239,23 @@ describe('heading home and charging on MowBite OS', () => {
     expect(os('CHARGING_LOST', {reason: 'NO_DOCK_CONTACT', battery_percentage: 64})).toBe('Not charging (64 %): off the charging contacts');
   });
 
+  it('says a planner without a way home and the straight way', () => {
+    const hint = (type: string, f: Partial<MowerEvent>) => explain(ev(0, type, f), undefined, undefined, true);
+    expect(os('DOCKING', {reason: 'PLANNER_TIMEOUT'})).toBe('Heading home: no answer from the planner');
+    expect(hint('DOCKING', {reason: 'PLANNER_MISSING', resume: 'user'})).toMatch(/^The planner didn't answer while mowing/);
+    expect(os('DOCKING_DIRECT', {cause: 'PLANNER_MISSING', distance: 7.4})).toBe('Heading straight home, the planner is not running');
+    expect(hint('DOCKING_DIRECT', {cause: 'PLANNER_TIMEOUT', distance: 7.4})).toContain('(no answer from the planner), so it drives the straight way');
+    expect(hint('DOCKING_DIRECT', {cause: 'PLANNER_TIMEOUT', distance: 7.4})).toContain('(7 m)');
+    const failed = {reason: 'approach_failed', attempts: 3, cause: 'PLANNER_TIMEOUT'};
+    expect(hint('DOCKING_FAILED', {...failed, direct_blocked: true})).toBe(
+      "The planner gave no way to the docking station (no answer from the planner) and the straight way there wasn't free. It waits where it is. Send it home again later, if it stays so, restart MowBite OS.",
+    );
+    expect(hint('DOCKING_FAILED', {...failed, direct_blocked: false})).toContain("didn't get there on the straight way either");
+    expect(hint('DOCKING_RETRY', {...failed, cause: 'PLANNER_MISSING'})).toBe(
+      'The planner gave no way to the docking station (the planner is not running). It tries again.',
+    );
+  });
+
   it('charges only once DOCKED is newer than what leaves it unconfirmed', () => {
     expect(chargeConfirmed([])).toBeNull();
     expect(chargeConfirmed([ev(10, 'DOCKED'), ev(5, 'BOOTED')])).toBe(true);

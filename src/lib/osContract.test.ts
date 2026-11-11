@@ -12,8 +12,8 @@ import {EMERGENCY_BITS, EMERGENCY_HIDE, EMERGENCY_TEXT, EVENTS, REASONS, pick} f
 const PINNED = {
   repo: 'mkaaaaaay/mowbite-os',
   path: 'src/mowbite_api/api.schema.json',
-  commit: '18d4d816a2bf2dd01ed7463adc1fd8b76e76f1f2',
-  sha256: '8e2fabe31b56e37f69e3727f66798c4064e3a7f50827092e65f63fcbf3221c4e',
+  commit: '6fe4e399211dd78b0da98b676bc21ca239e38cda',
+  sha256: '78e3b6ca4c6ecb9bcb543f4ad899f5748d7ef20cefa82f2211ab8f31e4b0c86c',
 };
 const raw = readFileSync(join(__dirname, 'os-api.schema.json'));
 // a reason's rating, when: another one for these values of the event's fields

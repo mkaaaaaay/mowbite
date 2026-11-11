@@ -490,6 +490,9 @@
           "$ref": "#/$defs/event.DOCKING"
         },
         {
+          "$ref": "#/$defs/event.DOCKING_DIRECT"
+        },
+        {
           "$ref": "#/$defs/event.DOCKED"
         },
         {
@@ -1764,7 +1767,9 @@
             "BATTERY_LOW",
             "MOTOR_HOT",
             "RAIN",
-            "DARK"
+            "DARK",
+            "PLANNER_TIMEOUT",
+            "PLANNER_MISSING"
           ],
           "type": "string"
         },
@@ -1832,6 +1837,93 @@
       "type": "object",
       "x-emitter": "logic"
     },
+    "event.DOCKING_DIRECT": {
+      "additionalProperties": false,
+      "description": "The planner gave no way to the docking station: this try drives straight to the point in front of it, over ground the logic checked for the body of the mower",
+      "properties": {
+        "cause": {
+          "description": "Why the planner gave no way: it did not answer in time, or is not running",
+          "enum": [
+            "PLANNER_TIMEOUT",
+            "PLANNER_MISSING"
+          ],
+          "type": "string"
+        },
+        "client": {
+          "description": "Who sent the command (app, ha), for the log and the events of its step",
+          "pattern": "^[a-z][a-z0-9_-]{0,15}$",
+          "type": "string"
+        },
+        "distance": {
+          "description": "Length of the straight way",
+          "type": "number",
+          "x-unit": "m"
+        },
+        "id": {
+          "description": "Random id of the event, 32 letters and digits",
+          "type": "string"
+        },
+        "job_id": {
+          "description": "The job of mowing it belongs to",
+          "type": "string"
+        },
+        "message": {
+          "description": "English text for the log",
+          "type": "string"
+        },
+        "resume": {
+          "description": "Always auto",
+          "enum": [
+            "auto"
+          ],
+          "type": "string"
+        },
+        "session_id": {
+          "description": "The session of the logic since its start",
+          "type": "string"
+        },
+        "severity": {
+          "description": "Always warning",
+          "enum": [
+            "warning"
+          ],
+          "type": "string"
+        },
+        "t": {
+          "description": "When it happened",
+          "type": "number",
+          "x-unit": "unix s"
+        },
+        "type": {
+          "const": "DOCKING_DIRECT",
+          "description": "What happened; a type this version does not know carries only the envelope for sure"
+        },
+        "x": {
+          "description": "Where the mower was, east of the datum of the map",
+          "type": "number",
+          "x-unit": "m"
+        },
+        "y": {
+          "description": "Where the mower was, north of the datum of the map",
+          "type": "number",
+          "x-unit": "m"
+        }
+      },
+      "required": [
+        "id",
+        "t",
+        "type",
+        "x",
+        "y",
+        "cause",
+        "distance",
+        "message",
+        "severity",
+        "resume"
+      ],
+      "type": "object",
+      "x-emitter": "logic"
+    },
     "event.DOCKING_FAILED": {
       "additionalProperties": false,
       "description": "Docking failed for good; the mower waits",
@@ -1845,6 +1937,14 @@
           "description": "Tries of docking so far",
           "type": "integer"
         },
+        "cause": {
+          "description": "Why the planner gave no way: it did not answer in time, or is not running",
+          "enum": [
+            "PLANNER_TIMEOUT",
+            "PLANNER_MISSING"
+          ],
+          "type": "string"
+        },
         "client": {
           "description": "Who sent the command (app, ha), for the log and the events of its step",
           "pattern": "^[a-z][a-z0-9_-]{0,15}$",
@@ -1854,6 +1954,10 @@
           "description": "The charge current seen; while docking the largest one of the check",
           "type": "number",
           "x-unit": "A"
+        },
+        "direct_blocked": {
+          "description": "With a cause, where the mower may drive straight to the station then: true when that way was not free, false when it drove it and failed",
+          "type": "boolean"
         },
         "id": {
           "description": "Random id of the event, 32 letters and digits",
@@ -1945,6 +2049,14 @@
           "description": "Tries of docking so far",
           "type": "integer"
         },
+        "cause": {
+          "description": "Why the planner gave no way: it did not answer in time, or is not running",
+          "enum": [
+            "PLANNER_TIMEOUT",
+            "PLANNER_MISSING"
+          ],
+          "type": "string"
+        },
         "client": {
           "description": "Who sent the command (app, ha), for the log and the events of its step",
           "pattern": "^[a-z][a-z0-9_-]{0,15}$",
@@ -1954,6 +2066,10 @@
           "description": "The charge current seen; while docking the largest one of the check",
           "type": "number",
           "x-unit": "A"
+        },
+        "direct_blocked": {
+          "description": "With a cause, where the mower may drive straight to the station then: true when that way was not free, false when it drove it and failed",
+          "type": "boolean"
         },
         "id": {
           "description": "Random id of the event, 32 letters and digits",
@@ -3983,6 +4099,7 @@
               "UNDOCKED",
               "UNDOCKING_FAILED",
               "DOCKING",
+              "DOCKING_DIRECT",
               "DOCKED",
               "DOCKING_RETRY",
               "DOCKING_FAILED",
@@ -8746,11 +8863,11 @@
       "type": "object"
     }
   },
-  "$id": "urn:mowbite-os:api:18",
+  "$id": "urn:mowbite-os:api:19",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "robot_state, actions, events and RPC methods of MowBite OS over MQTT, as system.api gives them; made from the code, objects sorted by key. x-reasons has severity and resume of every reason by event (COMMAND_REFUSED and REQUEST_REFUSED only in refusals; when: another rating for these field values; texts: name, help and fix by language), x-emergency-bits the bits of emergency, x-commands the commands with params, result, the event of their refusal and the actions that do the same, x-methods every RPC method of the OS with its node (planner.* are the planner's, sim.* only in the simulation), x-sensors the sensors by id, x-settings the settings of params.set with the ranges of the OS, x-geometry the keys of robot.geometry.",
   "title": "MowBite OS app interface",
-  "x-api": 18,
+  "x-api": 19,
   "x-commands": {
     "docking.abort": {
       "action": "mower_logic:docking/abort_docking",
@@ -9348,7 +9465,7 @@
       "result": "#/$defs/camera.list.result"
     },
     "camera.stream": {
-      "description": "Keeps a place for one viewer and gives the address to watch from: for one connection, which has to begin before expires; the place is free again when that connection ends, and every new connection needs a new call. At most two viewers at once over all cameras (CAMERA_BUSY). mjpeg: a GET of url gives multipart/x-mixed-replace with JPEG; webrtc: url is a WHEP endpoint (H.264). Refused (CAMERA_REFUSED) while the camera is not available; -32602 for an id or a protocol it does not have",
+      "description": "Keeps a place for one viewer and gives the address to watch from: for one connection, which has to begin before expires; the place is free again when that connection ends, and every new connection needs a new call. At most two viewers at once over all cameras (CAMERA_BUSY). mjpeg: a GET of url gives multipart/x-mixed-replace, every part one JPEG with its own Content-Length, and every answer to that GET, also a refusal, carries Access-Control-Allow-Origin: *; webrtc: url is a WHEP endpoint (H.264). Refused (CAMERA_REFUSED) while the camera is not available; -32602 for an id or a protocol it does not have",
       "node": "mowbite_camera",
       "offered": "with at least one camera",
       "params": "#/$defs/camera.stream.params",
@@ -10519,6 +10636,42 @@
         },
         "resume": "user",
         "severity": "warning"
+      },
+      "PLANNER_MISSING": {
+        "description": "The planner is not running",
+        "fields": {},
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Mähen später wieder starten. Bleibt es dabei, MowBite OS neu starten.",
+            "help": "Der Planer hat beim Mähen nicht geantwortet. Der Mäher fährt zur Ladestation, der Auftrag bleibt erhalten.",
+            "name": "Planer antwortet nicht"
+          },
+          "en": {
+            "fix": "Start mowing again later. If it stays so, restart MowBite OS.",
+            "help": "The planner didn't answer while mowing. The mower goes to the docking station, the job is kept.",
+            "name": "Planner not answering"
+          }
+        }
+      },
+      "PLANNER_TIMEOUT": {
+        "description": "The planner took too long",
+        "fields": {},
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Mähen später wieder starten. Bleibt es dabei, MowBite OS neu starten.",
+            "help": "Der Planer hat beim Mähen nicht geantwortet. Der Mäher fährt zur Ladestation, der Auftrag bleibt erhalten.",
+            "name": "Planer antwortet nicht"
+          },
+          "en": {
+            "fix": "Start mowing again later. If it stays so, restart MowBite OS.",
+            "help": "The planner didn't answer while mowing. The mower goes to the docking station, the job is kept.",
+            "name": "Planner not answering"
+          }
+        }
       },
       "RAIN": {
         "description": "It rains",

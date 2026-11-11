@@ -76,6 +76,10 @@ export interface MowerEvent {
   temperature?: number;
   sun_elevation?: number;
   battery_percentage?: number;
+  // DOCKING_DIRECT, DOCKING_RETRY and DOCKING_FAILED on MowBite OS: why the planner gave no way home (PLANNER_TIMEOUT,
+  // PLANNER_MISSING), whether the straight way wasn't free
+  cause?: string;
+  direct_blocked?: boolean;
   // UNEXPECTED_RESTART: whether it waits for a reset, the state then, the kernel's line or what the OS found (english)
   hold?: boolean;
   state_before?: string;
@@ -424,6 +428,20 @@ export function explain(e: MowerEvent, state?: string, gpsTimeout?: number, os =
         const then = e.type === 'DOCKING_FAILED' ? tr('It gave up and stays on the contacts.') : tr('It backs out and tries again.');
         return `${seen} ${then} ${tr('Check that the docking station has power (socket, timer, power supply) and the contacts are clean.')}`;
       }
+      if (e.cause) {
+        const why = reasonText({...e, reason: e.cause});
+        const way =
+          e.direct_blocked === true
+            ? tr("The planner gave no way to the docking station ({why}) and the straight way there wasn't free.", {why})
+            : e.direct_blocked === false
+              ? tr("The planner gave no way to the docking station ({why}) and it didn't get there on the straight way either.", {why})
+              : tr('The planner gave no way to the docking station ({why}).', {why});
+        const then =
+          e.type === 'DOCKING_FAILED'
+            ? tr('It waits where it is. Send it home again later, if it stays so, restart MowBite OS.')
+            : tr('It tries again.');
+        return `${way} ${then}`;
+      }
       // MowBite OS: it didn't set off for the dock
       if (e.type === 'DOCKING_FAILED' && e.attempts === undefined && isReasonCode(e.reason))
         return tr("Without a good enough position and heading it couldn't set off for the dock, so it waits where it is. Once the GPS is good again, send it home.");
@@ -434,6 +452,11 @@ export function explain(e: MowerEvent, state?: string, gpsTimeout?: number, os =
         : tr(
             "It couldn't reach the point in front of the dock. Usually the GPS fix was bad or the way there is blocked or outside the navigation area.",
           );
+    case 'DOCKING_DIRECT':
+      return tr(
+        'The planner gave no way to the docking station ({why}), so it drives the straight way to the point in front of it ({m} m). It checked before that the mower fits along it.',
+        {why: reasonText({...e, reason: e.cause}), m: fmt(e.distance ?? 0, 0)},
+      );
     case 'NAVIGATION_ERROR':
       return tr(
         "It couldn't follow the mowing path and the recovery didn't help, so it paused. Often something is in the way, or the path runs too close to an obstacle or the edge.",
@@ -497,6 +520,8 @@ export function explain(e: MowerEvent, state?: string, gpsTimeout?: number, os =
             "It stands on the contacts, but no charge current comes. Check that the docking station has power (socket, timer, power supply) and the contacts are clean. Once it charges again, the activity says Docked.",
           );
     case 'DOCKING':
+      if (e.reason === 'PLANNER_TIMEOUT' || e.reason === 'PLANNER_MISSING')
+        return tr("The planner didn't answer while mowing, so it goes to the docking station. The job is kept: start mowing again later, if it stays so, restart MowBite OS.");
       if (isReasonCode(e.reason))
         return e.reason === 'MANUAL'
           ? undefined

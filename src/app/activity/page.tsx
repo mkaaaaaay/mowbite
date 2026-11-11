@@ -97,8 +97,8 @@ const FIXES: Record<string, string[]> = {
   DOCKING_FAILED: ['docking_approach_distance', 'docking_retry_count'],
   UNDOCKING_FAILED: ['undock_distance'],
 };
-// MowBite OS's own reasons in them (no charge current, no position) aren't helped by those
-const fixes = (e: MowerEvent) => (/^DOCKING_/.test(e.type) && isReasonCode(e.reason) ? [] : (FIXES[e.type] ?? []));
+// MowBite OS's own reasons in them (no charge current, no position) and a planner without a way aren't helped by those
+const fixes = (e: MowerEvent) => (/^DOCKING_/.test(e.type) && (isReasonCode(e.reason) || e.cause) ? [] : (FIXES[e.type] ?? []));
 
 function ProblemItem({run, next, event, state, where}: {run: Run; next?: Run; event: MowerEvent; state?: string; where: Where}) {
   const [raw, setRaw] = useState(false);

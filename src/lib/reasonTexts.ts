@@ -108,7 +108,18 @@ export const EVENTS: Record<string, EventText> = {
       {when: {reason: 'BATTERY_CRITICAL'}, en: 'Heading home to charge', severity: 'warning'},
       {when: {reason: 'BATTERY_HOT'}, en: 'Heading home', severity: 'warning'},
       {when: {reason: 'MOTOR_HOT'}, en: 'Heading home', severity: 'warning'},
+      {when: {reason: 'PLANNER_TIMEOUT'}, en: 'Heading home', severity: 'warning'},
+      {when: {reason: 'PLANNER_MISSING'}, en: 'Heading home', severity: 'warning'},
       {en: 'Heading home'},
+    ],
+  },
+  // MowBite OS: the planner gave no way home, it drives the straight one
+  DOCKING_DIRECT: {
+    severity: 'warning',
+    variants: [
+      {when: {cause: 'PLANNER_TIMEOUT'}, en: 'Heading straight home, no answer from the planner'},
+      {when: {cause: 'PLANNER_MISSING'}, en: 'Heading straight home, the planner is not running'},
+      {en: 'Heading straight home'},
     ],
   },
   DOCKING_RETRY: {
