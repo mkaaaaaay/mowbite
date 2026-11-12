@@ -8,13 +8,14 @@ import {useEffect, useState, useSyncExternalStore} from 'react';
 import styles from './page.module.css';
 import {dec, setLangChoice, tr, useLang, useLangChoice} from '@/lib/i18n';
 import {setThemeChoice, useThemeChoice} from '@/lib/theme';
-import {appMowers, appPort, CONTAINER_PORT, DEMO_ID, forgetMowerKeys, isDemo, parseAddress, sameMowBite, saveAppMowers, selectedMower, selectMower, WS_PORT} from '@/lib/mowers';
+import {appMowers, appPort, CONTAINER_PORT, DEMO_ID, forgetMowerKeys, isDemo, pageFromMower, parseAddress, sameMowBite, saveAppMowers, selectedMower, selectMower, WS_PORT} from '@/lib/mowers';
 import {forgetMqtt5} from '@/lib/mqttClient';
 import {isApp} from '@/lib/native';
 import {leaveFirst} from '@/lib/leaving';
 import {setSwipeEnabled, useSwipeEnabled} from '@/lib/swipe';
 import {OpenMowerSettings} from '@/components/MowerParamSettings';
 import {AutoUpdate, DockgeUpdateGuide} from '@/components/AutoUpdate';
+import {OsUpdate} from '@/components/OsUpdate';
 import {LegalFooter, UpdateSettings} from '@/components/Updates';
 import {savePlannerSettings, slic3rPlans, useAskPlanner, usePlannerSettings, usePlannerWaiting} from '@/lib/mowerBody';
 import PlannerWaiting from '@/components/PlannerWaiting';
@@ -29,6 +30,7 @@ import {SoundSettings} from '@/components/SoundSettings';
 import {useRpcMethods} from '@/hooks/useRpcMethods';
 import {RPC} from '@/lib/openmower';
 import {useMowbiteOs} from '@/lib/mowerOs';
+import {osUpdatesOffered} from '@/lib/osUpdate';
 import {DashboardItems} from '@/components/DashboardItems';
 import {datumFromParams, useMowerParams} from '@/hooks/useMowerParams';
 import {posixTz} from '@/lib/schedule';
@@ -280,6 +282,8 @@ export default function SettingsPage() {
   const geometry = !!methods?.has(RPC.geometry);
   // the calibration isn't there on MowBite OS, nor is the way to its guide
   const os = useMowbiteOs();
+  // MowBite OS updates itself through its host: its own view, and the page from the mower is one of its parts there
+  const osUpdates = osUpdatesOffered(methods);
 
   return (
     <div className={styles.page}>
@@ -520,13 +524,19 @@ export default function SettingsPage() {
 
         <OpenMowerSettings styles={styles} />
 
-        <Group id="update" title={tr('Updates')} hint="MowBite Updater" anchors={['updates']}>
+        <Group id="update" title={tr('Updates')} hint={osUpdates ? 'MowBite OS' : 'MowBite Updater'} anchors={['updates']}>
           <section className={styles.card}>
             <h2>{tr('On the mower')}</h2>
-            <AutoUpdate />
-            <DockgeUpdateGuide />
+            {osUpdates ? (
+              <OsUpdate />
+            ) : (
+              <>
+                <AutoUpdate />
+                <DockgeUpdateGuide />
+              </>
+            )}
           </section>
-          <UpdateSettings cardClass={styles.card} />
+          {!(osUpdates && pageFromMower()) && <UpdateSettings cardClass={styles.card} />}
         </Group>
 
         <Group id="app" title={tr('App')} hint={tr('Guides, mowers')} anchors={['guides']}>

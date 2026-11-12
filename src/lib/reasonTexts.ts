@@ -285,6 +285,7 @@ export const REASONS: Record<string, Variant[]> = {
   no_gps: [r('no GPS fix')],
   BUSY: [
     r('another sound is being uploaded or checked', {when: {type: 'SOUND_REFUSED'}}),
+    r('the mower is working right now', {when: {type: 'UPDATE'}}),
     r('busy: Idle', {when: {state: 'IDLE'}}),
     r('busy: Mowing', {when: {state: 'MOWING'}}),
     r('busy: Recording an area', {when: {state: 'AREA_RECORDING'}}),

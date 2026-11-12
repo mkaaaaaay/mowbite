@@ -10,6 +10,7 @@ import {demoOn} from './flags';
 import {demoGeometry} from './geometry';
 import {demoLights} from './light';
 import {demoSounds} from './sound';
+import {demoUpdates} from './update';
 
 // The demo mower: what OpenMower would send and answer, made up here so the app can be looked at without a mower.
 // It drives the plan of its garden at a mower's pace, takes the commands (start, pause, home, skip), keeps its
@@ -1043,6 +1044,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
 
   const utcDay = (t: number) => new Date(t * 1000).toISOString().slice(0, 10).replace(/-/g, '');
   let cameras = demoOn('Cameras') ? demoCameras(deliver) : null;
+  const updates = demoOn('Updates') ? demoUpdates(deliver) : null;
   const methods: Record<string, (params: unknown) => unknown> = {
     [RPC.methods]: () => Object.keys(methods).sort(),
     [RPC.replaceMap]: (params) => {
@@ -1124,6 +1126,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     ...(demoOn('Lights') && demoLights()),
     ...(demoOn('Sounds') && demoSounds()),
     ...(demoOn('Geometry') && demoGeometry()),
+    ...updates?.methods,
     ...cameras?.methods,
     ...(undoOn && {
       // points off the end of the open line until that much of it is gone. the mower stays where it is, auto points
@@ -1290,7 +1293,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
       if (topic === TOPIC.mapOverlay) return [[topic, JSON.stringify(overlay())]];
       if (topic === TOPIC.plannerCalib) return calibSaid ? [[topic, calibSaid]] : [];
       if (topic === TOPIC.sensorData) return Object.entries(sensors()).map(([id, v]) => [`sensors/${id}/data`, v]);
-      return [];
+      return updates?.retained(topic) ?? [];
     },
     published(topic, message) {
       if (topic === TOPIC.teleop) {

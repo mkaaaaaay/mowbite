@@ -36,7 +36,7 @@ const NOT_OFFERED: Record<string, string> = {
   'calibration.abort': 'as calibration.start',
   'calibration.result': 'as calibration.start',
   'docking.start': 'to come: home for a mower idle away from the dock, with the way home without planner (40 (1), api 12)',
-  'host.restart_os': "to come: MowBite OS's updates in the app (update.status, FP15)",
+  'host.restart_os': "to come: MowBite OS's state while it's down and starting it again (mowbite/host/status)",
   'events.history.delete': 'as position.history.delete',
   'position.history.delete': 'to come: deleting the track (location data) and the events in the settings, low priority',
   'ntrip.get': 'to come: NTRIP set up without a terminal (masterplan 20, E1), the access never in logs or diagnosis files',
@@ -46,12 +46,6 @@ const NOT_OFFERED: Record<string, string> = {
   'rpc.ping': 'rpc.methods already tells whether it answers',
   'system.api': "the app has its copy of the contract here and reads the api's number from system.info",
   'system.hold': "the updater's, it holds restarts while it works",
-  'update.abort': 'as host.restart_os',
-  'update.check': 'as host.restart_os',
-  'update.rollback': 'as host.restart_os',
-  'update.set_auto': 'as host.restart_os',
-  'update.start': 'as host.restart_os',
-  'update.status': 'as host.restart_os',
 };
 // what the app calls on a mower; planner.* is the MowBite Planner's, not the OS's
 const appMethods = new Set([...Object.values(RPC), ...Object.values(COMMAND).map((c) => c.method)].filter((m) => !m.startsWith('planner.')));

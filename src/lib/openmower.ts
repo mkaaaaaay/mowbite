@@ -21,6 +21,9 @@ export const TOPIC = {
   plannerProgress: 'mowbite/planner/progress',
   // how far the MowBite Planner's recording for a calibration got (retained, see lib/calibration)
   plannerCalib: 'mowbite/planner/calib',
+  // MowBite OS's updater (its host): what it does and has, and whether it's there (both retained, see lib/osUpdate)
+  updateStatus: 'mowbite/update/status',
+  hostStatus: 'mowbite/host/status',
 } as const;
 
 export const RPC = {
@@ -50,6 +53,13 @@ export const RPC = {
   geometrySet: 'robot.geometry.set',
   // points off the end of the line being recorded, MowBite OS only (masterplan 3.2)
   recordingUndo: 'recording.undo',
+  // MowBite OS's own updates, answered by its host (lib/osUpdate)
+  updateStatus: 'update.status',
+  updateStart: 'update.start',
+  updateAbort: 'update.abort',
+  updateRollback: 'update.rollback',
+  updateCheck: 'update.check',
+  updateSetAuto: 'update.set_auto',
   replaceMap: 'map.replace',
   eventDays: 'events.history.list',
   events: 'events.history',
@@ -107,6 +117,10 @@ export const ACTION = {
   // the steps while recording an area, e.g. finish_mowing_area
   recording: (step: string) => `mower_logic:area_recording/${step}`,
 } as const;
+
+// MowBite OS's parts whose update waits for the mower idle in the dock and restarts MowBite OS (masterplan 3.5), the
+// others switch at any time
+export const UPDATE_GATED = ['os', 'planner'];
 
 // how much of the line the record page's back button takes back
 export const UNDO_METERS = 1;

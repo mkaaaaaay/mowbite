@@ -1062,6 +1062,13 @@
     "de": "gerade wird schon ein anderer Ton hochgeladen oder geprüft"
    },
    {
+    "en": "the mower is working right now",
+    "when": {
+     "type": "UPDATE"
+    },
+    "de": "der Mäher arbeitet gerade"
+   },
+   {
     "en": "busy: Idle",
     "when": {
      "state": "IDLE"

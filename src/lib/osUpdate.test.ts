@@ -1,0 +1,87 @@
+import {describe, expect, it, vi} from 'vitest';
+import {appTooOld, goingBack, inWindow, nextByItself, runSteps, versionLabel, type Component, type UpdateStatus} from './osUpdate';
+
+vi.mock('./updates', async (original) => ({...(await original<typeof import('./updates')>()), APP_VERSION: '1.5.0'}));
+
+const v = (revision: string, version: string | null = null) => ({revision, version, date: 1794000000});
+const part = (id: string, more: Partial<Component> = {}): Component => ({
+  id,
+  name: id,
+  running: v(`${id}-now`),
+  available: null,
+  previous: null,
+  installed_at: null,
+  crashes_since_install: 0,
+  auto: true,
+  ...more,
+});
+const newer = (id: string, more: Partial<NonNullable<Component['available']>> = {}) => ({...v(`${id}-new`), min_app: null, blocked: null, ...more});
+const status = (components: Component[], run: Partial<UpdateStatus> = {}): UpdateStatus => ({
+  phase: 'idle',
+  component: null,
+  revision: null,
+  reason: null,
+  components,
+  auto: {enabled: true, from: '02:00', to: '05:00'},
+  last: null,
+  ...run,
+});
+
+describe("the steps of MowBite OS's update going on", () => {
+  it('has the gate for MowBite OS and its planner', () => {
+    const s = status([part('os', {available: newer('os')})], {phase: 'waiting_gate', component: 'os', revision: 'os-new', reason: 'BUSY'});
+    expect(runSteps(s)).toEqual({steps: ['verifying', 'unpacking', 'waiting_gate', 'switching', 'checking'], now: 2});
+  });
+
+  it('has none for the app and the host, passing it counts as about to switch', () => {
+    const s = status([part('host', {available: newer('host')})], {phase: 'waiting_gate', component: 'host', revision: 'host-new'});
+    expect(runSteps(s)).toEqual({steps: ['verifying', 'unpacking', 'switching', 'checking'], now: 2});
+  });
+
+  it('has nothing to check or unpack on the way back', () => {
+    const s = status([part('planner', {previous: v('planner-old')})], {phase: 'switching', component: 'planner', revision: 'planner-old'});
+    expect(goingBack(s)).toBe(true);
+    expect(runSteps(s)).toEqual({steps: ['waiting_gate', 'switching', 'checking'], now: 1});
+  });
+
+  it('takes a part it does not know as gated once it waits with a reason', () => {
+    const s = status([part('lidar', {available: newer('lidar')})], {phase: 'waiting_gate', component: 'lidar', revision: 'lidar-new', reason: 'NO_DOCK_CONTACT'});
+    expect(runSteps(s).steps).toContain('waiting_gate');
+  });
+});
+
+describe('what the automatic update installs next', () => {
+  it('takes the host first, MowBite OS last', () => {
+    const s = status([part('os', {available: newer('os')}), part('planner'), part('app', {available: newer('app')}), part('host')]);
+    expect(nextByItself(s)?.id).toBe('app');
+  });
+
+  it('leaves out what is held back and what needs a newer app', () => {
+    const held = newer('app', {blocked: {reason: 'UNHEALTHY', result: 'rolled_back', t: 1}});
+    const s = status([part('os', {available: newer('os', {min_app: '1.6.0'})}), part('app', {available: held})]);
+    expect(appTooOld(s.components[0].available)).toBe(true);
+    expect(appTooOld(newer('os', {min_app: '1.5.0'}))).toBe(false);
+    expect(nextByItself(s)).toBeUndefined();
+  });
+});
+
+describe("the night's window", () => {
+  const at = (h: number, m = 0) => new Date(2026, 10, 12, h, m);
+  it('ends before its last minute', () => {
+    const auto = {enabled: true, from: '02:00', to: '05:00'};
+    expect([at(1, 59), at(2), at(4, 59), at(5)].map((t) => inWindow(auto, t))).toEqual([false, true, true, false]);
+  });
+
+  it('goes over midnight when it ends before it starts', () => {
+    const auto = {enabled: true, from: '23:00', to: '01:00'};
+    expect([at(22, 59), at(23), at(0, 30), at(1)].map((t) => inWindow(auto, t))).toEqual([false, true, true, false]);
+  });
+});
+
+describe('a version in words', () => {
+  it('has its number and day, MowBite OS only the day, one without either its revision', () => {
+    expect(versionLabel(v('abc', '1.4.0'))).toMatch(/^1\.4\.0 of \d\d\/\d\d\/2026$/);
+    expect(versionLabel(v('abc'))).toMatch(/^Version of \d\d\/\d\d\/2026$/);
+    expect(versionLabel({revision: '0123456789abcdef', version: null, date: null})).toBe('0123456');
+  });
+});
