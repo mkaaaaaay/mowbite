@@ -567,6 +567,21 @@ describe('recording an area (MowBite OS)', () => {
     expect(describeEvent(ev(0, 'DOCK_RECORDED', {dock_id: 'd1', heading: 1.2}))).toEqual({text: 'Docking station recorded', severity: 'info'});
   });
 
+  it('says when an area was recorded without the exact edge, and why', () => {
+    const notDriven = ev(0, 'AREA_RECORDED', {area_m2: 50, obstacles: 0, driven: false, driven_reason: 'CLOSING'});
+    expect(describeEvent(notDriven).text).toBe('Mowing area recorded (50 m²), without the exact edge: start not driven over');
+    expect(explain(notDriven)).toContain('drive on past the start until the track crosses it');
+    expect(describeEvent(ev(0, 'AREA_RECORDED', {driven: false, driven_reason: 'NEW'})).text).toBe('Mowing area recorded, without the exact edge');
+    expect(explain(ev(0, 'AREA_RECORDED', {driven: true}))).toBeUndefined();
+    const reversing = ev(0, 'RECORDING_REFUSED', {action: 'point', reason: 'REVERSING', severity: 'info', resume: 'auto'});
+    expect(describeEvent(reversing, undefined, true).text).toBe(
+      'No points recorded: reversing takes back the points ahead of it, drive forward to record',
+    );
+    expect(explain(reversing)).toContain('Drive forward to record.');
+    const kept = ev(0, 'RECORDED_BODY_KEPT', {reason: 'SAVE_FAILED', code: 'STORAGE', severity: 'warning', resume: 'user'});
+    expect(describeEvent(kept, undefined, true)).toEqual({text: "Sizes not saved with the areas: saving failed: the map couldn't be written", severity: 'warning'});
+  });
+
   it('leaves them out of runs, recording mode is no run', () => {
     const day = [ev(10, 'STATE', {state: 'AREA_RECORDING'}), refused('stop_recording', 'x'), ev(20, 'AREA_RECORDED', {area_m2: 10}), ev(30, 'STATE', {state: 'IDLE'})];
     expect(groupRuns(day, false).map((e) => e.kind)).toEqual(['event', 'event', 'event', 'event']);

@@ -9,6 +9,7 @@ import {
   EMERGENCY_TEXT,
   EVENTS,
   FALLBACK,
+  NOT_DRIVEN,
   REASONS,
   WRAPPERS,
   fill,
@@ -41,6 +42,9 @@ export interface MowerEvent {
   action?: string;
   area_type?: string;
   obstacles?: number;
+  // false: not driven forward in one go, driven_reason says why (the area is mowed without the exact edge)
+  driven?: boolean;
+  driven_reason?: string;
   points?: number;
   area_m2?: number;
   dock_id?: string;
@@ -251,7 +255,10 @@ function recordedText(e: MowerEvent): string {
   if (typeof e.area_m2 === 'number') parts.push(`${fmt(e.area_m2, e.area_m2 < 10 ? 1 : 0)} m²`);
   if (e.obstacles === 1) parts.push(tr('1 obstacle'));
   else if (typeof e.obstacles === 'number' && e.obstacles > 1) parts.push(tr('{n} obstacles', {n: e.obstacles}));
-  return parts.length ? `${what} (${parts.join(', ')})` : what;
+  const text = parts.length ? `${what} (${parts.join(', ')})` : what;
+  if (e.driven !== false) return text;
+  const why = NOT_DRIVEN[e.driven_reason ?? ''];
+  return `${text}, ${why ? tr('without the exact edge: {why}', {why: tr(why)}) : tr('without the exact edge')}`;
 }
 
 const SEVERITIES = new Set<string>(['error', 'warning', 'info']);
@@ -361,6 +368,26 @@ function restartText(e: MowerEvent): string | undefined {
   if (e.reason === 'KERNEL_CRASH' || e.reason === 'OS_CRASH') said.push(tr('If it happens again, keep the log for a report.'));
   return said.join(' ') || undefined;
 }
+
+// an area not driven in one go (AREA_RECORDED driven_reason), the words of MowBite OS's contract
+const NOT_DRIVEN_HELP: Record<string, string> = {
+  MANUAL_POINT:
+    'At least one point was set by hand, so nothing shows that the mower drove the line forward. The area is mowed as usual, only without the exact edge. For the exact edge, record the area again driving forward with automatic points.',
+  NO_HEADING:
+    "The mower didn't know its heading yet while recording. The area is mowed as usual, only without the exact edge. Drive straight for a few metres first, then record again for the exact edge.",
+  INTERRUPTED:
+    'Automatic points were off for a while, points were undone, or the position was inaccurate, missing or jumped. The area is mowed as usual, only without the exact edge. For the exact edge, record the area again driving forward without a break.',
+  REVERSED:
+    "The mower reversed while recording. The points ahead of it were taken back, but the line wasn't driven forward in one go there. The area is mowed as usual, only without the exact edge. For the exact edge, record the area again without reversing.",
+  CLOSING:
+    "At the end of the recording the mower didn't drive over the start of the line along its heading, so the piece between the end and the start was never driven. The area is mowed as usual, only without the exact edge. For the exact edge, record again and at the end drive on past the start until the track crosses it.",
+  GAP:
+    'Two points, or the last and the first point, are more than 30 cm apart. The area is mowed as usual, only without the exact edge. Drive more slowly and record again for the exact edge.',
+  DIRECTION:
+    "A piece of the line doesn't follow the heading of the mower, for example after reversing or a step sideways. The area is mowed as usual, only without the exact edge. For the exact edge, record the area again driving forward all the way.",
+  SHARP_TURN:
+    "The line turns by more than 120 degrees at one spot, where it isn't certain which way the mower turned. The area is mowed as usual, only without the exact edge. Drive turns as a curve and record again for the exact edge.",
+};
 
 // why reset_emergency didn't let go and what to do, a part of MowBite OS not answering for the others
 const RESET_REFUSED_HELP: Record<string, string> = {
@@ -513,7 +540,18 @@ export function explain(e: MowerEvent, state?: string, gpsTimeout?: number, os =
             "The mow motor didn't reach its speed in time, so mowing paused. Often grass is wound round the blade or the blade is blocked, or the motor or its controller is faulty.",
           )
         : spinupFailed();
+    case 'AREA_RECORDED':
+      if (e.driven !== false) return undefined;
+      return tr(NOT_DRIVEN_HELP[e.driven_reason ?? ''] ?? "It wasn't driven forward in one go. The area is mowed as usual, only without the exact edge.");
+    case 'RECORDED_BODY_KEPT':
+      return tr(
+        "The mower's new sizes couldn't be saved with the areas recorded on it, they keep the old ones. Change the sizes again, or record the areas again for the exact edge.",
+      );
     case 'RECORDING_REFUSED':
+      if (e.reason === 'REVERSING')
+        return tr(
+          'While the mower reverses, the recording takes back the points ahead of it and adds none. The area then no longer counts as driven in one go and is mowed without the exact edge. Drive forward to record.',
+        );
       return e.action === 'point'
         ? tr(
             'While the position is that inaccurate the mower records no points. Once it is good again the line goes on, straight from the last good point.',

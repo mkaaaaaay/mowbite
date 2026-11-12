@@ -59,6 +59,19 @@ export const REFUSED_STEPS: Record<string, string> = {
   point: 'No points recorded',
 };
 
+// why a recorded area wasn't driven in one go (AREA_RECORDED with driven false, MowBite OS only): mowed as usual, only
+// without the exact edge
+export const NOT_DRIVEN: Record<string, string> = {
+  MANUAL_POINT: 'points set by hand',
+  NO_HEADING: 'heading unknown',
+  INTERRUPTED: 'recording interrupted',
+  REVERSED: 'reversed',
+  CLOSING: 'start not driven over',
+  GAP: 'gap in the line',
+  DIRECTION: 'not along the heading',
+  SHARP_TURN: 'turn too sharp',
+};
+
 // the phases of the calibration drive (CALIBRATION, MowBite OS only)
 const CALIBRATION_PHASES: Record<string, string> = {
   start: 'Calibration drive started',
@@ -268,6 +281,8 @@ export const EVENTS: Record<string, EventText> = {
   DOCK_RECORDED: one('Docking station recorded'),
   // after robot.geometry.set, the sizes it's about the app names itself (changed, below_default)
   GEOMETRY_CHANGED: {severity: 'info', variants: [{when: {reason: 'BELOW_DEFAULT'}, en: 'Sizes changed', severity: 'warning'}, {en: 'Sizes changed'}]},
+  // robot.geometry.set changed the sizes, the areas recorded on this mower couldn't take them
+  RECORDED_BODY_KEPT: one('Sizes not saved with the areas', 'warning'),
   // the planner has the leftovers of a finished mow ready, whether they're mowed the schedule decides (leftovers_skip)
   LEFTOVERS_ARMED: {
     severity: 'info',
@@ -398,6 +413,7 @@ export const REASONS: Record<string, Variant[]> = {
   TOO_MANY_POINTS: [r('the line has {limit} points, the maximum: close it')],
   POINT_TOO_CLOSE: [r('only {distance:2} m from the last point, more than {limit:2} m needed')],
   DOCK_TOO_CLOSE: [r('only {distance:2} m from the first point, the direction needs at least {limit:2} m')],
+  REVERSING: [r('reversing takes back the points ahead of it, drive forward to record')],
   // one with a code not known here says the mower's text (fallback)
   SAVE_FAILED: [
     r('saving failed: the change is not a valid map', {when: {code: 'INVALID'}}),
@@ -653,6 +669,7 @@ export function reasonsFile() {
     ),
     reasons: Object.fromEntries(Object.entries(REASONS).map(([k, list]) => [k, list.map(both)])),
     wrappers: Object.fromEntries(Object.entries(WRAPPERS).map(([k, w]) => [k, both(w)])),
+    not_driven: texts(NOT_DRIVEN),
     emergency_bits: Object.fromEntries(EMERGENCY_BITS.flatMap((b, i) => (b ? [[String(i), b]] : []))),
     emergency_text: texts(EMERGENCY_TEXT),
     emergency_hide: EMERGENCY_HIDE,

@@ -1009,6 +1009,15 @@
     }
    ]
   },
+  "RECORDED_BODY_KEPT": {
+   "severity": "warning",
+   "variants": [
+    {
+     "en": "Sizes not saved with the areas",
+     "de": "Maße nicht an den Flächen gespeichert"
+    }
+   ]
+  },
   "LEFTOVERS_ARMED": {
    "severity": "info",
    "variants": [
@@ -1657,6 +1666,12 @@
    {
     "en": "only {distance:2} m from the first point, the direction needs at least {limit:2} m",
     "de": "nur {distance:2} m vom ersten Punkt, für die Richtung sind mindestens {limit:2} m nötig"
+   }
+  ],
+  "REVERSING": [
+   {
+    "en": "reversing takes back the points ahead of it, drive forward to record",
+    "de": "rückwärts nimmt die Punkte vor ihm zurück, zum Aufnehmen vorwärts fahren"
    }
   ],
   "SAVE_FAILED": [
@@ -2365,6 +2380,40 @@
   ]
  },
  "wrappers": {},
+ "not_driven": {
+  "MANUAL_POINT": {
+   "en": "points set by hand",
+   "de": "Punkte von Hand"
+  },
+  "NO_HEADING": {
+   "en": "heading unknown",
+   "de": "Richtung unbekannt"
+  },
+  "INTERRUPTED": {
+   "en": "recording interrupted",
+   "de": "Aufnahme unterbrochen"
+  },
+  "REVERSED": {
+   "en": "reversed",
+   "de": "rückwärts gefahren"
+  },
+  "CLOSING": {
+   "en": "start not driven over",
+   "de": "Anfang nicht überfahren"
+  },
+  "GAP": {
+   "en": "gap in the line",
+   "de": "Lücke in der Linie"
+  },
+  "DIRECTION": {
+   "en": "not along the heading",
+   "de": "nicht in Fahrtrichtung"
+  },
+  "SHARP_TURN": {
+   "en": "turn too sharp",
+   "de": "zu spitze Kehre"
+  }
+ },
  "emergency_bits": {
   "0": "LATCH",
   "1": "TIMEOUT_INPUTS",

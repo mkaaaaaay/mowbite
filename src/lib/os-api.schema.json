@@ -511,6 +511,9 @@
           "$ref": "#/$defs/event.AREA_RECORDED"
         },
         {
+          "$ref": "#/$defs/event.RECORDED_BODY_KEPT"
+        },
+        {
           "$ref": "#/$defs/event.GEOMETRY_CHANGED"
         },
         {
@@ -620,6 +623,122 @@
           "pattern": "^[a-z][a-z0-9_-]{0,15}$",
           "type": "string"
         },
+        "driven": {
+          "description": "The outline was driven forward without a break and carries recorded_body: the planner may drive its line without a margin",
+          "type": "boolean"
+        },
+        "driven_reason": {
+          "description": "Only when driven is false: the first of these that applies; the area is mowed as usual, only without the exact edge",
+          "enum": [
+            "MANUAL_POINT",
+            "NO_HEADING",
+            "INTERRUPTED",
+            "REVERSED",
+            "CLOSING",
+            "GAP",
+            "DIRECTION",
+            "SHARP_TURN"
+          ],
+          "type": "string",
+          "x-texts": {
+            "CLOSING": {
+              "de": {
+                "fix": "Für den genauen Rand neu aufnehmen und am Ende über den Anfang hinaus weiterfahren, bis die Spur ihn kreuzt.",
+                "help": "Am Ende der Aufnahme ist der Mäher nicht in Fahrtrichtung über den Anfang der Linie gefahren. Das Stück zwischen Ende und Anfang wurde dann nie gefahren. Die Fläche wird normal gemäht, nur ohne den genauen Rand.",
+                "name": "Anfang nicht überfahren"
+              },
+              "en": {
+                "fix": "For the exact edge, record again and at the end drive on past the start until the track crosses it.",
+                "help": "At the end of the recording the mower didn't drive over the start of the line along its heading, so the piece between the end and the start was never driven. The area is mowed as usual, only without the exact edge.",
+                "name": "Start not driven over"
+              }
+            },
+            "DIRECTION": {
+              "de": {
+                "fix": "Für den genauen Rand die Fläche durchgehend vorwärts neu aufnehmen.",
+                "help": "Ein Stück der Linie liegt nicht in Fahrtrichtung des Mähers, etwa nach Rückwärtsfahren oder einem seitlichen Versatz. Die Fläche wird normal gemäht, nur ohne den genauen Rand.",
+                "name": "Nicht in Fahrtrichtung"
+              },
+              "en": {
+                "fix": "For the exact edge, record the area again driving forward all the way.",
+                "help": "A piece of the line doesn't follow the heading of the mower, for example after reversing or a step sideways. The area is mowed as usual, only without the exact edge.",
+                "name": "Not along the heading"
+              }
+            },
+            "GAP": {
+              "de": {
+                "fix": "Langsamer fahren und für den genauen Rand neu aufnehmen.",
+                "help": "Zwischen zwei Punkten oder vom letzten zum ersten Punkt liegen mehr als 30 cm. Die Fläche wird normal gemäht, nur ohne den genauen Rand.",
+                "name": "Lücke in der Linie"
+              },
+              "en": {
+                "fix": "Drive more slowly and record again for the exact edge.",
+                "help": "Two points, or the last and the first point, are more than 30 cm apart. The area is mowed as usual, only without the exact edge.",
+                "name": "Gap in the line"
+              }
+            },
+            "INTERRUPTED": {
+              "de": {
+                "fix": "Für den genauen Rand die Fläche ohne Unterbrechung vorwärts neu aufnehmen.",
+                "help": "Die automatischen Punkte waren zwischendurch aus, Punkte wurden mit Rückgängig entfernt, oder die Position war ungenau, fehlte oder sprang. Die Fläche wird normal gemäht, nur ohne den genauen Rand.",
+                "name": "Aufnahme unterbrochen"
+              },
+              "en": {
+                "fix": "For the exact edge, record the area again driving forward without a break.",
+                "help": "Automatic points were off for a while, points were undone, or the position was inaccurate, missing or jumped. The area is mowed as usual, only without the exact edge.",
+                "name": "Recording interrupted"
+              }
+            },
+            "MANUAL_POINT": {
+              "de": {
+                "fix": "Für den genauen Rand die Fläche mit automatischen Punkten vorwärts neu aufnehmen.",
+                "help": "Mindestens ein Punkt wurde von Hand gesetzt. Dann ist nicht belegt, dass der Mäher die Linie vorwärts gefahren ist. Die Fläche wird normal gemäht, nur ohne den genauen Rand.",
+                "name": "Punkte von Hand"
+              },
+              "en": {
+                "fix": "For the exact edge, record the area again driving forward with automatic points.",
+                "help": "At least one point was set by hand, so nothing shows that the mower drove the line forward. The area is mowed as usual, only without the exact edge.",
+                "name": "Points set by hand"
+              }
+            },
+            "NO_HEADING": {
+              "de": {
+                "fix": "Erst einige Meter geradeaus fahren, dann für den genauen Rand neu aufnehmen.",
+                "help": "Beim Aufnehmen kannte der Mäher seine Fahrtrichtung noch nicht. Die Fläche wird normal gemäht, nur ohne den genauen Rand.",
+                "name": "Richtung unbekannt"
+              },
+              "en": {
+                "fix": "Drive straight for a few metres first, then record again for the exact edge.",
+                "help": "The mower didn't know its heading yet while recording. The area is mowed as usual, only without the exact edge.",
+                "name": "Heading unknown"
+              }
+            },
+            "REVERSED": {
+              "de": {
+                "fix": "Für den genauen Rand die Fläche ohne Rückwärtsfahren neu aufnehmen.",
+                "help": "Beim Aufnehmen ist der Mäher rückwärts gefahren. Die Punkte davor wurden zurückgenommen, die Linie ist dort aber nicht in einem Zug vorwärts gefahren. Die Fläche wird normal gemäht, nur ohne den genauen Rand.",
+                "name": "Rückwärts gefahren"
+              },
+              "en": {
+                "fix": "For the exact edge, record the area again without reversing.",
+                "help": "The mower reversed while recording. The points ahead of it were taken back, but the line wasn't driven forward in one go there. The area is mowed as usual, only without the exact edge.",
+                "name": "Reversed"
+              }
+            },
+            "SHARP_TURN": {
+              "de": {
+                "fix": "Kehren als Bogen fahren und für den genauen Rand neu aufnehmen.",
+                "help": "Die Linie knickt an einer Stelle um mehr als 120 Grad. Dort ist nicht sicher, in welche Richtung sich der Mäher gedreht hat. Die Fläche wird normal gemäht, nur ohne den genauen Rand.",
+                "name": "Zu spitze Kehre"
+              },
+              "en": {
+                "fix": "Drive turns as a curve and record again for the exact edge.",
+                "help": "The line turns by more than 120 degrees at one spot, where it isn't certain which way the mower turned. The area is mowed as usual, only without the exact edge.",
+                "name": "Turn too sharp"
+              }
+            }
+          }
+        },
         "id": {
           "description": "Random id of the event, 32 letters and digits",
           "type": "string"
@@ -630,6 +749,10 @@
         },
         "obstacles": {
           "description": "Obstacles in it",
+          "type": "integer"
+        },
+        "obstacles_driven": {
+          "description": "Obstacles driven like that, with recorded_body",
           "type": "integer"
         },
         "points": {
@@ -670,7 +793,9 @@
         "area_type",
         "obstacles",
         "points",
-        "area_m2"
+        "area_m2",
+        "driven",
+        "obstacles_driven"
       ],
       "type": "object",
       "x-emitter": "logic"
@@ -3328,6 +3453,103 @@
       "type": "object",
       "x-emitter": "logic"
     },
+    "event.RECORDED_BODY_KEPT": {
+      "additionalProperties": false,
+      "description": "The areas recorded on this mower could not take the body robot.geometry.set made; they keep the old one",
+      "properties": {
+        "areas": {
+          "description": "Areas recorded on this mower, when the map could tell",
+          "type": "integer"
+        },
+        "client": {
+          "description": "Who sent the command (app, ha), for the log and the events of its step",
+          "pattern": "^[a-z][a-z0-9_-]{0,15}$",
+          "type": "string"
+        },
+        "code": {
+          "description": "What went wrong",
+          "enum": [
+            "INVALID",
+            "DATUM",
+            "TOO_LARGE",
+            "STORAGE",
+            "NO_ANSWER"
+          ],
+          "type": "string"
+        },
+        "id": {
+          "description": "Random id of the event, 32 letters and digits",
+          "type": "string"
+        },
+        "job_id": {
+          "description": "The job of mowing it belongs to",
+          "type": "string"
+        },
+        "message": {
+          "description": "English text for the log and for apps that do not know the reason",
+          "type": "string"
+        },
+        "reason": {
+          "description": "Why: a fixed name in capitals, rated in x-reasons",
+          "enum": [
+            "SAVE_FAILED"
+          ],
+          "type": "string"
+        },
+        "resume": {
+          "description": "auto when it goes on by itself, user when it waits for the user",
+          "enum": [
+            "auto",
+            "user"
+          ],
+          "type": "string"
+        },
+        "session_id": {
+          "description": "The session of the logic since its start",
+          "type": "string"
+        },
+        "severity": {
+          "description": "How bad it is",
+          "enum": [
+            "info",
+            "warning",
+            "error"
+          ],
+          "type": "string"
+        },
+        "t": {
+          "description": "When it happened",
+          "type": "number",
+          "x-unit": "unix s"
+        },
+        "type": {
+          "const": "RECORDED_BODY_KEPT",
+          "description": "What happened; a type this version does not know carries only the envelope for sure"
+        },
+        "x": {
+          "description": "Where the mower was, east of the datum of the map",
+          "type": "number",
+          "x-unit": "m"
+        },
+        "y": {
+          "description": "Where the mower was, north of the datum of the map",
+          "type": "number",
+          "x-unit": "m"
+        }
+      },
+      "required": [
+        "id",
+        "t",
+        "type",
+        "x",
+        "y",
+        "reason",
+        "severity",
+        "resume"
+      ],
+      "type": "object",
+      "x-emitter": "logic"
+    },
     "event.RECORDING_REFUSED": {
       "additionalProperties": false,
       "description": "A step of the recording of an area was refused",
@@ -3418,6 +3640,7 @@
           "description": "Why: a fixed name in capitals, rated in x-reasons",
           "enum": [
             "POSITION_ACCURACY",
+            "REVERSING",
             "HOLD",
             "STILL_SAVING",
             "EMERGENCY",
@@ -4106,6 +4329,7 @@
               "CHARGING_LOST",
               "DOCK_RECORDED",
               "AREA_RECORDED",
+              "RECORDED_BODY_KEPT",
               "GEOMETRY_CHANGED",
               "STORAGE",
               "MAP_DATUM",
@@ -9016,11 +9240,11 @@
       "type": "object"
     }
   },
-  "$id": "urn:mowbite-os:api:20",
+  "$id": "urn:mowbite-os:api:22",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "description": "robot_state, actions, events and RPC methods of MowBite OS over MQTT, as system.api gives them; made from the code, objects sorted by key. x-reasons has severity and resume of every reason by event (COMMAND_REFUSED and REQUEST_REFUSED only in refusals; when: another rating for these field values; texts: name, help and fix by language), x-emergency-bits the bits of emergency, x-commands the commands with params, result, the event of their refusal and the actions that do the same, x-methods every RPC method of the OS with its node (planner.* are the planner's, sim.* only in the simulation), x-sensors the sensors by id, x-settings the settings of params.set with the ranges of the OS, x-geometry the keys of robot.geometry.",
+  "description": "robot_state, actions, events and RPC methods of MowBite OS over MQTT, as system.api gives them; made from the code, objects sorted by key. x-reasons has severity and resume of every reason by event (COMMAND_REFUSED and REQUEST_REFUSED only in refusals; when: another rating for these field values; texts: name, help and fix by language; an enum field may carry the same by value as x-texts), x-emergency-bits the bits of emergency, x-commands the commands with params, result, the event of their refusal and the actions that do the same, x-methods every RPC method of the OS with its node (planner.* are the planner's, sim.* only in the simulation), x-sensors the sensors by id, x-settings the settings of params.set with the ranges of the OS, x-geometry the keys of robot.geometry.",
   "title": "MowBite OS app interface",
-  "x-api": 20,
+  "x-api": 22,
   "x-commands": {
     "docking.abort": {
       "action": "mower_logic:docking/abort_docking",
@@ -11659,6 +11883,28 @@
         "severity": "warning"
       }
     },
+    "RECORDED_BODY_KEPT": {
+      "SAVE_FAILED": {
+        "description": "The map could not be saved",
+        "fields": {
+          "code": ""
+        },
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Die Änderung der Maße wiederholen oder die Flächen für den genauen Rand neu aufnehmen.",
+            "help": "Die neuen Maße des Mähers konnten nicht an den mit ihm aufgenommenen Flächen gespeichert werden. Diese behalten die alten Maße.",
+            "name": "Maße nicht an den Flächen"
+          },
+          "en": {
+            "fix": "Change the dimensions again, or record the areas again for the exact edge.",
+            "help": "The new dimensions of the mower couldn't be saved with the areas recorded on it. They keep the old ones.",
+            "name": "Dimensions not on the areas"
+          }
+        }
+      }
+    },
     "RECORDING_REFUSED": {
       "DOCK_TOO_CLOSE": {
         "description": "The two points of the docking station are too close together",
@@ -11745,6 +11991,24 @@
             "severity": "warning"
           }
         ]
+      },
+      "REVERSING": {
+        "description": "Reversing takes the points ahead of base_link back and records none",
+        "fields": {},
+        "resume": "auto",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Zum Aufnehmen vorwärts fahren.",
+            "help": "Beim Rückwärtsfahren nimmt die Aufnahme die Punkte vor dem Mäher zurück und setzt keine neuen. Die Fläche gilt dann nicht mehr als in einem Zug gefahren und wird ohne den genauen Rand gemäht.",
+            "name": "Rückwärts nimmt Punkte zurück"
+          },
+          "en": {
+            "fix": "Drive forward to record.",
+            "help": "While the mower reverses, the recording takes back the points ahead of it and adds none. The area then no longer counts as driven in one go and is mowed without the exact edge.",
+            "name": "Reversing takes points back"
+          }
+        }
       },
       "RING_CROSSES_ITSELF": {
         "description": "The ring crosses itself",

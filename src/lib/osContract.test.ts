@@ -5,15 +5,15 @@ import {describe, expect, it} from 'vitest';
 import de from './i18n/de';
 import {onOs, PARAM_FIELDS, paramField} from './mowerParams';
 import {COMMAND, RPC} from './openmower';
-import {EMERGENCY_BITS, EMERGENCY_HIDE, EMERGENCY_TEXT, EVENTS, REASONS, pick} from './reasonTexts';
+import {EMERGENCY_BITS, EMERGENCY_HIDE, EMERGENCY_TEXT, EVENTS, NOT_DRIVEN, REASONS, pick} from './reasonTexts';
 
 // MowBite OS's interface (system.api) as its owner has it, copied from the commit below. a newer one: copy it from
 // there over os-api.schema.json and put its commit and checksum here, the tests then say which words are missing
 const PINNED = {
   repo: 'mkaaaaaay/mowbite-os',
   path: 'src/mowbite_api/api.schema.json',
-  commit: 'f5d6e5dcc20fdc9a234bf04f676e8144bab8ae8c',
-  sha256: 'd82469e43fdb4cafa2cebfd91107f096d004dbf2362fa83751dafff899b0b27b',
+  commit: '9bd10974876f2b788aa8d1749c057b14de33c9f8',
+  sha256: '6c8a77f0faab17687ac223b02df0edd41211b8494a8be21c1976cc2d606f6b0b',
 };
 const raw = readFileSync(join(__dirname, 'os-api.schema.json'));
 // a reason's rating, when: another one for these values of the event's fields
@@ -94,6 +94,12 @@ describe(`MowBite OS's interface (${PINNED.repo} ${PINNED.commit.slice(0, 7)}, a
   it('has words for every reason of every event', () => {
     for (const [type, reasons] of Object.entries(groups))
       for (const reason of Object.keys(reasons)) expect(pick(REASONS[reason], {type, reason}), `${type} ${reason}`).toBeDefined();
+  });
+
+  it('says why an area was recorded without the exact edge, for each reason the OS gives', () => {
+    const {driven_reason} = (api.$defs['event.AREA_RECORDED'] as {properties: {driven_reason: {enum: string[]}}}).properties;
+    expect(driven_reason.enum.filter((r) => !NOT_DRIVEN[r])).toEqual([]);
+    expect(Object.keys(NOT_DRIVEN).filter((r) => !driven_reason.enum.includes(r)), 'gone, take them out of NOT_DRIVEN').toEqual([]);
   });
 
   it('names the emergency bits as the OS does, each with its words', () => {

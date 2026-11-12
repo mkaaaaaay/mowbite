@@ -2191,6 +2191,40 @@ const de: Record<string, string> = {
   "1 obstacle": "1 Hindernis",
   "{n} obstacles": "{n} Hindernisse",
   "Docking station recorded": "Dock aufgenommen",
+  "points set by hand": "Punkte von Hand",
+  "heading unknown": "Richtung unbekannt",
+  "recording interrupted": "Aufnahme unterbrochen",
+  "reversed": "rückwärts gefahren",
+  "start not driven over": "Anfang nicht überfahren",
+  "gap in the line": "Lücke in der Linie",
+  "not along the heading": "nicht in Fahrtrichtung",
+  "turn too sharp": "zu spitze Kehre",
+  "without the exact edge: {why}": "ohne genauen Rand: {why}",
+  "without the exact edge": "ohne genauen Rand",
+  "reversing takes back the points ahead of it, drive forward to record": "rückwärts nimmt die Punkte vor ihm zurück, zum Aufnehmen vorwärts fahren",
+  "Sizes not saved with the areas": "Maße nicht an den Flächen gespeichert",
+  "At least one point was set by hand, so nothing shows that the mower drove the line forward. The area is mowed as usual, only without the exact edge. For the exact edge, record the area again driving forward with automatic points.":
+    "Mindestens ein Punkt wurde von Hand gesetzt. Dann ist nicht belegt, dass der Mäher die Linie vorwärts gefahren ist. Die Fläche wird normal gemäht, nur ohne den genauen Rand. Für den genauen Rand die Fläche mit automatischen Punkten vorwärts neu aufnehmen.",
+  "The mower didn't know its heading yet while recording. The area is mowed as usual, only without the exact edge. Drive straight for a few metres first, then record again for the exact edge.":
+    "Beim Aufnehmen kannte der Mäher seine Fahrtrichtung noch nicht. Die Fläche wird normal gemäht, nur ohne den genauen Rand. Erst einige Meter geradeaus fahren, dann für den genauen Rand neu aufnehmen.",
+  "Automatic points were off for a while, points were undone, or the position was inaccurate, missing or jumped. The area is mowed as usual, only without the exact edge. For the exact edge, record the area again driving forward without a break.":
+    "Die automatischen Punkte waren zwischendurch aus, Punkte wurden mit Rückgängig entfernt, oder die Position war ungenau, fehlte oder sprang. Die Fläche wird normal gemäht, nur ohne den genauen Rand. Für den genauen Rand die Fläche ohne Unterbrechung vorwärts neu aufnehmen.",
+  "The mower reversed while recording. The points ahead of it were taken back, but the line wasn't driven forward in one go there. The area is mowed as usual, only without the exact edge. For the exact edge, record the area again without reversing.":
+    "Beim Aufnehmen ist der Mäher rückwärts gefahren. Die Punkte davor wurden zurückgenommen, die Linie ist dort aber nicht in einem Zug vorwärts gefahren. Die Fläche wird normal gemäht, nur ohne den genauen Rand. Für den genauen Rand die Fläche ohne Rückwärtsfahren neu aufnehmen.",
+  "At the end of the recording the mower didn't drive over the start of the line along its heading, so the piece between the end and the start was never driven. The area is mowed as usual, only without the exact edge. For the exact edge, record again and at the end drive on past the start until the track crosses it.":
+    "Am Ende der Aufnahme ist der Mäher nicht in Fahrtrichtung über den Anfang der Linie gefahren. Das Stück zwischen Ende und Anfang wurde dann nie gefahren. Die Fläche wird normal gemäht, nur ohne den genauen Rand. Für den genauen Rand neu aufnehmen und am Ende über den Anfang hinaus weiterfahren, bis die Spur ihn kreuzt.",
+  "Two points, or the last and the first point, are more than 30 cm apart. The area is mowed as usual, only without the exact edge. Drive more slowly and record again for the exact edge.":
+    "Zwischen zwei Punkten oder vom letzten zum ersten Punkt liegen mehr als 30 cm. Die Fläche wird normal gemäht, nur ohne den genauen Rand. Langsamer fahren und für den genauen Rand neu aufnehmen.",
+  "A piece of the line doesn't follow the heading of the mower, for example after reversing or a step sideways. The area is mowed as usual, only without the exact edge. For the exact edge, record the area again driving forward all the way.":
+    "Ein Stück der Linie liegt nicht in Fahrtrichtung des Mähers, etwa nach Rückwärtsfahren oder einem seitlichen Versatz. Die Fläche wird normal gemäht, nur ohne den genauen Rand. Für den genauen Rand die Fläche durchgehend vorwärts neu aufnehmen.",
+  "The line turns by more than 120 degrees at one spot, where it isn't certain which way the mower turned. The area is mowed as usual, only without the exact edge. Drive turns as a curve and record again for the exact edge.":
+    "Die Linie knickt an einer Stelle um mehr als 120 Grad. Dort ist nicht sicher, in welche Richtung sich der Mäher gedreht hat. Die Fläche wird normal gemäht, nur ohne den genauen Rand. Kehren als Bogen fahren und für den genauen Rand neu aufnehmen.",
+  "It wasn't driven forward in one go. The area is mowed as usual, only without the exact edge.":
+    "Sie wurde nicht in einem Zug vorwärts gefahren. Die Fläche wird normal gemäht, nur ohne den genauen Rand.",
+  "The mower's new sizes couldn't be saved with the areas recorded on it, they keep the old ones. Change the sizes again, or record the areas again for the exact edge.":
+    "Die neuen Maße des Mähers konnten nicht an den mit ihm aufgenommenen Flächen gespeichert werden. Diese behalten die alten Maße. Die Änderung der Maße wiederholen oder die Flächen für den genauen Rand neu aufnehmen.",
+  "While the mower reverses, the recording takes back the points ahead of it and adds none. The area then no longer counts as driven in one go and is mowed without the exact edge. Drive forward to record.":
+    "Beim Rückwärtsfahren nimmt die Aufnahme die Punkte vor dem Mäher zurück und setzt keine neuen. Die Fläche gilt dann nicht mehr als in einem Zug gefahren und wird ohne den genauen Rand gemäht. Zum Aufnehmen vorwärts fahren.",
   "While the position is that inaccurate the mower records no points. Once it is good again the line goes on, straight from the last good point.": "Solange die Position so ungenau ist, nimmt der Mäher keine Punkte auf. Sobald sie wieder gut ist, geht die Linie weiter, gerade ab dem letzten guten Punkt.",
   "The recording stays open, nothing recorded so far is lost. Once the reason is gone, try the step again.": "Die Aufnahme bleibt offen, nichts bisher Aufgenommenes geht verloren. Ist der Grund behoben, den Schritt noch einmal versuchen.",
   "Smaller overlaps more and takes longer. Empty: the planner's overlap for all areas.": "Kleiner überlappt mehr und dauert länger. Leer: die Überlappung des Planers für alle Flächen.",
