@@ -548,7 +548,21 @@ plan_at() {
       print ar, en, dk, ss, fr, an; exit } }' "$F"
 }
 
+# the clock jumped ahead since the last look (summer time, offset $4 to $5): the earliest start time on day $1 after
+# $2 and before $3 (HH:MM), the hour it skipped. nothing otherwise
+skipped_at() {
+  awk -v d="$1" -v from="$2" -v to="$3" -v z0="$4" -v z1="$5" '
+    function mins(hm,   p) { split(hm, p, ":"); return p[1] * 60 + p[2] }
+    function off(z) { return (substr(z, 1, 1) == "-" ? -1 : 1) * (substr(z, 2, 2) * 60 + substr(z, 4, 2)) }
+    BEGIN { if (off(z1) <= off(z0)) exit; a = mins(from) + 1; b = mins(to); if (a > b) a = 0 }
+    $1 == "plan" {
+      m = mins($3); n = split($2, x, ",")
+      for (i = 1; i <= n; i++) if (x[i] == d && m >= a && m < b && (best == "" || m < bm)) { best = $3; bm = m }
+    } END { if (best != "") print best }' "$F"
+}
+
 last=""
+seen_t=0
 until=0
 due_at=0
 endat=""
@@ -576,17 +590,24 @@ fi
 while :; do
   if [ -f "$F" ] && [ "$(conf enabled)" = 1 ]; then
     tz=$(conf tz)
-    now=$(TZ="$tz" date '+%u %H:%M %F')
+    now=$(TZ="$tz" date '+%u %H:%M %F %z')
     # shellcheck disable=SC2086
     set -- $now
-    due=$(plan_at "$1" "$2")
-    if [ -n "$due" ] && [ "$3 $2" != "$last" ]; then
-      last="$3 $2"
+    at=$2
+    due=$(plan_at "$1" "$at")
+    # a start in the hour summer time skipped is due at the end of it (the same zone, looked at a moment ago)
+    if [ -z "$due" ] && [ "$4" != "$seen_z" ] && [ "$tz" = "$seen_tz" ] && [ $(($(date +%s) - seen_t)) -lt 300 ]; then
+      at=$(skipped_at "$1" "$seen_hm" "$2" "$seen_z" "$4")
+      [ -n "$at" ] && due=$(plan_at "$1" "$at")
+    fi
+    seen_tz=$tz seen_t=$(date +%s) seen_hm=$2 seen_z=$4
+    if [ -n "$due" ] && [ "$3 $at" != "$last" ]; then
+      last="$3 $at"
       due_at=$(date +%s)
       until=$((due_at + WAIT))
       waited=""
       hwaited=""
-      dday=$1 dtime=$2 ddate=$3
+      dday=$1 dtime=$at ddate=$3
       # shellcheck disable=SC2086
       set -- $due
       # when this start ends: its end time today, or tomorrow when that's not after the start

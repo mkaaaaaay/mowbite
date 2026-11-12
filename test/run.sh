@@ -130,6 +130,10 @@ start noarea "$(state)" "$(base "$DAY")"$'\n'"plan $D $M gone" "MAP=$AREAS"
 BRACES='{"areas":[{"id":"front","properties":{"name":"Beet }","type":"mow"},"outline":[]},{"id":"back","properties":{"name":"{Rand}","type":"mow","active":false},"outline":[]}]}'
 start braces "$(state)" "$(base "$DAY")"$'\n'"plan $D $M front" "MAP=$BRACES" AREA=back
 start gone "$(state IDLE 0 0 0.5)" "$(MINBAT=80 base "$DAY")"$'\n'"plan $D $M"
+# summer time begins in two minutes and skips the hour with the plan: started at the end of the gap, once
+J=$((10#$(TZ=$DAY date -d "+2 min" +%j) - 1))
+SUMMER="${DAY}TDT,$J/$(hm "$DAY" 2),$(((J + 2) % 365))/0" SKIPPED=$(hm "$DAY" 32)
+start summer "$(state)" "$(base "$SUMMER")"$'\n'"plan $(dow "$DAY" 32) $SKIPPED"
 # MowBite OS with its own schedule and its own store of the parameters
 OS_METHODS='{"jsonrpc":"2.0","result":["rpc.methods","system.info","schedule.get"],"id":"@ID@"}'
 OS_INFO='{"jsonrpc":"2.0","result":{"name":"mowbite-os","version":"0.1"},"id":"@ID@"}'
@@ -215,6 +219,9 @@ logs "scheduler: a start time taken out while it waits isn't started" gone '^ski
 logs "scheduler: a run from before a restart still skips the areas it doesn't pick" restored '^skipped_area back$' 60
 logs "scheduler: its job seen open once the actions have the idle ones, not by the first lists" growing '^skipped_area back$' 60
 logs "scheduler: a start waiting for the battery goes on after a restart" waited '^started' 40
+logs "scheduler: a start in the hour summer time skips comes at its end" summer "^started 90 at=$SKIPPED\$" 150
+sleep 25
+expect "scheduler: and only once" "$(slog summer | grep -c '^started')" 1
 logs "scheduler: a stop time that passed during a restart is carried out after it" restoredlate '^stopped_end$' 30
 gets restoredlate '"/mower_logic/manual_pause_mowing":true' && sent restoredlate | grep -q 'abort_mowing$' &&
   ok "scheduler: sent home and paused then" || bad "scheduler: sent home and paused then" "$(sent restoredlate)"

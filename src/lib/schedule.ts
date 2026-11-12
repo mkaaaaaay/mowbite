@@ -361,6 +361,16 @@ export function planAreas(p: Plan, mowable: readonly string[], pause: Pause | un
   return pause.areas === 'all' ? [] : picked.filter((id) => !pause.areas.includes(id));
 }
 
+// the first minute after the gap a time of day (minutes) fell into: at, the date that time became, back minute by minute
+function gapEnd(at: Date, time: number): Date {
+  let t = at;
+  for (let back = new Date(t.getTime() - 6e4); back.getDate() === at.getDate() && back.getHours() * 60 + back.getMinutes() >= time; ) {
+    t = back;
+    back = new Date(t.getTime() - 6e4);
+  }
+  return t;
+}
+
 // the next start as a date, looking a week ahead from now. days paused for all areas don't count, and with the
 // sun times neither do starts in the dark that the scheduler leaves out (not marked dark): the same for every day, or
 // each day's own. with the mowable areas (ids) neither does a start with none of its areas left to mow, the scheduler
@@ -388,9 +398,9 @@ export function nextStart(
       if (sun !== undefined && !p.dark && isNightTime(p.time, typeof sun === 'function' ? sun(day) : sun)) continue;
       if (mowable?.length && !planAreas(p, mowable, s.pause, localDay(day)).length) continue;
       const [h, m] = p.time.split(':').map(Number);
-      const at = new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, m);
-      // the hour the clock skips when summer time begins: the scheduler doesn't start then
-      if (at.getHours() !== h || at.getMinutes() !== m) continue;
+      let at = new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, m);
+      // the hour the clock skips when summer time begins: the scheduler starts at its end
+      if (at.getHours() !== h || at.getMinutes() !== m) at = gapEnd(at, h * 60 + m);
       if (at > now && (!best || at < best)) best = at;
     }
     // (day by day: the first one with a start has the next)

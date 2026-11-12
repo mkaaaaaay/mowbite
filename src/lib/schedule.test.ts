@@ -101,9 +101,17 @@ describe('nextStart', () => {
     expect(nextStart(schedule([plan([1], '09:00')], false), monday8)).toBeNull();
   });
 
-  it('leaves out a start in the hour skipped when summer time begins', () => {
+  it('moves a start in the hour skipped when summer time begins to its end', () => {
     const sunday1 = new Date(2026, 2, 29, 1, 0);
-    expect(nextStart(schedule([plan([7], '02:30')]), sunday1)).toEqual(new Date(2026, 3, 5, 2, 30));
+    expect(nextStart(schedule([plan([7], '02:30')]), sunday1)).toEqual(new Date(2026, 2, 29, 3, 0));
+    expect(nextStart(schedule([plan([7], '02:00')]), sunday1)).toEqual(new Date(2026, 2, 29, 3, 0));
+    // where the gap begins at midnight
+    process.env.TZ = 'America/Santiago';
+    try {
+      expect(nextStart(schedule([plan([7], '00:30')]), new Date(2026, 8, 5, 23, 0))).toEqual(new Date(2026, 8, 6, 1, 0));
+    } finally {
+      process.env.TZ = 'Europe/Berlin';
+    }
     expect(nextStart(schedule([plan([7], '03:30')]), sunday1)).toEqual(new Date(2026, 2, 29, 3, 30));
   });
 });
