@@ -232,6 +232,29 @@ export async function savePlannerSettings(values: Record<string, unknown>): Prom
   return s;
 }
 
+// MowBite OS keeps the sizes itself (robot.geometry), each like a planner setting with value, default (the platform's),
+// stored and settable, the antenna too; robot.geometry.set needs the version read last
+export interface Geometry {
+  settings: Record<string, PlannerSetting>;
+  version: number;
+  platform: string;
+}
+
+export const loadGeometry = () => callRpc<Geometry>(RPC.geometry, {});
+
+// changes sizes on MowBite OS (idle only, all or nothing), the ones in reset back to the platform's. Its planner takes
+// them a moment later, until then the planner's shown with them
+export async function saveGeometry(version: number, settings: Record<string, unknown>, reset: string[]): Promise<Geometry> {
+  const g = await callRpc<Geometry>(RPC.geometrySet, {version, settings, ...(reset.length ? {reset} : {})});
+  if (current) {
+    const next = {...current.settings};
+    for (const [k, s] of Object.entries(g.settings)) if (next[k]) next[k] = {...next[k], value: s.value};
+    saves++;
+    set({...current, settings: next});
+  }
+  return g;
+}
+
 // A planner that knows outlines but plans with the rectangle while its sizes are exactly a model's with a measured
 // outline gets that outline from the app by itself: once per start (until it went through), after the shared settings
 // are in (the rectangle may be kept there), and the model is noted for the sizes card. Not on MowBite OS: the mower
@@ -269,7 +292,8 @@ export async function resetPlannerAngle(): Promise<PlannerSettings> {
   return s;
 }
 
-const num = (s: PlannerSettings | null | undefined, key: string) => {
+// a setting's number, null without one (planner.settings or robot.geometry)
+export const num = (s: Pick<PlannerSettings, 'settings'> | null | undefined, key: string) => {
   const v = s?.settings[key]?.value;
   return typeof v === 'number' && Number.isFinite(v) ? v : null;
 };

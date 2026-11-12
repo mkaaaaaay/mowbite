@@ -1,5 +1,6 @@
 'use client';
 
+import {useRpcMethods} from '@/hooks/useRpcMethods';
 import {cmMetres, cmText, tr} from '@/lib/i18n';
 import {
   autoOutlineModel,
@@ -9,31 +10,39 @@ import {
   modelOf,
   MOWER_MODELS,
   measuredOutline,
+  num,
   OUTLINE_LEEWAY,
   grownOutline,
+  loadGeometry,
   outlineOf,
   outsideLimits,
   plannerOutline,
+  saveGeometry,
   savePlannerSettings,
   sizesBody,
   slic3rPlans,
   usePlannerSettings,
   withModelOutline,
   type BodySetting,
+  type Geometry,
   type MowerSizes,
   type Outline,
+  type PlannerSetting,
 } from '@/lib/mowerBody';
+import {RPC} from '@/lib/openmower';
+import {RpcError} from '@/lib/rpc';
 import {answerError} from '@/lib/rpcText';
 import {useRouter} from 'next/navigation';
 import {saveSettings, settingsStore} from '@/lib/settings';
 import {useEffect, useState, useSyncExternalStore} from 'react';
 import local from './MowerBodySettings.module.css';
-import {useAntennaFields} from './AntennaFields';
+import {ANTENNA_LABELS, useAntennaFields} from './AntennaFields';
 import {MowerSketch} from './MowerSketch';
 
 // The mower's sizes for the MowBite Planner on the mower (planner.settings): it keeps the body clear of the edges in
 // turns and corners and draws the mower at its real size on the map. Kept by the planner, so every app and the
-// planner itself use the same ones. Set once, so in the settings.
+// planner itself use the same ones. Set once, so in the settings. On MowBite OS the OS keeps them with the antenna
+// (robot.geometry), its planner only shows them.
 
 const LABELS: Record<BodySetting, string> = {
   robot_width: 'Width',
@@ -44,8 +53,40 @@ const LABELS: Record<BodySetting, string> = {
   blade_offset: 'Blade to the left of the middle',
 };
 
+// the other sizes MowBite OS may name in a refusal
+const GEOMETRY_LABELS: Record<string, string> = {...LABELS, robot_outline: 'Outline of the body', ...ANTENNA_LABELS};
+
+// why MowBite OS didn't take the sizes (robot.geometry.set's reasons), in words; anything else as for any card
+function geometryError(e: unknown): string {
+  const d = e instanceof RpcError ? e.data : undefined;
+  if (!d || typeof d.reason !== 'string' || d.reason === 'HOLD' || d.event) return answerError(e);
+  const key = typeof d.key === 'string' ? d.key : '';
+  const what = GEOMETRY_LABELS[key] ? tr(GEOMETRY_LABELS[key]) : key;
+  const range = {what, min: cmText(d.min), max: cmText(d.max)};
+  switch (d.reason) {
+    case 'BUSY':
+      return tr('The sizes change only while the mower is idle, not while it records, drives or mows.');
+    case 'VERSION':
+      return tr('The sizes were changed elsewhere in the meantime, they are shown as they are now. Save again to keep yours.');
+    case 'OUT_OF_RANGE':
+      return tr('{what} has to be between {min} and {max} cm.', range);
+    case 'OUTSIDE_BODY':
+      return tr('{what} has to be inside the body, between {min} and {max} cm.', range);
+    case 'NOT_SETTABLE':
+      return tr("{what} comes with the mower's platform, it can't be changed here.", {what});
+    case 'INVALID_VALUE':
+      return tr('{what} is not a valid value.', {what});
+  }
+  // UNKNOWN_KEY, INVALID_REQUEST: a mistake of the app, in the OS's words
+  return tr('The mower did not take the sizes: {why}', {why: (e as RpcError).message});
+}
+
 type Styles = Record<string, string>;
 type Form = Record<BodySetting, string>;
+
+// the outline stored, as measured for a model (the planner has it 1 cm larger)
+const outlineFrom = (settings: Record<string, {value: unknown}> | undefined): Outline | null =>
+  measuredOutline(outlineOf(settings?.robot_outline?.value)) ?? null;
 
 function formFrom(settings: Record<string, {value: unknown}> | undefined): Form {
   const f = {} as Form;
@@ -78,6 +119,7 @@ export function NoSizesWarning() {
   const [state, setState] = useState<{busy?: boolean; error?: string}>({});
   const known = settings?.settings;
   if (!known?.robot_width || !known.robot_front || !known.robot_rear || slic3rPlans(settings) || bodyFrom(settings)) return null;
+  if (known.robot_width.settable === false) return null;
   const own = sizesBody(withModelOutline(app.mower, app.keepRectangle));
 
   const take = async () => {
@@ -127,60 +169,71 @@ export function NoSizesWarning() {
 export function MowerBodySettings({styles}: {styles: Styles}) {
   const settings = usePlannerSettings();
   const app = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
-  const [form, setForm] = useState<Form>(() => formFrom(settings?.settings));
+  // MowBite OS: the sizes are its own (robot.geometry), null until read
+  const onOs = !!useRpcMethods()?.has(RPC.geometry);
+  const [geo, setGeo] = useState<Geometry | null>(null);
+  const source = onOs ? geo?.settings : settings?.settings;
+  const [form, setForm] = useState<Form>(() => formFrom(source));
   const [state, setState] = useState<{busy?: boolean; error?: string; saved?: boolean; offline?: boolean; picked?: boolean}>({});
   // "other mower" picked while the fields still hold a model's sizes
   const [other, setOther] = useState(false);
   // the body's real contour (robot_outline), from a model; typed sizes go back to the rectangle
   // the measured one, the planner has it 1 cm larger
-  const [outline, setOutline] = useState<Outline | null>(() => measuredOutline(outlineOf(settings?.settings.robot_outline?.value)) ?? null);
+  const [outline, setOutline] = useState<Outline | null>(() => outlineFrom(source));
   // the turn radius of the model just picked, saved with the sizes
   const [turn, setTurn] = useState<number | null>(null);
-  // the stored sizes arrive after the first render or change elsewhere (the warning's button, another device): the
-  // fields follow them as long as nothing is typed in them, saving would clear what they don't show
-  const [shown, setShown] = useState(settings);
-  if (shown !== settings) {
-    setShown(settings);
-    const untouched =
-      JSON.stringify(form) === JSON.stringify(formFrom(shown?.settings)) &&
-      JSON.stringify(outline) === JSON.stringify(measuredOutline(outlineOf(shown?.settings.robot_outline?.value)) ?? null);
-    if (untouched) {
-      setForm(formFrom(settings?.settings));
-      setOutline(measuredOutline(outlineOf(settings?.settings.robot_outline?.value)) ?? null);
-    }
+  // the stored sizes arrive after the first render or change elsewhere (the warning's button, another device): each
+  // field follows them as long as nothing is typed in it, saving would clear what they don't show
+  const [shown, setShown] = useState(source);
+  if (shown !== source) {
+    setShown(source);
+    const before = formFrom(shown);
+    const now = formFrom(source);
+    setForm(Object.fromEntries(BODY_SETTINGS.map((k) => [k, form[k] === before[k] ? now[k] : form[k]])) as Form);
+    if (JSON.stringify(outline) === JSON.stringify(outlineFrom(shown))) setOutline(outlineFrom(source));
   }
 
   useEffect(() => {
     loadPlannerSettings(true).catch(() => setState({offline: true}));
   }, []);
+  useEffect(() => {
+    if (onOs) loadGeometry().then(setGeo, () => setState({offline: true}));
+  }, [onOs]);
 
-  const known = settings?.settings ?? {};
+  const known = source ?? {};
+  const loaded = !!source;
   const keys = BODY_SETTINGS;
   // what the form would make of it: the sketch follows the fields while typing
   const metres = (key: BodySetting) => cmMetres(form[key]);
   const rect = bodyFrom({
     settings: Object.fromEntries(BODY_SETTINGS.map((k) => [k, {value: metres(k)} as never])),
   });
-  const {antenna, fields: antennaFields} = useAntennaFields(styles);
+  const {antenna, fields: antennaFields, typed: antennaTyped, bad: antennaBad, clear: clearAntenna} = useAntennaFields(
+    styles,
+    onOs ? (geo ? {x: num(geo, 'antenna_x') ?? 0, y: num(geo, 'antenna_y') ?? 0} : null) : undefined,
+  );
   const sketch = rect && outline ? {...rect, outline} : rect;
   // the model whose outline it is, named so a wrong pick shows
   const outlineModel = outline ? MOWER_MODELS.find((m) => m.outline && JSON.stringify(m.outline) === JSON.stringify(outline)) : undefined;
   // the outline the app gave the planner by itself, while the card shows what's stored
   const taken =
+    !onOs &&
     !!outlineModel &&
     app.autoOutline === outlineModel.key &&
-    JSON.stringify(outline) === JSON.stringify(measuredOutline(outlineOf(known.robot_outline?.value)) ?? null) &&
-    JSON.stringify(form) === JSON.stringify(formFrom(settings?.settings));
-  const missing = keys.filter((k) => !known[k]);
+    JSON.stringify(outline) === JSON.stringify(outlineFrom(known)) &&
+    JSON.stringify(form) === JSON.stringify(formFrom(known));
+  const missing = loaded ? keys.filter((k) => !known[k]) : [];
   const model = other ? '' : (modelOf(sizesOf(form)) ?? '');
   // a model with a measured outline, while the rectangle is still in use: offered, not put in on its own
   const offered = !outline ? MOWER_MODELS.find((m) => m.key === model && m.outline) : undefined;
   // a planner from before the body check takes robot_width as "the lines are walls": its centre then keeps half the
-  // width off them all the way round, so the width only goes to one that knows the rest too
-  const usable = (key: BodySetting) => !!known[key] && (key !== 'robot_width' || (!!known.robot_front && !!known.edges));
-  // the picked model's turn radius where the planner's is another
-  const stored = known.turn_radius?.value;
-  const turnChange = turn !== null && known.turn_radius && (typeof stored !== 'number' || Math.abs(stored - turn) > 1e-6) ? turn : null;
+  // width off them all the way round, so the width only goes to one that knows the rest too. One that has them from
+  // elsewhere (MowBite OS) doesn't take them
+  const usable = (key: BodySetting) =>
+    !!known[key] && known[key].settable !== false && (onOs || key !== 'robot_width' || (!!known.robot_front && !!known.edges));
+  // the picked model's turn radius where the planner's is another (the planner's on MowBite OS too)
+  const t = settings?.settings.turn_radius;
+  const turnChange = turn !== null && t && t.settable !== false && (typeof t.value !== 'number' || Math.abs(t.value - turn) > 1e-6) ? turn : null;
 
   // a save decides: an outline the app gave by itself is no longer that, one sent along ends a kept rectangle, the
   // rectangle saved for a model's sizes (to a planner that knows outlines) is kept
@@ -189,6 +242,12 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
     const keep = o ? undefined : known.robot_outline && autoOutlineModel(sizesOf(form)) ? true : now.keepRectangle;
     if (now.autoOutline === undefined && now.keepRectangle === keep) return;
     saveSettings({...now, autoOutline: undefined, keepRectangle: keep});
+  };
+
+  // the fields as saved
+  const showStored = (stored: Record<string, PlannerSetting>) => {
+    setForm(formFrom(stored));
+    setOutline(outlineFrom(stored));
   };
 
   const save = async (o: Outline | null = outline) => {
@@ -211,13 +270,15 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
         setState({error: tr('{what} has to be between {min} and {max} cm.', {what: tr(LABELS[key]), ...outside})});
         return;
       }
-      if (!s.stored || typeof s.value !== 'number' || Math.abs(s.value - v) > 1e-6) changes[key] = Math.round(v * 10000) / 10000;
+      // the planner keeps one it takes from mower_logic as its own, MowBite OS only what differs from the platform's
+      if ((!onOs && !s.stored) || typeof s.value !== 'number' || Math.abs(s.value - v) > 1e-6) changes[key] = Math.round(v * 10000) / 10000;
     }
     // the contour only to a planner that knows it, null is the rectangle again
     const send = o ? plannerOutline(o) : null;
     if (known.robot_outline && JSON.stringify(outlineOf(known.robot_outline.value) ?? null) !== JSON.stringify(send)) {
       changes.robot_outline = send;
     }
+    if (onOs) return saveOnOs(changes);
     if (turnChange !== null) changes.turn_radius = turnChange;
     if (!Object.keys(changes).length) {
       decided(o);
@@ -228,12 +289,53 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
     try {
       const s = await savePlannerSettings(changes);
       decided(o);
-      setForm(formFrom(s.settings));
-      setOutline(measuredOutline(outlineOf(s.settings.robot_outline?.value)) ?? null);
+      showStored(s.settings);
       setTurn(null);
       setState({saved: true});
     } catch (e) {
       setState({error: answerError(e)});
+    }
+  };
+
+  // to MowBite OS: the sizes and the antenna (cleared ones back to the platform's, no outline is []), the turn radius
+  // still to the planner
+  const saveOnOs = async (changes: Record<string, unknown>) => {
+    if (!geo) return;
+    if (antennaBad) {
+      setState({error: tr('{what} is not a number.', {what: tr(GEOMETRY_LABELS[antennaBad])})});
+      return;
+    }
+    if (antennaTyped) {
+      changes.antenna_x = antennaTyped.x;
+      changes.antenna_y = antennaTyped.y;
+    }
+    const values: Record<string, unknown> = {};
+    const reset: string[] = [];
+    for (const [k, v] of Object.entries(changes)) {
+      if (v !== null) values[k] = v;
+      else if (k === 'robot_outline') values[k] = [];
+      else reset.push(k);
+    }
+    const toOs = Object.keys(values).length > 0 || reset.length > 0;
+    if (!toOs && turnChange === null) {
+      setState({saved: true});
+      return;
+    }
+    setState({busy: true});
+    try {
+      if (toOs) {
+        const g = await saveGeometry(geo.version, values, reset);
+        setGeo(g);
+        showStored(g.settings);
+        clearAntenna();
+      }
+      if (turnChange !== null) await savePlannerSettings({turn_radius: turnChange});
+      setTurn(null);
+      setState({saved: true});
+    } catch (e) {
+      // read again for the next try, what's typed stays
+      if (e instanceof RpcError && e.data?.reason === 'VERSION') loadGeometry().then(setGeo, () => {});
+      setState({error: geometryError(e)});
     }
   };
 
@@ -243,7 +345,7 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
     try {
       const s = await savePlannerSettings({robot_outline: null});
       saveSettings({...settingsStore.snapshot(), keepRectangle: true, autoOutline: undefined});
-      setOutline(measuredOutline(outlineOf(s.settings.robot_outline?.value)) ?? null);
+      setOutline(outlineFrom(s.settings));
       setState({});
     } catch (e) {
       setState({error: answerError(e)});
@@ -279,7 +381,7 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
           'Measured from the middle between the rear drive wheels, the point the mower follows. The planner keeps the body clear of the edges in turns and corners, the map shows the mower at its real size (⚙ on the map, Mower icon, "Real size").',
         )}
       </p>
-      {state.offline && settings === undefined && <span className={styles.error}>{tr('The mower did not answer.')}</span>}
+      {state.offline && !loaded && <span className={styles.error}>{tr('The mower did not answer.')}</span>}
       <label className={`${styles.field} ${local.model}`}>
         {tr('Model')}
         <select value={model} onChange={(e) => pick(e.target.value)}>
@@ -349,7 +451,7 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
         </p>
       )}
       <div className={local.actions}>
-        <button className={styles.pillButton} onClick={() => void save()} disabled={state.busy || !settings}>
+        <button className={styles.pillButton} onClick={() => void save()} disabled={state.busy || !loaded}>
           {state.busy ? tr('Saving…') : tr('Save')}
         </button>
         {state.saved && (

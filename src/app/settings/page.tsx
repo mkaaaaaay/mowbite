@@ -276,6 +276,8 @@ export default function SettingsPage() {
   const methods = useRpcMethods();
   const lights = !!methods?.has(RPC.lightGet);
   const sounds = !!methods?.has(RPC.soundList);
+  // MowBite OS keeps the sizes itself, with its planner or without
+  const geometry = !!methods?.has(RPC.geometry);
   // the calibration isn't there on MowBite OS, nor is the way to its guide
   const os = useMowbiteOs();
 
@@ -307,9 +309,9 @@ export default function SettingsPage() {
               )
             }
           >
-            {/* set once: with the MowBite Planner kept by it, without it in the app */}
+            {/* set once: with the MowBite Planner kept by it, without it in the app, on MowBite OS by the OS */}
             <div id="sizes">
-              {planner ? (
+              {planner || geometry ? (
                 <MowerBodySettings styles={styles} />
               ) : waiting ? (
                 <PlannerWaiting />

@@ -7,6 +7,7 @@ import {CALIB_NEED, calibCounts, calibResultOf} from './calib';
 import {DEMO_PARAMS, DEMO_SENSORS, demoMap} from './garden';
 import {demoCameras} from './camera';
 import {demoOn} from './flags';
+import {demoGeometry} from './geometry';
 import {demoLights} from './light';
 import {demoSounds} from './sound';
 
@@ -1122,6 +1123,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     },
     ...(demoOn('Lights') && demoLights()),
     ...(demoOn('Sounds') && demoSounds()),
+    ...(demoOn('Geometry') && demoGeometry()),
     ...cameras?.methods,
     ...(undoOn && {
       // points off the end of the open line until that much of it is gone. the mower stays where it is, auto points

@@ -967,6 +967,16 @@ const de: Record<string, string> = {
   "Corners of the outline passes on lines driven along the edge: the check assumes a wall half the mower's width beyond the line everywhere, although the mower drove there itself when recording. An outline offset for the area moves the passes inward.": "Ecken der Randrunden auf abgefahrenen Linien: Die Prüfung nimmt überall eine Wand eine halbe Breite hinter der Linie an, beim Aufzeichnen ist der Mäher dort aber selbst gefahren. Ein Randabstand für die Fläche rückt die Runden nach innen.",
   "Width and the lengths to the front and back are needed.": "Breite und die Längen nach vorne und hinten werden gebraucht.",
   "{what} has to be between {min} and {max} cm.": "{what} muss zwischen {min} und {max} cm liegen.",
+  "{what} has to be inside the body, between {min} and {max} cm.": "{what} muss innerhalb des Körpers liegen, zwischen {min} und {max} cm.",
+  "{what} comes with the mower's platform, it can't be changed here.": "{what} gehört zur Plattform des Mähers und lässt sich hier nicht ändern.",
+  "{what} is not a valid value.": "{what} ist kein gültiger Wert.",
+  "The sizes change only while the mower is idle, not while it records, drives or mows.":
+    "Die Maße lassen sich nur ändern, während der Mäher steht, nicht beim Aufnehmen, Fahren oder Mähen.",
+  "The sizes were changed elsewhere in the meantime, they are shown as they are now. Save again to keep yours.":
+    "Die Maße wurden inzwischen woanders geändert und werden jetzt so gezeigt. Noch einmal speichern, um deine zu behalten.",
+  "The mower did not take the sizes: {why}": "Der Mäher hat die Maße nicht übernommen: {why}",
+  "Important: the GPS antenna's position has to be exact. MowBite OS works out the mower's position from it, the green dot. Measure it to the centimetre: if it is off, the mower's position, the outline and the cut strip are off by as much, and in turns the position swings. It is saved with the sizes.":
+    "Wichtig: Die Position der GPS-Antenne muss genau stimmen. MowBite OS berechnet daraus die Position des Mähers, der grüne Punkt. Auf den Zentimeter genau messen: Stimmt sie nicht, liegen Position, Umriss und Mähstreifen um genauso viel daneben, und in Kurven schwankt die Position. Sie wird mit den Maßen gespeichert.",
   "Still done by MowBite on the mower as set before, from {m} m² and after charging. Switch it off and on to let the planner do it.": "Macht weiter MowBite auf dem Mäher wie vorher eingestellt, ab {m} m² und nach dem Laden. Aus- und wieder einschalten, damit der Planer es übernimmt.",
   "OpenMower lays the lanes {w} cm apart, they just touch.": "OpenMower legt die Bahnen {w} cm auseinander, sie berühren sich gerade.",
   "OpenMower lays the lanes {w} cm apart, so they overlap by {d} cm.": "OpenMower legt die Bahnen {w} cm auseinander, sie überlappen sich also um {d} cm.",

@@ -45,6 +45,9 @@ export const RPC = {
   // the mower's cameras and a stream of one for a single viewer, MowBite OS with cameras only (lib/camera)
   cameraList: 'camera.list',
   cameraStream: 'camera.stream',
+  // the mower's sizes, MowBite OS only: kept by it, its planner only shows them (lib/mowerBody)
+  geometry: 'robot.geometry.get',
+  geometrySet: 'robot.geometry.set',
   // points off the end of the line being recorded, MowBite OS only (masterplan 3.2)
   recordingUndo: 'recording.undo',
   replaceMap: 'map.replace',
