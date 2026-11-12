@@ -7,8 +7,8 @@ import {containerFetch} from './updates';
 
 // the mowing schedule, kept by the container (docker/schedule.cgi) as simple lines the scheduler
 // script reads: enabled, minbattery, skiprain, skipforecast, skipcold, mintemp, tz, one "plan <days> <HH:MM> [areas] [end=HH:MM] [dark=1] [sunset=1]
-// [fresh=1] [angle=<deg>]" per start time and "pause <YYYY-MM-DD> all|<areas>" for days off up to and including that day. days
-// are 1 = monday .. 7 = sunday like date +%u
+// [fresh=1] [angle=<deg>]" per start time, "pause <YYYY-MM-DD> all|<areas>" for days off up to and including that day and
+// "handstop HH:MM" for the starts by hand. days are 1 = monday .. 7 = sunday like date +%u
 
 export interface Plan {
   days: number[];
@@ -52,6 +52,9 @@ export interface Schedule {
   tz?: string;
   // "<lat> <lon>" for the forecast and the sun times, kept when a save doesn't know the mower's position
   pos?: string;
+  // HH:MM, local: a start not by the schedule (the app, Home Assistant, OpenMower's page) before it goes home then,
+  // also with the schedule switched off. none: no end time for those
+  handStop?: string;
 }
 
 export const FORECAST_HOURS = [1, 2, 3];
@@ -84,6 +87,7 @@ export function parseSchedule(text: string): Schedule {
     if (key === 'pause' && a && b) s.pause = {until: a, areas: b === 'all' ? 'all' : b.split(',')};
     if (key === 'tz' && a) s.tz = a;
     if (key === 'pos' && a && b) s.pos = `${a} ${b}`;
+    if (key === 'handstop' && /^\d\d:\d\d$/.test(a ?? '')) s.handStop = a;
     if (key === 'plan' && a && b) {
       const plan: Plan = {days: a.split(',').map(Number), time: b, areas: []};
       for (const r of rest) {
@@ -121,6 +125,7 @@ export function serializeSchedule(s: Schedule, pos?: {lat: number; lon: number})
     ...(s.pause && (s.pause.areas === 'all' || s.pause.areas.length)
       ? [`pause ${s.pause.until} ${s.pause.areas === 'all' ? 'all' : s.pause.areas.join(',')}`]
       : []),
+    ...(s.handStop ? [`handstop ${s.handStop}`] : []),
     '',
   ].join('\n');
 }
@@ -211,6 +216,20 @@ export const SCHEDULE_LOG_TEXT: Record<string, string> = {
   leftovers_little: 'Leftovers too small to go out again ({detail} m²)',
   leftovers_failed: "Leftovers not mowed, the planner didn't answer",
   leftovers_waiting_battery: 'Leftovers: waiting for the battery ({detail} %)',
+  undock_failed: 'Undocking failed{reason}, starts again in 3 minutes',
+  start_retry: 'Started again (start {detail} of 3)',
+  stopped_hand: 'Sent home, the time for starts by hand reached',
+};
+
+// retry_skip says why a start isn't tried again after a failed undocking
+const RETRY_SKIP: Record<string, string> = {
+  started: 'Not started again, it was started meanwhile',
+  off: 'Not started again, the schedule was switched off',
+  end: 'Not started again, the end time had come',
+  offline: "Not started again, the mower wasn't reachable",
+  emergency: 'Not started again, emergency stop was active',
+  busy: 'Not started again, the mower was busy',
+  hold: 'Not started again, an update was running',
 };
 
 // leftovers_skip says why in its detail (battery and cold with their value after it), else the state the mower was in
@@ -244,14 +263,33 @@ const BAD = new Set([
   'skip_hold',
   'unknown_area',
   'leftovers_failed',
+  'undock_failed',
 ]);
-export const logTone = (what: string): 'good' | 'bad' | null =>
-  what === 'started' || what === 'leftovers_started' ? 'good' : BAD.has(what) ? 'bad' : null;
+// not tried again because someone started it meanwhile or switched the schedule off: on purpose
+const RETRY_SKIP_FINE = new Set(['started', 'off']);
+export const logTone = ({what, detail}: Pick<LogEntry, 'what' | 'detail'>): 'good' | 'bad' | null =>
+  what === 'started' || what === 'leftovers_started' || what === 'start_retry'
+    ? 'good'
+    : BAD.has(what) || (what === 'retry_skip' && !RETRY_SKIP_FINE.has(detail ?? ''))
+      ? 'bad'
+      : null;
 
-// a log line in words (english, translated where it's shown)
+// a log line in words (english, translated where it's shown). {reason}: why undocking failed, in words
 export function scheduleLogText(l: LogEntry): string {
   if (l.what === 'leftovers_skip') return LEFTOVERS_SKIP[l.detail ?? ''] ?? "Leftovers not mowed, the mower wasn't ready";
+  if (l.what === 'retry_skip') return RETRY_SKIP[l.detail ?? ''] ?? 'Not started again';
+  if (l.what === 'started_by_hand') return l.detail ? 'Started by hand, goes home at {detail}' : 'Started by hand';
+  // a plan's start after its third try, the leftovers' after the first
+  if (l.what === 'start_failed' && l.detail === 'undock')
+    return l.at ? 'Not started, undocking failed three times{reason}' : 'Not started, undocking failed{reason}';
   return SCHEDULE_LOG_TEXT[l.what] ?? l.what;
+}
+
+// OpenMower's reason a failed undocking came with (UNDOCKING_FAILED: path_failed, no_gps), in words in brackets. empty
+// for none
+function undockReason(l: LogEntry): string {
+  const r = l.what === 'undock_failed' ? l.detail : l.what === 'start_failed' && l.detail === 'undock' ? l.more : undefined;
+  return r && r !== 'unknown' ? ` (${reasonText({id: '', t: l.t, type: 'UNDOCKING_FAILED', reason: r})})` : '';
 }
 
 // a log line as shown, translated. a number with decimals in its detail (a temperature, m²) keeps them, with the
@@ -267,7 +305,7 @@ export function scheduleLogLine(l: LogEntry): string {
     const decimals = /^-?\d+\.(\d+)$/.exec(v)?.[1].length;
     return decimals ? fmt(Number(v), decimals) : v;
   };
-  return tr(scheduleLogText(l), {detail: local(l.detail), more: local(l.more)});
+  return tr(scheduleLogText(l), {detail: local(l.detail), more: local(l.more), reason: undockReason(l)});
 }
 
 // how a start the schedule tried ended: started, or why not
@@ -288,6 +326,9 @@ const START_OUTCOMES = new Set([
   'skip_gone',
   'skip_no_area',
   'skip_hold',
+  'undock_failed',
+  'start_retry',
+  'retry_skip',
 ]);
 
 // The last start the schedule tried, when it didn't come off and it's less than 12 hours ago. A pause for the day
@@ -300,12 +341,15 @@ export function waitingStart(log: LogEntry[], now = Date.now() / 1000): LogEntry
   return last?.what === 'waiting_battery' && now - last.t < 7200 ? last : null;
 }
 
+// Started by hand after it, it was seen to.
 export function missedStart(log: LogEntry[], now = Date.now() / 1000): LogEntry | null {
   let last: LogEntry | null = null;
   for (const l of log) if (START_OUTCOMES.has(l.what) && (!last || l.t > last.t)) last = l;
   if (!last || now - last.t > 12 * 3600) return null;
   if (last.what === 'start_refused' && last.detail === 'BUSY') return null;
-  return ['started', 'skip_paused', 'skip_busy', 'skip_gone'].includes(last.what) ? null : last;
+  if (last.what === 'retry_skip' && RETRY_SKIP_FINE.has(last.detail ?? '')) return null;
+  if (log.some((l) => l.what === 'started_by_hand' && l.t >= last.t)) return null;
+  return ['started', 'start_retry', 'skip_paused', 'skip_busy', 'skip_gone'].includes(last.what) ? null : last;
 }
 
 export function loadScheduleLog(): Promise<LogEntry[]> {
@@ -329,6 +373,41 @@ async function loadLog(): Promise<LogEntry[]> {
       .reverse());
   } catch {
     return lastLog ?? [];
+  }
+}
+
+// who started a run beginning at start (unix time), in words, from the schedule's log: its own starts and the ones by
+// hand it saw (the app, Home Assistant, OpenMower's page). a start is logged right before the mower leaves the dock, one
+// by hand right after. null without a line that fits: the mower's button, OpenMower carrying on after charging, a log
+// too old
+const STARTED_BY: Record<string, string> = {
+  started: 'Started by the schedule',
+  start_retry: 'Started again by the schedule, undocking had failed',
+  leftovers_started: 'Started by MowBite for the leftovers',
+  started_by_hand: 'Started by hand',
+};
+export function startedBy(start: number, log: readonly LogEntry[]): string | null {
+  let best: LogEntry | null = null;
+  for (const l of log) if (STARTED_BY[l.what] && l.t >= start - 90 && l.t <= start + 30 && (!best || l.t > best.t)) best = l;
+  return best ? STARTED_BY[best.what] : null;
+}
+
+// when the run going on goes home (docker/schedule.cgi ?run): its end time, sunset or the time for starts by hand.
+// null when none is to come, also from a container without it (that one answers with the schedule)
+export interface RunStop {
+  at: number;
+  why: 'end' | 'dark' | 'hand';
+}
+export function parseRunStop(text: string): RunStop | null {
+  const m = /^(\d+) (end|dark|hand)\s*$/.exec(text);
+  return m ? {at: Number(m[1]), why: m[2] as RunStop['why']} : null;
+}
+export async function loadRunStop(): Promise<RunStop | null> {
+  try {
+    const res = await containerFetch(`${endpoint()}?run`, {cache: 'no-store'});
+    return res?.ok ? parseRunStop(await res.text()) : null;
+  } catch {
+    return null;
   }
 }
 

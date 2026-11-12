@@ -158,6 +158,25 @@ start growing "$(state)" "$(base "$DAY")" "MAP=$AREAS" "RUN_STATE=$(date +%s) - 
 past=$(($(date +%s) - 60))
 start restoredlate "$(state MOWING)" "$(base "$DAY")" "RUN_STATE=$((past - 600)) $past end front" RUN_DUE=1
 start restoreddone "$(state)" "$(base "$DAY")" "RUN_STATE=$((past - 600)) $past end front" RUN_DUE=1
+# the undocking fails: once, every time, and an emergency stop during the wait (seconds here, 3 minutes on the mower)
+start retry "$(state)" "$(base "$DAY")"$'\n'"plan $D $M end=$(hm "$DAY" 10)" MOWER=undock_once RETRY_WAIT=5
+start retries "$(state)" "$(base "$DAY")"$'\n'"plan $D $M" MOWER=undock_fails RETRY_WAIT=3
+start retrystop "$(state)" "$(base "$DAY")"$'\n'"plan $D $M" MOWER=undock_fails RETRY_WAIT=30
+# starts by hand: before the time set for them with the schedule off, after it, with neither on, to a mower mowing
+# already, and after a plan's run sent home whose job is still open (restored after a restart)
+HAND=$(hm "$DAY" 2)
+start hand "$(state)" "$(base "$DAY" | sed 's/^enabled 1/enabled 0/')"$'\n'"handstop $HAND"
+start handlate "$(state)" "$(base "$DAY")"$'\n'"handstop $(hm "$DAY" -10)"$'\n'"plan $((D % 7 + 1)) $M"
+start handoff "$(state)" "$(base "$DAY" | sed 's/^enabled 1/enabled 0/')"
+start handbusy "$(state MOWING)" "$(base "$DAY")"$'\n'"handstop $(hm "$DAY" 10)"
+start handafter "$(state)" "$(base "$DAY")" "RUN_STATE=$(date +%s) $(($(date +%s) + 3600)) end front" RUN_DUE=1 "ACTIONS=[$ROOT,$IDLE]"
+# what the app, Home Assistant or OpenMower's page send
+byhand() { docker exec mbt-mq mosquitto_pub -h localhost -t "$1/action" -m mower_logic:idle/start_mowing; }
+sleep 5
+for c in hand handlate handoff handbusy handafter; do byhand $c; done
+# the emergency stop while it waits to start again
+waitlog retrystop '^undock_failed' 30 && sleep 2
+docker exec mbt-retrystop mosquitto_pub -h mbt-mq -r -t retrystop/robot_state/json -m "$(state IDLE 1)"
 
 logs "scheduler: starts at the time of a plan" start '^started 90( at=[0-9:]+)?$'
 gets start '^action mower_logic:idle/start_mowing$' && ok "scheduler: the mower got the start" ||
@@ -222,6 +241,9 @@ logs "scheduler: a start waiting for the battery goes on after a restart" waited
 logs "scheduler: a start in the hour summer time skips comes at its end" summer "^started 90 at=$SKIPPED\$" 150
 sleep 25
 expect "scheduler: and only once" "$(slog summer | grep -c '^started')" 1
+logs "scheduler: a start by hand sent home at the time for those" hand '^stopped_hand$' 90
+gets hand '^action mower_logic:mowing/abort_mowing$' && ok "scheduler: the mower got sent home" ||
+  bad "scheduler: the mower got sent home" "$(sent hand)"
 logs "scheduler: a stop time that passed during a restart is carried out after it" restoredlate '^stopped_end$' 30
 gets restoredlate '"/mower_logic/manual_pause_mowing":true' && sent restoredlate | grep -q 'abort_mowing$' &&
   ok "scheduler: sent home and paused then" || bad "scheduler: sent home and paused then" "$(sent restoredlate)"
@@ -239,6 +261,28 @@ gets restoredslow 'abort_mowing$' 30 && [ -n "$(due restoredslow)" ] &&
   bad "scheduler: a stop time still counts as to come while it's carried out" "$(sent restoredslow)"
 nodue restoredslow 20
 expect "scheduler: and no longer once the mower is sent home and paused" "$(due restoredslow) $(slog restoredslow | grep -c '^stopped_end$')" " 1"
+logs "scheduler: a failed undocking is logged" retry '^undock_failed path_failed( at=[0-9:]+)?$'
+logs "scheduler: and the plan started again" retry '^start_retry 2( at=[0-9:]+)?$' 30
+sleep 3
+expect "scheduler: the mower got the start twice" "$(sent retry | grep -c 'start_mowing$')" 2
+[ -n "$(due retry)" ] && ok "scheduler: the run's end time still to come after that" || bad "scheduler: the run's end time still to come after that" "$(slog retry)"
+{ slog retry; slog start; } | grep -q '^started_by_hand\|^start_failed' && bad "scheduler: its own starts aren't taken for ones by hand" "$(slog retry; slog start)" ||
+  ok "scheduler: its own starts aren't taken for ones by hand"
+logs "scheduler: a failed start after the third one" retries '^start_failed undock path_failed( at=[0-9:]+)?$' 60
+sleep 5
+expect "scheduler: three starts, not more" "$(sent retries | grep -c 'start_mowing$') $(slog retries | grep -c '^start_retry')" "3 2"
+logs "scheduler: a failed undocking before an emergency stop" retrystop '^undock_failed path_failed( at=[0-9:]+)?$'
+logs "scheduler: not started again with the emergency stop" retrystop '^retry_skip emergency( at=[0-9:]+)?$' 40
+expect "scheduler: and the mower got one start" "$(sent retrystop | grep -c 'start_mowing$')" 1
+logs "scheduler: a start by hand before the time for those" hand "^started_by_hand $HAND\$"
+expect "scheduler: its run kept with the time for a restart" "$(docker exec mbt-hand cut -d' ' -f3,4 /data/run.state 2> /dev/null)" "hand all"
+logs "scheduler: a start by hand after the time for those" handlate '^started_by_hand$'
+expect "scheduler: no run kept for it" "$(docker exec mbt-handlate ls /data/run.state 2> /dev/null)" ""
+logs "scheduler: a start by hand ends the plan's run before" handafter '^started_by_hand$'
+expect "scheduler: and its end time and areas aren't restored after a restart" \
+  "$(docker exec mbt-handafter sh -c 'ls /data/run.state /data/run.due.*' 2> /dev/null)" ""
+expect "scheduler: starts by hand not looked at with the schedule and their time off" "$(slog handoff)" ""
+expect "scheduler: nor a start to a mower mowing already" "$(slog handbusy)" ""
 for _ in $(seq 30); do docker exec mbt-restoreddone test -f /data/run.state || break; sleep 1; done
 expect "scheduler: nothing for a run that's over by then" \
   "$(docker exec mbt-restoreddone ls /data/run.state 2> /dev/null)$(slog restoreddone)$(sent restoreddone | grep -c 'abort_mowing$\|manual_pause')" 0
@@ -429,11 +473,16 @@ expect "settings: its version readable from another origin" \
   "$(curl -s -D - -o /dev/null -H 'Origin: http://192.168.178.20:8082' "$S" | tr -d '\r' | sed -n 's/^access-control-expose-headers: //Ip')" \
   X-Settings-Version
 
-body=$'enabled 1\nplan 1 10:00; rm -rf /\nplan 8 10:00\nplan 1 10:00 $(id)\npause 2026-01-01 all\nminbattery 1000\ntz Europe/Berlin\nplan 1,2 07:30 a_b-c end=09:00 dark=1 sunset=1 fresh=1\nplan 3 08:00 angle=-45\nplan 3 08:00 angle=1000'
-kept=$'enabled 1\npause 2026-01-01 all\ntz Europe/Berlin\nplan 1,2 07:30 a_b-c end=09:00 dark=1 sunset=1 fresh=1\nplan 3 08:00 angle=-45'
+body=$'enabled 1\nhandstop 19:00\nhandstop 9:00\nplan 1 10:00; rm -rf /\nplan 8 10:00\nplan 1 10:00 $(id)\npause 2026-01-01 all\nminbattery 1000\ntz Europe/Berlin\nplan 1,2 07:30 a_b-c end=09:00 dark=1 sunset=1 fresh=1\nplan 3 08:00 angle=-45\nplan 3 08:00 angle=1000'
+kept=$'enabled 1\nhandstop 19:00\npause 2026-01-01 all\ntz Europe/Berlin\nplan 1,2 07:30 a_b-c end=09:00 dark=1 sunset=1 fresh=1\nplan 3 08:00 angle=-45'
 expect "schedule: only lines of the known shapes are kept" "$(curl -s --data-binary "$body" "$W/schedule")" "$kept"
 expect "schedule: a page elsewhere can't change it" "$(code -H 'Origin: http://evil.example' --data-binary 'enabled 0' "$W/schedule")" 403
 expect "schedule: and it's as it was" "$(curl -s "$W/schedule")" "$kept"
+docker exec mbt-web sh -c 'echo "100 2000000000 end front" > /data/run.state && : > /data/run.due.100'
+expect "schedule: when the run going on goes home" "$(curl -s "$W/schedule?run")" "2000000000 end"
+docker exec mbt-web rm /data/run.due.100
+expect "schedule: nothing once that's done" "$(curl -s "$W/schedule?run")" ""
+docker exec mbt-web rm /data/run.state
 # a connection that breaks off: curl gives up waiting for the rest it said would come
 broken() { curl -s -o /dev/null -m 2 -H 'Content-Length: 1000' --data-binary "$2" "$1"; sleep 1; }
 broken "$W/schedule" 'enabled 0'

@@ -51,6 +51,7 @@ import {
   cachedScheduleLog,
   loadSchedule,
   loadScheduleLog,
+  loadRunStop,
   missedStart,
   waitingStart,
   nextStart,
@@ -58,6 +59,7 @@ import {
   inOtherZone,
   scheduleLogLine,
   type LogEntry,
+  type RunStop,
   type Schedule,
 } from '@/lib/schedule';
 import {LeftoversCard} from '@/components/Leftovers';
@@ -247,6 +249,8 @@ export default function Home() {
   const [schedule, setSchedule] = useState<Schedule | null>(() => cachedSchedule() ?? null);
   // the scheduler's log, for a start it left out (rain, battery, ...). again every minute while the page is open
   const [scheduleLog, setScheduleLog] = useState<LogEntry[]>(() => cachedScheduleLog() ?? []);
+  // when the run going on goes home, said while it's out
+  const [runStop, setRunStop] = useState<RunStop | null>(null);
   useEffect(() => {
     void loadSchedule().then((s) => s !== undefined && setSchedule(s));
     const loadLog = () => void loadScheduleLog().then(setScheduleLog);
@@ -311,6 +315,15 @@ export default function Home() {
   }, [tapped]);
 
   const current = state?.current_state ?? '';
+  // asked every minute while it's out, from a container that has it
+  const out = (current === 'MOWING' || current === 'UNDOCKING' || current === 'PAUSED') && containerHas(updates.level, 'handstop');
+  useEffect(() => {
+    if (!out) return;
+    const load = () => void loadRunStop().then(setRunStop);
+    load();
+    const timer = setInterval(load, 60000);
+    return () => clearInterval(timer);
+  }, [out]);
   const driving = DRIVING.has(current);
   // a calibration drive by hand runs in recording mode, its own page leads it and ends it. only where the planner says
   // so: one on the next mow leaves recording mode to the areas
@@ -357,6 +370,8 @@ export default function Home() {
   // only when the newest state change is this state, older mowers don't record every one (a pause, say)
   const lastState = lastOf((e) => e.type === 'STATE');
   const since = lastState?.state === current ? lastState.t : undefined;
+  // (the container says it only while it's still to come)
+  const homeAt = out ? runStop : null;
   // by current_area and the map like the progress (the history comes up to 30 s later), else by the last area event
   const onArea = current === 'MOWING' && (state?.current_area ?? -1) >= 0 ? map?.areas.filter((a) => a.properties.type === 'mow')[state!.current_area!] : undefined;
   const area = current === 'MOWING' ? onArea?.properties.name || lastOf((e) => e.type === 'AREA')?.area_name : undefined;
@@ -502,9 +517,9 @@ export default function Home() {
                           .join(' ')
                       : pausedInDock && hasAction(ACTION.goHome)
                         ? tr('Put in the dock by hand? Tap End here, then it counts as docked and charges. The next start mows on where it stopped.')
-                        : since
-                        ? tr('since {time}', {time: clock(since)})
-                        : ''}
+                        : [since && tr('since {time}', {time: clock(since)}), homeAt && tr(homeAt.why === 'dark' ? 'goes home at sunset, {time}' : 'goes home at {time}', {time: clock(homeAt.at)})]
+                            .filter(Boolean)
+                            .join(' · ')}
                   </span>
                 ) : link.resuming ? (
                   <span className={styles.dim}>{tr('connecting…')}</span>

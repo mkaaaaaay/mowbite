@@ -1,6 +1,26 @@
 import {describe, expect, it, vi} from 'vitest';
 import {setLangChoice} from './i18n';
-import {daySun, inOtherZone, isNightTime, logTone, missedStart, nextStart, parseSchedule, posixTz, reachesDark, scheduleLogLine, scheduleNow, serializeSchedule, tzOffset, type Schedule} from './schedule';
+import {readFileSync} from 'node:fs';
+import {join} from 'node:path';
+import {
+  daySun,
+  inOtherZone,
+  isNightTime,
+  logTone,
+  missedStart,
+  nextStart,
+  parseRunStop,
+  parseSchedule,
+  posixTz,
+  reachesDark,
+  SCHEDULE_LOG_TEXT,
+  scheduleLogLine,
+  scheduleNow,
+  serializeSchedule,
+  startedBy,
+  tzOffset,
+  type Schedule,
+} from './schedule';
 import {sunTimes} from './sun';
 
 // the dates below are local times, so the same zone everywhere (github runs in UTC)
@@ -373,8 +393,110 @@ describe('the leftovers in the log', () => {
 describe("the updater's hold in the log", () => {
   it('waits while it holds, a start it held for two hours is one that went wrong', () => {
     expect(scheduleLogLine({t: 0, what: 'waiting_hold'})).toBe('Waiting, an update is running');
-    expect(logTone('waiting_hold')).toBeNull();
-    expect(logTone('skip_hold')).toBe('bad');
+    expect(logTone({what: 'waiting_hold'})).toBeNull();
+    expect(logTone({what: 'skip_hold'})).toBe('bad');
     expect(missedStart([{t: 1_790_890_000 - 60, what: 'skip_hold'}], 1_790_890_000)?.what).toBe('skip_hold');
+  });
+});
+
+describe('a failed undocking in the log', () => {
+  it('says why, that it starts again and how that went', () => {
+    expect(scheduleLogLine({t: 0, what: 'undock_failed', detail: 'path_failed', at: '17:40'})).toBe(
+      "Undocking failed (couldn't follow the path), starts again in 3 minutes",
+    );
+    expect(scheduleLogLine({t: 0, what: 'undock_failed', detail: 'unknown'})).toBe('Undocking failed, starts again in 3 minutes');
+    expect(scheduleLogLine({t: 0, what: 'start_retry', detail: '2'})).toBe('Started again (start 2 of 3)');
+    expect(scheduleLogLine({t: 0, what: 'start_failed', detail: 'undock', more: 'no_gps', at: '17:40'})).toBe(
+      'Not started, undocking failed three times (no GPS fix)',
+    );
+    // the leftovers' start isn't tried again
+    expect(scheduleLogLine({t: 0, what: 'start_failed', detail: 'undock', more: 'path_failed'})).toBe(
+      "Not started, undocking failed (couldn't follow the path)",
+    );
+    expect(scheduleLogLine({t: 0, what: 'retry_skip', detail: 'emergency'})).toBe('Not started again, emergency stop was active');
+    expect(scheduleLogLine({t: 0, what: 'start_failed'})).toBe("The mower didn't react to the start, still idle a minute later");
+  });
+  it('marks it, not when it was started meanwhile or the schedule switched off', () => {
+    expect(logTone({what: 'undock_failed'})).toBe('bad');
+    expect(logTone({what: 'start_retry'})).toBe('good');
+    expect(logTone({what: 'retry_skip', detail: 'end'})).toBe('bad');
+    expect(logTone({what: 'retry_skip', detail: 'started'})).toBeNull();
+  });
+  it('on the dashboard while it waits and after the last try, not once it started again', () => {
+    const now = 1_790_890_000;
+    const failed = {t: now - 600, what: 'undock_failed', detail: 'path_failed', at: '17:40'};
+    expect(missedStart([failed], now)?.what).toBe('undock_failed');
+    expect(missedStart([failed, {t: now - 400, what: 'start_retry', detail: '2'}], now)).toBeNull();
+    expect(missedStart([failed, {t: now - 400, what: 'retry_skip', detail: 'started'}], now)).toBeNull();
+    expect(missedStart([failed, {t: now - 400, what: 'retry_skip', detail: 'emergency'}], now)?.what).toBe('retry_skip');
+  });
+});
+
+describe('starts by hand', () => {
+  it('in the log, with the time it goes home at', () => {
+    expect(scheduleLogLine({t: 0, what: 'started_by_hand', detail: '19:00'})).toBe('Started by hand, goes home at 19:00');
+    expect(scheduleLogLine({t: 0, what: 'started_by_hand'})).toBe('Started by hand');
+    expect(scheduleLogLine({t: 0, what: 'stopped_hand'})).toBe('Sent home, the time for starts by hand reached');
+    expect(logTone({what: 'started_by_hand'})).toBeNull();
+  });
+  it('a failed start of the schedule seen to by one', () => {
+    const now = 1_790_890_000;
+    const failed = {t: now - 600, what: 'start_failed', detail: 'undock', more: 'path_failed', at: '17:40'};
+    expect(missedStart([failed], now)?.what).toBe('start_failed');
+    expect(missedStart([failed, {t: now - 60, what: 'started_by_hand'}], now)).toBeNull();
+  });
+  it('their time saved and read, none without it', () => {
+    const s = {...schedule([]), handStop: '19:00'};
+    expect(serializeSchedule(s)).toContain('\nhandstop 19:00\n');
+    expect(parseSchedule(serializeSchedule(s)).handStop).toBe('19:00');
+    expect(serializeSchedule(schedule([]))).not.toContain('handstop');
+    expect(parseSchedule('handstop 9:00').handStop).toBeUndefined();
+  });
+});
+
+describe('who started a run', () => {
+  const log = [
+    {t: 1000, what: 'started', detail: '90', at: '17:40'},
+    {t: 1190, what: 'start_retry', detail: '2', at: '17:40'},
+    {t: 5000, what: 'started_by_hand', detail: '19:00'},
+    {t: 9000, what: 'leftovers_started', detail: '3.2'},
+  ];
+  it('the line logged right before it left, or right after for one by hand', () => {
+    expect(startedBy(1003, log)).toBe('Started by the schedule');
+    expect(startedBy(1192, log)).toBe('Started again by the schedule, undocking had failed');
+    expect(startedBy(4998, log)).toBe('Started by hand');
+    expect(startedBy(9010, log)).toBe('Started by MowBite for the leftovers');
+  });
+  it('nothing without one that fits: carried on after charging, the button, a log too old', () => {
+    expect(startedBy(3000, log)).toBeNull();
+    expect(startedBy(900, log)).toBeNull();
+    expect(startedBy(1003, [])).toBeNull();
+  });
+});
+
+describe('when the run going on goes home', () => {
+  it('read from the container, an older one answers with the schedule', () => {
+    expect(parseRunStop('1790900000 hand\n')).toEqual({at: 1790900000, why: 'hand'});
+    expect(parseRunStop('1790900000 dark')).toEqual({at: 1790900000, why: 'dark'});
+    expect(parseRunStop('')).toBeNull();
+    expect(parseRunStop('enabled 1\nminbattery 80\n')).toBeNull();
+  });
+});
+
+describe('the words the scheduler logs', () => {
+  it('each has a text', () => {
+    const sh = readFileSync(join(__dirname, '../../docker/scheduler.sh'), 'utf8')
+      .split('\n')
+      .filter((l) => !l.trim().startsWith('#'))
+      .join('\n');
+    const words = new Set([...sh.matchAll(/\bs?log "?([a-z_]+)\b/g)].map((m) => m[1]));
+    // stopped_$why: end, dark, hand
+    for (const why of ['end', 'dark', 'hand']) words.add(`stopped_${why}`);
+    words.delete('stopped_');
+    // with their own texts by the detail
+    const own = ['leftovers_skip', 'retry_skip', 'started_by_hand'];
+    const missing = [...words].filter((w) => !SCHEDULE_LOG_TEXT[w] && !own.includes(w));
+    expect(missing).toEqual([]);
+    expect(words.size).toBeGreaterThan(30);
   });
 });

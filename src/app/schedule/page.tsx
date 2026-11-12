@@ -38,6 +38,9 @@ import {useEffect, useMemo, useRef, useState} from 'react';
 import styles from './page.module.css';
 import {useMowerMap} from '@/hooks/useMowerMap';
 
+// what the time for starts by hand begins with when it's switched on
+const HAND_STOP = '19:00';
+
 export default function SchedulePage() {
   useLang();
   const params = useMowerParams();
@@ -53,6 +56,8 @@ export default function SchedulePage() {
   const hasCold = updates.level === null || containerHas(updates.level, 'cold');
   // MowBite's own battery level, it goes down in the dock after Done
   const hasLevel = containerHas(updates.level, 'level');
+  // a time for starts by hand, shown while that can't be told like the cold
+  const hasHandStop = updates.level === null || containerHas(updates.level, 'handstop');
   // undefined: loading, null: not served by the container
   const [schedule, setSchedule] = useState<Schedule | null | undefined>(cachedSchedule);
   const [log, setLog] = useState<LogEntry[]>(() => cachedScheduleLog() ?? []);
@@ -186,6 +191,35 @@ export default function SchedulePage() {
               )}
             </section>
 
+            {/* on MowBite OS its own schedule has the say */}
+            {hasHandStop && !os && (
+              <section className={styles.card}>
+                <h2>{tr('Starts by hand')}</h2>
+                <label className={styles.check}>
+                  <input
+                    type="checkbox"
+                    checked={!!s.handStop}
+                    onChange={(e) => update({...s, handStop: e.target.checked ? HAND_STOP : undefined})}
+                  />
+                  {tr('Stop at')}
+                  <input
+                    type="time"
+                    className={styles.hours}
+                    value={s.handStop ?? HAND_STOP}
+                    disabled={!s.handStop}
+                    aria-label={tr('Stop at')}
+                    onChange={(e) => e.target.value && update({...s, handStop: e.target.value})}
+                  />
+                </label>
+                <p className={styles.dim}>
+                  {s.handStop
+                    ? tr('A start from the app, Home Assistant or OpenMower started before then goes home at that time the same day, like a run of the schedule at its end time. Started later, it mows until done. Also with the schedule switched off.')
+                    : tr("A start from the app, Home Assistant or OpenMower has no end time, it mows until done. Started during a run of the schedule, that run's end time no longer counts.")}{' '}
+                  {tr("Not for the button on the mower, MowBite doesn't see that start.")}
+                </p>
+              </section>
+            )}
+
             {/* switched off it would do nothing, unless one runs already */}
             {s.plans.length > 0 && (s.enabled || !!s.pause) && <PauseCard schedule={s} mowAreas={mowAreas} update={update} />}
 
@@ -276,7 +310,7 @@ export default function SchedulePage() {
               {log.length === 0 && <p className={styles.dim}>{tr('Nothing yet.')}</p>}
               <ul className={styles.log}>
                 {log.slice(0, 20).map((l, i) => (
-                  <li key={i} className={logTone(l.what) === 'good' ? styles.good : logTone(l.what) === 'bad' ? styles.bad : undefined}>
+                  <li key={i} className={logTone(l) === 'good' ? styles.good : logTone(l) === 'bad' ? styles.bad : undefined}>
                     <span className={styles.dim}>
                       {dayLabel(new Date(l.t * 1000))}, {clock(l.t)}
                     </span>

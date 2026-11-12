@@ -328,7 +328,9 @@ export async function demoFetch(url: string, init?: RequestInit): Promise<Respon
     case '/cgi-bin/version':
       return json({version: process.env.APP_VERSION ?? '0.0.0', level: CONTAINER_LEVEL});
     case '/cgi-bin/schedule':
-      if (q.has('log')) return text(demoMows().flatMap((m) => (m.planned ? [`${Math.round(m.start)} started`] : [])).join('\n'));
+      // today's, on its way, was started by hand
+      if (q.has('log')) return text(demoMows().map((m) => `${Math.round(m.start)} ${m.planned ? 'started' : 'started_by_hand'}`).join('\n'));
+      if (q.has('run')) return text('');
       if (post) schedule = body;
       return text(schedule);
     case '/cgi-bin/notify':

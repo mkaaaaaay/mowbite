@@ -39,3 +39,29 @@ test('the question about the dark cancelled takes both times back, the weekday s
   await expect(page.getByRole('button', {name: 'Mow anyway'})).toBeHidden();
   await expect(plans(page).getByRole('button', {name: 'Tue'})).toHaveClass(/on/);
 });
+
+test('a time for starts by hand: off at first, switched on with 19:00 and changed', async ({page}) => {
+  test.skip(SIM, 'the demo mower only');
+  await page.goto('/schedule/');
+  const card = page.locator('section').filter({has: page.getByRole('heading', {name: 'Starts by hand'})});
+  const on = card.getByRole('checkbox');
+  const time = card.getByLabel('Stop at', {exact: true}).and(page.locator('input[type=time]'));
+  await expect(on).not.toBeChecked();
+  await expect(time).toBeDisabled();
+  await expect(card.getByText(/has no end time/)).toBeVisible();
+  await on.check();
+  await expect(time).toBeEnabled();
+  await expect(time).toHaveValue('19:00');
+  await time.fill('18:30');
+  await expect(time).toHaveValue('18:30');
+  await expect(card.getByText(/goes home at that time the same day/)).toBeVisible();
+  // switched off, the schedule leaves it in place
+  await page.getByRole('checkbox', {name: 'Mow by schedule'}).uncheck();
+  await expect(time).toHaveValue('18:30');
+});
+
+test('a run says who started it, as far as the log knows', async ({page}) => {
+  test.skip(SIM, 'the demo mower only');
+  await page.goto('/activity/');
+  await expect(page.getByText('Started by hand')).toBeVisible();
+});
