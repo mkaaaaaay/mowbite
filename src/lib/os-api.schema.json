@@ -6586,6 +6586,159 @@
       "required": [],
       "type": "object"
     },
+    "topic.mowbite/planner/progress": {
+      "additionalProperties": false,
+      "description": "Retained: how far the planning of an area got, at most every second while it runs and once more as it ends; also a change of what waits while nothing is planned. done of of (1000) grows with the planning's steps and with the time that area's last planning took.",
+      "properties": {
+        "area_id": {
+          "description": "The area planned (null: none planned yet, only what waits)",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "done": {
+          "description": "How far it got, of of",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "elapsed_s": {
+          "description": "How long it ran",
+          "minimum": 0,
+          "type": [
+            "number",
+            "null"
+          ],
+          "x-unit": "s"
+        },
+        "error": {
+          "description": "Why it failed (null: it didn't)",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "estimate_s": {
+          "description": "How long that area's last planning took",
+          "minimum": 0,
+          "type": [
+            "number",
+            "null"
+          ],
+          "x-unit": "s"
+        },
+        "key": {
+          "description": "The plan's key",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "of": {
+          "description": "done's whole",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "planned_on": {
+          "description": "Where it's planned (always mower on MowBite OS)",
+          "enum": [
+            "mower",
+            "house"
+          ]
+        },
+        "remote_why": {
+          "description": "Why not on the house computer after all (null on MowBite OS)",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "running": {
+          "description": "It's planning now",
+          "type": "boolean"
+        },
+        "stage": {
+          "description": "The planning's stage (done as it ended well)",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "started": {
+          "description": "When it started, unix time",
+          "type": [
+            "number",
+            "null"
+          ],
+          "x-unit": "s"
+        },
+        "waiting": {
+          "description": "The first 20 of them in the order they'll run",
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "area_id": {
+                "description": "The area it plans, if one",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "ids": {
+                "description": "The RPC requests waiting for it",
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "job": {
+                "description": "What it does: plan, mower, drive, leftovers, ...",
+                "type": "string"
+              },
+              "rank": {
+                "description": "Its urgency, mower's first",
+                "enum": [
+                  "mower",
+                  "asked",
+                  "after_mow",
+                  "ahead"
+                ]
+              }
+            },
+            "required": [
+              "area_id",
+              "job",
+              "rank",
+              "ids"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "waiting_n": {
+          "description": "How many jobs wait",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "area_id",
+        "key",
+        "running",
+        "stage",
+        "done",
+        "of",
+        "started",
+        "elapsed_s",
+        "estimate_s",
+        "error",
+        "waiting_n",
+        "waiting",
+        "planned_on",
+        "remote_why"
+      ],
+      "type": "object"
+    },
     "undocking.abort.params": {
       "additionalProperties": false,
       "description": "The params of undocking.abort",
@@ -8863,11 +9016,11 @@
       "type": "object"
     }
   },
-  "$id": "urn:mowbite-os:api:19",
+  "$id": "urn:mowbite-os:api:20",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "robot_state, actions, events and RPC methods of MowBite OS over MQTT, as system.api gives them; made from the code, objects sorted by key. x-reasons has severity and resume of every reason by event (COMMAND_REFUSED and REQUEST_REFUSED only in refusals; when: another rating for these field values; texts: name, help and fix by language), x-emergency-bits the bits of emergency, x-commands the commands with params, result, the event of their refusal and the actions that do the same, x-methods every RPC method of the OS with its node (planner.* are the planner's, sim.* only in the simulation), x-sensors the sensors by id, x-settings the settings of params.set with the ranges of the OS, x-geometry the keys of robot.geometry.",
   "title": "MowBite OS app interface",
-  "x-api": 19,
+  "x-api": 20,
   "x-commands": {
     "docking.abort": {
       "action": "mower_logic:docking/abort_docking",
@@ -9900,6 +10053,9 @@
     }
   },
   "x-owner": "mowbite-os",
+  "x-planner": {
+    "version": 1
+  },
   "x-reasons": {
     "AREA_SKIPPED": {
       "MANUAL": {
