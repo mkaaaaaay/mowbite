@@ -1209,7 +1209,6 @@ const de: Record<string, string> = {
   "Only when the mower stands ready in the dock. Each update is tried at most once a night. If a new version doesn't run properly, the mower goes back to the one before by itself.": "Nur wenn der Mäher bereit im Dock steht. Jedes Update wird höchstens einmal pro Nacht versucht. Läuft eine neue Version nicht richtig, kehrt der Mäher von selbst zur vorigen zurück.",
   "Next in line:": "Als Nächstes dran:",
   "nothing. The automatic update doesn't install a version again that was taken back or failed, a newer one it does.": "nichts. Eine zurückgenommene oder gescheiterte Version installiert die Automatik nicht noch einmal, eine neuere schon.",
-  "Last ({t}):": "Zuletzt ({t}):",
   "update of {name} cancelled.": "Update von {name} abgebrochen.",
   "{name} went back to the version before.": "{name} ist zur vorigen Version zurückgekehrt.",
   "{name} updated.": "{name} aktualisiert.",

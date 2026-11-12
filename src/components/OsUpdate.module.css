@@ -51,7 +51,9 @@
   color: var(--text-secondary);
 }
 
-.facts b {
+.facts b,
+.note b,
+.steps b {
   font-weight: 600;
 }
 
@@ -91,10 +93,6 @@
 .note {
   display: grid;
   gap: 4px;
-}
-
-.note b {
-  font-weight: 600;
 }
 
 .note small {
@@ -177,10 +175,6 @@
   display: grid;
   gap: 4px;
   padding-top: 2px;
-}
-
-.steps b {
-  font-weight: 600;
 }
 
 .steps small {

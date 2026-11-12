@@ -1,5 +1,5 @@
 import {RPC, TOPIC, UPDATE_GATED} from '../openmower';
-import type {Auto, Component, Last, Phase, UpdateStatus, Version} from '../osUpdate';
+import type {Auto, Component, Last, UpdateStatus, Version} from '../osUpdate';
 import {demoFlags} from './flags';
 
 // MowBite OS's updater for the click tests (update.*), like its host answers: four parts, MowBite OS with something new
@@ -10,7 +10,7 @@ import {demoFlags} from './flags';
 
 const DAY = 86400;
 const STEP_MS = 300;
-const IDLE = {phase: 'idle' as Phase, component: null as string | null, revision: null as string | null, reason: null as string | null};
+const IDLE: Pick<UpdateStatus, 'phase' | 'component' | 'revision' | 'reason'> = {phase: 'idle', component: null, revision: null, reason: null};
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 // a refusal with the host's code and data (the demo passes them on)
@@ -59,7 +59,7 @@ export function demoUpdates(deliver: (topic: string, text: string) => void) {
   };
 
   // going back has nothing to check or unpack
-  const phases = (back: boolean): Phase[] => (back ? ['waiting_gate', 'switching', 'checking'] : ['verifying', 'unpacking', 'waiting_gate', 'switching', 'checking']);
+  const phases = (back: boolean): UpdateStatus['phase'][] => (back ? ['waiting_gate', 'switching', 'checking'] : ['verifying', 'unpacking', 'waiting_gate', 'switching', 'checking']);
   const advance = () => {
     if (!work) return;
     const {c, target, back, resetJobs} = work;

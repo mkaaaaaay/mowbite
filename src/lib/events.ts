@@ -216,6 +216,12 @@ export function reasonText(e: MowerEvent): string {
   return wrap && fits(WRAPPERS[wrap], e) ? fill(tr(WRAPPERS[wrap].en), {text}) : text;
 }
 
+// a reason of an answer (no event) in words, as a sentence
+export function reasonSentence(reason: string, type: string): string {
+  const text = reasonText({id: '', t: 0, type, reason});
+  return `${text.charAt(0).toUpperCase()}${text.slice(1)}${/[.!?]$/.test(text) ? '' : '.'}`;
+}
+
 // the reason in words of the app's language, one it doesn't know as it came
 export function refusalReason(r?: string, action?: string, e?: MowerEvent): string {
   if (!r) return '';

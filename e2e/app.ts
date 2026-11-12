@@ -31,6 +31,12 @@ export {expect};
 export const demoWith = (page: Page, ...parts: DemoPart[]) =>
   page.addInitScript((names) => names.forEach((n) => ((window as unknown as Record<string, boolean>)[`mowbiteDemo${n}`] = true)), parts);
 
+// a switch of the demo with a value (the reason something waits or is turned down with), before the page loads or
+// while it runs
+const setFlag = ([name, value]: readonly [string, unknown]) => void ((window as unknown as Record<string, unknown>)[name] = value);
+export const demoFlag = (page: Page, name: string, value: unknown) => page.addInitScript(setFlag, [name, value] as const);
+export const demoFlagNow = (page: Page, name: string, value: unknown) => page.evaluate(setFlag, [name, value] as const);
+
 // the demo mower as the app reaches it (lib/demo/client): what it has on a topic now, and a call to it like another phone
 // would make one
 type DemoMower = Pick<World, 'retained' | 'published' | 'ahead' | 'emergency' | 'refuseReset' | 'cameras'>;

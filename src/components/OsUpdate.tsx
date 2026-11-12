@@ -1,7 +1,7 @@
 'use client';
 
 import {clock, dayClock} from '@/lib/dates';
-import {reasonText} from '@/lib/events';
+import {reasonSentence} from '@/lib/events';
 import {tr} from '@/lib/i18n';
 import {pageFromMower} from '@/lib/mowers';
 import {isApp} from '@/lib/native';
@@ -12,21 +12,23 @@ import {
   askUpdateStatus,
   checkUpdates,
   goingBack,
-  inWindow,
   nextByItself,
   rollBack,
   runSteps,
+  runTarget,
+  runsByItself,
   setAutoUpdate,
   shortRevision,
   startUpdate,
-  startedHere,
   updating,
   useHostOnline,
   useUpdateStatus,
   versionLabel,
   versionName,
+  wentBackByHand,
   withoutJobWait,
   type Auto,
+  type Available,
   type Component,
   type Last,
   type Step,
@@ -35,7 +37,7 @@ import {
 import {answerError} from '@/lib/rpcText';
 import {APP_VERSION, FROM_STORE} from '@/lib/updates';
 import Link from 'next/link';
-import {useEffect, useState} from 'react';
+import {useEffect, useRef, useState, type ReactNode} from 'react';
 import shared from './AutoUpdate.module.css';
 import styles from './OsUpdate.module.css';
 
@@ -68,10 +70,7 @@ const STEPS: Record<Step, {label: string; title: string}> = {
 const HOUR = 3600;
 
 // a reason of the updater in words, as a sentence
-function why(reason: string, type = 'UPDATE'): string {
-  const text = reasonText({id: '', t: 0, type, reason});
-  return `${text.charAt(0).toUpperCase()}${text.slice(1)}${/[.!?]$/.test(text) ? '' : '.'}`;
-}
+const why = (reason: string, type = 'UPDATE') => reasonSentence(reason, type);
 
 // the app is older than a version needs: which one to update first, by where this one comes from
 function appFirst(min: string): string {
@@ -91,34 +90,27 @@ const Tick = () => (
   </svg>
 );
 
+// a box with its headline
+const Note = ({look, title, children}: {look: string; title?: ReactNode; children: ReactNode}) => (
+  <span className={[look, styles.note].join(' ')}>
+    {title && <b>{title}</b>}
+    {children}
+  </span>
+);
+
 // how the last update ended when it didn't go through, in a box
 function Result({last, name}: {last: Last; name: string}) {
-  const reason = last.reason ? why(last.reason) : '';
-  const when = <small>{dayClock(last.t)}</small>;
+  const box = (look: string, title: string, more?: string) => (
+    <Note look={look} title={title}>
+      {last.reason && why(last.reason)}
+      {more && ` ${more}`}
+      <small>{dayClock(last.t)}</small>
+    </Note>
+  );
   if (last.result === 'rolled_back')
-    return (
-      <div className={[shared.error, styles.note].join(' ')}>
-        <b>{tr('{name}: update taken back', {name})}</b>
-        {reason} {tr("You don't have to do anything, it runs as before.")}
-        {when}
-      </div>
-    );
-  if (last.result === 'failed')
-    return (
-      <div className={[shared.error, styles.note].join(' ')}>
-        <b>{tr('{name}: update failed', {name})}</b>
-        {reason}
-        {when}
-      </div>
-    );
-  if (last.result === 'refused')
-    return (
-      <div className={[shared.warn, styles.note].join(' ')}>
-        <b>{tr('{name}: update not installed', {name})}</b>
-        {reason} {tr('Everything stays as it is.')}
-        {when}
-      </div>
-    );
+    return box(shared.error, tr('{name}: update taken back', {name}), tr("You don't have to do anything, it runs as before."));
+  if (last.result === 'failed') return box(shared.error, tr('{name}: update failed', {name}));
+  if (last.result === 'refused') return box(shared.warn, tr('{name}: update not installed', {name}), tr('Everything stays as it is.'));
   return null;
 }
 
@@ -126,42 +118,64 @@ function Result({last, name}: {last: Last; name: string}) {
 function GateNote({reason}: {reason: string}) {
   if (reason === 'JOB_OPEN')
     return (
-      <span className={[shared.warn, styles.note].join(' ')}>
-        <b>{tr('A mowing job is still open.')}</b>
+      <Note look={shared.warn} title={tr('A mowing job is still open.')}>
         {tr(
           "The update goes on as soon as it's mowed to the end. You can also install it right away, then the area that was started begins anew at the next mowing.",
         )}
-      </span>
+      </Note>
     );
   return (
-    <span className={[shared.warn, styles.note].join(' ')}>
-      <b>{why(reason)}</b>
+    <Note look={shared.warn} title={why(reason)}>
       {reason === 'BUSY'
         ? tr("The update goes on as soon as it's done and stands ready in the dock. You can also send it home.")
         : tr('The update goes on as soon as the mower stands ready in the dock.')}
-    </span>
+    </Note>
   );
+}
+
+// asked before going back or installing what was held back
+function Ask({title, yes, locked, onYes, onNo, children}: {title: string; yes: string; locked: boolean; onYes: () => void; onNo: () => void; children: ReactNode}) {
+  return (
+    <div className={styles.ask}>
+      <h3>{title}</h3>
+      {children}
+      <div className={shared.row}>
+        <button className={[shared.control, shared.danger].join(' ')} disabled={locked} onClick={onYes}>
+          {yes}
+        </button>
+        <button className={shared.control} onClick={onNo}>
+          {tr('Cancel')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// the mark of a part: held back and how, something new, just updated or up to date
+function tagOf(a: Available | null, fresh: boolean): {text: string; look: string} {
+  const b = a?.blocked;
+  if (b) return {text: b.result === 'rolled_back' ? tr('Taken back') : b.result === 'failed' ? tr('Failed') : tr('Held back'), look: shared.badgeBad};
+  if (a) return {text: tr('Update available'), look: shared.badgeNew};
+  return fresh ? {text: tr('Just updated'), look: shared.badgeNew} : {text: tr('Up to date'), look: ''};
 }
 
 // the update going on: its steps, why it waits, and the way out while there is one
 function Running({
   s,
   c,
-  byItself,
   busy,
   onAbort,
   onSkipJob,
 }: {
   s: UpdateStatus;
   c: Component;
-  byItself: boolean;
   busy: boolean;
   onAbort: () => void;
   onSkipJob: () => void;
 }) {
   const {steps, now} = runSteps(s);
   const back = goingBack(s);
-  const target = [c.available, c.previous].find((v) => v?.revision === s.revision);
+  const target = runTarget(s);
   const gated = steps.includes('waiting_gate');
   const switched = s.phase === 'switching' || s.phase === 'checking';
   const held = s.phase === 'waiting_gate' && !!s.reason;
@@ -172,7 +186,7 @@ function Running({
         <>
           <GateNote reason={s.reason!} />
           <small>
-            {byItself
+            {runsByItself(s)
               ? tr('It waits for 30 minutes at most, not beyond the time window. After that it gives up and everything stays as it is.')
               : tr('It waits for 30 minutes at most. After that it gives up and everything stays as it is.')}
           </small>
@@ -208,16 +222,14 @@ function Running({
         ))}
       </ol>
       {switched && gated && (
-        <div className={[styles.info, styles.note].join(' ')}>
-          <b>{tr("Don't do anything now, don't switch the mower off.")}</b>
+        <Note look={styles.info} title={tr("Don't do anything now, don't switch the mower off.")}>
           {tr("Cancelling isn't possible from here on. If the new version doesn't run properly, the mower goes back to the one before by itself.")}
-        </div>
+        </Note>
       )}
       {switched && c.id === 'host' && (
-        <div className={[styles.info, styles.note].join(' ')}>
-          <b>{tr('The host is restarting.')}</b>
+        <Note look={styles.info} title={tr('The host is restarting.')}>
           {tr("For a few seconds nothing arrives here. That's no error, the mower drives and mows on as usual.")}
-        </div>
+        </Note>
       )}
       {held && s.reason === 'JOB_OPEN' && (
         <button className={shared.control} disabled={busy} onClick={onSkipJob}>
@@ -244,17 +256,15 @@ function Running({
 // one part of the software on the mower: what runs, what's new, updating it, and in the details the way back
 function Part({
   c,
-  last,
-  at,
+  fresh,
   locked,
   off,
   onStart,
   onBack,
 }: {
   c: Component;
-  last: Last | null;
-  // when the status came in
-  at: number;
+  // its update went through within the last hour
+  fresh: boolean;
   // nothing can be started now
   locked: boolean;
   // another part updates, this one only shows what runs
@@ -267,18 +277,16 @@ function Part({
   const [resetJobs, setResetJobs] = useState(false);
   const {available: a, running, previous} = c;
   const blocked = a?.blocked ?? null;
-  const fresh = last?.component === c.id && last.result === 'installed' && at - last.t < HOUR;
   const tooOld = appTooOld(a);
   // the mower runs another version of the app than this page shows
   const reload = c.id === 'app' && pageFromMower() && !!running?.version && running.version !== APP_VERSION;
 
-  const tag = blocked
-    ? {text: blocked.result === 'rolled_back' ? tr('Taken back') : blocked.result === 'failed' ? tr('Failed') : tr('Held back'), look: shared.badgeBad}
-    : a
-      ? {text: tr('Update available'), look: shared.badgeNew}
-      : fresh
-        ? {text: tr('Just updated'), look: shared.badgeNew}
-        : {text: tr('Up to date'), look: ''};
+  const tag = tagOf(a, fresh);
+  const info = PARTS[c.id];
+  const answer = (go?: () => void) => () => {
+    setAsk(null);
+    go?.();
+  };
 
   const head = (
     <>
@@ -286,7 +294,7 @@ function Part({
         <span className={shared.name}>{c.name}</span>
         <span className={[shared.badge, tag.look].join(' ')}>{tag.text}</span>
       </div>
-      {!off && PARTS[c.id] && <span className={shared.dim}>{tr(PARTS[c.id].text)}</span>}
+      {!off && info && <span className={shared.dim}>{tr(info.text)}</span>}
       <div className={styles.facts}>
         <span>{tr('Runs')}</span>
         <span>
@@ -322,14 +330,14 @@ function Part({
         </div>
       )}
       {reload && (
-        <div className={[styles.info, styles.note].join(' ')}>
+        <Note look={styles.info}>
           {tr('MowBite {v} runs on the mower now, this page is still {page}.', {v: running.version!, page: APP_VERSION})}
           <button className={[shared.control, shared.primary].join(' ')} onClick={() => window.location.reload()}>
             {tr('Load again')}
           </button>
-        </div>
+        </Note>
       )}
-      {a && blocked && (
+      {blocked && (
         <div className={shared.warn}>
           {blocked.reason !== 'ROLLED_BACK_BY_HAND' &&
             `${blocked.result ? tr("This version isn't installed by itself any more.") : tr("This version isn't installed by itself.")} `}
@@ -338,37 +346,27 @@ function Part({
         </div>
       )}
       {a && tooOld && <div className={shared.warn}>{appFirst(a.min_app!)}</div>}
-      {a && !blocked && !tooOld && PARTS[c.id] && <span className={shared.dim}>{tr(PARTS[c.id].hint)}</span>}
+      {a && !blocked && !tooOld && info && <span className={shared.dim}>{tr(info.hint)}</span>}
       {a && !blocked && (
         <button className={[shared.control, shared.primary].join(' ')} disabled={locked || tooOld} onClick={() => onStart()}>
           {tr('Update')}
         </button>
       )}
-      {a && blocked && ask !== 'anyway' && (
+      {blocked && ask !== 'anyway' && (
         <button className={shared.control} disabled={locked || tooOld} onClick={() => setAsk('anyway')}>
           {tr('Install anyway')}
         </button>
       )}
       {a && ask === 'anyway' && (
-        <div className={styles.ask}>
-          <h3>{tr('Install {name} {v} anyway?', {name: c.name, v: versionName(a)})}</h3>
+        <Ask
+          title={tr('Install {name} {v} anyway?', {name: c.name, v: versionName(a)})}
+          yes={tr('Install anyway')}
+          locked={locked}
+          onYes={answer(() => onStart(a.revision))}
+          onNo={answer()}
+        >
           <p>{tr("If it doesn't run properly, the mower goes back to the version before by itself.")}</p>
-          <div className={shared.row}>
-            <button
-              className={[shared.control, shared.danger].join(' ')}
-              disabled={locked}
-              onClick={() => {
-                setAsk(null);
-                onStart(a.revision);
-              }}
-            >
-              {tr('Install anyway')}
-            </button>
-            <button className={shared.control} onClick={() => setAsk(null)}>
-              {tr('Cancel')}
-            </button>
-          </div>
-        </div>
+        </Ask>
       )}
 
       <button className={styles.more} aria-expanded={open} onClick={() => setOpen(!open)}>
@@ -403,8 +401,13 @@ function Part({
             </>
           )}
           {previous && ask === 'back' && (
-            <div className={styles.ask}>
-              <h3>{tr('Back to {name} {v}?', {name: c.name, v: versionName(previous)})}</h3>
+            <Ask
+              title={tr('Back to {name} {v}?', {name: c.name, v: versionName(previous)})}
+              yes={tr('Back to {v}', {v: versionName(previous)})}
+              locked={locked}
+              onYes={answer(() => onBack(resetJobs))}
+              onNo={answer()}
+            >
               {UPDATE_GATED.includes(c.id) && (
                 <p>
                   {tr('The mower has to stand ready in the dock for this.')}
@@ -418,22 +421,7 @@ function Part({
                 </label>
               )}
               <p>{tr("{v} isn't installed by itself afterwards. You can put it back here at any time.", {v: versionName(running)})}</p>
-              <div className={shared.row}>
-                <button
-                  className={[shared.control, shared.danger].join(' ')}
-                  disabled={locked}
-                  onClick={() => {
-                    setAsk(null);
-                    onBack(resetJobs);
-                  }}
-                >
-                  {tr('Back to {v}', {v: versionName(previous)})}
-                </button>
-                <button className={shared.control} onClick={() => setAsk(null)}>
-                  {tr('Cancel')}
-                </button>
-              </div>
-            </div>
+            </Ask>
           )}
         </>
       )}
@@ -450,8 +438,9 @@ export function OsUpdate() {
   const [error, setError] = useState<string | null>(null);
   const [unanswered, setUnanswered] = useState(false);
   const [checked, setChecked] = useState<number | null>(null);
-  // the window as typed, until the mower has it
+  // the window as typed, until the mower has it: kept while a save is on its way
   const [typed, setTyped] = useState<Partial<Auto>>({});
+  const saving = useRef(0);
 
   useEffect(() => {
     askUpdateStatus().catch(() => setUnanswered(true));
@@ -469,7 +458,8 @@ export function OsUpdate() {
   const auto = {...s.auto, ...typed};
   const saveAuto = (patch: Partial<Auto>) => {
     setTyped({...typed, ...patch});
-    run(() => setAutoUpdate(patch).finally(() => setTyped({})));
+    saving.current++;
+    run(() => setAutoUpdate(patch).finally(() => --saving.current || setTyped({})));
   };
 
   const now = updating(s);
@@ -477,9 +467,8 @@ export function OsUpdate() {
   const count = s.components.filter((c) => c.available).length;
   const next = nextByItself(s);
   const last = s.last;
-  const nameOf = (id: string) => s.components.find((c) => c.id === id)?.name ?? id;
-  // going back by hand ends as installed too, the version left is then the one held back
-  const wentBack = last && s.components.find((c) => c.id === last.component)?.available?.blocked?.reason === 'ROLLED_BACK_BY_HAND';
+  const lastName = last && (s.components.find((c) => c.id === last.component)?.name ?? last.component);
+  const freshId = last?.result === 'installed' && at - last.t < HOUR ? last.component : null;
 
   return (
     <div className={shared.panel}>
@@ -487,7 +476,6 @@ export function OsUpdate() {
         <Running
           s={s}
           c={now}
-          byItself={!startedHere(s) && s.auto.enabled && inWindow(s.auto)}
           busy={busy}
           onAbort={() => run(abortUpdate)}
           onSkipJob={() => run(() => withoutJobWait(s))}
@@ -505,7 +493,7 @@ export function OsUpdate() {
       )}
       {!online && <span className={shared.dim}>{tr("The mower's updater doesn't answer right now, shown is what it said at {t}.", {t: clock(at)})}</span>}
       {error && <span className={shared.warn}>{error}</span>}
-      {!now && last && <Result last={last} name={nameOf(last.component)} />}
+      {!now && last && <Result last={last} name={lastName!} />}
 
       <div className={styles.parts}>
         {s.components
@@ -514,8 +502,7 @@ export function OsUpdate() {
             <Part
               key={c.id}
               c={c}
-              last={last}
-              at={at}
+              fresh={c.id === freshId}
               locked={locked}
               off={!!now}
               onStart={(revision) => run(() => startUpdate(c.id, revision ? {revision} : {}))}
@@ -567,12 +554,15 @@ export function OsUpdate() {
 
       {!now && last && (last.result === 'installed' || last.result === 'aborted') && (
         <span className={shared.dim}>
-          {tr('Last ({t}):', {t: dayClock(last.t)})}{' '}
-          {last.result === 'aborted'
-            ? tr('update of {name} cancelled.', {name: nameOf(last.component)})
-            : wentBack
-              ? tr('{name} went back to the version before.', {name: nameOf(last.component)})
-              : tr('{name} updated.', {name: nameOf(last.component)})}
+          {tr('Last time ({when}): {what}', {
+            when: dayClock(last.t),
+            what:
+              last.result === 'aborted'
+                ? tr('update of {name} cancelled.', {name: lastName!})
+                : wentBackByHand(s)
+                  ? tr('{name} went back to the version before.', {name: lastName!})
+                  : tr('{name} updated.', {name: lastName!}),
+          })}
         </span>
       )}
     </div>

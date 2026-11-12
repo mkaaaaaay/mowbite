@@ -4,7 +4,7 @@ export const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDa
 
 // today/yesterday in the app's language, like the weekday names. the formatters once per language, making them costs
 // far more than formatting (the map's track picker labels every day while the mower drives)
-const dayFormats = new Map<string, {rel: Intl.RelativeTimeFormat; date: Intl.DateTimeFormat; year: Intl.DateTimeFormat}>();
+const dayFormats = new Map<string, {rel: Intl.RelativeTimeFormat; date: Intl.DateTimeFormat; year: Intl.DateTimeFormat; numeric: Intl.DateTimeFormat}>();
 function dayFormat() {
   let f = dayFormats.get(locale());
   if (!f) {
@@ -12,6 +12,7 @@ function dayFormat() {
       rel: new Intl.RelativeTimeFormat(locale(), {numeric: 'auto'}),
       date: new Intl.DateTimeFormat(locale(), {weekday: 'short', day: 'numeric', month: monthStyle()}),
       year: new Intl.DateTimeFormat(locale(), {weekday: 'short', day: 'numeric', month: monthStyle(), year: 'numeric'}),
+      numeric: new Intl.DateTimeFormat(locale(), {day: '2-digit', month: '2-digit', year: 'numeric'}),
     };
     dayFormats.set(locale(), f);
   }
@@ -23,6 +24,9 @@ export const dayDate = (d: Date) => dayFormat().date.format(d);
 
 // for a day that can lie further back: with its year when that's not this one, "Di., 11.11.2025" or "Tue, 11 Nov 2025"
 export const dayDateYear = (d: Date) => (d.getFullYear() === new Date().getFullYear() ? dayFormat().date : dayFormat().year).format(d);
+
+// a day (unix s) in numbers with its year, "09.11.2026" or "09/11/2026"
+export const numericDay = (t: number) => dayFormat().numeric.format(new Date(t * 1000));
 
 export function dayLabel(d: Date) {
   const today = new Date();

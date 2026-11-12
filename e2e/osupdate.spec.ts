@@ -1,11 +1,4 @@
-import type {Page} from '@playwright/test';
-import {demoWith, expect, SIM, test} from './app';
-
-// what a test sets for the demo's updater (lib/demo/update)
-const flag = (page: Page, name: string, value: unknown) =>
-  page.addInitScript(([n, v]) => ((window as unknown as Record<string, unknown>)[n as string] = v), [name, value] as const);
-const flagNow = (page: Page, name: string, value: unknown) =>
-  page.evaluate(([n, v]) => ((window as unknown as Record<string, unknown>)[n as string] = v), [name, value] as const);
+import {demoFlag, demoFlagNow, demoWith, expect, SIM, test} from './app';
 
 // MowBite OS's own updates in the settings: the demo is an OpenMower and has none until a test switches them on
 test.describe('updates of MowBite OS', () => {
@@ -21,7 +14,7 @@ test.describe('updates of MowBite OS', () => {
 
   test('each part with what runs, an update waiting for the mower, cancelled, then installed', async ({page}) => {
     await demoWith(page, 'Updates');
-    await flag(page, 'mowbiteDemoUpdateGate', 'BUSY');
+    await demoFlag(page, 'mowbiteDemoUpdateGate', 'BUSY');
     await page.goto('/settings/#update');
     const group = page.locator('#update');
     await expect(group.locator('summary').first()).toContainText('MowBite OS');
@@ -48,7 +41,7 @@ test.describe('updates of MowBite OS', () => {
     await run.getByRole('button', {name: 'Cancel'}).click();
     await expect(group).toContainText('update of MowBite OS cancelled.');
 
-    await flagNow(page, 'mowbiteDemoUpdateGate', null);
+    await demoFlagNow(page, 'mowbiteDemoUpdateGate', null);
     await os.getByRole('button', {name: 'Update', exact: true}).click();
     await expect(os).toContainText('Just updated');
     await expect(group).toContainText('MowBite OS updated.');
@@ -57,7 +50,7 @@ test.describe('updates of MowBite OS', () => {
 
   test('the planner back to the version before, without waiting for an open mowing job', async ({page}) => {
     await demoWith(page, 'Updates');
-    await flag(page, 'mowbiteDemoUpdateGate', 'JOB_OPEN');
+    await demoFlag(page, 'mowbiteDemoUpdateGate', 'JOB_OPEN');
     await page.goto('/settings/#update');
     const group = page.locator('#update');
     const planner = group.locator('[data-part="planner"]');
@@ -76,7 +69,7 @@ test.describe('updates of MowBite OS', () => {
 
   test('an update the mower took back is held back, and asked about before it is tried again', async ({page}) => {
     await demoWith(page, 'Updates');
-    await flag(page, 'mowbiteDemoUpdateFails', true);
+    await demoFlag(page, 'mowbiteDemoUpdateFails', true);
     await page.goto('/settings/#update');
     const group = page.locator('#update');
     const os = group.locator('[data-part="os"]');

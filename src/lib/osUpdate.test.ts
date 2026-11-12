@@ -1,5 +1,5 @@
 import {describe, expect, it, vi} from 'vitest';
-import {appTooOld, goingBack, inWindow, nextByItself, runSteps, versionLabel, type Component, type UpdateStatus} from './osUpdate';
+import {appTooOld, goingBack, inWindow, nextByItself, runSteps, runTarget, runsByItself, versionLabel, wentBackByHand, type Component, type UpdateStatus} from './osUpdate';
 
 vi.mock('./updates', async (original) => ({...(await original<typeof import('./updates')>()), APP_VERSION: '1.5.0'}));
 
@@ -44,6 +44,13 @@ describe("the steps of MowBite OS's update going on", () => {
     expect(runSteps(s)).toEqual({steps: ['waiting_gate', 'switching', 'checking'], now: 1});
   });
 
+  it('leads to the new version or the one before, by its revision', () => {
+    const c = part('planner', {available: newer('planner'), previous: v('planner-old', '1.3.2')});
+    expect(runTarget(status([c], {phase: 'verifying', component: 'planner', revision: 'planner-new'}))?.revision).toBe('planner-new');
+    expect(runTarget(status([c], {phase: 'switching', component: 'planner', revision: 'planner-old'}))?.version).toBe('1.3.2');
+    expect(runTarget(status([c]))).toBeUndefined();
+  });
+
   it('takes a part it does not know as gated once it waits with a reason', () => {
     const s = status([part('lidar', {available: newer('lidar')})], {phase: 'waiting_gate', component: 'lidar', revision: 'lidar-new', reason: 'NO_DOCK_CONTACT'});
     expect(runSteps(s).steps).toContain('waiting_gate');
@@ -65,11 +72,27 @@ describe('what the automatic update installs next', () => {
   });
 });
 
+describe('how the last one ended', () => {
+  const last = {result: 'installed' as const, reason: null, message: '', revision: 'planner-old', component: 'planner', t: 5};
+  it('went back by hand when the version left is held back for that', () => {
+    const left = newer('planner', {blocked: {reason: 'ROLLED_BACK_BY_HAND', result: 'rolled_back', t: 5}});
+    expect(wentBackByHand(status([part('planner', {available: left})], {last}))).toBe(true);
+    expect(wentBackByHand(status([part('planner')], {last}))).toBe(false);
+  });
+});
+
 describe("the night's window", () => {
   const at = (h: number, m = 0) => new Date(2026, 10, 12, h, m);
   it('ends before its last minute', () => {
     const auto = {enabled: true, from: '02:00', to: '05:00'};
     expect([at(1, 59), at(2), at(4, 59), at(5)].map((t) => inWindow(auto, t))).toEqual([false, true, true, false]);
+  });
+
+  it('is the automatic update for one going on in it that was not started from here', () => {
+    const s = status([part('os', {available: newer('os')})], {phase: 'waiting_gate', component: 'os', revision: 'os-new', reason: 'BUSY'});
+    expect(runsByItself(s, at(3))).toBe(true);
+    expect(runsByItself(s, at(12))).toBe(false);
+    expect(runsByItself({...s, auto: {...s.auto, enabled: false}}, at(3))).toBe(false);
   });
 
   it('goes over midnight when it ends before it starts', () => {

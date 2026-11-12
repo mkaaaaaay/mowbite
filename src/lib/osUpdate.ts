@@ -1,5 +1,6 @@
 import {useSyncExternalStore} from 'react';
-import {locale, tr} from './i18n';
+import {numericDay} from './dates';
+import {tr} from './i18n';
 import {onTopic, topicStore} from './mqttClient';
 import {RPC, TOPIC, UPDATE_GATED} from './openmower';
 import {callRpc, RpcError} from './rpc';
@@ -119,7 +120,7 @@ const started = (s: UpdateStatus) => {
   return s;
 };
 // the update going on was started from this app, not by the automatic one: no newer result has come since
-export const startedHere = (s: UpdateStatus) => startedAfter !== undefined && (s.last?.t ?? null) === startedAfter;
+const startedHere = (s: UpdateStatus) => startedAfter !== undefined && (s.last?.t ?? null) === startedAfter;
 
 export const askUpdateStatus = () => call(RPC.updateStatus);
 export const checkUpdates = () => call(RPC.updateCheck);
@@ -136,6 +137,16 @@ export const updating = (s: UpdateStatus) => (s.phase === 'idle' ? undefined : s
 
 // the update going on leads back to the version before, not on to a new one
 export const goingBack = (s: UpdateStatus) => !!s.revision && updating(s)?.previous?.revision === s.revision;
+
+// the version the update going on leads to
+export function runTarget(s: UpdateStatus): Version | undefined {
+  const c = updating(s);
+  return [c?.available, c?.previous].find((v) => v?.revision === s.revision) ?? undefined;
+}
+
+// the last one went back by hand: that ends as installed too, the version left is then the one held back
+export const wentBackByHand = (s: UpdateStatus) =>
+  s.last?.result === 'installed' && s.components.find((c) => c.id === s.last!.component)?.available?.blocked?.reason === 'ROLLED_BACK_BY_HAND';
 
 const IDLE_MS = 10000;
 // the updater is done with what it was at (an accepted abort ends a moment after its answer)
@@ -192,22 +203,17 @@ export function inWindow(auto: Auto, now = new Date()): boolean {
   return from <= to ? at >= from && at < to : at >= from || at < to;
 }
 
-const dayFormats = new Map<string, Intl.DateTimeFormat>();
-// the day a version was built, with its year: "09.11.2026" or "09/11/2026"
-function buildDay(t: number): string {
-  let f = dayFormats.get(locale());
-  if (!f) dayFormats.set(locale(), (f = new Intl.DateTimeFormat(locale(), {day: '2-digit', month: '2-digit', year: 'numeric'})));
-  return f.format(new Date(t * 1000));
-}
+// the automatic update started the one going on: on, within its window, and not started from here
+export const runsByItself = (s: UpdateStatus, now = new Date()) => !startedHere(s) && s.auto.enabled && inWindow(s.auto, now);
 
 // the short form of a revision (a commit)
 export const shortRevision = (revision: string) => revision.slice(0, 7);
 
 // a version in words: its number and the day it was built, MowBite OS only has the day, one without either its revision
 export function versionLabel(v: Version): string {
-  if (v.version && v.date) return tr('{v} of {day}', {v: v.version, day: buildDay(v.date)});
+  if (v.version && v.date) return tr('{v} of {day}', {v: v.version, day: numericDay(v.date)});
   if (v.version) return v.version;
-  return v.date ? tr('Version of {day}', {day: buildDay(v.date)}) : shortRevision(v.revision);
+  return v.date ? tr('Version of {day}', {day: numericDay(v.date)}) : shortRevision(v.revision);
 }
 // the same in short, for a button or a heading
-export const versionName = (v: Version): string => v.version ?? (v.date ? buildDay(v.date) : shortRevision(v.revision));
+export const versionName = (v: Version): string => v.version ?? (v.date ? numericDay(v.date) : shortRevision(v.revision));
