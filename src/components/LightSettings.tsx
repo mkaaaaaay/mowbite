@@ -32,6 +32,7 @@ const STATE_NAMES: Record<string, string> = {
   CHARGING: 'Charging in the dock',
   CHARGED: 'Fully charged',
   BATTERY_LOW: 'Battery low',
+  SCHEDULE_START: 'Scheduled start',
 };
 const EFFECT_NAMES: Record<string, string> = {
   off: 'Off',

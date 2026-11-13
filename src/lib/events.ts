@@ -77,7 +77,8 @@ export interface MowerEvent {
   angle?: number;
   seconds?: number;
   bits?: string[];
-  // EMERGENCY and EMERGENCY_RESET_REFUSED on MowBite OS: rpc (the app, an action) or button (STOP at the mower)
+  // EMERGENCY and EMERGENCY_RESET_REFUSED on MowBite OS: rpc (the app, an action) or button (STOP at the mower);
+  // SCHEDULE_START_CANCELED: what canceled it; schedule on any event during a run of MowBite OS's schedule
   source?: string;
   // MowBite OS: the charge current seen (A), the battery's temperature or the mow motor's (°C), the sun's height (°)
   current?: number;
@@ -91,14 +92,17 @@ export interface MowerEvent {
   // UNEXPECTED_RESTART: whether it waits for a reset, the state then, the kernel's line or what the OS found (english)
   hold?: boolean;
   state_before?: string;
+  // also MowBite OS's schedule: why its run ends (SCHEDULE: end or pause)
   detail?: string;
+  // MOWING_REFUSED with CLOCK_UNSAFE: why the clock isn't safe (never_synced, clock_jump, gnss_mismatch)
+  clock_reason?: string;
   // worked out here, not from OpenMower: a navigation error that only came because it was sent home (see markSentHome)
   sentHome?: boolean;
 }
 
 export type {Severity};
 
-const readable = (r: string) => r.replace(/_/g, ' ').toLowerCase();
+export const readable = (r: string) => r.replace(/_/g, ' ').toLowerCase();
 
 // why it heads home, from the reason mower_logic gives (mower_logic.cpp): "Manual pause", "Battery voltage critical:
 // 23.1 V", "Battery average voltage low: 24.2 V", "Mow motor over temp: 71 °C", "Rain detected". MowBite OS gives a
@@ -210,15 +214,17 @@ export const isReasonCode = (r?: string): boolean => !!r && /^[A-Z][A-Z0-9_]*$/.
 
 // a reason in words (reasonTexts.ts): one in the list with the event's numbers, a fixed name it doesn't know by the
 // mower's english text, else the name itself readable. free text (OpenMower, MowBite OS before E6) stays as it came
+// the event with the fields a reader puts in itself (reasonTexts.ts)
+const withOwn = (e: MowerEvent): MowerEvent => ({
+  ...e,
+  ...(typeof e.until === 'number' && e.until > 0 ? {until_clock: clock(e.until)} : {}),
+  ...(typeof e.accuracy === 'number' && e.accuracy >= 999 ? {no_fix: true} : {}),
+});
+
 export function reasonText(e: MowerEvent): string {
   const r = e.reason;
   if (!r) return '';
-  // (the fields a reader puts in itself, reasonTexts.ts)
-  const f = {
-    ...e,
-    ...(typeof e.until === 'number' && e.until > 0 ? {until_clock: clock(e.until)} : {}),
-    ...(typeof e.accuracy === 'number' && e.accuracy >= 999 ? {no_fix: true} : {}),
-  };
+  const f = withOwn(e);
   const v = pick(REASONS[r], f);
   let text: string;
   if (v) text = fill(tr(v.en), f);
@@ -277,9 +283,10 @@ const SEVERITIES = new Set<string>(['error', 'warning', 'info']);
 // the event's words from its list in reasonTexts.ts: the head of the first variant that fits, the reason after it
 function worded(e: MowerEvent): {text: string; severity: Severity} | null {
   const ev = EVENTS[e.type];
-  const v = pick(ev?.variants, e);
+  const own = withOwn(e);
+  const v = pick(ev?.variants, own);
   if (!ev || !v) return null;
-  const head = fill(tr(v.en), e);
+  const head = fill(tr(v.en), own);
   let why = '';
   if (v.with_reason !== false && e.reason !== undefined && e.reason !== '') {
     if (v.reason_is === 'emergency_bits') {
@@ -445,6 +452,8 @@ export function explain(e: MowerEvent, state?: string, gpsTimeout?: number, os =
         return POSITION_PAUSE.includes(e.reason)
           ? tr('It goes on by itself once the position has been good for a moment.')
           : tr('It goes on by itself once that is over.');
+      if (e.reason === 'SCHEDULE')
+        return tr("The schedule ended mowing, but it can't go home by itself from here, so it waits where it is. Continue it or take it home, the next plan carries on with the job.");
       // a reason to go home, but it has no way there (no docking station, no contacts at the back)
       if (homeReason(e.reason) && e.reason !== 'MANUAL') {
         const wait = tr("It can't go home by itself from here, so it waits where it is until you continue it.");

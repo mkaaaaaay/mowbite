@@ -833,3 +833,28 @@ describe('MowBite OS started again without its own stop', () => {
     }
   });
 });
+
+describe("MowBite OS's schedule in the events", () => {
+  const os = (type: string, extra: Partial<MowerEvent> = {}) => describeEvent(ev(0, type, {severity: 'info', ...extra}), undefined, true).text;
+
+  it('announces and cancels its starts', () => {
+    expect(os('SCHEDULE_START', {seconds: 10, until: 1_800_000_010})).toBe('Scheduled start in 10 s');
+    expect(os('SCHEDULE_START_CANCELED', {source: 'emergency'})).toBe('Scheduled start canceled, emergency stop');
+    expect(os('SCHEDULE_START_CANCELED', {source: 'rpc'})).toBe('Scheduled start canceled by hand');
+    expect(os('SCHEDULE_START_CANCELED', {source: 'new'})).toBe('Scheduled start canceled');
+  });
+
+  it("says why it ends a run, and what it does when it can't go home", () => {
+    expect(os('DOCKING', {reason: 'SCHEDULE', detail: 'end'})).toBe("Heading home: the plan's end time has come");
+    expect(os('AREA_SKIPPED', {reason: 'SCHEDULE', detail: 'pause'})).toBe("Area skipped: the plan's areas are paused");
+    expect(os('AREA_SKIPPED')).toBe('Area skipped');
+    const paused = ev(0, 'STATE', {state: 'PAUSED', reason: 'SCHEDULE', detail: 'end', severity: 'info', resume: 'user'});
+    expect(describeEvent(paused, undefined, true)).toEqual({text: "Paused: the plan's end time has come", severity: 'info'});
+    expect(explain(paused, 'MOWING', undefined, true)).toMatch(/next plan carries on/);
+  });
+
+  it('says why a scheduled start was turned down', () => {
+    expect(reasonText(ev(0, 'MOWING_REFUSED', {reason: 'CLOCK_UNSAFE', clock_reason: 'clock_jump'}))).toBe("the mower's clock jumped");
+    expect(reasonText(ev(0, 'MOWING_REFUSED', {reason: 'NOT_DOCKED'}))).toBe('not in the dock, a scheduled start only goes from there');
+  });
+});

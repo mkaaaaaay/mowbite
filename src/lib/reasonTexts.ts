@@ -93,6 +93,7 @@ export const EVENTS: Record<string, EventText> = {
     variants: [
       // MowBite OS says why it paused
       alone({when: {state: 'PAUSED', reason: 'MANUAL'}, en: 'Paused'}),
+      {when: {state: 'PAUSED', reason: 'SCHEDULE'}, en: 'Paused'},
       {when: {state: 'PAUSED', reason: {present: true}}, en: 'Paused', severity: 'warning'},
       ...STATE_NAMES.map(([state, en]) => alone({when: {state}, en})),
       alone({when: {state: {present: true}}, en: '{state}'}),
@@ -107,8 +108,8 @@ export const EVENTS: Record<string, EventText> = {
   },
   BLADES: {severity: 'info', variants: [{when: {enabled: true}, en: 'Blades on'}, {en: 'Blades off'}]},
   AREA: {severity: 'info', variants: [{when: {area_name: {present: true}}, en: 'Mowing "{area_name}"'}, {en: 'Mowing "unnamed"'}]},
-  // only happens when someone presses skip
-  AREA_SKIPPED: {severity: 'info', variants: [alone({en: 'Area skipped'})]},
+  // someone pressed skip, or on MowBite OS the schedule's end time or pause
+  AREA_SKIPPED: {severity: 'info', variants: [{when: {reason: 'SCHEDULE'}, en: 'Area skipped'}, alone({en: 'Area skipped'})]},
   UNDOCKED: one('Left the dock'),
   UNDOCKING_FAILED: {severity: 'error', join: '{head} ({reason})', variants: [{en: 'Leaving the dock failed'}]},
   // OpenMower's free text is the reader's, MowBite OS's names are here
@@ -172,6 +173,18 @@ export const EVENTS: Record<string, EventText> = {
   SHUTDOWN: one('Mower software stopped'),
   // from here on MowBite OS only
   MOWING_REFUSED: one('Mowing not started', 'warning'),
+  // a plan of MowBite OS's schedule announces its start (light and sound), then checks again and leaves the dock
+  SCHEDULE_START: {severity: 'info', variants: [{when: {seconds: {present: true}}, en: 'Scheduled start in {seconds} s'}, {en: 'Scheduled start'}]},
+  SCHEDULE_START_CANCELED: {
+    severity: 'info',
+    variants: [
+      {when: {source: 'emergency'}, en: 'Scheduled start canceled, emergency stop'},
+      {when: {source: 'rpc'}, en: 'Scheduled start canceled by hand'},
+      {when: {source: 'undocked'}, en: 'Scheduled start canceled, the mower left the dock'},
+      {when: {source: 'hold'}, en: 'Scheduled start canceled, an update is starting'},
+      {en: 'Scheduled start canceled'},
+    ],
+  },
   DRIVE_REFUSED: one('Drive not started', 'warning'),
   // a command the mower turned down without an event of its own, only in the answer to its call
   COMMAND_REFUSED: one('Not done'),
@@ -326,6 +339,20 @@ export const REASONS: Record<string, Variant[]> = {
   ON_DOCK: [r('on the docking station, drive it off by remote control first')],
   RAIN: [r('rain')],
   DARK: [r('the sun has set')],
+  // MowBite OS's schedule: the plan's end time came or its areas are paused
+  SCHEDULE: [
+    r("the plan's end time has come", {when: {detail: 'end'}}),
+    r("the plan's areas are paused", {when: {detail: 'pause'}}),
+    r('the schedule'),
+  ],
+  NOT_DOCKED: [r('not in the dock, a scheduled start only goes from there')],
+  // MOWING_REFUSED of a scheduled start, clock_reason as schedule.get has it
+  CLOCK_UNSAFE: [
+    r("the mower's clock was never set", {when: {clock_reason: 'never_synced'}}),
+    r("the mower's clock jumped", {when: {clock_reason: 'clock_jump'}}),
+    r("the mower's clock doesn't match the GPS time", {when: {clock_reason: 'gnss_mismatch'}}),
+    r("the mower's clock isn't confirmed"),
+  ],
   BATTERY_LOW: [
     r('battery low ({battery_voltage:1} V)', {when: {type: 'DOCKING', battery_voltage: {present: true}}}),
     r('battery low ({battery_voltage:1} V, at least {limit:1} V needed)', {when: {battery_voltage: {present: true}, limit: {present: true}}}),

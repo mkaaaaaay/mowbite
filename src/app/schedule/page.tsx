@@ -18,6 +18,8 @@ import PauseCard from './PauseCard';
 import {
   cachedSchedule,
   cachedScheduleLog,
+  changedElsewhere,
+  clockText,
   daySun,
   EMPTY_SCHEDULE,
   COLD_TEMPS,
@@ -27,12 +29,15 @@ import {
   nextStart,
   logTone,
   inOtherZone,
+  osSun,
   posixTz,
+  readyText,
   saveSchedule,
   scheduleNow,
   type LogEntry,
   type Schedule,
   scheduleLogLine,
+  useScheduleReady,
 } from '@/lib/schedule';
 import {useEffect, useMemo, useRef, useState} from 'react';
 import styles from './page.module.css';
@@ -52,21 +57,25 @@ export default function SchedulePage() {
   const datum = datumFromParams(params);
   // what MowBite's container on the mower can do
   const updates = useUpdates();
-  // the cold check is a newer container's only, shown while that can't be told
-  const hasCold = updates.level === null || containerHas(updates.level, 'cold');
+  // undefined: loading, null: neither MowBite OS nor the container keeps one
+  const [schedule, setSchedule] = useState<Schedule | null | undefined>(cachedSchedule);
+  // kept by MowBite OS itself
+  const fromOs = !!schedule?.os;
+  // the cold check is MowBite OS's and a newer container's, shown while that can't be told
+  const hasCold = fromOs || updates.level === null || containerHas(updates.level, 'cold');
   // MowBite's own battery level, it goes down in the dock after Done
   const hasLevel = containerHas(updates.level, 'level');
   // a time for starts by hand, only from a container known to keep it (an older one drops the line when saving)
   const hasHandStop = containerHas(updates.level, 'handstop');
-  // undefined: loading, null: not served by the container
-  const [schedule, setSchedule] = useState<Schedule | null | undefined>(cachedSchedule);
   const [log, setLog] = useState<LogEntry[]>(() => cachedScheduleLog() ?? []);
   const [error, setError] = useState<string | null>(null);
   const {knowsAction} = useMowerActions();
   const canSetParams = useCanSetParams();
-  // a start's own mowing direction turns mower_logic's mow_angle_offset, MowBite OS has none (its planner turns the lanes)
+  // a start's own mowing direction: MowBite OS's schedule turns the planner's lanes for the job, the container
+  // mower_logic's mow_angle_offset
   const os = useMowbiteOs();
-  const canTurn = canSetParams && !os;
+  const canTurn = fromOs || (canSetParams && !os);
+  const ready = useScheduleReady();
   // going home at sunset switched off on purpose on a mower that has it, said where the runs are planned
   const nightMowing = mowsIntoNight(params);
 
@@ -75,12 +84,12 @@ export default function SchedulePage() {
   const touched = useRef(false);
   // the mower didn't answer and nothing came before: not the same as no container
   const [unreachable, setUnreachable] = useState(false);
+  const load = (again = false) =>
+    void loadSchedule(again).then((s) => {
+      setUnreachable(s === undefined);
+      if (s !== undefined && !touched.current) setSchedule(s);
+    });
   useEffect(() => {
-    const load = (again = false) =>
-      void loadSchedule(again).then((s) => {
-        setUnreachable(s === undefined);
-        if (s !== undefined && !touched.current) setSchedule(s);
-      });
     load();
     void loadScheduleLog().then(setLog);
     const timer = setInterval(() => void loadScheduleLog().then(setLog), 60000);
@@ -102,16 +111,24 @@ export default function SchedulePage() {
     setSchedule(next);
     setError(null);
     // the position also gives the scheduler the sun times
-    saveSchedule(next, datum ?? undefined).catch((e) =>
-      setError(tr("The schedule couldn't be saved on the mower ({why}). Check the connection and try again.", {why: rpcErrorText(e)})),
-    );
+    saveSchedule(next, datum ?? undefined).catch((e) => {
+      if (!changedElsewhere(e))
+        return setError(tr("The schedule couldn't be saved on the mower ({why}). Check the connection and try again.", {why: rpcErrorText(e)}));
+      // MowBite OS: another phone or Home Assistant changed it in between, shown as the mower has it now
+      setError(tr('The schedule was changed elsewhere meanwhile, this is how the mower has it now. Make the change again.'));
+      touched.current = false;
+      load(true);
+    });
   };
 
   const s = schedule ?? EMPTY_SCHEDULE;
   const sunOn = datum ? daySun(s.tz, datum) : null;
-  // today's sunrise and sunset by the schedule's clock, so the animal hint follows the real night
-  const sun = sunOn?.(scheduleNow(s.tz)) ?? null;
-  const next = nextStart(s, undefined, sunOn, mowAreas.map((a) => a.id));
+  // today's sunrise and sunset by the schedule's clock, so the animal hint follows the real night. MowBite OS knows
+  // its place itself
+  const sun = sunOn?.(scheduleNow(s.tz)) ?? osSun(s);
+  const next = nextStart(s, undefined, sunOn ?? sun, mowAreas.map((a) => a.id));
+  // the forecast and the cold need the garden's place, MowBite OS has its own
+  const placed = !!datum || fromOs;
   // saved from a phone in another time zone: the times are the schedule's, not this phone's
   const otherZone = useMemo(() => inOtherZone(s.tz), [s.tz]);
 
@@ -146,6 +163,13 @@ export default function SchedulePage() {
                     ? tr('No start planned yet.')
                     : tr('Switched off, the mower only mows when you start it.')}
               </p>
+              {s.enabled && ready && <p className={ready.ok ? styles.dim : styles.error}>{readyText(ready)}</p>}
+              {s.os && !s.os.available && <p className={styles.error}>{tr("MowBite OS doesn't let the schedule start the mower on this platform yet.")}</p>}
+              {s.os?.clockReason && (
+                <p className={styles.error}>
+                  {tr("No plan starts until the mower's clock is confirmed: {why}.", {why: clockText(s.os.clockReason)})}
+                </p>
+              )}
               {nightMowing && (
                 <p className={styles.dim}>
                   <strong>{tr('Going home at sunset is switched off: a mow goes on into the night.')}</strong>{' '}
@@ -248,14 +272,14 @@ export default function SchedulePage() {
                 <input
                   type="checkbox"
                   checked={s.skipForecast}
-                  disabled={!datum}
+                  disabled={!placed}
                   onChange={(e) => update({...s, skipForecast: e.target.checked})}
                 />
                 {tr('Not when it rains or rain is forecast for')}
                 <select
                   className={styles.hours}
                   value={s.forecastHours}
-                  disabled={!datum}
+                  disabled={!placed}
                   aria-label={tr('Not when it rains or rain is forecast for')}
                   onChange={(e) => update({...s, forecastHours: Number(e.target.value)})}
                 >
@@ -268,12 +292,12 @@ export default function SchedulePage() {
               </label>
               {hasCold && (
               <label className={styles.check}>
-                <input type="checkbox" checked={s.skipCold} disabled={!datum} onChange={(e) => update({...s, skipCold: e.target.checked})} />
+                <input type="checkbox" checked={s.skipCold} disabled={!placed} onChange={(e) => update({...s, skipCold: e.target.checked})} />
                 {tr('Not when it is colder than')}
                 <select
                   className={styles.hours}
                   value={s.minTemp}
-                  disabled={!datum}
+                  disabled={!placed}
                   aria-label={tr('Not when it is colder than')}
                   onChange={(e) => update({...s, minTemp: Number(e.target.value)})}
                 >

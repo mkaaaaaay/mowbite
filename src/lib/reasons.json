@@ -22,6 +22,14 @@
     {
      "when": {
       "state": "PAUSED",
+      "reason": "SCHEDULE"
+     },
+     "en": "Paused",
+     "de": "Pausiert"
+    },
+    {
+     "when": {
+      "state": "PAUSED",
       "reason": {
        "present": true
       }
@@ -153,6 +161,13 @@
   "AREA_SKIPPED": {
    "severity": "info",
    "variants": [
+    {
+     "when": {
+      "reason": "SCHEDULE"
+     },
+     "en": "Area skipped",
+     "de": "Fläche übersprungen"
+    },
     {
      "en": "Area skipped",
      "with_reason": false,
@@ -436,6 +451,61 @@
     {
      "en": "Mowing not started",
      "de": "Mähen nicht gestartet"
+    }
+   ]
+  },
+  "SCHEDULE_START": {
+   "severity": "info",
+   "variants": [
+    {
+     "when": {
+      "seconds": {
+       "present": true
+      }
+     },
+     "en": "Scheduled start in {seconds} s",
+     "de": "Geplanter Start in {seconds} s"
+    },
+    {
+     "en": "Scheduled start",
+     "de": "Geplanter Start"
+    }
+   ]
+  },
+  "SCHEDULE_START_CANCELED": {
+   "severity": "info",
+   "variants": [
+    {
+     "when": {
+      "source": "emergency"
+     },
+     "en": "Scheduled start canceled, emergency stop",
+     "de": "Geplanter Start abgebrochen, Notaus"
+    },
+    {
+     "when": {
+      "source": "rpc"
+     },
+     "en": "Scheduled start canceled by hand",
+     "de": "Geplanter Start von Hand abgebrochen"
+    },
+    {
+     "when": {
+      "source": "undocked"
+     },
+     "en": "Scheduled start canceled, the mower left the dock",
+     "de": "Geplanter Start abgebrochen, der Mäher hat das Dock verlassen"
+    },
+    {
+     "when": {
+      "source": "hold"
+     },
+     "en": "Scheduled start canceled, an update is starting",
+     "de": "Geplanter Start abgebrochen, ein Update beginnt"
+    },
+    {
+     "en": "Scheduled start canceled",
+     "de": "Geplanter Start abgebrochen"
     }
    ]
   },
@@ -1201,6 +1271,59 @@
    {
     "en": "the sun has set",
     "de": "die Sonne ist untergegangen"
+   }
+  ],
+  "SCHEDULE": [
+   {
+    "en": "the plan's end time has come",
+    "when": {
+     "detail": "end"
+    },
+    "de": "die Endzeit des Plans ist erreicht"
+   },
+   {
+    "en": "the plan's areas are paused",
+    "when": {
+     "detail": "pause"
+    },
+    "de": "die Flächen des Plans sind pausiert"
+   },
+   {
+    "en": "the schedule",
+    "de": "der Zeitplan"
+   }
+  ],
+  "NOT_DOCKED": [
+   {
+    "en": "not in the dock, a scheduled start only goes from there",
+    "de": "nicht im Dock, ein geplanter Start geht nur von dort"
+   }
+  ],
+  "CLOCK_UNSAFE": [
+   {
+    "en": "the mower's clock was never set",
+    "when": {
+     "clock_reason": "never_synced"
+    },
+    "de": "die Uhr des Mähers wurde nie gestellt"
+   },
+   {
+    "en": "the mower's clock jumped",
+    "when": {
+     "clock_reason": "clock_jump"
+    },
+    "de": "die Uhr des Mähers ist gesprungen"
+   },
+   {
+    "en": "the mower's clock doesn't match the GPS time",
+    "when": {
+     "clock_reason": "gnss_mismatch"
+    },
+    "de": "die Uhr des Mähers passt nicht zur GPS-Zeit"
+   },
+   {
+    "en": "the mower's clock isn't confirmed",
+    "de": "die Uhr des Mähers ist nicht bestätigt"
    }
   ],
   "BATTERY_LOW": [

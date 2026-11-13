@@ -58,7 +58,10 @@ import {
   nextStart,
   daySun,
   inOtherZone,
+  osSun,
+  readyText,
   scheduleLogLine,
+  useScheduleReady,
   type LogEntry,
   type RunStop,
   type Schedule,
@@ -270,12 +273,15 @@ export default function Home() {
   const missedAny = schedule?.enabled ? missedStart(scheduleLog) : null;
   const missed = missedAny && missedAny.t !== missedSeen ? missedAny : null;
   const mowable = map?.areas.filter((a) => a.properties.type === 'mow' && a.properties.active !== false && a.properties.mowable !== false).map((a) => a.id);
-  const planned = schedule ? nextStart(schedule, undefined, datum ? daySun(schedule.tz, datum) : null, mowable) : null;
+  const planned = schedule ? nextStart(schedule, undefined, datum ? daySun(schedule.tz, datum) : osSun(schedule), mowable) : null;
   // the phone in another time zone than the schedule: its times are the schedule's, as on the schedule page
   const scheduleTz = schedule?.tz;
   const otherZone = useMemo(() => inOtherZone(scheduleTz), [scheduleTz]);
   // a start of the schedule that waits for the battery comes before the next one
   const batteryWait = schedule?.enabled ? waitingStart(scheduleLog) : null;
+  // the next start wouldn't go as things are now (only shown, the start checks again)
+  const ready = useScheduleReady();
+  const notReady = planned && ready && !ready.ok && !batteryWait ? ready : null;
   const [confirmReset, setConfirmReset] = useState(false);
   // three more runs unfolded under the last three
   const [moreRuns, setMoreRuns] = useState(false);
@@ -760,6 +766,11 @@ export default function Home() {
                 {tr(otherZone ? "Next start: {when}, the schedule's time" : 'Next start: {when}', {
                   when: `${dayLabel(planned)}, ${clock(planned.getTime() / 1000)}`,
                 })}
+              </Link>
+            )}
+            {notReady && (
+              <Link href="/schedule" className={styles.nextRun}>
+                {readyText(notReady)}
               </Link>
             )}
             {/* the one under way is the status above */}

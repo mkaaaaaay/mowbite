@@ -24,6 +24,8 @@ export const TOPIC = {
   // MowBite OS's updater (its host): what it does and has, and whether it's there (both retained, see lib/osUpdate)
   updateStatus: 'mowbite/update/status',
   hostStatus: 'mowbite/host/status',
+  // whether the next start of the schedule would go as things are now (retained, empty without one to come)
+  scheduleReady: 'mowbite/schedule/ready',
 } as const;
 
 export const RPC = {
@@ -58,6 +60,10 @@ export const RPC = {
   updateStart: 'update.start',
   updateAbort: 'update.abort',
   updateRollback: 'update.rollback',
+  // MowBite OS's own schedule (lib/schedule), the container's elsewhere
+  scheduleGet: 'schedule.get',
+  scheduleSet: 'schedule.set',
+  scheduleLog: 'schedule.log',
   updateCheck: 'update.check',
   updateSetAuto: 'update.set_auto',
   replaceMap: 'map.replace',

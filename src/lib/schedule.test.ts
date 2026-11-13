@@ -3,28 +3,43 @@ import {setLangChoice} from './i18n';
 import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {
+  changedElsewhere,
   daySun,
+  fromOs,
   inOtherZone,
+  loadSchedule,
+  loadScheduleLog,
   isNightTime,
   logTone,
   missedStart,
   nextStart,
+  osSun,
   parseRunStop,
   parseSchedule,
   posixTz,
+  readyText,
   runStopText,
   reachesDark,
   SCHEDULE_LOG_TEXT,
   scheduleLogLine,
   scheduleNow,
+  saveSchedule,
   serializeSchedule,
   startedBy,
+  toOs,
   tzOffset,
   type Schedule,
 } from './schedule';
+import {callRpc, rpcMethods, RpcError} from './rpc';
 import {sunTimes} from './sun';
 import {clock} from './dates';
 import {DOCKED_VOLTAGE} from './openmower';
+
+vi.mock('./rpc', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./rpc')>()),
+  rpcMethods: vi.fn(async () => null),
+  callRpc: vi.fn(),
+}));
 
 // the dates below are local times, so the same zone everywhere (github runs in UTC)
 process.env.TZ = 'Europe/Berlin';
@@ -522,5 +537,98 @@ describe('the words the scheduler logs', () => {
   it('takes the mower for docked at the voltage the app does', () => {
     const sh = readFileSync(join(__dirname, '../../docker/openmower.sh'), 'utf8');
     expect(Number(/^DOCKED_VOLTAGE=(\S+)$/m.exec(sh)?.[1])).toBe(DOCKED_VOLTAGE);
+  });
+});
+
+describe("MowBite OS's own schedule", () => {
+  const answer = (version: number) => ({
+    schema: 1,
+    version,
+    available: true,
+    reason: null,
+    clock_ok: false,
+    clock_reason: 'clock_jump',
+    next_start: null,
+    schedule: {
+      enabled: 1,
+      min_battery: 60,
+      skip_rain: 1,
+      skip_forecast: 0,
+      forecast_hours: 2,
+      skip_cold: 1,
+      min_temp: 8,
+      tz: 'CET-1CEST,M3.5.0,M10.5.0/3',
+      plans: [
+        {days: [1, 3], time: '09:00', areas: ['a'], end: '12:00', dark: 0, sunset: 1, fresh: 0, angle_offset_deg: 90},
+        {days: [6], time: '14:00', dark: 1, sunset: 0, fresh: 1},
+      ],
+      pause: {until: '2026-11-20', areas: 'all' as const},
+    },
+    sun: {rise: Date.UTC(2026, 10, 13, 6, 30) / 1000, set: Date.UTC(2026, 10, 13, 15, 40) / 1000},
+  });
+
+  it('reads it in the app\'s fields and writes it back the same', () => {
+    const s = fromOs(answer(3));
+    expect(s.plans).toEqual([
+      {days: [1, 3], time: '09:00', areas: ['a'], end: '12:00', sunset: true, angle: 90},
+      {days: [6], time: '14:00', areas: [], dark: true, fresh: true},
+    ]);
+    expect(s).toMatchObject({enabled: true, minBattery: 60, skipRain: true, skipForecast: false, skipCold: true, minTemp: 8});
+    expect(s.os).toEqual({available: true, clockReason: 'clock_jump', sun: answer(3).sun});
+    const back = toOs(s);
+    expect(back).toEqual({...answer(3).schedule, plans: [answer(3).schedule.plans[0], {...answer(3).schedule.plans[1], areas: []}]});
+    // its sun by the schedule's clock
+    expect(osSun(s)).toEqual({rise: '07:30', set: '16:40'});
+  });
+
+  it('asks the OS once it offers schedule.get and names the version it read when it saves', async () => {
+    vi.mocked(rpcMethods).mockResolvedValue(new Set(['schedule.get', 'schedule.set', 'schedule.log']));
+    const call = vi.mocked(callRpc);
+    call.mockImplementation(async (method: string) =>
+      method === 'schedule.log'
+        ? {entries: [{t: 1, what: 'skip_clock', detail: 'never_synced', more: null, at: '09:00'}, {t: 2, what: 'started', detail: 85, more: null, at: null}]}
+        : answer(method === 'schedule.set' ? 8 : 7),
+    );
+    try {
+      const s = await loadSchedule(true);
+      expect(s?.os?.clockReason).toBe('clock_jump');
+      await saveSchedule({...s!, enabled: false});
+      expect(call).toHaveBeenLastCalledWith('schedule.set', {schedule: expect.objectContaining({enabled: 0}), version: 7});
+      // newest first, numbers as words
+      expect(await loadScheduleLog()).toEqual([
+        {t: 2, what: 'started', detail: '85'},
+        {t: 1, what: 'skip_clock', detail: 'never_synced', at: '09:00'},
+      ]);
+      expect(changedElsewhere(new RpcError('schedule.set', -32001, 'version'))).toBe(true);
+    } finally {
+      vi.mocked(rpcMethods).mockResolvedValue(null);
+      call.mockReset();
+    }
+  });
+
+  it('says the words of its log', () => {
+    expect(scheduleLogLine({t: 0, what: 'skip_clock', detail: 'gnss_mismatch'})).toBe("Not started: the mower's clock doesn't match the GPS time");
+    expect(scheduleLogLine({t: 0, what: 'start_refused', detail: 'CLOCK_UNSAFE', more: 'never_synced'})).toBe(
+      "Not started, the mower turned it down: the mower's clock was never set",
+    );
+    expect(scheduleLogLine({t: 0, what: 'start_failed', detail: 'UNDOCKING_FAILED'})).toBe('Not started: Leaving the dock failed');
+    expect(scheduleLogLine({t: 0, what: 'start_failed', detail: 'timeout'})).toBe("Not started, the mower didn't get going");
+    expect(scheduleLogLine({t: 0, what: 'start_canceled', detail: 'undocked'})).toBe('Scheduled start canceled, the mower left the dock');
+    expect(scheduleLogLine({t: 0, what: 'weather_unknown', detail: 'cold'})).toBe('No temperature came, started without it');
+    expect(logTone({what: 'start_canceled', detail: 'rpc'})).toBeNull();
+    expect(logTone({what: 'start_canceled', detail: 'emergency'})).toBe('bad');
+    expect(logTone({what: 'skip_not_docked'})).toBe('bad');
+  });
+
+  it('leaves a start canceled by hand alone', () => {
+    const now = 1_800_000_000;
+    expect(missedStart([{t: now - 60, what: 'start_canceled', detail: 'rpc'}], now)).toBeNull();
+    expect(missedStart([{t: now - 60, what: 'start_canceled', detail: 'emergency'}], now)?.what).toBe('start_canceled');
+  });
+
+  it('says whether the next start would go', () => {
+    expect(readyText({ok: true, reason: null})).toBe('Ready to start as things are now');
+    expect(readyText({ok: false, reason: 'skip_not_docked'})).toBe('Not ready as things are now: not in the dock');
+    expect(readyText({ok: false, reason: 'skip_something_new'})).toBe('Not ready as things are now: skip something new');
   });
 });

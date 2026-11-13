@@ -6,14 +6,16 @@ import de from './i18n/de';
 import {onOs, PARAM_FIELDS, paramField} from './mowerParams';
 import {COMMAND, RPC} from './openmower';
 import {EMERGENCY_BITS, EMERGENCY_HIDE, EMERGENCY_TEXT, EVENTS, NOT_DRIVEN, REASONS, pick} from './reasonTexts';
+import {READY_TEXT, scheduleLogText} from './schedule';
+import {SITUATION_NAMES} from './sound';
 
 // MowBite OS's interface (system.api) as its owner has it, copied from the commit below. a newer one: copy it from
 // there over os-api.schema.json and put its commit and checksum here, the tests then say which words are missing
 const PINNED = {
   repo: 'mkaaaaaay/mowbite-os',
   path: 'src/mowbite_api/api.schema.json',
-  commit: '83cb3345ac3a76f1c3c0d8a11ea5dd5ec602f680',
-  sha256: '9b3f1fba061443b5b22a7eb179cb320f33dd7243b3ccd79166a495f5987742f8',
+  commit: '926fae1fb0b06456ca7e57db152f5491773d66ae',
+  sha256: '045a9ac2ff5cac3217d206a53554cbabab7bd6789abacde8046e2ebd0cdd9261',
 };
 const raw = readFileSync(join(__dirname, 'os-api.schema.json'));
 // a reason's rating, when: another one for these values of the event's fields
@@ -25,6 +27,7 @@ const api = JSON.parse(raw.toString()) as {
   'x-methods': Record<string, unknown>;
   'x-sensors': Record<string, {name: string}>;
   'x-settings': Record<string, {default: number; min: number; max: number; unit: string}>;
+  'x-schedule-log': Record<string, unknown>;
   $defs: Record<string, unknown>;
 };
 
@@ -46,6 +49,7 @@ const NOT_OFFERED: Record<string, string> = {
   'rpc.ping': 'rpc.methods already tells whether it answers',
   'system.api': "the app has its copy of the contract here and reads the api's number from system.info",
   'system.hold': "the updater's, it holds restarts while it works",
+  'schedule.leftovers': 'to come: MowBite OS turns leftovers down until its planner prepares them',
 };
 // what the app calls on a mower; planner.* is the MowBite Planner's, not the OS's
 const appMethods = new Set([...Object.values(RPC), ...Object.values(COMMAND).map((c) => c.method)].filter((m) => !m.startsWith('planner.')));
@@ -153,6 +157,20 @@ describe(`MowBite OS's interface (${PINNED.repo} ${PINNED.commit.slice(0, 7)}, a
   it('has every sensor name in german, a name without small letters (NTRIP) stays as it is', () => {
     const names = Object.values(api['x-sensors']).map((s) => s.name);
     expect(names.filter((n) => /[a-z]/.test(n) && !de[n])).toEqual([]);
+  });
+
+  it("has words in english and german for every word of the schedule's log and of its readiness", () => {
+    const words = Object.keys(api['x-schedule-log']);
+    expect(words.filter((w) => scheduleLogText({t: 0, what: w}) === w)).toEqual([]);
+    expect(words.map((w) => scheduleLogText({t: 0, what: w})).filter((en) => !de[en])).toEqual([]);
+    const ready = (api.$defs.schedule_ready as {properties: {reason: {enum: (string | null)[]}}}).properties.reason.enum;
+    expect(ready.filter((r) => r && !words.includes(r)), 'a word the log has').toEqual([]);
+    expect(ready.filter((r) => r && !(READY_TEXT[r] && de[READY_TEXT[r]]))).toEqual([]);
+  });
+
+  it('names every sound situation, in german too', () => {
+    const situations = (api.$defs['sound.play.params'] as {properties: {situation: {enum: string[]}}}).properties.situation.enum;
+    expect(situations.filter((n) => !SITUATION_NAMES[n] || !de[SITUATION_NAMES[n]])).toEqual([]);
   });
 
   it("has no words for events, reasons or bits the OS doesn't know", () => {

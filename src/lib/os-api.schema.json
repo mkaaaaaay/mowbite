@@ -44,7 +44,10 @@
               "NO_DOCK_CONTACT",
               "REFERENCE_MISMATCH",
               "BATTERY_HOT",
-              "MOTOR_HOT"
+              "MOTOR_HOT",
+              "NOT_DOCKED",
+              "CLOCK_UNSAFE",
+              "DARK"
             ],
             "type": "string"
           }
@@ -520,6 +523,12 @@
           "$ref": "#/$defs/event.STORAGE"
         },
         {
+          "$ref": "#/$defs/event.SCHEDULE_START"
+        },
+        {
+          "$ref": "#/$defs/event.SCHEDULE_START_CANCELED"
+        },
+        {
           "$ref": "#/$defs/event.MAP_DATUM"
         },
         {
@@ -563,6 +572,13 @@
         },
         "session_id": {
           "description": "The session of the logic since its start",
+          "type": "string"
+        },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
           "type": "string"
         },
         "t": {
@@ -763,6 +779,13 @@
           "description": "The session of the logic since its start",
           "type": "string"
         },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
+          "type": "string"
+        },
         "t": {
           "description": "When it happened",
           "type": "number",
@@ -817,6 +840,14 @@
           "pattern": "^[a-z][a-z0-9_-]{0,15}$",
           "type": "string"
         },
+        "detail": {
+          "description": "end: the time of the plan is over; pause: the areas are paused in the schedule",
+          "enum": [
+            "end",
+            "pause"
+          ],
+          "type": "string"
+        },
         "id": {
           "description": "Random id of the event, 32 letters and digits",
           "type": "string"
@@ -832,7 +863,8 @@
         "reason": {
           "description": "Why: a fixed name in capitals, rated in x-reasons",
           "enum": [
-            "MANUAL"
+            "MANUAL",
+            "SCHEDULE"
           ],
           "type": "string"
         },
@@ -854,6 +886,13 @@
             "info",
             "warning",
             "error"
+          ],
+          "type": "string"
+        },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
           ],
           "type": "string"
         },
@@ -923,6 +962,13 @@
           "description": "The session of the logic since its start",
           "type": "string"
         },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
+          "type": "string"
+        },
         "t": {
           "description": "When it happened",
           "type": "number",
@@ -978,6 +1024,13 @@
         },
         "session_id": {
           "description": "The session of the logic since its start",
+          "type": "string"
+        },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
           "type": "string"
         },
         "t": {
@@ -1066,6 +1119,13 @@
           ],
           "type": "string"
         },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
+          "type": "string"
+        },
         "status": {
           "description": "How far the evaluation got",
           "enum": [
@@ -1149,6 +1209,13 @@
         },
         "session_id": {
           "description": "The session of the logic since its start",
+          "type": "string"
+        },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
           "type": "string"
         },
         "t": {
@@ -1292,6 +1359,13 @@
           "description": "Slope of the ground",
           "type": "number",
           "x-unit": "deg"
+        },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
+          "type": "string"
         },
         "state": {
           "description": "What it is busy with",
@@ -1479,6 +1553,13 @@
           "description": "Slope of the ground",
           "type": "number",
           "x-unit": "deg"
+        },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
+          "type": "string"
         },
         "state": {
           "description": "What it is busy with",
@@ -1690,6 +1771,13 @@
           ],
           "type": "string"
         },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
+          "type": "string"
+        },
         "t": {
           "description": "When it happened",
           "type": "number",
@@ -1837,6 +1925,13 @@
           "description": "The session of the logic since its start",
           "type": "string"
         },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
+          "type": "string"
+        },
         "t": {
           "description": "When it happened",
           "type": "number",
@@ -1886,6 +1981,14 @@
           "pattern": "^[a-z][a-z0-9_-]{0,15}$",
           "type": "string"
         },
+        "detail": {
+          "description": "end: the time of the plan is over; pause: the areas are paused in the schedule",
+          "enum": [
+            "end",
+            "pause"
+          ],
+          "type": "string"
+        },
         "id": {
           "description": "Random id of the event, 32 letters and digits",
           "type": "string"
@@ -1913,7 +2016,8 @@
             "RAIN",
             "DARK",
             "PLANNER_TIMEOUT",
-            "PLANNER_MISSING"
+            "PLANNER_MISSING",
+            "SCHEDULE"
           ],
           "type": "string"
         },
@@ -1935,6 +2039,13 @@
             "info",
             "warning",
             "error"
+          ],
+          "type": "string"
+        },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
           ],
           "type": "string"
         },
@@ -2030,6 +2141,13 @@
           "description": "Always warning",
           "enum": [
             "warning"
+          ],
+          "type": "string"
+        },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
           ],
           "type": "string"
         },
@@ -2152,6 +2270,13 @@
           ],
           "type": "string"
         },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
+          "type": "string"
+        },
         "t": {
           "description": "When it happened",
           "type": "number",
@@ -2262,6 +2387,13 @@
           ],
           "type": "string"
         },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
+          "type": "string"
+        },
         "t": {
           "description": "When it happened",
           "type": "number",
@@ -2323,6 +2455,13 @@
         },
         "session_id": {
           "description": "The session of the logic since its start",
+          "type": "string"
+        },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
           "type": "string"
         },
         "t": {
@@ -2476,6 +2615,13 @@
           ],
           "type": "string"
         },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
+          "type": "string"
+        },
         "t": {
           "description": "When it happened",
           "type": "number",
@@ -2603,6 +2749,13 @@
             "info",
             "warning",
             "error"
+          ],
+          "type": "string"
+        },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
           ],
           "type": "string"
         },
@@ -2900,6 +3053,13 @@
           ],
           "type": "string"
         },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
+          "type": "string"
+        },
         "t": {
           "description": "When it happened",
           "type": "number",
@@ -2960,6 +3120,13 @@
           "description": "The session of the logic since its start",
           "type": "string"
         },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
+          "type": "string"
+        },
         "t": {
           "description": "When it happened",
           "type": "number",
@@ -3009,6 +3176,13 @@
         },
         "session_id": {
           "description": "The session of the logic since its start",
+          "type": "string"
+        },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
           "type": "string"
         },
         "t": {
@@ -3198,6 +3372,10 @@
           "pattern": "^[a-z][a-z0-9_-]{0,15}$",
           "type": "string"
         },
+        "clock_reason": {
+          "description": "Why the clock is not safe, as time/clock tells it",
+          "type": "string"
+        },
         "datum_state": {
           "description": "unbound when the map has no recorded datum",
           "enum": [
@@ -3256,7 +3434,10 @@
             "NO_DOCK_CONTACT",
             "REFERENCE_MISMATCH",
             "BATTERY_HOT",
-            "MOTOR_HOT"
+            "MOTOR_HOT",
+            "NOT_DOCKED",
+            "CLOCK_UNSAFE",
+            "DARK"
           ],
           "type": "string"
         },
@@ -3286,9 +3467,21 @@
           ],
           "type": "string"
         },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
+          "type": "string"
+        },
         "state": {
           "description": "What it is busy with",
           "type": "string"
+        },
+        "sun_elevation": {
+          "description": "Height of the sun over the horizon at the garden",
+          "type": "number",
+          "x-unit": "deg"
         },
         "t": {
           "description": "When it happened",
@@ -3352,6 +3545,13 @@
         },
         "session_id": {
           "description": "The session of the logic since its start",
+          "type": "string"
+        },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
           "type": "string"
         },
         "t": {
@@ -3436,6 +3636,13 @@
             "info",
             "warning",
             "error"
+          ],
+          "type": "string"
+        },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
           ],
           "type": "string"
         },
@@ -3533,6 +3740,13 @@
             "info",
             "warning",
             "error"
+          ],
+          "type": "string"
+        },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
           ],
           "type": "string"
         },
@@ -3701,6 +3915,13 @@
           ],
           "type": "string"
         },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
+          "type": "string"
+        },
         "t": {
           "description": "When it happened",
           "type": "number",
@@ -3734,6 +3955,170 @@
         "y",
         "action",
         "reason",
+        "severity",
+        "resume"
+      ],
+      "type": "object",
+      "x-emitter": "logic"
+    },
+    "event.SCHEDULE_START": {
+      "additionalProperties": false,
+      "description": "A plan of the schedule starts: the mower announces it for seconds, then checks again and leaves the docking station",
+      "properties": {
+        "client": {
+          "description": "Who sent the command (app, ha), for the log and the events of its step",
+          "pattern": "^[a-z][a-z0-9_-]{0,15}$",
+          "type": "string"
+        },
+        "id": {
+          "description": "Random id of the event, 32 letters and digits",
+          "type": "string"
+        },
+        "job_id": {
+          "description": "The job of mowing it belongs to",
+          "type": "string"
+        },
+        "resume": {
+          "description": "Always auto",
+          "enum": [
+            "auto"
+          ],
+          "type": "string"
+        },
+        "seconds": {
+          "description": "How long the announcement lasts",
+          "type": "integer",
+          "x-unit": "s"
+        },
+        "session_id": {
+          "description": "The session of the logic since its start",
+          "type": "string"
+        },
+        "severity": {
+          "description": "Always info",
+          "enum": [
+            "info"
+          ],
+          "type": "string"
+        },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
+          "type": "string"
+        },
+        "t": {
+          "description": "When it happened",
+          "type": "number",
+          "x-unit": "unix s"
+        },
+        "type": {
+          "const": "SCHEDULE_START",
+          "description": "What happened; a type this version does not know carries only the envelope for sure"
+        },
+        "until": {
+          "description": "When it ends",
+          "type": "integer",
+          "x-unit": "unix s"
+        },
+        "x": {
+          "description": "Where the mower was, east of the datum of the map",
+          "type": "number",
+          "x-unit": "m"
+        },
+        "y": {
+          "description": "Where the mower was, north of the datum of the map",
+          "type": "number",
+          "x-unit": "m"
+        }
+      },
+      "required": [
+        "id",
+        "t",
+        "type",
+        "x",
+        "y",
+        "seconds",
+        "until",
+        "severity",
+        "resume"
+      ],
+      "type": "object",
+      "x-emitter": "logic"
+    },
+    "event.SCHEDULE_START_CANCELED": {
+      "additionalProperties": false,
+      "description": "The announced start of a plan was canceled; the plan does not mow",
+      "properties": {
+        "client": {
+          "description": "Who sent the command (app, ha), for the log and the events of its step",
+          "pattern": "^[a-z][a-z0-9_-]{0,15}$",
+          "type": "string"
+        },
+        "id": {
+          "description": "Random id of the event, 32 letters and digits",
+          "type": "string"
+        },
+        "job_id": {
+          "description": "The job of mowing it belongs to",
+          "type": "string"
+        },
+        "resume": {
+          "description": "Always auto",
+          "enum": [
+            "auto"
+          ],
+          "type": "string"
+        },
+        "session_id": {
+          "description": "The session of the logic since its start",
+          "type": "string"
+        },
+        "severity": {
+          "description": "Always info",
+          "enum": [
+            "info"
+          ],
+          "type": "string"
+        },
+        "source": {
+          "description": "What canceled it",
+          "enum": [
+            "emergency",
+            "rpc",
+            "undocked",
+            "hold"
+          ],
+          "type": "string"
+        },
+        "t": {
+          "description": "When it happened",
+          "type": "number",
+          "x-unit": "unix s"
+        },
+        "type": {
+          "const": "SCHEDULE_START_CANCELED",
+          "description": "What happened; a type this version does not know carries only the envelope for sure"
+        },
+        "x": {
+          "description": "Where the mower was, east of the datum of the map",
+          "type": "number",
+          "x-unit": "m"
+        },
+        "y": {
+          "description": "Where the mower was, north of the datum of the map",
+          "type": "number",
+          "x-unit": "m"
+        }
+      },
+      "required": [
+        "id",
+        "t",
+        "type",
+        "x",
+        "y",
+        "source",
         "severity",
         "resume"
       ],
@@ -3787,6 +4172,14 @@
           ],
           "type": "string"
         },
+        "detail": {
+          "description": "end: the time of the plan is over; pause: the areas are paused in the schedule",
+          "enum": [
+            "end",
+            "pause"
+          ],
+          "type": "string"
+        },
         "id": {
           "description": "Random id of the event, 32 letters and digits",
           "type": "string"
@@ -3831,7 +4224,8 @@
             "BATTERY_HOT",
             "MOTOR_HOT",
             "RAIN",
-            "DARK"
+            "DARK",
+            "SCHEDULE"
           ],
           "type": "string"
         },
@@ -3858,6 +4252,13 @@
             "info",
             "warning",
             "error"
+          ],
+          "type": "string"
+        },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
           ],
           "type": "string"
         },
@@ -3975,6 +4376,13 @@
           ],
           "type": "string"
         },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
+          "type": "string"
+        },
         "t": {
           "description": "When it happened",
           "type": "number",
@@ -4027,6 +4435,13 @@
         },
         "session_id": {
           "description": "The session of the logic since its start",
+          "type": "string"
+        },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
           "type": "string"
         },
         "t": {
@@ -4107,6 +4522,13 @@
             "info",
             "warning",
             "error"
+          ],
+          "type": "string"
+        },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
           ],
           "type": "string"
         },
@@ -4224,6 +4646,13 @@
             "info",
             "warning",
             "error"
+          ],
+          "type": "string"
+        },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
           ],
           "type": "string"
         },
@@ -4351,6 +4780,8 @@
               "RECORDED_BODY_KEPT",
               "GEOMETRY_CHANGED",
               "STORAGE",
+              "SCHEDULE_START",
+              "SCHEDULE_START_CANCELED",
               "MAP_DATUM",
               "CORRECTIONS",
               "CAMERA_CHANGED",
@@ -6169,6 +6600,754 @@
       ],
       "type": "string"
     },
+    "schedule.get.params": {
+      "description": "The params of schedule.get: None",
+      "type": "object"
+    },
+    "schedule.get.result": {
+      "additionalProperties": false,
+      "description": "The result of schedule.get: The schedule now",
+      "properties": {
+        "available": {
+          "description": "Whether the platform lets the schedule start the mower",
+          "type": "boolean"
+        },
+        "clock_ok": {
+          "description": "Whether the wall clock is safe for date, weekday and sun",
+          "type": "boolean"
+        },
+        "clock_reason": {
+          "description": "Why it is not safe, null when it is",
+          "enum": [
+            "never_synced",
+            "clock_jump",
+            "gnss_mismatch",
+            null
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "next_start": {
+          "description": "The next start, now while a plan waits or is announced; null without one",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-unit": "unix s"
+        },
+        "reason": {
+          "description": "platform_off without available, else null",
+          "enum": [
+            "platform_off",
+            null
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "schedule": {
+          "additionalProperties": false,
+          "description": "The schedule; its times local after tz",
+          "properties": {
+            "enabled": {
+              "description": "1: the plans start the mower",
+              "type": "integer"
+            },
+            "forecast_hours": {
+              "description": "1, 2 or 3",
+              "type": "integer"
+            },
+            "min_battery": {
+              "description": "% a plan waits for, 0 to 100",
+              "type": "integer"
+            },
+            "min_temp": {
+              "description": "deg C: 3, 5, 8 or 10",
+              "type": "integer"
+            },
+            "pause": {
+              "additionalProperties": false,
+              "description": "Paused through until, null for none",
+              "properties": {
+                "areas": {
+                  "description": "all, or a list of area ids"
+                },
+                "until": {
+                  "description": "YYYY-MM-DD local",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "until",
+                "areas"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "plans": {
+              "description": "At most 32, no two at one time on a day",
+              "items": {
+                "additionalProperties": false,
+                "description": "One item",
+                "properties": {
+                  "angle_offset_deg": {
+                    "description": "Added to the lane direction of the planner for its job",
+                    "maximum": 180.0,
+                    "minimum": -180.0,
+                    "type": "number",
+                    "x-unit": "deg"
+                  },
+                  "areas": {
+                    "description": "Area ids in order, none for every mowing area",
+                    "items": {
+                      "description": "One item",
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "dark": {
+                    "description": "1: also starts and mows in the dark",
+                    "type": "integer"
+                  },
+                  "days": {
+                    "description": "1 Monday to 7 Sunday, none twice",
+                    "items": {
+                      "description": "One item",
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  },
+                  "end": {
+                    "description": "HH:MM local, home then; not after time: the next day",
+                    "type": "string"
+                  },
+                  "fresh": {
+                    "description": "1: a job of its own, the open one is dropped",
+                    "type": "integer"
+                  },
+                  "sunset": {
+                    "description": "With dark 1: still home at sunset",
+                    "type": "integer"
+                  },
+                  "time": {
+                    "description": "HH:MM local, names the plan",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "days",
+                  "time",
+                  "dark",
+                  "sunset",
+                  "fresh"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "skip_cold": {
+              "description": "1: no start below min_temp",
+              "type": "integer"
+            },
+            "skip_forecast": {
+              "description": "1: no start with rain now or in the next forecast_hours",
+              "type": "integer"
+            },
+            "skip_rain": {
+              "description": "1: no start while the rain sensor is wet",
+              "type": "integer"
+            },
+            "tz": {
+              "description": "POSIX TZ of the local times",
+              "type": "string"
+            }
+          },
+          "required": [
+            "enabled",
+            "min_battery",
+            "skip_rain",
+            "skip_forecast",
+            "forecast_hours",
+            "skip_cold",
+            "min_temp",
+            "tz",
+            "plans",
+            "pause"
+          ],
+          "type": "object"
+        },
+        "schema": {
+          "description": "Always 1",
+          "type": "integer"
+        },
+        "sun": {
+          "additionalProperties": false,
+          "description": "Of the local day after tz at the datum of the map; null without a datum or without one that day",
+          "properties": {
+            "rise": {
+              "description": "Sunrise",
+              "type": [
+                "integer",
+                "null"
+              ],
+              "x-unit": "unix s"
+            },
+            "set": {
+              "description": "Sunset",
+              "type": [
+                "integer",
+                "null"
+              ],
+              "x-unit": "unix s"
+            }
+          },
+          "required": [
+            "rise",
+            "set"
+          ],
+          "type": "object"
+        },
+        "version": {
+          "description": "Goes up with every change; schedule.set may name it",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schema",
+        "version",
+        "available",
+        "reason",
+        "clock_ok",
+        "clock_reason",
+        "next_start",
+        "schedule",
+        "sun"
+      ],
+      "type": "object"
+    },
+    "schedule.leftovers.params": {
+      "additionalProperties": false,
+      "description": "The params of schedule.leftovers: The change, none to read",
+      "properties": {
+        "enabled": {
+          "description": "1: leftovers after a job",
+          "type": "integer"
+        },
+        "min_m2": {
+          "description": "Less is not mowed",
+          "type": "number",
+          "x-unit": "m2"
+        }
+      },
+      "required": [
+        "enabled"
+      ],
+      "type": "object"
+    },
+    "schedule.leftovers.result": {
+      "additionalProperties": false,
+      "description": "The result of schedule.leftovers: The leftovers now",
+      "properties": {
+        "enabled": {
+          "description": "1: leftovers after a job",
+          "type": "integer"
+        },
+        "min_m2": {
+          "description": "Less is not mowed",
+          "type": "number",
+          "x-unit": "m2"
+        }
+      },
+      "required": [
+        "enabled",
+        "min_m2"
+      ],
+      "type": "object"
+    },
+    "schedule.log.params": {
+      "additionalProperties": false,
+      "description": "The params of schedule.log: How many",
+      "properties": {
+        "limit": {
+          "description": "The last so many, at most 100",
+          "type": "integer"
+        }
+      },
+      "required": [],
+      "type": "object"
+    },
+    "schedule.log.result": {
+      "additionalProperties": false,
+      "description": "The result of schedule.log: The log",
+      "properties": {
+        "entries": {
+          "description": "Each with t (unix s), what, detail, more and at (HH:MM of the plan or null)",
+          "items": {
+            "additionalProperties": false,
+            "description": "One item",
+            "properties": {
+              "at": {
+                "description": "HH:MM of the plan, null for none",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "detail": {
+                "description": "As x-schedule-log has it",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "more": {
+                "description": "As x-schedule-log has it",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "t": {
+                "description": "When",
+                "type": "integer",
+                "x-unit": "unix s"
+              },
+              "what": {
+                "description": "A word of x-schedule-log",
+                "type": "string"
+              }
+            },
+            "required": [
+              "t",
+              "what",
+              "detail",
+              "more",
+              "at"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "entries"
+      ],
+      "type": "object"
+    },
+    "schedule.set.params": {
+      "additionalProperties": false,
+      "description": "The params of schedule.set: The change",
+      "properties": {
+        "schedule": {
+          "additionalProperties": false,
+          "description": "The schedule; its times local after tz",
+          "properties": {
+            "enabled": {
+              "description": "1: the plans start the mower",
+              "type": "integer"
+            },
+            "forecast_hours": {
+              "description": "1, 2 or 3",
+              "type": "integer"
+            },
+            "min_battery": {
+              "description": "% a plan waits for, 0 to 100",
+              "type": "integer"
+            },
+            "min_temp": {
+              "description": "deg C: 3, 5, 8 or 10",
+              "type": "integer"
+            },
+            "pause": {
+              "additionalProperties": false,
+              "description": "Paused through until, null for none",
+              "properties": {
+                "areas": {
+                  "description": "all, or a list of area ids"
+                },
+                "until": {
+                  "description": "YYYY-MM-DD local",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "until",
+                "areas"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "plans": {
+              "description": "At most 32, no two at one time on a day",
+              "items": {
+                "additionalProperties": false,
+                "description": "One item",
+                "properties": {
+                  "angle_offset_deg": {
+                    "description": "Added to the lane direction of the planner for its job",
+                    "maximum": 180.0,
+                    "minimum": -180.0,
+                    "type": "number",
+                    "x-unit": "deg"
+                  },
+                  "areas": {
+                    "description": "Area ids in order, none for every mowing area",
+                    "items": {
+                      "description": "One item",
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "dark": {
+                    "description": "1: also starts and mows in the dark",
+                    "type": "integer"
+                  },
+                  "days": {
+                    "description": "1 Monday to 7 Sunday, none twice",
+                    "items": {
+                      "description": "One item",
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  },
+                  "end": {
+                    "description": "HH:MM local, home then; not after time: the next day",
+                    "type": "string"
+                  },
+                  "fresh": {
+                    "description": "1: a job of its own, the open one is dropped",
+                    "type": "integer"
+                  },
+                  "sunset": {
+                    "description": "With dark 1: still home at sunset",
+                    "type": "integer"
+                  },
+                  "time": {
+                    "description": "HH:MM local, names the plan",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "days",
+                  "time",
+                  "dark",
+                  "sunset",
+                  "fresh"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "skip_cold": {
+              "description": "1: no start below min_temp",
+              "type": "integer"
+            },
+            "skip_forecast": {
+              "description": "1: no start with rain now or in the next forecast_hours",
+              "type": "integer"
+            },
+            "skip_rain": {
+              "description": "1: no start while the rain sensor is wet",
+              "type": "integer"
+            },
+            "tz": {
+              "description": "POSIX TZ of the local times",
+              "type": "string"
+            }
+          },
+          "required": [
+            "enabled",
+            "min_battery",
+            "skip_rain",
+            "skip_forecast",
+            "forecast_hours",
+            "skip_cold",
+            "min_temp",
+            "tz",
+            "plans",
+            "pause"
+          ],
+          "type": "object"
+        },
+        "version": {
+          "description": "version of the last schedule.get",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schedule"
+      ],
+      "type": "object"
+    },
+    "schedule.set.result": {
+      "additionalProperties": false,
+      "description": "The result of schedule.set: The schedule now",
+      "properties": {
+        "available": {
+          "description": "Whether the platform lets the schedule start the mower",
+          "type": "boolean"
+        },
+        "clock_ok": {
+          "description": "Whether the wall clock is safe for date, weekday and sun",
+          "type": "boolean"
+        },
+        "clock_reason": {
+          "description": "Why it is not safe, null when it is",
+          "enum": [
+            "never_synced",
+            "clock_jump",
+            "gnss_mismatch",
+            null
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "next_start": {
+          "description": "The next start, now while a plan waits or is announced; null without one",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-unit": "unix s"
+        },
+        "reason": {
+          "description": "platform_off without available, else null",
+          "enum": [
+            "platform_off",
+            null
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "schedule": {
+          "additionalProperties": false,
+          "description": "The schedule; its times local after tz",
+          "properties": {
+            "enabled": {
+              "description": "1: the plans start the mower",
+              "type": "integer"
+            },
+            "forecast_hours": {
+              "description": "1, 2 or 3",
+              "type": "integer"
+            },
+            "min_battery": {
+              "description": "% a plan waits for, 0 to 100",
+              "type": "integer"
+            },
+            "min_temp": {
+              "description": "deg C: 3, 5, 8 or 10",
+              "type": "integer"
+            },
+            "pause": {
+              "additionalProperties": false,
+              "description": "Paused through until, null for none",
+              "properties": {
+                "areas": {
+                  "description": "all, or a list of area ids"
+                },
+                "until": {
+                  "description": "YYYY-MM-DD local",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "until",
+                "areas"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "plans": {
+              "description": "At most 32, no two at one time on a day",
+              "items": {
+                "additionalProperties": false,
+                "description": "One item",
+                "properties": {
+                  "angle_offset_deg": {
+                    "description": "Added to the lane direction of the planner for its job",
+                    "maximum": 180.0,
+                    "minimum": -180.0,
+                    "type": "number",
+                    "x-unit": "deg"
+                  },
+                  "areas": {
+                    "description": "Area ids in order, none for every mowing area",
+                    "items": {
+                      "description": "One item",
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "dark": {
+                    "description": "1: also starts and mows in the dark",
+                    "type": "integer"
+                  },
+                  "days": {
+                    "description": "1 Monday to 7 Sunday, none twice",
+                    "items": {
+                      "description": "One item",
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  },
+                  "end": {
+                    "description": "HH:MM local, home then; not after time: the next day",
+                    "type": "string"
+                  },
+                  "fresh": {
+                    "description": "1: a job of its own, the open one is dropped",
+                    "type": "integer"
+                  },
+                  "sunset": {
+                    "description": "With dark 1: still home at sunset",
+                    "type": "integer"
+                  },
+                  "time": {
+                    "description": "HH:MM local, names the plan",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "days",
+                  "time",
+                  "dark",
+                  "sunset",
+                  "fresh"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "skip_cold": {
+              "description": "1: no start below min_temp",
+              "type": "integer"
+            },
+            "skip_forecast": {
+              "description": "1: no start with rain now or in the next forecast_hours",
+              "type": "integer"
+            },
+            "skip_rain": {
+              "description": "1: no start while the rain sensor is wet",
+              "type": "integer"
+            },
+            "tz": {
+              "description": "POSIX TZ of the local times",
+              "type": "string"
+            }
+          },
+          "required": [
+            "enabled",
+            "min_battery",
+            "skip_rain",
+            "skip_forecast",
+            "forecast_hours",
+            "skip_cold",
+            "min_temp",
+            "tz",
+            "plans",
+            "pause"
+          ],
+          "type": "object"
+        },
+        "schema": {
+          "description": "Always 1",
+          "type": "integer"
+        },
+        "sun": {
+          "additionalProperties": false,
+          "description": "Of the local day after tz at the datum of the map; null without a datum or without one that day",
+          "properties": {
+            "rise": {
+              "description": "Sunrise",
+              "type": [
+                "integer",
+                "null"
+              ],
+              "x-unit": "unix s"
+            },
+            "set": {
+              "description": "Sunset",
+              "type": [
+                "integer",
+                "null"
+              ],
+              "x-unit": "unix s"
+            }
+          },
+          "required": [
+            "rise",
+            "set"
+          ],
+          "type": "object"
+        },
+        "version": {
+          "description": "Goes up with every change; schedule.set may name it",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schema",
+        "version",
+        "available",
+        "reason",
+        "clock_ok",
+        "clock_reason",
+        "next_start",
+        "schedule",
+        "sun"
+      ],
+      "type": "object"
+    },
+    "schedule_ready": {
+      "additionalProperties": false,
+      "description": "mowbite/schedule/ready, retained while a start of the schedule is to come, empty once none is: whether the next start would go with the states of now. Shown only, the start checks again; the weather is not asked",
+      "properties": {
+        "ok": {
+          "type": "boolean"
+        },
+        "reason": {
+          "description": "null with ok, else the word schedule.log would write, see x-schedule-log",
+          "enum": [
+            null,
+            "skip_offline",
+            "skip_clock",
+            "skip_paused",
+            "skip_no_area",
+            "skip_emergency",
+            "skip_busy",
+            "skip_not_docked",
+            "skip_rain",
+            "skip_dark",
+            "skip_no_position",
+            "waiting_battery",
+            "waiting_hold"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "ok",
+        "reason"
+      ],
+      "type": "object"
+    },
     "sensors.list.params": {
       "additionalProperties": false,
       "description": "The params of sensors.list: None for all",
@@ -6300,7 +7479,8 @@
             "CHARGING_START",
             "CHARGING_DONE",
             "EMERGENCY",
-            "LIFT_TRIGGERED"
+            "LIFT_TRIGGERED",
+            "SCHEDULE_START"
           ],
           "type": "string"
         }
@@ -6442,7 +7622,8 @@
                   "CHARGING_START",
                   "CHARGING_DONE",
                   "EMERGENCY",
-                  "LIFT_TRIGGERED"
+                  "LIFT_TRIGGERED",
+                  "SCHEDULE_START"
                 ],
                 "type": "string"
               }
@@ -6485,7 +7666,8 @@
             "CHARGING_START",
             "CHARGING_DONE",
             "EMERGENCY",
-            "LIFT_TRIGGERED"
+            "LIFT_TRIGGERED",
+            "SCHEDULE_START"
           ],
           "type": "string"
         }
@@ -6557,7 +7739,8 @@
             "CHARGING_START",
             "CHARGING_DONE",
             "EMERGENCY",
-            "LIFT_TRIGGERED"
+            "LIFT_TRIGGERED",
+            "SCHEDULE_START"
           ],
           "type": "string"
         }
@@ -6682,12 +7865,20 @@
           "type": "integer"
         },
         "idle": {
-          "description": "Whether a hold can be granted now",
+          "description": "Whether a hold can be granted now: also false within 1800 s before next_start",
           "type": "boolean"
         },
         "is_charging": {
           "description": "On the charging contacts",
           "type": "boolean"
+        },
+        "next_start": {
+          "description": "The next start of the schedule, null without one",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-unit": "unix s"
         },
         "state": {
           "description": "current_state of robot_state",
@@ -6704,7 +7895,8 @@
         "is_charging",
         "hold_until",
         "idle",
-        "emergency_reason"
+        "emergency_reason",
+        "next_start"
       ],
       "type": "object"
     },
@@ -9291,11 +10483,11 @@
       "type": "object"
     }
   },
-  "$id": "urn:mowbite-os:api:24",
+  "$id": "urn:mowbite-os:api:25",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "description": "robot_state, actions, events and RPC methods of MowBite OS over MQTT, as system.api gives them; made from the code, objects sorted by key. x-reasons has severity and resume of every reason by event (COMMAND_REFUSED and REQUEST_REFUSED only in refusals; when: another rating for these field values; texts: name, help and fix by language; an enum field may carry the same by value as x-texts), x-emergency-bits the bits of emergency, x-commands the commands with params, result, the event of their refusal and the actions that do the same, x-methods every RPC method of the OS with its node (planner.* are the planner's, sim.* only in the simulation), x-sensors the sensors by id, x-settings the settings of params.set with the ranges of the OS, x-geometry the keys of robot.geometry.",
+  "description": "robot_state, actions, events and RPC methods of MowBite OS over MQTT, as system.api gives them; made from the code, objects sorted by key. x-reasons has severity and resume of every reason by event (COMMAND_REFUSED and REQUEST_REFUSED only in refusals; when: another rating for these field values; texts: name, help and fix by language; an enum field may carry the same by value as x-texts), x-emergency-bits the bits of emergency, x-commands the commands with params, result, the event of their refusal and the actions that do the same, x-methods every RPC method of the OS with its node (planner.* are the planner's, sim.* only in the simulation), x-sensors the sensors by id, x-settings the settings of params.set with the ranges of the OS, x-geometry the keys of robot.geometry, x-schedule-log the words of schedule.log with what detail and more hold (null: always null).",
   "title": "MowBite OS app interface",
-  "x-api": 24,
+  "x-api": 25,
   "x-commands": {
     "docking.abort": {
       "action": "mower_logic:docking/abort_docking",
@@ -10200,6 +11392,34 @@
       "params": "#/$defs/rpc.ping.params",
       "result": "#/$defs/rpc.ping.result"
     },
+    "schedule.get": {
+      "description": "The schedule, whether it may start, the clock and the sun",
+      "node": "mowbite_schedule",
+      "offered": "",
+      "params": "#/$defs/schedule.get.params",
+      "result": "#/$defs/schedule.get.result"
+    },
+    "schedule.leftovers": {
+      "description": "The leftovers after a job: enabled 1 is refused (-32602 unsupported) until the planner prepares them on the OS",
+      "node": "mowbite_schedule",
+      "offered": "",
+      "params": "#/$defs/schedule.leftovers.params",
+      "result": "#/$defs/schedule.leftovers.result"
+    },
+    "schedule.log": {
+      "description": "The log of the schedule, oldest first; words in x-schedule-log",
+      "node": "mowbite_schedule",
+      "offered": "",
+      "params": "#/$defs/schedule.log.params",
+      "result": "#/$defs/schedule.log.result"
+    },
+    "schedule.set": {
+      "description": "Changes keys of the schedule, all or nothing: -32602 with data {field, reason}, -32001 when version is not the one of the last schedule.get",
+      "node": "mowbite_schedule",
+      "offered": "",
+      "params": "#/$defs/schedule.set.params",
+      "result": "#/$defs/schedule.set.result"
+    },
     "sensors.list": {
       "description": "Every sensor of sensor_infos/json with its last value; ids selects some, unknown ids are left out",
       "node": "mowbite_bridge",
@@ -10257,7 +11477,7 @@
       "result": "#/$defs/system.api.result"
     },
     "system.hold": {
-      "description": "Holds the mower for an update: granted only in IDLE with nothing on its way, 0 lets go",
+      "description": "Holds the mower for an update: granted only in IDLE with nothing on its way and no start of the schedule within 1800 s, 0 lets go",
       "node": "mowbite_logic",
       "offered": "",
       "params": "#/$defs/system.hold.params",
@@ -10338,6 +11558,26 @@
         "fields": {},
         "resume": "auto",
         "severity": "info"
+      },
+      "SCHEDULE": {
+        "description": "The schedule: the time of the plan is over, or its areas are paused",
+        "fields": {
+          "detail": ""
+        },
+        "resume": "auto",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Nichts zu tun. Der nächste Plan setzt den Auftrag fort.",
+            "help": "Der Zeitplan beendet das Mähen: Die Zeit des Plans ist um, oder seine Flächen sind pausiert.",
+            "name": "Zeitplan"
+          },
+          "en": {
+            "fix": "Nothing to do. The next plan goes on with the job.",
+            "help": "The schedule ends mowing: the time of the plan is over, or its areas are paused.",
+            "name": "Schedule"
+          }
+        }
       }
     },
     "CALIBRATION_FAILED": {
@@ -11109,6 +12349,26 @@
         "fields": {},
         "resume": "user",
         "severity": "info"
+      },
+      "SCHEDULE": {
+        "description": "The schedule: the time of the plan is over, or its areas are paused",
+        "fields": {
+          "detail": ""
+        },
+        "resume": "auto",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Nichts zu tun. Der nächste Plan setzt den Auftrag fort.",
+            "help": "Der Zeitplan beendet das Mähen: Die Zeit des Plans ist um, oder seine Flächen sind pausiert.",
+            "name": "Zeitplan"
+          },
+          "en": {
+            "fix": "Nothing to do. The next plan goes on with the job.",
+            "help": "The schedule ends mowing: the time of the plan is over, or its areas are paused.",
+            "name": "Schedule"
+          }
+        }
       }
     },
     "DOCKING_FAILED": {
@@ -11754,6 +13014,35 @@
         "resume": "user",
         "severity": "info"
       },
+      "CLOCK_UNSAFE": {
+        "description": "The clock of the mower is not safe: a plan of the schedule does not start",
+        "fields": {
+          "clock_reason": ""
+        },
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Warten, bis der Mäher GPS und Netz hat. Bleibt es dabei, die Uhrzeit in den Einstellungen prüfen.",
+            "help": "Die Uhr des Mähers ist nicht sicher gestellt. Ein Plan des Zeitplans startet dann nicht.",
+            "name": "Uhr unsicher"
+          },
+          "en": {
+            "fix": "Wait until the mower has GPS and network. If it stays so, check the time in the settings.",
+            "help": "The clock of the mower isn't confirmed. A plan of the schedule doesn't start then.",
+            "name": "Clock not safe"
+          }
+        }
+      },
+      "DARK": {
+        "description": "The sun has set",
+        "fields": {
+          "limit": "deg",
+          "sun_elevation": "deg"
+        },
+        "resume": "user",
+        "severity": "info"
+      },
       "DOCK_UNREACHABLE": {
         "description": "The docking station is outside of the areas the mower may drive in",
         "fields": {
@@ -11813,6 +13102,24 @@
         },
         "resume": "user",
         "severity": "warning"
+      },
+      "NOT_DOCKED": {
+        "description": "The mower is not on the docking station: a plan of the schedule starts only from there",
+        "fields": {},
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Den Mäher in die Ladestation fahren.",
+            "help": "Der Mäher steht nicht auf der Ladestation. Ein Plan des Zeitplans startet nur von dort.",
+            "name": "Nicht im Dock"
+          },
+          "en": {
+            "fix": "Send the mower to the docking station.",
+            "help": "The mower isn't on the docking station. A plan of the schedule starts only from there.",
+            "name": "Not docked"
+          }
+        }
       },
       "NO_DOCK": {
         "description": "The map has no docking station",
@@ -12472,6 +13779,26 @@
         "fields": {},
         "resume": "user",
         "severity": "info"
+      },
+      "SCHEDULE": {
+        "description": "The schedule: the time of the plan is over, or its areas are paused",
+        "fields": {
+          "detail": ""
+        },
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Nichts zu tun. Der nächste Plan setzt den Auftrag fort.",
+            "help": "Der Zeitplan beendet das Mähen: Die Zeit des Plans ist um, oder seine Flächen sind pausiert.",
+            "name": "Zeitplan"
+          },
+          "en": {
+            "fix": "Nothing to do. The next plan goes on with the job.",
+            "help": "The schedule ends mowing: the time of the plan is over, or its areas are paused.",
+            "name": "Schedule"
+          }
+        }
       },
       "TIMEOUT": {
         "description": "It took too long",
@@ -13200,6 +14527,158 @@
           }
         }
       }
+    }
+  },
+  "x-schedule-log": {
+    "paused_area": {
+      "description": "An area of the plan is paused; the run leaves it out",
+      "detail": "The area id",
+      "more": null
+    },
+    "skip_battery": {
+      "description": "The battery stayed below min_battery for 2 h",
+      "detail": "Battery %",
+      "more": null
+    },
+    "skip_busy": {
+      "description": "The mower was busy",
+      "detail": "The state of robot_state or the phase of a start of the schedule",
+      "more": null
+    },
+    "skip_clock": {
+      "description": "The clock was not safe",
+      "detail": "clock_reason of schedule.get",
+      "more": null
+    },
+    "skip_cold": {
+      "description": "Colder than min_temp",
+      "detail": "deg C",
+      "more": null
+    },
+    "skip_dark": {
+      "description": "The sun was down for a plan without dark",
+      "detail": null,
+      "more": null
+    },
+    "skip_emergency": {
+      "description": "An emergency, its latch or the restart hold",
+      "detail": null,
+      "more": null
+    },
+    "skip_end": {
+      "description": "The end of the plan came while it waited",
+      "detail": null,
+      "more": null
+    },
+    "skip_forecast": {
+      "description": "Rain now or in the next forecast_hours",
+      "detail": null,
+      "more": null
+    },
+    "skip_gone": {
+      "description": "The plan was removed while it waited",
+      "detail": null,
+      "more": null
+    },
+    "skip_hold": {
+      "description": "A hold stayed for 2 h",
+      "detail": null,
+      "more": null
+    },
+    "skip_missed": {
+      "description": "The time of the plan passed while the OS was off, the clock jumped or the plan waited",
+      "detail": null,
+      "more": null
+    },
+    "skip_no_area": {
+      "description": "No area of the plan is a mowing area of the map",
+      "detail": null,
+      "more": null
+    },
+    "skip_no_position": {
+      "description": "No datum for the sun, for a plan without dark",
+      "detail": null,
+      "more": null
+    },
+    "skip_not_docked": {
+      "description": "The mower was not on the contacts",
+      "detail": null,
+      "more": null
+    },
+    "skip_offline": {
+      "description": "The logic was silent through the minute of the plan",
+      "detail": null,
+      "more": null
+    },
+    "skip_paused": {
+      "description": "The pause covers every area of the plan",
+      "detail": null,
+      "more": null
+    },
+    "skip_rain": {
+      "description": "The rain sensor was wet with skip_rain 1 or rain_mode not 0",
+      "detail": null,
+      "more": null
+    },
+    "start_canceled": {
+      "description": "The announcement was canceled",
+      "detail": "Its source: emergency, rpc, undocked or hold",
+      "more": null
+    },
+    "start_failed": {
+      "description": "The start did not reach mowing",
+      "detail": "storage, service, timeout, or the end of the run (UNDOCKING_FAILED, EMERGENCY, ...)",
+      "more": null
+    },
+    "start_refused": {
+      "description": "The logic refused the start",
+      "detail": "The reason of MOWING_REFUSED",
+      "more": "Its value, or null"
+    },
+    "started": {
+      "description": "The mower mows",
+      "detail": "Battery %",
+      "more": null
+    },
+    "stopped_dark": {
+      "description": "Home at sunset",
+      "detail": null,
+      "more": null
+    },
+    "stopped_end": {
+      "description": "Home at the end of the plan",
+      "detail": null,
+      "more": null
+    },
+    "stopped_paused": {
+      "description": "The pause covered every area left of the run",
+      "detail": null,
+      "more": null
+    },
+    "stopped_rain": {
+      "description": "Home for rain",
+      "detail": null,
+      "more": null
+    },
+    "unknown_area": {
+      "description": "An area of the plan is not on the map; the run leaves it out",
+      "detail": "The area id",
+      "more": null
+    },
+    "waiting_battery": {
+      "description": "The plan waits up to 2 h for min_battery",
+      "detail": "Battery %",
+      "more": null
+    },
+    "waiting_hold": {
+      "description": "The plan waits up to 2 h for the end of a hold",
+      "detail": null,
+      "more": null
+    },
+    "weather_unknown": {
+      "description": "No usable weather; the plan goes on",
+      "detail": "forecast or cold",
+      "more": null
     }
   },
   "x-sensors": {
