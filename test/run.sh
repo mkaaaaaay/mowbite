@@ -63,6 +63,8 @@ start() {
     -e MOWER_MQTT_HOST=mbt-mq -e "MOWER_MQTT_PREFIX=$name/" -e "STATE=$st" -e "SCHED=$sched" "${envs[@]}" \
     --entrypoint sh "$IMAGE" /t/case.sh > /dev/null
 }
+# the robot state case $1's mower says from now on
+restate() { docker exec "mbt-$1" sh -c 'printf %s "$1" > /tmp/state' _ "$2"; }
 # what case $1's scheduler logged (without the times) and what its mower got
 slog() { docker exec "mbt-$1" cat /data/schedule.log 2> /dev/null | cut -d' ' -f2-; }
 sent() { docker exec "mbt-$1" cat /tmp/sent 2> /dev/null; }
@@ -123,6 +125,7 @@ start areas "$(state)" "$(base "$DAY")"$'\n'"plan $D $M front" "MAP=$AREAS" AREA
 start pausedarea "$(state)" "$(base "$DAY")"$'\n'"plan $D $M"$'\n'"pause $(day "$DAY") back" "MAP=$AREAS" AREA=back
 start pausedareas "$(state)" "$(base "$DAY")"$'\n'"plan $D $M front"$'\n'"pause $(day "$DAY") front" "MAP=$AREAS"
 start endtime "$(state)" "$(base "$DAY")"$'\n'"plan $D $M end=$(hm "$DAY" 1)"
+start endshutdown "$(state)" "$(base "$DAY")"$'\n'"plan $D $M end=$(hm "$DAY" 1)"
 start endkept "$(state)" "$(base "$DAY")"$'\n'"plan $D $M end=$(hm "$DAY" 10)"
 start endlate "$(state IDLE 0 0 0.5)" "$(MINBAT=80 base "$DAY")"$'\n'"plan $D $M end=$(hm "$DAY" 1)"
 start noarea "$(state)" "$(base "$DAY")"$'\n'"plan $D $M gone" "MAP=$AREAS"
@@ -158,10 +161,12 @@ start growing "$(state)" "$(base "$DAY")" "MAP=$AREAS" "RUN_STATE=$(date +%s) - 
 past=$(($(date +%s) - 60))
 start restoredlate "$(state MOWING)" "$(base "$DAY")" "RUN_STATE=$((past - 600)) $past end front" RUN_DUE=1
 start restoreddone "$(state)" "$(base "$DAY")" "RUN_STATE=$((past - 600)) $past end front" RUN_DUE=1
-# the undocking fails: once, every time, and an emergency stop during the wait (seconds here, 3 minutes on the mower)
+# the undocking fails: once, every time, an emergency stop during the wait (seconds here, 3 minutes on the mower), and off
+# the charge contacts
 start retry "$(state)" "$(base "$DAY")"$'\n'"plan $D $M end=$(hm "$DAY" 10)" MOWER=undock_once RETRY_WAIT=5
 start retries "$(state)" "$(base "$DAY")"$'\n'"plan $D $M" MOWER=undock_fails RETRY_WAIT=3
 start retrystop "$(state)" "$(base "$DAY")"$'\n'"plan $D $M" MOWER=undock_fails RETRY_WAIT=30
+start retryaway "$(state)" "$(base "$DAY")"$'\n'"plan $D $M" MOWER=undock_fails RETRY_WAIT=3 V_CHARGE=0.4
 # starts by hand: before the time set for them with the schedule off, after it, with neither on, to a mower mowing
 # already, and after a plan's run sent home whose job is still open (restored after a restart)
 HAND=$(hm "$DAY" 2)
@@ -174,9 +179,11 @@ start handafter "$(state)" "$(base "$DAY")" "RUN_STATE=$(date +%s) $(($(date +%s
 byhand() { docker exec mbt-mq mosquitto_pub -h localhost -t "$1/action" -m mower_logic:idle/start_mowing; }
 sleep 5
 for c in hand handlate handoff handbusy handafter; do byhand $c; done
+# OpenMower restarting during a run with an end time
+waitlog endshutdown '^started' 30 && docker exec mbt-mq mosquitto_pub -h localhost -t endshutdown/events/json -m '{"type":"SHUTDOWN"}'
 # the emergency stop while it waits to start again
 waitlog retrystop '^undock_failed' 30 && sleep 2
-docker exec mbt-retrystop mosquitto_pub -h mbt-mq -r -t retrystop/robot_state/json -m "$(state IDLE 1)"
+restate retrystop "$(state IDLE 1)"
 
 logs "scheduler: starts at the time of a plan" start '^started 90( at=[0-9:]+)?$'
 gets start '^action mower_logic:idle/start_mowing$' && ok "scheduler: the mower got the start" ||
@@ -202,7 +209,7 @@ gets areas '^action mower_logic:mowing/skip_area$' && ok "scheduler: the mower t
   bad "scheduler: the mower told to skip it" "$(sent areas)"
 logs "scheduler: an area paused today is skipped" pausedarea '^paused_area back$'
 logs "scheduler: waits for the battery" battery '^waiting_battery 50( at=[0-9:]+)?$'
-docker exec mbt-battery mosquitto_pub -h mbt-mq -r -t battery/robot_state/json -m "$(state IDLE 0 0 0.95)"
+restate battery "$(state IDLE 0 0 0.95)"
 logs "scheduler: starts once it's charged" battery '^started 95( at=[0-9:]+)?$' 40
 expect "scheduler: nothing while switched off" "$(slog disabled)" ""
 expect "scheduler: nothing on another day" "$(slog otherday)" ""
@@ -211,17 +218,22 @@ gets endtime '^action mower_logic:mowing/abort_mowing$' && ok "scheduler: the mo
   bad "scheduler: the mower got sent home" "$(sent endtime)"
 gets endtime '^rpc/request .*"/mower_logic/manual_pause_mowing":true' &&
   ok "scheduler: and doesn't carry on by itself after charging" || bad "scheduler: and doesn't carry on by itself after charging" "$(sent endtime)"
+logs "scheduler: sent home at its end time also after OpenMower restarted" endshutdown '^stopped_end$' 90
 nodue endtime 5 && ok "scheduler: its stop time no longer to come then" || bad "scheduler: its stop time no longer to come then" "$(due endtime)"
 logs "scheduler: a run with an end time ahead" endkept '^started'
 r=$(docker exec mbt-endkept sh -c 'cat /data/run.state; ls /data/run.due.*' 2> /dev/null)
 [ "$(wc -l <<< "$r")" = 2 ] && [ "$(sed -n 2p <<< "$r")" = "/data/run.due.$(head -n1 <<< "$r" | cut -d' ' -f1)" ] &&
   ok "scheduler: its stop time kept as still to come for a restart" || bad "scheduler: its stop time kept as still to come for a restart" "$r"
+# a start to a mower that's mowing does nothing: the run and its stop time stay
+byhand endkept
+sleep 5
+expect "scheduler: a start the mower ignores doesn't end the run" "$(due endkept | wc -l) $(slog endkept | grep -c '^started_by_hand')" "1 0"
 logs "scheduler: a mower that doesn't move is noticed" stays '^start_failed( at=[0-9:]+)?$' 90
 logs "scheduler: why MowBite OS turned the start down" refused '^start_refused BATTERY_LOW 22.4( at=[0-9:]+)?$' 30
 slog refused | grep -q '^start_failed' && bad "scheduler: a start turned down isn't one the mower didn't react to" "$(slog refused)" ||
   ok "scheduler: a start turned down isn't one the mower didn't react to"
 logs "scheduler: no start after the end time while waiting for the battery" endlate '^skip_end( at=[0-9:]+)?$' 90
-docker exec mbt-endlate mosquitto_pub -h mbt-mq -r -t endlate/robot_state/json -m "$(state IDLE 0 0 0.95)"
+restate endlate "$(state IDLE 0 0 0.95)"
 sleep 25
 slog endlate | grep -q '^started' && bad "scheduler: still no start once it's charged" "$(slog endlate)" ||
   ok "scheduler: still no start once it's charged"
@@ -261,8 +273,8 @@ gets restoredslow 'abort_mowing$' 30 && [ -n "$(due restoredslow)" ] &&
   bad "scheduler: a stop time still counts as to come while it's carried out" "$(sent restoredslow)"
 nodue restoredslow 20
 expect "scheduler: and no longer once the mower is sent home and paused" "$(due restoredslow) $(slog restoredslow | grep -c '^stopped_end$')" " 1"
-logs "scheduler: a failed undocking is logged" retry '^undock_failed path_failed( at=[0-9:]+)?$'
-logs "scheduler: and the plan started again" retry '^start_retry 2( at=[0-9:]+)?$' 30
+logs "scheduler: a failed undocking is logged" retry '^undock_failed path_failed 1( at=[0-9:]+)?$'
+logs "scheduler: and the plan started again" retry '^start_retry 2 3( at=[0-9:]+)?$' 30
 sleep 3
 expect "scheduler: the mower got the start twice" "$(sent retry | grep -c 'start_mowing$')" 2
 [ -n "$(due retry)" ] && ok "scheduler: the run's end time still to come after that" || bad "scheduler: the run's end time still to come after that" "$(slog retry)"
@@ -271,9 +283,11 @@ expect "scheduler: the mower got the start twice" "$(sent retry | grep -c 'start
 logs "scheduler: a failed start after the third one" retries '^start_failed undock path_failed( at=[0-9:]+)?$' 60
 sleep 5
 expect "scheduler: three starts, not more" "$(sent retries | grep -c 'start_mowing$') $(slog retries | grep -c '^start_retry')" "3 2"
-logs "scheduler: a failed undocking before an emergency stop" retrystop '^undock_failed path_failed( at=[0-9:]+)?$'
+logs "scheduler: a failed undocking before an emergency stop" retrystop '^undock_failed path_failed 1( at=[0-9:]+)?$'
 logs "scheduler: not started again with the emergency stop" retrystop '^retry_skip emergency( at=[0-9:]+)?$' 40
 expect "scheduler: and the mower got one start" "$(sent retrystop | grep -c 'start_mowing$')" 1
+logs "scheduler: not started again off the charge contacts" retryaway '^retry_skip undocked( at=[0-9:]+)?$' 40
+expect "scheduler: and the mower got one start there" "$(sent retryaway | grep -c 'start_mowing$')" 1
 logs "scheduler: a start by hand before the time for those" hand "^started_by_hand $HAND\$"
 expect "scheduler: its run kept with the time for a restart" "$(docker exec mbt-hand cut -d' ' -f3,4 /data/run.state 2> /dev/null)" "hand all"
 logs "scheduler: a start by hand after the time for those" handlate '^started_by_hand$'

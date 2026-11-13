@@ -12,6 +12,7 @@ import {
   parseRunStop,
   parseSchedule,
   posixTz,
+  runStopText,
   reachesDark,
   SCHEDULE_LOG_TEXT,
   scheduleLogLine,
@@ -22,6 +23,8 @@ import {
   type Schedule,
 } from './schedule';
 import {sunTimes} from './sun';
+import {clock} from './dates';
+import {DOCKED_VOLTAGE} from './openmower';
 
 // the dates below are local times, so the same zone everywhere (github runs in UTC)
 process.env.TZ = 'Europe/Berlin';
@@ -401,26 +404,29 @@ describe("the updater's hold in the log", () => {
 
 describe('a failed undocking in the log', () => {
   it('says why, that it starts again and how that went', () => {
-    expect(scheduleLogLine({t: 0, what: 'undock_failed', detail: 'path_failed', at: '17:40'})).toBe(
+    expect(scheduleLogLine({t: 0, what: 'undock_failed', detail: 'path_failed', more: '3', at: '17:40'})).toBe(
       "Undocking failed (couldn't follow the path), starts again in 3 minutes",
     );
-    expect(scheduleLogLine({t: 0, what: 'undock_failed', detail: 'unknown'})).toBe('Undocking failed, starts again in 3 minutes');
-    expect(scheduleLogLine({t: 0, what: 'start_retry', detail: '2'})).toBe('Started again (start 2 of 3)');
+    expect(scheduleLogLine({t: 0, what: 'undock_failed', detail: 'unknown', more: '3'})).toBe('Undocking failed, starts again in 3 minutes');
+    expect(scheduleLogLine({t: 0, what: 'start_retry', detail: '2', more: '3'})).toBe('Started again (start 2 of 3)');
     expect(scheduleLogLine({t: 0, what: 'start_failed', detail: 'undock', more: 'no_gps', at: '17:40'})).toBe(
-      'Not started, undocking failed three times (no GPS fix)',
+      'Not started, undocking failed again (no GPS fix)',
     );
     // the leftovers' start isn't tried again
     expect(scheduleLogLine({t: 0, what: 'start_failed', detail: 'undock', more: 'path_failed'})).toBe(
       "Not started, undocking failed (couldn't follow the path)",
     );
     expect(scheduleLogLine({t: 0, what: 'retry_skip', detail: 'emergency'})).toBe('Not started again, emergency stop was active');
+    expect(scheduleLogLine({t: 0, what: 'retry_skip', detail: 'undocked'})).toBe('Not started again, the mower was no longer in the dock');
     expect(scheduleLogLine({t: 0, what: 'start_failed'})).toBe("The mower didn't react to the start, still idle a minute later");
   });
-  it('marks it, not when it was started meanwhile or the schedule switched off', () => {
+  it('marks it, not when it was started meanwhile, the schedule switched off or the mower busy', () => {
     expect(logTone({what: 'undock_failed'})).toBe('bad');
     expect(logTone({what: 'start_retry'})).toBe('good');
     expect(logTone({what: 'retry_skip', detail: 'end'})).toBe('bad');
+    expect(logTone({what: 'retry_skip', detail: 'undocked'})).toBe('bad');
     expect(logTone({what: 'retry_skip', detail: 'started'})).toBeNull();
+    expect(logTone({what: 'retry_skip', detail: 'busy'})).toBeNull();
   });
   it('on the dashboard while it waits and after the last try, not once it started again', () => {
     const now = 1_790_890_000;
@@ -428,6 +434,8 @@ describe('a failed undocking in the log', () => {
     expect(missedStart([failed], now)?.what).toBe('undock_failed');
     expect(missedStart([failed, {t: now - 400, what: 'start_retry', detail: '2'}], now)).toBeNull();
     expect(missedStart([failed, {t: now - 400, what: 'retry_skip', detail: 'started'}], now)).toBeNull();
+    expect(missedStart([failed, {t: now - 400, what: 'retry_skip', detail: 'busy'}], now)).toBeNull();
+    expect(missedStart([failed, {t: now - 400, what: 'retry_skip', detail: 'undocked'}], now)?.what).toBe('retry_skip');
     expect(missedStart([failed, {t: now - 400, what: 'retry_skip', detail: 'emergency'}], now)?.what).toBe('retry_skip');
   });
 });
@@ -481,12 +489,18 @@ describe('when the run going on goes home', () => {
     expect(parseRunStop('')).toBeNull();
     expect(parseRunStop('enabled 1\nminbattery 80\n')).toBeNull();
   });
+  it('on the dashboard, at sunset said as such', () => {
+    const at = 1_790_900_000;
+    expect(runStopText({at, why: 'end'})).toBe(`goes home at ${clock(at)}`);
+    expect(runStopText({at, why: 'hand'})).toBe(`goes home at ${clock(at)}`);
+    expect(runStopText({at, why: 'dark'})).toBe(`goes home at sunset, ${clock(at)}`);
+  });
 });
 
 describe('the words the scheduler logs', () => {
+  const SH = readFileSync(join(__dirname, '../../docker/scheduler.sh'), 'utf8');
   it('each has a text', () => {
-    const sh = readFileSync(join(__dirname, '../../docker/scheduler.sh'), 'utf8')
-      .split('\n')
+    const sh = SH.split('\n')
       .filter((l) => !l.trim().startsWith('#'))
       .join('\n');
     const words = new Set([...sh.matchAll(/\bs?log "?([a-z_]+)\b/g)].map((m) => m[1]));
@@ -498,5 +512,15 @@ describe('the words the scheduler logs', () => {
     const missing = [...words].filter((w) => !SCHEDULE_LOG_TEXT[w] && !own.includes(w));
     expect(missing).toEqual([]);
     expect(words.size).toBeGreaterThan(30);
+  });
+  it('each reason not to start again too', () => {
+    const body = SH.slice(SH.indexOf('no_retry() {'), SH.indexOf('\n}\n', SH.indexOf('no_retry() {')));
+    const why = [...body.matchAll(/echo ([a-z_]+); return/g)].map((m) => m[1]);
+    expect(why.length).toBeGreaterThan(6);
+    for (const w of why) expect(scheduleLogLine({t: 0, what: 'retry_skip', detail: w}), w).not.toBe('Not started again');
+  });
+  it('takes the mower for docked at the voltage the app does', () => {
+    const sh = readFileSync(join(__dirname, '../../docker/openmower.sh'), 'utf8');
+    expect(Number(/^DOCKED_VOLTAGE=(\S+)$/m.exec(sh)?.[1])).toBe(DOCKED_VOLTAGE);
   });
 });

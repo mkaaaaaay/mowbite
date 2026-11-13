@@ -1,3 +1,4 @@
+import {clock} from './dates';
 import {reasonText} from './events';
 import {forget, fresh} from './fresh';
 import {fmt, tr} from './i18n';
@@ -216,8 +217,8 @@ export const SCHEDULE_LOG_TEXT: Record<string, string> = {
   leftovers_little: 'Leftovers too small to go out again ({detail} m²)',
   leftovers_failed: "Leftovers not mowed, the planner didn't answer",
   leftovers_waiting_battery: 'Leftovers: waiting for the battery ({detail} %)',
-  undock_failed: 'Undocking failed{reason}, starts again in 3 minutes',
-  start_retry: 'Started again (start {detail} of 3)',
+  undock_failed: 'Undocking failed{reason}, starts again in {more} minutes',
+  start_retry: 'Started again (start {detail} of {more})',
   stopped_hand: 'Sent home, the time for starts by hand reached',
 };
 
@@ -229,6 +230,7 @@ const RETRY_SKIP: Record<string, string> = {
   offline: "Not started again, the mower wasn't reachable",
   emergency: 'Not started again, emergency stop was active',
   busy: 'Not started again, the mower was busy',
+  undocked: 'Not started again, the mower was no longer in the dock',
   hold: 'Not started again, an update was running',
 };
 
@@ -265,8 +267,8 @@ const BAD = new Set([
   'leftovers_failed',
   'undock_failed',
 ]);
-// not tried again because someone started it meanwhile or switched the schedule off: on purpose
-const RETRY_SKIP_FINE = new Set(['started', 'off']);
+// not tried again because someone started it meanwhile, switched the schedule off or it was busy otherwise: on purpose
+const RETRY_SKIP_FINE = new Set(['started', 'off', 'busy']);
 export const logTone = ({what, detail}: Pick<LogEntry, 'what' | 'detail'>): 'good' | 'bad' | null =>
   what === 'started' || what === 'leftovers_started' || what === 'start_retry'
     ? 'good'
@@ -279,9 +281,9 @@ export function scheduleLogText(l: LogEntry): string {
   if (l.what === 'leftovers_skip') return LEFTOVERS_SKIP[l.detail ?? ''] ?? "Leftovers not mowed, the mower wasn't ready";
   if (l.what === 'retry_skip') return RETRY_SKIP[l.detail ?? ''] ?? 'Not started again';
   if (l.what === 'started_by_hand') return l.detail ? 'Started by hand, goes home at {detail}' : 'Started by hand';
-  // a plan's start after its third try, the leftovers' after the first
+  // a plan's start after its last try, the leftovers' after the first
   if (l.what === 'start_failed' && l.detail === 'undock')
-    return l.at ? 'Not started, undocking failed three times{reason}' : 'Not started, undocking failed{reason}';
+    return l.at ? 'Not started, undocking failed again{reason}' : 'Not started, undocking failed{reason}';
   return SCHEDULE_LOG_TEXT[l.what] ?? l.what;
 }
 
@@ -402,6 +404,9 @@ export function parseRunStop(text: string): RunStop | null {
   const m = /^(\d+) (end|dark|hand)\s*$/.exec(text);
   return m ? {at: Number(m[1]), why: m[2] as RunStop['why']} : null;
 }
+// as the dashboard says it
+export const runStopText = (stop: RunStop): string =>
+  tr(stop.why === 'dark' ? 'goes home at sunset, {time}' : 'goes home at {time}', {time: clock(stop.at)});
 export async function loadRunStop(): Promise<RunStop | null> {
   try {
     const res = await containerFetch(`${endpoint()}?run`, {cache: 'no-store'});

@@ -8,6 +8,8 @@ sensor_topic() { echo "sensors/$1/data"; }
 TOPIC_SENSOR_DATA=$(sensor_topic +)
 # the charge contacts' voltage, there also when the battery is full and is_charging is off
 TOPIC_CHARGE_VOLTAGE=$(sensor_topic om_v_charge)
+# above it OpenMower's idle takes the mower for docked (IdleBehavior), DOCKED_VOLTAGE in src/lib/openmower.ts too
+DOCKED_VOLTAGE=5
 # the sensors' names and limits (retained)
 TOPIC_SENSOR_INFOS=sensor_infos/json
 TOPIC_ACTION=action

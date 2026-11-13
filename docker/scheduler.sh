@@ -7,10 +7,10 @@
 # and at sunset if the plan wants that. a plan can drop an interrupted job first so it begins with the first area,
 # and it can be paused for some days, for all areas or some. a plan can have its own mowing direction (angle=<deg>),
 # set on the mower before the start. no start while the MowBite Updater restarts OpenMower (its hold, retained), and it
-# tells the updater when it may start next. a plan's start whose undocking fails is started again, twice at most. starts
-# by hand are logged too, and with a time set for them (handstop HH:MM) one before it goes home then. what happened goes
-# to /data/schedule.log for the page. on MowBite OS, which has a schedule of its own, it rests with its leftovers and the
-# starts by hand: no start, nothing told
+# tells the updater when it may start next. a plan's start whose undocking fails is started again while the mower is still
+# in the dock, twice at most. starts by hand are logged too, and with a time set for them (handstop HH:MM) one before it
+# goes home then. what happened goes to /data/schedule.log for the page. on MowBite OS, which has a schedule of its own,
+# it rests with its leftovers and the starts by hand: no start, nothing told
 . /broker.sh
 . /openmower.sh
 F=/data/schedule.txt
@@ -18,8 +18,9 @@ LOG=/data/schedule.log
 # the mower's mowing direction before a start turned it, for the starts without their own
 NORMAL=/data/angle.normal
 WAIT=7200
-# between a failed undocking and the next start of the plan, seconds
+# between a failed undocking and the next start of the plan, seconds, and the starts of a plan in all
 RETRY=${RETRY_WAIT:-180}
+TRIES=3
 
 # one line at a time, the runs in the background log too
 log() {
@@ -32,8 +33,14 @@ log() {
 # a plain value from compact or spaced out json, e.g. field "$state" current_state
 field() { printf '%s' "$1" | grep -o "\"$2\" *: *[^,}]*" | head -n1 | sed 's/^[^:]*: *//' | tr -d '" '; }
 conf() { sed -n "s/^$1 //p" "$F" | head -n1; }
-# the robot state as the mower has it now (retained), waiting $1 seconds (10) at most
+# the robot state as the mower sends it next (several times a second), waiting $1 seconds (10) at most
 robot_state() { mosquitto_sub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" -C 1 -W "${1:-10}" 2>/dev/null; }
+# the next event, waiting $1 seconds at most
+next_event() { mosquitto_sub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_EVENTS" -C 1 -W "$1" 2>/dev/null; }
+# whether the action $2 is enabled in the list $1 (actions/json)
+action_enabled() {
+  printf '%s' "$1" | tr -d ' \n' | tr '}' '\n' | grep "\"$2\"" | grep -q -e '"enabled":1' -e '"enabled":true'
+}
 # how full the battery is in %: battery.awk's while it's fresh, else OpenMower's from the robot state $1. at Done it
 # counts as full, in the dock it goes down until the charger tops it up
 battery() {
@@ -62,22 +69,23 @@ map_areas() {
 # the pause of today as the file has it now: all, a list of area ids or nothing
 paused_today() { awk -v day="$(TZ="$tz" date +%F)" '$1 == "pause" && day <= $2 { print $3; exit }' "$F" 2>/dev/null; }
 
-# during a run this script started: skip every area the plan doesn't pick ($1: all or a list) and the ones
-# paused for today (read again at every area, a pause set while it runs counts too), until the job is done (also
-# across breaks for charging) or the next start. a run sent home at its end time keeps its job open, without
-# stopping at the next start this would go on skipping the areas of the next plan or of a start by hand
+# the run going on is the one begun at $1 (run.state): the next plan or a start by hand begin another
+run_is() { read -r _b _ 2>/dev/null < "$RUN" && [ "$_b" = "$1" ]; }
+
+# during a run this script started ($2: when it began): skip every area the plan doesn't pick ($1: all or a list) and the
+# ones paused for today (read again at every area, a pause set while it runs counts too), until the job is done (also
+# across breaks for charging and a restart of OpenMower) or another run begins. a run sent home at its end time keeps
+# its job open, without stopping then this would go on skipping the areas of the next plan or of a start by hand
 skip_others() {
-  timeout 86400 mosquitto_sub -h "$host" -p "$PORT" -v -t "${MOWER_MQTT_PREFIX}$TOPIC_EVENTS" \
-    -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTION" | while read -r e; do
-    case "$e" in *" $ACTION_START_MOWING") own_start retry || break ;; esac
+  timeout 86400 mosquitto_sub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_EVENTS" | while read -r e; do
+    run_is "$2" || break
     type=$(field "$e" type)
     case "$type" in
       # not on DOCKED: a run that docks to charge carries on afterwards, and it's still this run
       JOB_COMPLETE | JOB_RESET)
-        rm -f "$RUN"
+        run_done "$2"
         break
         ;;
-      SHUTDOWN) break ;;
       AREA)
         a=$(field "$e" area_id)
         p=$(paused_today)
@@ -185,32 +193,32 @@ stop_time() {
 
 # the stop time of the run started at $1 isn't to come any more (carried out, or a start ended the run)
 stop_done() { rm -f "$DUE.$1"; }
+# the job of the run started at $1 is done or dropped: the run is over
+run_done() {
+  run_is "$1" && rm -f "$RUN"
+  stop_done "$1"
+}
 
 # a run this script started: send it home at the stop time, and set OpenMower's own pause like going home does in its
 # semi-automatic mode (manual_pause_mowing, params.set): a job still open (charging at the stop time, or in automatic
 # mode) doesn't carry on by itself once the battery is full. the next start, by hand or by schedule, takes the pause
 # off again. an OpenMower without params.set: for 12 hours it's sent home again whenever it starts mowing, until
-# someone starts it by hand or the job is done. a start before the stop time ends it too, that's another run then (the
-# next plan, or by hand after this one was sent home) with its own end, but not the plan's start again after a failed
-# undocking
+# someone starts it by hand or the job is done. another run begun before the stop time ends it too (the next plan, or by
+# hand after this one was sent home), with its own end, but not the plan's start again after a failed undocking. a
+# restart of OpenMower in between doesn't
 send_home_at() {
   echo "$1" > "$STOP"
-  topics="-t ${MOWER_MQTT_PREFIX}$TOPIC_EVENTS -t ${MOWER_MQTT_PREFIX}$TOPIC_ACTION"
-  while [ "$(date +%s)" -lt "$1" ]; do
+  while run_is "$3" && [ "$(date +%s)" -lt "$1" ]; do
     # waits for a message until the stop time at most, so it goes home on time. a broker that isn't there
     # fails right away, then it waits a bit instead of trying over and over
     w=$(($1 - $(date +%s)))
     [ "$w" -gt 60 ] && w=60
     [ "$w" -lt 1 ] && w=1
     t=$(date +%s)
-    e=$(mosquitto_sub -h "$host" -p "$PORT" $topics -v -C 1 -W "$w" 2>/dev/null) ||
-      { [ $(($(date +%s) - t)) -lt 1 ] && sleep 5; }
-    case "$e" in *" $ACTION_START_MOWING") own_start retry || { stop_done "$3"; return; } ;; esac
-    case "$(field "$e" type)" in
-      JOB_COMPLETE) stop_done "$3"; return ;;
-      SHUTDOWN) return ;;
-    esac
+    e=$(next_event "$w") || { [ $(($(date +%s) - t)) -lt 1 ] && sleep 5; }
+    case "$(field "$e" type)" in JOB_COMPLETE | JOB_RESET) run_done "$3"; return ;; esac
   done
+  run_is "$3" || { stop_done "$3"; return; }
   logged=""
   s=$(robot_state)
   if [ "$(field "$s" current_state)" = MOWING ]; then
@@ -224,16 +232,15 @@ send_home_at() {
     [ -n "$logged" ] || log "stopped_$2"
     return
   fi
-  while [ "$(date +%s)" -lt "$(($1 + 43200))" ]; do
+  while [ "$(date +%s)" -lt "$(($1 + 43200))" ] && run_is "$3"; do
     s=$(robot_state)
     if [ "$(field "$s" current_state)" = MOWING ]; then
       mosquitto_pub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTION" -m "$ACTION_HOME" &&
         log "$([ -z "$logged" ] && echo "stopped_$2" || echo stopped_again)"
       logged=1
     fi
-    m=$(mosquitto_sub -h "$host" -p "$PORT" $topics -v -C 1 -W 30 2>/dev/null) || sleep 5
-    case "$m" in *" $ACTION_START_MOWING") return ;; esac
-    [ "$(field "$m" type)" = JOB_COMPLETE ] && return
+    m=$(next_event 30) || sleep 5
+    case "$(field "$m" type)" in JOB_COMPLETE | JOB_RESET) run_done "$3"; return ;; esac
   done
 }
 
@@ -263,36 +270,38 @@ log_refused() {
   log start_refused $why $v ${1:+"at=$1"}
 }
 
-# the starts this script sends are marked right before they go out ("<time> plan|leftovers|retry"), so the ones
-# listening on the actions tell them from a start by hand. fresh for 10 s
+# the starts this script sends are marked right before they go out (the time), so the one listening on the actions
+# tells them from a start by hand. fresh for 10 s
 OWN=/tmp/start.own
-# own_start [kind]: the start that just came is this script's (of that kind)
 own_start() {
-  read -r t k < "$OWN" 2> /dev/null || return 1
-  [ $(($(date +%s) - t)) -le 10 ] && { [ -z "$1" ] || [ "$k" = "$1" ]; }
+  t=$(cat "$OWN" 2>/dev/null)
+  [ -n "$t" ] && [ $(($(date +%s) - t)) -le 10 ]
 }
-# send_start <kind>: false when the broker didn't take it
+# false when the broker didn't take it
 send_start() {
   rm -f "$ANSWER"
   timeout 600 mosquitto_sub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_EVENTS" 2>/dev/null |
     grep -m1 -e MOWING_REFUSED -e '"UNDOCKING_FAILED"' -e '"UNDOCKED"' > "$ANSWER" &
   sleep 1
-  echo "$(date +%s) $1" > "$OWN"
+  date +%s > "$OWN"
   mosquitto_pub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTION" -m "$ACTION_START_MOWING"
 }
 
 # why a plan's start isn't tried again after a failed undocking ($1: when its run began), false when it is: someone
 # started it meanwhile (another run then), the schedule switched off, the run's stop time come, the mower not there,
-# in an emergency, not idle, or the updater about to restart OpenMower
+# in an emergency, not idle, off the charge contacts (out of the dock, its voltage like OpenMower's idle takes for
+# docked) or the updater about to restart OpenMower
 no_retry() {
-  read -r b stop _ < "$RUN" 2> /dev/null
-  [ "$b" = "$1" ] || { echo started; return; }
+  run_is "$1" || { echo started; return; }
   [ "$(conf enabled)" = 1 ] || { echo off; return; }
+  stop=$(cut -d' ' -f2 "$RUN" 2>/dev/null)
   case "$stop" in '' | -) ;; *) [ "$(date +%s)" -lt "$stop" ] || { echo end; return; } ;; esac
   s=$(robot_state)
   [ -n "$s" ] || { echo offline; return; }
   [ "$(field "$s" emergency)" = 0 ] || { echo emergency; return; }
   [ "$(field "$s" current_state)" = IDLE ] || { echo busy; return; }
+  v=$(mosquitto_sub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_CHARGE_VOLTAGE" -C 1 -W 10 2>/dev/null)
+  awk -v v="$v" -v min="$DOCKED_VOLTAGE" 'BEGIN { exit !(v != "" && v + 0 > min) }' || { echo undocked; return; }
   held && { echo hold; return; }
   return 1
 }
@@ -300,8 +309,8 @@ no_retry() {
 # a start that went out only says the broker took it ($1: its time from the plan, none for the leftovers'; $2: when the
 # plan's run began; $3: which start of it this is). the mower answers by leaving IDLE, when it doesn't within a minute
 # that's logged, the page would say started otherwise. from the dock it undocks first (send_start's answer, a quick
-# one is over before the state is looked at). after a failed undocking a plan's start goes out again in 3 minutes, up
-# to the third, the leftovers' doesn't
+# one is over before the state is looked at). after a failed undocking a plan's start goes out again RETRY seconds
+# later, up to TRIES starts, the leftovers' doesn't. a restart of the container while it waits drops that start
 check_started() {
   at=$1
   t=$(($(date +%s) + 60))
@@ -332,16 +341,17 @@ check_started() {
   why=$(field "$m" reason)
   case "$why" in '' | *[!a-z_]*) why=unknown ;; esac
   n=${3:-1}
-  if [ -z "$at" ] || [ "$n" -ge 3 ]; then
+  if [ -z "$at" ] || [ "$n" -ge "$TRIES" ]; then
     log start_failed undock "$why" ${at:+"at=$at"}
     return
   fi
-  log undock_failed "$why" "at=$at"
+  # (in minutes for the page)
+  log undock_failed "$why" $(((RETRY + 59) / 60)) "at=$at"
   sleep "$RETRY"
   if no=$(no_retry "$2"); then
     log retry_skip "$no" "at=$at"
-  elif send_start retry; then
-    log start_retry $((n + 1)) "at=$at"
+  elif send_start; then
+    log start_retry $((n + 1)) "$TRIES" "at=$at"
     check_started "$at" "$2" $((n + 1))
   else
     log retry_skip offline "at=$at"
@@ -521,7 +531,7 @@ leftovers_after() {
   if [ "$(echo "$(field "$r" armed)" | awk '{ print ($1 > 0) ? 1 : 0 }')" != 1 ]; then log leftovers_failed; return; fi
   # (the updater's hold once more after the planner's answer, which may take minutes. what's armed runs out by itself)
   if held; then log leftovers_skip hold; return; fi
-  if send_start leftovers; then
+  if send_start; then
     date +%s > "$LEFT"
     log leftovers_started "$left"
     check_started &
@@ -564,8 +574,14 @@ run_begin() {
 }
 
 # a start by hand, once the mower is seen going: the run before is over, logged with the time it goes home at when a
-# time is set for those (handstop HH:MM) and the start comes before it. sent home then like a plan at its end time
+# time is set for those (handstop HH:MM) and the start comes before it. sent home then like a plan at its end time.
+# looked at while the schedule or the time for these is on, or a run of before is to end
 hand_started() {
+  os_does "$host" schedule && return
+  if [ ! -f "$RUN" ]; then
+    [ -f "$F" ] || return
+    [ "$(conf enabled)" = 1 ] || [ -n "$(conf handstop)" ] || return
+  fi
   t=$(($(date +%s) + 60))
   while :; do
     case "$(field "$(robot_state)" current_state)" in '' | IDLE) ;; *) break ;; esac
@@ -591,33 +607,29 @@ hand_started() {
 }
 
 # starts that aren't this script's (the app, Home Assistant, OpenMower's page: all over the actions, the mower's own
-# button not), while the schedule or the stop for them is on. a start counts sent to an idle mower (start_mowing does
-# nothing else), by the state before it: out of the dock it goes straight to MOWING. one within a minute of the last is
-# the same (tapped twice)
+# button not). a start counts sent to an idle mower (start_mowing does nothing else), by actions/json before it: its
+# start_mowing is enabled in idle only, and it's retained. out of the dock it goes straight to MOWING. one within a
+# minute of the last is the same (tapped twice). subscribed for good, a new subscription would miss a start meanwhile
 hand_watch() {
   while :; do
     host=$(find_broker)
-    if [ -n "$host" ] && [ -f "$F" ] && { [ "$(conf enabled)" = 1 ] || [ -n "$(conf handstop)" ]; } && ! os_does "$host" schedule; then
-      since=$(date +%s)
-      timeout 600 mosquitto_sub -h "$host" -p "$PORT" -v -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTION" \
-        -t "${MOWER_MQTT_PREFIX}$TOPIC_ROBOT_STATE" 2>/dev/null | {
-        idle=""
-        last=0
-        while read -r topic m; do
-          if [ "$topic" != "${MOWER_MQTT_PREFIX}$TOPIC_ACTION" ]; then
-            case "$m" in *'"current_state":"IDLE"'* | *'"current_state": "IDLE"'*) idle=1 ;; *) idle="" ;; esac
-            continue
-          fi
-          [ "$m" = "$ACTION_START_MOWING" ] && [ -n "$idle" ] && [ $(($(date +%s) - last)) -ge 60 ] && ! own_start || continue
-          last=$(date +%s)
-          hand_started &
-        done
-      }
-      # (a broker that turns it away right away: not over and over)
-      [ $(($(date +%s) - since)) -ge 5 ] || sleep 60
-    else
-      sleep 60
-    fi
+    [ -n "$host" ] || { sleep 60; continue; }
+    since=$(date +%s)
+    mosquitto_sub -h "$host" -p "$PORT" -v -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTION" -t "${MOWER_MQTT_PREFIX}$TOPIC_ACTIONS" 2>/dev/null | {
+      idle=""
+      last=0
+      while read -r topic m; do
+        if [ "$topic" != "${MOWER_MQTT_PREFIX}$TOPIC_ACTION" ]; then
+          idle=$(action_enabled "$m" "$ACTION_START_MOWING" && echo 1)
+          continue
+        fi
+        [ "$m" = "$ACTION_START_MOWING" ] && [ -n "$idle" ] && [ $(($(date +%s) - last)) -ge 60 ] && ! own_start || continue
+        last=$(date +%s)
+        hand_started &
+      done
+    }
+    # (a broker that turns it away right away: not over and over)
+    [ $(($(date +%s) - since)) -ge 5 ] || sleep 60
   done
 }
 hand_watch &
@@ -636,9 +648,7 @@ run_open() {
     case "$a" in '' | *"\"${ACTION_RESET_JOB%/*}/"*) break ;; esac
     sleep 1
   done
-  a=$(printf '%s' "$a" | tr '}' '\n' | grep "\"$ACTION_RESET_JOB\"")
-  case "$a" in *'"enabled":1'* | *'"enabled":true'*) return 0 ;; esac
-  return 1
+  action_enabled "$a" "$ACTION_RESET_JOB"
 }
 
 # the run of before a restart: its areas skipped again and sent home at its time, while its job is still open. a stop
@@ -656,13 +666,13 @@ restore_run() {
   over=""
   { [ -z "$host" ] || [ $(($(date +%s) - ${at:-0})) -ge 86400 ] || ! run_open; } && over=1
   # a start since then is another run, with its own: its file stays
-  [ "$(cut -d' ' -f1 "$RUN" 2>/dev/null)" = "$at" ] || return
+  run_is "$at" || return
   if [ -n "$over" ]; then
     rm -f "$RUN"
     return
   fi
   # (a start by hand skips nothing)
-  [ "$why" = hand ] || skip_others "$areas" &
+  [ "$why" = hand ] || skip_others "$areas" "$at" &
   [ "$stop" != - ] && { [ "$stop" -gt "$(date +%s)" ] || [ -f "$DUE.$at" ]; } && send_home_at "$stop" "$why" "$at" &
 }
 [ -f "$RUN" ] && restore_run &
@@ -851,7 +861,7 @@ while :; do
       # shellcheck disable=SC2086
       if held; then
         [ -n "$hwaited" ] || { slog waiting_hold; hwaited=1; }
-      elif send_start plan; then
+      elif send_start; then
         slog started "$bat"
         began=$(date +%s)
         check_started "$dtime" "$began" &
@@ -859,7 +869,7 @@ while :; do
         stop=$(stop_time "$end" "$sunset" "$dark" "$endat")
         run_begin "$began" "${stop% *}" "${stop#* }" "$areas"
         # always: a pause set while it runs counts too
-        skip_others "$areas" &
+        skip_others "$areas" "$began" &
         # shellcheck disable=SC2086
         [ -n "$stop" ] && send_home_at $stop "$began" &
         until=0

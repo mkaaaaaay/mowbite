@@ -52,6 +52,7 @@ import {
   loadSchedule,
   loadScheduleLog,
   loadRunStop,
+  runStopText,
   missedStart,
   waitingStart,
   nextStart,
@@ -517,7 +518,7 @@ export default function Home() {
                           .join(' ')
                       : pausedInDock && hasAction(ACTION.goHome)
                         ? tr('Put in the dock by hand? Tap End here, then it counts as docked and charges. The next start mows on where it stopped.')
-                        : [since && tr('since {time}', {time: clock(since)}), homeAt && tr(homeAt.why === 'dark' ? 'goes home at sunset, {time}' : 'goes home at {time}', {time: clock(homeAt.at)})]
+                        : [since && tr('since {time}', {time: clock(since)}), homeAt && runStopText(homeAt)]
                             .filter(Boolean)
                             .join(' · ')}
                   </span>

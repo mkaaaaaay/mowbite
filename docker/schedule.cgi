@@ -13,7 +13,7 @@ if [ "$QUERY_STRING" = "log" ]; then
   cat /data/schedule.log 2>/dev/null
 elif [ "$QUERY_STRING" = "run" ]; then
   # when the run going on goes home, while that's still to come: "<unix time> end|dark|hand"
-  read -r at stop why _ < /data/run.state 2>/dev/null && [ -f "/data/run.due.$at" ] && echo "$stop $why"
+  read -r at stop why _ 2>/dev/null < /data/run.state && [ -f "/data/run.due.$at" ] && echo "$stop $why"
 else
   cat "$F" 2>/dev/null
 fi

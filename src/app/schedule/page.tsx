@@ -56,8 +56,8 @@ export default function SchedulePage() {
   const hasCold = updates.level === null || containerHas(updates.level, 'cold');
   // MowBite's own battery level, it goes down in the dock after Done
   const hasLevel = containerHas(updates.level, 'level');
-  // a time for starts by hand, shown while that can't be told like the cold
-  const hasHandStop = updates.level === null || containerHas(updates.level, 'handstop');
+  // a time for starts by hand, only from a container known to keep it (an older one drops the line when saving)
+  const hasHandStop = containerHas(updates.level, 'handstop');
   // undefined: loading, null: not served by the container
   const [schedule, setSchedule] = useState<Schedule | null | undefined>(cachedSchedule);
   const [log, setLog] = useState<LogEntry[]>(() => cachedScheduleLog() ?? []);

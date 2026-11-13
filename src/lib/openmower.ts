@@ -122,6 +122,9 @@ export const ACTION = {
 // others switch at any time
 export const UPDATE_GATED = ['os', 'planner'];
 
+// above this voltage on the charge contacts OpenMower's idle takes the mower for docked (IdleBehavior)
+export const DOCKED_VOLTAGE = 5;
+
 // how much of the line the record page's back button takes back
 export const UNDO_METERS = 1;
 

@@ -6,6 +6,7 @@ import {containsPoint, polygonArea} from './geometry';
 import {isPin} from './mowerBody';
 import type {MowerMap} from '@/hooks/useMowerMap';
 import type {RosLogLine} from './roslog';
+import {DOCKED_VOLTAGE} from './openmower';
 
 // one file for a run with everything there is about it, to find out what went wrong without asking back: what the
 // app shows, every line of the logs by time, the settings and the raw data. english, it goes to github and discord
@@ -266,14 +267,14 @@ function chargeContact(gps: readonly GpsSample[], t: number): string | null {
   let maxV = 0;
   let maxA = 0;
   near.forEach((s, i) => {
-    const on = (s.vCharge ?? 0) > 5;
+    const on = (s.vCharge ?? 0) > DOCKED_VOLTAGE;
     if (on) {
       start ??= s;
       maxV = Math.max(maxV, s.vCharge ?? 0);
       maxA = Math.max(maxA, s.iCharge ?? 0);
     }
     const next = near[i + 1];
-    if (start && (!next || (next.vCharge ?? 0) <= 5)) {
+    if (start && (!next || (next.vCharge ?? 0) <= DOCKED_VOLTAGE)) {
       const end = next ? next.t : s.t;
       parts.push(`${maxV.toFixed(1)} V at ${stamp(start.t)} for ${(end - start.t).toFixed(1)} s (current up to ${maxA.toFixed(2)} A)`);
       start = null;
