@@ -7,7 +7,6 @@ import {
   mowsIntoNight,
   onOs,
   PARAM_FIELDS,
-  PARAM_GROUPS,
   paramField,
   paramConflict,
   paramName,
@@ -26,13 +25,11 @@ import {RPC} from '@/lib/openmower';
 import {sunTimes} from '@/lib/sun';
 import {useRpcMethods} from '@/hooks/useRpcMethods';
 import {answerError} from '@/lib/rpcText';
-import Link from 'next/link';
-import {useEffect, useRef, useState, useSyncExternalStore} from 'react';
+import {useState, useSyncExternalStore} from 'react';
 import InfoTip from './InfoTip';
 import local from './MowerParamSettings.module.css';
 
 type Styles = Record<string, string>;
-const never = () => () => {};
 
 // whether this mower takes params.set (a newer OpenMower), false until it has told
 export const useCanSetParams = (): boolean => !!useRpcMethods()?.has(RPC.setParams);
@@ -307,76 +304,35 @@ export function OpenMowerMowing({styles}: {styles: Styles}) {
   );
 }
 
-// the settings page's group: everything folded when the page opens, every time
-export function OpenMowerSettings({styles}: {styles: Styles}) {
-  const can = useCanSetParams();
-  const params = useMowerParams();
+// over OpenMower's groups on the settings page: where the values come from, and keeping them over a restart
+export function OpenMowerNote({styles, params, os}: {styles: Styles; params: Record<string, unknown>; os: boolean}) {
   const k = useKept();
-  const os = useMowbiteOs();
-  // folded whenever the page opens, unless a link led here
-  const linked = useSyncExternalStore(
-    never,
-    () => window.location.hash === '#openmower',
-    () => false,
-  );
-  const [toggled, setToggled] = useState<boolean | null>(null);
-  const open = toggled ?? linked;
-  const ref = useRef<HTMLDetailsElement>(null);
-  useEffect(() => {
-    if (can && linked) ref.current?.scrollIntoView({block: 'start'});
-  }, [can, linked]);
-  if (!can) return null;
   return (
-    <details
-      className={styles.group}
-      id="openmower"
-      ref={ref}
-      open={open}
-      onToggle={(e) => {
-        const now = (e.currentTarget as HTMLDetailsElement).open;
-        if (now !== open) setToggled(now);
-      }}
-    >
-      <summary>
-        <span className={styles.groupTitle}>
-          {os ? tr('Mower settings') : tr('OpenMower')}
-          <small>{os ? tr('Kept on the mower itself') : tr('Its own settings from mower_params.yaml')}</small>
-        </span>
-      </summary>
-      <div className={styles.groupBody}>
-        <p className={styles.dim}>
-          {os
-            ? tr('Settings of the mower itself, kept on it. A change counts right away, it takes one only while the mower is idle.')
-            : tr(
-                "Settings of OpenMower itself, the ones from mower_params.yaml. A change counts right away, no restart. OpenMower doesn't store it: after its restart the file's values are back.",
-              )}
-        </p>
-        {k && (
-          <label className={styles.check}>
-            <input type="checkbox" checked={k.enabled} onChange={(e) => switchKeeping(e.target.checked, params).catch(() => {})} />
-            {tr('MowBite sets what you change here again after a restart')}
-          </label>
-        )}
-        <p className={styles.dim}>
-          {tr('The mowing values (outline passes, lane spacing, direction) are with the map: under "Mowing for all areas", with the MowBite Planner in its menu there.')}{' '}
-          <Link href="/map">{tr('To the map')}</Link>
-        </p>
-        {PARAM_GROUPS.filter((g) => g.key !== 'mowing').map((g) => (
-          <details key={g.key} className={local.section}>
-            <summary>
-              <span className={local.title}>
-                {tr(g.title)}
-                <small>{summary(g.key, params, os)}</small>
-              </span>
-            </summary>
-            <div className={local.rows}>
-              {PARAM_FIELDS.filter((f) => f.group === g.key && paramShown(f, params)).map((f) => (
-                <ParamRow key={f.key} field={f} os={os} />
-              ))}
-            </div>
-          </details>
-        ))}
-      </div>
-    </details>
+    <>
+      <p className={styles.dim}>
+        {os
+          ? tr('Settings of the mower itself, kept on it. A change counts right away, it takes one only while the mower is idle.')
+          : tr(
+              "Settings of OpenMower itself, the ones from mower_params.yaml. A change counts right away, no restart. OpenMower doesn't store it: after its restart the file's values are back.",
+            )}
+      </p>
+      {k && (
+        <label className={styles.check}>
+          <input type="checkbox" checked={k.enabled} onChange={(e) => switchKeeping(e.target.checked, params).catch(() => {})} />
+          {tr('MowBite sets what you change here again after a restart')}
+        </label>
+      )}
+    </>
+  );
+}
+
+// the values of one of OpenMower's groups that this mower has
+export function ParamGroupRows({group, params, os}: {group: ParamGroup; params: Record<string, unknown>; os: boolean}) {
+  return (
+    <div className={`${local.rows} ${local.inGroup}`}>
+      {PARAM_FIELDS.filter((f) => f.group === group && paramShown(f, params)).map((f) => (
+        <ParamRow key={f.key} field={f} os={os} />
+      ))}
+    </div>
   );
 }

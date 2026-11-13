@@ -491,7 +491,7 @@ export default function Home() {
               ) : unreachable ? (
                 <>
                   <span className={styles.offline}>{tr("Can't reach the mower. Is it switched on and in this network?")}</span>{' '}
-                  <Link href="/settings#app">{tr('Mowers and their addresses are in the settings.')}</Link>
+                  <Link href="/settings#mowers">{tr('Mowers and their addresses are in the settings.')}</Link>
                 </>
               ) : (
                 tr('connecting…')

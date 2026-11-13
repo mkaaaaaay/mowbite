@@ -287,3 +287,78 @@ a.pillButton {
   flex-wrap: wrap;
   gap: 8px;
 }
+
+/* the two tabs: the mower's settings and the app's */
+.tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.tabs button {
+  min-height: 40px;
+  padding: 0 20px;
+  border-radius: 999px;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tabs .tabOn {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+  color: var(--foreground);
+}
+
+.tabPanel,
+.section {
+  display: flex;
+  flex-direction: column;
+}
+
+.tabPanel {
+  gap: 16px;
+}
+
+.tabPanel[hidden] {
+  display: none;
+}
+
+.section {
+  gap: 8px;
+}
+
+.sectionTitle {
+  margin: 4px 4px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.section > .dim {
+  padding: 0 4px;
+}
+
+/* a setting kept on another page, the way there */
+.jump {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 46px;
+  padding: 10px 16px;
+  border-radius: 14px;
+  border: 1px dashed var(--card-border);
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.jump::after {
+  content: '›';
+  font-size: 18px;
+}

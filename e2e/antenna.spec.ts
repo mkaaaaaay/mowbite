@@ -3,8 +3,8 @@ import {demoCall, demoWith, expect, test} from './app';
 // the antenna typed under the mower sizes: the app can't set it, it hands over the lines for mower_params.yaml
 test('the antenna typed in gives the lines for mower_params.yaml', async ({page}) => {
   await page.goto('/settings/');
-  // folded away under "Your mower"
-  await page.locator('summary', {hasText: 'Your mower'}).click();
+  // folded away under the mower's sizes
+  await page.locator('#mower > summary').click();
   const ahead = page.getByLabel('Antenna ahead of the rear axle (cm)');
   await ahead.scrollIntoViewIfNeeded();
   await expect(ahead).toHaveValue('-10');
@@ -19,7 +19,7 @@ test('the antenna typed in gives the lines for mower_params.yaml', async ({page}
 test('on MowBite OS the sizes and the antenna go to robot.geometry', async ({page}) => {
   await demoWith(page, 'Geometry');
   await page.goto('/settings/');
-  await page.locator('summary', {hasText: 'Your mower'}).click();
+  await page.locator('#mower > summary').click();
   const front = page.getByLabel('Rear axle to the front (cm)');
   await front.scrollIntoViewIfNeeded();
   await expect(front).toHaveValue('60');

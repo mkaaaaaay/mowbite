@@ -9,7 +9,7 @@ test.describe('sounds', () => {
 
   test('not on a mower without them', async ({page}) => {
     await page.goto('/settings/');
-    await expect(page.locator('#notify')).toBeVisible();
+    await expect(page.locator('#update')).toBeVisible();
     await expect(page.locator('#sounds')).toHaveCount(0);
   });
 

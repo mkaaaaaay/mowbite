@@ -8,10 +8,12 @@ test.describe('updates of MowBite OS', () => {
     await page.goto('/settings/#update');
     const group = page.locator('#update');
     await expect(group.locator('summary').first()).toContainText('MowBite Updater');
-    await expect(group).toContainText('This app');
     // the updater's parts, none of MowBite OS
     await expect(group.locator('[data-part="mowbite"]')).toBeVisible();
     await expect(group.locator('[data-part="os"]')).toHaveCount(0);
+    // the app's own version and update in the other tab
+    await page.getByRole('tab', {name: 'App'}).click();
+    await expect(page.locator('#updates')).toBeVisible();
   });
 
   test('each part with what runs, an update waiting for the mower, cancelled, then installed', async ({page}) => {
@@ -22,8 +24,6 @@ test.describe('updates of MowBite OS', () => {
     await expect(group.locator('summary').first()).toContainText('MowBite OS');
     await expect(group.locator('[data-part]')).toHaveCount(4);
     await expect(group).toContainText('1 update available');
-    // the page is the mower's app there, its updates are that part's
-    await expect(group).not.toContainText('This app');
     const os = group.locator('[data-part="os"]');
     await expect(os).toContainText('Update available');
     await expect(group.locator('[data-part="planner"]')).toContainText('Up to date');
@@ -49,6 +49,10 @@ test.describe('updates of MowBite OS', () => {
     await expect(os).toContainText('Just updated');
     await expect(group).toContainText('MowBite OS updated.');
     await expect(group).toContainText('Everything is up to date');
+    // the page is the mower's app there, its updates are that part's
+    await page.getByRole('tab', {name: 'App'}).click();
+    await expect(page.locator('#notify')).toBeVisible();
+    await expect(page.locator('#updates')).toHaveCount(0);
   });
 
   test('the planner back to the version before, without waiting for an open mowing job', async ({page}) => {

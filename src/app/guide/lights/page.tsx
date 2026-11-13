@@ -151,7 +151,7 @@ function OwnSoundArt() {
 const LIGHTS: GuideStep[] = [
   {
     title: 'Lights by state',
-    text: 'The lights on the mower show what it is doing. In Settings › Lights every state has its own look: open one and pick the effect (steady, blinking, pulsing, a running light or a color gradient), its colors, how fast it moves and how bright it is.',
+    text: 'The lights on the mower show what it is doing. In Settings › Mower › Lights every state has its own look: open one and pick the effect (steady, blinking, pulsing, a running light or a color gradient), its colors, how fast it moves and how bright it is.',
     Art: LightsArt,
   },
   {
@@ -162,7 +162,7 @@ const LIGHTS: GuideStep[] = [
 ];
 const SOUNDS: GuideStep = {
   title: 'Sounds',
-  text: 'A mower with a speaker plays a sound in some situations, such as when mowing starts or the battery is low. Settings › Sounds lists them: tap Listen to hear one on the mower. One volume counts for all of them. At 0 it plays nothing at all, not even for an emergency stop.',
+  text: 'A mower with a speaker plays a sound in some situations, such as when mowing starts or the battery is low. Settings › Mower › Sounds lists them: tap Listen to hear one on the mower. One volume counts for all of them. At 0 it plays nothing at all, not even for an emergency stop.',
   Art: SoundsArt,
 };
 const OWN_SOUND: GuideStep = {

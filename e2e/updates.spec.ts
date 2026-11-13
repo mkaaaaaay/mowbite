@@ -5,7 +5,7 @@ import {demoDocked, demoHas, expect, SIM, test} from './app';
 // part with what runs, its channel and updating it, OpenMower's release with the warning for the planner, only the log
 // to select
 test('the updates on the mower: the parts, a warning for the release, the log', async ({page}) => {
-  await page.goto('/settings/#updates');
+  await page.goto('/settings/#update');
   const updates = page.locator('#update');
   await expect(updates.locator('[data-part]')).toHaveCount(4);
   for (const name of ['MowBite', 'OpenMower', 'MowBite Planner', 'MowBite Updater']) await expect(updates.locator('[data-part]').getByText(name, {exact: true})).toBeVisible();
@@ -29,7 +29,7 @@ test('the updates on the mower: the parts, a warning for the release, the log', 
 
 // going back asks first, in the part's details
 test('back to the version before, asked first', async ({page}) => {
-  await page.goto('/settings/#updates');
+  await page.goto('/settings/#update');
   const mowbite = page.locator('#update [data-part="mowbite"]');
   await mowbite.getByRole('button', {name: 'Details and the version before'}).click();
   await mowbite.getByRole('button', {name: 'Back to the version before'}).click();
@@ -42,7 +42,7 @@ test('back to the version before, asked first', async ({page}) => {
 
 // making room: what nothing needs with the room it frees, a delete only with a second tap a moment later
 test('making room asks before it deletes', async ({page}) => {
-  await page.goto('/settings/#updates');
+  await page.goto('/settings/#update');
   // the card: the innermost box with its name and its own button
   const room = page
     .locator('#update div')
@@ -64,7 +64,7 @@ test('making room asks before it deletes', async ({page}) => {
 // an update shows its steps and the one it's on (the demo mower plays one through in about 20 seconds), the other
 // parts only show what runs meanwhile
 test('an update shows how far it is', async ({page}) => {
-  await page.goto('/settings/#updates');
+  await page.goto('/settings/#update');
   const updates = page.locator('#update');
   await updates.locator('[data-part="mowbite"]').getByRole('button', {name: 'Update', exact: true}).click();
   const run = updates.locator('[data-update="mowbite"]');
@@ -82,7 +82,7 @@ test('an update shows how far it is', async ({page}) => {
 
 // the updater itself: its own card, its download, then its restart on the new version
 test('the updater updates itself', async ({page}) => {
-  await page.goto('/settings/#updates');
+  await page.goto('/settings/#update');
   const card = page.locator('#update [data-part="updater"]');
   await expect(card).toContainText('Update available');
   await expect(card).toContainText('commit 7cce417');
@@ -119,7 +119,7 @@ test.describe("the updater's page", () => {
       // the built app, as the container hands it out
       return route.fulfill({response: await route.fetch({url: new URL(url.pathname + url.search, app).href})});
     });
-    await page.goto('http://mowbite.test:8082/settings/#updates');
+    await page.goto('http://mowbite.test:8082/settings/#update');
   }
 
   test("MowBite's own cards, its page behind a link", async ({page, baseURL}) => {
@@ -179,7 +179,7 @@ test.describe('MowBite on another mower or without a container', () => {
       // the built app on a web server of its own
       return route.fulfill({response: await route.fetch({url: new URL(url.pathname + url.search, baseURL).href})});
     });
-    await page.goto('http://mowbite.test:8082/settings/#updates');
+    await page.goto('http://mowbite.test:8082/settings/#update');
     const updates = page.locator('#update');
     await expect(updates.getByText('Only when MowBite runs as its container on the mower.')).toBeVisible();
     await expect(updates.getByText('Update MowBite in Dockge')).toHaveCount(0);
@@ -207,7 +207,7 @@ test.describe('MowBite on another mower or without a container', () => {
       return route.fulfill({response: await route.fetch({url: new URL(url.pathname + url.search, baseURL).href})});
     });
     await page.goto('http://mowbite.test:8082/settings/#updates');
-    await expect(page.locator('#update').getByText('MowBite on the mower (1.0.0) is older than this app.', {exact: false})).toBeVisible();
+    await expect(page.locator('#updates').getByText('MowBite on the mower (1.0.0) is older than this app.', {exact: false})).toBeVisible();
     await page.close();
   });
 });

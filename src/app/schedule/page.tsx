@@ -149,7 +149,7 @@ export default function SchedulePage() {
               {nightMowing && (
                 <p className={styles.dim}>
                   <strong>{tr('Going home at sunset is switched off: a mow goes on into the night.')}</strong>{' '}
-                  <Link href="/settings#openmower">{tr('Change')}</Link>
+                  <Link href="/settings#auto">{tr('Change')}</Link>
                 </p>
               )}
             </section>
@@ -300,7 +300,7 @@ export default function SchedulePage() {
                   {tr('Rain while it mows is up to the mower: {mode}.', {
                     mode: tr(paramField('rain_mode')!.choices![Number(params['/mower_logic/rain_mode'] ?? 0)] ?? ''),
                   })}{' '}
-                  <Link href="/settings#openmower">{tr('Change')}</Link>
+                  <Link href="/settings#auto">{tr('Change')}</Link>
                 </p>
               )}
             </section>

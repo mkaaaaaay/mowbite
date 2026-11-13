@@ -21,10 +21,17 @@ test.describe('on OpenMower', () => {
       await page.goto(path);
       // what comes from the mower first (state, settings, the day's events)
       await page.waitForTimeout(1500);
-      // folded groups open, a few rounds for the ones inside others
-      for (let round = 0; round < 3; round++) await page.$$eval('details', (all) => all.forEach((d) => ((d as HTMLDetailsElement).open = true)));
-      await page.waitForTimeout(300);
-      const text = await page.locator('body').innerText();
+      // folded groups open, a few rounds for the ones inside others, in every tab
+      const unfolded = async () => {
+        for (let round = 0; round < 3; round++) await page.$$eval('details', (all) => all.forEach((d) => ((d as HTMLDetailsElement).open = true)));
+        await page.waitForTimeout(300);
+        return page.locator('body').innerText();
+      };
+      let text = await unfolded();
+      for (const t of await page.getByRole('tab').all()) {
+        await t.click();
+        text += await unfolded();
+      }
       expect(text, path).not.toMatch(OS_ONLY);
       expect(OS_TEXTS.filter((t) => text.includes(t)), path).toEqual([]);
     }
