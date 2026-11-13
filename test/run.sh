@@ -318,10 +318,17 @@ w=$(next waitnext)
 expect "scheduler: a start waiting for the battery may come within its two hours" \
   "$(($(sed 's/.*"to":\([0-9]*\).*/\1/' <<< "$w") - $(sed 's/.*"from":\([0-9]*\).*/\1/' <<< "$w")))" 7200
 expect "scheduler: nothing to tell while switched off" "$(next disabled)" ""
+# whether that start would go now, retained for the app
+ready() { docker exec mbt-mq mosquitto_sub -h localhost -t "$1/mowbite/schedule/ready" -C 1 -W 3 2> /dev/null; }
+expect "scheduler: the next start would go" "$(ready otherday)" '{"ok":true,"reason":null}'
+expect "scheduler: the next start wouldn't, the rain sensor is wet" "$(ready rain)" '{"ok":false,"reason":"skip_rain"}'
+expect "scheduler: the next start wouldn't, emergency stop" "$(ready emergency)" '{"ok":false,"reason":"skip_emergency"}'
+expect "scheduler: a start waiting for the battery says so" "$(ready waitnext)" '{"ok":false,"reason":"waiting_battery"}'
+expect "scheduler: nothing ready to tell while switched off" "$(ready disabled)" ""
 gets os '"method":"rpc.methods"' 30 && sleep 3
 if [ -n "$(sent os)" ] && ! sent os | grep -q '^action'; then ok "scheduler: rests on MowBite OS, which has a schedule of its own"; else
   bad "scheduler: rests on MowBite OS, which has a schedule of its own" "$(sent os)"; fi
-expect "scheduler: and tells nothing there" "$(next os)$(slog os)" ""
+expect "scheduler: and tells nothing there" "$(next os)$(ready os)$(slog os)" ""
 
 # when a run has to be home, for times of the year the test can't wait for: stop_time with the clock set to the start,
 # in the image (a start in the dark without dark=1 isn't one). <what>|<tz> <lat,lon|-> <day> <start> <end> <sunset>

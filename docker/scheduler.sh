@@ -7,10 +7,11 @@
 # and at sunset if the plan wants that. a plan can drop an interrupted job first so it begins with the first area,
 # and it can be paused for some days, for all areas or some. a plan can have its own mowing direction (angle=<deg>),
 # set on the mower before the start. no start while the MowBite Updater restarts OpenMower (its hold, retained), and it
-# tells the updater when it may start next. a plan's start whose undocking fails is started again while the mower is still
-# in the dock, twice at most. starts by hand are logged too, and with a time set for them (handstop HH:MM) one before it
-# goes home then. what happened goes to /data/schedule.log for the page. on MowBite OS, which has a schedule of its own,
-# it rests with its leftovers and the starts by hand: no start, nothing told
+# tells the updater when it may start next and the app whether that start would go now. a plan's start whose undocking
+# fails is started again while the mower is still in the dock, twice at most. starts by hand are logged too, and with a
+# time set for them (handstop HH:MM) one before it goes home then. what happened goes to /data/schedule.log for the
+# page. on MowBite OS, which has a schedule of its own, it rests with its leftovers and the starts by hand: no start,
+# nothing told
 . /broker.sh
 . /openmower.sh
 F=/data/schedule.txt
@@ -66,8 +67,9 @@ map_areas() {
     -e 's/"properties":(/"properties":{/g' | grep -o '"id":"[^"]*","properties":{[^}]*}' | tr '\001\002' '{}'
 }
 
-# the pause of today as the file has it now: all, a list of area ids or nothing
-paused_today() { awk -v day="$(TZ="$tz" date +%F)" '$1 == "pause" && day <= $2 { print $3; exit }' "$F" 2>/dev/null; }
+# the pause of the day $1 (YYYY-MM-DD) as the file has it now: all, a list of area ids or nothing
+paused_on() { awk -v day="$1" '$1 == "pause" && day <= $2 { print $3; exit }' "$F" 2>/dev/null; }
+paused_today() { paused_on "$(TZ="$tz" date +%F)"; }
 
 # the run going on is the one begun at $1 (run.state): the next plan or a start by hand begin another
 run_is() { read -r _b _ 2>/dev/null < "$RUN" && [ "$_b" = "$1" ]; }
@@ -417,8 +419,8 @@ held() {
   [ -n "$hold" ] && [ "$hold" -gt "$(date +%s)" ] && [ "$hold" -le "$(($(date +%s) + 1800))" ]
 }
 
-# the next start of the schedule from now as unix time, by day and time only (a start in this minute is the one
-# after it): the rest is only known when it's due
+# the next start of the schedule from now as "<unix time> <day 1-7> <HH:MM>", by day and time only (a start in this
+# minute is the one after it): the rest is only known when it's due
 next_start() {
   # shellcheck disable=SC2046
   set -- $(TZ="$tz" date '+%u %H %M %S %s')
@@ -427,9 +429,9 @@ next_start() {
     for (i = 1; i <= n; i++) {
       m = ((d[i] - 1) * 1440 + hm[1] * 60 + hm[2] - now + 10080) % 10080
       if (m == 0) m = 10080
-      if (best == "" || m < best) best = m
+      if (best == "" || m < best) { best = m; bd = d[i]; bt = $3 }
     }
-  } END { if (best != "") print at + best * 60 }' "$F"
+  } END { if (best != "") print at + best * 60, bd, bt }' "$F"
 }
 # when the schedule may start next, for the MowBite Updater (no OpenMower update in the 30 minutes before): a start
 # waiting for the battery from when it was due until its wait is over, else the next start time. nothing without a
@@ -440,6 +442,7 @@ tell_next() {
   if [ "$until" -gt 0 ]; then
     n="{\"from\":$due_at,\"to\":$until}"
   elif [ -f "$F" ] && [ "$(conf enabled)" = 1 ] && t=$(next_start) && [ -n "$t" ]; then
+    t=${t%% *}
     n="{\"from\":$t,\"to\":$t}"
   else
     n=""
@@ -454,6 +457,67 @@ tell_next() {
     mosquitto_pub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_SCHEDULE_NEXT" -r -n 2>/dev/null || return
   fi
   told=$n told_at=$(date +%s)
+}
+
+# why the start at $1 (unix time, day $2, HH:MM $3) wouldn't go as things are now, in the order a start checks it: the
+# word its log would write, ok when it would go. the weather isn't asked
+ready_for() {
+  rp=$(plan_at "$2" "$3")
+  [ -n "$rp" ] || { echo skip_gone; return; }
+  # shellcheck disable=SC2086
+  set -- "$1" $rp
+  rpaused=$(paused_on "$(TZ="$tz" date -d "@$1" +%F)")
+  [ "$rpaused" = all ] && { echo skip_paused; return; }
+  host=$(find_broker)
+  if { [ -n "$rpaused" ] || [ "$2" != all ]; } && [ -n "$host" ] && ! area_left "$2" "$rpaused"; then
+    if [ -n "$rpaused" ] && area_left "$2" ""; then echo skip_paused; else echo skip_no_area; fi
+    return
+  fi
+  rs=$([ -n "$host" ] && robot_state)
+  if [ -z "$rs" ]; then echo skip_offline
+  elif [ "$(field "$rs" emergency)" != 0 ]; then echo skip_emergency
+  elif [ "$(field "$rs" current_state)" != IDLE ]; then echo skip_busy
+  elif [ "$(conf skiprain)" = 1 ] && [ "$(field "$rs" rain_detected)" != 0 ]; then echo skip_rain
+  # the sun at the time of the plan, today's sun times
+  elif [ "$4" != 1 ] && is_dark "$(TZ="$tz" date -d "@$1" +%H:%M | awk -F: '{ print $1 * 60 + $2 }')"; then echo skip_dark
+  elif [ "$(battery "$rs")" -lt "$(conf minbattery)" ]; then echo waiting_battery
+  elif held; then echo waiting_hold
+  else echo ok
+  fi
+}
+
+# whether the next start would go as things are now, retained for the app like MowBite OS's (schedule_ready of its
+# contract): a start waiting says what for. nothing without a start to come. only shown, the start checks again; looked
+# at once a minute, sent when it changed and every 10 minutes
+readied=""
+readied_at=0
+ready_at=0
+tell_ready() {
+  [ $(($(date +%s) - ready_at)) -ge 60 ] || return
+  ready_at=$(date +%s)
+  if [ "$until" -gt 0 ]; then
+    if [ -n "$hwaited" ]; then r=waiting_hold; elif [ -n "$waited" ]; then r=waiting_battery; else r=ok; fi
+  elif [ -f "$F" ] && [ "$(conf enabled)" = 1 ] && t=$(next_start) && [ -n "$t" ]; then
+    # shellcheck disable=SC2086
+    r=$(ready_for $t)
+  else
+    r=""
+  fi
+  case "$r" in
+    "") n="" ;;
+    ok) n='{"ok":true,"reason":null}' ;;
+    *) n="{\"ok\":false,\"reason\":\"$r\"}" ;;
+  esac
+  [ "$n" = "$readied" ] && [ $(($(date +%s) - readied_at)) -lt 600 ] && return
+  host=$(find_broker)
+  [ -n "$host" ] || return
+  os_does "$host" schedule && return
+  if [ -n "$n" ]; then
+    mosquitto_pub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_SCHEDULE_READY" -r -m "$n" 2>/dev/null || return
+  else
+    mosquitto_pub -h "$host" -p "$PORT" -t "${MOWER_MQTT_PREFIX}$TOPIC_SCHEDULE_READY" -r -n 2>/dev/null || return
+  fi
+  readied=$n readied_at=$(date +%s)
 }
 
 # the leftovers setting from the app's settings (settings.cgi): "leftovers":{"auto":true,"min":0.5}
@@ -883,5 +947,6 @@ while :; do
     angle_back
   fi
   tell_next
+  tell_ready
   sleep 20
 done

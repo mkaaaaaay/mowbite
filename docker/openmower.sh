@@ -51,4 +51,6 @@ RPC_AREA_PLAN=mowing.plan
 # gone without a schedule), so the updater leaves OpenMower alone in the 30 minutes before
 TOPIC_HOLD=mowbite/hold
 TOPIC_SCHEDULE_NEXT=mowbite/schedule/next
+# whether the next start would go as things are now ({"ok":true|false,"reason":null|<word of the log>}, gone without one)
+TOPIC_SCHEDULE_READY=mowbite/schedule/ready
 set +a
