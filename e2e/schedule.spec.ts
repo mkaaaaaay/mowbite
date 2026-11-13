@@ -45,16 +45,16 @@ test('a time for starts by hand: off at first, switched on with 19:00 and change
   await page.goto('/schedule/');
   const card = page.locator('section').filter({has: page.getByRole('heading', {name: 'Starts by hand'})});
   const on = card.getByRole('checkbox');
-  const time = card.getByLabel('Stop at', {exact: true}).and(page.locator('input[type=time]'));
+  const time = card.getByLabel('Home at', {exact: true}).and(page.locator('input[type=time]'));
   await expect(on).not.toBeChecked();
   await expect(time).toBeDisabled();
-  await expect(card.getByText(/has no end time/)).toBeVisible();
+  await expect(card.getByText(/it mows until done. Started during/)).toBeVisible();
   await on.check();
   await expect(time).toBeEnabled();
   await expect(time).toHaveValue('19:00');
   await time.fill('18:30');
   await expect(time).toHaveValue('18:30');
-  await expect(card.getByText(/goes home at that time the same day/)).toBeVisible();
+  await expect(card.getByText(/it goes home at that time/)).toBeVisible();
   // switched off, the schedule leaves it in place
   await page.getByRole('checkbox', {name: 'Mow by schedule'}).uncheck();
   await expect(time).toHaveValue('18:30');

@@ -755,10 +755,6 @@ const de: Record<string, string> = {
   "Started by hand, goes home at {detail}": "Von Hand gestartet, fährt um {detail} heim",
   "Sent home, the time for starts by hand reached": "Nach Hause geschickt, Uhrzeit für Starts von Hand erreicht",
   "Starts by hand": "Starts von Hand",
-  "Stop at": "Aufhören um",
-  "A start from the app, Home Assistant or OpenMower started before then goes home at that time the same day, like a run of the schedule at its end time. Started later, it mows until done. Also with the schedule switched off.": "Ein Start aus der App, aus Home Assistant oder OpenMower vor dieser Uhrzeit fährt am selben Tag um diese Uhrzeit heim, wie ein Lauf des Zeitplans zu seiner Endzeit. Später gestartet, mäht er bis zum Ende. Gilt auch bei ausgeschaltetem Zeitplan.",
-  "A start from the app, Home Assistant or OpenMower has no end time, it mows until done. Started during a run of the schedule, that run's end time no longer counts.": "Ein Start aus der App, aus Home Assistant oder OpenMower hat keine Endzeit, er mäht bis zum Ende. Während eines Laufs des Zeitplans gestartet, gilt dessen Endzeit nicht mehr.",
-  "Not for the button on the mower, MowBite doesn't see that start.": "Nicht für die Taste am Mäher, diesen Start sieht MowBite nicht.",
   "goes home at {time}": "fährt um {time} heim",
   "Earlier trips of this job are faded under the trail.": "Frühere Fahrten dieses Jobs liegen blass unter der Spur.",
   "Only the trips of the last {days} days": "Nur die Fahrten der letzten {days} Tage",
@@ -3033,6 +3029,10 @@ const de: Record<string, string> = {
   "No plan starts until the mower's clock is confirmed: {why}.": "Kein Plan startet, bis die Uhr des Mähers bestätigt ist: {why}.",
   "The schedule was changed elsewhere meanwhile, this is how the mower has it now. Make the change again.": "Der Zeitplan wurde inzwischen woanders geändert, so steht er jetzt auf dem Mäher. Die Änderung bitte noch mal machen.",
   "the lanes of the job this start begins are turned by so much, e.g. crosswise to another start time. A job it carries on keeps the direction it began with until it is done or dropped": "die Bahnen des Auftrags, den dieser Start beginnt, werden um so viel gedreht, z. B. quer zu einer anderen Startzeit. Ein fortgesetzter Auftrag behält seine Richtung, bis er fertig ist oder verworfen wird",
+  "Home at": "Nach Hause um",
+  "Started by hand, it goes home at that time, also without the schedule. Started after that time, it mows until done.": "Von Hand gestartet, fährt er um diese Uhrzeit heim, auch ohne Zeitplan. Nach dieser Uhrzeit gestartet, mäht er bis zum Ende.",
+  "Started by hand, it mows until done. Started during a run of the schedule, that run's end time no longer counts.": "Von Hand gestartet, mäht er bis zum Ende. Mitten in einem Lauf des Zeitplans gestartet, gilt dessen Endzeit nicht mehr.",
+  "By hand means: from the app, Home Assistant or OpenMower, not with the button on the mower.": "Von Hand heißt: aus der App, Home Assistant oder OpenMower, nicht mit der Taste am Mäher.",
 };
 
 export default de;

@@ -225,22 +225,22 @@ export default function SchedulePage() {
                     checked={!!s.handStop}
                     onChange={(e) => update({...s, handStop: e.target.checked ? HAND_STOP : undefined})}
                   />
-                  {tr('Stop at')}
+                  {tr('Home at')}
                   <input
                     type="time"
                     className={styles.hours}
                     value={s.handStop ?? HAND_STOP}
                     disabled={!s.handStop}
-                    aria-label={tr('Stop at')}
+                    aria-label={tr('Home at')}
                     onChange={(e) => e.target.value && update({...s, handStop: e.target.value})}
                   />
                 </label>
                 <p className={styles.dim}>
                   {s.handStop
-                    ? tr('A start from the app, Home Assistant or OpenMower started before then goes home at that time the same day, like a run of the schedule at its end time. Started later, it mows until done. Also with the schedule switched off.')
-                    : tr("A start from the app, Home Assistant or OpenMower has no end time, it mows until done. Started during a run of the schedule, that run's end time no longer counts.")}{' '}
-                  {tr("Not for the button on the mower, MowBite doesn't see that start.")}
+                    ? tr('Started by hand, it goes home at that time, also without the schedule. Started after that time, it mows until done.')
+                    : tr("Started by hand, it mows until done. Started during a run of the schedule, that run's end time no longer counts.")}
                 </p>
+                <p className={styles.dimLine}>{tr('By hand means: from the app, Home Assistant or OpenMower, not with the button on the mower.')}</p>
               </section>
             )}
 
