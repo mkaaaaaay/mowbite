@@ -1695,7 +1695,7 @@ const de: Record<string, string> = {
   "pauses at {hot} °C, on again at {cold} °C": "pausiert bei {hot} °C, weiter bei {cold} °C",
   "starts by hand": "startet von Hand",
   "semi-automatic": "halbautomatisch",
-  "Settings of OpenMower itself, the ones from mower_params.yaml. A change counts right away, no restart. OpenMower doesn't store it: after its restart the file's values are back.": "Einstellungen von OpenMower selbst, die aus der mower_params.yaml. Eine Änderung gilt sofort, ohne Neustart. OpenMower speichert sie nicht: Nach seinem Neustart gelten wieder die Werte der Datei.",
+  "These values are in mower_params.yaml. A change counts right away, after a restart the file's values are back.": "Diese Werte stehen in der mower_params.yaml. Eine Änderung gilt sofort, nach einem Neustart gelten wieder die Werte der Datei.",
   "MowBite sets what you change here again after a restart": "MowBite setzt, was du hier änderst, nach einem Neustart wieder",
   "Settings of the mower itself, kept on it. A change counts right away, it takes one only while the mower is idle.": "Einstellungen des Mähers selbst, auf ihm gespeichert. Eine Änderung gilt sofort, er nimmt sie aber nur an, solange er bereitsteht.",
   "Its own mowing direction": "Eigene Mährichtung",
@@ -2980,6 +2980,7 @@ const de: Record<string, string> = {
   "Step by step with moving pictures": "Schritt für Schritt mit bewegten Bildern",
   "Add one, switch between them": "Hinzufügen und zwischen ihnen wechseln",
   "Update it under Mower › Updates": "Unter Mäher › Updates aktualisieren",
+  "Saved on the mower, it counts for everyone who uses it.": "Auf dem Mäher gespeichert, gilt für jeden, der ihn bedient.",
   "Update it in the settings under Mower › Updates": "In den Einstellungen unter Mäher › Updates aktualisieren",
 };
 

@@ -349,9 +349,7 @@ export default function SettingsPage() {
             {tr('Settings')}
           </h1>
         </TitleRow>
-        <p className={styles.dim}>
-          {demo ? tr("These are the demo's settings, they're gone once you leave it. The ones only for this device stay.") : shared ? tr('Saved on the mower, the same on all your devices.') : tr('Saved on this device only.')}
-        </p>
+        {demo && <p className={styles.dim}>{tr("These are the demo's settings, they're gone once you leave it. The ones only for this device stay.")}</p>}
 
         <div className={styles.tabs} role="tablist">
           {tabs.map(([k, label]) => (
@@ -375,6 +373,7 @@ export default function SettingsPage() {
 
         {/* both there, the one not shown hidden: a link finds its part in either, nothing loads again on a switch */}
         <div className={styles.tabPanel} role="tabpanel" id="panel-mower" aria-labelledby="tab-mower" hidden={tab !== 'mower'}>
+            {!demo && <p className={styles.dim}>{tr('Saved on the mower, it counts for everyone who uses it.')}</p>}
             {(sizes || lights || sounds) && (
               <section className={styles.section}>
                 <h2 className={styles.sectionTitle}>{tr('The mower itself')}</h2>
@@ -409,13 +408,13 @@ export default function SettingsPage() {
             {(can || planner) && (
               <section className={styles.section} id="openmower">
                 <h2 className={styles.sectionTitle}>{tr('How it works')}</h2>
-                {can && <OpenMowerNote styles={styles} params={params} os={os} />}
                 {can &&
                   PARAM_GROUPS.filter((g) => g.key !== 'mowing').map((g) => (
                     <Group key={g.key} id={g.key} title={tr(g.title)} hint={summary(g.key, params, os)}>
                       <ParamGroupRows group={g.key} params={params} os={os} />
                     </Group>
                   ))}
+                {can && <OpenMowerNote styles={styles} params={params} os={os} />}
                 {planner && (
                   <Group id="leftovers" title={tr('Mow the leftovers')} hint={leftoversOn ? tr('by itself after mowing') : tr('from the dashboard')}>
                     <section className={styles.card}>
@@ -541,6 +540,7 @@ export default function SettingsPage() {
             </section>
         </div>
         <div className={styles.tabPanel} role="tabpanel" id="panel-app" aria-labelledby="tab-app" hidden={tab !== 'app'}>
+            {!demo && <p className={styles.dim}>{shared ? tr('Saved on the mower, the same on all your devices.') : tr('Saved on this device only.')}</p>}
             <Group id="notify" title={tr('Push messages')} hint={tr('On the phone when the mower needs you')}>
               <NotifySettings settings={settings} styles={styles} />
             </Group>

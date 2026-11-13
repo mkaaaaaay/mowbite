@@ -304,7 +304,7 @@ export function OpenMowerMowing({styles}: {styles: Styles}) {
   );
 }
 
-// over OpenMower's groups on the settings page: where the values come from, and keeping them over a restart
+// under OpenMower's groups on the settings page: where the values come from, and keeping them over a restart
 export function OpenMowerNote({styles, params, os}: {styles: Styles; params: Record<string, unknown>; os: boolean}) {
   const k = useKept();
   return (
@@ -312,9 +312,7 @@ export function OpenMowerNote({styles, params, os}: {styles: Styles; params: Rec
       <p className={styles.dim}>
         {os
           ? tr('Settings of the mower itself, kept on it. A change counts right away, it takes one only while the mower is idle.')
-          : tr(
-              "Settings of OpenMower itself, the ones from mower_params.yaml. A change counts right away, no restart. OpenMower doesn't store it: after its restart the file's values are back.",
-            )}
+          : tr("These values are in mower_params.yaml. A change counts right away, after a restart the file's values are back.")}
       </p>
       {k && (
         <label className={styles.check}>
