@@ -33,6 +33,7 @@ test.describe('updates of MowBite OS', () => {
     await os.getByRole('button', {name: 'Update', exact: true}).click();
     const run = group.locator('[data-update="os"]');
     await expect(run).toContainText('MowBite OS is being updated');
+    await expect(run.locator('[data-step="verifying"]')).toContainText('Where it comes from and its signature are right.');
     await expect(run.locator('[data-step="waiting_gate"]')).toContainText('The mower is working right now.');
     await expect(run.locator('[data-step="waiting_gate"]')).toContainText('It waits for 30 minutes at most.');
     // the others only show what runs meanwhile
@@ -76,7 +77,9 @@ test.describe('updates of MowBite OS', () => {
     await os.getByRole('button', {name: 'Update', exact: true}).click();
     await expect(group).toContainText('MowBite OS: update taken back');
     await expect(os).toContainText('Taken back');
-    await expect(os).toContainText("This version isn't installed by itself any more.");
+    await expect(os).toContainText("This version isn't installed by itself any more, a newer one is.");
+    // held back, it isn't counted as an update
+    await expect(group).toContainText('Everything is up to date');
     await os.getByRole('button', {name: 'Install anyway'}).click();
     await expect(os.getByRole('heading')).toContainText('anyway?');
     await os.getByRole('button', {name: 'Cancel'}).click();

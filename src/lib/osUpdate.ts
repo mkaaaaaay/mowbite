@@ -1,5 +1,5 @@
 import {useSyncExternalStore} from 'react';
-import {numericDay} from './dates';
+import {numericDay, shortDay} from './dates';
 import {tr} from './i18n';
 import {onTopic, topicStore} from './mqttClient';
 import {RPC, TOPIC, UPDATE_GATED} from './openmower';
@@ -215,5 +215,13 @@ export function versionLabel(v: Version): string {
   if (v.version) return v.version;
   return v.date ? tr('Version of {day}', {day: numericDay(v.date)}) : shortRevision(v.revision);
 }
-// the same in short, for a button or a heading
-export const versionName = (v: Version): string => v.version ?? (v.date ? numericDay(v.date) : shortRevision(v.revision));
+// the same in short, for a button: MowBite OS's day without the year
+export const versionName = (v: Version): string => v.version ?? (v.date ? shortDay(v.date) : shortRevision(v.revision));
+
+// a part and its version for a heading, "MowBite Planner 1.3.2" or "MowBite OS of 03/11/2026"
+export const partVersion = (name: string, v: Version): string =>
+  !v.version && v.date ? tr('{name} of {day}', {name, day: numericDay(v.date)}) : `${name} ${versionName(v)}`;
+
+// a version within a sentence: its number, MowBite OS's as "the version of 03/11/2026"
+export const versionInText = (v: Version): string =>
+  !v.version && v.date ? tr('the version of {day}', {day: numericDay(v.date)}) : versionName(v);

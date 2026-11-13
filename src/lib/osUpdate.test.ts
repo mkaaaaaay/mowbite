@@ -1,5 +1,20 @@
 import {describe, expect, it, vi} from 'vitest';
-import {appTooOld, goingBack, inWindow, nextByItself, runSteps, runTarget, runsByItself, versionLabel, wentBackByHand, type Component, type UpdateStatus} from './osUpdate';
+import {
+  appTooOld,
+  goingBack,
+  inWindow,
+  nextByItself,
+  partVersion,
+  runSteps,
+  runTarget,
+  runsByItself,
+  versionInText,
+  versionLabel,
+  versionName,
+  wentBackByHand,
+  type Component,
+  type UpdateStatus,
+} from './osUpdate';
 
 vi.mock('./updates', async (original) => ({...(await original<typeof import('./updates')>()), APP_VERSION: '1.5.0'}));
 
@@ -106,5 +121,13 @@ describe('a version in words', () => {
     expect(versionLabel(v('abc', '1.4.0'))).toMatch(/^1\.4\.0 of \d\d\/\d\d\/2026$/);
     expect(versionLabel(v('abc'))).toMatch(/^Version of \d\d\/\d\d\/2026$/);
     expect(versionLabel({revision: '0123456789abcdef', version: null, date: null})).toBe('0123456');
+  });
+
+  it('names one without a number by its day, short on a button and in full in a sentence', () => {
+    expect(versionName(v('abc'))).toMatch(/^\d\d\/\d\d$/);
+    expect(partVersion('MowBite OS', v('abc'))).toMatch(/^MowBite OS of \d\d\/\d\d\/2026$/);
+    expect(versionInText(v('abc'))).toMatch(/^the version of \d\d\/\d\d\/2026$/);
+    expect(partVersion('MowBite Planner', v('abc', '1.3.2'))).toBe('MowBite Planner 1.3.2');
+    expect(versionInText(v('abc', '1.3.2'))).toBe('1.3.2');
   });
 });

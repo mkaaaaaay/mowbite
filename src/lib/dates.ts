@@ -4,7 +4,10 @@ export const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDa
 
 // today/yesterday in the app's language, like the weekday names. the formatters once per language, making them costs
 // far more than formatting (the map's track picker labels every day while the mower drives)
-const dayFormats = new Map<string, {rel: Intl.RelativeTimeFormat; date: Intl.DateTimeFormat; year: Intl.DateTimeFormat; numeric: Intl.DateTimeFormat}>();
+const dayFormats = new Map<
+  string,
+  {rel: Intl.RelativeTimeFormat; date: Intl.DateTimeFormat; year: Intl.DateTimeFormat; numeric: Intl.DateTimeFormat; short: Intl.DateTimeFormat}
+>();
 function dayFormat() {
   let f = dayFormats.get(locale());
   if (!f) {
@@ -13,6 +16,7 @@ function dayFormat() {
       date: new Intl.DateTimeFormat(locale(), {weekday: 'short', day: 'numeric', month: monthStyle()}),
       year: new Intl.DateTimeFormat(locale(), {weekday: 'short', day: 'numeric', month: monthStyle(), year: 'numeric'}),
       numeric: new Intl.DateTimeFormat(locale(), {day: '2-digit', month: '2-digit', year: 'numeric'}),
+      short: new Intl.DateTimeFormat(locale(), {day: '2-digit', month: '2-digit'}),
     };
     dayFormats.set(locale(), f);
   }
@@ -27,6 +31,12 @@ export const dayDateYear = (d: Date) => (d.getFullYear() === new Date().getFullY
 
 // a day (unix s) in numbers with its year, "09.11.2026" or "09/11/2026"
 export const numericDay = (t: number) => dayFormat().numeric.format(new Date(t * 1000));
+
+// the same without the year, "09.11." or "09/11"
+export const shortDay = (t: number) => dayFormat().short.format(new Date(t * 1000));
+
+// a moment as a day in numbers and the time, "09.11.2026, 02:31"
+export const numericDayClock = (t: number) => `${numericDay(t)}, ${clock(t)}`;
 
 export function dayLabel(d: Date) {
   const today = new Date();
@@ -49,6 +59,9 @@ export const clock = (t: number, seconds = false) => {
   }
   return f.format(new Date(t * 1000));
 };
+
+// a moment as today, yesterday or its day, "Heute, 02:14"
+export const nearClock = (t: number) => `${dayLabel(new Date(t * 1000))}, ${clock(t)}`;
 
 // a moment with its day, "Di., 10.11., 07:15" (with the year when it's not this one)
 export const dayClock = (t: number) => `${dayDateYear(new Date(t * 1000))}, ${clock(t)}`;

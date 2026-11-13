@@ -1,6 +1,6 @@
 'use client';
 
-import {clock, dayClock} from '@/lib/dates';
+import {clock, dayClock, nearClock, numericDay, numericDayClock} from '@/lib/dates';
 import {reasonSentence} from '@/lib/events';
 import {tr} from '@/lib/i18n';
 import {pageFromMower} from '@/lib/mowers';
@@ -13,6 +13,7 @@ import {
   checkUpdates,
   goingBack,
   nextByItself,
+  partVersion,
   rollBack,
   runSteps,
   runTarget,
@@ -23,6 +24,7 @@ import {
   updating,
   useHostOnline,
   useUpdateStatus,
+  versionInText,
   versionLabel,
   versionName,
   wentBackByHand,
@@ -59,8 +61,8 @@ const PARTS: Record<string, {text: string; hint: string}> = {
 };
 
 // a step of an update: still to come or going on, and once it's done
-const STEPS: Record<Step, {label: string; title: string}> = {
-  verifying: {label: 'Checking the update', title: 'Checked'},
+const STEPS: Record<Step, {label: string; title: string; done?: string}> = {
+  verifying: {label: 'Checking the update', title: 'Checked', done: 'Where it comes from and its signature are right.'},
   unpacking: {label: 'Unpacking', title: 'Unpacked'},
   waiting_gate: {label: 'Waiting for the mower', title: 'Mower stands ready in the dock'},
   switching: {label: 'Switching', title: 'Switched'},
@@ -104,7 +106,7 @@ function Result({last, name}: {last: Last; name: string}) {
     <Note look={look} title={title}>
       {last.reason && why(last.reason)}
       {more && ` ${more}`}
-      <small>{dayClock(last.t)}</small>
+      <small>{nearClock(last.t)}</small>
     </Note>
   );
   if (last.result === 'rolled_back')
@@ -216,6 +218,7 @@ function Running({
             <span className={styles.dot}>{i < now ? <Tick /> : i === now ? <i /> : i + 1}</span>
             <span>
               <b>{tr(i < now ? STEPS[step].title : STEPS[step].label)}</b>
+              {i < now && STEPS[step].done && <small>{tr(STEPS[step].done!)}</small>}
               {i === now && detail(step)}
             </span>
           </li>
@@ -339,10 +342,9 @@ function Part({
       )}
       {blocked && (
         <div className={shared.warn}>
-          {blocked.reason !== 'ROLLED_BACK_BY_HAND' &&
-            `${blocked.result ? tr("This version isn't installed by itself any more.") : tr("This version isn't installed by itself.")} `}
-          {why(blocked.reason)}
-          {blocked.result && ` ${tr('A newer one is.')}`}
+          {blocked.reason === 'ROLLED_BACK_BY_HAND'
+            ? `${why(blocked.reason)}${blocked.result ? ` ${tr('A newer one is.')}` : ''}`
+            : `${blocked.result ? tr("This version isn't installed by itself any more, a newer one is.") : tr("This version isn't installed by itself.")} ${why(blocked.reason)}`}
         </div>
       )}
       {a && tooOld && <div className={shared.warn}>{appFirst(a.min_app!)}</div>}
@@ -359,7 +361,7 @@ function Part({
       )}
       {a && ask === 'anyway' && (
         <Ask
-          title={tr('Install {name} {v} anyway?', {name: c.name, v: versionName(a)})}
+          title={tr('Install {what} anyway?', {what: partVersion(c.name, a)})}
           yes={tr('Install anyway')}
           locked={locked}
           onYes={answer(() => onStart(a.revision))}
@@ -378,7 +380,7 @@ function Part({
             {c.installed_at !== null && (
               <>
                 <span>{tr('Installed')}</span>
-                <span>{dayClock(c.installed_at)}</span>
+                <span>{numericDayClock(c.installed_at)}</span>
               </>
             )}
             <span>{tr('Revision')}</span>
@@ -394,7 +396,7 @@ function Part({
           {!previous && <span className={shared.dim}>{why('NO_PREVIOUS', 'UPDATE_REFUSED')}</span>}
           {previous && ask !== 'back' && (
             <>
-              <span className={shared.dim}>{tr('Something is wrong since the last update? Then go back to {v}.', {v: versionName(previous)})}</span>
+              <span className={shared.dim}>{tr('Something is wrong since the last update? Then go back to {v}.', {v: versionInText(previous)})}</span>
               <button className={shared.control} disabled={locked} onClick={() => setAsk('back')}>
                 {tr('Back to the version before')}
               </button>
@@ -402,7 +404,7 @@ function Part({
           )}
           {previous && ask === 'back' && (
             <Ask
-              title={tr('Back to {name} {v}?', {name: c.name, v: versionName(previous)})}
+              title={tr('Back to {what}?', {what: partVersion(c.name, previous)})}
               yes={tr('Back to {v}', {v: versionName(previous)})}
               locked={locked}
               onYes={answer(() => onBack(resetJobs))}
@@ -420,7 +422,11 @@ function Part({
                   <span>{tr("Don't wait for the mowing job. The area that was started begins anew afterwards.")}</span>
                 </label>
               )}
-              <p>{tr("{v} isn't installed by itself afterwards. You can put it back here at any time.", {v: versionName(running)})}</p>
+              <p>
+                {running.version || !running.date
+                  ? tr("{v} isn't installed by itself afterwards. You can put it back here at any time.", {v: versionName(running)})
+                  : tr("The version of {day} isn't installed by itself afterwards. You can put it back here at any time.", {day: numericDay(running.date)})}
+              </p>
             </Ask>
           )}
         </>
@@ -464,7 +470,8 @@ export function OsUpdate() {
 
   const now = updating(s);
   const locked = busy || !online || s.phase !== 'idle';
-  const count = s.components.filter((c) => c.available).length;
+  // one held back isn't counted, it's only installed when asked
+  const count = s.components.filter((c) => c.available && !c.available.blocked).length;
   const next = nextByItself(s);
   const last = s.last;
   const lastName = last && (s.components.find((c) => c.id === last.component)?.name ?? last.component);
