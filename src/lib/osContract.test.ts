@@ -12,8 +12,8 @@ import {EMERGENCY_BITS, EMERGENCY_HIDE, EMERGENCY_TEXT, EVENTS, NOT_DRIVEN, REAS
 const PINNED = {
   repo: 'mkaaaaaay/mowbite-os',
   path: 'src/mowbite_api/api.schema.json',
-  commit: '9bd10974876f2b788aa8d1749c057b14de33c9f8',
-  sha256: '6c8a77f0faab17687ac223b02df0edd41211b8494a8be21c1976cc2d606f6b0b',
+  commit: '83cb3345ac3a76f1c3c0d8a11ea5dd5ec602f680',
+  sha256: '9b3f1fba061443b5b22a7eb179cb320f33dd7243b3ccd79166a495f5987742f8',
 };
 const raw = readFileSync(join(__dirname, 'os-api.schema.json'));
 // a reason's rating, when: another one for these values of the event's fields
@@ -145,7 +145,7 @@ describe(`MowBite OS's interface (${PINNED.repo} ${PINNED.commit.slice(0, 7)}, a
     const osUnit = (unit = '', scale = 1) => (unit === 'cm' && scale === 100 ? 'm' : unit === '°C' ? 'deg.C' : unit);
     for (const [key, s] of Object.entries(api['x-settings'])) {
       const f = onOs(paramField(key)!, true);
-      const range = f.type === 'choice' ? {min: 0, max: f.choices!.length - 1} : {min: f.min, max: f.max};
+      const range = f.type === 'choice' ? {min: 0, max: f.choices!.length - 1} : f.type === 'bool' ? {min: 0, max: 1} : {min: f.min, max: f.max};
       expect({...range, def: Number(f.def), unit: osUnit(f.unit, f.scale)}, key).toEqual({min: s.min, max: s.max, def: s.default, unit: s.unit});
     }
   });

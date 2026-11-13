@@ -93,12 +93,13 @@ export const paramShown = (f: ParamField, params: Record<string, unknown>) => !f
 export const paramName = (key: string) => PARAM.mowerLogic(key);
 // going home at sunset: whether the mower has the setting, whether it's switched off on purpose there
 export const hasSunsetSwitch = (params: Record<string, unknown>) => paramShown(paramField('dock_at_sunset')!, params);
-export const mowsIntoNight = (params: Record<string, unknown>) => params[paramName('dock_at_sunset')] === false;
+export const mowsIntoNight = (params: Record<string, unknown>) => paramValue(params, paramField('dock_at_sunset')!) === false;
 
-// the value the mower has, or its default while the list hasn't got it (see PARAM_DEFAULTS in lib/openmower)
+// the value the mower has, or its default while the list hasn't got it (see PARAM_DEFAULTS in lib/openmower). a switch
+// is 0|1 on MowBite OS
 export function paramValue(params: Record<string, unknown>, f: ParamField): number | boolean {
   const v = params[paramName(f.key)];
-  if (f.type === 'bool') return typeof v === 'boolean' ? v : (f.def as boolean);
+  if (f.type === 'bool') return typeof v === 'boolean' ? v : typeof v === 'number' ? v !== 0 : (f.def as boolean);
   return typeof v === 'number' ? v : (f.def as number);
 }
 
@@ -126,9 +127,10 @@ export function showParam(f: ParamField, value: number): string {
   return dec(Math.round(shown * 1000) / 1000);
 }
 
-// the mower answers with what its node took, a value out of range comes back clamped
-export async function setParams(values: Record<string, number | boolean>): Promise<Record<string, number | boolean>> {
-  const params = Object.fromEntries(Object.entries(values).map(([key, v]) => [paramName(key), v]));
+// the mower answers with what its node took, a value out of range comes back clamped. os: MowBite OS takes only numbers,
+// a switch as 0|1
+export async function setParams(values: Record<string, number | boolean>, os = false): Promise<Record<string, number | boolean>> {
+  const params = Object.fromEntries(Object.entries(values).map(([key, v]) => [paramName(key), os ? Number(v) : v]));
   const applied = await callRpc<Record<string, number | boolean>>(RPC.setParams, {params}, 15000);
   return Object.fromEntries(Object.entries(applied ?? {}).map(([name, v]) => [name.slice(name.lastIndexOf('/') + 1), v]));
 }

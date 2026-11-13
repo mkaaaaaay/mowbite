@@ -1539,7 +1539,7 @@
     },
     "event.CAMERA_CHANGED": {
       "additionalProperties": false,
-      "description": "A camera of camera.list can stream again, or no longer and why; viewers of a camera that no longer can were disconnected",
+      "description": "A camera of camera.list can stream again, or no longer and why, or streams with other protocols or at another size. Viewers of a camera that no longer can stream, and viewers over a protocol it no longer has, were disconnected; another size alone disconnects nobody",
       "properties": {
         "available": {
           "description": "Whether it can stream now",
@@ -1549,6 +1549,10 @@
           "description": "Its id in camera.list",
           "type": "string"
         },
+        "height": {
+          "description": "Height of the picture in pixels now",
+          "type": "integer"
+        },
         "id": {
           "description": "Random id of the event, 32 letters and digits",
           "type": "string"
@@ -1556,6 +1560,14 @@
         "message": {
           "description": "English text for the log, only with a reason",
           "type": "string"
+        },
+        "protocols": {
+          "description": "Its protocols now, as camera.list has them",
+          "items": {
+            "description": "One item",
+            "type": "string"
+          },
+          "type": "array"
         },
         "reason": {
           "description": "Why not, only while it is not available (x-reasons)",
@@ -1592,6 +1604,10 @@
         "type": {
           "const": "CAMERA_CHANGED",
           "description": "What happened; a type this version does not know carries only the envelope for sure"
+        },
+        "width": {
+          "description": "Width of the picture in pixels now",
+          "type": "integer"
         }
       },
       "required": [
@@ -1600,6 +1616,9 @@
         "type",
         "camera_id",
         "available",
+        "protocols",
+        "width",
+        "height",
         "severity",
         "resume"
       ],
@@ -2973,7 +2992,7 @@
     },
     "event.JOB_RESET": {
       "additionalProperties": false,
-      "description": "The job of mowing was dropped; job_id names the dropped one",
+      "description": "The job of mowing was dropped, or replaced by a start with another list; job_id names the dropped one",
       "properties": {
         "client": {
           "description": "Who sent the command (app, ha), for the log and the events of its step",
@@ -5132,13 +5151,35 @@
       "description": "The params of mowing.start",
       "properties": {
         "areas": {
-          "description": "Ids of the areas to mow in this order (open_mower_ros #359); not yet: -32602 with data field areas",
+          "description": "Not taken (open_mower_ros #359): -32602 with data field areas, never all areas instead; see tasks",
           "type": "array"
         },
         "client": {
           "description": "Who sent the command (app, ha), for the log and the events of its step",
           "pattern": "^[a-z][a-z0-9_-]{0,15}$",
           "type": "string"
+        },
+        "restart": {
+          "description": "True starts a new job even with the list of the open one",
+          "type": "boolean"
+        },
+        "tasks": {
+          "description": "The areas of the job in this order; an inactive one is passed over. The list of the open job continues it, another list starts a new one: a caller always sends the whole list of its plan, a shorter one is another job. Without it every active mowing area. Unknown, twice or empty: -32602 with field tasks",
+          "items": {
+            "additionalProperties": false,
+            "description": "One item",
+            "properties": {
+              "area_id": {
+                "description": "Id of a mowing area of the map",
+                "type": "string"
+              }
+            },
+            "required": [
+              "area_id"
+            ],
+            "type": "object"
+          },
+          "type": "array"
         }
       },
       "required": [],
@@ -5994,7 +6035,7 @@
           "type": "number"
         },
         "current_area": {
-          "description": "While mowing the index of the area in the plan, otherwise -1",
+          "description": "While mowing the index of the area among the mowing areas of the map, otherwise -1",
           "type": "integer"
         },
         "current_path": {
@@ -6076,6 +6117,14 @@
         "rain_detected": {
           "description": "1 while the rain sensor reports rain",
           "type": "integer"
+        },
+        "task_count": {
+          "description": "While mowing the number of areas in the list of the job, otherwise -1",
+          "type": "integer"
+        },
+        "task_index": {
+          "description": "While mowing the place of the area in the list of the job from 0, otherwise -1",
+          "type": "integer"
         }
       },
       "required": [
@@ -6087,6 +6136,8 @@
         "current_area",
         "current_path",
         "current_path_index",
+        "task_index",
+        "task_count",
         "emergency",
         "emergency_reason",
         "is_charging",
@@ -9240,11 +9291,11 @@
       "type": "object"
     }
   },
-  "$id": "urn:mowbite-os:api:22",
+  "$id": "urn:mowbite-os:api:24",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "robot_state, actions, events and RPC methods of MowBite OS over MQTT, as system.api gives them; made from the code, objects sorted by key. x-reasons has severity and resume of every reason by event (COMMAND_REFUSED and REQUEST_REFUSED only in refusals; when: another rating for these field values; texts: name, help and fix by language; an enum field may carry the same by value as x-texts), x-emergency-bits the bits of emergency, x-commands the commands with params, result, the event of their refusal and the actions that do the same, x-methods every RPC method of the OS with its node (planner.* are the planner's, sim.* only in the simulation), x-sensors the sensors by id, x-settings the settings of params.set with the ranges of the OS, x-geometry the keys of robot.geometry.",
   "title": "MowBite OS app interface",
-  "x-api": 22,
+  "x-api": 24,
   "x-commands": {
     "docking.abort": {
       "action": "mower_logic:docking/abort_docking",
@@ -9835,7 +9886,7 @@
       "result": "#/$defs/calibration.start.result"
     },
     "camera.list": {
-      "description": "The cameras of the mower; CAMERA_CHANGED tells when one of them can stream again or no longer",
+      "description": "The cameras of the mower; CAMERA_CHANGED tells when one of them can stream again or no longer, or streams with other protocols or at another size",
       "node": "mowbite_camera",
       "offered": "with at least one camera",
       "params": "#/$defs/camera.list.params",
@@ -10255,7 +10306,7 @@
       "result": "#/$defs/update.rollback.result"
     },
     "update.set_auto": {
-      "description": "Switches the automatic update on or off and sets its window; it needs a sure clock and an app as new as min_app",
+      "description": "Switches the automatic update on or off and sets its window; it needs an app as new as min_app. It takes the switch also without a sure clock, only the update in the window waits for one",
       "node": "mowbite_host",
       "offered": "while mowbite/host/status says online",
       "params": "#/$defs/update.set_auto.params",
@@ -11025,7 +11076,7 @@
         "texts": {
           "de": {
             "fix": "Mähen später wieder starten. Bleibt es dabei, MowBite OS neu starten.",
-            "help": "Der Planer hat beim Mähen nicht geantwortet. Der Mäher fährt zur Ladestation, der Auftrag bleibt erhalten.",
+            "help": "Der Planer hat beim Mähen nicht geantwortet. Der Mäher fährt zum Dock, der Auftrag bleibt erhalten.",
             "name": "Planer antwortet nicht"
           },
           "en": {
@@ -11043,7 +11094,7 @@
         "texts": {
           "de": {
             "fix": "Mähen später wieder starten. Bleibt es dabei, MowBite OS neu starten.",
-            "help": "Der Planer hat beim Mähen nicht geantwortet. Der Mäher fährt zur Ladestation, der Auftrag bleibt erhalten.",
+            "help": "Der Planer hat beim Mähen nicht geantwortet. Der Mäher fährt zum Dock, der Auftrag bleibt erhalten.",
             "name": "Planer antwortet nicht"
           },
           "en": {
@@ -12810,9 +12861,9 @@
         "severity": "warning",
         "texts": {
           "de": {
-            "fix": "Den Mäher in die Station fahren.",
+            "fix": "Den Mäher ins Dock fahren.",
             "help": "Das Update wartet, bis der Mäher auf den Ladekontakten steht.",
-            "name": "Nicht in der Station"
+            "name": "Nicht im Dock"
           },
           "en": {
             "fix": "Drive the mower into the station.",
@@ -13249,6 +13300,14 @@
       "default": 0.0,
       "description": "Automatic mowing, as in OpenMower",
       "max": 2.0,
+      "min": 0.0,
+      "type": "integer",
+      "unit": ""
+    },
+    "dock_at_sunset": {
+      "default": 1.0,
+      "description": "Whether a run started by hand goes home at sunset",
+      "max": 1.0,
       "min": 0.0,
       "type": "integer",
       "unit": ""

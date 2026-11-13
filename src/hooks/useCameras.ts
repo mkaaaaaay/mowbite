@@ -1,7 +1,7 @@
 'use client';
 
 import {useRpcMethods} from '@/hooks/useRpcMethods';
-import {loadCameras, sortCameras, withChange, type Camera} from '@/lib/camera';
+import {loadCameras, sortCameras, streamChanged, withChange, type Camera} from '@/lib/camera';
 import {parseEvent} from '@/lib/events';
 import {readMower, writeMower} from '@/lib/mowers';
 import {onTopic} from '@/lib/mqttClient';
@@ -11,9 +11,9 @@ import {rpcErrorText} from '@/lib/rpcText';
 import {useEffect, useSyncExternalStore} from 'react';
 
 // the mower's cameras for all who show them: read once, again when one changes (CAMERA_CHANGED), when the methods
-// change or the connection was lost, never in a rhythm. changes counts the CAMERA_CHANGED of each camera, a stream
-// is opened anew after each. without camera.* in the methods (their process gone) the list goes, it's read again
-// once they're back
+// change or the connection was lost, never in a rhythm. changes counts the CAMERA_CHANGED of each camera that end its
+// streams, a stream is opened anew after each. without camera.* in the methods (their process gone) the list goes,
+// it's read again once they're back
 interface Cameras {
   list?: Camera[];
   failed?: string;
@@ -57,7 +57,11 @@ function start() {
     if (e?.type !== 'CAMERA_CHANGED') return;
     // what it says about its camera right away, the whole list after it (one the list doesn't have yet comes with that)
     const list = now.list && withChange(now.list, e);
-    if (list) set({list, changes: {...now.changes, [e.camera_id!]: (now.changes[e.camera_id!] ?? 0) + 1}});
+    if (list) {
+      const id = e.camera_id!;
+      const reopen = streamChanged(now.list!.find((c) => c.id === id)!, list.find((c) => c.id === id)!);
+      set({list, changes: reopen ? {...now.changes, [id]: (now.changes[id] ?? 0) + 1} : now.changes});
+    }
     read();
   });
   onMethodsChanged((m) => {

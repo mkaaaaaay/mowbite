@@ -31,6 +31,10 @@ export interface MowerEvent {
   state?: string;
   available?: boolean;
   camera_id?: string;
+  // CAMERA_CHANGED: what it streams with now and at which size
+  protocols?: string[];
+  width?: number;
+  height?: number;
   enabled?: boolean;
   area_id?: string;
   area_name?: string;
@@ -156,6 +160,13 @@ const BIT = /^BIT_(\d+)$/;
 // what someone or something at the mower set off
 const PRESSED = ['STOP', 'LIFT', 'LIFT_MULTIPLE', 'COLLISION', 'COLLISION_MULTIPLE'];
 
+// MowBite OS without a way home: when continuing works after a pause for these (before, it's turned down)
+const CONTINUE_WHEN: Record<string, string> = {
+  RAIN: 'Continuing works once the rain has stopped.',
+  MOTOR_HOT: 'Continuing works once the mow motor has cooled down.',
+  BATTERY_HOT: 'Continuing works once the battery has cooled down.',
+  DARK: 'Continued, it mows on in the dark.',
+};
 // MowBite OS's pauses that go on once the position is good again
 const POSITION_PAUSE = ['NO_POSITION', 'POSE_LOST', 'POSITION_ACCURACY', 'HEADING', 'NO_HEADING'];
 
@@ -435,7 +446,10 @@ export function explain(e: MowerEvent, state?: string, gpsTimeout?: number, os =
           ? tr('It goes on by itself once the position has been good for a moment.')
           : tr('It goes on by itself once that is over.');
       // a reason to go home, but it has no way there (no docking station, no contacts at the back)
-      if (homeReason(e.reason) && e.reason !== 'MANUAL') return tr("It can't go home by itself from here, so it waits where it is until you continue it.");
+      if (homeReason(e.reason) && e.reason !== 'MANUAL') {
+        const wait = tr("It can't go home by itself from here, so it waits where it is until you continue it.");
+        return CONTINUE_WHEN[e.reason] ? `${wait} ${tr(CONTINUE_WHEN[e.reason])}` : wait;
+      }
       return e.resume === 'user' && e.reason !== 'MANUAL' ? tr('It waits where it is until you continue it.') : undefined;
     case 'MOWING_REFUSED':
       return tr('The mower stays where it is. Once the reason is gone, start it again.');

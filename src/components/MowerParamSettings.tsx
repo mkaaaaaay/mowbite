@@ -110,8 +110,8 @@ export function switchKeeping(on: boolean, params: Record<string, unknown>) {
 class NotKept extends Error {}
 
 // sets it on the mower, and has the container keep what the mower took (MowBite OS keeps it itself)
-async function apply(f: ParamField, value: number | boolean) {
-  const applied = await setParams({[f.key]: value});
+async function apply(f: ParamField, value: number | boolean, os = false) {
+  const applied = await setParams({[f.key]: value}, os);
   const took = applied[f.key] ?? value;
   // not known (yet): asked now, a container that keeps an older value of it would set that one again
   if (kept == null && !isMowbiteOs(await systemInfo())) {
@@ -153,7 +153,7 @@ export function ParamRow({field, os}: {field: ParamField; os: boolean}) {
     if (conflict) return;
     setBusy(true);
     try {
-      await apply(f, v);
+      await apply(f, v, os);
     } catch (e) {
       setError(e instanceof NotKept ? e.message : answerError(e));
     } finally {

@@ -77,6 +77,13 @@ describe('a command to the mower', () => {
     sendCommand('mower_logic:idle/start_mowing');
     await settle();
     expect(commandNote()).toMatchObject({text: 'Mowing not started: update running', warn: false, event: 'MOWING_REFUSED', eventId: 'e7'});
+    // a continue turned down in the rain
+    mower.methods.add('mowing.continue');
+    mower.answer = () =>
+      Promise.reject(new RpcError('mowing.continue', -32600, 'rain', {event: 'MOWING_REFUSED', reason: 'RAIN', severity: 'info', resume: 'user'}));
+    sendCommand('mower_logic:mowing/continue');
+    await settle();
+    expect(commandNote()).toMatchObject({text: 'Not continued: rain', event: 'MOWING_REFUSED'});
     mower.answer = () =>
       Promise.reject(
         new RpcError('mowing.pause', -32600, 'wrong state', {event: 'COMMAND_REFUSED', reason: 'WRONG_STATE', severity: 'info', state: 'IDLE'}),
@@ -89,15 +96,15 @@ describe('a command to the mower', () => {
     await settle();
     expect(commandNote()).toMatchObject({text: "The mower didn't answer (yet).", warn: true});
     // the answer a while after
-    mower.calls[2].late?.({state: 'IDLE', sub_state: '', job_id: ''});
+    mower.calls[3].late?.({state: 'IDLE', sub_state: '', job_id: ''});
     expect(commandNote()?.text).toBe('The mower answered late: done after all.');
-    mower.calls[2].late?.(new RpcError('mowing.reset_job', -32600, 'no job', {event: 'COMMAND_REFUSED', reason: 'NO_JOB', severity: 'info'}));
+    mower.calls[3].late?.(new RpcError('mowing.reset_job', -32600, 'no job', {event: 'COMMAND_REFUSED', reason: 'NO_JOB', severity: 'info'}));
     expect(commandNote()?.text).toBe('Not done: there is no interrupted job');
     // a newer command sent meanwhile: the earlier one's late answer doesn't speak for it
     mower.answer = () => Promise.resolve({state: 'DOCKING', sub_state: ''});
     sendCommand('mower_logic:mowing/pause');
     await settle();
-    mower.calls[2].late?.({state: 'IDLE', sub_state: '', job_id: ''});
+    mower.calls[3].late?.({state: 'IDLE', sub_state: '', job_id: ''});
     expect(commandNote()).toBeNull();
   });
 

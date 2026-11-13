@@ -1,6 +1,6 @@
 'use client';
 
-import {describe} from '@/lib/events';
+import {describe, reasonText} from '@/lib/events';
 import {tr} from '@/lib/i18n';
 import {getMqttClient, topicStore, withPrefix} from '@/lib/mqttClient';
 import {useCallback, useEffect, useState, useSyncExternalStore} from 'react';
@@ -46,7 +46,10 @@ function refusalNote(e: RpcError): CommandNote {
   const ev = refusalEvent(e);
   if (!ev) return {at: Date.now(), text: rpcErrorText(e), warn: true};
   const said = describe(ev, undefined, true);
-  return {at: Date.now(), text: said.text, warn: said.severity !== 'info', event: ev.type, eventId: ev.id || undefined};
+  // a continue turned down comes as MOWING_REFUSED like a start
+  const why = e.method === COMMAND[ACTION.resume].method && ev.type === 'MOWING_REFUSED' ? reasonText(ev) : '';
+  const text = why ? tr('Not continued: {reason}', {reason: why}) : said.text;
+  return {at: Date.now(), text, warn: said.severity !== 'info', event: ev.type, eventId: ev.id || undefined};
 }
 
 // a tap on a command button holds back for a while the same button, pause and continue for each other (they swap under

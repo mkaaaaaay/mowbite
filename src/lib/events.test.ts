@@ -217,6 +217,11 @@ describe('heading home and charging on MowBite OS', () => {
     const rain = ev(0, 'STATE', {state: 'PAUSED', reason: 'RAIN', severity: 'info', resume: 'user'});
     expect(describeEvent(rain, undefined, true)).toEqual({text: 'Paused: rain', severity: 'info'});
     expect(explain(rain, undefined, undefined, true)).toContain("can't go home by itself");
+    expect(explain(rain, undefined, undefined, true)).toContain('once the rain has stopped');
+    expect(explain(ev(0, 'STATE', {state: 'PAUSED', reason: 'DARK', resume: 'user'}), undefined, undefined, true)).toContain('mows on in the dark');
+    expect(explain(ev(0, 'STATE', {state: 'PAUSED', reason: 'BATTERY_LOW', resume: 'user'}), undefined, undefined, true)).toBe(
+      "It can't go home by itself from here, so it waits where it is until you continue it.",
+    );
     expect(explain(ev(0, 'STATE', {state: 'PAUSED', reason: 'RAIN', resume: 'auto'}), undefined, undefined, true)).toBe('It goes on by itself once that is over.');
   });
 
@@ -597,6 +602,13 @@ describe('recording an area (MowBite OS)', () => {
     expect(parseEvent('not json')).toBeNull();
     expect(parseEvent('{"t":5}')).toBeNull();
     expect(parseEvent('null')).toBeNull();
+  });
+
+  it('passes over fields it does not know, a newer mower may send more', () => {
+    const e = parseEvent('{"id":"b","t":6,"type":"STATE","state":"PAUSED","reason":"RAIN","severity":"info","resume":"user","task_index":2,"x_new":{"a":1}}')!;
+    expect(describeEvent(e, undefined, true)).toEqual({text: 'Paused: rain', severity: 'info'});
+    const unknown = parseEvent('{"id":"c","t":7,"type":"SOMETHING_NEW","reason":"RAIN","more":[1]}')!;
+    expect(describeEvent(unknown, undefined, true).text).toBe('something new: rain');
   });
 });
 
