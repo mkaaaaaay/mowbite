@@ -1,12 +1,9 @@
 'use client';
 
-import type {Point} from '@/hooks/useMowerMap';
 import {loadJobList, loadJobTrack} from '@/hooks/useMowHistory';
-import {useTrailJob} from '@/hooks/useMowerTrack';
+import {useShownTrips, useTrailJob, type BeforeTrack} from '@/hooks/useMowerTrack';
 import {readMower, writeMower} from '@/lib/mowers';
-import {useEffect, useState} from 'react';
-
-export type BeforeTrack = {points: Point[]; blades: boolean}[];
+import {useEffect, useMemo, useState} from 'react';
 
 // The mow whose leftovers the mower drives now: the one armed from this device, else the newest one before it, the one
 // the container takes them of. Kept on this device with the job of the leftovers, so it's still known once that run is
@@ -65,7 +62,7 @@ export function useLeftoversSource(leftovers: boolean): string | null {
 }
 
 // that mow's track while the trail shown is the one of its leftovers, to see what it left and that the passes go over it
-export function useLeftoversBefore(leftovers: boolean): BeforeTrack | undefined {
+function useLeftoversBefore(leftovers: boolean): BeforeTrack | undefined {
   const source = useLeftoversSource(leftovers);
   const [before, setBefore] = useState<{source: string; track: BeforeTrack} | null>(null);
   useEffect(() => {
@@ -82,4 +79,15 @@ export function useLeftoversBefore(leftovers: boolean): BeforeTrack | undefined 
     };
   }, [source]);
   return source && before?.source === source ? before.track : undefined;
+}
+
+// faded under the trail: the mow whose leftovers it drives (ofLeftovers: it's there) and the job's earlier trips shown
+export function useTrackBefore(leftovers: boolean): {track: BeforeTrack | undefined; ofLeftovers: boolean} {
+  const before = useLeftoversBefore(leftovers);
+  const {shown} = useShownTrips();
+  const track = useMemo(() => {
+    const earlier = shown.flatMap((t) => t.segments);
+    return before || earlier.length ? [...(before ?? []), ...earlier] : undefined;
+  }, [before, shown]);
+  return {track, ofLeftovers: !!before};
 }

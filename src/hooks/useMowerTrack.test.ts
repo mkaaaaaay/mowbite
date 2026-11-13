@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {appendPoint, chunked, jobChange, keepsTrail, recordedPoints, thin, trackPoints, type Point, type TrackChunks} from './useMowerTrack';
+import {appendPoint, chunked, jobChange, keepsTrail, recordedPoints, shownTrips, thin, trackPoints, type Point, type TrackChunks} from './useMowerTrack';
 
 // a mowing pattern with turns, blade changes and jitter, so plenty of points survive the thinning
 function drive(n: number): Point[] {
@@ -111,12 +111,44 @@ describe('whose trail it is', () => {
 
 describe('a recorded track', () => {
   it('counts only the points written for good, the buffer after them is thinned out later', () => {
-    const r = recordedPoints({segments: [{points: [[0, 0], [1, 0]], attributes: {blades: true}}, {points: [[1, 0], [1, 1]]}], buffer: [[1, 2], [1, 3], [1, 4]]}, false);
+    const r = recordedPoints({segments: [{points: [[0, 0], [1, 0]], attributes: {blades: true}}, {points: [[1, 0], [1, 1]], attributes: {}}], buffer: [[1, 2], [1, 3], [1, 4]]}, false);
     expect(r.written).toBe(4);
     expect(r.points).toHaveLength(7);
     expect(r.points[0]).toEqual({x: 0, y: 0, b: true});
     expect(r.points[6]).toEqual({x: 1, y: 4, b: false});
-    expect(recordedPoints({}, true)).toEqual({points: [], written: 0});
+    expect(recordedPoints({}, true)).toEqual({points: [], earlier: [], at: undefined, written: 0});
+  });
+  // a job of three trips: two days ago, this morning (two pieces) and the one going on
+  const job = {
+    segments: [
+      {points: [[0, 0], [1, 0]] as [number, number][], attributes: {blades: true, session_id: 'a'}, started_at: 1000},
+      {points: [[2, 0], [3, 0]] as [number, number][], attributes: {blades: false, session_id: 'b'}, started_at: 170000},
+      {points: [[3, 0], [4, 0]] as [number, number][], attributes: {blades: true, session_id: 'b'}, started_at: 170100},
+      {points: [[5, 0], [6, 0]] as [number, number][], attributes: {blades: true, session_id: 'c'}, started_at: 180000},
+    ],
+    buffer: [[6, 1]] as [number, number][],
+  };
+  it('the trip going on as the trail, the ones before apart', () => {
+    const r = recordedPoints(job, true);
+    expect(r.points.map((p) => p.x)).toEqual([5, 6, 6]);
+    expect(r.written).toBe(8);
+    expect(r.earlier.map((t) => [t.at, t.segments.length])).toEqual([
+      [1000, 1],
+      [170000, 2],
+    ]);
+    expect(r.earlier[1].segments[0]).toEqual({points: [{x: 2, y: 0}, {x: 3, y: 0}], blades: false});
+    expect(r.at).toBe(180000);
+  });
+  it('all one trail without sessions, and what was cleared by hand left out of every trip', () => {
+    expect(recordedPoints({segments: [{points: [[0, 0]], attributes: {}}, {points: [[1, 0]], attributes: {}}]}, true).points).toHaveLength(2);
+    const r = recordedPoints(job, true, 3);
+    expect(r.earlier.map((t) => t.segments.map((s) => s.points.length))).toEqual([[1, 2]]);
+    expect(recordedPoints(job, true, 8).points).toEqual([{x: 6, y: 1, b: true}]);
+  });
+  it('earlier trips of the last two days, all with the whole job', () => {
+    const {earlier} = recordedPoints(job, true);
+    expect(shownTrips(earlier, false, 181000).map((t) => t.at)).toEqual([170000]);
+    expect(shownTrips(earlier, true, 181000)).toHaveLength(2);
   });
 });
 

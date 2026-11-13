@@ -13,7 +13,7 @@ import {useCalibratingByHand} from '@/hooks/useCalibratingByHand';
 import {useComputedSpeed} from '@/hooks/useComputedSpeed';
 import {useEmergencyReasons} from '@/hooks/useEmergencyReasons';
 import {useEmergencyReset, useJustReset} from '@/hooks/useEmergencyReset';
-import {useLeftoversBefore} from '@/hooks/useLeftoversBefore';
+import {useTrackBefore} from '@/hooks/useLeftoversBefore';
 import {lockedAfter, setsOff, TAP_LOCK_MS, useCommandNote, useMowerActions} from '@/hooks/useMowerActions';
 import {useMowerMap} from '@/hooks/useMowerMap';
 import {datumFromParams, numParam, useMowerParams} from '@/hooks/useMowerParams';
@@ -236,7 +236,7 @@ export default function Home() {
   );
   const progress = usePlanProgress(state ?? null, map, recent?.today);
   // driving the leftovers of the last mow: that mow's track, faded on the map
-  const before = useLeftoversBefore(!!progress?.leftovers);
+  const {track: before, ofLeftovers} = useTrackBefore(!!progress?.leftovers);
   const params = useMowerParams();
   const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
   const cameras = useCameras().on;
@@ -414,7 +414,7 @@ export default function Home() {
         label: tr('Progress'),
         value: known ? tr('leftovers {pct} %', {pct: Math.round(progress.fraction * 100)}) + left : tr('leftovers of the last mow'),
         wide: true,
-        extra: before ? <span>{tr('its track faded on the map')}</span> : undefined,
+        extra: ofLeftovers ? <span>{tr('its track faded on the map')}</span> : undefined,
       });
     }
     else if (progress) {
