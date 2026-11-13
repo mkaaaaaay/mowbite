@@ -1,15 +1,20 @@
 import type {Page} from '@playwright/test';
 import {demoDocked, demoHas, expect, SIM, test} from './app';
 
-// the updates on the mower (the demo mower has a made-up updater): each part with what runs, its version and
-// updating it, OpenMower's release with the warning for the planner, only the log to select, the buttons alike
+// the updates on the mower (the demo mower has a made-up updater), laid out like MowBite OS's: how many there are, each
+// part with what runs, its channel and updating it, OpenMower's release with the warning for the planner, only the log
+// to select
 test('the updates on the mower: the parts, a warning for the release, the log', async ({page}) => {
   await page.goto('/settings/#updates');
   const updates = page.locator('#update');
-  for (const name of ['MowBite', 'OpenMower', 'MowBite Planner']) await expect(updates.getByText(name, {exact: true})).toBeVisible();
-  await expect(updates.getByText('Update available').first()).toBeVisible();
+  await expect(updates.locator('[data-part]')).toHaveCount(4);
+  for (const name of ['MowBite', 'OpenMower', 'MowBite Planner', 'MowBite Updater']) await expect(updates.locator('[data-part]').getByText(name, {exact: true})).toBeVisible();
+  await expect(updates.getByText('2 updates available')).toBeVisible();
+  await expect(updates.locator('[data-part="mowbite"]')).toContainText('Update available');
+  await expect(updates.locator('[data-part="openmower"]')).toContainText('Up to date');
+  await expect(updates.locator('iframe')).toHaveCount(0);
 
-  const openmower = updates.getByRole('combobox', {name: 'Version'}).nth(1);
+  const openmower = updates.locator('[data-part="openmower"]').getByRole('combobox', {name: 'Channel'});
   await openmower.selectOption('latest');
   await expect(updates.getByText("With this version the MowBite Planner doesn't work", {exact: false})).toBeVisible();
   await openmower.selectOption('edge');
@@ -20,9 +25,19 @@ test('the updates on the mower: the parts, a warning for the release, the log', 
   await expect(log).toBeVisible();
   expect(await log.evaluate((e) => getComputedStyle(e).userSelect)).toBe('text');
   expect(await updates.getByText('MowBite', {exact: true}).evaluate((e) => getComputedStyle(e).userSelect)).toBe('none');
+});
 
-  const sizes = await updates.locator('button:visible').evaluateAll((bs) => [...new Set(bs.map((b) => `${Math.round(b.getBoundingClientRect().width)}x${Math.round(b.getBoundingClientRect().height)}`))]);
-  expect(sizes).toHaveLength(1);
+// going back asks first, in the part's details
+test('back to the version before, asked first', async ({page}) => {
+  await page.goto('/settings/#updates');
+  const mowbite = page.locator('#update [data-part="mowbite"]');
+  await mowbite.getByRole('button', {name: 'Details and the version before'}).click();
+  await mowbite.getByRole('button', {name: 'Back to the version before'}).click();
+  await expect(mowbite.getByRole('heading')).toHaveText('Take MowBite back to the version before?');
+  await mowbite.getByRole('button', {name: 'Go back'}).click();
+  const run = page.locator('#update [data-update="mowbite"]');
+  await expect(run).toContainText('MowBite goes back');
+  await expect(run.locator('[data-step="back"]')).toBeVisible();
 });
 
 // making room: what nothing needs with the room it frees, a delete only with a second tap a moment later
@@ -46,45 +61,45 @@ test('making room asks before it deletes', async ({page}) => {
   await expect(room.getByText('an image without a name')).toHaveCount(0, {timeout: 15_000});
 });
 
-// an update shows how far it is on a bar in the part's card (the demo mower plays one through in about 20 seconds)
+// an update shows its steps and the one it's on (the demo mower plays one through in about 20 seconds), the other
+// parts only show what runs meanwhile
 test('an update shows how far it is', async ({page}) => {
   await page.goto('/settings/#updates');
   const updates = page.locator('#update');
-  await updates.getByRole('button', {name: 'Update', exact: true}).first().click();
-  const bar = updates.getByRole('progressbar');
-  await expect(bar).toHaveCount(1);
-  await expect(updates.getByText('Updating MowBite (1 of 1)…')).toBeVisible();
-  await expect(bar).toHaveAttribute('aria-label', 'Downloading', {timeout: 10_000});
-  await expect(bar).toHaveAttribute('aria-label', 'Unpacking', {timeout: 15_000});
+  await updates.locator('[data-part="mowbite"]').getByRole('button', {name: 'Update', exact: true}).click();
+  const run = updates.locator('[data-update="mowbite"]');
+  await expect(run).toContainText('MowBite is being updated');
+  await expect(run).toContainText('Updating MowBite (1 of 1)…');
+  await expect(updates.getByRole('button', {name: 'Update', exact: true})).toHaveCount(0);
+  await expect(run.locator('[data-step="download"]')).toContainText('Downloading', {timeout: 10_000});
+  await expect(run.locator('[data-step="download"]')).toContainText('Downloaded', {timeout: 15_000});
+  await expect(run.locator('[data-step="extract"]')).toContainText('Unpacking');
   // (the updater's own one stays)
-  await expect(updates.getByText('Update available')).toHaveCount(1, {timeout: 30_000});
-  await expect(bar).toHaveCount(0);
+  await expect(updates.getByText('1 update available')).toBeVisible({timeout: 30_000});
+  await expect(run).toHaveCount(0);
+  await expect(updates.locator('[data-part="mowbite"]')).toContainText('Just updated');
 });
 
-// the updater itself: its own card, its download on the bar, then its restart on the new version
+// the updater itself: its own card, its download, then its restart on the new version
 test('the updater updates itself', async ({page}) => {
   await page.goto('/settings/#updates');
-  const card = page
-    .locator('#update div')
-    .filter({has: page.getByText('MowBite Updater', {exact: true})})
-    .filter({has: page.getByRole('button', {name: 'Update', exact: true})})
-    .last();
-  await expect(card.getByText('Update available')).toBeVisible();
-  await expect(card.getByText('commit 7cce417', {exact: false})).toBeVisible();
+  const card = page.locator('#update [data-part="updater"]');
+  await expect(card).toContainText('Update available');
+  await expect(card).toContainText('commit 7cce417');
   await card.getByRole('button', {name: 'Update', exact: true}).click();
-  await expect(card.getByRole('progressbar')).toHaveAttribute('aria-label', 'Downloading', {timeout: 10_000});
-  await expect(card.getByText('Restarting the updater, this comes back by itself')).toBeVisible({timeout: 15_000});
-  await expect(card.getByText('Up to date')).toBeVisible({timeout: 20_000});
-  await expect(card.getByText('commit 70cb346', {exact: false})).toBeVisible();
-  await expect(card.getByRole('progressbar')).toHaveCount(0);
+  const run = page.locator('#update [data-update="updater"]');
+  await expect(run.locator('[data-step="download"]')).toContainText('Downloading', {timeout: 10_000});
+  await expect(run).toContainText('Restarting the updater, this comes back by itself', {timeout: 15_000});
+  await expect(card).toContainText('Just updated', {timeout: 20_000});
+  await expect(card).toContainText('commit 70cb346');
+  await expect(run).toHaveCount(0);
 });
 
-// the updater's own page in here: only where it takes taps (MowBite from the updater's host), else MowBite's own cards.
-// made up: MowBite at mowbite.test from the built app, its scripts and the updater's page stand-ins, no mower anywhere
-test.describe("the updater's page in here", () => {
+// MowBite's own cards also with an updater that has a page for in here, its page behind a link. made up: MowBite at
+// mowbite.test from the built app, its scripts and the updater stand-ins, no mower anywhere
+test.describe("the updater's page", () => {
   test.skip(SIM, 'made up, not for a mower');
   const now = () => Math.round(Date.now() / 1000);
-  const UPDATER_PAGE = "<p>the updater's page</p><script>parent.postMessage({mowbiteUpdater: 'height', height: 300}, '*')</script>";
   const CONFIG = "window.__MOWER_CONFIG__ = {mqttUrl: 'ws://mowbite.test:9001'};";
   const conf = {at: '03:00', days: 'daily', mowbite: 'beta', mowbite_auto: 0, openmower: 'edge', openmower_auto: 0, planner_auto: 0};
   async function madeUp(page: Page, app: string, where: string, status: Record<string, string>) {
@@ -93,7 +108,6 @@ test.describe("the updater's page in here", () => {
     await page.routeWebSocket(/.*/, () => {});
     await page.route(/./, async (route) => {
       const url = new URL(route.request().url());
-      if (url.port === '8083') return route.fulfill({contentType: 'text/html', body: UPDATER_PAGE});
       if (url.hostname !== 'mowbite.test') return route.fulfill({status: 404, body: ''});
       if (url.pathname === '/config.js') return route.fulfill({contentType: 'text/javascript', body: CONFIG});
       if (url.pathname === '/cgi-bin/update' && url.search === '?where') return route.fulfill({contentType: 'text/plain', body: where});
@@ -108,16 +122,7 @@ test.describe("the updater's page in here", () => {
     await page.goto('http://mowbite.test:8082/settings/#updates');
   }
 
-  test('embedded from the same host', async ({page, baseURL}) => {
-    await madeUp(page, baseURL!, '', {alive: String(now()), updater_running: '70cb346 2026-10-26'});
-    const frame = page.locator('#update iframe[title="MowBite Updater"]');
-    await expect(frame).toHaveAttribute('src', /^http:\/\/mowbite\.test:8083\/\?embed=1/);
-    await expect(page.frameLocator('#update iframe').getByText("the updater's page")).toBeVisible();
-    await expect(frame).toHaveCSS('height', '300px');
-    await expect(page.locator('#update').getByRole('button', {name: 'Check for updates'})).toHaveCount(0);
-  });
-
-  test("its page on another host only shows, MowBite's own cards instead", async ({page, baseURL}) => {
+  test("MowBite's own cards, its page behind a link", async ({page, baseURL}) => {
     await madeUp(page, baseURL!, 'http://openmower.test:8083', {alive: String(now()), updater_running: '70cb346 2026-10-26'});
     const updates = page.locator('#update');
     await expect(updates.getByRole('button', {name: 'Check for updates'})).toBeVisible();
@@ -130,7 +135,7 @@ test.describe("the updater's page in here", () => {
     await madeUp(page, baseURL!, '', {alive: String(now() - 900), updater_running: '70cb346 2026-10-26'});
     const updates = page.locator('#update');
     await expect(updates.getByText("The updater hasn't given a sign of life since", {exact: false})).toBeVisible();
-    await expect(updates.locator('iframe')).toHaveCount(1);
+    await expect(updates.locator('iframe')).toHaveCount(0);
     await expect(updates.getByText('not set up yet', {exact: false})).toHaveCount(0);
   });
 });

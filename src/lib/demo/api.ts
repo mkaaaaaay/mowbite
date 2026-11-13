@@ -225,6 +225,8 @@ function demoProgress(status: Record<string, string>, now: number) {
         // (the updater updates itself after the others, on a bar of its own)
         status.run_parts = p === 'updater' ? p : demoRun.parts.filter((x) => x !== 'updater').map(part).join(' ');
         status.result = 'running';
+        // (the request it took, as the updater tells it)
+        if (p === 'back') status.taken = `${Math.round(demoRun.t)} back:mowbite`;
         return;
       }
       t -= secs;

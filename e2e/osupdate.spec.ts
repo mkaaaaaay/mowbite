@@ -9,7 +9,9 @@ test.describe('updates of MowBite OS', () => {
     const group = page.locator('#update');
     await expect(group.locator('summary').first()).toContainText('MowBite Updater');
     await expect(group).toContainText('This app');
-    await expect(group.locator('[data-part]')).toHaveCount(0);
+    // the updater's parts, none of MowBite OS
+    await expect(group.locator('[data-part="mowbite"]')).toBeVisible();
+    await expect(group.locator('[data-part="os"]')).toHaveCount(0);
   });
 
   test('each part with what runs, an update waiting for the mower, cancelled, then installed', async ({page}) => {

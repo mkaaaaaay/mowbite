@@ -39,25 +39,17 @@ import {
 import {answerError} from '@/lib/rpcText';
 import {APP_VERSION, FROM_STORE} from '@/lib/updates';
 import Link from 'next/link';
-import {useEffect, useRef, useState, type ReactNode} from 'react';
+import {useEffect, useRef, useState} from 'react';
 import shared from './AutoUpdate.module.css';
 import styles from './OsUpdate.module.css';
+import {Ask, HOUR, Head, Note, OffCard, PART_TEXT, RIGHT_AWAY, ReloadNote, RunHead, Steps, Summary} from './updateParts';
 
-// what each part is and what its update asks of the mower. A part a newer MowBite OS adds has neither
-const PARTS: Record<string, {text: string; hint: string}> = {
-  os: {
-    text: 'The software that drives the mower and mows.',
-    hint: 'The mower has to stand ready in the dock for this. MowBite OS restarts, that takes a few minutes.',
-  },
-  planner: {
-    text: 'Plans the lanes on your areas and the ways between them.',
-    hint: 'The mower has to stand ready in the dock for this, MowBite OS restarts. A mowing job that was started is mowed to the end first.',
-  },
-  app: {text: 'The interface the mower shows in the browser.', hint: 'Works right away, also while the mower mows.'},
-  host: {
-    text: 'The service on the mower that checks for updates and installs them.',
-    hint: "Works right away, the mower doesn't have to stand in the dock. For a few seconds the updater doesn't answer then.",
-  },
+// what each part's update asks of the mower. A part a newer MowBite OS adds has none
+const HINTS: Record<string, string> = {
+  os: 'The mower has to stand ready in the dock for this. MowBite OS restarts, that takes a few minutes.',
+  planner: 'The mower has to stand ready in the dock for this, MowBite OS restarts. A mowing job that was started is mowed to the end first.',
+  app: RIGHT_AWAY,
+  host: "Works right away, the mower doesn't have to stand in the dock. For a few seconds the updater doesn't answer then.",
 };
 
 // a step of an update: still to come or going on, and once it's done
@@ -68,8 +60,6 @@ const STEPS: Record<Step, {label: string; title: string; done?: string}> = {
   switching: {label: 'Switching', title: 'Switched'},
   checking: {label: 'Check', title: 'Check'},
 };
-
-const HOUR = 3600;
 
 // a reason of the updater in words, as a sentence
 const why = (reason: string, type = 'UPDATE') => reasonSentence(reason, type);
@@ -85,20 +75,6 @@ function appFirst(min: string): string {
     ? tr('Needs MowBite {min} or newer, this page is {v}. Update the MowBite App first.', vars)
     : tr('Needs MowBite {min} or newer, this page is {v}. Update the MowBite it comes from first.', vars);
 }
-
-const Tick = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <path d="M5 12l5 5 9-10" />
-  </svg>
-);
-
-// a box with its headline
-const Note = ({look, title, children}: {look: string; title?: ReactNode; children: ReactNode}) => (
-  <span className={[look, styles.note].join(' ')}>
-    {title && <b>{title}</b>}
-    {children}
-  </span>
-);
 
 // how the last update ended when it didn't go through, in a box
 function Result({last, name}: {last: Last; name: string}) {
@@ -132,24 +108,6 @@ function GateNote({reason}: {reason: string}) {
         ? tr("The update goes on as soon as it's done and stands ready in the dock. You can also send it home.")
         : tr('The update goes on as soon as the mower stands ready in the dock.')}
     </Note>
-  );
-}
-
-// asked before going back or installing what was held back
-function Ask({title, yes, locked, onYes, onNo, children}: {title: string; yes: string; locked: boolean; onYes: () => void; onNo: () => void; children: ReactNode}) {
-  return (
-    <div className={styles.ask}>
-      <h3>{title}</h3>
-      {children}
-      <div className={shared.row}>
-        <button className={[shared.control, shared.danger].join(' ')} disabled={locked} onClick={onYes}>
-          {yes}
-        </button>
-        <button className={shared.control} onClick={onNo}>
-          {tr('Cancel')}
-        </button>
-      </div>
-    </div>
   );
 }
 
@@ -208,22 +166,17 @@ function Running({
 
   return (
     <div className={styles.run} data-update={c.id}>
-      <div>
-        <h3>{back ? tr('{name} goes back', {name: c.name}) : tr('{name} is being updated', {name: c.name})}</h3>
-        {target && <span className={shared.dim}>{tr('to {v}', {v: versionLabel(target)})}</span>}
-      </div>
-      <ol className={styles.steps}>
-        {steps.map((step, i) => (
-          <li key={step} data-step={step} className={i < now ? styles.done : i === now ? [styles.now, held ? styles.held : ''].join(' ') : undefined}>
-            <span className={styles.dot}>{i < now ? <Tick /> : i === now ? <i /> : i + 1}</span>
-            <span>
-              <b>{tr(i < now ? STEPS[step].title : STEPS[step].label)}</b>
-              {i < now && STEPS[step].done && <small>{tr(STEPS[step].done!)}</small>}
-              {i === now && detail(step)}
-            </span>
-          </li>
-        ))}
-      </ol>
+      <RunHead name={c.name} back={back} sub={target && tr('to {v}', {v: versionLabel(target)})} />
+      <Steps
+        steps={steps.map((step, i) => ({
+          key: step,
+          label: tr(STEPS[step].label),
+          title: tr(STEPS[step].title),
+          more: i < now ? STEPS[step].done && <small>{tr(STEPS[step].done!)}</small> : detail(step),
+        }))}
+        now={now}
+        held={held}
+      />
       {switched && gated && (
         <Note look={styles.info} title={tr("Don't do anything now, don't switch the mower off.")}>
           {tr("Cancelling isn't possible from here on. If the new version doesn't run properly, the mower goes back to the one before by itself.")}
@@ -285,43 +238,32 @@ function Part({
   const reload = c.id === 'app' && pageFromMower() && !!running?.version && running.version !== APP_VERSION;
 
   const tag = tagOf(a, fresh);
-  const info = PARTS[c.id];
+  const text = PART_TEXT[c.id];
+  const hint = HINTS[c.id];
   const answer = (go?: () => void) => () => {
     setAsk(null);
     go?.();
   };
 
   const head = (
-    <>
-      <div className={shared.head}>
-        <span className={shared.name}>{c.name}</span>
-        <span className={[shared.badge, tag.look].join(' ')}>{tag.text}</span>
-      </div>
-      {!off && info && <span className={shared.dim}>{tr(info.text)}</span>}
-      <div className={styles.facts}>
-        <span>{tr('Runs')}</span>
-        <span>
-          {!running
-            ? tr('nothing yet')
-            : c.source === 'bundled'
-              ? tr('{v}, came with MowBite OS', {v: running.version ?? versionLabel(running)})
-              : versionLabel(running)}
-        </span>
-        {a && (
-          <>
-            <span>{tr('New')}</span>
-            <span>{blocked ? versionLabel(a) : <b>{versionLabel(a)}</b>}</span>
-          </>
-        )}
-      </div>
-    </>
+    <Head name={c.name} tag={tag} text={off ? undefined : text}>
+      <span>{tr('Runs')}</span>
+      <span>
+        {!running
+          ? tr('nothing yet')
+          : c.source === 'bundled'
+            ? tr('{v}, came with MowBite OS', {v: running.version ?? versionLabel(running)})
+            : versionLabel(running)}
+      </span>
+      {a && (
+        <>
+          <span>{tr('New')}</span>
+          <span>{blocked ? versionLabel(a) : <b>{versionLabel(a)}</b>}</span>
+        </>
+      )}
+    </Head>
   );
-  if (off)
-    return (
-      <article className={[shared.part, styles.off].join(' ')} data-part={c.id}>
-        {head}
-      </article>
-    );
+  if (off) return <OffCard id={c.id}>{head}</OffCard>;
 
   return (
     <article className={shared.part} data-part={c.id}>
@@ -332,14 +274,7 @@ function Part({
           {tr('The one MowBite OS brought along runs.')}
         </div>
       )}
-      {reload && (
-        <Note look={styles.info}>
-          {tr('MowBite {v} runs on the mower now, this page is still {page}.', {v: running.version!, page: APP_VERSION})}
-          <button className={[shared.control, shared.primary].join(' ')} onClick={() => window.location.reload()}>
-            {tr('Load again')}
-          </button>
-        </Note>
-      )}
+      {reload && <ReloadNote v={running.version!} page={APP_VERSION} />}
       {blocked && (
         <div className={shared.warn}>
           {blocked.reason === 'ROLLED_BACK_BY_HAND'
@@ -348,7 +283,7 @@ function Part({
         </div>
       )}
       {a && tooOld && <div className={shared.warn}>{appFirst(a.min_app!)}</div>}
-      {a && !blocked && !tooOld && info && <span className={shared.dim}>{tr(info.hint)}</span>}
+      {a && !blocked && !tooOld && hint && <span className={shared.dim}>{tr(hint)}</span>}
       {a && !blocked && (
         <button className={[shared.control, shared.primary].join(' ')} disabled={locked || tooOld} onClick={() => onStart()}>
           {tr('Update')}
@@ -488,15 +423,7 @@ export function OsUpdate() {
           onSkipJob={() => run(() => withoutJobWait(s))}
         />
       ) : (
-        <div className={styles.sum}>
-          <span>
-            <b>{count === 0 ? tr('Everything is up to date') : count === 1 ? tr('1 update available') : tr('{n} updates available', {n: count})}</b>
-            {checked !== null && <span className={shared.dim}>{tr('Checked: {t}', {t: clock(checked)})}</span>}
-          </span>
-          <button className={shared.control} disabled={locked} onClick={() => run(() => checkUpdates().then(() => setChecked(Date.now() / 1000)))}>
-            {tr('Check for updates')}
-          </button>
-        </div>
+        <Summary count={count} checked={checked === null ? null : clock(checked)} locked={locked} onCheck={() => run(() => checkUpdates().then(() => setChecked(Date.now() / 1000)))} />
       )}
       {!online && <span className={shared.dim}>{tr("The mower's updater doesn't answer right now, shown is what it said at {t}.", {t: clock(at)})}</span>}
       {error && <span className={shared.warn}>{error}</span>}

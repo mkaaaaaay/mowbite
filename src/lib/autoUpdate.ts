@@ -1,4 +1,4 @@
-import {dayClock, dayDateYear} from './dates';
+import {dayClock, nearClock, numericDay} from './dates';
 import {fmt, tr} from './i18n';
 import {apiBase, mowerFetch} from './mowers';
 import {containerFetch} from './updates';
@@ -139,19 +139,6 @@ export function updaterAlive(s: UpdateState | null, now = Date.now() / 1000): bo
 // since when it hasn't given a sign of life, null when it never did
 export const silentSince = (s: UpdateState) => (/^\d+$/.test(s.status.alive ?? '') ? when(s.status.alive) : null);
 
-// whether the updater's page (at base) takes taps in a frame on this page: it does for MowBite from its own host, from
-// this computer and in the app, else it only shows. a page from https can't hold one from http at all
-export function frameTakesTaps(base: string, here: {protocol: string; hostname: string}, app: boolean): boolean {
-  let host: string;
-  try {
-    host = new URL(base).hostname;
-  } catch {
-    return false;
-  }
-  if (here.protocol === 'https:' && base.startsWith('http:')) return false;
-  return app || host === here.hostname || here.hostname === 'localhost' || here.hostname === '127.0.0.1';
-}
-
 // what it does right now, for the bar: the part, the step, its percent (null: no telling, the bar moves without one),
 // since when, and of unpacking and building how many of how many. only while a run goes on
 const STEPS = ['prepare', 'download', 'extract', 'build', 'restart', 'wait', 'back', 'data'] as const;
@@ -198,6 +185,48 @@ export function stepLabel(p: Progress): string {
   }
 }
 
+// a step once it's done
+export function stepTitle(step: Step): string {
+  switch (step) {
+    case 'prepare':
+      return tr('Ready');
+    case 'download':
+      return tr('Downloaded');
+    case 'extract':
+      return tr('Unpacked');
+    case 'build':
+      return tr('Built');
+    case 'restart':
+      return tr('Restarted');
+    case 'wait':
+      return tr('Waited');
+    case 'back':
+      return tr('Back on the version before');
+    case 'data':
+      return tr('Its data put back');
+  }
+}
+
+// a part being taken back to the version before, as asked for (taken: "<t> back:<part>")
+export const goingBack = (s: UpdateState, part: Part) => (s.status.taken ?? '').split(' ').slice(1).includes(`back:${part}`);
+
+// the steps a run of a part goes through, the one it's on and whether it goes back: a pull downloads and unpacks, a
+// build builds, the updater itself restarts on its new version. a new version that doesn't come up goes back after the wait
+export function runSteps(s: UpdateState, p: Progress): {steps: Step[]; now: number; back: boolean} {
+  const steps = stepsOf(s, p.part);
+  if (p.step === 'data' && !steps.includes('back')) steps.push('back');
+  if (!steps.includes(p.step)) steps.push(p.step);
+  return {steps, now: steps.indexOf(p.step), back: steps.includes('back')};
+}
+
+function stepsOf(s: UpdateState, part: Part): Step[] {
+  if (goingBack(s, part)) return ['back', 'restart', 'wait'];
+  if (part === 'updater') return ['prepare', 'download', 'restart'];
+  const kind = kindOf(s, part);
+  if (kind === 'build' || kind === 'local') return ['prepare', 'build', 'restart', 'wait'];
+  return ['prepare', 'download', 'extract', 'restart', 'wait'];
+}
+
 // on the bar's right: the percent, how many of how many, or how long the step has taken
 export function stepDetail(p: Progress, now = Date.now() / 1000): string {
   if (p.step === 'extract' && p.of) return tr('{n} of {of} layers', {n: p.done ?? 0, of: p.of});
@@ -207,10 +236,15 @@ export function stepDetail(p: Progress, now = Date.now() / 1000): string {
   return `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
 }
 
-const date = (d: string | undefined) => (d && /^\d{4}-\d\d-\d\d$/.test(d) ? dayDateYear(new Date(`${d}T12:00:00`)) : null);
+const date = (d: string | undefined) => (d && /^\d{4}-\d\d-\d\d$/.test(d) ? numericDay(new Date(`${d}T12:00:00`).getTime() / 1000) : null);
 const when = (t: string | undefined) => (t ? dayClock(Number(t)) : '?');
 
 export type Availability = 'yes' | 'no' | 'switch' | 'failed' | 'unknown' | 'local';
+// something new to install: a newer version, or another channel picked
+export const isNew = (a: Availability | null | undefined) => a === 'yes' || a === 'switch';
+
+// what runs, with the day it was built when it's known
+const ofDay = (what: string, day: string | null) => (day ? tr('{v} of {day}', {v: what, day}) : what);
 
 // what it looks after, in its order, as the updater lists them
 export const partsOf = (s: UpdateState): UpdatePart[] => s.parts ?? [];
@@ -235,12 +269,11 @@ export function partInfo(s: UpdateState, part: Part): PartInfo {
   if (kind === 'build' || kind === 'local') {
     const source = (kind === 'local' ? 'local' : s.status[`${part}_source`] || 'github') as PartInfo['source'];
     const commit = what && what !== '?' ? what.slice(0, 7) : null;
-    const running = [commit ? tr('commit {c}', {c: commit}) : tr('state unknown'), built && tr('built {d}', {d: built})].filter(Boolean).join(' · ');
+    const running = commit ? ofDay(tr('commit {c}', {c: commit}), built) : [tr('state unknown'), built && tr('built {d}', {d: built})].filter(Boolean).join(' · ');
     return {running, available, source};
   }
   if (!what || what === 'none') return {running: null, available: null};
-  const running = kind === 'openmower' ? [what, built && tr('built {d}', {d: built})].filter(Boolean).join(' · ') : [what, built].filter(Boolean).join(' · ');
-  return {running, available};
+  return {running: ofDay(what, built), available};
 }
 
 // what it did last with a part: in passing (ok), something to know (warn) or something that went wrong (error)
@@ -386,13 +419,13 @@ export function selfInfo(s: UpdateState, now = Date.now() / 1000): SelfInfo | nu
   if (!run) return null;
   const [what, day] = run.split(' ');
   const built = date(day);
-  const commit = what && what !== '?' ? tr('commit {c}', {c: what.slice(0, 7)}) : tr('state unknown');
+  const commit = what && what !== '?' ? tr('commit {c}', {c: what.slice(0, 7)}) : null;
   const [avail, ref] = (s.status.updater_available ?? '').split(' ');
   const available = ['yes', 'no', 'failed', 'unknown', 'local'].includes(avail) ? (avail as Availability) : null;
   const [state, t] = (s.status.updater ?? '').split(' ');
   const restarting = state === 'restarting' && /^\d+$/.test(t ?? '') && now - Number(t) < 300 ? Number(t) : null;
   return {
-    running: [commit, built].filter(Boolean).join(' · '),
+    running: commit ? ofDay(commit, built) : [tr('state unknown'), built].filter(Boolean).join(' · '),
     available,
     tag: ref?.split(':').pop() || '–',
     result: restarting ? null : partResult(s, 'updater'),
@@ -420,7 +453,8 @@ export function outOfReach(s: UpdateState): OutOfReach | null {
 // the line that gives the updater a folder, under "volumes:" of its service
 export const reachLine = (dir: string) => `      - ${dir}:${dir}`;
 
-export const lastChecked = (s: UpdateState) => (s.status.checked ? when(s.status.checked) : null);
+export const lastChecked = (s: UpdateState) => (/^\d+$/.test(s.status.checked ?? '') ? nearClock(Number(s.status.checked)) : null);
+
 export const freeMb = (s: UpdateState) => (s.status.disk_free && /^\d+$/.test(s.status.disk_free) ? Number(s.status.disk_free) : null);
 
 // OpenMower's tags to pick: edge, its release, and what its .env has when that's another one

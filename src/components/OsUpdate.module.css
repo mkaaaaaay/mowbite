@@ -51,6 +51,14 @@
   color: var(--text-secondary);
 }
 
+/* a pick box among the facts, as wide as what it shows */
+.facts select {
+  justify-self: start;
+  width: auto;
+  height: 32px;
+  padding-right: 28px;
+}
+
 .facts b,
 .note b,
 .steps b {
