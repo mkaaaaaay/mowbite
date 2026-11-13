@@ -1,7 +1,10 @@
 {
   "name": "mowbite",
-  "version": "1.5.0-beta.1",
-  "osApi": {"min": 11, "max": 24},
+  "version": "1.5.0-preview.4",
+  "osApi": {
+    "min": 11,
+    "max": 24
+  },
   "private": true,
   "license": "GPL-3.0-only",
   "scripts": {
