@@ -201,8 +201,8 @@ const Facts = ({running, channel}: {running: string; channel: ReactNode}) => (
   </>
 );
 
-// updating a part: what it asks of the mower when there's something new, and the button (again: OpenMower's download
-// after its update without a copy)
+// updating a part: what it asks of the mower when there's something new, and the button (again: OpenMower once more,
+// missing after its update without a copy or left out for its firmware)
 function UpdateAction({available, inDock, locked, again, onUpdate}: {available: Availability | null; inDock: boolean; locked: boolean; again?: boolean; onUpdate: () => void}) {
   if (available === 'no' && !again) return null;
   return (
@@ -421,7 +421,7 @@ function PartCard({
       {p.kind === 'openmower' && (s.status[part] ?? '').startsWith('nospace') && <NoKeepOffer s={s} part={part} locked={locked} onYes={onNoKeep} />}
       {error && <span className={local.warn}>{error}</span>}
       {!fixed && (
-        <UpdateAction available={info.available} inDock={p.gate !== 'none'} locked={locked} again={p.kind === 'openmower' && !!missingOf(s)} onUpdate={onUpdate} />
+        <UpdateAction available={info.available} inDock={p.gate !== 'none'} locked={locked} again={p.kind === 'openmower' && (!!missingOf(s) || !!s.status.openmower_fw)} onUpdate={onUpdate} />
       )}
       {!fixed && (
         <label className={local.check}>

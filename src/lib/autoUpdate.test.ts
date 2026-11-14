@@ -239,6 +239,8 @@ describe('the updater on the mower', () => {
     expect(selfInfo(state({updater_running: '70cb346 2026-10-26', updater: 'restarting 1000'}), 1400)!.restarting).toBeNull();
     expect(selfInfo(state({updater_running: '70cb346 2026-10-26', updater: 'updated 1792831337 70cb346'}))!.result!.text).toContain('70cb346');
     expect(selfInfo(state({updater_running: '70cb346 2026-10-26', updater: 'rolled_back 1792831337'}))!.result!.text).toContain("didn't start");
+    // asked and nothing new: said once
+    expect(selfInfo(state({updater_running: '70cb346 2026-10-26', updater: 'current', updater_at: '1792831337'}))!.result).toMatchObject({level: 'ok', text: 'nothing new, it was up to date'});
     const run = state({result: 'running', run_parts: 'updater', progress: 'updater download 40 1000'});
     expect(runResult(run)).toBe('Updating MowBite Updater (1 of 1)…');
   });
