@@ -1,6 +1,7 @@
 import {apiBase, mowerFetch} from './mowers';
 import {RPC} from './openmower';
 import {callRpc, rpcMethods} from './rpc';
+import {containerFetch} from './updates';
 
 // Push messages through ntfy, sent by the mower when it needs someone: to a topic, and to the phones signed up in
 // MowBite's app (their UnifiedPush address, lib/push.ts). The container (docker/notify.sh) keeps the settings as lines
@@ -195,12 +196,13 @@ export function toOs(c: NotifyConfig) {
 // undefined: the mower didn't answer
 export async function loadNotify(fallback: NotifyConfig): Promise<NotifyConfig | null | undefined> {
   if (await notifyOnOs()) return callRpc<OsNotify>(RPC.notifyGet).then((r) => fromOs(r, fallback), () => undefined);
-  let res: Response;
+  let res: Response | null;
   try {
-    res = await mowerFetch(endpoint(), {cache: 'no-store'});
+    res = await containerFetch(endpoint(), {cache: 'no-store'});
   } catch {
     return undefined;
   }
+  if (!res) return null;
   if (res.status >= 500) return undefined;
   if (!res.ok || !res.headers.get('content-type')?.includes('text/plain')) return null;
   return parseNotify(await res.text(), fallback);
@@ -263,8 +265,8 @@ export interface NotifyLog {
 export async function notifyLog(): Promise<NotifyLog[]> {
   try {
     if (await notifyOnOs()) return await callRpc<NotifyLog[]>(RPC.notifyLog, {limit: 50});
-    const res = await mowerFetch(`${endpoint()}?log`, {cache: 'no-store'});
-    if (!res.ok) return [];
+    const res = await containerFetch(`${endpoint()}?log`, {cache: 'no-store'});
+    if (!res?.ok) return [];
     return (await res.text())
       .split('\n')
       .map((l) => l.match(/^(\d+) (sent|failed) ?(.*)$/))
