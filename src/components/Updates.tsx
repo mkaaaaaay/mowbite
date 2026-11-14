@@ -231,7 +231,7 @@ export function LegalFooter({className}: {className?: string}) {
         {tr('Privacy policy')}
       </a>
       <span>
-        © 2026 mkay · {tr('Free software under the GPL-3.0: you may pass it on and change it under its terms. It comes without any warranty.')}{' '}
+        © 2026 mkay · {tr('Under the PolyForm Noncommercial 1.0.0: free to use, change and pass on for noncommercial purposes, commercial use needs a license of its own. It comes without any warranty.')}{' '}
         <a href={LICENSE_URL} target="_blank" rel="noreferrer">
           {tr('License and source code')}
         </a>

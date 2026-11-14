@@ -3,7 +3,7 @@
   "version": "1.5.0-beta.1",
   "osApi": {"min": 11, "max": 27},
   "private": true,
-  "license": "GPL-3.0-only",
+  "license": "PolyForm-Noncommercial-1.0.0",
   "scripts": {
     "dev": "next dev",
     "prebuild": "node scripts/version.mjs",

@@ -1644,7 +1644,8 @@ const de: Record<string, string> = {
   "For the body only once the planner has the mower sizes.": "Für den Körper erst, wenn der Planer die Mäher-Maße hat.",
   "The blade is not set in the planner, it plans with {a} cm. Lanes are spaced by it: set your mower's blade in the settings under Mower sizes.": "Das Messer ist im Planer nicht eingestellt, er plant mit {a} cm. Danach richtet sich der Bahnabstand: Stell das Messer deines Mähers in den Einstellungen unter Mäher-Maße ein.",
   'Privacy policy': 'Datenschutzerklärung',
-  'Free software under the GPL-3.0: you may pass it on and change it under its terms. It comes without any warranty.': 'Freie Software unter der GPL-3.0: Du darfst sie unter ihren Bedingungen weitergeben und ändern. Sie kommt ohne jede Gewährleistung.',
+  'Under the PolyForm Noncommercial 1.0.0: free to use, change and pass on for noncommercial purposes, commercial use needs a license of its own. It comes without any warranty.':
+    'Unter der PolyForm Noncommercial 1.0.0: frei nutzbar, änderbar und weitergebbar für nichtkommerzielle Zwecke, kommerzielle Nutzung braucht eine eigene Lizenz. Ohne jede Gewährleistung.',
   'License and source code': 'Lizenz und Quellcode',
   'Demo: a made-up mower, nothing is saved': 'Demo: ein erfundener Mäher, nichts wird gespeichert',
   'Leave': 'Verlassen',

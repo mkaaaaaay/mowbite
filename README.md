@@ -104,12 +104,15 @@ The Android app is the same build packed with [Capacitor](https://capacitorjs.co
 
 Copyright (C) 2026 mkay
 
-GPL-3.0, see [LICENSE](LICENSE). MowBite comes without any warranty. On top of the GPL, these terms
-under its section 7 apply to versions that are passed on with changes:
+[PolyForm Noncommercial 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0), see
+[LICENSE](LICENSE). You may use, change and pass on MowBite for any noncommercial purpose. Commercial use
+needs a separate license from the licensor. MowBite comes without any warranty.
 
-- The license doesn't cover the name MowBite or its logo (7e). A changed version needs a name and
-  logo of its own and mustn't pass itself off as MowBite or as made by its author (7c).
-- "© 2026 mkay" stays in the legal notices the app shows, next to the changed version's own (7b).
+- The license doesn't cover the name MowBite or its logo. A changed version needs a name and logo of its
+  own and mustn't pass itself off as MowBite or as made by its author.
+- Versions up to 1.5.0-preview.5 were released under GPL-3.0 and stay under it.
+- The container image also holds BusyBox and the Mosquitto clients as separate programs under their own
+  licenses (GPL-2.0, EPL-2.0/EDL-1.0).
 
 Built-in aerial imagery comes from the official surveying and mapping agencies under their open
 data licenses (CC BY 4.0, CC0, dl-de/by-2-0, dl-de/zero-2-0, Etalab 2.0, the Flemish free reuse
