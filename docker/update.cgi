@@ -46,7 +46,7 @@ case "$REQUEST_METHOD $QUERY_STRING" in
 "POST now" | "POST check" | "POST room" | "POST free=cache" | "POST free=all" | "POST self" | "POST calib=back")
   plain "$(post "$QUERY_STRING" "")"
   ;;
-"POST now="* | "POST back="*)
+"POST now="* | "POST back="* | "POST nokeep="*)
   printf '%s' "${QUERY_STRING#*=}" | grep -Eqx '[a-z][a-z0-9_]{0,40}' || plain bad
   plain "$(post "$QUERY_STRING" "")"
   ;;

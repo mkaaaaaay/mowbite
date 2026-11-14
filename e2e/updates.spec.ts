@@ -27,13 +27,26 @@ test('the updates on the mower: the parts, a warning for the release, the log', 
   expect(await updates.getByText('MowBite', {exact: true}).evaluate((e) => getComputedStyle(e).userSelect)).toBe('none');
 });
 
-// a look for updates asked for: the button says so and stays locked until the updater has looked
+// a look for updates asked for: the button says so and stays locked from the tap until the updater has looked, also
+// while it only noted the request (taken). an update can still be asked for, the look stops for it
 test('checking for updates shows while the updater looks', async ({page}) => {
   await page.goto('/settings/#update');
   const updates = page.locator('#update');
   await updates.getByRole('button', {name: 'Check for updates'}).click();
   await expect(updates.getByRole('button', {name: 'Checking…'})).toBeDisabled();
+  await expect(updates.getByText('Looking for updates', {exact: true})).toBeVisible();
+  await page.waitForTimeout(1500);
+  await expect(updates.getByRole('button', {name: 'Checking…'})).toBeDisabled();
+  await expect(updates.locator('[data-part="mowbite"]').getByRole('button', {name: 'Update', exact: true})).toBeEnabled();
   await expect(updates.getByRole('button', {name: 'Check for updates'})).toBeEnabled({timeout: 15000});
+});
+
+// another channel picked: looked for at once, as on the updater's page
+test('another channel looks for updates', async ({page}) => {
+  await page.goto('/settings/#update');
+  const updates = page.locator('#update');
+  await updates.locator('[data-part="mowbite"]').getByRole('combobox', {name: 'Channel'}).selectOption('stable');
+  await expect(updates.getByRole('button', {name: 'Checking…'})).toBeDisabled();
 });
 
 // going back asks first, in the part's details
@@ -67,7 +80,27 @@ test('making room asks before it deletes', async ({page}) => {
   await expect(room.getByText('an image without a name')).toBeVisible();
   await page.waitForTimeout(700);
   await item.getByRole('button', {name: 'Really delete?'}).click();
+  // (where it was tapped, the buttons locked until it's done)
+  await expect(item.getByRole('button', {name: 'Deleting…'})).toBeDisabled();
+  await expect(item.getByRole('progressbar')).toBeVisible();
+  await expect(room.getByRole('button', {name: 'Look again'})).toBeDisabled();
   await expect(room.getByText('an image without a name')).toHaveCount(0, {timeout: 15_000});
+  await expect(room.getByRole('button', {name: 'Look again'})).toBeEnabled();
+});
+
+// a look for room: on its card, locked until it's done
+test('looking for room again shows where it was tapped', async ({page}) => {
+  await page.goto('/settings/#update');
+  // (its button changes its name meanwhile)
+  const room = page
+    .locator('#update div')
+    .filter({has: page.getByText('Make room', {exact: true})})
+    .filter({has: page.getByText('Build cache', {exact: true})})
+    .last();
+  await room.getByRole('button', {name: 'Look again'}).click();
+  await expect(room.getByRole('button', {name: 'Looking…'})).toBeDisabled();
+  await expect(room.getByText('Looking what can go…')).toBeVisible();
+  await expect(room.getByRole('button', {name: 'Look again'})).toBeEnabled({timeout: 10_000});
 });
 
 // an update shows its steps and the one it's on (the demo mower plays one through in about 20 seconds), the other
@@ -77,7 +110,14 @@ test('an update shows how far it is', async ({page}) => {
   const updates = page.locator('#update');
   await updates.locator('[data-part="mowbite"]').getByRole('button', {name: 'Update', exact: true}).click();
   const run = updates.locator('[data-update="mowbite"]');
+  // at once in the card's place, also while the updater only noted it, with a bar on the step it's on
   await expect(run).toContainText('MowBite is being updated');
+  await expect(run.locator('[data-step="prepare"]')).toContainText('Getting ready');
+  await expect(run.getByRole('progressbar')).toBeVisible();
+  await expect(updates.locator('[data-part="mowbite"]')).toHaveCount(0);
+  await page.waitForTimeout(1500);
+  await expect(updates.getByRole('button', {name: /^(Update|Update all)$/})).toHaveCount(0);
+  await expect(updates.getByRole('button', {name: 'Check for updates'})).toBeDisabled();
   await expect(run).toContainText('Updating MowBite (1 of 1)…');
   await expect(updates.getByRole('button', {name: 'Update', exact: true})).toHaveCount(0);
   await expect(run.locator('[data-step="download"]')).toContainText('Downloading', {timeout: 10_000});
@@ -111,7 +151,15 @@ test.describe("the updater's page", () => {
   const now = () => Math.round(Date.now() / 1000);
   const CONFIG = "window.__MOWER_CONFIG__ = {mqttUrl: 'ws://mowbite.test:9001'};";
   const conf = {at: '03:00', days: 'daily', mowbite: 'beta', mowbite_auto: 0, openmower: 'edge', openmower_auto: 0, planner_auto: 0};
-  async function madeUp(page: Page, app: string, where: string, status: Record<string, string>) {
+  const OPENMOWER = [{id: 'openmower', name: 'OpenMower', kind: 'openmower', container: 'open_mower_ros', gate: 'mower'}];
+  // (posts: the requests sent, each answered ok; down: no answer then)
+  async function madeUp(
+    page: Page,
+    app: string,
+    where: string,
+    status: Record<string, string>,
+    {parts, posts, down}: {parts?: object[]; posts?: string[]; down?: () => boolean} = {},
+  ) {
     await page.addInitScript(() => localStorage.removeItem('mower'));
     // (mqtt goes nowhere: nothing answers it)
     await page.routeWebSocket(/.*/, () => {});
@@ -120,9 +168,14 @@ test.describe("the updater's page", () => {
       if (url.hostname !== 'mowbite.test') return route.fulfill({status: 404, body: ''});
       if (url.pathname === '/config.js') return route.fulfill({contentType: 'text/javascript', body: CONFIG});
       if (url.pathname === '/cgi-bin/update' && url.search === '?where') return route.fulfill({contentType: 'text/plain', body: where});
+      if (url.pathname === '/cgi-bin/update' && route.request().method() === 'POST') {
+        posts?.push(url.search.slice(1));
+        return route.fulfill({contentType: 'text/plain', body: 'ok\n'});
+      }
       if (url.pathname === '/cgi-bin/update') {
+        if (down?.()) return route.fulfill({status: 502, body: ''});
         const all = {embed: '1', mowbite_running: '1.4.0 2026-10-24', mowbite_available: 'no ghcr.io/mkaaaaaay/mowbite:latest', ...status};
-        return route.fulfill({json: {conf, requested: false, status: all, log: []}});
+        return route.fulfill({json: {conf, parts, requested: !!posts?.length, status: all, log: []}});
       }
       if (url.pathname.startsWith('/cgi-bin/')) return route.fulfill({contentType: 'text/plain', body: ''});
       // the built app, as the container hands it out
@@ -138,6 +191,68 @@ test.describe("the updater's page", () => {
     await expect(updates.locator('iframe')).toHaveCount(0);
     const own = updates.getByRole('link', {name: 'http://openmower.test:8083'});
     await expect(own).toHaveAttribute('href', /^http:\/\/openmower\.test:8083\/\?theme=/);
+  });
+
+  // OpenMower without room for both versions: deleting the one that runs first, offered on its card, two taps, one
+  // request; the run then shows on the card at once
+  test('OpenMower without a copy, asked on its card', async ({page, baseURL}) => {
+    const posts: string[] = [];
+    const status = {
+      alive: String(now()),
+      openmower_running: 'edge 2026-11-03',
+      openmower_available: 'yes ghcr.io/clemenselflein/open_mower_ros:edge',
+      openmower: 'nospace 7179 2942',
+      openmower_nokeep: 'yes 5800 planner - -',
+    };
+    const parts = [...OPENMOWER, {id: 'planner', name: 'MowBite Planner', kind: 'build', container: 'mowbite_planner', gate: 'mower'}];
+    await madeUp(page, baseURL!, '', status, {parts, posts});
+    const card = page.locator('#update [data-part="openmower"]');
+    await expect(card).toContainText("Both versions don't fit side by side.");
+    await expect(card).toContainText("What's built on OpenMower (MowBite Planner) is deleted with it");
+    await card.getByRole('button', {name: 'Delete the old version and update'}).dblclick();
+    await expect(card.getByRole('button', {name: 'Really delete it first?'})).toBeVisible();
+    expect(posts).toEqual([]);
+    await page.waitForTimeout(700);
+    await card.getByRole('button', {name: 'Really delete it first?'}).click();
+    const run = page.locator('#update [data-update="openmower"]');
+    await expect(run).toContainText('OpenMower is being updated');
+    expect(posts).toEqual(['nokeep=openmower']);
+  });
+
+  // OpenMower missing after it: the next try, the commands by hand, and its download again
+  test('OpenMower missing after its update without a copy', async ({page, baseURL}) => {
+    const posts: string[] = [];
+    const status = {
+      alive: String(now()),
+      openmower_running: 'missing',
+      openmower_available: 'unknown ghcr.io/clemenselflein/open_mower_ros:edge',
+      openmower_missing: '3 - new ghcr.io/x/om:edge ghcr.io/x/om@sha256:1 ghcr.io/x/om:edge /opt/stacks/openmower',
+    };
+    await madeUp(page, baseURL!, '', status, {parts: OPENMOWER, posts});
+    const card = page.locator('#update [data-part="openmower"]');
+    await expect(card).toContainText("OpenMower isn't on the mower right now, the mower can't mow.");
+    await expect(card).toContainText('No more tries by itself: tap Try again.');
+    await expect(card.locator('pre').first()).toHaveText('docker pull ghcr.io/x/om:edge && cd /opt/stacks/openmower && docker compose up -d');
+    await card.getByRole('button', {name: 'Try again'}).dblclick();
+    await expect(page.locator('#update [data-update="openmower"]')).toBeVisible();
+    expect(posts).toEqual(['now=openmower']);
+  });
+
+  // an updater that stops answering for a while: said, the buttons locked, what came last stays
+  test('no answer from the updater for a while', async ({page, baseURL, errors}) => {
+    let quiet = false;
+    const status = {alive: String(now()), updater_running: '70cb346 2026-10-26', updater_available: 'yes ghcr.io/mkaaaaaay/mowbite-updater:latest'};
+    await madeUp(page, baseURL!, '', status, {down: () => quiet});
+    const card = page.locator('#update [data-part="updater"]');
+    await expect(card.getByRole('button', {name: 'Update', exact: true})).toBeEnabled();
+    quiet = true;
+    await expect(page.locator('#update').getByText('No connection to the updater', {exact: false})).toBeVisible({timeout: 20_000});
+    await expect(card.getByRole('button', {name: 'Update', exact: true})).toBeDisabled();
+    quiet = false;
+    await expect(card.getByRole('button', {name: 'Update', exact: true})).toBeEnabled({timeout: 10_000});
+    // (the answers it didn't get, nothing else)
+    expect(errors.filter((e) => !e.includes('502'))).toEqual([]);
+    errors.length = 0;
   });
 
   test("one that's quiet for a while is still there, not one to set up", async ({page, baseURL}) => {

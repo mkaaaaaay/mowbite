@@ -214,9 +214,21 @@ const DEMO_STEPS: Record<string, DemoStep[]> = {
 let demoRun: {t: number; parts: string[]} | null = null;
 // a look for updates asked for: the demo mower looks for 8 seconds and finds nothing new
 let demoLook = 0;
+// a request as the updater takes it: noted (taken) for 2 seconds before its run, look or deletion shows, like the
+// updater's first look at the mower; deleting and a look for room show nothing else until they're done
+const TAKE = 2;
+let demoTaken: {t: number; word: string; done?: () => void} | null = null;
+const take = (word: string, done?: () => void) => (demoTaken = {t: Date.now() / 1000, word, done});
 const demoDone: Record<string, number> = {};
 function demoProgress(status: Record<string, string>, now: number) {
-  if (!demoRun) return;
+  if (demoTaken) {
+    if (now - demoTaken.t < TAKE) status.taken = `${Math.round(demoTaken.t)} ${demoTaken.word}`;
+    else {
+      demoTaken.done?.();
+      demoTaken = null;
+    }
+  }
+  if (!demoRun || now < demoRun.t) return;
   const part = (p: string) => (p === 'back' ? 'mowbite' : p);
   let t = now - demoRun.t;
   for (const p of demoRun.parts) {
@@ -227,8 +239,6 @@ function demoProgress(status: Record<string, string>, now: number) {
         // (the updater updates itself after the others, on a bar of its own)
         status.run_parts = p === 'updater' ? p : demoRun.parts.filter((x) => x !== 'updater').map(part).join(' ');
         status.result = 'running';
-        // (the request it took, as the updater tells it)
-        if (p === 'back') status.taken = `${Math.round(demoRun.t)} back:mowbite`;
         return;
       }
       t -= secs;
@@ -292,6 +302,8 @@ function demoUpdate(): Record<string, unknown> {
     disk_free: '2380',
     result: 'done',
   };
+  // (a run that ends now: what came of it in the same answer)
+  demoProgress(status, Date.now() / 1000);
   if (demoDone.mowbite) Object.assign(status, {mowbite: `updated ${demoDone.mowbite} ${version}`, mowbite_available: 'no ghcr.io/mkaaaaaay/mowbite:latest'});
   if (demoDone.back) status.mowbite = `back ${demoDone.back} ${version}`;
   if (demoDone.openmower) status.openmower = 'current';
@@ -302,9 +314,8 @@ function demoUpdate(): Record<string, unknown> {
   }
   if (demoDone.planner)
     Object.assign(status, {planner: `updated ${demoDone.planner} 3f2a9c1`, planner_running: `3f2a9c1e5b7d ${day(0)}`, planner_available: 'no main'});
-  if (now - demoLook < 8) status.looking = String(demoLook);
-  else if (demoLook) status.checked = String(demoLook + 8);
-  demoProgress(status, Date.now() / 1000);
+  if (now >= demoLook && now - demoLook < 8) status.looking = String(demoLook);
+  else if (demoLook && now >= demoLook) status.checked = String(demoLook + 8);
   demoCalib(status, now);
   return {
     conf: {...c, mowbite_auto: Number(c.mowbite_auto), openmower_auto: Number(c.openmower_auto), planner_auto: Number(c.planner_auto)},
@@ -406,16 +417,24 @@ export async function demoFetch(url: string, init?: RequestInit): Promise<Respon
       }
       if (post && q.get('free')) {
         const what = q.get('free')!;
-        if (what === 'cache') cache = 0;
-        else room = what === 'all' ? [] : room.filter((i) => `img:${i.id}` !== what);
+        take(`free:${what.split(':')[0]}`, () => {
+          if (what === 'cache') cache = 0;
+          else room = what === 'all' ? [] : room.filter((i) => `img:${i.id}` !== what);
+        });
         return text('ok');
       }
-      if (post && q.has('check')) demoLook = Math.round(Date.now() / 1000);
-      // an update or going back: played through in a few seconds, all of them with the updater itself last
+      if (post && q.has('room')) take('room');
+      if (post && q.has('check')) {
+        take('check');
+        demoLook = Math.round(Date.now() / 1000) + TAKE;
+      }
+      // an update or going back: played through in a few seconds after it took it, all of them with the updater itself
+      // last
       if (post && (q.has('now') || q.has('back') || q.has('self')) && !demoRun) {
         const one = q.get('now');
+        take(q.has('back') ? 'back:mowbite' : q.has('self') ? 'self' : one ? `now:${one}` : 'now:all');
         demoRun = {
-          t: Date.now() / 1000,
+          t: Date.now() / 1000 + TAKE,
           parts: q.has('back') ? ['back'] : q.has('self') ? ['updater'] : one && one in DEMO_STEPS ? [one] : ['openmower', 'planner', 'mowbite', 'updater'],
         };
       }

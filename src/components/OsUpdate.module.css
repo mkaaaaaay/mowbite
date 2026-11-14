@@ -263,6 +263,68 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* how far the step it's on is */
+.bar {
+  display: grid;
+  gap: 4px;
+}
+
+.track {
+  position: relative;
+  display: block;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--well);
+  overflow: hidden;
+}
+
+.fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width 0.6s ease;
+}
+
+/* no telling how far: a piece of the bar runs along */
+.moving {
+  position: absolute;
+  top: 0;
+  left: -35%;
+  width: 35%;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  animation: moving 1.4s ease-in-out infinite;
+}
+
+@keyframes moving {
+  to {
+    left: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .moving {
+    left: 0;
+    width: 100%;
+    opacity: 0.5;
+    animation: none;
+  }
+}
+
+/* something it does without steps: what, and the bar */
+.busy {
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+}
+
+.busy small {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
 /* asked before going back or installing what was held back */
 .ask {
   display: grid;

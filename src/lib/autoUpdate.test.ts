@@ -1,6 +1,10 @@
 import {describe, expect, it} from 'vitest';
 import {
   looking,
+  missingOf,
+  noKeep,
+  taken,
+  working,
   freeMb,
   kindOf,
   openMowerChoices,
@@ -44,6 +48,34 @@ describe('the updater on the mower', () => {
     };
     expect(roomLoose(s).map((i) => i.id)).toEqual(['c', 'd', 'e']);
     expect(roomTotal(roomLoose(s))).toBe(120);
+  });
+
+  it("is on something from a request until it's done with it: asked, taken, a run, a look", () => {
+    const now = 10_000;
+    const at = (status: Record<string, string>, requested = false) => working({...state({alive: String(now), ...status}), requested}, now);
+    expect(at({}, true)).toBe(true);
+    // (taken before its run or look shows, and room and free all the time)
+    expect(taken(state({taken: `${now - 5} free:img`}), now)).toEqual({since: now - 5, what: ['free:img']});
+    expect(at({taken: `${now - 5} room`})).toBe(true);
+    expect(at({result: 'running'})).toBe(true);
+    expect(at({looking: String(now - 20)})).toBe(true);
+    expect(at({updater: `restarting ${now - 20}`, updater_running: '7cce417 2026-11-14'})).toBe(true);
+    expect(at({result: 'done'})).toBe(false);
+    // (one left from a stop halfway an hour ago isn't)
+    expect(at({taken: `${now - 4000} now:mowbite`})).toBe(false);
+    expect(taken(state({taken: ''}), now)).toBeNull();
+  });
+
+  it("offers OpenMower without a copy with what goes, or says why not, and how it's put back by hand", () => {
+    const s = state({openmower_nokeep: 'yes 5800 planner rb-1:x,mowbite_planner:edge -'});
+    expect(noKeep(s, 'openmower')).toEqual({ok: true, size: '6.1 GB', parts: ['MowBite Planner'], back: ['rb-1:x', 'mowbite_planner:edge'], gone: []});
+    expect(noKeep(state({openmower_nokeep: 'no room 7179 2942'}), 'openmower')).toEqual({ok: false, why: expect.stringContaining('needs about 7.5 GB')});
+    expect(noKeep(state({}), 'openmower')).toBeNull();
+    const m = missingOf(state({openmower_missing: '2 - new ghcr.io/x/om:edge ghcr.io/x/om@sha256:1 ghcr.io/x/om:edge /opt/stacks/openmower'}))!;
+    expect(m.next).toBeNull();
+    expect(m.fresh).toBe('docker pull ghcr.io/x/om:edge && cd /opt/stacks/openmower && docker compose up -d');
+    expect(m.before).toBe('docker pull ghcr.io/x/om@sha256:1 && docker tag ghcr.io/x/om@sha256:1 ghcr.io/x/om:edge && cd /opt/stacks/openmower && docker compose up -d');
+    expect(partInfo(state({openmower_running: 'missing'}), 'openmower').running).toContain("isn't on the mower");
   });
 
   it('counts as there while it wrote alive lately, longer while it updates', () => {
@@ -106,14 +138,16 @@ describe('the updater on the mower', () => {
     const run = (progress: string, run_parts = 'openmower planner mowbite') => state({result: 'running', run_parts, progress});
     const download = progressOf(run('openmower download 37 1000'))!;
     expect(download).toMatchObject({part: 'openmower', step: 'download', pct: 37, since: 1000});
-    expect(stepDetail(download)).toBe('37 %');
-    expect(stepDetail(progressOf(run('openmower extract 50 1000 3 12'))!)).toBe('3 of 12 layers');
-    expect(stepDetail(progressOf(run('planner build 44 1000 4 9'))!)).toBe('step 5 of 9');
+    expect(stepDetail(download, 1000)).toBe('37 % · 0:00');
+    expect(stepDetail(progressOf(run('openmower extract 50 1000 3 12'))!, 1010)).toBe('3 of 12 layers · 0:10');
+    expect(stepDetail(progressOf(run('planner build 44 1000 4 9'))!, 1000)).toBe('step 5 of 9 · 0:00');
     // no telling how far: the time it has taken
     const wait = progressOf(run('openmower wait - 1000'))!;
     expect(wait.pct).toBeNull();
     expect(stepLabel(wait)).toContain('OpenMower');
     expect(stepDetail(wait, 1075)).toBe('1:15');
+    // without a time not known
+    expect(stepDetail({part: '', step: 'prepare', pct: null, since: 0}, 1075)).toBe('');
     expect(runResult(run('planner build 44 1000 4 9'))).toBe('Updating MowBite Planner (2 of 3)…');
     // only while it runs, and only what it knows
     expect(progressOf(state({result: 'done', progress: 'mowbite download 37 1000'}))).toBeNull();
@@ -122,16 +156,16 @@ describe('the updater on the mower', () => {
   });
 
   it('lists the steps of a run by how the part is made, a way back after the wait', () => {
-    const at = (progress: string, more: Record<string, string> = {}) => {
-      const s = state({result: 'running', run_parts: 'mowbite planner', progress, ...more});
-      return runSteps(s, progressOf(s)!);
+    const at = (progress: string, asked = false) => {
+      const s = state({result: 'running', run_parts: 'mowbite planner', progress});
+      return runSteps(s, progressOf(s)!, asked);
     };
     expect(at('mowbite download 37 1000')).toEqual({steps: ['prepare', 'download', 'extract', 'restart', 'wait'], now: 1, back: false});
     expect(at('planner build 44 1000 4 9')).toEqual({steps: ['prepare', 'build', 'restart', 'wait'], now: 1, back: false});
     // the new version didn't come up
     expect(at('mowbite back - 1000')).toEqual({steps: ['prepare', 'download', 'extract', 'restart', 'wait', 'back'], now: 5, back: true});
     // asked to go back
-    expect(at('mowbite restart - 1000', {taken: '1000 back:mowbite'})).toEqual({steps: ['back', 'restart', 'wait'], now: 1, back: true});
+    expect(at('mowbite restart - 1000', true)).toEqual({steps: ['back', 'restart', 'wait'], now: 1, back: true});
   });
 
   it('says when it went back, or could not', () => {

@@ -71,6 +71,27 @@ export function Steps({steps, now, held}: {steps: StepRow[]; now: number; held?:
   );
 }
 
+// how far the step it's on is: the bar, moving while there's no percent, and under it the percent or how many of how
+// many and its time
+export function Bar({label, pct, detail}: {label: string; pct: number | null; detail: string}) {
+  return (
+    <span className={styles.bar}>
+      <span className={styles.track} role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct ?? undefined} aria-valuetext={detail || undefined}>
+        {pct === null ? <i className={styles.moving} /> : <i className={styles.fill} style={{width: `${pct}%`}} />}
+      </span>
+      {detail && <small>{detail}</small>}
+    </span>
+  );
+}
+
+// something it does that has no steps (a look for updates, for room, deleting): what, and the bar
+export const Busy = ({label, detail}: {label: string; detail: string}) => (
+  <div className={styles.busy}>
+    <b>{label}</b>
+    <Bar label={label} pct={null} detail={detail} />
+  </div>
+);
+
 export const HOUR = 3600;
 
 // what an update asks of the mower
@@ -100,12 +121,26 @@ export const OffCard = ({id, children}: {id: string; children: ReactNode}) => (
   </article>
 );
 
-// how many updates there are, when the mower last looked and the button that looks again
-export function Summary({count, checked, locked, checking, onCheck}: {count: number; checked: string | null; locked: boolean; checking?: boolean; onCheck: () => void}) {
+// how many updates there are (or what runs right now), when the mower last looked and the button that looks again
+export function Summary({
+  count,
+  doing,
+  checked,
+  locked,
+  checking,
+  onCheck,
+}: {
+  count: number;
+  doing?: string | null;
+  checked: string | null;
+  locked: boolean;
+  checking?: boolean;
+  onCheck: () => void;
+}) {
   return (
     <div className={styles.sum}>
       <span>
-        <b>{count === 0 ? tr('Everything is up to date') : count === 1 ? tr('1 update available') : tr('{n} updates available', {n: count})}</b>
+        <b>{doing || (count === 0 ? tr('Everything is up to date') : count === 1 ? tr('1 update available') : tr('{n} updates available', {n: count}))}</b>
         {checked && <span className={shared.dim}>{tr('Checked: {t}', {t: checked})}</span>}
       </span>
       <button className={shared.control} disabled={locked} onClick={onCheck}>

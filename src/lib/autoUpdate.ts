@@ -95,6 +95,8 @@ export const requestCheck = () => post('check');
 // the updater itself, to its newest version
 export const requestSelf = () => post('self');
 export const requestRoom = () => post('room');
+// OpenMower without a copy of the version that runs, only when its status offers it (openmower_nokeep yes)
+export const requestNoKeep = (part: Part) => post(`nokeep=${part}`);
 // a calibration's values into OpenMower's mower_params.yaml, lines "<path> <value>" from its list (calib_paths), or the
 // file before the last one back
 export const requestCalib = (lines: string) => post('calib', lines);
@@ -130,8 +132,18 @@ const lately = (s: UpdateState, key: string, now: number) => {
   const t = Number((s.status[key] ?? '').split(' ')[0]);
   return t > 0 && now - t < 3600;
 };
-// it looks for updates right now
-export const looking = (s: UpdateState, now = Date.now() / 1000) => lately(s, 'looking', now);
+// since when it looks for updates, null when it doesn't
+export const lookingSince = (s: UpdateState, now = Date.now() / 1000) => (lately(s, 'looking', now) ? Number(s.status.looking.split(' ')[0]) : null);
+export const looking = (s: UpdateState, now = Date.now() / 1000) => lookingSince(s, now) !== null;
+// the requests it took and works on, as it notes them (taken: "<since> now:<part> back:<part> self free:img check ..."),
+// until its run shows or it's done
+export function taken(s: UpdateState, now = Date.now() / 1000): {since: number; what: string[]} | null {
+  const [t, ...what] = (s.status.taken ?? '').split(' ');
+  return lately(s, 'taken', now) && what.length ? {since: Number(t), what} : null;
+}
+// it's on something: a request waiting or taken, a run, its restart on a new version or a look for updates
+export const working = (s: UpdateState, now = Date.now() / 1000) =>
+  s.requested || s.status.result === 'running' || !!taken(s, now) || !!selfInfo(s, now)?.restarting || looking(s, now);
 // it writes "alive" every minute and with each step of an update, a big download or a build can take a while longer,
 // so can a look for updates or a request it took
 export function updaterAlive(s: UpdateState | null, now = Date.now() / 1000): boolean {
@@ -210,37 +222,46 @@ export function stepTitle(step: Step): string {
   }
 }
 
-// a part being taken back to the version before, as asked for (taken: "<t> back:<part>")
-export const goingBack = (s: UpdateState, part: Part) => (s.status.taken ?? '').split(' ').slice(1).includes(`back:${part}`);
-
 // the steps a run of a part goes through, the one it's on and whether it goes back: a pull downloads and unpacks, a
-// build builds, the updater itself restarts on its new version. a new version that doesn't come up goes back after the wait
-export function runSteps(s: UpdateState, p: Progress): {steps: Step[]; now: number; back: boolean} {
-  const steps = stepsOf(s, p.part);
+// build builds, the updater itself restarts on its new version, one taken back as asked (asked) goes back. a new
+// version that doesn't come up goes back after the wait
+export function runSteps(s: UpdateState, p: Progress, asked = false): {steps: Step[]; now: number; back: boolean} {
+  // (all of them asked for, before the updater says which comes first)
+  if (!p.part) return {steps: [p.step], now: 0, back: false};
+  const steps: Step[] = asked ? ['back', 'restart', 'wait'] : stepsOf(s, p.part);
   if (p.step === 'data' && !steps.includes('back')) steps.push('back');
   if (!steps.includes(p.step)) steps.push(p.step);
   return {steps, now: steps.indexOf(p.step), back: steps.includes('back')};
 }
 
 function stepsOf(s: UpdateState, part: Part): Step[] {
-  if (goingBack(s, part)) return ['back', 'restart', 'wait'];
   if (part === 'updater') return ['prepare', 'download', 'restart'];
   const kind = kindOf(s, part);
   if (kind === 'build' || kind === 'local') return ['prepare', 'build', 'restart', 'wait'];
   return ['prepare', 'download', 'extract', 'restart', 'wait'];
 }
 
-// on the bar's right: the percent, how many of how many, or how long the step has taken
+// under the bar: the percent or how many of how many, and how long the step has taken (since 0: not known)
 export function stepDetail(p: Progress, now = Date.now() / 1000): string {
-  if (p.step === 'extract' && p.of) return tr('{n} of {of} layers', {n: p.done ?? 0, of: p.of});
-  if (p.step === 'build' && p.of) return tr('step {n} of {of}', {n: Math.min(p.of, (p.done ?? 0) + 1), of: p.of});
-  if (p.pct !== null && p.step === 'download') return `${p.pct} %`;
-  const secs = Math.max(0, Math.round(now - p.since));
-  return `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
+  const far =
+    p.step === 'extract' && p.of
+      ? tr('{n} of {of} layers', {n: p.done ?? 0, of: p.of})
+      : p.step === 'build' && p.of
+        ? tr('step {n} of {of}', {n: Math.min(p.of, (p.done ?? 0) + 1), of: p.of})
+        : p.pct !== null && p.step === 'download'
+          ? `${p.pct} %`
+          : '';
+  return [far, p.since > 0 && clock(now - p.since)].filter(Boolean).join(' · ');
 }
+const clock = (secs: number) => {
+  const s = Math.max(0, Math.round(secs));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+};
 
 const date = (d: string | undefined) => (d && /^\d{4}-\d\d-\d\d$/.test(d) ? numericDay(new Date(`${d}T12:00:00`).getTime() / 1000) : null);
 const when = (t: string | undefined) => (t ? dayClock(Number(t)) : '?');
+// a time it noted along (<part>_at), null when it didn't
+const stamp = (t: string | undefined) => (t && /^\d+$/.test(t) ? when(t) : null);
 
 export type Availability = 'yes' | 'no' | 'switch' | 'failed' | 'unknown' | 'local';
 // something new to install: a newer version, or another channel picked
@@ -248,6 +269,9 @@ export const isNew = (a: Availability | null | undefined) => a === 'yes' || a ==
 
 // what runs, with the day it was built when it's known
 const ofDay = (what: string, day: string | null) => (day ? tr('{v} of {day}', {v: what, day}) : what);
+
+// a part's name in words
+export const nameOf = (s: UpdateState, part: Part) => tr(partsOf(s).find((p) => p.id === part)?.name ?? PART_NAMES[part] ?? part);
 
 // what it looks after, in its order, as the updater lists them
 export const partsOf = (s: UpdateState): UpdatePart[] => s.parts ?? [];
@@ -276,6 +300,8 @@ export function partInfo(s: UpdateState, part: Part): PartInfo {
     return {running, available, source};
   }
   if (!what || what === 'none') return {running: null, available: null};
+  // (OpenMower's update without a copy deleted the one that ran, the new one isn't there yet)
+  if (what === 'missing') return {running: tr("none, OpenMower isn't on the mower right now"), available};
   return {running: ofDay(what, built), available};
 }
 
@@ -292,8 +318,7 @@ export interface PartResult {
 // the badge says it
 export function partResult(s: UpdateState, part: Part): PartResult | null {
   const [state, ...rest] = (s.status[part] ?? '').split(' ');
-  const t = s.status[`${part}_at`];
-  const at = t && /^\d+$/.test(t) ? when(t) : null;
+  const at = stamp(s.status[`${part}_at`]);
   const say = (text: string | null, level: ResultLevel, time = at): PartResult | null => (text ? {text, level, at: time} : null);
   const version = rest[1] ? ` (${rest[1]})` : '';
   switch (state) {
@@ -324,11 +349,15 @@ export function partResult(s: UpdateState, part: Part): PartResult | null {
       return kindOf(s, part) === 'build' && (s.status[`${part}_available`] ?? '').split(' ')[0] === 'no'
         ? say(tr('stopped, it stays stopped as it was'), 'ok')
         : say(tr('not updated: the app is stopped right now'), 'warn');
+    case 'replacing':
+      return say(tr("OpenMower is being replaced: the version before is deleted, the new one doesn't run yet. The mower can't mow until then."), 'warn');
     case 'rolled_back':
-      // (the updater itself writes its time along)
+      // (the updater itself writes its time along, OpenMower without a copy why it took the one before)
       return say(
-        tr("The new version didn't start, it went back to the one before by itself. That version is left out, only the next one is tried again.") +
-          (rest.includes('data') ? ' ' + tr('The new version had changed the format of its data: the data is back as before the update, the newer data is kept.') : ''),
+        ROLLED_BACK[rest[0]]
+          ? tr(ROLLED_BACK[rest[0]])
+          : tr("The new version didn't start, it went back to the one before by itself. That version is left out, only the next one is tried again.") +
+              (rest.includes('data') ? ' ' + tr('The new version had changed the format of its data: the data is back as before the update, the newer data is kept.') : ''),
         'warn',
         at ?? (/^\d+$/.test(rest[0] ?? '') ? when(rest[0]) : null),
       );
@@ -340,6 +369,14 @@ export function partResult(s: UpdateState, part: Part): PartResult | null {
       return null;
   }
 }
+
+// OpenMower's version before back on the mower after its update without a copy, and why
+const ROLLED_BACK: Record<string, string> = {
+  nospace: "The new version couldn't be downloaded, there's no room for it even now. The one before came back from its registry.",
+  hand: "The version before runs again, started by hand. The new one isn't on the mower.",
+  unknown: "The new version couldn't be downloaded, its registry doesn't have it. The one before came back from its registry.",
+  firmware: 'The new version keeps the motors off, it needs newer firmware: openmower update-firmware. It went back to the one before by itself. After the firmware update, tap Try again.',
+};
 
 function failure(s: UpdateState, part: Part, [why, ...more]: string[], at: string | null): PartResult {
   const warn = (text: string) => ({text, level: 'warn' as const, at});
@@ -387,6 +424,19 @@ function failure(s: UpdateState, part: Part, [why, ...more]: string[], at: strin
       return error(tr("its data couldn't be put back, see the log. The copies stay on the mower."));
     case 'no_data':
       return warn(tr('this copy of its data is gone'));
+    // (OpenMower's update without a copy, and what was deleted with its version before)
+    case 'missing':
+      return error(tr("its update without a copy isn't finished"));
+    case 'nokeep':
+      return error(tr("its update without a copy isn't done yet, that goes on first"));
+    case 'remove':
+      return error(tr("a container couldn't be removed: nothing deleted, all runs as before"));
+    case 'undo':
+      return error(tr("a container couldn't be removed and one removed before couldn't be made again, see the log"));
+    case 'gone_dock':
+      return warn(tr("{name} isn't on the mower right now: it's built again once the mower is idle in the dock.", {name: nameOf(s, part)}));
+    case 'gone':
+      return error(tr("{name} isn't on the mower right now: it was deleted with OpenMower's version before and building it again failed. Update builds it again.", {name: nameOf(s, part)}));
     default:
       return error(tr('failed ({why}), see the log', {why: [why, ...more].filter(Boolean).join(' ') || '?'}));
   }
@@ -402,7 +452,7 @@ export function runResult(s: UpdateState): string | null {
     const parts = runParts(s);
     const now = progressOf(s)?.part;
     if (!now || !parts.includes(now)) return tr('Updating right now…');
-    const name = tr(partsOf(s).find((p) => p.id === now)?.name ?? PART_NAMES[now] ?? now);
+    const name = nameOf(s, now);
     return tr('Updating {name} ({n} of {of})…', {name, n: parts.indexOf(now) + 1, of: parts.length});
   }
   return null;
@@ -431,7 +481,8 @@ export function selfInfo(s: UpdateState, now = Date.now() / 1000): SelfInfo | nu
     running: commit ? ofDay(commit, built) : [tr('state unknown'), built].filter(Boolean).join(' · '),
     available,
     tag: ref?.split(':').pop() || '–',
-    result: restarting ? null : partResult(s, 'updater'),
+    // (asked to update itself and nothing new: said once, the badge doesn't change)
+    result: restarting ? null : state === 'current' ? {text: tr('nothing new, it was up to date'), level: 'ok', at: stamp(s.status.updater_at)} : partResult(s, 'updater'),
     restarting,
   };
 }
@@ -455,6 +506,60 @@ export function outOfReach(s: UpdateState): OutOfReach | null {
 }
 // the line that gives the updater a folder, under "volumes:" of its service
 export const reachLine = (dir: string) => `      - ${dir}:${dir}`;
+
+// OpenMower without room for its new version next to the one that runs: deleting that one first, as offered
+// (openmower_nokeep "yes <MiB> <parts built again> <tags back> <tags for good>", or "no <why> ...")
+export type NoKeep =
+  | {ok: true; size: string; parts: string[]; back: string[]; gone: string[]}
+  | {ok: false; why: string};
+const NOKEEP_NOT: Record<string, string> = {
+  prev: "the version that runs can't be downloaded again from its registry (built here, or no answer)",
+  env: "OpenMower's .env names another version than the one that runs",
+  registry: "the size of the new version isn't known",
+  holders: "it isn't known which images hold the version that runs",
+};
+const commas = (x: string | undefined) => (x && x !== '-' ? x.split(',') : []);
+// (the updater counts in MiB)
+const mib = (x: string | undefined) => (/^\d+$/.test(x ?? '') ? size(Number(x) * 1048576) : '?');
+export function noKeep(s: UpdateState, part: Part): NoKeep | null {
+  const [ok, a, b, c, d] = (s.status[`${part}_nokeep`] ?? '').split(' ');
+  if (ok === 'yes') return {ok: true, size: mib(a), parts: commas(b).map((p) => nameOf(s, p)), back: commas(c), gone: commas(d)};
+  if (ok !== 'no') return null;
+  const why = NOKEEP_NOT[a]
+    ? tr(NOKEEP_NOT[a])
+    : a === 'room'
+      ? tr("even then there isn't room enough (needs about {need}, {has} there)", {need: mib(b), has: mib(c)})
+      : a === 'box'
+        ? tr('the container "{name}" uses the version that runs and the updater can\'t build it again', {name: b || '?'})
+        : a === 'base'
+          ? tr('{name} is built on OpenMower and the version picked comes under another name', {name: nameOf(s, b ?? '?')})
+          : a === 'github'
+            ? tr("it isn't known what to build of {name} (GitHub doesn't answer)", {name: nameOf(s, b ?? '?')})
+            : a || '?';
+  return {ok: false, why};
+}
+
+// OpenMower not on the mower after its update without a copy: its next try by itself (null: none, by a tap), and the
+// commands for a terminal on the mower, the new version (not when it went back) and the one before
+// (openmower_missing "<tries> <next> <new|back> <new version> <the one before by its digest> <its tag> <folder>")
+export interface Missing {
+  next: string | null;
+  fresh: string | null;
+  before: string;
+}
+export function missingOf(s: UpdateState): Missing | null {
+  const [, next, way, target, prev, ref, dir] = (s.status.openmower_missing ?? '').split(' ');
+  if (!ref) return null;
+  // (its .env names the tag of what it tries)
+  const env = way === 'back' ? ref : target;
+  const start = (tag: string) =>
+    dir && dir !== '-' ? ` && cd ${dir}${tag === env ? '' : ` && sed -i 's/^VERSION=.*/VERSION=${tag.split(':').pop()}/' .env`} && docker compose up -d` : '';
+  return {
+    next: /^\d+$/.test(next ?? '') ? when(next) : null,
+    fresh: way === 'new' ? `docker pull ${target}${start(target)}` : null,
+    before: `docker pull ${prev} && docker tag ${prev} ${ref}${start(ref)}`,
+  };
+}
 
 export const lastChecked = (s: UpdateState) => (/^\d+$/.test(s.status.checked ?? '') ? nearClock(Number(s.status.checked)) : null);
 
