@@ -1,11 +1,11 @@
 # input: "<unix time> <topic> <json>" from mosquitto_sub (robot_state/json, events/json, actions/json and
-# sensors/om_v_charge/data). output, a line each, for notify.sh: "ntfy <json>" for the topic and "push <json>" for the
-# phones signed up in MowBite's app (UnifiedPush, the app shows those itself). what's sent comes from CONF (notify.cgi
-# writes it), read again every half minute:
+# sensors/om_v_charge/data), or "<unix time> schedule <line of its log>" from scheduler.sh. output, a line each, for
+# notify.sh: "ntfy <json>" for the topic and "push <json>" for the phones signed up in MowBite's app (UnifiedPush, the
+# app shows those itself). what's sent comes from CONF (notify.cgi writes it), read again every half minute:
 #   topic, push (a phone's address, a line each), lang (de/en), name (of the mower), url (where MowBite is, for its
 #   button and a tap on the message),
 #   events (which of: emergency, dock_failed, undock_failed, nav_error, spinup, standstill, refused, done, rain, battery,
-#   dark, maintenance),
+#   dark, maintenance, schedule_skipped),
 #   remind (minutes between reminders while the mower can't get on by itself, 0: none),
 #   emergency_wait (seconds an emergency stop has to last before it's told, 10 unless set), enabled (0: switched off)
 # and SNOOZE: until when (unix time) there are no reminders. STATS: where stats.sh counts the blade hours, a part
@@ -253,6 +253,24 @@ function info(kind, title, msg, tags) {
   if (on(kind)) send(kind, "new", title, msg, 3, tags)
 }
 
+# a start of the schedule that didn't go, by the word of its log ($3) and the plan's time (at=HH:MM). told as MowBite OS
+# does (x-schedule-log's push), not what's expected (rain, dark, a pause) or comes as an event (a start turned down).
+# the leftovers' start has no time and isn't told
+function skipped(   w, d, at, i, why) {
+  w = $3
+  for (i = 4; i <= NF; i++) if ($i ~ /^at=/) at = substr($i, 4)
+  d = $4 ~ /^at=/ ? "" : $4
+  if (w == "skip_battery") why = tx("the battery stayed too low for 2 h", "der Akku blieb 2 h zu leer") (d == "" ? "" : " (" d " %)")
+  else if (w == "skip_hold") why = tx("an update held it for 2 h", "ein Update hielt ihn 2 h fest")
+  else if (w == "skip_emergency") why = tx("emergency stop", "Notaus")
+  else if (w == "skip_offline") why = tx("its control didn't answer", "die Steuerung antwortete nicht")
+  else if (w == "skip_no_area") why = tx("no area of the plan is on the map to mow", "keine Fläche des Plans ist zum Mähen auf der Karte")
+  else if (w == "start_failed" && d == "undock") why = tx("undocking failed", "Abdocken gescheitert") ($5 == "no_gps" ? tx(", no GPS fix", ", kein GPS-Fix") : "")
+  else if (w == "start_failed") why = tx("it didn't react to the start", "er hat nicht auf den Start reagiert")
+  if (why == "" || at == "") return
+  info("schedule_skipped", tx("Planned start skipped", "Geplanter Start ausgefallen"), tx(who() " didn't set off at " at ": ", who() " ist um " at " nicht losgefahren: ") why ".", "calendar")
+}
+
 # the parts due for maintenance by the blade hours, each once until it's seen to again
 function maintenance(   line, p, total, h, k) {
   maint_t = t
@@ -308,7 +326,8 @@ BEGIN {
   if (!conf_t || t - conf_t >= 30) readconf()
   if (t - maint_t >= 300) maintenance()
 
-  if (topic_in == T_STATE) {
+  if (topic_in == "schedule") skipped()
+  else if (topic_in == T_STATE) {
     e = field(json, "emergency")
     e = e == "1" || e == "true"
     if (e && !emergency) em_t = t

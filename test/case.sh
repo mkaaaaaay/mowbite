@@ -13,7 +13,7 @@
 # each, a second apart. $LOGS, $PLANNER_LOG: what logs.recent and planner.log answer (@ID@ for the call's id), $OTHER:
 # someone else's answer sent before each one. $METHODS, $INFO: rpc.methods and system.info (MowBite OS). $KEEP: the
 # parameters the app keeps (/data/params.txt). $RUN_DUE: set while the stop time of $RUN_STATE's run is still to come.
-# $SLOW: the seconds the pretend mower takes to answer a call that sets the pause
+# $SLOW: the seconds the pretend mower takes to answer a call that sets the pause. $NOTIFY: the push messages' settings
 pub() {
   t=$1
   shift
@@ -26,6 +26,7 @@ printf '%s\n' "$SCHED" > /data/schedule.txt
 [ -z "$WAITING" ] || echo "$WAITING" > /data/run.wait
 [ -z "$ANGLE_NORMAL" ] || echo "$ANGLE_NORMAL" > /data/angle.normal
 [ -z "$KEEP" ] || printf '%s\n' "$KEEP" > /data/params.txt
+[ -z "$NOTIFY" ] || printf '%s\n' "$NOTIFY" > /data/notify.conf
 [ -z "$PARAMS" ] || pub params/json -r -m "$PARAMS"
 [ -z "$MAP" ] || pub map/json -r -m "$MAP"
 [ -z "$HOLD" ] || pub mowbite/hold -r -m "$HOLD"

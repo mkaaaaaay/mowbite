@@ -10,8 +10,8 @@
 # tells the updater when it may start next and the app whether that start would go now. a plan's start whose undocking
 # fails is started again while the mower is still in the dock, twice at most. starts by hand are logged too, and with a
 # time set for them (handstop HH:MM) one before it goes home then. what happened goes to /data/schedule.log for the
-# page. on MowBite OS, which has a schedule of its own, it rests with its leftovers and the starts by hand: no start,
-# nothing told
+# page, a start that didn't go to notify.sh too. on MowBite OS, which has a schedule of its own, it rests with its
+# leftovers and the starts by hand: no start, nothing told
 . /broker.sh
 . /openmower.sh
 F=/data/schedule.txt
@@ -30,6 +30,8 @@ log() {
     echo "$(date +%s) $*" >> "$LOG"
     tail -n 100 "$LOG" > "$LOG.tmp" && mv "$LOG.tmp" "$LOG"
   ) 9> /tmp/schedule.lock
+  # a start that didn't go is a push message, what's told notify.awk decides
+  /notify.sh schedule "$@" > /dev/null 2>&1 &
 }
 # a plain value from compact or spaced out json, e.g. field "$state" current_state
 field() { printf '%s' "$1" | grep -o "\"$2\" *: *[^,}]*" | head -n1 | sed 's/^[^:]*: *//' | tr -d '" '; }

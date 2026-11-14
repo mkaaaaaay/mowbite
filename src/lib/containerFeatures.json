@@ -4,4 +4,5 @@
  {"key": "standstill", "level": 3, "what": "the push message when it stands still"},
  {"key": "cold", "level": 3, "what": "not starting in the cold"},
  {"key": "level", "level": 4, "what": "a battery level that stays put when the mower drives off (YardForce with OpenMower v2)"},
- {"key": "handstop", "level": 5, "what": "a time for starts by hand to go home, the schedule's start again after a failed undocking"}]
+ {"key": "handstop", "level": 5, "what": "a time for starts by hand to go home, the schedule's start again after a failed undocking"},
+ {"key": "schedule_skipped", "level": 6, "what": "the push message when a start of the schedule didn't go"}]

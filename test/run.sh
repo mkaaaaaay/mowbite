@@ -68,6 +68,7 @@ restate() { docker exec "mbt-$1" sh -c 'printf %s "$1" > /tmp/state' _ "$2"; }
 # what case $1's scheduler logged (without the times) and what its mower got
 slog() { docker exec "mbt-$1" cat /data/schedule.log 2> /dev/null | cut -d' ' -f2-; }
 sent() { docker exec "mbt-$1" cat /tmp/sent 2> /dev/null; }
+pushed() { docker exec "mbt-$1" cat /data/notify.log 2> /dev/null | cut -d' ' -f2-; }
 # the stop times case $1 keeps as still to come, and nodue <case> <seconds>: until it keeps none
 due() { docker exec "mbt-$1" sh -c 'ls /data/run.due.*' 2> /dev/null; }
 nodue() {
@@ -111,15 +112,17 @@ start disabled "$(state)" "$(base "$DAY" | sed 's/^enabled 1/enabled 0/')"$'\n'"
 start otherday "$(state)" "$(base "$DAY")"$'\n'"plan $((D % 7 + 1)) $M"
 start dark "$(state)" "$(base "$NIGHT")"$'\n'"plan $DN $MN"
 start darkok "$(state)" "$(base "$NIGHT")"$'\n'"plan $DN $MN dark=1"
-start emergency "$(state IDLE 1)" "$(base "$DAY")"$'\n'"plan $D $M"
-start rain "$(state IDLE 0 1)" "$(base "$DAY")"$'\n'"plan $D $M"
+# push messages for the starts that didn't go, to a server that isn't there (notify.log says failed)
+NOTIFY=$'server http://127.0.0.1:9\ntopic mbt-test\nlang en\nevents schedule_skipped'
+start emergency "$(state IDLE 1)" "$(base "$DAY")"$'\n'"plan $D $M" "NOTIFY=$NOTIFY"
+start rain "$(state IDLE 0 1)" "$(base "$DAY")"$'\n'"plan $D $M" "NOTIFY=$NOTIFY"
 start busy "$(state MOWING)" "$(base "$DAY")"$'\n'"plan $D $M"
 start paused "$(state)" "$(base "$DAY")"$'\n'"plan $D $M"$'\n'"pause $(day "$DAY") all"
 start pausedbefore "$(state)" "$(base "$DAY")"$'\n'"plan $D $M"$'\n'"pause $(day "$DAY" yesterday) all"
 start battery "$(state IDLE 0 0 0.5)" "$(MINBAT=80 base "$DAY")"$'\n'"plan $D $M"
 start fresh "$(state)" "$(base "$DAY")"$'\n'"plan $D $M fresh=1"
 start angle "$(state)" "$(base "$DAY")"$'\n'"plan $D $M angle=30" 'PARAMS={"/mower_logic/mow_angle_offset":5}'
-start stays "$(state)" "$(base "$DAY")"$'\n'"plan $D $M" MOWER=stays
+start stays "$(state)" "$(base "$DAY")"$'\n'"plan $D $M" MOWER=stays "NOTIFY=${NOTIFY/schedule_skipped/done}"
 start refused "$(state)" "$(base "$DAY")"$'\n'"plan $D $M" MOWER=refuses
 start areas "$(state)" "$(base "$DAY")"$'\n'"plan $D $M front" "MAP=$AREAS" AREA=back
 start pausedarea "$(state)" "$(base "$DAY")"$'\n'"plan $D $M"$'\n'"pause $(day "$DAY") back" "MAP=$AREAS" AREA=back
@@ -192,6 +195,9 @@ logs "scheduler: not in the dark" dark '^skip_dark( at=[0-9:]+)?$'
 logs "scheduler: in the dark with dark=1" darkok '^started'
 logs "scheduler: not with the emergency stop" emergency '^skip_emergency( at=[0-9:]+)?$'
 logs "scheduler: not with the rain sensor wet" rain '^skip_rain( at=[0-9:]+)?$'
+for _ in $(seq 20); do [ -n "$(pushed emergency)" ] && break; sleep 1; done
+expect "notify: a start skipped for the emergency stop, when picked" "$(pushed emergency)" 'failed Planned start skipped'
+expect "notify: not a start skipped for rain" "$(pushed rain)" ''
 logs "scheduler: not while the mower is busy" busy '^skip_busy MOWING( at=[0-9:]+)?$'
 logs "scheduler: not on a day paused" paused '^skip_paused( at=[0-9:]+)?$'
 logs "scheduler: a pause that's over" pausedbefore '^started'
@@ -229,6 +235,8 @@ byhand endkept
 sleep 5
 expect "scheduler: a start the mower ignores doesn't end the run" "$(due endkept | wc -l) $(slog endkept | grep -c '^started_by_hand')" "1 0"
 logs "scheduler: a mower that doesn't move is noticed" stays '^start_failed( at=[0-9:]+)?$' 90
+sleep 3
+expect "notify: not a start that didn't go, when not picked" "$(pushed stays)" ''
 logs "scheduler: why MowBite OS turned the start down" refused '^start_refused BATTERY_LOW 22.4( at=[0-9:]+)?$' 30
 slog refused | grep -q '^start_failed' && bad "scheduler: a start turned down isn't one the mower didn't react to" "$(slog refused)" ||
   ok "scheduler: a start turned down isn't one the mower didn't react to"

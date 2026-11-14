@@ -1821,6 +1821,7 @@ const de: Record<string, string> = {
   "A start of the schedule didn't go": "Ein geplanter Start ist ausgefallen",
   "mowing hours, maintenance and its push messages": "Mähstunden, Wartung und deren Benachrichtigungen",
   "the push message when it stands still": "die Benachrichtigung bei Stillstand",
+  "the push message when a start of the schedule didn't go": "die Benachrichtigung, wenn ein geplanter Start ausfällt",
   "not starting in the cold": "nicht bei Kälte starten",
   "a time for starts by hand to go home, the schedule's start again after a failed undocking": "eine Uhrzeit, zu der Starts von Hand heimfahren, und ein neuer Start des Zeitplans nach gescheitertem Abdocken",
   "a battery level that stays put when the mower drives off (YardForce with OpenMower v2)": "ein Akkustand, der beim Losfahren nicht absackt (YardForce mit OpenMower v2)",
