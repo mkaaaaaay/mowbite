@@ -1,9 +1,11 @@
 'use client';
 
 import {useCameras} from '@/hooks/useCameras';
+import {useRpcMethods} from '@/hooks/useRpcMethods';
 import {SHORT} from '@/lib/camera';
+import {DOCK_TEST_REACH, RPC} from '@/lib/openmower';
 import {fmt, tr} from '@/lib/i18n';
-import {anim, appear, PAINT, Scene, SCREEN_LOOP} from '../art';
+import {anim, appear, DockTestArt, PAINT, Scene, SCREEN_LOOP} from '../art';
 import Guide, {type GuideStep} from '../Guide';
 
 // the dashboard's values, the cameras of a mower that has them and more than one mower, step by step with a drawing for each
@@ -177,6 +179,13 @@ const CAMERA_STEP: GuideStep = {
   Art: CameraArt,
 };
 
+const DOCK_TEST_STEP: GuideStep = {
+  title: 'Docking test',
+  text: "A mower with MowBite OS and a dock camera can test docking by the camera alone. Put it in front of the station: at most {cm} cm beside the line straight out of it and less than {deg}° skewed. Then tap Test docking by camera on the dashboard and confirm. It drives off by itself, slowly and with the blade off, without map or GPS: stay at the STOP button. Stop docking on the dashboard or STOP at the mower ends it. If it doesn't get onto the contacts, the activity says why.",
+  vars: DOCK_TEST_REACH,
+  Art: DockTestArt,
+};
+
 const STEPS: GuideStep[] = [
   {
     title: 'Your dashboard',
@@ -197,5 +206,7 @@ const STEPS: GuideStep[] = [
 
 export default function AppGuidePage() {
   const cameras = useCameras().on;
-  return <Guide steps={cameras ? [...STEPS.slice(0, 1), CAMERA_STEP, ...STEPS.slice(1)] : STEPS} done={{label: 'To the dashboard', href: '/'}} />;
+  const dockTest = !!useRpcMethods()?.has(RPC.dockingTest);
+  const steps = [...STEPS.slice(0, 1), ...(cameras ? [CAMERA_STEP] : []), ...(dockTest ? [DOCK_TEST_STEP] : []), ...STEPS.slice(1)];
+  return <Guide steps={steps} done={{label: 'To the dashboard', href: '/'}} />;
 }

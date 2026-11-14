@@ -1,4 +1,5 @@
 import {dec} from './i18n';
+import type {BladeHeight} from './mowerOs';
 import {mowerFetch, apiBase} from './mowers';
 import {PARAM, RPC} from './openmower';
 import {callRpc} from './rpc';
@@ -37,6 +38,8 @@ export interface ParamField {
   reported?: boolean;
   // switched off only after this question
   confirmOff?: string;
+  // only where system.info has blade_height, in its range (ParamRow)
+  bladeHeight?: boolean;
 }
 
 export const PARAM_GROUPS: {key: ParamGroup; title: string}[] = [
@@ -83,6 +86,7 @@ export const PARAM_FIELDS: ParamField[] = [
 
   {key: 'motor_hot_temperature', group: 'motor', label: 'Too hot to mow from', help: 'The mow motor pauses and the mower goes home.', type: 'double', min: 20, max: 150, def: 70, unit: '°C', step: 1},
   {key: 'motor_cold_temperature', group: 'motor', label: 'Cool enough again at', type: 'double', min: 20, max: 150, def: 40, unit: '°C', step: 1},
+  {key: 'mow_height_mm', group: 'motor', label: 'Cutting height', help: "Counts from the next start of the blade. 0 is the mower's own height.", type: 'int', min: 0, max: 150, def: 0, unit: 'mm', step: 1, bladeHeight: true},
 ];
 
 export const paramField = (key: string) => PARAM_FIELDS.find((f) => f.key === key);
@@ -90,6 +94,8 @@ export const paramField = (key: string) => PARAM_FIELDS.find((f) => f.key === ke
 export const onOs = (f: ParamField, os: boolean): ParamField => (os ? {...f, min: f.osMin ?? f.min, max: f.osMax ?? f.max, def: f.osDef ?? f.def} : f);
 // the ones this mower has, none of the reported ones before its params came
 export const paramShown = (f: ParamField, params: Record<string, unknown>) => !f.reported || paramName(f.key) in params;
+// a cutting height inside what the mower sets, 0 stays its own
+export const fitHeight = (mm: number, b: BladeHeight) => (mm === 0 ? 0 : Math.min(b.max_mm, Math.max(b.min_mm, mm)));
 export const paramName = (key: string) => PARAM.mowerLogic(key);
 // going home at sunset: whether the mower has the setting, whether it's switched off on purpose there
 export const hasSunsetSwitch = (params: Record<string, unknown>) => paramShown(paramField('dock_at_sunset')!, params);

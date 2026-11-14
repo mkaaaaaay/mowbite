@@ -33,6 +33,8 @@ export const RPC = {
   methods: 'rpc.methods',
   // what runs on the mower, MowBite OS only (lib/mowerOs)
   systemInfo: 'system.info',
+  // docks by the dock camera alone from in front of the station, without map or position (MowBite OS, where it lists it)
+  dockingTest: 'docking.test',
   // memory, storage, load and network of the mower itself, MowBite OS only (lib/system)
   systemStats: 'system.stats',
   // the lights on the mower by state, MowBite OS only (lib/light)
@@ -125,6 +127,8 @@ export const ACTION = {
   goHome: 'mower_logic:mowing/abort_mowing',
   // while leaving the dock (and waiting for gps after it): stops there, the mower stays idle where it is
   abortUndocking: 'mower_logic:undocking/abort_undocking',
+  // while heading home or docking: stops there, the mower stays idle where it is
+  abortDocking: 'mower_logic:docking/abort_docking',
   skipArea: 'mower_logic:mowing/skip_area',
   // the rest of the outline pass or block of lanes being mowed, the mower goes on with the next one
   skipPath: 'mower_logic:mowing/skip_path',
@@ -139,6 +143,9 @@ export const ACTION = {
 // MowBite OS's parts whose update waits for the mower idle in the dock and restarts MowBite OS (masterplan 3.5), the
 // others switch at any time
 export const UPDATE_GATED = ['os', 'planner'];
+
+// how far off the line straight out of the station the docking test may start (MowBite OS's dock camera)
+export const DOCK_TEST_REACH = {cm: 5, deg: 20};
 
 // above this voltage on the charge contacts OpenMower's idle takes the mower for docked (IdleBehavior)
 export const DOCKED_VOLTAGE = 5;
@@ -158,7 +165,7 @@ export const COMMAND: Record<string, {method: string; params?: Record<string, un
   [ACTION.skipArea]: {method: 'mowing.skip_area'},
   [ACTION.skipPath]: {method: 'mowing.skip_path'},
   [ACTION.abortUndocking]: {method: 'undocking.abort'},
-  'mower_logic:docking/abort_docking': {method: 'docking.abort'},
+  [ACTION.abortDocking]: {method: 'docking.abort'},
   [ACTION.startRecording]: {method: 'recording.start'},
   [ACTION.recording('exit_recording_mode')]: {method: 'recording.exit'},
   [ACTION.recording('start_recording')]: {method: 'recording.ring_start'},

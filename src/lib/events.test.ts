@@ -261,6 +261,29 @@ describe('heading home and charging on MowBite OS', () => {
     );
   });
 
+  it("docks by the dock camera: the test, what led it in, and why the camera failed in the catalog's words", () => {
+    const hint = (type: string, f: Partial<MowerEvent>) => explain(ev(0, type, f), undefined, undefined, true);
+    expect(os('DOCKING', {reason: 'TEST', severity: 'info'})).toBe('Docking test by camera');
+    expect(hint('DOCKING', {reason: 'TEST'})).toContain('without map or position');
+    expect(os('DOCKED', {guide: 'marker'})).toBe('Docked by the dock camera');
+    expect(os('DOCKED', {guide: 'position'})).toBe('Docked by position');
+    expect(os('DOCKED')).toBe('Docked');
+    const lost = {reason: 'dock_failed', attempts: 1, cause: 'MARKER_LOST', guide: 'marker'};
+    expect(os('DOCKING_RETRY', lost)).toBe('Docking retry 1 (marker lost)');
+    expect(hint('DOCKING_RETRY', lost)).toBe(
+      'Led by the dock camera. The marker of the docking station was out of sight for too long on the way in. The mower stopped and ended the attempt. It backs out and tries again. Clear the view between the mower and the station.',
+    );
+    const dark = {reason: 'dock_failed', attempts: 3, cause: 'MARKER_UNAVAILABLE', detail: 'TOO_DARK'};
+    expect(os('DOCKING_FAILED', dark)).toBe('Docking failed after 3 tries (dock camera not measuring)');
+    expect(hint('DOCKING_FAILED', dark)).toBe(
+      'The camera towards the docking station cannot measure the marker right now. The camera said: The image is too dark. It gave up and waits where it is. Check that the station has power and the marker light is on; otherwise provide light at the station.',
+    );
+    // a detail it doesn't know: the cause's own fix
+    expect(hint('DOCKING_FAILED', {...dark, detail: 'NEW_ONE'})).toContain('the detail names the cause.');
+    expect(hint('DOCKING_RETRY', {reason: 'dock_failed', guide: 'position'})).toMatch(/^Led by its position\. It was in front of the dock/);
+    expect(os('DRIVE_REFUSED', {reason: 'NO_CHARGE_CONTACTS'})).toBe('Drive not started: no charge contacts are set for this mower, it cannot dock');
+  });
+
   it('charges only once DOCKED is newer than what leaves it unconfirmed', () => {
     expect(chargeConfirmed([])).toBeNull();
     expect(chargeConfirmed([ev(10, 'DOCKED'), ev(5, 'BOOTED')])).toBe(true);

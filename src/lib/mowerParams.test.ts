@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {mowsIntoNight, onOs, PARAM_FIELDS, paramConflict, paramField, paramShown, paramValue, parseKept, parseParam, serializeKept, showParam} from './mowerParams';
+import {fitHeight, mowsIntoNight, onOs, PARAM_FIELDS, paramConflict, paramField, paramShown, paramValue, parseKept, parseParam, serializeKept, showParam} from './mowerParams';
 
 describe('the settings of the mower', () => {
   it('have a range, a default inside it and a label each', () => {
@@ -30,6 +30,11 @@ describe('the settings of the mower', () => {
     expect(paramShown(sunset, {'/mower_logic/gps_timeout': 10})).toBe(false);
     expect(paramShown(sunset, {'/mower_logic/dock_at_sunset': false})).toBe(true);
     expect(paramShown(paramField('gps_timeout')!, {})).toBe(true);
+  });
+
+  it('fit the cutting height into what the mower sets, 0 its own', () => {
+    const b = {min_mm: 30, max_mm: 90, default_mm: 60};
+    expect([0, 10, 45, 120].map((mm) => fitHeight(mm, b))).toEqual([0, 30, 45, 90]);
   });
 
   it('read the switch as 0|1 on MowBite OS too', () => {

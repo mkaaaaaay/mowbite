@@ -2,6 +2,7 @@
 
 import {drawDock, type dockIcon} from '@/components/mapIcons';
 import {fmt, tr} from '@/lib/i18n';
+import {DOCK_TEST_REACH} from '@/lib/openmower';
 import {useEffect, useId, useRef} from 'react';
 
 // the drawings of the guide: a garden from above and the map growing on it, in the colors of the map. each one
@@ -319,6 +320,17 @@ function Remote() {
   );
 }
 
+// charging on the contacts, shown while its animation says so
+function DockedCheck({y, children}: {y: number; children: React.ReactNode}) {
+  return (
+    <g opacity={0}>
+      {children}
+      <circle cx={160} cy={y} r={12} fill="#4caf50" />
+      <path d={`M155 ${y} l4 4 l7 -8`} stroke="#fff" strokeWidth={2.4} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+    </g>
+  );
+}
+
 // 3: backed out of the station a meter, then straight in until it sits on the contacts
 function Docking({dock}: ArtProps) {
   const dur = 7;
@@ -352,11 +364,32 @@ function Docking({dock}: ArtProps) {
         {anim('opacity', dur, [0, 0.22, 0.23, 0.32, 1], [0, 0, 0.9, 0, 0])}
       </circle>
       {/* on the contacts: charging */}
-      <g opacity={0}>
-        {anim('opacity', dur, [0, 0.62, 0.65, 0.92, 0.95, 1], [0, 0, 1, 1, 0, 0])}
-        <circle cx={160} cy={docked - 30} r={12} fill="#4caf50" />
-        <path d={`M155 ${docked - 30} l4 4 l7 -8`} stroke="#fff" strokeWidth={2.4} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      <DockedCheck y={docked - 30}>{anim('opacity', dur, [0, 0.62, 0.65, 0.92, 0.95, 1], [0, 0, 1, 1, 0, 0])}</DockedCheck>
+    </Scene>
+  );
+}
+
+// the docking test: set down a little beside the line out of the station and a little skewed, it drives itself in
+export function DockTestArt({dock}: ArtProps) {
+  const dur = 6;
+  const [front, docked] = [146, 88];
+  return (
+    <Scene still={dur * 0.85} label="">
+      <Lawn d="M0 0 H320 V200 H0 Z" />
+      <Hedge />
+      <Station dock={dock} x={160} y={66} size={30} />
+      <path d={`M160 ${docked + 12} V${front + 30}`} stroke="#fff" strokeWidth={1.4} strokeDasharray="3 3" opacity={0.8} />
+      <g opacity={0} color="#fff">
+        {anim('opacity', dur, [0, 0.05, 0.08, 0.3, 0.33, 1], [0, 0, 1, 1, 0, 0])}
+        <text x={186} y={front + 4} fontSize={14} fontWeight={700} fill="currentColor">
+          ≤ {DOCK_TEST_REACH.cm} cm · &lt; {DOCK_TEST_REACH.deg}°
+        </text>
       </g>
+      <g>
+        <animateMotion dur={`${dur}s`} repeatCount="indefinite" rotate="auto" calcMode="linear" keyTimes="0;0.33;0.8;1" keyPoints="0;0;1;1" path={`M170 ${front} Q160 ${front - 30} 160 ${docked}`} />
+        <MowerAt size={15} />
+      </g>
+      <DockedCheck y={docked - 30}>{anim('opacity', dur, [0, 0.8, 0.83, 0.95, 0.98, 1], [0, 0, 1, 1, 0, 0])}</DockedCheck>
     </Scene>
   );
 }

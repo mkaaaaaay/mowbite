@@ -69,22 +69,30 @@ let sent = 0;
 // MowBite OS before the calls, a list that hasn't come yet). seen: the area and path the tap was meant for, a skip
 // doesn't hit the next one then. never sent again by itself
 export function sendCommand(id: string, seen?: {area?: number; path?: number}) {
-  const mine = ++sent;
   const cmd = COMMAND[id];
-  setNote(null);
   if (!cmd || !knownMethods()?.has(cmd.method)) {
+    ++sent;
+    setNote(null);
     // plain text, not json. offline it's dropped, not kept for later
     if (!getMqttClient().connected) setNote({at: Date.now(), text: tr('Not sent, no connection to the mower.'), warn: true});
     getMqttClient().publish(withPrefix(TOPIC.action), id);
     return;
   }
-  const params: Record<string, unknown> = {client: 'app', ...cmd.params};
+  const params: Record<string, unknown> = {...cmd.params};
   if (cmd.method === 'mowing.skip_area' && typeof seen?.area === 'number') params.area = seen.area;
   if (cmd.method === 'mowing.skip_path' && typeof seen?.path === 'number') params.path = seen.path;
+  sendCall(cmd.method, params);
+}
+
+// a command that is only a call (no action behind it), answered like the others
+export function sendCall(method: string, extra: Record<string, unknown> = {}) {
+  const mine = ++sent;
+  setNote(null);
+  const params = {client: 'app', ...extra};
   const say = (n: CommandNote) => mine === sent && setNote(n);
   const late = (a: unknown) =>
     say(a instanceof RpcError ? refusalNote(a) : {at: Date.now(), text: tr('The mower answered late: done after all.'), warn: false});
-  callCommand(cmd.method, params, COMMAND_MS, late).catch((e) =>
+  callCommand(method, params, COMMAND_MS, late).catch((e) =>
     say(
       e instanceof RpcError && e.code === 'timeout'
         ? {at: Date.now(), text: e.message === 'offline' ? tr('Not sent, no connection to the mower.') : tr("The mower didn't answer (yet)."), warn: true}

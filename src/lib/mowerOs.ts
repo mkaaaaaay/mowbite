@@ -8,11 +8,23 @@ import {askUntilAnswered, callRpc, isMissingMethod, methodsUnknown, RpcError, rp
 // planner is the one place for what makes the plan: the values for all areas in planner.settings, an area's own in
 // OpenMower's keys of map.json (outline_count and co.), mower_logic has no mowing parameters there.
 // api: the version of the interface (system.api), mqtt: 5 when its bridge sends each answer to the asker's own topic,
-// stop_release: from api 10, null where the mower can't release the emergency with STOP
-export type SystemInfo = {name: string; version?: string; platform?: string; schema?: number; api?: number; mqtt?: number; stop_release?: StopRelease | null};
+// stop_release: from api 10, null where the mower can't release the emergency with STOP; blade_height: from api 28,
+// null where the platform sets no cutting height
+export type SystemInfo = {
+  name: string;
+  version?: string;
+  platform?: string;
+  schema?: number;
+  api?: number;
+  mqtt?: number;
+  stop_release?: StopRelease | null;
+  blade_height?: BladeHeight | null;
+};
 // releasing the emergency stop with STOP at the mower: not pressed for free_s, then held at least hold_s and let go
 // before max_hold_s
 export type StopRelease = {free_s: number; hold_s: number; max_hold_s: number};
+// the cutting heights the platform sets for mow_height_mm, default_mm is the one for 0
+export type BladeHeight = {min_mm: number; max_mm: number; default_mm: number};
 
 const MOWBITE_OS = 'mowbite-os';
 let info: Promise<SystemInfo | null | undefined> | null = null;
@@ -91,4 +103,11 @@ export function osSpacing(settings: Record<string, {value?: unknown}> | undefine
   const blade = settings?.mower_width?.value;
   const overlap = settings?.overlap?.value;
   return typeof blade === 'number' && blade > 0 ? blade * (1 - (typeof overlap === 'number' ? overlap : 0)) : undefined;
+}
+
+// the cutting heights the mower sets, null where it sets none (or until it's known)
+export function useBladeHeight(): BladeHeight | null {
+  const i = useSystemInfo();
+  const b = isMowbiteOs(i) ? i!.blade_height : null;
+  return b && [b.min_mm, b.max_mm, b.default_mm].every(Number.isInteger) && b.min_mm > 0 && b.max_mm >= b.min_mm ? b : null;
 }

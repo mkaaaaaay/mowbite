@@ -256,6 +256,14 @@
      "de": "Fährt nach Hause"
     },
     {
+     "when": {
+      "reason": "TEST"
+     },
+     "en": "Docking test by camera",
+     "with_reason": false,
+     "de": "Andock-Test nach Kamera"
+    },
+    {
      "en": "Heading home",
      "de": "Fährt nach Hause"
     }
@@ -329,6 +337,20 @@
   "DOCKED": {
    "severity": "info",
    "variants": [
+    {
+     "when": {
+      "guide": "marker"
+     },
+     "en": "Docked by the dock camera",
+     "de": "Angedockt nach der Dock-Kamera"
+    },
+    {
+     "when": {
+      "guide": "position"
+     },
+     "en": "Docked by position",
+     "de": "Angedockt nach der Position"
+    },
     {
      "en": "Docked",
      "de": "Angedockt"
@@ -1122,6 +1144,27 @@
   ],
   "dock_failed": [
    {
+    "en": "marker lost",
+    "when": {
+     "cause": "MARKER_LOST"
+    },
+    "de": "Marker verloren"
+   },
+   {
+    "en": "marker not found",
+    "when": {
+     "cause": "MARKER_NOT_SEEN"
+    },
+    "de": "Marker nicht gefunden"
+   },
+   {
+    "en": "dock camera not measuring",
+    "when": {
+     "cause": "MARKER_UNAVAILABLE"
+    },
+    "de": "Dock-Kamera misst nicht"
+   },
+   {
     "en": "no contact with the charger",
     "de": "kein Ladekontakt"
    }
@@ -1633,10 +1676,28 @@
     "de": "der Bahnfolger läuft nicht"
    }
   ],
+  "MARKER_UNAVAILABLE": [
+   {
+    "en": "the camera towards the docking station cannot measure the marker right now",
+    "de": "die Kamera zur Ladestation kann den Marker gerade nicht messen"
+   }
+  ],
+  "NO_CHARGE_CONTACTS": [
+   {
+    "en": "no charge contacts are set for this mower, it cannot dock",
+    "de": "für diesen Mäher sind keine Ladekontakte eingetragen, er kann nicht andocken"
+   }
+  ],
   "MANUAL": [
    {
     "en": "by hand",
     "de": "von Hand"
+   }
+  ],
+  "TEST": [
+   {
+    "en": "docking test by camera",
+    "de": "Andock-Test nach Kamera"
    }
   ],
   "CROSS_TRACK": [

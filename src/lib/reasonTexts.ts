@@ -124,6 +124,7 @@ export const EVENTS: Record<string, EventText> = {
       {when: {reason: 'MOTOR_HOT'}, en: 'Heading home', severity: 'warning'},
       {when: {reason: 'PLANNER_TIMEOUT'}, en: 'Heading home', severity: 'warning'},
       {when: {reason: 'PLANNER_MISSING'}, en: 'Heading home', severity: 'warning'},
+      alone({when: {reason: 'TEST'}, en: 'Docking test by camera'}),
       {en: 'Heading home'},
     ],
   },
@@ -147,7 +148,11 @@ export const EVENTS: Record<string, EventText> = {
     join: '{head} ({reason})',
     variants: [{when: {attempts: {present: true}}, en: 'Docking failed after {attempts} tries'}, {en: 'Docking failed'}],
   },
-  DOCKED: one('Docked'),
+  // guide: what led it onto the contacts (MowBite OS from api 30), at a try that failed GUIDED
+  DOCKED: {
+    severity: 'info',
+    variants: [{when: {guide: 'marker'}, en: 'Docked by the dock camera'}, {when: {guide: 'position'}, en: 'Docked by position'}, {en: 'Docked'}],
+  },
   JOB_COMPLETE: one('All areas done'),
   JOB_RESET: one('Interrupted job dropped, the next start mows from the beginning'),
   EMERGENCY: {
@@ -309,7 +314,13 @@ const r = (en: string, extra: Omit<Variant, 'en'> = {}): Variant => ({en, ...ext
 export const REASONS: Record<string, Variant[]> = {
   path_failed: [r("couldn't follow the path")],
   approach_failed: [r('approach failed')],
-  dock_failed: [r('no contact with the charger')],
+  // cause: the dock camera didn't lead it in (MowBite OS from api 30)
+  dock_failed: [
+    r('marker lost', {when: {cause: 'MARKER_LOST'}}),
+    r('marker not found', {when: {cause: 'MARKER_NOT_SEEN'}}),
+    r('dock camera not measuring', {when: {cause: 'MARKER_UNAVAILABLE'}}),
+    r('no contact with the charger'),
+  ],
   no_gps: [r('no GPS fix')],
   BUSY: [
     r('another sound is being uploaded or checked', {when: {type: 'SOUND_REFUSED'}}),
@@ -416,7 +427,10 @@ export const REASONS: Record<string, Variant[]> = {
   NO_MOWING_AREA: [r('no active mowing area on the map')],
   PLANNER_MISSING: [r('the planner is not running')],
   FOLLOWER_MISSING: [r('the path follower is not running')],
+  MARKER_UNAVAILABLE: [r('the camera towards the docking station cannot measure the marker right now')],
+  NO_CHARGE_CONTACTS: [r('no charge contacts are set for this mower, it cannot dock')],
   MANUAL: [r('by hand')],
+  TEST: [r('docking test by camera')],
   CROSS_TRACK: [r('too far off its path')],
   OUTSIDE: [r('outside the area it may drive in')],
   TIMEOUT: [r('took too long', {when: {type: 'CALIBRATION_FAILED'}}), r('not making progress, maybe stuck')],
@@ -584,6 +598,69 @@ export const REASONS: Record<string, Variant[]> = {
     r('its correlation data is too long'),
   ],
   RESPONSE_TOPIC: [r('its response topic is not rpc/response/ and a token')],
+};
+
+// what led it in on a try that failed (guide at DOCKING_RETRY and DOCKING_FAILED), put before the rest
+export const GUIDED: Record<string, string> = {marker: 'Led by the dock camera.', position: 'Led by its position.'};
+
+// what the dock camera's cause and detail at DOCKING_RETRY and DOCKING_FAILED mean and what helps, the catalog's texts
+// (x-texts in the OS's schema); the cause's name is a variant of dock_failed
+export const DOCK_CAUSES: Record<string, {help: string; fix: string}> = {
+  MARKER_LOST: {
+    help: 'The marker of the docking station was out of sight for too long on the way in. The mower stopped and ended the attempt.',
+    fix: 'Clear the view between the mower and the station.',
+  },
+  MARKER_NOT_SEEN: {
+    help: 'The camera is running but does not see the marker of the docking station. The mower does not dock by its position then.',
+    fix: 'Clear and clean the marker; in the dark check that the station has power and the marker light is on; check that the station stands where it was recorded.',
+  },
+  MARKER_UNAVAILABLE: {
+    help: 'The camera towards the docking station cannot measure the marker right now.',
+    fix: 'Check the camera and its setup; the detail names the cause.',
+  },
+};
+export const DOCK_DETAILS: Record<string, {name: string; help?: string; fix?: string}> = {
+  BLADE_RUNNING: {
+    name: 'Blade running',
+    help: 'This camera shows no picture while the blade runs.',
+    fix: 'Wait until the blade has stopped.',
+  },
+  BLURRED: {name: 'The image is blurred', fix: 'Clean the lens.'},
+  DRIVER_MISSING: {
+    name: 'Mower not reporting',
+    help: "The camera doesn't know the state of the mower and so shows no picture.",
+    fix: 'Wait a moment. If it stays so, restart MowBite OS.',
+  },
+  FIT_REJECTED: {name: 'The marker was found, but its position could not be measured reliably'},
+  LOCKED_AFTER_CRASH: {
+    name: 'Camera locked',
+    help: 'The operating system of the mower crashed while this camera ran. It stays off until the lock on the mower is deleted.',
+    fix: 'Keep the log for a report. Delete the lock only as the guide says.',
+  },
+  MARKER_AMBIGUOUS: {name: 'More than one marker in the image', fix: 'Leave only one marker in view of the camera.'},
+  MARKER_CLIPPED: {name: 'The marker touches the edge of the image'},
+  NOT_SET_UP: {
+    name: 'Camera not set up',
+    help: 'Something this camera needs is missing on the mower, for example a model or the service for the live picture.',
+    fix: 'Set the camera up as the guide says.',
+  },
+  NO_MARKER: {name: 'No marker in the image'},
+  NO_SIGNAL: {
+    name: 'No picture',
+    help: 'The camera gives no picture right now.',
+    fix: 'Wait a moment. If it stays so, restart MowBite OS.',
+  },
+  SELF_TEST: {
+    name: 'Self-test',
+    help: 'The camera tests itself once after the start. That only works while the mower stands with the blade off.',
+    fix: 'Wait until the test is done.',
+  },
+  TOO_BRIGHT: {name: 'The image is too bright', fix: 'Avoid glare, such as a low sun or a lamp behind the station.'},
+  TOO_DARK: {
+    name: 'The image is too dark',
+    fix: 'Check that the station has power and the marker light is on; otherwise provide light at the station.',
+  },
+  TOO_HOT: {name: 'Too hot', help: 'The computer of the mower is too hot, so the camera pauses.', fix: 'Wait until it has cooled down.'},
 };
 
 // put round the finished reason, by the start of its name (the longest that fits, at most one)

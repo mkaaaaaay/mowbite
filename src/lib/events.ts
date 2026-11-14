@@ -3,12 +3,15 @@ import {fmt, tr} from './i18n';
 import type {StopRelease} from './mowerOs';
 import {LOGIC_SOURCE} from './openmower';
 import {
+  DOCK_CAUSES,
+  DOCK_DETAILS,
   EMERGENCY_BITS,
   EMERGENCY_HIDE,
   EMERGENCY_HIDE_WITH,
   EMERGENCY_TEXT,
   EVENTS,
   FALLBACK,
+  GUIDED,
   NOT_DRIVEN,
   REASONS,
   WRAPPERS,
@@ -86,9 +89,11 @@ export interface MowerEvent {
   sun_elevation?: number;
   battery_percentage?: number;
   // DOCKING_DIRECT, DOCKING_RETRY and DOCKING_FAILED on MowBite OS: why the planner gave no way home (PLANNER_TIMEOUT,
-  // PLANNER_MISSING), whether the straight way wasn't free
+  // PLANNER_MISSING) and whether the straight way wasn't free, or why the dock camera didn't lead it in (DOCK_CAUSES,
+  // detail then from DOCK_DETAILS); guide at those and DOCKED: marker (the dock camera) or position
   cause?: string;
   direct_blocked?: boolean;
+  guide?: string;
   // UNEXPECTED_RESTART: whether it waits for a reset, the state then, the kernel's line or what the OS found (english)
   hold?: boolean;
   state_before?: string;
@@ -476,38 +481,7 @@ export function explain(e: MowerEvent, state?: string, gpsTimeout?: number, os =
       );
     case 'DOCKING_RETRY':
     case 'DOCKING_FAILED':
-      if (e.reason === 'NO_CHARGE_CURRENT') {
-        const seen =
-          typeof e.current === 'number' && typeof e.limit === 'number'
-            ? tr('It got onto the charging contacts, but only {a} A came, at least {limit} A were expected.', {a: fmt(e.current, 2), limit: fmt(e.limit, 2)})
-            : tr('It got onto the charging contacts, but no charge current came.');
-        const then = e.type === 'DOCKING_FAILED' ? tr('It gave up and stays on the contacts.') : tr('It backs out and tries again.');
-        return `${seen} ${then} ${tr('Check that the docking station has power (socket, timer, power supply) and the contacts are clean.')}`;
-      }
-      if (e.cause) {
-        const why = reasonText({...e, reason: e.cause});
-        const way =
-          e.direct_blocked === true
-            ? tr("The planner gave no way to the docking station ({why}) and the straight way there wasn't free.", {why})
-            : e.direct_blocked === false
-              ? tr("The planner gave no way to the docking station ({why}) and it didn't get there on the straight way either.", {why})
-              : tr('The planner gave no way to the docking station ({why}).', {why});
-        const then =
-          e.type === 'DOCKING_FAILED'
-            ? tr('It waits where it is. Send it home again later, if it stays so, restart MowBite OS.')
-            : tr('It tries again.');
-        return `${way} ${then}`;
-      }
-      // MowBite OS: it didn't set off for the dock
-      if (e.type === 'DOCKING_FAILED' && e.attempts === undefined && isReasonCode(e.reason))
-        return tr("Without a good enough position and heading it couldn't set off for the dock, so it waits where it is. Once the GPS is good again, send it home.");
-      return e.reason === 'dock_failed'
-        ? tr(
-            "It was in front of the dock but didn't get charging contact, so it backed out to try again. Check the contacts and whether the dock position on the map is still right.",
-          )
-        : tr(
-            "It couldn't reach the point in front of the dock. Usually the GPS fix was bad or the way there is blocked or outside the navigation area.",
-          );
+      return GUIDED[e.guide ?? ''] ? `${tr(GUIDED[e.guide!])} ${dockTryText(e)}` : dockTryText(e);
     case 'DOCKING_DIRECT':
       return tr(
         'The planner gave no way to the docking station ({why}), so it drives the straight way to the point in front of it ({m} m). It checked before that the mower fits along it.',
@@ -587,6 +561,8 @@ export function explain(e: MowerEvent, state?: string, gpsTimeout?: number, os =
             "It stands on the contacts, but no charge current comes. Check that the docking station has power (socket, timer, power supply) and the contacts are clean. Once it charges again, the activity says Docked.",
           );
     case 'DOCKING':
+      if (e.reason === 'TEST')
+        return tr('It docks by the dock camera alone from where it stood, without map or position, slowly and with the blade off. Stop docking or STOP at the mower ends it.');
       if (e.reason === 'PLANNER_TIMEOUT' || e.reason === 'PLANNER_MISSING')
         return tr("The planner didn't answer while mowing, so it goes to the docking station. The job is kept: start mowing again later, if it stays so, restart MowBite OS.");
       if (isReasonCode(e.reason))
@@ -599,6 +575,52 @@ export function explain(e: MowerEvent, state?: string, gpsTimeout?: number, os =
         ? tr("The mow motor reached mower_logic/motor_hot_temperature. Once it's down to motor_cold_temperature it mows on by itself in semi-automatic or automatic mode, otherwise it waits for a start.")
         : undefined;
   }
+}
+
+// a try at docking that failed, why and what it does now
+function dockTryText(e: MowerEvent): string {
+    if (e.reason === 'NO_CHARGE_CURRENT') {
+      const seen =
+        typeof e.current === 'number' && typeof e.limit === 'number'
+          ? tr('It got onto the charging contacts, but only {a} A came, at least {limit} A were expected.', {a: fmt(e.current, 2), limit: fmt(e.limit, 2)})
+          : tr('It got onto the charging contacts, but no charge current came.');
+      const then = e.type === 'DOCKING_FAILED' ? tr('It gave up and stays on the contacts.') : tr('It backs out and tries again.');
+      return `${seen} ${then} ${tr('Check that the docking station has power (socket, timer, power supply) and the contacts are clean.')}`;
+    }
+    if (e.cause && DOCK_CAUSES[e.cause]) return dockCameraText(e);
+    if (e.cause) {
+      const why = reasonText({...e, reason: e.cause});
+      const way =
+        e.direct_blocked === true
+          ? tr("The planner gave no way to the docking station ({why}) and the straight way there wasn't free.", {why})
+          : e.direct_blocked === false
+            ? tr("The planner gave no way to the docking station ({why}) and it didn't get there on the straight way either.", {why})
+            : tr('The planner gave no way to the docking station ({why}).', {why});
+      const then =
+        e.type === 'DOCKING_FAILED'
+          ? tr('It waits where it is. Send it home again later, if it stays so, restart MowBite OS.')
+          : tr('It tries again.');
+      return `${way} ${then}`;
+    }
+    // MowBite OS: it didn't set off for the dock
+    if (e.type === 'DOCKING_FAILED' && e.attempts === undefined && isReasonCode(e.reason))
+      return tr("Without a good enough position and heading it couldn't set off for the dock, so it waits where it is. Once the GPS is good again, send it home.");
+    return e.reason === 'dock_failed'
+      ? tr(
+          "It was in front of the dock but didn't get charging contact, so it backed out to try again. Check the contacts and whether the dock position on the map is still right.",
+        )
+      : tr(
+          "It couldn't reach the point in front of the dock. Usually the GPS fix was bad or the way there is blocked or outside the navigation area.",
+        );
+}
+
+// the dock camera didn't lead it in: what was wrong, what the camera said and what helps, the catalog's words
+function dockCameraText(e: MowerEvent): string {
+  const cause = DOCK_CAUSES[e.cause!];
+  const detail = DOCK_DETAILS[e.detail ?? ''];
+  const said = detail ? [tr('The camera said: {what}.', {what: tr(detail.name)}), ...(detail.help ? [tr(detail.help)] : [])] : [];
+  const then = e.type === 'DOCKING_FAILED' ? tr('It gave up and waits where it is.') : tr('It backs out and tries again.');
+  return [tr(cause.help), ...said, then, tr(detail?.fix ?? cause.fix)].join(' ');
 }
 
 // where open_mower_ros writes the event and the line it logs at the same moment

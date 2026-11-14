@@ -3,6 +3,7 @@
 import {datumFromParams, useMowerParams} from '@/hooks/useMowerParams';
 import {tr} from '@/lib/i18n';
 import {
+  fitHeight,
   loadKept,
   mowsIntoNight,
   onOs,
@@ -20,7 +21,7 @@ import {
   type ParamField,
   type ParamGroup,
 } from '@/lib/mowerParams';
-import {isMowbiteOs, systemInfo, useMowbiteOs} from '@/lib/mowerOs';
+import {isMowbiteOs, systemInfo, useBladeHeight, useMowbiteOs} from '@/lib/mowerOs';
 import {RPC} from '@/lib/openmower';
 import {sunTimes} from '@/lib/sun';
 import {useRpcMethods} from '@/hooks/useRpcMethods';
@@ -144,6 +145,9 @@ export function ParamRow({field, os}: {field: ParamField; os: boolean}) {
   // the sun's times where the mower is, for going home at sunset
   const datum = f.key === 'dock_at_sunset' ? datumFromParams(params) : undefined;
   const sun = datum ? sunTimes(datum.lat, datum.lon) : null;
+  const blade = useBladeHeight();
+  const heights = f.bladeHeight ? blade : null;
+  if (f.bladeHeight && !heights) return null;
 
   const set = async (v: number | boolean) => {
     setAsking(false);
@@ -164,7 +168,7 @@ export function ParamRow({field, os}: {field: ParamField; os: boolean}) {
     if (draft === null) return;
     const v = parseParam(f, draft);
     setDraft(null);
-    if (v !== null) void set(v);
+    if (v !== null) void set(heights ? fitHeight(v, heights) : v);
   };
   const isKept = !!k?.enabled && f.key in k.values;
   const label = tr((os && f.osLabel) || f.label);
@@ -209,6 +213,13 @@ export function ParamRow({field, os}: {field: ParamField; os: boolean}) {
           </span>
         )}
       </div>
+      {heights && (
+        <span className={local.kept}>
+          {value === 0
+            ? tr("the mower's own: {mm} mm", {mm: heights.default_mm})
+            : tr('{min} to {max} mm, 0 for its own ({mm} mm)', {min: heights.min_mm, max: heights.max_mm, mm: heights.default_mm})}
+        </span>
+      )}
       {sun && <span className={local.kept}>{value ? tr('today at {set}', {set: sun.set}) : tr('off: mows on after sunset (today {set})', {set: sun.set})}</span>}
       {asking && (
         <span className={local.ask}>

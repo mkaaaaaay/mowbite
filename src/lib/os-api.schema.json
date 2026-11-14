@@ -377,6 +377,41 @@
       ],
       "type": "object"
     },
+    "docking.test.params": {
+      "additionalProperties": false,
+      "description": "The params of docking.test",
+      "properties": {
+        "client": {
+          "description": "Who sent the command (app, ha), for the log and the events of its step",
+          "pattern": "^[a-z][a-z0-9_-]{0,15}$",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "type": "object"
+    },
+    "docking.test.result": {
+      "additionalProperties": false,
+      "description": "The result of docking.test",
+      "properties": {
+        "state": {
+          "description": "current_state of robot_state right after the command",
+          "enum": [
+            "DOCKING"
+          ],
+          "type": "string"
+        },
+        "sub_state": {
+          "description": "current_sub_state of robot_state right after the command",
+          "type": "string"
+        }
+      },
+      "required": [
+        "state",
+        "sub_state"
+      ],
+      "type": "object"
+    },
     "emergency.reset.params": {
       "additionalProperties": false,
       "description": "The params of emergency.reset",
@@ -1906,11 +1941,19 @@
     },
     "event.DOCKED": {
       "additionalProperties": false,
-      "description": "The mower is on the contacts of the docking station",
+      "description": "The mower is on the contacts of the docking station; guide only after docking",
       "properties": {
         "client": {
           "description": "Who sent the command (app, ha), for the log and the events of its step",
           "pattern": "^[a-z][a-z0-9_-]{0,15}$",
+          "type": "string"
+        },
+        "guide": {
+          "description": "What guided the mower onto the station: marker by the dock camera, position by the map",
+          "enum": [
+            "marker",
+            "position"
+          ],
           "type": "string"
         },
         "id": {
@@ -2017,7 +2060,8 @@
             "DARK",
             "PLANNER_TIMEOUT",
             "PLANNER_MISSING",
-            "SCHEDULE"
+            "SCHEDULE",
+            "TEST"
           ],
           "type": "string"
         },
@@ -2200,12 +2244,53 @@
           "type": "integer"
         },
         "cause": {
-          "description": "Why the planner gave no way: it did not answer in time, or is not running",
+          "description": "Why: the planner gave no way (with approach_failed, a reason in x-reasons), or the dock camera did not guide the mower (with dock_failed, texts here)",
           "enum": [
             "PLANNER_TIMEOUT",
-            "PLANNER_MISSING"
+            "PLANNER_MISSING",
+            "MARKER_UNAVAILABLE",
+            "MARKER_NOT_SEEN",
+            "MARKER_LOST"
           ],
-          "type": "string"
+          "type": "string",
+          "x-texts": {
+            "MARKER_LOST": {
+              "de": {
+                "fix": "Die Sicht zwischen Mäher und Station freimachen.",
+                "help": "Der Marker der Ladestation war auf dem Weg hinein zu lange nicht zu sehen. Der Mäher hat angehalten und den Versuch beendet.",
+                "name": "Marker verloren"
+              },
+              "en": {
+                "fix": "Clear the view between the mower and the station.",
+                "help": "The marker of the docking station was out of sight for too long on the way in. The mower stopped and ended the attempt.",
+                "name": "Marker lost"
+              }
+            },
+            "MARKER_NOT_SEEN": {
+              "de": {
+                "fix": "Marker freimachen und säubern; bei Dunkelheit prüfen, ob die Station Strom hat und die Beleuchtung des Markers an ist; prüfen, ob die Station am aufgenommenen Platz steht.",
+                "help": "Die Kamera läuft, sieht den Marker der Ladestation aber nicht. Der Mäher dockt dann nicht nach der Position an.",
+                "name": "Marker nicht gefunden"
+              },
+              "en": {
+                "fix": "Clear and clean the marker; in the dark check that the station has power and the marker light is on; check that the station stands where it was recorded.",
+                "help": "The camera is running but does not see the marker of the docking station. The mower does not dock by its position then.",
+                "name": "Marker not found"
+              }
+            },
+            "MARKER_UNAVAILABLE": {
+              "de": {
+                "fix": "Kamera und ihre Einrichtung prüfen; das Detail nennt den Grund.",
+                "help": "Die Kamera zur Ladestation kann den Marker gerade nicht messen.",
+                "name": "Dock-Kamera misst nicht"
+              },
+              "en": {
+                "fix": "Check the camera and its setup; the detail names the cause.",
+                "help": "The camera towards the docking station cannot measure the marker right now.",
+                "name": "Dock camera not measuring"
+              }
+            }
+          }
         },
         "client": {
           "description": "Who sent the command (app, ha), for the log and the events of its step",
@@ -2217,9 +2302,207 @@
           "type": "number",
           "x-unit": "A"
         },
+        "detail": {
+          "description": "With a cause of the dock camera: why it gave no measurement",
+          "enum": [
+            "NO_MARKER",
+            "MARKER_CLIPPED",
+            "MARKER_AMBIGUOUS",
+            "TOO_DARK",
+            "TOO_BRIGHT",
+            "BLURRED",
+            "FIT_REJECTED",
+            "LOCKED_AFTER_CRASH",
+            "NOT_SET_UP",
+            "BLADE_RUNNING",
+            "TOO_HOT",
+            "NO_SIGNAL",
+            "DRIVER_MISSING",
+            "SELF_TEST"
+          ],
+          "type": "string",
+          "x-texts": {
+            "BLADE_RUNNING": {
+              "de": {
+                "fix": "Warten, bis das Messer steht.",
+                "help": "Diese Kamera zeigt kein Bild, solange das Messer läuft.",
+                "name": "Messer läuft"
+              },
+              "en": {
+                "fix": "Wait until the blade has stopped.",
+                "help": "This camera shows no picture while the blade runs.",
+                "name": "Blade running"
+              }
+            },
+            "BLURRED": {
+              "de": {
+                "fix": "Die Linse säubern.",
+                "help": "",
+                "name": "Bild unscharf"
+              },
+              "en": {
+                "fix": "Clean the lens.",
+                "help": "",
+                "name": "The image is blurred"
+              }
+            },
+            "DRIVER_MISSING": {
+              "de": {
+                "fix": "Kurz warten. Bleibt es dabei, MowBite OS neu starten.",
+                "help": "Die Kamera kennt den Zustand des Mähers nicht und zeigt deshalb kein Bild.",
+                "name": "Mäher meldet sich nicht"
+              },
+              "en": {
+                "fix": "Wait a moment. If it stays so, restart MowBite OS.",
+                "help": "The camera doesn't know the state of the mower and so shows no picture.",
+                "name": "Mower not reporting"
+              }
+            },
+            "FIT_REJECTED": {
+              "de": {
+                "fix": "",
+                "help": "",
+                "name": "Marker gefunden, Lage nicht sicher messbar"
+              },
+              "en": {
+                "fix": "",
+                "help": "",
+                "name": "The marker was found, but its position could not be measured reliably"
+              }
+            },
+            "LOCKED_AFTER_CRASH": {
+              "de": {
+                "fix": "Das Protokoll für eine Meldung sichern. Die Sperre nur nach der Anleitung löschen.",
+                "help": "Das Betriebssystem des Mähers ist abgestürzt, während diese Kamera lief. Sie bleibt aus, bis die Sperre auf dem Mäher gelöscht ist.",
+                "name": "Kamera gesperrt"
+              },
+              "en": {
+                "fix": "Keep the log for a report. Delete the lock only as the guide says.",
+                "help": "The operating system of the mower crashed while this camera ran. It stays off until the lock on the mower is deleted.",
+                "name": "Camera locked"
+              }
+            },
+            "MARKER_AMBIGUOUS": {
+              "de": {
+                "fix": "Nur einen Marker im Blick der Kamera lassen.",
+                "help": "",
+                "name": "Mehr als ein Marker im Bild"
+              },
+              "en": {
+                "fix": "Leave only one marker in view of the camera.",
+                "help": "",
+                "name": "More than one marker in the image"
+              }
+            },
+            "MARKER_CLIPPED": {
+              "de": {
+                "fix": "",
+                "help": "",
+                "name": "Marker am Bildrand abgeschnitten"
+              },
+              "en": {
+                "fix": "",
+                "help": "",
+                "name": "The marker touches the edge of the image"
+              }
+            },
+            "NOT_SET_UP": {
+              "de": {
+                "fix": "Die Kamera nach der Anleitung einrichten.",
+                "help": "Auf dem Mäher fehlt etwas, das diese Kamera braucht, zum Beispiel ein Modell oder der Dienst für das Livebild.",
+                "name": "Kamera nicht eingerichtet"
+              },
+              "en": {
+                "fix": "Set the camera up as the guide says.",
+                "help": "Something this camera needs is missing on the mower, for example a model or the service for the live picture.",
+                "name": "Camera not set up"
+              }
+            },
+            "NO_MARKER": {
+              "de": {
+                "fix": "",
+                "help": "",
+                "name": "Kein Marker im Bild"
+              },
+              "en": {
+                "fix": "",
+                "help": "",
+                "name": "No marker in the image"
+              }
+            },
+            "NO_SIGNAL": {
+              "de": {
+                "fix": "Kurz warten. Bleibt es dabei, MowBite OS neu starten.",
+                "help": "Die Kamera liefert gerade kein Bild.",
+                "name": "Kein Bild"
+              },
+              "en": {
+                "fix": "Wait a moment. If it stays so, restart MowBite OS.",
+                "help": "The camera gives no picture right now.",
+                "name": "No picture"
+              }
+            },
+            "SELF_TEST": {
+              "de": {
+                "fix": "Warten, bis der Test durch ist.",
+                "help": "Die Kamera prüft sich nach dem Start einmal selbst. Das geht nur, wenn der Mäher steht und das Messer aus ist.",
+                "name": "Selbsttest"
+              },
+              "en": {
+                "fix": "Wait until the test is done.",
+                "help": "The camera tests itself once after the start. That only works while the mower stands with the blade off.",
+                "name": "Self-test"
+              }
+            },
+            "TOO_BRIGHT": {
+              "de": {
+                "fix": "Blendung vermeiden, etwa tief stehende Sonne oder eine Lampe hinter der Station.",
+                "help": "",
+                "name": "Bild zu hell"
+              },
+              "en": {
+                "fix": "Avoid glare, such as a low sun or a lamp behind the station.",
+                "help": "",
+                "name": "The image is too bright"
+              }
+            },
+            "TOO_DARK": {
+              "de": {
+                "fix": "Prüfen, ob die Station Strom hat und die Beleuchtung des Markers an ist; sonst für Licht an der Station sorgen.",
+                "help": "",
+                "name": "Bild zu dunkel"
+              },
+              "en": {
+                "fix": "Check that the station has power and the marker light is on; otherwise provide light at the station.",
+                "help": "",
+                "name": "The image is too dark"
+              }
+            },
+            "TOO_HOT": {
+              "de": {
+                "fix": "Warten, bis er abgekühlt ist.",
+                "help": "Der Rechner des Mähers ist zu warm, die Kamera macht eine Pause.",
+                "name": "Zu warm"
+              },
+              "en": {
+                "fix": "Wait until it has cooled down.",
+                "help": "The computer of the mower is too hot, so the camera pauses.",
+                "name": "Too hot"
+              }
+            }
+          }
+        },
         "direct_blocked": {
-          "description": "With a cause, where the mower may drive straight to the station then: true when that way was not free, false when it drove it and failed",
+          "description": "With a cause of the planner, where the mower may drive straight to the station then: true when that way was not free, false when it drove it and failed",
           "type": "boolean"
+        },
+        "guide": {
+          "description": "What guided the mower onto the station: marker by the dock camera, position by the map",
+          "enum": [
+            "marker",
+            "position"
+          ],
+          "type": "string"
         },
         "id": {
           "description": "Random id of the event, 32 letters and digits",
@@ -2319,12 +2602,53 @@
           "type": "integer"
         },
         "cause": {
-          "description": "Why the planner gave no way: it did not answer in time, or is not running",
+          "description": "Why: the planner gave no way (with approach_failed, a reason in x-reasons), or the dock camera did not guide the mower (with dock_failed, texts here)",
           "enum": [
             "PLANNER_TIMEOUT",
-            "PLANNER_MISSING"
+            "PLANNER_MISSING",
+            "MARKER_UNAVAILABLE",
+            "MARKER_NOT_SEEN",
+            "MARKER_LOST"
           ],
-          "type": "string"
+          "type": "string",
+          "x-texts": {
+            "MARKER_LOST": {
+              "de": {
+                "fix": "Die Sicht zwischen Mäher und Station freimachen.",
+                "help": "Der Marker der Ladestation war auf dem Weg hinein zu lange nicht zu sehen. Der Mäher hat angehalten und den Versuch beendet.",
+                "name": "Marker verloren"
+              },
+              "en": {
+                "fix": "Clear the view between the mower and the station.",
+                "help": "The marker of the docking station was out of sight for too long on the way in. The mower stopped and ended the attempt.",
+                "name": "Marker lost"
+              }
+            },
+            "MARKER_NOT_SEEN": {
+              "de": {
+                "fix": "Marker freimachen und säubern; bei Dunkelheit prüfen, ob die Station Strom hat und die Beleuchtung des Markers an ist; prüfen, ob die Station am aufgenommenen Platz steht.",
+                "help": "Die Kamera läuft, sieht den Marker der Ladestation aber nicht. Der Mäher dockt dann nicht nach der Position an.",
+                "name": "Marker nicht gefunden"
+              },
+              "en": {
+                "fix": "Clear and clean the marker; in the dark check that the station has power and the marker light is on; check that the station stands where it was recorded.",
+                "help": "The camera is running but does not see the marker of the docking station. The mower does not dock by its position then.",
+                "name": "Marker not found"
+              }
+            },
+            "MARKER_UNAVAILABLE": {
+              "de": {
+                "fix": "Kamera und ihre Einrichtung prüfen; das Detail nennt den Grund.",
+                "help": "Die Kamera zur Ladestation kann den Marker gerade nicht messen.",
+                "name": "Dock-Kamera misst nicht"
+              },
+              "en": {
+                "fix": "Check the camera and its setup; the detail names the cause.",
+                "help": "The camera towards the docking station cannot measure the marker right now.",
+                "name": "Dock camera not measuring"
+              }
+            }
+          }
         },
         "client": {
           "description": "Who sent the command (app, ha), for the log and the events of its step",
@@ -2336,9 +2660,207 @@
           "type": "number",
           "x-unit": "A"
         },
+        "detail": {
+          "description": "With a cause of the dock camera: why it gave no measurement",
+          "enum": [
+            "NO_MARKER",
+            "MARKER_CLIPPED",
+            "MARKER_AMBIGUOUS",
+            "TOO_DARK",
+            "TOO_BRIGHT",
+            "BLURRED",
+            "FIT_REJECTED",
+            "LOCKED_AFTER_CRASH",
+            "NOT_SET_UP",
+            "BLADE_RUNNING",
+            "TOO_HOT",
+            "NO_SIGNAL",
+            "DRIVER_MISSING",
+            "SELF_TEST"
+          ],
+          "type": "string",
+          "x-texts": {
+            "BLADE_RUNNING": {
+              "de": {
+                "fix": "Warten, bis das Messer steht.",
+                "help": "Diese Kamera zeigt kein Bild, solange das Messer läuft.",
+                "name": "Messer läuft"
+              },
+              "en": {
+                "fix": "Wait until the blade has stopped.",
+                "help": "This camera shows no picture while the blade runs.",
+                "name": "Blade running"
+              }
+            },
+            "BLURRED": {
+              "de": {
+                "fix": "Die Linse säubern.",
+                "help": "",
+                "name": "Bild unscharf"
+              },
+              "en": {
+                "fix": "Clean the lens.",
+                "help": "",
+                "name": "The image is blurred"
+              }
+            },
+            "DRIVER_MISSING": {
+              "de": {
+                "fix": "Kurz warten. Bleibt es dabei, MowBite OS neu starten.",
+                "help": "Die Kamera kennt den Zustand des Mähers nicht und zeigt deshalb kein Bild.",
+                "name": "Mäher meldet sich nicht"
+              },
+              "en": {
+                "fix": "Wait a moment. If it stays so, restart MowBite OS.",
+                "help": "The camera doesn't know the state of the mower and so shows no picture.",
+                "name": "Mower not reporting"
+              }
+            },
+            "FIT_REJECTED": {
+              "de": {
+                "fix": "",
+                "help": "",
+                "name": "Marker gefunden, Lage nicht sicher messbar"
+              },
+              "en": {
+                "fix": "",
+                "help": "",
+                "name": "The marker was found, but its position could not be measured reliably"
+              }
+            },
+            "LOCKED_AFTER_CRASH": {
+              "de": {
+                "fix": "Das Protokoll für eine Meldung sichern. Die Sperre nur nach der Anleitung löschen.",
+                "help": "Das Betriebssystem des Mähers ist abgestürzt, während diese Kamera lief. Sie bleibt aus, bis die Sperre auf dem Mäher gelöscht ist.",
+                "name": "Kamera gesperrt"
+              },
+              "en": {
+                "fix": "Keep the log for a report. Delete the lock only as the guide says.",
+                "help": "The operating system of the mower crashed while this camera ran. It stays off until the lock on the mower is deleted.",
+                "name": "Camera locked"
+              }
+            },
+            "MARKER_AMBIGUOUS": {
+              "de": {
+                "fix": "Nur einen Marker im Blick der Kamera lassen.",
+                "help": "",
+                "name": "Mehr als ein Marker im Bild"
+              },
+              "en": {
+                "fix": "Leave only one marker in view of the camera.",
+                "help": "",
+                "name": "More than one marker in the image"
+              }
+            },
+            "MARKER_CLIPPED": {
+              "de": {
+                "fix": "",
+                "help": "",
+                "name": "Marker am Bildrand abgeschnitten"
+              },
+              "en": {
+                "fix": "",
+                "help": "",
+                "name": "The marker touches the edge of the image"
+              }
+            },
+            "NOT_SET_UP": {
+              "de": {
+                "fix": "Die Kamera nach der Anleitung einrichten.",
+                "help": "Auf dem Mäher fehlt etwas, das diese Kamera braucht, zum Beispiel ein Modell oder der Dienst für das Livebild.",
+                "name": "Kamera nicht eingerichtet"
+              },
+              "en": {
+                "fix": "Set the camera up as the guide says.",
+                "help": "Something this camera needs is missing on the mower, for example a model or the service for the live picture.",
+                "name": "Camera not set up"
+              }
+            },
+            "NO_MARKER": {
+              "de": {
+                "fix": "",
+                "help": "",
+                "name": "Kein Marker im Bild"
+              },
+              "en": {
+                "fix": "",
+                "help": "",
+                "name": "No marker in the image"
+              }
+            },
+            "NO_SIGNAL": {
+              "de": {
+                "fix": "Kurz warten. Bleibt es dabei, MowBite OS neu starten.",
+                "help": "Die Kamera liefert gerade kein Bild.",
+                "name": "Kein Bild"
+              },
+              "en": {
+                "fix": "Wait a moment. If it stays so, restart MowBite OS.",
+                "help": "The camera gives no picture right now.",
+                "name": "No picture"
+              }
+            },
+            "SELF_TEST": {
+              "de": {
+                "fix": "Warten, bis der Test durch ist.",
+                "help": "Die Kamera prüft sich nach dem Start einmal selbst. Das geht nur, wenn der Mäher steht und das Messer aus ist.",
+                "name": "Selbsttest"
+              },
+              "en": {
+                "fix": "Wait until the test is done.",
+                "help": "The camera tests itself once after the start. That only works while the mower stands with the blade off.",
+                "name": "Self-test"
+              }
+            },
+            "TOO_BRIGHT": {
+              "de": {
+                "fix": "Blendung vermeiden, etwa tief stehende Sonne oder eine Lampe hinter der Station.",
+                "help": "",
+                "name": "Bild zu hell"
+              },
+              "en": {
+                "fix": "Avoid glare, such as a low sun or a lamp behind the station.",
+                "help": "",
+                "name": "The image is too bright"
+              }
+            },
+            "TOO_DARK": {
+              "de": {
+                "fix": "Prüfen, ob die Station Strom hat und die Beleuchtung des Markers an ist; sonst für Licht an der Station sorgen.",
+                "help": "",
+                "name": "Bild zu dunkel"
+              },
+              "en": {
+                "fix": "Check that the station has power and the marker light is on; otherwise provide light at the station.",
+                "help": "",
+                "name": "The image is too dark"
+              }
+            },
+            "TOO_HOT": {
+              "de": {
+                "fix": "Warten, bis er abgekühlt ist.",
+                "help": "Der Rechner des Mähers ist zu warm, die Kamera macht eine Pause.",
+                "name": "Zu warm"
+              },
+              "en": {
+                "fix": "Wait until it has cooled down.",
+                "help": "The computer of the mower is too hot, so the camera pauses.",
+                "name": "Too hot"
+              }
+            }
+          }
+        },
         "direct_blocked": {
-          "description": "With a cause, where the mower may drive straight to the station then: true when that way was not free, false when it drove it and failed",
+          "description": "With a cause of the planner, where the mower may drive straight to the station then: true when that way was not free, false when it drove it and failed",
           "type": "boolean"
+        },
+        "guide": {
+          "description": "What guided the mower onto the station: marker by the dock camera, position by the map",
+          "enum": [
+            "marker",
+            "position"
+          ],
+          "type": "string"
         },
         "id": {
           "description": "Random id of the event, 32 letters and digits",
@@ -2720,9 +3242,11 @@
             "NO_HEADING",
             "NO_MOWING_AREA",
             "NO_DOCK",
+            "NO_CHARGE_CONTACTS",
             "DOCK_UNREACHABLE",
             "NO_DOCK_CONTACT",
-            "REFERENCE_MISMATCH"
+            "REFERENCE_MISMATCH",
+            "MARKER_UNAVAILABLE"
           ],
           "type": "string"
         },
@@ -9080,6 +9604,33 @@
           "description": "Version of this interface, the x-api of the schema system.api gives",
           "type": "integer"
         },
+        "blade_height": {
+          "additionalProperties": false,
+          "description": "Cutting heights the platform sets for /mower_logic/mow_height_mm; null or missing where it sets none, then the setting has no effect",
+          "properties": {
+            "default_mm": {
+              "description": "Height of the platform for 0",
+              "type": "integer"
+            },
+            "max_mm": {
+              "description": "Highest height",
+              "type": "integer"
+            },
+            "min_mm": {
+              "description": "Lowest height",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "min_mm",
+            "max_mm",
+            "default_mm"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
         "mqtt": {
           "description": "MQTT version of the bridge at the broker: 5 sends each answer to the response topic of its request, 3 sends all to rpc/response",
           "type": "integer"
@@ -12542,11 +13093,11 @@
       "type": "object"
     }
   },
-  "$id": "urn:mowbite-os:api:27",
+  "$id": "urn:mowbite-os:api:30",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "robot_state, actions, events and RPC methods of MowBite OS over MQTT, as system.api gives them; made from the code, objects sorted by key. x-reasons has severity and resume of every reason by event (COMMAND_REFUSED and REQUEST_REFUSED only in refusals; when: another rating for these field values; texts: name, help and fix by language; an enum field may carry the same by value as x-texts), x-emergency-bits the bits of emergency, x-commands the commands with params, result, the event of their refusal and the actions that do the same, x-methods every RPC method of the OS with its node (planner.* are the planner's, sim.* only in the simulation), x-sensors the sensors by id, x-settings the settings of params.set with the ranges of the OS, x-geometry the keys of robot.geometry, x-schedule-log the words of schedule.log with what detail and more hold (null: always null).",
   "title": "MowBite OS app interface",
-  "x-api": 27,
+  "x-api": 30,
   "x-commands": {
     "docking.abort": {
       "action": "mower_logic:docking/abort_docking",
@@ -12568,6 +13119,14 @@
       "params": "#/$defs/docking.start.params",
       "refused": "DRIVE_REFUSED",
       "result": "#/$defs/docking.start.result"
+    },
+    "docking.test": {
+      "action": null,
+      "actions": [],
+      "description": "Docks by the dock camera alone from where the mower stands in front of the station, without map or position (the reason TEST at DOCKING); offered only where the platform has a dock marker",
+      "params": "#/$defs/docking.test.params",
+      "refused": "DRIVE_REFUSED",
+      "result": "#/$defs/docking.test.result"
     },
     "emergency.reset": {
       "action": "mower_logic/reset_emergency",
@@ -13163,6 +13722,13 @@
       "offered": "only where the OS docks by itself",
       "params": "#/$defs/docking.start.params",
       "result": "#/$defs/docking.start.result"
+    },
+    "docking.test": {
+      "description": "Docks by the dock camera alone from where the mower stands in front of the station, without map or position (the reason TEST at DOCKING); offered only where the platform has a dock marker",
+      "node": "mowbite_logic",
+      "offered": "",
+      "params": "#/$defs/docking.test.params",
+      "result": "#/$defs/docking.test.result"
     },
     "emergency.reset": {
       "description": "Asks the safety node to release the emergency and answers with its answer, after at most 3 s",
@@ -14505,6 +15071,24 @@
             "name": "Schedule"
           }
         }
+      },
+      "TEST": {
+        "description": "Docking test by camera",
+        "fields": {},
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "",
+            "name": "Andock-Test nach Kamera"
+          },
+          "en": {
+            "fix": "",
+            "help": "",
+            "name": "Docking test by camera"
+          }
+        }
       }
     },
     "DOCKING_FAILED": {
@@ -14807,6 +15391,42 @@
         "fields": {},
         "resume": "user",
         "severity": "error"
+      },
+      "MARKER_UNAVAILABLE": {
+        "description": "The dock camera cannot measure the marker",
+        "fields": {},
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Kamera und ihre Einrichtung prüfen; das Detail nennt den Grund.",
+            "help": "Die Kamera zur Ladestation kann den Marker gerade nicht messen.",
+            "name": "Dock-Kamera misst nicht"
+          },
+          "en": {
+            "fix": "Check the camera and its setup; the detail names the cause.",
+            "help": "The camera towards the docking station cannot measure the marker right now.",
+            "name": "Dock camera not measuring"
+          }
+        }
+      },
+      "NO_CHARGE_CONTACTS": {
+        "description": "This mower has no charge contacts to dock onto",
+        "fields": {},
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Die Lage der Ladekontakte in der Plattform-Datei eintragen.",
+            "help": "Für diesen Mäher sind keine Ladekontakte eingetragen, er kann nicht andocken.",
+            "name": "Keine Ladekontakte"
+          },
+          "en": {
+            "fix": "Set the position of the charge contacts in the platform file.",
+            "help": "No charge contacts are set for this mower, it cannot dock.",
+            "name": "No charge contacts"
+          }
+        }
       },
       "NO_DOCK": {
         "description": "The map has no docking station",
@@ -17020,6 +17640,14 @@
       "min": 20.0,
       "type": "number",
       "unit": "deg.C"
+    },
+    "mow_height_mm": {
+      "default": 0.0,
+      "description": "Cutting height from the next start of the blade, within blade_height of system.info; 0 = that of the platform",
+      "max": 150.0,
+      "min": 0.0,
+      "type": "integer",
+      "unit": "mm"
     },
     "rain_check_seconds": {
       "default": 20.0,

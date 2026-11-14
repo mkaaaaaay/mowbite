@@ -1,6 +1,7 @@
 'use client';
 
 import {BrandMark} from '@/components/BrandMark';
+import {DockingTest} from '@/components/DockingTest';
 import {DontPanic} from '@/components/DontPanic';
 import {useEggForced, useHalloween, useUmbrella} from '@/lib/eggs';
 import LogicHint from '@/components/LogicHint';
@@ -86,6 +87,7 @@ const ACTIONS = [
   {id: ACTION.pause, Icon: PauseIcon, label: 'Pause', tone: 'pause'},
   {id: ACTION.goHome, Icon: HomeIcon, label: 'Go home', tone: 'home'},
   {id: ACTION.skipArea, Icon: SkipIcon, label: 'Skip area', tone: 'skip'},
+  {id: ACTION.abortDocking, Icon: CloseIcon, label: 'Stop docking', tone: 'stop'},
 ];
 
 
@@ -648,6 +650,8 @@ export default function Home() {
                     {tr('Drop the interrupted job')}
                   </button>
                 ))}
+              {/* idle in front of the station, where the mower offers it */}
+              <DockingTest styles={styles} live={live} idle={current === 'IDLE' && !state.emergency && !charger} />
               {/* idle in the dock: what the last mow left, and mowing just that */}
               {live && hasAction(ACTION.startMowing) && !state.emergency && !wasLeftovers && (
                 <LeftoversCard

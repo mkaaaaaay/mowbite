@@ -393,13 +393,15 @@
 }
 
 .controls .resetJobButton,
-.controls .skipPathButton {
+.controls .skipPathButton,
+.controls .dockTestButton {
   grid-column: 1 / -1;
 }
 
 /* the smaller ones under them: lower and plainer, the same family */
 .controls .resetJobButton,
 .controls .skipPathButton,
+.controls .dockTestButton,
 .controls .leftoversButton {
   min-height: var(--tap);
   padding: 8px 12px;

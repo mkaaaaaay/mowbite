@@ -6,7 +6,7 @@ import de from './i18n/de';
 import {onOs, PARAM_FIELDS, paramField} from './mowerParams';
 import {defaultNotify, NOTIFY_EVENTS, toOs} from './notify';
 import {COMMAND, RPC} from './openmower';
-import {EMERGENCY_BITS, EMERGENCY_HIDE, EMERGENCY_TEXT, EVENTS, NOT_DRIVEN, REASONS, pick} from './reasonTexts';
+import {DOCK_CAUSES, DOCK_DETAILS, EMERGENCY_BITS, GUIDED, EMERGENCY_HIDE, EMERGENCY_TEXT, EVENTS, NOT_DRIVEN, REASONS, pick} from './reasonTexts';
 import {READY_TEXT, scheduleLogText} from './schedule';
 import {ORIGIN_TEXT} from './osUpdate';
 import {SITUATION_NAMES} from './sound';
@@ -17,8 +17,8 @@ import {PARTS} from './stats';
 const PINNED = {
   repo: 'mkaaaaaay/mowbite-os',
   path: 'src/mowbite_api/api.schema.json',
-  commit: '622cc8c07e9b317eb583eab192a503d719e20d27',
-  sha256: 'aed5cf855c5ef3c2716654ab53d6b1340056c4687d91eaff68267c399f84d24c',
+  commit: '9f1be4eca864c3a7cb28e14350c32d47a789c90f',
+  sha256: '31b6fa7c0cb2b5386ed99129fd43716c5c2721bdce8c4eca1e980796c0fc5819',
 };
 const raw = readFileSync(join(__dirname, 'os-api.schema.json'));
 // a reason's rating, when: another one for these values of the event's fields
@@ -101,6 +101,37 @@ describe(`MowBite OS's interface (${PINNED.repo} ${PINNED.commit.slice(0, 7)}, a
   it('has words for every reason of every event', () => {
     for (const [type, reasons] of Object.entries(groups))
       for (const reason of Object.keys(reasons)) expect(pick(REASONS[reason], {type, reason}), `${type} ${reason}`).toBeDefined();
+  });
+
+  it("has the catalog's words for each cause and detail of the dock camera, in german too", () => {
+    type Texts = Record<string, Record<'en' | 'de', {name: string; help: string; fix: string}>>;
+    for (const type of ['DOCKING_RETRY', 'DOCKING_FAILED']) {
+      const props = (api.$defs[`event.${type}`] as {properties: Record<string, {enum: string[]; 'x-texts'?: Texts}>}).properties;
+      const causes = props.cause['x-texts']!;
+      // the planner's causes are reasons of their own
+      expect(props.cause.enum.filter((c) => !causes[c] && !reasonNames.has(c)), type).toEqual([]);
+      for (const [c, t] of Object.entries(causes)) {
+        expect(DOCK_CAUSES[c], c).toEqual({help: t.en.help, fix: t.en.fix});
+        expect([de[t.en.help], de[t.en.fix]], c).toEqual([t.de.help, t.de.fix]);
+        const name = pick(REASONS.dock_failed, {type, reason: 'dock_failed', cause: c})!.en;
+        expect(de[name]?.toLowerCase(), c).toBe(t.de.name.toLowerCase());
+      }
+      const details = props.detail['x-texts']!;
+      expect(Object.keys(DOCK_DETAILS).sort(), type).toEqual(Object.keys(details).sort());
+      for (const [d, t] of Object.entries(details)) {
+        const want = Object.fromEntries((['name', 'help', 'fix'] as const).flatMap((f) => (t.en[f] ? [[f, t.en[f]]] : [])));
+        expect(DOCK_DETAILS[d], d).toEqual(want);
+        for (const f of ['name', 'help', 'fix'] as const) if (t.en[f]) expect(de[t.en[f]], `${d} ${f}`).toBe(t.de[f]);
+      }
+    }
+  });
+
+  it('says what led the mower in, for each guide', () => {
+    const guides = (api.$defs['event.DOCKED'] as {properties: {guide: {enum: string[]}}}).properties.guide.enum;
+    for (const guide of guides) {
+      expect(pick(EVENTS.DOCKED.variants, {guide})?.when, guide).toEqual({guide});
+      expect(de[GUIDED[guide]], guide).toBeTruthy();
+    }
   });
 
   it('says why an area was recorded without the exact edge, for each reason the OS gives', () => {
