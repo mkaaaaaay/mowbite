@@ -273,11 +273,32 @@ function MissingNote({s}: {s: UpdateState}) {
   );
 }
 
-// the run going on, where it was asked for: its steps, on the one it's on a bar with how far it is
-function Running({s, p, name, now, asked, children}: {s: UpdateState; p: Progress; name: string; now: number; asked: boolean; children?: ReactNode}) {
+// the run going on, where it was asked for: its steps, on the one it's on a bar with how far it is. tapped here (follow)
+// it stays in sight while the other cards fold to their heads above it
+function Running({
+  s,
+  p,
+  name,
+  now,
+  asked,
+  follow,
+  children,
+}: {
+  s: UpdateState;
+  p: Progress;
+  name: string;
+  now: number;
+  asked: boolean;
+  follow: boolean;
+  children?: ReactNode;
+}) {
   const {steps, now: at, back} = runSteps(s, p, asked);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (follow) ref.current?.scrollIntoView({block: 'nearest'});
+  }, [follow]);
   return (
-    <div className={os.run} data-update={p.part || 'all'}>
+    <div ref={ref} className={os.run} data-update={p.part || 'all'}>
       <RunHead name={name} back={back} sub={runResult(s)} />
       <Steps
         steps={steps.map((step) => ({
@@ -812,7 +833,7 @@ export function AutoUpdate() {
     ? (running && runResult(st)) || (back ? tr('{name} goes back', {name: nameOf(current.part)}) : tr('{name} is being updated', {name: nameOf(current.part)}))
     : null;
   const run = current && (
-    <Running s={st} p={current} name={nameOf(current.part)} now={now} asked={askedBack}>
+    <Running s={st} p={current} name={nameOf(current.part)} now={now} asked={askedBack} follow={asked !== null}>
       {current.part === 'updater' && self?.restarting && (
         <Note look={os.info} title={tr('Restarting the updater, this comes back by itself')}>
           {tr("For a few seconds nothing arrives here. That's no error, the mower drives and mows on as usual.")}

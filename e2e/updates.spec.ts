@@ -137,6 +137,8 @@ test('the updater updates itself', async ({page}) => {
   await expect(card).toContainText('commit 7cce417');
   await card.getByRole('button', {name: 'Update', exact: true}).click();
   const run = page.locator('#update [data-update="updater"]');
+  // (in sight where it was tapped, also with the cards above it folded to their heads)
+  await expect(run).toBeInViewport();
   await expect(run.locator('[data-step="download"]')).toContainText('Downloading', {timeout: 10_000});
   await expect(run).toContainText('Restarting the updater, this comes back by itself', {timeout: 15_000});
   await expect(card).toContainText('Just updated', {timeout: 20_000});
