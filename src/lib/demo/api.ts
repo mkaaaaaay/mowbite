@@ -212,6 +212,8 @@ const DEMO_STEPS: Record<string, DemoStep[]> = {
   updater: [['prepare', 2], ['download', 5]],
 };
 let demoRun: {t: number; parts: string[]} | null = null;
+// a look for updates asked for: the demo mower looks for 8 seconds and finds nothing new
+let demoLook = 0;
 const demoDone: Record<string, number> = {};
 function demoProgress(status: Record<string, string>, now: number) {
   if (!demoRun) return;
@@ -300,6 +302,8 @@ function demoUpdate(): Record<string, unknown> {
   }
   if (demoDone.planner)
     Object.assign(status, {planner: `updated ${demoDone.planner} 3f2a9c1`, planner_running: `3f2a9c1e5b7d ${day(0)}`, planner_available: 'no main'});
+  if (now - demoLook < 8) status.looking = String(demoLook);
+  else if (demoLook) status.checked = String(demoLook + 8);
   demoProgress(status, Date.now() / 1000);
   demoCalib(status, now);
   return {
@@ -406,8 +410,8 @@ export async function demoFetch(url: string, init?: RequestInit): Promise<Respon
         else room = what === 'all' ? [] : room.filter((i) => `img:${i.id}` !== what);
         return text('ok');
       }
-      // an update or going back: played through in a few seconds, all of them with the updater itself last. a check: the
-      // demo mower has nothing to look for
+      if (post && q.has('check')) demoLook = Math.round(Date.now() / 1000);
+      // an update or going back: played through in a few seconds, all of them with the updater itself last
       if (post && (q.has('now') || q.has('back') || q.has('self')) && !demoRun) {
         const one = q.get('now');
         demoRun = {

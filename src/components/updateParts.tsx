@@ -101,7 +101,7 @@ export const OffCard = ({id, children}: {id: string; children: ReactNode}) => (
 );
 
 // how many updates there are, when the mower last looked and the button that looks again
-export function Summary({count, checked, locked, onCheck}: {count: number; checked: string | null; locked: boolean; onCheck: () => void}) {
+export function Summary({count, checked, locked, checking, onCheck}: {count: number; checked: string | null; locked: boolean; checking?: boolean; onCheck: () => void}) {
   return (
     <div className={styles.sum}>
       <span>
@@ -109,7 +109,7 @@ export function Summary({count, checked, locked, onCheck}: {count: number; check
         {checked && <span className={shared.dim}>{tr('Checked: {t}', {t: checked})}</span>}
       </span>
       <button className={shared.control} disabled={locked} onClick={onCheck}>
-        {tr('Check for updates')}
+        {checking ? tr('Checking…') : tr('Check for updates')}
       </button>
     </div>
   );

@@ -19,6 +19,7 @@ import {
   requestRoom,
   requestSelf,
   freeRoom,
+  looking,
   roomLabel,
   roomNote,
   roomLoose,
@@ -548,7 +549,7 @@ export function AutoUpdate() {
             setLost(false);
             if (x) seenRef.current = true;
             restartingRef.current = !!x && !!selfInfo(x)?.restarting;
-            fast.current = !!x && (x.requested || x.status.result === 'running' || restartingRef.current);
+            fast.current = !!x && (x.requested || x.status.result === 'running' || restartingRef.current || looking(x));
             if (x && !x.requested && x.status.result !== 'running') setAsked(false);
           },
           () => {
@@ -586,7 +587,8 @@ export function AutoUpdate() {
   }
 
   const st = s;
-  const busy = asked || st.requested || running || restarting;
+  const checking = looking(st);
+  const busy = asked || st.requested || running || restarting || checking;
   const set = (patch: Record<string, string | number>) => {
     const conf: UpdateConf = {...st.conf, ...patch};
     tapped.current++;
@@ -646,9 +648,9 @@ export function AutoUpdate() {
           {lost && current.part === 'mowbite' && <span className={local.dim}>{tr('MowBite does not answer for a moment, it may be restarting.')}</span>}
         </Running>
       ) : (
-        <Summary count={count} checked={lastChecked(st)} locked={busy} onCheck={() => ask(requestCheck)} />
+        <Summary count={count} checked={lastChecked(st)} locked={busy} checking={checking} onCheck={() => ask(requestCheck)} />
       )}
-      {busy && !current && <span className={local.dim}>{tr('asked, within a minute…')}</span>}
+      {busy && !current && !checking && <span className={local.dim}>{tr('asked, within a minute…')}</span>}
       {waited && <Note look={local.warn}>{waited}</Note>}
       {!updaterAlive(st) && !isDemo() && (
         <span className={local.warn}>

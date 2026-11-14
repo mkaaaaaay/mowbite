@@ -125,16 +125,19 @@ export const roomLoose = (s: UpdateState) => (s.room?.items ?? []).filter((i) =>
 export const roomTotal = (items: RoomItem[]) => items.reduce((n, i) => n + i.bytes, 0);
 export const size = (bytes: number) => (bytes >= 1e9 ? `${fmt(bytes / 1e9, 1)} GB` : bytes >= 1e6 ? `${Math.round(bytes / 1e6)} MB` : `${Math.max(0, Math.round(bytes / 1e3))} kB`);
 
+// a time it noted (looking, taken: since when) within the last hour
+const lately = (s: UpdateState, key: string, now: number) => {
+  const t = Number((s.status[key] ?? '').split(' ')[0]);
+  return t > 0 && now - t < 3600;
+};
+// it looks for updates right now
+export const looking = (s: UpdateState, now = Date.now() / 1000) => lately(s, 'looking', now);
 // it writes "alive" every minute and with each step of an update, a big download or a build can take a while longer,
-// so can a look for updates or a request it took (looking, taken: since when)
+// so can a look for updates or a request it took
 export function updaterAlive(s: UpdateState | null, now = Date.now() / 1000): boolean {
   if (!s) return false;
   const since = now - Number(s.status.alive ?? 0);
-  const lately = (key: string) => {
-    const t = Number((s.status[key] ?? '').split(' ')[0]);
-    return t > 0 && now - t < 3600;
-  };
-  return since < 300 || ((s.status.result === 'running' || lately('looking') || lately('taken')) && since < 3600);
+  return since < 300 || ((s.status.result === 'running' || lately(s, 'looking', now) || lately(s, 'taken', now)) && since < 3600);
 }
 // since when it hasn't given a sign of life, null when it never did
 export const silentSince = (s: UpdateState) => (/^\d+$/.test(s.status.alive ?? '') ? when(s.status.alive) : null);

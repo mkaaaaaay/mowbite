@@ -27,6 +27,15 @@ test('the updates on the mower: the parts, a warning for the release, the log', 
   expect(await updates.getByText('MowBite', {exact: true}).evaluate((e) => getComputedStyle(e).userSelect)).toBe('none');
 });
 
+// a look for updates asked for: the button says so and stays locked until the updater has looked
+test('checking for updates shows while the updater looks', async ({page}) => {
+  await page.goto('/settings/#update');
+  const updates = page.locator('#update');
+  await updates.getByRole('button', {name: 'Check for updates'}).click();
+  await expect(updates.getByRole('button', {name: 'Checking…'})).toBeDisabled();
+  await expect(updates.getByRole('button', {name: 'Check for updates'})).toBeEnabled({timeout: 15000});
+});
+
 // going back asks first, in the part's details
 test('back to the version before, asked first', async ({page}) => {
   await page.goto('/settings/#update');
