@@ -81,7 +81,8 @@ test('making room asks before it deletes', async ({page}) => {
   await page.waitForTimeout(700);
   await item.getByRole('button', {name: 'Really delete?'}).click();
   // (where it was tapped, the buttons locked until it's done)
-  await expect(item.getByRole('button', {name: 'Deleting…'})).toBeDisabled();
+  await expect(item.getByRole('button', {name: 'Delete'})).toBeDisabled();
+  await expect(item.getByText('Deleting…', {exact: true})).toBeVisible();
   await expect(item.getByRole('progressbar')).toBeVisible();
   await expect(room.getByRole('button', {name: 'Look again'})).toBeDisabled();
   await expect(room.getByText('an image without a name')).toHaveCount(0, {timeout: 15_000});
@@ -91,14 +92,13 @@ test('making room asks before it deletes', async ({page}) => {
 // a look for room: on its card, locked until it's done
 test('looking for room again shows where it was tapped', async ({page}) => {
   await page.goto('/settings/#update');
-  // (its button changes its name meanwhile)
   const room = page
     .locator('#update div')
     .filter({has: page.getByText('Make room', {exact: true})})
     .filter({has: page.getByText('Build cache', {exact: true})})
     .last();
   await room.getByRole('button', {name: 'Look again'}).click();
-  await expect(room.getByRole('button', {name: 'Looking…'})).toBeDisabled();
+  await expect(room.getByRole('button', {name: 'Look again'})).toBeDisabled();
   await expect(room.getByText('Looking what can go…')).toBeVisible();
   await expect(room.getByRole('button', {name: 'Look again'})).toBeEnabled({timeout: 10_000});
 });
@@ -118,7 +118,8 @@ test('an update shows how far it is', async ({page}) => {
   await page.waitForTimeout(1500);
   await expect(updates.getByRole('button', {name: /^(Update|Update all)$/})).toHaveCount(0);
   await expect(updates.getByRole('button', {name: 'Check for updates'})).toBeDisabled();
-  await expect(run).toContainText('Updating MowBite (1 of 1)…');
+  await expect(updates).toContainText('Updating MowBite…');
+  await expect(run).not.toContainText('Updating MowBite');
   await expect(updates.getByRole('button', {name: 'Update', exact: true})).toHaveCount(0);
   await expect(run.locator('[data-step="download"]')).toContainText('Downloading', {timeout: 10_000});
   await expect(run.locator('[data-step="download"]')).toContainText('Downloaded', {timeout: 15_000});

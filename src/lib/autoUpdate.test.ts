@@ -109,7 +109,7 @@ describe('the updater on the mower', () => {
     });
     expect(partInfo(s, 'mowbite')).toMatchObject({available: 'yes'});
     expect(partInfo(s, 'mowbite').running).toContain('1.4.0-beta.11');
-    expect(partInfo(s, 'openmower').running).toContain('edge');
+    expect(partInfo(s, 'openmower').running).toContain('Edge');
     expect(partInfo(s, 'planner')).toMatchObject({available: 'unknown', source: 'github'});
     expect(partInfo(s, 'planner').running).toContain('b187b88');
     expect(partInfo(state({}), 'openmower').running).toBeNull();
@@ -242,7 +242,7 @@ describe('the updater on the mower', () => {
     // asked and nothing new: said once
     expect(selfInfo(state({updater_running: '70cb346 2026-10-26', updater: 'current', updater_at: '1792831337'}))!.result).toMatchObject({level: 'ok', text: 'nothing new, it was up to date'});
     const run = state({result: 'running', run_parts: 'updater', progress: 'updater download 40 1000'});
-    expect(runResult(run)).toBe('Updating MowBite Updater (1 of 1)…');
+    expect(runResult(run)).toBe('Updating MowBite Updater…');
   });
 
   it("says what the updater can't reach, with the line that gives it the folder", () => {

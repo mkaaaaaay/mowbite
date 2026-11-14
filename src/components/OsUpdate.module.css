@@ -41,6 +41,7 @@
 .facts {
   display: grid;
   grid-template-columns: auto 1fr;
+  align-items: baseline;
   gap: 3px 12px;
   font-size: 13px;
   user-select: text;

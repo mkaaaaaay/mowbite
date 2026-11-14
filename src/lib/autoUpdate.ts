@@ -267,6 +267,8 @@ export type Availability = 'yes' | 'no' | 'switch' | 'failed' | 'unknown' | 'loc
 export const isNew = (a: Availability | null | undefined) => a === 'yes' || a === 'switch';
 
 // what runs, with the day it was built when it's known
+// the tags of OpenMower's channels and the updater's, by their names
+export const TAG_NAMES: Record<string, string> = {edge: 'Edge', latest: 'Release'};
 const ofDay = (what: string, day: string | null) => (day ? tr('{v} of {day}', {v: what, day}) : what);
 
 // a part's name in words
@@ -301,7 +303,7 @@ export function partInfo(s: UpdateState, part: Part): PartInfo {
   if (!what || what === 'none') return {running: null, available: null};
   // (OpenMower's update without a copy deleted the one that ran, the new one isn't there yet)
   if (what === 'missing') return {running: tr("none, OpenMower isn't on the mower right now"), available};
-  return {running: ofDay(what, built), available};
+  return {running: ofDay(kind === 'openmower' ? (TAG_NAMES[what] ?? what) : what, built), available};
 }
 
 // what it did last with a part: in passing (ok), something to know (warn) or something that went wrong (error)
@@ -452,7 +454,7 @@ export function runResult(s: UpdateState): string | null {
     const now = progressOf(s)?.part;
     if (!now || !parts.includes(now)) return tr('Updating right now…');
     const name = nameOf(s, now);
-    return tr('Updating {name} ({n} of {of})…', {name, n: parts.indexOf(now) + 1, of: parts.length});
+    return parts.length > 1 ? tr('Updating {name} ({n} of {of})…', {name, n: parts.indexOf(now) + 1, of: parts.length}) : tr('Updating {name}…', {name});
   }
   return null;
 }

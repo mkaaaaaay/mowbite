@@ -15,6 +15,7 @@ import {
   outOfReach,
   reachLine,
   PART_NAMES,
+  TAG_NAMES,
   partInfo,
   partResult,
   partsOf,
@@ -303,7 +304,7 @@ function Running({
   }, [follow]);
   return (
     <div ref={ref} className={os.run} data-update={p.part || 'all'}>
-      <RunHead name={name} back={back} sub={runResult(s)} />
+      <RunHead name={name} back={back} />
       <Steps
         steps={steps.map((step) => ({
           key: step,
@@ -520,7 +521,7 @@ function UpdaterCard({
   const tag = info.available ? tagOf(info.available, freshly(s, 'updater', now)) : null;
   const head = (
     <Head name={PART_NAMES.updater} tag={tag} text={off ? undefined : PART_TEXT.host}>
-      <Facts running={info.running} channel={info.tag} />
+      <Facts running={info.running} channel={TAG_NAMES[info.tag] ?? info.tag} />
     </Head>
   );
   if (off) return <OffCard id="updater">{head}</OffCard>;
@@ -602,7 +603,7 @@ function Room({
   const deleting = (word: string) => at(word) && busyLine(tr('Deleting…'));
   const button = (word: string, label: string, go: () => Promise<void>) => (
     <button className={[local.control, sure === word ? local.danger : ''].join(' ')} disabled={busy} onClick={() => confirm(word, () => onAsk(word, go))}>
-      {at(word) ? tr('Deleting…') : sure === word ? tr('Really delete?') : label}
+      {sure === word ? tr('Really delete?') : label}
     </button>
   );
 
@@ -644,7 +645,7 @@ function Room({
       <Warn text={error} />
       <div className={local.row}>
         <button className={local.control} disabled={busy} onClick={() => onAsk('room', requestRoom)}>
-          {at('room') ? tr('Looking…') : tr('Look again')}
+          {tr('Look again')}
         </button>
         {roomLoose(s).length > 1 ? (
           button('free:all', tr('Delete all but the ways back ({size})', {size: size(roomTotal(roomLoose(s)))}), () => freeRoom('all'))
