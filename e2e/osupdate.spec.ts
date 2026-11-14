@@ -55,6 +55,25 @@ test.describe('updates of MowBite OS', () => {
     await expect(page.locator('#updates')).toHaveCount(0);
   });
 
+  test('updates from the net: stable only or previews too, how the last look went', async ({page}) => {
+    await demoWith(page, 'Updates');
+    await page.goto('/settings/#update');
+    const group = page.locator('#update');
+    const net = group.locator('[data-net]');
+    await expect(net).toContainText('Looked on the net for updates.');
+    await expect(group.locator('[data-part="os"]')).toContainText('from the net');
+    await expect(group.locator('[data-part="planner"]')).not.toContainText('from the net');
+
+    await demoFlagNow(page, 'mowbiteDemoUpdateNet', 'unreachable');
+    const channel = net.getByRole('combobox', {name: 'Channel'});
+    await channel.selectOption('preview');
+    await expect(net).toContainText("Couldn't reach the release index on the net.");
+    await expect(channel).toHaveValue('preview');
+    // gone while an update runs, like the automatic one
+    await group.locator('[data-part="os"]').getByRole('button', {name: 'Update', exact: true}).click();
+    await expect(net).toHaveCount(0);
+  });
+
   test('the planner back to the version before, without waiting for an open mowing job', async ({page}) => {
     await demoWith(page, 'Updates');
     await demoFlag(page, 'mowbiteDemoUpdateGate', 'JOB_OPEN');

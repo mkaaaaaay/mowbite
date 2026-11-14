@@ -1,12 +1,13 @@
 import {RPC, TOPIC, UPDATE_GATED} from '../openmower';
-import type {Auto, Component, Last, UpdateStatus, Version} from '../osUpdate';
+import type {Auto, Component, Last, Origin, OriginResult, UpdateStatus, Version} from '../osUpdate';
 import {demoFlags} from './flags';
 
 // MowBite OS's updater for the click tests (update.*), like its host answers: four parts, MowBite OS with something new
 // and the planner with a version to go back to, one update at a time through its steps. The demo is an OpenMower and
 // has none, a test switches it on before the page loads (window.mowbiteDemoUpdates). A test sets
 // window.mowbiteDemoUpdateGate to a reason to have the gate wait with it (JOB_OPEN lets an update with reset_jobs
-// through), and window.mowbiteDemoUpdateFails to have the new version not come up, the mower then goes back
+// through), and window.mowbiteDemoUpdateFails to have the new version not come up, the mower then goes back. Its release
+// index on the net answers each look with window.mowbiteDemoUpdateNet (a result word), ok without it
 
 const DAY = 86400;
 const STEP_MS = 300;
@@ -34,7 +35,7 @@ export function demoUpdates(deliver: (topic: string, text: string) => void) {
   });
   const components = [
     part('os', 'MowBite OS', v('3f9c2a17d0e4b865', null, 3), {
-      available: {...v('8b1d44e09a6c2f31', null, 0), min_app: null, blocked: null},
+      available: {...v('8b1d44e09a6c2f31', null, 0), min_app: null, blocked: null, from: 'net'},
       previous: v('c07a91b2e3f5d448', null, 9),
     }),
     part('planner', 'MowBite Planner', v('e41b0d27a93c5f10', '1.4.0', 2), {previous: v('5a2e8c11f4b07d96', '1.3.2', 7), source: 'own', own_skipped: null}),
@@ -45,12 +46,32 @@ export function demoUpdates(deliver: (topic: string, text: string) => void) {
   let run = IDLE;
   let auto: Auto = {enabled: false, from: '02:00', to: '05:00'};
   let last: Last | null = null;
+  let origin: Origin = {
+    channel: 'stable',
+    url: 'https://releases.mowbite.test/index.json',
+    downloading: false,
+    result: 'ok',
+    message: null,
+    checked_at: start - 3600,
+    index_serial: 12,
+    index_date: start - DAY,
+  };
   // the update going on: the part, where it leads, and whether that's back
   let work: {c: Component; target: Version; back: boolean; resetJobs: boolean} | null = null;
   let timer: ReturnType<typeof setTimeout> | undefined;
 
-  const status = (): UpdateStatus => ({...run, components: components.map((c) => ({...c, auto: auto.enabled})), auto, last});
+  const status = (): UpdateStatus => ({...run, components: components.map((c) => ({...c, auto: auto.enabled})), auto, last, origin});
   const said = () => deliver(TOPIC.updateStatus, JSON.stringify(status()));
+  // a look at the release index, its answer a moment later
+  const look = () => {
+    origin = {...origin, downloading: true};
+    setTimeout(() => {
+      const result = (demoFlags().mowbiteDemoUpdateNet as OriginResult | undefined) ?? 'ok';
+      origin = {...origin, downloading: false, result, message: result === 'ok' ? null : result, checked_at: now()};
+      said();
+    }, STEP_MS);
+    return status();
+  };
   const end = (result: Last['result'], reason: string | null) => {
     last = {result, reason, message: result, revision: run.revision, component: work!.c.id, t: now()};
     run = IDLE;
@@ -105,7 +126,7 @@ export function demoUpdates(deliver: (topic: string, text: string) => void) {
 
   const methods: Record<string, (params: unknown) => unknown> = {
     [RPC.updateStatus]: status,
-    [RPC.updateCheck]: status,
+    [RPC.updateCheck]: look,
     [RPC.updateStart]: (params) => begin(params, false),
     [RPC.updateRollback]: (params) => begin(params, true),
     // accepted before the switch, the update ends a moment after the answer
@@ -122,6 +143,12 @@ export function demoUpdates(deliver: (topic: string, text: string) => void) {
       auto = {enabled: next.enabled, from: next.from, to: next.to};
       said();
       return status();
+    },
+    [RPC.updateSetChannel]: (params) => {
+      const {channel} = (params ?? {}) as {channel?: string};
+      if (channel !== 'stable' && channel !== 'preview') throw refuse('INVALID', 'channel is stable or preview');
+      origin = {...origin, channel};
+      return look();
     },
   };
 

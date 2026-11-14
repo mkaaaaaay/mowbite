@@ -1,9 +1,12 @@
 import {describe, expect, it, vi} from 'vitest';
+import de from './i18n/de';
 import {
   appTooOld,
   goingBack,
   inWindow,
+  netLook,
   nextByItself,
+  ORIGIN_TEXT,
   partVersion,
   runSteps,
   runTarget,
@@ -13,6 +16,7 @@ import {
   versionName,
   wentBackByHand,
   type Component,
+  type Origin,
   type UpdateStatus,
 } from './osUpdate';
 
@@ -129,5 +133,27 @@ describe('a version in words', () => {
     expect(versionInText(v('abc'))).toMatch(/^the version of \d\d\/\d\d\/2026$/);
     expect(partVersion('MowBite Planner', v('abc', '1.3.2'))).toBe('MowBite Planner 1.3.2');
     expect(versionInText(v('abc', '1.3.2'))).toBe('1.3.2');
+  });
+});
+
+describe('the last look on the net', () => {
+  const origin = (more: Partial<Origin> = {}): Origin => ({channel: 'stable', url: 'https://x.test/index.json', downloading: false, ...more});
+
+  it('has words in english and german for every result', () => {
+    expect(Object.entries(ORIGIN_TEXT).filter(([, en]) => !en || !de[en])).toEqual([]);
+  });
+
+  it('is not asked yet before the first, looking while it downloads', () => {
+    expect(netLook(origin())).toEqual({text: 'Not looked on the net yet.', bad: false});
+    expect(netLook(origin({downloading: true, result: 'ok', checked_at: 1794000000})).text).toBe('Looking on the net now…');
+  });
+
+  it('tells how it ended and when, all but ok as gone wrong', () => {
+    expect(netLook(origin({result: 'ok', checked_at: 1794000000}))).toEqual({text: ORIGIN_TEXT.ok, at: 1794000000, bad: false});
+    expect(netLook(origin({result: 'unreachable', message: 'timed out', checked_at: 1794000000}))).toEqual({text: ORIGIN_TEXT.unreachable, at: 1794000000, bad: true});
+  });
+
+  it("takes a result it doesn't know as failed", () => {
+    expect(netLook(origin({result: 'newer' as Origin['result'], checked_at: 1794000000})).text).toBe(ORIGIN_TEXT.failed);
   });
 });

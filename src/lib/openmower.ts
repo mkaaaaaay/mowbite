@@ -77,6 +77,7 @@ export const RPC = {
   statsPartDue: 'stats.part_due',
   updateCheck: 'update.check',
   updateSetAuto: 'update.set_auto',
+  updateSetChannel: 'update.set_channel',
   replaceMap: 'map.replace',
   eventDays: 'events.history.list',
   events: 'events.history',

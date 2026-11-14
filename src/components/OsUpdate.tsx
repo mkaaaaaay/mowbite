@@ -1,17 +1,19 @@
 'use client';
 
+import {useRpcMethods} from '@/hooks/useRpcMethods';
 import {clock, dayClock, nearClock, numericDay, numericDayClock} from '@/lib/dates';
 import {reasonSentence} from '@/lib/events';
 import {tr} from '@/lib/i18n';
 import {pageFromMower} from '@/lib/mowers';
 import {isApp} from '@/lib/native';
-import {UPDATE_GATED} from '@/lib/openmower';
+import {RPC, UPDATE_GATED} from '@/lib/openmower';
 import {
   abortUpdate,
   appTooOld,
   askUpdateStatus,
   checkUpdates,
   goingBack,
+  netLook,
   nextByItself,
   partVersion,
   rollBack,
@@ -19,6 +21,7 @@ import {
   runTarget,
   runsByItself,
   setAutoUpdate,
+  setChannel,
   shortRevision,
   startUpdate,
   updating,
@@ -31,8 +34,10 @@ import {
   withoutJobWait,
   type Auto,
   type Available,
+  type Channel,
   type Component,
   type Last,
+  type Origin,
   type Step,
   type UpdateStatus,
 } from '@/lib/osUpdate';
@@ -258,7 +263,10 @@ function Part({
       {a && (
         <>
           <span>{tr('New')}</span>
-          <span>{blocked ? versionLabel(a) : <b>{versionLabel(a)}</b>}</span>
+          <span>
+            {blocked ? versionLabel(a) : <b>{versionLabel(a)}</b>}
+            {a.from === 'net' && <small className={shared.dim}>{` ${tr('from the net')}`}</small>}
+          </span>
         </>
       )}
     </Head>
@@ -370,17 +378,49 @@ function Part({
   );
 }
 
+// the release index on the net: stable releases only or previews too, and how the last look at it went
+function Net({origin, canPick, locked, onPick}: {origin: Origin; canPick: boolean; locked: boolean; onPick: (c: Channel) => void}) {
+  const look = netLook(origin);
+  return (
+    <div className={shared.part} data-net>
+      <span className={shared.name}>{tr('Updates from the net')}</span>
+      {canPick && (
+        <select
+          className={shared.control}
+          aria-label={tr('Channel')}
+          value={origin.channel}
+          disabled={locked}
+          onChange={(e) => onPick(e.target.value as Channel)}
+        >
+          <option value="stable">{tr('Stable only')}</option>
+          <option value="preview">{tr('Previews too')}</option>
+        </select>
+      )}
+      <span className={look.bad ? shared.warn : shared.dim} title={origin.message ?? undefined}>
+        {look.text}
+        {look.at !== undefined && <small>{` ${nearClock(look.at)}`}</small>}
+      </span>
+      <span className={shared.dim}>
+        {tr('The mower looks now and then and when you check, and only downloads. Installing is up to you or the automatic update.')}
+      </span>
+    </div>
+  );
+}
+
 // the updates of a mower with MowBite OS (lib/osUpdate): each part with what runs and what's new, the update going on
 // step by step, the automatic one at night and how the last one ended
 export function OsUpdate() {
   const seen = useUpdateStatus();
   const online = useHostOnline() !== false;
+  const methods = useRpcMethods();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [unanswered, setUnanswered] = useState(false);
   const [checked, setChecked] = useState<number | null>(null);
   // the window as typed, until the mower has it: kept while a save is on its way
   const [typed, setTyped] = useState<Partial<Auto>>({});
+  // the channel picked, until the mower has it
+  const [picked, setPicked] = useState<Channel | null>(null);
   const saving = useRef(0);
 
   useEffect(() => {
@@ -445,6 +485,18 @@ export function OsUpdate() {
           ))}
       </div>
       {now && <span className={shared.dim}>{tr('The other parts can only be changed after it: always one update after the other.')}</span>}
+
+      {!now && s.origin?.url && (
+        <Net
+          origin={{...s.origin, ...(picked && {channel: picked})}}
+          canPick={!!methods?.has(RPC.updateSetChannel)}
+          locked={busy || !online}
+          onPick={(c) => {
+            setPicked(c);
+            run(() => setChannel(c).finally(() => setPicked(null)));
+          }}
+        />
+      )}
 
       {!now && (
         <div className={shared.part}>

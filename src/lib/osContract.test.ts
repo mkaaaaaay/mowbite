@@ -58,11 +58,11 @@ const appMethods = new Set([...Object.values(RPC), ...Object.values(COMMAND).map
 const osMethods = Object.keys(api['x-methods']);
 
 // decided for a later api and in the app already, not in the pinned copy yet: TOO_SHORT (a sound under 0.2 s, the
-// phone says it). one the copy has is red until it's taken out here
+// phone says it), update.set_channel (api 27). one the copy has is red until it's taken out here
 const AHEAD: Record<'reasons' | 'events' | 'methods' | 'variants', string[]> = {
   reasons: ['TOO_SHORT'],
   events: [],
-  methods: [],
+  methods: ['update.set_channel'],
   // a reason's variant for one event, as 'EVENT REASON'
   variants: [],
 };

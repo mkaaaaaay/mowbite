@@ -27,6 +27,8 @@ export interface Available extends Version {
   // the oldest app it works with
   min_app: string | null;
   blocked: Blocked | null;
+  // where it was found: the inbox on the mower or the release index on the net
+  from?: 'inbox' | 'net';
 }
 export interface Component {
   // os, planner, app, host, or one a newer MowBite OS adds
@@ -59,6 +61,31 @@ export interface Auto {
   from: string;
   to: string;
 }
+export type Channel = 'stable' | 'preview';
+// how the last look at the release index on the net ended, in words
+export const ORIGIN_TEXT = {
+  ok: 'Looked on the net for updates.',
+  unreachable: "Couldn't reach the release index on the net.",
+  bad_index: "The release index on the net isn't right.",
+  too_large: 'An update on the net is too large for the mower.',
+  no_space: 'Too little room on the mower to download an update.',
+  bad_bundle: "An update downloaded from the net didn't pass the check.",
+  failed: 'Looking on the net failed.',
+} as const;
+export type OriginResult = keyof typeof ORIGIN_TEXT;
+// the release index on the net: the versions taken and the last look at it (result and checked_at before the first)
+export interface Origin {
+  channel: Channel;
+  // null without an index to look at
+  url: string | null;
+  downloading: boolean;
+  result?: OriginResult;
+  // for the log, english
+  message?: string | null;
+  checked_at?: number;
+  index_serial?: number;
+  index_date?: number | null;
+}
 export interface UpdateStatus {
   phase: Phase;
   component: string | null;
@@ -68,6 +95,8 @@ export interface UpdateStatus {
   components: Component[];
   auto: Auto;
   last: Last | null;
+  // absent on a host that doesn't look on the net
+  origin?: Origin;
 }
 
 // the mower lists update.status. Kept once seen: the host's methods leave the list while it restarts for its own update
@@ -131,6 +160,15 @@ export const abortUpdate = () => call(RPC.updateAbort);
 export const rollBack = (component: string, resetJobs = false) =>
   call(RPC.updateRollback, {component, ...(resetJobs && {reset_jobs: true})}).then(started);
 export const setAutoUpdate = (auto: Partial<Auto>) => call(RPC.updateSetAuto, auto);
+// stable releases only or previews too, the mower then looks on the net again
+export const setChannel = (channel: Channel) => call(RPC.updateSetChannel, {channel});
+
+// the last look on the net in words, when it was (not while it looks or before the first) and whether it went wrong
+export function netLook(o: Origin): {text: string; at?: number; bad: boolean} {
+  if (o.downloading) return {text: tr('Looking on the net now…'), bad: false};
+  if (!o.result || o.checked_at === undefined) return {text: tr('Not looked on the net yet.'), bad: false};
+  return {text: tr(ORIGIN_TEXT[o.result] ?? ORIGIN_TEXT.failed), at: o.checked_at, bad: o.result !== 'ok'};
+}
 
 // the part the update going on is for
 export const updating = (s: UpdateStatus) => (s.phase === 'idle' ? undefined : s.components.find((c) => c.id === s.component));
