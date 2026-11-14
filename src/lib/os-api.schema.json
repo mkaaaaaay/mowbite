@@ -9506,6 +9506,14 @@
                     ],
                     "x-unit": "unix s"
                   },
+                  "from": {
+                    "description": "Where it was found: the inbox on the mower or the net (the release index)",
+                    "enum": [
+                      "inbox",
+                      "net"
+                    ],
+                    "type": "string"
+                  },
                   "min_app": {
                     "description": "The oldest app it works with",
                     "type": [
@@ -9730,6 +9738,72 @@
             "object",
             "null"
           ]
+        },
+        "origin": {
+          "additionalProperties": false,
+          "description": "The release index on the net and the last time it was asked",
+          "properties": {
+            "channel": {
+              "description": "stable, or preview for previews as well",
+              "enum": [
+                "stable",
+                "preview"
+              ],
+              "type": "string"
+            },
+            "checked_at": {
+              "description": "When it was last asked, unix s; absent before the first",
+              "type": "integer"
+            },
+            "downloading": {
+              "description": "Whether the index or a bundle is being downloaded",
+              "type": "boolean"
+            },
+            "index_date": {
+              "description": "When that index was published, unix s",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "index_serial": {
+              "description": "The serial of the last index taken",
+              "type": "integer"
+            },
+            "message": {
+              "description": "English text for the log, null when ok",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "result": {
+              "description": "How the last asking ended; absent before the first",
+              "enum": [
+                "ok",
+                "unreachable",
+                "bad_index",
+                "too_large",
+                "no_space",
+                "bad_bundle",
+                "failed"
+              ],
+              "type": "string"
+            },
+            "url": {
+              "description": "The address of the index, null without one",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "channel",
+            "url",
+            "downloading"
+          ],
+          "type": "object"
         },
         "phase": {
           "description": "What it does now",
@@ -9872,6 +9946,14 @@
                     ],
                     "x-unit": "unix s"
                   },
+                  "from": {
+                    "description": "Where it was found: the inbox on the mower or the net (the release index)",
+                    "enum": [
+                      "inbox",
+                      "net"
+                    ],
+                    "type": "string"
+                  },
                   "min_app": {
                     "description": "The oldest app it works with",
                     "type": [
@@ -10096,6 +10178,72 @@
             "object",
             "null"
           ]
+        },
+        "origin": {
+          "additionalProperties": false,
+          "description": "The release index on the net and the last time it was asked",
+          "properties": {
+            "channel": {
+              "description": "stable, or preview for previews as well",
+              "enum": [
+                "stable",
+                "preview"
+              ],
+              "type": "string"
+            },
+            "checked_at": {
+              "description": "When it was last asked, unix s; absent before the first",
+              "type": "integer"
+            },
+            "downloading": {
+              "description": "Whether the index or a bundle is being downloaded",
+              "type": "boolean"
+            },
+            "index_date": {
+              "description": "When that index was published, unix s",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "index_serial": {
+              "description": "The serial of the last index taken",
+              "type": "integer"
+            },
+            "message": {
+              "description": "English text for the log, null when ok",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "result": {
+              "description": "How the last asking ended; absent before the first",
+              "enum": [
+                "ok",
+                "unreachable",
+                "bad_index",
+                "too_large",
+                "no_space",
+                "bad_bundle",
+                "failed"
+              ],
+              "type": "string"
+            },
+            "url": {
+              "description": "The address of the index, null without one",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "channel",
+            "url",
+            "downloading"
+          ],
+          "type": "object"
         },
         "phase": {
           "description": "What it does now",
@@ -10254,6 +10402,14 @@
                     ],
                     "x-unit": "unix s"
                   },
+                  "from": {
+                    "description": "Where it was found: the inbox on the mower or the net (the release index)",
+                    "enum": [
+                      "inbox",
+                      "net"
+                    ],
+                    "type": "string"
+                  },
                   "min_app": {
                     "description": "The oldest app it works with",
                     "type": [
@@ -10478,6 +10634,72 @@
             "object",
             "null"
           ]
+        },
+        "origin": {
+          "additionalProperties": false,
+          "description": "The release index on the net and the last time it was asked",
+          "properties": {
+            "channel": {
+              "description": "stable, or preview for previews as well",
+              "enum": [
+                "stable",
+                "preview"
+              ],
+              "type": "string"
+            },
+            "checked_at": {
+              "description": "When it was last asked, unix s; absent before the first",
+              "type": "integer"
+            },
+            "downloading": {
+              "description": "Whether the index or a bundle is being downloaded",
+              "type": "boolean"
+            },
+            "index_date": {
+              "description": "When that index was published, unix s",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "index_serial": {
+              "description": "The serial of the last index taken",
+              "type": "integer"
+            },
+            "message": {
+              "description": "English text for the log, null when ok",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "result": {
+              "description": "How the last asking ended; absent before the first",
+              "enum": [
+                "ok",
+                "unreachable",
+                "bad_index",
+                "too_large",
+                "no_space",
+                "bad_bundle",
+                "failed"
+              ],
+              "type": "string"
+            },
+            "url": {
+              "description": "The address of the index, null without one",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "channel",
+            "url",
+            "downloading"
+          ],
+          "type": "object"
         },
         "phase": {
           "description": "What it does now",
@@ -10632,6 +10854,14 @@
                     ],
                     "x-unit": "unix s"
                   },
+                  "from": {
+                    "description": "Where it was found: the inbox on the mower or the net (the release index)",
+                    "enum": [
+                      "inbox",
+                      "net"
+                    ],
+                    "type": "string"
+                  },
                   "min_app": {
                     "description": "The oldest app it works with",
                     "type": [
@@ -10856,6 +11086,522 @@
             "object",
             "null"
           ]
+        },
+        "origin": {
+          "additionalProperties": false,
+          "description": "The release index on the net and the last time it was asked",
+          "properties": {
+            "channel": {
+              "description": "stable, or preview for previews as well",
+              "enum": [
+                "stable",
+                "preview"
+              ],
+              "type": "string"
+            },
+            "checked_at": {
+              "description": "When it was last asked, unix s; absent before the first",
+              "type": "integer"
+            },
+            "downloading": {
+              "description": "Whether the index or a bundle is being downloaded",
+              "type": "boolean"
+            },
+            "index_date": {
+              "description": "When that index was published, unix s",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "index_serial": {
+              "description": "The serial of the last index taken",
+              "type": "integer"
+            },
+            "message": {
+              "description": "English text for the log, null when ok",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "result": {
+              "description": "How the last asking ended; absent before the first",
+              "enum": [
+                "ok",
+                "unreachable",
+                "bad_index",
+                "too_large",
+                "no_space",
+                "bad_bundle",
+                "failed"
+              ],
+              "type": "string"
+            },
+            "url": {
+              "description": "The address of the index, null without one",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "channel",
+            "url",
+            "downloading"
+          ],
+          "type": "object"
+        },
+        "phase": {
+          "description": "What it does now",
+          "enum": [
+            "idle",
+            "verifying",
+            "unpacking",
+            "waiting_gate",
+            "switching",
+            "checking"
+          ],
+          "type": "string"
+        },
+        "reason": {
+          "description": "Why the gate waits in waiting_gate: a reason of UPDATE in x-reasons",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "revision": {
+          "description": "The revision it installs or goes back to, null in idle",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "phase",
+        "component",
+        "revision",
+        "reason",
+        "components",
+        "auto",
+        "last"
+      ],
+      "type": "object"
+    },
+    "update.set_channel.params": {
+      "additionalProperties": false,
+      "description": "The params of update.set_channel: app_version and the fields of the call",
+      "properties": {
+        "app_version": {
+          "description": "Version of the app that calls, e.g. 1.4.0 or 1.5.0-beta.2",
+          "type": "string"
+        },
+        "channel": {
+          "description": "stable or preview",
+          "enum": [
+            "stable",
+            "preview"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "channel"
+      ],
+      "type": "object"
+    },
+    "update.set_channel.result": {
+      "additionalProperties": false,
+      "description": "The result of update.set_channel: What the updater does, what runs and what is available, the last result",
+      "properties": {
+        "auto": {
+          "additionalProperties": false,
+          "description": "The automatic update",
+          "properties": {
+            "enabled": {
+              "description": "On or off",
+              "type": "boolean"
+            },
+            "from": {
+              "description": "Start of the window, HH:MM local time",
+              "type": "string"
+            },
+            "to": {
+              "description": "End of the window, HH:MM local time",
+              "type": "string"
+            }
+          },
+          "required": [
+            "enabled",
+            "from",
+            "to"
+          ],
+          "type": "object"
+        },
+        "component": {
+          "description": "The component of the update that runs, null in idle",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "components": {
+          "description": "Each component the updater keeps",
+          "items": {
+            "additionalProperties": false,
+            "description": "One item",
+            "properties": {
+              "auto": {
+                "description": "Whether updates install by themselves at night",
+                "type": "boolean"
+              },
+              "available": {
+                "additionalProperties": false,
+                "description": "The newest revision found that is newer than what runs, null without one",
+                "properties": {
+                  "blocked": {
+                    "additionalProperties": false,
+                    "description": "Not installed by itself: why, the result of the attempt that ended so and when; update.start of this revision tries it anyway",
+                    "properties": {
+                      "reason": {
+                        "description": "A reason of UPDATE in x-reasons, never BLOCKED",
+                        "type": "string"
+                      },
+                      "result": {
+                        "description": "How the attempt ended",
+                        "enum": [
+                          "rolled_back",
+                          "failed"
+                        ],
+                        "type": "string"
+                      },
+                      "t": {
+                        "description": "When, null for a reason reckoned from the installed OS (kept nowhere)",
+                        "type": [
+                          "integer",
+                          "null"
+                        ],
+                        "x-unit": "unix s"
+                      }
+                    },
+                    "required": [
+                      "reason",
+                      "t"
+                    ],
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  },
+                  "date": {
+                    "description": "When it was built",
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "x-unit": "unix s"
+                  },
+                  "from": {
+                    "description": "Where it was found: the inbox on the mower or the net (the release index)",
+                    "enum": [
+                      "inbox",
+                      "net"
+                    ],
+                    "type": "string"
+                  },
+                  "min_app": {
+                    "description": "The oldest app it works with",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "revision": {
+                    "description": "The revision",
+                    "type": "string"
+                  },
+                  "version": {
+                    "description": "Its version, null for os",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "revision",
+                  "date",
+                  "version",
+                  "min_app",
+                  "blocked"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "crashes_since_install": {
+                "description": "Ends of the container since then",
+                "type": "integer"
+              },
+              "id": {
+                "description": "The component",
+                "enum": [
+                  "os",
+                  "planner",
+                  "app",
+                  "host"
+                ],
+                "type": "string"
+              },
+              "installed_at": {
+                "description": "When what runs was installed",
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "x-unit": "unix s"
+              },
+              "name": {
+                "description": "Its name to show",
+                "type": "string"
+              },
+              "own_skipped": {
+                "additionalProperties": false,
+                "description": "planner and app: their own installation the OS does not use, null without one",
+                "properties": {
+                  "reason": {
+                    "description": "Why: a reason of UPDATE in x-reasons",
+                    "type": "string"
+                  },
+                  "revision": {
+                    "description": "The revision",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "revision",
+                  "reason"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "previous": {
+                "additionalProperties": false,
+                "description": "Where update.rollback goes, null without one",
+                "properties": {
+                  "date": {
+                    "description": "When it was built, null when the bundle does not say",
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "x-unit": "unix s"
+                  },
+                  "revision": {
+                    "description": "The revision, a commit of the component",
+                    "type": "string"
+                  },
+                  "version": {
+                    "description": "Its version, null for os",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "revision",
+                  "date",
+                  "version"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "running": {
+                "additionalProperties": false,
+                "description": "What runs, null without an installation",
+                "properties": {
+                  "date": {
+                    "description": "When it was built, null when the bundle does not say",
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "x-unit": "unix s"
+                  },
+                  "revision": {
+                    "description": "The revision, a commit of the component",
+                    "type": "string"
+                  },
+                  "version": {
+                    "description": "Its version, null for os",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "revision",
+                  "date",
+                  "version"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "source": {
+                "description": "planner and app: own while their own installation is used, else bundled (the one the OS brings along)",
+                "enum": [
+                  "own",
+                  "bundled"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "running",
+              "available",
+              "previous",
+              "installed_at",
+              "crashes_since_install",
+              "auto"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "last": {
+          "additionalProperties": false,
+          "description": "The result of the last update or rollback, null before the first",
+          "properties": {
+            "component": {
+              "description": "The component",
+              "type": "string"
+            },
+            "message": {
+              "description": "English text for the log",
+              "type": "string"
+            },
+            "reason": {
+              "description": "Why: a reason of UPDATE in x-reasons, null when installed",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "result": {
+              "description": "How it ended",
+              "enum": [
+                "installed",
+                "rolled_back",
+                "refused",
+                "aborted",
+                "failed"
+              ],
+              "type": "string"
+            },
+            "revision": {
+              "description": "The revision",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "t": {
+              "description": "When, unix s",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "result",
+            "reason",
+            "message",
+            "revision",
+            "component",
+            "t"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "origin": {
+          "additionalProperties": false,
+          "description": "The release index on the net and the last time it was asked",
+          "properties": {
+            "channel": {
+              "description": "stable, or preview for previews as well",
+              "enum": [
+                "stable",
+                "preview"
+              ],
+              "type": "string"
+            },
+            "checked_at": {
+              "description": "When it was last asked, unix s; absent before the first",
+              "type": "integer"
+            },
+            "downloading": {
+              "description": "Whether the index or a bundle is being downloaded",
+              "type": "boolean"
+            },
+            "index_date": {
+              "description": "When that index was published, unix s",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "index_serial": {
+              "description": "The serial of the last index taken",
+              "type": "integer"
+            },
+            "message": {
+              "description": "English text for the log, null when ok",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "result": {
+              "description": "How the last asking ended; absent before the first",
+              "enum": [
+                "ok",
+                "unreachable",
+                "bad_index",
+                "too_large",
+                "no_space",
+                "bad_bundle",
+                "failed"
+              ],
+              "type": "string"
+            },
+            "url": {
+              "description": "The address of the index, null without one",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "channel",
+            "url",
+            "downloading"
+          ],
+          "type": "object"
         },
         "phase": {
           "description": "What it does now",
@@ -11018,6 +11764,14 @@
                     ],
                     "x-unit": "unix s"
                   },
+                  "from": {
+                    "description": "Where it was found: the inbox on the mower or the net (the release index)",
+                    "enum": [
+                      "inbox",
+                      "net"
+                    ],
+                    "type": "string"
+                  },
                   "min_app": {
                     "description": "The oldest app it works with",
                     "type": [
@@ -11242,6 +11996,72 @@
             "object",
             "null"
           ]
+        },
+        "origin": {
+          "additionalProperties": false,
+          "description": "The release index on the net and the last time it was asked",
+          "properties": {
+            "channel": {
+              "description": "stable, or preview for previews as well",
+              "enum": [
+                "stable",
+                "preview"
+              ],
+              "type": "string"
+            },
+            "checked_at": {
+              "description": "When it was last asked, unix s; absent before the first",
+              "type": "integer"
+            },
+            "downloading": {
+              "description": "Whether the index or a bundle is being downloaded",
+              "type": "boolean"
+            },
+            "index_date": {
+              "description": "When that index was published, unix s",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "index_serial": {
+              "description": "The serial of the last index taken",
+              "type": "integer"
+            },
+            "message": {
+              "description": "English text for the log, null when ok",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "result": {
+              "description": "How the last asking ended; absent before the first",
+              "enum": [
+                "ok",
+                "unreachable",
+                "bad_index",
+                "too_large",
+                "no_space",
+                "bad_bundle",
+                "failed"
+              ],
+              "type": "string"
+            },
+            "url": {
+              "description": "The address of the index, null without one",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "channel",
+            "url",
+            "downloading"
+          ],
+          "type": "object"
         },
         "phase": {
           "description": "What it does now",
@@ -11384,6 +12204,14 @@
                     ],
                     "x-unit": "unix s"
                   },
+                  "from": {
+                    "description": "Where it was found: the inbox on the mower or the net (the release index)",
+                    "enum": [
+                      "inbox",
+                      "net"
+                    ],
+                    "type": "string"
+                  },
                   "min_app": {
                     "description": "The oldest app it works with",
                     "type": [
@@ -11609,6 +12437,72 @@
             "null"
           ]
         },
+        "origin": {
+          "additionalProperties": false,
+          "description": "The release index on the net and the last time it was asked",
+          "properties": {
+            "channel": {
+              "description": "stable, or preview for previews as well",
+              "enum": [
+                "stable",
+                "preview"
+              ],
+              "type": "string"
+            },
+            "checked_at": {
+              "description": "When it was last asked, unix s; absent before the first",
+              "type": "integer"
+            },
+            "downloading": {
+              "description": "Whether the index or a bundle is being downloaded",
+              "type": "boolean"
+            },
+            "index_date": {
+              "description": "When that index was published, unix s",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "index_serial": {
+              "description": "The serial of the last index taken",
+              "type": "integer"
+            },
+            "message": {
+              "description": "English text for the log, null when ok",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "result": {
+              "description": "How the last asking ended; absent before the first",
+              "enum": [
+                "ok",
+                "unreachable",
+                "bad_index",
+                "too_large",
+                "no_space",
+                "bad_bundle",
+                "failed"
+              ],
+              "type": "string"
+            },
+            "url": {
+              "description": "The address of the index, null without one",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "channel",
+            "url",
+            "downloading"
+          ],
+          "type": "object"
+        },
         "phase": {
           "description": "What it does now",
           "enum": [
@@ -11648,11 +12542,11 @@
       "type": "object"
     }
   },
-  "$id": "urn:mowbite-os:api:26",
+  "$id": "urn:mowbite-os:api:27",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "robot_state, actions, events and RPC methods of MowBite OS over MQTT, as system.api gives them; made from the code, objects sorted by key. x-reasons has severity and resume of every reason by event (COMMAND_REFUSED and REQUEST_REFUSED only in refusals; when: another rating for these field values; texts: name, help and fix by language; an enum field may carry the same by value as x-texts), x-emergency-bits the bits of emergency, x-commands the commands with params, result, the event of their refusal and the actions that do the same, x-methods every RPC method of the OS with its node (planner.* are the planner's, sim.* only in the simulation), x-sensors the sensors by id, x-settings the settings of params.set with the ranges of the OS, x-geometry the keys of robot.geometry, x-schedule-log the words of schedule.log with what detail and more hold (null: always null).",
   "title": "MowBite OS app interface",
-  "x-api": 26,
+  "x-api": 27,
   "x-commands": {
     "docking.abort": {
       "action": "mower_logic:docking/abort_docking",
@@ -12747,7 +13641,7 @@
       "result": "#/$defs/update.abort.result"
     },
     "update.check": {
-      "description": "Looks for bundles in the origins now (the inbox), as it does every 6 h",
+      "description": "Looks for bundles in the inbox now and asks the release index on the net in the background, as it does every 6 h; a bundle newer than what runs is downloaded, never installed by that",
       "node": "mowbite_host",
       "offered": "while mowbite/host/status says online",
       "params": "#/$defs/update.check.params",
@@ -12766,6 +13660,13 @@
       "offered": "while mowbite/host/status says online",
       "params": "#/$defs/update.set_auto.params",
       "result": "#/$defs/update.set_auto.result"
+    },
+    "update.set_channel": {
+      "description": "Chooses which releases of the index count: stable, or preview for previews as well; then asks the index",
+      "node": "mowbite_host",
+      "offered": "while mowbite/host/status says online",
+      "params": "#/$defs/update.set_channel.params",
+      "result": "#/$defs/update.set_channel.result"
     },
     "update.start": {
       "description": "Installs the newest available revision of the component or the one given, one update at a time; os and planner wait for the gate (IDLE on the charging contacts, the hold granted) for up to 30 min, the planner also for the end of the mowing job, the app and the host for none. The host starts itself anew and gives the result once the new one confirmed itself after 60 s, else it goes back. Refused (UPDATE_REFUSED) when none is there or one runs",

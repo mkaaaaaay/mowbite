@@ -8,6 +8,7 @@ import {defaultNotify, NOTIFY_EVENTS, toOs} from './notify';
 import {COMMAND, RPC} from './openmower';
 import {EMERGENCY_BITS, EMERGENCY_HIDE, EMERGENCY_TEXT, EVENTS, NOT_DRIVEN, REASONS, pick} from './reasonTexts';
 import {READY_TEXT, scheduleLogText} from './schedule';
+import {ORIGIN_TEXT} from './osUpdate';
 import {SITUATION_NAMES} from './sound';
 import {PARTS} from './stats';
 
@@ -16,8 +17,8 @@ import {PARTS} from './stats';
 const PINNED = {
   repo: 'mkaaaaaay/mowbite-os',
   path: 'src/mowbite_api/api.schema.json',
-  commit: '27598a9ec3e889dbfce02cca3275f560d129f9bf',
-  sha256: '8814f92889c0cb4cd7d4e52813cd46760ceedd5ed8dece54f0dc64563bbae59d',
+  commit: '622cc8c07e9b317eb583eab192a503d719e20d27',
+  sha256: 'aed5cf855c5ef3c2716654ab53d6b1340056c4687d91eaff68267c399f84d24c',
 };
 const raw = readFileSync(join(__dirname, 'os-api.schema.json'));
 // a reason's rating, when: another one for these values of the event's fields
@@ -62,7 +63,7 @@ const osMethods = Object.keys(api['x-methods']);
 const AHEAD: Record<'reasons' | 'events' | 'methods' | 'variants', string[]> = {
   reasons: ['TOO_SHORT'],
   events: [],
-  methods: ['update.set_channel'],
+  methods: [],
   // a reason's variant for one event, as 'EVENT REASON'
   variants: [],
 };
@@ -178,6 +179,11 @@ describe(`MowBite OS's interface (${PINNED.repo} ${PINNED.commit.slice(0, 7)}, a
     for (const e of NOTIFY_EVENTS) expect(de[e.label], e.label).toBeDefined();
     const sent = Object.keys(toOs({...defaultNotify('de', ''), token: 'x'}));
     expect(sent.filter((k) => !(k in set))).toEqual([]);
+  });
+
+  it('has words for every way asking the release index on the net ends', () => {
+    const origin = (api.$defs['update.status.result'] as {properties: {origin: {properties: {result: {enum: string[]}}}}}).properties.origin;
+    expect([...origin.properties.result.enum].sort()).toEqual(Object.keys(ORIGIN_TEXT).sort());
   });
 
   it('names every part the OS counts for', () => {
