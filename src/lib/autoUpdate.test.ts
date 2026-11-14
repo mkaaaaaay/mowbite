@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import {
-  looking,
+  lookingSince,
   missingOf,
   noKeep,
   taken,
@@ -90,9 +90,9 @@ describe('the updater on the mower', () => {
     expect(updaterAlive(state({alive: '1000', looking: '1100'}), 5000)).toBe(false);
     expect(updaterAlive(state({alive: '1000', looking: ''}), 2000)).toBe(false);
     // looking for updates now: while it says so, not one left from a look that never ended
-    expect(looking(state({looking: '1100'}), 1200)).toBe(true);
-    expect(looking(state({looking: ''}), 1200)).toBe(false);
-    expect(looking(state({looking: '1100'}), 5000)).toBe(false);
+    expect(lookingSince(state({looking: '1100'}), 1200)).toBe(1100);
+    expect(lookingSince(state({looking: ''}), 1200)).toBeNull();
+    expect(lookingSince(state({looking: '1100'}), 5000)).toBeNull();
     expect(silentSince(state({alive: '1792831337'}))).toBeTruthy();
     expect(silentSince(state({}))).toBeNull();
   });

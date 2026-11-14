@@ -14,6 +14,7 @@ import {
   openMowerChoices,
   outOfReach,
   reachLine,
+  PART_NAMES,
   partInfo,
   partResult,
   partsOf,
@@ -190,6 +191,9 @@ function LastTime({r}: {r: PartResult}) {
     </Note>
   );
 }
+
+// a request that didn't arrive or a setting not saved, where it was tapped
+const Warn = ({text}: {text: string | null}) => (text ? <span className={local.warn}>{text}</span> : null);
 
 // what runs and its channel
 const Facts = ({running, channel}: {running: string; channel: ReactNode}) => (
@@ -440,7 +444,7 @@ function PartCard({
       {result && result.level !== 'ok' && <LastTime r={result} />}
       {p.kind === 'openmower' && <MissingNote s={s} />}
       {p.kind === 'openmower' && (s.status[part] ?? '').startsWith('nospace') && <NoKeepOffer s={s} part={part} locked={locked} onYes={onNoKeep} />}
-      {error && <span className={local.warn}>{error}</span>}
+      <Warn text={error} />
       {!fixed && (
         <UpdateAction available={info.available} inDock={p.gate !== 'none'} locked={locked} again={p.kind === 'openmower' && (!!missingOf(s) || !!s.status.openmower_fw)} onUpdate={onUpdate} />
       )}
@@ -515,7 +519,7 @@ function UpdaterCard({
 }) {
   const tag = info.available ? tagOf(info.available, freshly(s, 'updater', now)) : null;
   const head = (
-    <Head name="MowBite Updater" tag={tag} text={off ? undefined : PART_TEXT.host}>
+    <Head name={PART_NAMES.updater} tag={tag} text={off ? undefined : PART_TEXT.host}>
       <Facts running={info.running} channel={info.tag} />
     </Head>
   );
@@ -525,7 +529,7 @@ function UpdaterCard({
       {head}
       {info.available === 'local' && <span className={local.dim}>{tr(FROM_REGISTRY)}</span>}
       {info.result && <LastTime r={info.result} />}
-      {error && <span className={local.warn}>{error}</span>}
+      <Warn text={error} />
       <UpdateAction available={info.available} inDock={false} locked={locked} onUpdate={onUpdate} />
       {anyAuto && <span className={local.dim}>{tr('It updates itself too, at night with the automatic updates.')}</span>}
     </article>
@@ -594,11 +598,11 @@ function Room({
   const cache = s.room?.cache ?? 0;
   const free = freeMb(s);
   const at = (word: string) => doing?.word === word;
-  const busyLine = (label: string) => doing && <Busy label={label} detail={stepDetail({part: '', step: 'prepare', pct: null, since: doing.since}, now)} />;
+  const busyLine = (label: string) => doing && <Busy label={label} since={doing.since} now={now} />;
   const deleting = (word: string) => at(word) && busyLine(tr('Deleting…'));
-  const button = (key: string, label: string, word: string, go: () => Promise<void>) => (
-    <button className={[local.control, sure === key ? local.danger : ''].join(' ')} disabled={busy} onClick={() => confirm(key, () => onAsk(word, go))}>
-      {at(word) ? tr('Deleting…') : sure === key ? tr('Really delete?') : label}
+  const button = (word: string, label: string, go: () => Promise<void>) => (
+    <button className={[local.control, sure === word ? local.danger : ''].join(' ')} disabled={busy} onClick={() => confirm(word, () => onAsk(word, go))}>
+      {at(word) ? tr('Deleting…') : sure === word ? tr('Really delete?') : label}
     </button>
   );
 
@@ -617,7 +621,7 @@ function Room({
           <span className={local.dim}>{roomNote(i)}</span>
           <div className={local.row}>
             <span className={local.dim}>{size(i.bytes)}</span>
-            {button(i.id, tr('Delete'), `free:img:${i.id}`, () => freeRoom({id: i.id}))}
+            {button(`free:img:${i.id}`, tr('Delete'), () => freeRoom({id: i.id}))}
           </div>
           {deleting(`free:img:${i.id}`)}
         </div>
@@ -628,7 +632,7 @@ function Room({
           <span className={local.dim}>{tr('The next build of the planner then takes 1–2 minutes longer and needs the internet (shapely is loaded again).')}</span>
           <div className={local.row}>
             <span className={local.dim}>{size(cache)}</span>
-            {button('cache', tr('Empty it'), 'free:cache', () => freeRoom('cache'))}
+            {button('free:cache', tr('Empty it'), () => freeRoom('cache'))}
           </div>
           {deleting('free:cache')}
         </div>
@@ -637,13 +641,13 @@ function Room({
       {at('room') && busyLine(tr('Looking what can go…'))}
       {/* (all of it, or an image asked for elsewhere: which one the updater doesn't say) */}
       {(at('free:all') || at('free:img')) && busyLine(tr('Deleting…'))}
-      {error && <span className={local.warn}>{error}</span>}
+      <Warn text={error} />
       <div className={local.row}>
         <button className={local.control} disabled={busy} onClick={() => onAsk('room', requestRoom)}>
           {at('room') ? tr('Looking…') : tr('Look again')}
         </button>
         {roomLoose(s).length > 1 ? (
-          button('all', tr('Delete all but the ways back ({size})', {size: size(roomTotal(roomLoose(s)))}), 'free:all', () => freeRoom('all'))
+          button('free:all', tr('Delete all but the ways back ({size})', {size: size(roomTotal(roomLoose(s)))}), () => freeRoom('all'))
         ) : (
           <span />
         )}
@@ -655,12 +659,13 @@ function Room({
 // a request as the updater notes it when it takes it (taken): now:<part>, now:all, back:<part>, nokeep:<part>, self,
 // check, room, free:img|all|cache. here free:img:<id>, to show it at its image
 type Asked = {word: string; at: number};
+
 const tapTime = () => Date.now() / 1000;
 
 // where a request without an answer is said: on the card it was tapped on
 function whereOf(word: string): string {
   const [k, v] = word.split(':');
-  if (k === 'now' || k === 'back' || k === 'nokeep') return v === 'all' ? 'all' : v;
+  if (k === 'now' || k === 'back' || k === 'nokeep') return v;
   if (k === 'self') return 'updater';
   if (k === 'room' || k === 'free') return 'room';
   return 'top';
@@ -764,7 +769,7 @@ export function AutoUpdate() {
   const lookSince = lookingSince(st, now) ?? sinceOf('check');
   const checking = lookSince !== null;
   // a look alone locks only its own button: a request stops it, it looks again afterwards
-  const busy = lost || (!!asked && asked.word !== 'check') || st.requested || running || restarting || !!tk?.what.some((w) => w !== 'check');
+  const busy = lost || st.requested || running || restarting || words.some((w) => w !== 'check');
   const errorAt = (place: string) => (error?.where === place ? error.text : null);
 
   const set = (patch: Record<string, string | number>, place: string, then?: () => void) => {
@@ -828,7 +833,7 @@ export function AutoUpdate() {
   // (taken back as asked: the updater says so only until its run begins, this page until it's done)
   const askedBack = !!current && words.includes(`back:${current.part}`);
   const back = askedBack || current?.step === 'back';
-  const nameOf = (part: Part) => (!part ? tr('Everything') : part === 'updater' ? 'MowBite Updater' : partName(st, part));
+  const nameOf = (part: Part) => (part ? partName(st, part) : tr('Everything'));
   const doing = current
     ? (running && runResult(st)) || (back ? tr('{name} goes back', {name: nameOf(current.part)}) : tr('{name} is being updated', {name: nameOf(current.part)}))
     : null;
@@ -865,7 +870,7 @@ export function AutoUpdate() {
         checking={checking}
         onCheck={() => ask('check', requestCheck)}
       />
-      {checking && !current && lookSince !== null && <Busy label={tr('Looking for updates')} detail={stepDetail(asRun('', 'prepare', lookSince), now)} />}
+      {lookSince !== null && !current && <Busy label={tr('Looking for updates')} since={lookSince} now={now} />}
       {busy && !current && !roomDoing && !lost && <span className={local.dim}>{tr('asked, within a minute…')}</span>}
       {waited && <Note look={local.warn}>{waited}</Note>}
       {lost && !restarting && current?.part !== 'mowbite' && (
@@ -878,7 +883,7 @@ export function AutoUpdate() {
             : tr("The updater doesn't give a sign of life, it may hang or be restarting.")}
         </span>
       )}
-      {errorAt('top') && <span className={local.warn}>{errorAt('top')}</span>}
+      <Warn text={errorAt('top')} />
 
       <OutOfReachNote s={st} />
 
@@ -929,7 +934,7 @@ export function AutoUpdate() {
           {tr('Update all')}
         </button>
       )}
-      {errorAt('all') && <span className={local.warn}>{errorAt('all')}</span>}
+      <Warn text={errorAt('all')} />
 
       {anyAuto && !current && (
         <div className={local.part}>
@@ -967,7 +972,7 @@ export function AutoUpdate() {
               "Only when the mower is idle in the dock, if it isn't, it tries again every 10 minutes for 3 hours. If a new version doesn't start, it goes back to the one before by itself.",
             )}
           </span>
-          {errorAt('schedule') && <span className={local.warn}>{errorAt('schedule')}</span>}
+          <Warn text={errorAt('schedule')} />
         </div>
       )}
 

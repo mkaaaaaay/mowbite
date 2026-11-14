@@ -1,5 +1,6 @@
 'use client';
 
+import {elapsed} from '@/lib/autoUpdate';
 import {tr} from '@/lib/i18n';
 import type {ReactNode} from 'react';
 import shared from './AutoUpdate.module.css';
@@ -84,11 +85,11 @@ export function Bar({label, pct, detail}: {label: string; pct: number | null; de
   );
 }
 
-// something it does that has no steps (a look for updates, for room, deleting): what, and the bar
-export const Busy = ({label, detail}: {label: string; detail: string}) => (
+// something it does that has no steps (a look for updates, for room, deleting): what, and the bar with its time
+export const Busy = ({label, since, now}: {label: string; since: number; now: number}) => (
   <div className={styles.busy}>
     <b>{label}</b>
-    <Bar label={label} pct={null} detail={detail} />
+    <Bar label={label} pct={null} detail={elapsed(since, now)} />
   </div>
 );
 

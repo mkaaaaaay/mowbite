@@ -185,7 +185,8 @@
   padding-top: 2px;
 }
 
-.steps small {
+.steps small,
+.busy small {
   font-size: 13px;
   color: var(--text-secondary);
 }
@@ -318,11 +319,6 @@
   display: grid;
   gap: 6px;
   font-size: 14px;
-}
-
-.busy small {
-  font-size: 13px;
-  color: var(--text-secondary);
 }
 
 /* asked before going back or installing what was held back */

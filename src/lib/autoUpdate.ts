@@ -127,29 +127,29 @@ export const roomLoose = (s: UpdateState) => (s.room?.items ?? []).filter((i) =>
 export const roomTotal = (items: RoomItem[]) => items.reduce((n, i) => n + i.bytes, 0);
 export const size = (bytes: number) => (bytes >= 1e9 ? `${fmt(bytes / 1e9, 1)} GB` : bytes >= 1e6 ? `${Math.round(bytes / 1e6)} MB` : `${Math.max(0, Math.round(bytes / 1e3))} kB`);
 
-// a time it noted (looking, taken: since when) within the last hour
-const lately = (s: UpdateState, key: string, now: number) => {
+// a time it noted (looking, taken: since when) within the last hour, null when there's none
+const notedAt = (s: UpdateState, key: string, now: number) => {
   const t = Number((s.status[key] ?? '').split(' ')[0]);
-  return t > 0 && now - t < 3600;
+  return t > 0 && now - t < 3600 ? t : null;
 };
 // since when it looks for updates, null when it doesn't
-export const lookingSince = (s: UpdateState, now = Date.now() / 1000) => (lately(s, 'looking', now) ? Number(s.status.looking.split(' ')[0]) : null);
-export const looking = (s: UpdateState, now = Date.now() / 1000) => lookingSince(s, now) !== null;
+export const lookingSince = (s: UpdateState, now = Date.now() / 1000) => notedAt(s, 'looking', now);
 // the requests it took and works on, as it notes them (taken: "<since> now:<part> back:<part> self free:img check ..."),
 // until its run shows or it's done
 export function taken(s: UpdateState, now = Date.now() / 1000): {since: number; what: string[]} | null {
-  const [t, ...what] = (s.status.taken ?? '').split(' ');
-  return lately(s, 'taken', now) && what.length ? {since: Number(t), what} : null;
+  const since = notedAt(s, 'taken', now);
+  const what = (s.status.taken ?? '').split(' ').slice(1);
+  return since !== null && what.length ? {since, what} : null;
 }
 // it's on something: a request waiting or taken, a run, its restart on a new version or a look for updates
 export const working = (s: UpdateState, now = Date.now() / 1000) =>
-  s.requested || s.status.result === 'running' || !!taken(s, now) || !!selfInfo(s, now)?.restarting || looking(s, now);
+  s.requested || s.status.result === 'running' || !!taken(s, now) || !!selfInfo(s, now)?.restarting || lookingSince(s, now) !== null;
 // it writes "alive" every minute and with each step of an update, a big download or a build can take a while longer,
 // so can a look for updates or a request it took
 export function updaterAlive(s: UpdateState | null, now = Date.now() / 1000): boolean {
   if (!s) return false;
   const since = now - Number(s.status.alive ?? 0);
-  return since < 300 || ((s.status.result === 'running' || lately(s, 'looking', now) || lately(s, 'taken', now)) && since < 3600);
+  return since < 300 || ((s.status.result === 'running' || notedAt(s, 'looking', now) !== null || notedAt(s, 'taken', now) !== null) && since < 3600);
 }
 // since when it hasn't given a sign of life, null when it never did
 export const silentSince = (s: UpdateState) => (/^\d+$/.test(s.status.alive ?? '') ? when(s.status.alive) : null);
@@ -241,22 +241,21 @@ function stepsOf(s: UpdateState, part: Part): Step[] {
   return ['prepare', 'download', 'extract', 'restart', 'wait'];
 }
 
-// under the bar: the percent or how many of how many, and how long the step has taken (since 0: not known)
-export function stepDetail(p: Progress, now = Date.now() / 1000): string {
-  const far =
-    p.step === 'extract' && p.of
-      ? tr('{n} of {of} layers', {n: p.done ?? 0, of: p.of})
-      : p.step === 'build' && p.of
-        ? tr('step {n} of {of}', {n: Math.min(p.of, (p.done ?? 0) + 1), of: p.of})
-        : p.pct !== null && p.step === 'download'
-          ? `${p.pct} %`
-          : '';
-  return [far, p.since > 0 && clock(now - p.since)].filter(Boolean).join(' · ');
+// how far the step is: the percent or how many of how many
+function far(p: Progress): string {
+  if (p.step === 'extract' && p.of) return tr('{n} of {of} layers', {n: p.done ?? 0, of: p.of});
+  if (p.step === 'build' && p.of) return tr('step {n} of {of}', {n: Math.min(p.of, (p.done ?? 0) + 1), of: p.of});
+  if (p.pct !== null && p.step === 'download') return `${p.pct} %`;
+  return '';
 }
-const clock = (secs: number) => {
-  const s = Math.max(0, Math.round(secs));
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-};
+// how long since then as m:ss, empty when it isn't known (0)
+export function elapsed(since: number, now = Date.now() / 1000): string {
+  if (since <= 0) return '';
+  const secs = Math.max(0, Math.round(now - since));
+  return `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`;
+}
+// under the bar: how far and how long the step has taken
+export const stepDetail = (p: Progress, now = Date.now() / 1000) => [far(p), elapsed(p.since, now)].filter(Boolean).join(' · ');
 
 const date = (d: string | undefined) => (d && /^\d{4}-\d\d-\d\d$/.test(d) ? numericDay(new Date(`${d}T12:00:00`).getTime() / 1000) : null);
 const when = (t: string | undefined) => (t ? dayClock(Number(t)) : '?');
@@ -524,19 +523,22 @@ const mib = (x: string | undefined) => (/^\d+$/.test(x ?? '') ? size(Number(x) *
 export function noKeep(s: UpdateState, part: Part): NoKeep | null {
   const [ok, a, b, c, d] = (s.status[`${part}_nokeep`] ?? '').split(' ');
   if (ok === 'yes') return {ok: true, size: mib(a), parts: commas(b).map((p) => nameOf(s, p)), back: commas(c), gone: commas(d)};
-  if (ok !== 'no') return null;
-  const why = NOKEEP_NOT[a]
-    ? tr(NOKEEP_NOT[a])
-    : a === 'room'
-      ? tr("even then there isn't room enough (needs about {need}, {has} there)", {need: mib(b), has: mib(c)})
-      : a === 'box'
-        ? tr('the container "{name}" uses the version that runs and the updater can\'t build it again', {name: b || '?'})
-        : a === 'base'
-          ? tr('{name} is built on OpenMower and the version picked comes under another name', {name: nameOf(s, b ?? '?')})
-          : a === 'github'
-            ? tr("it isn't known what to build of {name} (GitHub doesn't answer)", {name: nameOf(s, b ?? '?')})
-            : a || '?';
-  return {ok: false, why};
+  return ok === 'no' ? {ok: false, why: noKeepWhy(s, a, b, c)} : null;
+}
+function noKeepWhy(s: UpdateState, a: string | undefined, b: string | undefined, c: string | undefined): string {
+  if (a && NOKEEP_NOT[a]) return tr(NOKEEP_NOT[a]);
+  switch (a) {
+    case 'room':
+      return tr("even then there isn't room enough (needs about {need}, {has} there)", {need: mib(b), has: mib(c)});
+    case 'box':
+      return tr('the container "{name}" uses the version that runs and the updater can\'t build it again', {name: b || '?'});
+    case 'base':
+      return tr('{name} is built on OpenMower and the version picked comes under another name', {name: nameOf(s, b ?? '?')});
+    case 'github':
+      return tr("it isn't known what to build of {name} (GitHub doesn't answer)", {name: nameOf(s, b ?? '?')});
+    default:
+      return a || '?';
+  }
 }
 
 // OpenMower not on the mower after its update without a copy: its next try by itself (null: none, by a tap), and the
