@@ -29,8 +29,8 @@ import {useEffect, useRef, useState} from 'react';
 import local from './NotifySettings.module.css';
 import {PhonePushSettings} from './PhonePushSettings';
 
-// Push messages on the phone when the mower needs someone, sent by the container on the mower through ntfy, also when
-// no app is open and away from home. Kept on the mower for every device.
+// Push messages on the phone when the mower needs someone, sent by the container on the mower or by MowBite OS through
+// ntfy, also when no app is open and away from home. Kept on the mower for every device.
 
 type Styles = Record<string, string>;
 
@@ -184,7 +184,7 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
 
   const phone = isApp() && !isDemo();
   // MowBite's own messages on this phone, the topic is for other devices then
-  const own = phone && containerHas(u.level, 'phones');
+  const own = phone && (os || containerHas(u.level, 'phones'));
   const dirty = JSON.stringify({...form, snooze: 0}) !== JSON.stringify({...saved, snooze: 0});
   const live = !!saved && saved.enabled && (!!saved.topic || saved.pushes.length > 0);
   const subscribe = saved?.topic ? `${saved.server.replace(/\/+$/, '')}/${saved.topic}` : null;
@@ -243,7 +243,8 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
     <section className={styles.card}>
       <p className={styles.dim}>
         {tr(
-          'A message on your phone when the mower needs you: an emergency stop, docking given up and the like. The container on the mower sends it through ntfy, also when no app is open and away from home.',
+          'A message on your phone when the mower needs you: an emergency stop, docking given up and the like. {who} sends it through ntfy, also when no app is open and away from home.',
+          {who: os ? 'MowBite OS' : tr('The container on the mower')},
         )}
         {!own && ` ${tr('Install the ntfy app (Android or iOS) and subscribe to the topic below.')}`}
       </p>
@@ -268,11 +269,12 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
 
       <h3 className={local.sub}>{tr('Tell me about')}</h3>
       <div className={local.events}>
-        {/* standing still is told by a newer container only, shown while that can't be told. a start turned down only
-            MowBite OS says, going home at sunset only a mower with that setting */}
+        {/* standing still and a start of the schedule that didn't go are told by a newer container only, shown while
+            that can't be told. a start turned down only MowBite OS says, going home at sunset only a mower with that
+            setting */}
         {NOTIFY_EVENTS.filter(
           (e) =>
-            (e.key !== 'standstill' || u.level === null || containerHas(u.level, 'standstill')) &&
+            (!['standstill', 'schedule_skipped'].includes(e.key) || os || u.level === null || containerHas(u.level, e.key)) &&
             (e.key !== 'refused' || os) &&
             (e.key !== 'dark' || hasSunsetSwitch(params)),
         ).map((e) => (
@@ -283,6 +285,7 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
           </label>
         ))}
       </div>
+      {os && <p className={styles.dim}>{tr('A change to the schedule or to where the messages go is always told.')}</p>}
 
       {form.events.includes('emergency') && (
         <>
@@ -309,7 +312,8 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
         ))}
       </div>
       <p className={styles.dim}>
-        {tr("Again and again while the mower can't carry on by itself: in emergency stop, or outside the dock after it gave up. Snooze stops that for a while, also from the message (from the home network).")}
+        {tr("Again and again while the mower can't carry on by itself: in emergency stop, or outside the dock after it gave up.")}{' '}
+        {os ? tr('Snooze here stops that for a while.') : tr('Snooze stops that for a while, also from the message (from the home network).')}
       </p>
 
       <h3 className={local.sub}>{tr('Language of the messages')}</h3>

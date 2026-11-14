@@ -5640,6 +5640,692 @@
       ],
       "type": "object"
     },
+    "notify.get.params": {
+      "description": "The params of notify.get: None",
+      "type": "object"
+    },
+    "notify.get.result": {
+      "additionalProperties": false,
+      "description": "The result of notify.get: The settings of the pushes",
+      "properties": {
+        "emergency_wait": {
+          "description": "How long an emergency lasts before it is told",
+          "maximum": 600.0,
+          "minimum": 0.0,
+          "type": "integer",
+          "x-unit": "s"
+        },
+        "enabled": {
+          "description": "false: nothing is sent, the rest stays",
+          "type": "boolean"
+        },
+        "events": {
+          "description": "The events that send a push: emergency, dock_failed, undock_failed, nav_error, spinup, standstill, refused, done, rain, battery, dark, maintenance, schedule_skipped",
+          "items": {
+            "description": "One item",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "has_token": {
+          "description": "A token for the ntfy server is stored; the token itself never comes back",
+          "type": "boolean"
+        },
+        "lang": {
+          "description": "Language of the texts",
+          "enum": [
+            "de",
+            "en"
+          ],
+          "type": "string"
+        },
+        "name": {
+          "description": "Name of the mower in the texts, at most 40 characters; empty: the mower",
+          "type": "string"
+        },
+        "pushes": {
+          "description": "UnifiedPush addresses of the phones, oldest first; past 10 the oldest goes",
+          "items": {
+            "description": "One item",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "remind": {
+          "description": "Between reminders of a problem that stays; 0 for none",
+          "maximum": 1440.0,
+          "minimum": 0.0,
+          "type": "integer",
+          "x-unit": "min"
+        },
+        "schema": {
+          "description": "Always 1",
+          "type": "integer"
+        },
+        "server": {
+          "description": "ntfy server, http(s)://host[:port][/path]",
+          "type": "string"
+        },
+        "snooze": {
+          "description": "Reminders snoozed until then, 0 for not",
+          "type": "integer",
+          "x-unit": "unix s"
+        },
+        "stored": {
+          "description": "Saved before: without, nothing is sent",
+          "type": "boolean"
+        },
+        "topic": {
+          "description": "ntfy topic, [A-Za-z0-9_-]{1,64}; empty for none",
+          "pattern": "^[A-Za-z0-9_-]{0,64}$",
+          "type": "string"
+        },
+        "url": {
+          "description": "Address of MowBite for the button in the message; empty for none",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema",
+        "enabled",
+        "server",
+        "topic",
+        "lang",
+        "name",
+        "url",
+        "events",
+        "remind",
+        "emergency_wait",
+        "has_token",
+        "pushes",
+        "snooze",
+        "stored"
+      ],
+      "type": "object"
+    },
+    "notify.log.params": {
+      "additionalProperties": false,
+      "description": "The params of notify.log: How many",
+      "properties": {
+        "limit": {
+          "description": "The last so many",
+          "maximum": 50.0,
+          "minimum": 1.0,
+          "type": "integer"
+        }
+      },
+      "required": [],
+      "type": "object"
+    },
+    "notify.log.result": {
+      "description": "The result of notify.log: A push",
+      "items": {
+        "additionalProperties": false,
+        "description": "One item",
+        "properties": {
+          "kind": {
+            "description": "Its event or test",
+            "type": "string"
+          },
+          "sent": {
+            "description": "Reached at least one target",
+            "type": "boolean"
+          },
+          "t": {
+            "description": "When",
+            "type": "integer",
+            "x-unit": "unix s"
+          },
+          "title": {
+            "description": "Its title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "t",
+          "sent",
+          "kind",
+          "title"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "notify.push_add.params": {
+      "additionalProperties": false,
+      "description": "The params of notify.push_add: The address",
+      "properties": {
+        "address": {
+          "description": "https URL, at most 1000 characters",
+          "type": "string"
+        }
+      },
+      "required": [
+        "address"
+      ],
+      "type": "object"
+    },
+    "notify.push_add.result": {
+      "additionalProperties": false,
+      "description": "The result of notify.push_add: The settings of the pushes",
+      "properties": {
+        "emergency_wait": {
+          "description": "How long an emergency lasts before it is told",
+          "maximum": 600.0,
+          "minimum": 0.0,
+          "type": "integer",
+          "x-unit": "s"
+        },
+        "enabled": {
+          "description": "false: nothing is sent, the rest stays",
+          "type": "boolean"
+        },
+        "events": {
+          "description": "The events that send a push: emergency, dock_failed, undock_failed, nav_error, spinup, standstill, refused, done, rain, battery, dark, maintenance, schedule_skipped",
+          "items": {
+            "description": "One item",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "has_token": {
+          "description": "A token for the ntfy server is stored; the token itself never comes back",
+          "type": "boolean"
+        },
+        "lang": {
+          "description": "Language of the texts",
+          "enum": [
+            "de",
+            "en"
+          ],
+          "type": "string"
+        },
+        "name": {
+          "description": "Name of the mower in the texts, at most 40 characters; empty: the mower",
+          "type": "string"
+        },
+        "pushes": {
+          "description": "UnifiedPush addresses of the phones, oldest first; past 10 the oldest goes",
+          "items": {
+            "description": "One item",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "remind": {
+          "description": "Between reminders of a problem that stays; 0 for none",
+          "maximum": 1440.0,
+          "minimum": 0.0,
+          "type": "integer",
+          "x-unit": "min"
+        },
+        "schema": {
+          "description": "Always 1",
+          "type": "integer"
+        },
+        "server": {
+          "description": "ntfy server, http(s)://host[:port][/path]",
+          "type": "string"
+        },
+        "snooze": {
+          "description": "Reminders snoozed until then, 0 for not",
+          "type": "integer",
+          "x-unit": "unix s"
+        },
+        "stored": {
+          "description": "Saved before: without, nothing is sent",
+          "type": "boolean"
+        },
+        "topic": {
+          "description": "ntfy topic, [A-Za-z0-9_-]{1,64}; empty for none",
+          "pattern": "^[A-Za-z0-9_-]{0,64}$",
+          "type": "string"
+        },
+        "url": {
+          "description": "Address of MowBite for the button in the message; empty for none",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema",
+        "enabled",
+        "server",
+        "topic",
+        "lang",
+        "name",
+        "url",
+        "events",
+        "remind",
+        "emergency_wait",
+        "has_token",
+        "pushes",
+        "snooze",
+        "stored"
+      ],
+      "type": "object"
+    },
+    "notify.push_remove.params": {
+      "additionalProperties": false,
+      "description": "The params of notify.push_remove: The address",
+      "properties": {
+        "address": {
+          "description": "As in pushes",
+          "type": "string"
+        }
+      },
+      "required": [
+        "address"
+      ],
+      "type": "object"
+    },
+    "notify.push_remove.result": {
+      "additionalProperties": false,
+      "description": "The result of notify.push_remove: The settings of the pushes",
+      "properties": {
+        "emergency_wait": {
+          "description": "How long an emergency lasts before it is told",
+          "maximum": 600.0,
+          "minimum": 0.0,
+          "type": "integer",
+          "x-unit": "s"
+        },
+        "enabled": {
+          "description": "false: nothing is sent, the rest stays",
+          "type": "boolean"
+        },
+        "events": {
+          "description": "The events that send a push: emergency, dock_failed, undock_failed, nav_error, spinup, standstill, refused, done, rain, battery, dark, maintenance, schedule_skipped",
+          "items": {
+            "description": "One item",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "has_token": {
+          "description": "A token for the ntfy server is stored; the token itself never comes back",
+          "type": "boolean"
+        },
+        "lang": {
+          "description": "Language of the texts",
+          "enum": [
+            "de",
+            "en"
+          ],
+          "type": "string"
+        },
+        "name": {
+          "description": "Name of the mower in the texts, at most 40 characters; empty: the mower",
+          "type": "string"
+        },
+        "pushes": {
+          "description": "UnifiedPush addresses of the phones, oldest first; past 10 the oldest goes",
+          "items": {
+            "description": "One item",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "remind": {
+          "description": "Between reminders of a problem that stays; 0 for none",
+          "maximum": 1440.0,
+          "minimum": 0.0,
+          "type": "integer",
+          "x-unit": "min"
+        },
+        "schema": {
+          "description": "Always 1",
+          "type": "integer"
+        },
+        "server": {
+          "description": "ntfy server, http(s)://host[:port][/path]",
+          "type": "string"
+        },
+        "snooze": {
+          "description": "Reminders snoozed until then, 0 for not",
+          "type": "integer",
+          "x-unit": "unix s"
+        },
+        "stored": {
+          "description": "Saved before: without, nothing is sent",
+          "type": "boolean"
+        },
+        "topic": {
+          "description": "ntfy topic, [A-Za-z0-9_-]{1,64}; empty for none",
+          "pattern": "^[A-Za-z0-9_-]{0,64}$",
+          "type": "string"
+        },
+        "url": {
+          "description": "Address of MowBite for the button in the message; empty for none",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema",
+        "enabled",
+        "server",
+        "topic",
+        "lang",
+        "name",
+        "url",
+        "events",
+        "remind",
+        "emergency_wait",
+        "has_token",
+        "pushes",
+        "snooze",
+        "stored"
+      ],
+      "type": "object"
+    },
+    "notify.set.params": {
+      "additionalProperties": false,
+      "description": "The params of notify.set: The change",
+      "properties": {
+        "emergency_wait": {
+          "description": "How long an emergency lasts before it is told",
+          "maximum": 600.0,
+          "minimum": 0.0,
+          "type": "integer",
+          "x-unit": "s"
+        },
+        "enabled": {
+          "description": "false: nothing is sent, the rest stays",
+          "type": "boolean"
+        },
+        "events": {
+          "description": "The events that send a push: emergency, dock_failed, undock_failed, nav_error, spinup, standstill, refused, done, rain, battery, dark, maintenance, schedule_skipped",
+          "items": {
+            "description": "One item",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "lang": {
+          "description": "Language of the texts",
+          "enum": [
+            "de",
+            "en"
+          ],
+          "type": "string"
+        },
+        "name": {
+          "description": "Name of the mower in the texts, at most 40 characters; empty: the mower",
+          "type": "string"
+        },
+        "remind": {
+          "description": "Between reminders of a problem that stays; 0 for none",
+          "maximum": 1440.0,
+          "minimum": 0.0,
+          "type": "integer",
+          "x-unit": "min"
+        },
+        "server": {
+          "description": "ntfy server, http(s)://host[:port][/path]",
+          "type": "string"
+        },
+        "token": {
+          "description": "New token for the ntfy server; empty drops it",
+          "type": "string"
+        },
+        "topic": {
+          "description": "ntfy topic, [A-Za-z0-9_-]{1,64}; empty for none",
+          "pattern": "^[A-Za-z0-9_-]{0,64}$",
+          "type": "string"
+        },
+        "url": {
+          "description": "Address of MowBite for the button in the message; empty for none",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "type": "object"
+    },
+    "notify.set.result": {
+      "additionalProperties": false,
+      "description": "The result of notify.set: The settings of the pushes",
+      "properties": {
+        "emergency_wait": {
+          "description": "How long an emergency lasts before it is told",
+          "maximum": 600.0,
+          "minimum": 0.0,
+          "type": "integer",
+          "x-unit": "s"
+        },
+        "enabled": {
+          "description": "false: nothing is sent, the rest stays",
+          "type": "boolean"
+        },
+        "events": {
+          "description": "The events that send a push: emergency, dock_failed, undock_failed, nav_error, spinup, standstill, refused, done, rain, battery, dark, maintenance, schedule_skipped",
+          "items": {
+            "description": "One item",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "has_token": {
+          "description": "A token for the ntfy server is stored; the token itself never comes back",
+          "type": "boolean"
+        },
+        "lang": {
+          "description": "Language of the texts",
+          "enum": [
+            "de",
+            "en"
+          ],
+          "type": "string"
+        },
+        "name": {
+          "description": "Name of the mower in the texts, at most 40 characters; empty: the mower",
+          "type": "string"
+        },
+        "pushes": {
+          "description": "UnifiedPush addresses of the phones, oldest first; past 10 the oldest goes",
+          "items": {
+            "description": "One item",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "remind": {
+          "description": "Between reminders of a problem that stays; 0 for none",
+          "maximum": 1440.0,
+          "minimum": 0.0,
+          "type": "integer",
+          "x-unit": "min"
+        },
+        "schema": {
+          "description": "Always 1",
+          "type": "integer"
+        },
+        "server": {
+          "description": "ntfy server, http(s)://host[:port][/path]",
+          "type": "string"
+        },
+        "snooze": {
+          "description": "Reminders snoozed until then, 0 for not",
+          "type": "integer",
+          "x-unit": "unix s"
+        },
+        "stored": {
+          "description": "Saved before: without, nothing is sent",
+          "type": "boolean"
+        },
+        "topic": {
+          "description": "ntfy topic, [A-Za-z0-9_-]{1,64}; empty for none",
+          "pattern": "^[A-Za-z0-9_-]{0,64}$",
+          "type": "string"
+        },
+        "url": {
+          "description": "Address of MowBite for the button in the message; empty for none",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema",
+        "enabled",
+        "server",
+        "topic",
+        "lang",
+        "name",
+        "url",
+        "events",
+        "remind",
+        "emergency_wait",
+        "has_token",
+        "pushes",
+        "snooze",
+        "stored"
+      ],
+      "type": "object"
+    },
+    "notify.snooze.params": {
+      "additionalProperties": false,
+      "description": "The params of notify.snooze: How long",
+      "properties": {
+        "seconds": {
+          "description": "Seconds from now",
+          "maximum": 86400.0,
+          "minimum": 0.0,
+          "type": "integer",
+          "x-unit": "s"
+        }
+      },
+      "required": [
+        "seconds"
+      ],
+      "type": "object"
+    },
+    "notify.snooze.result": {
+      "additionalProperties": false,
+      "description": "The result of notify.snooze: The settings of the pushes",
+      "properties": {
+        "emergency_wait": {
+          "description": "How long an emergency lasts before it is told",
+          "maximum": 600.0,
+          "minimum": 0.0,
+          "type": "integer",
+          "x-unit": "s"
+        },
+        "enabled": {
+          "description": "false: nothing is sent, the rest stays",
+          "type": "boolean"
+        },
+        "events": {
+          "description": "The events that send a push: emergency, dock_failed, undock_failed, nav_error, spinup, standstill, refused, done, rain, battery, dark, maintenance, schedule_skipped",
+          "items": {
+            "description": "One item",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "has_token": {
+          "description": "A token for the ntfy server is stored; the token itself never comes back",
+          "type": "boolean"
+        },
+        "lang": {
+          "description": "Language of the texts",
+          "enum": [
+            "de",
+            "en"
+          ],
+          "type": "string"
+        },
+        "name": {
+          "description": "Name of the mower in the texts, at most 40 characters; empty: the mower",
+          "type": "string"
+        },
+        "pushes": {
+          "description": "UnifiedPush addresses of the phones, oldest first; past 10 the oldest goes",
+          "items": {
+            "description": "One item",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "remind": {
+          "description": "Between reminders of a problem that stays; 0 for none",
+          "maximum": 1440.0,
+          "minimum": 0.0,
+          "type": "integer",
+          "x-unit": "min"
+        },
+        "schema": {
+          "description": "Always 1",
+          "type": "integer"
+        },
+        "server": {
+          "description": "ntfy server, http(s)://host[:port][/path]",
+          "type": "string"
+        },
+        "snooze": {
+          "description": "Reminders snoozed until then, 0 for not",
+          "type": "integer",
+          "x-unit": "unix s"
+        },
+        "stored": {
+          "description": "Saved before: without, nothing is sent",
+          "type": "boolean"
+        },
+        "topic": {
+          "description": "ntfy topic, [A-Za-z0-9_-]{1,64}; empty for none",
+          "pattern": "^[A-Za-z0-9_-]{0,64}$",
+          "type": "string"
+        },
+        "url": {
+          "description": "Address of MowBite for the button in the message; empty for none",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema",
+        "enabled",
+        "server",
+        "topic",
+        "lang",
+        "name",
+        "url",
+        "events",
+        "remind",
+        "emergency_wait",
+        "has_token",
+        "pushes",
+        "snooze",
+        "stored"
+      ],
+      "type": "object"
+    },
+    "notify.test.params": {
+      "additionalProperties": false,
+      "description": "The params of notify.test: None for all",
+      "properties": {
+        "address": {
+          "description": "One UnifiedPush address of pushes",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "type": "object"
+    },
+    "notify.test.result": {
+      "additionalProperties": false,
+      "description": "The result of notify.test: How it went",
+      "properties": {
+        "result": {
+          "description": "sent: to at least one; no_target: no topic and no phone",
+          "enum": [
+            "sent",
+            "failed",
+            "no_target"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
+      ],
+      "type": "object"
+    },
     "ntrip.delete.params": {
       "description": "The params of ntrip.delete: None",
       "type": "object"
@@ -7809,6 +8495,485 @@
       },
       "required": [
         "volume"
+      ],
+      "type": "object"
+    },
+    "stats.get.params": {
+      "additionalProperties": false,
+      "description": "The params of stats.get: None: the hours since the turn of the year, less a day",
+      "properties": {
+        "from": {
+          "description": "The hours from then on",
+          "type": "integer",
+          "x-unit": "unix s"
+        }
+      },
+      "required": [
+        "from"
+      ],
+      "type": "object"
+    },
+    "stats.get.result": {
+      "additionalProperties": false,
+      "description": "The result of stats.get: The statistics",
+      "properties": {
+        "from": {
+          "description": "The hours from then on: from of the request, later when the newest 9000 are all",
+          "type": "integer",
+          "x-unit": "unix s"
+        },
+        "hours": {
+          "description": "Each hour with something in it from from on, oldest first, the one going on last",
+          "items": {
+            "additionalProperties": false,
+            "description": "One item",
+            "properties": {
+              "blade_s": {
+                "description": "Seconds the blade turned",
+                "type": "integer"
+              },
+              "driven_m": {
+                "description": "Driven without it, not in IDLE",
+                "type": "number",
+                "x-unit": "m"
+              },
+              "mowed_m": {
+                "description": "Driven with the blade turning",
+                "type": "number",
+                "x-unit": "m"
+              },
+              "runs": {
+                "description": "Left IDLE to undock or to mow",
+                "type": "integer"
+              },
+              "t": {
+                "description": "Start of the hour, a whole UTC hour",
+                "type": "integer",
+                "x-unit": "unix s"
+              }
+            },
+            "required": [
+              "t",
+              "blade_s",
+              "mowed_m",
+              "driven_m",
+              "runs"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "parts": {
+          "description": "The parts to see to",
+          "items": {
+            "additionalProperties": false,
+            "description": "One item",
+            "properties": {
+              "base_blade_s": {
+                "description": "total blade_s when it was last seen to",
+                "type": "integer"
+              },
+              "done_at": {
+                "description": "Last seen to, 0 not since counting started",
+                "type": "integer",
+                "x-unit": "unix s"
+              },
+              "due_h": {
+                "description": "Due again after so many blade hours",
+                "type": "number",
+                "x-unit": "h"
+              },
+              "key": {
+                "description": "The part",
+                "enum": [
+                  "blade",
+                  "clean"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "key",
+              "due_h",
+              "base_blade_s",
+              "done_at"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "schema": {
+          "description": "Always 1",
+          "type": "integer"
+        },
+        "since": {
+          "description": "Counting started then",
+          "type": "integer",
+          "x-unit": "unix s"
+        },
+        "total": {
+          "additionalProperties": false,
+          "description": "Since counting started",
+          "properties": {
+            "blade_s": {
+              "description": "Seconds the blade turned",
+              "type": "integer"
+            },
+            "driven_m": {
+              "description": "Driven without it, not in IDLE",
+              "type": "number",
+              "x-unit": "m"
+            },
+            "mowed_m": {
+              "description": "Driven with the blade turning",
+              "type": "number",
+              "x-unit": "m"
+            },
+            "runs": {
+              "description": "Left IDLE to undock or to mow",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "blade_s",
+            "mowed_m",
+            "driven_m",
+            "runs"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "schema",
+        "since",
+        "from",
+        "total",
+        "hours",
+        "parts"
+      ],
+      "type": "object"
+    },
+    "stats.part_done.params": {
+      "additionalProperties": false,
+      "description": "The params of stats.part_done: The part",
+      "properties": {
+        "part": {
+          "description": "Its key",
+          "enum": [
+            "blade",
+            "clean"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "part"
+      ],
+      "type": "object"
+    },
+    "stats.part_done.result": {
+      "additionalProperties": false,
+      "description": "The result of stats.part_done: The statistics",
+      "properties": {
+        "from": {
+          "description": "The hours from then on: from of the request, later when the newest 9000 are all",
+          "type": "integer",
+          "x-unit": "unix s"
+        },
+        "hours": {
+          "description": "Each hour with something in it from from on, oldest first, the one going on last",
+          "items": {
+            "additionalProperties": false,
+            "description": "One item",
+            "properties": {
+              "blade_s": {
+                "description": "Seconds the blade turned",
+                "type": "integer"
+              },
+              "driven_m": {
+                "description": "Driven without it, not in IDLE",
+                "type": "number",
+                "x-unit": "m"
+              },
+              "mowed_m": {
+                "description": "Driven with the blade turning",
+                "type": "number",
+                "x-unit": "m"
+              },
+              "runs": {
+                "description": "Left IDLE to undock or to mow",
+                "type": "integer"
+              },
+              "t": {
+                "description": "Start of the hour, a whole UTC hour",
+                "type": "integer",
+                "x-unit": "unix s"
+              }
+            },
+            "required": [
+              "t",
+              "blade_s",
+              "mowed_m",
+              "driven_m",
+              "runs"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "parts": {
+          "description": "The parts to see to",
+          "items": {
+            "additionalProperties": false,
+            "description": "One item",
+            "properties": {
+              "base_blade_s": {
+                "description": "total blade_s when it was last seen to",
+                "type": "integer"
+              },
+              "done_at": {
+                "description": "Last seen to, 0 not since counting started",
+                "type": "integer",
+                "x-unit": "unix s"
+              },
+              "due_h": {
+                "description": "Due again after so many blade hours",
+                "type": "number",
+                "x-unit": "h"
+              },
+              "key": {
+                "description": "The part",
+                "enum": [
+                  "blade",
+                  "clean"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "key",
+              "due_h",
+              "base_blade_s",
+              "done_at"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "schema": {
+          "description": "Always 1",
+          "type": "integer"
+        },
+        "since": {
+          "description": "Counting started then",
+          "type": "integer",
+          "x-unit": "unix s"
+        },
+        "total": {
+          "additionalProperties": false,
+          "description": "Since counting started",
+          "properties": {
+            "blade_s": {
+              "description": "Seconds the blade turned",
+              "type": "integer"
+            },
+            "driven_m": {
+              "description": "Driven without it, not in IDLE",
+              "type": "number",
+              "x-unit": "m"
+            },
+            "mowed_m": {
+              "description": "Driven with the blade turning",
+              "type": "number",
+              "x-unit": "m"
+            },
+            "runs": {
+              "description": "Left IDLE to undock or to mow",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "blade_s",
+            "mowed_m",
+            "driven_m",
+            "runs"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "schema",
+        "since",
+        "from",
+        "total",
+        "hours",
+        "parts"
+      ],
+      "type": "object"
+    },
+    "stats.part_due.params": {
+      "additionalProperties": false,
+      "description": "The params of stats.part_due: The part and its hours",
+      "properties": {
+        "hours": {
+          "description": "Blade hours",
+          "maximum": 10000.0,
+          "minimum": 1.0,
+          "type": "integer",
+          "x-unit": "h"
+        },
+        "part": {
+          "description": "Its key",
+          "enum": [
+            "blade",
+            "clean"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "part",
+        "hours"
+      ],
+      "type": "object"
+    },
+    "stats.part_due.result": {
+      "additionalProperties": false,
+      "description": "The result of stats.part_due: The statistics",
+      "properties": {
+        "from": {
+          "description": "The hours from then on: from of the request, later when the newest 9000 are all",
+          "type": "integer",
+          "x-unit": "unix s"
+        },
+        "hours": {
+          "description": "Each hour with something in it from from on, oldest first, the one going on last",
+          "items": {
+            "additionalProperties": false,
+            "description": "One item",
+            "properties": {
+              "blade_s": {
+                "description": "Seconds the blade turned",
+                "type": "integer"
+              },
+              "driven_m": {
+                "description": "Driven without it, not in IDLE",
+                "type": "number",
+                "x-unit": "m"
+              },
+              "mowed_m": {
+                "description": "Driven with the blade turning",
+                "type": "number",
+                "x-unit": "m"
+              },
+              "runs": {
+                "description": "Left IDLE to undock or to mow",
+                "type": "integer"
+              },
+              "t": {
+                "description": "Start of the hour, a whole UTC hour",
+                "type": "integer",
+                "x-unit": "unix s"
+              }
+            },
+            "required": [
+              "t",
+              "blade_s",
+              "mowed_m",
+              "driven_m",
+              "runs"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "parts": {
+          "description": "The parts to see to",
+          "items": {
+            "additionalProperties": false,
+            "description": "One item",
+            "properties": {
+              "base_blade_s": {
+                "description": "total blade_s when it was last seen to",
+                "type": "integer"
+              },
+              "done_at": {
+                "description": "Last seen to, 0 not since counting started",
+                "type": "integer",
+                "x-unit": "unix s"
+              },
+              "due_h": {
+                "description": "Due again after so many blade hours",
+                "type": "number",
+                "x-unit": "h"
+              },
+              "key": {
+                "description": "The part",
+                "enum": [
+                  "blade",
+                  "clean"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "key",
+              "due_h",
+              "base_blade_s",
+              "done_at"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "schema": {
+          "description": "Always 1",
+          "type": "integer"
+        },
+        "since": {
+          "description": "Counting started then",
+          "type": "integer",
+          "x-unit": "unix s"
+        },
+        "total": {
+          "additionalProperties": false,
+          "description": "Since counting started",
+          "properties": {
+            "blade_s": {
+              "description": "Seconds the blade turned",
+              "type": "integer"
+            },
+            "driven_m": {
+              "description": "Driven without it, not in IDLE",
+              "type": "number",
+              "x-unit": "m"
+            },
+            "mowed_m": {
+              "description": "Driven with the blade turning",
+              "type": "number",
+              "x-unit": "m"
+            },
+            "runs": {
+              "description": "Left IDLE to undock or to mow",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "blade_s",
+            "mowed_m",
+            "driven_m",
+            "runs"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "schema",
+        "since",
+        "from",
+        "total",
+        "hours",
+        "parts"
       ],
       "type": "object"
     },
@@ -10483,11 +11648,11 @@
       "type": "object"
     }
   },
-  "$id": "urn:mowbite-os:api:25",
+  "$id": "urn:mowbite-os:api:26",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "robot_state, actions, events and RPC methods of MowBite OS over MQTT, as system.api gives them; made from the code, objects sorted by key. x-reasons has severity and resume of every reason by event (COMMAND_REFUSED and REQUEST_REFUSED only in refusals; when: another rating for these field values; texts: name, help and fix by language; an enum field may carry the same by value as x-texts), x-emergency-bits the bits of emergency, x-commands the commands with params, result, the event of their refusal and the actions that do the same, x-methods every RPC method of the OS with its node (planner.* are the planner's, sim.* only in the simulation), x-sensors the sensors by id, x-settings the settings of params.set with the ranges of the OS, x-geometry the keys of robot.geometry, x-schedule-log the words of schedule.log with what detail and more hold (null: always null).",
   "title": "MowBite OS app interface",
-  "x-api": 25,
+  "x-api": 26,
   "x-commands": {
     "docking.abort": {
       "action": "mower_logic:docking/abort_docking",
@@ -11245,6 +12410,55 @@
       "params": "#/$defs/mowing.start.params",
       "result": "#/$defs/mowing.start.result"
     },
+    "notify.get": {
+      "description": "The settings of the pushes; of the token only whether there is one",
+      "node": "mowbite_net",
+      "offered": "",
+      "params": "#/$defs/notify.get.params",
+      "result": "#/$defs/notify.get.result"
+    },
+    "notify.log": {
+      "description": "The last pushes, newest first",
+      "node": "mowbite_net",
+      "offered": "",
+      "params": "#/$defs/notify.log.params",
+      "result": "#/$defs/notify.log.result"
+    },
+    "notify.push_add": {
+      "description": "A phone's UnifiedPush address; past 10 the oldest goes",
+      "node": "mowbite_net",
+      "offered": "",
+      "params": "#/$defs/notify.push_add.params",
+      "result": "#/$defs/notify.push_add.result"
+    },
+    "notify.push_remove": {
+      "description": "Drops a phone's UnifiedPush address",
+      "node": "mowbite_net",
+      "offered": "",
+      "params": "#/$defs/notify.push_remove.params",
+      "result": "#/$defs/notify.push_remove.result"
+    },
+    "notify.set": {
+      "description": "Changes settings, all or nothing: -32602 with data {field, reason}. A push says so to the targets of before",
+      "node": "mowbite_net",
+      "offered": "",
+      "params": "#/$defs/notify.set.params",
+      "result": "#/$defs/notify.set.result"
+    },
+    "notify.snooze": {
+      "description": "No reminders for so long; 0 lifts it",
+      "node": "mowbite_net",
+      "offered": "",
+      "params": "#/$defs/notify.snooze.params",
+      "result": "#/$defs/notify.snooze.result"
+    },
+    "notify.test": {
+      "description": "Sends a test push to the topic and the phones, or to one address",
+      "node": "mowbite_net",
+      "offered": "",
+      "params": "#/$defs/notify.test.params",
+      "result": "#/$defs/notify.test.result"
+    },
     "ntrip.delete": {
       "description": "Removes the access in IDLE",
       "node": "mowbite_ntrip",
@@ -11468,6 +12682,27 @@
       "offered": "with a speaker and at least one sound",
       "params": "#/$defs/sound.volume.params",
       "result": "#/$defs/sound.volume.result"
+    },
+    "stats.get": {
+      "description": "Mowing statistics per hour and the parts to see to",
+      "node": "mowbite_stats",
+      "offered": "",
+      "params": "#/$defs/stats.get.params",
+      "result": "#/$defs/stats.get.result"
+    },
+    "stats.part_done": {
+      "description": "The part was seen to now: its blade hours start from 0; as stats.get from now",
+      "node": "mowbite_stats",
+      "offered": "",
+      "params": "#/$defs/stats.part_done.params",
+      "result": "#/$defs/stats.part_done.result"
+    },
+    "stats.part_due": {
+      "description": "After how many blade hours the part is due again; as stats.get from now",
+      "node": "mowbite_stats",
+      "offered": "",
+      "params": "#/$defs/stats.part_due.params",
+      "result": "#/$defs/stats.part_due.result"
     },
     "system.api": {
       "description": "This interface as JSON Schema with its version",
@@ -14533,152 +15768,182 @@
     "paused_area": {
       "description": "An area of the plan is paused; the run leaves it out",
       "detail": "The area id",
-      "more": null
+      "more": null,
+      "push": false
     },
     "skip_battery": {
       "description": "The battery stayed below min_battery for 2 h",
       "detail": "Battery %",
-      "more": null
+      "more": null,
+      "push": true
     },
     "skip_busy": {
       "description": "The mower was busy",
       "detail": "The state of robot_state or the phase of a start of the schedule",
-      "more": null
+      "more": null,
+      "push": false
     },
     "skip_clock": {
       "description": "The clock was not safe",
       "detail": "clock_reason of schedule.get",
-      "more": null
+      "more": null,
+      "push": true
     },
     "skip_cold": {
       "description": "Colder than min_temp",
       "detail": "deg C",
-      "more": null
+      "more": null,
+      "push": false
     },
     "skip_dark": {
       "description": "The sun was down for a plan without dark",
       "detail": null,
-      "more": null
+      "more": null,
+      "push": false
     },
     "skip_emergency": {
       "description": "An emergency, its latch or the restart hold",
       "detail": null,
-      "more": null
+      "more": null,
+      "push": true
     },
     "skip_end": {
       "description": "The end of the plan came while it waited",
       "detail": null,
-      "more": null
+      "more": null,
+      "push": false
     },
     "skip_forecast": {
       "description": "Rain now or in the next forecast_hours",
       "detail": null,
-      "more": null
+      "more": null,
+      "push": false
     },
     "skip_gone": {
       "description": "The plan was removed while it waited",
       "detail": null,
-      "more": null
+      "more": null,
+      "push": false
     },
     "skip_hold": {
       "description": "A hold stayed for 2 h",
       "detail": null,
-      "more": null
+      "more": null,
+      "push": true
     },
     "skip_missed": {
       "description": "The time of the plan passed while the OS was off, the clock jumped or the plan waited",
       "detail": null,
-      "more": null
+      "more": null,
+      "push": true
     },
     "skip_no_area": {
       "description": "No area of the plan is a mowing area of the map",
       "detail": null,
-      "more": null
+      "more": null,
+      "push": true
     },
     "skip_no_position": {
       "description": "No datum for the sun, for a plan without dark",
       "detail": null,
-      "more": null
+      "more": null,
+      "push": true
     },
     "skip_not_docked": {
       "description": "The mower was not on the contacts",
       "detail": null,
-      "more": null
+      "more": null,
+      "push": true
     },
     "skip_offline": {
       "description": "The logic was silent through the minute of the plan",
       "detail": null,
-      "more": null
+      "more": null,
+      "push": true
     },
     "skip_paused": {
       "description": "The pause covers every area of the plan",
       "detail": null,
-      "more": null
+      "more": null,
+      "push": false
     },
     "skip_rain": {
       "description": "The rain sensor was wet with skip_rain 1 or rain_mode not 0",
       "detail": null,
-      "more": null
+      "more": null,
+      "push": false
     },
     "start_canceled": {
       "description": "The announcement was canceled",
       "detail": "Its source: emergency, rpc, undocked or hold",
-      "more": null
+      "more": null,
+      "push": false
     },
     "start_failed": {
       "description": "The start did not reach mowing",
       "detail": "storage, service, timeout, or the end of the run (UNDOCKING_FAILED, EMERGENCY, ...)",
-      "more": null
+      "more": null,
+      "push": true
     },
     "start_refused": {
       "description": "The logic refused the start",
       "detail": "The reason of MOWING_REFUSED",
-      "more": "Its value, or null"
+      "more": "Its value, or null",
+      "push": false
     },
     "started": {
       "description": "The mower mows",
       "detail": "Battery %",
-      "more": null
+      "more": null,
+      "push": false
     },
     "stopped_dark": {
       "description": "Home at sunset",
       "detail": null,
-      "more": null
+      "more": null,
+      "push": false
     },
     "stopped_end": {
       "description": "Home at the end of the plan",
       "detail": null,
-      "more": null
+      "more": null,
+      "push": false
     },
     "stopped_paused": {
       "description": "The pause covered every area left of the run",
       "detail": null,
-      "more": null
+      "more": null,
+      "push": false
     },
     "stopped_rain": {
       "description": "Home for rain",
       "detail": null,
-      "more": null
+      "more": null,
+      "push": false
     },
     "unknown_area": {
       "description": "An area of the plan is not on the map; the run leaves it out",
       "detail": "The area id",
-      "more": null
+      "more": null,
+      "push": false
     },
     "waiting_battery": {
       "description": "The plan waits up to 2 h for min_battery",
       "detail": "Battery %",
-      "more": null
+      "more": null,
+      "push": false
     },
     "waiting_hold": {
       "description": "The plan waits up to 2 h for the end of a hold",
       "detail": null,
-      "more": null
+      "more": null,
+      "push": false
     },
     "weather_unknown": {
       "description": "No usable weather; the plan goes on",
       "detail": "forecast or cold",
-      "more": null
+      "more": null,
+      "push": false
     }
   },
   "x-sensors": {

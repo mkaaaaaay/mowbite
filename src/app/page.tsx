@@ -245,9 +245,9 @@ export default function Home() {
   const cameras = useCameras().on;
   // the same object while params/json doesn't change: the map isn't drawn again for every sensor value
   const datum = useMemo(() => datumFromParams(params), [params]);
-  // blades or cleaning due, counted by MowBite's container
+  // blades or cleaning due, counted by MowBite's container or MowBite OS
   const updates = useUpdates();
-  const due = useDueParts(updates.level !== null && containerHas(updates.level, 'stats'));
+  const due = useDueParts(os || containerHas(updates.level, 'stats'));
   const wifi = useMowerWifi();
   const level = useBatteryLevel();
   const [schedule, setSchedule] = useState<Schedule | null>(() => cachedSchedule() ?? null);

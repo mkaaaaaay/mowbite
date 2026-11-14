@@ -3,7 +3,7 @@ import {mkdtempSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {describe, expect, it, vi} from 'vitest';
-import {defaultNotify, parseNotify, randomTopic, serializeNotify, validServer, validTopic, withMowerUrl} from './notify';
+import {defaultNotify, fromOs, parseNotify, randomTopic, serializeNotify, toOs, validServer, validTopic, withMowerUrl, type OsNotify} from './notify';
 
 const fallback = defaultNotify('de', 'http://openmower:8082', 'Steve');
 
@@ -28,6 +28,47 @@ describe('push message settings', () => {
     expect(parseNotify('', fallback).events).toEqual(['emergency', 'dock_failed', 'undock_failed', 'nav_error', 'spinup', 'standstill', 'refused', 'maintenance']);
     // saved with none picked
     expect(parseNotify('topic t\n', fallback).events).toEqual([]);
+  });
+
+  it("reads MowBite OS's settings, never saved: the defaults with what it keeps apart", () => {
+    const os: OsNotify = {
+      enabled: false,
+      server: 'https://push.example',
+      topic: 'mine',
+      lang: 'en',
+      name: 'Tron',
+      url: 'http://tron',
+      events: ['emergency', 'schedule_skipped', 'bogus'],
+      remind: 15,
+      emergency_wait: 30,
+      has_token: true,
+      pushes: ['https://up.example/a'],
+      snooze: 1700000000,
+      stored: true,
+    };
+    const c = fromOs(os, fallback);
+    expect(c).toMatchObject({enabled: false, server: 'https://push.example', topic: 'mine', lang: 'en', name: 'Tron', remind: 15, emergencyWait: 30});
+    expect(c).toMatchObject({hasToken: true, token: '', pushes: ['https://up.example/a'], snooze: 1700000000, stored: true});
+    expect(c.events).toEqual(['emergency', 'schedule_skipped']);
+    const never = fromOs({...os, stored: false}, fallback);
+    expect(never).toEqual({...fallback, hasToken: true, pushes: ['https://up.example/a'], snooze: 1700000000, stored: false});
+  });
+
+  it('changes MowBite OS\'s settings, the token only when one was typed', () => {
+    const c = {...fallback, server: 'https://ntfy.sh/', topic: ' t ', name: 'a "b"\\', url: 'http://openmower:8082/', remind: 14.6};
+    expect(toOs(c)).toEqual({
+      enabled: true,
+      server: 'https://ntfy.sh',
+      topic: 't',
+      lang: 'de',
+      name: 'a b',
+      url: 'http://openmower:8082',
+      events: fallback.events,
+      remind: 15,
+      emergency_wait: 10,
+    });
+    expect(toOs({...c, token: ' new '}).token).toBe('new');
+    expect(toOs({...c, token: '-'}).token).toBe('');
   });
 
   it('writes lines the cgi keeps, a token only when one was typed or is to go', () => {

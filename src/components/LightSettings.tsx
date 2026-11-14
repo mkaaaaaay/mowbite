@@ -6,6 +6,7 @@ import {
   colorsUsed,
   fitted,
   loadLights,
+  mayStand,
   minPeriod,
   moves,
   previewLight,
@@ -41,6 +42,13 @@ const EFFECT_NAMES: Record<string, string> = {
   pulse: 'Pulsing',
   chase: 'Running light',
   gradient: 'Color gradient',
+  fade: 'Fading',
+  comet: 'Comet',
+  scanner: 'Scanner',
+  rainbow: 'Rainbow',
+  sparkle: 'Sparkling',
+  flash: 'Double flash',
+  level: 'Battery level',
 };
 const named = (names: Record<string, string>, key: string) => (names[key] ? tr(names[key]) : key.replace(/_/g, ' ').toLowerCase());
 // a preview shows this long, unless the mower allows less
@@ -68,7 +76,7 @@ function PeriodField({value, effect, lights, styles, onChange}: {value: number; 
   };
   return (
     <label className={styles.field}>
-      {effect === 'gradient' ? tr('One pass along the lights in s (0: it stands still)') : tr('One cycle in s')}
+      {effect === 'gradient' ? tr('One pass along the lights in s (0: it stands still)') : mayStand(effect) ? tr('One cycle in s (0: it stands still)') : tr('One cycle in s')}
       <input
         inputMode="decimal"
         value={text ?? dec(value)}

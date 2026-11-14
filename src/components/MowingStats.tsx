@@ -17,6 +17,7 @@ import {
   type Period,
   type Stats,
 } from '@/lib/stats';
+import {useMowbiteOs} from '@/lib/mowerOs';
 import {containerHas, useUpdates} from '@/lib/updates';
 import {useEffect, useState} from 'react';
 import styles from './MowingStats.module.css';
@@ -116,10 +117,11 @@ function PartRow({stats, part, onStats}: {stats: Stats; part: Part; onStats: (s:
 }
 
 // mowing hours, runs and distance over a week, month, year or all the time, and the parts due by the blade hours.
-// counted by MowBite's container on the mower (docker/stats.sh), so nothing older than that container is in it.
+// counted by MowBite's container on the mower (docker/stats.sh) or by MowBite OS, nothing older than that is in it.
 // folded away, open by itself while something is due
 export default function MowingStats() {
   const u = useUpdates();
+  const os = useMowbiteOs();
   // undefined: loading, null: not served
   const [stats, setStats] = useState<Stats | null | undefined>(undefined);
   const [period, setPeriod] = useState<Period>('week');
@@ -137,15 +139,17 @@ export default function MowingStats() {
     };
   }, []);
 
-  if (u.level === null) return null;
-  if (!containerHas(u.level, 'stats')) {
-    return (
-      <section className={styles.card}>
-        <h2>{tr('Mowing hours and maintenance')}</h2>
-        <span className={styles.dim}>{tr('MowBite on the mower{old} is too old for this, it needs an update first.', {old: versionNote(u.mower)})}</span>
-        <UpdateCommand />
-      </section>
-    );
+  // a container too old says so, MowBite OS before api 26 shows nothing
+  if (!os) {
+    if (u.level === null) return null;
+    if (!containerHas(u.level, 'stats'))
+      return (
+        <section className={styles.card}>
+          <h2>{tr('Mowing hours and maintenance')}</h2>
+          <span className={styles.dim}>{tr('MowBite on the mower{old} is too old for this, it needs an update first.', {old: versionNote(u.mower)})}</span>
+          <UpdateCommand />
+        </section>
+      );
   }
   if (!stats) return null;
   const a = amountsOf(stats, period);

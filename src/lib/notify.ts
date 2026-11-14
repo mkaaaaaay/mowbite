@@ -1,8 +1,10 @@
 import {apiBase, mowerFetch} from './mowers';
+import {RPC} from './openmower';
+import {callRpc, rpcMethods} from './rpc';
 
-// Push messages through ntfy, sent by the container on the mower (docker/notify.sh) when the mower needs someone: to a
-// topic, and to the phones signed up in MowBite's app (their UnifiedPush address, lib/push.ts). The settings are kept
-// there as lines (notify.cgi), the token is never handed back, only that there is one.
+// Push messages through ntfy, sent by the mower when it needs someone: to a topic, and to the phones signed up in
+// MowBite's app (their UnifiedPush address, lib/push.ts). The container (docker/notify.sh) keeps the settings as lines
+// (notify.cgi), MowBite OS over notify.*. The token is never handed back, only that there is one.
 
 export const NOTIFY_EVENTS = [
   {key: 'emergency', label: 'Emergency stop', problem: true},
@@ -19,6 +21,7 @@ export const NOTIFY_EVENTS = [
   // MowBite OS only
   {key: 'dark', label: 'Going home at sunset', problem: false},
   {key: 'maintenance', label: 'Maintenance due (blades, cleaning)', problem: false},
+  {key: 'schedule_skipped', label: "A start of the schedule didn't go", problem: false},
 ] as const;
 export type NotifyEvent = (typeof NOTIFY_EVENTS)[number]['key'];
 
@@ -102,20 +105,21 @@ export function parseNotify(text: string, fallback: NotifyConfig): NotifyConfig 
   return c;
 }
 
-// what notify.cgi takes: it drops anything that doesn't fit, quotes and backslashes in the name too. none picked is "-"
+// what notify.cgi takes: it drops anything that doesn't fit, quotes and backslashes in the name too. none picked is "-",
+// a token "-" drops the one there is
 export function serializeNotify(c: NotifyConfig): string {
-  const name = c.name.replace(/["\\\n\r]/g, '').trim().slice(0, 40);
+  const o = toOs(c);
   return [
-    `enabled ${c.enabled ? 1 : 0}`,
-    `server ${c.server.trim().replace(/\/+$/, '') || DEFAULT_SERVER}`,
-    c.topic && `topic ${c.topic.trim()}`,
+    `enabled ${o.enabled ? 1 : 0}`,
+    `server ${o.server}`,
+    o.topic && `topic ${o.topic}`,
     c.token && `token ${c.token.trim()}`,
-    `lang ${c.lang}`,
-    name && `name ${name}`,
-    c.url && `url ${c.url.trim().replace(/\/+$/, '')}`,
-    `events ${c.events.join(',') || '-'}`,
-    `remind ${Math.max(0, Math.round(c.remind))}`,
-    `emergency_wait ${Math.max(0, Math.round(c.emergencyWait))}`,
+    `lang ${o.lang}`,
+    o.name && `name ${o.name}`,
+    o.url && `url ${o.url}`,
+    `events ${o.events.join(',') || '-'}`,
+    `remind ${o.remind}`,
+    `emergency_wait ${o.emergency_wait}`,
   ]
     .filter(Boolean)
     .join('\n');
@@ -133,9 +137,64 @@ export const validServer = (s: string) => /^https?:\/\/[A-Za-z0-9.:/_-]{1,200}$/
 
 const endpoint = (base = apiBase()) => base + '/cgi-bin/notify';
 
-// null: not served by the container (the dev server, an older container), no push messages then. undefined: the mower
-// didn't answer
+// MowBite OS from api 26 (notify.get), the selected mower only (base undefined or its own): rpc goes to that one
+export const notifyOnOs = async (base?: string) => (base === undefined || base === apiBase()) && !!(await rpcMethods())?.has(RPC.notifyGet);
+
+// what notify.get and the other notify.* answer
+export interface OsNotify {
+  enabled: boolean;
+  server: string;
+  topic: string;
+  lang: 'de' | 'en';
+  name: string;
+  url: string;
+  events: string[];
+  remind: number;
+  emergency_wait: number;
+  has_token: boolean;
+  pushes: string[];
+  snooze: number;
+  stored: boolean;
+}
+
+// never saved: what's shown is the fallback, with what the OS keeps apart from the settings
+export function fromOs(r: OsNotify, fallback: NotifyConfig): NotifyConfig {
+  const kept = {token: '', hasToken: r.has_token, snooze: r.snooze, pushes: r.pushes, stored: r.stored};
+  if (!r.stored) return {...fallback, ...kept};
+  return {
+    ...kept,
+    enabled: r.enabled,
+    server: r.server,
+    topic: r.topic,
+    lang: r.lang,
+    name: r.name,
+    url: r.url,
+    events: r.events.filter((e): e is NotifyEvent => KNOWN.has(e)),
+    remind: r.remind,
+    emergencyWait: r.emergency_wait,
+  };
+}
+
+// notify.set's change: the token only when one was typed, '' drops it. the name without quotes and backslashes
+export function toOs(c: NotifyConfig) {
+  return {
+    enabled: c.enabled,
+    server: c.server.trim().replace(/\/+$/, '') || DEFAULT_SERVER,
+    topic: c.topic.trim(),
+    lang: c.lang,
+    name: c.name.replace(/["\\\n\r]/g, '').trim().slice(0, 40),
+    url: c.url.trim().replace(/\/+$/, ''),
+    events: c.events,
+    remind: Math.max(0, Math.round(c.remind)),
+    emergency_wait: Math.max(0, Math.round(c.emergencyWait)),
+    ...(c.token ? {token: c.token === '-' ? '' : c.token.trim()} : {}),
+  };
+}
+
+// null: not served by the container (the dev server, an older container) nor by MowBite OS, no push messages then.
+// undefined: the mower didn't answer
 export async function loadNotify(fallback: NotifyConfig): Promise<NotifyConfig | null | undefined> {
+  if (await notifyOnOs()) return callRpc<OsNotify>(RPC.notifyGet).then((r) => fromOs(r, fallback), () => undefined);
   let res: Response;
   try {
     res = await mowerFetch(endpoint(), {cache: 'no-store'});
@@ -148,13 +207,21 @@ export async function loadNotify(fallback: NotifyConfig): Promise<NotifyConfig |
 }
 
 export async function saveNotify(c: NotifyConfig): Promise<NotifyConfig> {
+  if (await notifyOnOs()) return fromOs(await callRpc<OsNotify>(RPC.notifySet, toOs(c)), c);
   const res = await mowerFetch(endpoint(), {method: 'POST', body: serializeNotify(c)});
   if (!res.ok) throw new Error(`notify ${res.status}`);
   return parseNotify(await res.text(), c);
 }
 
+// notify.test, to all or to one phone, with the container's word for nowhere to send it
+async function osTest(params: {address?: string}, none: string): Promise<string> {
+  const {result} = await callRpc<{result: string}>(RPC.notifyTest, params);
+  return result === 'no_target' ? none : result;
+}
+
 // sends a test message with what's saved, to the topic and the phones: 'sent', 'failed' or 'no topic' (neither)
 export async function testNotify(): Promise<string> {
+  if (await notifyOnOs()) return osTest({}, 'no topic');
   const res = await mowerFetch(`${endpoint()}?test`, {method: 'POST'});
   return (await res.text()).trim();
 }
@@ -162,24 +229,29 @@ export async function testNotify(): Promise<string> {
 // a phone's UnifiedPush address on the mower, it sends there too from now on (a few per mower, the oldest goes)
 // to the selected mower, or the one at base
 export async function addPush(address: string, base?: string): Promise<void> {
+  if (await notifyOnOs(base)) return void (await callRpc(RPC.notifyPushAdd, {address}));
   const res = await mowerFetch(`${endpoint(base)}?push-add`, {method: 'POST', body: address});
   const r = (await res.text()).trim();
   if (!res.ok || r !== 'ok') throw new Error(r || `notify ${res.status}`);
 }
 
 export async function removePush(address: string, base?: string): Promise<void> {
+  if (await notifyOnOs(base)) return void (await callRpc(RPC.notifyPushRemove, {address}));
   await mowerFetch(`${endpoint(base)}?push-remove`, {method: 'POST', body: address});
 }
 
 // a test to one phone signed up: 'sent', 'failed' or 'not signed up'
 export async function testPush(address: string): Promise<string> {
+  if (await notifyOnOs()) return osTest({address}, 'not signed up');
   const res = await mowerFetch(`${endpoint()}?push-test`, {method: 'POST', body: address});
   return (await res.text()).trim();
 }
 
-// no reminders for this many seconds, 0 lifts it
+// no reminders for this many seconds (a day at most), 0 lifts it
 export async function snoozeNotify(seconds: number): Promise<void> {
-  await mowerFetch(`${endpoint()}?snooze=${Math.max(0, Math.round(seconds))}`, {method: 'POST'});
+  const s = Math.min(86400, Math.max(0, Math.round(seconds)));
+  if (await notifyOnOs()) return void (await callRpc(RPC.notifySnooze, {seconds: s}));
+  await mowerFetch(`${endpoint()}?snooze=${s}`, {method: 'POST'});
 }
 
 export interface NotifyLog {
@@ -190,6 +262,7 @@ export interface NotifyLog {
 
 export async function notifyLog(): Promise<NotifyLog[]> {
   try {
+    if (await notifyOnOs()) return await callRpc<NotifyLog[]>(RPC.notifyLog, {limit: 50});
     const res = await mowerFetch(`${endpoint()}?log`, {cache: 'no-store'});
     if (!res.ok) return [];
     return (await res.text())

@@ -1,13 +1,13 @@
 import type {PluginListenerHandle} from '@capacitor/core';
 import {isDemo, mowerBase, mowerList} from './mowers';
 import {isApp} from './native';
-import {addPush, removePush} from './notify';
+import {addPush, notifyOnOs, removePush} from './notify';
 import {mowerAtHas} from './updates';
 
 // MowBite's own push messages in the Android app (android/.../PushPlugin.java). The app signs up with a UnifiedPush
-// distributor, e.g. the ntfy app running unseen in the background, and gets an address. Each mower's container sends its
-// messages there (notify.sh), the app shows them with its own icon, in channels whose sound and importance are set in
-// Android. Only in the app, the page in a browser has no way to it
+// distributor, e.g. the ntfy app running unseen in the background, and gets an address. Each mower's container
+// (notify.sh) or MowBite OS sends its messages there, the app shows them with its own icon, in channels whose sound
+// and importance are set in Android. Only in the app, the page in a browser has no way to it
 
 export interface PushDistributor {
   // the package, e.g. io.heckel.ntfy
@@ -102,8 +102,8 @@ export async function renewEndpoint(endpoint: string) {
       .map(mowerBase)
       .map(async (api) => {
         const sent = sentEndpoint(api);
-        // (an older container would take the address for its settings)
-        if (!sent || endpoint === sent || !(await mowerAtHas(api, 'phones'))) return;
+        // (an older container would take the address for its settings). MowBite OS only for the mower looked at
+        if (!sent || endpoint === sent || !((await notifyOnOs(api)) || (await mowerAtHas(api, 'phones')))) return;
         await removePush(sent, api).catch(() => {});
         await addPush(endpoint, api).then(
           () => rememberEndpoint(api, endpoint),

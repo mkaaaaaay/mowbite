@@ -22,12 +22,13 @@ export interface Lights {
   leds: number;
 }
 
-// how many colors an effect uses: blink and chase show the second instead of dark, a gradient spreads all of them
-const USED: Record<string, number> = {off: 0, solid: 1, pulse: 1, blink: 2, chase: 2};
+// how many colors an effect uses: those with 2 show the second instead of dark, a gradient spreads all, a rainbow has its own
+const USED: Record<string, number> = {off: 0, solid: 1, pulse: 1, blink: 2, chase: 2, fade: 2, comet: 2, scanner: 2, flash: 2, level: 2, rainbow: 0};
 export const colorsUsed = (effect: string, most: number) => Math.min(USED[effect] ?? most, most);
-// a period only where something moves, a gradient may stand still (0)
+// a period only where something moves, a gradient, a rainbow and a level may stand still (0)
 export const moves = (effect: string) => effect !== 'off' && effect !== 'solid';
-export const minPeriod = (effect: string, l: Lights['limits']) => (effect === 'gradient' ? 0 : l.min_period);
+export const mayStand = (effect: string) => ['gradient', 'rainbow', 'level'].includes(effect);
+export const minPeriod = (effect: string, l: Lights['limits']) => (mayStand(effect) ? 0 : l.min_period);
 
 // the states in the mower's order, one only in the profile after them, none left out
 export const statesOf = (l: Lights) => [...l.states, ...Object.keys(l.profile).filter((s) => !l.states.includes(s))];

@@ -4,18 +4,20 @@ import {join} from 'node:path';
 import {describe, expect, it} from 'vitest';
 import de from './i18n/de';
 import {onOs, PARAM_FIELDS, paramField} from './mowerParams';
+import {defaultNotify, NOTIFY_EVENTS, toOs} from './notify';
 import {COMMAND, RPC} from './openmower';
 import {EMERGENCY_BITS, EMERGENCY_HIDE, EMERGENCY_TEXT, EVENTS, NOT_DRIVEN, REASONS, pick} from './reasonTexts';
 import {READY_TEXT, scheduleLogText} from './schedule';
 import {SITUATION_NAMES} from './sound';
+import {PARTS} from './stats';
 
 // MowBite OS's interface (system.api) as its owner has it, copied from the commit below. a newer one: copy it from
 // there over os-api.schema.json and put its commit and checksum here, the tests then say which words are missing
 const PINNED = {
   repo: 'mkaaaaaay/mowbite-os',
   path: 'src/mowbite_api/api.schema.json',
-  commit: '926fae1fb0b06456ca7e57db152f5491773d66ae',
-  sha256: '045a9ac2ff5cac3217d206a53554cbabab7bd6789abacde8046e2ebd0cdd9261',
+  commit: '386ac4ffc7d251ec4972d6fee831d97300aef7e4',
+  sha256: '5d0cb9fff358cb8802c14dd816bd0fa16eb18ef7271e192eb3e9142875f5c6b3',
 };
 const raw = readFileSync(join(__dirname, 'os-api.schema.json'));
 // a reason's rating, when: another one for these values of the event's fields
@@ -166,6 +168,21 @@ describe(`MowBite OS's interface (${PINNED.repo} ${PINNED.commit.slice(0, 7)}, a
     const ready = (api.$defs.schedule_ready as {properties: {reason: {enum: (string | null)[]}}}).properties.reason.enum;
     expect(ready.filter((r) => r && !words.includes(r)), 'a word the log has').toEqual([]);
     expect(ready.filter((r) => r && !(READY_TEXT[r] && de[READY_TEXT[r]]))).toEqual([]);
+  });
+
+  it('picks from the same push messages as the OS, and sends notify.set only what it takes', () => {
+    type Props = {properties: Record<string, {description: string; enum?: string[]}>};
+    const set = (api.$defs['notify.set.params'] as Props).properties;
+    const keys = set.events.description.split(': ')[1].split(', ');
+    expect(NOTIFY_EVENTS.map((e) => e.key).sort()).toEqual([...keys].sort());
+    for (const e of NOTIFY_EVENTS) expect(de[e.label], e.label).toBeDefined();
+    const sent = Object.keys(toOs({...defaultNotify('de', ''), token: 'x'}));
+    expect(sent.filter((k) => !(k in set))).toEqual([]);
+  });
+
+  it('names every part the OS counts for', () => {
+    const parts = (api.$defs['stats.part_done.params'] as {properties: {part: {enum: string[]}}}).properties.part.enum;
+    expect(parts.filter((p) => !PARTS[p] || !de[PARTS[p].label])).toEqual([]);
   });
 
   it('names every sound situation, in german too', () => {

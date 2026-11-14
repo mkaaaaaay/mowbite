@@ -3,7 +3,7 @@ import {mkdtempSync, readFileSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {describe, expect, it} from 'vitest';
-import {amountsOf, dueParts, nextDue, parseStats, partUse, periodStart} from './stats';
+import {amountsOf, dueParts, fromOs, nextDue, osFrom, parseStats, partUse, periodStart} from './stats';
 
 describe('stats', () => {
   // a wednesday at noon, local time
@@ -54,6 +54,30 @@ describe('stats', () => {
     expect(nextDue(stats)).toBe(0);
     expect(nextDue({...stats, parts: [stats.parts[0]]})).toBe(72);
     expect(nextDue({...stats, parts: [{...stats.parts[0], key: 'other'}]})).toBeNull();
+  });
+
+  it("reads MowBite OS's statistics as the container's", () => {
+    const amounts = {blade_s: 3600, mowed_m: 120.5, driven_m: 30, runs: 2};
+    expect(
+      fromOs({
+        since: 1700000000,
+        from: 1760000000,
+        total: amounts,
+        hours: [{t: 1760000400, ...amounts}],
+        parts: [{key: 'blade', due_h: 80, base_blade_s: 600, done_at: 1750000000}],
+      }),
+    ).toEqual({
+      since: 1700000000,
+      total: {blade: 3600, mowed: 120.5, driven: 30, runs: 2},
+      hours: [{t: 1760000400, blade: 3600, mowed: 120.5, driven: 30, runs: 2}],
+      parts: [{key: 'blade', dueHours: 80, baseBlade: 600, doneAt: 1750000000}],
+    });
+  });
+
+  it('asks MowBite OS for the hours of the week and the year, a day more', () => {
+    expect(osFrom(now)).toBe(at(new Date(2026, 0, 1)) - 86400);
+    // the week began in the year before
+    expect(osFrom(new Date(2027, 0, 2, 12))).toBe(at(new Date(2026, 11, 28)) - 86400);
   });
 });
 

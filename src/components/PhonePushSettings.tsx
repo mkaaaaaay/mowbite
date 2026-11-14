@@ -2,6 +2,7 @@
 
 import {tr, useLang} from '@/lib/i18n';
 import {apiBase} from '@/lib/mowers';
+import {useMowbiteOs} from '@/lib/mowerOs';
 import {addPush, removePush, saveNotify, testPush, type NotifyConfig} from '@/lib/notify';
 import {NTFY, pushPlugin, rememberEndpoint, waitForEndpoint, withPush, type PushChannel, type PushStatus} from '@/lib/push';
 import {containerHas, useUpdates} from '@/lib/updates';
@@ -11,8 +12,8 @@ import {UpdateCommand, versionNote} from './Updates';
 
 // In the Android app: this mower's messages on this phone as MowBite's own (lib/push.ts), with its icon, sorted into
 // problems, reminders and info, a tap opens the page. Delivered by a UnifiedPush app in the background (e.g. ntfy). What
-// is told, when and how often are the settings around it, the same as for the topic. Needs a container that takes the
-// phones' addresses, an older one took them for its settings
+// is told, when and how often are the settings around it, the same as for the topic. Needs MowBite OS or a container that
+// takes the phones' addresses, an older one took them for its settings
 
 type Styles = Record<string, string>;
 
@@ -47,6 +48,7 @@ export function PhonePushSettings({
   const [pick, setPick] = useState<string | null>(null);
   const [state, setState] = useState<{busy?: boolean; error?: string; done?: string}>({});
   const u = useUpdates();
+  const os = useMowbiteOs();
 
   const refresh = useCallback(() => {
     void withPush((p) => p.status())
@@ -67,17 +69,18 @@ export function PhonePushSettings({
       <p className={styles.dim}>{tr("With MowBite's icon, sorted into problems, reminders and info, a tap opens MowBite. Away from home too.")}</p>
     </>
   );
-  if (u.level === null) return null;
-  if (!containerHas(u.level, 'phones')) {
-    return (
-      <>
-        {head}
-        <div className={local.info}>
-          <span>{tr('MowBite on the mower{old} is too old for this, it needs an update first.', {old: versionNote(u.mower)})}</span>
-          <UpdateCommand />
-        </div>
-      </>
-    );
+  if (!os) {
+    if (u.level === null) return null;
+    if (!containerHas(u.level, 'phones'))
+      return (
+        <>
+          {head}
+          <div className={local.info}>
+            <span>{tr('MowBite on the mower{old} is too old for this, it needs an update first.', {old: versionNote(u.mower)})}</span>
+            <UpdateCommand />
+          </div>
+        </>
+      );
   }
   if (!status) return null;
 
