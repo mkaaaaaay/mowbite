@@ -15,6 +15,7 @@ import {
   sortCameras,
   STALL_MS,
   StreamError,
+  streamChanged,
   streamFailure,
   streamUrl,
   withChange,
@@ -93,6 +94,16 @@ describe('cameras', () => {
     expect(withChange(list, {camera_id: 'l', available: true})).toEqual([list[0], cam('l', 'left')]);
     expect(withChange(list, {camera_id: 'rear', available: true})).toBeNull();
     expect(withChange(list, {camera_id: 'f'} as never)).toBeNull();
+  });
+
+  it('take the protocols and size of a CAMERA_CHANGED, open the stream anew only when it can no longer or other protocols', () => {
+    const list = [{...cam('f', 'front'), protocols: ['webrtc', 'mjpeg']}];
+    const mjpeg = withChange(list, {camera_id: 'f', available: true, protocols: ['mjpeg'], width: 1280, height: 720})!;
+    expect(mjpeg[0]).toEqual({...list[0], protocols: ['mjpeg'], width: 1280, height: 720});
+    expect(streamChanged(list[0], mjpeg[0])).toBe(true);
+    const bigger = withChange(list, {camera_id: 'f', available: true, protocols: list[0].protocols, width: 1920, height: 1080})!;
+    expect(streamChanged(list[0], bigger[0])).toBe(false);
+    expect(streamChanged(list[0], withChange(list, {camera_id: 'f', available: false})![0])).toBe(true);
   });
 
   it('play webrtc where the browser can, else mjpeg, nothing else', () => {

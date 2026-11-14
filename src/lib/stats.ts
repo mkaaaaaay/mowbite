@@ -1,9 +1,11 @@
 import {useEffect, useState} from 'react';
 import {apiBase} from './mowers';
+import {RPC} from './openmower';
+import {callRpc, rpcMethods} from './rpc';
 import {containerFetch} from './updates';
 
 // mowing hours, distance and runs as docker/stats.sh counts them (a line per hour), and the maintenance of parts by
-// the blade hours since they were last seen to (docker/stats.cgi)
+// the blade hours since they were last seen to (docker/stats.cgi). MowBite OS counts the same over stats.*
 export interface Amounts {
   blade: number; // s the blade turned
   mowed: number; // m driven with the blade on
@@ -90,6 +92,41 @@ export function nextDue(stats: Stats): number | null {
 
 const endpoint = () => `${apiBase()}/cgi-bin/stats`;
 
+// what stats.get, stats.part_done and stats.part_due answer
+type OsAmounts = {blade_s: number; mowed_m: number; driven_m: number; runs: number};
+export interface OsStats {
+  since: number;
+  from: number;
+  total: OsAmounts;
+  hours: ({t: number} & OsAmounts)[];
+  parts: {key: string; due_h: number; base_blade_s: number; done_at: number}[];
+}
+
+const amounts = (a: OsAmounts): Amounts => ({blade: a.blade_s, mowed: a.mowed_m, driven: a.driven_m, runs: a.runs});
+
+export const fromOs = (r: OsStats): Stats => ({
+  since: r.since,
+  total: amounts(r.total),
+  hours: r.hours.map((h) => ({t: h.t, ...amounts(h)})),
+  parts: r.parts.map((p) => ({key: p.key, dueHours: p.due_h, baseBlade: p.base_blade_s, doneAt: p.done_at})),
+});
+
+// the hours the periods need from MowBite OS: since the week or the year began, whichever came first, a day more for
+// the time zone. unix s
+export const osFrom = (now = new Date()) => Math.floor(Math.min(periodStart('year', now), periodStart('week', now)) / 1000) - 86400;
+
+const statsOnOs = async () => !!(await rpcMethods())?.has(RPC.statsGet);
+
+// a change answers without the hours, so they're asked for again after it. hours false: none, the parts and totals only
+async function askOs(change?: {method: string; params: object}, hours = true): Promise<Stats | null> {
+  try {
+    if (change) await callRpc(change.method, change.params);
+    return fromOs(await callRpc<OsStats>(RPC.statsGet, {from: hours ? osFrom() : Math.floor(Date.now() / 1000)}));
+  } catch {
+    return null;
+  }
+}
+
 async function ask(query = '', post = false): Promise<Stats | null> {
   try {
     const res = await containerFetch(endpoint() + query, {method: post ? 'POST' : 'GET', cache: 'no-store'});
@@ -100,15 +137,19 @@ async function ask(query = '', post = false): Promise<Stats | null> {
   }
 }
 
-// null: not served, an older container or MowBite not running as one
-export const loadStats = () => ask();
+// null: not served, an older container or MowBite not running as one, MowBite OS before stats.get. hours false: MowBite
+// OS leaves them out (the container has them anyway)
+export const loadStats = async (hours = true) => ((await statsOnOs()) ? askOs(undefined, hours) : ask());
 
 // the part was seen to now: its blade hours start from 0
-export const partDone = (key: string) => ask(`?done=${encodeURIComponent(key)}`, true);
+export const partDone = async (key: string) =>
+  (await statsOnOs()) ? askOs({method: RPC.statsPartDone, params: {part: key}}) : ask(`?done=${encodeURIComponent(key)}`, true);
 
 // after how many blade hours it's due again
-export const setPartDue = (key: string, hours: number) =>
-  ask(`?due=${encodeURIComponent(key)}&h=${Math.round(hours)}`, true);
+export async function setPartDue(key: string, hours: number) {
+  const h = Math.min(10000, Math.max(1, Math.round(hours)));
+  return (await statsOnOs()) ? askOs({method: RPC.statsPartDue, params: {part: key, hours: h}}) : ask(`?due=${encodeURIComponent(key)}&h=${h}`, true);
+}
 
 // for the dashboard: the parts due and their blade hours, asked now and then (none while not enabled)
 export function useDueParts(enabled: boolean): {key: string; used: number; due: number}[] {
@@ -117,7 +158,7 @@ export function useDueParts(enabled: boolean): {key: string; used: number; due: 
     if (!enabled) return;
     let alive = true;
     const get = () =>
-      void loadStats().then((s) => {
+      void loadStats(false).then((s) => {
         if (alive) setDue(s ? dueParts(s).map((p) => ({key: p.key, used: partUse(s, p).seconds / 3600, due: p.dueHours})) : []);
       });
     get();

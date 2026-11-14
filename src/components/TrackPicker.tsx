@@ -3,6 +3,7 @@
 import type {JobInfo, TrackSegment} from '@/hooks/useMowHistory';
 import {useDragScroll} from '@/hooks/useDragScroll';
 import {clock, dayKey, dayLabel} from '@/lib/dates';
+import {RECENT_TRIPS, setWholeJob, useShownTrips} from '@/hooks/useMowerTrack';
 import {useMemo, useState} from 'react';
 import styles from './TrackPicker.module.css';
 import {tr, useLang} from '@/lib/i18n';
@@ -32,6 +33,7 @@ export default function TrackPicker({
   lastRun?: number | null;
 }) {
   useLang();
+  const trips = useShownTrips();
   // the page draws again with every bit of the live track, the days only change with the jobs
   const days = useMemo(() => {
     const list: {key: string; date: Date; jobs: JobInfo[]}[] = [];
@@ -96,6 +98,18 @@ export default function TrackPicker({
             when: `${dayLabel(new Date(lastRun * 1000))}, ${clock(lastRun)}`,
           })}
         </span>
+      )}
+
+      {selected === null && trips.shown.length > 0 && (
+        <span className={styles.info}>{tr('Earlier trips of this job are faded under the trail.')}</span>
+      )}
+
+      {selected === null && trips.older > 0 && (
+        <button className={styles.clear} aria-pressed={trips.whole} onClick={() => setWholeJob(!trips.whole)}>
+          {trips.whole
+            ? tr('Only the trips of the last {days} days', {days: RECENT_TRIPS / 86400})
+            : tr('Whole job ({n} older trips)', {n: trips.older})}
+        </button>
       )}
 
       {selected === null && onClearLive && (

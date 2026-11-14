@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {onOs, PARAM_FIELDS, paramConflict, paramField, paramShown, paramValue, parseKept, parseParam, serializeKept, showParam} from './mowerParams';
+import {mowsIntoNight, onOs, PARAM_FIELDS, paramConflict, paramField, paramShown, paramValue, parseKept, parseParam, serializeKept, showParam} from './mowerParams';
 
 describe('the settings of the mower', () => {
   it('have a range, a default inside it and a label each', () => {
@@ -30,6 +30,15 @@ describe('the settings of the mower', () => {
     expect(paramShown(sunset, {'/mower_logic/gps_timeout': 10})).toBe(false);
     expect(paramShown(sunset, {'/mower_logic/dock_at_sunset': false})).toBe(true);
     expect(paramShown(paramField('gps_timeout')!, {})).toBe(true);
+  });
+
+  it('read the switch as 0|1 on MowBite OS too', () => {
+    const sunset = paramField('dock_at_sunset')!;
+    expect(paramValue({'/mower_logic/dock_at_sunset': 0}, sunset)).toBe(false);
+    expect(paramValue({'/mower_logic/dock_at_sunset': 1}, sunset)).toBe(true);
+    expect(mowsIntoNight({'/mower_logic/dock_at_sunset': 0})).toBe(true);
+    expect(mowsIntoNight({'/mower_logic/dock_at_sunset': true})).toBe(false);
+    expect(mowsIntoNight({})).toBe(false);
   });
 
   it("keep the mow motor's too hot above cool enough again", () => {

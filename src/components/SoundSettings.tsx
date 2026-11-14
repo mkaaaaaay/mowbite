@@ -7,25 +7,11 @@ import {fmt, tr, useLang} from '@/lib/i18n';
 import {RPC} from '@/lib/openmower';
 import {RpcError} from '@/lib/rpc';
 import {answerError} from '@/lib/rpcText';
-import {deleteSound, HELD_MS, leftHeld, loadSounds, playSound, setVolume, stopSound, uploadSound, type Sounds} from '@/lib/sound';
+import {deleteSound, HELD_MS, leftHeld, loadSounds, playSound, setVolume, SITUATION_NAMES, stopSound, uploadSound, type Sounds} from '@/lib/sound';
 import {useEffect, useRef, useState} from 'react';
 import local from './LightSettings.module.css';
 
-// the situations as the app calls them (open_mower_ros #347), one it doesn't know readable
-const SITUATION_NAMES: Record<string, string> = {
-  MOWING_START: 'Mowing starts',
-  MOWING_COMPLETE: 'Mowing done',
-  MOWING_PAUSED: 'Paused',
-  DOCKING_START: 'Heading home',
-  DOCKING_FAILED: 'Docking failed',
-  CHARGING_START: 'Charging starts',
-  CHARGING_DONE: 'Fully charged',
-  LOW_BATTERY: 'Battery low',
-  RAIN_DETECTED: 'Rain',
-  AREA_RECORDING_MODE: 'Recording mode',
-  EMERGENCY: 'Emergency stop',
-  LIFT_TRIGGERED: 'Lifted',
-};
+// one the app doesn't know readable
 const named = (key: string) => (SITUATION_NAMES[key] ? tr(SITUATION_NAMES[key]) : key.replace(/_/g, ' ').toLowerCase());
 
 // the sounds of a mower with MowBite OS: each situation to listen to and to give an own sound, one volume for all

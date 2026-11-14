@@ -5,8 +5,10 @@ import {useEffect, useState} from 'react';
 import {RPC} from '@/lib/openmower';
 
 export interface TrackSegment {
-  attributes: {blades?: boolean; job_id?: string};
+  attributes: {blades?: boolean; job_id?: string; session_id?: string};
   points: [number, number][];
+  // unix s
+  started_at?: number;
 }
 
 export interface JobInfo {

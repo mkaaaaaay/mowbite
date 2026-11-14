@@ -173,19 +173,19 @@ function CameraArt() {
 
 const CAMERA_STEP: GuideStep = {
   title: 'Camera',
-  text: "A mower with MowBite OS and cameras can show their picture on the dashboard: tap the camera at the top of the dashboard, or tick Camera picture in Settings › Appearance › Dashboard. On the picture you switch between the mower's cameras, such as front, side and rear, open it over the whole screen or take it off the dashboard again. A tap on the picture puts these buttons away and brings them back. While recording an area, View picks the map or a camera, held sideways at the top. The mower only sends a picture while you look, to at most two at a time. While the blade runs there is no picture for now, the app says why.",
+  text: "A mower with MowBite OS and cameras can show their picture on the dashboard: tap the camera at the top of the dashboard, or tick Camera picture in Settings › App › Appearance › Dashboard. On the picture you switch between the mower's cameras, such as front, side and rear, open it over the whole screen or take it off the dashboard again. A tap on the picture puts these buttons away and brings them back. While recording an area, View picks the map or a camera, held sideways at the top. The mower only sends a picture while you look, to at most two at a time. While the blade runs there is no picture for now, the app says why.",
   Art: CameraArt,
 };
 
 const STEPS: GuideStep[] = [
   {
     title: 'Your dashboard',
-    text: "The dashboard shows what the mower is doing, its battery and a few values under it, such as GPS, speed and temperatures. Which values it shows you pick in Settings › Appearance › Dashboard: tick or untick each one. One that's off still shows while it warns.",
+    text: "The dashboard shows what the mower is doing, its battery and a few values under it, such as GPS, speed and temperatures. Which values it shows you pick in Settings › App › Appearance › Dashboard: tick or untick each one. One that's off still shows while it warns.",
     Art: ValuesArt,
   },
   {
     title: 'More than one mower',
-    text: 'Each of your mowers with MowBite can be added: in Settings › App › Mowers, under Add another mower, give it a name and its address in your home network (IP or name) and tap Add mower.',
+    text: 'Each of your mowers with MowBite can be added: in Settings › App › Your mowers, under Add another mower, give it a name and its address in your home network (IP or name) and tap Add mower.',
     Art: AddArt,
   },
   {

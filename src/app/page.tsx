@@ -13,7 +13,7 @@ import {useCalibratingByHand} from '@/hooks/useCalibratingByHand';
 import {useComputedSpeed} from '@/hooks/useComputedSpeed';
 import {useEmergencyReasons} from '@/hooks/useEmergencyReasons';
 import {useEmergencyReset, useJustReset} from '@/hooks/useEmergencyReset';
-import {useLeftoversBefore} from '@/hooks/useLeftoversBefore';
+import {useTrackBefore} from '@/hooks/useLeftoversBefore';
 import {lockedAfter, setsOff, TAP_LOCK_MS, useCommandNote, useMowerActions} from '@/hooks/useMowerActions';
 import {useMowerMap} from '@/hooks/useMowerMap';
 import {datumFromParams, numParam, useMowerParams} from '@/hooks/useMowerParams';
@@ -51,13 +51,19 @@ import {
   cachedScheduleLog,
   loadSchedule,
   loadScheduleLog,
+  loadRunStop,
+  runStopText,
   missedStart,
   waitingStart,
   nextStart,
   daySun,
   inOtherZone,
+  osSun,
+  readyText,
   scheduleLogLine,
+  useScheduleReady,
   type LogEntry,
+  type RunStop,
   type Schedule,
 } from '@/lib/schedule';
 import {LeftoversCard} from '@/components/Leftovers';
@@ -233,20 +239,22 @@ export default function Home() {
   );
   const progress = usePlanProgress(state ?? null, map, recent?.today);
   // driving the leftovers of the last mow: that mow's track, faded on the map
-  const before = useLeftoversBefore(!!progress?.leftovers);
+  const {track: before, ofLeftovers} = useTrackBefore(!!progress?.leftovers);
   const params = useMowerParams();
   const settings = useSyncExternalStore(settingsStore.subscribe, settingsStore.snapshot, settingsStore.serverSnapshot);
   const cameras = useCameras().on;
   // the same object while params/json doesn't change: the map isn't drawn again for every sensor value
   const datum = useMemo(() => datumFromParams(params), [params]);
-  // blades or cleaning due, counted by MowBite's container
+  // blades or cleaning due, counted by MowBite's container or MowBite OS
   const updates = useUpdates();
-  const due = useDueParts(updates.level !== null && containerHas(updates.level, 'stats'));
+  const due = useDueParts(os || containerHas(updates.level, 'stats'));
   const wifi = useMowerWifi();
   const level = useBatteryLevel();
   const [schedule, setSchedule] = useState<Schedule | null>(() => cachedSchedule() ?? null);
   // the scheduler's log, for a start it left out (rain, battery, ...). again every minute while the page is open
   const [scheduleLog, setScheduleLog] = useState<LogEntry[]>(() => cachedScheduleLog() ?? []);
+  // when the run going on goes home, said while it's out
+  const [runStop, setRunStop] = useState<RunStop | null>(null);
   useEffect(() => {
     void loadSchedule().then((s) => s !== undefined && setSchedule(s));
     const loadLog = () => void loadScheduleLog().then(setScheduleLog);
@@ -265,12 +273,15 @@ export default function Home() {
   const missedAny = schedule?.enabled ? missedStart(scheduleLog) : null;
   const missed = missedAny && missedAny.t !== missedSeen ? missedAny : null;
   const mowable = map?.areas.filter((a) => a.properties.type === 'mow' && a.properties.active !== false && a.properties.mowable !== false).map((a) => a.id);
-  const planned = schedule ? nextStart(schedule, undefined, datum ? daySun(schedule.tz, datum) : null, mowable) : null;
+  const planned = schedule ? nextStart(schedule, undefined, datum ? daySun(schedule.tz, datum) : osSun(schedule), mowable) : null;
   // the phone in another time zone than the schedule: its times are the schedule's, as on the schedule page
   const scheduleTz = schedule?.tz;
   const otherZone = useMemo(() => inOtherZone(scheduleTz), [scheduleTz]);
   // a start of the schedule that waits for the battery comes before the next one
   const batteryWait = schedule?.enabled ? waitingStart(scheduleLog) : null;
+  // the next start wouldn't go as things are now (only shown, the start checks again)
+  const ready = useScheduleReady();
+  const notReady = planned && ready && !ready.ok && !batteryWait ? ready : null;
   const [confirmReset, setConfirmReset] = useState(false);
   // three more runs unfolded under the last three
   const [moreRuns, setMoreRuns] = useState(false);
@@ -311,6 +322,15 @@ export default function Home() {
   }, [tapped]);
 
   const current = state?.current_state ?? '';
+  // asked every minute while it's out, from a container that has it
+  const out = (current === 'MOWING' || current === 'UNDOCKING' || current === 'PAUSED') && containerHas(updates.level, 'handstop');
+  useEffect(() => {
+    if (!out) return;
+    const load = () => void loadRunStop().then(setRunStop);
+    load();
+    const timer = setInterval(load, 60000);
+    return () => clearInterval(timer);
+  }, [out]);
   const driving = DRIVING.has(current);
   // a calibration drive by hand runs in recording mode, its own page leads it and ends it. only where the planner says
   // so: one on the next mow leaves recording mode to the areas
@@ -357,6 +377,8 @@ export default function Home() {
   // only when the newest state change is this state, older mowers don't record every one (a pause, say)
   const lastState = lastOf((e) => e.type === 'STATE');
   const since = lastState?.state === current ? lastState.t : undefined;
+  // (the container says it only while it's still to come)
+  const homeAt = out ? runStop : null;
   // by current_area and the map like the progress (the history comes up to 30 s later), else by the last area event
   const onArea = current === 'MOWING' && (state?.current_area ?? -1) >= 0 ? map?.areas.filter((a) => a.properties.type === 'mow')[state!.current_area!] : undefined;
   const area = current === 'MOWING' ? onArea?.properties.name || lastOf((e) => e.type === 'AREA')?.area_name : undefined;
@@ -398,7 +420,7 @@ export default function Home() {
         label: tr('Progress'),
         value: known ? tr('leftovers {pct} %', {pct: Math.round(progress.fraction * 100)}) + left : tr('leftovers of the last mow'),
         wide: true,
-        extra: before ? <span>{tr('its track faded on the map')}</span> : undefined,
+        extra: ofLeftovers ? <span>{tr('its track faded on the map')}</span> : undefined,
       });
     }
     else if (progress) {
@@ -475,7 +497,7 @@ export default function Home() {
               ) : unreachable ? (
                 <>
                   <span className={styles.offline}>{tr("Can't reach the mower. Is it switched on and in this network?")}</span>{' '}
-                  <Link href="/settings#app">{tr('Mowers and their addresses are in the settings.')}</Link>
+                  <Link href="/settings#mowers">{tr('Mowers and their addresses are in the settings.')}</Link>
                 </>
               ) : (
                 tr('connecting…')
@@ -502,9 +524,9 @@ export default function Home() {
                           .join(' ')
                       : pausedInDock && hasAction(ACTION.goHome)
                         ? tr('Put in the dock by hand? Tap End here, then it counts as docked and charges. The next start mows on where it stopped.')
-                        : since
-                        ? tr('since {time}', {time: clock(since)})
-                        : ''}
+                        : [since && tr('since {time}', {time: clock(since)}), homeAt && runStopText(homeAt)]
+                            .filter(Boolean)
+                            .join(' · ')}
                   </span>
                 ) : link.resuming ? (
                   <span className={styles.dim}>{tr('connecting…')}</span>
@@ -744,6 +766,11 @@ export default function Home() {
                 {tr(otherZone ? "Next start: {when}, the schedule's time" : 'Next start: {when}', {
                   when: `${dayLabel(planned)}, ${clock(planned.getTime() / 1000)}`,
                 })}
+              </Link>
+            )}
+            {notReady && (
+              <Link href="/schedule" className={styles.nextRun}>
+                {readyText(notReady)}
               </Link>
             )}
             {/* the one under way is the status above */}

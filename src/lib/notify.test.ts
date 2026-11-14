@@ -3,7 +3,7 @@ import {mkdtempSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {describe, expect, it, vi} from 'vitest';
-import {defaultNotify, parseNotify, randomTopic, serializeNotify, validServer, validTopic, withMowerUrl} from './notify';
+import {defaultNotify, fromOs, parseNotify, randomTopic, serializeNotify, toOs, validServer, validTopic, withMowerUrl, type OsNotify} from './notify';
 
 const fallback = defaultNotify('de', 'http://openmower:8082', 'Steve');
 
@@ -28,6 +28,47 @@ describe('push message settings', () => {
     expect(parseNotify('', fallback).events).toEqual(['emergency', 'dock_failed', 'undock_failed', 'nav_error', 'spinup', 'standstill', 'refused', 'maintenance']);
     // saved with none picked
     expect(parseNotify('topic t\n', fallback).events).toEqual([]);
+  });
+
+  it("reads MowBite OS's settings, never saved: the defaults with what it keeps apart", () => {
+    const os: OsNotify = {
+      enabled: false,
+      server: 'https://push.example',
+      topic: 'mine',
+      lang: 'en',
+      name: 'Tron',
+      url: 'http://tron',
+      events: ['emergency', 'schedule_skipped', 'bogus'],
+      remind: 15,
+      emergency_wait: 30,
+      has_token: true,
+      pushes: ['https://up.example/a'],
+      snooze: 1700000000,
+      stored: true,
+    };
+    const c = fromOs(os, fallback);
+    expect(c).toMatchObject({enabled: false, server: 'https://push.example', topic: 'mine', lang: 'en', name: 'Tron', remind: 15, emergencyWait: 30});
+    expect(c).toMatchObject({hasToken: true, token: '', pushes: ['https://up.example/a'], snooze: 1700000000, stored: true});
+    expect(c.events).toEqual(['emergency', 'schedule_skipped']);
+    const never = fromOs({...os, stored: false}, fallback);
+    expect(never).toEqual({...fallback, hasToken: true, pushes: ['https://up.example/a'], snooze: 1700000000, stored: false});
+  });
+
+  it('changes MowBite OS\'s settings, the token only when one was typed', () => {
+    const c = {...fallback, server: 'https://ntfy.sh/', topic: ' t ', name: 'a "b"\\', url: 'http://openmower:8082/', remind: 14.6};
+    expect(toOs(c)).toEqual({
+      enabled: true,
+      server: 'https://ntfy.sh',
+      topic: 't',
+      lang: 'de',
+      name: 'a b',
+      url: 'http://openmower:8082',
+      events: fallback.events,
+      remind: 15,
+      emergency_wait: 10,
+    });
+    expect(toOs({...c, token: ' new '}).token).toBe('new');
+    expect(toOs({...c, token: '-'}).token).toBe('');
   });
 
   it('writes lines the cgi keeps, a token only when one was typed or is to go', () => {
@@ -381,5 +422,27 @@ describe('what the container sends', {timeout: 30_000}, () => {
     expect(run(stays, conf).map((m) => m.title)).toEqual(['Emergency stop', 'Emergency stop']);
     // not picked
     expect(run(event(100, '{"type":"MOWING_REFUSED","reason":"RAIN"}'), conf)).toEqual([]);
+  });
+
+  it("tells a start of the schedule that didn't go, as an info and only when picked", () => {
+    const told = 'topic t\nlang en\nname Steve\nevents schedule_skipped\npush https://ntfy.sh/upAbc?up=1\n';
+    const log = (t: number, line: string) => `${t} schedule ${line}\n`;
+    const input =
+      log(100, 'skip_battery 40 at=10:00') + log(110, 'skip_rain at=10:00') + log(120, 'start_failed undock no_gps at=11:30') +
+      log(130, 'start_failed at=12:00') + log(140, 'start_failed') + log(150, 'skip_busy MOWING at=13:00') + log(160, 'skip_offline at=14:00');
+    const out = run(input, told);
+    expect(out.map((m) => m.message)).toEqual([
+      "Steve didn't set off at 10:00: the battery stayed too low for 2 h (40 %).",
+      "Steve didn't set off at 11:30: undocking failed, no GPS fix.",
+      "Steve didn't set off at 12:00: it didn't react to the start.",
+      "Steve didn't set off at 14:00: its control didn't answer.",
+    ]);
+    expect(out.map((m) => [m.title, m.priority])).toEqual(out.map(() => ['Planned start skipped', 3]));
+    expect(push(input, told).map((m) => [m.kind, m.problem])).toEqual(out.map(() => ['schedule_skipped', false]));
+    expect(run(log(100, 'skip_emergency at=09:15'), told.replace('lang en', 'lang de'))[0]).toMatchObject({
+      title: 'Geplanter Start ausgefallen',
+      message: 'Steve ist um 09:15 nicht losgefahren: Notaus.',
+    });
+    expect(run(input, conf)).toEqual([]);
   });
 });

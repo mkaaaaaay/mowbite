@@ -6,7 +6,7 @@ test.describe('lights', () => {
 
   test('not on a mower without them', async ({page}) => {
     await page.goto('/settings/');
-    await expect(page.locator('#notify')).toBeVisible();
+    await expect(page.locator('#update')).toBeVisible();
     await expect(page.locator('#lights')).toHaveCount(0);
   });
 

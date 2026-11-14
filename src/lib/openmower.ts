@@ -21,6 +21,11 @@ export const TOPIC = {
   plannerProgress: 'mowbite/planner/progress',
   // how far the MowBite Planner's recording for a calibration got (retained, see lib/calibration)
   plannerCalib: 'mowbite/planner/calib',
+  // MowBite OS's updater (its host): what it does and has, and whether it's there (both retained, see lib/osUpdate)
+  updateStatus: 'mowbite/update/status',
+  hostStatus: 'mowbite/host/status',
+  // whether the next start of the schedule would go as things are now (retained, empty without one to come)
+  scheduleReady: 'mowbite/schedule/ready',
 } as const;
 
 export const RPC = {
@@ -45,8 +50,34 @@ export const RPC = {
   // the mower's cameras and a stream of one for a single viewer, MowBite OS with cameras only (lib/camera)
   cameraList: 'camera.list',
   cameraStream: 'camera.stream',
+  // the mower's sizes, MowBite OS only: kept by it, its planner only shows them (lib/mowerBody)
+  geometry: 'robot.geometry.get',
+  geometrySet: 'robot.geometry.set',
   // points off the end of the line being recorded, MowBite OS only (masterplan 3.2)
   recordingUndo: 'recording.undo',
+  // MowBite OS's own updates, answered by its host (lib/osUpdate)
+  updateStatus: 'update.status',
+  updateStart: 'update.start',
+  updateAbort: 'update.abort',
+  updateRollback: 'update.rollback',
+  // MowBite OS's own schedule (lib/schedule), the container's elsewhere
+  scheduleGet: 'schedule.get',
+  scheduleSet: 'schedule.set',
+  scheduleLog: 'schedule.log',
+  // MowBite OS's push messages and statistics (lib/notify, lib/stats), the container's cgis elsewhere
+  notifyGet: 'notify.get',
+  notifySet: 'notify.set',
+  notifyTest: 'notify.test',
+  notifyPushAdd: 'notify.push_add',
+  notifyPushRemove: 'notify.push_remove',
+  notifySnooze: 'notify.snooze',
+  notifyLog: 'notify.log',
+  statsGet: 'stats.get',
+  statsPartDone: 'stats.part_done',
+  statsPartDue: 'stats.part_due',
+  updateCheck: 'update.check',
+  updateSetAuto: 'update.set_auto',
+  updateSetChannel: 'update.set_channel',
   replaceMap: 'map.replace',
   eventDays: 'events.history.list',
   events: 'events.history',
@@ -104,6 +135,13 @@ export const ACTION = {
   // the steps while recording an area, e.g. finish_mowing_area
   recording: (step: string) => `mower_logic:area_recording/${step}`,
 } as const;
+
+// MowBite OS's parts whose update waits for the mower idle in the dock and restarts MowBite OS (masterplan 3.5), the
+// others switch at any time
+export const UPDATE_GATED = ['os', 'planner'];
+
+// above this voltage on the charge contacts OpenMower's idle takes the mower for docked (IdleBehavior)
+export const DOCKED_VOLTAGE = 5;
 
 // how much of the line the record page's back button takes back
 export const UNDO_METERS = 1;

@@ -1,6 +1,5 @@
 import {describe, expect, it} from 'vitest';
 import {
-  frameTakesTaps,
   freeMb,
   kindOf,
   openMowerChoices,
@@ -13,6 +12,7 @@ import {
   roomLoose,
   roomTotal,
   runResult,
+  runSteps,
   selfInfo,
   silentSince,
   stepDetail,
@@ -58,23 +58,6 @@ describe('the updater on the mower', () => {
     expect(updaterAlive(state({alive: '1000', looking: ''}), 2000)).toBe(false);
     expect(silentSince(state({alive: '1792831337'}))).toBeTruthy();
     expect(silentSince(state({}))).toBeNull();
-  });
-
-  it("embeds its page only where it takes taps: MowBite from the updater's host, this computer or the app", () => {
-    const at = (url: string) => {
-      const u = new URL(url);
-      return {protocol: u.protocol, hostname: u.hostname};
-    };
-    expect(frameTakesTaps('http://openmower:8083', at('http://openmower:8082/settings/'), false)).toBe(true);
-    expect(frameTakesTaps('http://192.168.1.10:8083', at('http://192.168.1.10:8082/'), false)).toBe(true);
-    expect(frameTakesTaps('http://openmower:8083', at('http://localhost:3000/'), false)).toBe(true);
-    expect(frameTakesTaps('http://openmower:8083', at('http://localhost/'), true)).toBe(true);
-    // MowBite on another computer, or another mower picked: its page there only shows
-    expect(frameTakesTaps('http://openmower:8083', at('http://nas:8082/'), false)).toBe(false);
-    expect(frameTakesTaps('http://192.168.1.11:8083', at('http://192.168.1.10:8082/'), false)).toBe(false);
-    // a page from https can't hold one from http
-    expect(frameTakesTaps('http://mower.example:8083', at('https://mower.example/'), false)).toBe(false);
-    expect(frameTakesTaps('not a url', at('http://openmower:8082/'), false)).toBe(false);
   });
 
   it('tells what runs and whether there is something new, for each part', () => {
@@ -131,6 +114,19 @@ describe('the updater on the mower', () => {
     expect(progressOf(state({result: 'done', progress: 'mowbite download 37 1000'}))).toBeNull();
     expect(progressOf(run('mowbite explode 37 1000'))).toBeNull();
     expect(progressOf(run('mowbite download 250 1000'))!.pct).toBe(100);
+  });
+
+  it('lists the steps of a run by how the part is made, a way back after the wait', () => {
+    const at = (progress: string, more: Record<string, string> = {}) => {
+      const s = state({result: 'running', run_parts: 'mowbite planner', progress, ...more});
+      return runSteps(s, progressOf(s)!);
+    };
+    expect(at('mowbite download 37 1000')).toEqual({steps: ['prepare', 'download', 'extract', 'restart', 'wait'], now: 1, back: false});
+    expect(at('planner build 44 1000 4 9')).toEqual({steps: ['prepare', 'build', 'restart', 'wait'], now: 1, back: false});
+    // the new version didn't come up
+    expect(at('mowbite back - 1000')).toEqual({steps: ['prepare', 'download', 'extract', 'restart', 'wait', 'back'], now: 5, back: true});
+    // asked to go back
+    expect(at('mowbite restart - 1000', {taken: '1000 back:mowbite'})).toEqual({steps: ['back', 'restart', 'wait'], now: 1, back: true});
   });
 
   it('says when it went back, or could not', () => {

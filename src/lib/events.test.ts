@@ -217,6 +217,11 @@ describe('heading home and charging on MowBite OS', () => {
     const rain = ev(0, 'STATE', {state: 'PAUSED', reason: 'RAIN', severity: 'info', resume: 'user'});
     expect(describeEvent(rain, undefined, true)).toEqual({text: 'Paused: rain', severity: 'info'});
     expect(explain(rain, undefined, undefined, true)).toContain("can't go home by itself");
+    expect(explain(rain, undefined, undefined, true)).toContain('once the rain has stopped');
+    expect(explain(ev(0, 'STATE', {state: 'PAUSED', reason: 'DARK', resume: 'user'}), undefined, undefined, true)).toContain('mows on in the dark');
+    expect(explain(ev(0, 'STATE', {state: 'PAUSED', reason: 'BATTERY_LOW', resume: 'user'}), undefined, undefined, true)).toBe(
+      "It can't go home by itself from here, so it waits where it is until you continue it.",
+    );
     expect(explain(ev(0, 'STATE', {state: 'PAUSED', reason: 'RAIN', resume: 'auto'}), undefined, undefined, true)).toBe('It goes on by itself once that is over.');
   });
 
@@ -237,6 +242,23 @@ describe('heading home and charging on MowBite OS', () => {
       'Not charging (64 %): in the dock, but no charge current (0.00 A, at least 0.30 A expected)',
     );
     expect(os('CHARGING_LOST', {reason: 'NO_DOCK_CONTACT', battery_percentage: 64})).toBe('Not charging (64 %): off the charging contacts');
+  });
+
+  it('says a planner without a way home and the straight way', () => {
+    const hint = (type: string, f: Partial<MowerEvent>) => explain(ev(0, type, f), undefined, undefined, true);
+    expect(os('DOCKING', {reason: 'PLANNER_TIMEOUT'})).toBe('Heading home: no answer from the planner');
+    expect(hint('DOCKING', {reason: 'PLANNER_MISSING', resume: 'user'})).toMatch(/^The planner didn't answer while mowing/);
+    expect(os('DOCKING_DIRECT', {cause: 'PLANNER_MISSING', distance: 7.4})).toBe('Heading straight home, the planner is not running');
+    expect(hint('DOCKING_DIRECT', {cause: 'PLANNER_TIMEOUT', distance: 7.4})).toContain('(no answer from the planner), so it drives the straight way');
+    expect(hint('DOCKING_DIRECT', {cause: 'PLANNER_TIMEOUT', distance: 7.4})).toContain('(7 m)');
+    const failed = {reason: 'approach_failed', attempts: 3, cause: 'PLANNER_TIMEOUT'};
+    expect(hint('DOCKING_FAILED', {...failed, direct_blocked: true})).toBe(
+      "The planner gave no way to the docking station (no answer from the planner) and the straight way there wasn't free. It waits where it is. Send it home again later, if it stays so, restart MowBite OS.",
+    );
+    expect(hint('DOCKING_FAILED', {...failed, direct_blocked: false})).toContain("didn't get there on the straight way either");
+    expect(hint('DOCKING_RETRY', {...failed, cause: 'PLANNER_MISSING'})).toBe(
+      'The planner gave no way to the docking station (the planner is not running). It tries again.',
+    );
   });
 
   it('charges only once DOCKED is newer than what leaves it unconfirmed', () => {
@@ -550,6 +572,21 @@ describe('recording an area (MowBite OS)', () => {
     expect(describeEvent(ev(0, 'DOCK_RECORDED', {dock_id: 'd1', heading: 1.2}))).toEqual({text: 'Docking station recorded', severity: 'info'});
   });
 
+  it('says when an area was recorded without the exact edge, and why', () => {
+    const notDriven = ev(0, 'AREA_RECORDED', {area_m2: 50, obstacles: 0, driven: false, driven_reason: 'CLOSING'});
+    expect(describeEvent(notDriven).text).toBe('Mowing area recorded (50 m²), without the exact edge: start not driven over');
+    expect(explain(notDriven)).toContain('drive on past the start until the track crosses it');
+    expect(describeEvent(ev(0, 'AREA_RECORDED', {driven: false, driven_reason: 'NEW'})).text).toBe('Mowing area recorded, without the exact edge');
+    expect(explain(ev(0, 'AREA_RECORDED', {driven: true}))).toBeUndefined();
+    const reversing = ev(0, 'RECORDING_REFUSED', {action: 'point', reason: 'REVERSING', severity: 'info', resume: 'auto'});
+    expect(describeEvent(reversing, undefined, true).text).toBe(
+      'No points recorded: reversing takes back the points ahead of it, drive forward to record',
+    );
+    expect(explain(reversing)).toContain('Drive forward to record.');
+    const kept = ev(0, 'RECORDED_BODY_KEPT', {reason: 'SAVE_FAILED', code: 'STORAGE', severity: 'warning', resume: 'user'});
+    expect(describeEvent(kept, undefined, true)).toEqual({text: "Sizes not saved with the areas: saving failed: the map couldn't be written", severity: 'warning'});
+  });
+
   it('leaves them out of runs, recording mode is no run', () => {
     const day = [ev(10, 'STATE', {state: 'AREA_RECORDING'}), refused('stop_recording', 'x'), ev(20, 'AREA_RECORDED', {area_m2: 10}), ev(30, 'STATE', {state: 'IDLE'})];
     expect(groupRuns(day, false).map((e) => e.kind)).toEqual(['event', 'event', 'event', 'event']);
@@ -565,6 +602,13 @@ describe('recording an area (MowBite OS)', () => {
     expect(parseEvent('not json')).toBeNull();
     expect(parseEvent('{"t":5}')).toBeNull();
     expect(parseEvent('null')).toBeNull();
+  });
+
+  it('passes over fields it does not know, a newer mower may send more', () => {
+    const e = parseEvent('{"id":"b","t":6,"type":"STATE","state":"PAUSED","reason":"RAIN","severity":"info","resume":"user","task_index":2,"x_new":{"a":1}}')!;
+    expect(describeEvent(e, undefined, true)).toEqual({text: 'Paused: rain', severity: 'info'});
+    const unknown = parseEvent('{"id":"c","t":7,"type":"SOMETHING_NEW","reason":"RAIN","more":[1]}')!;
+    expect(describeEvent(unknown, undefined, true).text).toBe('something new: rain');
   });
 });
 
@@ -787,5 +831,30 @@ describe('MowBite OS started again without its own stop', () => {
       setLangChoice('en');
       vi.unstubAllGlobals();
     }
+  });
+});
+
+describe("MowBite OS's schedule in the events", () => {
+  const os = (type: string, extra: Partial<MowerEvent> = {}) => describeEvent(ev(0, type, {severity: 'info', ...extra}), undefined, true).text;
+
+  it('announces and cancels its starts', () => {
+    expect(os('SCHEDULE_START', {seconds: 10, until: 1_800_000_010})).toBe('Scheduled start in 10 s');
+    expect(os('SCHEDULE_START_CANCELED', {source: 'emergency'})).toBe('Scheduled start canceled, emergency stop');
+    expect(os('SCHEDULE_START_CANCELED', {source: 'rpc'})).toBe('Scheduled start canceled by hand');
+    expect(os('SCHEDULE_START_CANCELED', {source: 'new'})).toBe('Scheduled start canceled');
+  });
+
+  it("says why it ends a run, and what it does when it can't go home", () => {
+    expect(os('DOCKING', {reason: 'SCHEDULE', detail: 'end'})).toBe("Heading home: the plan's end time has come");
+    expect(os('AREA_SKIPPED', {reason: 'SCHEDULE', detail: 'pause'})).toBe("Area skipped: the plan's areas are paused");
+    expect(os('AREA_SKIPPED')).toBe('Area skipped');
+    const paused = ev(0, 'STATE', {state: 'PAUSED', reason: 'SCHEDULE', detail: 'end', severity: 'info', resume: 'user'});
+    expect(describeEvent(paused, undefined, true)).toEqual({text: "Paused: the plan's end time has come", severity: 'info'});
+    expect(explain(paused, 'MOWING', undefined, true)).toMatch(/next plan carries on/);
+  });
+
+  it('says why a scheduled start was turned down', () => {
+    expect(reasonText(ev(0, 'MOWING_REFUSED', {reason: 'CLOCK_UNSAFE', clock_reason: 'clock_jump'}))).toBe("the mower's clock jumped");
+    expect(reasonText(ev(0, 'MOWING_REFUSED', {reason: 'NOT_DOCKED'}))).toBe('not in the dock, a scheduled start only goes from there');
   });
 });

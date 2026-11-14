@@ -1,14 +1,19 @@
-import {reasonText} from './events';
+import {clock} from './dates';
+import {describe, isReasonCode, readable, reasonText} from './events';
 import {forget, fresh} from './fresh';
 import {fmt, tr} from './i18n';
+import {topicStore} from './mqttClient';
 import {apiBase, mowerFetch} from './mowers';
-import {sunTimes} from './sun';
+import {RPC, TOPIC} from './openmower';
+import {callRpc, rpcMethods, RpcError} from './rpc';
+import {sunTimes, type SunTimes} from './sun';
 import {containerFetch} from './updates';
+import {useSyncExternalStore} from 'react';
 
-// the mowing schedule, kept by the container (docker/schedule.cgi) as simple lines the scheduler
+// the mowing schedule, kept by MowBite OS itself (schedule.*, see fromOs) or else by the container (docker/schedule.cgi) as simple lines the scheduler
 // script reads: enabled, minbattery, skiprain, skipforecast, skipcold, mintemp, tz, one "plan <days> <HH:MM> [areas] [end=HH:MM] [dark=1] [sunset=1]
-// [fresh=1] [angle=<deg>]" per start time and "pause <YYYY-MM-DD> all|<areas>" for days off up to and including that day. days
-// are 1 = monday .. 7 = sunday like date +%u
+// [fresh=1] [angle=<deg>]" per start time, "pause <YYYY-MM-DD> all|<areas>" for days off up to and including that day and
+// "handstop HH:MM" for the starts by hand. days are 1 = monday .. 7 = sunday like date +%u
 
 export interface Plan {
   days: number[];
@@ -52,6 +57,12 @@ export interface Schedule {
   tz?: string;
   // "<lat> <lon>" for the forecast and the sun times, kept when a save doesn't know the mower's position
   pos?: string;
+  // HH:MM, local: a start not by the schedule (the app, Home Assistant, OpenMower's page) before it goes home then,
+  // also with the schedule switched off. none: no end time for those
+  handStop?: string;
+  // MowBite OS only, as it answered: whether it lets the schedule start the mower, why its clock isn't safe (null: it
+  // is) and today's sunrise and sunset (unix s) at its own position
+  os?: {available: boolean; clockReason: string | null; sun: {rise: number | null; set: number | null} | null};
 }
 
 export const FORECAST_HOURS = [1, 2, 3];
@@ -84,6 +95,7 @@ export function parseSchedule(text: string): Schedule {
     if (key === 'pause' && a && b) s.pause = {until: a, areas: b === 'all' ? 'all' : b.split(',')};
     if (key === 'tz' && a) s.tz = a;
     if (key === 'pos' && a && b) s.pos = `${a} ${b}`;
+    if (key === 'handstop' && /^\d\d:\d\d$/.test(a ?? '')) s.handStop = a;
     if (key === 'plan' && a && b) {
       const plan: Plan = {days: a.split(',').map(Number), time: b, areas: []};
       for (const r of rest) {
@@ -121,6 +133,7 @@ export function serializeSchedule(s: Schedule, pos?: {lat: number; lon: number})
     ...(s.pause && (s.pause.areas === 'all' || s.pause.areas.length)
       ? [`pause ${s.pause.until} ${s.pause.areas === 'all' ? 'all' : s.pause.areas.join(',')}`]
       : []),
+    ...(s.handStop ? [`handstop ${s.handStop}`] : []),
     '',
   ].join('\n');
 }
@@ -131,12 +144,109 @@ let lastLog: LogEntry[] | undefined;
 export const cachedSchedule = () => lastSchedule;
 export const cachedScheduleLog = () => lastLog;
 
-// null: not served by the container, no scheduler then
+// MowBite OS's schedule in its own words (schedule.get and schedule.set answer with it)
+interface OsPlan {
+  days: number[];
+  time: string;
+  areas?: string[];
+  end?: string;
+  dark: number;
+  sunset: number;
+  fresh: number;
+  angle_offset_deg?: number;
+}
+interface OsSchedule {
+  version: number;
+  available: boolean;
+  clock_ok: boolean;
+  clock_reason: string | null;
+  schedule: {
+    enabled: number;
+    min_battery: number;
+    skip_rain: number;
+    skip_forecast: number;
+    forecast_hours: number;
+    skip_cold: number;
+    min_temp: number;
+    tz: string;
+    plans: OsPlan[];
+    pause: Pause | null;
+  };
+  sun: {rise: number | null; set: number | null} | null;
+}
+
+// the version of the last answer: a change names it, the OS turns it down (-32001) when another one came in between
+let osVersion: number | undefined;
+const onOs = async () => !!(await rpcMethods())?.has(RPC.scheduleGet);
+export const changedElsewhere = (e: unknown) => e instanceof RpcError && e.code === -32001;
+
+export function fromOs(r: OsSchedule): Schedule {
+  const s = r.schedule;
+  return {
+    enabled: s.enabled === 1,
+    minBattery: s.min_battery,
+    skipRain: s.skip_rain === 1,
+    skipForecast: s.skip_forecast === 1,
+    forecastHours: s.forecast_hours,
+    skipCold: s.skip_cold === 1,
+    minTemp: s.min_temp,
+    tz: s.tz,
+    plans: s.plans.map((p) => ({
+      days: p.days,
+      time: p.time,
+      areas: p.areas ?? [],
+      ...(p.end ? {end: p.end} : {}),
+      ...(p.dark ? {dark: true} : {}),
+      ...(p.sunset ? {sunset: true} : {}),
+      ...(p.fresh ? {fresh: true} : {}),
+      ...(p.angle_offset_deg !== undefined ? {angle: p.angle_offset_deg} : {}),
+    })),
+    ...(s.pause ? {pause: s.pause} : {}),
+    os: {available: r.available, clockReason: r.clock_ok ? null : (r.clock_reason ?? 'unknown'), sun: r.sun},
+  };
+}
+
+export function toOs(s: Schedule): OsSchedule['schedule'] {
+  return {
+    enabled: s.enabled ? 1 : 0,
+    min_battery: Math.round(s.minBattery),
+    skip_rain: s.skipRain ? 1 : 0,
+    skip_forecast: s.skipForecast ? 1 : 0,
+    forecast_hours: s.forecastHours,
+    skip_cold: s.skipCold ? 1 : 0,
+    min_temp: s.minTemp,
+    tz: s.tz ?? posixTz(),
+    plans: s.plans
+      .filter((p) => p.days.length)
+      .map((p) => ({
+        days: [...p.days].sort(),
+        time: p.time,
+        areas: p.areas,
+        ...(p.end ? {end: p.end} : {}),
+        dark: p.dark ? 1 : 0,
+        sunset: p.sunset ? 1 : 0,
+        fresh: p.fresh ? 1 : 0,
+        ...(p.angle !== undefined ? {angle_offset_deg: Math.round(p.angle)} : {}),
+      })),
+    pause: s.pause && (s.pause.areas === 'all' || s.pause.areas.length) ? s.pause : null,
+  };
+}
+
+// null: no schedule on the mower (neither MowBite OS's nor the container's)
 // again: not the answer from a moment ago (the page back from the background). undefined: the mower didn't answer and
 // nothing came before
 export function loadSchedule(again = false): Promise<Schedule | null | undefined> {
   if (again) forget('schedule');
   return fresh('schedule', async () => {
+    if (await onOs()) {
+      try {
+        const r = await callRpc<OsSchedule>(RPC.scheduleGet);
+        osVersion = r.version;
+        return (lastSchedule = fromOs(r));
+      } catch {
+        return lastSchedule ?? undefined;
+      }
+    }
     let res: Response;
     try {
       res = await mowerFetch(endpoint(), {cache: 'no-store'});
@@ -162,6 +272,13 @@ export function saveSchedule(s: Schedule, pos?: {lat: number; lon: number}): Pro
     .then(async () => {
       const w = waiting!;
       waiting = null;
+      if (await onOs()) {
+        const params = {schedule: toOs(w.s), ...(osVersion !== undefined ? {version: osVersion} : {})};
+        const r = await callRpc<OsSchedule>(RPC.scheduleSet, params);
+        osVersion = r.version;
+        lastSchedule = fromOs(r);
+        return;
+      }
       const res = await mowerFetch(endpoint(), {method: 'POST', body: serializeSchedule(w.s, w.pos)});
       if (!res.ok) throw new Error(`schedule ${res.status}`);
       // (only once it's on the mower: a page opened while it couldn't be saved shows what the mower has)
@@ -211,6 +328,46 @@ export const SCHEDULE_LOG_TEXT: Record<string, string> = {
   leftovers_little: 'Leftovers too small to go out again ({detail} m²)',
   leftovers_failed: "Leftovers not mowed, the planner didn't answer",
   leftovers_waiting_battery: 'Leftovers: waiting for the battery ({detail} %)',
+  undock_failed: 'Undocking failed{reason}, starts again in {more} minutes',
+  start_retry: 'Started again (start {detail} of {more})',
+  stopped_hand: 'Sent home, the time for starts by hand reached',
+  // MowBite OS's own words
+  skip_clock: "Not started, the mower's clock wasn't confirmed",
+  skip_missed: 'Not started, the start time passed while the mower was off or its clock jumped',
+  skip_no_position: 'Not started, no position for the sun times',
+  skip_not_docked: "Not started, the mower wasn't in the dock",
+  stopped_paused: 'Sent home, the areas left are paused',
+  stopped_rain: 'Sent home for rain',
+  start_canceled: 'Scheduled start canceled',
+};
+
+// why MowBite OS's clock isn't safe (clock_reason of schedule.get), in words
+export const clockText = (why: string) => reasonText({id: '', t: 0, type: 'MOWING_REFUSED', reason: 'CLOCK_UNSAFE', clock_reason: why});
+
+// MowBite OS: start_failed says why in its detail, an event's type when the run ended before it mowed
+const START_FAILED: Record<string, string> = {
+  storage: "Not started, the mower couldn't store the start",
+  service: "Not started, the mower's logic didn't take the start",
+  timeout: "Not started, the mower didn't get going",
+};
+
+
+// MowBite OS: no weather to check, the start went ahead without it
+const WEATHER_UNKNOWN: Record<string, string> = {
+  forecast: 'No forecast came, started without it',
+  cold: 'No temperature came, started without it',
+};
+
+// retry_skip says why a start isn't tried again after a failed undocking
+const RETRY_SKIP: Record<string, string> = {
+  started: 'Not started again, it was started meanwhile',
+  off: 'Not started again, the schedule was switched off',
+  end: 'Not started again, the end time had come',
+  offline: "Not started again, the mower wasn't reachable",
+  emergency: 'Not started again, emergency stop was active',
+  busy: 'Not started again, the mower was busy',
+  undocked: 'Not started again, the mower was no longer in the dock',
+  hold: 'Not started again, an update was running',
 };
 
 // leftovers_skip says why in its detail (battery and cold with their value after it), else the state the mower was in
@@ -225,6 +382,9 @@ const LEFTOVERS_SKIP: Record<string, string> = {
   cold: 'Leftovers not mowed, too cold ({more} °C)',
   hold: 'Leftovers not mowed, an update was running',
 };
+
+// MowBite OS's starts left out
+const OS_SKIPS = ['skip_clock', 'skip_missed', 'skip_no_position', 'skip_not_docked'];
 
 // how a log line is marked: a start that went out, one left out for a reason worth a look (not a pause asked for, an
 // area skipped as planned or a start time changed meanwhile), or neither
@@ -244,14 +404,45 @@ const BAD = new Set([
   'skip_hold',
   'unknown_area',
   'leftovers_failed',
+  'undock_failed',
+  ...OS_SKIPS,
 ]);
-export const logTone = (what: string): 'good' | 'bad' | null =>
-  what === 'started' || what === 'leftovers_started' ? 'good' : BAD.has(what) ? 'bad' : null;
+// not tried again because someone started it meanwhile, switched the schedule off or it was busy otherwise: on purpose
+const RETRY_SKIP_FINE = new Set(['started', 'off', 'busy']);
+export const logTone = ({what, detail}: Pick<LogEntry, 'what' | 'detail'>): 'good' | 'bad' | null =>
+  what === 'started' || what === 'leftovers_started' || what === 'start_retry'
+    ? 'good'
+    : BAD.has(what) ||
+        (what === 'retry_skip' && !RETRY_SKIP_FINE.has(detail ?? '')) ||
+        (what === 'start_canceled' && detail !== 'rpc')
+      ? 'bad'
+      : null;
 
-// a log line in words (english, translated where it's shown)
+// the words that say why in their detail, other: for a detail without its own
+const BY_DETAIL: Record<string, {texts: Record<string, string>; other?: string}> = {
+  leftovers_skip: {texts: LEFTOVERS_SKIP, other: "Leftovers not mowed, the mower wasn't ready"},
+  retry_skip: {texts: RETRY_SKIP, other: 'Not started again'},
+  weather_unknown: {texts: WEATHER_UNKNOWN, other: 'No weather came, started without it'},
+  start_failed: {texts: START_FAILED},
+};
+
+// a log line in words (english, translated where it's shown). {reason}: why undocking failed, in words
 export function scheduleLogText(l: LogEntry): string {
-  if (l.what === 'leftovers_skip') return LEFTOVERS_SKIP[l.detail ?? ''] ?? "Leftovers not mowed, the mower wasn't ready";
+  const by = BY_DETAIL[l.what];
+  const said = by && (by.texts[l.detail ?? ''] ?? by.other);
+  if (said) return said;
+  if (l.what === 'started_by_hand') return l.detail ? 'Started by hand, goes home at {detail}' : 'Started by hand';
+  // a plan's start after its last try, the leftovers' after the first
+  if (l.what === 'start_failed' && l.detail === 'undock')
+    return l.at ? 'Not started, undocking failed again{reason}' : 'Not started, undocking failed{reason}';
   return SCHEDULE_LOG_TEXT[l.what] ?? l.what;
+}
+
+// OpenMower's reason a failed undocking came with (UNDOCKING_FAILED: path_failed, no_gps), in words in brackets. empty
+// for none
+function undockReason(l: LogEntry): string {
+  const r = l.what === 'undock_failed' ? l.detail : l.what === 'start_failed' && l.detail === 'undock' ? l.more : undefined;
+  return r && r !== 'unknown' ? ` (${reasonText({id: '', t: l.t, type: 'UNDOCKING_FAILED', reason: r})})` : '';
 }
 
 // a log line as shown, translated. a number with decimals in its detail (a temperature, m²) keeps them, with the
@@ -260,14 +451,18 @@ export function scheduleLogLine(l: LogEntry): string {
   // MowBite OS says why: its reason and the value it's about (the battery, the position's accuracy, what it was busy with)
   if (l.what === 'start_refused' && l.detail) {
     const n = l.more !== undefined && l.more !== '' && Number.isFinite(Number(l.more)) ? Number(l.more) : undefined;
-    const e = {id: '', t: l.t, type: 'MOWING_REFUSED', reason: l.detail, battery_voltage: n, accuracy: n, state: l.more};
+    const e = {id: '', t: l.t, type: 'MOWING_REFUSED', reason: l.detail, battery_voltage: n, accuracy: n, state: l.more, clock_reason: l.more};
     return `${tr(SCHEDULE_LOG_TEXT.start_refused)}: ${reasonText(e)}`;
   }
+  if (l.what === 'skip_clock' && l.detail) return `${tr('Not started')}: ${clockText(l.detail)}`;
+  // MowBite OS: the run ended before it mowed, the event it ended with; who canceled an announced start
+  if (l.what === 'start_failed' && isReasonCode(l.detail)) return `${tr('Not started')}: ${describe({id: '', t: l.t, type: l.detail!}).text}`;
+  if (l.what === 'start_canceled' && l.detail) return describe({id: '', t: l.t, type: 'SCHEDULE_START_CANCELED', source: l.detail}).text;
   const local = (v = '') => {
     const decimals = /^-?\d+\.(\d+)$/.exec(v)?.[1].length;
     return decimals ? fmt(Number(v), decimals) : v;
   };
-  return tr(scheduleLogText(l), {detail: local(l.detail), more: local(l.more)});
+  return tr(scheduleLogText(l), {detail: local(l.detail), more: local(l.more), reason: undockReason(l)});
 }
 
 // how a start the schedule tried ended: started, or why not
@@ -288,6 +483,11 @@ const START_OUTCOMES = new Set([
   'skip_gone',
   'skip_no_area',
   'skip_hold',
+  'undock_failed',
+  'start_retry',
+  'retry_skip',
+  ...OS_SKIPS,
+  'start_canceled',
 ]);
 
 // The last start the schedule tried, when it didn't come off and it's less than 12 hours ago. A pause for the day
@@ -300,19 +500,47 @@ export function waitingStart(log: LogEntry[], now = Date.now() / 1000): LogEntry
   return last?.what === 'waiting_battery' && now - last.t < 7200 ? last : null;
 }
 
+// Started by hand after it, it was seen to.
 export function missedStart(log: LogEntry[], now = Date.now() / 1000): LogEntry | null {
   let last: LogEntry | null = null;
   for (const l of log) if (START_OUTCOMES.has(l.what) && (!last || l.t > last.t)) last = l;
   if (!last || now - last.t > 12 * 3600) return null;
   if (last.what === 'start_refused' && last.detail === 'BUSY') return null;
-  return ['started', 'skip_paused', 'skip_busy', 'skip_gone'].includes(last.what) ? null : last;
+  if (last.what === 'retry_skip' && RETRY_SKIP_FINE.has(last.detail ?? '')) return null;
+  // canceled by hand on purpose
+  if (last.what === 'start_canceled' && last.detail === 'rpc') return null;
+  if (log.some((l) => l.what === 'started_by_hand' && l.t >= last.t)) return null;
+  return ['started', 'start_retry', 'skip_paused', 'skip_busy', 'skip_gone'].includes(last.what) ? null : last;
 }
 
 export function loadScheduleLog(): Promise<LogEntry[]> {
   return fresh('schedule-log', loadLog);
 }
 
+// MowBite OS's log, oldest first, detail and more as their values (null for none)
+interface OsLogEntry {
+  t: number;
+  what: string;
+  detail: string | number | null;
+  more: string | number | null;
+  at: string | null;
+}
+const word = (v: string | number | null) => (v === null || v === '' ? undefined : String(v));
+
 async function loadLog(): Promise<LogEntry[]> {
+  if (await onOs()) {
+    try {
+      const {entries} = await callRpc<{entries: OsLogEntry[]}>(RPC.scheduleLog, {limit: 100});
+      return (lastLog = entries
+        .map(({t, what, detail, more, at}) => {
+          const [d, m] = [word(detail), word(more)];
+          return {t, what, ...(d ? {detail: d} : {}), ...(m ? {more: m} : {}), ...(at ? {at} : {})};
+        })
+        .reverse());
+    } catch {
+      return lastLog ?? [];
+    }
+  }
   try {
     const res = await containerFetch(`${endpoint()}?log`, {cache: 'no-store'});
     if (!res) return [];
@@ -329,6 +557,73 @@ async function loadLog(): Promise<LogEntry[]> {
       .reverse());
   } catch {
     return lastLog ?? [];
+  }
+}
+
+// whether the next start would go as things are now (mowbite/schedule/ready), why not as the word the log would
+// write. only shown, the start checks again. null without a start to come
+export interface Ready {
+  ok: boolean;
+  reason: string | null;
+}
+export const READY_TEXT: Record<string, string> = {
+  skip_offline: "the mower's logic isn't answering",
+  skip_clock: "the mower's clock isn't confirmed",
+  skip_paused: 'paused',
+  skip_no_area: 'none of its areas is mowed',
+  skip_emergency: 'emergency stop',
+  skip_busy: 'the mower is busy',
+  skip_not_docked: 'not in the dock',
+  skip_rain: 'the rain sensor is wet',
+  skip_dark: "it's dark",
+  skip_no_position: 'no position for the sun times',
+  waiting_battery: 'waits for the battery',
+  waiting_hold: 'waits for an update',
+};
+const ready = topicStore<Ready | null>(TOPIC.scheduleReady, null, (payload) => {
+  if (!payload.length) return null;
+  const r = JSON.parse(payload.toString());
+  return {ok: r.ok === true, reason: typeof r.reason === 'string' ? r.reason : null};
+});
+export const useScheduleReady = () => useSyncExternalStore(ready.subscribe, ready.get, ready.initial);
+export const readyText = (r: Ready) =>
+  r.ok ? tr('Ready to start as things are now') : tr('Not ready as things are now: {why}', {why: READY_TEXT[r.reason ?? ''] ? tr(READY_TEXT[r.reason!]) : readable(r.reason ?? '?')});
+
+// who started a run beginning at start (unix time), in words, from the schedule's log: its own starts and the ones by
+// hand it saw (the app, Home Assistant, OpenMower's page). a start is logged right before the mower leaves the dock, one
+// by hand right after. null without a line that fits: the mower's button, OpenMower carrying on after charging, a log
+// too old
+const STARTED_BY: Record<string, string> = {
+  started: 'Started by the schedule',
+  start_retry: 'Started again by the schedule, undocking had failed',
+  leftovers_started: 'Started by MowBite for the leftovers',
+  started_by_hand: 'Started by hand',
+};
+export function startedBy(start: number, log: readonly LogEntry[]): string | null {
+  let best: LogEntry | null = null;
+  for (const l of log) if (STARTED_BY[l.what] && l.t >= start - 90 && l.t <= start + 30 && (!best || l.t > best.t)) best = l;
+  return best ? STARTED_BY[best.what] : null;
+}
+
+// when the run going on goes home (docker/schedule.cgi ?run): its end time, sunset or the time for starts by hand.
+// null when none is to come, also from a container without it (that one answers with the schedule)
+export interface RunStop {
+  at: number;
+  why: 'end' | 'dark' | 'hand';
+}
+export function parseRunStop(text: string): RunStop | null {
+  const m = /^(\d+) (end|dark|hand)\s*$/.exec(text);
+  return m ? {at: Number(m[1]), why: m[2] as RunStop['why']} : null;
+}
+// as the dashboard says it
+export const runStopText = (stop: RunStop): string =>
+  tr(stop.why === 'dark' ? 'goes home at sunset, {time}' : 'goes home at {time}', {time: clock(stop.at)});
+export async function loadRunStop(): Promise<RunStop | null> {
+  try {
+    const res = await containerFetch(`${endpoint()}?run`, {cache: 'no-store'});
+    return res?.ok ? parseRunStop(await res.text()) : null;
+  } catch {
+    return null;
   }
 }
 
@@ -361,6 +656,16 @@ export function planAreas(p: Plan, mowable: readonly string[], pause: Pause | un
   return pause.areas === 'all' ? [] : picked.filter((id) => !pause.areas.includes(id));
 }
 
+// the first minute after the gap a time of day (minutes) fell into: at, the date that time became, back minute by minute
+function gapEnd(at: Date, time: number): Date {
+  let t = at;
+  for (let back = new Date(t.getTime() - 6e4); back.getDate() === at.getDate() && back.getHours() * 60 + back.getMinutes() >= time; ) {
+    t = back;
+    back = new Date(t.getTime() - 6e4);
+  }
+  return t;
+}
+
 // the next start as a date, looking a week ahead from now. days paused for all areas don't count, and with the
 // sun times neither do starts in the dark that the scheduler leaves out (not marked dark): the same for every day, or
 // each day's own. with the mowable areas (ids) neither does a start with none of its areas left to mow, the scheduler
@@ -388,9 +693,9 @@ export function nextStart(
       if (sun !== undefined && !p.dark && isNightTime(p.time, typeof sun === 'function' ? sun(day) : sun)) continue;
       if (mowable?.length && !planAreas(p, mowable, s.pause, localDay(day)).length) continue;
       const [h, m] = p.time.split(':').map(Number);
-      const at = new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, m);
-      // the hour the clock skips when summer time begins: the scheduler doesn't start then
-      if (at.getHours() !== h || at.getMinutes() !== m) continue;
+      let at = new Date(day.getFullYear(), day.getMonth(), day.getDate(), h, m);
+      // the hour the clock skips when summer time begins: the scheduler starts at its end
+      if (at.getHours() !== h || at.getMinutes() !== m) at = gapEnd(at, h * 60 + m);
       if (at > now && (!best || at < best)) best = at;
     }
     // (day by day: the first one with a start has the next)
@@ -475,6 +780,14 @@ export function tzOffset(tz: string | undefined, at = new Date()): number {
 // time zone too
 export const scheduleNow = (tz: string | undefined, at = new Date()) =>
   new Date(at.getTime() + (tzOffset(tz, at) + at.getTimezoneOffset()) * 60e3);
+
+// MowBite OS's sunrise and sunset of today (unix s) as HH:MM by the schedule's clock, null without both
+export function osSun(s: Schedule): SunTimes | null {
+  const sun = s.os?.sun;
+  if (!sun?.rise || !sun.set) return null;
+  const hhmm = (t: number) => scheduleNow(s.tz, new Date(t * 1000)).toTimeString().slice(0, 5);
+  return {rise: hhmm(sun.rise), set: hhmm(sun.set)};
+}
 
 // a day's sunrise and sunset at the garden by the schedule's clock, the day a date of scheduleNow's
 export const daySun = (tz: string | undefined, pos: {lat: number; lon: number}) => (day: Date) => {

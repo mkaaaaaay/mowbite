@@ -69,12 +69,23 @@ export function pictureRatio(list: readonly Camera[]): number {
 }
 
 // the list with what a CAMERA_CHANGED says about its camera, null for one the list doesn't have
-export function withChange(list: readonly Camera[], e: Pick<MowerEvent, 'camera_id' | 'available' | 'reason' | 'message'>): Camera[] | null {
+type Change = Pick<MowerEvent, 'camera_id' | 'available' | 'reason' | 'message' | 'protocols' | 'width' | 'height'>;
+export function withChange(list: readonly Camera[], e: Change): Camera[] | null {
   const {camera_id: id, available} = e;
   if (typeof available !== 'boolean' || !list.some((c) => c.id === id)) return null;
   const why = available ? {reason: undefined, detail: undefined} : {reason: e.reason, detail: e.message};
-  return list.map((c) => (c.id === id ? {...c, available, ...why} : c));
+  // since api 24 with its protocols and size (before: as the list has them)
+  const now = {
+    ...(Array.isArray(e.protocols) && {protocols: e.protocols}),
+    ...(typeof e.width === 'number' && typeof e.height === 'number' && {width: e.width, height: e.height}),
+  };
+  return list.map((c) => (c.id === id ? {...c, available, ...why, ...now} : c));
 }
+
+// whether a stream of the camera has to be opened anew: it can stream again or no longer, or with other protocols. another
+// size alone keeps it
+export const streamChanged = (before: Camera, after: Camera) =>
+  before.available !== after.available || before.protocols.join() !== after.protocols.join();
 
 // why it shows no picture, in words on their own line
 export function cameraReason(reason?: string, message?: string): string {

@@ -116,7 +116,8 @@ export function demoCameras(deliver: (topic: string, text: string) => void) {
         c.available = !on;
         if (on) c.reason = 'BLADE_RUNNING';
         else delete c.reason;
-        const event = {id: `cam${++n}`, t: Date.now() / 1000, type: 'CAMERA_CHANGED', camera_id: c.id, available: c.available, reason: c.reason, severity: 'info', resume: 'auto'};
+        const {id, available, reason, protocols, width, height} = c;
+        const event = {id: `cam${++n}`, t: Date.now() / 1000, type: 'CAMERA_CHANGED', camera_id: id, available, reason, protocols, width, height, severity: 'info', resume: 'auto'};
         deliver(TOPIC.events, JSON.stringify(event));
         if (!c.available) [...streams].filter((s) => s.camera === c).forEach((s) => s.end());
       }

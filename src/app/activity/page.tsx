@@ -20,6 +20,7 @@ import styles from './page.module.css';
 import {fmt, tr, useLang} from '@/lib/i18n';
 import {PARAM, PATHS} from '@/lib/openmower';
 import {numParam, useMowerParams} from '@/hooks/useMowerParams';
+import {cachedScheduleLog, loadScheduleLog, startedBy, type LogEntry} from '@/lib/schedule';
 
 
 // newest first like the runs, the state each one came in is worked out in time order first. progress: only what
@@ -97,8 +98,8 @@ const FIXES: Record<string, string[]> = {
   DOCKING_FAILED: ['docking_approach_distance', 'docking_retry_count'],
   UNDOCKING_FAILED: ['undock_distance'],
 };
-// MowBite OS's own reasons in them (no charge current, no position) aren't helped by those
-const fixes = (e: MowerEvent) => (/^DOCKING_/.test(e.type) && isReasonCode(e.reason) ? [] : (FIXES[e.type] ?? []));
+// MowBite OS's own reasons in them (no charge current, no position) and a planner without a way aren't helped by those
+const fixes = (e: MowerEvent) => (/^DOCKING_/.test(e.type) && (isReasonCode(e.reason) || e.cause) ? [] : (FIXES[e.type] ?? []));
 
 function ProblemItem({run, next, event, state, where}: {run: Run; next?: Run; event: MowerEvent; state?: string; where: Where}) {
   const [raw, setRaw] = useState(false);
@@ -177,7 +178,21 @@ function Problems({run, next, where}: {run: Run; next?: Run; where: Where}) {
 
 // progress: the run's course right away instead of its problems
 // linked: picked on the dashboard, opened and scrolled to
-function RunCard({run, next, where, progress, linked}: {run: Run; next?: Run; where: Where; progress: boolean; linked: boolean}) {
+function RunCard({
+  run,
+  next,
+  where,
+  progress,
+  linked,
+  by,
+}: {
+  run: Run;
+  next?: Run;
+  where: Where;
+  progress: boolean;
+  linked: boolean;
+  by: string | null;
+}) {
   const [open, setOpen] = useState(linked);
   const outcome = OUTCOMES[run.outcome];
   const ref = useRef<HTMLElement>(null);
@@ -206,6 +221,7 @@ function RunCard({run, next, where, progress, linked}: {run: Run; next?: Run; wh
           </span>
         ))}
         {run.bladeSeconds > 0 && <span className={styles.dim}>{tr('mowed {time}', {time: duration(run.bladeSeconds)})}</span>}
+        {by && <span className={styles.dim}>{tr(by)}</span>}
       </div>
 
       {progress ? <Timeline events={run.events} progress /> : <Problems run={run} next={next} where={where} />}
@@ -275,6 +291,9 @@ function Activity() {
   const events = loaded?.events ?? null;
   // MowBite OS doesn't dock yet, a run ends idle on the lawn
   const os = useMowbiteOs();
+  // who started a run, as far as the schedule's log knows
+  const [scheduleLog, setScheduleLog] = useState<LogEntry[]>(() => cachedScheduleLog() ?? []);
+  useEffect(() => void loadScheduleLog().then(setScheduleLog), []);
 
   useEffect(() => {
     if (!shown) return;
@@ -410,6 +429,7 @@ function Activity() {
                 where={where}
                 progress={filter === 'progress'}
                 linked={shown === linkedDay && b.run.events[0].id === linkedRun}
+                by={startedBy(b.run.start, scheduleLog)}
               />
             ) : (
               <div key={b.events[0].id} className={styles.looseGroup}>

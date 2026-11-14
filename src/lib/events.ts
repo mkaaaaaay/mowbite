@@ -9,6 +9,7 @@ import {
   EMERGENCY_TEXT,
   EVENTS,
   FALLBACK,
+  NOT_DRIVEN,
   REASONS,
   WRAPPERS,
   fill,
@@ -30,6 +31,10 @@ export interface MowerEvent {
   state?: string;
   available?: boolean;
   camera_id?: string;
+  // CAMERA_CHANGED: what it streams with now and at which size
+  protocols?: string[];
+  width?: number;
+  height?: number;
   enabled?: boolean;
   area_id?: string;
   area_name?: string;
@@ -41,6 +46,9 @@ export interface MowerEvent {
   action?: string;
   area_type?: string;
   obstacles?: number;
+  // false: not driven forward in one go, driven_reason says why (the area is mowed without the exact edge)
+  driven?: boolean;
+  driven_reason?: string;
   points?: number;
   area_m2?: number;
   dock_id?: string;
@@ -69,24 +77,32 @@ export interface MowerEvent {
   angle?: number;
   seconds?: number;
   bits?: string[];
-  // EMERGENCY and EMERGENCY_RESET_REFUSED on MowBite OS: rpc (the app, an action) or button (STOP at the mower)
+  // EMERGENCY and EMERGENCY_RESET_REFUSED on MowBite OS: rpc (the app, an action) or button (STOP at the mower);
+  // SCHEDULE_START_CANCELED: what canceled it; schedule on any event during a run of MowBite OS's schedule
   source?: string;
   // MowBite OS: the charge current seen (A), the battery's temperature or the mow motor's (°C), the sun's height (°)
   current?: number;
   temperature?: number;
   sun_elevation?: number;
   battery_percentage?: number;
+  // DOCKING_DIRECT, DOCKING_RETRY and DOCKING_FAILED on MowBite OS: why the planner gave no way home (PLANNER_TIMEOUT,
+  // PLANNER_MISSING), whether the straight way wasn't free
+  cause?: string;
+  direct_blocked?: boolean;
   // UNEXPECTED_RESTART: whether it waits for a reset, the state then, the kernel's line or what the OS found (english)
   hold?: boolean;
   state_before?: string;
+  // also MowBite OS's schedule: why its run ends (SCHEDULE: end or pause)
   detail?: string;
+  // MOWING_REFUSED with CLOCK_UNSAFE: why the clock isn't safe (never_synced, clock_jump, gnss_mismatch)
+  clock_reason?: string;
   // worked out here, not from OpenMower: a navigation error that only came because it was sent home (see markSentHome)
   sentHome?: boolean;
 }
 
 export type {Severity};
 
-const readable = (r: string) => r.replace(/_/g, ' ').toLowerCase();
+export const readable = (r: string) => r.replace(/_/g, ' ').toLowerCase();
 
 // why it heads home, from the reason mower_logic gives (mower_logic.cpp): "Manual pause", "Battery voltage critical:
 // 23.1 V", "Battery average voltage low: 24.2 V", "Mow motor over temp: 71 °C", "Rain detected". MowBite OS gives a
@@ -148,6 +164,13 @@ const BIT = /^BIT_(\d+)$/;
 // what someone or something at the mower set off
 const PRESSED = ['STOP', 'LIFT', 'LIFT_MULTIPLE', 'COLLISION', 'COLLISION_MULTIPLE'];
 
+// MowBite OS without a way home: when continuing works after a pause for these (before, it's turned down)
+const CONTINUE_WHEN: Record<string, string> = {
+  RAIN: 'Continuing works once the rain has stopped.',
+  MOTOR_HOT: 'Continuing works once the mow motor has cooled down.',
+  BATTERY_HOT: 'Continuing works once the battery has cooled down.',
+  DARK: 'Continued, it mows on in the dark.',
+};
 // MowBite OS's pauses that go on once the position is good again
 const POSITION_PAUSE = ['NO_POSITION', 'POSE_LOST', 'POSITION_ACCURACY', 'HEADING', 'NO_HEADING'];
 
@@ -191,15 +214,17 @@ export const isReasonCode = (r?: string): boolean => !!r && /^[A-Z][A-Z0-9_]*$/.
 
 // a reason in words (reasonTexts.ts): one in the list with the event's numbers, a fixed name it doesn't know by the
 // mower's english text, else the name itself readable. free text (OpenMower, MowBite OS before E6) stays as it came
+// the event with the fields a reader puts in itself (reasonTexts.ts)
+const withOwn = (e: MowerEvent): MowerEvent => ({
+  ...e,
+  ...(typeof e.until === 'number' && e.until > 0 ? {until_clock: clock(e.until)} : {}),
+  ...(typeof e.accuracy === 'number' && e.accuracy >= 999 ? {no_fix: true} : {}),
+});
+
 export function reasonText(e: MowerEvent): string {
   const r = e.reason;
   if (!r) return '';
-  // (the fields a reader puts in itself, reasonTexts.ts)
-  const f = {
-    ...e,
-    ...(typeof e.until === 'number' && e.until > 0 ? {until_clock: clock(e.until)} : {}),
-    ...(typeof e.accuracy === 'number' && e.accuracy >= 999 ? {no_fix: true} : {}),
-  };
+  const f = withOwn(e);
   const v = pick(REASONS[r], f);
   let text: string;
   if (v) text = fill(tr(v.en), f);
@@ -210,6 +235,12 @@ export function reasonText(e: MowerEvent): string {
     .filter((k) => r.startsWith(k))
     .sort((a, b) => b.length - a.length)[0];
   return wrap && fits(WRAPPERS[wrap], e) ? fill(tr(WRAPPERS[wrap].en), {text}) : text;
+}
+
+// a reason of an answer (no event) in words, as a sentence
+export function reasonSentence(reason: string, type: string): string {
+  const text = reasonText({id: '', t: 0, type, reason});
+  return `${text.charAt(0).toUpperCase()}${text.slice(1)}${/[.!?]$/.test(text) ? '' : '.'}`;
 }
 
 // the reason in words of the app's language, one it doesn't know as it came
@@ -241,7 +272,10 @@ function recordedText(e: MowerEvent): string {
   if (typeof e.area_m2 === 'number') parts.push(`${fmt(e.area_m2, e.area_m2 < 10 ? 1 : 0)} m²`);
   if (e.obstacles === 1) parts.push(tr('1 obstacle'));
   else if (typeof e.obstacles === 'number' && e.obstacles > 1) parts.push(tr('{n} obstacles', {n: e.obstacles}));
-  return parts.length ? `${what} (${parts.join(', ')})` : what;
+  const text = parts.length ? `${what} (${parts.join(', ')})` : what;
+  if (e.driven !== false) return text;
+  const why = NOT_DRIVEN[e.driven_reason ?? ''];
+  return `${text}, ${why ? tr('without the exact edge: {why}', {why: tr(why)}) : tr('without the exact edge')}`;
 }
 
 const SEVERITIES = new Set<string>(['error', 'warning', 'info']);
@@ -249,9 +283,10 @@ const SEVERITIES = new Set<string>(['error', 'warning', 'info']);
 // the event's words from its list in reasonTexts.ts: the head of the first variant that fits, the reason after it
 function worded(e: MowerEvent): {text: string; severity: Severity} | null {
   const ev = EVENTS[e.type];
-  const v = pick(ev?.variants, e);
+  const own = withOwn(e);
+  const v = pick(ev?.variants, own);
   if (!ev || !v) return null;
-  const head = fill(tr(v.en), e);
+  const head = fill(tr(v.en), own);
   let why = '';
   if (v.with_reason !== false && e.reason !== undefined && e.reason !== '') {
     if (v.reason_is === 'emergency_bits') {
@@ -352,6 +387,26 @@ function restartText(e: MowerEvent): string | undefined {
   return said.join(' ') || undefined;
 }
 
+// an area not driven in one go (AREA_RECORDED driven_reason), the words of MowBite OS's contract
+const NOT_DRIVEN_HELP: Record<string, string> = {
+  MANUAL_POINT:
+    'At least one point was set by hand, so nothing shows that the mower drove the line forward. The area is mowed as usual, only without the exact edge. For the exact edge, record the area again driving forward with automatic points.',
+  NO_HEADING:
+    "The mower didn't know its heading yet while recording. The area is mowed as usual, only without the exact edge. Drive straight for a few metres first, then record again for the exact edge.",
+  INTERRUPTED:
+    'Automatic points were off for a while, points were undone, or the position was inaccurate, missing or jumped. The area is mowed as usual, only without the exact edge. For the exact edge, record the area again driving forward without a break.',
+  REVERSED:
+    "The mower reversed while recording. The points ahead of it were taken back, but the line wasn't driven forward in one go there. The area is mowed as usual, only without the exact edge. For the exact edge, record the area again without reversing.",
+  CLOSING:
+    "At the end of the recording the mower didn't drive over the start of the line along its heading, so the piece between the end and the start was never driven. The area is mowed as usual, only without the exact edge. For the exact edge, record again and at the end drive on past the start until the track crosses it.",
+  GAP:
+    'Two points, or the last and the first point, are more than 30 cm apart. The area is mowed as usual, only without the exact edge. Drive more slowly and record again for the exact edge.',
+  DIRECTION:
+    "A piece of the line doesn't follow the heading of the mower, for example after reversing or a step sideways. The area is mowed as usual, only without the exact edge. For the exact edge, record the area again driving forward all the way.",
+  SHARP_TURN:
+    "The line turns by more than 120 degrees at one spot, where it isn't certain which way the mower turned. The area is mowed as usual, only without the exact edge. Drive turns as a curve and record again for the exact edge.",
+};
+
 // why reset_emergency didn't let go and what to do, a part of MowBite OS not answering for the others
 const RESET_REFUSED_HELP: Record<string, string> = {
   STILL_TILTED: 'Stand it level, then reset it again.',
@@ -397,8 +452,13 @@ export function explain(e: MowerEvent, state?: string, gpsTimeout?: number, os =
         return POSITION_PAUSE.includes(e.reason)
           ? tr('It goes on by itself once the position has been good for a moment.')
           : tr('It goes on by itself once that is over.');
+      if (e.reason === 'SCHEDULE')
+        return tr("The schedule ended mowing, but it can't go home by itself from here, so it waits where it is. Continue it or take it home, the next plan carries on with the job.");
       // a reason to go home, but it has no way there (no docking station, no contacts at the back)
-      if (homeReason(e.reason) && e.reason !== 'MANUAL') return tr("It can't go home by itself from here, so it waits where it is until you continue it.");
+      if (homeReason(e.reason) && e.reason !== 'MANUAL') {
+        const wait = tr("It can't go home by itself from here, so it waits where it is until you continue it.");
+        return CONTINUE_WHEN[e.reason] ? `${wait} ${tr(CONTINUE_WHEN[e.reason])}` : wait;
+      }
       return e.resume === 'user' && e.reason !== 'MANUAL' ? tr('It waits where it is until you continue it.') : undefined;
     case 'MOWING_REFUSED':
       return tr('The mower stays where it is. Once the reason is gone, start it again.');
@@ -424,6 +484,20 @@ export function explain(e: MowerEvent, state?: string, gpsTimeout?: number, os =
         const then = e.type === 'DOCKING_FAILED' ? tr('It gave up and stays on the contacts.') : tr('It backs out and tries again.');
         return `${seen} ${then} ${tr('Check that the docking station has power (socket, timer, power supply) and the contacts are clean.')}`;
       }
+      if (e.cause) {
+        const why = reasonText({...e, reason: e.cause});
+        const way =
+          e.direct_blocked === true
+            ? tr("The planner gave no way to the docking station ({why}) and the straight way there wasn't free.", {why})
+            : e.direct_blocked === false
+              ? tr("The planner gave no way to the docking station ({why}) and it didn't get there on the straight way either.", {why})
+              : tr('The planner gave no way to the docking station ({why}).', {why});
+        const then =
+          e.type === 'DOCKING_FAILED'
+            ? tr('It waits where it is. Send it home again later, if it stays so, restart MowBite OS.')
+            : tr('It tries again.');
+        return `${way} ${then}`;
+      }
       // MowBite OS: it didn't set off for the dock
       if (e.type === 'DOCKING_FAILED' && e.attempts === undefined && isReasonCode(e.reason))
         return tr("Without a good enough position and heading it couldn't set off for the dock, so it waits where it is. Once the GPS is good again, send it home.");
@@ -434,6 +508,11 @@ export function explain(e: MowerEvent, state?: string, gpsTimeout?: number, os =
         : tr(
             "It couldn't reach the point in front of the dock. Usually the GPS fix was bad or the way there is blocked or outside the navigation area.",
           );
+    case 'DOCKING_DIRECT':
+      return tr(
+        'The planner gave no way to the docking station ({why}), so it drives the straight way to the point in front of it ({m} m). It checked before that the mower fits along it.',
+        {why: reasonText({...e, reason: e.cause}), m: fmt(e.distance ?? 0, 0)},
+      );
     case 'NAVIGATION_ERROR':
       return tr(
         "It couldn't follow the mowing path and the recovery didn't help, so it paused. Often something is in the way, or the path runs too close to an obstacle or the edge.",
@@ -484,7 +563,18 @@ export function explain(e: MowerEvent, state?: string, gpsTimeout?: number, os =
             "The mow motor didn't reach its speed in time, so mowing paused. Often grass is wound round the blade or the blade is blocked, or the motor or its controller is faulty.",
           )
         : spinupFailed();
+    case 'AREA_RECORDED':
+      if (e.driven !== false) return undefined;
+      return tr(NOT_DRIVEN_HELP[e.driven_reason ?? ''] ?? "It wasn't driven forward in one go. The area is mowed as usual, only without the exact edge.");
+    case 'RECORDED_BODY_KEPT':
+      return tr(
+        "The mower's new sizes couldn't be saved with the areas recorded on it, they keep the old ones. Change the sizes again, or record the areas again for the exact edge.",
+      );
     case 'RECORDING_REFUSED':
+      if (e.reason === 'REVERSING')
+        return tr(
+          'While the mower reverses, the recording takes back the points ahead of it and adds none. The area then no longer counts as driven in one go and is mowed without the exact edge. Drive forward to record.',
+        );
       return e.action === 'point'
         ? tr(
             'While the position is that inaccurate the mower records no points. Once it is good again the line goes on, straight from the last good point.',
@@ -497,6 +587,8 @@ export function explain(e: MowerEvent, state?: string, gpsTimeout?: number, os =
             "It stands on the contacts, but no charge current comes. Check that the docking station has power (socket, timer, power supply) and the contacts are clean. Once it charges again, the activity says Docked.",
           );
     case 'DOCKING':
+      if (e.reason === 'PLANNER_TIMEOUT' || e.reason === 'PLANNER_MISSING')
+        return tr("The planner didn't answer while mowing, so it goes to the docking station. The job is kept: start mowing again later, if it stays so, restart MowBite OS.");
       if (isReasonCode(e.reason))
         return e.reason === 'MANUAL'
           ? undefined

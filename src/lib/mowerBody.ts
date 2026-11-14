@@ -232,6 +232,29 @@ export async function savePlannerSettings(values: Record<string, unknown>): Prom
   return s;
 }
 
+// MowBite OS keeps the sizes itself (robot.geometry), each like a planner setting with value, default (the platform's),
+// stored and settable, the antenna too; robot.geometry.set needs the version read last
+export interface Geometry {
+  settings: Record<string, PlannerSetting>;
+  version: number;
+  platform: string;
+}
+
+export const loadGeometry = () => callRpc<Geometry>(RPC.geometry, {});
+
+// changes sizes on MowBite OS (idle only, all or nothing), the ones in reset back to the platform's. Its planner takes
+// them a moment later, until then the planner's shown with them
+export async function saveGeometry(version: number, settings: Record<string, unknown>, reset: string[]): Promise<Geometry> {
+  const g = await callRpc<Geometry>(RPC.geometrySet, {version, settings, ...(reset.length ? {reset} : {})});
+  if (current) {
+    const next = {...current.settings};
+    for (const [k, s] of Object.entries(g.settings)) if (next[k]) next[k] = {...next[k], value: s.value};
+    saves++;
+    set({...current, settings: next});
+  }
+  return g;
+}
+
 // A planner that knows outlines but plans with the rectangle while its sizes are exactly a model's with a measured
 // outline gets that outline from the app by itself: once per start (until it went through), after the shared settings
 // are in (the rectangle may be kept there), and the model is noted for the sizes card. Not on MowBite OS: the mower
@@ -269,7 +292,8 @@ export async function resetPlannerAngle(): Promise<PlannerSettings> {
   return s;
 }
 
-const num = (s: PlannerSettings | null | undefined, key: string) => {
+// a setting's number, null without one (planner.settings or robot.geometry)
+export const num = (s: Pick<PlannerSettings, 'settings'> | null | undefined, key: string) => {
   const v = s?.settings[key]?.value;
   return typeof v === 'number' && Number.isFinite(v) ? v : null;
 };
@@ -517,18 +541,17 @@ export const MOWER_MODELS: {
   {
     key: 'airseekers-tron',
     label: 'Airseekers Tron',
-    // 71.8 cm from the bar to the end of the handle and 47 cm over the rear wheels as in its data sheet, its owner measured
-    // the same (19.10.): the blade's middle 38 cm behind the bar, cutting 22 cm wide in the middle (30 cm with the big disc),
-    // the rear axle 11 cm in front of the back of the body, the handle behind it from the photo: the axle 17.8 cm in front
-    // of the handle's end
-    sizes: {width: 0.47, front: 0.54, rear: 0.178, blade: 0.22, bladeAhead: 0.16, bladeOffset: 0},
+    // measured by its owner on the mower (31.10., 05.11.), as in MowBite OS's tron.yaml: 47 cm over the rear wheels, the front
+    // 60 cm ahead of their axle, the back 12 cm behind it (72 cm long, its data sheet says 71.8), the blade's middle 23 cm
+    // ahead of it, cutting 28.1 cm wide with the big disc
+    sizes: {width: 0.47, front: 0.6, rear: 0.12, blade: 0.281, bladeAhead: 0.23, bladeOffset: 0},
     // 39.5 cm between the rear wheels
     turnRadius: 0.27,
-    // from a photo from straight above, scaled to the sizes: the bar in front, the omni wheels at its corners, widest over the
-    // rear wheels (22.5 cm across), the handle narrower behind them, both sides averaged
+    // from a photo from straight above, scaled to the length from the front to the back: the bar in front, the omni wheels
+    // at its corners, widest at the rear wheels, the handle narrower behind them, both sides averaged
     outline: [
-      [0.54, 0.13], [0.502, 0.188], [0.381, 0.227], [0.008, 0.235], [-0.1, 0.226], [-0.115, 0.205], [-0.178, 0.07],
-      [-0.178, -0.07], [-0.115, -0.205], [-0.1, -0.226], [0.008, -0.235], [0.381, -0.227], [0.502, -0.188], [0.54, -0.13],
+      [0.6, 0.13], [0.562, 0.188], [0.441, 0.227], [0.067, 0.235], [-0.042, 0.226], [-0.057, 0.205], [-0.12, 0.07],
+      [-0.12, -0.07], [-0.057, -0.205], [-0.042, -0.226], [0.067, -0.235], [0.441, -0.227], [0.562, -0.188], [0.6, -0.13],
     ],
   },
 ];

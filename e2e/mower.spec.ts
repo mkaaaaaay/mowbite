@@ -505,6 +505,7 @@ test('a page in the demo stays in it while another tab leaves the demo', async (
   await schedule.uncheck();
   await expect(page.getByText('Switched off, the mower only mows when you start it.')).toBeVisible();
   await tab(page, '/settings').click();
+  await page.getByRole('tab', {name: 'App'}).click();
   await page.locator('#look summary').click();
   await page.getByRole('checkbox', {name: 'Grass along the bottom of the screen'}).uncheck();
   // (a save goes out 0.4 s later)
@@ -521,8 +522,7 @@ test('mowers: an address that is none is turned down, removing one needs a secon
   // nowhere)
   await context.routeWebSocket(/.*/, () => {});
   const page = await context.newPage();
-  await page.goto('/settings/');
-  await page.locator('#app > summary').click();
+  await page.goto('/settings/#mowers');
   const address = page.getByLabel('Address of the other mower (IP or name in your network)');
   const add = async (typed: string) => {
     await address.fill(typed);

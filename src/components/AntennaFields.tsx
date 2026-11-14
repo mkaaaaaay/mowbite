@@ -9,13 +9,21 @@ import local from './MowerSizesSettings.module.css';
 
 type Styles = Record<string, string>;
 
+export const ANTENNA_LABELS = {antenna_x: 'Antenna ahead of the rear axle', antenna_y: 'Antenna to the left of the middle'};
+// to the millimetre
+const mm = (v: number) => Math.round(v * 1000) / 1000;
+
 
 // the GPS antenna under the mower's sizes (with the planner and without): where OpenMower has it, typed where it really
-// sits, for the sketch; nothing without the mower's value
-export function useAntennaFields(styles: Styles): {antenna?: {x: number; y: number}; fields: React.ReactNode} {
+// sits, for the sketch; nothing without the mower's value. own: MowBite OS's (robot.geometry), saved with the sizes there
+// (typed: what to save, null for nothing; bad: the one typed that isn't a number), null while it's not read yet
+export function useAntennaFields(
+  styles: Styles,
+  own?: {x: number; y: number} | null,
+): {antenna?: {x: number; y: number}; fields: React.ReactNode; typed: {x: number; y: number} | null; bad: 'antenna_x' | 'antenna_y' | null; clear: () => void} {
   const params = useMowerParams();
   const antennaX = numParam(params, PARAM.antennaX);
-  const mowerAntenna = antennaX === undefined ? undefined : {x: antennaX, y: numParam(params, PARAM.antennaY) ?? 0};
+  const mowerAntenna = own !== undefined ? (own ?? undefined) : antennaX === undefined ? undefined : {x: antennaX, y: numParam(params, PARAM.antennaY) ?? 0};
   // where the antenna really sits, typed here: OpenMower reads it from its yaml at the start only (no params.set), so
   // the app hands over the lines to put there. the fields follow the mower's values until something is typed
   const [antennaForm, setAntennaForm] = useState<{x: string; y: string} | null>(null);
@@ -25,30 +33,32 @@ export function useAntennaFields(styles: Styles): {antenna?: {x: number; y: numb
   const antenna = typedX !== null ? {x: typedX, y: typedY ?? 0} : mowerAntenna;
   const antennaChanged =
     !!antennaForm && typedX !== null && (!mowerAntenna || Math.abs(typedX - mowerAntenna.x) > 0.0005 || Math.abs((typedY ?? 0) - mowerAntenna.y) > 0.0005);
-  const yamlLines = antennaChanged
-    ? `xbot_positioning:\n  antenna_offset_x: ${Math.round(typedX * 1000) / 1000}\n  antenna_offset_y: ${Math.round((typedY ?? 0) * 1000) / 1000}`
+  const yamlLines = antennaChanged && own === undefined
+    ? `xbot_positioning:\n  antenna_offset_x: ${mm(typedX)}\n  antenna_offset_y: ${mm(typedY ?? 0)}`
     : '';
 
   const fields = (
     mowerAntenna && (
       <>
         <p className={styles.dim}>
-          {tr(
+          {own ? tr(
+            "Important: the GPS antenna's position has to be exact. MowBite OS works out the mower's position from it, the green dot. Measure it to the centimetre: if it is off, the mower's position, the outline and the cut strip are off by as much, and in turns the position swings. It is saved with the sizes.",
+          ) : tr(
             "Important: the GPS antenna's position has to be exact. OpenMower works out the mower's position from it with antenna_offset_x {x} cm (ahead of the middle of the rear wheels, behind is minus) and antenna_offset_y {y} cm (to the left) in mower_params.yaml, the green dot. Measure it to the centimetre: if it is off, the mower's position, the outline and the cut strip are off by as much, and in turns the position swings.",
             {x: Math.round(mowerAntenna.x * 1000) / 10, y: Math.round(mowerAntenna.y * 1000) / 10},
           )}
         </p>
         <div className={local.grid}>
           <label className={styles.field}>
-            {tr('Antenna ahead of the rear axle')} (cm)
+            {tr(ANTENNA_LABELS.antenna_x)} (cm)
             <input inputMode="decimal" value={antennaText.x} onChange={(e) => setAntennaForm({...antennaText, x: e.target.value})} />
           </label>
           <label className={styles.field}>
-            {tr('Antenna to the left of the middle')} (cm)
+            {tr(ANTENNA_LABELS.antenna_y)} (cm)
             <input inputMode="decimal" value={antennaText.y} onChange={(e) => setAntennaForm({...antennaText, y: e.target.value})} />
           </label>
         </div>
-        {antennaChanged && (
+        {yamlLines && (
           <>
             <p className={styles.dim}>
               {tr(
@@ -64,5 +74,12 @@ export function useAntennaFields(styles: Styles): {antenna?: {x: number; y: numb
       </>
     )
   );
-  return {antenna, fields: mowerAntenna ? fields : null};
+  const bad = !antennaForm ? null : typedX === null && antennaText.x.trim() ? 'antenna_x' : typedY === null && antennaText.y.trim() ? 'antenna_y' : null;
+  return {
+    antenna,
+    fields: mowerAntenna ? fields : null,
+    typed: own && antennaChanged ? {x: mm(typedX), y: mm(typedY ?? 0)} : null,
+    bad,
+    clear: () => setAntennaForm(null),
+  };
 }

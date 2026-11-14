@@ -12,7 +12,7 @@ import {useEggForced, useUmbrella} from '@/lib/eggs';
 import {lastRun as newestRun, useRecentRuns} from '@/hooks/useRecentRuns';
 import {clearTrack, trackPoints, useLastRun, useLastRunJob, useMowerTrack} from '@/hooks/useMowerTrack';
 import {useMarginPlaces} from '@/lib/marginCheck';
-import {useLeftoversBefore} from '@/hooks/useLeftoversBefore';
+import {useTrackBefore} from '@/hooks/useLeftoversBefore';
 import {usePlanProgress} from '@/hooks/usePlanProgress';
 import {datumFromParams, numParam, useMowerParams} from '@/hooks/useMowerParams';
 import {loadJobTrack, useJobList, useMowHistory, type TrackSegment} from '@/hooks/useMowHistory';
@@ -135,7 +135,7 @@ function MapEditor() {
   const planProgress = usePlanProgress(mowingState, liveMap, recent?.today);
   const progress = planProgress?.leftovers && !planProgress.todoLength && !planProgress.doneLength ? null : planProgress;
   // and that mow's track, faded under the trail
-  const before = useLeftoversBefore(!!planProgress?.leftovers);
+  const before = useTrackBefore(!!planProgress?.leftovers).track;
   // the mower's icon dressed like the eater on the dashboard
   const umbrella = useUmbrella(newestRun());
   const towel = useEggForced('towel');

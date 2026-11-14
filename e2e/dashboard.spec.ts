@@ -11,6 +11,7 @@ test.describe('dashboard', () => {
     await expect(status).toContainText('Mow motor');
 
     await tab(page, '/settings').click();
+    await page.getByRole('tab', {name: 'App'}).click();
     await page.locator('#look summary').click();
     const item = page.getByRole('checkbox', {name: 'Mow motor', exact: true});
     await expect(item).toBeChecked();

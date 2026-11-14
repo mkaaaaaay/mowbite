@@ -16,6 +16,7 @@ const picture = (page: Page) =>
 // the camera picture switched on for the dashboard, and back there
 async function onDashboard(page: Page) {
   await tab(page, '/settings').click();
+  await page.getByRole('tab', {name: 'App'}).click();
   await page.locator('#look summary').click();
   await page.getByRole('checkbox', {name: 'Camera picture'}).check();
   await tab(page, '/').click();
@@ -95,6 +96,7 @@ test.describe('cameras', () => {
 
   test('none on a mower without them, ones that come up while the app is open show without a reload and leave when their process ends', async ({page}) => {
     await page.goto('/settings/');
+    await page.getByRole('tab', {name: 'App'}).click();
     await page.locator('#look summary').click();
     await expect(page.getByRole('checkbox', {name: 'Mow motor', exact: true})).toBeVisible();
     await expect(page.getByRole('checkbox', {name: 'Camera picture'})).toHaveCount(0);

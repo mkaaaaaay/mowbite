@@ -94,11 +94,17 @@ export function UpdateCommand({here}: {here?: boolean}) {
       .then((s) => setUpdater(updaterAlive(s)))
       .catch(() => {});
   }, []);
-  if (updater && here) return <span className={styles.versions}>{tr('Update it above, under "On the mower"')}</span>;
+  // (a plain link on the settings page: only its anchor changes, and with it the tab)
+  if (updater && here)
+    return (
+      <a href="#update" className={styles.versions}>
+        {tr('Update it under Mower › Updates')}
+      </a>
+    );
   if (updater)
     return (
-      <Link href="/settings#updates" className={styles.versions}>
-        {tr('Update it in the settings under "Updates"')}
+      <Link href="/settings#update" className={styles.versions}>
+        {tr('Update it in the settings under Mower › Updates')}
       </Link>
     );
   return (
@@ -126,8 +132,7 @@ export function UpdateSettings({cardClass}: {cardClass: string}) {
   const {u, app, mower, missing, appOld, mowerOld, storeOld} = useOutdated();
 
   return (
-    <section className={cardClass} id="updates">
-      <h2>{tr('This app')}</h2>
+    <section className={cardClass}>
       <CreditsTrigger className={styles.versions}>
         {app ? `${tr('App')} ${APP_VERSION} · ${tr('Mower')} ${mower ?? (u.level === 0 ? tr('older version') : '?')}` : `MowBite ${APP_VERSION}`}
       </CreditsTrigger>
@@ -210,7 +215,7 @@ export function UpdateBanner() {
   const v = u.latest.version;
   return (
     <div className={styles.banner}>
-      <Link href="/settings#updates">{tr('MowBite {v} is out, see the settings', {v})}</Link>
+      <Link href={appOld ? '/settings#updates' : '/settings#update'}>{tr('MowBite {v} is out, see the settings', {v})}</Link>
       <button onClick={() => dismissUpdate(v)} aria-label={tr('Close')}>
         ×
       </button>
@@ -226,7 +231,7 @@ export function LegalFooter({className}: {className?: string}) {
         {tr('Privacy policy')}
       </a>
       <span>
-        © 2026 mkay · {tr('Free software under the GPL-3.0: you may pass it on and change it under its terms. It comes without any warranty.')}{' '}
+        © 2026 mkay · {tr('Under the PolyForm Noncommercial 1.0.0: free to use, change and pass on for noncommercial purposes, commercial use needs a license of its own. It comes without any warranty.')}{' '}
         <a href={LICENSE_URL} target="_blank" rel="noreferrer">
           {tr('License and source code')}
         </a>

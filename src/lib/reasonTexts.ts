@@ -59,6 +59,19 @@ export const REFUSED_STEPS: Record<string, string> = {
   point: 'No points recorded',
 };
 
+// why a recorded area wasn't driven in one go (AREA_RECORDED with driven false, MowBite OS only): mowed as usual, only
+// without the exact edge
+export const NOT_DRIVEN: Record<string, string> = {
+  MANUAL_POINT: 'points set by hand',
+  NO_HEADING: 'heading unknown',
+  INTERRUPTED: 'recording interrupted',
+  REVERSED: 'reversed',
+  CLOSING: 'start not driven over',
+  GAP: 'gap in the line',
+  DIRECTION: 'not along the heading',
+  SHARP_TURN: 'turn too sharp',
+};
+
 // the phases of the calibration drive (CALIBRATION, MowBite OS only)
 const CALIBRATION_PHASES: Record<string, string> = {
   start: 'Calibration drive started',
@@ -80,6 +93,7 @@ export const EVENTS: Record<string, EventText> = {
     variants: [
       // MowBite OS says why it paused
       alone({when: {state: 'PAUSED', reason: 'MANUAL'}, en: 'Paused'}),
+      {when: {state: 'PAUSED', reason: 'SCHEDULE'}, en: 'Paused'},
       {when: {state: 'PAUSED', reason: {present: true}}, en: 'Paused', severity: 'warning'},
       ...STATE_NAMES.map(([state, en]) => alone({when: {state}, en})),
       alone({when: {state: {present: true}}, en: '{state}'}),
@@ -94,8 +108,8 @@ export const EVENTS: Record<string, EventText> = {
   },
   BLADES: {severity: 'info', variants: [{when: {enabled: true}, en: 'Blades on'}, {en: 'Blades off'}]},
   AREA: {severity: 'info', variants: [{when: {area_name: {present: true}}, en: 'Mowing "{area_name}"'}, {en: 'Mowing "unnamed"'}]},
-  // only happens when someone presses skip
-  AREA_SKIPPED: {severity: 'info', variants: [alone({en: 'Area skipped'})]},
+  // someone pressed skip, or on MowBite OS the schedule's end time or pause
+  AREA_SKIPPED: {severity: 'info', variants: [{when: {reason: 'SCHEDULE'}, en: 'Area skipped'}, alone({en: 'Area skipped'})]},
   UNDOCKED: one('Left the dock'),
   UNDOCKING_FAILED: {severity: 'error', join: '{head} ({reason})', variants: [{en: 'Leaving the dock failed'}]},
   // OpenMower's free text is the reader's, MowBite OS's names are here
@@ -108,7 +122,18 @@ export const EVENTS: Record<string, EventText> = {
       {when: {reason: 'BATTERY_CRITICAL'}, en: 'Heading home to charge', severity: 'warning'},
       {when: {reason: 'BATTERY_HOT'}, en: 'Heading home', severity: 'warning'},
       {when: {reason: 'MOTOR_HOT'}, en: 'Heading home', severity: 'warning'},
+      {when: {reason: 'PLANNER_TIMEOUT'}, en: 'Heading home', severity: 'warning'},
+      {when: {reason: 'PLANNER_MISSING'}, en: 'Heading home', severity: 'warning'},
       {en: 'Heading home'},
+    ],
+  },
+  // MowBite OS: the planner gave no way home, it drives the straight one
+  DOCKING_DIRECT: {
+    severity: 'warning',
+    variants: [
+      {when: {cause: 'PLANNER_TIMEOUT'}, en: 'Heading straight home, no answer from the planner'},
+      {when: {cause: 'PLANNER_MISSING'}, en: 'Heading straight home, the planner is not running'},
+      {en: 'Heading straight home'},
     ],
   },
   DOCKING_RETRY: {
@@ -148,6 +173,18 @@ export const EVENTS: Record<string, EventText> = {
   SHUTDOWN: one('Mower software stopped'),
   // from here on MowBite OS only
   MOWING_REFUSED: one('Mowing not started', 'warning'),
+  // a plan of MowBite OS's schedule announces its start (light and sound), then checks again and leaves the dock
+  SCHEDULE_START: {severity: 'info', variants: [{when: {seconds: {present: true}}, en: 'Scheduled start in {seconds} s'}, {en: 'Scheduled start'}]},
+  SCHEDULE_START_CANCELED: {
+    severity: 'info',
+    variants: [
+      {when: {source: 'emergency'}, en: 'Scheduled start canceled, emergency stop'},
+      {when: {source: 'rpc'}, en: 'Scheduled start canceled by hand'},
+      {when: {source: 'undocked'}, en: 'Scheduled start canceled, the mower left the dock'},
+      {when: {source: 'hold'}, en: 'Scheduled start canceled, an update is starting'},
+      {en: 'Scheduled start canceled'},
+    ],
+  },
   DRIVE_REFUSED: one('Drive not started', 'warning'),
   // a command the mower turned down without an event of its own, only in the answer to its call
   COMMAND_REFUSED: one('Not done'),
@@ -257,6 +294,8 @@ export const EVENTS: Record<string, EventText> = {
   DOCK_RECORDED: one('Docking station recorded'),
   // after robot.geometry.set, the sizes it's about the app names itself (changed, below_default)
   GEOMETRY_CHANGED: {severity: 'info', variants: [{when: {reason: 'BELOW_DEFAULT'}, en: 'Sizes changed', severity: 'warning'}, {en: 'Sizes changed'}]},
+  // robot.geometry.set changed the sizes, the areas recorded on this mower couldn't take them
+  RECORDED_BODY_KEPT: one('Sizes not saved with the areas', 'warning'),
   // the planner has the leftovers of a finished mow ready, whether they're mowed the schedule decides (leftovers_skip)
   LEFTOVERS_ARMED: {
     severity: 'info',
@@ -274,6 +313,7 @@ export const REASONS: Record<string, Variant[]> = {
   no_gps: [r('no GPS fix')],
   BUSY: [
     r('another sound is being uploaded or checked', {when: {type: 'SOUND_REFUSED'}}),
+    r('the mower is working right now', {when: {type: 'UPDATE'}}),
     r('busy: Idle', {when: {state: 'IDLE'}}),
     r('busy: Mowing', {when: {state: 'MOWING'}}),
     r('busy: Recording an area', {when: {state: 'AREA_RECORDING'}}),
@@ -299,6 +339,20 @@ export const REASONS: Record<string, Variant[]> = {
   ON_DOCK: [r('on the docking station, drive it off by remote control first')],
   RAIN: [r('rain')],
   DARK: [r('the sun has set')],
+  // MowBite OS's schedule: the plan's end time came or its areas are paused
+  SCHEDULE: [
+    r("the plan's end time has come", {when: {detail: 'end'}}),
+    r("the plan's areas are paused", {when: {detail: 'pause'}}),
+    r('the schedule'),
+  ],
+  NOT_DOCKED: [r('not in the dock, a scheduled start only goes from there')],
+  // MOWING_REFUSED of a scheduled start, clock_reason as schedule.get has it
+  CLOCK_UNSAFE: [
+    r("the mower's clock was never set", {when: {clock_reason: 'never_synced'}}),
+    r("the mower's clock jumped", {when: {clock_reason: 'clock_jump'}}),
+    r("the mower's clock doesn't match the GPS time", {when: {clock_reason: 'gnss_mismatch'}}),
+    r("the mower's clock isn't confirmed"),
+  ],
   BATTERY_LOW: [
     r('battery low ({battery_voltage:1} V)', {when: {type: 'DOCKING', battery_voltage: {present: true}}}),
     r('battery low ({battery_voltage:1} V, at least {limit:1} V needed)', {when: {battery_voltage: {present: true}, limit: {present: true}}}),
@@ -386,6 +440,7 @@ export const REASONS: Record<string, Variant[]> = {
   TOO_MANY_POINTS: [r('the line has {limit} points, the maximum: close it')],
   POINT_TOO_CLOSE: [r('only {distance:2} m from the last point, more than {limit:2} m needed')],
   DOCK_TOO_CLOSE: [r('only {distance:2} m from the first point, the direction needs at least {limit:2} m')],
+  REVERSING: [r('reversing takes back the points ahead of it, drive forward to record')],
   // one with a code not known here says the mower's text (fallback)
   SAVE_FAILED: [
     r('saving failed: the change is not a valid map', {when: {code: 'INVALID'}}),
@@ -641,6 +696,7 @@ export function reasonsFile() {
     ),
     reasons: Object.fromEntries(Object.entries(REASONS).map(([k, list]) => [k, list.map(both)])),
     wrappers: Object.fromEntries(Object.entries(WRAPPERS).map(([k, w]) => [k, both(w)])),
+    not_driven: texts(NOT_DRIVEN),
     emergency_bits: Object.fromEntries(EMERGENCY_BITS.flatMap((b, i) => (b ? [[String(i), b]] : []))),
     emergency_text: texts(EMERGENCY_TEXT),
     emergency_hide: EMERGENCY_HIDE,

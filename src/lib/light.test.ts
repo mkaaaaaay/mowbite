@@ -12,12 +12,16 @@ describe('the lights', () => {
     expect(fitted({effect: 'solid', colors: ['#ff0000', '#00ff00']}, limits).colors).toEqual(['#ff0000']);
     expect(fitted({effect: 'pulse', colors: []}, limits).colors).toEqual(['#ffffff']);
     expect(fitted({effect: 'off', colors: ['#ff0000']}, limits).colors).toEqual([]);
+    expect(fitted({effect: 'rainbow', colors: ['#ff0000']}, limits).colors).toEqual([]);
+    expect(colorsUsed('comet', 4)).toBe(2);
   });
 
-  it('keep the period and the brightness within what the mower takes, a gradient may stand still', () => {
+  it('keep the period and the brightness within what the mower takes, a gradient, a rainbow and a level may stand still', () => {
     expect(fitted({effect: 'blink', colors: ['#ffffff'], period: 0.05}, limits)).toEqual({effect: 'blink', colors: ['#ffffff'], period: 0.2, brightness: 1});
     expect(fitted({effect: 'gradient', colors: ['#ffffff', '#000000'], period: 0}, limits).period).toBe(0);
     expect(fitted({effect: 'solid', colors: ['#ffffff'], period: 0}, limits).period).toBe(0.2);
+    expect(fitted({effect: 'rainbow', period: 0}, limits).period).toBe(0);
+    expect(fitted({effect: 'level', colors: ['#ffffff'], period: 0}, limits).period).toBe(0);
     expect(fitted({effect: 'chase', colors: ['#ffffff'], period: 99, brightness: 1.5}, limits)).toMatchObject({period: 20, brightness: 1});
   });
 

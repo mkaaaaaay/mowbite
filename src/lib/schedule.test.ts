@@ -1,7 +1,45 @@
 import {describe, expect, it, vi} from 'vitest';
 import {setLangChoice} from './i18n';
-import {daySun, inOtherZone, isNightTime, logTone, missedStart, nextStart, parseSchedule, posixTz, reachesDark, scheduleLogLine, scheduleNow, serializeSchedule, tzOffset, type Schedule} from './schedule';
+import {readFileSync} from 'node:fs';
+import {join} from 'node:path';
+import {
+  changedElsewhere,
+  daySun,
+  fromOs,
+  inOtherZone,
+  loadSchedule,
+  loadScheduleLog,
+  isNightTime,
+  logTone,
+  missedStart,
+  nextStart,
+  osSun,
+  parseRunStop,
+  parseSchedule,
+  posixTz,
+  readyText,
+  runStopText,
+  reachesDark,
+  SCHEDULE_LOG_TEXT,
+  scheduleLogLine,
+  scheduleNow,
+  saveSchedule,
+  serializeSchedule,
+  startedBy,
+  toOs,
+  tzOffset,
+  type Schedule,
+} from './schedule';
+import {callRpc, rpcMethods, RpcError} from './rpc';
 import {sunTimes} from './sun';
+import {clock} from './dates';
+import {DOCKED_VOLTAGE} from './openmower';
+
+vi.mock('./rpc', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./rpc')>()),
+  rpcMethods: vi.fn(async () => null),
+  callRpc: vi.fn(),
+}));
 
 // the dates below are local times, so the same zone everywhere (github runs in UTC)
 process.env.TZ = 'Europe/Berlin';
@@ -101,9 +139,17 @@ describe('nextStart', () => {
     expect(nextStart(schedule([plan([1], '09:00')], false), monday8)).toBeNull();
   });
 
-  it('leaves out a start in the hour skipped when summer time begins', () => {
+  it('moves a start in the hour skipped when summer time begins to its end', () => {
     const sunday1 = new Date(2026, 2, 29, 1, 0);
-    expect(nextStart(schedule([plan([7], '02:30')]), sunday1)).toEqual(new Date(2026, 3, 5, 2, 30));
+    expect(nextStart(schedule([plan([7], '02:30')]), sunday1)).toEqual(new Date(2026, 2, 29, 3, 0));
+    expect(nextStart(schedule([plan([7], '02:00')]), sunday1)).toEqual(new Date(2026, 2, 29, 3, 0));
+    // where the gap begins at midnight
+    process.env.TZ = 'America/Santiago';
+    try {
+      expect(nextStart(schedule([plan([7], '00:30')]), new Date(2026, 8, 5, 23, 0))).toEqual(new Date(2026, 8, 6, 1, 0));
+    } finally {
+      process.env.TZ = 'Europe/Berlin';
+    }
     expect(nextStart(schedule([plan([7], '03:30')]), sunday1)).toEqual(new Date(2026, 2, 29, 3, 30));
   });
 });
@@ -365,8 +411,224 @@ describe('the leftovers in the log', () => {
 describe("the updater's hold in the log", () => {
   it('waits while it holds, a start it held for two hours is one that went wrong', () => {
     expect(scheduleLogLine({t: 0, what: 'waiting_hold'})).toBe('Waiting, an update is running');
-    expect(logTone('waiting_hold')).toBeNull();
-    expect(logTone('skip_hold')).toBe('bad');
+    expect(logTone({what: 'waiting_hold'})).toBeNull();
+    expect(logTone({what: 'skip_hold'})).toBe('bad');
     expect(missedStart([{t: 1_790_890_000 - 60, what: 'skip_hold'}], 1_790_890_000)?.what).toBe('skip_hold');
+  });
+});
+
+describe('a failed undocking in the log', () => {
+  it('says why, that it starts again and how that went', () => {
+    expect(scheduleLogLine({t: 0, what: 'undock_failed', detail: 'path_failed', more: '3', at: '17:40'})).toBe(
+      "Undocking failed (couldn't follow the path), starts again in 3 minutes",
+    );
+    expect(scheduleLogLine({t: 0, what: 'undock_failed', detail: 'unknown', more: '3'})).toBe('Undocking failed, starts again in 3 minutes');
+    expect(scheduleLogLine({t: 0, what: 'start_retry', detail: '2', more: '3'})).toBe('Started again (start 2 of 3)');
+    expect(scheduleLogLine({t: 0, what: 'start_failed', detail: 'undock', more: 'no_gps', at: '17:40'})).toBe(
+      'Not started, undocking failed again (no GPS fix)',
+    );
+    // the leftovers' start isn't tried again
+    expect(scheduleLogLine({t: 0, what: 'start_failed', detail: 'undock', more: 'path_failed'})).toBe(
+      "Not started, undocking failed (couldn't follow the path)",
+    );
+    expect(scheduleLogLine({t: 0, what: 'retry_skip', detail: 'emergency'})).toBe('Not started again, emergency stop was active');
+    expect(scheduleLogLine({t: 0, what: 'retry_skip', detail: 'undocked'})).toBe('Not started again, the mower was no longer in the dock');
+    expect(scheduleLogLine({t: 0, what: 'start_failed'})).toBe("The mower didn't react to the start, still idle a minute later");
+  });
+  it('marks it, not when it was started meanwhile, the schedule switched off or the mower busy', () => {
+    expect(logTone({what: 'undock_failed'})).toBe('bad');
+    expect(logTone({what: 'start_retry'})).toBe('good');
+    expect(logTone({what: 'retry_skip', detail: 'end'})).toBe('bad');
+    expect(logTone({what: 'retry_skip', detail: 'undocked'})).toBe('bad');
+    expect(logTone({what: 'retry_skip', detail: 'started'})).toBeNull();
+    expect(logTone({what: 'retry_skip', detail: 'busy'})).toBeNull();
+  });
+  it('on the dashboard while it waits and after the last try, not once it started again', () => {
+    const now = 1_790_890_000;
+    const failed = {t: now - 600, what: 'undock_failed', detail: 'path_failed', at: '17:40'};
+    expect(missedStart([failed], now)?.what).toBe('undock_failed');
+    expect(missedStart([failed, {t: now - 400, what: 'start_retry', detail: '2'}], now)).toBeNull();
+    expect(missedStart([failed, {t: now - 400, what: 'retry_skip', detail: 'started'}], now)).toBeNull();
+    expect(missedStart([failed, {t: now - 400, what: 'retry_skip', detail: 'busy'}], now)).toBeNull();
+    expect(missedStart([failed, {t: now - 400, what: 'retry_skip', detail: 'undocked'}], now)?.what).toBe('retry_skip');
+    expect(missedStart([failed, {t: now - 400, what: 'retry_skip', detail: 'emergency'}], now)?.what).toBe('retry_skip');
+  });
+});
+
+describe('starts by hand', () => {
+  it('in the log, with the time it goes home at', () => {
+    expect(scheduleLogLine({t: 0, what: 'started_by_hand', detail: '19:00'})).toBe('Started by hand, goes home at 19:00');
+    expect(scheduleLogLine({t: 0, what: 'started_by_hand'})).toBe('Started by hand');
+    expect(scheduleLogLine({t: 0, what: 'stopped_hand'})).toBe('Sent home, the time for starts by hand reached');
+    expect(logTone({what: 'started_by_hand'})).toBeNull();
+  });
+  it('a failed start of the schedule seen to by one', () => {
+    const now = 1_790_890_000;
+    const failed = {t: now - 600, what: 'start_failed', detail: 'undock', more: 'path_failed', at: '17:40'};
+    expect(missedStart([failed], now)?.what).toBe('start_failed');
+    expect(missedStart([failed, {t: now - 60, what: 'started_by_hand'}], now)).toBeNull();
+  });
+  it('their time saved and read, none without it', () => {
+    const s = {...schedule([]), handStop: '19:00'};
+    expect(serializeSchedule(s)).toContain('\nhandstop 19:00\n');
+    expect(parseSchedule(serializeSchedule(s)).handStop).toBe('19:00');
+    expect(serializeSchedule(schedule([]))).not.toContain('handstop');
+    expect(parseSchedule('handstop 9:00').handStop).toBeUndefined();
+  });
+});
+
+describe('who started a run', () => {
+  const log = [
+    {t: 1000, what: 'started', detail: '90', at: '17:40'},
+    {t: 1190, what: 'start_retry', detail: '2', at: '17:40'},
+    {t: 5000, what: 'started_by_hand', detail: '19:00'},
+    {t: 9000, what: 'leftovers_started', detail: '3.2'},
+  ];
+  it('the line logged right before it left, or right after for one by hand', () => {
+    expect(startedBy(1003, log)).toBe('Started by the schedule');
+    expect(startedBy(1192, log)).toBe('Started again by the schedule, undocking had failed');
+    expect(startedBy(4998, log)).toBe('Started by hand');
+    expect(startedBy(9010, log)).toBe('Started by MowBite for the leftovers');
+  });
+  it('nothing without one that fits: carried on after charging, the button, a log too old', () => {
+    expect(startedBy(3000, log)).toBeNull();
+    expect(startedBy(900, log)).toBeNull();
+    expect(startedBy(1003, [])).toBeNull();
+  });
+});
+
+describe('when the run going on goes home', () => {
+  it('read from the container, an older one answers with the schedule', () => {
+    expect(parseRunStop('1790900000 hand\n')).toEqual({at: 1790900000, why: 'hand'});
+    expect(parseRunStop('1790900000 dark')).toEqual({at: 1790900000, why: 'dark'});
+    expect(parseRunStop('')).toBeNull();
+    expect(parseRunStop('enabled 1\nminbattery 80\n')).toBeNull();
+  });
+  it('on the dashboard, at sunset said as such', () => {
+    const at = 1_790_900_000;
+    expect(runStopText({at, why: 'end'})).toBe(`goes home at ${clock(at)}`);
+    expect(runStopText({at, why: 'hand'})).toBe(`goes home at ${clock(at)}`);
+    expect(runStopText({at, why: 'dark'})).toBe(`goes home at sunset, ${clock(at)}`);
+  });
+});
+
+describe('the words the scheduler logs', () => {
+  const SH = readFileSync(join(__dirname, '../../docker/scheduler.sh'), 'utf8');
+  it('each has a text', () => {
+    const sh = SH.split('\n')
+      .filter((l) => !l.trim().startsWith('#'))
+      .join('\n');
+    const words = new Set([...sh.matchAll(/\bs?log "?([a-z_]+)\b/g)].map((m) => m[1]));
+    // stopped_$why: end, dark, hand
+    for (const why of ['end', 'dark', 'hand']) words.add(`stopped_${why}`);
+    words.delete('stopped_');
+    // with their own texts by the detail
+    const own = ['leftovers_skip', 'retry_skip', 'started_by_hand'];
+    const missing = [...words].filter((w) => !SCHEDULE_LOG_TEXT[w] && !own.includes(w));
+    expect(missing).toEqual([]);
+    expect(words.size).toBeGreaterThan(30);
+  });
+  it('each reason not to start again too', () => {
+    const body = SH.slice(SH.indexOf('no_retry() {'), SH.indexOf('\n}\n', SH.indexOf('no_retry() {')));
+    const why = [...body.matchAll(/echo ([a-z_]+); return/g)].map((m) => m[1]);
+    expect(why.length).toBeGreaterThan(6);
+    for (const w of why) expect(scheduleLogLine({t: 0, what: 'retry_skip', detail: w}), w).not.toBe('Not started again');
+  });
+  it('takes the mower for docked at the voltage the app does', () => {
+    const sh = readFileSync(join(__dirname, '../../docker/openmower.sh'), 'utf8');
+    expect(Number(/^DOCKED_VOLTAGE=(\S+)$/m.exec(sh)?.[1])).toBe(DOCKED_VOLTAGE);
+  });
+});
+
+describe("MowBite OS's own schedule", () => {
+  const answer = (version: number) => ({
+    schema: 1,
+    version,
+    available: true,
+    reason: null,
+    clock_ok: false,
+    clock_reason: 'clock_jump',
+    next_start: null,
+    schedule: {
+      enabled: 1,
+      min_battery: 60,
+      skip_rain: 1,
+      skip_forecast: 0,
+      forecast_hours: 2,
+      skip_cold: 1,
+      min_temp: 8,
+      tz: 'CET-1CEST,M3.5.0,M10.5.0/3',
+      plans: [
+        {days: [1, 3], time: '09:00', areas: ['a'], end: '12:00', dark: 0, sunset: 1, fresh: 0, angle_offset_deg: 90},
+        {days: [6], time: '14:00', dark: 1, sunset: 0, fresh: 1},
+      ],
+      pause: {until: '2026-11-20', areas: 'all' as const},
+    },
+    sun: {rise: Date.UTC(2026, 10, 13, 6, 30) / 1000, set: Date.UTC(2026, 10, 13, 15, 40) / 1000},
+  });
+
+  it('reads it in the app\'s fields and writes it back the same', () => {
+    const s = fromOs(answer(3));
+    expect(s.plans).toEqual([
+      {days: [1, 3], time: '09:00', areas: ['a'], end: '12:00', sunset: true, angle: 90},
+      {days: [6], time: '14:00', areas: [], dark: true, fresh: true},
+    ]);
+    expect(s).toMatchObject({enabled: true, minBattery: 60, skipRain: true, skipForecast: false, skipCold: true, minTemp: 8});
+    expect(s.os).toEqual({available: true, clockReason: 'clock_jump', sun: answer(3).sun});
+    const back = toOs(s);
+    expect(back).toEqual({...answer(3).schedule, plans: [answer(3).schedule.plans[0], {...answer(3).schedule.plans[1], areas: []}]});
+    // its sun by the schedule's clock
+    expect(osSun(s)).toEqual({rise: '07:30', set: '16:40'});
+  });
+
+  it('asks the OS once it offers schedule.get and names the version it read when it saves', async () => {
+    vi.mocked(rpcMethods).mockResolvedValue(new Set(['schedule.get', 'schedule.set', 'schedule.log']));
+    const call = vi.mocked(callRpc);
+    call.mockImplementation(async (method: string) =>
+      method === 'schedule.log'
+        ? {entries: [{t: 1, what: 'skip_clock', detail: 'never_synced', more: null, at: '09:00'}, {t: 2, what: 'started', detail: 85, more: null, at: null}]}
+        : answer(method === 'schedule.set' ? 8 : 7),
+    );
+    try {
+      const s = await loadSchedule(true);
+      expect(s?.os?.clockReason).toBe('clock_jump');
+      await saveSchedule({...s!, enabled: false});
+      expect(call).toHaveBeenLastCalledWith('schedule.set', {schedule: expect.objectContaining({enabled: 0}), version: 7});
+      // newest first, numbers as words
+      expect(await loadScheduleLog()).toEqual([
+        {t: 2, what: 'started', detail: '85'},
+        {t: 1, what: 'skip_clock', detail: 'never_synced', at: '09:00'},
+      ]);
+      expect(changedElsewhere(new RpcError('schedule.set', -32001, 'version'))).toBe(true);
+    } finally {
+      vi.mocked(rpcMethods).mockResolvedValue(null);
+      call.mockReset();
+    }
+  });
+
+  it('says the words of its log', () => {
+    expect(scheduleLogLine({t: 0, what: 'skip_clock', detail: 'gnss_mismatch'})).toBe("Not started: the mower's clock doesn't match the GPS time");
+    expect(scheduleLogLine({t: 0, what: 'start_refused', detail: 'CLOCK_UNSAFE', more: 'never_synced'})).toBe(
+      "Not started, the mower turned it down: the mower's clock was never set",
+    );
+    expect(scheduleLogLine({t: 0, what: 'start_failed', detail: 'UNDOCKING_FAILED'})).toBe('Not started: Leaving the dock failed');
+    expect(scheduleLogLine({t: 0, what: 'start_failed', detail: 'timeout'})).toBe("Not started, the mower didn't get going");
+    expect(scheduleLogLine({t: 0, what: 'start_canceled', detail: 'undocked'})).toBe('Scheduled start canceled, the mower left the dock');
+    expect(scheduleLogLine({t: 0, what: 'weather_unknown', detail: 'cold'})).toBe('No temperature came, started without it');
+    expect(logTone({what: 'start_canceled', detail: 'rpc'})).toBeNull();
+    expect(logTone({what: 'start_canceled', detail: 'emergency'})).toBe('bad');
+    expect(logTone({what: 'skip_not_docked'})).toBe('bad');
+  });
+
+  it('leaves a start canceled by hand alone', () => {
+    const now = 1_800_000_000;
+    expect(missedStart([{t: now - 60, what: 'start_canceled', detail: 'rpc'}], now)).toBeNull();
+    expect(missedStart([{t: now - 60, what: 'start_canceled', detail: 'emergency'}], now)?.what).toBe('start_canceled');
+  });
+
+  it('says whether the next start would go', () => {
+    expect(readyText({ok: true, reason: null})).toBe('Ready to start as things are now');
+    expect(readyText({ok: false, reason: 'skip_not_docked'})).toBe('Not ready as things are now: not in the dock');
+    expect(readyText({ok: false, reason: 'skip_something_new'})).toBe('Not ready as things are now: skip something new');
   });
 });

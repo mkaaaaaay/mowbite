@@ -1,10 +1,10 @@
 'use client';
 
-import {forgetJobList, loadJobList} from '@/hooks/useMowHistory';
+import {forgetJobList, loadJobList, type TrackSegment} from '@/hooks/useMowHistory';
 import {getMqttClient, onTopic} from '@/lib/mqttClient';
 import {readMower, writeMower} from '@/lib/mowers';
 import {callRpc} from '@/lib/rpc';
-import {useSyncExternalStore} from 'react';
+import {useMemo, useSyncExternalStore} from 'react';
 import {RPC, TOPIC} from '@/lib/openmower';
 
 export interface Point {
@@ -40,6 +40,10 @@ let askedLast = 0;
 const ASK_AGAIN_MS = 30000;
 // the job the trail is of
 const shownJob = () => jobId ?? lastJob?.id ?? null;
+// the trips of that job before the one in the trail, the trip the positions are of (OpenMower's session) and when it began
+let earlier: Trip[] = [];
+let session: string | undefined;
+let tripAt = 0;
 let blades: boolean | undefined;
 // what came in live while the recorded track was loading
 let whileLoading: Point[] = [];
@@ -139,23 +143,59 @@ function notifySoon() {
 // connection was gone (phone asleep, app in the background), the live trail misses that part
 let loading = false;
 
-type Recorded = {segments?: {points: [number, number][]; attributes?: {blades?: boolean}}[]; buffer?: [number, number][]};
+type Recorded = {segments?: TrackSegment[]; buffer?: [number, number][]};
 
-// the points of a recorded track, and how many of them the mower has written for good: those only grow, the buffer
-// after them is thinned out once it's written
-export function recordedPoints(h: Recorded, bladesNow: boolean | undefined): {points: Point[]; written: number} {
-  const done = (h.segments ?? []).flatMap((s) => s.points.map(([x, y]) => ({x, y, b: s.attributes?.blades})));
+// a track drawn faded under the trail, in pieces with the blades on or off
+export type BeforeTrack = {points: {x: number; y: number}[]; blades: boolean}[];
+
+// a trip of the job before the one shown in full (the mower out of the dock and back, OpenMower's session): when it
+// started (unix s) and its pieces, thinned out
+export interface Trip {
+  at: number;
+  segments: BeforeTrack;
+}
+
+// the points of a recorded track's last trip (its last segment's session; all of it without sessions), the trips of the
+// job before it, and how many points the mower has written for good: those only grow, the buffer after them is thinned
+// out once it's written. cut: the first that many points were cleared by hand, from all trips
+export function recordedPoints(
+  h: Recorded,
+  bladesNow: boolean | undefined,
+  cut = 0,
+): {points: Point[]; earlier: Trip[]; at: number | undefined; written: number} {
+  const segs = h.segments ?? [];
+  const last = segs.at(-1)?.attributes?.session_id;
+  let points: Point[] = [];
+  const earlier: Trip[] = [];
+  let at: number | undefined;
+  let i = 0;
+  let before: string | undefined;
+  for (const s of segs) {
+    const pts = s.points.slice(Math.max(0, cut - i)).map(([x, y]) => ({x, y, b: s.attributes.blades}));
+    i += s.points.length;
+    const session = s.attributes.session_id;
+    if (session === last) {
+      at ??= s.started_at;
+      points = points.concat(pts);
+    } else if (pts.length) {
+      const seg = {points: thin(pts).map(({x, y}) => ({x, y})), blades: !!s.attributes.blades};
+      if (earlier.length && before === session) earlier[earlier.length - 1].segments.push(seg);
+      else earlier.push({at: s.started_at ?? 0, segments: [seg]});
+    }
+    before = session;
+  }
   // the buffer is the segment still being written, so it has the current blade state
-  return {points: [...done, ...(h.buffer ?? []).map(([x, y]) => ({x, y, b: bladesNow}))], written: done.length};
+  const buffer = (h.buffer ?? []).slice(Math.max(0, cut - i)).map(([x, y]) => ({x, y, b: bladesNow}));
+  return {points: points.concat(buffer), earlier, at, written: i};
 }
 
 // of the job asked for last: how many of its points were written for good then
 let written: {job: string; points: number} | null = null;
 
-async function recordedTrack(id: string): Promise<Point[]> {
-  const r = recordedPoints(await callRpc<Recorded>(RPC.jobTrack, {job_id: id}, 20000), blades);
+async function recordedTrack(id: string, cut = 0): Promise<{points: Point[]; earlier: Trip[]; at: number | undefined}> {
+  const r = recordedPoints(await callRpc<Recorded>(RPC.jobTrack, {job_id: id}, 20000), blades, cut);
   written = {job: id, points: r.written};
-  return r.points;
+  return r;
 }
 
 // cleared by hand: the job and how many of its recorded points were written for good then, only later ones are shown.
@@ -171,10 +211,12 @@ async function seed(id: string) {
   loading = true;
   whileLoading = [];
   try {
-    const recorded = (await recordedTrack(id)).slice(clearedUpTo(id));
+    const recorded = await recordedTrack(id, clearedUpTo(id));
     if (shownJob() !== id) return;
     // the recorded track replaces what was here, only what came in live while it loaded goes on top
-    track = chunked(thin([...recorded, ...whileLoading]).slice(-MAX_POINTS));
+    track = chunked(thin([...recorded.points, ...whileLoading]).slice(-MAX_POINTS));
+    earlier = recorded.earlier;
+    tripAt = recorded.at ?? tripAt;
     listeners.forEach((l) => l());
   } catch {
     // no history on this mower, just keep the live trail
@@ -206,6 +248,20 @@ async function showLastJob() {
   await seed(last.job_id);
 }
 
+// the next trip of the job going on: the trail so far goes with the earlier trips, the new one starts empty
+function nextTrip() {
+  const segments: BeforeTrack = [];
+  for (const p of track.flat()) {
+    const last = segments.at(-1);
+    if (last && last.blades === !!p.b) last.points.push({x: p.x, y: p.y});
+    else segments.push({points: [{x: p.x, y: p.y}], blades: !!p.b});
+  }
+  if (segments.length) earlier = [...earlier, {at: tripAt, segments}];
+  track = EMPTY;
+  tripAt = Date.now() / 1000;
+  listeners.forEach((l) => l());
+}
+
 // recorded straight from mqtt so it keeps going no matter which tab is open
 function start() {
   if (started) return;
@@ -233,9 +289,15 @@ function start() {
       const id = name === TOPIC.position ? msg.attributes?.job_id : undefined;
       if (name === TOPIC.position) blades = msg.attributes?.blades;
       const change = name === TOPIC.position ? jobChange(jobId, id, lastJob?.id ?? null, askedLast, Date.now()) : null;
+      const trip = name === TOPIC.position ? msg.attributes?.session_id || undefined : undefined;
+      if (!change && id && trip && session && trip !== session) nextTrip();
+      if (trip) session = trip;
       if (change === 'new') {
         // new job, new trail
-        if (!keepsTrail(shownJob(), id)) track = EMPTY;
+        if (!keepsTrail(shownJob(), id)) {
+          track = EMPTY;
+          earlier = [];
+        }
         jobId = id;
         lastJob = null;
         listeners.forEach((l) => l());
@@ -276,6 +338,7 @@ export async function clearTrack() {
     if (written?.job === id) writeMower(CLEARED_KEY, written);
   }
   track = EMPTY;
+  earlier = [];
   whileLoading = [];
   listeners.forEach((l) => l());
 }
@@ -310,6 +373,40 @@ export function useRunningJob(): string | null {
     () => jobId,
     () => null,
   );
+}
+
+// the job's trips before the one in the trail, the newest last
+export function useEarlierTrips(): Trip[] {
+  return useSyncExternalStore(
+    subscribe,
+    () => earlier,
+    () => NO_TRIPS,
+  );
+}
+const NO_TRIPS: Trip[] = [];
+
+// earlier trips are shown when they're younger than this (s), all of them with the whole job switched on (this page
+// visit only)
+export const RECENT_TRIPS = 2 * 86400;
+let wholeJob = false;
+export function setWholeJob(on: boolean) {
+  wholeJob = on;
+  listeners.forEach((l) => l());
+}
+export function useWholeJob(): boolean {
+  return useSyncExternalStore(
+    subscribe,
+    () => wholeJob,
+    () => false,
+  );
+}
+export const shownTrips = (trips: readonly Trip[], whole: boolean, now = Date.now() / 1000): Trip[] =>
+  whole ? [...trips] : trips.filter((t) => now - t.at < RECENT_TRIPS);
+// the earlier trips shown faded, how many are older than the recent ones and whether the whole job is shown
+export function useShownTrips(): {shown: Trip[]; older: number; whole: boolean} {
+  const trips = useEarlierTrips();
+  const whole = useWholeJob();
+  return useMemo(() => ({shown: shownTrips(trips, whole), older: trips.length - shownTrips(trips, false).length, whole}), [trips, whole]);
 }
 
 export function useMowerTrack(): TrackChunks {

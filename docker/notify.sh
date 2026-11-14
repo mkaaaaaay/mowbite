@@ -66,6 +66,12 @@ send() {
 # notify.cgi sends tests the same way: test <line> (the topic or every phone), test-push <address> <json> (one phone)
 [ "$1" = test ] && { send "$2"; exit $?; }
 [ "$1" = test-push ] && { send_push "$3" "$2"; exit $?; }
+# scheduler.sh hands over each line of its log (schedule <word> [detail ...] at=HH:MM), without the broker too
+if [ "$1" = schedule ]; then
+  shift
+  echo "$(date +%s) schedule $*" | CONF="$C" awk -f /notify.awk | while IFS= read -r m; do send "$m"; done
+  exit 0
+fi
 
 while :; do
   host=$(find_broker)

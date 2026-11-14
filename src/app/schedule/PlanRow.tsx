@@ -27,9 +27,9 @@ export default function PlanRow({
   sun: SunTimes | null;
   mowAreas: Area[];
   canReset: boolean;
-  // the mower takes params.set, so a start can have its own mowing direction
+  // a start can have its own mowing direction: MowBite OS's schedule, or a mower that takes params.set
   canTurn: boolean;
-  // MowBite OS: no mowing direction per start time there (yet)
+  // MowBite OS: its schedule turns the planner's lanes for the job (from api 25, none before)
   os?: boolean;
   onChange: (p: Plan) => void;
   onRemove: () => void;
@@ -164,11 +164,13 @@ export default function PlanRow({
               <small>
                 {plan.angle === undefined
                   ? tr('mows the way the mower is set')
-                  : canTurn
-                    ? tr('before this start the direction of every area is turned by so much, e.g. crosswise to another start time')
-                    : os
-                      ? tr("MowBite OS doesn't turn the direction per start time yet, set the direction in the planner")
-                      : tr("this mower can't do that yet, it needs a newer OpenMower")}
+                  : canTurn && os
+                    ? tr('the lanes of the job this start begins are turned by so much, e.g. crosswise to another start time. A job it carries on keeps the direction it began with until it is done or dropped')
+                    : canTurn
+                      ? tr('before this start the direction of every area is turned by so much, e.g. crosswise to another start time')
+                      : os
+                        ? tr("MowBite OS doesn't turn the direction per start time yet, set the direction in the planner")
+                        : tr("this mower can't do that yet, it needs a newer OpenMower")}
               </small>
             </span>
           </label>

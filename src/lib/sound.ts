@@ -6,6 +6,23 @@ import {MAX_SOUND_BYTES, MAX_SOUND_SECONDS, MIN_SOUND_SECONDS, PART_BYTES} from 
 // the sounds of a mower with MowBite OS and a speaker (sound.*): one file for each situation or none, one volume for
 // all of them. the situations and their files come from the mower
 
+// the situations as the app calls them (open_mower_ros #347)
+export const SITUATION_NAMES: Record<string, string> = {
+  MOWING_START: 'Mowing starts',
+  MOWING_COMPLETE: 'Mowing done',
+  MOWING_PAUSED: 'Paused',
+  DOCKING_START: 'Heading home',
+  DOCKING_FAILED: 'Docking failed',
+  CHARGING_START: 'Charging starts',
+  CHARGING_DONE: 'Fully charged',
+  LOW_BATTERY: 'Battery low',
+  RAIN_DETECTED: 'Rain',
+  AREA_RECORDING_MODE: 'Recording mode',
+  EMERGENCY: 'Emergency stop',
+  LIFT_TRIGGERED: 'Lifted',
+  SCHEDULE_START: 'Scheduled start',
+};
+
 export interface SoundFile {
   source: 'vendor' | 'upload'; // came with the mower, or the user's own
   size: number; // bytes

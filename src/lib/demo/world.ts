@@ -7,8 +7,10 @@ import {CALIB_NEED, calibCounts, calibResultOf} from './calib';
 import {DEMO_PARAMS, DEMO_SENSORS, demoMap} from './garden';
 import {demoCameras} from './camera';
 import {demoOn} from './flags';
+import {demoGeometry} from './geometry';
 import {demoLights} from './light';
 import {demoSounds} from './sound';
+import {demoUpdates} from './update';
 
 // The demo mower: what OpenMower would send and answer, made up here so the app can be looked at without a mower.
 // It drives the plan of its garden at a mower's pace, takes the commands (start, pause, home, skip), keeps its
@@ -370,6 +372,7 @@ function advance(run: Run, meters: number, t: number, hooks: Hooks, speed = SPEE
 
 interface Segment {
   attributes: {blades: boolean; job_id: string; session_id: string};
+  started_at: number;
   points: [number, number][];
   tip?: boolean;
 }
@@ -557,9 +560,10 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
         seg.points.pop();
         seg.tip = false;
       }
-      if (!seg || seg.attributes.blades !== l.blades) {
-        const before = seg?.points[seg.points.length - 1];
-        segs.push((seg = {attributes: {blades: l.blades, job_id: id, session_id: session}, points: before ? [before] : []}));
+      // a new one with the blades and with each trip, like OpenMower's
+      if (!seg || seg.attributes.blades !== l.blades || seg.attributes.session_id !== session) {
+        const before = seg?.attributes.session_id === session ? seg.points[seg.points.length - 1] : undefined;
+        segs.push((seg = {attributes: {blades: l.blades, job_id: id, session_id: session}, started_at: last / 1000, points: before ? [before] : []}));
       }
       const end = seg.points[seg.points.length - 1];
       if (!end || end[0] !== p.x || end[1] !== p.y) {
@@ -1042,6 +1046,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
 
   const utcDay = (t: number) => new Date(t * 1000).toISOString().slice(0, 10).replace(/-/g, '');
   let cameras = demoOn('Cameras') ? demoCameras(deliver) : null;
+  const updates = demoOn('Updates') ? demoUpdates(deliver) : null;
   const methods: Record<string, (params: unknown) => unknown> = {
     [RPC.methods]: () => Object.keys(methods).sort(),
     [RPC.replaceMap]: (params) => {
@@ -1068,7 +1073,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     [RPC.jobs]: () => jobs,
     [RPC.jobTrack]: (params) => {
       const segs = tracks.get((params as {job_id?: string})?.job_id ?? '') ?? [];
-      return {segments: segs.map(({attributes, points}) => ({attributes, points})), buffer: []};
+      return {segments: segs.map(({attributes, started_at, points}) => ({attributes, started_at, points})), buffer: []};
     },
     [RPC.areaPlan]: (params) => {
       const req = params as {area_id?: string; outline?: Point[]; obstacles?: Point[][]} & MapArea['properties'];
@@ -1122,6 +1127,8 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     },
     ...(demoOn('Lights') && demoLights()),
     ...(demoOn('Sounds') && demoSounds()),
+    ...(demoOn('Geometry') && demoGeometry()),
+    ...updates?.methods,
     ...cameras?.methods,
     ...(undoOn && {
       // points off the end of the open line until that much of it is gone. the mower stays where it is, auto points
@@ -1288,7 +1295,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
       if (topic === TOPIC.mapOverlay) return [[topic, JSON.stringify(overlay())]];
       if (topic === TOPIC.plannerCalib) return calibSaid ? [[topic, calibSaid]] : [];
       if (topic === TOPIC.sensorData) return Object.entries(sensors()).map(([id, v]) => [`sensors/${id}/data`, v]);
-      return [];
+      return updates?.retained(topic) ?? [];
     },
     published(topic, message) {
       if (topic === TOPIC.teleop) {

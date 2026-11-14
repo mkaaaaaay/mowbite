@@ -4,16 +4,21 @@ import {join} from 'node:path';
 import {describe, expect, it} from 'vitest';
 import de from './i18n/de';
 import {onOs, PARAM_FIELDS, paramField} from './mowerParams';
+import {defaultNotify, NOTIFY_EVENTS, toOs} from './notify';
 import {COMMAND, RPC} from './openmower';
-import {EMERGENCY_BITS, EMERGENCY_HIDE, EMERGENCY_TEXT, EVENTS, REASONS, pick} from './reasonTexts';
+import {EMERGENCY_BITS, EMERGENCY_HIDE, EMERGENCY_TEXT, EVENTS, NOT_DRIVEN, REASONS, pick} from './reasonTexts';
+import {READY_TEXT, scheduleLogText} from './schedule';
+import {ORIGIN_TEXT} from './osUpdate';
+import {SITUATION_NAMES} from './sound';
+import {PARTS} from './stats';
 
 // MowBite OS's interface (system.api) as its owner has it, copied from the commit below. a newer one: copy it from
 // there over os-api.schema.json and put its commit and checksum here, the tests then say which words are missing
 const PINNED = {
   repo: 'mkaaaaaay/mowbite-os',
   path: 'src/mowbite_api/api.schema.json',
-  commit: '18d4d816a2bf2dd01ed7463adc1fd8b76e76f1f2',
-  sha256: '8e2fabe31b56e37f69e3727f66798c4064e3a7f50827092e65f63fcbf3221c4e',
+  commit: '622cc8c07e9b317eb583eab192a503d719e20d27',
+  sha256: 'aed5cf855c5ef3c2716654ab53d6b1340056c4687d91eaff68267c399f84d24c',
 };
 const raw = readFileSync(join(__dirname, 'os-api.schema.json'));
 // a reason's rating, when: another one for these values of the event's fields
@@ -25,6 +30,7 @@ const api = JSON.parse(raw.toString()) as {
   'x-methods': Record<string, unknown>;
   'x-sensors': Record<string, {name: string}>;
   'x-settings': Record<string, {default: number; min: number; max: number; unit: string}>;
+  'x-schedule-log': Record<string, unknown>;
   $defs: Record<string, unknown>;
 };
 
@@ -36,31 +42,24 @@ const NOT_OFFERED: Record<string, string> = {
   'calibration.abort': 'as calibration.start',
   'calibration.result': 'as calibration.start',
   'docking.start': 'to come: home for a mower idle away from the dock, with the way home without planner (40 (1), api 12)',
-  'host.restart_os': "to come: MowBite OS's updates in the app (update.status, FP15)",
+  'host.restart_os': "to come: MowBite OS's state while it's down and starting it again (mowbite/host/status)",
   'events.history.delete': 'as position.history.delete',
   'position.history.delete': 'to come: deleting the track (location data) and the events in the settings, low priority',
   'ntrip.get': 'to come: NTRIP set up without a terminal (masterplan 20, E1), the access never in logs or diagnosis files',
   'ntrip.set': 'as ntrip.get',
   'ntrip.delete': 'as ntrip.get',
-  'robot.geometry.get': "to come: the sizes on MowBite OS (masterplan 8 (4)), the planner's are only readable there",
-  'robot.geometry.set': 'as robot.geometry.get',
   'sensors.list': 'the sensors come over MQTT (sensor_infos/json)',
   'rpc.ping': 'rpc.methods already tells whether it answers',
   'system.api': "the app has its copy of the contract here and reads the api's number from system.info",
   'system.hold': "the updater's, it holds restarts while it works",
-  'update.abort': 'as host.restart_os',
-  'update.check': 'as host.restart_os',
-  'update.rollback': 'as host.restart_os',
-  'update.set_auto': 'as host.restart_os',
-  'update.start': 'as host.restart_os',
-  'update.status': 'as host.restart_os',
+  'schedule.leftovers': 'to come: MowBite OS turns leftovers down until its planner prepares them',
 };
 // what the app calls on a mower; planner.* is the MowBite Planner's, not the OS's
 const appMethods = new Set([...Object.values(RPC), ...Object.values(COMMAND).map((c) => c.method)].filter((m) => !m.startsWith('planner.')));
 const osMethods = Object.keys(api['x-methods']);
 
 // decided for a later api and in the app already, not in the pinned copy yet: TOO_SHORT (a sound under 0.2 s, the
-// phone says it). one the copy has is red until it's taken out here
+// phone says it), update.set_channel (api 27). one the copy has is red until it's taken out here
 const AHEAD: Record<'reasons' | 'events' | 'methods' | 'variants', string[]> = {
   reasons: ['TOO_SHORT'],
   events: [],
@@ -102,6 +101,12 @@ describe(`MowBite OS's interface (${PINNED.repo} ${PINNED.commit.slice(0, 7)}, a
   it('has words for every reason of every event', () => {
     for (const [type, reasons] of Object.entries(groups))
       for (const reason of Object.keys(reasons)) expect(pick(REASONS[reason], {type, reason}), `${type} ${reason}`).toBeDefined();
+  });
+
+  it('says why an area was recorded without the exact edge, for each reason the OS gives', () => {
+    const {driven_reason} = (api.$defs['event.AREA_RECORDED'] as {properties: {driven_reason: {enum: string[]}}}).properties;
+    expect(driven_reason.enum.filter((r) => !NOT_DRIVEN[r])).toEqual([]);
+    expect(Object.keys(NOT_DRIVEN).filter((r) => !driven_reason.enum.includes(r)), 'gone, take them out of NOT_DRIVEN').toEqual([]);
   });
 
   it('names the emergency bits as the OS does, each with its words', () => {
@@ -147,7 +152,7 @@ describe(`MowBite OS's interface (${PINNED.repo} ${PINNED.commit.slice(0, 7)}, a
     const osUnit = (unit = '', scale = 1) => (unit === 'cm' && scale === 100 ? 'm' : unit === '°C' ? 'deg.C' : unit);
     for (const [key, s] of Object.entries(api['x-settings'])) {
       const f = onOs(paramField(key)!, true);
-      const range = f.type === 'choice' ? {min: 0, max: f.choices!.length - 1} : {min: f.min, max: f.max};
+      const range = f.type === 'choice' ? {min: 0, max: f.choices!.length - 1} : f.type === 'bool' ? {min: 0, max: 1} : {min: f.min, max: f.max};
       expect({...range, def: Number(f.def), unit: osUnit(f.unit, f.scale)}, key).toEqual({min: s.min, max: s.max, def: s.default, unit: s.unit});
     }
   });
@@ -155,6 +160,40 @@ describe(`MowBite OS's interface (${PINNED.repo} ${PINNED.commit.slice(0, 7)}, a
   it('has every sensor name in german, a name without small letters (NTRIP) stays as it is', () => {
     const names = Object.values(api['x-sensors']).map((s) => s.name);
     expect(names.filter((n) => /[a-z]/.test(n) && !de[n])).toEqual([]);
+  });
+
+  it("has words in english and german for every word of the schedule's log and of its readiness", () => {
+    const words = Object.keys(api['x-schedule-log']);
+    expect(words.filter((w) => scheduleLogText({t: 0, what: w}) === w)).toEqual([]);
+    expect(words.map((w) => scheduleLogText({t: 0, what: w})).filter((en) => !de[en])).toEqual([]);
+    const ready = (api.$defs.schedule_ready as {properties: {reason: {enum: (string | null)[]}}}).properties.reason.enum;
+    expect(ready.filter((r) => r && !words.includes(r)), 'a word the log has').toEqual([]);
+    expect(ready.filter((r) => r && !(READY_TEXT[r] && de[READY_TEXT[r]]))).toEqual([]);
+  });
+
+  it('picks from the same push messages as the OS, and sends notify.set only what it takes', () => {
+    type Props = {properties: Record<string, {description: string; enum?: string[]}>};
+    const set = (api.$defs['notify.set.params'] as Props).properties;
+    const keys = set.events.description.split(': ')[1].split(', ');
+    expect(NOTIFY_EVENTS.map((e) => e.key).sort()).toEqual([...keys].sort());
+    for (const e of NOTIFY_EVENTS) expect(de[e.label], e.label).toBeDefined();
+    const sent = Object.keys(toOs({...defaultNotify('de', ''), token: 'x'}));
+    expect(sent.filter((k) => !(k in set))).toEqual([]);
+  });
+
+  it('has words for every way asking the release index on the net ends', () => {
+    const origin = (api.$defs['update.status.result'] as {properties: {origin: {properties: {result: {enum: string[]}}}}}).properties.origin;
+    expect([...origin.properties.result.enum].sort()).toEqual(Object.keys(ORIGIN_TEXT).sort());
+  });
+
+  it('names every part the OS counts for', () => {
+    const parts = (api.$defs['stats.part_done.params'] as {properties: {part: {enum: string[]}}}).properties.part.enum;
+    expect(parts.filter((p) => !PARTS[p] || !de[PARTS[p].label])).toEqual([]);
+  });
+
+  it('names every sound situation, in german too', () => {
+    const situations = (api.$defs['sound.play.params'] as {properties: {situation: {enum: string[]}}}).properties.situation.enum;
+    expect(situations.filter((n) => !SITUATION_NAMES[n] || !de[SITUATION_NAMES[n]])).toEqual([]);
   });
 
   it("has no words for events, reasons or bits the OS doesn't know", () => {

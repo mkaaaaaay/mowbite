@@ -44,7 +44,10 @@
               "NO_DOCK_CONTACT",
               "REFERENCE_MISMATCH",
               "BATTERY_HOT",
-              "MOTOR_HOT"
+              "MOTOR_HOT",
+              "NOT_DOCKED",
+              "CLOCK_UNSAFE",
+              "DARK"
             ],
             "type": "string"
           }
@@ -490,6 +493,9 @@
           "$ref": "#/$defs/event.DOCKING"
         },
         {
+          "$ref": "#/$defs/event.DOCKING_DIRECT"
+        },
+        {
           "$ref": "#/$defs/event.DOCKED"
         },
         {
@@ -508,10 +514,19 @@
           "$ref": "#/$defs/event.AREA_RECORDED"
         },
         {
+          "$ref": "#/$defs/event.RECORDED_BODY_KEPT"
+        },
+        {
           "$ref": "#/$defs/event.GEOMETRY_CHANGED"
         },
         {
           "$ref": "#/$defs/event.STORAGE"
+        },
+        {
+          "$ref": "#/$defs/event.SCHEDULE_START"
+        },
+        {
+          "$ref": "#/$defs/event.SCHEDULE_START_CANCELED"
         },
         {
           "$ref": "#/$defs/event.MAP_DATUM"
@@ -557,6 +572,13 @@
         },
         "session_id": {
           "description": "The session of the logic since its start",
+          "type": "string"
+        },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
           "type": "string"
         },
         "t": {
@@ -617,6 +639,122 @@
           "pattern": "^[a-z][a-z0-9_-]{0,15}$",
           "type": "string"
         },
+        "driven": {
+          "description": "The outline was driven forward without a break and carries recorded_body: the planner may drive its line without a margin",
+          "type": "boolean"
+        },
+        "driven_reason": {
+          "description": "Only when driven is false: the first of these that applies; the area is mowed as usual, only without the exact edge",
+          "enum": [
+            "MANUAL_POINT",
+            "NO_HEADING",
+            "INTERRUPTED",
+            "REVERSED",
+            "CLOSING",
+            "GAP",
+            "DIRECTION",
+            "SHARP_TURN"
+          ],
+          "type": "string",
+          "x-texts": {
+            "CLOSING": {
+              "de": {
+                "fix": "Für den genauen Rand neu aufnehmen und am Ende über den Anfang hinaus weiterfahren, bis die Spur ihn kreuzt.",
+                "help": "Am Ende der Aufnahme ist der Mäher nicht in Fahrtrichtung über den Anfang der Linie gefahren. Das Stück zwischen Ende und Anfang wurde dann nie gefahren. Die Fläche wird normal gemäht, nur ohne den genauen Rand.",
+                "name": "Anfang nicht überfahren"
+              },
+              "en": {
+                "fix": "For the exact edge, record again and at the end drive on past the start until the track crosses it.",
+                "help": "At the end of the recording the mower didn't drive over the start of the line along its heading, so the piece between the end and the start was never driven. The area is mowed as usual, only without the exact edge.",
+                "name": "Start not driven over"
+              }
+            },
+            "DIRECTION": {
+              "de": {
+                "fix": "Für den genauen Rand die Fläche durchgehend vorwärts neu aufnehmen.",
+                "help": "Ein Stück der Linie liegt nicht in Fahrtrichtung des Mähers, etwa nach Rückwärtsfahren oder einem seitlichen Versatz. Die Fläche wird normal gemäht, nur ohne den genauen Rand.",
+                "name": "Nicht in Fahrtrichtung"
+              },
+              "en": {
+                "fix": "For the exact edge, record the area again driving forward all the way.",
+                "help": "A piece of the line doesn't follow the heading of the mower, for example after reversing or a step sideways. The area is mowed as usual, only without the exact edge.",
+                "name": "Not along the heading"
+              }
+            },
+            "GAP": {
+              "de": {
+                "fix": "Langsamer fahren und für den genauen Rand neu aufnehmen.",
+                "help": "Zwischen zwei Punkten oder vom letzten zum ersten Punkt liegen mehr als 30 cm. Die Fläche wird normal gemäht, nur ohne den genauen Rand.",
+                "name": "Lücke in der Linie"
+              },
+              "en": {
+                "fix": "Drive more slowly and record again for the exact edge.",
+                "help": "Two points, or the last and the first point, are more than 30 cm apart. The area is mowed as usual, only without the exact edge.",
+                "name": "Gap in the line"
+              }
+            },
+            "INTERRUPTED": {
+              "de": {
+                "fix": "Für den genauen Rand die Fläche ohne Unterbrechung vorwärts neu aufnehmen.",
+                "help": "Die automatischen Punkte waren zwischendurch aus, Punkte wurden mit Rückgängig entfernt, oder die Position war ungenau, fehlte oder sprang. Die Fläche wird normal gemäht, nur ohne den genauen Rand.",
+                "name": "Aufnahme unterbrochen"
+              },
+              "en": {
+                "fix": "For the exact edge, record the area again driving forward without a break.",
+                "help": "Automatic points were off for a while, points were undone, or the position was inaccurate, missing or jumped. The area is mowed as usual, only without the exact edge.",
+                "name": "Recording interrupted"
+              }
+            },
+            "MANUAL_POINT": {
+              "de": {
+                "fix": "Für den genauen Rand die Fläche mit automatischen Punkten vorwärts neu aufnehmen.",
+                "help": "Mindestens ein Punkt wurde von Hand gesetzt. Dann ist nicht belegt, dass der Mäher die Linie vorwärts gefahren ist. Die Fläche wird normal gemäht, nur ohne den genauen Rand.",
+                "name": "Punkte von Hand"
+              },
+              "en": {
+                "fix": "For the exact edge, record the area again driving forward with automatic points.",
+                "help": "At least one point was set by hand, so nothing shows that the mower drove the line forward. The area is mowed as usual, only without the exact edge.",
+                "name": "Points set by hand"
+              }
+            },
+            "NO_HEADING": {
+              "de": {
+                "fix": "Erst einige Meter geradeaus fahren, dann für den genauen Rand neu aufnehmen.",
+                "help": "Beim Aufnehmen kannte der Mäher seine Fahrtrichtung noch nicht. Die Fläche wird normal gemäht, nur ohne den genauen Rand.",
+                "name": "Richtung unbekannt"
+              },
+              "en": {
+                "fix": "Drive straight for a few metres first, then record again for the exact edge.",
+                "help": "The mower didn't know its heading yet while recording. The area is mowed as usual, only without the exact edge.",
+                "name": "Heading unknown"
+              }
+            },
+            "REVERSED": {
+              "de": {
+                "fix": "Für den genauen Rand die Fläche ohne Rückwärtsfahren neu aufnehmen.",
+                "help": "Beim Aufnehmen ist der Mäher rückwärts gefahren. Die Punkte davor wurden zurückgenommen, die Linie ist dort aber nicht in einem Zug vorwärts gefahren. Die Fläche wird normal gemäht, nur ohne den genauen Rand.",
+                "name": "Rückwärts gefahren"
+              },
+              "en": {
+                "fix": "For the exact edge, record the area again without reversing.",
+                "help": "The mower reversed while recording. The points ahead of it were taken back, but the line wasn't driven forward in one go there. The area is mowed as usual, only without the exact edge.",
+                "name": "Reversed"
+              }
+            },
+            "SHARP_TURN": {
+              "de": {
+                "fix": "Kehren als Bogen fahren und für den genauen Rand neu aufnehmen.",
+                "help": "Die Linie knickt an einer Stelle um mehr als 120 Grad. Dort ist nicht sicher, in welche Richtung sich der Mäher gedreht hat. Die Fläche wird normal gemäht, nur ohne den genauen Rand.",
+                "name": "Zu spitze Kehre"
+              },
+              "en": {
+                "fix": "Drive turns as a curve and record again for the exact edge.",
+                "help": "The line turns by more than 120 degrees at one spot, where it isn't certain which way the mower turned. The area is mowed as usual, only without the exact edge.",
+                "name": "Turn too sharp"
+              }
+            }
+          }
+        },
         "id": {
           "description": "Random id of the event, 32 letters and digits",
           "type": "string"
@@ -629,12 +767,23 @@
           "description": "Obstacles in it",
           "type": "integer"
         },
+        "obstacles_driven": {
+          "description": "Obstacles driven like that, with recorded_body",
+          "type": "integer"
+        },
         "points": {
           "description": "Points of its outline",
           "type": "integer"
         },
         "session_id": {
           "description": "The session of the logic since its start",
+          "type": "string"
+        },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
           "type": "string"
         },
         "t": {
@@ -667,7 +816,9 @@
         "area_type",
         "obstacles",
         "points",
-        "area_m2"
+        "area_m2",
+        "driven",
+        "obstacles_driven"
       ],
       "type": "object",
       "x-emitter": "logic"
@@ -689,6 +840,14 @@
           "pattern": "^[a-z][a-z0-9_-]{0,15}$",
           "type": "string"
         },
+        "detail": {
+          "description": "end: the time of the plan is over; pause: the areas are paused in the schedule",
+          "enum": [
+            "end",
+            "pause"
+          ],
+          "type": "string"
+        },
         "id": {
           "description": "Random id of the event, 32 letters and digits",
           "type": "string"
@@ -704,7 +863,8 @@
         "reason": {
           "description": "Why: a fixed name in capitals, rated in x-reasons",
           "enum": [
-            "MANUAL"
+            "MANUAL",
+            "SCHEDULE"
           ],
           "type": "string"
         },
@@ -726,6 +886,13 @@
             "info",
             "warning",
             "error"
+          ],
+          "type": "string"
+        },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
           ],
           "type": "string"
         },
@@ -795,6 +962,13 @@
           "description": "The session of the logic since its start",
           "type": "string"
         },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
+          "type": "string"
+        },
         "t": {
           "description": "When it happened",
           "type": "number",
@@ -850,6 +1024,13 @@
         },
         "session_id": {
           "description": "The session of the logic since its start",
+          "type": "string"
+        },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
           "type": "string"
         },
         "t": {
@@ -938,6 +1119,13 @@
           ],
           "type": "string"
         },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
+          "type": "string"
+        },
         "status": {
           "description": "How far the evaluation got",
           "enum": [
@@ -1021,6 +1209,13 @@
         },
         "session_id": {
           "description": "The session of the logic since its start",
+          "type": "string"
+        },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
           "type": "string"
         },
         "t": {
@@ -1164,6 +1359,13 @@
           "description": "Slope of the ground",
           "type": "number",
           "x-unit": "deg"
+        },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
+          "type": "string"
         },
         "state": {
           "description": "What it is busy with",
@@ -1352,6 +1554,13 @@
           "type": "number",
           "x-unit": "deg"
         },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
+          "type": "string"
+        },
         "state": {
           "description": "What it is busy with",
           "type": "string"
@@ -1411,7 +1620,7 @@
     },
     "event.CAMERA_CHANGED": {
       "additionalProperties": false,
-      "description": "A camera of camera.list can stream again, or no longer and why; viewers of a camera that no longer can were disconnected",
+      "description": "A camera of camera.list can stream again, or no longer and why, or streams with other protocols or at another size. Viewers of a camera that no longer can stream, and viewers over a protocol it no longer has, were disconnected; another size alone disconnects nobody",
       "properties": {
         "available": {
           "description": "Whether it can stream now",
@@ -1421,6 +1630,10 @@
           "description": "Its id in camera.list",
           "type": "string"
         },
+        "height": {
+          "description": "Height of the picture in pixels now",
+          "type": "integer"
+        },
         "id": {
           "description": "Random id of the event, 32 letters and digits",
           "type": "string"
@@ -1428,6 +1641,14 @@
         "message": {
           "description": "English text for the log, only with a reason",
           "type": "string"
+        },
+        "protocols": {
+          "description": "Its protocols now, as camera.list has them",
+          "items": {
+            "description": "One item",
+            "type": "string"
+          },
+          "type": "array"
         },
         "reason": {
           "description": "Why not, only while it is not available (x-reasons)",
@@ -1464,6 +1685,10 @@
         "type": {
           "const": "CAMERA_CHANGED",
           "description": "What happened; a type this version does not know carries only the envelope for sure"
+        },
+        "width": {
+          "description": "Width of the picture in pixels now",
+          "type": "integer"
         }
       },
       "required": [
@@ -1472,6 +1697,9 @@
         "type",
         "camera_id",
         "available",
+        "protocols",
+        "width",
+        "height",
         "severity",
         "resume"
       ],
@@ -1540,6 +1768,13 @@
             "info",
             "warning",
             "error"
+          ],
+          "type": "string"
+        },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
           ],
           "type": "string"
         },
@@ -1690,6 +1925,13 @@
           "description": "The session of the logic since its start",
           "type": "string"
         },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
+          "type": "string"
+        },
         "t": {
           "description": "When it happened",
           "type": "number",
@@ -1739,6 +1981,14 @@
           "pattern": "^[a-z][a-z0-9_-]{0,15}$",
           "type": "string"
         },
+        "detail": {
+          "description": "end: the time of the plan is over; pause: the areas are paused in the schedule",
+          "enum": [
+            "end",
+            "pause"
+          ],
+          "type": "string"
+        },
         "id": {
           "description": "Random id of the event, 32 letters and digits",
           "type": "string"
@@ -1764,7 +2014,10 @@
             "BATTERY_LOW",
             "MOTOR_HOT",
             "RAIN",
-            "DARK"
+            "DARK",
+            "PLANNER_TIMEOUT",
+            "PLANNER_MISSING",
+            "SCHEDULE"
           ],
           "type": "string"
         },
@@ -1786,6 +2039,13 @@
             "info",
             "warning",
             "error"
+          ],
+          "type": "string"
+        },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
           ],
           "type": "string"
         },
@@ -1832,6 +2092,100 @@
       "type": "object",
       "x-emitter": "logic"
     },
+    "event.DOCKING_DIRECT": {
+      "additionalProperties": false,
+      "description": "The planner gave no way to the docking station: this try drives straight to the point in front of it, over ground the logic checked for the body of the mower",
+      "properties": {
+        "cause": {
+          "description": "Why the planner gave no way: it did not answer in time, or is not running",
+          "enum": [
+            "PLANNER_TIMEOUT",
+            "PLANNER_MISSING"
+          ],
+          "type": "string"
+        },
+        "client": {
+          "description": "Who sent the command (app, ha), for the log and the events of its step",
+          "pattern": "^[a-z][a-z0-9_-]{0,15}$",
+          "type": "string"
+        },
+        "distance": {
+          "description": "Length of the straight way",
+          "type": "number",
+          "x-unit": "m"
+        },
+        "id": {
+          "description": "Random id of the event, 32 letters and digits",
+          "type": "string"
+        },
+        "job_id": {
+          "description": "The job of mowing it belongs to",
+          "type": "string"
+        },
+        "message": {
+          "description": "English text for the log",
+          "type": "string"
+        },
+        "resume": {
+          "description": "Always auto",
+          "enum": [
+            "auto"
+          ],
+          "type": "string"
+        },
+        "session_id": {
+          "description": "The session of the logic since its start",
+          "type": "string"
+        },
+        "severity": {
+          "description": "Always warning",
+          "enum": [
+            "warning"
+          ],
+          "type": "string"
+        },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
+          "type": "string"
+        },
+        "t": {
+          "description": "When it happened",
+          "type": "number",
+          "x-unit": "unix s"
+        },
+        "type": {
+          "const": "DOCKING_DIRECT",
+          "description": "What happened; a type this version does not know carries only the envelope for sure"
+        },
+        "x": {
+          "description": "Where the mower was, east of the datum of the map",
+          "type": "number",
+          "x-unit": "m"
+        },
+        "y": {
+          "description": "Where the mower was, north of the datum of the map",
+          "type": "number",
+          "x-unit": "m"
+        }
+      },
+      "required": [
+        "id",
+        "t",
+        "type",
+        "x",
+        "y",
+        "cause",
+        "distance",
+        "message",
+        "severity",
+        "resume"
+      ],
+      "type": "object",
+      "x-emitter": "logic"
+    },
     "event.DOCKING_FAILED": {
       "additionalProperties": false,
       "description": "Docking failed for good; the mower waits",
@@ -1845,6 +2199,14 @@
           "description": "Tries of docking so far",
           "type": "integer"
         },
+        "cause": {
+          "description": "Why the planner gave no way: it did not answer in time, or is not running",
+          "enum": [
+            "PLANNER_TIMEOUT",
+            "PLANNER_MISSING"
+          ],
+          "type": "string"
+        },
         "client": {
           "description": "Who sent the command (app, ha), for the log and the events of its step",
           "pattern": "^[a-z][a-z0-9_-]{0,15}$",
@@ -1854,6 +2216,10 @@
           "description": "The charge current seen; while docking the largest one of the check",
           "type": "number",
           "x-unit": "A"
+        },
+        "direct_blocked": {
+          "description": "With a cause, where the mower may drive straight to the station then: true when that way was not free, false when it drove it and failed",
+          "type": "boolean"
         },
         "id": {
           "description": "Random id of the event, 32 letters and digits",
@@ -1904,6 +2270,13 @@
           ],
           "type": "string"
         },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
+          "type": "string"
+        },
         "t": {
           "description": "When it happened",
           "type": "number",
@@ -1945,6 +2318,14 @@
           "description": "Tries of docking so far",
           "type": "integer"
         },
+        "cause": {
+          "description": "Why the planner gave no way: it did not answer in time, or is not running",
+          "enum": [
+            "PLANNER_TIMEOUT",
+            "PLANNER_MISSING"
+          ],
+          "type": "string"
+        },
         "client": {
           "description": "Who sent the command (app, ha), for the log and the events of its step",
           "pattern": "^[a-z][a-z0-9_-]{0,15}$",
@@ -1954,6 +2335,10 @@
           "description": "The charge current seen; while docking the largest one of the check",
           "type": "number",
           "x-unit": "A"
+        },
+        "direct_blocked": {
+          "description": "With a cause, where the mower may drive straight to the station then: true when that way was not free, false when it drove it and failed",
+          "type": "boolean"
         },
         "id": {
           "description": "Random id of the event, 32 letters and digits",
@@ -1999,6 +2384,13 @@
             "info",
             "warning",
             "error"
+          ],
+          "type": "string"
+        },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
           ],
           "type": "string"
         },
@@ -2063,6 +2455,13 @@
         },
         "session_id": {
           "description": "The session of the logic since its start",
+          "type": "string"
+        },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
           "type": "string"
         },
         "t": {
@@ -2216,6 +2615,13 @@
           ],
           "type": "string"
         },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
+          "type": "string"
+        },
         "t": {
           "description": "When it happened",
           "type": "number",
@@ -2343,6 +2749,13 @@
             "info",
             "warning",
             "error"
+          ],
+          "type": "string"
+        },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
           ],
           "type": "string"
         },
@@ -2640,6 +3053,13 @@
           ],
           "type": "string"
         },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
+          "type": "string"
+        },
         "t": {
           "description": "When it happened",
           "type": "number",
@@ -2700,6 +3120,13 @@
           "description": "The session of the logic since its start",
           "type": "string"
         },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
+          "type": "string"
+        },
         "t": {
           "description": "When it happened",
           "type": "number",
@@ -2732,7 +3159,7 @@
     },
     "event.JOB_RESET": {
       "additionalProperties": false,
-      "description": "The job of mowing was dropped; job_id names the dropped one",
+      "description": "The job of mowing was dropped, or replaced by a start with another list; job_id names the dropped one",
       "properties": {
         "client": {
           "description": "Who sent the command (app, ha), for the log and the events of its step",
@@ -2749,6 +3176,13 @@
         },
         "session_id": {
           "description": "The session of the logic since its start",
+          "type": "string"
+        },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
           "type": "string"
         },
         "t": {
@@ -2938,6 +3372,10 @@
           "pattern": "^[a-z][a-z0-9_-]{0,15}$",
           "type": "string"
         },
+        "clock_reason": {
+          "description": "Why the clock is not safe, as time/clock tells it",
+          "type": "string"
+        },
         "datum_state": {
           "description": "unbound when the map has no recorded datum",
           "enum": [
@@ -2996,7 +3434,10 @@
             "NO_DOCK_CONTACT",
             "REFERENCE_MISMATCH",
             "BATTERY_HOT",
-            "MOTOR_HOT"
+            "MOTOR_HOT",
+            "NOT_DOCKED",
+            "CLOCK_UNSAFE",
+            "DARK"
           ],
           "type": "string"
         },
@@ -3026,9 +3467,21 @@
           ],
           "type": "string"
         },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
+          "type": "string"
+        },
         "state": {
           "description": "What it is busy with",
           "type": "string"
+        },
+        "sun_elevation": {
+          "description": "Height of the sun over the horizon at the garden",
+          "type": "number",
+          "x-unit": "deg"
         },
         "t": {
           "description": "When it happened",
@@ -3092,6 +3545,13 @@
         },
         "session_id": {
           "description": "The session of the logic since its start",
+          "type": "string"
+        },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
           "type": "string"
         },
         "t": {
@@ -3179,6 +3639,13 @@
           ],
           "type": "string"
         },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
+          "type": "string"
+        },
         "t": {
           "description": "When it happened",
           "type": "number",
@@ -3186,6 +3653,110 @@
         },
         "type": {
           "const": "POSITION_JUMP",
+          "description": "What happened; a type this version does not know carries only the envelope for sure"
+        },
+        "x": {
+          "description": "Where the mower was, east of the datum of the map",
+          "type": "number",
+          "x-unit": "m"
+        },
+        "y": {
+          "description": "Where the mower was, north of the datum of the map",
+          "type": "number",
+          "x-unit": "m"
+        }
+      },
+      "required": [
+        "id",
+        "t",
+        "type",
+        "x",
+        "y",
+        "reason",
+        "severity",
+        "resume"
+      ],
+      "type": "object",
+      "x-emitter": "logic"
+    },
+    "event.RECORDED_BODY_KEPT": {
+      "additionalProperties": false,
+      "description": "The areas recorded on this mower could not take the body robot.geometry.set made; they keep the old one",
+      "properties": {
+        "areas": {
+          "description": "Areas recorded on this mower, when the map could tell",
+          "type": "integer"
+        },
+        "client": {
+          "description": "Who sent the command (app, ha), for the log and the events of its step",
+          "pattern": "^[a-z][a-z0-9_-]{0,15}$",
+          "type": "string"
+        },
+        "code": {
+          "description": "What went wrong",
+          "enum": [
+            "INVALID",
+            "DATUM",
+            "TOO_LARGE",
+            "STORAGE",
+            "NO_ANSWER"
+          ],
+          "type": "string"
+        },
+        "id": {
+          "description": "Random id of the event, 32 letters and digits",
+          "type": "string"
+        },
+        "job_id": {
+          "description": "The job of mowing it belongs to",
+          "type": "string"
+        },
+        "message": {
+          "description": "English text for the log and for apps that do not know the reason",
+          "type": "string"
+        },
+        "reason": {
+          "description": "Why: a fixed name in capitals, rated in x-reasons",
+          "enum": [
+            "SAVE_FAILED"
+          ],
+          "type": "string"
+        },
+        "resume": {
+          "description": "auto when it goes on by itself, user when it waits for the user",
+          "enum": [
+            "auto",
+            "user"
+          ],
+          "type": "string"
+        },
+        "session_id": {
+          "description": "The session of the logic since its start",
+          "type": "string"
+        },
+        "severity": {
+          "description": "How bad it is",
+          "enum": [
+            "info",
+            "warning",
+            "error"
+          ],
+          "type": "string"
+        },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
+          "type": "string"
+        },
+        "t": {
+          "description": "When it happened",
+          "type": "number",
+          "x-unit": "unix s"
+        },
+        "type": {
+          "const": "RECORDED_BODY_KEPT",
           "description": "What happened; a type this version does not know carries only the envelope for sure"
         },
         "x": {
@@ -3302,6 +3873,7 @@
           "description": "Why: a fixed name in capitals, rated in x-reasons",
           "enum": [
             "POSITION_ACCURACY",
+            "REVERSING",
             "HOLD",
             "STILL_SAVING",
             "EMERGENCY",
@@ -3343,6 +3915,13 @@
           ],
           "type": "string"
         },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
+          "type": "string"
+        },
         "t": {
           "description": "When it happened",
           "type": "number",
@@ -3376,6 +3955,170 @@
         "y",
         "action",
         "reason",
+        "severity",
+        "resume"
+      ],
+      "type": "object",
+      "x-emitter": "logic"
+    },
+    "event.SCHEDULE_START": {
+      "additionalProperties": false,
+      "description": "A plan of the schedule starts: the mower announces it for seconds, then checks again and leaves the docking station",
+      "properties": {
+        "client": {
+          "description": "Who sent the command (app, ha), for the log and the events of its step",
+          "pattern": "^[a-z][a-z0-9_-]{0,15}$",
+          "type": "string"
+        },
+        "id": {
+          "description": "Random id of the event, 32 letters and digits",
+          "type": "string"
+        },
+        "job_id": {
+          "description": "The job of mowing it belongs to",
+          "type": "string"
+        },
+        "resume": {
+          "description": "Always auto",
+          "enum": [
+            "auto"
+          ],
+          "type": "string"
+        },
+        "seconds": {
+          "description": "How long the announcement lasts",
+          "type": "integer",
+          "x-unit": "s"
+        },
+        "session_id": {
+          "description": "The session of the logic since its start",
+          "type": "string"
+        },
+        "severity": {
+          "description": "Always info",
+          "enum": [
+            "info"
+          ],
+          "type": "string"
+        },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
+          "type": "string"
+        },
+        "t": {
+          "description": "When it happened",
+          "type": "number",
+          "x-unit": "unix s"
+        },
+        "type": {
+          "const": "SCHEDULE_START",
+          "description": "What happened; a type this version does not know carries only the envelope for sure"
+        },
+        "until": {
+          "description": "When it ends",
+          "type": "integer",
+          "x-unit": "unix s"
+        },
+        "x": {
+          "description": "Where the mower was, east of the datum of the map",
+          "type": "number",
+          "x-unit": "m"
+        },
+        "y": {
+          "description": "Where the mower was, north of the datum of the map",
+          "type": "number",
+          "x-unit": "m"
+        }
+      },
+      "required": [
+        "id",
+        "t",
+        "type",
+        "x",
+        "y",
+        "seconds",
+        "until",
+        "severity",
+        "resume"
+      ],
+      "type": "object",
+      "x-emitter": "logic"
+    },
+    "event.SCHEDULE_START_CANCELED": {
+      "additionalProperties": false,
+      "description": "The announced start of a plan was canceled; the plan does not mow",
+      "properties": {
+        "client": {
+          "description": "Who sent the command (app, ha), for the log and the events of its step",
+          "pattern": "^[a-z][a-z0-9_-]{0,15}$",
+          "type": "string"
+        },
+        "id": {
+          "description": "Random id of the event, 32 letters and digits",
+          "type": "string"
+        },
+        "job_id": {
+          "description": "The job of mowing it belongs to",
+          "type": "string"
+        },
+        "resume": {
+          "description": "Always auto",
+          "enum": [
+            "auto"
+          ],
+          "type": "string"
+        },
+        "session_id": {
+          "description": "The session of the logic since its start",
+          "type": "string"
+        },
+        "severity": {
+          "description": "Always info",
+          "enum": [
+            "info"
+          ],
+          "type": "string"
+        },
+        "source": {
+          "description": "What canceled it",
+          "enum": [
+            "emergency",
+            "rpc",
+            "undocked",
+            "hold"
+          ],
+          "type": "string"
+        },
+        "t": {
+          "description": "When it happened",
+          "type": "number",
+          "x-unit": "unix s"
+        },
+        "type": {
+          "const": "SCHEDULE_START_CANCELED",
+          "description": "What happened; a type this version does not know carries only the envelope for sure"
+        },
+        "x": {
+          "description": "Where the mower was, east of the datum of the map",
+          "type": "number",
+          "x-unit": "m"
+        },
+        "y": {
+          "description": "Where the mower was, north of the datum of the map",
+          "type": "number",
+          "x-unit": "m"
+        }
+      },
+      "required": [
+        "id",
+        "t",
+        "type",
+        "x",
+        "y",
+        "source",
         "severity",
         "resume"
       ],
@@ -3429,6 +4172,14 @@
           ],
           "type": "string"
         },
+        "detail": {
+          "description": "end: the time of the plan is over; pause: the areas are paused in the schedule",
+          "enum": [
+            "end",
+            "pause"
+          ],
+          "type": "string"
+        },
         "id": {
           "description": "Random id of the event, 32 letters and digits",
           "type": "string"
@@ -3473,7 +4224,8 @@
             "BATTERY_HOT",
             "MOTOR_HOT",
             "RAIN",
-            "DARK"
+            "DARK",
+            "SCHEDULE"
           ],
           "type": "string"
         },
@@ -3500,6 +4252,13 @@
             "info",
             "warning",
             "error"
+          ],
+          "type": "string"
+        },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
           ],
           "type": "string"
         },
@@ -3617,6 +4376,13 @@
           ],
           "type": "string"
         },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
+          "type": "string"
+        },
         "t": {
           "description": "When it happened",
           "type": "number",
@@ -3669,6 +4435,13 @@
         },
         "session_id": {
           "description": "The session of the logic since its start",
+          "type": "string"
+        },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
           "type": "string"
         },
         "t": {
@@ -3749,6 +4522,13 @@
             "info",
             "warning",
             "error"
+          ],
+          "type": "string"
+        },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
           ],
           "type": "string"
         },
@@ -3869,6 +4649,13 @@
           ],
           "type": "string"
         },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
+          "type": "string"
+        },
         "stalled": {
           "additionalProperties": false,
           "description": "The node the watch ended the OS for (reason NODE_STALLED), else null",
@@ -3983,14 +4770,18 @@
               "UNDOCKED",
               "UNDOCKING_FAILED",
               "DOCKING",
+              "DOCKING_DIRECT",
               "DOCKED",
               "DOCKING_RETRY",
               "DOCKING_FAILED",
               "CHARGING_LOST",
               "DOCK_RECORDED",
               "AREA_RECORDED",
+              "RECORDED_BODY_KEPT",
               "GEOMETRY_CHANGED",
               "STORAGE",
+              "SCHEDULE_START",
+              "SCHEDULE_START_CANCELED",
               "MAP_DATUM",
               "CORRECTIONS",
               "CAMERA_CHANGED",
@@ -4185,7 +4976,7 @@
               "type": "number"
             },
             "colors": {
-              "description": "1 to limits.colors texts #rrggbb; none for off",
+              "description": "1 to limits.colors texts #rrggbb; none for off and rainbow",
               "items": {
                 "description": "One item",
                 "type": "string"
@@ -4197,7 +4988,7 @@
               "type": "string"
             },
             "period": {
-              "description": "Time of one blink, pulse, chase or move of the gradient; a gradient may be 0",
+              "description": "Time of one cycle of the effect; gradient, rainbow and level may be 0",
               "type": "number",
               "x-unit": "s"
             }
@@ -4285,7 +5076,7 @@
               "type": "number"
             },
             "colors": {
-              "description": "1 to limits.colors texts #rrggbb; none for off",
+              "description": "1 to limits.colors texts #rrggbb; none for off and rainbow",
               "items": {
                 "description": "One item",
                 "type": "string"
@@ -4297,7 +5088,7 @@
               "type": "string"
             },
             "period": {
-              "description": "Time of one blink, pulse, chase or move of the gradient; a gradient may be 0",
+              "description": "Time of one cycle of the effect; gradient, rainbow and level may be 0",
               "type": "number",
               "x-unit": "s"
             }
@@ -4791,13 +5582,35 @@
       "description": "The params of mowing.start",
       "properties": {
         "areas": {
-          "description": "Ids of the areas to mow in this order (open_mower_ros #359); not yet: -32602 with data field areas",
+          "description": "Not taken (open_mower_ros #359): -32602 with data field areas, never all areas instead; see tasks",
           "type": "array"
         },
         "client": {
           "description": "Who sent the command (app, ha), for the log and the events of its step",
           "pattern": "^[a-z][a-z0-9_-]{0,15}$",
           "type": "string"
+        },
+        "restart": {
+          "description": "True starts a new job even with the list of the open one",
+          "type": "boolean"
+        },
+        "tasks": {
+          "description": "The areas of the job in this order; an inactive one is passed over. The list of the open job continues it, another list starts a new one: a caller always sends the whole list of its plan, a shorter one is another job. Without it every active mowing area. Unknown, twice or empty: -32602 with field tasks",
+          "items": {
+            "additionalProperties": false,
+            "description": "One item",
+            "properties": {
+              "area_id": {
+                "description": "Id of a mowing area of the map",
+                "type": "string"
+              }
+            },
+            "required": [
+              "area_id"
+            ],
+            "type": "object"
+          },
+          "type": "array"
         }
       },
       "required": [],
@@ -4824,6 +5637,692 @@
         "state",
         "sub_state",
         "check"
+      ],
+      "type": "object"
+    },
+    "notify.get.params": {
+      "description": "The params of notify.get: None",
+      "type": "object"
+    },
+    "notify.get.result": {
+      "additionalProperties": false,
+      "description": "The result of notify.get: The settings of the pushes",
+      "properties": {
+        "emergency_wait": {
+          "description": "How long an emergency lasts before it is told",
+          "maximum": 600.0,
+          "minimum": 0.0,
+          "type": "integer",
+          "x-unit": "s"
+        },
+        "enabled": {
+          "description": "false: nothing is sent, the rest stays",
+          "type": "boolean"
+        },
+        "events": {
+          "description": "The events that send a push: emergency, dock_failed, undock_failed, nav_error, spinup, standstill, refused, done, rain, battery, dark, maintenance, schedule_skipped",
+          "items": {
+            "description": "One item",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "has_token": {
+          "description": "A token for the ntfy server is stored; the token itself never comes back",
+          "type": "boolean"
+        },
+        "lang": {
+          "description": "Language of the texts",
+          "enum": [
+            "de",
+            "en"
+          ],
+          "type": "string"
+        },
+        "name": {
+          "description": "Name of the mower in the texts, at most 40 characters; empty: the mower",
+          "type": "string"
+        },
+        "pushes": {
+          "description": "UnifiedPush addresses of the phones, oldest first; past 10 the oldest goes",
+          "items": {
+            "description": "One item",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "remind": {
+          "description": "Between reminders of a problem that stays; 0 for none",
+          "maximum": 1440.0,
+          "minimum": 0.0,
+          "type": "integer",
+          "x-unit": "min"
+        },
+        "schema": {
+          "description": "Always 1",
+          "type": "integer"
+        },
+        "server": {
+          "description": "ntfy server, http(s)://host[:port][/path]",
+          "type": "string"
+        },
+        "snooze": {
+          "description": "Reminders snoozed until then, 0 for not",
+          "type": "integer",
+          "x-unit": "unix s"
+        },
+        "stored": {
+          "description": "Saved before: without, nothing is sent",
+          "type": "boolean"
+        },
+        "topic": {
+          "description": "ntfy topic, [A-Za-z0-9_-]{1,64}; empty for none",
+          "pattern": "^[A-Za-z0-9_-]{0,64}$",
+          "type": "string"
+        },
+        "url": {
+          "description": "Address of MowBite for the button in the message; empty for none",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema",
+        "enabled",
+        "server",
+        "topic",
+        "lang",
+        "name",
+        "url",
+        "events",
+        "remind",
+        "emergency_wait",
+        "has_token",
+        "pushes",
+        "snooze",
+        "stored"
+      ],
+      "type": "object"
+    },
+    "notify.log.params": {
+      "additionalProperties": false,
+      "description": "The params of notify.log: How many",
+      "properties": {
+        "limit": {
+          "description": "The last so many",
+          "maximum": 50.0,
+          "minimum": 1.0,
+          "type": "integer"
+        }
+      },
+      "required": [],
+      "type": "object"
+    },
+    "notify.log.result": {
+      "description": "The result of notify.log: A push",
+      "items": {
+        "additionalProperties": false,
+        "description": "One item",
+        "properties": {
+          "kind": {
+            "description": "Its event or test",
+            "type": "string"
+          },
+          "sent": {
+            "description": "Reached at least one target",
+            "type": "boolean"
+          },
+          "t": {
+            "description": "When",
+            "type": "integer",
+            "x-unit": "unix s"
+          },
+          "title": {
+            "description": "Its title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "t",
+          "sent",
+          "kind",
+          "title"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "notify.push_add.params": {
+      "additionalProperties": false,
+      "description": "The params of notify.push_add: The address",
+      "properties": {
+        "address": {
+          "description": "https URL, at most 1000 characters",
+          "type": "string"
+        }
+      },
+      "required": [
+        "address"
+      ],
+      "type": "object"
+    },
+    "notify.push_add.result": {
+      "additionalProperties": false,
+      "description": "The result of notify.push_add: The settings of the pushes",
+      "properties": {
+        "emergency_wait": {
+          "description": "How long an emergency lasts before it is told",
+          "maximum": 600.0,
+          "minimum": 0.0,
+          "type": "integer",
+          "x-unit": "s"
+        },
+        "enabled": {
+          "description": "false: nothing is sent, the rest stays",
+          "type": "boolean"
+        },
+        "events": {
+          "description": "The events that send a push: emergency, dock_failed, undock_failed, nav_error, spinup, standstill, refused, done, rain, battery, dark, maintenance, schedule_skipped",
+          "items": {
+            "description": "One item",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "has_token": {
+          "description": "A token for the ntfy server is stored; the token itself never comes back",
+          "type": "boolean"
+        },
+        "lang": {
+          "description": "Language of the texts",
+          "enum": [
+            "de",
+            "en"
+          ],
+          "type": "string"
+        },
+        "name": {
+          "description": "Name of the mower in the texts, at most 40 characters; empty: the mower",
+          "type": "string"
+        },
+        "pushes": {
+          "description": "UnifiedPush addresses of the phones, oldest first; past 10 the oldest goes",
+          "items": {
+            "description": "One item",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "remind": {
+          "description": "Between reminders of a problem that stays; 0 for none",
+          "maximum": 1440.0,
+          "minimum": 0.0,
+          "type": "integer",
+          "x-unit": "min"
+        },
+        "schema": {
+          "description": "Always 1",
+          "type": "integer"
+        },
+        "server": {
+          "description": "ntfy server, http(s)://host[:port][/path]",
+          "type": "string"
+        },
+        "snooze": {
+          "description": "Reminders snoozed until then, 0 for not",
+          "type": "integer",
+          "x-unit": "unix s"
+        },
+        "stored": {
+          "description": "Saved before: without, nothing is sent",
+          "type": "boolean"
+        },
+        "topic": {
+          "description": "ntfy topic, [A-Za-z0-9_-]{1,64}; empty for none",
+          "pattern": "^[A-Za-z0-9_-]{0,64}$",
+          "type": "string"
+        },
+        "url": {
+          "description": "Address of MowBite for the button in the message; empty for none",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema",
+        "enabled",
+        "server",
+        "topic",
+        "lang",
+        "name",
+        "url",
+        "events",
+        "remind",
+        "emergency_wait",
+        "has_token",
+        "pushes",
+        "snooze",
+        "stored"
+      ],
+      "type": "object"
+    },
+    "notify.push_remove.params": {
+      "additionalProperties": false,
+      "description": "The params of notify.push_remove: The address",
+      "properties": {
+        "address": {
+          "description": "As in pushes",
+          "type": "string"
+        }
+      },
+      "required": [
+        "address"
+      ],
+      "type": "object"
+    },
+    "notify.push_remove.result": {
+      "additionalProperties": false,
+      "description": "The result of notify.push_remove: The settings of the pushes",
+      "properties": {
+        "emergency_wait": {
+          "description": "How long an emergency lasts before it is told",
+          "maximum": 600.0,
+          "minimum": 0.0,
+          "type": "integer",
+          "x-unit": "s"
+        },
+        "enabled": {
+          "description": "false: nothing is sent, the rest stays",
+          "type": "boolean"
+        },
+        "events": {
+          "description": "The events that send a push: emergency, dock_failed, undock_failed, nav_error, spinup, standstill, refused, done, rain, battery, dark, maintenance, schedule_skipped",
+          "items": {
+            "description": "One item",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "has_token": {
+          "description": "A token for the ntfy server is stored; the token itself never comes back",
+          "type": "boolean"
+        },
+        "lang": {
+          "description": "Language of the texts",
+          "enum": [
+            "de",
+            "en"
+          ],
+          "type": "string"
+        },
+        "name": {
+          "description": "Name of the mower in the texts, at most 40 characters; empty: the mower",
+          "type": "string"
+        },
+        "pushes": {
+          "description": "UnifiedPush addresses of the phones, oldest first; past 10 the oldest goes",
+          "items": {
+            "description": "One item",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "remind": {
+          "description": "Between reminders of a problem that stays; 0 for none",
+          "maximum": 1440.0,
+          "minimum": 0.0,
+          "type": "integer",
+          "x-unit": "min"
+        },
+        "schema": {
+          "description": "Always 1",
+          "type": "integer"
+        },
+        "server": {
+          "description": "ntfy server, http(s)://host[:port][/path]",
+          "type": "string"
+        },
+        "snooze": {
+          "description": "Reminders snoozed until then, 0 for not",
+          "type": "integer",
+          "x-unit": "unix s"
+        },
+        "stored": {
+          "description": "Saved before: without, nothing is sent",
+          "type": "boolean"
+        },
+        "topic": {
+          "description": "ntfy topic, [A-Za-z0-9_-]{1,64}; empty for none",
+          "pattern": "^[A-Za-z0-9_-]{0,64}$",
+          "type": "string"
+        },
+        "url": {
+          "description": "Address of MowBite for the button in the message; empty for none",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema",
+        "enabled",
+        "server",
+        "topic",
+        "lang",
+        "name",
+        "url",
+        "events",
+        "remind",
+        "emergency_wait",
+        "has_token",
+        "pushes",
+        "snooze",
+        "stored"
+      ],
+      "type": "object"
+    },
+    "notify.set.params": {
+      "additionalProperties": false,
+      "description": "The params of notify.set: The change",
+      "properties": {
+        "emergency_wait": {
+          "description": "How long an emergency lasts before it is told",
+          "maximum": 600.0,
+          "minimum": 0.0,
+          "type": "integer",
+          "x-unit": "s"
+        },
+        "enabled": {
+          "description": "false: nothing is sent, the rest stays",
+          "type": "boolean"
+        },
+        "events": {
+          "description": "The events that send a push: emergency, dock_failed, undock_failed, nav_error, spinup, standstill, refused, done, rain, battery, dark, maintenance, schedule_skipped",
+          "items": {
+            "description": "One item",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "lang": {
+          "description": "Language of the texts",
+          "enum": [
+            "de",
+            "en"
+          ],
+          "type": "string"
+        },
+        "name": {
+          "description": "Name of the mower in the texts, at most 40 characters; empty: the mower",
+          "type": "string"
+        },
+        "remind": {
+          "description": "Between reminders of a problem that stays; 0 for none",
+          "maximum": 1440.0,
+          "minimum": 0.0,
+          "type": "integer",
+          "x-unit": "min"
+        },
+        "server": {
+          "description": "ntfy server, http(s)://host[:port][/path]",
+          "type": "string"
+        },
+        "token": {
+          "description": "New token for the ntfy server; empty drops it",
+          "type": "string"
+        },
+        "topic": {
+          "description": "ntfy topic, [A-Za-z0-9_-]{1,64}; empty for none",
+          "pattern": "^[A-Za-z0-9_-]{0,64}$",
+          "type": "string"
+        },
+        "url": {
+          "description": "Address of MowBite for the button in the message; empty for none",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "type": "object"
+    },
+    "notify.set.result": {
+      "additionalProperties": false,
+      "description": "The result of notify.set: The settings of the pushes",
+      "properties": {
+        "emergency_wait": {
+          "description": "How long an emergency lasts before it is told",
+          "maximum": 600.0,
+          "minimum": 0.0,
+          "type": "integer",
+          "x-unit": "s"
+        },
+        "enabled": {
+          "description": "false: nothing is sent, the rest stays",
+          "type": "boolean"
+        },
+        "events": {
+          "description": "The events that send a push: emergency, dock_failed, undock_failed, nav_error, spinup, standstill, refused, done, rain, battery, dark, maintenance, schedule_skipped",
+          "items": {
+            "description": "One item",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "has_token": {
+          "description": "A token for the ntfy server is stored; the token itself never comes back",
+          "type": "boolean"
+        },
+        "lang": {
+          "description": "Language of the texts",
+          "enum": [
+            "de",
+            "en"
+          ],
+          "type": "string"
+        },
+        "name": {
+          "description": "Name of the mower in the texts, at most 40 characters; empty: the mower",
+          "type": "string"
+        },
+        "pushes": {
+          "description": "UnifiedPush addresses of the phones, oldest first; past 10 the oldest goes",
+          "items": {
+            "description": "One item",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "remind": {
+          "description": "Between reminders of a problem that stays; 0 for none",
+          "maximum": 1440.0,
+          "minimum": 0.0,
+          "type": "integer",
+          "x-unit": "min"
+        },
+        "schema": {
+          "description": "Always 1",
+          "type": "integer"
+        },
+        "server": {
+          "description": "ntfy server, http(s)://host[:port][/path]",
+          "type": "string"
+        },
+        "snooze": {
+          "description": "Reminders snoozed until then, 0 for not",
+          "type": "integer",
+          "x-unit": "unix s"
+        },
+        "stored": {
+          "description": "Saved before: without, nothing is sent",
+          "type": "boolean"
+        },
+        "topic": {
+          "description": "ntfy topic, [A-Za-z0-9_-]{1,64}; empty for none",
+          "pattern": "^[A-Za-z0-9_-]{0,64}$",
+          "type": "string"
+        },
+        "url": {
+          "description": "Address of MowBite for the button in the message; empty for none",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema",
+        "enabled",
+        "server",
+        "topic",
+        "lang",
+        "name",
+        "url",
+        "events",
+        "remind",
+        "emergency_wait",
+        "has_token",
+        "pushes",
+        "snooze",
+        "stored"
+      ],
+      "type": "object"
+    },
+    "notify.snooze.params": {
+      "additionalProperties": false,
+      "description": "The params of notify.snooze: How long",
+      "properties": {
+        "seconds": {
+          "description": "Seconds from now",
+          "maximum": 86400.0,
+          "minimum": 0.0,
+          "type": "integer",
+          "x-unit": "s"
+        }
+      },
+      "required": [
+        "seconds"
+      ],
+      "type": "object"
+    },
+    "notify.snooze.result": {
+      "additionalProperties": false,
+      "description": "The result of notify.snooze: The settings of the pushes",
+      "properties": {
+        "emergency_wait": {
+          "description": "How long an emergency lasts before it is told",
+          "maximum": 600.0,
+          "minimum": 0.0,
+          "type": "integer",
+          "x-unit": "s"
+        },
+        "enabled": {
+          "description": "false: nothing is sent, the rest stays",
+          "type": "boolean"
+        },
+        "events": {
+          "description": "The events that send a push: emergency, dock_failed, undock_failed, nav_error, spinup, standstill, refused, done, rain, battery, dark, maintenance, schedule_skipped",
+          "items": {
+            "description": "One item",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "has_token": {
+          "description": "A token for the ntfy server is stored; the token itself never comes back",
+          "type": "boolean"
+        },
+        "lang": {
+          "description": "Language of the texts",
+          "enum": [
+            "de",
+            "en"
+          ],
+          "type": "string"
+        },
+        "name": {
+          "description": "Name of the mower in the texts, at most 40 characters; empty: the mower",
+          "type": "string"
+        },
+        "pushes": {
+          "description": "UnifiedPush addresses of the phones, oldest first; past 10 the oldest goes",
+          "items": {
+            "description": "One item",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "remind": {
+          "description": "Between reminders of a problem that stays; 0 for none",
+          "maximum": 1440.0,
+          "minimum": 0.0,
+          "type": "integer",
+          "x-unit": "min"
+        },
+        "schema": {
+          "description": "Always 1",
+          "type": "integer"
+        },
+        "server": {
+          "description": "ntfy server, http(s)://host[:port][/path]",
+          "type": "string"
+        },
+        "snooze": {
+          "description": "Reminders snoozed until then, 0 for not",
+          "type": "integer",
+          "x-unit": "unix s"
+        },
+        "stored": {
+          "description": "Saved before: without, nothing is sent",
+          "type": "boolean"
+        },
+        "topic": {
+          "description": "ntfy topic, [A-Za-z0-9_-]{1,64}; empty for none",
+          "pattern": "^[A-Za-z0-9_-]{0,64}$",
+          "type": "string"
+        },
+        "url": {
+          "description": "Address of MowBite for the button in the message; empty for none",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema",
+        "enabled",
+        "server",
+        "topic",
+        "lang",
+        "name",
+        "url",
+        "events",
+        "remind",
+        "emergency_wait",
+        "has_token",
+        "pushes",
+        "snooze",
+        "stored"
+      ],
+      "type": "object"
+    },
+    "notify.test.params": {
+      "additionalProperties": false,
+      "description": "The params of notify.test: None for all",
+      "properties": {
+        "address": {
+          "description": "One UnifiedPush address of pushes",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "type": "object"
+    },
+    "notify.test.result": {
+      "additionalProperties": false,
+      "description": "The result of notify.test: How it went",
+      "properties": {
+        "result": {
+          "description": "sent: to at least one; no_target: no topic and no phone",
+          "enum": [
+            "sent",
+            "failed",
+            "no_target"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "result"
       ],
       "type": "object"
     },
@@ -5653,7 +7152,7 @@
           "type": "number"
         },
         "current_area": {
-          "description": "While mowing the index of the area in the plan, otherwise -1",
+          "description": "While mowing the index of the area among the mowing areas of the map, otherwise -1",
           "type": "integer"
         },
         "current_path": {
@@ -5735,6 +7234,14 @@
         "rain_detected": {
           "description": "1 while the rain sensor reports rain",
           "type": "integer"
+        },
+        "task_count": {
+          "description": "While mowing the number of areas in the list of the job, otherwise -1",
+          "type": "integer"
+        },
+        "task_index": {
+          "description": "While mowing the place of the area in the list of the job from 0, otherwise -1",
+          "type": "integer"
         }
       },
       "required": [
@@ -5746,6 +7253,8 @@
         "current_area",
         "current_path",
         "current_path_index",
+        "task_index",
+        "task_count",
         "emergency",
         "emergency_reason",
         "is_charging",
@@ -5776,6 +7285,754 @@
         "pong"
       ],
       "type": "string"
+    },
+    "schedule.get.params": {
+      "description": "The params of schedule.get: None",
+      "type": "object"
+    },
+    "schedule.get.result": {
+      "additionalProperties": false,
+      "description": "The result of schedule.get: The schedule now",
+      "properties": {
+        "available": {
+          "description": "Whether the platform lets the schedule start the mower",
+          "type": "boolean"
+        },
+        "clock_ok": {
+          "description": "Whether the wall clock is safe for date, weekday and sun",
+          "type": "boolean"
+        },
+        "clock_reason": {
+          "description": "Why it is not safe, null when it is",
+          "enum": [
+            "never_synced",
+            "clock_jump",
+            "gnss_mismatch",
+            null
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "next_start": {
+          "description": "The next start, now while a plan waits or is announced; null without one",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-unit": "unix s"
+        },
+        "reason": {
+          "description": "platform_off without available, else null",
+          "enum": [
+            "platform_off",
+            null
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "schedule": {
+          "additionalProperties": false,
+          "description": "The schedule; its times local after tz",
+          "properties": {
+            "enabled": {
+              "description": "1: the plans start the mower",
+              "type": "integer"
+            },
+            "forecast_hours": {
+              "description": "1, 2 or 3",
+              "type": "integer"
+            },
+            "min_battery": {
+              "description": "% a plan waits for, 0 to 100",
+              "type": "integer"
+            },
+            "min_temp": {
+              "description": "deg C: 3, 5, 8 or 10",
+              "type": "integer"
+            },
+            "pause": {
+              "additionalProperties": false,
+              "description": "Paused through until, null for none",
+              "properties": {
+                "areas": {
+                  "description": "all, or a list of area ids"
+                },
+                "until": {
+                  "description": "YYYY-MM-DD local",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "until",
+                "areas"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "plans": {
+              "description": "At most 32, no two at one time on a day",
+              "items": {
+                "additionalProperties": false,
+                "description": "One item",
+                "properties": {
+                  "angle_offset_deg": {
+                    "description": "Added to the lane direction of the planner for its job",
+                    "maximum": 180.0,
+                    "minimum": -180.0,
+                    "type": "number",
+                    "x-unit": "deg"
+                  },
+                  "areas": {
+                    "description": "Area ids in order, none for every mowing area",
+                    "items": {
+                      "description": "One item",
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "dark": {
+                    "description": "1: also starts and mows in the dark",
+                    "type": "integer"
+                  },
+                  "days": {
+                    "description": "1 Monday to 7 Sunday, none twice",
+                    "items": {
+                      "description": "One item",
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  },
+                  "end": {
+                    "description": "HH:MM local, home then; not after time: the next day",
+                    "type": "string"
+                  },
+                  "fresh": {
+                    "description": "1: a job of its own, the open one is dropped",
+                    "type": "integer"
+                  },
+                  "sunset": {
+                    "description": "With dark 1: still home at sunset",
+                    "type": "integer"
+                  },
+                  "time": {
+                    "description": "HH:MM local, names the plan",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "days",
+                  "time",
+                  "dark",
+                  "sunset",
+                  "fresh"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "skip_cold": {
+              "description": "1: no start below min_temp",
+              "type": "integer"
+            },
+            "skip_forecast": {
+              "description": "1: no start with rain now or in the next forecast_hours",
+              "type": "integer"
+            },
+            "skip_rain": {
+              "description": "1: no start while the rain sensor is wet",
+              "type": "integer"
+            },
+            "tz": {
+              "description": "POSIX TZ of the local times",
+              "type": "string"
+            }
+          },
+          "required": [
+            "enabled",
+            "min_battery",
+            "skip_rain",
+            "skip_forecast",
+            "forecast_hours",
+            "skip_cold",
+            "min_temp",
+            "tz",
+            "plans",
+            "pause"
+          ],
+          "type": "object"
+        },
+        "schema": {
+          "description": "Always 1",
+          "type": "integer"
+        },
+        "sun": {
+          "additionalProperties": false,
+          "description": "Of the local day after tz at the datum of the map; null without a datum or without one that day",
+          "properties": {
+            "rise": {
+              "description": "Sunrise",
+              "type": [
+                "integer",
+                "null"
+              ],
+              "x-unit": "unix s"
+            },
+            "set": {
+              "description": "Sunset",
+              "type": [
+                "integer",
+                "null"
+              ],
+              "x-unit": "unix s"
+            }
+          },
+          "required": [
+            "rise",
+            "set"
+          ],
+          "type": "object"
+        },
+        "version": {
+          "description": "Goes up with every change; schedule.set may name it",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schema",
+        "version",
+        "available",
+        "reason",
+        "clock_ok",
+        "clock_reason",
+        "next_start",
+        "schedule",
+        "sun"
+      ],
+      "type": "object"
+    },
+    "schedule.leftovers.params": {
+      "additionalProperties": false,
+      "description": "The params of schedule.leftovers: The change, none to read",
+      "properties": {
+        "enabled": {
+          "description": "1: leftovers after a job",
+          "type": "integer"
+        },
+        "min_m2": {
+          "description": "Less is not mowed",
+          "type": "number",
+          "x-unit": "m2"
+        }
+      },
+      "required": [
+        "enabled"
+      ],
+      "type": "object"
+    },
+    "schedule.leftovers.result": {
+      "additionalProperties": false,
+      "description": "The result of schedule.leftovers: The leftovers now",
+      "properties": {
+        "enabled": {
+          "description": "1: leftovers after a job",
+          "type": "integer"
+        },
+        "min_m2": {
+          "description": "Less is not mowed",
+          "type": "number",
+          "x-unit": "m2"
+        }
+      },
+      "required": [
+        "enabled",
+        "min_m2"
+      ],
+      "type": "object"
+    },
+    "schedule.log.params": {
+      "additionalProperties": false,
+      "description": "The params of schedule.log: How many",
+      "properties": {
+        "limit": {
+          "description": "The last so many, at most 100",
+          "type": "integer"
+        }
+      },
+      "required": [],
+      "type": "object"
+    },
+    "schedule.log.result": {
+      "additionalProperties": false,
+      "description": "The result of schedule.log: The log",
+      "properties": {
+        "entries": {
+          "description": "Each with t (unix s), what, detail, more and at (HH:MM of the plan or null)",
+          "items": {
+            "additionalProperties": false,
+            "description": "One item",
+            "properties": {
+              "at": {
+                "description": "HH:MM of the plan, null for none",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "detail": {
+                "description": "As x-schedule-log has it",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "more": {
+                "description": "As x-schedule-log has it",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "t": {
+                "description": "When",
+                "type": "integer",
+                "x-unit": "unix s"
+              },
+              "what": {
+                "description": "A word of x-schedule-log",
+                "type": "string"
+              }
+            },
+            "required": [
+              "t",
+              "what",
+              "detail",
+              "more",
+              "at"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "entries"
+      ],
+      "type": "object"
+    },
+    "schedule.set.params": {
+      "additionalProperties": false,
+      "description": "The params of schedule.set: The change",
+      "properties": {
+        "schedule": {
+          "additionalProperties": false,
+          "description": "The schedule; its times local after tz",
+          "properties": {
+            "enabled": {
+              "description": "1: the plans start the mower",
+              "type": "integer"
+            },
+            "forecast_hours": {
+              "description": "1, 2 or 3",
+              "type": "integer"
+            },
+            "min_battery": {
+              "description": "% a plan waits for, 0 to 100",
+              "type": "integer"
+            },
+            "min_temp": {
+              "description": "deg C: 3, 5, 8 or 10",
+              "type": "integer"
+            },
+            "pause": {
+              "additionalProperties": false,
+              "description": "Paused through until, null for none",
+              "properties": {
+                "areas": {
+                  "description": "all, or a list of area ids"
+                },
+                "until": {
+                  "description": "YYYY-MM-DD local",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "until",
+                "areas"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "plans": {
+              "description": "At most 32, no two at one time on a day",
+              "items": {
+                "additionalProperties": false,
+                "description": "One item",
+                "properties": {
+                  "angle_offset_deg": {
+                    "description": "Added to the lane direction of the planner for its job",
+                    "maximum": 180.0,
+                    "minimum": -180.0,
+                    "type": "number",
+                    "x-unit": "deg"
+                  },
+                  "areas": {
+                    "description": "Area ids in order, none for every mowing area",
+                    "items": {
+                      "description": "One item",
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "dark": {
+                    "description": "1: also starts and mows in the dark",
+                    "type": "integer"
+                  },
+                  "days": {
+                    "description": "1 Monday to 7 Sunday, none twice",
+                    "items": {
+                      "description": "One item",
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  },
+                  "end": {
+                    "description": "HH:MM local, home then; not after time: the next day",
+                    "type": "string"
+                  },
+                  "fresh": {
+                    "description": "1: a job of its own, the open one is dropped",
+                    "type": "integer"
+                  },
+                  "sunset": {
+                    "description": "With dark 1: still home at sunset",
+                    "type": "integer"
+                  },
+                  "time": {
+                    "description": "HH:MM local, names the plan",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "days",
+                  "time",
+                  "dark",
+                  "sunset",
+                  "fresh"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "skip_cold": {
+              "description": "1: no start below min_temp",
+              "type": "integer"
+            },
+            "skip_forecast": {
+              "description": "1: no start with rain now or in the next forecast_hours",
+              "type": "integer"
+            },
+            "skip_rain": {
+              "description": "1: no start while the rain sensor is wet",
+              "type": "integer"
+            },
+            "tz": {
+              "description": "POSIX TZ of the local times",
+              "type": "string"
+            }
+          },
+          "required": [
+            "enabled",
+            "min_battery",
+            "skip_rain",
+            "skip_forecast",
+            "forecast_hours",
+            "skip_cold",
+            "min_temp",
+            "tz",
+            "plans",
+            "pause"
+          ],
+          "type": "object"
+        },
+        "version": {
+          "description": "version of the last schedule.get",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schedule"
+      ],
+      "type": "object"
+    },
+    "schedule.set.result": {
+      "additionalProperties": false,
+      "description": "The result of schedule.set: The schedule now",
+      "properties": {
+        "available": {
+          "description": "Whether the platform lets the schedule start the mower",
+          "type": "boolean"
+        },
+        "clock_ok": {
+          "description": "Whether the wall clock is safe for date, weekday and sun",
+          "type": "boolean"
+        },
+        "clock_reason": {
+          "description": "Why it is not safe, null when it is",
+          "enum": [
+            "never_synced",
+            "clock_jump",
+            "gnss_mismatch",
+            null
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "next_start": {
+          "description": "The next start, now while a plan waits or is announced; null without one",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-unit": "unix s"
+        },
+        "reason": {
+          "description": "platform_off without available, else null",
+          "enum": [
+            "platform_off",
+            null
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "schedule": {
+          "additionalProperties": false,
+          "description": "The schedule; its times local after tz",
+          "properties": {
+            "enabled": {
+              "description": "1: the plans start the mower",
+              "type": "integer"
+            },
+            "forecast_hours": {
+              "description": "1, 2 or 3",
+              "type": "integer"
+            },
+            "min_battery": {
+              "description": "% a plan waits for, 0 to 100",
+              "type": "integer"
+            },
+            "min_temp": {
+              "description": "deg C: 3, 5, 8 or 10",
+              "type": "integer"
+            },
+            "pause": {
+              "additionalProperties": false,
+              "description": "Paused through until, null for none",
+              "properties": {
+                "areas": {
+                  "description": "all, or a list of area ids"
+                },
+                "until": {
+                  "description": "YYYY-MM-DD local",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "until",
+                "areas"
+              ],
+              "type": [
+                "object",
+                "null"
+              ]
+            },
+            "plans": {
+              "description": "At most 32, no two at one time on a day",
+              "items": {
+                "additionalProperties": false,
+                "description": "One item",
+                "properties": {
+                  "angle_offset_deg": {
+                    "description": "Added to the lane direction of the planner for its job",
+                    "maximum": 180.0,
+                    "minimum": -180.0,
+                    "type": "number",
+                    "x-unit": "deg"
+                  },
+                  "areas": {
+                    "description": "Area ids in order, none for every mowing area",
+                    "items": {
+                      "description": "One item",
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "dark": {
+                    "description": "1: also starts and mows in the dark",
+                    "type": "integer"
+                  },
+                  "days": {
+                    "description": "1 Monday to 7 Sunday, none twice",
+                    "items": {
+                      "description": "One item",
+                      "type": "integer"
+                    },
+                    "type": "array"
+                  },
+                  "end": {
+                    "description": "HH:MM local, home then; not after time: the next day",
+                    "type": "string"
+                  },
+                  "fresh": {
+                    "description": "1: a job of its own, the open one is dropped",
+                    "type": "integer"
+                  },
+                  "sunset": {
+                    "description": "With dark 1: still home at sunset",
+                    "type": "integer"
+                  },
+                  "time": {
+                    "description": "HH:MM local, names the plan",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "days",
+                  "time",
+                  "dark",
+                  "sunset",
+                  "fresh"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "skip_cold": {
+              "description": "1: no start below min_temp",
+              "type": "integer"
+            },
+            "skip_forecast": {
+              "description": "1: no start with rain now or in the next forecast_hours",
+              "type": "integer"
+            },
+            "skip_rain": {
+              "description": "1: no start while the rain sensor is wet",
+              "type": "integer"
+            },
+            "tz": {
+              "description": "POSIX TZ of the local times",
+              "type": "string"
+            }
+          },
+          "required": [
+            "enabled",
+            "min_battery",
+            "skip_rain",
+            "skip_forecast",
+            "forecast_hours",
+            "skip_cold",
+            "min_temp",
+            "tz",
+            "plans",
+            "pause"
+          ],
+          "type": "object"
+        },
+        "schema": {
+          "description": "Always 1",
+          "type": "integer"
+        },
+        "sun": {
+          "additionalProperties": false,
+          "description": "Of the local day after tz at the datum of the map; null without a datum or without one that day",
+          "properties": {
+            "rise": {
+              "description": "Sunrise",
+              "type": [
+                "integer",
+                "null"
+              ],
+              "x-unit": "unix s"
+            },
+            "set": {
+              "description": "Sunset",
+              "type": [
+                "integer",
+                "null"
+              ],
+              "x-unit": "unix s"
+            }
+          },
+          "required": [
+            "rise",
+            "set"
+          ],
+          "type": "object"
+        },
+        "version": {
+          "description": "Goes up with every change; schedule.set may name it",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "schema",
+        "version",
+        "available",
+        "reason",
+        "clock_ok",
+        "clock_reason",
+        "next_start",
+        "schedule",
+        "sun"
+      ],
+      "type": "object"
+    },
+    "schedule_ready": {
+      "additionalProperties": false,
+      "description": "mowbite/schedule/ready, retained while a start of the schedule is to come, empty once none is: whether the next start would go with the states of now. Shown only, the start checks again; the weather is not asked",
+      "properties": {
+        "ok": {
+          "type": "boolean"
+        },
+        "reason": {
+          "description": "null with ok, else the word schedule.log would write, see x-schedule-log",
+          "enum": [
+            null,
+            "skip_offline",
+            "skip_clock",
+            "skip_paused",
+            "skip_no_area",
+            "skip_emergency",
+            "skip_busy",
+            "skip_not_docked",
+            "skip_rain",
+            "skip_dark",
+            "skip_no_position",
+            "waiting_battery",
+            "waiting_hold"
+          ],
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "ok",
+        "reason"
+      ],
+      "type": "object"
     },
     "sensors.list.params": {
       "additionalProperties": false,
@@ -5908,7 +8165,8 @@
             "CHARGING_START",
             "CHARGING_DONE",
             "EMERGENCY",
-            "LIFT_TRIGGERED"
+            "LIFT_TRIGGERED",
+            "SCHEDULE_START"
           ],
           "type": "string"
         }
@@ -6050,7 +8308,8 @@
                   "CHARGING_START",
                   "CHARGING_DONE",
                   "EMERGENCY",
-                  "LIFT_TRIGGERED"
+                  "LIFT_TRIGGERED",
+                  "SCHEDULE_START"
                 ],
                 "type": "string"
               }
@@ -6093,7 +8352,8 @@
             "CHARGING_START",
             "CHARGING_DONE",
             "EMERGENCY",
-            "LIFT_TRIGGERED"
+            "LIFT_TRIGGERED",
+            "SCHEDULE_START"
           ],
           "type": "string"
         }
@@ -6165,7 +8425,8 @@
             "CHARGING_START",
             "CHARGING_DONE",
             "EMERGENCY",
-            "LIFT_TRIGGERED"
+            "LIFT_TRIGGERED",
+            "SCHEDULE_START"
           ],
           "type": "string"
         }
@@ -6237,6 +8498,485 @@
       ],
       "type": "object"
     },
+    "stats.get.params": {
+      "additionalProperties": false,
+      "description": "The params of stats.get: None: the hours since the turn of the year, less a day",
+      "properties": {
+        "from": {
+          "description": "The hours from then on",
+          "type": "integer",
+          "x-unit": "unix s"
+        }
+      },
+      "required": [
+        "from"
+      ],
+      "type": "object"
+    },
+    "stats.get.result": {
+      "additionalProperties": false,
+      "description": "The result of stats.get: The statistics",
+      "properties": {
+        "from": {
+          "description": "The hours from then on: from of the request, later when the newest 9000 are all",
+          "type": "integer",
+          "x-unit": "unix s"
+        },
+        "hours": {
+          "description": "Each hour with something in it from from on, oldest first, the one going on last",
+          "items": {
+            "additionalProperties": false,
+            "description": "One item",
+            "properties": {
+              "blade_s": {
+                "description": "Seconds the blade turned",
+                "type": "integer"
+              },
+              "driven_m": {
+                "description": "Driven without it, not in IDLE",
+                "type": "number",
+                "x-unit": "m"
+              },
+              "mowed_m": {
+                "description": "Driven with the blade turning",
+                "type": "number",
+                "x-unit": "m"
+              },
+              "runs": {
+                "description": "Left IDLE to undock or to mow",
+                "type": "integer"
+              },
+              "t": {
+                "description": "Start of the hour, a whole UTC hour",
+                "type": "integer",
+                "x-unit": "unix s"
+              }
+            },
+            "required": [
+              "t",
+              "blade_s",
+              "mowed_m",
+              "driven_m",
+              "runs"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "parts": {
+          "description": "The parts to see to",
+          "items": {
+            "additionalProperties": false,
+            "description": "One item",
+            "properties": {
+              "base_blade_s": {
+                "description": "total blade_s when it was last seen to",
+                "type": "integer"
+              },
+              "done_at": {
+                "description": "Last seen to, 0 not since counting started",
+                "type": "integer",
+                "x-unit": "unix s"
+              },
+              "due_h": {
+                "description": "Due again after so many blade hours",
+                "type": "number",
+                "x-unit": "h"
+              },
+              "key": {
+                "description": "The part",
+                "enum": [
+                  "blade",
+                  "clean"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "key",
+              "due_h",
+              "base_blade_s",
+              "done_at"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "schema": {
+          "description": "Always 1",
+          "type": "integer"
+        },
+        "since": {
+          "description": "Counting started then",
+          "type": "integer",
+          "x-unit": "unix s"
+        },
+        "total": {
+          "additionalProperties": false,
+          "description": "Since counting started",
+          "properties": {
+            "blade_s": {
+              "description": "Seconds the blade turned",
+              "type": "integer"
+            },
+            "driven_m": {
+              "description": "Driven without it, not in IDLE",
+              "type": "number",
+              "x-unit": "m"
+            },
+            "mowed_m": {
+              "description": "Driven with the blade turning",
+              "type": "number",
+              "x-unit": "m"
+            },
+            "runs": {
+              "description": "Left IDLE to undock or to mow",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "blade_s",
+            "mowed_m",
+            "driven_m",
+            "runs"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "schema",
+        "since",
+        "from",
+        "total",
+        "hours",
+        "parts"
+      ],
+      "type": "object"
+    },
+    "stats.part_done.params": {
+      "additionalProperties": false,
+      "description": "The params of stats.part_done: The part",
+      "properties": {
+        "part": {
+          "description": "Its key",
+          "enum": [
+            "blade",
+            "clean"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "part"
+      ],
+      "type": "object"
+    },
+    "stats.part_done.result": {
+      "additionalProperties": false,
+      "description": "The result of stats.part_done: The statistics",
+      "properties": {
+        "from": {
+          "description": "The hours from then on: from of the request, later when the newest 9000 are all",
+          "type": "integer",
+          "x-unit": "unix s"
+        },
+        "hours": {
+          "description": "Each hour with something in it from from on, oldest first, the one going on last",
+          "items": {
+            "additionalProperties": false,
+            "description": "One item",
+            "properties": {
+              "blade_s": {
+                "description": "Seconds the blade turned",
+                "type": "integer"
+              },
+              "driven_m": {
+                "description": "Driven without it, not in IDLE",
+                "type": "number",
+                "x-unit": "m"
+              },
+              "mowed_m": {
+                "description": "Driven with the blade turning",
+                "type": "number",
+                "x-unit": "m"
+              },
+              "runs": {
+                "description": "Left IDLE to undock or to mow",
+                "type": "integer"
+              },
+              "t": {
+                "description": "Start of the hour, a whole UTC hour",
+                "type": "integer",
+                "x-unit": "unix s"
+              }
+            },
+            "required": [
+              "t",
+              "blade_s",
+              "mowed_m",
+              "driven_m",
+              "runs"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "parts": {
+          "description": "The parts to see to",
+          "items": {
+            "additionalProperties": false,
+            "description": "One item",
+            "properties": {
+              "base_blade_s": {
+                "description": "total blade_s when it was last seen to",
+                "type": "integer"
+              },
+              "done_at": {
+                "description": "Last seen to, 0 not since counting started",
+                "type": "integer",
+                "x-unit": "unix s"
+              },
+              "due_h": {
+                "description": "Due again after so many blade hours",
+                "type": "number",
+                "x-unit": "h"
+              },
+              "key": {
+                "description": "The part",
+                "enum": [
+                  "blade",
+                  "clean"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "key",
+              "due_h",
+              "base_blade_s",
+              "done_at"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "schema": {
+          "description": "Always 1",
+          "type": "integer"
+        },
+        "since": {
+          "description": "Counting started then",
+          "type": "integer",
+          "x-unit": "unix s"
+        },
+        "total": {
+          "additionalProperties": false,
+          "description": "Since counting started",
+          "properties": {
+            "blade_s": {
+              "description": "Seconds the blade turned",
+              "type": "integer"
+            },
+            "driven_m": {
+              "description": "Driven without it, not in IDLE",
+              "type": "number",
+              "x-unit": "m"
+            },
+            "mowed_m": {
+              "description": "Driven with the blade turning",
+              "type": "number",
+              "x-unit": "m"
+            },
+            "runs": {
+              "description": "Left IDLE to undock or to mow",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "blade_s",
+            "mowed_m",
+            "driven_m",
+            "runs"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "schema",
+        "since",
+        "from",
+        "total",
+        "hours",
+        "parts"
+      ],
+      "type": "object"
+    },
+    "stats.part_due.params": {
+      "additionalProperties": false,
+      "description": "The params of stats.part_due: The part and its hours",
+      "properties": {
+        "hours": {
+          "description": "Blade hours",
+          "maximum": 10000.0,
+          "minimum": 1.0,
+          "type": "integer",
+          "x-unit": "h"
+        },
+        "part": {
+          "description": "Its key",
+          "enum": [
+            "blade",
+            "clean"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "part",
+        "hours"
+      ],
+      "type": "object"
+    },
+    "stats.part_due.result": {
+      "additionalProperties": false,
+      "description": "The result of stats.part_due: The statistics",
+      "properties": {
+        "from": {
+          "description": "The hours from then on: from of the request, later when the newest 9000 are all",
+          "type": "integer",
+          "x-unit": "unix s"
+        },
+        "hours": {
+          "description": "Each hour with something in it from from on, oldest first, the one going on last",
+          "items": {
+            "additionalProperties": false,
+            "description": "One item",
+            "properties": {
+              "blade_s": {
+                "description": "Seconds the blade turned",
+                "type": "integer"
+              },
+              "driven_m": {
+                "description": "Driven without it, not in IDLE",
+                "type": "number",
+                "x-unit": "m"
+              },
+              "mowed_m": {
+                "description": "Driven with the blade turning",
+                "type": "number",
+                "x-unit": "m"
+              },
+              "runs": {
+                "description": "Left IDLE to undock or to mow",
+                "type": "integer"
+              },
+              "t": {
+                "description": "Start of the hour, a whole UTC hour",
+                "type": "integer",
+                "x-unit": "unix s"
+              }
+            },
+            "required": [
+              "t",
+              "blade_s",
+              "mowed_m",
+              "driven_m",
+              "runs"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "parts": {
+          "description": "The parts to see to",
+          "items": {
+            "additionalProperties": false,
+            "description": "One item",
+            "properties": {
+              "base_blade_s": {
+                "description": "total blade_s when it was last seen to",
+                "type": "integer"
+              },
+              "done_at": {
+                "description": "Last seen to, 0 not since counting started",
+                "type": "integer",
+                "x-unit": "unix s"
+              },
+              "due_h": {
+                "description": "Due again after so many blade hours",
+                "type": "number",
+                "x-unit": "h"
+              },
+              "key": {
+                "description": "The part",
+                "enum": [
+                  "blade",
+                  "clean"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "key",
+              "due_h",
+              "base_blade_s",
+              "done_at"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "schema": {
+          "description": "Always 1",
+          "type": "integer"
+        },
+        "since": {
+          "description": "Counting started then",
+          "type": "integer",
+          "x-unit": "unix s"
+        },
+        "total": {
+          "additionalProperties": false,
+          "description": "Since counting started",
+          "properties": {
+            "blade_s": {
+              "description": "Seconds the blade turned",
+              "type": "integer"
+            },
+            "driven_m": {
+              "description": "Driven without it, not in IDLE",
+              "type": "number",
+              "x-unit": "m"
+            },
+            "mowed_m": {
+              "description": "Driven with the blade turning",
+              "type": "number",
+              "x-unit": "m"
+            },
+            "runs": {
+              "description": "Left IDLE to undock or to mow",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "blade_s",
+            "mowed_m",
+            "driven_m",
+            "runs"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "schema",
+        "since",
+        "from",
+        "total",
+        "hours",
+        "parts"
+      ],
+      "type": "object"
+    },
     "system.api.params": {
       "additionalProperties": false,
       "description": "The params of system.api",
@@ -6290,12 +9030,20 @@
           "type": "integer"
         },
         "idle": {
-          "description": "Whether a hold can be granted now",
+          "description": "Whether a hold can be granted now: also false within 1800 s before next_start",
           "type": "boolean"
         },
         "is_charging": {
           "description": "On the charging contacts",
           "type": "boolean"
+        },
+        "next_start": {
+          "description": "The next start of the schedule, null without one",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "x-unit": "unix s"
         },
         "state": {
           "description": "current_state of robot_state",
@@ -6312,7 +9060,8 @@
         "is_charging",
         "hold_until",
         "idle",
-        "emergency_reason"
+        "emergency_reason",
+        "next_start"
       ],
       "type": "object"
     },
@@ -6469,6 +9218,159 @@
       "required": [],
       "type": "object"
     },
+    "topic.mowbite/planner/progress": {
+      "additionalProperties": false,
+      "description": "Retained: how far the planning of an area got, at most every second while it runs and once more as it ends; also a change of what waits while nothing is planned. done of of (1000) grows with the planning's steps and with the time that area's last planning took.",
+      "properties": {
+        "area_id": {
+          "description": "The area planned (null: none planned yet, only what waits)",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "done": {
+          "description": "How far it got, of of",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "elapsed_s": {
+          "description": "How long it ran",
+          "minimum": 0,
+          "type": [
+            "number",
+            "null"
+          ],
+          "x-unit": "s"
+        },
+        "error": {
+          "description": "Why it failed (null: it didn't)",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "estimate_s": {
+          "description": "How long that area's last planning took",
+          "minimum": 0,
+          "type": [
+            "number",
+            "null"
+          ],
+          "x-unit": "s"
+        },
+        "key": {
+          "description": "The plan's key",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "of": {
+          "description": "done's whole",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "planned_on": {
+          "description": "Where it's planned (always mower on MowBite OS)",
+          "enum": [
+            "mower",
+            "house"
+          ]
+        },
+        "remote_why": {
+          "description": "Why not on the house computer after all (null on MowBite OS)",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "running": {
+          "description": "It's planning now",
+          "type": "boolean"
+        },
+        "stage": {
+          "description": "The planning's stage (done as it ended well)",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "started": {
+          "description": "When it started, unix time",
+          "type": [
+            "number",
+            "null"
+          ],
+          "x-unit": "s"
+        },
+        "waiting": {
+          "description": "The first 20 of them in the order they'll run",
+          "items": {
+            "additionalProperties": false,
+            "properties": {
+              "area_id": {
+                "description": "The area it plans, if one",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "ids": {
+                "description": "The RPC requests waiting for it",
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "job": {
+                "description": "What it does: plan, mower, drive, leftovers, ...",
+                "type": "string"
+              },
+              "rank": {
+                "description": "Its urgency, mower's first",
+                "enum": [
+                  "mower",
+                  "asked",
+                  "after_mow",
+                  "ahead"
+                ]
+              }
+            },
+            "required": [
+              "area_id",
+              "job",
+              "rank",
+              "ids"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "waiting_n": {
+          "description": "How many jobs wait",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "area_id",
+        "key",
+        "running",
+        "stage",
+        "done",
+        "of",
+        "started",
+        "elapsed_s",
+        "estimate_s",
+        "error",
+        "waiting_n",
+        "waiting",
+        "planned_on",
+        "remote_why"
+      ],
+      "type": "object"
+    },
     "undocking.abort.params": {
       "additionalProperties": false,
       "description": "The params of undocking.abort",
@@ -6603,6 +9505,14 @@
                       "null"
                     ],
                     "x-unit": "unix s"
+                  },
+                  "from": {
+                    "description": "Where it was found: the inbox on the mower or the net (the release index)",
+                    "enum": [
+                      "inbox",
+                      "net"
+                    ],
+                    "type": "string"
                   },
                   "min_app": {
                     "description": "The oldest app it works with",
@@ -6828,6 +9738,72 @@
             "object",
             "null"
           ]
+        },
+        "origin": {
+          "additionalProperties": false,
+          "description": "The release index on the net and the last time it was asked",
+          "properties": {
+            "channel": {
+              "description": "stable, or preview for previews as well",
+              "enum": [
+                "stable",
+                "preview"
+              ],
+              "type": "string"
+            },
+            "checked_at": {
+              "description": "When it was last asked, unix s; absent before the first",
+              "type": "integer"
+            },
+            "downloading": {
+              "description": "Whether the index or a bundle is being downloaded",
+              "type": "boolean"
+            },
+            "index_date": {
+              "description": "When that index was published, unix s",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "index_serial": {
+              "description": "The serial of the last index taken",
+              "type": "integer"
+            },
+            "message": {
+              "description": "English text for the log, null when ok",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "result": {
+              "description": "How the last asking ended; absent before the first",
+              "enum": [
+                "ok",
+                "unreachable",
+                "bad_index",
+                "too_large",
+                "no_space",
+                "bad_bundle",
+                "failed"
+              ],
+              "type": "string"
+            },
+            "url": {
+              "description": "The address of the index, null without one",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "channel",
+            "url",
+            "downloading"
+          ],
+          "type": "object"
         },
         "phase": {
           "description": "What it does now",
@@ -6970,6 +9946,14 @@
                     ],
                     "x-unit": "unix s"
                   },
+                  "from": {
+                    "description": "Where it was found: the inbox on the mower or the net (the release index)",
+                    "enum": [
+                      "inbox",
+                      "net"
+                    ],
+                    "type": "string"
+                  },
                   "min_app": {
                     "description": "The oldest app it works with",
                     "type": [
@@ -7194,6 +10178,72 @@
             "object",
             "null"
           ]
+        },
+        "origin": {
+          "additionalProperties": false,
+          "description": "The release index on the net and the last time it was asked",
+          "properties": {
+            "channel": {
+              "description": "stable, or preview for previews as well",
+              "enum": [
+                "stable",
+                "preview"
+              ],
+              "type": "string"
+            },
+            "checked_at": {
+              "description": "When it was last asked, unix s; absent before the first",
+              "type": "integer"
+            },
+            "downloading": {
+              "description": "Whether the index or a bundle is being downloaded",
+              "type": "boolean"
+            },
+            "index_date": {
+              "description": "When that index was published, unix s",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "index_serial": {
+              "description": "The serial of the last index taken",
+              "type": "integer"
+            },
+            "message": {
+              "description": "English text for the log, null when ok",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "result": {
+              "description": "How the last asking ended; absent before the first",
+              "enum": [
+                "ok",
+                "unreachable",
+                "bad_index",
+                "too_large",
+                "no_space",
+                "bad_bundle",
+                "failed"
+              ],
+              "type": "string"
+            },
+            "url": {
+              "description": "The address of the index, null without one",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "channel",
+            "url",
+            "downloading"
+          ],
+          "type": "object"
         },
         "phase": {
           "description": "What it does now",
@@ -7352,6 +10402,14 @@
                     ],
                     "x-unit": "unix s"
                   },
+                  "from": {
+                    "description": "Where it was found: the inbox on the mower or the net (the release index)",
+                    "enum": [
+                      "inbox",
+                      "net"
+                    ],
+                    "type": "string"
+                  },
                   "min_app": {
                     "description": "The oldest app it works with",
                     "type": [
@@ -7576,6 +10634,72 @@
             "object",
             "null"
           ]
+        },
+        "origin": {
+          "additionalProperties": false,
+          "description": "The release index on the net and the last time it was asked",
+          "properties": {
+            "channel": {
+              "description": "stable, or preview for previews as well",
+              "enum": [
+                "stable",
+                "preview"
+              ],
+              "type": "string"
+            },
+            "checked_at": {
+              "description": "When it was last asked, unix s; absent before the first",
+              "type": "integer"
+            },
+            "downloading": {
+              "description": "Whether the index or a bundle is being downloaded",
+              "type": "boolean"
+            },
+            "index_date": {
+              "description": "When that index was published, unix s",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "index_serial": {
+              "description": "The serial of the last index taken",
+              "type": "integer"
+            },
+            "message": {
+              "description": "English text for the log, null when ok",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "result": {
+              "description": "How the last asking ended; absent before the first",
+              "enum": [
+                "ok",
+                "unreachable",
+                "bad_index",
+                "too_large",
+                "no_space",
+                "bad_bundle",
+                "failed"
+              ],
+              "type": "string"
+            },
+            "url": {
+              "description": "The address of the index, null without one",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "channel",
+            "url",
+            "downloading"
+          ],
+          "type": "object"
         },
         "phase": {
           "description": "What it does now",
@@ -7730,6 +10854,14 @@
                     ],
                     "x-unit": "unix s"
                   },
+                  "from": {
+                    "description": "Where it was found: the inbox on the mower or the net (the release index)",
+                    "enum": [
+                      "inbox",
+                      "net"
+                    ],
+                    "type": "string"
+                  },
                   "min_app": {
                     "description": "The oldest app it works with",
                     "type": [
@@ -7954,6 +11086,522 @@
             "object",
             "null"
           ]
+        },
+        "origin": {
+          "additionalProperties": false,
+          "description": "The release index on the net and the last time it was asked",
+          "properties": {
+            "channel": {
+              "description": "stable, or preview for previews as well",
+              "enum": [
+                "stable",
+                "preview"
+              ],
+              "type": "string"
+            },
+            "checked_at": {
+              "description": "When it was last asked, unix s; absent before the first",
+              "type": "integer"
+            },
+            "downloading": {
+              "description": "Whether the index or a bundle is being downloaded",
+              "type": "boolean"
+            },
+            "index_date": {
+              "description": "When that index was published, unix s",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "index_serial": {
+              "description": "The serial of the last index taken",
+              "type": "integer"
+            },
+            "message": {
+              "description": "English text for the log, null when ok",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "result": {
+              "description": "How the last asking ended; absent before the first",
+              "enum": [
+                "ok",
+                "unreachable",
+                "bad_index",
+                "too_large",
+                "no_space",
+                "bad_bundle",
+                "failed"
+              ],
+              "type": "string"
+            },
+            "url": {
+              "description": "The address of the index, null without one",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "channel",
+            "url",
+            "downloading"
+          ],
+          "type": "object"
+        },
+        "phase": {
+          "description": "What it does now",
+          "enum": [
+            "idle",
+            "verifying",
+            "unpacking",
+            "waiting_gate",
+            "switching",
+            "checking"
+          ],
+          "type": "string"
+        },
+        "reason": {
+          "description": "Why the gate waits in waiting_gate: a reason of UPDATE in x-reasons",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "revision": {
+          "description": "The revision it installs or goes back to, null in idle",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "phase",
+        "component",
+        "revision",
+        "reason",
+        "components",
+        "auto",
+        "last"
+      ],
+      "type": "object"
+    },
+    "update.set_channel.params": {
+      "additionalProperties": false,
+      "description": "The params of update.set_channel: app_version and the fields of the call",
+      "properties": {
+        "app_version": {
+          "description": "Version of the app that calls, e.g. 1.4.0 or 1.5.0-beta.2",
+          "type": "string"
+        },
+        "channel": {
+          "description": "stable or preview",
+          "enum": [
+            "stable",
+            "preview"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "channel"
+      ],
+      "type": "object"
+    },
+    "update.set_channel.result": {
+      "additionalProperties": false,
+      "description": "The result of update.set_channel: What the updater does, what runs and what is available, the last result",
+      "properties": {
+        "auto": {
+          "additionalProperties": false,
+          "description": "The automatic update",
+          "properties": {
+            "enabled": {
+              "description": "On or off",
+              "type": "boolean"
+            },
+            "from": {
+              "description": "Start of the window, HH:MM local time",
+              "type": "string"
+            },
+            "to": {
+              "description": "End of the window, HH:MM local time",
+              "type": "string"
+            }
+          },
+          "required": [
+            "enabled",
+            "from",
+            "to"
+          ],
+          "type": "object"
+        },
+        "component": {
+          "description": "The component of the update that runs, null in idle",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "components": {
+          "description": "Each component the updater keeps",
+          "items": {
+            "additionalProperties": false,
+            "description": "One item",
+            "properties": {
+              "auto": {
+                "description": "Whether updates install by themselves at night",
+                "type": "boolean"
+              },
+              "available": {
+                "additionalProperties": false,
+                "description": "The newest revision found that is newer than what runs, null without one",
+                "properties": {
+                  "blocked": {
+                    "additionalProperties": false,
+                    "description": "Not installed by itself: why, the result of the attempt that ended so and when; update.start of this revision tries it anyway",
+                    "properties": {
+                      "reason": {
+                        "description": "A reason of UPDATE in x-reasons, never BLOCKED",
+                        "type": "string"
+                      },
+                      "result": {
+                        "description": "How the attempt ended",
+                        "enum": [
+                          "rolled_back",
+                          "failed"
+                        ],
+                        "type": "string"
+                      },
+                      "t": {
+                        "description": "When, null for a reason reckoned from the installed OS (kept nowhere)",
+                        "type": [
+                          "integer",
+                          "null"
+                        ],
+                        "x-unit": "unix s"
+                      }
+                    },
+                    "required": [
+                      "reason",
+                      "t"
+                    ],
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  },
+                  "date": {
+                    "description": "When it was built",
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "x-unit": "unix s"
+                  },
+                  "from": {
+                    "description": "Where it was found: the inbox on the mower or the net (the release index)",
+                    "enum": [
+                      "inbox",
+                      "net"
+                    ],
+                    "type": "string"
+                  },
+                  "min_app": {
+                    "description": "The oldest app it works with",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "revision": {
+                    "description": "The revision",
+                    "type": "string"
+                  },
+                  "version": {
+                    "description": "Its version, null for os",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "revision",
+                  "date",
+                  "version",
+                  "min_app",
+                  "blocked"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "crashes_since_install": {
+                "description": "Ends of the container since then",
+                "type": "integer"
+              },
+              "id": {
+                "description": "The component",
+                "enum": [
+                  "os",
+                  "planner",
+                  "app",
+                  "host"
+                ],
+                "type": "string"
+              },
+              "installed_at": {
+                "description": "When what runs was installed",
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "x-unit": "unix s"
+              },
+              "name": {
+                "description": "Its name to show",
+                "type": "string"
+              },
+              "own_skipped": {
+                "additionalProperties": false,
+                "description": "planner and app: their own installation the OS does not use, null without one",
+                "properties": {
+                  "reason": {
+                    "description": "Why: a reason of UPDATE in x-reasons",
+                    "type": "string"
+                  },
+                  "revision": {
+                    "description": "The revision",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "revision",
+                  "reason"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "previous": {
+                "additionalProperties": false,
+                "description": "Where update.rollback goes, null without one",
+                "properties": {
+                  "date": {
+                    "description": "When it was built, null when the bundle does not say",
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "x-unit": "unix s"
+                  },
+                  "revision": {
+                    "description": "The revision, a commit of the component",
+                    "type": "string"
+                  },
+                  "version": {
+                    "description": "Its version, null for os",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "revision",
+                  "date",
+                  "version"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "running": {
+                "additionalProperties": false,
+                "description": "What runs, null without an installation",
+                "properties": {
+                  "date": {
+                    "description": "When it was built, null when the bundle does not say",
+                    "type": [
+                      "integer",
+                      "null"
+                    ],
+                    "x-unit": "unix s"
+                  },
+                  "revision": {
+                    "description": "The revision, a commit of the component",
+                    "type": "string"
+                  },
+                  "version": {
+                    "description": "Its version, null for os",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "revision",
+                  "date",
+                  "version"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "source": {
+                "description": "planner and app: own while their own installation is used, else bundled (the one the OS brings along)",
+                "enum": [
+                  "own",
+                  "bundled"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "running",
+              "available",
+              "previous",
+              "installed_at",
+              "crashes_since_install",
+              "auto"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "last": {
+          "additionalProperties": false,
+          "description": "The result of the last update or rollback, null before the first",
+          "properties": {
+            "component": {
+              "description": "The component",
+              "type": "string"
+            },
+            "message": {
+              "description": "English text for the log",
+              "type": "string"
+            },
+            "reason": {
+              "description": "Why: a reason of UPDATE in x-reasons, null when installed",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "result": {
+              "description": "How it ended",
+              "enum": [
+                "installed",
+                "rolled_back",
+                "refused",
+                "aborted",
+                "failed"
+              ],
+              "type": "string"
+            },
+            "revision": {
+              "description": "The revision",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "t": {
+              "description": "When, unix s",
+              "type": "integer"
+            }
+          },
+          "required": [
+            "result",
+            "reason",
+            "message",
+            "revision",
+            "component",
+            "t"
+          ],
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "origin": {
+          "additionalProperties": false,
+          "description": "The release index on the net and the last time it was asked",
+          "properties": {
+            "channel": {
+              "description": "stable, or preview for previews as well",
+              "enum": [
+                "stable",
+                "preview"
+              ],
+              "type": "string"
+            },
+            "checked_at": {
+              "description": "When it was last asked, unix s; absent before the first",
+              "type": "integer"
+            },
+            "downloading": {
+              "description": "Whether the index or a bundle is being downloaded",
+              "type": "boolean"
+            },
+            "index_date": {
+              "description": "When that index was published, unix s",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "index_serial": {
+              "description": "The serial of the last index taken",
+              "type": "integer"
+            },
+            "message": {
+              "description": "English text for the log, null when ok",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "result": {
+              "description": "How the last asking ended; absent before the first",
+              "enum": [
+                "ok",
+                "unreachable",
+                "bad_index",
+                "too_large",
+                "no_space",
+                "bad_bundle",
+                "failed"
+              ],
+              "type": "string"
+            },
+            "url": {
+              "description": "The address of the index, null without one",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "channel",
+            "url",
+            "downloading"
+          ],
+          "type": "object"
         },
         "phase": {
           "description": "What it does now",
@@ -8116,6 +11764,14 @@
                     ],
                     "x-unit": "unix s"
                   },
+                  "from": {
+                    "description": "Where it was found: the inbox on the mower or the net (the release index)",
+                    "enum": [
+                      "inbox",
+                      "net"
+                    ],
+                    "type": "string"
+                  },
                   "min_app": {
                     "description": "The oldest app it works with",
                     "type": [
@@ -8340,6 +11996,72 @@
             "object",
             "null"
           ]
+        },
+        "origin": {
+          "additionalProperties": false,
+          "description": "The release index on the net and the last time it was asked",
+          "properties": {
+            "channel": {
+              "description": "stable, or preview for previews as well",
+              "enum": [
+                "stable",
+                "preview"
+              ],
+              "type": "string"
+            },
+            "checked_at": {
+              "description": "When it was last asked, unix s; absent before the first",
+              "type": "integer"
+            },
+            "downloading": {
+              "description": "Whether the index or a bundle is being downloaded",
+              "type": "boolean"
+            },
+            "index_date": {
+              "description": "When that index was published, unix s",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "index_serial": {
+              "description": "The serial of the last index taken",
+              "type": "integer"
+            },
+            "message": {
+              "description": "English text for the log, null when ok",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "result": {
+              "description": "How the last asking ended; absent before the first",
+              "enum": [
+                "ok",
+                "unreachable",
+                "bad_index",
+                "too_large",
+                "no_space",
+                "bad_bundle",
+                "failed"
+              ],
+              "type": "string"
+            },
+            "url": {
+              "description": "The address of the index, null without one",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "channel",
+            "url",
+            "downloading"
+          ],
+          "type": "object"
         },
         "phase": {
           "description": "What it does now",
@@ -8482,6 +12204,14 @@
                     ],
                     "x-unit": "unix s"
                   },
+                  "from": {
+                    "description": "Where it was found: the inbox on the mower or the net (the release index)",
+                    "enum": [
+                      "inbox",
+                      "net"
+                    ],
+                    "type": "string"
+                  },
                   "min_app": {
                     "description": "The oldest app it works with",
                     "type": [
@@ -8707,6 +12437,72 @@
             "null"
           ]
         },
+        "origin": {
+          "additionalProperties": false,
+          "description": "The release index on the net and the last time it was asked",
+          "properties": {
+            "channel": {
+              "description": "stable, or preview for previews as well",
+              "enum": [
+                "stable",
+                "preview"
+              ],
+              "type": "string"
+            },
+            "checked_at": {
+              "description": "When it was last asked, unix s; absent before the first",
+              "type": "integer"
+            },
+            "downloading": {
+              "description": "Whether the index or a bundle is being downloaded",
+              "type": "boolean"
+            },
+            "index_date": {
+              "description": "When that index was published, unix s",
+              "type": [
+                "integer",
+                "null"
+              ]
+            },
+            "index_serial": {
+              "description": "The serial of the last index taken",
+              "type": "integer"
+            },
+            "message": {
+              "description": "English text for the log, null when ok",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "result": {
+              "description": "How the last asking ended; absent before the first",
+              "enum": [
+                "ok",
+                "unreachable",
+                "bad_index",
+                "too_large",
+                "no_space",
+                "bad_bundle",
+                "failed"
+              ],
+              "type": "string"
+            },
+            "url": {
+              "description": "The address of the index, null without one",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "channel",
+            "url",
+            "downloading"
+          ],
+          "type": "object"
+        },
         "phase": {
           "description": "What it does now",
           "enum": [
@@ -8746,11 +12542,11 @@
       "type": "object"
     }
   },
-  "$id": "urn:mowbite-os:api:18",
+  "$id": "urn:mowbite-os:api:27",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "description": "robot_state, actions, events and RPC methods of MowBite OS over MQTT, as system.api gives them; made from the code, objects sorted by key. x-reasons has severity and resume of every reason by event (COMMAND_REFUSED and REQUEST_REFUSED only in refusals; when: another rating for these field values; texts: name, help and fix by language), x-emergency-bits the bits of emergency, x-commands the commands with params, result, the event of their refusal and the actions that do the same, x-methods every RPC method of the OS with its node (planner.* are the planner's, sim.* only in the simulation), x-sensors the sensors by id, x-settings the settings of params.set with the ranges of the OS, x-geometry the keys of robot.geometry.",
+  "description": "robot_state, actions, events and RPC methods of MowBite OS over MQTT, as system.api gives them; made from the code, objects sorted by key. x-reasons has severity and resume of every reason by event (COMMAND_REFUSED and REQUEST_REFUSED only in refusals; when: another rating for these field values; texts: name, help and fix by language; an enum field may carry the same by value as x-texts), x-emergency-bits the bits of emergency, x-commands the commands with params, result, the event of their refusal and the actions that do the same, x-methods every RPC method of the OS with its node (planner.* are the planner's, sim.* only in the simulation), x-sensors the sensors by id, x-settings the settings of params.set with the ranges of the OS, x-geometry the keys of robot.geometry, x-schedule-log the words of schedule.log with what detail and more hold (null: always null).",
   "title": "MowBite OS app interface",
-  "x-api": 18,
+  "x-api": 27,
   "x-commands": {
     "docking.abort": {
       "action": "mower_logic:docking/abort_docking",
@@ -9341,14 +13137,14 @@
       "result": "#/$defs/calibration.start.result"
     },
     "camera.list": {
-      "description": "The cameras of the mower; CAMERA_CHANGED tells when one of them can stream again or no longer",
+      "description": "The cameras of the mower; CAMERA_CHANGED tells when one of them can stream again or no longer, or streams with other protocols or at another size",
       "node": "mowbite_camera",
       "offered": "with at least one camera",
       "params": "#/$defs/camera.list.params",
       "result": "#/$defs/camera.list.result"
     },
     "camera.stream": {
-      "description": "Keeps a place for one viewer and gives the address to watch from: for one connection, which has to begin before expires; the place is free again when that connection ends, and every new connection needs a new call. At most two viewers at once over all cameras (CAMERA_BUSY). mjpeg: a GET of url gives multipart/x-mixed-replace with JPEG; webrtc: url is a WHEP endpoint (H.264). Refused (CAMERA_REFUSED) while the camera is not available; -32602 for an id or a protocol it does not have",
+      "description": "Keeps a place for one viewer and gives the address to watch from: for one connection, which has to begin before expires; the place is free again when that connection ends, and every new connection needs a new call. At most two viewers at once over all cameras (CAMERA_BUSY). mjpeg: a GET of url gives multipart/x-mixed-replace, every part one JPEG with its own Content-Length, and every answer to that GET, also a refusal, carries Access-Control-Allow-Origin: *; webrtc: url is a WHEP endpoint (H.264). Refused (CAMERA_REFUSED) while the camera is not available; -32602 for an id or a protocol it does not have",
       "node": "mowbite_camera",
       "offered": "with at least one camera",
       "params": "#/$defs/camera.stream.params",
@@ -9508,6 +13304,55 @@
       "params": "#/$defs/mowing.start.params",
       "result": "#/$defs/mowing.start.result"
     },
+    "notify.get": {
+      "description": "The settings of the pushes; of the token only whether there is one",
+      "node": "mowbite_net",
+      "offered": "",
+      "params": "#/$defs/notify.get.params",
+      "result": "#/$defs/notify.get.result"
+    },
+    "notify.log": {
+      "description": "The last pushes, newest first",
+      "node": "mowbite_net",
+      "offered": "",
+      "params": "#/$defs/notify.log.params",
+      "result": "#/$defs/notify.log.result"
+    },
+    "notify.push_add": {
+      "description": "A phone's UnifiedPush address; past 10 the oldest goes",
+      "node": "mowbite_net",
+      "offered": "",
+      "params": "#/$defs/notify.push_add.params",
+      "result": "#/$defs/notify.push_add.result"
+    },
+    "notify.push_remove": {
+      "description": "Drops a phone's UnifiedPush address",
+      "node": "mowbite_net",
+      "offered": "",
+      "params": "#/$defs/notify.push_remove.params",
+      "result": "#/$defs/notify.push_remove.result"
+    },
+    "notify.set": {
+      "description": "Changes settings, all or nothing: -32602 with data {field, reason}. A push says so to the targets of before",
+      "node": "mowbite_net",
+      "offered": "",
+      "params": "#/$defs/notify.set.params",
+      "result": "#/$defs/notify.set.result"
+    },
+    "notify.snooze": {
+      "description": "No reminders for so long; 0 lifts it",
+      "node": "mowbite_net",
+      "offered": "",
+      "params": "#/$defs/notify.snooze.params",
+      "result": "#/$defs/notify.snooze.result"
+    },
+    "notify.test": {
+      "description": "Sends a test push to the topic and the phones, or to one address",
+      "node": "mowbite_net",
+      "offered": "",
+      "params": "#/$defs/notify.test.params",
+      "result": "#/$defs/notify.test.result"
+    },
     "ntrip.delete": {
       "description": "Removes the access in IDLE",
       "node": "mowbite_ntrip",
@@ -9655,6 +13500,34 @@
       "params": "#/$defs/rpc.ping.params",
       "result": "#/$defs/rpc.ping.result"
     },
+    "schedule.get": {
+      "description": "The schedule, whether it may start, the clock and the sun",
+      "node": "mowbite_schedule",
+      "offered": "",
+      "params": "#/$defs/schedule.get.params",
+      "result": "#/$defs/schedule.get.result"
+    },
+    "schedule.leftovers": {
+      "description": "The leftovers after a job: enabled 1 is refused (-32602 unsupported) until the planner prepares them on the OS",
+      "node": "mowbite_schedule",
+      "offered": "",
+      "params": "#/$defs/schedule.leftovers.params",
+      "result": "#/$defs/schedule.leftovers.result"
+    },
+    "schedule.log": {
+      "description": "The log of the schedule, oldest first; words in x-schedule-log",
+      "node": "mowbite_schedule",
+      "offered": "",
+      "params": "#/$defs/schedule.log.params",
+      "result": "#/$defs/schedule.log.result"
+    },
+    "schedule.set": {
+      "description": "Changes keys of the schedule, all or nothing: -32602 with data {field, reason}, -32001 when version is not the one of the last schedule.get",
+      "node": "mowbite_schedule",
+      "offered": "",
+      "params": "#/$defs/schedule.set.params",
+      "result": "#/$defs/schedule.set.result"
+    },
     "sensors.list": {
       "description": "Every sensor of sensor_infos/json with its last value; ids selects some, unknown ids are left out",
       "node": "mowbite_bridge",
@@ -9704,6 +13577,27 @@
       "params": "#/$defs/sound.volume.params",
       "result": "#/$defs/sound.volume.result"
     },
+    "stats.get": {
+      "description": "Mowing statistics per hour and the parts to see to",
+      "node": "mowbite_stats",
+      "offered": "",
+      "params": "#/$defs/stats.get.params",
+      "result": "#/$defs/stats.get.result"
+    },
+    "stats.part_done": {
+      "description": "The part was seen to now: its blade hours start from 0; as stats.get from now",
+      "node": "mowbite_stats",
+      "offered": "",
+      "params": "#/$defs/stats.part_done.params",
+      "result": "#/$defs/stats.part_done.result"
+    },
+    "stats.part_due": {
+      "description": "After how many blade hours the part is due again; as stats.get from now",
+      "node": "mowbite_stats",
+      "offered": "",
+      "params": "#/$defs/stats.part_due.params",
+      "result": "#/$defs/stats.part_due.result"
+    },
     "system.api": {
       "description": "This interface as JSON Schema with its version",
       "node": "mowbite_bridge",
@@ -9712,7 +13606,7 @@
       "result": "#/$defs/system.api.result"
     },
     "system.hold": {
-      "description": "Holds the mower for an update: granted only in IDLE with nothing on its way, 0 lets go",
+      "description": "Holds the mower for an update: granted only in IDLE with nothing on its way and no start of the schedule within 1800 s, 0 lets go",
       "node": "mowbite_logic",
       "offered": "",
       "params": "#/$defs/system.hold.params",
@@ -9747,7 +13641,7 @@
       "result": "#/$defs/update.abort.result"
     },
     "update.check": {
-      "description": "Looks for bundles in the origins now (the inbox), as it does every 6 h",
+      "description": "Looks for bundles in the inbox now and asks the release index on the net in the background, as it does every 6 h; a bundle newer than what runs is downloaded, never installed by that",
       "node": "mowbite_host",
       "offered": "while mowbite/host/status says online",
       "params": "#/$defs/update.check.params",
@@ -9761,11 +13655,18 @@
       "result": "#/$defs/update.rollback.result"
     },
     "update.set_auto": {
-      "description": "Switches the automatic update on or off and sets its window; it needs a sure clock and an app as new as min_app",
+      "description": "Switches the automatic update on or off and sets its window; it needs an app as new as min_app. It takes the switch also without a sure clock, only the update in the window waits for one",
       "node": "mowbite_host",
       "offered": "while mowbite/host/status says online",
       "params": "#/$defs/update.set_auto.params",
       "result": "#/$defs/update.set_auto.result"
+    },
+    "update.set_channel": {
+      "description": "Chooses which releases of the index count: stable, or preview for previews as well; then asks the index",
+      "node": "mowbite_host",
+      "offered": "while mowbite/host/status says online",
+      "params": "#/$defs/update.set_channel.params",
+      "result": "#/$defs/update.set_channel.result"
     },
     "update.start": {
       "description": "Installs the newest available revision of the component or the one given, one update at a time; os and planner wait for the gate (IDLE on the charging contacts, the hold granted) for up to 30 min, the planner also for the end of the mowing job, the app and the host for none. The host starts itself anew and gives the result once the new one confirmed itself after 60 s, else it goes back. Refused (UPDATE_REFUSED) when none is there or one runs",
@@ -9783,6 +13684,9 @@
     }
   },
   "x-owner": "mowbite-os",
+  "x-planner": {
+    "version": 1
+  },
   "x-reasons": {
     "AREA_SKIPPED": {
       "MANUAL": {
@@ -9790,6 +13694,26 @@
         "fields": {},
         "resume": "auto",
         "severity": "info"
+      },
+      "SCHEDULE": {
+        "description": "The schedule: the time of the plan is over, or its areas are paused",
+        "fields": {
+          "detail": ""
+        },
+        "resume": "auto",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Nichts zu tun. Der nächste Plan setzt den Auftrag fort.",
+            "help": "Der Zeitplan beendet das Mähen: Die Zeit des Plans ist um, oder seine Flächen sind pausiert.",
+            "name": "Zeitplan"
+          },
+          "en": {
+            "fix": "Nothing to do. The next plan goes on with the job.",
+            "help": "The schedule ends mowing: the time of the plan is over, or its areas are paused.",
+            "name": "Schedule"
+          }
+        }
       }
     },
     "CALIBRATION_FAILED": {
@@ -10520,11 +14444,67 @@
         "resume": "user",
         "severity": "warning"
       },
+      "PLANNER_MISSING": {
+        "description": "The planner is not running",
+        "fields": {},
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Mähen später wieder starten. Bleibt es dabei, MowBite OS neu starten.",
+            "help": "Der Planer hat beim Mähen nicht geantwortet. Der Mäher fährt zum Dock, der Auftrag bleibt erhalten.",
+            "name": "Planer antwortet nicht"
+          },
+          "en": {
+            "fix": "Start mowing again later. If it stays so, restart MowBite OS.",
+            "help": "The planner didn't answer while mowing. The mower goes to the docking station, the job is kept.",
+            "name": "Planner not answering"
+          }
+        }
+      },
+      "PLANNER_TIMEOUT": {
+        "description": "The planner took too long",
+        "fields": {},
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Mähen später wieder starten. Bleibt es dabei, MowBite OS neu starten.",
+            "help": "Der Planer hat beim Mähen nicht geantwortet. Der Mäher fährt zum Dock, der Auftrag bleibt erhalten.",
+            "name": "Planer antwortet nicht"
+          },
+          "en": {
+            "fix": "Start mowing again later. If it stays so, restart MowBite OS.",
+            "help": "The planner didn't answer while mowing. The mower goes to the docking station, the job is kept.",
+            "name": "Planner not answering"
+          }
+        }
+      },
       "RAIN": {
         "description": "It rains",
         "fields": {},
         "resume": "user",
         "severity": "info"
+      },
+      "SCHEDULE": {
+        "description": "The schedule: the time of the plan is over, or its areas are paused",
+        "fields": {
+          "detail": ""
+        },
+        "resume": "auto",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Nichts zu tun. Der nächste Plan setzt den Auftrag fort.",
+            "help": "Der Zeitplan beendet das Mähen: Die Zeit des Plans ist um, oder seine Flächen sind pausiert.",
+            "name": "Zeitplan"
+          },
+          "en": {
+            "fix": "Nothing to do. The next plan goes on with the job.",
+            "help": "The schedule ends mowing: the time of the plan is over, or its areas are paused.",
+            "name": "Schedule"
+          }
+        }
       }
     },
     "DOCKING_FAILED": {
@@ -11170,6 +15150,35 @@
         "resume": "user",
         "severity": "info"
       },
+      "CLOCK_UNSAFE": {
+        "description": "The clock of the mower is not safe: a plan of the schedule does not start",
+        "fields": {
+          "clock_reason": ""
+        },
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Warten, bis der Mäher GPS und Netz hat. Bleibt es dabei, die Uhrzeit in den Einstellungen prüfen.",
+            "help": "Die Uhr des Mähers ist nicht sicher gestellt. Ein Plan des Zeitplans startet dann nicht.",
+            "name": "Uhr unsicher"
+          },
+          "en": {
+            "fix": "Wait until the mower has GPS and network. If it stays so, check the time in the settings.",
+            "help": "The clock of the mower isn't confirmed. A plan of the schedule doesn't start then.",
+            "name": "Clock not safe"
+          }
+        }
+      },
+      "DARK": {
+        "description": "The sun has set",
+        "fields": {
+          "limit": "deg",
+          "sun_elevation": "deg"
+        },
+        "resume": "user",
+        "severity": "info"
+      },
       "DOCK_UNREACHABLE": {
         "description": "The docking station is outside of the areas the mower may drive in",
         "fields": {
@@ -11229,6 +15238,24 @@
         },
         "resume": "user",
         "severity": "warning"
+      },
+      "NOT_DOCKED": {
+        "description": "The mower is not on the docking station: a plan of the schedule starts only from there",
+        "fields": {},
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Den Mäher in die Ladestation fahren.",
+            "help": "Der Mäher steht nicht auf der Ladestation. Ein Plan des Zeitplans startet nur von dort.",
+            "name": "Nicht im Dock"
+          },
+          "en": {
+            "fix": "Send the mower to the docking station.",
+            "help": "The mower isn't on the docking station. A plan of the schedule starts only from there.",
+            "name": "Not docked"
+          }
+        }
       },
       "NO_DOCK": {
         "description": "The map has no docking station",
@@ -11350,6 +15377,28 @@
         "severity": "warning"
       }
     },
+    "RECORDED_BODY_KEPT": {
+      "SAVE_FAILED": {
+        "description": "The map could not be saved",
+        "fields": {
+          "code": ""
+        },
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Die Änderung der Maße wiederholen oder die Flächen für den genauen Rand neu aufnehmen.",
+            "help": "Die neuen Maße des Mähers konnten nicht an den mit ihm aufgenommenen Flächen gespeichert werden. Diese behalten die alten Maße.",
+            "name": "Maße nicht an den Flächen"
+          },
+          "en": {
+            "fix": "Change the dimensions again, or record the areas again for the exact edge.",
+            "help": "The new dimensions of the mower couldn't be saved with the areas recorded on it. They keep the old ones.",
+            "name": "Dimensions not on the areas"
+          }
+        }
+      }
+    },
     "RECORDING_REFUSED": {
       "DOCK_TOO_CLOSE": {
         "description": "The two points of the docking station are too close together",
@@ -11436,6 +15485,24 @@
             "severity": "warning"
           }
         ]
+      },
+      "REVERSING": {
+        "description": "Reversing takes the points ahead of base_link back and records none",
+        "fields": {},
+        "resume": "auto",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Zum Aufnehmen vorwärts fahren.",
+            "help": "Beim Rückwärtsfahren nimmt die Aufnahme die Punkte vor dem Mäher zurück und setzt keine neuen. Die Fläche gilt dann nicht mehr als in einem Zug gefahren und wird ohne den genauen Rand gemäht.",
+            "name": "Rückwärts nimmt Punkte zurück"
+          },
+          "en": {
+            "fix": "Drive forward to record.",
+            "help": "While the mower reverses, the recording takes back the points ahead of it and adds none. The area then no longer counts as driven in one go and is mowed without the exact edge.",
+            "name": "Reversing takes points back"
+          }
+        }
       },
       "RING_CROSSES_ITSELF": {
         "description": "The ring crosses itself",
@@ -11849,6 +15916,26 @@
         "resume": "user",
         "severity": "info"
       },
+      "SCHEDULE": {
+        "description": "The schedule: the time of the plan is over, or its areas are paused",
+        "fields": {
+          "detail": ""
+        },
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Nichts zu tun. Der nächste Plan setzt den Auftrag fort.",
+            "help": "Der Zeitplan beendet das Mähen: Die Zeit des Plans ist um, oder seine Flächen sind pausiert.",
+            "name": "Zeitplan"
+          },
+          "en": {
+            "fix": "Nothing to do. The next plan goes on with the job.",
+            "help": "The schedule ends mowing: the time of the plan is over, or its areas are paused.",
+            "name": "Schedule"
+          }
+        }
+      },
       "TIMEOUT": {
         "description": "It took too long",
         "fields": {},
@@ -12237,9 +16324,9 @@
         "severity": "warning",
         "texts": {
           "de": {
-            "fix": "Den Mäher in die Station fahren.",
+            "fix": "Den Mäher ins Dock fahren.",
             "help": "Das Update wartet, bis der Mäher auf den Ladekontakten steht.",
-            "name": "Nicht in der Station"
+            "name": "Nicht im Dock"
           },
           "en": {
             "fix": "Drive the mower into the station.",
@@ -12578,6 +16665,188 @@
       }
     }
   },
+  "x-schedule-log": {
+    "paused_area": {
+      "description": "An area of the plan is paused; the run leaves it out",
+      "detail": "The area id",
+      "more": null,
+      "push": false
+    },
+    "skip_battery": {
+      "description": "The battery stayed below min_battery for 2 h",
+      "detail": "Battery %",
+      "more": null,
+      "push": true
+    },
+    "skip_busy": {
+      "description": "The mower was busy",
+      "detail": "The state of robot_state or the phase of a start of the schedule",
+      "more": null,
+      "push": false
+    },
+    "skip_clock": {
+      "description": "The clock was not safe",
+      "detail": "clock_reason of schedule.get",
+      "more": null,
+      "push": true
+    },
+    "skip_cold": {
+      "description": "Colder than min_temp",
+      "detail": "deg C",
+      "more": null,
+      "push": false
+    },
+    "skip_dark": {
+      "description": "The sun was down for a plan without dark",
+      "detail": null,
+      "more": null,
+      "push": false
+    },
+    "skip_emergency": {
+      "description": "An emergency, its latch or the restart hold",
+      "detail": null,
+      "more": null,
+      "push": true
+    },
+    "skip_end": {
+      "description": "The end of the plan came while it waited",
+      "detail": null,
+      "more": null,
+      "push": false
+    },
+    "skip_forecast": {
+      "description": "Rain now or in the next forecast_hours",
+      "detail": null,
+      "more": null,
+      "push": false
+    },
+    "skip_gone": {
+      "description": "The plan was removed while it waited",
+      "detail": null,
+      "more": null,
+      "push": false
+    },
+    "skip_hold": {
+      "description": "A hold stayed for 2 h",
+      "detail": null,
+      "more": null,
+      "push": true
+    },
+    "skip_missed": {
+      "description": "The time of the plan passed while the OS was off, the clock jumped or the plan waited",
+      "detail": null,
+      "more": null,
+      "push": true
+    },
+    "skip_no_area": {
+      "description": "No area of the plan is a mowing area of the map",
+      "detail": null,
+      "more": null,
+      "push": true
+    },
+    "skip_no_position": {
+      "description": "No datum for the sun, for a plan without dark",
+      "detail": null,
+      "more": null,
+      "push": true
+    },
+    "skip_not_docked": {
+      "description": "The mower was not on the contacts",
+      "detail": null,
+      "more": null,
+      "push": true
+    },
+    "skip_offline": {
+      "description": "The logic was silent through the minute of the plan",
+      "detail": null,
+      "more": null,
+      "push": true
+    },
+    "skip_paused": {
+      "description": "The pause covers every area of the plan",
+      "detail": null,
+      "more": null,
+      "push": false
+    },
+    "skip_rain": {
+      "description": "The rain sensor was wet with skip_rain 1 or rain_mode not 0",
+      "detail": null,
+      "more": null,
+      "push": false
+    },
+    "start_canceled": {
+      "description": "The announcement was canceled",
+      "detail": "Its source: emergency, rpc, undocked or hold",
+      "more": null,
+      "push": false
+    },
+    "start_failed": {
+      "description": "The start did not reach mowing",
+      "detail": "storage, service, timeout, or the end of the run (UNDOCKING_FAILED, EMERGENCY, ...)",
+      "more": null,
+      "push": true
+    },
+    "start_refused": {
+      "description": "The logic refused the start",
+      "detail": "The reason of MOWING_REFUSED",
+      "more": "Its value, or null",
+      "push": false
+    },
+    "started": {
+      "description": "The mower mows",
+      "detail": "Battery %",
+      "more": null,
+      "push": false
+    },
+    "stopped_dark": {
+      "description": "Home at sunset",
+      "detail": null,
+      "more": null,
+      "push": false
+    },
+    "stopped_end": {
+      "description": "Home at the end of the plan",
+      "detail": null,
+      "more": null,
+      "push": false
+    },
+    "stopped_paused": {
+      "description": "The pause covered every area left of the run",
+      "detail": null,
+      "more": null,
+      "push": false
+    },
+    "stopped_rain": {
+      "description": "Home for rain",
+      "detail": null,
+      "more": null,
+      "push": false
+    },
+    "unknown_area": {
+      "description": "An area of the plan is not on the map; the run leaves it out",
+      "detail": "The area id",
+      "more": null,
+      "push": false
+    },
+    "waiting_battery": {
+      "description": "The plan waits up to 2 h for min_battery",
+      "detail": "Battery %",
+      "more": null,
+      "push": false
+    },
+    "waiting_hold": {
+      "description": "The plan waits up to 2 h for the end of a hold",
+      "detail": null,
+      "more": null,
+      "push": false
+    },
+    "weather_unknown": {
+      "description": "No usable weather; the plan goes on",
+      "detail": "forecast or cold",
+      "more": null,
+      "push": false
+    }
+  },
   "x-sensors": {
     "battery_temp": {
       "description": "Temperature of the battery from its BMS",
@@ -12676,6 +16945,14 @@
       "default": 0.0,
       "description": "Automatic mowing, as in OpenMower",
       "max": 2.0,
+      "min": 0.0,
+      "type": "integer",
+      "unit": ""
+    },
+    "dock_at_sunset": {
+      "default": 1.0,
+      "description": "Whether a run started by hand goes home at sunset",
+      "max": 1.0,
       "min": 0.0,
       "type": "integer",
       "unit": ""
