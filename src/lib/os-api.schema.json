@@ -4976,7 +4976,7 @@
               "type": "number"
             },
             "colors": {
-              "description": "1 to limits.colors texts #rrggbb; none for off",
+              "description": "1 to limits.colors texts #rrggbb; none for off and rainbow",
               "items": {
                 "description": "One item",
                 "type": "string"
@@ -4988,7 +4988,7 @@
               "type": "string"
             },
             "period": {
-              "description": "Time of one blink, pulse, chase or move of the gradient; a gradient may be 0",
+              "description": "Time of one cycle of the effect; gradient, rainbow and level may be 0",
               "type": "number",
               "x-unit": "s"
             }
@@ -5076,7 +5076,7 @@
               "type": "number"
             },
             "colors": {
-              "description": "1 to limits.colors texts #rrggbb; none for off",
+              "description": "1 to limits.colors texts #rrggbb; none for off and rainbow",
               "items": {
                 "description": "One item",
                 "type": "string"
@@ -5088,7 +5088,7 @@
               "type": "string"
             },
             "period": {
-              "description": "Time of one blink, pulse, chase or move of the gradient; a gradient may be 0",
+              "description": "Time of one cycle of the effect; gradient, rainbow and level may be 0",
               "type": "number",
               "x-unit": "s"
             }
