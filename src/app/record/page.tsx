@@ -21,7 +21,7 @@ import styles from './page.module.css';
 import {stationChange, type Station} from '@/lib/dockGuide';
 import {fmt, tr, useLang} from '@/lib/i18n';
 import {ACTION, RPC, TOPIC, UNDO_METERS} from '@/lib/openmower';
-import {useMowbiteOs, useOpenMower} from '@/lib/mowerOs';
+import {usePlatform} from '@/lib/mowerOs';
 import {useRpcMethods} from '@/hooks/useRpcMethods';
 import {eventsOfDay, fileDay, forgetToday, historyDays} from '@/lib/history';
 import {backAtStart} from '@/lib/geometry';
@@ -82,8 +82,9 @@ function Record() {
   const position = useMowerPosition() ?? state?.pose;
   const overlay = useMapOverlay();
   // MowBite OS records the docking station its own way: there only OpenMower's two steps
-  const os = useMowbiteOs();
-  const om = useOpenMower();
+  const platform = usePlatform();
+  const os = platform === 'os';
+  const om = platform === 'om';
   // a save sent: saved once the map has it (OpenMower drops an area it can't use without a word), late when it hasn't
   // come after SAVE_WAIT_MS
   const [save, setSave] = useState<{what: string; kind: 'mow' | 'nav' | 'dock'; before: MowerMap | null; at: 'sent' | 'late' | 'saved'} | null>(null);

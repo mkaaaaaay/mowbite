@@ -420,9 +420,20 @@ export function driveLines(drive: unknown, map: MowerMap | null | undefined): st
 
 export function buildDiagnosis(d: DiagnosisInput): string {
   const {run, os = false} = d;
-  // the ros log by its name only on OpenMower
-  const ros = os ? 'mower log' : 'ROS';
-  const rosLog = os ? 'mower log' : 'ROS log';
+  // OpenMower's names only on OpenMower
+  const term = os
+    ? {ros: 'mower log', rosLog: 'mower log', events: 'mower events', src: 'log', settings: 'Mower settings', paramsFile: '', plan: "the mower's plan", raw: 'Raw: mower events'}
+    : {
+        ros: 'ROS',
+        rosLog: 'ROS log',
+        events: 'OpenMower events',
+        src: 'ros',
+        settings: 'OpenMower',
+        paramsFile: 'params/json, ',
+        plan: "OpenMower's plan",
+        raw: 'Raw: OpenMower events (event_history)',
+      };
+  const {ros, rosLog} = term;
   // a minute before, what led to the start (a planner sending it out, the end of the run before)
   const from = run.start - 60;
   const to = run.end + 60;
@@ -460,7 +471,7 @@ export function buildDiagnosis(d: DiagnosisInput): string {
   // what's in the timeline, from a minute before the run to a minute after
   const inRun = (t: number) => t >= from && t <= to;
   out.push(
-    `Logs in this file: ${os ? 'mower' : 'OpenMower'} events ${run.events.length}, ${ros} warnings/errors ${d.ros.filter((l) => inRun(l.t)).length}, planner lines ${
+    `Logs in this file: ${term.events} ${run.events.length}, ${ros} warnings/errors ${d.ros.filter((l) => inRun(l.t)).length}, planner lines ${
       d.plannerLines ? d.plannerLines.filter((l) => inRun(l.t)).length + (d.plannerLines.some((l) => l.t < from) ? '' : ' (the planner keeps them only since its last start)') : 'none (no planner.log)'
     }, GPS samples ${d.gps?.length ?? 'none'}`,
   );
@@ -595,7 +606,7 @@ export function buildDiagnosis(d: DiagnosisInput): string {
     ...tidyRos(
       d.ros
         .filter((l) => l.t >= from && l.t <= to && !noise(l.text) && !(d.plannerLines && l.text.startsWith('slic3r_coverage_planner:')))
-        .map((l) => ({t: l.t, src: `${os ? 'log' : 'ros'} ${l.level}`, text: l.text})),
+        .map((l) => ({t: l.t, src: `${term.src} ${l.level}`, text: l.text})),
     ),
     ...(d.plannerLines ?? []).filter((l) => l.t >= from && l.t <= to).map((l) => ({t: l.t, src: `planner ${l.level}`, text: l.msg})),
     ...(d.gps ? gpsChanges(d.gps, d.gpsLimit) : []),
@@ -617,9 +628,8 @@ export function buildDiagnosis(d: DiagnosisInput): string {
     .sort(([a], [b]) => a.localeCompare(b));
   // on MowBite OS by the setting's own name, without the node in front
   const key = (k: string) => (os ? k.replace(/^\/[^/]+\//, '') : k);
-  const settings = os ? 'Mower settings' : 'OpenMower';
-  if (snap?.params) out.push(`${settings} (as the run left the dock, kept at ${stamp(snap.t)}):`);
-  else out.push(`${settings} (${os ? '' : 'params/json, '}what the mower runs with now, not necessarily during the run: no snapshot kept for it):`);
+  if (snap?.params) out.push(`${term.settings} (as the run left the dock, kept at ${stamp(snap.t)}):`);
+  else out.push(`${term.settings} (${term.paramsFile}what the mower runs with now, not necessarily during the run: no snapshot kept for it):`);
   out.push(...(om.length ? om.map(([k, v]) => `  ${key(k)} = ${JSON.stringify(v)}`) : ['  none received']));
   out.push(`Set again by MowBite after a restart: ${d.kept && Object.keys(d.kept).length ? Object.entries(d.kept).map(([k, v]) => `${k}=${v}`).join(', ') : 'nothing'}`);
   const planner = snap?.planner ?? d.planner;
@@ -655,7 +665,7 @@ export function buildDiagnosis(d: DiagnosisInput): string {
       const name = shownMap?.areas.find((a) => a.id === p.areaId)?.properties.name ?? p.areaId;
       out.push(
         `  ${stamp(p.t)} "${name}": ${p.paths.length} paths, ${p.paths.reduce((n, x) => n + x.poses, 0)} poses` +
-          (p.kept === undefined ? (os ? " (the mower's plan)" : " (OpenMower's plan)") : `, MowBite Planner kept: ${p.kept}, fingerprint ${p.fingerprint ?? '-'}`) +
+          (p.kept === undefined ? ` (${term.plan})` : `, MowBite Planner kept: ${p.kept}, fingerprint ${p.fingerprint ?? '-'}`) +
           (p.warnings?.length ? `, ${p.warnings.length} warnings` : ''),
       );
     }
@@ -677,7 +687,7 @@ export function buildDiagnosis(d: DiagnosisInput): string {
   out.push('', '', '########## Raw data ##########');
   h(`Raw: ${ros} warnings and errors`);
   out.push(...d.ros.filter((l) => l.t >= from && l.t <= to).map((l) => `${stamp(l.t)}  ${l.level.padEnd(5)} ${l.text}`));
-  h(os ? 'Raw: mower events' : 'Raw: OpenMower events (event_history)');
+  h(term.raw);
   // as the mower has them, without what the app works out (sentHome)
   out.push(...run.events.map((e: MowerEvent) => rawLine(e)));
   if (d.gps?.length) {

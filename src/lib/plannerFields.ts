@@ -26,6 +26,11 @@ export interface Field {
 
 // the help with OpenMower's names only on OpenMower
 export const helpOf = (f: Field | undefined, om: boolean): string => (om ? f?.help : (f?.helpOs ?? f?.help)) ?? '';
+// angle_strategy with none stored: on OpenMower mower_logic sends the angle, MowBite OS sends none and the planner picks
+export const noOwnStrategy = (om: boolean) =>
+  om
+    ? {label: 'OpenMower', text: "From the outline's first point, for a recorded area the way you set off."}
+    : {label: "Planner's default", text: 'No way of its own: the planner picks the direction the way it does by default.'};
 
 export const GROUPS: {key: Group; label: string}[] = [
   {key: 'pattern', label: 'Pattern'},
@@ -379,7 +384,7 @@ export const DROPPED_CHOICES: Record<string, string[]> = {fill_pattern: ['auto']
 // finished mows the random way round goes by
 export const COUNTED = ['angle_steps', 'finished_mows'];
 // not offered on MowBite OS until it's cleared there (masterplan 3.4 F4)
-export const NOT_ON_OS = ['skip_lanes'];
+const NOT_ON_OS = ['skip_lanes'];
 // left out everywhere: the drive (slope and reverse drive backwards, set only with the app's warning once it has one)
 export const HIDDEN = ['drive'];
 // a setting left out of every menu and list: one of HIDDEN, or one the planner says it goes without (ignored)
@@ -438,8 +443,8 @@ export const BODY_KEYS = [
 ];
 
 // for the list for experts: keys, the ones the planner menu doesn't have (a direction for all areas: each area has its
-// own); fixed, the ones mower_logic sends with every plan (MowBite OS sends none of them)
-export function expertKeys(all: Record<string, {settable: boolean; ignored?: unknown}>, os: boolean): {keys: string[]; fixed: string[]} {
+// own), NOT_ON_OS only once it's known to be OpenMower; fixed, the ones mower_logic sends with every plan
+export function expertKeys(all: Record<string, {settable: boolean; ignored?: unknown}>, om: boolean): {keys: string[]; fixed: string[]} {
   const shown = (k: string) => !hidden(k, all[k]) && !BODY_KEYS.includes(k);
   const keys = Object.keys(all).filter(
     (k) =>
@@ -449,9 +454,9 @@ export function expertKeys(all: Record<string, {settable: boolean; ignored?: unk
       !RETIRED.includes(k) &&
       !SIMPLE.includes(k) &&
       !ANGLE_FOR_ALL.includes(k) &&
-      !(os && NOT_ON_OS.includes(k)),
+      (om || !NOT_ON_OS.includes(k)),
   );
-  const fixed = os ? [] : Object.keys(all).filter((k) => shown(k) && !all[k].settable && !COUNTED.includes(k));
+  const fixed = !om ? [] : Object.keys(all).filter((k) => shown(k) && !all[k].settable && !COUNTED.includes(k));
   return {keys, fixed};
 }
 

@@ -66,8 +66,7 @@ function problemFacts(run: Run, e: MowerEvent, next?: Run): string[] {
 type Where = DayEvents['where'];
 
 function RawEntry({event, file, line}: {event: MowerEvent; file: string; line: number}) {
-  // the source in open_mower_ros only once the mower said it runs OpenMower
-  const src = eventSource(event, !useOpenMower());
+  const src = eventSource(event, useOpenMower());
   return (
     <div className={styles.raw}>
       <div className={styles.dim}>

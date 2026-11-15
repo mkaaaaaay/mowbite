@@ -7,7 +7,7 @@ import {clock, dayLabel} from '@/lib/dates';
 import {tr, useLang} from '@/lib/i18n';
 import {useMowerActions} from '@/hooks/useMowerActions';
 import {useCanSetParams} from '@/components/MowerParamSettings';
-import {useMowbiteOs, useOpenMower} from '@/lib/mowerOs';
+import {usePlatform} from '@/lib/mowerOs';
 import {mowsIntoNight, paramField} from '@/lib/mowerParams';
 import {containerHas, useUpdates} from '@/lib/updates';
 import Link from 'next/link';
@@ -73,8 +73,9 @@ export default function SchedulePage() {
   const canSetParams = useCanSetParams();
   // a start's own mowing direction: MowBite OS's schedule turns the planner's lanes for the job, the container
   // mower_logic's mow_angle_offset
-  const os = useMowbiteOs();
-  const om = useOpenMower();
+  const platform = usePlatform();
+  const os = platform === 'os';
+  const om = platform === 'om';
   const canTurn = fromOs || (canSetParams && !os);
   const ready = useScheduleReady();
   // going home at sunset switched off on purpose on a mower that has it, said where the runs are planned

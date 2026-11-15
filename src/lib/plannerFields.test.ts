@@ -105,8 +105,8 @@ describe('style of the planner settings', () => {
       robot_outline: {settable: false},
       angle_steps: {settable: false},
     };
-    expect(expertKeys(all, false)).toEqual({keys: ['skip_lanes', 'recorded_loop'], fixed: ['skip_outline_loops', 'skip_obstacle_loops']});
-    expect(expertKeys(all, true)).toEqual({keys: ['recorded_loop'], fixed: []});
+    expect(expertKeys(all, true)).toEqual({keys: ['skip_lanes', 'recorded_loop'], fixed: ['skip_outline_loops', 'skip_obstacle_loops']});
+    expect(expertKeys(all, false)).toEqual({keys: ['recorded_loop'], fixed: []});
   });
 
   it('names every setting it lists for experts', () => {

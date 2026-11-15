@@ -7,7 +7,7 @@ import {measuredStripeAngle, stripeAngleDiff} from '@/lib/mowDirection';
 import {mowAroundHoles, nestedAreas} from '@/lib/mowAround';
 import {linkStripes, mowPlan, ownCount, type MowPlan, type PlanChosen} from '@/lib/mowPlan';
 import {slic3rPlans, usePlannerSettings} from '@/lib/mowerBody';
-import {osSpacing, useMowbiteOs, useOpenMower} from '@/lib/mowerOs';
+import {osSpacing, usePlatform} from '@/lib/mowerOs';
 import type {PlannerEstimateInput} from '@/lib/plannerEstimate';
 import {showWait} from '@/lib/plannerProgress';
 import {usePlannerEstimate} from '@/lib/usePlannerEstimate';
@@ -75,8 +75,9 @@ export function useMowPlan({
   const plannerSettings = usePlannerSettings();
   // MowBite OS has no tool_width, the planner's blade and overlap make the spacing (numParam would give mower_logic's
   // default for the missing one)
-  const os = useMowbiteOs();
-  const om = useOpenMower();
+  const platform = usePlatform();
+  const os = platform === 'os';
+  const om = platform === 'om';
   const toolWidth = (os ? osSpacing(plannerSettings?.settings) : undefined) ?? numParam(params, PARAM.toolWidth);
   const planner = slic3rPlans(plannerSettings) ? null : plannerSettings;
   // a planner setting for the area: its own (planner property), else the one for all areas

@@ -87,7 +87,8 @@ const noSubscribe = () => () => {};
 // asked (texts for one platform wait for it then)
 export function usePlatform(): 'os' | 'om' | null {
   const i = useSystemInfo();
-  const kept = useSyncExternalStore(noSubscribe, keptOs, () => null);
+  // (the stored one read only while system.info hasn't answered)
+  const kept = useSyncExternalStore(noSubscribe, () => (i === undefined ? keptOs() : null), () => null);
   const os = i === undefined ? kept : isMowbiteOs(i);
   return os === null ? null : os ? 'os' : 'om';
 }

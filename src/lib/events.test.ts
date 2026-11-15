@@ -942,8 +942,8 @@ describe('no names of OpenMower on MowBite OS', () => {
 
   it('names no source file there', () => {
     for (const e of [ev(1, 'EMERGENCY', {emergency: true, reason: '1024'}), ev(1, 'GPS', {available: false}), ev(1, 'DOCKING_FAILED', {reason: 'dock_failed'})]) {
-      expect(eventSource(e, true)).toBeUndefined();
-      expect(eventSource(e)?.url).toMatch(/open_mower_ros/);
+      expect(eventSource(e, false)).toBeUndefined();
+      expect(eventSource(e, true)?.url).toMatch(/open_mower_ros/);
     }
   });
 });

@@ -653,9 +653,9 @@ function dockCameraText(e: MowerEvent): string | undefined {
 }
 
 // where open_mower_ros writes the event and the line it logs at the same moment, none on MowBite OS
-export function eventSource(e: MowerEvent, os = false): {file: string; url: string; log?: string} | undefined {
+export function eventSource(e: MowerEvent, om: boolean): {file: string; url: string; log?: string} | undefined {
   // (MowBite OS's own names don't come from there)
-  if (os || (isReasonCode(e.reason) && e.type !== 'EMERGENCY')) return undefined;
+  if (!om || (isReasonCode(e.reason) && e.type !== 'EMERGENCY')) return undefined;
   const src = (file: string, log?: string) => ({file, url: LOGIC_SOURCE + file, log});
   switch (e.type) {
     case 'UNDOCKING_FAILED':

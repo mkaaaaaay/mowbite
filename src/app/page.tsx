@@ -34,7 +34,7 @@ import {clock, dayKey, dayLabel, duration} from '@/lib/dates';
 import {gpsOffNow} from '@/lib/gpslog';
 import {fileDay} from '@/lib/history';
 import {describe, emergencyText, explain, groupRuns, noteworthy, OUTCOMES, resetRefusedText, stopReleaseText, type MowerEvent, type Run} from '@/lib/events';
-import {useMowbiteOs, useOpenMower, useOsApi, useStopRelease} from '@/lib/mowerOs';
+import {useOsApi, usePlatform, useStopRelease} from '@/lib/mowerOs';
 import CameraView from '@/components/CameraView';
 import {useCameras} from '@/hooks/useCameras';
 import {useChargeConfirmed} from '@/hooks/useChargeConfirmed';
@@ -230,8 +230,9 @@ export default function Home() {
   // the map page's map worked out while this one idles
   useMapAhead(map);
   const recent = useRecentRuns(state?.current_state);
-  const os = useMowbiteOs();
-  const om = useOpenMower();
+  const platform = usePlatform();
+  const os = platform === 'os';
+  const om = platform === 'om';
   const api = useOsApi();
   // the last finished mow, for what it left. one that drove the leftovers of the one before left nothing to look at
   const leftoverRun = recent?.latest.find((r) => r.outcome === 'done' && r.areas.length > 0 && r.jobId);

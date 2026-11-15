@@ -102,7 +102,8 @@ export const PARAM_FIELDS: ParamField[] = [
 
 export const paramField = (key: string) => PARAM_FIELDS.find((f) => f.key === key);
 // the field with MowBite OS's range and default on it
-export const onOs = (f: ParamField, os: boolean): ParamField => (os ? {...f, min: f.osMin ?? f.min, max: f.osMax ?? f.max, def: f.osDef ?? f.def} : f);
+export const onOs = (f: ParamField, os: boolean): ParamField =>
+  os ? {...f, label: f.osLabel ?? f.label, help: f.osHelp ?? f.help, min: f.osMin ?? f.min, max: f.osMax ?? f.max, def: f.osDef ?? f.def} : f;
 // the ones this mower has, none of the reported ones before its params came
 export const paramShown = (f: ParamField, params: Record<string, unknown>) => !f.reported || paramName(f.key) in params;
 // the fields of a group this mower has

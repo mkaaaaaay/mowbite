@@ -102,7 +102,8 @@ describe('mower settings by platform', () => {
       const om = [f.label, f.help, f.confirmOff, ...(f.choices ?? [])].filter(Boolean).join(' ');
       if (f.group !== 'journal') expect(om, f.key).not.toMatch(OS_WORDS);
       if (f.group === 'mowing') continue;
-      const os = [f.osLabel ?? f.label, f.osHelp ?? f.help, f.confirmOff, ...(f.choices ?? [])].filter(Boolean).join(' ');
+      const o = onOs(f, true);
+      const os = [o.label, o.help, o.confirmOff, ...(o.choices ?? [])].filter(Boolean).join(' ');
       expect(os, f.key).not.toMatch(OM_WORDS);
     }
   });

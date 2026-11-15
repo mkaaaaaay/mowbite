@@ -3,9 +3,8 @@ import {useCanSetParams} from '@/components/MowerParamSettings';
 import Link from 'next/link';
 import {useAreaProperties} from '@/lib/areaProps';
 import {slic3rPlans, usePlannerSettings} from '@/lib/mowerBody';
-import {FIELDS, helpOf} from '@/lib/plannerFields';
+import {FIELDS, helpOf, noOwnStrategy} from '@/lib/plannerFields';
 import {useOpenMower} from '@/lib/mowerOs';
-import {STRATEGY_NONE_OS} from '@/components/PlannerSimple';
 import simple from '@/components/PlannerSimple.module.css';
 import {dec, tr} from '@/lib/i18n';
 import {useState} from 'react';
@@ -206,7 +205,7 @@ export function AreaDirection({area, autoAngle, remember, update, onAngleEdit, a
   const strategies = planner?.settings.angle_strategy;
   const ownStrategy = typeof p.planner?.angle_strategy === 'string' ? (p.planner.angle_strategy as string) : undefined;
   const strategyName = (k: string) => tr(FIELDS.angle_strategy.choices?.[k] ?? k);
-  const allStrategy = strategies?.stored && typeof strategies.value === 'string' ? strategyName(strategies.value) : tr(om ? 'OpenMower' : STRATEGY_NONE_OS.label);
+  const allStrategy = strategies?.stored && typeof strategies.value === 'string' ? strategyName(strategies.value) : tr(noOwnStrategy(om).label);
   const setStrategy = (k: string | undefined) => {
     const own = {...(p.planner ?? {})};
     if (k === undefined) delete own.angle_strategy;

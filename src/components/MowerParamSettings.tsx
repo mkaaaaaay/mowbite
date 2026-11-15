@@ -171,8 +171,8 @@ export function ParamRow({field, os}: {field: ParamField; os: boolean}) {
     if (v !== null) void set(heights ? fitHeight(v, heights) : v);
   };
   const isKept = !!k?.enabled && f.key in k.values;
-  const label = tr((os && f.osLabel) || f.label);
-  const help = (os && f.osHelp) || f.help;
+  const label = tr(f.label);
+  const help = f.help;
 
   return (
     <div className={local.row}>

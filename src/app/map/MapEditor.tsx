@@ -62,7 +62,7 @@ import {
   type BodySpot,
 } from '@/lib/mowerBody';
 import {OpenMowerMowing, useCanSetParams} from '@/components/MowerParamSettings';
-import {useMowbiteOs, useOpenMower} from '@/lib/mowerOs';
+import {usePlatform} from '@/lib/mowerOs';
 import {osOwn, osSet, osTidy} from '@/lib/plannerOwn';
 import {PlannerSettings} from '@/components/PlannerSettings';
 import {PlannerSimple} from '@/components/PlannerSimple';
@@ -291,8 +291,9 @@ function MapEditor() {
   // OpenMower's own mowing values can be changed here (params.set)
   const canSetParams = useCanSetParams();
   // MowBite OS: the planner is the one place for the mowing values, an area's own are in OpenMower's keys of the map
-  const os = useMowbiteOs();
-  const om = useOpenMower();
+  const platform = usePlatform();
+  const os = platform === 'os';
+  const om = platform === 'om';
   const margins = useMemo(() => {
     if (slic3rPlans(plannerSettings)) return null;
     const value = (k: string) => plannerSettings?.settings[k]?.value;
