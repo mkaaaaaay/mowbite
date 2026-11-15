@@ -239,6 +239,8 @@ export const EVENTS: Record<string, EventText> = {
     severity: 'error',
     variants: [{when: {hold: false}, en: 'Restarted unexpectedly', severity: 'warning'}, {en: 'Held after an unexpected restart'}],
   },
+  // MowBite OS kept the journal of its processes around a trigger (reason) for a closer look; safety: kept longest
+  INCIDENT: {severity: 'info', variants: [{when: {safety: true}, en: 'Safety incident kept'}, {en: 'Incident kept'}]},
   // a file of the mower's data can't be written, nothing starts until it can
   STORAGE: one('Storage problem', 'error'),
   // why MowBite OS stays down (mowbite/host/status), and its updates: why one waits or isn't installed (update.status),
@@ -323,6 +325,8 @@ export const REASONS: Record<string, Variant[]> = {
     r('marker not found', {when: {cause: 'MARKER_NOT_SEEN'}}),
     r('dock camera not measuring', {when: {cause: 'MARKER_UNAVAILABLE'}}),
     r('marker does not match the map', {when: {cause: 'MARKER_MISMATCH'}}),
+    // the message says why the test was refused
+    r('docking test refused', {when: {cause: 'TEST_START'}, unless: {message: {present: true}}}),
     r('no contact with the charger', {unless: {message: {present: true}}}),
   ],
   no_gps: [r('no GPS fix')],
@@ -349,7 +353,16 @@ export const REASONS: Record<string, Variant[]> = {
   // the MowBite Updater updates MowBite OS (system.hold), a start or a change of its data waits: in a *_REFUSED and in
   // the data of an error -32004, with until (unix s)
   HOLD: [r('update running until {until_clock}', {when: {until_clock: {present: true}}}), r('update running')],
-  EMERGENCY: [r('emergency stop, reset it first')],
+  EMERGENCY: [r('emergency stop', {when: {type: 'INCIDENT'}}), r('emergency stop, reset it first')],
+  // what an incident was kept for (INCIDENT), the ones not named elsewhere
+  UNEXPECTED_RESTART: [r('restarted without being stopped')],
+  CRASH: [r('a process of MowBite OS ended by itself')],
+  CALIBRATION_FAILED: [r('calibration drive failed')],
+  DOCKING_FAILED: [r('docking failed')],
+  MOW_MOTOR_SPINUP_FAILED: [r("the blade didn't come up to speed")],
+  UNDOCKING_FAILED: [r('leaving the dock failed')],
+  POSITION_JUMP: [r('position jumped')],
+  MARK: [r('marked by you')],
   NO_SAFETY_MEASUREMENT: [r('safety not yet verified on this platform, mowing and driving are blocked')],
   ON_DOCK: [r('on the docking station, drive it off by remote control first')],
   RAIN: [r('rain')],
@@ -626,6 +639,14 @@ export const DOCK_CAUSES: Record<string, {help: string; fix: string}> = {
   MARKER_MISMATCH: {
     help: 'The marker is not where the docking station was recorded in the map. The mower then docks neither by camera nor by its position.',
     fix: 'Record the station again or check the calibration of the camera.',
+  },
+};
+// a docking test that couldn't start where the mower stands (cause at DOCKING_RETRY and DOCKING_FAILED), the catalog's
+// texts; its name is a variant of dock_failed where no message names what's wrong
+export const DOCK_TEST_CAUSES: Record<string, {help: string; fix: string}> = {
+  TEST_START: {
+    help: 'The mower does not stand right in front of the docking station for the docking test; the message names the reason. This is no fault of the hardware.',
+    fix: 'Place the mower closer, straight and centered in front of the docking station and start the test again.',
   },
 };
 export const DOCK_DETAILS: Record<string, {name: string; help?: string; fix?: string}> = {

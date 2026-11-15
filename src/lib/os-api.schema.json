@@ -567,6 +567,9 @@
           "$ref": "#/$defs/event.SCHEDULE_START_CANCELED"
         },
         {
+          "$ref": "#/$defs/event.INCIDENT"
+        },
+        {
           "$ref": "#/$defs/event.MAP_DATUM"
         },
         {
@@ -2247,14 +2250,15 @@
           "type": "integer"
         },
         "cause": {
-          "description": "Why: the planner gave no way (with approach_failed, a reason in x-reasons), or the dock camera did not guide the mower (with dock_failed, texts here)",
+          "description": "Why: the planner gave no way (with approach_failed, a reason in x-reasons), the dock camera did not guide the mower, or a docking test started where it cannot measure (with dock_failed, texts here)",
           "enum": [
             "PLANNER_TIMEOUT",
             "PLANNER_MISSING",
             "MARKER_UNAVAILABLE",
             "MARKER_NOT_SEEN",
             "MARKER_LOST",
-            "MARKER_MISMATCH"
+            "MARKER_MISMATCH",
+            "TEST_START"
           ],
           "type": "string",
           "x-texts": {
@@ -2304,6 +2308,18 @@
                 "fix": "Check the camera and its setup; the detail names the cause.",
                 "help": "The camera towards the docking station cannot measure the marker right now.",
                 "name": "Dock camera not measuring"
+              }
+            },
+            "TEST_START": {
+              "de": {
+                "fix": "Mäher näher, gerade und mittig vor die Ladestation stellen und den Test neu starten.",
+                "help": "Der Mäher steht für den Andocktest nicht passend vor der Ladestation; die Meldung nennt den Grund. Das ist kein Fehler der Hardware.",
+                "name": "Andocktest abgelehnt"
+              },
+              "en": {
+                "fix": "Place the mower closer, straight and centered in front of the docking station and start the test again.",
+                "help": "The mower does not stand right in front of the docking station for the docking test; the message names the reason. This is no fault of the hardware.",
+                "name": "Docking test refused"
               }
             }
           }
@@ -2618,14 +2634,15 @@
           "type": "integer"
         },
         "cause": {
-          "description": "Why: the planner gave no way (with approach_failed, a reason in x-reasons), or the dock camera did not guide the mower (with dock_failed, texts here)",
+          "description": "Why: the planner gave no way (with approach_failed, a reason in x-reasons), the dock camera did not guide the mower, or a docking test started where it cannot measure (with dock_failed, texts here)",
           "enum": [
             "PLANNER_TIMEOUT",
             "PLANNER_MISSING",
             "MARKER_UNAVAILABLE",
             "MARKER_NOT_SEEN",
             "MARKER_LOST",
-            "MARKER_MISMATCH"
+            "MARKER_MISMATCH",
+            "TEST_START"
           ],
           "type": "string",
           "x-texts": {
@@ -2675,6 +2692,18 @@
                 "fix": "Check the camera and its setup; the detail names the cause.",
                 "help": "The camera towards the docking station cannot measure the marker right now.",
                 "name": "Dock camera not measuring"
+              }
+            },
+            "TEST_START": {
+              "de": {
+                "fix": "Mäher näher, gerade und mittig vor die Ladestation stellen und den Test neu starten.",
+                "help": "Der Mäher steht für den Andocktest nicht passend vor der Ladestation; die Meldung nennt den Grund. Das ist kein Fehler der Hardware.",
+                "name": "Andocktest abgelehnt"
+              },
+              "en": {
+                "fix": "Place the mower closer, straight and centered in front of the docking station and start the test again.",
+                "help": "The mower does not stand right in front of the docking station for the docking test; the message names the reason. This is no fault of the hardware.",
+                "name": "Docking test refused"
               }
             }
           }
@@ -3942,6 +3971,88 @@
       ],
       "type": "object",
       "x-emitter": "logic"
+    },
+    "event.INCIDENT": {
+      "additionalProperties": false,
+      "description": "An incident is kept: the journal of all processes around a trigger, for incidents.get and incidents.download",
+      "properties": {
+        "detail": {
+          "description": "The reason of the trigger or the emergency bits, empty for none",
+          "type": "string"
+        },
+        "id": {
+          "description": "Random id of the event, 32 letters and digits",
+          "type": "string"
+        },
+        "incident": {
+          "description": "The id of the incident",
+          "type": "string"
+        },
+        "message": {
+          "description": "English text for the log and for apps that do not know the reason",
+          "type": "string"
+        },
+        "reason": {
+          "description": "Why: a fixed name in capitals, rated in x-reasons",
+          "enum": [
+            "EMERGENCY",
+            "UNEXPECTED_RESTART",
+            "CRASH",
+            "CALIBRATION_FAILED",
+            "DOCKING_FAILED",
+            "MOW_MOTOR_SPINUP_FAILED",
+            "UNDOCKING_FAILED",
+            "POSITION_JUMP",
+            "FOLLOWER_MISSING",
+            "BLADE_REFUSED",
+            "MARK"
+          ],
+          "type": "string"
+        },
+        "resume": {
+          "description": "auto when it goes on by itself, user when it waits for the user",
+          "enum": [
+            "auto",
+            "user"
+          ],
+          "type": "string"
+        },
+        "safety": {
+          "description": "Whether the trigger is about safety: kept longest",
+          "type": "boolean"
+        },
+        "severity": {
+          "description": "How bad it is",
+          "enum": [
+            "info",
+            "warning",
+            "error"
+          ],
+          "type": "string"
+        },
+        "t": {
+          "description": "When it happened",
+          "type": "number",
+          "x-unit": "unix s"
+        },
+        "type": {
+          "const": "INCIDENT",
+          "description": "What happened; a type this version does not know carries only the envelope for sure"
+        }
+      },
+      "required": [
+        "id",
+        "t",
+        "type",
+        "incident",
+        "detail",
+        "safety",
+        "reason",
+        "severity",
+        "resume"
+      ],
+      "type": "object",
+      "x-emitter": "stats"
     },
     "event.JOB_COMPLETE": {
       "additionalProperties": false,
@@ -5627,6 +5738,7 @@
               "STORAGE",
               "SCHEDULE_START",
               "SCHEDULE_START_CANCELED",
+              "INCIDENT",
               "MAP_DATUM",
               "CORRECTIONS",
               "CAMERA_CHANGED",
@@ -5789,6 +5901,371 @@
         "last_crash",
         "revision",
         "stalled"
+      ],
+      "type": "object"
+    },
+    "incidents.delete.params": {
+      "additionalProperties": false,
+      "description": "The params of incidents.delete: None for all",
+      "properties": {
+        "client": {
+          "description": "Who sent the command (app, ha), for the log and the events of its step",
+          "pattern": "^[a-z][a-z0-9_-]{0,15}$",
+          "type": "string"
+        },
+        "id": {
+          "description": "The incident",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "type": "object"
+    },
+    "incidents.delete.result": {
+      "additionalProperties": false,
+      "description": "The result of incidents.delete: How many were deleted",
+      "properties": {
+        "deleted": {
+          "description": "Number of files deleted",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "deleted"
+      ],
+      "type": "object"
+    },
+    "incidents.download.params": {
+      "additionalProperties": false,
+      "description": "The params of incidents.download: The piece",
+      "properties": {
+        "client": {
+          "description": "Who sent the command (app, ha), for the log and the events of its step",
+          "pattern": "^[a-z][a-z0-9_-]{0,15}$",
+          "type": "string"
+        },
+        "id": {
+          "description": "The incident",
+          "type": "string"
+        },
+        "location": {
+          "description": "true for the archive with the place of the mower; none or false without",
+          "type": "boolean"
+        },
+        "offset": {
+          "description": "Where the piece begins in the archive",
+          "type": "integer",
+          "x-unit": "B"
+        },
+        "size": {
+          "description": "Its size at most",
+          "maximum": 262144.0,
+          "minimum": 1.0,
+          "type": "integer",
+          "x-unit": "B"
+        }
+      },
+      "required": [
+        "id",
+        "size"
+      ],
+      "type": "object"
+    },
+    "incidents.download.result": {
+      "additionalProperties": false,
+      "description": "The result of incidents.download: The piece, or error for an unknown id or an incident still collecting",
+      "properties": {
+        "archive_sha256": {
+          "description": "sha256 of the whole archive",
+          "type": "string"
+        },
+        "data": {
+          "description": "The piece in base64, empty at the end",
+          "type": "string"
+        },
+        "offset": {
+          "description": "Where the piece begins",
+          "type": "integer",
+          "x-unit": "B"
+        },
+        "ready": {
+          "description": "false while the archive is made (the first call starts it): no data yet, ask again",
+          "type": "boolean"
+        },
+        "sha256": {
+          "description": "sha256 of the piece",
+          "type": "string"
+        },
+        "size": {
+          "description": "Size of the whole archive",
+          "type": "integer",
+          "x-unit": "B"
+        }
+      },
+      "required": [
+        "ready",
+        "data",
+        "sha256",
+        "archive_sha256"
+      ],
+      "type": "object"
+    },
+    "incidents.get.params": {
+      "additionalProperties": false,
+      "description": "The params of incidents.get: The incident",
+      "properties": {
+        "client": {
+          "description": "Who sent the command (app, ha), for the log and the events of its step",
+          "pattern": "^[a-z][a-z0-9_-]{0,15}$",
+          "type": "string"
+        },
+        "id": {
+          "description": "Its id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "incidents.get.result": {
+      "additionalProperties": false,
+      "description": "The result of incidents.get: The incident, or error for an unknown id",
+      "properties": {
+        "manifest": {
+          "description": "Triggers, window, runs with versions and files, log lines of the window",
+          "type": "object"
+        },
+        "timeline": {
+          "description": "Changes of state, events and calls of the cores in the window, oldest first",
+          "items": {
+            "description": "One item",
+            "type": "object"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "manifest",
+        "timeline"
+      ],
+      "type": "object"
+    },
+    "incidents.list.params": {
+      "description": "The params of incidents.list: None",
+      "type": "object"
+    },
+    "incidents.list.result": {
+      "description": "The result of incidents.list: An incident",
+      "items": {
+        "additionalProperties": false,
+        "description": "One item",
+        "properties": {
+          "bytes": {
+            "description": "Size of its files",
+            "type": "integer",
+            "x-unit": "B"
+          },
+          "created": {
+            "description": "When its first trigger came",
+            "type": "integer",
+            "x-unit": "unix s"
+          },
+          "id": {
+            "description": "Its id",
+            "type": "string"
+          },
+          "reason": {
+            "description": "The reason of its first trigger, empty for none",
+            "type": "string"
+          },
+          "replay": {
+            "description": "from_start when every run in it can be replayed, window when only its window is kept",
+            "enum": [
+              "from_start",
+              "window"
+            ],
+            "type": "string"
+          },
+          "safety": {
+            "description": "Whether a trigger was about safety: kept longest",
+            "type": "boolean"
+          },
+          "state": {
+            "description": "collecting while its window is open, sealing until its files are complete, done",
+            "enum": [
+              "collecting",
+              "sealing",
+              "done"
+            ],
+            "type": "string"
+          },
+          "triggers": {
+            "description": "The kinds of its triggers in their order, each once",
+            "items": {
+              "description": "One item",
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "created",
+          "state",
+          "safety",
+          "triggers",
+          "reason",
+          "replay"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "incidents.mark.params": {
+      "additionalProperties": false,
+      "description": "The params of incidents.mark: The note",
+      "properties": {
+        "client": {
+          "description": "Who sent the command (app, ha), for the log and the events of its step",
+          "pattern": "^[a-z][a-z0-9_-]{0,15}$",
+          "type": "string"
+        },
+        "note": {
+          "description": "What happened, at most 500 characters",
+          "type": "string"
+        }
+      },
+      "required": [
+        "note"
+      ],
+      "type": "object"
+    },
+    "incidents.mark.result": {
+      "additionalProperties": false,
+      "description": "The result of incidents.mark: The incident",
+      "properties": {
+        "id": {
+          "description": "Its id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "type": "object"
+    },
+    "journal.status.params": {
+      "description": "The params of journal.status: None",
+      "type": "object"
+    },
+    "journal.status.result": {
+      "additionalProperties": false,
+      "description": "The result of journal.status: The journal and its incidents",
+      "properties": {
+        "active": {
+          "description": "Runs of processes going on now",
+          "type": "integer"
+        },
+        "bytes": {
+          "description": "Size of the journal on the disk, incidents left out",
+          "type": "integer",
+          "x-unit": "B"
+        },
+        "enabled": {
+          "description": "Whether the OS records a journal (journal_enabled; a change counts from the next start)",
+          "type": "boolean"
+        },
+        "free": {
+          "description": "Space left on its disk",
+          "type": "integer",
+          "x-unit": "B"
+        },
+        "incidents": {
+          "additionalProperties": false,
+          "description": "The incidents",
+          "properties": {
+            "bytes": {
+              "description": "Their size, each file once",
+              "type": "integer",
+              "x-unit": "B"
+            },
+            "count": {
+              "description": "Incidents kept",
+              "type": "integer"
+            },
+            "max_bytes": {
+              "description": "Their limit: the oldest that are no safety go first",
+              "type": "integer",
+              "x-unit": "B"
+            },
+            "max_days": {
+              "description": "Incidents older than this go",
+              "type": "integer",
+              "x-unit": "d"
+            },
+            "max_days_safety": {
+              "description": "Safety incidents older than this go",
+              "type": "integer",
+              "x-unit": "d"
+            },
+            "throttled": {
+              "description": "Triggers that opened no incident since the start because their kind came too often",
+              "items": {
+                "additionalProperties": false,
+                "description": "One item",
+                "properties": {
+                  "count": {
+                    "description": "How often",
+                    "type": "integer"
+                  },
+                  "kind": {
+                    "description": "The trigger",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "throttled"
+          ],
+          "type": "object"
+        },
+        "max_bytes": {
+          "description": "Its limit: the oldest runs go first",
+          "type": "integer",
+          "x-unit": "B"
+        },
+        "max_days": {
+          "description": "Runs older than this go",
+          "type": "integer",
+          "x-unit": "d"
+        },
+        "problem": {
+          "description": "Why no incident is kept right now, empty while they are",
+          "type": "string"
+        },
+        "reserve": {
+          "description": "Below this much free space nothing is written",
+          "type": "integer",
+          "x-unit": "B"
+        },
+        "runs": {
+          "description": "Runs of processes kept",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "enabled",
+        "problem",
+        "incidents"
       ],
       "type": "object"
     },
@@ -13632,11 +14109,11 @@
       "type": "object"
     }
   },
-  "$id": "urn:mowbite-os:api:34",
+  "$id": "urn:mowbite-os:api:36",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "robot_state, actions, events and RPC methods of MowBite OS over MQTT, as system.api gives them; made from the code, objects sorted by key. x-reasons has severity and resume of every reason by event (COMMAND_REFUSED and REQUEST_REFUSED only in refusals; when: another rating for these field values; texts: name, help and fix by language; an enum field may carry the same by value as x-texts), x-emergency-bits the bits of emergency, x-commands the commands with params, result, the event of their refusal and the actions that do the same, x-methods every RPC method of the OS with its node (planner.* are the planner's, sim.* only in the simulation), x-sensors the sensors by id, x-settings the settings of params.set with the ranges of the OS, x-geometry the keys of robot.geometry, x-schedule-log the words of schedule.log with what detail and more hold (null: always null). x-api counts every change, x-api-break only the breaks: a method, field, event, reason or topic gone or renamed, a type or meaning changed, a parameter newly required, fewer values taken in a request, an event a client waits for no longer sent. All else only adds; a client goes with every x-api of its x-api-break from the one it needs on.",
   "title": "MowBite OS app interface",
-  "x-api": 34,
+  "x-api": 36,
   "x-api-break": 1,
   "x-commands": {
     "docking.abort": {
@@ -14304,6 +14781,48 @@
       "offered": "while mowbite/host/status says online",
       "params": "#/$defs/host.restart_os.params",
       "result": "#/$defs/host.restart_os.result"
+    },
+    "incidents.delete": {
+      "description": "Deletes one incident, without an id all",
+      "node": "mowbite_stats",
+      "offered": "",
+      "params": "#/$defs/incidents.delete.params",
+      "result": "#/$defs/incidents.delete.result"
+    },
+    "incidents.download": {
+      "description": "An incident as a tar archive in pieces of at most 262144 bytes; without location the journal goes without place and with a shifted date",
+      "node": "mowbite_stats",
+      "offered": "",
+      "params": "#/$defs/incidents.download.params",
+      "result": "#/$defs/incidents.download.result"
+    },
+    "incidents.get": {
+      "description": "The manifest of an incident and its timeline of at most 65536 bytes",
+      "node": "mowbite_stats",
+      "offered": "",
+      "params": "#/$defs/incidents.get.params",
+      "result": "#/$defs/incidents.get.result"
+    },
+    "incidents.list": {
+      "description": "The incidents kept, newest first",
+      "node": "mowbite_stats",
+      "offered": "",
+      "params": "#/$defs/incidents.list.params",
+      "result": "#/$defs/incidents.list.result"
+    },
+    "incidents.mark": {
+      "description": "Keeps the last 5 min as an incident with a note, as a report of the user",
+      "node": "mowbite_stats",
+      "offered": "",
+      "params": "#/$defs/incidents.mark.params",
+      "result": "#/$defs/incidents.mark.result"
+    },
+    "journal.status": {
+      "description": "What the journal of the OS keeps, and its incidents",
+      "node": "mowbite_stats",
+      "offered": "",
+      "params": "#/$defs/journal.status.params",
+      "result": "#/$defs/journal.status.result"
     },
     "light.get_profile": {
       "description": "The lights: the states and effects there are, the profile by state, its defaults, the fixed signal of an emergency and the limits",
@@ -16279,6 +16798,74 @@
         }
       }
     },
+    "INCIDENT": {
+      "BLADE_REFUSED": {
+        "description": "The driver refused to start the blade",
+        "fields": {},
+        "resume": "auto",
+        "severity": "info"
+      },
+      "CALIBRATION_FAILED": {
+        "description": "A calibration drive failed",
+        "fields": {},
+        "resume": "auto",
+        "severity": "info"
+      },
+      "CRASH": {
+        "description": "A process of the OS ended without its own end",
+        "fields": {},
+        "resume": "auto",
+        "severity": "info"
+      },
+      "DOCKING_FAILED": {
+        "description": "Docking failed",
+        "fields": {},
+        "resume": "auto",
+        "severity": "info"
+      },
+      "EMERGENCY": {
+        "description": "An emergency began",
+        "fields": {},
+        "resume": "auto",
+        "severity": "info"
+      },
+      "FOLLOWER_MISSING": {
+        "description": "The path follower did not answer",
+        "fields": {},
+        "resume": "auto",
+        "severity": "info"
+      },
+      "MARK": {
+        "description": "The user marked the last minutes (incidents.mark)",
+        "fields": {},
+        "resume": "auto",
+        "severity": "info"
+      },
+      "MOW_MOTOR_SPINUP_FAILED": {
+        "description": "The blade did not come up to speed",
+        "fields": {},
+        "resume": "auto",
+        "severity": "info"
+      },
+      "POSITION_JUMP": {
+        "description": "The position jumped back onto GPS",
+        "fields": {},
+        "resume": "auto",
+        "severity": "info"
+      },
+      "UNDOCKING_FAILED": {
+        "description": "Undocking failed",
+        "fields": {},
+        "resume": "auto",
+        "severity": "info"
+      },
+      "UNEXPECTED_RESTART": {
+        "description": "The OS started again without its own stop",
+        "fields": {},
+        "resume": "auto",
+        "severity": "info"
+      }
+    },
     "MAP_DATUM": {
       "MAP_MISMATCH": {
         "description": "The map does not fit the datum in use",
@@ -18181,6 +18768,14 @@
       "min": 0.0,
       "type": "number",
       "unit": "s"
+    },
+    "journal_enabled": {
+      "default": 1.0,
+      "description": "Whether the OS keeps a journal of its processes for incidents; a change counts from the next start",
+      "max": 1.0,
+      "min": 0.0,
+      "type": "integer",
+      "unit": ""
     },
     "max_position_accuracy": {
       "default": 0.1,

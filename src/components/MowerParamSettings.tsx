@@ -4,6 +4,7 @@ import {datumFromParams, useMowerParams} from '@/hooks/useMowerParams';
 import {tr} from '@/lib/i18n';
 import {
   fitHeight,
+  groupFields,
   loadKept,
   mowsIntoNight,
   onOs,
@@ -11,7 +12,6 @@ import {
   paramField,
   paramConflict,
   paramName,
-  paramShown,
   paramValue,
   parseParam,
   saveKept,
@@ -290,6 +290,8 @@ export function summary(group: ParamGroup, params: Record<string, unknown>, os: 
       return [tr('approach from {n} m', {n: n('docking_approach_distance')}), v('docking_retry_count') === 1 ? tr('1 retry') : tr('{n} retries', {n: n('docking_retry_count')})].join(' · ');
     case 'motor':
       return tr('pauses at {hot} °C, on again at {cold} °C', {hot: n('motor_hot_temperature'), cold: n('motor_cold_temperature')});
+    case 'journal':
+      return tr(v('journal_enabled') ? 'kept' : 'off');
   }
 }
 const AUTOMATIC_SHORT = ['starts by hand', 'semi-automatic', 'automatic'];
@@ -339,7 +341,7 @@ export function OpenMowerNote({styles, params, os}: {styles: Styles; params: Rec
 export function ParamGroupRows({group, params, os}: {group: ParamGroup; params: Record<string, unknown>; os: boolean}) {
   return (
     <div className={`${local.rows} ${local.inGroup}`}>
-      {PARAM_FIELDS.filter((f) => f.group === group && paramShown(f, params)).map((f) => (
+      {groupFields(group, params).map((f) => (
         <ParamRow key={f.key} field={f} os={os} />
       ))}
     </div>

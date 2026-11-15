@@ -6,7 +6,7 @@ import de from './i18n/de';
 import {onOs, PARAM_FIELDS, paramField} from './mowerParams';
 import {defaultNotify, NOTIFY_EVENTS, toOs} from './notify';
 import {COMMAND, RPC} from './openmower';
-import {DOCK_CAUSES, DOCK_DETAILS, EMERGENCY_BITS, GUIDED, EMERGENCY_HIDE, EMERGENCY_TEXT, EVENTS, NOT_DRIVEN, REASONS, pick} from './reasonTexts';
+import {DOCK_CAUSES, DOCK_DETAILS, DOCK_TEST_CAUSES, EMERGENCY_BITS, GUIDED, EMERGENCY_HIDE, EMERGENCY_TEXT, EVENTS, NOT_DRIVEN, REASONS, pick} from './reasonTexts';
 import {READY_TEXT, scheduleLogText} from './schedule';
 import {ORIGIN_TEXT} from './osUpdate';
 import {SITUATION_NAMES} from './sound';
@@ -17,8 +17,8 @@ import {PARTS} from './stats';
 const PINNED = {
   repo: 'mkaaaaaay/mowbite-os',
   path: 'src/mowbite_api/api.schema.json',
-  commit: 'b77e20af8675edcc210d693ea1acf8ea7d8f9ced',
-  sha256: '175bb65c4594f724f32543ebe96ea3b00709667d6817ab35131e1f1c25e50efc',
+  commit: '08ddeb2c7d6f303bea9dcf0d76fbfd48b91666b8',
+  sha256: 'ff0341bfcbe891ae12c5db43757465b44bf551ab7a0ff7ca2d9a4a823e6646cf',
 };
 const raw = readFileSync(join(__dirname, 'os-api.schema.json'));
 // a reason's rating, when: another one for these values of the event's fields
@@ -54,6 +54,12 @@ const NOT_OFFERED: Record<string, string> = {
   'system.api': "the app has its copy of the contract here and reads the api's number from system.info",
   'system.hold': "the updater's, it holds restarts while it works",
   'schedule.leftovers': 'to come: MowBite OS turns leftovers down until its planner prepares them',
+  'journal.status': "to come: the incidents page (what the journal keeps, its incidents, a note, download and delete)",
+  'incidents.list': 'as journal.status',
+  'incidents.get': 'as journal.status',
+  'incidents.mark': 'as journal.status',
+  'incidents.download': 'as journal.status',
+  'incidents.delete': 'as journal.status',
 };
 // what the app calls on a mower; planner.* is the MowBite Planner's, not the OS's
 const appMethods = new Set([...Object.values(RPC), ...Object.values(COMMAND).map((c) => c.method)].filter((m) => !m.startsWith('planner.')));
@@ -106,7 +112,7 @@ describe(`MowBite OS's interface (${PINNED.repo} ${PINNED.commit.slice(0, 7)}, a
       for (const reason of Object.keys(reasons)) expect(pick(REASONS[reason], {type, reason}), `${type} ${reason}`).toBeDefined();
   });
 
-  it("has the catalog's words for each cause and detail of the dock camera, in german too", () => {
+  it("has the catalog's words for each cause and detail of the dock camera and the docking test, in german too", () => {
     type Texts = Record<string, Record<'en' | 'de', {name: string; help: string; fix: string}>>;
     for (const type of ['DOCKING_RETRY', 'DOCKING_FAILED']) {
       const props = (api.$defs[`event.${type}`] as {properties: Record<string, {enum: string[]; 'x-texts'?: Texts}>}).properties;
@@ -114,7 +120,7 @@ describe(`MowBite OS's interface (${PINNED.repo} ${PINNED.commit.slice(0, 7)}, a
       // the planner's causes are reasons of their own
       expect(props.cause.enum.filter((c) => !causes[c] && !reasonNames.has(c)), type).toEqual([]);
       for (const [c, t] of Object.entries(causes)) {
-        expect(DOCK_CAUSES[c], c).toEqual({help: t.en.help, fix: t.en.fix});
+        expect(DOCK_CAUSES[c] ?? DOCK_TEST_CAUSES[c], c).toEqual({help: t.en.help, fix: t.en.fix});
         expect([de[t.en.help], de[t.en.fix]], c).toEqual([t.de.help, t.de.fix]);
         const name = pick(REASONS.dock_failed, {type, reason: 'dock_failed', cause: c})!.en;
         expect(de[name]?.toLowerCase(), c).toBe(t.de.name.toLowerCase());

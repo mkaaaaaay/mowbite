@@ -9,7 +9,7 @@ import {containerFetch} from './updates';
 // their ranges and defaults are from MowerLogic.cfg, OpenMower doesn't tell. The ones that could hurt (the
 // emergency inputs, ignoring gps errors, the mow motor switch) are left out on purpose.
 
-export type ParamGroup = 'mowing' | 'auto' | 'gps' | 'docking' | 'motor';
+export type ParamGroup = 'mowing' | 'auto' | 'gps' | 'docking' | 'motor' | 'journal';
 
 export interface ParamField {
   key: string; // under /mower_logic/
@@ -48,6 +48,7 @@ export const PARAM_GROUPS: {key: ParamGroup; title: string}[] = [
   {key: 'gps', title: 'GPS'},
   {key: 'docking', title: 'Docking'},
   {key: 'motor', title: 'Mow motor'},
+  {key: 'journal', title: 'Journal'},
 ];
 
 export const PARAM_FIELDS: ParamField[] = [
@@ -87,6 +88,16 @@ export const PARAM_FIELDS: ParamField[] = [
   {key: 'motor_hot_temperature', group: 'motor', label: 'Too hot to mow from', help: 'The mow motor pauses and the mower goes home.', type: 'double', min: 20, max: 150, def: 70, unit: '°C', step: 1},
   {key: 'motor_cold_temperature', group: 'motor', label: 'Cool enough again at', type: 'double', min: 20, max: 150, def: 40, unit: '°C', step: 1},
   {key: 'mow_height_mm', group: 'motor', label: 'Cutting height', help: "Counts from the next start of the blade. 0 is the mower's own height.", type: 'int', min: 0, max: 150, def: 0, unit: 'mm', step: 1, bladeHeight: true},
+  // MowBite OS only, for its incidents
+  {
+    key: 'journal_enabled',
+    group: 'journal',
+    label: 'Keep a journal',
+    help: 'MowBite OS keeps a journal of its processes on the mower, so an incident (an emergency stop, a failed docking, a crash) can be looked into later. A change counts from the next start.',
+    type: 'bool',
+    def: true,
+    reported: true,
+  },
 ];
 
 export const paramField = (key: string) => PARAM_FIELDS.find((f) => f.key === key);
@@ -94,6 +105,8 @@ export const paramField = (key: string) => PARAM_FIELDS.find((f) => f.key === ke
 export const onOs = (f: ParamField, os: boolean): ParamField => (os ? {...f, min: f.osMin ?? f.min, max: f.osMax ?? f.max, def: f.osDef ?? f.def} : f);
 // the ones this mower has, none of the reported ones before its params came
 export const paramShown = (f: ParamField, params: Record<string, unknown>) => !f.reported || paramName(f.key) in params;
+// the fields of a group this mower has
+export const groupFields = (group: ParamGroup, params: Record<string, unknown>) => PARAM_FIELDS.filter((f) => f.group === group && paramShown(f, params));
 // a cutting height inside what the mower sets, 0 stays its own
 export const fitHeight = (mm: number, b: BladeHeight) => (mm === 0 ? 0 : Math.min(b.max_mm, Math.max(b.min_mm, mm)));
 export const paramName = (key: string) => PARAM.mowerLogic(key);

@@ -4,6 +4,7 @@ import type {StopRelease} from './mowerOs';
 import {LOGIC_SOURCE} from './openmower';
 import {
   DOCK_CAUSES,
+  DOCK_TEST_CAUSES,
   DOCK_DETAILS,
   EMERGENCY_BITS,
   EMERGENCY_HIDE,
@@ -99,6 +100,9 @@ export interface MowerEvent {
   state_before?: string;
   // also MowBite OS's schedule: why its run ends (SCHEDULE: end or pause)
   detail?: string;
+  // INCIDENT (MowBite OS): its id, and whether the trigger is about safety
+  incident?: string;
+  safety?: boolean;
   // MOWING_REFUSED with CLOCK_UNSAFE: why the clock isn't safe (never_synced, clock_jump, gnss_mismatch)
   clock_reason?: string;
   // worked out here, not from OpenMower: a navigation error that only came because it was sent home (see markSentHome)
@@ -534,6 +538,8 @@ export function explain(e: MowerEvent, state?: string, gpsTimeout?: number, os =
     }
     case 'UNEXPECTED_RESTART':
       return restartText(e);
+    case 'INCIDENT':
+      return [tr('MowBite OS kept what its processes logged around this moment, to look into it later.'), ...(e.detail ? [tr('Details: {what}', {what: e.detail})] : [])].join(' ');
     case 'MOW_MOTOR_SPINUP_FAILED':
       // MowBite OS pauses, OpenMower stops with an emergency
       return os
@@ -593,6 +599,8 @@ function dockTryText(e: MowerEvent): string | undefined {
     }
     const camera = dockCameraText(e);
     if (camera) return camera;
+    const test = DOCK_TEST_CAUSES[e.cause ?? ''];
+    if (test) return `${tr(test.help)} ${tr(test.fix)}`;
     // the planner's causes, reasons of their own
     if (e.cause && REASONS[e.cause]) {
       const why = reasonText({...e, reason: e.cause});

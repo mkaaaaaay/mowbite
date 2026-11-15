@@ -768,6 +768,22 @@
     }
    ]
   },
+  "INCIDENT": {
+   "severity": "info",
+   "variants": [
+    {
+     "when": {
+      "safety": true
+     },
+     "en": "Safety incident kept",
+     "de": "Sicherheitsvorfall festgehalten"
+    },
+    {
+     "en": "Incident kept",
+     "de": "Vorfall festgehalten"
+    }
+   ]
+  },
   "STORAGE": {
    "severity": "error",
    "variants": [
@@ -1181,6 +1197,18 @@
     "de": "Marker passt nicht zur Karte"
    },
    {
+    "en": "docking test refused",
+    "when": {
+     "cause": "TEST_START"
+    },
+    "unless": {
+     "message": {
+      "present": true
+     }
+    },
+    "de": "Andocktest abgelehnt"
+   },
+   {
     "en": "no contact with the charger",
     "unless": {
      "message": {
@@ -1309,8 +1337,63 @@
   ],
   "EMERGENCY": [
    {
+    "en": "emergency stop",
+    "when": {
+     "type": "INCIDENT"
+    },
+    "de": "Notaus"
+   },
+   {
     "en": "emergency stop, reset it first",
     "de": "Notaus, erst zurücksetzen"
+   }
+  ],
+  "UNEXPECTED_RESTART": [
+   {
+    "en": "restarted without being stopped",
+    "de": "neu gestartet, ohne gestoppt zu sein"
+   }
+  ],
+  "CRASH": [
+   {
+    "en": "a process of MowBite OS ended by itself",
+    "de": "ein Prozess von MowBite OS hat sich von selbst beendet"
+   }
+  ],
+  "CALIBRATION_FAILED": [
+   {
+    "en": "calibration drive failed",
+    "de": "Kalibrierfahrt gescheitert"
+   }
+  ],
+  "DOCKING_FAILED": [
+   {
+    "en": "docking failed",
+    "de": "Andocken gescheitert"
+   }
+  ],
+  "MOW_MOTOR_SPINUP_FAILED": [
+   {
+    "en": "the blade didn't come up to speed",
+    "de": "das Messer kam nicht auf Drehzahl"
+   }
+  ],
+  "UNDOCKING_FAILED": [
+   {
+    "en": "leaving the dock failed",
+    "de": "Abdocken gescheitert"
+   }
+  ],
+  "POSITION_JUMP": [
+   {
+    "en": "position jumped",
+    "de": "Position gesprungen"
+   }
+  ],
+  "MARK": [
+   {
+    "en": "marked by you",
+    "de": "von dir markiert"
    }
   ],
   "NO_SAFETY_MEASUREMENT": [

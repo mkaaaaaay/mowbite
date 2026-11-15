@@ -261,6 +261,14 @@ describe('heading home and charging on MowBite OS', () => {
     );
   });
 
+  it('names what an incident was kept for, a safety one apart, with its detail below', () => {
+    const hint = (f: Partial<MowerEvent>) => explain(ev(0, 'INCIDENT', f), undefined, undefined, true);
+    expect(os('INCIDENT', {reason: 'DOCKING_FAILED', safety: false, incident: 'a1'})).toBe('Incident kept: docking failed');
+    expect(os('INCIDENT', {reason: 'EMERGENCY', safety: true, detail: 'LIFT'})).toBe('Safety incident kept: emergency stop');
+    expect(hint({reason: 'EMERGENCY', detail: 'LIFT'})).toMatch(/to look into it later\. Details: LIFT$/);
+    expect(hint({reason: 'MARK', detail: ''})).toMatch(/to look into it later\.$/);
+  });
+
   it("docks by the dock camera: the test, what led it in, and why the camera failed in the catalog's words", () => {
     const hint = (type: string, f: Partial<MowerEvent>) => explain(ev(0, type, f), undefined, undefined, true);
     expect(os('DOCKING', {reason: 'TEST', severity: 'info'})).toBe('Docking test by camera');
@@ -287,7 +295,10 @@ describe('heading home and charging on MowBite OS', () => {
     expect(hint('DOCKING_FAILED', refused)).toBeUndefined();
     expect(hint('DOCKING_FAILED', {...refused, guide: 'marker'})).toBe('Led by the dock camera.');
     expect(os('DOCKING_FAILED', {...refused, cause: 'TEST_START'})).toBe('Docking failed after 1 tries (Docking test refused: saw no marker within 25 s)');
-    expect(hint('DOCKING_FAILED', {...refused, cause: 'TEST_START'})).toBeUndefined();
+    expect(os('DOCKING_FAILED', {reason: 'dock_failed', attempts: 1, cause: 'TEST_START'})).toBe('Docking failed after 1 tries (docking test refused)');
+    expect(hint('DOCKING_FAILED', {...refused, cause: 'TEST_START'})).toBe(
+      'The mower does not stand right in front of the docking station for the docking test; the message names the reason. This is no fault of the hardware. Place the mower closer, straight and centered in front of the docking station and start the test again.',
+    );
     expect(os('DOCKING_FAILED', {...refused, cause: 'MARKER_LOST'})).toBe('Docking failed after 1 tries (marker lost)');
     expect(os('DOCKING_FAILED', {reason: 'dock_failed', attempts: 1})).toBe('Docking failed after 1 tries (no contact with the charger)');
     const mismatch = {reason: 'dock_failed', cause: 'MARKER_MISMATCH', guide: 'marker'};

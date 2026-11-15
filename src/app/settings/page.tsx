@@ -34,7 +34,7 @@ import {osUpdatesOffered} from '@/lib/osUpdate';
 import {DashboardItems} from '@/components/DashboardItems';
 import {datumFromParams, useMowerParams} from '@/hooks/useMowerParams';
 import {posixTz} from '@/lib/schedule';
-import {PARAM_GROUPS} from '@/lib/mowerParams';
+import {groupFields, PARAM_GROUPS} from '@/lib/mowerParams';
 import {APP_VERSION} from '@/lib/updates';
 import {answerError} from '@/lib/rpcText';
 
@@ -409,7 +409,8 @@ export default function SettingsPage() {
               <section className={styles.section} id="openmower">
                 <h2 className={styles.sectionTitle}>{tr('How it works')}</h2>
                 {can &&
-                  PARAM_GROUPS.filter((g) => g.key !== 'mowing').map((g) => (
+                  // a group without a setting this mower has (the journal outside MowBite OS) stays out
+                  PARAM_GROUPS.filter((g) => g.key !== 'mowing' && groupFields(g.key, params).length).map((g) => (
                     <Group key={g.key} id={g.key} title={tr(g.title)} hint={summary(g.key, params, os)}>
                       <ParamGroupRows group={g.key} params={params} os={os} />
                     </Group>
