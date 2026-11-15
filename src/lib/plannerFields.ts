@@ -168,6 +168,30 @@ export const FIELDS: Record<string, Field> = {
     step: 0.05,
     advanced: true,
   },
+  skip_lanes: {
+    label: 'Lanes inside the area',
+    help: 'Left out: only the outline passes and the passes round obstacles, no lanes inside the area.',
+    group: 'pattern',
+    ways: ['Mowed', 'Left out'],
+    advanced: true,
+  },
+  recorded_loop: {
+    label: 'Recorded outline pass',
+    help: 'The outermost outline pass follows the very line you recorded the area on, the same way round as when recording. The mower keeps no distance on it and can get up to 20 cm beyond what it covered while recording, most at corners. Next to a drop, water, stairs, a bed or gravel leave it off, or record the area at least 20 cm away from it. Record the area forwards without a break, with Auto points on.',
+    group: 'edge',
+    advanced: true,
+  },
+  recorded_loop_margin: {
+    label: 'Distance of the recorded outline pass',
+    help: 'How far inside the recorded line the mower drives this pass. 0: right on the line, the blade then mows half its width beyond it.',
+    group: 'edge',
+    unit: 'm',
+    step: 0.01,
+    advanced: true,
+  },
+  // sent by mower_logic with every plan, here for their names
+  skip_outline_loops: {label: 'No outline passes', help: '', group: 'edge'},
+  skip_obstacle_loops: {label: 'No passes round obstacles', help: '', group: 'obstacles'},
   // in the planner menu, here for their names
   edges: {
     label: 'Lines of the map',
@@ -347,6 +371,8 @@ export const DROPPED_CHOICES: Record<string, string[]> = {fill_pattern: ['auto']
 // counted by the planner itself, not in the lists: the angle turned further (shown with it in the simple menu), the
 // finished mows the random way round goes by
 export const COUNTED = ['angle_steps', 'finished_mows'];
+// not offered on MowBite OS until it's cleared there (masterplan 3.4 F4)
+export const NOT_ON_OS = ['skip_lanes'];
 // left out everywhere: the drive (slope and reverse drive backwards, set only with the app's warning once it has one)
 export const HIDDEN = ['drive'];
 // a setting left out of every menu and list: one of HIDDEN, or one the planner says it goes without (ignored)
@@ -403,6 +429,24 @@ export const BODY_KEYS = [
   // a list of points (type "points"), set from a model in the same card
   'robot_outline',
 ];
+
+// for the list for experts: keys, the ones the planner menu doesn't have (a direction for all areas: each area has its
+// own); fixed, the ones mower_logic sends with every plan (MowBite OS sends none of them)
+export function expertKeys(all: Record<string, {settable: boolean; ignored?: unknown}>, os: boolean): {keys: string[]; fixed: string[]} {
+  const shown = (k: string) => !hidden(k, all[k]) && !BODY_KEYS.includes(k);
+  const keys = Object.keys(all).filter(
+    (k) =>
+      shown(k) &&
+      all[k].settable &&
+      !DROPPED.includes(k) &&
+      !RETIRED.includes(k) &&
+      !SIMPLE.includes(k) &&
+      !ANGLE_FOR_ALL.includes(k) &&
+      !(os && NOT_ON_OS.includes(k)),
+  );
+  const fixed = os ? [] : Object.keys(all).filter((k) => shown(k) && !all[k].settable && !COUNTED.includes(k));
+  return {keys, fixed};
+}
 
 const DEG = 180 / Math.PI;
 

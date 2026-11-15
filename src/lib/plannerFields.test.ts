@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {FIELDS, fromInput, hidden, toInput, STYLES, styleOf} from './plannerFields';
+import {expertKeys, FIELDS, fromInput, hidden, toInput, STYLES, styleOf} from './plannerFields';
 
 describe('planner fields', () => {
   it('shows angles in degrees and meters as they are', () => {
@@ -72,5 +72,25 @@ describe('style of the planner settings', () => {
 
   it('leaves out what an older planner does not have', () => {
     expect(styleOf(settings({turn_on_spot: true}))).toBe('quick');
+  });
+
+  it('lists for experts by platform: fill not on MowBite OS, nothing set by mower_logic there, sizes in their own card', () => {
+    const all = {
+      skip_lanes: {settable: true},
+      recorded_loop: {settable: true},
+      skip_outline_loops: {settable: false},
+      skip_obstacle_loops: {settable: false},
+      mower_width: {settable: false},
+      robot_outline: {settable: false},
+      angle_steps: {settable: false},
+    };
+    expect(expertKeys(all, false)).toEqual({keys: ['skip_lanes', 'recorded_loop'], fixed: ['skip_outline_loops', 'skip_obstacle_loops']});
+    expect(expertKeys(all, true)).toEqual({keys: ['recorded_loop'], fixed: []});
+  });
+
+  it('names every setting it lists for experts', () => {
+    for (const k of ['skip_lanes', 'recorded_loop', 'recorded_loop_margin', 'skip_outline_loops', 'skip_obstacle_loops']) {
+      expect(FIELDS[k]?.label, k).toBeTruthy();
+    }
   });
 });

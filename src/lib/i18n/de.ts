@@ -1000,6 +1000,19 @@ const de: Record<string, string> = {
   "A mowing area lying in another (90 % of it at least) is left out of the bigger one and mowed round, it gets a plan of its own with its own settings (another angle, not mowed). Off: the bigger one mows across it.": "Eine Mähfläche, die in einer anderen liegt (mindestens zu 90 %), wird aus der größeren ausgespart und umrundet und bekommt einen eigenen Plan mit eigenen Einstellungen (anderer Winkel, nicht mähen). Aus: Die größere mäht darüber.",
   "Planner": "Planer",
   "Set by OpenMower with every plan, not here: {which}.": "Setzt OpenMower mit jedem Plan, nicht hier: {which}.",
+  "No outline passes": "Keine Randrunden",
+  "No passes round obstacles": "Keine Runden um Hindernisse",
+  "Lanes inside the area": "Bahnen in der Fläche",
+  "Mowed": "Mähen",
+  "Left out": "Weglassen",
+  "Left out: only the outline passes and the passes round obstacles, no lanes inside the area.":
+    "Weglassen: nur die Randrunden und die Runden um Hindernisse, keine Bahnen in der Fläche.",
+  "Recorded outline pass": "Aufgenommene Randrunde",
+  "The outermost outline pass follows the very line you recorded the area on, the same way round as when recording. The mower keeps no distance on it and can get up to 20 cm beyond what it covered while recording, most at corners. Next to a drop, water, stairs, a bed or gravel leave it off, or record the area at least 20 cm away from it. Record the area forwards without a break, with Auto points on.":
+    "Die äußerste Randrunde fährt genau die Linie nach, auf der du die Fläche aufgenommen hast, in derselben Richtung. Der Mäher hält dabei keinen Abstand und kann bis zu 20 cm über das hinauskommen, was er beim Aufnehmen überfahren hat, am meisten an Ecken. Neben einem Absatz, Wasser, einer Treppe, einem Beet oder Kies lass sie aus oder nimm die Fläche mit mindestens 20 cm Abstand dazu auf. Nimm die Fläche durchgehend vorwärts und mit Auto-Punkten auf.",
+  "Distance of the recorded outline pass": "Abstand der aufgenommenen Randrunde",
+  "How far inside the recorded line the mower drives this pass. 0: right on the line, the blade then mows half its width beyond it.":
+    "Wie weit innerhalb der aufgenommenen Linie der Mäher diese Runde fährt. 0: genau auf der Linie, das Messer mäht dann eine halbe Messerbreite darüber hinaus.",
   "Corners of the outline passes on lines driven along the edge: the check assumes a wall half the mower's width beyond the line everywhere, although the mower drove there itself when recording. More distance of the first pass from the line for the area moves the passes inward.": "Ecken der Randrunden auf abgefahrenen Linien: Die Prüfung nimmt überall eine Wand eine halbe Breite hinter der Linie an, beim Aufzeichnen ist der Mäher dort aber selbst gefahren. Mehr Abstand der ersten Runde zur Linie rückt die Runden der Fläche nach innen.",
   "Width and the lengths to the front and back are needed.": "Breite und die Längen nach vorne und hinten werden gebraucht.",
   "{what} has to be between {min} and {max} cm.": "{what} muss zwischen {min} und {max} cm liegen.",

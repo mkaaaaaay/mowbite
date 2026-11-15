@@ -2,7 +2,7 @@
 
 import {tr} from '@/lib/i18n';
 import {loadPlannerSettings, savePlannerSettings, usePlannerSettings, type PlannerSetting} from '@/lib/mowerBody';
-import {ANGLE_FOR_ALL, BODY_KEYS, COUNTED, DROPPED, DROPPED_CHOICES, FIELDS, fromInput, GROUPS, hidden, RETIRED, SIMPLE, toInput, type Field, type Group} from '@/lib/plannerFields';
+import {DROPPED_CHOICES, expertKeys, FIELDS, fromInput, GROUPS, toInput, type Field, type Group} from '@/lib/plannerFields';
 import {useMowbiteOs} from '@/lib/mowerOs';
 import {answerError} from '@/lib/rpcText';
 import {useEffect, useState} from 'react';
@@ -109,6 +109,20 @@ function PlannerField({
       </div>
     );
   }
+  if (setting.type === 'boolean' && field?.ways) {
+    return (
+      <div className={local.wide}>
+        {label}
+        <div className={styles.segment}>
+          {(['false', 'true'] as const).map((v, i) => (
+            <button key={v} className={value === v ? styles.segmentOn : undefined} onClick={() => onChange(v)}>
+              {tr(field.ways![i])}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
   if (setting.type === 'boolean') {
     return (
       <label className={styles.check}>
@@ -158,6 +172,7 @@ function PlannerField({
 
 export function PlannerSettings({styles}: {styles: Styles}) {
   const settings = usePlannerSettings();
+  const os = useMowbiteOs();
   // numbers as typed, saved once the field is left
   const [form, setForm] = useState<Record<string, Value>>({});
   const [state, setState] = useState<{busy?: boolean; error?: string; saved?: number; confirm?: boolean}>({});
@@ -176,12 +191,7 @@ export function PlannerSettings({styles}: {styles: Styles}) {
 
   const all = settings.settings;
   const shown = {...formFrom(all), ...form};
-  // the ones the planner menu above doesn't have (a direction for all areas: each area has its own)
-  const keys = Object.keys(all).filter(
-    (k) =>
-      !BODY_KEYS.includes(k) && !DROPPED.includes(k) && !RETIRED.includes(k) && !SIMPLE.includes(k) && !ANGLE_FOR_ALL.includes(k) && all[k].settable && !hidden(k, all[k]),
-  );
-  const fixed = Object.keys(all).filter((k) => !all[k].settable && !COUNTED.includes(k) && !hidden(k, all[k]));
+  const {keys, fixed} = expertKeys(all, os);
   const group = (k: string): Group => FIELDS[k]?.group ?? 'fine';
   const advanced = (k: string) => !FIELDS[k] || !!FIELDS[k].advanced;
   const typed = (k: string) => !['list', 'string', 'boolean'].includes(all[k].type);
@@ -266,7 +276,7 @@ export function PlannerSettings({styles}: {styles: Styles}) {
         })}
         {fixed.length > 0 && (
           <p className={styles.dim}>
-            {tr('Set by OpenMower with every plan, not here: {which}.', {which: fixed.join(', ')})}
+            {tr('Set by OpenMower with every plan, not here: {which}.', {which: fixed.map((k) => tr(FIELDS[k]?.label ?? k)).join(', ')})}
           </p>
         )}
       </details>
