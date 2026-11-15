@@ -37,6 +37,8 @@ export const RPC = {
   dockingTest: 'docking.test',
   // memory, storage, load and network of the mower itself, MowBite OS only (lib/system)
   systemStats: 'system.stats',
+  // min, mean and max of the number sensors per step over 48 h, MowBite OS where it lists it (hooks/useSensorHistory)
+  sensorsHistory: 'sensors.history',
   // the lights on the mower by state, MowBite OS only (lib/light)
   lightGet: 'light.get_profile',
   lightSet: 'light.set_profile',

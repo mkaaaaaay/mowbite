@@ -1,9 +1,9 @@
 // writes public/version.json before the build, so a running container can tell which version it is
 // (the android app asks the mower for it). dev builds add e.g. "dev.42" via VERSION_SUFFIX. level: how much of
 // src/lib/containerFeatures.json it has, the app tells what an older one leaves out
-// public/app.json is what MowBite OS reads from the export (masterplan 3.5 (4)): the api range of the OS it works with
-// (osApi in package.json, max is a hard limit) and the commit with its time as serial, both only where git is (not in
-// the docker build)
+// public/app.json is what MowBite OS reads from the export (masterplan 3.5 (4)): the api it works with (osApi in
+// package.json: an OS with the same break and at least min; one that doesn't give a break goes by max) and the commit
+// with its time as serial, both only where git is (not in the docker build)
 import {execFileSync} from 'node:child_process';
 import {readFileSync, writeFileSync} from 'node:fs';
 
@@ -22,5 +22,4 @@ try {
 } catch {
   // no git or no .git: without commit and serial
 }
-const {min, max} = pkg.osApi;
-writeFileSync('public/app.json', JSON.stringify({schema: 1, owner: 'mowbite-app', version, api: {min, max}, ...head}) + '\n');
+writeFileSync('public/app.json', JSON.stringify({schema: 1, owner: 'mowbite-app', version, api: pkg.osApi, ...head}) + '\n');

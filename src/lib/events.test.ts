@@ -281,6 +281,15 @@ describe('heading home and charging on MowBite OS', () => {
     // a detail it doesn't know: the cause's own fix
     expect(hint('DOCKING_FAILED', {...dark, detail: 'NEW_ONE'})).toContain('the detail names the cause.');
     expect(hint('DOCKING_RETRY', {reason: 'dock_failed', guide: 'position'})).toMatch(/^Led by its position\. It was in front of the dock/);
+    const mismatch = {reason: 'dock_failed', cause: 'MARKER_MISMATCH', guide: 'marker'};
+    expect(os('DOCKING_FAILED', mismatch)).toBe('Docking failed (marker does not match the map)');
+    expect(hint('DOCKING_FAILED', mismatch)).toContain('docks neither by camera nor by its position. It gave up');
+    const without = {cause: 'MARKER_UNAVAILABLE', detail: 'NO_SIGNAL', severity: 'warning', resume: 'auto'};
+    expect(os('DOCKING_WITHOUT_MARKER', without)).toBe('Docking without the dock camera');
+    expect(hint('DOCKING_WITHOUT_MARKER', without)).toBe(
+      'The camera towards the docking station cannot measure the marker right now. The camera said: No picture. The camera gives no picture right now. It docks by its position this time, that is less exact. Wait a moment. If it stays so, restart MowBite OS.',
+    );
+    expect(hint('DOCKING_WITHOUT_MARKER', {cause: 'NEW_ONE'})).toBeUndefined();
     expect(os('DRIVE_REFUSED', {reason: 'NO_CHARGE_CONTACTS'})).toBe('Drive not started: no charge contacts are set for this mower, it cannot dock');
   });
 

@@ -9,6 +9,7 @@ import {isApp} from '@/lib/native';
 import {RPC, UPDATE_GATED} from '@/lib/openmower';
 import {
   abortUpdate,
+  apiMisfit,
   appTooOld,
   askUpdateStatus,
   checkUpdates,
@@ -239,6 +240,7 @@ function Part({
   const {available: a, running, previous} = c;
   const blocked = a?.blocked ?? null;
   const tooOld = appTooOld(a);
+  const misfit = apiMisfit(a);
   // the mower runs another version of the app than this page shows
   const reload = c.id === 'app' && pageFromMower() && !!running?.version && running.version !== APP_VERSION;
 
@@ -291,6 +293,13 @@ function Part({
         </div>
       )}
       {a && tooOld && <div className={shared.warn}>{appFirst(a.min_app!)}</div>}
+      {a && !tooOld && misfit && (
+        <div className={shared.warn}>
+          {misfit === 'OS_TOO_OLD'
+            ? why(misfit)
+            : tr("This app ({v}) doesn't speak the interface of this version. After the update the mower serves the app that comes with MowBite OS until this one is updated as well.", {v: APP_VERSION})}
+        </div>
+      )}
       {a && !blocked && !tooOld && hint && <span className={shared.dim}>{tr(hint)}</span>}
       {a && !blocked && (
         <button className={[shared.control, shared.primary].join(' ')} disabled={locked || tooOld} onClick={() => onStart()}>

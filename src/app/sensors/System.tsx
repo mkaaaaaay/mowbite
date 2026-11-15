@@ -29,7 +29,7 @@ function Bar({used, warn}: {used: number; warn?: boolean}) {
 }
 
 // the computer side of the mower: memory, storage, cpu. from the container or MowBite OS, updated every 30 s, the
-// last 24 h from the recorder like the sensors (sys_*)
+// recorded buckets like the sensors (sys_*)
 export default function System({history}: {history: Record<string, Sample[] | undefined>}) {
   // undefined: loading, null: not served (no answer yet); a failed call after an answer keeps the last one
   const [sys, setSys] = useState<SystemInfo | null | undefined>(undefined);

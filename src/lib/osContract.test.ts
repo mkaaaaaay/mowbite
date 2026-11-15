@@ -17,14 +17,15 @@ import {PARTS} from './stats';
 const PINNED = {
   repo: 'mkaaaaaay/mowbite-os',
   path: 'src/mowbite_api/api.schema.json',
-  commit: '9f1be4eca864c3a7cb28e14350c32d47a789c90f',
-  sha256: '31b6fa7c0cb2b5386ed99129fd43716c5c2721bdce8c4eca1e980796c0fc5819',
+  commit: 'ffc43bb5a9c82af252960fd4a2bb124ab453047b',
+  sha256: 'cc365a3c9d784fee923a55c9f11c81d0dbd030bcef8c9219aaca506764de75d8',
 };
 const raw = readFileSync(join(__dirname, 'os-api.schema.json'));
 // a reason's rating, when: another one for these values of the event's fields
 type Rating = {severity: string; resume: string; when?: Record<string, string | number | boolean>[]};
 const api = JSON.parse(raw.toString()) as {
   'x-api': number;
+  'x-api-break': number;
   'x-reasons': Record<string, Record<string, Rating>>;
   'x-emergency-bits': {bit: number; name: string}[];
   'x-methods': Record<string, unknown>;
@@ -87,9 +88,11 @@ describe(`MowBite OS's interface (${PINNED.repo} ${PINNED.commit.slice(0, 7)}, a
     expect(createHash('sha256').update(raw).digest('hex')).toBe(PINNED.sha256);
   });
 
-  it('lies in the api range public/app.json gives (osApi in package.json)', () => {
-    const {min, max} = JSON.parse(readFileSync(join(__dirname, '../../package.json'), 'utf8')).osApi;
+  it('fits the api public/app.json gives (osApi in package.json)', () => {
+    const {min, max, break: brk} = JSON.parse(readFileSync(join(__dirname, '../../package.json'), 'utf8')).osApi;
+    expect(brk).toBe(api['x-api-break']);
     expect(min).toBeLessThanOrEqual(api['x-api']);
+    // an OS that doesn't give its break yet still goes by max
     expect(max).toBeGreaterThanOrEqual(api['x-api']);
   });
 

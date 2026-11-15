@@ -88,9 +88,9 @@ export interface MowerEvent {
   temperature?: number;
   sun_elevation?: number;
   battery_percentage?: number;
-  // DOCKING_DIRECT, DOCKING_RETRY and DOCKING_FAILED on MowBite OS: why the planner gave no way home (PLANNER_TIMEOUT,
-  // PLANNER_MISSING) and whether the straight way wasn't free, or why the dock camera didn't lead it in (DOCK_CAUSES,
-  // detail then from DOCK_DETAILS); guide at those and DOCKED: marker (the dock camera) or position
+  // DOCKING_DIRECT, DOCKING_RETRY, DOCKING_FAILED and DOCKING_WITHOUT_MARKER on MowBite OS: why the planner gave no way
+  // home (PLANNER_TIMEOUT, PLANNER_MISSING) and whether the straight way wasn't free, or why the dock camera didn't lead
+  // it in (DOCK_CAUSES, detail then from DOCK_DETAILS); guide at those and DOCKED: marker (the dock camera) or position
   cause?: string;
   direct_blocked?: boolean;
   guide?: string;
@@ -487,6 +487,8 @@ export function explain(e: MowerEvent, state?: string, gpsTimeout?: number, os =
         'The planner gave no way to the docking station ({why}), so it drives the straight way to the point in front of it ({m} m). It checked before that the mower fits along it.',
         {why: reasonText({...e, reason: e.cause}), m: fmt(e.distance ?? 0, 0)},
       );
+    case 'DOCKING_WITHOUT_MARKER':
+      return dockCameraText(e);
     case 'NAVIGATION_ERROR':
       return tr(
         "It couldn't follow the mowing path and the recovery didn't help, so it paused. Often something is in the way, or the path runs too close to an obstacle or the edge.",
@@ -587,7 +589,8 @@ function dockTryText(e: MowerEvent): string {
       const then = e.type === 'DOCKING_FAILED' ? tr('It gave up and stays on the contacts.') : tr('It backs out and tries again.');
       return `${seen} ${then} ${tr('Check that the docking station has power (socket, timer, power supply) and the contacts are clean.')}`;
     }
-    if (e.cause && DOCK_CAUSES[e.cause]) return dockCameraText(e);
+    const camera = dockCameraText(e);
+    if (camera) return camera;
     if (e.cause) {
       const why = reasonText({...e, reason: e.cause});
       const way =
@@ -614,12 +617,20 @@ function dockTryText(e: MowerEvent): string {
         );
 }
 
-// the dock camera didn't lead it in: what was wrong, what the camera said and what helps, the catalog's words
-function dockCameraText(e: MowerEvent): string {
-  const cause = DOCK_CAUSES[e.cause!];
+// what the mower does after the dock camera didn't lead it in, by event
+const AFTER_CAMERA: Record<string, string> = {
+  DOCKING_FAILED: 'It gave up and waits where it is.',
+  DOCKING_WITHOUT_MARKER: 'It docks by its position this time, that is less exact.',
+};
+
+// the dock camera didn't lead it in: what was wrong, what the camera said and what helps, the catalog's words;
+// undefined for a cause that isn't the camera's
+function dockCameraText(e: MowerEvent): string | undefined {
+  const cause = DOCK_CAUSES[e.cause ?? ''];
+  if (!cause) return undefined;
   const detail = DOCK_DETAILS[e.detail ?? ''];
   const said = detail ? [tr('The camera said: {what}.', {what: tr(detail.name)}), ...(detail.help ? [tr(detail.help)] : [])] : [];
-  const then = e.type === 'DOCKING_FAILED' ? tr('It gave up and waits where it is.') : tr('It backs out and tries again.');
+  const then = tr(AFTER_CAMERA[e.type] ?? 'It backs out and tries again.');
   return [tr(cause.help), ...said, then, tr(detail?.fix ?? cause.fix)].join(' ');
 }
 

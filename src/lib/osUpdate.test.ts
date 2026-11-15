@@ -1,6 +1,7 @@
 import {describe, expect, it, vi} from 'vitest';
 import de from './i18n/de';
 import {
+  apiMisfit,
   appTooOld,
   goingBack,
   inWindow,
@@ -88,6 +89,21 @@ describe('what the automatic update installs next', () => {
     expect(appTooOld(s.components[0].available)).toBe(true);
     expect(appTooOld(newer('os', {min_app: '1.5.0'}))).toBe(false);
     expect(nextByItself(s)).toBeUndefined();
+  });
+
+  it("speaks the api of an OS of the app's break from min on, one without a break up to max, one that doesn't say always", () => {
+    const own = {min: 11, max: 33, break: 1};
+    const os = (api: number | null, api_break?: number | null) => newer('os', {api, api_break});
+    expect(apiMisfit(os(40, 1), own)).toBeNull();
+    expect(apiMisfit(os(40, 2), own)).toBe('APP_API_BREAK');
+    expect(apiMisfit(os(10, 1), own)).toBe('OS_TOO_OLD');
+    expect(apiMisfit(os(33, null), own)).toBeNull();
+    expect(apiMisfit(os(34), own)).toBe('APP_API_BREAK');
+    expect(apiMisfit(os(null, null), own)).toBeNull();
+    expect(apiMisfit(newer('planner'), own)).toBeNull();
+    // a note only, the automatic update still takes it
+    const s = status([part('os', {available: os(40, 2)})]);
+    expect(nextByItself(s)?.id).toBe('os');
   });
 });
 

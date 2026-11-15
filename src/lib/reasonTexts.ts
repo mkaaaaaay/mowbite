@@ -137,6 +137,8 @@ export const EVENTS: Record<string, EventText> = {
       {en: 'Heading straight home'},
     ],
   },
+  // MowBite OS from api 33: the dock camera can't measure, this try docks by its position (cause and detail as at DOCKING_RETRY)
+  DOCKING_WITHOUT_MARKER: one('Docking without the dock camera', 'warning'),
   DOCKING_RETRY: {
     severity: 'warning',
     join: '{head} ({reason})',
@@ -319,6 +321,7 @@ export const REASONS: Record<string, Variant[]> = {
     r('marker lost', {when: {cause: 'MARKER_LOST'}}),
     r('marker not found', {when: {cause: 'MARKER_NOT_SEEN'}}),
     r('dock camera not measuring', {when: {cause: 'MARKER_UNAVAILABLE'}}),
+    r('marker does not match the map', {when: {cause: 'MARKER_MISMATCH'}}),
     r('no contact with the charger'),
   ],
   no_gps: [r('no GPS fix')],
@@ -529,6 +532,7 @@ export const REASONS: Record<string, Variant[]> = {
   // MowBite OS's updates (update.status): why one waits, isn't installed or was taken back
   APP_TOO_OLD: [r('this version of the app is too old for the MowBite OS on the mower')],
   OS_TOO_OLD: [r('this version of the app needs a newer MowBite OS')],
+  APP_API_BREAK: [r('this version of the app was built for another break of the interface than the MowBite OS on the mower')],
   PLANNER_INTERFACE: [r("this version of the planner doesn't speak the interface of the MowBite OS on the mower")],
   PLANNER_DATA: [r('this version of the planner keeps its data another way than the MowBite OS on the mower reads it')],
   JOB_OPEN: [r('waiting until the started mowing job is finished or reset')],
@@ -617,6 +621,10 @@ export const DOCK_CAUSES: Record<string, {help: string; fix: string}> = {
   MARKER_UNAVAILABLE: {
     help: 'The camera towards the docking station cannot measure the marker right now.',
     fix: 'Check the camera and its setup; the detail names the cause.',
+  },
+  MARKER_MISMATCH: {
+    help: 'The marker is not where the docking station was recorded in the map. The mower then docks neither by camera nor by its position.',
+    fix: 'Record the station again or check the calibration of the camera.',
   },
 };
 export const DOCK_DETAILS: Record<string, {name: string; help?: string; fix?: string}> = {

@@ -11,7 +11,7 @@ import {useBatteryLevel} from '@/hooks/useBatteryLevel';
 import {useEmergencyReasons} from '@/hooks/useEmergencyReasons';
 import {useMowerSensors, type SensorInfo} from '@/hooks/useMowerSensors';
 import {isLive, useMowerState} from '@/hooks/useMowerState';
-import {useSensorHistory, type Sample} from '@/hooks/useSensorHistory';
+import {keptOnMower, useSensorHistory, type Sample} from '@/hooks/useSensorHistory';
 import {useState, useSyncExternalStore} from 'react';
 import {bladeSpin, outOfRange} from '@/lib/sensorLimits';
 import {sharedSettings} from '@/lib/settings';
@@ -278,8 +278,8 @@ export default function SensorsPage() {
                 <Sparkline samples={gpsHistory} digits={1} unit="cm" minSpan={5} />
               </Card>
             </div>
-            {/* the container keeps a day of it, without one the curves start when the app does */}
-            {!sharedSettings() && <p className={styles.footnote}>{tr('History covers the last hour while the app is open.')}</p>}
+            {/* the container keeps a day of it, MowBite OS two, without either the curves start when the app does */}
+            {!sharedSettings() && !keptOnMower() && <p className={styles.footnote}>{tr('History covers the last hour while the app is open.')}</p>}
 
             {temps.length > 0 && (
               <>

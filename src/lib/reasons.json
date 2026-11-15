@@ -292,6 +292,15 @@
     }
    ]
   },
+  "DOCKING_WITHOUT_MARKER": {
+   "severity": "warning",
+   "variants": [
+    {
+     "en": "Docking without the dock camera",
+     "de": "Andocken ohne Dock-Kamera"
+    }
+   ]
+  },
   "DOCKING_RETRY": {
    "severity": "warning",
    "join": {
@@ -1163,6 +1172,13 @@
      "cause": "MARKER_UNAVAILABLE"
     },
     "de": "Dock-Kamera misst nicht"
+   },
+   {
+    "en": "marker does not match the map",
+    "when": {
+     "cause": "MARKER_MISMATCH"
+    },
+    "de": "Marker passt nicht zur Karte"
    },
    {
     "en": "no contact with the charger",
@@ -2233,6 +2249,12 @@
    {
     "en": "this version of the app needs a newer MowBite OS",
     "de": "diese Version der App braucht ein neueres MowBite OS"
+   }
+  ],
+  "APP_API_BREAK": [
+   {
+    "en": "this version of the app was built for another break of the interface than the MowBite OS on the mower",
+    "de": "diese Version der App ist für eine andere Bruchstufe der Schnittstelle gebaut als das MowBite OS auf dem Mäher"
    }
   ],
   "PLANNER_INTERFACE": [

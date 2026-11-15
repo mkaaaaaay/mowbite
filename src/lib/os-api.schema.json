@@ -531,6 +531,9 @@
           "$ref": "#/$defs/event.DOCKING_DIRECT"
         },
         {
+          "$ref": "#/$defs/event.DOCKING_WITHOUT_MARKER"
+        },
+        {
           "$ref": "#/$defs/event.DOCKED"
         },
         {
@@ -2250,7 +2253,8 @@
             "PLANNER_MISSING",
             "MARKER_UNAVAILABLE",
             "MARKER_NOT_SEEN",
-            "MARKER_LOST"
+            "MARKER_LOST",
+            "MARKER_MISMATCH"
           ],
           "type": "string",
           "x-texts": {
@@ -2264,6 +2268,18 @@
                 "fix": "Clear the view between the mower and the station.",
                 "help": "The marker of the docking station was out of sight for too long on the way in. The mower stopped and ended the attempt.",
                 "name": "Marker lost"
+              }
+            },
+            "MARKER_MISMATCH": {
+              "de": {
+                "fix": "Die Station neu aufnehmen oder die Kalibrierung der Kamera prüfen.",
+                "help": "Der Marker steht nicht dort, wo die Ladestation in der Karte aufgenommen ist. Der Mäher dockt dann weder nach der Kamera noch nach der Position an.",
+                "name": "Marker passt nicht zur Karte"
+              },
+              "en": {
+                "fix": "Record the station again or check the calibration of the camera.",
+                "help": "The marker is not where the docking station was recorded in the map. The mower then docks neither by camera nor by its position.",
+                "name": "Marker does not match the map"
               }
             },
             "MARKER_NOT_SEEN": {
@@ -2608,7 +2624,8 @@
             "PLANNER_MISSING",
             "MARKER_UNAVAILABLE",
             "MARKER_NOT_SEEN",
-            "MARKER_LOST"
+            "MARKER_LOST",
+            "MARKER_MISMATCH"
           ],
           "type": "string",
           "x-texts": {
@@ -2622,6 +2639,18 @@
                 "fix": "Clear the view between the mower and the station.",
                 "help": "The marker of the docking station was out of sight for too long on the way in. The mower stopped and ended the attempt.",
                 "name": "Marker lost"
+              }
+            },
+            "MARKER_MISMATCH": {
+              "de": {
+                "fix": "Die Station neu aufnehmen oder die Kalibrierung der Kamera prüfen.",
+                "help": "Der Marker steht nicht dort, wo die Ladestation in der Karte aufgenommen ist. Der Mäher dockt dann weder nach der Kamera noch nach der Position an.",
+                "name": "Marker passt nicht zur Karte"
+              },
+              "en": {
+                "fix": "Record the station again or check the calibration of the camera.",
+                "help": "The marker is not where the docking station was recorded in the map. The mower then docks neither by camera nor by its position.",
+                "name": "Marker does not match the map"
               }
             },
             "MARKER_NOT_SEEN": {
@@ -2943,6 +2972,297 @@
         "x",
         "y",
         "reason",
+        "severity",
+        "resume"
+      ],
+      "type": "object",
+      "x-emitter": "logic"
+    },
+    "event.DOCKING_WITHOUT_MARKER": {
+      "additionalProperties": false,
+      "description": "Where the platform docks by its dock camera and may do without it (dock_guide prefer): this try docks by the position, as the camera cannot measure the marker",
+      "properties": {
+        "cause": {
+          "description": "Why the dock camera does not guide this try: it cannot measure the marker",
+          "enum": [
+            "MARKER_UNAVAILABLE"
+          ],
+          "type": "string",
+          "x-texts": {
+            "MARKER_UNAVAILABLE": {
+              "de": {
+                "fix": "Die Kamera prüfen; die Meldung nennt den Grund.",
+                "help": "Die Kamera zur Ladestation misst nicht, der Mäher dockt nach seiner Position an. Das ist ungenauer.",
+                "name": "Andocken ohne Kamera"
+              },
+              "en": {
+                "fix": "Check the camera; the message names the cause.",
+                "help": "The camera towards the docking station does not measure, the mower docks by its position. That is less exact.",
+                "name": "Docking without camera"
+              }
+            }
+          }
+        },
+        "client": {
+          "description": "Who sent the command (app, ha), for the log and the events of its step",
+          "pattern": "^[a-z][a-z0-9_-]{0,15}$",
+          "type": "string"
+        },
+        "detail": {
+          "description": "With a cause of the dock camera: why it gave no measurement",
+          "enum": [
+            "NO_MARKER",
+            "MARKER_CLIPPED",
+            "MARKER_AMBIGUOUS",
+            "TOO_DARK",
+            "TOO_BRIGHT",
+            "BLURRED",
+            "FIT_REJECTED",
+            "LOCKED_AFTER_CRASH",
+            "NOT_SET_UP",
+            "BLADE_RUNNING",
+            "TOO_HOT",
+            "NO_SIGNAL",
+            "DRIVER_MISSING",
+            "SELF_TEST"
+          ],
+          "type": "string",
+          "x-texts": {
+            "BLADE_RUNNING": {
+              "de": {
+                "fix": "Warten, bis das Messer steht.",
+                "help": "Diese Kamera zeigt kein Bild, solange das Messer läuft.",
+                "name": "Messer läuft"
+              },
+              "en": {
+                "fix": "Wait until the blade has stopped.",
+                "help": "This camera shows no picture while the blade runs.",
+                "name": "Blade running"
+              }
+            },
+            "BLURRED": {
+              "de": {
+                "fix": "Die Linse säubern.",
+                "help": "",
+                "name": "Bild unscharf"
+              },
+              "en": {
+                "fix": "Clean the lens.",
+                "help": "",
+                "name": "The image is blurred"
+              }
+            },
+            "DRIVER_MISSING": {
+              "de": {
+                "fix": "Kurz warten. Bleibt es dabei, MowBite OS neu starten.",
+                "help": "Die Kamera kennt den Zustand des Mähers nicht und zeigt deshalb kein Bild.",
+                "name": "Mäher meldet sich nicht"
+              },
+              "en": {
+                "fix": "Wait a moment. If it stays so, restart MowBite OS.",
+                "help": "The camera doesn't know the state of the mower and so shows no picture.",
+                "name": "Mower not reporting"
+              }
+            },
+            "FIT_REJECTED": {
+              "de": {
+                "fix": "",
+                "help": "",
+                "name": "Marker gefunden, Lage nicht sicher messbar"
+              },
+              "en": {
+                "fix": "",
+                "help": "",
+                "name": "The marker was found, but its position could not be measured reliably"
+              }
+            },
+            "LOCKED_AFTER_CRASH": {
+              "de": {
+                "fix": "Das Protokoll für eine Meldung sichern. Die Sperre nur nach der Anleitung löschen.",
+                "help": "Das Betriebssystem des Mähers ist abgestürzt, während diese Kamera lief. Sie bleibt aus, bis die Sperre auf dem Mäher gelöscht ist.",
+                "name": "Kamera gesperrt"
+              },
+              "en": {
+                "fix": "Keep the log for a report. Delete the lock only as the guide says.",
+                "help": "The operating system of the mower crashed while this camera ran. It stays off until the lock on the mower is deleted.",
+                "name": "Camera locked"
+              }
+            },
+            "MARKER_AMBIGUOUS": {
+              "de": {
+                "fix": "Nur einen Marker im Blick der Kamera lassen.",
+                "help": "",
+                "name": "Mehr als ein Marker im Bild"
+              },
+              "en": {
+                "fix": "Leave only one marker in view of the camera.",
+                "help": "",
+                "name": "More than one marker in the image"
+              }
+            },
+            "MARKER_CLIPPED": {
+              "de": {
+                "fix": "",
+                "help": "",
+                "name": "Marker am Bildrand abgeschnitten"
+              },
+              "en": {
+                "fix": "",
+                "help": "",
+                "name": "The marker touches the edge of the image"
+              }
+            },
+            "NOT_SET_UP": {
+              "de": {
+                "fix": "Die Kamera nach der Anleitung einrichten.",
+                "help": "Auf dem Mäher fehlt etwas, das diese Kamera braucht, zum Beispiel ein Modell oder der Dienst für das Livebild.",
+                "name": "Kamera nicht eingerichtet"
+              },
+              "en": {
+                "fix": "Set the camera up as the guide says.",
+                "help": "Something this camera needs is missing on the mower, for example a model or the service for the live picture.",
+                "name": "Camera not set up"
+              }
+            },
+            "NO_MARKER": {
+              "de": {
+                "fix": "",
+                "help": "",
+                "name": "Kein Marker im Bild"
+              },
+              "en": {
+                "fix": "",
+                "help": "",
+                "name": "No marker in the image"
+              }
+            },
+            "NO_SIGNAL": {
+              "de": {
+                "fix": "Kurz warten. Bleibt es dabei, MowBite OS neu starten.",
+                "help": "Die Kamera liefert gerade kein Bild.",
+                "name": "Kein Bild"
+              },
+              "en": {
+                "fix": "Wait a moment. If it stays so, restart MowBite OS.",
+                "help": "The camera gives no picture right now.",
+                "name": "No picture"
+              }
+            },
+            "SELF_TEST": {
+              "de": {
+                "fix": "Warten, bis der Test durch ist.",
+                "help": "Die Kamera prüft sich nach dem Start einmal selbst. Das geht nur, wenn der Mäher steht und das Messer aus ist.",
+                "name": "Selbsttest"
+              },
+              "en": {
+                "fix": "Wait until the test is done.",
+                "help": "The camera tests itself once after the start. That only works while the mower stands with the blade off.",
+                "name": "Self-test"
+              }
+            },
+            "TOO_BRIGHT": {
+              "de": {
+                "fix": "Blendung vermeiden, etwa tief stehende Sonne oder eine Lampe hinter der Station.",
+                "help": "",
+                "name": "Bild zu hell"
+              },
+              "en": {
+                "fix": "Avoid glare, such as a low sun or a lamp behind the station.",
+                "help": "",
+                "name": "The image is too bright"
+              }
+            },
+            "TOO_DARK": {
+              "de": {
+                "fix": "Prüfen, ob die Station Strom hat und die Beleuchtung des Markers an ist; sonst für Licht an der Station sorgen.",
+                "help": "",
+                "name": "Bild zu dunkel"
+              },
+              "en": {
+                "fix": "Check that the station has power and the marker light is on; otherwise provide light at the station.",
+                "help": "",
+                "name": "The image is too dark"
+              }
+            },
+            "TOO_HOT": {
+              "de": {
+                "fix": "Warten, bis er abgekühlt ist.",
+                "help": "Der Rechner des Mähers ist zu warm, die Kamera macht eine Pause.",
+                "name": "Zu warm"
+              },
+              "en": {
+                "fix": "Wait until it has cooled down.",
+                "help": "The computer of the mower is too hot, so the camera pauses.",
+                "name": "Too hot"
+              }
+            }
+          }
+        },
+        "id": {
+          "description": "Random id of the event, 32 letters and digits",
+          "type": "string"
+        },
+        "job_id": {
+          "description": "The job of mowing it belongs to",
+          "type": "string"
+        },
+        "message": {
+          "description": "English text for the log",
+          "type": "string"
+        },
+        "resume": {
+          "description": "Always auto",
+          "enum": [
+            "auto"
+          ],
+          "type": "string"
+        },
+        "session_id": {
+          "description": "The session of the logic since its start",
+          "type": "string"
+        },
+        "severity": {
+          "description": "Always warning",
+          "enum": [
+            "warning"
+          ],
+          "type": "string"
+        },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
+          "type": "string"
+        },
+        "t": {
+          "description": "When it happened",
+          "type": "number",
+          "x-unit": "unix s"
+        },
+        "type": {
+          "const": "DOCKING_WITHOUT_MARKER",
+          "description": "What happened; a type this version does not know carries only the envelope for sure"
+        },
+        "x": {
+          "description": "Where the mower was, east of the datum of the map",
+          "type": "number",
+          "x-unit": "m"
+        },
+        "y": {
+          "description": "Where the mower was, north of the datum of the map",
+          "type": "number",
+          "x-unit": "m"
+        }
+      },
+      "required": [
+        "id",
+        "t",
+        "type",
+        "x",
+        "y",
+        "cause",
+        "message",
         "severity",
         "resume"
       ],
@@ -5295,6 +5615,7 @@
               "UNDOCKING_FAILED",
               "DOCKING",
               "DOCKING_DIRECT",
+              "DOCKING_WITHOUT_MARKER",
               "DOCKED",
               "DOCKING_RETRY",
               "DOCKING_FAILED",
@@ -8558,6 +8879,116 @@
       ],
       "type": "object"
     },
+    "sensors.history.params": {
+      "additionalProperties": false,
+      "description": "The params of sensors.history: None: all number sensors over the last 48 h",
+      "properties": {
+        "client": {
+          "description": "Who sent the command (app, ha), for the log and the events of its step",
+          "pattern": "^[a-z][a-z0-9_-]{0,15}$",
+          "type": "string"
+        },
+        "from": {
+          "description": "Points from the one that holds this time on; none for 48 h before to",
+          "type": "integer",
+          "x-unit": "unix s"
+        },
+        "sensor_ids": {
+          "description": "Sensor ids, none for all; ids the history does not know are left out",
+          "items": {
+            "description": "One item",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "step": {
+          "description": "At least so long a point: 60, 300 or 900",
+          "maximum": 900.0,
+          "minimum": 1.0,
+          "type": "integer",
+          "x-unit": "s"
+        },
+        "to": {
+          "description": "Points that begin up to then, the one going on included; none for now",
+          "type": "integer",
+          "x-unit": "unix s"
+        }
+      },
+      "required": [],
+      "type": "object"
+    },
+    "sensors.history.result": {
+      "additionalProperties": false,
+      "description": "The result of sensors.history: The history",
+      "properties": {
+        "from": {
+          "description": "The points from then on: from rounded down to the step, later when truncated",
+          "type": "integer",
+          "x-unit": "unix s"
+        },
+        "sensors": {
+          "description": "Each number sensor asked for that is recorded now or has values kept, by sensor_id",
+          "items": {
+            "additionalProperties": false,
+            "description": "One item",
+            "properties": {
+              "name": {
+                "description": "Name to show",
+                "type": "string"
+              },
+              "points": {
+                "description": "[t, min, avg, max] per step with values, oldest first: t its start in unix s, avg weighted by the values in it; a step without values is left out",
+                "items": {
+                  "description": "One item",
+                  "type": "array"
+                },
+                "type": "array"
+              },
+              "sensor_id": {
+                "description": "Id of x-sensors or of the platform",
+                "type": "string"
+              },
+              "unit": {
+                "description": "Unit of the values, empty for none",
+                "type": "string"
+              }
+            },
+            "required": [
+              "sensor_id",
+              "name",
+              "unit",
+              "points"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "step": {
+          "description": "The step taken: 60, 300 or 900",
+          "maximum": 900.0,
+          "minimum": 60.0,
+          "type": "integer",
+          "x-unit": "s"
+        },
+        "to": {
+          "description": "The points that begin up to then",
+          "type": "integer",
+          "x-unit": "unix s"
+        },
+        "truncated": {
+          "description": "The oldest points were left out to keep the answer small",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "step",
+        "from",
+        "to",
+        "truncated",
+        "sensors"
+      ],
+      "type": "object"
+    },
     "sensors.list.params": {
       "additionalProperties": false,
       "description": "The params of sensors.list: None for all",
@@ -9516,6 +9947,10 @@
           "description": "Version of this interface",
           "type": "integer"
         },
+        "api_break": {
+          "description": "Break of this interface",
+          "type": "integer"
+        },
         "json_schema": {
           "description": "This schema",
           "type": "object"
@@ -9523,6 +9958,7 @@
       },
       "required": [
         "api",
+        "api_break",
         "json_schema"
       ],
       "type": "object"
@@ -9602,6 +10038,10 @@
       "properties": {
         "api": {
           "description": "Version of this interface, the x-api of the schema system.api gives",
+          "type": "integer"
+        },
+        "api_break": {
+          "description": "Break of this interface, the x-api-break of the schema system.api gives",
           "type": "integer"
         },
         "blade_height": {
@@ -9688,6 +10128,7 @@
         "platform",
         "schema",
         "api",
+        "api_break",
         "mqtt"
       ],
       "type": "object"
@@ -10015,6 +10456,20 @@
                 "additionalProperties": false,
                 "description": "The newest revision found that is newer than what runs, null without one",
                 "properties": {
+                  "api": {
+                    "description": "os: the api it speaks, null for a bundle that does not say; absent for the others",
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "api_break": {
+                    "description": "os: the break of its api, null for a bundle from before it; absent for the others",
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
                   "blocked": {
                     "additionalProperties": false,
                     "description": "Not installed by itself: why, the result of the attempt that ended so and when; update.start of this revision tries it anyway",
@@ -10455,6 +10910,20 @@
                 "additionalProperties": false,
                 "description": "The newest revision found that is newer than what runs, null without one",
                 "properties": {
+                  "api": {
+                    "description": "os: the api it speaks, null for a bundle that does not say; absent for the others",
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "api_break": {
+                    "description": "os: the break of its api, null for a bundle from before it; absent for the others",
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
                   "blocked": {
                     "additionalProperties": false,
                     "description": "Not installed by itself: why, the result of the attempt that ended so and when; update.start of this revision tries it anyway",
@@ -10911,6 +11380,20 @@
                 "additionalProperties": false,
                 "description": "The newest revision found that is newer than what runs, null without one",
                 "properties": {
+                  "api": {
+                    "description": "os: the api it speaks, null for a bundle that does not say; absent for the others",
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "api_break": {
+                    "description": "os: the break of its api, null for a bundle from before it; absent for the others",
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
                   "blocked": {
                     "additionalProperties": false,
                     "description": "Not installed by itself: why, the result of the attempt that ended so and when; update.start of this revision tries it anyway",
@@ -11363,6 +11846,20 @@
                 "additionalProperties": false,
                 "description": "The newest revision found that is newer than what runs, null without one",
                 "properties": {
+                  "api": {
+                    "description": "os: the api it speaks, null for a bundle that does not say; absent for the others",
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "api_break": {
+                    "description": "os: the break of its api, null for a bundle from before it; absent for the others",
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
                   "blocked": {
                     "additionalProperties": false,
                     "description": "Not installed by itself: why, the result of the attempt that ended so and when; update.start of this revision tries it anyway",
@@ -11813,6 +12310,20 @@
                 "additionalProperties": false,
                 "description": "The newest revision found that is newer than what runs, null without one",
                 "properties": {
+                  "api": {
+                    "description": "os: the api it speaks, null for a bundle that does not say; absent for the others",
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "api_break": {
+                    "description": "os: the break of its api, null for a bundle from before it; absent for the others",
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
                   "blocked": {
                     "additionalProperties": false,
                     "description": "Not installed by itself: why, the result of the attempt that ended so and when; update.start of this revision tries it anyway",
@@ -12273,6 +12784,20 @@
                 "additionalProperties": false,
                 "description": "The newest revision found that is newer than what runs, null without one",
                 "properties": {
+                  "api": {
+                    "description": "os: the api it speaks, null for a bundle that does not say; absent for the others",
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "api_break": {
+                    "description": "os: the break of its api, null for a bundle from before it; absent for the others",
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
                   "blocked": {
                     "additionalProperties": false,
                     "description": "Not installed by itself: why, the result of the attempt that ended so and when; update.start of this revision tries it anyway",
@@ -12713,6 +13238,20 @@
                 "additionalProperties": false,
                 "description": "The newest revision found that is newer than what runs, null without one",
                 "properties": {
+                  "api": {
+                    "description": "os: the api it speaks, null for a bundle that does not say; absent for the others",
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
+                  "api_break": {
+                    "description": "os: the break of its api, null for a bundle from before it; absent for the others",
+                    "type": [
+                      "integer",
+                      "null"
+                    ]
+                  },
                   "blocked": {
                     "additionalProperties": false,
                     "description": "Not installed by itself: why, the result of the attempt that ended so and when; update.start of this revision tries it anyway",
@@ -13093,11 +13632,12 @@
       "type": "object"
     }
   },
-  "$id": "urn:mowbite-os:api:30",
+  "$id": "urn:mowbite-os:api:33",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "description": "robot_state, actions, events and RPC methods of MowBite OS over MQTT, as system.api gives them; made from the code, objects sorted by key. x-reasons has severity and resume of every reason by event (COMMAND_REFUSED and REQUEST_REFUSED only in refusals; when: another rating for these field values; texts: name, help and fix by language; an enum field may carry the same by value as x-texts), x-emergency-bits the bits of emergency, x-commands the commands with params, result, the event of their refusal and the actions that do the same, x-methods every RPC method of the OS with its node (planner.* are the planner's, sim.* only in the simulation), x-sensors the sensors by id, x-settings the settings of params.set with the ranges of the OS, x-geometry the keys of robot.geometry, x-schedule-log the words of schedule.log with what detail and more hold (null: always null).",
+  "description": "robot_state, actions, events and RPC methods of MowBite OS over MQTT, as system.api gives them; made from the code, objects sorted by key. x-reasons has severity and resume of every reason by event (COMMAND_REFUSED and REQUEST_REFUSED only in refusals; when: another rating for these field values; texts: name, help and fix by language; an enum field may carry the same by value as x-texts), x-emergency-bits the bits of emergency, x-commands the commands with params, result, the event of their refusal and the actions that do the same, x-methods every RPC method of the OS with its node (planner.* are the planner's, sim.* only in the simulation), x-sensors the sensors by id, x-settings the settings of params.set with the ranges of the OS, x-geometry the keys of robot.geometry, x-schedule-log the words of schedule.log with what detail and more hold (null: always null). x-api counts every change, x-api-break only the breaks: a method, field, event, reason or topic gone or renamed, a type or meaning changed, a parameter newly required, fewer values taken in a request, an event a client waits for no longer sent. All else only adds; a client goes with every x-api of its x-api-break from the one it needs on.",
   "title": "MowBite OS app interface",
-  "x-api": 30,
+  "x-api": 33,
+  "x-api-break": 1,
   "x-commands": {
     "docking.abort": {
       "action": "mower_logic:docking/abort_docking",
@@ -14093,6 +14633,13 @@
       "offered": "",
       "params": "#/$defs/schedule.set.params",
       "result": "#/$defs/schedule.set.result"
+    },
+    "sensors.history": {
+      "description": "Min, mean and max of the number sensors per step over the last 48 h; the answer stays below 900000 bytes: the step grows to 300 or 900, then the oldest points go",
+      "node": "mowbite_stats",
+      "offered": "",
+      "params": "#/$defs/sensors.history.params",
+      "result": "#/$defs/sensors.history.result"
     },
     "sensors.list": {
       "description": "Every sensor of sensor_infos/json with its last value; ids selects some, unknown ids are left out",
@@ -16701,6 +17248,24 @@
       }
     },
     "UPDATE": {
+      "APP_API_BREAK": {
+        "description": "The app of the bundle was built for another break of the interface than the OS installed",
+        "fields": {},
+        "resume": "user",
+        "severity": "error",
+        "texts": {
+          "de": {
+            "fix": "Eine Version der App installieren, die zu diesem MowBite OS passt, oder MowBite OS aktualisieren.",
+            "help": "Diese Version der App ist für eine andere Bruchstufe der Schnittstelle gebaut als das installierte MowBite OS und wird nicht verwendet.",
+            "name": "App passt nicht"
+          },
+          "en": {
+            "fix": "Install a version of the app that matches this MowBite OS, or update MowBite OS.",
+            "help": "This version of the app was built for another break of the interface than the MowBite OS that is installed and is not used.",
+            "name": "App doesn't match"
+          }
+        }
+      },
       "APP_TOO_OLD": {
         "description": "The app of the bundle is too old for the OS that is installed",
         "fields": {},
