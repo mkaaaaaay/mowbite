@@ -5,6 +5,7 @@ import type {PlanRequest} from './areaPlan';
 import {apiBase} from './mowers';
 import {RPC} from './openmower';
 import {isMowbiteOs, providerGone, runsMowbiteOs, systemInfo} from './mowerOs';
+import {tr} from './i18n';
 import {askPlan} from './plannerProgress';
 import {askUntilAnswered, callRpc, isMissingMethod, knownMethods, onMethodsChanged, RpcError, rpcMethods} from './rpc';
 import {saveSettings, settingsStore, syncSettings, type Settings} from './settings';
@@ -490,6 +491,8 @@ export const MOWER_MODELS: {
   label: string;
   sizes: Required<Omit<MowerSizes, 'outline'>>;
   outline?: Outline;
+  // the outline measured on the mower itself, not on a photo
+  outlineOnMower?: boolean;
   turnRadius: number;
 }[] = [
   // the same body on all three
@@ -547,7 +550,10 @@ export const MOWER_MODELS: {
     sizes: {width: 0.47, front: 0.6, rear: 0.12, blade: 0.281, bladeAhead: 0.23, bladeOffset: 0},
     // 39.5 cm between the rear wheels
     turnRadius: 0.27,
-    // no outline until one is measured on the mower: the one from a photo put the axle wrong and left the rear wheels out
+    // measured on the mower by its owner (15.11.), as in tron.yaml: the bar in front, widest from 7 cm behind it to the back.
+    // only for OpenMower, MowBite OS has its own (robot.geometry)
+    outline: [[0.6, 0.14], [0.53, 0.235], [-0.12, 0.235], [-0.12, -0.235], [0.53, -0.235], [0.6, -0.14]],
+    outlineOnMower: true,
   },
 ];
 
@@ -610,6 +616,9 @@ export function modelOf(s: MowerSizes | undefined): string | null {
   });
   return model?.key ?? null;
 }
+
+// where a model's outline was measured, for the sizes cards
+export const measuredWhere = (m: (typeof MOWER_MODELS)[number]) => tr(m.outlineOnMower ? 'on the mower' : 'on a photo from straight above');
 
 // the model with a measured outline these sizes are exactly: its outline goes with them on its own, unless the
 // rectangle is kept

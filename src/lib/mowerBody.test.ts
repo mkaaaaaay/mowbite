@@ -501,10 +501,12 @@ describe('mower models', () => {
     expect(modelOf(undefined)).toBeNull();
   });
 
-  it("gives the Tron no outline of its own until one is measured, its rear wheels reach out to the rectangle's sides", () => {
+  it("gives the Tron its outline measured on the mower, reaching the rectangle's sides, front and back", () => {
     const tron = MOWER_MODELS.find((m) => m.key === 'airseekers-tron')!;
-    expect(autoOutlineModel(tron.sizes)).toBeUndefined();
-    expect(withModelOutline(tron.sizes)).toEqual(tron.sizes);
+    expect(autoOutlineModel(tron.sizes)).toBe(tron);
+    const xs = tron.outline!.map(([x]) => x);
+    const ys = tron.outline!.map(([, y]) => y);
+    expect([Math.max(...xs), -Math.min(...xs), Math.max(...ys) - Math.min(...ys)]).toEqual([tron.sizes.front, tron.sizes.rear, tron.sizes.width]);
   });
 });
 

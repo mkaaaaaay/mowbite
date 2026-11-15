@@ -445,7 +445,7 @@ function Record() {
       : lost
         ? lost
         : os
-          ? tr('Drive to the edge of the new area, then start recording and drive once around it. For the docking station, stop about a meter in front of it, facing it.')
+          ? tr('Drive to the edge of the new area, then start recording and drive once around it. For the docking station, stop about a meter in front of it, at least half a meter, facing it.')
           : tr('Drive to the edge of the new area, then start recording and drive once around it. The docking station: its button guides you through it.');
     buttons = [
       button('start_recording', 'Record outline', 'primary', () => setSave(null)),

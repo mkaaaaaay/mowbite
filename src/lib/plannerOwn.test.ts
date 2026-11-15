@@ -55,7 +55,7 @@ describe('ownSettings', () => {
     const own = ownSettings({}, {outline_count: 3, outline_offset: 0.2}, all, false);
     expect(own.map((o) => [o.label, o.value, o.idle])).toEqual([
       ['Outline passes (OpenMower)', '3', null],
-      ['Outline offset (OpenMower)', '20 cm', null],
+      ['First pass from the line (OpenMower)', '20 cm', null],
     ]);
   });
 });

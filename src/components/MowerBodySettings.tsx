@@ -4,6 +4,7 @@ import {useRpcMethods} from '@/hooks/useRpcMethods';
 import {cmMetres, cmText, tr} from '@/lib/i18n';
 import {
   autoOutlineModel,
+  measuredWhere,
   BODY_SETTINGS,
   bodyFrom,
   loadPlannerSettings,
@@ -225,7 +226,7 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
   const missing = loaded ? keys.filter((k) => !known[k]) : [];
   const model = other ? '' : (modelOf(sizesOf(form)) ?? '');
   // a model with a measured outline, while the rectangle is still in use: offered, not put in on its own
-  const offered = !outline ? MOWER_MODELS.find((m) => m.key === model && m.outline) : undefined;
+  const offered = !outline && !onOs ? MOWER_MODELS.find((m) => m.key === model && m.outline) : undefined;
   // a planner from before the body check takes robot_width as "the lines are walls": its centre then keeps half the
   // width off them all the way round, so the width only goes to one that knows the rest too. One that has them from
   // elsewhere (MowBite OS) doesn't take them
@@ -273,9 +274,9 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
       // the planner keeps one it takes from mower_logic as its own, MowBite OS only what differs from the platform's
       if ((!onOs && !s.stored) || typeof s.value !== 'number' || Math.abs(s.value - v) > 1e-6) changes[key] = Math.round(v * 10000) / 10000;
     }
-    // the contour only to a planner that knows it, null is the rectangle again
+    // the contour only to a planner that knows it, null is the rectangle again. MowBite OS keeps its own
     const send = o ? plannerOutline(o) : null;
-    if (known.robot_outline && JSON.stringify(outlineOf(known.robot_outline.value) ?? null) !== JSON.stringify(send)) {
+    if (!onOs && known.robot_outline && JSON.stringify(outlineOf(known.robot_outline.value) ?? null) !== JSON.stringify(send)) {
       changes.robot_outline = send;
     }
     if (onOs) return saveOnOs(changes);
@@ -354,7 +355,7 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
 
   const set = (key: keyof Form, value: string) => {
     setForm({...form, [key]: value});
-    if (key === 'robot_width' || key === 'robot_front' || key === 'robot_rear') setOutline(null);
+    if (!onOs && (key === 'robot_width' || key === 'robot_front' || key === 'robot_rear')) setOutline(null);
     setOther(false);
     setTurn(null);
     setState({});
@@ -369,7 +370,7 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
     const next = {...form};
     for (const [field, size] of MODEL_FIELDS) next[field] = cmText(m.sizes[size]);
     setForm(next);
-    setOutline(m.outline ?? null);
+    if (!onOs) setOutline(m.outline ?? null);
     setState({picked: true});
   };
 
@@ -396,7 +397,11 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
       {sketch && <MowerSketch body={sketch} antenna={antenna} />}
       {outline && (
         <p className={styles.dim}>
-          {outlineModel ? tr(known.robot_outline ? 'Outline of the {model} plus 1 cm, measured on a photo from straight above. It counts for this model only.' : 'Outline of the {model}, measured on a photo from straight above. It counts for this model only, the planner on the mower checks the rectangle until it knows outlines (newer image).', {model: outlineModel.label}) : tr('A stored outline that is none of the models: pick the model again or enter the sizes.')}
+          {onOs
+            ? tr('The outline MowBite OS has for this mower.')
+            : outlineModel
+              ? tr(known.robot_outline ? 'Outline of the {model} plus 1 cm, measured {where}. It counts for this model only.' : 'Outline of the {model}, measured {where}. It counts for this model only, the planner on the mower checks the rectangle until it knows outlines (newer image).', {model: outlineModel.label, where: measuredWhere(outlineModel)})
+              : tr('A stored outline that is none of the models: pick the model again or enter the sizes.')}
         </p>
       )}
       {taken && (

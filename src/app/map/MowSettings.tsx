@@ -169,8 +169,8 @@ export function OpenMowerArea({area, globalValue, remember, update, inMenu}: Pro
       )}
       {number(
         'outline_offset',
-        'Outline offset (m)',
-        'Moves the mowing boundary in (positive, more distance to beds and walls) or out (negative). -1 to 1 m.',
+        'First pass from the line (m)',
+        "How far the middle of the mower stays inside the line on the first outline pass. 0: the middle on the line. Positive further in (more distance to beds and walls), negative out beyond it. -1 to 1 m. Empty: like all areas.",
         0.05,
       )}
     </div>

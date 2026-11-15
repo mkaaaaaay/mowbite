@@ -4,6 +4,7 @@ import {numParam, useMowerParams} from '@/hooks/useMowerParams';
 import {cmMetres, cmText, tr} from '@/lib/i18n';
 import {
   autoOutlineModel,
+  measuredWhere,
   MAX_BLADE,
   modelOf,
   MOWER_MODELS,
@@ -179,7 +180,7 @@ export function MowerSizesSettings({settings, styles}: {settings: Settings; styl
         </select>
       </label>
       {sketch && <MowerSketch body={sketch} antenna={antenna} />}
-      {outline && <p className={styles.dim}>{outlineModel ? tr('Outline of the {model}, measured on a photo from straight above. It counts for this model only.', {model: outlineModel.label}) : tr('A stored outline that is none of the models: pick the model again or enter the sizes.')}</p>}
+      {outline && <p className={styles.dim}>{outlineModel ? tr('Outline of the {model}, measured {where}. It counts for this model only.', {model: outlineModel.label, where: measuredWhere(outlineModel)}) : tr('A stored outline that is none of the models: pick the model again or enter the sizes.')}</p>}
       {taken && (
         <p className={styles.dim}>
           {tr("Picked by itself: the sizes match this model exactly.")}{' '}

@@ -161,8 +161,8 @@ export const FIELDS: Record<string, Field> = {
     area: true,
   },
   perimeter_offset: {
-    label: 'Outline offset',
-    help: "How far inside the lines of the map the first outline pass runs. Empty: OpenMower's (outline_offset). With the mower sizes the first pass also keeps the safety distance to the edge, the larger of the two counts.",
+    label: 'First pass from the line',
+    help: "How far the middle of the mower stays inside the lines of the map on the first outline pass. 0: the middle on the line, negative out beyond it. Empty: on OpenMower its value for all areas (outline_offset), on MowBite OS the edge of the blade on the line (half the blade width in). With the mower sizes the first pass also keeps the safety distance to the edge, the larger of the two counts.",
     group: 'edge',
     unit: 'm',
     step: 0.05,
