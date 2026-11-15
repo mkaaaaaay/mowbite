@@ -281,6 +281,15 @@ describe('heading home and charging on MowBite OS', () => {
     // a detail it doesn't know: the cause's own fix
     expect(hint('DOCKING_FAILED', {...dark, detail: 'NEW_ONE'})).toContain('the detail names the cause.');
     expect(hint('DOCKING_RETRY', {reason: 'dock_failed', guide: 'position'})).toMatch(/^Led by its position\. It was in front of the dock/);
+    // MowBite OS without a cause: its message, the charger only on OpenMower
+    const refused = {reason: 'dock_failed', attempts: 1, message: 'Docking test refused: saw no marker within 25 s'};
+    expect(os('DOCKING_FAILED', refused)).toBe('Docking failed after 1 tries (Docking test refused: saw no marker within 25 s)');
+    expect(hint('DOCKING_FAILED', refused)).toBeUndefined();
+    expect(hint('DOCKING_FAILED', {...refused, guide: 'marker'})).toBe('Led by the dock camera.');
+    expect(os('DOCKING_FAILED', {...refused, cause: 'TEST_START'})).toBe('Docking failed after 1 tries (Docking test refused: saw no marker within 25 s)');
+    expect(hint('DOCKING_FAILED', {...refused, cause: 'TEST_START'})).toBeUndefined();
+    expect(os('DOCKING_FAILED', {...refused, cause: 'MARKER_LOST'})).toBe('Docking failed after 1 tries (marker lost)');
+    expect(os('DOCKING_FAILED', {reason: 'dock_failed', attempts: 1})).toBe('Docking failed after 1 tries (no contact with the charger)');
     const mismatch = {reason: 'dock_failed', cause: 'MARKER_MISMATCH', guide: 'marker'};
     expect(os('DOCKING_FAILED', mismatch)).toBe('Docking failed (marker does not match the map)');
     expect(hint('DOCKING_FAILED', mismatch)).toContain('docks neither by camera nor by its position. It gave up');

@@ -1182,6 +1182,11 @@
    },
    {
     "en": "no contact with the charger",
+    "unless": {
+     "message": {
+      "present": true
+     }
+    },
     "de": "kein Ladekontakt"
    }
   ],

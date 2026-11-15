@@ -316,13 +316,14 @@ const r = (en: string, extra: Omit<Variant, 'en'> = {}): Variant => ({en, ...ext
 export const REASONS: Record<string, Variant[]> = {
   path_failed: [r("couldn't follow the path")],
   approach_failed: [r('approach failed')],
-  // cause: the dock camera didn't lead it in (MowBite OS from api 30)
+  // cause: the dock camera didn't lead it in (MowBite OS from api 30); without one MowBite OS's message says why, the
+  // charger only on OpenMower
   dock_failed: [
     r('marker lost', {when: {cause: 'MARKER_LOST'}}),
     r('marker not found', {when: {cause: 'MARKER_NOT_SEEN'}}),
     r('dock camera not measuring', {when: {cause: 'MARKER_UNAVAILABLE'}}),
     r('marker does not match the map', {when: {cause: 'MARKER_MISMATCH'}}),
-    r('no contact with the charger'),
+    r('no contact with the charger', {unless: {message: {present: true}}}),
   ],
   no_gps: [r('no GPS fix')],
   BUSY: [

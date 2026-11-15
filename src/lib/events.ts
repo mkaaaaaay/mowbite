@@ -233,7 +233,7 @@ export function reasonText(e: MowerEvent): string {
   const v = pick(REASONS[r], f);
   let text: string;
   if (v) text = fill(tr(v.en), f);
-  else if (isReasonCode(r)) text = e.message || readable(r);
+  else if (isReasonCode(r) || e.message) text = e.message || readable(r);
   else if (/^[a-z][a-z0-9_]*$/.test(r)) text = readable(r);
   else return r;
   const wrap = Object.keys(WRAPPERS)
@@ -480,8 +480,10 @@ export function explain(e: MowerEvent, state?: string, gpsTimeout?: number, os =
         "It couldn't drive the short way out of the dock (backwards, then turning) and gave up. Usual causes: the mower's idea of its heading is off while it stands in the dock, it's blocked (wheels, grass, bumper), or it's still in emergency mode.",
       );
     case 'DOCKING_RETRY':
-    case 'DOCKING_FAILED':
-      return GUIDED[e.guide ?? ''] ? `${tr(GUIDED[e.guide!])} ${dockTryText(e)}` : dockTryText(e);
+    case 'DOCKING_FAILED': {
+      const why = dockTryText(e);
+      return GUIDED[e.guide ?? ''] ? [tr(GUIDED[e.guide!]), why].filter(Boolean).join(' ') : why;
+    }
     case 'DOCKING_DIRECT':
       return tr(
         'The planner gave no way to the docking station ({why}), so it drives the straight way to the point in front of it ({m} m). It checked before that the mower fits along it.',
@@ -579,8 +581,8 @@ export function explain(e: MowerEvent, state?: string, gpsTimeout?: number, os =
   }
 }
 
-// a try at docking that failed, why and what it does now
-function dockTryText(e: MowerEvent): string {
+// a try at docking that failed, why and what it does now; undefined where MowBite OS's message in the line says it
+function dockTryText(e: MowerEvent): string | undefined {
     if (e.reason === 'NO_CHARGE_CURRENT') {
       const seen =
         typeof e.current === 'number' && typeof e.limit === 'number'
@@ -591,7 +593,8 @@ function dockTryText(e: MowerEvent): string {
     }
     const camera = dockCameraText(e);
     if (camera) return camera;
-    if (e.cause) {
+    // the planner's causes, reasons of their own
+    if (e.cause && REASONS[e.cause]) {
       const why = reasonText({...e, reason: e.cause});
       const way =
         e.direct_blocked === true
@@ -608,6 +611,7 @@ function dockTryText(e: MowerEvent): string {
     // MowBite OS: it didn't set off for the dock
     if (e.type === 'DOCKING_FAILED' && e.attempts === undefined && isReasonCode(e.reason))
       return tr("Without a good enough position and heading it couldn't set off for the dock, so it waits where it is. Once the GPS is good again, send it home.");
+    if (e.reason === 'dock_failed' && e.message) return undefined;
     return e.reason === 'dock_failed'
       ? tr(
           "It was in front of the dock but didn't get charging contact, so it backed out to try again. Check the contacts and whether the dock position on the map is still right.",
