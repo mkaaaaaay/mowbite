@@ -515,7 +515,7 @@ export default function SettingsPage() {
                   <section className={styles.card}>
                     <p className={styles.dim}>
                       {tr(
-                        "The map, the planner's settings and what OpenMower mows and drives with, in one file, to share for a look at a plan or to improve the planner. No logins and not where the garden is. For a mow that went wrong take the diagnosis file of that run under Activity, it has this in it too.",
+                        "The map, the planner's settings and the mower's settings for mowing and driving, in one file, to share for a look at a plan or to improve the planner. No logins and not where the garden is. For a mow that went wrong take the diagnosis file of that run under Activity, it has this in it too.",
                       )}
                     </p>
                     <GardenDownload className={styles.pillButton} />

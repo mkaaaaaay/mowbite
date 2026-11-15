@@ -3,7 +3,9 @@ import {useCanSetParams} from '@/components/MowerParamSettings';
 import Link from 'next/link';
 import {useAreaProperties} from '@/lib/areaProps';
 import {slic3rPlans, usePlannerSettings} from '@/lib/mowerBody';
-import {FIELDS} from '@/lib/plannerFields';
+import {FIELDS, helpOf} from '@/lib/plannerFields';
+import {useOpenMower} from '@/lib/mowerOs';
+import {STRATEGY_NONE_OS} from '@/components/PlannerSimple';
 import simple from '@/components/PlannerSimple.module.css';
 import {dec, tr} from '@/lib/i18n';
 import {useState} from 'react';
@@ -181,6 +183,7 @@ export function OpenMowerArea({area, globalValue, remember, update, inMenu}: Pro
 // has no angle, its own way of working the direction out. With the planner this is in its menu (Direction)
 export function AreaDirection({area, autoAngle, remember, update, onAngleEdit, angle}: Props) {
   const supported = useAreaProperties();
+  const om = useOpenMower();
   const p = area.properties;
   // with the MowBite Planner: the range (it keeps it, whatever the map service says) and turning further after mows,
   // the area's own step or the one for all areas
@@ -203,7 +206,7 @@ export function AreaDirection({area, autoAngle, remember, update, onAngleEdit, a
   const strategies = planner?.settings.angle_strategy;
   const ownStrategy = typeof p.planner?.angle_strategy === 'string' ? (p.planner.angle_strategy as string) : undefined;
   const strategyName = (k: string) => tr(FIELDS.angle_strategy.choices?.[k] ?? k);
-  const allStrategy = strategies?.stored && typeof strategies.value === 'string' ? strategyName(strategies.value) : tr('OpenMower');
+  const allStrategy = strategies?.stored && typeof strategies.value === 'string' ? strategyName(strategies.value) : tr(om ? 'OpenMower' : STRATEGY_NONE_OS.label);
   const setStrategy = (k: string | undefined) => {
     const own = {...(p.planner ?? {})};
     if (k === undefined) delete own.angle_strategy;
@@ -294,7 +297,7 @@ export function AreaDirection({area, autoAngle, remember, update, onAngleEdit, a
         <div className={styles.dirRow}>
           <span className={styles.dirLabel}>
             {tr('Automatic direction')}
-            <InfoTip>{tr(FIELDS.angle_strategy.help)}</InfoTip>
+            <InfoTip>{tr(helpOf(FIELDS.angle_strategy, om))}</InfoTip>
           </span>
           <div className={simple.segment}>
             <button className={ownStrategy === undefined ? simple.on : undefined} onClick={() => setStrategy(undefined)}>
@@ -351,6 +354,7 @@ export function AreaPlanInfo({
   onSaveCase,
 }: Props) {
   const rate = savedRate();
+  const om = useOpenMower();
   const plannerSettings = usePlannerSettings();
   const slic3r = slic3rPlans(plannerSettings);
   return (
@@ -378,7 +382,9 @@ export function AreaPlanInfo({
             {planFromMower && planAngle !== undefined && `, ${Math.round((((planAngle * 180) / Math.PI) % 180 + 180) % 180)}°`}
             <InfoTip>
               {planFromMower && plannerSettings && !slic3r
-                ? tr("The plan as the MowBite Planner works it out on the mower, unsaved changes included. A turn OpenMower still has left over in checkpoint.bag isn't in it.")
+                ? om
+                  ? tr("The plan as the MowBite Planner works it out on the mower, unsaved changes included. A turn OpenMower still has left over in checkpoint.bag isn't in it.")
+                  : tr('The plan as the MowBite Planner works it out on the mower, unsaved changes included.')
                 : planFromMower
                   ? tr('The plan as the mower calculates it, unsaved changes included, at the angle it really mows.')
                   : tr('Estimate of where the mower drives: edge rounds first, then stripes one mower width apart. Can differ from the real plan on unusual shapes.')}
@@ -432,6 +438,7 @@ export function AreaPlanInfo({
 
 // for a plan that looks wrong: it and everything it was made from as a file, so it can be planned again the same way
 function SaveCase({save, planner}: {save: () => Promise<void>; planner: boolean}) {
+  const om = useOpenMower();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   return (
@@ -451,9 +458,11 @@ function SaveCase({save, planner}: {save: () => Promise<void>; planner: boolean}
         {busy ? tr('Saving the plan…') : tr('Save the plan as a file')}
       </button>
       <InfoTip>
-        {planner
-          ? tr("The plan with what it was made from: the map, the planner's settings and OpenMower's mowing settings. For a plan that looks wrong, it can be planned again exactly the same way from it.")
-          : tr("The plan with what it was made from: the map and OpenMower's mowing settings. For a plan that looks wrong, it can be planned again exactly the same way from it.")}
+        {!om
+          ? tr("The plan with what it was made from: the map and the planner's settings. For a plan that looks wrong, it can be planned again exactly the same way from it.")
+          : planner
+            ? tr("The plan with what it was made from: the map, the planner's settings and OpenMower's mowing settings. For a plan that looks wrong, it can be planned again exactly the same way from it.")
+            : tr("The plan with what it was made from: the map and OpenMower's mowing settings. For a plan that looks wrong, it can be planned again exactly the same way from it.")}
       </InfoTip>
       {error && <span className={styles.error}> {error}</span>}
     </p>

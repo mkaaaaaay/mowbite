@@ -21,7 +21,7 @@ import styles from './page.module.css';
 import {stationChange, type Station} from '@/lib/dockGuide';
 import {fmt, tr, useLang} from '@/lib/i18n';
 import {ACTION, RPC, TOPIC, UNDO_METERS} from '@/lib/openmower';
-import {useMowbiteOs} from '@/lib/mowerOs';
+import {useMowbiteOs, useOpenMower} from '@/lib/mowerOs';
 import {useRpcMethods} from '@/hooks/useRpcMethods';
 import {eventsOfDay, fileDay, forgetToday, historyDays} from '@/lib/history';
 import {backAtStart} from '@/lib/geometry';
@@ -83,6 +83,7 @@ function Record() {
   const overlay = useMapOverlay();
   // MowBite OS records the docking station its own way: there only OpenMower's two steps
   const os = useMowbiteOs();
+  const om = useOpenMower();
   // a save sent: saved once the map has it (OpenMower drops an area it can't use without a word), late when it hasn't
   // come after SAVE_WAIT_MS
   const [save, setSave] = useState<{what: string; kind: 'mow' | 'nav' | 'dock'; before: MowerMap | null; at: 'sent' | 'late' | 'saved'} | null>(null);
@@ -167,8 +168,8 @@ function Record() {
   // the stick, held sideways the two pads; the sideways layout for dialogs over it
   const remoteRef = useRef<HTMLDivElement>(null);
   const drive = useDrive({show: recordingMode, onMove: () => (mine.current = true)});
-  // the heading running away while it stands: OpenMower's gyro got a wrong zero when it started
-  const drift = useHeadingDrift(recordingMode, drive.movedAt);
+  // the heading running away while it stands: OpenMower's gyro got a wrong zero when it started (MowBite OS holds it)
+  const drift = useHeadingDrift(recordingMode && om, drive.movedAt);
   const driftLine = drift !== null && (
     <em className={ds.missed}>{tr('The heading drifts {n}°/s while it stands: restart OpenMower before it mows', {n: fmt(Math.abs(drift) * (180 / Math.PI), 1)})}</em>
   );
@@ -277,7 +278,7 @@ function Record() {
   // (the phone's back button) can't ask, it ends the mode only when nothing is being recorded
   const [leaving, setLeaving] = useState<string | null>(null);
   // stop on a line without a second point yet (the mower hasn't moved 10 cm since it started, or no point set with auto
-  // points off): OpenMower then drops the whole area, so with an outline to lose it asks first
+  // points off): OpenMower then drops the whole area, so with an outline to lose it asks first. MowBite OS refuses the stop
   const [early, setEarly] = useState(false);
   if (early && phase !== 'recording') setEarly(false);
   const canExit = hasAction(A('exit_recording_mode'));
@@ -471,7 +472,7 @@ function Record() {
         ? tr('Drive around the obstacle, close to it all the way: the line is the middle of the mower. Then stop, it closes by itself.')
         : tr('Drive along the edge, close to it all the way: the line is the middle of the mower. Back at the start, stop: the outline closes by itself.');
     buttons = [
-      button('stop_recording', 'Stop', 'primary', undefined, hasOutline && line.length < 2 ? () => setEarly(true) : undefined),
+      button('stop_recording', 'Stop', 'primary', undefined, om && hasOutline && line.length < 2 ? () => setEarly(true) : undefined),
       undo && button('undo_points', tr('Back {m} m', {m: UNDO_METERS})),
       button('collect_point', 'Set point here'),
       button('auto_point_collecting_disable', 'Auto points: on'),
@@ -601,7 +602,7 @@ function Record() {
               </button>
             )}
             {refusedText && <p className={styles.warn}>{refusedText}</p>}
-            {bounced && (
+            {bounced && om && (
               <p className={styles.warn}>
                 {tr(
                   "The mower dropped out of recording mode right away. Older OpenMower versions do that after the mower was sent home while mowing, it then stays in \"manual pause\" until it's restarted. Run openmower restart on the mower and try again, or update OpenMower.",

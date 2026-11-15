@@ -3,7 +3,7 @@ import type {DockingStation, MapArea, MowerMap, Point} from '@/hooks/useMowerMap
 import {forget, fresh} from './fresh';
 import {tr} from './i18n';
 import {isPin} from './mowerBody';
-import {apiBase, mowerFetch} from './mowers';
+import {apiBase, keptOs, mowerFetch} from './mowers';
 import {closedRings, openRings} from './rings';
 import {rpcErrorText} from './rpcText';
 
@@ -35,7 +35,13 @@ export function keepOf(header: string | null): BackupKeep | null {
 
 const PATH = '/cgi-bin/backups';
 const endpoint = () => apiBase() + PATH;
-const httpError = (status: number) => new Error(tr('The mower answered with error {status}. Is MowBite running as a container on the mower?', {status}));
+// the container only on OpenMower
+const httpError = (status: number) =>
+  new Error(
+    keptOs() === false
+      ? tr('The mower answered with error {status}. Is MowBite running as a container on the mower?', {status})
+      : tr('The mower answered with error {status}.', {status}),
+  );
 
 // null: not served, no container keeps backups. undefined: it didn't answer, a save still tries to make one
 export function listBackups(): Promise<Backups | null | undefined> {

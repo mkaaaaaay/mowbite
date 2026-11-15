@@ -2,8 +2,8 @@
 
 import {tr} from '@/lib/i18n';
 import {loadPlannerSettings, savePlannerSettings, usePlannerSettings, type PlannerSetting} from '@/lib/mowerBody';
-import {DROPPED_CHOICES, expertKeys, FIELDS, fromInput, GROUPS, toInput, type Field, type Group} from '@/lib/plannerFields';
-import {useMowbiteOs} from '@/lib/mowerOs';
+import {DROPPED_CHOICES, expertKeys, FIELDS, fromInput, GROUPS, helpOf, toInput, type Field, type Group} from '@/lib/plannerFields';
+import {useMowbiteOs, useOpenMower} from '@/lib/mowerOs';
 import {answerError} from '@/lib/rpcText';
 import {useEffect, useState} from 'react';
 import InfoTip from './InfoTip';
@@ -64,8 +64,8 @@ function PlannerField({
   warning?: string | null;
 }) {
   const field: Field | undefined = FIELDS[name];
-  const os = useMowbiteOs();
-  const help = os && field?.helpOs ? field.helpOs : field?.help;
+  const om = useOpenMower();
+  const help = helpOf(field, om);
   const label = (
     <span className={local.label}>
       {tr(field?.label ?? name)}
@@ -134,8 +134,9 @@ function PlannerField({
   // a number the planner can work out itself (perimeter_passes -1): a button for that next to it
   const auto = setting.auto_value !== undefined ? String(setting.auto_value) : null;
   const isAuto = auto !== null && value === auto;
-  const fromText =
-    setting.from && !setting.stored && toInput(field, setting.value) ? tr('OpenMower: {value}', {value: toInput(field, setting.value)}) : null;
+  // the value the planner takes when none is set here: OpenMower's on OpenMower
+  const from = setting.from && !setting.stored ? toInput(field, setting.value) : '';
+  const fromText = !from ? null : om ? tr('OpenMower: {value}', {value: from}) : from;
   const input = (
     <input
       inputMode="decimal"
@@ -173,6 +174,7 @@ function PlannerField({
 export function PlannerSettings({styles}: {styles: Styles}) {
   const settings = usePlannerSettings();
   const os = useMowbiteOs();
+  const om = useOpenMower();
   // numbers as typed, saved once the field is left
   const [form, setForm] = useState<Record<string, Value>>({});
   const [state, setState] = useState<{busy?: boolean; error?: string; saved?: number; confirm?: boolean}>({});
@@ -274,7 +276,7 @@ export function PlannerSettings({styles}: {styles: Styles}) {
             </div>
           );
         })}
-        {fixed.length > 0 && (
+        {om && fixed.length > 0 && (
           <p className={styles.dim}>
             {tr('Set by OpenMower with every plan, not here: {which}.', {which: fixed.map((k) => tr(FIELDS[k]?.label ?? k)).join(', ')})}
           </p>

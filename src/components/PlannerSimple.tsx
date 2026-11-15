@@ -3,9 +3,9 @@
 import type {MowerMap, Point} from '@/hooks/useMowerMap';
 import {cmText, dec, tr} from '@/lib/i18n';
 import {outlineOf, resetPlannerAngle, savePlannerSettings, slic3rPlans, usePlannerSettings, type PlannerSetting} from '@/lib/mowerBody';
-import {ANGLE_FOR_ALL, FIELDS, hidden, STYLE_LABELS, STYLE_NOTES, STYLES, styleOf} from '@/lib/plannerFields';
+import {ANGLE_FOR_ALL, FIELDS, helpOf, hidden, STYLE_LABELS, STYLE_NOTES, STYLES, styleOf} from '@/lib/plannerFields';
 import {areasWith, areasWithDirection, ownMargins, ownSettings, shown, type AreaValue, type OpenMowerOwn} from '@/lib/plannerOwn';
-import {useMowbiteOs} from '@/lib/mowerOs';
+import {useMowbiteOs, useOpenMower} from '@/lib/mowerOs';
 import {ownCount} from '@/lib/mowPlan';
 import {answerError} from '@/lib/rpcText';
 import {useEffect, useState} from 'react';
@@ -45,19 +45,21 @@ const degrees = (rad: number) => Math.round((rad / DEG) * 10) / 10;
 const meters = (m: unknown) => (typeof m === 'number' ? dec(Math.round(m * 100) / 100) : '');
 
 const PATTERNS = ['lanes', 'concentric', 'crosshatch'];
-const PATTERN_LABELS: Record<string, string> = {lanes: 'Lanes', concentric: 'Rings', crosshatch: 'Crosshatch'};
-const PATTERN_NOTES: Record<string, string> = {
+export const PATTERN_LABELS: Record<string, string> = {lanes: 'Lanes', concentric: 'Rings', crosshatch: 'Crosshatch'};
+export const PATTERN_NOTES: Record<string, string> = {
   lanes: 'Straight lanes there and back: the quickest, even stripes.',
   concentric: 'Rounds from the outside in: few turns, tight ones in the corners.',
   crosshatch: 'Lanes and the same across them: twice as long, very thorough.',
 };
 const STRATEGIES = ['longest_edge', 'min_width', 'optimal'];
-const STRATEGY_NOTES: Record<string, string> = {
+export const STRATEGY_NOTES: Record<string, string> = {
   openmower: "From the outline's first point, for a recorded area the way you set off.",
   longest_edge: 'Along the longest edge of the area.',
   min_width: 'Across the narrowest width: the fewest lanes, the longest ones.',
   optimal: 'Directions are tried and the one with the fewest lanes and turns taken.',
 };
+// no way of its own on MowBite OS (openmower above on OpenMower): the planner's own way, mowing sends no angle there
+export const STRATEGY_NONE_OS = {label: "Planner's default", text: 'No way of its own: the planner picks the direction the way it does by default.'};
 
 function Choice({
   options,
@@ -157,6 +159,7 @@ export function PlannerSimple({
   const planner = usePlannerSettings();
   // MowBite OS: no lane spacing of OpenMower's, the planner's overlap counts also when it isn't set
   const os = useMowbiteOs();
+  const om = useOpenMower();
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   // want: what's being saved, shown already while the planner hasn't answered (it may be planning for minutes)
   const [state, setState] = useState<{busy?: boolean; error?: string; saved?: number; want?: Record<string, unknown>}>({});
@@ -549,9 +552,9 @@ export function PlannerSimple({
               note={
                 auto
                   ? tr('As wide as possible without leaving grass standing.')
-                  : os
-                    ? tr("Smaller overlaps more and takes longer. Empty: the planner's overlap for all areas.")
-                    : tr('Smaller overlaps more and takes longer. Empty: the spacing set in OpenMower.')
+                  : om
+                    ? tr('Smaller overlaps more and takes longer. Empty: the spacing set in OpenMower.')
+                    : tr("Smaller overlaps more and takes longer. Empty: the planner's overlap for all areas.")
               }
               source={
                 others('lane_spacing_mode') ||
@@ -597,13 +600,15 @@ export function PlannerSimple({
               {has('angle_strategy') && (
                 <Row
                   label={tr('Automatic direction')}
-                  help={tr(FIELDS.angle_strategy.help)}
-                  note={`${tr('For areas without a mow angle of their own:')} ${tr(STRATEGY_NOTES[all.angle_strategy.stored ? String(global('angle_strategy')) : 'openmower'] ?? '')}`}
+                  help={tr(helpOf(FIELDS.angle_strategy, om))}
+                  note={`${tr('For areas without a mow angle of their own:')} ${tr(
+                    all.angle_strategy.stored ? (STRATEGY_NOTES[String(global('angle_strategy'))] ?? '') : om ? STRATEGY_NOTES.openmower : STRATEGY_NONE_OS.text,
+                  )}`}
                   source={areaList(tr('Own direction:'), areasWithDirection(map, all, os))}
                 >
                   <Choice
                     options={[
-                      ['openmower', tr('OpenMower')],
+                      ['openmower', tr(om ? 'OpenMower' : STRATEGY_NONE_OS.label)],
                       ...STRATEGIES.filter((c) => all.angle_strategy.choices?.includes(c)).map((c): [string, string] => [c, tr(FIELDS.angle_strategy.choices![c])]),
                     ]}
                     value={all.angle_strategy.stored ? global('angle_strategy') : 'openmower'}
@@ -647,7 +652,7 @@ export function PlannerSimple({
                       </button>
                     )}
                   </div>
-                  {!!omIncrement && !os && (
+                  {!!omIncrement && om && (
                     <span className={local.error}>
                       {tr('OpenMower turns the angle further as well ({deg}° after every whole mow), the two add up.', {deg: omIncrement})}{' '}
                       <button disabled={state.busy} onClick={() => void zeroOmIncrement()}>

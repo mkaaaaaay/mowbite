@@ -62,7 +62,7 @@ import {
   type BodySpot,
 } from '@/lib/mowerBody';
 import {OpenMowerMowing, useCanSetParams} from '@/components/MowerParamSettings';
-import {useMowbiteOs} from '@/lib/mowerOs';
+import {useMowbiteOs, useOpenMower} from '@/lib/mowerOs';
 import {osOwn, osSet, osTidy} from '@/lib/plannerOwn';
 import {PlannerSettings} from '@/components/PlannerSettings';
 import {PlannerSimple} from '@/components/PlannerSimple';
@@ -292,6 +292,7 @@ function MapEditor() {
   const canSetParams = useCanSetParams();
   // MowBite OS: the planner is the one place for the mowing values, an area's own are in OpenMower's keys of the map
   const os = useMowbiteOs();
+  const om = useOpenMower();
   const margins = useMemo(() => {
     if (slic3rPlans(plannerSettings)) return null;
     const value = (k: string) => plannerSettings?.settings[k]?.value;
@@ -703,15 +704,19 @@ function MapEditor() {
   const droppedNote =
     [
       settingsLost.length
-        ? tr("Your OpenMower version doesn't know {what} yet, it got dropped when saving.", {
+        ? tr(om ? "Your OpenMower version doesn't know {what} yet, it got dropped when saving." : "The mower's software doesn't know {what} yet, it got dropped when saving.", {
             what: [...new Set(settingsLost.map((k) => `"${tr(k === 'mowable' ? "don't mow" : 'angle range')}"`))].join(', '),
           })
         : '',
       // the planner would take a drawn edge for the path of the mower's middle and go up to half its width past it
       dropped.includes('drawn')
-        ? tr(
-            "Your OpenMower version doesn't keep which outlines were drawn by hand. The MowBite Planner then takes them for driven around and can go up to half the mower's width past a drawn line. Update OpenMower.",
-          )
+        ? om
+          ? tr(
+              "Your OpenMower version doesn't keep which outlines were drawn by hand. The MowBite Planner then takes them for driven around and can go up to half the mower's width past a drawn line. Update OpenMower.",
+            )
+          : tr(
+              "The mower's software doesn't keep which outlines were drawn by hand. The MowBite Planner then takes them for driven around and can go up to half the mower's width past a drawn line. Update the mower's software.",
+            )
         : '',
     ]
       .filter(Boolean)

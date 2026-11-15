@@ -59,6 +59,7 @@ import {CopyButton} from '@/lib/clipboard';
 import {useDockgeUrl, useUpdaterPageUrl} from '@/lib/dockge';
 import {fmt, tr} from '@/lib/i18n';
 import {isDemo, pageFromMower} from '@/lib/mowers';
+import {useOpenMower} from '@/lib/mowerOs';
 import {useThemeChoice} from '@/lib/theme';
 import {APP_VERSION, useUpdates} from '@/lib/updates';
 import local from './AutoUpdate.module.css';
@@ -677,6 +678,7 @@ function whereOf(word: string): string {
 // step where it was asked for, then when it updates by itself, the free space and the log. what's tapped shows at once
 // and locks the buttons until the updater is done with it
 export function AutoUpdate() {
+  const om = useOpenMower();
   const [s, setS] = useState<UpdateState | null | undefined>(undefined);
   const [error, setError] = useState<{text: string; where: string} | null>(null);
   const [asked, setAsked] = useState<Asked | null>(null);
@@ -756,7 +758,7 @@ export function AutoUpdate() {
   if (s === undefined) return null;
   if (!s) {
     if (isDemo()) return null;
-    return container ? <AddUpdater /> : <span className={local.dim}>{tr('Only when MowBite runs as its container on the mower.')}</span>;
+    return container ? <AddUpdater /> : om ? <span className={local.dim}>{tr('Only when MowBite runs as its container on the mower.')}</span> : null;
   }
 
   const st = s;

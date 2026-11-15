@@ -7,7 +7,7 @@ import {measuredStripeAngle, stripeAngleDiff} from '@/lib/mowDirection';
 import {mowAroundHoles, nestedAreas} from '@/lib/mowAround';
 import {linkStripes, mowPlan, ownCount, type MowPlan, type PlanChosen} from '@/lib/mowPlan';
 import {slic3rPlans, usePlannerSettings} from '@/lib/mowerBody';
-import {osSpacing, useMowbiteOs} from '@/lib/mowerOs';
+import {osSpacing, useMowbiteOs, useOpenMower} from '@/lib/mowerOs';
 import type {PlannerEstimateInput} from '@/lib/plannerEstimate';
 import {showWait} from '@/lib/plannerProgress';
 import {usePlannerEstimate} from '@/lib/usePlannerEstimate';
@@ -76,6 +76,7 @@ export function useMowPlan({
   // MowBite OS has no tool_width, the planner's blade and overlap make the spacing (numParam would give mower_logic's
   // default for the missing one)
   const os = useMowbiteOs();
+  const om = useOpenMower();
   const toolWidth = (os ? osSpacing(plannerSettings?.settings) : undefined) ?? numParam(params, PARAM.toolWidth);
   const planner = slic3rPlans(plannerSettings) ? null : plannerSettings;
   // a planner setting for the area: its own (planner property), else the one for all areas
@@ -125,7 +126,7 @@ export function useMowPlan({
   };
 
   // check against the last real mow here, a leftover angle increment in checkpoint.bag isn't
-  // published anywhere and rotates everything. saved area, not the edited one
+  // published anywhere and rotates everything. saved area, not the edited one. Only on OpenMower, MowBite OS sends no angle
   const savedArea = liveMap?.areas.find((a) => a.id === selectedAreaId);
   // turning further on purpose, the last mow went another way than the next one does
   const turning = !!planner && ((planner.angle_steps ?? 0) > 0 || turnStep(savedArea ?? null) !== 0);
@@ -136,10 +137,8 @@ export function useMowPlan({
     !!planner &&
     (typeof ownSaved?.angle === 'number' || typeof ownSaved?.angle_strategy === 'string' || (!!planner.own_angle && savedArea?.properties.angle === undefined));
   let mismatch: AngleMismatch | null = null;
-  if (savedArea?.properties.type === 'mow' && pastJobs && !turning && !plannerPicks) {
-    // (MowBite OS: the planner's passes for all areas, mower_logic has none)
-    const all = os ? plannerValue(null, 'perimeter_passes') : undefined;
-    const passes = ownCount(savedArea.properties.outline_count) ?? (typeof all === 'number' && all >= 0 ? all : numParam(params, PARAM.outlineCount)) ?? 0;
+  if (om && savedArea?.properties.type === 'mow' && pastJobs && !turning && !plannerPicks) {
+    const passes = ownCount(savedArea.properties.outline_count) ?? numParam(params, PARAM.outlineCount) ?? 0;
     const margin = passes * (toolWidth ?? 0.2) + 0.2;
     // newest mowing stretch first, a job that got interrupted can resume with different settings
     const stretches = pastJobs.flatMap((job) => [...job.segments].reverse().map((seg) => ({job, seg})));

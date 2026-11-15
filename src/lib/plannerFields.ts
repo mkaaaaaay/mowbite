@@ -8,7 +8,7 @@ export type Group = 'pattern' | 'angle' | 'edge' | 'obstacles' | 'turns' | 'rout
 export interface Field {
   label: string;
   help: string;
-  // on MowBite OS, where mower_logic has no lane spacing
+  // in place of help on MowBite OS, which has none of OpenMower's settings
   helpOs?: string;
   group: Group;
   // how it's typed in: degrees for an angle the planner takes in rad
@@ -23,6 +23,9 @@ export interface Field {
   // only under "More"
   advanced?: boolean;
 }
+
+// the help with OpenMower's names only on OpenMower
+export const helpOf = (f: Field | undefined, om: boolean): string => (om ? f?.help : (f?.helpOs ?? f?.help)) ?? '';
 
 export const GROUPS: {key: Group; label: string}[] = [
   {key: 'pattern', label: 'Pattern'},
@@ -91,6 +94,7 @@ export const FIELDS: Record<string, Field> = {
   angle_strategy: {
     label: 'Automatic direction',
     help: "For areas without a mow angle of their own: how the direction of the lanes is worked out. OpenMower: from the outline's first point, for a recorded area the way you set off.",
+    helpOs: 'For areas without a mow angle of their own: how the direction of the lanes is worked out.',
     group: 'angle',
     choices: {longest_edge: 'Along the longest edge', min_width: 'Across the narrowest width', optimal: 'Fewest lanes and turns'},
     area: true,
@@ -137,12 +141,14 @@ export const FIELDS: Record<string, Field> = {
   perimeter_passes: {
     label: 'Outline passes',
     help: "For all areas, an area's own outline passes still count. Automatic: as many as the lanes' turns leave unmowed along the edge. Empty: OpenMower's (outline_count).",
+    helpOs: "For all areas, an area's own outline passes still count. Automatic: as many as the lanes' turns leave unmowed along the edge. Empty: the planner's default.",
     group: 'edge',
     step: 1,
   },
   lane_overlap_passes: {
     label: 'Overlapping passes',
     help: "How many outline passes the lanes reach into. Empty: OpenMower's (outline_overlap_count).",
+    helpOs: "How many outline passes the lanes reach into. Empty: the planner's default.",
     group: 'edge',
     step: 1,
     area: true,
@@ -162,7 +168,8 @@ export const FIELDS: Record<string, Field> = {
   },
   perimeter_offset: {
     label: 'First pass from the line',
-    help: "How far the middle of the mower stays inside the lines of the map on the first outline pass. 0: the middle on the line, negative out beyond it. Empty: on OpenMower its value for all areas (outline_offset), on MowBite OS the edge of the blade on the line (half the blade width in). With the mower sizes the first pass also keeps the safety distance to the edge, the larger of the two counts.",
+    help: "How far the middle of the mower stays inside the lines of the map on the first outline pass. 0: the middle on the line, negative out beyond it. Empty: OpenMower's value for all areas (outline_offset). With the mower sizes the first pass also keeps the safety distance to the edge, the larger of the two counts.",
+    helpOs: 'How far the middle of the mower stays inside the lines of the map on the first outline pass. 0: the middle on the line, negative out beyond it. Empty: the edge of the blade on the line (half the blade width in). With the mower sizes the first pass also keeps the safety distance to the edge, the larger of the two counts.',
     group: 'edge',
     unit: 'm',
     step: 0.05,

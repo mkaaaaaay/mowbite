@@ -1,5 +1,6 @@
 import {describe, expect, it} from 'vitest';
-import {expertKeys, FIELDS, fromInput, hidden, toInput, STYLES, styleOf} from './plannerFields';
+import {expertKeys, FIELDS, fromInput, helpOf, hidden, toInput, STYLES, styleOf} from './plannerFields';
+import {OM_WORDS, OS_WORDS} from './platformWords';
 
 describe('planner fields', () => {
   it('shows angles in degrees and meters as they are', () => {
@@ -40,6 +41,26 @@ describe('planner fields', () => {
       'route_order',
       'bend_max_gap',
     ]);
+  });
+});
+
+describe('help per platform', () => {
+  const named = ['angle_strategy', 'perimeter_offset', 'lane_spacing_mode', 'overlap', 'perimeter_passes', 'lane_overlap_passes'];
+
+  it("has a help without OpenMower's names for MowBite OS", () => {
+    for (const k of named) expect(FIELDS[k].helpOs, k).toBeTruthy();
+    // the choice of planner is ignored on MowBite OS
+    for (const [k, f] of Object.entries(FIELDS)) if (k !== 'planner') expect(helpOf(f, false), k).not.toMatch(OM_WORDS);
+  });
+
+  it('keeps MowBite OS out of the help on OpenMower', () => {
+    for (const [k, f] of Object.entries(FIELDS)) expect(helpOf(f, true), k).not.toMatch(OS_WORDS);
+    expect(helpOf(FIELDS.perimeter_offset, true)).toContain('outline_offset');
+  });
+
+  it('takes the help where there is no other', () => {
+    expect(helpOf(FIELDS.turn_radius, false)).toBe(FIELDS.turn_radius.help);
+    expect(helpOf(undefined, true)).toBe('');
   });
 });
 

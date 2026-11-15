@@ -306,6 +306,8 @@ test.describe('MowBite on another mower or without a container', () => {
       // the built app on a web server of its own
       return route.fulfill({response: await route.fetch({url: new URL(url.pathname + url.search, baseURL).href})});
     });
+    // an OpenMower seen before: the note on the container waits for the platform, and without mqtt nothing tells it
+    await page.addInitScript(() => localStorage.setItem('mowbiteOs', 'false'));
     await page.goto('http://mowbite.test:8082/settings/#update');
     const updates = page.locator('#update');
     await expect(updates.getByText('Only when MowBite runs as its container on the mower.')).toBeVisible();

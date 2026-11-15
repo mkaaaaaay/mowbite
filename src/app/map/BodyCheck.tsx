@@ -108,8 +108,8 @@ export function PlanChecks({checks, on}: {checks: Checks | undefined; on: boolea
       {(checks?.unchecked.length ?? 0) > 0 && (
         <div className={styles.warning}>
           {checks!.unchecked.length === 1
-            ? tr('The plan starts or ends at 1 place without the body checked (cross on the map). OpenMower drives from or to there itself, without checking the body.')
-            : tr('The plan starts or ends at {n} places without the body checked (crosses on the map). OpenMower drives from or to there itself, without checking the body.', {
+            ? tr('The plan starts or ends at 1 place without the body checked (cross on the map). The mower drives from or to there itself, without checking the body.')
+            : tr('The plan starts or ends at {n} places without the body checked (crosses on the map). The mower drives from or to there itself, without checking the body.', {
                 n: checks!.unchecked.length,
               })}
         </div>
@@ -117,8 +117,8 @@ export function PlanChecks({checks, on}: {checks: Checks | undefined; on: boolea
       {(checks?.jumps.length ?? 0) > 0 && (
         <div className={styles.warning}>
           {checks!.jumps.length === 1
-            ? tr("The path jumps at 1 place (cross on the map). OpenMower drives the way between the parts itself, without checking the body: it may go straight through a narrow place. Larger distances to obstacles usually help.")
-            : tr("The path jumps at {n} places (crosses on the map). OpenMower drives the way between the parts itself, without checking the body: it may go straight through a narrow place. Larger distances to obstacles usually help.", {n: checks!.jumps.length})}
+            ? tr("The path jumps at 1 place (cross on the map). The mower drives the way between the parts itself, without checking the body: it may go straight through a narrow place. Larger distances to obstacles usually help.")
+            : tr("The path jumps at {n} places (crosses on the map). The mower drives the way between the parts itself, without checking the body: it may go straight through a narrow place. Larger distances to obstacles usually help.", {n: checks!.jumps.length})}
         </div>
       )}
       {(checks?.turns.length ?? 0) > 0 && <span className={styles.dim}>{tr('{n} turns still in the field of lanes', {n: checks!.turns.length})}</span>}
