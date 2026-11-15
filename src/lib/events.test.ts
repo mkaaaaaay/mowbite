@@ -1,5 +1,6 @@
 import {describe, expect, it, vi} from 'vitest';
 import {clock} from './dates';
+import {OM_WORDS} from './platformWords';
 import {setLangChoice} from './i18n';
 import {
   AFTER_CAMERA,
@@ -919,7 +920,6 @@ describe("MowBite OS's schedule in the events", () => {
 });
 
 describe('no names of OpenMower on MowBite OS', () => {
-  const OM_WORDS = /OpenMower|open_mower|mower_logic|xbot|\bROS\b|checkpoint\.bag|github/;
 
   it("keeps them out of MowBite OS's own texts", () => {
     for (const table of [EMERGENCY_HELP, RESTART_CAUSE, NOT_DRIVEN_HELP, RESET_REFUSED_HELP, AFTER_CAMERA, CONTINUE_WHEN])

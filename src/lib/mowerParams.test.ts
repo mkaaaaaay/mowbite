@@ -1,5 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import {fitHeight, mowsIntoNight, onOs, PARAM_FIELDS, paramConflict, paramField, paramShown, paramValue, parseKept, parseParam, serializeKept, showParam} from './mowerParams';
+import {OM_WORDS, OS_WORDS} from './platformWords';
 
 describe('the settings of the mower', () => {
   it('have a range, a default inside it and a label each', () => {
@@ -92,5 +93,17 @@ describe('the settings of the mower', () => {
   it('are kept with at most 6 decimals and no exponent, the container takes no more', () => {
     const kept = {enabled: true, values: {tool_width: 0.30000001192092896, outline_offset: 1e-7, motor_hot_temperature: 28.000000000000004}};
     expect(serializeKept(kept)).toBe('enabled 1\n/mower_logic/tool_width 0.3\n/mower_logic/outline_offset 0\n/mower_logic/motor_hot_temperature 28\n');
+  });
+});
+
+describe('mower settings by platform', () => {
+  it("names nothing of OpenMower on MowBite OS and nothing of MowBite OS on OpenMower", () => {
+    for (const f of PARAM_FIELDS) {
+      const om = [f.label, f.help, f.confirmOff, ...(f.choices ?? [])].filter(Boolean).join(' ');
+      if (f.group !== 'journal') expect(om, f.key).not.toMatch(OS_WORDS);
+      if (f.group === 'mowing') continue;
+      const os = [f.osLabel ?? f.label, f.osHelp ?? f.help, f.confirmOff, ...(f.choices ?? [])].filter(Boolean).join(' ');
+      expect(os, f.key).not.toMatch(OM_WORDS);
+    }
   });
 });

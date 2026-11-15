@@ -1,4 +1,5 @@
 import {describe, expect, it} from 'vitest';
+import {OM_WORDS} from './platformWords';
 import {buildDiagnosis, collapse, driveLines, gpsChanges, gpsSummary, mergePlanner, noise, planSpot, readKeptPlan, readKeptPlanner, rosEmergencies, utcOffset, whereOnMap} from './diagnosis';
 import {readGpsLog} from './gpslog';
 import type {Run} from './events';
@@ -222,7 +223,8 @@ describe('diagnosis', () => {
     expect(text).toContain('Raw: OpenMower events (event_history)');
     // on MowBite OS the same file without OpenMower's names
     const os = make(true);
-    expect(os).not.toMatch(/OpenMower|open_mower|mower_logic|xbot|\bROS\b|event_history|params\/json/);
+    expect(os).not.toMatch(OM_WORDS);
+    expect(os).not.toMatch(/event_history|params\/json/);
     for (const part of ['Mower settings', '  gps_timeout = 15', 'mower log warnings/errors', 'Raw: mower log warnings and errors', 'Raw: mower events', 'log WARN        blade slow'])
       expect(os).toContain(part);
   });
