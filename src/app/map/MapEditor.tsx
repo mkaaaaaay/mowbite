@@ -699,11 +699,23 @@ function MapEditor() {
     }
     return [...lost];
   }, [newSaved, liveMap]);
-  const droppedNote = dropped.length
-    ? tr("Your OpenMower version doesn't know {what} yet, it got dropped when saving.", {
-        what: [...new Set(dropped.map((k) => `"${tr(k === 'mowable' ? "don't mow" : 'angle range')}"`))].join(', '),
-      })
-    : null;
+  const settingsLost = dropped.filter((k) => k !== 'drawn');
+  const droppedNote =
+    [
+      settingsLost.length
+        ? tr("Your OpenMower version doesn't know {what} yet, it got dropped when saving.", {
+            what: [...new Set(settingsLost.map((k) => `"${tr(k === 'mowable' ? "don't mow" : 'angle range')}"`))].join(', '),
+          })
+        : '',
+      // the planner would take a drawn edge for the path of the mower's middle and go up to half its width past it
+      dropped.includes('drawn')
+        ? tr(
+            "Your OpenMower version doesn't keep which outlines were drawn by hand. The MowBite Planner then takes them for driven around and can go up to half the mower's width past a drawn line. Update OpenMower.",
+          )
+        : '',
+    ]
+      .filter(Boolean)
+      .join(' ') || null;
 
   // anyway: asked already (decorating asks on its own), saved while the mower is busy too. next: the map to save, the one
   // edited unless it was just put together with the mower's. true once it's on the mower

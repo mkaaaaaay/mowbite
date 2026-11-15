@@ -2,7 +2,7 @@ import type {MapArea, MowerMap} from '@/hooks/useMowerMap';
 import {PIN_SIDE, pinAt} from '@/lib/mowerBody';
 import {angleInRange} from '@/lib/mowStripes';
 import {describe, expect, it} from 'vitest';
-import {DEG, decorRedo, decorUndo, endsJob, goneLooks, jobLeft, mowerMap, normDeg, onlyPinsChanged, saveQuestion, overrideError, PIN_TILES, pinSquare, pinsFrom, pinTiles} from './editing';
+import {DEG, decorRedo, decorUndo, endsJob, goneLooks, jobLeft, markDrawn, mowerMap, normDeg, onlyPinsChanged, saveQuestion, overrideError, PIN_TILES, pinSquare, pinsFrom, pinTiles} from './editing';
 
 describe('overrideError', () => {
   it('takes empty (global value) and values within the mower limits', () => {
@@ -127,6 +127,41 @@ describe('mowerMap', () => {
   it('is the mower\'s own when another one came', () => {
     const other = lawn('Other');
     expect(mowerMap(other, sent)).toBe(other);
+  });
+});
+
+describe('markDrawn', () => {
+  const sq = [{x: 0, y: 0}, {x: 10, y: 0}, {x: 10, y: 10}, {x: 0, y: 10}];
+  const recorded: MapArea = {id: 'r', properties: {type: 'obstacle'}, outline: sq};
+  const pin = (x: number): MapArea => ({id: 'p', properties: {type: 'decor', pin: true}, outline: pinSquare(x, 3)});
+  const before: MowerMap = {areas: [recorded, pin(3)], docking_stations: []};
+  const drawn = (m: MowerMap) => m.areas.filter((a) => a.properties.drawn).map((a) => a.id);
+
+  it('leaves a recorded ring alone while only its settings or type change', () => {
+    const renamed = {...before, areas: [{...recorded, properties: {type: 'mow', name: 'Bed'}}, before.areas[1]]};
+    expect(markDrawn(renamed, before)).toBe(renamed);
+    // the points back from the mower are new objects with the same values
+    const back = {...before, areas: [{...recorded, outline: sq.map((p) => ({...p}))}, before.areas[1]]};
+    expect(drawn(markDrawn(back, before))).toEqual([]);
+  });
+
+  it('marks a ring drawn, reshaped or cut off by hand, never a pin', () => {
+    const moved = sq.map((p, i) => (i ? p : {x: 1, y: 0}));
+    const next: MowerMap = {
+      areas: [
+        {...recorded, outline: moved},
+        {id: 'n', properties: {type: 'mow'}, outline: sq},
+        pin(5),
+      ],
+      docking_stations: [],
+    };
+    expect(drawn(markDrawn(next, before))).toEqual(['r', 'n']);
+  });
+
+  it('keeps drawn once set, also when the points go back', () => {
+    const marked = markDrawn({...before, areas: [{...recorded, outline: sq.slice(0, 3)}]}, before);
+    const back = {...marked, areas: [{...marked.areas[0], outline: sq}]};
+    expect(drawn(markDrawn(back, marked))).toEqual(['r']);
   });
 });
 

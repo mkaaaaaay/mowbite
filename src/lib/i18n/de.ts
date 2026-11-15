@@ -664,6 +664,8 @@ const de: Record<string, string> = {
   "mow around it": "außen herum mähen",
   "The mowing areas it lies in end their lanes at its edge and go around it once. Otherwise the lanes go across it with the blade off. It stays drivable either way.": "In den Mähflächen, in denen sie liegt, enden die Bahnen an ihrem Rand, und der Mäher fährt einmal um sie herum. Sonst laufen die Bahnen mit ausgeschaltetem Messer darüber. Befahrbar bleibt sie so oder so.",
   "Your OpenMower version doesn't know {what} yet, it got dropped when saving.": "Deine OpenMower-Version kennt {what} noch nicht, es ist beim Speichern verloren gegangen.",
+  "Your OpenMower version doesn't keep which outlines were drawn by hand. The MowBite Planner then takes them for driven around and can go up to half the mower's width past a drawn line. Update OpenMower.":
+    "Deine OpenMower-Version behält nicht, welche Umrisse von Hand gezeichnet sind. Der MowBite-Planer hält sie dann für abgefahren und kann bis zu einer halben Mäherbreite über eine gezeichnete Linie fahren. Aktualisiere OpenMower.",
   "angle range": "Richtungsbereich",
   "none": "kein Wert",
   "Min. angle (°)": "Min. Winkel (°)",
