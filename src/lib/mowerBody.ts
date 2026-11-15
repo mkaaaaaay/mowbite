@@ -547,12 +547,7 @@ export const MOWER_MODELS: {
     sizes: {width: 0.47, front: 0.6, rear: 0.12, blade: 0.281, bladeAhead: 0.23, bladeOffset: 0},
     // 39.5 cm between the rear wheels
     turnRadius: 0.27,
-    // from a photo from straight above, scaled to the length from the front to the back: the bar in front, the omni wheels
-    // at its corners, widest at the rear wheels, the handle narrower behind them, both sides averaged
-    outline: [
-      [0.6, 0.13], [0.562, 0.188], [0.441, 0.227], [0.067, 0.235], [-0.042, 0.226], [-0.057, 0.205], [-0.12, 0.07],
-      [-0.12, -0.07], [-0.057, -0.205], [-0.042, -0.226], [0.067, -0.235], [0.441, -0.227], [0.562, -0.188], [0.6, -0.13],
-    ],
+    // no outline until one is measured on the mower: the one from a photo put the axle wrong and left the rear wheels out
   },
 ];
 

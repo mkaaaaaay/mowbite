@@ -500,6 +500,12 @@ describe('mower models', () => {
     expect(modelOf({...MOWER_MODELS[0].sizes, width: 0.42})).toBeNull();
     expect(modelOf(undefined)).toBeNull();
   });
+
+  it("gives the Tron no outline of its own until one is measured, its rear wheels reach out to the rectangle's sides", () => {
+    const tron = MOWER_MODELS.find((m) => m.key === 'airseekers-tron')!;
+    expect(autoOutlineModel(tron.sizes)).toBeUndefined();
+    expect(withModelOutline(tron.sizes)).toEqual(tron.sizes);
+  });
 });
 
 describe('outline on its own', () => {
