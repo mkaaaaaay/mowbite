@@ -430,7 +430,7 @@
       "description": "The result of emergency.reset",
       "properties": {
         "released": {
-          "description": "Always true: released; a reason the board still holds keeps it",
+          "description": "Always true: the emergency ended",
           "type": "boolean"
         },
         "state": {
@@ -13632,11 +13632,11 @@
       "type": "object"
     }
   },
-  "$id": "urn:mowbite-os:api:33",
+  "$id": "urn:mowbite-os:api:34",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "robot_state, actions, events and RPC methods of MowBite OS over MQTT, as system.api gives them; made from the code, objects sorted by key. x-reasons has severity and resume of every reason by event (COMMAND_REFUSED and REQUEST_REFUSED only in refusals; when: another rating for these field values; texts: name, help and fix by language; an enum field may carry the same by value as x-texts), x-emergency-bits the bits of emergency, x-commands the commands with params, result, the event of their refusal and the actions that do the same, x-methods every RPC method of the OS with its node (planner.* are the planner's, sim.* only in the simulation), x-sensors the sensors by id, x-settings the settings of params.set with the ranges of the OS, x-geometry the keys of robot.geometry, x-schedule-log the words of schedule.log with what detail and more hold (null: always null). x-api counts every change, x-api-break only the breaks: a method, field, event, reason or topic gone or renamed, a type or meaning changed, a parameter newly required, fewer values taken in a request, an event a client waits for no longer sent. All else only adds; a client goes with every x-api of its x-api-break from the one it needs on.",
   "title": "MowBite OS app interface",
-  "x-api": 33,
+  "x-api": 34,
   "x-api-break": 1,
   "x-commands": {
     "docking.abort": {
@@ -13676,7 +13676,7 @@
           "params": {}
         }
       ],
-      "description": "Asks the safety node to release the emergency and answers with its answer, after at most 3 s",
+      "description": "Asks the safety node to release the emergency; answers once the emergency ended, or with the refusal of the safety node or STILL_ACTIVE with the bits that stay, after at most 5 s",
       "params": "#/$defs/emergency.reset.params",
       "refused": "EMERGENCY_RESET_REFUSED",
       "result": "#/$defs/emergency.reset.result"
@@ -14271,7 +14271,7 @@
       "result": "#/$defs/docking.test.result"
     },
     "emergency.reset": {
-      "description": "Asks the safety node to release the emergency and answers with its answer, after at most 3 s",
+      "description": "Asks the safety node to release the emergency; answers once the emergency ended, or with the refusal of the safety node or STILL_ACTIVE with the bits that stay, after at most 5 s",
       "node": "mowbite_logic",
       "offered": "",
       "params": "#/$defs/emergency.reset.params",

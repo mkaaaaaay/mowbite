@@ -17,8 +17,8 @@ import {PARTS} from './stats';
 const PINNED = {
   repo: 'mkaaaaaay/mowbite-os',
   path: 'src/mowbite_api/api.schema.json',
-  commit: 'ffc43bb5a9c82af252960fd4a2bb124ab453047b',
-  sha256: 'cc365a3c9d784fee923a55c9f11c81d0dbd030bcef8c9219aaca506764de75d8',
+  commit: 'b77e20af8675edcc210d693ea1acf8ea7d8f9ced',
+  sha256: '175bb65c4594f724f32543ebe96ea3b00709667d6817ab35131e1f1c25e50efc',
 };
 const raw = readFileSync(join(__dirname, 'os-api.schema.json'));
 // a reason's rating, when: another one for these values of the event's fields
