@@ -7,7 +7,7 @@ import {clock, dayLabel} from '@/lib/dates';
 import {tr, useLang} from '@/lib/i18n';
 import {useMowerActions} from '@/hooks/useMowerActions';
 import {useCanSetParams} from '@/components/MowerParamSettings';
-import {useMowbiteOs} from '@/lib/mowerOs';
+import {useMowbiteOs, useOpenMower} from '@/lib/mowerOs';
 import {mowsIntoNight, paramField} from '@/lib/mowerParams';
 import {containerHas, useUpdates} from '@/lib/updates';
 import Link from 'next/link';
@@ -74,6 +74,7 @@ export default function SchedulePage() {
   // a start's own mowing direction: MowBite OS's schedule turns the planner's lanes for the job, the container
   // mower_logic's mow_angle_offset
   const os = useMowbiteOs();
+  const om = useOpenMower();
   const canTurn = fromOs || (canSetParams && !os);
   const ready = useScheduleReady();
   // going home at sunset switched off on purpose on a mower that has it, said where the runs are planned
@@ -144,7 +145,7 @@ export default function SchedulePage() {
 
         {schedule === null && (
           <p className={styles.dim}>
-            {tr(os ? "MowBite OS doesn't have the schedule yet." : 'The schedule needs MowBite running as its container on the mower.')}
+            {os ? tr("MowBite OS doesn't have the schedule yet.") : om ? tr('The schedule needs MowBite running as its container on the mower.') : null}
           </p>
         )}
         {schedule === undefined && unreachable && <p className={styles.dim}>{tr("The mower can't be reached right now.")}</p>}
@@ -216,7 +217,7 @@ export default function SchedulePage() {
             </section>
 
             {/* on MowBite OS its own schedule has the say */}
-            {hasHandStop && !os && (
+            {hasHandStop && om && (
               <section className={styles.card}>
                 <h2>{tr('Starts by hand')}</h2>
                 <label className={styles.check}>

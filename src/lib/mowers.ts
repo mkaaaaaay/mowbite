@@ -156,14 +156,20 @@ export const OS_PORT = 80;
 export const WS_PORT = 9001;
 // how long a look for MowBite at an address waits
 export const PROBE_MS = 6000;
-// this device found the mower to run MowBite OS, kept for it like mowerKey has it
+// what this device found the mower to run, true MowBite OS, false OpenMower, kept for it like mowerKey has it
 const OS_KEY = 'mowbiteOs';
 
 // what system.info said about the mower looked at
 export function noteOs(os: boolean) {
   const m = selectedMower();
-  if (m && m.id !== DEMO_ID) writeMower(OS_KEY, os || null);
+  if (m && m.id !== DEMO_ID) writeMower(OS_KEY, os);
 }
+
+// what system.info said last time about the mower looked at, null where it never answered here
+export const keptOs = (): boolean | null => {
+  const os = readMower<boolean>(OS_KEY);
+  return typeof os === 'boolean' ? os : null;
+};
 
 // whether MowBite OS serves the app at a host: its app.json there names the app (scripts/version.mjs writes it). only
 // an OS that lets another origin read it can tell

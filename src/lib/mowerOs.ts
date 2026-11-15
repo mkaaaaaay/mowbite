@@ -1,7 +1,7 @@
-import {useEffect, useState} from 'react';
+import {useEffect, useState, useSyncExternalStore} from 'react';
 import {RPC} from './openmower';
 import {noteMqtt} from './mqttClient';
-import {noteOs} from './mowers';
+import {keptOs, noteOs} from './mowers';
 import {askUntilAnswered, callRpc, isMissingMethod, methodsUnknown, RpcError, rpcMethods} from './rpc';
 
 // What runs on the mower, from system.info. Only MowBite OS answers it, on OpenMower there's none. On MowBite OS the
@@ -81,8 +81,20 @@ function useSystemInfo(): SystemInfo | null | undefined {
   return i;
 }
 
-// false until it's known
-export const useMowbiteOs = (): boolean => isMowbiteOs(useSystemInfo());
+const noSubscribe = () => () => {};
+
+// what runs on the mower: what system.info said, until then what it said last time here, null for a mower never
+// asked (texts for one platform wait for it then)
+export function usePlatform(): 'os' | 'om' | null {
+  const i = useSystemInfo();
+  const kept = useSyncExternalStore(noSubscribe, keptOs, () => null);
+  const os = i === undefined ? kept : isMowbiteOs(i);
+  return os === null ? null : os ? 'os' : 'om';
+}
+
+export const useMowbiteOs = (): boolean => usePlatform() === 'os';
+// for what only OpenMower has: false until it's known
+export const useOpenMower = (): boolean => usePlatform() === 'om';
 
 // how to release the emergency with STOP at the mower, null where it can't (or until it's known)
 export function useStopRelease(): StopRelease | null {

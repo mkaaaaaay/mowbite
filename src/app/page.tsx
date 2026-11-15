@@ -34,7 +34,7 @@ import {clock, dayKey, dayLabel, duration} from '@/lib/dates';
 import {gpsOffNow} from '@/lib/gpslog';
 import {fileDay} from '@/lib/history';
 import {describe, emergencyText, explain, groupRuns, noteworthy, OUTCOMES, resetRefusedText, stopReleaseText, type MowerEvent, type Run} from '@/lib/events';
-import {useMowbiteOs, useOsApi, useStopRelease} from '@/lib/mowerOs';
+import {useMowbiteOs, useOpenMower, useOsApi, useStopRelease} from '@/lib/mowerOs';
 import CameraView from '@/components/CameraView';
 import {useCameras} from '@/hooks/useCameras';
 import {useChargeConfirmed} from '@/hooks/useChargeConfirmed';
@@ -231,6 +231,7 @@ export default function Home() {
   useMapAhead(map);
   const recent = useRecentRuns(state?.current_state);
   const os = useMowbiteOs();
+  const om = useOpenMower();
   const api = useOsApi();
   // the last finished mow, for what it left. one that drove the leftovers of the one before left nothing to look at
   const leftoverRun = recent?.latest.find((r) => r.outcome === 'done' && r.areas.length > 0 && r.jobId);
@@ -488,7 +489,7 @@ export default function Home() {
           (link.silent ? (
             <div className={styles.dim}>
               <p className={styles.offline}>
-                {os ? tr("The mower answers, but its state doesn't come.") : tr("The rest of OpenMower answers, but mower_logic doesn't send its state.")}
+                {om ? tr("The rest of OpenMower answers, but mower_logic doesn't send its state.") : tr("The mower answers, but its state doesn't come.")}
               </p>
               <LogicHint className={styles.logicHint} />
             </div>
