@@ -2,19 +2,26 @@ import {describe, expect, it, vi} from 'vitest';
 import {clock} from './dates';
 import {setLangChoice} from './i18n';
 import {
+  AFTER_CAMERA,
   chargeConfirmed,
+  CONTINUE_WHEN,
   describe as describeEvent,
+  EMERGENCY_HELP,
   emergencyFlags,
   emergencyText,
+  eventSource,
   explain,
   groupRuns,
   homeReason,
+  NOT_DRIVEN_HELP,
   noteworthy,
   parseEvent,
   rawLine,
   reasonText,
   refusalReason,
+  RESET_REFUSED_HELP,
   resetRefusedText,
+  RESTART_CAUSE,
   stopReleaseText,
   type MowerEvent,
 } from './events';
@@ -459,7 +466,7 @@ describe('emergency stop reasons', () => {
     expect(stop(2 ** 18 + 1)).toMatch(/^A wheel turned against the drive command/);
     expect(stop(2 ** 16)).toMatch(/^The IMU's data stopped coming/);
     expect(stop(2 ** 13 + 1)).toMatch(/below its release angle\.$/);
-    expect(stop(2 ** 19 + 1)).toMatch(/OpenMower still running next to MowBite OS/);
+    expect(stop(2 ** 19 + 1)).toMatch(/^Another computer or program is talking to the mower's board/);
     // a sentence or two each, the bits that came together
     expect(stop(2 ** 20 + 2 ** 17 + 1)).toBe(
       'The blade was switched off but kept turning faster than allowed. Let it run down, then check that the mow motor stops when told to. ' +
@@ -512,7 +519,7 @@ describe('a reset of the emergency stop MowBite OS turned down', () => {
   it('says what to do and, where it is reset, in a few words', () => {
     expect(explain(refused({reason: 'STILL_TILTED', angle: 34, limit: 26}))).toBe('Stand it level, then reset it again.');
     expect(explain(refused({reason: 'TILT_UNKNOWN'}))).toMatch(/check the IMU/);
-    expect(explain(refused({reason: 'FOREIGN_HOST'}))).toMatch(/^Stop the other computer or program first/);
+    expect(explain(refused({reason: 'FOREIGN_HOST'}))).toMatch(/^Stop the other computer or program talking to the board first/);
     expect(explain(refused({reason: 'NO_ANSWER'}))).toMatch(/^A part of MowBite OS didn't answer/);
     expect(explain(refused({reason: 'RESTART_HOLD_STAYS'}))).toMatch(/^The mower couldn't delete its hold/);
     expect(resetRefusedText(refused({reason: 'STILL_TILTED', angle: 34, limit: 26}))).toBe('Not reset: still tilted (34°, less than 26° needed)');
@@ -908,5 +915,35 @@ describe("MowBite OS's schedule in the events", () => {
   it('says why a scheduled start was turned down', () => {
     expect(reasonText(ev(0, 'MOWING_REFUSED', {reason: 'CLOCK_UNSAFE', clock_reason: 'clock_jump'}))).toBe("the mower's clock jumped");
     expect(reasonText(ev(0, 'MOWING_REFUSED', {reason: 'NOT_DOCKED'}))).toBe('not in the dock, a scheduled start only goes from there');
+  });
+});
+
+describe('no names of OpenMower on MowBite OS', () => {
+  const OM_WORDS = /OpenMower|open_mower|mower_logic|xbot|\bROS\b|checkpoint\.bag|github/;
+
+  it("keeps them out of MowBite OS's own texts", () => {
+    for (const table of [EMERGENCY_HELP, RESTART_CAUSE, NOT_DRIVEN_HELP, RESET_REFUSED_HELP, AFTER_CAMERA, CONTINUE_WHEN])
+      for (const text of Object.values(table)) expect(text).not.toMatch(OM_WORDS);
+  });
+
+  it('explains a lost fix and a mow motor short of its speed in its own words', () => {
+    const lost = ev(1, 'GPS', {available: false});
+    expect(explain(lost, 'MOWING', 10, true)).toBe(
+      'The RTK fix had been gone for longer than the mower allows, so it stopped with the blade off and waits until the fix is back.',
+    );
+    expect(explain(lost, 'MOWING', 10)).toMatch(/xbot_positioning.*mower_logic\/gps_timeout/);
+    expect(explain(lost, 'MOWING')).toContain('mower_logic/gps_timeout');
+    const spinup = ev(1, 'EMERGENCY', {emergency: true, reason: '1024'});
+    expect(explain(spinup, undefined, undefined, true)).toMatch(/^The mow motor didn't reach its speed in time, so the mower triggered an emergency stop/);
+    expect(explain(spinup, undefined, undefined, true)).not.toMatch(OM_WORDS);
+    expect(explain(spinup)).toContain('mower_logic/mower_spinup_timeout');
+    expect(explain(ev(1, 'EMERGENCY', {emergency: true, reason: '128'}), undefined, undefined, true)).not.toMatch(OM_WORDS);
+  });
+
+  it('names no source file there', () => {
+    for (const e of [ev(1, 'EMERGENCY', {emergency: true, reason: '1024'}), ev(1, 'GPS', {available: false}), ev(1, 'DOCKING_FAILED', {reason: 'dock_failed'})]) {
+      expect(eventSource(e, true)).toBeUndefined();
+      expect(eventSource(e)?.url).toMatch(/open_mower_ros/);
+    }
   });
 });

@@ -2,6 +2,7 @@
 
 import {stillPreferred} from '@/lib/eggs';
 import {tr} from '@/lib/i18n';
+import {usePlatform} from '@/lib/mowerOs';
 import {useEffect, useLayoutEffect, useRef, useState} from 'react';
 import {createPortal} from 'react-dom';
 import LogoMark from './Logo';
@@ -17,7 +18,8 @@ const SPEED = 46;
 const END_HOLD_MS = 1800;
 const EAT_MS = 2600;
 
-type Row = {role?: string; name: string} | {head: string} | {line: string} | {gap: true};
+// osName: the name on MowBite OS, the row is left out while the platform isn't known
+type Row = {role?: string; name: string; osName?: string} | {head: string} | {line: string} | {gap: true};
 
 const ROWS: Row[] = [
   {role: 'Directed by', name: 'mkay'},
@@ -39,7 +41,7 @@ const ROWS: Row[] = [
   {name: 'Apehaenger'},
   {name: 'c.ez'},
   {gap: true},
-  {role: 'Runs on', name: 'OpenMower'},
+  {role: 'Runs on', name: 'OpenMower', osName: 'MowBite OS'},
   {role: 'Special thanks', name: 'everyone who builds OpenMower'},
   {role: 'Coverage planning', name: 'the MowBite Planner'},
   {role: '', name: '(still learning to drive)'},
@@ -58,6 +60,7 @@ const END = 'The End';
 
 function Credits({onClose}: {onClose: () => void}) {
   const still = stillPreferred();
+  const platform = usePlatform();
   const roll = useRef<HTMLDivElement>(null);
   // the time it takes to roll through, from the height of the credits
   const [rollMs, setRollMs] = useState(0);
@@ -92,7 +95,7 @@ function Credits({onClose}: {onClose: () => void}) {
     return () => window.removeEventListener('keydown', key);
   }, []);
 
-  const rows = ROWS.map((r, i) =>
+  const rows = ROWS.filter((r) => platform || !('osName' in r)).map((r, i) =>
     'gap' in r ? (
       <div key={i} className={styles.gap} />
     ) : 'head' in r ? (
@@ -104,7 +107,7 @@ function Credits({onClose}: {onClose: () => void}) {
     ) : (
       <div key={i} className={r.role === undefined ? styles.name : styles.row}>
         {r.role !== undefined && <span>{r.role ? tr(r.role) : ''}</span>}
-        <strong>{r.role === undefined || r.name === 'mkay' || r.name === 'OpenMower' || r.name === 'Open-Meteo' ? r.name : tr(r.name)}</strong>
+        <strong>{r.osName ? (platform === 'os' ? r.osName : r.name) : r.role === undefined || r.name === 'mkay' || r.name === 'Open-Meteo' ? r.name : tr(r.name)}</strong>
       </div>
     ),
   );

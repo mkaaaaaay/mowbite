@@ -285,7 +285,10 @@ export function summary(group: ParamGroup, params: Record<string, unknown>, os: 
       ].join(' · ');
     }
     case 'gps':
-      return [tr('{n} s without a fix', {n: n('gps_timeout')}), tr('better than {n} cm', {n: n('max_position_accuracy')})].join(' · ');
+      return [
+        os ? tr('docking waits {n} s for a position', {n: n('gps_timeout')}) : tr('{n} s without a fix', {n: n('gps_timeout')}),
+        tr('better than {n} cm', {n: n('max_position_accuracy')}),
+      ].join(' · ');
     case 'docking':
       return [tr('approach from {n} m', {n: n('docking_approach_distance')}), v('docking_retry_count') === 1 ? tr('1 retry') : tr('{n} retries', {n: n('docking_retry_count')})].join(' · ');
     case 'motor':

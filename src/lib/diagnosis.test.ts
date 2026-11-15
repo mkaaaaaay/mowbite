@@ -180,36 +180,51 @@ describe('diagnosis', () => {
     const run: Run = {
       start: 1000,
       end: 1100,
-      events: [{id: 'a', type: 'EMERGENCY', t: 1050, emergency: true, reason: '64', x: 1, y: 2}],
+      events: [
+        {id: 'a', type: 'EMERGENCY', t: 1050, emergency: true, reason: '64', x: 1, y: 2},
+        {id: 'b', type: 'EMERGENCY', t: 1060, emergency: true, reason: '1024', x: 1, y: 2},
+      ],
       areas: ['Garten'],
       bladeSeconds: 60,
       problems: 1,
       outcome: 'emergency',
       jobId: 'j',
     };
-    const text = buildDiagnosis({
-      run,
-      appVersion: '1.3.0',
-      created: 2000,
-      methods: ['rpc.methods'],
-      params: {'/mower_logic/gps_timeout': 15},
-      kept: {},
-      map: {areas: [], docking_stations: [{id: 'd', position: {x: 1, y: 2}, heading: 0}]},
-      planner: null,
-      gps: readGpsLog('1049 MOWING 1 2 0.020 -50\n1050 MOWING 1 2 0.020 -50'),
-      gpsLimit: 0.2,
-      ros: [{t: 1050, level: 'WARN', text: 'mower_comms_v2: Active Inputs bitmask: 4'}],
-      plannerLines: [{t: 1040, level: 'INFO', msg: 'planned'}],
-      sensors: [],
-      drive: null,
-      snapshot: null,
-      startMap: null,
-      plans: [],
-    });
+    const make = (os = false) =>
+      buildDiagnosis({
+        run,
+        appVersion: '1.3.0',
+        created: 2000,
+        methods: ['rpc.methods'],
+        params: {'/mower_logic/gps_timeout': 15},
+        kept: {},
+        map: {areas: [], docking_stations: [{id: 'd', position: {x: 1, y: 2}, heading: 0}]},
+        planner: null,
+        gps: readGpsLog('1049 MOWING 1 2 0.020 -50\n1050 MOWING 1 2 0.020 -50'),
+        gpsLimit: 0.2,
+        ros: [
+          {t: 1050, level: 'WARN', text: 'mower_comms_v2: Active Inputs bitmask: 4'},
+          {t: 1055, level: 'WARN', text: 'blade slow'},
+        ],
+        plannerLines: [{t: 1040, level: 'INFO', msg: 'planned'}],
+        sensors: [],
+        drive: null,
+        snapshot: null,
+        startMap: null,
+        plans: [],
+        os,
+      });
+    const text = make();
     for (const part of ['MowBite diagnosis', 'Problems', 'GPS the minute before', 'planner INFO', '/mower_logic/gps_timeout = 15', 'dock d: 1.000, 2.000', 'Raw: GPS'])
       expect(text).toContain(part);
     // the filler line only in the raw part
     expect(text.indexOf('Active Inputs')).toBeGreaterThan(text.indexOf('Raw data'));
+    expect(text).toContain('Raw: OpenMower events (event_history)');
+    // on MowBite OS the same file without OpenMower's names
+    const os = make(true);
+    expect(os).not.toMatch(/OpenMower|open_mower|mower_logic|xbot|\bROS\b|event_history|params\/json/);
+    for (const part of ['Mower settings', '  gps_timeout = 15', 'mower log warnings/errors', 'Raw: mower log warnings and errors', 'Raw: mower events', 'log WARN        blade slow'])
+      expect(os).toContain(part);
   });
 });
 

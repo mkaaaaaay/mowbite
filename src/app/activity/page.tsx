@@ -7,7 +7,7 @@ import {ParamFix} from '@/components/MowerParamSettings';
 import {describe, eventSource, explain, groupRuns, isReasonCode, noteworthy, rawLine, OUTCOMES, withState, type Entry, type MowerEvent, type Run} from '@/lib/events';
 import {useDragScroll} from '@/hooks/useDragScroll';
 import {eventsOfDay, historyDays, localDays, type DayEvents} from '@/lib/history';
-import {useMowbiteOs} from '@/lib/mowerOs';
+import {useMowbiteOs, useOpenMower} from '@/lib/mowerOs';
 import {useMowerStateValue} from '@/hooks/useMowerState';
 import {RosLogAround} from '@/components/RosLog';
 import {GpsAround} from '@/components/GpsLog';
@@ -66,7 +66,8 @@ function problemFacts(run: Run, e: MowerEvent, next?: Run): string[] {
 type Where = DayEvents['where'];
 
 function RawEntry({event, file, line}: {event: MowerEvent; file: string; line: number}) {
-  const src = eventSource(event);
+  // the source in open_mower_ros only once the mower said it runs OpenMower
+  const src = eventSource(event, !useOpenMower());
   return (
     <div className={styles.raw}>
       <div className={styles.dim}>
@@ -362,7 +363,7 @@ function Activity() {
         <MowingStats />
 
         {failed && !events && (
-          <p className={styles.dim}>{tr("No event history: the mower can't be reached, or its OpenMower doesn't keep one yet.")}</p>
+          <p className={styles.dim}>{tr("No event history: the mower can't be reached, or its software doesn't keep one yet.")}</p>
         )}
         {!days && !failed && <p className={styles.dim}>{connected ? tr('loading…') : tr('connecting…')}</p>}
 
