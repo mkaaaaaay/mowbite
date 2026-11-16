@@ -1,5 +1,4 @@
-/* the incidents of MowBite OS on the activity page, as a card of their own and next to a problem
-   (doubled class names: inside a problem the activity page's rules for its li, div and p would win) */
+/* the incidents of MowBite OS on the activity page, as a card of their own and next to a problem */
 .box {
   display: flex;
   flex-direction: column;
@@ -18,13 +17,13 @@
 }
 
 .box p,
-.details.details p {
+.details p {
   margin: 0;
   font-size: 13px;
   line-height: 1.4;
 }
 
-.dim.dim {
+.dim {
   color: var(--text-secondary);
 }
 
@@ -32,7 +31,7 @@
   color: var(--soft-warn);
 }
 
-.error.error {
+.error {
   color: var(--soft-bad);
 }
 
@@ -73,7 +72,7 @@
   color: var(--text-secondary);
 }
 
-div.details.details {
+.details {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -90,7 +89,7 @@ div.details.details {
   font-size: 13px;
 }
 
-.triggers.triggers li {
+.triggers li {
   display: flex;
   gap: 10px;
   padding: 0;
@@ -112,7 +111,7 @@ div.details.details {
   font-variant-numeric: tabular-nums;
 }
 
-div.actions.actions {
+.actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
