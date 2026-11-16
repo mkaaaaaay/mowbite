@@ -8,6 +8,7 @@ import {mowAroundHoles, nestedAreas} from '@/lib/mowAround';
 import {linkStripes, mowPlan, ownCount, type MowPlan, type PlanChosen} from '@/lib/mowPlan';
 import {slic3rPlans, usePlannerSettings} from '@/lib/mowerBody';
 import {osSpacing, usePlatform} from '@/lib/mowerOs';
+import {plannerAngle} from '@/lib/plannerOwn';
 import type {PlannerEstimateInput} from '@/lib/plannerEstimate';
 import {showWait} from '@/lib/plannerProgress';
 import {usePlannerEstimate} from '@/lib/usePlannerEstimate';
@@ -341,11 +342,8 @@ export function useMowPlan({
       : overlap !== undefined
         ? blade * (1 - overlap)
         : toolWidth;
-    // the planner picks the direction itself with an angle or a strategy in the area's planner settings, or in the
-    // ones for all areas when the area has no angle of its own
-    const ownAngle = typeof own.angle === 'number' ? own.angle : null;
-    const byPlanner = ownAngle !== null || typeof own.angle_strategy === 'string' || (!!planner.own_angle && p.angle === undefined);
     const globalAngle = typeof ps.angle?.value === 'number' ? (ps.angle.value as number) : null;
+    const byPlanner = plannerAngle(own, p.angle, globalAngle, !!planner.own_angle, os);
     const offset = sent('perimeter_offset', p.outline_offset, 'outline_offset');
     // like the planner: the area's own, its range in the map (both ends set), then the one for all areas
     const mapRange = typeof p.angle_min === 'number' && typeof p.angle_max === 'number';
@@ -389,9 +387,7 @@ export function useMowPlan({
       passes: sent('perimeter_passes', p.outline_count, 'outline_count'),
       overlapPasses: sent('lane_overlap_passes', p.outline_overlap_count, 'outline_overlap_count'),
       // (the planner keeps it within the range after adding its offset and what it turned further)
-      angle: byPlanner
-        ? (ownAngle ?? (typeof own.angle_strategy === 'string' ? null : globalAngle))
-        : askedAngle(shownArea) + (mismatch ? previewCorrection : 0) * DEG,
+      angle: byPlanner !== undefined ? byPlanner : askedAngle(shownArea) + (mismatch ? previewCorrection : 0) * DEG,
       strategy: str('angle_strategy', 'longest_edge'),
       angleOffset: num('angle_offset', 0) + (planner.angle_steps ?? 0) * turnStep(shownArea),
       angleMin: rangeEnd('angle_min'),
@@ -438,7 +434,7 @@ export function useMowPlan({
       start: dock ? {x: dock.position.x, y: dock.position.y, heading: dock.heading} : undefined,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wantPlan, shownMap, shownArea, toolWidth, params, effectiveAngle, areaProps, planner, unchanged, liveMap, fromMower]);
+  }, [wantPlan, shownMap, shownArea, toolWidth, params, effectiveAngle, areaProps, planner, unchanged, liveMap, fromMower, os]);
   // (also while the mower's plan is shown: the estimate is there at once when something changes)
   const estimated = usePlannerEstimate(estimateInput);
 
