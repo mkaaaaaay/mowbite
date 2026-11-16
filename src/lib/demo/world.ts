@@ -9,6 +9,7 @@ import {demoCameras} from './camera';
 import {demoOn} from './flags';
 import {demoGeometry} from './geometry';
 import {demoLights} from './light';
+import {demoNtrip} from './ntrip';
 import {demoSounds} from './sound';
 import {demoIncidents} from './incidents';
 import {demoUpdates} from './update';
@@ -1133,6 +1134,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     ...(demoOn('Lights') && demoLights()),
     ...(demoOn('Sounds') && demoSounds()),
     ...(demoOn('Geometry') && demoGeometry()),
+    ...(demoOn('Ntrip') && demoNtrip(state)),
     ...incidents?.methods,
     ...updates?.methods,
     ...cameras?.methods,
