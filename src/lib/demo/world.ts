@@ -10,6 +10,7 @@ import {demoOn} from './flags';
 import {demoGeometry} from './geometry';
 import {demoLights} from './light';
 import {demoSounds} from './sound';
+import {demoIncidents} from './incidents';
 import {demoUpdates} from './update';
 
 // The demo mower: what OpenMower would send and answer, made up here so the app can be looked at without a mower.
@@ -533,10 +534,14 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
   };
 
   // kept for the history, and sent on events/json as it happens where that's asked for
+  // set right below, its own INCIDENT events come through logged too
+  let incidents: ReturnType<typeof demoIncidents> | null = null;
   const logged = (e: DemoEvent) => {
     log.push(e);
     if (opts.liveEvents) deliver(TOPIC.events, JSON.stringify(e));
+    incidents?.trigger(e);
   };
+  if (demoOn('Incidents')) incidents = demoIncidents(() => last / 1000, logged);
   const hooksFor = (id: string, session: string): Hooks => ({
     enter(l, t) {
       for (const e of l.events ?? []) logged({id: `demo${++ids}`, t, job_id: id, session_id: session, x: l.pts[0].x, y: l.pts[0].y, ...e});
@@ -1128,6 +1133,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     ...(demoOn('Lights') && demoLights()),
     ...(demoOn('Sounds') && demoSounds()),
     ...(demoOn('Geometry') && demoGeometry()),
+    ...incidents?.methods,
     ...updates?.methods,
     ...cameras?.methods,
     ...(undoOn && {

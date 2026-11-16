@@ -1,7 +1,8 @@
 import {describe, expect, it} from 'vitest';
 import {describe as eventText} from './events';
 import {RpcError} from './rpc';
-import {leftHeld, soundRefusal, splitParts, toBase64} from './sound';
+import {toBase64} from './base64';
+import {leftHeld, soundRefusal, splitParts} from './sound';
 import {MAX_SOUND_BYTES, MAX_SOUND_SECONDS, MIN_SOUND_SECONDS, PART_BYTES} from './soundLimits';
 
 describe('an own sound', () => {

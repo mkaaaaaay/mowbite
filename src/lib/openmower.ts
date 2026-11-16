@@ -93,6 +93,13 @@ export const RPC = {
   areaProperties: 'map.area_properties',
   // the last warnings and errors ROS logged, kept in memory by the mower
   logs: 'logs.recent',
+  // MowBite OS's journal and the incidents kept from it (lib/incidents)
+  journalStatus: 'journal.status',
+  incidentsList: 'incidents.list',
+  incidentsGet: 'incidents.get',
+  incidentsDownload: 'incidents.download',
+  incidentsMark: 'incidents.mark',
+  incidentsDelete: 'incidents.delete',
   // the MowBite Planner's settings (with OM_PLANNER=mowbite only): every setting with value, default and range,
   // and changing them (null: back to the default)
   plannerSettings: 'planner.settings',

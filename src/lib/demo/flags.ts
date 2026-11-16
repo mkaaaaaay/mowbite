@@ -3,5 +3,5 @@
 
 type Flags = Record<string, unknown>;
 export const demoFlags = (): Flags => (typeof window === 'undefined' ? {} : (window as unknown as Flags));
-export type DemoPart = 'Lights' | 'Sounds' | 'Cameras' | 'Undo' | 'Geometry' | 'Updates';
+export type DemoPart = 'Lights' | 'Sounds' | 'Cameras' | 'Undo' | 'Geometry' | 'Updates' | 'Incidents';
 export const demoOn = (part: DemoPart) => !!demoFlags()[`mowbiteDemo${part}`];

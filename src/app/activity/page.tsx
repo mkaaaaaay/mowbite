@@ -10,6 +10,7 @@ import {eventsOfDay, historyDays, localDays, type DayEvents} from '@/lib/history
 import {useMowbiteOs, useOpenMower} from '@/lib/mowerOs';
 import {useMowerStateValue} from '@/hooks/useMowerState';
 import {RosLogAround} from '@/components/RosLog';
+import {Blackbox, IncidentOf} from '@/components/Incidents';
 import {GpsAround} from '@/components/GpsLog';
 import {DiagnosisDownload} from '@/components/Diagnosis';
 import MowingStats from '@/components/MowingStats';
@@ -62,8 +63,6 @@ function problemFacts(run: Run, e: MowerEvent, next?: Run): string[] {
   return facts;
 }
 
-// the mower keeps one file per day, relative to its ros folder
-type Where = DayEvents['where'];
 
 function RawEntry({event, file, line}: {event: MowerEvent; file: string; line: number}) {
   const src = eventSource(event, useOpenMower());
@@ -101,7 +100,8 @@ const FIXES: Record<string, string[]> = {
 // MowBite OS's own reasons in them (no charge current, no position) and a planner without a way aren't helped by those
 const fixes = (e: MowerEvent) => (/^DOCKING_/.test(e.type) && (isReasonCode(e.reason) || e.cause) ? [] : (FIXES[e.type] ?? []));
 
-function ProblemItem({run, next, event, state, where}: {run: Run; next?: Run; event: MowerEvent; state?: string; where: Where}) {
+// day: all events of the day (an incident's INCIDENT can come right after its run ended) and the file each came from
+function ProblemItem({run, next, event, state, day}: {run: Run; next?: Run; event: MowerEvent; state?: string; day: DayEvents}) {
   const [raw, setRaw] = useState(false);
   // folded to its time and what happened, the rest on a tap
   const [open, setOpen] = useState(false);
@@ -144,8 +144,9 @@ function ProblemItem({run, next, event, state, where}: {run: Run; next?: Run; ev
             </button>
             <GpsAround t={event.t} limit={numParam(params, PARAM.maxPositionAccuracy)} />
             <RosLogAround t={event.t} />
+            <IncidentOf event={event} events={day.events} />
           </div>
-          {raw && <RawEntry event={event} file={`${PATHS.eventHistory}${where.get(event.id)?.file ?? ''}`} line={where.get(event.id)?.line ?? 0} />}
+          {raw && <RawEntry event={event} file={`${PATHS.eventHistory}${day.where.get(event.id)?.file ?? ''}`} line={day.where.get(event.id)?.line ?? 0} />}
           {/* when it keeps happening: the settings that help, last */}
           <ParamFix keys={fixes(event)} />
         </>
@@ -154,7 +155,7 @@ function ProblemItem({run, next, event, state, where}: {run: Run; next?: Run; ev
   );
 }
 
-function Problems({run, next, where}: {run: Run; next?: Run; where: Where}) {
+function Problems({run, next, day}: {run: Run; next?: Run; day: DayEvents}) {
   const os = useMowbiteOs();
   const list = withState(run.events)
     .filter(({event, state}) => noteworthy(event, state, os))
@@ -169,7 +170,7 @@ function Problems({run, next, where}: {run: Run; next?: Run; where: Where}) {
           next={next}
           event={event}
           state={state}
-          where={where}
+          day={day}
         />
       ))}
     </ul>
@@ -181,14 +182,14 @@ function Problems({run, next, where}: {run: Run; next?: Run; where: Where}) {
 function RunCard({
   run,
   next,
-  where,
+  day,
   progress,
   linked,
   by,
 }: {
   run: Run;
   next?: Run;
-  where: Where;
+  day: DayEvents;
   progress: boolean;
   linked: boolean;
   by: string | null;
@@ -224,7 +225,7 @@ function RunCard({
         {by && <span className={styles.dim}>{tr(by)}</span>}
       </div>
 
-      {progress ? <Timeline events={run.events} progress /> : <Problems run={run} next={next} where={where} />}
+      {progress ? <Timeline events={run.events} progress /> : <Problems run={run} next={next} day={day} />}
 
       <div className={styles.runActions}>
         {!progress && <button onClick={() => setOpen(!open)}>{open ? tr('Hide details') : tr('Details')}</button>}
@@ -327,8 +328,8 @@ function Activity() {
   const entries: Entry[] = (events ? groupRuns(events, isToday, undefined, os).reverse() : []).filter(
     (e) => e.kind === 'run' || ['BOOTED', 'SHUTDOWN'].includes(e.event.type) || noteworthy(e.event, undefined, os),
   );
-  // which file and line an entry came from, the day's early or late hours sit in the neighbouring file
-  const where = loaded?.where ?? new Map<string, {file: string; line: number}>();
+  // with which file and line an entry came from, the day's early or late hours sit in the neighbouring file
+  const dayEvents: DayEvents = loaded ?? {events: [], where: new Map()};
   const runs = entries.flatMap((e) => (e.kind === 'run' ? [e.run] : []));
   const mowed = runs.reduce((s, r) => s + r.bladeSeconds, 0);
   // with the problems outside of runs (an emergency stop in the dock)
@@ -426,7 +427,7 @@ function Activity() {
                 key={b.run.events[0].id}
                 run={b.run}
                 next={runs[runs.indexOf(b.run) - 1]}
-                where={where}
+                day={dayEvents}
                 progress={filter === 'progress'}
                 linked={shown === linkedDay && b.run.events[0].id === linkedRun}
                 by={startedBy(b.run.start, scheduleLog)}
@@ -443,6 +444,8 @@ function Activity() {
             ),
           )}
         </div>
+
+        <Blackbox />
       </main>
     </div>
   );

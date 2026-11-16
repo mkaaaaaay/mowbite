@@ -9,6 +9,7 @@ import {COMMAND, RPC} from './openmower';
 import {DOCK_CAUSES, DOCK_DETAILS, DOCK_TEST_CAUSES, EMERGENCY_BITS, GUIDED, EMERGENCY_HIDE, EMERGENCY_TEXT, EVENTS, NOT_DRIVEN, REASONS, pick} from './reasonTexts';
 import {READY_TEXT, scheduleLogText} from './schedule';
 import {ORIGIN_TEXT} from './osUpdate';
+import {MAX_NOTE, PIECE_BYTES} from './incidentLimits';
 import {SITUATION_NAMES} from './sound';
 import {PARTS} from './stats';
 
@@ -54,12 +55,6 @@ const NOT_OFFERED: Record<string, string> = {
   'system.api': "the app has its copy of the contract here and reads the api's number from system.info",
   'system.hold': "the updater's, it holds restarts while it works",
   'schedule.leftovers': 'to come: MowBite OS turns leftovers down until its planner prepares them',
-  'journal.status': "to come: the incidents page (what the journal keeps, its incidents, a note, download and delete)",
-  'incidents.list': 'as journal.status',
-  'incidents.get': 'as journal.status',
-  'incidents.mark': 'as journal.status',
-  'incidents.download': 'as journal.status',
-  'incidents.delete': 'as journal.status',
 };
 // what the app calls on a mower; planner.* is the MowBite Planner's, not the OS's
 const appMethods = new Set([...Object.values(RPC), ...Object.values(COMMAND).map((c) => c.method)].filter((m) => !m.startsWith('planner.')));
@@ -234,6 +229,12 @@ describe(`MowBite OS's interface (${PINNED.repo} ${PINNED.commit.slice(0, 7)}, a
   it('names every sound situation, in german too', () => {
     const situations = (api.$defs['sound.play.params'] as {properties: {situation: {enum: string[]}}}).properties.situation.enum;
     expect(situations.filter((n) => !SITUATION_NAMES[n] || !de[SITUATION_NAMES[n]])).toEqual([]);
+  });
+
+  it('downloads incidents in pieces as large as the OS gives, and keeps a note as short as it takes', () => {
+    const defs = api.$defs as Record<string, {properties: Record<string, {maximum?: number; description: string}>}>;
+    expect(defs['incidents.download.params'].properties.size.maximum).toBe(PIECE_BYTES);
+    expect(defs['incidents.mark.params'].properties.note.description).toContain(`at most ${MAX_NOTE} characters`);
   });
 
   it("has no words for events, reasons or bits the OS doesn't know", () => {
