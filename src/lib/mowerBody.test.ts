@@ -12,6 +12,8 @@ import {
   modelOf,
   MOWER_MODELS,
   OUTLINE_LEEWAY,
+  dockFootprint,
+  outlineAt,
   outlineOf,
   outsideLimits,
   plannerOutline,
@@ -488,6 +490,29 @@ describe('real outline', () => {
       expect(Math.max(...ys)).toBeLessThanOrEqual(m.sizes.width / 2 + 0.001);
       expect(modelOf({...m.sizes, outline: m.outline})).toBe(m.key);
     }
+  });
+});
+
+describe('docking station from above', () => {
+  const geo = (value: unknown) => ({settings: {dock_footprint: {value}}});
+  it('is the footprint the mower gives, none for an empty or broken list', () => {
+    // ahead of the mower, which doesn't stand inside it
+    const station = [[0.95, 0.28], [0.3, 0.28], [0.3, -0.28], [0.95, -0.28]];
+    expect(dockFootprint(geo(station))).toEqual(station);
+    expect(dockFootprint(geo([]))).toBeNull();
+    expect(dockFootprint(geo([[0, 0], [1, 0]]))).toBeNull();
+    expect(dockFootprint(geo([[0, 0], [1, 'a'], [0, 1]]))).toBeNull();
+    expect(dockFootprint({settings: {}})).toBeNull();
+    expect(dockFootprint(null)).toBeNull();
+  });
+
+  it('lies around the mower docked at the station, turned with it', () => {
+    // facing north at 10, 5: ahead is up, left is west
+    const [a, b] = outlineAt([[1, 0], [0, 0.5]], 10, 5, Math.PI / 2);
+    expect(a.x).toBeCloseTo(10);
+    expect(a.y).toBeCloseTo(6);
+    expect(b.x).toBeCloseTo(9.5);
+    expect(b.y).toBeCloseTo(5);
   });
 });
 

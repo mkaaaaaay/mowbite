@@ -243,6 +243,22 @@ export interface Geometry {
 
 export const loadGeometry = () => callRpc<Geometry>(RPC.geometry, {});
 
+// the docking station from above (dock_footprint, MowBite OS from api 38): [ahead, left] around the docked mower, which
+// needn't stand inside it. null where the mower leaves it to its planner (an empty list) or doesn't give one
+export function dockFootprint(g: {settings: Record<string, {value: unknown}>} | null | undefined): Outline | null {
+  const v = g?.settings.dock_footprint?.value;
+  if (!Array.isArray(v) || v.length < 3) return null;
+  const ok = v.every((p) => Array.isArray(p) && p.length === 2 && p.every((n) => typeof n === 'number' && Number.isFinite(n)));
+  return ok ? v.map(([ahead, left]) => [ahead, left]) : null;
+}
+
+// a contour around the mower as points of the map, for the mower at x, y facing heading (rad, ccw)
+export function outlineAt(o: Outline, x: number, y: number, heading: number): {x: number; y: number}[] {
+  const c = Math.cos(heading);
+  const s = Math.sin(heading);
+  return o.map(([ahead, left]) => ({x: x + c * ahead - s * left, y: y + s * ahead + c * left}));
+}
+
 // changes sizes on MowBite OS (idle only, all or nothing), the ones in reset back to the platform's. Its planner takes
 // them a moment later, until then the planner's shown with them
 export async function saveGeometry(version: number, settings: Record<string, unknown>, reset: string[]): Promise<Geometry> {

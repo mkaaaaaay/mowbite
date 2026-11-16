@@ -95,6 +95,10 @@ export interface MowerEvent {
   cause?: string;
   direct_blocked?: boolean;
   guide?: string;
+  // DOCKING_TEST_RUN: the run of the series, how many it has and whether it docked
+  run?: number;
+  of?: number;
+  ok?: boolean;
   // UNEXPECTED_RESTART: whether it waits for a reset, the state then, the kernel's line or what the OS found (english)
   hold?: boolean;
   state_before?: string;
@@ -153,9 +157,10 @@ function homeText(r?: string): string {
   }
 }
 
-// worth showing in a run's summary and the day's list though it isn't a problem: why it went home (not a pause)
+// worth showing in a run's summary and the day's list though it isn't a problem: why it went home (not a pause), how
+// each run of a docking test ended
 export function noteworthy(e: MowerEvent, state?: string, os = false): boolean {
-  if (describe(e, state, os).severity !== 'info') return true;
+  if (describe(e, state, os).severity !== 'info' || e.type === 'DOCKING_TEST_RUN') return true;
   const why = e.type === 'DOCKING' ? homeReason(e.reason) : null;
   return why !== null && why !== 'paused';
 }
@@ -492,6 +497,9 @@ export function explain(e: MowerEvent, state?: string, gpsTimeout?: number, os =
       const why = dockTryText(e);
       return GUIDED[e.guide ?? ''] ? [tr(GUIDED[e.guide!]), why].filter(Boolean).join(' ') : why;
     }
+    case 'DOCKING_TEST_RUN':
+      if (e.ok || e.run === undefined || e.of === undefined) return undefined;
+      return e.run < e.of ? tr('The test ended here, the runs after it were not driven.') : tr('The test ended here.');
     case 'DOCKING_DIRECT':
       return tr(
         'The planner gave no way to the docking station ({why}), so it drives the straight way to the point in front of it ({m} m). It checked before that the mower fits along it.',

@@ -1,12 +1,12 @@
 import type {MapArea, MowerMap, Point} from '@/hooks/useMowerMap';
 import {linkStripes, mowPlan, ownCount} from '../mowPlan';
-import {ACTION, PARAM, RPC, TOPIC} from '../openmower';
+import {ACTION, DOCK_TEST_RUNS, PARAM, RPC, TOPIC} from '../openmower';
 import {EMERGENCY_BITS} from '../reasonTexts';
 import {closedRings, openRing, openRings} from '../rings';
 import {CALIB_NEED, calibCounts, calibResultOf} from './calib';
 import {DEMO_PARAMS, DEMO_SENSORS, demoMap} from './garden';
 import {demoCameras} from './camera';
-import {demoOn} from './flags';
+import {demoFlags, demoOn} from './flags';
 import {demoGeometry} from './geometry';
 import {demoLights} from './light';
 import {demoSounds} from './sound';
@@ -483,6 +483,11 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
   // undocking waits at its end this long for a fix (ms), the dockings that failed in a row
   let gpsWait = 0;
   let dockTries = 0;
+  // MowBite OS's docking test for the click tests (window.mowbiteDemoDockTest), with its stop for docking that leaves
+  // the mower idle where it is: the run it's at and how many it has. mowbiteDemoDockTestFails: so many of its dockings
+  // don't take
+  const dockTestOn = demoOn('DockTest');
+  let dockTest: {run: number; of: number} | null = null;
   // the ros warnings logs.recent hands out: why the emergency stop came
   const rosLog: {t: number; level: string; node: string; msg: string}[] = [];
   let battery = 1;
@@ -533,12 +538,12 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     return p;
   };
 
-  // kept for the history, and sent on events/json as it happens where that's asked for
+  // kept for the history, and sent on events/json as it happens where that's asked for (a docking test's runs always)
   // set right below, its own INCIDENT events come through logged too
   let incidents: ReturnType<typeof demoIncidents> | null = null;
   const logged = (e: DemoEvent) => {
     log.push(e);
-    if (opts.liveEvents) deliver(TOPIC.events, JSON.stringify(e));
+    if (opts.liveEvents || e.type === 'DOCKING_TEST_RUN') deliver(TOPIC.events, JSON.stringify(e));
     incidents?.trigger(e);
   };
   if (demoOn('Incidents')) incidents = demoIncidents(() => last / 1000, logged);
@@ -633,11 +638,27 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
 
   function docked(t: number) {
     const d = dock();
-    note(t, d?.at ?? pose, {type: 'DOCKED'}, {type: 'STATE', state: 'IDLE'});
-    parked = true;
+    const series = dockTest && dockTest.of > 1 ? dockTest : null;
+    const more = !!series && series.run < series.of && !!d;
+    note(
+      t,
+      d?.at ?? pose,
+      {type: 'DOCKED'},
+      ...(series ? [{type: 'DOCKING_TEST_RUN', run: series.run, of: series.of, ok: true, severity: 'info'}] : []),
+      ...(more ? [] : [{type: 'STATE', state: 'IDLE'}]),
+    );
+    parked = !more;
     away = false;
     paused = false;
     dockTries = 0;
+    if (!more) {
+      dockTest = null;
+      return;
+    }
+    // the next run of a docking test: out of the station and in again
+    dockTest = {run: series!.run + 1, of: series!.of};
+    const legs = [leg([d!.at, d!.out], 'DOCKING', false, -1, -1, {reverse: true}), leg([d!.out, d!.at], 'DOCKING', false, -1, -1)];
+    detour = {id: `demo-test-${Math.round(t)}`, session: 'demo-test', run: {legs, at: 0, d: 0}, then: 'idle'};
   }
 
   // idle where it is: undocking or docking gave up
@@ -648,7 +669,12 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     away = true;
     paused = false;
     dockTries = 0;
+    dockTest = null;
   }
+
+  // a run of a docking test with several ended without docking, the test with it
+  const runEnded = (reason: string): EventPart[] =>
+    dockTest && dockTest.of > 1 ? [{type: 'DOCKING_TEST_RUN', run: dockTest.run, of: dockTest.of, ok: false, reason, severity: reason === 'STOPPED' ? 'info' : 'error'}] : [];
 
   // a docking that doesn't take, while dockFails says so: DockingBehavior tries again docking_retry_count times, from in
   // front of the station after an approach that failed, backing out first after one on the station, then gives up
@@ -660,8 +686,10 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     const reason = fails.at === 'approach' ? 'approach_failed' : 'dock_failed';
     dockTries++;
     if (fails.at === 'approach') pose = {x: d.out.x, y: d.out.y, heading: d.heading};
-    if (dockTries > param('docking_retry_count')) {
-      gaveUp(t, {type: 'DOCKING_FAILED', reason, attempts: dockTries});
+    // a docking test with several runs ends with the first that fails
+    const ended = runEnded(reason);
+    if (dockTries > param('docking_retry_count') || ended.length) {
+      gaveUp(t, {type: 'DOCKING_FAILED', reason, attempts: dockTries}, ...ended);
       return true;
     }
     note(t, pose, {type: 'DOCKING_RETRY', reason, attempts: dockTries});
@@ -758,6 +786,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
       a(ACTION.resume, 'Continue', s === 'PAUSED'),
       a(ACTION.goHome, 'Stop Mowing', !idle && s !== 'DOCKING' && s !== 'UNDOCKING' && !rec),
       a(ACTION.abortUndocking, 'Stop Undocking', s === 'UNDOCKING'),
+      ...(dockTestOn ? [a(ACTION.abortDocking, 'Stop Docking', s === 'DOCKING')] : []),
       a(ACTION.skipArea, 'Skip Area', mowing),
       a(ACTION.skipPath, 'Skip Path', mowing),
       ...recordingActions(),
@@ -944,6 +973,8 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     } else if (id === ACTION.goHome && s !== 'UNDOCKING') sendHome('Manual pause');
     // (OpenMower leaves it idle in front of the station, the demo drives it back in)
     else if (id === ACTION.abortUndocking && s === 'UNDOCKING') sendHome();
+    // (MowBite OS's: idle where it is, a docking test ends with it)
+    else if (id === ACTION.abortDocking && dockTestOn && s === 'DOCKING') gaveUp(t, ...runEnded('STOPPED'));
     else if ((id === ACTION.skipArea || id === ACTION.skipPath) && s === 'PAUSED') skipLater = id === ACTION.skipArea || !!skipLater;
     else if (id === ACTION.skipArea && s === 'MOWING') skip(true);
     else if (id === ACTION.skipPath && s === 'MOWING') skip(false);
@@ -1134,6 +1165,25 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     ...(demoOn('Sounds') && demoSounds()),
     ...(demoOn('Geometry') && demoGeometry()),
     ...incidents?.methods,
+    ...(dockTestOn && {
+      // from idle off the station straight onto it by the dock camera, runs times in a row
+      [RPC.dockingTest]: (params: unknown) => {
+        const runs = (params as {runs?: unknown})?.runs ?? 1;
+        if (typeof runs !== 'number' || !Number.isInteger(runs) || runs < 1 || runs > DOCK_TEST_RUNS)
+          throw new Error(`runs: 1 to ${DOCK_TEST_RUNS}`);
+        const d = dock();
+        if (state() !== 'IDLE' || !away || !d) throw new Error('the docking test starts idle in front of the station');
+        const t = last / 1000;
+        note(t, pose, {type: 'DOCKING', reason: 'TEST', severity: 'info'}, {type: 'STATE', state: 'DOCKING'});
+        dockTest = {run: 1, of: runs};
+        const fails = demoFlags().mowbiteDemoDockTestFails;
+        if (typeof fails === 'number') around = {...around, dockFails: {count: fails, at: 'dock'}};
+        detour = {id: `demo-test-${Math.round(t)}`, session: 'demo-test', run: {legs: [leg([{x: pose.x, y: pose.y}, d.at], 'DOCKING', false, -1, -1)], at: 0, d: 0}, then: 'idle'};
+        parked = false;
+        changed();
+        return {state: 'DOCKING', sub_state: ''};
+      },
+    }),
     ...updates?.methods,
     ...cameras?.methods,
     ...(undoOn && {

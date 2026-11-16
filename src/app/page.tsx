@@ -653,7 +653,7 @@ export default function Home() {
                   </button>
                 ))}
               {/* idle in front of the station, where the mower offers it */}
-              <DockingTest styles={styles} live={live} idle={current === 'IDLE' && !state.emergency && !charger} />
+              <DockingTest styles={styles} live={live} idle={current === 'IDLE' && !state.emergency && !charger} state={current} />
               {/* idle in the dock: what the last mow left, and mowing just that */}
               {live && hasAction(ACTION.startMowing) && !state.emergency && !wasLeftovers && (
                 <LeftoversCard

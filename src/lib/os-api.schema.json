@@ -385,6 +385,10 @@
           "description": "Who sent the command (app, ha), for the log and the events of its step",
           "pattern": "^[a-z][a-z0-9_-]{0,15}$",
           "type": "string"
+        },
+        "runs": {
+          "description": "1 to 10 (default 1): above 1 a series, after each DOCKED the mower drives out forwards to the start of the line by the marker and docks again; DOCKING_TEST_RUN ends every run, the first failure ends the series without a further try",
+          "type": "integer"
         }
       },
       "required": [],
@@ -535,6 +539,9 @@
         },
         {
           "$ref": "#/$defs/event.DOCKED"
+        },
+        {
+          "$ref": "#/$defs/event.DOCKING_TEST_RUN"
         },
         {
           "$ref": "#/$defs/event.DOCKING_RETRY"
@@ -3003,6 +3010,202 @@
         "reason",
         "severity",
         "resume"
+      ],
+      "type": "object",
+      "x-emitter": "logic"
+    },
+    "event.DOCKING_TEST_RUN": {
+      "additionalProperties": false,
+      "description": "A run of a docking.test series (runs above 1) ended: ok on the contacts without a reason, else the reason and cause of the DOCKING_FAILED that ends the series, or STOPPED for a run ended on its way",
+      "properties": {
+        "accuracy": {
+          "description": "Expected error of the position",
+          "type": "number",
+          "x-unit": "m"
+        },
+        "cause": {
+          "description": "Why: the planner gave no way (with approach_failed, a reason in x-reasons), the dock camera did not guide the mower, or a docking test started where it cannot measure (with dock_failed, texts here)",
+          "enum": [
+            "PLANNER_TIMEOUT",
+            "PLANNER_MISSING",
+            "MARKER_UNAVAILABLE",
+            "MARKER_NOT_SEEN",
+            "MARKER_LOST",
+            "MARKER_MISMATCH",
+            "TEST_START"
+          ],
+          "type": "string",
+          "x-texts": {
+            "MARKER_LOST": {
+              "de": {
+                "fix": "Die Sicht zwischen Mäher und Station freimachen.",
+                "help": "Der Marker der Ladestation war auf dem Weg hinein zu lange nicht zu sehen. Der Mäher hat angehalten und den Versuch beendet.",
+                "name": "Marker verloren"
+              },
+              "en": {
+                "fix": "Clear the view between the mower and the station.",
+                "help": "The marker of the docking station was out of sight for too long on the way in. The mower stopped and ended the attempt.",
+                "name": "Marker lost"
+              }
+            },
+            "MARKER_MISMATCH": {
+              "de": {
+                "fix": "Die Station neu aufnehmen oder die Kalibrierung der Kamera prüfen.",
+                "help": "Der Marker steht nicht dort, wo die Ladestation in der Karte aufgenommen ist. Der Mäher dockt dann weder nach der Kamera noch nach der Position an.",
+                "name": "Marker passt nicht zur Karte"
+              },
+              "en": {
+                "fix": "Record the station again or check the calibration of the camera.",
+                "help": "The marker is not where the docking station was recorded in the map. The mower then docks neither by camera nor by its position.",
+                "name": "Marker does not match the map"
+              }
+            },
+            "MARKER_NOT_SEEN": {
+              "de": {
+                "fix": "Marker freimachen und säubern; bei Dunkelheit prüfen, ob die Station Strom hat und die Beleuchtung des Markers an ist; prüfen, ob die Station am aufgenommenen Platz steht.",
+                "help": "Die Kamera läuft, sieht den Marker der Ladestation aber nicht. Der Mäher dockt dann nicht nach der Position an.",
+                "name": "Marker nicht gefunden"
+              },
+              "en": {
+                "fix": "Clear and clean the marker; in the dark check that the station has power and the marker light is on; check that the station stands where it was recorded.",
+                "help": "The camera is running but does not see the marker of the docking station. The mower does not dock by its position then.",
+                "name": "Marker not found"
+              }
+            },
+            "MARKER_UNAVAILABLE": {
+              "de": {
+                "fix": "Kamera und ihre Einrichtung prüfen; das Detail nennt den Grund.",
+                "help": "Die Kamera zur Ladestation kann den Marker gerade nicht messen.",
+                "name": "Dock-Kamera misst nicht"
+              },
+              "en": {
+                "fix": "Check the camera and its setup; the detail names the cause.",
+                "help": "The camera towards the docking station cannot measure the marker right now.",
+                "name": "Dock camera not measuring"
+              }
+            },
+            "TEST_START": {
+              "de": {
+                "fix": "Mäher näher, gerade und mittig vor die Ladestation stellen und den Test neu starten.",
+                "help": "Der Mäher steht für den Andocktest nicht passend vor der Ladestation; die Meldung nennt den Grund. Das ist kein Fehler der Hardware.",
+                "name": "Andocktest abgelehnt"
+              },
+              "en": {
+                "fix": "Place the mower closer, straight and centered in front of the docking station and start the test again.",
+                "help": "The mower does not stand right in front of the docking station for the docking test; the message names the reason. This is no fault of the hardware.",
+                "name": "Docking test refused"
+              }
+            }
+          }
+        },
+        "client": {
+          "description": "Who sent the command (app, ha), for the log and the events of its step",
+          "pattern": "^[a-z][a-z0-9_-]{0,15}$",
+          "type": "string"
+        },
+        "current": {
+          "description": "The charge current seen; while docking the largest one of the check",
+          "type": "number",
+          "x-unit": "A"
+        },
+        "id": {
+          "description": "Random id of the event, 32 letters and digits",
+          "type": "string"
+        },
+        "job_id": {
+          "description": "The job of mowing it belongs to",
+          "type": "string"
+        },
+        "limit": {
+          "description": "The limit the value went past, in the unit of the value",
+          "type": "number"
+        },
+        "message": {
+          "description": "English text for the log and for apps that do not know the reason",
+          "type": "string"
+        },
+        "of": {
+          "description": "The runs of the series",
+          "type": "integer"
+        },
+        "ok": {
+          "description": "Docked",
+          "type": "boolean"
+        },
+        "reason": {
+          "description": "Why: a fixed name in capitals, rated in x-reasons",
+          "enum": [
+            "approach_failed",
+            "dock_failed",
+            "NO_CHARGE_CURRENT",
+            "NO_POSITION",
+            "NO_HEADING",
+            "POSITION_ACCURACY",
+            "STOPPED"
+          ],
+          "type": "string"
+        },
+        "resume": {
+          "description": "auto when it goes on by itself, user when it waits for the user",
+          "enum": [
+            "auto",
+            "user"
+          ],
+          "type": "string"
+        },
+        "run": {
+          "description": "The run, from 1",
+          "type": "integer"
+        },
+        "session_id": {
+          "description": "The session of the logic since its start",
+          "type": "string"
+        },
+        "severity": {
+          "description": "How bad it is",
+          "enum": [
+            "info",
+            "warning",
+            "error"
+          ],
+          "type": "string"
+        },
+        "source": {
+          "description": "schedule while a run of the schedule lasts, from its start until the mower is idle again; an event with a source of its own names that instead",
+          "enum": [
+            "schedule"
+          ],
+          "type": "string"
+        },
+        "t": {
+          "description": "When it happened",
+          "type": "number",
+          "x-unit": "unix s"
+        },
+        "type": {
+          "const": "DOCKING_TEST_RUN",
+          "description": "What happened; a type this version does not know carries only the envelope for sure"
+        },
+        "x": {
+          "description": "Where the mower was, east of the datum of the map",
+          "type": "number",
+          "x-unit": "m"
+        },
+        "y": {
+          "description": "Where the mower was, north of the datum of the map",
+          "type": "number",
+          "x-unit": "m"
+        }
+      },
+      "required": [
+        "id",
+        "t",
+        "type",
+        "x",
+        "y",
+        "run",
+        "of",
+        "ok"
       ],
       "type": "object",
       "x-emitter": "logic"
@@ -5728,6 +5931,7 @@
               "DOCKING_DIRECT",
               "DOCKING_WITHOUT_MARKER",
               "DOCKED",
+              "DOCKING_TEST_RUN",
               "DOCKING_RETRY",
               "DOCKING_FAILED",
               "CHARGING_LOST",
@@ -14109,11 +14313,11 @@
       "type": "object"
     }
   },
-  "$id": "urn:mowbite-os:api:36",
+  "$id": "urn:mowbite-os:api:38",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "robot_state, actions, events and RPC methods of MowBite OS over MQTT, as system.api gives them; made from the code, objects sorted by key. x-reasons has severity and resume of every reason by event (COMMAND_REFUSED and REQUEST_REFUSED only in refusals; when: another rating for these field values; texts: name, help and fix by language; an enum field may carry the same by value as x-texts), x-emergency-bits the bits of emergency, x-commands the commands with params, result, the event of their refusal and the actions that do the same, x-methods every RPC method of the OS with its node (planner.* are the planner's, sim.* only in the simulation), x-sensors the sensors by id, x-settings the settings of params.set with the ranges of the OS, x-geometry the keys of robot.geometry, x-schedule-log the words of schedule.log with what detail and more hold (null: always null). x-api counts every change, x-api-break only the breaks: a method, field, event, reason or topic gone or renamed, a type or meaning changed, a parameter newly required, fewer values taken in a request, an event a client waits for no longer sent. All else only adds; a client goes with every x-api of its x-api-break from the one it needs on.",
   "title": "MowBite OS app interface",
-  "x-api": 36,
+  "x-api": 38,
   "x-api-break": 1,
   "x-commands": {
     "docking.abort": {
@@ -14595,6 +14799,12 @@
       "type": "number",
       "unit": "m"
     },
+    "dock_footprint": {
+      "description": "Footprint of the docking station as points [x, y] in base_link of the docked mower (x to its front, y left), each at most 1.5 m away; [] for the planner's own",
+      "settable": false,
+      "type": "points",
+      "unit": "m"
+    },
     "imu_pitch": {
       "description": "Pitch of the IMU against the platform's value",
       "max": 0.087,
@@ -14677,6 +14887,15 @@
       "description": "Radius of the drive wheels",
       "max": 0.5,
       "min": 0.02,
+      "relative": false,
+      "settable": false,
+      "type": "number",
+      "unit": "m"
+    },
+    "wheel_width": {
+      "description": "Width of the tread of the drive wheels; the body has to cover the wheels from above",
+      "max": 0.3,
+      "min": 0.01,
       "relative": false,
       "settable": false,
       "type": "number",
@@ -15105,7 +15324,7 @@
       "result": "#/$defs/robot.geometry.get.result"
     },
     "robot.geometry.set": {
-      "description": "Changes dimensions in IDLE, all or nothing; GEOMETRY_CHANGED follows",
+      "description": "Changes dimensions in IDLE, all or nothing; GEOMETRY_CHANGED follows. A body that leaves out the drive wheels (track, wheel_width, wheel_radius) is refused with WHEELS_OUTSIDE",
       "node": "mowbite_logic",
       "offered": "",
       "params": "#/$defs/robot.geometry.set.params",
@@ -16222,6 +16441,56 @@
         "fields": {},
         "resume": "auto",
         "severity": "warning"
+      }
+    },
+    "DOCKING_TEST_RUN": {
+      "NO_CHARGE_CURRENT": {
+        "description": "Contact with the docking station, but no charge current",
+        "fields": {
+          "current": "A",
+          "limit": "A"
+        },
+        "resume": "user",
+        "severity": "error"
+      },
+      "NO_HEADING": {
+        "description": "The heading is not known yet",
+        "fields": {},
+        "resume": "user",
+        "severity": "error"
+      },
+      "NO_POSITION": {
+        "description": "No position from the localization",
+        "fields": {},
+        "resume": "user",
+        "severity": "error"
+      },
+      "POSITION_ACCURACY": {
+        "description": "The position is not accurate enough",
+        "fields": {
+          "accuracy": "m",
+          "limit": "m"
+        },
+        "resume": "user",
+        "severity": "error"
+      },
+      "STOPPED": {
+        "description": "Stopped by the app or by the logic",
+        "fields": {},
+        "resume": "user",
+        "severity": "info"
+      },
+      "approach_failed": {
+        "description": "The approach to the docking station failed (value of OpenMower)",
+        "fields": {},
+        "resume": "user",
+        "severity": "error"
+      },
+      "dock_failed": {
+        "description": "The last part onto the contacts failed (value of OpenMower)",
+        "fields": {},
+        "resume": "user",
+        "severity": "error"
       }
     },
     "DRIVE": {

@@ -155,6 +155,9 @@ export const UPDATE_GATED = ['os', 'planner'];
 
 // how far off the line straight out of the station the docking test may start (MowBite OS's dock camera)
 export const DOCK_TEST_REACH = {cm: 5, deg: 20};
+// how many dockings in a row a docking test takes (runs), from this api of MowBite OS on; before it only one
+export const DOCK_TEST_RUNS = 10;
+export const DOCK_TEST_RUNS_API = 37;
 
 // above this voltage on the charge contacts OpenMower's idle takes the mower for docked (IdleBehavior)
 export const DOCKED_VOLTAGE = 5;

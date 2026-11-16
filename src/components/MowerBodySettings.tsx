@@ -77,6 +77,14 @@ function geometryError(e: unknown): string {
       return tr("{what} comes with the mower's platform, it can't be changed here.", {what});
     case 'INVALID_VALUE':
       return tr('{what} is not a valid value.', {what});
+    case 'WHEELS_OUTSIDE': {
+      const [track, tread, radius] = [d.track, d.wheel_width, d.wheel_radius];
+      if (typeof track !== 'number' || typeof tread !== 'number' || typeof radius !== 'number') return tr('The body has to cover the drive wheels from above.');
+      return tr('The body has to cover the drive wheels from above: at least {width} cm wide and {reach} cm from the rear axle to the front and to the back.', {
+        width: cmText(track + tread),
+        reach: cmText(radius),
+      });
+    }
   }
   // UNKNOWN_KEY, INVALID_REQUEST: a mistake of the app, in the OS's words
   return tr('The mower did not take the sizes: {why}', {why: (e as RpcError).message});
@@ -203,6 +211,8 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
 
   const known = source ?? {};
   const loaded = !!source;
+  // the tread of the drive wheels, MowBite OS's own (not to be set)
+  const treadText = onOs ? cmText(geo?.settings.wheel_width?.value) : '';
   const keys = BODY_SETTINGS;
   // what the form would make of it: the sketch follows the fields while typing
   const metres = (key: BodySetting) => cmMetres(form[key]);
@@ -446,6 +456,7 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
           </label>
         ))}
       </div>
+      {treadText && <p className={styles.dim}>{tr("Drive wheels: tread {cm} cm wide, from the mower's platform. The body has to cover the wheels from above.", {cm: treadText})}</p>}
       {missing.length > 0 && settings && (
         <p className={styles.error}>
           {tr('The planner on the mower is older and does not know all sizes yet ({which}), it needs a new image.', {

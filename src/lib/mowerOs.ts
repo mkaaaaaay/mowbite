@@ -1,5 +1,5 @@
 import {useEffect, useState, useSyncExternalStore} from 'react';
-import {RPC} from './openmower';
+import {DOCK_TEST_RUNS_API, RPC} from './openmower';
 import {noteMqtt} from './mqttClient';
 import {keptOs, noteOs} from './mowers';
 import {askUntilAnswered, callRpc, isMissingMethod, methodsUnknown, RpcError, rpcMethods} from './rpc';
@@ -108,6 +108,13 @@ export function useStopRelease(): StopRelease | null {
 export function useOsApi(): number {
   const i = useSystemInfo();
   return isMowbiteOs(i) ? (i!.api ?? 0) : 0;
+}
+
+// whether a docking test takes several dockings in a row: MowBite OS from that api on, and a mower that lists the test
+// without a system.info
+export function useDockTestSeries(): boolean {
+  const api = useOsApi();
+  return api === 0 || api >= DOCK_TEST_RUNS_API;
 }
 
 // the lane spacing for all areas on MowBite OS, where mower_logic has no tool_width: the blade width less the overlap,

@@ -63,6 +63,8 @@ export const demoEmergency = (page: Page, reasons?: string[]) =>
 // a reset turned down the way MowBite OS does it (EMERGENCY_RESET_REFUSED with these fields), null lets it go again
 export const demoRefuseReset = (page: Page, why: Record<string, unknown> | null) =>
   page.evaluate((w) => (window as unknown as {mowbiteDemo: DemoMower}).mowbiteDemo.refuseReset(w), why);
+// seconds driven at once
+export const demoAhead = (page: Page, seconds: number) => page.evaluate((s) => (window as unknown as {mowbiteDemo: DemoMower}).mowbiteDemo.ahead(s), seconds);
 // the cameras' process of MowBite OS coming up or going while the app is open
 export const demoCameras = (page: Page, on: boolean) => page.evaluate((o) => (window as unknown as {mowbiteDemo: DemoMower}).mowbiteDemo.cameras(o), on);
 export const demoCall = (page: Page, method: string, params: unknown) =>
