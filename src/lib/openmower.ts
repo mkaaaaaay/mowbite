@@ -31,6 +31,9 @@ export const TOPIC = {
 // the caster's port when the access names none (ntrip.set)
 export const NTRIP_PORT = 2101;
 
+// the name MowBite OS answers system.info with
+export const MOWBITE_OS = 'mowbite-os';
+
 export const RPC = {
   // what this mower answers, newer OpenMower versions only
   methods: 'rpc.methods',

@@ -1,6 +1,6 @@
 import type {MapArea, MowerMap, Point} from '@/hooks/useMowerMap';
 import {linkStripes, mowPlan, ownCount} from '../mowPlan';
-import {ACTION, DOCK_TEST_RUNS, PARAM, RPC, TOPIC} from '../openmower';
+import {ACTION, DOCK_TEST_RUNS, MOWBITE_OS, PARAM, RPC, TOPIC} from '../openmower';
 import {EMERGENCY_BITS} from '../reasonTexts';
 import {closedRings, openRing, openRings} from '../rings';
 import {CALIB_NEED, calibCounts, calibResultOf} from './calib';
@@ -11,6 +11,7 @@ import {demoHost} from './host';
 import {demoGeometry} from './geometry';
 import {demoLights} from './light';
 import {demoNtrip} from './ntrip';
+import {demoPlanner} from './planner';
 import {demoSounds} from './sound';
 import {demoIncidents} from './incidents';
 import {demoUpdates} from './update';
@@ -1089,6 +1090,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
   const host = demoOn('Host')
     ? demoHost(deliver, () => ({idle: state() === 'IDLE', emergency: latchedBits !== 0}), Object.keys(updates?.methods ?? {}))
     : null;
+  const planner = demoOn('Planner') ? demoPlanner() : null;
   const methods: Record<string, (params: unknown) => unknown> = {
     [RPC.methods]: () => Object.keys(methods).sort(),
     [RPC.replaceMap]: (params) => {
@@ -1167,6 +1169,10 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
       deliver(TOPIC.params, JSON.stringify(ros));
       return wanted;
     },
+    // answers as MowBite OS for the click tests of its texts, with the newest api the app is built for
+    ...(demoOn('Os') && {
+      [RPC.systemInfo]: () => ({name: MOWBITE_OS, version: '0.0.0', platform: 'demo', api: JSON.parse(process.env.APP_OS_API ?? 'null')?.max}),
+    }),
     ...(demoOn('Lights') && demoLights()),
     ...(demoOn('Sounds') && demoSounds()),
     ...(demoOn('Geometry') && demoGeometry()),
@@ -1210,6 +1216,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
         return {deleted: gone.size};
       },
     }),
+    ...planner?.methods,
     ...cameras?.methods,
     ...(undoOn && {
       // points off the end of the open line until that much of it is gone. the mower stays where it is, auto points
@@ -1231,11 +1238,15 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
       },
     }),
   };
-  const answer = (paths: Path[], angle: number, id?: string) => ({
-    ...(id ? {area_id: id} : {}),
-    angle,
-    paths: paths.map((p) => ({is_outline: p.outline, points: p.points.map((q) => [q.x, q.y]), pose_index: poseIndex(p.points)})),
-  });
+  const answer = (paths: Path[], angle: number, id?: string) => {
+    const warnings = planner?.warnings();
+    return {
+      ...(id ? {area_id: id} : {}),
+      angle,
+      ...(warnings?.length && {warnings}),
+      paths: paths.map((p) => ({is_outline: p.outline, points: p.points.map((q) => [q.x, q.y]), pose_index: poseIndex(p.points)})),
+    };
+  };
 
   function rpc(message: string) {
     let req: {id?: string; method?: string; params?: unknown};

@@ -1020,8 +1020,8 @@ const de: Record<string, string> = {
   "Left out: only the outline passes and the passes round obstacles, no lanes inside the area.":
     "Weglassen: nur die Randrunden und die Runden um Hindernisse, keine Bahnen in der Fläche.",
   "Recorded outline pass": "Aufgenommene Randrunde",
-  "The outermost outline pass follows the very line you recorded the area on, the same way round as when recording. The mower keeps no distance on it and can get up to 20 cm beyond what it covered while recording, most at corners. Next to a drop, water, stairs, a bed or gravel leave it off, or record the area at least 20 cm away from it. Record the area forwards without a break, with Auto points on.":
-    "Die äußerste Randrunde fährt genau die Linie nach, auf der du die Fläche aufgenommen hast, in derselben Richtung. Der Mäher hält dabei keinen Abstand und kann bis zu 20 cm über das hinauskommen, was er beim Aufnehmen überfahren hat, am meisten an Ecken. Neben einem Absatz, Wasser, einer Treppe, einem Beet oder Kies lass sie aus oder nimm die Fläche mit mindestens 20 cm Abstand dazu auf. Nimm die Fläche durchgehend vorwärts und mit Auto-Punkten auf.",
+  "The outermost outline pass follows the very line you recorded the area on, the same way round as when recording. The other outline passes and the ones round obstacles stay as set.":
+    "Die äußerste Randrunde fährt genau die Linie nach, auf der du die Fläche aufgenommen hast, in derselben Richtung wie bei der Aufnahme. Die übrigen Randrunden und die Runden um Hindernisse bleiben wie eingestellt.",
   "Distance of the recorded outline pass": "Abstand der aufgenommenen Randrunde",
   "How far inside the recorded line the mower drives this pass. 0: right on the line, the blade then mows half its width beyond it.":
     "Wie weit innerhalb der aufgenommenen Linie der Mäher diese Runde fährt. 0: genau auf der Linie, das Messer mäht dann eine halbe Messerbreite darüber hinaus.",
@@ -1977,8 +1977,9 @@ const de: Record<string, string> = {
   "Paths and the way to the dock": "Wege und Dock-Zufahrt",
   "The mower only drives on mowing and navigation areas. If two lawns don't touch, record the path between them the same way and tap Save as navigation area. The spot in front of the dock where it lines up (Settings, Docking: Approach in a straight line from) has to lie in one of them too: from there it drives straight in.": "Der Mäher fährt nur auf Mäh- und Navigationsflächen. Liegen zwei Rasenflächen nicht aneinander, nimm den Weg dazwischen genauso auf und tippe „Als Navigationsfläche speichern“. Auch der Punkt vor dem Dock, an dem er sich ausrichtet (Einstellungen, Andocken: „Gerade anfahren ab“), muss in einer dieser Flächen liegen: Von dort fährt er gerade hinein.",
   "Tips": "Tipps",
-  "Only record with an RTK fix, otherwise the edge ends up off. Drive slowly along edges. For straight edges switch Auto points off and tap Set point here only at the corners, otherwise the mower sets a point every 10 cm. When you are done, tap Leave recording mode, held sideways the ✕. Leaving the page asks first and ends it as well.": "Nimm nur mit RTK-Fix auf, sonst liegt der Rand daneben. Fahr an Kanten langsam. Bei geraden Kanten schalte die Auto-Punkte aus und tippe nur an den Ecken „Punkt hier setzen“, sonst setzt der Mäher alle 10 cm einen Punkt. Zum Schluss tippst du „Aufnahmemodus verlassen“. Quer ist es das ✕. Verlässt du die Seite, fragt die App vorher und beendet ihn ebenfalls.",
-  "Only record with an RTK fix, otherwise the edge ends up off. Drive slowly along edges. For straight edges switch Auto points off and tap Set point here only at the corners, otherwise the mower sets a point every 10 cm. Gone wrong? The back button takes the end of the line away piece by piece. The mower stays where it is and Auto points go off: drive back to the end of the line and switch them on again. When you are done, tap Leave recording mode, held sideways the ✕. Leaving the page asks first and ends it as well.": "Nimm nur mit RTK-Fix auf, sonst liegt der Rand daneben. Fahr an Kanten langsam. Bei geraden Kanten schalte die Auto-Punkte aus und tippe nur an den Ecken „Punkt hier setzen“, sonst setzt der Mäher alle 10 cm einen Punkt. Verfahren? Der Zurück-Knopf nimmt das Ende der Linie Stück für Stück weg. Der Mäher bleibt stehen, die Auto-Punkte gehen aus: Fahr zurück ans Ende der Linie und schalte sie wieder ein. Zum Schluss tippst du „Aufnahmemodus verlassen“. Quer ist es das ✕. Verlässt du die Seite, fragt die App vorher und beendet ihn ebenfalls.",
+  "Only record with an RTK fix, otherwise the edge ends up off. Drive slowly along edges. Auto points off and Set point here only at the corners gives straight lines. For the recorded outline pass leave Auto points on. When you are done, tap Leave recording mode, held sideways the ✕. Leaving the page asks first and ends it as well.": "Nimm nur mit RTK-Fix auf, sonst liegt der Rand daneben. Fahr an Kanten langsam. Auto-Punkte aus und „Punkt hier setzen“ nur an den Ecken gibt gerade Linien. Für die „Aufgenommene Randrunde“ lass die Auto-Punkte an. Zum Schluss tippst du „Aufnahmemodus verlassen“. Quer ist es das ✕. Verlässt du die Seite, fragt die App vorher und beendet ihn ebenfalls.",
+  "Only record with an RTK fix, otherwise the edge ends up off. Drive slowly along edges. Auto points off and Set point here only at the corners gives straight lines, but no exact edge. When you are done, tap Leave recording mode, held sideways the ✕. Leaving the page asks first and ends it as well.": "Nimm nur mit RTK-Fix auf, sonst liegt der Rand daneben. Fahr an Kanten langsam. Auto-Punkte aus und „Punkt hier setzen“ nur an den Ecken gibt gerade Linien, aber keinen genauen Rand. Zum Schluss tippst du „Aufnahmemodus verlassen“. Quer ist es das ✕. Verlässt du die Seite, fragt die App vorher und beendet ihn ebenfalls.",
+  "Only record with an RTK fix, otherwise the edge ends up off. Drive slowly along edges. Auto points off and Set point here only at the corners gives straight lines, but no exact edge. Gone wrong? The back button takes the end of the line away piece by piece. The mower stays where it is and Auto points go off: drive back to the end of the line and switch them on again. When you are done, tap Leave recording mode, held sideways the ✕. Leaving the page asks first and ends it as well.": "Nimm nur mit RTK-Fix auf, sonst liegt der Rand daneben. Fahr an Kanten langsam. Auto-Punkte aus und „Punkt hier setzen“ nur an den Ecken gibt gerade Linien, aber keinen genauen Rand. Verfahren? Der Zurück-Knopf nimmt das Ende der Linie Stück für Stück weg. Der Mäher bleibt stehen, die Auto-Punkte gehen aus: Fahr zurück ans Ende der Linie und schalte sie wieder ein. Zum Schluss tippst du „Aufnahmemodus verlassen“. Quer ist es das ✕. Verlässt du die Seite, fragt die App vorher und beendet ihn ebenfalls.",
   "Map style": "Kartenstil",
   "Plain": "Schlicht",
   "Garden": "Garten",
@@ -3322,6 +3323,34 @@ const de: Record<string, string> = {
   "The body has to cover the drive wheels from above.": "Der Körper muss die Antriebsräder von oben abdecken.",
   "The body has to cover the drive wheels from above: at least {width} cm wide and {reach} cm from the rear axle to the front and to the back.": "Der Körper muss die Antriebsräder von oben abdecken: mindestens {width} cm breit und je {reach} cm von der Hinterachse nach vorn und nach hinten.",
   "Drive wheels: tread {cm} cm wide, from the mower's platform. The body has to cover the wheels from above.": "Antriebsräder: Lauffläche {cm} cm breit, von der Plattform des Mähers vorgegeben. Der Körper muss die Räder von oben abdecken.",
+  "The mower drives right up to the recorded line": "Der Mäher fährt bis an die aufgenommene Linie",
+  "On this pass the mower keeps no distance: it follows the line it was recorded on.":
+    "Auf dieser Runde hält der Mäher keinen Abstand: Er fährt die aufgenommene Linie nach.",
+  "It can get beyond what its body covered while recording, most at corners: by our calculation up to {cm} cm if you recorded the area forwards without a break and with Auto points on.":
+    "Er kann dabei über das hinauskommen, was er beim Aufnehmen mit dem Körper überfahren hat, am meisten an Ecken: nach unserer Rechnung bis zu {cm} cm, wenn du die Fläche durchgehend vorwärts und mit Auto-Punkten aufgenommen hast.",
+  "If there's a drop, water, stairs, a bed or gravel next to the line: record the area forwards without a break and at least {cm} cm away from it, or leave this option off.":
+    "Liegt neben der Linie ein Absatz, Wasser, eine Treppe, ein Beet oder Kies: Nimm die Fläche durchgehend vorwärts und mit mindestens {cm} cm Abstand dazu auf oder lass die Option aus.",
+  "At walls and fences a bumper can trigger. The mower then stops.": "An Mauern und Zäunen kann ein Bumper auslösen. Der Mäher bleibt dann stehen.",
+  "Switch on": "Einschalten",
+  "Recorded outline pass not possible: {reason}": "Aufgenommene Randrunde nicht möglich: {reason}",
+  "The mower sizes are missing. Enter them under \"Mower sizes\".": "Die Mäher-Maße fehlen. Trag sie unter „Mäher-Maße“ ein.",
+  "\"Lines of the map\" is set to \"The wall itself\". It only works with \"Driven along the edge\".":
+    "„Linien der Karte“ steht auf „Die Mauer selbst“. Sie geht nur mit „An der Kante abgefahren“.",
+  "The blade doesn't sit in the middle of the mower.": "Das Messer sitzt nicht in der Mitte des Mähers.",
+  "Not with the pattern \"Rings\".": "Nicht mit dem Muster „Ringe“.",
+  "No outline passes are set.": "Es sind keine Randrunden eingestellt.",
+  "The mower is larger than the one the area was recorded with. Record the area again with this mower.":
+    "Der Mäher ist größer als der, mit dem die Fläche aufgenommen wurde. Nimm sie mit diesem Mäher neu auf.",
+  "The area is too small for it.": "Die Fläche ist dafür zu klein.",
+  "This area has no exact edge. Record it again for that: the whole round forwards without a break, with Auto points on.":
+    "Diese Fläche hat keinen genauen Rand. Nimm sie dafür neu auf: die ganze Runde durchgehend vorwärts, mit Auto-Punkten an.",
+  "With it the mower couldn't get to every part of the plan. This area is planned without it.":
+    "Mit ihr käme der Mäher nicht an alle Teile des Plans. Die Fläche wird ohne sie geplant.",
+  "Drive forwards all the way while recording.": "Fahr beim Aufnehmen durchgehend vorwärts.",
+  "Took a wrong turn? Back up a bit, the mower takes the last points back. The exact edge is lost by that.":
+    "Verfahren? Fahr ein Stück rückwärts, der Mäher nimmt die letzten Punkte wieder zurück. Der genaue Rand geht dabei verloren.",
+  "The exact edge only comes from driving the whole round forwards without a break, with Auto points on. The recorded outline pass needs it.":
+    "Der genaue Rand entsteht nur, wenn du die ganze Runde durchgehend vorwärts fährst, mit Auto-Punkten an. Die „Aufgenommene Randrunde“ braucht ihn.",
 };
 
 export default de;

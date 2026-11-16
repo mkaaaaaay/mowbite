@@ -1,5 +1,5 @@
 import {useEffect, useState, useSyncExternalStore} from 'react';
-import {DOCK_TEST_RUNS_API, RPC} from './openmower';
+import {DOCK_TEST_RUNS_API, MOWBITE_OS, RPC} from './openmower';
 import {noteMqtt} from './mqttClient';
 import {keptOs, noteOs} from './mowers';
 import {askUntilAnswered, callRpc, isMissingMethod, methodsUnknown, RpcError, rpcMethods} from './rpc';
@@ -26,7 +26,6 @@ export type StopRelease = {free_s: number; hold_s: number; max_hold_s: number};
 // the cutting heights the platform sets for mow_height_mm, default_mm is the one for 0
 export type BladeHeight = {min_mm: number; max_mm: number; default_mm: number};
 
-const MOWBITE_OS = 'mowbite-os';
 let info: Promise<SystemInfo | null | undefined> | null = null;
 // the answer once it came, a page opened later has it right away
 let known: SystemInfo | null | undefined;
