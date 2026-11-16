@@ -1,6 +1,6 @@
 import type {MapArea, MowerMap, Point} from '@/hooks/useMowerMap';
 import {linkStripes, mowPlan, ownCount} from '../mowPlan';
-import {ACTION, PARAM, RPC, TOPIC} from '../openmower';
+import {ACTION, MOWBITE_OS, PARAM, RPC, TOPIC} from '../openmower';
 import {EMERGENCY_BITS} from '../reasonTexts';
 import {closedRings, openRing, openRings} from '../rings';
 import {CALIB_NEED, calibCounts, calibResultOf} from './calib';
@@ -9,6 +9,7 @@ import {demoCameras} from './camera';
 import {demoOn} from './flags';
 import {demoGeometry} from './geometry';
 import {demoLights} from './light';
+import {demoPlanner} from './planner';
 import {demoSounds} from './sound';
 import {demoIncidents} from './incidents';
 import {demoUpdates} from './update';
@@ -1052,6 +1053,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
   const utcDay = (t: number) => new Date(t * 1000).toISOString().slice(0, 10).replace(/-/g, '');
   let cameras = demoOn('Cameras') ? demoCameras(deliver) : null;
   const updates = demoOn('Updates') ? demoUpdates(deliver) : null;
+  const planner = demoOn('Planner') ? demoPlanner() : null;
   const methods: Record<string, (params: unknown) => unknown> = {
     [RPC.methods]: () => Object.keys(methods).sort(),
     [RPC.replaceMap]: (params) => {
@@ -1130,11 +1132,16 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
       deliver(TOPIC.params, JSON.stringify(ros));
       return wanted;
     },
+    // answers as MowBite OS for the click tests of its texts, with the newest api the app is built for
+    ...(demoOn('Os') && {
+      [RPC.systemInfo]: () => ({name: MOWBITE_OS, version: '0.0.0', platform: 'demo', api: JSON.parse(process.env.APP_OS_API ?? 'null')?.max}),
+    }),
     ...(demoOn('Lights') && demoLights()),
     ...(demoOn('Sounds') && demoSounds()),
     ...(demoOn('Geometry') && demoGeometry()),
     ...incidents?.methods,
     ...updates?.methods,
+    ...planner?.methods,
     ...cameras?.methods,
     ...(undoOn && {
       // points off the end of the open line until that much of it is gone. the mower stays where it is, auto points
@@ -1159,6 +1166,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
   const answer = (paths: Path[], angle: number, id?: string) => ({
     ...(id ? {area_id: id} : {}),
     angle,
+    ...(planner?.warnings().length && {warnings: planner.warnings()}),
     paths: paths.map((p) => ({is_outline: p.outline, points: p.points.map((q) => [q.x, q.y]), pose_index: poseIndex(p.points)})),
   });
 

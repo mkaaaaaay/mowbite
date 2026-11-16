@@ -4,6 +4,7 @@ import type {PlanRequest} from '@/lib/areaPlan';
 import {fmt, tr} from '@/lib/i18n';
 import {checkBody, spotPlaces, usePlannerSettings, type BodyCheck as Result, type BodySpot} from '@/lib/mowerBody';
 import type {PlanChecks as Checks} from '@/lib/mowPlan';
+import {recordedLoopIgnored, recordedLoopReason} from '@/lib/recordedLoop';
 import {answerError} from '@/lib/rpcText';
 import {useEffect, useMemo, useState} from 'react';
 import styles from './page.module.css';
@@ -86,7 +87,20 @@ function warningText(w: string): string {
 // With a planner that checks the body in every plan (collision mode): what it found in the plan shown, no button.
 // The places are on the map (MapView fitPlaces, turnPlaces)
 export function PlanChecks({checks, on}: {checks: Checks | undefined; on: boolean}) {
-  if (!on) return <span className={styles.dim}>{tr('Collision check off: the plan stays as it comes.')}</span>;
+  // the area planned without the recorded outline pass, told with the collision check off too
+  const noLoop = (checks?.warnings ?? []).flatMap((w) => recordedLoopIgnored(w) ?? []);
+  const loopNotes = noLoop.map((why) => (
+    <span key={why} className={styles.warningText}>
+      {tr('Recorded outline pass not possible: {reason}', {reason: tr(recordedLoopReason(why) ?? why)})}
+    </span>
+  ));
+  if (!on)
+    return (
+      <div className={styles.bodyCheck}>
+        <span className={styles.dim}>{tr('Collision check off: the plan stays as it comes.')}</span>
+        {loopNotes}
+      </div>
+    );
   const fixed = checks?.fixed ?? 0;
   const left = checks?.left ?? 0;
   const skipped = checks?.skipped ?? 0;
@@ -122,11 +136,15 @@ export function PlanChecks({checks, on}: {checks: Checks | undefined; on: boolea
         </div>
       )}
       {(checks?.turns.length ?? 0) > 0 && <span className={styles.dim}>{tr('{n} turns still in the field of lanes', {n: checks!.turns.length})}</span>}
-      {checks?.warnings.map((w, i) => (
-        <span key={i} className={styles.dim}>
-          {warningText(w)}
-        </span>
-      ))}
+      {loopNotes}
+      {checks?.warnings.map(
+        (w, i) =>
+          recordedLoopIgnored(w) === undefined && (
+            <span key={i} className={styles.dim}>
+              {warningText(w)}
+            </span>
+          ),
+      )}
     </div>
   );
 }

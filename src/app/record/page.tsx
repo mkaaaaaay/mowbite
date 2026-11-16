@@ -429,6 +429,8 @@ function Record() {
   let say: React.ReactNode = null;
   let text: React.ReactNode = null;
   let buttons: React.ReactNode[] = [];
+  // while a line is recorded: how to drive it, on MowBite OS also what the exact edge takes
+  let hints: string[] = [];
   if (phase === 'empty') {
     const lost = save?.at === 'late' ? tr("{what} didn't arrive in the map. Look at the map, or record it again.", {what: tr(save.what)}) : null;
     say = saved ? (
@@ -472,6 +474,15 @@ function Record() {
       : hasOutline
         ? tr('Drive around the obstacle, close to it all the way: the line is the middle of the mower. Then stop, it closes by itself.')
         : tr('Drive along the edge, close to it all the way: the line is the middle of the mower. Back at the start, stop: the outline closes by itself.');
+    hints = [
+      tr('Drive forwards all the way while recording.'),
+      ...(os
+        ? [
+            tr('Took a wrong turn? Back up a bit, the mower takes the last points back. The exact edge is lost by that.'),
+            tr('The exact edge only comes from driving the whole round forwards without a break, with Auto points on. The recorded outline pass needs it.'),
+          ]
+        : []),
+    ];
     buttons = [
       button('stop_recording', 'Stop', 'primary', undefined, om && hasOutline && line.length < 2 ? () => setEarly(true) : undefined),
       undo && button('undo_points', tr('Back {m} m', {m: UNDO_METERS})),
@@ -672,6 +683,11 @@ function Record() {
               </p>
             )}
             <p className={ds.dim}>{text}</p>
+            {hints.map((h) => (
+              <p key={h} className={ds.dim}>
+                {h}
+              </p>
+            ))}
             {closing !== null && (
               <div className={styles.closing}>
                 <span>{tr('Back at the start, closing it in {n} s.', {n: closing})}</span>

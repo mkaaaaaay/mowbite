@@ -37,9 +37,11 @@ const STEPS: (GuideStep & {osText?: string; undoText?: string})[] = [
   },
   {
     title: 'Tips',
-    text: 'Only record with an RTK fix, otherwise the edge ends up off. Drive slowly along edges. For straight edges switch Auto points off and tap Set point here only at the corners, otherwise the mower sets a point every 10 cm. When you are done, tap Leave recording mode, held sideways the ✕. Leaving the page asks first and ends it as well.',
+    text: 'Only record with an RTK fix, otherwise the edge ends up off. Drive slowly along edges. Auto points off and Set point here only at the corners gives straight lines. For the recorded outline pass leave Auto points on. When you are done, tap Leave recording mode, held sideways the ✕. Leaving the page asks first and ends it as well.',
+    osText:
+      'Only record with an RTK fix, otherwise the edge ends up off. Drive slowly along edges. Auto points off and Set point here only at the corners gives straight lines, but no exact edge. When you are done, tap Leave recording mode, held sideways the ✕. Leaving the page asks first and ends it as well.',
     undoText:
-      'Only record with an RTK fix, otherwise the edge ends up off. Drive slowly along edges. For straight edges switch Auto points off and tap Set point here only at the corners, otherwise the mower sets a point every 10 cm. Gone wrong? The back button takes the end of the line away piece by piece. The mower stays where it is and Auto points go off: drive back to the end of the line and switch them on again. When you are done, tap Leave recording mode, held sideways the ✕. Leaving the page asks first and ends it as well.',
+      'Only record with an RTK fix, otherwise the edge ends up off. Drive slowly along edges. Auto points off and Set point here only at the corners gives straight lines, but no exact edge. Gone wrong? The back button takes the end of the line away piece by piece. The mower stays where it is and Auto points go off: drive back to the end of the line and switch them on again. When you are done, tap Leave recording mode, held sideways the ✕. Leaving the page asks first and ends it as well.',
   },
   {
     title: 'What a map is made of',

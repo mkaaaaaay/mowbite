@@ -28,6 +28,9 @@ export const TOPIC = {
   scheduleReady: 'mowbite/schedule/ready',
 } as const;
 
+// the name MowBite OS answers system.info with
+export const MOWBITE_OS = 'mowbite-os';
+
 export const RPC = {
   // what this mower answers, newer OpenMower versions only
   methods: 'rpc.methods',

@@ -189,7 +189,7 @@ export const FIELDS: Record<string, Field> = {
   },
   recorded_loop: {
     label: 'Recorded outline pass',
-    help: 'The outermost outline pass follows the very line you recorded the area on, the same way round as when recording. The mower keeps no distance on it and can get up to 20 cm beyond what it covered while recording, most at corners. Next to a drop, water, stairs, a bed or gravel leave it off, or record the area at least 20 cm away from it. Record the area forwards without a break, with Auto points on.',
+    help: 'The outermost outline pass follows the very line you recorded the area on, the same way round as when recording. The other outline passes and the ones round obstacles stay as set.',
     group: 'edge',
     advanced: true,
   },
@@ -389,6 +389,8 @@ const NOT_ON_OS = ['skip_lanes'];
 export const HIDDEN = ['drive'];
 // a setting left out of every menu and list: one of HIDDEN, or one the planner says it goes without (ignored)
 export const hidden = (key: string, s: {ignored?: unknown} | undefined) => HIDDEN.includes(key) || !!s?.ignored;
+// stay in the list for experts though the planner goes without them, with why (PlannerSettings)
+const TOLD = ['recorded_loop'];
 // in the planner menu at the map (PlannerSimple), the lists for experts leave them out
 export const SIMPLE = [
   'planner',
@@ -443,9 +445,10 @@ export const BODY_KEYS = [
 ];
 
 // for the list for experts: keys, the ones the planner menu doesn't have (a direction for all areas: each area has its
-// own), NOT_ON_OS only once it's known to be OpenMower; fixed, the ones mower_logic sends with every plan
+// own), NOT_ON_OS only once it's known to be OpenMower, a TOLD one also while ignored; fixed, the ones mower_logic sends
+// with every plan
 export function expertKeys(all: Record<string, {settable: boolean; ignored?: unknown}>, om: boolean): {keys: string[]; fixed: string[]} {
-  const shown = (k: string) => !hidden(k, all[k]) && !BODY_KEYS.includes(k);
+  const shown = (k: string) => !hidden(k, TOLD.includes(k) ? undefined : all[k]) && !BODY_KEYS.includes(k);
   const keys = Object.keys(all).filter(
     (k) =>
       shown(k) &&

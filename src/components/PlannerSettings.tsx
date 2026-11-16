@@ -4,8 +4,10 @@ import {tr} from '@/lib/i18n';
 import {loadPlannerSettings, savePlannerSettings, usePlannerSettings, type PlannerSetting} from '@/lib/mowerBody';
 import {DROPPED_CHOICES, expertKeys, FIELDS, fromInput, GROUPS, helpOf, toInput, type Field, type Group} from '@/lib/plannerFields';
 import {useOpenMower} from '@/lib/mowerOs';
+import {RECORDED_LOOP_CM, RECORDED_LOOP_WARNING, recordedLoopReason} from '@/lib/recordedLoop';
 import {answerError} from '@/lib/rpcText';
 import {useEffect, useState} from 'react';
+import {createPortal} from 'react-dom';
 import InfoTip from './InfoTip';
 import local from './PlannerSettings.module.css';
 
@@ -15,6 +17,9 @@ import local from './PlannerSettings.module.css';
 
 type Styles = Record<string, string>;
 type Value = string | string[];
+
+// the recorded outline pass: asked before it's switched on, with a note under its switch
+const LOOP = 'recorded_loop';
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -52,6 +57,7 @@ function PlannerField({
   onPick,
   styles,
   warning,
+  off,
 }: {
   name: string;
   setting: PlannerSetting;
@@ -62,6 +68,8 @@ function PlannerField({
   styles: Styles;
   // what's off about the value set, shown under it
   warning?: string | null;
+  // a switch that can't be switched on
+  off?: boolean;
 }) {
   const field: Field | undefined = FIELDS[name];
   const om = useOpenMower();
@@ -122,7 +130,12 @@ function PlannerField({
   if (setting.type === 'boolean') {
     return (
       <label className={styles.check}>
-        <input type="checkbox" checked={value === 'true'} onChange={(e) => onChange(e.target.checked ? 'true' : 'false')} />
+        <input
+          type="checkbox"
+          checked={value === 'true'}
+          disabled={off && value !== 'true'}
+          onChange={(e) => onChange(e.target.checked ? 'true' : 'false')}
+        />
         {label}
       </label>
     );
@@ -173,6 +186,8 @@ export function PlannerSettings({styles}: {styles: Styles}) {
   // numbers as typed, saved once the field is left
   const [form, setForm] = useState<Record<string, Value>>({});
   const [state, setState] = useState<{busy?: boolean; error?: string; saved?: number; confirm?: boolean}>({});
+  // the recorded outline pass asks before it's switched on
+  const [asking, setAsking] = useState(false);
 
   useEffect(() => {
     loadPlannerSettings(true).catch(() => {});
@@ -220,7 +235,14 @@ export function PlannerSettings({styles}: {styles: Styles}) {
   };
 
   // choices and lists take the whole row
-  const wide = (k: string) => all[k].type === 'list' || (all[k].type === 'string' && !!all[k].choices?.length);
+  const wide = (k: string) => k === LOOP || all[k].type === 'list' || (all[k].type === 'string' && !!all[k].choices?.length);
+  const warning = [RECORDED_LOOP_WARNING.title, ...RECORDED_LOOP_WARNING.lines].map((l) => tr(l, {cm: RECORDED_LOOP_CM}));
+  // under its switch: why the planner goes without it, else what it means while it's on
+  const loopNote = () => {
+    const why = all[LOOP].ignored;
+    if (why) return <span className={styles.error}>{tr('Recorded outline pass not possible: {reason}', {reason: tr(recordedLoopReason(why) ?? why)})}</span>;
+    return all[LOOP].value === true ? <span className={styles.dim}>{warning.join(' ')}</span> : null;
+  };
   const field = (k: string) => (
     <div
       key={k}
@@ -233,13 +255,16 @@ export function PlannerSettings({styles}: {styles: Styles}) {
         setting={all[k]}
         value={shown[k] ?? ''}
         styles={styles}
+        off={k === LOOP && !!all[k].ignored}
         onChange={(v) => {
+          if (k === LOOP && v === 'true') return setAsking(true);
           if (!typed(k)) return commit(k, v);
           setForm({...form, [k]: v});
           setState({});
         }}
         onPick={(v) => commit(k, v)}
       />
+      {k === LOOP && loopNote()}
     </div>
   );
 
@@ -288,6 +313,32 @@ export function PlannerSettings({styles}: {styles: Styles}) {
         </button>
         {state.error && <span className={styles.error}>{state.error}</span>}
       </div>
+      {asking &&
+        createPortal(
+          <div className={local.backdrop} onClick={() => setAsking(false)}>
+            <section className={local.sheet} role="alertdialog" aria-modal="true" aria-label={warning[0]} onClick={(e) => e.stopPropagation()}>
+              <h2>{warning[0]}</h2>
+              {warning.slice(1).map((l) => (
+                <p key={l}>{l}</p>
+              ))}
+              <div className={local.actions}>
+                <button
+                  className={styles.pillButton}
+                  onClick={() => {
+                    setAsking(false);
+                    commit(LOOP, 'true');
+                  }}
+                >
+                  {tr('Switch on')}
+                </button>
+                <button className={styles.pillButton} onClick={() => setAsking(false)}>
+                  {tr('Cancel')}
+                </button>
+              </div>
+            </section>
+          </div>,
+          document.body,
+        )}
     </section>
   );
 }
