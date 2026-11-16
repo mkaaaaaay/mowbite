@@ -4,7 +4,7 @@ import {infoTips, pageText, PAGES} from './texts';
 
 // the demo mower as MowBite OS (system.info, window.mowbiteDemoOs) with the parts of it the demo has: nothing of
 // OpenMower shows anywhere, not on the pages with everything folded opened and not in what the info buttons say
-const OS_PARTS = ['Os', 'Geometry', 'Updates', 'Lights', 'Sounds', 'Cameras', 'Undo', 'Incidents', 'Planner'] as const;
+const OS_PARTS = ['Os', 'Geometry', 'Updates', 'Lights', 'Sounds', 'Cameras', 'Undo', 'Incidents', 'Planner', 'Ntrip', 'Host', 'Erase', 'DockTest'] as const;
 // the design named after it is offered on any mower
 const DESIGN = /(?<=Sunny\n)OpenMower/g;
 const found = (text: string) => [...new Set(text.replace(DESIGN, '').match(new RegExp(OM_WORDS, 'g')))];
