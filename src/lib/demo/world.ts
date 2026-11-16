@@ -66,7 +66,7 @@ export interface WorldOptions {
   timer?: boolean;
   // in the middle of a mow with the days before in its history (the demo), or in the station with nothing behind it
   start?: 'mowing' | 'docked';
-  // every event also on events/json as it happens, like OpenMower (the demo only sends a refused reset there)
+  // every event also on events/json as it happens, like OpenMower (the demo only sends those in ALWAYS_LIVE there)
   liveEvents?: boolean;
   // m/s along the plan, and how often its timer moves it on and sends the position (ms)
   speed?: number;
@@ -75,6 +75,8 @@ export interface WorldOptions {
   params?: Record<string, number | boolean>;
 }
 type EventPart = {type: string} & Record<string, unknown>;
+// sent on events/json as they happen without liveEvents too
+const ALWAYS_LIVE = new Set(['EMERGENCY_RESET_REFUSED', 'DOCKING_TEST_RUN']);
 
 export interface Leg {
   pts: Point[];
@@ -483,9 +485,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
   // undocking waits at its end this long for a fix (ms), the dockings that failed in a row
   let gpsWait = 0;
   let dockTries = 0;
-  // MowBite OS's docking test for the click tests (window.mowbiteDemoDockTest), with its stop for docking that leaves
-  // the mower idle where it is: the run it's at and how many it has. mowbiteDemoDockTestFails: so many of its dockings
-  // don't take
+  // MowBite OS's docking test (mowbiteDemoDockTest): the run it's at and how many it has
   const dockTestOn = demoOn('DockTest');
   let dockTest: {run: number; of: number} | null = null;
   // the ros warnings logs.recent hands out: why the emergency stop came
@@ -538,12 +538,11 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     return p;
   };
 
-  // kept for the history, and sent on events/json as it happens where that's asked for (a docking test's runs always)
-  // set right below, its own INCIDENT events come through logged too
+  // kept for the history, and sent on events/json as it happens where that's asked for; set right below, its own INCIDENT events come through logged too
   let incidents: ReturnType<typeof demoIncidents> | null = null;
   const logged = (e: DemoEvent) => {
     log.push(e);
-    if (opts.liveEvents || e.type === 'DOCKING_TEST_RUN') deliver(TOPIC.events, JSON.stringify(e));
+    if (opts.liveEvents || ALWAYS_LIVE.has(e.type)) deliver(TOPIC.events, JSON.stringify(e));
     incidents?.trigger(e);
   };
   if (demoOn('Incidents')) incidents = demoIncidents(() => last / 1000, logged);
@@ -636,17 +635,21 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     return legs.reduce((s, l) => s + l.len, 0);
   }
 
+  // a run of a docking test with several ended, docked or not
+  const testRun = (ok: boolean, reason?: string): EventPart[] =>
+    dockTest && dockTest.of > 1
+      ? [{type: 'DOCKING_TEST_RUN', run: dockTest.run, of: dockTest.of, ok, ...(reason && {reason}), severity: ok || reason === 'STOPPED' ? 'info' : 'error'}]
+      : [];
+  // a docking test's way in or out of the station
+  const testDetour = (t: number, legs: Leg[]) => {
+    detour = {id: `demo-test-${Math.round(t)}`, session: 'demo-test', run: {legs, at: 0, d: 0}, then: 'idle'};
+  };
+
   function docked(t: number) {
     const d = dock();
     const series = dockTest && dockTest.of > 1 ? dockTest : null;
     const more = !!series && series.run < series.of && !!d;
-    note(
-      t,
-      d?.at ?? pose,
-      {type: 'DOCKED'},
-      ...(series ? [{type: 'DOCKING_TEST_RUN', run: series.run, of: series.of, ok: true, severity: 'info'}] : []),
-      ...(more ? [] : [{type: 'STATE', state: 'IDLE'}]),
-    );
+    note(t, d?.at ?? pose, {type: 'DOCKED'}, ...testRun(true), ...(more ? [] : [{type: 'STATE', state: 'IDLE'}]));
     parked = !more;
     away = false;
     paused = false;
@@ -658,7 +661,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     // the next run of a docking test: out of the station and in again
     dockTest = {run: series!.run + 1, of: series!.of};
     const legs = [leg([d!.at, d!.out], 'DOCKING', false, -1, -1, {reverse: true}), leg([d!.out, d!.at], 'DOCKING', false, -1, -1)];
-    detour = {id: `demo-test-${Math.round(t)}`, session: 'demo-test', run: {legs, at: 0, d: 0}, then: 'idle'};
+    testDetour(t, legs);
   }
 
   // idle where it is: undocking or docking gave up
@@ -673,8 +676,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
   }
 
   // a run of a docking test with several ended without docking, the test with it
-  const runEnded = (reason: string): EventPart[] =>
-    dockTest && dockTest.of > 1 ? [{type: 'DOCKING_TEST_RUN', run: dockTest.run, of: dockTest.of, ok: false, reason, severity: reason === 'STOPPED' ? 'info' : 'error'}] : [];
+  const runEnded = (reason: string) => testRun(false, reason);
 
   // a docking that doesn't take, while dockFails says so: DockingBehavior tries again docking_retry_count times, from in
   // front of the station after an approach that failed, backing out first after one on the station, then gives up
@@ -984,7 +986,6 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     } else if (id === ACTION.resetEmergency) {
       if (latchedBits && refusal) {
         note(t, pose, {type: 'EMERGENCY_RESET_REFUSED', ...refusal});
-        if (!opts.liveEvents) deliver(TOPIC.events, JSON.stringify(log[log.length - 1]));
       } else {
         // mower_logic says so when it lets go of a stop it latched itself
         if (latchedBits & OWN_BITS) note(t, pose, {type: 'EMERGENCY', emergency: false, reason: 0});
@@ -1176,9 +1177,10 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
         const t = last / 1000;
         note(t, pose, {type: 'DOCKING', reason: 'TEST', severity: 'info'}, {type: 'STATE', state: 'DOCKING'});
         dockTest = {run: 1, of: runs};
+        // mowbiteDemoDockTestFails: so many of its dockings don't take
         const fails = demoFlags().mowbiteDemoDockTestFails;
         if (typeof fails === 'number') around = {...around, dockFails: {count: fails, at: 'dock'}};
-        detour = {id: `demo-test-${Math.round(t)}`, session: 'demo-test', run: {legs: [leg([{x: pose.x, y: pose.y}, d.at], 'DOCKING', false, -1, -1)], at: 0, d: 0}, then: 'idle'};
+        testDetour(t, [leg([{x: pose.x, y: pose.y}, d.at], 'DOCKING', false, -1, -1)]);
         parked = false;
         changed();
         return {state: 'DOCKING', sub_state: ''};

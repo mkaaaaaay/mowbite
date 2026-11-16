@@ -9,9 +9,7 @@ import {useDockTestSeries} from '@/lib/mowerOs';
 import {DOCK_TEST_REACH, DOCK_TEST_RUNS, RPC, TOPIC} from '@/lib/openmower';
 import {useEffect, useState} from 'react';
 
-// docking by the dock camera alone, as a test: only where the mower lists it, idle beside the station, after a warning.
-// several dockings in a row where the mower takes runs, the warning then is for all of them. how the last run ended
-// stays under it while the mower docks or is idle
+// docking by the dock camera alone as a test, one or several runs; how the last run ended stays below it
 export function DockingTest({styles, live, idle, state}: {styles: Record<string, string>; live: boolean; idle: boolean; state: string}) {
   const offered = !!useRpcMethods()?.has(RPC.dockingTest);
   const series = useDockTestSeries();
@@ -21,7 +19,9 @@ export function DockingTest({styles, live, idle, state}: {styles: Record<string,
   useEffect(() => {
     if (!offered) return;
     return onTopic(TOPIC.events, (payload) => {
-      const e = parseEvent(payload.toString());
+      const text = payload.toString();
+      if (!text.includes('DOCKING_TEST_RUN')) return;
+      const e = parseEvent(text);
       if (e?.type === 'DOCKING_TEST_RUN') setEnded(e);
     });
   }, [offered]);

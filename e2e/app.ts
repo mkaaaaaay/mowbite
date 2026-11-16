@@ -44,6 +44,9 @@ export const demoHas = async <T>(page: Page, topic: string): Promise<T> => {
   await page.waitForFunction(() => 'mowbiteDemo' in window);
   return page.evaluate((t) => JSON.parse((window as unknown as {mowbiteDemo: DemoMower}).mowbiteDemo.retained(t)[0][1]), topic);
 };
+
+// the demo mower's state now
+export const demoState = async (page: Page) => (await demoHas<{current_state: string}>(page, 'robot_state/json')).current_state;
 // it's out mowing when the demo opens: sent home, and the way there driven at once
 export async function demoDocked(page: Page) {
   await page.waitForFunction(() => 'mowbiteDemo' in window);
@@ -52,7 +55,7 @@ export async function demoDocked(page: Page) {
     demo.published('action', 'mower_logic:mowing/abort_mowing');
     demo.ahead(1800);
   });
-  await expect.poll(async () => (await demoHas<{current_state: string}>(page, 'robot_state/json')).current_state).toBe('IDLE');
+  await expect.poll(() => demoState(page)).toBe('IDLE');
 }
 // an action as another phone would send it
 export const demoAction = (page: Page, action: string) =>
@@ -191,7 +194,7 @@ export const demoDrive = (page: Page, moves: [number, number, number][]) =>
 // measured there, saved (said: how it compares to the one before), driven in again and recording mode ended
 export async function recordStation(page: Page, said: string) {
   await expect(page.getByText('it measures where it charges')).toBeVisible();
-  expect((await demoHas<{current_state: string}>(page, 'robot_state/json')).current_state).toBe('AREA_RECORDING');
+  expect(await demoState(page)).toBe('AREA_RECORDING');
   await expect(page.getByText('Back it out straight', {exact: true})).toBeVisible({timeout: 15_000});
   await demoDrive(page, [
     [-0.25, 0, 6],
@@ -209,6 +212,6 @@ export async function recordStation(page: Page, said: string) {
   ]);
   await expect(page.getByText('On the station. Now end recording mode.')).toBeVisible();
   await page.getByRole('button', {name: 'End recording mode'}).click();
-  await expect.poll(async () => (await demoHas<{current_state: string}>(page, 'robot_state/json')).current_state).toBe('IDLE');
+  await expect.poll(() => demoState(page)).toBe('IDLE');
   await expect(page.getByText(said)).toBeVisible();
 }

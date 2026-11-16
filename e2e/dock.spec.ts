@@ -1,7 +1,5 @@
-import {demoAction, demoAhead, demoFlagNow, demoHas, demoWith, expect, openMap, tab, test} from './app';
+import {demoAction, demoAhead, demoFlagNow, demoState, demoWith, expect, openMap, tab, test} from './app';
 import type {Page} from '@playwright/test';
-
-const stateNow = async (page: Page) => (await demoHas<{current_state: string}>(page, 'robot_state/json')).current_state;
 
 // the demo mower with MowBite OS's docking test, idle off its station: sent home and stopped on the way
 async function inFront(page: Page) {
@@ -10,7 +8,7 @@ async function inFront(page: Page) {
   await page.waitForFunction(() => 'mowbiteDemo' in window);
   await demoAction(page, 'mower_logic:mowing/abort_mowing');
   await page.getByRole('button', {name: 'Stop docking'}).click();
-  await expect.poll(() => stateNow(page)).toBe('IDLE');
+  await expect.poll(() => demoState(page)).toBe('IDLE');
   await expect(page.getByRole('button', {name: 'Test docking by camera'})).toBeVisible();
 }
 
@@ -31,12 +29,12 @@ test('a docking test with several dockings in a row says how each run ended', as
   await expect(page.getByText('Stay at the STOP button until the last one is done.')).toBeVisible();
   await page.screenshot({path: test.info().outputPath('dock-test-ask.png')});
   await page.getByRole('button', {name: 'Start the test'}).click();
-  await expect.poll(() => stateNow(page)).toBe('DOCKING');
+  await expect.poll(() => demoState(page)).toBe('DOCKING');
   await until(page, 'Run 1 of 3: docked');
   // it goes on by itself
-  expect(await stateNow(page)).toBe('DOCKING');
+  expect(await demoState(page)).toBe('DOCKING');
   await until(page, 'Run 3 of 3: docked');
-  await expect.poll(() => stateNow(page)).toBe('IDLE');
+  await expect.poll(() => demoState(page)).toBe('IDLE');
   await page.screenshot({path: test.info().outputPath('dock-test-done.png')});
   await tab(page, '/activity').click();
   for (const run of [1, 2, 3]) await expect(page.getByText(`Run ${run} of 3: docked`)).toBeVisible();
@@ -50,7 +48,7 @@ test('the first docking that fails ends the docking test, with the reason', asyn
   await page.getByLabel('Dockings in a row').selectOption('4');
   await page.getByRole('button', {name: 'Start the test'}).click();
   await until(page, 'Run 1 of 4: no contact with the charger');
-  await expect.poll(() => stateNow(page)).toBe('IDLE');
+  await expect.poll(() => demoState(page)).toBe('IDLE');
   // in front of the station again: the test is offered once more under what the last one said
   await expect(page.getByRole('button', {name: 'Test docking by camera'})).toBeVisible();
   await tab(page, '/activity').click();

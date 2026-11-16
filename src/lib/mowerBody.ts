@@ -254,10 +254,16 @@ export function dockFootprint(g: {settings: Record<string, {value: unknown}>} | 
 
 // a contour around the mower as points of the map, for the mower at x, y facing heading (rad, ccw)
 export function outlineAt(o: Outline, x: number, y: number, heading: number): {x: number; y: number}[] {
+  const at = placedAt(x, y, heading);
+  return o.map(([ahead, left]) => at(ahead, left));
+}
+
+// a point ahead and left of the mower at x, y facing heading (rad, ccw) as a point of the map
+const placedAt = (x: number, y: number, heading: number) => {
   const c = Math.cos(heading);
   const s = Math.sin(heading);
-  return o.map(([ahead, left]) => ({x: x + c * ahead - s * left, y: y + s * ahead + c * left}));
-}
+  return (ahead: number, left: number) => ({x: x + c * ahead - s * left, y: y + s * ahead + c * left});
+};
 
 // changes sizes on MowBite OS (idle only, all or nothing), the ones in reset back to the platform's. Its planner takes
 // them a moment later, until then the planner's shown with them
@@ -443,9 +449,7 @@ export async function checkBody(req: PlanRequest): Promise<BodyCheck | null> {
 
 // the corners of the body and the blade's centre in the map, for the mower at x, y facing heading (rad, ccw)
 export function bodyShape(b: MowerBody, x: number, y: number, heading: number) {
-  const c = Math.cos(heading);
-  const s = Math.sin(heading);
-  const at = (ahead: number, left: number) => ({x: x + c * ahead - s * left, y: y + s * ahead + c * left});
+  const at = placedAt(x, y, heading);
   return {
     // the contour's points, or the rectangle's corners
     corners: b.outline
