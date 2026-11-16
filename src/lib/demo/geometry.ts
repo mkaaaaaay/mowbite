@@ -16,7 +16,11 @@ const PLATFORM: Record<string, Key> = {
   blade_offset: {value: 0, min: -0.75, max: 0.75},
   antenna_x: {value: 0, min: -0.6, max: 0.6},
   antenna_y: {value: 0, min: -0.3, max: 0.3},
+  track: {value: 0.395, min: 0.15, max: 0.8},
   wheel_radius: {value: 0.1125, min: 0.02, max: 0.5, settable: false},
+  wheel_width: {value: 0.055, min: 0.01, max: 0.3, settable: false},
+  // made up, the Tron's file has none yet: a station the mower drives onto forwards, under its front
+  dock_footprint: {value: [[0.95, 0.28], [0.3, 0.28], [0.3, -0.28], [0.95, -0.28]], settable: false},
 };
 
 // a refusal with the OS's code and data (the demo passes them on)
@@ -60,6 +64,11 @@ export function demoGeometry(): Record<string, (params: unknown) => unknown> {
         else if (value < p.min! || value > p.max!) throw refuse('OUT_OF_RANGE', `${k} is outside ${p.min} to ${p.max}`, {key: k, min: p.min, max: p.max});
         next[k] = value as number | number[][];
       }
+      // the box has to cover the drive wheels from above (an outline isn't checked here)
+      const now = (k: string) => (k in next ? next[k] : PLATFORM[k].value) as number;
+      const wheels = {wheel_radius: now('wheel_radius'), wheel_width: now('wheel_width'), track: now('track')};
+      const left = now('robot_width') < wheels.track + wheels.wheel_width ? 'robot_width' : ['robot_rear', 'robot_front'].find((k) => now(k) < wheels.wheel_radius);
+      if (left) throw refuse('WHEELS_OUTSIDE', 'The body leaves out the drive wheels', {key: left, ...wheels});
       if (JSON.stringify(next) !== JSON.stringify(entries)) version++;
       entries = next;
       return get();

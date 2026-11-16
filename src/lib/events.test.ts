@@ -321,6 +321,26 @@ describe('heading home and charging on MowBite OS', () => {
     expect(os('DRIVE_REFUSED', {reason: 'NO_CHARGE_CONTACTS'})).toBe('Drive not started: no charge contacts are set for this mower, it cannot dock');
   });
 
+  it('says how each run of a docking test with several ended, and that the first failure ends it', () => {
+    const run = (f: Partial<MowerEvent>) => ev(0, 'DOCKING_TEST_RUN', {run: 2, of: 5, ...f});
+    const said = (f: Partial<MowerEvent>) => describeEvent(run(f), undefined, true);
+    const hint = (f: Partial<MowerEvent>) => explain(run(f), undefined, undefined, true);
+    expect(said({ok: true, severity: 'info'})).toEqual({text: 'Run 2 of 5: docked', severity: 'info'});
+    expect(hint({ok: true})).toBeUndefined();
+    expect(said({ok: false, reason: 'dock_failed', cause: 'MARKER_LOST', severity: 'error'})).toEqual({text: 'Run 2 of 5: marker lost', severity: 'error'});
+    expect(said({ok: false, reason: 'NO_CHARGE_CURRENT', severity: 'error'}).text).toBe('Run 2 of 5: on the contacts but not charging');
+    expect(said({ok: false, reason: 'approach_failed', cause: 'PLANNER_TIMEOUT', severity: 'error'}).text).toBe('Run 2 of 5: approach failed');
+    expect(said({ok: false, reason: 'STOPPED', severity: 'info'})).toEqual({text: 'Run 2 of 5: stopped', severity: 'info'});
+    expect(hint({ok: false, reason: 'dock_failed'})).toBe('The test ended here, the runs after it were not driven.');
+    expect(hint({ok: false, reason: 'dock_failed', run: 5})).toBe('The test ended here.');
+    // without the rating of MowBite OS: a run that docked or was stopped is no problem
+    expect(describeEvent(run({ok: true})).severity).toBe('info');
+    expect(describeEvent(run({ok: false, reason: 'STOPPED'})).severity).toBe('info');
+    expect(describeEvent(run({ok: false, reason: 'dock_failed'})).severity).toBe('error');
+    // listed on the day though it's no problem
+    expect(noteworthy(run({ok: true, severity: 'info'}), undefined, true)).toBe(true);
+  });
+
   it('charges only once DOCKED is newer than what leaves it unconfirmed', () => {
     expect(chargeConfirmed([])).toBeNull();
     expect(chargeConfirmed([ev(10, 'DOCKED'), ev(5, 'BOOTED')])).toBe(true);

@@ -343,6 +343,32 @@
     }
    ]
   },
+  "DOCKING_TEST_RUN": {
+   "severity": "error",
+   "variants": [
+    {
+     "when": {
+      "ok": true
+     },
+     "en": "Run {run} of {of}: docked",
+     "severity": "info",
+     "with_reason": false,
+     "de": "Durchgang {run} von {of}: angedockt"
+    },
+    {
+     "when": {
+      "reason": "STOPPED"
+     },
+     "en": "Run {run} of {of}",
+     "severity": "info",
+     "de": "Durchgang {run} von {of}"
+    },
+    {
+     "en": "Run {run} of {of}",
+     "de": "Durchgang {run} von {of}"
+    }
+   ]
+  },
   "DOCKED": {
    "severity": "info",
    "variants": [

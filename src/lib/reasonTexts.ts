@@ -150,6 +150,15 @@ export const EVENTS: Record<string, EventText> = {
     join: '{head} ({reason})',
     variants: [{when: {attempts: {present: true}}, en: 'Docking failed after {attempts} tries'}, {en: 'Docking failed'}],
   },
+  // MowBite OS from api 37: a run of a docking test with several ended, a failed one with the reason of its DOCKING_FAILED
+  DOCKING_TEST_RUN: {
+    severity: 'error',
+    variants: [
+      alone({when: {ok: true}, en: 'Run {run} of {of}: docked', severity: 'info'}),
+      {when: {reason: 'STOPPED'}, en: 'Run {run} of {of}', severity: 'info'},
+      {en: 'Run {run} of {of}'},
+    ],
+  },
   // guide: what led it onto the contacts (MowBite OS from api 30), at a try that failed GUIDED
   DOCKED: {
     severity: 'info',

@@ -3,7 +3,8 @@
 import {useCameras} from '@/hooks/useCameras';
 import {useRpcMethods} from '@/hooks/useRpcMethods';
 import {SHORT} from '@/lib/camera';
-import {DOCK_TEST_REACH, RPC} from '@/lib/openmower';
+import {useDockTestSeries} from '@/lib/mowerOs';
+import {DOCK_TEST_REACH, DOCK_TEST_RUNS, RPC} from '@/lib/openmower';
 import {fmt, tr} from '@/lib/i18n';
 import {anim, appear, DockTestArt, PAINT, Scene, SCREEN_LOOP} from '../art';
 import Guide, {type GuideStep} from '../Guide';
@@ -181,10 +182,11 @@ const CAMERA_STEP: GuideStep = {
 
 const DOCK_TEST_STEP: GuideStep = {
   title: 'Docking test',
-  text: "A mower with MowBite OS and a dock camera can test docking by the camera alone. Put it in front of the station: at most {cm} cm beside the line straight out of it and less than {deg}° skewed. Then tap Test docking by camera on the dashboard and confirm. It drives off by itself, slowly and with the blade off, without map or GPS: stay at the STOP button. Stop docking on the dashboard or STOP at the mower ends it. If it doesn't get onto the contacts, the activity says why.",
-  vars: DOCK_TEST_REACH,
+  text: "A mower with MowBite OS and a dock camera can test docking by the camera alone. Put it in front of the station: at most {cm} cm beside the line straight out of it and less than {deg}° skewed. Then tap Test docking by camera on the dashboard and confirm.{series} It drives off by itself, slowly and with the blade off, without map or GPS: stay at the STOP button. Stop docking on the dashboard or STOP at the mower ends it. If it doesn't get onto the contacts, the activity says why.",
   Art: DockTestArt,
 };
+// where the mower takes several dockings in a row
+const DOCK_TEST_SERIES = 'Before you confirm you can pick up to {n} dockings in a row: after each it drives out of the station by itself and docks again, the first that fails ends the test.';
 
 const STEPS: GuideStep[] = [
   {
@@ -207,6 +209,8 @@ const STEPS: GuideStep[] = [
 export default function AppGuidePage() {
   const cameras = useCameras().on;
   const dockTest = !!useRpcMethods()?.has(RPC.dockingTest);
-  const steps = [...STEPS.slice(0, 1), ...(cameras ? [CAMERA_STEP] : []), ...(dockTest ? [DOCK_TEST_STEP] : []), ...STEPS.slice(1)];
+  const series = useDockTestSeries() ? ` ${tr(DOCK_TEST_SERIES, {n: DOCK_TEST_RUNS})}` : '';
+  const testStep = {...DOCK_TEST_STEP, vars: {...DOCK_TEST_REACH, series}};
+  const steps = [...STEPS.slice(0, 1), ...(cameras ? [CAMERA_STEP] : []), ...(dockTest ? [testStep] : []), ...STEPS.slice(1)];
   return <Guide steps={steps} done={{label: 'To the dashboard', href: '/'}} />;
 }

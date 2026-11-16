@@ -3234,7 +3234,7 @@ const de: Record<string, string> = {
   "Start the test": "Test starten",
   "docking test by camera": "Andock-Test nach Kamera",
   "Docking test": "Andock-Test",
-  "A mower with MowBite OS and a dock camera can test docking by the camera alone. Put it in front of the station: at most {cm} cm beside the line straight out of it and less than {deg}° skewed. Then tap Test docking by camera on the dashboard and confirm. It drives off by itself, slowly and with the blade off, without map or GPS: stay at the STOP button. Stop docking on the dashboard or STOP at the mower ends it. If it doesn't get onto the contacts, the activity says why.": "Ein Mäher mit MowBite OS und Dock-Kamera kann das Andocken allein nach der Kamera testen. Stell ihn vor die Station: höchstens {cm} cm neben der Linie gerade aus ihr heraus und weniger als {deg}° schräg. Dann auf der Übersicht auf Andocken nach Kamera testen tippen und bestätigen. Er fährt selbst los, langsam und mit Messer aus, ohne Karte und GPS: am STOP-Knopf bleiben. Andocken abbrechen auf der Übersicht oder STOP am Mäher beendet es. Kommt er nicht auf die Kontakte, sagt die Aktivität, warum.",
+  "A mower with MowBite OS and a dock camera can test docking by the camera alone. Put it in front of the station: at most {cm} cm beside the line straight out of it and less than {deg}° skewed. Then tap Test docking by camera on the dashboard and confirm.{series} It drives off by itself, slowly and with the blade off, without map or GPS: stay at the STOP button. Stop docking on the dashboard or STOP at the mower ends it. If it doesn't get onto the contacts, the activity says why.": "Ein Mäher mit MowBite OS und Dock-Kamera kann das Andocken allein nach der Kamera testen. Stell ihn vor die Station: höchstens {cm} cm neben der Linie gerade aus ihr heraus und weniger als {deg}° schräg. Dann auf der Übersicht auf Andocken nach Kamera testen tippen und bestätigen.{series} Er fährt selbst los, langsam und mit Messer aus, ohne Karte und GPS: am STOP-Knopf bleiben. Andocken abbrechen auf der Übersicht oder STOP am Mäher beendet es. Kommt er nicht auf die Kontakte, sagt die Aktivität, warum.",
   "Blackbox": "Blackbox",
   "MowBite OS keeps what its processes did around an emergency stop, a failed docking or a crash, to look into it later or pass it on.": "MowBite OS hält fest, was seine Prozesse rund um einen Notaus, ein gescheitertes Andocken oder einen Absturz getan haben, zum späteren Nachsehen oder Weitergeben.",
   "The journal is off, no incidents are kept.": "Das Journal ist aus, es werden keine Vorfälle festgehalten.",
@@ -3312,6 +3312,16 @@ const de: Record<string, string> = {
   "1 file deleted": "1 Datei gelöscht",
   "{n} files deleted": "{n} Dateien gelöscht",
   "Where the mower drove and what happened when is kept on the mower only. Deleted here it is gone for good, the track of a job still running stays.": "Wo der Mäher gefahren ist und was wann passiert ist, liegt nur auf dem Mäher. Hier gelöscht ist es endgültig weg, die Spur eines laufenden Auftrags bleibt.",
+  "Run {run} of {of}: docked": "Durchgang {run} von {of}: angedockt",
+  "Run {run} of {of}": "Durchgang {run} von {of}",
+  "The test ended here, the runs after it were not driven.": "Der Test endete hier, die weiteren Durchgänge wurden nicht gefahren.",
+  "The test ended here.": "Der Test endete hier.",
+  "The mower drives off by itself and docks {n} times in a row by the dock camera alone, without map or GPS. After each docking it drives out of the station by itself and docks again. Stay at the STOP button until the last one is done.": "Der Mäher fährt selbst los und dockt {n}-mal hintereinander allein nach der Dock-Kamera an, ohne Karte und GPS. Nach jedem Andocken fährt er selbst aus der Station und dockt wieder an. Am STOP-Knopf bleiben, bis der letzte Durchgang fertig ist.",
+  "Dockings in a row": "Durchgänge hintereinander",
+  "Before you confirm you can pick up to {n} dockings in a row: after each it drives out of the station by itself and docks again, the first that fails ends the test.": "Vor dem Bestätigen lassen sich bis zu {n} Durchgänge hintereinander wählen: Nach jedem fährt er selbst aus der Station und dockt wieder an, der erste Fehlschlag beendet den Test.",
+  "The body has to cover the drive wheels from above.": "Der Körper muss die Antriebsräder von oben abdecken.",
+  "The body has to cover the drive wheels from above: at least {width} cm wide and {reach} cm from the rear axle to the front and to the back.": "Der Körper muss die Antriebsräder von oben abdecken: mindestens {width} cm breit und je {reach} cm von der Hinterachse nach vorn und nach hinten.",
+  "Drive wheels: tread {cm} cm wide, from the mower's platform. The body has to cover the wheels from above.": "Antriebsräder: Lauffläche {cm} cm breit, von der Plattform des Mähers vorgegeben. Der Körper muss die Räder von oben abdecken.",
 };
 
 export default de;

@@ -5,7 +5,7 @@ import {describe, expect, it} from 'vitest';
 import de from './i18n/de';
 import {onOs, PARAM_FIELDS, paramField} from './mowerParams';
 import {defaultNotify, NOTIFY_EVENTS, toOs} from './notify';
-import {COMMAND, RPC} from './openmower';
+import {COMMAND, DOCK_TEST_RUNS, RPC} from './openmower';
 import {DOCK_CAUSES, DOCK_DETAILS, DOCK_TEST_CAUSES, EMERGENCY_BITS, GUIDED, EMERGENCY_HIDE, EMERGENCY_TEXT, EVENTS, NOT_DRIVEN, REASONS, pick} from './reasonTexts';
 import {READY_TEXT, scheduleLogText} from './schedule';
 import {ORIGIN_TEXT} from './osUpdate';
@@ -18,8 +18,8 @@ import {PARTS} from './stats';
 const PINNED = {
   repo: 'mkaaaaaay/mowbite-os',
   path: 'src/mowbite_api/api.schema.json',
-  commit: '08ddeb2c7d6f303bea9dcf0d76fbfd48b91666b8',
-  sha256: 'ff0341bfcbe891ae12c5db43757465b44bf551ab7a0ff7ca2d9a4a823e6646cf',
+  commit: '0de225f3d7db5773f34450acb35b5ab5ccbe21cf',
+  sha256: '8ff1697ef3839bfe8bd1d4d5ce7036c7fcd8b2a11959687e3ca82fbc53a5a1c7',
 };
 const raw = readFileSync(join(__dirname, 'os-api.schema.json'));
 // a reason's rating, when: another one for these values of the event's fields
@@ -229,6 +229,11 @@ describe(`MowBite OS's interface (${PINNED.repo} ${PINNED.commit.slice(0, 7)}, a
     const defs = api.$defs as Record<string, {properties: Record<string, {maximum?: number; description: string}>}>;
     expect(defs['incidents.download.params'].properties.size.maximum).toBe(PIECE_BYTES);
     expect(defs['incidents.mark.params'].properties.note.description).toContain(`at most ${MAX_NOTE} characters`);
+  });
+
+  it('offers as many dockings in a row for the docking test as the OS takes', () => {
+    const {runs} = (api.$defs['docking.test.params'] as {properties: {runs: {description: string}}}).properties;
+    expect(runs.description.startsWith(`1 to ${DOCK_TEST_RUNS} `)).toBe(true);
   });
 
   it("has no words for events, reasons or bits the OS doesn't know", () => {

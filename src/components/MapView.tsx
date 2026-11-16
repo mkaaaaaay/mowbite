@@ -6,7 +6,7 @@ import {liveGlide} from '@/hooks/useMowerPosition';
 import {containsPoint, polygonArea} from '@/lib/geometry';
 import {nearestOnOutline, snapPoint} from '@/lib/snapAreas';
 import {looksOf, saveSettings, settingsStore, withLooks, type KeptLooks} from '@/lib/settings';
-import {bodyShape, isPin, pinAt, realEdges, realInsides, roundBends, useMowerBody, usePlannerSettings, type MowerBody} from '@/lib/mowerBody';
+import {bodyShape, isPin, outlineAt, pinAt, realEdges, realInsides, roundBends, useMowerBody, usePlannerSettings, type MowerBody} from '@/lib/mowerBody';
 import type {FitPose, PlanPiece} from '@/lib/mowPlan';
 import {dockIcon} from './mapIcons';
 import {availableSources, imageryShift, imageryTiles, type Datum} from '@/lib/imagery';
@@ -25,6 +25,7 @@ import {CoverInfo} from './CoverInfo';
 import {fillOf, GardenDefs, gardenThings, pinTapped} from './gardenLook';
 import {biggest, coversOf, edgePaths, GardenThing, lifeOf, lifeScene} from './gardenLife';
 import {PICTURES} from './gardenPictures';
+import {useDockFootprint} from '@/hooks/useDockFootprint';
 import {useMowHistory} from '@/hooks/useMowHistory';
 import {angleOffsetOf, useMowerParams} from '@/hooks/useMowerParams';
 import {useLastRun} from '@/hooks/useMowerTrack';
@@ -443,6 +444,7 @@ function MapView({
   const ownBody = useMowerBody();
   const body = bodyOverride ?? ownBody;
   const plannerSettings = usePlannerSettings();
+  const dockFootprint = useDockFootprint();
 
   // fitted to the map only, so the geometry doesn't change while the mower moves. follow mode
   // moves the view instead. not to the points being set: the view would jump and zoom with every one
@@ -1833,6 +1835,16 @@ function MapView({
           </g>
         )}
 
+        {/* the station from above where the mower knows it, around the mower docked at its point */}
+        {dockFootprint &&
+          map.docking_stations.map((station) => (
+            <polygon
+              key={station.id}
+              className={styles.dockFootprint}
+              data-dock-footprint={station.id}
+              points={outlineAt(dockFootprint, station.position.x, station.position.y, station.heading).map((p) => toScreen(p.x, p.y).join(',')).join(' ')}
+            />
+          ))}
         {map.docking_stations.map((station) => {
           const [sx, sy] = toScreen(station.position.x, station.position.y);
           const icon = dockIcon(settings.icons?.dock);

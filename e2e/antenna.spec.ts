@@ -40,3 +40,17 @@ test('on MowBite OS the sizes and the antenna go to robot.geometry', async ({pag
   await page.getByRole('button', {name: 'Save', exact: true}).click();
   await expect(page.getByText('Saved. It counts from the next plan')).toBeVisible();
 });
+
+// the drive wheels' tread is the platform's, a body that leaves the wheels out is turned down with what they need
+test('on MowBite OS the body has to cover the drive wheels', async ({page}) => {
+  await demoWith(page, 'Geometry');
+  await page.goto('/settings/');
+  await page.locator('#mower > summary').click();
+  const tread = page.getByText('Drive wheels: tread 5.5 cm wide');
+  await tread.scrollIntoViewIfNeeded();
+  await expect(tread).toBeVisible();
+  await page.getByLabel('Width (cm)', {exact: true}).fill('44');
+  await page.getByRole('button', {name: 'Save', exact: true}).click();
+  await expect(page.getByText('The body has to cover the drive wheels from above: at least 45 cm wide and 11.3 cm from the rear axle')).toBeVisible();
+  await page.screenshot({path: test.info().outputPath('wheels.png'), fullPage: true});
+});
