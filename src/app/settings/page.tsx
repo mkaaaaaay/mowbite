@@ -27,6 +27,7 @@ import {CALIB_SHOWN, canCalibrate} from '@/lib/calibration';
 import {NotifySettings} from '@/components/NotifySettings';
 import {LightSettings} from '@/components/LightSettings';
 import {SoundSettings} from '@/components/SoundSettings';
+import {NtripSettings} from '@/components/NtripSettings';
 import {useRpcMethods} from '@/hooks/useRpcMethods';
 import {RPC} from '@/lib/openmower';
 import {useMowbiteOs} from '@/lib/mowerOs';
@@ -321,6 +322,7 @@ export default function SettingsPage() {
   const methods = useRpcMethods();
   const lights = !!methods?.has(RPC.lightGet);
   const sounds = !!methods?.has(RPC.soundList);
+  const ntrip = !!methods?.has(RPC.ntripGet);
   // MowBite OS keeps the sizes itself, with its planner or without
   const geometry = !!methods?.has(RPC.geometry);
   // the calibration isn't there on MowBite OS, nor is the way to its guide
@@ -374,7 +376,7 @@ export default function SettingsPage() {
         {/* both there, the one not shown hidden: a link finds its part in either, nothing loads again on a switch */}
         <div className={styles.tabPanel} role="tabpanel" id="panel-mower" aria-labelledby="tab-mower" hidden={tab !== 'mower'}>
             {!demo && <p className={styles.dim}>{tr('Saved on the mower, it counts for everyone who uses it.')}</p>}
-            {(sizes || lights || sounds) && (
+            {(sizes || lights || sounds || ntrip) && (
               <section className={styles.section}>
                 <h2 className={styles.sectionTitle}>{tr('The mower itself')}</h2>
                 {sizes && (
@@ -400,6 +402,11 @@ export default function SettingsPage() {
                 {sounds && (
                   <Group id="sounds" title={tr('Sounds')} hint={tr('Volume, listen to each sound')}>
                     <SoundSettings styles={styles} />
+                  </Group>
+                )}
+                {ntrip && (
+                  <Group id="ntrip" title={tr('Corrections (NTRIP)')} hint={tr('Access to the service for RTK')}>
+                    <NtripSettings styles={styles} />
                   </Group>
                 )}
               </section>

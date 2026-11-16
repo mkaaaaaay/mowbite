@@ -51,6 +51,10 @@ export const RPC = {
   soundVolume: 'sound.volume',
   soundUpload: 'sound.upload',
   soundDelete: 'sound.delete',
+  // the access to the caster for corrections, MowBite OS only; set and delete where it takes them over rpc (lib/ntrip)
+  ntripGet: 'ntrip.get',
+  ntripSet: 'ntrip.set',
+  ntripDelete: 'ntrip.delete',
   // the mower's cameras and a stream of one for a single viewer, MowBite OS with cameras only (lib/camera)
   cameraList: 'camera.list',
   cameraStream: 'camera.stream',
