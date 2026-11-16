@@ -1,0 +1,17 @@
+/* MowBite OS off or to be started again: the boxes and buttons are the ones of the updater's card (AutoUpdate.module.css) */
+.box {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.box button {
+  width: auto;
+  padding: 0 16px;
+}
+
+/* on the dashboard, its text as large as the banners there */
+.banner {
+  font-size: 14px;
+}

@@ -41,6 +41,12 @@ export function forgetJobList() {
   listCache = null;
 }
 
+// the tracks were deleted on the mower
+export function forgetTracks() {
+  listCache = null;
+  trackCache.clear();
+}
+
 export function loadJobTrack(jobId: string): Promise<TrackSegment[]> {
   let p = trackCache.get(jobId);
   if (!p) {

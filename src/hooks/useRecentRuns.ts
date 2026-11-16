@@ -1,5 +1,5 @@
 import {groupRuns, type MowerEvent, type Run} from '@/lib/events';
-import {daysBefore, eventsOfDay, fileDay, forgetToday, historyDays} from '@/lib/history';
+import {daysBefore, eventsOfDay, fileDay, forgetToday, historyDays, onEventsDeleted} from '@/lib/history';
 import {isMowbiteOs, systemInfo} from '@/lib/mowerOs';
 import {useEffect, useRef, useState} from 'react';
 
@@ -18,6 +18,7 @@ const LATEST_DAYS = 7;
 // otherwise every 30 s since there's no live event topic. enabled false: not asked at all
 // kept so the dashboard doesn't start empty every time it's opened again
 let cached: RecentRuns | null = null;
+onEventsDeleted(() => (cached = null));
 
 // the newest run as last asked for, without asking again
 export const lastRun = (): Run | undefined => cached?.latest[0];

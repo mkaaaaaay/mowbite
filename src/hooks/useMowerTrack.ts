@@ -1,6 +1,6 @@
 'use client';
 
-import {forgetJobList, loadJobList, type TrackSegment} from '@/hooks/useMowHistory';
+import {forgetJobList, forgetTracks, loadJobList, type TrackSegment} from '@/hooks/useMowHistory';
 import {getMqttClient, onTopic} from '@/lib/mqttClient';
 import {readMower, writeMower} from '@/lib/mowers';
 import {callRpc} from '@/lib/rpc';
@@ -327,6 +327,22 @@ function subscribe(listener: () => void) {
   start();
   listeners.add(listener);
   return () => listeners.delete(listener);
+}
+
+// all recorded tracks deleted on the mower (MowBite OS), it keeps the one of the job running: what was loaded of them
+// goes, and the last run's trail while that one is shown. answers with the number of files
+export async function deleteTracks(): Promise<number> {
+  const {deleted} = await callRpc<{deleted: number}>(RPC.jobTrackDelete, {});
+  forgetTracks();
+  if (jobId === null) {
+    lastJob = null;
+    askedLast = Date.now();
+    track = EMPTY;
+    earlier = [];
+    whileLoading = [];
+    listeners.forEach((l) => l());
+  }
+  return deleted;
 }
 
 // empties the live trail, it starts again from the mower's position now
