@@ -7,6 +7,7 @@ import {
   cameraParts,
   cameraReason,
   closed,
+  fallbackProtocol,
   pickProtocol,
   pictureRatio,
   playMjpeg,
@@ -109,6 +110,10 @@ describe('cameras', () => {
   it('play webrtc where the browser can, else mjpeg, nothing else', () => {
     expect(pickProtocol(['webrtc', 'mjpeg'], true)).toBe('webrtc');
     expect(pickProtocol(['webrtc', 'mjpeg'], false)).toBe('mjpeg');
+    // webrtc turned down: once more with mjpeg where the camera has it, mjpeg turned down stays so
+    expect(fallbackProtocol('webrtc', ['webrtc', 'mjpeg'])).toBe('mjpeg');
+    expect(fallbackProtocol('webrtc', ['webrtc'])).toBeNull();
+    expect(fallbackProtocol('mjpeg', ['webrtc', 'mjpeg'])).toBeNull();
     expect(pickProtocol(['hls', 'mjpeg'], true)).toBe('mjpeg');
     expect(pickProtocol(['webrtc'], false)).toBeNull();
     expect(pickProtocol(['hls'], true)).toBeNull();

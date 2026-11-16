@@ -9,6 +9,7 @@ import {
   cameraParts,
   cameraReason,
   closed,
+  fallbackProtocol,
   openStream,
   pickProtocol,
   pictureRatio,
@@ -129,7 +130,9 @@ function Player({camera, onLive}: {camera: Camera; onLive: (live: boolean) => vo
   const [tries, setTries] = useState(0);
   const video = useRef<HTMLVideoElement>(null);
   const box = useRef<HTMLDivElement>(null);
-  const protocol = pickProtocol(camera.protocols);
+  // mjpeg once webrtc was turned down, until tried again
+  const [fallback, setFallback] = useState<string | null>(null);
+  const protocol = fallback ?? pickProtocol(camera.protocols);
   // the mower answers with the one asked for
   const mjpeg = protocol === 'mjpeg';
 
@@ -177,7 +180,10 @@ function Player({camera, onLive}: {camera: Camera; onLive: (live: boolean) => vo
       } else return failed(unknownProtocol(s.protocol));
       if (!alive) shut();
     })().catch((e) => {
-      if (e instanceof RpcError && e.data?.event === 'CAMERA_REFUSED')
+      const other = fallbackProtocol(protocol, camera.protocols);
+      if (e instanceof RpcError && e.data?.event === 'CAMERA_REFUSED' && other) {
+        if (alive) setFallback(other);
+      } else if (e instanceof RpcError && e.data?.event === 'CAMERA_REFUSED')
         failed(cameraReason(e.data.reason as string | undefined, e.data.message as string | undefined));
       else if (e instanceof RpcError) failed(rpcErrorText(e));
       else {
@@ -189,13 +195,14 @@ function Player({camera, onLive}: {camera: Camera; onLive: (live: boolean) => vo
       alive = false;
       shut();
     };
-  }, [camera.id, protocol, tries]);
+  }, [camera.id, camera.protocols, protocol, tries]);
 
   if (!protocol) return <Note text={unknownProtocol(camera.protocols.join(', '))} />;
   const again = (
     <button
       onClick={() => {
         setShown({phase: 'connecting'});
+        setFallback(null);
         setTries(tries + 1);
       }}
     >

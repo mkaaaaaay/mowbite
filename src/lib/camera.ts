@@ -99,6 +99,10 @@ export function pickProtocol(protocols: readonly string[], webrtc = typeof RTCPe
   return protocols.find((p) => PLAYS.includes(p) && (p !== 'webrtc' || webrtc)) ?? null;
 }
 
+// asked again with mjpeg when the mower turned webrtc down (MowBite OS lists it while its media server isn't ready)
+export const fallbackProtocol = (asked: string | null, protocols: readonly string[]): string | null =>
+  asked === 'webrtc' && protocols.includes('mjpeg') ? 'mjpeg' : null;
+
 // the stream's address with the broker's host: MowBite OS puts its address in the home network there, which a phone
 // over a VPN or the mower's name may not reach while it reaches the broker that runs on the mower (masterplan 3.9 M2).
 // a broker on this computer itself (a tunnel) leaves it as it is

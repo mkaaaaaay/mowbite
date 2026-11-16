@@ -92,11 +92,13 @@ export function demoCameras(deliver: (topic: string, text: string) => void) {
   let n = 0;
   return {
     methods: {
-      [RPC.cameraList]: () => cameras,
+      // (mowbiteDemoCameraWebrtc: webrtc offered too and turned down, like MowBite OS while its media server isn't ready)
+      [RPC.cameraList]: () => (demoFlags().mowbiteDemoCameraWebrtc ? cameras.map((c) => ({...c, protocols: ['webrtc', ...c.protocols]})) : cameras),
       [RPC.cameraStream]: (params: unknown) => {
         const {id, protocol} = (params ?? {}) as {id?: string; protocol?: string};
         const c = cameras.find((x) => x.id === id);
         if (!c) throw new Error(`no camera ${id}`);
+        if (protocol === 'webrtc' && demoFlags().mowbiteDemoCameraWebrtc) throw new Refused('NOT_SET_UP');
         if (protocol && !c.protocols.includes(protocol)) throw new Error(`${id} has no ${protocol}`);
         const flags = demoFlags();
         const refuse = flags.mowbiteDemoCameraRefuse as string | undefined;

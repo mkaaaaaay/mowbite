@@ -28,6 +28,16 @@ async function onDashboard(page: Page) {
 test.describe('cameras', () => {
   test.skip(SIM, 'the demo mower only');
 
+  test('webrtc turned down: the same camera once more with mjpeg', async ({page}) => {
+    await demoWith(page, 'Cameras');
+    await page.addInitScript(() => ((window as {mowbiteDemoCameraWebrtc?: boolean}).mowbiteDemoCameraWebrtc = true));
+    await page.goto('/');
+    const camera = await onDashboard(page);
+    await demoDocked(page);
+    await expect(camera.locator('img')).toBeVisible();
+    await expect(camera).not.toContainText('No picture');
+  });
+
   test('on the dashboard once switched on: why there is none while the blade runs, then the picture, the cameras to switch', async ({page}) => {
     await demoWith(page, 'Cameras');
     await page.goto('/');
