@@ -1,5 +1,9 @@
+import {tr} from './i18n';
+
 // The planner's recorded outline pass (recorded_loop): what the app warns of before it's switched on, and its words
 // for why the planner planned an area without it.
+
+export const RECORDED_LOOP = 'recorded_loop';
 
 // how far past what its body covered while recording the mower can get on that pass, and so the distance to keep from
 // a drop when recording for it (cm, by calculation)
@@ -17,7 +21,7 @@ export const RECORDED_LOOP_WARNING = {
 };
 
 // a plan's warning for an area planned without it
-const IGNORED = 'recorded_loop ignored: ';
+export const IGNORED = 'recorded_loop ignored: ';
 
 // the planner's reasons by how they begin, the same in planner.settings (ignored) and in a plan's warnings
 const REASONS: [string, string][] = [
@@ -37,3 +41,13 @@ export const recordedLoopReason = (reason: string): string | undefined => REASON
 
 // the reason out of a plan's warning, undefined for another warning
 export const recordedLoopIgnored = (warning: string): string | undefined => (warning.startsWith(IGNORED) ? warning.slice(IGNORED.length) : undefined);
+
+// the warning's title and lines in the app's language
+export const recordedLoopWarning = () => ({
+  title: tr(RECORDED_LOOP_WARNING.title),
+  lines: RECORDED_LOOP_WARNING.lines.map((l) => tr(l, {cm: RECORDED_LOOP_CM})),
+});
+
+// what the app says for an area or a setting the planner goes without it for
+export const recordedLoopNote = (reason: string) =>
+  tr('Recorded outline pass not possible: {reason}', {reason: tr(recordedLoopReason(reason) ?? reason)});

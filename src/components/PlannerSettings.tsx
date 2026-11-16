@@ -4,7 +4,7 @@ import {tr} from '@/lib/i18n';
 import {loadPlannerSettings, savePlannerSettings, usePlannerSettings, type PlannerSetting} from '@/lib/mowerBody';
 import {DROPPED_CHOICES, expertKeys, FIELDS, fromInput, GROUPS, helpOf, toInput, type Field, type Group} from '@/lib/plannerFields';
 import {useOpenMower} from '@/lib/mowerOs';
-import {RECORDED_LOOP_CM, RECORDED_LOOP_WARNING, recordedLoopReason} from '@/lib/recordedLoop';
+import {RECORDED_LOOP as LOOP, recordedLoopNote, recordedLoopWarning} from '@/lib/recordedLoop';
 import {answerError} from '@/lib/rpcText';
 import {useEffect, useState} from 'react';
 import {createPortal} from 'react-dom';
@@ -19,7 +19,6 @@ type Styles = Record<string, string>;
 type Value = string | string[];
 
 // the recorded outline pass: asked before it's switched on, with a note under its switch
-const LOOP = 'recorded_loop';
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
@@ -236,12 +235,12 @@ export function PlannerSettings({styles}: {styles: Styles}) {
 
   // choices and lists take the whole row
   const wide = (k: string) => k === LOOP || all[k].type === 'list' || (all[k].type === 'string' && !!all[k].choices?.length);
-  const warning = [RECORDED_LOOP_WARNING.title, ...RECORDED_LOOP_WARNING.lines].map((l) => tr(l, {cm: RECORDED_LOOP_CM}));
+  const warning = recordedLoopWarning();
   // under its switch: why the planner goes without it, else what it means while it's on
   const loopNote = () => {
     const why = all[LOOP].ignored;
-    if (why) return <span className={styles.error}>{tr('Recorded outline pass not possible: {reason}', {reason: tr(recordedLoopReason(why) ?? why)})}</span>;
-    return all[LOOP].value === true ? <span className={styles.dim}>{warning.join(' ')}</span> : null;
+    if (why) return <span className={styles.error}>{recordedLoopNote(why)}</span>;
+    return all[LOOP].value === true ? <span className={styles.dim}>{[warning.title, ...warning.lines].join(' ')}</span> : null;
   };
   const field = (k: string) => (
     <div
@@ -316,9 +315,9 @@ export function PlannerSettings({styles}: {styles: Styles}) {
       {asking &&
         createPortal(
           <div className={local.backdrop} onClick={() => setAsking(false)}>
-            <section className={local.sheet} role="alertdialog" aria-modal="true" aria-label={warning[0]} onClick={(e) => e.stopPropagation()}>
-              <h2>{warning[0]}</h2>
-              {warning.slice(1).map((l) => (
+            <section className={local.sheet} role="alertdialog" aria-modal="true" aria-label={warning.title} onClick={(e) => e.stopPropagation()}>
+              <h2>{warning.title}</h2>
+              {warning.lines.map((l) => (
                 <p key={l}>{l}</p>
               ))}
               <div className={local.actions}>

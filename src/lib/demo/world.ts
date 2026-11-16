@@ -1163,12 +1163,15 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
       },
     }),
   };
-  const answer = (paths: Path[], angle: number, id?: string) => ({
-    ...(id ? {area_id: id} : {}),
-    angle,
-    ...(planner?.warnings().length && {warnings: planner.warnings()}),
-    paths: paths.map((p) => ({is_outline: p.outline, points: p.points.map((q) => [q.x, q.y]), pose_index: poseIndex(p.points)})),
-  });
+  const answer = (paths: Path[], angle: number, id?: string) => {
+    const warnings = planner?.warnings();
+    return {
+      ...(id ? {area_id: id} : {}),
+      angle,
+      ...(warnings?.length && {warnings}),
+      paths: paths.map((p) => ({is_outline: p.outline, points: p.points.map((q) => [q.x, q.y]), pose_index: poseIndex(p.points)})),
+    };
+  };
 
   function rpc(message: string) {
     let req: {id?: string; method?: string; params?: unknown};

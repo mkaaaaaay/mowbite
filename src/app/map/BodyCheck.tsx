@@ -4,7 +4,7 @@ import type {PlanRequest} from '@/lib/areaPlan';
 import {fmt, tr} from '@/lib/i18n';
 import {checkBody, spotPlaces, usePlannerSettings, type BodyCheck as Result, type BodySpot} from '@/lib/mowerBody';
 import type {PlanChecks as Checks} from '@/lib/mowPlan';
-import {recordedLoopIgnored, recordedLoopReason} from '@/lib/recordedLoop';
+import {recordedLoopIgnored, recordedLoopNote} from '@/lib/recordedLoop';
 import {answerError} from '@/lib/rpcText';
 import {useEffect, useMemo, useState} from 'react';
 import styles from './page.module.css';
@@ -88,12 +88,13 @@ function warningText(w: string): string {
 // The places are on the map (MapView fitPlaces, turnPlaces)
 export function PlanChecks({checks, on}: {checks: Checks | undefined; on: boolean}) {
   // the area planned without the recorded outline pass, told with the collision check off too
-  const noLoop = (checks?.warnings ?? []).flatMap((w) => recordedLoopIgnored(w) ?? []);
-  const loopNotes = noLoop.map((why) => (
+  const warnings = checks?.warnings ?? [];
+  const loopNotes = warnings.flatMap((w) => recordedLoopIgnored(w) ?? []).map((why) => (
     <span key={why} className={styles.warningText}>
-      {tr('Recorded outline pass not possible: {reason}', {reason: tr(recordedLoopReason(why) ?? why)})}
+      {recordedLoopNote(why)}
     </span>
   ));
+  const others = warnings.filter((w) => recordedLoopIgnored(w) === undefined);
   if (!on)
     return (
       <div className={styles.bodyCheck}>
@@ -137,14 +138,11 @@ export function PlanChecks({checks, on}: {checks: Checks | undefined; on: boolea
       )}
       {(checks?.turns.length ?? 0) > 0 && <span className={styles.dim}>{tr('{n} turns still in the field of lanes', {n: checks!.turns.length})}</span>}
       {loopNotes}
-      {checks?.warnings.map(
-        (w, i) =>
-          recordedLoopIgnored(w) === undefined && (
-            <span key={i} className={styles.dim}>
-              {warningText(w)}
-            </span>
-          ),
-      )}
+      {others.map((w, i) => (
+        <span key={i} className={styles.dim}>
+          {warningText(w)}
+        </span>
+      ))}
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import {RECORDED_LOOP} from './recordedLoop';
 // How the app shows the MowBite Planner's settings (planner.settings gives value, default, type, range and choices,
 // this adds a name, what it does, a group and how a value is typed in). Settings the planner has but this doesn't
 // know show up with their own name under "More", so a newer planner's settings can be set too. The groups are the
@@ -390,7 +391,7 @@ export const HIDDEN = ['drive'];
 // a setting left out of every menu and list: one of HIDDEN, or one the planner says it goes without (ignored)
 export const hidden = (key: string, s: {ignored?: unknown} | undefined) => HIDDEN.includes(key) || !!s?.ignored;
 // stay in the list for experts though the planner goes without them, with why (PlannerSettings)
-const TOLD = ['recorded_loop'];
+const TOLD = [RECORDED_LOOP];
 // in the planner menu at the map (PlannerSimple), the lists for experts leave them out
 export const SIMPLE = [
   'planner',

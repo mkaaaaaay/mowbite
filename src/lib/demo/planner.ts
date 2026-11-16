@@ -1,11 +1,9 @@
 import {RPC} from '../openmower';
+import {IGNORED, RECORDED_LOOP} from '../recordedLoop';
 import {demoFlags} from './flags';
 
-// A MowBite Planner on the mower for the click tests of its recorded outline pass (planner.settings and
-// planner.settings.set, no plans of its own). The demo has none, a test switches it on before the page loads
-// (window.mowbiteDemoPlanner), with what window.mowbiteDemoPlannerSet has stored on it. window.mowbiteDemoLoopIgnored
-// set to one of the planner's reasons: it goes without the pass for that, said with the setting and in the plans'
-// warnings
+// planner.settings(.set) for the click tests (window.mowbiteDemoPlanner), stored from mowbiteDemoPlannerSet; with
+// mowbiteDemoLoopIgnored the reason it goes without the recorded outline pass
 
 type Key = {value: unknown; type: string; unit?: string; choices?: string[]};
 const num = (value: number): Key => ({value, type: 'number', unit: 'm'});
@@ -25,14 +23,17 @@ const DEFAULTS: Record<string, Key> = {
 export function demoPlanner() {
   const stored: Record<string, unknown> = {...(demoFlags().mowbiteDemoPlannerSet as Record<string, unknown> | undefined)};
   const ignored = () => demoFlags().mowbiteDemoLoopIgnored as string | undefined;
-  const get = () => ({
-    settings: Object.fromEntries(
-      Object.entries(DEFAULTS).map(([k, d]) => [
-        k,
-        {...d, value: k in stored ? stored[k] : d.value, default: d.value, stored: k in stored, settable: true, ...(k === 'recorded_loop' && ignored() && {ignored: ignored()})},
-      ]),
-    ),
-  });
+  const get = () => {
+    const why = ignored();
+    return {
+      settings: Object.fromEntries(
+        Object.entries(DEFAULTS).map(([k, d]) => [
+          k,
+          {...d, value: k in stored ? stored[k] : d.value, default: d.value, stored: k in stored, settable: true, ...(k === RECORDED_LOOP && why && {ignored: why})},
+        ]),
+      ),
+    };
+  };
   return {
     methods: {
       [RPC.plannerSettings]: get,
@@ -46,6 +47,9 @@ export function demoPlanner() {
       },
     },
     // what a plan says of the pass it was planned without
-    warnings: (): string[] => (stored.recorded_loop === true && ignored() ? [`recorded_loop ignored: ${ignored()}`] : []),
+    warnings: (): string[] => {
+      const why = ignored();
+      return stored[RECORDED_LOOP] === true && why ? [IGNORED + why] : [];
+    },
   };
 }

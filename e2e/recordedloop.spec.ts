@@ -1,5 +1,6 @@
 import type {Page} from '@playwright/test';
 import {demoFlag, demoWith, expect, lawnPoint, openMap, SIM, test} from './app';
+import {unfoldAll} from './texts';
 
 // the planner's recorded outline pass with the demo's planner (window.mowbiteDemoPlanner): asked before it's switched
 // on, and why the planner goes without it
@@ -10,12 +11,13 @@ test.describe('recorded outline pass', () => {
   // every fold open, the planner's list for experts in them
   const unfold = async (page: Page) => {
     await expect(page.locator('#fold-plannerAll')).toBeAttached();
-    for (let round = 0; round < 3; round++) await page.$$eval('details', (all) => all.forEach((d) => ((d as HTMLDetailsElement).open = true)));
+    await unfoldAll(page);
   };
+  const loopSwitch = (page: Page) => page.getByRole('checkbox', {name: /Recorded outline pass/});
 
   test('switching it on asks first and says what it means', async ({page}) => {
     await openMap(page);
-    const loop = page.getByRole('checkbox', {name: /Recorded outline pass/});
+    const loop = loopSwitch(page);
     await unfold(page);
     await loop.click();
     const sheet = page.getByRole('alertdialog', {name: 'The mower drives right up to the recorded line'});
@@ -39,7 +41,7 @@ test.describe('recorded outline pass', () => {
   test("a planner that goes without it says why, the switch can't be switched on", async ({page}) => {
     await demoFlag(page, 'mowbiteDemoLoopIgnored', 'fill_pattern concentric');
     await openMap(page);
-    const loop = page.getByRole('checkbox', {name: /Recorded outline pass/});
+    const loop = loopSwitch(page);
     await unfold(page);
     await expect(page.getByText('Recorded outline pass not possible: Not with the pattern "Rings".')).toBeVisible();
     await expect(loop).toBeDisabled();
