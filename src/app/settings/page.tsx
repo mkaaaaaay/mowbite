@@ -15,6 +15,8 @@ import {leaveFirst} from '@/lib/leaving';
 import {setSwipeEnabled, useSwipeEnabled} from '@/lib/swipe';
 import {OpenMowerNote, ParamGroupRows, summary, useCanSetParams} from '@/components/MowerParamSettings';
 import {AutoUpdate, DockgeUpdateGuide} from '@/components/AutoUpdate';
+import {OsRestart} from '@/components/HostOs';
+import {DATA_METHODS, MowerData} from '@/components/MowerData';
 import {OsUpdate} from '@/components/OsUpdate';
 import {LegalFooter, UpdateSettings} from '@/components/Updates';
 import {savePlannerSettings, slic3rPlans, useAskPlanner, usePlannerSettings, usePlannerWaiting} from '@/lib/mowerBody';
@@ -506,6 +508,7 @@ export default function SettingsPage() {
               <Group id="update" title={tr('Updates')} hint={osUpdates ? 'MowBite OS' : 'MowBite Updater'}>
                 <section className={styles.card}>
                   <h2>{tr('On the mower')}</h2>
+                  <OsRestart />
                   {osUpdates ? (
                     <OsUpdate />
                   ) : (
@@ -516,6 +519,13 @@ export default function SettingsPage() {
                   )}
                 </section>
               </Group>
+              {methods && DATA_METHODS.some((m) => methods.has(m)) && (
+                <Group id="data" title={tr('Data on the mower')} hint={tr('Delete tracks and events')}>
+                  <section className={styles.card}>
+                    <MowerData methods={methods} />
+                  </section>
+                </Group>
+              )}
               {/* everything to plan and drive this garden again elsewhere, for sharing: one file */}
               {sizes && (
                 <Group id="garden" title={tr('Garden file')} hint={tr('The map and the settings in one file')}>

@@ -21,7 +21,7 @@ export const TOPIC = {
   plannerProgress: 'mowbite/planner/progress',
   // how far the MowBite Planner's recording for a calibration got (retained, see lib/calibration)
   plannerCalib: 'mowbite/planner/calib',
-  // MowBite OS's updater (its host): what it does and has, and whether it's there (both retained, see lib/osUpdate)
+  // MowBite OS's updater (its host): what it does and has, and whether it and MowBite OS are there (both retained, see lib/osUpdate, lib/hostOs)
   updateStatus: 'mowbite/update/status',
   hostStatus: 'mowbite/host/status',
   // whether the next start of the schedule would go as things are now (retained, empty without one to come)
@@ -71,6 +71,8 @@ export const RPC = {
   updateStart: 'update.start',
   updateAbort: 'update.abort',
   updateRollback: 'update.rollback',
+  // starts MowBite OS again, answered by its host too (lib/hostOs)
+  hostRestartOs: 'host.restart_os',
   // MowBite OS's own schedule (lib/schedule), the container's elsewhere
   scheduleGet: 'schedule.get',
   scheduleSet: 'schedule.set',
@@ -94,6 +96,9 @@ export const RPC = {
   events: 'events.history',
   jobs: 'position.history.list',
   jobTrack: 'position.history',
+  // deleting them on the mower, MowBite OS only: all days, and all tracks but the one of the running job
+  eventsDelete: 'events.history.delete',
+  jobTrackDelete: 'position.history.delete',
   // the mowing plan for an area straight from the mower's planner
   areaPlan: 'mowing.plan',
   // the area settings this mower keeps in map.json

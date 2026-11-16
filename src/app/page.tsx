@@ -72,6 +72,7 @@ import {useLeftoverRun} from '@/hooks/useLeftoverRun';
 import MowerSwitch from '@/components/MowerSwitch';
 import {useMowerChoice} from '@/hooks/useMowerChoice';
 import {UpdateBanner} from '@/components/Updates';
+import {OsRestart} from '@/components/HostOs';
 import {ACTION, PARAM} from '@/lib/openmower';
 
 // paused counts too, the mower is standing somewhere on the lawn then. recording drives with gps as well
@@ -485,6 +486,7 @@ export default function Home() {
           <MowerSwitch className={styles.mowerSwitch} round />
         </div>
         <UpdateBanner />
+        <OsRestart banner />
 
         {!state &&
           (link.silent ? (

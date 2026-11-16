@@ -6,7 +6,7 @@ import {clock, dayKey, dayLabel, duration, parseDay} from '@/lib/dates';
 import {ParamFix} from '@/components/MowerParamSettings';
 import {describe, eventSource, explain, groupRuns, isReasonCode, noteworthy, rawLine, OUTCOMES, withState, type Entry, type MowerEvent, type Run} from '@/lib/events';
 import {useDragScroll} from '@/hooks/useDragScroll';
-import {eventsOfDay, historyDays, localDays, type DayEvents} from '@/lib/history';
+import {eventsOfDay, historyDays, localDays, onEventsDeleted, type DayEvents} from '@/lib/history';
 import {useMowbiteOs, useOpenMower} from '@/lib/mowerOs';
 import {useMowerStateValue} from '@/hooks/useMowerState';
 import {RosLogAround} from '@/components/RosLog';
@@ -242,6 +242,11 @@ function RunCard({
 let cachedFiles: string[] = [];
 let cachedDays: string[] | null = null;
 const cachedEvents = new Map<string, DayEvents>();
+onEventsDeleted(() => {
+  cachedFiles = [];
+  cachedDays = null;
+  cachedEvents.clear();
+});
 
 // ?day=20261102&run=<id of its first event>: a run picked on the dashboard, its day shown and the run opened.
 // useSearchParams needs a suspense boundary in a static export

@@ -3297,6 +3297,21 @@ const de: Record<string, string> = {
   "The mountpoint has no spaces and no slash.": "Der Mountpoint hat keine Leerzeichen und keinen Schrägstrich.",
   "no user, no password": "kein Benutzer, kein Passwort",
   "Set up": "Einrichten",
+  "MowBite OS is stopped.": "MowBite OS ist gestoppt.",
+  "MowBite OS isn't running": "MowBite OS läuft nicht",
+  "Sure? Restart MowBite OS": "Sicher? MowBite OS neu starten",
+  "Restart MowBite OS": "MowBite OS neu starten",
+  "Only while the mower is idle without an emergency stop. It is back after a moment.": "Nur solange der Mäher ohne Notaus bereitsteht. Nach einem Moment ist es wieder da.",
+  "MowBite OS is starting again.": "MowBite OS startet neu.",
+  "Data on the mower": "Daten auf dem Mäher",
+  "Delete tracks and events": "Fahrspuren und Ereignisse löschen",
+  "Delete all tracks": "Alle Fahrspuren löschen",
+  "Sure? Delete all tracks": "Sicher? Alle Fahrspuren löschen",
+  "Delete all events": "Alle Ereignisse löschen",
+  "Sure? Delete all events": "Sicher? Alle Ereignisse löschen",
+  "1 file deleted": "1 Datei gelöscht",
+  "{n} files deleted": "{n} Dateien gelöscht",
+  "Where the mower drove and what happened when is kept on the mower only. Deleted here it is gone for good, the track of a job still running stays.": "Wo der Mäher gefahren ist und was wann passiert ist, liegt nur auf dem Mäher. Hier gelöscht ist es endgültig weg, die Spur eines laufenden Auftrags bleibt.",
 };
 
 export default de;

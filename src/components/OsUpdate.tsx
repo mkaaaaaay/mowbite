@@ -3,6 +3,7 @@
 import {useRpcMethods} from '@/hooks/useRpcMethods';
 import {clock, dayClock, nearClock, numericDay, numericDayClock} from '@/lib/dates';
 import {reasonSentence} from '@/lib/events';
+import {useHostOnline} from '@/lib/hostOs';
 import {tr} from '@/lib/i18n';
 import {pageFromMower} from '@/lib/mowers';
 import {isApp} from '@/lib/native';
@@ -26,7 +27,6 @@ import {
   shortRevision,
   startUpdate,
   updating,
-  useHostOnline,
   useUpdateStatus,
   versionInText,
   versionLabel,

@@ -7,6 +7,7 @@ import {CALIB_NEED, calibCounts, calibResultOf} from './calib';
 import {DEMO_PARAMS, DEMO_SENSORS, demoMap} from './garden';
 import {demoCameras} from './camera';
 import {demoOn} from './flags';
+import {demoHost} from './host';
 import {demoGeometry} from './geometry';
 import {demoLights} from './light';
 import {demoNtrip} from './ntrip';
@@ -1053,6 +1054,9 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
   const utcDay = (t: number) => new Date(t * 1000).toISOString().slice(0, 10).replace(/-/g, '');
   let cameras = demoOn('Cameras') ? demoCameras(deliver) : null;
   const updates = demoOn('Updates') ? demoUpdates(deliver) : null;
+  const host = demoOn('Host')
+    ? demoHost(deliver, () => ({idle: state() === 'IDLE', emergency: latchedBits !== 0}), Object.keys(updates?.methods ?? {}))
+    : null;
   const methods: Record<string, (params: unknown) => unknown> = {
     [RPC.methods]: () => Object.keys(methods).sort(),
     [RPC.replaceMap]: (params) => {
@@ -1137,6 +1141,23 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     ...(demoOn('Ntrip') && demoNtrip(state)),
     ...incidents?.methods,
     ...updates?.methods,
+    ...host?.methods,
+    // MowBite OS deleting events and tracks, counted in files (a day, a track), the running job's track stays
+    ...(demoOn('Erase') && {
+      [RPC.eventsDelete]: (params: unknown) => {
+        const date = (params as {date?: string})?.date;
+        const days = new Set(log.map((e) => utcDay(e.t)).filter((d) => !date || d === date));
+        for (let i = log.length - 1; i >= 0; i--) if (days.has(utcDay(log[i].t))) log.splice(i, 1);
+        return {deleted: days.size};
+      },
+      [RPC.jobTrackDelete]: (params: unknown) => {
+        const id = (params as {job_id?: string})?.job_id;
+        const gone = new Set(jobs.map((j) => j.job_id).filter((j) => (id ? j === id : j !== job?.id)));
+        for (let i = jobs.length - 1; i >= 0; i--) if (gone.has(jobs[i].job_id)) jobs.splice(i, 1);
+        gone.forEach((j) => tracks.delete(j));
+        return {deleted: gone.size};
+      },
+    }),
     ...cameras?.methods,
     ...(undoOn && {
       // points off the end of the open line until that much of it is gone. the mower stays where it is, auto points
@@ -1303,7 +1324,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
       if (topic === TOPIC.mapOverlay) return [[topic, JSON.stringify(overlay())]];
       if (topic === TOPIC.plannerCalib) return calibSaid ? [[topic, calibSaid]] : [];
       if (topic === TOPIC.sensorData) return Object.entries(sensors()).map(([id, v]) => [`sensors/${id}/data`, v]);
-      return updates?.retained(topic) ?? [];
+      return host?.retained(topic) ?? updates?.retained(topic) ?? [];
     },
     published(topic, message) {
       if (topic === TOPIC.teleop) {

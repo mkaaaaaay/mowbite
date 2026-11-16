@@ -39,6 +39,19 @@ export function forgetToday() {
   for (const d of new Set([utcDay(now - WEST - 600000), utcDay(now), utcDay(now + EAST)])) forget(`events:${d}`);
 }
 
+// what else keeps events it loaded (a page's own cache)
+const kept = new Set<() => void>();
+export const onEventsDeleted = (drop: () => void) => void kept.add(drop);
+
+// all days deleted on the mower (MowBite OS), and with them what was loaded of them. answers with the number of files
+export async function deleteEvents(): Promise<number> {
+  const {deleted} = await callRpc<{deleted: number}>(RPC.eventsDelete, {});
+  forget('events:');
+  spans.clear();
+  kept.forEach((drop) => drop());
+  return deleted;
+}
+
 // The app shows local days. With a mower in UTC the first or last hours of a local day sit in the file next to it,
 // depending on which side of UTC the time zone is.
 

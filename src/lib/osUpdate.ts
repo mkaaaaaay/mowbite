@@ -1,7 +1,7 @@
 import {useSyncExternalStore} from 'react';
 import {numericDay, shortDay} from './dates';
 import {tr} from './i18n';
-import {onTopic, topicStore} from './mqttClient';
+import {onTopic} from './mqttClient';
 import {RPC, TOPIC, UPDATE_GATED} from './openmower';
 import {callRpc, RpcError} from './rpc';
 import {APP_VERSION, isNewer, OS_API} from './updates';
@@ -133,10 +133,6 @@ function subscribe(l: () => void) {
 }
 
 export const useUpdateStatus = (): Seen | null => useSyncExternalStore(subscribe, () => seen, () => null);
-
-// the host says online while it answers, its last will says false: undefined until either came
-const hostOnline = topicStore<boolean | undefined>(TOPIC.hostStatus, undefined, (payload) => JSON.parse(payload.toString()).online === true);
-export const useHostOnline = () => useSyncExternalStore(hostOnline.subscribe, hostOnline.get, hostOnline.initial);
 
 // every call names the app's version: the automatic update leaves out what needs a newer app than the one seen last
 const call = (method: string, params: object = {}) =>
