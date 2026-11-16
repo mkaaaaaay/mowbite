@@ -41,7 +41,7 @@ export function parseHost(text: string): HostStatus {
 // undefined until the host or its last will was heard
 const host = topicStore<HostStatus | undefined>(TOPIC.hostStatus, undefined, (payload) => parseHost(payload.toString()));
 export const useHost = () => useSyncExternalStore(host.subscribe, host.get, host.initial);
-export const useHostOnline = () => useHost()?.online;
+export const useHostOnline = () => useSyncExternalStore(host.subscribe, () => host.get()?.online, () => undefined);
 
 const OFF: OsState[] = ['stopped', 'down', 'halted'];
 // MowBite OS doesn't run and won't by itself: stopped, off after crashes or halted before its start

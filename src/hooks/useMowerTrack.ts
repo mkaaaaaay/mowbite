@@ -337,10 +337,7 @@ export async function deleteTracks(): Promise<number> {
   if (jobId === null) {
     lastJob = null;
     askedLast = Date.now();
-    track = EMPTY;
-    earlier = [];
-    whileLoading = [];
-    listeners.forEach((l) => l());
+    emptyTrail();
   }
   return deleted;
 }
@@ -353,6 +350,10 @@ export async function clearTrack() {
     await recordedTrack(id).catch(() => null);
     if (written?.job === id) writeMower(CLEARED_KEY, written);
   }
+  emptyTrail();
+}
+
+function emptyTrail() {
   track = EMPTY;
   earlier = [];
   whileLoading = [];

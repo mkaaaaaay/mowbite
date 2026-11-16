@@ -9,13 +9,13 @@ import {answerError} from '@/lib/rpcText';
 import {useState} from 'react';
 import shared from './AutoUpdate.module.css';
 
-// what the mower's list has to name for this card
-export const DATA_METHODS = [RPC.jobTrackDelete, RPC.eventsDelete];
-
 const KINDS = [
   {method: RPC.jobTrackDelete, label: 'Delete all tracks', sure: 'Sure? Delete all tracks', go: deleteTracks},
   {method: RPC.eventsDelete, label: 'Delete all events', sure: 'Sure? Delete all events', go: deleteEvents},
 ] as const;
+
+// what the mower's list has to name for this card
+export const DATA_METHODS: string[] = KINDS.map((k) => k.method);
 
 // what MowBite OS kept of where and when the mower drove, deleted on the mower: every track but the one of the job
 // running, and the events of every day. Each after asking, with the number of files gone

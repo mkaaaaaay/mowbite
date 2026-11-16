@@ -2,10 +2,7 @@ import type {HostOs, OsState} from '../hostOs';
 import {RPC, TOPIC} from '../openmower';
 import {demoFlags} from './flags';
 
-// MowBite OS's host for the click tests (mowbite/host/status, host.restart_os), like the real one answers. The demo is
-// an OpenMower and has none, a test switches it on before the page loads (window.mowbiteDemoHost) and sets
-// window.mowbiteDemoHostOs to stopped, down or halted to have MowBite OS off from the start. The demo mower itself goes
-// on meanwhile
+// MowBite OS's host for the click tests, on with window.mowbiteDemoHost; window.mowbiteDemoHostOs starts it off
 
 const START_MS = 300;
 const OFF: Partial<Record<OsState, Partial<HostOs>>> = {

@@ -43,7 +43,7 @@ export function forgetJobList() {
 
 // the tracks were deleted on the mower
 export function forgetTracks() {
-  listCache = null;
+  forgetJobList();
   trackCache.clear();
 }
 

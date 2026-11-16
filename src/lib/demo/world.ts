@@ -1140,8 +1140,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     ...incidents?.methods,
     ...updates?.methods,
     ...host?.methods,
-    // MowBite OS deletes what it kept, counted in files (a day, a track): the events of a day or of all, the track of
-    // a job or all but the running one's
+    // MowBite OS deleting events and tracks, counted in files (a day, a track), the running job's track stays
     ...(demoOn('Erase') && {
       [RPC.eventsDelete]: (params: unknown) => {
         const date = (params as {date?: string})?.date;

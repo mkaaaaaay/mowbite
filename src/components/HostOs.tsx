@@ -1,6 +1,6 @@
 'use client';
 
-import {isLive, useMowerState} from '@/hooks/useMowerState';
+import {isLive, useMowerStateValue} from '@/hooks/useMowerState';
 import {useRpcMethods} from '@/hooks/useRpcMethods';
 import {useSure} from '@/hooks/useSure';
 import {offText, osOff, restartError, restartOs, restartWay, useHost} from '@/lib/hostOs';
@@ -10,13 +10,13 @@ import {useState} from 'react';
 import shared from './AutoUpdate.module.css';
 import styles from './HostOs.module.css';
 
-// MowBite OS as its host tells it (lib/hostOs): stopped, off after crashes or halted with the reason and the button
-// that starts it again. While it runs the button is there in idle without an emergency stop and asks first.
-// banner: on the dashboard, only while it's off
+// MowBite OS off with its reason and the restart (restartWay); banner: on the dashboard, only while it's off
 export function OsRestart({banner}: {banner?: boolean}) {
   const host = useHost();
   const methods = useRpcMethods();
-  const link = useMowerState();
+  const live = useMowerStateValue(isLive);
+  const state = useMowerStateValue((l) => l.state?.current_state);
+  const emergency = useMowerStateValue((l) => !!l.state?.emergency);
   const update = useUpdateStatus();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,8 +24,7 @@ export function OsRestart({banner}: {banner?: boolean}) {
   const {sure, confirm} = useSure();
 
   const off = osOff(host);
-  const mower = {live: isLive(link), state: link.state?.current_state, emergency: !!link.state?.emergency};
-  const way = restartWay(host, methods, mower, !!update && update.status.phase !== 'idle');
+  const way = restartWay(host, methods, {live, state, emergency}, !!update && update.status.phase !== 'idle');
   if (banner ? !off : !off && !way && !started && !error) return null;
 
   const restart = () => {
