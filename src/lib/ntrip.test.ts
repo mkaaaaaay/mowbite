@@ -25,10 +25,13 @@ describe('ntrip', () => {
     mower.methods = demoNtrip(() => state);
   });
 
-  it('leaves an empty user and password out, so the mower keeps the stored ones', () => {
-    expect(ntripParams(form({host: ' caster.example ', port: ' 2102 ', version: 1}))).toEqual({host: 'caster.example', port: 2102, mountpoint: 'VRS_3_4G', version: 1});
-    expect(ntripParams(form({user: ` ${USER} `, password: ' p w '}))).toMatchObject({user: USER, password: ' p w '});
-    expect(ntripParams(form({password: PASSWORD}))).not.toHaveProperty('user');
+  it('leaves an empty user and password out for the same caster, so the mower keeps them, and sends none for another', () => {
+    const stored = {configured: true, host: 'caster.example', port: 2101, has_user: true, has_password: true};
+    expect(ntripParams(form({host: ' caster.example ', version: 1}), stored)).toEqual({host: 'caster.example', port: 2101, mountpoint: 'VRS_3_4G', version: 1});
+    expect(ntripParams(form({user: ` ${USER} `, password: ' p w '}), stored)).toMatchObject({user: USER, password: ' p w '});
+    expect(ntripParams(form({password: PASSWORD}), stored)).not.toHaveProperty('user');
+    expect(ntripParams(form({port: ' 2102 '}), stored)).toMatchObject({port: 2102, user: '', password: ''});
+    expect(ntripParams(form({password: PASSWORD}), null)).toMatchObject({user: '', password: PASSWORD});
   });
 
   it('opens the form with what is stored, port 2101 and version 2 without one, never with a login', () => {
@@ -70,7 +73,9 @@ describe('ntrip', () => {
     const said: unknown[] = [];
     const logs = (['log', 'info', 'warn', 'error', 'debug'] as const).map((m) => vi.spyOn(console, m).mockImplementation((...a) => void said.push(a)));
 
-    const saved = await saveNtrip(form({user: USER, password: PASSWORD}));
+    const before = await loadNtrip();
+    sent.length = 0;
+    const saved = await saveNtrip(form({user: USER, password: PASSWORD}), before);
     const read = await loadNtrip();
     logs.forEach((l) => l.mockRestore());
     vi.unstubAllGlobals();
@@ -98,10 +103,10 @@ describe('ntrip', () => {
   it('the demo keeps a login for the same host and port only, and changes nothing outside IDLE', async () => {
     const get = () => loadNtrip();
     expect(await get()).toMatchObject({configured: true, has_user: true, has_password: true});
-    expect(await saveNtrip(form({mountpoint: 'OTHER'}))).toMatchObject({mountpoint: 'OTHER', has_user: true, has_password: true});
-    expect(await saveNtrip(form({port: '2102'}))).toMatchObject({port: 2102, has_user: false, has_password: false});
+    expect(await saveNtrip(form({mountpoint: 'OTHER'}), await get())).toMatchObject({mountpoint: 'OTHER', has_user: true, has_password: true});
+    expect(await saveNtrip(form({port: '2102'}), await get())).toMatchObject({port: 2102, has_user: false, has_password: false});
     state = 'MOWING';
-    await expect(saveNtrip(form())).rejects.toMatchObject({code: -32600});
+    await expect(saveNtrip(form(), await get())).rejects.toMatchObject({code: -32600});
     await expect(deleteNtrip()).rejects.toMatchObject({code: -32600});
     state = 'IDLE';
     expect(await deleteNtrip()).toMatchObject({configured: false, has_user: false});

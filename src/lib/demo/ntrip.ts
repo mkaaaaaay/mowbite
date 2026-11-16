@@ -46,8 +46,10 @@ export function demoNtrip(state: () => string): Record<string, (params: unknown)
       if (typeof host !== 'string' || !host || typeof mountpoint !== 'string' || !mountpoint) throw new Error('host and mountpoint are required');
       if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('port is 1 to 65535');
       if (version !== 1 && version !== 2) throw new Error('version is 1 or 2');
-      // a stored login stays only for the same host and port
+      // a stored login stays only for the same host and port, another caster needs both ("" for none)
       const same = stored && stored.host === host && stored.port === port ? stored : null;
+      for (const [key, value] of [['user', user], ['password', password]] as const)
+        if (value === undefined && !same) throw new Error(`${key}: needed for a new caster ("" for none)`);
       stored = {host, port, mountpoint, version, user: user ?? same?.user ?? '', password: password ?? same?.password ?? ''};
       return answer();
     },

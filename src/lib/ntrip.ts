@@ -52,17 +52,22 @@ export function ntripProblem(f: NtripForm): string | null {
   return null;
 }
 
-// what ntrip.set gets: an empty user or password is left out, the mower then keeps the stored one for the same host and
-// port
-export function ntripParams(f: NtripForm) {
-  const user = f.user.trim();
+// what ntrip.set gets: for the same host and port an empty user or password is left out and the mower keeps the stored
+// one; for another caster it needs both, "" for none
+export function ntripParams(f: NtripForm, stored: NtripAccess | null | undefined) {
+  const host = f.host.trim();
+  const port = portOf(f);
+  const same = !!stored?.configured && stored.host === host && stored.port === port;
+  const login = (value: string) => (value || same ? value : '');
+  const user = login(f.user.trim());
+  const password = login(f.password);
   return {
-    host: f.host.trim(),
-    port: portOf(f),
+    host,
+    port,
     mountpoint: f.mountpoint.trim(),
     version: f.version,
-    ...(user && {user}),
-    ...(f.password && {password: f.password}),
+    ...((user || !same) && {user}),
+    ...((password || !same) && {password}),
   };
 }
 
@@ -90,5 +95,5 @@ const access = (r: NtripAccess): NtripAccess => ({
 });
 
 export const loadNtrip = () => callRpc<NtripAccess>(RPC.ntripGet, {}).then(access);
-export const saveNtrip = (f: NtripForm) => callRpc<NtripAccess>(RPC.ntripSet, ntripParams(f)).then(access);
+export const saveNtrip = (f: NtripForm, stored: NtripAccess | null | undefined) => callRpc<NtripAccess>(RPC.ntripSet, ntripParams(f, stored)).then(access);
 export const deleteNtrip = () => callRpc<NtripAccess>(RPC.ntripDelete, {}).then(access);

@@ -3289,7 +3289,7 @@ const de: Record<string, string> = {
   "Password": "Passwort",
   "set, stays if left empty": "gesetzt, bleibt, wenn leer",
   "User and password only go to the mower. It never shows them again, the app does not keep them.": "Benutzer und Passwort gehen nur an den Mäher. Er zeigt sie nie wieder an, die App merkt sie sich nicht.",
-  "The stored login only counts for the host and port it was saved with: enter user and password again.": "Die gespeicherte Anmeldung gilt nur für den Host und Port, mit denen sie gespeichert wurde: Gib Benutzer und Passwort neu ein.",
+  "The stored login only counts for the host and port it was saved with: enter user and password again, left empty the caster is used without a login.": "Die gespeicherte Anmeldung gilt nur für den Host und Port, mit denen sie gespeichert wurde: Gib Benutzer und Passwort neu ein, leer wird der Caster ohne Anmeldung genutzt.",
   "Really delete the access?": "Zugang wirklich löschen?",
   "Enter the host of the caster.": "Gib den Host des Casters ein.",
   "Only the name of the host, without http://, port or path.": "Nur der Name des Hosts, ohne http://, Port oder Pfad.",

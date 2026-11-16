@@ -44,7 +44,7 @@ export function NtripSettings({styles}: {styles: Record<string, string>}) {
     setBusy(true);
     setNote(null);
     try {
-      setAccess(await saveNtrip(f));
+      setAccess(await saveNtrip(f, access));
       setForm(null);
       setNote({text: tr('Saved on the mower.')});
     } catch (e) {
@@ -147,7 +147,7 @@ export function NtripSettings({styles}: {styles: Record<string, string>}) {
           </label>
           <p className={styles.dim}>{tr('User and password only go to the mower. It never shows them again, the app does not keep them.')}</p>
           {loginDropped(access, form) && (
-            <p className={styles.error}>{tr('The stored login only counts for the host and port it was saved with: enter user and password again.')}</p>
+            <p className={styles.error}>{tr('The stored login only counts for the host and port it was saved with: enter user and password again, left empty the caster is used without a login.')}</p>
           )}
         </>
       )}
