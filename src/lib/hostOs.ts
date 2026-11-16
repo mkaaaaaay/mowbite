@@ -74,10 +74,11 @@ export function restartWay(h: HostStatus | undefined, methods: Set<string> | nul
 // answers with MowBite OS as the host sees it after the start
 export const restartOs = () => callRpc<HostOs>(RPC.hostRestartOs, {});
 
-// a restart the host turned down, by its reason (BUSY: not idle, EMERGENCY: an emergency stop or the restart hold;
-// HOLD during an update as everywhere), anything else as it came
+// a restart the host turned down (-32600, data {event: UPDATE_REFUSED, reason, message}) by its reason (BUSY: not idle,
+// EMERGENCY: an emergency stop or the restart hold, INTERNAL: the start failed; HOLD during an update as everywhere),
+// not as an update refused; anything else as it came
 export function restartError(e: unknown): string {
   const d = e instanceof RpcError && e.code === -32600 ? e.data : undefined;
-  const reason = d && !d.event && d.reason !== 'HOLD' ? d.reason : undefined;
-  return typeof reason === 'string' && isReasonCode(reason) ? reasonSentence(reason, 'HOST_OS') : answerError(e);
+  const reason = d && d.reason !== 'HOLD' ? d.reason : undefined;
+  return typeof reason === 'string' && isReasonCode(reason) ? reasonSentence(reason, 'UPDATE_REFUSED') : answerError(e);
 }

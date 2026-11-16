@@ -74,6 +74,8 @@ describe('the restart', () => {
     expect(restartError(refused({reason: 'EMERGENCY'}))).toBe('Emergency stop, reset it first.');
     expect(restartError(refused({reason: 'BUSY'}))).toBe('Busy with something else.');
     expect(restartError(refused({reason: 'HOLD'}))).toBe('Update running.');
+    expect(restartError(refused({event: 'UPDATE_REFUSED', reason: 'BUSY', message: 'no'}))).toBe('Busy with something else.');
+    expect(restartError(refused({event: 'UPDATE_REFUSED', reason: 'INTERNAL', message: 'no'}))).toBe('An error in the updater of MowBite OS.');
     expect(restartError(new RpcError(RPC.hostRestartOs, -32603, 'broken'))).toBe('broken');
     expect(restartError(new RpcError(RPC.hostRestartOs, 'timeout', ''))).toBe('The mower did not answer.');
   });
