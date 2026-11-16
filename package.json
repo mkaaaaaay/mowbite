@@ -1,6 +1,6 @@
 {
   "name": "mowbite",
-  "version": "1.5.0-beta.2",
+  "version": "1.5.0-preview.10",
   "osApi": {
     "min": 11,
     "max": 36,
