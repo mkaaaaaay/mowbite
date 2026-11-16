@@ -47,6 +47,27 @@ test.describe('recorded outline pass', () => {
     await expect(loop).toBeDisabled();
   });
 
+  test('an area switches it on for itself, asked first too', async ({page}) => {
+    await openMap(page);
+    const at = await lawnPoint(page);
+    await page.mouse.click(at.x, at.y);
+    await expect(page.getByRole('textbox').first()).not.toHaveValue('');
+    await unfoldAll(page);
+    const row = page
+      .locator('#fold-area div')
+      .filter({has: page.locator('span', {hasText: /^Recorded outline pass/})})
+      .last();
+    const sheet = page.getByRole('alertdialog', {name: 'The mower drives right up to the recorded line'});
+    await row.getByRole('button', {name: 'on', exact: true}).click();
+    await sheet.getByRole('button', {name: 'Cancel'}).click();
+    await expect(row.getByText('Own value for this area')).toHaveCount(0);
+
+    await row.getByRole('button', {name: 'on', exact: true}).click();
+    await sheet.getByRole('button', {name: 'Switch on'}).click();
+    await expect(row.getByText('Own value for this area, all areas: off.')).toBeVisible();
+    await expect(row.getByText(/At walls and fences a bumper can trigger/)).toBeVisible();
+  });
+
   test('an area planned without it says why with its plan', async ({page}) => {
     await demoFlag(page, 'mowbiteDemoPlannerSet', {recorded_loop: true});
     await demoFlag(page, 'mowbiteDemoLoopIgnored', 'the area is too small for it');
@@ -54,7 +75,7 @@ test.describe('recorded outline pass', () => {
     const at = await lawnPoint(page);
     await page.mouse.click(at.x, at.y);
     await expect(page.getByRole('textbox').first()).not.toHaveValue('');
-    for (let round = 0; round < 3; round++) await page.$$eval('details', (all) => all.forEach((d) => ((d as HTMLDetailsElement).open = true)));
+    await unfoldAll(page);
     await expect(page.getByText('Recorded outline pass not possible: The area is too small for it.')).toBeVisible();
   });
 });

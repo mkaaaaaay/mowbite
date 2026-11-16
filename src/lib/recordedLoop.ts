@@ -48,6 +48,12 @@ export const recordedLoopWarning = () => ({
   lines: RECORDED_LOOP_WARNING.lines.map((l) => tr(l, {cm: RECORDED_LOOP_CM})),
 });
 
+// the warning as one text, under its switch while it's on
+export const recordedLoopMeans = () => {
+  const w = recordedLoopWarning();
+  return [w.title, ...w.lines].join(' ');
+};
+
 // what the app says for an area or a setting the planner goes without it for
 export const recordedLoopNote = (reason: string) =>
   tr('Recorded outline pass not possible: {reason}', {reason: tr(recordedLoopReason(reason) ?? reason)});

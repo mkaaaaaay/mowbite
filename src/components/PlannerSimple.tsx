@@ -6,12 +6,14 @@ import {outlineOf, resetPlannerAngle, savePlannerSettings, slic3rPlans, usePlann
 import {ANGLE_FOR_ALL, FIELDS, helpOf, hidden, noOwnStrategy, STYLE_LABELS, STYLE_NOTES, STYLES, styleOf} from '@/lib/plannerFields';
 import {areasWith, areasWithDirection, ownMargins, ownSettings, shown, type AreaValue, type OpenMowerOwn} from '@/lib/plannerOwn';
 import {usePlatform} from '@/lib/mowerOs';
+import {RECORDED_LOOP as LOOP, recordedLoopMeans, recordedLoopNote} from '@/lib/recordedLoop';
 import {ownCount} from '@/lib/mowPlan';
 import {answerError} from '@/lib/rpcText';
 import {useEffect, useState} from 'react';
 import InfoTip from './InfoTip';
 import {NoSizesWarning} from './MowerBodySettings';
 import {setOpenMowerParam} from './MowerParamSettings';
+import {RecordedLoopAsk} from './RecordedLoopAsk';
 import local from './PlannerSimple.module.css';
 
 // The planner's settings that matter for a garden, in the same sections for all areas and for one area: the style (a
@@ -159,6 +161,8 @@ export function PlannerSimple({
   const os = platform === 'os';
   const om = platform === 'om';
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  // the recorded outline pass asks before it's switched on
+  const [asking, setAsking] = useState(false);
   // want: what's being saved, shown already while the planner hasn't answered (it may be planning for minutes)
   const [state, setState] = useState<{busy?: boolean; error?: string; saved?: number; want?: Record<string, unknown>}>({});
   // "saved" shows for a moment
@@ -190,6 +194,8 @@ export function PlannerSimple({
     if (area) return area.set(k, v);
     await store({[k]: v === undefined ? null : v});
   };
+  // the recorded outline pass asks first before it's switched on
+  const put = (key: string, v: unknown) => (key === LOOP && v === true ? setAsking(true) : void save(key, v));
   const saveMany = async (values: Record<string, unknown>) => {
     if (area) return area.setMany ? area.setMany(values) : Object.entries(values).forEach(([k, v]) => area.set(k, v));
     await store(Object.fromEntries(Object.entries(values).map(([k, v]) => [k, v === undefined ? null : v])));
@@ -242,16 +248,22 @@ export function PlannerSimple({
       value={value(key) === undefined ? undefined : value(key) ? 'on' : 'off'}
       like={like(global(key) ? on : off)}
       disabled={state.busy}
-      onChange={(v) => void save(key, v === undefined ? undefined : v === 'on')}
+      onChange={(v) => put(key, v === undefined ? undefined : v === 'on')}
     />
   );
-  // on or off: a switch for all areas
+  // on or off: a switch for all areas, one the planner goes without can't be switched on
   const toggle = (key: string) =>
     area ? (
       either(key, tr('off'), tr('on'))
     ) : (
       <label className={local.switch}>
-        <input type="checkbox" checked={!!value(key)} disabled={state.busy} onChange={(e) => void save(key, e.target.checked)} />
+        <input
+          type="checkbox"
+          aria-label={tr(FIELDS[key]?.label ?? key)}
+          checked={!!value(key)}
+          disabled={state.busy || (!!all[key]?.ignored && !value(key))}
+          onChange={(e) => put(key, e.target.checked)}
+        />
         <span>{value(key) ? tr('on') : tr('off')}</span>
       </label>
     );
@@ -806,6 +818,23 @@ export function PlannerSimple({
               {choice('perimeter_direction', FIELDS.perimeter_direction.choices!)}
             </Row>
           )}
+          {/* shown also while the planner goes without it, with why */}
+          {all[LOOP]?.settable && (
+            <Row
+              label={tr(FIELDS[LOOP].label)}
+              help={tr(FIELDS[LOOP].help)}
+              note={
+                !area && all[LOOP].ignored
+                  ? recordedLoopNote(String(all[LOOP].ignored))
+                  : effective(LOOP) === true
+                    ? recordedLoopMeans()
+                    : null
+              }
+              source={others(LOOP) || ownLine(LOOP)}
+            >
+              {toggle(LOOP)}
+            </Row>
+          )}
         </Section>
 
         {(has('turn_radius') || has('body_fit') || has('edge_margin') || has('obstacle_margin')) && (
@@ -1171,6 +1200,7 @@ export function PlannerSimple({
       </div>
 
       {state.error && <span className={local.error}>{state.error}</span>}
+      {asking && <RecordedLoopAsk onYes={() => void save(LOOP, true)} onClose={() => setAsking(false)} />}
     </div>
   );
 }

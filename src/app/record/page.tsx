@@ -23,6 +23,7 @@ import {fmt, tr, useLang} from '@/lib/i18n';
 import {ACTION, RPC, TOPIC, UNDO_METERS} from '@/lib/openmower';
 import {usePlatform} from '@/lib/mowerOs';
 import {useRpcMethods} from '@/hooks/useRpcMethods';
+import {useSure} from '@/hooks/useSure';
 import {eventsOfDay, fileDay, forgetToday, historyDays} from '@/lib/history';
 import {backAtStart} from '@/lib/geometry';
 import {tick} from '@/lib/haptics';
@@ -30,6 +31,7 @@ import {guardLeaving} from '@/lib/leaving';
 import {parseEvent, refusalText, type MowerEvent} from '@/lib/events';
 import {onTopic} from '@/lib/mqttClient';
 import {SAVE_WAIT_MS} from '@/lib/recordingJob';
+import {NOT_DRIVEN} from '@/lib/reasonTexts';
 import {markRecording, useRecordingJob} from '@/components/RecordingWatch';
 
 const START = ACTION.startRecording;
@@ -199,12 +201,19 @@ function Record() {
   // a step the mower turned down, with why: MowBite OS sends it, OpenMower doesn't (then nothing shows). gone with the next
   // step, another phase, or for a point once the line goes on
   const [refused, setRefused] = useState<MowerEvent | null>(null);
+  // MowBite OS: why the outline being recorded has no exact edge any more, as far as the app sees it (a driven_reason):
+  // reversing, points taken back or set by hand, Auto points off. The others only come with the saved area
+  const [edgeLost, setEdgeLost] = useState<string | null>(null);
+  // the line discarded to record it again: started again once it's gone
+  const restart = useRef(false);
   useEffect(
     () =>
       onTopic(TOPIC.events, (payload) => {
         const e = parseEvent(payload.toString());
         if (e?.type !== 'RECORDING_REFUSED') return;
         setRefused(e);
+        restart.current = false;
+        if (e.reason === 'REVERSING') setEdgeLost((r) => r ?? 'REVERSED');
         // saving it didn't work after all
         if (e.action?.startsWith('finish_') || e.action === 'record_dock') setSave(null);
       }),
@@ -413,6 +422,33 @@ function Record() {
       </button>
     );
   const discardButton = button('finish_discard', askDiscard ? 'Really discard?' : 'Discard area', 'danger', undefined, discardTap);
+  // the area's outline on MowBite OS, where the exact edge counts
+  const outlining = os && phase === 'recording' && !hasOutline;
+  if (edgeLost && !outlining) setEdgeLost(null);
+  if (outlining && !edgeLost && hasAction(A('auto_point_collecting_enable'))) setEdgeLost('INTERRUPTED');
+  const lose = (reason: string) => () => outlining && setEdgeLost((r) => r ?? reason);
+  useEffect(() => {
+    if (phase === 'empty' && restart.current) actRef.current('start_recording');
+    if (phase !== 'recording') restart.current = false;
+  }, [phase]);
+  const {sure, confirm} = useSure();
+  // the outline thrown away and started again from where the mower stands, after asking
+  const againButton = edgeLost && hasAction(A('finish_discard')) && (
+    <button
+      key="record_again"
+      className={sure === 'again' ? ds.danger : undefined}
+      disabled={!live}
+      onClick={() =>
+        confirm('again', () => {
+          restart.current = true;
+          act('finish_discard');
+        })
+      }
+    >
+      {ICONS.start_recording}
+      {tr(sure === 'again' ? 'Sure? Discard the line and start again here' : 'Record again for the exact edge')}
+    </button>
+  );
   // the docking station: with the guide on OpenMower, OpenMower's own two steps on MowBite OS
   const stationButton = (again: boolean) =>
     os ? (
@@ -476,6 +512,7 @@ function Record() {
         : tr('Drive along the edge, close to it all the way: the line is the middle of the mower. Back at the start, stop: the outline closes by itself.');
     hints = [
       tr('Drive forwards all the way while recording.'),
+      tr('Drive corners a little inside and blunt, not with a sharp turn.'),
       ...(os
         ? [
             tr('Took a wrong turn? Back up a bit, the mower takes the last points back. The exact edge is lost by that.'),
@@ -485,8 +522,9 @@ function Record() {
     ];
     buttons = [
       button('stop_recording', 'Stop', 'primary', undefined, om && hasOutline && line.length < 2 ? () => setEarly(true) : undefined),
-      undo && button('undo_points', tr('Back {m} m', {m: UNDO_METERS})),
-      button('collect_point', 'Set point here'),
+      againButton,
+      undo && button('undo_points', tr('Back {m} m', {m: UNDO_METERS}), undefined, lose('INTERRUPTED')),
+      button('collect_point', 'Set point here', undefined, lose('MANUAL_POINT')),
       button('auto_point_collecting_disable', 'Auto points: on'),
       button('auto_point_collecting_enable', 'Auto points: off'),
       discardButton,
@@ -675,6 +713,11 @@ function Record() {
           >
             {phase === 'empty' && stationLine}
             {refusedText && <p className={ds.warn}>{refusedText}</p>}
+            {edgeLost && (
+              <p className={ds.warn}>
+                {tr('No exact edge any more ({why}). For the recorded outline pass, start the round again from here.', {why: tr(NOT_DRIVEN[edgeLost])})}
+              </p>
+            )}
             {drift !== null && (
               <p className={ds.warn}>
                 {tr(

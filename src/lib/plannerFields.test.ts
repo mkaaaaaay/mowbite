@@ -105,13 +105,8 @@ describe('style of the planner settings', () => {
       robot_outline: {settable: false},
       angle_steps: {settable: false},
     };
-    expect(expertKeys(all, true)).toEqual({keys: ['skip_lanes', 'recorded_loop'], fixed: ['skip_outline_loops', 'skip_obstacle_loops']});
-    expect(expertKeys(all, false)).toEqual({keys: ['recorded_loop'], fixed: []});
-  });
-
-  it('keeps the recorded outline pass while the planner goes without it', () => {
-    const all = {recorded_loop: {settable: true, ignored: 'fill_pattern concentric'}, bend_max_offset: {settable: true, ignored: 'no rows'}};
-    expect(expertKeys(all, false).keys).toEqual(['recorded_loop']);
+    expect(expertKeys(all, true)).toEqual({keys: ['skip_lanes'], fixed: ['skip_outline_loops', 'skip_obstacle_loops']});
+    expect(expertKeys(all, false)).toEqual({keys: [], fixed: []});
   });
 
   it('names every setting it lists for experts', () => {

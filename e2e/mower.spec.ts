@@ -304,6 +304,32 @@ test('back takes the end of the line away while the mower stays', async ({page})
   await expect(button('Stop')).toBeVisible();
 });
 
+// on MowBite OS points taken back lose the exact edge: said with why, and the outline thrown away and started again
+// from where the mower stands
+test('the exact edge lost while recording, the outline started again', async ({page}) => {
+  await demoWith(page, 'Os', 'Undo');
+  await page.goto('/record/');
+  await demoDocked(page);
+  await page.getByRole('button', {name: 'Start recording mode'}).click();
+  const button = (name: string) => page.locator('button:visible', {hasText: name}).first();
+  const lost = page.getByText(/^No exact edge any more/);
+  await button('Record outline').click();
+  await holdStick(page);
+  await expect.poll(() => lineLength(page), {timeout: 15000}).toBeGreaterThan(1.5);
+  await expect(lost).toHaveCount(0);
+  await expect(button('Record again for the exact edge')).toBeHidden();
+  await page.mouse.up();
+  await page.waitForTimeout(1500);
+  await button('Back 1 m').click();
+  await expect(lost).toContainText('(recording interrupted)');
+  await button('Record again for the exact edge').click();
+  await page.waitForTimeout(700);
+  await button('Sure? Discard the line and start again here').click();
+  await expect.poll(() => lineLength(page)).toBeLessThan(0.2);
+  await expect(button('Stop')).toBeVisible();
+  await expect(button('Save as mowing area')).toBeHidden();
+});
+
 test('no back button on OpenMower', async ({page}) => {
   await page.goto('/record/');
   await demoDocked(page);

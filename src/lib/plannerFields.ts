@@ -391,10 +391,9 @@ export const COUNTED = ['angle_steps', 'finished_mows'];
 const NOT_ON_OS = ['skip_lanes'];
 // left out everywhere: the drive (slope and reverse drive backwards, set only with the app's warning once it has one)
 export const HIDDEN = ['drive'];
-// a setting left out of every menu and list: one of HIDDEN, or one the planner says it goes without (ignored)
+// a setting left out of every menu and list: one of HIDDEN, or one the planner says it goes without (ignored; the planner
+// menu shows the recorded outline pass anyway, with why)
 export const hidden = (key: string, s: {ignored?: unknown} | undefined) => HIDDEN.includes(key) || !!s?.ignored;
-// stay in the list for experts though the planner goes without them, with why (PlannerSettings)
-const TOLD = [RECORDED_LOOP];
 // in the planner menu at the map (PlannerSimple), the lists for experts leave them out
 export const SIMPLE = [
   'planner',
@@ -413,6 +412,7 @@ export const SIMPLE = [
   'edges',
   'perimeter_passes',
   'obstacle_passes',
+  RECORDED_LOOP,
   'lane_overlap_passes',
   'lane_overlap_limit',
   'perimeter_order',
@@ -449,10 +449,9 @@ export const BODY_KEYS = [
 ];
 
 // for the list for experts: keys, the ones the planner menu doesn't have (a direction for all areas: each area has its
-// own), NOT_ON_OS only once it's known to be OpenMower, a TOLD one also while ignored; fixed, the ones mower_logic sends
-// with every plan
+// own), NOT_ON_OS only once it's known to be OpenMower; fixed, the ones mower_logic sends with every plan
 export function expertKeys(all: Record<string, {settable: boolean; ignored?: unknown}>, om: boolean): {keys: string[]; fixed: string[]} {
-  const shown = (k: string) => !hidden(k, TOLD.includes(k) ? undefined : all[k]) && !BODY_KEYS.includes(k);
+  const shown = (k: string) => !hidden(k, all[k]) && !BODY_KEYS.includes(k);
   const keys = Object.keys(all).filter(
     (k) =>
       shown(k) &&
