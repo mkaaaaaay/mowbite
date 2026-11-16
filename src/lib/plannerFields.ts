@@ -3,6 +3,9 @@
 // know show up with their own name under "More", so a newer planner's settings can be set too. The groups are the
 // sections of the planner menu, the same for all areas and for one area.
 
+// the name of the first outline pass's distance, the planner's and OpenMower's alike
+export const FIRST_PASS = 'First pass from the line';
+
 export type Group = 'pattern' | 'angle' | 'edge' | 'obstacles' | 'turns' | 'route' | 'fine';
 
 export interface Field {
@@ -172,7 +175,7 @@ export const FIELDS: Record<string, Field> = {
     area: true,
   },
   perimeter_offset: {
-    label: 'First pass from the line',
+    label: FIRST_PASS,
     help: "How far the middle of the mower stays inside the lines of the map on the first outline pass. 0: the middle on the line, negative out beyond it. Empty: OpenMower's value for all areas (outline_offset). With the mower sizes the first pass also keeps the safety distance to the edge, the larger of the two counts.",
     helpOs: 'How far the middle of the mower stays inside the lines of the map on the first outline pass. 0: the middle on the line, negative out beyond it. Empty: the edge of the blade on the line (half the blade width in). With the mower sizes the first pass also keeps the safety distance to the edge, the larger of the two counts.',
     group: 'edge',

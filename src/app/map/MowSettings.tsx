@@ -3,7 +3,7 @@ import {useCanSetParams} from '@/components/MowerParamSettings';
 import Link from 'next/link';
 import {useAreaProperties} from '@/lib/areaProps';
 import {slic3rPlans, usePlannerSettings} from '@/lib/mowerBody';
-import {FIELDS, helpOf, noOwnStrategy} from '@/lib/plannerFields';
+import {FIELDS, FIRST_PASS, helpOf, noOwnStrategy} from '@/lib/plannerFields';
 import {useOpenMower} from '@/lib/mowerOs';
 import simple from '@/components/PlannerSimple.module.css';
 import {dec, tr} from '@/lib/i18n';
@@ -133,10 +133,11 @@ export default function MowSettings(props: Props) {
 // switched on in it
 export function OpenMowerArea({area, globalValue, remember, update, inMenu}: Props & {inMenu?: boolean}) {
   const p = area.properties;
-  const number = (key: Override, label: string, tip: string, step: number, min?: number) => (
+  const number = (key: Override, label: string, tip: string, step: number, min?: number, unit?: string) => (
     <label>
       <span>
         {tr(label)}
+        {unit && ` (${unit})`}
         <InfoTip>{tr(tip)}</InfoTip>
       </span>
       <OverrideField
@@ -170,9 +171,11 @@ export function OpenMowerArea({area, globalValue, remember, update, inMenu}: Pro
       )}
       {number(
         'outline_offset',
-        'First pass from the line (m)',
+        FIRST_PASS,
         "How far the middle of the mower stays inside the line on the first outline pass. 0: the middle on the line. Positive further in (more distance to beds and walls), negative out beyond it. -1 to 1 m. Empty: like all areas.",
         0.05,
+        undefined,
+        'm',
       )}
     </div>
   );

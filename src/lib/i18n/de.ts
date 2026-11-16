@@ -566,7 +566,6 @@ const de: Record<string, string> = {
   "Other mowers": "Weitere Mäher",
   "Your mowers": "Deine Mäher",
   "Outline done. Record obstacles inside it (beds, trees, the pond), or save the area.": "Rand fertig. Nimm Hindernisse darin auf (Beete, Bäume, den Teich) oder speichere die Fläche.",
-  "First pass from the line (m)": "Abstand der ersten Runde zur Linie (m)",
   "Outline passes": "Randrunden",
   "Outline points": "Randpunkte",
   "Overlapping passes": "Überlappende Randrunden",
