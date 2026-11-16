@@ -2,6 +2,7 @@
 
 import {CALIB_SHOWN, calibMissingText} from '@/lib/calibration';
 import {tr, useLang} from '@/lib/i18n';
+import {useMowbiteOs} from '@/lib/mowerOs';
 import Link from 'next/link';
 import {useId} from 'react';
 import styles from './page.module.css';
@@ -52,13 +53,14 @@ function Turn({x, y, left, arrow}: {x: number; y: number; left: boolean; arrow: 
 // how to calibrate, in cards with a drawing each: before, standing, straight runs, turns, while mowing, the result
 export default function CalibrationGuidePage() {
   useLang();
-  if (!CALIB_SHOWN)
+  const os = useMowbiteOs();
+  if (os || !CALIB_SHOWN)
     return (
       <div className={styles.page}>
         <main className={styles.main}>
           <h1>{tr('Calibrating')}</h1>
           <section className={styles.card}>
-            <p>{calibMissingText('build')}</p>
+            <p>{calibMissingText(os ? 'os' : 'build')}</p>
           </section>
         </main>
       </div>
