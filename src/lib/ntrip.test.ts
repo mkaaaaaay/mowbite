@@ -15,6 +15,7 @@ import {deleteNtrip, loadNtrip, loginDropped, ntripForm, ntripParams, ntripProbl
 
 const PASSWORD = 'geheim-4711';
 const USER = 'gartenfreund';
+const STORED = {configured: true, host: 'caster.example', port: 2101, has_user: true, has_password: true};
 const form = (change: Partial<NtripForm> = {}): NtripForm => ({host: 'caster.example', port: '2101', mountpoint: 'VRS_3_4G', version: 2, user: '', password: '', ...change});
 
 describe('ntrip', () => {
@@ -26,11 +27,10 @@ describe('ntrip', () => {
   });
 
   it('leaves an empty user and password out for the same caster, so the mower keeps them, and sends none for another', () => {
-    const stored = {configured: true, host: 'caster.example', port: 2101, has_user: true, has_password: true};
-    expect(ntripParams(form({host: ' caster.example ', version: 1}), stored)).toEqual({host: 'caster.example', port: 2101, mountpoint: 'VRS_3_4G', version: 1});
-    expect(ntripParams(form({user: ` ${USER} `, password: ' p w '}), stored)).toMatchObject({user: USER, password: ' p w '});
-    expect(ntripParams(form({password: PASSWORD}), stored)).not.toHaveProperty('user');
-    expect(ntripParams(form({port: ' 2102 '}), stored)).toMatchObject({port: 2102, user: '', password: ''});
+    expect(ntripParams(form({host: ' caster.example ', version: 1}), STORED)).toEqual({host: 'caster.example', port: 2101, mountpoint: 'VRS_3_4G', version: 1});
+    expect(ntripParams(form({user: ` ${USER} `, password: ' p w '}), STORED)).toMatchObject({user: USER, password: ' p w '});
+    expect(ntripParams(form({password: PASSWORD}), STORED)).not.toHaveProperty('user');
+    expect(ntripParams(form({port: ' 2102 '}), STORED)).toMatchObject({port: 2102, user: '', password: ''});
     expect(ntripParams(form({password: PASSWORD}), null)).toMatchObject({user: '', password: PASSWORD});
   });
 
@@ -56,14 +56,13 @@ describe('ntrip', () => {
   });
 
   it('warns that the stored login goes with another host or port', () => {
-    const stored = {configured: true, host: 'caster.example', port: 2101, has_user: true, has_password: true};
-    expect(loginDropped(stored, form())).toBe(false);
-    expect(loginDropped(stored, form({mountpoint: 'OTHER', version: 1}))).toBe(false);
-    expect(loginDropped(stored, form({host: 'other.example'}))).toBe(true);
-    expect(loginDropped(stored, form({port: '2102'}))).toBe(true);
-    expect(loginDropped(stored, form({port: '2102', user: USER}))).toBe(true);
-    expect(loginDropped(stored, form({port: '2102', user: USER, password: PASSWORD}))).toBe(false);
-    expect(loginDropped({...stored, has_user: false, has_password: false}, form({host: 'other.example'}))).toBe(false);
+    expect(loginDropped(STORED, form())).toBe(false);
+    expect(loginDropped(STORED, form({mountpoint: 'OTHER', version: 1}))).toBe(false);
+    expect(loginDropped(STORED, form({host: 'other.example'}))).toBe(true);
+    expect(loginDropped(STORED, form({port: '2102'}))).toBe(true);
+    expect(loginDropped(STORED, form({port: '2102', user: USER}))).toBe(true);
+    expect(loginDropped(STORED, form({port: '2102', user: USER, password: PASSWORD}))).toBe(false);
+    expect(loginDropped({...STORED, has_user: false, has_password: false}, form({host: 'other.example'}))).toBe(false);
     expect(loginDropped({configured: false}, form())).toBe(false);
   });
 
@@ -101,12 +100,11 @@ describe('ntrip', () => {
   });
 
   it('the demo keeps a login for the same host and port only, and changes nothing outside IDLE', async () => {
-    const get = () => loadNtrip();
-    expect(await get()).toMatchObject({configured: true, has_user: true, has_password: true});
-    expect(await saveNtrip(form({mountpoint: 'OTHER'}), await get())).toMatchObject({mountpoint: 'OTHER', has_user: true, has_password: true});
-    expect(await saveNtrip(form({port: '2102'}), await get())).toMatchObject({port: 2102, has_user: false, has_password: false});
+    expect(await loadNtrip()).toMatchObject({configured: true, has_user: true, has_password: true});
+    expect(await saveNtrip(form({mountpoint: 'OTHER'}), await loadNtrip())).toMatchObject({mountpoint: 'OTHER', has_user: true, has_password: true});
+    expect(await saveNtrip(form({port: '2102'}), await loadNtrip())).toMatchObject({port: 2102, has_user: false, has_password: false});
     state = 'MOWING';
-    await expect(saveNtrip(form(), await get())).rejects.toMatchObject({code: -32600});
+    await expect(saveNtrip(form(), await loadNtrip())).rejects.toMatchObject({code: -32600});
     await expect(deleteNtrip()).rejects.toMatchObject({code: -32600});
     state = 'IDLE';
     expect(await deleteNtrip()).toMatchObject({configured: false, has_user: false});

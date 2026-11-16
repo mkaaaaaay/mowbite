@@ -1,4 +1,4 @@
-import {RPC} from './openmower';
+import {NTRIP_PORT, RPC} from './openmower';
 import {callRpc} from './rpc';
 
 // The access to the caster for RTK corrections on a mower with MowBite OS (ntrip.*). User and password only go to the
@@ -9,7 +9,7 @@ export interface NtripAccess {
   host?: string;
   port?: number;
   mountpoint?: string;
-  version?: number; // 1 or 2
+  version?: 1 | 2;
   has_user?: boolean;
   has_password?: boolean;
   // why the mower can't use what is stored
@@ -25,8 +25,6 @@ export interface NtripForm {
   password: string;
 }
 
-export const NTRIP_PORT = 2101;
-
 // the form for a stored access, user and password always empty
 export const ntripForm = (a?: NtripAccess | null): NtripForm => ({
   host: a?.host ?? '',
@@ -38,6 +36,10 @@ export const ntripForm = (a?: NtripAccess | null): NtripForm => ({
 });
 
 const portOf = (f: NtripForm) => (/^\d+$/.test(f.port.trim()) ? Number(f.port.trim()) : NaN);
+
+// a stored login counts only for the host and port it was saved with
+const sameCaster = (stored: NtripAccess | null | undefined, f: NtripForm) =>
+  !!stored?.configured && stored.host === f.host.trim() && stored.port === portOf(f);
 
 // what keeps the form from being sent, in english (the key of its text), null when it can go
 export function ntripProblem(f: NtripForm): string | null {
@@ -55,15 +57,12 @@ export function ntripProblem(f: NtripForm): string | null {
 // what ntrip.set gets: for the same host and port an empty user or password is left out and the mower keeps the stored
 // one; for another caster it needs both, "" for none
 export function ntripParams(f: NtripForm, stored: NtripAccess | null | undefined) {
-  const host = f.host.trim();
-  const port = portOf(f);
-  const same = !!stored?.configured && stored.host === host && stored.port === port;
-  const login = (value: string) => (value || same ? value : '');
-  const user = login(f.user.trim());
-  const password = login(f.password);
+  const same = sameCaster(stored, f);
+  const user = f.user.trim();
+  const password = f.password;
   return {
-    host,
-    port,
+    host: f.host.trim(),
+    port: portOf(f),
     mountpoint: f.mountpoint.trim(),
     version: f.version,
     ...((user || !same) && {user}),
@@ -74,8 +73,7 @@ export function ntripParams(f: NtripForm, stored: NtripAccess | null | undefined
 // the mower drops a stored login it gets no new one for once the host or the port changes
 export function loginDropped(stored: NtripAccess | null | undefined, f: NtripForm): boolean {
   if (!stored?.configured || !(stored.has_user || stored.has_password)) return false;
-  if (f.user.trim() && f.password) return false;
-  return stored.host !== f.host.trim() || stored.port !== portOf(f);
+  return !(f.user.trim() && f.password) && !sameCaster(stored, f);
 }
 
 // a text to show without the user and password just typed, whoever put them in it

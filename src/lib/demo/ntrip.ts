@@ -1,15 +1,14 @@
-import {RPC} from '../openmower';
+import type {NtripAccess} from '../ntrip';
+import {NTRIP_PORT, RPC} from '../openmower';
 import {demoFlags} from './flags';
 
-// The access to the caster of a mower with MowBite OS for the click tests (ntrip.*), like the OS answers them: user and
-// password never in an answer. The demo is an OpenMower and has none, a test switches it on before the page loads
-// (window.mowbiteDemoNtrip); with window.mowbiteDemoNtripReadOnly it is one that doesn't take the access over rpc
+// ntrip.* as MowBite OS answers it, on with window.mowbiteDemoNtrip, only ntrip.get with window.mowbiteDemoNtripReadOnly
 
 interface Stored {
   host: string;
   port: number;
   mountpoint: string;
-  version: number;
+  version: 1 | 2;
   user: string;
   password: string;
 }
@@ -20,8 +19,8 @@ class Refused extends Error {
 }
 
 export function demoNtrip(state: () => string): Record<string, (params: unknown) => unknown> {
-  let stored: Stored | null = {host: 'caster.example', port: 2101, mountpoint: 'VRS_3_4G', version: 2, user: 'demo', password: 'demo'};
-  const answer = () =>
+  let stored: Stored | null = {host: 'caster.example', port: NTRIP_PORT, mountpoint: 'VRS_3_4G', version: 2, user: 'demo', password: 'demo'};
+  const answer = (): NtripAccess =>
     stored
       ? {
           configured: true,
@@ -42,7 +41,7 @@ export function demoNtrip(state: () => string): Record<string, (params: unknown)
     ...get,
     [RPC.ntripSet]: (params) => {
       idle(RPC.ntripSet);
-      const {host, port = 2101, mountpoint, version = 2, user, password} = (params ?? {}) as Partial<Stored>;
+      const {host, port = NTRIP_PORT, mountpoint, version = 2, user, password} = (params ?? {}) as Partial<Stored>;
       if (typeof host !== 'string' || !host || typeof mountpoint !== 'string' || !mountpoint) throw new Error('host and mountpoint are required');
       if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('port is 1 to 65535');
       if (version !== 1 && version !== 2) throw new Error('version is 1 or 2');

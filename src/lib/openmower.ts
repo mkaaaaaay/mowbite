@@ -28,6 +28,9 @@ export const TOPIC = {
   scheduleReady: 'mowbite/schedule/ready',
 } as const;
 
+// the caster's port when the access names none (ntrip.set)
+export const NTRIP_PORT = 2101;
+
 export const RPC = {
   // what this mower answers, newer OpenMower versions only
   methods: 'rpc.methods',

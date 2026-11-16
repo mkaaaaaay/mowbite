@@ -10,8 +10,7 @@ import {answerError} from '@/lib/rpcText';
 import {useEffect, useState} from 'react';
 import local from './LightSettings.module.css';
 
-// the access to the caster for corrections on a mower with MowBite OS: shown without user and password, set and
-// deleted where the mower takes that over rpc
+// the access to the caster, shown without user and password
 export function NtripSettings({styles}: {styles: Record<string, string>}) {
   useLang();
   const methods = useRpcMethods();
@@ -38,34 +37,30 @@ export function NtripSettings({styles}: {styles: Record<string, string>}) {
 
   const canSet = !!methods?.has(RPC.ntripSet);
   const canDelete = !!methods?.has(RPC.ntripDelete);
-  const save = async (f: NtripForm) => {
-    const problem = ntripProblem(f);
-    if (problem) return setNote({text: tr(problem), error: true});
+  const edit = (f: NtripForm | null) => {
+    setForm(f);
+    setNote(null);
+  };
+  // the access the mower keeps after a save or a delete; clean takes the login just typed out of an error
+  const apply = async (call: () => Promise<NtripAccess>, done?: string, clean = (text: string) => text) => {
     setBusy(true);
     setNote(null);
     try {
-      setAccess(await saveNtrip(f, access));
+      setAccess(await call());
       setForm(null);
-      setNote({text: tr('Saved on the mower.')});
+      if (done) setNote({text: done});
     } catch (e) {
-      setNote({text: withoutLogin(answerError(e), f), error: true});
+      setNote({text: clean(answerError(e)), error: true});
     } finally {
       setBusy(false);
     }
   };
-  const remove = () => {
-    setBusy(true);
-    setNote(null);
-    deleteNtrip()
-      .then(
-        (a) => {
-          setAccess(a);
-          setForm(null);
-        },
-        (e) => setNote({text: answerError(e), error: true}),
-      )
-      .finally(() => setBusy(false));
+  const save = (f: NtripForm) => {
+    const problem = ntripProblem(f);
+    if (problem) return setNote({text: tr(problem), error: true});
+    return apply(() => saveNtrip(f, access), tr('Saved on the mower.'), (text) => withoutLogin(text, f));
   };
+  const remove = () => void apply(deleteNtrip);
   const login = access.has_user
     ? access.has_password
       ? tr('user and password are set')
@@ -161,10 +156,7 @@ export function NtripSettings({styles}: {styles: Record<string, string>}) {
               type="button"
               className={styles.pillButton}
               disabled={busy}
-              onClick={() => {
-                setForm(null);
-                setNote(null);
-              }}
+              onClick={() => edit(null)}
             >
               {tr('Cancel')}
             </button>
@@ -176,10 +168,7 @@ export function NtripSettings({styles}: {styles: Record<string, string>}) {
                 type="button"
                 className={styles.pillButton}
                 disabled={busy || !idle}
-                onClick={() => {
-                  setForm(ntripForm(access));
-                  setNote(null);
-                }}
+                onClick={() => edit(ntripForm(access))}
               >
                 {access.configured ? tr('Change') : tr('Set up')}
               </button>
