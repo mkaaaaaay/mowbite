@@ -243,13 +243,17 @@ export interface Geometry {
 
 export const loadGeometry = () => callRpc<Geometry>(RPC.geometry, {});
 
-// the docking station from above (dock_footprint, MowBite OS from api 38): [ahead, left] around the docked mower, which
-// needn't stand inside it. null where the mower leaves it to its planner (an empty list) or doesn't give one
+// the docking station from above (dock_footprint, MowBite OS from api 38): given around the docked mower, which needn't
+// stand inside it, [ahead, left] along the station's heading. That's the way the mower drives onto the contacts, the
+// docked mower faces against it where they sit behind the axle (dock_contact_x < 0). null where the mower leaves it to
+// its planner (an empty list) or doesn't give one
 export function dockFootprint(g: {settings: Record<string, {value: unknown}>} | null | undefined): Outline | null {
   const v = g?.settings.dock_footprint?.value;
   if (!Array.isArray(v) || v.length < 3) return null;
   const ok = v.every((p) => Array.isArray(p) && p.length === 2 && p.every((n) => typeof n === 'number' && Number.isFinite(n)));
-  return ok ? v.map(([ahead, left]) => [ahead, left]) : null;
+  const contact = g?.settings.dock_contact_x?.value;
+  const back = typeof contact === 'number' && contact < 0;
+  return ok ? v.map(([ahead, left]) => (back ? [-ahead, -left] : [ahead, left])) : null;
 }
 
 // a contour around the mower as points of the map, for the mower at x, y facing heading (rad, ccw)

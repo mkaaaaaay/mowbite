@@ -505,6 +505,12 @@ describe('docking station from above', () => {
     expect(dockFootprint({settings: {}})).toBeNull();
     expect(dockFootprint(null)).toBeNull();
   });
+  it('lies along the way the mower drives onto the contacts, turned round for one docking backwards', () => {
+    const station = [[-0.3, 0.28], [-0.95, 0.28], [-0.95, -0.2], [-0.3, -0.2]];
+    const contact = (x: number) => ({settings: {dock_footprint: {value: station}, dock_contact_x: {value: x}}});
+    expect(dockFootprint(contact(-0.1))).toEqual([[0.3, -0.28], [0.95, -0.28], [0.95, 0.2], [0.3, 0.2]]);
+    expect(dockFootprint(contact(0.2))).toEqual(station);
+  });
 
   it('lies around the mower docked at the station, turned with it', () => {
     // facing north at 10, 5: ahead is up, left is west
