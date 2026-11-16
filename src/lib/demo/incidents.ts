@@ -19,7 +19,8 @@ interface Kept {
 // what opens one: the event's type, the emergency only when it's set
 const TRIGGERS = ['EMERGENCY', 'DOCKING_FAILED', 'UNDOCKING_FAILED', 'MOW_MOTOR_SPINUP_FAILED', 'CALIBRATION_FAILED', 'POSITION_JUMP', 'UNEXPECTED_RESTART'];
 const SAFETY = new Set(['EMERGENCY', 'CRASH']);
-const COLLECTING = 3;
+// like the window of a real one, minutes
+const COLLECTING = 120;
 const BEFORE = 120;
 
 type Event = {id: string; type: string; t: number; [key: string]: unknown};

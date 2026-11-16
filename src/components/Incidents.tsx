@@ -22,7 +22,7 @@ import {
 import {MAX_NOTE} from '@/lib/incidentLimits';
 import {RPC} from '@/lib/openmower';
 import {answerError} from '@/lib/rpcText';
-import {saveFile} from '@/lib/saveFile';
+import {savePieces} from '@/lib/saveFile';
 import Link from 'next/link';
 import {useEffect, useState, useSyncExternalStore} from 'react';
 import logStyles from './RosLog.module.css';
@@ -117,8 +117,8 @@ function Details({incident}: {incident: Incident}) {
     setNote(null);
     setBusy(tr('Packing on the mower…'));
     try {
-      const data = await downloadIncident(incident.id, place, (got, all) => setBusy(tr('Downloading, {pct} %…', {pct: Math.round((got / all) * 100)})));
-      await saveFile(`mowbite-incident-${incident.id}.tar`, data, 'application/x-tar');
+      const progress = (got: number, all: number) => setBusy(tr('Downloading, {pct} %…', {pct: Math.round((got / all) * 100)}));
+      await savePieces(`mowbite-incident-${incident.id}.tar`, 'application/x-tar', (put) => downloadIncident(incident.id, place, progress, put));
     } catch (e) {
       const own = e instanceof Error ? DOWNLOAD_FAILED[e.message] : undefined;
       setNote({text: own ? tr(own) : answerError(e), error: true});

@@ -123,14 +123,18 @@ export function incidentOf(e: MowerEvent, events: readonly MowerEvent[]): string
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-// the archive piece by piece; the first call has the mower pack it, until then it answers ready: false. place: with the
-// mower's position and the real date, else without them
-export async function downloadIncident(id: string, place: boolean, progress: (done: number, size: number) => void): Promise<Uint8Array<ArrayBuffer>> {
-  let out: Uint8Array<ArrayBuffer> | null = null;
+// the archive piece by piece, each one checked and handed to put as it came (base64); the first call has the mower pack
+// it, until then it answers ready: false. place: with the mower's position and the real date, else without them
+export async function downloadIncident(
+  id: string,
+  place: boolean,
+  progress: (done: number, size: number) => void,
+  put: (base64: string) => Promise<void>,
+): Promise<void> {
+  let size = -1;
   let offset = 0;
-  let whole = '';
-  for (let waited = 0; !out || offset < out.length; ) {
-    const r = await callRpc<{ready: boolean; data: string; sha256: string; archive_sha256: string; size?: number}>(
+  for (let waited = 0; size < 0 || offset < size; ) {
+    const r = await callRpc<{ready: boolean; data: string; sha256: string; size?: number}>(
       RPC.incidentsDownload,
       {client: 'app', id, offset, size: PIECE_BYTES, location: place},
       30000,
@@ -140,15 +144,13 @@ export async function downloadIncident(id: string, place: boolean, progress: (do
       await wait(1000);
       continue;
     }
-    out ??= new Uint8Array(r.size ?? 0);
-    whole = r.archive_sha256;
+    if (size < 0) size = r.size ?? 0;
     if (!r.data) break;
     const piece = fromBase64(r.data);
-    if (offset + piece.length > out.length || (await sha256Hex(piece)) !== r.sha256) throw new Error('checksum');
-    out.set(piece, offset);
+    if (offset + piece.length > size || (await sha256Hex(piece)) !== r.sha256) throw new Error('checksum');
+    await put(r.data);
     offset += piece.length;
-    progress(offset, out.length);
+    progress(offset, size);
   }
-  if (offset !== out.length || (await sha256Hex(out)) !== whole) throw new Error('checksum');
-  return out;
+  if (offset !== size) throw new Error('checksum');
 }

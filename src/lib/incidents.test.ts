@@ -1,4 +1,5 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest';
+import {fromBase64} from './base64';
 import {demoIncidents} from './demo/incidents';
 import {downloadIncident, incidentOf, readIncident} from './incidents';
 import type {MowerEvent} from './events';
@@ -76,16 +77,25 @@ describe('an incident of MowBite OS', () => {
     ]);
   });
 
-  it('downloads in pieces once packed, checked piece by piece and as a whole', async () => {
+  it('downloads in pieces once packed, each checked and handed on as it came', async () => {
     const [crash] = methods['incidents.list'](undefined) as {id: string}[];
     const got: number[] = [];
+    const pieces: Uint8Array[] = [];
     vi.useFakeTimers();
-    const download = downloadIncident(crash.id, false, (done) => got.push(done));
+    const download = downloadIncident(crash.id, false, (done) => got.push(done), async (b) => void pieces.push(fromBase64(b)));
     await vi.runAllTimersAsync();
-    const bytes = await download;
+    await download;
     vi.useRealTimers();
-    expect(bytes.length).toBe(300000);
+    expect(pieces.map((p) => p.length)).toEqual([262144, 300000 - 262144]);
     expect(got).toEqual([262144, 300000]);
-    expect(new TextDecoder().decode(bytes.subarray(0, 20))).toContain(crash.id.slice(0, 10));
+    expect(new TextDecoder().decode(pieces[0].subarray(0, 20))).toContain(crash.id.slice(0, 10));
+  });
+
+  it('stops at a piece that came in broken', async () => {
+    const [crash] = methods['incidents.list'](undefined) as {id: string}[];
+    const real = methods['incidents.download'];
+    methods = {...methods, 'incidents.download': (p) => ({...(real(p) as object), sha256: '0'.repeat(64)})};
+    real({id: crash.id, size: 1});
+    await expect(downloadIncident(crash.id, false, () => {}, async () => {})).rejects.toThrow('checksum');
   });
 });
