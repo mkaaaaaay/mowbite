@@ -6,6 +6,7 @@ import {dayDateYear} from '@/lib/dates';
 import {fmt, tr} from '@/lib/i18n';
 import {
   amountsOf,
+  countedSince,
   dueParts,
   loadStats,
   nextDue,
@@ -153,6 +154,7 @@ export default function MowingStats() {
   }
   if (!stats) return null;
   const a = amountsOf(stats, period);
+  const since = countedSince(stats);
   const due = dueParts(stats).length > 0;
   const open = toggled ?? due;
   const next = nextDue(stats);
@@ -212,7 +214,13 @@ export default function MowingStats() {
             <span>{tr('without the blade')}</span>
           </div>
         </div>
-        {period === 'total' && stats.since > 0 && <span className={styles.dim}>{tr('Counted since {date}.', {date: date(stats.since)})}</span>}
+        {period === 'total' && since !== undefined && (
+          <span className={styles.dim}>
+            {since
+              ? tr('Counted since {date}.', {date: date(since)})
+              : tr("Counting started before the mower's clock was set, so when isn't known.")}
+          </span>
+        )}
 
         {stats.parts.some((p) => PARTS[p.key]) && (
           <>

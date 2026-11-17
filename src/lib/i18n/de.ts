@@ -1914,6 +1914,7 @@ const de: Record<string, string> = {
   "with the blade": "mit Messer",
   "without the blade": "ohne Messer",
   "Counted since {date}.": "Gezählt seit {date}.",
+  "Counting started before the mower's clock was set, so when isn't known.": "Die Zählung begann, bevor die Uhr des Mähers gestellt war, seit wann ist daher unbekannt.",
   "Maintenance": "Wartung",
   "Maintenance due": "Wartung fällig",
   "This week {time} mowed": "Diese Woche {time} gemäht",
