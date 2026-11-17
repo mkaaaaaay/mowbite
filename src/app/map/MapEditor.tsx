@@ -29,7 +29,7 @@ import MapBackups, {backupLabel} from '@/components/MapBackups';
 import {deleteBackup, loadBackup, saveBackup, useBackupFirst} from '@/lib/backups';
 import AreaCard, {AreaTools} from './AreaCard';
 import DecorPanel, {showUnderMap} from './DecorPanel';
-import {decorRedo, decorUndo, endsJob, goneLooks, JOB_CHECK_MS, jobLeft, onlyPinsChanged, pinSquare, pinsFrom, saveQuestion, type UpdateArea, NEW_AREA_SETTINGS} from './editing';
+import {decorRedo, decorUndo, endsJob, goneLooks, JOB_CHECK_MS, jobLeft, onlyPinsChanged, pinSquare, pinsFrom, saveQuestion, type UpdateArea} from './editing';
 import EditorToolbar from './EditorToolbar';
 import MowSettings, {AngleOnMap, AreaDirection, AreaPlanInfo, OpenMowerArea} from './MowSettings';
 import OrderBox, {NewArea} from './OrderBox';
@@ -37,7 +37,7 @@ import {DrawPanel, MergePanel, RestorePanel, SimplifyPanel, SnapPanel, SplitPane
 import {ACTION, PARAM} from '@/lib/openmower';
 import {RpcError} from '@/lib/rpc';
 import {rpcErrorText} from '@/lib/rpcText';
-import {sameContent} from '@/lib/sameMap';
+import {NEW_AREA_SETTINGS, sameContent} from '@/lib/sameMap';
 import {savePlanCase} from '@/lib/planCase';
 import {useAreaProperties} from '@/lib/areaProps';
 import {useMowPlan} from './useMowPlan';

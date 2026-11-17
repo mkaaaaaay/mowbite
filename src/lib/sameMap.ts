@@ -1,6 +1,9 @@
 import type {MowerMap} from '@/hooks/useMowerMap';
 import {openRings} from './rings';
 
+// area settings only newer openmower versions keep, older ones drop them when saving (pin too, its square says it then)
+export const NEW_AREA_SETTINGS = ['mowable', 'angle_min', 'angle_max', 'drawn'] as const;
+
 // same content. areas the editor didn't touch keep their object, so only changed ones get compared as text
 export function sameMap(a: MowerMap, b: MowerMap): boolean {
   if (a === b) return true;
@@ -46,10 +49,22 @@ const asKept = (m: MowerMap): MowerMap => ({
   docking_stations: m.docking_stations,
 });
 
-// the same map as one sent to the mower, after it came back from there (map.replace answering late)
-export function sameContent(a: MowerMap, b: MowerMap): boolean {
+// the newer settings an area of sent has that the same area on the mower doesn't, left out (an older openmower dropped them)
+const keptBy = (mower: MowerMap, sent: MowerMap): MowerMap => ({
+  ...sent,
+  areas: sent.areas.map((a) => {
+    const now = mower.areas.find((x) => x.id === a.id)?.properties;
+    if (!now) return a;
+    const properties = {...a.properties};
+    for (const k of NEW_AREA_SETTINGS) if (now[k] === undefined) delete properties[k];
+    return {...a, properties};
+  }),
+});
+
+// the mower's map is the one sent there, after it came back (map.replace answering late)
+export function sameContent(mower: MowerMap, sent: MowerMap): boolean {
   const text = (m: MowerMap) => JSON.stringify(canonical(asKept(openRings(m))));
-  return a === b || text(a) === text(b);
+  return mower === sent || text(mower) === text(keptBy(mower, sent));
 }
 
 // a short key of what the mower keeps of a map, to the mm: the same when the same map comes again, another one when an
