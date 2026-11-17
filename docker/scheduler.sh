@@ -529,8 +529,8 @@ leftovers_conf() { grep -o '"leftovers":{[^}]*}' /data/settings.json 2>/dev/null
 # (planner.leftovers), and when that's at least the m² set, the planner is armed and the mower started again once
 # it's back in the dock and its battery full again (the schedule's least battery when set, else 90 %, at most 6 hours
 # later): it drives only the passes over the leftovers then. not in the dark, the rain or the cold, with an emergency
-# stop, on a day paused or after the end time of the run, like a start by schedule. the run for the leftovers doesn't
-# get looked at itself
+# stop, on a day paused, after the end time of the run or switched off meanwhile, like a start by schedule. it goes home
+# at the run's end time or at sunset, whichever comes first. the run for the leftovers doesn't get looked at itself
 leftovers_after() {
   c=$(leftovers_conf)
   [ "$(field "$c" auto)" = true ] || return
@@ -573,19 +573,22 @@ leftovers_after() {
   waited=""
   while :; do
     s=$(robot_state)
-    if [ "$(field "$s" current_state)" != IDLE ]; then log leftovers_skip "$(field "$s" current_state)"; return; fi
+    # (no answer, OpenMower restarting: waited on)
+    if [ -n "$s" ] && [ "$(field "$s" current_state)" != IDLE ]; then log leftovers_skip "$(field "$s" current_state)"; return; fi
     bat=$(battery "$s")
-    [ "${bat:-0}" -ge "$need" ] && break
+    [ -n "$s" ] && [ "${bat:-0}" -ge "$need" ] && break
     if [ "$(date +%s)" -ge "$t" ]; then log leftovers_skip battery "$bat"; return; fi
-    [ -n "$waited" ] || { log leftovers_waiting_battery "$bat"; waited=1; }
+    [ -n "$waited" ] || [ -z "$s" ] || { log leftovers_waiting_battery "$bat"; waited=1; }
     sleep 60
   done
   # what counts for a start by schedule, now that it would start
+  [ "$(field "$(leftovers_conf)" auto)" = true ] || { log leftovers_skip off; return; }
   if [ "$(field "$s" emergency)" != 0 ]; then log leftovers_skip emergency; return; fi
   if [ "$(conf skiprain)" = 1 ] && [ "$(field "$s" rain_detected)" != 0 ]; then log leftovers_skip rain; return; fi
   if is_dark "$(minutes)"; then log leftovers_skip dark; return; fi
   stop=$(cat "$STOP" 2>/dev/null)
   if [ -n "$stop" ] && [ "$(date +%s)" -ge "$stop" ] && [ "$(($(date +%s) - stop))" -lt 43200 ]; then log leftovers_skip end; return; fi
+  [ -n "$stop" ] && [ "$stop" -gt "$(date +%s)" ] || stop=
   if [ -f "$F" ] && [ "$(awk -v day="$(TZ="$tz" date +%F)" '$1 == "pause" && day <= $2 { print $3; exit }' "$F")" = all ]; then
     log leftovers_skip paused
     return
@@ -598,9 +601,15 @@ leftovers_after() {
   # (the updater's hold once more after the planner's answer, which may take minutes. what's armed runs out by itself)
   if held; then log leftovers_skip hold; return; fi
   if send_start; then
-    date +%s > "$LEFT"
+    began=$(date +%s)
+    echo "$began" > "$LEFT"
+    # home at the run's end time or at sunset, like a run of the schedule
+    end=$(stop_time - 1 - "$stop")
+    run_begin "$began" "${end% *}" "${end#* }" all
     log leftovers_started "$left"
     check_started &
+    # shellcheck disable=SC2086
+    [ -n "$end" ] && send_home_at $end "$began" &
   else
     log leftovers_failed
   fi
@@ -629,7 +638,6 @@ STOP=/tmp/run.stop
 RUN=/data/run.state
 WAITING=/data/run.wait
 DUE=/data/run.due
-leftovers_watch &
 
 # a run begins ($1: when, $2: its stop time or nothing, $3: why, $4: its areas): kept for a restart of the container,
 # with its stop time as still to come
@@ -699,6 +707,8 @@ hand_watch() {
   done
 }
 hand_watch &
+# after run_begin: a shell in the background only has the functions defined before it
+leftovers_watch &
 
 # the mowing direction the app keeps for the mower (params.sh), while keeping is on
 kept_angle() { grep -q '^enabled 1' /data/params.txt 2>/dev/null && sed -n "s|^$PARAM_MOW_ANGLE_OFFSET ||p" /data/params.txt | head -n1; }

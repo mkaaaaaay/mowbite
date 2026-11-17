@@ -13,7 +13,8 @@
 # each, a second apart. $LOGS, $PLANNER_LOG: what logs.recent and planner.log answer (@ID@ for the call's id), $OTHER:
 # someone else's answer sent before each one. $METHODS, $INFO: rpc.methods and system.info (MowBite OS). $KEEP: the
 # parameters the app keeps (/data/params.txt). $RUN_DUE: set while the stop time of $RUN_STATE's run is still to come.
-# $SLOW: the seconds the pretend mower takes to answer a call that sets the pause. $NOTIFY: the push messages' settings
+# $SLOW: the seconds the pretend mower takes to answer a call that sets the pause. $NOTIFY: the push messages' settings.
+# $SETTINGS: the app's settings (/data/settings.json), $LEFTOVERS: what planner.leftovers answers
 pub() {
   t=$1
   shift
@@ -27,6 +28,7 @@ printf '%s\n' "$SCHED" > /data/schedule.txt
 [ -z "$ANGLE_NORMAL" ] || echo "$ANGLE_NORMAL" > /data/angle.normal
 [ -z "$KEEP" ] || printf '%s\n' "$KEEP" > /data/params.txt
 [ -z "$NOTIFY" ] || printf '%s\n' "$NOTIFY" > /data/notify.conf
+[ -z "$SETTINGS" ] || printf '%s\n' "$SETTINGS" > /data/settings.json
 [ -z "$PARAMS" ] || pub params/json -r -m "$PARAMS"
 [ -z "$MAP" ] || pub map/json -r -m "$MAP"
 [ -z "$HOLD" ] || pub mowbite/hold -r -m "$HOLD"
@@ -73,6 +75,7 @@ mosquitto_sub -h "$MOWER_MQTT_HOST" -v -t "${MOWER_MQTT_PREFIX}action" -t "${MOW
         *'"method":"planner.log"'*) [ -z "$PLANNER_LOG" ] || a=$PLANNER_LOG ;;
         *'"method":"rpc.methods"'*) [ -z "$METHODS" ] || a=$METHODS ;;
         *'"method":"system.info"'*) [ -z "$INFO" ] || a=$INFO ;;
+        *'"method":"planner.leftovers"'*) [ -z "$LEFTOVERS" ] || a=$LEFTOVERS ;;
       esac
       [ -z "$OTHER" ] || pub rpc/response -m "$OTHER"
       case "$msg" in *manual_pause_mowing*) [ -z "$SLOW" ] || sleep "$SLOW" ;; esac

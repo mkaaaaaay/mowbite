@@ -750,6 +750,7 @@ const de: Record<string, string> = {
   "Leftovers not mowed, emergency stop": "Reste nicht gemäht, Notaus",
   "Leftovers not mowed, battery only at {more} % after six hours": "Reste nicht gemäht, Akku nach sechs Stunden erst bei {more} %",
   "Leftovers not mowed, the run's end time had come": "Reste nicht gemäht, die Endzeit war erreicht",
+  "Leftovers not mowed, switched off meanwhile": "Reste nicht gemäht, inzwischen ausgeschaltet",
   "Leftovers not mowed, paused for today": "Reste nicht gemäht, für heute pausiert",
   "Leftovers not mowed, rain was forecast": "Reste nicht gemäht, Regen war angesagt",
   "Leftovers not mowed, too cold ({more} °C)": "Reste nicht gemäht, zu kalt ({more} °C)",
@@ -1038,7 +1039,7 @@ const de: Record<string, string> = {
   "The mower did not take the sizes: {why}": "Der Mäher hat die Maße nicht übernommen: {why}",
   "Important: the GPS antenna's position has to be exact. MowBite OS works out the mower's position from it, the green dot. Measure it to the centimetre: if it is off, the mower's position, the outline and the cut strip are off by as much, and in turns the position swings. It is saved with the sizes.":
     "Wichtig: Die Position der GPS-Antenne muss genau stimmen. MowBite OS berechnet daraus die Position des Mähers, der grüne Punkt. Auf den Zentimeter genau messen: Stimmt sie nicht, liegen Position, Umriss und Mähstreifen um genauso viel daneben, und in Kurven schwankt die Position. Sie wird mit den Maßen gespeichert.",
-  "Still done by MowBite on the mower as set before, from {m} m² and after charging. Switch it off and on to let the planner do it.": "Macht weiter MowBite auf dem Mäher wie vorher eingestellt, ab {m} m² und nach dem Laden. Aus- und wieder einschalten, damit der Planer es übernimmt.",
+  "Still done by MowBite on the mower as set before, from {m} m² and after charging, home again at the run's end time or at sunset. Switch it off and on to let the planner do it.": "Macht weiter MowBite auf dem Mäher wie vorher eingestellt, ab {m} m² und nach dem Laden, zurück zur Endzeit des Laufs oder bei Sonnenuntergang. Aus- und wieder einschalten, damit der Planer es übernimmt.",
   "OpenMower lays the lanes {w} cm apart, they just touch.": "OpenMower legt die Bahnen {w} cm auseinander, sie berühren sich gerade.",
   "OpenMower lays the lanes {w} cm apart, so they overlap by {d} cm.": "OpenMower legt die Bahnen {w} cm auseinander, sie überlappen sich also um {d} cm.",
   "OpenMower lays the lanes {w} cm apart, so {d} cm stay uncut between them.": "OpenMower legt die Bahnen {w} cm auseinander, zwischen ihnen bleiben also {d} cm stehen.",
