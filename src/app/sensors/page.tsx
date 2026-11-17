@@ -108,11 +108,11 @@ export default function SensorsPage() {
   const confirmed = useChargeConfirmed(api, state ? onCharger(state, values['om_v_charge']) : undefined, recent?.today, recent?.latest);
   const battery = level ?? (state ? Math.round(state.battery_percentage * 100) : undefined);
   const charge = chargeOf(values['om_charge_state'], num('om_charge_current'), battery);
-  const criticalCount = infos.filter((i) => outOfRange(i, values[i.sensor_id], currentState)).length;
+  const charging = onCharger(state, values['om_v_charge']);
+  const out = (i: SensorInfo | undefined, raw: string | undefined) => outOfRange(i, raw, currentState, charging);
+  const criticalCount = infos.filter((i) => out(i, values[i.sensor_id])).length;
 
-  const batteryCritical = ['om_v_battery', 'om_v_charge', 'om_charge_current'].some((id) =>
-    outOfRange(info(id), values[id], currentState),
-  );
+  const batteryCritical = ['om_v_battery', 'om_v_charge', 'om_charge_current'].some((id) => out(info(id), values[id]));
   const batteryTone = batteryCritical ? 'error' : batteryColor(battery ?? 0);
 
   // as on the dashboard: the blade side first, then the wheels, the rest as they come
@@ -229,7 +229,7 @@ export default function SensorsPage() {
               <Card title={tr('Mow motor')}>
                 {rpm !== undefined && bladeSpin(rpm) !== 0 ? (
                   <>
-                    <strong className={[styles.big, outOfRange(rpmInfo, values['om_mow_motor_rpm'], currentState) ? styles.error : ''].join(' ')}>
+                    <strong className={[styles.big, out(rpmInfo, values['om_mow_motor_rpm']) ? styles.error : ''].join(' ')}>
                       {Math.abs(rpm).toFixed(0)} {tr('rpm')} <TurnIcon reverse={rpm < 0} />
                     </strong>
                     <span className={styles.dim}>
@@ -289,7 +289,7 @@ export default function SensorsPage() {
                     const v = num(key);
                     return (
                       <Card key={key} title={label}>
-                        <strong className={[styles.big, outOfRange(t, values[key], currentState) ? styles.error : ''].join(' ')}>
+                        <strong className={[styles.big, out(t, values[key]) ? styles.error : ''].join(' ')}>
                           {v !== undefined ? `${fmt(v, 1)} °C` : '–'}
                         </strong>
                         {v !== undefined && <TempGauge value={v} info={t} />}
@@ -310,7 +310,7 @@ export default function SensorsPage() {
                     const numeric = o.value_type === 'DOUBLE' && v !== undefined && !Number.isNaN(v);
                     return (
                       <Card key={o.sensor_id} title={tr(o.sensor_name)}>
-                        <strong className={[styles.big, outOfRange(o, values[o.sensor_id], currentState) ? styles.error : ''].join(' ')}>
+                        <strong className={[styles.big, out(o, values[o.sensor_id]) ? styles.error : ''].join(' ')}>
                           {numeric ? `${fmt(v, digitsOf(o))} ${unitOf(o)}` : NTRIP_STATES.includes(values[o.sensor_id]) ? tr(values[o.sensor_id]) : (values[o.sensor_id] ?? '–')}
                         </strong>
                         {numeric && <Sparkline samples={history[o.sensor_id]} digits={digitsOf(o)} unit={unitOf(o)} />}

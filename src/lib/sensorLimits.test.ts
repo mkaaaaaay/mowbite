@@ -111,6 +111,17 @@ describe('outOfRange', () => {
     expect(outOfRange(battery, '24', 'IDLE')).toBe(false);
   });
 
+  it("takes OpenMower's charge end of the battery as normal on the charger", () => {
+    const v = {...sensor({min: 24.5, max: 28.5, low: 23, high: 29}), sensor_id: 'om_v_battery'};
+    expect(outOfRange(v, '29.01', 'IDLE')).toBe(true);
+    expect(outOfRange(v, '29.01', 'IDLE', true)).toBe(false);
+    expect(outOfRange(v, '29.19', 'IDLE', true)).toBe(false);
+    expect(outOfRange(v, '29.2', 'IDLE', true)).toBe(true);
+    expect(outOfRange(v, '23', 'IDLE', true)).toBe(true);
+    // only the battery's voltage
+    expect(outOfRange(battery, '29.9', 'IDLE', true)).toBe(true);
+  });
+
   it('counts revolutions only while mowing, either way round', () => {
     expect(outOfRange(rpm, '1900', 'MOWING')).toBe(true);
     expect(outOfRange(rpm, '-1900', 'MOWING')).toBe(true);
