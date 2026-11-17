@@ -291,6 +291,7 @@ expect "scheduler: the mower got the start twice" "$(sent retry | grep -c 'start
 logs "scheduler: a failed start after the third one" retries '^start_failed undock path_failed( at=[0-9:]+)?$' 60
 sleep 5
 expect "scheduler: three starts, not more" "$(sent retries | grep -c 'start_mowing$') $(slog retries | grep -c '^start_retry')" "3 2"
+expect "scheduler: no one left listening for the answers" "$(docker exec mbt-retries sh -c 'ps -o args | grep -c "^timeout 600"')" 0
 logs "scheduler: a failed undocking before an emergency stop" retrystop '^undock_failed path_failed 1( at=[0-9:]+)?$'
 logs "scheduler: not started again with the emergency stop" retrystop '^retry_skip emergency( at=[0-9:]+)?$' 40
 expect "scheduler: and the mower got one start" "$(sent retrystop | grep -c 'start_mowing$')" 1
