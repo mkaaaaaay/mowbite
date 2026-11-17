@@ -1,219 +1,397 @@
 'use client';
 
+import {SIGNS} from '@/components/setup/StateMark';
+import {LockIcon} from '@/components/setup/SetupOverview';
+import {StepSymbol} from '@/components/setup/StepSymbol';
+import {line} from '@/components/icons';
 import {tr} from '@/lib/i18n';
+import {useId} from 'react';
 import {anim, appear, PAINT, Scene, SCREEN_LOOP, tap} from '../art';
 import Guide, {type GuideStep} from '../Guide';
 
-// the setup program of a mower with MowBite OS, step by step with a drawing for each
+// the setup program of a mower with MowBite OS, step by step with a drawing of its screens for each
 
 const DUR = SCREEN_LOOP;
-const {card, field, well, text, dim, accent, onAccent} = PAINT;
+// the picture shown without motion: the end of the loop, before it starts over
+const STILL = DUR * 0.95;
+const {card, text, dim, accent, onAccent} = PAINT;
+const TILE = {fill: 'var(--tile)'};
 const OK = 'var(--success)';
 const BAD = 'var(--error)';
 
-// a round mark: open (a ring), passed (a tick) or failed (a cross), shown from that fraction of the loop on. passAt: a
-// ring that turns into a tick then
-function Mark({x, y, kind = 'open', at, passAt}: {x: number; y: number; kind?: 'open' | 'ok' | 'bad'; at?: number; passAt?: number}) {
-  if (passAt !== undefined)
-    return (
-      <>
-        <Mark x={x} y={y} />
-        <Mark x={x} y={y} kind="ok" at={passAt} />
-      </>
-    );
-  const color = kind === 'ok' ? OK : kind === 'bad' ? BAD : 'var(--text-secondary)';
+// shown from one fraction of the loop to another
+function Shown({from = 0, to = 1, children}: {from?: number; to?: number; children: React.ReactNode}) {
+  if (from <= 0 && to >= 1) return <>{children}</>;
+  const times = from <= 0 ? [0, to, to + 0.02, 1] : to >= 1 ? [0, from, from + 0.03, 1] : [0, from, from + 0.03, to, to + 0.02, 1];
+  const values = from <= 0 ? [1, 1, 0, 0] : to >= 1 ? [0, 0, 1, 1] : [0, 0, 1, 1, 0, 0];
   return (
-    <g opacity={at === undefined ? 1 : 0}>
-      {at !== undefined && appear(at)}
-      <circle cx={x} cy={y} r={7} fill={kind === 'open' ? 'none' : color} stroke={color} strokeWidth={1.6} />
-      {kind === 'ok' && <path d={`M${x - 3.5} ${y} l2.5 2.5 l4.5 -5`} fill="none" stroke="#fff" strokeWidth={1.8} strokeLinecap="round" />}
-      {kind === 'bad' && <path d={`M${x - 3} ${y - 3} l6 6 m0 -6 l-6 6`} stroke="#fff" strokeWidth={1.8} strokeLinecap="round" />}
+    <g opacity={from <= 0 ? 1 : 0}>
+      {anim('opacity', DUR, times, values)}
+      {children}
     </g>
   );
 }
 
-// a button of the app, filled for the main one
-function Button({x, y, w, label, main, at}: {x: number; y: number; w: number; label: string; main?: boolean; at?: number}) {
+type MarkState = 'open' | 'running' | 'waiting' | 'ok' | 'failed' | 'skipped' | 'locked';
+const MARK_FILL: Partial<Record<MarkState, string>> = {ok: OK, failed: BAD, skipped: 'var(--track)'};
+
+// the round state mark of the setup (StateMark) at that point
+function Mark({x, y, state, r = 10}: {x: number; y: number; state: MarkState; r?: number}) {
+  const fill = MARK_FILL[state];
+  const sign = SIGNS[state as keyof typeof SIGNS];
+  const ring = state === 'open' ? 'var(--text-secondary)' : state === 'running' || state === 'waiting' ? 'var(--accent)' : null;
+  return (
+    <g transform={`translate(${x} ${y})`}>
+      {fill && <circle r={r} fill={fill} />}
+      {ring && (
+        <circle r={r - 1} fill="none" stroke={ring} strokeOpacity={state === 'open' ? 0.6 : 1} strokeWidth={1.8} strokeDasharray={state === 'waiting' ? '3.4 2.4' : undefined}>
+          {state === 'waiting' && <animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="4s" repeatCount="indefinite" />}
+        </circle>
+      )}
+      {state === 'running' && <circle r={r * 0.4} style={accent} />}
+      {sign && (
+        <g transform={`scale(${r / 12}) translate(-7.44 -7.44) scale(0.62)`} {...line} strokeWidth={2.5} style={{color: fill && state !== 'skipped' ? 'var(--accent-foreground)' : 'var(--text-secondary)'}}>
+          {sign}
+        </g>
+      )}
+    </g>
+  );
+}
+
+// a button of the app, filled for the main one; tapped at that fraction of the loop
+function Button({x, y, w, h = 28, size = 12, label, main, at}: {x: number; y: number; w: number; h?: number; size?: number; label: string; main?: boolean; at?: number}) {
   return (
     <>
-      <rect x={x} y={y} width={w} height={28} rx={14} style={main ? accent : field}>
+      <rect x={x} y={y} width={w} height={h} rx={10} style={main ? accent : TILE}>
         {at !== undefined && tap(at)}
       </rect>
-      <text x={x + w / 2} y={y + 18} fontSize={12} textAnchor="middle" style={main ? onAccent : text}>
+      <text x={x + w / 2} y={y + h / 2 + size / 3} fontSize={size} fontWeight={600} textAnchor="middle" style={main ? onAccent : text}>
         {label}
       </text>
     </>
   );
 }
 
-function OverviewArt() {
-  // the segments fill one by one, the next stage opens
-  const done = 3;
-  const of = 6;
+// a tick box, ticked from that fraction of the loop on
+function Tick({x, y, at}: {x: number; y: number; at: number}) {
   return (
-    <Scene still={DUR} label={tr('The setup')}>
-      <rect x={20} y={14} width={280} height={172} rx={12} style={card} />
-      <text x={36} y={40} fontSize={13} fontWeight={600} style={text}>
-        {tr('{done} of {of} steps done', {done, of})}
+    <>
+      <rect x={x} y={y} width={14} height={14} rx={4} fill="var(--background)" stroke="var(--card-border)" />
+      <Shown from={at}>
+        <rect x={x} y={y} width={14} height={14} rx={4} style={accent} />
+        <path d={`M${x + 3} ${y + 7} l3 3 l5 -6`} fill="none" stroke="var(--accent-foreground)" strokeWidth={1.8} strokeLinecap="round" />
+      </Shown>
+    </>
+  );
+}
+
+// the drawing on top of a step: its symbol in a circle on a tile
+function Figure({x, y, w, h, symbol}: {x: number; y: number; w: number; h: number; symbol: string}) {
+  const r = Math.min(20, h / 2 - 4);
+  return (
+    <>
+      <rect x={x} y={y} width={w} height={h} rx={10} style={TILE} />
+      <circle cx={x + w / 2} cy={y + h / 2} r={r} fill="var(--tint-accent)" />
+      <g transform={`translate(${x + w / 2 - r * 0.6} ${y + h / 2 - r * 0.6})`} style={{color: 'var(--accent)'}}>
+        <StepSymbol name={symbol} size={r * 1.2} />
+      </g>
+    </>
+  );
+}
+
+// a part or step on its tile: the mark, the name and the word for its state, each state from one fraction on
+function Row({x, y, w, name, states}: {x: number; y: number; w: number; name: string; states: {from: number; state: MarkState; word?: string; bad?: boolean}[]}) {
+  return (
+    <>
+      <rect x={x} y={y} width={w} height={32} rx={10} style={TILE} />
+      <text x={x + 32} y={y + 14} fontSize={12} fontWeight={600} style={text}>
+        {name}
       </text>
+      {states.map((s, i) => (
+        <Shown key={i} from={s.from} to={states[i + 1]?.from ?? 1}>
+          <Mark x={x + 16} y={y + 16} state={s.state} />
+          <text x={x + 32} y={y + 26} fontSize={10} style={s.bad ? {fill: BAD} : dim}>
+            {s.word}
+          </text>
+        </Shown>
+      ))}
+    </>
+  );
+}
+
+function OverviewArt() {
+  // the next step passes: its stage gets a tick, the bar a segment, the next stage opens; Go on leads on
+  const stage = (y: number, name: string, states: {from: number; state: MarkState; word: string; faint?: boolean}[]) => (
+    <>
+      {states.map((s, i) => (
+        <Shown key={i} from={s.from} to={states[i + 1]?.from ?? 1}>
+          <Mark x={46} y={y} state={s.state} r={11} />
+          <text x={66} y={y - 1} fontSize={12} fontWeight={600} style={s.faint ? dim : text}>
+            {name}
+          </text>
+          <text x={66} y={y + 12} fontSize={10} style={dim}>
+            {s.word}
+          </text>
+        </Shown>
+      ))}
+      <path d={`M279 ${y - 4} l4 4 l-4 4`} fill="none" strokeWidth={1.6} strokeLinecap="round" style={{stroke: 'var(--text-secondary)'}} />
+    </>
+  );
+  const of = 6;
+  const w = (252 - (of - 1) * 4) / of;
+  return (
+    <Scene still={STILL} label={tr('The setup')}>
+      <rect x={20} y={10} width={280} height={182} rx={14} style={card} />
+      {[2, 3].map((done) => (
+        <Shown key={done} from={done === 3 ? 0.3 : 0} to={done === 2 ? 0.3 : 1}>
+          <text x={34} y={34} fontSize={12.5} fontWeight={600} style={text}>
+            {tr('{done} of {of} steps done', {done, of})}
+          </text>
+        </Shown>
+      ))}
       {Array.from({length: of}, (_, i) => (
         <g key={i}>
-          <rect x={36 + i * 42} y={50} width={38} height={6} rx={3} fill="var(--track)" />
-          {i < done && (
-            <rect x={36 + i * 42} y={50} width={38} height={6} rx={3} fill={OK} opacity={0}>
-              {appear(0.15 + i * 0.12)}
-            </rect>
+          <rect x={34 + i * (w + 4)} y={42} width={w} height={5} rx={2.5} fill={i < 2 ? OK : 'var(--track)'} />
+          {i === 2 && (
+            <Shown from={0.3}>
+              <rect x={34 + i * (w + 4)} y={42} width={w} height={5} rx={2.5} fill={OK} />
+            </Shown>
           )}
         </g>
       ))}
-      <Mark x={44} y={86} kind="ok" />
-      <text x={60} y={90} fontSize={12} style={text}>
-        {tr('Device')}
-      </text>
-      <Mark x={44} y={116} passAt={0.5} />
-      <text x={60} y={120} fontSize={12} style={text}>
-        {tr('Inputs')}
-      </text>
-      <Mark x={44} y={146} />
-      <text x={60} y={150} fontSize={12} style={dim}>
-        {tr('Driving')}
-      </text>
-      <g opacity={0}>
-        {appear(0.6)}
-        <Button x={150} y={134} w={136} label={tr('Go on')} main at={0.75} />
-      </g>
+      <Button x={34} y={56} w={252} h={28} label={tr('Go on: {step}', {step: tr('Wheel motor left')})} main at={0.8} />
+      {stage(108, tr('Device'), [{from: 0, state: 'ok', word: tr('Passed')}])}
+      {stage(140, tr('Inputs'), [
+        {from: 0, state: 'open', word: tr('{done} of {of} done', {done: 2, of: 3})},
+        {from: 0.3, state: 'ok', word: tr('Passed')},
+      ])}
+      {stage(172, tr('Driving'), [
+        {from: 0, state: 'locked', word: tr('Locked'), faint: true},
+        {from: 0.45, state: 'open', word: tr('{n} steps', {n: 3})},
+      ])}
     </Scene>
   );
 }
 
 function StepArt() {
-  // two parts checked: the first passes, the second fails, a repeat passes it
+  // Start checks the parts one by one: the first passes, the second fails, Repeat passes it
   return (
-    <Scene still={DUR} label={tr('A step')}>
-      <rect x={20} y={14} width={280} height={172} rx={12} style={card} />
-      <text x={36} y={40} fontSize={13} fontWeight={600} style={text}>
+    <Scene still={STILL} label={tr('A step')}>
+      <rect x={20} y={8} width={280} height={186} rx={14} style={card} />
+      <Figure x={30} y={18} w={260} h={48} symbol="wheels" />
+      <text x={30} y={84} fontSize={13} fontWeight={600} style={text}>
         {tr('Check the parts')}
       </text>
-      <rect x={30} y={52} width={260} height={30} rx={8} style={field} />
-      <text x={42} y={71} fontSize={12} style={text}>
-        {tr('Wheel motor left')}
-      </text>
-      <Mark x={272} y={67} passAt={0.25} />
-      <rect x={30} y={88} width={260} height={30} rx={8} style={field} />
-      <text x={42} y={107} fontSize={12} style={text}>
-        {tr('Wheel motor right')}
-      </text>
-      <Mark x={272} y={103} />
-      <g opacity={0}>
-        {anim('opacity', DUR, [0, 0.35, 0.37, 0.7, 0.72, 1], [0, 0, 1, 1, 0, 0])}
-        <Mark x={272} y={103} kind="bad" />
-        <text x={36} y={138} fontSize={11} style={{fill: BAD}}>
-          {tr('Not passed')}
-        </text>
-      </g>
-      <Mark x={272} y={103} kind="ok" at={0.8} />
-      <Button x={36} y={150} w={90} label={tr('Start')} main at={0.1} />
-      <g opacity={0}>
-        {anim('opacity', DUR, [0, 0.4, 0.42, 0.8, 0.82, 1], [0, 0, 1, 1, 0, 0])}
-        <Button x={136} y={150} w={90} label={tr('Repeat')} main at={0.65} />
-      </g>
+      <Row
+        x={30}
+        y={92}
+        w={260}
+        name={tr('Wheel motor left')}
+        states={[
+          {from: 0, state: 'open'},
+          {from: 0.12, state: 'running', word: tr('Running')},
+          {from: 0.3, state: 'ok', word: tr('Passed')},
+        ]}
+      />
+      <Row
+        x={30}
+        y={128}
+        w={260}
+        name={tr('Wheel motor right')}
+        states={[
+          {from: 0, state: 'open'},
+          {from: 0.3, state: 'running', word: tr('Running')},
+          {from: 0.45, state: 'failed', word: tr('Not passed'), bad: true},
+          {from: 0.64, state: 'running', word: tr('Running')},
+          {from: 0.78, state: 'ok', word: tr('Passed')},
+        ]}
+      />
+      <Shown to={0.12}>
+        <Button x={30} y={166} w={260} h={24} label={tr('Start')} main at={0.06} />
+      </Shown>
+      <Shown from={0.5}>
+        <Button x={30} y={166} w={260} h={24} label={tr('Repeat')} main at={0.6} />
+      </Shown>
     </Scene>
   );
 }
 
 function LinesArt() {
-  // the board's lines as tiles, one lights up when the STOP button is pressed, the step asks to take it
+  // the STOP button is pressed: its line lights up, the step asks to take it, Save gives the line its role, the next waits
+  const lines = ['IN1', 'IN2', 'IN3'];
   return (
-    <Scene still={DUR} label={tr('Sensors on their lines')}>
-      <rect x={20} y={14} width={280} height={172} rx={12} style={card} />
-      {['IN1', 'IN2', 'IN3'].map((l, i) => (
-        <g key={l}>
-          <rect x={36 + i * 86} y={28} width={76} height={34} rx={8} style={field} />
-          {i === 0 && (
-            <rect x={36} y={28} width={76} height={34} rx={8} opacity={0} fillOpacity={0.35} style={accent}>
-              {appear(0.25)}
-            </rect>
-          )}
-          <text x={74 + i * 86} y={50} fontSize={12} textAnchor="middle" style={text}>
-            {l}
-          </text>
-        </g>
-      ))}
-      <g opacity={0}>
-        {appear(0.35)}
-        <text x={36} y={88} fontSize={12} style={accent}>
-          {tr('{part}: seen on line {line}, it switches low', {part: tr('STOP button'), line: 'IN1'})}
+    <Scene still={STILL} label={tr('Sensors on their lines')}>
+      <rect x={20} y={8} width={280} height={186} rx={14} style={card} />
+      <Row
+        x={30}
+        y={16}
+        w={260}
+        name={tr('STOP button')}
+        states={[
+          {from: 0, state: 'waiting', word: tr('Waiting for you')},
+          {from: 0.72, state: 'ok', word: tr('Passed')},
+        ]}
+      />
+      {lines.map((l, i) => {
+        const x = 30 + i * 88;
+        return (
+          <g key={l}>
+            <rect x={x} y={54} width={84} height={32} rx={10} style={TILE} />
+            <circle cx={x + 12} cy={65} r={4.5} fill="var(--track)" />
+            {i === 0 && (
+              <Shown from={0.2} to={0.55}>
+                <rect x={x} y={54} width={84} height={32} rx={10} fill="var(--tint-accent)" />
+                <circle cx={x + 12} cy={65} r={7.5} fill="var(--tint-accent)" />
+                <circle cx={x + 12} cy={65} r={4.5} style={accent} />
+              </Shown>
+            )}
+            <text x={x + 22} y={69} fontSize={12} fontWeight={600} style={text}>
+              {l}
+            </text>
+            {i === 0 ? (
+              <>
+                <Shown to={0.72}>
+                  <text x={x + 8} y={80} fontSize={9.5} style={dim}>
+                    {tr('Watched only')}
+                  </text>
+                </Shown>
+                <Shown from={0.72}>
+                  <text x={x + 8} y={80} fontSize={9.5} style={dim}>
+                    {tr('STOP button')}
+                  </text>
+                </Shown>
+              </>
+            ) : (
+              <text x={x + 8} y={80} fontSize={9.5} style={dim}>
+                {tr('Watched only')}
+              </text>
+            )}
+          </g>
+        );
+      })}
+      <Shown from={0.3} to={0.72}>
+        <rect x={30} y={92} width={260} height={62} rx={10} fill="var(--tint-accent)" />
+        <text x={42} y={110} fontSize={12} fontWeight={600} style={text}>
+          {tr('Take this line?')}
         </text>
-        <rect x={36} y={100} width={248} height={30} rx={8} style={well} />
-        <circle cx={52} cy={115} r={6} fill="none" style={{stroke: 'var(--accent)'}} strokeWidth={1.6} />
-        <circle cx={52} cy={115} r={3} opacity={0} style={accent}>
-          {appear(0.55)}
-        </circle>
-        <text x={66} y={119} fontSize={12} style={text}>
+        <text x={42} y={124} fontSize={10} style={accent}>
+          {tr('{part}: seen on line {line}', {part: tr('STOP button'), line: 'IN1'})}
+        </text>
+        <Tick x={42} y={133} at={0.48} />
+        <text x={62} y={144} fontSize={12} style={text}>
           {tr('Take it')}
         </text>
-        <Button x={36} y={146} w={90} label={tr('Save')} main at={0.65} />
-      </g>
+        <g opacity={0.45}>
+          {anim('opacity', DUR, [0, 0.5, 0.52, 1], [0.45, 0.45, 1, 1])}
+          <Button x={30} y={162} w={260} h={24} label={tr('Save')} main at={0.62} />
+        </g>
+      </Shown>
+      <Shown from={0.74}>
+        <Row x={30} y={92} w={260} name={tr('Lifting')} states={[{from: 0, state: 'waiting', word: tr('Waiting for you')}]} />
+      </Shown>
     </Scene>
   );
 }
 
 function MoveArt() {
-  // the sheet before a step that moves the mower: what to make sure of, then start
+  // Start on a step that moves the mower brings up the sheet: tick both points, then start
+  const clip = useId();
   return (
-    <Scene still={DUR} label={tr('Before it moves')}>
-      <rect x={20} y={14} width={280} height={172} rx={12} style={card} />
-      <text x={36} y={40} fontSize={13} fontWeight={600} style={text}>
-        {tr('The mower moves in a moment')}
-      </text>
-      <text x={36} y={62} fontSize={12} style={dim}>
-        {tr('The wheels turn')}
-      </text>
-      {[tr('Mower stands under the open sky'), tr('Nobody close by')].map((label, i) => (
-        <g key={i} transform={`translate(0 ${84 + i * 26})`}>
-          <rect x={38} y={-8} width={16} height={16} rx={4} style={field} />
-          <g opacity={0}>
-            {appear(0.2 + i * 0.15)}
-            <rect x={38} y={-8} width={16} height={16} rx={4} style={accent} />
-            <path d="M40 0 l3 3 l5 -6" fill="none" stroke="#fff" strokeWidth={1.8} strokeLinecap="round" />
-          </g>
-          <text x={64} y={4} fontSize={12} style={text}>
-            {label}
+    <Scene still={STILL} label={tr('Before it moves')}>
+      <defs>
+        <clipPath id={clip}>
+          <rect x={20} y={8} width={280} height={186} rx={14} />
+        </clipPath>
+      </defs>
+      <rect x={20} y={8} width={280} height={186} rx={14} style={card} />
+      <g clipPath={`url(#${clip})`}>
+        <Figure x={30} y={18} w={260} h={50} symbol="wheels" />
+        <text x={30} y={88} fontSize={13} fontWeight={600} style={text}>
+          {tr('Wheel motor left')}
+        </text>
+        <text x={30} y={102} fontSize={11} style={dim}>
+          {tr('The wheels turn')}
+        </text>
+        <Button x={30} y={112} w={260} h={26} label={tr('Start')} main at={0.05} />
+        <rect x={20} y={8} width={280} height={186} fill="rgb(16 18 24)" opacity={0}>
+          {anim('opacity', DUR, [0, 0.1, 0.16, 1], [0, 0, 0.45, 0.45])}
+        </rect>
+        <g transform="translate(0 130)">
+          <animateTransform attributeName="transform" type="translate" dur={`${DUR}s`} repeatCount="indefinite" keyTimes="0;0.1;0.18;1" values="0 130;0 130;0 0;0 0" />
+          <rect x={20} y={76} width={280} height={140} rx={16} fill="var(--background)" />
+          <rect x={144} y={83} width={32} height={4} rx={2} fill="var(--track)" />
+          <text x={34} y={106} fontSize={13} fontWeight={600} style={text}>
+            {tr('The mower moves in a moment')}
           </text>
+          {[tr('Mower stands under the open sky'), tr('Nobody close by')].map((label, i) => (
+            <g key={i}>
+              <Tick x={34} y={114 + i * 22} at={0.3 + i * 0.12} />
+              <text x={56} y={125 + i * 22} fontSize={12} style={text}>
+                {label}
+              </text>
+            </g>
+          ))}
+          <Button x={34} y={160} w={122} h={26} label={tr('Cancel')} />
+          <g opacity={0.4}>
+            {anim('opacity', DUR, [0, 0.44, 0.46, 1], [0.4, 0.4, 1, 1])}
+            <Button x={164} y={160} w={122} h={26} label={tr('Start')} main at={0.68} />
+          </g>
         </g>
-      ))}
-      <Button x={36} y={146} w={70} label={tr('Cancel')} />
-      <g opacity={0.45}>
-        {anim('opacity', DUR, [0, 0.5, 0.52, 1], [0.45, 0.45, 1, 1])}
-        <Button x={116} y={146} w={150} label={tr('Let the wheels turn')} main at={0.75} />
       </g>
     </Scene>
   );
 }
 
 function SafetyArt() {
-  // the lock of driving alone opens once the safety measurement passed
-  const shut = 'M146 74 V58 a14 14 0 0 1 28 0 V74';
-  const open = 'M146 74 V58 a14 14 0 0 1 26 -6';
+  // a step skipped for now, then the safety measurement passes and the lock on top opens
+  const lock = (open: boolean) => {
+    const color = open ? 'var(--soft-good)' : 'var(--soft-warn)';
+    return (
+      <>
+        <rect x={20} y={22} width={280} height={44} rx={12} fill={open ? 'var(--tint-good)' : 'var(--tint-warn)'} />
+        <g transform="translate(32 35)" style={{color}}>
+          <LockIcon open={open} size={18} />
+        </g>
+        <text x={58} y={open ? 48 : 41} fontSize={12} fontWeight={600} style={{fill: color}}>
+          {open ? tr('Safety measured') : tr('Safety measurement missing')}
+        </text>
+        {!open && (
+          <text x={58} y={56} fontSize={10} style={{fill: color}}>
+            {tr('Drives only while you watch')}
+          </text>
+        )}
+      </>
+    );
+  };
   return (
-    <Scene still={DUR} label={tr('Skipping and the safety measurement')}>
-      <rect x={20} y={14} width={280} height={172} rx={12} style={card} />
-      <path d={shut} fill="none" strokeWidth={4} strokeLinecap="round" style={{stroke: 'var(--text-secondary)'}}>
-        {anim('d', DUR, [0, 0.55, 0.6, 1], [shut, shut, open, open])}
-      </path>
-      <rect x={136} y={72} width={48} height={38} rx={6} style={dim} />
-      <rect x={136} y={72} width={48} height={38} rx={6} fill={OK} opacity={0}>
-        {appear(0.6)}
-      </rect>
-      <text x={160} y={136} fontSize={12} textAnchor="middle" style={text}>
-        {tr('Safety measurement missing')}
-        {anim('opacity', DUR, [0, 0.55, 0.6, 1], [1, 1, 0, 0])}
-      </text>
-      <text x={160} y={136} fontSize={12} textAnchor="middle" opacity={0} style={{fill: OK}}>
-        {appear(0.6)}
-        {tr('Safety measured')}
-      </text>
-      <Button x={36} y={150} w={80} label={tr('Skip')} />
+    <Scene still={STILL} label={tr('Skipping and the safety measurement')}>
+      <Shown to={0.62}>{lock(false)}</Shown>
+      <Shown from={0.62}>{lock(true)}</Shown>
+      <rect x={20} y={76} width={280} height={100} rx={14} style={card} />
+      <Row
+        x={30}
+        y={86}
+        w={260}
+        name={tr('Lifting')}
+        states={[
+          {from: 0, state: 'open'},
+          {from: 0.18, state: 'skipped', word: tr('Skipped for now')},
+        ]}
+      />
+      <Shown to={0.18}>
+        <Button x={200} y={92} w={82} h={20} size={11} label={tr('Skip')} at={0.1} />
+      </Shown>
+      <Row
+        x={30}
+        y={130}
+        w={260}
+        name={tr('Safety measurement')}
+        states={[
+          {from: 0, state: 'open'},
+          {from: 0.3, state: 'running', word: tr('Running')},
+          {from: 0.56, state: 'ok', word: tr('Passed')},
+        ]}
+      />
     </Scene>
   );
 }

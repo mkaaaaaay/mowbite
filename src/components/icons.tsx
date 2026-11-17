@@ -356,6 +356,16 @@ export function ChevronIcon({size = 20}: IconProps) {
   );
 }
 
+// an open book, in front of a link to a guide
+export function GuideIcon({size = 20}: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...line} aria-hidden="true">
+      <path d="M3 5h5a4 4 0 0 1 4 4v11a3 3 0 0 0-3-3H3z" />
+      <path d="M21 5h-5a4 4 0 0 0-4 4v11a3 3 0 0 1 3-3h6z" />
+    </svg>
+  );
+}
+
 export function BackIcon({size = 20}: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" {...line}>

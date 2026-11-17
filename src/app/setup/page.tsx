@@ -1,5 +1,6 @@
 'use client';
 
+import {GuideIcon} from '@/components/icons';
 import {TitleMark} from '@/components/Logo';
 import {TitleRow} from '@/components/TopWeather';
 import {SetupOverview} from '@/components/setup/SetupOverview';
@@ -99,6 +100,7 @@ function SetupView() {
           {setup && <p className={styles.dim}>{tr('Check and set up step by step what the mower needs to mow. Every step can be repeated.')}</p>}
           {setup && (
             <Link href="/guide/setup" className={styles.link}>
+              <GuideIcon size={16} />
               {tr('How the setup works')}
             </Link>
           )}

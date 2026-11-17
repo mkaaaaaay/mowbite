@@ -5,7 +5,7 @@ import styles from './StateMark.module.css';
 
 type State = StepState | PartState;
 
-const SIGNS: Partial<Record<State, React.ReactNode>> = {
+export const SIGNS: Partial<Record<State, React.ReactNode>> = {
   ok: <path d="M5 12l5 5 9-10" strokeWidth={3} />,
   failed: <path d="M7 7l10 10M17 7 7 17" strokeWidth={3} />,
   skipped: <path d="M5 12h12M13 7l5 5-5 5" />,

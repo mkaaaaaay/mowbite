@@ -2,7 +2,7 @@
 
 import {TitleMark} from '@/components/Logo';
 import {TitleRow} from '@/components/TopWeather';
-import {CheckIcon, CloseIcon, PlayIcon} from '@/components/icons';
+import {CheckIcon, CloseIcon, GuideIcon, PlayIcon} from '@/components/icons';
 import {numParam, useMowerParams} from '@/hooks/useMowerParams';
 import {useSensorValue} from '@/hooks/useMowerSensors';
 import {useMowerActions} from '@/hooks/useMowerActions';
@@ -196,7 +196,8 @@ function Ready({mode, status, onGo, onClose}: {mode: CalibMode; status: Record<s
         ) : missing.length === 2 ? (
           <p className={styles.dim}>{tr('Tick both points above, then it starts.')}</p>
         ) : (
-          <Link href="/guide/calibration" className={styles.link}>
+          <Link href="/guide/calibration" className={`${styles.link} ${styles.guide}`}>
+            <GuideIcon size={16} />
             {tr('Read the guide first (2 min)')}
           </Link>
         )}
@@ -520,7 +521,8 @@ function Calibration() {
             <PlayIcon size={20} />
             {tr('Start calibration')}
           </button>
-          <Link href="/guide/calibration" className={styles.link}>
+          <Link href="/guide/calibration" className={`${styles.link} ${styles.guide}`}>
+            <GuideIcon size={16} />
             {tr('Guide: how to drive it right')}
           </Link>
         </section>

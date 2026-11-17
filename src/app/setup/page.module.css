@@ -32,9 +32,13 @@
 }
 
 .link {
+  display: inline-flex;
   align-self: flex-start;
+  align-items: center;
+  gap: 6px;
   color: var(--accent);
   font-size: 14px;
+  font-weight: 600;
   text-decoration: none;
 }
 
