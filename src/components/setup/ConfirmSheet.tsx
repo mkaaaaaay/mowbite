@@ -1,12 +1,13 @@
 'use client';
 
 import {fmt, tr} from '@/lib/i18n';
-import {dayText, isSummary, moves, nameById, nameOf, releasesBlade, summaryPreview, words, type SetupStep} from '@/lib/setup';
+import {dayText} from '@/lib/dates';
+import {isSummary, moves, nameOf, releasesBlade, summaryPreview, words, type SetupStep, type SetupValue} from '@/lib/setup';
 import {useState} from 'react';
 import {Sheet} from './Sheet';
 import styles from './Sheet.module.css';
 import {StepSymbol} from './StepSymbol';
-import {valueText} from './StepValues';
+import {StepValues} from './StepValues';
 
 // what moves in a step, as its start button says it; a blade still locked is released first
 function startLabel(step: SetupStep): string {
@@ -15,6 +16,13 @@ function startLabel(step: SetupStep): string {
   if (motion?.wheels) return motion.raised ? tr('Let the wheels turn') : tr('Let the mower drive');
   if (isSummary(step)) return tr('Release the mower');
   return tr('Start');
+}
+
+// the summary's values as it will write them
+function writtenValues(step: SetupStep, steps: SetupStep[]): SetupValue[] {
+  const {date, failsafe} = summaryPreview(steps);
+  const shown: Record<string, unknown> = {date: dayText(date), failsafe};
+  return step.values.map((v) => (v.id in shown ? {...v, value: shown[v.id]} : v));
 }
 
 // one thing that moves (or stays still) in the step, with its sign
@@ -36,7 +44,7 @@ export function ConfirmSheet(props: {
   onClose: () => void;
 }) {
   const {step, lang, busy, risky, onStart, onClose} = props;
-  const summary = isSummary(step) ? summaryPreview(props.steps) : null;
+  const written = isSummary(step) ? writtenValues(step, props.steps) : null;
   const [ticked, setTicked] = useState<string[]>([]);
   const all = step.confirm.every((c) => ticked.includes(c.id));
   const m = moves(step.motion) ? step.motion : null;
@@ -74,17 +82,10 @@ export function ConfirmSheet(props: {
           <p className={styles.limit}>{tr('Keep this page open: if it closes, the mower stops.')}</p>
         </div>
       )}
-      {summary && (
+      {written && (
         <div className={styles.list} data-summary>
           <p className={styles.limit}>{tr('The mower records:')}</p>
-          <p className={styles.written}>
-            <span>{nameById(step.values, 'date', lang)}</span>
-            <b>{dayText(summary.date)}</b>
-          </p>
-          <p className={styles.written}>
-            <span>{nameById(step.values, 'failsafe', lang)}</span>
-            <b>{valueText(summary.failsafe, 's')}</b>
-          </p>
+          <StepValues values={written} lang={lang} />
           <p className={styles.limit}>{tr('MowBite OS restarts once, the lock opens when it is back.')}</p>
         </div>
       )}

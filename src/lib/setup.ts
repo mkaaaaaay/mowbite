@@ -1,5 +1,4 @@
 import {fromBase64, toBase64} from './base64';
-import {numericDay} from './dates';
 import {reasonSentence} from './events';
 import {tr} from './i18n';
 import {num, outlineOf} from './mowerBody';
@@ -190,6 +189,9 @@ export const nameOf = (item: Named, lang: string) => words(item.texts, lang).nam
 // the name of the item with this id in the list, the id when it is not there
 export const nameById = (list: Named[], id: string, lang: string) => nameOf(list.find((x) => x.id === id) ?? {id, texts: {}}, lang);
 
+// the link to a step of the setup
+export const stepHref = (id: string) => `/setup?step=${encodeURIComponent(id)}`;
+
 // the steps of these ids not passed yet
 export const unmet = (ids: string[], steps: SetupStep[]) => ids.filter((n) => steps.find((s) => s.id === n)?.state !== 'ok');
 
@@ -250,11 +252,6 @@ export function summaryPreview(steps: SetupStep[], now = Date.now()): {date: str
     .filter((v) => v.id.startsWith('round_') && typeof v.value === 'number')
     .map((v) => v.value as number);
   return {date: new Date(now).toISOString().slice(0, 10), failsafe: rounds.length ? Math.max(...rounds) : null};
-}
-// a day YYYY-MM-DD as the app writes days, as it came when it isn't one
-export function dayText(date: string): string {
-  const t = new Date(`${date}T00:00`).getTime();
-  return Number.isNaN(t) ? date : numericDay(t / 1000);
 }
 export const keepStep = (step: string) => callCommand<{running: boolean}>(RPC.setupKeep, {step}, KEEP_LIMIT_MS);
 

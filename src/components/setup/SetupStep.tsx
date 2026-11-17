@@ -12,6 +12,7 @@ import {
   nameById,
   nameOf,
   OPEN_SCREENS,
+  stepHref,
   unmet,
   words,
   type Blocked,
@@ -51,7 +52,7 @@ function BlockedNote({b, steps, lang}: {b: Blocked; steps: Step[]; lang: string}
         {ids.map((id, i) => (
           <Fragment key={id}>
             {i > 0 && ', '}
-            <Link href={`/setup?step=${encodeURIComponent(id)}`}>{nameById(steps, id, lang)}</Link>
+            <Link href={stepHref(id)}>{nameById(steps, id, lang)}</Link>
           </Fragment>
         ))}
       </span>

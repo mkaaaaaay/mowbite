@@ -1,8 +1,9 @@
 'use client';
 
 import {ChevronIcon, LockIcon} from '@/components/icons';
+import {dayText} from '@/lib/dates';
 import {tr} from '@/lib/i18n';
-import {causeText, dayText, isDone, isSummary, nameById, nameOf, unmet, whyText, type Setup, type SetupStep, type StepState} from '@/lib/setup';
+import {causeText, isDone, isSummary, stepHref, nameById, nameOf, unmet, whyText, type Setup, type SetupStep, type StepState} from '@/lib/setup';
 import Link from 'next/link';
 import {useState} from 'react';
 import {StateMark, stateWord, useMoved} from './StateMark';
@@ -77,7 +78,7 @@ export function SetupOverview({setup, lang, selected, onSelect}: {setup: Setup; 
           </div>
         </div>
         {next && next.id !== selected && (
-          <Link href={`/setup?step=${encodeURIComponent(next.id)}`} className={styles.next} data-primary>
+          <Link href={stepHref(next.id)} className={styles.next} data-primary>
             {tr('Go on: {step}', {step: nameOf(next, lang)})}
           </Link>
         )}

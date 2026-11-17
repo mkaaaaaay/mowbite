@@ -2,7 +2,7 @@
 
 import {useSetup} from '@/hooks/useSetup';
 import {tr, useLang} from '@/lib/i18n';
-import {isDone, nameOf} from '@/lib/setup';
+import {isDone, nameOf, stepHref} from '@/lib/setup';
 import Link from 'next/link';
 
 // on the dashboard while the setup program isn't complete: where it stands, and the way there
@@ -19,7 +19,7 @@ export function SetupCard({styles}: {styles: Record<string, string>}) {
         {tr('{done} of {of} steps done', {done, of: setup.steps.length})}
         {next && ` · ${tr('next: {step}', {step: nameOf(next, lang)})}`}
       </p>
-      <Link href={next ? `/setup?step=${encodeURIComponent(next.id)}` : '/setup'} className={styles.pillButton}>
+      <Link href={next ? stepHref(next.id) : '/setup'} className={styles.pillButton}>
         {tr('Go on with the setup')}
       </Link>
     </section>

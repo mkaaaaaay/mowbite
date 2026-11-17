@@ -483,12 +483,15 @@ function LockBar({open}: {open: boolean}) {
 }
 
 function SafetyArt() {
-  // a step skipped for now, then a failed safety step closes the lock until it passes again
-  const lock = (open: boolean) => <LockBar open={open} />;
+  // a step skipped for now, then the release passes and the lock on top opens
   return (
     <Scene label={tr('Skipping and the safety measurement')}>
-      <Shown to={0.62}>{lock(false)}</Shown>
-      <Shown from={0.62}>{lock(true)}</Shown>
+      <Shown to={0.62}>
+        <LockBar open={false} />
+      </Shown>
+      <Shown from={0.62}>
+        <LockBar open />
+      </Shown>
       <rect x={20} y={76} width={280} height={100} rx={14} style={card} />
       <Row
         x={30}

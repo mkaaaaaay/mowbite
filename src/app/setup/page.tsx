@@ -13,7 +13,7 @@ import {loadGeometry, type Geometry} from '@/lib/mowerBody';
 import {RPC} from '@/lib/openmower';
 import {RpcError} from '@/lib/rpc';
 import {answerError} from '@/lib/rpcText';
-import {abortStep, answerStep, loadSetup, skipStep, startStep, type Setup} from '@/lib/setup';
+import {abortStep, answerStep, loadSetup, skipStep, startStep, stepHref, type Setup} from '@/lib/setup';
 import Link from 'next/link';
 import {useRouter, useSearchParams} from 'next/navigation';
 import {Suspense, useEffect, useRef, useState} from 'react';
@@ -85,7 +85,7 @@ function SetupView() {
     abort: (step) => call(step, () => abortStep(step)),
   };
   const step = setup?.steps.find((s) => s.id === selected) ?? null;
-  const select = (id: string) => router.push(`/setup?step=${encodeURIComponent(id)}`);
+  const select = (id: string) => router.push(stepHref(id));
 
   return (
     <div className={styles.page}>
