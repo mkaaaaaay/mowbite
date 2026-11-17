@@ -35,7 +35,7 @@ const api = JSON.parse(raw.toString()) as {
   'x-sensors': Record<string, {name: string}>;
   'x-settings': Record<string, {default: number; min: number; max: number; unit: string}>;
   'x-schedule-log': Record<string, unknown>;
-  'x-setup': {limits: Record<string, number>; open: string[]; shape_kinds: string[]; roles: Record<string, unknown>};
+  'x-setup': {limits: Record<string, number>; open: string[]; shape_kinds: string[]; roles: Record<string, {texts: Record<string, {name: string}>}>};
   $defs: Record<string, unknown>;
 };
 
@@ -248,9 +248,10 @@ describe(`MowBite OS's interface (${PINNED.repo} ${PINNED.commit.slice(0, 7)}, a
     for (const {label} of Object.values(OPEN_SCREENS)) expect(de[label], label).toBeTruthy();
   });
 
-  it('names every role of an input the OS knows', () => {
-    expect(Object.keys(ROLE_NAMES).sort()).toEqual(Object.keys(api['x-setup'].roles).sort());
-    for (const name of Object.values(ROLE_NAMES)) expect(de[name], name).toBeTruthy();
+  it('names every role of an input as the OS does', () => {
+    const {roles} = api['x-setup'];
+    expect(Object.keys(ROLE_NAMES).sort()).toEqual(Object.keys(roles).sort());
+    for (const [k, name] of Object.entries(ROLE_NAMES)) expect([name, de[name]], k).toEqual([roles[k].texts.en.name, roles[k].texts.de.name]);
   });
 
   it("has no words for events, reasons or bits the OS doesn't know", () => {

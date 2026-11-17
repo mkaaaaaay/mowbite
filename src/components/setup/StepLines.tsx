@@ -6,7 +6,7 @@ import styles from './StepLines.module.css';
 export function StepLines({lines}: {lines: SetupLine[]}) {
   if (!lines.length) return null;
   return (
-    <section className={styles.lines} aria-label={tr('Lines')}>
+    <section className={styles.lines}>
       <h3>{tr('Lines')}</h3>
       <ul>
         {lines.map((l) => (

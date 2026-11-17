@@ -36,7 +36,7 @@ export const DEMO_IMAGES: Record<string, {svg: string; sha256: string}> = {
 const ref = (name: string) => ({name, sha256: DEMO_IMAGES[name].sha256, bytes: DEMO_IMAGES[name].svg.length});
 
 // initial: the state the demo starts the step in
-type Base = Omit<SetupStep, 'state' | 'attempt' | 'blocked' | 'progress' | 'ends_at' | 'result' | 'restart' | 'motion' | 'lines' | 'ask'> & {initial?: StepState};
+type Base = Omit<SetupStep, 'state' | 'attempt' | 'blocked' | 'progress' | 'ends_at' | 'result' | 'motion' | 'lines' | 'ask'> & {initial?: StepState};
 const step = (s: Partial<Base> & Pick<Base, 'id' | 'stage' | 'check' | 'kind' | 'texts'>): Base => ({
   needs: [],
   confirm: [],
@@ -51,6 +51,7 @@ const step = (s: Partial<Base> & Pick<Base, 'id' | 'stage' | 'check' | 'kind' | 
   image: null,
   symbol: null,
   mark: [],
+  restart: false,
   ...s,
 });
 const value = (id: string, en: string, de: string, unit: string, min: number | null = null, max: number | null = null): SetupValue => ({
@@ -201,6 +202,7 @@ const ASSIGN: Base = step({
   kind: 'input',
   start: true,
   skippable: false,
+  restart: true,
   symbol: 'board',
   parts: [
     {...named('stop', 'STOP button', 'STOP-Taste'), state: 'open'},
@@ -220,10 +222,13 @@ const ACCEPT: SetupInput = {
   texts: tx(['Take this line?', 'The mower saw the action on this line.'], ['Leitung übernehmen?', 'Der Mäher hat den Handgriff an dieser Leitung gesehen.']),
   values: [named('yes', 'Take it', 'Übernehmen'), named('no', 'Not this one', 'Nicht diese')],
 };
+// the lines the assignment watches, the one of part i proposed for it
+const LINES = ['IN1', 'IN2', 'IN3'];
 // the delay of a part's line in ms: the platform's at most, shorter only
 const DELAY_MAX = 100;
+const DELAY = 'delay_';
 const delayOf = (part: Named, value: number): SetupInput => ({
-  name: `delay_${part.id}`,
+  name: DELAY + part.id,
   type: 'number',
   ask: false,
   advanced: true,
@@ -247,16 +252,16 @@ type Kept = {state: StepState; attempt: number; result: SetupStep['result']; par
 export function demoSetup(deliver: (topic: string, text: string) => void, latched: (reason: string) => boolean, assign = false) {
   const STEPS = assign ? [ASSIGN, ...TRON_STEPS] : TRON_STEPS;
   const now = () => Date.now() / 1000;
-  // the OS restarts for the assignment; the line proposed for the running part; the parts' lines taken
+  // the OS restarts for the assignment
   let restarting = false;
-  let asked: SetupStep['ask'] = null;
-  let taken: Record<string, string> = {};
+  let restartTimer: ReturnType<typeof setTimeout> | null = null;
   let version = 1;
   const fresh = (s: Base): Kept => ({state: s.initial ?? 'open', attempt: 0, result: null, parts: s.parts, values: s.values, inputs: s.inputs});
   let kept: Record<string, Kept> = Object.fromEntries(STEPS.map((s) => [s.id, fresh(s)]));
   // rest: the part waits for its emergency to be released before it counts the input (blocked EMERGENCY meanwhile)
   // since: when the step or its current part began
-  let run: {id: string; since: number; part: number; phase: 'rest' | 'armed'} | null = null;
+  // asked: the line the assignment proposes for the running part
+  let run: {id: string; since: number; part: number; phase: 'rest' | 'armed'; asked?: SetupStep['ask']} | null = null;
   let timer: ReturnType<typeof setInterval> | null = null;
 
   const done = (id: string) => isDone(kept[id].state);
@@ -271,17 +276,22 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
   // the lines of an input step, one per part as on Tron: the one of the part last pressed is on while its emergency holds
   const linesOf = (s: Base, running: boolean): SetupLine[] => {
     if (s.check === 'inputs_assign') {
-      const delays = Object.fromEntries(kept[s.id].inputs.filter((i) => i.advanced).map((i) => [i.name.slice('delay_'.length), Number(i.value)]));
-      return ['IN1', 'IN2', 'IN3'].map((name) => {
-        const role = Object.keys(taken).find((r) => taken[r] === name) ?? '';
-        return {name, role, reason: role ? BIT[role].toLowerCase() : '', active: asked?.line === name, assigned: !!role, held: false, delay_ms: delays[role] ?? DELAY_MAX};
+      const k = kept[s.id];
+      return LINES.map((name, i) => {
+        const role = k.parts[i]?.state === 'ok' ? k.parts[i].id : '';
+        const delay = k.inputs.find((x) => x.name === DELAY + role);
+        const asked = running && run!.asked?.line === name;
+        return {name, role, reason: role ? BIT[role].toLowerCase() : '', active: asked, assigned: !!role, held: false, delay_ms: delay ? Number(delay.value) : DELAY_MAX};
       });
     }
     const bit = BIT[s.id];
     if (!bit) return [];
     const on = latched(bit);
     const pressed = running && run!.phase === 'rest' ? run!.part - 1 : -1;
-    return s.parts.map((_, i) => ({name: `${s.id}${i + 1}`, role: s.id, reason: bit.toLowerCase(), active: on && i === pressed, assigned: true, held: on && i === pressed, delay_ms: 0}));
+    return s.parts.map((_, i) => {
+      const hit = on && i === pressed;
+      return {name: `${s.id}${i + 1}`, role: s.id, reason: bit.toLowerCase(), active: hit, assigned: true, held: hit, delay_ms: 0};
+    });
   };
   const full = (s: Base): SetupStep => {
     const k = kept[s.id];
@@ -294,13 +304,13 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
       motion: null,
       parts: k.parts,
       values: k.values,
-      inputs: k.inputs,
+      // while the assignment runs it takes only accept, once a line is proposed
+      inputs: running && s.check === 'inputs_assign' ? (run!.asked ? [ACCEPT] : []) : k.inputs,
       progress: running && s.parts.length ? {n: run!.part + 1, of: s.parts.length} : null,
       ends_at: running && BIT[s.id] ? Math.floor(run!.since + PART_S) : null,
       result: k.result,
-      restart: s.check === 'inputs_assign',
       lines: linesOf(s, running),
-      ask: running ? asked : null,
+      ask: (running && run!.asked) || null,
     };
   };
   const setup = (): Setup => {
@@ -344,6 +354,21 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
   const refuse = (reason: string, message: string) =>
     Object.assign(new Error(message), {code: -32600, data: {event: 'SETUP_REFUSED', reason, message, severity: 'info', resume: 'user'}});
   const invalid = (field: string, message: string) => Object.assign(new Error(message), {code: -32602, data: {field, reason: 'INVALID'}});
+  // the values of an answer against its inputs: a choice one of its values, a number within its bounds
+  const check = (inputs: SetupInput[], values: Record<string, unknown>) => {
+    for (const input of inputs) {
+      const v = values[input.name];
+      if (v === undefined) continue;
+      if (input.type === 'choice' && !input.values?.some((x) => x.id === v)) throw refuse('INVALID_VALUE', `${input.name}: no such value`);
+      if (input.type === 'number' && (typeof v !== 'number' || v < (input.min ?? -Infinity) || v > (input.max ?? Infinity)))
+        throw refuse('INVALID_VALUE', `${input.name}: out of its bounds`);
+    }
+  };
+  // the running part passed, the next one waits
+  const nextPart = (k: Kept) => {
+    k.parts = k.parts.map((p, i) => (i === run!.part ? {...p, state: 'ok'} : i === run!.part + 1 ? {...p, state: 'waiting'} : p));
+    run!.part++;
+  };
   const stepOf = (p: unknown) => {
     const {step: id, version: v} = (p ?? {}) as {step?: unknown; version?: unknown};
     if (typeof id !== 'string') throw invalid('step', 'step is missing');
@@ -373,9 +398,11 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
 
   // the OS starts again, then: the assignment passed with its delays, or after a change of them the input steps are open again
   function restart(then: () => void) {
+    if (restartTimer) clearTimeout(restartTimer);
     restarting = true;
     changed();
-    setTimeout(() => {
+    restartTimer = setTimeout(() => {
+      restartTimer = null;
       restarting = false;
       then();
     }, RESTART_MS);
@@ -383,14 +410,10 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
 
   function answerAssign(s: Base, k: Kept, values: Record<string, unknown>) {
     if (run?.id === s.id) {
-      if (!asked || (values.accept !== 'yes' && values.accept !== 'no')) throw refuse('INVALID_VALUE', 'accept is yes or no, while a line is asked');
-      if (values.accept === 'yes') {
-        taken[asked.part] = asked.line;
-        k.parts = k.parts.map((x, i) => (i === run!.part ? {...x, state: 'ok'} : i === run!.part + 1 ? {...x, state: 'waiting'} : x));
-        run.part++;
-      }
-      asked = null;
-      k.inputs = [];
+      if (!run.asked || values.accept === undefined) throw refuse('INVALID_VALUE', 'accept, while a line is asked');
+      check([ACCEPT], values);
+      if (values.accept === 'yes') nextPart(k);
+      run.asked = null;
       run.phase = latched(wants(s, run.part)) ? 'rest' : 'armed';
       if (run.part < s.parts.length) changed();
       else {
@@ -404,10 +427,7 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
       return setup();
     }
     if (k.state !== 'ok') throw refuse('WRONG_METHOD', 'the delays change only at a passed assignment');
-    for (const i of k.inputs) {
-      const v = values[i.name];
-      if (v !== undefined && (typeof v !== 'number' || v < 0 || v > DELAY_MAX)) throw refuse('INVALID_VALUE', `${i.name}: 0 to ${DELAY_MAX} ms`);
-    }
+    check(k.inputs, values);
     k.inputs = k.inputs.map((i) => (i.name in values ? {...i, value: values[i.name]} : i));
     restart(() => {
       for (const id of Object.keys(BIT)) if (kept[id]) kept[id] = fresh(STEPS.find((x) => x.id === id)!);
@@ -434,9 +454,8 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
     } else if (s.check === 'inputs_assign') {
       const on = latched(wants(s, run.part));
       if (run.phase === 'rest' && !on) run.phase = 'armed';
-      else if (run.phase === 'armed' && on && !asked) {
-        asked = {part: s.parts[run.part].id, line: `IN${run.part + 1}`, active_high: true};
-        k.inputs = [ACCEPT];
+      else if (run.phase === 'armed' && on && !run.asked) {
+        run.asked = {part: s.parts[run.part].id, line: LINES[run.part], active_high: true};
         changed();
       }
     } else if (BIT[s.id]) {
@@ -446,8 +465,7 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
         run.phase = 'armed';
         said();
       } else if (run.phase === 'armed' && on) {
-        k.parts = k.parts.map((p, i) => (i === run!.part ? {...p, state: 'ok'} : i === run!.part + 1 ? {...p, state: 'waiting'} : p));
-        run.part++;
+        nextPart(k);
         run.since = t;
         run.phase = 'rest';
         if (run.part >= k.parts.length) end(s, true);
@@ -484,12 +502,8 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
       k.result = null;
       k.parts = s.parts.map((x, i) => ({...x, state: i ? 'open' : 'waiting'}));
       k.values = s.values;
-      if (s.check === 'inputs_assign') {
-        k.inputs = [];
-        asked = null;
-        taken = {};
-      }
-      run = {id: s.id, since: now(), part: 0, phase: wants(s, 0) && latched(wants(s, 0)) ? 'rest' : 'armed'};
+      const bit = wants(s, 0);
+      run = {id: s.id, since: now(), part: 0, phase: bit && latched(bit) ? 'rest' : 'armed'};
       startTimer();
       changed();
       return setup();
@@ -500,11 +514,7 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
       const values = (p as {values?: Record<string, unknown>}).values ?? {};
       const k = kept[s.id];
       if (s.check === 'inputs_assign') return answerAssign(s, k, values);
-      for (const input of k.inputs) {
-        const v = values[input.name];
-        if (v === undefined) continue;
-        if (input.type === 'choice' && !input.values?.some((x) => x.id === v)) throw refuse('INVALID_VALUE', `${input.name}: no such value`);
-      }
+      check(k.inputs, values);
       k.inputs = k.inputs.map((i) => (i.name in values ? {...i, value: values[i.name]} : i));
       k.attempt++;
       end(s, true);
@@ -539,6 +549,9 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
     },
     [RPC.setupReset]: (p) => {
       if ((p as {version?: unknown})?.version !== version) throw refuse('VERSION', `The setup is at version ${version} now`);
+      if (restartTimer) clearTimeout(restartTimer);
+      restartTimer = null;
+      restarting = false;
       run = null;
       stopTimer();
       kept = Object.fromEntries(STEPS.map((s) => [s.id, fresh(s)]));
