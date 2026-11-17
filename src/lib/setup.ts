@@ -142,24 +142,26 @@ function setupOf(s: unknown): Setup {
   if (!isSetup(s)) throw new Error('no state of the setup program');
   return s;
 }
-// setup/json, retained where the platform has a step list and sent with every change, and the answers of the calls:
-// the one that came last
+// setup/json, retained where the platform has a step list and sent with every change, and the answers of the calls
 const store = topicStore<Setup | null>(TOPIC.setup, null, (payload) => setupOf(JSON.parse(payload.toString())));
-function take(s: unknown): Setup {
+// a call's answer, unless a newer state came while it was out
+const take = (before: Setup | null) => (s: unknown): Setup => {
   const v = setupOf(s);
+  const now = store.get();
+  if (now && now !== before && now.version > v.version) return now;
   store.set(v);
   return v;
-}
+};
 export const setupNow = store.get;
 export const subscribeSetup = store.subscribe;
 
 // only where the mower lists the program (a platform with a step list)
 export const offersSetup = (methods: Set<string> | null | undefined) => !!methods?.has(RPC.setupGet);
 
-export const loadSetup = () => callRpc<Setup>(RPC.setupGet, {}).then(take);
+export const loadSetup = () => callRpc<Setup>(RPC.setupGet, {}).then(take(store.get()));
 
 // the calls that change it go out once, never again by themselves; each needs the version read last
-const command = (method: string, params: object) => callCommand<Setup>(method, params, 10000).then(take);
+const command = (method: string, params: object) => callCommand<Setup>(method, params, 10000).then(take(store.get()));
 export const startStep = (s: Setup, step: string, confirm: string[] = []) =>
   command(RPC.setupStart, {step, version: s.version, ...(confirm.length ? {confirm} : {})});
 export const answerStep = (s: Setup, step: string, values: Record<string, unknown>) => command(RPC.setupAnswer, {step, version: s.version, values});

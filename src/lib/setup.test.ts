@@ -1,9 +1,16 @@
 import {createHash} from 'node:crypto';
-import {describe, expect, it} from 'vitest';
+import {describe, expect, it, vi} from 'vitest';
 import {DEMO_IMAGES} from './demo/setup';
 import {robotShape, shapePath} from './robotShape';
-import {derivedParts, words} from './setup';
+import {derivedParts, loadSetup, setupNow, startStep, words, type Setup} from './setup';
 import {TRON_SHAPE} from './tronShape';
+
+// each call answers when the test lets it
+const answers: ((v: unknown) => void)[] = [];
+vi.mock('./rpc', () => {
+  const later = () => new Promise((done) => answers.push(done));
+  return {callRpc: later, callCommand: later};
+});
 
 describe('the setup program', () => {
   it('says each word in the language shown, a missing one in english', () => {
@@ -44,5 +51,23 @@ describe('the setup program', () => {
 
   it("gives the demo's images with their checksum", () => {
     for (const [name, img] of Object.entries(DEMO_IMAGES)) expect(createHash('sha256').update(img.svg).digest('hex'), name).toBe(img.sha256);
+  });
+
+  it("keeps a newer state over an older call's answer, not one from before a restart", async () => {
+    const at = (version: number) => ({version, steps: [], stages: []}) as unknown as Setup;
+    const first = loadSetup();
+    answers.shift()!(at(1));
+    await first;
+    const start = startStep(at(1), 'stop');
+    const load = loadSetup();
+    answers.pop()!(at(3));
+    await load;
+    answers.pop()!(at(2));
+    expect((await start).version).toBe(3);
+    expect(setupNow()?.version).toBe(3);
+    // after a restart the count may begin again: an answer with nothing newer in between counts
+    const again = loadSetup();
+    answers.pop()!(at(1));
+    expect((await again).version).toBe(1);
   });
 });
