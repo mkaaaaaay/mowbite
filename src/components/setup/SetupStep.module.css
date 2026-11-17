@@ -1,62 +1,224 @@
 .step {
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 
-.step h2 {
-  margin: 0;
-  font-size: var(--text-l);
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--tap);
+}
+
+.back {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--tap);
+  height: var(--tap);
+  margin-left: -10px;
+  color: var(--foreground);
 }
 
 .where {
+  display: flex;
+  flex-direction: column;
   margin: 0;
-  color: var(--text-secondary);
-  font-size: var(--text-s);
+  line-height: 1.25;
 }
 
-.help,
-.fix,
-.hint,
-.result p {
+.where b {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.where span {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+
+.body,
+.visual,
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.content[data-held] > :not(.note) {
+  opacity: 0.55;
+}
+
+.lead {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.lead h2 {
   margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+}
+
+.lead p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 15px;
   line-height: 1.45;
-}
-
-.fix,
-.hint {
-  color: var(--text-secondary);
-  font-size: var(--text-s);
 }
 
 .result {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 12px;
+}
+
+.verdict {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.verdict p {
+  display: flex;
+  flex-direction: column;
   margin: 0;
-  padding: 10px 12px;
-  border-radius: var(--radius-m);
-  background: var(--soft-muted);
 }
 
-.result[data-result='failed'] {
-  background: var(--soft-warn);
+.verdict b {
+  font-size: 18px;
+  font-weight: 700;
 }
 
-.error {
+.verdict span {
+  color: var(--text-secondary);
+  font-size: var(--text-s);
+}
+
+.reason,
+.note {
   margin: 0;
-  color: var(--error);
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--text-secondary) 10%, transparent);
+  font-size: 13.5px;
+  line-height: 1.45;
 }
 
-.buttons {
+.reason {
+  background: color-mix(in srgb, var(--error) 13%, transparent);
+  color: var(--soft-bad);
+  font-weight: 600;
+}
+
+.note[data-tone='warn'] {
+  background: color-mix(in srgb, var(--warning) 15%, transparent);
+  color: var(--soft-warn);
+}
+
+.note[data-tone='bad'] {
+  background: color-mix(in srgb, var(--error) 13%, transparent);
+  color: var(--soft-bad);
+}
+
+.fix {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--card-border);
+  background: var(--card);
+}
+
+.fix h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.fix p {
+  margin: 0;
+  line-height: 1.45;
+}
+
+/* the buttons stay in reach above the tab bar while the step scrolls */
+.dock {
+  position: sticky;
+  bottom: calc(64px + env(safe-area-inset-bottom));
+  z-index: 1;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  margin: 0 -16px;
+  padding: 12px 16px;
+  background: linear-gradient(to top, var(--background) 70%, transparent);
 }
 
-.open {
-  display: inline-flex;
+.dock:empty {
+  display: none;
+}
+
+.button {
+  display: flex;
+  flex: 1 1 0;
   align-items: center;
-  min-height: var(--tap);
-  color: var(--accent);
+  justify-content: center;
+  min-height: 50px;
+  padding: 10px 18px;
+  border: 0;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+  color: var(--foreground);
+  font-size: 15px;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
+}
+
+.button[data-primary] {
+  flex-basis: 100%;
+  order: -1;
+  background: var(--accent);
+  box-shadow: var(--btn-glass);
+  color: var(--accent-foreground, #fff);
+}
+
+.button:disabled {
+  background: color-mix(in srgb, var(--foreground) 6%, transparent);
+  box-shadow: none;
+  color: color-mix(in srgb, var(--foreground) 45%, transparent);
+}
+
+@media (min-width: 900px) {
+  .back {
+    display: none;
+  }
+
+  .dock {
+    position: static;
+    margin: 0;
+    padding: 0;
+    background: none;
+  }
+
+  .button,
+  .button[data-primary] {
+    flex: 0 1 auto;
+  }
+}
+
+/* wide: the picture beside the text */
+@container (min-width: 640px) {
+  .body {
+    display: grid;
+    grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+    gap: 24px;
+    align-items: start;
+  }
 }

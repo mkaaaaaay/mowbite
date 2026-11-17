@@ -5,18 +5,18 @@
 }
 
 .part {
-  fill: var(--well);
-  stroke: var(--text-secondary);
+  fill: color-mix(in srgb, var(--foreground) 14%, transparent);
+  stroke: color-mix(in srgb, var(--foreground) 45%, transparent);
   stroke-width: 0.004;
 }
 
 .part[data-kind='wheel'],
 .part[data-kind='caster'] {
-  fill: var(--foreground);
+  fill: color-mix(in srgb, var(--foreground) 80%, transparent);
 }
 
 .mark {
-  fill: none;
+  fill: color-mix(in srgb, var(--accent) 30%, transparent);
   stroke: var(--accent);
   stroke-width: 0.01;
 }

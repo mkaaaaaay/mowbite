@@ -1,5 +1,6 @@
 'use client';
 
+import {WarningIcon} from '@/components/icons';
 import {useEmergencyReset} from '@/hooks/useEmergencyReset';
 import {useMowerActions} from '@/hooks/useMowerActions';
 import {resetRefusedText} from '@/lib/events';
@@ -12,9 +13,15 @@ export function EmergencyBlock() {
   const {refused, reset} = useEmergencyReset(true, publishAction);
   return (
     <div className={styles.block} role="alert">
+      <div className={styles.head}>
+        <span className={styles.sign}>
+          <WarningIcon size={24} />
+        </span>
+        <h3>{tr('Emergency stop')}</h3>
+      </div>
       <p>{tr('The emergency stop is still on. The next action counts once it is released.')}</p>
       {refused && <p className={styles.refused}>{resetRefusedText(refused)}</p>}
-      <button type="button" onClick={reset}>
+      <button type="button" className={styles.button} onClick={reset}>
         {tr('Reset emergency')}
       </button>
     </div>
