@@ -24,7 +24,7 @@ const Move = ({sign, still, children}: {sign: string; still?: boolean; children:
 
 // Before a start: what moves, every point of the step ticked off, the start names what moves
 export function ConfirmSheet(props: {step: SetupStep; lang: string; busy: boolean; risky: boolean; onStart: (confirm: string[]) => void; onClose: () => void}) {
-  const {step, lang, busy, onStart, onClose} = props;
+  const {step, lang, busy, risky, onStart, onClose} = props;
   const [ticked, setTicked] = useState<string[]>([]);
   const all = step.confirm.every((c) => ticked.includes(c.id));
   const m = moves(step.motion) ? step.motion : null;
@@ -43,7 +43,7 @@ export function ConfirmSheet(props: {step: SetupStep; lang: string; busy: boolea
           <p className={styles.limit}>{tr('Keep this page open: if it closes, the mower stops.')}</p>
         </div>
       )}
-      {props.risky && (
+      {risky && (
         <p className={styles.warn} data-risky>
           {tr("If it doesn't pass this time, the mower stays locked until it passes again.")}
         </p>

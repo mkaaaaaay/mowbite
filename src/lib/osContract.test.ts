@@ -12,7 +12,7 @@ import {ORIGIN_TEXT} from './osUpdate';
 import {MAX_NOTE, PIECE_BYTES} from './incidentLimits';
 import {SITUATION_NAMES} from './sound';
 import {SHAPE_KINDS, SHAPE_LIMITS} from './robotShape';
-import {IMAGE_BYTES, KEEP_LIMIT_MS, KEEP_MS, OPEN_SCREENS, ROLE_NAMES, SKIP_TEXT} from './setup';
+import {IMAGE_BYTES, KEEP_LIMIT_MS, KEEP_MS, OPEN_SCREENS, ROLE_NAMES, SAFETY_WHY, SKIP_TEXT} from './setup';
 import {PARTS} from './stats';
 
 // MowBite OS's interface (system.api) as its owner has it, copied from the commit below. a newer one: copy it from
@@ -242,6 +242,10 @@ describe(`MowBite OS's interface (${PINNED.repo} ${PINNED.commit.slice(0, 7)}, a
   it("takes the setup program's images, notes, screens and shapes within the OS's limits", () => {
     const {limits, open, shape_kinds} = api['x-setup'];
     expect([IMAGE_BYTES, SKIP_TEXT]).toEqual([limits.image_bytes, limits.skip_text]);
+    // the lock of the safety: a text for each why but no measurement (the program's own) and each cause without a step
+    const safety = (api.$defs.setup as {properties: {safety: {properties: {why: {enum: (string | null)[]}}}}}).properties.safety.properties;
+    const whys = safety.why.enum.filter((w): w is string => !!w && w !== 'NO_SAFETY_MEASUREMENT');
+    for (const w of [...whys, 'UNREADABLE']) expect([SAFETY_WHY[w], de[SAFETY_WHY[w]]], w).not.toContain(undefined);
     // setup.keep well within the second the OS waits
     expect(KEEP_LIMIT_MS).toBe(limits.keep * 1000);
     expect(KEEP_MS).toBeLessThanOrEqual(KEEP_LIMIT_MS / 2);

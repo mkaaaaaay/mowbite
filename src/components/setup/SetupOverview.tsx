@@ -1,9 +1,8 @@
 'use client';
 
 import {ChevronIcon, LockIcon} from '@/components/icons';
-import {reasonSentence} from '@/lib/events';
 import {tr} from '@/lib/i18n';
-import {causeText, isDone, nameById, nameOf, SAFETY_WHY, unmet, type Setup, type SetupStep, type StepState} from '@/lib/setup';
+import {causeText, isDone, nameById, nameOf, unmet, whyText, type Setup, type SetupStep, type StepState} from '@/lib/setup';
 import Link from 'next/link';
 import {useState} from 'react';
 import {StateMark, stateWord} from './StateMark';
@@ -45,16 +44,10 @@ export function SetupOverview({setup, lang, selected, onSelect}: {setup: Setup; 
         ) : (
           <span>
             <b>{tr('Safety measurement missing')}</b>
-            <span>
-              {safety.why && SAFETY_WHY[safety.why]
-                ? tr(SAFETY_WHY[safety.why])
-                : safety.why
-                  ? reasonSentence(safety.why, 'SETUP')
-                  : tr('No safety measurement yet: the mower drives only while you watch')}
-            </span>
+            <span>{whyText(safety.why)}</span>
             {safety.closed?.map((c) => (
               <span key={`${c.step}-${c.t}`} data-cause={c.reason}>
-                {causeText(c, setup.steps, lang, (r) => reasonSentence(r, 'SETUP_STEP'))}
+                {causeText(c, setup.steps, lang)}
               </span>
             ))}
           </span>

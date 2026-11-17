@@ -43,7 +43,7 @@ import {mowerKey} from '@/lib/mowers';
 import {settingsStore, showDashCamera} from '@/lib/settings';
 import {PARTS, useDueParts} from '@/lib/stats';
 import {containerHas, useUpdates} from '@/lib/updates';
-import {batteryColor, chargeOf, dockText, GPS_QUALITY_LABEL, gpsQuality, isDocked, onCharger, staleText, WIFI_LEVEL_LABEL, type Charge} from '@/lib/status';
+import {batteryColor, chargeOf, dockText, GPS_QUALITY_LABEL, gpsQuality, inSetupStep, isDocked, onCharger, staleText, WIFI_LEVEL_LABEL, type Charge} from '@/lib/status';
 import Link from 'next/link';
 import {memo, useEffect, useMemo, useRef, useState, useSyncExternalStore} from 'react';
 import styles from './page.module.css';
@@ -152,7 +152,7 @@ function headline(state: MowerState, docked: boolean, charger: boolean, charge: 
       // carried into the dock say, it only counts once it's ended there
       return {title: charger ? tr('Paused, in the dock') : tr('Paused'), tone: 'warn'};
     case 'IDLE':
-      return {title: tr('Waiting on the lawn'), tone: 'warn'};
+      return inSetupStep(state) ? {title: tr('Setup step running'), tone: 'live'} : {title: tr('Waiting on the lawn'), tone: 'warn'};
     default:
       return {title: state.current_state.toLowerCase().replace(/_/g, ' '), tone: 'neutral'};
   }

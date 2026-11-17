@@ -224,6 +224,7 @@ function Part({
   off,
   onStart,
   onBack,
+  checkFailed,
 }: {
   c: Component;
   // its update went through within the last hour
@@ -234,11 +235,12 @@ function Part({
   off: boolean;
   onStart: (revision?: string) => void;
   onBack: (resetJobs: boolean) => void;
+  // a safety step failed and closed the lock (setup.get safety.why)
+  checkFailed: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [ask, setAsk] = useState<'back' | 'anyway' | null>(null);
   const [resetJobs, setResetJobs] = useState(false);
-  const setup = useSetup();
   const {available: a, running, previous} = c;
   const blocked = a?.blocked ?? null;
   const tooOld = appTooOld(a);
@@ -364,7 +366,7 @@ function Part({
               onYes={answer(() => onBack(resetJobs))}
               onNo={answer()}
             >
-              {c.id === 'os' && setup?.safety.why === 'CHECK_FAILED' && (
+              {c.id === 'os' && checkFailed && (
                 // an OS before the lock could be taken back (api 45) opens it again by the date kept by hand
                 <p className={shared.warn}>{tr('A safety step failed. An older MowBite OS may not know that and let the mower drive by itself again.')}</p>
               )}
@@ -428,6 +430,7 @@ export function OsUpdate() {
   const seen = useUpdateStatus();
   const online = useHostOnline() !== false;
   const methods = useRpcMethods();
+  const setup = useSetup();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [unanswered, setUnanswered] = useState(false);
@@ -496,6 +499,7 @@ export function OsUpdate() {
               off={!!now}
               onStart={(revision) => run(() => startUpdate(c.id, revision ? {revision} : {}))}
               onBack={(resetJobs) => run(() => rollBack(c.id, resetJobs))}
+              checkFailed={setup?.safety.why === 'CHECK_FAILED'}
             />
           ))}
       </div>

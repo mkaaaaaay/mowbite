@@ -258,15 +258,10 @@ const ASSIGN: Base = step({
     ['Eingänge zuordnen', 'Jeden Sensor einmal auslösen und loslassen. Der Mäher zeigt die Leitung, an der er ihn gesehen hat; passt sie, übernehmen.', 'Kommt kein Vorschlag: Stecker und Kabel des Sensors prüfen, dann wiederholen.'],
   ),
 });
-const ACCEPT: SetupInput = {
-  name: 'accept',
-  type: 'choice',
-  ask: true,
-  advanced: false,
-  value: null,
-  texts: tx(['Take this line?', 'The mower saw the action on this line.'], ['Leitung übernehmen?', 'Der Mäher hat den Handgriff an dieser Leitung gesehen.']),
-  values: [named('yes', 'Take it', 'Übernehmen'), named('no', 'Not this one', 'Nicht diese')],
-};
+const ACCEPT = question('accept', ['Take this line?', 'The mower saw the action on this line.'], ['Leitung übernehmen?', 'Der Mäher hat den Handgriff an dieser Leitung gesehen.'], [
+  named('yes', 'Take it', 'Übernehmen'),
+  named('no', 'Not this one', 'Nicht diese'),
+]);
 // the lines the assignment watches, the one of part i proposed for it
 const LINES = ['IN1', 'IN2', 'IN3'];
 // the delay of a part's line in ms: the platform's at most, shorter only
@@ -306,8 +301,9 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
   // rest: the part waits for its emergency to be released before it counts the input (blocked EMERGENCY meanwhile)
   // since: when the step or its current part began
   // asked: the line the assignment proposes for the running part
-  // asking: the question of the running step (which wheel, or whether the action was done) since askedAt; kept: the last setup.keep
-  let run: {id: string; since: number; part: number; phase: 'rest' | 'armed'; asked?: SetupStep['ask']; asking?: SetupInput; askedAt?: number; kept?: number} | null = null;
+  // asking: the question of the running step (which wheel, or whether the action was done) until its answer is due; kept: the last setup.keep
+  let run: {id: string; since: number; part: number; phase: 'rest' | 'armed'; asked?: SetupStep['ask']; asking?: {input: SetupInput; until: number}; kept?: number} | null =
+    null;
   // what keeps the lock of the safety closed, and the day it opened
   let closed: SafetyCause[] = [];
   let measured: string | null = null;
@@ -318,12 +314,16 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
   const locked = (s: Base) => s.needs.some((n) => kept[n].state !== 'ok');
   const state = (s: Base): StepState => (kept[s.id].state === 'open' && locked(s) ? 'locked' : kept[s.id].state);
   // the inputs that have to pass before a wheel turns
-  const inputsOpen = () => STEPS.filter((x) => BIT[x.id] && kept[x.id].state !== 'ok').map((x) => x.id);
+  const inputsGate = (s: Base) => {
+    const open = s.kind === 'drive' ? STEPS.filter((x) => BIT[x.id] && kept[x.id].state !== 'ok').map((x) => x.id) : [];
+    return open.length ? {reason: 'SAFETY_INPUTS', message: `First: ${open.join(', ')}`} : null;
+  };
   const blocked = (s: Base) => {
     if (run?.id === s.id)
       return BIT[s.id] && run.phase === 'rest' && latched(BIT[s.id]) ? [{reason: 'EMERGENCY', message: `The emergency ${BIT[s.id]} is still latched`}] : [];
     if (run && s.start && s.kind !== 'confirm') return [{reason: 'BUSY', message: `${run.id} is running`}];
-    return s.kind === 'drive' && inputsOpen().length ? [{reason: 'SAFETY_INPUTS', message: `First: ${inputsOpen().join(', ')}`}] : [];
+    const gate = inputsGate(s);
+    return gate ? [gate] : [];
   };
   const safety = (): Safety => {
     if (closed.length) return {open: false, date: null, firmware: null, why: 'CHECK_FAILED', source: null, closed};
@@ -353,6 +353,7 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
   const full = (s: Base): SetupStep => {
     const k = kept[s.id];
     const running = run?.id === s.id;
+    const r = running ? run! : null;
     return {
       ...s,
       state: state(s),
@@ -362,12 +363,12 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
       parts: k.parts,
       values: k.values,
       // while the assignment runs it takes only accept, once a line is proposed; a question only while it is asked
-      inputs: running && run!.asking ? [run!.asking] : running && s.check === 'inputs_assign' ? (run!.asked ? [ACCEPT] : []) : k.inputs,
-      progress: running && s.parts.length ? {n: Math.min(run!.part + 1, s.parts.length), of: s.parts.length} : null,
-      ends_at: running && run!.asking ? Math.floor(run!.askedAt! + (run!.asking === WHEEL ? ANSWER_S : PRESSED_S)) : running && BIT[s.id] ? Math.floor(run!.since + PART_S) : null,
+      inputs: r?.asking ? [r.asking.input] : r && s.check === 'inputs_assign' ? (r.asked ? [ACCEPT] : []) : k.inputs,
+      progress: r && s.parts.length ? {n: Math.min(r.part + 1, s.parts.length), of: s.parts.length} : null,
+      ends_at: r?.asking ? Math.floor(r.asking.until) : r && BIT[s.id] ? Math.floor(r.since + PART_S) : null,
       result: k.result,
       lines: linesOf(s, running),
-      ask: (running && run!.asked) || null,
+      ask: r?.asked ?? null,
     };
   };
   const setup = (): Setup => {
@@ -482,7 +483,7 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
 
   // the answer to the question of the running step: which wheel turned, or whether the action was done
   function answerAsked(s: Base, k: Kept, values: Record<string, unknown>) {
-    const asked = run!.asking!;
+    const asked = run!.asking!.input;
     check([asked], values);
     const v = values[asked.name];
     if (v === undefined) throw refuse('INVALID_VALUE', `${asked.name}, while it is asked`);
@@ -562,23 +563,19 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
         run.asked = {part: s.parts[run.part].id, line: LINES[run.part], active_high: true};
         changed();
       }
+    } else if (s.kind === 'drive' && t - run.kept! > KEEP_S) {
+      end(s, false, 'RELEASED', 'setup.keep stayed away', s.parts[run.part]?.id ?? null);
+    } else if (run.asking) {
+      if (t > run.asking.until) reopen(s, 'NOT_DONE', 'No answer in time', s.parts[run.part]?.id ?? null);
     } else if (s.kind === 'drive') {
-      const part = s.parts[run.part]?.id ?? null;
-      if (t - run.kept! > KEEP_S) return end(s, false, 'RELEASED', 'setup.keep stayed away', part);
-      if (run.asking) {
-        if (t - run.askedAt! > ANSWER_S) reopen(s, 'NOT_DONE', 'No answer which wheel turns', part);
-      } else if (t - run.since >= WHEEL_MS / 1000) {
-        if (part === 'one_wheel') {
-          run.asking = WHEEL;
-          run.askedAt = t;
-        } else {
+      if (t - run.since >= WHEEL_MS / 1000) {
+        if (s.parts[run.part].id === 'one_wheel') run.asking = {input: WHEEL, until: t + ANSWER_S};
+        else {
           nextPart(k);
           run.since = t;
         }
         changed();
       }
-    } else if (BIT[s.id] && run.asking) {
-      if (t - run.askedAt! > PRESSED_S) reopen(s, 'NOT_DONE', 'No answer whether the action was done', s.parts[run.part].id);
     } else if (BIT[s.id]) {
       // the emergency has to come after the part began: one that holds from before has to be released first
       const on = latched(BIT[s.id]);
@@ -593,8 +590,7 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
         else changed();
       } else if (t - run.since > PART_S) {
         // nothing seen in time: the step asks whether the action was done
-        run.asking = PRESSED;
-        run.askedAt = t;
+        run.asking = {input: PRESSED, until: t + PRESSED_S};
         changed();
       }
     }
@@ -612,7 +608,8 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
       if (state(s) === 'locked') throw refuse('LOCKED', `${s.id} needs ${s.needs.join(', ')} first`);
       if (!s.start) throw refuse('WRONG_METHOD', `${s.id} is not started`);
       if (run) throw refuse('BUSY', `${run.id} runs`);
-      if (s.kind === 'drive' && inputsOpen().length) throw refuse('SAFETY_INPUTS', `First: ${inputsOpen().join(', ')}`);
+      const gate = inputsGate(s);
+      if (gate) throw refuse(gate.reason, gate.message);
       const confirm = ((p as {confirm?: unknown}).confirm ?? []) as string[];
       const missing = s.confirm.filter((c) => !confirm.includes(c.id)).map((c) => c.id);
       if (missing.length) throw refuse('CONFIRM_MISSING', `Not confirmed: ${missing.join(', ')}`);

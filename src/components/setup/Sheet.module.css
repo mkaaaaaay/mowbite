@@ -63,7 +63,8 @@
   font-size: var(--text-s);
 }
 
-.move {
+.move,
+.warn {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -90,11 +91,6 @@
 }
 
 .warn {
-  margin: 0;
-  padding: 10px 12px;
-  border-radius: var(--radius-m);
-  background: var(--tint-warn);
-  color: var(--soft-warn);
   font-size: var(--text-s);
 }
 

@@ -1,4 +1,5 @@
 import {fromBase64, toBase64} from './base64';
+import {reasonSentence} from './events';
 import {tr} from './i18n';
 import {num, outlineOf} from './mowerBody';
 import {box, wheelBoxes} from './robotShape';
@@ -144,9 +145,14 @@ export const SAFETY_WHY: Record<string, string> = {
   RESET: 'The setup was started anew: the safety has to be measured again',
   UNREADABLE: "The mower couldn't read the state of the lock: the safety has to be measured again",
 };
+// why the lock is closed in words, the program's reason for one it doesn't know
+export function whyText(why: string | null): string {
+  if (!why) return tr('No safety measurement yet: the mower drives only while you watch');
+  return SAFETY_WHY[why] ? tr(SAFETY_WHY[why]) : reasonSentence(why, 'SETUP');
+}
 // what keeps the lock closed in words: the step and why it failed, or the reset
-export const causeText = (c: SafetyCause, steps: SetupStep[], lang: string, sentence: (reason: string) => string) =>
-  c.step ? `${nameById(steps, c.step, lang)}: ${sentence(c.reason)}` : tr(SAFETY_WHY[c.reason] ?? SAFETY_WHY.RESET);
+export const causeText = (c: SafetyCause, steps: SetupStep[], lang: string) =>
+  c.step ? `${nameById(steps, c.step, lang)}: ${reasonSentence(c.reason, 'SETUP_STEP')}` : tr(SAFETY_WHY[c.reason] ?? SAFETY_WHY.RESET);
 export interface Setup {
   version: number;
   platform: string;
