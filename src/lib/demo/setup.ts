@@ -13,6 +13,7 @@ const STAGES: Named[] = [
   named('device', 'Device', 'Gerät'),
   named('inputs', 'Inputs', 'Eingänge'),
   named('wheels', 'Wheels', 'Räder'),
+  named('ground', 'Driving on the ground', 'Fahren am Boden'),
   named('position', 'Position', 'Position'),
   named('map', 'Map', 'Karte'),
 ];
@@ -63,6 +64,20 @@ const value = (id: string, en: string, de: string, unit: string, min: number | n
   max,
   ok: null,
 });
+
+const GROUND_PARTS = [
+  ['straight', 'Straight on', 'Geradeaus'],
+  ['turn', 'Turn', 'Drehen'],
+  ['stop', 'Press STOP', 'STOP drücken'],
+  ['bumper', 'Bumper', 'Stoßfänger'],
+];
+// what the step on the ground measured of a part, as on the Tron
+const GROUND_MEASURED: Record<string, Record<string, number>> = {
+  straight: {straight_stand: 0.42, straight_way: 0.08, straight_gnss: 1.03},
+  turn: {turn_left: 0.97, turn_right: 1.02},
+  stop: {stop_stand: 0.31, stop_way: 0.06},
+  bumper: {bumper_stand: 0.24, bumper_way: 0.03},
+};
 
 const TRON_STEPS: Base[] = [
   step({
@@ -150,6 +165,33 @@ const TRON_STEPS: Base[] = [
       ['Räder', 'Den Mäher auf einen Bock unter dem Gehäuse stellen, vorn nicht höher als hinten. Die Räder drehen vorwärts, rückwärts, in beide Richtungen und dann nur eines.', 'Stecker der Motoren und ihre Drehrichtung in den Einstellungen der Plattform prüfen, dann wiederholen.'],
     ),
   }),
+  // on the ground, part by part: straight on and the turn by themselves, then STOP and the bumper by the user (check ground)
+  step({
+    id: 'ground',
+    stage: 'ground',
+    check: 'ground',
+    kind: 'drive',
+    start: true,
+    safety: true,
+    symbol: 'ground',
+    confirm: [named('area_clear', '3 m clear in front of and behind the mower, I stand next to it at the STOP button', '3 m frei vor und hinter dem Mäher, ich stehe daneben an der STOP-Taste')],
+    parts: GROUND_PARTS.map(([id, en, de]) => ({...named(id, en, de), state: 'open' as const})),
+    values: [
+      value('straight_stand', 'Straight on: Time to stand', 'Geradeaus: Standzeit', 's', null, 1),
+      value('straight_way', 'Straight on: Way until standing', 'Geradeaus: Weg bis zum Stand', 'm', null, 0.6),
+      value('straight_gnss', 'Straight on: Way by GPS', 'Geradeaus: Weg nach GPS', '', 0.8, 1.2),
+      value('turn_left', 'Turn: Turn of the motion sensor', 'Drehen: Drehung Lagesensor', '', 0.8, 1.2),
+      value('turn_right', 'Turn: Turn of the motion sensor', 'Drehen: Drehung Lagesensor', '', 0.8, 1.2),
+      value('stop_stand', 'Press STOP: Time to stand', 'STOP drücken: Standzeit', 's', null, 0.5),
+      value('stop_way', 'Press STOP: Way until standing', 'STOP drücken: Weg bis zum Stand', 'm', null, 0.3),
+      value('bumper_stand', 'Bumper: Time to stand', 'Stoßfänger: Standzeit', 's', null, 0.5),
+      value('bumper_way', 'Bumper: Way until standing', 'Stoßfänger: Weg bis zum Stand', 'm', null, 0.3),
+    ],
+    texts: tx(
+      ['Driving on the ground', 'The mower drives about 2 m straight on and stops by itself, turns to the left and back, drives back until you press STOP, and at the end slowly against a soft obstacle you hold.', "If the mower does not stop in time, don't let it mow. The values show where it fails; check wheels, braking distance and board."],
+      ['Fahren am Boden', 'Der Mäher fährt etwa 2 m geradeaus und bleibt von selbst stehen, dreht sich nach links und zurück, fährt zurück, bis du STOP drückst, und zum Schluss langsam gegen ein weiches Hindernis, das du hältst.', 'Bleibt der Mäher nicht rechtzeitig stehen: nicht mähen lassen. Die Werte zeigen, wo es hakt; Räder, Bremsweg und Platine prüfen.'],
+    ),
+  }),
   step({
     id: 'correction',
     stage: 'position',
@@ -213,20 +255,24 @@ const TRON_STEPS: Base[] = [
   }),
 ];
 
-// the emergency stop's reason a step of the check input waits for
-const BIT: Record<string, string> = {stop: 'STOP', lift: 'LIFT'};
+// the emergency stop's reason a step of the check input, or a part of the assignment and of the step on the ground, waits for
+const BIT: Record<string, string> = {stop: 'STOP', lift: 'LIFT', bumper: 'COLLISION'};
 const TICK_MS = 200;
 const FIX_MS = 1500;
 // how long a part of the check input waits for its input (s)
 const PART_S = 90;
 // a step that turns the wheels: its bounds, each part (ms), the time for the answer which wheel turns and to setup.keep (s)
 const MOTION: Motion = {wheels: true, blade: false, raised: true, max_speed: 0.05, max_distance: null, max_time: 10};
+const GROUND: Motion = {...MOTION, raised: false, max_speed: 0.3};
+// on the ground: how long STOP or the bumper may take before the question, and the hold before the release (s)
+const GROUND_TIME_S = 8;
+const HOLD_S = 1;
 const WHEEL_MS = 1200;
 const ANSWER_S = 10;
 const KEEP_S = 1;
 // the question of a part the step saw nothing of (s), and the reasons a failed safety step closes the lock with
 const PRESSED_S = 30;
-const CLOSES = ['LIMIT', 'STARTED_AGAIN', 'NO_EMERGENCY', 'WRONG_DIRECTION', 'WRONG_WHEEL', 'NOT_SEEN'];
+const CLOSES = ['LIMIT', 'STARTED_AGAIN', 'NO_EMERGENCY', 'WRONG_DIRECTION', 'WRONG_WHEEL', 'NOT_SEEN', 'NO_STANDSTILL'];
 const question = (name: string, en: string[], de: string[], values: Named[]): SetupInput => ({name, type: 'choice', ask: true, advanced: false, value: null, texts: tx(en, de), values});
 const WHEEL = question('wheel', ['Which wheel turns?', 'Only one wheel should turn now. Tell which one turns.'], ['Welches Rad dreht?', 'Jetzt sollte sich nur ein Rad drehen. Angeben, welches sich dreht.'], [
   named('left', 'Left wheel', 'Linkes Rad'),
@@ -288,8 +334,9 @@ const isDone = (s: StepState) => s === 'ok' || s === 'skipped';
 
 type Kept = {state: StepState; attempt: number; result: SetupStep['result']; parts: SetupStep['parts']; values: SetupValue[]; inputs: SetupInput[]};
 
-// latched: whether the demo's emergency stop holds this reason now (LATCH alone for any); assign: the step of the NX60i too
-export function demoSetup(deliver: (topic: string, text: string) => void, latched: (reason: string) => boolean, assign = false) {
+// latched: whether the demo's emergency stop holds this reason now (LATCH alone for any); release: the program lets go of
+// it itself (on the ground); assign: the step of the NX60i too
+export function demoSetup(deliver: (topic: string, text: string) => void, latched: (reason: string) => boolean, release: () => void, assign = false) {
   const STEPS = assign ? [ASSIGN, ...TRON_STEPS] : TRON_STEPS;
   const now = () => Date.now() / 1000;
   // the OS restarts for the assignment
@@ -310,20 +357,26 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
   let timer: ReturnType<typeof setInterval> | null = null;
 
   const done = (id: string) => isDone(kept[id].state);
-  const wants = (s: Base, part: number) => (s.check === 'inputs_assign' ? BIT[s.parts[part]?.id] : BIT[s.id]);
+  const wants = (s: Base, part: number) => (s.check === 'inputs_assign' || s.check === 'ground' ? BIT[s.parts[part]?.id] : BIT[s.id]);
   const locked = (s: Base) => s.needs.some((n) => kept[n].state !== 'ok');
   const state = (s: Base): StepState => (kept[s.id].state === 'open' && locked(s) ? 'locked' : kept[s.id].state);
-  // the inputs that have to pass before a wheel turns
-  const inputsGate = (s: Base) => {
-    const open = s.kind === 'drive' ? STEPS.filter((x) => BIT[x.id] && kept[x.id].state !== 'ok').map((x) => x.id) : [];
-    return open.length ? {reason: 'SAFETY_INPUTS', message: `First: ${open.join(', ')}`} : null;
+  // the inputs that have to pass before a wheel turns, no emergency stop, and on the ground while the lock is closed the
+  // steps jacked up
+  const gates = (s: Base) => {
+    const open = (keep: (x: Base) => boolean) => STEPS.filter((x) => keep(x) && kept[x.id].state !== 'ok').map((x) => x.id);
+    const inputs = s.kind === 'drive' ? open((x) => !!BIT[x.id]) : [];
+    const air = s.check === 'ground' && !safety().open ? open((x) => x.kind === 'drive' && x.check !== 'ground') : [];
+    return [
+      ...(s.kind === 'drive' && latched('LATCH') ? [{reason: 'EMERGENCY', message: 'The emergency stop is latched'}] : []),
+      ...(inputs.length ? [{reason: 'SAFETY_INPUTS', message: `First: ${inputs.join(', ')}`}] : []),
+      ...(air.length ? [{reason: 'SAFETY_AIR', message: `First: ${air.join(', ')}`}] : []),
+    ];
   };
   const blocked = (s: Base) => {
     if (run?.id === s.id)
       return BIT[s.id] && run.phase === 'rest' && latched(BIT[s.id]) ? [{reason: 'EMERGENCY', message: `The emergency ${BIT[s.id]} is still latched`}] : [];
     if (run && s.start && s.kind !== 'confirm') return [{reason: 'BUSY', message: `${run.id} is running`}];
-    const gate = inputsGate(s);
-    return gate ? [gate] : [];
+    return gates(s);
   };
   const safety = (): Safety => {
     if (closed.length) return {open: false, date: null, firmware: null, why: 'CHECK_FAILED', source: null, closed};
@@ -359,13 +412,19 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
       state: state(s),
       attempt: k.attempt,
       blocked: blocked(s),
-      motion: s.kind === 'drive' ? MOTION : null,
+      motion: s.kind === 'drive' ? (s.check === 'ground' ? GROUND : MOTION) : null,
       parts: k.parts,
       values: k.values,
       // while the assignment runs it takes only accept, once a line is proposed; a question only while it is asked
       inputs: r?.asking ? [r.asking.input] : r && s.check === 'inputs_assign' ? (r.asked ? [ACCEPT] : []) : k.inputs,
       progress: r && s.parts.length ? {n: Math.min(r.part + 1, s.parts.length), of: s.parts.length} : null,
-      ends_at: r?.asking ? Math.floor(r.asking.until) : r && BIT[s.id] ? Math.floor(r.since + PART_S) : null,
+      ends_at: r?.asking
+        ? Math.floor(r.asking.until)
+        : r && BIT[s.id]
+          ? Math.floor(r.since + PART_S)
+          : r && r.phase === 'armed' && s.check === 'ground' && wants(s, r.part)
+            ? Math.floor(r.since + GROUND_TIME_S)
+            : null,
       result: k.result,
       lines: linesOf(s, running),
       ask: r?.asked ?? null,
@@ -567,6 +626,8 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
       end(s, false, 'RELEASED', 'setup.keep stayed away', s.parts[run.part]?.id ?? null);
     } else if (run.asking) {
       if (t > run.asking.until) reopen(s, 'NOT_DONE', 'No answer in time', s.parts[run.part]?.id ?? null);
+    } else if (s.check === 'ground') {
+      ground(s, k, t);
     } else if (s.kind === 'drive') {
       if (t - run.since >= WHEEL_MS / 1000) {
         if (s.parts[run.part].id === 'one_wheel') run.asking = {input: WHEEL, until: t + ANSWER_S};
@@ -595,6 +656,35 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
       }
     }
   }
+  // straight on and the turn pass by themselves; STOP and the bumper count once pressed, the program releases them after
+  // the hold and the next part begins; nothing pressed in time asks whether it was done
+  function ground(s: Base, k: Kept, t: number) {
+    const r = run!;
+    const measured = (part: string) => {
+      k.values = k.values.map((v) => (v.id in GROUND_MEASURED[part] ? {...v, value: GROUND_MEASURED[part][v.id], ok: true} : v));
+    };
+    const want = wants(s, r.part);
+    if (r.phase === 'rest') {
+      if (t - r.since < HOLD_S) return;
+      release();
+      nextPart(k);
+      if (r.part >= k.parts.length) return end(s, true);
+      r.phase = 'armed';
+      r.since = t;
+    } else if (!want) {
+      if (t - r.since < WHEEL_MS / 1000) return;
+      measured(s.parts[r.part].id);
+      nextPart(k);
+      r.since = t;
+    } else if (latched(want)) {
+      measured(s.parts[r.part].id);
+      k.parts = k.parts.map((p, i) => (i === r.part ? {...p, state: 'ok'} : p));
+      r.phase = 'rest';
+      r.since = t;
+    } else if (t - r.since > GROUND_TIME_S) r.asking = {input: PRESSED, until: t + PRESSED_S};
+    else return;
+    changed();
+  }
   const startTimer = () => (timer ??= setInterval(tick, TICK_MS));
   function stopTimer() {
     if (timer) clearInterval(timer);
@@ -608,7 +698,7 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
       if (state(s) === 'locked') throw refuse('LOCKED', `${s.id} needs ${s.needs.join(', ')} first`);
       if (!s.start) throw refuse('WRONG_METHOD', `${s.id} is not started`);
       if (run) throw refuse('BUSY', `${run.id} runs`);
-      const gate = inputsGate(s);
+      const [gate] = gates(s);
       if (gate) throw refuse(gate.reason, gate.message);
       const confirm = ((p as {confirm?: unknown}).confirm ?? []) as string[];
       const missing = s.confirm.filter((c) => !confirm.includes(c.id)).map((c) => c.id);

@@ -5448,6 +5448,7 @@
             "RELEASED",
             "EMERGENCY",
             "LIMIT",
+            "NO_STANDSTILL",
             "NO_DATA",
             "NO_RTK",
             "STOPPED",
@@ -15671,11 +15672,11 @@
       "type": "object"
     }
   },
-  "$id": "urn:mowbite-os:api:45",
+  "$id": "urn:mowbite-os:api:46",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "robot_state, actions, events and RPC methods of MowBite OS over MQTT, as system.api gives them; made from the code, objects sorted by key. x-reasons has severity and resume of every reason by event (COMMAND_REFUSED and REQUEST_REFUSED only in refusals; when: another rating for these field values; texts: name, help and fix by language; an enum field may carry the same by value as x-texts), x-emergency-bits the bits of emergency, x-commands the commands with params, result, the event of their refusal and the actions that do the same, x-methods every RPC method of the OS with its node (planner.* are the planner's, sim.* only in the simulation), x-sensors the sensors by id, x-settings the settings of params.set with the ranges of the OS, x-geometry the keys of robot.geometry, x-schedule-log the words of schedule.log with what detail and more hold (null: always null), x-setup the setup program. x-api counts every change, x-api-break only the breaks: a method, field, event, reason or topic gone or renamed, a type or meaning changed, a parameter newly required, fewer values taken in a request, an event a client waits for no longer sent. All else only adds; a client goes with every x-api of its x-api-break from the one it needs on.",
   "title": "MowBite OS app interface",
-  "x-api": 45,
+  "x-api": 46,
   "x-api-break": 1,
   "x-commands": {
     "docking.abort": {
@@ -19233,6 +19234,24 @@
           }
         }
       },
+      "NO_RTK": {
+        "description": "A step on the ground needs an RTK fix: it compares its way with the GNSS",
+        "fields": {},
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Den Mäher unter freien Himmel stellen und warten, bis die Position genau ist.",
+            "help": "Für die Fahrt am Boden braucht der Mäher eine genaue Position (RTK fix).",
+            "name": "Keine genaue Position"
+          },
+          "en": {
+            "fix": "Put the mower under the open sky and wait until the position is exact.",
+            "help": "Driving on the ground needs an exact position (RTK fix).",
+            "name": "No exact position"
+          }
+        }
+      },
       "ON_DOCK": {
         "description": "The mower is on the charging contacts",
         "fields": {},
@@ -19268,6 +19287,26 @@
             "fix": "Restart MowBite OS, then repeat the step.",
             "help": "The driver restarted several times lately. This check needs some to spare.",
             "name": "Too few restarts left"
+          }
+        }
+      },
+      "SAFETY_AIR": {
+        "description": "The lock is closed: a step on the ground needs every safety step jacked up passed first",
+        "fields": {
+          "steps": ""
+        },
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Die genannten Schritte mit aufgebocktem Mäher abschließen.",
+            "help": "Bevor der Mäher am Boden fährt, müssen die Prüfungen mit aufgebocktem Mäher bestanden sein.",
+            "name": "Erst aufgebockt prüfen"
+          },
+          "en": {
+            "fix": "Finish the steps named with the mower jacked up.",
+            "help": "Before the mower drives on the ground, the checks with the mower jacked up have to pass.",
+            "name": "Check jacked up first"
           }
         }
       },
@@ -19466,6 +19505,24 @@
           }
         }
       },
+      "NO_RTK": {
+        "description": "A step on the ground needs an RTK fix: it compares its way with the GNSS",
+        "fields": {},
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Den Mäher unter freien Himmel stellen und warten, bis die Position genau ist.",
+            "help": "Für die Fahrt am Boden braucht der Mäher eine genaue Position (RTK fix).",
+            "name": "Keine genaue Position"
+          },
+          "en": {
+            "fix": "Put the mower under the open sky and wait until the position is exact.",
+            "help": "Driving on the ground needs an exact position (RTK fix).",
+            "name": "No exact position"
+          }
+        }
+      },
       "ON_DOCK": {
         "description": "The mower is on the charging contacts",
         "fields": {},
@@ -19501,6 +19558,26 @@
             "fix": "Restart MowBite OS, then repeat the step.",
             "help": "The driver restarted several times lately. This check needs some to spare.",
             "name": "Too few restarts left"
+          }
+        }
+      },
+      "SAFETY_AIR": {
+        "description": "The lock is closed: a step on the ground needs every safety step jacked up passed first",
+        "fields": {
+          "steps": ""
+        },
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Die genannten Schritte mit aufgebocktem Mäher abschließen.",
+            "help": "Bevor der Mäher am Boden fährt, müssen die Prüfungen mit aufgebocktem Mäher bestanden sein.",
+            "name": "Erst aufgebockt prüfen"
+          },
+          "en": {
+            "fix": "Finish the steps named with the mower jacked up.",
+            "help": "Before the mower drives on the ground, the checks with the mower jacked up have to pass.",
+            "name": "Check jacked up first"
           }
         }
       },
@@ -19972,8 +20049,10 @@
       },
       "NO_RTK": {
         "closes": false,
-        "description": "No position of the solution, accuracy and rate asked for within the timeout",
-        "fields": {},
+        "description": "No position of the solution, accuracy and rate asked for within the timeout, or the RTK fix was lost in a step on the ground",
+        "fields": {
+          "part": ""
+        },
         "resume": "user",
         "severity": "warning",
         "texts": {
@@ -19986,6 +20065,28 @@
             "fix": "Give it a free view of the sky, check the correction data, then repeat.",
             "help": "The mower didn't get an exact position in time.",
             "name": "No exact position"
+          }
+        }
+      },
+      "NO_STANDSTILL": {
+        "closes": true,
+        "description": "The mower did not stand still within 3 s of the last command or of the trigger",
+        "fields": {
+          "part": "",
+          "value": ""
+        },
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Den Mäher nicht fahren lassen. Platine, Antrieb und Einstellungen der Plattform prüfen.",
+            "help": "Der Mäher ist nach dem Stopp nicht zum Stillstand gekommen.",
+            "name": "Bleibt nicht stehen"
+          },
+          "en": {
+            "fix": "Don't let the mower drive. Check board, drive and the settings of the platform.",
+            "help": "The mower did not come to a standstill after the stop.",
+            "name": "Does not stop"
           }
         }
       },
@@ -22032,7 +22133,7 @@
       },
       "driver_end": {
         "auto": false,
-        "description": "While the wheels turn: hw/end, commands go on. The driver is back within return_max (hw/status fresh after a gap), the wheels stand and do not start for hold s, the driver shows emergencies of the list and LATCH only, the program releases them itself, nothing starts for hold s and a new command turns the wheels. Offered where hw/capabilities has driver_end and the launch has at least two restarts of the driver left. Every step that moves the wheels: the mower is jacked up and setup.start confirms raised and hand_at_stop; the mower is in IDLE, off the charging contacts, without emergency or hold; every step input of the roles stop, lift and bumper of the list is ok (SAFETY_INPUTS, not to be skipped). The mower is in the sub state SETUP meanwhile. setup.keep at least every 1 s keeps it going (else RELEASED), setup.abort and any emergency it did not ask for stop it; a single move lasts 10 s at most; motion of the step names its bounds",
+        "description": "While the wheels turn: hw/end, commands go on. The driver is back within return_max (hw/status fresh after a gap), the wheels stand and do not start for hold s, the driver shows emergencies of the list and LATCH only, the program releases them itself, nothing starts for hold s and a new command turns the wheels. Offered where hw/capabilities has driver_end and the launch has at least two restarts of the driver left. Every step that moves the wheels: jacked up (motion.raised) setup.start confirms raised and hand_at_stop, on the ground area_clear; the mower is in IDLE, off the charging contacts, without emergency or hold; every step input of the roles stop, lift and bumper of the list is ok (SAFETY_INPUTS, not to be skipped). The mower is in the sub state SETUP meanwhile. setup.keep at least every 1 s keeps it going (else RELEASED), setup.abort and any emergency it did not ask for stop it; a single move lasts 10 s at most; motion of the step names its bounds",
         "kind": "drive",
         "params": {
           "emergency": {
@@ -22168,6 +22269,229 @@
           }
         },
         "values": {}
+      },
+      "ground": {
+        "auto": false,
+        "description": "On the ground, the parts of ground_parts in one run. straight: about distance m forwards at speed, then the program sends nothing: the mower stands within quiet_max s and goes quiet_way m at most after the last command, and the way by odometry and by gps/absolute_pose differ by the share ratio at most. turn: angle deg to the left on the spot at turn_rate, then back to the right: the IMU turns with the sign of each command and by the odometry within the share ratio. stop: back towards the start at speed, at most as far as straight went, until the user presses STOP: the mower stands within stop_max s and goes stop_way m at most after the press, the emergency follows, nothing starts for hold s, the program releases it itself and nothing starts for hold s. bumper: at bumper_speed in bumper_direction against a soft obstacle the user holds, the same as stop for the bumper. No new command after a stop on the ground. A stop or bumper the step saw nothing of within time asks pressed. Needs an RTK fix (NO_RTK) and, while the lock is closed, every safety step jacked up of the list passed (SAFETY_AIR). Not jacked up: mowbite_safety holds it to its bounds on the ground, without pose and fence. Every step that moves the wheels: jacked up (motion.raised) setup.start confirms raised and hand_at_stop, on the ground area_clear; the mower is in IDLE, off the charging contacts, without emergency or hold; every step input of the roles stop, lift and bumper of the list is ok (SAFETY_INPUTS, not to be skipped). The mower is in the sub state SETUP meanwhile. setup.keep at least every 1 s keeps it going (else RELEASED), setup.abort and any emergency it did not ask for stop it; a single move lasts 10 s at most; motion of the step names its bounds",
+        "kind": "drive",
+        "params": {
+          "angle": {
+            "default": 90.0,
+            "description": "How far turn goes to each side",
+            "max": 120.0,
+            "min": 45.0,
+            "required": false,
+            "type": "number",
+            "unit": "deg"
+          },
+          "bumper_direction": {
+            "default": "forward",
+            "description": "The way bumper drives: where the bumper is",
+            "required": false,
+            "type": "text",
+            "values": [
+              "forward",
+              "backward"
+            ]
+          },
+          "bumper_speed": {
+            "default": 0.1,
+            "description": "Speed of bumper",
+            "max": 0.1,
+            "min": 0.03,
+            "required": false,
+            "type": "number",
+            "unit": "m/s"
+          },
+          "distance": {
+            "default": 2.0,
+            "description": "How far straight goes before the program falls silent",
+            "max": 2.5,
+            "min": 1.0,
+            "required": false,
+            "type": "number",
+            "unit": "m"
+          },
+          "hold": {
+            "default": 1.0,
+            "description": "No wheel starts again for this time, after the stop and after the release",
+            "max": 5.0,
+            "min": 0.5,
+            "required": false,
+            "type": "number",
+            "unit": "s"
+          },
+          "quiet_max": {
+            "default": 1.0,
+            "description": "straight: the mower stands within this time of the last command",
+            "max": 3.0,
+            "min": 0.1,
+            "required": false,
+            "type": "number",
+            "unit": "s"
+          },
+          "quiet_way": {
+            "default": 0.6,
+            "description": "straight: the mower goes at most this far after the last command",
+            "max": 1.0,
+            "min": 0.05,
+            "required": false,
+            "type": "number",
+            "unit": "m"
+          },
+          "ratio": {
+            "default": 0.2,
+            "description": "Share by which the way by GNSS may differ from the odometry, and the turn of the IMU from it",
+            "max": 0.5,
+            "min": 0.05,
+            "required": false,
+            "type": "number",
+            "unit": ""
+          },
+          "speed": {
+            "default": 0.3,
+            "description": "Speed of straight and stop",
+            "max": 0.3,
+            "min": 0.05,
+            "required": false,
+            "type": "number",
+            "unit": "m/s"
+          },
+          "stop_max": {
+            "default": 0.5,
+            "description": "stop and bumper: the mower stands within this time of the trigger",
+            "max": 3.0,
+            "min": 0.1,
+            "required": false,
+            "type": "number",
+            "unit": "s"
+          },
+          "stop_way": {
+            "default": 0.3,
+            "description": "stop and bumper: the mower goes at most this far after the trigger",
+            "max": 1.0,
+            "min": 0.05,
+            "required": false,
+            "type": "number",
+            "unit": "m"
+          },
+          "time": {
+            "default": 8.0,
+            "description": "stop and bumper drive at most this long for the action",
+            "max": 10.0,
+            "min": 3.0,
+            "required": false,
+            "type": "number",
+            "unit": "s"
+          },
+          "turn_rate": {
+            "default": 0.3,
+            "description": "Turn rate of turn",
+            "max": 0.4,
+            "min": 0.25,
+            "required": false,
+            "type": "number",
+            "unit": "rad/s"
+          }
+        },
+        "reasons": [
+          "NO_START",
+          "WRONG_DIRECTION",
+          "LIMIT",
+          "NO_STANDSTILL",
+          "STARTED_AGAIN",
+          "NO_EMERGENCY",
+          "NOT_RELEASED",
+          "NOT_SEEN",
+          "NOT_DONE",
+          "NO_RTK",
+          "LOGIC_REFUSED",
+          "RELEASED",
+          "EMERGENCY",
+          "NO_DATA",
+          "STOPPED",
+          "INTERRUPTED"
+        ],
+        "safety": true,
+        "start": true,
+        "texts": {
+          "de": {
+            "fix": "Bleibt der Mäher nicht rechtzeitig stehen: nicht mähen lassen. Die Werte zeigen, wo es hakt; Räder, Bremsweg und Platine prüfen.",
+            "help": "Der Mäher fährt etwa 2 m geradeaus und bleibt von selbst stehen, dreht sich nach links und zurück, fährt zurück, bis du STOP drückst, und zum Schluss langsam gegen ein weiches Hindernis, das du hältst.",
+            "name": "Fahren am Boden"
+          },
+          "en": {
+            "fix": "If the mower does not stop in time, don't let it mow. The values show where it fails; check wheels, braking distance and board.",
+            "help": "The mower drives about 2 m straight on and stops by itself, turns to the left and back, drives back until you press STOP, and at the end slowly against a soft obstacle you hold.",
+            "name": "Driving on the ground"
+          }
+        },
+        "values": {
+          "gnss": {
+            "description": "straight: the way by GNSS divided by the way by odometry",
+            "texts": {
+              "de": {
+                "fix": "",
+                "help": "",
+                "name": "Weg nach GPS"
+              },
+              "en": {
+                "fix": "",
+                "help": "",
+                "name": "Way by GPS"
+              }
+            },
+            "unit": ""
+          },
+          "stand": {
+            "description": "From the last command (straight) or the trigger to standing wheels, by part: <part>_stand",
+            "texts": {
+              "de": {
+                "fix": "",
+                "help": "",
+                "name": "Standzeit"
+              },
+              "en": {
+                "fix": "",
+                "help": "",
+                "name": "Time to stand"
+              }
+            },
+            "unit": "s"
+          },
+          "turn": {
+            "description": "turn: the turn of the IMU divided by the one of the odometry, by side: turn_left, turn_right",
+            "texts": {
+              "de": {
+                "fix": "",
+                "help": "",
+                "name": "Drehung Lagesensor"
+              },
+              "en": {
+                "fix": "",
+                "help": "",
+                "name": "Turn of the motion sensor"
+              }
+            },
+            "unit": ""
+          },
+          "way": {
+            "description": "The way by odometry from the last command or the trigger until the wheels stand, by part: <part>_way",
+            "texts": {
+              "de": {
+                "fix": "",
+                "help": "",
+                "name": "Weg bis zum Stand"
+              },
+              "en": {
+                "fix": "",
+                "help": "",
+                "name": "Way until standing"
+              }
+            },
+            "unit": "m"
+          }
+        }
       },
       "imu": {
         "auto": true,
@@ -22379,7 +22703,7 @@
       },
       "no_command": {
         "auto": false,
-        "description": "While the wheels turn, the program sends no commands any more: the wheels stand within stop_max of the last one by the watchdogs alone and do not start for hold s; then a new command turns them again. No emergency. Every step that moves the wheels: the mower is jacked up and setup.start confirms raised and hand_at_stop; the mower is in IDLE, off the charging contacts, without emergency or hold; every step input of the roles stop, lift and bumper of the list is ok (SAFETY_INPUTS, not to be skipped). The mower is in the sub state SETUP meanwhile. setup.keep at least every 1 s keeps it going (else RELEASED), setup.abort and any emergency it did not ask for stop it; a single move lasts 10 s at most; motion of the step names its bounds",
+        "description": "While the wheels turn, the program sends no commands any more: the wheels stand within stop_max of the last one by the watchdogs alone and do not start for hold s; then a new command turns them again. No emergency. Every step that moves the wheels: jacked up (motion.raised) setup.start confirms raised and hand_at_stop, on the ground area_clear; the mower is in IDLE, off the charging contacts, without emergency or hold; every step input of the roles stop, lift and bumper of the list is ok (SAFETY_INPUTS, not to be skipped). The mower is in the sub state SETUP meanwhile. setup.keep at least every 1 s keeps it going (else RELEASED), setup.abort and any emergency it did not ask for stop it; a single move lasts 10 s at most; motion of the step names its bounds",
         "kind": "drive",
         "params": {
           "hold": {
@@ -22620,7 +22944,7 @@
       },
       "silence": {
         "auto": false,
-        "description": "Round by round, while the wheels turn: hw/silence for silence_max_s of the driver, commands go on. The board stops the wheels by itself within stop_max of the answer, nothing starts until hold s after the silence; then the driver shows emergencies of the list and LATCH only, the program releases them itself, nothing starts for hold s and a new command turns the wheels. The stand times of the rounds differ by spread_max at most. Offered where hw/capabilities has silence_max_s. Every step that moves the wheels: the mower is jacked up and setup.start confirms raised and hand_at_stop; the mower is in IDLE, off the charging contacts, without emergency or hold; every step input of the roles stop, lift and bumper of the list is ok (SAFETY_INPUTS, not to be skipped). The mower is in the sub state SETUP meanwhile. setup.keep at least every 1 s keeps it going (else RELEASED), setup.abort and any emergency it did not ask for stop it; a single move lasts 10 s at most; motion of the step names its bounds",
+        "description": "Round by round, while the wheels turn: hw/silence for silence_max_s of the driver, commands go on. The board stops the wheels by itself within stop_max of the answer, nothing starts until hold s after the silence; then the driver shows emergencies of the list and LATCH only, the program releases them itself, nothing starts for hold s and a new command turns the wheels. The stand times of the rounds differ by spread_max at most. Offered where hw/capabilities has silence_max_s. Every step that moves the wheels: jacked up (motion.raised) setup.start confirms raised and hand_at_stop, on the ground area_clear; the mower is in IDLE, off the charging contacts, without emergency or hold; every step input of the roles stop, lift and bumper of the list is ok (SAFETY_INPUTS, not to be skipped). The mower is in the sub state SETUP meanwhile. setup.keep at least every 1 s keeps it going (else RELEASED), setup.abort and any emergency it did not ask for stop it; a single move lasts 10 s at most; motion of the step names its bounds",
         "kind": "drive",
         "params": {
           "emergency": {
@@ -22764,7 +23088,7 @@
       },
       "stop_moving": {
         "auto": false,
-        "description": "While the wheels turn, the user triggers the input of a part (role as in a step input): the wheels stand within stop_max, the emergency of the role follows, nothing starts again for hold s, the program releases the emergency itself as in a step input, nothing starts for hold s, and a new command turns the wheels again. Every step that moves the wheels: the mower is jacked up and setup.start confirms raised and hand_at_stop; the mower is in IDLE, off the charging contacts, without emergency or hold; every step input of the roles stop, lift and bumper of the list is ok (SAFETY_INPUTS, not to be skipped). The mower is in the sub state SETUP meanwhile. setup.keep at least every 1 s keeps it going (else RELEASED), setup.abort and any emergency it did not ask for stop it; a single move lasts 10 s at most; motion of the step names its bounds",
+        "description": "While the wheels turn, the user triggers the input of a part (role as in a step input): the wheels stand within stop_max, the emergency of the role follows, nothing starts again for hold s, the program releases the emergency itself as in a step input, nothing starts for hold s, and a new command turns the wheels again. Every step that moves the wheels: jacked up (motion.raised) setup.start confirms raised and hand_at_stop, on the ground area_clear; the mower is in IDLE, off the charging contacts, without emergency or hold; every step input of the roles stop, lift and bumper of the list is ok (SAFETY_INPUTS, not to be skipped). The mower is in the sub state SETUP meanwhile. setup.keep at least every 1 s keeps it going (else RELEASED), setup.abort and any emergency it did not ask for stop it; a single move lasts 10 s at most; motion of the step names its bounds",
         "kind": "drive",
         "params": {
           "hold": {
@@ -22855,7 +23179,7 @@
       },
       "wheels": {
         "auto": false,
-        "description": "The mower jacked up turns its wheels part by part, see wheel_parts: each part drives time s after a run-up of 0.5 s, and the odometry has to show it with its sign and 0.5 to 1.5 times speed. In the part one_wheel only the right wheel turns, and inputs[] asks which one turns. Every step that moves the wheels: the mower is jacked up and setup.start confirms raised and hand_at_stop; the mower is in IDLE, off the charging contacts, without emergency or hold; every step input of the roles stop, lift and bumper of the list is ok (SAFETY_INPUTS, not to be skipped). The mower is in the sub state SETUP meanwhile. setup.keep at least every 1 s keeps it going (else RELEASED), setup.abort and any emergency it did not ask for stop it; a single move lasts 10 s at most; motion of the step names its bounds",
+        "description": "The mower jacked up turns its wheels part by part, see wheel_parts: each part drives time s after a run-up of 0.5 s, and the odometry has to show it with its sign and 0.5 to 1.5 times speed. In the part one_wheel only the right wheel turns, and inputs[] asks which one turns. Every step that moves the wheels: jacked up (motion.raised) setup.start confirms raised and hand_at_stop, on the ground area_clear; the mower is in IDLE, off the charging contacts, without emergency or hold; every step input of the roles stop, lift and bumper of the list is ok (SAFETY_INPUTS, not to be skipped). The mower is in the sub state SETUP meanwhile. setup.keep at least every 1 s keeps it going (else RELEASED), setup.abort and any emergency it did not ask for stop it; a single move lasts 10 s at most; motion of the step names its bounds",
         "kind": "drive",
         "params": {
           "answer_time": {
@@ -23038,9 +23362,77 @@
       },
       "unit": "ms"
     },
-    "description": "The setup program: stages in their order, the checks a step of setup/setup.yaml of a platform can be (kind, whether setup.start begins it, params with the bounds and defaults of the code, values, reasons of SETUP_STEP, the screen it opens), roles of the inputs (group, emergency of a press; a role is named as its flag in hw/status) and modes of a part, moves of a step imu, conditions of a step done_when with their screen, points to confirm, reasons to skip, the question of a step inputs_assign and the delays it takes once it is ok, the ways to restart, the parts of a step wheels and its question, the question pressed of a safety step that saw nothing (a check with safety closes the lock when it fails with a reason that has closes in x-reasons of SETUP_STEP), and the limits; texts by language where the OS has them. The steps themselves come with setup.get",
+    "description": "The setup program: stages in their order, the checks a step of setup/setup.yaml of a platform can be (kind, whether setup.start begins it, params with the bounds and defaults of the code, values, reasons of SETUP_STEP, the screen it opens), roles of the inputs (group, emergency of a press; a role is named as its flag in hw/status) and modes of a part, moves of a step imu, conditions of a step done_when with their screen, points to confirm, reasons to skip, the question of a step inputs_assign and the delays it takes once it is ok, the ways to restart, the parts of a step wheels and its question, the parts of a step ground, the question pressed of a safety step that saw nothing (a check with safety closes the lock when it fails with a reason that has closes in x-reasons of SETUP_STEP), and the limits; texts by language where the OS has them. The steps themselves come with setup.get",
+    "ground_parts": {
+      "bumper": {
+        "description": "Slowly in bumper_direction against a soft obstacle the user holds, until the bumper stops it",
+        "order": 3,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "Der Mäher fährt langsam an. Ein weiches Hindernis vor den Stoßfänger halten und andrücken lassen.",
+            "name": "Stoßfänger"
+          },
+          "en": {
+            "fix": "",
+            "help": "The mower drives slowly. Hold a soft obstacle against the bumper and let it press.",
+            "name": "Bumper"
+          }
+        }
+      },
+      "stop": {
+        "description": "Back towards the start at speed until the user presses STOP",
+        "order": 2,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "Der Mäher fährt zurück zum Start. Jetzt die STOP-Taste drücken.",
+            "name": "STOP drücken"
+          },
+          "en": {
+            "fix": "",
+            "help": "The mower drives back towards the start. Press the STOP button now.",
+            "name": "Press STOP"
+          }
+        }
+      },
+      "straight": {
+        "description": "About distance m straight on at speed, then no command: it stands by itself",
+        "order": 0,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "Der Mäher fährt etwa 2 m geradeaus und bleibt von selbst stehen.",
+            "name": "Geradeaus"
+          },
+          "en": {
+            "fix": "",
+            "help": "The mower drives about 2 m straight on and stops by itself.",
+            "name": "Straight on"
+          }
+        }
+      },
+      "turn": {
+        "description": "A turn on the spot by angle to the left, then back to the right",
+        "order": 1,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "Der Mäher dreht sich auf der Stelle nach links und wieder zurück.",
+            "name": "Drehen"
+          },
+          "en": {
+            "fix": "",
+            "help": "The mower turns on the spot to the left and back again.",
+            "name": "Turn"
+          }
+        }
+      }
+    },
     "limits": {
       "closed": 32,
+      "ground_speed": 0.3,
+      "ground_turn": 0.4,
       "image_bytes": 65536,
       "keep": 1.0,
       "move_time": 10.0,
@@ -23199,6 +23591,22 @@
       "mow"
     ],
     "points": {
+      "area_clear": {
+        "description": "3 m are clear in front of and behind the mower, and the user stands next to it at a STOP button",
+        "order": 4,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "",
+            "name": "3 m frei vor und hinter dem Mäher, ich stehe daneben an der STOP-Taste"
+          },
+          "en": {
+            "fix": "",
+            "help": "",
+            "name": "3 m clear in front of and behind the mower, I stand next to it at the STOP button"
+          }
+        }
+      },
       "blade_removed": {
         "description": "The blade is taken off",
         "order": 2,
@@ -23249,7 +23657,7 @@
       },
       "outdoors": {
         "description": "The mower stands under the open sky",
-        "order": 4,
+        "order": 5,
         "texts": {
           "de": {
             "fix": "",

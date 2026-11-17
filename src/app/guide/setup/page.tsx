@@ -381,6 +381,30 @@ function WheelsArt() {
   );
 }
 
+function GroundArt() {
+  // on the ground the parts pass one after the other: straight on, a turn, STOP pressed while it drives back, the bumper
+  const parts = [tr('Straight on'), tr('Turn'), tr('Press STOP'), tr('Bumper')];
+  return (
+    <Scene label={tr('Driving on the ground')}>
+      <rect x={20} y={8} width={280} height={186} rx={14} style={card} />
+      {parts.map((name, i) => (
+        <Row
+          key={i}
+          x={30}
+          y={16 + i * 44}
+          w={260}
+          name={name}
+          states={[
+            {from: 0, state: i ? 'open' : 'waiting'},
+            ...(i ? [{from: 0.2 * i, state: 'waiting' as const}] : []),
+            {from: 0.2 * (i + 1), state: 'ok'},
+          ]}
+        />
+      ))}
+    </Scene>
+  );
+}
+
 function SafetyArt() {
   // a step skipped for now, then the safety measurement passes and the lock on top opens
   const lock = (open: boolean) => {
@@ -460,6 +484,11 @@ const STEPS: GuideStep[] = [
     title: 'Wheels in the air',
     text: 'Put the mower on a stand under its body, the front not higher than the back, and keep a hand at the STOP button. The wheels turn forwards, backwards, both ways round and then only one: tell which one turns. It takes about 15 seconds. Further steps check that the wheels stop at the STOP button and the bumpers and stay still without a command. The STOP button, lifting and bumper have to pass before any wheel turns.',
     Art: WheelsArt,
+  },
+  {
+    title: 'Driving on the ground',
+    text: "Once the steps with the mower jacked up passed, it drives on the lawn: with an exact position, on a lawn without obstacles, 3 m clear in front and behind, and you next to it at the STOP button. It drives about 2 m straight on and stops by itself, turns to the left and back, drives back until you press STOP and at last slowly against a soft obstacle you hold, such as a cushion. It drives slowly and without the borders of the map, like the remote control. If it doesn't stop in time, don't let it mow.",
+    Art: GroundArt,
   },
   {
     title: 'Skipping and the safety measurement',

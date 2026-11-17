@@ -1,6 +1,6 @@
 'use client';
 
-import {tr} from '@/lib/i18n';
+import {fmt, tr} from '@/lib/i18n';
 import {moves, nameOf, words, type SetupStep} from '@/lib/setup';
 import {useState} from 'react';
 import {Sheet} from './Sheet';
@@ -10,7 +10,7 @@ import {StepSymbol} from './StepSymbol';
 // what moves in a step, as its start button says it
 function startLabel(motion: SetupStep['motion']): string {
   if (motion?.blade) return tr('Let the blade turn');
-  if (motion?.wheels) return tr('Let the wheels turn');
+  if (motion?.wheels) return motion.raised ? tr('Let the wheels turn') : tr('Let the mower drive');
   return tr('Start');
 }
 
@@ -32,12 +32,29 @@ export function ConfirmSheet(props: {step: SetupStep; lang: string; busy: boolea
     <Sheet title={m ? tr('The mower moves in a moment') : words(step.texts, lang).name} onClose={onClose}>
       {m && (
         <div className={styles.list}>
-          {!!m.wheels && <Move sign="wheels">{m.raised ? tr('The wheels turn in the air') : tr('The wheels turn')}</Move>}
+          {!!m.wheels &&
+            (m.raised ? (
+              <Move sign="wheels">{tr('The wheels turn in the air')}</Move>
+            ) : (
+              <Move sign="ground">{tr('The mower drives')}</Move>
+            ))}
           {!!m.blade && <Move sign="blade">{tr('The blade turns')}</Move>}
           {m.blade === false && (
             <Move sign="blade" still>
               {tr('The blade stays off')}
             </Move>
+          )}
+          {!!m.wheels && !m.raised && (
+            <>
+              <p className={styles.limit}>
+                {m.max_speed
+                  ? tr('At most {n} m/s and without the borders of the map, like the remote control', {n: fmt(m.max_speed, 2)})
+                  : tr('Without the borders of the map, like the remote control')}
+              </p>
+              <p className={styles.warn} data-ground>
+                {tr('Before the start: a lawn without obstacles, 3 m clear in front of and behind the mower, a soft obstacle at hand such as a cushion.')}
+              </p>
+            </>
           )}
           {!!m.max_time && <p className={styles.limit}>{tr('Each move at most {n} s, then it stops by itself', {n: m.max_time})}</p>}
           <p className={styles.limit}>{tr('Keep this page open: if it closes, the mower stops.')}</p>

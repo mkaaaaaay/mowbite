@@ -626,7 +626,7 @@ export const REASONS: Record<string, Variant[]> = {
   NO_PREVIOUS: [r('there is no version before this one to go back to')],
   UNKNOWN_REVISION: [r("the mower doesn't know this version")],
   // the calibration drive (CALIBRATION_REFUSED, CALIBRATION_FAILED): rate and limit in reports a second
-  NO_RTK: [r('no RTK fix')],
+  NO_RTK: [r('the exact position (RTK fix) was lost on the way', {when: {type: 'SETUP_STEP'}}), r('no RTK fix')],
   NO_ROOM: [
     r('not enough room here, the drive needs {length:1} m and has {free_length:1} m', {
       when: {length: {present: true}, free_length: {present: true}},
@@ -703,6 +703,8 @@ export const REASONS: Record<string, Variant[]> = {
   NOT_OFFERED: [r("the board of this mower doesn't offer this check")],
   RESTARTS_LOW: [r('the driver restarted several times lately, restart MowBite OS first')],
   SAFETY_INPUTS: [r('STOP button, lifting and bumper have to pass standing first')],
+  SAFETY_AIR: [r('the steps with the mower jacked up have to pass first')],
+  NO_STANDSTILL: [r("the mower didn't come to a standstill after the stop")],
   DRIVER_REFUSED: [r('the board refused the check, the mower charges or the blade runs')],
   LOGIC_REFUSED: [r("the mower didn't take the step: it is on its way, charges or has an emergency stop")],
   NOT_DONE: [r("the action wasn't done, the check doesn't count")],
