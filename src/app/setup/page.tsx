@@ -12,7 +12,7 @@ import {loadGeometry, type Geometry} from '@/lib/mowerBody';
 import {RPC} from '@/lib/openmower';
 import {RpcError} from '@/lib/rpc';
 import {answerError} from '@/lib/rpcText';
-import {abortStep, answerStep, loadSetup, robotShape, skipStep, startStep, type Setup} from '@/lib/setup';
+import {abortStep, answerStep, loadSetup, skipStep, startStep, type Setup} from '@/lib/setup';
 import Link from 'next/link';
 import {useRouter, useSearchParams} from 'next/navigation';
 import {Suspense, useEffect, useRef, useState} from 'react';
@@ -114,7 +114,6 @@ function SetupView() {
                     setup={setup}
                     step={step}
                     lang={lang}
-                    shape={robotShape(sizes?.settings.robot_shape?.value)}
                     sizes={sizes}
                     busy={busy}
                     error={error?.step === step.id ? error.text : null}

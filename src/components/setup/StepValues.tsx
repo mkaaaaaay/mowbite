@@ -1,5 +1,5 @@
 import {fmt, tr} from '@/lib/i18n';
-import {words, type SetupValue} from '@/lib/setup';
+import {nameOf, type SetupValue} from '@/lib/setup';
 import styles from './StepValues.module.css';
 
 // a measured value as it's shown: a number with as many decimals as it needs, a text as it is
@@ -30,7 +30,7 @@ export function StepValues({values, lang}: {values: SetupValue[]; lang: string})
     <dl className={styles.values}>
       {values.map((v) => (
         <div key={v.id} className={styles.value} data-ok={v.ok === null ? undefined : String(v.ok)}>
-          <dt>{words(v.texts, lang).name || v.id}</dt>
+          <dt>{nameOf(v, lang)}</dt>
           <dd>
             {valueText(v.value, v.unit)}
             {bounds(v) && <span className={styles.bounds}>{bounds(v)}</span>}

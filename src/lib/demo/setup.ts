@@ -35,7 +35,8 @@ export const DEMO_IMAGES: Record<string, {svg: string; sha256: string}> = {
 };
 const ref = (name: string) => ({name, sha256: DEMO_IMAGES[name].sha256, bytes: DEMO_IMAGES[name].svg.length});
 
-type Base = Omit<SetupStep, 'state' | 'attempt' | 'blocked' | 'progress' | 'ends_at' | 'result' | 'restart' | 'motion'>;
+// initial: the state the demo starts the step in
+type Base = Omit<SetupStep, 'state' | 'attempt' | 'blocked' | 'progress' | 'ends_at' | 'result' | 'restart' | 'motion'> & {initial?: StepState};
 const step = (s: Partial<Base> & Pick<Base, 'id' | 'stage' | 'check' | 'kind' | 'texts'>): Base => ({
   needs: [],
   confirm: [],
@@ -179,6 +180,7 @@ const STEPS: Base[] = [
     auto: true,
     open: 'recording',
     symbol: 'map',
+    initial: 'ok',
     texts: tx(['Record a mowing area', 'Record an area to mow.'], ['Mähfläche aufnehmen', 'Eine Mähfläche aufnehmen.']),
   }),
 ];
@@ -187,6 +189,13 @@ const STEPS: Base[] = [
 const BIT: Record<string, string> = {stop: 'STOP', lift: 'LIFT'};
 const TICK_MS = 200;
 const FIX_MS = 1500;
+// how long a part of the check input waits for its input (s)
+const PART_S = 90;
+const FIRMWARE = '1.4.2';
+// the OS's limits (SKIP_TEXT, IMAGE_BYTES of ../setup): the demo imports no values from the app
+const SKIP_TEXT = 200;
+const IMAGE_BYTES = 65536;
+const isDone = (s: StepState) => s === 'ok' || s === 'skipped';
 
 type Kept = {state: StepState; attempt: number; result: SetupStep['result']; parts: SetupStep['parts']; values: SetupValue[]; inputs: SetupInput[]};
 
@@ -194,13 +203,14 @@ type Kept = {state: StepState; attempt: number; result: SetupStep['result']; par
 export function demoSetup(deliver: (topic: string, text: string) => void, latched: (reason: string) => boolean) {
   const now = () => Date.now() / 1000;
   let version = 1;
-  const fresh = (s: Base): Kept => ({state: s.id === 'area' ? 'ok' : 'open', attempt: 0, result: null, parts: s.parts, values: s.values, inputs: s.inputs});
+  const fresh = (s: Base): Kept => ({state: s.initial ?? 'open', attempt: 0, result: null, parts: s.parts, values: s.values, inputs: s.inputs});
   let kept: Record<string, Kept> = Object.fromEntries(STEPS.map((s) => [s.id, fresh(s)]));
   // rest: the part waits for its emergency to be released before it counts the input (blocked EMERGENCY meanwhile)
-  let run: {id: string; began: number; part: number; phase: 'rest' | 'armed'; partBegan: number} | null = null;
+  // since: when the step or its current part began
+  let run: {id: string; since: number; part: number; phase: 'rest' | 'armed'} | null = null;
   let timer: ReturnType<typeof setInterval> | null = null;
 
-  const done = (id: string) => ['ok', 'skipped'].includes(kept[id].state);
+  const done = (id: string) => isDone(kept[id].state);
   const locked = (s: Base) => s.needs.some((n) => kept[n].state !== 'ok');
   const state = (s: Base): StepState => (kept[s.id].state === 'open' && locked(s) ? 'locked' : kept[s.id].state);
   const blocked = (s: Base) => {
@@ -221,14 +231,14 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
       values: k.values,
       inputs: k.inputs,
       progress: running && s.parts.length ? {n: run!.part + 1, of: s.parts.length} : null,
-      ends_at: running && BIT[s.id] ? Math.floor(run!.partBegan + 90) : null,
+      ends_at: running && BIT[s.id] ? Math.floor(run!.since + PART_S) : null,
       result: k.result,
       restart: false,
     };
   };
   const setup = (): Setup => {
     const steps = STEPS.map(full);
-    const todo = steps.find((s) => !['ok', 'skipped'].includes(s.state));
+    const todo = steps.find((s) => !isDone(s.state));
     const stages = STAGES.map((st) => {
       const own = steps.filter((s) => s.stage === st.id);
       const all = (...in_: StepState[]) => own.every((s) => in_.includes(s.state));
@@ -267,21 +277,26 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
   const refuse = (reason: string, message: string) =>
     Object.assign(new Error(message), {code: -32600, data: {event: 'SETUP_REFUSED', reason, message, severity: 'info', resume: 'user'}});
   const invalid = (field: string, message: string) => Object.assign(new Error(message), {code: -32602, data: {field, reason: 'INVALID'}});
-  const stepOf = (p: unknown, checkVersion = true) => {
+  const stepOf = (p: unknown) => {
     const {step: id, version: v} = (p ?? {}) as {step?: unknown; version?: unknown};
     if (typeof id !== 'string') throw invalid('step', 'step is missing');
     const s = STEPS.find((x) => x.id === id);
     if (!s) throw refuse('UNKNOWN_STEP', `No step ${id}`);
-    if (checkVersion && v !== version) throw refuse('VERSION', `The setup is at version ${version} now, not ${v}`);
+    if (v !== version) throw refuse('VERSION', `The setup is at version ${version} now, not ${v}`);
     return s;
   };
+
+  const resultOf = (k: Kept, r: Partial<NonNullable<Kept['result']>>): Kept['result'] => ({
+    ...{ok: false, reason: null, message: null, part: null, skip: null, note: null, t: now(), attempt: k.attempt, firmware: FIRMWARE},
+    ...r,
+  });
 
   function end(s: Base, ok: boolean, reason: string | null = null, message: string | null = null, part: string | null = null) {
     const k = kept[s.id];
     run = null;
     stopTimer();
     k.state = ok ? 'ok' : 'failed';
-    k.result = {ok, reason, message, part, skip: null, note: null, t: now(), attempt: k.attempt, firmware: '1.4.2'};
+    k.result = resultOf(k, {ok, reason, message, part});
     event({type: 'SETUP_STEP', step: s.id, state: k.state, attempt: k.attempt, severity: ok ? 'info' : 'warning', resume: 'user', ...(reason && {reason, message, part})});
     const stage = STEPS.filter((x) => x.stage === s.stage);
     if (ok && stage.every((x) => done(x.id))) event({type: 'SETUP', what: 'stage_done', stage: s.stage, severity: 'info', resume: 'auto'});
@@ -294,11 +309,11 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
     const s = STEPS.find((x) => x.id === run!.id)!;
     const k = kept[s.id];
     const t = now();
-    if (s.check === 'board' && t - run.began >= FIX_MS / 1000) {
-      k.values = k.values.map((v) => ({...v, value: v.id === 'status_rate' ? 10 : v.id === 'battery' ? 87 : '1.4.2', ok: true}));
+    if (s.check === 'board' && t - run.since >= FIX_MS / 1000) {
+      k.values = k.values.map((v) => ({...v, value: v.id === 'status_rate' ? 10 : v.id === 'battery' ? 87 : FIRMWARE, ok: true}));
       end(s, true);
     } else if (s.check === 'position') {
-      const left = Math.max(0, 1 - (t - run.began) / (FIX_MS / 1000));
+      const left = Math.max(0, 1 - (t - run.since) / (FIX_MS / 1000));
       k.values = k.values.map((v) => (v.id === 'accuracy' ? {...v, value: Math.round((0.02 + left) * 1000) / 1000} : {...v, value: left ? 'FLOAT' : 'FIXED'}));
       if (!left) {
         k.values = k.values.map((v) => ({...v, ok: true}));
@@ -313,11 +328,11 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
       } else if (run.phase === 'armed' && on) {
         k.parts = k.parts.map((p, i) => (i === run!.part ? {...p, state: 'ok'} : i === run!.part + 1 ? {...p, state: 'waiting'} : p));
         run.part++;
-        run.partBegan = t;
+        run.since = t;
         run.phase = 'rest';
         if (run.part >= k.parts.length) end(s, true);
         else changed();
-      } else if (t - run.partBegan > 90) {
+      } else if (t - run.since > PART_S) {
         k.parts = k.parts.map((p, i) => (i === run!.part ? {...p, state: 'failed'} : p));
         end(s, false, 'NOT_SEEN', 'The input did not switch in time', k.parts[run.part].id);
       }
@@ -349,7 +364,7 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
       k.result = null;
       k.parts = s.parts.map((x, i) => ({...x, state: i ? 'open' : 'waiting'}));
       k.values = s.values;
-      run = {id: s.id, began: now(), part: 0, phase: BIT[s.id] && latched(BIT[s.id]) ? 'rest' : 'armed', partBegan: now()};
+      run = {id: s.id, since: now(), part: 0, phase: BIT[s.id] && latched(BIT[s.id]) ? 'rest' : 'armed'};
       startTimer();
       changed();
       return setup();
@@ -374,11 +389,11 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
       const {reason, note} = p as {reason?: string; note?: string};
       if (!s.skippable) throw refuse('NOT_SKIPPABLE', `${s.id} can't be skipped`);
       if (!s.skip_reasons.some((r) => r.id === reason)) throw invalid('reason', 'no such reason');
-      if ((reason === 'other' && !note) || (note?.length ?? 0) > 200) throw refuse('INVALID_VALUE', 'note is missing with other, or too long');
+      if ((reason === 'other' && !note) || (note?.length ?? 0) > SKIP_TEXT) throw refuse('INVALID_VALUE', 'note is missing with other, or too long');
       if (run?.id === s.id) run = null;
       const k = kept[s.id];
       k.state = 'skipped';
-      k.result = {ok: false, reason: null, message: null, part: null, skip: reason!, note: note ?? null, t: now(), attempt: k.attempt, firmware: '1.4.2'};
+      k.result = resultOf(k, {skip: reason!, note: note ?? null});
       event({type: 'SETUP_STEP', step: s.id, state: 'skipped', attempt: k.attempt, skip: reason, ...(note && {note}), severity: 'info', resume: 'user'});
       changed();
       return setup();
@@ -391,7 +406,7 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
       stopTimer();
       k.state = 'open';
       k.parts = s.parts;
-      k.result = {ok: false, reason: 'STOPPED', message: 'The step was stopped', part: null, skip: null, note: null, t: now(), attempt: k.attempt, firmware: '1.4.2'};
+      k.result = resultOf(k, {reason: 'STOPPED', message: 'The step was stopped'});
       event({type: 'SETUP_STEP', step: s.id, state: 'failed', attempt: k.attempt, reason: 'STOPPED', message: 'The step was stopped', severity: 'info', resume: 'user'});
       changed();
       return setup();
@@ -406,7 +421,7 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
       return setup();
     },
     [RPC.setupImage]: (p) => {
-      const {name, offset = 0, size = 65536} = (p ?? {}) as {name?: string; offset?: number; size?: number};
+      const {name, offset = 0, size = IMAGE_BYTES} = (p ?? {}) as {name?: string; offset?: number; size?: number};
       const img = name ? DEMO_IMAGES[name] : undefined;
       if (!img) throw invalid('name', 'no such image');
       return {size: img.svg.length, offset, data: btoa(img.svg.slice(offset, offset + size)), sha256: img.sha256, type: 'image/svg+xml'};

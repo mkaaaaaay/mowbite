@@ -1,7 +1,7 @@
 import type {MapArea} from '@/hooks/useMowerMap';
 import {describe, expect, it} from 'vitest';
 import {containsPoint} from './geometry';
-import {derivedParts} from './setup';
+import {wheelBoxes} from './robotShape';
 import {TRON_SHAPE, TRON_WHEELS} from './tronShape';
 import {cmMetres} from './i18n';
 import {
@@ -547,7 +547,7 @@ describe('mower models', () => {
     const tron = MOWER_MODELS.find((m) => m.key === 'airseekers-tron')!;
     // to half a millimetre: the hubs reach the outline's sides
     const around = grownOutline(tron.outline!, 0.0005).map(([x, y]) => ({x, y}));
-    const {wheel_left, wheel_right} = derivedParts({settings: Object.fromEntries(Object.entries(TRON_WHEELS).map(([k, value]) => [k, {value}]))});
+    const {wheel_left, wheel_right} = wheelBoxes(TRON_WHEELS.track, TRON_WHEELS.wheel_radius, TRON_WHEELS.wheel_width);
     const out = [...TRON_SHAPE, {id: 'wheel_left', points: wheel_left}, {id: 'wheel_right', points: wheel_right}].flatMap((p) =>
       p.points.filter(([x, y]) => !containsPoint(around, x, y)).map((q) => [p.id, ...q]),
     );

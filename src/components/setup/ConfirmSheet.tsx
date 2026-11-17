@@ -1,7 +1,7 @@
 'use client';
 
 import {tr} from '@/lib/i18n';
-import {words, type SetupStep} from '@/lib/setup';
+import {nameOf, words, type SetupStep} from '@/lib/setup';
 import {useState} from 'react';
 import {Sheet} from './Sheet';
 
@@ -25,7 +25,7 @@ export function ConfirmSheet({step, lang, busy, onStart, onClose}: {step: SetupS
             checked={ticked.includes(c.id)}
             onChange={(e) => setTicked(e.target.checked ? [...ticked, c.id] : ticked.filter((t) => t !== c.id))}
           />
-          {words(c.texts, lang).name || c.id}
+          {nameOf(c, lang)}
         </label>
       ))}
       <button type="button" disabled={busy || !all} onClick={() => onStart(ticked)}>

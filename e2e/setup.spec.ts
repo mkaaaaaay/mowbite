@@ -84,7 +84,7 @@ test.describe('setup', () => {
     await page.locator('#mower summary').click();
     const open = page.locator('[data-unconfirmed]');
     await expect(open).toContainText('Not confirmed yet: Width 47 cm');
-    await expect(open).toContainText('Track of the drive wheels 39,5 cm'.replace(',', '.'));
+    await expect(open).toContainText('Track of the drive wheels 39.5 cm');
     await open.getByRole('button', {name: 'These sizes are right'}).click();
     await expect(open).toHaveCount(0);
   });

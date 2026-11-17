@@ -1,7 +1,7 @@
 'use client';
 
 import {tr} from '@/lib/i18n';
-import {words, type Setup} from '@/lib/setup';
+import {isDone, nameOf, type Setup} from '@/lib/setup';
 import {useState} from 'react';
 import styles from './SetupOverview.module.css';
 
@@ -11,7 +11,7 @@ export function SetupOverview({setup, lang, selected, onSelect}: {setup: Setup; 
   const chosenStage = setup.steps.find((s) => s.id === selected)?.stage;
   const [open, setOpen] = useState<string | null>(null);
   const shown = open ?? chosenStage ?? setup.stage ?? setup.stages[0]?.id;
-  const done = setup.steps.filter((s) => s.state === 'ok' || s.state === 'skipped').length;
+  const done = setup.steps.filter((s) => isDone(s.state)).length;
   return (
     <section className={styles.overview} aria-label={tr('Setup')}>
       <p className={styles.safety} data-open={setup.safety.open}>
@@ -24,7 +24,7 @@ export function SetupOverview({setup, lang, selected, onSelect}: {setup: Setup; 
         {setup.stages.map((st) => (
           <li key={st.id} data-state={st.state}>
             <button type="button" className={styles.stage} aria-expanded={shown === st.id} onClick={() => setOpen(st.id)}>
-              {words(st.texts, lang).name || st.id}
+              {nameOf(st, lang)}
             </button>
             {shown === st.id && (
               <ol className={styles.steps}>
@@ -33,7 +33,7 @@ export function SetupOverview({setup, lang, selected, onSelect}: {setup: Setup; 
                   .map((s) => (
                     <li key={s.id} data-state={s.state}>
                       <button type="button" className={styles.step} aria-current={s.id === selected || undefined} onClick={() => onSelect(s.id)}>
-                        {words(s.texts, lang).name || s.id}
+                        {nameOf(s, lang)}
                       </button>
                     </li>
                   ))}

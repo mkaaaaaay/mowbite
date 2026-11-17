@@ -1,6 +1,7 @@
 import {fromBase64, toBase64} from './base64';
-import {outlineOf} from './mowerBody';
-import {onTopic} from './mqttClient';
+import {num, outlineOf} from './mowerBody';
+import {box, wheelBoxes} from './robotShape';
+import {topicStore} from './mqttClient';
 import {RPC, TOPIC} from './openmower';
 import {callCommand, callRpc} from './rpc';
 import {sha256Hex} from './sha256';
@@ -122,33 +123,29 @@ export function words(texts: Texts | undefined, lang: string): Words {
   return {name: pick('name'), help: pick('help'), fix: pick('fix')};
 }
 
+// the item's name in the language shown, its id without one
+export const nameOf = (item: Named, lang: string) => words(item.texts, lang).name || item.id;
+
+// a step that counts as done for the progress
+export const isDone = (s: StepState) => s === 'ok' || s === 'skipped';
+
 const isSetup = (v: unknown): v is Setup =>
   !!v && typeof v === 'object' && typeof (v as Setup).version === 'number' && Array.isArray((v as Setup).steps) && Array.isArray((v as Setup).stages);
 
-// setup/json, retained where the platform has a step list and sent with every change, and the answers of the calls:
-// the one that came last
-let now: Setup | null = null;
-let listening = false;
-const listeners = new Set<() => void>();
-function take(s: unknown): Setup {
+function setupOf(s: unknown): Setup {
   if (!isSetup(s)) throw new Error('no state of the setup program');
-  now = s;
-  listeners.forEach((l) => l());
   return s;
 }
-export const setupNow = () => now;
-export function subscribeSetup(l: () => void) {
-  if (!listening) {
-    listening = true;
-    onTopic(TOPIC.setup, (payload) => {
-      try {
-        take(JSON.parse(payload.toString()));
-      } catch {}
-    });
-  }
-  listeners.add(l);
-  return () => void listeners.delete(l);
+// setup/json, retained where the platform has a step list and sent with every change, and the answers of the calls:
+// the one that came last
+const store = topicStore<Setup | null>(TOPIC.setup, null, (payload) => setupOf(JSON.parse(payload.toString())));
+function take(s: unknown): Setup {
+  const v = setupOf(s);
+  store.set(v);
+  return v;
 }
+export const setupNow = store.get;
+export const subscribeSetup = store.subscribe;
 
 // only where the mower lists the program (a platform with a step list)
 export const offersSetup = (methods: Set<string> | null | undefined) => !!methods?.has(RPC.setupGet);
@@ -222,49 +219,15 @@ export const OPEN_SCREENS: Record<OpenScreen, {href: string; label: string}> = {
   mow: {href: '/', label: 'Start mowing'},
 };
 
-// How the mower looks from above (robot_shape of robot.geometry, api 42), in m of base_link: shown only, never a
-// distance from it (robot_outline stays the body). null where it has none or it's beyond the limits of the interface
-export const SHAPE_KINDS = ['body', 'wheel', 'caster', 'bumper', 'button', 'sensor', 'handle'] as const;
-export type ShapeKind = (typeof SHAPE_KINDS)[number];
-export interface ShapePart {
-  id: string;
-  kind: ShapeKind;
-  points: [number, number][];
-  closed: boolean;
-}
-export const SHAPE_LIMITS = {parts: 32, partPoints: 200, points: 1000};
+export type Sizes = {settings: Record<string, {value: unknown}>};
 
-export function robotShape(v: unknown): ShapePart[] | null {
-  if (!Array.isArray(v) || !v.length || v.length > SHAPE_LIMITS.parts) return null;
-  let all = 0;
-  const parts: ShapePart[] = [];
-  for (const p of v) {
-    const {id, kind, points, closed = true} = (p ?? {}) as Partial<ShapePart>;
-    if (typeof id !== 'string' || !SHAPE_KINDS.includes(kind as ShapeKind) || !Array.isArray(points) || typeof closed !== 'boolean') return null;
-    if (points.length < 2 || points.length > SHAPE_LIMITS.partPoints) return null;
-    if (!points.every((q) => Array.isArray(q) && q.length === 2 && q.every((n) => typeof n === 'number' && Number.isFinite(n)))) return null;
-    all += points.length;
-    parts.push({id, kind: kind as ShapeKind, points, closed});
-  }
-  return all > SHAPE_LIMITS.points ? null : parts;
-}
-
-// the parts a step can mark that come from the sizes rather than from robot_shape, drawn the same way
-export const DERIVED = ['wheel_left', 'wheel_right', 'blade', 'antenna', 'contacts', 'outline'] as const;
-type Sizes = {settings: Record<string, {value: unknown}>};
-
+// the parts a step can mark that come from the sizes rather than from robot_shape (wheel_left, wheel_right, blade,
+// antenna, contacts, outline), drawn the same way
 export function derivedParts(g: Sizes | null | undefined): Record<string, [number, number][]> {
-  const n = (k: string) => {
-    const v = g?.settings[k]?.value;
-    return typeof v === 'number' && Number.isFinite(v) ? v : null;
-  };
+  const n = (k: string) => num(g, k);
   const out: Record<string, [number, number][]> = {};
-  const box = (x0: number, x1: number, y0: number, y1: number): [number, number][] => [[x1, y1], [x0, y1], [x0, y0], [x1, y0]];
   const [track, radius, width] = [n('track'), n('wheel_radius'), n('wheel_width')];
-  if (track !== null && radius !== null && width !== null) {
-    out.wheel_left = box(-radius, radius, track / 2 - width / 2, track / 2 + width / 2);
-    out.wheel_right = box(-radius, radius, -track / 2 - width / 2, -track / 2 + width / 2);
-  }
+  if (track !== null && radius !== null && width !== null) Object.assign(out, wheelBoxes(track, radius, width));
   const [ahead, offset, cut] = [n('blade_ahead'), n('blade_offset') ?? 0, n('mower_width')];
   if (ahead !== null && cut !== null)
     out.blade = Array.from({length: 24}, (_, i): [number, number] => [ahead + (cut / 2) * Math.cos((i * Math.PI) / 12), offset + (cut / 2) * Math.sin((i * Math.PI) / 12)]);
@@ -279,6 +242,3 @@ export function derivedParts(g: Sizes | null | undefined): Record<string, [numbe
   return out;
 }
 
-// an svg path of points in m of base_link, seen from above with the front up: x ahead goes up, y left goes left
-export const shapePath = (points: [number, number][], closed: boolean) =>
-  points.map(([x, y], i) => `${i ? 'L' : 'M'}${(-y).toFixed(4)} ${(-x).toFixed(4)}`).join(' ') + (closed ? ' Z' : '');

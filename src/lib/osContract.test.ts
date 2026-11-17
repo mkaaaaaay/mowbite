@@ -11,7 +11,8 @@ import {READY_TEXT, scheduleLogText} from './schedule';
 import {ORIGIN_TEXT} from './osUpdate';
 import {MAX_NOTE, PIECE_BYTES} from './incidentLimits';
 import {SITUATION_NAMES} from './sound';
-import {IMAGE_BYTES, OPEN_SCREENS, SHAPE_KINDS, SHAPE_LIMITS, SKIP_TEXT} from './setup';
+import {SHAPE_KINDS, SHAPE_LIMITS} from './robotShape';
+import {IMAGE_BYTES, OPEN_SCREENS, SKIP_TEXT} from './setup';
 import {PARTS} from './stats';
 
 // MowBite OS's interface (system.api) as its owner has it, copied from the commit below. a newer one: copy it from

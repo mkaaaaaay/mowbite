@@ -1,7 +1,7 @@
 'use client';
 
 import {useComputedSpeed} from '@/hooks/useComputedSpeed';
-import {useRobotShape} from '@/hooks/useDockFootprint';
+import {useRobotShape} from '@/hooks/useGeometry';
 import {useSensorValue} from '@/hooks/useMowerSensors';
 import {useTrailingPose} from '@/hooks/useTrailingPose';
 import {stillPreferred} from '@/lib/eggs';

@@ -263,6 +263,11 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
     setOutline(outlineFrom(stored));
   };
 
+  // a size not taken: read again for the next try at a newer version, what's typed stays
+  const failed = (e: unknown) => {
+    if (e instanceof RpcError && e.data?.reason === 'VERSION') loadGeometry().then(setGeo, () => {});
+    setState({error: geometryError(e)});
+  };
   const save = async (o: Outline | null = outline) => {
     const changes: Record<string, unknown> = {};
     for (const key of keys) {
@@ -346,9 +351,7 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
       setTurn(null);
       setState({saved: true});
     } catch (e) {
-      // read again for the next try, what's typed stays
-      if (e instanceof RpcError && e.data?.reason === 'VERSION') loadGeometry().then(setGeo, () => {});
-      setState({error: geometryError(e)});
+      failed(e);
     }
   };
 
@@ -367,8 +370,7 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
       setGeo(await confirmGeometry(geo.version, open));
       setState({});
     } catch (e) {
-      if (e instanceof RpcError && e.data?.reason === 'VERSION') loadGeometry().then(setGeo, () => {});
-      setState({error: geometryError(e)});
+      failed(e);
     }
   };
 

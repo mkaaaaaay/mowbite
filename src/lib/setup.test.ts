@@ -1,7 +1,8 @@
 import {createHash} from 'node:crypto';
 import {describe, expect, it} from 'vitest';
 import {DEMO_IMAGES} from './demo/setup';
-import {derivedParts, robotShape, shapePath, words} from './setup';
+import {robotShape, shapePath} from './robotShape';
+import {derivedParts, words} from './setup';
 import {TRON_SHAPE} from './tronShape';
 
 describe('the setup program', () => {

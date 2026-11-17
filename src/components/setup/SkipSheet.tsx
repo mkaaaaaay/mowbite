@@ -1,7 +1,7 @@
 'use client';
 
 import {tr} from '@/lib/i18n';
-import {SKIP_TEXT, words, type SetupStep} from '@/lib/setup';
+import {nameOf, SKIP_TEXT, type SetupStep} from '@/lib/setup';
 import {useState} from 'react';
 import {Sheet} from './Sheet';
 
@@ -11,11 +11,11 @@ export function SkipSheet({step, lang, busy, onSkip, onClose}: {step: SetupStep;
   const [note, setNote] = useState('');
   const ready = !!reason && (reason !== 'other' || !!note.trim());
   return (
-    <Sheet title={tr('Skip “{step}”', {step: words(step.texts, lang).name || step.id})} onClose={onClose}>
+    <Sheet title={tr('Skip “{step}”', {step: nameOf(step, lang)})} onClose={onClose}>
       {step.skip_reasons.map((r) => (
         <label key={r.id}>
           <input type="radio" name="skip" checked={reason === r.id} onChange={() => setReason(r.id)} />
-          {words(r.texts, lang).name || r.id}
+          {nameOf(r, lang)}
         </label>
       ))}
       {reason === 'other' && <textarea maxLength={SKIP_TEXT} value={note} onChange={(e) => setNote(e.target.value)} aria-label={tr('Why')} />}

@@ -257,6 +257,11 @@ export function topicStore<T>(topic: string, initial: T, parse: (payload: Buffer
     },
     get: () => value,
     initial: () => initial,
+    // a value that came another way, an answer with the same content
+    set(v: T) {
+      value = v;
+      listeners.forEach((l) => l());
+    },
   };
 }
 

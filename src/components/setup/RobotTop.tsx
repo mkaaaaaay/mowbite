@@ -1,11 +1,11 @@
-import {derivedParts, shapePath, type ShapePart} from '@/lib/setup';
+import {robotShape, shapePath} from '@/lib/robotShape';
+import {derivedParts, type Sizes} from '@/lib/setup';
 import styles from './RobotTop.module.css';
-
-type Sizes = Parameters<typeof derivedParts>[0];
 
 // The mower from above with the front up: robot_shape where the mower gives one, else its outline; the parts a step
 // names in mark drawn over it
-export function RobotTop({shape, sizes, mark = []}: {shape: ShapePart[] | null; sizes: Sizes; mark?: string[]}) {
+export function RobotTop({sizes, mark = []}: {sizes: Sizes | null; mark?: string[]}) {
+  const shape = robotShape(sizes?.settings.robot_shape?.value);
   const derived = derivedParts(sizes);
   const parts = shape ?? (derived.outline ? [{id: 'outline', kind: 'body' as const, points: derived.outline, closed: true}] : []);
   const marked = mark.flatMap((id) => {

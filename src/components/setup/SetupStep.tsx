@@ -2,7 +2,7 @@
 
 import {reasonSentence} from '@/lib/events';
 import {tr} from '@/lib/i18n';
-import {OPEN_SCREENS, words, type Setup, type SetupStep as Step, type ShapePart} from '@/lib/setup';
+import {isDone, OPEN_SCREENS, words, type Setup, type SetupStep as Step, type Sizes} from '@/lib/setup';
 import Link from 'next/link';
 import {useState} from 'react';
 import {ConfirmSheet} from './ConfirmSheet';
@@ -27,8 +27,7 @@ export function SetupStep(props: {
   setup: Setup;
   step: Step;
   lang: string;
-  shape: ShapePart[] | null;
-  sizes: Parameters<typeof StepFigure>[0]['sizes'];
+  sizes: Sizes | null;
   busy: boolean;
   error: string | null;
   act: StepActions;
@@ -41,7 +40,7 @@ export function SetupStep(props: {
   const emergency = step.blocked.some((b) => b.reason === 'EMERGENCY');
   const others = step.blocked.filter((b) => b.reason !== 'EMERGENCY');
   const running = step.state === 'running';
-  const done = step.state === 'ok' || step.state === 'skipped';
+  const done = isDone(step.state);
   const needs = step.state === 'locked' ? step.needs.filter((n) => setup.steps.find((s) => s.id === n)?.state !== 'ok') : [];
   const start = () => (step.confirm.length || step.motion ? setSheet('confirm') : act.start(step.id, []));
   const r = step.result;
@@ -51,17 +50,18 @@ export function SetupStep(props: {
         {tr('{stage} · step {n} of {of}', {stage: words(stage?.texts, lang).name || step.stage, n: own.indexOf(step) + 1, of: own.length})}
       </p>
       <h2 id={`step-${step.id}`}>{w.name || step.id}</h2>
-      {emergency ? <EmergencyBlock /> : <StepFigure step={step} shape={props.shape} sizes={props.sizes} />}
+      {emergency ? <EmergencyBlock /> : <StepFigure step={step} sizes={props.sizes} />}
       {step.restart && setup.restart_pending && <RestartWait />}
       {w.help && <p className={styles.help}>{w.help}</p>}
       <StepParts parts={step.parts} lang={lang} />
       <StepValues values={step.values} lang={lang} />
-      {!running && step.inputs.length > 0 && step.state !== 'locked' && (
-        <StepInputs inputs={step.inputs} lang={lang} busy={busy} onAnswer={(values) => act.answer(step.id, values)} />
-      )}
-      {running && step.inputs.some((i) => i.ask) && (
-        <StepInputs inputs={step.inputs.filter((i) => i.ask)} lang={lang} busy={busy} onAnswer={(values) => act.answer(step.id, values)} />
-      )}
+      <StepInputs
+        key={running ? 'ask' : 'all'}
+        inputs={running ? step.inputs.filter((i) => i.ask) : step.state === 'locked' ? [] : step.inputs}
+        lang={lang}
+        busy={busy}
+        onAnswer={(values) => act.answer(step.id, values)}
+      />
       {r && !r.ok && r.reason && (
         <div className={styles.result} data-result="failed">
           <p>{reasonSentence(r.reason, 'SETUP_STEP')}</p>

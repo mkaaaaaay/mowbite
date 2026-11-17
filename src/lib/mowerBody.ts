@@ -327,7 +327,7 @@ export async function resetPlannerAngle(): Promise<PlannerSettings> {
 }
 
 // a setting's number, null without one (planner.settings or robot.geometry)
-export const num = (s: Pick<PlannerSettings, 'settings'> | null | undefined, key: string) => {
+export const num = (s: {settings: Record<string, {value: unknown}>} | null | undefined, key: string) => {
   const v = s?.settings[key]?.value;
   return typeof v === 'number' && Number.isFinite(v) ? v : null;
 };

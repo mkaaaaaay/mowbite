@@ -1,7 +1,7 @@
 'use client';
 
 import {tr} from '@/lib/i18n';
-import {words, type SetupInput} from '@/lib/setup';
+import {nameOf, words, type SetupInput} from '@/lib/setup';
 import {useState} from 'react';
 import styles from './StepInputs.module.css';
 
@@ -29,7 +29,7 @@ export function StepInputs({inputs, lang, busy, onAnswer}: {inputs: SetupInput[]
               (i.values ?? []).map((v) => (
                 <label key={v.id} className={styles.choice}>
                   <input type="radio" name={i.name} value={v.id} checked={valueOf(i) === v.id} onChange={() => setGiven({...given, [i.name]: v.id})} />
-                  {words(v.texts, lang).name || v.id}
+                  {nameOf(v, lang)}
                 </label>
               ))
             ) : (

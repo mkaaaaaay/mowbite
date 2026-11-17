@@ -2,7 +2,7 @@
 
 import {dockFootprint, loadGeometry, type Geometry, type Outline} from '@/lib/mowerBody';
 import {RPC} from '@/lib/openmower';
-import {robotShape, type ShapePart} from '@/lib/setup';
+import {robotShape, type ShapePart} from '@/lib/robotShape';
 import {useEffect, useState} from 'react';
 import {useRpcMethods} from './useRpcMethods';
 

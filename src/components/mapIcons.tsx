@@ -4,7 +4,7 @@
 // A real mower from above (fit: its width over its length) fills -1..1 both ways from its back to its front: with the
 // mower's sizes set the map stretches it onto the body exactly, otherwise it's drawn that much narrower.
 // Dock icons are drawn upright in the same unit box.
-import {derivedParts, type ShapePart} from '@/lib/setup';
+import {wheelBoxes, type ShapePart} from '@/lib/robotShape';
 import {TRON_SHAPE, TRON_WHEELS} from '@/lib/tronShape';
 import {useId} from 'react';
 import {OPENMOWER_EDGE, OPENMOWER_PATHS} from './openmowerArt';
@@ -855,13 +855,14 @@ function punisherNx60(id: string, emergency: boolean) {
 // an Airseekers Tron from above, drawn from its parts (the mower's robot_shape, the measured one built in where it gives
 // none) over its drive wheels, in the colours of the drawing they were measured for
 const TRON_TIRE = '#1d2023';
+// by part, else by kind, else as the body
 const TRON_COLORS: Record<string, string> = {
-  body: '#30353a', wheel: '#30353a', caster: TRON_TIRE, bumper: '#30353a', handle: '#59616a', sensor: '#59616a', button: '#e23b3f',
+  body: '#30353a', tire: TRON_TIRE, caster: TRON_TIRE, handle: '#59616a', sensor: '#59616a', button: '#e23b3f',
   hood_left: '#59616a', hood_right: '#59616a', rear: '#30353a', lid: '#c8cdd2', camera: '#30353a', keys: '#eef0f2',
 };
+const TRON_EDGED = new Set(['tire', 'body', 'bumper']);
 const TRON_EDGE = {stroke: '#9aa0a6', strokeWidth: 0.75, strokeOpacity: 0.5} as const;
-const tronSizes = {settings: Object.fromEntries(Object.entries(TRON_WHEELS).map(([k, value]) => [k, {value}]))};
-const {wheel_left: tireLeft, wheel_right: tireRight} = derivedParts(tronSizes);
+const {wheel_left: tireLeft, wheel_right: tireRight} = wheelBoxes(TRON_WHEELS.track, TRON_WHEELS.wheel_radius, TRON_WHEELS.wheel_width);
 
 // the parts in the icon's frame: the whole length -1 to 1 along x ahead, the width -1 to 1 (scaled by fit), svg's y down
 function tronParts(shape: ShapePart[]) {
@@ -873,14 +874,20 @@ function tronParts(shape: ShapePart[]) {
   return {fit: across / half, parts: parts.map((p) => ({id: p.id, kind: p.kind, d: d(p.points)}))};
 }
 const TRON_BUILT_IN = tronParts(TRON_SHAPE);
+// the mower's own shape stays the same object while the marker draws again with every pose
+const tronDrawn = new WeakMap<ShapePart[], ReturnType<typeof tronParts>>();
 
 function airseekersTron(emergency: boolean, shape?: ShapePart[] | null) {
-  const {parts} = shape?.length ? tronParts(shape) : TRON_BUILT_IN;
+  let drawn = TRON_BUILT_IN;
+  if (shape?.length) {
+    drawn = tronDrawn.get(shape) ?? tronParts(shape);
+    tronDrawn.set(shape, drawn);
+  }
+  const {parts} = drawn;
   return parts.map(({id, kind, d}) => {
-    const fill = kind === 'tire' ? TRON_TIRE : (TRON_COLORS[id] ?? TRON_COLORS[kind] ?? TRON_COLORS.body);
-    const edge = kind === 'tire' || kind === 'body' || kind === 'bumper';
+    const fill = TRON_COLORS[id] ?? TRON_COLORS[kind] ?? TRON_COLORS.body;
     return (
-      <path key={id} d={d} fill={fill} strokeLinejoin="round" {...(edge ? TRON_EDGE : soft)}>
+      <path key={id} d={d} fill={fill} strokeLinejoin="round" {...(TRON_EDGED.has(kind) ? TRON_EDGE : soft)}>
         {emergency && id.startsWith('stop') && <animate attributeName="fill" values={`${fill};#fff;${fill}`} dur="0.8s" repeatCount="indefinite" />}
       </path>
     );

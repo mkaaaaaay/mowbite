@@ -1,4 +1,4 @@
-import type {ShapePart} from './setup';
+import type {ShapePart} from './robotShape';
 
 // The Airseekers Tron from above as MowBite OS gives it (robot_shape of platform_tron/geometry.yaml, measured from photos
 // with a rule, 16.11.), in m of base_link: the demo's shape and the map icon where the mower gives none

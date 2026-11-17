@@ -25,6 +25,8 @@ const MODULES = {
   '@/lib/geometry': 'src/lib/geometry.ts',
   '@/lib/mowStripes': 'src/lib/mowStripes.ts',
   '@/lib/mowerBody': 'src/lib/mowerBody.ts',
+  '@/lib/robotShape': 'src/lib/robotShape.ts',
+  '@/lib/tronShape': 'src/lib/tronShape.ts',
   '@/lib/sun': 'src/lib/sun.ts',
   // the real edges' polygon clipping (Boost Software License)
   'clipper-lib': 'node_modules/clipper-lib/clipper.js',

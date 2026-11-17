@@ -25,7 +25,7 @@ import {CoverInfo} from './CoverInfo';
 import {fillOf, GardenDefs, gardenThings, pinTapped} from './gardenLook';
 import {biggest, coversOf, edgePaths, GardenThing, lifeOf, lifeScene} from './gardenLife';
 import {PICTURES} from './gardenPictures';
-import {useDockFootprint} from '@/hooks/useDockFootprint';
+import {useDockFootprint} from '@/hooks/useGeometry';
 import {useMowHistory} from '@/hooks/useMowHistory';
 import {angleOffsetOf, useMowerParams} from '@/hooks/useMowerParams';
 import {useLastRun} from '@/hooks/useMowerTrack';

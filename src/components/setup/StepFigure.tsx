@@ -1,6 +1,6 @@
 'use client';
 
-import {setupImage, type ShapePart, type SetupStep} from '@/lib/setup';
+import {setupImage, type SetupStep, type Sizes} from '@/lib/setup';
 import {tr} from '@/lib/i18n';
 import {useEffect, useState} from 'react';
 import {RobotTop} from './RobotTop';
@@ -41,7 +41,7 @@ const clockOf = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(
 
 // What the step shows: its image as a mask with the spot to press over it, else its sign, else the mower from above with
 // the parts it names; the time left of a running part in the corner
-export function StepFigure({step, shape, sizes}: {step: SetupStep; shape: ShapePart[] | null; sizes: Parameters<typeof RobotTop>[0]['sizes']}) {
+export function StepFigure({step, sizes}: {step: SetupStep; sizes: Sizes | null}) {
   const image = useImage(step.image);
   const accent = useImage(step.image?.accent);
   const left = useLeft(step.state === 'running' ? step.ends_at : null);
@@ -54,7 +54,7 @@ export function StepFigure({step, shape, sizes}: {step: SetupStep; shape: ShapeP
           {accent && <span className={`${styles.layer} ${styles.accent}`} style={mask(accent)} />}
         </div>
       ) : step.mark.length || !step.symbol ? (
-        <RobotTop shape={shape} sizes={sizes} mark={step.mark} />
+        <RobotTop sizes={sizes} mark={step.mark} />
       ) : (
         <span className={styles.symbol} data-symbol={step.symbol} />
       )}
