@@ -10270,9 +10270,8 @@
                 "type": "boolean"
               },
               "blocked": {
-                "description": "What keeps it from going on right now, reasons of SETUP_BLOCKED in x-reasons",
+                "description": "What keeps it from going on right now, reasons of SETUP_BLOCKED in x-reasons with their fields",
                 "items": {
-                  "additionalProperties": false,
                   "description": "One item",
                   "properties": {
                     "message": {
