@@ -75,7 +75,7 @@ test.describe('setup', () => {
     const layers = step(page, 'stop').locator('[style*="mask-image"]');
     await expect(layers).toHaveCount(2);
     await expect(layers.first()).toHaveAttribute('style', /data:image\/svg\+xml;base64,/);
-    await expect(step(page, 'stop').locator('svg')).toHaveCount(0);
+    await expect(step(page, 'stop').locator('[data-symbol] svg')).toHaveCount(0);
   });
 
   test('the sizes confirmed as they are, for the step of the dimensions', async ({page}) => {

@@ -4,6 +4,7 @@ import {setupImage, type SetupStep, type Sizes} from '@/lib/setup';
 import {tr} from '@/lib/i18n';
 import {useEffect, useState} from 'react';
 import {RobotTop} from './RobotTop';
+import {hasSymbol, StepSymbol} from './StepSymbol';
 import styles from './StepFigure.module.css';
 
 // an image of the step as a data url, null while it loads or when it can't be had
@@ -39,8 +40,24 @@ function useLeft(endsAt: number | null): number | null {
 
 const clockOf = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
-// What the step shows: its image as a mask with the spot to press over it, else its sign, else the mower from above with
-// the parts it names; the time left of a running part in the corner
+// the time left as a ring that empties, out of the most seen since the part began
+function Clock({left}: {left: number}) {
+  const [most, setMost] = useState(left);
+  if (left > most) setMost(left);
+  const share = most ? left / most : 0;
+  return (
+    <span className={styles.clock} role="img" aria-label={tr('{time} left', {time: clockOf(left)})}>
+      <svg viewBox="0 0 56 56" aria-hidden="true">
+        <circle cx="28" cy="28" r="24" className={styles.track} />
+        <circle cx="28" cy="28" r="24" className={styles.ring} pathLength={100} strokeDasharray={`${share * 100} 100`} />
+      </svg>
+      <b aria-hidden="true">{clockOf(left)}</b>
+    </span>
+  );
+}
+
+// What the step shows: its image as a mask with the spot to press over it, else the mower from above with the parts it
+// names, else its sign; which part of how many in one corner, the time left of a running part in the other
 export function StepFigure({step, sizes}: {step: SetupStep; sizes: Sizes | null}) {
   const image = useImage(step.image);
   const accent = useImage(step.image?.accent);
@@ -53,16 +70,17 @@ export function StepFigure({step, sizes}: {step: SetupStep; sizes: Sizes | null}
           <span className={styles.layer} style={mask(image)} />
           {accent && <span className={`${styles.layer} ${styles.accent}`} style={mask(accent)} />}
         </div>
-      ) : step.mark.length || !step.symbol ? (
+      ) : step.mark.length || !hasSymbol(step.symbol) ? (
         <RobotTop sizes={sizes} mark={step.mark} />
       ) : (
-        <span className={styles.symbol} data-symbol={step.symbol} />
-      )}
-      {left !== null && (
-        <span className={styles.left} aria-label={tr('{time} left', {time: clockOf(left)})}>
-          {clockOf(left)}
+        <span className={styles.symbol}>
+          <StepSymbol name={step.symbol} size={56} />
         </span>
       )}
+      {step.state === 'running' && step.progress && (
+        <span className={styles.tag}>{tr('{n} of {of}', {n: step.progress.n, of: step.progress.of})}</span>
+      )}
+      {left !== null && <Clock left={left} />}
     </div>
   );
 }

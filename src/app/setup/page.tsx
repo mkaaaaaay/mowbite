@@ -13,7 +13,6 @@ import {RPC} from '@/lib/openmower';
 import {RpcError} from '@/lib/rpc';
 import {answerError} from '@/lib/rpcText';
 import {abortStep, answerStep, loadSetup, skipStep, startStep, type Setup} from '@/lib/setup';
-import Link from 'next/link';
 import {useRouter, useSearchParams} from 'next/navigation';
 import {Suspense, useEffect, useRef, useState} from 'react';
 import styles from './page.module.css';
@@ -89,12 +88,15 @@ function SetupView() {
   return (
     <div className={styles.page}>
       <main className={styles.main} data-view={step ? 'step' : 'overview'}>
-        <TitleRow>
-          <h1>
-            <TitleMark />
-            {tr('Setup')}
-          </h1>
-        </TitleRow>
+        <div className={styles.head}>
+          <TitleRow>
+            <h1>
+              <TitleMark />
+              {tr('Setup')}
+            </h1>
+          </TitleRow>
+          {setup && <p className={styles.dim}>{tr('Check and set up step by step what the mower needs to mow. Every step can be repeated.')}</p>}
+        </div>
         {setup === undefined ? (
           <p className={styles.dim}>{tr('connecting…')}</p>
         ) : setup === null ? (
@@ -106,20 +108,16 @@ function SetupView() {
             </div>
             <div className={styles.step}>
               {step ? (
-                <>
-                  <Link href="/setup" className={styles.back}>
-                    ← {tr('Overview')}
-                  </Link>
-                  <SetupStep
-                    setup={setup}
-                    step={step}
-                    lang={lang}
-                    sizes={sizes}
-                    busy={busy}
-                    error={error?.step === step.id ? error.text : null}
-                    act={act}
-                  />
-                </>
+                <SetupStep
+                  key={step.id}
+                  setup={setup}
+                  step={step}
+                  lang={lang}
+                  sizes={sizes}
+                  busy={busy}
+                  error={error?.step === step.id ? error.text : null}
+                  act={act}
+                />
               ) : (
                 <p className={styles.dim}>{tr('Pick a step.')}</p>
               )}

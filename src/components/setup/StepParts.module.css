@@ -8,25 +8,45 @@
 }
 
 .part {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
   padding: 8px 12px;
-  border-radius: var(--radius-s);
-  background: var(--well);
+  border-radius: var(--radius-m);
+  background: color-mix(in srgb, var(--text-secondary) 10%, transparent);
 }
 
-.part::before {
-  content: '○ ';
+.text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.text b {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.text span {
+  color: var(--text-secondary);
+  font-size: 12.5px;
 }
 
 .part[data-state='waiting'] {
-  outline: 2px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: -2px;
 }
 
-.part[data-state='ok']::before {
-  content: '✓ ';
-  color: var(--success);
+.part[data-state='ok'] b {
+  color: var(--soft-good);
 }
 
-.part[data-state='failed']::before {
-  content: '✕ ';
-  color: var(--error);
+.part[data-state='failed'] {
+  background: color-mix(in srgb, var(--error) 12%, transparent);
+}
+
+.part[data-state='failed'] b {
+  color: var(--soft-bad);
 }

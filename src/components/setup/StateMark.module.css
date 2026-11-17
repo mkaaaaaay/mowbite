@@ -1,0 +1,75 @@
+.mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+}
+
+.mark svg {
+  width: 62%;
+  height: 62%;
+}
+
+.mark[data-big] {
+  width: 48px;
+  height: 48px;
+}
+
+.mark[data-state='ok'] {
+  background: var(--success);
+  color: #fff;
+}
+
+.mark[data-state='failed'] {
+  background: var(--error);
+  color: #fff;
+}
+
+.mark[data-state='skipped'] {
+  background: color-mix(in srgb, var(--text-secondary) 22%, transparent);
+  color: var(--text-secondary);
+}
+
+.mark[data-state='stale'] {
+  background: color-mix(in srgb, var(--warning) 20%, transparent);
+  color: var(--soft-warn);
+}
+
+.mark[data-state='locked'] {
+  color: var(--text-secondary);
+}
+
+.mark[data-state='open'] {
+  border: 2px solid color-mix(in srgb, var(--text-secondary) 60%, transparent);
+}
+
+.mark[data-state='running'],
+.mark[data-state='waiting'] {
+  border: 2.5px solid var(--accent);
+}
+
+.mark[data-state='waiting'] {
+  border-style: dashed;
+}
+
+.mark[data-state='running']::after {
+  content: '';
+  width: 40%;
+  height: 40%;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .mark[data-state='waiting'] {
+    animation: turn 4s linear infinite;
+  }
+}
+
+@keyframes turn {
+  to {
+    transform: rotate(360deg);
+  }
+}

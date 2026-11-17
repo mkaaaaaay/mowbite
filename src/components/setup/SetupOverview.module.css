@@ -1,65 +1,228 @@
 .overview {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
 }
 
-.safety,
-.progress {
+.lock {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
   margin: 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--warning) 15%, transparent);
+  color: var(--soft-warn);
 }
 
-.safety {
-  padding: 10px 12px;
-  border-radius: var(--radius-m);
-  background: var(--soft-warn);
+.lock[data-open='true'] {
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+  color: var(--soft-good);
 }
 
-.safety[data-open='true'] {
-  background: var(--soft-good);
+.lock svg {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+}
+
+.lock > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lock b {
+  font-weight: 600;
+}
+
+.lock span span {
+  font-size: var(--text-s);
+  line-height: 1.4;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border-radius: var(--radius-l);
+  border: 1px solid var(--card-border);
+  background: var(--card);
+  box-shadow: var(--card-shadow, none);
+  backdrop-filter: var(--card-blur, none);
+}
+
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.count {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-s);
+}
+
+.count b {
+  color: var(--foreground);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.segments {
+  display: grid;
+  gap: 3px;
+}
+
+.segments i {
+  height: 6px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--text-secondary) 20%, transparent);
+}
+
+.segments i[data-state='ok'] {
+  background: var(--success);
+}
+
+.segments i[data-state='skipped'] {
+  background: color-mix(in srgb, var(--text-secondary) 55%, transparent);
+}
+
+.segments i[data-state='running'] {
+  background: var(--accent);
+}
+
+.segments i[data-state='failed'] {
+  background: var(--error);
+}
+
+.segments i[data-state='stale'] {
+  background: var(--warning);
+}
+
+.next {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 50px;
+  padding: 10px 18px;
+  border-radius: 14px;
+  background: var(--accent);
+  box-shadow: var(--btn-glass);
+  color: var(--accent-foreground, #fff);
+  font-size: 15px;
+  font-weight: 600;
+  text-align: center;
+  text-decoration: none;
 }
 
 .stages,
 .steps {
   display: flex;
   flex-direction: column;
-  gap: 4px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.steps {
-  padding: 4px 0 8px 16px;
+.stages {
+  gap: 2px;
 }
 
 .stage,
 .step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   width: 100%;
-  min-height: var(--tap);
+  border: 0;
+  border-radius: var(--radius-m);
+  background: none;
+  color: var(--foreground);
+  font-size: var(--text-m);
   text-align: left;
 }
 
-li[data-state='ok'] > .stage::after,
-li[data-state='ok'] > .step::after {
-  content: ' ✓';
-  color: var(--success);
+.stage {
+  min-height: 52px;
+  padding: 6px 10px;
 }
 
-li[data-state='skipped'] > .step::after {
-  content: ' –';
+.stage[aria-expanded='true'] {
+  background: color-mix(in srgb, var(--text-secondary) 10%, transparent);
 }
 
-li[data-state='failed'] > .stage::after,
-li[data-state='failed'] > .step::after {
-  content: ' ✕';
-  color: var(--error);
+.text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
 }
 
-li[data-state='locked'] > .step {
-  opacity: 0.55;
+.text b {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.text span {
+  color: var(--text-secondary);
+  font-size: 12.5px;
+}
+
+li[data-state='locked'] > .stage b {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.stage > svg {
+  flex: none;
+  margin-left: auto;
+  color: var(--text-secondary);
+  transition: transform var(--dur-fast, 0.15s) ease;
+}
+
+.stage[aria-expanded='true'] > svg {
+  transform: rotate(90deg);
+}
+
+.steps {
+  margin: 2px 0 4px 22px;
+  padding-left: 12px;
+  border-left: 2px solid color-mix(in srgb, var(--text-secondary) 20%, transparent);
+}
+
+.step {
+  min-height: var(--tap);
+  padding: 4px 8px;
+}
+
+.step > span:first-child {
+  width: 22px;
+  height: 22px;
 }
 
 .step[aria-current] {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.step[aria-current] .name {
   font-weight: 600;
+}
+
+li[data-state='locked'] > .step .name {
+  color: var(--text-secondary);
+}
+
+.note {
+  margin-left: auto;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  white-space: nowrap;
 }

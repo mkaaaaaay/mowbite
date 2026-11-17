@@ -29,7 +29,10 @@ export function StepInputs({inputs, lang, busy, onAnswer}: {inputs: SetupInput[]
               (i.values ?? []).map((v) => (
                 <label key={v.id} className={styles.choice}>
                   <input type="radio" name={i.name} value={v.id} checked={valueOf(i) === v.id} onChange={() => setGiven({...given, [i.name]: v.id})} />
-                  {nameOf(v, lang)}
+                  <span className={styles.text}>
+                    <b>{nameOf(v, lang)}</b>
+                    {words(v.texts, lang).help && <span>{words(v.texts, lang).help}</span>}
+                  </span>
                 </label>
               ))
             ) : (
@@ -43,7 +46,7 @@ export function StepInputs({inputs, lang, busy, onAnswer}: {inputs: SetupInput[]
                   value={typeof valueOf(i) === 'number' || typeof valueOf(i) === 'string' ? String(valueOf(i)) : ''}
                   onChange={(e) => setGiven({...given, [i.name]: e.target.value === '' ? '' : Number(e.target.value)})}
                 />
-                {i.unit}
+                <span>{[i.unit, i.min !== undefined && i.max !== undefined ? tr('{min} to {max}', {min: i.min, max: i.max}) : ''].filter(Boolean).join(', ')}</span>
               </label>
             )}
           </fieldset>
