@@ -5,7 +5,7 @@ import {tr} from '@/lib/i18n';
 import {causeText, isDone, nameById, nameOf, unmet, whyText, type Setup, type SetupStep, type StepState} from '@/lib/setup';
 import Link from 'next/link';
 import {useState} from 'react';
-import {StateMark, stateWord} from './StateMark';
+import {StateMark, stateWord, useMoved} from './StateMark';
 import styles from './SetupOverview.module.css';
 
 // the line under a stage: what keeps it locked, how far it got, or its state
@@ -31,9 +31,10 @@ export function SetupOverview({setup, lang, selected, onSelect}: {setup: Setup; 
   const skipped = setup.steps.filter((s) => s.state === 'skipped').length;
   const next = setup.steps.find((s) => s.id === setup.current);
   const {safety} = setup;
+  const lockMoved = useMoved(safety.open);
   return (
     <section className={styles.overview} aria-label={tr('Setup')}>
-      <p className={styles.lock} data-open={safety.open}>
+      <p className={styles.lock} data-open={safety.open} data-moved={lockMoved || undefined}>
         <LockIcon open={safety.open} />
         {safety.open ? (
           <span>

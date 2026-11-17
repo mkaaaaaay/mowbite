@@ -236,8 +236,8 @@ li[data-state='locked'] > .step .name {
       color 0.4s ease;
   }
 
-  /* the shackle swings open */
-  .lock[data-open='true'] path {
+  /* the shackle swings open when the measurement just passed */
+  .lock[data-moved][data-open='true'] path {
     transform-box: fill-box;
     transform-origin: 0 100%;
     animation: unlock 0.5s var(--ease-out);
