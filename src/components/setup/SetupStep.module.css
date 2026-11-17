@@ -125,12 +125,26 @@
   color: var(--soft-bad);
 }
 
+.note[data-asked-line] {
+  background: var(--tint-accent);
+  color: var(--accent);
+  font-size: 15px;
+  font-weight: 600;
+}
+
 .advanced summary {
+  display: flex;
+  align-items: center;
   min-height: var(--tap);
-  padding: 10px 0;
   color: var(--text-secondary);
   font-weight: 600;
-  cursor: pointer;
+}
+
+/* its save is one among the step's buttons, not the main one */
+.advanced button[type='submit']:not(:disabled) {
+  background: var(--tile);
+  box-shadow: none;
+  color: var(--foreground);
 }
 
 .fix {

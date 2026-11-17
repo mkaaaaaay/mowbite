@@ -92,7 +92,6 @@ export function SetupStep(props: {
             </div>
           )}
           <StepParts parts={step.parts} lang={lang} />
-          <StepLines lines={step.lines} />
           <StepValues values={step.values} lang={lang} />
           {step.ask && (
             <p className={styles.note} data-asked-line={step.ask.line}>
@@ -109,6 +108,7 @@ export function SetupStep(props: {
             busy={busy}
             onAnswer={answer}
           />
+          <StepLines lines={step.lines} />
           {step.state === 'ok' && advanced.length > 0 && (
             <details className={styles.advanced}>
               <summary>{tr('Advanced')}</summary>

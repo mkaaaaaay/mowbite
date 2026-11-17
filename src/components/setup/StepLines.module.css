@@ -1,14 +1,17 @@
 .lines h3 {
-  margin: 0 0 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
   color: var(--text-secondary);
   font-size: var(--text-s);
   font-weight: 600;
 }
 
 .lines ul {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 6px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -16,12 +19,13 @@
 
 .lines li {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  gap: 2px 10px;
-  padding: 8px 12px;
+  gap: 0 8px;
+  padding: 8px 10px;
   border-radius: var(--radius-m);
-  background: color-mix(in srgb, var(--text-secondary) 10%, transparent);
+  background: var(--tile);
+  line-height: 1.25;
 }
 
 .lines li[data-assigned='false'] {
@@ -29,16 +33,15 @@
 }
 
 .dot {
-  grid-row: span 2;
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  border: 2px solid color-mix(in srgb, var(--text-secondary) 60%, transparent);
+  background: var(--track);
 }
 
 li[data-active] .dot {
-  border-color: var(--accent);
   background: var(--accent);
+  box-shadow: 0 0 0 4px var(--tint-accent);
 }
 
 .name {
@@ -46,17 +49,18 @@ li[data-active] .dot {
   font-variant-numeric: tabular-nums;
 }
 
-.role {
+.role,
+.state {
   grid-column: 2;
+  overflow: hidden;
   color: var(--text-secondary);
   font-size: 12.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.state {
-  grid-column: 3;
-  grid-row: 1 / span 2;
-  color: var(--text-secondary);
-  font-size: 12.5px;
+.lines li[data-active] {
+  background: var(--tint-accent);
 }
 
 li[data-active] .state {
