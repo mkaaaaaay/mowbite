@@ -788,6 +788,8 @@ const de: Record<string, string> = {
   "Ready but not started. A start within {s} s mows just the leftovers.": "Bereit, aber nicht gestartet. Ein Start innerhalb von {s} s mäht nur die Reste.",
   "Not started, the mower was busy": "Nicht gestartet, der Mäher war beschäftigt",
   "With only some areas picked, it starts as usual and skips the others when their turn comes.": "Sind nur einzelne Flächen gewählt, startet er normal und überspringt die anderen, wenn sie an der Reihe sind.",
+  'With your OpenMower version, for 12 hours after an end time the mower is sent home again within half a minute whenever it starts mowing, also when started with the button on the mower. A start from the app, Home Assistant or OpenMower ends that.':
+    'Mit deiner OpenMower-Version wird der Mäher bis 12 Stunden nach einer Endzeit binnen einer halben Minute wieder heimgeschickt, sobald er mäht, auch nach einem Start mit der Taste am Mäher. Ein Start aus der App, Home Assistant oder OpenMower beendet das.',
   "the next {n} hours": "die nächsten {n} Stunden",
   "the next hour": "die nächste Stunde",
   "Not when it rains or rain is forecast for": "Nicht bei Regen oder Regenvorhersage für",
