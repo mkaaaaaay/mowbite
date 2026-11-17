@@ -3530,7 +3530,7 @@ const de: Record<string, string> = {
   "Let the mower drive": "Mäher fahren lassen",
   "At most {n} m/s and without the borders of the map, like the remote control": "Höchstens {n} m/s und ohne die Grenzen der Karte, wie bei der Fernsteuerung",
   "Without the borders of the map, like the remote control": "Ohne die Grenzen der Karte, wie bei der Fernsteuerung",
-  "Before the start: a lawn without obstacles, 3 m clear in front of and behind the mower, a soft obstacle at hand such as a cushion.": "Vor dem Start: Rasen ohne Hindernisse, 3 m frei vor und hinter dem Mäher, ein weiches Hindernis wie ein Kissen bereit.",
+  "Before the start: a lawn without obstacles and a soft obstacle at hand, such as a cushion.": "Vor dem Start: Rasen ohne Hindernisse und ein weiches Hindernis wie ein Kissen bereit.",
   "the exact position (RTK fix) was lost on the way": "die genaue Position (RTK-Fix) ging unterwegs verloren",
   "the steps with the mower jacked up have to pass first": "erst müssen die Schritte mit aufgebocktem Mäher bestanden sein",
   "the mower didn't come to a standstill after the stop": "der Mäher kam nach dem Stopp nicht zum Stillstand",

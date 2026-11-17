@@ -38,7 +38,7 @@ export const DEMO_IMAGES: Record<string, {svg: string; sha256: string}> = {
 const ref = (name: string) => ({name, sha256: DEMO_IMAGES[name].sha256, bytes: DEMO_IMAGES[name].svg.length});
 
 // initial: the state the demo starts the step in
-type Base = Omit<SetupStep, 'state' | 'attempt' | 'blocked' | 'progress' | 'ends_at' | 'result' | 'motion' | 'lines' | 'ask'> & {initial?: StepState};
+type Base = Omit<SetupStep, 'state' | 'attempt' | 'blocked' | 'progress' | 'ends_at' | 'result' | 'lines' | 'ask'> & {initial?: StepState};
 const step = (s: Partial<Base> & Pick<Base, 'id' | 'stage' | 'check' | 'kind' | 'texts'>): Base => ({
   needs: [],
   confirm: [],
@@ -49,6 +49,7 @@ const step = (s: Partial<Base> & Pick<Base, 'id' | 'stage' | 'check' | 'kind' | 
   inputs: [],
   values: [],
   parts: [],
+  motion: null,
   open: null,
   image: null,
   symbol: null,
@@ -65,19 +66,23 @@ const value = (id: string, en: string, de: string, unit: string, min: number | n
   ok: null,
 });
 
-const GROUND_PARTS = [
-  ['straight', 'Straight on', 'Geradeaus'],
-  ['turn', 'Turn', 'Drehen'],
-  ['stop', 'Press STOP', 'STOP drücken'],
-  ['bumper', 'Bumper', 'Stoßfänger'],
+const parts = (list: string[][]) => list.map(([id, en, de]) => ({...named(id, en, de), state: 'open' as const}));
+// a step that turns the wheels: its bounds jacked up and on the ground
+const MOTION: Motion = {wheels: true, blade: false, raised: true, max_speed: 0.05, max_distance: null, max_time: 10};
+const GROUND: Motion = {...MOTION, raised: false, max_speed: 0.3};
+// the values of the step on the ground as the OS names them, each id led by its part's, and what the demo measures
+const GROUND_VALUES: [SetupValue, number][] = [
+  [value('straight_stand', 'Straight on: Time to stand', 'Geradeaus: Standzeit', 's', null, 1), 0.42],
+  [value('straight_way', 'Straight on: Way until standing', 'Geradeaus: Weg bis zum Stand', 'm', null, 0.6), 0.08],
+  [value('straight_gnss', 'Straight on: Way by GPS', 'Geradeaus: Weg nach GPS', '', 0.8, 1.2), 1.03],
+  [value('turn_left', 'Turn left: Turn of the motion sensor', 'Drehen links: Drehung Lagesensor', '', 0.8, 1.2), 0.97],
+  [value('turn_right', 'Turn right: Turn of the motion sensor', 'Drehen rechts: Drehung Lagesensor', '', 0.8, 1.2), 1.02],
+  [value('stop_stand', 'Press STOP: Time to stand', 'STOP drücken: Standzeit', 's', null, 0.5), 0.31],
+  [value('stop_way', 'Press STOP: Way until standing', 'STOP drücken: Weg bis zum Stand', 'm', null, 0.3), 0.06],
+  [value('bumper_stand', 'Bumper: Time to stand', 'Stoßfänger: Standzeit', 's', null, 0.5), 0.24],
+  [value('bumper_way', 'Bumper: Way until standing', 'Stoßfänger: Weg bis zum Stand', 'm', null, 0.3), 0.03],
 ];
-// what the step on the ground measured of a part, as on the Tron
-const GROUND_MEASURED: Record<string, Record<string, number>> = {
-  straight: {straight_stand: 0.42, straight_way: 0.08, straight_gnss: 1.03},
-  turn: {turn_left: 0.97, turn_right: 1.02},
-  stop: {stop_stand: 0.31, stop_way: 0.06},
-  bumper: {bumper_stand: 0.24, bumper_way: 0.03},
-};
+const MEASURED: Record<string, number> = Object.fromEntries(GROUND_VALUES.map(([v, m]) => [v.id, m]));
 
 const TRON_STEPS: Base[] = [
   step({
@@ -152,14 +157,15 @@ const TRON_STEPS: Base[] = [
     auto: true,
     safety: true,
     symbol: 'wheels',
+    motion: MOTION,
     confirm: [named('raised', 'Mower jacked up, wheels free', 'Mäher aufgebockt, Räder frei'), named('hand_at_stop', 'Hand at the STOP button', 'Hand an der STOP-Taste')],
-    parts: [
+    parts: parts([
       ['forward', 'Forwards', 'Vorwärts'],
       ['backward', 'Backwards', 'Rückwärts'],
       ['left', 'Turn to the left', 'Nach links drehen'],
       ['right', 'Turn to the right', 'Nach rechts drehen'],
       ['one_wheel', 'One wheel only', 'Nur ein Rad'],
-    ].map(([id, en, de]) => ({...named(id, en, de), state: 'open' as const})),
+    ]),
     texts: tx(
       ['Wheels', 'Put the mower on a stand under its body, the front not higher than the back. The wheels turn forwards, backwards, both ways round and then only one.', 'Check the plugs of the motors and their direction in the settings of the platform, then try again.'],
       ['Räder', 'Den Mäher auf einen Bock unter dem Gehäuse stellen, vorn nicht höher als hinten. Die Räder drehen vorwärts, rückwärts, in beide Richtungen und dann nur eines.', 'Stecker der Motoren und ihre Drehrichtung in den Einstellungen der Plattform prüfen, dann wiederholen.'],
@@ -174,19 +180,15 @@ const TRON_STEPS: Base[] = [
     start: true,
     safety: true,
     symbol: 'ground',
+    motion: GROUND,
     confirm: [named('area_clear', '3 m clear in front of and behind the mower, I stand next to it at the STOP button', '3 m frei vor und hinter dem Mäher, ich stehe daneben an der STOP-Taste')],
-    parts: GROUND_PARTS.map(([id, en, de]) => ({...named(id, en, de), state: 'open' as const})),
-    values: [
-      value('straight_stand', 'Straight on: Time to stand', 'Geradeaus: Standzeit', 's', null, 1),
-      value('straight_way', 'Straight on: Way until standing', 'Geradeaus: Weg bis zum Stand', 'm', null, 0.6),
-      value('straight_gnss', 'Straight on: Way by GPS', 'Geradeaus: Weg nach GPS', '', 0.8, 1.2),
-      value('turn_left', 'Turn: Turn of the motion sensor', 'Drehen: Drehung Lagesensor', '', 0.8, 1.2),
-      value('turn_right', 'Turn: Turn of the motion sensor', 'Drehen: Drehung Lagesensor', '', 0.8, 1.2),
-      value('stop_stand', 'Press STOP: Time to stand', 'STOP drücken: Standzeit', 's', null, 0.5),
-      value('stop_way', 'Press STOP: Way until standing', 'STOP drücken: Weg bis zum Stand', 'm', null, 0.3),
-      value('bumper_stand', 'Bumper: Time to stand', 'Stoßfänger: Standzeit', 's', null, 0.5),
-      value('bumper_way', 'Bumper: Way until standing', 'Stoßfänger: Weg bis zum Stand', 'm', null, 0.3),
-    ],
+    parts: parts([
+      ['straight', 'Straight on', 'Geradeaus'],
+      ['turn', 'Turn', 'Drehen'],
+      ['stop', 'Press STOP', 'STOP drücken'],
+      ['bumper', 'Bumper', 'Stoßfänger'],
+    ]),
+    values: GROUND_VALUES.map(([v]) => v),
     texts: tx(
       ['Driving on the ground', 'The mower drives about 2 m straight on and stops by itself, turns to the left and back, drives back until you press STOP, and at the end slowly against a soft obstacle you hold.', "If the mower does not stop in time, don't let it mow. The values show where it fails; check wheels, braking distance and board."],
       ['Fahren am Boden', 'Der Mäher fährt etwa 2 m geradeaus und bleibt von selbst stehen, dreht sich nach links und zurück, fährt zurück, bis du STOP drückst, und zum Schluss langsam gegen ein weiches Hindernis, das du hältst.', 'Bleibt der Mäher nicht rechtzeitig stehen: nicht mähen lassen. Die Werte zeigen, wo es hakt; Räder, Bremsweg und Platine prüfen.'],
@@ -261,9 +263,7 @@ const TICK_MS = 200;
 const FIX_MS = 1500;
 // how long a part of the check input waits for its input (s)
 const PART_S = 90;
-// a step that turns the wheels: its bounds, each part (ms), the time for the answer which wheel turns and to setup.keep (s)
-const MOTION: Motion = {wheels: true, blade: false, raised: true, max_speed: 0.05, max_distance: null, max_time: 10};
-const GROUND: Motion = {...MOTION, raised: false, max_speed: 0.3};
+// a step that turns the wheels: each part (ms), the time for the answer which wheel turns and to setup.keep (s)
 // on the ground: how long STOP or the bumper may take before the question, and the hold before the release (s)
 const GROUND_TIME_S = 8;
 const HOLD_S = 1;
@@ -357,7 +357,7 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
   let timer: ReturnType<typeof setInterval> | null = null;
 
   const done = (id: string) => isDone(kept[id].state);
-  const wants = (s: Base, part: number) => (s.check === 'inputs_assign' || s.check === 'ground' ? BIT[s.parts[part]?.id] : BIT[s.id]);
+  const wants = (s: Base, part: number) => BIT[s.parts[part]?.id] ?? BIT[s.id];
   const locked = (s: Base) => s.needs.some((n) => kept[n].state !== 'ok');
   const state = (s: Base): StepState => (kept[s.id].state === 'open' && locked(s) ? 'locked' : kept[s.id].state);
   // the inputs that have to pass before a wheel turns, no emergency stop, and on the ground while the lock is closed the
@@ -365,7 +365,7 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
   const gates = (s: Base) => {
     const open = (keep: (x: Base) => boolean) => STEPS.filter((x) => keep(x) && kept[x.id].state !== 'ok').map((x) => x.id);
     const inputs = s.kind === 'drive' ? open((x) => !!BIT[x.id]) : [];
-    const air = s.check === 'ground' && !safety().open ? open((x) => x.kind === 'drive' && x.check !== 'ground') : [];
+    const air = s.motion && !s.motion.raised && !safety().open ? open((x) => !!x.motion?.raised) : [];
     return [
       ...(s.kind === 'drive' && latched('LATCH') ? [{reason: 'EMERGENCY', message: 'The emergency stop is latched'}] : []),
       ...(inputs.length ? [{reason: 'SAFETY_INPUTS', message: `First: ${inputs.join(', ')}`}] : []),
@@ -403,6 +403,9 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
       return {name: `${s.id}${i + 1}`, role: s.id, reason: bit.toLowerCase(), active: hit, assigned: true, held: hit, delay_ms: 0};
     });
   };
+  // how long the running part waits for its input before it asks (s): an input step's part, STOP or the bumper on the ground
+  const waitS = (s: Base, r: NonNullable<typeof run>) =>
+    BIT[s.id] ? PART_S : s.check === 'ground' && r.phase === 'armed' && wants(s, r.part) ? GROUND_TIME_S : null;
   const full = (s: Base): SetupStep => {
     const k = kept[s.id];
     const running = run?.id === s.id;
@@ -412,19 +415,12 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
       state: state(s),
       attempt: k.attempt,
       blocked: blocked(s),
-      motion: s.kind === 'drive' ? (s.check === 'ground' ? GROUND : MOTION) : null,
       parts: k.parts,
       values: k.values,
       // while the assignment runs it takes only accept, once a line is proposed; a question only while it is asked
       inputs: r?.asking ? [r.asking.input] : r && s.check === 'inputs_assign' ? (r.asked ? [ACCEPT] : []) : k.inputs,
       progress: r && s.parts.length ? {n: Math.min(r.part + 1, s.parts.length), of: s.parts.length} : null,
-      ends_at: r?.asking
-        ? Math.floor(r.asking.until)
-        : r && BIT[s.id]
-          ? Math.floor(r.since + PART_S)
-          : r && r.phase === 'armed' && s.check === 'ground' && wants(s, r.part)
-            ? Math.floor(r.since + GROUND_TIME_S)
-            : null,
+      ends_at: r?.asking ? Math.floor(r.asking.until) : r && waitS(s, r) ? Math.floor(r.since + waitS(s, r)!) : null,
       result: k.result,
       lines: linesOf(s, running),
       ask: r?.asked ?? null,
@@ -649,7 +645,7 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
         run.phase = 'rest';
         if (run.part >= k.parts.length) end(s, true);
         else changed();
-      } else if (t - run.since > PART_S) {
+      } else if (t - run.since > waitS(s, run)!) {
         // nothing seen in time: the step asks whether the action was done
         run.asking = {input: PRESSED, until: t + PRESSED_S};
         changed();
@@ -661,7 +657,7 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
   function ground(s: Base, k: Kept, t: number) {
     const r = run!;
     const measured = (part: string) => {
-      k.values = k.values.map((v) => (v.id in GROUND_MEASURED[part] ? {...v, value: GROUND_MEASURED[part][v.id], ok: true} : v));
+      k.values = k.values.map((v) => (v.id.startsWith(`${part}_`) ? {...v, value: MEASURED[v.id], ok: true} : v));
     };
     const want = wants(s, r.part);
     if (r.phase === 'rest') {
@@ -681,7 +677,7 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
       k.parts = k.parts.map((p, i) => (i === r.part ? {...p, state: 'ok'} : p));
       r.phase = 'rest';
       r.since = t;
-    } else if (t - r.since > GROUND_TIME_S) r.asking = {input: PRESSED, until: t + PRESSED_S};
+    } else if (t - r.since > waitS(s, r)!) r.asking = {input: PRESSED, until: t + PRESSED_S};
     else return;
     changed();
   }

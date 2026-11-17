@@ -39,6 +39,15 @@ const go = async (page: Page, id: string, says: string[], start: string) => {
   await sheet.getByRole('button', {name: start}).click();
 };
 const goWheels = (page: Page) => go(page, 'wheels', ['The wheels turn in the air'], 'Let the wheels turn');
+const goGround = (page: Page) =>
+  go(page, 'ground', ['The mower drives', 'without the borders of the map', 'a lawn without obstacles'], 'Let the mower drive');
+// the wheels turned and the right one named
+const wheelsPassed = async (page: Page) => {
+  await goWheels(page);
+  await step(page, 'wheels').getByLabel('Right wheel').check({timeout: 15000});
+  await step(page, 'wheels').getByRole('button', {name: 'Save'}).click();
+  await expect(step(page, 'wheels')).toHaveAttribute('data-state', 'ok');
+};
 
 // MowBite OS's setup program: only on a mower that lists it, its steps as the OS gives them
 test.describe('setup', () => {
@@ -150,10 +159,7 @@ test.describe('setup', () => {
 
     // passed again it no longer keeps the lock closed
     await to(page, 'Wheels', 'Wheels');
-    await goWheels(page);
-    await step(page, 'wheels').getByLabel('Right wheel').check({timeout: 15000});
-    await step(page, 'wheels').getByRole('button', {name: 'Save'}).click();
-    await expect(step(page, 'wheels')).toHaveAttribute('data-state', 'ok');
+    await wheelsPassed(page);
     await overview(page);
     await expect(page.locator('[data-cause="WRONG_WHEEL"]')).toHaveCount(0);
 
@@ -171,16 +177,12 @@ test.describe('setup', () => {
     await page.goto('/setup/?step=ground');
     await expect(g.locator('[data-blocked="SAFETY_AIR"]')).toContainText('steps with the mower jacked up have to pass first');
     await inputsPassed(page);
-    await goWheels(page);
-    await step(page, 'wheels').getByLabel('Right wheel').check({timeout: 15000});
-    await step(page, 'wheels').getByRole('button', {name: 'Save'}).click();
-    await expect(step(page, 'wheels')).toHaveAttribute('data-state', 'ok');
+    await wheelsPassed(page);
 
     // straight on and the turn by themselves, then STOP and the bumper pressed; every value within its bounds opens the lock
-    const ground = ['The mower drives', 'without the borders of the map', 'a lawn without obstacles'];
     await to(page, 'Driving on the ground', 'Driving on the ground');
     await expect(g.locator('[data-blocked]')).toHaveCount(0);
-    await go(page, 'ground', ground, 'Let the mower drive');
+    await goGround(page);
     await expect(g.locator('li[data-state="waiting"]')).toContainText('Press STOP', {timeout: 10000});
     await press(page, 'STOP');
     await expect(g.locator('li[data-state="waiting"]')).toContainText('Bumper');
@@ -195,7 +197,7 @@ test.describe('setup', () => {
     await g.getByRole('button', {name: 'Repeat'}).click();
     await expect(page.getByRole('dialog').locator('[data-risky]')).toContainText('the mower stays locked until it passes again');
     await page.getByRole('dialog').getByRole('button', {name: 'Cancel'}).click();
-    await go(page, 'ground', ground, 'Let the mower drive');
+    await goGround(page);
     await g.getByLabel('Yes, I did').check({timeout: 20000});
     await g.getByRole('button', {name: 'Save'}).click();
     await expect(g).toHaveAttribute('data-state', 'failed');

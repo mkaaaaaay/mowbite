@@ -28,23 +28,20 @@ export function ConfirmSheet(props: {step: SetupStep; lang: string; busy: boolea
   const [ticked, setTicked] = useState<string[]>([]);
   const all = step.confirm.every((c) => ticked.includes(c.id));
   const m = moves(step.motion) ? step.motion : null;
+  const ground = !!m?.wheels && !m.raised;
   return (
     <Sheet title={m ? tr('The mower moves in a moment') : words(step.texts, lang).name} onClose={onClose}>
       {m && (
         <div className={styles.list}>
-          {!!m.wheels &&
-            (m.raised ? (
-              <Move sign="wheels">{tr('The wheels turn in the air')}</Move>
-            ) : (
-              <Move sign="ground">{tr('The mower drives')}</Move>
-            ))}
+          {!!m.wheels && m.raised && <Move sign="wheels">{tr('The wheels turn in the air')}</Move>}
+          {ground && <Move sign="ground">{tr('The mower drives')}</Move>}
           {!!m.blade && <Move sign="blade">{tr('The blade turns')}</Move>}
           {m.blade === false && (
             <Move sign="blade" still>
               {tr('The blade stays off')}
             </Move>
           )}
-          {!!m.wheels && !m.raised && (
+          {ground && (
             <>
               <p className={styles.limit}>
                 {m.max_speed
@@ -52,7 +49,7 @@ export function ConfirmSheet(props: {step: SetupStep; lang: string; busy: boolea
                   : tr('Without the borders of the map, like the remote control')}
               </p>
               <p className={styles.warn} data-ground>
-                {tr('Before the start: a lawn without obstacles, 3 m clear in front of and behind the mower, a soft obstacle at hand such as a cushion.')}
+                {tr('Before the start: a lawn without obstacles and a soft obstacle at hand, such as a cushion.')}
               </p>
             </>
           )}
