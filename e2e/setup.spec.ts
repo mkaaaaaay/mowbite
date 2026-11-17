@@ -168,6 +168,7 @@ test.describe('setup', () => {
     await page.goto('/setup/?step=board');
     const mark = page.locator('[aria-current] [data-state]');
     await expect(page.locator('[data-moved]')).toHaveCount(0);
+    await expect(page.locator('button[aria-expanded]', {hasText: 'Wheels'})).toContainText(/1 step$/);
     await step(page, 'board').getByRole('button', {name: 'Start'}).click();
     await expect(mark).toHaveAttribute('data-state', 'ok');
     await expect(mark).toHaveAttribute('data-moved', 'true');

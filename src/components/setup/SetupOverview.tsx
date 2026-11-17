@@ -16,7 +16,7 @@ function stageLine(state: StepState, steps: SetupStep[], all: SetupStep[], lang:
   }
   if (state === 'open' || state === 'running') {
     const done = steps.filter((s) => isDone(s.state)).length;
-    return done ? tr('{done} of {of} done', {done, of: steps.length}) : tr('{n} steps', {n: steps.length});
+    return done ? tr('{done} of {of} done', {done, of: steps.length}) : steps.length === 1 ? tr('1 step') : tr('{n} steps', {n: steps.length});
   }
   return stateWord(state);
 }
