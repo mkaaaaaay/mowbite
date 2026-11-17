@@ -26,6 +26,8 @@ export const TOPIC = {
   hostStatus: 'mowbite/host/status',
   // whether the next start of the schedule would go as things are now (retained, empty without one to come)
   scheduleReady: 'mowbite/schedule/ready',
+  // MowBite OS's setup program (retained where the platform has a step list, see lib/setup)
+  setup: 'setup/json',
 } as const;
 
 // the caster's port when the access names none (ntrip.set)
@@ -67,6 +69,14 @@ export const RPC = {
   // the mower's sizes, MowBite OS only: kept by it, its planner only shows them (lib/mowerBody)
   geometry: 'robot.geometry.get',
   geometrySet: 'robot.geometry.set',
+  // the setup program: its state, a step begun, answered, skipped or stopped, all taken back, and a step's image
+  setupGet: 'setup.get',
+  setupStart: 'setup.start',
+  setupAnswer: 'setup.answer',
+  setupSkip: 'setup.skip',
+  setupAbort: 'setup.abort',
+  setupReset: 'setup.reset',
+  setupImage: 'setup.image',
   // points off the end of the line being recorded, MowBite OS only (masterplan 3.2)
   recordingUndo: 'recording.undo',
   // MowBite OS's own updates, answered by its host (lib/osUpdate)

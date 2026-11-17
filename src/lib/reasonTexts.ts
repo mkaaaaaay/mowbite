@@ -311,7 +311,33 @@ export const EVENTS: Record<string, EventText> = {
   },
   DOCK_RECORDED: one('Docking station recorded'),
   // after robot.geometry.set, the sizes it's about the app names itself (changed, below_default)
-  GEOMETRY_CHANGED: {severity: 'info', variants: [{when: {reason: 'BELOW_DEFAULT'}, en: 'Sizes changed', severity: 'warning'}, {en: 'Sizes changed'}]},
+  GEOMETRY_CHANGED: {
+    severity: 'info',
+    variants: [
+      {when: {reason: 'BELOW_DEFAULT'}, en: 'Sizes changed', severity: 'warning'},
+      {when: {reason: 'SHAPE_OUTSIDE'}, en: 'Sizes changed', severity: 'warning'},
+      {en: 'Sizes changed'},
+    ],
+  },
+  // the setup program (setup.*): a step ended, a mark reached, a call turned down, a step that can't go on right now
+  SETUP_STEP: {
+    severity: 'warning',
+    variants: [
+      alone({when: {state: 'ok'}, en: 'Setup step passed', severity: 'info'}),
+      {when: {state: 'skipped'}, en: 'Setup step skipped', severity: 'info'},
+      {en: 'Setup step failed'},
+    ],
+  },
+  SETUP: {
+    severity: 'info',
+    variants: [
+      alone({when: {what: 'complete'}, en: 'Setup complete'}),
+      alone({when: {what: 'reset'}, en: 'Setup started anew'}),
+      alone({en: 'Setup stage done'}),
+    ],
+  },
+  SETUP_REFUSED: one('Setup step refused'),
+  SETUP_BLOCKED: one('Setup step waiting'),
   // robot.geometry.set changed the sizes, the areas recorded on this mower couldn't take them
   RECORDED_BODY_KEPT: one('Sizes not saved with the areas', 'warning'),
   // the planner has the leftovers of a finished mow ready, whether they're mowed the schedule decides (leftovers_skip)
@@ -340,6 +366,7 @@ export const REASONS: Record<string, Variant[]> = {
   ],
   no_gps: [r('no GPS fix')],
   BUSY: [
+    ...['SETUP_REFUSED', 'SETUP_BLOCKED'].map((type) => r('another step runs or the mower is on its way', {when: {type}})),
     r('another sound is being uploaded or checked', {when: {type: 'SOUND_REFUSED'}}),
     r('the mower is working right now', {when: {type: 'UPDATE'}}),
     r('busy: Idle', {when: {state: 'IDLE'}}),
@@ -490,6 +517,7 @@ export const REASONS: Record<string, Variant[]> = {
     r('saving failed: no answer from the map service', {when: {code: 'NO_ANSWER'}}),
     r('saving failed', {unless: {message: {present: true}}}),
   ],
+  SHAPE_OUTSIDE: [r('the outline leaves out parts of the mower, it may touch things with them')],
   BELOW_DEFAULT: [r("smaller than from the factory, the planner's body check works with the smaller outline")],
   OUTLIERS: [r('back on GPS after outliers')],
   GAP: [r('back on GPS after a gap')],
@@ -544,7 +572,10 @@ export const REASONS: Record<string, Variant[]> = {
   OS_CRASH: [r('MowBite OS crashed')],
   POWER_LOSS: [r('interrupted while working', {when: {hold: true}}), r('power cut or reset')],
   NODE_STALLED: [r('a part of MowBite OS stopped responding')],
-  STORAGE_NOT_WRITABLE: [r("the mower can't write to its storage, starting is blocked until it can")],
+  STORAGE_NOT_WRITABLE: [
+    ...['SETUP_REFUSED', 'SETUP_BLOCKED'].map((type) => r("the mower can't save the state of the setup", {when: {type}})),
+    r("the mower can't write to its storage, starting is blocked until it can"),
+  ],
   // why MowBite OS doesn't start (mowbite/host/status)
   CRASH_LOOP: [r('it crashed {restarts} times and stays off', {when: {restarts: {present: true}}}), r('it crashed several times and stays off')],
   DATA_DIR_LOCKED: [r("another MowBite OS holds the mower's data")],
@@ -562,10 +593,12 @@ export const REASONS: Record<string, Variant[]> = {
   BAD_BUNDLE: [r('the update file is damaged')],
   BAD_ORIGIN: [r("the update isn't from a source set up on the mower")],
   BAD_SIGNATURE: [r("the update isn't signed with a known key")],
+  PLATFORM_MISMATCH: [r('the update is built for another mower model')],
+  PLATFORM_CONFIG: [r('values of this mower model are missing')],
   BASE_TOO_OLD: [r("needs a newer base system on the mower, it isn't installed by itself")],
   BLOCKED: [r("skipped by the automatic update: it failed before, was taken back or doesn't fit this mower")],
   INTERNAL: [r('an error in the updater of MowBite OS')],
-  INTERRUPTED: [r('the switch was interrupted twice, the mower is back on the version before')],
+  INTERRUPTED: [r('MowBite OS restarted while the step ran', {when: {type: 'SETUP_STEP'}}), r('the switch was interrupted twice, the mower is back on the version before')],
   LIBRARY_MISSING: [r('a library it needs is missing on the mower')],
   NO_HOLD: [r("MowBite OS couldn't hold the mower for the update")],
   OLD_SERIAL: [r('not newer than the version running')],
@@ -609,6 +642,7 @@ export const REASONS: Record<string, Variant[]> = {
   GYRO_SIGN: [r('the gyro measures turning the other way than the wheels')],
   NOT_MOVING: [r("doesn't move")],
   NOT_TURNING: [r("doesn't turn")],
+  TURN_SLIDE: [r('slid away while turning on the spot')],
   OVERSPEED: [r('drove faster than it should')],
   LEFT_LANE: [r('left its lane')],
   // CORRECTIONS: limit in s, code the caster's HTTP status
@@ -625,6 +659,22 @@ export const REASONS: Record<string, Variant[]> = {
     r('its correlation data is too long'),
   ],
   RESPONSE_TOPIC: [r('its response topic is not rpc/response/ and a token')],
+  // the setup program: why a step failed (SETUP_STEP), can't go on now (SETUP_BLOCKED) or a call was turned down (SETUP_REFUSED)
+  NOT_SEEN: [r("the mower didn't notice the action")],
+  WRONG_INPUT: [r('input {seen} switched instead of the one expected', {when: {seen: {present: true}}}), r('another input switched than the one expected')],
+  NO_EMERGENCY: [r('the input switched, but no emergency stop came in time')],
+  STOPPED_EARLY: [r('a short trigger brought the emergency stop already')],
+  WRONG_SIGN: [r('the motion sensor reported the move the other way round')],
+  LIMIT: [r('a value is out of its bounds')],
+  NO_DATA: [r('no data from board, motion sensor or GPS')],
+  INPUT_ACTIVE: [r('the input is still switched, let go of it first')],
+  CONFIRM_MISSING: [r('not every point is confirmed')],
+  INVALID_VALUE: [r("the value doesn't fit this step")],
+  LOCKED: [r('another step has to pass first')],
+  NOT_SKIPPABLE: [r("this step can't be skipped")],
+  UNKNOWN_STEP: [r('the mower has no such step')],
+  VERSION: [r('the setup changed in the meantime, try again')],
+  WRONG_METHOD: [r('this step is done another way')],
 };
 
 // what led it in on a try that failed (guide at DOCKING_RETRY and DOCKING_FAILED), put before the rest

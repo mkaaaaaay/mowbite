@@ -1147,8 +1147,86 @@
      "de": "Maße geändert"
     },
     {
+     "when": {
+      "reason": "SHAPE_OUTSIDE"
+     },
+     "en": "Sizes changed",
+     "severity": "warning",
+     "de": "Maße geändert"
+    },
+    {
      "en": "Sizes changed",
      "de": "Maße geändert"
+    }
+   ]
+  },
+  "SETUP_STEP": {
+   "severity": "warning",
+   "variants": [
+    {
+     "when": {
+      "state": "ok"
+     },
+     "en": "Setup step passed",
+     "severity": "info",
+     "with_reason": false,
+     "de": "Einrichtungsschritt bestanden"
+    },
+    {
+     "when": {
+      "state": "skipped"
+     },
+     "en": "Setup step skipped",
+     "severity": "info",
+     "de": "Einrichtungsschritt übersprungen"
+    },
+    {
+     "en": "Setup step failed",
+     "de": "Einrichtungsschritt nicht bestanden"
+    }
+   ]
+  },
+  "SETUP": {
+   "severity": "info",
+   "variants": [
+    {
+     "when": {
+      "what": "complete"
+     },
+     "en": "Setup complete",
+     "with_reason": false,
+     "de": "Einrichtung abgeschlossen"
+    },
+    {
+     "when": {
+      "what": "reset"
+     },
+     "en": "Setup started anew",
+     "with_reason": false,
+     "de": "Einrichtung neu begonnen"
+    },
+    {
+     "en": "Setup stage done",
+     "with_reason": false,
+     "de": "Einrichtungsabschnitt fertig"
+    }
+   ]
+  },
+  "SETUP_REFUSED": {
+   "severity": "info",
+   "variants": [
+    {
+     "en": "Setup step refused",
+     "de": "Einrichtungsschritt abgelehnt"
+    }
+   ]
+  },
+  "SETUP_BLOCKED": {
+   "severity": "info",
+   "variants": [
+    {
+     "en": "Setup step waiting",
+     "de": "Einrichtungsschritt wartet"
     }
    ]
   },
@@ -1251,6 +1329,20 @@
    }
   ],
   "BUSY": [
+   {
+    "en": "another step runs or the mower is on its way",
+    "when": {
+     "type": "SETUP_REFUSED"
+    },
+    "de": "ein anderer Schritt läuft oder der Mäher ist unterwegs"
+   },
+   {
+    "en": "another step runs or the mower is on its way",
+    "when": {
+     "type": "SETUP_BLOCKED"
+    },
+    "de": "ein anderer Schritt läuft oder der Mäher ist unterwegs"
+   },
    {
     "en": "another sound is being uploaded or checked",
     "when": {
@@ -2034,6 +2126,12 @@
     "de": "Speichern fehlgeschlagen"
    }
   ],
+  "SHAPE_OUTSIDE": [
+   {
+    "en": "the outline leaves out parts of the mower, it may touch things with them",
+    "de": "der Umriss lässt Teile des Mähers aus, damit kann er anstoßen"
+   }
+  ],
   "BELOW_DEFAULT": [
    {
     "en": "smaller than from the factory, the planner's body check works with the smaller outline",
@@ -2304,6 +2402,20 @@
   ],
   "STORAGE_NOT_WRITABLE": [
    {
+    "en": "the mower can't save the state of the setup",
+    "when": {
+     "type": "SETUP_REFUSED"
+    },
+    "de": "der Mäher kann den Stand der Einrichtung nicht speichern"
+   },
+   {
+    "en": "the mower can't save the state of the setup",
+    "when": {
+     "type": "SETUP_BLOCKED"
+    },
+    "de": "der Mäher kann den Stand der Einrichtung nicht speichern"
+   },
+   {
     "en": "the mower can't write to its storage, starting is blocked until it can",
     "de": "der Mäher kann seinen Speicher nicht beschreiben, Starten ist gesperrt, bis es wieder geht"
    }
@@ -2407,6 +2519,18 @@
     "de": "das Update ist mit keinem bekannten Schlüssel signiert"
    }
   ],
+  "PLATFORM_MISMATCH": [
+   {
+    "en": "the update is built for another mower model",
+    "de": "das Update ist für ein anderes Mähermodell gebaut"
+   }
+  ],
+  "PLATFORM_CONFIG": [
+   {
+    "en": "values of this mower model are missing",
+    "de": "Werte dieses Mähermodells fehlen"
+   }
+  ],
   "BASE_TOO_OLD": [
    {
     "en": "needs a newer base system on the mower, it isn't installed by itself",
@@ -2426,6 +2550,13 @@
    }
   ],
   "INTERRUPTED": [
+   {
+    "en": "MowBite OS restarted while the step ran",
+    "when": {
+     "type": "SETUP_STEP"
+    },
+    "de": "MowBite OS ist während des Schritts neu gestartet"
+   },
    {
     "en": "the switch was interrupted twice, the mower is back on the version before",
     "de": "das Umschalten wurde zweimal unterbrochen, der Mäher ist wieder bei der vorigen Version"
@@ -2623,6 +2754,12 @@
     "de": "dreht sich nicht"
    }
   ],
+  "TURN_SLIDE": [
+   {
+    "en": "slid away while turning on the spot",
+    "de": "beim Drehen auf der Stelle weggerutscht"
+   }
+  ],
   "OVERSPEED": [
    {
     "en": "drove faster than it should",
@@ -2696,6 +2833,105 @@
    {
     "en": "its response topic is not rpc/response/ and a token",
     "de": "ihr Antwort-Topic ist nicht rpc/response/ mit einem Token"
+   }
+  ],
+  "NOT_SEEN": [
+   {
+    "en": "the mower didn't notice the action",
+    "de": "der Mäher hat den Handgriff nicht bemerkt"
+   }
+  ],
+  "WRONG_INPUT": [
+   {
+    "en": "input {seen} switched instead of the one expected",
+    "when": {
+     "seen": {
+      "present": true
+     }
+    },
+    "de": "Eingang {seen} hat statt des erwarteten geschaltet"
+   },
+   {
+    "en": "another input switched than the one expected",
+    "de": "ein anderer Eingang als der erwartete hat geschaltet"
+   }
+  ],
+  "NO_EMERGENCY": [
+   {
+    "en": "the input switched, but no emergency stop came in time",
+    "de": "der Eingang hat geschaltet, aber der Notaus kam nicht rechtzeitig"
+   }
+  ],
+  "STOPPED_EARLY": [
+   {
+    "en": "a short trigger brought the emergency stop already",
+    "de": "schon ein kurzes Auslösen brachte den Notaus"
+   }
+  ],
+  "WRONG_SIGN": [
+   {
+    "en": "the motion sensor reported the move the other way round",
+    "de": "der Lagesensor meldete die Bewegung andersherum"
+   }
+  ],
+  "LIMIT": [
+   {
+    "en": "a value is out of its bounds",
+    "de": "ein Wert liegt außerhalb seiner Grenzen"
+   }
+  ],
+  "NO_DATA": [
+   {
+    "en": "no data from board, motion sensor or GPS",
+    "de": "keine Daten von Platine, Lagesensor oder GPS"
+   }
+  ],
+  "INPUT_ACTIVE": [
+   {
+    "en": "the input is still switched, let go of it first",
+    "de": "der Eingang ist noch ausgelöst, erst loslassen"
+   }
+  ],
+  "CONFIRM_MISSING": [
+   {
+    "en": "not every point is confirmed",
+    "de": "nicht alle Punkte bestätigt"
+   }
+  ],
+  "INVALID_VALUE": [
+   {
+    "en": "the value doesn't fit this step",
+    "de": "der Wert passt nicht zu diesem Schritt"
+   }
+  ],
+  "LOCKED": [
+   {
+    "en": "another step has to pass first",
+    "de": "erst muss ein anderer Schritt bestanden sein"
+   }
+  ],
+  "NOT_SKIPPABLE": [
+   {
+    "en": "this step can't be skipped",
+    "de": "dieser Schritt lässt sich nicht überspringen"
+   }
+  ],
+  "UNKNOWN_STEP": [
+   {
+    "en": "the mower has no such step",
+    "de": "der Mäher kennt diesen Schritt nicht"
+   }
+  ],
+  "VERSION": [
+   {
+    "en": "the setup changed in the meantime, try again",
+    "de": "die Einrichtung hat sich inzwischen geändert, noch einmal versuchen"
+   }
+  ],
+  "WRONG_METHOD": [
+   {
+    "en": "this step is done another way",
+    "de": "dieser Schritt geht anders"
    }
   ]
  },

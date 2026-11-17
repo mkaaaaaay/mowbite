@@ -589,6 +589,12 @@
           "$ref": "#/$defs/event.METHODS_CHANGED"
         },
         {
+          "$ref": "#/$defs/event.SETUP_STEP"
+        },
+        {
+          "$ref": "#/$defs/event.SETUP"
+        },
+        {
           "$ref": "#/$defs/event.other"
         }
       ]
@@ -3515,7 +3521,7 @@
           "type": "string"
         },
         "heading": {
-          "description": "The heading it drives in with, counter-clockwise from east",
+          "description": "The direction the mower drives onto it, from the point in front of it to the docked place, counter-clockwise from east; docked, the mower faces that way with the contacts in front and the other way with them behind",
           "type": "number",
           "x-unit": "rad"
         },
@@ -3656,6 +3662,7 @@
             "CROSS_TRACK",
             "OUTSIDE",
             "TIMEOUT",
+            "TURN_SLIDE",
             "MAP_UNKNOWN",
             "NO_MOWING_AREA",
             "MAP_MISMATCH",
@@ -4110,10 +4117,35 @@
           "description": "English text naming the keys",
           "type": "string"
         },
+        "outside_shape": {
+          "description": "Only when not empty: the parts of robot_shape the body leaves out now, by more than a millimetre",
+          "items": {
+            "additionalProperties": false,
+            "description": "One item",
+            "properties": {
+              "by": {
+                "description": "How far it reaches out",
+                "type": "number",
+                "x-unit": "m"
+              },
+              "part": {
+                "description": "id of the part",
+                "type": "string"
+              }
+            },
+            "required": [
+              "part",
+              "by"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
         "reason": {
-          "description": "BELOW_DEFAULT when below_default is not empty",
+          "description": "BELOW_DEFAULT when below_default is not empty, else SHAPE_OUTSIDE with outside_shape",
           "enum": [
-            "BELOW_DEFAULT"
+            "BELOW_DEFAULT",
+            "SHAPE_OUTSIDE"
           ],
           "type": "string"
         },
@@ -4122,7 +4154,7 @@
           "type": "string"
         },
         "severity": {
-          "description": "warning with BELOW_DEFAULT, else info",
+          "description": "warning with a reason, else info",
           "enum": [
             "info",
             "warning"
@@ -5283,6 +5315,164 @@
       "type": "object",
       "x-emitter": "logic"
     },
+    "event.SETUP": {
+      "additionalProperties": false,
+      "description": "The setup program reached a mark",
+      "properties": {
+        "id": {
+          "description": "Random id of the event, 32 letters and digits",
+          "type": "string"
+        },
+        "stage": {
+          "description": "With stage_done: the stage",
+          "type": "string"
+        },
+        "t": {
+          "description": "When it happened",
+          "type": "number",
+          "x-unit": "unix s"
+        },
+        "type": {
+          "const": "SETUP",
+          "description": "What happened; a type this version does not know carries only the envelope for sure"
+        },
+        "what": {
+          "description": "stage_done: every step of stage is ok or skipped; complete: every step is; reset: setup.reset took all results back",
+          "enum": [
+            "stage_done",
+            "complete",
+            "reset"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "t",
+        "type",
+        "what"
+      ],
+      "type": "object",
+      "x-emitter": "setup"
+    },
+    "event.SETUP_STEP": {
+      "additionalProperties": false,
+      "description": "A step of the setup program ended",
+      "properties": {
+        "attempt": {
+          "description": "The attempt that ended",
+          "type": "integer"
+        },
+        "id": {
+          "description": "Random id of the event, 32 letters and digits",
+          "type": "string"
+        },
+        "limit": {
+          "description": "The limit",
+          "type": "number"
+        },
+        "message": {
+          "description": "English text for the log and for apps that do not know the reason",
+          "type": "string"
+        },
+        "note": {
+          "description": "With skipped: the text of setup.skip",
+          "type": "string"
+        },
+        "part": {
+          "description": "The part of the step it happened in",
+          "type": "string"
+        },
+        "reason": {
+          "description": "Why: a fixed name in capitals, rated in x-reasons",
+          "enum": [
+            "NOT_SEEN",
+            "WRONG_INPUT",
+            "NO_EMERGENCY",
+            "STOPPED_EARLY",
+            "WRONG_SIGN",
+            "LIMIT",
+            "NO_DATA",
+            "NO_RTK",
+            "STOPPED",
+            "INTERRUPTED"
+          ],
+          "type": "string"
+        },
+        "resume": {
+          "description": "auto when it goes on by itself, user when it waits for the user",
+          "enum": [
+            "auto",
+            "user"
+          ],
+          "type": "string"
+        },
+        "seen": {
+          "description": "The input that switched",
+          "type": "string"
+        },
+        "severity": {
+          "description": "How bad it is",
+          "enum": [
+            "info",
+            "warning",
+            "error"
+          ],
+          "type": "string"
+        },
+        "skip": {
+          "description": "With skipped: the reason of setup.skip",
+          "type": "string"
+        },
+        "source": {
+          "description": "hw/status, hw/capabilities, imu/data or gps/absolute_pose",
+          "type": "string"
+        },
+        "state": {
+          "description": "How it ended",
+          "enum": [
+            "ok",
+            "failed",
+            "skipped"
+          ],
+          "type": "string"
+        },
+        "step": {
+          "description": "The step",
+          "type": "string"
+        },
+        "t": {
+          "description": "When it happened",
+          "type": "number",
+          "x-unit": "unix s"
+        },
+        "type": {
+          "const": "SETUP_STEP",
+          "description": "What happened; a type this version does not know carries only the envelope for sure"
+        },
+        "unit": {
+          "description": "Unit of both",
+          "type": "string"
+        },
+        "value": {
+          "description": "What was measured"
+        },
+        "value_id": {
+          "description": "id of the value in values[] of the step",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "t",
+        "type",
+        "step",
+        "state",
+        "attempt"
+      ],
+      "type": "object",
+      "x-emitter": "setup"
+    },
     "event.SHUTDOWN": {
       "additionalProperties": false,
       "description": "The OS stops",
@@ -5377,6 +5567,7 @@
             "CROSS_TRACK",
             "OUTSIDE",
             "TIMEOUT",
+            "TURN_SLIDE",
             "APPROACH_FAILED",
             "FOLLOWER_MISSING",
             "BATTERY_HOT",
@@ -5946,7 +6137,9 @@
               "MAP_DATUM",
               "CORRECTIONS",
               "CAMERA_CHANGED",
-              "METHODS_CHANGED"
+              "METHODS_CHANGED",
+              "SETUP_STEP",
+              "SETUP"
             ]
           },
           "type": "string"
@@ -8600,7 +8793,7 @@
           "type": "string"
         },
         "settings": {
-          "description": "By key of x-geometry: value, default (the platform's), stored (entered by the user), type (number or points), unit, min and max of a number, settable",
+          "description": "By key of x-geometry: value, default (the platform's), stored (entered by the user), type (number, points or shape), unit, min and max of a number, settable, and for a settable key confirmed (unix s the user set or confirmed its value, null before)",
           "type": "object"
         },
         "version": {
@@ -8619,6 +8812,14 @@
       "additionalProperties": false,
       "description": "The params of robot.geometry.set: The change",
       "properties": {
+        "confirm": {
+          "description": "Keys the user confirms as they are; a key of settings counts as confirmed as well",
+          "items": {
+            "description": "One item",
+            "type": "string"
+          },
+          "type": "array"
+        },
         "reset": {
           "description": "Keys back to the platform's value",
           "items": {
@@ -8650,7 +8851,7 @@
           "type": "string"
         },
         "settings": {
-          "description": "By key of x-geometry: value, default (the platform's), stored (entered by the user), type (number or points), unit, min and max of a number, settable",
+          "description": "By key of x-geometry: value, default (the platform's), stored (entered by the user), type (number, points or shape), unit, min and max of a number, settable, and for a settable key confirmed (unix s the user set or confirmed its value, null before)",
           "type": "object"
         },
         "version": {
@@ -9782,6 +9983,883 @@
         "type": "object"
       },
       "type": "array"
+    },
+    "setup": {
+      "additionalProperties": false,
+      "description": "setup/json, retained where the platform has a step list: the state of the setup program, sent with every change and at most twice a second while a step runs; the same as setup.get",
+      "properties": {
+        "catalog": {
+          "description": "Counter of the step list of the platform: another one means other steps or images",
+          "type": "integer"
+        },
+        "complete": {
+          "description": "Every step is ok or skipped",
+          "type": "boolean"
+        },
+        "current": {
+          "description": "The step that runs, else the first one still to do; null once complete",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "platform": {
+          "description": "The platform of the step list, as its driver reports it (hw/capabilities)",
+          "type": "string"
+        },
+        "restart_pending": {
+          "description": "A step waits for a restart of the OS",
+          "type": "boolean"
+        },
+        "safety": {
+          "additionalProperties": false,
+          "description": "The lock of autonomous driving and mowing",
+          "properties": {
+            "date": {
+              "description": "Its date, YYYY-MM-DD",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "firmware": {
+              "description": "The firmware it was made with, null while unknown",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "open": {
+              "description": "The platform has a safety measurement",
+              "type": "boolean"
+            },
+            "why": {
+              "description": "NO_SAFETY_MEASUREMENT while closed",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "open",
+            "date",
+            "firmware",
+            "why"
+          ],
+          "type": "object"
+        },
+        "stage": {
+          "description": "The first stage with a step still to do",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "stages": {
+          "description": "The stages with steps, in their order",
+          "items": {
+            "additionalProperties": false,
+            "description": "One item",
+            "properties": {
+              "id": {
+                "description": "A key of x-setup.stages",
+                "type": "string"
+              },
+              "state": {
+                "description": "Of all its steps together",
+                "enum": [
+                  "locked",
+                  "open",
+                  "running",
+                  "ok",
+                  "failed",
+                  "skipped",
+                  "stale"
+                ],
+                "type": "string"
+              },
+              "texts": {
+                "description": "name, help and fix by language (de, en)",
+                "type": "object"
+              }
+            },
+            "required": [
+              "id",
+              "state",
+              "texts"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "steps": {
+          "description": "The steps in the order of the step list",
+          "items": {
+            "additionalProperties": false,
+            "description": "One item",
+            "properties": {
+              "attempt": {
+                "description": "How often it was started or answered",
+                "type": "integer"
+              },
+              "auto": {
+                "description": "Its ticks come without a tap",
+                "type": "boolean"
+              },
+              "blocked": {
+                "description": "What keeps it from going on right now, reasons of SETUP_BLOCKED in x-reasons",
+                "items": {
+                  "additionalProperties": false,
+                  "description": "One item",
+                  "properties": {
+                    "message": {
+                      "description": "English text",
+                      "type": "string"
+                    },
+                    "reason": {
+                      "description": "A fixed name in capitals",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "reason",
+                    "message"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "check": {
+                "description": "Its check, a key of x-setup.checks",
+                "type": "string"
+              },
+              "confirm": {
+                "description": "Points setup.start has to name in confirm",
+                "items": {
+                  "additionalProperties": false,
+                  "description": "One item",
+                  "properties": {
+                    "id": {
+                      "description": "Name of the point",
+                      "type": "string"
+                    },
+                    "texts": {
+                      "description": "name, help and fix by language (de, en)",
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "texts"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "ends_at": {
+                "description": "When the part of now gives up, null for no limit",
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "x-unit": "unix s"
+              },
+              "id": {
+                "description": "Name of the step in setup.*",
+                "type": "string"
+              },
+              "image": {
+                "additionalProperties": false,
+                "description": "The image of the step, null for none: the app draws symbol then",
+                "properties": {
+                  "accent": {
+                    "additionalProperties": false,
+                    "description": "A second image of the same size to lay over it, for the spot to press; null for none",
+                    "properties": {
+                      "bytes": {
+                        "description": "Its size",
+                        "type": "integer"
+                      },
+                      "name": {
+                        "description": "Its name for setup.image",
+                        "type": "string"
+                      },
+                      "sha256": {
+                        "description": "sha256 of the file",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "sha256",
+                      "bytes"
+                    ],
+                    "type": [
+                      "object",
+                      "null"
+                    ]
+                  },
+                  "bytes": {
+                    "description": "Its size",
+                    "type": "integer"
+                  },
+                  "name": {
+                    "description": "Its name for setup.image",
+                    "type": "string"
+                  },
+                  "sha256": {
+                    "description": "sha256 of the file, to keep it by",
+                    "type": "string"
+                  },
+                  "type": {
+                    "description": "Always image/svg+xml",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name",
+                  "sha256",
+                  "bytes",
+                  "type",
+                  "accent"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "inputs": {
+                "description": "What setup.answer takes in values",
+                "items": {
+                  "additionalProperties": false,
+                  "description": "One item",
+                  "properties": {
+                    "ask": {
+                      "description": "A question of the running step that waits for its answer",
+                      "type": "boolean"
+                    },
+                    "max": {
+                      "description": "Largest number",
+                      "type": "number"
+                    },
+                    "min": {
+                      "description": "Least number",
+                      "type": "number"
+                    },
+                    "name": {
+                      "description": "Key in values",
+                      "type": "string"
+                    },
+                    "texts": {
+                      "description": "name, help and fix by language (de, en)",
+                      "type": "object"
+                    },
+                    "type": {
+                      "description": "choice or number",
+                      "enum": [
+                        "choice",
+                        "number"
+                      ],
+                      "type": "string"
+                    },
+                    "unit": {
+                      "description": "Unit of a number",
+                      "type": "string"
+                    },
+                    "value": {
+                      "description": "The value given last, null before"
+                    },
+                    "values": {
+                      "description": "Values of a choice",
+                      "items": {
+                        "additionalProperties": false,
+                        "description": "One item",
+                        "properties": {
+                          "id": {
+                            "description": "The value",
+                            "type": "string"
+                          },
+                          "texts": {
+                            "description": "name, help and fix by language (de, en)",
+                            "type": "object"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "texts"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "type",
+                    "ask",
+                    "value",
+                    "texts"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "kind": {
+                "description": "How to show it: confirm, input or measure; a kind the app does not know as text with a button",
+                "type": "string"
+              },
+              "mark": {
+                "description": "ids of robot_shape or of the app's derived parts (wheel_left, wheel_right, blade, antenna, contacts, outline) to highlight",
+                "items": {
+                  "description": "One item",
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "motion": {
+                "description": "What moves in the step, null for nothing",
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "needs": {
+                "description": "Steps that have to be ok before this one",
+                "items": {
+                  "description": "One item",
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "open": {
+                "description": "A screen of the app to open for it, null for none",
+                "enum": [
+                  "ntrip",
+                  "geometry",
+                  "recording",
+                  "dock",
+                  "map",
+                  "dock_test",
+                  "mow",
+                  null
+                ],
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "parts": {
+                "description": "Its parts, each with a tick of its own",
+                "items": {
+                  "additionalProperties": false,
+                  "description": "One item",
+                  "properties": {
+                    "id": {
+                      "description": "Name of the part",
+                      "type": "string"
+                    },
+                    "state": {
+                      "description": "waiting for the one to do now",
+                      "enum": [
+                        "open",
+                        "waiting",
+                        "ok",
+                        "failed"
+                      ],
+                      "type": "string"
+                    },
+                    "texts": {
+                      "description": "name, help and fix by language (de, en)",
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "state",
+                    "texts"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "progress": {
+                "additionalProperties": false,
+                "description": "Where a running step is, null without parts or rounds",
+                "properties": {
+                  "n": {
+                    "description": "The part or round now, from 1",
+                    "type": "integer"
+                  },
+                  "of": {
+                    "description": "How many there are",
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "n",
+                  "of"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "restart": {
+                "description": "Its result counts only after a restart of the OS, which the program asks for itself",
+                "type": "boolean"
+              },
+              "result": {
+                "additionalProperties": false,
+                "description": "How it ended the last time, null before",
+                "properties": {
+                  "attempt": {
+                    "description": "The attempt it ended",
+                    "type": "integer"
+                  },
+                  "firmware": {
+                    "description": "Firmware of the boards then, empty while unknown",
+                    "type": "string"
+                  },
+                  "message": {
+                    "description": "English text, null with ok",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "note": {
+                    "description": "The text of setup.skip",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "ok": {
+                    "description": "Passed",
+                    "type": "boolean"
+                  },
+                  "part": {
+                    "description": "The part it failed in",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "reason": {
+                    "description": "A reason of SETUP_STEP, null with ok",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "skip": {
+                    "description": "The reason of setup.skip of a skipped step",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "t": {
+                    "description": "When",
+                    "type": "number",
+                    "x-unit": "unix s"
+                  }
+                },
+                "required": [
+                  "ok",
+                  "reason",
+                  "message",
+                  "part",
+                  "skip",
+                  "note",
+                  "t",
+                  "attempt",
+                  "firmware"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
+              "skip_reasons": {
+                "description": "Reasons setup.skip takes",
+                "items": {
+                  "additionalProperties": false,
+                  "description": "One item",
+                  "properties": {
+                    "id": {
+                      "description": "Name of the reason",
+                      "type": "string"
+                    },
+                    "texts": {
+                      "description": "name, help and fix by language (de, en)",
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "texts"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "skippable": {
+                "description": "setup.skip takes it",
+                "type": "boolean"
+              },
+              "stage": {
+                "description": "Its stage",
+                "type": "string"
+              },
+              "start": {
+                "description": "setup.start begins it",
+                "type": "boolean"
+              },
+              "state": {
+                "description": "locked: a step of needs is not ok; open; running; ok; failed; skipped; stale",
+                "enum": [
+                  "locked",
+                  "open",
+                  "running",
+                  "ok",
+                  "failed",
+                  "skipped",
+                  "stale"
+                ],
+                "type": "string"
+              },
+              "symbol": {
+                "description": "A sign to draw without an image",
+                "enum": [
+                  "stop",
+                  "lift",
+                  "bumper",
+                  "wheels",
+                  "ground",
+                  "blade",
+                  "antenna",
+                  "dock",
+                  "board",
+                  "map",
+                  null
+                ],
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "texts": {
+                "description": "name, help and fix of the step by language (de, en); en is the one to fall back to",
+                "type": "object"
+              },
+              "values": {
+                "description": "What it measures, live while it runs and as it ended",
+                "items": {
+                  "additionalProperties": false,
+                  "description": "One item",
+                  "properties": {
+                    "id": {
+                      "description": "Name of the value",
+                      "type": "string"
+                    },
+                    "max": {
+                      "description": "Most allowed",
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "min": {
+                      "description": "Least allowed",
+                      "type": [
+                        "number",
+                        "null"
+                      ]
+                    },
+                    "ok": {
+                      "description": "Within its bounds; null before it is judged",
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "texts": {
+                      "description": "name, help and fix by language (de, en)",
+                      "type": "object"
+                    },
+                    "unit": {
+                      "description": "Unit of a number, empty for a text",
+                      "type": "string"
+                    },
+                    "value": {
+                      "description": "A number, a text, or null before the first reading"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "value",
+                    "unit",
+                    "min",
+                    "max",
+                    "ok",
+                    "texts"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "id",
+              "stage",
+              "check",
+              "kind",
+              "state",
+              "attempt",
+              "needs",
+              "blocked",
+              "motion",
+              "confirm",
+              "start",
+              "auto",
+              "skippable",
+              "skip_reasons",
+              "inputs",
+              "values",
+              "parts",
+              "progress",
+              "ends_at",
+              "open",
+              "image",
+              "symbol",
+              "mark",
+              "texts",
+              "result",
+              "restart"
+            ],
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "version": {
+          "description": "Goes up with every change of a step; setup.start, answer, skip and reset need the one read last",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "version",
+        "platform",
+        "catalog",
+        "stage",
+        "current",
+        "complete",
+        "safety",
+        "restart_pending",
+        "stages",
+        "steps"
+      ],
+      "type": "object"
+    },
+    "setup.abort.params": {
+      "additionalProperties": false,
+      "description": "The params of setup.abort: The step",
+      "properties": {
+        "step": {
+          "description": "The running step; none for whichever runs",
+          "type": "string"
+        }
+      },
+      "required": [],
+      "type": "object"
+    },
+    "setup.abort.result": {
+      "$ref": "#/$defs/setup",
+      "description": "The result of setup.abort: The state of the program after the call, as setup/json"
+    },
+    "setup.answer.params": {
+      "additionalProperties": false,
+      "description": "The params of setup.answer: The answer",
+      "properties": {
+        "step": {
+          "description": "id of the step",
+          "type": "string"
+        },
+        "values": {
+          "description": "Values by name of inputs[] of the step",
+          "type": "object"
+        },
+        "version": {
+          "description": "version of the state read last",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "step",
+        "version",
+        "values"
+      ],
+      "type": "object"
+    },
+    "setup.answer.result": {
+      "$ref": "#/$defs/setup",
+      "description": "The result of setup.answer: The state of the program after the call, as setup/json"
+    },
+    "setup.get.params": {
+      "description": "The params of setup.get: None",
+      "type": "object"
+    },
+    "setup.get.result": {
+      "$ref": "#/$defs/setup",
+      "description": "The result of setup.get: The state of the program after the call, as setup/json"
+    },
+    "setup.image.params": {
+      "additionalProperties": false,
+      "description": "The params of setup.image: The piece",
+      "properties": {
+        "name": {
+          "description": "name of image or image.accent of a step",
+          "type": "string"
+        },
+        "offset": {
+          "description": "Where the piece begins, 0 without",
+          "type": "integer",
+          "x-unit": "B"
+        },
+        "size": {
+          "description": "Its size at most, the whole image without",
+          "maximum": 65536.0,
+          "minimum": 1.0,
+          "type": "integer",
+          "x-unit": "B"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "setup.image.result": {
+      "additionalProperties": false,
+      "description": "The result of setup.image: The piece",
+      "properties": {
+        "data": {
+          "description": "The piece in base64, empty at the end",
+          "type": "string"
+        },
+        "offset": {
+          "description": "Where the piece begins",
+          "maximum": 65536.0,
+          "minimum": 0.0,
+          "type": "integer",
+          "x-unit": "B"
+        },
+        "sha256": {
+          "description": "sha256 of the whole image",
+          "type": "string"
+        },
+        "size": {
+          "description": "Size of the whole image",
+          "maximum": 65536.0,
+          "minimum": 0.0,
+          "type": "integer",
+          "x-unit": "B"
+        },
+        "type": {
+          "description": "Always image/svg+xml",
+          "type": "string"
+        }
+      },
+      "required": [
+        "size",
+        "offset",
+        "data",
+        "sha256",
+        "type"
+      ],
+      "type": "object"
+    },
+    "setup.reset.params": {
+      "additionalProperties": false,
+      "description": "The params of setup.reset: The version",
+      "properties": {
+        "version": {
+          "description": "version of the state read last",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "version"
+      ],
+      "type": "object"
+    },
+    "setup.reset.result": {
+      "$ref": "#/$defs/setup",
+      "description": "The result of setup.reset: The state of the program after the call, as setup/json"
+    },
+    "setup.skip.params": {
+      "additionalProperties": false,
+      "description": "The params of setup.skip: The step and why",
+      "properties": {
+        "note": {
+          "description": "Text of the user, needed with other; at most 200 characters",
+          "type": "string"
+        },
+        "reason": {
+          "description": "One of skip_reasons[] of the step",
+          "type": "string"
+        },
+        "step": {
+          "description": "id of the step",
+          "type": "string"
+        },
+        "version": {
+          "description": "version of the state read last",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "step",
+        "version",
+        "reason"
+      ],
+      "type": "object"
+    },
+    "setup.skip.result": {
+      "$ref": "#/$defs/setup",
+      "description": "The result of setup.skip: The state of the program after the call, as setup/json"
+    },
+    "setup.start.params": {
+      "additionalProperties": false,
+      "description": "The params of setup.start: The step",
+      "properties": {
+        "confirm": {
+          "description": "The points of confirm[] of the step the user confirmed",
+          "items": {
+            "description": "One item",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "step": {
+          "description": "id of the step",
+          "type": "string"
+        },
+        "version": {
+          "description": "version of the state read last",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "step",
+        "version"
+      ],
+      "type": "object"
+    },
+    "setup.start.result": {
+      "$ref": "#/$defs/setup",
+      "description": "The result of setup.start: The state of the program after the call, as setup/json"
     },
     "sound.delete.params": {
       "additionalProperties": false,
@@ -14313,11 +15391,11 @@
       "type": "object"
     }
   },
-  "$id": "urn:mowbite-os:api:38",
+  "$id": "urn:mowbite-os:api:42",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "description": "robot_state, actions, events and RPC methods of MowBite OS over MQTT, as system.api gives them; made from the code, objects sorted by key. x-reasons has severity and resume of every reason by event (COMMAND_REFUSED and REQUEST_REFUSED only in refusals; when: another rating for these field values; texts: name, help and fix by language; an enum field may carry the same by value as x-texts), x-emergency-bits the bits of emergency, x-commands the commands with params, result, the event of their refusal and the actions that do the same, x-methods every RPC method of the OS with its node (planner.* are the planner's, sim.* only in the simulation), x-sensors the sensors by id, x-settings the settings of params.set with the ranges of the OS, x-geometry the keys of robot.geometry, x-schedule-log the words of schedule.log with what detail and more hold (null: always null). x-api counts every change, x-api-break only the breaks: a method, field, event, reason or topic gone or renamed, a type or meaning changed, a parameter newly required, fewer values taken in a request, an event a client waits for no longer sent. All else only adds; a client goes with every x-api of its x-api-break from the one it needs on.",
+  "description": "robot_state, actions, events and RPC methods of MowBite OS over MQTT, as system.api gives them; made from the code, objects sorted by key. x-reasons has severity and resume of every reason by event (COMMAND_REFUSED and REQUEST_REFUSED only in refusals; when: another rating for these field values; texts: name, help and fix by language; an enum field may carry the same by value as x-texts), x-emergency-bits the bits of emergency, x-commands the commands with params, result, the event of their refusal and the actions that do the same, x-methods every RPC method of the OS with its node (planner.* are the planner's, sim.* only in the simulation), x-sensors the sensors by id, x-settings the settings of params.set with the ranges of the OS, x-geometry the keys of robot.geometry, x-schedule-log the words of schedule.log with what detail and more hold (null: always null), x-setup the setup program. x-api counts every change, x-api-break only the breaks: a method, field, event, reason or topic gone or renamed, a type or meaning changed, a parameter newly required, fewer values taken in a request, an event a client waits for no longer sent. All else only adds; a client goes with every x-api of its x-api-break from the one it needs on.",
   "title": "MowBite OS app interface",
-  "x-api": 38,
+  "x-api": 42,
   "x-api-break": 1,
   "x-commands": {
     "docking.abort": {
@@ -14495,7 +15573,7 @@
           "params": {}
         }
       ],
-      "description": "Records a point of the docking station: first in front of it, then on the contacts; DOCK_RECORDED follows",
+      "description": "Records a point of the docking station: first in front of it, then on the contacts, where base_link of the docked mower becomes the position of the station; DOCK_RECORDED follows",
       "params": "#/$defs/recording.dock.params",
       "refused": "RECORDING_REFUSED",
       "result": "#/$defs/recording.dock.result"
@@ -14854,6 +15932,12 @@
       "relative": false,
       "settable": true,
       "type": "number",
+      "unit": "m"
+    },
+    "robot_shape": {
+      "description": "How the mower looks from above, for the app to draw: parts {id, kind, points [x, y], closed} in the order to draw them, at most 32 parts, 200 points a part and 1000 in all; kind as x-setup.shape_kinds; [] for a platform without one. Shown only: robot_outline stays the body the mower drives and plans with",
+      "settable": false,
+      "type": "shape",
       "unit": "m"
     },
     "robot_width": {
@@ -15261,7 +16345,7 @@
       "result": "#/$defs/recording.discard.result"
     },
     "recording.dock": {
-      "description": "Records a point of the docking station: first in front of it, then on the contacts; DOCK_RECORDED follows",
+      "description": "Records a point of the docking station: first in front of it, then on the contacts, where base_link of the docked mower becomes the position of the station; DOCK_RECORDED follows",
       "node": "mowbite_logic",
       "offered": "",
       "params": "#/$defs/recording.dock.params",
@@ -15324,7 +16408,7 @@
       "result": "#/$defs/robot.geometry.get.result"
     },
     "robot.geometry.set": {
-      "description": "Changes dimensions in IDLE, all or nothing; GEOMETRY_CHANGED follows. A body that leaves out the drive wheels (track, wheel_width, wheel_radius) is refused with WHEELS_OUTSIDE",
+      "description": "Changes dimensions in IDLE, all or nothing; GEOMETRY_CHANGED follows. A body that leaves out the drive wheels (track, wheel_width, wheel_radius) is refused with WHEELS_OUTSIDE; one that leaves out a part of robot_shape counts, and GEOMETRY_CHANGED warns with SHAPE_OUTSIDE",
       "node": "mowbite_logic",
       "offered": "",
       "params": "#/$defs/robot.geometry.set.params",
@@ -15385,6 +16469,55 @@
       "offered": "",
       "params": "#/$defs/sensors.list.params",
       "result": "#/$defs/sensors.list.result"
+    },
+    "setup.abort": {
+      "description": "Ends the running step with STOPPED; nothing happens without one",
+      "node": "mowbite_setup",
+      "offered": "where the platform has a step list (setup/setup.yaml)",
+      "params": "#/$defs/setup.abort.params",
+      "result": "#/$defs/setup.abort.result"
+    },
+    "setup.answer": {
+      "description": "Gives the inputs of a step: a choice, a number, the answer to a question",
+      "node": "mowbite_setup",
+      "offered": "where the platform has a step list (setup/setup.yaml)",
+      "params": "#/$defs/setup.answer.params",
+      "result": "#/$defs/setup.answer.result"
+    },
+    "setup.get": {
+      "description": "The state of the setup program: the steps of the platform with their texts",
+      "node": "mowbite_setup",
+      "offered": "where the platform has a step list (setup/setup.yaml)",
+      "params": "#/$defs/setup.get.params",
+      "result": "#/$defs/setup.get.result"
+    },
+    "setup.image": {
+      "description": "An image of a step in pieces of at most 65536 bytes",
+      "node": "mowbite_setup",
+      "offered": "where the platform has a step list (setup/setup.yaml)",
+      "params": "#/$defs/setup.image.params",
+      "result": "#/$defs/setup.image.result"
+    },
+    "setup.reset": {
+      "description": "Takes every result back: all steps are open again, the record starts anew",
+      "node": "mowbite_setup",
+      "offered": "where the platform has a step list (setup/setup.yaml)",
+      "params": "#/$defs/setup.reset.params",
+      "result": "#/$defs/setup.reset.result"
+    },
+    "setup.skip": {
+      "description": "Skips a step that is skippable; it can be done later all the same. A skipped check never opens the lock of the safety measurement",
+      "node": "mowbite_setup",
+      "offered": "where the platform has a step list (setup/setup.yaml)",
+      "params": "#/$defs/setup.skip.params",
+      "result": "#/$defs/setup.skip.result"
+    },
+    "setup.start": {
+      "description": "Begins a step whose start is true, or repeats one that ended; a step of the check confirm ends with it. SETUP_STEP follows when it ends",
+      "node": "mowbite_setup",
+      "offered": "where the platform has a step list (setup/setup.yaml)",
+      "params": "#/$defs/setup.start.params",
+      "result": "#/$defs/setup.start.result"
     },
     "sound.delete": {
       "description": "Deletes the upload of a situation, so that the vendor's sound plays again, or none without one; nothing to delete is no error. -32004 while an update holds the mower",
@@ -16659,6 +17792,24 @@
         "fields": {},
         "resume": "user",
         "severity": "error"
+      },
+      "TURN_SLIDE": {
+        "description": "Turning on the spot, the mower slid too far from its place",
+        "fields": {},
+        "resume": "user",
+        "severity": "error",
+        "texts": {
+          "de": {
+            "fix": "Fortsetzen, wenn es trockener ist, oder die Stelle auslassen.",
+            "help": "Auf nassem Rasen oder am Hang können die Räder beim Drehen auf der Stelle rutschen. Der Mäher kam dabei zu weit von seinem Platz.",
+            "name": "Beim Drehen auf der Stelle weggerutscht"
+          },
+          "en": {
+            "fix": "Continue once it's drier, or leave out that spot.",
+            "help": "On wet grass or a slope the wheels can slip while the mower turns on the spot. It got too far from its place.",
+            "name": "Slid away while turning on the spot"
+          }
+        }
       }
     },
     "DRIVE_REFUSED": {
@@ -16952,6 +18103,24 @@
         "fields": {},
         "resume": "user",
         "severity": "warning"
+      },
+      "SHAPE_OUTSIDE": {
+        "description": "The body leaves out a part of the shape of the mower: check the outline",
+        "fields": {},
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Den Umriss nachmessen und so eintragen, dass er alle Teile des Mähers umschließt.",
+            "help": "Der eingegebene Umriss lässt Teile des Mähers aus. Der Mäher plant und fährt mit dem Umriss und kann mit dem überstehenden Teil anstoßen.",
+            "name": "Umriss kleiner als der Mäher"
+          },
+          "en": {
+            "fix": "Measure the outline again and enter it so that it covers every part of the mower.",
+            "help": "The outline entered leaves out parts of the mower. The mower plans and drives with the outline and may touch things with the part that sticks out.",
+            "name": "Outline smaller than the mower"
+          }
+        }
       }
     },
     "HOST_OS": {
@@ -17045,6 +18214,24 @@
             "fix": "Go back to the version before or install MowBite OS again.",
             "help": "The profile the parts of MowBite OS use to talk to each other is missing or unreadable.",
             "name": "Network profile missing"
+          }
+        }
+      },
+      "PLATFORM_CONFIG": {
+        "description": "The platform leaves a value of the parameter files unset, it does not start",
+        "fields": {},
+        "resume": "user",
+        "severity": "error",
+        "texts": {
+          "de": {
+            "fix": "Zur vorigen Version zurück und das Protokoll für eine Meldung sichern.",
+            "help": "In den Werten dieses Mähermodells fehlen Pflichtangaben, MowBite OS startet nicht.",
+            "name": "Plattformwerte fehlen"
+          },
+          "en": {
+            "fix": "Go back to the version before and keep the log for a report.",
+            "help": "Required values of this mower model are missing, MowBite OS does not start.",
+            "name": "Platform values missing"
           }
         }
       },
@@ -17610,6 +18797,521 @@
         "severity": "error"
       }
     },
+    "SETUP_BLOCKED": {
+      "BUSY": {
+        "description": "Another step runs, or the mower is not idle",
+        "fields": {
+          "state": "",
+          "step": ""
+        },
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Den laufenden Schritt beenden oder warten, bis der Mäher steht.",
+            "help": "Ein anderer Schritt läuft noch, oder der Mäher ist gerade unterwegs.",
+            "name": "Gerade nicht möglich"
+          },
+          "en": {
+            "fix": "End the running step or wait until the mower stands.",
+            "help": "Another step is still running, or the mower is on its way.",
+            "name": "Not possible right now"
+          }
+        }
+      },
+      "DRIVER_MISSING": {
+        "description": "The driver of the platform reports no status",
+        "fields": {},
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Mäher einschalten, Kabel zur Platine prüfen, dann wiederholen.",
+            "help": "Der Mäher bekommt keine Daten von seiner Platine. Ohne sie lässt sich nichts prüfen.",
+            "name": "Platine antwortet nicht"
+          },
+          "en": {
+            "fix": "Switch the mower on, check the cable to the board, then try again.",
+            "help": "The mower gets no data from its board, so nothing can be checked.",
+            "name": "Board not answering"
+          }
+        }
+      },
+      "EMERGENCY": {
+        "description": "The emergency of the part before is still latched",
+        "fields": {},
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Den Notaus in der App aufheben.",
+            "help": "Der Notaus vom letzten Handgriff steht noch. Erst danach zählt der nächste.",
+            "name": "Notaus aufheben"
+          },
+          "en": {
+            "fix": "Release the emergency stop in the app.",
+            "help": "The emergency stop of the last action is still on. The next one counts only after it.",
+            "name": "Release the emergency stop"
+          }
+        }
+      },
+      "INPUT_ACTIVE": {
+        "description": "The input of the part is switched already",
+        "fields": {},
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Taste, Stoßfänger oder Mäher loslassen bzw. absetzen.",
+            "help": "Der Eingang ist schon ausgelöst. Der Handgriff zählt erst, wenn er vorher in Ruhe war.",
+            "name": "Eingang loslassen"
+          },
+          "en": {
+            "fix": "Let go of the button or bumper, or put the mower down.",
+            "help": "The input is switched already. The action counts only once it was at rest before.",
+            "name": "Let go of the input"
+          }
+        }
+      },
+      "NO_DATA": {
+        "description": "A source the step needs sends nothing",
+        "fields": {
+          "source": ""
+        },
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Mäher einschalten und die Kabel prüfen.",
+            "help": "Lagesensor oder GPS liefern gerade keine Daten.",
+            "name": "Keine Daten"
+          },
+          "en": {
+            "fix": "Switch the mower on and check the cables.",
+            "help": "Motion sensor or GPS send no data right now.",
+            "name": "No data"
+          }
+        }
+      },
+      "STORAGE_NOT_WRITABLE": {
+        "description": "setup.json in data_dir cannot be written",
+        "fields": {
+          "file": ""
+        },
+        "resume": "user",
+        "severity": "error",
+        "texts": {
+          "de": {
+            "fix": "Speicher des Mähers prüfen, dann MowBite OS neu starten.",
+            "help": "Der Mäher kann den Stand der Einrichtung nicht speichern.",
+            "name": "Speicher nicht beschreibbar"
+          },
+          "en": {
+            "fix": "Check the storage of the mower, then restart MowBite OS.",
+            "help": "The mower can't save the state of the setup.",
+            "name": "Storage not writable"
+          }
+        }
+      }
+    },
+    "SETUP_REFUSED": {
+      "BUSY": {
+        "description": "Another step runs, or the mower is not idle",
+        "fields": {
+          "state": "",
+          "step": ""
+        },
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Den laufenden Schritt beenden oder warten, bis der Mäher steht.",
+            "help": "Ein anderer Schritt läuft noch, oder der Mäher ist gerade unterwegs.",
+            "name": "Gerade nicht möglich"
+          },
+          "en": {
+            "fix": "End the running step or wait until the mower stands.",
+            "help": "Another step is still running, or the mower is on its way.",
+            "name": "Not possible right now"
+          }
+        }
+      },
+      "CONFIRM_MISSING": {
+        "description": "setup.start does not name every point of confirm[] of the step",
+        "fields": {
+          "missing": ""
+        },
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Alle Punkte prüfen und bestätigen.",
+            "help": "Vor dem Start müssen alle Punkte bestätigt sein.",
+            "name": "Bestätigung fehlt"
+          },
+          "en": {
+            "fix": "Check and confirm every point.",
+            "help": "Every point has to be confirmed before the start.",
+            "name": "Confirmation missing"
+          }
+        }
+      },
+      "DRIVER_MISSING": {
+        "description": "The driver of the platform reports no status",
+        "fields": {},
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Mäher einschalten, Kabel zur Platine prüfen, dann wiederholen.",
+            "help": "Der Mäher bekommt keine Daten von seiner Platine. Ohne sie lässt sich nichts prüfen.",
+            "name": "Platine antwortet nicht"
+          },
+          "en": {
+            "fix": "Switch the mower on, check the cable to the board, then try again.",
+            "help": "The mower gets no data from its board, so nothing can be checked.",
+            "name": "Board not answering"
+          }
+        }
+      },
+      "INVALID_VALUE": {
+        "description": "A value of setup.answer or the reason of setup.skip is not one the step takes",
+        "fields": {
+          "name": ""
+        },
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Einen Wert aus dem angezeigten Bereich wählen.",
+            "help": "Der eingegebene Wert passt nicht zu diesem Schritt.",
+            "name": "Wert ungültig"
+          },
+          "en": {
+            "fix": "Pick a value from the range shown.",
+            "help": "The value entered doesn't fit this step.",
+            "name": "Invalid value"
+          }
+        }
+      },
+      "LOCKED": {
+        "description": "A step this one needs is not ok",
+        "fields": {
+          "needs": ""
+        },
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Zuerst den genannten Schritt abschließen.",
+            "help": "Dieser Schritt braucht zuerst einen anderen bestandenen Schritt.",
+            "name": "Noch gesperrt"
+          },
+          "en": {
+            "fix": "Finish the step named first.",
+            "help": "This step needs another step passed first.",
+            "name": "Still locked"
+          }
+        }
+      },
+      "NOT_SKIPPABLE": {
+        "description": "The step cannot be skipped",
+        "fields": {},
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Den Schritt ausführen.",
+            "help": "Dieser Schritt lässt sich nicht überspringen.",
+            "name": "Nicht überspringbar"
+          },
+          "en": {
+            "fix": "Do the step.",
+            "help": "This step can't be skipped.",
+            "name": "Can't be skipped"
+          }
+        }
+      },
+      "STORAGE_NOT_WRITABLE": {
+        "description": "setup.json in data_dir cannot be written",
+        "fields": {
+          "file": ""
+        },
+        "resume": "user",
+        "severity": "error",
+        "texts": {
+          "de": {
+            "fix": "Speicher des Mähers prüfen, dann MowBite OS neu starten.",
+            "help": "Der Mäher kann den Stand der Einrichtung nicht speichern.",
+            "name": "Speicher nicht beschreibbar"
+          },
+          "en": {
+            "fix": "Check the storage of the mower, then restart MowBite OS.",
+            "help": "The mower can't save the state of the setup.",
+            "name": "Storage not writable"
+          }
+        }
+      },
+      "UNKNOWN_STEP": {
+        "description": "The step list has no step of this name",
+        "fields": {
+          "step": ""
+        },
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Die Einrichtung neu öffnen.",
+            "help": "Diesen Schritt gibt es auf diesem Mäher nicht.",
+            "name": "Schritt unbekannt"
+          },
+          "en": {
+            "fix": "Open the setup again.",
+            "help": "This mower has no such step.",
+            "name": "Unknown step"
+          }
+        }
+      },
+      "VERSION": {
+        "description": "The state changed since the version the call names",
+        "fields": {
+          "version": ""
+        },
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Die Ansicht aktualisieren und es noch einmal versuchen.",
+            "help": "Die Einrichtung hat sich inzwischen geändert.",
+            "name": "Stand veraltet"
+          },
+          "en": {
+            "fix": "Refresh the view and try again.",
+            "help": "The setup changed in the meantime.",
+            "name": "State out of date"
+          }
+        }
+      },
+      "WRONG_METHOD": {
+        "description": "The step is not done with this method: see start and inputs of the step",
+        "fields": {},
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Die Einrichtung neu öffnen und der Anzeige folgen.",
+            "help": "Dieser Schritt wird auf andere Weise erledigt.",
+            "name": "So nicht möglich"
+          },
+          "en": {
+            "fix": "Open the setup again and follow what it shows.",
+            "help": "This step is done another way.",
+            "name": "Not possible this way"
+          }
+        }
+      }
+    },
+    "SETUP_STEP": {
+      "INTERRUPTED": {
+        "description": "The OS restarted while the step ran",
+        "fields": {},
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Den Schritt erneut starten.",
+            "help": "MowBite OS wurde neu gestartet, während der Schritt lief.",
+            "name": "Unterbrochen"
+          },
+          "en": {
+            "fix": "Start the step again.",
+            "help": "MowBite OS restarted while the step ran.",
+            "name": "Interrupted"
+          }
+        }
+      },
+      "LIMIT": {
+        "description": "A value is outside of its bounds",
+        "fields": {
+          "limit": "",
+          "unit": "",
+          "value": "",
+          "value_id": ""
+        },
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Die Ursache am genannten Wert beheben, dann den Schritt wiederholen.",
+            "help": "Ein Messwert liegt außerhalb seiner Grenze. Die Liste der Werte zeigt, welcher.",
+            "name": "Wert außerhalb"
+          },
+          "en": {
+            "fix": "Fix the cause at the value named, then repeat the step.",
+            "help": "A value is outside of its bound. The list of values shows which.",
+            "name": "Value out of bounds"
+          }
+        }
+      },
+      "NOT_SEEN": {
+        "description": "The OS did not see what the part asked for within its time",
+        "fields": {
+          "part": ""
+        },
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Stecker und Kabel prüfen, den Handgriff deutlich ausführen und den Schritt wiederholen.",
+            "help": "Der Mäher hat den Handgriff nicht bemerkt. Der Sensor oder sein Kabel meldet nichts.",
+            "name": "Nichts gesehen"
+          },
+          "en": {
+            "fix": "Check plug and cable, do the action clearly and repeat the step.",
+            "help": "The mower didn't notice the action. The sensor or its cable reports nothing.",
+            "name": "Nothing seen"
+          }
+        }
+      },
+      "NO_DATA": {
+        "description": "A source the step needs sent nothing",
+        "fields": {
+          "source": ""
+        },
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Mäher einschalten, Kabel prüfen, dann wiederholen.",
+            "help": "Der Mäher bekommt für diesen Schritt keine Daten von Platine, Lagesensor oder GPS.",
+            "name": "Keine Daten"
+          },
+          "en": {
+            "fix": "Switch the mower on, check the cables, then repeat.",
+            "help": "The mower gets no data from board, motion sensor or GPS for this step.",
+            "name": "No data"
+          }
+        }
+      },
+      "NO_EMERGENCY": {
+        "description": "The input switched, but the emergency of the step did not follow within its limit",
+        "fields": {
+          "limit": "s",
+          "part": ""
+        },
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Den Mäher nicht fahren lassen. Zuordnung und Einstellung des Eingangs prüfen, dann wiederholen.",
+            "help": "Der Eingang hat geschaltet, aber der Mäher hat nicht rechtzeitig den Notaus gemeldet. So würde er im Betrieb nicht anhalten.",
+            "name": "Kein Notaus"
+          },
+          "en": {
+            "fix": "Don't let the mower drive. Check how the input is assigned and set, then repeat.",
+            "help": "The input switched, but the mower didn't report the emergency stop in time. It wouldn't stop like this in use.",
+            "name": "No emergency stop"
+          }
+        }
+      },
+      "NO_RTK": {
+        "description": "No position of the solution, accuracy and rate asked for within the timeout",
+        "fields": {},
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Freie Sicht zum Himmel schaffen, Korrekturdaten prüfen, dann wiederholen.",
+            "help": "Der Mäher hat in der Zeit keine genaue Position bekommen.",
+            "name": "Keine genaue Position"
+          },
+          "en": {
+            "fix": "Give it a free view of the sky, check the correction data, then repeat.",
+            "help": "The mower didn't get an exact position in time.",
+            "name": "No exact position"
+          }
+        }
+      },
+      "STOPPED": {
+        "description": "Ended with setup.abort",
+        "fields": {},
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Den Schritt erneut starten.",
+            "help": "Der Schritt wurde abgebrochen.",
+            "name": "Abgebrochen"
+          },
+          "en": {
+            "fix": "Start the step again.",
+            "help": "The step was stopped.",
+            "name": "Stopped"
+          }
+        }
+      },
+      "STOPPED_EARLY": {
+        "description": "A short switch of the input brought the emergency already",
+        "fields": {
+          "part": ""
+        },
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Die Verzögerung des Eingangs prüfen, dann wiederholen.",
+            "help": "Schon ein kurzes Auslösen hat den Notaus gebracht. Im Betrieb würde der Mäher bei jeder Unebenheit stehen bleiben.",
+            "name": "Stoppt zu früh"
+          },
+          "en": {
+            "fix": "Check the delay of the input, then repeat.",
+            "help": "A short trigger brought the emergency stop already. In use the mower would stop at every bump.",
+            "name": "Stops too early"
+          }
+        }
+      },
+      "WRONG_INPUT": {
+        "description": "Another input switched than the one the part asked for",
+        "fields": {
+          "part": "",
+          "seen": ""
+        },
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Anschlüsse der Sensoren prüfen, dann den Schritt wiederholen.",
+            "help": "Statt des erwarteten Eingangs hat ein anderer geschaltet. Die Sensoren sind vertauscht angeschlossen oder falsch zugeordnet.",
+            "name": "Anderer Eingang"
+          },
+          "en": {
+            "fix": "Check where the sensors are plugged in, then repeat the step.",
+            "help": "Another input switched than the one expected. The sensors are plugged in the wrong way round or assigned wrongly.",
+            "name": "Another input"
+          }
+        }
+      },
+      "WRONG_SIGN": {
+        "description": "The IMU showed the move the other way round",
+        "fields": {
+          "part": ""
+        },
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Die Einbaulage des Sensors in den Einstellungen der Plattform ändern, dann wiederholen.",
+            "help": "Der Lagesensor hat die Bewegung in die andere Richtung gemeldet. Er ist anders eingebaut als eingestellt.",
+            "name": "Falsche Richtung"
+          },
+          "en": {
+            "fix": "Change the mounting of the sensor in the settings of the platform, then repeat.",
+            "help": "The motion sensor reported the move the other way round. It is mounted another way than set.",
+            "name": "Wrong direction"
+          }
+        }
+      }
+    },
     "SOUND_REFUSED": {
       "BUSY": {
         "description": "The mower is busy with something else",
@@ -17964,6 +19666,24 @@
         "fields": {},
         "resume": "user",
         "severity": "error"
+      },
+      "TURN_SLIDE": {
+        "description": "Turning on the spot, the mower slid too far from its place",
+        "fields": {},
+        "resume": "user",
+        "severity": "error",
+        "texts": {
+          "de": {
+            "fix": "Fortsetzen, wenn es trockener ist, oder die Stelle auslassen.",
+            "help": "Auf nassem Rasen oder am Hang können die Räder beim Drehen auf der Stelle rutschen. Der Mäher kam dabei zu weit von seinem Platz.",
+            "name": "Beim Drehen auf der Stelle weggerutscht"
+          },
+          "en": {
+            "fix": "Continue once it's drier, or leave out that spot.",
+            "help": "On wet grass or a slope the wheels can slip while the mower turns on the spot. It got too far from its place.",
+            "name": "Slid away while turning on the spot"
+          }
+        }
       }
     },
     "STORAGE": {
@@ -18463,6 +20183,24 @@
             "fix": "Install a matching version of the planner or of MowBite OS.",
             "help": "This version of the planner speaks another interface than the MowBite OS that is installed and is not used.",
             "name": "Planner doesn't match"
+          }
+        }
+      },
+      "PLATFORM_MISMATCH": {
+        "description": "The update is built for other platforms than the one of this mower",
+        "fields": {},
+        "resume": "user",
+        "severity": "error",
+        "texts": {
+          "de": {
+            "fix": "Ein Update für dieses Mähermodell verwenden.",
+            "help": "Dieses Update ist für ein anderes Mähermodell gebaut und wird nicht installiert.",
+            "name": "Update passt nicht zu diesem Mäher"
+          },
+          "en": {
+            "fix": "Use an update for this mower model.",
+            "help": "This update is built for another mower model and is not installed.",
+            "name": "Update is for another mower"
           }
         }
       },
@@ -19110,5 +20848,1225 @@
       "type": "number",
       "unit": "m"
     }
+  },
+  "x-setup": {
+    "checks": {
+      "board": {
+        "auto": true,
+        "description": "The driver reports for time: status at its rate, firmware known and compatible, no errors on the link, no input switched, motor controllers ok, battery read, and with imu gravity within 8.8 and 10.8 m/s². Nothing moves",
+        "kind": "measure",
+        "params": {
+          "battery": {
+            "default": 0.0,
+            "description": "Charge of the battery at least; 0 only asks for a reading",
+            "max": 100.0,
+            "min": 0.0,
+            "required": false,
+            "type": "number",
+            "unit": "%"
+          },
+          "imu": {
+            "description": "yes to check gravity on imu/data",
+            "required": false,
+            "type": "text",
+            "values": [
+              "yes",
+              "no"
+            ]
+          },
+          "link_errors": {
+            "default": 0.0,
+            "description": "Errors on the link to the board at most, in time",
+            "max": 100.0,
+            "min": 0.0,
+            "required": false,
+            "type": "number",
+            "unit": ""
+          },
+          "status_rate": {
+            "default": 8.0,
+            "description": "hw/status at least this often",
+            "max": 50.0,
+            "min": 1.0,
+            "required": false,
+            "type": "number",
+            "unit": "Hz"
+          },
+          "time": {
+            "default": 5.0,
+            "description": "How long it watches",
+            "max": 30.0,
+            "min": 1.0,
+            "required": false,
+            "type": "number",
+            "unit": "s"
+          }
+        },
+        "reasons": [
+          "NO_DATA",
+          "LIMIT",
+          "STOPPED",
+          "INTERRUPTED"
+        ],
+        "start": true,
+        "texts": {
+          "de": {
+            "fix": "Den Mäher einschalten und frei hinstellen, keine Taste drücken, dann wiederholen.",
+            "help": "Der Mäher prüft, ob seine Platine antwortet, die Firmware passt und Sensoren, Regler und Akku Werte liefern. Dabei bewegt sich nichts.",
+            "name": "Platine und Sensoren"
+          },
+          "en": {
+            "fix": "Switch the mower on, let it stand free, press no button, then try again.",
+            "help": "The mower checks that its board answers, the firmware fits and sensors, motor controllers and battery report. Nothing moves.",
+            "name": "Board and sensors"
+          }
+        },
+        "values": {
+          "battery": {
+            "description": "Charge of the battery",
+            "texts": {
+              "de": {
+                "fix": "",
+                "help": "",
+                "name": "Akku"
+              },
+              "en": {
+                "fix": "",
+                "help": "",
+                "name": "Battery"
+              }
+            },
+            "unit": "%"
+          },
+          "firmware": {
+            "description": "Firmware of every board, as hw/capabilities names it",
+            "texts": {
+              "de": {
+                "fix": "",
+                "help": "",
+                "name": "Firmware"
+              },
+              "en": {
+                "fix": "",
+                "help": "",
+                "name": "Firmware"
+              }
+            },
+            "unit": ""
+          },
+          "gravity": {
+            "description": "Gravity the IMU reads at rest",
+            "texts": {
+              "de": {
+                "fix": "",
+                "help": "",
+                "name": "Lagesensor in Ruhe"
+              },
+              "en": {
+                "fix": "",
+                "help": "",
+                "name": "Motion sensor at rest"
+              }
+            },
+            "unit": "m/s²"
+          },
+          "inputs": {
+            "description": "Inputs that are switched, none for ok",
+            "texts": {
+              "de": {
+                "fix": "",
+                "help": "",
+                "name": "Eingänge in Ruhe"
+              },
+              "en": {
+                "fix": "",
+                "help": "",
+                "name": "Inputs at rest"
+              }
+            },
+            "unit": ""
+          },
+          "link_errors": {
+            "description": "Errors on the link in time",
+            "texts": {
+              "de": {
+                "fix": "",
+                "help": "",
+                "name": "Fehler auf der Leitung"
+              },
+              "en": {
+                "fix": "",
+                "help": "",
+                "name": "Errors on the link"
+              }
+            },
+            "unit": ""
+          },
+          "motors": {
+            "description": "Motor controllers that are not ok, none for ok",
+            "texts": {
+              "de": {
+                "fix": "",
+                "help": "",
+                "name": "Regler"
+              },
+              "en": {
+                "fix": "",
+                "help": "",
+                "name": "Motor controllers"
+              }
+            },
+            "unit": ""
+          },
+          "status_rate": {
+            "description": "Rate of hw/status",
+            "texts": {
+              "de": {
+                "fix": "",
+                "help": "",
+                "name": "Meldungen der Platine"
+              },
+              "en": {
+                "fix": "",
+                "help": "",
+                "name": "Reports of the board"
+              }
+            },
+            "unit": "Hz"
+          }
+        }
+      },
+      "choice": {
+        "auto": false,
+        "description": "One of the values, given with setup.answer under the name of the input; kept in the record of the program",
+        "kind": "input",
+        "params": {
+          "name": {
+            "description": "Name of the input in setup.answer",
+            "required": true,
+            "type": "text"
+          },
+          "values": {
+            "description": "The values to choose from, their texts in value_texts of the step",
+            "required": true,
+            "type": "list"
+          }
+        },
+        "reasons": [],
+        "start": false,
+        "values": {}
+      },
+      "confirm": {
+        "auto": false,
+        "description": "The user confirms what the step says: setup.start with every point of confirm[] ends it",
+        "kind": "confirm",
+        "params": {},
+        "reasons": [],
+        "start": true,
+        "values": {}
+      },
+      "done_when": {
+        "auto": true,
+        "description": "Done as soon as the OS sees its condition, see conditions; the app opens the screen open names. Texts of the step by its condition",
+        "kind": "confirm",
+        "params": {
+          "condition": {
+            "description": "What it waits for",
+            "required": true,
+            "type": "text",
+            "values": [
+              "ntrip",
+              "station",
+              "area",
+              "dock_test",
+              "mow"
+            ]
+          }
+        },
+        "reasons": [],
+        "start": false,
+        "values": {}
+      },
+      "geometry": {
+        "auto": true,
+        "description": "Done once every key of keys is confirmed in robot.geometry (robot.geometry.set with a value or with confirm); the app opens its screen of the dimensions",
+        "kind": "input",
+        "params": {
+          "keys": {
+            "description": "Keys of x-geometry the user can set; none for all of them",
+            "required": false,
+            "type": "list"
+          }
+        },
+        "reasons": [],
+        "start": false,
+        "texts": {
+          "de": {
+            "fix": "Nachmessen und den Wert eintragen; alle Maße gelten ab der Mitte der Antriebsachse.",
+            "help": "Die Maße des Mähers auf der Zeichnung prüfen und bestätigen oder ändern. Mit ihnen plant und fährt der Mäher.",
+            "name": "Maße prüfen"
+          },
+          "en": {
+            "fix": "Measure again and enter the value; all dimensions count from the middle of the drive axle.",
+            "help": "Check the dimensions of the mower on the drawing and confirm or change them. The mower plans and drives with them.",
+            "name": "Check the dimensions"
+          }
+        },
+        "values": {}
+      },
+      "imu": {
+        "auto": true,
+        "description": "The mower is moved by hand, part by part, see moves: the IMU has to show each move with its sign",
+        "kind": "measure",
+        "params": {
+          "tilt": {
+            "default": 10.0,
+            "description": "How far a side goes up",
+            "max": 25.0,
+            "min": 5.0,
+            "required": false,
+            "type": "number",
+            "unit": "deg"
+          },
+          "time": {
+            "default": 60.0,
+            "description": "Each part is done within this time",
+            "max": 300.0,
+            "min": 5.0,
+            "required": false,
+            "type": "number",
+            "unit": "s"
+          },
+          "turn": {
+            "default": 30.0,
+            "description": "How far the mower turns",
+            "max": 90.0,
+            "min": 10.0,
+            "required": false,
+            "type": "number",
+            "unit": "deg"
+          }
+        },
+        "reasons": [
+          "NOT_SEEN",
+          "WRONG_SIGN",
+          "NO_EMERGENCY",
+          "NO_DATA",
+          "STOPPED",
+          "INTERRUPTED"
+        ],
+        "start": true,
+        "texts": {
+          "de": {
+            "fix": "Stimmt eine Richtung nicht, ist der Sensor anders eingebaut als eingestellt: die Einbaulage in den Einstellungen der Plattform prüfen.",
+            "help": "Den Mäher von Hand kippen und drehen, wie angezeigt. So zeigt sich, ob der Sensor richtig herum eingebaut ist.",
+            "name": "Lagesensor"
+          },
+          "en": {
+            "fix": "If a direction is wrong, the sensor is mounted another way than set: check its mounting in the settings of the platform.",
+            "help": "Tilt and turn the mower by hand as shown. This shows whether the sensor is mounted the right way round.",
+            "name": "Motion sensor"
+          }
+        },
+        "values": {
+          "angle": {
+            "description": "The angle reached, one value by part with the id of the part",
+            "unit": "deg"
+          }
+        }
+      },
+      "input": {
+        "auto": true,
+        "description": "One input of hw/status by hand, part by part: each part of mode press or short, see modes. Texts of the step by its role",
+        "kind": "measure",
+        "params": {
+          "emergency": {
+            "description": "The emergency a press brings, by default STOP, LIFT or COLLISION as the role says",
+            "required": false,
+            "type": "text",
+            "values": [
+              "STOP",
+              "LIFT",
+              "COLLISION",
+              "NONE"
+            ]
+          },
+          "role": {
+            "description": "The input",
+            "required": true,
+            "type": "text",
+            "values": [
+              "stop",
+              "lift",
+              "bumper",
+              "bumper_left",
+              "bumper_right"
+            ]
+          },
+          "short_max": {
+            "default": 0.5,
+            "description": "A part of mode short switches for less than this",
+            "max": 5.0,
+            "min": 0.1,
+            "required": false,
+            "type": "number",
+            "unit": "s"
+          },
+          "time": {
+            "default": 60.0,
+            "description": "Each part is done within this time",
+            "max": 300.0,
+            "min": 5.0,
+            "required": false,
+            "type": "number",
+            "unit": "s"
+          },
+          "within": {
+            "default": 1.0,
+            "description": "The emergency follows the input within this time",
+            "max": 10.0,
+            "min": 0.05,
+            "required": false,
+            "type": "number",
+            "unit": "s"
+          }
+        },
+        "reasons": [
+          "NOT_SEEN",
+          "WRONG_INPUT",
+          "NO_EMERGENCY",
+          "STOPPED_EARLY",
+          "NO_DATA",
+          "STOPPED",
+          "INTERRUPTED"
+        ],
+        "start": true,
+        "values": {
+          "delay": {
+            "description": "From the input to the emergency, one value by part of mode press with the id of the part",
+            "unit": "s"
+          }
+        }
+      },
+      "number": {
+        "auto": false,
+        "description": "A number within min and max, given with setup.answer under the name of the input; kept in the record",
+        "kind": "input",
+        "params": {
+          "max": {
+            "default": 0.0,
+            "description": "The most it takes",
+            "max": 1000000.0,
+            "min": -1000000.0,
+            "required": false,
+            "type": "number",
+            "unit": ""
+          },
+          "min": {
+            "default": 0.0,
+            "description": "The least it takes",
+            "max": 1000000.0,
+            "min": -1000000.0,
+            "required": false,
+            "type": "number",
+            "unit": ""
+          },
+          "name": {
+            "description": "Name of the input in setup.answer",
+            "required": true,
+            "type": "text"
+          },
+          "unit": {
+            "description": "Its unit",
+            "required": false,
+            "type": "text"
+          }
+        },
+        "reasons": [],
+        "start": false,
+        "values": {}
+      },
+      "position": {
+        "auto": true,
+        "description": "The position holds for time: solution, accuracy and rate of gps/absolute_pose",
+        "kind": "measure",
+        "params": {
+          "accuracy": {
+            "default": 0.05,
+            "description": "Accuracy at most",
+            "max": 1.0,
+            "min": 0.005,
+            "required": false,
+            "type": "number",
+            "unit": "m"
+          },
+          "rate": {
+            "default": 4.0,
+            "description": "Positions at least this often",
+            "max": 20.0,
+            "min": 0.5,
+            "required": false,
+            "type": "number",
+            "unit": "Hz"
+          },
+          "solution": {
+            "description": "The solution it needs at least",
+            "required": false,
+            "type": "text",
+            "values": [
+              "fixed",
+              "float"
+            ]
+          },
+          "time": {
+            "default": 10.0,
+            "description": "How long all of it has to hold in a row",
+            "max": 60.0,
+            "min": 1.0,
+            "required": false,
+            "type": "number",
+            "unit": "s"
+          },
+          "timeout": {
+            "default": 180.0,
+            "description": "It gives up after this time",
+            "max": 900.0,
+            "min": 10.0,
+            "required": false,
+            "type": "number",
+            "unit": "s"
+          }
+        },
+        "reasons": [
+          "NO_DATA",
+          "NO_RTK",
+          "LIMIT",
+          "STOPPED",
+          "INTERRUPTED"
+        ],
+        "start": true,
+        "texts": {
+          "de": {
+            "fix": "Freie Sicht zum Himmel schaffen und die Korrekturdaten prüfen, dann wiederholen.",
+            "help": "Der Mäher wartet unter freiem Himmel auf eine genaue Position und hält sie einige Sekunden.",
+            "name": "Genaue Position"
+          },
+          "en": {
+            "fix": "Give it a free view of the sky and check the correction data, then try again.",
+            "help": "The mower waits under the open sky for an exact position and holds it for some seconds.",
+            "name": "Exact position"
+          }
+        },
+        "values": {
+          "accuracy": {
+            "description": "Accuracy of the position",
+            "texts": {
+              "de": {
+                "fix": "",
+                "help": "",
+                "name": "Genauigkeit"
+              },
+              "en": {
+                "fix": "",
+                "help": "",
+                "name": "Accuracy"
+              }
+            },
+            "unit": "m"
+          },
+          "rate": {
+            "description": "Rate of the positions",
+            "texts": {
+              "de": {
+                "fix": "",
+                "help": "",
+                "name": "Positionen je Sekunde"
+              },
+              "en": {
+                "fix": "",
+                "help": "",
+                "name": "Positions per second"
+              }
+            },
+            "unit": "Hz"
+          },
+          "solution": {
+            "description": "none, single, float or fixed",
+            "texts": {
+              "de": {
+                "fix": "",
+                "help": "",
+                "name": "Lösung"
+              },
+              "en": {
+                "fix": "",
+                "help": "",
+                "name": "Solution"
+              }
+            },
+            "unit": ""
+          }
+        }
+      }
+    },
+    "conditions": {
+      "area": {
+        "description": "The map has an area and allows mowing",
+        "order": 2,
+        "texts": {
+          "de": {
+            "fix": "Die Fläche einmal ganz umfahren und speichern.",
+            "help": "Eine Mähfläche aufnehmen. Der Haken kommt, sobald die Karte eine Fläche hat, auf der gemäht werden kann.",
+            "name": "Mähfläche aufnehmen"
+          },
+          "en": {
+            "fix": "Drive around the whole area once and save it.",
+            "help": "Record an area to mow. The tick comes once the map has an area the mower can mow.",
+            "name": "Record a mowing area"
+          }
+        }
+      },
+      "dock_test": {
+        "description": "A docking test ended on the contacts",
+        "order": 3,
+        "texts": {
+          "de": {
+            "fix": "Schlägt der Test fehl, die Station neu aufnehmen und wiederholen.",
+            "help": "Den Andocktest starten. Der Haken kommt, wenn der Mäher von selbst wieder auf den Kontakten steht.",
+            "name": "Andocken testen"
+          },
+          "en": {
+            "fix": "If the test fails, record the station again and repeat.",
+            "help": "Start the docking test. The tick comes when the mower is back on the contacts by itself.",
+            "name": "Test docking"
+          }
+        }
+      },
+      "mow": {
+        "description": "The mower mowed and came back onto the contacts",
+        "order": 4,
+        "texts": {
+          "de": {
+            "fix": "Bleibt der Mäher stehen, zeigt die App den Grund. Danach erneut starten.",
+            "help": "Mähen starten und den Mäher zur Ladestation zurückkehren lassen. Der Haken kommt, wenn er nach dem Mähen wieder auf den Kontakten steht.",
+            "name": "Probelauf"
+          },
+          "en": {
+            "fix": "If the mower stops, the app shows why. Then start again.",
+            "help": "Start mowing and let the mower return to the docking station. The tick comes when it is back on the contacts after mowing.",
+            "name": "Trial run"
+          }
+        }
+      },
+      "ntrip": {
+        "description": "Correction data arrives from the caster",
+        "order": 0,
+        "texts": {
+          "de": {
+            "fix": "Zugangsdaten, Mountpoint und die Internetverbindung des Mähers prüfen.",
+            "help": "Den Zugang zum Korrekturdienst eintragen. Der Haken kommt, sobald Korrekturdaten ankommen.",
+            "name": "Korrekturdaten"
+          },
+          "en": {
+            "fix": "Check the access data, the mountpoint and the internet connection of the mower.",
+            "help": "Enter the access to the correction service. The tick comes once correction data arrives.",
+            "name": "Correction data"
+          }
+        }
+      },
+      "station": {
+        "description": "A docking station is in the map and the mower stands on its contacts",
+        "order": 1,
+        "texts": {
+          "de": {
+            "fix": "Den Mäher gerade auf die Kontakte schieben, bis er lädt, dann die Station aufnehmen.",
+            "help": "Den Mäher auf die Ladestation fahren und die Station aufnehmen. Der Haken kommt, sobald sie in der Karte steht und der Mäher auf den Kontakten ist.",
+            "name": "Ladestation aufnehmen"
+          },
+          "en": {
+            "fix": "Push the mower straight onto the contacts until it charges, then record the station.",
+            "help": "Drive the mower onto the docking station and record the station. The tick comes once it is in the map and the mower is on the contacts.",
+            "name": "Record the docking station"
+          }
+        }
+      }
+    },
+    "description": "The setup program: stages in their order, the checks a step of setup/setup.yaml of a platform can be (kind, whether setup.start begins it, params with the bounds of the code, values, reasons of SETUP_STEP), roles and modes of a step input, moves of a step imu, conditions of a step done_when, points to confirm, reasons to skip, and the limits; texts by language where the OS has them. The steps themselves come with setup.get",
+    "limits": {
+      "image_bytes": 65536,
+      "parts": 8,
+      "shape_part_points": 200,
+      "shape_parts": 32,
+      "shape_points": 1000,
+      "skip_text": 200,
+      "steps": 100
+    },
+    "modes": {
+      "press": {
+        "description": "The input switches within the time of the step, the emergency of the step follows within its limit, then the input is let go",
+        "order": 0
+      },
+      "short": {
+        "description": "The input switches for less than short_max and no emergency follows: what a bump of the lift sensors must not stop",
+        "order": 1,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "Nur kurz auslösen und sofort loslassen: der Mäher darf dabei nicht stoppen.",
+            "name": "Kurz auslösen"
+          },
+          "en": {
+            "fix": "",
+            "help": "Trigger only briefly and let go at once: the mower must not stop.",
+            "name": "Trigger briefly"
+          }
+        }
+      }
+    },
+    "moves": {
+      "front_up": {
+        "description": "The front goes up by the angle tilt",
+        "order": 0,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "",
+            "name": "Vorn anheben"
+          },
+          "en": {
+            "fix": "",
+            "help": "",
+            "name": "Lift the front"
+          }
+        }
+      },
+      "left_up": {
+        "description": "The left side goes up by the angle tilt",
+        "order": 1,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "",
+            "name": "Linke Seite anheben"
+          },
+          "en": {
+            "fix": "",
+            "help": "",
+            "name": "Lift the left side"
+          }
+        }
+      },
+      "right_up": {
+        "description": "The right side goes up by the angle tilt",
+        "order": 2,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "",
+            "name": "Rechte Seite anheben"
+          },
+          "en": {
+            "fix": "",
+            "help": "",
+            "name": "Lift the right side"
+          }
+        }
+      },
+      "tilt_stop": {
+        "description": "The mower is tilted until the emergency TILT comes",
+        "order": 5,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "",
+            "name": "Weit kippen, bis der Notaus kommt"
+          },
+          "en": {
+            "fix": "",
+            "help": "",
+            "name": "Tilt far until the emergency stop comes"
+          }
+        }
+      },
+      "turn_left": {
+        "description": "The mower turns left by the angle turn, seen from above",
+        "order": 3,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "",
+            "name": "Nach links drehen"
+          },
+          "en": {
+            "fix": "",
+            "help": "",
+            "name": "Turn to the left"
+          }
+        }
+      },
+      "turn_right": {
+        "description": "The mower turns right by the angle turn",
+        "order": 4,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "",
+            "name": "Nach rechts drehen"
+          },
+          "en": {
+            "fix": "",
+            "help": "",
+            "name": "Turn to the right"
+          }
+        }
+      }
+    },
+    "open": [
+      "ntrip",
+      "geometry",
+      "recording",
+      "dock",
+      "map",
+      "dock_test",
+      "mow"
+    ],
+    "points": {
+      "blade_removed": {
+        "description": "The blade is taken off",
+        "order": 1,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "",
+            "name": "Messer abgenommen"
+          },
+          "en": {
+            "fix": "",
+            "help": "",
+            "name": "Blade removed"
+          }
+        }
+      },
+      "clear": {
+        "description": "Nobody is close to the mower",
+        "order": 2,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "",
+            "name": "Niemand in der Nähe"
+          },
+          "en": {
+            "fix": "",
+            "help": "",
+            "name": "Nobody close by"
+          }
+        }
+      },
+      "outdoors": {
+        "description": "The mower stands under the open sky",
+        "order": 3,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "",
+            "name": "Mäher steht im Freien"
+          },
+          "en": {
+            "fix": "",
+            "help": "",
+            "name": "Mower stands under the open sky"
+          }
+        }
+      },
+      "raised": {
+        "description": "The mower is jacked up, its wheels turn freely",
+        "order": 0,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "",
+            "name": "Mäher aufgebockt, Räder frei"
+          },
+          "en": {
+            "fix": "",
+            "help": "",
+            "name": "Mower jacked up, wheels free"
+          }
+        }
+      }
+    },
+    "roles": {
+      "bumper": {
+        "description": "bumper of hw/status: the bumper is pressed",
+        "order": 2,
+        "texts": {
+          "de": {
+            "fix": "Kommt kein Haken: die Schalter des Stoßfängers und ihre Kabel prüfen, dann wiederholen.",
+            "help": "Den Stoßfänger eindrücken, bis der Haken kommt, und loslassen.",
+            "name": "Stoßfänger"
+          },
+          "en": {
+            "fix": "No tick: check the switches of the bumper and their cables, then try again.",
+            "help": "Press the bumper in until the tick comes, then let go.",
+            "name": "Bumper"
+          }
+        }
+      },
+      "bumper_left": {
+        "description": "bumper_left of hw/status, on platforms with separate bumpers",
+        "order": 3,
+        "texts": {
+          "de": {
+            "fix": "Kommt kein Haken: den linken Schalter des Stoßfängers und sein Kabel prüfen, dann wiederholen.",
+            "help": "Den Stoßfänger links eindrücken, bis der Haken kommt, und loslassen.",
+            "name": "Stoßfänger links"
+          },
+          "en": {
+            "fix": "No tick: check the left switch of the bumper and its cable, then try again.",
+            "help": "Press the bumper in on the left until the tick comes, then let go.",
+            "name": "Bumper left"
+          }
+        }
+      },
+      "bumper_right": {
+        "description": "bumper_right of hw/status, on platforms with separate bumpers",
+        "order": 4,
+        "texts": {
+          "de": {
+            "fix": "Kommt kein Haken: den rechten Schalter des Stoßfängers und sein Kabel prüfen, dann wiederholen.",
+            "help": "Den Stoßfänger rechts eindrücken, bis der Haken kommt, und loslassen.",
+            "name": "Stoßfänger rechts"
+          },
+          "en": {
+            "fix": "No tick: check the right switch of the bumper and its cable, then try again.",
+            "help": "Press the bumper in on the right until the tick comes, then let go.",
+            "name": "Bumper right"
+          }
+        }
+      },
+      "lift": {
+        "description": "lift of hw/status: the mower is lifted",
+        "order": 1,
+        "texts": {
+          "de": {
+            "fix": "Kommt kein Haken: die Hebesensoren und ihre Kabel prüfen, dann wiederholen.",
+            "help": "Den Mäher anheben, bis der Haken kommt, und wieder absetzen.",
+            "name": "Anheben"
+          },
+          "en": {
+            "fix": "No tick: check the lift sensors and their cables, then try again.",
+            "help": "Lift the mower until the tick comes, then put it down.",
+            "name": "Lifting"
+          }
+        }
+      },
+      "stop": {
+        "description": "stop of hw/status: a STOP button",
+        "order": 0,
+        "texts": {
+          "de": {
+            "fix": "Kommt kein Haken: Stecker und Kabel der Taste prüfen, dann wiederholen.",
+            "help": "Jede STOP-Taste einmal drücken und wieder loslassen. Der Mäher muss dabei sofort den Notaus melden.",
+            "name": "STOP-Taste"
+          },
+          "en": {
+            "fix": "No tick: check plug and cable of the button, then try again.",
+            "help": "Press every STOP button once and let go. The mower has to report the emergency stop at once.",
+            "name": "STOP button"
+          }
+        }
+      }
+    },
+    "shape_kinds": [
+      "body",
+      "wheel",
+      "caster",
+      "bumper",
+      "button",
+      "sensor",
+      "handle"
+    ],
+    "skip_reasons": {
+      "done_before": {
+        "description": "Checked before, outside of the program",
+        "order": 2,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "",
+            "name": "Schon geprüft"
+          },
+          "en": {
+            "fix": "",
+            "help": "",
+            "name": "Checked before"
+          }
+        }
+      },
+      "later": {
+        "description": "To be done later",
+        "order": 0,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "",
+            "name": "Später"
+          },
+          "en": {
+            "fix": "",
+            "help": "",
+            "name": "Later"
+          }
+        }
+      },
+      "not_fitted": {
+        "description": "The mower does not have this part",
+        "order": 1,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "",
+            "name": "Nicht vorhanden"
+          },
+          "en": {
+            "fix": "",
+            "help": "",
+            "name": "Not fitted"
+          }
+        }
+      },
+      "other": {
+        "description": "Another reason, in the text of setup.skip",
+        "order": 3,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "",
+            "name": "Anderer Grund"
+          },
+          "en": {
+            "fix": "",
+            "help": "",
+            "name": "Other reason"
+          }
+        }
+      }
+    },
+    "stages": {
+      "blade": {
+        "description": "The blade and its stops",
+        "order": 5,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "",
+            "name": "Messer"
+          },
+          "en": {
+            "fix": "",
+            "help": "",
+            "name": "Blade"
+          }
+        }
+      },
+      "calibration": {
+        "description": "The calibration drive",
+        "order": 10,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "",
+            "name": "Kalibrierfahrt"
+          },
+          "en": {
+            "fix": "",
+            "help": "",
+            "name": "Calibration drive"
+          }
+        }
+      },
+      "device": {
+        "description": "The board answers and fits",
+        "order": 0,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "",
+            "name": "Gerät"
+          },
+          "en": {
+            "fix": "",
+            "help": "",
+            "name": "Device"
+          }
+        }
+      },
+      "dimensions": {
+        "description": "The dimensions of the mower",
+        "order": 7,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "",
+            "name": "Maße"
+          },
+          "en": {
+            "fix": "",
+            "help": "",
+            "name": "Dimensions"
+          }
+        }
+      },
+      "ground": {
+        "description": "Driving and stopping on the ground",
+        "order": 4,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "",
+            "name": "Fahren am Boden"
+          },
+          "en": {
+            "fix": "",
+            "help": "",
+            "name": "Driving on the ground"
+          }
+        }
+      },
+      "inputs": {
+        "description": "Every safety input by hand",
+        "order": 1,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "",
+            "name": "Eingänge"
+          },
+          "en": {
+            "fix": "",
+            "help": "",
+            "name": "Inputs"
+          }
+        }
+      },
+      "map": {
+        "description": "The areas to mow",
+        "order": 9,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "",
+            "name": "Karte"
+          },
+          "en": {
+            "fix": "",
+            "help": "",
+            "name": "Map"
+          }
+        }
+      },
+      "position": {
+        "description": "Correction data and a fix",
+        "order": 2,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "",
+            "name": "Position"
+          },
+          "en": {
+            "fix": "",
+            "help": "",
+            "name": "Position"
+          }
+        }
+      },
+      "safety": {
+        "description": "The summary of the safety checks",
+        "order": 6,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "",
+            "name": "Sicherheit"
+          },
+          "en": {
+            "fix": "",
+            "help": "",
+            "name": "Safety"
+          }
+        }
+      },
+      "station": {
+        "description": "The docking station",
+        "order": 8,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "",
+            "name": "Ladestation"
+          },
+          "en": {
+            "fix": "",
+            "help": "",
+            "name": "Docking station"
+          }
+        }
+      },
+      "trial": {
+        "description": "A first run",
+        "order": 11,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "",
+            "name": "Probelauf"
+          },
+          "en": {
+            "fix": "",
+            "help": "",
+            "name": "Trial run"
+          }
+        }
+      },
+      "wheels": {
+        "description": "Wheels and stops with the mower jacked up",
+        "order": 3,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "",
+            "name": "Räder aufgebockt"
+          },
+          "en": {
+            "fix": "",
+            "help": "",
+            "name": "Wheels off the ground"
+          }
+        }
+      }
+    },
+    "states": [
+      "locked",
+      "open",
+      "running",
+      "ok",
+      "failed",
+      "skipped",
+      "stale"
+    ],
+    "symbols": [
+      "stop",
+      "lift",
+      "bumper",
+      "wheels",
+      "ground",
+      "blade",
+      "antenna",
+      "dock",
+      "board",
+      "map"
+    ]
   }
 }

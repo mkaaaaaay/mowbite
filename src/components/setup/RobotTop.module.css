@@ -1,0 +1,22 @@
+.top {
+  display: block;
+  width: 100%;
+  max-height: 220px;
+}
+
+.part {
+  fill: var(--well);
+  stroke: var(--text-secondary);
+  stroke-width: 0.004;
+}
+
+.part[data-kind='wheel'],
+.part[data-kind='caster'] {
+  fill: var(--foreground);
+}
+
+.mark {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 0.01;
+}

@@ -1,0 +1,62 @@
+.step {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.step h2 {
+  margin: 0;
+  font-size: var(--text-l);
+}
+
+.where {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-s);
+}
+
+.help,
+.fix,
+.hint,
+.result p {
+  margin: 0;
+  line-height: 1.45;
+}
+
+.fix,
+.hint {
+  color: var(--text-secondary);
+  font-size: var(--text-s);
+}
+
+.result {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-m);
+  background: var(--soft-muted);
+}
+
+.result[data-result='failed'] {
+  background: var(--soft-warn);
+}
+
+.error {
+  margin: 0;
+  color: var(--error);
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.open {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--tap);
+  color: var(--accent);
+}

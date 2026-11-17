@@ -57,6 +57,8 @@ export interface PlannerSetting {
   max?: number;
   choices?: string[];
   settable: boolean;
+  // robot.geometry on MowBite OS: when the user set or confirmed it (unix s), null before (the setup program asks)
+  confirmed?: number | null;
   // where its value comes from while it isn't set for the planner (a mower_logic parameter)
   from?: string;
   nullable?: boolean;
@@ -281,6 +283,11 @@ export async function saveGeometry(version: number, settings: Record<string, unk
   }
   return g;
 }
+
+// the sizes of MowBite OS the user hasn't set or confirmed yet, and confirming them as they are
+export const unconfirmed = (g: Geometry | null) =>
+  Object.entries(g?.settings ?? {}).flatMap(([k, s]) => (s.settable && s.confirmed === null ? [k] : []));
+export const confirmGeometry = (version: number, keys: string[]) => callRpc<Geometry>(RPC.geometrySet, {version, confirm: keys});
 
 // A planner that knows outlines but plans with the rectangle while its sizes are exactly a model's with a measured
 // outline gets that outline from the app by itself: once per start (until it went through), after the shared settings

@@ -1,0 +1,21 @@
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: var(--radius-m);
+  background: var(--soft-bad);
+}
+
+.block p {
+  margin: 0;
+}
+
+.refused {
+  color: var(--error);
+  font-size: var(--text-s);
+}
+
+.block button {
+  align-self: flex-start;
+}

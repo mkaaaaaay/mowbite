@@ -2,6 +2,7 @@
 
 import {BrandMark} from '@/components/BrandMark';
 import {DockingTest} from '@/components/DockingTest';
+import {SetupCard} from '@/components/setup/SetupCard';
 import {DontPanic} from '@/components/DontPanic';
 import {useEggForced, useHalloween, useUmbrella} from '@/lib/eggs';
 import LogicHint from '@/components/LogicHint';
@@ -654,6 +655,8 @@ export default function Home() {
                     {tr('Drop the interrupted job')}
                   </button>
                 ))}
+              {/* MowBite OS's setup program until it's complete */}
+              <SetupCard styles={styles} />
               {/* idle in front of the station, where the mower offers it */}
               <DockingTest styles={styles} live={live} idle={current === 'IDLE' && !state.emergency && !charger} state={current} />
               {/* idle in the dock: what the last mow left, and mowing just that */}

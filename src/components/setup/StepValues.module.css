@@ -1,0 +1,31 @@
+.values {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+}
+
+.value {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: var(--text-s);
+}
+
+.value dt {
+  color: var(--text-secondary);
+}
+
+.value dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.value[data-ok='false'] dd {
+  color: var(--error);
+}
+
+.bounds {
+  margin-left: 8px;
+  color: var(--text-secondary);
+}

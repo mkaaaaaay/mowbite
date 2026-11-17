@@ -1,0 +1,41 @@
+.inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.input {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--field-border);
+  border-radius: var(--radius-m);
+}
+
+.input[data-ask] {
+  border-color: var(--accent);
+}
+
+.help {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-s);
+}
+
+.choice,
+.number {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--tap);
+}
+
+.number input {
+  width: 8em;
+}
+
+.answer {
+  align-self: flex-start;
+}

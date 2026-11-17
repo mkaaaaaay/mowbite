@@ -25,6 +25,7 @@ import Link from 'next/link';
 import {MowerBodySettings} from '@/components/MowerBodySettings';
 import {MowerSizesSettings} from '@/components/MowerSizesSettings';
 import {CalibrationLink} from '@/components/CalibrationLink';
+import {offersSetup} from '@/lib/setup';
 import {CALIB_SHOWN, canCalibrate} from '@/lib/calibration';
 import {NotifySettings} from '@/components/NotifySettings';
 import {LightSettings} from '@/components/LightSettings';
@@ -325,6 +326,7 @@ export default function SettingsPage() {
   const lights = !!methods?.has(RPC.lightGet);
   const sounds = !!methods?.has(RPC.soundList);
   const ntrip = !!methods?.has(RPC.ntripGet);
+  const setup = offersSetup(methods);
   // MowBite OS keeps the sizes itself, with its planner or without
   const geometry = !!methods?.has(RPC.geometry);
   // the calibration isn't there on MowBite OS, nor is the way to its guide
@@ -378,9 +380,16 @@ export default function SettingsPage() {
         {/* both there, the one not shown hidden: a link finds its part in either, nothing loads again on a switch */}
         <div className={styles.tabPanel} role="tabpanel" id="panel-mower" aria-labelledby="tab-mower" hidden={tab !== 'mower'}>
             {!demo && <p className={styles.dim}>{tr('Saved on the mower, it counts for everyone who uses it.')}</p>}
-            {(sizes || lights || sounds || ntrip) && (
+            {(sizes || lights || sounds || ntrip || setup) && (
               <section className={styles.section}>
                 <h2 className={styles.sectionTitle}>{tr('The mower itself')}</h2>
+                {setup && (
+                  <Group id="setup" title={tr('Setup')} hint={tr('Check the mower step by step')}>
+                    <Link href="/setup" className={styles.pillButton}>
+                      {tr('To the setup')}
+                    </Link>
+                  </Group>
+                )}
                 {sizes && (
                   <Group id="mower" title={calibrate ? tr('Sizes and calibration') : tr('Mower sizes')} hint={tr('Body, blade and antenna')} anchors={['sizes']}>
                     {/* set once: with the MowBite Planner kept by it, without it in the app, on MowBite OS by the OS */}

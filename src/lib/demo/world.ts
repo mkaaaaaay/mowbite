@@ -11,6 +11,7 @@ import {demoHost} from './host';
 import {demoGeometry} from './geometry';
 import {demoLights} from './light';
 import {demoNtrip} from './ntrip';
+import {demoSetup} from './setup';
 import {demoPlanner} from './planner';
 import {demoSounds} from './sound';
 import {demoIncidents} from './incidents';
@@ -475,6 +476,8 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
   // the emergency stop as OpenMower's bits (LATCH and the ones named), 0 when it isn't latched: the wheels and the
   // blade stand until it's reset, unless that's turned down
   let latchedBits = 0;
+  // MowBite OS's setup program, its inputs seen through the stop
+  const setup = demoOn('Setup') ? demoSetup(deliver, (reason) => !!(latchedBits & bitOf(reason))) : null;
   let refusal: Record<string, unknown> | null = null;
   // mower_logic's checks: the highest voltage of the window and when it began, rain seen all through the window, when
   // the fix was last good and whether it's gone for longer than gps_timeout, the fully charged said once a stay
@@ -993,6 +996,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
         // mower_logic says so when it lets go of a stop it latched itself
         if (latchedBits & OWN_BITS) note(t, pose, {type: 'EMERGENCY', emergency: false, reason: 0});
         latchedBits = 0;
+        setup?.emergencyChanged();
       }
     } else if (id === ACTION.startRecording && s === 'IDLE') {
       rec = {outline: null, obstacles: [], line: null, dockFrom: null, auto: true, blade: false};
@@ -1177,6 +1181,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     ...(demoOn('Sounds') && demoSounds()),
     ...(demoOn('Geometry') && demoGeometry()),
     ...(demoOn('Ntrip') && demoNtrip(state)),
+    ...setup?.methods,
     ...incidents?.methods,
     ...(dockTestOn && {
       // from idle off the station straight onto it by the dock camera, runs times in a row
@@ -1298,6 +1303,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
     latchedBits |= bits | bitOf('LATCH');
     stick = {vx: 0, vz: 0, at: -Infinity};
     if (own) note(t, pose, {type: 'EMERGENCY', emergency: true, reason: own});
+    setup?.emergencyChanged();
   }
 
   // what mower_logic checks every time round: the fix, then whether it has to go home, in its order
@@ -1387,7 +1393,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
       if (topic === TOPIC.mapOverlay) return [[topic, JSON.stringify(overlay())]];
       if (topic === TOPIC.plannerCalib) return calibSaid ? [[topic, calibSaid]] : [];
       if (topic === TOPIC.sensorData) return Object.entries(sensors()).map(([id, v]) => [`sensors/${id}/data`, v]);
-      return host?.retained(topic) ?? updates?.retained(topic) ?? [];
+      return host?.retained(topic) ?? updates?.retained(topic) ?? setup?.retained(topic) ?? [];
     },
     published(topic, message) {
       if (topic === TOPIC.teleop) {

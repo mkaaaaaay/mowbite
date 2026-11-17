@@ -1,0 +1,6 @@
+.wait {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-m);
+  background: var(--soft-warn);
+}

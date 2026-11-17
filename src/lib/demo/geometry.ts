@@ -28,6 +28,8 @@ const refuse = (reason: string, message: string, data: object = {}) => Object.as
 
 export function demoGeometry(): Record<string, (params: unknown) => unknown> {
   let entries: Record<string, number | number[][]> = {};
+  // when the user set or confirmed a key (unix s), the setup program asks for each
+  const confirmed: Record<string, number> = {};
   let version = 1;
   const get = (): Geometry => ({
     platform: 'airseekers_tron',
@@ -43,6 +45,7 @@ export function demoGeometry(): Record<string, (params: unknown) => unknown> {
           unit: 'm',
           ...(p.min !== undefined && {min: p.min, max: p.max}),
           settable: p.settable !== false,
+          ...(p.settable !== false && {confirmed: confirmed[k] ?? null}),
         },
       ]),
     ),
@@ -50,7 +53,12 @@ export function demoGeometry(): Record<string, (params: unknown) => unknown> {
   return {
     [RPC.geometry]: get,
     [RPC.geometrySet]: (params) => {
-      const {version: v, settings = {}, reset = []} = (params ?? {}) as {version?: number; settings?: Record<string, unknown>; reset?: string[]};
+      const {version: v, settings = {}, reset = [], confirm = []} = (params ?? {}) as {
+        version?: number;
+        settings?: Record<string, unknown>;
+        reset?: string[];
+        confirm?: string[];
+      };
       if (v !== version) throw refuse('VERSION', `The geometry is at version ${version} now, not ${v}: read it again`, {key: 'version', version});
       const next = {...entries};
       for (const k of reset) delete next[k];
@@ -69,7 +77,9 @@ export function demoGeometry(): Record<string, (params: unknown) => unknown> {
       const wheels = {wheel_radius: now('wheel_radius'), wheel_width: now('wheel_width'), track: now('track')};
       const left = now('robot_width') < wheels.track + wheels.wheel_width ? 'robot_width' : ['robot_rear', 'robot_front'].find((k) => now(k) < wheels.wheel_radius);
       if (left) throw refuse('WHEELS_OUTSIDE', 'The body leaves out the drive wheels', {key: left, ...wheels});
-      if (JSON.stringify(next) !== JSON.stringify(entries)) version++;
+      const asked = [...confirm, ...Object.keys(settings)].filter((k) => PLATFORM[k]?.settable !== false && PLATFORM[k] && !confirmed[k]);
+      if (JSON.stringify(next) !== JSON.stringify(entries) || asked.length) version++;
+      for (const k of asked) confirmed[k] = Math.floor(Date.now() / 1000);
       entries = next;
       return get();
     },

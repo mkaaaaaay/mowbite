@@ -1,0 +1,32 @@
+.parts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.part {
+  padding: 8px 12px;
+  border-radius: var(--radius-s);
+  background: var(--well);
+}
+
+.part::before {
+  content: '○ ';
+}
+
+.part[data-state='waiting'] {
+  outline: 2px solid var(--accent);
+}
+
+.part[data-state='ok']::before {
+  content: '✓ ';
+  color: var(--success);
+}
+
+.part[data-state='failed']::before {
+  content: '✕ ';
+  color: var(--error);
+}

@@ -1,0 +1,65 @@
+.overview {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.safety,
+.progress {
+  margin: 0;
+}
+
+.safety {
+  padding: 10px 12px;
+  border-radius: var(--radius-m);
+  background: var(--soft-warn);
+}
+
+.safety[data-open='true'] {
+  background: var(--soft-good);
+}
+
+.stages,
+.steps {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.steps {
+  padding: 4px 0 8px 16px;
+}
+
+.stage,
+.step {
+  width: 100%;
+  min-height: var(--tap);
+  text-align: left;
+}
+
+li[data-state='ok'] > .stage::after,
+li[data-state='ok'] > .step::after {
+  content: ' ✓';
+  color: var(--success);
+}
+
+li[data-state='skipped'] > .step::after {
+  content: ' –';
+}
+
+li[data-state='failed'] > .stage::after,
+li[data-state='failed'] > .step::after {
+  content: ' ✕';
+  color: var(--error);
+}
+
+li[data-state='locked'] > .step {
+  opacity: 0.55;
+}
+
+.step[aria-current] {
+  font-weight: 600;
+}

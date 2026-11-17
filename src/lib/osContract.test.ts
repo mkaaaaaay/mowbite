@@ -11,6 +11,7 @@ import {READY_TEXT, scheduleLogText} from './schedule';
 import {ORIGIN_TEXT} from './osUpdate';
 import {MAX_NOTE, PIECE_BYTES} from './incidentLimits';
 import {SITUATION_NAMES} from './sound';
+import {IMAGE_BYTES, OPEN_SCREENS, SHAPE_KINDS, SHAPE_LIMITS, SKIP_TEXT} from './setup';
 import {PARTS} from './stats';
 
 // MowBite OS's interface (system.api) as its owner has it, copied from the commit below. a newer one: copy it from
@@ -18,8 +19,8 @@ import {PARTS} from './stats';
 const PINNED = {
   repo: 'mkaaaaaay/mowbite-os',
   path: 'src/mowbite_api/api.schema.json',
-  commit: '0de225f3d7db5773f34450acb35b5ab5ccbe21cf',
-  sha256: '8ff1697ef3839bfe8bd1d4d5ce7036c7fcd8b2a11959687e3ca82fbc53a5a1c7',
+  commit: 'b6b8127839628edbf54a0cfe3106ea5ac99bd61a',
+  sha256: '8caa28fdce791234e82d93226999d4667eb0301ba6020dfa536f9eb6bbc2b389',
 };
 const raw = readFileSync(join(__dirname, 'os-api.schema.json'));
 // a reason's rating, when: another one for these values of the event's fields
@@ -33,6 +34,7 @@ const api = JSON.parse(raw.toString()) as {
   'x-sensors': Record<string, {name: string}>;
   'x-settings': Record<string, {default: number; min: number; max: number; unit: string}>;
   'x-schedule-log': Record<string, unknown>;
+  'x-setup': {limits: Record<string, number>; open: string[]; shape_kinds: string[]};
   $defs: Record<string, unknown>;
 };
 
@@ -234,6 +236,15 @@ describe(`MowBite OS's interface (${PINNED.repo} ${PINNED.commit.slice(0, 7)}, a
   it('offers as many dockings in a row for the docking test as the OS takes', () => {
     const {runs} = (api.$defs['docking.test.params'] as {properties: {runs: {description: string}}}).properties;
     expect(runs.description.startsWith(`1 to ${DOCK_TEST_RUNS} `)).toBe(true);
+  });
+
+  it("takes the setup program's images, notes, screens and shapes within the OS's limits", () => {
+    const {limits, open, shape_kinds} = api['x-setup'];
+    expect([IMAGE_BYTES, SKIP_TEXT]).toEqual([limits.image_bytes, limits.skip_text]);
+    expect(SHAPE_LIMITS).toEqual({parts: limits.shape_parts, partPoints: limits.shape_part_points, points: limits.shape_points});
+    expect([...SHAPE_KINDS].sort()).toEqual([...shape_kinds].sort());
+    expect(Object.keys(OPEN_SCREENS).sort()).toEqual([...open].sort());
+    for (const {label} of Object.values(OPEN_SCREENS)) expect(de[label], label).toBeTruthy();
   });
 
   it("has no words for events, reasons or bits the OS doesn't know", () => {

@@ -19,6 +19,8 @@ import {
   outsideLimits,
   plannerOutline,
   saveGeometry,
+  confirmGeometry,
+  unconfirmed,
   savePlannerSettings,
   sizesBody,
   slic3rPlans,
@@ -55,7 +57,7 @@ const LABELS: Record<BodySetting, string> = {
 };
 
 // the other sizes MowBite OS may name in a refusal
-const GEOMETRY_LABELS: Record<string, string> = {...LABELS, robot_outline: 'Outline of the body', ...ANTENNA_LABELS};
+const GEOMETRY_LABELS: Record<string, string> = {...LABELS, robot_outline: 'Outline of the body', track: 'Track of the drive wheels', ...ANTENNA_LABELS};
 
 // why MowBite OS didn't take the sizes (robot.geometry.set's reasons), in words; anything else as for any card
 function geometryError(e: unknown): string {
@@ -350,6 +352,26 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
     }
   };
 
+  // MowBite OS's setup program asks for every size set or confirmed once: confirmed as stored, nothing typed pending
+  const open = onOs ? unconfirmed(geo).filter((k) => k in GEOMETRY_LABELS) : [];
+  const openText = open
+    .map((k) => {
+      const v = geo?.settings[k]?.value;
+      return typeof v === 'number' ? `${tr(GEOMETRY_LABELS[k])} ${cmText(v)} cm` : tr(GEOMETRY_LABELS[k]);
+    })
+    .join(', ');
+  const confirm = async () => {
+    if (!geo) return;
+    setState({busy: true});
+    try {
+      setGeo(await confirmGeometry(geo.version, open));
+      setState({});
+    } catch (e) {
+      if (e instanceof RpcError && e.data?.reason === 'VERSION') loadGeometry().then(setGeo, () => {});
+      setState({error: geometryError(e)});
+    }
+  };
+
   // the rectangle for a model's sizes: the planner checks it again and the outline doesn't come back on its own
   const toRectangle = async () => {
     setState({busy: true});
@@ -488,6 +510,14 @@ export function MowerBodySettings({styles}: {styles: Styles}) {
         )}
         {state.error && <span className={styles.error}>{state.error}</span>}
       </div>
+      {open.length > 0 && (
+        <div className={local.actions} data-unconfirmed={open.join(' ')}>
+          <span className={styles.dim}>{tr('Not confirmed yet: {sizes}', {sizes: openText})}</span>
+          <button className={styles.pillButton} onClick={() => void confirm()} disabled={state.busy || JSON.stringify(form) !== JSON.stringify(formFrom(source))}>
+            {tr('These sizes are right')}
+          </button>
+        </div>
+      )}
       {antennaFields}
     </section>
   );
