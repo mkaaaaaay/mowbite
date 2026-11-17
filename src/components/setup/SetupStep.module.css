@@ -105,7 +105,7 @@
   margin: 0;
   padding: 12px 14px;
   border-radius: 14px;
-  background: color-mix(in srgb, var(--text-secondary) 10%, transparent);
+  background: var(--tile);
   font-size: 13.5px;
   line-height: 1.45;
 }
@@ -115,22 +115,36 @@
 }
 
 .note[data-tone='warn'] {
-  background: color-mix(in srgb, var(--warning) 15%, transparent);
+  background: var(--tint-warn);
   color: var(--soft-warn);
 }
 
 .reason,
 .note[data-tone='bad'] {
-  background: color-mix(in srgb, var(--error) 13%, transparent);
+  background: var(--tint-bad);
   color: var(--soft-bad);
 }
 
+.note[data-asked-line] {
+  background: var(--tint-accent);
+  color: var(--accent);
+  font-size: 15px;
+  font-weight: 600;
+}
+
 .advanced summary {
+  display: flex;
+  align-items: center;
   min-height: var(--tap);
-  padding: 10px 0;
   color: var(--text-secondary);
   font-weight: 600;
-  cursor: pointer;
+}
+
+/* its save is one among the step's buttons, not the main one */
+.advanced button[type='submit']:not(:disabled) {
+  background: var(--tile);
+  box-shadow: none;
+  color: var(--foreground);
 }
 
 .fix {

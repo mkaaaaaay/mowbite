@@ -5,7 +5,7 @@
   min-height: 220px;
   padding: 16px;
   border-radius: var(--radius-l);
-  background: color-mix(in srgb, var(--text-secondary) 10%, transparent);
+  background: var(--tile);
   overflow: hidden;
 }
 
@@ -42,7 +42,7 @@
   width: 112px;
   height: 112px;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  background: var(--tint-accent);
   color: var(--accent);
 }
 
@@ -78,7 +78,7 @@
 }
 
 .track {
-  stroke: color-mix(in srgb, var(--text-secondary) 20%, transparent);
+  stroke: var(--track);
 }
 
 .ring {

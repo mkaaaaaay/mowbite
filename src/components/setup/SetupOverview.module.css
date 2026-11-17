@@ -11,12 +11,12 @@
   margin: 0;
   padding: 12px 14px;
   border-radius: 14px;
-  background: color-mix(in srgb, var(--warning) 15%, transparent);
+  background: var(--tint-warn);
   color: var(--soft-warn);
 }
 
 .lock[data-open='true'] {
-  background: color-mix(in srgb, var(--success) 14%, transparent);
+  background: var(--tint-good);
   color: var(--soft-good);
 }
 
@@ -84,7 +84,7 @@
 .segments i {
   height: 6px;
   border-radius: 3px;
-  background: color-mix(in srgb, var(--text-secondary) 20%, transparent);
+  background: var(--track);
 }
 
 .segments i[data-state='ok'] {
@@ -149,7 +149,7 @@
 }
 
 .stage[aria-expanded='true'] {
-  background: color-mix(in srgb, var(--text-secondary) 10%, transparent);
+  background: var(--tile);
 }
 
 .text {
@@ -179,7 +179,7 @@ li[data-state='locked'] > .stage b {
 .steps {
   margin: 2px 0 4px 22px;
   padding-left: 12px;
-  border-left: 2px solid color-mix(in srgb, var(--text-secondary) 20%, transparent);
+  border-left: 2px solid var(--track);
 }
 
 .step {
@@ -188,7 +188,7 @@ li[data-state='locked'] > .stage b {
 }
 
 .step[aria-current] {
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  background: var(--tint-accent);
 }
 
 .step[aria-current] .name {

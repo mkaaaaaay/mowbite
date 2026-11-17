@@ -16,7 +16,7 @@
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  background: var(--tint-accent);
   color: var(--accent);
 }
 

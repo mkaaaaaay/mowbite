@@ -14,7 +14,7 @@
   min-height: 52px;
   padding: 8px 12px;
   border-radius: var(--radius-m);
-  background: color-mix(in srgb, var(--text-secondary) 10%, transparent);
+  background: var(--tile);
 }
 
 .text {
@@ -26,7 +26,7 @@
 }
 
 .part[data-state='waiting'] {
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  background: var(--tint-accent);
   outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
   outline-offset: -2px;
 }
@@ -36,7 +36,7 @@
 }
 
 .part[data-state='failed'] {
-  background: color-mix(in srgb, var(--error) 12%, transparent);
+  background: var(--tint-bad);
 }
 
 .part[data-state='failed'] b {

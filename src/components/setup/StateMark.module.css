@@ -24,21 +24,21 @@
 
 .mark[data-state='ok'] {
   background: var(--success);
-  color: #fff;
+  color: var(--accent-foreground);
 }
 
 .mark[data-state='failed'] {
   background: var(--error);
-  color: #fff;
+  color: var(--accent-foreground);
 }
 
 .mark[data-state='skipped'] {
-  background: color-mix(in srgb, var(--text-secondary) 22%, transparent);
+  background: var(--track);
   color: var(--text-secondary);
 }
 
 .mark[data-state='stale'] {
-  background: color-mix(in srgb, var(--warning) 20%, transparent);
+  background: var(--tint-warn);
   color: var(--soft-warn);
 }
 
