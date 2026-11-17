@@ -78,7 +78,7 @@ test.describe('cameras', () => {
     await camera.getByRole('button', {name: 'Try again'}).click();
     await expect.poll(() => picture(page)).toContain('Obstacle camera left');
 
-    // off on the picture itself, on again at the top of the dashboard
+    // off on the picture itself, on again in the status card
     await camera.getByRole('button', {name: 'Hide the camera picture'}).click();
     await expect(camera).toHaveCount(0);
     const onOff = page.getByRole('button', {name: 'Camera picture', exact: true});
