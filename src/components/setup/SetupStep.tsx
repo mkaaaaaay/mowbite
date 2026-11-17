@@ -3,9 +3,9 @@
 import {BackIcon} from '@/components/icons';
 import {reasonSentence} from '@/lib/events';
 import {tr} from '@/lib/i18n';
-import {isDone, nameById, nameOf, OPEN_SCREENS, unmet, words, type Setup, type SetupStep as Step, type Sizes} from '@/lib/setup';
+import {isDone, keepStep, KEEP_MS, moves, nameById, nameOf, OPEN_SCREENS, unmet, words, type Setup, type SetupStep as Step, type Sizes} from '@/lib/setup';
 import Link from 'next/link';
-import {useState} from 'react';
+import {useEffect, useState} from 'react';
 import {ConfirmSheet} from './ConfirmSheet';
 import {EmergencyBlock} from './EmergencyBlock';
 import {RestartWait} from './RestartWait';
@@ -45,7 +45,18 @@ export function SetupStep(props: {
   const running = step.state === 'running';
   const done = isDone(step.state);
   const needs = step.state === 'locked' ? unmet(step.needs, setup.steps) : [];
-  const start = () => (step.confirm.length || step.motion ? setSheet('confirm') : act.start(step.id, []));
+  // repeating a passed safety step while the lock is open: failing it closes the lock again
+  const risky = !!step.safety && step.state === 'ok' && setup.safety.open;
+  const start = () => (step.confirm.length || moves(step.motion) || risky ? setSheet('confirm') : act.start(step.id, []));
+  const kept = running && moves(step.motion);
+  useEffect(() => {
+    if (!kept) return;
+    // only while the page is seen: a phone put away or a closed tab lets the step end and the wheels stop
+    const keep = () => document.visibilityState === 'visible' && keepStep(step.id).catch(() => {});
+    keep();
+    const timer = setInterval(keep, KEEP_MS);
+    return () => clearInterval(timer);
+  }, [kept, step.id]);
   const r = step.result;
   const canStart = step.start && !running && step.state !== 'locked';
   const opens = step.open && !done ? OPEN_SCREENS[step.open] : null;
@@ -165,6 +176,7 @@ export function SetupStep(props: {
           step={step}
           lang={lang}
           busy={busy}
+          risky={risky}
           onClose={() => setSheet(null)}
           onStart={(confirm) => {
             setSheet(null);

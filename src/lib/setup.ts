@@ -1,4 +1,5 @@
 import {fromBase64, toBase64} from './base64';
+import {tr} from './i18n';
 import {num, outlineOf} from './mowerBody';
 import {box, wheelBoxes} from './robotShape';
 import {topicStore} from './mqttClient';
@@ -6,7 +7,7 @@ import {RPC, TOPIC} from './openmower';
 import {callCommand, callRpc} from './rpc';
 import {sha256Hex} from './sha256';
 
-// MowBite OS's setup program (setup.*, api 42): the OS keeps the steps of the platform, their state and their texts,
+// MowBite OS's setup program (setup.*, api 42, wheels turning from api 44, the lock of the safety from api 45): the OS keeps the steps of the platform, their state and their texts,
 // the app shows them and passes on what the user does. Every call answers with the whole state, as setup/json
 
 export type StepState = 'locked' | 'open' | 'running' | 'ok' | 'failed' | 'skipped' | 'stale';
@@ -90,7 +91,9 @@ export interface SetupStep {
   attempt: number;
   needs: string[];
   blocked: {reason: string; message: string}[];
-  motion: Record<string, unknown> | null;
+  motion: Motion | null;
+  // passing it counts for the lock of autonomous driving and mowing, failing it closes the lock
+  safety?: boolean;
   confirm: Named[];
   start: boolean;
   auto: boolean;
@@ -111,6 +114,39 @@ export interface SetupStep {
   lines: SetupLine[];
   ask: SetupAsk | null;
 }
+// what turns in a step: max_distance null while the mower stands raised, max_speed m/s, max_time s
+export interface Motion {
+  wheels?: boolean;
+  blade?: boolean;
+  raised?: boolean;
+  max_speed?: number | null;
+  max_distance?: number | null;
+  max_time?: number | null;
+}
+// a failed safety step that keeps the lock closed; step null when setup.reset closed it
+export interface SafetyCause {
+  step: string | null;
+  part: string | null;
+  reason: string;
+  t: number;
+}
+export interface Safety {
+  open: boolean;
+  date: string | null;
+  firmware: string | null;
+  why: string | null;
+  source?: 'hand' | 'program' | null;
+  closed?: SafetyCause[];
+}
+// why the lock is closed (safety.why) besides no measurement, and a cause of closed[] without a step
+export const SAFETY_WHY: Record<string, string> = {
+  CHECK_FAILED: 'A safety step failed: the mower drives only while you watch until it passes again',
+  RESET: 'The setup was started anew: the safety has to be measured again',
+  UNREADABLE: "The mower couldn't read the state of the lock: the safety has to be measured again",
+};
+// what keeps the lock closed in words: the step and why it failed, or the reset
+export const causeText = (c: SafetyCause, steps: SetupStep[], lang: string, sentence: (reason: string) => string) =>
+  c.step ? `${nameById(steps, c.step, lang)}: ${sentence(c.reason)}` : tr(SAFETY_WHY[c.reason] ?? SAFETY_WHY.RESET);
 export interface Setup {
   version: number;
   platform: string;
@@ -118,7 +154,7 @@ export interface Setup {
   stage: string | null;
   current: string | null;
   complete: boolean;
-  safety: {open: boolean; date: string | null; firmware: string | null; why: string | null};
+  safety: Safety;
   restart_pending: boolean;
   stages: (Named & {state: StepState})[];
   steps: SetupStep[];
@@ -178,6 +214,13 @@ export const skipStep = (s: Setup, step: string, reason: string, note?: string) 
   command(RPC.setupSkip, {step, version: s.version, reason, ...(note ? {note} : {})});
 export const abortStep = (step?: string) => command(RPC.setupAbort, step ? {step} : {});
 export const resetSetup = (s: Setup) => command(RPC.setupReset, {version: s.version});
+
+// a step that turns wheels or the blade goes on only while the app follows it: setup.keep at least every second
+// (x-setup.limits.keep), else the step ends RELEASED. never sent again, the next tick follows
+export const KEEP_MS = 400;
+export const KEEP_LIMIT_MS = 1000;
+export const moves = (m: Motion | null | undefined) => !!(m?.wheels || m?.blade);
+export const keepStep = (step: string) => callCommand<{running: boolean}>(RPC.setupKeep, {step}, KEEP_LIMIT_MS);
 
 // at most this much of an image in one answer of setup.image, and at most this large (x-setup.limits.image_bytes)
 export const IMAGE_BYTES = 65536;

@@ -3,7 +3,7 @@
 import {ChevronIcon, LockIcon} from '@/components/icons';
 import {reasonSentence} from '@/lib/events';
 import {tr} from '@/lib/i18n';
-import {isDone, nameById, nameOf, unmet, type Setup, type SetupStep, type StepState} from '@/lib/setup';
+import {causeText, isDone, nameById, nameOf, SAFETY_WHY, unmet, type Setup, type SetupStep, type StepState} from '@/lib/setup';
 import Link from 'next/link';
 import {useState} from 'react';
 import {StateMark, stateWord} from './StateMark';
@@ -40,11 +40,23 @@ export function SetupOverview({setup, lang, selected, onSelect}: {setup: Setup; 
           <span>
             <b>{tr('Safety measured')}</b>
             {safety.date && <span>{tr('Safety measured on {date}', {date: safety.date})}</span>}
+            {safety.source && <span>{tr(safety.source === 'program' ? 'With the setup program' : 'Entered by hand')}</span>}
           </span>
         ) : (
           <span>
             <b>{tr('Safety measurement missing')}</b>
-            <span>{safety.why ? reasonSentence(safety.why, 'SETUP') : tr('No safety measurement yet: the mower drives only while you watch')}</span>
+            <span>
+              {safety.why && SAFETY_WHY[safety.why]
+                ? tr(SAFETY_WHY[safety.why])
+                : safety.why
+                  ? reasonSentence(safety.why, 'SETUP')
+                  : tr('No safety measurement yet: the mower drives only while you watch')}
+            </span>
+            {safety.closed?.map((c) => (
+              <span key={`${c.step}-${c.t}`} data-cause={c.reason}>
+                {causeText(c, setup.steps, lang, (r) => reasonSentence(r, 'SETUP_STEP'))}
+              </span>
+            ))}
           </span>
         )}
       </p>

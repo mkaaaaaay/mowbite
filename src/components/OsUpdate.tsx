@@ -1,6 +1,7 @@
 'use client';
 
 import {useRpcMethods} from '@/hooks/useRpcMethods';
+import {useSetup} from '@/hooks/useSetup';
 import {clock, dayClock, nearClock, numericDay, numericDayClock} from '@/lib/dates';
 import {reasonSentence} from '@/lib/events';
 import {useHostOnline} from '@/lib/hostOs';
@@ -237,6 +238,7 @@ function Part({
   const [open, setOpen] = useState(false);
   const [ask, setAsk] = useState<'back' | 'anyway' | null>(null);
   const [resetJobs, setResetJobs] = useState(false);
+  const setup = useSetup();
   const {available: a, running, previous} = c;
   const blocked = a?.blocked ?? null;
   const tooOld = appTooOld(a);
@@ -362,6 +364,10 @@ function Part({
               onYes={answer(() => onBack(resetJobs))}
               onNo={answer()}
             >
+              {c.id === 'os' && setup?.safety.why === 'CHECK_FAILED' && (
+                // an OS before the lock could be taken back (api 45) opens it again by the date kept by hand
+                <p className={shared.warn}>{tr('A safety step failed. An older MowBite OS may not know that and let the mower drive by itself again.')}</p>
+              )}
               {UPDATE_GATED.includes(c.id) && (
                 <p>
                   {tr('The mower has to stand ready in the dock for this.')}

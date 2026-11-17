@@ -331,6 +331,56 @@ function MoveArt() {
   );
 }
 
+function WheelsArt() {
+  // the mower jacked up turns its wheels part by part, then asks which single wheel turns: the right one, and it passes
+  return (
+    <Scene label={tr('Wheels in the air')}>
+      <rect x={20} y={8} width={280} height={186} rx={14} style={card} />
+      <Row
+        x={30}
+        y={18}
+        w={260}
+        name={tr('Forwards')}
+        states={[
+          {from: 0, state: 'waiting'},
+          {from: 0.15, state: 'ok'},
+        ]}
+      />
+      <Row
+        x={30}
+        y={56}
+        w={260}
+        name={tr('One wheel only')}
+        states={[
+          {from: 0, state: 'open'},
+          {from: 0.15, state: 'waiting'},
+          {from: 0.75, state: 'ok'},
+        ]}
+      />
+      <Shown from={0.25} to={0.75}>
+        <rect x={30} y={96} width={260} height={88} rx={10} fill="var(--tint-accent)" />
+        <text x={42} y={114} fontSize={12} fontWeight={600} style={text}>
+          {tr('Which wheel turns?')}
+        </text>
+        {[tr('Left wheel'), tr('Right wheel')].map((label, i) => (
+          <g key={i}>
+            <circle cx={49} cy={130 + i * 20} r={6} fill="var(--background)" stroke="var(--card-border)" />
+            {i === 1 && (
+              <Shown from={0.45}>
+                <circle cx={49} cy={130 + i * 20} r={3.5} style={accent} />
+              </Shown>
+            )}
+            <text x={62} y={134 + i * 20} fontSize={11} style={text}>
+              {label}
+            </text>
+          </g>
+        ))}
+        <Button x={206} y={150} w={74} h={24} size={11} label={tr('Save')} main at={0.6} />
+      </Shown>
+    </Scene>
+  );
+}
+
 function SafetyArt() {
   // a step skipped for now, then the safety measurement passes and the lock on top opens
   const lock = (open: boolean) => {
@@ -403,12 +453,17 @@ const STEPS: GuideStep[] = [
   },
   {
     title: 'Before it moves',
-    text: 'A step that turns the wheels or the blade asks first: tick what it lists, then start. Stay by the mower, Cancel stops the step, and so does the STOP button on the mower. While the emergency stop is on, the step waits.',
+    text: 'A step that turns the wheels or the blade asks first: tick what it lists, then start. Stay by the mower, Cancel stops the step, and so does the STOP button on the mower. While the emergency stop is on, the step waits. Keep the page open: if it closes or the phone locks, the mower stops the step.',
     Art: MoveArt,
   },
   {
+    title: 'Wheels in the air',
+    text: 'Put the mower on a stand under its body, the front not higher than the back, and keep a hand at the STOP button. The wheels turn forwards, backwards, both ways round and then only one: tell which one turns. It takes about 15 seconds. Further steps check that the wheels stop at the STOP button and the bumpers and stay still without a command. The STOP button, lifting and bumper have to pass before any wheel turns.',
+    Art: WheelsArt,
+  },
+  {
     title: 'Skipping and the safety measurement',
-    text: "A step you can't do now can be skipped with a reason and done later. Until the safety measurement passed, the mower drives only while you watch: the lock on top of the setup says so, and why.",
+    text: "A step you can't do now can be skipped with a reason and done later. Until the safety measurement passed, the mower drives only while you watch: the lock on top of the setup says so, and why. If a safety step fails, for instance a wheel turns the wrong way, the lock closes again until that step passes; repeating a passed safety step says so first.",
     Art: SafetyArt,
   },
 ];

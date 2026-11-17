@@ -40,6 +40,15 @@
     },
     {
      "when": {
+      "state": "IDLE",
+      "sub_state": "SETUP"
+     },
+     "en": "Setup step running",
+     "with_reason": false,
+     "de": "Einrichtungsschritt läuft"
+    },
+    {
+     "when": {
       "state": "IDLE"
      },
      "en": "Idle",
@@ -1206,6 +1215,23 @@
      "de": "Einrichtung neu begonnen"
     },
     {
+     "when": {
+      "what": "safety_closed"
+     },
+     "en": "Safety step failed, the mower drives only while you watch",
+     "severity": "warning",
+     "with_reason": false,
+     "de": "Sicherheitsschritt durchgefallen, der Mäher fährt nur unter Aufsicht"
+    },
+    {
+     "when": {
+      "what": "safety_opened"
+     },
+     "en": "Safety measured, the mower drives by itself again",
+     "with_reason": false,
+     "de": "Sicherheit gemessen, der Mäher fährt wieder selbstständig"
+    },
+    {
      "en": "Setup stage done",
      "with_reason": false,
      "de": "Einrichtungsabschnitt fertig"
@@ -1569,6 +1595,20 @@
    }
   ],
   "ON_DOCK": [
+   {
+    "en": "on the docking station, take it off first",
+    "when": {
+     "type": "SETUP_REFUSED"
+    },
+    "de": "steht auf der Ladestation, erst herunternehmen"
+   },
+   {
+    "en": "on the docking station, take it off first",
+    "when": {
+     "type": "SETUP_BLOCKED"
+    },
+    "de": "steht auf der Ladestation, erst herunternehmen"
+   },
    {
     "en": "on the docking station, drive it off by remote control first",
     "de": "steht im Dock, erst per Fernsteuerung herausfahren"
@@ -3074,6 +3114,99 @@
    {
     "en": "this step is done another way",
     "de": "dieser Schritt geht anders"
+   }
+  ],
+  "NOT_OFFERED": [
+   {
+    "en": "the board of this mower doesn't offer this check",
+    "de": "die Platine dieses Mähers bietet diese Prüfung nicht an"
+   }
+  ],
+  "RESTARTS_LOW": [
+   {
+    "en": "the driver restarted several times lately, restart MowBite OS first",
+    "de": "der Treiber ist zuletzt mehrmals neu gestartet, erst MowBite OS neu starten"
+   }
+  ],
+  "SAFETY_INPUTS": [
+   {
+    "en": "STOP button, lifting and bumper have to pass standing first",
+    "de": "erst müssen STOP-Taste, Anheben und Stoßfänger im Stand bestanden sein"
+   }
+  ],
+  "DRIVER_REFUSED": [
+   {
+    "en": "the board refused the check, the mower charges or the blade runs",
+    "de": "die Platine hat die Prüfung abgelehnt, der Mäher lädt oder das Messer läuft"
+   }
+  ],
+  "LOGIC_REFUSED": [
+   {
+    "en": "the mower didn't take the step: it is on its way, charges or has an emergency stop",
+    "de": "der Mäher hat den Schritt nicht angenommen: er ist unterwegs, lädt oder steht im Notaus"
+   }
+  ],
+  "NOT_DONE": [
+   {
+    "en": "the action wasn't done, the check doesn't count",
+    "de": "der Handgriff wurde nicht gemacht, die Prüfung zählt nicht"
+   }
+  ],
+  "NOT_RELEASED": [
+   {
+    "en": "the emergency stop of the step couldn't be released",
+    "de": "der Notaus des Schritts ließ sich nicht aufheben"
+   }
+  ],
+  "NO_START": [
+   {
+    "en": "the wheels didn't turn on the command",
+    "de": "die Räder haben sich auf den Fahrbefehl nicht gedreht"
+   }
+  ],
+  "NO_RESTART": [
+   {
+    "en": "after the release the wheels didn't turn again",
+    "de": "nach der Freigabe haben sich die Räder nicht wieder gedreht"
+   }
+  ],
+  "NO_RETURN": [
+   {
+    "en": "the driver of the board wasn't back within {limit:0} s",
+    "when": {
+     "limit": {
+      "present": true
+     }
+    },
+    "de": "der Treiber der Platine war nicht innerhalb von {limit:0} s zurück"
+   },
+   {
+    "en": "the driver of the board wasn't back in time",
+    "de": "der Treiber der Platine war nicht rechtzeitig zurück"
+   }
+  ],
+  "RELEASED": [
+   {
+    "en": "the app stopped following the step, the mower stopped",
+    "de": "die App hat den Schritt nicht mehr begleitet, der Mäher hat angehalten"
+   }
+  ],
+  "STARTED_AGAIN": [
+   {
+    "en": "a wheel turned while the mower had to stand",
+    "de": "ein Rad hat sich gedreht, obwohl der Mäher stehen musste"
+   }
+  ],
+  "WRONG_DIRECTION": [
+   {
+    "en": "a wheel turned the other way round than asked",
+    "de": "ein Rad hat sich anders herum gedreht als verlangt"
+   }
+  ],
+  "WRONG_WHEEL": [
+   {
+    "en": "another wheel than the right one turned, the motors are swapped",
+    "de": "es hat sich ein anderes Rad gedreht als das rechte, die Motoren sind vertauscht"
    }
   ]
  },

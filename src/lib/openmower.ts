@@ -69,10 +69,11 @@ export const RPC = {
   // the mower's sizes, MowBite OS only: kept by it, its planner only shows them (lib/mowerBody)
   geometry: 'robot.geometry.get',
   geometrySet: 'robot.geometry.set',
-  // the setup program: its state, a step begun, answered, skipped or stopped, all taken back, and a step's image
+  // the setup program: its state, a step begun, answered, kept going, skipped or stopped, all taken back, and a step's image
   setupGet: 'setup.get',
   setupStart: 'setup.start',
   setupAnswer: 'setup.answer',
+  setupKeep: 'setup.keep',
   setupSkip: 'setup.skip',
   setupAbort: 'setup.abort',
   setupReset: 'setup.reset',

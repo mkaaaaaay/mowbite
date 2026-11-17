@@ -5320,12 +5320,20 @@
       "additionalProperties": false,
       "description": "The setup program reached a mark",
       "properties": {
+        "cause": {
+          "description": "With safety_closed: its reason of SETUP_STEP",
+          "type": "string"
+        },
         "id": {
           "description": "Random id of the event, 32 letters and digits",
           "type": "string"
         },
         "stage": {
           "description": "With stage_done: the stage",
+          "type": "string"
+        },
+        "step": {
+          "description": "With safety_closed: the step that failed",
           "type": "string"
         },
         "t": {
@@ -5338,11 +5346,13 @@
           "description": "What happened; a type this version does not know carries only the envelope for sure"
         },
         "what": {
-          "description": "stage_done: every step of stage is ok or skipped; complete: every step is; reset: setup.reset took all results back",
+          "description": "stage_done: every step of stage is ok or skipped; complete: every step is; reset: setup.reset took all results back; safety_closed: a safety step failed and closed the lock of autonomous driving and mowing; safety_opened: the lock is open again",
           "enum": [
             "stage_done",
             "complete",
-            "reset"
+            "reset",
+            "safety_closed",
+            "safety_opened"
           ],
           "type": "string"
         }
@@ -5360,9 +5370,21 @@
       "additionalProperties": false,
       "description": "A step of the setup program ended",
       "properties": {
+        "answer": {
+          "description": "The wheel the user named",
+          "type": "string"
+        },
         "attempt": {
           "description": "The attempt that ended",
           "type": "integer"
+        },
+        "code": {
+          "description": "Its code: READ_ONLY, OUT_OF_RANGE, CHARGING, BLADE or BUSY",
+          "type": "string"
+        },
+        "emergency": {
+          "description": "The emergencies, by the names of x-emergency-bits",
+          "type": "string"
         },
         "id": {
           "description": "Random id of the event, 32 letters and digits",
@@ -5388,6 +5410,10 @@
           "description": "English text for the log and for apps that do not know the reason",
           "type": "string"
         },
+        "mower_state": {
+          "description": "current_state of the mower then",
+          "type": "string"
+        },
         "note": {
           "description": "With skipped: the text of setup.skip",
           "type": "string"
@@ -5410,11 +5436,23 @@
             "NOT_APPLIED",
             "RESTART_FAILED",
             "WRONG_SIGN",
+            "NO_START",
+            "STARTED_AGAIN",
+            "NO_RESTART",
+            "WRONG_DIRECTION",
+            "WRONG_WHEEL",
+            "NOT_RELEASED",
+            "NO_RETURN",
+            "DRIVER_REFUSED",
+            "LOGIC_REFUSED",
+            "RELEASED",
+            "EMERGENCY",
             "LIMIT",
             "NO_DATA",
             "NO_RTK",
             "STOPPED",
-            "INTERRUPTED"
+            "INTERRUPTED",
+            "NOT_DONE"
           ],
           "type": "string"
         },
@@ -5446,6 +5484,11 @@
         "source": {
           "description": "hw/status, hw/inputs, hw/capabilities, imu/data or gps/absolute_pose",
           "type": "string"
+        },
+        "speed": {
+          "description": "The fastest wheel then",
+          "type": "number",
+          "x-unit": "m/s"
         },
         "state": {
           "description": "How it ended",
@@ -5643,10 +5686,11 @@
           "type": "string"
         },
         "sub_state": {
-          "description": "What IDLE does: a drive or a calibration drive",
+          "description": "What IDLE does: a drive, a calibration drive or a step of the setup program that moves the wheels",
           "enum": [
             "DRIVING",
-            "CALIBRATING"
+            "CALIBRATING",
+            "SETUP"
           ],
           "type": "string"
         },
@@ -6054,7 +6098,7 @@
           ]
         },
         "state_before": {
-          "description": "The state before: current_state, DRIVING or CALIBRATING for IDLE with a drive; empty when not known",
+          "description": "The state before: current_state, DRIVING, CALIBRATING or SETUP for IDLE with a drive; empty when not known",
           "type": "string"
         },
         "t": {
@@ -10034,6 +10078,47 @@
           "additionalProperties": false,
           "description": "The lock of autonomous driving and mowing",
           "properties": {
+            "closed": {
+              "description": "What keeps the lock closed: a failed safety step until it passes again, or a reset",
+              "items": {
+                "additionalProperties": false,
+                "description": "One item",
+                "properties": {
+                  "part": {
+                    "description": "The part",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "reason": {
+                    "description": "A reason of SETUP_STEP, or for a reset RESET or UNREADABLE",
+                    "type": "string"
+                  },
+                  "step": {
+                    "description": "The step, null for a reset",
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "t": {
+                    "description": "When",
+                    "type": "number",
+                    "x-unit": "unix s"
+                  }
+                },
+                "required": [
+                  "step",
+                  "part",
+                  "reason",
+                  "t"
+                ],
+                "type": "object"
+              },
+              "maxItems": 32.0,
+              "type": "array"
+            },
             "date": {
               "description": "Its date, YYYY-MM-DD",
               "type": [
@@ -10049,11 +10134,29 @@
               ]
             },
             "open": {
-              "description": "The platform has a safety measurement",
+              "description": "The platform has a safety measurement and no safety step closed the lock",
               "type": "boolean"
             },
+            "source": {
+              "description": "Who gave the date: hand (the file kept by hand or the platform) or program (the summary of the setup program); null without one",
+              "enum": [
+                "hand",
+                "program",
+                null
+              ],
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "why": {
-              "description": "NO_SAFETY_MEASUREMENT while closed",
+              "description": "While closed: NO_SAFETY_MEASUREMENT (no date), CHECK_FAILED (a safety step failed) or RESET (the program was reset or its file could not be read)",
+              "enum": [
+                "NO_SAFETY_MEASUREMENT",
+                "CHECK_FAILED",
+                "RESET",
+                null
+              ],
               "type": [
                 "string",
                 "null"
@@ -10064,7 +10167,9 @@
             "open",
             "date",
             "firmware",
-            "why"
+            "why",
+            "source",
+            "closed"
           ],
           "type": "object"
         },
@@ -10286,7 +10391,7 @@
                       "type": "boolean"
                     },
                     "ask": {
-                      "description": "A question of the running step that waits for its answer: accept while ask of the step is set",
+                      "description": "A question of the running step that waits for its answer: accept while ask of the step is set, wheel while the part one_wheel of a step wheels turns one wheel, pressed while a safety step saw nothing of the action of a part",
                       "type": "boolean"
                     },
                     "max": {
@@ -10298,7 +10403,7 @@
                       "type": "number"
                     },
                     "name": {
-                      "description": "Key in values; in a step inputs_assign accept and delay_<part>, see x-setup.accept and x-setup.delay",
+                      "description": "Key in values; in a step inputs_assign accept and delay_<part>, see x-setup.accept and x-setup.delay; in a step wheels wheel, see x-setup.wheel",
                       "type": "string"
                     },
                     "texts": {
@@ -10357,7 +10462,7 @@
                 "type": "array"
               },
               "kind": {
-                "description": "How to show it: confirm, input or measure; a kind the app does not know as text with a button",
+                "description": "How to show it: confirm, input, measure or drive; a kind the app does not know as text with a button",
                 "type": "string"
               },
               "lines": {
@@ -10417,7 +10522,48 @@
                 "type": "array"
               },
               "motion": {
+                "additionalProperties": false,
                 "description": "What moves in the step, null for nothing",
+                "properties": {
+                  "blade": {
+                    "description": "The program turns the blade",
+                    "type": "boolean"
+                  },
+                  "max_distance": {
+                    "description": "The longest way on the ground, null while jacked up",
+                    "type": [
+                      "number",
+                      "null"
+                    ],
+                    "x-unit": "m"
+                  },
+                  "max_speed": {
+                    "description": "The fastest a wheel turns",
+                    "type": "number",
+                    "x-unit": "m/s"
+                  },
+                  "max_time": {
+                    "description": "The longest single move",
+                    "type": "number",
+                    "x-unit": "s"
+                  },
+                  "raised": {
+                    "description": "The mower is jacked up",
+                    "type": "boolean"
+                  },
+                  "wheels": {
+                    "description": "The program turns the wheels",
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "wheels",
+                  "blade",
+                  "raised",
+                  "max_speed",
+                  "max_distance",
+                  "max_time"
+                ],
                 "type": [
                   "object",
                   "null"
@@ -10581,6 +10727,10 @@
                   "null"
                 ]
               },
+              "safety": {
+                "description": "A safety step: failing it with a reason that closes closes the lock, passing it opens it again",
+                "type": "boolean"
+              },
               "skip_reasons": {
                 "description": "Reasons setup.skip takes",
                 "items": {
@@ -10716,6 +10866,7 @@
               "check",
               "kind",
               "state",
+              "safety",
               "attempt",
               "needs",
               "blocked",
@@ -10878,6 +11029,34 @@
         "data",
         "sha256",
         "type"
+      ],
+      "type": "object"
+    },
+    "setup.keep.params": {
+      "additionalProperties": false,
+      "description": "The params of setup.keep: The step",
+      "properties": {
+        "step": {
+          "description": "id of the step",
+          "type": "string"
+        }
+      },
+      "required": [
+        "step"
+      ],
+      "type": "object"
+    },
+    "setup.keep.result": {
+      "additionalProperties": false,
+      "description": "The result of setup.keep: Whether the step still runs",
+      "properties": {
+        "running": {
+          "description": "It runs; false once it ended",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "running"
       ],
       "type": "object"
     },
@@ -15492,11 +15671,11 @@
       "type": "object"
     }
   },
-  "$id": "urn:mowbite-os:api:43",
+  "$id": "urn:mowbite-os:api:45",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "robot_state, actions, events and RPC methods of MowBite OS over MQTT, as system.api gives them; made from the code, objects sorted by key. x-reasons has severity and resume of every reason by event (COMMAND_REFUSED and REQUEST_REFUSED only in refusals; when: another rating for these field values; texts: name, help and fix by language; an enum field may carry the same by value as x-texts), x-emergency-bits the bits of emergency, x-commands the commands with params, result, the event of their refusal and the actions that do the same, x-methods every RPC method of the OS with its node (planner.* are the planner's, sim.* only in the simulation), x-sensors the sensors by id, x-settings the settings of params.set with the ranges of the OS, x-geometry the keys of robot.geometry, x-schedule-log the words of schedule.log with what detail and more hold (null: always null), x-setup the setup program. x-api counts every change, x-api-break only the breaks: a method, field, event, reason or topic gone or renamed, a type or meaning changed, a parameter newly required, fewer values taken in a request, an event a client waits for no longer sent. All else only adds; a client goes with every x-api of its x-api-break from the one it needs on.",
   "title": "MowBite OS app interface",
-  "x-api": 43,
+  "x-api": 45,
   "x-api-break": 1,
   "x-commands": {
     "docking.abort": {
@@ -16615,6 +16794,13 @@
       "offered": "where the platform has a step list (setup/setup.yaml)",
       "params": "#/$defs/setup.image.params",
       "result": "#/$defs/setup.image.result"
+    },
+    "setup.keep": {
+      "description": "Keeps a step that moves the wheels going: at least every 1 s while it runs, else it stops with RELEASED. Not needed for other steps",
+      "node": "mowbite_setup",
+      "offered": "where the platform has a step list (setup/setup.yaml)",
+      "params": "#/$defs/setup.keep.params",
+      "result": "#/$defs/setup.keep.result"
     },
     "setup.reset": {
       "description": "Takes every result back: all steps are open again, the record starts anew",
@@ -19009,6 +19195,24 @@
           }
         }
       },
+      "NOT_OFFERED": {
+        "description": "The driver does not offer what the step needs",
+        "fields": {},
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Den Schritt überspringen.",
+            "help": "Die Platine dieses Mähers bietet diese Prüfung nicht an.",
+            "name": "Nicht angeboten"
+          },
+          "en": {
+            "fix": "Skip the step.",
+            "help": "The board of this mower doesn't offer this check.",
+            "name": "Not offered"
+          }
+        }
+      },
       "NO_DATA": {
         "description": "A source the step needs sends nothing",
         "fields": {
@@ -19026,6 +19230,64 @@
             "fix": "Switch the mower on and check the cables.",
             "help": "Motion sensor or GPS send no data right now.",
             "name": "No data"
+          }
+        }
+      },
+      "ON_DOCK": {
+        "description": "The mower is on the charging contacts",
+        "fields": {},
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Den Mäher von der Station nehmen und aufbocken.",
+            "help": "Auf der Ladestation dreht der Mäher keine Räder.",
+            "name": "Auf der Ladestation"
+          },
+          "en": {
+            "fix": "Take the mower off the station and jack it up.",
+            "help": "The mower turns no wheels on the docking station.",
+            "name": "On the docking station"
+          }
+        }
+      },
+      "RESTARTS_LOW": {
+        "description": "The launch has fewer than two restarts of the driver left",
+        "fields": {
+          "left": ""
+        },
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "MowBite OS neu starten, dann den Schritt wiederholen.",
+            "help": "Der Treiber ist zuletzt mehrmals neu gestartet. Für diese Prüfung braucht es noch Reserve.",
+            "name": "Zu wenige Neustarts übrig"
+          },
+          "en": {
+            "fix": "Restart MowBite OS, then repeat the step.",
+            "help": "The driver restarted several times lately. This check needs some to spare.",
+            "name": "Too few restarts left"
+          }
+        }
+      },
+      "SAFETY_INPUTS": {
+        "description": "A step input of the roles stop, lift or bumper is not ok",
+        "fields": {
+          "steps": ""
+        },
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Die Prüfung der Eingänge abschließen; sie lässt sich hierfür nicht überspringen.",
+            "help": "Bevor sich Räder drehen, müssen STOP-Taste, Anheben und Stoßfänger im Stand geprüft sein.",
+            "name": "Erst die Sensoren prüfen"
+          },
+          "en": {
+            "fix": "Finish the check of the inputs; it can't be skipped for this.",
+            "help": "Before any wheel turns, STOP button, lifting and bumper have to be checked standing.",
+            "name": "Check the sensors first"
           }
         }
       },
@@ -19111,19 +19373,19 @@
         }
       },
       "EMERGENCY": {
-        "description": "An emergency stands and the step restarts the OS",
+        "description": "An emergency stands: a step that restarts the OS or moves the wheels needs none",
         "fields": {},
         "resume": "user",
         "severity": "info",
         "texts": {
           "de": {
             "fix": "Den Notaus aufheben, dann den Schritt starten.",
-            "help": "Für diesen Schritt startet MowBite OS neu. Das geht nur ohne Notaus.",
+            "help": "Dieser Schritt startet MowBite OS neu oder dreht die Räder. Das geht nur ohne Notaus.",
             "name": "Notaus steht"
           },
           "en": {
             "fix": "Release the emergency stop, then start the step.",
-            "help": "MowBite OS restarts for this step. That takes a mower without an emergency stop.",
+            "help": "This step restarts MowBite OS or turns the wheels. That takes a mower without an emergency stop.",
             "name": "Emergency stop is on"
           }
         }
@@ -19168,6 +19430,24 @@
           }
         }
       },
+      "NOT_OFFERED": {
+        "description": "The driver does not offer what the step needs",
+        "fields": {},
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Den Schritt überspringen.",
+            "help": "Die Platine dieses Mähers bietet diese Prüfung nicht an.",
+            "name": "Nicht angeboten"
+          },
+          "en": {
+            "fix": "Skip the step.",
+            "help": "The board of this mower doesn't offer this check.",
+            "name": "Not offered"
+          }
+        }
+      },
       "NOT_SKIPPABLE": {
         "description": "The step cannot be skipped",
         "fields": {},
@@ -19183,6 +19463,64 @@
             "fix": "Do the step.",
             "help": "This step can't be skipped.",
             "name": "Can't be skipped"
+          }
+        }
+      },
+      "ON_DOCK": {
+        "description": "The mower is on the charging contacts",
+        "fields": {},
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Den Mäher von der Station nehmen und aufbocken.",
+            "help": "Auf der Ladestation dreht der Mäher keine Räder.",
+            "name": "Auf der Ladestation"
+          },
+          "en": {
+            "fix": "Take the mower off the station and jack it up.",
+            "help": "The mower turns no wheels on the docking station.",
+            "name": "On the docking station"
+          }
+        }
+      },
+      "RESTARTS_LOW": {
+        "description": "The launch has fewer than two restarts of the driver left",
+        "fields": {
+          "left": ""
+        },
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "MowBite OS neu starten, dann den Schritt wiederholen.",
+            "help": "Der Treiber ist zuletzt mehrmals neu gestartet. Für diese Prüfung braucht es noch Reserve.",
+            "name": "Zu wenige Neustarts übrig"
+          },
+          "en": {
+            "fix": "Restart MowBite OS, then repeat the step.",
+            "help": "The driver restarted several times lately. This check needs some to spare.",
+            "name": "Too few restarts left"
+          }
+        }
+      },
+      "SAFETY_INPUTS": {
+        "description": "A step input of the roles stop, lift or bumper is not ok",
+        "fields": {
+          "steps": ""
+        },
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Die Prüfung der Eingänge abschließen; sie lässt sich hierfür nicht überspringen.",
+            "help": "Bevor sich Räder drehen, müssen STOP-Taste, Anheben und Stoßfänger im Stand geprüft sein.",
+            "name": "Erst die Sensoren prüfen"
+          },
+          "en": {
+            "fix": "Finish the check of the inputs; it can't be skipped for this.",
+            "help": "Before any wheel turns, STOP button, lifting and bumper have to be checked standing.",
+            "name": "Check the sensors first"
           }
         }
       },
@@ -19267,6 +19605,7 @@
     },
     "SETUP_STEP": {
       "AMBIGUOUS": {
+        "closes": false,
         "description": "More than one line changed with the action of the part",
         "fields": {
           "lines": "",
@@ -19287,7 +19626,52 @@
           }
         }
       },
+      "DRIVER_REFUSED": {
+        "closes": false,
+        "description": "The driver refused hw/silence or hw/end",
+        "fields": {
+          "code": "",
+          "part": ""
+        },
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Den Mäher von der Ladestation nehmen, das Messer stehen lassen, dann wiederholen.",
+            "help": "Der Treiber der Platine hat die Prüfung abgelehnt, etwa weil der Mäher lädt oder das Messer läuft.",
+            "name": "Platine lehnt ab"
+          },
+          "en": {
+            "fix": "Take the mower off the docking station, let the blade stand, then repeat.",
+            "help": "The driver of the board refused the check, for instance because the mower charges or the blade runs.",
+            "name": "Board refused"
+          }
+        }
+      },
+      "EMERGENCY": {
+        "closes": false,
+        "description": "An emergency the step did not ask for came up",
+        "fields": {
+          "emergency": "",
+          "part": ""
+        },
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Den Grund in der App ansehen, den Notaus aufheben und den Schritt wiederholen.",
+            "help": "Ein Notaus hat den Schritt beendet.",
+            "name": "Notaus"
+          },
+          "en": {
+            "fix": "See the reason in the app, release the emergency stop and repeat the step.",
+            "help": "An emergency stop ended the step.",
+            "name": "Emergency stop"
+          }
+        }
+      },
       "FLUTTER": {
+        "closes": false,
         "description": "A line changed while nothing was to be touched",
         "fields": {
           "lines": ""
@@ -19308,6 +19692,7 @@
         }
       },
       "INTERRUPTED": {
+        "closes": false,
         "description": "The OS restarted while the step ran",
         "fields": {},
         "resume": "user",
@@ -19326,9 +19711,11 @@
         }
       },
       "LIMIT": {
+        "closes": true,
         "description": "A value is outside of its bounds",
         "fields": {
           "limit": "",
+          "part": "",
           "unit": "",
           "value": "",
           "value_id": ""
@@ -19349,6 +19736,7 @@
         }
       },
       "LINE_SILENT": {
+        "closes": false,
         "description": "A line of the role did not switch in the whole step",
         "fields": {
           "lines": "",
@@ -19369,7 +19757,30 @@
           }
         }
       },
+      "LOGIC_REFUSED": {
+        "closes": false,
+        "description": "The logic did not take the step into SETUP within its time",
+        "fields": {
+          "mower_state": "",
+          "part": ""
+        },
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Den Mäher von der Station nehmen, Notaus aufheben, dann wiederholen.",
+            "help": "Der Mäher hat den Prüfschritt nicht angenommen: er ist unterwegs, lädt oder steht im Notaus.",
+            "name": "Mäher nicht bereit"
+          },
+          "en": {
+            "fix": "Take the mower off the station, release the emergency stop, then repeat.",
+            "help": "The mower didn't take the step: it is on its way, charges or has an emergency stop.",
+            "name": "Mower not ready"
+          }
+        }
+      },
       "NOT_APPLIED": {
+        "closes": false,
         "description": "After the restart hw/inputs does not show the table the step wrote",
         "fields": {
           "key": ""
@@ -19389,7 +19800,50 @@
           }
         }
       },
+      "NOT_DONE": {
+        "closes": false,
+        "description": "The step saw nothing of the action of a part, and the answer to pressed was no or did not come: the step is open again and the lock stays as it was",
+        "fields": {
+          "part": ""
+        },
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Den Schritt wiederholen und den Handgriff in der angezeigten Zeit machen.",
+            "help": "Der Handgriff wurde nicht gemacht. Die Prüfung zählt nicht.",
+            "name": "Nicht gemacht"
+          },
+          "en": {
+            "fix": "Repeat the step and do the action within the time shown.",
+            "help": "The action wasn't done. The check doesn't count.",
+            "name": "Not done"
+          }
+        }
+      },
+      "NOT_RELEASED": {
+        "closes": false,
+        "description": "The emergency the step brought did not end with the release of the program",
+        "fields": {
+          "part": ""
+        },
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Den Notaus in der App aufheben, dann wiederholen.",
+            "help": "Der Notaus des Schritts ließ sich nicht aufheben.",
+            "name": "Freigabe gescheitert"
+          },
+          "en": {
+            "fix": "Release the emergency stop in the app, then repeat.",
+            "help": "The emergency stop of the step couldn't be released.",
+            "name": "Release failed"
+          }
+        }
+      },
       "NOT_SEEN": {
+        "closes": true,
         "description": "The OS did not see what the part asked for within its time",
         "fields": {
           "part": ""
@@ -19410,6 +19864,7 @@
         }
       },
       "NO_DATA": {
+        "closes": false,
         "description": "A source the step needs sent nothing",
         "fields": {
           "part": "",
@@ -19431,7 +19886,8 @@
         }
       },
       "NO_EMERGENCY": {
-        "description": "The input switched, but the emergency of the step did not follow within its limit",
+        "closes": true,
+        "description": "The input switched, or the silence or end of the driver came, but the emergency of the step did not follow within its limit",
         "fields": {
           "limit": "s",
           "part": ""
@@ -19440,18 +19896,19 @@
         "severity": "warning",
         "texts": {
           "de": {
-            "fix": "Den Mäher nicht fahren lassen. Zuordnung und Einstellung des Eingangs prüfen, dann wiederholen.",
-            "help": "Der Eingang hat geschaltet, aber der Mäher hat nicht rechtzeitig den Notaus gemeldet. So würde er im Betrieb nicht anhalten.",
+            "fix": "Den Mäher nicht fahren lassen. Zuordnung und Einstellung des Auslösers prüfen, dann wiederholen.",
+            "help": "Der Auslöser kam, aber der Mäher hat nicht rechtzeitig den Notaus gemeldet. So würde er im Betrieb nicht anhalten.",
             "name": "Kein Notaus"
           },
           "en": {
-            "fix": "Don't let the mower drive. Check how the input is assigned and set, then repeat.",
-            "help": "The input switched, but the mower didn't report the emergency stop in time. It wouldn't stop like this in use.",
+            "fix": "Don't let the mower drive. Check how the trigger is assigned and set, then repeat.",
+            "help": "The trigger came, but the mower didn't report the emergency stop in time. It wouldn't stop like this in use.",
             "name": "No emergency stop"
           }
         }
       },
       "NO_LINE": {
+        "closes": false,
         "description": "No line changed within the time of the part",
         "fields": {
           "part": ""
@@ -19471,7 +19928,50 @@
           }
         }
       },
+      "NO_RESTART": {
+        "closes": false,
+        "description": "After the release a new command did not turn the wheels within its time",
+        "fields": {
+          "part": ""
+        },
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Den Notaus in der App prüfen und aufheben, dann wiederholen.",
+            "help": "Nach der Freigabe hat ein neuer Fahrbefehl die Räder nicht gedreht.",
+            "name": "Kein Anlauf nach Freigabe"
+          },
+          "en": {
+            "fix": "Check the emergency stop in the app and release it, then repeat.",
+            "help": "After the release a new command didn't turn the wheels.",
+            "name": "No start after the release"
+          }
+        }
+      },
+      "NO_RETURN": {
+        "closes": false,
+        "description": "The driver was not back within return_max after hw/end",
+        "fields": {
+          "limit": "s"
+        },
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "MowBite OS neu starten, dann wiederholen.",
+            "help": "Der Treiber der Platine ist nach seinem Ende nicht rechtzeitig neu gestartet.",
+            "name": "Treiber nicht zurück"
+          },
+          "en": {
+            "fix": "Restart MowBite OS, then repeat.",
+            "help": "The driver of the board didn't start again in time after its end.",
+            "name": "Driver not back"
+          }
+        }
+      },
       "NO_RTK": {
+        "closes": false,
         "description": "No position of the solution, accuracy and rate asked for within the timeout",
         "fields": {},
         "resume": "user",
@@ -19489,7 +19989,50 @@
           }
         }
       },
+      "NO_START": {
+        "closes": false,
+        "description": "The wheels did not turn within the time after the first command",
+        "fields": {
+          "part": ""
+        },
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Prüfen, ob der Mäher frei aufgebockt ist und die Motoren angeschlossen sind, dann wiederholen.",
+            "help": "Die Räder haben sich auf den Fahrbefehl nicht gedreht.",
+            "name": "Räder drehen nicht"
+          },
+          "en": {
+            "fix": "Check that the mower is jacked up freely and the motors are connected, then repeat.",
+            "help": "The wheels didn't turn on the command.",
+            "name": "Wheels not turning"
+          }
+        }
+      },
+      "RELEASED": {
+        "closes": false,
+        "description": "setup.keep stayed away: the app lost its connection or let go of the step",
+        "fields": {
+          "part": ""
+        },
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Die App offen lassen und die Verbindung prüfen, dann wiederholen.",
+            "help": "Die App hat den Schritt nicht mehr begleitet, der Mäher hat angehalten.",
+            "name": "Verbindung weg"
+          },
+          "en": {
+            "fix": "Keep the app open and check the connection, then repeat.",
+            "help": "The app stopped following the step, so the mower stopped.",
+            "name": "Connection lost"
+          }
+        }
+      },
       "RESTART_FAILED": {
+        "closes": false,
         "description": "The OS was not back within the time after the restart the step asked for",
         "fields": {
           "limit": "s"
@@ -19509,7 +20052,30 @@
           }
         }
       },
+      "STARTED_AGAIN": {
+        "closes": true,
+        "description": "A wheel turned while nothing was to turn: after the stop or the release",
+        "fields": {
+          "part": "",
+          "speed": "m/s"
+        },
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Den Mäher nicht fahren lassen. Platine und Treiber prüfen, dann wiederholen.",
+            "help": "Ein Rad hat sich gedreht, obwohl der Mäher stehen musste. So würde er nach einem Stopp von selbst weiterfahren.",
+            "name": "Wieder angelaufen"
+          },
+          "en": {
+            "fix": "Don't let the mower drive. Check board and driver, then repeat.",
+            "help": "A wheel turned while the mower had to stand. Like this it would drive on by itself after a stop.",
+            "name": "Started again"
+          }
+        }
+      },
       "STOPPED": {
+        "closes": false,
         "description": "Ended with setup.abort",
         "fields": {},
         "resume": "user",
@@ -19528,6 +20094,7 @@
         }
       },
       "STOPPED_EARLY": {
+        "closes": false,
         "description": "A short switch of the input brought the emergency already",
         "fields": {
           "part": ""
@@ -19547,7 +20114,29 @@
           }
         }
       },
+      "WRONG_DIRECTION": {
+        "closes": true,
+        "description": "A part turned the wheels the other way than asked",
+        "fields": {
+          "part": ""
+        },
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Anschlüsse der Motoren und die Drehrichtung in den Einstellungen der Plattform prüfen.",
+            "help": "Ein Rad hat sich anders herum gedreht als verlangt.",
+            "name": "Falsche Drehrichtung"
+          },
+          "en": {
+            "fix": "Check the plugs of the motors and their direction in the settings of the platform.",
+            "help": "A wheel turned the other way round than asked.",
+            "name": "Wrong direction"
+          }
+        }
+      },
       "WRONG_INPUT": {
+        "closes": false,
         "description": "Another input switched than the one the part asked for",
         "fields": {
           "part": "",
@@ -19569,6 +20158,7 @@
         }
       },
       "WRONG_SIGN": {
+        "closes": false,
         "description": "The IMU showed the move the other way round",
         "fields": {
           "part": ""
@@ -19585,6 +20175,28 @@
             "fix": "Change the mounting of the sensor in the settings of the platform, then repeat.",
             "help": "The motion sensor reported the move the other way round. It is mounted another way than set.",
             "name": "Wrong direction"
+          }
+        }
+      },
+      "WRONG_WHEEL": {
+        "closes": true,
+        "description": "In the part one_wheel the answer or the odometry named another wheel than the right",
+        "fields": {
+          "answer": "",
+          "part": ""
+        },
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Die Anschlüsse der Motoren tauschen oder die Seiten in den Einstellungen der Plattform ändern, dann wiederholen.",
+            "help": "Es hat sich ein anderes Rad gedreht als das rechte. Die Motoren sind vertauscht.",
+            "name": "Falsches Rad"
+          },
+          "en": {
+            "fix": "Swap the plugs of the motors or the sides in the settings of the platform, then repeat.",
+            "help": "Another wheel than the right one turned. The motors are swapped.",
+            "name": "Wrong wheel"
           }
         }
       }
@@ -21235,6 +21847,7 @@
           "STOPPED",
           "INTERRUPTED"
         ],
+        "safety": false,
         "start": true,
         "texts": {
           "de": {
@@ -21380,6 +21993,7 @@
           }
         },
         "reasons": [],
+        "safety": false,
         "start": false,
         "values": {}
       },
@@ -21389,6 +22003,7 @@
         "kind": "confirm",
         "params": {},
         "reasons": [],
+        "safety": false,
         "start": true,
         "values": {}
       },
@@ -21411,8 +22026,119 @@
           }
         },
         "reasons": [],
+        "safety": false,
         "start": false,
         "values": {}
+      },
+      "driver_end": {
+        "auto": false,
+        "description": "While the wheels turn: hw/end, commands go on. The driver is back within return_max (hw/status fresh after a gap), the wheels stand and do not start for hold s, the driver shows emergencies of the list and LATCH only, the program releases them itself, nothing starts for hold s and a new command turns the wheels. Offered where hw/capabilities has driver_end and the launch has at least two restarts of the driver left. Every step that moves the wheels: the mower is jacked up and setup.start confirms raised and hand_at_stop; the mower is in IDLE, off the charging contacts, without emergency or hold; every step input of the roles stop, lift and bumper of the list is ok (SAFETY_INPUTS, not to be skipped). The mower is in the sub state SETUP meanwhile. setup.keep at least every 1 s keeps it going (else RELEASED), setup.abort and any emergency it did not ask for stop it; a single move lasts 10 s at most; motion of the step names its bounds",
+        "kind": "drive",
+        "params": {
+          "emergency": {
+            "description": "The emergencies, by the names of x-emergency-bits, of which the driver shows at least one after it, besides LATCH and no other",
+            "required": true,
+            "type": "list",
+            "values": [
+              "TIMEOUT_INPUTS",
+              "STOP",
+              "LIFT",
+              "LIFT_MULTIPLE",
+              "COLLISION",
+              "TIMEOUT_HIGH_LEVEL",
+              "HIGH_LEVEL",
+              "SERVICE_NOT_READY",
+              "COLLISION_MULTIPLE",
+              "MOWER_RPM_TIMEOUT",
+              "MOWER_RPM_LIMIT",
+              "FIRMWARE_INCOMPATIBLE",
+              "TILT",
+              "FENCE",
+              "STUCK",
+              "IMU_TIMEOUT",
+              "MOWER_NOT_STOPPED",
+              "WHEEL_RUNAWAY",
+              "FOREIGN_HOST",
+              "DRIVER_STALL",
+              "UNEXPECTED_RESTART",
+              "INPUTS_LEARNING"
+            ]
+          },
+          "hold": {
+            "default": 1.0,
+            "description": "No wheel starts again for this time, after the stop and after the release",
+            "max": 5.0,
+            "min": 0.5,
+            "required": false,
+            "type": "number",
+            "unit": "s"
+          },
+          "return_max": {
+            "default": 20.0,
+            "description": "The driver is back within this time",
+            "max": 60.0,
+            "min": 5.0,
+            "required": false,
+            "type": "number",
+            "unit": "s"
+          },
+          "speed": {
+            "default": 0.05,
+            "description": "Speed of each wheel",
+            "max": 0.1,
+            "min": 0.02,
+            "required": false,
+            "type": "number",
+            "unit": "m/s"
+          }
+        },
+        "reasons": [
+          "NO_START",
+          "DRIVER_REFUSED",
+          "NO_RETURN",
+          "STARTED_AGAIN",
+          "NO_EMERGENCY",
+          "NOT_RELEASED",
+          "NO_RESTART",
+          "LOGIC_REFUSED",
+          "RELEASED",
+          "EMERGENCY",
+          "NO_DATA",
+          "STOPPED",
+          "INTERRUPTED"
+        ],
+        "safety": true,
+        "start": true,
+        "texts": {
+          "de": {
+            "fix": "Bleiben die Räder nicht stehen oder kommt der Treiber nicht zurück: den Mäher nicht fahren lassen und MowBite OS neu starten.",
+            "help": "Die Räder drehen langsam, dann beendet sich der Treiber der Platine und startet neu. Die Räder müssen stehen und gesperrt bleiben, bis das Programm sie freigibt.",
+            "name": "Stopp bei Treiberende"
+          },
+          "en": {
+            "fix": "If the wheels do not stand or the driver does not come back, don't let the mower drive and restart MowBite OS.",
+            "help": "The wheels turn slowly, then the driver of the board ends and starts again. The wheels have to stand and stay locked until the program releases them.",
+            "name": "Stop when the driver ends"
+          }
+        },
+        "values": {
+          "return": {
+            "description": "From the answer of hw/end to the first hw/status of the new driver",
+            "texts": {
+              "de": {
+                "fix": "",
+                "help": "",
+                "name": "Treiber zurück nach"
+              },
+              "en": {
+                "fix": "",
+                "help": "",
+                "name": "Driver back after"
+              }
+            },
+            "unit": "s"
+          }
+        }
       },
       "geometry": {
         "auto": true,
@@ -21427,6 +22153,7 @@
           }
         },
         "reasons": [],
+        "safety": false,
         "start": false,
         "texts": {
           "de": {
@@ -21481,8 +22208,10 @@
           "NO_EMERGENCY",
           "NO_DATA",
           "STOPPED",
-          "INTERRUPTED"
+          "INTERRUPTED",
+          "NOT_DONE"
         ],
+        "safety": true,
         "start": true,
         "texts": {
           "de": {
@@ -21567,8 +22296,10 @@
           "LINE_SILENT",
           "NO_DATA",
           "STOPPED",
-          "INTERRUPTED"
+          "INTERRUPTED",
+          "NOT_DONE"
         ],
+        "safety": true,
         "start": true,
         "values": {
           "delay": {
@@ -21625,6 +22356,7 @@
           "STOPPED",
           "INTERRUPTED"
         ],
+        "safety": false,
         "start": true,
         "texts": {
           "de": {
@@ -21642,6 +22374,84 @@
           "line": {
             "description": "The line taken, one value by part with the id of the part",
             "unit": ""
+          }
+        }
+      },
+      "no_command": {
+        "auto": false,
+        "description": "While the wheels turn, the program sends no commands any more: the wheels stand within stop_max of the last one by the watchdogs alone and do not start for hold s; then a new command turns them again. No emergency. Every step that moves the wheels: the mower is jacked up and setup.start confirms raised and hand_at_stop; the mower is in IDLE, off the charging contacts, without emergency or hold; every step input of the roles stop, lift and bumper of the list is ok (SAFETY_INPUTS, not to be skipped). The mower is in the sub state SETUP meanwhile. setup.keep at least every 1 s keeps it going (else RELEASED), setup.abort and any emergency it did not ask for stop it; a single move lasts 10 s at most; motion of the step names its bounds",
+        "kind": "drive",
+        "params": {
+          "hold": {
+            "default": 1.0,
+            "description": "No wheel starts again for this time, after the stop and after the release",
+            "max": 5.0,
+            "min": 0.5,
+            "required": false,
+            "type": "number",
+            "unit": "s"
+          },
+          "speed": {
+            "default": 0.05,
+            "description": "Speed of each wheel",
+            "max": 0.1,
+            "min": 0.02,
+            "required": false,
+            "type": "number",
+            "unit": "m/s"
+          },
+          "stop_max": {
+            "default": 1.0,
+            "description": "The wheels stand within this time of the trigger",
+            "max": 3.0,
+            "min": 0.1,
+            "required": false,
+            "type": "number",
+            "unit": "s"
+          }
+        },
+        "reasons": [
+          "NO_START",
+          "LIMIT",
+          "STARTED_AGAIN",
+          "NO_RESTART",
+          "LOGIC_REFUSED",
+          "RELEASED",
+          "EMERGENCY",
+          "NO_DATA",
+          "STOPPED",
+          "INTERRUPTED"
+        ],
+        "safety": true,
+        "start": true,
+        "texts": {
+          "de": {
+            "fix": "Drehen die Räder weiter: den Mäher nicht fahren lassen und die Wächter der Plattform prüfen.",
+            "help": "Die Räder drehen langsam, dann kommen keine Fahrbefehle mehr. Die Räder müssen von selbst stehen bleiben.",
+            "name": "Stopp ohne Fahrbefehl"
+          },
+          "en": {
+            "fix": "If the wheels keep turning, don't let the mower drive; check the watchdogs of the platform.",
+            "help": "The wheels turn slowly, then no commands come any more. The wheels have to stand by themselves.",
+            "name": "Stop without commands"
+          }
+        },
+        "values": {
+          "stand": {
+            "description": "From the last command to standing wheels",
+            "texts": {
+              "de": {
+                "fix": "",
+                "help": "",
+                "name": "Standzeit"
+              },
+              "en": {
+                "fix": "",
+                "help": "",
+                "name": "Time to stand"
+              }
+            },
+            "unit": "s"
           }
         }
       },
@@ -21680,6 +22490,7 @@
           }
         },
         "reasons": [],
+        "safety": false,
         "start": false,
         "values": {}
       },
@@ -21742,6 +22553,7 @@
           "STOPPED",
           "INTERRUPTED"
         ],
+        "safety": false,
         "start": true,
         "texts": {
           "de": {
@@ -21803,6 +22615,321 @@
               }
             },
             "unit": ""
+          }
+        }
+      },
+      "silence": {
+        "auto": false,
+        "description": "Round by round, while the wheels turn: hw/silence for silence_max_s of the driver, commands go on. The board stops the wheels by itself within stop_max of the answer, nothing starts until hold s after the silence; then the driver shows emergencies of the list and LATCH only, the program releases them itself, nothing starts for hold s and a new command turns the wheels. The stand times of the rounds differ by spread_max at most. Offered where hw/capabilities has silence_max_s. Every step that moves the wheels: the mower is jacked up and setup.start confirms raised and hand_at_stop; the mower is in IDLE, off the charging contacts, without emergency or hold; every step input of the roles stop, lift and bumper of the list is ok (SAFETY_INPUTS, not to be skipped). The mower is in the sub state SETUP meanwhile. setup.keep at least every 1 s keeps it going (else RELEASED), setup.abort and any emergency it did not ask for stop it; a single move lasts 10 s at most; motion of the step names its bounds",
+        "kind": "drive",
+        "params": {
+          "emergency": {
+            "description": "The emergencies, by the names of x-emergency-bits, of which the driver shows at least one after it, besides LATCH and no other",
+            "required": true,
+            "type": "list",
+            "values": [
+              "TIMEOUT_INPUTS",
+              "STOP",
+              "LIFT",
+              "LIFT_MULTIPLE",
+              "COLLISION",
+              "TIMEOUT_HIGH_LEVEL",
+              "HIGH_LEVEL",
+              "SERVICE_NOT_READY",
+              "COLLISION_MULTIPLE",
+              "MOWER_RPM_TIMEOUT",
+              "MOWER_RPM_LIMIT",
+              "FIRMWARE_INCOMPATIBLE",
+              "TILT",
+              "FENCE",
+              "STUCK",
+              "IMU_TIMEOUT",
+              "MOWER_NOT_STOPPED",
+              "WHEEL_RUNAWAY",
+              "FOREIGN_HOST",
+              "DRIVER_STALL",
+              "UNEXPECTED_RESTART",
+              "INPUTS_LEARNING"
+            ]
+          },
+          "hold": {
+            "default": 1.0,
+            "description": "No wheel starts again for this time, after the stop and after the release",
+            "max": 5.0,
+            "min": 0.5,
+            "required": false,
+            "type": "number",
+            "unit": "s"
+          },
+          "rounds": {
+            "default": 5.0,
+            "description": "How many rounds",
+            "max": 10.0,
+            "min": 1.0,
+            "required": false,
+            "type": "number",
+            "unit": ""
+          },
+          "speed": {
+            "default": 0.05,
+            "description": "Speed of each wheel",
+            "max": 0.1,
+            "min": 0.02,
+            "required": false,
+            "type": "number",
+            "unit": "m/s"
+          },
+          "spread_max": {
+            "default": 0.3,
+            "description": "Stand times of the rounds differ this much at most",
+            "max": 1.0,
+            "min": 0.05,
+            "required": false,
+            "type": "number",
+            "unit": "s"
+          },
+          "stop_max": {
+            "default": 1.0,
+            "description": "The wheels stand within this time of the trigger",
+            "max": 3.0,
+            "min": 0.1,
+            "required": false,
+            "type": "number",
+            "unit": "s"
+          }
+        },
+        "reasons": [
+          "NO_START",
+          "DRIVER_REFUSED",
+          "LIMIT",
+          "STARTED_AGAIN",
+          "NO_EMERGENCY",
+          "NOT_RELEASED",
+          "NO_RESTART",
+          "LOGIC_REFUSED",
+          "RELEASED",
+          "EMERGENCY",
+          "NO_DATA",
+          "STOPPED",
+          "INTERRUPTED"
+        ],
+        "safety": true,
+        "start": true,
+        "texts": {
+          "de": {
+            "fix": "Hält die Platine nicht an: den Mäher nicht fahren lassen und die Einstellungen der Platine prüfen.",
+            "help": "Die Räder drehen langsam, dann schweigt die Steuerung einige Sekunden, mehrmals hintereinander. Die Platine muss die Räder jedes Mal von selbst anhalten.",
+            "name": "Stopp ohne Steuerung"
+          },
+          "en": {
+            "fix": "If the board does not stop, don't let the mower drive; check the settings of the board.",
+            "help": "The wheels turn slowly, then the control stays silent for some seconds, several times. The board has to stop the wheels by itself each time.",
+            "name": "Stop without control"
+          }
+        },
+        "values": {
+          "spread": {
+            "description": "Longest less shortest stand of the rounds",
+            "texts": {
+              "de": {
+                "fix": "",
+                "help": "",
+                "name": "Streuung"
+              },
+              "en": {
+                "fix": "",
+                "help": "",
+                "name": "Spread"
+              }
+            },
+            "unit": "s"
+          },
+          "stand": {
+            "description": "From the answer of hw/silence to standing wheels, one value by round, round_1 and on",
+            "texts": {
+              "de": {
+                "fix": "",
+                "help": "",
+                "name": "Runde"
+              },
+              "en": {
+                "fix": "",
+                "help": "",
+                "name": "Round"
+              }
+            },
+            "unit": "s"
+          }
+        }
+      },
+      "stop_moving": {
+        "auto": false,
+        "description": "While the wheels turn, the user triggers the input of a part (role as in a step input): the wheels stand within stop_max, the emergency of the role follows, nothing starts again for hold s, the program releases the emergency itself as in a step input, nothing starts for hold s, and a new command turns the wheels again. Every step that moves the wheels: the mower is jacked up and setup.start confirms raised and hand_at_stop; the mower is in IDLE, off the charging contacts, without emergency or hold; every step input of the roles stop, lift and bumper of the list is ok (SAFETY_INPUTS, not to be skipped). The mower is in the sub state SETUP meanwhile. setup.keep at least every 1 s keeps it going (else RELEASED), setup.abort and any emergency it did not ask for stop it; a single move lasts 10 s at most; motion of the step names its bounds",
+        "kind": "drive",
+        "params": {
+          "hold": {
+            "default": 1.0,
+            "description": "No wheel starts again for this time, after the stop and after the release",
+            "max": 5.0,
+            "min": 0.5,
+            "required": false,
+            "type": "number",
+            "unit": "s"
+          },
+          "speed": {
+            "default": 0.05,
+            "description": "Speed of each wheel",
+            "max": 0.1,
+            "min": 0.02,
+            "required": false,
+            "type": "number",
+            "unit": "m/s"
+          },
+          "stop_max": {
+            "default": 1.0,
+            "description": "The wheels stand within this time of the trigger",
+            "max": 3.0,
+            "min": 0.1,
+            "required": false,
+            "type": "number",
+            "unit": "s"
+          },
+          "time": {
+            "default": 8.0,
+            "description": "The wheels turn at most this long for the action of a part",
+            "max": 10.0,
+            "min": 3.0,
+            "required": false,
+            "type": "number",
+            "unit": "s"
+          }
+        },
+        "reasons": [
+          "NO_START",
+          "NOT_SEEN",
+          "LIMIT",
+          "STARTED_AGAIN",
+          "NO_EMERGENCY",
+          "NOT_RELEASED",
+          "NO_RESTART",
+          "NOT_DONE",
+          "LOGIC_REFUSED",
+          "RELEASED",
+          "EMERGENCY",
+          "NO_DATA",
+          "STOPPED",
+          "INTERRUPTED"
+        ],
+        "safety": true,
+        "start": true,
+        "texts": {
+          "de": {
+            "fix": "Bleiben die Räder nicht stehen: den Mäher nicht fahren lassen, Sensor, Kabel und Platine prüfen.",
+            "help": "Die Räder drehen langsam, der Mäher ist aufgebockt. Den angezeigten Sensor auslösen: die Räder müssen sofort stehen und stehen bleiben.",
+            "name": "Stopp bei drehenden Rädern"
+          },
+          "en": {
+            "fix": "If the wheels do not stand, don't let the mower drive; check sensor, cable and board.",
+            "help": "The wheels turn slowly with the mower jacked up. Trigger the sensor shown: the wheels have to stand at once and stay so.",
+            "name": "Stop with turning wheels"
+          }
+        },
+        "values": {
+          "stand": {
+            "description": "From the input to standing wheels, one value by part with the id of the part",
+            "texts": {
+              "de": {
+                "fix": "",
+                "help": "",
+                "name": "Standzeit"
+              },
+              "en": {
+                "fix": "",
+                "help": "",
+                "name": "Time to stand"
+              }
+            },
+            "unit": "s"
+          }
+        }
+      },
+      "wheels": {
+        "auto": false,
+        "description": "The mower jacked up turns its wheels part by part, see wheel_parts: each part drives time s after a run-up of 0.5 s, and the odometry has to show it with its sign and 0.5 to 1.5 times speed. In the part one_wheel only the right wheel turns, and inputs[] asks which one turns. Every step that moves the wheels: the mower is jacked up and setup.start confirms raised and hand_at_stop; the mower is in IDLE, off the charging contacts, without emergency or hold; every step input of the roles stop, lift and bumper of the list is ok (SAFETY_INPUTS, not to be skipped). The mower is in the sub state SETUP meanwhile. setup.keep at least every 1 s keeps it going (else RELEASED), setup.abort and any emergency it did not ask for stop it; a single move lasts 10 s at most; motion of the step names its bounds",
+        "kind": "drive",
+        "params": {
+          "answer_time": {
+            "default": 10.0,
+            "description": "The part one_wheel waits this long for the answer",
+            "max": 10.0,
+            "min": 3.0,
+            "required": false,
+            "type": "number",
+            "unit": "s"
+          },
+          "speed": {
+            "default": 0.05,
+            "description": "Speed of each wheel",
+            "max": 0.1,
+            "min": 0.02,
+            "required": false,
+            "type": "number",
+            "unit": "m/s"
+          },
+          "time": {
+            "default": 2.0,
+            "description": "Each part drives this long",
+            "max": 3.0,
+            "min": 1.0,
+            "required": false,
+            "type": "number",
+            "unit": "s"
+          }
+        },
+        "reasons": [
+          "NO_START",
+          "WRONG_DIRECTION",
+          "WRONG_WHEEL",
+          "LIMIT",
+          "NOT_SEEN",
+          "NOT_DONE",
+          "LOGIC_REFUSED",
+          "RELEASED",
+          "EMERGENCY",
+          "NO_DATA",
+          "STOPPED",
+          "INTERRUPTED"
+        ],
+        "safety": true,
+        "start": true,
+        "texts": {
+          "de": {
+            "fix": "Dreht ein Rad falsch herum oder das falsche: die Anschlüsse der Motoren und die Einstellungen der Plattform prüfen.",
+            "help": "Der Mäher ist aufgebockt und dreht seine Räder langsam vor, zurück und zu beiden Seiten. Zum Schluss dreht nur ein Rad: angeben, welches.",
+            "name": "Räder"
+          },
+          "en": {
+            "fix": "If a wheel turns the wrong way or the wrong one turns, check the plugs of the motors and the settings of the platform.",
+            "help": "The mower is jacked up and turns its wheels slowly forwards, backwards and to both sides. At the end only one wheel turns: tell which one.",
+            "name": "Wheels"
+          }
+        },
+        "values": {
+          "speed": {
+            "description": "Speed of the wheels along the part, one value by part with the id of the part",
+            "texts": {
+              "de": {
+                "fix": "",
+                "help": "",
+                "name": "Geschwindigkeit"
+              },
+              "en": {
+                "fix": "",
+                "help": "",
+                "name": "Speed"
+              }
+            },
+            "unit": "m/s"
           }
         }
       }
@@ -21911,10 +23038,15 @@
       },
       "unit": "ms"
     },
-    "description": "The setup program: stages in their order, the checks a step of setup/setup.yaml of a platform can be (kind, whether setup.start begins it, params with the bounds and defaults of the code, values, reasons of SETUP_STEP, the screen it opens), roles of the inputs (group, emergency of a press; a role is named as its flag in hw/status) and modes of a part, moves of a step imu, conditions of a step done_when with their screen, points to confirm, reasons to skip, the question of a step inputs_assign and the delays it takes once it is ok, the ways to restart, and the limits; texts by language where the OS has them. The steps themselves come with setup.get",
+    "description": "The setup program: stages in their order, the checks a step of setup/setup.yaml of a platform can be (kind, whether setup.start begins it, params with the bounds and defaults of the code, values, reasons of SETUP_STEP, the screen it opens), roles of the inputs (group, emergency of a press; a role is named as its flag in hw/status) and modes of a part, moves of a step imu, conditions of a step done_when with their screen, points to confirm, reasons to skip, the question of a step inputs_assign and the delays it takes once it is ok, the ways to restart, the parts of a step wheels and its question, the question pressed of a safety step that saw nothing (a check with safety closes the lock when it fails with a reason that has closes in x-reasons of SETUP_STEP), and the limits; texts by language where the OS has them. The steps themselves come with setup.get",
     "limits": {
+      "closed": 32,
       "image_bytes": 65536,
+      "keep": 1.0,
+      "move_time": 10.0,
       "parts": 8,
+      "raised_speed": 0.1,
+      "raised_turn": 0.4,
       "shape_part_points": 200,
       "shape_parts": 32,
       "shape_points": 1000,
@@ -22069,7 +23201,7 @@
     "points": {
       "blade_removed": {
         "description": "The blade is taken off",
-        "order": 1,
+        "order": 2,
         "texts": {
           "de": {
             "fix": "",
@@ -22085,7 +23217,7 @@
       },
       "clear": {
         "description": "Nobody is close to the mower",
-        "order": 2,
+        "order": 3,
         "texts": {
           "de": {
             "fix": "",
@@ -22099,9 +23231,25 @@
           }
         }
       },
+      "hand_at_stop": {
+        "description": "A hand is at a STOP button, to press it at any time",
+        "order": 1,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "",
+            "name": "Hand an der STOP-Taste"
+          },
+          "en": {
+            "fix": "",
+            "help": "",
+            "name": "Hand at the STOP button"
+          }
+        }
+      },
       "outdoors": {
         "description": "The mower stands under the open sky",
-        "order": 3,
+        "order": 4,
         "texts": {
           "de": {
             "fix": "",
@@ -22128,6 +23276,56 @@
             "fix": "",
             "help": "",
             "name": "Mower jacked up, wheels free"
+          }
+        }
+      }
+    },
+    "pressed": {
+      "description": "Whether the user did the action of the part the step saw nothing of",
+      "texts": {
+        "de": {
+          "fix": "",
+          "help": "Der Mäher hat in der Zeit nichts bemerkt. Hast du gedrückt, angehoben oder gekippt, wie angezeigt?",
+          "name": "Hast du es gemacht?"
+        },
+        "en": {
+          "fix": "",
+          "help": "The mower noticed nothing in time. Did you press, lift or tilt as shown?",
+          "name": "Did you do it?"
+        }
+      },
+      "time": 30.0,
+      "values": {
+        "no": {
+          "description": "The action was not done: the step ends open with NOT_DONE",
+          "order": 1,
+          "texts": {
+            "de": {
+              "fix": "",
+              "help": "",
+              "name": "Nein, noch nicht"
+            },
+            "en": {
+              "fix": "",
+              "help": "",
+              "name": "No, not yet"
+            }
+          }
+        },
+        "yes": {
+          "description": "The action was done: the sensor or its line is dead, the step fails with NOT_SEEN",
+          "order": 0,
+          "texts": {
+            "de": {
+              "fix": "",
+              "help": "",
+              "name": "Ja, gemacht"
+            },
+            "en": {
+              "fix": "",
+              "help": "",
+              "name": "Yes, I did"
+            }
           }
         }
       }
@@ -22523,6 +23721,169 @@
       "dock",
       "board",
       "map"
-    ]
+    ],
+    "wheel": {
+      "description": "Which wheel turns while the part one_wheel runs",
+      "texts": {
+        "de": {
+          "fix": "",
+          "help": "Jetzt sollte sich nur ein Rad drehen. Angeben, welches sich dreht.",
+          "name": "Welches Rad dreht?"
+        },
+        "en": {
+          "fix": "",
+          "help": "Only one wheel should turn now. Tell which one turns.",
+          "name": "Which wheel turns?"
+        }
+      },
+      "values": {
+        "both": {
+          "description": "Both wheels",
+          "order": 2,
+          "texts": {
+            "de": {
+              "fix": "",
+              "help": "",
+              "name": "Beide"
+            },
+            "en": {
+              "fix": "",
+              "help": "",
+              "name": "Both"
+            }
+          }
+        },
+        "left": {
+          "description": "The left wheel, seen from behind",
+          "order": 0,
+          "texts": {
+            "de": {
+              "fix": "",
+              "help": "",
+              "name": "Linkes Rad"
+            },
+            "en": {
+              "fix": "",
+              "help": "",
+              "name": "Left wheel"
+            }
+          }
+        },
+        "none": {
+          "description": "No wheel",
+          "order": 3,
+          "texts": {
+            "de": {
+              "fix": "",
+              "help": "",
+              "name": "Keines"
+            },
+            "en": {
+              "fix": "",
+              "help": "",
+              "name": "None"
+            }
+          }
+        },
+        "right": {
+          "description": "The right wheel, seen from behind",
+          "order": 1,
+          "texts": {
+            "de": {
+              "fix": "",
+              "help": "",
+              "name": "Rechtes Rad"
+            },
+            "en": {
+              "fix": "",
+              "help": "",
+              "name": "Right wheel"
+            }
+          }
+        }
+      }
+    },
+    "wheel_parts": {
+      "backward": {
+        "description": "Both wheels backwards at speed",
+        "order": 1,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "",
+            "name": "Rückwärts"
+          },
+          "en": {
+            "fix": "",
+            "help": "",
+            "name": "Backwards"
+          }
+        }
+      },
+      "forward": {
+        "description": "Both wheels forwards at speed",
+        "order": 0,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "",
+            "name": "Vorwärts"
+          },
+          "en": {
+            "fix": "",
+            "help": "",
+            "name": "Forwards"
+          }
+        }
+      },
+      "left": {
+        "description": "A turn to the left on the spot, each wheel at speed",
+        "order": 2,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "",
+            "name": "Nach links drehen"
+          },
+          "en": {
+            "fix": "",
+            "help": "",
+            "name": "Turn to the left"
+          }
+        }
+      },
+      "one_wheel": {
+        "description": "Only the right wheel turns forwards at speed, the left one stands; the step asks which one turns",
+        "order": 4,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "",
+            "name": "Nur ein Rad"
+          },
+          "en": {
+            "fix": "",
+            "help": "",
+            "name": "One wheel only"
+          }
+        }
+      },
+      "right": {
+        "description": "A turn to the right on the spot, each wheel at speed",
+        "order": 3,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "",
+            "name": "Nach rechts drehen"
+          },
+          "en": {
+            "fix": "",
+            "help": "",
+            "name": "Turn to the right"
+          }
+        }
+      }
+    }
   }
 }

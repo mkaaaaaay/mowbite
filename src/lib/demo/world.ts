@@ -849,6 +849,7 @@ export function createWorld(deliver: (topic: string, text: string) => void, opts
   };
   // like AreaRecordingBehavior's
   const subState = () => {
+    if (setup?.driving()) return 'SETUP';
     if (!rec) return '';
     if (rec.dockFrom) return 'RECORD_DOCKING_POSITION';
     if (rec.line) return rec.outline ? 'RECORD_OBSTACLE' : 'RECORD_OUTLINE';

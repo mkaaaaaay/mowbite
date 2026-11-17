@@ -95,6 +95,8 @@ export const EVENTS: Record<string, EventText> = {
       alone({when: {state: 'PAUSED', reason: 'MANUAL'}, en: 'Paused'}),
       {when: {state: 'PAUSED', reason: 'SCHEDULE'}, en: 'Paused'},
       {when: {state: 'PAUSED', reason: {present: true}}, en: 'Paused', severity: 'warning'},
+      // a step of the setup program that turns the wheels runs (api 44)
+      alone({when: {state: 'IDLE', sub_state: 'SETUP'}, en: 'Setup step running'}),
       ...STATE_NAMES.map(([state, en]) => alone({when: {state}, en})),
       alone({when: {state: {present: true}}, en: '{state}'}),
       {en: 'State changed'},
@@ -333,6 +335,9 @@ export const EVENTS: Record<string, EventText> = {
     variants: [
       alone({when: {what: 'complete'}, en: 'Setup complete'}),
       alone({when: {what: 'reset'}, en: 'Setup started anew'}),
+      // a safety step failed and closed the lock of autonomous driving, or the lock is open again (api 45)
+      alone({when: {what: 'safety_closed'}, en: 'Safety step failed, the mower drives only while you watch', severity: 'warning'}),
+      alone({when: {what: 'safety_opened'}, en: 'Safety measured, the mower drives by itself again'}),
       alone({en: 'Setup stage done'}),
     ],
   },
@@ -405,7 +410,10 @@ export const REASONS: Record<string, Variant[]> = {
   POSITION_JUMP: [r('position jumped')],
   MARK: [r('marked by you')],
   NO_SAFETY_MEASUREMENT: [r('safety not yet verified on this platform, mowing and driving are blocked')],
-  ON_DOCK: [r('on the docking station, drive it off by remote control first')],
+  ON_DOCK: [
+    ...['SETUP_REFUSED', 'SETUP_BLOCKED'].map((type) => r('on the docking station, take it off first', {when: {type}})),
+    r('on the docking station, drive it off by remote control first'),
+  ],
   RAIN: [r('rain')],
   DARK: [r('the sun has set')],
   // MowBite OS's schedule: the plan's end time came or its areas are paused
@@ -691,6 +699,21 @@ export const REASONS: Record<string, Variant[]> = {
   UNKNOWN_STEP: [r('the mower has no such step')],
   VERSION: [r('the setup changed in the meantime, try again')],
   WRONG_METHOD: [r('this step is done another way')],
+  // the steps that turn the wheels (kind drive) and the lock of the safety
+  NOT_OFFERED: [r("the board of this mower doesn't offer this check")],
+  RESTARTS_LOW: [r('the driver restarted several times lately, restart MowBite OS first')],
+  SAFETY_INPUTS: [r('STOP button, lifting and bumper have to pass standing first')],
+  DRIVER_REFUSED: [r('the board refused the check, the mower charges or the blade runs')],
+  LOGIC_REFUSED: [r("the mower didn't take the step: it is on its way, charges or has an emergency stop")],
+  NOT_DONE: [r("the action wasn't done, the check doesn't count")],
+  NOT_RELEASED: [r("the emergency stop of the step couldn't be released")],
+  NO_START: [r("the wheels didn't turn on the command")],
+  NO_RESTART: [r("after the release the wheels didn't turn again")],
+  NO_RETURN: [r("the driver of the board wasn't back within {limit:0} s", {when: {limit: {present: true}}}), r("the driver of the board wasn't back in time")],
+  RELEASED: [r('the app stopped following the step, the mower stopped')],
+  STARTED_AGAIN: [r('a wheel turned while the mower had to stand')],
+  WRONG_DIRECTION: [r('a wheel turned the other way round than asked')],
+  WRONG_WHEEL: [r('another wheel than the right one turned, the motors are swapped')],
 };
 
 // what led it in on a try that failed (guide at DOCKING_RETRY and DOCKING_FAILED), put before the rest

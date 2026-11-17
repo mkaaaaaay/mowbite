@@ -47,7 +47,7 @@ test.describe('setup', () => {
     await demoWith(page, 'Setup', 'Geometry');
     await page.goto('/');
     const card = page.locator('[data-card="setup"]');
-    await expect(card).toContainText('1 of 8 steps done');
+    await expect(card).toContainText('1 of 9 steps done');
     await card.getByRole('link', {name: 'Go on with the setup'}).click();
     await expect(page).toHaveURL(/\/setup\/?\?step=board/);
 
@@ -95,6 +95,71 @@ test.describe('setup', () => {
     await page.getByRole('dialog').getByLabel('Why').fill('radio at the receiver');
     await page.getByRole('dialog').getByRole('button', {name: 'Skip'}).click();
     await expect(step(page, 'ntrip')).toContainText('Skipped: Other reason (radio at the receiver)');
+  });
+
+  test('turns the wheels jacked up while the page follows, asks which wheel, a wrong one closes the lock', async ({page}) => {
+    await demoWith(page, 'Setup');
+    // within the app: a new load starts the demo over. the phone shows the overview on its own, the desktop beside the step
+    const overview = async () => {
+      const back = page.getByRole('link', {name: 'Overview'});
+      if (await back.isVisible()) await back.click();
+    };
+    const to = async (stage: string, name: string) => {
+      await overview();
+      const head = page.locator('button[aria-expanded]', {hasText: stage});
+      if ((await head.getAttribute('aria-expanded')) === 'false') await head.click();
+      await page.locator('button:not([aria-expanded])', {hasText: new RegExp(`^${name}`)}).click();
+    };
+    await page.goto('/setup/?step=wheels');
+    await expect(step(page, 'wheels').locator('[data-blocked="SAFETY_INPUTS"]')).toContainText('STOP button, lifting and bumper');
+    await to('Inputs', 'STOP button');
+    await step(page, 'stop').getByRole('button', {name: 'Start'}).click();
+    await press(page, 'STOP');
+    await step(page, 'stop').getByRole('button', {name: 'Reset emergency'}).click();
+    await press(page, 'STOP');
+    await expect(step(page, 'stop')).toHaveAttribute('data-state', 'ok');
+    await to('Inputs', 'Lifting');
+    await step(page, 'lift').getByRole('button', {name: 'Start'}).click();
+    await press(page, 'LIFT');
+    await expect(step(page, 'lift')).toHaveAttribute('data-state', 'ok');
+
+    // what turns and the points to tick, then part by part until the question
+    await to('Wheels', 'Wheels');
+    const go = async () => {
+      await step(page, 'wheels').getByRole('button', {name: /Start|Repeat/}).click();
+      const sheet = page.getByRole('dialog');
+      await expect(sheet).toContainText('The wheels turn in the air');
+      await expect(sheet).toContainText('Keep this page open');
+      for (const box of await sheet.getByRole('checkbox').all()) await box.check();
+      await sheet.getByRole('button', {name: 'Let the wheels turn'}).click();
+    };
+    await go();
+    await expect(step(page, 'wheels')).toHaveAttribute('data-state', 'running');
+    await step(page, 'wheels').getByLabel('Left wheel').check({timeout: 15000});
+    await step(page, 'wheels').getByRole('button', {name: 'Save'}).click();
+    await expect(step(page, 'wheels')).toHaveAttribute('data-state', 'failed');
+    await expect(step(page, 'wheels')).toContainText('Another wheel than the right one turned');
+    await overview();
+    await expect(page.locator('[data-cause="WRONG_WHEEL"]')).toContainText('Wheels: Another wheel than the right one turned');
+
+    // passed again the lock opens; a repeat says what failing it would do
+    await to('Wheels', 'Wheels');
+    await go();
+    await step(page, 'wheels').getByLabel('Right wheel').check({timeout: 15000});
+    await step(page, 'wheels').getByRole('button', {name: 'Save'}).click();
+    await expect(step(page, 'wheels')).toHaveAttribute('data-state', 'ok');
+    await overview();
+    await expect(page.getByText('With the setup program')).toBeVisible();
+    await to('Wheels', 'Wheels');
+    await step(page, 'wheels').getByRole('button', {name: 'Repeat'}).click();
+    await expect(page.getByRole('dialog').locator('[data-risky]')).toContainText('the mower stays locked until it passes again');
+    await page.getByRole('dialog').getByRole('button', {name: 'Cancel'}).click();
+
+    // a page no longer seen stops following the step, the mower ends it
+    await go();
+    await expect(step(page, 'wheels')).toHaveAttribute('data-state', 'running');
+    await page.evaluate(() => Object.defineProperty(document, 'visibilityState', {get: () => 'hidden'}));
+    await expect(step(page, 'wheels')).toContainText('The app stopped following the step', {timeout: 5000});
   });
 
   test('the image of a step from the mower, as a mask', async ({page}) => {

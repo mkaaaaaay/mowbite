@@ -3,7 +3,7 @@
   "version": "1.5.0-beta.2",
   "osApi": {
     "min": 11,
-    "max": 43,
+    "max": 45,
     "break": 1
   },
   "private": true,

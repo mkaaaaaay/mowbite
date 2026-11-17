@@ -1,7 +1,7 @@
 'use client';
 
 import {tr} from '@/lib/i18n';
-import {nameOf, words, type SetupStep} from '@/lib/setup';
+import {moves, nameOf, words, type SetupStep} from '@/lib/setup';
 import {useState} from 'react';
 import {Sheet} from './Sheet';
 import styles from './Sheet.module.css';
@@ -23,22 +23,30 @@ const Move = ({sign, still, children}: {sign: string; still?: boolean; children:
 );
 
 // Before a start: what moves, every point of the step ticked off, the start names what moves
-export function ConfirmSheet({step, lang, busy, onStart, onClose}: {step: SetupStep; lang: string; busy: boolean; onStart: (confirm: string[]) => void; onClose: () => void}) {
+export function ConfirmSheet(props: {step: SetupStep; lang: string; busy: boolean; risky: boolean; onStart: (confirm: string[]) => void; onClose: () => void}) {
+  const {step, lang, busy, onStart, onClose} = props;
   const [ticked, setTicked] = useState<string[]>([]);
   const all = step.confirm.every((c) => ticked.includes(c.id));
-  const m = step.motion;
+  const m = moves(step.motion) ? step.motion : null;
   return (
     <Sheet title={m ? tr('The mower moves in a moment') : words(step.texts, lang).name} onClose={onClose}>
       {m && (
         <div className={styles.list}>
-          {!!m.wheels && <Move sign="wheels">{tr('The wheels turn')}</Move>}
+          {!!m.wheels && <Move sign="wheels">{m.raised ? tr('The wheels turn in the air') : tr('The wheels turn')}</Move>}
           {!!m.blade && <Move sign="blade">{tr('The blade turns')}</Move>}
           {m.blade === false && (
             <Move sign="blade" still>
               {tr('The blade stays off')}
             </Move>
           )}
+          {!!m.max_time && <p className={styles.limit}>{tr('Each move at most {n} s, then it stops by itself', {n: m.max_time})}</p>}
+          <p className={styles.limit}>{tr('Keep this page open: if it closes, the mower stops.')}</p>
         </div>
+      )}
+      {props.risky && (
+        <p className={styles.warn} data-risky>
+          {tr("If it doesn't pass this time, the mower stays locked until it passes again.")}
+        </p>
       )}
       {step.confirm.length > 0 && (
         <div className={styles.list}>

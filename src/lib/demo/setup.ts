@@ -1,4 +1,4 @@
-import type {Named, Setup, SetupInput, SetupLine, SetupStep, SetupValue, StepState, Texts, Words} from '../setup';
+import type {Motion, Named, Safety, SafetyCause, Setup, SetupInput, SetupLine, SetupStep, SetupValue, StepState, Texts, Words} from '../setup';
 import {RPC, TOPIC} from '../openmower';
 
 // MowBite OS's setup program for the click tests (setup.*), on with window.mowbiteDemoSetup: a short step list like the
@@ -12,6 +12,7 @@ const named = (id: string, en: string, de: string): Named => ({id, texts: tx([en
 const STAGES: Named[] = [
   named('device', 'Device', 'Gerät'),
   named('inputs', 'Inputs', 'Eingänge'),
+  named('wheels', 'Wheels', 'Räder'),
   named('position', 'Position', 'Position'),
   named('map', 'Map', 'Karte'),
 ];
@@ -98,6 +99,7 @@ const TRON_STEPS: Base[] = [
     start: true,
     auto: true,
     skippable: false,
+    safety: true,
     image: {...ref('stop.svg'), type: 'image/svg+xml', accent: ref('stop-accent.svg')},
     symbol: 'stop',
     mark: ['stop_top'],
@@ -117,11 +119,35 @@ const TRON_STEPS: Base[] = [
     kind: 'measure',
     start: true,
     auto: true,
+    safety: true,
     symbol: 'lift',
     parts: [{...named('front', 'Lift the front by the hood and hold', 'Vorn an der Haube anheben und halten'), state: 'open'}],
     texts: tx(
       ['Lifting', 'Lift the mower until the tick comes, then put it down.', 'No tick: check the lift sensors and their cables, then try again.'],
       ['Anheben', 'Den Mäher anheben, bis der Haken kommt, und wieder absetzen.', 'Kommt kein Haken: die Hebesensoren und ihre Kabel prüfen, dann wiederholen.'],
+    ),
+  }),
+  // the wheels turned with the mower jacked up, part by part, then the question which wheel turns (check wheels)
+  step({
+    id: 'wheels',
+    stage: 'wheels',
+    check: 'wheels',
+    kind: 'drive',
+    start: true,
+    auto: true,
+    safety: true,
+    symbol: 'wheels',
+    confirm: [named('raised', 'Mower jacked up, wheels free', 'Mäher aufgebockt, Räder frei'), named('hand_at_stop', 'Hand at the STOP button', 'Hand an der STOP-Taste')],
+    parts: [
+      ['forward', 'Forwards', 'Vorwärts'],
+      ['backward', 'Backwards', 'Rückwärts'],
+      ['left', 'Turn to the left', 'Nach links drehen'],
+      ['right', 'Turn to the right', 'Nach rechts drehen'],
+      ['one_wheel', 'One wheel only', 'Nur ein Rad'],
+    ].map(([id, en, de]) => ({...named(id, en, de), state: 'open' as const})),
+    texts: tx(
+      ['Wheels', 'Put the mower on a stand under its body, the front not higher than the back. The wheels turn forwards, backwards, both ways round and then only one.', 'Check the plugs of the motors and their direction in the settings of the platform, then try again.'],
+      ['Räder', 'Den Mäher auf einen Bock unter dem Gehäuse stellen, vorn nicht höher als hinten. Die Räder drehen vorwärts, rückwärts, in beide Richtungen und dann nur eines.', 'Stecker der Motoren und ihre Drehrichtung in den Einstellungen der Plattform prüfen, dann wiederholen.'],
     ),
   }),
   step({
@@ -193,6 +219,25 @@ const TICK_MS = 200;
 const FIX_MS = 1500;
 // how long a part of the check input waits for its input (s)
 const PART_S = 90;
+// a step that turns the wheels: its bounds, each part (ms), the time for the answer which wheel turns and to setup.keep (s)
+const MOTION: Motion = {wheels: true, blade: false, raised: true, max_speed: 0.05, max_distance: null, max_time: 10};
+const WHEEL_MS = 1200;
+const ANSWER_S = 10;
+const KEEP_S = 1;
+// the question of a part the step saw nothing of (s), and the reasons a failed safety step closes the lock with
+const PRESSED_S = 30;
+const CLOSES = ['LIMIT', 'STARTED_AGAIN', 'NO_EMERGENCY', 'WRONG_DIRECTION', 'WRONG_WHEEL', 'NOT_SEEN'];
+const question = (name: string, en: string[], de: string[], values: Named[]): SetupInput => ({name, type: 'choice', ask: true, advanced: false, value: null, texts: tx(en, de), values});
+const WHEEL = question('wheel', ['Which wheel turns?', 'Only one wheel should turn now. Tell which one turns.'], ['Welches Rad dreht?', 'Jetzt sollte sich nur ein Rad drehen. Angeben, welches sich dreht.'], [
+  named('left', 'Left wheel', 'Linkes Rad'),
+  named('right', 'Right wheel', 'Rechtes Rad'),
+  named('both', 'Both', 'Beide'),
+  named('none', 'None', 'Keines'),
+]);
+const PRESSED = question('pressed', ['Did you do it?', 'The mower noticed nothing in time. Did you press, lift or tilt as shown?'], ['Hast du es gemacht?', 'Der Mäher hat in der Zeit nichts bemerkt. Hast du gedrückt, angehoben oder gekippt, wie angezeigt?'], [
+  named('yes', 'Yes, I did', 'Ja, gemacht'),
+  named('no', 'No, not yet', 'Nein, noch nicht'),
+]);
 const FIRMWARE = '1.4.2';
 // the step that puts the sensors on their lines, as on the NX60i (demo part Assign): a press proposes a line, accept takes it
 const ASSIGN: Base = step({
@@ -261,17 +306,29 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
   // rest: the part waits for its emergency to be released before it counts the input (blocked EMERGENCY meanwhile)
   // since: when the step or its current part began
   // asked: the line the assignment proposes for the running part
-  let run: {id: string; since: number; part: number; phase: 'rest' | 'armed'; asked?: SetupStep['ask']} | null = null;
+  // asking: the question of the running step (which wheel, or whether the action was done) since askedAt; kept: the last setup.keep
+  let run: {id: string; since: number; part: number; phase: 'rest' | 'armed'; asked?: SetupStep['ask']; asking?: SetupInput; askedAt?: number; kept?: number} | null = null;
+  // what keeps the lock of the safety closed, and the day it opened
+  let closed: SafetyCause[] = [];
+  let measured: string | null = null;
   let timer: ReturnType<typeof setInterval> | null = null;
 
   const done = (id: string) => isDone(kept[id].state);
   const wants = (s: Base, part: number) => (s.check === 'inputs_assign' ? BIT[s.parts[part]?.id] : BIT[s.id]);
   const locked = (s: Base) => s.needs.some((n) => kept[n].state !== 'ok');
   const state = (s: Base): StepState => (kept[s.id].state === 'open' && locked(s) ? 'locked' : kept[s.id].state);
+  // the inputs that have to pass before a wheel turns
+  const inputsOpen = () => STEPS.filter((x) => BIT[x.id] && kept[x.id].state !== 'ok').map((x) => x.id);
   const blocked = (s: Base) => {
     if (run?.id === s.id)
       return BIT[s.id] && run.phase === 'rest' && latched(BIT[s.id]) ? [{reason: 'EMERGENCY', message: `The emergency ${BIT[s.id]} is still latched`}] : [];
-    return run && s.start && s.kind === 'measure' ? [{reason: 'BUSY', message: `${run.id} is running`}] : [];
+    if (run && s.start && s.kind !== 'confirm') return [{reason: 'BUSY', message: `${run.id} is running`}];
+    return s.kind === 'drive' && inputsOpen().length ? [{reason: 'SAFETY_INPUTS', message: `First: ${inputsOpen().join(', ')}`}] : [];
+  };
+  const safety = (): Safety => {
+    if (closed.length) return {open: false, date: null, firmware: null, why: 'CHECK_FAILED', source: null, closed};
+    if (measured) return {open: true, date: measured, firmware: FIRMWARE, why: null, source: 'program', closed: []};
+    return {open: false, date: null, firmware: null, why: 'NO_SAFETY_MEASUREMENT', source: null, closed: []};
   };
   // the lines of an input step, one per part as on Tron: the one of the part last pressed is on while its emergency holds
   const linesOf = (s: Base, running: boolean): SetupLine[] => {
@@ -301,13 +358,13 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
       state: state(s),
       attempt: k.attempt,
       blocked: blocked(s),
-      motion: null,
+      motion: s.kind === 'drive' ? MOTION : null,
       parts: k.parts,
       values: k.values,
-      // while the assignment runs it takes only accept, once a line is proposed
-      inputs: running && s.check === 'inputs_assign' ? (run!.asked ? [ACCEPT] : []) : k.inputs,
-      progress: running && s.parts.length ? {n: run!.part + 1, of: s.parts.length} : null,
-      ends_at: running && BIT[s.id] ? Math.floor(run!.since + PART_S) : null,
+      // while the assignment runs it takes only accept, once a line is proposed; a question only while it is asked
+      inputs: running && run!.asking ? [run!.asking] : running && s.check === 'inputs_assign' ? (run!.asked ? [ACCEPT] : []) : k.inputs,
+      progress: running && s.parts.length ? {n: Math.min(run!.part + 1, s.parts.length), of: s.parts.length} : null,
+      ends_at: running && run!.asking ? Math.floor(run!.askedAt! + (run!.asking === WHEEL ? ANSWER_S : PRESSED_S)) : running && BIT[s.id] ? Math.floor(run!.since + PART_S) : null,
       result: k.result,
       lines: linesOf(s, running),
       ask: (running && run!.asked) || null,
@@ -337,7 +394,7 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
       stage: todo?.stage ?? null,
       current: run?.id ?? todo?.id ?? null,
       complete: !todo,
-      safety: {open: false, date: null, firmware: null, why: 'NO_SAFETY_MEASUREMENT'},
+      safety: safety(),
       restart_pending: restarting,
       stages,
       steps,
@@ -390,10 +447,57 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
     k.state = ok ? 'ok' : 'failed';
     k.result = resultOf(k, {ok, reason, message, part});
     event({type: 'SETUP_STEP', step: s.id, state: k.state, attempt: k.attempt, severity: ok ? 'info' : 'warning', resume: 'user', ...(reason && {reason, message, part})});
+    if (s.safety) lock(s, ok, reason, part);
     const stage = STEPS.filter((x) => x.stage === s.stage);
     if (ok && stage.every((x) => done(x.id))) event({type: 'SETUP', what: 'stage_done', stage: s.stage, severity: 'info', resume: 'auto'});
     if (ok && STEPS.every((x) => done(x.id))) event({type: 'SETUP', what: 'complete', severity: 'info', resume: 'auto'});
     changed();
+  }
+
+  // a safety step failed for a reason that closes the lock, or passed: the lock opens once every safety step passed
+  // and nothing keeps it closed (on the mower the summary of the setup gives the date)
+  function lock(s: Base, ok: boolean, reason: string | null, part: string | null) {
+    const was = safety().open;
+    if (!ok && reason && CLOSES.includes(reason)) {
+      closed = [...closed.filter((c) => c.step !== s.id), {step: s.id, part, reason, t: now()}];
+      measured = null;
+      event({type: 'SETUP', what: 'safety_closed', step: s.id, cause: reason, severity: 'warning', resume: 'user'});
+    }
+    if (ok) closed = closed.filter((c) => c.step !== s.id);
+    if (!closed.length && STEPS.every((x) => !x.safety || kept[x.id].state === 'ok')) measured ??= new Date().toISOString().slice(0, 10);
+    if (!was && safety().open) event({type: 'SETUP', what: 'safety_opened', severity: 'info', resume: 'auto'});
+  }
+
+  // the step ends without a result: open again, the event says failed with why
+  function reopen(s: Base, reason: string, message: string, part: string | null = null) {
+    const k = kept[s.id];
+    run = null;
+    stopTimer();
+    k.state = 'open';
+    k.parts = s.parts;
+    k.result = resultOf(k, {reason, message, part});
+    event({type: 'SETUP_STEP', step: s.id, state: 'failed', attempt: k.attempt, reason, message, ...(part && {part}), severity: 'info', resume: 'user'});
+    changed();
+  }
+
+  // the answer to the question of the running step: which wheel turned, or whether the action was done
+  function answerAsked(s: Base, k: Kept, values: Record<string, unknown>) {
+    const asked = run!.asking!;
+    check([asked], values);
+    const v = values[asked.name];
+    if (v === undefined) throw refuse('INVALID_VALUE', `${asked.name}, while it is asked`);
+    const part = s.parts[run!.part].id;
+    const fail = (reason: string, message: string) => {
+      k.parts = k.parts.map((p) => (p.id === part ? {...p, state: 'failed'} : p));
+      end(s, false, reason, message, part);
+    };
+    if (asked === WHEEL) {
+      if (v !== 'right') return fail('WRONG_WHEEL', `The ${v} wheel turned, not the right one`);
+      nextPart(k);
+      return end(s, true);
+    }
+    if (v === 'yes') return fail('NOT_SEEN', 'The input did not switch in time');
+    reopen(s, 'NOT_DONE', 'The action was not done', part);
   }
 
   // the OS starts again, then: the assignment passed with its delays, or after a change of them the input steps are open again
@@ -458,6 +562,23 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
         run.asked = {part: s.parts[run.part].id, line: LINES[run.part], active_high: true};
         changed();
       }
+    } else if (s.kind === 'drive') {
+      const part = s.parts[run.part]?.id ?? null;
+      if (t - run.kept! > KEEP_S) return end(s, false, 'RELEASED', 'setup.keep stayed away', part);
+      if (run.asking) {
+        if (t - run.askedAt! > ANSWER_S) reopen(s, 'NOT_DONE', 'No answer which wheel turns', part);
+      } else if (t - run.since >= WHEEL_MS / 1000) {
+        if (part === 'one_wheel') {
+          run.asking = WHEEL;
+          run.askedAt = t;
+        } else {
+          nextPart(k);
+          run.since = t;
+        }
+        changed();
+      }
+    } else if (BIT[s.id] && run.asking) {
+      if (t - run.askedAt! > PRESSED_S) reopen(s, 'NOT_DONE', 'No answer whether the action was done', s.parts[run.part].id);
     } else if (BIT[s.id]) {
       // the emergency has to come after the part began: one that holds from before has to be released first
       const on = latched(BIT[s.id]);
@@ -471,8 +592,10 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
         if (run.part >= k.parts.length) end(s, true);
         else changed();
       } else if (t - run.since > PART_S) {
-        k.parts = k.parts.map((p, i) => (i === run!.part ? {...p, state: 'failed'} : p));
-        end(s, false, 'NOT_SEEN', 'The input did not switch in time', k.parts[run.part].id);
+        // nothing seen in time: the step asks whether the action was done
+        run.asking = PRESSED;
+        run.askedAt = t;
+        changed();
       }
     }
   }
@@ -489,6 +612,7 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
       if (state(s) === 'locked') throw refuse('LOCKED', `${s.id} needs ${s.needs.join(', ')} first`);
       if (!s.start) throw refuse('WRONG_METHOD', `${s.id} is not started`);
       if (run) throw refuse('BUSY', `${run.id} runs`);
+      if (s.kind === 'drive' && inputsOpen().length) throw refuse('SAFETY_INPUTS', `First: ${inputsOpen().join(', ')}`);
       const confirm = ((p as {confirm?: unknown}).confirm ?? []) as string[];
       const missing = s.confirm.filter((c) => !confirm.includes(c.id)).map((c) => c.id);
       if (missing.length) throw refuse('CONFIRM_MISSING', `Not confirmed: ${missing.join(', ')}`);
@@ -503,7 +627,7 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
       k.parts = s.parts.map((x, i) => ({...x, state: i ? 'open' : 'waiting'}));
       k.values = s.values;
       const bit = wants(s, 0);
-      run = {id: s.id, since: now(), part: 0, phase: bit && latched(bit) ? 'rest' : 'armed'};
+      run = {id: s.id, since: now(), part: 0, phase: bit && latched(bit) ? 'rest' : 'armed', kept: now()};
       startTimer();
       changed();
       return setup();
@@ -514,11 +638,21 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
       const values = (p as {values?: Record<string, unknown>}).values ?? {};
       const k = kept[s.id];
       if (s.check === 'inputs_assign') return answerAssign(s, k, values);
+      if (run?.id === s.id && run.asking) {
+        answerAsked(s, k, values);
+        return setup();
+      }
       check(k.inputs, values);
       k.inputs = k.inputs.map((i) => (i.name in values ? {...i, value: values[i.name]} : i));
       k.attempt++;
       end(s, true);
       return setup();
+    },
+    [RPC.setupKeep]: (p) => {
+      const id = (p as {step?: unknown})?.step;
+      const running = !!run && run.id === id;
+      if (running) run!.kept = now();
+      return {running};
     },
     [RPC.setupSkip]: (p) => {
       const s = stepOf(p);
@@ -536,15 +670,7 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
     },
     [RPC.setupAbort]: () => {
       if (!run) return setup();
-      const s = STEPS.find((x) => x.id === run!.id)!;
-      const k = kept[s.id];
-      run = null;
-      stopTimer();
-      k.state = 'open';
-      k.parts = s.parts;
-      k.result = resultOf(k, {reason: 'STOPPED', message: 'The step was stopped'});
-      event({type: 'SETUP_STEP', step: s.id, state: 'failed', attempt: k.attempt, reason: 'STOPPED', message: 'The step was stopped', severity: 'info', resume: 'user'});
-      changed();
+      reopen(STEPS.find((x) => x.id === run!.id)!, 'STOPPED', 'The step was stopped');
       return setup();
     },
     [RPC.setupReset]: (p) => {
@@ -555,6 +681,8 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
       run = null;
       stopTimer();
       kept = Object.fromEntries(STEPS.map((s) => [s.id, fresh(s)]));
+      closed = measured ? [{step: null, part: null, reason: 'RESET', t: now()}] : [];
+      measured = null;
       event({type: 'SETUP', what: 'reset', severity: 'info', resume: 'auto'});
       changed();
       return setup();
@@ -573,6 +701,8 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
       if (run) tick();
       said();
     },
+    // a step that turns the wheels runs: the sub state SETUP of IDLE
+    driving: () => !!run && STEPS.find((x) => x.id === run!.id)?.kind === 'drive',
     retained: (topic: string): [string, string][] | null => (topic === TOPIC.setup ? [[topic, JSON.stringify(setup())]] : null),
   };
 }

@@ -12,7 +12,7 @@ import {ORIGIN_TEXT} from './osUpdate';
 import {MAX_NOTE, PIECE_BYTES} from './incidentLimits';
 import {SITUATION_NAMES} from './sound';
 import {SHAPE_KINDS, SHAPE_LIMITS} from './robotShape';
-import {IMAGE_BYTES, OPEN_SCREENS, ROLE_NAMES, SKIP_TEXT} from './setup';
+import {IMAGE_BYTES, KEEP_LIMIT_MS, KEEP_MS, OPEN_SCREENS, ROLE_NAMES, SKIP_TEXT} from './setup';
 import {PARTS} from './stats';
 
 // MowBite OS's interface (system.api) as its owner has it, copied from the commit below. a newer one: copy it from
@@ -20,8 +20,8 @@ import {PARTS} from './stats';
 const PINNED = {
   repo: 'mkaaaaaay/mowbite-os',
   path: 'src/mowbite_api/api.schema.json',
-  commit: '0731907c3a323349a6be1c66a622754419d60356',
-  sha256: '2044db07aaae71e20773f9d69d02d5af323de8e7f743bbb8dfa8a67ae93ca445',
+  commit: '599e7288efc8cbdca4a39495656d188fb25bb609',
+  sha256: '9bb741833a06ef66bcb4c0947bcd884408b098395fba50b406f3f7c256cfee8d',
 };
 const raw = readFileSync(join(__dirname, 'os-api.schema.json'));
 // a reason's rating, when: another one for these values of the event's fields
@@ -242,6 +242,9 @@ describe(`MowBite OS's interface (${PINNED.repo} ${PINNED.commit.slice(0, 7)}, a
   it("takes the setup program's images, notes, screens and shapes within the OS's limits", () => {
     const {limits, open, shape_kinds} = api['x-setup'];
     expect([IMAGE_BYTES, SKIP_TEXT]).toEqual([limits.image_bytes, limits.skip_text]);
+    // setup.keep well within the second the OS waits
+    expect(KEEP_LIMIT_MS).toBe(limits.keep * 1000);
+    expect(KEEP_MS).toBeLessThanOrEqual(KEEP_LIMIT_MS / 2);
     expect(SHAPE_LIMITS).toEqual({parts: limits.shape_parts, partPoints: limits.shape_part_points, points: limits.shape_points});
     expect([...SHAPE_KINDS].sort()).toEqual([...shape_kinds].sort());
     expect(Object.keys(OPEN_SCREENS).sort()).toEqual([...open].sort());

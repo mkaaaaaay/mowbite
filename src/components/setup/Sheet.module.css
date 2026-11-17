@@ -83,6 +83,21 @@
   flex: none;
 }
 
+.limit {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-s);
+}
+
+.warn {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-m);
+  background: var(--tint-warn);
+  color: var(--soft-warn);
+  font-size: var(--text-s);
+}
+
 .check,
 .choice {
   display: flex;
