@@ -1330,11 +1330,59 @@
   ],
   "BUSY": [
    {
+    "en": "the mower is driving, let it stand first",
+    "when": {
+     "type": "SETUP_REFUSED",
+     "state": "DRIVING"
+    },
+    "de": "der Mäher fährt, erst stehen lassen"
+   },
+   {
+    "en": "a calibration is running",
+    "when": {
+     "type": "SETUP_REFUSED",
+     "state": "CALIBRATING"
+    },
+    "de": "eine Kalibrierung läuft"
+   },
+   {
+    "en": "an update holds the mower right now",
+    "when": {
+     "type": "SETUP_REFUSED",
+     "state": "HOLD"
+    },
+    "de": "ein Update hält den Mäher gerade an"
+   },
+   {
     "en": "another step runs or the mower is on its way",
     "when": {
      "type": "SETUP_REFUSED"
     },
     "de": "ein anderer Schritt läuft oder der Mäher ist unterwegs"
+   },
+   {
+    "en": "the mower is driving, let it stand first",
+    "when": {
+     "type": "SETUP_BLOCKED",
+     "state": "DRIVING"
+    },
+    "de": "der Mäher fährt, erst stehen lassen"
+   },
+   {
+    "en": "a calibration is running",
+    "when": {
+     "type": "SETUP_BLOCKED",
+     "state": "CALIBRATING"
+    },
+    "de": "eine Kalibrierung läuft"
+   },
+   {
+    "en": "an update holds the mower right now",
+    "when": {
+     "type": "SETUP_BLOCKED",
+     "state": "HOLD"
+    },
+    "de": "ein Update hält den Mäher gerade an"
    },
    {
     "en": "another step runs or the mower is on its way",
@@ -2195,6 +2243,12 @@
     "de": "ein neuer Notaus-Grund kam dazu"
    }
   ],
+  "LEARNING": [
+   {
+    "en": "the mower is assigning its inputs, finish or stop that in the setup",
+    "de": "der Mäher ordnet gerade seine Eingänge zu, das in der Einrichtung abschließen oder abbrechen"
+   }
+  ],
   "FOREIGN_HOST": [
    {
     "en": "another computer is talking to the board",
@@ -2882,6 +2936,13 @@
   ],
   "NO_DATA": [
    {
+    "en": "no data from the inputs of the board",
+    "when": {
+     "source": "hw/inputs"
+    },
+    "de": "keine Daten von den Eingängen der Platine"
+   },
+   {
     "en": "no data from board, motion sensor or GPS",
     "de": "keine Daten von Platine, Lagesensor oder GPS"
    }
@@ -2890,6 +2951,87 @@
    {
     "en": "the input is still switched, let go of it first",
     "de": "der Eingang ist noch ausgelöst, erst loslassen"
+   }
+  ],
+  "LINE_SILENT": [
+   {
+    "en": "line {lines} did not switch with any action",
+    "when": {
+     "lines": {
+      "present": true
+     }
+    },
+    "de": "Leitung {lines} hat bei keiner Aktion geschaltet"
+   },
+   {
+    "en": "a line of this input did not switch",
+    "de": "eine Leitung dieses Eingangs hat nicht geschaltet"
+   }
+  ],
+  "NO_LINE": [
+   {
+    "en": "none of the lines watched changed",
+    "de": "keine der beobachteten Leitungen hat sich geändert"
+   }
+  ],
+  "AMBIGUOUS": [
+   {
+    "en": "more than one line changed at once ({lines})",
+    "when": {
+     "lines": {
+      "present": true
+     }
+    },
+    "de": "mehr als eine Leitung hat gleichzeitig geschaltet ({lines})"
+   },
+   {
+    "en": "more than one line changed at once",
+    "de": "mehr als eine Leitung hat gleichzeitig geschaltet"
+   }
+  ],
+  "FLUTTER": [
+   {
+    "en": "line {lines} changed while nothing was touched",
+    "when": {
+     "lines": {
+      "present": true
+     }
+    },
+    "de": "Leitung {lines} hat geschaltet, ohne dass etwas berührt wurde"
+   },
+   {
+    "en": "a line changed while nothing was touched",
+    "de": "eine Leitung hat geschaltet, ohne dass etwas berührt wurde"
+   }
+  ],
+  "NOT_APPLIED": [
+   {
+    "en": "the mower does not use the new assignment, {key} is set by hand in the device file",
+    "when": {
+     "key": {
+      "present": true
+     }
+    },
+    "de": "der Mäher nutzt die neue Zuordnung nicht, {key} ist in der Gerätedatei von Hand gesetzt"
+   },
+   {
+    "en": "the mower does not use the new assignment after the restart",
+    "de": "der Mäher nutzt die neue Zuordnung nach dem Neustart nicht"
+   }
+  ],
+  "RESTART_FAILED": [
+   {
+    "en": "MowBite OS was not back within {limit:0} s",
+    "when": {
+     "limit": {
+      "present": true
+     }
+    },
+    "de": "MowBite OS war nicht innerhalb von {limit:0} s zurück"
+   },
+   {
+    "en": "MowBite OS was not back in time",
+    "de": "MowBite OS war nicht rechtzeitig zurück"
    }
   ],
   "CONFIRM_MISSING": [
@@ -2992,7 +3134,8 @@
   "18": "WHEEL_RUNAWAY",
   "19": "FOREIGN_HOST",
   "20": "DRIVER_STALL",
-  "21": "UNEXPECTED_RESTART"
+  "21": "UNEXPECTED_RESTART",
+  "22": "INPUTS_LEARNING"
  },
  "emergency_text": {
   "STOP": {
@@ -3078,6 +3221,10 @@
   "UNEXPECTED_RESTART": {
    "en": "unexpected restart",
    "de": "unerwarteter Neustart"
+  },
+  "INPUTS_LEARNING": {
+   "en": "assigning its inputs",
+   "de": "ordnet seine Eingänge zu"
   },
   "UNKNOWN": {
    "en": "unknown reason",

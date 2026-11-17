@@ -467,18 +467,18 @@ describe('emergency stop reasons', () => {
       'DRIVER_STALL',
     ]);
     expect(emergencyFlags(2 ** 15 + 1)).toEqual(['LATCH', 'STUCK']);
-    expect(emergencyFlags(2 ** 22 + 1)).toEqual(['LATCH', 'BIT_22']);
+    expect(emergencyFlags(2 ** 23 + 1)).toEqual(['LATCH', 'BIT_23']);
     expect(emergencyFlags(2 ** 31 + 32)).toEqual(['COLLISION', 'BIT_31']);
     expect(emergencyFlags(String(2 ** 32 - 1))).toHaveLength(32);
   });
 
   it('says a bit without a name next to the others, it never drops out', () => {
-    expect(emergencyText(['LATCH', 'COLLISION', 'BIT_22'])).toBe('bumper, bit 22');
-    expect(emergencyText(['LATCH', 'BIT_22'])).toBe('bit 22');
+    expect(emergencyText(['LATCH', 'COLLISION', 'BIT_23'])).toBe('bumper, bit 23');
+    expect(emergencyText(['LATCH', 'BIT_23'])).toBe('bit 23');
     expect(emergencyText(['LATCH', 'WHEEL_RUNAWAY'])).toBe('wheel turning against the command');
     // what MowBite OS's log line says for a bit it has no name for
     expect(emergencyText(['UNKNOWN'])).toBe('unknown reason');
-    expect(describeEvent(ev(1, 'EMERGENCY', {emergency: true, reason: String(2 ** 22 + 32 + 1)})).text).toBe('Emergency stop: bumper, bit 22');
+    expect(describeEvent(ev(1, 'EMERGENCY', {emergency: true, reason: String(2 ** 23 + 32 + 1)})).text).toBe('Emergency stop: bumper, bit 23');
     expect(describeEvent(ev(1, 'EMERGENCY', {emergency: true, reason: '65536'})).text).toBe('Emergency stop: no data from the IMU');
   });
 
@@ -497,7 +497,7 @@ describe('emergency stop reasons', () => {
     expect(stop(129)).toMatch(/^Software above the board latched it/);
     expect(stop(129, false)).toMatch(/^OpenMower stopped the mower itself/);
     expect(stop(2 ** 15 + 1)).toMatch(/^The wheels turned, but by the GPS/);
-    expect(stop(2 ** 22 + 1)).toMatch(/^A reason MowBite doesn't know yet/);
+    expect(stop(2 ** 23 + 1)).toMatch(/^A reason MowBite doesn't know yet/);
     expect(stop(2 ** 21 + 1)).toMatch(/the activity says what happened\.$/);
   });
 
@@ -505,7 +505,7 @@ describe('emergency stop reasons', () => {
     vi.stubGlobal('document', {documentElement: {lang: 'en'}});
     setLangChoice('de');
     try {
-      expect(describeEvent(ev(1, 'EMERGENCY', {emergency: true, reason: String(2 ** 18 + 2 ** 22 + 1)})).text).toBe('Notaus: Rad dreht gegen den Befehl, Bit 22');
+      expect(describeEvent(ev(1, 'EMERGENCY', {emergency: true, reason: String(2 ** 18 + 2 ** 23 + 1)})).text).toBe('Notaus: Rad dreht gegen den Befehl, Bit 23');
       expect(emergencyText(['LATCH', 'TILT', 'LIFT'])).toBe('zu stark geneigt, angehoben');
     } finally {
       setLangChoice('en');

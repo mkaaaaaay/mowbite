@@ -366,7 +366,12 @@ export const REASONS: Record<string, Variant[]> = {
   ],
   no_gps: [r('no GPS fix')],
   BUSY: [
-    ...['SETUP_REFUSED', 'SETUP_BLOCKED'].map((type) => r('another step runs or the mower is on its way', {when: {type}})),
+    ...['SETUP_REFUSED', 'SETUP_BLOCKED'].flatMap((type) => [
+      r('the mower is driving, let it stand first', {when: {type, state: 'DRIVING'}}),
+      r('a calibration is running', {when: {type, state: 'CALIBRATING'}}),
+      r('an update holds the mower right now', {when: {type, state: 'HOLD'}}),
+      r('another step runs or the mower is on its way', {when: {type}}),
+    ]),
     r('another sound is being uploaded or checked', {when: {type: 'SOUND_REFUSED'}}),
     r('the mower is working right now', {when: {type: 'UPDATE'}}),
     r('busy: Idle', {when: {state: 'IDLE'}}),
@@ -534,6 +539,7 @@ export const REASONS: Record<string, Variant[]> = {
   // taken, but the emergency didn't end within 2 s (bits: what still holds), or another reason latched since STOP
   STILL_ACTIVE: [r('still active')],
   LATCH_CHANGED: [r('a new emergency reason came up')],
+  LEARNING: [r('the mower is assigning its inputs, finish or stop that in the setup')],
   FOREIGN_HOST: [r('another computer is talking to the board')],
   DRIVER_MISSING: [
     ...['CAMERA_REFUSED', 'CAMERA_CHANGED'].map((type) => r('the hardware driver is not reporting, the camera waits for it', {when: {type}})),
@@ -666,8 +672,18 @@ export const REASONS: Record<string, Variant[]> = {
   STOPPED_EARLY: [r('a short trigger brought the emergency stop already')],
   WRONG_SIGN: [r('the motion sensor reported the move the other way round')],
   LIMIT: [r('a value is out of its bounds')],
-  NO_DATA: [r('no data from board, motion sensor or GPS')],
+  NO_DATA: [r('no data from the inputs of the board', {when: {source: 'hw/inputs'}}), r('no data from board, motion sensor or GPS')],
   INPUT_ACTIVE: [r('the input is still switched, let go of it first')],
+  // the step that assigns the lines of the inputs (inputs_assign) and the lines of a step input
+  LINE_SILENT: [r('line {lines} did not switch with any action', {when: {lines: {present: true}}}), r('a line of this input did not switch')],
+  NO_LINE: [r('none of the lines watched changed')],
+  AMBIGUOUS: [r('more than one line changed at once ({lines})', {when: {lines: {present: true}}}), r('more than one line changed at once')],
+  FLUTTER: [r('line {lines} changed while nothing was touched', {when: {lines: {present: true}}}), r('a line changed while nothing was touched')],
+  NOT_APPLIED: [
+    r('the mower does not use the new assignment, {key} is set by hand in the device file', {when: {key: {present: true}}}),
+    r('the mower does not use the new assignment after the restart'),
+  ],
+  RESTART_FAILED: [r('MowBite OS was not back within {limit:0} s', {when: {limit: {present: true}}}), r('MowBite OS was not back in time')],
   CONFIRM_MISSING: [r('not every point is confirmed')],
   INVALID_VALUE: [r("the value doesn't fit this step")],
   LOCKED: [r('another step has to pass first')],
@@ -782,6 +798,7 @@ export const EMERGENCY_BITS: (string | null)[] = [
   'FOREIGN_HOST',
   'DRIVER_STALL',
   'UNEXPECTED_RESTART',
+  'INPUTS_LEARNING',
 ];
 
 // what the firmware means by them (fw-openmower-v2): a single lift sensor or bumper, or two and more at once. one not
@@ -809,6 +826,7 @@ export const EMERGENCY_TEXT: Record<string, string> = {
   FOREIGN_HOST: 'another computer is talking to the board',
   DRIVER_STALL: 'hardware driver hung',
   UNEXPECTED_RESTART: 'unexpected restart',
+  INPUTS_LEARNING: 'assigning its inputs',
   UNKNOWN: 'unknown reason',
 };
 // LATCH only holds it until it's reset, and of two that say the same the more telling one
@@ -843,6 +861,7 @@ export function fill(text: string, e: Fields): string {
   return text.replace(/\{(\w+)(?::(\d))?\}/g, (_, k: string, n?: string) => {
     const v = at(e, k);
     if (n !== undefined) return typeof v === 'number' && Number.isFinite(v) ? fmt(v, Number(n)) : '?';
+    if (Array.isArray(v)) return v.join(', ');
     return v === undefined || v === null || (typeof v === 'number' && !Number.isFinite(v)) ? '?' : String(v);
   });
 }

@@ -4011,6 +4011,7 @@
           "enum": [
             "STILL_ACTIVE",
             "LATCH_CHANGED",
+            "LEARNING",
             "STILL_TILTED",
             "TILT_UNKNOWN",
             "FOREIGN_HOST",
@@ -5367,9 +5368,21 @@
           "description": "Random id of the event, 32 letters and digits",
           "type": "string"
         },
+        "key": {
+          "description": "A setting the file kept by hand sets as well",
+          "type": "string"
+        },
         "limit": {
           "description": "The limit",
           "type": "number"
+        },
+        "lines": {
+          "description": "The lines that did not switch",
+          "items": {
+            "description": "One item",
+            "type": "string"
+          },
+          "type": "array"
         },
         "message": {
           "description": "English text for the log and for apps that do not know the reason",
@@ -5390,6 +5403,12 @@
             "WRONG_INPUT",
             "NO_EMERGENCY",
             "STOPPED_EARLY",
+            "LINE_SILENT",
+            "NO_LINE",
+            "AMBIGUOUS",
+            "FLUTTER",
+            "NOT_APPLIED",
+            "RESTART_FAILED",
             "WRONG_SIGN",
             "LIMIT",
             "NO_DATA",
@@ -5425,7 +5444,7 @@
           "type": "string"
         },
         "source": {
-          "description": "hw/status, hw/capabilities, imu/data or gps/absolute_pose",
+          "description": "hw/status, hw/inputs, hw/capabilities, imu/data or gps/absolute_pose",
           "type": "string"
         },
         "state": {
@@ -10099,6 +10118,33 @@
             "additionalProperties": false,
             "description": "One item",
             "properties": {
+              "ask": {
+                "additionalProperties": false,
+                "description": "What a running step inputs_assign proposes and waits for setup.answer {accept} with; null else",
+                "properties": {
+                  "active_high": {
+                    "description": "The line went high with the action",
+                    "type": "boolean"
+                  },
+                  "line": {
+                    "description": "The line that changed, a name of lines[]",
+                    "type": "string"
+                  },
+                  "part": {
+                    "description": "The part it is for",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "part",
+                  "line",
+                  "active_high"
+                ],
+                "type": [
+                  "object",
+                  "null"
+                ]
+              },
               "attempt": {
                 "description": "How often it was started or answered",
                 "type": "integer"
@@ -10235,8 +10281,12 @@
                   "additionalProperties": false,
                   "description": "One item",
                   "properties": {
+                    "advanced": {
+                      "description": "A setting beside the check, to be shown apart: the delays of a step inputs_assign",
+                      "type": "boolean"
+                    },
                     "ask": {
-                      "description": "A question of the running step that waits for its answer",
+                      "description": "A question of the running step that waits for its answer: accept while ask of the step is set",
                       "type": "boolean"
                     },
                     "max": {
@@ -10248,7 +10298,7 @@
                       "type": "number"
                     },
                     "name": {
-                      "description": "Key in values",
+                      "description": "Key in values; in a step inputs_assign accept and delay_<part>, see x-setup.accept and x-setup.delay",
                       "type": "string"
                     },
                     "texts": {
@@ -10298,6 +10348,7 @@
                     "name",
                     "type",
                     "ask",
+                    "advanced",
                     "value",
                     "texts"
                   ],
@@ -10308,6 +10359,54 @@
               "kind": {
                 "description": "How to show it: confirm, input or measure; a kind the app does not know as text with a button",
                 "type": "string"
+              },
+              "lines": {
+                "description": "The inputs of the platform one by one as hw/inputs has them, live, in a step input or inputs_assign; empty in other steps and where the driver has no hw/inputs",
+                "items": {
+                  "additionalProperties": false,
+                  "description": "One item",
+                  "properties": {
+                    "active": {
+                      "description": "Switched now; while the driver learns: the level of the line is high",
+                      "type": "boolean"
+                    },
+                    "assigned": {
+                      "description": "In the table of the mower; false for a line the driver only watches while it learns",
+                      "type": "boolean"
+                    },
+                    "delay_ms": {
+                      "description": "How long it has to stand before the hardware latches",
+                      "type": "integer"
+                    },
+                    "held": {
+                      "description": "The hardware keeps it switched after the sensor is free, until the emergency is released",
+                      "type": "boolean"
+                    },
+                    "name": {
+                      "description": "The line as the hardware names it",
+                      "type": "string"
+                    },
+                    "reason": {
+                      "description": "The emergency the hardware latches with it: stop, lift or collision; empty for none",
+                      "type": "string"
+                    },
+                    "role": {
+                      "description": "A key of x-setup.roles, empty for a line without a role",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "role",
+                    "reason",
+                    "active",
+                    "assigned",
+                    "held",
+                    "delay_ms"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
               },
               "mark": {
                 "description": "ids of robot_shape or of the app's derived parts (wheel_left, wheel_right, blade, antenna, contacts, outline) to highlight",
@@ -10629,6 +10728,8 @@
               "inputs",
               "values",
               "parts",
+              "lines",
+              "ask",
               "progress",
               "ends_at",
               "open",
@@ -15391,11 +15492,11 @@
       "type": "object"
     }
   },
-  "$id": "urn:mowbite-os:api:42",
+  "$id": "urn:mowbite-os:api:43",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "robot_state, actions, events and RPC methods of MowBite OS over MQTT, as system.api gives them; made from the code, objects sorted by key. x-reasons has severity and resume of every reason by event (COMMAND_REFUSED and REQUEST_REFUSED only in refusals; when: another rating for these field values; texts: name, help and fix by language; an enum field may carry the same by value as x-texts), x-emergency-bits the bits of emergency, x-commands the commands with params, result, the event of their refusal and the actions that do the same, x-methods every RPC method of the OS with its node (planner.* are the planner's, sim.* only in the simulation), x-sensors the sensors by id, x-settings the settings of params.set with the ranges of the OS, x-geometry the keys of robot.geometry, x-schedule-log the words of schedule.log with what detail and more hold (null: always null), x-setup the setup program. x-api counts every change, x-api-break only the breaks: a method, field, event, reason or topic gone or renamed, a type or meaning changed, a parameter newly required, fewer values taken in a request, an event a client waits for no longer sent. All else only adds; a client goes with every x-api of its x-api-break from the one it needs on.",
   "title": "MowBite OS app interface",
-  "x-api": 42,
+  "x-api": 43,
   "x-api-break": 1,
   "x-commands": {
     "docking.abort": {
@@ -15827,6 +15928,23 @@
           "fix": "Look at the mower and around it, then reset the emergency. The event UNEXPECTED_RESTART tells the cause.",
           "help": "MowBite OS did not end in order while the mower worked, or the kernel crashed. The mower waits for a release, also after power off and on.",
           "name": "Unexpected restart"
+        }
+      }
+    },
+    {
+      "bit": 22,
+      "description": "The driver was started to learn its inputs (step inputs_assign of the setup): it watches its candidate lines, none of them stops anything, so it holds the mower until it starts without; no release ends it",
+      "name": "INPUTS_LEARNING",
+      "texts": {
+        "de": {
+          "fix": "Die Zuordnung in der Einrichtung abschließen oder abbrechen. Danach startet MowBite OS neu.",
+          "help": "Der Mäher beobachtet gerade seine Eingänge, um sie zuzuordnen. Solange stoppt kein Sensor, deshalb fährt und mäht er nicht.",
+          "name": "Eingänge werden zugeordnet"
+        },
+        "en": {
+          "fix": "Finish or stop the assignment in the setup. MowBite OS restarts after it.",
+          "help": "The mower is watching its inputs to assign them. No sensor stops anything meanwhile, so it does not drive or mow.",
+          "name": "Inputs are being assigned"
         }
       }
     }
@@ -16478,7 +16596,7 @@
       "result": "#/$defs/setup.abort.result"
     },
     "setup.answer": {
-      "description": "Gives the inputs of a step: a choice, a number, the answer to a question",
+      "description": "Gives the inputs of a step: a choice, a number, the answer to a question, the delays of a step inputs_assign that is ok",
       "node": "mowbite_setup",
       "offered": "where the platform has a step list (setup/setup.yaml)",
       "params": "#/$defs/setup.answer.params",
@@ -18041,6 +18159,24 @@
           }
         }
       },
+      "LEARNING": {
+        "description": "The driver learns its inputs: only a start without it ends the emergency INPUTS_LEARNING",
+        "fields": {},
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Die Zuordnung in der Einrichtung abschließen oder abbrechen.",
+            "help": "Der Notaus bleibt, solange der Mäher seine Eingänge zuordnet.",
+            "name": "Eingänge werden zugeordnet"
+          },
+          "en": {
+            "fix": "Finish or stop the assignment in the setup.",
+            "help": "The emergency stays while the mower assigns its inputs.",
+            "name": "Inputs are being assigned"
+          }
+        }
+      },
       "NO_ANSWER": {
         "description": "No answer in time",
         "fields": {},
@@ -18838,38 +18974,38 @@
         }
       },
       "EMERGENCY": {
-        "description": "The emergency of the part before is still latched",
+        "description": "An emergency is latched that the program does not release itself",
         "fields": {},
         "resume": "user",
         "severity": "info",
         "texts": {
           "de": {
             "fix": "Den Notaus in der App aufheben.",
-            "help": "Der Notaus vom letzten Handgriff steht noch. Erst danach zählt der nächste.",
+            "help": "Ein Notaus steht noch. Erst danach geht es weiter.",
             "name": "Notaus aufheben"
           },
           "en": {
             "fix": "Release the emergency stop in the app.",
-            "help": "The emergency stop of the last action is still on. The next one counts only after it.",
+            "help": "An emergency stop is still on. It goes on only after it.",
             "name": "Release the emergency stop"
           }
         }
       },
       "INPUT_ACTIVE": {
-        "description": "The input of the part is switched already",
+        "description": "The input of the part is still switched: before its action, or after it while its emergency waits for the input to be free",
         "fields": {},
         "resume": "user",
         "severity": "info",
         "texts": {
           "de": {
             "fix": "Taste, Stoßfänger oder Mäher loslassen bzw. absetzen.",
-            "help": "Der Eingang ist schon ausgelöst. Der Handgriff zählt erst, wenn er vorher in Ruhe war.",
-            "name": "Eingang loslassen"
+            "help": "Der Eingang ist noch ausgelöst. Es geht weiter, sobald er in Ruhe ist.",
+            "name": "Noch ausgelöst"
           },
           "en": {
             "fix": "Let go of the button or bumper, or put the mower down.",
-            "help": "The input is switched already. The action counts only once it was at rest before.",
-            "name": "Let go of the input"
+            "help": "The input is still switched. It goes on once it is at rest.",
+            "name": "Still switched"
           }
         }
       },
@@ -18971,6 +19107,24 @@
             "fix": "Switch the mower on, check the cable to the board, then try again.",
             "help": "The mower gets no data from its board, so nothing can be checked.",
             "name": "Board not answering"
+          }
+        }
+      },
+      "EMERGENCY": {
+        "description": "An emergency stands and the step restarts the OS",
+        "fields": {},
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "Den Notaus aufheben, dann den Schritt starten.",
+            "help": "Für diesen Schritt startet MowBite OS neu. Das geht nur ohne Notaus.",
+            "name": "Notaus steht"
+          },
+          "en": {
+            "fix": "Release the emergency stop, then start the step.",
+            "help": "MowBite OS restarts for this step. That takes a mower without an emergency stop.",
+            "name": "Emergency stop is on"
           }
         }
       },
@@ -19112,6 +19266,47 @@
       }
     },
     "SETUP_STEP": {
+      "AMBIGUOUS": {
+        "description": "More than one line changed with the action of the part",
+        "fields": {
+          "lines": "",
+          "part": ""
+        },
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Nur einen Sensor auslösen und die anderen in Ruhe lassen, dann wiederholen.",
+            "help": "Beim Handgriff haben mehrere Leitungen zugleich gewechselt. So lässt sich der Sensor keiner Leitung zuordnen.",
+            "name": "Mehrere Leitungen"
+          },
+          "en": {
+            "fix": "Trigger one sensor only and leave the others alone, then repeat.",
+            "help": "More than one line changed with the action, so the sensor can't be put to one line.",
+            "name": "More than one line"
+          }
+        }
+      },
+      "FLUTTER": {
+        "description": "A line changed while nothing was to be touched",
+        "fields": {
+          "lines": ""
+        },
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Den Mäher nicht berühren. Die genannte Leitung, ihren Stecker und Sensor prüfen, dann wiederholen.",
+            "help": "Eine Leitung wechselt, ohne dass jemand etwas berührt. Ein Sensor oder Kabel hat einen Wackelkontakt.",
+            "name": "Leitung unruhig"
+          },
+          "en": {
+            "fix": "Don't touch the mower. Check the line named, its plug and sensor, then repeat.",
+            "help": "A line changes while nobody touches anything. A sensor or cable has a loose contact.",
+            "name": "Line unsteady"
+          }
+        }
+      },
       "INTERRUPTED": {
         "description": "The OS restarted while the step ran",
         "fields": {},
@@ -19153,6 +19348,47 @@
           }
         }
       },
+      "LINE_SILENT": {
+        "description": "A line of the role did not switch in the whole step",
+        "fields": {
+          "lines": "",
+          "part": ""
+        },
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Jeden Sensor einzeln auslösen. Bleibt die Leitung stumm: Sensor, Stecker und Kabel prüfen.",
+            "help": "Eine Leitung dieses Eingangs hat bei keinem Handgriff geschaltet. Ein Sensor oder ein Kontakt eines Paars ist defekt oder nicht angeschlossen.",
+            "name": "Leitung blieb stumm"
+          },
+          "en": {
+            "fix": "Trigger every sensor on its own. If the line stays silent, check sensor, plug and cable.",
+            "help": "A line of this input did not switch with any action. A sensor or one contact of a pair is broken or not connected.",
+            "name": "Line stayed silent"
+          }
+        }
+      },
+      "NOT_APPLIED": {
+        "description": "After the restart hw/inputs does not show the table the step wrote",
+        "fields": {
+          "key": ""
+        },
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Die Einträge zu den Eingängen aus der Gerätedatei des Mähers entfernen, dann den Schritt wiederholen.",
+            "help": "Nach dem Neustart arbeitet der Mäher nicht mit der neuen Zuordnung. Ein Eintrag in der von Hand gepflegten Gerätedatei hat Vorrang.",
+            "name": "Zuordnung nicht übernommen"
+          },
+          "en": {
+            "fix": "Remove the entries of the inputs from the device file of the mower, then repeat the step.",
+            "help": "After the restart the mower does not work with the new assignment. An entry in the device file kept by hand comes first.",
+            "name": "Assignment not applied"
+          }
+        }
+      },
       "NOT_SEEN": {
         "description": "The OS did not see what the part asked for within its time",
         "fields": {
@@ -19176,6 +19412,7 @@
       "NO_DATA": {
         "description": "A source the step needs sent nothing",
         "fields": {
+          "part": "",
           "source": ""
         },
         "resume": "user",
@@ -19214,6 +19451,26 @@
           }
         }
       },
+      "NO_LINE": {
+        "description": "No line changed within the time of the part",
+        "fields": {
+          "part": ""
+        },
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "Stecker und Kabel des Sensors prüfen, dann wiederholen.",
+            "help": "Beim Handgriff hat keine der beobachteten Leitungen gewechselt. Der Sensor ist nicht angeschlossen, defekt oder hängt an einem Anschluss, den der Mäher nicht beobachtet.",
+            "name": "Keine Leitung gesehen"
+          },
+          "en": {
+            "fix": "Check plug and cable of the sensor, then repeat.",
+            "help": "None of the lines watched changed with the action. The sensor is not connected, broken, or on a connector the mower does not watch.",
+            "name": "No line seen"
+          }
+        }
+      },
       "NO_RTK": {
         "description": "No position of the solution, accuracy and rate asked for within the timeout",
         "fields": {},
@@ -19229,6 +19486,26 @@
             "fix": "Give it a free view of the sky, check the correction data, then repeat.",
             "help": "The mower didn't get an exact position in time.",
             "name": "No exact position"
+          }
+        }
+      },
+      "RESTART_FAILED": {
+        "description": "The OS was not back within the time after the restart the step asked for",
+        "fields": {
+          "limit": "s"
+        },
+        "resume": "user",
+        "severity": "warning",
+        "texts": {
+          "de": {
+            "fix": "MowBite OS von Hand neu starten, dann den Schritt wiederholen.",
+            "help": "MowBite OS ist nicht rechtzeitig neu gestartet.",
+            "name": "Neustart blieb aus"
+          },
+          "en": {
+            "fix": "Restart MowBite OS by hand, then repeat the step.",
+            "help": "MowBite OS did not restart in time.",
+            "name": "No restart"
           }
         }
       },
@@ -20850,6 +21127,55 @@
     }
   },
   "x-setup": {
+    "accept": {
+      "description": "Whether the line of ask is the one of its part",
+      "texts": {
+        "de": {
+          "fix": "",
+          "help": "Der Mäher hat den Handgriff an dieser Leitung gesehen.",
+          "name": "Leitung übernehmen?"
+        },
+        "en": {
+          "fix": "",
+          "help": "The mower saw the action on this line.",
+          "name": "Take this line?"
+        }
+      },
+      "values": {
+        "no": {
+          "description": "The part waits for another line",
+          "order": 1,
+          "texts": {
+            "de": {
+              "fix": "",
+              "help": "",
+              "name": "Nicht diese"
+            },
+            "en": {
+              "fix": "",
+              "help": "",
+              "name": "Not this one"
+            }
+          }
+        },
+        "yes": {
+          "description": "The line is taken for the role of the part",
+          "order": 0,
+          "texts": {
+            "de": {
+              "fix": "",
+              "help": "",
+              "name": "Übernehmen"
+            },
+            "en": {
+              "fix": "",
+              "help": "",
+              "name": "Take it"
+            }
+          }
+        }
+      }
+    },
     "checks": {
       "board": {
         "auto": true,
@@ -20866,6 +21192,7 @@
             "unit": "%"
           },
           "imu": {
+            "default": "yes",
             "description": "yes to check gravity on imu/data",
             "required": false,
             "type": "text",
@@ -21067,7 +21394,7 @@
       },
       "done_when": {
         "auto": true,
-        "description": "Done as soon as the OS sees its condition, see conditions; the app opens the screen open names. Texts of the step by its condition",
+        "description": "Done as soon as the OS sees its condition, see conditions; the app opens the screen open names, by default the one of the condition. Texts of the step by its condition",
         "kind": "confirm",
         "params": {
           "condition": {
@@ -21091,6 +21418,7 @@
         "auto": true,
         "description": "Done once every key of keys is confirmed in robot.geometry (robot.geometry.set with a value or with confirm); the app opens its screen of the dimensions",
         "kind": "input",
+        "open": "geometry",
         "params": {
           "keys": {
             "description": "Keys of x-geometry the user can set; none for all of them",
@@ -21177,11 +21505,11 @@
       },
       "input": {
         "auto": true,
-        "description": "One input of hw/status by hand, part by part: each part of mode press or short, see modes. Texts of the step by its role",
+        "description": "One input of hw/status by hand, part by part: each part of mode press or short, see modes. With hw/inputs line by line: parts of one role need different lines, and every line of the role has to switch in the step. The program releases the emergency a part of mode press brought by itself once the input is free, where the driver counts its latches and no other reason came up. Texts of the step by its role",
         "kind": "measure",
         "params": {
           "emergency": {
-            "description": "The emergency a press brings, by default STOP, LIFT or COLLISION as the role says",
+            "description": "The emergency a press brings; without, the one of the role",
             "required": false,
             "type": "text",
             "values": [
@@ -21236,6 +21564,7 @@
           "WRONG_INPUT",
           "NO_EMERGENCY",
           "STOPPED_EARLY",
+          "LINE_SILENT",
           "NO_DATA",
           "STOPPED",
           "INTERRUPTED"
@@ -21245,6 +21574,74 @@
           "delay": {
             "description": "From the input to the emergency, one value by part of mode press with the id of the part",
             "unit": "s"
+          }
+        }
+      },
+      "inputs_assign": {
+        "auto": false,
+        "description": "Finds the line of every sensor, on a platform whose driver learns its inputs: the OS restarts with the driver watching its candidate lines (emergency INPUTS_LEARNING, nothing moves), watches them at rest for quiet, then takes one part after the other, each of a role (stop, lift, bumper_left or bumper_right) and with the delay_ms its line gets: one line alone changes, ask of the step names it, and setup.answer with accept yes takes it. After the last part the table goes into the settings the program writes for the platform, the OS restarts without learning and the step holds hw/inputs against the table. A board the learning driver held stays held after that restart (HIGH_LEVEL) until emergency.reset. setup.abort ends it with a restart as well. The steps input are open again after it. The step list names how the OS restarts (restart). Once the step is ok setup.answer takes delay_<part> for any of its parts, a whole number of ms from 0 to delay_ms of the part: the table is written with it, the OS restarts and the step holds hw/inputs against it again",
+        "kind": "input",
+        "params": {
+          "node": {
+            "description": "The node of the driver the table is written for",
+            "required": true,
+            "type": "text"
+          },
+          "quiet": {
+            "default": 10.0,
+            "description": "The lines are watched untouched for this time first",
+            "max": 60.0,
+            "min": 3.0,
+            "required": false,
+            "type": "number",
+            "unit": "s"
+          },
+          "restart_time": {
+            "default": 120.0,
+            "description": "The OS is back within this time after a restart",
+            "max": 600.0,
+            "min": 20.0,
+            "required": false,
+            "type": "number",
+            "unit": "s"
+          },
+          "time": {
+            "default": 60.0,
+            "description": "Each part is done within this time",
+            "max": 300.0,
+            "min": 5.0,
+            "required": false,
+            "type": "number",
+            "unit": "s"
+          }
+        },
+        "reasons": [
+          "NO_LINE",
+          "AMBIGUOUS",
+          "FLUTTER",
+          "NOT_APPLIED",
+          "RESTART_FAILED",
+          "NO_DATA",
+          "STOPPED",
+          "INTERRUPTED"
+        ],
+        "start": true,
+        "texts": {
+          "de": {
+            "fix": "Jeden Sensor einzeln auslösen und die anderen in Ruhe lassen.",
+            "help": "Der Mäher findet heraus, an welcher Leitung jeder Sensor hängt. Dafür startet MowBite OS neu; währenddessen stoppt kein Sensor, der Mäher fährt und mäht nicht.",
+            "name": "Eingänge zuordnen"
+          },
+          "en": {
+            "fix": "Trigger every sensor on its own and leave the others alone.",
+            "help": "The mower finds the line every sensor is on. MowBite OS restarts for it; no sensor stops anything meanwhile, the mower does not drive or mow.",
+            "name": "Assign the inputs"
+          }
+        },
+        "values": {
+          "line": {
+            "description": "The line taken, one value by part with the id of the part",
+            "unit": ""
           }
         }
       },
@@ -21310,6 +21707,7 @@
             "unit": "Hz"
           },
           "solution": {
+            "default": "fixed",
             "description": "The solution it needs at least",
             "required": false,
             "type": "text",
@@ -21412,6 +21810,7 @@
     "conditions": {
       "area": {
         "description": "The map has an area and allows mowing",
+        "open": "recording",
         "order": 2,
         "texts": {
           "de": {
@@ -21428,6 +21827,7 @@
       },
       "dock_test": {
         "description": "A docking test ended on the contacts",
+        "open": "dock_test",
         "order": 3,
         "texts": {
           "de": {
@@ -21444,6 +21844,7 @@
       },
       "mow": {
         "description": "The mower mowed and came back onto the contacts",
+        "open": "mow",
         "order": 4,
         "texts": {
           "de": {
@@ -21460,6 +21861,7 @@
       },
       "ntrip": {
         "description": "Correction data arrives from the caster",
+        "open": "ntrip",
         "order": 0,
         "texts": {
           "de": {
@@ -21476,6 +21878,7 @@
       },
       "station": {
         "description": "A docking station is in the map and the mower stands on its contacts",
+        "open": "dock",
         "order": 1,
         "texts": {
           "de": {
@@ -21491,7 +21894,24 @@
         }
       }
     },
-    "description": "The setup program: stages in their order, the checks a step of setup/setup.yaml of a platform can be (kind, whether setup.start begins it, params with the bounds of the code, values, reasons of SETUP_STEP), roles and modes of a step input, moves of a step imu, conditions of a step done_when, points to confirm, reasons to skip, and the limits; texts by language where the OS has them. The steps themselves come with setup.get",
+    "delay": {
+      "description": "How long the sensor of a part has to stay switched before the hardware stops, at most what the platform gives",
+      "prefix": "delay_",
+      "texts": {
+        "de": {
+          "fix": "",
+          "help": "So lange muss der Sensor ausgelöst bleiben, bevor der Mäher stoppt. Kürzer als die Vorgabe geht, länger nicht. Nach einer Änderung startet MowBite OS neu, die Eingänge sind danach neu zu prüfen.",
+          "name": "Verzögerung"
+        },
+        "en": {
+          "fix": "",
+          "help": "The sensor has to stay triggered this long before the mower stops. Shorter than the default works, longer does not. MowBite OS restarts after a change, the inputs are to be checked again after it.",
+          "name": "Delay"
+        }
+      },
+      "unit": "ms"
+    },
+    "description": "The setup program: stages in their order, the checks a step of setup/setup.yaml of a platform can be (kind, whether setup.start begins it, params with the bounds and defaults of the code, values, reasons of SETUP_STEP, the screen it opens), roles of the inputs (group, emergency of a press; a role is named as its flag in hw/status) and modes of a part, moves of a step imu, conditions of a step done_when with their screen, points to confirm, reasons to skip, the question of a step inputs_assign and the delays it takes once it is ok, the ways to restart, and the limits; texts by language where the OS has them. The steps themselves come with setup.get",
     "limits": {
       "image_bytes": 65536,
       "parts": 8,
@@ -21502,6 +21922,22 @@
       "steps": 100
     },
     "modes": {
+      "assign": {
+        "description": "A part of a step inputs_assign: one line alone changes, and the step asks whether it is the one of the role of the part. Help and fix of such a part; its name is the one of its role",
+        "order": 2,
+        "texts": {
+          "de": {
+            "fix": "Kommt kein Vorschlag: Stecker und Kabel des Sensors prüfen, dann wiederholen.",
+            "help": "Diesen Sensor einmal auslösen und wieder loslassen. Der Mäher zeigt, an welcher Leitung er ihn gesehen hat.",
+            "name": "Zuordnen"
+          },
+          "en": {
+            "fix": "No proposal: check plug and cable of the sensor, then try again.",
+            "help": "Trigger this sensor once and let go. The mower shows the line it saw it on.",
+            "name": "Assign"
+          }
+        }
+      },
       "press": {
         "description": "The input switches within the time of the step, the emergency of the step follows within its limit, then the input is let go",
         "order": 0
@@ -21696,9 +22132,21 @@
         }
       }
     },
+    "restart": {
+      "host": {
+        "description": "The OS asks its host service for the restart (host.restart_os)",
+        "order": 1
+      },
+      "self": {
+        "description": "The OS ends in order and whatever runs it starts it again",
+        "order": 0
+      }
+    },
     "roles": {
       "bumper": {
-        "description": "bumper of hw/status: the bumper is pressed",
+        "description": "The bumper is pressed, on any side",
+        "emergency": "COLLISION",
+        "group": "bumper",
         "order": 2,
         "texts": {
           "de": {
@@ -21714,7 +22162,9 @@
         }
       },
       "bumper_left": {
-        "description": "bumper_left of hw/status, on platforms with separate bumpers",
+        "description": "The left side of the bumper, on platforms that tell the sides apart",
+        "emergency": "COLLISION",
+        "group": "bumper",
         "order": 3,
         "texts": {
           "de": {
@@ -21730,7 +22180,9 @@
         }
       },
       "bumper_right": {
-        "description": "bumper_right of hw/status, on platforms with separate bumpers",
+        "description": "The right side of the bumper, on platforms that tell the sides apart",
+        "emergency": "COLLISION",
+        "group": "bumper",
         "order": 4,
         "texts": {
           "de": {
@@ -21746,7 +22198,9 @@
         }
       },
       "lift": {
-        "description": "lift of hw/status: the mower is lifted",
+        "description": "The mower is lifted",
+        "emergency": "LIFT",
+        "group": "lift",
         "order": 1,
         "texts": {
           "de": {
@@ -21762,7 +22216,9 @@
         }
       },
       "stop": {
-        "description": "stop of hw/status: a STOP button",
+        "description": "A STOP button",
+        "emergency": "STOP",
+        "group": "stop",
         "order": 0,
         "texts": {
           "de": {
