@@ -4,9 +4,9 @@ import type {PartState, StepState} from '@/lib/setup';
 import {useState} from 'react';
 import styles from './StateMark.module.css';
 
-type State = StepState | PartState;
+export type MarkState = StepState | PartState;
 
-export const SIGNS: Partial<Record<State, React.ReactNode>> = {
+export const SIGNS: Partial<Record<MarkState, React.ReactNode>> = {
   ok: <path d="M5 12l5 5 9-10" strokeWidth={3} />,
   failed: <path d="M7 7l10 10M17 7 7 17" strokeWidth={3} />,
   skipped: <path d="M5 12h12M13 7l5 5-5 5" />,
@@ -25,8 +25,8 @@ export const SIGNS: Partial<Record<State, React.ReactNode>> = {
 };
 
 // the state of a step or part in a word, nothing for one still open
-export function stateWord(s: State): string {
-  const words: Partial<Record<State, string>> = {
+export function stateWord(s: MarkState): string {
+  const words: Partial<Record<MarkState, string>> = {
     ok: tr('Passed'),
     failed: tr('Not passed'),
     skipped: tr('Skipped for now'),
@@ -39,7 +39,7 @@ export function stateWord(s: State): string {
 }
 
 // the state as a round sign: tick, cross, arrow on, clock, lock; a ring while open, running or waiting
-export function StateMark({state, size}: {state: State; size?: 'small' | 'big'}) {
+export function StateMark({state, size}: {state: MarkState; size?: 'small' | 'big'}) {
   const sign = SIGNS[state];
   // only a change moves, not every mark of a page just opened
   const [first] = useState(state);

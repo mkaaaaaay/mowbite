@@ -1,6 +1,6 @@
 'use client';
 
-import {ChevronIcon, line} from '@/components/icons';
+import {ChevronIcon, LockIcon} from '@/components/icons';
 import {reasonSentence} from '@/lib/events';
 import {tr} from '@/lib/i18n';
 import {isDone, nameById, nameOf, unmet, type Setup, type SetupStep, type StepState} from '@/lib/setup';
@@ -8,13 +8,6 @@ import Link from 'next/link';
 import {useState} from 'react';
 import {StateMark, stateWord} from './StateMark';
 import styles from './SetupOverview.module.css';
-
-export const LockIcon = ({open, size}: {open: boolean; size?: number}) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" {...line} aria-hidden="true">
-    <rect x="5" y="11" width="14" height="10" rx="2" />
-    <path d={open ? 'M8 11V7a4 4 0 0 1 7.5-2' : 'M8 11V7a4 4 0 0 1 8 0v4'} />
-  </svg>
-);
 
 // the line under a stage: what keeps it locked, how far it got, or its state
 function stageLine(state: StepState, steps: SetupStep[], all: SetupStep[], lang: string): string {

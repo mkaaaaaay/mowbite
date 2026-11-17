@@ -100,29 +100,28 @@
   transform-origin: left;
 }
 
+.segments i:is([data-state='ok'], [data-state='skipped'], [data-state='running'], [data-state='failed'], [data-state='stale']) {
+  --fill: 1;
+}
+
 .segments i[data-state='ok'] {
   --seg: var(--success);
-  --fill: 1;
 }
 
 .segments i[data-state='skipped'] {
   --seg: color-mix(in srgb, var(--text-secondary) 55%, transparent);
-  --fill: 1;
 }
 
 .segments i[data-state='running'] {
   --seg: var(--accent);
-  --fill: 1;
 }
 
 .segments i[data-state='failed'] {
   --seg: var(--error);
-  --fill: 1;
 }
 
 .segments i[data-state='stale'] {
   --seg: var(--warning);
-  --fill: 1;
 }
 
 .next {

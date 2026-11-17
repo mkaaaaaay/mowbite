@@ -26,7 +26,8 @@ const TREE_AROUND = 'M117 128 A25 25 0 1 1 67 128 A25 25 0 1 1 117 128 Z';
 const POND = {x: 236, y: 132};
 const POND_AROUND = 'M271 132 A35 26 0 1 1 201 132 A35 26 0 1 1 271 132 Z';
 
-export function Scene({children, still, label}: {children: React.ReactNode; still: number; label: string}) {
+// with reduced motion it stands still at that second, the end of a screen's loop unless given
+export function Scene({children, still = SCREEN_STILL, label}: {children: React.ReactNode; still?: number; label: string}) {
   const ref = useRef<SVGSVGElement>(null);
   useEffect(() => {
     if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
@@ -58,6 +59,7 @@ export const PAINT = {
   text: {fill: 'var(--foreground)'},
   dim: {fill: 'var(--text-secondary)'},
   accent: {fill: 'var(--accent)'},
+  tile: {fill: 'var(--tile)'},
   onAccent: {fill: 'var(--accent-foreground)'},
 };
 

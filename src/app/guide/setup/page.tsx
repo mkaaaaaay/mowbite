@@ -1,19 +1,17 @@
 'use client';
 
-import {SIGNS} from '@/components/setup/StateMark';
-import {LockIcon} from '@/components/setup/SetupOverview';
+import {type MarkState, SIGNS, stateWord} from '@/components/setup/StateMark';
 import {StepSymbol} from '@/components/setup/StepSymbol';
-import {line} from '@/components/icons';
+import {line, LockIcon} from '@/components/icons';
 import {tr} from '@/lib/i18n';
 import {useId} from 'react';
-import {anim, appear, PAINT, Scene, SCREEN_LOOP, SCREEN_STILL, tap} from '../art';
+import {anim, PAINT, Scene, SCREEN_LOOP, tap} from '../art';
 import Guide, {type GuideStep} from '../Guide';
 
 // the setup program of a mower with MowBite OS, step by step with a drawing of its screens for each
 
 const DUR = SCREEN_LOOP;
-const {card, text, dim, accent, onAccent} = PAINT;
-const TILE = {fill: 'var(--tile)'};
+const {card, text, dim, accent, onAccent, tile} = PAINT;
 const OK = 'var(--success)';
 const BAD = 'var(--error)';
 
@@ -30,13 +28,12 @@ function Shown({from = 0, to = 1, children}: {from?: number; to?: number; childr
   );
 }
 
-type MarkState = 'open' | 'running' | 'waiting' | 'ok' | 'failed' | 'skipped' | 'locked';
 const MARK_FILL: Partial<Record<MarkState, string>> = {ok: OK, failed: BAD, skipped: 'var(--track)'};
 
 // the round state mark of the setup (StateMark) at that point
 function Mark({x, y, state, r = 10}: {x: number; y: number; state: MarkState; r?: number}) {
   const fill = MARK_FILL[state];
-  const sign = SIGNS[state as keyof typeof SIGNS];
+  const sign = SIGNS[state];
   const ring = state === 'open' ? 'var(--text-secondary)' : state === 'running' || state === 'waiting' ? 'var(--accent)' : null;
   return (
     <g transform={`translate(${x} ${y})`}>
@@ -48,7 +45,7 @@ function Mark({x, y, state, r = 10}: {x: number; y: number; state: MarkState; r?
       )}
       {state === 'running' && <circle r={r * 0.4} style={accent} />}
       {sign && (
-        <g transform={`scale(${r / 12}) translate(-7.44 -7.44) scale(0.62)`} {...line} strokeWidth={2.5} style={{color: fill && state !== 'skipped' ? 'var(--accent-foreground)' : 'var(--text-secondary)'}}>
+        <g transform={`scale(${(r / 12) * 0.62}) translate(-12 -12)`} {...line} strokeWidth={2.5} style={{color: fill && state !== 'skipped' ? 'var(--accent-foreground)' : 'var(--text-secondary)'}}>
           {sign}
         </g>
       )}
@@ -60,7 +57,7 @@ function Mark({x, y, state, r = 10}: {x: number; y: number; state: MarkState; r?
 function Button({x, y, w, h = 28, size = 12, label, main, at}: {x: number; y: number; w: number; h?: number; size?: number; label: string; main?: boolean; at?: number}) {
   return (
     <>
-      <rect x={x} y={y} width={w} height={h} rx={10} style={main ? accent : TILE}>
+      <rect x={x} y={y} width={w} height={h} rx={10} style={main ? accent : tile}>
         {at !== undefined && tap(at)}
       </rect>
       <text x={x + w / 2} y={y + h / 2 + size / 3} fontSize={size} fontWeight={600} textAnchor="middle" style={main ? onAccent : text}>
@@ -88,7 +85,7 @@ function Figure({x, y, w, h, symbol}: {x: number; y: number; w: number; h: numbe
   const r = Math.min(20, h / 2 - 4);
   return (
     <>
-      <rect x={x} y={y} width={w} height={h} rx={10} style={TILE} />
+      <rect x={x} y={y} width={w} height={h} rx={10} style={tile} />
       <circle cx={x + w / 2} cy={y + h / 2} r={r} fill="var(--tint-accent)" />
       <g transform={`translate(${x + w / 2 - r * 0.6} ${y + h / 2 - r * 0.6})`} style={{color: 'var(--accent)'}}>
         <StepSymbol name={symbol} size={r * 1.2} />
@@ -101,7 +98,7 @@ function Figure({x, y, w, h, symbol}: {x: number; y: number; w: number; h: numbe
 function Row({x, y, w, name, states}: {x: number; y: number; w: number; name: string; states: {from: number; state: MarkState; word?: string; bad?: boolean}[]}) {
   return (
     <>
-      <rect x={x} y={y} width={w} height={32} rx={10} style={TILE} />
+      <rect x={x} y={y} width={w} height={32} rx={10} style={tile} />
       <text x={x + 32} y={y + 14} fontSize={12} fontWeight={600} style={text}>
         {name}
       </text>
@@ -109,7 +106,7 @@ function Row({x, y, w, name, states}: {x: number; y: number; w: number; name: st
         <Shown key={i} from={s.from} to={states[i + 1]?.from ?? 1}>
           <Mark x={x + 16} y={y + 16} state={s.state} />
           <text x={x + 32} y={y + 26} fontSize={10} style={s.bad ? {fill: BAD} : dim}>
-            {s.word}
+            {s.word ?? stateWord(s.state)}
           </text>
         </Shown>
       ))}
@@ -119,7 +116,7 @@ function Row({x, y, w, name, states}: {x: number; y: number; w: number; name: st
 
 function OverviewArt() {
   // the next step passes: its stage gets a tick, the bar a segment, the next stage opens; Go on leads on
-  const stage = (y: number, name: string, states: {from: number; state: MarkState; word: string; faint?: boolean}[]) => (
+  const stage = (y: number, name: string, states: {from: number; state: MarkState; word?: string; faint?: boolean}[]) => (
     <>
       {states.map((s, i) => (
         <Shown key={i} from={s.from} to={states[i + 1]?.from ?? 1}>
@@ -128,7 +125,7 @@ function OverviewArt() {
             {name}
           </text>
           <text x={66} y={y + 12} fontSize={10} style={dim}>
-            {s.word}
+            {s.word ?? stateWord(s.state)}
           </text>
         </Shown>
       ))}
@@ -138,7 +135,7 @@ function OverviewArt() {
   const of = 6;
   const w = (252 - (of - 1) * 4) / of;
   return (
-    <Scene still={SCREEN_STILL} label={tr('The setup')}>
+    <Scene label={tr('The setup')}>
       <rect x={20} y={10} width={280} height={182} rx={14} style={card} />
       {[2, 3].map((done) => (
         <Shown key={done} from={done === 3 ? 0.3 : 0} to={done === 2 ? 0.3 : 1}>
@@ -158,13 +155,13 @@ function OverviewArt() {
         </g>
       ))}
       <Button x={34} y={56} w={252} h={28} label={tr('Go on: {step}', {step: tr('Wheel motor left')})} main at={0.8} />
-      {stage(108, tr('Device'), [{from: 0, state: 'ok', word: tr('Passed')}])}
+      {stage(108, tr('Device'), [{from: 0, state: 'ok'}])}
       {stage(140, tr('Inputs'), [
         {from: 0, state: 'open', word: tr('{done} of {of} done', {done: 2, of: 3})},
-        {from: 0.3, state: 'ok', word: tr('Passed')},
+        {from: 0.3, state: 'ok'},
       ])}
       {stage(172, tr('Driving'), [
-        {from: 0, state: 'locked', word: tr('Locked'), faint: true},
+        {from: 0, state: 'locked', faint: true},
         {from: 0.45, state: 'open', word: tr('{n} steps', {n: 3})},
       ])}
     </Scene>
@@ -174,7 +171,7 @@ function OverviewArt() {
 function StepArt() {
   // Start checks the parts one by one: the first passes, the second fails, Repeat passes it
   return (
-    <Scene still={SCREEN_STILL} label={tr('A step')}>
+    <Scene label={tr('A step')}>
       <rect x={20} y={8} width={280} height={186} rx={14} style={card} />
       <Figure x={30} y={18} w={260} h={48} symbol="wheels" />
       <text x={30} y={84} fontSize={13} fontWeight={600} style={text}>
@@ -187,8 +184,8 @@ function StepArt() {
         name={tr('Wheel motor left')}
         states={[
           {from: 0, state: 'open'},
-          {from: 0.12, state: 'running', word: tr('Running')},
-          {from: 0.3, state: 'ok', word: tr('Passed')},
+          {from: 0.12, state: 'running'},
+          {from: 0.3, state: 'ok'},
         ]}
       />
       <Row
@@ -198,10 +195,10 @@ function StepArt() {
         name={tr('Wheel motor right')}
         states={[
           {from: 0, state: 'open'},
-          {from: 0.3, state: 'running', word: tr('Running')},
-          {from: 0.45, state: 'failed', word: tr('Not passed'), bad: true},
-          {from: 0.64, state: 'running', word: tr('Running')},
-          {from: 0.78, state: 'ok', word: tr('Passed')},
+          {from: 0.3, state: 'running'},
+          {from: 0.45, state: 'failed', bad: true},
+          {from: 0.64, state: 'running'},
+          {from: 0.78, state: 'ok'},
         ]}
       />
       <Shown to={0.12}>
@@ -218,7 +215,7 @@ function LinesArt() {
   // the STOP button is pressed: its line lights up, the step asks to take it, Save gives the line its role, the next waits
   const lines = ['IN1', 'IN2', 'IN3'];
   return (
-    <Scene still={SCREEN_STILL} label={tr('Sensors on their lines')}>
+    <Scene label={tr('Sensors on their lines')}>
       <rect x={20} y={8} width={280} height={186} rx={14} style={card} />
       <Row
         x={30}
@@ -226,15 +223,15 @@ function LinesArt() {
         w={260}
         name={tr('STOP button')}
         states={[
-          {from: 0, state: 'waiting', word: tr('Waiting for you')},
-          {from: 0.72, state: 'ok', word: tr('Passed')},
+          {from: 0, state: 'waiting'},
+          {from: 0.72, state: 'ok'},
         ]}
       />
       {lines.map((l, i) => {
         const x = 30 + i * 88;
         return (
           <g key={l}>
-            <rect x={x} y={54} width={84} height={32} rx={10} style={TILE} />
+            <rect x={x} y={54} width={84} height={32} rx={10} style={tile} />
             <circle cx={x + 12} cy={65} r={4.5} fill="var(--track)" />
             {i === 0 && (
               <Shown from={0.2} to={0.55}>
@@ -246,23 +243,17 @@ function LinesArt() {
             <text x={x + 22} y={69} fontSize={12} fontWeight={600} style={text}>
               {l}
             </text>
-            {i === 0 ? (
-              <>
-                <Shown to={0.72}>
-                  <text x={x + 8} y={80} fontSize={9.5} style={dim}>
-                    {tr('Watched only')}
-                  </text>
-                </Shown>
-                <Shown from={0.72}>
-                  <text x={x + 8} y={80} fontSize={9.5} style={dim}>
-                    {tr('STOP button')}
-                  </text>
-                </Shown>
-              </>
-            ) : (
+            <Shown to={i === 0 ? 0.72 : 1}>
               <text x={x + 8} y={80} fontSize={9.5} style={dim}>
                 {tr('Watched only')}
               </text>
+            </Shown>
+            {i === 0 && (
+              <Shown from={0.72}>
+                <text x={x + 8} y={80} fontSize={9.5} style={dim}>
+                  {tr('STOP button')}
+                </text>
+              </Shown>
             )}
           </g>
         );
@@ -285,7 +276,7 @@ function LinesArt() {
         </g>
       </Shown>
       <Shown from={0.74}>
-        <Row x={30} y={92} w={260} name={tr('Lifting')} states={[{from: 0, state: 'waiting', word: tr('Waiting for you')}]} />
+        <Row x={30} y={92} w={260} name={tr('Lifting')} states={[{from: 0, state: 'waiting'}]} />
       </Shown>
     </Scene>
   );
@@ -295,7 +286,7 @@ function MoveArt() {
   // Start on a step that moves the mower brings up the sheet: tick both points, then start
   const clip = useId();
   return (
-    <Scene still={SCREEN_STILL} label={tr('Before it moves')}>
+    <Scene label={tr('Before it moves')}>
       <defs>
         <clipPath id={clip}>
           <rect x={20} y={8} width={280} height={186} rx={14} />
@@ -362,7 +353,7 @@ function SafetyArt() {
     );
   };
   return (
-    <Scene still={SCREEN_STILL} label={tr('Skipping and the safety measurement')}>
+    <Scene label={tr('Skipping and the safety measurement')}>
       <Shown to={0.62}>{lock(false)}</Shown>
       <Shown from={0.62}>{lock(true)}</Shown>
       <rect x={20} y={76} width={280} height={100} rx={14} style={card} />
@@ -373,7 +364,7 @@ function SafetyArt() {
         name={tr('Lifting')}
         states={[
           {from: 0, state: 'open'},
-          {from: 0.18, state: 'skipped', word: tr('Skipped for now')},
+          {from: 0.18, state: 'skipped'},
         ]}
       />
       <Shown to={0.18}>
@@ -386,8 +377,8 @@ function SafetyArt() {
         name={tr('Safety measurement')}
         states={[
           {from: 0, state: 'open'},
-          {from: 0.3, state: 'running', word: tr('Running')},
-          {from: 0.56, state: 'ok', word: tr('Passed')},
+          {from: 0.3, state: 'running'},
+          {from: 0.56, state: 'ok'},
         ]}
       />
     </Scene>
