@@ -1,8 +1,9 @@
+import {dayText} from '@/lib/dates';
 import {fmt, tr} from '@/lib/i18n';
 import {nameOf, type SetupValue} from '@/lib/setup';
 import styles from './StepValues.module.css';
 
-// a measured value as it's shown: a number with as many decimals as it needs, a text as it is
+// a measured value as it's shown: a number with as many decimals as it needs, a day as the app writes days, a text as it is
 export function valueText(v: unknown, unit: string): string {
   if (v === null || v === undefined || v === '') return '–';
   if (typeof v === 'number') {
@@ -11,6 +12,7 @@ export function valueText(v: unknown, unit: string): string {
     return unit ? `${n} ${unit}` : n;
   }
   if (Array.isArray(v)) return v.length ? v.join(', ') : tr('none of them');
+  if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) return dayText(v);
   return String(v);
 }
 

@@ -3488,6 +3488,8 @@ const de: Record<string, string> = {
   "Test docking": "Andocken testen",
   "Check and set up step by step what the mower needs to mow. Every step can be repeated.": "Schritt für Schritt prüfen und einstellen, was der Mäher zum Mähen braucht. Jeder Schritt lässt sich wiederholen.",
   "Safety measured": "Sicherheit gemessen",
+  "Mower released": "Mäher freigegeben",
+  "Every safety check passed, it may drive and mow by itself now": "Alle Sicherheitsprüfungen bestanden, er darf jetzt selbstständig fahren und mähen",
   "Safety measurement missing": "Sicherheitsmessung fehlt",
   "{n} skipped": "{n} übersprungen",
   "Go on: {step}": "Weiter: {step}",
