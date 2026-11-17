@@ -160,7 +160,7 @@ export function MowerMarker({
     };
   }, [place, poses, own]);
 
-  const look = {speed, emergency, blades, shape: robotShape};
+  const look = {speed, emergency, blades, shape: robotShape, px: (2 * (fitted ? fitX : size)) / k};
   const drawIcon = (
     <g className={styles.turn} style={turn ? {transform: turn} : undefined}>
       {drawMower(icon, look)}
