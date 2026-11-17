@@ -6,7 +6,7 @@ import {SHORT} from '@/lib/camera';
 import {useDockTestSeries} from '@/lib/mowerOs';
 import {DOCK_TEST_REACH, DOCK_TEST_RUNS, RPC} from '@/lib/openmower';
 import {fmt, tr} from '@/lib/i18n';
-import {anim, appear, DockTestArt, PAINT, Scene, SCREEN_LOOP} from '../art';
+import {anim, appear, DockTestArt, PAINT, Scene, SCREEN_LOOP, SCREEN_STILL} from '../art';
 import Guide, {type GuideStep} from '../Guide';
 
 // the dashboard's values, the cameras of a mower that has them and more than one mower, step by step with a drawing for each
@@ -64,7 +64,7 @@ function Tick({y, label, at}: {y: number; label: string; at?: number}) {
 
 function ValuesArt() {
   return (
-    <Scene still={DUR} label={tr('Your dashboard')}>
+    <Scene still={SCREEN_STILL} label={tr('Your dashboard')}>
       <rect x={12} y={70} width={150} height={118} rx={12} style={card} />
       <text x={26} y={90} fontSize={11} fontWeight={600} style={dim}>
         {tr('Dashboard')}
@@ -85,7 +85,7 @@ function ValuesArt() {
 
 function AddArt() {
   return (
-    <Scene still={DUR} label={tr('More than one mower')}>
+    <Scene still={SCREEN_STILL} label={tr('More than one mower')}>
       <rect x={20} y={20} width={280} height={164} rx={12} style={card} />
       <text x={36} y={46} fontSize={14} fontWeight={600} style={text}>
         {tr('Mowers')}
@@ -118,7 +118,7 @@ function AddArt() {
 function SwitchArt() {
   const swap = (show: 'first' | 'second') => anim('opacity', DUR, [0, 0.6, 0.62, 1], show === 'first' ? [1, 1, 0, 0] : [0, 0, 1, 1]);
   return (
-    <Scene still={DUR} label={tr('Switching mowers')}>
+    <Scene still={SCREEN_STILL} label={tr('Switching mowers')}>
       <rect x={12} y={12} width={296} height={176} rx={12} style={card} />
       <g>
         {swap('first')}
@@ -154,7 +154,7 @@ function CameraArt() {
   const at = (i: number) =>
     anim('opacity', DUR, [0, 0.33 * i, 0.33 * i + 0.02, 0.33 * (i + 1), Math.min(1, 0.33 * (i + 1) + 0.02), 1], i === 2 ? [0, 0, 1, 1, 1, 1] : [0, 0, 1, 1, 0, 0]);
   return (
-    <Scene still={DUR} label={tr('Camera')}>
+    <Scene still={SCREEN_STILL} label={tr('Camera')}>
       <rect x={50} y={12} width={220} height={165} rx={12} style={{fill: '#9cc9e8'}} />
       <rect x={50} y={66} width={220} height={24} style={{fill: '#3d6b35'}} />
       <path d="M50 90 H270 V165 a12 12 0 0 1 -12 12 H62 a12 12 0 0 1 -12 -12 Z" style={{fill: '#4f8a43'}} />

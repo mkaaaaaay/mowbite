@@ -6,14 +6,12 @@ import {StepSymbol} from '@/components/setup/StepSymbol';
 import {line} from '@/components/icons';
 import {tr} from '@/lib/i18n';
 import {useId} from 'react';
-import {anim, appear, PAINT, Scene, SCREEN_LOOP, tap} from '../art';
+import {anim, appear, PAINT, Scene, SCREEN_LOOP, SCREEN_STILL, tap} from '../art';
 import Guide, {type GuideStep} from '../Guide';
 
 // the setup program of a mower with MowBite OS, step by step with a drawing of its screens for each
 
 const DUR = SCREEN_LOOP;
-// the picture shown without motion: the end of the loop, before it starts over
-const STILL = DUR * 0.95;
 const {card, text, dim, accent, onAccent} = PAINT;
 const TILE = {fill: 'var(--tile)'};
 const OK = 'var(--success)';
@@ -140,7 +138,7 @@ function OverviewArt() {
   const of = 6;
   const w = (252 - (of - 1) * 4) / of;
   return (
-    <Scene still={STILL} label={tr('The setup')}>
+    <Scene still={SCREEN_STILL} label={tr('The setup')}>
       <rect x={20} y={10} width={280} height={182} rx={14} style={card} />
       {[2, 3].map((done) => (
         <Shown key={done} from={done === 3 ? 0.3 : 0} to={done === 2 ? 0.3 : 1}>
@@ -176,7 +174,7 @@ function OverviewArt() {
 function StepArt() {
   // Start checks the parts one by one: the first passes, the second fails, Repeat passes it
   return (
-    <Scene still={STILL} label={tr('A step')}>
+    <Scene still={SCREEN_STILL} label={tr('A step')}>
       <rect x={20} y={8} width={280} height={186} rx={14} style={card} />
       <Figure x={30} y={18} w={260} h={48} symbol="wheels" />
       <text x={30} y={84} fontSize={13} fontWeight={600} style={text}>
@@ -220,7 +218,7 @@ function LinesArt() {
   // the STOP button is pressed: its line lights up, the step asks to take it, Save gives the line its role, the next waits
   const lines = ['IN1', 'IN2', 'IN3'];
   return (
-    <Scene still={STILL} label={tr('Sensors on their lines')}>
+    <Scene still={SCREEN_STILL} label={tr('Sensors on their lines')}>
       <rect x={20} y={8} width={280} height={186} rx={14} style={card} />
       <Row
         x={30}
@@ -297,7 +295,7 @@ function MoveArt() {
   // Start on a step that moves the mower brings up the sheet: tick both points, then start
   const clip = useId();
   return (
-    <Scene still={STILL} label={tr('Before it moves')}>
+    <Scene still={SCREEN_STILL} label={tr('Before it moves')}>
       <defs>
         <clipPath id={clip}>
           <rect x={20} y={8} width={280} height={186} rx={14} />
@@ -364,7 +362,7 @@ function SafetyArt() {
     );
   };
   return (
-    <Scene still={STILL} label={tr('Skipping and the safety measurement')}>
+    <Scene still={SCREEN_STILL} label={tr('Skipping and the safety measurement')}>
       <Shown to={0.62}>{lock(false)}</Shown>
       <Shown from={0.62}>{lock(true)}</Shown>
       <rect x={20} y={76} width={280} height={100} rx={14} style={card} />

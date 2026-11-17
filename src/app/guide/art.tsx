@@ -46,6 +46,8 @@ export const anim = (attr: string, dur: number, times: number[], values: (number
 );
 // the drawings of the app's screens: one loop in seconds, a part faded in at that fraction of it, the app's own colors
 export const SCREEN_LOOP = 6;
+// the picture shown without motion: the end of the loop, before it starts over
+export const SCREEN_STILL = SCREEN_LOOP * 0.95;
 export const appear = (at: number) => anim('opacity', SCREEN_LOOP, [0, at, at + 0.05, 1], [0, 0, 1, 1]);
 // a button tapped at that fraction of the loop
 export const tap = (at: number) => anim('opacity', SCREEN_LOOP, [0, at, at + 0.04, at + 0.08, 1], [1, 1, 0.5, 1, 1]);
