@@ -129,11 +129,12 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
       }
     });
   };
+  const tokenText = () => tr('The token may only hold letters, digits and . _ - ~ + / =.');
   // what the mower said to a save that didn't go
   const failed = (e: unknown) =>
     e instanceof NotifyRejected
       ? e.key === 'token'
-        ? tr('The token may only hold letters, digits and . _ - ~ + / =.')
+        ? tokenText()
         : tr("The mower didn't take the setting {key}, nothing was saved.", {key: e.key})
       : tr('The mower did not answer.');
   const toggle = (e: NotifyEvent) =>
@@ -142,7 +143,7 @@ export function NotifySettings({settings, styles}: {settings: Settings; styles: 
   const save = async () => {
     if (form.topic && !validTopic(form.topic.trim())) return setState({error: tr('The topic may only hold letters, digits, - and _.')});
     if (!validServer(form.server)) return setState({error: tr('The server needs to be an address starting with http:// or https://.')});
-    if (form.token && form.token !== '-' && !validToken(form.token)) return setState({error: failed(new NotifyRejected('token'))});
+    if (form.token && !validToken(form.token)) return setState({error: tokenText()});
     setState({busy: true});
     try {
       const c = await saveNotify(form);

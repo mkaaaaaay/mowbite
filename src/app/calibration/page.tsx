@@ -76,7 +76,7 @@ function useUpdater(asked: string | null) {
       clearTimeout(t);
     };
   }, [tick, fast]);
-  // again: asked right away, then every few seconds as before
+  // again: asked right away, then on the usual interval
   return {status, again: () => setTick(0)};
 }
 

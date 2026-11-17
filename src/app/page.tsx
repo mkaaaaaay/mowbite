@@ -355,14 +355,13 @@ export default function Home() {
         ? {...a, id: ACTION.abortUndocking, Icon: CloseIcon, label: 'Stop undocking', tone: 'stop'}
         : a,
   ).filter((a) => hasAction(a.id) && !state?.emergency);
-  // a waiting skip is dropped when there's nothing to skip anymore, the mower is on another area or path, the connection
-  // went or the emergency stop hid its undo. paused it still goes out, OpenMower skips once it goes on
+  // a skip button is there while mowing or paused, connected and without an emergency stop
+  const canSkip = (id: string) => live && (current === 'MOWING' || current === 'PAUSED') && hasAction(id) && !state?.emergency;
+  // a waiting skip is dropped once its button is gone or the mower is on another area or path. paused it still goes out,
+  // OpenMower skips once it goes on
   if (
     skip !== null &&
-    (!live ||
-      !!state?.emergency ||
-      (current !== 'MOWING' && current !== 'PAUSED') ||
-      !hasAction(skip.id) ||
+    (!canSkip(skip.id) ||
       state?.current_area !== skip.area ||
       (skip.id === ACTION.skipPath && state?.current_path !== skip.path))
   )
@@ -621,7 +620,7 @@ export default function Home() {
                     )}
                 </div>
               )}
-              {live && (current === 'MOWING' || current === 'PAUSED') && hasAction(ACTION.skipPath) && !state.emergency && (
+              {canSkip(ACTION.skipPath) && (
                 <button
                   className={styles.skipPathButton}
                   title={tr('The mower leaves the rest of the outline pass or lanes it is on and goes on with the next ones.')}

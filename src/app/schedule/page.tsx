@@ -6,13 +6,12 @@ import {datumFromParams, useMowerParams} from '@/hooks/useMowerParams';
 import {clock, dayLabel} from '@/lib/dates';
 import {tr, useLang} from '@/lib/i18n';
 import {useMowerActions} from '@/hooks/useMowerActions';
-import {useCanSetParams} from '@/components/MowerParamSettings';
 import {useRpcMethods} from '@/hooks/useRpcMethods';
 import {usePlatform} from '@/lib/mowerOs';
 import {mowsIntoNight, paramField} from '@/lib/mowerParams';
 import {containerHas, useUpdates} from '@/lib/updates';
 import Link from 'next/link';
-import {ACTION} from '@/lib/openmower';
+import {ACTION, RPC} from '@/lib/openmower';
 import {rpcErrorText} from '@/lib/rpcText';
 import PlanRow from './PlanRow';
 import PauseCard from './PauseCard';
@@ -71,14 +70,15 @@ export default function SchedulePage() {
   const [log, setLog] = useState<LogEntry[]>(() => cachedScheduleLog() ?? []);
   const [error, setError] = useState<string | null>(null);
   const {knowsAction} = useMowerActions();
-  const canSetParams = useCanSetParams();
   // a start's own mowing direction: MowBite OS's schedule turns the planner's lanes for the job, the container
   // mower_logic's mow_angle_offset
   const platform = usePlatform();
   const os = platform === 'os';
   const om = platform === 'om';
-  const canTurn = fromOs || (canSetParams && !os);
+  // undefined until the mower has told
   const methods = useRpcMethods();
+  const canSetParams = !!methods?.has(RPC.setParams);
+  const canTurn = fromOs || (canSetParams && !os);
   const ready = useScheduleReady();
   // going home at sunset switched off on purpose on a mower that has it, said where the runs are planned
   const nightMowing = mowsIntoNight(params);

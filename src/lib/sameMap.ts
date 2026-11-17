@@ -49,14 +49,19 @@ const asKept = (m: MowerMap): MowerMap => ({
   docking_stations: m.docking_stations,
 });
 
-// the newer settings an area of sent has that the same area on the mower doesn't, left out (an older openmower dropped them)
+type Area = MowerMap['areas'][number];
+// the newer settings the area sent has that the same area on the mower doesn't (an older openmower dropped them)
+export const droppedSettings = (sent: Area, mower: Area) =>
+  NEW_AREA_SETTINGS.filter((k) => sent.properties[k] !== undefined && mower.properties[k] === undefined);
+
+// sent without what the mower dropped
 const keptBy = (mower: MowerMap, sent: MowerMap): MowerMap => ({
   ...sent,
   areas: sent.areas.map((a) => {
-    const now = mower.areas.find((x) => x.id === a.id)?.properties;
+    const now = mower.areas.find((x) => x.id === a.id);
     if (!now) return a;
     const properties = {...a.properties};
-    for (const k of NEW_AREA_SETTINGS) if (now[k] === undefined) delete properties[k];
+    for (const k of droppedSettings(a, now)) delete properties[k];
     return {...a, properties};
   }),
 });
