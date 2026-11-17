@@ -128,7 +128,9 @@
 }
 
 .headline {
+  position: relative;
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: 4px;
   min-width: 0;
@@ -727,11 +729,20 @@
 }
 
 /* the camera's picture on or off, round like the mower switch beside it */
+/* small and round at the top right of the status card, beside the first line of the headline */
 .cameraSwitch {
   composes: round from '../components/MowerSwitch.module.css';
-  flex: none;
+  position: absolute;
+  top: -7px;
+  right: 0;
+  width: 30px;
+  height: 30px;
   padding: 0;
   cursor: pointer;
+}
+
+.cameraSwitch + * {
+  padding-right: 38px;
 }
 
 /* (it doesn't stay pressed in after a tap) */

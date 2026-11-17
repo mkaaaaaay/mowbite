@@ -473,17 +473,6 @@ export default function Home() {
             <LoveMower onRun={setLoveRun} />
           </h1>
           <TopWeather away={loveRun} />
-          {cameras && (
-            <button
-              className={styles.cameraSwitch}
-              aria-pressed={!!settings.dashboard?.camera}
-              aria-label={tr('Camera picture')}
-              title={tr('Camera picture')}
-              onClick={() => showDashCamera(!settings.dashboard?.camera)}
-            >
-              <CameraIcon size={20} />
-            </button>
-          )}
           <MowerSwitch className={styles.mowerSwitch} round />
         </div>
         <UpdateBanner />
@@ -517,6 +506,17 @@ export default function Home() {
             <div className={styles.statusTop}>
               <BatteryRing percent={battery} />
               <div className={styles.headline}>
+                {cameras && (
+                  <button
+                    className={styles.cameraSwitch}
+                    aria-pressed={!!settings.dashboard?.camera}
+                    aria-label={tr('Camera picture')}
+                    title={tr('Camera picture')}
+                    onClick={() => showDashCamera(!settings.dashboard?.camera)}
+                  >
+                    <CameraIcon size={18} />
+                  </button>
+                )}
                 {/* which mower this is, with more than one to pick from */}
                 {choice.many && <span className={styles.mowerName}>{choice.name}</span>}
                 <h2>{head.title}</h2>
@@ -699,7 +699,7 @@ export default function Home() {
           </section>
         )}
 
-        {/* a camera's picture, switched on at the top or in the settings */}
+        {/* a camera's picture, switched on in the status card or in the settings */}
         {settings.dashboard?.camera && cameras && (
           <section className={styles.cameraCard}>
             <CameraView onHide={() => showDashCamera(false)} />
