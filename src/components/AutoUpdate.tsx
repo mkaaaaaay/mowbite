@@ -1,6 +1,8 @@
 'use client';
 
+import {useSetup} from '@/hooks/useSetup';
 import {useSure} from '@/hooks/useSure';
+import Link from 'next/link';
 import {useEffect, useRef, useState, type ReactNode} from 'react';
 import {
   freeMb,
@@ -12,6 +14,13 @@ import {
   nameOf as partName,
   noKeep,
   openMowerChoices,
+  osBackLeft,
+  osHead,
+  osResult,
+  osStepWords,
+  osSteps,
+  osSwitchOf,
+  osWayOf,
   outOfReach,
   reachLine,
   PART_NAMES,
@@ -25,6 +34,7 @@ import {
   requestNoKeep,
   requestRoom,
   requestSelf,
+  requestSwitch,
   freeRoom,
   roomLabel,
   roomNote,
@@ -47,6 +57,7 @@ import {
   WEEKDAYS,
   working,
   type Availability,
+  type OsWay,
   type Part,
   type PartResult,
   type Progress,
@@ -280,7 +291,7 @@ function MissingNote({s}: {s: UpdateState}) {
 }
 
 // the run going on, where it was asked for: its steps, on the one it's on a bar with how far it is. tapped here (follow)
-// it stays in sight while the other cards fold to their heads above it
+// it stays in sight while the other cards fold to their heads above it. way: a switch to MowBite OS or back
 function Running({
   s,
   p,
@@ -288,6 +299,7 @@ function Running({
   now,
   asked,
   follow,
+  way,
   children,
 }: {
   s: UpdateState;
@@ -296,23 +308,23 @@ function Running({
   now: number;
   asked: boolean;
   follow: boolean;
+  way?: OsWay;
   children?: ReactNode;
 }) {
-  const {steps, now: at, back} = runSteps(s, p, asked);
+  const {steps, now: at, back} = way ? {...osSteps(s, p, way), back: false} : runSteps(s, p, asked);
+  const words = (step: Progress['step']) => (way ? osStepWords({...p, step}, way) : [stepLabel({...p, step}), stepTitle(step)]);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (follow) ref.current?.scrollIntoView({block: 'nearest'});
   }, [follow]);
   return (
     <div ref={ref} className={os.run} data-update={p.part || 'all'}>
-      <RunHead name={name} back={back} />
+      <RunHead name={name} back={back} title={way && osHead(way)} />
       <Steps
-        steps={steps.map((step) => ({
-          key: step,
-          label: stepLabel({...p, step}),
-          title: stepTitle(step),
-          more: step === p.step ? <Bar label={stepLabel(p)} pct={p.pct} detail={stepDetail(p, now)} /> : undefined,
-        }))}
+        steps={steps.map((step, i) => {
+          const [label, title] = words(step);
+          return {key: step, label, title, more: i === at ? <Bar label={label} pct={p.pct} detail={stepDetail(p, now)} /> : undefined};
+        })}
         now={at}
       />
       {children}
@@ -499,6 +511,119 @@ function PartCard({
   );
 }
 
+// MowBite OS in OpenMower's place where the updater offers it (os_switch), on two taps, and on MowBite OS the way back
+// the same. what came of the last switch, after one to MowBite OS the way to its setup until that released the mower
+function OsSwitchCard({
+  s,
+  locked,
+  off,
+  error,
+  checkFailed,
+  released,
+  onSwitch,
+}: {
+  s: UpdateState;
+  locked: boolean;
+  off: boolean;
+  error: string | null;
+  // a safety step failed and closed MowBite OS's lock (setup.get safety.why)
+  checkFailed: boolean;
+  released: boolean;
+  onSwitch: (to: 'os' | 'openmower') => void;
+}) {
+  const [ask, setAsk] = useState(false);
+  const offer = osSwitchOf(s);
+  const left = osBackLeft(s);
+  if (!offer && !left) return null;
+  const result = osResult(s);
+  const back = offer?.state === 'on' || left;
+  const answer = (to?: 'os' | 'openmower') => () => {
+    setAsk(false);
+    if (to) onSwitch(to);
+  };
+  const head = (
+    <Head name="MowBite OS" tag={offer?.state === 'on' ? {text: tr('In place of OpenMower'), look: local.badgeNew} : null} text={off ? undefined : PART_TEXT.os}>
+      {offer?.state === 'on' && (
+        <>
+          <span>{tr('Runs')}</span>
+          <span>{tr('since {time}', {time: offer.since})}</span>
+        </>
+      )}
+      {offer?.state === 'yes' && (
+        <>
+          <span>{tr('Download size')}</span>
+          <span>{offer.size ?? tr('on the mower already')}</span>
+          <span>{tr('OpenMower')}</span>
+          <span>{offer.drop ? tr('deleted first, downloaded again on the way back') : tr('stays on the mower, stopped')}</span>
+          <span>{tr('Map')}</span>
+          <span>{offer.kept ? tr('its own from an earlier switch') : tr('taken from OpenMower')}</span>
+        </>
+      )}
+    </Head>
+  );
+  if (off) return <OffCard id="os">{head}</OffCard>;
+  const switched = offer?.state === 'on' && (s.status.os ?? '').startsWith('switched ') && !released;
+
+  return (
+    <article className={local.part} data-part="os">
+      {head}
+      {offer?.state === 'no' && <span className={local.dim}>{tr("MowBite OS can't take OpenMower's place right now: {why}.", {why: offer.why})}</span>}
+      {switched && result ? (
+        <Note look={os.info} title={tr('Next: its setup')}>
+          {result.text} {tr('The mower drives only by remote control until its setup is done.')}
+          <Link className={[local.control, local.primary].join(' ')} href="/setup">
+            {tr('To the setup')}
+          </Link>
+        </Note>
+      ) : (
+        result && <LastTime r={result} />
+      )}
+      <Warn text={error} />
+      {offer?.state === 'yes' &&
+        (ask ? (
+          <Ask title={tr('Switch to MowBite OS?')} yes={tr('Switch')} locked={locked} onYes={answer('os')} onNo={answer()}>
+            <p>
+              {tr(IN_DOCK)} {tr('It takes a few minutes.')}
+            </p>
+            <p>{tr('Before the first switch make a full image of the eMMC by hand. The updater keeps only the map and mower_params.yaml.')}</p>
+            <p>
+              {offer.drop
+                ? tr("There isn't room for both: OpenMower's version and what's built on it, like the planner, are deleted first. The way back downloads them again, that needs the internet.")
+                : tr('OpenMower stays on the mower, stopped: the way back starts it again.')}
+            </p>
+            <p>
+              {offer.kept
+                ? tr("MowBite OS keeps its own data from an earlier switch: what changed in OpenMower since then isn't taken.")
+                : tr("MowBite OS takes OpenMower's map and mower_params.yaml, OpenMower's own stay as they are.")}
+            </p>
+            <p>{tr("If MowBite OS doesn't run as it should, OpenMower comes back by itself. If it runs, the mower drives only by remote control until its setup in the app is done.")}</p>
+          </Ask>
+        ) : (
+          <>
+            <span className={local.dim}>{tr("MowBite OS can take OpenMower's place on this mower, the way back to OpenMower is the same.")}</span>
+            <button className={local.control} disabled={locked} onClick={() => setAsk(true)}>
+              {tr('Switch to MowBite OS')}
+            </button>
+          </>
+        ))}
+      {back &&
+        (ask ? (
+          <Ask title={tr('Back to OpenMower?')} yes={tr('Back to OpenMower')} locked={locked} onYes={answer('openmower')} onNo={answer()}>
+            {checkFailed && <p className={local.warn}>{tr("A safety step failed. OpenMower doesn't know MowBite OS's lock and lets the mower drive by itself again.")}</p>}
+            <p>{tr(IN_DOCK)}</p>
+            <p>{tr("MowBite OS hands its map to OpenMower. What OpenMower can't take is lost, the result says so. If that doesn't work, OpenMower gets its map from before the switch.")}</p>
+            {!!s.status.os_drop && <p>{tr("OpenMower's version was deleted for the switch, it's downloaded again: that needs the internet and takes a while.")}</p>}
+            <p>{tr("MowBite OS's own data stays on the mower for a later switch.")}</p>
+          </Ask>
+        ) : (
+          <button className={local.control} disabled={locked} onClick={() => setAsk(true)}>
+            {tr('Back to OpenMower')}
+          </button>
+        ))}
+    </article>
+  );
+}
+
 // the updater itself: the commit it runs, whether there's a newer one and updating it
 function UpdaterCard({
   info,
@@ -669,6 +794,7 @@ function whereOf(word: string): string {
   const [k, v] = word.split(':');
   if (k === 'now' || k === 'back' || k === 'nokeep') return v;
   if (k === 'self') return 'updater';
+  if (k === 'switch') return 'os';
   if (k === 'room' || k === 'free') return 'room';
   return 'top';
 }
@@ -679,6 +805,7 @@ function whereOf(word: string): string {
 // and locks the buttons until the updater is done with it
 export function AutoUpdate() {
   const om = useOpenMower();
+  const setup = useSetup();
   const [s, setS] = useState<UpdateState | null | undefined>(undefined);
   const [error, setError] = useState<{text: string; where: string} | null>(null);
   const [asked, setAsked] = useState<Asked | null>(null);
@@ -826,6 +953,7 @@ export function AutoUpdate() {
     else if (k === 'now' && v === 'all') current = asRun('', 'prepare', t);
     else if ((k === 'now' || k === 'nokeep') && v) current = asRun(v, 'prepare', t);
     else if (k === 'back' && v) current = asRun(v, 'back', t);
+    else if (k === 'switch') current = asRun('os', v === 'openmower' ? 'export' : 'prepare', t);
   }
   if (current?.step === 'prepare' && current.part) {
     const t = tapAt(current.part);
@@ -837,17 +965,21 @@ export function AutoUpdate() {
   const askedBack = !!current && words.includes(`back:${current.part}`);
   const back = askedBack || current?.step === 'back';
   const nameOf = (part: Part) => (part ? partName(st, part) : tr('Everything'));
+  // (a switch to MowBite OS or back)
+  const way = current?.part === 'os' ? osWayOf(st, current, words.find((w) => w.startsWith('switch:'))) : undefined;
   const doing = current
-    ? (running && runResult(st)) || (back ? tr('{name} goes back', {name: nameOf(current.part)}) : tr('{name} is being updated', {name: nameOf(current.part)}))
+    ? (running && runResult(st)) ||
+      (way ? osHead(way) : back ? tr('{name} goes back', {name: nameOf(current.part)}) : tr('{name} is being updated', {name: nameOf(current.part)}))
     : null;
   const run = current && (
-    <Running s={st} p={current} name={nameOf(current.part)} now={now} asked={askedBack} follow={asked !== null}>
+    <Running s={st} p={current} name={nameOf(current.part)} now={now} asked={askedBack} follow={asked !== null} way={way}>
       {current.part === 'updater' && self?.restarting && (
         <Note look={os.info} title={tr('Restarting the updater, this comes back by itself')}>
           {tr("For a few seconds nothing arrives here. That's no error, the mower drives and mows on as usual.")}
         </Note>
       )}
       {lost && current.part === 'mowbite' && <span className={local.dim}>{tr('MowBite does not answer for a moment, it may be restarting.')}</span>}
+      {lost && way && <span className={local.dim}>{tr("No answer from the updater right now: MowBite's container on the mower stops with OpenMower for the switch.")}</span>}
     </Running>
   );
   const roomWord = words.find((w) => w === 'room' || w.startsWith('free:'));
@@ -876,7 +1008,7 @@ export function AutoUpdate() {
       {lookSince !== null && !current && <Busy label={tr('Looking for updates')} since={lookSince} now={now} />}
       {busy && !current && !roomDoing && !lost && <span className={local.dim}>{tr('asked, within a minute…')}</span>}
       {waited && <Note look={local.warn}>{waited}</Note>}
-      {lost && !restarting && current?.part !== 'mowbite' && (
+      {lost && !restarting && current?.part !== 'mowbite' && !way && (
         <span className={local.warn}>{tr('No connection to the updater, shown is what it said last.')}</span>
       )}
       {!lost && !updaterAlive(st) && !isDemo() && (
@@ -913,6 +1045,19 @@ export function AutoUpdate() {
               {p.id === 'mowbite' && reload && <ReloadNote v={onMower} page={APP_VERSION} />}
             </PartCard>
           ),
+        )}
+        {way ? (
+          <div>{run}</div>
+        ) : (
+          <OsSwitchCard
+            s={st}
+            locked={busy}
+            off={!!current}
+            error={errorAt('os')}
+            checkFailed={setup?.safety.why === 'CHECK_FAILED'}
+            released={!!setup?.safety.open}
+            onSwitch={(to) => ask(`switch:${to}`, () => requestSwitch(to))}
+          />
         )}
         {self &&
           (current?.part === 'updater' && !all ? (

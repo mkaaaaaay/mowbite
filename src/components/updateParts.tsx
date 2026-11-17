@@ -151,10 +151,10 @@ export function Summary({
   );
 }
 
-// the heading of the update going on, and a line under it
-export const RunHead = ({name, back, sub}: {name: string; back: boolean; sub?: string | null}) => (
+// the heading of the update going on (or its own title), and a line under it
+export const RunHead = ({name, back, sub, title}: {name: string; back: boolean; sub?: string | null; title?: string}) => (
   <div>
-    <h3>{back ? tr('{name} goes back', {name}) : tr('{name} is being updated', {name})}</h3>
+    <h3>{title ?? (back ? tr('{name} goes back', {name}) : tr('{name} is being updated', {name}))}</h3>
     {sub && <span className={shared.dim}>{sub}</span>}
   </div>
 );

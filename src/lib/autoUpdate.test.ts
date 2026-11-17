@@ -1,5 +1,14 @@
 import {describe, expect, it} from 'vitest';
+import de from './i18n/de';
 import {
+  OS_REASONS,
+  OS_TEXTS,
+  osBackLeft,
+  osResult,
+  osStepWords,
+  osSteps,
+  osSwitchOf,
+  osWayOf,
   lookingSince,
   missingOf,
   noKeep,
@@ -252,5 +261,67 @@ describe('the updater on the mower', () => {
     expect(outOfReach(state({updater_away: '/home/openmower/mowbite'}))!.self).toBe('/home/openmower/mowbite');
     expect(outOfReach(state({updater_away: '-'}))).toBeNull();
     expect(reachLine('/home/openmower/mowbite')).toBe('      - /home/openmower/mowbite:/home/openmower/mowbite');
+  });
+});
+
+// MowBite OS in OpenMower's place: the updater's os_switch, switch_os, progress os and os as its "# form:" lines say
+describe("MowBite OS in OpenMower's place", () => {
+  it('has a text in english and german for every reason of the form lines', () => {
+    for (const [kind, reasons] of Object.entries(OS_REASONS) as [keyof typeof OS_REASONS, readonly string[]][]) {
+      expect(reasons.filter((r) => !OS_TEXTS[kind][r]), kind).toEqual([]);
+      expect(reasons.filter((r) => !de[OS_TEXTS[kind][r]]), kind).toEqual([]);
+      expect(Object.keys(OS_TEXTS[kind]).filter((r) => !reasons.includes(r)), kind).toEqual([]);
+    }
+  });
+
+  it('reads the offer, why not, and MowBite OS running', () => {
+    expect(osSwitchOf(state({}))).toBeNull();
+    expect(osSwitchOf(state({os_switch: 'yes 230 keep import'}))).toEqual({state: 'yes', size: '241 MB', drop: false, kept: false});
+    expect(osSwitchOf(state({os_switch: 'yes 0 drop kept'}))).toEqual({state: 'yes', size: null, drop: true, kept: true});
+    expect(osSwitchOf(state({os_switch: 'no datum'}))).toEqual({state: 'no', why: OS_TEXTS.no.datum});
+    expect(osSwitchOf(state({os_switch: 'no room 2300 1400'}))).toMatchObject({why: expect.stringContaining('needs about 2.4 GB, 1.5 GB there')});
+    expect(osSwitchOf(state({os_switch: 'on 1792831337'}))!.state).toBe('on');
+    expect(osBackLeft(state({switch_os: 'openmower stop old'}))).toBe(true);
+    expect(osBackLeft(state({switch_os: 'openmower stop old', result: 'running'}))).toBe(false);
+    expect(osBackLeft(state({switch_os: 'os wait'}))).toBe(false);
+  });
+
+  it('shows the steps of each way, OpenMower going first with drop, back alone when MowBite OS failed', () => {
+    const p = (step: string) => progressOf(state({result: 'running', progress: `os ${step} - 1000`}))!;
+    const run = (status: Record<string, string>) => state({result: 'running', run_parts: 'os', ...status});
+    expect(osWayOf(run({}), p('prepare'), 'switch:os')).toBe('there');
+    expect(osSteps(run({switch_os: 'os pull'}), p('download'), 'there')).toEqual({steps: ['prepare', 'download', 'extract', 'stop', 'start', 'wait'], now: 1});
+    expect(osSteps(run({switch_os: 'os drop', os_drop: 'x@sha256:1 x:edge'}), p('drop'), 'there')).toEqual({
+      steps: ['prepare', 'stop', 'drop', 'download', 'extract', 'start', 'wait'],
+      now: 2,
+    });
+    // (a stop after MowBite OS started is its own, going back)
+    expect(osWayOf(run({switch_os: 'os stop'}), p('stop'))).toBe('there');
+    expect(osWayOf(run({switch_os: 'os wait'}), p('stop'))).toBe('undo');
+    expect(osWayOf(run({switch_os: 'os wait'}), p('back'))).toBe('undo');
+    expect(osSteps(run({switch_os: 'os wait'}), p('stop'), 'undo')).toEqual({steps: ['back'], now: 0});
+    expect(osWayOf(run({switch_os: 'openmower export'}), p('export'))).toBe('back');
+    expect(osWayOf(run({os_switch: 'on 1'}), null, 'switch:openmower')).toBe('back');
+    expect(osSteps(run({switch_os: 'openmower om map'}), p('back'), 'back')).toEqual({steps: ['export', 'stop', 'back'], now: 2});
+    expect(osStepWords(p('stop'), 'there')[0]).toBe('Stopping OpenMower');
+    expect(osStepWords(p('stop'), 'back')[0]).toBe('Stopping MowBite OS');
+    expect(runResult(run({switch_os: 'os pull', progress: 'os download 40 1000'}))).toBe('Switching to MowBite OS…');
+  });
+
+  it('says what came of a switch', () => {
+    const r = (os: string) => osResult(state({os, os_at: '1792831337'}))!;
+    expect(osResult(state({}))).toBeNull();
+    expect(r('switched 1792831337 import')).toMatchObject({level: 'ok', text: expect.stringContaining("It took OpenMower's map")});
+    expect(r('back 1792831337 map')).toMatchObject({level: 'ok', text: expect.stringContaining('with the map from MowBite OS.')});
+    expect(r('back 1792831337 map lost').level).toBe('warn');
+    expect(r('back 1792831337 map lost').text).toContain('some of the map is missing');
+    expect(r('back 1792831337 old').text).toContain('what was changed in MowBite OS is lost');
+    expect(r('rolled_back health').text).toContain("its health check didn't pass");
+    expect(r('error busy')).toMatchObject({level: 'warn', text: "Not done: MowBite OS isn't idle, it stays."});
+    expect(r('error back').level).toBe('error');
+    expect(r('error schedule 1792831337').text).not.toContain('{when}');
+    expect(r('error new_one').text).toContain('new_one');
+    // (a part left alone while MowBite OS runs)
+    expect(partResult(state({openmower: 'error os'}), 'openmower')!.text).toContain('MowBite OS runs in place of OpenMower');
   });
 });

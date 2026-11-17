@@ -97,6 +97,8 @@ export const requestSelf = () => post('self');
 export const requestRoom = () => post('room');
 // OpenMower without a copy of the version that runs, only when its status offers it (openmower_nokeep yes)
 export const requestNoKeep = (part: Part) => post(`nokeep=${part}`);
+// MowBite OS in OpenMower's place (os) or back to OpenMower (openmower), only when its status offers it (os_switch)
+export const requestSwitch = (to: 'os' | 'openmower') => post(`switch=${to}`);
 // a calibration's values into OpenMower's mower_params.yaml, lines "<path> <value>" from its list (calib_paths), or the
 // file before the last one back
 export const requestCalib = (lines: string) => post('calib', lines);
@@ -156,7 +158,7 @@ export const silentSince = (s: UpdateState) => (/^\d+$/.test(s.status.alive ?? '
 
 // what it does right now, for the bar: the part, the step, its percent (null: no telling, the bar moves without one),
 // since when, and of unpacking and building how many of how many. only while a run goes on
-const STEPS = ['prepare', 'download', 'extract', 'build', 'restart', 'wait', 'back', 'data'] as const;
+const STEPS = ['prepare', 'download', 'extract', 'build', 'restart', 'wait', 'back', 'data', 'stop', 'drop', 'start', 'export'] as const;
 export type Step = (typeof STEPS)[number];
 export interface Progress {
   part: Part;
@@ -192,11 +194,21 @@ export function stepLabel(p: Progress): string {
     case 'restart':
       return tr('Restarting');
     case 'wait':
+      if (p.part === 'os') return tr('Waiting until MowBite OS answers');
       return p.part === 'openmower' ? tr('Waiting until OpenMower is idle again') : tr('Waiting until it answers');
     case 'back':
       return tr('Going back to the version before');
     case 'data':
       return tr('Putting its data back');
+    // (MowBite OS in OpenMower's place)
+    case 'stop':
+      return tr('Stopping OpenMower');
+    case 'drop':
+      return tr("Deleting OpenMower's version");
+    case 'start':
+      return tr('Starting MowBite OS');
+    case 'export':
+      return tr('Taking the map out of MowBite OS');
   }
 }
 
@@ -219,6 +231,14 @@ export function stepTitle(step: Step): string {
       return tr('Back on the version before');
     case 'data':
       return tr('Its data put back');
+    case 'stop':
+      return tr('OpenMower stopped');
+    case 'drop':
+      return tr("OpenMower's version deleted");
+    case 'start':
+      return tr('MowBite OS started');
+    case 'export':
+      return tr('Map taken out');
   }
 }
 
@@ -436,6 +456,8 @@ function failure(s: UpdateState, part: Part, [why, ...more]: string[], at: strin
       return error(tr("a container couldn't be removed and one removed before couldn't be made again, see the log"));
     case 'gone_dock':
       return warn(tr("{name} isn't on the mower right now: it's built again once the mower is idle in the dock.", {name: nameOf(s, part)}));
+    case 'os':
+      return warn(tr('not done: MowBite OS runs in place of OpenMower, this part waits until OpenMower is back'));
     case 'gone':
       return error(tr("{name} isn't on the mower right now: it was deleted with OpenMower's version before and building it again failed. Update builds it again.", {name: nameOf(s, part)}));
     default:
@@ -452,6 +474,7 @@ export function runResult(s: UpdateState): string | null {
   if (s.status.result === 'running') {
     const parts = runParts(s);
     const now = progressOf(s)?.part;
+    if (parts[0] === 'os') return osHead(osWayOf(s, progressOf(s)));
     if (!now || !parts.includes(now)) return tr('Updating right now…');
     const name = nameOf(s, now);
     return parts.length > 1 ? tr('Updating {name} ({n} of {of})…', {name, n: parts.indexOf(now) + 1, of: parts.length}) : tr('Updating {name}…', {name});
@@ -563,6 +586,152 @@ export function missingOf(s: UpdateState): Missing | null {
     fresh: way === 'new' ? `docker pull ${target}${start(target)}` : null,
     before: `docker pull ${prev} && docker tag ${prev} ${ref}${start(ref)}`,
   };
+}
+
+// --- MowBite OS in OpenMower's place, and back ---
+
+// the reasons in the "# form:" lines of updater.sh (mowbite-updater, branch os-switch): os_switch no <why>, os
+// rolled_back <why> and os error <why>. each has its text below
+export const OS_REASONS = {
+  no: ['image', 'registry', 'data', 'datum', 'import', 'files', 'openmower', 'nokeep', 'pending', 'stack', 'prev', 'room'],
+  rolled_back: ['pull', 'files', 'import', 'start', 'health', 'halt', 'info', 'state', 'emergency'],
+  error: ['offer', 'schedule', 'not_docked', 'hold', 'keep', 'pull', 'files', 'import', 'stop', 'broker', 'registry', 'busy', 'back', 'interrupted'],
+} as const;
+type OsWhy<K extends keyof typeof OS_REASONS> = (typeof OS_REASONS)[K][number];
+
+// why it isn't offered ({need} and {has} of room)
+const OS_NO: Record<OsWhy<'no'>, string> = {
+  image: "its image isn't in its registry",
+  registry: "its registry doesn't answer, the size of the download isn't known",
+  data: "OpenMower's folders for the map and mower_params.yaml aren't found",
+  datum: 'mower_params.yaml has no datum (ll/services/gps/datum_*)',
+  import: "this image of MowBite OS can't take OpenMower's map yet",
+  files: 'the files of its stack are missing in its image',
+  openmower: "OpenMower doesn't run from its compose file right now",
+  nokeep: "OpenMower's update without a copy isn't finished",
+  pending: "another update or data put back isn't finished",
+  stack: "there's a stack of MowBite OS on the mower the updater didn't make",
+  prev: "there's no room for both, and OpenMower's version can't be downloaded again from its registry (built here, or no answer)",
+  room: "there isn't room even without OpenMower's version (needs about {need}, {has} there)",
+};
+// MowBite OS came up and didn't run as it should, OpenMower is back
+const OS_ROLLED_BACK: Record<OsWhy<'rolled_back'>, string> = {
+  pull: "its image couldn't be downloaded",
+  files: 'the files of its stack are missing in its image',
+  import: "its image can't take OpenMower's map",
+  start: "its stack couldn't be started",
+  health: "its health check didn't pass",
+  halt: 'it stopped itself with a halt',
+  info: "it didn't answer as MowBite OS on the NX60i",
+  state: 'it sent no state of the mower',
+  emergency: 'an emergency stop stayed on after it started',
+};
+// not done, or done only in part ({when}: the schedule's start)
+const OS_ERROR: Record<OsWhy<'error'>, string> = {
+  offer: "Not done: it isn't offered right now.",
+  schedule: 'Not done: the schedule starts the mower at {when}.',
+  not_docked: "Not done: the mower wasn't idle in the dock.",
+  hold: "Not done: MowBite's schedule couldn't be held (mqtt). OpenMower runs as before.",
+  keep: "Nothing changed: OpenMower's data couldn't be kept first.",
+  pull: "Nothing changed: MowBite OS couldn't be downloaded. Does the mower have internet?",
+  files: 'Nothing changed: the files of its stack are missing in its image.',
+  import: "Nothing changed: this image of MowBite OS can't take OpenMower's map.",
+  stop: "A container couldn't be stopped, see the log.",
+  broker: "A broker still answered where OpenMower's was. OpenMower runs as before.",
+  registry: "Nothing deleted: OpenMower's version can't be had from its registry right now. OpenMower runs as before.",
+  busy: "Not done: MowBite OS isn't idle, it stays.",
+  back: "OpenMower didn't come back. Tap Back to OpenMower to try again, the log says more.",
+  interrupted: 'Stopped before anything changed (the updater restarted), OpenMower stays.',
+};
+// for the test: every reason with its text
+export const OS_TEXTS: Record<keyof typeof OS_REASONS, Record<string, string>> = {no: OS_NO, rolled_back: OS_ROLLED_BACK, error: OS_ERROR};
+
+// what it offers: MowBite OS in OpenMower's place (yes: its download, keep or drop OpenMower's version, import or keep
+// the data), why not (no), or MowBite OS runs (on). null where the updater doesn't offer it
+export type OsSwitch =
+  | {state: 'yes'; size: string | null; drop: boolean; kept: boolean}
+  | {state: 'no'; why: string}
+  | {state: 'on'; since: string};
+export function osSwitchOf(s: UpdateState): OsSwitch | null {
+  const [state, a, b, c] = (s.status.os_switch ?? '').split(' ');
+  if (state === 'yes') return {state, size: a === '0' ? null : mib(a), drop: b === 'drop', kept: c === 'kept'};
+  if (state === 'no') {
+    const text = (OS_NO as Record<string, string>)[a ?? ''];
+    return {state, why: text ? tr(text, {need: mib(b), has: mib(c)}) : a || '?'};
+  }
+  if (state === 'on') return {state, since: when(a)};
+  return null;
+}
+// the way back left halfway (OpenMower didn't come back): a tap goes on
+export const osBackLeft = (s: UpdateState) => (s.status.switch_os ?? '').startsWith('openmower ') && s.status.result !== 'running';
+
+// the way of a switch: to MowBite OS, back to OpenMower, or back after MowBite OS didn't run as it should (undo).
+// before the updater notes it (switch_os) the tap says it
+export type OsWay = 'there' | 'back' | 'undo';
+export function osWayOf(s: UpdateState, p: Progress | null, asked?: string): OsWay {
+  const [way, step] = (s.status.switch_os ?? '').split(' ');
+  if (way === 'openmower') return 'back';
+  // (OpenMower stopped and MowBite OS started: a stop then is MowBite OS's)
+  if (way === 'os') return p?.step === 'back' || (p?.step === 'stop' && (step === 'start' || step === 'wait')) ? 'undo' : 'there';
+  if (p?.step === 'export' || asked === 'switch:openmower') return 'back';
+  if (asked === 'switch:os') return 'there';
+  return osSwitchOf(s)?.state === 'on' ? 'back' : 'there';
+}
+export function osHead(way: OsWay): string {
+  if (way === 'there') return tr('Switching to MowBite OS…');
+  return way === 'back' ? tr('Back to OpenMower…') : tr("MowBite OS didn't run as it should, back to OpenMower…");
+}
+
+// its steps and the one it's on: with drop OpenMower stops and its version goes before the download
+export function osSteps(s: UpdateState, p: Progress, way: OsWay): {steps: Step[]; now: number} {
+  if (way === 'undo') return {steps: ['back'], now: 0};
+  const drop = !!s.status.os_drop || (s.status.os_switch ?? '').split(' ')[2] === 'drop';
+  const steps: Step[] =
+    way === 'back'
+      ? ['export', 'stop', 'back']
+      : drop
+        ? ['prepare', 'stop', 'drop', 'download', 'extract', 'start', 'wait']
+        : ['prepare', 'download', 'extract', 'stop', 'start', 'wait'];
+  return {steps, now: Math.max(0, steps.indexOf(p.step))};
+}
+// a step's words while it goes on and once it's done, where the way changes them
+export function osStepWords(p: Progress, way: OsWay): [string, string] {
+  if (p.step === 'stop' && way !== 'there') return [tr('Stopping MowBite OS'), tr('MowBite OS stopped')];
+  if (p.step === 'back') return way === 'undo' ? [tr('Starting OpenMower again'), tr('OpenMower runs again')] : [tr('Starting OpenMower'), tr('OpenMower runs')];
+  return [stepLabel(p), stepTitle(p.step)];
+}
+
+// what came of the last switch (os: "<outcome> ...", os_at): ok, something to know or what went wrong
+export function osResult(s: UpdateState): PartResult | null {
+  const [state, ...rest] = (s.status.os ?? '').split(' ');
+  const at = stamp(s.status.os_at);
+  switch (state) {
+    case 'switched': {
+      const data = rest[1] === 'kept' ? tr("It kept its own data from before, OpenMower's changes since then are not in it.") : tr("It took OpenMower's map and mower_params.yaml.");
+      return {text: `${tr('MowBite OS runs in place of OpenMower since {when}.', {when: when(rest[0])})} ${data}`, level: 'ok', at: null};
+    }
+    case 'back': {
+      const lost = rest.includes('lost') ? ' ' + tr("OpenMower can't take all of it, some of the map is missing.") : '';
+      const map = rest[1] === 'map';
+      const text = map
+        ? tr('Back on OpenMower since {when}, with the map from MowBite OS.', {when: when(rest[0])})
+        : tr('Back on OpenMower since {when}, with its map from before the switch: what was changed in MowBite OS is lost.', {when: when(rest[0])});
+      return {text: text + lost, level: map && !lost ? 'ok' : 'warn', at: null};
+    }
+    case 'rolled_back': {
+      const why = (OS_ROLLED_BACK as Record<string, string>)[rest[0] ?? ''];
+      return {text: tr("MowBite OS didn't run as it should ({why}), OpenMower runs again as before.", {why: why ? tr(why) : rest[0] || '?'}), level: 'warn', at};
+    }
+    case 'error': {
+      const why = (OS_ERROR as Record<string, string>)[rest[0] ?? ''];
+      if (!why) return {text: tr('failed ({why}), see the log', {why: rest.join(' ') || '?'}), level: 'error', at};
+      // (left as it was, or nothing done for now: something to know)
+      const level = ['stop', 'back'].includes(rest[0]) ? 'error' : 'warn';
+      return {text: tr(why, {when: when(rest[1])}), level, at};
+    }
+    default:
+      return null;
+  }
 }
 
 export const lastChecked = (s: UpdateState) => (/^\d+$/.test(s.status.checked ?? '') ? nearClock(Number(s.status.checked)) : null);

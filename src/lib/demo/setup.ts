@@ -1,8 +1,10 @@
 import type {Blocked, Motion, Named, Safety, SafetyCause, Setup, SetupInput, SetupLine, SetupStep, SetupValue, StepState, Texts, Words} from '../setup';
 import {RPC, TOPIC} from '../openmower';
+import {demoFlags} from './flags';
 
 // MowBite OS's setup program for the click tests (setup.*), on with window.mowbiteDemoSetup: a short step list like the
-// Tron's, the inputs seen through the demo's emergency stop (window.mowbiteDemo.emergency(['STOP']))
+// Tron's, the inputs seen through the demo's emergency stop (window.mowbiteDemo.emergency(['STOP'])). With
+// window.mowbiteDemoSafetyFailed the STOP button's step failed and closed the lock
 
 // name, help and fix by position (english and german)
 const own = ([name, help = '', fix = '']: string[]): Words => ({name, help, fix});
@@ -409,7 +411,7 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
   let run: {id: string; since: number; part: number; phase: 'rest' | 'armed'; asked?: SetupStep['ask']; asking?: {input: SetupInput; until: number}; kept?: number} | null =
     null;
   // what keeps the lock of the safety closed, and the day it opened
-  let closed: SafetyCause[] = [];
+  let closed: SafetyCause[] = demoFlags().mowbiteDemoSafetyFailed ? [{step: 'stop', part: null, reason: 'NOT_SEEN', t: now()}] : [];
   let measured: string | null = null;
   let timer: ReturnType<typeof setInterval> | null = null;
 

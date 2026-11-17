@@ -582,6 +582,35 @@ function ReleaseArt() {
   );
 }
 
+function SwitchArt() {
+  // from OpenMower: the updater's steps one after the other, then MowBite OS drives only while you watch
+  const rows = [tr('Ready'), tr('Downloaded'), tr('OpenMower stopped'), tr('MowBite OS started')];
+  return (
+    <Scene label={tr('From OpenMower')}>
+      <rect x={20} y={8} width={280} height={164} rx={14} style={card} />
+      {rows.map((name, i) => (
+        <Row
+          key={name}
+          x={30}
+          y={16 + i * 38}
+          w={260}
+          name={name}
+          states={[
+            {from: 0, state: i ? 'open' : 'running'},
+            ...(i ? [{from: 0.1 + 0.18 * i, state: 'running' as const}] : []),
+            {from: 0.1 + 0.18 * (i + 1), state: 'ok'},
+          ]}
+        />
+      ))}
+      <Shown from={0.84}>
+        <text x={160} y={190} fontSize={11} fontWeight={600} textAnchor="middle" style={{fill: 'var(--soft-warn)'}}>
+          {tr('Drives only while you watch')}
+        </text>
+      </Shown>
+    </Scene>
+  );
+}
+
 const STEPS: GuideStep[] = [
   {
     title: 'The setup',
@@ -627,6 +656,11 @@ const STEPS: GuideStep[] = [
     title: 'Releasing the safety',
     text: "The last safety step releases the mower. It needs every safety check passed, a skipped one doesn't count: the step names the ones missing, tap one to go there. Before the release it shows what the mower records, the date and how long it stops without control. Tick that you saw every check yourself and tap Release the mower: MowBite OS restarts once, then the lock opens. If a safety step fails later, release again once it passed.",
     Art: ReleaseArt,
+  },
+  {
+    title: 'From OpenMower',
+    text: "Where the MowBite Updater offers it, a mower with OpenMower switches to MowBite OS: Settings › Software and data › Updates, the card MowBite OS. Make a full image of the eMMC by hand before the first switch. With the mower idle in the dock tap Switch to MowBite OS and confirm: the updater keeps OpenMower's map and mower_params.yaml, downloads MowBite OS, stops OpenMower and starts MowBite OS, which takes the map. If it doesn't run as it should, OpenMower comes back by itself. Then the mower drives only by remote control until this setup is done. Back to OpenMower on the same card takes the map along, what OpenMower can't take is lost and the result says so.",
+    Art: SwitchArt,
   },
 ];
 

@@ -1,5 +1,5 @@
 import type {Page} from '@playwright/test';
-import {demoDocked, demoHas, expect, SIM, test} from './app';
+import {demoDocked, demoFlag, demoHas, demoWith, expect, SIM, test} from './app';
 
 // the updates on the mower (the demo mower has a made-up updater), laid out like MowBite OS's: how many there are, each
 // part with what runs, its channel and updating it, OpenMower's release with the warning for the planner, only the log
@@ -258,12 +258,92 @@ test.describe("the updater's page", () => {
     errors.length = 0;
   });
 
+  // MowBite OS in OpenMower's place: why not as the updater says it, else one request on two taps
+  test("MowBite OS not offered, and why", async ({page, baseURL}) => {
+    await madeUp(page, baseURL!, '', {alive: String(now()), os_switch: 'no room 2300 1400'}, {parts: OPENMOWER});
+    const card = page.locator('#update [data-part="os"]');
+    await expect(card).toContainText("MowBite OS can't take OpenMower's place right now: there isn't room even without OpenMower's version");
+    await expect(card.getByRole('button')).toHaveCount(0);
+  });
+
+  test('MowBite OS offered, one request on two taps', async ({page, baseURL}) => {
+    const posts: string[] = [];
+    await madeUp(page, baseURL!, '', {alive: String(now()), os_switch: 'yes 0 drop kept'}, {parts: OPENMOWER, posts});
+    const card = page.locator('#update [data-part="os"]');
+    await expect(card).toContainText('on the mower already');
+    await card.getByRole('button', {name: 'Switch to MowBite OS'}).click();
+    await expect(card).toContainText("OpenMower's version and what's built on it, like the planner, are deleted first");
+    await expect(card).toContainText('MowBite OS keeps its own data from an earlier switch');
+    expect(posts).toEqual([]);
+    await card.getByRole('button', {name: 'Switch', exact: true}).click();
+    await expect(page.locator('#update [data-update="os"]')).toContainText('Switching to MowBite OS…');
+    expect(posts).toEqual(['switch=os']);
+  });
+
   test("one that's quiet for a while is still there, not one to set up", async ({page, baseURL}) => {
     await madeUp(page, baseURL!, '', {alive: String(now() - 900), updater_running: '70cb346 2026-10-26'});
     const updates = page.locator('#update');
     await expect(updates.getByText("The updater hasn't given a sign of life since", {exact: false})).toBeVisible();
     await expect(updates.locator('iframe')).toHaveCount(0);
     await expect(updates.getByText('not set up yet', {exact: false})).toHaveCount(0);
+  });
+});
+
+// MowBite OS in OpenMower's place (the demo's updater offers it with window.mowbiteDemoOsSwitch): two taps there, its
+// steps, the way to the setup afterwards, and two taps back with the map
+test.describe("MowBite OS in OpenMower's place", () => {
+  test.skip(SIM, 'the demo mower');
+
+  test('there and back, each on two taps', async ({page}) => {
+    await demoFlag(page, 'mowbiteDemoOsSwitch', true);
+    await page.goto('/settings/#update');
+    const card = page.locator('#update [data-part="os"]');
+    await expect(card).toContainText('stays on the mower, stopped');
+    await card.getByRole('button', {name: 'Switch to MowBite OS'}).click();
+    await expect(card.getByRole('heading')).toHaveText('Switch to MowBite OS?');
+    await expect(card).toContainText('make a full image of the eMMC by hand');
+    await card.getByRole('button', {name: 'Switch', exact: true}).click();
+    const run = page.locator('#update [data-update="os"]');
+    await expect(run).toContainText('Switching to MowBite OS…');
+    await expect(run.locator('[data-step="stop"]')).toContainText('Stopping OpenMower');
+    await expect(run.locator('[data-step="wait"]')).toBeVisible();
+    // (afterwards: the way to its setup)
+    await expect(card.getByRole('link', {name: 'To the setup'})).toHaveAttribute('href', /\/setup\/?$/, {timeout: 30_000});
+    await expect(card).toContainText("It took OpenMower's map and mower_params.yaml.");
+
+    await card.getByRole('button', {name: 'Back to OpenMower'}).click();
+    await expect(card.getByRole('heading')).toHaveText('Back to OpenMower?');
+    await expect(card.getByText('A safety step failed', {exact: false})).toHaveCount(0);
+    await card.getByRole('button', {name: 'Back to OpenMower'}).click();
+    await expect(run).toContainText('Back to OpenMower…');
+    await expect(run.locator('[data-step="export"]')).toBeVisible();
+    await expect(card).toContainText('with the map from MowBite OS.', {timeout: 30_000});
+    await expect(card.getByRole('button', {name: 'Switch to MowBite OS'})).toBeVisible();
+  });
+
+  test("back to OpenMower by itself when MowBite OS doesn't run, with the reason", async ({page}) => {
+    await demoFlag(page, 'mowbiteDemoOsSwitch', true);
+    await demoFlag(page, 'mowbiteDemoOsFails', 'health');
+    await page.goto('/settings/#update');
+    const card = page.locator('#update [data-part="os"]');
+    await card.getByRole('button', {name: 'Switch to MowBite OS'}).click();
+    await card.getByRole('button', {name: 'Switch', exact: true}).click();
+    await expect(page.locator('#update [data-update="os"]')).toContainText("MowBite OS didn't run as it should, back to OpenMower…", {timeout: 30_000});
+    await expect(card).toContainText("MowBite OS didn't run as it should (its health check didn't pass), OpenMower runs again as before.", {timeout: 15_000});
+    await expect(card.getByRole('button', {name: 'Switch to MowBite OS'})).toBeVisible();
+  });
+
+  // a safety step failed on MowBite OS: OpenMower doesn't know its lock, said before going back, the tap stays possible
+  test('the way back warns while a safety step failed', async ({page}) => {
+    await demoWith(page, 'Setup');
+    await demoFlag(page, 'mowbiteDemoSafetyFailed', true);
+    await demoFlag(page, 'mowbiteDemoOsSwitch', 'on');
+    await page.goto('/settings/#update');
+    const card = page.locator('#update [data-part="os"]');
+    await card.getByRole('button', {name: 'Back to OpenMower'}).click();
+    await expect(card.getByText("A safety step failed. OpenMower doesn't know MowBite OS's lock", {exact: false})).toBeVisible();
+    await card.getByRole('button', {name: 'Back to OpenMower'}).click();
+    await expect(page.locator('#update [data-update="os"]')).toContainText('Back to OpenMower…');
   });
 });
 
