@@ -402,13 +402,15 @@ LEFT_SET='{"leftovers":{"auto":true,"min":0.5}}'
 LEFT_ANSWER='{"jsonrpc":"2.0","result":{"areas":[{"stats":{"leftovers":{"left_m2":2.5}}}],"armed":3},"id":"@ID@"}'
 start leftfull "$(state IDLE 0 0 0.95)" "$(base "$noon")" "SETTINGS=$LEFT_SET" "LEFTOVERS=$LEFT_ANSWER"
 start leftoff "$(state IDLE 0 0 0.5)" "$(base "$noon")" "SETTINGS=$LEFT_SET" "LEFTOVERS=$LEFT_ANSWER"
-# job_complete <case>: told until its scheduler asks the planner
+# job_complete <case>: told again only while its scheduler doesn't listen yet (a late one would end the run it starts)
 job_complete() {
-  local i
-  for ((i = 0; i < 10; i++)); do
+  local i j
+  for ((i = 0; i < 5; i++)); do
     docker exec "mbt-$1" mosquitto_pub -h mbt-mq -t "$1/events/json" -m '{"type":"JOB_COMPLETE","job_id":"j1"}'
-    sleep 2
-    sent "$1" | grep -q planner.leftovers && return 0
+    for ((j = 0; j < 10; j++)); do
+      sent "$1" | grep -q planner.settings && return 0
+      sleep 1
+    done
   done
   return 1
 }
