@@ -638,7 +638,6 @@ STOP=/tmp/run.stop
 RUN=/data/run.state
 WAITING=/data/run.wait
 DUE=/data/run.due
-leftovers_watch &
 
 # a run begins ($1: when, $2: its stop time or nothing, $3: why, $4: its areas): kept for a restart of the container,
 # with its stop time as still to come
@@ -708,6 +707,8 @@ hand_watch() {
   done
 }
 hand_watch &
+# after run_begin: a shell in the background only has the functions defined before it
+leftovers_watch &
 
 # the mowing direction the app keeps for the mower (params.sh), while keeping is on
 kept_angle() { grep -q '^enabled 1' /data/params.txt 2>/dev/null && sed -n "s|^$PARAM_MOW_ANGLE_OFFSET ||p" /data/params.txt | head -n1; }
