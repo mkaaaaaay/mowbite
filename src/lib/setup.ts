@@ -226,6 +226,8 @@ export const resetSetup = (s: Setup) => command(RPC.setupReset, {version: s.vers
 export const KEEP_MS = 400;
 export const KEEP_LIMIT_MS = 1000;
 export const moves = (m: Motion | null | undefined) => !!(m?.wheels || m?.blade);
+// the blade still locked by the driver: the step's first start releases it and restarts the OS, the step runs on the next
+export const releasesBlade = (s: SetupStep) => s.restart && !!s.motion?.blade;
 export const keepStep = (step: string) => callCommand<{running: boolean}>(RPC.setupKeep, {step}, KEEP_LIMIT_MS);
 
 // at most this much of an image in one answer of setup.image, and at most this large (x-setup.limits.image_bytes)

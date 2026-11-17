@@ -3,7 +3,7 @@
 import {BackIcon} from '@/components/icons';
 import {reasonSentence} from '@/lib/events';
 import {tr} from '@/lib/i18n';
-import {isDone, keepStep, KEEP_MS, moves, nameById, nameOf, OPEN_SCREENS, unmet, words, type Setup, type SetupStep as Step, type Sizes} from '@/lib/setup';
+import {isDone, keepStep, KEEP_MS, moves, releasesBlade, nameById, nameOf, OPEN_SCREENS, unmet, words, type Setup, type SetupStep as Step, type Sizes} from '@/lib/setup';
 import Link from 'next/link';
 import {useEffect, useState} from 'react';
 import {ConfirmSheet} from './ConfirmSheet';
@@ -58,8 +58,7 @@ export function SetupStep(props: {
     return () => clearInterval(timer);
   }, [kept, step.id]);
   const r = step.result;
-  // the blade still locked by the driver: the first start releases it and restarts the OS, the step runs on the next
-  const releases = step.restart && !!step.motion?.blade;
+  const releases = releasesBlade(step);
   const canStart = step.start && !running && step.state !== 'locked';
   const opens = step.open && !done ? OPEN_SCREENS[step.open] : null;
   const advanced = step.inputs.filter((i) => i.advanced);

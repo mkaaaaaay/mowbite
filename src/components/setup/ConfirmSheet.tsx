@@ -1,15 +1,16 @@
 'use client';
 
 import {fmt, tr} from '@/lib/i18n';
-import {moves, nameOf, words, type SetupStep} from '@/lib/setup';
+import {moves, nameOf, releasesBlade, words, type SetupStep} from '@/lib/setup';
 import {useState} from 'react';
 import {Sheet} from './Sheet';
 import styles from './Sheet.module.css';
 import {StepSymbol} from './StepSymbol';
 
 // what moves in a step, as its start button says it; a blade still locked is released first
-function startLabel({motion, restart}: SetupStep): string {
-  if (motion?.blade) return restart ? tr('Release the blade') : tr('Let the blade turn');
+function startLabel(step: SetupStep): string {
+  const {motion} = step;
+  if (motion?.blade) return releasesBlade(step) ? tr('Release the blade') : tr('Let the blade turn');
   if (motion?.wheels) return motion.raised ? tr('Let the wheels turn') : tr('Let the mower drive');
   return tr('Start');
 }

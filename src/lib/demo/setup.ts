@@ -67,7 +67,7 @@ const value = (id: string, en: string, de: string, unit: string, min: number | n
   ok: null,
 });
 
-const parts = (list: string[][]) => list.map(([id, en, de]) => ({...named(id, en, de), state: 'open' as const}));
+const parts = (list: [string, string, string, ...unknown[]][]) => list.map(([id, en, de]) => ({...named(id, en, de), state: 'open' as const}));
 // a step that turns the wheels: its bounds jacked up and on the ground; the blade's with the wheels still
 const MOTION: Motion = {wheels: true, blade: false, raised: true, max_speed: 0.05, max_distance: null, max_time: 10};
 const GROUND: Motion = {...MOTION, raised: false, max_speed: 0.3};
@@ -85,19 +85,19 @@ const GROUND_VALUES: Measured[] = [
   [value('bumper_stand', 'Bumper: Time to stand', 'Stoßfänger: Standzeit', 's', null, 0.5), 'bumper', 0.24],
   [value('bumper_way', 'Bumper: Way until standing', 'Stoßfänger: Weg bis zum Stand', 'm', null, 0.3), 'bumper', 0.03],
 ];
-const BLADE_PARTS = [
-  ['on_off', 'On and off', 'An und aus'],
-  ['lease', 'Off without renewal', 'Abschalten ohne Verlängerung'],
-  ['silent', 'Off without control', 'Abschalten ohne Steuerung'],
-  ['stop', 'Press STOP', 'STOP drücken'],
-  ['lift', 'Lift', 'Anheben'],
-  ['bumper', 'Bumper', 'Stoßfänger'],
+// the blade's parts with the time to stand the demo measures for each
+const BLADE_PARTS: [string, string, string, number][] = [
+  ['on_off', 'On and off', 'An und aus', 0.6],
+  ['lease', 'Off without renewal', 'Abschalten ohne Verlängerung', 0.7],
+  ['silent', 'Off without control', 'Abschalten ohne Steuerung', 0.4],
+  ['stop', 'Press STOP', 'STOP drücken', 0.3],
+  ['lift', 'Lift', 'Anheben', 0.35],
+  ['bumper', 'Bumper', 'Stoßfänger', 0.3],
 ];
 // the speed it reached, then each part's time to stand
-const BLADE_STAND = [0.6, 0.7, 0.4, 0.3, 0.35, 0.3];
 const BLADE_VALUES: Measured[] = [
   [value('rpm', 'Speed', 'Drehzahl', 'rpm', 2000), 'on_off', 2950],
-  ...BLADE_PARTS.map(([id, en, de], i): Measured => [value(id, en, de, 's', null, 1), id, BLADE_STAND[i]]),
+  ...BLADE_PARTS.map(([id, en, de, stand]): Measured => [value(id, en, de, 's', null, 1), id, stand]),
 ];
 const MEASURED = new Map([...GROUND_VALUES, ...BLADE_VALUES].map(([v, part, m]) => [v.id, {part, m}]));
 
@@ -378,6 +378,7 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
   let restarting = false;
   // whether the driver lets the blade turn: released by the blade step's first start
   let bladeAllowed = false;
+  const releasing = (s: Base) => s.check === 'blade' && !bladeAllowed;
   let restartTimer: ReturnType<typeof setTimeout> | null = null;
   let version = 1;
   const fresh = (s: Base): Kept => ({state: s.initial ?? 'open', attempt: 0, result: null, parts: s.parts, values: s.values, inputs: s.inputs});
@@ -455,7 +456,7 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
       state: state(s),
       attempt: k.attempt,
       blocked: blocked(s),
-      restart: s.restart || (s.check === 'blade' && !bladeAllowed),
+      restart: s.restart || releasing(s),
       parts: k.parts,
       values: k.values,
       // while the assignment runs it takes only accept, once a line is proposed; a question only while it is asked
@@ -665,7 +666,7 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
       if (t > run.asking.until) reopen(s, 'NOT_DONE', 'No answer in time', s.parts[run.part]?.id ?? null);
     } else if (byParts(s)) {
       partByPart(s, k, t);
-    } else if (s.kind === 'drive') {
+    } else if (s.check === 'wheels') {
       if (t - run.since >= WHEEL_MS / 1000) {
         if (s.parts[run.part].id === 'one_wheel') run.asking = {input: WHEEL, until: t + ANSWER_S};
         else {
@@ -744,7 +745,7 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
       const missing = s.confirm.filter((c) => !confirm.includes(c.id)).map((c) => c.id);
       if (missing.length) throw refuse('CONFIRM_MISSING', `Not confirmed: ${missing.join(', ')}`);
       // the blade still locked: released for the driver and the OS restarted, the step runs on the next start
-      if (s.check === 'blade' && !bladeAllowed) {
+      if (releasing(s)) {
         event({type: 'SETUP', what: 'blade_allowed', step: s.id, severity: 'info', resume: 'auto'});
         restart(() => {
           bladeAllowed = true;
