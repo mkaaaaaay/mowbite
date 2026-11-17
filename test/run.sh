@@ -593,6 +593,17 @@ docker exec mbt-web sh -c 'mkdir -p /data/stats && printf "blade 80 0 0\nclean 2
 expect "stats: a part given other hours is told about again once due by them" \
   "$(code -X POST "$W/stats?due=blade&h=100") $(docker exec mbt-web cat /data/stats/reminded)" "200 clean 0"
 
+# the recorder's broker gone: what came since its last save is kept, its sampler ends with its sleep
+for _ in $(seq 20); do docker exec mbt-web test -s /data/sensors.tsv && break; sleep 1; done
+# (the first may be saved right away, the next within a minute only at the end)
+docker exec mbt-mq mosquitto_pub -h localhost -t web/sensors/mbt_first/data -m 1
+docker exec mbt-mq mosquitto_pub -h localhost -t web/sensors/mbt_test/data -m 1.5
+sleep 1
+docker exec mbt-web pkill -f '^mosquitto_sub -h [^ ]* -p [0-9]* -t web/sensors/'
+for _ in $(seq 5); do docker exec mbt-web grep -q '^mbt_test' /data/sensors.tsv && break; sleep 1; done
+expect "recorder: the last values kept when the broker goes" "$(docker exec mbt-web grep -c '^mbt_test' /data/sensors.tsv)" 1
+expect "recorder: no sleep of its sampler left" "$(docker exec mbt-web sh -c 'ps -o ppid,args | awk "\$1 == 1 && \$2 == \"sleep\" && \$3 == 60"' | wc -l)" 0
+
 docker exec mbt-web sh -c 'mkdir -p /data/gpslog && echo "1793644779.0 MOWING 1.200 3.400 0.020 -60" > /data/gpslog/20261103.log'
 expect "gpslog: a cell of 0 cm is taken as 10" "$(curl -s "$W/gpslog?cells=0" | head -n1 | cut -d' ' -f1-3)" "12 34 1"
 
