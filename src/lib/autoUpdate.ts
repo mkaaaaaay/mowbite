@@ -626,6 +626,8 @@ const OS_ERROR: Record<string, string> = {
   offer: "Not done: it isn't offered right now.",
   schedule: 'Not done: the schedule starts the mower at {when}.',
   not_docked: "Not done: the mower wasn't idle in the dock.",
+  battery: 'Not done: the battery was below {min} %. OpenMower runs as before, try again once it has charged.',
+  firmware: "Not done: the firmware of the mower's board doesn't fit this MowBite OS or couldn't be checked. OpenMower runs as before.",
   hold: "Not done: MowBite's schedule couldn't be held (mqtt). OpenMower runs as before.",
   keep: "Nothing changed: OpenMower's data couldn't be kept first.",
   pull: "Nothing changed: MowBite OS couldn't be downloaded. Does the mower have internet?",
@@ -732,7 +734,7 @@ export function osResult(s: UpdateState): PartResult | null {
       if (!why) return {text: tr('failed ({why}), see the log', {why: rest.join(' ') || '?'}), level: 'error', at};
       // (left as it was, or nothing done for now: something to know)
       const level = ['stop', 'back'].includes(rest[0]) ? 'error' : 'warn';
-      return {text: tr(why, {when: when(rest[1])}), level, at};
+      return {text: tr(why, {when: when(rest[1]), min: rest[1] ?? '?'}), level, at};
     }
     default:
       return null;

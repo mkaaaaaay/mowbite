@@ -272,8 +272,8 @@ describe('the updater on the mower', () => {
 const PINNED = {
   repo: 'mkaaaaaay/mowbite-updater',
   path: 'test/contract.txt',
-  commit: '8be407796136330ac49f11f1c71713f9b0b85a8c',
-  sha256: '328df05d3330c04bb8e7d0c05b25fc40268d715eb45ad03e590cf0fbc3b445ab',
+  commit: 'd1482d28737f6a1c6c52231559f6b6fe0461f4ce',
+  sha256: '62ebec0906f909fc427476bdf36497e56a3c3a88100bc431c8fb394436bd45fc',
 };
 const contract = readFileSync(join(__dirname, 'updater-contract.txt'));
 const form = (key: string) => contract.toString().split('\n').filter((l) => l.startsWith(`form status ${key} `)).map((l) => l.slice(`form status ${key} `.length));
@@ -351,6 +351,8 @@ describe("MowBite OS in OpenMower's place", () => {
     expect(r('error busy')).toMatchObject({level: 'warn', text: "Not done: MowBite OS isn't idle, it stays."});
     expect(r('error back').level).toBe('error');
     expect(r('error schedule 1792831337').text).not.toContain('{when}');
+    expect(r('error battery 50')).toMatchObject({level: 'warn', text: expect.stringContaining('below 50 %')});
+    expect(r('error firmware').text).toContain('firmware');
     expect(r('error new_one').text).toContain('new_one');
     // (a part left alone while MowBite OS runs)
     expect(partResult(state({openmower: 'error os'}), 'openmower')!.text).toContain('MowBite OS runs in place of OpenMower');
