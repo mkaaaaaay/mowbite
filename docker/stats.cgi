@@ -12,6 +12,8 @@ M=$D/maint
 arg() { printf '%s' "$QUERY_STRING" | tr '&' '\n' | sed -n "s/^$1=\([a-z0-9]*\)$/\1/p" | head -n1; }
 
 if [ "$REQUEST_METHOD" = POST ]; then
+  # one at a time with notify.awk marking a part told, held until the cgi ends
+  exec 9> /tmp/stats.lock && flock 9
   part=$(arg 'done')
   [ -n "$part" ] || part=$(arg due)
   if ! grep -q "^$part " "$M" 2>/dev/null; then
