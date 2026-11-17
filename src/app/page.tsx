@@ -355,11 +355,12 @@ export default function Home() {
         ? {...a, id: ACTION.abortUndocking, Icon: CloseIcon, label: 'Stop undocking', tone: 'stop'}
         : a,
   ).filter((a) => hasAction(a.id) && !state?.emergency);
-  // a waiting skip is dropped when there's nothing to skip anymore, the mower is on another area or path or the connection
-  // went. paused it still goes out, OpenMower skips once it goes on
+  // a waiting skip is dropped when there's nothing to skip anymore, the mower is on another area or path, the connection
+  // went or the emergency stop hid its undo. paused it still goes out, OpenMower skips once it goes on
   if (
     skip !== null &&
     (!live ||
+      !!state?.emergency ||
       (current !== 'MOWING' && current !== 'PAUSED') ||
       !hasAction(skip.id) ||
       state?.current_area !== skip.area ||
