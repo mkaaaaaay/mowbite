@@ -272,8 +272,8 @@ describe('the updater on the mower', () => {
 const PINNED = {
   repo: 'mkaaaaaay/mowbite-updater',
   path: 'test/contract.txt',
-  commit: '48f01c695d6fd238fae9690f97c438cd23de5913',
-  sha256: '89cab312ffea857b75c2ca0a371472c560ec51c56fafb98a6a9f8f194663059c',
+  commit: '8be407796136330ac49f11f1c71713f9b0b85a8c',
+  sha256: '328df05d3330c04bb8e7d0c05b25fc40268d715eb45ad03e590cf0fbc3b445ab',
 };
 const contract = readFileSync(join(__dirname, 'updater-contract.txt'));
 const form = (key: string) => contract.toString().split('\n').filter((l) => l.startsWith(`form status ${key} `)).map((l) => l.slice(`form status ${key} `.length));

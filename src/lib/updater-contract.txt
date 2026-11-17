@@ -13,6 +13,7 @@ answer items
 answer kind
 answer log
 answer name
+answer os
 answer part
 answer parts
 answer picked
@@ -70,10 +71,12 @@ form status os_drop <OpenMower by its digest> <its tag> <the images deleted> ...
 form status os_env <datum lat> <long> <height> <OpenMower's ros folder> <its params folder>
 form status os_image <image> <its id, or -> <MB free it needs> import|kept
 form status os_ran <container>:<its restart policy>:running|stopped ...
+form status os_safety check_failed
 form status os_switch no image|registry|data|datum|import|files|openmower|nokeep|pending|stack|prev|room <MB needed> <MB there>
 form status os_switch on <since, unix s>
 form status os_switch yes <MB downloaded> keep|drop import|kept
 form status switch_os openmower export|stop|om|data|start [map|old [lost]]
+form status switch_os os back rolled_back|error <why>
 form status switch_os os pull|stop|drop|start|wait
 form status updater_release <its tag, v1.2.0>, none for a build of main
 label mowbite.update.check
@@ -169,6 +172,7 @@ status os_drop
 status os_env
 status os_image
 status os_ran
+status os_safety
 status os_stack
 status os_switch
 status parts
