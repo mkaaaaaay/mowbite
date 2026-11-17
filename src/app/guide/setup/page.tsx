@@ -1,21 +1,26 @@
 'use client';
 
 import {tr} from '@/lib/i18n';
-import {anim, appear, PAINT, Scene, SCREEN_LOOP} from '../art';
+import {anim, appear, PAINT, Scene, SCREEN_LOOP, tap} from '../art';
 import Guide, {type GuideStep} from '../Guide';
 
 // the setup program of a mower with MowBite OS, step by step with a drawing for each
 
 const DUR = SCREEN_LOOP;
 const {card, field, well, text, dim, accent, onAccent} = PAINT;
-const OK = '#22c55e';
-const BAD = '#ef4444';
+const OK = 'var(--success)';
+const BAD = 'var(--error)';
 
-// a button tapped at that fraction of the loop
-const tap = (at: number) => anim('opacity', DUR, [0, at, at + 0.04, at + 0.08, 1], [1, 1, 0.5, 1, 1]);
-
-// a round mark: open (a ring), passed (a tick) or failed (a cross), shown from that fraction of the loop on
-function Mark({x, y, kind, at}: {x: number; y: number; kind: 'open' | 'ok' | 'bad'; at?: number}) {
+// a round mark: open (a ring), passed (a tick) or failed (a cross), shown from that fraction of the loop on. passAt: a
+// ring that turns into a tick then
+function Mark({x, y, kind = 'open', at, passAt}: {x: number; y: number; kind?: 'open' | 'ok' | 'bad'; at?: number; passAt?: number}) {
+  if (passAt !== undefined)
+    return (
+      <>
+        <Mark x={x} y={y} />
+        <Mark x={x} y={y} kind="ok" at={passAt} />
+      </>
+    );
   const color = kind === 'ok' ? OK : kind === 'bad' ? BAD : 'var(--text-secondary)';
   return (
     <g opacity={at === undefined ? 1 : 0}>
@@ -43,16 +48,18 @@ function Button({x, y, w, label, main, at}: {x: number; y: number; w: number; la
 
 function OverviewArt() {
   // the segments fill one by one, the next stage opens
+  const done = 3;
+  const of = 6;
   return (
     <Scene still={DUR} label={tr('The setup')}>
       <rect x={20} y={14} width={280} height={172} rx={12} style={card} />
       <text x={36} y={40} fontSize={13} fontWeight={600} style={text}>
-        {tr('{done} of {of} steps done', {done: 3, of: 6})}
+        {tr('{done} of {of} steps done', {done, of})}
       </text>
-      {[0, 1, 2, 3, 4, 5].map((i) => (
+      {Array.from({length: of}, (_, i) => (
         <g key={i}>
-          <rect x={36 + i * 42} y={50} width={38} height={6} rx={3} fill="var(--card-border)" />
-          {i < 3 && (
+          <rect x={36 + i * 42} y={50} width={38} height={6} rx={3} fill="var(--track)" />
+          {i < done && (
             <rect x={36 + i * 42} y={50} width={38} height={6} rx={3} fill={OK} opacity={0}>
               {appear(0.15 + i * 0.12)}
             </rect>
@@ -63,12 +70,11 @@ function OverviewArt() {
       <text x={60} y={90} fontSize={12} style={text}>
         {tr('Device')}
       </text>
-      <Mark x={44} y={116} kind="open" />
-      <Mark x={44} y={116} kind="ok" at={0.5} />
+      <Mark x={44} y={116} passAt={0.5} />
       <text x={60} y={120} fontSize={12} style={text}>
         {tr('Inputs')}
       </text>
-      <Mark x={44} y={146} kind="open" />
+      <Mark x={44} y={146} />
       <text x={60} y={150} fontSize={12} style={dim}>
         {tr('Driving')}
       </text>
@@ -92,13 +98,12 @@ function StepArt() {
       <text x={42} y={71} fontSize={12} style={text}>
         {tr('Wheel motor left')}
       </text>
-      <Mark x={272} y={67} kind="open" />
-      <Mark x={272} y={67} kind="ok" at={0.25} />
+      <Mark x={272} y={67} passAt={0.25} />
       <rect x={30} y={88} width={260} height={30} rx={8} style={field} />
       <text x={42} y={107} fontSize={12} style={text}>
         {tr('Wheel motor right')}
       </text>
-      <Mark x={272} y={103} kind="open" />
+      <Mark x={272} y={103} />
       <g opacity={0}>
         {anim('opacity', DUR, [0, 0.35, 0.37, 0.7, 0.72, 1], [0, 0, 1, 1, 0, 0])}
         <Mark x={272} y={103} kind="bad" />
@@ -125,7 +130,7 @@ function LinesArt() {
         <g key={l}>
           <rect x={36 + i * 86} y={28} width={76} height={34} rx={8} style={field} />
           {i === 0 && (
-            <rect x={36} y={28} width={76} height={34} rx={8} opacity={0} style={{fill: 'var(--accent)', fillOpacity: 0.35}}>
+            <rect x={36} y={28} width={76} height={34} rx={8} opacity={0} fillOpacity={0.35} style={accent}>
               {appear(0.25)}
             </rect>
           )}
@@ -136,7 +141,7 @@ function LinesArt() {
       ))}
       <g opacity={0}>
         {appear(0.35)}
-        <text x={36} y={88} fontSize={12} style={{fill: 'var(--accent)'}}>
+        <text x={36} y={88} fontSize={12} style={accent}>
           {tr('{part}: seen on line {line}, it switches low', {part: tr('STOP button'), line: 'IN1'})}
         </text>
         <rect x={36} y={100} width={248} height={30} rx={8} style={well} />
@@ -155,11 +160,6 @@ function LinesArt() {
 
 function MoveArt() {
   // the sheet before a step that moves the mower: what to make sure of, then start
-  const tick = (at: number) => (
-    <path d="M43 0 l3 3 l5 -6" fill="none" stroke="#fff" strokeWidth={1.8} strokeLinecap="round" opacity={0}>
-      {appear(at)}
-    </path>
-  );
   return (
     <Scene still={DUR} label={tr('Before it moves')}>
       <rect x={20} y={14} width={280} height={172} rx={12} style={card} />
@@ -169,15 +169,16 @@ function MoveArt() {
       <text x={36} y={62} fontSize={12} style={dim}>
         {tr('The wheels turn')}
       </text>
-      {[0, 1].map((i) => (
+      {[tr('Mower stands under the open sky'), tr('Nobody close by')].map((label, i) => (
         <g key={i} transform={`translate(0 ${84 + i * 26})`}>
           <rect x={38} y={-8} width={16} height={16} rx={4} style={field} />
-          <rect x={38} y={-8} width={16} height={16} rx={4} opacity={0} style={accent}>
+          <g opacity={0}>
             {appear(0.2 + i * 0.15)}
-          </rect>
-          <g transform="translate(-3 0)">{tick(0.2 + i * 0.15)}</g>
+            <rect x={38} y={-8} width={16} height={16} rx={4} style={accent} />
+            <path d="M40 0 l3 3 l5 -6" fill="none" stroke="#fff" strokeWidth={1.8} strokeLinecap="round" />
+          </g>
           <text x={64} y={4} fontSize={12} style={text}>
-            {i ? tr('Nobody close by') : tr('Mower stands under the open sky')}
+            {label}
           </text>
         </g>
       ))}
@@ -192,19 +193,20 @@ function MoveArt() {
 
 function SafetyArt() {
   // the lock of driving alone opens once the safety measurement passed
-  const shackle = anim('d', DUR, [0, 0.55, 0.6, 1], ['M146 74 V58 a14 14 0 0 1 28 0 V74', 'M146 74 V58 a14 14 0 0 1 28 0 V74', 'M146 74 V58 a14 14 0 0 1 26 -6', 'M146 74 V58 a14 14 0 0 1 26 -6']);
+  const shut = 'M146 74 V58 a14 14 0 0 1 28 0 V74';
+  const open = 'M146 74 V58 a14 14 0 0 1 26 -6';
   return (
     <Scene still={DUR} label={tr('Skipping and the safety measurement')}>
       <rect x={20} y={14} width={280} height={172} rx={12} style={card} />
-      <path d="M146 74 V58 a14 14 0 0 1 28 0 V74" fill="none" strokeWidth={4} strokeLinecap="round" style={{stroke: 'var(--text-secondary)'}}>
-        {shackle}
+      <path d={shut} fill="none" strokeWidth={4} strokeLinecap="round" style={{stroke: 'var(--text-secondary)'}}>
+        {anim('d', DUR, [0, 0.55, 0.6, 1], [shut, shut, open, open])}
       </path>
       <rect x={136} y={72} width={48} height={38} rx={6} style={dim} />
       <rect x={136} y={72} width={48} height={38} rx={6} fill={OK} opacity={0}>
         {appear(0.6)}
       </rect>
       <text x={160} y={136} fontSize={12} textAnchor="middle" style={text}>
-        <tspan>{tr('Safety measurement missing')}</tspan>
+        {tr('Safety measurement missing')}
         {anim('opacity', DUR, [0, 0.55, 0.6, 1], [1, 1, 0, 0])}
       </text>
       <text x={160} y={136} fontSize={12} textAnchor="middle" opacity={0} style={{fill: OK}}>

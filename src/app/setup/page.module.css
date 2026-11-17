@@ -31,6 +31,13 @@
   line-height: 1.45;
 }
 
+.link {
+  align-self: flex-start;
+  color: var(--accent);
+  font-size: 14px;
+  text-decoration: none;
+}
+
 .dim {
   margin: 0;
   color: var(--text-secondary);

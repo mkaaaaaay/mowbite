@@ -2225,7 +2225,7 @@ const de: Record<string, string> = {
   "The outermost pass the way the edge was recorded, the others either way, chosen again after every finished mow.":
     "Die äußerste Runde in Aufnahmerichtung, die übrigen mal so, mal so, nach jedem fertigen Mähvorgang neu.",
   "Guides": "Anleitungen",
-  "Guide": "Anleitung",
+  "How the setup works": "So funktioniert die Einrichtung",
   "Stop about a meter in front of the docking station, at least half a meter, facing it, and tap Record docking station. Then drive it straight in until it sits on the contacts and tap Save docking position: the way between becomes its docking direction.": "Halte etwa einen Meter vor dem Dock an, mindestens einen halben, mit der Front zu ihm, und tippe „Dock aufnehmen“. Dann fahr ihn gerade hinein, bis er auf den Kontakten steht, und tippe „Andockposition speichern“: Die Strecke dazwischen wird seine Andockrichtung.",
   "Dashboard and mowers": "Übersicht und Mäher",
   "Your dashboard": "Deine Übersicht",

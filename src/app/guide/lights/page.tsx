@@ -3,16 +3,13 @@
 import {useRpcMethods} from '@/hooks/useRpcMethods';
 import {tr} from '@/lib/i18n';
 import {RPC} from '@/lib/openmower';
-import {anim, appear, PAINT, Scene, SCREEN_LOOP} from '../art';
+import {anim, appear, PAINT, Scene, SCREEN_LOOP, tap} from '../art';
 import Guide, {type GuideStep} from '../Guide';
 
 // the lights and sounds of a mower with MowBite OS, step by step with a drawing for each
 
 const DUR = SCREEN_LOOP;
 const {card, field, well, text, dim, accent, onAccent} = PAINT;
-
-// a button tapped at that fraction of the loop
-const tap = (at: number) => anim('opacity', DUR, [0, at, at + 0.04, at + 0.08, 1], [1, 1, 0.5, 1, 1]);
 
 // a state of the list: its name and its colors as dots
 function State({y, name, colors}: {y: number; name: string; colors: string[]}) {

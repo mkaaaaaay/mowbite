@@ -388,9 +388,6 @@ export default function SettingsPage() {
                     <Link href="/setup" className={styles.pillButton}>
                       {tr('To the setup')}
                     </Link>
-                    <Link href="/guide/setup" className={styles.pillButton}>
-                      {tr('Guide')}
-                    </Link>
                   </Group>
                 )}
                 {sizes && (
