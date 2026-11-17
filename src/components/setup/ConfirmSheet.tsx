@@ -7,9 +7,9 @@ import {Sheet} from './Sheet';
 import styles from './Sheet.module.css';
 import {StepSymbol} from './StepSymbol';
 
-// what moves in a step, as its start button says it
-function startLabel(motion: SetupStep['motion']): string {
-  if (motion?.blade) return tr('Let the blade turn');
+// what moves in a step, as its start button says it; a blade still locked is released first
+function startLabel({motion, restart}: SetupStep): string {
+  if (motion?.blade) return restart ? tr('Release the blade') : tr('Let the blade turn');
   if (motion?.wheels) return motion.raised ? tr('Let the wheels turn') : tr('Let the mower drive');
   return tr('Start');
 }
@@ -35,6 +35,11 @@ export function ConfirmSheet(props: {step: SetupStep; lang: string; busy: boolea
         <div className={styles.list}>
           {!!m.wheels && m.raised && <Move sign="wheels">{tr('The wheels turn in the air')}</Move>}
           {ground && <Move sign="ground">{tr('The mower drives')}</Move>}
+          {m.wheels === false && (
+            <Move sign="wheels" still>
+              {tr('The wheels stay still')}
+            </Move>
+          )}
           {!!m.blade && <Move sign="blade">{tr('The blade turns')}</Move>}
           {m.blade === false && (
             <Move sign="blade" still>
@@ -81,7 +86,7 @@ export function ConfirmSheet(props: {step: SetupStep; lang: string; busy: boolea
           {tr('Cancel')}
         </button>
         <button type="button" className={styles.button} data-primary disabled={busy || !all} onClick={() => onStart(ticked)}>
-          {startLabel(step.motion)}
+          {startLabel(step)}
         </button>
       </div>
     </Sheet>

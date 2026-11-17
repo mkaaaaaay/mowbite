@@ -3141,6 +3141,21 @@
     "de": "erst müssen STOP-Taste, Anheben und Stoßfänger im Stand bestanden sein"
    }
   ],
+  "BLADE_NOT_ALLOWED": [
+   {
+    "en": "the driver doesn't let the blade turn ({key} is false)",
+    "when": {
+     "key": {
+      "present": true
+     }
+    },
+    "de": "der Treiber lässt das Messer nicht drehen ({key} steht auf false)"
+   },
+   {
+    "en": "the driver doesn't let the blade turn",
+    "de": "der Treiber lässt das Messer nicht drehen"
+   }
+  ],
   "SAFETY_AIR": [
    {
     "en": "the steps with the mower jacked up have to pass first",
@@ -3179,8 +3194,8 @@
   ],
   "NO_START": [
    {
-    "en": "the wheels didn't turn on the command",
-    "de": "die Räder haben sich auf den Fahrbefehl nicht gedreht"
+    "en": "the wheels or the blade didn't turn on the command",
+    "de": "Räder oder Messer haben sich auf den Befehl nicht gedreht"
    }
   ],
   "NO_RESTART": [
@@ -3212,8 +3227,8 @@
   ],
   "STARTED_AGAIN": [
    {
-    "en": "a wheel turned while the mower had to stand",
-    "de": "ein Rad hat sich gedreht, obwohl der Mäher stehen musste"
+    "en": "a wheel or the blade turned while it had to stand",
+    "de": "ein Rad oder das Messer hat sich gedreht, obwohl es stehen musste"
    }
   ],
   "WRONG_DIRECTION": [

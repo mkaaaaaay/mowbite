@@ -433,11 +433,10 @@ function WheelsArt() {
   );
 }
 
-function GroundArt() {
-  // on the ground the parts pass one after the other: straight on, a turn, STOP pressed while it drives back, the bumper
-  const parts = [tr('Straight on'), tr('Turn'), tr('Press STOP'), tr('Bumper')];
+// four parts of a step passing one after the other
+function PartsArt({label, parts}: {label: string; parts: string[]}) {
   return (
-    <Scene label={tr('Driving on the ground')}>
+    <Scene label={label}>
       <rect x={20} y={8} width={280} height={186} rx={14} style={card} />
       {parts.map((name, i) => (
         <Row
@@ -456,6 +455,11 @@ function GroundArt() {
     </Scene>
   );
 }
+
+// on the ground: straight on, a turn, STOP pressed while it drives back, the bumper
+const GroundArt = () => <PartsArt label={tr('Driving on the ground')} parts={[tr('Straight on'), tr('Turn'), tr('Press STOP'), tr('Bumper')]} />;
+// the blade: switched off and off without control by itself, then STOP and lifting while it turns
+const BladeArt = () => <PartsArt label={tr('The blade')} parts={[tr('On and off'), tr('Off without control'), tr('Press STOP'), tr('Lift')]} />;
 
 function SafetyArt() {
   // a step skipped for now, then the safety measurement passes and the lock on top opens
@@ -541,6 +545,11 @@ const STEPS: GuideStep[] = [
     title: 'Driving on the ground',
     text: "Once the steps with the mower jacked up passed, it drives on the lawn: with an exact position, on a lawn without obstacles, 3 m clear in front and behind, and you next to it at the STOP button. It drives about 2 m straight on and stops by itself, turns to the left and back, drives back until you press STOP and at last slowly against a soft obstacle you hold, such as a cushion. It drives slowly and without the borders of the map, like the remote control. If it doesn't stop in time, don't let it mow.",
     Art: GroundArt,
+  },
+  {
+    title: 'The blade',
+    text: 'Take the blade disc off and keep a hand at the STOP button, the wheels stay still. At the first start MowBite OS releases the blade and restarts, then tap Start again. The motor starts and is stopped in six ways: switched off, without renewal and without control by itself, then with the STOP button, lifting and the bumper while it turns. Each time it has to stand in time and must not start again.',
+    Art: BladeArt,
   },
   {
     title: 'Skipping and the safety measurement',

@@ -58,6 +58,8 @@ export function SetupStep(props: {
     return () => clearInterval(timer);
   }, [kept, step.id]);
   const r = step.result;
+  // the blade still locked by the driver: the first start releases it and restarts the OS, the step runs on the next
+  const releases = step.restart && !!step.motion?.blade;
   const canStart = step.start && !running && step.state !== 'locked';
   const opens = step.open && !done ? OPEN_SCREENS[step.open] : null;
   const advanced = step.inputs.filter((i) => i.advanced);
@@ -130,6 +132,11 @@ export function SetupStep(props: {
             <p className={styles.note} data-result="skipped">
               {tr('Skipped: {why}', {why: nameById(step.skip_reasons, r.skip, lang)})}
               {r.note && ` (${r.note})`}
+            </p>
+          )}
+          {releases && !setup.restart_pending && (
+            <p className={styles.note} data-releases>
+              {tr('At the first start the blade is released and MowBite OS restarts; then tap Start again.')}
             </p>
           )}
           {needs.length > 0 && (

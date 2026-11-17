@@ -5333,7 +5333,7 @@
           "type": "string"
         },
         "step": {
-          "description": "With safety_closed: the step that failed",
+          "description": "With safety_closed: the step that failed; with blade_allowed: the step blade",
           "type": "string"
         },
         "t": {
@@ -5346,13 +5346,14 @@
           "description": "What happened; a type this version does not know carries only the envelope for sure"
         },
         "what": {
-          "description": "stage_done: every step of stage is ok or skipped; complete: every step is; reset: setup.reset took all results back; safety_closed: a safety step failed and closed the lock of autonomous driving and mowing; safety_opened: the lock is open again",
+          "description": "stage_done: every step of stage is ok or skipped; complete: every step is; reset: setup.reset took all results back; safety_closed: a safety step failed and closed the lock of autonomous driving and mowing; safety_opened: the lock is open again; blade_allowed: the first start of a step blade allowed the blade, the OS restarts and the step waits for its next start",
           "enum": [
             "stage_done",
             "complete",
             "reset",
             "safety_closed",
-            "safety_opened"
+            "safety_opened",
+            "blade_allowed"
           ],
           "type": "string"
         }
@@ -5464,6 +5465,11 @@
             "user"
           ],
           "type": "string"
+        },
+        "rpm": {
+          "description": "A blade: the fastest it turned",
+          "type": "number",
+          "x-unit": "rpm"
         },
         "seen": {
           "description": "The input that switched",
@@ -10463,7 +10469,7 @@
                 "type": "array"
               },
               "kind": {
-                "description": "How to show it: confirm, input, measure or drive; a kind the app does not know as text with a button",
+                "description": "How to show it: confirm, input, measure, drive or blade; a kind the app does not know as text with a button",
                 "type": "string"
               },
               "lines": {
@@ -10652,7 +10658,7 @@
                 ]
               },
               "restart": {
-                "description": "Its result counts only after a restart of the OS, which the program asks for itself",
+                "description": "The program restarts the OS for it by itself: a step inputs_assign for its result, a step blade at its first start while the driver does not allow the blade",
                 "type": "boolean"
               },
               "result": {
@@ -15672,11 +15678,11 @@
       "type": "object"
     }
   },
-  "$id": "urn:mowbite-os:api:46",
+  "$id": "urn:mowbite-os:api:47",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "robot_state, actions, events and RPC methods of MowBite OS over MQTT, as system.api gives them; made from the code, objects sorted by key. x-reasons has severity and resume of every reason by event (COMMAND_REFUSED and REQUEST_REFUSED only in refusals; when: another rating for these field values; texts: name, help and fix by language; an enum field may carry the same by value as x-texts), x-emergency-bits the bits of emergency, x-commands the commands with params, result, the event of their refusal and the actions that do the same, x-methods every RPC method of the OS with its node (planner.* are the planner's, sim.* only in the simulation), x-sensors the sensors by id, x-settings the settings of params.set with the ranges of the OS, x-geometry the keys of robot.geometry, x-schedule-log the words of schedule.log with what detail and more hold (null: always null), x-setup the setup program. x-api counts every change, x-api-break only the breaks: a method, field, event, reason or topic gone or renamed, a type or meaning changed, a parameter newly required, fewer values taken in a request, an event a client waits for no longer sent. All else only adds; a client goes with every x-api of its x-api-break from the one it needs on.",
   "title": "MowBite OS app interface",
-  "x-api": 46,
+  "x-api": 47,
   "x-api-break": 1,
   "x-commands": {
     "docking.abort": {
@@ -19121,6 +19127,26 @@
       }
     },
     "SETUP_BLOCKED": {
+      "BLADE_NOT_ALLOWED": {
+        "description": "hw/capabilities has blade_allowed false although the parameter file of the program sets allow_blade: the file kept by hand or the driver overrules it",
+        "fields": {
+          "key": ""
+        },
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "allow_blade in der Einstellungsdatei von Hand prüfen, dann MowBite OS neu starten.",
+            "help": "Der Treiber lässt das Messer nicht drehen. Die von Hand gepflegte Einstellungsdatei oder der Treiber selbst sperrt es.",
+            "name": "Messer gesperrt"
+          },
+          "en": {
+            "fix": "Check allow_blade in the settings file kept by hand, then restart MowBite OS.",
+            "help": "The driver doesn't let the blade turn. The settings file kept by hand or the driver itself locks it.",
+            "name": "Blade locked"
+          }
+        }
+      },
       "BUSY": {
         "description": "Another step runs, or the mower is not idle",
         "fields": {
@@ -19352,6 +19378,26 @@
       }
     },
     "SETUP_REFUSED": {
+      "BLADE_NOT_ALLOWED": {
+        "description": "hw/capabilities has blade_allowed false although the parameter file of the program sets allow_blade: the file kept by hand or the driver overrules it",
+        "fields": {
+          "key": ""
+        },
+        "resume": "user",
+        "severity": "info",
+        "texts": {
+          "de": {
+            "fix": "allow_blade in der Einstellungsdatei von Hand prüfen, dann MowBite OS neu starten.",
+            "help": "Der Treiber lässt das Messer nicht drehen. Die von Hand gepflegte Einstellungsdatei oder der Treiber selbst sperrt es.",
+            "name": "Messer gesperrt"
+          },
+          "en": {
+            "fix": "Check allow_blade in the settings file kept by hand, then restart MowBite OS.",
+            "help": "The driver doesn't let the blade turn. The settings file kept by hand or the driver itself locks it.",
+            "name": "Blade locked"
+          }
+        }
+      },
       "BUSY": {
         "description": "Another step runs, or the mower is not idle",
         "fields": {
@@ -20092,22 +20138,23 @@
       },
       "NO_START": {
         "closes": false,
-        "description": "The wheels did not turn within the time after the first command",
+        "description": "The wheels or the blade did not turn within the time after the first command",
         "fields": {
-          "part": ""
+          "part": "",
+          "rpm": "rpm"
         },
         "resume": "user",
         "severity": "warning",
         "texts": {
           "de": {
             "fix": "Prüfen, ob der Mäher frei aufgebockt ist und die Motoren angeschlossen sind, dann wiederholen.",
-            "help": "Die Räder haben sich auf den Fahrbefehl nicht gedreht.",
-            "name": "Räder drehen nicht"
+            "help": "Räder oder Messer haben sich auf den Befehl nicht oder zu langsam gedreht.",
+            "name": "Läuft nicht an"
           },
           "en": {
             "fix": "Check that the mower is jacked up freely and the motors are connected, then repeat.",
-            "help": "The wheels didn't turn on the command.",
-            "name": "Wheels not turning"
+            "help": "The wheels or the blade didn't turn on the command, or too slowly.",
+            "name": "Not starting"
           }
         }
       },
@@ -20155,9 +20202,10 @@
       },
       "STARTED_AGAIN": {
         "closes": true,
-        "description": "A wheel turned while nothing was to turn: after the stop or the release",
+        "description": "A wheel or the blade turned while nothing was to turn: after the stop or the release",
         "fields": {
           "part": "",
+          "rpm": "rpm",
           "speed": "m/s"
         },
         "resume": "user",
@@ -20165,12 +20213,12 @@
         "texts": {
           "de": {
             "fix": "Den Mäher nicht fahren lassen. Platine und Treiber prüfen, dann wiederholen.",
-            "help": "Ein Rad hat sich gedreht, obwohl der Mäher stehen musste. So würde er nach einem Stopp von selbst weiterfahren.",
+            "help": "Ein Rad oder das Messer hat sich gedreht, obwohl es stehen musste. So würde der Mäher nach einem Stopp von selbst weiterlaufen.",
             "name": "Wieder angelaufen"
           },
           "en": {
             "fix": "Don't let the mower drive. Check board and driver, then repeat.",
-            "help": "A wheel turned while the mower had to stand. Like this it would drive on by itself after a stop.",
+            "help": "A wheel or the blade turned while it had to stand. Like this the mower would go on by itself after a stop.",
             "name": "Started again"
           }
         }
@@ -21889,7 +21937,318 @@
         }
       }
     },
+    "blade_parts": {
+      "bumper": {
+        "description": "On until the user presses the bumper: it stands within stop_max s of the input",
+        "order": 5,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "Das Messer läuft. Jetzt den Stoßfänger eindrücken, bis der Haken kommt.",
+            "name": "Stoßfänger"
+          },
+          "en": {
+            "fix": "",
+            "help": "The blade runs. Press the bumper in until the tick comes.",
+            "name": "Bumper"
+          }
+        }
+      },
+      "lease": {
+        "description": "On with one lease that is not renewed: the driver switches it off, it stands within lease plus lease_extra s",
+        "order": 1,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "Das Messer läuft, ohne dass es weiter angefordert wird.",
+            "name": "Abschalten ohne Verlängerung"
+          },
+          "en": {
+            "fix": "",
+            "help": "The blade runs without being asked for any more.",
+            "name": "Off without renewal"
+          }
+        }
+      },
+      "lift": {
+        "description": "On until the user lifts the mower: it stands within stop_max s of the input",
+        "order": 4,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "Das Messer läuft. Jetzt den Mäher vorn anheben, bis der Haken kommt, und absetzen.",
+            "name": "Anheben"
+          },
+          "en": {
+            "fix": "",
+            "help": "The blade runs. Lift the mower at the front until the tick comes, then put it down.",
+            "name": "Lift"
+          }
+        }
+      },
+      "on_off": {
+        "description": "On at percent until rpm, then off: it stands within off_max s and stays for hold s",
+        "order": 0,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "Das Messer läuft an und wird wieder abgeschaltet.",
+            "name": "An und aus"
+          },
+          "en": {
+            "fix": "",
+            "help": "The blade starts and is switched off again.",
+            "name": "On and off"
+          }
+        }
+      },
+      "silent": {
+        "description": "On, then hw/silence with the blade: the board stops it without its host within silent_max s",
+        "order": 2,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "Das Messer läuft, dann schweigt die Steuerung.",
+            "name": "Abschalten ohne Steuerung"
+          },
+          "en": {
+            "fix": "",
+            "help": "The blade runs, then the control stays silent.",
+            "name": "Off without control"
+          }
+        }
+      },
+      "stop": {
+        "description": "On until the user presses STOP: it stands within stop_max s of the input",
+        "order": 3,
+        "texts": {
+          "de": {
+            "fix": "",
+            "help": "Das Messer läuft. Jetzt die STOP-Taste drücken.",
+            "name": "STOP drücken"
+          },
+          "en": {
+            "fix": "",
+            "help": "The blade runs. Press the STOP button now.",
+            "name": "Press STOP"
+          }
+        }
+      }
+    },
     "checks": {
+      "blade": {
+        "auto": false,
+        "description": "The parts of blade_parts in one run, the blade taken off and the wheels without a command. Where hw/capabilities has blade_allowed false, setup.start writes allow_blade for node into the parameter file of the program and restarts the OS (restart of the step): after it a second setup.start runs the step, never the restart itself; a blade the driver still does not allow blocks with BLADE_NOT_ALLOWED. Each part starts the blade at percent and height through the logic (setup/motion blade) until it turns at rpm within spin_up s. on_off: off, it stands (below still_rpm) within off_max s. lease: one request on lease s that is not renewed, the driver switches it off: it stands within lease plus lease_extra s of that request. silent: hw/silence with blade: the board stops it within silent_max s of the answer, then the driver shows emergencies of the list and LATCH only and the program releases them itself. stop, lift and bumper: the user triggers the input of the role within time s: it stands within stop_max s of the input, the emergency of the role follows and the program releases it itself. After every stand nothing turns for hold s, after a release again. A part the step saw nothing of within time asks pressed. Needs the inputs checked standing (SAFETY_INPUTS) and a driver that offers hw/silence; the mower is in IDLE off the charging contacts, without emergency or hold, in the sub state SETUP meanwhile, the blade turns only there and goes off when it ends. setup.start confirms blade_removed and hand_at_stop; setup.keep at least every 1 s keeps it going (else RELEASED).",
+        "kind": "blade",
+        "params": {
+          "emergency": {
+            "description": "The emergencies, by the names of x-emergency-bits, of which the driver shows at least one after it, besides LATCH and no other",
+            "required": true,
+            "type": "list",
+            "values": [
+              "TIMEOUT_INPUTS",
+              "STOP",
+              "LIFT",
+              "LIFT_MULTIPLE",
+              "COLLISION",
+              "TIMEOUT_HIGH_LEVEL",
+              "HIGH_LEVEL",
+              "SERVICE_NOT_READY",
+              "COLLISION_MULTIPLE",
+              "MOWER_RPM_TIMEOUT",
+              "MOWER_RPM_LIMIT",
+              "FIRMWARE_INCOMPATIBLE",
+              "TILT",
+              "FENCE",
+              "STUCK",
+              "IMU_TIMEOUT",
+              "MOWER_NOT_STOPPED",
+              "WHEEL_RUNAWAY",
+              "FOREIGN_HOST",
+              "DRIVER_STALL",
+              "UNEXPECTED_RESTART",
+              "INPUTS_LEARNING"
+            ]
+          },
+          "height": {
+            "default": 0.0,
+            "description": "Cutting height while it turns, 0 for the default of the driver",
+            "max": 120.0,
+            "min": 0.0,
+            "required": false,
+            "type": "number",
+            "unit": "mm"
+          },
+          "hold": {
+            "default": 1.0,
+            "description": "The blade does not turn for this time, after it stood and after the release",
+            "max": 5.0,
+            "min": 0.5,
+            "required": false,
+            "type": "number",
+            "unit": "s"
+          },
+          "lease": {
+            "default": 1.0,
+            "description": "Lease of the requests of the step, at most blade_lease_max_s of the driver",
+            "max": 5.0,
+            "min": 0.5,
+            "required": false,
+            "type": "number",
+            "unit": "s"
+          },
+          "lease_extra": {
+            "default": 1.0,
+            "description": "lease: the blade stands within lease and this time of the request",
+            "max": 6.0,
+            "min": 0.2,
+            "required": false,
+            "type": "number",
+            "unit": "s"
+          },
+          "node": {
+            "description": "The node of the driver allow_blade is written for",
+            "required": true,
+            "type": "text"
+          },
+          "off_max": {
+            "default": 1.0,
+            "description": "on_off: the blade stands within this time of the off",
+            "max": 6.0,
+            "min": 0.2,
+            "required": false,
+            "type": "number",
+            "unit": "s"
+          },
+          "percent": {
+            "default": 100.0,
+            "description": "Speed of the blade in percent of the driver",
+            "max": 100.0,
+            "min": 1.0,
+            "required": false,
+            "type": "number",
+            "unit": "%"
+          },
+          "rpm": {
+            "default": 2000.0,
+            "description": "The blade counts as turning from this speed on",
+            "max": 10000.0,
+            "min": 100.0,
+            "required": false,
+            "type": "number",
+            "unit": "rpm"
+          },
+          "silent_max": {
+            "default": 1.0,
+            "description": "silent: the blade stands within this time of the answer of hw/silence",
+            "max": 6.0,
+            "min": 0.2,
+            "required": false,
+            "type": "number",
+            "unit": "s"
+          },
+          "spin_up": {
+            "default": 3.0,
+            "description": "The blade turns at rpm within this time of the request",
+            "max": 10.0,
+            "min": 1.0,
+            "required": false,
+            "type": "number",
+            "unit": "s"
+          },
+          "still_rpm": {
+            "default": 100.0,
+            "description": "Below this speed the blade stands",
+            "max": 1000.0,
+            "min": 10.0,
+            "required": false,
+            "type": "number",
+            "unit": "rpm"
+          },
+          "stop_max": {
+            "default": 1.0,
+            "description": "stop, lift and bumper: the blade stands within this time of the input",
+            "max": 6.0,
+            "min": 0.2,
+            "required": false,
+            "type": "number",
+            "unit": "s"
+          },
+          "time": {
+            "default": 8.0,
+            "description": "stop, lift and bumper: the blade turns at most this long for the action",
+            "max": 10.0,
+            "min": 3.0,
+            "required": false,
+            "type": "number",
+            "unit": "s"
+          }
+        },
+        "reasons": [
+          "NO_START",
+          "LIMIT",
+          "STARTED_AGAIN",
+          "NO_EMERGENCY",
+          "NOT_RELEASED",
+          "DRIVER_REFUSED",
+          "NOT_SEEN",
+          "NOT_DONE",
+          "LOGIC_REFUSED",
+          "RELEASED",
+          "EMERGENCY",
+          "NO_DATA",
+          "STOPPED",
+          "INTERRUPTED"
+        ],
+        "safety": true,
+        "start": true,
+        "texts": {
+          "de": {
+            "fix": "Steht der Motor nicht rechtzeitig oder läuft er wieder an: nicht mähen lassen, Platine und Motor prüfen.",
+            "help": "Die Messerscheibe ist ab. Der Motor läuft an und wird auf verschiedene Weise gestoppt: abschalten, ohne Verlängerung, ohne Steuerung, dann mit STOP-Taste, Anheben und Stoßfänger. Er muss jedes Mal rechtzeitig stehen und darf nicht wieder anlaufen.",
+            "name": "Messer"
+          },
+          "en": {
+            "fix": "If the motor does not stand in time or starts again, don't let the mower mow; check board and motor.",
+            "help": "The blade disc is off. The motor starts and is stopped in several ways: switched off, without renewal, without control, then with the STOP button, lifting and the bumper. It has to stand in time each time and must not start again.",
+            "name": "Blade"
+          }
+        },
+        "values": {
+          "rpm": {
+            "description": "on_off: the speed the blade reached",
+            "texts": {
+              "de": {
+                "fix": "",
+                "help": "",
+                "name": "Drehzahl"
+              },
+              "en": {
+                "fix": "",
+                "help": "",
+                "name": "Speed"
+              }
+            },
+            "unit": "rpm"
+          },
+          "stand": {
+            "description": "From the off, the request not renewed, the answer of hw/silence or the input to the standing blade, by part with the id of the part",
+            "texts": {
+              "de": {
+                "fix": "",
+                "help": "",
+                "name": "Standzeit"
+              },
+              "en": {
+                "fix": "",
+                "help": "",
+                "name": "Time to stand"
+              }
+            },
+            "unit": "s"
+          }
+        }
+      },
       "board": {
         "auto": true,
         "description": "The driver reports for time: status at its rate, firmware known and compatible, no errors on the link, no input switched, motor controllers ok, battery read, and with imu gravity within 8.8 and 10.8 m/s². Nothing moves",
@@ -23362,7 +23721,7 @@
       },
       "unit": "ms"
     },
-    "description": "The setup program: stages in their order, the checks a step of setup/setup.yaml of a platform can be (kind, whether setup.start begins it, params with the bounds and defaults of the code, values, reasons of SETUP_STEP, the screen it opens), roles of the inputs (group, emergency of a press; a role is named as its flag in hw/status) and modes of a part, moves of a step imu, conditions of a step done_when with their screen, points to confirm, reasons to skip, the question of a step inputs_assign and the delays it takes once it is ok, the ways to restart, the parts of a step wheels and its question, the parts of a step ground, the question pressed of a safety step that saw nothing (a check with safety closes the lock when it fails with a reason that has closes in x-reasons of SETUP_STEP), and the limits; texts by language where the OS has them. The steps themselves come with setup.get",
+    "description": "The setup program: stages in their order, the checks a step of setup/setup.yaml of a platform can be (kind, whether setup.start begins it, params with the bounds and defaults of the code, values, reasons of SETUP_STEP, the screen it opens), roles of the inputs (group, emergency of a press; a role is named as its flag in hw/status) and modes of a part, moves of a step imu, conditions of a step done_when with their screen, points to confirm, reasons to skip, the question of a step inputs_assign and the delays it takes once it is ok, the ways to restart, the parts of a step wheels and its question, the parts of the steps ground and blade, the question pressed of a safety step that saw nothing (a check with safety closes the lock when it fails with a reason that has closes in x-reasons of SETUP_STEP), and the limits; texts by language where the OS has them. The steps themselves come with setup.get",
     "ground_parts": {
       "bumper": {
         "description": "Slowly in bumper_direction against a soft obstacle the user holds, until the bumper stops it",

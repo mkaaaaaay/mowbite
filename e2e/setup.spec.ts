@@ -41,6 +41,18 @@ const go = async (page: Page, id: string, says: string[], start: string) => {
 const goWheels = (page: Page) => go(page, 'wheels', ['The wheels turn in the air'], 'Let the wheels turn');
 const goGround = (page: Page) =>
   go(page, 'ground', ['The mower drives', 'without the borders of the map', 'a lawn without obstacles'], 'Let the mower drive');
+// on the ground straight on and the turn by themselves, then STOP and the bumper pressed
+const groundPassed = async (page: Page) => {
+  const g = step(page, 'ground');
+  await to(page, 'Driving on the ground', 'Driving on the ground');
+  await expect(g.locator('[data-blocked]')).toHaveCount(0);
+  await goGround(page);
+  await expect(g.locator('li[data-state="waiting"]')).toContainText('Press STOP', {timeout: 10000});
+  await press(page, 'STOP');
+  await expect(g.locator('li[data-state="waiting"]')).toContainText('Bumper');
+  await press(page, 'COLLISION');
+  await expect(g).toHaveAttribute('data-state', 'ok');
+};
 // the wheels turned and the right one named
 const wheelsPassed = async (page: Page) => {
   await goWheels(page);
@@ -91,7 +103,7 @@ test.describe('setup', () => {
     await demoWith(page, 'Setup', 'Geometry');
     await page.goto('/');
     const card = page.locator('[data-card="setup"]');
-    await expect(card).toContainText('1 of 10 steps done');
+    await expect(card).toContainText('1 of 11 steps done');
     await card.getByRole('link', {name: 'Go on with the setup'}).click();
     await expect(page).toHaveURL(/\/setup\/?\?step=board/);
 
@@ -171,7 +183,7 @@ test.describe('setup', () => {
     await expect(step(page, 'wheels')).toContainText('The app stopped following the step', {timeout: 5000});
   });
 
-  test('drives on the ground after the steps jacked up, STOP and the bumper by hand, a yes to nothing seen closes the lock', async ({page}) => {
+  test('drives on the ground after the steps jacked up, STOP and the bumper by hand, a yes to nothing seen fails it', async ({page}) => {
     await demoWith(page, 'Setup');
     const g = step(page, 'ground');
     await page.goto('/setup/?step=ground');
@@ -179,30 +191,55 @@ test.describe('setup', () => {
     await inputsPassed(page);
     await wheelsPassed(page);
 
-    // straight on and the turn by themselves, then STOP and the bumper pressed; every value within its bounds opens the lock
-    await to(page, 'Driving on the ground', 'Driving on the ground');
-    await expect(g.locator('[data-blocked]')).toHaveCount(0);
-    await goGround(page);
-    await expect(g.locator('li[data-state="waiting"]')).toContainText('Press STOP', {timeout: 10000});
-    await press(page, 'STOP');
-    await expect(g.locator('li[data-state="waiting"]')).toContainText('Bumper');
-    await press(page, 'COLLISION');
-    await expect(g).toHaveAttribute('data-state', 'ok');
+    // every value within its bounds
+    await groundPassed(page);
     await expect(g.locator('[data-ok="true"]')).toHaveCount(9);
-    await overview(page);
-    await expect(page.getByText('With the setup program')).toBeVisible();
 
-    // a repeat says what failing it would do; STOP not seen in time asks, and a yes fails the step and closes the lock
-    await to(page, 'Driving on the ground', 'Driving on the ground');
-    await g.getByRole('button', {name: 'Repeat'}).click();
-    await expect(page.getByRole('dialog').locator('[data-risky]')).toContainText('the mower stays locked until it passes again');
-    await page.getByRole('dialog').getByRole('button', {name: 'Cancel'}).click();
+    // STOP not seen in time asks, and a yes fails the step and keeps the lock closed
     await goGround(page);
     await g.getByLabel('Yes, I did').check({timeout: 20000});
     await g.getByRole('button', {name: 'Save'}).click();
     await expect(g).toHaveAttribute('data-state', 'failed');
     await overview(page);
     await expect(page.locator('[data-cause="NOT_SEEN"]')).toContainText('Driving on the ground: The mower didn');
+  });
+
+  test('releases the blade with a restart, stops it six ways, and every safety step passed opens the lock', async ({page}) => {
+    await demoWith(page, 'Setup');
+    const b = step(page, 'blade');
+    const waiting = b.locator('li[data-state="waiting"]');
+    await page.goto('/setup/?step=blade');
+    await expect(b.locator('[data-blocked="SAFETY_INPUTS"]')).toBeVisible();
+    await inputsPassed(page);
+    await wheelsPassed(page);
+    await groundPassed(page);
+
+    // the first start only releases the blade, MowBite OS restarts, the step stays open for a start of the user's
+    await to(page, 'Blade', 'Blade');
+    await expect(b.locator('[data-releases]')).toContainText('the blade is released and MowBite OS restarts');
+    await go(page, 'blade', ['The wheels stay still', 'The blade turns'], 'Release the blade');
+    await expect(b.getByText('MowBite OS is starting again')).toBeVisible();
+    await expect(b.getByText('MowBite OS is starting again')).toHaveCount(0);
+    await expect(b.locator('[data-releases]')).toHaveCount(0);
+    await expect(b).toHaveAttribute('data-state', 'open');
+
+    // three parts by themselves, then STOP, lifting and the bumper while it turns
+    await go(page, 'blade', ['The blade turns'], 'Let the blade turn');
+    await expect(waiting).toContainText('Press STOP', {timeout: 10000});
+    await press(page, 'STOP');
+    await expect(waiting).toContainText('Lift');
+    await press(page, 'LIFT');
+    await expect(waiting).toContainText('Bumper');
+    await press(page, 'COLLISION');
+    await expect(b).toHaveAttribute('data-state', 'ok');
+    await expect(b.locator('[data-ok="true"]')).toHaveCount(7);
+    await overview(page);
+    await expect(page.getByText('With the setup program')).toBeVisible();
+
+    // a repeat says what failing it would do
+    await to(page, 'Blade', 'Blade');
+    await b.getByRole('button', {name: 'Repeat'}).click();
+    await expect(page.getByRole('dialog').locator('[data-risky]')).toContainText('the mower stays locked until it passes again');
   });
 
   test('a mark moves when its state changes, not when it is shown', async ({page, isMobile}) => {

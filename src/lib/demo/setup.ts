@@ -14,6 +14,7 @@ const STAGES: Named[] = [
   named('inputs', 'Inputs', 'Eingänge'),
   named('wheels', 'Wheels', 'Räder'),
   named('ground', 'Driving on the ground', 'Fahren am Boden'),
+  named('blade', 'Blade', 'Messer'),
   named('position', 'Position', 'Position'),
   named('map', 'Map', 'Karte'),
 ];
@@ -67,22 +68,38 @@ const value = (id: string, en: string, de: string, unit: string, min: number | n
 });
 
 const parts = (list: string[][]) => list.map(([id, en, de]) => ({...named(id, en, de), state: 'open' as const}));
-// a step that turns the wheels: its bounds jacked up and on the ground
+// a step that turns the wheels: its bounds jacked up and on the ground; the blade's with the wheels still
 const MOTION: Motion = {wheels: true, blade: false, raised: true, max_speed: 0.05, max_distance: null, max_time: 10};
 const GROUND: Motion = {...MOTION, raised: false, max_speed: 0.3};
-// the values of the step on the ground as the OS names them, each id led by its part's, and what the demo measures
-const GROUND_VALUES: [SetupValue, number][] = [
-  [value('straight_stand', 'Straight on: Time to stand', 'Geradeaus: Standzeit', 's', null, 1), 0.42],
-  [value('straight_way', 'Straight on: Way until standing', 'Geradeaus: Weg bis zum Stand', 'm', null, 0.6), 0.08],
-  [value('straight_gnss', 'Straight on: Way by GPS', 'Geradeaus: Weg nach GPS', '', 0.8, 1.2), 1.03],
-  [value('turn_left', 'Turn left: Turn of the motion sensor', 'Drehen links: Drehung Lagesensor', '', 0.8, 1.2), 0.97],
-  [value('turn_right', 'Turn right: Turn of the motion sensor', 'Drehen rechts: Drehung Lagesensor', '', 0.8, 1.2), 1.02],
-  [value('stop_stand', 'Press STOP: Time to stand', 'STOP drücken: Standzeit', 's', null, 0.5), 0.31],
-  [value('stop_way', 'Press STOP: Way until standing', 'STOP drücken: Weg bis zum Stand', 'm', null, 0.3), 0.06],
-  [value('bumper_stand', 'Bumper: Time to stand', 'Stoßfänger: Standzeit', 's', null, 0.5), 0.24],
-  [value('bumper_way', 'Bumper: Way until standing', 'Stoßfänger: Weg bis zum Stand', 'm', null, 0.3), 0.03],
+const BLADE: Motion = {wheels: false, blade: true, raised: false, max_speed: 0, max_distance: 0, max_time: 10};
+// the values of a step run part by part as the OS names them, the part each comes with and what the demo measures
+type Measured = [SetupValue, string, number];
+const GROUND_VALUES: Measured[] = [
+  [value('straight_stand', 'Straight on: Time to stand', 'Geradeaus: Standzeit', 's', null, 1), 'straight', 0.42],
+  [value('straight_way', 'Straight on: Way until standing', 'Geradeaus: Weg bis zum Stand', 'm', null, 0.6), 'straight', 0.08],
+  [value('straight_gnss', 'Straight on: Way by GPS', 'Geradeaus: Weg nach GPS', '', 0.8, 1.2), 'straight', 1.03],
+  [value('turn_left', 'Turn left: Turn of the motion sensor', 'Drehen links: Drehung Lagesensor', '', 0.8, 1.2), 'turn', 0.97],
+  [value('turn_right', 'Turn right: Turn of the motion sensor', 'Drehen rechts: Drehung Lagesensor', '', 0.8, 1.2), 'turn', 1.02],
+  [value('stop_stand', 'Press STOP: Time to stand', 'STOP drücken: Standzeit', 's', null, 0.5), 'stop', 0.31],
+  [value('stop_way', 'Press STOP: Way until standing', 'STOP drücken: Weg bis zum Stand', 'm', null, 0.3), 'stop', 0.06],
+  [value('bumper_stand', 'Bumper: Time to stand', 'Stoßfänger: Standzeit', 's', null, 0.5), 'bumper', 0.24],
+  [value('bumper_way', 'Bumper: Way until standing', 'Stoßfänger: Weg bis zum Stand', 'm', null, 0.3), 'bumper', 0.03],
 ];
-const MEASURED: Record<string, number> = Object.fromEntries(GROUND_VALUES.map(([v, m]) => [v.id, m]));
+const BLADE_PARTS = [
+  ['on_off', 'On and off', 'An und aus'],
+  ['lease', 'Off without renewal', 'Abschalten ohne Verlängerung'],
+  ['silent', 'Off without control', 'Abschalten ohne Steuerung'],
+  ['stop', 'Press STOP', 'STOP drücken'],
+  ['lift', 'Lift', 'Anheben'],
+  ['bumper', 'Bumper', 'Stoßfänger'],
+];
+// the speed it reached, then each part's time to stand
+const BLADE_STAND = [0.6, 0.7, 0.4, 0.3, 0.35, 0.3];
+const BLADE_VALUES: Measured[] = [
+  [value('rpm', 'Speed', 'Drehzahl', 'rpm', 2000), 'on_off', 2950],
+  ...BLADE_PARTS.map(([id, en, de], i): Measured => [value(id, en, de, 's', null, 1), id, BLADE_STAND[i]]),
+];
+const MEASURED = new Map([...GROUND_VALUES, ...BLADE_VALUES].map(([v, part, m]) => [v.id, {part, m}]));
 
 const TRON_STEPS: Base[] = [
   step({
@@ -194,6 +211,24 @@ const TRON_STEPS: Base[] = [
       ['Fahren am Boden', 'Der Mäher fährt etwa 2 m geradeaus und bleibt von selbst stehen, dreht sich nach links und zurück, fährt zurück, bis du STOP drückst, und zum Schluss langsam gegen ein weiches Hindernis, das du hältst.', 'Bleibt der Mäher nicht rechtzeitig stehen: nicht mähen lassen. Die Werte zeigen, wo es hakt; Räder, Bremsweg und Platine prüfen.'],
     ),
   }),
+  // the blade disc taken off, the motor stopped in six ways (check blade); its first start releases the blade with a restart
+  step({
+    id: 'blade',
+    stage: 'blade',
+    check: 'blade',
+    kind: 'blade',
+    start: true,
+    safety: true,
+    symbol: 'blade',
+    motion: BLADE,
+    confirm: [named('blade_removed', 'Blade removed', 'Messer abgenommen'), named('hand_at_stop', 'Hand at the STOP button', 'Hand an der STOP-Taste')],
+    parts: parts(BLADE_PARTS),
+    values: BLADE_VALUES.map(([v]) => v),
+    texts: tx(
+      ['Blade', 'The blade disc is off. The motor starts and is stopped in several ways: switched off, without renewal, without control, then with the STOP button, lifting and the bumper. It has to stand in time each time and must not start again.', "If the motor does not stand in time or starts again, don't let the mower mow; check board and motor."],
+      ['Messer', 'Die Messerscheibe ist ab. Der Motor läuft an und wird auf verschiedene Weise gestoppt: abschalten, ohne Verlängerung, ohne Steuerung, dann mit STOP-Taste, Anheben und Stoßfänger. Er muss jedes Mal rechtzeitig stehen und darf nicht wieder anlaufen.', 'Steht der Motor nicht rechtzeitig oder läuft er wieder an: nicht mähen lassen, Platine und Motor prüfen.'],
+    ),
+  }),
   step({
     id: 'correction',
     stage: 'position',
@@ -263,10 +298,10 @@ const TICK_MS = 200;
 const FIX_MS = 1500;
 // how long a part of the check input waits for its input (s)
 const PART_S = 90;
-// a step that turns the wheels: each part (ms), the time for the answer which wheel turns and to setup.keep (s)
-// on the ground: how long STOP or the bumper may take before the question, and the hold before the release (s)
-const GROUND_TIME_S = 8;
+// a step by parts: how long a press may take before the question, and the hold before the release (s)
+const PRESS_S = 8;
 const HOLD_S = 1;
+// a step that turns the wheels: each part (ms), the time for the answer which wheel turns and to setup.keep (s)
 const WHEEL_MS = 1200;
 const ANSWER_S = 10;
 const KEEP_S = 1;
@@ -341,6 +376,8 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
   const now = () => Date.now() / 1000;
   // the OS restarts for the assignment
   let restarting = false;
+  // whether the driver lets the blade turn: released by the blade step's first start
+  let bladeAllowed = false;
   let restartTimer: ReturnType<typeof setTimeout> | null = null;
   let version = 1;
   const fresh = (s: Base): Kept => ({state: s.initial ?? 'open', attempt: 0, result: null, parts: s.parts, values: s.values, inputs: s.inputs});
@@ -360,14 +397,14 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
   const wants = (s: Base, part: number) => BIT[s.parts[part]?.id] ?? BIT[s.id];
   const locked = (s: Base) => s.needs.some((n) => kept[n].state !== 'ok');
   const state = (s: Base): StepState => (kept[s.id].state === 'open' && locked(s) ? 'locked' : kept[s.id].state);
-  // the inputs that have to pass before a wheel turns, no emergency stop, and on the ground while the lock is closed the
-  // steps jacked up
+  // the inputs that have to pass before anything turns, no emergency stop, and on the ground while the lock is closed
+  // the steps jacked up
   const gates = (s: Base) => {
     const open = (keep: (x: Base) => boolean) => STEPS.filter((x) => keep(x) && kept[x.id].state !== 'ok').map((x) => x.id);
-    const inputs = s.kind === 'drive' ? open((x) => !!BIT[x.id]) : [];
-    const air = s.motion && !s.motion.raised && !safety().open ? open((x) => !!x.motion?.raised) : [];
+    const inputs = s.motion ? open((x) => !!BIT[x.id]) : [];
+    const air = s.motion?.wheels && !s.motion.raised && !safety().open ? open((x) => !!x.motion?.raised) : [];
     return [
-      ...(s.kind === 'drive' && latched('LATCH') ? [{reason: 'EMERGENCY', message: 'The emergency stop is latched'}] : []),
+      ...(s.motion && latched('LATCH') ? [{reason: 'EMERGENCY', message: 'The emergency stop is latched'}] : []),
       ...(inputs.length ? [{reason: 'SAFETY_INPUTS', message: `First: ${inputs.join(', ')}`}] : []),
       ...(air.length ? [{reason: 'SAFETY_AIR', message: `First: ${air.join(', ')}`}] : []),
     ];
@@ -376,6 +413,7 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
     if (run?.id === s.id)
       return BIT[s.id] && run.phase === 'rest' && latched(BIT[s.id]) ? [{reason: 'EMERGENCY', message: `The emergency ${BIT[s.id]} is still latched`}] : [];
     if (run && s.start && s.kind !== 'confirm') return [{reason: 'BUSY', message: `${run.id} is running`}];
+    if (restarting && s.motion?.blade) return [{reason: 'BUSY', message: 'MowBite OS restarts'}];
     return gates(s);
   };
   const safety = (): Safety => {
@@ -403,9 +441,11 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
       return {name: `${s.id}${i + 1}`, role: s.id, reason: bit.toLowerCase(), active: hit, assigned: true, held: hit, delay_ms: 0};
     });
   };
-  // how long the running part waits for its input before it asks (s): an input step's part, STOP or the bumper on the ground
+  // the steps that run their parts one after the other, some by themselves and some by a press of the user
+  const byParts = (s: Base) => s.check === 'ground' || s.check === 'blade';
+  // how long the running part waits for its input before it asks (s): an input step's part, a press of a step by parts
   const waitS = (s: Base, r: NonNullable<typeof run>) =>
-    BIT[s.id] ? PART_S : s.check === 'ground' && r.phase === 'armed' && wants(s, r.part) ? GROUND_TIME_S : null;
+    BIT[s.id] ? PART_S : byParts(s) && r.phase === 'armed' && wants(s, r.part) ? PRESS_S : null;
   const full = (s: Base): SetupStep => {
     const k = kept[s.id];
     const running = run?.id === s.id;
@@ -415,6 +455,7 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
       state: state(s),
       attempt: k.attempt,
       blocked: blocked(s),
+      restart: s.restart || (s.check === 'blade' && !bladeAllowed),
       parts: k.parts,
       values: k.values,
       // while the assignment runs it takes only accept, once a line is proposed; a question only while it is asked
@@ -618,12 +659,12 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
         run.asked = {part: s.parts[run.part].id, line: LINES[run.part], active_high: true};
         changed();
       }
-    } else if (s.kind === 'drive' && t - run.kept! > KEEP_S) {
+    } else if (s.motion && t - run.kept! > KEEP_S) {
       end(s, false, 'RELEASED', 'setup.keep stayed away', s.parts[run.part]?.id ?? null);
     } else if (run.asking) {
       if (t > run.asking.until) reopen(s, 'NOT_DONE', 'No answer in time', s.parts[run.part]?.id ?? null);
-    } else if (s.check === 'ground') {
-      ground(s, k, t);
+    } else if (byParts(s)) {
+      partByPart(s, k, t);
     } else if (s.kind === 'drive') {
       if (t - run.since >= WHEEL_MS / 1000) {
         if (s.parts[run.part].id === 'one_wheel') run.asking = {input: WHEEL, until: t + ANSWER_S};
@@ -652,12 +693,15 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
       }
     }
   }
-  // straight on and the turn pass by themselves; STOP and the bumper count once pressed, the program releases them after
-  // the hold and the next part begins; nothing pressed in time asks whether it was done
-  function ground(s: Base, k: Kept, t: number) {
+  // a part without an input passes by itself; one with an input counts once pressed, the program releases it after the
+  // hold and the next part begins; nothing pressed in time asks whether it was done
+  function partByPart(s: Base, k: Kept, t: number) {
     const r = run!;
     const measured = (part: string) => {
-      k.values = k.values.map((v) => (v.id.startsWith(`${part}_`) ? {...v, value: MEASURED[v.id], ok: true} : v));
+      k.values = k.values.map((v) => {
+        const m = MEASURED.get(v.id);
+        return m?.part === part ? {...v, value: m.m, ok: true} : v;
+      });
     };
     const want = wants(s, r.part);
     if (r.phase === 'rest') {
@@ -699,6 +743,15 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
       const confirm = ((p as {confirm?: unknown}).confirm ?? []) as string[];
       const missing = s.confirm.filter((c) => !confirm.includes(c.id)).map((c) => c.id);
       if (missing.length) throw refuse('CONFIRM_MISSING', `Not confirmed: ${missing.join(', ')}`);
+      // the blade still locked: released for the driver and the OS restarted, the step runs on the next start
+      if (s.check === 'blade' && !bladeAllowed) {
+        event({type: 'SETUP', what: 'blade_allowed', step: s.id, severity: 'info', resume: 'auto'});
+        restart(() => {
+          bladeAllowed = true;
+          changed();
+        });
+        return setup();
+      }
       const k = kept[s.id];
       k.attempt++;
       if (s.check === 'confirm') {
@@ -784,8 +837,8 @@ export function demoSetup(deliver: (topic: string, text: string) => void, latche
       if (run) tick();
       said();
     },
-    // a step that turns the wheels runs: the sub state SETUP of IDLE
-    driving: () => !!run && STEPS.find((x) => x.id === run!.id)?.kind === 'drive',
+    // a step that turns the wheels or the blade runs: the sub state SETUP of IDLE
+    driving: () => !!run && !!STEPS.find((x) => x.id === run!.id)?.motion,
     retained: (topic: string): [string, string][] | null => (topic === TOPIC.setup ? [[topic, JSON.stringify(setup())]] : null),
   };
 }
