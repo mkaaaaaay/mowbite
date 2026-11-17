@@ -1,10 +1,11 @@
 'use client';
 
-import {BackIcon} from '@/components/icons';
+import {BackIcon, LockIcon} from '@/components/icons';
 import {reasonSentence} from '@/lib/events';
 import {tr} from '@/lib/i18n';
 import {
   isDone,
+  isSummary,
   keepStep,
   KEEP_MS,
   moves,
@@ -26,7 +27,7 @@ import {ConfirmSheet} from './ConfirmSheet';
 import {EmergencyBlock} from './EmergencyBlock';
 import {RestartWait} from './RestartWait';
 import {SkipSheet} from './SkipSheet';
-import {StateMark} from './StateMark';
+import {StateMark, useMoved} from './StateMark';
 import {StepFigure} from './StepFigure';
 import {StepInputs} from './StepInputs';
 import {StepLines} from './StepLines';
@@ -101,6 +102,8 @@ export function SetupStep(props: {
   }, [kept, step.id]);
   const r = step.result;
   const releases = releasesBlade(step);
+  const released = isSummary(step) && step.state === 'ok' && setup.safety.open;
+  const releaseMoved = useMoved(released);
   const canStart = step.start && !running && step.state !== 'locked';
   const opens = step.open && !done ? OPEN_SCREENS[step.open] : null;
   const advanced = step.inputs.filter((i) => i.advanced);
@@ -127,6 +130,20 @@ export function SetupStep(props: {
             <h2 id={`step-${step.id}`}>{w.name || step.id}</h2>
             {w.help && <p>{w.help}</p>}
           </div>
+          {released && (
+            <div className={styles.released} data-released data-moved={releaseMoved || undefined}>
+              <span className={styles.seal} aria-hidden="true">
+                <LockIcon open size={26} />
+                <svg className={styles.tick} viewBox="0 0 24 24">
+                  <path d="M6 12.5l4 4 8-9" />
+                </svg>
+              </span>
+              <p>
+                <b>{tr('Mower released')}</b>
+                <span>{tr('Every safety check passed, it may drive and mow by itself now')}</span>
+              </p>
+            </div>
+          )}
           {r && !r.ok && r.reason && (
             <div className={styles.result} data-result="failed">
               <div className={styles.verdict}>

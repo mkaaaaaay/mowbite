@@ -100,6 +100,75 @@
   font-size: var(--text-s);
 }
 
+/* the release passed: the lock open in a green seal with a tick */
+.released {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--tint-good);
+  color: var(--soft-good);
+}
+
+.released p {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+}
+
+.released b {
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.released span {
+  font-size: var(--text-s);
+  line-height: 1.4;
+}
+
+.seal {
+  position: relative;
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--success);
+  color: var(--accent-foreground);
+}
+
+.seal::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 2px solid var(--success);
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.tick {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  width: 22px;
+  height: 22px;
+  padding: 3px;
+  border-radius: 50%;
+  background: var(--accent-foreground);
+  color: var(--success);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  box-shadow: 0 0 0 2px var(--success);
+}
+
 .reason,
 .note {
   margin: 0;
@@ -250,6 +319,78 @@
   .result,
   .note[data-asked-line] {
     animation: enter var(--dur-move) var(--ease-out);
+  }
+
+  /* the release just passed: the seal pops, the shackle swings open, a ring goes out once, then the tick draws */
+  .released[data-moved] {
+    animation: enter var(--dur-move) var(--ease-out);
+  }
+
+  .released[data-moved] .seal {
+    animation: pop 0.4s var(--ease-out);
+  }
+
+  .released[data-moved] .seal > svg:first-child path {
+    transform-box: fill-box;
+    transform-origin: 0 100%;
+    animation: unlock 0.5s 0.15s var(--ease-out) backwards;
+  }
+
+  .released[data-moved] .seal::after {
+    animation: ring 0.9s 0.25s ease-out;
+  }
+
+  .released[data-moved] .tick {
+    animation: appear 0.3s 0.5s var(--ease-out) backwards;
+  }
+
+  .released[data-moved] .tick path {
+    stroke-dasharray: 22;
+    animation: draw 0.35s 0.6s ease-out backwards;
+  }
+}
+
+@keyframes pop {
+  from {
+    transform: scale(0.6);
+  }
+
+  60% {
+    transform: scale(1.08);
+  }
+}
+
+@keyframes appear {
+  from {
+    transform: scale(0);
+  }
+
+  60% {
+    transform: scale(1.15);
+  }
+}
+
+@keyframes unlock {
+  from {
+    transform: rotate(12deg) translateY(2px);
+  }
+}
+
+@keyframes ring {
+  from {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: scale(1.9);
+  }
+}
+
+@keyframes draw {
+  from {
+    stroke-dashoffset: 22;
   }
 }
 
