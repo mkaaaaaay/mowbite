@@ -381,6 +381,7 @@ const LEFTOVERS_SKIP: Record<string, string> = {
   forecast: 'Leftovers not mowed, rain was forecast',
   cold: 'Leftovers not mowed, too cold ({more} °C)',
   hold: 'Leftovers not mowed, an update was running',
+  off: 'Leftovers not mowed, switched off meanwhile',
 };
 
 // MowBite OS's starts left out

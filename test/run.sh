@@ -377,11 +377,52 @@ done
 KEEP=$'enabled 1\n/mower_logic/mow_angle_offset 7'
 start keepom "$(state)" "" RUN=/params.sh 'PARAMS={"/mower_logic/mow_angle_offset":5}' "KEEP=$KEEP"
 start keepos "$(state)" "" RUN=/params.sh 'PARAMS={"/mower_logic/mow_angle_offset":5}' "KEEP=$KEEP" "METHODS=$OS_METHODS" "INFO=$OS_INFO"
+# a start of the schedule turned it and the schedule was switched off meanwhile: left for scheduler.sh to set back
+start keepturned "$(state MOWING)" 'enabled 0' RUN=/params.sh 'PARAMS={"/mower_logic/mow_angle_offset":5}' "KEEP=$KEEP" \
+  ANGLE_NORMAL=7
+# a plan with its own direction, but none turned now (OpenMower restarted): the kept one set again
+start keepplan "$(state)" $'enabled 1\nplan 1 03:00 angle=30' RUN=/params.sh 'PARAMS={"/mower_logic/mow_angle_offset":5}' "KEEP=$KEEP"
 gets keepom '"params":\{"/mower_logic/mow_angle_offset":7\}' 30 && ok "params: what the mower lost set again" ||
   bad "params: what the mower lost set again" "$(sent keepom)"
+gets keepplan '"params":\{"/mower_logic/mow_angle_offset":7\}' 30 && ok "params: the kept direction with a plan of its own" ||
+  bad "params: the kept direction with a plan of its own" "$(sent keepplan)"
+sent keepturned | grep -q 'mow_angle_offset' && bad "params: a direction a start turned left alone" "$(sent keepturned)" ||
+  ok "params: a direction a start turned left alone"
 gets keepos '"method":"system.info"' 30 && sleep 3
 sent keepos | grep -q 'params.set' && bad "params: not on MowBite OS, it keeps them itself" "$(sent keepos)" ||
   ok "params: not on MowBite OS, it keeps them itself"
+
+# --- the leftovers after a finished mow ---
+
+# a time zone where it's about noon now: no dark in the way (6 am to 6 pm without a position)
+o=$((12 - 10#$(date -u +%H)))
+if [ "$o" -gt 0 ]; then noon=Etc/GMT-$o; elif [ "$o" -lt 0 ]; then noon=Etc/GMT+$((-o)); else noon=Etc/UTC; fi
+LEFT_SET='{"leftovers":{"auto":true,"min":0.5}}'
+LEFT_ANSWER='{"jsonrpc":"2.0","result":{"areas":[{"stats":{"leftovers":{"left_m2":2.5}}}],"armed":3},"id":"@ID@"}'
+start leftfull "$(state IDLE 0 0 0.95)" "$(base "$noon")" "SETTINGS=$LEFT_SET" "LEFTOVERS=$LEFT_ANSWER"
+start leftoff "$(state IDLE 0 0 0.5)" "$(base "$noon")" "SETTINGS=$LEFT_SET" "LEFTOVERS=$LEFT_ANSWER"
+# job_complete <case>: told until its scheduler asks the planner
+job_complete() {
+  local i
+  for ((i = 0; i < 10; i++)); do
+    docker exec "mbt-$1" mosquitto_pub -h mbt-mq -t "$1/events/json" -m '{"type":"JOB_COMPLETE","job_id":"j1"}'
+    sleep 2
+    sent "$1" | grep -q planner.leftovers && return 0
+  done
+  return 1
+}
+job_complete leftfull
+job_complete leftoff
+logs "leftovers: started once the battery is full" leftfull '^leftovers_started 2.50$' 60
+expect "leftovers: home at sunset like a run of the schedule" \
+  "$(docker exec mbt-leftfull cat /data/run.state 2> /dev/null | sed -E 's/^[0-9]+ [0-9]+ /<began> <stop> /')" '<began> <stop> dark all'
+expect "leftovers: its stop time to come" "$(due leftfull | wc -l)" 1
+logs "leftovers: waits for the battery" leftoff '^leftovers_waiting_battery 50$' 60
+docker exec mbt-leftoff sh -c 'printf %s "$1" > /data/settings.json' _ '{"leftovers":{"auto":false,"min":0.5}}'
+restate leftoff "$(state IDLE 0 0 0.95)"
+logs "leftovers: switched off while it waited, not started" leftoff '^leftovers_skip off$' 90
+sent leftoff | grep -q start_mowing && bad "leftovers: no start once switched off" "$(sent leftoff)" ||
+  ok "leftovers: no start once switched off"
 
 # --- the log keeper ---
 
